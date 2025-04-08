@@ -1,0 +1,30 @@
+# APIResponseWithCode
+
+
+## Properties
+
+Name | Type | Description | Notes
+------------ | ------------- | ------------- | -------------
+**code** | **int** |  | [optional] 
+**message** | **str** |  | [optional] 
+
+## Example
+
+```python
+from gs_interactive.models.api_response_with_code import APIResponseWithCode
+
+# TODO update the JSON string below
+json = "{}"
+# create an instance of APIResponseWithCode from a JSON string
+api_response_with_code_instance = APIResponseWithCode.from_json(json)
+# print the JSON string representation of the object
+print APIResponseWithCode.to_json()
+
+# convert the object into a dict
+api_response_with_code_dict = api_response_with_code_instance.to_dict()
+# create an instance of APIResponseWithCode from a dict
+api_response_with_code_form_dict = api_response_with_code.from_dict(api_response_with_code_dict)
+```
+[[Back to Model list]](../README.md#documentation-for-models) [[Back to API list]](../README.md#documentation-for-api-endpoints) [[Back to README]](../README.md)
+
+

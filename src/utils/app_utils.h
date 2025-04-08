@@ -1,0 +1,103 @@
+/** Copyright 2020 Alibaba Group Holding Limited.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ * 	http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+#ifndef UTILS_APP_UTILS_H_
+#define UTILS_APP_UTILS_H_
+
+#include <string>
+#include <string_view>
+#include <vector>
+
+namespace gs {
+
+class Encoder {
+ public:
+  Encoder(std::vector<char>& buf) : buf_(buf) {}
+
+  void put_long(int64_t v);
+
+  size_t skip_long();
+
+  void put_long_at(size_t pos, int64_t v);
+
+  void put_int(int v);
+
+  size_t skip_int();
+
+  void put_int_at(size_t pos, int v);
+
+  void put_byte(uint8_t v);
+
+  void put_bytes(const char* data, size_t size);
+
+  size_t skip_byte();
+
+  void put_byte_at(size_t pos, uint8_t v);
+
+  void put_string(const std::string& v);
+
+  void put_string_view(const std::string_view& v);
+
+  void put_var_len_string(const std::string& v);
+
+  void put_var_len_string_view(const std::string_view& v);
+
+  void put_small_string(const std::string& v);
+
+  void put_small_string_view(const std::string_view& v);
+
+  void put_double(double v);
+
+  void clear();
+
+ private:
+  std::vector<char>& buf_;
+};
+
+class Decoder {
+ public:
+  Decoder(const char* ptr, size_t size) : data_(ptr), end_(ptr + size) {}
+  ~Decoder() {}
+
+  int get_int();
+
+  int64_t get_long();
+
+  std::string_view get_string();
+
+  std::string_view get_bytes();
+
+  std::string_view get_small_string();
+
+  uint8_t get_byte();
+
+  double get_double();
+
+  const char* data() const;
+
+  size_t size() const;
+
+  bool empty() const;
+
+  void reset(const char* ptr, size_t size);
+
+ private:
+  const char* data_;
+  const char* end_;
+};
+
+}  // namespace gs
+
+#endif  // UTILS_APP_UTILS_H_
