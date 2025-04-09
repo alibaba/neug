@@ -11,13 +11,13 @@ if (Hiactor_FOUND)
   file(GLOB_RECURSE SERVER_FILES "${CMAKE_CURRENT_SOURCE_DIR}/*.cc")
   list(FILTER SERVER_FILES EXCLUDE REGEX ".*generated.*")
 
-  add_library(flex_server STATIC ${SERVER_FILES} ${server_actor_autogen_files})
-  add_dependencies(flex_server flex_utils) # Make sure flex_utils is built before flex_server
-  add_dependencies(flex_server server_actor_autogen)
-  target_compile_options (flex_server
+  add_library(nexg_server STATIC ${SERVER_FILES} ${server_actor_autogen_files})
+  add_dependencies(nexg_server nexg_utils) # Make sure nexg_utils is built before nexg_server
+  add_dependencies(nexg_server server_actor_autogen)
+  target_compile_options (nexg_server
         PUBLIC
         -Wno-attributes)
-  target_link_libraries(flex_server Hiactor::hiactor flex_graph_db)
+  target_link_libraries(nexg_server Hiactor::hiactor nexg_graph_db)
 
   # Hiactor/seastar could be compiled with a compiler support option: -Wno-maybe-uninitialized, 
   # so when we are compiling src with a compiler that does not support this option(e.g. AOCC compiler), 
@@ -32,11 +32,11 @@ if (Hiactor_FOUND)
   endif ()
   set_target_properties(Hiactor::seastar PROPERTIES INTERFACE_COMPILE_OPTIONS "${seastar_options}")
   
-  target_include_directories(flex_server PUBLIC ${CMAKE_CURRENT_BINARY_DIR}/../../utils/)
-  target_link_libraries(flex_server flex_plan_proto)
+  target_include_directories(nexg_server PUBLIC ${CMAKE_CURRENT_BINARY_DIR}/../../utils/)
+  target_link_libraries(nexg_server nexg_plan_proto)
   if (OPENTELEMETRY_CPP_FOUND)
-    target_link_libraries(flex_server otel)
+    target_link_libraries(nexg_server otel)
   endif()
-  target_link_libraries(flex_server flex_metadata_store)
-  install_without_export_flex_target(flex_server)
+  target_link_libraries(nexg_server nexg_metadata_store)
+  install_without_export_nexg_target(nexg_server)
 endif ()

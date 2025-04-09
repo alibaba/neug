@@ -215,7 +215,7 @@ if (BUILD_ODPS_FRAGMENT_LOADER)
 endif()
 include_directories(SYSTEM ${CMAKE_SOURCE_DIR}/third_party/parallel-hashmap)
 
-macro(install_flex_target target)
+macro(install_nexg_target target)
     install(TARGETS ${target}
             EXPORT nexg-targets
             RUNTIME DESTINATION bin
@@ -224,7 +224,7 @@ macro(install_flex_target target)
     )
 endmacro()
 
-macro(install_without_export_flex_target target)
+macro(install_without_export_nexg_target target)
     install(TARGETS ${target}
             RUNTIME DESTINATION bin
             LIBRARY DESTINATION lib

@@ -55,12 +55,12 @@ protobuf_generate(APPEND_PATH
         PROTOC_OUT_DIR ${CMAKE_CURRENT_BINARY_DIR}/src/proto_generated_gie
 )
 
-add_library(flex_plan_proto SHARED ${PROTO_SRCS_GIE})
-target_include_directories(flex_plan_proto PUBLIC 
+add_library(nexg_plan_proto SHARED ${PROTO_SRCS_GIE})
+target_include_directories(nexg_plan_proto PUBLIC 
         $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}> 
         $<BUILD_INTERFACE:${CMAKE_CURRENT_BINARY_DIR}>)
-#target_link_libraries(flex_plan_proto PUBLIC ${Protobuf_LIBRARIES})
-install_flex_target(flex_plan_proto)
+#target_link_libraries(nexg_plan_proto PUBLIC ${Protobuf_LIBRARIES})
+install_nexg_target(nexg_plan_proto)
 
 #install proto_generated_files
 install(DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/src
@@ -77,21 +77,21 @@ if (NOT BUILD_WITH_OSS)
 endif()
 
 
-add_library(flex_utils SHARED ${UTILS_SRC_FILES} ${ERROR_PROTO_SRCS})
-target_include_directories(flex_utils PUBLIC 
+add_library(nexg_utils SHARED ${UTILS_SRC_FILES} ${ERROR_PROTO_SRCS})
+target_include_directories(nexg_utils PUBLIC 
         $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}> 
         $<BUILD_INTERFACE:${CMAKE_CURRENT_BINARY_DIR}>)
 # Link the static library of arrow, to save the trouble of linking the shared library of arrow
-target_link_libraries(flex_utils PUBLIC ${Protobuf_LIBRARIES} ${ARROW_LIB} ${YAML_CPP_LIBRARIES} ${Boost_LIBRARIES} ${GLOG_LIBRARIES})
+target_link_libraries(nexg_utils PUBLIC ${Protobuf_LIBRARIES} ${ARROW_LIB} ${YAML_CPP_LIBRARIES} ${Boost_LIBRARIES} ${GLOG_LIBRARIES})
 if (BUILD_WITH_OSS)
-        target_link_libraries(flex_utils PRIVATE cpp-sdk)
+        target_link_libraries(nexg_utils PRIVATE cpp-sdk)
 endif()
 
 
 find_package(mimalloc 1.8 REQUIRED)
-target_link_libraries(flex_utils PUBLIC mimalloc-static)
+target_link_libraries(nexg_utils PUBLIC mimalloc-static)
 
-install_flex_target(flex_utils)
+install_nexg_target(nexg_utils)
 
 install(DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
         DESTINATION include/src/

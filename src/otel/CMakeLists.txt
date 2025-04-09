@@ -7,5 +7,5 @@ if (OPENTELEMETRY_CPP_FOUND)
     add_library(otel "otel.cc")
     target_link_libraries(otel ${OPENTELEMETRY_CPP_LIBRARIES})
 
-    install_without_export_flex_target(otel)
+    install_without_export_nexg_target(otel)
 endif ()

@@ -4,12 +4,12 @@ file(GLOB_RECURSE GRAPH_DB_SRC_FILES "${CMAKE_CURRENT_SOURCE_DIR}/app/*.cc"
                                      "${CMAKE_CURRENT_SOURCE_DIR}/database/wal/*.cc"
                                      "${CMAKE_CURRENT_SOURCE_DIR}/app/builtin/*.cc")
 
-add_library(flex_graph_db SHARED ${GRAPH_DB_SRC_FILES})
+add_library(nexg_graph_db SHARED ${GRAPH_DB_SRC_FILES})
 
-target_include_directories(flex_graph_db PUBLIC $<BUILD_INTERFACE:${CMAKE_CURRENT_BINARY_DIR}>)
-target_link_libraries(flex_graph_db flex_rt_mutable_graph ${LIBGRAPELITE_LIBRARIES} ${CMAKE_THREAD_LIBS_INIT})
-target_link_libraries(flex_graph_db runtime_execute)
-install_flex_target(flex_graph_db)
+target_include_directories(nexg_graph_db PUBLIC $<BUILD_INTERFACE:${CMAKE_CURRENT_BINARY_DIR}>)
+target_link_libraries(nexg_graph_db nexg_rt_mutable_graph ${LIBGRAPELITE_LIBRARIES} ${CMAKE_THREAD_LIBS_INIT})
+target_link_libraries(nexg_graph_db runtime_execute)
+install_nexg_target(nexg_graph_db)
 
 install(FILES ${CMAKE_CURRENT_SOURCE_DIR}/database/graph_db.h
               ${CMAKE_CURRENT_SOURCE_DIR}/database/graph_db_session.h
