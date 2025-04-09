@@ -135,6 +135,8 @@ class GraphDBService {
   static const std::string DEFAULT_INTERACTIVE_HOME;
   static const std::string COMPILER_SERVER_CLASS_NAME;
   static GraphDBService& get();
+
+  gs::GraphDB& graph_db() { return db_; }
   ~GraphDBService();
 
   void init(const ServiceConfig& config);
@@ -185,6 +187,7 @@ class GraphDBService {
   void clear_running_graph();
 
  private:
+  gs::GraphDB db_;
   std::unique_ptr<actor_system> actor_sys_;
   std::unique_ptr<admin_http_handler> admin_hdl_;
   std::unique_ptr<graph_db_http_handler> query_hdl_;

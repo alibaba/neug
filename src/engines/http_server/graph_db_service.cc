@@ -62,7 +62,7 @@ GraphDBService& GraphDBService::get() {
   return instance;
 }
 
-void openGraph(const gs::GraphId& graph_id,
+void openGraph(gs::GraphDB& db, const gs::GraphId& graph_id,
                const ServiceConfig& service_config) {
   auto workspace = server::WorkDirManipulator::GetWorkspace();
   if (!std::filesystem::exists(workspace)) {
@@ -79,7 +79,6 @@ void openGraph(const gs::GraphId& graph_id,
     return;
   }
 
-  auto& db = gs::GraphDB::get();
   auto schema_path = server::WorkDirManipulator::GetGraphSchemaPath(graph_id);
   auto schema_res = gs::Schema::LoadFromYaml(schema_path);
   if (!schema_res.ok()) {
@@ -183,7 +182,7 @@ void GraphDBService::init(const ServiceConfig& config) {
       }
     }
     // open the graph with the default graph id.
-    openGraph(cur_graph_id, service_config_);
+    openGraph(db_, cur_graph_id, service_config_);
     auto set_res = metadata_store_->SetRunningGraph(cur_graph_id);
     if (!set_res.ok()) {
       LOG(FATAL) << "Failed to set running graph: "

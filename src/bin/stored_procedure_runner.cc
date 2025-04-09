@@ -131,7 +131,7 @@ int main(int argc, char** argv) {
   tzset();
 
   double t0 = -grape::GetCurrentTime();
-  auto& db = gs::GraphDB::get();
+  gs::GraphDB db;
 
   auto schema = gs::Schema::LoadFromYaml(graph_schema_path);
   if (!schema.ok()) {

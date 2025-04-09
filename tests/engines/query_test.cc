@@ -19,7 +19,7 @@
 
 #include <time.h>
 
-int main(int argc, char **argv) {
+int main(int argc, char** argv) {
   // <oid> <label_name>
   if (argc != 3) {
     LOG(ERROR) << "Usage: ./query_test <graph_schema> "
@@ -29,7 +29,7 @@ int main(int argc, char **argv) {
   auto graph_schema = std::string(argv[1]);
   auto data_dir = std::string(argv[2]);
 
-  auto &db = gs::GraphDB::get();
+  gs::GraphDB db;
   auto schema_res = gs::Schema::LoadFromYaml(graph_schema);
   if (!schema_res.ok()) {
     LOG(ERROR) << "Fail to load graph schema file: "
@@ -37,10 +37,10 @@ int main(int argc, char **argv) {
     return -1;
   }
   db.Open(schema_res.value(), data_dir, 1);
-  auto &sess = gs::GraphDB::get().GetSession(0);
+  auto& sess = db.GetSession(0);
 
   {
-    auto &graph = sess.graph();
+    auto& graph = sess.graph();
     auto max_v_num = graph.vertex_num(1);
     std::vector<gs::MutableCSRInterface::vertex_id_t> vids(max_v_num);
     for (gs::MutableCSRInterface::vertex_id_t i = 0; i < max_v_num; ++i) {

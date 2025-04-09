@@ -43,7 +43,8 @@ executor::executor(hiactor::actor_base* exec_ctx, const hiactor::byte_t* addr)
 
 seastar::future<query_result> executor::run_graph_db_query(
     query_param&& param) {
-  auto ret = gs::GraphDB::get()
+  auto ret = GraphDBService::get()
+                 .graph_db()
                  .GetSession(hiactor::local_shard_id())
                  .Eval(param.content);
   if (!ret.ok()) {
@@ -68,7 +69,7 @@ seastar::future<admin_query_result> executor::create_vertex(
             "Bad input json : " + std::to_string(input_json.GetParseError()))));
   }
   auto result = gs::GraphDBOperations::CreateVertex(
-      gs::GraphDB::get().GetSession(hiactor::local_shard_id()),
+      GraphDBService::get().graph_db().GetSession(hiactor::local_shard_id()),
       std::move(input_json));
 
   if (result.ok()) {
@@ -88,7 +89,7 @@ seastar::future<admin_query_result> executor::create_edge(query_param&& param) {
             "Bad input json : " + std::to_string(input_json.GetParseError()))));
   }
   auto result = gs::GraphDBOperations::CreateEdge(
-      gs::GraphDB::get().GetSession(hiactor::local_shard_id()),
+      GraphDBService::get().graph_db().GetSession(hiactor::local_shard_id()),
       std::move(input_json));
   if (result.ok()) {
     return seastar::make_ready_future<admin_query_result>(
@@ -109,7 +110,7 @@ seastar::future<admin_query_result> executor::update_vertex(
             "Bad input json : " + std::to_string(input_json.GetParseError()))));
   }
   auto result = gs::GraphDBOperations::UpdateVertex(
-      gs::GraphDB::get().GetSession(hiactor::local_shard_id()),
+      GraphDBService::get().graph_db().GetSession(hiactor::local_shard_id()),
       std::move(input_json));
 
   if (result.ok()) {
@@ -129,7 +130,7 @@ seastar::future<admin_query_result> executor::update_edge(query_param&& param) {
             "Bad input json : " + std::to_string(input_json.GetParseError()))));
   }
   auto result = gs::GraphDBOperations::UpdateEdge(
-      gs::GraphDB::get().GetSession(hiactor::local_shard_id()),
+      GraphDBService::get().graph_db().GetSession(hiactor::local_shard_id()),
       std::move(input_json));
 
   if (result.ok()) {
@@ -147,7 +148,7 @@ seastar::future<admin_query_result> executor::get_vertex(
     params[std::string(key)] = std::string(value);
   }
   auto result = gs::GraphDBOperations::GetVertex(
-      gs::GraphDB::get().GetSession(hiactor::local_shard_id()),
+      GraphDBService::get().graph_db().GetSession(hiactor::local_shard_id()),
       std::move(params));
 
   if (result.ok()) {
@@ -165,7 +166,7 @@ seastar::future<admin_query_result> executor::get_edge(
     params[std::string(key)] = std::string(value);
   }
   auto result = gs::GraphDBOperations::GetEdge(
-      gs::GraphDB::get().GetSession(hiactor::local_shard_id()),
+      GraphDBService::get().graph_db().GetSession(hiactor::local_shard_id()),
       std::move(params));
 
   if (result.ok()) {

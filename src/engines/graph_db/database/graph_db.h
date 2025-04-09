@@ -54,6 +54,18 @@ struct GraphDBConfig {
         memory_level(1),
         wal_uri("") {}
 
+  // Create without schema
+  GraphDBConfig(const std::string& data_dir_,
+                const std::string& compiler_path_ = "", int thread_num_ = 1)
+      : data_dir(data_dir_),
+        compiler_path(compiler_path_),
+        thread_num(thread_num_),
+        warmup(false),
+        enable_monitoring(false),
+        enable_auto_compaction(false),
+        memory_level(1),
+        wal_uri("") {}
+
   Schema schema;
   std::string data_dir;
   std::string compiler_path;
@@ -78,8 +90,6 @@ class GraphDB {
  public:
   GraphDB();
   ~GraphDB();
-
-  static GraphDB& get();
 
   /**
    * @brief Load the graph from data directory.

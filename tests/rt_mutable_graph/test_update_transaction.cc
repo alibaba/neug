@@ -150,7 +150,7 @@ int main(int argc, char** argv) {
   graph_schema_path = data_path + "/graph.yaml";
 
   double t0 = -grape::GetCurrentTime();
-  auto& db = gs::GraphDB::get();
+  gs::GraphDB db;
 
   auto schema_res = gs::Schema::LoadFromYaml(graph_schema_path);
   if (!schema_res.ok()) {

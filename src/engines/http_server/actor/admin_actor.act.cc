@@ -104,7 +104,7 @@ std::string merge_graph_and_plugin_meta(
 }
 
 void add_runnable_info(gs::PluginMeta& plugin_meta) {
-  const auto& graph_db = gs::GraphDB::get();
+  const auto& graph_db = GraphDBService::get().graph_db();
   const auto& schema = graph_db.schema();
   const auto& plugins_map = schema.GetPlugins();
   auto plugin_iter = plugins_map.find(plugin_meta.id);
@@ -996,7 +996,7 @@ seastar::future<admin_query_result> admin_actor::start_service(
 
         {
           std::lock_guard<std::mutex> lock(mtx_);
-          auto& db = gs::GraphDB::get();
+          auto& db = graph_db_service.graph_db();
           LOG(INFO) << "Update service running on graph:" << graph_name;
 
           // use the previous thread num
@@ -1352,7 +1352,7 @@ seastar::future<admin_query_result> admin_actor::run_get_graph_statistic(
                            ", current running graph is: " + queried_graph)));
   }
   auto statistics = get_graph_statistics(
-      gs::GraphDB::get().GetSession(hiactor::local_shard_id()));
+      GraphDBService::get().graph_db().GetSession(hiactor::local_shard_id()));
   return seastar::make_ready_future<admin_query_result>(
       gs::Result<seastar::sstring>(statistics.ToJson()));
 }

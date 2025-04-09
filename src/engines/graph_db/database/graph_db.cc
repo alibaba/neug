@@ -70,11 +70,6 @@ GraphDB::~GraphDB() {
   WalParserFactory::Finalize();
 }
 
-GraphDB& GraphDB::get() {
-  static GraphDB db;
-  return db;
-}
-
 Result<bool> GraphDB::Open(const Schema& schema, const std::string& data_dir,
                            int32_t thread_num, bool warmup, bool memory_only,
                            bool enable_auto_compaction) {
