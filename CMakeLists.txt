@@ -19,6 +19,9 @@ option(USE_STATIC_ARROW "Whether to use static arrow" OFF) # Whether to link arr
 option(BUILD_WITH_OTEL "Whether to build with opentelemetry-cpp" OFF) # Whether to build with opentelemetry-cpp, default is OFF
 option(BUILD_WITH_OSS "Whether to build with oss support" OFF) # Whether to build with oss support, default is OFF
 
+# Options to control the building of tools
+option(BUILD_PYTHON "Whether to build python embedded" ON)
+
 #print options
 message(STATUS "Build test: ${BUILD_TEST}")
 message(STATUS "Build doc: ${BUILD_DOC}")
@@ -57,6 +60,11 @@ if (BUILD_WITH_OSS)
     include_directories(${CMAKE_CURRENT_SOURCE_DIR}/third_party/aliyun-oss-cpp-sdk/sdk/include)
     set(TARGET_OUTPUT_NAME_PREFIX "alibabacloud-oss-" CACHE STRING "The target's output name prefix")
     add_subdirectory(third_party/aliyun-oss-cpp-sdk)
+endif()
+
+if (BUILD_PYTHON)
+    message("Build python embedded")
+    add_subdirectory(third_party/pybind11)
 endif()
 
 if(USE_PTHASH)
@@ -237,6 +245,7 @@ add_subdirectory(src)
 if (BUILD_TEST)
    add_subdirectory(tests)
 endif()
+add_subdirectory(tools)
 
 
 configure_file(${CMAKE_CURRENT_SOURCE_DIR}/nexg-config.in.cmake

@@ -1,0 +1,14 @@
+[build-system]
+requires = ["scikit-build-core", "pybind11"]
+build-backend = "scikit_build_core.build"
+
+[project]
+name = "nexg"
+version = "0.1.0"
+description = "GraphScope NexG for python"
+authors = ["GraphScope Team <graphscope@alibaba-inc.com>"]
+license = "Apache 2.0"
+readme = "README.md"
+repository = "https://github.com/GraphScope/nexg"
+keywords = ["Graph", "Python", "Embedded", "Graph Database"]
+include = ["py.typed"]
