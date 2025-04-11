@@ -22,11 +22,11 @@
 #include <unordered_map>
 #include <vector>
 
-#include "grape/util.h"
 #include "src/engines/hqps_db/core/params.h"
 #include "src/engines/hqps_db/core/utils/hqps_utils.h"
 #include "src/engines/hqps_db/structures/multi_vertex_set/row_vertex_set.h"
 #include "src/storages/rt_mutable_graph/types.h"
+#include "third_party/libgrape-lite/grape/util.h"
 
 namespace gs {
 

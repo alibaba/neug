@@ -19,9 +19,9 @@ limitations under the License.
 #include <type_traits>
 #include <vector>
 
-#include "grape/types.h"
 #include "src/engines/hqps_db/core/utils/hqps_utils.h"
 #include "src/storages/rt_mutable_graph/types.h"
+#include "third_party/libgrape-lite/grape/types.h"
 
 namespace gs {
 

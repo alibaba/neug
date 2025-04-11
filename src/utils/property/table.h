@@ -20,10 +20,10 @@
 #include <memory>
 #include <string_view>
 
-#include "grape/io/local_io_adaptor.h"
-#include "grape/serialization/out_archive.h"
 #include "src/utils/id_indexer.h"
 #include "src/utils/property/column.h"
+#include "third_party/libgrape-lite/grape/io/local_io_adaptor.h"
+#include "third_party/libgrape-lite/grape/serialization/out_archive.h"
 
 namespace gs {
 

@@ -18,7 +18,7 @@
 
 #include <stdio.h>
 
-#include <grape/serialization/in_archive.h>
+#include <third_party/libgrape-lite/grape/serialization/in_archive.h>
 #include "src/storages/rt_mutable_graph/csr/immutable_csr.h"
 #include "src/storages/rt_mutable_graph/csr/mutable_csr.h"
 #include "src/utils/allocators.h"

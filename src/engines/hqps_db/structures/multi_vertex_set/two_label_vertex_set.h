@@ -20,10 +20,10 @@
 #include <unordered_set>
 #include <vector>
 
-#include "grape/util.h"
-#include "grape/utils/bitset.h"
 #include "src/engines/hqps_db/core/null_record.h"
 #include "src/utils/property/types.h"
+#include "third_party/libgrape-lite/grape/util.h"
+#include "third_party/libgrape-lite/grape/utils/bitset.h"
 
 namespace gs {
 

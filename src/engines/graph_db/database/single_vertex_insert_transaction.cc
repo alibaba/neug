@@ -13,7 +13,7 @@
  * limitations under the License.
  */
 
-#include "grape/serialization/out_archive.h"
+#include "third_party/libgrape-lite/grape/serialization/out_archive.h"
 
 #include "src/engines/graph_db/database/single_vertex_insert_transaction.h"
 #include "src/engines/graph_db/database/transaction_utils.h"

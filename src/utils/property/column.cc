@@ -18,7 +18,7 @@
 #include "src/utils/property/table.h"
 #include "src/utils/property/types.h"
 
-#include "grape/serialization/out_archive.h"
+#include "third_party/libgrape-lite/grape/serialization/out_archive.h"
 
 namespace gs {
 

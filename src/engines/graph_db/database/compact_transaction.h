@@ -16,8 +16,8 @@
 #ifndef ENGINES_GRAPH_DB_DATABASE_COMPACT_TRANSACTION_H_
 #define ENGINES_GRAPH_DB_DATABASE_COMPACT_TRANSACTION_H_
 
-#include "grape/serialization/in_archive.h"
 #include "src/storages/rt_mutable_graph/types.h"
+#include "third_party/libgrape-lite/grape/serialization/in_archive.h"
 
 namespace gs {
 

@@ -19,14 +19,14 @@
 #include <unordered_set>
 #include <vector>
 
-#include "grape/utils/bitset.h"
 #include "src/engines/hqps_db/core/null_record.h"
 #include "src/engines/hqps_db/core/utils/hqps_utils.h"
 #include "src/engines/hqps_db/core/utils/props.h"
 #include "src/storages/rt_mutable_graph/types.h"
+#include "third_party/libgrape-lite/grape/utils/bitset.h"
 
 #include <boost/functional/hash.hpp>
-#include "grape/util.h"
+#include "third_party/libgrape-lite/grape/util.h"
 
 namespace gs {
 

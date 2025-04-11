@@ -13,8 +13,8 @@
  * limitations under the License.
  */
 
-#include "grape/serialization/in_archive.h"
-#include "grape/serialization/out_archive.h"
+#include "third_party/libgrape-lite/grape/serialization/in_archive.h"
+#include "third_party/libgrape-lite/grape/serialization/out_archive.h"
 
 #include "src/engines/graph_db/database/graph_db_session.h"
 #include "src/engines/graph_db/database/update_transaction.h"

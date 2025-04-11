@@ -17,7 +17,6 @@
 
 #include <climits>
 
-#include "grape/utils/bitset.h"
 #include "src/engines/hqps_db/core/context.h"
 #include "src/engines/hqps_db/core/params.h"
 #include "src/engines/hqps_db/core/utils/hqps_utils.h"
@@ -27,6 +26,7 @@
 #include "src/engines/hqps_db/structures/path.h"
 #include "src/storages/rt_mutable_graph/types.h"
 #include "src/utils/property/column.h"
+#include "third_party/libgrape-lite/grape/utils/bitset.h"
 
 #include "src/engines/hqps_db/core/base_engine.h"
 #include "src/engines/hqps_db/core/operator/edge_expand.h"

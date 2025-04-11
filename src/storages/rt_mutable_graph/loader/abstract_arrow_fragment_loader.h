@@ -17,19 +17,19 @@
 #ifndef STORAGES_RT_MUTABLE_GRAPH_LOADER_ABSTRACT_ARROW_FRAGMENT_LOADER_H_
 #define STORAGES_RT_MUTABLE_GRAPH_LOADER_ABSTRACT_ARROW_FRAGMENT_LOADER_H_
 
-#include "grape/utils/concurrent_queue.h"
 #include "src/storages/rt_mutable_graph/loader/basic_fragment_loader.h"
 #include "src/storages/rt_mutable_graph/loader/i_fragment_loader.h"
 #include "src/storages/rt_mutable_graph/loading_config.h"
 #include "src/storages/rt_mutable_graph/mutable_property_fragment.h"
 #include "src/utils/mmap_vector.h"
+#include "third_party/libgrape-lite/grape/utils/concurrent_queue.h"
 
 #include <arrow/api.h>
 #include <arrow/io/api.h>
 #include <shared_mutex>
 #include "arrow/util/value_parsing.h"
 
-#include "grape/util.h"
+#include "third_party/libgrape-lite/grape/util.h"
 
 namespace gs {
 

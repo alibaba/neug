@@ -20,7 +20,7 @@
 #include <tuple>
 #include <vector>
 
-#include "grape/utils/bitset.h"
+#include "third_party/libgrape-lite/grape/utils/bitset.h"
 
 namespace gs {
 

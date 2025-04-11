@@ -17,9 +17,9 @@
 
 #include <array>
 #include <unordered_set>
-#include "grape/util.h"
-#include "grape/utils/bitset.h"
 #include "src/engines/hqps_db/core/utils/hqps_utils.h"
+#include "third_party/libgrape-lite/grape/util.h"
+#include "third_party/libgrape-lite/grape/utils/bitset.h"
 
 namespace gs {
 

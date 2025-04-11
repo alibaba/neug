@@ -18,7 +18,7 @@
 
 #include <thread>
 
-#include "grape/utils/concurrent_queue.h"
+#include "third_party/libgrape-lite/grape/utils/concurrent_queue.h"
 
 #include "src/storages/rt_mutable_graph/csr/adj_list.h"
 #include "src/storages/rt_mutable_graph/csr/csr_base.h"

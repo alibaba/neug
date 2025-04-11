@@ -18,11 +18,11 @@
 
 #include <limits>
 
-#include "grape/serialization/in_archive.h"
 #include "src/storages/rt_mutable_graph/schema.h"
 #include "src/storages/rt_mutable_graph/types.h"
 #include "src/utils/allocators.h"
 #include "src/utils/property/types.h"
+#include "third_party/libgrape-lite/grape/serialization/in_archive.h"
 
 namespace gs {
 

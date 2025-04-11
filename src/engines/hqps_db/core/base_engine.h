@@ -30,10 +30,10 @@
 #include "src/engines/hqps_db/core/params.h"
 #include "src/engines/hqps_db/core/utils/hqps_utils.h"
 
-#include "grape/utils/bitset.h"
 #include "src/engines/hqps_db/structures/multi_vertex_set/multi_label_vertex_set.h"
 #include "src/storages/rt_mutable_graph/types.h"
 #include "src/utils/property/column.h"
+#include "third_party/libgrape-lite/grape/utils/bitset.h"
 
 #include "src/engines/hqps_db/core/operator/group_by.h"
 #include "src/engines/hqps_db/core/operator/limit.h"

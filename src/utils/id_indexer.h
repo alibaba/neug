@@ -25,15 +25,15 @@ limitations under the License.
 #include <type_traits>
 #include <vector>
 
-#include "flat_hash_map/flat_hash_map.hpp"
 #include "glog/logging.h"
-#include "grape/io/local_io_adaptor.h"
-#include "grape/serialization/in_archive.h"
-#include "grape/serialization/out_archive.h"
 #include "src/utils/mmap_array.h"
 #include "src/utils/property/column.h"
 #include "src/utils/property/types.h"
 #include "src/utils/string_view_vector.h"
+#include "third_party/flat_hash_map/flat_hash_map.hpp"
+#include "third_party/libgrape-lite/grape/io/local_io_adaptor.h"
+#include "third_party/libgrape-lite/grape/serialization/in_archive.h"
+#include "third_party/libgrape-lite/grape/serialization/out_archive.h"
 
 namespace gs {
 

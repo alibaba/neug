@@ -22,8 +22,6 @@
 
 #include "src/storages/rt_mutable_graph/schema.h"
 
-#include "grape/io/local_io_adaptor.h"
-#include "grape/serialization/out_archive.h"
 #include "src/storages/rt_mutable_graph/csr/mutable_csr.h"
 #include "src/storages/rt_mutable_graph/dual_csr.h"
 #include "src/storages/rt_mutable_graph/types.h"
@@ -31,6 +29,8 @@
 #include "src/utils/indexers.h"
 #include "src/utils/property/table.h"
 #include "src/utils/yaml_utils.h"
+#include "third_party/libgrape-lite/grape/io/local_io_adaptor.h"
+#include "third_party/libgrape-lite/grape/serialization/out_archive.h"
 
 namespace gs {
 

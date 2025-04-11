@@ -23,10 +23,10 @@
 #include "src/engines/hqps_db/core/params.h"
 #include "src/utils/exception.h"
 
-#include "grape/utils/bitset.h"
 #include "src/engines/hqps_db/database/adj_list.h"
+#include "third_party/libgrape-lite/grape/utils/bitset.h"
 
-#include "grape/util.h"
+#include "third_party/libgrape-lite/grape/util.h"
 
 namespace gs {
 

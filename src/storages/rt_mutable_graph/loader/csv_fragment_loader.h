@@ -29,7 +29,7 @@
 #include <arrow/io/api.h>
 #include "arrow/util/value_parsing.h"
 
-#include "grape/util.h"
+#include "third_party/libgrape-lite/grape/util.h"
 
 namespace gs {
 

@@ -1,4 +1,4 @@
-cmake_minimum_required (VERSION 3.5)
+cmake_minimum_required (VERSION 3.10)
 
 file(READ ${CMAKE_CURRENT_SOURCE_DIR}/VERSION NEXG_VERSION)
 # Strip trailing newline
@@ -52,9 +52,25 @@ endif()
 execute_process(COMMAND uname -r OUTPUT_VARIABLE LINUX_KERNEL_VERSION)
 string(STRIP ${LINUX_KERNEL_VERSION} LINUX_KERNEL_VERSION)
 message(${LINUX_KERNEL_VERSION})
-if(LINUX_KERNEL_VERSION VERSION_GREATER_EQUAL "4.5")
-    message("Use copy file range")
-    add_definitions(-DUSE_COPY_FILE_RANGE)
+# Get whether os is Centos
+execute_process(COMMAND cat /etc/os-release OUTPUT_VARIABLE CENTOS_NAME)
+string(TOLOWER CENTOS_NAME CENTOS_NAME)
+if (CENTOS_NAME MATCHES "centos")
+    message("CentOS detected")
+    string(REGEX MATCH "^[0-9]+\\.[0-9]+" LINUX_KERNEL_VERSION ${LINUX_KERNEL_VERSION})
+    string(REPLACE "." ";" VERSION_LIST ${LINUX_KERNEL_VERSION})
+    list(GET VERSION_LIST 0 LINUX_KERNEL_MAJOR)
+    list(GET VERSION_LIST 1 LINUX_KERNEL_MINOR)
+    # If greater than 5.19
+    if (LINUX_KERNEL_MAJOR GREATER 5 OR (LINUX_KERNEL_MAJOR EQUAL 5 AND LINUX_KERNEL_MINOR GREATER 19))
+        message("Use copy file range")
+        add_definitions(-DUSE_COPY_FILE_RANGE)
+    endif ()
+else()
+    if(LINUX_KERNEL_VERSION VERSION_GREATER_EQUAL "4.5")
+        message("Use copy file range")
+        add_definitions(-DUSE_COPY_FILE_RANGE)
+    endif()
 endif()
 
 if (BUILD_WITH_OSS)
@@ -66,13 +82,33 @@ endif()
 
 if (BUILD_PYTHON)
     message("Build python embedded")
+    set(PYBIND11_FINDPYTHON OFF)
     add_subdirectory(third_party/pybind11)
 endif()
 
+
+# find glog---------------------------------------------------------------------
+include("cmake/FindGlog.cmake")
+if (NOT GLOG_FOUND)
+    message(FATAL_ERROR "glog not found, please install the glog library")
+else ()
+    include_directories(SYSTEM ${GLOG_INCLUDE_DIRS})
+endif ()
+
+#find boost----------------------------------------------------------------------
+if(POLICY CMP0167)
+  cmake_policy(SET CMP0167 NEW)
+endif()
+find_package(Boost REQUIRED COMPONENTS system filesystem
+             # required by folly
+             context program_options regex thread date_time)
+add_definitions("-DBOOST_BIND_GLOBAL_PLACEHOLDERS")
+include_directories(SYSTEM ${Boost_INCLUDE_DIRS})
+
 if(USE_PTHASH)
-    include_directories(${CMAKE_CURRENT_SOURCE_DIR}/third_party/pthash)
     include_directories(${CMAKE_CURRENT_SOURCE_DIR}/third_party/murmurhash)
 endif()
+include_directories(${CMAKE_CURRENT_SOURCE_DIR}/third_party)
 
 set(DEFAULT_BUILD_TYPE "Release")
 if (NOT CMAKE_BUILD_TYPE AND NOT CMAKE_CONFIGURATION_TYPES)
@@ -103,24 +139,9 @@ endif()
 set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} -O0 -g")
 set(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE} -O3")
 
-find_package(MPI REQUIRED)
-include_directories(SYSTEM ${MPI_CXX_INCLUDE_PATH})
-
-find_package(libgrapelite REQUIRED)
-include_directories(SYSTEM ${LIBGRAPELITE_INCLUDE_DIRS})
-include_directories(SYSTEM ${LIBGRAPELITE_INCLUDE_DIRS}/grape/analytical_apps)
-
 # find Threads------------------------------------------------------------------
 set(CMAKE_THREAD_PREFER_PTHREAD ON)
 find_package(Threads REQUIRED)
-
-# find glog---------------------------------------------------------------------
-include("cmake/FindGlog.cmake")
-if (NOT GLOG_FOUND)
-    message(FATAL_ERROR "glog not found, please install the glog library")
-else ()
-    include_directories(SYSTEM ${GLOG_INCLUDE_DIRS})
-endif ()
 
 # find gflags-------------------------------------------------------------------
 include("cmake/FindGFlags.cmake")
@@ -136,13 +157,6 @@ include_directories(SYSTEM ${yaml-cpp_INCLUDE_DIRS})
 if (NOT yaml-cpp_FOUND)
     message(FATAL_ERROR "yaml-cpp not found, please install the yaml-cpp library")
 endif ()
-
-#find boost----------------------------------------------------------------------
-find_package(Boost REQUIRED COMPONENTS system filesystem
-             # required by folly
-             context program_options regex thread date_time)
-add_definitions("-DBOOST_BIND_GLOBAL_PLACEHOLDERS")
-include_directories(SYSTEM ${Boost_INCLUDE_DIRS})
 
 #find hiactor----------------------------------------------------------------------
 find_package(Hiactor)
@@ -223,6 +237,7 @@ add_definitions(-DRAPIDJSON_HAS_CXX11_RANGE_FOR=1)
 if (BUILD_ODPS_FRAGMENT_LOADER)
     include_directories(SYSTEM ${CMAKE_SOURCE_DIR}/third_party/odps/include)
 endif()
+include_directories(SYSTEM ${CMAKE_SOURCE_DIR}/third_party/flat_hash_map)
 include_directories(SYSTEM ${CMAKE_SOURCE_DIR}/third_party/parallel-hashmap)
 
 macro(install_nexg_target target)
@@ -248,6 +263,8 @@ if (BUILD_TEST)
    add_subdirectory(tests)
 endif()
 add_subdirectory(tools)
+add_subdirectory(third_party/libgrape-lite)
+include_directories(SYSTEM ${CMAKE_SOURCE_DIR}/third_party/libgrape-lite)
 
 
 configure_file(${CMAKE_CURRENT_SOURCE_DIR}/nexg-config.in.cmake

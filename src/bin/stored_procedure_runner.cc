@@ -13,8 +13,6 @@
  * limitations under the License.
  */
 
-#include "grape/util.h"
-
 #include "src/engines/graph_db/database/graph_db.h"
 #include "src/engines/http_server/options.h"
 

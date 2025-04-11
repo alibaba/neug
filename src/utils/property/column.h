@@ -19,11 +19,11 @@
 #include <shared_mutex>
 #include <string>
 #include <string_view>
-#include "grape/utils/concurrent_queue.h"
+#include "third_party/libgrape-lite/grape/utils/concurrent_queue.h"
 
-#include "grape/serialization/out_archive.h"
 #include "src/utils/mmap_array.h"
 #include "src/utils/property/types.h"
+#include "third_party/libgrape-lite/grape/serialization/out_archive.h"
 
 namespace gs {
 

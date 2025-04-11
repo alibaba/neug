@@ -19,7 +19,7 @@
 #include <tuple>
 #include <vector>
 
-#include "grape/util.h"
+#include "third_party/libgrape-lite/grape/util.h"
 
 // Vertex set in with data in rows.
 namespace gs {

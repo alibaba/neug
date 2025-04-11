@@ -26,8 +26,8 @@
 #include <thread>
 
 #include "glog/logging.h"
-#include "grape/utils/bitset.h"
-#include "grape/utils/concurrent_queue.h"
+#include "third_party/libgrape-lite/grape/utils/bitset.h"
+#include "third_party/libgrape-lite/grape/utils/concurrent_queue.h"
 
 namespace gs {
 

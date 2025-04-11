@@ -25,7 +25,7 @@
 #include "src/storages/rt_mutable_graph/types.h"
 #include "src/utils/property/types.h"
 
-#include "grape/types.h"
+#include "third_party/libgrape-lite/grape/types.h"
 namespace gs {
 
 // define a header to make input_col_id easy to understand

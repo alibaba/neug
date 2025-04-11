@@ -25,8 +25,8 @@ limitations under the License.
 
 #include <boost/date_time/posix_time/posix_time.hpp>
 
-#include "grape/serialization/in_archive.h"
-#include "grape/serialization/out_archive.h"
+#include "third_party/libgrape-lite/grape/serialization/in_archive.h"
+#include "third_party/libgrape-lite/grape/serialization/out_archive.h"
 
 #include <yaml-cpp/yaml.h>
 

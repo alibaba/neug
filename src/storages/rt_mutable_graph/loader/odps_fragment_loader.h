@@ -28,7 +28,6 @@
 
 #include "arrow/util/value_parsing.h"
 #include "common/configuration.h"
-#include "grape/util.h"
 #include "src/storages/rt_mutable_graph/loader/abstract_arrow_fragment_loader.h"
 #include "src/storages/rt_mutable_graph/loader/basic_fragment_loader.h"
 #include "src/storages/rt_mutable_graph/loader/i_fragment_loader.h"
@@ -38,6 +37,7 @@
 #include "storage_api.hpp"
 #include "storage_api_arrow.hpp"
 #include "third_party/httplib.h"
+#include "third_party/libgrape-lite/grape/util.h"
 
 using apsara::odps::sdk::AliyunAccount;
 using apsara::odps::sdk::Configuration;

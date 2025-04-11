@@ -16,7 +16,7 @@
 #ifndef STORAGES_RT_MUTABLE_GRAPH_CSR_NBR_H_
 #define STORAGES_RT_MUTABLE_GRAPH_CSR_NBR_H_
 
-#include "grape/types.h"
+#include "third_party/libgrape-lite/grape/types.h"
 
 #include "src/storages/rt_mutable_graph/types.h"
 #include "src/utils/property/column.h"

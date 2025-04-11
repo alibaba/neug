@@ -19,7 +19,7 @@ limitations under the License.
 #include <array>
 #include <string>
 
-#include "grape/utils/bitset.h"
+#include "third_party/libgrape-lite/grape/utils/bitset.h"
 
 #include "src/engines/hqps_db/structures/multi_vertex_set/general_vertex_set.h"
 #include "src/engines/hqps_db/structures/multi_vertex_set/row_vertex_set.h"

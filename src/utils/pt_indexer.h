@@ -19,7 +19,7 @@
 #ifdef USE_PTHASH
 #include <thread>
 
-#include "grape/util.h"
+#include "third_party/libgrape-lite/grape/util.h"
 
 #include "src/utils/property/column.h"
 

@@ -19,8 +19,6 @@
 #include <limits>
 #include <utility>
 
-#include "flat_hash_map/flat_hash_map.hpp"
-#include "grape/serialization/in_archive.h"
 #include "src/engines/graph_db/database/transaction_utils.h"
 #include "src/storages/rt_mutable_graph/csr/mutable_csr.h"
 #include "src/storages/rt_mutable_graph/types.h"
@@ -28,6 +26,8 @@
 #include "src/utils/id_indexer.h"
 #include "src/utils/property/table.h"
 #include "src/utils/property/types.h"
+#include "third_party/flat_hash_map/flat_hash_map.hpp"
+#include "third_party/libgrape-lite/grape/serialization/in_archive.h"
 
 namespace gs {
 

@@ -21,13 +21,13 @@ limitations under the License.
 
 #include "src/engines/hqps_db/core/utils/hqps_utils.h"
 
-#include "grape/utils/bitset.h"
 #include "src/engines/hqps_db/structures/multi_edge_set/adj_edge_set.h"
 #include "src/engines/hqps_db/structures/multi_edge_set/flat_edge_set.h"
 #include "src/engines/hqps_db/structures/multi_edge_set/general_edge_set.h"
 #include "src/engines/hqps_db/structures/multi_edge_set/untyped_edge_set.h"
 #include "src/engines/hqps_db/structures/multi_vertex_set/keyed_row_vertex_set.h"
 #include "src/engines/hqps_db/structures/multi_vertex_set/two_label_vertex_set.h"
+#include "third_party/libgrape-lite/grape/utils/bitset.h"
 
 namespace gs {
 

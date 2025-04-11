@@ -24,8 +24,8 @@
 #include <string_view>
 
 #include "glog/logging.h"
-#include "grape/util.h"
 #include "src/storages/rt_mutable_graph/file_names.h"
+#include "third_party/libgrape-lite/grape/util.h"
 
 #ifdef __ia64__
 #define ADDR (void*) (0x8000000000000000UL)

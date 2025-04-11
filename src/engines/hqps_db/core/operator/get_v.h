@@ -25,7 +25,7 @@ limitations under the License.
 #include "src/engines/hqps_db/structures/multi_vertex_set/two_label_vertex_set.h"
 #include "src/storages/rt_mutable_graph/types.h"
 
-#include "grape/utils/bitset.h"
+#include "third_party/libgrape-lite/grape/utils/bitset.h"
 
 namespace gs {
 
