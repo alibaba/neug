@@ -9,7 +9,7 @@
 set(NEXG_HOME "${CMAKE_CURRENT_LIST_DIR}/../../..")
 include("${CMAKE_CURRENT_LIST_DIR}/nexg-targets.cmake")
 
-set(NEXG_LIBRARIES nexg::nexg_utils nexg::nexg_rt_mutable_graph nexg::nexg_graph_db nexg::nexg_bsp nexg::nexg_immutable_graph nexg::nexg_plan_proto)
+set(NEXG_LIBRARIES nexg::nexg_utils nexg::nexg_rt_mutable_graph nexg::nexg_graph_db nexg::nexg_plan_proto)
 set(NEXG_INCLUDE_DIR "${NEXG_HOME}/include")
 set(NEXG_INCLUDE_DIRS "${NEXG_INCLUDE_DIR}")
 

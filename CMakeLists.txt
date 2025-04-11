@@ -10,7 +10,7 @@ project (
   LANGUAGES CXX)
 
 
-option(BUILD_TEST "Whether to build test" ON)
+option(BUILD_TEST "Whether to build test" OFF)
 option(BUILD_DOC "Whether to build doc" OFF)
 option(BUILD_ODPS_FRAGMENT_LOADER "Whether to build odps fragment loader" OFF)
 option(USE_PTHASH "Whether to use pthash" OFF)
@@ -18,6 +18,8 @@ option(OPTIMIZE_FOR_HOST "Whether to optimize on host" ON) # Whether to build op
 option(USE_STATIC_ARROW "Whether to use static arrow" OFF) # Whether to link arrow statically, default is OFF
 option(BUILD_WITH_OTEL "Whether to build with opentelemetry-cpp" OFF) # Whether to build with opentelemetry-cpp, default is OFF
 option(BUILD_WITH_OSS "Whether to build with oss support" OFF) # Whether to build with oss support, default is OFF
+option(BUILD_EXECUTABLES "When to build executors" OFF) # Whether to build executables, default is OFF
+option(BUILD_HTTP_SERVER "Whether to build http server" OFF) # Whether to build http server, default is OFF
 
 # Options to control the building of tools
 option(BUILD_PYTHON "Whether to build python embedded" ON)

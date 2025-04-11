@@ -1,6 +1,7 @@
 
 add_subdirectory(graph_db)
-add_subdirectory(bsp)
-add_subdirectory(http_server)
+if (BUILD_HTTP_SERVER)
+    add_subdirectory(http_server)
+endif()
 add_subdirectory(hqps_db)
 
