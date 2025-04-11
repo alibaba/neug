@@ -13,8 +13,8 @@
  * limitations under the License.
  */
 
-#ifndef ENGINES_HQPS_DB_APP_INTERACTIVE_APP_BASE_H_
-#define ENGINES_HQPS_DB_APP_INTERACTIVE_APP_BASE_H_
+#ifndef ENGINES_GRAPH_DB_APP_CYPHER_PROC_APP_BASE_H_
+#define ENGINES_GRAPH_DB_APP_CYPHER_PROC_APP_BASE_H_
 
 #include <rapidjson/document.h>
 #include "src/engines/graph_db/app/app_base.h"
@@ -207,7 +207,7 @@ bool deserialize(std::tuple<ARGS...>& tuple, std::string_view sv) {
 }
 // for cypher procedure
 template <typename... ARGS>
-class CypherReadAppBase : public ReadAppBase {
+class CypherReadProcAppBase : public ReadAppBase {
  public:
   AppType type() const override { return AppType::kCypherProcedure; }
 
@@ -242,7 +242,7 @@ class CypherReadAppBase : public ReadAppBase {
 };
 
 template <typename... ARGS>
-class CypherWriteAppBase : public WriteAppBase {
+class CypherWriteProcAppBase : public WriteAppBase {
  public:
   AppType type() const override { return AppType::kCypherProcedure; }
 
@@ -277,4 +277,4 @@ class CypherWriteAppBase : public WriteAppBase {
 
 }  // namespace gs
 
-#endif  // ENGINES_HQPS_DB_APP_INTERACTIVE_APP_BASE_H_
+#endif  // ENGINES_GRAPH_DB_APP_CYPHER_PROC_APP_BASE_H_

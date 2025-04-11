@@ -36,9 +36,6 @@ executor::executor(hiactor::actor_base* exec_ctx, const hiactor::byte_t* addr)
   set_max_concurrency(1);  // set max concurrency for task reentrancy (stateful)
   // initialization
   // ...
-  auto& graph_db_service = GraphDBService::get();
-  // meta_data_ should be thread safe.
-  metadata_store_ = graph_db_service.get_metadata_store();
 }
 
 seastar::future<query_result> executor::run_graph_db_query(

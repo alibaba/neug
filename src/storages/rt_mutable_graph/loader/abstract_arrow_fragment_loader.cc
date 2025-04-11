@@ -14,8 +14,8 @@
  */
 #include <sys/statvfs.h>
 
-#include "src/engines/hqps_db/core/utils/hqps_utils.h"
 #include "src/storages/rt_mutable_graph/loader/abstract_arrow_fragment_loader.h"
+#include "src/utils/string_utils.h"
 
 namespace gs {
 

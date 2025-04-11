@@ -15,9 +15,9 @@
 
 #include "src/storages/rt_mutable_graph/mutable_property_fragment.h"
 
-#include "src/engines/hqps_db/core/utils/hqps_utils.h"
 #include "src/storages/rt_mutable_graph/file_names.h"
 #include "src/utils/property/types.h"
+#include "src/utils/string_utils.h"
 
 namespace gs {
 

@@ -7,7 +7,7 @@
 #include "common/hmac.h"
 #include "common/http_flags.h"
 #include "common/string_tools.h"
-#include "src/third_party/httplib.h"
+#include "third_party/httplib.h"
 
 using namespace apsara;
 using namespace apsara::security;

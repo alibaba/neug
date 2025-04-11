@@ -15,12 +15,12 @@
 
 #ifndef ENGINES_GRAPH_DB_APP_BUILDIN_COUNT_VERTICES_H_
 #define ENGINES_GRAPH_DB_APP_BUILDIN_COUNT_VERTICES_H_
+#include "src/engines/graph_db/app/cypher_proc_app_base.h"
 #include "src/engines/graph_db/database/graph_db_session.h"
-#include "src/engines/hqps_db/app/interactive_app_base.h"
 
 namespace gs {
 // A simple app to count the number of vertices of a given label.
-class CountVertices : public CypherReadAppBase<std::string> {
+class CountVertices : public CypherReadProcAppBase<std::string> {
  public:
   CountVertices() {}
   results::CollectiveResults Query(const GraphDBSession& sess,

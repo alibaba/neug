@@ -13,7 +13,6 @@
  * limitations under the License.
  */
 
-
 #include <boost/program_options.hpp>
 #include <fstream>
 #include <iostream>

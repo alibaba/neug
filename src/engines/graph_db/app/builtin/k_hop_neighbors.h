@@ -15,11 +15,11 @@
 
 #ifndef ENGINES_GRAPH_DB_APP_BUILDIN_K_HOP_NEIGHBORS_
 #define ENGINES_GRAPH_DB_APP_BUILDIN_K_HOP_NEIGHBORS_
+#include "src/engines/graph_db/app/cypher_proc_app_base.h"
 #include "src/engines/graph_db/database/graph_db_session.h"
-#include "src/engines/hqps_db/app/interactive_app_base.h"
 
 namespace gs {
-class KNeighbors : public CypherReadAppBase<std::string, int64_t, int32_t> {
+class KNeighbors : public CypherReadProcAppBase<std::string, int64_t, int32_t> {
  public:
   KNeighbors() {}
   results::CollectiveResults Query(const GraphDBSession& sess,

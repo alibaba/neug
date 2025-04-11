@@ -20,8 +20,8 @@
 #include <sstream>
 #include <string>
 #include <tuple>
-#include "src/engines/hqps_db/core/utils/hqps_utils.h"
 #include "src/utils/exception.h"
+#include "src/utils/string_utils.h"
 
 namespace gs {
 

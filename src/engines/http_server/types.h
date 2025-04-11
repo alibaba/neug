@@ -20,9 +20,10 @@
 #include <hiactor/net/serializable_queue.hh>
 #include <seastar/core/sstring.hh>
 #include <seastar/core/temporary_buffer.hh>
-#include "src/utils/service_utils.h"
+#include "src/utils/result.h"
 
 #include <string>
+#include <tuple>
 
 namespace server {
 

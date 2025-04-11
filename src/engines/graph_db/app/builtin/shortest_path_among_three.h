@@ -15,13 +15,13 @@
 
 #ifndef ENGINES_GRAPH_DB_APP_BUILDIN_SHORTEST_PATH_AMONG_THREE_H_
 #define ENGINES_GRAPH_DB_APP_BUILDIN_SHORTEST_PATH_AMONG_THREE_H_
+#include "src/engines/graph_db/app/cypher_proc_app_base.h"
 #include "src/engines/graph_db/database/graph_db_session.h"
-#include "src/engines/hqps_db/app/interactive_app_base.h"
 
 namespace gs {
 class ShortestPathAmongThree
-    : public CypherReadAppBase<std::string, std::string, std::string,
-                               std::string, std::string, std::string> {
+    : public CypherReadProcAppBase<std::string, std::string, std::string,
+                                   std::string, std::string, std::string> {
  public:
   ShortestPathAmongThree() {}
   results::CollectiveResults Query(const GraphDBSession& sess,

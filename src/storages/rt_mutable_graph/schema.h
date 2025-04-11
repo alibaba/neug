@@ -16,12 +16,12 @@
 #ifndef STORAGES_RT_MUTABLE_GRAPH_SCHEMA_H_
 #define STORAGES_RT_MUTABLE_GRAPH_SCHEMA_H_
 
-#include "src/engines/hqps_db/core/utils/hqps_utils.h"
 #include "src/storages/rt_mutable_graph/types.h"
 #include "src/utils/id_indexer.h"
 #include "src/utils/property/table.h"
 #include "src/utils/property/types.h"
 #include "src/utils/result.h"
+#include "src/utils/string_utils.h"
 #include "src/utils/yaml_utils.h"
 
 namespace gs {

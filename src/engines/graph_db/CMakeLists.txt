@@ -1,8 +1,7 @@
 add_subdirectory(runtime)
 file(GLOB_RECURSE GRAPH_DB_SRC_FILES "${CMAKE_CURRENT_SOURCE_DIR}/app/*.cc"
   	                             "${CMAKE_CURRENT_SOURCE_DIR}/database/*.cc"
-                                     "${CMAKE_CURRENT_SOURCE_DIR}/database/wal/*.cc"
-                                     "${CMAKE_CURRENT_SOURCE_DIR}/app/builtin/*.cc")
+                                     "${CMAKE_CURRENT_SOURCE_DIR}/database/wal/*.cc")
 
 add_library(nexg_graph_db SHARED ${GRAPH_DB_SRC_FILES})
 

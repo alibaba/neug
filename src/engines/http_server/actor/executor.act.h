@@ -18,8 +18,6 @@
 
 #include "src/engines/http_server/types.h"
 
-#include "src/storages/metadata/graph_meta_store.h"
-
 #include <hiactor/core/actor-template.hh>
 #include <hiactor/util/data_type.hh>
 
@@ -55,7 +53,6 @@ class ANNOTATION(actor:impl) executor : public hiactor::actor {
 
  private:
   int32_t your_private_members_ = 0;
-  std::shared_ptr<gs::IGraphMetaStore> metadata_store_;
 };
 
 }  // namespace server

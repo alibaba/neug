@@ -13,7 +13,7 @@
 #include "common/md5.h"
 #include "common/signer.h"
 #include "nlohmann/json.hpp"
-#include "src/third_party/httplib.h"
+#include "third_party/httplib.h"
 
 #define STORAGE_VERSION "1"
 #define URL_PREFIX "/api/storage/v" STORAGE_VERSION
