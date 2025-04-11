@@ -22,7 +22,7 @@
 #include "src/engines/hqps_db/database/mutable_csr_interface.h"
 #include "src/engines/hqps_db/structures/path.h"
 
-#include "grape/types.h"
+#include "third_party/libgrape-lite/grape/types.h"
 
 #include "glog/logging.h"
 

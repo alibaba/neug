@@ -1,14 +1,22 @@
 [build-system]
-requires = ["scikit-build-core", "pybind11"]
-build-backend = "scikit_build_core.build"
+requires = ["setuptools", "wheel", "pybind11>=2.6.0",]
+build-backend = "setuptools.build_meta"
 
 [project]
 name = "nexg"
+requires-python = ">=3.8"
 version = "0.1.0"
 description = "GraphScope NexG for python"
-authors = ["GraphScope Team <graphscope@alibaba-inc.com>"]
-license = "Apache 2.0"
+authors = [{name="GraphScope Team", email="graphscope@alibaba-inc.com"}]
 readme = "README.md"
-repository = "https://github.com/GraphScope/nexg"
 keywords = ["Graph", "Python", "Embedded", "Graph Database"]
-include = ["py.typed"]
+dependencies = [
+    "pybind11>=2.9.2",
+    "cibuildwheel>=2.0.0"
+]
+
+[tool.cibuildwheel]
+build = "cp38-*"
+before-all = "git submodule update --init"
+environment = {CMAKE_PREFIX_PATH="/opt/graphscope/",LD_LIBRARY_PATH="/opt/rh/devtoolset-10/root/usr/lib64:/opt/rh/devtoolset-10/root/usr/lib:/opt/rh/devtoolset-10/root/usr/lib64/dyninst:/opt/rh/devtoolset-10/root/usr/lib/dyninst:/usr/local/lib64:/opt/graphscope/lib:/opt/graphscope/lib64",LIBRARY_PATH="/opt/graphscope/lib:/opt/graphscope/lib64"}
+manylinux-x86_64-image = "docker.io/graphscope/nexg-manylinux:x86_64"

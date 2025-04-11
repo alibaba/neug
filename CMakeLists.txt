@@ -82,6 +82,7 @@ endif()
 
 if (BUILD_PYTHON)
     message("Build python embedded")
+    # To build wheel in manylinux docker, we should not link to a specific python library.
     set(PYBIND11_FINDPYTHON OFF)
     add_subdirectory(third_party/pybind11)
 endif()

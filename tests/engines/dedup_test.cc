@@ -25,8 +25,6 @@
 
 #include "src/engines/hqps_db/database/mutable_csr_interface.h"
 
-#include "grape/types.h"
-
 #include "glog/logging.h"
 
 struct VertexSetTest {};

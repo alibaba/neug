@@ -25,7 +25,6 @@
 #include "src/engines/hqps_db/core/base_engine.h"
 
 #include "glog/logging.h"
-#include "grape/types.h"
 #include "src/engines/hqps_db/core/operator/project.h"
 #include "src/engines/hqps_db/database/mutable_csr_interface.h"
 #include "src/storages/rt_mutable_graph/types.h"

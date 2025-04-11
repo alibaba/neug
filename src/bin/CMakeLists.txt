@@ -24,7 +24,6 @@ add_executable(cypher_client cypher_client.cc)
 target_link_libraries(cypher_client nexg_utils)
 install_without_export_nexg_target(cypher_client)
 
-
 if(Hiactor_FOUND)
         add_executable(interactive_server interactive_server.cc)
         target_link_libraries(interactive_server nexg_server ${GFLAGS_LIBRARIES})

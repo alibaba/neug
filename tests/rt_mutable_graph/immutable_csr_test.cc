@@ -13,7 +13,7 @@
  * limitations under the License.
  */
 
-#include "grape/util.h"
+#include "third_party/libgrape-lite/grape/util.h"
 
 #include "src/engines/graph_db/database/graph_db.h"
 

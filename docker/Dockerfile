@@ -102,7 +102,6 @@ RUN find /opt/src/lib/ -name "*.a" -type f -delete
 
 # include 
 COPY --from=builder /opt/src/include/ /opt/graphscope/include/ /opt/vineyard/include/ /opt/src/include/
-COPY --from=builder /opt/graphscope/lib/libgrape-lite.so /opt/src/lib/
 
 # copy the builtin graph, modern_graph
 RUN mkdir -p /opt/src/share/gs_interactive_default_graph/
