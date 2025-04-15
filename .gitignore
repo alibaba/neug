@@ -63,6 +63,7 @@ default.etcd/
 # outer build directory
 build/
 
+**/*.jar
 
 **/generated/
 
