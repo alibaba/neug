@@ -160,11 +160,13 @@ if (NOT yaml-cpp_FOUND)
 endif ()
 
 #find hiactor----------------------------------------------------------------------
-find_package(Hiactor)
-if (NOT Hiactor_FOUND)
-    message(STATUS "hiactor not found, please install the hiactor library")
-else ()
-    include_directories(SYSTEM ${Hiactor_INCLUDE_DIRS})
+if (BUILD_HTTP_SERVER)
+    find_package(Hiactor)
+    if (NOT Hiactor_FOUND)
+        message(STATUS "hiactor not found, please install the hiactor library")
+    else ()
+        include_directories(SYSTEM ${Hiactor_INCLUDE_DIRS})
+    endif()
 endif()
 
 #find arrow----------------------------------------------------------------------

@@ -87,6 +87,8 @@ Result<bool> GraphDB::Open(const Schema& schema, const std::string& data_dir,
 Result<bool> GraphDB::Open(const GraphDBConfig& config) {
   config_ = config;
   const std::string& data_dir = config.data_dir;
+  // The schema provided by GraphDBConfig could be empty, and if it is empty, we
+  // skip using it.
   const Schema& schema = config.schema;
   if (!std::filesystem::exists(data_dir)) {
     std::filesystem::create_directories(data_dir);
@@ -108,7 +110,8 @@ Result<bool> GraphDB::Open(const GraphDBConfig& config) {
                         "Exception: " + std::string(e.what()), false);
   }
 
-  if ((!create_empty_graph) && (!graph_.schema().Equals(schema))) {
+  if (!schema.Empty() && (!create_empty_graph) &&
+      (!graph_.schema().Equals(schema))) {
     LOG(ERROR) << "Schema inconsistent..\n";
     return Result<bool>(StatusCode::INTERNAL_ERROR,
                         "Schema of work directory is not compatible with the "

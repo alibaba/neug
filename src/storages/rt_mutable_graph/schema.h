@@ -82,6 +82,10 @@ class Schema {
 
   void Clear();
 
+  bool Empty() const {
+    return vlabel_indexer_.empty() && elabel_indexer_.empty();
+  }
+
   void add_vertex_label(
       const std::string& label, const std::vector<PropertyType>& property_types,
       const std::vector<std::string>& property_names,

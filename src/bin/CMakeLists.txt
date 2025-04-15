@@ -1,3 +1,4 @@
+include_directories(${CMAKE_CURRENT_BINARY_DIR}/../utils)
 if(Hiactor_FOUND)
         add_executable(rt_server rt_server.cc)
         target_link_libraries(rt_server nexg_server)
