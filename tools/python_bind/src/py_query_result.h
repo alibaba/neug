@@ -13,26 +13,38 @@
  * limitations under the License.
  */
 
-#ifndef UTILS_FILE_UTILS_H_
-#define UTILS_FILE_UTILS_H_
+#ifndef TOOLS_PYTHON_BIND_SRC_PY_QUERY_RESULT_H_
+#define TOOLS_PYTHON_BIND_SRC_PY_QUERY_RESULT_H_
 
-#include <filesystem>
-#include <fstream>
-#include <iostream>
-#include <sstream>
-#include <string>
+#include "third_party/pybind11/include/pybind11/pybind11.h"
 
-#include <glog/logging.h>
+#include "src/main/query_result.h"
 
 namespace gs {
 
-void ensure_directory_exists(const std::string& dir_path);
+class PyQueryResult {
+ public:
+  static void initialize(pybind11::handle& m);
 
-bool read_string_from_file(const std::string& file_path, std::string& content);
+  PyQueryResult() = default;
 
-bool write_string_to_file(const std::string& content,
-                          const std::string& file_path);
+  ~PyQueryResult() { close(); }
+
+  bool hasNext();
+
+  pybind11::list getNext();
+
+  bool hasNextQueryResult();
+
+  std::unique_ptr<PyQueryResult> getNextQueryResult();
+
+  void close();
+
+ private:
+  std::shared_ptr<QueryResult> queryResult = nullptr;
+  //   bool isOwned = false;
+};
 
 }  // namespace gs
 
-#endif  // UTILS_FILE_UTILS_H_
+#endif  // TOOLS_PYTHON_BIND_SRC_PY_QUERY_RESULT_H_

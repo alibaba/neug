@@ -17,6 +17,20 @@
 
 namespace gs {
 
+void ensure_directory_exists(const std::string& dir_path) {
+  if (dir_path.empty()) {
+    LOG(ERROR) << "Error: Directory path is empty.";
+    return;
+  }
+  std::filesystem::path dir(dir_path);
+  if (!std::filesystem::exists(dir)) {
+    std::filesystem::create_directories(dir);
+    LOG(INFO) << "Directory created: " << dir_path;
+  } else {
+    LOG(INFO) << "Directory already exists: " << dir_path;
+  }
+}
+
 bool read_string_from_file(const std::string& file_path, std::string& content) {
   std::ifstream inputFile(file_path);
 

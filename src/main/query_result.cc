@@ -12,27 +12,3 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
-#ifndef UTILS_FILE_UTILS_H_
-#define UTILS_FILE_UTILS_H_
-
-#include <filesystem>
-#include <fstream>
-#include <iostream>
-#include <sstream>
-#include <string>
-
-#include <glog/logging.h>
-
-namespace gs {
-
-void ensure_directory_exists(const std::string& dir_path);
-
-bool read_string_from_file(const std::string& file_path, std::string& content);
-
-bool write_string_to_file(const std::string& content,
-                          const std::string& file_path);
-
-}  // namespace gs
-
-#endif  // UTILS_FILE_UTILS_H_

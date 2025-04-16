@@ -13,26 +13,15 @@
  * limitations under the License.
  */
 
-#ifndef UTILS_FILE_UTILS_H_
-#define UTILS_FILE_UTILS_H_
-
-#include <filesystem>
-#include <fstream>
-#include <iostream>
-#include <sstream>
-#include <string>
-
-#include <glog/logging.h>
+#ifndef SRC_MAIN_QUERY_RESULT_H_
+#define SRC_MAIN_QUERY_RESULT_H_
 
 namespace gs {
-
-void ensure_directory_exists(const std::string& dir_path);
-
-bool read_string_from_file(const std::string& file_path, std::string& content);
-
-bool write_string_to_file(const std::string& content,
-                          const std::string& file_path);
-
+class QueryResult {
+ public:
+  QueryResult() {}
+  ~QueryResult() {}
+};
 }  // namespace gs
 
-#endif  // UTILS_FILE_UTILS_H_
+#endif  // SRC_MAIN_QUERY_RESULT_H_

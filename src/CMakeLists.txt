@@ -1,4 +1,5 @@
 add_subdirectory(utils)
+add_subdirectory(main)
 add_subdirectory(storages)
 add_subdirectory(engines)
 if (BUILD_EXECUTABLES)

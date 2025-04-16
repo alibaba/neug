@@ -1,23 +1,33 @@
 # The python binding API for NexG
 
-## Building
+# Building the Wheel
+
+To build wheels for all supported Python versions on this platform, use the following commands:
 
 ```bash
-cd nexg
-mkdir build && cd build && cmake .. -DBUILD_PYTHON=ON
-make -j
+pip3 install cibuildwheel
+cibuildwheel ./tools/python_bind --no-deps
 ```
 
-Then you will find a python wheel package under `tools/python_bind/dist`, should be like `nexg-0.1.0-cp310-cp310-linux_x86_64.whl`.
+To build a wheel for the local environment, run:
 
 ```bash
-cd tools/python_bind/dist
-pip3 install ./*
+cd tools/python_bind
+python3 setup.py build_wheel
 ```
 
-To check whether it has been installed correctly, 
+# Development Mode Setup
 
-```python
-import nexg
-print(nexg.__version__)
+In development mode, wheels are not built or installed. Instead, the required dynamic library is built and copied to `tools/python_bind/build`. Any changes made to the Python codebase will take effect immediately, allowing for seamless reloading of files.
+
+```bash
+make develop
+# run tests
+
+python3 -m pytest tests/test_a.py
+```
+
+or 
+```bash
+python3 setup.py build_ext --inplace --build-temp=build
 ```

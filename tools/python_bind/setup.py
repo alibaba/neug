@@ -24,6 +24,7 @@ import subprocess
 import sys
 from pathlib import Path
 
+from setuptools import find_packages  # noqa: H301
 from setuptools import Extension, setup
 from setuptools.command.build_ext import build_ext
 from setuptools.command.build_py import build_py as _build_py
@@ -62,26 +63,23 @@ class CMakeExtension(Extension):
 
 
 class CMakeBuild(build_ext):
+    
+    def initialize_options(self):
+        super().initialize_options()
+        # We set the build_temp to the local build/ directory
+        self.build_temp = Path.cwd() / "build"
+    
     def build_extension(self, ext: CMakeExtension) -> None:
         # Must be in this form due to bug in .resolve() only fixed in Python 3.10+
         ext_fullpath = Path.cwd() / self.get_ext_fullpath(ext.name)
         extdir = ext_fullpath.parent.resolve()
-
-        gs_env_file = os.path.expanduser("~/.graphscope_env")
-        if os.path.exists(gs_env_file):
-            with open(gs_env_file, "r") as f:
-                for line in f:
-                    if line.startswith("export"):
-                        key, value = line.split("=")
-                        key = key.replace("export", "").strip()
-                        value = value.strip()
-                        os.environ[key] = value
 
         # Using this requires trailing slash for auto-detection & inclusion of
         # auxiliary "native" libs
 
         debug = int(os.environ.get("DEBUG", 0))
         cfg = "Debug" if debug else "Release"
+        build_executables = "ON" if os.environ.get("BUILD_EXECUTABLES", "OFF") == "ON" else "OFF"
         # cfg is now dynamically set based on the DEBUG environment variable
 
         # CMake lets you override the generator - we need to check this.
@@ -95,6 +93,8 @@ class CMakeBuild(build_ext):
             f"-DCMAKE_LIBRARY_OUTPUT_DIRECTORY={extdir}{os.sep}",
             f"-DPYTHON_EXECUTABLE={sys.executable}",
             f"-DCMAKE_BUILD_TYPE={cfg}",  # not used on MSVC, but no harm
+            f"-DOPTIMIZE_FOR_HOST=OFF",
+            f"-DBUILD_EXECUTABLES=${build_executables}",
         ]
         build_args = []
         # Adding CMake arguments set as environment variable
@@ -159,12 +159,22 @@ class CMakeBuild(build_ext):
         if not build_temp.exists():
             build_temp.mkdir(parents=True)
 
+        # find cmake executable
+        cmake_executable = shutil.which("cmake")
+        if cmake_executable is None:
+            raise RuntimeError("CMake executable not found in PATH.")
+
         subprocess.run(
-            ["cmake", ext.sourcedir, *cmake_args], cwd=build_temp, check=True
+            [cmake_executable, ext.sourcedir, *cmake_args], cwd=build_temp, check=True
         )
         subprocess.run(
-            ["cmake", "--build", ".", "-j", *build_args], cwd=build_temp, check=True
+            [cmake_executable, "--build", ".", "-j", *build_args],
+            cwd=build_temp,
+            check=True,
         )
+        
+    def copy_extensions_to_source(self):
+        pass
 
 
 class BuildExtFirst(_build_py):
@@ -177,10 +187,32 @@ class BuildExtFirst(_build_py):
 setup(
     name="nexg",
     version=version,
-    ext_modules=[CMakeExtension(name="nexg", sourcedir=repo_root)],
+    author="GraphScope Team",
+    author_email="graphscope@alibaba-inc.com",
+    url="https://github.com/alibaba/nexg",
+    license="Apache License 2.0",
+    classifiers=[
+        "Development Status :: 5 - Production/Stable",
+        "Intended Audience :: Developers",
+        "Intended Audience :: Science/Research",
+        "License :: OSI Approved :: Apache Software License",
+        "Topic :: Software Development :: Libraries",
+        "Operating System :: MacOS :: MacOS X",
+        "Operating System :: POSIX",
+        "Programming Language :: Python",
+        "Programming Language :: Python :: 3",
+        "Programming Language :: Python :: 3.7",
+        "Programming Language :: Python :: 3.8",
+        "Programming Language :: Python :: 3.9",
+        "Programming Language :: Python :: 3.10",
+        "Programming Language :: Python :: 3.11",
+    ],
+    ext_modules=[CMakeExtension(name="nexg_py_bind", sourcedir=repo_root)],
     description="GraphScope NexG.",
     long_description=open(os.path.join(base_dir, "README.md"), "r").read(),
     long_description_content_type="text/markdown",
+    packages=find_packages(exclude=["tests"]),
+    package_data={"nexg": ["VERSION"]},
     zip_safe=True,
     include_package_data=True,
     cmdclass={

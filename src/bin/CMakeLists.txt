@@ -12,19 +12,6 @@ if(Hiactor_FOUND)
         install_without_export_nexg_target(rt_bench)
 endif()
 
-add_executable(rt_admin rt_admin.cc)
-target_link_libraries(rt_admin nexg_utils)
-install_without_export_nexg_target(rt_admin)
-
-
-add_executable(adhoc_runner adhoc_runner.cc)
-target_link_libraries(adhoc_runner nexg_graph_db)
-install_without_export_nexg_target(adhoc_runner)
-
-add_executable(cypher_client cypher_client.cc)
-target_link_libraries(cypher_client nexg_utils)
-install_without_export_nexg_target(cypher_client)
-
 if(Hiactor_FOUND)
         add_executable(interactive_server interactive_server.cc)
         target_link_libraries(interactive_server nexg_server ${GFLAGS_LIBRARIES})
@@ -42,7 +29,3 @@ if (BUILD_WITH_OSS)
         target_link_libraries(bulk_loader cpp-sdk)
 endif()
 install_without_export_nexg_target(bulk_loader)
-
-add_executable(stored_procedure_runner stored_procedure_runner.cc)
-target_link_libraries(stored_procedure_runner nexg_graph_db ${GFLAGS_LIBRARIES})
-install_without_export_nexg_target(stored_procedure_runner)

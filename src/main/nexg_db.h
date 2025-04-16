@@ -1,0 +1,99 @@
+/** Copyright 2020 Alibaba Group Holding Limited.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ * 	http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+#ifndef SRC_MAIN_NEXG_DB_H_
+#define SRC_MAIN_NEXG_DB_H_
+
+#include <memory>
+#include <mutex>
+#include <string>
+#include <vector>
+
+#include "src/engines/graph_db/database/graph_db.h"
+#include "src/main/connection.h"
+#include "src/utils/file_utils.h"
+
+namespace gs {
+
+enum class DBMode { READ_ONLY, READ_WRITE };
+
+class NexgDB {
+ public:
+  static constexpr const char* LOCK_FILE_NAME = "nexgdb.lock";
+  NexgDB(const std::string& data_dir, const std::string mode) {
+    LOG(INFO) << "Creating NexgDB with: " << data_dir << " in " << mode
+              << " mode.";
+    config_.data_dir = data_dir;
+    ensure_directory_exists(data_dir);
+    if (!try_to_lock_directory()) {
+      throw std::runtime_error("Failed to lock directory: " + data_dir +
+                               ", Another process may be using it.");
+    }
+    auto res = db_.Open(config_);
+    if (!res.ok()) {
+      throw std::runtime_error("Failed to open database: " +
+                               res.status().error_message());
+    } else {
+      if (mode == "read_only" || mode == "r") {
+        mode_ = DBMode::READ_ONLY;
+      } else if (mode == "read_write" || mode == "rw") {
+        mode_ = DBMode::READ_WRITE;
+      } else {
+        throw std::invalid_argument("Invalid mode: " + mode);
+      }
+    }
+    LOG(INFO) << "Database opened successfully in " << mode << " mode.";
+  }
+
+  ~NexgDB() {
+    db_.Close();
+    std::remove(get_lock_file_path().c_str());
+  }
+
+  /**
+   * @brief Open a connection to the database.
+   * @return A Connection object that can be used to interact with the database.
+   *
+   * @note We the mode is read-only, this method could be called multiple times.
+   * But if the mode is read-write, this method should be called only once.
+   */
+  std::shared_ptr<Connection> connect();
+
+ private:
+  bool try_to_lock_directory() {
+    std::string lock_file_path = get_lock_file_path();
+    std::ofstream lock_file(lock_file_path);
+    if (!lock_file.is_open()) {
+      return false;
+    }
+    lock_file << "Locked by process: " << getpid() << std::endl;
+    lock_file.close();
+    return true;
+  }
+  std::string get_lock_file_path() {
+    return config_.data_dir + "/" + LOCK_FILE_NAME;
+  }
+  GraphDBConfig config_;
+  GraphDB db_;
+  DBMode mode_;
+
+  std::shared_ptr<Connection> read_write_connection_;
+  std::vector<std::shared_ptr<Connection>> read_only_connections_;
+
+  std::mutex connection_mutex_;
+};
+}  // namespace gs
+
+#endif  // SRC_MAIN_NEXG_DB_H_

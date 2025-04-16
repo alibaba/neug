@@ -20,11 +20,11 @@ pip3 install cibuildwheel
 cibuildwheel ./tools/python_bind --no-deps
 ```
 
-Building wheel for local environment
+Building for local development
 
 ```bash
 cd tools/python_bind
-python3 setup.py build
+python3 setup.py build_ext
 ```
 
 # Start Service

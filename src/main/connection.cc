@@ -13,26 +13,17 @@
  * limitations under the License.
  */
 
-#ifndef UTILS_FILE_UTILS_H_
-#define UTILS_FILE_UTILS_H_
-
-#include <filesystem>
-#include <fstream>
-#include <iostream>
-#include <sstream>
-#include <string>
-
-#include <glog/logging.h>
+#include "src/main/connection.h"
 
 namespace gs {
 
-void ensure_directory_exists(const std::string& dir_path);
-
-bool read_string_from_file(const std::string& file_path, std::string& content);
-
-bool write_string_to_file(const std::string& content,
-                          const std::string& file_path);
+QueryResult Connection::query(const std::string& query_string) {
+  // Implement the query logic here
+  LOG(INFO) << "Executing query: " << query_string;
+  QueryResult result;
+  // Execute the query and populate the result
+  LOG(INFO) << "Query executed successfully.";
+  return result;
+}
 
 }  // namespace gs
-
-#endif  // UTILS_FILE_UTILS_H_

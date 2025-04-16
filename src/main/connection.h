@@ -13,32 +13,29 @@
  * limitations under the License.
  */
 
-#include <pybind11/pybind11.h>
+#ifndef TOOLS_PYTHON_BIND_SRC_CONNECTION_H_
+#define TOOLS_PYTHON_BIND_SRC_CONNECTION_H_
+
 #include <string>
+#include <vector>
 
-#include "py_connection.h"
-#include "py_database.h"
-#include "py_query_result.h"
+#include <glog/logging.h>
+#include "src/main/query_result.h"
 
-#define STRINGIFY(x) #x
-#define MACRO_STRINGIFY(x) STRINGIFY(x)
+namespace gs {
 
-namespace py = pybind11;
+class NexgDB;
 
-PYBIND11_MODULE(nexg_py_bind, m) {
-  m.doc() = R"pbdoc(
-        
-        -----------------------
-        GraphScope NexG, a high performence embedded graph database.
-        .. currentmodule:: nexg
+class Connection {
+ public:
+  Connection(NexgDB& db) : db_(db) {}
+  ~Connection() = default;
 
-        .. autosummary::
-           :toctree: _generate
+  QueryResult query(const std::string& query_string);
 
-    )pbdoc";
+ private:
+  NexgDB& db_;
+};
+}  // namespace gs
 
-  m.attr("__version__") = MACRO_STRINGIFY(NEXG_VERSION);
-  gs::PyDatabase::initialize(m);
-  gs::PyConnection::initialize(m);
-  gs::PyQueryResult::initialize(m);
-}
+#endif  // TOOLS_PYTHON_BIND_SRC_CONNECTION_H_

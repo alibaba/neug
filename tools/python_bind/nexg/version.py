@@ -17,6 +17,7 @@
 
 import os
 
+import packaging
 from packaging import version
 
 version_file_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "VERSION")

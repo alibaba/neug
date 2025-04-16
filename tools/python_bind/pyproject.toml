@@ -12,7 +12,16 @@ readme = "README.md"
 keywords = ["Graph", "Python", "Embedded", "Graph Database"]
 dependencies = [
     "pybind11>=2.9.2",
-    "cibuildwheel>=2.0.0"
+    "cibuildwheel>=2.0.0",
+    "packaging>=24.2"
+]
+
+[project.optional-dependencies]
+test = [
+    "pytest>=6.2.5",
+    "black>=23.3.0",
+    "flake8==4.0.1",
+    "isort==5.10.1",
 ]
 
 [tool.cibuildwheel]
