@@ -192,7 +192,7 @@ int main(int argc, char** argv) {
   // Config log level
   gs::config_log_level(service_config.log_level, service_config.verbose_level);
 
-  gs::GraphDB db;
+  gs::GraphDB& db = server::GraphDBService::get().graph_db();
 
   if (vm["enable-trace"].as<bool>()) {
 #ifdef HAVE_OPENTELEMETRY_CPP

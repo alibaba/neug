@@ -80,7 +80,7 @@ int main(int argc, char** argv) {
   gs::blockSignal(SIGTERM);
 
   double t0 = -grape::GetCurrentTime();
-  gs::GraphDB db;
+  gs::GraphDB& db = server::GraphDBService::get().graph_db();
   std::string graph_schema_path = data_path + "/graph.yaml";
   auto schema = gs::Schema::LoadFromYaml(graph_schema_path);
   if (!schema.ok()) {

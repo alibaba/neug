@@ -6,7 +6,9 @@ Currently compiler are provided via jar.
 
 ```bash
 wget https://graphscope.oss-accelerate-overseas.aliyuncs.com/compiler/compiler-0.0.1-SNAPSHOT-shade.jar
-java -Dgraph.schema=/workspaces/nexg/example_dataset/modern_graph/graph.yaml -jar compiler-0.0.1-SNAPSHOT-shade.jar ./tests/engines/interactive_config_test.yaml
+java -Dgraph.schema=/workspaces/nexg/example_dataset/modern_graph/graph.yaml \
+     -Dgraph.statistics=/tmp/csr-data/statistics.json \
+    -jar compiler-0.0.1-SNAPSHOT-shade.jar ./tests/engines/interactive_config_test_cbo.yaml
 ```
 
 # Building Wheel
@@ -23,4 +25,36 @@ Building wheel for local environment
 ```bash
 cd tools/python_bind
 python3 setup.py build
+```
+
+# Start Service
+
+TODO: Currently we use the old interactive_server to provide TP service, in the future, we will use python-based server.
+
+## Load Graph
+
+```bash
+cd build
+GLOG_v=10 ./src/bin/bulk_loader -g ../example_dataset/modern_graph/graph.yaml -l ../example_dataset/modern_graph/bulk_load.yaml -d /tmp/csr-data-dir 
+# You will find a statistics.json under /tmp/csr-data-dir 
+```
+
+## Start Compiler Service
+
+```bash
+java -Dgraph.schema=/workspaces/nexg/example_dataset/modern_graph/graph.yaml \
+     -Dgraph.statistics=/tmp/csr-data/statistics.json \
+    -jar compiler-0.0.1-SNAPSHOT-shade.jar ./tests/engines/interactive_config_test_cbo.yaml
+```
+## Start Nexg(Interactive) Server
+
+```bash
+GLOG_v=10 ./src/bin/interactive_server -c ../tests/engines/interactive_config_test_cbo.yaml -g ../example_dataset/modern_graph/graph.yaml --data-path /tmp/csr-data-dir
+```
+
+## Start cypher shell, submit query
+
+```bash
+wget https://dist.neo4j.org/cypher-shell/cypher-shell-4.4.19.zip
+unzip cypher-shell-4.4.19.zip && cd cypher-shell
 ```

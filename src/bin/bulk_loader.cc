@@ -278,6 +278,12 @@ int main(int argc, char** argv) {
   t += grape::GetCurrentTime();
   LOG(INFO) << "Finished bulk loading in " << t << " seconds.";
 
+  // Try to open graph db to generate statistics.json
+  gs::MutablePropertyFragment frag;
+  frag.Open(data_dir_path.string(), 1);
+  frag.generateStatistics(data_dir_path.string());
+  LOG(INFO) << "Successfully opened graph db: " << data_dir_path.string();
+
 #ifdef BUILD_WITH_OSS
   if (upload_to_oss) {
     return upload_data_dir_to_oss(data_dir_path, object_path, oss_conf);
