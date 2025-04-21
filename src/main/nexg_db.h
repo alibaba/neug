@@ -23,6 +23,9 @@
 
 #include "src/engines/graph_db/database/graph_db.h"
 #include "src/main/connection.h"
+#include "src/main/query_processor.h"
+#include "src/planner/graph_planner.h"
+#include "src/planner/jni_graph_planner.h"
 #include "src/utils/file_utils.h"
 
 namespace gs {
@@ -32,10 +35,19 @@ enum class DBMode { READ_ONLY, READ_WRITE };
 class NexgDB {
  public:
   static constexpr const char* LOCK_FILE_NAME = "nexgdb.lock";
-  NexgDB(const std::string& data_dir, const std::string mode) {
+
+  NexgDB(const std::string& data_dir, int32_t max_num_threads,
+         const std::string& mode, const std::string& planner_kind,
+         const std::string& jni_planner_class_path,
+         const std::string& planner_config_path) {
     LOG(INFO) << "Creating NexgDB with: " << data_dir << " in " << mode
-              << " mode.";
+              << " mode, "
+              << " planner: " << planner_kind;
+    if (max_num_threads == 0) {
+      max_num_threads = std::thread::hardware_concurrency();
+    }
     config_.data_dir = data_dir;
+    config_.thread_num = max_num_threads;
     ensure_directory_exists(data_dir);
     if (!try_to_lock_directory()) {
       throw std::runtime_error("Failed to lock directory: " + data_dir +
@@ -55,6 +67,10 @@ class NexgDB {
       }
     }
     LOG(INFO) << "Database opened successfully in " << mode << " mode.";
+    planner_ = create_planner(planner_kind, jni_planner_class_path,
+                              planner_config_path);
+
+    query_processor_ = std::make_shared<QueryProcessor>(db_, max_num_threads);
   }
 
   ~NexgDB() {
@@ -68,6 +84,9 @@ class NexgDB {
    *
    * @note We the mode is read-only, this method could be called multiple times.
    * But if the mode is read-write, this method should be called only once.
+   *
+   * @note Each connection will hold a shared pointer, which means it will share
+   * the planner with other connections in the same database.
    */
   std::shared_ptr<Connection> connect();
 
@@ -82,12 +101,29 @@ class NexgDB {
     lock_file.close();
     return true;
   }
+
   std::string get_lock_file_path() {
     return config_.data_dir + "/" + LOCK_FILE_NAME;
   }
+
+  std::shared_ptr<IGraphPlanner> create_planner(
+      const std::string& planner_kind,
+      const std::string& jni_planner_class_path,
+      const std::string& planner_config_path) {
+    if (planner_kind == "jni") {
+      return std::make_shared<JavaGraphPlanner>(planner_config_path,
+                                                jni_planner_class_path);
+    } else {
+      throw std::invalid_argument("Invalid planner kind: " + planner_kind);
+    }
+  }
+
   GraphDBConfig config_;
   GraphDB db_;
   DBMode mode_;
+
+  std::shared_ptr<IGraphPlanner> planner_;
+  std::shared_ptr<QueryProcessor> query_processor_;
 
   std::shared_ptr<Connection> read_write_connection_;
   std::vector<std::shared_ptr<Connection>> read_only_connections_;

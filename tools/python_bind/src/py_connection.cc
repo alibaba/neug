@@ -38,7 +38,9 @@ void PyConnection::close() { conn_.reset(); }
 
 std::unique_ptr<PyQueryResult> PyConnection::execute(
     const std::string& statement) {
-  return std::make_unique<PyQueryResult>();
+  // TODO: currently we assume all statements are graph queries, we need to
+  // support the DDL, DML later
+  return std::make_unique<PyQueryResult>(conn_->query(statement));
 }
 
 }  // namespace gs

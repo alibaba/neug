@@ -25,8 +25,8 @@ namespace runtime {
 class Sink {
  public:
   template <typename GraphInterface>
-  static void sink(const Context& ctx, const GraphInterface& graph,
-                   Encoder& output) {
+  static results::CollectiveResults sink(const Context& ctx,
+                                         const GraphInterface& graph) {
     size_t row_num = ctx.row_num();
     results::CollectiveResults results;
     for (size_t i = 0; i < row_num; ++i) {
@@ -41,6 +41,13 @@ class Sink {
         val.sink(graph, j, column);
       }
     }
+    return results;
+  }
+
+  template <typename GraphInterface>
+  static void sink(const Context& ctx, const GraphInterface& graph,
+                   Encoder& output) {
+    results::CollectiveResults results = sink(ctx, graph);
     auto res = results.SerializeAsString();
     output.put_bytes(res.data(), res.size());
   }

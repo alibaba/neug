@@ -36,6 +36,11 @@ class PyConnection : public std::enable_shared_from_this<PyConnection> {
 
   ~PyConnection() = default;
 
+  /**
+   * The execution of query could be splitted into two parts:
+   * 1. parse the query string and generate the execution plan.
+   * 2. Execute the execution plan using runtime engine.
+   */
   std::unique_ptr<PyQueryResult> execute(const std::string& query_string);
 
  private:

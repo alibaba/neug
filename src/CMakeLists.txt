@@ -8,6 +8,7 @@ endif()
 if (OPENTELEMETRY_CPP_FOUND)
    add_subdirectory(otel)
 endif()
+add_subdirectory(planner)
 
 file(GLOB_RECURSE FILES_NEED_LINT
         "engines/*.cc"

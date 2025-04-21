@@ -24,6 +24,8 @@ import nexg_py_bind
 from nexg.connection import Connection
 from nexg.version import __version__
 
+from importlib.resources import files
+
 logger = logging.getLogger(__name__)
 
 
@@ -32,7 +34,7 @@ class Database(object):
     Database class to manage the database connection and operations.
     """
 
-    def __init__(self, db_path: str, mode: str = "r"):
+    def __init__(self, db_path: str, mode: str = "r",  max_thread_num : int = 0,  planner = "jni", jni_planner_jar_path = None, planner_config_path = None):
         """
         Open a database connection.
 
@@ -42,14 +44,26 @@ class Database(object):
             Path to the database file.
         mode : str
             Mode to open the database. Default is 'r' for read-only.
+        max_thread_num : int
+            Maximum number of threads to use. Default is 0, which means no limit.
+        planner : str
+            The planner to use. Default is 'jni'.
+        jni_planner_jar_path : str
+            Path to the JNI planner jar file. Default is None. If none, the default jar path will be used.
+        planner_config_path : str
+            Path to the planner config file. Default is None. If none, the default config path will be used.
         """
         self._db_path = db_path
         self._mode = mode
         # The default connection of the database, will be lazy initialized if get_default_connection is called.
         # In 'r' mode, the default connection will be a read-only connection.
         # In 'w' mode, the default connection will be a read-write connection. And we won't allow to create any new connections.
-        self._database = nexg_py_bind.PyDatabase(db_path, mode)
-        logger.info(f"Open database {db_path} in {mode} mode.")
+        if planner == "jni" and jni_planner_jar_path is None:
+            jni_planner_jar_path = self._get_default_jni_planner_jar_path()
+        if planner_config_path is None:
+            planner_config_path = self._get_default_planner_config_path()
+        self._database = nexg_py_bind.PyDatabase(db_path, max_thread_num, mode, planner, jni_planner_jar_path, planner_config_path)
+        logger.info(f"Open database {db_path} in {mode} mode, planner: {planner}, config: {planner_config_path}, jar: {jni_planner_jar_path}.")
 
     def __del__(self):
         self.close()
@@ -80,3 +94,27 @@ class Database(object):
             self._database.close()
             self._database = None
             logger.info(f"Close database {self._db_path}.")
+            
+    
+    def _get_default_jni_planner_jar_path(self):
+        """
+        Get the default JNI planner jar path.
+        """
+        # Load the file under nexg/resources/, ended with .jar
+        jar_path = files("nexg.resources").joinpath("compiler.jar")
+        if not jar_path.exists():
+            raise RuntimeError(f"JNI planner jar file not found: {jar_path}")
+        logger.info(f"Using JNI planner jar file: {jar_path}")
+        return str(jar_path.resolve())
+    
+    def _get_default_planner_config_path(self):
+        """
+        Get the default planner config path.
+        """
+        # Load the file under nexg/resources/, ended with .json
+        config_path = files("nexg.resources").joinpath("planner_config.yaml")
+        if not config_path.exists():
+            raise RuntimeError(f"Planner config file not found: {config_path}")
+        logger.info(f"Using planner config file: {config_path}")
+        # convert to string
+        return str(config_path.resolve())

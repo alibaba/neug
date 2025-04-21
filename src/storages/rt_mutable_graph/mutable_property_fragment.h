@@ -165,8 +165,19 @@ class MutablePropertyFragment {
     }
   }
 
-  void generateStatistics(const std::string& work_dir) const;
+  inline std::string statisticsFilePath() const {
+    return work_dir_ + "/statistics.json";
+  }
 
+  std::string get_statistics_json() const;
+
+  inline std::string get_schema_yaml_path() const {
+    return work_dir_ + "/graph.yaml";
+  }
+
+  void generateStatistics() const;
+
+  std::string work_dir_;
   Schema schema_;
   std::vector<IndexerType> lf_indexers_;
   std::vector<CsrBase*> ie_, oe_;

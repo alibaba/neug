@@ -68,6 +68,29 @@ class CMakeBuild(build_ext):
         super().initialize_options()
         # We set the build_temp to the local build/ directory
         self.build_temp = Path.cwd() / "build"
+        
+    def run(self):
+        self.download_compiler_jar()
+        super().run()
+        
+    def download_compiler_jar(self):
+        resource_ur = "https://graphscope.oss-accelerate-overseas.aliyuncs.com/compiler/compiler-0.0.1-SNAPSHOT-shade.jar"
+        target_dir = "nexg/resources"
+        target_file = os.path.join(target_dir, "compiler.jar")
+        if not os.path.exists(target_dir):
+            os.makedirs(target_dir)
+        if not os.path.exists(target_file):
+            try:
+                import urllib.request
+
+                urllib.request.urlretrieve(resource_ur, target_file)
+            except Exception as e:
+                print(f"Failed to download {resource_ur}: {e}")
+                raise RuntimeError(
+                    f"Failed to download {resource_ur}. Please download it manually and place it in {target_dir}."
+                )
+        else:
+            print(f"{target_file} already exists. Skipping download.")
     
     def build_extension(self, ext: CMakeExtension) -> None:
         # Must be in this form due to bug in .resolve() only fixed in Python 3.10+
@@ -212,7 +235,7 @@ setup(
     long_description=open(os.path.join(base_dir, "README.md"), "r").read(),
     long_description_content_type="text/markdown",
     packages=find_packages(exclude=["tests"]),
-    package_data={"nexg": ["VERSION"]},
+    package_data={"nexg": ["VERSION", "resources/*"]},
     zip_safe=True,
     include_package_data=True,
     cmdclass={

@@ -148,6 +148,9 @@ inline void copy_file(const std::string& src, const std::string& dst) {
 #endif
 }
 
+/**
+ * Return the path of the serialized schema file.
+ */
 inline std::string schema_path(const std::string& work_dir) {
   return work_dir + "/schema";
 }

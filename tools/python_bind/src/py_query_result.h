@@ -19,6 +19,8 @@
 #include "third_party/pybind11/include/pybind11/pybind11.h"
 
 #include "src/main/query_result.h"
+#include "src/proto_generated_gie/results.pb.h"
+#include "src/utils/result.h"
 
 namespace gs {
 
@@ -26,7 +28,8 @@ class PyQueryResult {
  public:
   static void initialize(pybind11::handle& m);
 
-  PyQueryResult() = default;
+  PyQueryResult(Result<results::CollectiveResults>&& result)
+      : result_(std::move(result.move_value())), status_(result.status()) {}
 
   ~PyQueryResult() { close(); }
 
@@ -40,9 +43,13 @@ class PyQueryResult {
 
   void close();
 
+  int32_t getStatusCode() const { return status_.error_code(); }
+
+  std::string getStatusMessage() const { return status_.error_message(); }
+
  private:
-  std::shared_ptr<QueryResult> queryResult = nullptr;
-  //   bool isOwned = false;
+  results::CollectiveResults result_;
+  Status status_;
 };
 
 }  // namespace gs

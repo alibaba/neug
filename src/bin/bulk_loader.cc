@@ -281,8 +281,16 @@ int main(int argc, char** argv) {
   // Try to open graph db to generate statistics.json
   gs::MutablePropertyFragment frag;
   frag.Open(data_dir_path.string(), 1);
-  frag.generateStatistics(data_dir_path.string());
+  frag.generateStatistics();
   LOG(INFO) << "Successfully opened graph db: " << data_dir_path.string();
+
+  // Also copy the graph.yaml to the data directory
+  std::error_code ec;
+  std::filesystem::copy(graph_schema_path, data_dir_path / "graph.yaml",
+                        std::filesystem::copy_options::overwrite_existing, ec);
+  if (ec) {
+    LOG(ERROR) << "Failed to copy graph schema file: " << ec.message();
+  }
 
 #ifdef BUILD_WITH_OSS
   if (upload_to_oss) {

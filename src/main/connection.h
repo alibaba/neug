@@ -20,21 +20,42 @@
 #include <vector>
 
 #include <glog/logging.h>
+#include "src/engines/graph_db/database/graph_db.h"
+#include "src/main/query_processor.h"
 #include "src/main/query_result.h"
+#include "src/planner/graph_planner.h"
+#include "src/proto_generated_gie/results.pb.h"
+#include "src/utils/result.h"
 
 namespace gs {
 
 class NexgDB;
 
+/**
+ * This the the internal connection class, which is used to execute the query.
+ * The connection is not thread safe, so the user should create a new connection
+ * for each thread.
+ */
 class Connection {
  public:
-  Connection(NexgDB& db) : db_(db) {}
+  Connection(GraphDB& db, std::shared_ptr<IGraphPlanner> planner,
+             std::shared_ptr<QueryProcessor> query_processor)
+      : db_(db), planner_(planner), query_processor_(query_processor) {}
   ~Connection() = default;
 
-  QueryResult query(const std::string& query_string);
+  /**
+   * @brief Execute the query and return the result.
+   * @note The query process is divided into two parts:
+   * 1. Parse the query string and generate the execution plan.
+   * 2. Execute the execution plan using runtime engine.
+   */
+  Result<results::CollectiveResults> query(const std::string& query_string);
 
  private:
-  NexgDB& db_;
+  GraphDB& db_;
+
+  std::shared_ptr<IGraphPlanner> planner_;
+  std::shared_ptr<QueryProcessor> query_processor_;
 };
 }  // namespace gs
 

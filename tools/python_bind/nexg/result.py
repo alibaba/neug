@@ -70,7 +70,7 @@ class QueryResult(object):
         str
             The string representation of the result.
         """
-        return str(self._result)
+        return f"QueryResult({self._result.get_status_code()}, {self._result.get_status_message()})"
 
     def __repr__(self):
         """
@@ -81,7 +81,7 @@ class QueryResult(object):
         str
             The string representation of the result.
         """
-        return f"QueryResult({self._result})"
+        return self.__str__()
 
     def __del__(self):
         """

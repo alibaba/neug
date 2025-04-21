@@ -20,6 +20,7 @@ option(BUILD_WITH_OTEL "Whether to build with opentelemetry-cpp" OFF) # Whether 
 option(BUILD_WITH_OSS "Whether to build with oss support" OFF) # Whether to build with oss support, default is OFF
 option(BUILD_EXECUTABLES "When to build executors" OFF) # Whether to build executables, default is OFF
 option(BUILD_HTTP_SERVER "Whether to build http server" OFF) # Whether to build http server, default is OFF
+option(BUILD_JNI_PLANNER "Whether to build jni wrapper for the java planner" ON) # Whether to build jni wrapper for the java planner, default is ON
 
 # Options to control the building of tools
 option(BUILD_PYTHON "Whether to build python embedded" ON)
@@ -70,6 +71,19 @@ else()
     if(LINUX_KERNEL_VERSION VERSION_GREATER_EQUAL "4.5")
         message("Use copy file range")
         add_definitions(-DUSE_COPY_FILE_RANGE)
+    endif()
+endif()
+
+if (BUILD_JNI_PLANNER)
+    message(STATUS "Build jni planner")
+    set(JAVA_AWT_INCLUDE_PATH NotNeeded)
+    set(CMAKE_CXX_STANDARD 17)
+    find_package(JNI QUIET)
+    if (JNI_FOUND)
+        include_directories(SYSTEM ${JAVA_INCLUDE_PATH})
+        include_directories(SYSTEM ${JAVA_INCLUDE_PATH2})
+    else()
+        message(FATAL_ERROR "JNI not found")
     endif()
 endif()
 

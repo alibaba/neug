@@ -51,4 +51,4 @@ class Connection(object):
         query_result : QueryResult
             The result of the query.
         """
-        return self._py_connection.execute(query)
+        return QueryResult(self._py_connection.execute(query))

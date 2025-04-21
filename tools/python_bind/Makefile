@@ -11,12 +11,12 @@ requirements:  ## Install requirements
 	pip3 install -r requirements_dev.txt
 
 .PHONY: build
-build: requirements ## Compile nexg and python bindings, and copy to build directory
+build: ## Compile nexg and python bindings, and copy to build directory
 	@echo "Building C++ and Python bindings..."
 	python3 setup.py build_ext
 
 .PHONY: wheel
-wheel: requirements ## Build the nexg python wheel package
+wheel: ## Build the nexg python wheel package
 	@echo "Building wheel package..."
 	python3 setup.py bdist_wheel
 

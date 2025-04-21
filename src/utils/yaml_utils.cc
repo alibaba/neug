@@ -181,4 +181,15 @@ Status write_yaml_node_to_yaml_string(const YAML::Node& node,
   return Status::OK();
 }
 
+std::string read_yaml_file_to_string(const std::string& file_path) {
+  // Read the file into a yaml node, and convert it to a string
+  YAML::Node node = YAML::LoadFile(file_path);
+  YAML::Emitter emitter;
+  auto status = write_yaml_node_to_yaml_string(node, emitter);
+  if (!status.ok()) {
+    throw std::runtime_error("Failed to read yaml file: " + file_path);
+  }
+  return std::string(emitter.c_str());
+}
+
 }  // namespace gs

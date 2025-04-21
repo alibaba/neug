@@ -19,16 +19,18 @@ namespace gs {
 
 std::shared_ptr<Connection> NexgDB::connect() {
   if (mode_ == DBMode::READ_ONLY) {
-    auto conn = std::make_shared<Connection>(*this);
+    auto conn = std::make_shared<Connection>(db_, planner_, query_processor_);
     read_only_connections_.push_back(conn);
     return conn;
   } else if (mode_ == DBMode::READ_WRITE) {
     std::unique_lock<std::mutex> lock(connection_mutex_);
     if (read_write_connection_) {
       LOG(ERROR) << "There is already a read-write connection constructed.";
-      throw std::runtime_error("There is already a read-write connection constructed.");
+      throw std::runtime_error(
+          "There is already a read-write connection constructed.");
     }
-    read_write_connection_ = std::make_shared<Connection>(*this);
+    read_write_connection_ =
+        std::make_shared<Connection>(db_, planner_, query_processor_);
     return read_write_connection_;
   } else {
     throw std::runtime_error("Invalid mode.");

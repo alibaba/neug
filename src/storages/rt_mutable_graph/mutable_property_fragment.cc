@@ -118,6 +118,7 @@ inline DualCsrBase* create_csr(EdgeStrategy oes, EdgeStrategy ies,
 
 void MutablePropertyFragment::Open(const std::string& work_dir,
                                    int memory_level) {
+  work_dir_ = work_dir;
   std::string schema_file = schema_path(work_dir);
   std::string snapshot_dir{};
   bool build_empty_graph = false;
@@ -132,6 +133,7 @@ void MutablePropertyFragment::Open(const std::string& work_dir,
     edge_label_num_ = schema_.edge_label_num();
     lf_indexers_.resize(vertex_label_num_);
     build_empty_graph = true;
+    LOG(INFO) << "Schema file not found, build empty graph";
     for (size_t i = 0; i < vertex_label_num_; ++i) {
       lf_indexers_[i].init(std::get<0>(schema_.get_vertex_primary_key(i)[0]));
     }
@@ -458,11 +460,8 @@ MutablePropertyFragment::get_incoming_edges_mut(label_t label, vid_t u,
   return get_ie_csr(label, neighbor_label, edge_label)->edge_iter_mut(u);
 }
 
-void MutablePropertyFragment::generateStatistics(
-    const std::string& work_dir) const {
-  std::string filename = work_dir + "/statistics.json";
+std::string MutablePropertyFragment::get_statistics_json() const {
   size_t vertex_count = 0;
-
   std::string ss = "\"vertex_type_statistics\": [\n";
   size_t vertex_label_num = schema_.vertex_label_num();
   for (size_t idx = 0; idx < vertex_label_num; ++idx) {
@@ -543,12 +542,26 @@ void MutablePropertyFragment::generateStatistics(
     }
   }
   ss += "]\n";
+  LOG(INFO) << "In generateStatistics, vertex count: " << vertex_count
+            << ", edge count: " << edge_count;
+  std::string final_ss =
+      "{\n\"total_vertex_count\": " + std::to_string(vertex_count) + ",\n";
+  final_ss += "\"total_edge_count\": " + std::to_string(edge_count) + ",\n";
+  final_ss += ss;
+  final_ss += "}\n";
+  return final_ss;
+}
+
+void MutablePropertyFragment::generateStatistics() const {
+  std::string filename = statisticsFilePath();
+
   {
     std::ofstream out(filename);
-    out << "{\n\"total_vertex_count\": " << vertex_count << ",\n";
-    out << "\"total_edge_count\": " << edge_count << ",\n";
-    out << ss;
-    out << "}\n";
+    if (!out.is_open()) {
+      LOG(ERROR) << "Failed to open file: " << filename;
+      return;
+    }
+    out << get_statistics_json();
     out.close();
   }
 }

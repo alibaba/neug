@@ -179,6 +179,18 @@ class GraphDB {
 
   inline const GraphDBConfig& config() const { return config_; }
 
+  inline std::string statisticsFilePath() const {
+    return graph_.statisticsFilePath();
+  }
+
+  inline std::string get_statistics_json() const {
+    return graph_.get_statistics_json();
+  }
+
+  inline std::string get_schema_yaml_path() const {
+    return graph_.get_schema_yaml_path();
+  }
+
  private:
   bool registerApp(const std::string& path, uint8_t index = 0);
 

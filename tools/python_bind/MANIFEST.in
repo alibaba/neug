@@ -1,0 +1,2 @@
+include nexg/resources/planner_config.yaml nexg/resources/planner_config.yaml
+include nexg/resources/compiler.jar nexg/resources/compiler.jar

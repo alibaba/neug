@@ -37,6 +37,8 @@ Status write_yaml_node_to_yaml_string(const YAML::Node& node,
 
 Result<std::string> get_yaml_string_from_yaml_node(const YAML::Node& node);
 
+std::string read_yaml_file_to_string(const std::string& file_path);
+
 namespace config_parsing {
 template <typename T>
 bool get_scalar(YAML::Node node, const std::string& key, T& value) {

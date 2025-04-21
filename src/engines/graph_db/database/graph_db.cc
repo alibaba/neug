@@ -246,8 +246,8 @@ Result<bool> GraphDB::Open(const GraphDBConfig& config) {
     });
   }
 
-  unlink((work_dir_ + "/statistics.json").c_str());
-  graph_.generateStatistics(work_dir_);
+  unlink(graph_.statisticsFilePath().c_str());
+  graph_.generateStatistics();
   runtime::CypherRunnerImpl::get().clear_cache();
 
   return Result<bool>(true);
