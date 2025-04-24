@@ -200,6 +200,11 @@ ArithExpr::ArithExpr(std::unique_ptr<ExprBase>&& lhs,
     break;
   }
 
+  case common::Arithmetic::MUL: {
+    op_ = [](const RTAny& lhs, const RTAny& rhs) { return lhs * rhs; };
+    break;
+  }
+
   default: {
     LOG(FATAL) << "not support..." << static_cast<int>(arith);
     break;
@@ -698,8 +703,8 @@ static std::unique_ptr<ExprBase> build_expr(
       std::vector<RTAny> keys_vec;
       std::vector<std::unique_ptr<ExprBase>> exprs;
       for (int i = 0; i < op.key_vals_size(); ++i) {
-        auto key = op.key_vals(i).key();
-        auto val = op.key_vals(i).val();
+        auto& key = op.key_vals(i).key();
+        auto& val = op.key_vals(i).val();
         auto any = parse_const_value(key);
         keys_vec.push_back(any);
         exprs.emplace_back(
@@ -707,7 +712,7 @@ static std::unique_ptr<ExprBase> build_expr(
                                            var_type));  // just for parse
       }
       if (exprs.size() > 0) {
-        return std::make_unique<MapExpr>(std::move(keys_vec), std::move(exprs));
+        return std::make_unique<MapExpr>(keys_vec, std::move(exprs));
       }
       LOG(FATAL) << "not support" << opr.DebugString();
     }

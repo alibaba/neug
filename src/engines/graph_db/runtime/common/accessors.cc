@@ -85,6 +85,9 @@ std::shared_ptr<IAccessor> create_vertex_property_path_accessor(
   case RTAnyType::kF64Value:
     return std::make_shared<VertexPropertyPathAccessor<GraphInterface, double>>(
         graph, ctx, tag, prop_name);
+  case RTAnyType::kBoolValue:
+    return std::make_shared<VertexPropertyPathAccessor<GraphInterface, bool>>(
+        graph, ctx, tag, prop_name);
   default:
     LOG(FATAL) << "not implemented - " << static_cast<int>(type);
   }
@@ -125,6 +128,9 @@ std::shared_ptr<IAccessor> create_vertex_property_vertex_accessor(
   case RTAnyType::kF64Value:
     return std::make_shared<
         VertexPropertyVertexAccessor<GraphInterface, double>>(graph, prop_name);
+  case RTAnyType::kBoolValue:
+    return std::make_shared<VertexPropertyVertexAccessor<GraphInterface, bool>>(
+        graph, prop_name);
   default:
     LOG(FATAL) << "not implemented - " << static_cast<int>(type);
   }

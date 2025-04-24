@@ -75,17 +75,25 @@ iterative_expand_vertex_on_graph_view(
           builder.push_back_opt(pair.first);
           offsets.push_back(pair.second);
 
-          auto es = view.get_edges(pair.first);
-          for (auto& e : es) {
-            output_list.emplace_back(e.get_neighbor(), pair.second);
+          if (!view.is_null()) {
+            auto es = view.get_edges(pair.first);
+            for (auto& e : es) {
+              output_list.emplace_back(e.get_neighbor(), pair.second);
+            }
+          } else {
+            VLOG(1) << "view is null";
           }
         }
       }
     } else if (depth < lower) {
       for (auto& pair : input_list) {
-        auto es = view.get_edges(pair.first);
-        for (auto& e : es) {
-          output_list.emplace_back(e.get_neighbor(), pair.second);
+        if (!view.is_null()) {
+          auto es = view.get_edges(pair.first);
+          for (auto& e : es) {
+            output_list.emplace_back(e.get_neighbor(), pair.second);
+          }
+        } else {
+          VLOG(1) << "view is null";
         }
       }
     }

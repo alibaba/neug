@@ -168,9 +168,11 @@ class GraphView {
  public:
   GraphView() : csr_(nullptr), timestamp_(0), unsorted_since_(0) {}
   GraphView(const gs::MutableCsr<EDATA_T>* csr, timestamp_t timestamp)
-      : csr_(csr),
-        timestamp_(timestamp),
-        unsorted_since_(csr->unsorted_since()) {}
+      : csr_(csr), timestamp_(timestamp) {
+    if (csr_) {
+      unsorted_since_ = csr->unsorted_since();
+    }
+  }
 
   inline bool is_null() const { return csr_ == nullptr; }
 
@@ -367,6 +369,10 @@ class GraphReadInterface {
                                                     label_t edge_label) const {
     auto csr = dynamic_cast<const MutableCsr<EDATA_T>*>(
         txn_.graph().get_oe_csr(v_label, neighbor_label, edge_label));
+    if (!csr) {
+      VLOG(1) << "GetOutgoingGraphView: csr is null: " << (int32_t) v_label
+              << " " << (int32_t) neighbor_label << " " << (int32_t) edge_label;
+    }
     return graph_view_t<EDATA_T>(csr, txn_.timestamp());
   }
 
@@ -376,6 +382,10 @@ class GraphReadInterface {
                                                     label_t edge_label) const {
     auto csr = dynamic_cast<const MutableCsr<EDATA_T>*>(
         txn_.graph().get_ie_csr(v_label, neighbor_label, edge_label));
+    if (!csr) {
+      VLOG(1) << "GetIncomingGraphView: csr is null: " << (int32_t) v_label
+              << " " << (int32_t) neighbor_label << " " << (int32_t) edge_label;
+    }
     return graph_view_t<EDATA_T>(csr, txn_.timestamp());
   }
 

@@ -28,6 +28,7 @@ class Sink {
   static results::CollectiveResults sink(const Context& ctx,
                                          const GraphInterface& graph) {
     size_t row_num = ctx.row_num();
+    VLOG(10) << "Sink row num: " << row_num;
     results::CollectiveResults results;
     for (size_t i = 0; i < row_num; ++i) {
       auto result = results.add_results();

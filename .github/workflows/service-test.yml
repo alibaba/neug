@@ -1,0 +1,84 @@
+name: Nexg Python Test
+
+on:
+  # Trigger the workflow on push or pull request,
+  # but only for the main branch
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+    paths:
+      - 'cmake/**'
+      - 'src/**'
+      - '.github/workflows/python-test.yml'
+      - 'third_party/**'
+      - 'tools/python_bind/**'
+
+concurrency:
+  group: ${{ github.repository }}-${{ github.event.number || github.head_ref || github.sha }}-${{ github.workflow }}
+  cancel-in-progress: true
+
+jobs:
+  build-nexg:
+    runs-on: ubuntu-20.04
+    if: ${{ github.repository == 'alibaba/GraphScope' }}
+    container:
+      image: registry.cn-hongkong.aliyuncs.com/graphscope/graphscope-dev:v0.24.2-amd64
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Setup tmate session
+      if: false
+      uses: mxschmitt/action-tmate@v3
+
+    - name: Build NexG
+      run: |
+        . /home/graphscope/.graphscope_env
+        cd ${GITHUB_WORKSPACE}/
+        git submodule update --init
+        cd ${GITHUB_WORKSPACE}
+        mkdir build && cd build
+        cmake .. -DCMAKE_INSTALL_PREFIX=/opt/graphscope -DCMAKE_BUILD_TYPE=DEBUG \
+             -DBUILD_EXECUTABLES=ON -DBUILD_HTTP_SERVER=ON -DBUILD_PYTHON=OFF
+        make -j8
+    
+    - name: Prepare test data
+      run: |
+        # Create the directory for test data
+        mkdir -p /tmp/test_data
+        cd ${GITHUB_WORKSPACE}/build
+        ./src/bin/bulk_loader -g ../example_dataset/tinysnb/graph.yaml -l ../example_dataset/tinysnb/bulk.yaml -d /tmp/csr-data
+
+    - name: Test NexG Service
+      run: |
+        # Start Nexg Server 
+        # TODO: Currently we use InteractiveServer, but in the future, we need to start the service with python.
+        cd ${GITHUB_WORKSPACE}/build
+        SCHEMA_PATH=${GITHUB_WORKSPACE}/example_dataset/tinysnb/graph.yaml
+        DATA_PATH=/tmp/csr_data
+        cmd="GLOG_v=10 ./src/bin/interactive_server -c ../test/engines/interactive_config_test.yaml -g ${SCHEMA_PATH} --data-path ${DATA_PATH}"
+        echo "Starting Nexg Server with command: $cmd"
+        eval $cmd &
+        sleep 5
+        # Check if the server is running
+        if ! pgrep -f "interactive_server" > /dev/null; then
+          echo "Nexg Server failed to start"
+          exit 1
+        fi
+
+        # Run Python Tests
+        #TODO: Run python tests
+
+        # Start compiler 
+        GRAPH_SCHEMA_YAML=${GITHUB_WORKSPACE}/example_dataset/tinysnb/graph.yaml
+        ENGINE_CONFIG_PATH=${GITHUB_WORKSPACE}/test/engines/interactive_config_test.yaml
+        cmd="make run graph.schema=${GRAPH_SCHEMA_YAML} config.path=${ENGINE_CONFIG_PATH}"
+        #TODO: cd to compiler directory and run the command
+
+        # Kill the server
+        pkill -f "interactive_server"
+    
+

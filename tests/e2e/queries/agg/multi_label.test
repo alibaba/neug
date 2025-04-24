@@ -1,0 +1,10 @@
+-DATASET CSV movie
+
+--
+
+-CASE AggMultiLabel
+
+-LOG MultiLabelAggTest1
+-STATEMENT MATCH (a:User|Person) RETURN COUNT(DISTINCT a.name)
+---- 1
+137

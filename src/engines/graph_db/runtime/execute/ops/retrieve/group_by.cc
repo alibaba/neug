@@ -520,6 +520,11 @@ struct CountReducer {
   }
 };
 
+template <typename EXPR, bool is_optional>
+struct IsCountReducer<CountReducer<EXPR, is_optional>> {
+  static constexpr bool value = true;
+};
+
 template <typename EXPR, bool IS_OPTIONAL>
 struct MinReducer {
   EXPR expr;

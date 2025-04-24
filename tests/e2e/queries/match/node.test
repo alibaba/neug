@@ -1,0 +1,19 @@
+-DATASET CSV tinysnb
+
+--
+
+-CASE MatchNode
+
+-STATEMENT MATCH (a) WITH COUNT(a) AS b RETURN b AS c;
+---- 1
+14
+
+-LOG node1
+-STATEMENT MATCH (a:person /* returns all person */) RETURN COUNT(*)
+---- 1
+8
+
+-LOG node2
+-STATEMENT MATCH (a:organisation) RETURN COUNT(*) /*Returns the total number of nodes in organisation*/
+---- 1
+3

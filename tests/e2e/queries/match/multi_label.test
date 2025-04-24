@@ -1,0 +1,66 @@
+-DATASET CSV tinysnb
+
+--
+
+-CASE MatchMultiLabel
+
+# TODO: COMPILATION: LOGICAL_PLAN_BUILD_FAILED
+-LOG UnLabelTest
+-STATEMENT MATCH () RETURN COUNT(*)
+---- 1
+14
+
+-LOG MultiLabelNodeTest
+-STATEMENT MATCH (a:organisation:person) RETURN COUNT(*)
+---- 1
+11
+
+# TODO: EXECUTION: unexpected result
+# TODO(shirly): only the organisation and person label is provided in plan.
+-LOG MultiLabelNodeTest
+-STATEMENT MATCH (a:organisation:person) MATCH (a:movies) RETURN COUNT(*)
+---- 1
+14
+
+# TODO: COMPILATION: There are not enough rules to produce a node with desired properties: convention=NONE.
+# -LOG MultiLabelCrossProductTest
+# -STATEMENT MATCH (a:person), (b:person), (c:person:movies) RETURN COUNT(*)
+# ---- 1
+# 704
+
+# TODO: COMPILATION: LOGICAL_PLAN_BUILD_FAILED
+-LOG UnLabelTest1
+-STATEMENT MATCH ()-[]->() RETURN COUNT(*)
+---- 1
+30
+
+-LOG UnLabelTest2
+-STATEMENT MATCH (a)-[:knows|:studyAt]->(b)-[:knows|:studyAt]->(c) RETURN COUNT(*)
+---- 1
+43
+
+-LOG MultiLabelOneHopTest1
+-STATEMENT MATCH (a:person)-[e:knows|:marries]->(b:person) RETURN COUNT(*)
+---- 1
+17
+
+-LOG MultiLabelOneHopTest2
+-STATEMENT MATCH (a:person)-[e:knows|:marries|:studyAt|:workAt|:meets]->(b:person) RETURN COUNT(*)
+---- 1
+24
+
+-LOG MultiLabelOneHopTest3
+-STATEMENT MATCH (a:person)-[e:knows|:marries|:studyAt|:workAt|:meets]->(b:organisation) RETURN COUNT(*)
+---- 1
+6
+
+-LOG MultiLabelOneHopTest4
+-STATEMENT MATCH (a:person)-[:studyAt|:knows]->(b:person:organisation) RETURN COUNT(*)
+---- 1
+17
+
+# TODO: COMPILATION: TYPE_INFERENCE_FAILED, but it should be an invalid pattern, and COUNT(*) should be 0
+-LOG MultiLabelNodePruning
+-STATEMENT MATCH (a:person)-[:knows]->(b)<-[:studyAt]-(c) RETURN COUNT(*)
+---- 1
+0

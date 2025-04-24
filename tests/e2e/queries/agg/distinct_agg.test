@@ -1,0 +1,18 @@
+-DATASET CSV movie
+
+--
+
+-CASE AggDistinct
+
+-LOG SingleNodeDistinctAggTest1
+-STATEMENT MATCH (a:User) RETURN COUNT(DISTINCT a.name)
+---- 1
+7
+
+-LOG SingleNodeDistinctAggTest2
+-STATEMENT MATCH (a:User) RETURN a.born, COUNT(DISTINCT a.name)
+---- 4
+2003|3
+2005|1
+2006|2
+2007|1

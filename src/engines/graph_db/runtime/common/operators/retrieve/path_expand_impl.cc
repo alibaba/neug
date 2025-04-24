@@ -263,6 +263,25 @@ path_expand_vertex_without_predicate_impl(
 
         return iterative_expand_vertex(graph, input, e_label, dir, lower,
                                        upper);
+      } else {
+        if (dir == Direction::kBoth) {
+          auto iview = graph.GetIncomingGraphView<RecordView>(
+              labels[0].src_label, labels[0].dst_label, labels[0].edge_label);
+          auto oview = graph.GetOutgoingGraphView<RecordView>(
+              labels[0].src_label, labels[0].dst_label, labels[0].edge_label);
+          return iterative_expand_vertex_on_dual_graph_view(iview, oview, input,
+                                                            lower, upper);
+        } else if (dir == Direction::kIn) {
+          auto iview = graph.GetIncomingGraphView<RecordView>(
+              labels[0].src_label, labels[0].dst_label, labels[0].edge_label);
+          return iterative_expand_vertex_on_graph_view(iview, input, lower,
+                                                       upper);
+        } else if (dir == Direction::kOut) {
+          auto oview = graph.GetOutgoingGraphView<RecordView>(
+              labels[0].src_label, labels[0].dst_label, labels[0].edge_label);
+          return iterative_expand_vertex_on_graph_view(oview, input, lower,
+                                                       upper);
+        }
       }
     }
   }

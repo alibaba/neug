@@ -1,0 +1,28 @@
+-DATASET CSV tinysnb
+
+--
+
+-CASE OrderByMultiLabel
+
+# TODO: COMPILATION: TAG_NOT_FOUND, seems to be a bug
+-LOG MultiLabelTest
+-STATEMENT MATCH (a:person)-[:studyAt|:workAt]->(b:organisation) return b.orgCode order by b.ID desc
+-CHECK_ORDER
+---- 6
+824
+824
+934
+325
+325
+325
+
+# TODO(Ziyi): Support order by INTERNAL_ID.
+-LOG MultiLabelTest2
+-STATEMENT MATCH (a:person)-[e:marries|:workAt]->(b:person) return a.ID, b.ID order by ID(e) desc LIMIT 4
+---- error
+Binder exception: Cannot order by e._ID. Order by INTERNAL_ID is not supported.
+# ---- 4
+# 7|8
+# 3|5
+# 0|2
+# 10|2

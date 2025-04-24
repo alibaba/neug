@@ -433,6 +433,8 @@ void CSVFragmentLoader::fillVertexReaderMeta(
     // file header is (id,name,age), the primary key is id.
     // so, the mapped_property_names are: (id,name,age)
     CHECK(property_names.size() + 1 == read_options.column_names.size())
+        << " size in schema: " << property_names.size()
+        << ", size in file: " << read_options.column_names.size() << ","
         << gs::to_string(property_names)
         << ", read options: " << gs::to_string(read_options.column_names);
     // insert primary_key to property_names
@@ -569,8 +571,14 @@ void CSVFragmentLoader::fillEdgeReaderMeta(
     CHECK(src_dst_cols.first.size() == 1 && src_dst_cols.second.size() == 1);
     auto src_col_ind = src_dst_cols.first[0].second;
     auto dst_col_ind = src_dst_cols.second[0].second;
-    CHECK(src_col_ind >= 0 && src_col_ind < read_options.column_names.size());
-    CHECK(dst_col_ind >= 0 && dst_col_ind < read_options.column_names.size());
+    CHECK(src_col_ind >= 0 && src_col_ind < read_options.column_names.size())
+        << " src_col_ind: " << src_col_ind
+        << ", read_options.column_names.size(): "
+        << read_options.column_names.size();
+    CHECK(dst_col_ind >= 0 && dst_col_ind < read_options.column_names.size())
+        << " dst_col_ind: " << dst_col_ind
+        << ", read_options.column_names.size(): "
+        << read_options.column_names.size();
 
     included_col_names.emplace_back(read_options.column_names[src_col_ind]);
     included_col_names.emplace_back(read_options.column_names[dst_col_ind]);

@@ -44,6 +44,13 @@ namespace gs {
 
 namespace runtime {
 
+namespace ops {
+template <typename REDUCER_T>
+struct IsCountReducer {
+  static constexpr bool value = false;
+};
+}  // namespace ops
+
 enum class AggrKind {
   kSum,
   kMin,
@@ -157,11 +164,23 @@ struct Reducer : public ReducerBase {
     for (size_t i = 0; i < groups.size(); ++i) {
       const auto& group = groups[i];
       T val{};
+
+      LOG(INFO) << "group size: " << group.size();
+
       if (!reducer_(group, val)) {
         filter.insert(i);
       }
       collector_.collect(std::move(val));
     }
+    // Special logic here for COUNT. When groups size is 0, we need to
+    // set the count to 0.
+    if (groups.size() == 0) {
+      if constexpr (ops::IsCountReducer<REDUCER_T>::value) {
+        T val{};
+        collector_.collect(std::move(val));
+      }
+    }
+
     ret.set(alias_, collector_.get());
     return ret;
   }

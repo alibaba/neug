@@ -581,18 +581,28 @@ class TypedTupleExpr : public ExprBase {
 
 class MapExpr : public ExprBase {
  public:
-  MapExpr(std::vector<RTAny>&& keys,
+  MapExpr(const std::vector<RTAny>& keys,
           std::vector<std::unique_ptr<ExprBase>>&& values)
-      : keys(std::move(keys)), value_exprs(std::move(values)) {
-    assert(keys.size() == values.size());
+      : value_exprs(std::move(values)) {
+    // Maintain the keys here
+    for (auto& key : keys) {
+      if (key.type() != RTAnyType::kStringValue) {
+        LOG(FATAL) << "key type should be string";
+      }
+      keys_str_.push_back(std::string(key.as_string()));
+    }
+    for (auto& key : keys_str_) {
+      keys_.push_back(RTAny::from_string(key));
+    }
+    assert(keys_.size() == value_exprs.size());
   }
 
   RTAny eval_path(size_t idx, Arena& arena) const override {
     std::vector<RTAny> ret;
-    for (size_t i = 0; i < keys.size(); i++) {
+    for (size_t i = 0; i < keys_.size(); i++) {
       ret.push_back(value_exprs[i]->eval_path(idx, arena));
     }
-    auto map_impl = MapImpl::make_map_impl(keys, ret);
+    auto map_impl = MapImpl::make_map_impl(keys_, ret);
     auto map = Map::make_map(map_impl.get());
     arena.emplace_back(std::move(map_impl));
     return RTAny::from_map(map);
@@ -600,10 +610,10 @@ class MapExpr : public ExprBase {
 
   RTAny eval_path(size_t idx, Arena& arena, int) const override {
     std::vector<RTAny> ret;
-    for (size_t i = 0; i < keys.size(); i++) {
+    for (size_t i = 0; i < keys_.size(); i++) {
       ret.push_back(value_exprs[i]->eval_path(idx, arena, 0));
     }
-    auto map_impl = MapImpl::make_map_impl(keys, ret);
+    auto map_impl = MapImpl::make_map_impl(keys_, ret);
     auto map = Map::make_map(map_impl.get());
     arena.emplace_back(std::move(map_impl));
     return RTAny::from_map(map);
@@ -631,7 +641,9 @@ class MapExpr : public ExprBase {
   }
 
  private:
-  std::vector<RTAny> keys;
+  // Stores string keys here.
+  std::vector<std::string> keys_str_;
+  std::vector<RTAny> keys_;
   std::vector<std::unique_ptr<ExprBase>> value_exprs;
 };
 

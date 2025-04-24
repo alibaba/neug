@@ -87,6 +87,10 @@ static inline void set_edge_data(EdgePropVecBase* col, size_t idx,
   } else if (edge_data.type == RTAnyType::kDate32) {
     dynamic_cast<EdgePropVec<Day>*>(col)->set(idx, edge_data.value.day_val);
   } else if (edge_data.type == RTAnyType::kRecordView) {
+    auto ptr = dynamic_cast<EdgePropVec<RecordView>*>(col);
+    if (ptr == nullptr) {
+      LOG(FATAL) << "cast failed";
+    }
     dynamic_cast<EdgePropVec<RecordView>*>(col)->set(
         idx, edge_data.value.record_view);
   } else {

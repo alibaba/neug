@@ -1,0 +1,77 @@
+# We need a maximum of 23 large pages for this test:
+# OrderByKeyEncoder: 1 page(need at least 1 page to store encoded key blocks) * 6 (number of threads)
+# RadixSort: 2(need 2 pages for temporary sorting buffer) * 6 (number of threads)
+# MergeSort: 1 page for merged keyBlocks
+# OrderBy physical operator:
+# FactorizedTable: 2 pages (store orderBy/payload columns)
+# ResultCollector:
+# FactorizedTable: 2 pages (store results)
+# In total: we need 23 pages for this test case
+
+-DATASET CSV order-by-tests
+
+--
+
+-CASE OrderByWithLimitFlatKeys
+-STATEMENT CREATE REL TABLE knows(FROM person TO person)
+---- ok
+-STATEMENT UNWIND RANGE(1, 1000) AS i MATCH (p:person) WHERE p.id = i CREATE (p)-[:knows]->(p)
+---- ok
+-STATEMENT MATCH (p:person)-[:knows]->(p) RETURN COUNT(*)
+---- 1
+1000
+-STATEMENT MATCH (p:person)-[:knows]->(p) RETURN p.id ORDER BY p.id DESC, p.balance ASC LIMIT 10
+---- 10
+1000
+999
+998
+997
+996
+995
+994
+993
+992
+991
+
+-CASE OrderByLargeDatasetTest
+
+-LOG OrderByWithLimitTest
+-STATEMENT MATCH (p:person) RETURN p.balance ORDER BY p.balance limit 25
+-PARALLELISM 6
+-CHECK_ORDER
+---- hash
+25 tuples hashing to 7af1f6806cb99e2dff8578d899bf75d6
+# ---- 25
+# -499973
+# -499962
+# -499262
+# -499106
+# -498828
+# -498241
+# -497607
+# -497591
+# -497356
+# -496472
+# -496435
+# -496298
+# -495685
+# -495573
+# -495320
+# -495225
+# -494638
+# -494423
+# -494286
+# -493642
+# -493588
+# -493577
+# -493402
+# -492829
+# -492721
+
+-LOG OrderByInt64Test
+-STATEMENT MATCH (p:person) RETURN p.studentID ORDER BY p.studentID
+-PARALLELISM 2
+-CHECK_ORDER
+---- hash
+3000 tuples hashing to 43795e53c3e37d8457c383ee4db918af
+# the original output was all the numbers from 0 to 2999, inclusive, in ascending order

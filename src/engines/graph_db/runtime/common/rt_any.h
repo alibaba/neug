@@ -741,6 +741,7 @@ class RTAny {
   RTAny operator+(const RTAny& other) const;
 
   RTAny operator-(const RTAny& other) const;
+  RTAny operator*(const RTAny& other) const;
   RTAny operator/(const RTAny& other) const;
   RTAny operator%(const RTAny& other) const;
 

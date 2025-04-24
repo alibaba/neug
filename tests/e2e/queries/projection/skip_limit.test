@@ -1,0 +1,155 @@
+-DATASET CSV tinysnb
+
+--
+
+-CASE LoadWithExpressionSkip
+-STATEMENT LOAD FROM '${KUZU_ROOT_DIRECTORY}/dataset/tinysnb/vPerson.csv' RETURN * SKIP 4.1;
+---- error
+Runtime exception: The number of rows to skip/limit must be a non-negative integer.
+
+-STATEMENT LOAD FROM '${KUZU_ROOT_DIRECTORY}/dataset/tinysnb/vPerson.csv' RETURN * SKIP CAST(4.6, "INT8");
+---- ok
+
+-STATEMENT LOAD FROM '${KUZU_ROOT_DIRECTORY}/dataset/tinysnb/vPerson.csv' RETURN * SKIP CAST(4.3, "INT8");
+---- 1
+7|Elizabeth|1|False|True|20|4.7|1980-10-26|1976-12-23 11:21:42|48:24:11|[2]|[Ein]|[[6],[7],[8]]|[96,59,65,88]|1.463|{a0eebc99-9c0b4ef8-bb6d6bb9-bd380a15}
+
+-STATEMENT LOAD FROM '${KUZU_ROOT_DIRECTORY}/dataset/tinysnb/vPerson.csv'RETURN * SKIP CAST(4.3-2.3, "INT8");
+---- 3
+3|Carol|1|False|True|45|5.0|1940-06-22|1911-08-20 02:32:21|48:24:11|[4,5]|[Carmen,Fred]|[[8,10]]|[91,75,21,95]|1.000|a0eebc999c0b4ef8bb6d6bb9bd380a13
+5|Dan|2|False|True|20|4.8|1950-07-23|2031-11-30 12:25:30|10 years 5 months 13:00:00.000024|[1,9]|[Wolfeschlegelstein,Daniel]|[[7,4],[8,8],[9]]|[76,88,99,89]|1.300|a0ee-bc99-9c0b-4ef8-bb6d-6bb9-bd38-0a14
+7|Elizabeth|1|False|True|20|4.7|1980-10-26|1976-12-23 11:21:42|48:24:11|[2]|[Ein]|[[6],[7],[8]]|[96,59,65,88]|1.463|{a0eebc99-9c0b4ef8-bb6d6bb9-bd380a15}
+
+-CASE ProjectionSkipLimit
+
+-STATEMENT UNWIND [1,2] AS x MATCH (a:person) RETURN DISTINCT a.fName ORDER BY a.fName LIMIT 1
+---- 1
+Alice
+
+-LOG BasicSkipTest1
+-STATEMENT MATCH (a:person) RETURN a.fName Skip 5
+---- 3
+Farooq
+Greg
+Hubert Blaine Wolfeschlegelsteinhausenbergerdorff
+
+-LOG BasicSkipTest2
+-STATEMENT MATCH (a:person) RETURN a.fName Skip 10
+---- 0
+
+-LOG BasicLimitTest1
+-STATEMENT MATCH (a:person) RETURN a.fName LIMIT 2
+---- 2
+Alice
+Bob
+
+-LOG BasicLimitTest2
+-STATEMENT MATCH (a:person) RETURN a.fName LIMIT 10
+---- 8
+Alice
+Bob
+Carol
+Dan
+Elizabeth
+Farooq
+Greg
+Hubert Blaine Wolfeschlegelsteinhausenbergerdorff
+
+-LOG BasicLimitTest3
+-STATEMENT MATCH (a:person) RETURN a.fName ORDER BY a.fName LIMIT 1 + 1
+-CHECK_ORDER
+---- 2
+Alice
+Bob
+
+-LOG BasicSkipLimitTest
+-STATEMENT MATCH (a:person) RETURN a.fName SKIP 1 LIMIT 2
+---- 2
+Bob
+Carol
+
+-LOG BasicSkipTest3
+-STATEMENT MATCH (a:person)-[:knows]->(b:person)-[:knows]->(c:person)-[:knows]->(d:person) WITH d.ID as dummy SKIP 10 RETURN COUNT(*)
+---- 1
+98
+
+-LOG BasicSkipTest4
+-STATEMENT MATCH (a:person)-[:knows]->(b:person)-[:knows]->(c:person)-[:knows]->(d:person)-[:knows]->(e:person) WITH e.ID as dummy SKIP 300 RETURN COUNT(*)
+---- 1
+24
+
+-LOG BasicLimitTest3
+-STATEMENT MATCH (a:person)-[:knows]->(b:person)-[:knows]->(c:person)-[:knows]->(d:person) WITH d.fName AS k LIMIT 5 RETURN COUNT(*)
+---- 1
+5
+
+-LOG BasicLimitTest4
+-STATEMENT MATCH (a:person)-[:knows]->(b:person)-[:knows]->(c:person)-[:knows]->(d:person)-[:knows]->(e:person) WITH d.fName AS k LIMIT 5 RETURN COUNT(*)
+---- 1
+5
+
+-LOG KnowsTwoHopLimitTest
+-STATEMENT MATCH (a:person)-[:knows]->(:person)-[:knows]->(b:person) WHERE a.age=35 RETURN b.fName AS k ORDER BY k LIMIT 1
+---- 1
+Alice
+
+-LOG KnowsOneHopWithLimitTest1
+-STATEMENT MATCH (a:person) WHERE a.age>20 WITH a LIMIT 1 MATCH (a)-[e:knows]->(b:person) RETURN b.fName
+---- 3
+Bob
+Carol
+Dan
+
+-LOG KnowsOneHopWithSkipLimitTest1
+-STATEMENT MATCH (a:person) WHERE a.age>20 WITH a ORDER BY a.ID SKIP 2 MATCH (a)-[e:knows]->(b:person) RETURN a.fName, b.fName ORDER BY b.fName LIMIT 2
+---- 2
+Carol|Alice
+Carol|Bob
+
+-LOG KnowsOneHopWithSkipLimitTest2
+-STATEMENT MATCH (a:person) WHERE a.age>20 WITH a SKIP 1 LIMIT 1 MATCH (a)-[e:knows]->(b:person) RETURN b.fName
+---- 3
+Alice
+Carol
+Dan
+
+-LOG KnowsOneHopWithLimitTest3
+-STATEMENT MATCH (a:person)-[e:knows]->(b:person) WHERE a.age=35 WITH b.ID AS id, b.fName AS n ORDER BY id LIMIT 1 RETURN n
+---- 1
+Bob
+
+-LOG LimitArrayNodeProp
+-STATEMENT MATCH (a:person) RETURN a.grades LIMIT 3
+---- 3
+[96,54,86,92]
+[98,42,93,88]
+[91,75,21,95]
+
+-LOG LimitArrayRelProp
+-STATEMENT MATCH (a:person)-[e:workAt]->(o:organisation) RETURN e.grading LIMIT 2
+---- 2
+[2.100000,4.400000]
+[3.800000,2.500000]
+
+-LOG LimitWithConstantExpr
+-STATEMENT MATCH (a:person) RETURN a.ID LIMIT 2 + 3
+---- 5
+0
+2
+3
+5
+7
+
+-LOG SkipWithConstantExpr
+-STATEMENT MATCH (a:person) RETURN a.ID SKIP 1 + 2
+---- 5
+5
+7
+8
+9
+10
+
+-LOG SkipLimitWithConstantExpr
+-STATEMENT MATCH (a:person) RETURN a.ID SKIP 1 + 2 LIMIT 0 + 1
+---- 1
+5

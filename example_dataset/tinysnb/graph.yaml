@@ -1,0 +1,321 @@
+name: tinysnb # then must have a modern dir under ${data} directory
+version: v0.1
+store_type: mutable_csr  # v6d, groot, gart
+schema:
+  vertex_types:
+    - type_id: 0
+      type_name: person
+      description: A person vertex type
+      x_csr_params:
+        max_vertex_num: 100
+      properties:
+        - property_id: 0
+          property_name: ID
+          property_type:
+            primitive_type: DT_SIGNED_INT64
+        - property_id: 1
+          property_name: fName
+          property_type:
+            string:
+              long_text:
+        - property_id: 2
+          property_name: gender
+          property_type:
+            primitive_type: DT_SIGNED_INT32
+        - property_id: 3
+          property_name: isStudent
+          property_type:
+            primitive_type: DT_BOOL
+        - property_id: 4
+          property_name: isWorker
+          property_type:
+            primitive_type: DT_BOOL
+        - property_id: 5
+          property_name: age
+          property_type:
+            primitive_type: DT_SIGNED_INT64
+        - property_id: 6
+          property_name: eyeSight
+          property_type:
+            primitive_type: DT_DOUBLE
+        - property_id: 7
+          property_name: birthdate
+          property_type:
+            primitive_type: DT_DAY32
+        - property_id: 8
+          property_name: registerTime
+          property_type:
+            primitive_type: DT_DATE32
+        - property_id: 9
+          property_name: lastJobDuration
+          property_type:
+            string:
+              long_text:
+        - property_id: 10
+          property_name: workedHours
+          property_type:
+            string:
+              long_text:
+        - property_id: 11
+          property_name: usedNames
+          property_type:
+            string:
+              long_text:
+        - property_id: 12
+          property_name: courseScoresPerTerm
+          property_type:
+            string:
+              long_text:
+        - property_id: 13
+          property_name: grades
+          property_type:
+            string:
+              long_text:
+        - property_id: 14
+          property_name: height
+          property_type:
+            primitive_type: DT_DOUBLE # DT_FLOAT seems not supported in store
+        - property_id: 15
+          property_name: u
+          property_type:
+            string:
+              long_text:
+      primary_keys:
+        - ID
+    - type_id: 1
+      type_name: organisation
+      description: An organisation vertex type
+      x_csr_params:
+        max_vertex_num: 100
+      properties:
+        - property_id: 0
+          property_name: ID
+          property_type:
+            primitive_type: DT_SIGNED_INT64
+        - property_id: 1
+          property_name: name
+          property_type:
+            string:
+              long_text:
+        - property_id: 2
+          property_name: orgCode
+          property_type:
+            primitive_type: DT_SIGNED_INT64
+        - property_id: 3
+          property_name: mark
+          property_type:
+            primitive_type: DT_DOUBLE
+        - property_id: 4
+          property_name: score
+          property_type:
+            primitive_type: DT_SIGNED_INT64
+        - property_id: 5
+          property_name: history
+          property_type:
+            string:
+              long_text:
+        - property_id: 6
+          property_name: licenseValidInterval
+          property_type:
+            string:
+              long_text:
+        - property_id: 7
+          property_name: rating
+          property_type:
+            primitive_type: DT_DOUBLE
+        - property_id: 8
+          property_name: state
+          property_type:
+            string:
+              long_text:
+        - property_id: 9
+          property_name: info
+          property_type:
+            string:
+              long_text:
+      primary_keys:
+        - ID
+    - type_id: 2
+      type_name: movies
+      description: A movies vertex type
+      x_csr_params:
+        max_vertex_num: 100
+      properties:
+        - property_id: 0
+          property_name: name
+          property_type:
+            string:
+              long_text:
+        - property_id: 1
+          property_name: length
+          property_type:
+            primitive_type: DT_SIGNED_INT32
+        - property_id: 2
+          property_name: note
+          property_type:
+            string:
+              long_text:
+        - property_id: 3
+          property_name: description
+          property_type:
+            string:
+              long_text:
+        - property_id: 4
+          property_name: content
+          property_type:
+            string:
+              long_text:
+        - property_id: 5
+          property_name: audience
+          property_type:
+            string:
+              long_text:
+        - property_id: 6
+          property_name: grade
+          property_type:
+            string:
+              long_text:
+      primary_keys:
+        - name
+  edge_types:
+    - type_id: 0
+      type_name: knows
+      description: A knows edge type
+      vertex_type_pair_relations:
+        - source_vertex: person
+          destination_vertex: person
+          relation: MANY_TO_MANY
+      properties:
+        - property_id: 0
+          property_name: date
+          property_type:
+            primitive_type: DT_DATE32
+        - property_id: 1
+          property_name: meetTime
+          property_type:
+            string:
+              long_text:
+        - property_id: 2
+          property_name: validInterval
+          property_type:
+            string:
+              long_text:
+        - property_id: 3
+          property_name: comments
+          property_type:
+            string:
+              long_text:
+        - property_id: 4
+          property_name: summary
+          property_type:
+            string:
+              long_text:
+        - property_id: 5
+          property_name: notes
+          property_type:
+            string:
+              long_text:
+        - property_id: 6
+          property_name: someMap
+          property_type:
+            string:
+              long_text:
+    - type_id: 1
+      type_name: studyAt
+      description: A studyAt edge type
+      vertex_type_pair_relations:
+        - source_vertex: person
+          destination_vertex: organisation
+          relation: MANY_TO_ONE
+      properties:
+        - property_id: 0
+          property_name: year
+          property_type:
+            primitive_type: DT_SIGNED_INT64
+        - property_id: 1
+          property_name: places
+          property_type:
+            string:
+              long_text:
+        - property_id: 2
+          property_name: length
+          property_type:
+            primitive_type: DT_SIGNED_INT32
+        - property_id: 3
+          property_name: level
+          property_type:
+            primitive_type: DT_SIGNED_INT32
+        - property_id: 4
+          property_name: code
+          property_type:
+            primitive_type: DT_UNSIGNED_INT64
+        - property_id: 5
+          property_name: temperature
+          property_type:
+            primitive_type: DT_UNSIGNED_INT32
+    - type_id: 2
+      type_name: workAt
+      description: A workAt edge type
+      vertex_type_pair_relations:
+        - source_vertex: person
+          destination_vertex: organisation
+          relation: MANY_TO_ONE
+      properties:
+        - property_id: 0
+          property_name: year
+          property_type:
+            primitive_type: DT_SIGNED_INT64
+        - property_id: 1
+          property_name: grading
+          property_type:
+            string:
+              long_text:
+        - property_id: 2
+          property_name: rating
+          property_type:
+            primitive_type: DT_FLOAT
+    - type_id: 3
+      type_name: meets
+      description: A meets edge type
+      vertex_type_pair_relations:
+        - source_vertex: person
+          destination_vertex: person
+          relation: MANY_TO_MANY
+      properties:
+        - property_id: 0
+          property_name: location
+          property_type:
+            string:
+              long_text:
+        - property_id: 1
+          property_name: times
+          property_type:
+            primitive_type: DT_SIGNED_INT32
+        - property_id: 2
+          property_name: data
+          property_type:
+            string:
+              long_text:
+    - type_id: 4
+      type_name: marries
+      description: A marries edge type
+      vertex_type_pair_relations:
+        - source_vertex: person
+          destination_vertex: person
+          relation: ONE_TO_ONE
+      properties:
+        - property_id: 0
+          property_name: usedAddress
+          property_type:
+            string:
+              long_text:
+        - property_id: 1
+          property_name: address
+          property_type:
+            string:
+              long_text:
+        - property_id: 2
+          property_name: note
+          property_type:
+            string:
+              long_text:

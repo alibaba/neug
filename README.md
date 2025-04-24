@@ -31,10 +31,20 @@ python3 setup.py build_ext
 
 TODO: Currently we use the old interactive_server to provide TP service, in the future, we will use python-based server.
 
+
+## Build server
+
+```bash
+mkdir build && cd build
+cmake .. -DBUILD_EXECUTABLES=ON -DBUILD_HTTP_SERVER=ON -DCMAKE_BUILD_TYPE=DEBUG
+make -j
+```
+
 ## Load Graph
 
 ```bash
 cd build
+export FLEX_DATA_DIR=/workspaces/nexg/example_dataset/modern_graph
 GLOG_v=10 ./src/bin/bulk_loader -g ../example_dataset/modern_graph/graph.yaml -l ../example_dataset/modern_graph/bulk_load.yaml -d /tmp/csr-data-dir 
 # You will find a statistics.json under /tmp/csr-data-dir 
 ```

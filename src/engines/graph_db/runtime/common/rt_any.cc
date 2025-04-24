@@ -529,6 +529,8 @@ bool RTAny::operator==(const RTAny& other) const {
     return value_.day == other.value_.day;
   } else if (type_ == RTAnyType::kTimestamp) {
     return value_.date == other.value_.date;
+  } else if (type_ == RTAnyType::kEdge) {
+    return value_.edge == other.value_.edge;
   }
 
   LOG(FATAL) << "not support..." << static_cast<int>(type_);
@@ -596,6 +598,50 @@ RTAny RTAny::operator-(const RTAny& other) const {
   }
   LOG(FATAL) << "not support";
   return RTAny();
+}
+
+RTAny RTAny::operator*(const RTAny& other) const {
+  bool has_i64 = false;
+  bool has_f64 = false;
+  double left_f64 = 0;
+  int64_t left_i64 = 0;
+  if (type_ == RTAnyType::kI64Value) {
+    left_i64 = value_.i64_val;
+    left_f64 = value_.i64_val;
+    has_i64 = true;
+  } else if (type_ == RTAnyType::kF64Value) {
+    left_f64 = value_.f64_val;
+    has_f64 = true;
+  } else if (type_ == RTAnyType::kI32Value) {
+    left_i64 = value_.i32_val;
+    left_f64 = value_.i32_val;
+  } else {
+    LOG(FATAL) << "not support" << static_cast<int>(type_);
+  }
+
+  double right_f64 = 0;
+  int right_i64 = 0;
+  if (other.type_ == RTAnyType::kI64Value) {
+    right_i64 = other.value_.i64_val;
+    right_f64 = other.value_.i64_val;
+    has_i64 = true;
+  } else if (other.type_ == RTAnyType::kF64Value) {
+    right_f64 = other.value_.f64_val;
+    has_f64 = true;
+  } else if (other.type_ == RTAnyType::kI32Value) {
+    right_i64 = other.value_.i32_val;
+    right_f64 = other.value_.i32_val;
+  } else {
+    LOG(FATAL) << "not support" << static_cast<int>(other.type_);
+  }
+
+  if (has_f64) {
+    return RTAny::from_double(left_f64 * right_f64);
+  } else if (has_i64) {
+    return RTAny::from_int64(left_i64 * right_i64);
+  } else {
+    return RTAny::from_int32(value_.i32_val * other.value_.i32_val);
+  }
 }
 
 RTAny RTAny::operator/(const RTAny& other) const {
@@ -744,7 +790,12 @@ static void sink_edge_data(const EdgeData& any, common::Value* value) {
 }
 
 void sink_vertex(const GraphReadInterface& graph, const VertexRecord& vertex,
-                 results::Vertex* v) {
+                 results::Element* ele) {
+  if (vertex.label_ >= graph.schema().vertex_label_num()) {
+    ele->mutable_object()->mutable_none();
+    return;
+  }
+  auto v = ele->mutable_vertex();
   v->mutable_label()->set_id(vertex.label_);
   v->set_id(encode_unique_vertex_id(vertex.label_, vertex.vid_));
   const auto& names = graph.schema().get_vertex_property_names(vertex.label_);
@@ -794,8 +845,8 @@ void RTAny::sink(const GraphReadInterface& graph, int id,
       value_.t.get(i).sink_impl(collection->add_collection()->mutable_object());
     }
   } else if (type_ == RTAnyType::kVertex) {
-    auto v = col->mutable_entry()->mutable_element()->mutable_vertex();
-    sink_vertex(graph, value_.vertex, v);
+    auto ele = col->mutable_entry()->mutable_element();
+    sink_vertex(graph, value_.vertex, ele);
 
   } else if (type_ == RTAnyType::kMap) {
     auto mp = col->mutable_entry()->mutable_map();
@@ -809,8 +860,8 @@ void RTAny::sink(const GraphReadInterface& graph, int id,
       auto ret = mp->add_key_values();
       keys[i].sink_impl(ret->mutable_key());
       if (vals[i].type_ == RTAnyType::kVertex) {
-        auto v = ret->mutable_value()->mutable_element()->mutable_vertex();
-        sink_vertex(graph, vals[i].as_vertex(), v);
+        auto ele = ret->mutable_value()->mutable_element();
+        sink_vertex(graph, vals[i].as_vertex(), ele);
       } else {
         vals[i].sink_impl(
             ret->mutable_value()->mutable_element()->mutable_object());
@@ -1004,6 +1055,24 @@ std::string RTAny::to_string() const {
     return "null";
   } else if (type_ == RTAnyType::kF64Value) {
     return std::to_string(value_.f64_val);
+  } else if (type_ == RTAnyType::kMap) {
+    std::string ret = "{";
+    auto [keys_ptr, vals_ptr] = value_.map.key_vals();
+    auto& keys = keys_ptr;
+    auto& vals = vals_ptr;
+    for (size_t i = 0; i < keys.size(); ++i) {
+      if (vals[i].is_null()) {
+        continue;
+      }
+      ret += keys[i].to_string();
+      ret += ": ";
+      ret += vals[i].to_string();
+      if (i != keys.size() - 1) {
+        ret += ", ";
+      }
+    }
+    ret += "}";
+    return ret;
   } else {
     LOG(FATAL) << "not implemented for " << static_cast<int>(type_);
     return "";

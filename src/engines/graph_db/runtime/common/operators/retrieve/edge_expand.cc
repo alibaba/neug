@@ -314,6 +314,10 @@ bl::result<Context> EdgeExpand::expand_edge_without_predicate(
       if (!props.empty()) {
         pt = props[0];
       }
+
+      if (props.size() > 1) {
+        pt = PropertyType::kRecordView;
+      }
       auto builder = BDSLEdgeColumnBuilder::builder(params.labels[0], pt);
       foreach_vertex(input_vertex_list, [&](size_t index, label_t label,
                                             vid_t v) {

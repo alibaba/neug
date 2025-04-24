@@ -50,8 +50,9 @@ expand_vertex_without_predicate_impl(const GraphReadInterface& graph,
       if (properties.empty()) {
         ed_types.push_back(PropertyType::Empty());
       } else {
-        CHECK_EQ(properties.size(), 1);
-        ed_types.push_back(properties[0]);
+        for (auto& prop : properties) {
+          ed_types.push_back(prop);
+        }
       }
     }
     if (triplet.dst_label == input_label &&
@@ -63,8 +64,9 @@ expand_vertex_without_predicate_impl(const GraphReadInterface& graph,
       if (properties.empty()) {
         ed_types.push_back(PropertyType::Empty());
       } else {
-        CHECK_EQ(properties.size(), 1);
-        ed_types.push_back(properties[0]);
+        for (auto& prop : properties) {
+          ed_types.push_back(prop);
+        }
       }
     }
   }
@@ -84,8 +86,9 @@ expand_vertex_without_predicate_impl(const GraphReadInterface& graph,
     return std::make_pair(builder.finish(nullptr), std::vector<size_t>());
   }
 
-  if (sp && (!check_exist_special_edge(graph, labels, dir))) {
-    const PropertyType& ed_type = ed_types[0];
+  if (sp && (!check_exist_special_edge(graph, labels, dir)) &&
+      ed_types.size() == 1) {
+    auto ed_type = ed_types[0];
     if (ed_type == PropertyType::Empty()) {
       if (se) {
         return expand_vertex_np_se<grape::EmptyType,
@@ -160,8 +163,9 @@ expand_vertex_without_predicate_optional_impl(
       if (properties.empty()) {
         ed_types.push_back(PropertyType::Empty());
       } else {
-        CHECK_EQ(properties.size(), 1);
-        ed_types.push_back(properties[0]);
+        for (auto& prop : properties) {
+          ed_types.push_back(prop);
+        }
       }
     }
     if (triplet.dst_label == input_label &&
@@ -174,8 +178,9 @@ expand_vertex_without_predicate_optional_impl(
       if (properties.empty()) {
         ed_types.push_back(PropertyType::Empty());
       } else {
-        CHECK_EQ(properties.size(), 1);
-        ed_types.push_back(properties[0]);
+        for (auto& prop : properties) {
+          ed_types.push_back(prop);
+        }
       }
     }
   }
@@ -186,7 +191,8 @@ expand_vertex_without_predicate_optional_impl(
     auto builder = MLVertexColumnBuilder::builder();
     return std::make_pair(builder.finish(nullptr), std::vector<size_t>());
   }
-  if (sp && (!check_exist_special_edge(graph, labels, dir))) {
+  if (sp && (!check_exist_special_edge(graph, labels, dir)) &&
+      ed_types.size() == 1) {
     const PropertyType& ed_type = ed_types[0];
     if (ed_type == PropertyType::Empty()) {
       if (se) {
@@ -212,7 +218,8 @@ expand_vertex_without_predicate_optional_impl(
       }
     }
   }
-  LOG(INFO) << "ed_types.size() " << se << " " << sp;
+  LOG(INFO) << "ed_types.size() :" << ed_types.size()
+            << ", label triplet num: " << se << " special predicate: " << sp;
   int label_num = graph.schema().vertex_label_num();
   std::vector<std::vector<std::tuple<label_t, label_t, Direction>>> _label_dirs(
       label_num);
@@ -245,8 +252,9 @@ expand_vertex_without_predicate_impl(const GraphReadInterface& graph,
       if (properties.empty()) {
         ed_types.push_back(PropertyType::Empty());
       } else {
-        CHECK_EQ(properties.size(), 1);
-        ed_types.push_back(properties[0]);
+        for (auto edge_type : properties) {
+          ed_types.push_back(edge_type);
+        }
       }
     }
     if ((input_labels.find(triplet.dst_label) != input_labels.end()) &&
@@ -258,8 +266,9 @@ expand_vertex_without_predicate_impl(const GraphReadInterface& graph,
       if (properties.empty()) {
         ed_types.push_back(PropertyType::Empty());
       } else {
-        CHECK_EQ(properties.size(), 1);
-        ed_types.push_back(properties[0]);
+        for (auto edge_type : properties) {
+          ed_types.push_back(edge_type);
+        }
       }
     }
   }
@@ -285,7 +294,8 @@ expand_vertex_without_predicate_impl(const GraphReadInterface& graph,
     auto builder = MLVertexColumnBuilder::builder();
     return std::make_pair(builder.finish(nullptr), std::vector<size_t>());
   }
-  if (sp && (!check_exist_special_edge(graph, labels, dir))) {
+  if (sp && (!check_exist_special_edge(graph, labels, dir)) &&
+      ed_types.size() == 1) {
     const PropertyType& ed_type = ed_types[0];
     if (ed_type == PropertyType::Empty()) {
       if (se) {
@@ -355,8 +365,9 @@ expand_vertex_without_predicate_optional_impl(
       if (properties.empty()) {
         ed_types.push_back(PropertyType::Empty());
       } else {
-        CHECK_EQ(properties.size(), 1);
-        ed_types.push_back(properties[0]);
+        for (auto edge_type : properties) {
+          ed_types.push_back(edge_type);
+        }
       }
     }
     if ((input_labels.find(triplet.dst_label) != input_labels.end()) &&
@@ -368,8 +379,9 @@ expand_vertex_without_predicate_optional_impl(
       if (properties.empty()) {
         ed_types.push_back(PropertyType::Empty());
       } else {
-        CHECK_EQ(properties.size(), 1);
-        ed_types.push_back(properties[0]);
+        for (auto edge_type : properties) {
+          ed_types.push_back(edge_type);
+        }
       }
     }
   }
@@ -395,7 +407,8 @@ expand_vertex_without_predicate_optional_impl(
     auto builder = MLVertexColumnBuilder::builder();
     return std::make_pair(builder.finish(nullptr), std::vector<size_t>());
   }
-  if (sp && (!check_exist_special_edge(graph, labels, dir))) {
+  if (sp && (!check_exist_special_edge(graph, labels, dir)) &&
+      ed_types.size() == 1) {
     const PropertyType& ed_type = ed_types[0];
     if (ed_type == PropertyType::Empty()) {
       if (!se) {
@@ -445,8 +458,9 @@ expand_vertex_without_predicate_impl(const GraphReadInterface& graph,
       if (properties.empty()) {
         ed_types.push_back(PropertyType::Empty());
       } else {
-        CHECK_EQ(properties.size(), 1);
-        ed_types.push_back(properties[0]);
+        for (auto edge_type : properties) {
+          ed_types.push_back(edge_type);
+        }
       }
     }
     if ((input_labels.find(triplet.dst_label) != input_labels.end()) &&
@@ -458,8 +472,9 @@ expand_vertex_without_predicate_impl(const GraphReadInterface& graph,
       if (properties.empty()) {
         ed_types.push_back(PropertyType::Empty());
       } else {
-        CHECK_EQ(properties.size(), 1);
-        ed_types.push_back(properties[0]);
+        for (auto edge_type : properties) {
+          ed_types.push_back(edge_type);
+        }
       }
     }
   }
@@ -481,7 +496,8 @@ expand_vertex_without_predicate_impl(const GraphReadInterface& graph,
     auto builder = MLVertexColumnBuilder::builder();
     return std::make_pair(builder.finish(nullptr), std::vector<size_t>());
   }
-  if (sp && (!check_exist_special_edge(graph, labels, dir))) {
+  if (sp && (!check_exist_special_edge(graph, labels, dir)) &&
+      ed_types.size() == 1) {
     const PropertyType& ed_type = ed_types[0];
     if (ed_type == PropertyType::Empty()) {
       if (se) {
