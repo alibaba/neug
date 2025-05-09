@@ -227,13 +227,13 @@ install_arrow() {
       ${SUDO} apt-get install -y libarrow-dev=${ARROW_VERSION}-1 libarrow-dataset-dev=${ARROW_VERSION}-1 libarrow-acero-dev=${ARROW_VERSION}-1 libparquet-dev=${ARROW_VERSION}-1
       rm /tmp/apache-arrow-apt-source-latest-*.deb
     fi
-  elif [[ "${OS_PLATFORM}" == *"CentOS"* || "${OS_PLATFORM}" == *"Aliyun"* ]]; then
-    install_arrow_centos
+  else
+    install_arrow_from_source
   fi
 }
 
 # arrow for centos
-install_arrow_centos() {
+install_arrow_from_source() {
   if [[ -f "${install_prefix}/include/arrow/api.h" ]]; then
     return 0
   fi
@@ -308,7 +308,7 @@ install_yaml_cpp() {
   git clone https://github.com/jbeder/yaml-cpp.git -b 0.8.0
   cd yaml-cpp
   mkdir -p build && cd build
-  cmake .. -DYAML_BUILD_SHARED_LIBS=ON  -DCMAKE_INSTALL_PREFIX="${install_prefix}"
+  cmake .. -DYAML_BUILD_SHARED_LIBS=ON  -DCMAKE_INSTALL_PREFIX="${install_prefix}" -DCMAKE_POLICY_VERSION_MINIMUM=3.5
   make -j$(nproc)
   make install
   popd || exit
@@ -373,7 +373,6 @@ install_basic_packages() {
   fi
 }
 
-# gflags for centos
 install_gflags() {
   if [[ -f "${install_prefix}/include/gflags/gflags.h" ]]; then
     return 0
@@ -395,8 +394,49 @@ install_gflags() {
   rm -rf "${tempdir:?}/${directory:?}" "${tempdir:?}/${file:?}"
 }
 
+install_glog() {
+  if [[ -f "${install_prefix}/include/glog/logging.h" ]]; then
+    return 0
+  fi
+  pushd "${tempdir}" || exit
+  directory="glog-0.6.0"
+  file="v0.6.0.tar.gz"
+  url="https://github.com/google/glog/archive"
+  url=$(set_to_cn_url ${url})
+  download_and_untar "${url}" "${file}" "${directory}"
+  pushd ${directory} || exit
+  cmake . -DCMAKE_INSTALL_PREFIX="${install_prefix}" \
+          -DCMAKE_PREFIX_PATH="${install_prefix}" \
+          -DBUILD_SHARED_LIBS=ON
+  make -j$(nproc)
+  make install
+  popd || exit
+  popd || exit
+  rm -rf "${tempdir:?}/${directory:?}" "${tempdir:?}/${file:?}"
+}
 
-INTERACTIVE_MACOS=("apache-arrow" "rapidjson" "boost" "glog" "gflags" "yaml-cpp" "protobuf")
+install_abseil() {
+  if [[ -f "${install_prefix}/include/absl/base/config.h" ]]; then
+    return 0
+  fi
+  pushd "${tempdir}" || exit
+  directory="abseil-cpp-20240722.1"
+  file="v20240722.1.tar.gz"
+  url="https://github.com/abseil/abseil-cpp/archive/refs/tags/"
+  url=$(set_to_cn_url ${url})
+  download_and_untar "${url}" "${file}" "${directory}"
+  pushd ${directory} || exit
+  mkdir build && pushd build && cmake ..  -DCMAKE_INSTALL_PREFIX="${install_prefix}" \
+       -DCMAKE_PREFIX_PATH="${install_prefix}" -DCMAKE_CXX_STANDARD=17 -DBUILD_SHARED_LIBS=ON 
+  make -j ${nproc}
+  make install
+  popd || exit
+  popd || exit
+  popd || exit
+  rm -rf "${tempdir:?}/${directory:?}" "${tempdir:?}/${file:?}"
+}
+
+INTERACTIVE_MACOS=("rapidjson" "xsimd")
 INTERACTIVE_UBUNTU=("rapidjson-dev" "libgoogle-glog-dev" "libgflags-dev" "libyaml-cpp-dev" "libprotobuf-dev" "libgflags-dev")
 INTERACTIVE_CENTOS=("rapidjson-devel" "glog-devel")
 
@@ -404,6 +444,14 @@ install_nexg_dependencies() {
   # dependencies package
   if [[ "${OS_PLATFORM}" == *"Darwin"* ]]; then
     brew install ${INTERACTIVE_MACOS[*]}
+    install_abseil
+    install_gflags
+    install_glog
+    install_arrow
+    install_boost
+    install_yaml_cpp
+    install_protobuf
+    install_mimalloc
   elif [[ "${OS_PLATFORM}" == *"Ubuntu"* ]]; then
     DEBIAN_FRONTEND=noninteractive TZ=Etc/UTC ${SUDO} apt-get install -y ${INTERACTIVE_UBUNTU[*]}
     install_arrow
