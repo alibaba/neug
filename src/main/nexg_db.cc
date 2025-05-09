@@ -19,7 +19,7 @@ namespace gs {
 
 std::shared_ptr<Connection> NexgDB::connect() {
   if (mode_ == DBMode::READ_ONLY) {
-    auto conn = std::make_shared<Connection>(db_, planner_, query_processor_);
+    auto conn = std::make_shared<Connection>(db_, planner_, query_processor_, resource_path_);
     read_only_connections_.push_back(conn);
     return conn;
   } else if (mode_ == DBMode::READ_WRITE) {
@@ -30,7 +30,7 @@ std::shared_ptr<Connection> NexgDB::connect() {
           "There is already a read-write connection constructed.");
     }
     read_write_connection_ =
-        std::make_shared<Connection>(db_, planner_, query_processor_);
+        std::make_shared<Connection>(db_, planner_, query_processor_, resource_path_);
     return read_write_connection_;
   } else {
     throw std::runtime_error("Invalid mode.");

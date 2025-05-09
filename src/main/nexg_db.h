@@ -24,6 +24,7 @@
 #include "src/engines/graph_db/database/graph_db.h"
 #include "src/main/connection.h"
 #include "src/main/query_processor.h"
+#include "src/planner/dummy_graph_planner.h"
 #include "src/planner/graph_planner.h"
 #include "src/planner/jni_graph_planner.h"
 #include "src/utils/file_utils.h"
@@ -39,7 +40,8 @@ class NexgDB {
   NexgDB(const std::string& data_dir, int32_t max_num_threads,
          const std::string& mode, const std::string& planner_kind,
          const std::string& jni_planner_class_path,
-         const std::string& planner_config_path) {
+         const std::string& planner_config_path,
+         const std::string& resource_path) {
     LOG(INFO) << "Creating NexgDB with: " << data_dir << " in " << mode
               << " mode, "
               << " planner: " << planner_kind;
@@ -71,6 +73,7 @@ class NexgDB {
                               planner_config_path);
 
     query_processor_ = std::make_shared<QueryProcessor>(db_, max_num_threads);
+    resource_path_ = resource_path;
   }
 
   ~NexgDB() {
@@ -113,6 +116,8 @@ class NexgDB {
     if (planner_kind == "jni") {
       return std::make_shared<JavaGraphPlanner>(planner_config_path,
                                                 jni_planner_class_path);
+    } else if (planner_kind == "dummy") {
+      return std::make_shared<DummyGraphPlanner>();
     } else {
       throw std::invalid_argument("Invalid planner kind: " + planner_kind);
     }
@@ -129,6 +134,8 @@ class NexgDB {
   std::vector<std::shared_ptr<Connection>> read_only_connections_;
 
   std::mutex connection_mutex_;
+
+  std::string resource_path_;
 };
 }  // namespace gs
 

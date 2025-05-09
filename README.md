@@ -16,8 +16,19 @@ java -Dgraph.schema=/workspaces/nexg/example_dataset/modern_graph/graph.yaml \
 Building wheels for all python version on this platform.
 
 ```bash
+# install patchelf
+https://github.com/NixOS/patchelf/archive/refs/tags/0.14.4.zip
+unzip 0.14.4.zip
+cd patchelf-0.14.4
+./bootstrap.sh
+./configure
+make install
+```
+
+```bash
 pip3 install cibuildwheel
-cibuildwheel ./tools/python_bind --no-deps
+cibuildwheel ./tools/python_bind
+auditwheel repair ./wheelhouse/*.whl
 ```
 
 Building for local development

@@ -62,8 +62,15 @@ class Database(object):
             jni_planner_jar_path = self._get_default_jni_planner_jar_path()
         if planner_config_path is None:
             planner_config_path = self._get_default_planner_config_path()
-        self._database = nexg_py_bind.PyDatabase(db_path, max_thread_num, mode, planner, jni_planner_jar_path, planner_config_path)
-        logger.info(f"Open database {db_path} in {mode} mode, planner: {planner}, config: {planner_config_path}, jar: {jni_planner_jar_path}.")
+        # Get the absolute path to files("nexg.resources")
+        resource_path = files("nexg.resources").joinpath("")
+        if not resource_path.exists():
+            raise RuntimeError(f"Resource path not found: {resource_path}")
+        # Convert to string
+        resource_path = str(resource_path.resolve())
+        # TODO: refactor it into a pydict.
+        self._database = nexg_py_bind.PyDatabase(db_path, max_thread_num, mode, planner, jni_planner_jar_path, planner_config_path, resource_path)
+        logger.info(f"Open database {db_path} in {mode} mode, planner: {planner}, config: {planner_config_path}, jar: {jni_planner_jar_path}, resource_path: {resource_path}.")
 
     def __del__(self):
         self.close()

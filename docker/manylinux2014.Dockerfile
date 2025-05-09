@@ -4,6 +4,11 @@ FROM quay.io/pypa/manylinux2014_$ARCH:2025.03.23-1 AS builder
 
 ENV DEBIAN_FRONTEND=noninteractive
 
+
+# RUN sed -i "s/mirror.centos.org/vault.centos.org/g" /etc/yum.repos.d/*.repo && \
+#     sed -i "s/^#.*baseurl=http/baseurl=http/g" /etc/yum.repos.d/*.repo && \
+#     sed -i "s/^mirrorlist=http/#mirrorlist=http/g" /etc/yum.repos.d/*.repo
+
 # shanghai zoneinfo
 ENV TZ=Asia/Shanghai
 RUN ln -snf /usr/share/zoneinfo/$TZ /etc/localtime && \

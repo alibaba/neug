@@ -21,11 +21,11 @@ void PyDatabase::initialize(pybind11::handle& m) {
   pybind11::class_<PyDatabase, std::shared_ptr<PyDatabase>>(m, "PyDatabase")
       .def(pybind11::init<const std::string&, int32_t, const std::string&,
                           const std::string&, const std::string&,
-                          const std::string&>(),
+                          const std::string&, const std::string&>(),
            pybind11::arg("database_path"), pybind11::arg("max_thread_num"),
            pybind11::arg("mode"), pybind11::arg("planner"),
            pybind11::arg("jni_planner_jar_path"),
-           pybind11::arg("planner_config_path"))
+           pybind11::arg("planner_config_path"), pybind11::arg("resource_path"))
       .def("connect", &PyDatabase::connect)
       .def("close", &PyDatabase::close);
 }

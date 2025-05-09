@@ -39,8 +39,12 @@ class NexgDB;
 class Connection {
  public:
   Connection(GraphDB& db, std::shared_ptr<IGraphPlanner> planner,
-             std::shared_ptr<QueryProcessor> query_processor)
-      : db_(db), planner_(planner), query_processor_(query_processor) {}
+             std::shared_ptr<QueryProcessor> query_processor,
+             const std::string& resource_path)
+      : db_(db),
+        planner_(planner),
+        query_processor_(query_processor),
+        resource_path_(resource_path) {}
   ~Connection() = default;
 
   /**
@@ -56,6 +60,7 @@ class Connection {
 
   std::shared_ptr<IGraphPlanner> planner_;
   std::shared_ptr<QueryProcessor> query_processor_;
+  std::string resource_path_;
 };
 }  // namespace gs
 

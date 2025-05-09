@@ -30,10 +30,11 @@ class PyDatabase : public std::enable_shared_from_this<PyDatabase> {
   explicit PyDatabase(const std::string& databasePath, int32_t max_thread_num,
                       const std::string& mode, const std::string& planner,
                       const std::string& jni_planner_jar_path,
-                      const std::string& planner_config_path) {
-    database =
-        std::make_unique<NexgDB>(databasePath, max_thread_num, mode, planner,
-                                 jni_planner_jar_path, planner_config_path);
+                      const std::string& planner_config_path,
+                      const std::string& resource_path) {
+    database = std::make_unique<NexgDB>(databasePath, max_thread_num, mode,
+                                        planner, jni_planner_jar_path,
+                                        planner_config_path, resource_path);
   }
 
   ~PyDatabase() { close(); }

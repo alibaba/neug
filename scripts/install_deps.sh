@@ -336,8 +336,8 @@ install_protobuf() {
 
 BASIC_PACKAGES_LINUX=("file" "curl" "wget" "git" "sudo")
 BASIC_PACKAGES_UBUNTU=("${BASIC_PACKAGES_LINUX[@]}" "build-essential" "cmake" "libunwind-dev" "python3-pip")
-BASIC_PACKAGES_CENTOS_8=("${BASIC_PACKAGES_LINUX[@]}" "epel-release" "libunwind-devel" "libcurl-devel" "perl" "which")
-BASIC_PACKAGES_CENTOS_7=("${BASIC_PACKAGES_CENTOS_8[@]}" "centos-release-scl-rh")
+BASIC_PACKAGES_CENTOS_8=("wget" "${BASIC_PACKAGES_LINUX[@]}" "epel-release" "libunwind-devel" "libcurl-devel" "perl" "which")
+BASIC_PACKAGES_CENTOS_7=("${BASIC_PACKAGES_CENTOS_8[@]}" "centos-release-scl-rh" "java-11-openjdk" "java-11-openjdk-devel")
 ADDITIONAL_PACKAGES_CENTOS_8=("gcc-c++" "python38-devel")
 ADDITIONAL_PACKAGES_CENTOS_7=("make" "devtoolset-8-gcc-c++" "rh-python38-python-pip" "rh-python38-python-devel")
 
