@@ -23,7 +23,7 @@ concurrency:
 
 jobs:
   build-nexg:
-    runs-on: ubuntu-20.04
+    runs-on: ubuntu-22.04
     if: ${{ github.repository == 'alibaba/GraphScope' }}
     container:
       image: registry.cn-hongkong.aliyuncs.com/graphscope/graphscope-dev:v0.24.2-amd64
