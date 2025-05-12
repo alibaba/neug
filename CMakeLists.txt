@@ -1,6 +1,6 @@
 cmake_minimum_required (VERSION 3.10)
 
-file(READ ${CMAKE_CURRENT_SOURCE_DIR}/VERSION NEXG_VERSION)
+file(READ ${CMAKE_CURRENT_SOURCE_DIR}/NEXG_VERSION NEXG_VERSION)
 # Strip trailing newline
 string(REGEX REPLACE "\n$" "" NEXG_VERSION "${NEXG_VERSION}")
 
@@ -40,10 +40,15 @@ include(GNUInstallDirs)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 include_directories(${CMAKE_CURRENT_SOURCE_DIR})
 
+# Print cc and cxx compiler
+message(STATUS "CMAKE_C_COMPILER: ${CMAKE_C_COMPILER}")
+message(STATUS "CMAKE_CXX_COMPILER: ${CMAKE_CXX_COMPILER}")
+
 # reference: https://gitlab.kitware.com/cmake/community/-/wikis/doc/cmake/RPATH-handling#always-full-rpath
 set(CMAKE_BUILD_WITH_INSTALL_RPATH FALSE)
 set(CMAKE_INSTALL_RPATH "${CMAKE_INSTALL_PREFIX}/lib")
 set(CMAKE_INSTALL_RPATH_USE_LINK_PATH TRUE)
+set(CMAKE_CXX_STANDARD 17)
 
 if(USE_PTHASH)
     message("Use PTHash")
@@ -55,30 +60,56 @@ string(STRIP ${LINUX_KERNEL_VERSION} LINUX_KERNEL_VERSION)
 message(${LINUX_KERNEL_VERSION})
 # Get whether os is Centos
 execute_process(COMMAND cat /etc/os-release OUTPUT_VARIABLE CENTOS_NAME)
-string(TOLOWER CENTOS_NAME CENTOS_NAME)
-if (CENTOS_NAME MATCHES "centos")
-    message("CentOS detected")
-    string(REGEX MATCH "^[0-9]+\\.[0-9]+" LINUX_KERNEL_VERSION ${LINUX_KERNEL_VERSION})
-    string(REPLACE "." ";" VERSION_LIST ${LINUX_KERNEL_VERSION})
-    list(GET VERSION_LIST 0 LINUX_KERNEL_MAJOR)
-    list(GET VERSION_LIST 1 LINUX_KERNEL_MINOR)
-    # If greater than 5.19
-    if (LINUX_KERNEL_MAJOR GREATER 5 OR (LINUX_KERNEL_MAJOR EQUAL 5 AND LINUX_KERNEL_MINOR GREATER 19))
-        message("Use copy file range")
-        add_definitions(-DUSE_COPY_FILE_RANGE)
-    endif ()
-else()
-    if(LINUX_KERNEL_VERSION VERSION_GREATER_EQUAL "4.5")
-        message("Use copy file range")
-        add_definitions(-DUSE_COPY_FILE_RANGE)
+if (CENTOS_NAME)
+    string(TOLOWER CENTOS_NAME CENTOS_NAME)
+    if (CENTOS_NAME MATCHES "centos")
+        message("CentOS detected: ${CENTOS_NAME}")
+        string(REGEX MATCH "^[0-9]+\\.[0-9]+" LINUX_KERNEL_VERSION ${LINUX_KERNEL_VERSION})
+        string(REPLACE "." ";" VERSION_LIST ${LINUX_KERNEL_VERSION})
+        list(GET VERSION_LIST 0 LINUX_KERNEL_MAJOR)
+        list(GET VERSION_LIST 1 LINUX_KERNEL_MINOR)
+        # If greater than 5.19
+        if (LINUX_KERNEL_MAJOR GREATER 5 OR (LINUX_KERNEL_MAJOR EQUAL 5 AND LINUX_KERNEL_MINOR GREATER 19))
+            message("Use copy file range")
+            add_definitions(-DUSE_COPY_FILE_RANGE)
+        endif ()
     endif()
+elseif(NOT APPLE AND LINUX_KERNEL_VERSION VERSION_GREATER_EQUAL "4.5")
+    message("Use copy file range")
+    add_definitions(-DUSE_COPY_FILE_RANGE)
 endif()
+
+find_package(Threads REQUIRED)
+
+# find glog---------------------------------------------------------------------
+include("cmake/FindGlog.cmake")
+if (NOT GLOG_FOUND)
+    message(FATAL_ERROR "glog not found, please install the glog library")
+else ()
+    include_directories(SYSTEM ${GLOG_INCLUDE_DIRS})
+endif ()
+
+# if os is macos, 
+if (CMAKE_CXX_COMPILER_ID MATCHES "Clang")
+    message("macos detected")
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wno-class-conversion -fclang-abi-compat=14") # need fclang-abi-compat for clang compiler, due to absl problem: https://github.com/protocolbuffers/protobuf/issues/12693
+endif()
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wno-deprecated")
 
 if (BUILD_JNI_PLANNER)
     message(STATUS "Build jni planner")
     set(JAVA_AWT_INCLUDE_PATH NotNeeded)
-    set(CMAKE_CXX_STANDARD 17)
-    find_package(JNI QUIET)
+    # get JAVA_HOME from environment
+    execute_process(COMMAND bash -c "echo $JAVA_HOME" OUTPUT_VARIABLE JAVA_HOME)
+    string(STRIP ${JAVA_HOME} JAVA_HOME)
+    message(STATUS "JAVA_HOME: ${JAVA_HOME}")
+    set(JAVA_INCLUDE_PATH "${JAVA_HOME}/include/")
+    if (APPLE)
+        set(JAVA_INCLUDE_PATH2 "${JAVA_HOME}/include/darwin/")
+    else()
+        set(JAVA_INCLUDE_PATH2 "${JAVA_HOME}/include/linux/")
+    endif()
+    find_package(JNI REQUIRED)
     if (JNI_FOUND)
         include_directories(SYSTEM ${JAVA_INCLUDE_PATH})
         include_directories(SYSTEM ${JAVA_INCLUDE_PATH2})
@@ -101,14 +132,6 @@ if (BUILD_PYTHON)
     add_subdirectory(third_party/pybind11)
 endif()
 
-
-# find glog---------------------------------------------------------------------
-include("cmake/FindGlog.cmake")
-if (NOT GLOG_FOUND)
-    message(FATAL_ERROR "glog not found, please install the glog library")
-else ()
-    include_directories(SYSTEM ${GLOG_INCLUDE_DIRS})
-endif ()
 
 #find boost----------------------------------------------------------------------
 if(POLICY CMP0167)
@@ -135,6 +158,7 @@ if (NOT CMAKE_BUILD_TYPE AND NOT CMAKE_CONFIGURATION_TYPES)
 endif ()
 
 add_compile_definitions(NEXG_VERSION="${NEXG_VERSION}")
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Werror")
 
 if (APPLE)
     set(CMAKE_MACOSX_RPATH ON)
@@ -145,9 +169,17 @@ else ()
         set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wl,-rpath,$ORIGIN")
     endif ()
 endif ()
+# Only add -fopenmp if not using clang
+if (NOT CMAKE_CXX_COMPILER_ID MATCHES "Clang")
+    message(STATUS "Using non-clang compiler, adding -fopenmp")
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fopenmp")
+    set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -fopenmp")
+    set(CMAKE_SHARED_LINKER_FLAGS "${CMAKE_SHARED_LINKER_FLAGS} -fopenmp")
+endif ()
 
-set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fopenmp -Werror -std=c++17 -Wall -fPIC")
-if (OPTIMIZE_FOR_HOST)
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS}  -std=c++17 -Wall -fPIC -Wno-psabi")
+# -Wno-psabi for no warning about returning a pair in c++ function
+if (OPTIMIZE_FOR_HOST AND NOT APPLE)
     set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -march=native")
 endif()
 
@@ -183,6 +215,14 @@ if (BUILD_HTTP_SERVER)
     endif()
 endif()
 
+#find protobuf-------------------------------------------------------------------
+if (APPLE)
+    find_package(absl REQUIRED)
+endif()
+find_package(Protobuf REQUIRED)
+include_directories(${Protobuf_INCLUDE_DIRS})
+message(STATUS "protobuf libraries: ${Protobuf_LIBRARIES}")
+
 #find arrow----------------------------------------------------------------------
 find_package(Arrow REQUIRED)
 if (NOT Arrow_FOUND)
@@ -208,9 +248,7 @@ else ()
     endif()
 endif ()
 
-#find protobuf-------------------------------------------------------------------
-find_package(Protobuf REQUIRED)
-include_directories(${Protobuf_INCLUDE_DIRS})
+
 
 if (BUILD_WITH_OTEL)
     find_package(opentelemetry-cpp CONFIG)

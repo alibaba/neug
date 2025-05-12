@@ -1,4 +1,5 @@
 include_directories(${CMAKE_CURRENT_BINARY_DIR}/../utils)
+include_directories(${JAVA_INCLUDE_PATH})
 file(GLOB_RECURSE PLANNER_SOURCE_FILES "${CMAKE_CURRENT_SOURCE_DIR}/*.cc")
 if (NOT BUILD_JNI_PLANNER)
     # remove jni planner files
@@ -6,5 +7,9 @@ if (NOT BUILD_JNI_PLANNER)
 endif()
 
 add_library(nexg_planner SHARED ${PLANNER_SOURCE_FILES})
-target_link_libraries(nexg_planner ${CMAKE_JNI_LINKER_FLAGS} ${JAVA_JVM_LIBRARY} ${JNI_LIBRARIES})
+#${CMAKE_JNI_LINKDER_FLAGS} is not available after xcode 12
+message(STATUS "JAVA_INCLUDE_PATH: ${JAVA_INCLUDE_PATH}")
+message(STATUS "JAVA_INCLUDE_PATH2: ${JAVA_INCLUDE_PATH2}")
+target_link_libraries(nexg_planner ${JAVA_JVM_LIBRARY} ${JNI_LIBRARIES} ${GLOG_LIBRARIES} ${PROTOBUF_LIBRARIES} nexg_utils nexg_plan_proto)
+target_include_directories(nexg_planner PUBLIC ${JAVA_INCLUDE_PATH} ${JAVA_INCLUDE_PATH2})
 install_nexg_target(nexg_planner)

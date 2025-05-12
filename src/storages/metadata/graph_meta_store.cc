@@ -24,7 +24,6 @@
 #include "src/storages/rt_mutable_graph/schema.h"
 #include "src/utils/yaml_utils.h"
 
-#include <rapidjson/document.h>
 #include <rapidjson/pointer.h>
 #include <rapidjson/rapidjson.h>
 #include <rapidjson/stringbuffer.h>

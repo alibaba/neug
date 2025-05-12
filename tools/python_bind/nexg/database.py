@@ -28,6 +28,10 @@ from importlib.resources import files
 
 logger = logging.getLogger(__name__)
 
+cur_file_path = os.path.dirname(os.path.abspath(__file__))
+cur_dir_path = os.path.dirname(cur_file_path)
+resource_dir = os.path.join(cur_dir_path,"nexg", "resources")
+
 
 class Database(object):
     """
@@ -63,7 +67,7 @@ class Database(object):
         if planner_config_path is None:
             planner_config_path = self._get_default_planner_config_path()
         # Get the absolute path to files("nexg.resources")
-        resource_path = files("nexg.resources").joinpath("")
+        resource_path = files("nexg").joinpath("resources")
         if not resource_path.exists():
             raise RuntimeError(f"Resource path not found: {resource_path}")
         # Convert to string
@@ -108,20 +112,20 @@ class Database(object):
         Get the default JNI planner jar path.
         """
         # Load the file under nexg/resources/, ended with .jar
-        jar_path = files("nexg.resources").joinpath("compiler.jar")
-        if not jar_path.exists():
+        jar_path = os.path.join(resource_dir, "compiler.jar")
+        print(f"jar_path: {jar_path}")
+        if not os.path.exists(jar_path):
             raise RuntimeError(f"JNI planner jar file not found: {jar_path}")
         logger.info(f"Using JNI planner jar file: {jar_path}")
-        return str(jar_path.resolve())
+        return jar_path
     
     def _get_default_planner_config_path(self):
         """
         Get the default planner config path.
         """
-        # Load the file under nexg/resources/, ended with .json
-        config_path = files("nexg.resources").joinpath("planner_config.yaml")
-        if not config_path.exists():
+        config_path = os.path.join(resource_dir, "planner_config.yaml")
+        if not os.path.exists(config_path):
             raise RuntimeError(f"Planner config file not found: {config_path}")
         logger.info(f"Using planner config file: {config_path}")
         # convert to string
-        return str(config_path.resolve())
+        return str(config_path)

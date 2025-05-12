@@ -26,10 +26,18 @@
 
 #ifdef __ia64__
 #define ADDR (void*) (0x8000000000000000UL)
+#ifdef MAP_HUGETLB
 #define FLAGS (MAP_PRIVATE | MAP_ANONYMOUS | MAP_HUGETLB | MAP_FIXED)
 #else
+#define FLAGS (MAP_PRIVATE | MAP_ANONYMOUS | MAP_FIXED)
+#endif
+#else
 #define ADDR (void*) (0x0UL)
+#ifdef MAP_HUGETLB
 #define FLAGS (MAP_PRIVATE | MAP_ANONYMOUS | MAP_HUGETLB)
+#else
+#define FLAGS (MAP_PRIVATE | MAP_ANONYMOUS)
+#endif
 #endif
 
 #define PROTECTION (PROT_READ | PROT_WRITE)

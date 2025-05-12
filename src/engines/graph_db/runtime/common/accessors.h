@@ -375,7 +375,7 @@ class EdgePropertyPathAccessor : public IAccessor {
 
   elem_t typed_eval_path(size_t idx) const {
     const auto& e = col_.get_edge(idx);
-    elem_t ret = e.prop_.as<elem_t>();
+    elem_t ret = e.prop_.template as<elem_t>();
     return ret;
   }
 
@@ -428,7 +428,7 @@ class MultiPropsEdgePropertyPathAccessor : public IAccessor {
       assert(id == 0);
       return RTAny(val);
     } else {
-      auto rv = val.as<RecordView>();
+      auto rv = val.template as<RecordView>();
       assert(id != std::numeric_limits<size_t>::max());
       return RTAny(rv[id]);
     }
@@ -441,12 +441,12 @@ class MultiPropsEdgePropertyPathAccessor : public IAccessor {
 
     if (e.prop_.type != RTAnyType::kRecordView) {
       assert(id == 0);
-      elem_t ret = e.prop_.as<elem_t>();
+      elem_t ret = e.prop_.template as<elem_t>();
 
       return ret;
 
     } else {
-      auto rv = val.as<RecordView>();
+      auto rv = val.template as<RecordView>();
       assert(id != std::numeric_limits<size_t>::max());
       auto tmp = rv[id];
       elem_t ret;

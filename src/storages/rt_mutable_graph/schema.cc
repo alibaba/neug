@@ -1491,7 +1491,7 @@ Result<Schema> Schema::LoadFromYaml(const std::string& schema_config) {
     auto status =
         config_parsing::parse_schema_config_file(schema_config, schema);
     if (status.ok()) {
-      return schema;
+      return Result<Schema>(std::move(schema));
     } else {
       return Result<Schema>(status);
     }

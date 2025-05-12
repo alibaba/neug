@@ -118,8 +118,9 @@ inline DualCsrBase* create_csr(EdgeStrategy oes, EdgeStrategy ies,
 
 void MutablePropertyFragment::Open(const std::string& work_dir,
                                    int memory_level) {
-  work_dir_ = work_dir;
-  std::string schema_file = schema_path(work_dir);
+  // copy work_dir to work_dir_
+  work_dir_.assign(work_dir);
+  std::string schema_file = schema_path(work_dir_);
   std::string snapshot_dir{};
   bool build_empty_graph = false;
   if (std::filesystem::exists(schema_file)) {
@@ -127,7 +128,7 @@ void MutablePropertyFragment::Open(const std::string& work_dir,
     vertex_label_num_ = schema_.vertex_label_num();
     edge_label_num_ = schema_.edge_label_num();
     lf_indexers_.resize(vertex_label_num_);
-    snapshot_dir = get_latest_snapshot(work_dir);
+    snapshot_dir = get_latest_snapshot(work_dir_);
   } else {
     vertex_label_num_ = schema_.vertex_label_num();
     edge_label_num_ = schema_.edge_label_num();
@@ -140,7 +141,7 @@ void MutablePropertyFragment::Open(const std::string& work_dir,
   }
 
   vertex_data_.resize(vertex_label_num_);
-  std::string tmp_dir_path = tmp_dir(work_dir);
+  std::string tmp_dir_path = tmp_dir(work_dir_);
 
   if (std::filesystem::exists(tmp_dir_path)) {
     std::filesystem::remove_all(tmp_dir_path);

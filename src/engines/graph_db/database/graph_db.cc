@@ -100,7 +100,7 @@ Result<bool> GraphDB::Open(const GraphDBConfig& config) {
 
   std::string schema_file = schema_path(data_dir);
   bool create_empty_graph = false;
-  if (!std::filesystem::exists(schema_file)) {
+  if (!std::filesystem::exists(schema_file) && !schema.Empty()) {
     create_empty_graph = true;
     graph_.mutable_schema() = schema;
   }
@@ -248,6 +248,7 @@ Result<bool> GraphDB::Open(const GraphDBConfig& config) {
 
   unlink(graph_.statisticsFilePath().c_str());
   graph_.generateStatistics();
+  LOG(INFO) << "GraphDB opened successfully";
   runtime::CypherRunnerImpl::get().clear_cache();
 
   return Result<bool>(true);

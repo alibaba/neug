@@ -13,19 +13,26 @@
  * limitations under the License.
  */
 
-#include "rapidjson/document.h"
+// Disable class-memaccess warning to facilitate compilation with gcc>7
+// https://github.com/Tencent/rapidjson/issues/1700
+#pragma GCC diagnostic push
+#if defined(__GNUC__) && __GNUC__ >= 8
+#pragma GCC diagnostic ignored "-Wclass-memaccess"
+#endif
+#include <rapidjson/document.h>
+#pragma GCC diagnostic pop
+#include <boost/format.hpp>
+#include <string>
 #include "src/engines/graph_db/database/graph_db_session.h"
 #include "src/proto_generated_gie/stored_procedure.pb.h"
 #include "src/storages/metadata/graph_meta_store.h"
 #include "src/utils/yaml_utils.h"
 #include "third_party/httplib.h"
 #include "yaml-cpp/yaml.h"
-#include <boost/format.hpp>
-#include <string>
 
 #include "glog/logging.h"
 
-static constexpr const char *CREATE_PROCEDURE_PAYLOAD_TEMPLATE =
+static constexpr const char* CREATE_PROCEDURE_PAYLOAD_TEMPLATE =
     "{\"bound_graph\": \"%1%\","
     "\"description\": \"test procedure\","
     "\"enable\": %2%,"
@@ -33,12 +40,12 @@ static constexpr const char *CREATE_PROCEDURE_PAYLOAD_TEMPLATE =
     "\"query\": \"%4%\","
     "\"type\": \"cypher\"}";
 
-std::string generate_start_service_payload(const std::string &graph_id) {
+std::string generate_start_service_payload(const std::string& graph_id) {
   boost::format formater("{\"graph_id\": \"%1%\"}");
   return (formater % graph_id).str();
 }
 
-std::string get_file_name_from_path(const std::string &file_path) {
+std::string get_file_name_from_path(const std::string& file_path) {
   auto file_name = file_path.substr(file_path.find_last_of('/') + 1);
   // remove extension
   file_name = file_name.substr(0, file_name.find_last_of('.'));
@@ -47,7 +54,7 @@ std::string get_file_name_from_path(const std::string &file_path) {
   return file_name;
 }
 
-std::string generate_call_procedure_payload(const std::string &procedure_id) {
+std::string generate_call_procedure_payload(const std::string& procedure_id) {
   procedure::Query query;
   query.mutable_query_name()->set_name(procedure_id);
   std::string str = query.SerializeAsString();
@@ -58,14 +65,14 @@ std::string generate_call_procedure_payload(const std::string &procedure_id) {
   return str;
 }
 
-std::string generate_update_procedure_payload(const std::string &description,
+std::string generate_update_procedure_payload(const std::string& description,
                                               bool enabled) {
   boost::format formater("{\"enable\": %1%, \"description\": \"%2%\"}");
   return (formater % (enabled ? "true" : "false") % description).str();
 }
 
-std::string generate_create_procedure_payload(const std::string &graph_id,
-                                              const std::string &procedure_path,
+std::string generate_create_procedure_payload(const std::string& graph_id,
+                                              const std::string& procedure_path,
                                               bool enabled) {
   boost::format formater(CREATE_PROCEDURE_PAYLOAD_TEMPLATE);
   // read from procedure_path and result into a one-line string
@@ -81,14 +88,14 @@ std::string generate_create_procedure_payload(const std::string &graph_id,
       .str();
 }
 
-std::string insert_raw_csv_dir(const std::string &raw_csv_dir,
-                               const std::string &import_file_path) {
+std::string insert_raw_csv_dir(const std::string& raw_csv_dir,
+                               const std::string& import_file_path) {
   // Load the file as yaml, and insert
   // ["loading_config"]["data_source"]["location"]
   YAML::Node node;
   try {
     node = YAML::LoadFile(import_file_path);
-  } catch (YAML::BadFile &e) {
+  } catch (YAML::BadFile& e) {
     LOG(FATAL) << "load import file failed: " << e.what();
   }
   node["loading_config"]["data_source"]["location"] = raw_csv_dir;
@@ -102,9 +109,9 @@ std::string insert_raw_csv_dir(const std::string &raw_csv_dir,
 }
 
 void run_builtin_graph_test(
-    httplib::Client &admin_client, httplib::Client &query_client,
-    const std::string &graph_id,
-    const std::vector<std::pair<std::string, std::string>> &queries) {
+    httplib::Client& admin_client, httplib::Client& query_client,
+    const std::string& graph_id,
+    const std::vector<std::pair<std::string, std::string>>& queries) {
   //-------0. get graph schema--------------------------------
   auto res = admin_client.Get("/v1/graph/" + graph_id + "/schema");
   if (res->status != 200) {
@@ -114,7 +121,7 @@ void run_builtin_graph_test(
   std::vector<gs::PluginId> plugin_ids;
   //-------1. create procedures--------------------------------
   {
-    for (auto &pair : queries) {
+    for (auto& pair : queries) {
       auto query_name = pair.first;
       auto query_str = pair.second;
       boost::format formater(CREATE_PROCEDURE_PAYLOAD_TEMPLATE);
@@ -137,7 +144,7 @@ void run_builtin_graph_test(
   }
   //-------2. now call procedure should fail
   {
-    for (auto &proc_id : plugin_ids) {
+    for (auto& proc_id : plugin_ids) {
       auto res = query_client.Post("/v1/graph/current/query",
                                    generate_call_procedure_payload(proc_id),
                                    "text/plain");
@@ -164,7 +171,7 @@ void run_builtin_graph_test(
   }
   //------4. now do the query
   {
-    for (auto &plugin_id : plugin_ids) {
+    for (auto& plugin_id : plugin_ids) {
       auto res = query_client.Post("/v1/graph/current/query",
                                    generate_call_procedure_payload(plugin_id),
                                    "text/plain");
@@ -176,16 +183,16 @@ void run_builtin_graph_test(
   LOG(INFO) << "Pass builtin graph test";
 }
 
-gs::GraphId run_graph_tests(httplib::Client &cli,
-                            const std::string &schema_path,
-                            const std::string &import_path,
-                            const std::string &raw_data_dir) {
+gs::GraphId run_graph_tests(httplib::Client& cli,
+                            const std::string& schema_path,
+                            const std::string& import_path,
+                            const std::string& raw_data_dir) {
   //-------0. create graph--------------------------------
   // load schema_path to yaml and output yaml as json
   YAML::Node node;
   try {
     node = YAML::LoadFile(schema_path);
-  } catch (YAML::BadFile &e) {
+  } catch (YAML::BadFile& e) {
     LOG(FATAL) << "load schema file failed: " << e.what();
   }
 
@@ -249,11 +256,11 @@ gs::GraphId run_graph_tests(httplib::Client &cli,
 }
 
 // Create the procedure and call the procedure.
-void run_procedure_test(httplib::Client &client, httplib::Client &query_client,
-                        const std::string &graph_id,
-                        const std::vector<std::pair<std::string, std::string>>
-                            &builtin_graph_queries,
-                        const std::vector<std::string> &procedures) {
+void run_procedure_test(httplib::Client& client, httplib::Client& query_client,
+                        const std::string& graph_id,
+                        const std::vector<std::pair<std::string, std::string>>&
+                            builtin_graph_queries,
+                        const std::vector<std::string>& procedures) {
   // First create the procedure with disabled state, then update with enabled
   // state.
   //-----0. get all procedures, should be empty----------------------
@@ -262,7 +269,7 @@ void run_procedure_test(httplib::Client &client, httplib::Client &query_client,
 
   std::vector<gs::PluginId> plugin_ids;
   //-----1. create procedures----------------------------------------
-  for (auto &procedure : procedures) {
+  for (auto& procedure : procedures) {
     auto create_proc_payload =
         generate_create_procedure_payload(graph_id, procedure, false);
     LOG(INFO) << "Creating procedure:" << create_proc_payload;
@@ -285,7 +292,7 @@ void run_procedure_test(httplib::Client &client, httplib::Client &query_client,
   LOG(INFO) << "get all procedures response: " << res->body;
   // Step4: update procedures
   for (size_t i = 0; i < plugin_ids.size(); ++i) {
-    auto &proc_id = plugin_ids[i];
+    auto& proc_id = plugin_ids[i];
     auto update_proc_payload =
         generate_update_procedure_payload("a example procedure", true);
     res = client.Put("/v1/graph/" + graph_id + "/procedure/" + proc_id,
@@ -303,7 +310,7 @@ void run_procedure_test(httplib::Client &client, httplib::Client &query_client,
     //----3.1 call proc on previous procedures on previous graph, should fail.
     auto res = client.Get("/v1/graph/" + graph_id + "/procedure");
     LOG(INFO) << "Current graph has plugins: " << res->body;
-    for (auto &pair : builtin_graph_queries) {
+    for (auto& pair : builtin_graph_queries) {
       auto query_name = pair.first;
       auto query_str = pair.second;
       auto res = query_client.Post("/v1/graph/current/query",
@@ -316,7 +323,7 @@ void run_procedure_test(httplib::Client &client, httplib::Client &query_client,
   }
 
   //----4. call procedures-----------------------------------------------
-  for (auto &proc_id : plugin_ids) {
+  for (auto& proc_id : plugin_ids) {
     auto call_proc_payload = generate_call_procedure_payload(proc_id);
     res = query_client.Post("/v1/graph/current/query", call_proc_payload,
                             "text/plain");
@@ -347,7 +354,7 @@ void run_procedure_test(httplib::Client &client, httplib::Client &query_client,
   }
 }
 
-void run_get_node_status(httplib::Client &cli, const std::string &graph_id) {
+void run_get_node_status(httplib::Client& cli, const std::string& graph_id) {
   auto res = cli.Get("/v1/node/status");
   if (res->status != 200) {
     LOG(FATAL) << "get node status failed: " << res->body;
@@ -396,7 +403,7 @@ void run_get_node_status(httplib::Client &cli, const std::string &graph_id) {
   }
 }
 
-void test_delete_graph(httplib::Client &cli, const std::string &graph_id) {
+void test_delete_graph(httplib::Client& cli, const std::string& graph_id) {
   auto res = cli.Delete("/v1/graph/" + graph_id);
   if (res->status != 200) {
     LOG(FATAL) << "delete graph failed: " << res->body;
@@ -408,7 +415,7 @@ void test_delete_graph(httplib::Client &cli, const std::string &graph_id) {
   LOG(INFO) << "delete graph response: " << body;
 }
 
-void remove_graph_if_exists(httplib::Client &cli, const std::string &graph_id) {
+void remove_graph_if_exists(httplib::Client& cli, const std::string& graph_id) {
   auto res = cli.Get("/v1/graph/" + graph_id + "/schema");
   if (res->status == 200) {
     LOG(INFO) << "graph " << graph_id << " exists, delete it";
@@ -416,7 +423,7 @@ void remove_graph_if_exists(httplib::Client &cli, const std::string &graph_id) {
   }
 }
 
-int main(int argc, char **argv) {
+int main(int argc, char** argv) {
   if (argc < 6) {
     std::cerr << "usage: admin_http_test <admin_port> <query_port> "
                  "<graph_schema_file> "
@@ -426,7 +433,7 @@ int main(int argc, char **argv) {
     return -1;
   }
   std::string url;
-  const char *url_env = std::getenv("GRAPHSCOPE_IP");
+  const char* url_env = std::getenv("GRAPHSCOPE_IP");
   if (url_env == NULL) {
     url = "127.0.0.1";
   } else {

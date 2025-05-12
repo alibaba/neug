@@ -1,13 +1,20 @@
-add_subdirectory(runtime)
+# There seems to be a circle dependency between graph_db, runtime_common and runtime_execute
+# So currently we just add all the source files to the graph_db library
 file(GLOB_RECURSE GRAPH_DB_SRC_FILES "${CMAKE_CURRENT_SOURCE_DIR}/app/*.cc"
   	                             "${CMAKE_CURRENT_SOURCE_DIR}/database/*.cc"
-                                     "${CMAKE_CURRENT_SOURCE_DIR}/database/wal/*.cc")
+                                     "${CMAKE_CURRENT_SOURCE_DIR}/database/wal/*.cc"
+                                     "${CMAKE_CURRENT_SOURCE_DIR}/runtime/common/*.cc"
+                                     "${CMAKE_CURRENT_SOURCE_DIR}/runtime/execute/*.cc"
+                                     "${CMAKE_CURRENT_SOURCE_DIR}/runtime/utils/*.cc")
 
 add_library(nexg_graph_db SHARED ${GRAPH_DB_SRC_FILES})
 
 target_include_directories(nexg_graph_db PUBLIC $<BUILD_INTERFACE:${CMAKE_CURRENT_BINARY_DIR}>)
 target_link_libraries(nexg_graph_db nexg_rt_mutable_graph ${LIBGRAPELITE_LIBRARIES} ${CMAKE_THREAD_LIBS_INIT})
-target_link_libraries(nexg_graph_db runtime_execute)
+target_link_libraries(nexg_graph_db nexg_plan_proto ${Protobuf_LIBRARIES} ${GLOG_LIBRARIES})
+if (APPLE)
+        target_link_libraries(nexg_graph_db absl::log_internal_message absl::log_internal_check_op)
+endif()
 install_nexg_target(nexg_graph_db)
 
 install(FILES ${CMAKE_CURRENT_SOURCE_DIR}/database/graph_db.h

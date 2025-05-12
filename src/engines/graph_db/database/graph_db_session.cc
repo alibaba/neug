@@ -23,8 +23,6 @@
 #include "service_utils.h"
 #include "src/proto_generated_gie/stored_procedure.pb.h"
 
-#include <rapidjson/document.h>
-
 namespace gs {
 
 ReadTransaction GraphDBSession::GetReadTransaction() const {

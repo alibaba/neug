@@ -1,6 +1,4 @@
 
-# find yaml-cpp
-
 file(GLOB_RECURSE RT_MUTABLE_GRAPH_SRC_FILES "${CMAKE_CURRENT_SOURCE_DIR}/*.cc")
 if (NOT BUILD_ODPS_FRAGMENT_LOADER)
         # exclude odps_fragment_loader.cc

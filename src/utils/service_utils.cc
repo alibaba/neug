@@ -39,6 +39,27 @@ std::string get_current_dir() {
 }
 
 std::pair<uint64_t, uint64_t> get_total_physical_memory_usage() {
+#ifdef __APPLE__
+  // Get the total physical memory
+  int64_t total_mem;
+  size_t size = sizeof(total_mem);
+  if (sysctlbyname("hw.memsize", &total_mem, &size, NULL, 0) != 0) {
+    // Handle error
+    LOG(ERROR) << "Failed to get total physical memory";
+    return std::make_pair(0, 0);
+  }
+  // Get the free physical memory
+  int64_t free_mem;
+  size = sizeof(free_mem);
+  if (sysctlbyname("vm.page_free_count", &free_mem, &size, NULL, 0) != 0) {
+    // Handle error
+    LOG(ERROR) << "Failed to get free physical memory";
+    return std::make_pair(0, 0);
+  }
+  // Get the used physical memory
+  int64_t used_mem = total_mem - free_mem;
+  return std::make_pair(used_mem, total_mem);
+#else
   struct sysinfo memInfo;
 
   sysinfo(&memInfo);
@@ -48,6 +69,7 @@ std::pair<uint64_t, uint64_t> get_total_physical_memory_usage() {
   uint64_t phy_mem_used = memInfo.totalram - memInfo.freeram;
   phy_mem_used *= memInfo.mem_unit;
   return std::make_pair(phy_mem_used, total_mem);
+#endif
 }
 
 void init_cpu_usage_watch() {

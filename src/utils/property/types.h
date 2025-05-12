@@ -1073,6 +1073,28 @@ struct AnyConverter<uint64_t> {
   }
 };
 
+#ifdef __APPLE__
+template <>
+struct AnyConverter<size_t> {
+  static PropertyType type() { return PropertyType::kUInt64; }
+
+  static Any to_any(const uint64_t& value) {
+    Any ret;
+    ret.set_u64(value);
+    return ret;
+  }
+
+  static const uint64_t& from_any(const Any& value) {
+    assert(value.type == PropertyType::kUInt64);
+    return value.value.ul;
+  }
+
+  static const uint64_t& from_any_value(const AnyValue& value) {
+    return value.ul;
+  }
+};
+#endif
+
 template <>
 struct AnyConverter<GlobalId> {
   static PropertyType type() { return PropertyType::kVertexGlobalId; }

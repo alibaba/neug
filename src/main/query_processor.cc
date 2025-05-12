@@ -21,6 +21,19 @@
 namespace gs {
 Result<results::CollectiveResults> QueryProcessor::execute(
     const physical::PhysicalPlan& plan, int32_t num_threads) {
+  if (num_threads == 0) {
+    num_threads = max_num_threads_;
+  }
+  if (num_threads > max_num_threads_) {
+    num_threads = max_num_threads_;
+  }
+  LOG(INFO) << "Executing plan with " << num_threads
+            << " threads, max_num_threads: " << max_num_threads_;
+  if (num_threads < 1) {
+    return Result<results::CollectiveResults>(
+        gs::Status(gs::StatusCode::INVALID_ARGUMENT,
+                   "Number of threads must be greater than 0"));
+  }
   VLOG(10) << "Executing plan: " << plan.DebugString();
   // TODO: Currently we get the read transaction with the thread id 0. Ideally,
   // we should be able to run queries with multiple threads.

@@ -13,6 +13,13 @@ java -Dgraph.schema=/workspaces/nexg/example_dataset/modern_graph/graph.yaml \
 
 # Building Wheel
 
+## Install the depdencies
+
+```bash
+bash scripst/install_dep.sh
+source ~/.graphscope_env
+```
+
 Building wheels for all python version on this platform.
 
 ```bash

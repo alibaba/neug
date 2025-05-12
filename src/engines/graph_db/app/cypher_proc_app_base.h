@@ -16,7 +16,15 @@
 #ifndef ENGINES_GRAPH_DB_APP_CYPHER_PROC_APP_BASE_H_
 #define ENGINES_GRAPH_DB_APP_CYPHER_PROC_APP_BASE_H_
 
+// Disable class-memaccess warning to facilitate compilation with gcc>7
+// https://github.com/Tencent/rapidjson/issues/1700
+#pragma GCC diagnostic push
+#if defined(__GNUC__) && __GNUC__ >= 8
+#pragma GCC diagnostic ignored "-Wclass-memaccess"
+#endif
 #include <rapidjson/document.h>
+#pragma GCC diagnostic pop
+
 #include "src/engines/graph_db/app/app_base.h"
 #include "src/engines/graph_db/database/graph_db_session.h"
 #include "src/proto_generated_gie/results.pb.h"

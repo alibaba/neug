@@ -261,6 +261,18 @@ struct TypeConverter<int32_t> {
   }
 };
 
+#ifdef __APPLE__
+template <>
+struct TypeConverter<unsigned long> {
+  static PropertyType property_type() { return PropertyType::kUInt64; }
+  using ArrowType = arrow::UInt64Type;
+  using ArrowArrayType = arrow::UInt64Array;
+  static std::shared_ptr<arrow::DataType> ArrowTypeValue() {
+    return arrow::uint64();
+  }
+};
+#endif
+
 template <>
 struct TypeConverter<uint32_t> {
   static PropertyType property_type() { return PropertyType::kUInt32; }

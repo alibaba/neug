@@ -516,8 +516,9 @@ class LFIndexer {
   ska::ska::prime_number_hash_policy hash_policy_;
   GHash<Any> hasher_;
 
-  template <typename _KEY_T, typename _INDEX_T>
-  friend void build_lf_indexer(const IdIndexer<_KEY_T, _INDEX_T>& input,
+  // _KEY_T is defined in sys/_types/_key_t.h on macos
+  template <typename __KEY_T, typename _INDEX_T>
+  friend void build_lf_indexer(const IdIndexer<__KEY_T, _INDEX_T>& input,
                                const std::string& filename,
                                LFIndexer<_INDEX_T>& output,
                                const std::string& snapshot_dir,
@@ -947,8 +948,8 @@ class IdIndexer : public IdIndexerBase<INDEX_T> {
 
   GHash<KEY_T> hasher_;
 
-  template <typename _KEY_T, typename _INDEX_T>
-  friend void build_lf_indexer(const IdIndexer<_KEY_T, _INDEX_T>& input,
+  template <typename __KEY_T, typename _INDEX_T>
+  friend void build_lf_indexer(const IdIndexer<__KEY_T, _INDEX_T>& input,
                                const std::string& filename,
                                LFIndexer<_INDEX_T>& output,
                                const std::string& snapshot_dir,

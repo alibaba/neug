@@ -85,7 +85,11 @@ bool LocalWalWriter::append(const char* data, size_t length) {
 #if 1
 #ifdef F_FULLFSYNC
   if (fcntl(fd_, F_FULLFSYNC) != 0) {
+#ifdef __APPLE__
+    LOG(FATAL) << "Failed to fcntl sync wal file " << strerror(errno);
+#else
     LOG(FATAL) << "Failed to fcntl sync wal file " << strerrno(errno);
+#endif
   }
 #else
   // if (fsync(fd_) != 0) {

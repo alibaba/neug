@@ -70,7 +70,8 @@ class CMakeBuild(build_ext):
         self.build_temp = Path.cwd() / "build"
         
     def run(self):
-        self.download_compiler_jar()
+        # Currently uncommented to avoid containing the jar in the wheel
+        # self.download_compiler_jar()
         super().run()
         
     def download_compiler_jar(self):
@@ -117,7 +118,7 @@ class CMakeBuild(build_ext):
             f"-DPYTHON_EXECUTABLE={sys.executable}",
             f"-DCMAKE_BUILD_TYPE={cfg}",  # not used on MSVC, but no harm
             f"-DOPTIMIZE_FOR_HOST=OFF",
-            f"-DBUILD_EXECUTABLES=${build_executables}",
+            f"-DBUILD_EXECUTABLES={build_executables}",
         ]
         build_args = []
         # Adding CMake arguments set as environment variable
@@ -187,11 +188,12 @@ class CMakeBuild(build_ext):
         if cmake_executable is None:
             raise RuntimeError("CMake executable not found in PATH.")
 
+        print(f"cmake command: {cmake_executable}, args: {cmake_args}")
         subprocess.run(
             [cmake_executable, ext.sourcedir, *cmake_args], cwd=build_temp, check=True
         )
         subprocess.run(
-            [cmake_executable, "--build", ".", "-j", *build_args],
+            [cmake_executable, "--build", ".", "-j8", *build_args],
             cwd=build_temp,
             check=True,
         )

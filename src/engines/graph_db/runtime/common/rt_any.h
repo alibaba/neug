@@ -844,6 +844,17 @@ struct TypedConverter<uint64_t> {
   static const std::string name() { return "uint64"; }
 };
 
+#ifdef __APPLE__
+
+template <>
+struct TypedConverter<unsigned long> {
+  static RTAnyType type() { return RTAnyType::kU64Value; }
+  static uint64_t to_typed(const RTAny& val) { return val.as_uint64(); }
+  static RTAny from_typed(uint64_t val) { return RTAny::from_uint64(val); }
+  static const std::string name() { return "uint64"; }
+};
+#endif
+
 template <>
 struct TypedConverter<int64_t> {
   static RTAnyType type() { return RTAnyType::kI64Value; }

@@ -16,10 +16,22 @@
 #define SERVICE_UTILS_H
 
 #include <fcntl.h>
+// Disable class-memaccess warning to facilitate compilation with gcc>7
+// https://github.com/Tencent/rapidjson/issues/1700
+#pragma GCC diagnostic push
+#if defined(__GNUC__) && __GNUC__ >= 8
+#pragma GCC diagnostic ignored "-Wclass-memaccess"
+#endif
 #include <rapidjson/pointer.h>
 #include <rapidjson/rapidjson.h>
+#pragma GCC diagnostic pop
+
 #include <signal.h>
+#if defined(__APPLE__)
+#include <sys/sysctl.h>
+#else
 #include <sys/sysinfo.h>
+#endif
 #include <sys/types.h>
 #include <unistd.h>
 #include <cctype>
@@ -36,7 +48,14 @@
 #include "src/utils/yaml_utils.h"
 
 #include <glog/logging.h>
+// Disable class-memaccess warning to facilitate compilation with gcc>7
+// https://github.com/Tencent/rapidjson/issues/1700
+#pragma GCC diagnostic push
+#if defined(__GNUC__) && __GNUC__ >= 8
+#pragma GCC diagnostic ignored "-Wclass-memaccess"
+#endif
 #include <rapidjson/document.h>
+#pragma GCC diagnostic pop
 #include <rapidjson/prettywriter.h>
 #include <rapidjson/stringbuffer.h>
 #include <rapidjson/writer.h>

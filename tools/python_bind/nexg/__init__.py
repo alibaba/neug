@@ -43,7 +43,7 @@ def get_build_lib_dir() -> str:
     """
     Get the build lib directory for the current development environment.
     The path is {CUR_DIR}/../build/lib.{OS}-{ARCH}-{PYTHON_VERSION}
-    #OS is the operating system name (e.g., 'linux', 'darwin', 'win32')
+    #OS is the operating system name (e.g., 'linux', 'macosx-version', 'win32')
     #ARCH is the architecture of the machine (e.g., 'x86_64', 'arm64')
     #PYTHON_VERSION is the version of Python (e.g., '3.8')
     Returns:
@@ -51,15 +51,31 @@ def get_build_lib_dir() -> str:
     """
     cur_dir = os.path.dirname(__file__)
     os_name = platform.system().lower()
-    build_dir = os.path.join(
-        cur_dir,
-        "..",
-        "build",
-        f"lib.{os_name}-{os.uname().machine}-{sys.version_info.major}.{sys.version_info.minor}",
-        )
+    if os_name == "darwin":
+        # find the directory start with lib.macosx-* under build
+        # and get the first one
+        build_dir_parent = os.path.join(cur_dir, "..", "build")
+        if os.path.exists(build_dir_parent):
+            build_dir = os.path.join(
+                build_dir_parent,
+                next(
+                    (d for d in os.listdir(os.path.join(cur_dir, "..", "build")) if d.startswith("lib.macosx")),
+                    None,
+                ),
+            )
+        else:
+            build_dir = None
+    else:
+        build_dir = os.path.join(
+            cur_dir,
+            "..",
+            "build",
+            f"lib.{os_name}-{os.uname().machine}-{sys.version_info.major}.{sys.version_info.minor}",
+            )
     logger.info("Build directory: %s", build_dir)
-    if os.path.exists(build_dir):
-        logger.info("Using build directory: %s", build_dir)
+    if build_dir is not None:
+        if os.path.exists(build_dir):
+            logger.info("Using build directory: %s", build_dir)
     return build_dir
     
 
@@ -68,7 +84,7 @@ try:
     # Try to first include the c++ extension directory, if it exists
     # it means we are in development mode.
     build_dir = get_build_lib_dir()
-    if os.path.exists(build_dir):
+    if build_dir and os.path.exists(build_dir):
         import sys
 
         sys.path.append(build_dir)

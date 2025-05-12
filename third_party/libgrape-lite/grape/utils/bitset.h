@@ -25,10 +25,10 @@ limitations under the License.
 #include "thread_pool.h"
 
 #define WORD_SIZE(n) (((n) + 63ul) >> 6)
-#define BYTE_SIZE(n) (((n) + 63ul) >> 3)
+#define NEXG_BYTE_SIZE(n) (((n) + 63ul) >> 3)
 
 #define WORD_INDEX(i) ((i) >> 6)
-#define BIT_OFFSET(i) ((i) &0x3f)
+#define BIT_OFFSET(i) ((i) & 0x3f)
 
 #define ROUND_UP(i) (((i) + 63ul) & (~63ul))
 #define ROUND_DOWN(i) ((i) & (~63ul))
@@ -52,7 +52,7 @@ class Bitset : public Allocator<uint64_t> {
       data_ = NULL;
     } else {
       data_ = this->allocate(size_in_words_);
-      memcpy(data_, other.data_, BYTE_SIZE(size_));
+      memcpy(data_, other.data_, NEXG_BYTE_SIZE(size_));
     }
   }
   Bitset(Bitset&& other)
@@ -85,7 +85,7 @@ class Bitset : public Allocator<uint64_t> {
       data_ = NULL;
     } else {
       data_ = this->allocate(size_in_words_);
-      memcpy(data_, other.data_, BYTE_SIZE(size_));
+      memcpy(data_, other.data_, NEXG_BYTE_SIZE(size_));
     }
     return *this;
   }
@@ -401,7 +401,7 @@ class RefBitset {
 };
 
 #undef WORD_SIZE
-#undef BYTE_SIZE
+#undef NEXG_BYTE_SIZE
 #undef WORD_INDEX
 #undef BIT_OFFSET
 #undef ROUND_UP

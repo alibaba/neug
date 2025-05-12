@@ -81,9 +81,10 @@ class Load {
       std::tie(src_label_id, dst_label_id, edge_label_id, src_pk_type,
                dst_pk_type, edge_prop_type, src_index, dst_index, prop_index) =
           edge;
-      load_single_edge(graph, std::move(ctxs), src_label_id, dst_label_id,
-                       edge_label_id, src_pk_type, dst_pk_type, edge_prop_type,
-                       src_index, dst_index, prop_index);
+      BOOST_LEAF_CHECK(
+          load_single_edge(graph, std::move(ctxs), src_label_id, dst_label_id,
+                           edge_label_id, src_pk_type, dst_pk_type,
+                           edge_prop_type, src_index, dst_index, prop_index));
     }
     return ctxs;
   }
@@ -118,9 +119,10 @@ class Load {
       std::tie(src_label_id, dst_label_id, edge_label_id, src_pk_type,
                dst_pk_type, edge_prop_type, src_index, dst_index, prop_index) =
           edge_mapping;
-      load_single_edge(graph, std::move(ctxs), src_label_id, dst_label_id,
-                       edge_label_id, src_pk_type, dst_pk_type, edge_prop_type,
-                       src_index, dst_index, prop_index);
+      BOOST_LEAF_CHECK(
+          load_single_edge(graph, std::move(ctxs), src_label_id, dst_label_id,
+                           edge_label_id, src_pk_type, dst_pk_type,
+                           edge_prop_type, src_index, dst_index, prop_index));
     }
     return ctxs;
   }

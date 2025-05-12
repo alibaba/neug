@@ -31,7 +31,14 @@
 #include <seastar/core/future.hh>
 #include <seastar/core/sstring.hh>
 
+// Disable class-memaccess warning to facilitate compilation with gcc>7
+// https://github.com/Tencent/rapidjson/issues/1700
+#pragma GCC diagnostic push
+#if defined(__GNUC__) && __GNUC__ >= 8
+#pragma GCC diagnostic ignored "-Wclass-memaccess"
+#endif
 #include <rapidjson/document.h>
+#pragma GCC diagnostic pop
 #include <yaml-cpp/yaml.h>
 #include <boost/process.hpp>
 #include <boost/property_tree/json_parser.hpp>
