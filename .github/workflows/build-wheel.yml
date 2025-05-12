@@ -1,10 +1,13 @@
 name: Build Wheels
 
 on:
-  pull_request_target:
+  # Trigger the workflow on push or pull request,
+  # but only for the main branch
+  workflow_dispatch:
+  push:
     branches:
       - main
-  push:
+  pull_request:
     branches:
       - main
 
