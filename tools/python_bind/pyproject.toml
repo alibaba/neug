@@ -28,13 +28,12 @@ test = [
 ]
 
 [tool.cibuildwheel]
-build = "cp39-*"
-skip = ["*-musllinux_*"]
+build = "cp38-* cp39-* cp310-*"
+skip = ["*-musllinux_*", "*i686*"]
 before-all = "git submodule update --init"
-environment = {DYLD_LIBRARY_PATH="/opt/graphscope/lib",CMAKE_BUILD_PARALLEL_LEVEL=16,CMAKE_PREFIX_PATH="/opt/graphscope/",LD_LIBRARY_PATH="/opt/rh/devtoolset-10/root/usr/lib64:/opt/rh/devtoolset-10/root/usr/lib:/opt/rh/devtoolset-10/root/usr/lib64/dyninst:/opt/rh/devtoolset-10/root/usr/lib/dyninst:/usr/local/lib64:/opt/graphscope/lib:/opt/graphscope/lib64",LIBRARY_PATH="/opt/graphscope/lib:/opt/graphscope/lib64"}
-# DEBUG=1 to contains symbols for debug
-manylinux-x86_64-image = "docker.io/graphscope/nexg-manylinux:x86_64"
-manylinux-aarch64-image = "docker.io/graphscope/nexg-manylinux:aarch64"
+environment = {DEBUG=1,JAVA_HOME="/usr/lib/jvm/java-11-openjdk",DYLD_LIBRARY_PATH="/opt/graphscope/lib",CMAKE_BUILD_PARALLEL_LEVEL=16,CMAKE_PREFIX_PATH="/opt/graphscope/",LD_LIBRARY_PATH="/opt/rh/devtoolset-10/root/usr/lib64:/opt/rh/devtoolset-10/root/usr/lib:/opt/rh/devtoolset-10/root/usr/lib64/dyninst:/opt/rh/devtoolset-10/root/usr/lib/dyninst:/usr/local/lib64:/opt/graphscope/lib:/opt/graphscope/lib64",LIBRARY_PATH="/opt/graphscope/lib:/opt/graphscope/lib64"}
+manylinux-x86_64-image = "registry.cn-hongkong.aliyuncs.com/graphscope/graphscope-dev:neug-dev-x86_64"
+manylinux-aarch64-image = "registry.cn-hongkong.aliyuncs.com/graphscope/graphscope-dev:neug-dev-arm64"
 
 [tool.pytest.ini_options]
 log_cli = true

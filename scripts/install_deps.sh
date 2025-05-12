@@ -162,6 +162,7 @@ function set_to_cn_url() {
 function fetch_source() {
   local url=$1
   local file=$2
+  info "Downloading ${file} from ${url}"
   curl -fsSL -o "${file}" "${url}/${file}"
 }
 

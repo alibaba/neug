@@ -26,7 +26,10 @@ RUN cd /root/nexg && bash scripts/install_deps.sh && \
     cd /root && rm -rf /root/nexg && \
     source ~/.graphscope_env
 
-    # change bash as default
+# change bash as default
 SHELL ["/bin/bash", "-c"]
 
 RUN echo ". ~/.graphscope_env" >> /root/.bashrc
+
+# Setup environment
+ENV JAVA_HOME=/usr/lib/jvm/java-11-openjdk

@@ -38,6 +38,7 @@ message(STATUS "Use pthash indexer : ${USE_PTHASH}")
 include(CheckLibraryExists)
 include(GNUInstallDirs)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
+include(CheckCXXSourceCompiles)
 include_directories(${CMAKE_CURRENT_SOURCE_DIR})
 
 # Print cc and cxx compiler
@@ -55,27 +56,28 @@ if(USE_PTHASH)
     add_definitions(-DUSE_PTHASH)
 endif()
 
-execute_process(COMMAND uname -r OUTPUT_VARIABLE LINUX_KERNEL_VERSION)
-string(STRIP ${LINUX_KERNEL_VERSION} LINUX_KERNEL_VERSION)
-message(${LINUX_KERNEL_VERSION})
-# Get whether os is Centos
-execute_process(COMMAND cat /etc/os-release OUTPUT_VARIABLE CENTOS_NAME)
-if (CENTOS_NAME)
-    string(TOLOWER CENTOS_NAME CENTOS_NAME)
-    if (CENTOS_NAME MATCHES "centos")
-        message("CentOS detected: ${CENTOS_NAME}")
-        string(REGEX MATCH "^[0-9]+\\.[0-9]+" LINUX_KERNEL_VERSION ${LINUX_KERNEL_VERSION})
-        string(REPLACE "." ";" VERSION_LIST ${LINUX_KERNEL_VERSION})
-        list(GET VERSION_LIST 0 LINUX_KERNEL_MAJOR)
-        list(GET VERSION_LIST 1 LINUX_KERNEL_MINOR)
-        # If greater than 5.19
-        if (LINUX_KERNEL_MAJOR GREATER 5 OR (LINUX_KERNEL_MAJOR EQUAL 5 AND LINUX_KERNEL_MINOR GREATER 19))
-            message("Use copy file range")
-            add_definitions(-DUSE_COPY_FILE_RANGE)
-        endif ()
-    endif()
-elseif(NOT APPLE AND LINUX_KERNEL_VERSION VERSION_GREATER_EQUAL "4.5")
-    message("Use copy file range")
+set(TEST_PROGRAM "
+#define _GNU_SOURCE
+#include <unistd.h>
+#include <fcntl.h>
+
+int main() {
+  int fd_in = -1, fd_out = -1;
+  struct stat stat_buf;
+  copy_file_range(fd_in, NULL, fd_out, NULL, stat_buf.st_size, 0);
+  return 0;
+}
+")
+
+check_cxx_source_compiles("${TEST_PROGRAM}" HAVE_COPY_FILE_RANGE_COMPILES)
+
+if(NOT HAVE_COPY_FILE_RANGE_COMPILES)
+    message(WARNING "copy_file_range is not available or failed to compile!")
+else()
+    message(STATUS "copy_file_range compilation succeeded.")
+endif()
+
+if(HAVE_COPY_FILE_RANGE_COMPILES)
     add_definitions(-DUSE_COPY_FILE_RANGE)
 endif()
 

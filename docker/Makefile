@@ -27,8 +27,7 @@ BUILD_PROGRESS  	?= auto
 all: nexg nexg-manylinux
 graphscope: all
 
-# flex interactive 
-nexg-manylinux:
+neug-manylinux:
 	cd .. && \
 	docker build \
 		--build-arg REGISTRY=$(REGISTRY) \
