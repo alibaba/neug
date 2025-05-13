@@ -59,7 +59,11 @@ jobs:
         uses: mxschmitt/action-tmate@v3
 
       - name: Build wheels
-        run: python3 -m cibuildwheel ./tools/python_bind --output-dir wheelhouse
+        run: |
+          if [[ "${{matrix.os}}" == macos* ]]; then
+            source ~/.graphscope_env
+          fi
+          python3 -m cibuildwheel ./tools/python_bind --output-dir wheelhouse
         env:
           # use macos version as the target
           CIBW_ENVIRONMENT_MACOS: "MACOSX_DEPLOYMENT_TARGET=$MACOSX_DEPLOYMENT_TARGET"
