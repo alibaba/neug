@@ -24,9 +24,9 @@ void push_strategies(std::vector<gs::StorageStrategy>& strategies) {
 }
 
 int main(int argc, char** argv) {
-  // Expect 1 args, graph yaml
+  // Expect 1 args, data path
   if (argc != 2) {
-    std::cerr << "Usage: " << argv[0] << " <graph yaml>" << std::endl;
+    std::cerr << "Usage: " << argv[0] << " <data_path>" << std::endl;
     return 1;
   }
 
@@ -34,21 +34,17 @@ int main(int argc, char** argv) {
     std::vector<gs::StorageStrategy> strategies;
     push_strategies(strategies);
   }
-  auto graph_yaml = std::string(argv[1]);
-
-  YAML::Node graph_node = YAML::LoadFile(graph_yaml);
-
-  auto schema_res = gs::Schema::LoadFromYaml(graph_yaml);
-  if (!schema_res.ok()) {
-    std::cerr << "Failed to load graph schema: "
-              << schema_res.status().ToString() << std::endl;
-    return 1;
+  std::string data_path = argv[1];
+  // remove the directory if it exists
+  if (std::filesystem::exists(data_path)) {
+    std::filesystem::remove_all(data_path);
   }
-  auto& schema = schema_res.value();
-  LOG(INFO) << "Empty: " << schema.Empty();
+  // create the directory
+  std::filesystem::create_directories(data_path);
 
-  gs::NexgDB db(data_path, 1, "r", "jni", java_class_path, planner_config_path);
+  gs::NexgDB db(data_path, 1, "w", "dummy", "", "", "");
   auto conn = db.connect();
+
   auto res = conn->query("MATCH (v) RETURN v;");
   LOG(INFO) << "Query result: " << res.ok() << ", "
             << res.status().error_message();

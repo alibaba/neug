@@ -70,8 +70,8 @@ Result<results::CollectiveResults> Connection::query(
   LOG(INFO) << "Serialized plan to /tmp/nexg.pb, size: " << plan_binary.size();
 
   VLOG(10) << "Physical plan: " << plan.physical_plan.DebugString();
-  LOG(INFO) << "Got physical plan, " << plan.physical_plan.plan_size()
-            << " operators.";
+  LOG(INFO) << "Got physical plan, "
+            << plan.physical_plan.query_plan().plan_size() << " operators.";
   auto result = query_processor_->execute(plan.physical_plan);
   if (result.ok()) {
     LOG(INFO) << "Query executed successfully.";

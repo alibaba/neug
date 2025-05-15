@@ -1,0 +1,163 @@
+/**
+* Copyright 2020 Alibaba Group Holding Limited.
+*
+* Licensed under the Apache License, Version 2.0 (the "License");
+* you may not use this file except in compliance with the License.
+* You may obtain a copy of the License at
+*
+* http://www.apache.org/licenses/LICENSE-2.0
+*
+* Unless required by applicable law or agreed to in writing, software
+* distributed under the License is distributed on an "AS IS" BASIS,
+* WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+* See the License for the specific language governing permissions and
+* limitations under the License.
+*/
+
+syntax = "proto3";
+package physical;
+
+import "common.proto";
+import "expr.proto";
+import "cypher_ddl.proto";
+
+// A implementation of data source by reading from CSV files
+message ReadCSV {
+    message options {
+        string delimiter = 1; // Character that separates different columns in a lines, default is ','
+        bool header = 2; // Whether the first line of the CSV file is the header. Can be true or false, default is false 
+        uint64 skip_num = 3; // Number of rows to skip from the input file, default is 0
+        string quote_char = 4; // Character to start a string quote, default is '"'
+        string escape_char = 5; // Character within string quotes to escape QUOTE and other characters, default is '\'
+        bool ignore_errors = 6; // Skips malformed rows in CSV files if set to true, default is false
+        bool auto_detection = 7; // Automatically detect HEADER, DELIM, QUOTE, ESCAPE if not manually set, default is true
+        bool parallel = 8; // Whether to read the CSV file in parallel, default is true
+    }
+
+    string file_path = 1;
+    options csv_options = 2;
+    bool batch_reader = 3; // Whether to read the CSV file in batch mode, default is false
+}
+
+// Unified abstraction of data source, used to load external data sources and encapsulate them into an internal unified row-based data structure.
+message DataSource {
+    oneof source {
+        ReadCSV read_csv = 1;
+    }
+}
+
+message PropertyMapping {
+    common.Property property = 1;
+    common.Expression data = 2;
+}
+
+// COPY User from 'user.csv'
+// Batch load data from a row-based data source and insert it into node types on the graph.
+message BatchInsertVertex {
+    common.NameOrId vertex_type = 1;
+    // Column mapping specifies which column in the data source corresponds to a property, where the data in PropertyMapping is the column index.
+    repeated PropertyMapping property_mappings = 2;
+}
+
+// COPY Knows FROM 'knows_user_user.csv' (from='User', to='User');
+message BatchInsertEdge {
+    EdgeType edge_type = 1;
+    // Specify the source node bound to the edge via column mapping.
+    repeated PropertyMapping source_vertex_binding = 2;
+    // Specify the destination node bound to the edge via column mapping.
+    repeated PropertyMapping destination_vertex_binding = 3;
+    // Column mapping specifies which column in the data source corresponds to a property, where the data in PropertyMapping is the column index.
+    repeated PropertyMapping property_mappings = 4;
+}
+
+// Create (u1:User {name: 'Alice', age: 18}), (u2:User {name: 'Bob', age: 20})
+message InsertVertex {
+    // Define the insertion operation for a single vertex type
+    message Entry {
+        common.NameOrId vertex_type = 1;
+        // Specify property key-value pairs
+        repeated PropertyMapping property_mappings = 2;
+        common.NameOrId alias = 3;
+        ConflictAction conflict_action = 4;
+    }
+    // include multiple vertex type insertion operations
+    repeated Entry entries = 1;
+}
+
+// Create (u1:User {name: 'Alice', age: 18}), (u2:User {name: 'Bob', age: 20})
+// Create (u1)-[:FOLLOWS {since: '2020-01-01'}]->(u2)
+message InsertEdge {
+    // Define the insertion operation for a single edge type
+    message Entry {
+        EdgeType edge_type = 1;
+        // Specify the source node bound to the edge using an alias. 
+        // If the query does not explicitly provide an alias for the src node, the system will automatically assign a unique alias.
+        common.NameOrId source_vertex_binding = 2;
+        // Specify the destination node bound to the edge using an alias.
+        // If the query does not explicitly provide an alias for the dst node, the system will automatically assign a unique alias.
+        common.NameOrId destination_vertex_binding = 3;
+        // Specify property key-value pairs
+        repeated PropertyMapping property_mappings = 4;
+        common.NameOrId alias = 5;
+        ConflictAction conflict_action = 6;
+    }
+
+    repeated Entry entries = 1;
+}
+
+// MATCH (u:User)
+// WHERE u.name = 'Adam'
+// SET u.age = 50
+message SetVertexProperty {
+    // set a single vertex property based on the single alias, the alias can refer to vertices with different labels
+    message Entry {
+        common.NameOrId vertex_binding = 1;
+        PropertyMapping property_mapping = 2;
+    }
+
+    // set multiple vertex properties based on the multiple aliases
+    repeated Entry entries = 1;
+}
+
+// MATCH (u0)-[f]->()
+// WHERE u0.name = 'Adam'
+// SET f.since = 1999
+// RETURN f;
+message SetEdgeProperty {
+    // set a single edge property based on the single alias, the alias can refer to edges with different labels
+    message Entry {
+        common.NameOrId edge_binding = 1;
+        PropertyMapping property_mapping = 2;
+    }
+
+    // set multiple edge properties based on the multiple aliases
+    repeated Entry entries = 1;
+}
+
+// MATCH (u)
+// WHERE u.name = 'A'
+// DELETE u 
+message DeleteVertex {
+    // when deleting a node, delete all relationships connected to it if `detached` is true, otherwise only delete the node itself.
+    enum type {
+        DELETE = 0;
+        DETACH_DELETE = 1;
+    }
+
+    // delete vertices bound to a single alias
+    message Entry {
+        common.NameOrId vertex_binding = 1;
+        type delete_type = 2;
+    }
+
+    // delete vertices bound to multiple aliases
+    repeated Entry entries = 1;
+}
+
+// MATCH (u:User)-[f]->(u1)
+// WHERE u.name = 'Karissa'
+// DELETE f;
+message DeleteEdge {
+    // delete edges bound to multiple aliases
+    repeated common.NameOrId edge_binding = 1;
+}

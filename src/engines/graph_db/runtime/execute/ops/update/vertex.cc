@@ -110,7 +110,7 @@ class UGetVFromVerticesWithPredOpr : public IUpdateOperator {
 };
 std::unique_ptr<IUpdateOperator> UVertexOprBuilder::Build(
     const Schema& schema, const physical::PhysicalPlan& plan, int op_idx) {
-  const auto& vertex = plan.plan(op_idx).opr().vertex();
+  const auto& vertex = plan.query_plan().plan(op_idx).opr().vertex();
   int alias = vertex.has_alias() ? vertex.alias().value() : -1;
   int tag = vertex.has_tag() ? vertex.tag().value() : -1;
   GetVParams params;

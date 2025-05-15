@@ -178,11 +178,11 @@ class GetVFromEdgesWithPredicateOpr : public IReadOperator {
 bl::result<ReadOpBuildResultT> VertexOprBuilder::Build(
     const gs::Schema& schema, const ContextMeta& ctx_meta,
     const physical::PhysicalPlan& plan, int op_idx) {
-  const auto& vertex = plan.plan(op_idx).opr().vertex();
+  const auto& vertex = plan.query_plan().plan(op_idx).opr().vertex();
 
   int alias = -1;
   if (vertex.has_alias()) {
-    alias = plan.plan(op_idx).opr().vertex().alias().value();
+    alias = plan.query_plan().plan(op_idx).opr().vertex().alias().value();
   }
 
   ContextMeta ret_meta = ctx_meta;
@@ -213,7 +213,7 @@ bl::result<ReadOpBuildResultT> VertexOprBuilder::Build(
                                       labels_set)) {
           return std::make_pair(
               std::make_unique<GetVFromVerticesWithLabelWithInOpr>(
-                  plan.plan(op_idx).opr().vertex(), p, labels_set),
+                  plan.query_plan().plan(op_idx).opr().vertex(), p, labels_set),
               ctx_meta);
         }
       }
@@ -226,25 +226,28 @@ bl::result<ReadOpBuildResultT> VertexOprBuilder::Build(
                               exact_pk_label, exact_pk)) {
           return std::make_pair(
               std::make_unique<GetVFromVerticesWithPKExactOpr>(
-                  plan.plan(op_idx).opr().vertex(), p, exact_pk_label,
-                  exact_pk),
+                  plan.query_plan().plan(op_idx).opr().vertex(), p,
+                  exact_pk_label, exact_pk),
               ctx_meta);
         }
       }
       // general predicate
-      return std::make_pair(std::make_unique<GetVFromVerticesWithPredicateOpr>(
-                                plan.plan(op_idx).opr().vertex(), p),
-                            ctx_meta);
+      return std::make_pair(
+          std::make_unique<GetVFromVerticesWithPredicateOpr>(
+              plan.query_plan().plan(op_idx).opr().vertex(), p),
+          ctx_meta);
     } else if (opt == VOpt::kEnd || opt == VOpt::kStart) {
-      return std::make_pair(std::make_unique<GetVFromEdgesWithPredicateOpr>(
-                                plan.plan(op_idx).opr().vertex(), p),
-                            ctx_meta);
+      return std::make_pair(
+          std::make_unique<GetVFromEdgesWithPredicateOpr>(
+              plan.query_plan().plan(op_idx).opr().vertex(), p),
+          ctx_meta);
     }
   } else {
     if (opt == VOpt::kEnd || opt == VOpt::kStart || opt == VOpt::kOther) {
-      return std::make_pair(std::make_unique<GetVFromEdgesWithPredicateOpr>(
-                                plan.plan(op_idx).opr().vertex(), p),
-                            ctx_meta);
+      return std::make_pair(
+          std::make_unique<GetVFromEdgesWithPredicateOpr>(
+              plan.query_plan().plan(op_idx).opr().vertex(), p),
+          ctx_meta);
     }
   }
 

@@ -66,7 +66,7 @@ class DedupWithPropertyOpr : public IReadOperator {
 bl::result<ReadOpBuildResultT> DedupOprBuilder::Build(
     const gs::Schema& schema, const ContextMeta& ctx_meta,
     const physical::PhysicalPlan& plan, int op_idx) {
-  const auto& dedup_opr = plan.plan(op_idx).opr().dedup();
+  const auto& dedup_opr = plan.query_plan().plan(op_idx).opr().dedup();
   int keys_num = dedup_opr.keys_size();
   std::vector<size_t> keys;
   bool flag = true;
@@ -82,9 +82,9 @@ bl::result<ReadOpBuildResultT> DedupOprBuilder::Build(
   if (flag) {
     return std::make_pair(std::make_unique<DedupOpr>(keys), ctx_meta);
   } else {
-    return std::make_pair(
-        std::make_unique<DedupWithPropertyOpr>(plan.plan(op_idx).opr().dedup()),
-        ctx_meta);
+    return std::make_pair(std::make_unique<DedupWithPropertyOpr>(
+                              plan.query_plan().plan(op_idx).opr().dedup()),
+                          ctx_meta);
   }
 }
 }  // namespace ops

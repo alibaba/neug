@@ -410,7 +410,7 @@ class ProcedureCallOpr : public IReadOperator {
 bl::result<ReadOpBuildResultT> ProcedureCallOprBuilder::Build(
     const gs::Schema& schema, const ContextMeta& ctx_meta,
     const physical::PhysicalPlan& plan, int op_idx) {
-  auto& opr = plan.plan(op_idx);
+  auto& opr = plan.query_plan().plan(op_idx);
   std::vector<int32_t> aliases;
   ContextMeta ret_meta;
 

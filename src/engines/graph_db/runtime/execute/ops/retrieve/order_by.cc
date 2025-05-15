@@ -67,7 +67,7 @@ class OrderByOprBeta : public IReadOperator {
 bl::result<ReadOpBuildResultT> OrderByOprBuilder::Build(
     const gs::Schema& schema, const ContextMeta& ctx_meta,
     const physical::PhysicalPlan& plan, int op_idx) {
-  const auto opr = plan.plan(op_idx).opr().order_by();
+  const auto opr = plan.query_plan().plan(op_idx).opr().order_by();
   int lower = 0;
   int upper = std::numeric_limits<int>::max();
   if (opr.has_limit()) {

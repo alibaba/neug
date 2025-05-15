@@ -272,26 +272,30 @@ std::unique_ptr<IReadOperator> make_tc_opr(
 bl::result<ReadOpBuildResultT> TCOprBuilder::Build(
     const gs::Schema& schema, const ContextMeta& ctx_meta,
     const physical::PhysicalPlan& plan, int op_idx) {
-  if (tc_fusable(plan.plan(op_idx).opr().edge(),
-                 plan.plan(op_idx + 1).opr().group_by(),
-                 plan.plan(op_idx + 2).opr().edge(),
-                 plan.plan(op_idx + 3).opr().vertex(),
-                 plan.plan(op_idx + 4).opr().edge(),
-                 plan.plan(op_idx + 5).opr().select())) {
+  if (tc_fusable(plan.query_plan().plan(op_idx).opr().edge(),
+                 plan.query_plan().plan(op_idx + 1).opr().group_by(),
+                 plan.query_plan().plan(op_idx + 2).opr().edge(),
+                 plan.query_plan().plan(op_idx + 3).opr().vertex(),
+                 plan.query_plan().plan(op_idx + 4).opr().edge(),
+                 plan.query_plan().plan(op_idx + 5).opr().select())) {
     int alias1 = -1;
-    if (plan.plan(op_idx + 2).opr().edge().has_alias()) {
-      alias1 = plan.plan(op_idx + 2).opr().edge().alias().value();
+    if (plan.query_plan().plan(op_idx + 2).opr().edge().has_alias()) {
+      alias1 = plan.query_plan().plan(op_idx + 2).opr().edge().alias().value();
     }
-    if (plan.plan(op_idx + 3).opr().vertex().has_alias()) {
-      alias1 = plan.plan(op_idx + 3).opr().vertex().alias().value();
+    if (plan.query_plan().plan(op_idx + 3).opr().vertex().has_alias()) {
+      alias1 =
+          plan.query_plan().plan(op_idx + 3).opr().vertex().alias().value();
     }
     int alias2 = -1;
-    if (plan.plan(op_idx + 4).opr().edge().has_alias()) {
-      alias2 = plan.plan(op_idx + 4).opr().edge().alias().value();
+    if (plan.query_plan().plan(op_idx + 4).opr().edge().has_alias()) {
+      alias2 = plan.query_plan().plan(op_idx + 4).opr().edge().alias().value();
     }
-    auto labels0 = parse_label_triplets(plan.plan(op_idx).meta_data(0));
-    auto labels1 = parse_label_triplets(plan.plan(op_idx + 2).meta_data(0));
-    auto labels2 = parse_label_triplets(plan.plan(op_idx + 4).meta_data(0));
+    auto labels0 =
+        parse_label_triplets(plan.query_plan().plan(op_idx).meta_data(0));
+    auto labels1 =
+        parse_label_triplets(plan.query_plan().plan(op_idx + 2).meta_data(0));
+    auto labels2 =
+        parse_label_triplets(plan.query_plan().plan(op_idx + 4).meta_data(0));
 
     if (labels0.size() != 1 || labels1.size() != 1 || labels2.size() != 1) {
       return std::make_pair(nullptr, ContextMeta());
@@ -302,11 +306,11 @@ bl::result<ReadOpBuildResultT> TCOprBuilder::Build(
         !parse_edge_type(schema, labels2[0], eps[2])) {
       return std::make_pair(nullptr, ContextMeta());
     }
-    auto opr = make_tc_opr(plan.plan(op_idx).opr().edge(),
-                           plan.plan(op_idx + 2).opr().edge(),
-                           plan.plan(op_idx + 3).opr().vertex(),
-                           plan.plan(op_idx + 4).opr().edge(), labels0[0],
-                           labels1[0], labels2[0], eps);
+    auto opr = make_tc_opr(plan.query_plan().plan(op_idx).opr().edge(),
+                           plan.query_plan().plan(op_idx + 2).opr().edge(),
+                           plan.query_plan().plan(op_idx + 3).opr().vertex(),
+                           plan.query_plan().plan(op_idx + 4).opr().edge(),
+                           labels0[0], labels1[0], labels2[0], eps);
     if (opr == nullptr) {
       return std::make_pair(nullptr, ContextMeta());
     }

@@ -111,7 +111,7 @@ class UScanOpr : public IUpdateOperator {
 
 std::unique_ptr<IUpdateOperator> UScanOprBuilder::Build(
     const Schema& schema, const physical::PhysicalPlan& plan, int op_id) {
-  const auto& scan = plan.plan(op_id).opr().scan();
+  const auto& scan = plan.query_plan().plan(op_id).opr().scan();
   int alias = scan.has_alias() ? scan.alias().value() : -1;
   if (!scan.has_params()) {
     LOG(ERROR) << "Scan operator should have params";

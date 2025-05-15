@@ -34,7 +34,9 @@ set(CODE_GEN_PROTOBUF_FILES
         ${GIE_COMPILER_PROTO_DIR}/basic_type.proto
         ${GIE_COMPILER_WRITE_PROTO_DIR}/physical.proto
         ${GIE_COMPILER_WRITE_PROTO_DIR}/cypher_write.proto  
-) 
+        ${GIE_COMPILER_WRITE_PROTO_DIR}/cypher_dml.proto
+        ${GIE_COMPILER_WRITE_PROTO_DIR}/cypher_ddl.proto
+)
 
 #create directory first
 file(MAKE_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/src/proto_generated_gie)
@@ -89,7 +91,7 @@ target_include_directories(nexg_utils PUBLIC
         $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}> 
         $<BUILD_INTERFACE:${CMAKE_CURRENT_BINARY_DIR}>)
 # Link the static library of arrow, to save the trouble of linking the shared library of arrow
-target_link_libraries(nexg_utils PUBLIC ${Protobuf_LIBRARIES} ${ARROW_LIB} ${YAML_CPP_LIBRARIES} ${Boost_LIBRARIES} ${GLOG_LIBRARIES})
+target_link_libraries(nexg_utils PUBLIC nexg_plan_proto ${Protobuf_LIBRARIES} ${ARROW_LIB} ${YAML_CPP_LIBRARIES} ${Boost_LIBRARIES} ${GLOG_LIBRARIES})
 if (BUILD_WITH_OSS)
         target_link_libraries(nexg_utils PRIVATE cpp-sdk)
 endif()

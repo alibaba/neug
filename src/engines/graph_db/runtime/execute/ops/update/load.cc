@@ -247,7 +247,7 @@ parse_vertex_mapping(
 }
 std::unique_ptr<IInsertOperator> LoadOprBuilder::Build(
     const Schema& schema, const physical::PhysicalPlan& plan, int op_idx) {
-  const auto& opr = plan.plan(op_idx).opr().load();
+  const auto& opr = plan.query_plan().plan(op_idx).opr().load();
   if (opr.kind() != cypher::Load_Kind::Load_Kind_CREATE) {
     LOG(ERROR) << "Only support CREATE";
     return nullptr;

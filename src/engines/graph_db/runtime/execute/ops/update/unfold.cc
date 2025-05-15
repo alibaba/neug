@@ -55,7 +55,7 @@ class UnfoldInsertOpr : public IInsertOperator {
 
 std::unique_ptr<IInsertOperator> UnfoldInsertOprBuilder::Build(
     const Schema& schema, const physical::PhysicalPlan& plan, int op_id) {
-  const auto& opr = plan.plan(op_id).opr().unfold();
+  const auto& opr = plan.query_plan().plan(op_id).opr().unfold();
   int key = opr.tag().value();
   int value = opr.alias().value();
   return std::make_unique<UnfoldInsertOpr>(key, value);

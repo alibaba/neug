@@ -65,7 +65,7 @@ bl::result<ReadOpBuildResultT> JoinOprBuilder::Build(
     const physical::PhysicalPlan& plan, int op_idx) {
   ContextMeta ret_meta;
   std::vector<int> right_columns;
-  auto& opr = plan.plan(op_idx).opr().join();
+  auto& opr = plan.query_plan().plan(op_idx).opr().join();
   JoinParams p;
   if (opr.left_keys().size() != opr.right_keys().size()) {
     LOG(ERROR) << "join keys size mismatch";
@@ -106,15 +106,17 @@ bl::result<ReadOpBuildResultT> JoinOprBuilder::Build(
     LOG(ERROR) << "unsupported join kind" << opr.join_kind();
     return std::make_pair(nullptr, ContextMeta());
   }
-  auto join_kind = plan.plan(op_idx).opr().join().join_kind();
+  auto join_kind = plan.query_plan().plan(op_idx).opr().join().join_kind();
 
   auto pair1_res = PlanParser::get().parse_read_pipeline_with_meta(
-      schema, ctx_meta, plan.plan(op_idx).opr().join().left_plan());
+      schema, ctx_meta,
+      plan.query_plan().plan(op_idx).opr().join().left_plan());
   if (!pair1_res) {
     return std::make_pair(nullptr, ContextMeta());
   }
   auto pair2_res = PlanParser::get().parse_read_pipeline_with_meta(
-      schema, ctx_meta, plan.plan(op_idx).opr().join().right_plan());
+      schema, ctx_meta,
+      plan.query_plan().plan(op_idx).opr().join().right_plan());
   if (!pair2_res) {
     return std::make_pair(nullptr, ContextMeta());
   }

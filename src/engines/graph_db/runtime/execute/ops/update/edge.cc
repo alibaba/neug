@@ -59,8 +59,8 @@ class UEdgeExpandEWithoutPredOpr : public IUpdateOperator {
 
 std::unique_ptr<IUpdateOperator> UEdgeExpandOprBuilder::Build(
     const Schema& schema, const physical::PhysicalPlan& plan, int op_idx) {
-  auto& edge = plan.plan(op_idx).opr().edge();
-  auto& meta = plan.plan(op_idx).meta_data(0);
+  auto& edge = plan.query_plan().plan(op_idx).opr().edge();
+  auto& meta = plan.query_plan().plan(op_idx).meta_data(0);
   int alias = edge.has_alias() ? edge.alias().value() : -1;
   int v_tag = edge.has_v_tag() ? edge.v_tag().value() : -1;
   Direction dir = parse_direction(edge.direction());

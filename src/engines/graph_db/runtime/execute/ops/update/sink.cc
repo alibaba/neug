@@ -68,7 +68,7 @@ class USinkOpr : public IUpdateOperator {
 
 std::unique_ptr<IUpdateOperator> USinkOprBuilder::Build(
     const Schema& schema, const physical::PhysicalPlan& plan, int op_idx) {
-  auto& opr = plan.plan(op_idx).opr().sink();
+  auto& opr = plan.query_plan().plan(op_idx).opr().sink();
   std::vector<int> tag_ids;
   for (auto& tag : opr.tags()) {
     tag_ids.push_back(tag.tag().value());

@@ -53,7 +53,7 @@ class DedupInsertOpr : public IInsertOperator {
 
 std::unique_ptr<IInsertOperator> DedupInsertOprBuilder::Build(
     const Schema& schema, const physical::PhysicalPlan& plan, int op_id) {
-  const auto& opr = plan.plan(op_id).opr().dedup();
+  const auto& opr = plan.query_plan().plan(op_id).opr().dedup();
   std::vector<size_t> keys;
   int keys_num = opr.keys_size();
   for (int k_i = 0; k_i < keys_num; ++k_i) {

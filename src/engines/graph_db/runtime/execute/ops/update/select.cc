@@ -45,7 +45,7 @@ class USelectOpr : public IUpdateOperator {
 
 std::unique_ptr<IUpdateOperator> USelectOprBuilder::Build(
     const Schema& schema, const physical::PhysicalPlan& plan, int op_idx) {
-  auto opr = plan.plan(op_idx).opr().select();
+  auto opr = plan.query_plan().plan(op_idx).opr().select();
   return std::make_unique<USelectOpr>(opr.predicate());
 }
 }  // namespace ops

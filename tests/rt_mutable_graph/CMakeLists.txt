@@ -11,6 +11,6 @@ foreach(f ${GS_TEST_FILES})
         #if name is test_open_graph
         if (${T_NAME} MATCHES "test_open_graph")
                 message(STATUS "Found open graph test - " ${T_NAME})
-                target_link_libraries(${T_NAME} nexg_planner)
+                target_link_libraries(${T_NAME} nexg_planner nexg_main)
         endif()
 endforeach()

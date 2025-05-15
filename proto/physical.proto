@@ -1,18 +1,18 @@
 /**
- * Copyright 2020 Alibaba Group Holding Limited.
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- * http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
+* Copyright 2020 Alibaba Group Holding Limited.
+*
+* Licensed under the Apache License, Version 2.0 (the "License");
+* you may not use this file except in compliance with the License.
+* You may obtain a copy of the License at
+*
+* http://www.apache.org/licenses/LICENSE-2.0
+*
+* Unless required by applicable law or agreed to in writing, software
+* distributed under the License is distributed on an "AS IS" BASIS,
+* WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+* See the License for the specific language governing permissions and
+* limitations under the License.
+*/
 
 syntax = "proto3";
 package physical;
@@ -27,6 +27,8 @@ import "algebra.proto";
 import "stored_procedure.proto";
 import "google/protobuf/wrappers.proto";
 import "cypher_write.proto";
+import "cypher_dml.proto";
+import "cypher_ddl.proto";
 
 // To project a relation on certain attributes or further their properties
 message Project {
@@ -234,12 +236,12 @@ message PathExpand {
   // Define what result is required for this path. We currently support `EndV` and `AllV`, while an option to
   // include all edges and vertices may be needed in the future.
   enum ResultOpt {
-     // only end vertex is required for this expansion
-     END_V = 0;
-     // all vertices of this path are required for this expansion.
-     ALL_V = 1;
-     // all vertices and edges of this path are required for this expansion.
-     ALL_V_E = 2;
+    // only end vertex is required for this expansion
+    END_V = 0;
+    // all vertices of this path are required for this expansion.
+    ALL_V = 1;
+    // all vertices and edges of this path are required for this expansion.
+    ALL_V_E = 2;
   }
   // A path expansion has a base of edge expansion
   ExpandBase base = 1;
@@ -262,7 +264,7 @@ message PathExpand {
 
 message Sink {
   message OptTag {
-     google.protobuf.Int32Value tag = 1;
+    google.protobuf.Int32Value tag = 1;
   }
   // Define the tags of columns to sink. If no tags given, sink all **tagged** columns by default.
   repeated OptTag tags = 1;
@@ -317,6 +319,17 @@ message PhysicalOpr {
       cypher.Set set = 34;
       cypher.Load load = 35;
       cypher.Delete delete = 36;
+
+      // DML operators
+      DataSource source = 37; // tag, 0(id),1(name),2(age)
+      BatchInsertVertex load_vertex = 38; // 0->id, 1->name, 2->age
+      BatchInsertEdge load_edge = 39;
+      InsertVertex create_vertex = 40;
+      InsertEdge create_edge = 41;
+      SetVertexProperty set_vertex = 42;
+      SetEdgeProperty set_edge = 43;
+      DeleteVertex delete_vertex = 44;
+      DeleteEdge delete_edge = 45;
     }
   }
   message MetaData {
@@ -329,7 +342,28 @@ message PhysicalOpr {
   repeated MetaData meta_data = 2;
 }
 
+message QueryPlan {
+  enum Mode {
+    READ_ONLY = 0;
+    WRITE_ONLY = 1;
+    READ_WRITE = 2;
+  }
+
+  Mode mode = 1;
+  repeated PhysicalOpr plan = 2;
+}
+
+// A single Cypher query ending with a semicolon (;)
 message PhysicalPlan {
   int32 plan_id = 1;
-  repeated PhysicalOpr plan = 2;
+  oneof plan {
+    DDLPlan ddl_plan = 2;
+    QueryPlan query_plan = 3;
+  }
+}
+
+
+// Multiple queries in a single `execute` function
+message PhysicalPlans {
+  repeated PhysicalPlan plans = 1;
 }

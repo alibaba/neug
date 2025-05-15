@@ -201,7 +201,7 @@ class SetOpr : public IUpdateOperator {
 };
 std::unique_ptr<IUpdateOperator> USetOprBuilder::Build(
     const Schema& schema, const physical::PhysicalPlan& plan, int op_idx) {
-  const auto& opr = plan.plan(op_idx).opr().set();
+  const auto& opr = plan.query_plan().plan(op_idx).opr().set();
   std::vector<std::pair<int, std::string>> keys;
   std::vector<common::Expression> values;
   for (int i = 0; i < opr.items_size(); ++i) {

@@ -193,12 +193,12 @@ bl::result<std::pair<ReadPipeline, ContextMeta>>
 PlanParser::parse_read_pipeline_with_meta(const gs::Schema& schema,
                                           const ContextMeta& ctx_meta,
                                           const physical::PhysicalPlan& plan) {
-  int opr_num = plan.plan_size();
+  int opr_num = plan.query_plan().plan_size();
   std::vector<std::unique_ptr<IReadOperator>> operators;
   ContextMeta cur_ctx_meta = ctx_meta;
   for (int i = 0; i < opr_num;) {
     physical::PhysicalOpr_Operator::OpKindCase cur_op_kind =
-        plan.plan(i).opr().op_kind_case();
+        plan.query_plan().plan(i).opr().op_kind_case();
     if (cur_op_kind == physical::PhysicalOpr_Operator::OpKindCase::kSink) {
       // break;
     }
@@ -217,7 +217,7 @@ PlanParser::parse_read_pipeline_with_meta(const gs::Schema& schema,
       }
       bool match = true;
       for (size_t j = 1; j < pattern.size(); ++j) {
-        if (plan.plan(i + j).opr().op_kind_case() != pattern[j]) {
+        if (plan.query_plan().plan(i + j).opr().op_kind_case() != pattern[j]) {
           match = false;
         }
       }
@@ -267,7 +267,7 @@ PlanParser::parse_read_pipeline_with_meta(const gs::Schema& schema,
       std::stringstream ss;
       ss << "[Parse Failed] " << get_opr_name(cur_op_kind)
          << " failed to parse plan at index " << i << " "
-         << plan.plan(i).DebugString() << ": "
+         << plan.query_plan().plan(i).DebugString() << ": "
          << ", last match error: " << status.ToString();
       auto err = gs::Status(gs::StatusCode::INTERNAL_ERROR, ss.str());
       LOG(ERROR) << err.ToString();
@@ -290,8 +290,8 @@ bl::result<ReadPipeline> PlanParser::parse_read_pipeline(
 bl::result<InsertPipeline> PlanParser::parse_write_pipeline(
     const gs::Schema& schema, const physical::PhysicalPlan& plan) {
   std::vector<std::unique_ptr<IInsertOperator>> operators;
-  for (int i = 0; i < plan.plan_size(); ++i) {
-    auto op_kind = plan.plan(i).opr().op_kind_case();
+  for (int i = 0; i < plan.query_plan().plan_size(); ++i) {
+    auto op_kind = plan.query_plan().plan(i).opr().op_kind_case();
     if (write_op_builders_.find(op_kind) == write_op_builders_.end()) {
       std::stringstream ss;
       ss << "[Parse Failed] " << get_opr_name(op_kind)
@@ -322,8 +322,8 @@ bl::result<UpdatePipeline> PlanParser::parse_update_pipeline(
     return UpdatePipeline(std::move(res.value()));
   }
   std::vector<std::unique_ptr<IUpdateOperator>> operators;
-  for (int i = 0; i < plan.plan_size(); ++i) {
-    auto op_kind = plan.plan(i).opr().op_kind_case();
+  for (int i = 0; i < plan.query_plan().plan_size(); ++i) {
+    auto op_kind = plan.query_plan().plan(i).opr().op_kind_case();
     if (update_op_builders_.find(op_kind) == update_op_builders_.end()) {
       std::stringstream ss;
       ss << "[Parse Failed] " << get_opr_name(op_kind)

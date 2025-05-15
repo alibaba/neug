@@ -63,7 +63,7 @@ class ProjectInsertOpr : public IInsertOperator {
 
 std::unique_ptr<IInsertOperator> ProjectInsertOprBuilder::Build(
     const Schema& schema, const physical::PhysicalPlan& plan, int op_id) {
-  auto opr = plan.plan(op_id).opr().project();
+  auto opr = plan.query_plan().plan(op_id).opr().project();
   int mappings_size = opr.mappings_size();
   std::vector<std::function<std::unique_ptr<WriteProjectExprBase>(
       const std::map<std::string, std::string>&)>>
@@ -304,7 +304,7 @@ class ProjectUpdateOpr : public IUpdateOperator {
 
 std::unique_ptr<IUpdateOperator> UProjectOprBuilder::Build(
     const Schema& schema, const physical::PhysicalPlan& plan, int op_id) {
-  auto project = plan.plan(op_id).opr().project();
+  auto project = plan.query_plan().plan(op_id).opr().project();
   bool is_append = project.is_append();
   int mappings_size = project.mappings_size();
   std::vector<std::pair<common::Expression, int>> mappings;

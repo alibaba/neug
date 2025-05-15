@@ -25,8 +25,8 @@ namespace ops {
 static bool is_shortest_path_with_order_by_limit(
     const physical::PhysicalPlan& plan, int i, int& path_len_alias,
     int& vertex_alias, int& limit_upper) {
-  int opr_num = plan.plan_size();
-  const auto& opr = plan.plan(i).opr();
+  int opr_num = plan.query_plan().plan_size();
+  const auto& opr = plan.query_plan().plan(i).opr();
   int start_tag = opr.path().start_tag().value();
   // must be any shortest path
   if (opr.path().path_opt() !=
@@ -36,11 +36,11 @@ static bool is_shortest_path_with_order_by_limit(
     return false;
   }
   if (i + 4 < opr_num) {
-    const auto& get_v_opr = plan.plan(i + 1).opr();
-    const auto& get_v_filter_opr = plan.plan(i + 2).opr();
-    const auto& select_opr = plan.plan(i + 3).opr();
-    const auto& project_opr = plan.plan(i + 4).opr();
-    const auto& order_by_opr = plan.plan(i + 5).opr();
+    const auto& get_v_opr = plan.query_plan().plan(i + 1).opr();
+    const auto& get_v_filter_opr = plan.query_plan().plan(i + 2).opr();
+    const auto& select_opr = plan.query_plan().plan(i + 3).opr();
+    const auto& project_opr = plan.query_plan().plan(i + 4).opr();
+    const auto& order_by_opr = plan.query_plan().plan(i + 5).opr();
     if (!get_v_opr.has_vertex() || !get_v_filter_opr.has_vertex() ||
         !project_opr.has_project() || !order_by_opr.has_order_by()) {
       return false;
@@ -172,8 +172,8 @@ static bool is_shortest_path_with_order_by_limit(
 }
 
 static bool is_all_shortest_path(const physical::PhysicalPlan& plan, int i) {
-  int opr_num = plan.plan_size();
-  const auto& opr = plan.plan(i).opr();
+  int opr_num = plan.query_plan().plan_size();
+  const auto& opr = plan.query_plan().plan(i).opr();
   if (opr.path().path_opt() !=
           physical::PathExpand_PathOpt::PathExpand_PathOpt_ALL_SHORTEST ||
       opr.path().result_opt() !=
@@ -182,8 +182,8 @@ static bool is_all_shortest_path(const physical::PhysicalPlan& plan, int i) {
   }
 
   if (i + 2 < opr_num) {
-    const auto& get_v_opr = plan.plan(i + 1).opr();
-    const auto& get_v_filter_opr = plan.plan(i + 2).opr();
+    const auto& get_v_opr = plan.query_plan().plan(i + 1).opr();
+    const auto& get_v_filter_opr = plan.query_plan().plan(i + 2).opr();
     if (!get_v_filter_opr.has_vertex() || !get_v_opr.has_vertex()) {
       return false;
     }
@@ -216,8 +216,8 @@ static bool is_all_shortest_path(const physical::PhysicalPlan& plan, int i) {
 }
 
 static bool is_shortest_path(const physical::PhysicalPlan& plan, int i) {
-  int opr_num = plan.plan_size();
-  const auto& opr = plan.plan(i).opr();
+  int opr_num = plan.query_plan().plan_size();
+  const auto& opr = plan.query_plan().plan(i).opr();
   // must be any shortest path
   if (opr.path().path_opt() !=
           physical::PathExpand_PathOpt::PathExpand_PathOpt_ANY_SHORTEST ||
@@ -226,8 +226,8 @@ static bool is_shortest_path(const physical::PhysicalPlan& plan, int i) {
     return false;
   }
   if (i + 2 < opr_num) {
-    const auto& get_v_opr = plan.plan(i + 1).opr();
-    const auto& get_v_filter_opr = plan.plan(i + 2).opr();
+    const auto& get_v_opr = plan.query_plan().plan(i + 1).opr();
+    const auto& get_v_filter_opr = plan.query_plan().plan(i + 2).opr();
     if (!get_v_filter_opr.has_vertex() || !get_v_opr.has_vertex()) {
       return false;
     }
@@ -399,7 +399,7 @@ class SPOrderByLimitWithGPredOpr : public IReadOperator {
 bl::result<ReadOpBuildResultT> SPOrderByLimitOprBuilder::Build(
     const gs::Schema& schema, const ContextMeta& ctx_meta,
     const physical::PhysicalPlan& plan, int op_idx) {
-  const auto& opr = plan.plan(op_idx).opr().path();
+  const auto& opr = plan.query_plan().plan(op_idx).opr().path();
   int path_len_alias = -1;
   int vertex_alias = -1;
   int limit_upper = -1;
@@ -425,12 +425,13 @@ bl::result<ReadOpBuildResultT> SPOrderByLimitOprBuilder::Build(
     spp.alias = path_len_alias;
     spp.hop_lower = opr.hop_range().lower();
     spp.hop_upper = opr.hop_range().upper();
-    spp.labels = parse_label_triplets(plan.plan(op_idx).meta_data(0));
+    spp.labels =
+        parse_label_triplets(plan.query_plan().plan(op_idx).meta_data(0));
     if (spp.labels.size() != 1) {
       LOG(ERROR) << "only support one label triplet";
       return std::make_pair(nullptr, ContextMeta());
     }
-    const auto& get_v_opr = plan.plan(op_idx + 2).opr().vertex();
+    const auto& get_v_opr = plan.query_plan().plan(op_idx + 2).opr().vertex();
     if (get_v_opr.has_params() && get_v_opr.params().has_predicate()) {
       auto sp_vertex_pred =
           parse_special_vertex_predicate(get_v_opr.params().predicate());
@@ -614,23 +615,28 @@ bl::result<ReadOpBuildResultT> SPOprBuilder::Build(
     const physical::PhysicalPlan& plan, int op_idx) {
   ContextMeta ret_meta = ctx_meta;
   if (is_shortest_path(plan, op_idx)) {
-    auto vertex = plan.plan(op_idx + 2).opr().vertex();
+    auto vertex = plan.query_plan().plan(op_idx + 2).opr().vertex();
     int v_alias = -1;
     if (!vertex.has_alias()) {
-      v_alias = plan.plan(op_idx + 1).opr().vertex().has_alias()
-                    ? plan.plan(op_idx + 1).opr().vertex().alias().value()
+      v_alias = plan.query_plan().plan(op_idx + 1).opr().vertex().has_alias()
+                    ? plan.query_plan()
+                          .plan(op_idx + 1)
+                          .opr()
+                          .vertex()
+                          .alias()
+                          .value()
                     : -1;
     } else {
       v_alias = vertex.alias().value();
     }
     int alias = -1;
-    if (plan.plan(op_idx).opr().path().has_alias()) {
-      alias = plan.plan(op_idx).opr().path().alias().value();
+    if (plan.query_plan().plan(op_idx).opr().path().has_alias()) {
+      alias = plan.query_plan().plan(op_idx).opr().path().alias().value();
     }
     ret_meta.set(v_alias);
     ret_meta.set(alias);
 
-    const auto& opr = plan.plan(op_idx).opr().path();
+    const auto& opr = plan.query_plan().plan(op_idx).opr().path();
     if (!opr.has_start_tag()) {
       LOG(ERROR) << "Shortest path must have start tag";
       return std::make_pair(nullptr, ContextMeta());
@@ -647,7 +653,8 @@ bl::result<ReadOpBuildResultT> SPOprBuilder::Build(
     spp.alias = alias;
     spp.hop_lower = opr.hop_range().lower();
     spp.hop_upper = opr.hop_range().upper();
-    spp.labels = parse_label_triplets(plan.plan(op_idx).meta_data(0));
+    spp.labels =
+        parse_label_triplets(plan.query_plan().plan(op_idx).meta_data(0));
     if (spp.labels.size() != 1) {
       LOG(ERROR) << "only support one label triplet";
       return std::make_pair(nullptr, ContextMeta());
@@ -681,22 +688,27 @@ bl::result<ReadOpBuildResultT> SPOprBuilder::Build(
       }
     }
   } else if (is_all_shortest_path(plan, op_idx)) {
-    auto vertex = plan.plan(op_idx + 2).opr().vertex();
+    auto vertex = plan.query_plan().plan(op_idx + 2).opr().vertex();
     int v_alias = -1;
     if (!vertex.has_alias()) {
-      v_alias = plan.plan(op_idx + 1).opr().vertex().has_alias()
-                    ? plan.plan(op_idx + 1).opr().vertex().alias().value()
+      v_alias = plan.query_plan().plan(op_idx + 1).opr().vertex().has_alias()
+                    ? plan.query_plan()
+                          .plan(op_idx + 1)
+                          .opr()
+                          .vertex()
+                          .alias()
+                          .value()
                     : -1;
     } else {
       v_alias = vertex.alias().value();
     }
     int alias = -1;
-    if (plan.plan(op_idx).opr().path().has_alias()) {
-      alias = plan.plan(op_idx).opr().path().alias().value();
+    if (plan.query_plan().plan(op_idx).opr().path().has_alias()) {
+      alias = plan.query_plan().plan(op_idx).opr().path().alias().value();
     }
     ret_meta.set(v_alias);
     ret_meta.set(alias);
-    const auto& path = plan.plan(op_idx).opr().path();
+    const auto& path = plan.query_plan().plan(op_idx).opr().path();
     if (!path.has_start_tag()) {
       LOG(ERROR) << "Shortest path must have start tag";
       return std::make_pair(nullptr, ContextMeta());
@@ -710,10 +722,11 @@ bl::result<ReadOpBuildResultT> SPOprBuilder::Build(
                     "predicate";
       return std::make_pair(nullptr, ContextMeta());
     }
-    return std::make_pair(std::make_unique<ASPOpr>(
-                              schema, plan.plan(op_idx).opr().path(),
-                              plan.plan(op_idx).meta_data(0), vertex, v_alias),
-                          ret_meta);
+    return std::make_pair(
+        std::make_unique<ASPOpr>(
+            schema, plan.query_plan().plan(op_idx).opr().path(),
+            plan.query_plan().plan(op_idx).meta_data(0), vertex, v_alias),
+        ret_meta);
   } else {
     return std::make_pair(nullptr, ContextMeta());
   }
@@ -738,8 +751,8 @@ class PathExpandVOpr : public IReadOperator {
 bl::result<ReadOpBuildResultT> PathExpandVOprBuilder::Build(
     const gs::Schema& schema, const ContextMeta& ctx_meta,
     const physical::PhysicalPlan& plan, int op_idx) {
-  const auto& opr = plan.plan(op_idx).opr().path();
-  const auto& next_opr = plan.plan(op_idx + 1).opr().vertex();
+  const auto& opr = plan.query_plan().plan(op_idx).opr().path();
+  const auto& next_opr = plan.query_plan().plan(op_idx + 1).opr().vertex();
   if (opr.result_opt() ==
           physical::PathExpand_ResultOpt::PathExpand_ResultOpt_END_V &&
       opr.base().edge_expand().expand_opt() ==
@@ -775,7 +788,8 @@ bl::result<ReadOpBuildResultT> PathExpandVOprBuilder::Build(
     pep.hop_lower = opr.hop_range().lower();
     pep.hop_upper = opr.hop_range().upper();
     pep.start_tag = start_tag;
-    pep.labels = parse_label_triplets(plan.plan(op_idx).meta_data(0));
+    pep.labels =
+        parse_label_triplets(plan.query_plan().plan(op_idx).meta_data(0));
     if (opr.base().edge_expand().expand_opt() !=
         physical::EdgeExpand_ExpandOpt::EdgeExpand_ExpandOpt_VERTEX) {
       LOG(ERROR) << "Currently only support vertex expand";
@@ -812,7 +826,7 @@ class PathExpandOpr : public IReadOperator {
 bl::result<ReadOpBuildResultT> PathExpandOprBuilder::Build(
     const gs::Schema& schema, const ContextMeta& ctx_meta,
     const physical::PhysicalPlan& plan, int op_idx) {
-  const auto& opr = plan.plan(op_idx).opr().path();
+  const auto& opr = plan.query_plan().plan(op_idx).opr().path();
   int alias = -1;
   if (opr.has_alias()) {
     alias = opr.alias().value();
@@ -850,7 +864,8 @@ bl::result<ReadOpBuildResultT> PathExpandOprBuilder::Build(
   pep.hop_lower = opr.hop_range().lower();
   pep.hop_upper = opr.hop_range().upper();
   pep.start_tag = start_tag;
-  pep.labels = parse_label_triplets(plan.plan(op_idx).meta_data(0));
+  pep.labels =
+      parse_label_triplets(plan.query_plan().plan(op_idx).meta_data(0));
   if (query_params.has_predicate()) {
     LOG(ERROR) << "Currently only support non-optional path expand without "
                   "predicate";

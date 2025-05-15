@@ -39,17 +39,18 @@ class SinkOpr : public IReadOperator {
 bl::result<ReadOpBuildResultT> SinkOprBuilder::Build(
     const gs::Schema& schema, const ContextMeta& ctx_meta,
     const physical::PhysicalPlan& plan, int op_idx) {
-  auto& opr = plan.plan(op_idx).opr().sink();
+  auto& opr = plan.query_plan().plan(op_idx).opr().sink();
   std::vector<int> tag_ids;
   for (auto& tag : opr.tags()) {
     tag_ids.push_back(tag.tag().value());
   }
   if (tag_ids.empty() && op_idx) {
-    while (op_idx - 1 && (!plan.plan(op_idx - 1).opr().has_project()) &&
-           (!plan.plan(op_idx - 1).opr().has_group_by())) {
+    while (op_idx - 1 &&
+           (!plan.query_plan().plan(op_idx - 1).opr().has_project()) &&
+           (!plan.query_plan().plan(op_idx - 1).opr().has_group_by())) {
       op_idx--;
     }
-    auto prev_opr = plan.plan(op_idx - 1).opr();
+    auto prev_opr = plan.query_plan().plan(op_idx - 1).opr();
     if (prev_opr.has_project()) {
       int mapping_size = prev_opr.project().mappings_size();
       for (int i = 0; i < mapping_size; ++i) {

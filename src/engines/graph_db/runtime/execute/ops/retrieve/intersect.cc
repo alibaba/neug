@@ -55,9 +55,11 @@ bl::result<ReadOpBuildResultT> IntersectOprBuilder::Build(
     const Schema& schema, const ContextMeta& ctx_meta,
     const physical::PhysicalPlan& plan, int op_idx) {
   std::vector<ReadPipeline> sub_plans;
-  for (int i = 0; i < plan.plan(op_idx).opr().intersect().sub_plans_size();
+  for (int i = 0;
+       i < plan.query_plan().plan(op_idx).opr().intersect().sub_plans_size();
        ++i) {
-    auto& sub_plan = plan.plan(op_idx).opr().intersect().sub_plans(i);
+    auto& sub_plan =
+        plan.query_plan().plan(op_idx).opr().intersect().sub_plans(i);
     auto sub_plan_res = PlanParser::get().parse_read_pipeline_with_meta(
         schema, ctx_meta, sub_plan);
     if (!sub_plan_res) {
@@ -66,11 +68,11 @@ bl::result<ReadOpBuildResultT> IntersectOprBuilder::Build(
     sub_plans.push_back(std::move(sub_plan_res.value().first));
   }
   ContextMeta meta = ctx_meta;
-  meta.set(plan.plan(op_idx).opr().intersect().key());
-  return std::make_pair(
-      std::make_unique<IntersectOpr>(plan.plan(op_idx).opr().intersect(),
-                                     std::move(sub_plans)),
-      meta);
+  meta.set(plan.query_plan().plan(op_idx).opr().intersect().key());
+  return std::make_pair(std::make_unique<IntersectOpr>(
+                            plan.query_plan().plan(op_idx).opr().intersect(),
+                            std::move(sub_plans)),
+                        meta);
 }
 
 }  // namespace ops

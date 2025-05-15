@@ -49,6 +49,7 @@ dist/
 # CLion
 .idea/
 cmake-build-*/
+cmake-build/
 **/*.iml
 **/target/
 

@@ -530,12 +530,12 @@ bl::result<ReadOpBuildResultT> EdgeExpandOprBuilder::Build(
     const gs::Schema& schema, const ContextMeta& ctx_meta,
     const physical::PhysicalPlan& plan, int op_idx) {
   int alias = -1;
-  if (plan.plan(op_idx).opr().edge().has_alias()) {
-    alias = plan.plan(op_idx).opr().edge().alias().value();
+  if (plan.query_plan().plan(op_idx).opr().edge().has_alias()) {
+    alias = plan.query_plan().plan(op_idx).opr().edge().alias().value();
   }
   ContextMeta meta = ctx_meta;
   meta.set(alias);
-  auto opr = plan.plan(op_idx).opr().edge();
+  auto opr = plan.query_plan().plan(op_idx).opr().edge();
   int v_tag = opr.has_v_tag() ? opr.v_tag().value() : -1;
   Direction dir = parse_direction(opr.direction());
   bool is_optional = opr.is_optional();
@@ -546,7 +546,8 @@ bl::result<ReadOpBuildResultT> EdgeExpandOprBuilder::Build(
   const auto& query_params = opr.params();
   EdgeExpandParams eep;
   eep.v_tag = v_tag;
-  eep.labels = parse_label_triplets(plan.plan(op_idx).meta_data(0));
+  eep.labels =
+      parse_label_triplets(plan.query_plan().plan(op_idx).meta_data(0));
   eep.dir = dir;
   eep.alias = alias;
   eep.is_optional = is_optional;
@@ -602,17 +603,18 @@ bl::result<ReadOpBuildResultT> EdgeExpandOprBuilder::Build(
 bl::result<ReadOpBuildResultT> EdgeExpandGetVOprBuilder::Build(
     const gs::Schema& schema, const ContextMeta& ctx_meta,
     const physical::PhysicalPlan& plan, int op_idx) {
-  if (edge_expand_get_v_fusable(plan.plan(op_idx).opr().edge(),
-                                plan.plan(op_idx + 1).opr().vertex(),
-                                plan.plan(op_idx).meta_data(0))) {
+  if (edge_expand_get_v_fusable(
+          plan.query_plan().plan(op_idx).opr().edge(),
+          plan.query_plan().plan(op_idx + 1).opr().vertex(),
+          plan.query_plan().plan(op_idx).meta_data(0))) {
     int alias = -1;
-    if (plan.plan(op_idx + 1).opr().vertex().has_alias()) {
-      alias = plan.plan(op_idx + 1).opr().vertex().alias().value();
+    if (plan.query_plan().plan(op_idx + 1).opr().vertex().has_alias()) {
+      alias = plan.query_plan().plan(op_idx + 1).opr().vertex().alias().value();
     }
     ContextMeta meta = ctx_meta;
     meta.set(alias);
-    const auto& ee_opr = plan.plan(op_idx).opr().edge();
-    const auto& v_opr = plan.plan(op_idx + 1).opr().vertex();
+    const auto& ee_opr = plan.query_plan().plan(op_idx).opr().edge();
+    const auto& v_opr = plan.query_plan().plan(op_idx + 1).opr().vertex();
     int v_tag = ee_opr.has_v_tag() ? ee_opr.v_tag().value() : -1;
     Direction dir = parse_direction(ee_opr.direction());
     bool is_optional = ee_opr.is_optional();
@@ -640,7 +642,8 @@ bl::result<ReadOpBuildResultT> EdgeExpandGetVOprBuilder::Build(
 
     EdgeExpandParams eep;
     eep.v_tag = v_tag;
-    eep.labels = parse_label_triplets(plan.plan(op_idx).meta_data(0));
+    eep.labels =
+        parse_label_triplets(plan.query_plan().plan(op_idx).meta_data(0));
     eep.dir = dir;
     eep.alias = alias;
     eep.is_optional = is_optional;
