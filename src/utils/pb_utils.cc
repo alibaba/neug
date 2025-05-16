@@ -115,14 +115,25 @@ bool primitive_type_to_property_type(
 
 bool string_type_to_property_type(const common::String& string_type,
                                   PropertyType& out_type) {
-  if (string_type.has_var_char()) {
+  switch (string_type.item_case()) {
+  case common::String::kVarChar: {
     out_type = PropertyType::Varchar(string_type.var_char().max_length());
-  } else if (string_type.has_long_text()) {
+    break;
+  }
+  case common::String::kLongText: {
     out_type = PropertyType::StringView();
-  } else if (string_type.has_char_()) {
-    // Currently, we implment fixed-char as varchar with fixed length.
+    break;
+  }
+  case common::String::kChar: {
+    // Currently, we implement fixed-char as varchar with fixed length.
     out_type = PropertyType::Varchar(string_type.char_().fixed_length());
-  } else {
+    break;
+  }
+  case common::String::ITEM_NOT_SET: {
+    LOG(ERROR) << "String type is not set: " << string_type.DebugString();
+    return false;
+  }
+  default:
     LOG(ERROR) << "Unknown string type: " << string_type.DebugString();
     return false;
   }
@@ -151,23 +162,34 @@ bool temporal_type_to_property_type(const common::Temporal& temporal_type,
 
 bool data_type_to_property_type(const common::DataType& data_type,
                                 PropertyType& out_type) {
-  if (data_type.has_primitive_type()) {
+  switch (data_type.item_case()) {
+  case common::DataType::kPrimitiveType: {
     return primitive_type_to_property_type(data_type.primitive_type(),
                                            out_type);
-  } else if (data_type.has_decimal()) {
+  }
+  case common::DataType::kDecimal: {
     LOG(ERROR) << "Decimal type is not supported";
     return false;
-  } else if (data_type.has_string()) {
+  }
+  case common::DataType::kString: {
     return string_type_to_property_type(data_type.string(), out_type);
-  } else if (data_type.has_temporal()) {
+  }
+  case common::DataType::kTemporal: {
     return temporal_type_to_property_type(data_type.temporal(), out_type);
-  } else if (data_type.has_array()) {
+  }
+  case common::DataType::kArray: {
     LOG(ERROR) << "Array type is not supported";
     return false;
-  } else if (data_type.has_map()) {
+  }
+  case common::DataType::kMap: {
     LOG(ERROR) << "Map type is not supported";
     return false;
-  } else {
+  }
+  case common::DataType::ITEM_NOT_SET: {
+    LOG(ERROR) << "Data type is not set: " << data_type.DebugString();
+    return false;
+  }
+  default:
     LOG(ERROR) << "Unknown data type: " << data_type.DebugString();
     return false;
   }
