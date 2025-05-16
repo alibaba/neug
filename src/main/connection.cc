@@ -106,22 +106,6 @@ physical::PhysicalPlan Connection::createDDLPlan(
   auto plan = physical_plan.mutable_ddl_plan();
   // Currently we use a builtin plan for testing
   // TODO(zhanglei): Remove this after we have a real plan.
-  if (query_string.find("person") != std::string::npos) {
-    auto create_vertex_reequest = plan->mutable_create_vertex_schema();
-    create_vertex_reequest->mutable_vertex_type()->set_name("person");
-    create_vertex_reequest->mutable_primary_key()->Add("id");
-    auto id_property = create_vertex_reequest->add_properties();
-    id_property->set_name("id");
-    id_property->mutable_type()->set_primitive_type(
-        common::PrimitiveType::DT_SIGNED_INT64);
-    auto name_property = create_vertex_reequest->add_properties();
-    name_property->set_name("name");
-    name_property->mutable_type()->mutable_string()->mutable_long_text();
-    auto age_property = create_vertex_reequest->add_properties();
-    age_property->set_name("age");
-    age_property->mutable_type()->set_primitive_type(
-        common::PrimitiveType::DT_SIGNED_INT32);
-  }
 
   if (query_string.find("knows") != std::string::npos) {
     auto create_edge_request = plan->mutable_create_edge_schema();
@@ -138,9 +122,27 @@ physical::PhysicalPlan Connection::createDDLPlan(
     weight_prop->set_name("weight");
     weight_prop->mutable_type()->set_primitive_type(
         common::PrimitiveType::DT_DOUBLE);
+    return physical_plan;
   }
 
-  return physical_plan;
+  if (query_string.find("person") != std::string::npos) {
+    auto create_vertex_reequest = plan->mutable_create_vertex_schema();
+    create_vertex_reequest->mutable_vertex_type()->set_name("person");
+    create_vertex_reequest->mutable_primary_key()->Add("id");
+    auto id_property = create_vertex_reequest->add_properties();
+    id_property->set_name("id");
+    id_property->mutable_type()->set_primitive_type(
+        common::PrimitiveType::DT_SIGNED_INT64);
+    auto name_property = create_vertex_reequest->add_properties();
+    name_property->set_name("name");
+    name_property->mutable_type()->mutable_string()->mutable_long_text();
+    auto age_property = create_vertex_reequest->add_properties();
+    age_property->set_name("age");
+    age_property->mutable_type()->set_primitive_type(
+        common::PrimitiveType::DT_SIGNED_INT32);
+    return physical_plan;
+  }
+  LOG(FATAL) << "Unknown query: " << query_string;
 }
 
 void _create_batch_load_vertex_plan(physical::QueryPlan* query_plan,

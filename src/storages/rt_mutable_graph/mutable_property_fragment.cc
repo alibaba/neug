@@ -22,6 +22,47 @@
 
 namespace gs {
 
+inline DualCsrBase* create_csr(EdgeStrategy oes, EdgeStrategy ies,
+                               const std::vector<PropertyType>& properties,
+                               bool oe_mutable, bool ie_mutable,
+                               const std::vector<std::string>& prop_names) {
+  if (properties.empty()) {
+    return new DualCsr<grape::EmptyType>(oes, ies, oe_mutable, ie_mutable);
+  } else if (properties.size() == 1) {
+    if (properties[0] == PropertyType::kBool) {
+      return new DualCsr<bool>(oes, ies, oe_mutable, ie_mutable);
+    } else if (properties[0] == PropertyType::kInt32) {
+      return new DualCsr<int32_t>(oes, ies, oe_mutable, ie_mutable);
+    } else if (properties[0] == PropertyType::kUInt32) {
+      return new DualCsr<uint32_t>(oes, ies, oe_mutable, ie_mutable);
+    } else if (properties[0] == PropertyType::kDate) {
+      return new DualCsr<Date>(oes, ies, oe_mutable, ie_mutable);
+    } else if (properties[0] == PropertyType::kInt64) {
+      return new DualCsr<int64_t>(oes, ies, oe_mutable, ie_mutable);
+    } else if (properties[0] == PropertyType::kUInt64) {
+      return new DualCsr<uint64_t>(oes, ies, oe_mutable, ie_mutable);
+    } else if (properties[0] == PropertyType::kDouble) {
+      return new DualCsr<double>(oes, ies, oe_mutable, ie_mutable);
+    } else if (properties[0] == PropertyType::kFloat) {
+      return new DualCsr<float>(oes, ies, oe_mutable, ie_mutable);
+    } else if (properties[0].type_enum == impl::PropertyTypeImpl::kVarChar) {
+      return new DualCsr<std::string_view>(
+          oes, ies, properties[0].additional_type_info.max_length, oe_mutable,
+          ie_mutable);
+    } else if (properties[0] == PropertyType::kStringView) {
+      return new DualCsr<std::string_view>(
+          oes, ies, gs::PropertyType::GetStringDefaultMaxLength(), oe_mutable,
+          ie_mutable);
+    }
+  } else {
+    // TODO: fix me, storage strategy not set
+    return new DualCsr<RecordView>(oes, ies, prop_names, properties, {},
+                                   oe_mutable, ie_mutable);
+  }
+  LOG(FATAL) << "not support edge strategy or edge data type";
+  return nullptr;
+}
+
 MutablePropertyFragment::MutablePropertyFragment() {}
 
 MutablePropertyFragment::~MutablePropertyFragment() {
@@ -77,6 +118,7 @@ Status MutablePropertyFragment::create_vertex_type(
   }
   std::vector<std::string> property_names;
   std::vector<PropertyType> property_types;
+  // TODO(zhanglei): Not used
   std::vector<Any> default_property_values;
   std::vector<std::tuple<PropertyType, std::string, size_t>> primary_keys;
   std::vector<int> primary_key_inds(primary_key_names.size(), -1);
@@ -160,8 +202,67 @@ Status MutablePropertyFragment::create_edge_type(
     const std::string& edge_type_name,
     const std::vector<std::tuple<PropertyType, std::string, Any>>& properties,
     EdgeStrategy oe_edge_strategy, EdgeStrategy ie_edge_strategy) {
-  LOG(INFO) << "create edge type: " << edge_type_name;
-  return Status::OK();
+  if (!schema_.contains_vertex_label(src_vertex_type)) {
+    LOG(ERROR) << "Source_vertex [" << src_vertex_type
+               << "] does not exist in the graph.";
+    return Status(
+        StatusCode::INVALID_SCHEMA,
+        "Source_vertex [" + src_vertex_type + "] does not exist in the graph.");
+  }
+  if (!schema_.contains_vertex_label(dst_vertex_type)) {
+    LOG(ERROR) << "Destination_vertex [" << dst_vertex_type
+               << "] does not exist in the graph.";
+    return Status(StatusCode::INVALID_SCHEMA,
+                  "Destination_vertex [" + dst_vertex_type +
+                      "] does not exist in the graph.");
+  }
+  if (schema_.has_edge_label(src_vertex_type, dst_vertex_type,
+                             edge_type_name)) {
+    LOG(ERROR) << "Edge [" << edge_type_name << "] from [" << src_vertex_type
+               << "] to [" << dst_vertex_type << "] already exists";
+    return Status(StatusCode::INVALID_SCHEMA,
+                  "Edge [" + edge_type_name + "] from [" + src_vertex_type +
+                      "] to [" + dst_vertex_type + "] already exists");
+  }
+  std::vector<std::string> property_names;
+  std::vector<PropertyType> property_types;
+  // TODO(zhanglei): Not used
+  std::vector<Any> default_property_values;
+  for (size_t i = 0; i < properties.size(); i++) {
+    auto [type, name, default_value] = properties[i];
+    property_names.emplace_back(name);
+    property_types.emplace_back(type);
+    default_property_values.emplace_back(default_value);
+  }
+  EdgeStrategy cur_ie = EdgeStrategy::kMultiple;
+  EdgeStrategy cur_oe = EdgeStrategy::kMultiple;
+  bool oe_mutable = true, ie_mutable = true;
+  bool cur_sort_on_compaction = false;
+  if (!schema_.contains_edge_label(edge_type_name)) {
+    edge_label_num_++;
+  }
+  std::string description;
+  schema_.add_edge_label(src_vertex_type, dst_vertex_type, edge_type_name,
+                         property_types, property_names, cur_oe, cur_ie,
+                         oe_mutable, ie_mutable, cur_sort_on_compaction,
+                         description);
+  ie_.resize(vertex_label_num_ * vertex_label_num_ * edge_label_num_, NULL);
+  oe_.resize(vertex_label_num_ * vertex_label_num_ * edge_label_num_, NULL);
+  dual_csr_list_.resize(vertex_label_num_ * vertex_label_num_ * edge_label_num_,
+                        NULL);
+
+  label_t src_label_i = schema_.get_vertex_label_id(src_vertex_type);
+  label_t dst_label_i = schema_.get_vertex_label_id(dst_vertex_type);
+  label_t e_label_i = schema_.get_edge_label_id(edge_type_name);
+  size_t index = src_label_i * vertex_label_num_ * edge_label_num_ +
+                 dst_label_i * edge_label_num_ + e_label_i;
+  EdgeStrategy oe_strategy = EdgeStrategy::kMultiple;
+  EdgeStrategy ie_strategy = EdgeStrategy::kMultiple;
+  dual_csr_list_[index] = create_csr(oe_strategy, ie_strategy, property_types,
+                                     oe_mutable, ie_mutable, property_names);
+  ie_[index] = dual_csr_list_[index]->GetInCsr();
+  oe_[index] = dual_csr_list_[index]->GetOutCsr();
+  return gs::Status::OK();
 }
 
 Status MutablePropertyFragment::update_vertex_type(
@@ -203,47 +304,6 @@ void MutablePropertyFragment::DumpSchema(const std::string& schema_path) {
   io_adaptor->Open("wb");
   schema_.Serialize(io_adaptor);
   io_adaptor->Close();
-}
-
-inline DualCsrBase* create_csr(EdgeStrategy oes, EdgeStrategy ies,
-                               const std::vector<PropertyType>& properties,
-                               bool oe_mutable, bool ie_mutable,
-                               const std::vector<std::string>& prop_names) {
-  if (properties.empty()) {
-    return new DualCsr<grape::EmptyType>(oes, ies, oe_mutable, ie_mutable);
-  } else if (properties.size() == 1) {
-    if (properties[0] == PropertyType::kBool) {
-      return new DualCsr<bool>(oes, ies, oe_mutable, ie_mutable);
-    } else if (properties[0] == PropertyType::kInt32) {
-      return new DualCsr<int32_t>(oes, ies, oe_mutable, ie_mutable);
-    } else if (properties[0] == PropertyType::kUInt32) {
-      return new DualCsr<uint32_t>(oes, ies, oe_mutable, ie_mutable);
-    } else if (properties[0] == PropertyType::kDate) {
-      return new DualCsr<Date>(oes, ies, oe_mutable, ie_mutable);
-    } else if (properties[0] == PropertyType::kInt64) {
-      return new DualCsr<int64_t>(oes, ies, oe_mutable, ie_mutable);
-    } else if (properties[0] == PropertyType::kUInt64) {
-      return new DualCsr<uint64_t>(oes, ies, oe_mutable, ie_mutable);
-    } else if (properties[0] == PropertyType::kDouble) {
-      return new DualCsr<double>(oes, ies, oe_mutable, ie_mutable);
-    } else if (properties[0] == PropertyType::kFloat) {
-      return new DualCsr<float>(oes, ies, oe_mutable, ie_mutable);
-    } else if (properties[0].type_enum == impl::PropertyTypeImpl::kVarChar) {
-      return new DualCsr<std::string_view>(
-          oes, ies, properties[0].additional_type_info.max_length, oe_mutable,
-          ie_mutable);
-    } else if (properties[0] == PropertyType::kStringView) {
-      return new DualCsr<std::string_view>(
-          oes, ies, gs::PropertyType::GetStringDefaultMaxLength(), oe_mutable,
-          ie_mutable);
-    }
-  } else {
-    // TODO: fix me, storage strategy not set
-    return new DualCsr<RecordView>(oes, ies, prop_names, properties, {},
-                                   oe_mutable, ie_mutable);
-  }
-  LOG(FATAL) << "not support edge strategy or edge data type";
-  return nullptr;
 }
 
 void MutablePropertyFragment::Open(const std::string& work_dir,

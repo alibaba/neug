@@ -44,6 +44,9 @@ void batch_load_edges_helper(
   } else if (edge_prop_type == PropertyType::RecordView()) {
     frag.batch_load_edges<SRC_PK_T, DST_PK_T, RecordView>(
         src_label_id, dst_label_id, edge_label_id, suppliers);
+  } else if (edge_prop_type == PropertyType::Double()) {
+    frag.batch_load_edges<SRC_PK_T, DST_PK_T, double>(
+        src_label_id, dst_label_id, edge_label_id, suppliers);
   } else {
     LOG(FATAL) << "BatchInsertEdgeOpr::Eval: unsupported edge prop type: "
                << edge_prop_type.ToString();

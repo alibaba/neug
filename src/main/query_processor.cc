@@ -17,6 +17,7 @@
 #include "src/engines/graph_db/runtime/common/context.h"
 #include "src/engines/graph_db/runtime/common/operators/retrieve/sink.h"
 #include "src/engines/graph_db/runtime/execute/plan_parser.h"
+#include "src/storages/rt_mutable_graph/mutable_property_fragment.h"
 #include "src/utils/pb_utils.h"
 
 namespace gs {
@@ -151,7 +152,7 @@ Result<results::CollectiveResults> QueryProcessor::execute_write_only(
 
 Result<results::CollectiveResults> QueryProcessor::execute_ddl(
     const physical::DDLPlan& ddl_plan, int32_t num_threads) {
-  auto graph_ = db_.graph();
+  auto& graph_ = db_.graph();
   if (ddl_plan.has_create_vertex_schema()) {
     auto& create_vertex = ddl_plan.create_vertex_schema();
     LOG(INFO) << "Got create vertex request: " << create_vertex.DebugString();
@@ -196,6 +197,10 @@ Result<results::CollectiveResults> QueryProcessor::execute_ddl(
     return graph_.create_edge_type(src_vertex_type_name, dst_vertex_type_name,
                                    edge_type_name, tuple_res.value(),
                                    oe_stragety, ie_stragety);
+  } else {
+    LOG(ERROR) << "Unknown DDL plan: " << ddl_plan.DebugString();
+    return Status(StatusCode::INVALID_ARGUMENT,
+                  "Unknown DDL plan: " + ddl_plan.DebugString());
   }
 }
 
