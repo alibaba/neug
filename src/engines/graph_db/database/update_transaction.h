@@ -153,6 +153,8 @@ class UpdateTransaction {
 
   const GraphDBSession& GetSession() const;
 
+  MutablePropertyFragment& GetGraph() const { return graph_; }
+
  private:
   friend class GraphDBSession;
   bool batch_commit(UpdateBatch& batch);

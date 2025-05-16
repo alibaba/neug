@@ -62,7 +62,8 @@ class NexgDB {
     } else {
       if (mode == "read_only" || mode == "r") {
         mode_ = DBMode::READ_ONLY;
-      } else if (mode == "read_write" || mode == "rw") {
+      } else if (mode == "read_write" || mode == "rw" || mode == "w" ||
+                 mode == "wr") {
         mode_ = DBMode::READ_WRITE;
       } else {
         throw std::invalid_argument("Invalid mode: " + mode);

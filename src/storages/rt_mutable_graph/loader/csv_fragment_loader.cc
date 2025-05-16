@@ -18,84 +18,6 @@
 
 namespace gs {
 
-CSVStreamRecordBatchSupplier::CSVStreamRecordBatchSupplier(
-    label_t label_id, const std::string& file_path,
-    arrow::csv::ConvertOptions convert_options,
-    arrow::csv::ReadOptions read_options,
-    arrow::csv::ParseOptions parse_options)
-    : file_path_(file_path) {
-  auto read_result = arrow::io::ReadableFile::Open(file_path);
-  if (!read_result.ok()) {
-    LOG(FATAL) << "Failed to open file: " << file_path
-               << " error: " << read_result.status().message();
-  }
-  auto file = read_result.ValueOrDie();
-  auto res = arrow::csv::StreamingReader::Make(arrow::io::default_io_context(),
-                                               file, read_options,
-                                               parse_options, convert_options);
-  if (!res.ok()) {
-    LOG(FATAL) << "Failed to create streaming reader for file: " << file_path
-               << " error: " << res.status().message();
-  }
-  reader_ = res.ValueOrDie();
-  VLOG(10) << "Finish init CSVRecordBatchSupplier for file: " << file_path;
-}
-
-std::shared_ptr<arrow::RecordBatch>
-CSVStreamRecordBatchSupplier::GetNextBatch() {
-  auto res = reader_->Next();
-  if (res.ok()) {
-    return res.ValueOrDie();
-  } else {
-    LOG(ERROR) << "Failed to read next batch from file: " << file_path_
-               << " error: " << res.status().message();
-    return nullptr;
-  }
-}
-
-CSVTableRecordBatchSupplier::CSVTableRecordBatchSupplier(
-    label_t label_id, const std::string& path,
-    arrow::csv::ConvertOptions convert_options,
-    arrow::csv::ReadOptions read_options,
-    arrow::csv::ParseOptions parse_options)
-    : file_path_(path) {
-  auto read_result = arrow::io::ReadableFile::Open(path);
-  if (!read_result.ok()) {
-    LOG(FATAL) << "Failed to open file: " << path
-               << " error: " << read_result.status().message();
-  }
-  std::shared_ptr<arrow::io::ReadableFile> file = read_result.ValueOrDie();
-  auto res = arrow::csv::TableReader::Make(arrow::io::default_io_context(),
-                                           file, read_options, parse_options,
-                                           convert_options);
-
-  if (!res.ok()) {
-    LOG(FATAL) << "Failed to create table reader for file: " << path
-               << " error: " << res.status().message();
-  }
-  auto reader = res.ValueOrDie();
-
-  auto result = reader->Read();
-  auto status = result.status();
-  if (!status.ok()) {
-    LOG(FATAL) << "Failed to read table from file: " << path
-               << " error: " << status.message();
-  }
-  table_ = result.ValueOrDie();
-  reader_ = std::make_shared<arrow::TableBatchReader>(*table_);
-}
-
-std::shared_ptr<arrow::RecordBatch>
-CSVTableRecordBatchSupplier::GetNextBatch() {
-  std::shared_ptr<arrow::RecordBatch> batch;
-  auto status = reader_->ReadNext(&batch);
-  if (!status.ok()) {
-    LOG(ERROR) << "Failed to read batch from file: " << file_path_
-               << " error: " << status.message();
-  }
-  return batch;
-}
-
 static std::string process_header_row_token(const std::string& token,
                                             const LoadingConfig& config) {
   std::string new_token = token;
@@ -155,30 +77,6 @@ static std::vector<std::string> read_header(
   return res_vec;
 }
 
-static void put_delimiter_option(const LoadingConfig& loading_config,
-                                 arrow::csv::ParseOptions& parse_options) {
-  auto delimiter_str = loading_config.GetDelimiter();
-  if (delimiter_str.size() != 1 && delimiter_str[0] != '\\') {
-    LOG(FATAL) << "Delimiter should be a single character, or a escape "
-                  "character, like '\\t'";
-  }
-  if (delimiter_str[0] == '\\') {
-    if (delimiter_str.size() != 2) {
-      LOG(FATAL) << "Delimiter should be a single character";
-    }
-    // escape the special character
-    switch (delimiter_str[1]) {
-    case 't':
-      parse_options.delimiter = '\t';
-      break;
-    default:
-      LOG(FATAL) << "Unsupported escape character: " << delimiter_str[1];
-    }
-  } else {
-    parse_options.delimiter = delimiter_str[0];
-  }
-}
-
 static bool put_skip_rows_option(const LoadingConfig& loading_config,
                                  arrow::csv::ReadOptions& read_options) {
   bool header_row = loading_config.GetHasHeaderRow();
@@ -214,15 +112,6 @@ static void put_quote_char_option(const LoadingConfig& loading_config,
     parse_options.quote_char = loading_config.GetQuotingChar();
   }
   parse_options.double_quote = loading_config.GetIsDoubleQuoting();
-}
-
-static void put_boolean_option(arrow::csv::ConvertOptions& convert_options) {
-  convert_options.true_values.emplace_back("True");
-  convert_options.true_values.emplace_back("true");
-  convert_options.true_values.emplace_back("TRUE");
-  convert_options.false_values.emplace_back("False");
-  convert_options.false_values.emplace_back("false");
-  convert_options.false_values.emplace_back("FALSE");
 }
 
 static void put_column_names_option(const LoadingConfig& loading_config,
@@ -296,12 +185,12 @@ void CSVFragmentLoader::addVertices(label_t v_label_id,
         std::vector<std::shared_ptr<IRecordBatchSupplier>> suppliers;
         if (loading_config.GetIsBatchReader()) {
           auto res = std::make_shared<CSVStreamRecordBatchSupplier>(
-              label_id, v_file, convert_options, read_options, parse_options);
+              v_file, convert_options, read_options, parse_options);
           suppliers.emplace_back(
               std::dynamic_pointer_cast<IRecordBatchSupplier>(res));
         } else {
           auto res = std::make_shared<CSVTableRecordBatchSupplier>(
-              label_id, v_file, convert_options, read_options, parse_options);
+              v_file, convert_options, read_options, parse_options);
           suppliers.emplace_back(
               std::dynamic_pointer_cast<IRecordBatchSupplier>(res));
         }
@@ -325,12 +214,12 @@ void CSVFragmentLoader::addEdges(label_t src_label_i, label_t dst_label_i,
     std::vector<std::shared_ptr<IRecordBatchSupplier>> suppliers;
     if (loading_config.GetIsBatchReader()) {
       auto res = std::make_shared<CSVStreamRecordBatchSupplier>(
-          e_label_id, filename, convert_options, read_options, parse_options);
+          filename, convert_options, read_options, parse_options);
       suppliers.emplace_back(
           std::dynamic_pointer_cast<IRecordBatchSupplier>(res));
     } else {
       auto res = std::make_shared<CSVTableRecordBatchSupplier>(
-          e_label_id, filename, convert_options, read_options, parse_options);
+          filename, convert_options, read_options, parse_options);
       suppliers.emplace_back(
           std::dynamic_pointer_cast<IRecordBatchSupplier>(res));
     }
@@ -401,7 +290,7 @@ void CSVFragmentLoader::fillVertexReaderMeta(
   // BOOLEAN parser
   put_boolean_option(convert_options);
 
-  put_delimiter_option(loading_config_, parse_options);
+  put_delimiter_option(loading_config_.GetDelimiter(), parse_options);
   bool header_row = put_skip_rows_option(loading_config_, read_options);
   auto property_names = schema_.get_vertex_property_names(v_label);
   put_column_names_option(loading_config_, header_row, v_file,
@@ -544,7 +433,7 @@ void CSVFragmentLoader::fillEdgeReaderMeta(
       arrow::TimestampParser::MakeISO8601());
   put_boolean_option(convert_options);
 
-  put_delimiter_option(loading_config_, parse_options);
+  put_delimiter_option(loading_config_.GetDelimiter(), parse_options);
   bool header_row = put_skip_rows_option(loading_config_, read_options);
   auto edge_prop_names =
       schema_.get_edge_property_names(src_label_id, dst_label_id, label_id);

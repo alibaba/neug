@@ -40,6 +40,17 @@ class QueryProcessor {
                                              int32_t num_threads = 0);
 
  private:
+  Result<results::CollectiveResults> execute_read_only(
+      const physical::PhysicalPlan& plan, int32_t num_threads);
+
+  Result<results::CollectiveResults> execute_read_write(
+      const physical::PhysicalPlan& plan, int32_t num_threads);
+  Result<results::CollectiveResults> execute_write_only(
+      const physical::PhysicalPlan& plan, int32_t num_threads);
+
+  Result<results::CollectiveResults> execute_ddl(
+      const physical::DDLPlan& ddl_plan, int32_t num_threads);
+
   GraphDB& db_;
   int32_t max_num_threads_;
   runtime::OprTimer timer_;

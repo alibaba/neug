@@ -15,9 +15,9 @@
 #ifndef UTILS_EXCEPTION_H_
 #define UTILS_EXCEPTION_H_
 
-#define THROW_EXCEPTION_IF(cond, msg) \
-  if (cond) {                         \
-    throw std::runtime_error(msg);    \
+#define LOG_FATAL_IF(cond, msg) \
+  if (cond) {                   \
+    LOG(FATAL) << msg;          \
   }
 
 #endif  // UTILS_EXCEPTION_H_

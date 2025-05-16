@@ -24,6 +24,7 @@
 
 #include "src/storages/rt_mutable_graph/csr/mutable_csr.h"
 #include "src/storages/rt_mutable_graph/dual_csr.h"
+#include "src/storages/rt_mutable_graph/loader/loader_utils.h"
 #include "src/storages/rt_mutable_graph/types.h"
 #include "src/utils/arrow_utils.h"
 #include "src/utils/indexers.h"
@@ -63,6 +64,74 @@ class MutablePropertyFragment {
   Schema& mutable_schema();
 
   void Clear();
+
+  Status create_vertex_type(
+      const std::string& vertex_type_name,
+      const std::vector<std::tuple<PropertyType, std::string, Any>>& properties,
+      const std::vector<std::string>& primary_key_names);
+
+  Status create_edge_type(
+      const std::string& src_vertex_type, const std::string& dst_vertex_type,
+      const std::string& edge_type_name,
+      const std::vector<std::tuple<PropertyType, std::string, Any>>& properties,
+      EdgeStrategy oe_strategy = EdgeStrategy::kMultiple,
+      EdgeStrategy ie_strategy = EdgeStrategy::kMultiple);
+
+  Status update_vertex_type(
+      const std::string& vertex_type_name,
+      const std::vector<std::tuple<PropertyType, std::string, Any>>&
+          add_properties,
+      const std::vector<std::tuple<std::string, Any>>& update_properties,
+      const std::vector<std::tuple<PropertyType, std::string, Any>>&
+          delete_properties,
+      bool skip_exists);
+
+  Status update_edge_type(
+      const std::string& src_type_name, const std::string& dst_type_name,
+      const std::string& edge_type_name,
+      const std::vector<std::tuple<PropertyType, std::string, Any>>&
+          add_properties,
+      const std::vector<std::tuple<std::string, Any>>& update_properties,
+      const std::vector<std::tuple<PropertyType, std::string, Any>>&
+          delete_properties,
+      bool skip_exists);
+
+  Status delete_vertex_type(const std::string& vertex_type_name, bool is_detach,
+                            bool skip_exists);
+
+  Status delete_edge_type(const std::string& src_vertex_type,
+                          const std::string& dst_vertex_type,
+                          const std::string& edge_type, bool skip_exists);
+
+  template <typename PK_T>
+  Status batch_load_vertices(const label_t& vertex_type_id,
+                             std::vector<std::shared_ptr<IRecordBatchSupplier>>&
+                                 record_batch_supplier_vec) {
+    LOG(INFO) << "Batch load vertices";
+    return Status::OK();
+  }
+
+  template <typename SRC_PK_T, typename DST_PK_T, typename EDATA_T>
+  Status batch_load_edges(label_t src_label_id, label_t dst_label_id,
+                          label_t edge_label_id,
+                          std::vector<std::shared_ptr<IRecordBatchSupplier>>&
+                              record_batch_supplier_vec) {
+    LOG(INFO) << "Batch load edges";
+    return Status::OK();
+  }
+
+  template <typename SRC_PK_T, typename DST_PK_T, typename EDATA_T>
+  Status batch_load_edges(const std::string& src_vertex_type,
+                          const std::string& dst_vertex_type,
+                          const std::string& edge_type_name,
+                          std::vector<std::shared_ptr<IRecordBatchSupplier>>&
+                              record_batch_supplier_vec) {
+    auto src_label_id = schema_.get_vertex_label_id(src_vertex_type);
+    auto dst_label_id = schema_.get_vertex_label_id(dst_vertex_type);
+    auto edge_label_id = schema_.get_edge_label_id(edge_type_name);
+    return batch_load_edges<SRC_PK_T, DST_PK_T, EDATA_T>(
+        src_label_id, dst_label_id, edge_label_id, record_batch_supplier_vec);
+  }
 
   inline Table& get_vertex_table(label_t vertex_label) {
     return vertex_data_[vertex_label];

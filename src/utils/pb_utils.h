@@ -1,0 +1,55 @@
+/** Copyright 2020 Alibaba Group Holding Limited.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ * 	http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+#include <string>
+#include <vector>
+#include "src/storages/rt_mutable_graph/types.h"
+#include "src/utils/property/types.h"
+#include "src/utils/result.h"
+
+#include "src/proto_generated_gie/cypher_ddl.pb.h"
+#include "src/proto_generated_gie/cypher_dml.pb.h"
+
+namespace gs {
+
+// Utility functions for parsing and converting Protocol Buffers (protobuf)
+// messages
+
+Any get_default_value(const PropertyType& type);
+
+bool multiplicity_to_storage_strategy(
+    const physical::CreateEdgeSchema::Multiplicity& multiplicity,
+    EdgeStrategy& oe_strategy, EdgeStrategy& ie_strategy);
+
+bool primitive_type_to_property_type(
+    const common::PrimitiveType& primitive_type, PropertyType& out_type);
+
+bool string_type_to_property_type(const common::String& string_type,
+                                  PropertyType& out_type);
+
+bool temporal_type_to_property_type(const common::Temporal& temporal_type,
+                                    PropertyType& out_type);
+
+bool data_type_to_property_type(const common::DataType& data_type,
+                                PropertyType& out_type);
+
+bool common_value_to_any(const common::Value& value, Any& out_any);
+
+Result<std::vector<std::tuple<PropertyType, std::string, Any>>>
+property_defs_to_tuple(
+    const google::protobuf::RepeatedPtrField<physical::PropertyDef>&
+        properties);
+
+}  // namespace gs

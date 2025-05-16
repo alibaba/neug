@@ -15,6 +15,8 @@
 
 #include "src/main/connection.h"
 
+#include "src/proto_generated_gie/results.pb.h"
+
 namespace gs {
 
 physical::PhysicalPlan load_plan_from_resource(
@@ -39,6 +41,21 @@ physical::PhysicalPlan load_plan_from_resource(
 Result<results::CollectiveResults> Connection::query(
     const std::string& query_string) {
   LOG(INFO) << "Executing query: " << query_string;
+  ////////////////////////////////////////////////////////////////////
+  // Idealy we should compile the plan from query_string, but currently we use
+  // string find to check whether we need to bulk load.
+  if (query_string.find("CREATE") != std::string::npos ||
+      query_string.find("create") != std::string::npos) {
+    auto ddl_plan = createDDLPlan(query_string);
+    return query_processor_->execute(ddl_plan);
+  }
+
+  if (query_string.find("COPY") != std::string::npos ||
+      query_string.find("copy") != std::string::npos) {
+    auto dml_plan = createDMLPlan(query_string);
+    return query_processor_->execute(dml_plan);
+  }
+
   // auto plan = planner_->compilePlan(
   //     query_string, read_yaml_file_to_string(db_.get_schema_yaml_path()),
   //     db_.get_statistics_json());
@@ -81,6 +98,183 @@ Result<results::CollectiveResults> Connection::query(
                << ", message: " << result.status().error_message();
   }
   return result;
+}
+
+physical::PhysicalPlan Connection::createDDLPlan(
+    const std::string& query_string) {
+  physical::PhysicalPlan physical_plan;
+  auto plan = physical_plan.mutable_ddl_plan();
+  // Currently we use a builtin plan for testing
+  // TODO(zhanglei): Remove this after we have a real plan.
+  if (query_string.find("person") != std::string::npos) {
+    auto create_vertex_reequest = plan->mutable_create_vertex_schema();
+    create_vertex_reequest->mutable_vertex_type()->set_name("person");
+    create_vertex_reequest->mutable_primary_key()->Add("id");
+    auto id_property = create_vertex_reequest->add_properties();
+    id_property->set_name("id");
+    id_property->mutable_type()->set_primitive_type(
+        common::PrimitiveType::DT_SIGNED_INT64);
+    auto name_property = create_vertex_reequest->add_properties();
+    name_property->set_name("name");
+    name_property->mutable_type()->mutable_string()->mutable_long_text();
+    auto age_property = create_vertex_reequest->add_properties();
+    age_property->set_name("age");
+    age_property->mutable_type()->set_primitive_type(
+        common::PrimitiveType::DT_SIGNED_INT32);
+  }
+
+  if (query_string.find("knows") != std::string::npos) {
+    auto create_edge_request = plan->mutable_create_edge_schema();
+    create_edge_request->set_multiplicity(
+        physical::CreateEdgeSchema::Multiplicity::
+            CreateEdgeSchema_Multiplicity_MANY_TO_MANY);
+    create_edge_request->mutable_edge_type()->mutable_type_name()->set_name(
+        "knows");
+    create_edge_request->mutable_edge_type()->mutable_src_type_name()->set_name(
+        "person");
+    create_edge_request->mutable_edge_type()->mutable_dst_type_name()->set_name(
+        "person");
+    auto weight_prop = create_edge_request->add_properties();
+    weight_prop->set_name("weight");
+    weight_prop->mutable_type()->set_primitive_type(
+        common::PrimitiveType::DT_DOUBLE);
+  }
+
+  return physical_plan;
+}
+
+void _create_batch_load_vertex_plan(physical::QueryPlan* query_plan,
+                                    const std::string& file_path,
+                                    const std::string& vertex_type_name) {
+  {
+    // data source
+    auto read_csv_opr = query_plan->add_plan()
+                            ->mutable_opr()
+                            ->mutable_source()
+                            ->mutable_read_csv();
+    read_csv_opr->set_file_path(file_path);
+    auto csv_options = read_csv_opr->mutable_csv_options();
+    csv_options->set_delimiter("|");
+    csv_options->set_header(true);
+  }
+
+  {
+    // BatchInsert
+    // 将table里面的每个column通过propertyMapping映射到Vertex
+    // Property，expression就只是一个Var
+    auto batch_insert_vertex_opt =
+        query_plan->add_plan()->mutable_opr()->mutable_load_vertex();
+    batch_insert_vertex_opt->mutable_vertex_type()->set_name("person");
+    {
+      // property mappings
+      auto id_mapping = batch_insert_vertex_opt->add_property_mappings();
+      id_mapping->mutable_property()->mutable_key()->set_name("id");
+      id_mapping->mutable_data()
+          ->add_operators()
+          ->mutable_var()
+          ->mutable_tag()
+          ->set_id(0);
+      auto name_mapping = batch_insert_vertex_opt->add_property_mappings();
+      name_mapping->mutable_property()->mutable_key()->set_name("name");
+      name_mapping->mutable_data()
+          ->add_operators()
+          ->mutable_var()
+          ->mutable_tag()
+          ->set_id(1);
+      auto age_mapping = batch_insert_vertex_opt->add_property_mappings();
+      age_mapping->mutable_property()->mutable_key()->set_name("age");
+      age_mapping->mutable_data()
+          ->add_operators()
+          ->mutable_var()
+          ->mutable_tag()
+          ->set_id(2);
+    }
+  }
+}
+
+void _create_batch_load_edge_plan(physical::QueryPlan* query_plan,
+                                  const std::string& file_path,
+                                  const std::string& edge_type_name,
+                                  const std::string& src_type_name,
+                                  const std::string& dst_type_name) {
+  {
+    // data source
+    auto read_csv_opr = query_plan->add_plan()
+                            ->mutable_opr()
+                            ->mutable_source()
+                            ->mutable_read_csv();
+    read_csv_opr->set_file_path(file_path);
+    auto csv_options = read_csv_opr->mutable_csv_options();
+    csv_options->set_delimiter("|");
+    csv_options->set_header(true);
+  }
+  {
+    auto batch_insert_edge_opt =
+        query_plan->add_plan()->mutable_opr()->mutable_load_edge();
+    batch_insert_edge_opt->mutable_edge_type()->mutable_type_name()->set_name(
+        edge_type_name);
+    batch_insert_edge_opt->mutable_edge_type()
+        ->mutable_src_type_name()
+        ->set_name(src_type_name);
+    batch_insert_edge_opt->mutable_edge_type()
+        ->mutable_dst_type_name()
+        ->set_name(dst_type_name);
+    {
+      // property mappings
+      auto prop_mapping = batch_insert_edge_opt->add_property_mappings();
+      prop_mapping->mutable_property()->mutable_key()->set_name("weight");
+      prop_mapping->mutable_data()
+          ->add_operators()
+          ->mutable_var()
+          ->mutable_tag()
+          ->set_id(2);
+      auto src_mapping = batch_insert_edge_opt->add_source_vertex_binding();
+      src_mapping->mutable_property()->mutable_key()->set_name("id");
+      src_mapping->mutable_data()
+          ->add_operators()
+          ->mutable_var()
+          ->mutable_tag()
+          ->set_id(0);
+
+      auto dst_mapping =
+          batch_insert_edge_opt->add_destination_vertex_binding();
+      dst_mapping->mutable_property()->mutable_key()->set_name("id");
+      dst_mapping->mutable_data()
+          ->add_operators()
+          ->mutable_var()
+          ->mutable_tag()
+          ->set_id(1);
+    }
+  }
+}
+
+physical::PhysicalPlan Connection::createDMLPlan(
+    const std::string& query_string) {
+  physical::PhysicalPlan plan;
+  // Read env FLEX_DATA_DIR
+  const char* env_p = std::getenv("FLEX_DATA_DIR");
+  if (env_p == nullptr) {
+    LOG(FATAL) << "FLEX_DATA_DIR is not set.";
+    return plan;
+  }
+  std::string flex_data_dir(env_p);
+  std::string person_csv_path = flex_data_dir + "/person.csv";
+  std::string knows_csv_path = flex_data_dir + "/person_knows_person.csv";
+
+  auto query_plan = plan.mutable_query_plan();
+  query_plan->set_mode(physical::QueryPlan::Mode::QueryPlan_Mode_WRITE_ONLY);
+  if (query_string.find("knows") != std::string::npos) {
+    _create_batch_load_edge_plan(query_plan, knows_csv_path, "knows", "person",
+                                 "person");
+  } else if (query_string.find("person") != std::string::npos) {
+    _create_batch_load_vertex_plan(query_plan, person_csv_path, "person");
+  } else {
+    LOG(FATAL) << "Unknown query: " << query_string;
+  }
+
+  LOG(INFO) << "plan: " << plan.DebugString();
+  // TODO(zhanglei): Remove this after we have a real plan.
+  return plan;
 }
 
 }  // namespace gs

@@ -44,7 +44,30 @@ int main(int argc, char** argv) {
 
   gs::NexgDB db(data_path, 1, "w", "dummy", "", "", "");
   auto conn = db.connect();
-
+  {
+    auto res = conn->query(
+        "CREATE NODE TABLE person(id INT64, name STRING, age INT64, PRIMARY "
+        "KEY(id));");
+    if (!res.ok()) {
+      LOG(ERROR) << "Failed to create node table: " << res.status().ToString();
+      return 1;
+    }
+  }
+  {
+    auto res = conn->query(
+        "CREATE REL TABLE knows(FROM person TO person, weight DOUBLE);");
+    if (!res.ok()) {
+      LOG(ERROR) << "Failed to create edge table: " << res.status().ToString();
+      return 1;
+    }
+  }
+  {
+    auto res = conn->query("COPY person from \"person.csv\"");
+    if (!res.ok()) {
+      LOG(ERROR) << "Failed to copy node table: " << res.status().ToString();
+      return 1;
+    }
+  }
   auto res = conn->query("MATCH (v) RETURN v;");
   LOG(INFO) << "Query result: " << res.ok() << ", "
             << res.status().error_message();

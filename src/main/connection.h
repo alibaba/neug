@@ -24,6 +24,7 @@
 #include "src/main/query_processor.h"
 #include "src/main/query_result.h"
 #include "src/planner/graph_planner.h"
+#include "src/proto_generated_gie/physical.pb.h"
 #include "src/proto_generated_gie/results.pb.h"
 #include "src/utils/result.h"
 
@@ -56,6 +57,11 @@ class Connection {
   Result<results::CollectiveResults> query(const std::string& query_string);
 
  private:
+  // TODO: Make sure
+  physical::PhysicalPlan createDDLPlan(const std::string& query_string);
+
+  physical::PhysicalPlan createDMLPlan(const std::string& query_string);
+
   GraphDB& db_;
 
   std::shared_ptr<IGraphPlanner> planner_;

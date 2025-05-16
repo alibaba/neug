@@ -33,35 +33,6 @@
 
 namespace gs {
 
-class CSVStreamRecordBatchSupplier : public IRecordBatchSupplier {
- public:
-  CSVStreamRecordBatchSupplier(label_t label_id, const std::string& file_path,
-                               arrow::csv::ConvertOptions convert_options,
-                               arrow::csv::ReadOptions read_options,
-                               arrow::csv::ParseOptions parse_options);
-
-  std::shared_ptr<arrow::RecordBatch> GetNextBatch() override;
-
- private:
-  std::string file_path_;
-  std::shared_ptr<arrow::csv::StreamingReader> reader_;
-};
-
-class CSVTableRecordBatchSupplier : public IRecordBatchSupplier {
- public:
-  CSVTableRecordBatchSupplier(label_t label_id, const std::string& file_path,
-                              arrow::csv::ConvertOptions convert_options,
-                              arrow::csv::ReadOptions read_options,
-                              arrow::csv::ParseOptions parse_options);
-
-  std::shared_ptr<arrow::RecordBatch> GetNextBatch() override;
-
- private:
-  std::string file_path_;
-  std::shared_ptr<arrow::Table> table_;
-  std::shared_ptr<arrow::TableBatchReader> reader_;
-};
-
 // LoadFragment for csv files.
 class CSVFragmentLoader : public AbstractArrowFragmentLoader {
  public:

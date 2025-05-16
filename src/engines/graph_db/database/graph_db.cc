@@ -26,6 +26,7 @@
 #include "src/engines/graph_db/database/wal/wal.h"
 #include "src/engines/graph_db/runtime/execute/plan_parser.h"
 #include "src/engines/graph_db/runtime/utils/cypher_runner_impl.h"
+#include "src/utils/pb_utils.h"
 #include "src/utils/yaml_utils.h"
 
 #include "third_party/httplib.h"

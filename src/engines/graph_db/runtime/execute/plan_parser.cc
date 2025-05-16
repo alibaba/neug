@@ -44,6 +44,10 @@
 #include "src/engines/graph_db/runtime/execute/ops/update/set.h"
 #include "src/engines/graph_db/runtime/execute/ops/update/vertex.h"
 
+#include "src/engines/graph_db/runtime/execute/ops/insert/batch_insert_edge.h"
+#include "src/engines/graph_db/runtime/execute/ops/insert/batch_insert_vertex.h"
+#include "src/engines/graph_db/runtime/execute/ops/insert/data_source.h"
+
 namespace gs {
 
 namespace runtime {
@@ -91,6 +95,7 @@ void PlanParser::init() {
   register_read_operator_builder(
       std::make_unique<ops::ProcedureCallOprBuilder>());
 
+  //////////////////////////////Write operators////////////////////////////////
   register_write_operator_builder(std::make_unique<ops::LoadOprBuilder>());
   register_write_operator_builder(
       std::make_unique<ops::DedupInsertOprBuilder>());
@@ -101,6 +106,7 @@ void PlanParser::init() {
   register_write_operator_builder(
       std::make_unique<ops::UnfoldInsertOprBuilder>());
 
+  //////////////////////////////Update operators////////////////////////////////
   register_update_operator_builder(
       std::make_unique<ops::UEdgeExpandOprBuilder>());
   register_update_operator_builder(std::make_unique<ops::UScanOprBuilder>());
@@ -109,6 +115,12 @@ void PlanParser::init() {
   register_update_operator_builder(std::make_unique<ops::USinkOprBuilder>());
   register_update_operator_builder(std::make_unique<ops::UProjectOprBuilder>());
   register_update_operator_builder(std::make_unique<ops::USelectOprBuilder>());
+  register_update_operator_builder(
+      std::make_unique<ops::DataSourceOprBuilder>());
+  register_update_operator_builder(
+      std::make_unique<ops::BatchInsertVertexOprBuilder>());
+  register_update_operator_builder(
+      std::make_unique<ops::BatchInsertEdgeOprBuilder>());
 }
 
 PlanParser& PlanParser::get() {
@@ -182,6 +194,33 @@ static std::string get_opr_name(
   }
   case physical::PhysicalOpr_Operator::OpKindCase::kUnfold: {
     return "unfold";
+  }
+  case physical::PhysicalOpr_Operator::OpKindCase::kSource: {
+    return "DataSource";
+  }
+  case physical::PhysicalOpr_Operator::OpKindCase::kLoadVertex: {
+    return "load_vertex";
+  }
+  case physical::PhysicalOpr_Operator::OpKindCase::kLoadEdge: {
+    return "load_edge";
+  }
+  case physical::PhysicalOpr_Operator::OpKindCase::kCreateVertex: {
+    return "create_vertex";
+  }
+  case physical::PhysicalOpr_Operator::OpKindCase::kCreateEdge: {
+    return "create_edge";
+  }
+  case physical::PhysicalOpr_Operator::OpKindCase::kSetVertex: {
+    return "set_vertex";
+  }
+  case physical::PhysicalOpr_Operator::OpKindCase::kSetEdge: {
+    return "set_edge";
+  }
+  case physical::PhysicalOpr_Operator::OpKindCase::kDeleteVertex: {
+    return "delete_vertex";
+  }
+  case physical::PhysicalOpr_Operator::OpKindCase::kDeleteEdge: {
+    return "delete_edge";
   }
   default:
     return "unknown";
@@ -336,7 +375,7 @@ bl::result<UpdatePipeline> PlanParser::parse_update_pipeline(
     if (!op) {
       std::stringstream ss;
       ss << "[Parse Failed]" << get_opr_name(op_kind)
-         << " failed to parse plan at index " << i;
+         << " failed to Build plan at index " << i;
       auto err = gs::Status(gs::StatusCode::INTERNAL_ERROR, ss.str());
       LOG(ERROR) << err.ToString();
       return bl::new_error(err);

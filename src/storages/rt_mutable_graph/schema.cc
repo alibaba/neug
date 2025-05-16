@@ -122,8 +122,8 @@ bool Schema::contains_vertex_label(const std::string& label) const {
 
 label_t Schema::get_vertex_label_id(const std::string& label) const {
   label_t ret;
-  THROW_EXCEPTION_IF(!vlabel_indexer_.get_index(label, ret),
-                     "Fail to get vertex label: " + label);
+  LOG_FATAL_IF(!vlabel_indexer_.get_index(label, ret),
+               "Fail to get vertex label: " + label);
   return ret;
 }
 
@@ -154,11 +154,10 @@ const std::vector<std::string>& Schema::get_vertex_property_names(
 
 const std::vector<std::string>& Schema::get_vertex_property_names(
     label_t label) const {
-  THROW_EXCEPTION_IF(
-      label >= vprop_names_.size(),
-      "Fail to get vertex property names: " + std::to_string(label) +
-          ", out of range of vprop_names_ " +
-          std::to_string(vprop_names_.size()));
+  LOG_FATAL_IF(label >= vprop_names_.size(),
+               "Fail to get vertex property names: " + std::to_string(label) +
+                   ", out of range of vprop_names_ " +
+                   std::to_string(vprop_names_.size()));
   return vprop_names_[label];
 }
 
@@ -169,22 +168,20 @@ const std::string& Schema::get_vertex_description(
 }
 
 const std::string& Schema::get_vertex_description(label_t label) const {
-  THROW_EXCEPTION_IF(
-      label >= v_descriptions_.size(),
-      "Fail to get vertex description: " + std::to_string(label) +
-          ", out of range of v_descriptions_ " +
-          std::to_string(v_descriptions_.size()));
+  LOG_FATAL_IF(label >= v_descriptions_.size(),
+               "Fail to get vertex description: " + std::to_string(label) +
+                   ", out of range of v_descriptions_ " +
+                   std::to_string(v_descriptions_.size()));
   return v_descriptions_[label];
 }
 
 const std::vector<StorageStrategy>& Schema::get_vertex_storage_strategies(
     const std::string& label) const {
   label_t index = get_vertex_label_id(label);
-  THROW_EXCEPTION_IF(
-      index >= vprop_storage_.size(),
-      "Fail to get vertex storage strategies: " + std::to_string(index) +
-          ", out of range of vprop_storage_ " +
-          std::to_string(vprop_storage_.size()));
+  LOG_FATAL_IF(index >= vprop_storage_.size(),
+               "Fail to get vertex storage strategies: " +
+                   std::to_string(index) + ", out of range of vprop_storage_ " +
+                   std::to_string(vprop_storage_.size()));
   return vprop_storage_[index];
 }
 
@@ -225,14 +222,12 @@ const std::vector<PropertyType>& Schema::get_edge_properties(
 
 const std::vector<PropertyType>& Schema::get_edge_properties(
     label_t src_label, label_t dst_label, label_t label) const {
-  THROW_EXCEPTION_IF(
-      src_label >= vlabel_indexer_.size(),
-      "vertex label " + std::to_string(src_label) + " not found");
-  THROW_EXCEPTION_IF(
-      dst_label >= vlabel_indexer_.size(),
-      "vertex label " + std::to_string(dst_label) + " not found");
-  THROW_EXCEPTION_IF(label >= elabel_indexer_.size(),
-                     "edge label " + std::to_string(label) + " not found");
+  LOG_FATAL_IF(src_label >= vlabel_indexer_.size(),
+               "vertex label " + std::to_string(src_label) + " not found");
+  LOG_FATAL_IF(dst_label >= vlabel_indexer_.size(),
+               "vertex label " + std::to_string(dst_label) + " not found");
+  LOG_FATAL_IF(label >= elabel_indexer_.size(),
+               "edge label " + std::to_string(label) + " not found");
   uint32_t index = generate_edge_label(src_label, dst_label, label);
   return eproperties_.at(index);
 }
@@ -248,19 +243,17 @@ std::string Schema::get_edge_description(const std::string& src_label,
 
 std::string Schema::get_edge_description(label_t src_label, label_t dst_label,
                                          label_t label) const {
-  THROW_EXCEPTION_IF(
-      src_label >= vlabel_indexer_.size(),
-      "vertex label " + std::to_string(src_label) + " not found");
-  THROW_EXCEPTION_IF(
-      dst_label >= vlabel_indexer_.size(),
-      "vertex label " + std::to_string(dst_label) + " not found");
-  THROW_EXCEPTION_IF(label >= elabel_indexer_.size(),
-                     "edge label " + std::to_string(label) + " not found");
+  LOG_FATAL_IF(src_label >= vlabel_indexer_.size(),
+               "vertex label " + std::to_string(src_label) + " not found");
+  LOG_FATAL_IF(dst_label >= vlabel_indexer_.size(),
+               "vertex label " + std::to_string(dst_label) + " not found");
+  LOG_FATAL_IF(label >= elabel_indexer_.size(),
+               "edge label " + std::to_string(label) + " not found");
   uint32_t index = generate_edge_label(src_label, dst_label, label);
-  THROW_EXCEPTION_IF(index >= e_descriptions_.size(),
-                     "Fail to get edge description: " + std::to_string(index) +
-                         ", out of range of e_descriptions_ " +
-                         std::to_string(e_descriptions_.size()));
+  LOG_FATAL_IF(index >= e_descriptions_.size(),
+               "Fail to get edge description: " + std::to_string(index) +
+                   ", out of range of e_descriptions_ " +
+                   std::to_string(e_descriptions_.size()));
   return e_descriptions_.at(index);
 }
 
@@ -282,14 +275,12 @@ const std::vector<std::string>& Schema::get_edge_property_names(
 const std::vector<std::string>& Schema::get_edge_property_names(
     const label_t& src_label, const label_t& dst_label,
     const label_t& label) const {
-  THROW_EXCEPTION_IF(
-      src_label >= vlabel_indexer_.size(),
-      "vertex label " + std::to_string(src_label) + " not found");
-  THROW_EXCEPTION_IF(
-      dst_label >= vlabel_indexer_.size(),
-      "vertex label " + std::to_string(dst_label) + " not found");
-  THROW_EXCEPTION_IF(label >= elabel_indexer_.size(),
-                     "edge label " + std::to_string(label) + " not found");
+  LOG_FATAL_IF(src_label >= vlabel_indexer_.size(),
+               "vertex label " + std::to_string(src_label) + " not found");
+  LOG_FATAL_IF(dst_label >= vlabel_indexer_.size(),
+               "vertex label " + std::to_string(dst_label) + " not found");
+  LOG_FATAL_IF(label >= elabel_indexer_.size(),
+               "edge label " + std::to_string(label) + " not found");
   uint32_t index = generate_edge_label(src_label, dst_label, label);
   return eprop_names_.at(index);
 }
@@ -351,18 +342,17 @@ bool Schema::get_sort_on_compaction(const std::string& src_label,
   label_t dst = get_vertex_label_id(dst_label);
   label_t edge = get_edge_label_id(label);
   uint32_t index = generate_edge_label(src, dst, edge);
-  THROW_EXCEPTION_IF(
-      sort_on_compactions_.find(index) == sort_on_compactions_.end(),
-      "Fail to get sort on compaction: " + std::to_string(index) +
-          ", out of range of sort_on_compactions_ " +
-          std::to_string(sort_on_compactions_.size()));
+  LOG_FATAL_IF(sort_on_compactions_.find(index) == sort_on_compactions_.end(),
+               "Fail to get sort on compaction: " + std::to_string(index) +
+                   ", out of range of sort_on_compactions_ " +
+                   std::to_string(sort_on_compactions_.size()));
   return sort_on_compactions_.at(index);
 }
 
 label_t Schema::get_edge_label_id(const std::string& label) const {
   label_t ret;
-  THROW_EXCEPTION_IF(!elabel_indexer_.get_index(label, ret),
-                     "Edge label " + label + " not found");
+  LOG_FATAL_IF(!elabel_indexer_.get_index(label, ret),
+               "Edge label " + label + " not found");
   return ret;
 }
 
@@ -373,35 +363,33 @@ bool Schema::contains_edge_label(const std::string& label) const {
 
 std::string Schema::get_vertex_label_name(label_t index) const {
   std::string ret;
-  THROW_EXCEPTION_IF(
-      !vlabel_indexer_.get_key(index, ret),
-      "No vertex label found for label id: " + std::to_string(index));
+  LOG_FATAL_IF(!vlabel_indexer_.get_key(index, ret),
+               "No vertex label found for label id: " + std::to_string(index));
   return ret;
 }
 
 std::string Schema::get_edge_label_name(label_t index) const {
   std::string ret;
-  THROW_EXCEPTION_IF(
-      !elabel_indexer_.get_key(index, ret),
-      "No edge label found for label id: " + std::to_string(index));
+  LOG_FATAL_IF(!elabel_indexer_.get_key(index, ret),
+               "No edge label found for label id: " + std::to_string(index));
   return ret;
 }
 
 const std::vector<std::tuple<PropertyType, std::string, size_t>>&
 Schema::get_vertex_primary_key(label_t index) const {
-  THROW_EXCEPTION_IF(index >= v_primary_keys_.size(),
-                     "Fail to get vertex primary key: " +
-                         std::to_string(index) + ", out of range");
+  LOG_FATAL_IF(index >= v_primary_keys_.size(),
+               "Fail to get vertex primary key: " + std::to_string(index) +
+                   ", out of range");
   return v_primary_keys_[index];
 }
 
 const std::string& Schema::get_vertex_primary_key_name(label_t index) const {
-  THROW_EXCEPTION_IF(index >= v_primary_keys_.size(),
-                     "Fail to get vertex primary key name: " +
-                         std::to_string(index) + ", out of range");
-  THROW_EXCEPTION_IF(v_primary_keys_[index].size() != 1,
-                     "Expect only one primary key, but got " +
-                         std::to_string(v_primary_keys_[index].size()));
+  LOG_FATAL_IF(index >= v_primary_keys_.size(),
+               "Fail to get vertex primary key name: " + std::to_string(index) +
+                   ", out of range");
+  LOG_FATAL_IF(v_primary_keys_[index].size() != 1,
+               "Expect only one primary key, but got " +
+                   std::to_string(v_primary_keys_[index].size()));
   return std::get<1>(v_primary_keys_[index][0]);
 }
 
@@ -1416,8 +1404,8 @@ bool Schema::has_multi_props_edge() const { return has_multi_props_edge_; }
 bool Schema::vertex_has_property(const std::string& label,
                                  const std::string& prop) const {
   auto v_label_id = get_vertex_label_id(label);
-  THROW_EXCEPTION_IF(v_label_id >= vprop_names_.size(),
-                     "vertex label id out of range of vprop_names_");
+  LOG_FATAL_IF(v_label_id >= vprop_names_.size(),
+               "vertex label id out of range of vprop_names_");
   auto& v_prop_names = vprop_names_[v_label_id];
   return std::find(v_prop_names.begin(), v_prop_names.end(), prop) !=
              v_prop_names.end() ||
@@ -1427,8 +1415,8 @@ bool Schema::vertex_has_property(const std::string& label,
 bool Schema::vertex_has_primary_key(const std::string& label,
                                     const std::string& prop) const {
   auto v_label_id = get_vertex_label_id(label);
-  THROW_EXCEPTION_IF(v_label_id >= v_primary_keys_.size(),
-                     "vertex label id out of range of v_primary_keys_");
+  LOG_FATAL_IF(v_label_id >= v_primary_keys_.size(),
+               "vertex label id out of range of v_primary_keys_");
   auto& keys = v_primary_keys_[v_label_id];
   for (size_t i = 0; i < keys.size(); ++i) {
     if (std::get<1>(keys[i]) == prop) {

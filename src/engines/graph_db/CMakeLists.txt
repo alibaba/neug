@@ -9,7 +9,7 @@ file(GLOB_RECURSE GRAPH_DB_SRC_FILES "${CMAKE_CURRENT_SOURCE_DIR}/app/*.cc"
 
 add_library(nexg_graph_db SHARED ${GRAPH_DB_SRC_FILES})
 
-target_include_directories(nexg_graph_db PUBLIC $<BUILD_INTERFACE:${CMAKE_CURRENT_BINARY_DIR}>)
+target_include_directories(nexg_graph_db PUBLIC $<BUILD_INTERFACE:${CMAKE_CURRENT_BINARY_DIR}> $<BUILD_INTERFACE:${CMAKE_CURRENT_BINARY_DIR}/../../utils>)
 target_link_libraries(nexg_graph_db nexg_rt_mutable_graph ${LIBGRAPELITE_LIBRARIES} ${CMAKE_THREAD_LIBS_INIT})
 target_link_libraries(nexg_graph_db nexg_plan_proto ${Protobuf_LIBRARIES} ${GLOG_LIBRARIES})
 if (APPLE)

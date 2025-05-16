@@ -23,6 +23,8 @@
 #include "src/engines/graph_db/runtime/common/types.h"
 #include "src/utils/app_utils.h"
 
+#include <arrow/type.h>
+
 namespace gs {
 
 namespace runtime {
@@ -355,6 +357,8 @@ enum class RTAnyType {
 };
 
 PropertyType rt_type_to_property_type(RTAnyType type);
+
+RTAnyType arrow_type_to_rt_type(const std::shared_ptr<arrow::DataType>& type);
 
 class Map {
  public:

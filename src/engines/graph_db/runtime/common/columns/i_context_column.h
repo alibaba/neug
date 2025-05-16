@@ -33,6 +33,7 @@ enum class ContextColumnType {
   kValue,
   kPath,
   kOptionalValue,
+  kArrow,
 };
 
 class ISigColumn {

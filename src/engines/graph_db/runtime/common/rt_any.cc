@@ -47,6 +47,33 @@ PropertyType rt_type_to_property_type(RTAnyType type) {
     LOG(FATAL) << "not support for " << static_cast<int>(type);
   }
 }
+
+RTAnyType arrow_type_to_rt_type(const std::shared_ptr<arrow::DataType>& type) {
+  if (type->Equals(arrow::int64())) {
+    return RTAnyType::kI64Value;
+  } else if (type->Equals(arrow::int32())) {
+    return RTAnyType::kI32Value;
+  } else if (type->Equals(arrow::float64())) {
+    return RTAnyType::kF64Value;
+  } else if (type->Equals(arrow::boolean())) {
+    return RTAnyType::kBoolValue;
+  } else if (type->Equals(arrow::utf8())) {
+    return RTAnyType::kStringValue;
+  } else if (type->Equals(arrow::date32())) {
+    return RTAnyType::kDate32;
+  } else if (type->Equals(arrow::timestamp(arrow::TimeUnit::SECOND))) {
+    return RTAnyType::kTimestamp;
+  } else if (type->Equals(arrow::timestamp(arrow::TimeUnit::MILLI))) {
+    return RTAnyType::kTimestamp;
+  } else if (type->Equals(arrow::timestamp(arrow::TimeUnit::MICRO))) {
+    return RTAnyType::kTimestamp;
+  } else if (type->Equals(arrow::timestamp(arrow::TimeUnit::NANO))) {
+    return RTAnyType::kTimestamp;
+  } else {
+    LOG(FATAL) << "not support for " << type->ToString();
+  }
+}
+
 RTAny::RTAny() : type_(RTAnyType::kUnknown) {}
 RTAny::RTAny(RTAnyType type) : type_(type) {}
 

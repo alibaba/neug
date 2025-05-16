@@ -508,6 +508,8 @@ class GraphUpdateInterface {
     return txn_.GetInEdgeIterator(label, src, neighbor_label, edge_label);
   }
 
+  gs::UpdateTransaction& GetTransaction() { return txn_; }
+
  private:
   gs::UpdateTransaction& txn_;
 };

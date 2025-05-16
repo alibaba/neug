@@ -1,0 +1,244 @@
+/** Copyright 2020 Alibaba Group Holding Limited.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ * 	http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+#include "src/utils/pb_utils.h"
+
+namespace gs {
+
+Any get_default_value(const PropertyType& type) {
+  Any default_value;
+  switch (type.type_enum) {
+  case impl::PropertyTypeImpl::kEmpty:
+    break;
+  case impl::PropertyTypeImpl::kBool:
+    default_value.set_bool(false);
+    break;
+  case impl::PropertyTypeImpl::kInt32:
+    default_value.set_i32(0);
+    break;
+  case impl::PropertyTypeImpl::kUInt32:
+    default_value.set_u32(0);
+    break;
+  case impl::PropertyTypeImpl::kInt64:
+    default_value.set_i64(0);
+    break;
+  case impl::PropertyTypeImpl::kUInt64:
+    default_value.set_u64(0);
+    break;
+  case impl::PropertyTypeImpl::kFloat:
+    default_value.set_float(0.0f);
+    break;
+  case impl::PropertyTypeImpl::kDouble:
+    default_value.set_double(0.0);
+    break;
+  default:
+    LOG(FATAL) << "Unknown property type: " << type.ToString();
+  }
+  return default_value;
+}
+
+bool multiplicity_to_storage_strategy(
+    const physical::CreateEdgeSchema::Multiplicity& multiplicity,
+    EdgeStrategy& oe_strategy, EdgeStrategy& ie_strategy) {
+  switch (multiplicity) {
+  case physical::CreateEdgeSchema::ONE_TO_ONE:
+    oe_strategy = EdgeStrategy::kSingle;
+    ie_strategy = EdgeStrategy::kSingle;
+    break;
+  case physical::CreateEdgeSchema::ONE_TO_MANY:
+    oe_strategy = EdgeStrategy::kMultiple;
+    ie_strategy = EdgeStrategy::kSingle;
+    break;
+  case physical::CreateEdgeSchema::MANY_TO_ONE:
+    oe_strategy = EdgeStrategy::kSingle;
+    ie_strategy = EdgeStrategy::kMultiple;
+    break;
+  case physical::CreateEdgeSchema::MANY_TO_MANY:
+    oe_strategy = EdgeStrategy::kMultiple;
+    ie_strategy = EdgeStrategy::kMultiple;
+    break;
+  default:
+    LOG(ERROR) << "Unknown multiplicity: " << multiplicity;
+    return false;
+  }
+  return true;
+}
+
+bool primitive_type_to_property_type(
+    const common::PrimitiveType& primitive_type, PropertyType& out_type) {
+  switch (primitive_type) {
+  case common::PrimitiveType::DT_ANY:
+    LOG(ERROR) << "Any type is not supported";
+    return false;
+  case common::PrimitiveType::DT_SIGNED_INT32:
+    out_type = PropertyType::Int32();
+    break;
+  case common::PrimitiveType::DT_UNSIGNED_INT32:
+    out_type = PropertyType::UInt32();
+    break;
+  case common::PrimitiveType::DT_SIGNED_INT64:
+    out_type = PropertyType::Int64();
+    break;
+  case common::PrimitiveType::DT_UNSIGNED_INT64:
+    out_type = PropertyType::UInt64();
+    break;
+  case common::PrimitiveType::DT_BOOL:
+    out_type = PropertyType::Bool();
+    break;
+  case common::PrimitiveType::DT_FLOAT:
+    out_type = PropertyType::Float();
+    break;
+  case common::PrimitiveType::DT_DOUBLE:
+    out_type = PropertyType::Double();
+    break;
+  case common::PrimitiveType::DT_NULL:
+    out_type = PropertyType::Empty();
+    break;
+  default:
+    LOG(ERROR) << "Unknown primitive type: " << primitive_type;
+    return false;
+  }
+  return true;
+}
+
+bool string_type_to_property_type(const common::String& string_type,
+                                  PropertyType& out_type) {
+  if (string_type.has_var_char()) {
+    out_type = PropertyType::Varchar(string_type.var_char().max_length());
+  } else if (string_type.has_long_text()) {
+    out_type = PropertyType::StringView();
+  } else if (string_type.has_char_()) {
+    // Currently, we implment fixed-char as varchar with fixed length.
+    out_type = PropertyType::Varchar(string_type.char_().fixed_length());
+  } else {
+    LOG(ERROR) << "Unknown string type: " << string_type.DebugString();
+    return false;
+  }
+  return true;
+}
+
+bool temporal_type_to_property_type(const common::Temporal& temporal_type,
+                                    PropertyType& out_type) {
+  switch (temporal_type.item_case()) {
+  case common::Temporal::kDate32:
+    out_type = PropertyType::Date();
+    break;
+  case common::Temporal::kTimestamp:
+    out_type = PropertyType::Date();
+    break;
+  case common::Temporal::kDate:
+    // TODO: Parse format
+    out_type = PropertyType::Date();
+    break;
+  default:
+    LOG(ERROR) << "Unknown temporal type: " << temporal_type.DebugString();
+    return false;
+  }
+  return true;
+}
+
+bool data_type_to_property_type(const common::DataType& data_type,
+                                PropertyType& out_type) {
+  if (data_type.has_primitive_type()) {
+    return primitive_type_to_property_type(data_type.primitive_type(),
+                                           out_type);
+  } else if (data_type.has_decimal()) {
+    LOG(ERROR) << "Decimal type is not supported";
+    return false;
+  } else if (data_type.has_string()) {
+    return string_type_to_property_type(data_type.string(), out_type);
+  } else if (data_type.has_temporal()) {
+    return temporal_type_to_property_type(data_type.temporal(), out_type);
+  } else if (data_type.has_array()) {
+    LOG(ERROR) << "Array type is not supported";
+    return false;
+  } else if (data_type.has_map()) {
+    LOG(ERROR) << "Map type is not supported";
+    return false;
+  } else {
+    LOG(ERROR) << "Unknown data type: " << data_type.DebugString();
+    return false;
+  }
+}
+
+bool common_value_to_any(const common::Value& value, Any& out_any) {
+  if (value.item_case() == common::Value::ITEM_NOT_SET) {
+    LOG(ERROR) << "Value is not set: " << value.DebugString();
+    return false;
+  }
+  switch (value.item_case()) {
+  case common::Value::kBoolean:
+    out_any.set_bool(value.boolean());
+    break;
+  case common::Value::kI32:
+    out_any.set_i32(value.i32());
+    break;
+  case common::Value::kI64:
+    out_any.set_i64(value.i64());
+    break;
+  case common::Value::kF64:
+    out_any.set_double(value.f64());
+    break;
+  case common::Value::kStr:
+    out_any.set_string(value.str());
+    break;
+  case common::Value::kDate:
+    LOG(ERROR) << "Date type is not supported";
+    return false;
+  case common::Value::kU32:
+    out_any.set_u32(value.u32());
+    break;
+  case common::Value::kU64:
+    out_any.set_u64(value.u64());
+    break;
+  default:
+    LOG(ERROR) << "Unknown value type: " << value.DebugString();
+    return false;
+  }
+  return true;
+}
+
+Result<std::vector<std::tuple<PropertyType, std::string, Any>>>
+property_defs_to_tuple(
+    const google::protobuf::RepeatedPtrField<physical::PropertyDef>&
+        properties) {
+  std::vector<std::tuple<PropertyType, std::string, Any>> result;
+  for (const auto& property : properties) {
+    std::tuple<PropertyType, std::string, Any> tuple;
+    std::get<1>(tuple) = property.name();
+    if (!data_type_to_property_type(property.type(), std::get<0>(tuple))) {
+      return Result<std::vector<std::tuple<PropertyType, std::string, Any>>>(
+          Status(StatusCode::INVALID_ARGUMENT,
+                 "Invalid property type: " + property.DebugString()));
+    }
+    if (property.has_default_value()) {
+      if (!common_value_to_any(property.default_value(), std::get<2>(tuple))) {
+        return Result<std::vector<std::tuple<PropertyType, std::string, Any>>>(
+            Status(StatusCode::INVALID_ARGUMENT,
+                   "Invalid default value: " + property.DebugString()));
+      } else {
+        // Use default default value if it is not set
+        VLOG(1) << "Default value specified by plan, use system default "
+                   "value";
+        std::get<2>(tuple) = get_default_value(std::get<0>(tuple));
+      }
+    }
+    result.emplace_back(std::move(tuple));
+  }
+  return Result<std::vector<std::tuple<PropertyType, std::string, Any>>>(
+      Status(StatusCode::OK), std::move(result));
+}
+
+}  // namespace gs

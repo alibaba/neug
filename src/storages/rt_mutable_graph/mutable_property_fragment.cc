@@ -16,6 +16,7 @@
 #include "src/storages/rt_mutable_graph/mutable_property_fragment.h"
 
 #include "src/storages/rt_mutable_graph/file_names.h"
+#include "src/storages/rt_mutable_graph/types.h"
 #include "src/utils/property/types.h"
 #include "src/utils/string_utils.h"
 
@@ -65,6 +66,135 @@ void MutablePropertyFragment::Clear() {
   vertex_label_num_ = 0;
   edge_label_num_ = 0;
   schema_.Clear();
+}
+
+Status MutablePropertyFragment::create_vertex_type(
+    const std::string& vertex_type_name,
+    const std::vector<std::tuple<PropertyType, std::string, Any>>& properties,
+    const std::vector<std::string>& primary_key_names) {
+  if (schema_.contains_vertex_label(vertex_type_name)) {
+    return Status(StatusCode::INVALID_SCHEMA, "Vertex label already exists.");
+  }
+  std::vector<std::string> property_names;
+  std::vector<PropertyType> property_types;
+  std::vector<Any> default_property_values;
+  std::vector<std::tuple<PropertyType, std::string, size_t>> primary_keys;
+  std::vector<int> primary_key_inds(primary_key_names.size(), -1);
+  if (primary_key_inds.size() > 1) {
+    return Status(StatusCode::INVALID_SCHEMA,
+                  "Multi primary keys are not supported.");
+  } else if (primary_key_inds.size() == 0) {
+    return Status(StatusCode::INVALID_SCHEMA,
+                  "At least one primary key is required.");
+  }
+  for (size_t i = 0; i < properties.size(); i++) {
+    auto [type, name, default_value] = properties[i];
+    LOG(INFO) << "property name: " << name << ", type: " << type.ToString();
+    property_names.emplace_back(name);
+    property_types.emplace_back(type);
+    default_property_values.emplace_back(default_value);
+  }
+  for (size_t i = 0; i < primary_key_names.size(); i++) {
+    std::string primary_key_name = primary_key_names.at(i);
+    for (size_t j = 0; j < property_names.size(); j++) {
+      if (property_names[j] == primary_key_name) {
+        primary_key_inds[i] = j;
+        break;
+      }
+    }
+    if (primary_key_inds[i] == -1) {
+      LOG(ERROR) << "Primary key " << primary_key_name
+                 << " is not found in properties";
+      return Status(
+          StatusCode::INVALID_SCHEMA,
+          "Primary key " + primary_key_name + " is not found in properties");
+    }
+    if (property_types[primary_key_inds[i]] != PropertyType::kInt64 &&
+        property_types[primary_key_inds[i]] != PropertyType::kStringView &&
+        property_types[primary_key_inds[i]] != PropertyType::kUInt64 &&
+        property_types[primary_key_inds[i]] != PropertyType::kInt32 &&
+        property_types[primary_key_inds[i]] != PropertyType::kUInt32 &&
+        !property_types[primary_key_inds[i]].IsVarchar()) {
+      LOG(ERROR) << "Primary key " << primary_key_name
+                 << " should be int64/int32/uint64/uint32 or string/varchar";
+      return Status(StatusCode::INVALID_SCHEMA,
+                    "Primary key " + primary_key_name +
+                        " should be int64/int32/uint64/"
+                        "uint32 or string/varchar");
+    }
+    primary_keys.emplace_back(property_types[primary_key_inds[i]],
+                              property_names[primary_key_inds[i]],
+                              primary_key_inds[i]);
+    property_names.erase(property_names.begin() + primary_key_inds[i]);
+    property_types.erase(property_types.begin() + primary_key_inds[i]);
+  }
+  std::vector<StorageStrategy> strategies;
+  std::string description;
+  size_t max_num = ((size_t) 1) << 32;
+  schema_.add_vertex_label(vertex_type_name, property_types, property_names,
+                           primary_keys, strategies, max_num, description);
+  vertex_label_num_++;
+  size_t vertex_label_id = vertex_label_num_ - 1;
+  lf_indexers_.resize(vertex_label_num_);
+  lf_indexers_[vertex_label_id].init(
+      std::get<0>(schema_.get_vertex_primary_key(vertex_label_id)[0]));
+  size_t vertex_capacity =
+      std::max(lf_indexers_[vertex_label_id].capacity(), (size_t) 4096);
+  if (vertex_capacity > lf_indexers_[vertex_label_id].capacity()) {
+    lf_indexers_[vertex_label_id].reserve(vertex_capacity);
+  }
+  vertex_data_.resize(vertex_label_num_);
+  vertex_data_[vertex_label_num_ - 1].init(
+      vertex_type_name, work_dir_, property_names, property_types, strategies);
+  LOG(INFO) << "Start";
+  LOG(INFO) << "vertex label num " << lf_indexers_.size() << "\n";
+  for (size_t i = 0; i < lf_indexers_.size(); i++) {
+    LOG(INFO) << "type of vertex " << i << " is: " << lf_indexers_[i].get_type()
+              << "\n";
+  }
+  return gs::Status::OK();
+}
+
+Status MutablePropertyFragment::create_edge_type(
+    const std::string& src_vertex_type, const std::string& dst_vertex_type,
+    const std::string& edge_type_name,
+    const std::vector<std::tuple<PropertyType, std::string, Any>>& properties,
+    EdgeStrategy oe_edge_strategy, EdgeStrategy ie_edge_strategy) {
+  LOG(INFO) << "create edge type: " << edge_type_name;
+  return Status::OK();
+}
+
+Status MutablePropertyFragment::update_vertex_type(
+    const std::string& vertex_type_name,
+    const std::vector<std::tuple<PropertyType, std::string, Any>>&
+        add_properties,
+    const std::vector<std::tuple<std::string, Any>>& update_properties,
+    const std::vector<std::tuple<PropertyType, std::string, Any>>&
+        delete_properties,
+    bool skip_exists) {
+  return Status::OK();
+}
+
+Status MutablePropertyFragment::update_edge_type(
+    const std::string& src_type_name, const std::string& dst_type_name,
+    const std::string& edge_type_name,
+    const std::vector<std::tuple<PropertyType, std::string, Any>>&
+        add_properties,
+    const std::vector<std::tuple<std::string, Any>>& update_properties,
+    const std::vector<std::tuple<PropertyType, std::string, Any>>&
+        delete_properties,
+    bool skip_exists) {
+  return Status::OK();
+}
+
+Status MutablePropertyFragment::delete_vertex_type(
+    const std::string& vertex_type_name, bool is_detach, bool skip_exists) {
+  return Status::OK();
+}
+Status MutablePropertyFragment::delete_edge_type(
+    const std::string& src_vertex_type, const std::string& dst_vertex_type,
+    const std::string& edge_type, bool skip_exists) {
+  return Status::OK();
 }
 
 void MutablePropertyFragment::DumpSchema(const std::string& schema_path) {
