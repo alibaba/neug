@@ -134,6 +134,19 @@ void Table::reset_header(const std::vector<std::string>& col_name) {
   col_id_indexer_.swap(new_col_id_indexer);
 }
 
+void Table::add_columns(const std::vector<std::string>& col_names,
+                        const std::vector<PropertyType>& col_types) {
+  size_t old_size = columns_.size();
+  columns_.resize(old_size + col_names.size());
+
+  for (size_t i = 0; i < col_names.size(); ++i) {
+    int col_id;
+    col_id_indexer_.add(col_names[i], col_id);
+    columns_[col_id] = CreateColumn(col_types[i], StorageStrategy::kMem);
+  }
+  buildColumnPtrs();
+}
+
 std::vector<std::string> Table::column_names() const {
   size_t col_num = col_id_indexer_.size();
   std::vector<std::string> names(col_num);
@@ -273,6 +286,8 @@ void Table::buildColumnPtrs() {
     column_ptrs_[col_i] = columns_[col_i].get();
   }
 }
+
+void renameProperty(std::string& col_name, std::string& new_col_name) {}
 
 void Table::close() {
   columns_.clear();

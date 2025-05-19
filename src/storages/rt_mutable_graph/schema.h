@@ -24,6 +24,8 @@
 #include "src/utils/string_utils.h"
 #include "src/utils/yaml_utils.h"
 
+#include "third_party/libgrape-lite/grape/utils/bitset.h"
+
 namespace gs {
 
 class Schema {
@@ -184,8 +186,6 @@ class Schema {
                          const std::string& edge_label,
                          const std::string& prop) const;
 
-  bool has_vertex_label(const std::string& label) const;
-
   bool has_edge_label(const std::string& src_label,
                       const std::string& dst_label,
                       const std::string& edge_label) const;
@@ -292,6 +292,43 @@ class Schema {
   const std::unordered_map<std::string, std::pair<PropertyType, uint8_t>>&
   get_vprop_name_to_type_and_index(label_t label) const;
 
+  void add_vertex_properties(const std::string& label,
+                             std::vector<std::string>& properties_names,
+                             std::vector<PropertyType>& properties_types,
+                             std::vector<Any>& properties_default_values);
+
+  void update_vertex_properties(const std::string& label,
+                                std::vector<std::string>& properties_names,
+                                std::vector<std::string>& properties_renames);
+
+  void delete_vertex_properties(const std::string& label,
+                                std::vector<std::string>& properties_names);
+
+  void delete_vertex_label(const std::string& label);
+
+  void delete_edge_label(const std::string& label);
+
+  void delete_edge(const std::string& src_label, const std::string& dst_label,
+                   const std::string& edge_label);
+
+  void add_edge_properties(const std::string& src_label,
+                           const std::string& dst_label,
+                           const std::string& edge_label,
+                           std::vector<std::string>& properties_names,
+                           std::vector<PropertyType>& properties_types,
+                           std::vector<Any>& properties_default_values);
+
+  void update_edge_properties(const std::string& src_label,
+                              const std::string& dst_label,
+                              const std::string& edge_label,
+                              std::vector<std::string>& properties_names,
+                              std::vector<std::string>& properties_renames);
+
+  void delete_edge_properties(const std::string& src_label,
+                              const std::string& dst_label,
+                              const std::string& edge_label,
+                              std::vector<std::string>& properties_names);
+
  private:
   label_t vertex_label_to_index(const std::string& label);
 
@@ -304,6 +341,7 @@ class Schema {
   IdIndexer<std::string, label_t> elabel_indexer_;
   std::vector<std::vector<PropertyType>> vproperties_;
   std::vector<std::vector<std::string>> vprop_names_;
+  std::vector<std::vector<Any>> vprop_default_values_;
   std::vector<std::string> v_descriptions_;
   std::vector<std::vector<std::tuple<PropertyType, std::string, size_t>>>
       v_primary_keys_;  // the third element is the index of the property in the
@@ -329,6 +367,9 @@ class Schema {
   std::string compiler_path_;
   std::string remote_path_;  // The path to the data on the remote storage
   bool has_multi_props_edge_;
+
+  grape::Bitset vlabel_tomb_;
+  grape::Bitset elabel_tomb_;
 };
 
 }  // namespace gs

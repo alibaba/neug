@@ -50,12 +50,17 @@ std::unique_ptr<IUpdateOperator> BatchInsertVertexOprBuilder::Build(
     LOG(FATAL) << "BatchInsertVertexOpr must have vertex type";
   }
   label_t vertex_label_id = 0;
-  if (opr.vertex_type().has_id()) {
+  switch (opr.vertex_type().item_case()) {
+  case common::NameOrId::kId: {
     vertex_label_id = opr.vertex_type().id();
-  } else if (opr.vertex_type().has_name()) {
+    break;
+  }
+  case common::NameOrId::kName: {
     vertex_label_id = schema.get_vertex_label_id(opr.vertex_type().name());
-  } else {
-    LOG(FATAL) << "BatchInsertVertexOpr must have vertex type";
+    break;
+  }
+  default:
+    LOG(FATAL) << "Unknown vertex type: " << opr.vertex_type().DebugString();
   }
   LOG(INFO) << "vertex_label_id: " << (int32_t) vertex_label_id;
   // <tag_id, property_name>

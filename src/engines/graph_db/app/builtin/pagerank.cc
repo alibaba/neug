@@ -52,11 +52,11 @@ results::CollectiveResults PageRank::Query(
     int32_t max_iterations, double epsilon, int32_t result_limit) {
   auto txn = sess.GetReadTransaction();
 
-  if (!sess.schema().has_vertex_label(src_vertex_label)) {
+  if (!sess.schema().contains_vertex_label(src_vertex_label)) {
     LOG(ERROR) << "The requested src vertex label doesn't exits.";
     return {};
   }
-  if (!sess.schema().has_vertex_label(dst_vertex_label)) {
+  if (!sess.schema().contains_vertex_label(dst_vertex_label)) {
     LOG(ERROR) << "The requested dst vertex label doesn't exits.";
     return {};
   }

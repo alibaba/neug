@@ -56,6 +56,8 @@ void Schema::Clear() {
   plugin_name_to_path_and_id_.clear();
   plugin_dir_.clear();
   has_multi_props_edge_ = false;
+  vlabel_tomb_.clear();
+  elabel_tomb_.clear();
 }
 
 void Schema::add_vertex_label(
@@ -108,22 +110,24 @@ void Schema::add_edge_label(const std::string& src_label,
 }
 
 label_t Schema::vertex_label_num() const {
-  return static_cast<label_t>(vlabel_indexer_.size());
+  return static_cast<label_t>(vlabel_indexer_.size() - vlabel_tomb_.count());
 }
 
 label_t Schema::edge_label_num() const {
-  return static_cast<label_t>(elabel_indexer_.size());
+  return static_cast<label_t>(elabel_indexer_.size() - elabel_tomb_.count());
 }
 
 bool Schema::contains_vertex_label(const std::string& label) const {
   label_t ret;
-  return vlabel_indexer_.get_index(label, ret);
+  return vlabel_indexer_.get_index(label, ret) && !vlabel_tomb_.get_bit(ret);
 }
 
 label_t Schema::get_vertex_label_id(const std::string& label) const {
   label_t ret;
   LOG_FATAL_IF(!vlabel_indexer_.get_index(label, ret),
                "Fail to get vertex label: " + label);
+  LOG_FATAL_IF(vlabel_tomb_.get_bit(ret),
+               "Vertex label " + label + " was deleted");
   return ret;
 }
 
@@ -353,16 +357,20 @@ label_t Schema::get_edge_label_id(const std::string& label) const {
   label_t ret;
   LOG_FATAL_IF(!elabel_indexer_.get_index(label, ret),
                "Edge label " + label + " not found");
+  LOG_FATAL_IF(elabel_tomb_.get_bit(ret),
+               "Edge label " + label + " was deleted");
   return ret;
 }
 
 bool Schema::contains_edge_label(const std::string& label) const {
   label_t ret;
-  return elabel_indexer_.get_index(label, ret);
+  return elabel_indexer_.get_index(label, ret) && !elabel_tomb_.get_bit(ret);
 }
 
 std::string Schema::get_vertex_label_name(label_t index) const {
   std::string ret;
+  LOG_FATAL_IF(vlabel_tomb_.get_bit(index),
+               "Label id: " + std::to_string(index) + " was deleted");
   LOG_FATAL_IF(!vlabel_indexer_.get_key(index, ret),
                "No vertex label found for label id: " + std::to_string(index));
   return ret;
@@ -370,6 +378,8 @@ std::string Schema::get_vertex_label_name(label_t index) const {
 
 std::string Schema::get_edge_label_name(label_t index) const {
   std::string ret;
+  LOG_FATAL_IF(elabel_tomb_.get_bit(index),
+               "Label id: " + std::to_string(index) + " was deleted");
   LOG_FATAL_IF(!elabel_indexer_.get_key(index, ret),
                "No edge label found for label id: " + std::to_string(index));
   return ret;
@@ -445,6 +455,7 @@ label_t Schema::vertex_label_to_index(const std::string& label) {
     vprop_name_to_type_and_index_.resize(ret + 1);
     v_primary_keys_.resize(ret + 1);
     v_descriptions_.resize(ret + 1);
+    vlabel_tomb_.resize(ret + 1);
   }
   return ret;
 }
@@ -452,6 +463,9 @@ label_t Schema::vertex_label_to_index(const std::string& label) {
 label_t Schema::edge_label_to_index(const std::string& label) {
   label_t ret;
   elabel_indexer_.add(label, ret);
+  if (elabel_tomb_.cardinality() <= ret) {
+    elabel_tomb_.resize(ret + 1);
+  }
   return ret;
 }
 
@@ -724,7 +738,7 @@ static Status parse_vertex_schema(YAML::Node node, Schema& schema) {
     return Status(StatusCode::INVALID_SCHEMA, "vertex type_name is not set");
   }
   // Cannot add two vertex label with same name
-  if (schema.has_vertex_label(label_name)) {
+  if (schema.contains_vertex_label(label_name)) {
     LOG(ERROR) << "Vertex label " << label_name << " already exists";
     return Status(StatusCode::INVALID_SCHEMA,
                   "Vertex label " + label_name + " already exists");
@@ -1445,16 +1459,11 @@ bool Schema::edge_has_property(const std::string& src_label,
          e_prop_names.end();
 }
 
-bool Schema::has_vertex_label(const std::string& label) const {
-  label_t ret;
-  return vlabel_indexer_.get_index(label, ret);
-}
-
 bool Schema::has_edge_label(const std::string& src_label,
                             const std::string& dst_label,
                             const std::string& label) const {
   label_t edge_label_id;
-  if (!has_vertex_label(src_label) || !has_vertex_label(dst_label)) {
+  if (!contains_vertex_label(src_label) || !contains_vertex_label(dst_label)) {
     LOG(ERROR) << "src_label or dst_label not found:" << src_label << ", "
                << dst_label;
     return false;
@@ -1508,5 +1517,176 @@ const std::vector<std::string> Schema::COMPATIBLE_VERSIONS = {
              // default version, if no version is specified
     "v0.1"   // v0.1 is the version after schema unified
 };
+
+void Schema::add_vertex_properties(
+    const std::string& label, std::vector<std::string>& properties_names,
+    std::vector<PropertyType>& properties_types,
+    std::vector<Any>& properties_default_values) {
+  auto v_label_id = get_vertex_label_id(label);
+  LOG_FATAL_IF(v_label_id >= vprop_names_.size(),
+               "vertex label id out of range of vprop_names_");
+  for (size_t i = 0; i < properties_names.size(); i++) {
+    vprop_names_[v_label_id].emplace_back(properties_names[i]);
+    vproperties_[v_label_id].emplace_back(properties_types[i]);
+    vprop_name_to_type_and_index_[v_label_id].insert(
+        {properties_names[i],
+         std::make_pair(properties_types[i],
+                        vprop_names_[v_label_id].size() - 1)});
+  }
+}
+
+void Schema::update_vertex_properties(
+    const std::string& label, std::vector<std::string>& properties_names,
+    std::vector<std::string>& properties_renames) {
+  auto v_label_id = get_vertex_label_id(label);
+  LOG_FATAL_IF(v_label_id >= vprop_names_.size(),
+               "vertex label id out of range of vprop_names_");
+  for (size_t i = 0; i < properties_names.size(); i++) {
+    for (size_t j = 0; j < vprop_names_[v_label_id].size(); j++) {
+      if (vprop_names_[v_label_id][j] == properties_names[i]) {
+        vprop_names_[v_label_id][j] = properties_renames[i];
+        auto it =
+            vprop_name_to_type_and_index_[v_label_id].find(properties_names[i]);
+        if (it != vprop_name_to_type_and_index_[v_label_id].end()) {
+          std::pair<PropertyType, uint8_t> property_info = it->second;
+          vprop_name_to_type_and_index_[v_label_id].erase(it);
+          vprop_name_to_type_and_index_[v_label_id].insert(
+              {properties_renames[i], property_info});
+        }
+        break;
+      }
+    }
+  }
+}
+
+void Schema::delete_vertex_properties(
+    const std::string& label, std::vector<std::string>& properties_names) {
+  auto v_label_id = get_vertex_label_id(label);
+  LOG_FATAL_IF(v_label_id >= vprop_names_.size(),
+               "vertex label id out of range of vprop_names_");
+  for (size_t i = 0; i < properties_names.size(); i++) {
+    for (size_t j = 0; j < vprop_names_[v_label_id].size(); j++) {
+      if (vprop_names_[v_label_id][j] == properties_names[i]) {
+        vprop_names_[v_label_id].erase(vprop_names_[v_label_id].begin() + j);
+        vproperties_[v_label_id].erase(vproperties_[v_label_id].begin() + j);
+        auto it =
+            vprop_name_to_type_and_index_[v_label_id].find(properties_names[i]);
+        if (it != vprop_name_to_type_and_index_[v_label_id].end()) {
+          vprop_name_to_type_and_index_[v_label_id].erase(it);
+        }
+        break;
+      }
+    }
+  }
+}
+
+void Schema::delete_vertex_label(const std::string& label) {
+  auto v_label_id = get_vertex_label_id(label);
+  vprop_names_[v_label_id].clear();
+  vproperties_[v_label_id].clear();
+  v_primary_keys_[v_label_id].clear();
+  vprop_name_to_type_and_index_[v_label_id].clear();
+  vprop_storage_[v_label_id].clear();
+
+  vlabel_tomb_.set_bit(v_label_id);
+}
+
+void Schema::delete_edge_label(const std::string& label) {
+  auto e_label_id = get_edge_label_id(label);
+  for (label_t src_v_label = 0; src_v_label < vlabel_indexer_.size();
+       src_v_label++) {
+    if (vlabel_tomb_.get_bit(src_v_label)) {
+      continue;
+    }
+    for (label_t dst_v_label = 0; dst_v_label < vlabel_indexer_.size();
+         dst_v_label++) {
+      if (vlabel_tomb_.get_bit(dst_v_label)) {
+        continue;
+      }
+      if (exist(src_v_label, dst_v_label, e_label_id)) {
+        uint32_t index =
+            generate_edge_label(src_v_label, dst_v_label, e_label_id);
+        eproperties_.erase(index);
+        eprop_names_.erase(index);
+        e_descriptions_.erase(index);
+        oe_strategy_.erase(index);
+        ie_strategy_.erase(index);
+        oe_mutability_.erase(index);
+        ie_mutability_.erase(index);
+        sort_on_compactions_.erase(index);
+      }
+    }
+  }
+
+  elabel_tomb_.set_bit(e_label_id);
+}
+
+void Schema::delete_edge(const std::string& src_label,
+                         const std::string& dst_label,
+                         const std::string& edge_label) {
+  label_t src = get_vertex_label_id(src_label);
+  label_t dst = get_vertex_label_id(dst_label);
+  label_t edge = get_edge_label_id(edge_label);
+  uint32_t index = generate_edge_label(src, dst, edge);
+  eproperties_.erase(index);
+  eprop_names_.erase(index);
+  e_descriptions_.erase(index);
+  oe_strategy_.erase(index);
+  ie_strategy_.erase(index);
+  oe_mutability_.erase(index);
+  ie_mutability_.erase(index);
+  sort_on_compactions_.erase(index);
+}
+
+void Schema::add_edge_properties(const std::string& src_label,
+                                 const std::string& dst_label,
+                                 const std::string& edge_label,
+                                 std::vector<std::string>& properties_names,
+                                 std::vector<PropertyType>& properties_types,
+                                 std::vector<Any>& properties_default_values) {
+  label_t src = get_vertex_label_id(src_label);
+  label_t dst = get_vertex_label_id(dst_label);
+  label_t edge = get_edge_label_id(edge_label);
+  uint32_t index = generate_edge_label(src, dst, edge);
+  for (size_t i = 0; i < properties_names.size(); i++) {
+    eprop_names_.at(index).emplace_back(properties_names[i]);
+    eproperties_.at(index).emplace_back(properties_types[i]);
+  }
+}
+
+void Schema::update_edge_properties(
+    const std::string& src_label, const std::string& dst_label,
+    const std::string& edge_label, std::vector<std::string>& properties_names,
+    std::vector<std::string>& properties_renames) {
+  label_t src = get_vertex_label_id(src_label);
+  label_t dst = get_vertex_label_id(dst_label);
+  label_t edge = get_edge_label_id(edge_label);
+  uint32_t index = generate_edge_label(src, dst, edge);
+  for (size_t i = 0; i < properties_names.size(); i++) {
+    for (size_t j = 0; j < eprop_names_.at(index).size(); j++) {
+      if (eprop_names_.at(index)[j] == properties_names[i]) {
+        eprop_names_.at(index)[j] = properties_renames[i];
+        break;
+      }
+    }
+  }
+}
+
+void Schema::delete_edge_properties(
+    const std::string& src_label, const std::string& dst_label,
+    const std::string& edge_label, std::vector<std::string>& properties_names) {
+  label_t src = get_vertex_label_id(src_label);
+  label_t dst = get_vertex_label_id(dst_label);
+  label_t edge = get_edge_label_id(edge_label);
+  uint32_t index = generate_edge_label(src, dst, edge);
+  for (size_t i = 0; i < properties_names.size(); i++) {
+    for (size_t j = 0; j < eprop_names_.at(index).size(); j++) {
+      if (eprop_names_.at(index)[j] == properties_names[i]) {
+        eprop_names_.at(index).erase(eprop_names_.at(index).begin() + j);
+        break;
+      }
+    }
+  }
+}
 
 }  // namespace gs

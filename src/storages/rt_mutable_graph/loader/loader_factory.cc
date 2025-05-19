@@ -57,6 +57,7 @@ std::shared_ptr<IFragmentLoader> LoaderFactory::CreateFragmentLoader(
   } else {
     LOG(FATAL) << "Unsupported format: " << format;
   }
+  return std::shared_ptr<IFragmentLoader>();
 }
 
 // the key of map should be scheme + format.

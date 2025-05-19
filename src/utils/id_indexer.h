@@ -206,46 +206,40 @@ class LFIndexer {
         num_slots_minus_one_(rhs.num_slots_minus_one_),
         hasher_(rhs.hasher_) {
     if (keys_ != rhs.keys_) {
-      if (keys_ != nullptr) {
-        delete keys_;
-      }
       keys_ = rhs.keys_;
     }
     hash_policy_.set_mod_function_by_index(
         rhs.hash_policy_.get_mod_function_index());
   }
 
-  ~LFIndexer() {
-    if (keys_ != nullptr) {
-      delete keys_;
-    }
-  }
+  ~LFIndexer() {}
 
   static std::string prefix() { return "indexer"; }
 
   void init(const PropertyType& type) {
-    if (keys_ != nullptr) {
-      delete keys_;
-    }
     keys_ = nullptr;
     if (type == PropertyType::kInt64) {
-      keys_ = new TypedColumn<int64_t>(StorageStrategy::kMem);
+      keys_ = std::shared_ptr<ColumnBase>(
+          new TypedColumn<int64_t>(StorageStrategy::kMem));
     } else if (type == PropertyType::kInt32) {
-      keys_ = new TypedColumn<int32_t>(StorageStrategy::kMem);
+      keys_ = std::shared_ptr<ColumnBase>(
+          new TypedColumn<int32_t>(StorageStrategy::kMem));
     } else if (type == PropertyType::kUInt64) {
-      keys_ = new TypedColumn<uint64_t>(StorageStrategy::kMem);
+      keys_ = std::shared_ptr<ColumnBase>(
+          new TypedColumn<uint64_t>(StorageStrategy::kMem));
     } else if (type == PropertyType::kUInt32) {
-      keys_ = new TypedColumn<uint32_t>(StorageStrategy::kMem);
+      keys_ = std::shared_ptr<ColumnBase>(
+          new TypedColumn<uint32_t>(StorageStrategy::kMem));
     } else if (type.type_enum == impl::PropertyTypeImpl::kVarChar) {
-      keys_ = new StringColumn(StorageStrategy::kMem,
-                               type.additional_type_info.max_length);
+      keys_ = std::shared_ptr<ColumnBase>(new StringColumn(
+          StorageStrategy::kMem, type.additional_type_info.max_length));
     } else if (type.type_enum == impl::PropertyTypeImpl::kStringView) {
       LOG(WARNING) << "String type is a deprecated type, use varchar instead.";
       LOG(WARNING) << "Use default max length"
                    << PropertyType::GetStringDefaultMaxLength()
                    << " for varchar type.";
-      keys_ = new StringColumn(StorageStrategy::kMem,
-                               PropertyType::GetStringDefaultMaxLength());
+      keys_ = std::shared_ptr<ColumnBase>(new StringColumn(
+          StorageStrategy::kMem, PropertyType::GetStringDefaultMaxLength()));
     } else {
       LOG(FATAL) << "Not support type [" << type << "] as pk type ..";
     }
@@ -511,7 +505,7 @@ class LFIndexer {
   size_t indices_size_;
   std::atomic<size_t> num_elements_;
   size_t num_slots_minus_one_;
-  ColumnBase* keys_;
+  std::shared_ptr<ColumnBase> keys_;
 
   ska::ska::prime_number_hash_policy hash_policy_;
   GHash<Any> hasher_;

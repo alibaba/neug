@@ -23,9 +23,9 @@ results::CollectiveResults ShortestPathAmongThree::Query(
   ReadTransaction txn = sess.GetReadTransaction();
   const Schema& schema_ = txn.schema();
 
-  if (!schema_.has_vertex_label(label_name1) ||
-      !schema_.has_vertex_label(label_name2) ||
-      !schema_.has_vertex_label(label_name3)) {
+  if (!schema_.contains_vertex_label(label_name1) ||
+      !schema_.contains_vertex_label(label_name2) ||
+      !schema_.contains_vertex_label(label_name3)) {
     LOG(ERROR) << "The requested label doesn't exits.";
     return {};
   }

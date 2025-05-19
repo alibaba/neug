@@ -21,7 +21,6 @@
 #include "src/storages/rt_mutable_graph/loader/i_fragment_loader.h"
 #include "src/storages/rt_mutable_graph/loader/loader_utils.h"
 #include "src/storages/rt_mutable_graph/loading_config.h"
-#include "src/storages/rt_mutable_graph/mutable_property_fragment.h"
 #include "src/utils/mmap_vector.h"
 #include "third_party/libgrape-lite/grape/utils/concurrent_queue.h"
 

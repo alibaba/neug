@@ -64,6 +64,9 @@ class Table {
 
   void reset_header(const std::vector<std::string>& col_name);
 
+  void add_columns(const std::vector<std::string>& col_names,
+                   const std::vector<PropertyType>& col_types);
+
   std::vector<std::string> column_names() const;
 
   std::string column_name(size_t index) const;
@@ -106,6 +109,8 @@ class Table {
   }
 
   void ingest(uint32_t index, grape::OutArchive& arc);
+
+  void renameProperty(std::string& col_name, std::string& new_col_name);
 
   void close();
 

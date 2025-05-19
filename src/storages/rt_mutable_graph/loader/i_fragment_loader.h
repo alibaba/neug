@@ -16,7 +16,11 @@
 #ifndef STORAGES_RT_MUTABLE_GRAPH_LOADER_FRAGMENT_LOADER_H_
 #define STORAGES_RT_MUTABLE_GRAPH_LOADER_FRAGMENT_LOADER_H_
 
-#include "src/storages/rt_mutable_graph/mutable_property_fragment.h"
+#include "src/storages/rt_mutable_graph/csr/mutable_csr.h"
+#include "src/storages/rt_mutable_graph/dual_csr.h"
+#include "src/storages/rt_mutable_graph/schema.h"
+#include "src/storages/rt_mutable_graph/types.h"
+#include "src/utils/indexers.h"
 
 namespace gs {
 

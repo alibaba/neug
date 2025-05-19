@@ -216,7 +216,7 @@ static Status parse_vertex_files(
                   "Vertex label name is not set");
   }
   // Check label exists in schema
-  if (!schema.has_vertex_label(label_name)) {
+  if (!schema.contains_vertex_label(label_name)) {
     LOG(ERROR) << "Vertex label [" << label_name << "] does not exist in "
                << "the schema";
     return Status(StatusCode::INVALID_IMPORT_FILE, "Vertex label [" +
@@ -366,7 +366,7 @@ static Status parse_edge_files(
 
   {
     // check whether src_label, dst_label and edge_label exist in schema
-    if (!schema.has_vertex_label(src_label)) {
+    if (!schema.contains_vertex_label(src_label)) {
       LOG(ERROR) << "Vertex label [" << src_label << "] does not exist in "
                  << "the schema";
       return Status(StatusCode::INVALID_IMPORT_FILE, "Vertex label [" +
@@ -374,7 +374,7 @@ static Status parse_edge_files(
                                                          "] does not exist in "
                                                          "the schema");
     }
-    if (!schema.has_vertex_label(dst_label)) {
+    if (!schema.contains_vertex_label(dst_label)) {
       LOG(ERROR) << "Vertex label [" << dst_label << "] does not exist in "
                  << "the schema";
       return Status(StatusCode::INVALID_IMPORT_FILE, "Vertex label [" +

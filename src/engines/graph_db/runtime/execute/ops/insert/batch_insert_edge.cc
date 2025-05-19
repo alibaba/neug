@@ -27,25 +27,33 @@ void batch_load_edges_helper(
     label_t dst_label_id, PropertyType edge_prop_type,
     std::vector<std::shared_ptr<IRecordBatchSupplier>>& suppliers) {
   if (edge_prop_type == PropertyType::Int64()) {
-    frag.batch_load_edges<SRC_PK_T, DST_PK_T, int64_t>(
+    frag.batch_load_edges<SRC_PK_T, DST_PK_T, int64_t,
+                          std::vector<std::tuple<vid_t, vid_t, int64_t>>>(
         src_label_id, dst_label_id, edge_label_id, suppliers);
   } else if (edge_prop_type == PropertyType::UInt64()) {
-    frag.batch_load_edges<SRC_PK_T, DST_PK_T, uint64_t>(
+    frag.batch_load_edges<SRC_PK_T, DST_PK_T, uint64_t,
+                          std::vector<std::tuple<vid_t, vid_t, uint64_t>>>(
         src_label_id, dst_label_id, edge_label_id, suppliers);
   } else if (edge_prop_type == PropertyType::Int32()) {
-    frag.batch_load_edges<SRC_PK_T, DST_PK_T, int32_t>(
+    frag.batch_load_edges<SRC_PK_T, DST_PK_T, int32_t,
+                          std::vector<std::tuple<vid_t, vid_t, int32_t>>>(
         src_label_id, dst_label_id, edge_label_id, suppliers);
   } else if (edge_prop_type == PropertyType::UInt32()) {
-    frag.batch_load_edges<SRC_PK_T, DST_PK_T, uint32_t>(
+    frag.batch_load_edges<SRC_PK_T, DST_PK_T, uint32_t,
+                          std::vector<std::tuple<vid_t, vid_t, uint32_t>>>(
         src_label_id, dst_label_id, edge_label_id, suppliers);
   } else if (edge_prop_type == PropertyType::StringView()) {
-    frag.batch_load_edges<SRC_PK_T, DST_PK_T, std::string_view>(
+    frag.batch_load_edges<
+        SRC_PK_T, DST_PK_T, std::string_view,
+        std::vector<std::tuple<vid_t, vid_t, std::string_view>>>(
         src_label_id, dst_label_id, edge_label_id, suppliers);
   } else if (edge_prop_type == PropertyType::RecordView()) {
-    frag.batch_load_edges<SRC_PK_T, DST_PK_T, RecordView>(
+    frag.batch_load_edges<SRC_PK_T, DST_PK_T, RecordView,
+                          std::vector<std::tuple<vid_t, vid_t, size_t>>>(
         src_label_id, dst_label_id, edge_label_id, suppliers);
   } else if (edge_prop_type == PropertyType::Double()) {
-    frag.batch_load_edges<SRC_PK_T, DST_PK_T, double>(
+    frag.batch_load_edges<SRC_PK_T, DST_PK_T, double,
+                          std::vector<std::tuple<vid_t, vid_t, double>>>(
         src_label_id, dst_label_id, edge_label_id, suppliers);
   } else {
     LOG(FATAL) << "BatchInsertEdgeOpr::Eval: unsupported edge prop type: "
@@ -128,25 +136,50 @@ bl::result<Context> BatchInsertEdgeOpr::Eval(
   return bl::result<Context>(std::move(ctx));
 }
 
-void get_edge_triplet_label_ids(const Schema& schema,
+bool get_edge_triplet_label_ids(const Schema& schema,
                                 const physical::EdgeType& edge_type,
                                 label_t& edge_label, label_t& src_type,
                                 label_t& dst_type) {
-  if (edge_type.type_name().has_id()) {
+  switch (edge_type.type_name().item_case()) {
+  case common::NameOrId::kId: {
     edge_label = edge_type.type_name().id();
-  } else {
+    break;
+  }
+  case common::NameOrId::kName: {
     edge_label = schema.get_edge_label_id(edge_type.type_name().name());
+    break;
   }
-  if (edge_type.src_type_name().has_id()) {
+  default:
+    LOG(ERROR) << "Unknown edge type: " << edge_type.type_name().DebugString();
+    return false;
+  }
+  switch (edge_type.src_type_name().item_case()) {
+  case common::NameOrId::kId: {
     src_type = edge_type.src_type_name().id();
-  } else {
+    break;
+  }
+  case common::NameOrId::kName: {
     src_type = schema.get_vertex_label_id(edge_type.src_type_name().name());
+    break;
   }
-  if (edge_type.dst_type_name().has_id()) {
+  default:
+    LOG(ERROR) << "Unknown edge type: " << edge_type.type_name().DebugString();
+    return false;
+  }
+  switch (edge_type.dst_type_name().item_case()) {
+  case common::NameOrId::kId: {
     dst_type = edge_type.dst_type_name().id();
-  } else {
-    dst_type = schema.get_vertex_label_id(edge_type.dst_type_name().name());
+    break;
   }
+  case common::NameOrId::kName: {
+    dst_type = schema.get_vertex_label_id(edge_type.dst_type_name().name());
+    break;
+  }
+  default:
+    LOG(ERROR) << "Unknown edge type: " << edge_type.type_name().DebugString();
+    return false;
+  }
+  return true;
 }
 
 std::unique_ptr<IUpdateOperator> BatchInsertEdgeOprBuilder::Build(

@@ -26,7 +26,7 @@ results::CollectiveResults KNeighbors::Query(const GraphDBSession& sess,
     LOG(ERROR) << "k must be greater than 0.";
     return {};
   }
-  if (!schema_.has_vertex_label(label_name)) {
+  if (!schema_.contains_vertex_label(label_name)) {
     // output.put_string_view("The requested label doesn't exits.");
     LOG(ERROR) << "The requested label doesn't exits.";
     return {};

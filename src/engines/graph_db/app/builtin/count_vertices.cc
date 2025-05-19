@@ -22,7 +22,7 @@ results::CollectiveResults CountVertices::Query(const GraphDBSession& sess,
   auto txn = sess.GetReadTransaction();
   // We expect one param of type string from decoder.
   const auto& schema = txn.schema();
-  if (!schema.has_vertex_label(label_name)) {
+  if (!schema.contains_vertex_label(label_name)) {
     LOG(ERROR) << "Label " << label_name << " not found in schema.";
     return results::CollectiveResults();
   }

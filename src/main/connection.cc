@@ -150,7 +150,7 @@ physical::PhysicalPlan Connection::createDDLPlan(
     auto age_property = create_vertex_reequest->add_properties();
     age_property->set_name("age");
     age_property->mutable_type()->set_primitive_type(
-        common::PrimitiveType::DT_SIGNED_INT32);
+        common::PrimitiveType::DT_SIGNED_INT64);
     return physical_plan;
   }
   LOG(FATAL) << "Unknown query: " << query_string;

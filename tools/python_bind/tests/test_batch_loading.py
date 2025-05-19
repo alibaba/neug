@@ -66,4 +66,6 @@ class TestBachLoading(unittest.TestCase):
         conn.execute('COPY knows [person->person] from "person_knows_person.csv"')
 
         # Then run a query
-        # conn.execute('MATCH (n) return count(n);')
+        res = conn.execute('MATCH (n) return count(n);')
+        for record in res:
+            print(record)
