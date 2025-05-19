@@ -50,6 +50,7 @@ class NexgDB {
     }
     config_.data_dir = data_dir;
     config_.thread_num = max_num_threads;
+    config_.memory_level = 0;
     ensure_directory_exists(data_dir);
     if (!try_to_lock_directory()) {
       throw std::runtime_error("Failed to lock directory: " + data_dir +

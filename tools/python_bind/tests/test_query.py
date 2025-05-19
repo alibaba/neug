@@ -57,3 +57,8 @@ class TestQuery(unittest.TestCase):
         conn = db.connect()
         res = conn.execute("MATCH(n) RETURN n;")
         logger.info(res)
+        cnt = 0
+        for record in res:
+            logger.info(f"line {cnt}")
+            logger.info(record)
+            cnt += 1

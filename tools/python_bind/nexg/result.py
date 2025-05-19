@@ -37,29 +37,19 @@ class QueryResult(object):
         """
         Iterate over the result.
         """
-        return iter(self._result)
+        return self
+    
+    def __next__(self):
+        if self._result.hasNext():
+            return self._result.getNext() # Returns a list
+        else:
+            raise StopIteration
 
     def __len__(self):
         """
         Get the length of the result.
         """
-        return len(self._result)
-
-    def __getitem__(self, index):
-        """
-        Get the item at the specified index.
-
-        Parameters
-        ----------
-        index : int
-            The index of the item to get.
-
-        Returns
-        -------
-        object
-            The item at the specified index.
-        """
-        return self._result[index]
+        return self._result.length()
 
     def __str__(self):
         """
@@ -70,7 +60,7 @@ class QueryResult(object):
         str
             The string representation of the result.
         """
-        return f"QueryResult({self._result.get_status_code()}, {self._result.get_status_message()})"
+        return f"QueryResult({self._result.get_status_code()}, size {self._result.length()})"
 
     def __repr__(self):
         """

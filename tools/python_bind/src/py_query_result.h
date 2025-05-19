@@ -28,8 +28,9 @@ class PyQueryResult {
  public:
   static void initialize(pybind11::handle& m);
 
-  PyQueryResult(Result<results::CollectiveResults>&& result)
-      : result_(std::move(result.move_value())), status_(result.status()) {}
+  PyQueryResult(Result<QueryResult>&& result)
+      : query_result_(std::move(std::move(result.move_value()))),
+        status_(result.status()) {}
 
   ~PyQueryResult() { close(); }
 
@@ -37,18 +38,16 @@ class PyQueryResult {
 
   pybind11::list getNext();
 
-  bool hasNextQueryResult();
-
-  std::unique_ptr<PyQueryResult> getNextQueryResult();
-
   void close();
+
+  int32_t length() const;
 
   int32_t getStatusCode() const { return status_.error_code(); }
 
   std::string getStatusMessage() const { return status_.error_message(); }
 
  private:
-  results::CollectiveResults result_;
+  QueryResult query_result_;
   Status status_;
 };
 

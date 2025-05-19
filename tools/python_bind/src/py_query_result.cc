@@ -15,14 +15,229 @@
 
 #include "py_query_result.h"
 #include <datetime.h>
+#include "src/utils/property/types.h"
+
+#include <datetime.h>
 namespace gs {
+
+pybind11::object value_to_pyobject(const common::Value& value) {
+  switch (value.item_case()) {
+  case common::Value::kBoolean: {
+    return pybind11::bool_(value.boolean());
+  }
+  case common::Value::kI32: {
+    return pybind11::int_(value.i32());
+  }
+  case common::Value::kI64: {
+    return pybind11::int_(value.i64());
+  }
+  case common::Value::kStr: {
+    return pybind11::str(value.str());
+  }
+  case common::Value::kBlob: {
+    return pybind11::bytes(value.blob());
+  }
+  case common::Value::kI32Array: {
+    pybind11::list list;
+    for (const auto& item : value.i32_array().item()) {
+      list.append(pybind11::int_(item));
+    }
+    return list;
+  }
+  case common::Value::kI64Array: {
+    pybind11::list list;
+    for (const auto& item : value.i64_array().item()) {
+      list.append(pybind11::int_(item));
+    }
+    return list;
+  }
+  case common::Value::kF64Array: {
+    pybind11::list list;
+    for (const auto& item : value.f64_array().item()) {
+      list.append(pybind11::float_(item));
+    }
+    return list;
+  }
+  case common::Value::kStrArray: {
+    pybind11::list list;
+    for (const auto& item : value.str_array().item()) {
+      list.append(pybind11::str(item));
+    }
+    return list;
+  }
+  case common::Value::kPairArray: {
+    pybind11::list list;
+    for (const auto& item : value.pair_array().item()) {
+      pybind11::tuple tuple;
+      tuple = pybind11::make_tuple(value_to_pyobject(item.key()),
+                                   value_to_pyobject(item.val()));
+    }
+    return list;
+  }
+  case common::Value::kNone: {
+    return pybind11::none();
+  }
+  case common::Value::kDate: {        // date32
+    auto days = value.date().item();  // days since epoch
+    Day day;
+    day.from_u32(days);
+    return pybind11::cast<pybind11::object>(
+        PyDate_FromDate(day.year(), day.month(), day.day()));
+  }
+  case common::Value::kTime: {
+    LOG(FATAL) << "Time type is not supported:";
+  }
+  case common::Value::kTimestamp: {
+    auto seconds = value.timestamp().item();  // millseconds since epoch
+    auto microseconds = seconds * 1000;
+    auto datetime = PyDateTime_FromTimestamp(PyLong_FromLongLong(microseconds));
+
+    if (datetime == nullptr) {
+      throw std::runtime_error("Failed to convert timestamp to datetime");
+    }
+    return pybind11::cast<pybind11::object>(datetime);
+  }
+  case common::Value::kU32: {
+    return pybind11::int_(value.u32());
+  }
+  case common::Value::kU64: {
+    return pybind11::int_(value.u64());
+  }
+  case common::Value::kF32: {
+    return pybind11::float_(value.f32());
+  }
+  default: {
+    throw std::runtime_error("Unknown value type");
+  }
+  }
+}
+
+pybind11::object name_or_id_to_pyobject(const common::NameOrId& name_or_id) {
+  if (name_or_id.item_case() == common::NameOrId::kId) {
+    return pybind11::int_(name_or_id.id());
+  } else if (name_or_id.item_case() == common::NameOrId::kName) {
+    return pybind11::str(name_or_id.name());
+  } else {
+    throw std::runtime_error("Unknown NameOrId type");
+  }
+}
+
+pybind11::object property_to_pyobject(const results::Property& property) {
+  pybind11::dict dict;
+  dict["key"] = name_or_id_to_pyobject(property.key());
+  dict["value"] = value_to_pyobject(property.value());
+  return dict;
+}
+
+pybind11::object vertex_to_pyobject(const results::Vertex& vertex) {
+  pybind11::dict dict;
+  dict["id"] = pybind11::int_(vertex.id());
+  dict["label"] = name_or_id_to_pyobject(vertex.label());
+  pybind11::list properties;
+  for (const auto& property : vertex.properties()) {
+    properties.append(property_to_pyobject(property));
+  }
+  dict["properties"] = properties;
+  return dict;
+}
+
+pybind11::object edge_to_pyobject(const results::Edge& edge) {
+  pybind11::dict dict;
+  dict["id"] = pybind11::int_(edge.id());
+  dict["label"] = name_or_id_to_pyobject(edge.label());
+  dict["src_label"] = name_or_id_to_pyobject(edge.src_label());
+  dict["dst_label"] = name_or_id_to_pyobject(edge.dst_label());
+  dict["src_id"] = pybind11::int_(edge.src_id());
+  dict["dst_id"] = pybind11::int_(edge.dst_id());
+  pybind11::list properties;
+  for (const auto& property : edge.properties()) {
+    properties.append(property_to_pyobject(property));
+  }
+  dict["properties"] = properties;
+  return dict;
+}
+
+pybind11::object graph_path_to_pyobject(const results::GraphPath& graph_path) {
+  pybind11::list list;
+  for (const auto& vertex_or_edge : graph_path.path()) {
+    if (vertex_or_edge.inner_case() ==
+        results::GraphPath::VertexOrEdge::kVertex) {
+      list.append(vertex_to_pyobject(vertex_or_edge.vertex()));
+    } else if (vertex_or_edge.inner_case() ==
+               results::GraphPath::VertexOrEdge::kEdge) {
+      list.append(edge_to_pyobject(vertex_or_edge.edge()));
+    } else {
+      throw std::runtime_error("Unknown VertexOrEdge type");
+    }
+  }
+  return list;
+}
+
+pybind11::object element_to_pyobject(const results::Element& element) {
+  switch (element.inner_case()) {
+  case results::Element::kVertex: {
+    return vertex_to_pyobject(element.vertex());
+  }
+  case results::Element::kEdge: {
+    return edge_to_pyobject(element.edge());
+  }
+  case results::Element::kGraphPath: {
+    return graph_path_to_pyobject(element.graph_path());
+  }
+  case results::Element::kObject: {
+    return value_to_pyobject(element.object());
+  }
+  default: {
+    throw std::runtime_error("Unknown element type");
+  }
+  }
+}
+
+pybind11::object collection_to_pyobject(const results::Collection& collection) {
+  pybind11::list list;
+  for (const auto& element : collection.collection()) {
+    list.append(element_to_pyobject(element));
+  }
+  return list;
+}
+
+pybind11::object entry_to_pyobject(const results::Entry* entry);
+
+pybind11::object map_to_pyobject(const results::KeyValues& map) {
+  pybind11::dict dict;
+  for (const auto& pair : map.key_values()) {
+    auto key = value_to_pyobject(pair.key());
+    auto value = entry_to_pyobject(&pair.value());
+    dict[key] = value;
+  }
+  return dict;
+}
+
+pybind11::object entry_to_pyobject(const results::Entry* entry) {
+  if (!entry) {
+    return pybind11::none();
+  }
+  switch (entry->inner_case()) {
+  case results::Entry::kElement: {
+    return element_to_pyobject(entry->element());
+  }
+  case results::Entry::kCollection: {
+    return collection_to_pyobject(entry->collection());
+  }
+  case results::Entry::kMap: {
+    return map_to_pyobject(entry->map());
+  }
+  default: {
+    throw std::runtime_error("Unknown entry type");
+  }
+  }
+}
 
 void PyQueryResult::initialize(pybind11::handle& m) {
   pybind11::class_<PyQueryResult>(m, "PyQueryResult")
       .def("hasNext", &PyQueryResult::hasNext)
       .def("getNext", &PyQueryResult::getNext)
-      .def("hasNextQueryResult", &PyQueryResult::hasNextQueryResult)
-      .def("getNextQueryResult", &PyQueryResult::getNextQueryResult)
+      .def("length", &PyQueryResult::length)
       .def("get_status_code", &PyQueryResult::getStatusCode)
       .def("get_status_message", &PyQueryResult::getStatusMessage)
       .def("close", &PyQueryResult::close);
@@ -33,15 +248,23 @@ void PyQueryResult::initialize(pybind11::handle& m) {
   PyDateTime_IMPORT;
 }
 
-bool PyQueryResult::hasNext() { return false; }
+bool PyQueryResult::hasNext() { return query_result_.hasNext(); }
 
-pybind11::list PyQueryResult::getNext() { return pybind11::list(); }
+pybind11::list PyQueryResult::getNext() {
+  if (!hasNext()) {
+    throw std::runtime_error("No more results");
+  }
+  auto result = query_result_.next();
 
-bool PyQueryResult::hasNextQueryResult() { return false; }
-
-std::unique_ptr<PyQueryResult> PyQueryResult::getNextQueryResult() {
-  return nullptr;
+  pybind11::list list;
+  for (const auto& entry : result.entries()) {
+    list.append(entry_to_pyobject(entry));
+  }
+  return list;
 }
 
 void PyQueryResult::close() {}
+
+int32_t PyQueryResult::length() const { return query_result_.length(); }
+
 }  // namespace gs

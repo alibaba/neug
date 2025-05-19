@@ -49,14 +49,21 @@ class Connection {
   ~Connection() = default;
 
   /**
+   * @brief call query_impl and convert results::CollectiveResults to
+   * QueryResult.
+   */
+  Result<QueryResult> query(const std::string& query_string);
+
+ private:
+  /**
    * @brief Execute the query and return the result.
    * @note The query process is divided into two parts:
    * 1. Parse the query string and generate the execution plan.
    * 2. Execute the execution plan using runtime engine.
    */
-  Result<results::CollectiveResults> query(const std::string& query_string);
+  Result<results::CollectiveResults> query_impl(
+      const std::string& query_string);
 
- private:
   // TODO: Make sure
   physical::PhysicalPlan createDDLPlan(const std::string& query_string);
 

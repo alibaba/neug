@@ -38,7 +38,18 @@ physical::PhysicalPlan load_plan_from_resource(
   return plan;
 }
 
-Result<results::CollectiveResults> Connection::query(
+Result<QueryResult> Connection::query(const std::string& query_string) {
+  LOG(INFO) << "Query: " << query_string;
+  auto result = query_impl(query_string);
+  if (result.ok()) {
+    return Result<QueryResult>(
+        QueryResult::From(std::move(result.move_value())));
+  } else {
+    return Result<QueryResult>(result.status());
+  }
+}
+
+Result<results::CollectiveResults> Connection::query_impl(
     const std::string& query_string) {
   LOG(INFO) << "Executing query: " << query_string;
   ////////////////////////////////////////////////////////////////////

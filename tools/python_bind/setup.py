@@ -71,11 +71,11 @@ class CMakeBuild(build_ext):
         
     def run(self):
         # Currently uncommented to avoid containing the jar in the wheel
-        # self.download_compiler_jar()
+        self.download_compiler_jar()
         super().run()
         
     def download_compiler_jar(self):
-        resource_ur = "https://graphscope.oss-accelerate-overseas.aliyuncs.com/compiler/compiler-0.0.1-SNAPSHOT-shade.jar"
+        resource_ur = "https://graphscope.oss-cn-beijing.aliyuncs.com/compiler/compiler-0.0.1-SNAPSHOT-shade.jar"
         target_dir = "nexg/resources"
         target_file = os.path.join(target_dir, "compiler.jar")
         if not os.path.exists(target_dir):
