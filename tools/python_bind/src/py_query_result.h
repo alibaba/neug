@@ -20,6 +20,7 @@
 
 #include "src/main/query_result.h"
 #include "src/proto_generated_gie/results.pb.h"
+#include "src/storages/rt_mutable_graph/schema.h"
 #include "src/utils/result.h"
 
 namespace gs {
@@ -28,8 +29,9 @@ class PyQueryResult {
  public:
   static void initialize(pybind11::handle& m);
 
-  PyQueryResult(Result<QueryResult>&& result)
-      : query_result_(std::move(std::move(result.move_value()))),
+  PyQueryResult(const Schema& schema, Result<QueryResult>&& result)
+      : schema_(schema),
+        query_result_(std::move(std::move(result.move_value()))),
         status_(result.status()) {}
 
   ~PyQueryResult() { close(); }
@@ -47,6 +49,7 @@ class PyQueryResult {
   std::string getStatusMessage() const { return status_.error_message(); }
 
  private:
+  const Schema& schema_;
   QueryResult query_result_;
   Status status_;
 };

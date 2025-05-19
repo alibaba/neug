@@ -15,6 +15,7 @@
 
 #include "py_query_result.h"
 #include <datetime.h>
+#include "src/storages/rt_mutable_graph/schema.h"
 #include "src/utils/property/types.h"
 
 #include <datetime.h>
@@ -129,10 +130,11 @@ pybind11::object property_to_pyobject(const results::Property& property) {
   return dict;
 }
 
-pybind11::object vertex_to_pyobject(const results::Vertex& vertex) {
+pybind11::object vertex_to_pyobject(const Schema& schema,
+                                    const results::Vertex& vertex) {
   pybind11::dict dict;
   dict["id"] = pybind11::int_(vertex.id());
-  dict["label"] = name_or_id_to_pyobject(vertex.label());
+  dict["label"] = schema.get_vertex_label_name(vertex.label().id());
   pybind11::list properties;
   for (const auto& property : vertex.properties()) {
     properties.append(property_to_pyobject(property));
@@ -141,12 +143,13 @@ pybind11::object vertex_to_pyobject(const results::Vertex& vertex) {
   return dict;
 }
 
-pybind11::object edge_to_pyobject(const results::Edge& edge) {
+pybind11::object edge_to_pyobject(const Schema& schema,
+                                  const results::Edge& edge) {
   pybind11::dict dict;
   dict["id"] = pybind11::int_(edge.id());
-  dict["label"] = name_or_id_to_pyobject(edge.label());
-  dict["src_label"] = name_or_id_to_pyobject(edge.src_label());
-  dict["dst_label"] = name_or_id_to_pyobject(edge.dst_label());
+  dict["label"] = schema.get_edge_label_name(edge.label().id());
+  dict["src_label"] = schema.get_vertex_label_name(edge.src_label().id());
+  dict["dst_label"] = schema.get_vertex_label_name(edge.dst_label().id());
   dict["src_id"] = pybind11::int_(edge.src_id());
   dict["dst_id"] = pybind11::int_(edge.dst_id());
   pybind11::list properties;
@@ -157,15 +160,16 @@ pybind11::object edge_to_pyobject(const results::Edge& edge) {
   return dict;
 }
 
-pybind11::object graph_path_to_pyobject(const results::GraphPath& graph_path) {
+pybind11::object graph_path_to_pyobject(const Schema& schema,
+                                        const results::GraphPath& graph_path) {
   pybind11::list list;
   for (const auto& vertex_or_edge : graph_path.path()) {
     if (vertex_or_edge.inner_case() ==
         results::GraphPath::VertexOrEdge::kVertex) {
-      list.append(vertex_to_pyobject(vertex_or_edge.vertex()));
+      list.append(vertex_to_pyobject(schema, vertex_or_edge.vertex()));
     } else if (vertex_or_edge.inner_case() ==
                results::GraphPath::VertexOrEdge::kEdge) {
-      list.append(edge_to_pyobject(vertex_or_edge.edge()));
+      list.append(edge_to_pyobject(schema, vertex_or_edge.edge()));
     } else {
       throw std::runtime_error("Unknown VertexOrEdge type");
     }
@@ -173,16 +177,17 @@ pybind11::object graph_path_to_pyobject(const results::GraphPath& graph_path) {
   return list;
 }
 
-pybind11::object element_to_pyobject(const results::Element& element) {
+pybind11::object element_to_pyobject(const Schema& schema,
+                                     const results::Element& element) {
   switch (element.inner_case()) {
   case results::Element::kVertex: {
-    return vertex_to_pyobject(element.vertex());
+    return vertex_to_pyobject(schema, element.vertex());
   }
   case results::Element::kEdge: {
-    return edge_to_pyobject(element.edge());
+    return edge_to_pyobject(schema, element.edge());
   }
   case results::Element::kGraphPath: {
-    return graph_path_to_pyobject(element.graph_path());
+    return graph_path_to_pyobject(schema, element.graph_path());
   }
   case results::Element::kObject: {
     return value_to_pyobject(element.object());
@@ -193,39 +198,43 @@ pybind11::object element_to_pyobject(const results::Element& element) {
   }
 }
 
-pybind11::object collection_to_pyobject(const results::Collection& collection) {
+pybind11::object collection_to_pyobject(const Schema& schema,
+                                        const results::Collection& collection) {
   pybind11::list list;
   for (const auto& element : collection.collection()) {
-    list.append(element_to_pyobject(element));
+    list.append(element_to_pyobject(schema, element));
   }
   return list;
 }
 
-pybind11::object entry_to_pyobject(const results::Entry* entry);
+pybind11::object entry_to_pyobject(const Schema& schema,
+                                   const results::Entry* entry);
 
-pybind11::object map_to_pyobject(const results::KeyValues& map) {
+pybind11::object map_to_pyobject(const Schema& schema,
+                                 const results::KeyValues& map) {
   pybind11::dict dict;
   for (const auto& pair : map.key_values()) {
     auto key = value_to_pyobject(pair.key());
-    auto value = entry_to_pyobject(&pair.value());
+    auto value = entry_to_pyobject(schema, &pair.value());
     dict[key] = value;
   }
   return dict;
 }
 
-pybind11::object entry_to_pyobject(const results::Entry* entry) {
+pybind11::object entry_to_pyobject(const Schema& schema,
+                                   const results::Entry* entry) {
   if (!entry) {
     return pybind11::none();
   }
   switch (entry->inner_case()) {
   case results::Entry::kElement: {
-    return element_to_pyobject(entry->element());
+    return element_to_pyobject(schema, entry->element());
   }
   case results::Entry::kCollection: {
-    return collection_to_pyobject(entry->collection());
+    return collection_to_pyobject(schema, entry->collection());
   }
   case results::Entry::kMap: {
-    return map_to_pyobject(entry->map());
+    return map_to_pyobject(schema, entry->map());
   }
   default: {
     throw std::runtime_error("Unknown entry type");
@@ -258,7 +267,7 @@ pybind11::list PyQueryResult::getNext() {
 
   pybind11::list list;
   for (const auto& entry : result.entries()) {
-    list.append(entry_to_pyobject(entry));
+    list.append(entry_to_pyobject(schema_, entry));
   }
   return list;
 }

@@ -54,6 +54,8 @@ class Connection {
    */
   Result<QueryResult> query(const std::string& query_string);
 
+  const Schema& get_schema() const { return db_.schema(); }
+
  private:
   /**
    * @brief Execute the query and return the result.
