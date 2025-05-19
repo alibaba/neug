@@ -60,7 +60,7 @@ class QueryResult(object):
         str
             The string representation of the result.
         """
-        return f"QueryResult({self._result.get_status_code()}, size {self._result.length()})"
+        return f"QueryResult(size {self._result.length()})"
 
     def __repr__(self):
         """

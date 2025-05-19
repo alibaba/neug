@@ -33,8 +33,11 @@ namespace gs {
 
 class QueryProcessor {
  public:
-  QueryProcessor(GraphDB& db, int32_t max_num_threads)
-      : db_(db), max_num_threads_(max_num_threads) {}
+  QueryProcessor(GraphDB& db, int32_t max_num_threads,
+                 bool is_read_only = false)
+      : db_(db),
+        max_num_threads_(max_num_threads),
+        is_read_only_(is_read_only) {}
 
   Result<results::CollectiveResults> execute(const physical::PhysicalPlan& plan,
                                              int32_t num_threads = 0);
@@ -54,6 +57,7 @@ class QueryProcessor {
   GraphDB& db_;
   int32_t max_num_threads_;
   runtime::OprTimer timer_;
+  bool is_read_only_ = false;
 };
 
 }  // namespace gs

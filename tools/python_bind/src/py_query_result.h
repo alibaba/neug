@@ -29,10 +29,8 @@ class PyQueryResult {
  public:
   static void initialize(pybind11::handle& m);
 
-  PyQueryResult(const Schema& schema, Result<QueryResult>&& result)
-      : schema_(schema),
-        query_result_(std::move(std::move(result.move_value()))),
-        status_(result.status()) {}
+  PyQueryResult(const Schema& schema, QueryResult&& result)
+      : schema_(schema), query_result_(std::move(std::move(result))) {}
 
   ~PyQueryResult() { close(); }
 
@@ -44,14 +42,9 @@ class PyQueryResult {
 
   int32_t length() const;
 
-  int32_t getStatusCode() const { return status_.error_code(); }
-
-  std::string getStatusMessage() const { return status_.error_message(); }
-
  private:
   const Schema& schema_;
   QueryResult query_result_;
-  Status status_;
 };
 
 }  // namespace gs

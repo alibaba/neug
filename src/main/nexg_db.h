@@ -18,6 +18,7 @@
 
 #include <memory>
 #include <mutex>
+#include <sstream>
 #include <string>
 #include <vector>
 
@@ -52,29 +53,32 @@ class NexgDB {
     config_.thread_num = max_num_threads;
     config_.memory_level = 0;
     ensure_directory_exists(data_dir);
-    if (!try_to_lock_directory()) {
-      throw std::runtime_error("Failed to lock directory: " + data_dir +
-                               ", Another process may be using it.");
+
+    if (mode == "read_only" || mode == "r") {
+      mode_ = DBMode::READ_ONLY;
+    } else if (mode == "read_write" || mode == "rw" || mode == "w" ||
+               mode == "wr") {
+      mode_ = DBMode::READ_WRITE;
+      std::string message;
+      if (!try_to_lock_directory(message)) {
+        throw std::runtime_error("Failed to lock directory: " + data_dir + "," +
+                                 message);
+      }
+    } else {
+      throw std::invalid_argument("Invalid mode: " + mode);
     }
+
     auto res = db_.Open(config_);
     if (!res.ok()) {
       throw std::runtime_error("Failed to open database: " +
                                res.status().error_message());
-    } else {
-      if (mode == "read_only" || mode == "r") {
-        mode_ = DBMode::READ_ONLY;
-      } else if (mode == "read_write" || mode == "rw" || mode == "w" ||
-                 mode == "wr") {
-        mode_ = DBMode::READ_WRITE;
-      } else {
-        throw std::invalid_argument("Invalid mode: " + mode);
-      }
     }
     LOG(INFO) << "Database opened successfully in " << mode << " mode.";
     planner_ = create_planner(planner_kind, jni_planner_class_path,
                               planner_config_path);
 
-    query_processor_ = std::make_shared<QueryProcessor>(db_, max_num_threads);
+    query_processor_ = std::make_shared<QueryProcessor>(
+        db_, max_num_threads, mode_ == DBMode::READ_ONLY);
     resource_path_ = resource_path;
   }
 
@@ -96,14 +100,33 @@ class NexgDB {
   std::shared_ptr<Connection> connect();
 
  private:
-  bool try_to_lock_directory() {
+  bool try_to_lock_directory(std::string& error_msg) {
     std::string lock_file_path = get_lock_file_path();
-    std::ofstream lock_file(lock_file_path);
-    if (!lock_file.is_open()) {
+    // If the lock file already exists, it means another process is using the
+    // database.
+    if (std::filesystem::exists(lock_file_path)) {
+      LOG(ERROR) << "Lock file already exists: " << lock_file_path;
+      // Read the lock file's content
+      std::ifstream lock_file(lock_file_path);
+      if (!lock_file.is_open()) {
+        LOG(ERROR) << "Failed to open lock file: " << lock_file_path;
+        return false;
+      }
+      std::getline(lock_file, error_msg);
       return false;
     }
-    lock_file << "Locked by process: " << getpid() << std::endl;
+
+    // Create the lock file
+    std::ofstream lock_file(lock_file_path);
+    if (!lock_file.is_open()) {
+      LOG(ERROR) << "Failed to create lock file: " << lock_file_path;
+      return false;
+    }
+    // Write the current process ID to the lock file
+    lock_file << "Locked by process ID: " << getpid() << "\n";
     lock_file.close();
+    VLOG(10) << "Successfully locked directory: " << config_.data_dir
+             << ", lock file: " << lock_file_path;
     return true;
   }
 

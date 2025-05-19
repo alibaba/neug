@@ -41,6 +41,11 @@ Result<results::CollectiveResults> QueryProcessor::execute(
   // TODO: Currently we get the read transaction with the thread id 0. Ideally,
   // we should be able to run queries with multiple threads.
   if (plan.has_ddl_plan()) {
+    if (is_read_only_) {
+      return Result<results::CollectiveResults>(
+          gs::Status(gs::StatusCode::INVALID_ARGUMENT,
+                     "DDL queries are not supported in read-only mode"));
+    }
     return execute_ddl(plan.ddl_plan(), num_threads);
   }
 
@@ -54,8 +59,18 @@ Result<results::CollectiveResults> QueryProcessor::execute(
   if (mode == physical::QueryPlan::READ_ONLY) {
     return execute_read_only(plan, num_threads);
   } else if (mode == physical::QueryPlan::READ_WRITE) {
+    if (is_read_only_) {
+      return Result<results::CollectiveResults>(
+          gs::Status(gs::StatusCode::INVALID_ARGUMENT,
+                     "Read-write queries are not supported in read-only mode"));
+    }
     return execute_read_write(plan, num_threads);
   } else if (mode == physical::QueryPlan::WRITE_ONLY) {
+    if (is_read_only_) {
+      return Result<results::CollectiveResults>(
+          gs::Status(gs::StatusCode::INVALID_ARGUMENT,
+                     "Write-only queries are not supported in read-only mode"));
+    }
     return execute_write_only(plan, num_threads);
   } else {
     LOG(ERROR) << "Unknown query plan mode: " << mode;

@@ -247,8 +247,6 @@ void PyQueryResult::initialize(pybind11::handle& m) {
       .def("hasNext", &PyQueryResult::hasNext)
       .def("getNext", &PyQueryResult::getNext)
       .def("length", &PyQueryResult::length)
-      .def("get_status_code", &PyQueryResult::getStatusCode)
-      .def("get_status_message", &PyQueryResult::getStatusMessage)
       .def("close", &PyQueryResult::close);
   // PyDateTime_IMPORT is a macro that must be invoked before calling any
   // other cpython datetime macros. One could also invoke this in a separate
