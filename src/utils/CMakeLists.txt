@@ -99,7 +99,8 @@ endif()
 
 find_package(mimalloc REQUIRED)
 # must link with the dynamic library of mimalloc
-target_link_libraries(nexg_utils PUBLIC mimalloc)
+# NOTE: linking towards mimalloc will cause runtime memory error on macos 15 arm64
+# target_link_libraries(nexg_utils PUBLIC mimalloc)
 if (APPLE)
         target_link_libraries(nexg_utils PUBLIC absl::log_internal_message)
 endif()

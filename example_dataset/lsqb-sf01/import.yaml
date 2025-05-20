@@ -1,0 +1,395 @@
+graph: ldbc_snb
+loading_config:
+  data_source:
+    scheme: file  # file, oss, s3, hdfs; only file is supported now
+    #  location: # specify it or use FLEX_DATA_DIR env.
+  import_option: init # append, overwrite, only init is supported now
+  format:
+    type: csv
+    metadata:
+      delimiter: "|"  # other loading configuration places here
+vertex_mappings:
+  - type_name: City
+    inputs:
+      - City.csv
+  - type_name: Country
+    inputs:
+      - Country.csv
+  - type_name: Person 
+    inputs:
+      - Person.csv
+  - type_name: Comment
+    inputs:
+      - Comment.csv
+  - type_name: Post
+    inputs:
+      - Post.csv
+  - type_name: Forum
+    inputs:
+      - Forum.csv
+  - type_name: University
+    inputs:
+      - University.csv
+  - type_name: Company
+    inputs:
+      - Company.csv
+  - type_name: TagClass
+    inputs:
+      - TagClass.csv
+  - type_name: Tag
+    inputs:
+      - Tag.csv
+  - type_name: Continent
+    inputs:
+      - Continent.csv
+edge_mappings:
+  - type_triplet: 
+      edge: Comment_hasCreator_Person
+      source_vertex: Comment
+      destination_vertex: Person
+    inputs:
+      - Comment_hasCreator_Person.csv
+    source_vertex_mappings:
+      - column:
+          index: 0
+          name: id
+    destination_vertex_mappings:
+      - column:
+          index: 1
+          name: id
+  - type_triplet:
+      edge: Post_hasCreator_Person
+      source_vertex: Post
+      destination_vertex: Person
+    inputs:
+      - Post_hasCreator_Person.csv
+    source_vertex_mappings:
+      - column:
+          index: 0
+          name: id
+    destination_vertex_mappings:
+      - column:
+          index: 1
+          name: id
+  - type_triplet:
+      edge: Post_hasTag_Tag
+      source_vertex: Post
+      destination_vertex: Tag
+    inputs:
+      - Post_hasTag_Tag.csv
+    source_vertex_mappings:
+      - column:
+          index: 0
+          name: id
+    destination_vertex_mappings:
+      - column:
+          index: 1
+          name: id
+  - type_triplet:
+      edge: Forum_hasTag_Tag
+      source_vertex: Forum
+      destination_vertex: Tag
+    inputs:
+      - Forum_hasTag_Tag.csv
+    source_vertex_mappings:
+      - column:
+          index: 0
+          name: id
+    destination_vertex_mappings:
+      - column:
+          index: 1
+          name: id
+  - type_triplet:
+      edge: Comment_hasTag_Tag
+      source_vertex: Comment
+      destination_vertex: Tag
+    inputs:
+      - Comment_hasTag_Tag.csv
+    source_vertex_mappings:
+      - column:
+          index: 0
+          name: id
+    destination_vertex_mappings:
+      - column:
+          index: 1
+          name: id
+  - type_triplet:
+      edge: Comment_replyOf_Comment
+      source_vertex: Comment
+      destination_vertex: Comment
+    inputs:
+      - Comment_replyOf_Comment.csv
+    source_vertex_mappings:
+      - column:
+          index: 0
+          name: id
+    destination_vertex_mappings:
+      - column:
+          index: 1
+          name: id
+  - type_triplet:
+      edge: Comment_replyOf_Post
+      source_vertex: Comment
+      destination_vertex: Post
+    inputs:
+      - Comment_replyOf_Post.csv
+    source_vertex_mappings:
+      - column:
+          index: 0
+          name: id
+    destination_vertex_mappings:
+      - column:
+          index: 1
+          name: id
+  - type_triplet:
+      edge: Forum_containerOf_Post
+      source_vertex: Forum
+      destination_vertex: Post
+    inputs:
+      - Forum_containerOf_Post.csv
+    source_vertex_mappings:
+      - column:
+          index: 0
+          name: id
+    destination_vertex_mappings:
+      - column:
+          index: 1
+          name: id
+  - type_triplet:
+      edge: Forum_hasMember_Person
+      source_vertex: Forum
+      destination_vertex: Person
+    inputs:
+      - Forum_hasMember_Person.csv
+    source_vertex_mappings:
+      - column:
+          index: 0
+          name: id
+    destination_vertex_mappings:
+      - column:
+          index: 1
+          name: id
+  - type_triplet:
+      edge: Forum_hasModerator_Person
+      source_vertex: Forum
+      destination_vertex: Person
+    inputs:
+      - Forum_hasModerator_Person.csv
+    source_vertex_mappings:
+      - column:
+          index: 0
+          name: id
+    destination_vertex_mappings:
+      - column:
+          index: 1
+          name: id
+  - type_triplet:
+      edge: Person_hasInterest_Tag
+      source_vertex: Person
+      destination_vertex: Tag
+    inputs:
+      - Person_hasInterest_Tag.csv
+    source_vertex_mappings:
+      - column:
+          index: 0
+          name: id
+    destination_vertex_mappings:
+      - column:
+          index: 1
+          name: id
+  - type_triplet:
+      edge: Comment_isLocatedIn_Country
+      source_vertex: Comment
+      destination_vertex: Country
+    inputs:
+      - Comment_isLocatedIn_Country.csv
+    source_vertex_mappings:
+      - column:
+          index: 0
+          name: id
+    destination_vertex_mappings:
+      - column:
+          index: 1
+          name: id
+  - type_triplet:
+      edge: Person_isLocatedIn_City
+      source_vertex: Person
+      destination_vertex: City
+    inputs:
+      - Person_isLocatedIn_City.csv
+    source_vertex_mappings:
+      - column:
+          index: 0
+          name: id
+    destination_vertex_mappings:
+      - column:
+          index: 1
+          name: id
+  - type_triplet:
+      edge: Post_isLocatedIn_Country
+      source_vertex: Post
+      destination_vertex: Country
+    inputs:
+      - Post_isLocatedIn_Country.csv
+    source_vertex_mappings:
+      - column:
+          index: 0
+          name: id
+    destination_vertex_mappings:
+      - column:
+          index: 1
+          name: id
+  - type_triplet:
+      edge: University_isLocatedIn_City
+      source_vertex: University
+      destination_vertex: City
+    inputs:
+      - University_isLocatedIn_City.csv
+    source_vertex_mappings:
+      - column:
+          index: 0
+          name: id
+    destination_vertex_mappings:
+      - column:
+          index: 1
+          name: id
+  - type_triplet:
+      edge: Company_isLocatedIn_Country
+      source_vertex: Company
+      destination_vertex: Country
+    inputs:
+      - Company_isLocatedIn_Country.csv
+    source_vertex_mappings:
+      - column:
+          index: 0
+          name: id
+    destination_vertex_mappings:
+      - column:
+          index: 1
+          name: id
+  - type_triplet:
+      edge: Person_knows_Person
+      source_vertex: Person
+      destination_vertex: Person
+    inputs:
+      - Person_knows_Person.csv
+    source_vertex_mappings:
+      - column:
+          index: 0
+          name: id
+    destination_vertex_mappings:
+      - column:
+          index: 1
+          name: id
+  - type_triplet:
+      edge: Person_likes_Comment
+      source_vertex: Person
+      destination_vertex: Comment
+    inputs:
+      - Person_likes_Comment.csv
+    source_vertex_mappings:
+      - column:
+          index: 0
+          name: id
+    destination_vertex_mappings:
+      - column:
+          index: 1
+          name: id
+  - type_triplet:
+      edge: Person_likes_Post
+      source_vertex: Person
+      destination_vertex: Post
+    inputs:
+      - Person_likes_Post.csv
+    source_vertex_mappings:
+      - column:
+          index: 0
+          name: id
+    destination_vertex_mappings:
+      - column:
+          index: 1
+          name: id
+  - type_triplet:
+      edge: Person_workAt_Company
+      source_vertex: Person
+      destination_vertex: Company
+    inputs:
+      - Person_workAt_Company.csv
+    source_vertex_mappings:
+      - column:
+          index: 0
+          name: id
+    destination_vertex_mappings:
+      - column:
+          index: 1
+          name: id
+  - type_triplet:
+      edge: City_isPartOf_Country
+      source_vertex: City
+      destination_vertex: Country
+    inputs:
+      - City_isPartOf_Country.csv
+    source_vertex_mappings:
+      - column:
+          index: 0
+          name: id
+    destination_vertex_mappings:
+      - column:
+          index: 1
+          name: id
+  - type_triplet:
+      edge: Tag_hasType_TagClass
+      source_vertex: Tag
+      destination_vertex: TagClass
+    inputs:
+      - Tag_hasType_TagClass.csv
+    source_vertex_mappings:
+      - column:
+          index: 0
+          name: id
+    destination_vertex_mappings:
+      - column:
+          index: 1
+          name: id
+  - type_triplet:
+      edge: TagClass_isSubclassOf_TagClass
+      source_vertex: TagClass
+      destination_vertex: TagClass
+    inputs:
+      - TagClass_isSubclassOf_TagClass.csv
+    source_vertex_mappings:
+      - column:
+          index: 0
+          name: id
+    destination_vertex_mappings:
+      - column:
+          index: 1
+          name: id
+  - type_triplet:
+      edge: Person_studyAt_University
+      source_vertex: Person
+      destination_vertex: University
+    inputs:
+      - Person_studyAt_University.csv
+    source_vertex_mappings:
+      - column:
+          index: 0
+          name: id
+    destination_vertex_mappings:
+      - column:
+          index: 1
+          name: id
+  - type_triplet:
+      edge: Country_isPartOf_Continent
+      source_vertex: Country
+      destination_vertex: Continent
+    inputs:
+      - Country_isPartOf_Continent.csv
+    source_vertex_mappings:
+      - column:
+          index: 0
+          name: id
+    destination_vertex_mappings:
+      - column:
+          index: 1
+          name: id
