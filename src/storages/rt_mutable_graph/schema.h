@@ -16,6 +16,7 @@
 #ifndef STORAGES_RT_MUTABLE_GRAPH_SCHEMA_H_
 #define STORAGES_RT_MUTABLE_GRAPH_SCHEMA_H_
 
+#include "src/engines/graph_db/runtime/common/utils/bitset.h"
 #include "src/storages/rt_mutable_graph/types.h"
 #include "src/utils/id_indexer.h"
 #include "src/utils/property/table.h"
@@ -23,8 +24,6 @@
 #include "src/utils/result.h"
 #include "src/utils/string_utils.h"
 #include "src/utils/yaml_utils.h"
-
-#include "third_party/libgrape-lite/grape/utils/bitset.h"
 
 namespace gs {
 
@@ -308,8 +307,7 @@ class Schema {
 
   void delete_edge_label(const std::string& label);
 
-  void delete_edge(const std::string& src_label, const std::string& dst_label,
-                   const std::string& edge_label);
+  void delete_edge(const label_t& src, const label_t& dst, const label_t& edge);
 
   void add_edge_properties(const std::string& src_label,
                            const std::string& dst_label,
@@ -368,8 +366,8 @@ class Schema {
   std::string remote_path_;  // The path to the data on the remote storage
   bool has_multi_props_edge_;
 
-  grape::Bitset vlabel_tomb_;
-  grape::Bitset elabel_tomb_;
+  Bitset vlabel_tomb_;
+  Bitset elabel_tomb_;
 };
 
 }  // namespace gs

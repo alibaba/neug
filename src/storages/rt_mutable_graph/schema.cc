@@ -119,15 +119,14 @@ label_t Schema::edge_label_num() const {
 
 bool Schema::contains_vertex_label(const std::string& label) const {
   label_t ret;
-  return vlabel_indexer_.get_index(label, ret) && !vlabel_tomb_.get_bit(ret);
+  return vlabel_indexer_.get_index(label, ret) && !vlabel_tomb_.get(ret);
 }
 
 label_t Schema::get_vertex_label_id(const std::string& label) const {
   label_t ret;
   LOG_FATAL_IF(!vlabel_indexer_.get_index(label, ret),
                "Fail to get vertex label: " + label);
-  LOG_FATAL_IF(vlabel_tomb_.get_bit(ret),
-               "Vertex label " + label + " was deleted");
+  LOG_FATAL_IF(vlabel_tomb_.get(ret), "Vertex label " + label + " was deleted");
   return ret;
 }
 
@@ -357,19 +356,18 @@ label_t Schema::get_edge_label_id(const std::string& label) const {
   label_t ret;
   LOG_FATAL_IF(!elabel_indexer_.get_index(label, ret),
                "Edge label " + label + " not found");
-  LOG_FATAL_IF(elabel_tomb_.get_bit(ret),
-               "Edge label " + label + " was deleted");
+  LOG_FATAL_IF(elabel_tomb_.get(ret), "Edge label " + label + " was deleted");
   return ret;
 }
 
 bool Schema::contains_edge_label(const std::string& label) const {
   label_t ret;
-  return elabel_indexer_.get_index(label, ret) && !elabel_tomb_.get_bit(ret);
+  return elabel_indexer_.get_index(label, ret) && !elabel_tomb_.get(ret);
 }
 
 std::string Schema::get_vertex_label_name(label_t index) const {
   std::string ret;
-  LOG_FATAL_IF(vlabel_tomb_.get_bit(index),
+  LOG_FATAL_IF(vlabel_tomb_.get(index),
                "Label id: " + std::to_string(index) + " was deleted");
   LOG_FATAL_IF(!vlabel_indexer_.get_key(index, ret),
                "No vertex label found for label id: " + std::to_string(index));
@@ -378,7 +376,7 @@ std::string Schema::get_vertex_label_name(label_t index) const {
 
 std::string Schema::get_edge_label_name(label_t index) const {
   std::string ret;
-  LOG_FATAL_IF(elabel_tomb_.get_bit(index),
+  LOG_FATAL_IF(elabel_tomb_.get(index),
                "Label id: " + std::to_string(index) + " was deleted");
   LOG_FATAL_IF(!elabel_indexer_.get_key(index, ret),
                "No edge label found for label id: " + std::to_string(index));
@@ -414,6 +412,8 @@ void Schema::Serialize(std::unique_ptr<grape::LocalIOAdaptor>& writer) const {
       << v_descriptions_ << e_descriptions_ << description_ << version_
       << remote_path_ << name_ << id_;
   CHECK(writer->WriteArchive(arc));
+  vlabel_tomb_.Serialize(writer);
+  elabel_tomb_.Serialize(writer);
 }
 
 // Note that plugin_dir_ and plugin_name_to_path_and_id_ are not deserialized.
@@ -442,6 +442,8 @@ void Schema::Deserialize(std::unique_ptr<grape::LocalIOAdaptor>& reader) {
           std::make_pair(vproperties_[i][j], j);
     }
   }
+  vlabel_tomb_.Deserialize(reader);
+  elabel_tomb_.Deserialize(reader);
 }
 
 label_t Schema::vertex_label_to_index(const std::string& label) {
@@ -463,7 +465,7 @@ label_t Schema::vertex_label_to_index(const std::string& label) {
 label_t Schema::edge_label_to_index(const std::string& label) {
   label_t ret;
   elabel_indexer_.add(label, ret);
-  if (elabel_tomb_.cardinality() <= ret) {
+  if (elabel_tomb_.size() <= ret) {
     elabel_tomb_.resize(ret + 1);
   }
   return ret;
@@ -1588,19 +1590,19 @@ void Schema::delete_vertex_label(const std::string& label) {
   vprop_name_to_type_and_index_[v_label_id].clear();
   vprop_storage_[v_label_id].clear();
 
-  vlabel_tomb_.set_bit(v_label_id);
+  vlabel_tomb_.set(v_label_id);
 }
 
 void Schema::delete_edge_label(const std::string& label) {
   auto e_label_id = get_edge_label_id(label);
   for (label_t src_v_label = 0; src_v_label < vlabel_indexer_.size();
        src_v_label++) {
-    if (vlabel_tomb_.get_bit(src_v_label)) {
+    if (vlabel_tomb_.get(src_v_label)) {
       continue;
     }
     for (label_t dst_v_label = 0; dst_v_label < vlabel_indexer_.size();
          dst_v_label++) {
-      if (vlabel_tomb_.get_bit(dst_v_label)) {
+      if (vlabel_tomb_.get(dst_v_label)) {
         continue;
       }
       if (exist(src_v_label, dst_v_label, e_label_id)) {
@@ -1618,15 +1620,11 @@ void Schema::delete_edge_label(const std::string& label) {
     }
   }
 
-  elabel_tomb_.set_bit(e_label_id);
+  elabel_tomb_.set(e_label_id);
 }
 
-void Schema::delete_edge(const std::string& src_label,
-                         const std::string& dst_label,
-                         const std::string& edge_label) {
-  label_t src = get_vertex_label_id(src_label);
-  label_t dst = get_vertex_label_id(dst_label);
-  label_t edge = get_edge_label_id(edge_label);
+void Schema::delete_edge(const label_t& src, const label_t& dst,
+                         const label_t& edge) {
   uint32_t index = generate_edge_label(src, dst, edge);
   eproperties_.erase(index);
   eprop_names_.erase(index);

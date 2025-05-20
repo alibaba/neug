@@ -16,7 +16,12 @@
 #ifndef RUNTIME_COMMON_UTILS_BITSET_H_
 #define RUNTIME_COMMON_UTILS_BITSET_H_
 
+#include <utility>
+
 #include "src/engines/graph_db/runtime/common/utils/allocator.h"
+#include "third_party/libgrape-lite/grape/io/local_io_adaptor.h"
+#include "third_party/libgrape-lite/grape/serialization/in_archive.h"
+#include "third_party/libgrape-lite/grape/serialization/out_archive.h"
 
 #define WORD_SIZE(n) (((n) + 63ul) >> 6)
 #define NEXG_BYTE_SIZE(n) (((n) + 63ul) >> 3)
@@ -35,10 +40,83 @@ class Bitset : public SPAllocator<uint64_t> {
         size_in_words_(0),
         capacity_(0),
         capacity_in_words_(0) {}
+
+  Bitset(const Bitset& other)
+      : size_(other.size_),
+        size_in_words_(other.size_in_words_),
+        capacity_(other.capacity_),
+        capacity_in_words_(other.capacity_in_words_) {
+    if (capacity_ == 0) {
+      data_ = NULL;
+    } else {
+      data_ = this->allocate(capacity_in_words_);
+      memcpy(data_, other.data_, NEXG_BYTE_SIZE(capacity_));
+    }
+  }
+
+  Bitset(Bitset&& other)
+      : data_(other.data_),
+        size_(other.size_),
+        size_in_words_(other.size_in_words_),
+        capacity_(other.capacity_),
+        capacity_in_words_(other.capacity_in_words_) {
+    other.data_ = NULL;
+    other.size_ = 0;
+    other.size_in_words_ = 0;
+    other.capacity_ = 0;
+    other.capacity_in_words_ = 0;
+  }
+
   ~Bitset() {
     if (data_ != NULL) {
       this->deallocate(data_, capacity_in_words_);
     }
+  }
+
+  Bitset& operator=(const Bitset& other) {
+    if (this == &other) {
+      return *this;
+    }
+
+    if (data_ != NULL) {
+      this->deallocate(data_, capacity_in_words_);
+    }
+
+    size_ = other.size_;
+    size_in_words_ = other.size_in_words_;
+    capacity_ = other.capacity_;
+    capacity_in_words_ = other.capacity_in_words_;
+
+    if (capacity_ == 0) {
+      data_ = NULL;
+    } else {
+      data_ = this->allocate(capacity_in_words_);
+      memcpy(data_, other.data_, NEXG_BYTE_SIZE(size_));
+    }
+    return *this;
+  }
+
+  Bitset& operator=(Bitset&& other) {
+    if (this == &other) {
+      return *this;
+    }
+
+    if (data_ != NULL) {
+      this->deallocate(data_, capacity_in_words_);
+    }
+
+    data_ = other.data_;
+    size_ = other.size_;
+    size_in_words_ = other.size_in_words_;
+    capacity_ = other.capacity_;
+    capacity_in_words_ = other.capacity_in_words_;
+
+    other.data_ = NULL;
+    other.size_ = 0;
+    other.size_in_words_ = 0;
+    other.capacity_ = 0;
+    other.size_in_words_ = 0;
+    return *this;
   }
 
   void reserve(size_t cap) {
@@ -91,6 +169,37 @@ class Bitset : public SPAllocator<uint64_t> {
 
   bool get(size_t i) const {
     return data_[WORD_INDEX(i)] & (1ul << BIT_OFFSET(i));
+  }
+
+  size_t count() const {
+    size_t ret = 0;
+    for (size_t i = 0; i < size_in_words_; ++i) {
+      ret += __builtin_popcountll(data_[i]);
+    }
+    return ret;
+  }
+
+  inline size_t size() const { return size_; }
+
+  void Serialize(std::unique_ptr<grape::LocalIOAdaptor>& writer) const {
+    grape::InArchive arc;
+    arc << size_ << size_in_words_ << capacity_ << capacity_in_words_;
+    CHECK(writer->WriteArchive(arc));
+    arc.Clear();
+
+    CHECK(writer->Write(data_, size_in_words_ * sizeof(uint64_t)));
+  }
+
+  void Deserialize(std::unique_ptr<grape::LocalIOAdaptor>& reader) {
+    if (data_ != NULL) {
+      this->deallocate(data_, capacity_in_words_);
+    }
+    grape::OutArchive arc;
+    CHECK(reader->ReadArchive(arc));
+    arc >> size_ >> size_in_words_ >> capacity_ >> capacity_in_words_;
+    arc.Clear();
+    data_ = this->allocate(capacity_in_words_);
+    reader->Read(data_, size_in_words_ * sizeof(uint64_t));
   }
 
  private:
