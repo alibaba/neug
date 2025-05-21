@@ -186,8 +186,9 @@ class Bitset : public SPAllocator<uint64_t> {
     arc << size_ << size_in_words_ << capacity_ << capacity_in_words_;
     CHECK(writer->WriteArchive(arc));
     arc.Clear();
-
-    CHECK(writer->Write(data_, size_in_words_ * sizeof(uint64_t)));
+    if (size_in_words_ > 0) {
+      CHECK(writer->Write(data_, size_in_words_ * sizeof(uint64_t)));
+    }
   }
 
   void Deserialize(std::unique_ptr<grape::LocalIOAdaptor>& reader) {
@@ -199,7 +200,9 @@ class Bitset : public SPAllocator<uint64_t> {
     arc >> size_ >> size_in_words_ >> capacity_ >> capacity_in_words_;
     arc.Clear();
     data_ = this->allocate(capacity_in_words_);
-    CHECK(reader->Read(data_, size_in_words_ * sizeof(uint64_t)));
+    if (size_in_words_ > 0) {
+      CHECK(reader->Read(data_, size_in_words_ * sizeof(uint64_t)));
+    }
   }
 
  private:
