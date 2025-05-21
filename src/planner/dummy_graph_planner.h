@@ -25,6 +25,8 @@ class DummyGraphPlanner : public IGraphPlanner {
   DummyGraphPlanner() : IGraphPlanner("") {}
   ~DummyGraphPlanner() {}
 
+  std::string type() const override { return "dummy"; }
+
   Plan compilePlan(const std::string& cypher_query_string,
                    const std::string& graph_schema_yaml,
                    const std::string& graph_statistic_json) override {

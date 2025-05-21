@@ -73,7 +73,7 @@ class TestBachLoading(unittest.TestCase):
         conn.close()
         db.close()
 
-        db2 = Database(db_dir, "r", 0, "dummy", "", "")
+        db2 = Database(db_dir, "r")
         conn2 = db2.connect()
 
         res = conn2.execute('MATCH (n) return count(n);')

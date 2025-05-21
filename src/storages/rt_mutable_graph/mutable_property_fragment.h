@@ -271,14 +271,10 @@ class MutablePropertyFragment {
                   auto vertex_exist = lf_indexers_[v_label_id].get_index(
                       casted_array->Value(j), vid);
                   if (vertex_exist) {
-                    LOG(INFO) << "Found duplicate vertex id: "
-                              << casted_array->Value(j) << ", vid: " << vid;
                     vids.emplace_back(sentinel);
                   } else {
                     vid =
                         lf_indexers_[v_label_id].insert(casted_array->Value(j));
-                    LOG(INFO) << "Insert vertex id: " << casted_array->Value(j)
-                              << ", vid: " << vid;
                     vids.emplace_back(vid);
                   }
                 }
@@ -702,6 +698,7 @@ class MutablePropertyFragment {
   }
 
   void generateStatistics() const;
+  void dumpSchema() const;
 
   std::string work_dir_;
   Schema schema_;

@@ -14,6 +14,7 @@
  */
 
 #include "src/storages/rt_mutable_graph/schema.h"
+#include <filesystem>
 #include "src/utils/exception.h"
 
 #include <yaml-cpp/yaml.h>
@@ -127,6 +128,16 @@ label_t Schema::get_vertex_label_id(const std::string& label) const {
   LOG_FATAL_IF(!vlabel_indexer_.get_index(label, ret),
                "Fail to get vertex label: " + label);
   LOG_FATAL_IF(vlabel_tomb_.get(ret), "Vertex label " + label + " was deleted");
+  return ret;
+}
+
+std::vector<label_t> Schema::get_vertex_label_ids() const {
+  std::vector<label_t> ret;
+  for (label_t i = 0; i < vlabel_indexer_.size(); i++) {
+    if (!vlabel_tomb_.get(i)) {
+      ret.push_back(i);
+    }
+  }
   return ret;
 }
 
@@ -360,6 +371,16 @@ label_t Schema::get_edge_label_id(const std::string& label) const {
   return ret;
 }
 
+std::vector<label_t> Schema::get_edge_label_ids() const {
+  std::vector<label_t> ret;
+  for (label_t i = 0; i < elabel_indexer_.size(); i++) {
+    if (!elabel_tomb_.get(i)) {
+      ret.push_back(i);
+    }
+  }
+  return ret;
+}
+
 bool Schema::contains_edge_label(const std::string& label) const {
   label_t ret;
   return elabel_indexer_.get_index(label, ret) && !elabel_tomb_.get(ret);
@@ -556,6 +577,8 @@ bool Schema::Equals(const Schema& other) const {
   }
   return true;
 }
+
+Result<YAML::Node> Schema::to_yaml() const { return Schema::DumpToYaml(*this); }
 
 namespace config_parsing {
 
@@ -1272,6 +1295,77 @@ static Status parse_schema_config_file(const std::string& path,
   return parse_schema_from_yaml_node(graph_node, schema, parent_dir);
 }
 
+///////////////////////Dump schema to yaml//////////////////////////
+bool dump_vertices_schema(const Schema& schema, YAML::Node& node) {
+  auto v_labels = schema.get_vertex_label_ids();
+  for (auto& v_label : v_labels) {
+    YAML::Node cur_node(YAML::NodeType::Map);
+    cur_node["type_name"] = schema.get_vertex_label_name(v_label);
+    cur_node["description"] = schema.get_vertex_description(v_label);
+    cur_node["type_id"] = std::to_string(v_label);
+    cur_node["properties"] = YAML::Node(YAML::NodeType::Sequence);
+    auto properties = schema.get_vertex_properties(v_label);
+    auto property_names = schema.get_vertex_property_names(v_label);
+    CHECK_EQ(properties.size(), property_names.size());
+    for (size_t i = 0; i < properties.size(); ++i) {
+      YAML::Node prop_node(YAML::NodeType::Map);
+      prop_node["property_id"] = i;
+      prop_node["property_name"] = property_names[i];
+      prop_node["property_type"] = property_type_to_yaml(properties[i]);
+      cur_node["properties"].push_back(prop_node);
+    }
+    node.push_back(cur_node);
+  }
+  return true;
+}
+
+bool dump_edges_schema(const Schema& schema, YAML::Node& node) {
+  auto v_labels = schema.get_vertex_label_ids();
+  auto e_labels = schema.get_edge_label_ids();
+  for (auto e_label : e_labels) {
+    YAML::Node cur_node;
+    cur_node["type_id"] = std::to_string(e_label);
+    cur_node["type_name"] = schema.get_edge_label_name(e_label);
+    cur_node["properties"] = YAML::Node(YAML::NodeType::Sequence);
+    cur_node["vertex_type_pair_relations"] =
+        YAML::Node(YAML::NodeType::Sequence);
+    bool properties_set = false;
+
+    for (auto src_v : v_labels) {
+      for (auto dst_v : v_labels) {
+        if (!properties_set) {
+          auto properties = schema.get_edge_properties(src_v, dst_v, e_label);
+          auto property_names =
+              schema.get_edge_property_names(src_v, dst_v, e_label);
+          CHECK_EQ(properties.size(), property_names.size());
+          for (size_t i = 0; i < properties.size(); ++i) {
+            YAML::Node prop_node;
+            prop_node["property_id"] = i;
+            prop_node["property_name"] = property_names[i];
+            prop_node["property_type"] = property_type_to_yaml(properties[i]);
+            cur_node["properties"].push_back(prop_node);
+          }
+        }
+        if (schema.has_edge_label(src_v, dst_v, e_label)) {
+          YAML::Node vertex_type_pair_node;
+          vertex_type_pair_node["source_vertex"] =
+              schema.get_vertex_label_name(src_v);
+          vertex_type_pair_node["destination_vertex"] =
+              schema.get_vertex_label_name(dst_v);
+          cur_node["vertex_type_pair_relations"].push_back(
+              vertex_type_pair_node);
+        }
+      }
+    }
+    node.push_back(cur_node);
+  }
+  return true;
+}
+
+bool dump_stored_procedures(const Schema& schema, YAML::Node& node) {
+  LOG(WARNING) << "Not implemented yet";
+  return true;
+}
 }  // namespace config_parsing
 
 const std::unordered_map<std::string, std::pair<std::string, uint8_t>>&
@@ -1508,6 +1602,29 @@ Result<Schema> Schema::LoadFromYamlNode(const YAML::Node& schema_yaml_node) {
   } else {
     return Result<Schema>(status);
   }
+}
+
+Result<YAML::Node> Schema::DumpToYaml(const Schema& schema) {
+  YAML::Node graph_node;
+  graph_node["name"] = schema.GetGraphName();
+  graph_node["id"] = schema.GetGraphId();
+  graph_node["description"] = schema.GetDescription();
+  graph_node["remote_path"] = schema.GetRemotePath();
+  graph_node["version"] = schema.GetVersion();
+
+  YAML::Node vertex_types(YAML::NodeType::Sequence);
+  config_parsing::dump_vertices_schema(schema, vertex_types);
+  graph_node["schema"]["vertex_types"] = vertex_types;
+
+  YAML::Node edge_types(YAML::NodeType::Sequence);
+  config_parsing::dump_edges_schema(schema, edge_types);
+  graph_node["schema"]["edge_types"] = edge_types;
+
+  YAML::Node stored_procedures(YAML::NodeType::Sequence);
+  config_parsing::dump_stored_procedures(schema, stored_procedures);
+  graph_node["stored_procedures"] = stored_procedures;
+
+  return graph_node;
 }
 
 const std::vector<std::string>& Schema::GetCompatibleVersions() {

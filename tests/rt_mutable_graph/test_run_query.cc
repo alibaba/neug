@@ -15,10 +15,10 @@ int main(int argc, char** argv) {
 
   gs::NexgDB db(
       data_path, 1, "w", "jni",
-      "/Users/zhanglei/code/nexg/tools/python_bind/nexg/resources/compiler.jar",
-      "/Users/zhanglei/code/nexg/tools/python_bind/nexg/resources/"
+      "/workspaces/neug/tools/python_bind/nexg/resources/compiler.jar",
+      "/workspaces/neug/tools/python_bind/nexg/resources/"
       "planner_config.yaml",
-      "/Users/zhanglei/code/nexg/tools/python_bind/nexg/resources/");
+      "/workspaces/neug/tools/python_bind/nexg/resources/");
   auto conn = db.connect();
 
   auto res = conn->query("MATCH (v) RETURN v;");

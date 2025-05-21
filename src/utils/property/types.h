@@ -161,6 +161,9 @@ struct PropertyType {
 namespace config_parsing {
 std::string PrimitivePropertyTypeToString(PropertyType type);
 PropertyType StringToPrimitivePropertyType(const std::string& str);
+
+YAML::Node TemporalTypeToYAML(PropertyType type);
+
 }  // namespace config_parsing
 
 // encoded with label_id and vid_t.

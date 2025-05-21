@@ -40,6 +40,8 @@ class IGraphPlanner {
   IGraphPlanner(const std::string& compiler_config_path)
       : compiler_config_path_(compiler_config_path) {}
 
+  virtual std::string type() const = 0;
+
   virtual ~IGraphPlanner() = default;
 
   /**

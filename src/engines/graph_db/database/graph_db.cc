@@ -249,6 +249,7 @@ Result<bool> GraphDB::Open(const GraphDBConfig& config) {
 
   unlink(graph_.statisticsFilePath().c_str());
   graph_.generateStatistics();
+  graph_.dumpSchema();
   LOG(INFO) << "GraphDB opened successfully";
   runtime::CypherRunnerImpl::get().clear_cache();
 

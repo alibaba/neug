@@ -115,6 +115,8 @@ class Schema {
 
   label_t get_vertex_label_id(const std::string& label) const;
 
+  std::vector<label_t> get_vertex_label_ids() const;
+
   void set_vertex_properties(
       label_t label_id, const std::vector<PropertyType>& types,
       const std::vector<StorageStrategy>& strategies = {});
@@ -234,6 +236,8 @@ class Schema {
 
   label_t get_edge_label_id(const std::string& label) const;
 
+  std::vector<label_t> get_edge_label_ids() const;
+
   std::string get_vertex_label_name(label_t index) const;
 
   std::string get_edge_label_name(label_t index) const;
@@ -251,7 +255,11 @@ class Schema {
 
   static Result<Schema> LoadFromYamlNode(const YAML::Node& schema_node);
 
+  static Result<YAML::Node> DumpToYaml(const Schema& schema);
+
   bool Equals(const Schema& other) const;
+
+  Result<YAML::Node> to_yaml() const;
 
   // Return the map from plugin name to plugin id
   const std::unordered_map<std::string, std::pair<std::string, uint8_t>>&

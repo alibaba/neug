@@ -29,6 +29,34 @@
 #include "service_utils.h"
 
 namespace gs {
+
+YAML::Node property_type_to_yaml(const PropertyType& type) {
+  YAML::Node node;
+  switch (type.type_enum) {
+  case impl::PropertyTypeImpl::kBool:
+  case impl::PropertyTypeImpl::kInt32:
+  case impl::PropertyTypeImpl::kUInt32:
+  case impl::PropertyTypeImpl::kInt64:
+  case impl::PropertyTypeImpl::kUInt64:
+  case impl::PropertyTypeImpl::kFloat:
+  case impl::PropertyTypeImpl::kDouble:
+
+    node["primitive_type"] =
+        config_parsing::PrimitivePropertyTypeToString(type);
+    break;
+  case impl::PropertyTypeImpl::kStringView:
+  case impl::PropertyTypeImpl::kStringMap:
+    node["string"]["long_text"] = "";
+    break;
+  case impl::PropertyTypeImpl::kDate:
+    node["temporal"] = config_parsing::TemporalTypeToYAML(type);
+    break;
+  default:
+    LOG(FATAL) << "Unsupported property type: " << type.type_enum;
+  }
+  return node;
+}
+
 std::vector<std::string> get_yaml_files(const std::string& plugin_dir) {
   std::filesystem::path dir_path = plugin_dir;
   std::vector<std::string> res_yaml_files;
@@ -197,6 +225,25 @@ std::string read_yaml_file_to_string(const std::string& file_path) {
     throw std::runtime_error("Failed to read yaml file: " + file_path);
   }
   return std::string(emitter.c_str());
+}
+
+bool write_yaml_file(const YAML::Node& node, const std::string& file_path) {
+  try {
+    YAML::Emitter emitter;
+    emitter << node;
+    auto str = emitter.c_str();
+    std::ofstream fout(file_path);
+    if (!fout.is_open()) {
+      return false;
+    }
+    fout << str;
+    fout.close();
+  } catch (const std::exception& e) {
+    LOG(ERROR) << "Fail to load procedure yaml file: " << file_path
+               << ", error: " << e.what();
+    return false;
+  }
+  return true;
 }
 
 }  // namespace gs

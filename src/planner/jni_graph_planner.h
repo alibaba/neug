@@ -116,6 +116,8 @@ class JavaGraphPlanner : public IGraphPlanner {
 #endif
   }
 
+  std::string type() const override { return "jni"; }
+
   /**
    * @brief Invoker GraphPlanner to generate a physical plan from a cypher
    * query.

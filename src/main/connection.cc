@@ -66,14 +66,19 @@ Result<results::CollectiveResults> Connection::query_impl(
     auto dml_plan = createDMLPlan(query_string);
     return query_processor_->execute(dml_plan);
   }
-
+  Plan plan;
+  if (planner_->type() == "dummy") {
+    plan.error_code = "OK";
+    plan.full_message = "OK";
+    plan.physical_plan = load_plan_from_resource(resource_path_ + "/nexg.pb");
+  } else {
+    plan = planner_->compilePlan(
+        query_string, read_yaml_file_to_string(db_.get_schema_yaml_path()),
+        db_.get_statistics_json());
+  }
   // auto plan = planner_->compilePlan(
   //     query_string, read_yaml_file_to_string(db_.get_schema_yaml_path()),
   //     db_.get_statistics_json());
-  Plan plan;
-  plan.error_code = "OK";
-  plan.full_message = "OK";
-  plan.physical_plan = load_plan_from_resource(resource_path_ + "/nexg.pb");
 
   if (plan.error_code != "OK") {
     LOG(ERROR) << "Error in query: " << query_string
@@ -85,21 +90,25 @@ Result<results::CollectiveResults> Connection::query_impl(
         Status(StatusCode::COMPILATION_FAILURE, plan.full_message));
   }
   // Dump plan to binary
-  std::string plan_binary;
-  if (!plan.physical_plan.SerializeToString(&plan_binary)) {
-    LOG(ERROR) << "Error in serializing plan to binary.";
-    return Result<results::CollectiveResults>(
-        Status(StatusCode::COMPILATION_FAILURE, "Error in serializing plan."));
-  }
-  // Open ~/nexg.pb and write
-  std::ofstream fs("/tmp/nexg.pb", std::ios::out | std::ios::binary);
-  fs.write(plan_binary.data(), plan_binary.size());
-  fs.close();
-  LOG(INFO) << "Serialized plan to /tmp/nexg.pb, size: " << plan_binary.size();
+  // {
+  //   std::string plan_binary;
+  //   if (!plan.physical_plan.SerializeToString(&plan_binary)) {
+  //     LOG(ERROR) << "Error in serializing plan to binary.";
+  //     return Result<results::CollectiveResults>(Status(
+  //         StatusCode::COMPILATION_FAILURE, "Error in serializing plan."));
+  //   }
+  //   // Open ~/nexg.pb and write
+  //   std::ofstream fs("/tmp/nexg.pb", std::ios::out | std::ios::binary);
+  //   fs.write(plan_binary.data(), plan_binary.size());
+  //   fs.close();
+  //   LOG(INFO) << "Serialized plan to /tmp/nexg.pb, size: "
+  //             << plan_binary.size();
+  // }
 
   VLOG(10) << "Physical plan: " << plan.physical_plan.DebugString();
   LOG(INFO) << "Got physical plan, "
             << plan.physical_plan.query_plan().plan_size() << " operators.";
+
   auto result = query_processor_->execute(plan.physical_plan);
   if (result.ok()) {
     LOG(INFO) << "Query executed successfully.";

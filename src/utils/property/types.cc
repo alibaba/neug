@@ -82,6 +82,19 @@ PropertyType StringToPrimitivePropertyType(const std::string& str) {
     return PropertyType::kEmpty;
   }
 }
+
+YAML::Node TemporalTypeToYAML(PropertyType type) {
+  YAML::Node node;
+  if (type == PropertyType::kDate) {
+    node["temporal"]["timestamp"] = "";
+  } else if (type == PropertyType::kDay) {
+    node["temporal"]["date32"] = "";
+  } else {
+    LOG(FATAL) << "Unsupported property type: " << type.type_enum;
+  }
+  return node;
+}
+
 }  // namespace config_parsing
 
 static uint16_t get_string_default_max_length_env() {

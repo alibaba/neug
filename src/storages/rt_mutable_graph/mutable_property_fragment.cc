@@ -197,6 +197,7 @@ Status MutablePropertyFragment::create_vertex_type(
 
   // Dump schema
   DumpSchema(schema_path(work_dir_));
+  dumpSchema();
   vertex_label_num_ = schema_.vertex_label_num();
   return gs::Status::OK();
 }
@@ -280,6 +281,7 @@ Status MutablePropertyFragment::create_edge_type(
   dual_csr_list_[index]->Resize(src_v_capacity, dst_v_capacity);
 
   DumpSchema(schema_path(work_dir_));
+  dumpSchema();
   return gs::Status::OK();
 }
 
@@ -965,6 +967,18 @@ void MutablePropertyFragment::generateStatistics() const {
     out << get_statistics_json();
     out.close();
   }
+}
+
+void MutablePropertyFragment::dumpSchema() const {
+  LOG(INFO) << "Dump schema to file: " << get_schema_yaml_path();
+  std::string filename = get_schema_yaml_path();
+  auto schema_res = schema_.to_yaml();
+  if (!schema_res.ok()) {
+    LOG(ERROR) << "Failed to dump schema to yaml: "
+               << schema_res.status().error_message();
+    return;
+  }
+  write_yaml_file(schema_res.value(), filename);
 }
 
 }  // namespace gs
