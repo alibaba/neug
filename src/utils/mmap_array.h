@@ -265,6 +265,64 @@ class mmap_array {
     }
   }
 
+  void dump_without_close(const std::string& filename) {
+    if (sync_to_file_) {
+      std::string old_filename = filename_;
+      reset();
+      std::error_code errorCode;
+      std::filesystem::rename(old_filename, filename, errorCode);
+      if (errorCode) {
+        std::stringstream ss;
+        ss << "Failed to rename file " << old_filename << " to " << filename
+           << " " << errorCode.message() << std::endl;
+        LOG(ERROR) << ss.str();
+        throw std::runtime_error(ss.str());
+      }
+    } else {
+      FILE* fout = fopen(filename.c_str(), "wb");
+      if (fout == NULL) {
+        std::stringstream ss;
+        ss << "Failed to open file [ " << filename << " ], " << strerror(errno);
+        LOG(ERROR) << ss.str();
+        throw std::runtime_error(ss.str());
+      }
+      if (fwrite(data_, sizeof(T), size_, fout) != size_) {
+        std::stringstream ss;
+        ss << "Failed to fwrite file [ " << filename << " ], "
+           << strerror(errno);
+        LOG(ERROR) << ss.str();
+        throw std::runtime_error(ss.str());
+      }
+      if (fflush(fout) != 0) {
+        std::stringstream ss;
+        ss << "Failed to fflush file [ " << filename << " ], "
+           << strerror(errno);
+        LOG(ERROR) << ss.str();
+        throw std::runtime_error(ss.str());
+      }
+      if (fclose(fout) != 0) {
+        std::stringstream ss;
+        ss << "Failed to fclose file [ " << filename << " ], "
+           << strerror(errno);
+        LOG(ERROR) << ss.str();
+        throw std::runtime_error(ss.str());
+      }
+    }
+    std::filesystem::perms readPermission = std::filesystem::perms::owner_read;
+
+    std::error_code errorCode;
+    std::filesystem::permissions(filename, readPermission,
+                                 std::filesystem::perm_options::add, errorCode);
+
+    if (errorCode) {
+      std::stringstream ss;
+      ss << "Failed to set read permission for file: " << filename << " "
+         << errorCode.message() << std::endl;
+      LOG(ERROR) << ss.str();
+      throw std::runtime_error(ss.str());
+    }
+  }
+
   void dump(const std::string& filename) {
     if (sync_to_file_) {
       std::string old_filename = filename_;
@@ -487,6 +545,11 @@ class mmap_array<std::string_view> {
   void dump(const std::string& filename) {
     items_.dump(filename + ".items");
     data_.dump(filename + ".data");
+  }
+
+  void dump_without_close(const std::string& filename) {
+    items_.dump_without_close(filename + ".items");
+    data_.dump_without_close(filename + ".data");
   }
 
   void resize(size_t size, size_t data_size) {

@@ -46,6 +46,8 @@ class ColumnBase {
 
   virtual void dump(const std::string& filename) = 0;
 
+  virtual void dump_without_close(const std::string& filename) = 0;
+
   virtual size_t size() const = 0;
 
   virtual void copy_to_tmp(const std::string& cur_path,
@@ -171,6 +173,23 @@ class TypedColumn : public ColumnBase {
     }
   }
 
+  void dump_without_close(const std::string& filename) override {
+    if (basic_size_ != 0 && extra_size_ == 0) {
+      basic_buffer_.dump_without_close(filename);
+    } else if (basic_size_ == 0 && extra_size_ != 0) {
+      extra_buffer_.dump_without_close(filename);
+    } else {
+      mmap_array<T> tmp;
+      tmp.open(filename, true);
+      for (size_t k = 0; k < basic_size_; ++k) {
+        tmp.set(k, basic_buffer_.get(k));
+      }
+      for (size_t k = 0; k < extra_size_; ++k) {
+        tmp.set(k + basic_size_, extra_buffer_.get(k));
+      }
+    }
+  }
+
   size_t size() const override { return basic_size_ + extra_size_; }
 
   void resize(size_t size) override {
@@ -260,6 +279,10 @@ class TypedColumn<RecordView> : public ColumnBase {
     LOG(FATAL) << "RecordView column does not support dump.";
   }
 
+  void dump_without_close(const std::string& filename) override {
+    LOG(FATAL) << "RecordView column does not support dump_without_close.";
+  }
+
   void copy_to_tmp(const std::string& cur_path,
                    const std::string& tmp_path) override {
     LOG(FATAL) << "RecordView column does not support copy_to_tmp.";
@@ -320,6 +343,7 @@ class TypedColumn<grape::EmptyType> : public ColumnBase {
   void open_with_hugepages(const std::string& name, bool force) override {}
   void touch(const std::string& filename) override {}
   void dump(const std::string& filename) override {}
+  void dump_without_close(const std::string& filename) override {}
   void copy_to_tmp(const std::string& cur_path,
                    const std::string& tmp_path) override {}
   void close() override {}
@@ -481,6 +505,32 @@ class TypedColumn<std::string_view> : public ColumnBase {
     }
   }
 
+  void dump_without_close(const std::string& filename) override {
+    if (basic_size_ != 0 && extra_size_ == 0) {
+      basic_buffer_.resize(basic_size_, basic_pos_.load());
+      basic_buffer_.dump_without_close(filename);
+    } else if (basic_size_ == 0 && extra_size_ != 0) {
+      extra_buffer_.resize(extra_size_, pos_.load());
+      extra_buffer_.dump_without_close(filename);
+    } else {
+      mmap_array<std::string_view> tmp;
+      tmp.open(filename, true);
+      tmp.resize(basic_size_ + extra_size_,
+                 (basic_size_ + extra_size_) * width_);
+      size_t offset = 0;
+      for (size_t k = 0; k < basic_size_; ++k) {
+        std::string_view val = basic_buffer_.get(k);
+        tmp.set(k, offset, val);
+        offset += val.size();
+      }
+      for (size_t k = 0; k < extra_size_; ++k) {
+        std::string_view val = extra_buffer_.get(k);
+        tmp.set(k + basic_size_, offset, val);
+        offset += val.size();
+      }
+    }
+  }
+
   size_t size() const override { return basic_size_ + extra_size_; }
 
   void resize(size_t size) override {
@@ -630,6 +680,7 @@ class StringMapColumn : public ColumnBase {
   void open_in_memory(const std::string& name) override;
   void open_with_hugepages(const std::string& name, bool force) override;
   void dump(const std::string& filename) override;
+  void dump_without_close(const std::string& filename) override;
 
   void touch(const std::string& filename) override {
     index_col_.touch(filename);
@@ -706,6 +757,12 @@ template <typename INDEX_T>
 void StringMapColumn<INDEX_T>::dump(const std::string& filename) {
   index_col_.dump(filename);
   meta_map_->dump(filename + ".map_meta", "");
+}
+
+template <typename INDEX_T>
+void StringMapColumn<INDEX_T>::dump_without_close(const std::string& filename) {
+  index_col_.dump_without_close(filename);
+  meta_map_->dump_without_close(filename + ".map_meta", "");
 }
 
 template <typename INDEX_T>

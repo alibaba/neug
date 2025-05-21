@@ -83,6 +83,7 @@ class NexgDB {
   }
 
   ~NexgDB() {
+    LOG(INFO) << "Closing NexgDB.";
     db_.Close();
     std::remove(get_lock_file_path().c_str());
   }

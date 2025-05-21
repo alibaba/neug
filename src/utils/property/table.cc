@@ -18,7 +18,7 @@
 namespace gs {
 
 Table::Table() : touched_(false) {}
-Table::~Table() {}
+Table::~Table() { close(); }
 
 void Table::initColumns(const std::vector<std::string>& col_name,
                         const std::vector<PropertyType>& property_types,
@@ -121,6 +121,15 @@ void Table::dump(const std::string& name, const std::string& snapshot_dir) {
   }
   columns_.clear();
   column_ptrs_.clear();
+}
+
+void Table::dump_without_close(const std::string& name,
+                               const std::string& snapshot_dir) {
+  int i = 0;
+  for (auto col : columns_) {
+    col->dump_without_close(snapshot_dir + "/" + name + ".col_" +
+                            std::to_string(i++));
+  }
 }
 
 void Table::reset_header(const std::vector<std::string>& col_name) {

@@ -14,7 +14,7 @@ int main(int argc, char** argv) {
   std::string data_path = argv[1];
 
   gs::NexgDB db(
-      data_path, 1, "r", "jni",
+      data_path, 1, "w", "jni",
       "/Users/zhanglei/code/nexg/tools/python_bind/nexg/resources/compiler.jar",
       "/Users/zhanglei/code/nexg/tools/python_bind/nexg/resources/"
       "planner_config.yaml",

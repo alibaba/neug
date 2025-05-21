@@ -234,13 +234,6 @@ void _create_batch_load_edge_plan(physical::QueryPlan* query_plan,
         ->set_name(dst_type_name);
     {
       // property mappings
-      auto prop_mapping = batch_insert_edge_opt->add_property_mappings();
-      prop_mapping->mutable_property()->mutable_key()->set_name("weight");
-      prop_mapping->mutable_data()
-          ->add_operators()
-          ->mutable_var()
-          ->mutable_tag()
-          ->set_id(2);
       auto src_mapping = batch_insert_edge_opt->add_source_vertex_binding();
       src_mapping->mutable_property()->mutable_key()->set_name("id");
       src_mapping->mutable_data()
@@ -257,6 +250,13 @@ void _create_batch_load_edge_plan(physical::QueryPlan* query_plan,
           ->mutable_var()
           ->mutable_tag()
           ->set_id(1);
+      auto prop_mapping = batch_insert_edge_opt->add_property_mappings();
+      prop_mapping->mutable_property()->mutable_key()->set_name("weight");
+      prop_mapping->mutable_data()
+          ->add_operators()
+          ->mutable_var()
+          ->mutable_tag()
+          ->set_id(2);
     }
   }
 }

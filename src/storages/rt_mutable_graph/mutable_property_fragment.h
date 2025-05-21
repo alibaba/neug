@@ -245,8 +245,8 @@ class MutablePropertyFragment {
 
               size_t row_num = primary_key_column->length();
               auto col_num = other_columns_array.size();
-              for (size_t i = 0; i < col_num; ++i) {
-                CHECK_EQ(other_columns_array[i]->length(), row_num);
+              for (size_t j = 0; j < col_num; ++j) {
+                CHECK_EQ(other_columns_array[j]->length(), row_num);
               }
               std::vector<size_t> vids;
               vids.reserve(row_num);
@@ -265,27 +265,33 @@ class MutablePropertyFragment {
                 }
                 auto casted_array =
                     std::static_pointer_cast<arrow_array_t>(primary_key_column);
-                for (size_t i = 0; i < row_num; ++i) {
+                lf_indexers_[v_label_id].reserve(
+                    lf_indexers_[v_label_id].size() + row_num);
+                for (size_t j = 0; j < row_num; ++j) {
                   auto vertex_exist = lf_indexers_[v_label_id].get_index(
-                      casted_array->Value(i), vid);
-                  if (!vertex_exist) {
-                    vid =
-                        lf_indexers_[v_label_id].insert(casted_array->Value(i));
-                    vids.emplace_back(vid);
-                  } else {
+                      casted_array->Value(j), vid);
+                  if (vertex_exist) {
+                    LOG(INFO) << "Found duplicate vertex id: "
+                              << casted_array->Value(j) << ", vid: " << vid;
                     vids.emplace_back(sentinel);
+                  } else {
+                    vid =
+                        lf_indexers_[v_label_id].insert(casted_array->Value(j));
+                    LOG(INFO) << "Insert vertex id: " << casted_array->Value(j)
+                              << ", vid: " << vid;
+                    vids.emplace_back(vid);
                   }
                 }
               } else {
-                LOG(ERROR) << "Invalid id type";
+                LOG(FATAL) << "Invalid id type";
               }
 
               LOG(INFO) << "Start to set property column";
               // Set other columns
-              for (size_t i = 0; i < other_columns_array.size(); i++) {
+              for (size_t j = 0; j < other_columns_array.size(); j++) {
                 auto chunked_array = std::make_shared<arrow::ChunkedArray>(
-                    other_columns_array[i]);
-                auto column = vertex_data_[v_label_id].column_ptrs()[i];
+                    other_columns_array[j]);
+                auto column = vertex_data_[v_label_id].column_ptrs()[j];
                 set_properties_column(column, chunked_array, vids);
               }
             }
@@ -296,6 +302,12 @@ class MutablePropertyFragment {
       t.join();
     }
     work_threads.clear();
+
+    vertex_data_[v_label_id].dump_without_close(
+        vertex_table_prefix(vertex_type_name), snapshot_dir(work_dir_, 0));
+    lf_indexers_[v_label_id].dump_without_close(
+        LFIndexer<vid_t>::prefix() + "_" + vertex_map_prefix(vertex_type_name),
+        snapshot_dir(work_dir_, 0));
     return gs::Status::OK();
   }
 
@@ -517,10 +529,12 @@ class MutablePropertyFragment {
         BasicFragmentLoader::get_casted_dual_csr<EDATA_T>(dual_csr);
     auto INVALID_VID = std::numeric_limits<vid_t>::max();
     std::atomic<size_t> edge_count(0);
+    dual_csr->BatchInit(
+        oe_prefix(src_vertex_type, dst_vertex_type, edge_type_name),
+        ie_prefix(src_vertex_type, dst_vertex_type, edge_type_name),
+        edata_prefix(src_vertex_type, dst_vertex_type, edge_type_name),
+        tmp_dir(work_dir_), oe_deg, ie_deg);
     if constexpr (std::is_same_v<EDATA_T, std::string_view>) {
-      dual_csr->BatchInitInMemory(
-          edata_prefix(src_vertex_type, dst_vertex_type, edge_type_name),
-          tmp_dir(work_dir_), oe_deg, ie_deg);
       std::vector<std::thread> work_threads;
       for (size_t i = 0; i < parsed_edges_vec.size(); ++i) {
         work_threads.emplace_back(
@@ -543,9 +557,6 @@ class MutablePropertyFragment {
         t.join();
       }
     } else {
-      dual_csr->BatchInitInMemory(
-          edata_prefix(src_vertex_type, dst_vertex_type, edge_type_name),
-          tmp_dir(work_dir_), oe_deg, ie_deg);
       std::vector<std::thread> work_threads;
       for (size_t i = 0; i < parsed_edges_vec.size(); ++i) {
         work_threads.emplace_back(
@@ -568,6 +579,12 @@ class MutablePropertyFragment {
         t.join();
       }
     }
+
+    dual_csr->Dump(
+        oe_prefix(src_vertex_type, dst_vertex_type, edge_type_name),
+        ie_prefix(src_vertex_type, dst_vertex_type, edge_type_name),
+        edata_prefix(src_vertex_type, dst_vertex_type, edge_type_name),
+        snapshot_dir(work_dir_, 0));
 
     string_columns.clear();
     return gs::Status::OK();

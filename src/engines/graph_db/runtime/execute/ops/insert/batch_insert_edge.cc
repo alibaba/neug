@@ -67,23 +67,23 @@ void batch_load_edges_helper(
     label_t dst_label_id, PropertyType dst_pk_prop, PropertyType edge_prop_type,
     std::vector<std::shared_ptr<IRecordBatchSupplier>>& suppliers) {
   if (dst_pk_prop == PropertyType::Int64()) {
-    batch_load_edges_helper<int64_t, int64_t>(frag, src_label_id, edge_label_id,
-                                              dst_label_id, edge_prop_type,
-                                              suppliers);
+    batch_load_edges_helper<SRC_PK_T, int64_t>(frag, src_label_id,
+                                               edge_label_id, dst_label_id,
+                                               edge_prop_type, suppliers);
   } else if (dst_pk_prop == PropertyType::UInt64()) {
-    batch_load_edges_helper<int64_t, uint64_t>(frag, src_label_id,
-                                               edge_label_id, dst_label_id,
-                                               edge_prop_type, suppliers);
+    batch_load_edges_helper<SRC_PK_T, uint64_t>(frag, src_label_id,
+                                                edge_label_id, dst_label_id,
+                                                edge_prop_type, suppliers);
   } else if (dst_pk_prop == PropertyType::Int32()) {
-    batch_load_edges_helper<int64_t, int32_t>(frag, src_label_id, edge_label_id,
-                                              dst_label_id, edge_prop_type,
-                                              suppliers);
-  } else if (dst_pk_prop == PropertyType::UInt32()) {
-    batch_load_edges_helper<int64_t, uint32_t>(frag, src_label_id,
+    batch_load_edges_helper<SRC_PK_T, int32_t>(frag, src_label_id,
                                                edge_label_id, dst_label_id,
                                                edge_prop_type, suppliers);
+  } else if (dst_pk_prop == PropertyType::UInt32()) {
+    batch_load_edges_helper<SRC_PK_T, uint32_t>(frag, src_label_id,
+                                                edge_label_id, dst_label_id,
+                                                edge_prop_type, suppliers);
   } else if (dst_pk_prop == PropertyType::StringView()) {
-    batch_load_edges_helper<int64_t, std::string_view>(
+    batch_load_edges_helper<SRC_PK_T, std::string_view>(
         frag, src_label_id, edge_label_id, dst_label_id, edge_prop_type,
         suppliers);
   } else {

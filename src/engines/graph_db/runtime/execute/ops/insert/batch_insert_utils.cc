@@ -118,7 +118,8 @@ void to_arrow_csv_options(const physical::ReadCSV::options& csv_options,
   // put_block_size_option(loading_config_, read_options);
   // put_null_values(loading_config_, convert_options);
   if (csv_options.header()) {
-    read_options.skip_rows = 1;
+    // TODO: FIXME, seems skip_rows skips the first row.
+    read_options.skip_rows = 0;
   } else {
     read_options.skip_rows = 0;
   }

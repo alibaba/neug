@@ -68,8 +68,21 @@ int main(int argc, char** argv) {
       return 1;
     }
   }
+  {
+    auto res = conn->query(
+        "COPY COPY knows [person->person] from \"person_knows_person.csv\"");
+    if (!res.ok()) {
+      LOG(ERROR) << "Failed to copy edge table: " << res.status().ToString();
+      return 1;
+    }
+  }
   auto res = conn->query("MATCH (v) RETURN v;");
   LOG(INFO) << "Query result: " << res.ok() << ", "
             << res.status().error_message();
+  auto res_val = res.value();
+  while (res_val.hasNext()) {
+    auto row = res_val.next();
+    LOG(INFO) << "Row: " << row.ToString();
+  }
   return 0;
 }

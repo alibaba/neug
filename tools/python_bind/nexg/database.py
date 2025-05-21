@@ -101,6 +101,7 @@ class Database(object):
         """
         Close the database connection.
         """
+        logger.info(f"Closing database {self._db_path}.")
         if self._database:
             self._database.close()
             self._database = None

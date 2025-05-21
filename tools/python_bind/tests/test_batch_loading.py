@@ -69,3 +69,14 @@ class TestBachLoading(unittest.TestCase):
         res = conn.execute('MATCH (n) return count(n);')
         for record in res:
             print(record)
+
+        conn.close()
+        db.close()
+
+        db2 = Database(db_dir, "r", 0, "dummy", "", "")
+        conn2 = db2.connect()
+
+        res = conn2.execute('MATCH (n) return count(n);')
+        for record in res:
+            print(record)
+

@@ -171,22 +171,33 @@ Status MutablePropertyFragment::create_vertex_type(
   }
   std::vector<StorageStrategy> strategies;
   std::string description;
-  size_t max_num = ((size_t) 1) << 32;
+  size_t max_num = ((size_t) 1) << 8;
   schema_.add_vertex_label(vertex_type_name, property_types, property_names,
                            primary_keys, strategies, max_num, description);
-  vertex_label_num_++;
-  size_t vertex_label_id = vertex_label_num_ - 1;
-  lf_indexers_.resize(vertex_label_num_);
+  label_t vertex_label_id = schema_.get_vertex_label_id(vertex_type_name);
+  lf_indexers_.resize(schema_.vertex_label_num());
   lf_indexers_[vertex_label_id].init(
       std::get<0>(schema_.get_vertex_primary_key(vertex_label_id)[0]));
+  // TODO: use memory level.
+  lf_indexers_[vertex_label_id].open_in_memory(
+      snapshot_dir(work_dir_, 0) + "/" + IndexerType::prefix() +
+      vertex_map_prefix(vertex_type_name));
   size_t vertex_capacity =
       std::max(lf_indexers_[vertex_label_id].capacity(), (size_t) 4096);
   if (vertex_capacity > lf_indexers_[vertex_label_id].capacity()) {
     lf_indexers_[vertex_label_id].reserve(vertex_capacity);
   }
-  vertex_data_.resize(vertex_label_num_);
-  vertex_data_[vertex_label_num_ - 1].init(
-      vertex_type_name, work_dir_, property_names, property_types, strategies);
+  vertex_data_.resize(schema_.vertex_label_num());
+  vertex_data_[vertex_label_id].open_in_memory(
+      // TODO: FIXME, assume version 0
+      vertex_table_prefix(vertex_type_name), snapshot_dir(work_dir_, 0),
+      schema_.get_vertex_property_names(vertex_label_id),
+      schema_.get_vertex_properties(vertex_label_id),
+      schema_.get_vertex_storage_strategies(vertex_type_name));
+
+  // Dump schema
+  DumpSchema(schema_path(work_dir_));
+  vertex_label_num_ = schema_.vertex_label_num();
   return gs::Status::OK();
 }
 
@@ -195,6 +206,9 @@ Status MutablePropertyFragment::create_edge_type(
     const std::string& edge_type_name,
     const std::vector<std::tuple<PropertyType, std::string, Any>>& properties,
     EdgeStrategy oe_edge_strategy, EdgeStrategy ie_edge_strategy) {
+  LOG(INFO) << "create_edge_type: src_vertex_type: " << src_vertex_type
+            << ", dst_vertex_type: " << dst_vertex_type
+            << ", edge_type_name: " << edge_type_name;
   if (!schema_.contains_vertex_label(src_vertex_type)) {
     LOG(ERROR) << "Source_vertex [" << src_vertex_type
                << "] does not exist in the graph.";
@@ -231,14 +245,12 @@ Status MutablePropertyFragment::create_edge_type(
   EdgeStrategy cur_oe = EdgeStrategy::kMultiple;
   bool oe_mutable = true, ie_mutable = true;
   bool cur_sort_on_compaction = false;
-  if (!schema_.contains_edge_label(edge_type_name)) {
-    edge_label_num_++;
-  }
   std::string description;
   schema_.add_edge_label(src_vertex_type, dst_vertex_type, edge_type_name,
                          property_types, property_names, cur_oe, cur_ie,
                          oe_mutable, ie_mutable, cur_sort_on_compaction,
                          description);
+  edge_label_num_ = schema_.edge_label_num();
   ie_.resize(vertex_label_num_ * vertex_label_num_ * edge_label_num_, NULL);
   oe_.resize(vertex_label_num_ * vertex_label_num_ * edge_label_num_, NULL);
   dual_csr_list_.resize(vertex_label_num_ * vertex_label_num_ * edge_label_num_,
@@ -255,6 +267,19 @@ Status MutablePropertyFragment::create_edge_type(
                                      oe_mutable, ie_mutable, property_names);
   ie_[index] = dual_csr_list_[index]->GetInCsr();
   oe_[index] = dual_csr_list_[index]->GetOutCsr();
+  auto src_v_capacity =
+      std::max(lf_indexers_[src_label_i].capacity(), (size_t) 4096);
+  auto dst_v_capacity =
+      std::max(lf_indexers_[dst_label_i].capacity(), (size_t) 4096);
+  dual_csr_list_[index]->OpenInMemory(
+      oe_prefix(src_vertex_type, dst_vertex_type, edge_type_name),
+      ie_prefix(src_vertex_type, dst_vertex_type, edge_type_name),
+      edata_prefix(src_vertex_type, dst_vertex_type, edge_type_name),
+      snapshot_dir(work_dir_, 0), src_v_capacity, dst_v_capacity);
+
+  dual_csr_list_[index]->Resize(src_v_capacity, dst_v_capacity);
+
+  DumpSchema(schema_path(work_dir_));
   return gs::Status::OK();
 }
 
@@ -492,14 +517,14 @@ void MutablePropertyFragment::Open(const std::string& work_dir,
   // copy work_dir to work_dir_
   work_dir_.assign(work_dir);
   std::string schema_file = schema_path(work_dir_);
-  std::string snapshot_dir{};
+  std::string snap_shot_dir{};
   bool build_empty_graph = false;
   if (std::filesystem::exists(schema_file)) {
     loadSchema(schema_file);
     vertex_label_num_ = schema_.vertex_label_num();
     edge_label_num_ = schema_.edge_label_num();
     lf_indexers_.resize(vertex_label_num_);
-    snapshot_dir = get_latest_snapshot(work_dir_);
+    snap_shot_dir = get_latest_snapshot(work_dir_);
   } else {
     vertex_label_num_ = schema_.vertex_label_num();
     edge_label_num_ = schema_.edge_label_num();
@@ -509,6 +534,10 @@ void MutablePropertyFragment::Open(const std::string& work_dir,
     for (size_t i = 0; i < vertex_label_num_; ++i) {
       lf_indexers_[i].init(std::get<0>(schema_.get_vertex_primary_key(i)[0]));
     }
+    // create snapshot dir
+    std::string snap_shot_dir = snapshot_dir(work_dir_, 0);
+    std::filesystem::create_directories(snap_shot_dir);
+    set_snapshot_version(work_dir_, 0);
   }
 
   vertex_data_.resize(vertex_label_num_);
@@ -527,42 +556,42 @@ void MutablePropertyFragment::Open(const std::string& work_dir,
     if (memory_level == 0) {
       lf_indexers_[i].open(
           IndexerType::prefix() + "_" + vertex_map_prefix(v_label_name),
-          snapshot_dir, tmp_dir_path);
-      vertex_data_[i].open(vertex_table_prefix(v_label_name), snapshot_dir,
+          snap_shot_dir, tmp_dir_path);
+      vertex_data_[i].open(vertex_table_prefix(v_label_name), snap_shot_dir,
                            tmp_dir_path, schema_.get_vertex_property_names(i),
                            schema_.get_vertex_properties(i),
                            schema_.get_vertex_storage_strategies(v_label_name));
       if (!build_empty_graph) {
         vertex_data_[i].copy_to_tmp(vertex_table_prefix(v_label_name),
-                                    snapshot_dir, tmp_dir_path);
+                                    snap_shot_dir, tmp_dir_path);
       }
     } else if (memory_level == 1) {
-      lf_indexers_[i].open_in_memory(snapshot_dir + "/" +
+      lf_indexers_[i].open_in_memory(snap_shot_dir + "/" +
                                      IndexerType::prefix() + "_" +
                                      vertex_map_prefix(v_label_name));
       vertex_data_[i].open_in_memory(
-          vertex_table_prefix(v_label_name), snapshot_dir,
+          vertex_table_prefix(v_label_name), snap_shot_dir,
           schema_.get_vertex_property_names(i),
           schema_.get_vertex_properties(i),
           schema_.get_vertex_storage_strategies(v_label_name));
     } else if (memory_level == 2) {
-      lf_indexers_[i].open_with_hugepages(snapshot_dir + "/" +
+      lf_indexers_[i].open_with_hugepages(snap_shot_dir + "/" +
                                               IndexerType::prefix() + "_" +
                                               vertex_map_prefix(v_label_name),
                                           false);
       vertex_data_[i].open_with_hugepages(
-          vertex_table_prefix(v_label_name), snapshot_dir,
+          vertex_table_prefix(v_label_name), snap_shot_dir,
           schema_.get_vertex_property_names(i),
           schema_.get_vertex_properties(i),
           schema_.get_vertex_storage_strategies(v_label_name), false);
     } else {
       assert(memory_level == 3);
-      lf_indexers_[i].open_with_hugepages(snapshot_dir + "/" +
+      lf_indexers_[i].open_with_hugepages(snap_shot_dir + "/" +
                                               IndexerType::prefix() + "_" +
                                               vertex_map_prefix(v_label_name),
                                           true);
       vertex_data_[i].open_with_hugepages(
-          vertex_table_prefix(v_label_name), snapshot_dir,
+          vertex_table_prefix(v_label_name), snap_shot_dir,
           schema_.get_vertex_property_names(i),
           schema_.get_vertex_properties(i),
           schema_.get_vertex_storage_strategies(v_label_name), true);
@@ -622,19 +651,19 @@ void MutablePropertyFragment::Open(const std::string& work_dir,
           dual_csr_list_[index]->Open(
               oe_prefix(src_label, dst_label, edge_label),
               ie_prefix(src_label, dst_label, edge_label),
-              edata_prefix(src_label, dst_label, edge_label), snapshot_dir,
+              edata_prefix(src_label, dst_label, edge_label), snap_shot_dir,
               tmp_dir_path);
         } else if (memory_level >= 2) {
           dual_csr_list_[index]->OpenWithHugepages(
               oe_prefix(src_label, dst_label, edge_label),
               ie_prefix(src_label, dst_label, edge_label),
-              edata_prefix(src_label, dst_label, edge_label), snapshot_dir,
+              edata_prefix(src_label, dst_label, edge_label), snap_shot_dir,
               vertex_capacities[src_label_i], vertex_capacities[dst_label_i]);
         } else {
           dual_csr_list_[index]->OpenInMemory(
               oe_prefix(src_label, dst_label, edge_label),
               ie_prefix(src_label, dst_label, edge_label),
-              edata_prefix(src_label, dst_label, edge_label), snapshot_dir,
+              edata_prefix(src_label, dst_label, edge_label), snap_shot_dir,
               vertex_capacities[src_label_i], vertex_capacities[dst_label_i]);
         }
         dual_csr_list_[index]->Resize(vertex_capacities[src_label_i],

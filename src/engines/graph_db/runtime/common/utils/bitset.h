@@ -199,7 +199,7 @@ class Bitset : public SPAllocator<uint64_t> {
     arc >> size_ >> size_in_words_ >> capacity_ >> capacity_in_words_;
     arc.Clear();
     data_ = this->allocate(capacity_in_words_);
-    reader->Read(data_, size_in_words_ * sizeof(uint64_t));
+    CHECK(reader->Read(data_, size_in_words_ * sizeof(uint64_t)));
   }
 
  private:
