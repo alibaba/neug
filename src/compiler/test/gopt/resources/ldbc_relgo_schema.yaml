@@ -1,0 +1,465 @@
+name: ldbc_snb
+store_type: mutable_csr
+schema:
+  vertex_types:
+  - type_id: 0
+    type_name: place
+    properties:
+    - property_id: 0
+      property_name: id
+      property_type:
+        primitive_type: DT_SIGNED_INT64
+    - property_id: 1
+      property_name: name
+      property_type:
+        string:
+          var_char:
+            max_length: 256
+    - property_id: 2
+      property_name: url
+      property_type:
+        string:
+          var_char:
+            max_length: 256
+    - property_id: 3
+      property_name: type
+      property_type:
+        string:
+          var_char:
+            max_length: 32
+    primary_keys:
+    - id
+  - type_id: 1
+    type_name: person
+    properties:
+    - property_id: 0
+      property_name: id
+      property_type:
+        primitive_type: DT_SIGNED_INT64
+    - property_id: 1
+      property_name: firstName
+      property_type:
+        string:
+          var_char:
+            max_length: 80
+    - property_id: 2
+      property_name: lastName
+      property_type:
+        string:
+          var_char:
+            max_length: 80
+    - property_id: 3
+      property_name: gender
+      property_type:
+        string:
+          var_char:
+            max_length: 80
+    - property_id: 4
+      property_name: birthday
+      property_type:
+        temporal:
+          date32: null
+    - property_id: 5
+      property_name: creationDate
+      property_type:
+        temporal:
+          timestamp: null
+    - property_id: 6
+      property_name: locationIP
+      property_type:
+        string:
+          var_char:
+            max_length: 80
+    - property_id: 7
+      property_name: browserUsed
+      property_type:
+        string:
+          var_char:
+            max_length: 80
+    - property_id: 8
+      property_name: language
+      property_type:
+        string:
+          var_char:
+            max_length: 256
+    - property_id: 9
+      property_name: email
+      property_type:
+        string:
+          var_char:
+            max_length: 2144
+    primary_keys:
+    - id
+  - type_id: 2
+    type_name: comment
+    properties:
+    - property_id: 0
+      property_name: id
+      property_type:
+        primitive_type: DT_SIGNED_INT64
+    - property_id: 1
+      property_name: creationDate
+      property_type:
+        temporal:
+          timestamp: null
+    - property_id: 2
+      property_name: locationIP
+      property_type:
+        string:
+          var_char:
+            max_length: 80
+    - property_id: 3
+      property_name: browserUsed
+      property_type:
+        string:
+          var_char:
+            max_length: 80
+    - property_id: 4
+      property_name: content
+      property_type:
+        string:
+          var_char:
+            max_length: 2144
+    - property_id: 5
+      property_name: length
+      property_type:
+        primitive_type: DT_SIGNED_INT32
+    primary_keys:
+    - id
+  - type_id: 3
+    type_name: post
+    properties:
+    - property_id: 0
+      property_name: id
+      property_type:
+        primitive_type: DT_SIGNED_INT64
+    - property_id: 1
+      property_name: imageFile
+      property_type:
+        string:
+          var_char:
+            max_length: 80
+    - property_id: 2
+      property_name: creationDate
+      property_type:
+        temporal:
+          timestamp: null
+    - property_id: 3
+      property_name: locationIP
+      property_type:
+        string:
+          var_char:
+            max_length: 80
+    - property_id: 4
+      property_name: browserUsed
+      property_type:
+        string:
+          var_char:
+            max_length: 80
+    - property_id: 5
+      property_name: language
+      property_type:
+        string:
+          var_char:
+            max_length: 80
+    - property_id: 6
+      property_name: content
+      property_type:
+        string:
+          var_char:
+            max_length: 2144
+    - property_id: 7
+      property_name: length
+      property_type:
+        primitive_type: DT_SIGNED_INT32
+    primary_keys:
+    - id
+  - type_id: 4
+    type_name: forum
+    properties:
+    - property_id: 0
+      property_name: id
+      property_type:
+        primitive_type: DT_SIGNED_INT64
+    - property_id: 1
+      property_name: title
+      property_type:
+        string:
+          var_char:
+            max_length: 256
+    - property_id: 2
+      property_name: creationDate
+      property_type:
+        temporal:
+          timestamp: null
+    primary_keys:
+    - id
+  - type_id: 5
+    type_name: organisation
+    properties:
+    - property_id: 0
+      property_name: id
+      property_type:
+        primitive_type: DT_SIGNED_INT64
+    - property_id: 1
+      property_name: type
+      property_type:
+        string:
+          var_char:
+            max_length: 32
+    - property_id: 2
+      property_name: name
+      property_type:
+        string:
+          var_char:
+            max_length: 256
+    - property_id: 3
+      property_name: url
+      property_type:
+        string:
+          var_char:
+            max_length: 256
+    primary_keys:
+    - id
+  - type_id: 6
+    type_name: tagclass
+    properties:
+    - property_id: 0
+      property_name: id
+      property_type:
+        primitive_type: DT_SIGNED_INT64
+    - property_id: 1
+      property_name: name
+      property_type:
+        string:
+          var_char:
+            max_length: 256
+    - property_id: 2
+      property_name: url
+      property_type:
+        string:
+          var_char:
+            max_length: 256
+    primary_keys:
+    - id
+  - type_id: 7
+    type_name: tag
+    properties:
+    - property_id: 0
+      property_name: id
+      property_type:
+        primitive_type: DT_SIGNED_INT64
+    - property_id: 1
+      property_name: name
+      property_type:
+        string:
+          var_char:
+            max_length: 256
+    - property_id: 2
+      property_name: url
+      property_type:
+        string:
+          var_char:
+            max_length: 256
+    primary_keys:
+    - id
+  edge_types:
+  - type_id: 15
+    type_name: comment_hascreator
+    vertex_type_pair_relations:
+    - source_vertex: comment
+      destination_vertex: person
+      relation: MANY_TO_MANY
+      x_csr_params:
+        sort_on_compaction: true
+    properties:
+    - property_id: 0
+      property_name: creationDate
+      property_type:
+        temporal:
+          timestamp: null
+  - type_id: 16
+    type_name: post_hascreator
+    vertex_type_pair_relations:
+    - source_vertex: post
+      destination_vertex: person
+      relation: MANY_TO_MANY
+      x_csr_params:
+        sort_on_compaction: true
+    properties:
+    - property_id: 0
+      property_name: creationDate
+      property_type:
+        temporal:
+          timestamp: null
+  - type_id: 17
+    type_name: post_hastag
+    vertex_type_pair_relations:
+    - source_vertex: post
+      destination_vertex: tag
+      relation: MANY_TO_MANY
+    properties: []
+  - type_id: 18
+    type_name: forum_hastag
+    vertex_type_pair_relations:
+    - source_vertex: forum
+      destination_vertex: tag
+      relation: MANY_TO_MANY
+    properties: []
+  - type_id: 19
+    type_name: comment_hastag
+    vertex_type_pair_relations:
+    - source_vertex: comment
+      destination_vertex: tag
+      relation: MANY_TO_MANY
+    properties: []
+  - type_id: 20
+    type_name: replyof_comment
+    vertex_type_pair_relations:
+    - source_vertex: comment
+      destination_vertex: comment
+      relation: MANY_TO_MANY
+    properties: []
+  - type_id: 21
+    type_name: replyof_post
+    vertex_type_pair_relations:
+    - source_vertex: comment
+      destination_vertex: post
+      relation: MANY_TO_MANY
+    properties: []
+  - type_id: 3
+    type_name: containerof
+    vertex_type_pair_relations:
+    - source_vertex: forum
+      destination_vertex: post
+      relation: MANY_TO_MANY
+  - type_id: 4
+    type_name: hasmember
+    vertex_type_pair_relations:
+    - source_vertex: forum
+      destination_vertex: person
+      relation: MANY_TO_MANY
+      x_csr_params:
+        sort_on_compaction: true
+    properties:
+    - property_id: 0
+      property_name: joinDate
+      property_type:
+        temporal:
+          timestamp: null
+  - type_id: 5
+    type_name: hasmoderator
+    vertex_type_pair_relations:
+    - source_vertex: forum
+      destination_vertex: person
+      relation: MANY_TO_MANY
+  - type_id: 6
+    type_name: hasinterest
+    vertex_type_pair_relations:
+    - source_vertex: person
+      destination_vertex: tag
+      relation: MANY_TO_MANY
+  - type_id: 22
+    type_name: comment_islocatedin
+    vertex_type_pair_relations:
+    - source_vertex: comment
+      destination_vertex: place
+      relation: MANY_TO_MANY
+    properties: []
+  - type_id: 23
+    type_name: person_islocatedin
+    vertex_type_pair_relations:
+    - source_vertex: person
+      destination_vertex: place
+      relation: MANY_TO_MANY
+    properties: []
+  - type_id: 24
+    type_name: post_islocatedin
+    vertex_type_pair_relations:
+    - source_vertex: post
+      destination_vertex: place
+      relation: MANY_TO_MANY
+    properties: []
+  - type_id: 25
+    type_name: organisation_islocatedin
+    vertex_type_pair_relations:
+    - source_vertex: organisation
+      destination_vertex: place
+      relation: MANY_TO_MANY
+    properties: []
+  - type_id: 8
+    type_name: knows
+    vertex_type_pair_relations:
+    - source_vertex: person
+      destination_vertex: person
+      relation: MANY_TO_MANY
+    properties:
+    - property_id: 0
+      property_name: creationDate
+      property_type:
+        temporal:
+          timestamp: null
+  - type_id: 26
+    type_name: likes_comment
+    vertex_type_pair_relations:
+    - source_vertex: person
+      destination_vertex: comment
+      relation: MANY_TO_MANY
+    properties:
+    - property_id: 0
+      property_name: creationDate
+      property_type:
+        temporal:
+          timestamp: null
+  - type_id: 27
+    type_name: likes_post
+    vertex_type_pair_relations:
+    - source_vertex: person
+      destination_vertex: post
+      relation: MANY_TO_MANY
+    properties:
+    - property_id: 0
+      property_name: creationDate
+      property_type:
+        temporal:
+          timestamp: null
+  - type_id: 10
+    type_name: workat
+    vertex_type_pair_relations:
+    - source_vertex: person
+      destination_vertex: organisation
+      relation: MANY_TO_MANY
+    properties:
+    - property_id: 0
+      property_name: workFrom
+      property_type:
+        primitive_type: DT_SIGNED_INT32
+  - type_id: 11
+    type_name: ispartof
+    vertex_type_pair_relations:
+    - source_vertex: place
+      destination_vertex: place
+      relation: MANY_TO_MANY
+  - type_id: 12
+    type_name: hastype
+    vertex_type_pair_relations:
+    - source_vertex: tag
+      destination_vertex: tagclass
+      relation: MANY_TO_MANY
+  - type_id: 13
+    type_name: issubclassof
+    vertex_type_pair_relations:
+    - source_vertex: tagclass
+      destination_vertex: tagclass
+      relation: MANY_TO_MANY
+  - type_id: 14
+    type_name: studyat
+    vertex_type_pair_relations:
+    - source_vertex: person
+      destination_vertex: organisation
+      relation: MANY_TO_MANY
+    properties:
+    - property_id: 0
+      property_name: classYear
+      property_type:
+        primitive_type: DT_SIGNED_INT32

@@ -1,0 +1,1 @@
+add_kuzu_test(gopt_test gopt_test.cpp)
