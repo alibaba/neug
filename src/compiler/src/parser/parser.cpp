@@ -21,42 +21,37 @@ using namespace antlr4;
 namespace kuzu {
 namespace parser {
 
-std::vector<std::shared_ptr<Statement>> Parser::parseQuery(std::string_view query) {
-    auto queryStr = std::string(query);
-    std::ofstream outfile("test.plan", std::ios::app);
-    if (!outfile.is_open()) {
-        std::cerr << "无法打开文件进行写入" << std::endl;
-    }
-    outfile << "Query is: \n" << queryStr << std::endl << std::endl << std::endl;
-    outfile.close();
-    queryStr = common::StringUtils::ltrim(queryStr);
-    queryStr = common::StringUtils::ltrimNewlines(queryStr);
-    // LCOV_EXCL_START
-    // We should have enforced this in connection, but I also realize empty query will cause
-    // antlr to hang. So enforce a duplicate check here.
-    if (queryStr.empty()) {
-        throw common::ParserException(
-            "Cannot parse empty query. This should be handled in connection.");
-    }
-    // LCOV_EXCL_STOP
+std::vector<std::shared_ptr<Statement>> Parser::parseQuery(
+    std::string_view query) {
+  auto queryStr = std::string(query);
+  queryStr = common::StringUtils::ltrim(queryStr);
+  queryStr = common::StringUtils::ltrimNewlines(queryStr);
+  // LCOV_EXCL_START
+  // We should have enforced this in connection, but I also realize empty query
+  // will cause antlr to hang. So enforce a duplicate check here.
+  if (queryStr.empty()) {
+    throw common::ParserException(
+        "Cannot parse empty query. This should be handled in connection.");
+  }
+  // LCOV_EXCL_STOP
 
-    auto inputStream = ANTLRInputStream(queryStr);
-    auto parserErrorListener = ParserErrorListener();
+  auto inputStream = ANTLRInputStream(queryStr);
+  auto parserErrorListener = ParserErrorListener();
 
-    auto cypherLexer = CypherLexer(&inputStream);
-    cypherLexer.removeErrorListeners();
-    cypherLexer.addErrorListener(&parserErrorListener);
-    auto tokens = CommonTokenStream(&cypherLexer);
-    tokens.fill();
+  auto cypherLexer = CypherLexer(&inputStream);
+  cypherLexer.removeErrorListeners();
+  cypherLexer.addErrorListener(&parserErrorListener);
+  auto tokens = CommonTokenStream(&cypherLexer);
+  tokens.fill();
 
-    auto kuzuCypherParser = KuzuCypherParser(&tokens);
-    kuzuCypherParser.removeErrorListeners();
-    kuzuCypherParser.addErrorListener(&parserErrorListener);
-    kuzuCypherParser.setErrorHandler(std::make_shared<ParserErrorStrategy>());
+  auto kuzuCypherParser = KuzuCypherParser(&tokens);
+  kuzuCypherParser.removeErrorListeners();
+  kuzuCypherParser.addErrorListener(&parserErrorListener);
+  kuzuCypherParser.setErrorHandler(std::make_shared<ParserErrorStrategy>());
 
-    Transformer transformer(*kuzuCypherParser.ku_Statements());
-    return transformer.transform();
+  Transformer transformer(*kuzuCypherParser.ku_Statements());
+  return transformer.transform();
 }
 
-} // namespace parser
-} // namespace kuzu
+}  // namespace parser
+}  // namespace kuzu

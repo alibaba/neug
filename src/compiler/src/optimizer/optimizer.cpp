@@ -21,85 +21,70 @@
 namespace kuzu {
 namespace optimizer {
 
-void Optimizer::optimize(planner::LogicalPlan* plan, main::ClientContext* context,
+void Optimizer::optimize(
+    planner::LogicalPlan* plan, main::ClientContext* context,
     const planner::CardinalityEstimator& cardinalityEstimator) {
-    if (context->getClientConfig()->enablePlanOptimizer) {
-        // Factorization structure should be removed before further optimization can be applied.
-        auto removeFactorizationRewriter = RemoveFactorizationRewriter();
-        removeFactorizationRewriter.rewrite(plan);
+  if (context->getClientConfig()->enablePlanOptimizer) {
+    // Factorization structure should be removed before further optimization can
+    // be applied.
+    auto removeFactorizationRewriter = RemoveFactorizationRewriter();
+    removeFactorizationRewriter.rewrite(plan);
 
-        auto correlatedSubqueryUnnestSolver = CorrelatedSubqueryUnnestSolver(nullptr);
-        correlatedSubqueryUnnestSolver.solve(plan->getLastOperator().get());
+    auto correlatedSubqueryUnnestSolver =
+        CorrelatedSubqueryUnnestSolver(nullptr);
+    correlatedSubqueryUnnestSolver.solve(plan->getLastOperator().get());
 
-        std::ofstream outfile("test.plan", std::ios::app);
-        if (!outfile.is_open()) {
-            std::cerr << "无法打开文件进行写入" << std::endl << std::endl << std::endl;
-        }
-        // outfile << "after correlated subquery unnest: \n" << plan->toString() << std::endl <<
-        // std::endl
-        //         << std::endl;
-        // std::cout << "before remove unnecessary join: " << plan->toString() << std::endl;
-        auto removeUnnecessaryJoinOptimizer = RemoveUnnecessaryJoinOptimizer();
-        removeUnnecessaryJoinOptimizer.rewrite(plan);
-        outfile << "after remove unnecessary join: \n"
-                << plan->toString() << std::endl
-                << std::endl
-                << std::endl;
-        // std::cout << "after remove unnecessary join: " << plan->toString() << std::endl;
+    auto removeUnnecessaryJoinOptimizer = RemoveUnnecessaryJoinOptimizer();
+    removeUnnecessaryJoinOptimizer.rewrite(plan);
 
-        auto filterPushDownOptimizer = FilterPushDownOptimizer(context);
-        filterPushDownOptimizer.rewrite(plan);
+    auto filterPushDownOptimizer = FilterPushDownOptimizer(context);
+    filterPushDownOptimizer.rewrite(plan);
 
-        auto projectionPushDownOptimizer =
-            ProjectionPushDownOptimizer(context->getClientConfig()->recursivePatternSemantic);
-        projectionPushDownOptimizer.rewrite(plan);
+    auto projectionPushDownOptimizer = ProjectionPushDownOptimizer(
+        context->getClientConfig()->recursivePatternSemantic);
+    projectionPushDownOptimizer.rewrite(plan);
 
-        auto limitPushDownOptimizer = LimitPushDownOptimizer();
-        limitPushDownOptimizer.rewrite(plan);
+    auto limitPushDownOptimizer = LimitPushDownOptimizer();
+    limitPushDownOptimizer.rewrite(plan);
 
-        if (context->getClientConfig()->enableSemiMask) {
-            // HashJoinSIPOptimizer should be applied after optimizers that manipulate hash join.
-            auto hashJoinSIPOptimizer = HashJoinSIPOptimizer();
-            hashJoinSIPOptimizer.rewrite(plan);
-            outfile << "after hash join sip: \n"
-                    << plan->toString() << std::endl
-                    << std::endl
-                    << std::endl;
-        }
-
-        auto topKOptimizer = TopKOptimizer();
-        topKOptimizer.rewrite(plan);
-
-        auto factorizationRewriter = FactorizationRewriter();
-        factorizationRewriter.rewrite(plan);
-        outfile << "after factorization rewriter: \n"
-                << plan->toString() << std::endl
-                << std::endl
-                << std::endl;
-
-        // AggKeyDependencyOptimizer doesn't change factorization structure and thus can be put
-        // after FactorizationRewriter.
-        auto aggKeyDependencyOptimizer = AggKeyDependencyOptimizer();
-        aggKeyDependencyOptimizer.rewrite(plan);
-
-        // for EXPLAIN LOGICAL we need to update the cardinalities for the optimized plan
-        // we don't need to do this otherwise as we don't use the cardinalities after planning
-        if (plan->getLastOperatorRef().getOperatorType() == planner::LogicalOperatorType::EXPLAIN) {
-            const auto& explain = plan->getLastOperatorRef().cast<planner::LogicalExplain>();
-            if (explain.getExplainType() == common::ExplainType::LOGICAL_PLAN) {
-                auto cardinalityUpdater =
-                    CardinalityUpdater(cardinalityEstimator, context->getTransaction());
-                cardinalityUpdater.rewrite(plan);
-            }
-        }
-        outfile.close();
-    } else {
-        // we still need to compute the schema for each operator even if we have optimizations
-        // disabled
-        auto schemaPopulator = SchemaPopulator{};
-        schemaPopulator.rewrite(plan);
+    if (context->getClientConfig()->enableSemiMask) {
+      // HashJoinSIPOptimizer should be applied after optimizers that manipulate
+      // hash join.
+      auto hashJoinSIPOptimizer = HashJoinSIPOptimizer();
+      hashJoinSIPOptimizer.rewrite(plan);
     }
+
+    auto topKOptimizer = TopKOptimizer();
+    topKOptimizer.rewrite(plan);
+
+    auto factorizationRewriter = FactorizationRewriter();
+    factorizationRewriter.rewrite(plan);
+
+    // AggKeyDependencyOptimizer doesn't change factorization structure and thus
+    // can be put after FactorizationRewriter.
+    auto aggKeyDependencyOptimizer = AggKeyDependencyOptimizer();
+    aggKeyDependencyOptimizer.rewrite(plan);
+
+    // for EXPLAIN LOGICAL we need to update the cardinalities for the optimized
+    // plan we don't need to do this otherwise as we don't use the cardinalities
+    // after planning
+    if (plan->getLastOperatorRef().getOperatorType() ==
+        planner::LogicalOperatorType::EXPLAIN) {
+      const auto& explain =
+          plan->getLastOperatorRef().cast<planner::LogicalExplain>();
+      if (explain.getExplainType() == common::ExplainType::LOGICAL_PLAN) {
+        auto cardinalityUpdater =
+            CardinalityUpdater(cardinalityEstimator, context->getTransaction());
+        cardinalityUpdater.rewrite(plan);
+      }
+    }
+  } else {
+    // we still need to compute the schema for each operator even if we have
+    // optimizations disabled
+    auto schemaPopulator = SchemaPopulator{};
+    schemaPopulator.rewrite(plan);
+  }
 }
 
-} // namespace optimizer
-} // namespace kuzu
+}  // namespace optimizer
+}  // namespace kuzu

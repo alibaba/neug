@@ -158,3 +158,6 @@ sdk/master/gs_interactive_admin/typing_utils.py
 
 **/*.ci-friendly-pom.xml
 **/dependency-reduced-pom.xml
+
+# compiler
+src/compiler/.devcontainer
