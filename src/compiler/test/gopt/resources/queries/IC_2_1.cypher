@@ -1,0 +1,1 @@
+MATCH (p1:person)-[:knows]-(p2:person)<-[:comment_hascreator]-(c:comment) WHERE p1.p_personid = 933 AND c.m_creationdate < 1342766586311 RETURN p2.p_personid as p2_id, p2.p_firstname as p2_firstname, p2.p_lastname as p2_lastname, c.m_messageid as c_messageid, c.m_content as c_content, c.m_creationdate as c_creationdate
