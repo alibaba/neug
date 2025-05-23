@@ -1,0 +1,33 @@
+add_library(kuzu_table_function
+        OBJECT
+        bind_data.cpp
+        bind_input.cpp
+        bm_info.cpp
+        cache_column.cpp
+        catalog_version.cpp
+        clear_warnings.cpp
+        create_project_graph.cpp
+        current_setting.cpp
+        db_version.cpp
+        drop_project_graph.cpp
+        free_space_info.cpp
+        show_attached_databases.cpp
+        show_connection.cpp
+        show_functions.cpp
+        show_indexes.cpp
+        show_loaded_extensions.cpp
+        show_official_extensions.cpp
+        show_projected_graphs.cpp
+        show_sequences.cpp
+        show_tables.cpp
+        show_warnings.cpp
+        stats_info.cpp
+        storage_info.cpp
+        simple_table_function.cpp
+        table_function.cpp
+        table_info.cpp
+        )
+
+set(ALL_OBJECT_FILES
+        ${ALL_OBJECT_FILES} $<TARGET_OBJECTS:kuzu_table_function>
+        PARENT_SCOPE)
