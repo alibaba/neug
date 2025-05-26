@@ -7,20 +7,21 @@ namespace kuzu {
 namespace parser {
 
 class UpdatingClause {
-public:
-    explicit UpdatingClause(common::ClauseType clauseType) : clauseType{clauseType} {};
-    virtual ~UpdatingClause() = default;
+ public:
+  explicit UpdatingClause(common::ClauseType clauseType)
+      : clauseType{clauseType} {};
+  virtual ~UpdatingClause() = default;
 
-    common::ClauseType getClauseType() const { return clauseType; }
+  common::ClauseType getClauseType() const { return clauseType; }
 
-    template<class TARGET>
-    const TARGET& constCast() const {
-        return common::ku_dynamic_cast<const TARGET&>(*this);
-    }
+  template <class TARGET>
+  const TARGET& constCast() const {
+    return common::ku_dynamic_cast<const TARGET&>(*this);
+  }
 
-private:
-    common::ClauseType clauseType;
+ private:
+  common::ClauseType clauseType;
 };
 
-} // namespace parser
-} // namespace kuzu
+}  // namespace parser
+}  // namespace kuzu

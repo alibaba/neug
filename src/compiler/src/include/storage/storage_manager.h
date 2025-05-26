@@ -21,49 +21,51 @@ class Table;
 class DiskArrayCollection;
 
 class KUZU_API StorageManager {
-public:
-    StorageManager(MemoryManager& memoryManager) : memoryManager(memoryManager) {}
+ public:
+  StorageManager(MemoryManager& memoryManager) : memoryManager(memoryManager) {}
 
-    StorageManager(const std::string& databasePath, bool readOnly, const catalog::Catalog& catalog,
-        MemoryManager& memoryManager, bool enableCompression, common::VirtualFileSystem* vfs,
-        main::ClientContext* context)
-        : memoryManager(memoryManager) {}
+  StorageManager(const std::string& databasePath, bool readOnly,
+                 const catalog::Catalog& catalog, MemoryManager& memoryManager,
+                 bool enableCompression, common::VirtualFileSystem* vfs,
+                 main::ClientContext* context)
+      : memoryManager(memoryManager) {}
 
-    virtual ~StorageManager() = default;
+  virtual ~StorageManager() = default;
 
-    static void recover(main::ClientContext& clientContext);
+  static void recover(main::ClientContext& clientContext);
 
-    void createTable(catalog::CatalogEntry* entry, main::ClientContext* context);
+  void createTable(catalog::CatalogEntry* entry, main::ClientContext* context);
 
-    void checkpoint(main::ClientContext& clientContext);
-    void finalizeCheckpoint(main::ClientContext& clientContext);
-    void rollbackCheckpoint(main::ClientContext& clientContext);
+  void checkpoint(main::ClientContext& clientContext);
+  void finalizeCheckpoint(main::ClientContext& clientContext);
+  void rollbackCheckpoint(main::ClientContext& clientContext);
 
-    Table* getTable(common::table_id_t tableID) {
-        std::lock_guard lck{mtx};
-        KU_ASSERT(tables.contains(tableID));
-        return tables.at(tableID).get();
-    }
+  Table* getTable(common::table_id_t tableID) {
+    std::lock_guard lck{mtx};
+    KU_ASSERT(tables.contains(tableID));
+    return tables.at(tableID).get();
+  }
 
-    virtual WAL& getWAL() const = 0;
-    std::string getDatabasePath() const { return databasePath; }
-    bool isReadOnly() const { return readOnly; }
-    bool compressionEnabled() const { return enableCompression; }
+  virtual WAL& getWAL() const = 0;
+  std::string getDatabasePath() const { return databasePath; }
+  bool isReadOnly() const { return readOnly; }
+  bool compressionEnabled() const { return enableCompression; }
 
-    virtual void loadTables(const catalog::Catalog& catalog, common::VirtualFileSystem* vfs,
-        main::ClientContext* context) = 0;
+  virtual void loadTables(const catalog::Catalog& catalog,
+                          common::VirtualFileSystem* vfs,
+                          main::ClientContext* context) = 0;
 
-private:
-protected:
-    std::unordered_map<common::table_id_t, std::unique_ptr<Table>> tables;
-    MemoryManager& memoryManager;
+ private:
+ protected:
+  std::unordered_map<common::table_id_t, std::unique_ptr<Table>> tables;
+  MemoryManager& memoryManager;
 
-private:
-    std::mutex mtx;
-    std::string databasePath;
-    bool readOnly;
-    bool enableCompression;
+ private:
+  std::mutex mtx;
+  std::string databasePath;
+  bool readOnly;
+  bool enableCompression;
 };
 
-} // namespace storage
-} // namespace kuzu
+}  // namespace storage
+}  // namespace kuzu

@@ -4,12 +4,10 @@
 
 namespace kuzu {
 namespace main {
-const char* Version::getVersion() {
-    return KUZU_CMAKE_VERSION;
-}
+const char* Version::getVersion() { return KUZU_CMAKE_VERSION; }
 
 uint64_t Version::getStorageVersion() {
-    return storage::StorageVersionInfo::getStorageVersion();
+  return storage::StorageVersionInfo::getStorageVersion();
 }
-} // namespace main
-} // namespace kuzu
+}  // namespace main
+}  // namespace kuzu

@@ -5,10 +5,11 @@ namespace kuzu {
 namespace planner {
 
 void Planner::appendMultiplicityReducer(LogicalPlan& plan) {
-    auto multiplicityReducer = make_shared<LogicalMultiplicityReducer>(plan.getLastOperator());
-    multiplicityReducer->computeFactorizedSchema();
-    plan.setLastOperator(std::move(multiplicityReducer));
+  auto multiplicityReducer =
+      make_shared<LogicalMultiplicityReducer>(plan.getLastOperator());
+  multiplicityReducer->computeFactorizedSchema();
+  plan.setLastOperator(std::move(multiplicityReducer));
 }
 
-} // namespace planner
-} // namespace kuzu
+}  // namespace planner
+}  // namespace kuzu

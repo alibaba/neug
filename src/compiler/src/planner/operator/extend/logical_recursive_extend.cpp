@@ -4,20 +4,20 @@ namespace kuzu {
 namespace planner {
 
 void LogicalRecursiveExtend::computeFlatSchema() {
-    createEmptySchema();
-    schema->createGroup();
-    for (auto& expr : resultColumns) {
-        schema->insertToGroupAndScope(expr, 0);
-    }
+  createEmptySchema();
+  schema->createGroup();
+  for (auto& expr : resultColumns) {
+    schema->insertToGroupAndScope(expr, 0);
+  }
 }
 
 void LogicalRecursiveExtend::computeFactorizedSchema() {
-    createEmptySchema();
-    auto pos = schema->createGroup();
-    for (auto& e : resultColumns) {
-        schema->insertToGroupAndScope(e, pos);
-    }
+  createEmptySchema();
+  auto pos = schema->createGroup();
+  for (auto& e : resultColumns) {
+    schema->insertToGroupAndScope(e, pos);
+  }
 }
 
-} // namespace planner
-} // namespace kuzu
+}  // namespace planner
+}  // namespace kuzu

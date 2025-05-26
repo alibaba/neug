@@ -9,19 +9,21 @@ namespace kuzu {
 namespace binder {
 
 void BoundStatementRewriter::rewrite(BoundStatement& boundStatement,
-    main::ClientContext& clientContext) {
-    auto withClauseProjectionRewriter = WithClauseProjectionRewriter();
-    withClauseProjectionRewriter.visitUnsafe(boundStatement);
+                                     main::ClientContext& clientContext) {
+  auto withClauseProjectionRewriter = WithClauseProjectionRewriter();
+  withClauseProjectionRewriter.visitUnsafe(boundStatement);
 
-    auto normalizedQueryPartMatchRewriter = NormalizedQueryPartMatchRewriter(&clientContext);
-    normalizedQueryPartMatchRewriter.visitUnsafe(boundStatement);
+  auto normalizedQueryPartMatchRewriter =
+      NormalizedQueryPartMatchRewriter(&clientContext);
+  normalizedQueryPartMatchRewriter.visitUnsafe(boundStatement);
 
-    auto matchClausePatternLabelRewriter = MatchClausePatternLabelRewriter(clientContext);
-    matchClausePatternLabelRewriter.visitUnsafe(boundStatement);
+  auto matchClausePatternLabelRewriter =
+      MatchClausePatternLabelRewriter(clientContext);
+  matchClausePatternLabelRewriter.visitUnsafe(boundStatement);
 
-    auto defaultTypeSolver = DefaultTypeSolver();
-    defaultTypeSolver.visit(boundStatement);
+  auto defaultTypeSolver = DefaultTypeSolver();
+  defaultTypeSolver.visit(boundStatement);
 }
 
-} // namespace binder
-} // namespace kuzu
+}  // namespace binder
+}  // namespace kuzu

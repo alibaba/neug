@@ -8,43 +8,53 @@ namespace kuzu {
 namespace planner {
 
 class KUZU_API LogicalTableFunctionCall final : public LogicalOperator {
-    static constexpr LogicalOperatorType operatorType_ = LogicalOperatorType::TABLE_FUNCTION_CALL;
+  static constexpr LogicalOperatorType operatorType_ =
+      LogicalOperatorType::TABLE_FUNCTION_CALL;
 
-public:
-    LogicalTableFunctionCall(function::TableFunction tableFunc,
-        std::unique_ptr<function::TableFuncBindData> bindData)
-        : LogicalOperator{operatorType_}, tableFunc{std::move(tableFunc)}, bindData{std::move(
-                                                                               bindData)} {
-        setCardinality(this->bindData->numRows);
-    }
+ public:
+  LogicalTableFunctionCall(
+      function::TableFunction tableFunc,
+      std::unique_ptr<function::TableFuncBindData> bindData)
+      : LogicalOperator{operatorType_},
+        tableFunc{std::move(tableFunc)},
+        bindData{std::move(bindData)} {
+    setCardinality(this->bindData->numRows);
+  }
 
-    const function::TableFunction& getTableFunc() const { return tableFunc; }
-    const function::TableFuncBindData* getBindData() const { return bindData.get(); }
+  const function::TableFunction& getTableFunc() const { return tableFunc; }
+  const function::TableFuncBindData* getBindData() const {
+    return bindData.get();
+  }
 
-    void setColumnSkips(std::vector<bool> columnSkips) {
-        bindData->setColumnSkips(std::move(columnSkips));
-    }
+  void setColumnSkips(std::vector<bool> columnSkips) {
+    bindData->setColumnSkips(std::move(columnSkips));
+  }
 
-    void setNodeMaskRoots(std::vector<std::shared_ptr<LogicalOperator>> roots) {
-        nodeMaskRoots = std::move(roots);
-    }
-    std::vector<std::shared_ptr<LogicalOperator>> getNodeMaskRoots() const { return nodeMaskRoots; }
+  void setNodeMaskRoots(std::vector<std::shared_ptr<LogicalOperator>> roots) {
+    nodeMaskRoots = std::move(roots);
+  }
+  std::vector<std::shared_ptr<LogicalOperator>> getNodeMaskRoots() const {
+    return nodeMaskRoots;
+  }
 
-    void computeFlatSchema() override;
-    void computeFactorizedSchema() override;
+  void computeFlatSchema() override;
+  void computeFactorizedSchema() override;
 
-    std::string getExpressionsForPrinting() const override { return tableFunc.name; }
+  std::string getExpressionsForPrinting() const override {
+    return tableFunc.name;
+  }
 
-    std::unique_ptr<LogicalOperator> copy() override {
-        return std::make_unique<LogicalTableFunctionCall>(tableFunc, bindData->copy());
-    }
+  std::unique_ptr<LogicalOperator> copy() override {
+    return std::make_unique<LogicalTableFunctionCall>(tableFunc,
+                                                      bindData->copy());
+  }
 
-private:
-    function::TableFunction tableFunc;
-    std::unique_ptr<function::TableFuncBindData> bindData;
+ private:
+  function::TableFunction tableFunc;
+  std::unique_ptr<function::TableFuncBindData> bindData;
 
-    std::vector<std::shared_ptr<LogicalOperator>> nodeMaskRoots;
+  std::vector<std::shared_ptr<LogicalOperator>> nodeMaskRoots;
 };
 
-} // namespace planner
-} // namespace kuzu
+}  // namespace planner
+}  // namespace kuzu

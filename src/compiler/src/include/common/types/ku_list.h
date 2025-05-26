@@ -6,20 +6,20 @@ namespace kuzu {
 namespace common {
 
 struct ku_list_t {
+ public:
+  ku_list_t() : size{0}, overflowPtr{0} {}
+  ku_list_t(uint64_t size, uint64_t overflowPtr)
+      : size{size}, overflowPtr{overflowPtr} {}
 
-public:
-    ku_list_t() : size{0}, overflowPtr{0} {}
-    ku_list_t(uint64_t size, uint64_t overflowPtr) : size{size}, overflowPtr{overflowPtr} {}
+  void set(const uint8_t* values, const LogicalType& dataType) const;
 
-    void set(const uint8_t* values, const LogicalType& dataType) const;
+ private:
+  void set(const std::vector<uint8_t*>& parameters, LogicalTypeID childTypeId);
 
-private:
-    void set(const std::vector<uint8_t*>& parameters, LogicalTypeID childTypeId);
-
-public:
-    uint64_t size;
-    uint64_t overflowPtr;
+ public:
+  uint64_t size;
+  uint64_t overflowPtr;
 };
 
-} // namespace common
-} // namespace kuzu
+}  // namespace common
+}  // namespace kuzu

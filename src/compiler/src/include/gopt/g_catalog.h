@@ -1,5 +1,6 @@
 #pragma once
 
+#include <yaml-cpp/yaml.h>
 #include "binder/ddl/property_definition.h"
 #include "catalog/catalog.h"
 #include "catalog/catalog_entry/node_table_catalog_entry.h"
@@ -7,27 +8,30 @@
 #include "catalog/catalog_entry/table_catalog_entry.h"
 #include "gopt/g_rel_table_entry.h"
 #include "gopt/g_type_utils.h"
-#include <yaml-cpp/yaml.h>
 
 namespace kuzu {
 namespace catalog {
 class GCatalog : public Catalog {
-public:
-    GCatalog(const std::string& schemaPath);
-    ~GCatalog() = default;
+ public:
+  GCatalog(const std::string& schemaPath);
+  ~GCatalog() = default;
 
-private:
-    std::unique_ptr<TableCatalogEntry> createTableEntry(CatalogEntryType type,
-        const YAML::Node& info);
-    std::unique_ptr<NodeTableCatalogEntry> createNodeTableEntry(const YAML::Node& info);
-    void setTableEntry(const YAML::Node& info, TableCatalogEntry* result, common::TableType type);
-    std::unique_ptr<GRelTableCatalogEntry> createRelTableEntry(common::table_id_t tableId,
-        common::table_id_t labelId, const std::string& labelName, const YAML::Node& relation,
-        const std::unordered_map<std::string, NodeTableCatalogEntry*>& nodeTableMap);
-    PropertyDefinitionCollection createPropertyDefinitionCollection(const YAML::Node& info,
-        common::TableType type);
-    static std::vector<binder::ColumnDefinition> getBaseNodeStructFields();
-    static std::vector<binder::ColumnDefinition> getBaseRelStructFields();
+ private:
+  std::unique_ptr<TableCatalogEntry> createTableEntry(CatalogEntryType type,
+                                                      const YAML::Node& info);
+  std::unique_ptr<NodeTableCatalogEntry> createNodeTableEntry(
+      const YAML::Node& info);
+  void setTableEntry(const YAML::Node& info, TableCatalogEntry* result,
+                     common::TableType type);
+  std::unique_ptr<GRelTableCatalogEntry> createRelTableEntry(
+      common::table_id_t tableId, common::table_id_t labelId,
+      const std::string& labelName, const YAML::Node& relation,
+      const std::unordered_map<std::string, NodeTableCatalogEntry*>&
+          nodeTableMap);
+  PropertyDefinitionCollection createPropertyDefinitionCollection(
+      const YAML::Node& info, common::TableType type);
+  static std::vector<binder::ColumnDefinition> getBaseNodeStructFields();
+  static std::vector<binder::ColumnDefinition> getBaseRelStructFields();
 };
-} // namespace catalog
-} // namespace kuzu
+}  // namespace catalog
+}  // namespace kuzu

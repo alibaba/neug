@@ -13,10 +13,10 @@ class ClientContext;
 namespace parser {
 
 class Parser {
-
-public:
-    static std::vector<std::shared_ptr<Statement>> parseQuery(std::string_view query);
+ public:
+  static std::vector<std::shared_ptr<Statement>> parseQuery(
+      std::string_view query);
 };
 
-} // namespace parser
-} // namespace kuzu
+}  // namespace parser
+}  // namespace kuzu

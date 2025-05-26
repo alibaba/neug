@@ -7,16 +7,16 @@ namespace kuzu {
 namespace optimizer {
 
 class TopKOptimizer : public LogicalOperatorVisitor {
-public:
-    void rewrite(planner::LogicalPlan* plan);
+ public:
+  void rewrite(planner::LogicalPlan* plan);
 
-    std::shared_ptr<planner::LogicalOperator> visitOperator(
-        const std::shared_ptr<planner::LogicalOperator>& op);
+  std::shared_ptr<planner::LogicalOperator> visitOperator(
+      const std::shared_ptr<planner::LogicalOperator>& op);
 
-private:
-    std::shared_ptr<planner::LogicalOperator> visitLimitReplace(
-        std::shared_ptr<planner::LogicalOperator> op) override;
+ private:
+  std::shared_ptr<planner::LogicalOperator> visitLimitReplace(
+      std::shared_ptr<planner::LogicalOperator> op) override;
 };
 
-} // namespace optimizer
-} // namespace kuzu
+}  // namespace optimizer
+}  // namespace kuzu

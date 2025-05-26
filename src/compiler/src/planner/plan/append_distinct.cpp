@@ -7,12 +7,12 @@ namespace kuzu {
 namespace planner {
 
 void Planner::appendDistinct(const expression_vector& keys, LogicalPlan& plan) {
-    auto distinct = make_shared<LogicalDistinct>(keys, plan.getLastOperator());
-    appendFlattens(distinct->getGroupsPosToFlatten(), plan);
-    distinct->setChild(0, plan.getLastOperator());
-    distinct->computeFactorizedSchema();
-    plan.setLastOperator(std::move(distinct));
+  auto distinct = make_shared<LogicalDistinct>(keys, plan.getLastOperator());
+  appendFlattens(distinct->getGroupsPosToFlatten(), plan);
+  distinct->setChild(0, plan.getLastOperator());
+  distinct->computeFactorizedSchema();
+  plan.setLastOperator(std::move(distinct));
 }
 
-} // namespace planner
-} // namespace kuzu
+}  // namespace planner
+}  // namespace kuzu

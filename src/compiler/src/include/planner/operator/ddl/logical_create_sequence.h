@@ -7,46 +7,51 @@ namespace kuzu {
 namespace planner {
 
 struct LogicalCreateSequencePrintInfo final : OPPrintInfo {
-    std::string sequenceName;
+  std::string sequenceName;
 
-    explicit LogicalCreateSequencePrintInfo(std::string sequenceName)
-        : sequenceName(std::move(sequenceName)) {}
+  explicit LogicalCreateSequencePrintInfo(std::string sequenceName)
+      : sequenceName(std::move(sequenceName)) {}
 
-    std::string toString() const override { return "Sequence: " + sequenceName; };
+  std::string toString() const override { return "Sequence: " + sequenceName; };
 
-    std::unique_ptr<OPPrintInfo> copy() const override {
-        return std::unique_ptr<LogicalCreateSequencePrintInfo>(
-            new LogicalCreateSequencePrintInfo(*this));
-    }
+  std::unique_ptr<OPPrintInfo> copy() const override {
+    return std::unique_ptr<LogicalCreateSequencePrintInfo>(
+        new LogicalCreateSequencePrintInfo(*this));
+  }
 
-private:
-    LogicalCreateSequencePrintInfo(const LogicalCreateSequencePrintInfo& other)
-        : OPPrintInfo(other), sequenceName(other.sequenceName) {}
+ private:
+  LogicalCreateSequencePrintInfo(const LogicalCreateSequencePrintInfo& other)
+      : OPPrintInfo(other), sequenceName(other.sequenceName) {}
 };
 
 class LogicalCreateSequence : public LogicalSimple {
-    static constexpr LogicalOperatorType type_ = LogicalOperatorType::CREATE_SEQUENCE;
+  static constexpr LogicalOperatorType type_ =
+      LogicalOperatorType::CREATE_SEQUENCE;
 
-public:
-    LogicalCreateSequence(binder::BoundCreateSequenceInfo info,
-        std::shared_ptr<binder::Expression> outputExpression)
-        : LogicalSimple{type_, std::move(outputExpression)}, info{std::move(info)} {}
+ public:
+  LogicalCreateSequence(binder::BoundCreateSequenceInfo info,
+                        std::shared_ptr<binder::Expression> outputExpression)
+      : LogicalSimple{type_, std::move(outputExpression)},
+        info{std::move(info)} {}
 
-    std::string getExpressionsForPrinting() const override { return info.sequenceName; }
+  std::string getExpressionsForPrinting() const override {
+    return info.sequenceName;
+  }
 
-    binder::BoundCreateSequenceInfo getInfo() const { return info.copy(); }
+  binder::BoundCreateSequenceInfo getInfo() const { return info.copy(); }
 
-    std::unique_ptr<OPPrintInfo> getPrintInfo() const override {
-        return std::make_unique<LogicalCreateSequencePrintInfo>(info.sequenceName);
-    }
+  std::unique_ptr<OPPrintInfo> getPrintInfo() const override {
+    return std::make_unique<LogicalCreateSequencePrintInfo>(info.sequenceName);
+  }
 
-    inline std::unique_ptr<LogicalOperator> copy() final {
-        return std::make_unique<LogicalCreateSequence>(info.copy(), outputExpression);
-    }
+  inline std::unique_ptr<LogicalOperator> copy() final {
+    return std::make_unique<LogicalCreateSequence>(info.copy(),
+                                                   outputExpression);
+  }
 
-private:
-    binder::BoundCreateSequenceInfo info;
+ private:
+  binder::BoundCreateSequenceInfo info;
 };
 
-} // namespace planner
-} // namespace kuzu
+}  // namespace planner
+}  // namespace kuzu

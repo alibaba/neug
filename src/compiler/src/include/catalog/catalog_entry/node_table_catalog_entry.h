@@ -5,44 +5,48 @@
 namespace kuzu {
 namespace transaction {
 class Transaction;
-} // namespace transaction
+}  // namespace transaction
 
 namespace catalog {
 
 class Catalog;
 class KUZU_API NodeTableCatalogEntry final : public TableCatalogEntry {
-    static constexpr CatalogEntryType entryType_ = CatalogEntryType::NODE_TABLE_ENTRY;
+  static constexpr CatalogEntryType entryType_ =
+      CatalogEntryType::NODE_TABLE_ENTRY;
 
-public:
-    NodeTableCatalogEntry() = default;
-    NodeTableCatalogEntry(std::string name, std::string primaryKeyName)
-        : TableCatalogEntry{entryType_, std::move(name)}, primaryKeyName{
-                                                              std::move(primaryKeyName)} {}
+ public:
+  NodeTableCatalogEntry() = default;
+  NodeTableCatalogEntry(std::string name, std::string primaryKeyName)
+      : TableCatalogEntry{entryType_, std::move(name)},
+        primaryKeyName{std::move(primaryKeyName)} {}
 
-    bool isParent(common::table_id_t /*tableID*/) override { return false; }
-    common::TableType getTableType() const override { return common::TableType::NODE; }
+  bool isParent(common::table_id_t /*tableID*/) override { return false; }
+  common::TableType getTableType() const override {
+    return common::TableType::NODE;
+  }
 
-    std::string getPrimaryKeyName() const { return primaryKeyName; }
-    common::property_id_t getPrimaryKeyID() const {
-        return propertyCollection.getPropertyID(primaryKeyName);
-    }
-    const binder::PropertyDefinition& getPrimaryKeyDefinition() const {
-        return getProperty(primaryKeyName);
-    }
+  std::string getPrimaryKeyName() const { return primaryKeyName; }
+  common::property_id_t getPrimaryKeyID() const {
+    return propertyCollection.getPropertyID(primaryKeyName);
+  }
+  const binder::PropertyDefinition& getPrimaryKeyDefinition() const {
+    return getProperty(primaryKeyName);
+  }
 
-    void serialize(common::Serializer& serializer) const override;
-    static std::unique_ptr<NodeTableCatalogEntry> deserialize(common::Deserializer& deserializer);
+  void serialize(common::Serializer& serializer) const override;
+  static std::unique_ptr<NodeTableCatalogEntry> deserialize(
+      common::Deserializer& deserializer);
 
-    std::unique_ptr<TableCatalogEntry> copy() const override;
-    std::string toCypher(const ToCypherInfo& info) const override;
+  std::unique_ptr<TableCatalogEntry> copy() const override;
+  std::string toCypher(const ToCypherInfo& info) const override;
 
-private:
-    std::unique_ptr<binder::BoundExtraCreateCatalogEntryInfo> getBoundExtraCreateInfo(
-        transaction::Transaction* transaction) const override;
+ private:
+  std::unique_ptr<binder::BoundExtraCreateCatalogEntryInfo>
+  getBoundExtraCreateInfo(transaction::Transaction* transaction) const override;
 
-private:
-    std::string primaryKeyName;
+ private:
+  std::string primaryKeyName;
 };
 
-} // namespace catalog
-} // namespace kuzu
+}  // namespace catalog
+}  // namespace kuzu

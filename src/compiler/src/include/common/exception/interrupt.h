@@ -7,9 +7,9 @@ namespace kuzu {
 namespace common {
 
 class KUZU_API InterruptException : public Exception {
-public:
-    explicit InterruptException() : Exception("Interrupted."){};
+ public:
+  explicit InterruptException() : Exception("Interrupted."){};
 };
 
-} // namespace common
-} // namespace kuzu
+}  // namespace common
+}  // namespace kuzu

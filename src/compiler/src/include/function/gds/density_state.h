@@ -6,9 +6,9 @@ namespace kuzu {
 namespace function {
 
 enum class GDSDensityState : uint8_t {
-    SPARSE = 0,
-    DENSE = 1,
+  SPARSE = 0,
+  DENSE = 1,
 };
 
 }
-} // namespace kuzu
+}  // namespace kuzu

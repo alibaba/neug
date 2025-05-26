@@ -1,6 +1,6 @@
 #include "main/prepared_statement.h"
 
-#include "binder/bound_statement_result.h" // IWYU pragma: keep (used to avoid error in destructor)
+#include "binder/bound_statement_result.h"  // IWYU pragma: keep (used to avoid error in destructor)
 #include "common/enums/statement_type.h"
 #include "planner/operator/logical_plan.h"
 
@@ -10,30 +10,22 @@ namespace kuzu {
 namespace main {
 
 bool PreparedStatement::isTransactionStatement() const {
-    return preparedSummary.statementType == StatementType::TRANSACTION;
+  return preparedSummary.statementType == StatementType::TRANSACTION;
 }
 
-bool PreparedStatement::isSuccess() const {
-    return success;
-}
+bool PreparedStatement::isSuccess() const { return success; }
 
-std::string PreparedStatement::getErrorMessage() const {
-    return errMsg;
-}
+std::string PreparedStatement::getErrorMessage() const { return errMsg; }
 
-bool PreparedStatement::isReadOnly() const {
-    return readOnly;
-}
+bool PreparedStatement::isReadOnly() const { return readOnly; }
 
-bool PreparedStatement::isProfile() const {
-    return logicalPlan->isProfile();
-}
+bool PreparedStatement::isProfile() const { return logicalPlan->isProfile(); }
 
 StatementType PreparedStatement::getStatementType() const {
-    return parsedStatement->getStatementType();
+  return parsedStatement->getStatementType();
 }
 
 PreparedStatement::~PreparedStatement() = default;
 
-} // namespace main
-} // namespace kuzu
+}  // namespace main
+}  // namespace kuzu

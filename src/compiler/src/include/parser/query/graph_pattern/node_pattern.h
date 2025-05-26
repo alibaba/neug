@@ -8,28 +8,29 @@ namespace kuzu {
 namespace parser {
 
 class NodePattern {
-public:
-    NodePattern(std::string name, std::vector<std::string> tableNames,
-        std::vector<s_parsed_expr_pair> propertyKeyVals)
-        : variableName{std::move(name)}, tableNames{std::move(tableNames)},
-          propertyKeyVals{std::move(propertyKeyVals)} {}
-    DELETE_COPY_DEFAULT_MOVE(NodePattern);
+ public:
+  NodePattern(std::string name, std::vector<std::string> tableNames,
+              std::vector<s_parsed_expr_pair> propertyKeyVals)
+      : variableName{std::move(name)},
+        tableNames{std::move(tableNames)},
+        propertyKeyVals{std::move(propertyKeyVals)} {}
+  DELETE_COPY_DEFAULT_MOVE(NodePattern);
 
-    virtual ~NodePattern() = default;
+  virtual ~NodePattern() = default;
 
-    inline std::string getVariableName() const { return variableName; }
+  inline std::string getVariableName() const { return variableName; }
 
-    inline std::vector<std::string> getTableNames() const { return tableNames; }
+  inline std::vector<std::string> getTableNames() const { return tableNames; }
 
-    inline const std::vector<s_parsed_expr_pair>& getPropertyKeyVals() const {
-        return propertyKeyVals;
-    }
+  inline const std::vector<s_parsed_expr_pair>& getPropertyKeyVals() const {
+    return propertyKeyVals;
+  }
 
-protected:
-    std::string variableName;
-    std::vector<std::string> tableNames;
-    std::vector<s_parsed_expr_pair> propertyKeyVals;
+ protected:
+  std::string variableName;
+  std::vector<std::string> tableNames;
+  std::vector<s_parsed_expr_pair> propertyKeyVals;
 };
 
-} // namespace parser
-} // namespace kuzu
+}  // namespace parser
+}  // namespace kuzu

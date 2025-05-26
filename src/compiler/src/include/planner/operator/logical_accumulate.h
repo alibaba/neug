@@ -7,39 +7,44 @@ namespace kuzu {
 namespace planner {
 
 class LogicalAccumulate final : public LogicalOperator {
-    static constexpr LogicalOperatorType type = LogicalOperatorType::ACCUMULATE;
+  static constexpr LogicalOperatorType type = LogicalOperatorType::ACCUMULATE;
 
-public:
-    LogicalAccumulate(common::AccumulateType accumulateType, binder::expression_vector flatExprs,
-        std::shared_ptr<binder::Expression> mark, std::shared_ptr<LogicalOperator> child)
-        : LogicalOperator{type, std::move(child)},
-          accumulateType{accumulateType}, flatExprs{std::move(flatExprs)}, mark{std::move(mark)} {}
+ public:
+  LogicalAccumulate(common::AccumulateType accumulateType,
+                    binder::expression_vector flatExprs,
+                    std::shared_ptr<binder::Expression> mark,
+                    std::shared_ptr<LogicalOperator> child)
+      : LogicalOperator{type, std::move(child)},
+        accumulateType{accumulateType},
+        flatExprs{std::move(flatExprs)},
+        mark{std::move(mark)} {}
 
-    void computeFactorizedSchema() override;
-    void computeFlatSchema() override;
+  void computeFactorizedSchema() override;
+  void computeFlatSchema() override;
 
-    f_group_pos_set getGroupPositionsToFlatten() const;
+  f_group_pos_set getGroupPositionsToFlatten() const;
 
-    std::string getExpressionsForPrinting() const override { return {}; }
+  std::string getExpressionsForPrinting() const override { return {}; }
 
-    common::AccumulateType getAccumulateType() const { return accumulateType; }
-    binder::expression_vector getPayloads() const {
-        return children[0]->getSchema()->getExpressionsInScope();
-    }
-    bool hasMark() const { return mark != nullptr; }
-    std::shared_ptr<binder::Expression> getMark() const { return mark; }
+  common::AccumulateType getAccumulateType() const { return accumulateType; }
+  binder::expression_vector getPayloads() const {
+    return children[0]->getSchema()->getExpressionsInScope();
+  }
+  bool hasMark() const { return mark != nullptr; }
+  std::shared_ptr<binder::Expression> getMark() const { return mark; }
 
-    std::unique_ptr<LogicalOperator> copy() override {
-        return make_unique<LogicalAccumulate>(accumulateType, flatExprs, mark, children[0]->copy());
-    }
+  std::unique_ptr<LogicalOperator> copy() override {
+    return make_unique<LogicalAccumulate>(accumulateType, flatExprs, mark,
+                                          children[0]->copy());
+  }
 
-private:
-    common::AccumulateType accumulateType;
-    binder::expression_vector flatExprs;
-    // Accumulate may be used for optional match, e.g. OPTIONAL MATCH (a). In such case, we use
-    // mark to determine if at least one pattern is found.
-    std::shared_ptr<binder::Expression> mark;
+ private:
+  common::AccumulateType accumulateType;
+  binder::expression_vector flatExprs;
+  // Accumulate may be used for optional match, e.g. OPTIONAL MATCH (a). In such
+  // case, we use mark to determine if at least one pattern is found.
+  std::shared_ptr<binder::Expression> mark;
 };
 
-} // namespace planner
-} // namespace kuzu
+}  // namespace planner
+}  // namespace kuzu

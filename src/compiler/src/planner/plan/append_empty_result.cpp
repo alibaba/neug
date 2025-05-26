@@ -5,10 +5,10 @@ namespace kuzu {
 namespace planner {
 
 void Planner::appendEmptyResult(LogicalPlan& plan) {
-    auto op = std::make_shared<LogicalEmptyResult>(*plan.getSchema());
-    op->computeFactorizedSchema();
-    plan.setLastOperator(std::move(op));
+  auto op = std::make_shared<LogicalEmptyResult>(*plan.getSchema());
+  op->computeFactorizedSchema();
+  plan.setLastOperator(std::move(op));
 }
 
-} // namespace planner
-} // namespace kuzu
+}  // namespace planner
+}  // namespace kuzu

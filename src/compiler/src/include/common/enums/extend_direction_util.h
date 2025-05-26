@@ -8,15 +8,16 @@ namespace kuzu {
 namespace common {
 
 class ExtendDirectionUtil {
-public:
-    static RelDataDirection getRelDataDirection(ExtendDirection direction) {
-        KU_ASSERT(direction != ExtendDirection::BOTH);
-        return direction == ExtendDirection::FWD ? RelDataDirection::FWD : RelDataDirection::BWD;
-    }
+ public:
+  static RelDataDirection getRelDataDirection(ExtendDirection direction) {
+    KU_ASSERT(direction != ExtendDirection::BOTH);
+    return direction == ExtendDirection::FWD ? RelDataDirection::FWD
+                                             : RelDataDirection::BWD;
+  }
 
-    static ExtendDirection fromString(const std::string& str);
-    static std::string toString(ExtendDirection direction);
+  static ExtendDirection fromString(const std::string& str);
+  static std::string toString(ExtendDirection direction);
 };
 
-} // namespace common
-} // namespace kuzu
+}  // namespace common
+}  // namespace kuzu

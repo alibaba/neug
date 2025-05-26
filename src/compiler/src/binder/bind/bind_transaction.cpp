@@ -7,10 +7,12 @@ using namespace kuzu::parser;
 namespace kuzu {
 namespace binder {
 
-std::unique_ptr<BoundStatement> Binder::bindTransaction(const Statement& statement) {
-    auto& transactionStatement = statement.constCast<TransactionStatement>();
-    return std::make_unique<BoundTransactionStatement>(transactionStatement.getTransactionAction());
+std::unique_ptr<BoundStatement> Binder::bindTransaction(
+    const Statement& statement) {
+  auto& transactionStatement = statement.constCast<TransactionStatement>();
+  return std::make_unique<BoundTransactionStatement>(
+      transactionStatement.getTransactionAction());
 }
 
-} // namespace binder
-} // namespace kuzu
+}  // namespace binder
+}  // namespace kuzu

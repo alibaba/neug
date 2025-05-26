@@ -7,13 +7,15 @@ using namespace kuzu::binder;
 namespace kuzu {
 namespace planner {
 
-void Planner::appendDelete(const std::vector<BoundDeleteInfo>& infos, LogicalPlan& plan) {
-    auto delete_ = std::make_shared<LogicalDelete>(copyVector(infos), plan.getLastOperator());
-    appendFlattens(delete_->getGroupsPosToFlatten(), plan);
-    delete_->setChild(0, plan.getLastOperator());
-    delete_->computeFactorizedSchema();
-    plan.setLastOperator(std::move(delete_));
+void Planner::appendDelete(const std::vector<BoundDeleteInfo>& infos,
+                           LogicalPlan& plan) {
+  auto delete_ = std::make_shared<LogicalDelete>(copyVector(infos),
+                                                 plan.getLastOperator());
+  appendFlattens(delete_->getGroupsPosToFlatten(), plan);
+  delete_->setChild(0, plan.getLastOperator());
+  delete_->computeFactorizedSchema();
+  plan.setLastOperator(std::move(delete_));
 }
 
-} // namespace planner
-} // namespace kuzu
+}  // namespace planner
+}  // namespace kuzu

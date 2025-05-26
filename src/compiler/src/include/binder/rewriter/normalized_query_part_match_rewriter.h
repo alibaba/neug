@@ -16,16 +16,16 @@ namespace binder {
 // MATCH (a)-[]->(b) WHERE a.ID = 0 AND b.ID = 1
 // This rewrite does not apply to MATCH with HINT or OPTIONAL MATCH
 class NormalizedQueryPartMatchRewriter final : public BoundStatementVisitor {
-public:
-    explicit NormalizedQueryPartMatchRewriter(main::ClientContext* clientContext)
-        : clientContext{clientContext} {}
+ public:
+  explicit NormalizedQueryPartMatchRewriter(main::ClientContext* clientContext)
+      : clientContext{clientContext} {}
 
-private:
-    void visitQueryPartUnsafe(NormalizedQueryPart& queryPart) override;
+ private:
+  void visitQueryPartUnsafe(NormalizedQueryPart& queryPart) override;
 
-private:
-    main::ClientContext* clientContext;
+ private:
+  main::ClientContext* clientContext;
 };
 
-} // namespace binder
-} // namespace kuzu
+}  // namespace binder
+}  // namespace kuzu

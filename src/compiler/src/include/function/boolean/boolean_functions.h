@@ -6,13 +6,15 @@ namespace kuzu {
 namespace function {
 
 /**
- * The boolean operators (AND, OR, XOR, NOT) works a little differently from other operators. While
- * other operators can operate on only non null operands, boolean operators can operate even with
- * null operands in certain cases, for instance, Null OR True = True. Hence, the result value of
- * the boolean operator can be True, False or Null. To accommodate for this, the dataType of
- * result is uint8_t (that can have more than 2 values) rather than bool. In case, the result is
- * computed to be Null based on the operands, we set result = NULL_BOOL, which should rightly be
- * interpreted by operator executors as NULL and not as True.
+ * The boolean operators (AND, OR, XOR, NOT) works a little differently from
+ * other operators. While other operators can operate on only non null operands,
+ * boolean operators can operate even with null operands in certain cases, for
+ * instance, Null OR True = True. Hence, the result value of the boolean
+ * operator can be True, False or Null. To accommodate for this, the dataType of
+ * result is uint8_t (that can have more than 2 values) rather than bool. In
+ * case, the result is computed to be Null based on the operands, we set result
+ * = NULL_BOOL, which should rightly be interpreted by operator executors as
+ * NULL and not as True.
  * */
 
 /**
@@ -36,16 +38,16 @@ const uint8_t NULL_BOOL = 2;
  *     -            T              -              T               2
  * */
 struct And {
-    static inline void operation(bool left, bool right, uint8_t& result, bool isLeftNull,
-        bool isRightNull) {
-        if ((!left && !isLeftNull) || (!right && !isRightNull)) {
-            result = false;
-        } else if (isLeftNull || isRightNull) {
-            result = NULL_BOOL;
-        } else {
-            result = true;
-        }
+  static inline void operation(bool left, bool right, uint8_t& result,
+                               bool isLeftNull, bool isRightNull) {
+    if ((!left && !isLeftNull) || (!right && !isRightNull)) {
+      result = false;
+    } else if (isLeftNull || isRightNull) {
+      result = NULL_BOOL;
+    } else {
+      result = true;
     }
+  }
 };
 
 /**
@@ -64,16 +66,16 @@ struct And {
  *     -            T              -              T               2
  * */
 struct Or {
-    static inline void operation(bool left, bool right, uint8_t& result, bool isLeftNull,
-        bool isRightNull) {
-        if ((left && !isLeftNull) || (right && !isRightNull)) {
-            result = true;
-        } else if (isLeftNull || isRightNull) {
-            result = NULL_BOOL;
-        } else {
-            result = false;
-        }
+  static inline void operation(bool left, bool right, uint8_t& result,
+                               bool isLeftNull, bool isRightNull) {
+    if ((left && !isLeftNull) || (right && !isRightNull)) {
+      result = true;
+    } else if (isLeftNull || isRightNull) {
+      result = NULL_BOOL;
+    } else {
+      result = false;
     }
+  }
 };
 
 /**
@@ -92,14 +94,14 @@ struct Or {
  *     -            T              -              T               2
  * */
 struct Xor {
-    static inline void operation(bool left, bool right, uint8_t& result, bool isLeftNull,
-        bool isRightNull) {
-        if (isLeftNull || isRightNull) {
-            result = NULL_BOOL;
-        } else {
-            result = left ^ right;
-        }
+  static inline void operation(bool left, bool right, uint8_t& result,
+                               bool isLeftNull, bool isRightNull) {
+    if (isLeftNull || isRightNull) {
+      result = NULL_BOOL;
+    } else {
+      result = left ^ right;
     }
+  }
 };
 
 /**
@@ -112,10 +114,10 @@ struct Xor {
  *       -            T              2
  * */
 struct Not {
-    static inline void operation(bool operand, bool isNull, uint8_t& result) {
-        result = isNull ? NULL_BOOL : !operand;
-    }
+  static inline void operation(bool operand, bool isNull, uint8_t& result) {
+    result = isNull ? NULL_BOOL : !operand;
+  }
 };
 
-} // namespace function
-} // namespace kuzu
+}  // namespace function
+}  // namespace kuzu

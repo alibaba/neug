@@ -339,7 +339,28 @@ install(EXPORT nexg-targets
 	    NAMESPACE nexg::
         DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/nexg)
 
+file(GLOB_RECURSE FILES_NEED_LINT
+        "src/engines/*.cc"
+        "src/engines/*.h"
+        "src/bin/*.cc"
+        "src/storages/*.h"
+        "src/storages/*.cc"
+        "src/otel/*.h"
+        "src/otel/*.cc"
+        "tests/*.h"
+        "tests/*.cc"
+        "src/utils/*.h"
+        "src/utils/*.cc"
+        "src/compiler/*.cpp"
+        "src/compiler/*.h"
+        EXCEPT "*.act.h" "*.actg.h" "*.autogen.h" "*.autogen.cc")
+list(FILTER FILES_NEED_LINT EXCLUDE REGEX ".*\.act.h$|.*\.actg.h$|.*\.autogen.h$|.*\.autogen.cc$")
+list(FILTER FILES_NEED_LINT EXCLUDE REGEX ".*/third_party/.*")
 
+add_custom_target(nexg_clformat
+    COMMAND clang-format --style=file -i ${FILES_NEED_LINT}
+    COMMENT "Running clang-format, using clang-format-8 from https://github.com/muttleyxd/clang-tools-static-binaries/releases"
+    VERBATIM)
 
 if (NOT DEFINED CPACK_PACKAGE_NAME)
   set(CPACK_PACKAGE_NAME "nexg")

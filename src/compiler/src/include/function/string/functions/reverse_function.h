@@ -8,18 +8,19 @@ namespace kuzu {
 namespace function {
 
 struct Reverse {
-public:
-    KUZU_API static void operation(common::ku_string_t& input, common::ku_string_t& result,
-        common::ValueVector& resultValueVector);
+ public:
+  KUZU_API static void operation(common::ku_string_t& input,
+                                 common::ku_string_t& result,
+                                 common::ValueVector& resultValueVector);
 
-private:
-    static uint32_t reverseStr(char* data, uint32_t len) {
-        for (auto i = 0u; i < len / 2; i++) {
-            std::swap(data[i], data[len - i - 1]);
-        }
-        return len;
+ private:
+  static uint32_t reverseStr(char* data, uint32_t len) {
+    for (auto i = 0u; i < len / 2; i++) {
+      std::swap(data[i], data[len - i - 1]);
     }
+    return len;
+  }
 };
 
-} // namespace function
-} // namespace kuzu
+}  // namespace function
+}  // namespace kuzu

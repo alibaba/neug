@@ -14,23 +14,23 @@ class ClientContext;
 namespace common {
 
 struct RandomState {
-    pcg32 pcg;
+  pcg32 pcg;
 
-    RandomState() {}
+  RandomState() {}
 };
 
 class KUZU_API RandomEngine {
-public:
-    RandomEngine();
-    RandomEngine(uint64_t seed, uint64_t stream);
+ public:
+  RandomEngine();
+  RandomEngine(uint64_t seed, uint64_t stream);
 
-    uint32_t nextRandomInteger();
-    uint32_t nextRandomInteger(uint32_t upper);
+  uint32_t nextRandomInteger();
+  uint32_t nextRandomInteger(uint32_t upper);
 
-private:
-    std::mutex mtx;
-    RandomState randomState;
+ private:
+  std::mutex mtx;
+  RandomState randomState;
 };
 
-} // namespace common
-} // namespace kuzu
+}  // namespace common
+}  // namespace kuzu

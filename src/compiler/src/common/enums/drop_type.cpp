@@ -6,15 +6,15 @@ namespace kuzu {
 namespace common {
 
 std::string DropTypeUtils::toString(DropType type) {
-    switch (type) {
-    case DropType::TABLE:
-        return "Table";
-    case DropType::SEQUENCE:
-        return "Sequence";
-    default:
-        KU_UNREACHABLE;
-    }
+  switch (type) {
+  case DropType::TABLE:
+    return "Table";
+  case DropType::SEQUENCE:
+    return "Sequence";
+  default:
+    KU_UNREACHABLE;
+  }
 }
 
-} // namespace common
-} // namespace kuzu
+}  // namespace common
+}  // namespace kuzu

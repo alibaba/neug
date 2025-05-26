@@ -9,10 +9,10 @@ namespace parser {
 
 std::unique_ptr<ParsedPropertyExpression> ParsedPropertyExpression::deserialize(
     Deserializer& deserializer) {
-    std::string propertyName;
-    deserializer.deserializeValue(propertyName);
-    return std::make_unique<ParsedPropertyExpression>(std::move(propertyName));
+  std::string propertyName;
+  deserializer.deserializeValue(propertyName);
+  return std::make_unique<ParsedPropertyExpression>(std::move(propertyName));
 }
 
-} // namespace parser
-} // namespace kuzu
+}  // namespace parser
+}  // namespace kuzu

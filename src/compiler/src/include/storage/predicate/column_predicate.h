@@ -11,55 +11,58 @@ struct MergedColumnChunkStats;
 
 class ColumnPredicate;
 class KUZU_API ColumnPredicateSet {
-public:
-    ColumnPredicateSet() = default;
-    EXPLICIT_COPY_DEFAULT_MOVE(ColumnPredicateSet);
+ public:
+  ColumnPredicateSet() = default;
+  EXPLICIT_COPY_DEFAULT_MOVE(ColumnPredicateSet);
 
-    void addPredicate(std::unique_ptr<ColumnPredicate> predicate) {
-        predicates.push_back(std::move(predicate));
-    }
-    void tryAddPredicate(const binder::Expression& column, const binder::Expression& predicate);
-    bool isEmpty() const { return predicates.empty(); }
+  void addPredicate(std::unique_ptr<ColumnPredicate> predicate) {
+    predicates.push_back(std::move(predicate));
+  }
+  void tryAddPredicate(const binder::Expression& column,
+                       const binder::Expression& predicate);
+  bool isEmpty() const { return predicates.empty(); }
 
-    common::ZoneMapCheckResult checkZoneMap(const MergedColumnChunkStats& stats) const;
+  common::ZoneMapCheckResult checkZoneMap(
+      const MergedColumnChunkStats& stats) const;
 
-    std::string toString() const;
+  std::string toString() const;
 
-private:
-    ColumnPredicateSet(const ColumnPredicateSet& other)
-        : predicates{copyVector(other.predicates)} {}
+ private:
+  ColumnPredicateSet(const ColumnPredicateSet& other)
+      : predicates{copyVector(other.predicates)} {}
 
-private:
-    std::vector<std::unique_ptr<ColumnPredicate>> predicates;
+ private:
+  std::vector<std::unique_ptr<ColumnPredicate>> predicates;
 };
 
 class KUZU_API ColumnPredicate {
-public:
-    ColumnPredicate(std::string columnName, common::ExpressionType expressionType)
-        : columnName{std::move(columnName)}, expressionType(expressionType) {}
+ public:
+  ColumnPredicate(std::string columnName, common::ExpressionType expressionType)
+      : columnName{std::move(columnName)}, expressionType(expressionType) {}
 
-    virtual ~ColumnPredicate() = default;
+  virtual ~ColumnPredicate() = default;
 
-    virtual common::ZoneMapCheckResult checkZoneMap(const MergedColumnChunkStats& stats) const = 0;
+  virtual common::ZoneMapCheckResult checkZoneMap(
+      const MergedColumnChunkStats& stats) const = 0;
 
-    virtual std::string toString();
+  virtual std::string toString();
 
-    virtual std::unique_ptr<ColumnPredicate> copy() const = 0;
+  virtual std::unique_ptr<ColumnPredicate> copy() const = 0;
 
-    template<class TARGET>
-    const TARGET& constCast() const {
-        return common::ku_dynamic_cast<const TARGET&>(*this);
-    }
+  template <class TARGET>
+  const TARGET& constCast() const {
+    return common::ku_dynamic_cast<const TARGET&>(*this);
+  }
 
-protected:
-    std::string columnName;
-    common::ExpressionType expressionType;
+ protected:
+  std::string columnName;
+  common::ExpressionType expressionType;
 };
 
 struct ColumnPredicateUtil {
-    static std::unique_ptr<ColumnPredicate> tryConvert(const binder::Expression& column,
-        const binder::Expression& predicate);
+  static std::unique_ptr<ColumnPredicate> tryConvert(
+      const binder::Expression& column, const binder::Expression& predicate);
 };
 
-} // namespace storage
-} // namespace kuzu
+}  // namespace storage
+}  // namespace kuzu

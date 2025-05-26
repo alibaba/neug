@@ -5,8 +5,8 @@
 namespace kuzu {
 namespace optimizer {
 class SchemaPopulator : public LogicalOperatorVisitor {
-public:
-    void rewrite(planner::LogicalPlan* plan);
+ public:
+  void rewrite(planner::LogicalPlan* plan);
 };
-} // namespace optimizer
-} // namespace kuzu
+}  // namespace optimizer
+}  // namespace kuzu

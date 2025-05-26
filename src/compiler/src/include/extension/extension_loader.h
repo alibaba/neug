@@ -11,16 +11,17 @@ class ClientContext;
 namespace extension {
 
 class KUZU_API ExtensionLoader {
-public:
-    explicit ExtensionLoader(std::string extensionName) : extensionName{std::move(extensionName)} {}
+ public:
+  explicit ExtensionLoader(std::string extensionName)
+      : extensionName{std::move(extensionName)} {}
 
-    virtual ~ExtensionLoader() = default;
+  virtual ~ExtensionLoader() = default;
 
-    virtual void loadDependency(main::ClientContext* context) = 0;
+  virtual void loadDependency(main::ClientContext* context) = 0;
 
-protected:
-    std::string extensionName;
+ protected:
+  std::string extensionName;
 };
 
-} // namespace extension
-} // namespace kuzu
+}  // namespace extension
+}  // namespace kuzu

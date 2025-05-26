@@ -7,35 +7,39 @@ namespace kuzu {
 namespace planner {
 
 struct LogicalDropPrintInfo : OPPrintInfo {
-    std::string name;
+  std::string name;
 
-    explicit LogicalDropPrintInfo(std::string name) : name{std::move(name)} {}
+  explicit LogicalDropPrintInfo(std::string name) : name{std::move(name)} {}
 
-    std::string toString() const override { return name; }
+  std::string toString() const override { return name; }
 };
 
 class LogicalDrop : public LogicalSimple {
-    static constexpr LogicalOperatorType type_ = LogicalOperatorType::DROP;
+  static constexpr LogicalOperatorType type_ = LogicalOperatorType::DROP;
 
-public:
-    LogicalDrop(parser::DropInfo dropInfo, std::shared_ptr<binder::Expression> outputExpression)
-        : LogicalSimple{type_, std::move(outputExpression)}, dropInfo{std::move(dropInfo)} {}
+ public:
+  LogicalDrop(parser::DropInfo dropInfo,
+              std::shared_ptr<binder::Expression> outputExpression)
+      : LogicalSimple{type_, std::move(outputExpression)},
+        dropInfo{std::move(dropInfo)} {}
 
-    std::string getExpressionsForPrinting() const override { return dropInfo.name; }
+  std::string getExpressionsForPrinting() const override {
+    return dropInfo.name;
+  }
 
-    const parser::DropInfo& getDropInfo() const { return dropInfo; }
+  const parser::DropInfo& getDropInfo() const { return dropInfo; }
 
-    std::unique_ptr<OPPrintInfo> getPrintInfo() const override {
-        return std::make_unique<LogicalDropPrintInfo>(dropInfo.name);
-    }
+  std::unique_ptr<OPPrintInfo> getPrintInfo() const override {
+    return std::make_unique<LogicalDropPrintInfo>(dropInfo.name);
+  }
 
-    std::unique_ptr<LogicalOperator> copy() override {
-        return make_unique<LogicalDrop>(dropInfo, outputExpression);
-    }
+  std::unique_ptr<LogicalOperator> copy() override {
+    return make_unique<LogicalDrop>(dropInfo, outputExpression);
+  }
 
-private:
-    parser::DropInfo dropInfo;
+ private:
+  parser::DropInfo dropInfo;
 };
 
-} // namespace planner
-} // namespace kuzu
+}  // namespace planner
+}  // namespace kuzu

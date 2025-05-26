@@ -11,19 +11,23 @@ namespace kuzu {
 namespace main {
 
 void AttachedDatabase::invalidateCache() {
-    if (dbType != common::ATTACHED_KUZU_DB_TYPE) {
-        auto catalogExtension = catalog->ptrCast<extension::CatalogExtension>();
-        catalogExtension->invalidateCache();
-    }
+  if (dbType != common::ATTACHED_KUZU_DB_TYPE) {
+    auto catalogExtension = catalog->ptrCast<extension::CatalogExtension>();
+    catalogExtension->invalidateCache();
+  }
 }
 
-void AttachedKuzuDatabase::initCatalog(const std::string& path, ClientContext* context) {}
+void AttachedKuzuDatabase::initCatalog(const std::string& path,
+                                       ClientContext* context) {}
 
 static void validateEmptyWAL(const std::string& path, ClientContext* context) {}
 
-AttachedKuzuDatabase::AttachedKuzuDatabase(std::string dbPath, std::string dbName,
-    std::string dbType, ClientContext* clientContext)
-    : AttachedDatabase{std::move(dbName), std::move(dbType), nullptr /* catalog */} {}
+AttachedKuzuDatabase::AttachedKuzuDatabase(std::string dbPath,
+                                           std::string dbName,
+                                           std::string dbType,
+                                           ClientContext* clientContext)
+    : AttachedDatabase{std::move(dbName), std::move(dbType),
+                       nullptr /* catalog */} {}
 
-} // namespace main
-} // namespace kuzu
+}  // namespace main
+}  // namespace kuzu

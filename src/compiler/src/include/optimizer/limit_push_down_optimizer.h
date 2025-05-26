@@ -6,18 +6,19 @@ namespace kuzu {
 namespace optimizer {
 
 class LimitPushDownOptimizer {
-public:
-    LimitPushDownOptimizer() : skipNumber{0}, limitNumber{common::INVALID_LIMIT} {}
+ public:
+  LimitPushDownOptimizer()
+      : skipNumber{0}, limitNumber{common::INVALID_LIMIT} {}
 
-    void rewrite(planner::LogicalPlan* plan);
+  void rewrite(planner::LogicalPlan* plan);
 
-private:
-    void visitOperator(planner::LogicalOperator* op);
+ private:
+  void visitOperator(planner::LogicalOperator* op);
 
-private:
-    common::offset_t skipNumber;
-    common::offset_t limitNumber;
+ private:
+  common::offset_t skipNumber;
+  common::offset_t limitNumber;
 };
 
-} // namespace optimizer
-} // namespace kuzu
+}  // namespace optimizer
+}  // namespace kuzu

@@ -12,23 +12,25 @@ namespace binder {
 
 PropertyDefinition::PropertyDefinition(ColumnDefinition columnDefinition)
     : columnDefinition{std::move(columnDefinition)} {
-    defaultExpr = std::make_unique<ParsedLiteralExpression>(Value::createNullValue(), "NULL");
+  defaultExpr = std::make_unique<ParsedLiteralExpression>(
+      Value::createNullValue(), "NULL");
 }
 
 void PropertyDefinition::serialize(Serializer& serializer) const {
-    serializer.serializeValue(columnDefinition.name);
-    columnDefinition.type.serialize(serializer);
-    defaultExpr->serialize(serializer);
+  serializer.serializeValue(columnDefinition.name);
+  columnDefinition.type.serialize(serializer);
+  defaultExpr->serialize(serializer);
 }
 
 PropertyDefinition PropertyDefinition::deserialize(Deserializer& deserializer) {
-    std::string name;
-    deserializer.deserializeValue(name);
-    auto type = LogicalType::deserialize(deserializer);
-    auto columnDefinition = ColumnDefinition(name, std::move(type));
-    auto defaultExpr = ParsedExpression::deserialize(deserializer);
-    return PropertyDefinition(std::move(columnDefinition), std::move(defaultExpr));
+  std::string name;
+  deserializer.deserializeValue(name);
+  auto type = LogicalType::deserialize(deserializer);
+  auto columnDefinition = ColumnDefinition(name, std::move(type));
+  auto defaultExpr = ParsedExpression::deserialize(deserializer);
+  return PropertyDefinition(std::move(columnDefinition),
+                            std::move(defaultExpr));
 }
 
-} // namespace binder
-} // namespace kuzu
+}  // namespace binder
+}  // namespace kuzu

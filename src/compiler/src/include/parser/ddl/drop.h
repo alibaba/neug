@@ -7,16 +7,17 @@ namespace kuzu {
 namespace parser {
 
 class Drop : public Statement {
-    static constexpr common::StatementType type_ = common::StatementType::DROP;
+  static constexpr common::StatementType type_ = common::StatementType::DROP;
 
-public:
-    explicit Drop(DropInfo dropInfo) : Statement{type_}, dropInfo{std::move(dropInfo)} {}
+ public:
+  explicit Drop(DropInfo dropInfo)
+      : Statement{type_}, dropInfo{std::move(dropInfo)} {}
 
-    const DropInfo& getDropInfo() const { return dropInfo; }
+  const DropInfo& getDropInfo() const { return dropInfo; }
 
-private:
-    DropInfo dropInfo;
+ private:
+  DropInfo dropInfo;
 };
 
-} // namespace parser
-} // namespace kuzu
+}  // namespace parser
+}  // namespace kuzu

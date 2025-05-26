@@ -6,13 +6,14 @@ namespace kuzu {
 namespace planner {
 
 void LogicalFlatten::computeFactorizedSchema() {
-    copyChildSchema(0);
-    schema->flattenGroup(groupPos);
+  copyChildSchema(0);
+  schema->flattenGroup(groupPos);
 }
 
 void LogicalFlatten::computeFlatSchema() {
-    throw InternalException("LogicalFlatten::computeFlatSchema() should never be used.");
+  throw InternalException(
+      "LogicalFlatten::computeFlatSchema() should never be used.");
 }
 
-} // namespace planner
-} // namespace kuzu
+}  // namespace planner
+}  // namespace kuzu

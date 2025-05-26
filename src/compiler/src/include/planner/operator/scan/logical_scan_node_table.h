@@ -8,112 +8,124 @@ namespace kuzu {
 namespace planner {
 
 enum class LogicalScanNodeTableType : uint8_t {
-    SCAN = 0,
-    PRIMARY_KEY_SCAN = 1,
+  SCAN = 0,
+  PRIMARY_KEY_SCAN = 1,
 };
 
 struct ExtraScanNodeTableInfo {
-    virtual ~ExtraScanNodeTableInfo() = default;
-    virtual std::unique_ptr<ExtraScanNodeTableInfo> copy() const = 0;
+  virtual ~ExtraScanNodeTableInfo() = default;
+  virtual std::unique_ptr<ExtraScanNodeTableInfo> copy() const = 0;
 
-    template<class TARGET>
-    const TARGET& constCast() const {
-        return common::ku_dynamic_cast<const TARGET&>(*this);
-    }
+  template <class TARGET>
+  const TARGET& constCast() const {
+    return common::ku_dynamic_cast<const TARGET&>(*this);
+  }
 };
 
 struct PrimaryKeyScanInfo final : ExtraScanNodeTableInfo {
-    std::shared_ptr<binder::Expression> key;
+  std::shared_ptr<binder::Expression> key;
 
-    explicit PrimaryKeyScanInfo(std::shared_ptr<binder::Expression> key) : key{std::move(key)} {}
+  explicit PrimaryKeyScanInfo(std::shared_ptr<binder::Expression> key)
+      : key{std::move(key)} {}
 
-    std::unique_ptr<ExtraScanNodeTableInfo> copy() const override {
-        return std::make_unique<PrimaryKeyScanInfo>(key);
-    }
+  std::unique_ptr<ExtraScanNodeTableInfo> copy() const override {
+    return std::make_unique<PrimaryKeyScanInfo>(key);
+  }
 };
 
 struct LogicalScanNodeTablePrintInfo final : OPPrintInfo {
-    std::shared_ptr<binder::Expression> nodeID;
-    binder::expression_vector properties;
+  std::shared_ptr<binder::Expression> nodeID;
+  binder::expression_vector properties;
 
-    LogicalScanNodeTablePrintInfo(std::shared_ptr<binder::Expression> nodeID,
-        binder::expression_vector properties)
-        : nodeID{std::move(nodeID)}, properties{std::move(properties)} {}
+  LogicalScanNodeTablePrintInfo(std::shared_ptr<binder::Expression> nodeID,
+                                binder::expression_vector properties)
+      : nodeID{std::move(nodeID)}, properties{std::move(properties)} {}
 
-    std::string toString() const override {
-        auto result = "Tables: " + nodeID->toString();
-        if (nodeID->hasAlias()) {
-            result += "Alias: " + nodeID->getAlias();
-        }
-        result += ",Properties :" + binder::ExpressionUtil::toString(properties);
-        return result;
+  std::string toString() const override {
+    auto result = "Tables: " + nodeID->toString();
+    if (nodeID->hasAlias()) {
+      result += "Alias: " + nodeID->getAlias();
     }
+    result += ",Properties :" + binder::ExpressionUtil::toString(properties);
+    return result;
+  }
 };
 
 class LogicalScanNodeTable final : public LogicalOperator {
-    static constexpr LogicalOperatorType type_ = LogicalOperatorType::SCAN_NODE_TABLE;
-    static constexpr LogicalScanNodeTableType defaultScanType = LogicalScanNodeTableType::SCAN;
+  static constexpr LogicalOperatorType type_ =
+      LogicalOperatorType::SCAN_NODE_TABLE;
+  static constexpr LogicalScanNodeTableType defaultScanType =
+      LogicalScanNodeTableType::SCAN;
 
-public:
-    LogicalScanNodeTable(std::shared_ptr<binder::Expression> nodeID,
-        std::vector<common::table_id_t> nodeTableIDs, binder::expression_vector properties,
-        common::cardinality_t cardinality = 0)
-        : LogicalOperator{type_}, scanType{defaultScanType}, nodeID{std::move(nodeID)},
-          nodeTableIDs{std::move(nodeTableIDs)}, properties{std::move(properties)} {
-        this->cardinality = cardinality;
+ public:
+  LogicalScanNodeTable(std::shared_ptr<binder::Expression> nodeID,
+                       std::vector<common::table_id_t> nodeTableIDs,
+                       binder::expression_vector properties,
+                       common::cardinality_t cardinality = 0)
+      : LogicalOperator{type_},
+        scanType{defaultScanType},
+        nodeID{std::move(nodeID)},
+        nodeTableIDs{std::move(nodeTableIDs)},
+        properties{std::move(properties)} {
+    this->cardinality = cardinality;
+  }
+  LogicalScanNodeTable(const LogicalScanNodeTable& other);
+
+  void computeFactorizedSchema() override;
+  void computeFlatSchema() override;
+
+  std::string getExpressionsForPrinting() const override {
+    auto message =
+        nodeID->toString() + " " + binder::ExpressionUtil::toString(properties);
+    auto extraInfo = getExtraInfo();
+    if (extraInfo != nullptr) {
+      auto pkExtraInfo = dynamic_cast<PrimaryKeyScanInfo*>(extraInfo);
+      if (pkExtraInfo != nullptr) {
+        message += " PK_SCAN(" + pkExtraInfo->key->toString() + ")";
+      }
     }
-    LogicalScanNodeTable(const LogicalScanNodeTable& other);
+    return message;
+  }
 
-    void computeFactorizedSchema() override;
-    void computeFlatSchema() override;
+  LogicalScanNodeTableType getScanType() const { return scanType; }
+  void setScanType(LogicalScanNodeTableType scanType_) { scanType = scanType_; }
 
-    std::string getExpressionsForPrinting() const override {
-        auto message = nodeID->toString() + " " + binder::ExpressionUtil::toString(properties);
-        auto extraInfo = getExtraInfo();
-        if (extraInfo != nullptr) {
-            auto pkExtraInfo = dynamic_cast<PrimaryKeyScanInfo*>(extraInfo);
-            if (pkExtraInfo != nullptr) {
-                message += " PK_SCAN(" + pkExtraInfo->key->toString() + ")";
-            }
-        }
-        return message;
-    }
+  std::shared_ptr<binder::Expression> getNodeID() const { return nodeID; }
+  std::vector<common::table_id_t> getTableIDs() const { return nodeTableIDs; }
 
-    LogicalScanNodeTableType getScanType() const { return scanType; }
-    void setScanType(LogicalScanNodeTableType scanType_) { scanType = scanType_; }
+  binder::expression_vector getProperties() const { return properties; }
+  void addProperty(std::shared_ptr<binder::Expression> expr) {
+    properties.push_back(std::move(expr));
+  }
+  void setPropertyPredicates(
+      std::vector<storage::ColumnPredicateSet> predicates) {
+    propertyPredicates = std::move(predicates);
+  }
+  const std::vector<storage::ColumnPredicateSet>& getPropertyPredicates()
+      const {
+    return propertyPredicates;
+  }
 
-    std::shared_ptr<binder::Expression> getNodeID() const { return nodeID; }
-    std::vector<common::table_id_t> getTableIDs() const { return nodeTableIDs; }
+  void setExtraInfo(std::unique_ptr<ExtraScanNodeTableInfo> info) {
+    extraInfo = std::move(info);
+  }
 
-    binder::expression_vector getProperties() const { return properties; }
-    void addProperty(std::shared_ptr<binder::Expression> expr) {
-        properties.push_back(std::move(expr));
-    }
-    void setPropertyPredicates(std::vector<storage::ColumnPredicateSet> predicates) {
-        propertyPredicates = std::move(predicates);
-    }
-    const std::vector<storage::ColumnPredicateSet>& getPropertyPredicates() const {
-        return propertyPredicates;
-    }
+  ExtraScanNodeTableInfo* getExtraInfo() const { return extraInfo.get(); }
 
-    void setExtraInfo(std::unique_ptr<ExtraScanNodeTableInfo> info) { extraInfo = std::move(info); }
+  std::unique_ptr<OPPrintInfo> getPrintInfo() const override {
+    return std::make_unique<LogicalScanNodeTablePrintInfo>(nodeID, properties);
+  }
 
-    ExtraScanNodeTableInfo* getExtraInfo() const { return extraInfo.get(); }
+  std::unique_ptr<LogicalOperator> copy() override;
 
-    std::unique_ptr<OPPrintInfo> getPrintInfo() const override {
-        return std::make_unique<LogicalScanNodeTablePrintInfo>(nodeID, properties);
-    }
-
-    std::unique_ptr<LogicalOperator> copy() override;
-
-private:
-    LogicalScanNodeTableType scanType;
-    std::shared_ptr<binder::Expression> nodeID;
-    std::vector<common::table_id_t> nodeTableIDs;
-    binder::expression_vector properties;
-    std::vector<storage::ColumnPredicateSet> propertyPredicates;
-    std::unique_ptr<ExtraScanNodeTableInfo> extraInfo;
+ private:
+  LogicalScanNodeTableType scanType;
+  std::shared_ptr<binder::Expression> nodeID;
+  std::vector<common::table_id_t> nodeTableIDs;
+  binder::expression_vector properties;
+  std::vector<storage::ColumnPredicateSet> propertyPredicates;
+  std::unique_ptr<ExtraScanNodeTableInfo> extraInfo;
 };
 
-} // namespace planner
-} // namespace kuzu
+}  // namespace planner
+}  // namespace kuzu

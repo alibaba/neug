@@ -9,44 +9,41 @@ namespace common {
  * Note that metrics are not thread safe.
  */
 class Metric {
+ public:
+  explicit Metric(bool enabled) : enabled{enabled} {}
 
-public:
-    explicit Metric(bool enabled) : enabled{enabled} {}
+  virtual ~Metric() = default;
 
-    virtual ~Metric() = default;
-
-public:
-    bool enabled;
+ public:
+  bool enabled;
 };
 
 class TimeMetric : public Metric {
+ public:
+  explicit TimeMetric(bool enable);
 
-public:
-    explicit TimeMetric(bool enable);
+  void start();
+  void stop();
 
-    void start();
-    void stop();
+  double getElapsedTimeMS() const;
 
-    double getElapsedTimeMS() const;
-
-public:
-    double accumulatedTime;
-    bool isStarted;
-    Timer timer;
+ public:
+  double accumulatedTime;
+  bool isStarted;
+  Timer timer;
 };
 
 class NumericMetric : public Metric {
+ public:
+  explicit NumericMetric(bool enable);
 
-public:
-    explicit NumericMetric(bool enable);
+  void increase(uint64_t value);
 
-    void increase(uint64_t value);
+  void incrementByOne();
 
-    void incrementByOne();
-
-public:
-    uint64_t accumulatedValue;
+ public:
+  uint64_t accumulatedValue;
 };
 
-} // namespace common
-} // namespace kuzu
+}  // namespace common
+}  // namespace kuzu

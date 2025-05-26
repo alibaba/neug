@@ -9,19 +9,20 @@ namespace kuzu {
 namespace planner {
 
 void LogicalDummyScan::computeFactorizedSchema() {
-    createEmptySchema();
-    schema->createGroup();
+  createEmptySchema();
+  schema->createGroup();
 }
 
 void LogicalDummyScan::computeFlatSchema() {
-    createEmptySchema();
-    schema->createGroup();
+  createEmptySchema();
+  schema->createGroup();
 }
 
 std::shared_ptr<binder::Expression> LogicalDummyScan::getDummyExpression() {
-    return std::make_shared<binder::LiteralExpression>(
-        Value::createNullValue(LogicalType::STRING()), InternalKeyword::PLACE_HOLDER);
+  return std::make_shared<binder::LiteralExpression>(
+      Value::createNullValue(LogicalType::STRING()),
+      InternalKeyword::PLACE_HOLDER);
 }
 
-} // namespace planner
-} // namespace kuzu
+}  // namespace planner
+}  // namespace kuzu

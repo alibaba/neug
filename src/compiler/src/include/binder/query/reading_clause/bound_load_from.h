@@ -7,17 +7,18 @@ namespace kuzu {
 namespace binder {
 
 class BoundLoadFrom final : public BoundReadingClause {
-    static constexpr common::ClauseType clauseType_ = common::ClauseType::LOAD_FROM;
+  static constexpr common::ClauseType clauseType_ =
+      common::ClauseType::LOAD_FROM;
 
-public:
-    explicit BoundLoadFrom(BoundTableScanInfo info)
-        : BoundReadingClause{clauseType_}, info{std::move(info)} {}
+ public:
+  explicit BoundLoadFrom(BoundTableScanInfo info)
+      : BoundReadingClause{clauseType_}, info{std::move(info)} {}
 
-    const BoundTableScanInfo* getInfo() const { return &info; }
+  const BoundTableScanInfo* getInfo() const { return &info; }
 
-private:
-    BoundTableScanInfo info;
+ private:
+  BoundTableScanInfo info;
 };
 
-} // namespace binder
-} // namespace kuzu
+}  // namespace binder
+}  // namespace kuzu

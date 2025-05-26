@@ -8,10 +8,10 @@ namespace kuzu {
 namespace parser {
 
 struct DropInfo {
-    std::string name;
-    common::DropType dropType;
-    common::ConflictAction conflictAction;
+  std::string name;
+  common::DropType dropType;
+  common::ConflictAction conflictAction;
 };
 
-} // namespace parser
-} // namespace kuzu
+}  // namespace parser
+}  // namespace kuzu

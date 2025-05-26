@@ -7,17 +7,17 @@ namespace kuzu {
 namespace binder {
 
 class BoundAlter final : public BoundStatement {
-public:
-    explicit BoundAlter(BoundAlterInfo info)
-        : BoundStatement{common::StatementType::ALTER,
-              BoundStatementResult::createSingleStringColumnResult()},
-          info{std::move(info)} {}
+ public:
+  explicit BoundAlter(BoundAlterInfo info)
+      : BoundStatement{common::StatementType::ALTER,
+                       BoundStatementResult::createSingleStringColumnResult()},
+        info{std::move(info)} {}
 
-    inline const BoundAlterInfo* getInfo() const { return &info; }
+  inline const BoundAlterInfo* getInfo() const { return &info; }
 
-private:
-    BoundAlterInfo info;
+ private:
+  BoundAlterInfo info;
 };
 
-} // namespace binder
-} // namespace kuzu
+}  // namespace binder
+}  // namespace kuzu

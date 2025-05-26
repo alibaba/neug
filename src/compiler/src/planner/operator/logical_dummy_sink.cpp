@@ -4,14 +4,14 @@ namespace kuzu {
 namespace planner {
 
 void LogicalDummySink::computeFactorizedSchema() {
-    createEmptySchema();
-    copyChildSchema(0);
+  createEmptySchema();
+  copyChildSchema(0);
 }
 
 void LogicalDummySink::computeFlatSchema() {
-    createEmptySchema();
-    copyChildSchema(0);
+  createEmptySchema();
+  copyChildSchema(0);
 }
 
-} // namespace planner
-} // namespace kuzu
+}  // namespace planner
+}  // namespace kuzu

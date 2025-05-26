@@ -26,27 +26,28 @@ class NodeTable;
 class StorageManager;
 
 class KUZU_API NodeTable : public Table {
-public:
-    NodeTable() = default;
-    NodeTable(const StorageManager* storageManager,
-        const catalog::NodeTableCatalogEntry* nodeTableEntry)
-        : Table(nodeTableEntry, storageManager) {}
-    NodeTable(const StorageManager* storageManager,
-        const catalog::NodeTableCatalogEntry* nodeTableEntry, MemoryManager* memoryManager,
-        common::VirtualFileSystem* vfs, main::ClientContext* context,
-        common::Deserializer* deSer = nullptr)
-        : Table(nodeTableEntry, storageManager, memoryManager) {}
+ public:
+  NodeTable() = default;
+  NodeTable(const StorageManager* storageManager,
+            const catalog::NodeTableCatalogEntry* nodeTableEntry)
+      : Table(nodeTableEntry, storageManager) {}
+  NodeTable(const StorageManager* storageManager,
+            const catalog::NodeTableCatalogEntry* nodeTableEntry,
+            MemoryManager* memoryManager, common::VirtualFileSystem* vfs,
+            main::ClientContext* context, common::Deserializer* deSer = nullptr)
+      : Table(nodeTableEntry, storageManager, memoryManager) {}
 
-    ~NodeTable() = default;
+  ~NodeTable() = default;
 
-    virtual common::row_idx_t getNumTotalRows(
-        const transaction::Transaction* transaction) override = 0;
+  virtual common::row_idx_t getNumTotalRows(
+      const transaction::Transaction* transaction) override = 0;
 
-    virtual TableStats getStats(const transaction::Transaction* transaction) const = 0;
+  virtual TableStats getStats(
+      const transaction::Transaction* transaction) const = 0;
 
-private:
-private:
+ private:
+ private:
 };
 
-} // namespace storage
-} // namespace kuzu
+}  // namespace storage
+}  // namespace kuzu

@@ -7,10 +7,10 @@ namespace kuzu {
 namespace common {
 
 class KUZU_API BufferManagerException : public Exception {
-public:
-    explicit BufferManagerException(const std::string& msg)
-        : Exception("Buffer manager exception: " + msg){};
+ public:
+  explicit BufferManagerException(const std::string& msg)
+      : Exception("Buffer manager exception: " + msg){};
 };
 
-} // namespace common
-} // namespace kuzu
+}  // namespace common
+}  // namespace kuzu

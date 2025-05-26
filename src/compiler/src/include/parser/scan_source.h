@@ -13,52 +13,56 @@ namespace kuzu {
 namespace parser {
 
 struct BaseScanSource {
-    common::ScanSourceType type;
+  common::ScanSourceType type;
 
-    explicit BaseScanSource(common::ScanSourceType type) : type{type} {}
-    virtual ~BaseScanSource() = default;
-    DELETE_COPY_AND_MOVE(BaseScanSource);
+  explicit BaseScanSource(common::ScanSourceType type) : type{type} {}
+  virtual ~BaseScanSource() = default;
+  DELETE_COPY_AND_MOVE(BaseScanSource);
 
-    template<class TARGET>
-    TARGET* ptrCast() {
-        return common::ku_dynamic_cast<TARGET*>(this);
-    }
-    template<class TARGET>
-    const TARGET* constPtrCast() const {
-        return common::ku_dynamic_cast<const TARGET*>(this);
-    }
+  template <class TARGET>
+  TARGET* ptrCast() {
+    return common::ku_dynamic_cast<TARGET*>(this);
+  }
+  template <class TARGET>
+  const TARGET* constPtrCast() const {
+    return common::ku_dynamic_cast<const TARGET*>(this);
+  }
 };
 
 struct FileScanSource : public BaseScanSource {
-    std::vector<std::string> filePaths;
+  std::vector<std::string> filePaths;
 
-    explicit FileScanSource(std::vector<std::string> paths)
-        : BaseScanSource{common::ScanSourceType::FILE}, filePaths{std::move(paths)} {}
+  explicit FileScanSource(std::vector<std::string> paths)
+      : BaseScanSource{common::ScanSourceType::FILE},
+        filePaths{std::move(paths)} {}
 };
 
 struct ObjectScanSource : public BaseScanSource {
-    // If multiple object presents, assuming they have a nested structure.
-    // E.g. for postgres.person, objectNames should be [postgres, person]
-    std::vector<std::string> objectNames;
+  // If multiple object presents, assuming they have a nested structure.
+  // E.g. for postgres.person, objectNames should be [postgres, person]
+  std::vector<std::string> objectNames;
 
-    explicit ObjectScanSource(std::vector<std::string> objectNames)
-        : BaseScanSource{common::ScanSourceType::OBJECT}, objectNames{std::move(objectNames)} {}
+  explicit ObjectScanSource(std::vector<std::string> objectNames)
+      : BaseScanSource{common::ScanSourceType::OBJECT},
+        objectNames{std::move(objectNames)} {}
 };
 
 struct QueryScanSource : public BaseScanSource {
-    std::unique_ptr<Statement> statement;
+  std::unique_ptr<Statement> statement;
 
-    explicit QueryScanSource(std::unique_ptr<Statement> statement)
-        : BaseScanSource{common::ScanSourceType::QUERY}, statement{std::move(statement)} {}
+  explicit QueryScanSource(std::unique_ptr<Statement> statement)
+      : BaseScanSource{common::ScanSourceType::QUERY},
+        statement{std::move(statement)} {}
 };
 
 struct TableFuncScanSource : public BaseScanSource {
-    std::unique_ptr<ParsedExpression> functionExpression = nullptr;
+  std::unique_ptr<ParsedExpression> functionExpression = nullptr;
 
-    explicit TableFuncScanSource(std::unique_ptr<ParsedExpression> functionExpression)
-        : BaseScanSource{common::ScanSourceType::TABLE_FUNC}, functionExpression{
-                                                                  std::move(functionExpression)} {}
+  explicit TableFuncScanSource(
+      std::unique_ptr<ParsedExpression> functionExpression)
+      : BaseScanSource{common::ScanSourceType::TABLE_FUNC},
+        functionExpression{std::move(functionExpression)} {}
 };
 
-} // namespace parser
-} // namespace kuzu
+}  // namespace parser
+}  // namespace kuzu

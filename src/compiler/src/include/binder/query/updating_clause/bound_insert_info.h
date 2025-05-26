@@ -8,22 +8,27 @@ namespace kuzu {
 namespace binder {
 
 struct BoundInsertInfo {
-    common::TableType tableType;
-    std::shared_ptr<Expression> pattern;
-    expression_vector columnExprs;
-    expression_vector columnDataExprs;
-    common::ConflictAction conflictAction;
+  common::TableType tableType;
+  std::shared_ptr<Expression> pattern;
+  expression_vector columnExprs;
+  expression_vector columnDataExprs;
+  common::ConflictAction conflictAction;
 
-    BoundInsertInfo(common::TableType tableType, std::shared_ptr<Expression> pattern)
-        : tableType{tableType}, pattern{std::move(pattern)},
-          conflictAction{common::ConflictAction::ON_CONFLICT_THROW} {}
-    EXPLICIT_COPY_DEFAULT_MOVE(BoundInsertInfo);
+  BoundInsertInfo(common::TableType tableType,
+                  std::shared_ptr<Expression> pattern)
+      : tableType{tableType},
+        pattern{std::move(pattern)},
+        conflictAction{common::ConflictAction::ON_CONFLICT_THROW} {}
+  EXPLICIT_COPY_DEFAULT_MOVE(BoundInsertInfo);
 
-private:
-    BoundInsertInfo(const BoundInsertInfo& other)
-        : tableType{other.tableType}, pattern{other.pattern}, columnExprs{other.columnExprs},
-          columnDataExprs{other.columnDataExprs}, conflictAction{other.conflictAction} {}
+ private:
+  BoundInsertInfo(const BoundInsertInfo& other)
+      : tableType{other.tableType},
+        pattern{other.pattern},
+        columnExprs{other.columnExprs},
+        columnDataExprs{other.columnDataExprs},
+        conflictAction{other.conflictAction} {}
 };
 
-} // namespace binder
-} // namespace kuzu
+}  // namespace binder
+}  // namespace kuzu

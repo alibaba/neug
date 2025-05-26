@@ -15,31 +15,32 @@ using namespace kuzu::catalog;
 namespace kuzu {
 namespace binder {
 
-std::unique_ptr<BoundReadingClause> Binder::bindInQueryCall(const ReadingClause& readingClause) {
-    auto& call = readingClause.constCast<InQueryCallClause>();
-    auto expr = call.getFunctionExpression();
-    auto functionExpr = expr->constPtrCast<ParsedFunctionExpression>();
-    auto functionName = functionExpr->getFunctionName();
-    std::unique_ptr<BoundReadingClause> boundReadingClause;
-    auto entry = clientContext->getCatalog()->getFunctionEntry(clientContext->getTransaction(),
-        functionName);
-    switch (entry->getType()) {
-    case CatalogEntryType::TABLE_FUNCTION_ENTRY: {
-        auto boundTableFunction =
-            bindTableFunc(functionName, *functionExpr, call.getYieldVariables());
-        boundReadingClause =
-            std::make_unique<BoundTableFunctionCall>(std::move(boundTableFunction));
-    } break;
-    default:
-        throw BinderException(
-            stringFormat("{} is not a table or algorithm function.", functionName));
-    }
-    if (call.hasWherePredicate()) {
-        auto wherePredicate = bindWhereExpression(*call.getWherePredicate());
-        boundReadingClause->setPredicate(std::move(wherePredicate));
-    }
-    return boundReadingClause;
+std::unique_ptr<BoundReadingClause> Binder::bindInQueryCall(
+    const ReadingClause& readingClause) {
+  auto& call = readingClause.constCast<InQueryCallClause>();
+  auto expr = call.getFunctionExpression();
+  auto functionExpr = expr->constPtrCast<ParsedFunctionExpression>();
+  auto functionName = functionExpr->getFunctionName();
+  std::unique_ptr<BoundReadingClause> boundReadingClause;
+  auto entry = clientContext->getCatalog()->getFunctionEntry(
+      clientContext->getTransaction(), functionName);
+  switch (entry->getType()) {
+  case CatalogEntryType::TABLE_FUNCTION_ENTRY: {
+    auto boundTableFunction =
+        bindTableFunc(functionName, *functionExpr, call.getYieldVariables());
+    boundReadingClause =
+        std::make_unique<BoundTableFunctionCall>(std::move(boundTableFunction));
+  } break;
+  default:
+    throw BinderException(
+        stringFormat("{} is not a table or algorithm function.", functionName));
+  }
+  if (call.hasWherePredicate()) {
+    auto wherePredicate = bindWhereExpression(*call.getWherePredicate());
+    boundReadingClause->setPredicate(std::move(wherePredicate));
+  }
+  return boundReadingClause;
 }
 
-} // namespace binder
-} // namespace kuzu
+}  // namespace binder
+}  // namespace kuzu

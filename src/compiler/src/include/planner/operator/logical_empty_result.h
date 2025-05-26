@@ -6,31 +6,34 @@ namespace kuzu {
 namespace planner {
 
 class LogicalEmptyResult final : public LogicalOperator {
-public:
-    explicit LogicalEmptyResult(const Schema& schema)
-        : LogicalOperator{LogicalOperatorType::EMPTY_RESULT}, originalSchema{schema.copy()} {
-        this->schema = schema.copy();
+ public:
+  explicit LogicalEmptyResult(const Schema& schema)
+      : LogicalOperator{LogicalOperatorType::EMPTY_RESULT},
+        originalSchema{schema.copy()} {
+    this->schema = schema.copy();
+  }
+
+  void computeFactorizedSchema() override { schema = originalSchema->copy(); }
+  void computeFlatSchema() override {
+    createEmptySchema();
+    schema->createGroup();
+    for (auto& e : originalSchema->getExpressionsInScope()) {
+      schema->insertToGroupAndScope(e, 0);
     }
+  }
 
-    void computeFactorizedSchema() override { schema = originalSchema->copy(); }
-    void computeFlatSchema() override {
-        createEmptySchema();
-        schema->createGroup();
-        for (auto& e : originalSchema->getExpressionsInScope()) {
-            schema->insertToGroupAndScope(e, 0);
-        }
-    }
+  std::string getExpressionsForPrinting() const override {
+    return std::string{};
+  }
 
-    std::string getExpressionsForPrinting() const override { return std::string{}; }
+  std::unique_ptr<LogicalOperator> copy() override {
+    return std::make_unique<LogicalEmptyResult>(*originalSchema);
+  }
 
-    std::unique_ptr<LogicalOperator> copy() override {
-        return std::make_unique<LogicalEmptyResult>(*originalSchema);
-    }
-
-private:
-    // The original schema of the plan that generates empty result.
-    std::unique_ptr<Schema> originalSchema;
+ private:
+  // The original schema of the plan that generates empty result.
+  std::unique_ptr<Schema> originalSchema;
 };
 
-} // namespace planner
-} // namespace kuzu
+}  // namespace planner
+}  // namespace kuzu

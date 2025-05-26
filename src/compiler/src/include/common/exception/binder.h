@@ -7,9 +7,10 @@ namespace kuzu {
 namespace common {
 
 class KUZU_API BinderException : public Exception {
-public:
-    explicit BinderException(const std::string& msg) : Exception("Binder exception: " + msg){};
+ public:
+  explicit BinderException(const std::string& msg)
+      : Exception("Binder exception: " + msg){};
 };
 
-} // namespace common
-} // namespace kuzu
+}  // namespace common
+}  // namespace kuzu

@@ -11,43 +11,47 @@ using namespace kuzu::binder;
 namespace kuzu {
 namespace function {
 
-static std::shared_ptr<Expression> startRewriteFunc(const RewriteFunctionBindInput& input) {
-    KU_ASSERT(input.arguments.size() == 1);
-    auto param = input.arguments[0].get();
-    if (ExpressionUtil::isRelPattern(*param)) {
-        return param->constCast<RelExpression>().getSrcNode();
-    }
-    auto extractKey = input.expressionBinder->createLiteralExpression(InternalKeyword::SRC);
-    return input.expressionBinder->bindScalarFunctionExpression({input.arguments[0], extractKey},
-        StructExtractFunctions::name);
+static std::shared_ptr<Expression> startRewriteFunc(
+    const RewriteFunctionBindInput& input) {
+  KU_ASSERT(input.arguments.size() == 1);
+  auto param = input.arguments[0].get();
+  if (ExpressionUtil::isRelPattern(*param)) {
+    return param->constCast<RelExpression>().getSrcNode();
+  }
+  auto extractKey =
+      input.expressionBinder->createLiteralExpression(InternalKeyword::SRC);
+  return input.expressionBinder->bindScalarFunctionExpression(
+      {input.arguments[0], extractKey}, StructExtractFunctions::name);
 }
 
 function_set StartNodeFunction::getFunctionSet() {
-    function_set set;
-    auto function = std::make_unique<RewriteFunction>(name,
-        std::vector<LogicalTypeID>{LogicalTypeID::REL}, startRewriteFunc);
-    set.push_back(std::move(function));
-    return set;
+  function_set set;
+  auto function = std::make_unique<RewriteFunction>(
+      name, std::vector<LogicalTypeID>{LogicalTypeID::REL}, startRewriteFunc);
+  set.push_back(std::move(function));
+  return set;
 }
 
-static std::shared_ptr<Expression> endRewriteFunc(const RewriteFunctionBindInput& input) {
-    KU_ASSERT(input.arguments.size() == 1);
-    auto param = input.arguments[0].get();
-    if (ExpressionUtil::isRelPattern(*param)) {
-        return param->constCast<RelExpression>().getDstNode();
-    }
-    auto extractKey = input.expressionBinder->createLiteralExpression(InternalKeyword::DST);
-    return input.expressionBinder->bindScalarFunctionExpression({input.arguments[0], extractKey},
-        StructExtractFunctions::name);
+static std::shared_ptr<Expression> endRewriteFunc(
+    const RewriteFunctionBindInput& input) {
+  KU_ASSERT(input.arguments.size() == 1);
+  auto param = input.arguments[0].get();
+  if (ExpressionUtil::isRelPattern(*param)) {
+    return param->constCast<RelExpression>().getDstNode();
+  }
+  auto extractKey =
+      input.expressionBinder->createLiteralExpression(InternalKeyword::DST);
+  return input.expressionBinder->bindScalarFunctionExpression(
+      {input.arguments[0], extractKey}, StructExtractFunctions::name);
 }
 
 function_set EndNodeFunction::getFunctionSet() {
-    function_set set;
-    auto function = std::make_unique<RewriteFunction>(name,
-        std::vector<LogicalTypeID>{LogicalTypeID::REL}, endRewriteFunc);
-    set.push_back(std::move(function));
-    return set;
+  function_set set;
+  auto function = std::make_unique<RewriteFunction>(
+      name, std::vector<LogicalTypeID>{LogicalTypeID::REL}, endRewriteFunc);
+  set.push_back(std::move(function));
+  return set;
 }
 
-} // namespace function
-} // namespace kuzu
+}  // namespace function
+}  // namespace kuzu

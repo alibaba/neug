@@ -9,26 +9,26 @@ namespace kuzu {
 namespace planner {
 
 f_group_pos_set LogicalUnwind::getGroupsPosToFlatten() {
-    auto childSchema = children[0]->getSchema();
-    return FlattenAll::getGroupsPosToFlatten(inExpr, *childSchema);
+  auto childSchema = children[0]->getSchema();
+  return FlattenAll::getGroupsPosToFlatten(inExpr, *childSchema);
 }
 
 void LogicalUnwind::computeFactorizedSchema() {
-    copyChildSchema(0);
-    auto groupPos = schema->createGroup();
-    schema->insertToGroupAndScope(outExpr, groupPos);
-    if (hasIDExpr()) {
-        schema->insertToGroupAndScope(idExpr, groupPos);
-    }
+  copyChildSchema(0);
+  auto groupPos = schema->createGroup();
+  schema->insertToGroupAndScope(outExpr, groupPos);
+  if (hasIDExpr()) {
+    schema->insertToGroupAndScope(idExpr, groupPos);
+  }
 }
 
 void LogicalUnwind::computeFlatSchema() {
-    copyChildSchema(0);
-    schema->insertToGroupAndScope(outExpr, 0);
-    if (hasIDExpr()) {
-        schema->insertToGroupAndScope(idExpr, 0);
-    }
+  copyChildSchema(0);
+  schema->insertToGroupAndScope(outExpr, 0);
+  if (hasIDExpr()) {
+    schema->insertToGroupAndScope(idExpr, 0);
+  }
 }
 
-} // namespace planner
-} // namespace kuzu
+}  // namespace planner
+}  // namespace kuzu

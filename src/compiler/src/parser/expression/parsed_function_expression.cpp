@@ -10,17 +10,18 @@ namespace parser {
 
 std::unique_ptr<ParsedFunctionExpression> ParsedFunctionExpression::deserialize(
     Deserializer& deserializer) {
-    bool isDistinct = false;
-    deserializer.deserializeValue(isDistinct);
-    std::string functionName;
-    deserializer.deserializeValue(functionName);
-    return std::make_unique<ParsedFunctionExpression>(std::move(functionName), isDistinct);
+  bool isDistinct = false;
+  deserializer.deserializeValue(isDistinct);
+  std::string functionName;
+  deserializer.deserializeValue(functionName);
+  return std::make_unique<ParsedFunctionExpression>(std::move(functionName),
+                                                    isDistinct);
 }
 
 void ParsedFunctionExpression::serializeInternal(Serializer& serializer) const {
-    serializer.serializeValue(isDistinct);
-    serializer.serializeValue(functionName);
+  serializer.serializeValue(isDistinct);
+  serializer.serializeValue(functionName);
 }
 
-} // namespace parser
-} // namespace kuzu
+}  // namespace parser
+}  // namespace kuzu

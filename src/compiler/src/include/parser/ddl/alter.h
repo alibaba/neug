@@ -7,16 +7,16 @@ namespace kuzu {
 namespace parser {
 
 class Alter : public Statement {
-    static constexpr common::StatementType type_ = common::StatementType::ALTER;
+  static constexpr common::StatementType type_ = common::StatementType::ALTER;
 
-public:
-    explicit Alter(AlterInfo info) : Statement{type_}, info{std::move(info)} {}
+ public:
+  explicit Alter(AlterInfo info) : Statement{type_}, info{std::move(info)} {}
 
-    const AlterInfo* getInfo() const { return &info; }
+  const AlterInfo* getInfo() const { return &info; }
 
-private:
-    AlterInfo info;
+ private:
+  AlterInfo info;
 };
 
-} // namespace parser
-} // namespace kuzu
+}  // namespace parser
+}  // namespace kuzu

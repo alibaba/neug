@@ -7,7 +7,8 @@
 namespace kuzu {
 namespace main {
 
-void SpillToDiskSetting::setContext(ClientContext* context, const common::Value& parameter) {}
+void SpillToDiskSetting::setContext(ClientContext* context,
+                                    const common::Value& parameter) {}
 
-} // namespace main
-} // namespace kuzu
+}  // namespace main
+}  // namespace kuzu

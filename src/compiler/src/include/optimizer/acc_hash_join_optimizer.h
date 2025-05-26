@@ -6,21 +6,21 @@
 namespace kuzu {
 namespace optimizer {
 
-// This optimizer enables the Accumulated hash join algorithm as introduced in paper "Kuzu Graph
-// Database Management System".
+// This optimizer enables the Accumulated hash join algorithm as introduced in
+// paper "Kuzu Graph Database Management System".
 class HashJoinSIPOptimizer final : public LogicalOperatorVisitor {
-public:
-    void rewrite(const planner::LogicalPlan* plan);
+ public:
+  void rewrite(const planner::LogicalPlan* plan);
 
-private:
-    void visitOperator(planner::LogicalOperator* op);
+ private:
+  void visitOperator(planner::LogicalOperator* op);
 
-    void visitHashJoin(planner::LogicalOperator* op) override;
+  void visitHashJoin(planner::LogicalOperator* op) override;
 
-    void visitIntersect(planner::LogicalOperator* op) override;
+  void visitIntersect(planner::LogicalOperator* op) override;
 
-    void visitPathPropertyProbe(planner::LogicalOperator* op) override;
+  void visitPathPropertyProbe(planner::LogicalOperator* op) override;
 };
 
-} // namespace optimizer
-} // namespace kuzu
+}  // namespace optimizer
+}  // namespace kuzu

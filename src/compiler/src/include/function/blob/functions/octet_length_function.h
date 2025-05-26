@@ -6,10 +6,10 @@ namespace kuzu {
 namespace function {
 
 struct OctetLength {
-    static inline void operation(common::blob_t& input, int64_t& result) {
-        result = input.value.len;
-    }
+  static inline void operation(common::blob_t& input, int64_t& result) {
+    result = input.value.len;
+  }
 };
 
-} // namespace function
-} // namespace kuzu
+}  // namespace function
+}  // namespace kuzu

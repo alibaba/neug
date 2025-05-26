@@ -7,22 +7,28 @@ namespace kuzu {
 namespace binder {
 
 class BoundReturnClause {
-public:
-    explicit BoundReturnClause(BoundProjectionBody projectionBody)
-        : projectionBody{std::move(projectionBody)} {}
-    BoundReturnClause(BoundProjectionBody projectionBody, BoundStatementResult statementResult)
-        : projectionBody{std::move(projectionBody)}, statementResult{std::move(statementResult)} {}
-    DELETE_COPY_DEFAULT_MOVE(BoundReturnClause);
-    virtual ~BoundReturnClause() = default;
+ public:
+  explicit BoundReturnClause(BoundProjectionBody projectionBody)
+      : projectionBody{std::move(projectionBody)} {}
+  BoundReturnClause(BoundProjectionBody projectionBody,
+                    BoundStatementResult statementResult)
+      : projectionBody{std::move(projectionBody)},
+        statementResult{std::move(statementResult)} {}
+  DELETE_COPY_DEFAULT_MOVE(BoundReturnClause);
+  virtual ~BoundReturnClause() = default;
 
-    inline const BoundProjectionBody* getProjectionBody() const { return &projectionBody; }
+  inline const BoundProjectionBody* getProjectionBody() const {
+    return &projectionBody;
+  }
 
-    inline const BoundStatementResult* getStatementResult() const { return &statementResult; }
+  inline const BoundStatementResult* getStatementResult() const {
+    return &statementResult;
+  }
 
-protected:
-    BoundProjectionBody projectionBody;
-    BoundStatementResult statementResult;
+ protected:
+  BoundProjectionBody projectionBody;
+  BoundStatementResult statementResult;
 };
 
-} // namespace binder
-} // namespace kuzu
+}  // namespace binder
+}  // namespace kuzu

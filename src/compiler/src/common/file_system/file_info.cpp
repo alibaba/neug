@@ -12,40 +12,34 @@ namespace kuzu {
 namespace common {
 
 uint64_t FileInfo::getFileSize() const {
-    return fileSystem->getFileSize(*this);
+  return fileSystem->getFileSize(*this);
 }
 
-void FileInfo::readFromFile(void* buffer, uint64_t numBytes, uint64_t position) {
-    fileSystem->readFromFile(*this, buffer, numBytes, position);
+void FileInfo::readFromFile(void* buffer, uint64_t numBytes,
+                            uint64_t position) {
+  fileSystem->readFromFile(*this, buffer, numBytes, position);
 }
 
 int64_t FileInfo::readFile(void* buf, size_t nbyte) {
-    return fileSystem->readFile(*this, buf, nbyte);
+  return fileSystem->readFile(*this, buf, nbyte);
 }
 
-void FileInfo::writeFile(const uint8_t* buffer, uint64_t numBytes, uint64_t offset) {
-    fileSystem->writeFile(*this, buffer, numBytes, offset);
+void FileInfo::writeFile(const uint8_t* buffer, uint64_t numBytes,
+                         uint64_t offset) {
+  fileSystem->writeFile(*this, buffer, numBytes, offset);
 }
 
-void FileInfo::syncFile() const {
-    fileSystem->syncFile(*this);
-}
+void FileInfo::syncFile() const { fileSystem->syncFile(*this); }
 
 int64_t FileInfo::seek(uint64_t offset, int whence) {
-    return fileSystem->seek(*this, offset, whence);
+  return fileSystem->seek(*this, offset, whence);
 }
 
-void FileInfo::reset() {
-    fileSystem->reset(*this);
-}
+void FileInfo::reset() { fileSystem->reset(*this); }
 
-void FileInfo::truncate(uint64_t size) {
-    fileSystem->truncate(*this, size);
-}
+void FileInfo::truncate(uint64_t size) { fileSystem->truncate(*this, size); }
 
-bool FileInfo::canPerformSeek() const {
-    return fileSystem->canPerformSeek();
-}
+bool FileInfo::canPerformSeek() const { return fileSystem->canPerformSeek(); }
 
-} // namespace common
-} // namespace kuzu
+}  // namespace common
+}  // namespace kuzu

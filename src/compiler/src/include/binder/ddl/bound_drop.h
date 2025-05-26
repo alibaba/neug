@@ -7,18 +7,19 @@ namespace kuzu {
 namespace binder {
 
 class BoundDrop final : public BoundStatement {
-    static constexpr common::StatementType type_ = common::StatementType::DROP;
+  static constexpr common::StatementType type_ = common::StatementType::DROP;
 
-public:
-    explicit BoundDrop(parser::DropInfo dropInfo)
-        : BoundStatement{type_, BoundStatementResult::createSingleStringColumnResult()},
-          dropInfo{std::move(dropInfo)} {}
+ public:
+  explicit BoundDrop(parser::DropInfo dropInfo)
+      : BoundStatement{type_,
+                       BoundStatementResult::createSingleStringColumnResult()},
+        dropInfo{std::move(dropInfo)} {}
 
-    const parser::DropInfo& getDropInfo() const { return dropInfo; };
+  const parser::DropInfo& getDropInfo() const { return dropInfo; };
 
-private:
-    parser::DropInfo dropInfo;
+ private:
+  parser::DropInfo dropInfo;
 };
 
-} // namespace binder
-} // namespace kuzu
+}  // namespace binder
+}  // namespace kuzu

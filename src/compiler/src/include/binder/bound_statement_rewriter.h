@@ -8,9 +8,10 @@ namespace binder {
 
 // Perform semantic rewrite over bound statement.
 class BoundStatementRewriter {
-public:
-    static void rewrite(BoundStatement& boundStatement, main::ClientContext& clientContext);
+ public:
+  static void rewrite(BoundStatement& boundStatement,
+                      main::ClientContext& clientContext);
 };
 
-} // namespace binder
-} // namespace kuzu
+}  // namespace binder
+}  // namespace kuzu

@@ -4,23 +4,23 @@ namespace kuzu {
 namespace planner {
 
 std::string LogicalCreateMacroPrintInfo::toString() const {
-    std::string result = "Macro: ";
-    result += macroName;
-    return result;
+  std::string result = "Macro: ";
+  result += macroName;
+  return result;
 }
 
 void LogicalCreateMacro::computeFlatSchema() {
-    createEmptySchema();
-    schema->createGroup();
-    schema->insertToGroupAndScope(outputExpression, 0);
+  createEmptySchema();
+  schema->createGroup();
+  schema->insertToGroupAndScope(outputExpression, 0);
 }
 
 void LogicalCreateMacro::computeFactorizedSchema() {
-    createEmptySchema();
-    auto groupPos = schema->createGroup();
-    schema->insertToGroupAndScope(outputExpression, groupPos);
-    schema->setGroupAsSingleState(groupPos);
+  createEmptySchema();
+  auto groupPos = schema->createGroup();
+  schema->insertToGroupAndScope(outputExpression, groupPos);
+  schema->setGroupAsSingleState(groupPos);
 }
 
-} // namespace planner
-} // namespace kuzu
+}  // namespace planner
+}  // namespace kuzu

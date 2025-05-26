@@ -13,53 +13,54 @@ namespace kuzu {
 namespace main {
 
 /**
- * @brief A prepared statement is a parameterized query which can avoid planning the same query for
- * repeated execution.
+ * @brief A prepared statement is a parameterized query which can avoid planning
+ * the same query for repeated execution.
  */
 class PreparedStatement {
-    friend class Connection;
-    friend class ClientContext;
-    friend class testing::TestHelper;
-    friend class testing::TestRunner;
+  friend class Connection;
+  friend class ClientContext;
+  friend class testing::TestHelper;
+  friend class testing::TestRunner;
 
-public:
-    bool isTransactionStatement() const;
-    /**
-     * @return the query is prepared successfully or not.
-     */
-    KUZU_API bool isSuccess() const;
-    /**
-     * @return the error message if the query is not prepared successfully.
-     */
-    KUZU_API std::string getErrorMessage() const;
-    /**
-     * @return the prepared statement is read-only or not.
-     */
-    KUZU_API bool isReadOnly() const;
+ public:
+  bool isTransactionStatement() const;
+  /**
+   * @return the query is prepared successfully or not.
+   */
+  KUZU_API bool isSuccess() const;
+  /**
+   * @return the error message if the query is not prepared successfully.
+   */
+  KUZU_API std::string getErrorMessage() const;
+  /**
+   * @return the prepared statement is read-only or not.
+   */
+  KUZU_API bool isReadOnly() const;
 
-    std::unordered_map<std::string, std::shared_ptr<common::Value>> getParameterMap() {
-        return parameterMap;
-    }
+  std::unordered_map<std::string, std::shared_ptr<common::Value>>
+  getParameterMap() {
+    return parameterMap;
+  }
 
-    common::StatementType getStatementType() const;
+  common::StatementType getStatementType() const;
 
-    KUZU_API ~PreparedStatement();
+  KUZU_API ~PreparedStatement();
 
-    std::unique_ptr<planner::LogicalPlan> logicalPlan;
-    bool success = true;
-    std::string errMsg;
+  std::unique_ptr<planner::LogicalPlan> logicalPlan;
+  bool success = true;
+  std::string errMsg;
 
-private:
-    bool isProfile() const;
+ private:
+  bool isProfile() const;
 
-private:
-    bool readOnly = false;
-    bool useInternalCatalogEntry = false;
-    PreparedSummary preparedSummary;
-    std::unordered_map<std::string, std::shared_ptr<common::Value>> parameterMap;
-    std::unique_ptr<binder::BoundStatementResult> statementResult;
-    std::shared_ptr<parser::Statement> parsedStatement;
+ private:
+  bool readOnly = false;
+  bool useInternalCatalogEntry = false;
+  PreparedSummary preparedSummary;
+  std::unordered_map<std::string, std::shared_ptr<common::Value>> parameterMap;
+  std::unique_ptr<binder::BoundStatementResult> statementResult;
+  std::shared_ptr<parser::Statement> parsedStatement;
 };
 
-} // namespace main
-} // namespace kuzu
+}  // namespace main
+}  // namespace kuzu

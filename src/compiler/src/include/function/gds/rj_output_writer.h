@@ -10,98 +10,114 @@ namespace kuzu {
 namespace function {
 
 class RJOutputWriter {
-public:
-    RJOutputWriter(main::ClientContext* context, common::NodeOffsetMaskMap* outputNodeMask,
-        common::nodeID_t sourceNodeID);
-    virtual ~RJOutputWriter() = default;
+ public:
+  RJOutputWriter(main::ClientContext* context,
+                 common::NodeOffsetMaskMap* outputNodeMask,
+                 common::nodeID_t sourceNodeID);
+  virtual ~RJOutputWriter() = default;
 
-    void beginWriting(common::table_id_t tableID) {
-        pinOutputNodeMask(tableID);
-        beginWritingInternal(tableID);
-    }
-    virtual void beginWritingInternal(common::table_id_t tableID) = 0;
+  void beginWriting(common::table_id_t tableID) {
+    pinOutputNodeMask(tableID);
+    beginWritingInternal(tableID);
+  }
+  virtual void beginWritingInternal(common::table_id_t tableID) = 0;
 
-    bool inOutputNodeMask(common::offset_t offset);
+  bool inOutputNodeMask(common::offset_t offset);
 
-    virtual std::unique_ptr<RJOutputWriter> copy() = 0;
+  virtual std::unique_ptr<RJOutputWriter> copy() = 0;
 
-protected:
-    std::unique_ptr<common::ValueVector> createVector(const common::LogicalType& type);
+ protected:
+  std::unique_ptr<common::ValueVector> createVector(
+      const common::LogicalType& type);
 
-    void pinOutputNodeMask(common::table_id_t tableID);
+  void pinOutputNodeMask(common::table_id_t tableID);
 
-protected:
-    main::ClientContext* context;
-    common::NodeOffsetMaskMap* outputNodeMask;
-    common::nodeID_t sourceNodeID_;
+ protected:
+  main::ClientContext* context;
+  common::NodeOffsetMaskMap* outputNodeMask;
+  common::nodeID_t sourceNodeID_;
 
-    std::vector<common::ValueVector*> vectors;
-    std::unique_ptr<common::ValueVector> srcNodeIDVector;
-    std::unique_ptr<common::ValueVector> dstNodeIDVector;
+  std::vector<common::ValueVector*> vectors;
+  std::unique_ptr<common::ValueVector> srcNodeIDVector;
+  std::unique_ptr<common::ValueVector> dstNodeIDVector;
 };
 
 struct PathsOutputWriterInfo {
-    common::PathSemantic semantic = common::PathSemantic::WALK;
-    uint16_t lowerBound = 0;
-    bool flipPath = false;
-    bool writeEdgeDirection = false;
-    bool writePath = false;
-    common::NodeOffsetMaskMap* pathNodeMask = nullptr;
+  common::PathSemantic semantic = common::PathSemantic::WALK;
+  uint16_t lowerBound = 0;
+  bool flipPath = false;
+  bool writeEdgeDirection = false;
+  bool writePath = false;
+  common::NodeOffsetMaskMap* pathNodeMask = nullptr;
 
-    bool hasNodeMask() const { return pathNodeMask != nullptr; }
+  bool hasNodeMask() const { return pathNodeMask != nullptr; }
 };
 
 class PathsOutputWriter : public RJOutputWriter {
-public:
-    PathsOutputWriter(main::ClientContext* context, common::NodeOffsetMaskMap* outputNodeMask,
-        common::nodeID_t sourceNodeID, PathsOutputWriterInfo info, BaseBFSGraph& bfsGraph);
+ public:
+  PathsOutputWriter(main::ClientContext* context,
+                    common::NodeOffsetMaskMap* outputNodeMask,
+                    common::nodeID_t sourceNodeID, PathsOutputWriterInfo info,
+                    BaseBFSGraph& bfsGraph);
 
-    void beginWritingInternal(common::table_id_t tableID) override { bfsGraph.pinTableID(tableID); }
+  void beginWritingInternal(common::table_id_t tableID) override {
+    bfsGraph.pinTableID(tableID);
+  }
 
-protected:
-    bool updateCounterAndTerminate(common::LimitCounter* counter);
+ protected:
+  bool updateCounterAndTerminate(common::LimitCounter* counter);
 
-    ParentList* findFirstParent(common::offset_t dstOffset) const;
+  ParentList* findFirstParent(common::offset_t dstOffset) const;
 
-    bool checkPathNodeMask(ParentList* element) const;
-    bool checkAppendSemantic(const std::vector<ParentList*>& path, ParentList* candidate) const;
-    bool checkReplaceTopSemantic(const std::vector<ParentList*>& path, ParentList* candidate) const;
-    bool isAppendTrail(const std::vector<ParentList*>& path, ParentList* candidate) const;
-    bool isAppendAcyclic(const std::vector<ParentList*>& path, ParentList* candidate) const;
-    bool isReplaceTopTrail(const std::vector<ParentList*>& path, ParentList* candidate) const;
-    bool isReplaceTopAcyclic(const std::vector<ParentList*>& path, ParentList* candidate) const;
+  bool checkPathNodeMask(ParentList* element) const;
+  bool checkAppendSemantic(const std::vector<ParentList*>& path,
+                           ParentList* candidate) const;
+  bool checkReplaceTopSemantic(const std::vector<ParentList*>& path,
+                               ParentList* candidate) const;
+  bool isAppendTrail(const std::vector<ParentList*>& path,
+                     ParentList* candidate) const;
+  bool isAppendAcyclic(const std::vector<ParentList*>& path,
+                       ParentList* candidate) const;
+  bool isReplaceTopTrail(const std::vector<ParentList*>& path,
+                         ParentList* candidate) const;
+  bool isReplaceTopAcyclic(const std::vector<ParentList*>& path,
+                           ParentList* candidate) const;
 
-    bool isNextViable(ParentList* next, const std::vector<ParentList*>& path) const;
+  bool isNextViable(ParentList* next,
+                    const std::vector<ParentList*>& path) const;
 
-    void beginWritePath(common::idx_t length) const;
-    void writePath(const std::vector<ParentList*>& path) const;
-    void writePathFwd(const std::vector<ParentList*>& path) const;
-    void writePathBwd(const std::vector<ParentList*>& path) const;
+  void beginWritePath(common::idx_t length) const;
+  void writePath(const std::vector<ParentList*>& path) const;
+  void writePathFwd(const std::vector<ParentList*>& path) const;
+  void writePathBwd(const std::vector<ParentList*>& path) const;
 
-    void addEdge(common::relID_t edgeID, bool fwdEdge, common::sel_t pos) const;
-    void addNode(common::nodeID_t nodeID, common::sel_t pos) const;
+  void addEdge(common::relID_t edgeID, bool fwdEdge, common::sel_t pos) const;
+  void addNode(common::nodeID_t nodeID, common::sel_t pos) const;
 
-protected:
-    PathsOutputWriterInfo info;
-    BaseBFSGraph& bfsGraph;
+ protected:
+  PathsOutputWriterInfo info;
+  BaseBFSGraph& bfsGraph;
 
-    std::unique_ptr<common::ValueVector> directionVector = nullptr;
-    std::unique_ptr<common::ValueVector> lengthVector = nullptr;
-    std::unique_ptr<common::ValueVector> pathNodeIDsVector = nullptr;
-    std::unique_ptr<common::ValueVector> pathEdgeIDsVector = nullptr;
+  std::unique_ptr<common::ValueVector> directionVector = nullptr;
+  std::unique_ptr<common::ValueVector> lengthVector = nullptr;
+  std::unique_ptr<common::ValueVector> pathNodeIDsVector = nullptr;
+  std::unique_ptr<common::ValueVector> pathEdgeIDsVector = nullptr;
 };
 
 class SPPathsOutputWriter : public PathsOutputWriter {
-public:
-    SPPathsOutputWriter(main::ClientContext* context, common::NodeOffsetMaskMap* outputNodeMask,
-        common::nodeID_t sourceNodeID, PathsOutputWriterInfo info, BaseBFSGraph& bfsGraph)
-        : PathsOutputWriter{context, outputNodeMask, sourceNodeID, info, bfsGraph} {}
+ public:
+  SPPathsOutputWriter(main::ClientContext* context,
+                      common::NodeOffsetMaskMap* outputNodeMask,
+                      common::nodeID_t sourceNodeID, PathsOutputWriterInfo info,
+                      BaseBFSGraph& bfsGraph)
+      : PathsOutputWriter{context, outputNodeMask, sourceNodeID, info,
+                          bfsGraph} {}
 
-    std::unique_ptr<RJOutputWriter> copy() override {
-        return std::make_unique<SPPathsOutputWriter>(context, outputNodeMask, sourceNodeID_, info,
-            bfsGraph);
-    }
+  std::unique_ptr<RJOutputWriter> copy() override {
+    return std::make_unique<SPPathsOutputWriter>(context, outputNodeMask,
+                                                 sourceNodeID_, info, bfsGraph);
+  }
 };
 
-} // namespace function
-} // namespace kuzu
+}  // namespace function
+}  // namespace kuzu

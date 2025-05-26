@@ -11,42 +11,44 @@ namespace kuzu {
 namespace function {
 
 struct RJBindData {
-    graph::GraphEntry graphEntry;
+  graph::GraphEntry graphEntry;
 
-    std::shared_ptr<binder::Expression> nodeInput = nullptr;
-    std::shared_ptr<binder::Expression> nodeOutput = nullptr;
-    uint16_t lowerBound = 0;
-    uint16_t upperBound = 0;
-    common::PathSemantic semantic = common::PathSemantic::WALK;
+  std::shared_ptr<binder::Expression> nodeInput = nullptr;
+  std::shared_ptr<binder::Expression> nodeOutput = nullptr;
+  uint16_t lowerBound = 0;
+  uint16_t upperBound = 0;
+  common::PathSemantic semantic = common::PathSemantic::WALK;
 
-    common::ExtendDirection extendDirection = common::ExtendDirection::FWD;
+  common::ExtendDirection extendDirection = common::ExtendDirection::FWD;
 
-    bool flipPath = false;
-    bool writePath = true;
+  bool flipPath = false;
+  bool writePath = true;
 
-    std::shared_ptr<binder::Expression> directionExpr = nullptr;
-    std::shared_ptr<binder::Expression> lengthExpr = nullptr;
-    std::shared_ptr<binder::Expression> pathNodeIDsExpr = nullptr;
-    std::shared_ptr<binder::Expression> pathEdgeIDsExpr = nullptr;
+  std::shared_ptr<binder::Expression> directionExpr = nullptr;
+  std::shared_ptr<binder::Expression> lengthExpr = nullptr;
+  std::shared_ptr<binder::Expression> pathNodeIDsExpr = nullptr;
+  std::shared_ptr<binder::Expression> pathEdgeIDsExpr = nullptr;
 
-    std::shared_ptr<binder::Expression> weightPropertyExpr = nullptr;
-    std::shared_ptr<binder::Expression> weightOutputExpr = nullptr;
+  std::shared_ptr<binder::Expression> weightPropertyExpr = nullptr;
+  std::shared_ptr<binder::Expression> weightOutputExpr = nullptr;
 
-    explicit RJBindData(graph::GraphEntry graphEntry) : graphEntry{std::move(graphEntry)} {}
-    RJBindData(const RJBindData& other);
+  explicit RJBindData(graph::GraphEntry graphEntry)
+      : graphEntry{std::move(graphEntry)} {}
+  RJBindData(const RJBindData& other);
 
-    PathsOutputWriterInfo getPathWriterInfo() const;
+  PathsOutputWriterInfo getPathWriterInfo() const;
 };
 
 class RJAlgorithm {
-public:
-    virtual ~RJAlgorithm() = default;
+ public:
+  virtual ~RJAlgorithm() = default;
 
-    virtual std::string getFunctionName() const = 0;
-    virtual binder::expression_vector getResultColumns(const RJBindData& bindData) const = 0;
+  virtual std::string getFunctionName() const = 0;
+  virtual binder::expression_vector getResultColumns(
+      const RJBindData& bindData) const = 0;
 
-    virtual std::unique_ptr<RJAlgorithm> copy() const = 0;
+  virtual std::unique_ptr<RJAlgorithm> copy() const = 0;
 };
 
-} // namespace function
-} // namespace kuzu
+}  // namespace function
+}  // namespace kuzu

@@ -12,125 +12,127 @@
 
 namespace kuzu::optimizer {
 void CardinalityUpdater::rewrite(planner::LogicalPlan* plan) {
-    visitOperator(plan->getLastOperator().get());
+  visitOperator(plan->getLastOperator().get());
 }
 
 void CardinalityUpdater::visitOperator(planner::LogicalOperator* op) {
-    for (auto i = 0u; i < op->getNumChildren(); ++i) {
-        visitOperator(op->getChild(i).get());
-    }
-    visitOperatorSwitchWithDefault(op);
+  for (auto i = 0u; i < op->getNumChildren(); ++i) {
+    visitOperator(op->getChild(i).get());
+  }
+  visitOperatorSwitchWithDefault(op);
 }
 
-void CardinalityUpdater::visitOperatorSwitchWithDefault(planner::LogicalOperator* op) {
-    switch (op->getOperatorType()) {
-    case planner::LogicalOperatorType::SCAN_NODE_TABLE: {
-        visitScanNodeTable(op);
-        break;
-    }
-    case planner::LogicalOperatorType::EXTEND: {
-        visitExtend(op);
-        break;
-    }
-    case planner::LogicalOperatorType::HASH_JOIN: {
-        visitHashJoin(op);
-        break;
-    }
-    case planner::LogicalOperatorType::CROSS_PRODUCT: {
-        visitCrossProduct(op);
-        break;
-    }
-    case planner::LogicalOperatorType::INTERSECT: {
-        visitIntersect(op);
-        break;
-    }
-    case planner::LogicalOperatorType::FLATTEN: {
-        visitFlatten(op);
-        break;
-    }
-    case planner::LogicalOperatorType::FILTER: {
-        visitFilter(op);
-        break;
-    }
-    case planner::LogicalOperatorType::LIMIT: {
-        visitLimit(op);
-        break;
-    }
-    case planner::LogicalOperatorType::AGGREGATE: {
-        visitAggregate(op);
-        break;
-    }
-    default: {
-        visitOperatorDefault(op);
-        break;
-    }
-    }
+void CardinalityUpdater::visitOperatorSwitchWithDefault(
+    planner::LogicalOperator* op) {
+  switch (op->getOperatorType()) {
+  case planner::LogicalOperatorType::SCAN_NODE_TABLE: {
+    visitScanNodeTable(op);
+    break;
+  }
+  case planner::LogicalOperatorType::EXTEND: {
+    visitExtend(op);
+    break;
+  }
+  case planner::LogicalOperatorType::HASH_JOIN: {
+    visitHashJoin(op);
+    break;
+  }
+  case planner::LogicalOperatorType::CROSS_PRODUCT: {
+    visitCrossProduct(op);
+    break;
+  }
+  case planner::LogicalOperatorType::INTERSECT: {
+    visitIntersect(op);
+    break;
+  }
+  case planner::LogicalOperatorType::FLATTEN: {
+    visitFlatten(op);
+    break;
+  }
+  case planner::LogicalOperatorType::FILTER: {
+    visitFilter(op);
+    break;
+  }
+  case planner::LogicalOperatorType::LIMIT: {
+    visitLimit(op);
+    break;
+  }
+  case planner::LogicalOperatorType::AGGREGATE: {
+    visitAggregate(op);
+    break;
+  }
+  default: {
+    visitOperatorDefault(op);
+    break;
+  }
+  }
 }
 
 void CardinalityUpdater::visitOperatorDefault(planner::LogicalOperator* op) {
-    if (op->getNumChildren() == 1) {
-        op->setCardinality(op->getChild(0)->getCardinality());
-    }
+  if (op->getNumChildren() == 1) {
+    op->setCardinality(op->getChild(0)->getCardinality());
+  }
 }
 
 void CardinalityUpdater::visitScanNodeTable(planner::LogicalOperator* op) {
-    op->setCardinality(cardinalityEstimator.estimateScanNode(*op));
+  op->setCardinality(cardinalityEstimator.estimateScanNode(*op));
 }
 
 void CardinalityUpdater::visitExtend(planner::LogicalOperator* op) {
-    KU_ASSERT(transaction);
-    auto& extend = op->cast<planner::LogicalExtend&>();
-    const auto extensionRate = cardinalityEstimator.getExtensionRate(*extend.getRel(),
-        *extend.getBoundNode(), transaction);
-    extend.setCardinality(
-        cardinalityEstimator.multiply(extensionRate, op->getChild(0)->getCardinality()));
+  KU_ASSERT(transaction);
+  auto& extend = op->cast<planner::LogicalExtend&>();
+  const auto extensionRate = cardinalityEstimator.getExtensionRate(
+      *extend.getRel(), *extend.getBoundNode(), transaction);
+  extend.setCardinality(cardinalityEstimator.multiply(
+      extensionRate, op->getChild(0)->getCardinality()));
 }
 
 void CardinalityUpdater::visitHashJoin(planner::LogicalOperator* op) {
-    auto& hashJoin = op->cast<planner::LogicalHashJoin&>();
-    KU_ASSERT(hashJoin.getNumChildren() >= 2);
-    hashJoin.setCardinality(cardinalityEstimator.estimateHashJoin(hashJoin.getJoinConditions(),
-        *hashJoin.getChild(0), *hashJoin.getChild(1)));
+  auto& hashJoin = op->cast<planner::LogicalHashJoin&>();
+  KU_ASSERT(hashJoin.getNumChildren() >= 2);
+  hashJoin.setCardinality(cardinalityEstimator.estimateHashJoin(
+      hashJoin.getJoinConditions(), *hashJoin.getChild(0),
+      *hashJoin.getChild(1)));
 }
 
 void CardinalityUpdater::visitCrossProduct(planner::LogicalOperator* op) {
-    op->setCardinality(
-        cardinalityEstimator.estimateCrossProduct(*op->getChild(0), *op->getChild(1)));
+  op->setCardinality(cardinalityEstimator.estimateCrossProduct(
+      *op->getChild(0), *op->getChild(1)));
 }
 
 void CardinalityUpdater::visitIntersect(planner::LogicalOperator* op) {
-    auto& intersect = op->cast<planner::LogicalIntersect&>();
-    KU_ASSERT(intersect.getNumChildren() >= 2);
-    std::vector<planner::LogicalOperator*> buildOps;
-    for (uint32_t i = 1; i < intersect.getNumChildren(); ++i) {
-        buildOps.push_back(intersect.getChild(i).get());
-    }
-    intersect.setCardinality(cardinalityEstimator.estimateIntersect(intersect.getKeyNodeIDs(),
-        *intersect.getChild(0), buildOps));
+  auto& intersect = op->cast<planner::LogicalIntersect&>();
+  KU_ASSERT(intersect.getNumChildren() >= 2);
+  std::vector<planner::LogicalOperator*> buildOps;
+  for (uint32_t i = 1; i < intersect.getNumChildren(); ++i) {
+    buildOps.push_back(intersect.getChild(i).get());
+  }
+  intersect.setCardinality(cardinalityEstimator.estimateIntersect(
+      intersect.getKeyNodeIDs(), *intersect.getChild(0), buildOps));
 }
 
 void CardinalityUpdater::visitFlatten(planner::LogicalOperator* op) {
-    auto& flatten = op->cast<planner::LogicalFlatten&>();
-    flatten.setCardinality(
-        cardinalityEstimator.estimateFlatten(*flatten.getChild(0), flatten.getGroupPos()));
+  auto& flatten = op->cast<planner::LogicalFlatten&>();
+  flatten.setCardinality(cardinalityEstimator.estimateFlatten(
+      *flatten.getChild(0), flatten.getGroupPos()));
 }
 
 void CardinalityUpdater::visitFilter(planner::LogicalOperator* op) {
-    auto& filter = op->cast<planner::LogicalFilter&>();
-    filter.setCardinality(
-        cardinalityEstimator.estimateFilter(*filter.getChild(0), *filter.getPredicate()));
+  auto& filter = op->cast<planner::LogicalFilter&>();
+  filter.setCardinality(cardinalityEstimator.estimateFilter(
+      *filter.getChild(0), *filter.getPredicate()));
 }
 
 void CardinalityUpdater::visitLimit(planner::LogicalOperator* op) {
-    auto& limit = op->cast<planner::LogicalLimit&>();
-    if (limit.canEvaluateLimitNum()) {
-        limit.setCardinality(limit.evaluateLimitNum());
-    }
+  auto& limit = op->cast<planner::LogicalLimit&>();
+  if (limit.canEvaluateLimitNum()) {
+    limit.setCardinality(limit.evaluateLimitNum());
+  }
 }
 
 void CardinalityUpdater::visitAggregate(planner::LogicalOperator* op) {
-    auto& aggregate = op->cast<planner::LogicalAggregate&>();
-    aggregate.setCardinality(cardinalityEstimator.estimateAggregate(aggregate));
+  auto& aggregate = op->cast<planner::LogicalAggregate&>();
+  aggregate.setCardinality(cardinalityEstimator.estimateAggregate(aggregate));
 }
 
-} // namespace kuzu::optimizer
+}  // namespace kuzu::optimizer

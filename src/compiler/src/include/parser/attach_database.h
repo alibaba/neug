@@ -7,15 +7,16 @@ namespace kuzu {
 namespace parser {
 
 class AttachDatabase final : public Statement {
-public:
-    explicit AttachDatabase(AttachInfo attachInfo)
-        : Statement{common::StatementType::ATTACH_DATABASE}, attachInfo{std::move(attachInfo)} {}
+ public:
+  explicit AttachDatabase(AttachInfo attachInfo)
+      : Statement{common::StatementType::ATTACH_DATABASE},
+        attachInfo{std::move(attachInfo)} {}
 
-    const AttachInfo& getAttachInfo() const { return attachInfo; }
+  const AttachInfo& getAttachInfo() const { return attachInfo; }
 
-private:
-    AttachInfo attachInfo;
+ private:
+  AttachInfo attachInfo;
 };
 
-} // namespace parser
-} // namespace kuzu
+}  // namespace parser
+}  // namespace kuzu

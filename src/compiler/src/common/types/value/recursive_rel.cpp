@@ -9,23 +9,23 @@ namespace kuzu {
 namespace common {
 
 Value* RecursiveRelVal::getNodes(const Value* val) {
-    throwIfNotRecursiveRel(val);
-    return val->children[0].get();
+  throwIfNotRecursiveRel(val);
+  return val->children[0].get();
 }
 
 Value* RecursiveRelVal::getRels(const Value* val) {
-    throwIfNotRecursiveRel(val);
-    return val->children[1].get();
+  throwIfNotRecursiveRel(val);
+  return val->children[1].get();
 }
 
 void RecursiveRelVal::throwIfNotRecursiveRel(const Value* val) {
-    // LCOV_EXCL_START
-    if (val->dataType.getLogicalTypeID() != LogicalTypeID::RECURSIVE_REL) {
-        throw Exception(
-            stringFormat("Expected RECURSIVE_REL type, but got {} type", val->dataType.toString()));
-    }
-    // LCOV_EXCL_STOP
+  // LCOV_EXCL_START
+  if (val->dataType.getLogicalTypeID() != LogicalTypeID::RECURSIVE_REL) {
+    throw Exception(stringFormat("Expected RECURSIVE_REL type, but got {} type",
+                                 val->dataType.toString()));
+  }
+  // LCOV_EXCL_STOP
 }
 
-} // namespace common
-} // namespace kuzu
+}  // namespace common
+}  // namespace kuzu

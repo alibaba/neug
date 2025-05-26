@@ -7,13 +7,13 @@ namespace kuzu {
 namespace common {
 
 enum class AccumulateType : uint8_t {
-    REGULAR = 0,
-    OPTIONAL_ = 1,
+  REGULAR = 0,
+  OPTIONAL_ = 1,
 };
 
 struct AccumulateTypeUtil {
-    static std::string toString(AccumulateType type);
+  static std::string toString(AccumulateType type);
 };
 
-} // namespace common
-} // namespace kuzu
+}  // namespace common
+}  // namespace kuzu

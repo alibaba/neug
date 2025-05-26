@@ -9,26 +9,29 @@ namespace kuzu {
 namespace function {
 
 struct Century {
-    static inline void operation(common::timestamp_t& timestamp, int64_t& result) {
-        result = common::Timestamp::getTimestampPart(common::DatePartSpecifier::CENTURY, timestamp);
-    }
+  static inline void operation(common::timestamp_t& timestamp,
+                               int64_t& result) {
+    result = common::Timestamp::getTimestampPart(
+        common::DatePartSpecifier::CENTURY, timestamp);
+  }
 };
 
 struct EpochMs {
-    static inline void operation(int64_t& ms, common::timestamp_t& result) {
-        result = common::Timestamp::fromEpochMilliSeconds(ms);
-    }
+  static inline void operation(int64_t& ms, common::timestamp_t& result) {
+    result = common::Timestamp::fromEpochMilliSeconds(ms);
+  }
 };
 
 struct ToTimestamp {
-    static inline void operation(double& sec, common::timestamp_t& result) {
-        int64_t ms = 0;
-        if (!tryCastWithOverflowCheck(sec * common::Interval::MICROS_PER_SEC, ms)) {
-            throw common::ConversionException("Could not convert epoch seconds to TIMESTAMP");
-        }
-        result = common::timestamp_t(ms);
+  static inline void operation(double& sec, common::timestamp_t& result) {
+    int64_t ms = 0;
+    if (!tryCastWithOverflowCheck(sec * common::Interval::MICROS_PER_SEC, ms)) {
+      throw common::ConversionException(
+          "Could not convert epoch seconds to TIMESTAMP");
     }
+    result = common::timestamp_t(ms);
+  }
 };
 
-} // namespace function
-} // namespace kuzu
+}  // namespace function
+}  // namespace kuzu

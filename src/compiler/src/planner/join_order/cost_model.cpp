@@ -12,53 +12,64 @@ namespace kuzu {
 namespace planner {
 
 uint64_t CostModel::computeExtendCost(const LogicalPlan& childPlan) {
-    return childPlan.getCost() + childPlan.getCardinality();
+  return childPlan.getCost() + childPlan.getCardinality();
 }
 
-uint64_t CostModel::computeHashJoinCost(const std::vector<binder::expression_pair>& joinConditions,
+uint64_t CostModel::computeHashJoinCost(
+    const std::vector<binder::expression_pair>& joinConditions,
     const LogicalPlan& probe, const LogicalPlan& build) {
-    return computeHashJoinCost(LogicalHashJoin::getJoinNodeIDs(joinConditions), probe, build);
+  return computeHashJoinCost(LogicalHashJoin::getJoinNodeIDs(joinConditions),
+                             probe, build);
 }
 
-uint64_t CostModel::computeHashJoinCost(const binder::expression_vector& joinNodeIDs,
+uint64_t CostModel::computeHashJoinCost(
+    const binder::expression_vector& joinNodeIDs, const LogicalPlan& probe,
+    const LogicalPlan& build) {
+  uint64_t cost = 0ul;
+  cost += probe.getCost();
+  cost += build.getCost();
+  // cost += probe.getCardinality();
+  uint64_t flatCost = PlannerKnobs::BUILD_PENALTY *
+                      JoinOrderUtil::getJoinKeysFlatCardinality(
+                          joinNodeIDs, build.getLastOperatorRef());
+  // std::cout << "flat cardinality: " << flatCost << std::endl << std::endl <<
+  // std::endl;
+  cost += flatCost;
+  // cost += PlannerKnobs::BUILD_PENALTY * build.getCardinality();
+  // std::cout << "probe cost: " << probe.getCost() << " build cost: " <<
+  // build.getCost()
+  //           << " flat cost: " << flatCost << " total cost:" << cost <<
+  //           std::endl;
+  return cost;
+}
+
+uint64_t CostModel::computeMarkJoinCost(
+    const std::vector<binder::expression_pair>& joinConditions,
     const LogicalPlan& probe, const LogicalPlan& build) {
-    uint64_t cost = 0ul;
-    cost += probe.getCost();
-    cost += build.getCost();
-    // cost += probe.getCardinality();
-    uint64_t flatCost = PlannerKnobs::BUILD_PENALTY * JoinOrderUtil::getJoinKeysFlatCardinality(
-                                                          joinNodeIDs, build.getLastOperatorRef());
-    // std::cout << "flat cardinality: " << flatCost << std::endl << std::endl << std::endl;
-    cost += flatCost;
-    // cost += PlannerKnobs::BUILD_PENALTY * build.getCardinality();
-    // std::cout << "probe cost: " << probe.getCost() << " build cost: " << build.getCost()
-    //           << " flat cost: " << flatCost << " total cost:" << cost << std::endl;
-    return cost;
+  return computeMarkJoinCost(LogicalHashJoin::getJoinNodeIDs(joinConditions),
+                             probe, build);
 }
 
-uint64_t CostModel::computeMarkJoinCost(const std::vector<binder::expression_pair>& joinConditions,
-    const LogicalPlan& probe, const LogicalPlan& build) {
-    return computeMarkJoinCost(LogicalHashJoin::getJoinNodeIDs(joinConditions), probe, build);
+uint64_t CostModel::computeMarkJoinCost(
+    const binder::expression_vector& joinNodeIDs, const LogicalPlan& probe,
+    const LogicalPlan& build) {
+  return computeHashJoinCost(joinNodeIDs, probe, build);
 }
 
-uint64_t CostModel::computeMarkJoinCost(const binder::expression_vector& joinNodeIDs,
-    const LogicalPlan& probe, const LogicalPlan& build) {
-    return computeHashJoinCost(joinNodeIDs, probe, build);
-}
-
-uint64_t CostModel::computeIntersectCost(const kuzu::planner::LogicalPlan& probePlan,
+uint64_t CostModel::computeIntersectCost(
+    const kuzu::planner::LogicalPlan& probePlan,
     const std::vector<std::unique_ptr<LogicalPlan>>& buildPlans) {
-    uint64_t cost = 0ul;
-    cost += probePlan.getCost();
-    // TODO(Xiyang): think of how to calculate intersect cost such that it will be picked in worst
-    // case.
-    cost += probePlan.getCardinality();
-    for (auto& buildPlan : buildPlans) {
-        KU_ASSERT(buildPlan->getCardinality() >= 1);
-        cost += buildPlan->getCost();
-    }
-    return cost;
+  uint64_t cost = 0ul;
+  cost += probePlan.getCost();
+  // TODO(Xiyang): think of how to calculate intersect cost such that it will be
+  // picked in worst case.
+  cost += probePlan.getCardinality();
+  for (auto& buildPlan : buildPlans) {
+    KU_ASSERT(buildPlan->getCardinality() >= 1);
+    cost += buildPlan->getCost();
+  }
+  return cost;
 }
 
-} // namespace planner
-} // namespace kuzu
+}  // namespace planner
+}  // namespace kuzu

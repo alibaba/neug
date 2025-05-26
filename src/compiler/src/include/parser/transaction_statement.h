@@ -7,17 +7,21 @@ namespace kuzu {
 namespace parser {
 
 class TransactionStatement : public Statement {
-    static constexpr common::StatementType statementType_ = common::StatementType::TRANSACTION;
+  static constexpr common::StatementType statementType_ =
+      common::StatementType::TRANSACTION;
 
-public:
-    explicit TransactionStatement(transaction::TransactionAction transactionAction)
-        : Statement{statementType_}, transactionAction{transactionAction} {}
+ public:
+  explicit TransactionStatement(
+      transaction::TransactionAction transactionAction)
+      : Statement{statementType_}, transactionAction{transactionAction} {}
 
-    transaction::TransactionAction getTransactionAction() const { return transactionAction; }
+  transaction::TransactionAction getTransactionAction() const {
+    return transactionAction;
+  }
 
-private:
-    transaction::TransactionAction transactionAction;
+ private:
+  transaction::TransactionAction transactionAction;
 };
 
-} // namespace parser
-} // namespace kuzu
+}  // namespace parser
+}  // namespace kuzu

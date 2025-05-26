@@ -6,10 +6,10 @@ namespace kuzu {
 namespace function {
 
 struct InternalIDCreationFunction {
-    static constexpr const char* name = "internal_id";
+  static constexpr const char* name = "internal_id";
 
-    static function_set getFunctionSet();
+  static function_set getFunctionSet();
 };
 
-} // namespace function
-} // namespace kuzu
+}  // namespace function
+}  // namespace kuzu

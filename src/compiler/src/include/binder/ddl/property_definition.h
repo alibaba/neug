@@ -7,44 +7,49 @@ namespace kuzu {
 namespace binder {
 
 struct KUZU_API ColumnDefinition {
-    std::string name;
-    common::LogicalType type;
+  std::string name;
+  common::LogicalType type;
 
-    ColumnDefinition() = default;
-    ColumnDefinition(std::string name, common::LogicalType type)
-        : name{std::move(name)}, type{std::move(type)} {}
-    EXPLICIT_COPY_DEFAULT_MOVE(ColumnDefinition);
+  ColumnDefinition() = default;
+  ColumnDefinition(std::string name, common::LogicalType type)
+      : name{std::move(name)}, type{std::move(type)} {}
+  EXPLICIT_COPY_DEFAULT_MOVE(ColumnDefinition);
 
-private:
-    ColumnDefinition(const ColumnDefinition& other) : name{other.name}, type{other.type.copy()} {}
+ private:
+  ColumnDefinition(const ColumnDefinition& other)
+      : name{other.name}, type{other.type.copy()} {}
 };
 
 struct KUZU_API PropertyDefinition {
-    ColumnDefinition columnDefinition;
-    std::unique_ptr<parser::ParsedExpression> defaultExpr;
+  ColumnDefinition columnDefinition;
+  std::unique_ptr<parser::ParsedExpression> defaultExpr;
 
-    PropertyDefinition() = default;
-    // explicit PropertyDefinition(ColumnDefinition columnDefinition);
-    PropertyDefinition(ColumnDefinition columnDefinition,
-        std::unique_ptr<parser::ParsedExpression> defaultExpr)
-        : columnDefinition{std::move(columnDefinition)}, defaultExpr{std::move(defaultExpr)} {}
-    EXPLICIT_COPY_DEFAULT_MOVE(PropertyDefinition);
+  PropertyDefinition() = default;
+  // explicit PropertyDefinition(ColumnDefinition columnDefinition);
+  PropertyDefinition(ColumnDefinition columnDefinition,
+                     std::unique_ptr<parser::ParsedExpression> defaultExpr)
+      : columnDefinition{std::move(columnDefinition)},
+        defaultExpr{std::move(defaultExpr)} {}
+  EXPLICIT_COPY_DEFAULT_MOVE(PropertyDefinition);
 
-    std::string getName() const { return columnDefinition.name; }
-    const common::LogicalType& getType() const { return columnDefinition.type; }
-    std::string getDefaultExpressionName() const { return defaultExpr->getRawName(); }
-    void rename(const std::string& newName) { columnDefinition.name = newName; }
+  std::string getName() const { return columnDefinition.name; }
+  const common::LogicalType& getType() const { return columnDefinition.type; }
+  std::string getDefaultExpressionName() const {
+    return defaultExpr->getRawName();
+  }
+  void rename(const std::string& newName) { columnDefinition.name = newName; }
 
-    void serialize(common::Serializer& serializer) const;
-    static PropertyDefinition deserialize(common::Deserializer& deserializer);
+  void serialize(common::Serializer& serializer) const;
+  static PropertyDefinition deserialize(common::Deserializer& deserializer);
 
-private:
-    PropertyDefinition(const PropertyDefinition& other)
-        : columnDefinition{other.columnDefinition.copy()}, defaultExpr{other.defaultExpr->copy()} {}
+ private:
+  PropertyDefinition(const PropertyDefinition& other)
+      : columnDefinition{other.columnDefinition.copy()},
+        defaultExpr{other.defaultExpr->copy()} {}
 
-public:
-    explicit PropertyDefinition(ColumnDefinition columnDefinition);
+ public:
+  explicit PropertyDefinition(ColumnDefinition columnDefinition);
 };
 
-} // namespace binder
-} // namespace kuzu
+}  // namespace binder
+}  // namespace kuzu

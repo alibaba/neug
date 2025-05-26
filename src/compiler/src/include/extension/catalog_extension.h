@@ -6,13 +6,13 @@ namespace kuzu {
 namespace extension {
 
 class KUZU_API CatalogExtension : public catalog::Catalog {
-public:
-    CatalogExtension() : Catalog() {}
+ public:
+  CatalogExtension() : Catalog() {}
 
-    virtual void init() = 0;
+  virtual void init() = 0;
 
-    void invalidateCache();
+  void invalidateCache();
 };
 
-} // namespace extension
-} // namespace kuzu
+}  // namespace extension
+}  // namespace kuzu

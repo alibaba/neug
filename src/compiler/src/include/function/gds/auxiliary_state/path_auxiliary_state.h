@@ -7,49 +7,55 @@ namespace kuzu {
 namespace function {
 
 class PathAuxiliaryState : public GDSAuxiliaryState {
-public:
-    explicit PathAuxiliaryState(std::unique_ptr<BFSGraphManager> bfsGraphManager)
-        : bfsGraphManager{std::move(bfsGraphManager)} {}
+ public:
+  explicit PathAuxiliaryState(std::unique_ptr<BFSGraphManager> bfsGraphManager)
+      : bfsGraphManager{std::move(bfsGraphManager)} {}
 
-    BFSGraphManager* getBFSGraphManager() { return bfsGraphManager.get(); }
+  BFSGraphManager* getBFSGraphManager() { return bfsGraphManager.get(); }
 
-    void beginFrontierCompute(common::table_id_t, common::table_id_t toTableID) override {
-        bfsGraphManager->getCurrentGraph()->pinTableID(toTableID);
-    }
+  void beginFrontierCompute(common::table_id_t,
+                            common::table_id_t toTableID) override {
+    bfsGraphManager->getCurrentGraph()->pinTableID(toTableID);
+  }
 
-    void switchToDense(processor::ExecutionContext* context, graph::Graph* graph) override {
-        bfsGraphManager->switchToDense(context, graph);
-    }
+  void switchToDense(processor::ExecutionContext* context,
+                     graph::Graph* graph) override {
+    bfsGraphManager->switchToDense(context, graph);
+  }
 
-private:
-    std::unique_ptr<BFSGraphManager> bfsGraphManager;
+ private:
+  std::unique_ptr<BFSGraphManager> bfsGraphManager;
 };
 
 class WSPPathsAuxiliaryState : public GDSAuxiliaryState {
-public:
-    explicit WSPPathsAuxiliaryState(std::unique_ptr<BFSGraphManager> bfsGraphManager)
-        : bfsGraphManager{std::move(bfsGraphManager)} {}
+ public:
+  explicit WSPPathsAuxiliaryState(
+      std::unique_ptr<BFSGraphManager> bfsGraphManager)
+      : bfsGraphManager{std::move(bfsGraphManager)} {}
 
-    BFSGraphManager* getBFSGraphManager() { return bfsGraphManager.get(); }
+  BFSGraphManager* getBFSGraphManager() { return bfsGraphManager.get(); }
 
-    void initSource(common::nodeID_t sourceNodeID) override {
-        sourceParent.setCost(0);
-        bfsGraphManager->getCurrentGraph()->pinTableID(sourceNodeID.tableID);
-        bfsGraphManager->getCurrentGraph()->setParentList(sourceNodeID.offset, &sourceParent);
-    }
+  void initSource(common::nodeID_t sourceNodeID) override {
+    sourceParent.setCost(0);
+    bfsGraphManager->getCurrentGraph()->pinTableID(sourceNodeID.tableID);
+    bfsGraphManager->getCurrentGraph()->setParentList(sourceNodeID.offset,
+                                                      &sourceParent);
+  }
 
-    void beginFrontierCompute(common::table_id_t, common::table_id_t toTableID) override {
-        bfsGraphManager->getCurrentGraph()->pinTableID(toTableID);
-    }
+  void beginFrontierCompute(common::table_id_t,
+                            common::table_id_t toTableID) override {
+    bfsGraphManager->getCurrentGraph()->pinTableID(toTableID);
+  }
 
-    void switchToDense(processor::ExecutionContext* context, graph::Graph* graph) override {
-        bfsGraphManager->switchToDense(context, graph);
-    }
+  void switchToDense(processor::ExecutionContext* context,
+                     graph::Graph* graph) override {
+    bfsGraphManager->switchToDense(context, graph);
+  }
 
-private:
-    std::unique_ptr<BFSGraphManager> bfsGraphManager;
-    ParentList sourceParent;
+ private:
+  std::unique_ptr<BFSGraphManager> bfsGraphManager;
+  ParentList sourceParent;
 };
 
-} // namespace function
-} // namespace kuzu
+}  // namespace function
+}  // namespace kuzu

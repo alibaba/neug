@@ -8,32 +8,36 @@ namespace kuzu {
 namespace binder {
 
 class BoundStatement {
-public:
-    BoundStatement(common::StatementType statementType, BoundStatementResult statementResult)
-        : statementType{statementType}, statementResult{std::move(statementResult)} {}
-    DELETE_COPY_DEFAULT_MOVE(BoundStatement);
+ public:
+  BoundStatement(common::StatementType statementType,
+                 BoundStatementResult statementResult)
+      : statementType{statementType},
+        statementResult{std::move(statementResult)} {}
+  DELETE_COPY_DEFAULT_MOVE(BoundStatement);
 
-    virtual ~BoundStatement() = default;
+  virtual ~BoundStatement() = default;
 
-    common::StatementType getStatementType() const { return statementType; }
+  common::StatementType getStatementType() const { return statementType; }
 
-    const BoundStatementResult* getStatementResult() const { return &statementResult; }
+  const BoundStatementResult* getStatementResult() const {
+    return &statementResult;
+  }
 
-    BoundStatementResult* getStatementResultUnsafe() { return &statementResult; }
+  BoundStatementResult* getStatementResultUnsafe() { return &statementResult; }
 
-    template<class TARGET>
-    const TARGET& constCast() const {
-        return common::ku_dynamic_cast<const TARGET&>(*this);
-    }
-    template<class TARGET>
-    TARGET& cast() {
-        return common::ku_dynamic_cast<TARGET&>(*this);
-    }
+  template <class TARGET>
+  const TARGET& constCast() const {
+    return common::ku_dynamic_cast<const TARGET&>(*this);
+  }
+  template <class TARGET>
+  TARGET& cast() {
+    return common::ku_dynamic_cast<TARGET&>(*this);
+  }
 
-private:
-    common::StatementType statementType;
-    BoundStatementResult statementResult;
+ private:
+  common::StatementType statementType;
+  BoundStatementResult statementResult;
 };
 
-} // namespace binder
-} // namespace kuzu
+}  // namespace binder
+}  // namespace kuzu

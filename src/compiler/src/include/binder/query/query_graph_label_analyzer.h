@@ -7,20 +7,21 @@ namespace kuzu {
 namespace binder {
 
 class QueryGraphLabelAnalyzer {
-public:
-    explicit QueryGraphLabelAnalyzer(const main::ClientContext& clientContext, bool throwOnViolate)
-        : throwOnViolate{throwOnViolate}, clientContext{clientContext} {}
+ public:
+  explicit QueryGraphLabelAnalyzer(const main::ClientContext& clientContext,
+                                   bool throwOnViolate)
+      : throwOnViolate{throwOnViolate}, clientContext{clientContext} {}
 
-    void pruneLabel(QueryGraph& graph) const;
+  void pruneLabel(QueryGraph& graph) const;
 
-private:
-    void pruneNode(const QueryGraph& graph, NodeExpression& node) const;
-    void pruneRel(RelExpression& rel) const;
+ private:
+  void pruneNode(const QueryGraph& graph, NodeExpression& node) const;
+  void pruneRel(RelExpression& rel) const;
 
-private:
-    bool throwOnViolate;
-    const main::ClientContext& clientContext;
+ private:
+  bool throwOnViolate;
+  const main::ClientContext& clientContext;
 };
 
-} // namespace binder
-} // namespace kuzu
+}  // namespace binder
+}  // namespace kuzu

@@ -8,24 +8,26 @@ namespace kuzu {
 namespace extension {
 
 class LoadedExtension {
+ public:
+  LoadedExtension(std::string extensionName, std::string fullPath,
+                  ExtensionSource source)
+      : extensionName{std::move(extensionName)},
+        fullPath{std::move(fullPath)},
+        source{source} {}
 
-public:
-    LoadedExtension(std::string extensionName, std::string fullPath, ExtensionSource source)
-        : extensionName{std::move(extensionName)}, fullPath{std::move(fullPath)}, source{source} {}
+  std::string getExtensionName() const { return extensionName; }
 
-    std::string getExtensionName() const { return extensionName; }
+  std::string getFullPath() const { return fullPath; }
 
-    std::string getFullPath() const { return fullPath; }
+  ExtensionSource getSource() const { return source; }
 
-    ExtensionSource getSource() const { return source; }
+  std::string toCypher();
 
-    std::string toCypher();
-
-private:
-    std::string extensionName;
-    std::string fullPath;
-    ExtensionSource source;
+ private:
+  std::string extensionName;
+  std::string fullPath;
+  ExtensionSource source;
 };
 
-} // namespace extension
-} // namespace kuzu
+}  // namespace extension
+}  // namespace kuzu

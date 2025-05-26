@@ -12,53 +12,53 @@ namespace common {
 class FileSystem;
 
 struct KUZU_API FileInfo {
-    FileInfo(std::string path, FileSystem* fileSystem)
-        : path{std::move(path)}, fileSystem{fileSystem} {}
+  FileInfo(std::string path, FileSystem* fileSystem)
+      : path{std::move(path)}, fileSystem{fileSystem} {}
 
-    virtual ~FileInfo() = default;
+  virtual ~FileInfo() = default;
 
-    uint64_t getFileSize() const;
+  uint64_t getFileSize() const;
 
-    void readFromFile(void* buffer, uint64_t numBytes, uint64_t position);
+  void readFromFile(void* buffer, uint64_t numBytes, uint64_t position);
 
-    int64_t readFile(void* buf, size_t nbyte);
+  int64_t readFile(void* buf, size_t nbyte);
 
-    void writeFile(const uint8_t* buffer, uint64_t numBytes, uint64_t offset);
+  void writeFile(const uint8_t* buffer, uint64_t numBytes, uint64_t offset);
 
-    void syncFile() const;
+  void syncFile() const;
 
-    int64_t seek(uint64_t offset, int whence);
+  int64_t seek(uint64_t offset, int whence);
 
-    void reset();
+  void reset();
 
-    void truncate(uint64_t size);
+  void truncate(uint64_t size);
 
-    bool canPerformSeek() const;
+  bool canPerformSeek() const;
 
-    template<class TARGET>
-    TARGET* ptrCast() {
-        return common::ku_dynamic_cast<TARGET*>(this);
-    }
+  template <class TARGET>
+  TARGET* ptrCast() {
+    return common::ku_dynamic_cast<TARGET*>(this);
+  }
 
-    template<class TARGET>
-    const TARGET* constPtrCast() const {
-        return common::ku_dynamic_cast<const TARGET*>(this);
-    }
+  template <class TARGET>
+  const TARGET* constPtrCast() const {
+    return common::ku_dynamic_cast<const TARGET*>(this);
+  }
 
-    template<class TARGET>
-    const TARGET& constCast() const {
-        return common::ku_dynamic_cast<const TARGET&>(*this);
-    }
+  template <class TARGET>
+  const TARGET& constCast() const {
+    return common::ku_dynamic_cast<const TARGET&>(*this);
+  }
 
-    template<class TARGET>
-    TARGET& cast() {
-        return common::ku_dynamic_cast<TARGET&>(*this);
-    }
+  template <class TARGET>
+  TARGET& cast() {
+    return common::ku_dynamic_cast<TARGET&>(*this);
+  }
 
-    const std::string path;
+  const std::string path;
 
-    FileSystem* fileSystem;
+  FileSystem* fileSystem;
 };
 
-} // namespace common
-} // namespace kuzu
+}  // namespace common
+}  // namespace kuzu

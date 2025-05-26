@@ -5,25 +5,26 @@ using namespace kuzu::common;
 namespace kuzu {
 namespace binder {
 
-bool BoundInsertClause::hasInfo(const std::function<bool(const BoundInsertInfo&)>& check) const {
-    for (auto& info : infos) {
-        if (check(info)) {
-            return true;
-        }
+bool BoundInsertClause::hasInfo(
+    const std::function<bool(const BoundInsertInfo&)>& check) const {
+  for (auto& info : infos) {
+    if (check(info)) {
+      return true;
     }
-    return false;
+  }
+  return false;
 }
 
 std::vector<const BoundInsertInfo*> BoundInsertClause::getInfos(
     const std::function<bool(const BoundInsertInfo&)>& check) const {
-    std::vector<const BoundInsertInfo*> result;
-    for (auto& info : infos) {
-        if (check(info)) {
-            result.push_back(&info);
-        }
+  std::vector<const BoundInsertInfo*> result;
+  for (auto& info : infos) {
+    if (check(info)) {
+      result.push_back(&info);
     }
-    return result;
+  }
+  return result;
 }
 
-} // namespace binder
-} // namespace kuzu
+}  // namespace binder
+}  // namespace kuzu

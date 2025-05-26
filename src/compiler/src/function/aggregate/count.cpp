@@ -11,33 +11,34 @@ using namespace kuzu::binder;
 namespace kuzu {
 namespace function {
 
-void CountFunction::updateAll(uint8_t* state_, ValueVector* input, uint64_t multiplicity,
-    InMemOverflowBuffer* /*overflowBuffer*/) {
-    auto state = reinterpret_cast<CountState*>(state_);
-    state->count += multiplicity * input->countNonNull();
+void CountFunction::updateAll(uint8_t* state_, ValueVector* input,
+                              uint64_t multiplicity,
+                              InMemOverflowBuffer* /*overflowBuffer*/) {
+  auto state = reinterpret_cast<CountState*>(state_);
+  state->count += multiplicity * input->countNonNull();
 }
 
 void CountFunction::paramRewriteFunc(binder::expression_vector& arguments) {
-    KU_ASSERT(arguments.size() == 1);
-    if (ExpressionUtil::isNodePattern(*arguments[0])) {
-        auto node = (NodeExpression*)arguments[0].get();
-        arguments[0] = node->getInternalID();
-    } else if (ExpressionUtil::isRelPattern(*arguments[0])) {
-        auto rel = (RelExpression*)arguments[0].get();
-        arguments[0] = rel->getInternalIDProperty();
-    }
+  KU_ASSERT(arguments.size() == 1);
+  if (ExpressionUtil::isNodePattern(*arguments[0])) {
+    auto node = (NodeExpression*) arguments[0].get();
+    arguments[0] = node->getInternalID();
+  } else if (ExpressionUtil::isRelPattern(*arguments[0])) {
+    auto rel = (RelExpression*) arguments[0].get();
+    arguments[0] = rel->getInternalIDProperty();
+  }
 }
 
 function_set CountFunction::getFunctionSet() {
-    function_set result;
-    for (auto& type : LogicalTypeUtils::getAllValidLogicTypeIDs()) {
-        for (auto isDistinct : std::vector<bool>{true, false}) {
-            result.push_back(AggregateFunctionUtils::getAggFunc<CountFunction>(name, type,
-                LogicalTypeID::INT64, isDistinct, paramRewriteFunc));
-        }
+  function_set result;
+  for (auto& type : LogicalTypeUtils::getAllValidLogicTypeIDs()) {
+    for (auto isDistinct : std::vector<bool>{true, false}) {
+      result.push_back(AggregateFunctionUtils::getAggFunc<CountFunction>(
+          name, type, LogicalTypeID::INT64, isDistinct, paramRewriteFunc));
     }
-    return result;
+  }
+  return result;
 }
 
-} // namespace function
-} // namespace kuzu
+}  // namespace function
+}  // namespace kuzu

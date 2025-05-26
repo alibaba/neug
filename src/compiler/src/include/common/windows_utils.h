@@ -9,10 +9,10 @@ namespace kuzu {
 namespace common {
 
 struct WindowsUtils {
-    static std::wstring utf8ToUnicode(const char* input);
-    static std::string unicodeToUTF8(LPCWSTR input);
+  static std::wstring utf8ToUnicode(const char* input);
+  static std::string unicodeToUTF8(LPCWSTR input);
 };
 
-} // namespace common
-} // namespace kuzu
+}  // namespace common
+}  // namespace kuzu
 #endif

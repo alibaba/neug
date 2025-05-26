@@ -6,18 +6,20 @@ namespace kuzu {
 namespace parser {
 
 class ReturnClause {
-public:
-    explicit ReturnClause(ProjectionBody projectionBody)
-        : projectionBody{std::move(projectionBody)} {}
-    DELETE_COPY_DEFAULT_MOVE(ReturnClause);
+ public:
+  explicit ReturnClause(ProjectionBody projectionBody)
+      : projectionBody{std::move(projectionBody)} {}
+  DELETE_COPY_DEFAULT_MOVE(ReturnClause);
 
-    virtual ~ReturnClause() = default;
+  virtual ~ReturnClause() = default;
 
-    inline const ProjectionBody* getProjectionBody() const { return &projectionBody; }
+  inline const ProjectionBody* getProjectionBody() const {
+    return &projectionBody;
+  }
 
-private:
-    ProjectionBody projectionBody;
+ private:
+  ProjectionBody projectionBody;
 };
 
-} // namespace parser
-} // namespace kuzu
+}  // namespace parser
+}  // namespace kuzu

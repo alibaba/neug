@@ -8,18 +8,21 @@ namespace kuzu {
 namespace binder {
 
 class KUZU_API BoundTableFunctionCall : public BoundReadingClause {
-    static constexpr common::ClauseType clauseType_ = common::ClauseType::TABLE_FUNCTION_CALL;
+  static constexpr common::ClauseType clauseType_ =
+      common::ClauseType::TABLE_FUNCTION_CALL;
 
-public:
-    explicit BoundTableFunctionCall(BoundTableScanInfo info)
-        : BoundReadingClause{clauseType_}, info{std::move(info)} {}
+ public:
+  explicit BoundTableFunctionCall(BoundTableScanInfo info)
+      : BoundReadingClause{clauseType_}, info{std::move(info)} {}
 
-    const function::TableFunction& getTableFunc() const { return info.func; }
-    const function::TableFuncBindData* getBindData() const { return info.bindData.get(); }
+  const function::TableFunction& getTableFunc() const { return info.func; }
+  const function::TableFuncBindData* getBindData() const {
+    return info.bindData.get();
+  }
 
-private:
-    BoundTableScanInfo info;
+ private:
+  BoundTableScanInfo info;
 };
 
-} // namespace binder
-} // namespace kuzu
+}  // namespace binder
+}  // namespace kuzu

@@ -7,14 +7,15 @@ namespace binder {
 
 NodeExpression::~NodeExpression() = default;
 
-std::shared_ptr<Expression> NodeExpression::getPrimaryKey(common::table_id_t tableID) const {
-    for (auto& e : propertyExprs) {
-        if (e->constCast<PropertyExpression>().isPrimaryKey(tableID)) {
-            return e->copy();
-        }
+std::shared_ptr<Expression> NodeExpression::getPrimaryKey(
+    common::table_id_t tableID) const {
+  for (auto& e : propertyExprs) {
+    if (e->constCast<PropertyExpression>().isPrimaryKey(tableID)) {
+      return e->copy();
     }
-    KU_UNREACHABLE;
+  }
+  KU_UNREACHABLE;
 }
 
-} // namespace binder
-} // namespace kuzu
+}  // namespace binder
+}  // namespace kuzu

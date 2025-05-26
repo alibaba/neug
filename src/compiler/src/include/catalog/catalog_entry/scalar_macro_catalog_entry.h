@@ -7,29 +7,33 @@ namespace kuzu {
 namespace catalog {
 
 class ScalarMacroCatalogEntry final : public CatalogEntry {
-public:
-    //===--------------------------------------------------------------------===//
-    // constructors
-    //===--------------------------------------------------------------------===//
-    ScalarMacroCatalogEntry() = default;
-    ScalarMacroCatalogEntry(std::string name,
-        std::unique_ptr<function::ScalarMacroFunction> macroFunction);
+ public:
+  //===--------------------------------------------------------------------===//
+  // constructors
+  //===--------------------------------------------------------------------===//
+  ScalarMacroCatalogEntry() = default;
+  ScalarMacroCatalogEntry(
+      std::string name,
+      std::unique_ptr<function::ScalarMacroFunction> macroFunction);
 
-    //===--------------------------------------------------------------------===//
-    // getter & setter
-    //===--------------------------------------------------------------------===//
-    function::ScalarMacroFunction* getMacroFunction() const { return macroFunction.get(); }
+  //===--------------------------------------------------------------------===//
+  // getter & setter
+  //===--------------------------------------------------------------------===//
+  function::ScalarMacroFunction* getMacroFunction() const {
+    return macroFunction.get();
+  }
 
-    //===--------------------------------------------------------------------===//
-    // serialization & deserialization
-    //===--------------------------------------------------------------------===//
-    void serialize(common::Serializer& serializer) const override;
-    static std::unique_ptr<ScalarMacroCatalogEntry> deserialize(common::Deserializer& deserializer);
-    std::string toCypher(const ToCypherInfo& info) const override;
+  //===--------------------------------------------------------------------===//
+  // serialization & deserialization
+  //===--------------------------------------------------------------------===//
+  void serialize(common::Serializer& serializer) const override;
+  static std::unique_ptr<ScalarMacroCatalogEntry> deserialize(
+      common::Deserializer& deserializer);
+  std::string toCypher(const ToCypherInfo& info) const override;
 
-private:
-    std::unique_ptr<function::ScalarMacroFunction> macroFunction;
+ private:
+  std::unique_ptr<function::ScalarMacroFunction> macroFunction;
 };
 
-} // namespace catalog
-} // namespace kuzu
+}  // namespace catalog
+}  // namespace kuzu

@@ -11,14 +11,14 @@ namespace function {
 using get_function_set_fun = std::function<function_set()>;
 
 struct FunctionCollection {
-    get_function_set_fun getFunctionSetFunc;
+  get_function_set_fun getFunctionSetFunc;
 
-    const char* name;
+  const char* name;
 
-    CatalogEntryType catalogEntryType;
+  CatalogEntryType catalogEntryType;
 
-    static FunctionCollection* getFunctions();
+  static FunctionCollection* getFunctions();
 };
 
-} // namespace function
-} // namespace kuzu
+}  // namespace function
+}  // namespace kuzu

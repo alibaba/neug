@@ -8,16 +8,16 @@ using namespace common;
 namespace binder {
 
 void ParameterExpression::cast(const LogicalType& type) {
-    if (!dataType.containsAny()) {
-        // LCOV_EXCL_START
-        throw BinderException(
-            stringFormat("Cannot change parameter expression data type from {} to {}.",
-                dataType.toString(), type.toString()));
-        // LCOV_EXCL_STOP
-    }
-    dataType = type.copy();
-    value.setDataType(type);
+  if (!dataType.containsAny()) {
+    // LCOV_EXCL_START
+    throw BinderException(stringFormat(
+        "Cannot change parameter expression data type from {} to {}.",
+        dataType.toString(), type.toString()));
+    // LCOV_EXCL_STOP
+  }
+  dataType = type.copy();
+  value.setDataType(type);
 }
 
-} // namespace binder
-} // namespace kuzu
+}  // namespace binder
+}  // namespace kuzu

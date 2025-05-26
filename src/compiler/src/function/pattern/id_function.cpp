@@ -12,34 +12,36 @@ using namespace kuzu::binder;
 namespace kuzu {
 namespace function {
 
-static std::shared_ptr<Expression> rewriteFunc(const RewriteFunctionBindInput& input) {
-    KU_ASSERT(input.arguments.size() == 1);
-    auto param = input.arguments[0].get();
-    if (ExpressionUtil::isNodePattern(*param)) {
-        auto node = param->constPtrCast<NodeExpression>();
-        return node->getInternalID();
-    }
-    if (ExpressionUtil::isRelPattern(*param)) {
-        auto rel = param->constPtrCast<RelExpression>();
-        return rel->getPropertyExpression(InternalKeyword::ID);
-    }
-    // Bind as struct_extract(param, "_id")
-    auto extractKey = input.expressionBinder->createLiteralExpression(InternalKeyword::ID);
-    return input.expressionBinder->bindScalarFunctionExpression({input.arguments[0], extractKey},
-        StructExtractFunctions::name);
+static std::shared_ptr<Expression> rewriteFunc(
+    const RewriteFunctionBindInput& input) {
+  KU_ASSERT(input.arguments.size() == 1);
+  auto param = input.arguments[0].get();
+  if (ExpressionUtil::isNodePattern(*param)) {
+    auto node = param->constPtrCast<NodeExpression>();
+    return node->getInternalID();
+  }
+  if (ExpressionUtil::isRelPattern(*param)) {
+    auto rel = param->constPtrCast<RelExpression>();
+    return rel->getPropertyExpression(InternalKeyword::ID);
+  }
+  // Bind as struct_extract(param, "_id")
+  auto extractKey =
+      input.expressionBinder->createLiteralExpression(InternalKeyword::ID);
+  return input.expressionBinder->bindScalarFunctionExpression(
+      {input.arguments[0], extractKey}, StructExtractFunctions::name);
 }
 
 function_set IDFunction::getFunctionSet() {
-    function_set functionSet;
-    auto inputTypes =
-        std::vector<LogicalTypeID>{LogicalTypeID::NODE, LogicalTypeID::REL, LogicalTypeID::STRUCT};
-    for (auto& inputType : inputTypes) {
-        auto function = std::make_unique<RewriteFunction>(name,
-            std::vector<LogicalTypeID>{inputType}, rewriteFunc);
-        functionSet.push_back(std::move(function));
-    }
-    return functionSet;
+  function_set functionSet;
+  auto inputTypes = std::vector<LogicalTypeID>{
+      LogicalTypeID::NODE, LogicalTypeID::REL, LogicalTypeID::STRUCT};
+  for (auto& inputType : inputTypes) {
+    auto function = std::make_unique<RewriteFunction>(
+        name, std::vector<LogicalTypeID>{inputType}, rewriteFunc);
+    functionSet.push_back(std::move(function));
+  }
+  return functionSet;
 }
 
-} // namespace function
-} // namespace kuzu
+}  // namespace function
+}  // namespace kuzu

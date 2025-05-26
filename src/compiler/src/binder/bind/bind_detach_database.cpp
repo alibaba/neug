@@ -5,10 +5,11 @@
 namespace kuzu {
 namespace binder {
 
-std::unique_ptr<BoundStatement> Binder::bindDetachDatabase(const parser::Statement& statement) {
-    auto& detachDatabase = statement.constCast<parser::DetachDatabase>();
-    return std::make_unique<BoundDetachDatabase>(detachDatabase.getDBName());
+std::unique_ptr<BoundStatement> Binder::bindDetachDatabase(
+    const parser::Statement& statement) {
+  auto& detachDatabase = statement.constCast<parser::DetachDatabase>();
+  return std::make_unique<BoundDetachDatabase>(detachDatabase.getDBName());
 }
 
-} // namespace binder
-} // namespace kuzu
+}  // namespace binder
+}  // namespace kuzu

@@ -8,11 +8,12 @@ namespace kuzu {
 namespace function {
 
 struct GenRandomUUID {
-    static void operation(common::ku_uuid_t& input, void* dataPtr) {
-        input = common::UUID::generateRandomUUID(
-            static_cast<FunctionBindData*>(dataPtr)->clientContext->getRandomEngine());
-    }
+  static void operation(common::ku_uuid_t& input, void* dataPtr) {
+    input = common::UUID::generateRandomUUID(
+        static_cast<FunctionBindData*>(dataPtr)
+            ->clientContext->getRandomEngine());
+  }
 };
 
-} // namespace function
-} // namespace kuzu
+}  // namespace function
+}  // namespace kuzu

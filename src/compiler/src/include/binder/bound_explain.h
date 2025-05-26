@@ -7,22 +7,25 @@ namespace kuzu {
 namespace binder {
 
 class BoundExplain final : public BoundStatement {
-public:
-    explicit BoundExplain(std::unique_ptr<BoundStatement> statementToExplain,
-        common::ExplainType explainType)
-        : BoundStatement{common::StatementType::EXPLAIN,
-              BoundStatementResult::createSingleStringColumnResult(
-                  "explain result" /* columnName */)},
-          statementToExplain{std::move(statementToExplain)}, explainType{explainType} {}
+ public:
+  explicit BoundExplain(std::unique_ptr<BoundStatement> statementToExplain,
+                        common::ExplainType explainType)
+      : BoundStatement{common::StatementType::EXPLAIN,
+                       BoundStatementResult::createSingleStringColumnResult(
+                           "explain result" /* columnName */)},
+        statementToExplain{std::move(statementToExplain)},
+        explainType{explainType} {}
 
-    inline BoundStatement* getStatementToExplain() const { return statementToExplain.get(); }
+  inline BoundStatement* getStatementToExplain() const {
+    return statementToExplain.get();
+  }
 
-    inline common::ExplainType getExplainType() const { return explainType; }
+  inline common::ExplainType getExplainType() const { return explainType; }
 
-private:
-    std::unique_ptr<BoundStatement> statementToExplain;
-    common::ExplainType explainType;
+ private:
+  std::unique_ptr<BoundStatement> statementToExplain;
+  common::ExplainType explainType;
 };
 
-} // namespace binder
-} // namespace kuzu
+}  // namespace binder
+}  // namespace kuzu

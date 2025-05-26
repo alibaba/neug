@@ -6,23 +6,23 @@ namespace kuzu {
 namespace common {
 
 std::string TableTypeUtils::toString(TableType tableType) {
-    switch (tableType) {
-    case TableType::UNKNOWN: {
-        return "UNKNOWN";
-    }
-    case TableType::NODE: {
-        return "NODE";
-    }
-    case TableType::REL: {
-        return "REL";
-    }
-    case TableType::FOREIGN: {
-        return "ATTACHED";
-    }
-    default:
-        KU_UNREACHABLE;
-    }
+  switch (tableType) {
+  case TableType::UNKNOWN: {
+    return "UNKNOWN";
+  }
+  case TableType::NODE: {
+    return "NODE";
+  }
+  case TableType::REL: {
+    return "REL";
+  }
+  case TableType::FOREIGN: {
+    return "ATTACHED";
+  }
+  default:
+    KU_UNREACHABLE;
+  }
 }
 
-} // namespace common
-} // namespace kuzu
+}  // namespace common
+}  // namespace kuzu

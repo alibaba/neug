@@ -7,15 +7,16 @@ namespace kuzu {
 namespace binder {
 
 class MatchClausePatternLabelRewriter final : public BoundStatementVisitor {
-public:
-    explicit MatchClausePatternLabelRewriter(const main::ClientContext& clientContext)
-        : analyzer{clientContext, false /* throwOnViolate */} {}
+ public:
+  explicit MatchClausePatternLabelRewriter(
+      const main::ClientContext& clientContext)
+      : analyzer{clientContext, false /* throwOnViolate */} {}
 
-    void visitMatchUnsafe(BoundReadingClause& readingClause) override;
+  void visitMatchUnsafe(BoundReadingClause& readingClause) override;
 
-private:
-    QueryGraphLabelAnalyzer analyzer;
+ private:
+  QueryGraphLabelAnalyzer analyzer;
 };
 
-} // namespace binder
-} // namespace kuzu
+}  // namespace binder
+}  // namespace kuzu

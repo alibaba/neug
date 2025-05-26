@@ -6,11 +6,12 @@ namespace kuzu {
 namespace binder {
 
 struct BoundQueryScanSourceInfo {
-    common::case_insensitive_map_t<common::Value> options;
+  common::case_insensitive_map_t<common::Value> options;
 
-    explicit BoundQueryScanSourceInfo(common::case_insensitive_map_t<common::Value> options)
-        : options{std::move(options)} {}
+  explicit BoundQueryScanSourceInfo(
+      common::case_insensitive_map_t<common::Value> options)
+      : options{std::move(options)} {}
 };
 
-} // namespace binder
-} // namespace kuzu
+}  // namespace binder
+}  // namespace kuzu

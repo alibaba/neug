@@ -13,152 +13,164 @@ using namespace kuzu::common;
 namespace kuzu {
 namespace catalog {
 
-std::unique_ptr<TableCatalogEntry> TableCatalogEntry::alter(transaction_t timestamp,
-    const BoundAlterInfo& alterInfo) const {
-    KU_ASSERT(!deleted);
-    auto newEntry = copy();
-    switch (alterInfo.alterType) {
-    case AlterType::RENAME: {
-        auto& renameTableInfo = *alterInfo.extraInfo->constPtrCast<BoundExtraRenameTableInfo>();
-        newEntry->rename(renameTableInfo.newName);
-    } break;
-    case AlterType::RENAME_PROPERTY: {
-        auto& renamePropInfo = *alterInfo.extraInfo->constPtrCast<BoundExtraRenamePropertyInfo>();
-        newEntry->renameProperty(renamePropInfo.oldName, renamePropInfo.newName);
-    } break;
-    case AlterType::ADD_PROPERTY: {
-        auto& addPropInfo = *alterInfo.extraInfo->constPtrCast<BoundExtraAddPropertyInfo>();
-        newEntry->addProperty(addPropInfo.propertyDefinition);
-    } break;
-    case AlterType::DROP_PROPERTY: {
-        auto& dropPropInfo = *alterInfo.extraInfo->constPtrCast<BoundExtraDropPropertyInfo>();
-        newEntry->dropProperty(dropPropInfo.propertyName);
-    } break;
-    case AlterType::COMMENT: {
-        auto& commentInfo = *alterInfo.extraInfo->constPtrCast<BoundExtraCommentInfo>();
-        newEntry->setComment(commentInfo.comment);
-    } break;
-    default: {
-        KU_UNREACHABLE;
-    }
-    }
-    newEntry->setOID(oid);
-    newEntry->setTimestamp(timestamp);
-    return newEntry;
+std::unique_ptr<TableCatalogEntry> TableCatalogEntry::alter(
+    transaction_t timestamp, const BoundAlterInfo& alterInfo) const {
+  KU_ASSERT(!deleted);
+  auto newEntry = copy();
+  switch (alterInfo.alterType) {
+  case AlterType::RENAME: {
+    auto& renameTableInfo =
+        *alterInfo.extraInfo->constPtrCast<BoundExtraRenameTableInfo>();
+    newEntry->rename(renameTableInfo.newName);
+  } break;
+  case AlterType::RENAME_PROPERTY: {
+    auto& renamePropInfo =
+        *alterInfo.extraInfo->constPtrCast<BoundExtraRenamePropertyInfo>();
+    newEntry->renameProperty(renamePropInfo.oldName, renamePropInfo.newName);
+  } break;
+  case AlterType::ADD_PROPERTY: {
+    auto& addPropInfo =
+        *alterInfo.extraInfo->constPtrCast<BoundExtraAddPropertyInfo>();
+    newEntry->addProperty(addPropInfo.propertyDefinition);
+  } break;
+  case AlterType::DROP_PROPERTY: {
+    auto& dropPropInfo =
+        *alterInfo.extraInfo->constPtrCast<BoundExtraDropPropertyInfo>();
+    newEntry->dropProperty(dropPropInfo.propertyName);
+  } break;
+  case AlterType::COMMENT: {
+    auto& commentInfo =
+        *alterInfo.extraInfo->constPtrCast<BoundExtraCommentInfo>();
+    newEntry->setComment(commentInfo.comment);
+  } break;
+  default: {
+    KU_UNREACHABLE;
+  }
+  }
+  newEntry->setOID(oid);
+  newEntry->setTimestamp(timestamp);
+  return newEntry;
 }
 
 column_id_t TableCatalogEntry::getMaxColumnID() const {
-    return propertyCollection.getMaxColumnID();
+  return propertyCollection.getMaxColumnID();
 }
 
 void TableCatalogEntry::vacuumColumnIDs(column_id_t nextColumnID) {
-    propertyCollection.vacuumColumnIDs(nextColumnID);
+  propertyCollection.vacuumColumnIDs(nextColumnID);
 }
 
 std::string TableCatalogEntry::propertiesToCypher() const {
-    return propertyCollection.toCypher();
+  return propertyCollection.toCypher();
 }
 
-bool TableCatalogEntry::containsProperty(const std::string& propertyName) const {
-    return propertyCollection.contains(propertyName);
+bool TableCatalogEntry::containsProperty(
+    const std::string& propertyName) const {
+  return propertyCollection.contains(propertyName);
 }
 
-property_id_t TableCatalogEntry::getPropertyID(const std::string& propertyName) const {
-    return propertyCollection.getPropertyID(propertyName);
+property_id_t TableCatalogEntry::getPropertyID(
+    const std::string& propertyName) const {
+  return propertyCollection.getPropertyID(propertyName);
 }
 
-const PropertyDefinition& TableCatalogEntry::getProperty(const std::string& propertyName) const {
-    return propertyCollection.getDefinition(propertyName);
+const PropertyDefinition& TableCatalogEntry::getProperty(
+    const std::string& propertyName) const {
+  return propertyCollection.getDefinition(propertyName);
 }
 
 const PropertyDefinition& TableCatalogEntry::getProperty(idx_t idx) const {
-    return propertyCollection.getDefinition(idx);
+  return propertyCollection.getDefinition(idx);
 }
 
-column_id_t TableCatalogEntry::getColumnID(const std::string& propertyName) const {
-    return propertyCollection.getColumnID(propertyName);
+column_id_t TableCatalogEntry::getColumnID(
+    const std::string& propertyName) const {
+  return propertyCollection.getColumnID(propertyName);
 }
 
 common::column_id_t TableCatalogEntry::getColumnID(common::idx_t idx) const {
-    return propertyCollection.getColumnID(idx);
+  return propertyCollection.getColumnID(idx);
 }
 
-void TableCatalogEntry::addProperty(const PropertyDefinition& propertyDefinition) {
-    propertyCollection.add(propertyDefinition);
+void TableCatalogEntry::addProperty(
+    const PropertyDefinition& propertyDefinition) {
+  propertyCollection.add(propertyDefinition);
 }
 
 void TableCatalogEntry::dropProperty(const std::string& propertyName) {
-    propertyCollection.drop(propertyName);
+  propertyCollection.drop(propertyName);
 }
 
 void TableCatalogEntry::renameProperty(const std::string& propertyName,
-    const std::string& newName) {
-    propertyCollection.rename(propertyName, newName);
+                                       const std::string& newName) {
+  propertyCollection.rename(propertyName, newName);
 }
 
-std::string TableCatalogEntry::getLabel(const Catalog* catalog,
-    const transaction::Transaction* transaction) {
-    if (type == CatalogEntryType::NODE_TABLE_ENTRY) {
-        return name;
-    }
-    KU_ASSERT(type == CatalogEntryType::REL_TABLE_ENTRY);
-    for (auto& relGroup : catalog->getRelGroupEntries(transaction)) {
-        if (relGroup->isParent(getTableID())) {
-            return relGroup->getName();
-        }
-    }
+std::string TableCatalogEntry::getLabel(
+    const Catalog* catalog, const transaction::Transaction* transaction) {
+  if (type == CatalogEntryType::NODE_TABLE_ENTRY) {
     return name;
+  }
+  KU_ASSERT(type == CatalogEntryType::REL_TABLE_ENTRY);
+  for (auto& relGroup : catalog->getRelGroupEntries(transaction)) {
+    if (relGroup->isParent(getTableID())) {
+      return relGroup->getName();
+    }
+  }
+  return name;
 }
 
 void TableCatalogEntry::serialize(Serializer& serializer) const {
-    CatalogEntry::serialize(serializer);
-    serializer.writeDebuggingInfo("comment");
-    serializer.write(comment);
-    serializer.writeDebuggingInfo("properties");
-    propertyCollection.serialize(serializer);
+  CatalogEntry::serialize(serializer);
+  serializer.writeDebuggingInfo("comment");
+  serializer.write(comment);
+  serializer.writeDebuggingInfo("properties");
+  propertyCollection.serialize(serializer);
 }
 
-std::unique_ptr<TableCatalogEntry> TableCatalogEntry::deserialize(Deserializer& deserializer,
-    CatalogEntryType type) {
-    std::string debuggingInfo;
-    std::string comment;
-    deserializer.validateDebuggingInfo(debuggingInfo, "comment");
-    deserializer.deserializeValue(comment);
-    deserializer.validateDebuggingInfo(debuggingInfo, "properties");
-    auto propertyCollection = PropertyDefinitionCollection::deserialize(deserializer);
-    std::unique_ptr<TableCatalogEntry> result;
-    switch (type) {
-    case CatalogEntryType::NODE_TABLE_ENTRY:
-        result = NodeTableCatalogEntry::deserialize(deserializer);
-        break;
-    case CatalogEntryType::REL_TABLE_ENTRY:
-        result = RelTableCatalogEntry::deserialize(deserializer);
-        break;
-    default:
-        KU_UNREACHABLE;
-    }
-    result->comment = std::move(comment);
-    result->propertyCollection = std::move(propertyCollection);
-    return result;
+std::unique_ptr<TableCatalogEntry> TableCatalogEntry::deserialize(
+    Deserializer& deserializer, CatalogEntryType type) {
+  std::string debuggingInfo;
+  std::string comment;
+  deserializer.validateDebuggingInfo(debuggingInfo, "comment");
+  deserializer.deserializeValue(comment);
+  deserializer.validateDebuggingInfo(debuggingInfo, "properties");
+  auto propertyCollection =
+      PropertyDefinitionCollection::deserialize(deserializer);
+  std::unique_ptr<TableCatalogEntry> result;
+  switch (type) {
+  case CatalogEntryType::NODE_TABLE_ENTRY:
+    result = NodeTableCatalogEntry::deserialize(deserializer);
+    break;
+  case CatalogEntryType::REL_TABLE_ENTRY:
+    result = RelTableCatalogEntry::deserialize(deserializer);
+    break;
+  default:
+    KU_UNREACHABLE;
+  }
+  result->comment = std::move(comment);
+  result->propertyCollection = std::move(propertyCollection);
+  return result;
 }
 
-void TableCatalogEntry::setPropertyCollection(PropertyDefinitionCollection propertyCollection_) {
-    propertyCollection = std::move(propertyCollection_);
+void TableCatalogEntry::setPropertyCollection(
+    PropertyDefinitionCollection propertyCollection_) {
+  propertyCollection = std::move(propertyCollection_);
 }
 
 void TableCatalogEntry::copyFrom(const CatalogEntry& other) {
-    CatalogEntry::copyFrom(other);
-    auto& otherTable = ku_dynamic_cast<const TableCatalogEntry&>(other);
-    comment = otherTable.comment;
-    propertyCollection = otherTable.propertyCollection.copy();
+  CatalogEntry::copyFrom(other);
+  auto& otherTable = ku_dynamic_cast<const TableCatalogEntry&>(other);
+  comment = otherTable.comment;
+  propertyCollection = otherTable.propertyCollection.copy();
 }
 
 BoundCreateTableInfo TableCatalogEntry::getBoundCreateTableInfo(
     transaction::Transaction* transaction, bool isInternal) const {
-    auto extraInfo = getBoundExtraCreateInfo(transaction);
-    return BoundCreateTableInfo(type, name, ConflictAction::ON_CONFLICT_THROW, std::move(extraInfo),
-        isInternal, hasParent_);
+  auto extraInfo = getBoundExtraCreateInfo(transaction);
+  return BoundCreateTableInfo(type, name, ConflictAction::ON_CONFLICT_THROW,
+                              std::move(extraInfo), isInternal, hasParent_);
 }
 
-} // namespace catalog
-} // namespace kuzu
+}  // namespace catalog
+}  // namespace kuzu

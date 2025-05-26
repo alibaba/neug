@@ -6,28 +6,25 @@ namespace kuzu {
 namespace planner {
 
 std::string LogicalCopyToPrintInfo::toString() const {
-    std::string result = "";
-    result += "Export: ";
-    for (auto& name : columnNames) {
-        result += name + ", ";
-    }
-    result += "To: " + fileName;
-    return result;
+  std::string result = "";
+  result += "Export: ";
+  for (auto& name : columnNames) {
+    result += name + ", ";
+  }
+  result += "To: " + fileName;
+  return result;
 }
 
-void LogicalCopyTo::computeFactorizedSchema() {
-    copyChildSchema(0);
-}
+void LogicalCopyTo::computeFactorizedSchema() { copyChildSchema(0); }
 
-void LogicalCopyTo::computeFlatSchema() {
-    copyChildSchema(0);
-}
+void LogicalCopyTo::computeFlatSchema() { copyChildSchema(0); }
 
 f_group_pos_set LogicalCopyTo::getGroupsPosToFlatten() {
-    auto childSchema = children[0]->getSchema();
-    auto dependentGroupsPos = childSchema->getGroupsPosInScope();
-    return FlattenAllButOne::getGroupsPosToFlatten(dependentGroupsPos, *childSchema);
+  auto childSchema = children[0]->getSchema();
+  auto dependentGroupsPos = childSchema->getGroupsPosInScope();
+  return FlattenAllButOne::getGroupsPosToFlatten(dependentGroupsPos,
+                                                 *childSchema);
 }
 
-} // namespace planner
-} // namespace kuzu
+}  // namespace planner
+}  // namespace kuzu

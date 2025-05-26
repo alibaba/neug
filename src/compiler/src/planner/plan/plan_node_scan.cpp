@@ -7,17 +7,19 @@ namespace kuzu {
 namespace planner {
 
 LogicalPlan Planner::getNodePropertyScanPlan(const NodeExpression& node) {
-    auto properties = getProperties(node);
-    auto scanPlan = LogicalPlan();
-    if (properties.empty()) {
-        return scanPlan;
-    }
-    // Because the node is not
-    cardinalityEstimator.addNodeIDDomAndStats(clientContext->getTransaction(),
-        *node.getInternalID(), node.getTableIDs());
-    appendScanNodeTable(node.getInternalID(), node.getTableIDs(), properties, scanPlan);
+  auto properties = getProperties(node);
+  auto scanPlan = LogicalPlan();
+  if (properties.empty()) {
     return scanPlan;
+  }
+  // Because the node is not
+  cardinalityEstimator.addNodeIDDomAndStats(clientContext->getTransaction(),
+                                            *node.getInternalID(),
+                                            node.getTableIDs());
+  appendScanNodeTable(node.getInternalID(), node.getTableIDs(), properties,
+                      scanPlan);
+  return scanPlan;
 }
 
-} // namespace planner
-} // namespace kuzu
+}  // namespace planner
+}  // namespace kuzu

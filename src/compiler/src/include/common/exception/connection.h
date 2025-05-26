@@ -7,10 +7,10 @@ namespace kuzu {
 namespace common {
 
 class KUZU_API ConnectionException : public Exception {
-public:
-    explicit ConnectionException(const std::string& msg)
-        : Exception("Connection exception: " + msg){};
+ public:
+  explicit ConnectionException(const std::string& msg)
+      : Exception("Connection exception: " + msg){};
 };
 
-} // namespace common
-} // namespace kuzu
+}  // namespace common
+}  // namespace kuzu

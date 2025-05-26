@@ -14,7 +14,7 @@ class CatalogEntry;
 class CatalogSet;
 class SequenceCatalogEntry;
 struct SequenceRollbackData;
-} // namespace catalog
+}  // namespace catalog
 namespace main {
 class ClientContext;
 }
@@ -27,150 +27,174 @@ class UpdateInfo;
 struct VectorUpdateInfo;
 class ChunkedNodeGroup;
 class VersionRecordHandler;
-} // namespace storage
+}  // namespace storage
 namespace transaction {
 class TransactionManager;
 
-enum class TransactionType : uint8_t { READ_ONLY, WRITE, CHECKPOINT, DUMMY, RECOVERY };
+enum class TransactionType : uint8_t {
+  READ_ONLY,
+  WRITE,
+  CHECKPOINT,
+  DUMMY,
+  RECOVERY
+};
 
 class LocalCacheManager;
 class KUZU_API LocalCacheObject {
-public:
-    explicit LocalCacheObject(std::string key) : key{std::move(key)} {}
+ public:
+  explicit LocalCacheObject(std::string key) : key{std::move(key)} {}
 
-    virtual ~LocalCacheObject() = default;
+  virtual ~LocalCacheObject() = default;
 
-    std::string getKey() const { return key; }
+  std::string getKey() const { return key; }
 
-    template<typename T>
-    T* cast() {
-        return common::ku_dynamic_cast<T*>(this);
-    }
+  template <typename T>
+  T* cast() {
+    return common::ku_dynamic_cast<T*>(this);
+  }
 
-private:
-    std::string key;
+ private:
+  std::string key;
 };
 
 class LocalCacheManager {
-public:
-    bool contains(const std::string& key) {
-        std::unique_lock lck{mtx};
-        return cachedObjects.contains(key);
-    }
-    LocalCacheObject& at(const std::string& key) {
-        std::unique_lock lck{mtx};
-        return *cachedObjects.at(key);
-    }
-    bool put(std::unique_ptr<LocalCacheObject> object);
+ public:
+  bool contains(const std::string& key) {
+    std::unique_lock lck{mtx};
+    return cachedObjects.contains(key);
+  }
+  LocalCacheObject& at(const std::string& key) {
+    std::unique_lock lck{mtx};
+    return *cachedObjects.at(key);
+  }
+  bool put(std::unique_ptr<LocalCacheObject> object);
 
-    void remove(const std::string& key) {
-        std::unique_lock lck{mtx};
-        cachedObjects.erase(key);
-    }
+  void remove(const std::string& key) {
+    std::unique_lock lck{mtx};
+    cachedObjects.erase(key);
+  }
 
-private:
-    std::unordered_map<std::string, std::unique_ptr<LocalCacheObject>> cachedObjects;
-    std::mutex mtx;
+ private:
+  std::unordered_map<std::string, std::unique_ptr<LocalCacheObject>>
+      cachedObjects;
+  std::mutex mtx;
 };
 
 class Transaction {
-    friend class TransactionManager;
+  friend class TransactionManager;
 
-public:
-    static constexpr common::transaction_t DUMMY_TRANSACTION_ID = 0;
-    static constexpr common::transaction_t DUMMY_START_TIMESTAMP = 0;
-    static constexpr common::transaction_t START_TRANSACTION_ID =
-        static_cast<common::transaction_t>(1) << 63;
+ public:
+  static constexpr common::transaction_t DUMMY_TRANSACTION_ID = 0;
+  static constexpr common::transaction_t DUMMY_START_TIMESTAMP = 0;
+  static constexpr common::transaction_t START_TRANSACTION_ID =
+      static_cast<common::transaction_t>(1) << 63;
 
-    Transaction(main::ClientContext& clientContext, TransactionType transactionType,
-        common::transaction_t transactionID, common::transaction_t startTS);
+  Transaction(main::ClientContext& clientContext,
+              TransactionType transactionType,
+              common::transaction_t transactionID,
+              common::transaction_t startTS);
 
-    explicit Transaction(TransactionType transactionType) noexcept;
-    Transaction(TransactionType transactionType, common::transaction_t ID,
-        common::transaction_t startTS) noexcept;
+  explicit Transaction(TransactionType transactionType) noexcept;
+  Transaction(TransactionType transactionType, common::transaction_t ID,
+              common::transaction_t startTS) noexcept;
 
-    ~Transaction();
+  ~Transaction();
 
-    TransactionType getType() const { return type; }
-    bool isReadOnly() const { return TransactionType::READ_ONLY == type; }
-    bool isWriteTransaction() const { return TransactionType::WRITE == type; }
-    bool isDummy() const { return TransactionType::DUMMY == type; }
-    bool isRecovery() const { return TransactionType::RECOVERY == type; }
-    common::transaction_t getID() const { return ID; }
-    common::transaction_t getStartTS() const { return startTS; }
-    common::transaction_t getCommitTS() const { return commitTS; }
-    int64_t getCurrentTS() const { return currentTS; }
-    main::ClientContext* getClientContext() const { return clientContext; }
+  TransactionType getType() const { return type; }
+  bool isReadOnly() const { return TransactionType::READ_ONLY == type; }
+  bool isWriteTransaction() const { return TransactionType::WRITE == type; }
+  bool isDummy() const { return TransactionType::DUMMY == type; }
+  bool isRecovery() const { return TransactionType::RECOVERY == type; }
+  common::transaction_t getID() const { return ID; }
+  common::transaction_t getStartTS() const { return startTS; }
+  common::transaction_t getCommitTS() const { return commitTS; }
+  int64_t getCurrentTS() const { return currentTS; }
+  main::ClientContext* getClientContext() const { return clientContext; }
 
-    void checkForceCheckpoint(common::StatementType statementType) {
-        if (statementType == common::StatementType::COPY_FROM) {
-            forceCheckpoint = true;
-        }
+  void checkForceCheckpoint(common::StatementType statementType) {
+    if (statementType == common::StatementType::COPY_FROM) {
+      forceCheckpoint = true;
     }
-    bool shouldAppendToUndoBuffer() const {
-        return getID() > DUMMY_TRANSACTION_ID && !isReadOnly();
-    }
-    bool shouldLogToWAL() const;
+  }
+  bool shouldAppendToUndoBuffer() const {
+    return getID() > DUMMY_TRANSACTION_ID && !isReadOnly();
+  }
+  bool shouldLogToWAL() const;
 
-    bool shouldForceCheckpoint() const;
+  bool shouldForceCheckpoint() const;
 
-    KUZU_API void commit(storage::WAL* wal);
-    void rollback(storage::WAL* wal);
+  KUZU_API void commit(storage::WAL* wal);
+  void rollback(storage::WAL* wal);
 
-    uint64_t getEstimatedMemUsage() const;
-    LocalCacheManager& getLocalCacheManager() { return localCacheManager; }
-    bool isUnCommitted(common::table_id_t tableID, common::offset_t nodeOffset) const {
-        return nodeOffset >= getMinUncommittedNodeOffset(tableID);
-    }
-    common::row_idx_t getLocalRowIdx(common::table_id_t tableID,
-        common::offset_t nodeOffset) const {
-        KU_ASSERT(isUnCommitted(tableID, nodeOffset));
-        return nodeOffset - getMinUncommittedNodeOffset(tableID);
-    }
-    common::offset_t getUncommittedOffset(common::table_id_t tableID,
-        common::row_idx_t localRowIdx) const {
-        return getMinUncommittedNodeOffset(tableID) + localRowIdx;
-    }
-    common::offset_t getMinUncommittedNodeOffset(common::table_id_t tableID) const {
-        return minUncommittedNodeOffsets.contains(tableID) ? minUncommittedNodeOffsets.at(tableID) :
-                                                             0;
-    }
-    void pushCreateDropCatalogEntry(catalog::CatalogSet& catalogSet,
-        catalog::CatalogEntry& catalogEntry, bool isInternal, bool skipLoggingToWAL = false);
-    void pushAlterCatalogEntry(catalog::CatalogSet& catalogSet, catalog::CatalogEntry& catalogEntry,
-        const binder::BoundAlterInfo& alterInfo);
-    void pushSequenceChange(catalog::SequenceCatalogEntry* sequenceEntry, int64_t kCount,
-        const catalog::SequenceRollbackData& data);
-    void pushInsertInfo(common::node_group_idx_t nodeGroupIdx, common::row_idx_t startRow,
-        common::row_idx_t numRows, const storage::VersionRecordHandler* versionRecordHandler) const;
-    void pushDeleteInfo(common::node_group_idx_t nodeGroupIdx, common::row_idx_t startRow,
-        common::row_idx_t numRows, const storage::VersionRecordHandler* versionRecordHandler) const;
-    void pushVectorUpdateInfo(storage::UpdateInfo& updateInfo, common::idx_t vectorIdx,
-        storage::VectorUpdateInfo& vectorUpdateInfo) const;
+  uint64_t getEstimatedMemUsage() const;
+  LocalCacheManager& getLocalCacheManager() { return localCacheManager; }
+  bool isUnCommitted(common::table_id_t tableID,
+                     common::offset_t nodeOffset) const {
+    return nodeOffset >= getMinUncommittedNodeOffset(tableID);
+  }
+  common::row_idx_t getLocalRowIdx(common::table_id_t tableID,
+                                   common::offset_t nodeOffset) const {
+    KU_ASSERT(isUnCommitted(tableID, nodeOffset));
+    return nodeOffset - getMinUncommittedNodeOffset(tableID);
+  }
+  common::offset_t getUncommittedOffset(common::table_id_t tableID,
+                                        common::row_idx_t localRowIdx) const {
+    return getMinUncommittedNodeOffset(tableID) + localRowIdx;
+  }
+  common::offset_t getMinUncommittedNodeOffset(
+      common::table_id_t tableID) const {
+    return minUncommittedNodeOffsets.contains(tableID)
+               ? minUncommittedNodeOffsets.at(tableID)
+               : 0;
+  }
+  void pushCreateDropCatalogEntry(catalog::CatalogSet& catalogSet,
+                                  catalog::CatalogEntry& catalogEntry,
+                                  bool isInternal,
+                                  bool skipLoggingToWAL = false);
+  void pushAlterCatalogEntry(catalog::CatalogSet& catalogSet,
+                             catalog::CatalogEntry& catalogEntry,
+                             const binder::BoundAlterInfo& alterInfo);
+  void pushSequenceChange(catalog::SequenceCatalogEntry* sequenceEntry,
+                          int64_t kCount,
+                          const catalog::SequenceRollbackData& data);
+  void pushInsertInfo(
+      common::node_group_idx_t nodeGroupIdx, common::row_idx_t startRow,
+      common::row_idx_t numRows,
+      const storage::VersionRecordHandler* versionRecordHandler) const;
+  void pushDeleteInfo(
+      common::node_group_idx_t nodeGroupIdx, common::row_idx_t startRow,
+      common::row_idx_t numRows,
+      const storage::VersionRecordHandler* versionRecordHandler) const;
+  void pushVectorUpdateInfo(storage::UpdateInfo& updateInfo,
+                            common::idx_t vectorIdx,
+                            storage::VectorUpdateInfo& vectorUpdateInfo) const;
 
-    static Transaction getDummyTransactionFromExistingOne(const Transaction& other);
+  static Transaction getDummyTransactionFromExistingOne(
+      const Transaction& other);
 
-private:
-    Transaction(TransactionType transactionType, common::transaction_t ID,
-        common::transaction_t startTS,
-        std::unordered_map<common::table_id_t, common::offset_t> minUncommittedNodeOffsets);
+ private:
+  Transaction(TransactionType transactionType, common::transaction_t ID,
+              common::transaction_t startTS,
+              std::unordered_map<common::table_id_t, common::offset_t>
+                  minUncommittedNodeOffsets);
 
-private:
-    TransactionType type;
-    common::transaction_t ID;
-    common::transaction_t startTS;
-    common::transaction_t commitTS;
-    int64_t currentTS;
-    main::ClientContext* clientContext;
-    LocalCacheManager localCacheManager;
-    bool forceCheckpoint;
-    bool hasCatalogChanges;
+ private:
+  TransactionType type;
+  common::transaction_t ID;
+  common::transaction_t startTS;
+  common::transaction_t commitTS;
+  int64_t currentTS;
+  main::ClientContext* clientContext;
+  LocalCacheManager localCacheManager;
+  bool forceCheckpoint;
+  bool hasCatalogChanges;
 
-    std::unordered_map<common::table_id_t, common::offset_t> minUncommittedNodeOffsets;
+  std::unordered_map<common::table_id_t, common::offset_t>
+      minUncommittedNodeOffsets;
 };
 
 extern KUZU_API Transaction DUMMY_TRANSACTION;
 extern KUZU_API Transaction DUMMY_CHECKPOINT_TRANSACTION;
 
-} // namespace transaction
-} // namespace kuzu
+}  // namespace transaction
+}  // namespace kuzu

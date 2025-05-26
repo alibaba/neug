@@ -7,14 +7,14 @@ namespace kuzu {
 namespace common {
 
 enum class ConflictAction : uint8_t {
-    ON_CONFLICT_THROW = 0,
-    ON_CONFLICT_DO_NOTHING = 1,
-    INVALID = 255,
+  ON_CONFLICT_THROW = 0,
+  ON_CONFLICT_DO_NOTHING = 1,
+  INVALID = 255,
 };
 
 struct ConflictActionUtil {
-    static std::string toString(ConflictAction conflictAction);
+  static std::string toString(ConflictAction conflictAction);
 };
 
-} // namespace common
-} // namespace kuzu
+}  // namespace common
+}  // namespace kuzu
