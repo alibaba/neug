@@ -23,22 +23,18 @@ namespace gs {
 namespace config_parsing {
 
 std::string PrimitivePropertyTypeToString(PropertyType type) {
-  if (type == PropertyType::kInt32) {
+  if (type == PropertyType::kEmpty) {
+    return "Empty";
+  } else if (type == PropertyType::kBool) {
+    return DT_BOOL;
+  } else if (type == PropertyType::kUInt8) {
+    return DT_UNSIGNED_INT8;
+  } else if (type == PropertyType::kUInt16) {
+    return DT_UNSIGNED_INT16;
+  } else if (type == PropertyType::kInt32) {
     return DT_SIGNED_INT32;
   } else if (type == PropertyType::kUInt32) {
     return DT_UNSIGNED_INT32;
-  } else if (type == PropertyType::kBool) {
-    return DT_BOOL;
-  } else if (type == PropertyType::kDate) {
-    return DT_DATE;
-  } else if (type == PropertyType::kDay) {
-    return DT_DAY;
-  } else if (type == PropertyType::kStringView) {
-    return DT_STRING;
-  } else if (type == PropertyType::kStringMap) {
-    return DT_STRINGMAP;
-  } else if (type == PropertyType::kEmpty) {
-    return "Empty";
   } else if (type == PropertyType::kInt64) {
     return DT_SIGNED_INT64;
   } else if (type == PropertyType::kUInt64) {
@@ -47,8 +43,26 @@ std::string PrimitivePropertyTypeToString(PropertyType type) {
     return DT_FLOAT;
   } else if (type == PropertyType::kDouble) {
     return DT_DOUBLE;
+  } else if (type == PropertyType::kStringView) {
+    return DT_STRING;
+  } else if (type == PropertyType::kStringMap) {
+    return DT_STRINGMAP;
+  } else if (type == PropertyType::kVertexGlobalId) {
+    return "VertexGlobalId";
+  } else if (type == PropertyType::kLabel) {
+    return "Label";
+  } else if (type == PropertyType::kRecord) {
+    return "Record";
+  } else if (type == PropertyType::kRecordView) {
+    return "RecordView";
+  } else if (type == PropertyType::kDate) {
+    return DT_DATE;
+  } else if (type == PropertyType::kDateTime) {
+    return DT_DATETIME;
+  } else if (type == PropertyType::kInterval) {
+    return DT_INTERVAL;
   } else {
-    return "Empty";
+    LOG(FATAL) << "Unknown property type: " << type;
   }
 }
 
@@ -61,8 +75,10 @@ PropertyType StringToPrimitivePropertyType(const std::string& str) {
     return PropertyType::kBool;
   } else if (str == "Date" || str == DT_DATE) {
     return PropertyType::kDate;
-  } else if (str == "Day" || str == DT_DAY || str == "day") {
-    return PropertyType::kDay;
+  } else if (str == "DateTime" || str == DT_DATETIME) {
+    return PropertyType::kDateTime;
+  } else if (str == "Interval" || str == DT_INTERVAL) {
+    return PropertyType::kInterval;
   } else if (str == "String" || str == "STRING" || str == DT_STRING) {
     // DT_STRING is a alias for VARCHAR(GetStringDefaultMaxLength());
     return PropertyType::Varchar(PropertyType::GetStringDefaultMaxLength());
@@ -215,22 +231,20 @@ const PropertyType PropertyType::kInt32 =
     PropertyType(impl::PropertyTypeImpl::kInt32);
 const PropertyType PropertyType::kUInt32 =
     PropertyType(impl::PropertyTypeImpl::kUInt32);
-const PropertyType PropertyType::kFloat =
-    PropertyType(impl::PropertyTypeImpl::kFloat);
 const PropertyType PropertyType::kInt64 =
     PropertyType(impl::PropertyTypeImpl::kInt64);
 const PropertyType PropertyType::kUInt64 =
     PropertyType(impl::PropertyTypeImpl::kUInt64);
+const PropertyType PropertyType::kFloat =
+    PropertyType(impl::PropertyTypeImpl::kFloat);
 const PropertyType PropertyType::kDouble =
     PropertyType(impl::PropertyTypeImpl::kDouble);
-const PropertyType PropertyType::kDate =
-    PropertyType(impl::PropertyTypeImpl::kDate);
-const PropertyType PropertyType::kDay =
-    PropertyType(impl::PropertyTypeImpl::kDay);
 const PropertyType PropertyType::kStringView =
     PropertyType(impl::PropertyTypeImpl::kStringView);
 const PropertyType PropertyType::kStringMap =
     PropertyType(impl::PropertyTypeImpl::kStringMap);
+const PropertyType PropertyType::kString =
+    PropertyType(impl::PropertyTypeImpl::kString);
 const PropertyType PropertyType::kVertexGlobalId =
     PropertyType(impl::PropertyTypeImpl::kVertexGlobalId);
 const PropertyType PropertyType::kLabel =
@@ -239,8 +253,13 @@ const PropertyType PropertyType::kRecordView =
     PropertyType(impl::PropertyTypeImpl::kRecordView);
 const PropertyType PropertyType::kRecord =
     PropertyType(impl::PropertyTypeImpl::kRecord);
-const PropertyType PropertyType::kString =
-    PropertyType(impl::PropertyTypeImpl::kString);
+
+const PropertyType PropertyType::kDate =
+    PropertyType(impl::PropertyTypeImpl::kDate);
+const PropertyType PropertyType::kDateTime =
+    PropertyType(impl::PropertyTypeImpl::kDateTime);
+const PropertyType PropertyType::kInterval =
+    PropertyType(impl::PropertyTypeImpl::kInterval);
 
 bool PropertyType::operator==(const PropertyType& other) const {
   if (type_enum == impl::PropertyTypeImpl::kVarChar &&
@@ -287,18 +306,16 @@ std::string PropertyType::ToString() const {
     return "Int32";
   case impl::PropertyTypeImpl::kUInt32:
     return "UInt32";
-  case impl::PropertyTypeImpl::kFloat:
-    return "Float";
   case impl::PropertyTypeImpl::kInt64:
     return "Int64";
   case impl::PropertyTypeImpl::kUInt64:
     return "UInt64";
+  case impl::PropertyTypeImpl::kFloat:
+    return "Float";
   case impl::PropertyTypeImpl::kDouble:
     return "Double";
-  case impl::PropertyTypeImpl::kDate:
-    return "Date";
-  case impl::PropertyTypeImpl::kDay:
-    return "Day";
+  case impl::PropertyTypeImpl::kVarChar:
+    return "VarChar";
   case impl::PropertyTypeImpl::kString:
     return "String";
   case impl::PropertyTypeImpl::kStringView:
@@ -313,8 +330,12 @@ std::string PropertyType::ToString() const {
     return "RecordView";
   case impl::PropertyTypeImpl::kRecord:
     return "Record";
-  case impl::PropertyTypeImpl::kVarChar:
-    return "VarChar";
+  case impl::PropertyTypeImpl::kDate:
+    return "Date";
+  case impl::PropertyTypeImpl::kDateTime:
+    return "DateTime";
+  case impl::PropertyTypeImpl::kInterval:
+    return "Interval";
   default:
     return "Unknown";
   }
@@ -340,23 +361,17 @@ PropertyType PropertyType::Int32() {
 PropertyType PropertyType::UInt32() {
   return PropertyType(impl::PropertyTypeImpl::kUInt32);
 }
-PropertyType PropertyType::Float() {
-  return PropertyType(impl::PropertyTypeImpl::kFloat);
-}
 PropertyType PropertyType::Int64() {
   return PropertyType(impl::PropertyTypeImpl::kInt64);
 }
 PropertyType PropertyType::UInt64() {
   return PropertyType(impl::PropertyTypeImpl::kUInt64);
 }
+PropertyType PropertyType::Float() {
+  return PropertyType(impl::PropertyTypeImpl::kFloat);
+}
 PropertyType PropertyType::Double() {
   return PropertyType(impl::PropertyTypeImpl::kDouble);
-}
-PropertyType PropertyType::Date() {
-  return PropertyType(impl::PropertyTypeImpl::kDate);
-}
-PropertyType PropertyType::Day() {
-  return PropertyType(impl::PropertyTypeImpl::kDay);
 }
 PropertyType PropertyType::String() {
   return PropertyType(impl::PropertyTypeImpl::kString);
@@ -385,6 +400,18 @@ PropertyType PropertyType::RecordView() {
 
 PropertyType PropertyType::Record() {
   return PropertyType(impl::PropertyTypeImpl::kRecord);
+}
+
+PropertyType PropertyType::Date() {
+  return PropertyType(impl::PropertyTypeImpl::kDate);
+}
+
+PropertyType PropertyType::DateTime() {
+  return PropertyType(impl::PropertyTypeImpl::kDateTime);
+}
+
+PropertyType PropertyType::Interval() {
+  return PropertyType(impl::PropertyTypeImpl::kInterval);
 }
 
 grape::InArchive& operator<<(grape::InArchive& in_archive,
@@ -417,18 +444,14 @@ grape::InArchive& operator<<(grape::InArchive& in_archive, const Any& value) {
     in_archive << value.type << value.value.i;
   } else if (value.type == PropertyType::UInt32()) {
     in_archive << value.type << value.value.ui;
-  } else if (value.type == PropertyType::Float()) {
-    in_archive << value.type << value.value.f;
   } else if (value.type == PropertyType::Int64()) {
     in_archive << value.type << value.value.l;
   } else if (value.type == PropertyType::UInt64()) {
     in_archive << value.type << value.value.ul;
+  } else if (value.type == PropertyType::Float()) {
+    in_archive << value.type << value.value.f;
   } else if (value.type == PropertyType::Double()) {
     in_archive << value.type << value.value.db;
-  } else if (value.type == PropertyType::Date()) {
-    in_archive << value.type << value.value.d.milli_second;
-  } else if (value.type == PropertyType::Day()) {
-    in_archive << value.type << value.value.day.to_u32();
   } else if (value.type == impl::PropertyTypeImpl::kString) {
     // serialize as string_view
     auto s = *value.value.s_ptr;
@@ -447,8 +470,14 @@ grape::InArchive& operator<<(grape::InArchive& in_archive, const Any& value) {
     for (size_t i = 0; i < value.value.record.len; ++i) {
       in_archive << value.value.record.props[i];
     }
+  } else if (value.type == PropertyType::Date()) {
+    in_archive << value.type << value.value.d.to_u32();
+  } else if (value.type == PropertyType::DateTime()) {
+    in_archive << value.type << value.value.dt.milli_second;
+  } else if (value.type == PropertyType::Interval()) {
+    in_archive << value.type << value.value.interval.to_u64();
   } else {
-    in_archive << PropertyType::kEmpty;
+    LOG(FATAL) << "Not supported";
   }
 
   return in_archive;
@@ -475,14 +504,6 @@ grape::OutArchive& operator>>(grape::OutArchive& out_archive, Any& value) {
     out_archive >> value.value.ul;
   } else if (value.type == PropertyType::Double()) {
     out_archive >> value.value.db;
-  } else if (value.type == PropertyType::Date()) {
-    int64_t date_val;
-    out_archive >> date_val;
-    value.value.d.milli_second = date_val;
-  } else if (value.type == PropertyType::Day()) {
-    uint32_t val;
-    out_archive >> val;
-    value.value.day.from_u32(val);
   } else if (value.type.type_enum == impl::PropertyTypeImpl::kString) {
     LOG(FATAL) << "Not supported";
   } else if (value.type == PropertyType::StringView()) {
@@ -502,8 +523,20 @@ grape::OutArchive& operator>>(grape::OutArchive& out_archive, Any& value) {
       out_archive >> r.props[i];
     }
     value.set_record(r);
+  } else if (value.type == PropertyType::Date()) {
+    uint32_t date_val;
+    out_archive >> date_val;
+    value.value.d.from_u32(date_val);
+  } else if (value.type == PropertyType::DateTime()) {
+    int64_t date_time_val;
+    out_archive >> date_time_val;
+    value.value.dt.milli_second = date_time_val;
+  } else if (value.type == PropertyType::Interval()) {
+    uint64_t interval_val;
+    out_archive >> interval_val;
+    value.value.interval.from_u64(interval_val);
   } else {
-    value.type = PropertyType::kEmpty;
+    LOG(FATAL) << "Not supported";
   }
 
   return out_archive;
@@ -545,6 +578,19 @@ grape::OutArchive& operator>>(grape::OutArchive& out_archive, LabelKey& value) {
   return out_archive;
 }
 
+grape::InArchive& operator<<(grape::InArchive& in_archive,
+                             const Interval& value) {
+  in_archive << value.to_u64();
+  return in_archive;
+}
+
+grape::OutArchive& operator>>(grape::OutArchive& out_archive, Interval& value) {
+  uint64_t interval_val;
+  out_archive >> interval_val;
+  value.from_u64(interval_val);
+  return out_archive;
+}
+
 GlobalId::label_id_t GlobalId::get_label_id(gid_t gid) {
   return static_cast<label_id_t>(gid >> label_id_offset);
 }
@@ -571,37 +617,102 @@ GlobalId::vid_t GlobalId::vid() const {
 
 std::string GlobalId::to_string() const { return std::to_string(global_id); }
 
-Date::Date(int64_t x) : milli_second(x) {}
+Date::Date(int64_t x) { from_timestamp(x); }
 
-std::string Date::to_string() const { return std::to_string(milli_second); }
-
-Day::Day(int64_t ts) { from_timestamp(ts); }
-
-std::string Day::to_string() const {
+std::string Date::to_string() const {
   return std::to_string(static_cast<int>(year())) + "-" +
          std::to_string(static_cast<int>(month())) + "-" +
          std::to_string(static_cast<int>(day()));
 }
 
-uint32_t Day::to_u32() const { return value.integer; }
+uint32_t Date::to_u32() const { return value.integer; }
 
-void Day::from_u32(uint32_t val) { value.integer = val; }
+uint32_t Date::to_num_days() const {
+  // Convert to a number of days since epoch (1970-01-01)
+  int64_t epoch_millis = to_timestamp();
+  int64_t days_since_epoch = epoch_millis / (24 * 60 * 60 * 1000);
+  return static_cast<uint32_t>(days_since_epoch);
+}
 
-int Day::year() const { return value.internal.year; }
+void Date::from_num_days(int32_t num_days) {
+  // Convert from number of days since epoch (1970-01-01)
+  int64_t epoch_millis = static_cast<int64_t>(num_days) * 24 * 60 * 60 * 1000;
+  from_timestamp(epoch_millis);
+}
 
-int Day::month() const { return value.internal.month; }
+void Date::from_u32(uint32_t val) { value.integer = val; }
 
-int Day::day() const { return value.internal.day; }
+int Date::year() const { return value.internal.year; }
 
-int Day::hour() const { return value.internal.hour; }
+int Date::month() const { return value.internal.month; }
+
+int Date::day() const { return value.internal.day; }
+
+int Date::hour() const { return value.internal.hour; }
+
+// int32_t Date::year() const {
+//   boost::posix_time::ptime epoch(boost::gregorian::date(1970, 1, 1));
+//   boost::posix_time::ptime time_point =
+//       epoch + boost::posix_time::milliseconds(milli_second);
+//   boost::gregorian::date date = time_point.date();
+//   return date.year();
+// }
+
+// int32_t Date::month() const {
+//   boost::posix_time::ptime epoch(boost::gregorian::date(1970, 1, 1));
+//   boost::posix_time::ptime time_point =
+//       epoch + boost::posix_time::milliseconds(milli_second);
+//   boost::gregorian::date date = time_point.date();
+//   return date.month().as_number();
+// }
+
+// int32_t Date::day() const {
+//   boost::posix_time::ptime epoch(boost::gregorian::date(1970, 1, 1));
+//   boost::posix_time::ptime time_point =
+//       epoch + boost::posix_time::milliseconds(milli_second);
+//   boost::gregorian::date date = time_point.date();
+//   return date.day();
+// }
+
+std::string DateTime::to_string() const {
+  // Convert to a string representation, YYYY-MM-DD HH:MM:SS.zzz
+  boost::posix_time::ptime epoch(boost::gregorian::date(1970, 1, 1));
+  boost::posix_time::ptime time_point =
+      epoch + boost::posix_time::milliseconds(milli_second);
+  boost::posix_time::time_duration td = time_point.time_of_day();
+  boost::gregorian::date date = time_point.date();
+  std::ostringstream oss;
+  oss << date.year() << "-" << std::setw(2) << std::setfill('0')
+      << date.month().as_number() << "-" << std::setw(2) << std::setfill('0')
+      << date.day() << " " << std::setw(2) << std::setfill('0') << td.hours()
+      << ":" << std::setw(2) << std::setfill('0') << td.minutes() << ":"
+      << std::setw(2) << std::setfill('0') << td.seconds() << "."
+      << std::setw(3) << std::setfill('0') << milli_second % 1000;
+  return oss.str();
+}
+
+// Interval
+
+std::string Interval::to_string() const {
+  // Convert to a string representation, YYYY-MM-DD HH:MM:SS.zzz
+  boost::posix_time::ptime epoch(boost::gregorian::date(1970, 1, 1));
+  boost::posix_time::ptime time_point =
+      epoch + boost::posix_time::milliseconds(value.integer);
+  boost::posix_time::time_duration td = time_point.time_of_day();
+  boost::gregorian::date date = time_point.date();
+  std::ostringstream oss;
+  oss << date.year() << "-" << std::setw(2) << std::setfill('0')
+      << date.month().as_number() << "-" << std::setw(2) << std::setfill('0')
+      << date.day() << " " << std::setw(2) << std::setfill('0') << td.hours()
+      << ":" << std::setw(2) << std::setfill('0') << td.minutes() << ":"
+      << std::setw(2) << std::setfill('0') << td.seconds() << "."
+      << std::setw(3) << std::setfill('0') << value.integer % 1000;
+  return oss.str();
+}
 
 Any ConvertStringToAny(const std::string& value, const gs::PropertyType& type) {
   if (type == gs::PropertyType::Int32()) {
     return gs::Any(static_cast<int32_t>(std::stoi(value)));
-  } else if (type == gs::PropertyType::Date()) {
-    return gs::Any(gs::Date(static_cast<int64_t>(std::stoll(value))));
-  } else if (type == gs::PropertyType::Day()) {
-    return gs::Any(gs::Day(static_cast<int64_t>(std::stoll(value))));
   } else if (type == gs::PropertyType::String() ||
              type == gs::PropertyType::StringMap()) {
     return gs::Any(std::string(value));
@@ -638,6 +749,8 @@ Any ConvertStringToAny(const std::string& value, const gs::PropertyType& type) {
     return gs::Any();
   } else if (type == gs::PropertyType::StringView()) {
     return gs::Any(std::string_view(value));
+  } else if (type == gs::PropertyType::Date()) {
+    return gs::Any(gs::Date(static_cast<int64_t>(std::stoll(value))));
   } else {
     LOG(ERROR) << "Unsupported type: " << type.ToString();
     return gs::Any();

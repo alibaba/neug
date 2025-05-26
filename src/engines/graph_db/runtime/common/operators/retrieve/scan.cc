@@ -96,11 +96,11 @@ bl::result<Context> Scan::scan_vertex_with_special_vertex_predicate(
   } else if (pred.data_type() == RTAnyType::kF64Value) {
     return _scan_vertex_with_special_vertex_predicate<double>(
         std::move(ctx), graph, params, pred);
-  } else if (pred.data_type() == RTAnyType::kDate32) {
-    return _scan_vertex_with_special_vertex_predicate<Day>(std::move(ctx),
-                                                           graph, params, pred);
-  } else if (pred.data_type() == RTAnyType::kTimestamp) {
+  } else if (pred.data_type() == RTAnyType::kDate) {
     return _scan_vertex_with_special_vertex_predicate<Date>(
+        std::move(ctx), graph, params, pred);
+  } else if (pred.data_type() == RTAnyType::kDateTime) {
+    return _scan_vertex_with_special_vertex_predicate<DateTime>(
         std::move(ctx), graph, params, pred);
   } else {
     LOG(ERROR) << "not impl... - " << static_cast<int>(pred.data_type());
@@ -159,11 +159,11 @@ bl::result<Context> Scan::filter_gids_with_special_vertex_predicate(
   } else if (predicate.data_type() == RTAnyType::kF64Value) {
     return _filter_gids_with_special_vertex_predicate<double>(
         std::move(ctx), graph, params, predicate, oids);
-  } else if (predicate.data_type() == RTAnyType::kDate32) {
-    return _filter_gids_with_special_vertex_predicate<Day>(
-        std::move(ctx), graph, params, predicate, oids);
-  } else if (predicate.data_type() == RTAnyType::kTimestamp) {
+  } else if (predicate.data_type() == RTAnyType::kDate) {
     return _filter_gids_with_special_vertex_predicate<Date>(
+        std::move(ctx), graph, params, predicate, oids);
+  } else if (predicate.data_type() == RTAnyType::kDateTime) {
+    return _filter_gids_with_special_vertex_predicate<DateTime>(
         std::move(ctx), graph, params, predicate, oids);
   } else {
     LOG(ERROR) << "not support type: "
@@ -222,11 +222,11 @@ bl::result<Context> Scan::filter_oids_with_special_vertex_predicate(
   } else if (predicate.data_type() == RTAnyType::kF64Value) {
     return _filter_oid_with_special_vertex_predicate<double>(
         std::move(ctx), graph, params, predicate, oids);
-  } else if (predicate.data_type() == RTAnyType::kDate32) {
-    return _filter_oid_with_special_vertex_predicate<Day>(
-        std::move(ctx), graph, params, predicate, oids);
-  } else if (predicate.data_type() == RTAnyType::kTimestamp) {
+  } else if (predicate.data_type() == RTAnyType::kDate) {
     return _filter_oid_with_special_vertex_predicate<Date>(
+        std::move(ctx), graph, params, predicate, oids);
+  } else if (predicate.data_type() == RTAnyType::kDateTime) {
+    return _filter_oid_with_special_vertex_predicate<DateTime>(
         std::move(ctx), graph, params, predicate, oids);
   } else {
     LOG(ERROR) << "not support type: "

@@ -470,9 +470,9 @@ static RTAny parse_param(const common::DynamicParam& param,
     auto type = parse_from_ir_data_type(param.data_type());
 
     const std::string& name = param.name();
-    if (type == RTAnyType::kDate32) {
-      Day val = Day(std::stoll(input.at(name)));
-      return RTAny::from_date32(val);
+    if (type == RTAnyType::kDate) {
+      Date val = Date(std::stoll(input.at(name)));
+      return RTAny::from_date(val);
     } else if (type == RTAnyType::kStringValue) {
       const std::string& val = input.at(name);
       return RTAny::from_string(val);
@@ -482,9 +482,9 @@ static RTAny parse_param(const common::DynamicParam& param,
     } else if (type == RTAnyType::kI64Value) {
       int64_t val = std::stoll(input.at(name));
       return RTAny::from_int64(val);
-    } else if (type == RTAnyType::kTimestamp) {
-      Date val = Date(std::stoll(input.at(name)));
-      return RTAny::from_timestamp(val);
+    } else if (type == RTAnyType::kDateTime) {
+      DateTime val = DateTime(std::stoll(input.at(name)));
+      return RTAny::from_datetime(val);
     } else if (type == RTAnyType::kF64Value) {
       double val = std::stod(input.at(name));
       return RTAny::from_double(val);
@@ -663,11 +663,12 @@ static std::unique_ptr<ExprBase> build_expr(
       if (hs->type() == RTAnyType::kI64Value) {
         return std::make_unique<ExtractExpr<int64_t>>(std::move(hs),
                                                       opr.extract());
-      } else if (hs->type() == RTAnyType::kDate32) {
-        return std::make_unique<ExtractExpr<Day>>(std::move(hs), opr.extract());
-      } else if (hs->type() == RTAnyType::kTimestamp) {
+      } else if (hs->type() == RTAnyType::kDate) {
         return std::make_unique<ExtractExpr<Date>>(std::move(hs),
                                                    opr.extract());
+      } else if (hs->type() == RTAnyType::kDateTime) {
+        return std::make_unique<ExtractExpr<DateTime>>(std::move(hs),
+                                                       opr.extract());
       } else {
         LOG(FATAL) << "not support" << static_cast<int>(hs->type());
       }

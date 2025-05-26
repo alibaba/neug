@@ -223,10 +223,10 @@ class ListValueColumn : public ListValueColumnBase {
       return unfold_impl<double>();
     } else if (elem_type_ == RTAnyType::kI32Value) {
       return unfold_impl<int32_t>();
-    } else if (elem_type_ == RTAnyType::kDate32) {
-      return unfold_impl<Day>();
-    } else if (elem_type_ == RTAnyType::kTimestamp) {
+    } else if (elem_type_ == RTAnyType::kDate) {
       return unfold_impl<Date>();
+    } else if (elem_type_ == RTAnyType::kDateTime) {
+      return unfold_impl<DateTime>();
     } else if (elem_type_ == RTAnyType::kStringValue) {
       return unfold_impl<std::string_view>();
     } else if (elem_type_ == RTAnyType::kTuple) {

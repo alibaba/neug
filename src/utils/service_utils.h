@@ -120,10 +120,6 @@ inline bool to_json(rapidjson::Document& j, const PropertyType& p) {
     rapidjson::Document temporal(rapidjson::kObjectType, &j.GetAllocator());
     temporal.AddMember("timestamp", "", j.GetAllocator());
     j.AddMember("temporal", temporal, j.GetAllocator());
-  } else if (p == PropertyType::Day()) {
-    rapidjson::Document temporal(rapidjson::kObjectType, &j.GetAllocator());
-    temporal.AddMember("date32", "", j.GetAllocator());
-    j.AddMember("temporal", temporal, j.GetAllocator());
   } else if (p == PropertyType::StringView() ||
              p == PropertyType::StringMap()) {
     rapidjson::Document long_text(rapidjson::kObjectType, &j.GetAllocator());
@@ -177,12 +173,16 @@ inline bool from_json(const rapidjson::Value& j, PropertyType& p) {
                                   rapidjson_stringify(j));
     }
   } else if (j.HasMember("temporal")) {
-    if (j["temporal"].HasMember("timestamp")) {
+    if (j["temporal"].HasMember("timestamp") ||
+        j["temporal"].HasMember("datetime")) {
+      p = PropertyType::DateTime();
+    } else if (j["temporal"].HasMember("date")) {
       p = PropertyType::Date();
-    } else if (j["temporal"].HasMember("date32")) {
-      p = PropertyType::Day();
+    } else if (j["temporal"].HasMember("interval")) {
+      p = PropertyType::Interval();
     } else {
-      throw std::invalid_argument("Unknown temporal type");
+      throw std::invalid_argument("Unknown temporal type: " +
+                                  rapidjson_stringify(j));
     }
   } else {
     LOG(ERROR) << "Unknown property type";

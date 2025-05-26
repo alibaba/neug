@@ -172,26 +172,27 @@ std::unique_ptr<ProjectExprBase> create_sl_property_expr(
         SLPropertyExpr<VertexColumn, std::string_view>, decltype(collector)>>(
         std::move(expr), collector, alias);
   }
-  case RTAnyType::kDate32: {
-    auto expr = SLPropertyExpr<VertexColumn, Day>(graph, column, property_name);
-    if (expr.is_optional()) {
-      return nullptr;
-    }
-    PropertyValueCollector<decltype(expr)> collector(ctx);
-    return std::make_unique<
-        ProjectExpr<SLPropertyExpr<VertexColumn, Day>, decltype(collector)>>(
-        std::move(expr), collector, alias);
-  }
-  case RTAnyType::kTimestamp: {
+  case RTAnyType::kDate: {
     auto expr =
         SLPropertyExpr<VertexColumn, Date>(graph, column, property_name);
-    PropertyValueCollector<decltype(expr)> collector(ctx);
     if (expr.is_optional()) {
       return nullptr;
     }
+    PropertyValueCollector<decltype(expr)> collector(ctx);
     return std::make_unique<
         ProjectExpr<SLPropertyExpr<VertexColumn, Date>, decltype(collector)>>(
         std::move(expr), collector, alias);
+  }
+  case RTAnyType::kDateTime: {
+    auto expr =
+        SLPropertyExpr<VertexColumn, DateTime>(graph, column, property_name);
+    PropertyValueCollector<decltype(expr)> collector(ctx);
+    if (expr.is_optional()) {
+      return nullptr;
+    }
+    return std::make_unique<ProjectExpr<SLPropertyExpr<VertexColumn, DateTime>,
+                                        decltype(collector)>>(std::move(expr),
+                                                              collector, alias);
   }
   default:
     LOG(INFO) << "not implemented - " << static_cast<int>(type);
@@ -228,17 +229,7 @@ std::unique_ptr<ProjectExprBase> create_ml_property_expr(
                                                               collector, alias);
   }
 
-  case RTAnyType::kDate32: {
-    auto expr = MLPropertyExpr<VertexColumn, Day>(graph, column, property_name);
-    PropertyValueCollector<decltype(expr)> collector(ctx);
-    if (expr.is_optional()) {
-      return nullptr;
-    }
-    return std::make_unique<
-        ProjectExpr<MLPropertyExpr<VertexColumn, Day>, decltype(collector)>>(
-        std::move(expr), collector, alias);
-  }
-  case RTAnyType::kTimestamp: {
+  case RTAnyType::kDate: {
     auto expr =
         MLPropertyExpr<VertexColumn, Date>(graph, column, property_name);
     PropertyValueCollector<decltype(expr)> collector(ctx);
@@ -248,6 +239,17 @@ std::unique_ptr<ProjectExprBase> create_ml_property_expr(
     return std::make_unique<
         ProjectExpr<MLPropertyExpr<VertexColumn, Date>, decltype(collector)>>(
         std::move(expr), collector, alias);
+  }
+  case RTAnyType::kDateTime: {
+    auto expr =
+        MLPropertyExpr<VertexColumn, DateTime>(graph, column, property_name);
+    PropertyValueCollector<decltype(expr)> collector(ctx);
+    if (expr.is_optional()) {
+      return nullptr;
+    }
+    return std::make_unique<ProjectExpr<MLPropertyExpr<VertexColumn, DateTime>,
+                                        decltype(collector)>>(std::move(expr),
+                                                              collector, alias);
   }
   default:
     LOG(INFO) << "not implemented - " << static_cast<int>(type);
@@ -723,7 +725,7 @@ bool is_property_extract(const common::Expression& expr, int& tag,
         return false;
       }
       // only support pod type
-      if (type == RTAnyType::kTimestamp || type == RTAnyType::kDate32 ||
+      if (type == RTAnyType::kTimestamp || type == RTAnyType::kDate ||
           type == RTAnyType::kI64Value || type == RTAnyType::kI32Value) {
         return true;
       }
@@ -787,11 +789,11 @@ make_project_expr(const common::Expression& expr, int alias) {
     case RTAnyType::kStringValue: {
       return _make_project_expr<std::string_view>(std::move(e), alias, ctx);
     } break;
-    case RTAnyType::kDate32: {
-      return _make_project_expr<Day>(std::move(e), alias, ctx);
-    } break;
-    case RTAnyType::kTimestamp: {
+    case RTAnyType::kDate: {
       return _make_project_expr<Date>(std::move(e), alias, ctx);
+    } break;
+    case RTAnyType::kDateTime: {
+      return _make_project_expr<DateTime>(std::move(e), alias, ctx);
     } break;
     case RTAnyType::kVertex: {
       MLVertexCollector collector;
@@ -930,7 +932,7 @@ parse_special_expr(const common::Expression& expr, int alias) {
           return std::make_unique<
               ProjectExpr<decltype(sp), decltype(collector)>>(std::move(sp),
                                                               collector, alias);
-        } else if (type_ == RTAnyType::kTimestamp) {
+        } else if (type_ == RTAnyType::kDate) {
           if (vertex_col->vertex_column_type() == VertexColumnType::kSingle) {
             auto typed_vertex_col =
                 std::dynamic_pointer_cast<SLVertexColumn>(vertex_col);
@@ -989,7 +991,7 @@ parse_special_expr(const common::Expression& expr, int alias) {
           if (ptr) {
             return ptr;
           }
-        } else if (type_ == RTAnyType::kTimestamp) {
+        } else if (type_ == RTAnyType::kDate) {
           auto ptr = create_sp_pred_case_when<Date>(
               ctx, graph, params, vertex_col, ptype, name, target, then_value,
               else_value, alias);
@@ -1035,11 +1037,11 @@ make_project_expr(const common::Expression& expr,
     case RTAnyType::kStringValue: {
       return _make_project_expr<std::string_view>(expr, alias);
     } break;
-    case RTAnyType::kTimestamp: {
-      return _make_project_expr<Date>(expr, alias);
+    case RTAnyType::kDateTime: {
+      return _make_project_expr<DateTime>(expr, alias);
     } break;
-    case RTAnyType::kDate32: {
-      return _make_project_expr<Day>(expr, alias);
+    case RTAnyType::kDate: {
+      return _make_project_expr<Date>(expr, alias);
     } break;
 
     // compiler bug here

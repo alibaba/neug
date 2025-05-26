@@ -383,7 +383,7 @@ class ExtractExpr : public ExprBase {
       return extract_time_from_milli_second(val.as_timestamp().milli_second,
                                             extract_);
 
-    } else if constexpr (std::is_same_v<T, Day>) {
+    } else if constexpr (std::is_same_v<T, Date>) {
       if (extract_.interval() == common::Extract::DAY) {
         return val.as_date32().day();
       } else if (extract_.interval() == common::Extract::MONTH) {

@@ -353,12 +353,22 @@ struct TypeConverter<Date> {
 };
 
 template <>
-struct TypeConverter<Day> {
-  static PropertyType property_type() { return PropertyType::kDay; }
+struct TypeConverter<DateTime> {
+  static PropertyType property_type() { return PropertyType::kDateTime; }
   using ArrowType = arrow::TimestampType;
   using ArrowArrayType = arrow::TimestampArray;
   static std::shared_ptr<arrow::DataType> ArrowTypeValue() {
     return arrow::timestamp(arrow::TimeUnit::MILLI);
+  }
+};
+
+template <>
+struct TypeConverter<Interval> {
+  static PropertyType property_type() { return PropertyType::kInterval; }
+  using ArrowType = arrow::DurationType;
+  using ArrowArrayType = arrow::DurationArray;
+  static std::shared_ptr<arrow::DataType> ArrowTypeValue() {
+    return arrow::duration(arrow::TimeUnit::MILLI);
   }
 };
 

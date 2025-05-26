@@ -343,7 +343,8 @@ enum class RTAnyType {
   kBoolValue,
   kStringValue,
   kUnknown,
-  kDate32,
+  kDate,
+  kDateTime,
   kTimestamp,
   kPath,
   kNull,
@@ -445,7 +446,7 @@ struct EdgeData {
     } else if constexpr (std::is_same_v<T, grape::EmptyType>) {
       type = RTAnyType::kEmpty;
     } else if constexpr (std::is_same_v<T, Date>) {
-      type = RTAnyType::kTimestamp;
+      type = RTAnyType::kDate;
       value.date_val = val;
     } else if constexpr (std::is_same_v<T, RecordView>) {
       type = RTAnyType::kRecordView;
@@ -469,10 +470,10 @@ struct EdgeData {
       return std::to_string(value.f64_val);
     } else if (type == RTAnyType::kBoolValue) {
       return value.b_val ? "true" : "false";
-    } else if (type == RTAnyType::kDate32) {
-      return value.day_val.to_string();
-    } else if (type == RTAnyType::kTimestamp) {
-      return std::to_string(value.date_val.milli_second);
+    } else if (type == RTAnyType::kDate) {
+      return value.date_val.to_string();
+    } else if (type == RTAnyType::kDateTime) {
+      return std::to_string(value.dt_val.milli_second);
     } else if (type == RTAnyType::kEmpty) {
       return "";
     } else if (type == RTAnyType::kRecordView) {
@@ -511,7 +512,7 @@ struct EdgeData {
       type = RTAnyType::kEmpty;
       break;
     case impl::PropertyTypeImpl::kDate:
-      type = RTAnyType::kTimestamp;
+      type = RTAnyType::kDate;
       value.date_val = any.value.d;
       break;
     case impl::PropertyTypeImpl::kRecordView:
@@ -536,7 +537,7 @@ struct EdgeData {
     } else if (type == RTAnyType::kStringValue) {
       return std::string_view(value.str_val.data(), value.str_val.size()) <
              std::string_view(e.value.str_val.data(), e.value.str_val.size());
-    } else if (type == RTAnyType::kTimestamp) {
+    } else if (type == RTAnyType::kDate) {
       return value.date_val < e.value.date_val;
     } else {
       return false;
@@ -555,10 +556,10 @@ struct EdgeData {
     } else if (type == RTAnyType::kStringValue) {
       return std::string_view(value.str_val.data(), value.str_val.size()) ==
              std::string_view(e.value.str_val.data(), e.value.str_val.size());
-    } else if (type == RTAnyType::kDate32) {
-      return value.day_val == e.value.day_val;
-    } else if (type == RTAnyType::kTimestamp) {
+    } else if (type == RTAnyType::kDate) {
       return value.date_val == e.value.date_val;
+    } else if (type == RTAnyType::kDateTime) {
+      return value.dt_val == e.value.dt_val;
     } else if (type == RTAnyType::kRecordView) {
       return value.record_view == e.value.record_view;
     } else {
@@ -574,8 +575,8 @@ struct EdgeData {
     double f64_val;
     bool b_val;
     pod_string_view str_val;
+    DateTime dt_val;
     Date date_val;
-    Day day_val;
     RecordView record_view;
     // todo: make recordview as a pod type
     // RecordView record;
@@ -629,7 +630,11 @@ inline RTAnyType parse_from_ir_data_type(const ::common::IrDataType& dt) {
       return RTAnyType::kStringValue;
     case ::common::DataType::kTemporal: {
       if (ddt.temporal().item_case() == ::common::Temporal::kDate32) {
-        return RTAnyType::kDate32;
+        return RTAnyType::kDate;
+      } else if (ddt.temporal().item_case() == ::common::Temporal::kDateTime) {
+        return RTAnyType::kDateTime;
+      } else if (ddt.temporal().item_case() == ::common::Temporal::kDate) {
+        return RTAnyType::kDate;
       } else if (ddt.temporal().item_case() == ::common::Temporal::kTimestamp) {
         return RTAnyType::kTimestamp;
       } else {
@@ -675,8 +680,9 @@ union RTAnyValue {
   uint64_t u64_val;
   int i32_val;
   double f64_val;
-  Day day;
-  Date date;
+  // Day day;
+  Date date_val;
+  DateTime dt_val;
   std::string_view str_val;
   Path p;
   Tuple t;
@@ -713,8 +719,8 @@ class RTAny {
   static RTAny from_int32(int v);
   static RTAny from_string(const std::string& str);
   static RTAny from_string(const std::string_view& str);
-  static RTAny from_date32(Day v);
-  static RTAny from_timestamp(Date v);
+  static RTAny from_date(Date v);
+  static RTAny from_datetime(DateTime v);
 
   static RTAny from_tuple(const Tuple& tuple);
   static RTAny from_list(const List& list);
@@ -726,8 +732,8 @@ class RTAny {
   int as_int32() const;
   int64_t as_int64() const;
   uint64_t as_uint64() const;
-  Day as_date32() const;
-  Date as_timestamp() const;
+  Date as_date32() const;
+  DateTime as_timestamp() const;
   double as_double() const;
   VertexRecord as_vertex() const;
   const EdgeRecord& as_edge() const;
@@ -767,10 +773,10 @@ class RTAny {
       encoder.put_string_view(value_.str_val);
     } else if (type_ == RTAnyType::kI64Value) {
       encoder.put_long(value_.i64_val);
-    } else if (type_ == RTAnyType::kDate32) {
-      encoder.put_long(value_.day.to_timestamp());
-    } else if (type_ == RTAnyType::kTimestamp) {
-      encoder.put_long(value_.date.milli_second);
+    } else if (type_ == RTAnyType::kDate) {
+      encoder.put_int(value_.date_val.to_u32());
+    } else if (type_ == RTAnyType::kDateTime) {
+      encoder.put_long(value_.dt_val.milli_second);
     } else if (type_ == RTAnyType::kI32Value) {
       encoder.put_int(value_.i32_val);
     } else if (type_ == RTAnyType::kF64Value) {
@@ -880,27 +886,28 @@ struct TypedConverter<double> {
   }
   static const std::string name() { return "double"; }
 };
-template <>
-struct TypedConverter<Day> {
-  static RTAnyType type() { return RTAnyType::kDate32; }
-  static Day to_typed(const RTAny& val) { return val.as_date32(); }
-  static RTAny from_typed(Day val) { return RTAny::from_date32(val); }
-  static const std::string name() { return "day"; }
-  static Day typed_from_string(const std::string& str) {
-    int64_t val = std::stoll(str);
-    return Day(val);
-  }
-};
 
 template <>
 struct TypedConverter<Date> {
-  static RTAnyType type() { return RTAnyType::kTimestamp; }
-  static Date to_typed(const RTAny& val) { return val.as_timestamp(); }
-  static RTAny from_typed(Date val) { return RTAny::from_timestamp(val); }
+  static RTAnyType type() { return RTAnyType::kDate; }
+  static Date to_typed(const RTAny& val) { return val.as_date32(); }
+  static RTAny from_typed(Date val) { return RTAny::from_date(val); }
   static const std::string name() { return "date"; }
   static Date typed_from_string(const std::string& str) {
     int64_t val = std::stoll(str);
     return Date(val);
+  }
+};
+
+template <>
+struct TypedConverter<DateTime> {
+  static RTAnyType type() { return RTAnyType::kDateTime; }
+  static DateTime to_typed(const RTAny& val) { return val.as_timestamp(); }
+  static RTAny from_typed(DateTime val) { return RTAny::from_datetime(val); }
+  static const std::string name() { return "datetime"; }
+  static DateTime typed_from_string(const std::string& str) {
+    int64_t val = std::stoll(str);
+    return DateTime(val);
   }
 };
 

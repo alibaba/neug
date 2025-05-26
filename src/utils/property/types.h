@@ -52,8 +52,14 @@ static constexpr const char* DT_FLOAT = "DT_FLOAT";
 static constexpr const char* DT_DOUBLE = "DT_DOUBLE";
 static constexpr const char* DT_STRING = "DT_STRING";
 static constexpr const char* DT_STRINGMAP = "DT_STRINGMAP";
-static constexpr const char* DT_DATE = "DT_DATE32";
-static constexpr const char* DT_DAY = "DT_DAY32";
+// temporal types
+static constexpr const char* DT_DATE = "DT_DATE";  // YYYY-MM-DD
+// static constexpr const char* DT_DAY = "DT_DAY32";
+// static constexpr const char* DT_DATE32 = "DT_DATE32";
+static constexpr const char* DT_DATETIME =
+    "DT_DATETIME";  // YYYY-MM-DD HH:MM:SS.zzz
+static constexpr const char* DT_INTERVAL =
+    "DT_INTERVAL";  // Y Year, M Month, D Day, H Hour, M Minute, S Second
 
 enum class StorageStrategy {
   kNone,
@@ -64,26 +70,36 @@ enum class StorageStrategy {
 namespace impl {
 
 enum class PropertyTypeImpl {
-  kInt32,
-  kDate,
-  kDay,
-  kStringView,
+  // Numeric types
   kEmpty,
-  kInt64,
-  kDouble,
-  kUInt32,
-  kUInt64,
   kBool,
-  kFloat,
   kUInt8,
   kUInt16,
+  kInt32,
+  kUInt32,
+  kInt64,
+  kUInt64,
+  // floating point types
+  kFloat,
+  kDouble,
+  // string types
+  kStringView,
   kStringMap,
   kVarChar,
+  kString,  // holding a string
+  // graph types
   kVertexGlobalId,
   kLabel,
+
+  // Stores multiple properties
   kRecordView,
   kRecord,
-  kString,
+
+  // temporal types
+  kDate,
+  kDateTime,
+  // kDay,
+  kInterval,
 };
 
 // Stores additional type information for PropertyTypeImpl
@@ -119,20 +135,23 @@ struct PropertyType {
   static PropertyType UInt16();
   static PropertyType Int32();
   static PropertyType UInt32();
-  static PropertyType Float();
   static PropertyType Int64();
   static PropertyType UInt64();
+  static PropertyType Float();
   static PropertyType Double();
-  static PropertyType Date();
-  static PropertyType Day();
+
   static PropertyType StringView();
   static PropertyType StringMap();
+  static PropertyType String();
   static PropertyType Varchar(uint16_t max_length);
   static PropertyType VertexGlobalId();
   static PropertyType Label();
   static PropertyType RecordView();
   static PropertyType Record();
-  static PropertyType String();
+
+  static PropertyType Date();
+  static PropertyType DateTime();
+  static PropertyType Interval();
 
   static const PropertyType kEmpty;
   static const PropertyType kBool;
@@ -140,19 +159,22 @@ struct PropertyType {
   static const PropertyType kUInt16;
   static const PropertyType kInt32;
   static const PropertyType kUInt32;
-  static const PropertyType kFloat;
   static const PropertyType kInt64;
   static const PropertyType kUInt64;
+  static const PropertyType kFloat;
   static const PropertyType kDouble;
-  static const PropertyType kDate;
-  static const PropertyType kDay;
+
   static const PropertyType kStringView;
   static const PropertyType kStringMap;
+  static const PropertyType kString;
   static const PropertyType kVertexGlobalId;
   static const PropertyType kLabel;
   static const PropertyType kRecordView;
   static const PropertyType kRecord;
-  static const PropertyType kString;
+
+  static const PropertyType kDate;
+  static const PropertyType kDateTime;
+  static const PropertyType kInterval;
 
   bool operator==(const PropertyType& other) const;
   bool operator!=(const PropertyType& other) const;
@@ -204,18 +226,18 @@ inline bool operator>(const GlobalId& lhs, const GlobalId& rhs) {
   return lhs.global_id > rhs.global_id;
 }
 
-struct __attribute__((packed)) Date {
-  Date() = default;
-  ~Date() = default;
-  Date(int64_t x);
+struct __attribute__((packed)) DateTime {
+  DateTime() = default;
+  ~DateTime() = default;
+  DateTime(int64_t x) : milli_second(x) {}
 
   std::string to_string() const;
 
-  bool operator<(const Date& rhs) const {
+  inline bool operator<(const DateTime& rhs) const {
     return milli_second < rhs.milli_second;
   }
 
-  bool operator==(const Date& rhs) const {
+  inline bool operator==(const DateTime& rhs) const {
     return milli_second == rhs.milli_second;
   }
 
@@ -229,15 +251,93 @@ struct DayValue {
   uint32_t hour : 5;
 };
 
-struct Day {
-  Day() = default;
-  ~Day() = default;
+struct IntervalValue {
+  uint64_t year : 18;         // 0~8192
+  uint64_t month : 4;         // 0~12
+  uint64_t day : 5;           // 0~31
+  uint64_t hour : 5;          // 0~23
+  uint64_t minute : 6;        // 0~59
+  uint64_t second : 6;        // 0~59
+  uint64_t microsecond : 10;  // 0~999
+  uint64_t millisecond : 10;  // 0~999
+  // 14+4+5+5+6+6+10+10 = 60
+};
 
-  Day(int64_t ts);
+struct Interval {
+  Interval() = default;
+  ~Interval() = default;
+
+  Interval(const IntervalValue& x) { value.internal = x; }
+  Interval(const Interval& x) { value.internal = x.value.internal; }
+  Interval(const IntervalValue& x, bool) { value.internal = x; }
+
+  Interval(int64_t x) { from_u64(x); }
+  void from_u64(uint64_t x) { value.integer = x; }
+  uint64_t to_u64() const { return value.integer; }
+
+  void from_timestamp(int64_t ts) {
+    const boost::posix_time::ptime epoch(boost::gregorian::date(1970, 1, 1));
+    boost::posix_time::ptime time_point =
+        epoch + boost::posix_time::microseconds(ts);
+    boost::posix_time::time_duration td = time_point.time_of_day();
+    boost::gregorian::date date = time_point.date();
+    value.internal.year = date.year();
+    value.internal.month = date.month().as_number();
+    value.internal.day = date.day();
+    value.internal.hour = td.hours();
+    value.internal.minute = td.minutes();
+    value.internal.second = td.seconds();
+    value.internal.microsecond = td.total_microseconds() % 1000000;
+    value.internal.millisecond = td.total_milliseconds() % 1000;
+    assert(ts == to_timestamp());
+  }
+
+  int64_t to_timestamp() const {
+    const boost::posix_time::ptime epoch(boost::gregorian::date(1970, 1, 1));
+    boost::gregorian::date new_date(year(), month(), day());
+    boost::posix_time::ptime new_time_point(
+        new_date, boost::posix_time::time_duration(hour(), minute(), second()));
+    boost::posix_time::time_duration diff = new_time_point - epoch;
+    int64_t new_timestamp_sec = diff.total_seconds();
+    int64_t new_timestamp_mill_sec =
+        new_timestamp_sec * 1000 + value.internal.millisecond;
+    return new_timestamp_mill_sec;
+  }
+
+  std::string to_string() const;
+
+  inline int32_t year() const {
+    return static_cast<int32_t>(value.internal.year);
+  }
+  int32_t month() const { return static_cast<int32_t>(value.internal.month); }
+  int32_t day() const { return static_cast<int32_t>(value.internal.day); }
+  int32_t hour() const { return static_cast<int32_t>(value.internal.hour); }
+  int32_t minute() const { return static_cast<int32_t>(value.internal.minute); }
+  int32_t second() const { return static_cast<int32_t>(value.internal.second); }
+
+ private:
+  union {
+    IntervalValue internal;
+    uint64_t integer;
+  } value;
+};
+
+struct __attribute__((packed)) Date {
+  Date() = default;
+  ~Date() = default;
+
+  Date(int64_t ts);
+
+  Date(int32_t num_days) { from_num_days(num_days); }
 
   std::string to_string() const;
 
   uint32_t to_u32() const;
+
+  uint32_t to_num_days() const;
+
+  void from_num_days(int32_t num_days);
+
   void from_u32(uint32_t val);
 
   int64_t to_timestamp() const {
@@ -253,6 +353,7 @@ struct Day {
   }
 
   void from_timestamp(int64_t ts) {
+    LOG(INFO) << "Set date from timestamp: " << ts;
     const boost::posix_time::ptime epoch(boost::gregorian::date(1970, 1, 1));
     int64_t ts_sec = ts / 1000;
     boost::posix_time::ptime time_point =
@@ -263,12 +364,19 @@ struct Day {
     this->value.internal.month = date.month().as_number();
     this->value.internal.day = date.day();
     this->value.internal.hour = td.hours();
-
+    LOG(INFO) << "Set date from timestamp: " << ts
+              << ", year: " << this->value.internal.year
+              << ", month: " << this->value.internal.month
+              << ", day: " << this->value.internal.day
+              << ", hour: " << this->value.internal.hour;
+    LOG(INFO) << "to_timestamp: " << to_timestamp();
     assert(ts == to_timestamp());
   }
 
-  bool operator<(const Day& rhs) const { return this->to_u32() < rhs.to_u32(); }
-  bool operator==(const Day& rhs) const {
+  bool operator<(const Date& rhs) const {
+    return this->to_u32() < rhs.to_u32();
+  }
+  bool operator==(const Date& rhs) const {
     return this->to_u32() == rhs.to_u32();
   }
 
@@ -383,13 +491,17 @@ union AnyValue {
   GlobalId vertex_gid;
   LabelKey label_key;
 
-  Date d;
-  Day day;
   std::string_view s;
   double db;
   uint8_t u8;
   uint16_t u16;
   RecordView record_view;
+
+  // temporal types
+  Date d;
+  // Day day;
+  DateTime dt;
+  Interval interval;
 
   // Non-trivial types
   Record record;
@@ -518,21 +630,6 @@ struct Any {
     value.label_key = v;
   }
 
-  void set_date(int64_t v) {
-    type = PropertyType::kDate;
-    value.d.milli_second = v;
-  }
-
-  void set_date(Date v) {
-    type = PropertyType::kDate;
-    value.d = v;
-  }
-
-  void set_day(Day v) {
-    type = PropertyType::kDay;
-    value.day = v;
-  }
-
   void set_string_view(std::string_view v) {
     type = PropertyType::kStringView;
     value.s = v;
@@ -576,6 +673,42 @@ struct Any {
     new (&(value.record)) Record(v);
   }
 
+  // void set_date(int64_t v) {
+  //   LOG(INFO) << "set date from: " << v;
+  //   type = PropertyType::kDate;
+  //   value.d.from_timestamp(v);
+  // }
+
+  void set_date(int32_t days) {
+    type = PropertyType::kDate;
+    value.d.from_num_days(days);
+  }
+
+  void set_date(Date v) {
+    type = PropertyType::kDate;
+    value.d = v;
+  }
+
+  void set_datetime(DateTime v) {
+    type = PropertyType::kDateTime;
+    value.dt = v;
+  }
+
+  void set_datetime(int64_t v) {
+    type = PropertyType::kDateTime;
+    value.dt.milli_second = v;
+  }
+
+  void set_interval(Interval v) {
+    type = PropertyType::kInterval;
+    value.interval = v;
+  }
+
+  void set_interval(int64_t v) {
+    type = PropertyType::kInterval;
+    value.interval.from_u64(v);
+  }
+
   std::string to_string() const {
     if (type == PropertyType::kInt32) {
       return std::to_string(value.i);
@@ -586,10 +719,6 @@ struct Any {
     } else if (type == PropertyType::kStringView) {
       return std::string(value.s.data(), value.s.size());
       //      return value.s.to_string();
-    } else if (type == PropertyType::kDate) {
-      return value.d.to_string();
-    } else if (type == PropertyType::kDay) {
-      return value.day.to_string();
     } else if (type == PropertyType::kEmpty) {
       return "NULL";
     } else if (type == PropertyType::kDouble) {
@@ -610,6 +739,12 @@ struct Any {
       return value.vertex_gid.to_string();
     } else if (type == PropertyType::kLabel) {
       return std::to_string(value.label_key.label_id);
+    } else if (type == PropertyType::kDate) {
+      return value.d.to_string();
+    } else if (type == PropertyType::kDateTime) {
+      return value.dt.to_string();
+    } else if (type == PropertyType::kInterval) {
+      return value.interval.to_string();
     } else {
       LOG(FATAL) << "Unexpected property type: "
                  << static_cast<int>(type.type_enum);
@@ -617,9 +752,9 @@ struct Any {
     }
   }
 
-  const std::string& AsString() const {
-    assert(type.type_enum == impl::PropertyTypeImpl::kString);
-    return *value.s_ptr.ptr;
+  bool AsBool() const {
+    assert(type == PropertyType::kBool);
+    return value.b;
   }
 
   int64_t AsInt64() const {
@@ -642,11 +777,6 @@ struct Any {
     return value.ui;
   }
 
-  bool AsBool() const {
-    assert(type == PropertyType::kBool);
-    return value.b;
-  }
-
   double AsDouble() const {
     assert(type == PropertyType::kDouble);
     return value.db;
@@ -657,6 +787,11 @@ struct Any {
     return value.f;
   }
 
+  const std::string& AsString() const {
+    assert(type.type_enum == impl::PropertyTypeImpl::kString);
+    return *value.s_ptr.ptr;
+  }
+
   std::string_view AsStringView() const {
     assert(type == PropertyType::kStringView);
     if (type.type_enum != impl::PropertyTypeImpl::kString) {
@@ -664,16 +799,6 @@ struct Any {
     } else {
       return *value.s_ptr.ptr;
     }
-  }
-
-  const Date& AsDate() const {
-    assert(type == PropertyType::kDate);
-    return value.d;
-  }
-
-  const Day& AsDay() const {
-    assert(type == PropertyType::kDay);
-    return value.day;
   }
 
   const GlobalId& AsGlobalId() const {
@@ -696,6 +821,21 @@ struct Any {
     return value.record;
   }
 
+  const Date& AsDate() const {
+    assert(type == PropertyType::kDate);
+    return value.d;
+  }
+
+  const DateTime& AsDateTime() const {
+    assert(type == PropertyType::kDateTime);
+    return value.dt;
+  }
+
+  const Interval& AsInterval() const {
+    assert(type == PropertyType::kInterval);
+    return value.interval;
+  }
+
   template <typename T>
   static Any From(const T& value) {
     return AnyConverter<T>::to_any(value);
@@ -707,10 +847,6 @@ struct Any {
         return value.i == other.value.i;
       } else if (type == PropertyType::kInt64) {
         return value.l == other.value.l;
-      } else if (type == PropertyType::kDate) {
-        return value.d.milli_second == other.value.d.milli_second;
-      } else if (type == PropertyType::kDay) {
-        return value.day == other.value.day;
       } else if (type.type_enum == impl::PropertyTypeImpl::kString) {
         return *value.s_ptr == other.AsStringView();
       } else if (type == PropertyType::kStringView) {
@@ -736,6 +872,12 @@ struct Any {
           return false;
         }
         return value.s == other.value.s;
+      } else if (type == PropertyType::kDate) {
+        return value.d.to_u32() == other.value.d.to_u32();
+      } else if (type == PropertyType::kDateTime) {
+        return value.dt.milli_second == other.value.dt.milli_second;
+      } else if (type == PropertyType::kInterval) {
+        return value.interval.to_u64() == other.value.interval.to_u64();
       } else {
         return false;
       }
@@ -763,10 +905,6 @@ struct Any {
         return value.i < other.value.i;
       } else if (type == PropertyType::kInt64) {
         return value.l < other.value.l;
-      } else if (type == PropertyType::kDate) {
-        return value.d.milli_second < other.value.d.milli_second;
-      } else if (type == PropertyType::kDay) {
-        return value.day < other.value.day;
       } else if (type.type_enum == impl::PropertyTypeImpl::kString) {
         return *value.s_ptr < other.AsStringView();
       } else if (type == PropertyType::kStringView) {
@@ -799,6 +937,12 @@ struct Any {
           }
         }
         return false;
+      } else if (type == PropertyType::kDate) {
+        return value.d.to_u32() < other.value.d.to_u32();
+      } else if (type == PropertyType::kDateTime) {
+        return value.dt.milli_second < other.value.dt.milli_second;
+      } else if (type == PropertyType::kInterval) {
+        return value.interval.to_u64() < other.value.interval.to_u64();
       } else {
         return false;
       }
@@ -881,14 +1025,6 @@ struct ConvertAny<Date> {
   static void to(const Any& value, Date& out) {
     assert(value.type == PropertyType::kDate);
     out = value.value.d;
-  }
-};
-
-template <>
-struct ConvertAny<Day> {
-  static void to(const Any& value, Day& out) {
-    assert(value.type == PropertyType::kDay);
-    out = value.value.day;
   }
 };
 
@@ -1119,55 +1255,6 @@ struct AnyConverter<GlobalId> {
 };
 
 template <>
-struct AnyConverter<Date> {
-  static PropertyType type() { return PropertyType::kDate; }
-
-  static Any to_any(const Date& value) {
-    Any ret;
-    ret.set_date(value);
-    return ret;
-  }
-
-  static Any to_any(int64_t value) {
-    Any ret;
-    ret.set_date(value);
-    return ret;
-  }
-
-  static const Date& from_any(const Any& value) {
-    assert(value.type == PropertyType::kDate);
-    return value.value.d;
-  }
-
-  static const Date& from_any_value(const AnyValue& value) { return value.d; }
-};
-
-template <>
-struct AnyConverter<Day> {
-  static PropertyType type() { return PropertyType::kDay; }
-
-  static Any to_any(const Day& value) {
-    Any ret;
-    ret.set_day(value);
-    return ret;
-  }
-
-  static Any to_any(int64_t value) {
-    Day dval(value);
-    Any ret;
-    ret.set_day(dval);
-    return ret;
-  }
-
-  static const Day& from_any(const Any& value) {
-    assert(value.type == PropertyType::kDay);
-    return value.value.day;
-  }
-
-  static const Day& from_any_value(const AnyValue& value) { return value.day; }
-};
-
-template <>
 struct AnyConverter<std::string_view> {
   static PropertyType type() { return PropertyType::kStringView; }
 
@@ -1327,6 +1414,82 @@ struct AnyConverter<Record> {
   }
 };
 
+template <>
+struct AnyConverter<Date> {
+  static PropertyType type() { return PropertyType::kDate; }
+
+  static Any to_any(const Date& value) {
+    Any ret;
+    ret.set_date(value);
+    return ret;
+  }
+
+  static Any to_any(int32_t value) {
+    Any ret;
+    ret.set_date(value);
+    return ret;
+  }
+
+  static const Date& from_any(const Any& value) {
+    assert(value.type == PropertyType::kDate);
+    return value.value.d;
+  }
+
+  static const Date& from_any_value(const AnyValue& value) { return value.d; }
+};
+
+template <>
+struct AnyConverter<DateTime> {
+  static PropertyType type() { return PropertyType::kDateTime; }
+
+  static Any to_any(const DateTime& value) {
+    Any ret;
+    ret.set_datetime(value);
+    return ret;
+  }
+
+  static Any to_any(int64_t value) {
+    Any ret;
+    ret.set_datetime(value);
+    return ret;
+  }
+
+  static const DateTime& from_any(const Any& value) {
+    assert(value.type == PropertyType::kDateTime);
+    return value.value.dt;
+  }
+
+  static const DateTime& from_any_value(const AnyValue& value) {
+    return value.dt;
+  }
+};
+
+template <>
+struct AnyConverter<Interval> {
+  static PropertyType type() { return PropertyType::kInterval; }
+
+  static Any to_any(const Interval& value) {
+    Any ret;
+    ret.set_interval(value);
+    return ret;
+  }
+
+  static Any to_any(int64_t value) {
+    Any ret;
+    ret.set_interval(value);
+    return ret;
+  }
+
+  static const Interval& from_any(const Any& value) {
+    assert(value.type == PropertyType::kInterval);
+    return value.value.interval;
+  }
+
+  static const Interval& from_any_value(const AnyValue& value) {
+    return value.interval;
+  }
+};
+
 template <typename T>
 T RecordView::get_field(int col_id) const {
   auto val = operator[](col_id);
@@ -1352,6 +1515,10 @@ grape::InArchive& operator<<(grape::InArchive& in_archive,
                              const GlobalId& value);
 grape::OutArchive& operator>>(grape::OutArchive& out_archive, GlobalId& value);
 
+grape::InArchive& operator<<(grape::InArchive& in_archive,
+                             const Interval& value);
+grape::OutArchive& operator>>(grape::OutArchive& out_archive, Interval& value);
+
 }  // namespace gs
 
 namespace boost {
@@ -1370,11 +1537,6 @@ inline std::size_t hash_value(const gs::LabelKey& key) {
 namespace std {
 
 inline ostream& operator<<(ostream& os, const gs::Date& dt) {
-  os << dt.to_string();
-  return os;
-}
-
-inline ostream& operator<<(ostream& os, const gs::Day& dt) {
   os << dt.to_string();
   return os;
 }
@@ -1400,10 +1562,6 @@ inline ostream& operator<<(ostream& os, gs::PropertyType pt) {
     os << "uint64";
   } else if (pt == gs::PropertyType::Double()) {
     os << "double";
-  } else if (pt == gs::PropertyType::Date()) {
-    os << "date";
-  } else if (pt == gs::PropertyType::Day()) {
-    os << "day";
   } else if (pt == gs::PropertyType::StringView()) {
     os << "string";
   } else if (pt == gs::PropertyType::StringMap()) {
@@ -1418,6 +1576,12 @@ inline ostream& operator<<(ostream& os, gs::PropertyType pt) {
     os << "record_view";
   } else if (pt == gs::PropertyType::Record()) {
     os << "record";
+  } else if (pt == gs::PropertyType::Date()) {
+    os << "date";
+  } else if (pt == gs::PropertyType::DateTime()) {
+    os << "datetime";
+  } else if (pt == gs::PropertyType::Interval()) {
+    os << "interval";
   } else {
     os << "unknown";
   }
@@ -1466,19 +1630,19 @@ struct convert<gs::PropertyType> {
         LOG(ERROR) << "string should be a map";
       }
     } else if (config["temporal"]) {
-      if (config["temporal"]["date32"]) {
-        property_type = gs::PropertyType::Day();
-      } else if (config["temporal"]["timestamp"]) {
+      auto temporal = config["temporal"];
+      if (temporal["date"]) {
         property_type = gs::PropertyType::Date();
+      } else if (temporal["datetime"]) {
+        property_type = gs::PropertyType::DateTime();
+      } else if (temporal["interval"]) {
+        property_type = gs::PropertyType::Interval();
       } else {
         LOG(ERROR) << "Unrecognized temporal type";
       }
     }
     // compatibility with old config files
-    else if (config["day"]) {
-      property_type = gs::config_parsing::StringToPrimitivePropertyType(
-          config["day"].as<std::string>());
-    } else if (config["varchar"]) {
+    else if (config["varchar"]) {
       if (config["varchar"]["max_length"]) {
         property_type = gs::PropertyType::Varchar(
             config["varchar"]["max_length"].as<int32_t>());
@@ -1513,8 +1677,6 @@ struct convert<gs::PropertyType> {
           type.additional_type_info.max_length;
     } else if (type == gs::PropertyType::Date()) {
       node["temporal"]["timestamp"] = "";
-    } else if (type == gs::PropertyType::Day()) {
-      node["temporal"]["date32"] = "";
     } else {
       LOG(ERROR) << "Unrecognized property type: " << type;
     }

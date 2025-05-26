@@ -62,7 +62,7 @@ class SigColumn<Date> : public ISigColumn {
   SigColumn(const std::vector<Date>& data) : data_(data.data()) {}
   ~SigColumn() = default;
   inline size_t get_sig(size_t idx) const override {
-    return static_cast<size_t>(data_[idx].milli_second);
+    return static_cast<size_t>(data_[idx].to_u32());
   }
 
  private:
@@ -70,17 +70,18 @@ class SigColumn<Date> : public ISigColumn {
 };
 
 template <>
-class SigColumn<Day> : public ISigColumn {
+class SigColumn<DateTime> : public ISigColumn {
  public:
-  SigColumn(const std::vector<Day>& data) : data_(data.data()) {}
+  SigColumn(const std::vector<DateTime>& data) : data_(data.data()) {}
   ~SigColumn() = default;
   inline size_t get_sig(size_t idx) const override {
-    return static_cast<size_t>(data_[idx].to_u32());
+    return static_cast<size_t>(data_[idx].milli_second);
   }
 
  private:
-  const Day* data_;
+  const DateTime* data_;
 };
+
 template <>
 class SigColumn<VertexRecord> : public ISigColumn {
  public:

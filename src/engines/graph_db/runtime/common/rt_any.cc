@@ -39,10 +39,10 @@ PropertyType rt_type_to_property_type(RTAnyType type) {
     return PropertyType::kBool;
   case RTAnyType::kStringValue:
     return PropertyType::kString;
-  case RTAnyType::kTimestamp:
-    return PropertyType::kDate;
-  case RTAnyType::kDate32:
-    return PropertyType::kDay;
+  case RTAnyType::kDateTime:
+    return PropertyType::kDateTime;
+  case RTAnyType::kDate:
+    return PropertyType::kDate;  // FIXME
   default:
     LOG(FATAL) << "not support for " << static_cast<int>(type);
   }
@@ -60,7 +60,7 @@ RTAnyType arrow_type_to_rt_type(const std::shared_ptr<arrow::DataType>& type) {
   } else if (type->Equals(arrow::utf8())) {
     return RTAnyType::kStringValue;
   } else if (type->Equals(arrow::date32())) {
-    return RTAnyType::kDate32;
+    return RTAnyType::kDate;
   } else if (type->Equals(arrow::timestamp(arrow::TimeUnit::SECOND))) {
     return RTAnyType::kTimestamp;
   } else if (type->Equals(arrow::timestamp(arrow::TimeUnit::MILLI))) {
@@ -86,10 +86,7 @@ RTAny::RTAny(const Any& val) {
     value_.str_val = val.AsStringView();
   } else if (val.type == PropertyType::Date()) {
     type_ = RTAnyType::kI64Value;
-    value_.date = val.AsDate();
-  } else if (val.type == PropertyType::Day()) {
-    type_ = RTAnyType::kDate32;
-    value_.day = val.AsDay();
+    value_.dt_val = val.AsDateTime();
   } else if (val.type == PropertyType::Int32()) {
     type_ = RTAnyType::kI32Value;
     value_.i32_val = val.AsInt32();
@@ -124,12 +121,12 @@ RTAny::RTAny(const EdgeData& val) {
   } else if (val.type == RTAnyType::kBoolValue) {
     type_ = RTAnyType::kBoolValue;
     value_.b_val = val.value.b_val;
-  } else if (val.type == RTAnyType::kTimestamp) {
-    type_ = RTAnyType::kTimestamp;
-    value_.date = val.value.date_val;
-  } else if (val.type == RTAnyType::kDate32) {
-    type_ = RTAnyType::kDate32;
-    value_.day = val.value.day_val;
+  } else if (val.type == RTAnyType::kDateTime) {
+    type_ = RTAnyType::kDateTime;
+    value_.dt_val = val.value.dt_val;
+  } else if (val.type == RTAnyType::kDate) {
+    type_ = RTAnyType::kDate;
+    value_.date_val = val.value.date_val;
   } else {
     LOG(FATAL) << "Any value: " << val.to_string()
                << ", type = " << static_cast<int>(val.type);
@@ -163,10 +160,10 @@ RTAny::RTAny(const RTAny& rhs) : type_(rhs.type_) {
     value_.map = rhs.value_.map;
   } else if (type_ == RTAnyType::kRelation) {
     value_.relation = rhs.value_.relation;
-  } else if (type_ == RTAnyType::kDate32) {
-    value_.day = rhs.value_.day;
-  } else if (type_ == RTAnyType::kTimestamp) {
-    value_.date = rhs.value_.date;
+  } else if (type_ == RTAnyType::kDate) {
+    value_.date_val = rhs.value_.date_val;
+  } else if (type_ == RTAnyType::kDateTime) {
+    value_.dt_val = rhs.value_.dt_val;
   } else if (type_ == RTAnyType::kEdge) {
     value_.edge = rhs.value_.edge;
   } else {
@@ -200,10 +197,10 @@ RTAny& RTAny::operator=(const RTAny& rhs) {
     value_.relation = rhs.value_.relation;
   } else if (type_ == RTAnyType::kPath) {
     value_.p = rhs.value_.p;
-  } else if (type_ == RTAnyType::kDate32) {
-    value_.day = rhs.value_.day;
-  } else if (type_ == RTAnyType::kTimestamp) {
-    value_.date = rhs.value_.date;
+  } else if (type_ == RTAnyType::kDate) {
+    value_.date_val = rhs.value_.date_val;
+  } else if (type_ == RTAnyType::kDateTime) {
+    value_.dt_val = rhs.value_.dt_val;
   } else {
     LOG(FATAL) << "unexpected type: " << static_cast<int>(type_);
   }
@@ -225,10 +222,10 @@ Any RTAny::to_any() const {
   case RTAnyType::kStringValue:
     return Any(std::string(value_.str_val));
 
-  case RTAnyType::kDate32:
-    return Any(value_.day);
-  case RTAnyType::kTimestamp:
-    return Any(value_.date);
+  case RTAnyType::kDate:
+    return Any(value_.date_val);
+  case RTAnyType::kDateTime:
+    return Any(value_.dt_val);
   default:
     LOG(FATAL) << "not support for " << static_cast<int>(type_);
   }
@@ -298,17 +295,17 @@ RTAny RTAny::from_string(const std::string_view& str) {
   return ret;
 }
 
-RTAny RTAny::from_date32(Day v) {
+RTAny RTAny::from_date(Date v) {
   RTAny ret;
-  ret.type_ = RTAnyType::kDate32;
-  ret.value_.day = v;
+  ret.type_ = RTAnyType::kDate;
+  ret.value_.date_val = v;
   return ret;
 }
 
-RTAny RTAny::from_timestamp(Date v) {
+RTAny RTAny::from_datetime(DateTime v) {
   RTAny ret;
-  ret.type_ = RTAnyType::kTimestamp;
-  ret.value_.date = v;
+  ret.type_ = RTAnyType::kDateTime;
+  ret.value_.dt_val = v;
   return ret;
 }
 RTAny RTAny::from_tuple(const Tuple& t) {
@@ -372,14 +369,14 @@ uint64_t RTAny::as_uint64() const {
   assert(type_ == RTAnyType::kU64Value);
   return value_.u64_val;
 }
-Day RTAny::as_date32() const {
-  assert(type_ == RTAnyType::kDate32);
-  return value_.day;
+Date RTAny::as_date32() const {
+  assert(type_ == RTAnyType::kDate);
+  return value_.date_val;
 }
 
-Date RTAny::as_timestamp() const {
-  assert(type_ == RTAnyType::kTimestamp);
-  return value_.date;
+DateTime RTAny::as_timestamp() const {
+  assert(type_ == RTAnyType::kDateTime);
+  return value_.dt_val;
 }
 
 double RTAny::as_double() const {
@@ -513,10 +510,10 @@ bool RTAny::operator<(const RTAny& other) const {
 
   } else if (type_ == RTAnyType::kStringValue) {
     return value_.str_val < other.value_.str_val;
-  } else if (type_ == RTAnyType::kDate32) {
-    return value_.day < other.value_.day;
-  } else if (type_ == RTAnyType::kTimestamp) {
-    return value_.date < other.value_.date;
+  } else if (type_ == RTAnyType::kDate) {
+    return value_.date_val < other.value_.date_val;
+  } else if (type_ == RTAnyType::kDateTime) {
+    return value_.dt_val < other.value_.dt_val;
   } else if (type_ == RTAnyType::kF64Value) {
     return value_.f64_val < other.value_.f64_val;
   } else if (type_ == RTAnyType::kEdge) {
@@ -552,10 +549,10 @@ bool RTAny::operator==(const RTAny& other) const {
     return value_.str_val == other.value_.str_val;
   } else if (type_ == RTAnyType::kVertex) {
     return value_.vertex == other.value_.vertex;
-  } else if (type_ == RTAnyType::kDate32) {
-    return value_.day == other.value_.day;
-  } else if (type_ == RTAnyType::kTimestamp) {
-    return value_.date == other.value_.date;
+  } else if (type_ == RTAnyType::kDate) {
+    return value_.date_val == other.value_.date_val;
+  } else if (type_ == RTAnyType::kDateTime) {
+    return value_.dt_val == other.value_.dt_val;
   } else if (type_ == RTAnyType::kEdge) {
     return value_.edge == other.value_.edge;
   }
@@ -750,10 +747,11 @@ void RTAny::sink_impl(common::Value* value) const {
     value->set_str(value_.str_val.data(), value_.str_val.size());
   } else if (type_ == RTAnyType::kI32Value) {
     value->set_i32(value_.i32_val);
-  } else if (type_ == RTAnyType::kDate32) {
-    value->set_i64(value_.day.to_timestamp());
-  } else if (type_ == RTAnyType::kTimestamp) {
-    value->set_i64(value_.date.milli_second);
+  } else if (type_ == RTAnyType::kDate) {
+    auto date_str = value_.date_val.to_string();
+    value->set_str(date_str.data(), date_str.size());
+  } else if (type_ == RTAnyType::kDateTime) {
+    value->set_i64(value_.dt_val.milli_second);
   } else if (type_ == RTAnyType::kBoolValue) {
     value->set_boolean(value_.b_val);
   } else if (type_ == RTAnyType::kF64Value) {
@@ -778,7 +776,7 @@ static void sink_any(const Any& any, common::Value* value) {
     auto str = any.AsStringView();
     value->set_str(str.data(), str.size());
   } else if (any.type == PropertyType::Date()) {
-    value->set_i64(any.AsDate().milli_second);
+    value->set_u32(any.AsDate().to_u32());
   } else if (any.type == PropertyType::Int32()) {
     value->set_i32(any.AsInt32());
   } else if (any.type == PropertyType::Double()) {
@@ -789,8 +787,6 @@ static void sink_any(const Any& any, common::Value* value) {
     value->set_f64(any.AsDouble());
   } else if (any.type == PropertyType::Empty()) {
     value->mutable_none();
-  } else if (any.type == PropertyType::Day()) {
-    value->set_i64(any.AsDay().to_timestamp());
   } else {
     LOG(FATAL) << "Any value: " << any.to_string()
                << ", type = " << any.type.type_enum;
@@ -808,8 +804,8 @@ static void sink_edge_data(const EdgeData& any, common::Value* value) {
     value->set_f64(any.value.f64_val);
   } else if (any.type == RTAnyType::kBoolValue) {
     value->set_boolean(any.value.b_val);
-  } else if (any.type == RTAnyType::kTimestamp) {
-    value->set_i64(any.value.date_val.milli_second);
+  } else if (any.type == RTAnyType::kDateTime) {
+    value->set_i64(any.value.dt_val.milli_second);
   } else {
     LOG(FATAL) << "Any value: " << any.to_string()
                << ", type = " << static_cast<int>(any.type);
@@ -1031,10 +1027,10 @@ std::string RTAny::to_string() const {
     return std::string(value_.str_val);
   } else if (type_ == RTAnyType::kI32Value) {
     return std::to_string(value_.i32_val);
-  } else if (type_ == RTAnyType::kTimestamp) {
-    return value_.date.to_string();
-  } else if (type_ == RTAnyType::kDate32) {
-    return value_.day.to_string();
+  } else if (type_ == RTAnyType::kDateTime) {
+    return value_.dt_val.to_string();
+  } else if (type_ == RTAnyType::kDate) {
+    return value_.date_val.to_string();
   } else if (type_ == RTAnyType::kVertex) {
 #if 0
       return std::string("v") +
@@ -1114,8 +1110,6 @@ std::shared_ptr<EdgePropVecBase> EdgePropVecBase::make_edge_prop_vec(
     return std::make_shared<EdgePropVec<std::string_view>>();
   } else if (type == PropertyType::Date()) {
     return std::make_shared<EdgePropVec<Date>>();
-  } else if (type == PropertyType::Day()) {
-    return std::make_shared<EdgePropVec<Day>>();
   } else if (type == PropertyType::Int32()) {
     return std::make_shared<EdgePropVec<int32_t>>();
   } else if (type == PropertyType::Double()) {

@@ -390,11 +390,12 @@ void CSVFragmentLoader::fillVertexReaderMeta(
                    << " please "
                       "check your configuration";
       }
+      auto arrow_type = PropertyTypeToArrowType(property_type);
       VLOG(10) << "vertex_label: " << schema_.get_vertex_label_name(v_label)
                << " property_name: " << property_name
-               << " property_type: " << property_type << " ind: " << ind;
-      arrow_types.insert(
-          {included_col_names[ind], PropertyTypeToArrowType(property_type)});
+               << " property_type: " << property_type << " ind: " << ind << " "
+               << arrow_type->ToString();
+      arrow_types.insert({included_col_names[ind], arrow_type});
     }
     {
       // add primary key types;

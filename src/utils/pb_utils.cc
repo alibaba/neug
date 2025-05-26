@@ -147,7 +147,7 @@ bool temporal_type_to_property_type(const common::Temporal& temporal_type,
     out_type = PropertyType::Date();
     break;
   case common::Temporal::kTimestamp:
-    out_type = PropertyType::Date();
+    out_type = PropertyType::DateTime();
     break;
   case common::Temporal::kDate:
     // TODO: Parse format

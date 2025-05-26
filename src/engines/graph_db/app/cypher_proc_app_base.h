@@ -143,9 +143,7 @@ bool deserialize_impl(TUPLE_T& tuple, const rapidjson::Value& json) {
 
   if (json[I].HasMember("value")) {
     if constexpr (std::is_same<T, gs::Date>::value) {
-      std::get<I>(tuple).milli_second = json[I]["value"].GetInt64();
-    } else if constexpr (std::is_same<T, gs::Day>::value) {
-      std::get<I>(tuple).day = json[I]["value"].GetUint();
+      std::get<I>(tuple).d = json[I]["value"].GetUint();
     } else {
       std::get<I>(tuple) = json[I]["value"].Get<T>();
     }

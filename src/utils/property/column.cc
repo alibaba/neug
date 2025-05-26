@@ -133,7 +133,9 @@ using UIntEmptyColumn = TypedEmptyColumn<uint32_t>;
 using LongEmptyColumn = TypedEmptyColumn<int64_t>;
 using ULongEmptyColumn = TypedEmptyColumn<uint64_t>;
 using DateEmptyColumn = TypedEmptyColumn<Date>;
-using DayEmptyColumn = TypedEmptyColumn<Day>;
+using DateTimeEmptyColumn = TypedEmptyColumn<DateTime>;
+using IntervalEmptyColumn = TypedEmptyColumn<Interval>;
+// using DayEmptyColumn = TypedEmptyColumn<Day>;
 using BoolEmptyColumn = TypedEmptyColumn<bool>;
 using FloatEmptyColumn = TypedEmptyColumn<float>;
 using DoubleEmptyColumn = TypedEmptyColumn<double>;
@@ -158,10 +160,6 @@ std::shared_ptr<ColumnBase> CreateColumn(
       return std::make_shared<DoubleEmptyColumn>();
     } else if (type == PropertyType::kFloat) {
       return std::make_shared<FloatEmptyColumn>();
-    } else if (type == PropertyType::kDate) {
-      return std::make_shared<DateEmptyColumn>();
-    } else if (type == PropertyType::kDay) {
-      return std::make_shared<DayEmptyColumn>();
     } else if (type == PropertyType::kStringMap) {
       return std::make_shared<StringEmptyColumn>();
     } else if (type == PropertyType::kStringView) {
@@ -170,6 +168,12 @@ std::shared_ptr<ColumnBase> CreateColumn(
     } else if (type.type_enum == impl::PropertyTypeImpl::kVarChar) {
       return std::make_shared<StringEmptyColumn>(
           type.additional_type_info.max_length);
+    } else if (type == PropertyType::kDate) {
+      return std::make_shared<DateEmptyColumn>();
+    } else if (type == PropertyType::kDateTime) {
+      return std::make_shared<DateTimeEmptyColumn>();
+    } else if (type == PropertyType::kInterval) {
+      return std::make_shared<IntervalEmptyColumn>();
     } else {
       LOG(FATAL) << "unexpected type to create column, "
                  << static_cast<int>(type.type_enum);
@@ -198,8 +202,6 @@ std::shared_ptr<ColumnBase> CreateColumn(
       return std::make_shared<FloatColumn>(strategy);
     } else if (type == PropertyType::kDate) {
       return std::make_shared<DateColumn>(strategy);
-    } else if (type == PropertyType::kDay) {
-      return std::make_shared<DayColumn>(strategy);
     } else if (type == PropertyType::kStringMap) {
       return std::make_shared<DefaultStringMapColumn>(strategy);
     } else if (type.type_enum == impl::PropertyTypeImpl::kVarChar) {
@@ -212,6 +214,8 @@ std::shared_ptr<ColumnBase> CreateColumn(
       return std::make_shared<StringColumn>(strategy);
     } else if (type.type_enum == impl::PropertyTypeImpl::kRecordView) {
       return std::make_shared<RecordViewColumn>(sub_types);
+    } else if (type.type_enum == impl::PropertyTypeImpl::kDateTime) {
+      return std::make_shared<DateTimeColumn>(strategy);
     } else {
       LOG(FATAL) << "unexpected type to create column, "
                  << static_cast<int>(type.type_enum);
@@ -265,12 +269,6 @@ std::shared_ptr<RefColumnBase> CreateRefColumn(
   if (type == PropertyType::kBool) {
     return std::make_shared<TypedRefColumn<bool>>(
         *std::dynamic_pointer_cast<TypedColumn<bool>>(column));
-  } else if (type == PropertyType::kDay) {
-    return std::make_shared<TypedRefColumn<Day>>(
-        *std::dynamic_pointer_cast<TypedColumn<Day>>(column));
-  } else if (type == PropertyType::kDate) {
-    return std::make_shared<TypedRefColumn<Date>>(
-        *std::dynamic_pointer_cast<TypedColumn<Date>>(column));
   } else if (type == PropertyType::kUInt8) {
     return std::make_shared<TypedRefColumn<uint8_t>>(
         *std::dynamic_pointer_cast<TypedColumn<uint8_t>>(column));
@@ -298,6 +296,15 @@ std::shared_ptr<RefColumnBase> CreateRefColumn(
   } else if (type == PropertyType::kDouble) {
     return std::make_shared<TypedRefColumn<double>>(
         *std::dynamic_pointer_cast<TypedColumn<double>>(column));
+  } else if (type == PropertyType::kDate) {
+    return std::make_shared<TypedRefColumn<Date>>(
+        *std::dynamic_pointer_cast<TypedColumn<Date>>(column));
+  } else if (type == PropertyType::kDateTime) {
+    return std::make_shared<TypedRefColumn<DateTime>>(
+        *std::dynamic_pointer_cast<TypedColumn<DateTime>>(column));
+  } else if (type == PropertyType::kInterval) {
+    return std::make_shared<TypedRefColumn<Interval>>(
+        *std::dynamic_pointer_cast<TypedColumn<Interval>>(column));
   } else {
     LOG(FATAL) << "unexpected type to create column, "
                << static_cast<int>(type.type_enum);

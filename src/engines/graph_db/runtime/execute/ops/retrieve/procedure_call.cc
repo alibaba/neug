@@ -73,8 +73,8 @@ std::shared_ptr<IContextColumn> any_vec_to_column(
       builder.push_back_opt(sv);
     }
     return builder.finish(arena);
-  } else if (first == RTAnyType::kTimestamp) {
-    ValueColumnBuilder<Date> builder;
+  } else if (first == RTAnyType::kDateTime) {
+    ValueColumnBuilder<DateTime> builder;
     for (auto& any : any_vec) {
       builder.push_back_opt(any.as_timestamp());
     }
@@ -167,6 +167,7 @@ RTAny edge_to_rt_any(const results::Edge& edge) {
 
 RTAny graph_path_to_rt_any(const results::GraphPath& path) {
   LOG(FATAL) << "Not implemented.";
+  return RTAny();
 }
 
 RTAny element_to_rt_any(const results::Element& element) {
@@ -276,8 +277,8 @@ bl::result<procedure::Query> fill_in_query(const procedure::Query& query,
         const_value->set_f64(val.as_double());
       } else if (val.type() == gs::runtime::RTAnyType::kBoolValue) {
         const_value->set_boolean(val.as_bool());
-      } else if (val.type() == gs::runtime::RTAnyType::kDate32) {
-        const_value->set_i64(val.as_timestamp().milli_second);
+      } else if (val.type() == gs::runtime::RTAnyType::kDate) {
+        const_value->mutable_date()->set_item(val.as_date32().to_num_days());
       } else {
         LOG(ERROR) << "Unsupported type: " << static_cast<int32_t>(val.type());
       }

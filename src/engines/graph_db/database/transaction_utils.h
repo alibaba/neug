@@ -33,9 +33,9 @@ inline void serialize_field(grape::InArchive& arc, const Any& prop) {
   } else if (prop.type == PropertyType::UInt32()) {
     arc << prop.value.ui;
   } else if (prop.type == PropertyType::Date()) {
-    arc << prop.value.d.milli_second;
-  } else if (prop.type == PropertyType::Day()) {
-    arc << prop.value.day.to_u32();
+    arc << prop.value.d.to_u32();
+  } else if (prop.type == PropertyType::DateTime()) {
+    arc << prop.value.dt.milli_second;
   } else if (prop.type.type_enum == impl::PropertyTypeImpl::kString) {
     std::string_view s = *prop.value.s_ptr;
     arc << s;
@@ -68,13 +68,13 @@ inline void deserialize_field(grape::OutArchive& arc, Any& prop) {
   } else if (prop.type == PropertyType::UInt32()) {
     arc >> prop.value.ui;
   } else if (prop.type == PropertyType::Date()) {
-    int64_t date_val;
+    uint32_t date_val;
     arc >> date_val;
-    prop.value.d.milli_second = date_val;
-  } else if (prop.type == PropertyType::Day()) {
-    uint32_t val;
-    arc >> val;
-    prop.value.day.from_u32(val);
+    prop.value.d.from_u32(date_val);
+  } else if (prop.type == PropertyType::DateTime()) {
+    int64_t dt_val;
+    arc >> dt_val;
+    prop.value.dt.milli_second = dt_val;
   } else if (prop.type == PropertyType::StringView()) {
     arc >> prop.value.s;
   } else if (prop.type == PropertyType::Int64()) {
