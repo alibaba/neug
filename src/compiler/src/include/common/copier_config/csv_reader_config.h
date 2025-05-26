@@ -85,11 +85,12 @@ struct CSVOption {
         quoteChar{other.quoteChar},
         hasHeader{other.hasHeader},
         skipNum{other.skipNum},
-        sampleSize{other.sampleSize == 0
-                       ? CopyConstants::DEFAULT_CSV_TYPE_DEDUCTION_SAMPLE_SIZE
-                       : other.sampleSize},  // Set to
-                                             // DEFAULT_CSV_TYPE_DEDUCTION_SAMPLE_SIZE
-                                             // if sampleSize is 0
+        sampleSize{
+            other.sampleSize == 0
+                ? CopyConstants::DEFAULT_CSV_TYPE_DEDUCTION_SAMPLE_SIZE
+                : other.sampleSize},  // Set to
+                                      // DEFAULT_CSV_TYPE_DEDUCTION_SAMPLE_SIZE
+                                      // if sampleSize is 0
         allowUnbracedList{other.allowUnbracedList},
         ignoreErrors{other.ignoreErrors},
         autoDetection{other.autoDetection},

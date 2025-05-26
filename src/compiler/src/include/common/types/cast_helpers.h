@@ -125,8 +125,9 @@ struct DateToStringCast {
     }
     // optionally add BC to the end of the date
     if (addBC) {
-      memcpy(ptr, Date::BC_SUFFIX,  // NOLINT(bugprone-not-null-terminated-result):
-                                    // no need to put null terminator
+      memcpy(ptr,
+             Date::BC_SUFFIX,  // NOLINT(bugprone-not-null-terminated-result):
+                               // no need to put null terminator
              strlen(Date::BC_SUFFIX));
     }
   }
