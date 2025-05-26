@@ -17,9 +17,35 @@
 
 namespace gs {
 
+void signal_handler(int signal) {
+  LOG(INFO) << "Received signal " << signal << ", exiting...";
+  // support SIGKILL, SIGINT, SIGTERM
+  if (signal == SIGKILL || signal == SIGINT || signal == SIGTERM ||
+      signal == SIGSEGV || signal == SIGABRT) {
+    LOG(ERROR) << "Received signal " << signal << ", Remove all filelocks";
+    // remove all files in work_dir
+    gs::FileLock::CleanupAllLocks();
+    exit(signal);
+  } else {
+    LOG(ERROR) << "Received unexpected signal " << signal << ", exiting...";
+    exit(1);
+  }
+}
+
+void setup_signal_handler() {
+  // Register handlers for SIGKILL, SIGINT, SIGTERM, SIGSEGV, SIGABRT
+  // LOG(FATAL) cause SIGABRT
+  std::signal(SIGINT, signal_handler);
+  std::signal(SIGTERM, signal_handler);
+  std::signal(SIGKILL, signal_handler);
+  std::signal(SIGSEGV, signal_handler);
+  std::signal(SIGABRT, signal_handler);
+}
+
 std::shared_ptr<Connection> NexgDB::connect() {
   if (mode_ == DBMode::READ_ONLY) {
-    auto conn = std::make_shared<Connection>(db_, planner_, query_processor_, resource_path_);
+    auto conn = std::make_shared<Connection>(db_, planner_, query_processor_,
+                                             resource_path_);
     read_only_connections_.push_back(conn);
     return conn;
   } else if (mode_ == DBMode::READ_WRITE) {
@@ -29,8 +55,8 @@ std::shared_ptr<Connection> NexgDB::connect() {
       throw std::runtime_error(
           "There is already a read-write connection constructed.");
     }
-    read_write_connection_ =
-        std::make_shared<Connection>(db_, planner_, query_processor_, resource_path_);
+    read_write_connection_ = std::make_shared<Connection>(
+        db_, planner_, query_processor_, resource_path_);
     return read_write_connection_;
   } else {
     throw std::runtime_error("Invalid mode.");

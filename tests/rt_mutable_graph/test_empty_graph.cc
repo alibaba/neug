@@ -25,6 +25,10 @@
 #include "src/utils/property/types.h"
 
 int main(int argc, char** argv) {
+  if (argc != 2) {
+    LOG(ERROR) << "Usage: " << argv[0] << " <work_dir>";
+    return -1;
+  }
   std::string work_dir = argv[1];
   {
     std::filesystem::remove_all(work_dir);

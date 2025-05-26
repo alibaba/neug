@@ -16,6 +16,7 @@
 #ifndef SRC_MAIN_NEXG_DB_H_
 #define SRC_MAIN_NEXG_DB_H_
 
+#include <csignal>
 #include <memory>
 #include <mutex>
 #include <sstream>
@@ -24,6 +25,7 @@
 
 #include "src/engines/graph_db/database/graph_db.h"
 #include "src/main/connection.h"
+#include "src/main/file_lock.h"
 #include "src/main/query_processor.h"
 #include "src/planner/dummy_graph_planner.h"
 #include "src/planner/graph_planner.h"
@@ -34,15 +36,18 @@ namespace gs {
 
 enum class DBMode { READ_ONLY, READ_WRITE };
 
+void signal_handler(int signal);
+
+void setup_signal_handler();
+
 class NexgDB {
  public:
-  static constexpr const char* LOCK_FILE_NAME = "nexgdb.lock";
-
   NexgDB(const std::string& data_dir, int32_t max_num_threads,
          const std::string& mode, const std::string& planner_kind,
          const std::string& jni_planner_class_path,
          const std::string& planner_config_path,
-         const std::string& resource_path) {
+         const std::string& resource_path)
+      : file_lock_(data_dir) {
     LOG(INFO) << "Creating NexgDB with: " << data_dir << " in " << mode
               << " mode, "
               << " planner: " << planner_kind;
@@ -60,7 +65,7 @@ class NexgDB {
                mode == "wr") {
       mode_ = DBMode::READ_WRITE;
       std::string message;
-      if (!try_to_lock_directory(message)) {
+      if (!file_lock_.lock(message)) {
         throw std::runtime_error("Failed to lock directory: " + data_dir + "," +
                                  message);
       }
@@ -85,7 +90,6 @@ class NexgDB {
   ~NexgDB() {
     LOG(INFO) << "Closing NexgDB.";
     db_.Close();
-    std::remove(get_lock_file_path().c_str());
   }
 
   /**
@@ -101,40 +105,6 @@ class NexgDB {
   std::shared_ptr<Connection> connect();
 
  private:
-  bool try_to_lock_directory(std::string& error_msg) {
-    std::string lock_file_path = get_lock_file_path();
-    // If the lock file already exists, it means another process is using the
-    // database.
-    if (std::filesystem::exists(lock_file_path)) {
-      LOG(ERROR) << "Lock file already exists: " << lock_file_path;
-      // Read the lock file's content
-      std::ifstream lock_file(lock_file_path);
-      if (!lock_file.is_open()) {
-        LOG(ERROR) << "Failed to open lock file: " << lock_file_path;
-        return false;
-      }
-      std::getline(lock_file, error_msg);
-      return false;
-    }
-
-    // Create the lock file
-    std::ofstream lock_file(lock_file_path);
-    if (!lock_file.is_open()) {
-      LOG(ERROR) << "Failed to create lock file: " << lock_file_path;
-      return false;
-    }
-    // Write the current process ID to the lock file
-    lock_file << "Locked by process ID: " << getpid() << "\n";
-    lock_file.close();
-    VLOG(10) << "Successfully locked directory: " << config_.data_dir
-             << ", lock file: " << lock_file_path;
-    return true;
-  }
-
-  std::string get_lock_file_path() {
-    return config_.data_dir + "/" + LOCK_FILE_NAME;
-  }
-
   std::shared_ptr<IGraphPlanner> create_planner(
       const std::string& planner_kind,
       const std::string& jni_planner_class_path,
@@ -152,6 +122,7 @@ class NexgDB {
   GraphDBConfig config_;
   GraphDB db_;
   DBMode mode_;
+  FileLock file_lock_;
 
   std::shared_ptr<IGraphPlanner> planner_;
   std::shared_ptr<QueryProcessor> query_processor_;

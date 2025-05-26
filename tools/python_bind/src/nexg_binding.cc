@@ -19,6 +19,7 @@
 #include "py_connection.h"
 #include "py_database.h"
 #include "py_query_result.h"
+#include "src/main/file_lock.h"
 
 #define STRINGIFY(x) #x
 #define MACRO_STRINGIFY(x) STRINGIFY(x)
@@ -41,4 +42,7 @@ PYBIND11_MODULE(nexg_py_bind, m) {
   gs::PyDatabase::initialize(m);
   gs::PyConnection::initialize(m);
   gs::PyQueryResult::initialize(m);
+
+  // Setup signal handling, for cleaning up resources on exit.
+  gs::setup_signal_handler();
 }

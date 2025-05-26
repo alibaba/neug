@@ -39,7 +39,7 @@ void dump_schema_to_file(const std::string& work_dir,
     } else if (type == PropertyType::kUInt32) {
       return "primitive_type: DT_UNSIGNED_INT32";
     } else if (type == PropertyType::kDate) {
-      return "primitive_type: DT_SIGNED_INT64";
+      return "temporal:\n              date:";
     } else if (type == PropertyType::kInt64) {
       return "primitive_type: DT_SIGNED_INT64";
     } else if (type == PropertyType::kUInt64) {
@@ -50,8 +50,8 @@ void dump_schema_to_file(const std::string& work_dir,
       return "primitive_type: DT_FLOAT";
     } else if (type == PropertyType::kStringView) {
       return "string:\n              long_text:";
-    } else if (type == PropertyType::kDay) {
-      return "temporal:\n              timestamp:";
+    } else if (type == PropertyType::kDateTime) {
+      return "temporal:\n              datetime:";
     } else {
       return "unknown";
     }

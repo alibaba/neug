@@ -30,6 +30,8 @@ int main(int argc, char** argv) {
     return 1;
   }
 
+  gs::setup_signal_handler();
+
   {
     std::vector<gs::StorageStrategy> strategies;
     push_strategies(strategies);
