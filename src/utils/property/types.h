@@ -330,6 +330,28 @@ struct __attribute__((packed)) Date {
 
   Date(int32_t num_days) { from_num_days(num_days); }
 
+  Date(const std::string date_str) {
+    // Parse date string in format YYYY-MM-DD
+    std::istringstream ss(date_str);
+    // Extract year, month, and day
+    int year, month, day;
+    char dash1, dash2;
+    ss >> year >> dash1 >> month >> dash2 >> day;
+    if (ss.fail() || dash1 != '-' || dash2 != '-' || month < 1 || month > 12 ||
+        day < 1 || day > 31) {
+      throw std::invalid_argument("Invalid date string format");
+    }
+    value.internal.year = year;
+    value.internal.month = month;
+    value.internal.day = day;
+    value.internal.hour = 0;  // Default hour to 0
+    LOG(INFO) << "Set date from string: " << date_str
+              << ", year: " << value.internal.year
+              << ", month: " << value.internal.month
+              << ", day: " << value.internal.day
+              << ", hour: " << value.internal.hour;
+  }
+
   std::string to_string() const;
 
   uint32_t to_u32() const;

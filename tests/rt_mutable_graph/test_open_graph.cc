@@ -36,6 +36,11 @@ int main(int argc, char** argv) {
     std::vector<gs::StorageStrategy> strategies;
     push_strategies(strategies);
   }
+  // Test parse date
+  std::string date_str = "1900-01-01";
+  gs::Date date(date_str);
+  LOG(INFO) << "date str: " << date.to_string();
+
   std::string data_path = argv[1];
   // remove the directory if it exists
   if (std::filesystem::exists(data_path)) {

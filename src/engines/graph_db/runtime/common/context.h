@@ -152,7 +152,7 @@ class WriteContext {
       } else if (type == PropertyType::kBool) {
         return Any(value == "true");
       } else if (type == PropertyType::kDate) {
-        return Any(Date(std::stoll(std::string(value))));
+        return Any(Date(std::string(value)));
       } else if (type == PropertyType::kDateTime) {
         return Any(DateTime(std::stoll(std::string(value))));
       } else {

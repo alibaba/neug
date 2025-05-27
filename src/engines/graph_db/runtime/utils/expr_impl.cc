@@ -471,7 +471,7 @@ static RTAny parse_param(const common::DynamicParam& param,
 
     const std::string& name = param.name();
     if (type == RTAnyType::kDate) {
-      Date val = Date(std::stoll(input.at(name)));
+      Date val = Date(input.at(name));
       return RTAny::from_date(val);
     } else if (type == RTAnyType::kStringValue) {
       const std::string& val = input.at(name);
