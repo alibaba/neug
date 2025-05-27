@@ -1329,11 +1329,10 @@ bool dump_edges_schema(const Schema& schema, YAML::Node& node) {
     cur_node["properties"] = YAML::Node(YAML::NodeType::Sequence);
     cur_node["vertex_type_pair_relations"] =
         YAML::Node(YAML::NodeType::Sequence);
-    bool properties_set = false;
 
     for (auto src_v : v_labels) {
       for (auto dst_v : v_labels) {
-        if (!properties_set) {
+        if (schema.has_edge_label(src_v, dst_v, e_label)) {
           auto properties = schema.get_edge_properties(src_v, dst_v, e_label);
           auto property_names =
               schema.get_edge_property_names(src_v, dst_v, e_label);
@@ -1345,8 +1344,7 @@ bool dump_edges_schema(const Schema& schema, YAML::Node& node) {
             prop_node["property_type"] = property_type_to_yaml(properties[i]);
             cur_node["properties"].push_back(prop_node);
           }
-        }
-        if (schema.has_edge_label(src_v, dst_v, e_label)) {
+
           YAML::Node vertex_type_pair_node;
           vertex_type_pair_node["source_vertex"] =
               schema.get_vertex_label_name(src_v);
