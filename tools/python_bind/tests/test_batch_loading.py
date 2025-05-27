@@ -80,3 +80,17 @@ class TestBachLoading(unittest.TestCase):
         for record in res:
             print(record)
 
+    def test_open_close(self):
+        tmp_path = os.environ.get("TMPDIR", "/tmp")
+        db_dir = tmp_path + "/test_open_close"
+        if os.path.exists(db_dir):
+            os.system("rm -rf %s" % db_dir)
+        if not os.path.exists(db_dir):
+            os.makedirs(db_dir)
+        db = Database(str(db_dir), "rw")
+        db.close()
+        db1 = Database(str(db_dir), "r")
+        db2 = Database(str(db_dir), "r")
+        assert db1 is not None and db2 is not None
+        db1.close()
+        db2.close()

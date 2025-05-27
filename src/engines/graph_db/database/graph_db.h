@@ -44,7 +44,13 @@ class GraphDBSession;
 struct SessionLocalContext;
 
 struct GraphDBConfig {
-  GraphDBConfig() = default;
+  GraphDBConfig()
+      : thread_num(1),
+        warmup(false),
+        enable_monitoring(false),
+        enable_auto_compaction(false),
+        memory_level(1),
+        wal_uri("") {}
   GraphDBConfig(const Schema& schema_, const std::string& data_dir_,
                 const std::string& compiler_path_ = "", int thread_num_ = 1)
       : schema(schema_),
@@ -227,7 +233,7 @@ class GraphDB {
   std::array<std::shared_ptr<AppFactoryBase>, 256> app_factories_;
 
   std::thread monitor_thread_;
-  bool monitor_thread_running_;
+  bool monitor_thread_running_ = false;
 
   timestamp_t last_compaction_ts_;
   bool compact_thread_running_ = false;

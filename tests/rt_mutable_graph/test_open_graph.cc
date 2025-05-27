@@ -4,23 +4,40 @@
 #include "src/storages/rt_mutable_graph/file_names.h"
 #include "src/storages/rt_mutable_graph/schema.h"
 
-gs::StorageStrategy StringToStorageStrategy(const std::string& str) {
-  if (str == "None") {
-    return gs::StorageStrategy::kNone;
-  } else if (str == "Mem") {
-    return gs::StorageStrategy::kMem;
-  } else if (str == "Disk") {
-    return gs::StorageStrategy::kDisk;
-  } else {
-    return gs::StorageStrategy::kMem;
+void test_open_close() {
+  std::string dir = "/tmp/test_open_close";
+  // remove the directory if it exists
+  if (std::filesystem::exists(dir)) {
+    std::filesystem::remove_all(dir);
   }
-}
+  // create the directory
+  std::filesystem::create_directories(dir);
+  gs::NexgDB db(
+      dir, 1, "rw", "jni",
+      "/workspaces/neug/tools/python_bind/nexg/resources/compiler.jar",
+      "/workspaces/neug/tools/python_bind/nexg/resources/planner_config.yaml",
+      "/workspaces/neug/tools/python_bind/nexg/resources");
+  auto conn = db.connect();
+  LOG(INFO) << "Before close db1";
+  db.close();
+  LOG(INFO) << "After close db1";
+  gs::NexgDB db2(
+      dir, 1, "r", "jni",
+      "/workspaces/neug/tools/python_bind/nexg/resources/compiler.jar",
+      "/workspaces/neug/tools/python_bind/nexg/resources/planner_config.yaml",
+      "/workspaces/neug/tools/python_bind/nexg/resources");
+  LOG(INFO) << "After open db2 in read-only mode";
+  gs::NexgDB db3(
+      dir, 1, "r", "jni",
+      "/workspaces/neug/tools/python_bind/nexg/resources/compiler.jar",
+      "/workspaces/neug/tools/python_bind/nexg/resources/planner_config.yaml",
+      "/workspaces/neug/tools/python_bind/nexg/resources");
+  LOG(INFO) << "After open db3 in read-write mode";
 
-void push_strategies(std::vector<gs::StorageStrategy>& strategies) {
-  for (int i = 0; i < 10; ++i) {
-    std::string stragety_str = "Mem";
-    strategies.push_back(StringToStorageStrategy(stragety_str));
-  }
+  db2.close();
+  LOG(INFO) << "After close db2";
+  db3.close();
+  LOG(INFO) << "After close db3";
 }
 
 int main(int argc, char** argv) {
@@ -32,14 +49,13 @@ int main(int argc, char** argv) {
 
   gs::setup_signal_handler();
 
-  {
-    std::vector<gs::StorageStrategy> strategies;
-    push_strategies(strategies);
-  }
   // Test parse date
   std::string date_str = "1900-01-01";
   gs::Date date(date_str);
   LOG(INFO) << "date str: " << date.to_string();
+
+  test_open_close();
+  LOG(INFO) << "------------------------------------";
 
   std::string data_path = argv[1];
   // remove the directory if it exists

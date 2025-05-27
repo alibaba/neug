@@ -24,7 +24,7 @@
 #include <glog/logging.h>
 
 namespace gs {
-
+enum class DBMode { READ_ONLY = 0, READ_WRITE = 1 };
 /*
 A simple file lock mechanism to ensure that only one instance of the
 NexgDB can run at a time. This is useful for preventing multiple processes
@@ -49,14 +49,14 @@ class FileLock {
 
   ~FileLock() { unlock(); }
 
-  bool lock(std::string& error_msg);
+  bool lock(std::string& error_msg, DBMode mode);
 
   void unlock();
 
  private:
   std::string data_dir_;
   std::string lock_file_path_;
-  std::ofstream lock_file_;
+  bool locked_ = false;
 
   static std::set<std::string> allLockFiles;
 };

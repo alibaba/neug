@@ -17,7 +17,7 @@
 
 namespace gs {
 
-bool FileLock::lock(std::string& error_msg) {
+bool FileLock::lock(std::string& error_msg, DBMode mode) {
   // If the lock file already exists, it means another process is using the
   // database.
   if (std::filesystem::exists(lock_file_path_)) {
@@ -28,8 +28,26 @@ bool FileLock::lock(std::string& error_msg) {
       LOG(ERROR) << "Failed to open lock file: " << lock_file_path_;
       return false;
     }
-    std::getline(lock_file, error_msg);
-    return false;
+    std::string line;
+    std::getline(lock_file, line);
+    // Expect content like "READ", "WRITE".
+    if (line.find("READ") != std::string::npos) {
+      if (mode == DBMode::READ_WRITE) {
+        error_msg = "Database is locked for read-only access.";
+        LOG(ERROR) << error_msg;
+        return false;
+      }
+      LOG(INFO) << "Database is locked for read access, proceeding in "
+                   "read-only mode.";
+    } else if (line.find("WRITE") != std::string::npos) {
+      LOG(ERROR) << "Database is locked for write access.";
+      error_msg = "Database is locked for write access.";
+      return false;
+    } else {
+      error_msg = "Unknown lock type in lock file: " + line;
+      LOG(ERROR) << error_msg;
+      return false;
+    }
   }
 
   // Create the lock file
@@ -39,17 +57,18 @@ bool FileLock::lock(std::string& error_msg) {
     return false;
   }
   // Write the current process ID to the lock file
-  lock_file << "Locked by process ID: " << getpid() << "\n";
+  lock_file << (mode == DBMode::READ_WRITE ? "WRITE" : "READ") << "\n";
   lock_file.close();
   VLOG(10) << "Successfully locked directory: " << data_dir_
            << ", lock file: " << lock_file_path_;
   allLockFiles.insert(lock_file_path_);
+  locked_ = true;
   return true;
 }
 
 void FileLock::unlock() {
-  if (lock_file_.is_open()) {
-    lock_file_.close();
+  if (!locked_) {
+    return;
   }
   remove(lock_file_path_.c_str());
   if (allLockFiles.find(lock_file_path_) != allLockFiles.end()) {

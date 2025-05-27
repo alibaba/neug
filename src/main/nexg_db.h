@@ -34,8 +34,6 @@
 
 namespace gs {
 
-enum class DBMode { READ_ONLY, READ_WRITE };
-
 void signal_handler(int signal);
 
 void setup_signal_handler();
@@ -64,13 +62,14 @@ class NexgDB {
     } else if (mode == "read_write" || mode == "rw" || mode == "w" ||
                mode == "wr") {
       mode_ = DBMode::READ_WRITE;
-      std::string message;
-      if (!file_lock_.lock(message)) {
-        throw std::runtime_error("Failed to lock directory: " + data_dir + "," +
-                                 message);
-      }
     } else {
       throw std::invalid_argument("Invalid mode: " + mode);
+    }
+
+    std::string message;
+    if (!file_lock_.lock(message, mode_)) {
+      throw std::runtime_error("Failed to lock directory: " + data_dir + "," +
+                               message);
     }
 
     auto res = db_.Open(config_);
@@ -87,10 +86,9 @@ class NexgDB {
     resource_path_ = resource_path;
   }
 
-  ~NexgDB() {
-    LOG(INFO) << "Closing NexgDB.";
-    db_.Close();
-  }
+  void close();
+
+  ~NexgDB() { close(); }
 
   /**
    * @brief Open a connection to the database.
@@ -110,8 +108,16 @@ class NexgDB {
       const std::string& jni_planner_class_path,
       const std::string& planner_config_path) {
     if (planner_kind == "jni") {
-      return std::make_shared<JavaGraphPlanner>(planner_config_path,
-                                                jni_planner_class_path);
+      static std::shared_ptr<IGraphPlanner> jni_planner;
+      if (jni_planner) {
+        VLOG(10) << "Using existing JNI Graph Planner.";
+      } else {
+        VLOG(10) << "Creating new JNI Graph Planner with class path: "
+                 << jni_planner_class_path;
+        jni_planner = std::make_shared<JavaGraphPlanner>(
+            planner_config_path, jni_planner_class_path);
+      }
+      return jni_planner;
     } else if (planner_kind == "dummy") {
       return std::make_shared<DummyGraphPlanner>();
     } else {

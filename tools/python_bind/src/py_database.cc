@@ -30,8 +30,18 @@ void PyDatabase::initialize(pybind11::handle& m) {
       .def("close", &PyDatabase::close);
 }
 
-PyConnection PyDatabase::connect() { return PyConnection(database->connect()); }
+PyConnection PyDatabase::connect() {
+  if (!database) {
+    throw std::runtime_error("Database is not initialized.");
+  }
+  return PyConnection(database->connect());
+}
 
-void PyDatabase::close() { database.reset(); }
+void PyDatabase::close() {
+  if (database) {
+    database->close();
+    database.reset();
+  }
+}
 
 }  // namespace gs
