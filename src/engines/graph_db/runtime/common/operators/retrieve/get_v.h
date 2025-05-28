@@ -57,7 +57,7 @@ class GetV {
     auto column = std::dynamic_pointer_cast<IEdgeColumn>(ctx.get(params.tag));
     if (column == nullptr) {
       LOG(ERROR) << "column is nullptr";
-      RETURN_BAD_REQUEST_ERROR("column is nullptr");
+      RETURN_INVALID_ARGUMENT_ERROR("column is nullptr");
     }
 
     std::vector<size_t> shuffle_offset;
@@ -199,7 +199,8 @@ class GetV {
           LOG(ERROR) << "output_vertex_label != params.tables[0]"
                      << static_cast<int>(output_vertex_label) << " "
                      << static_cast<int>(params.tables[0]);
-          RETURN_BAD_REQUEST_ERROR("output_vertex_label != params.tables[0]");
+          RETURN_INVALID_ARGUMENT_ERROR(
+              "output_vertex_label != params.tables[0]");
         }
       }
       auto builder = SLVertexColumnBuilder::builder(output_vertex_label);

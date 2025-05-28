@@ -22,7 +22,7 @@
 #include <string>
 #include <vector>
 
-#include "src/utils/error_pb/interactive.pb.h"
+#include "src/utils/error_pb/error.pb.h"
 
 #include "glog/logging.h"
 

@@ -264,9 +264,9 @@ bl::result<procedure::Query> fill_in_query(const procedure::Query& query,
       auto val = col->get_elem(idx);
       auto const_value = argument->mutable_const_();
       if (val.type() == gs::runtime::RTAnyType::kVertex) {
-        RETURN_BAD_REQUEST_ERROR("The input param should not be a vertex");
+        RETURN_INVALID_ARGUMENT_ERROR("The input param should not be a vertex");
       } else if (val.type() == gs::runtime::RTAnyType::kEdge) {
-        RETURN_BAD_REQUEST_ERROR("The input param should not be an edge");
+        RETURN_INVALID_ARGUMENT_ERROR("The input param should not be an edge");
       } else if (val.type() == gs::runtime::RTAnyType::kI64Value) {
         const_value->set_i64(val.as_int64());
       } else if (val.type() == gs::runtime::RTAnyType::kI32Value) {
@@ -322,13 +322,13 @@ bl::result<Context> eval_procedure_call(const std::vector<int32_t>& aliases,
     GraphDBSession& sess_cast = const_cast<GraphDBSession&>(sess);
     AppBase* app = const_cast<AppBase*>(sess_cast.GetApp(proc_name.name()));
     if (!app) {
-      RETURN_BAD_REQUEST_ERROR("Stored procedure not found: " +
-                               proc_name.name());
+      RETURN_INVALID_ARGUMENT_ERROR("Stored procedure not found: " +
+                                    proc_name.name());
     }
     ReadAppBase* read_app = dynamic_cast<ReadAppBase*>(app);
     if (!app) {
-      RETURN_BAD_REQUEST_ERROR("Stored procedure is not a read procedure: " +
-                               proc_name.name());
+      RETURN_INVALID_ARGUMENT_ERROR(
+          "Stored procedure is not a read procedure: " + proc_name.name());
     }
 
     std::vector<results::CollectiveResults> results;

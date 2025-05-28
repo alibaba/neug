@@ -525,7 +525,7 @@ gs::Result<YAML::Node> preprocess_vertex_edge_types(
     if (type["type_id"]) {
       auto type_id = type["type_id"].as<int32_t>();
       if (type_id != cur_type_id) {
-        return gs::Status(gs::StatusCode::INVALID_SCHEMA,
+        return gs::Status(gs::StatusCode::ERR_INVALID_SCHEMA,
                           "Invalid " + type_name +
                               " type_id: " + std::to_string(type_id) +
                               ", expect: " + std::to_string(cur_type_id));
@@ -540,7 +540,7 @@ gs::Result<YAML::Node> preprocess_vertex_edge_types(
         if (prop["property_id"]) {
           auto prop_id = prop["property_id"].as<int32_t>();
           if (prop_id != cur_prop_id) {
-            return gs::Status(gs::StatusCode::INVALID_SCHEMA,
+            return gs::Status(gs::StatusCode::ERR_INVALID_SCHEMA,
                               "Invalid " + type_name + " property_id: " +
                                   type["type_name"].as<std::string>() + " : " +
                                   std::to_string(prop_id) +
@@ -578,7 +578,8 @@ gs::Result<YAML::Node> preprocess_graph_schema(YAML::Node&& node) {
     node["schema"] = schema_node;
     return node;
   } else {
-    return gs::Status(gs::StatusCode::INVALID_SCHEMA, "Invalid graph schema: ");
+    return gs::Status(gs::StatusCode::ERR_INVALID_SCHEMA,
+                      "Invalid graph schema: ");
   }
 }
 
@@ -597,12 +598,12 @@ Result<std::string> preprocess_and_check_schema_json_string(
   } catch (std::exception& e) {
     LOG(ERROR) << "Fail to parse json: " << e.what();
     return gs::Result<std::string>(
-        gs::Status(gs::StatusCode::INVALID_SCHEMA,
+        gs::Status(gs::StatusCode::ERR_INVALID_SCHEMA,
                    "Fail to parse json: " + std::string(e.what())));
   } catch (...) {
     LOG(ERROR) << "Fail to parse json: " << raw_json_str;
     return gs::Result<std::string>(
-        gs::Status(gs::StatusCode::INVALID_SCHEMA, "Fail to parse json: "));
+        gs::Status(gs::StatusCode::ERR_INVALID_SCHEMA, "Fail to parse json: "));
   }
   // preprocess the schema yaml,
   auto res_yaml = preprocess_graph_schema(std::move(yaml));
@@ -1142,7 +1143,7 @@ Result<GraphStatistics> GraphStatistics::FromJson(const std::string& json_str) {
   if (json.Parse(json_str.c_str()).HasParseError()) {
     LOG(ERROR) << "Invalid json string: " << json_str;
     return Result<GraphStatistics>(Status(
-        StatusCode::INTERNAL_ERROR,
+        StatusCode::ERR_INTERNAL_ERROR,
         "Invalid json string when parsing graph statistics : " + json_str));
   }
   return GraphStatistics::FromJson(json);

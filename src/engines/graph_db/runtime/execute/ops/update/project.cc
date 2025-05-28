@@ -286,12 +286,12 @@ class ProjectUpdateOpr : public IUpdateOperator {
                     std::move(getter), std::move(collector), alias));
           } else {
             LOG(ERROR) << "project update only support var";
-            RETURN_BAD_REQUEST_ERROR("project update only support var");
+            RETURN_INVALID_ARGUMENT_ERROR("project update only support var");
           }
         }
       } else {
         LOG(ERROR) << "project update only support var";
-        RETURN_BAD_REQUEST_ERROR("project update only support var");
+        RETURN_INVALID_ARGUMENT_ERROR("project update only support var");
       }
     }
     return UProject::project(std::move(ctx), exprs, is_append_);

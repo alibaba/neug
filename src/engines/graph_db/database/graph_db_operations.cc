@@ -48,7 +48,7 @@ Result<std::string> GraphDBOperations::CreateVertex(
       (input_json.HasMember("edge_request") &&
        input_json["edge_request"].IsArray() == false)) {
     return Result<std::string>(gs::Status(
-        StatusCode::INVALID_SCHEMA,
+        StatusCode::ERR_INVALID_SCHEMA,
         "Invalid input json, vertex_request and edge_request should be array "
         "and not empty"));
   }
@@ -66,7 +66,7 @@ Result<std::string> GraphDBOperations::CreateVertex(
     LOG(INFO) << "CreateVertex edge_data: " << edge_data.size();
   } catch (std::exception& e) {
     return Result<std::string>(
-        gs::Status(StatusCode::INVALID_SCHEMA,
+        gs::Status(StatusCode::ERR_INVALID_SCHEMA,
                    " Bad input parameter : " + std::string(e.what())));
   }
   auto insert_result =
@@ -86,7 +86,7 @@ Result<std::string> GraphDBOperations::CreateEdge(
   // Check if the input json contains edge_request
   if (input_json.IsArray() == false || input_json.Size() == 0) {
     return Result<std::string>(gs::Status(
-        StatusCode::INVALID_SCHEMA,
+        StatusCode::ERR_INVALID_SCHEMA,
         "Invalid input json, edge_request should be array and not empty"));
   }
   const Schema& schema = session.schema();
@@ -97,7 +97,7 @@ Result<std::string> GraphDBOperations::CreateEdge(
     }
   } catch (std::exception& e) {
     return Result<std::string>(
-        gs::Status(StatusCode::INVALID_SCHEMA,
+        gs::Status(StatusCode::ERR_INVALID_SCHEMA,
                    " Bad input parameter : " + std::string(e.what())));
   }
   auto insert_result = insertEdge(std::move(edge_data), session);
@@ -117,13 +117,13 @@ Result<std::string> GraphDBOperations::UpdateVertex(
   try {
     if (!input_json.IsObject() || !input_json.HasMember("vertex_request")) {
       return Result<std::string>(
-          gs::Status(StatusCode::INVALID_SCHEMA,
+          gs::Status(StatusCode::ERR_INVALID_SCHEMA,
                      "Invalid input json, update vertex request should be "
                      "object or vertex_request field not set"));
     }
     if (!input_json["vertex_request"].IsArray()) {
       return Result<std::string>(
-          gs::Status(StatusCode::INVALID_SCHEMA,
+          gs::Status(StatusCode::ERR_INVALID_SCHEMA,
                      "Invalid input json, vertex_request should be array"));
     }
     for (auto& vertex_update : input_json["vertex_request"].GetArray()) {
@@ -131,7 +131,7 @@ Result<std::string> GraphDBOperations::UpdateVertex(
     }
   } catch (std::exception& e) {
     return Result<std::string>(
-        gs::Status(StatusCode::INVALID_SCHEMA,
+        gs::Status(StatusCode::ERR_INVALID_SCHEMA,
                    " Bad input parameter : " + std::string(e.what())));
   }
   auto update_result = updateVertex(std::move(vertex_data), session);
@@ -152,7 +152,7 @@ Result<std::string> GraphDBOperations::UpdateEdge(
   try {
     if (!input_json.IsArray()) {
       return Result<std::string>(
-          gs::Status(StatusCode::INVALID_SCHEMA,
+          gs::Status(StatusCode::ERR_INVALID_SCHEMA,
                      "Invalid input json, edge_request should be array"));
     }
     for (auto& edge_update : input_json.GetArray()) {
@@ -160,7 +160,7 @@ Result<std::string> GraphDBOperations::UpdateEdge(
     }
   } catch (std::exception& e) {
     return Result<std::string>(
-        gs::Status(StatusCode::INVALID_SCHEMA,
+        gs::Status(StatusCode::ERR_INVALID_SCHEMA,
                    " Bad input parameter : " + std::string(e.what())));
   }
   auto update_result = updateEdge(std::move(edge_data), session);
@@ -244,13 +244,13 @@ Result<std::string> GraphDBOperations::GetEdge(
 Result<std::string> GraphDBOperations::DeleteVertex(
     GraphDBSession& session, rapidjson::Document&& input_json) {
   // not implemented
-  return Result<std::string>(StatusCode::UNIMPLEMENTED,
+  return Result<std::string>(StatusCode::ERR_NOT_IMPLEMENTED,
                              "delete_vertex is not implemented");
 }
 Result<std::string> GraphDBOperations::DeleteEdge(
     GraphDBSession& session, rapidjson::Document&& input_json) {
   // not implemented
-  return Result<std::string>(StatusCode::UNIMPLEMENTED,
+  return Result<std::string>(StatusCode::ERR_NOT_IMPLEMENTED,
                              "delete_edge is not implemented");
 }
 
@@ -350,7 +350,7 @@ Status GraphDBOperations::checkVertexSchema(
     }
     return Status::OK();
   } catch (std::exception& e) {
-    return Status(StatusCode::INVALID_SCHEMA,
+    return Status(StatusCode::ERR_INVALID_SCHEMA,
                   " Bad input parameter : " + std::string(e.what()));
   }
 }
@@ -390,7 +390,7 @@ Status GraphDBOperations::checkEdgeSchema(const Schema& schema, EdgeData& edge,
         std::get<0>(schema.get_vertex_primary_key(edge.dst_label_id)[0]));
     return Status::OK();
   } catch (std::exception& e) {
-    return Status(StatusCode::INVALID_SCHEMA,
+    return Status(StatusCode::ERR_INVALID_SCHEMA,
                   " Bad input parameter : " + std::string(e.what()));
   }
 }
@@ -420,7 +420,7 @@ Status GraphDBOperations::checkEdgeExistsWithInsert(
       }
     }
   } catch (std::exception& e) {
-    return Status(StatusCode::INVALID_SCHEMA, e.what());
+    return Status(StatusCode::ERR_INVALID_SCHEMA, e.what());
   }
   return Status::OK();
 }
@@ -450,7 +450,7 @@ Status GraphDBOperations::checkEdgeExists(
       }
     }
   } catch (std::exception& e) {
-    return Status(StatusCode::INVALID_SCHEMA, e.what());
+    return Status(StatusCode::ERR_INVALID_SCHEMA, e.what());
   }
   return Status::OK();
 }
@@ -469,7 +469,7 @@ Status GraphDBOperations::checkVertexExists(
     }
     txn.Commit();
   } catch (std::exception& e) {
-    return Status(StatusCode::INVALID_SCHEMA, e.what());
+    return Status(StatusCode::ERR_INVALID_SCHEMA, e.what());
   }
   return Status::OK();
 }
@@ -497,7 +497,7 @@ Status GraphDBOperations::singleInsertVertex(
     }
     txnWrite.Commit();
   } catch (std::exception& e) {
-    return Status(StatusCode::INVALID_SCHEMA, e.what());
+    return Status(StatusCode::ERR_INVALID_SCHEMA, e.what());
   }
   return Status::OK();
 }
@@ -526,7 +526,7 @@ Status GraphDBOperations::multiInsert(std::vector<VertexData>&& vertex_data,
     }
     txnWrite.Commit();
   } catch (std::exception& e) {
-    return Status(StatusCode::INVALID_SCHEMA, e.what());
+    return Status(StatusCode::ERR_INVALID_SCHEMA, e.what());
   }
   return Status::OK();
 }
@@ -564,7 +564,7 @@ Status GraphDBOperations::singleInsertEdge(std::vector<EdgeData>&& edge_data,
     }
     txnWrite.Commit();
   } catch (std::exception& e) {
-    return Status(StatusCode::INVALID_SCHEMA, e.what());
+    return Status(StatusCode::ERR_INVALID_SCHEMA, e.what());
   }
   return Status::OK();
 }
@@ -605,7 +605,7 @@ Status GraphDBOperations::updateVertex(std::vector<VertexData>&& vertex_data,
     }
     txnWrite.Commit();
   } catch (std::exception& e) {
-    return Status(StatusCode::INVALID_SCHEMA, e.what());
+    return Status(StatusCode::ERR_INVALID_SCHEMA, e.what());
   }
   return Status::OK();
 }
@@ -642,7 +642,7 @@ Status GraphDBOperations::updateEdge(std::vector<EdgeData>&& edge_data,
                      dst_vid, edge.edge_label_id, edge.property_value);
     txn2.Commit();
   } catch (std::exception& e) {
-    return Status(StatusCode::INVALID_SCHEMA, e.what());
+    return Status(StatusCode::ERR_INVALID_SCHEMA, e.what());
   }
   return Status::OK();
 }
@@ -670,7 +670,7 @@ Result<rapidjson::Value> GraphDBOperations::getVertex(
     return Result<rapidjson::Value>(std::move(result));
   } catch (std::exception& e) {
     return Result<rapidjson::Value>(
-        Status(StatusCode::INVALID_SCHEMA, e.what()));
+        Status(StatusCode::ERR_INVALID_SCHEMA, e.what()));
   }
 }
 
@@ -708,7 +708,7 @@ Result<rapidjson::Value> GraphDBOperations::getEdge(
     return Result<rapidjson::Value>(std::move(result));
   } catch (std::exception& e) {
     return Result<rapidjson::Value>(
-        Status(StatusCode::INVALID_SCHEMA, e.what()));
+        Status(StatusCode::ERR_INVALID_SCHEMA, e.what()));
   }
 }
 

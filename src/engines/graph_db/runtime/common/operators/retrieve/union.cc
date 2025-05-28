@@ -28,7 +28,7 @@ bl::result<Context> Union::union_op(std::vector<Context>&& ctxs) {
   auto& ctx1 = ctxs[1];
   if (ctx0.columns.size() != ctx1.columns.size()) {
     LOG(ERROR) << "Union: column size not match";
-    RETURN_BAD_REQUEST_ERROR("Union: column size not match");
+    RETURN_INVALID_ARGUMENT_ERROR("Union: column size not match");
   }
   return ctx0.union_ctx(ctx1);
 }

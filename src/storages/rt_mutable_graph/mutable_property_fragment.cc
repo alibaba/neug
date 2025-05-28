@@ -115,7 +115,8 @@ Status MutablePropertyFragment::create_vertex_type(
     const std::vector<std::string>& primary_key_names, bool error_on_conflict) {
   if (schema_.contains_vertex_label(vertex_type_name)) {
     if (error_on_conflict) {
-      return Status(StatusCode::INVALID_SCHEMA, "Vertex label already exists.");
+      return Status(StatusCode::ERR_INVALID_SCHEMA,
+                    "Vertex label already exists.");
     } else {
       return Status(StatusCode::OK, "Vertex label already exists.");
     }
@@ -127,10 +128,10 @@ Status MutablePropertyFragment::create_vertex_type(
   std::vector<std::tuple<PropertyType, std::string, size_t>> primary_keys;
   std::vector<int> primary_key_inds(primary_key_names.size(), -1);
   if (primary_key_inds.size() > 1) {
-    return Status(StatusCode::INVALID_SCHEMA,
+    return Status(StatusCode::ERR_INVALID_SCHEMA,
                   "Multi primary keys are not supported.");
   } else if (primary_key_inds.size() == 0) {
-    return Status(StatusCode::INVALID_SCHEMA,
+    return Status(StatusCode::ERR_INVALID_SCHEMA,
                   "At least one primary key is required.");
   }
   for (size_t i = 0; i < properties.size(); i++) {
@@ -151,7 +152,7 @@ Status MutablePropertyFragment::create_vertex_type(
       LOG(ERROR) << "Primary key " << primary_key_name
                  << " is not found in properties";
       return Status(
-          StatusCode::INVALID_SCHEMA,
+          StatusCode::ERR_INVALID_SCHEMA,
           "Primary key " + primary_key_name + " is not found in properties");
     }
     if (property_types[primary_key_inds[i]] != PropertyType::kInt64 &&
@@ -162,7 +163,7 @@ Status MutablePropertyFragment::create_vertex_type(
         !property_types[primary_key_inds[i]].IsVarchar()) {
       LOG(ERROR) << "Primary key " << primary_key_name
                  << " should be int64/int32/uint64/uint32 or string/varchar";
-      return Status(StatusCode::INVALID_SCHEMA,
+      return Status(StatusCode::ERR_INVALID_SCHEMA,
                     "Primary key " + primary_key_name +
                         " should be int64/int32/uint64/"
                         "uint32 or string/varchar");
@@ -223,13 +224,13 @@ Status MutablePropertyFragment::create_edge_type(
     LOG(ERROR) << "Source_vertex [" << src_vertex_type
                << "] does not exist in the graph.";
     return Status(
-        StatusCode::INVALID_SCHEMA,
+        StatusCode::ERR_INVALID_SCHEMA,
         "Source_vertex [" + src_vertex_type + "] does not exist in the graph.");
   }
   if (!schema_.contains_vertex_label(dst_vertex_type)) {
     LOG(ERROR) << "Destination_vertex [" << dst_vertex_type
                << "] does not exist in the graph.";
-    return Status(StatusCode::INVALID_SCHEMA,
+    return Status(StatusCode::ERR_INVALID_SCHEMA,
                   "Destination_vertex [" + dst_vertex_type +
                       "] does not exist in the graph.");
   }
@@ -238,7 +239,7 @@ Status MutablePropertyFragment::create_edge_type(
     LOG(ERROR) << "Edge [" << edge_type_name << "] from [" << src_vertex_type
                << "] to [" << dst_vertex_type << "] already exists";
     if (error_on_conflict) {
-      return Status(StatusCode::INVALID_SCHEMA,
+      return Status(StatusCode::ERR_INVALID_SCHEMA,
                     "Edge [" + edge_type_name + "] from [" + src_vertex_type +
                         "] to [" + dst_vertex_type + "] already exists");
     } else {
@@ -313,7 +314,7 @@ Status MutablePropertyFragment::add_vertex_properties(
   if (!schema_.contains_vertex_label(vertex_type_name)) {
     LOG(ERROR) << "Vertex label[" << vertex_type_name << "] does not exists.";
     if (error_on_conflict) {
-      return Status(StatusCode::INVALID_SCHEMA,
+      return Status(StatusCode::ERR_INVALID_SCHEMA,
                     "Vertex label[" + vertex_type_name + "] does not exists.");
     } else {
       return Status(StatusCode::OK,
@@ -329,7 +330,7 @@ Status MutablePropertyFragment::add_vertex_properties(
       LOG(ERROR) << "Property [" << property_name
                  << "] already exists in vertex [" << vertex_type_name << "].";
       if (error_on_conflict) {
-        return Status(StatusCode::INVALID_SCHEMA,
+        return Status(StatusCode::ERR_INVALID_SCHEMA,
                       "Property [" + property_name +
                           "] already exists in vertex [" + vertex_type_name +
                           "].");
@@ -364,7 +365,7 @@ Status MutablePropertyFragment::add_edge_properties(
     LOG(ERROR) << "Edge [" << edge_type_name << "] from [" << src_type_name
                << "] to [" << dst_type_name << "] does not exist";
     if (error_on_conflict) {
-      return Status(StatusCode::INVALID_SCHEMA,
+      return Status(StatusCode::ERR_INVALID_SCHEMA,
                     "Edge [" + edge_type_name + "] from [" + src_type_name +
                         "] to [" + dst_type_name + "] does not exist");
     } else {
@@ -386,7 +387,7 @@ Status MutablePropertyFragment::add_edge_properties(
                         "] from [" + src_type_name + "] to [" + dst_type_name +
                         "].";
       if (error_on_conflict) {
-        return Status(StatusCode::INVALID_SCHEMA, msg);
+        return Status(StatusCode::ERR_INVALID_SCHEMA, msg);
       } else {
         return Status(StatusCode::OK, msg);
       }
@@ -408,7 +409,7 @@ Status MutablePropertyFragment::add_edge_properties(
     LOG(ERROR) << "Edge [" << edge_type_name << "] from [" << src_type_name
                << "] to [" << dst_type_name
                << "] does not exist, cannot add properties.";
-    return Status(StatusCode::INVALID_SCHEMA,
+    return Status(StatusCode::ERR_INVALID_SCHEMA,
                   "Edge [" + edge_type_name + "] from [" + src_type_name +
                       "] to [" + dst_type_name +
                       "] does not exist, cannot add properties.");
@@ -419,7 +420,7 @@ Status MutablePropertyFragment::add_edge_properties(
     LOG(ERROR) << "Edge [" << edge_type_name << "] from [" << src_type_name
                << "] to [" << dst_type_name
                << "] does not support adding properties.";
-    return Status(StatusCode::INVALID_SCHEMA,
+    return Status(StatusCode::ERR_INVALID_SCHEMA,
                   "Edge [" + edge_type_name + "] from [" + src_type_name +
                       "] to [" + dst_type_name +
                       "] does not support adding properties.");
@@ -437,7 +438,7 @@ Status MutablePropertyFragment::rename_vertex_properties(
   if (!schema_.contains_vertex_label(vertex_type_name)) {
     LOG(ERROR) << "Vertex label[" << vertex_type_name << "] does not exists.";
     if (error_on_conflict) {
-      return Status(StatusCode::INVALID_SCHEMA,
+      return Status(StatusCode::ERR_INVALID_SCHEMA,
                     "Vertex label[" + vertex_type_name + "] does not exists.");
     } else {
       return Status(StatusCode::OK,
@@ -454,7 +455,7 @@ Status MutablePropertyFragment::rename_vertex_properties(
                         "].";
       LOG(ERROR) << msg;
       if (error_on_conflict) {
-        return Status(StatusCode::INVALID_SCHEMA, msg);
+        return Status(StatusCode::ERR_INVALID_SCHEMA, msg);
       } else {
         return Status(StatusCode::OK, msg);
       }
@@ -485,7 +486,7 @@ Status MutablePropertyFragment::rename_edge_properties(
                       "] to [" + dst_type_name + "] does not exist";
     LOG(ERROR) << msg;
     if (error_on_conflict) {
-      return Status(StatusCode::INVALID_SCHEMA, msg);
+      return Status(StatusCode::ERR_INVALID_SCHEMA, msg);
     } else {
       return Status(StatusCode::OK, msg);
     }
@@ -502,7 +503,7 @@ Status MutablePropertyFragment::rename_edge_properties(
                         "].";
       LOG(ERROR) << msg;
       if (error_on_conflict) {
-        return Status(StatusCode::INVALID_SCHEMA, msg);
+        return Status(StatusCode::ERR_INVALID_SCHEMA, msg);
       } else {
         return Status(StatusCode::OK, msg);
       }
@@ -523,7 +524,7 @@ Status MutablePropertyFragment::rename_edge_properties(
     LOG(ERROR) << "Edge [" << edge_type_name << "] from [" << src_type_name
                << "] to [" << dst_type_name
                << "] does not exist, cannot rename properties.";
-    return Status(StatusCode::INVALID_SCHEMA,
+    return Status(StatusCode::ERR_INVALID_SCHEMA,
                   "Edge [" + edge_type_name + "] from [" + src_type_name +
                       "] to [" + dst_type_name +
                       "] does not exist, cannot rename properties.");
@@ -533,7 +534,7 @@ Status MutablePropertyFragment::rename_edge_properties(
     LOG(ERROR) << "Edge [" << edge_type_name << "] from [" << src_type_name
                << "] to [" << dst_type_name
                << "] does not support renaming properties.";
-    return Status(StatusCode::INVALID_SCHEMA,
+    return Status(StatusCode::ERR_INVALID_SCHEMA,
                   "Edge [" + edge_type_name + "] from [" + src_type_name +
                       "] to [" + dst_type_name +
                       "] does not support renaming properties.");
@@ -551,7 +552,7 @@ Status MutablePropertyFragment::delete_vertex_properties(
   if (!schema_.contains_vertex_label(vertex_type_name)) {
     LOG(ERROR) << "Vertex label[" << vertex_type_name << "] does not exists.";
     if (error_on_conflict) {
-      return Status(StatusCode::INVALID_SCHEMA,
+      return Status(StatusCode::ERR_INVALID_SCHEMA,
                     "Vertex label[" + vertex_type_name + "] does not exists.");
     } else {
       return gs::Status(StatusCode::OK, "Vertex label[" + vertex_type_name +
@@ -566,7 +567,7 @@ Status MutablePropertyFragment::delete_vertex_properties(
                         "] does not exist in vertex [" + vertex_type_name +
                         "].";
       if (error_on_conflict) {
-        return Status(StatusCode::INVALID_SCHEMA,
+        return Status(StatusCode::ERR_INVALID_SCHEMA,
                       "Property [" + property_name +
                           "] does not exist in vertex [" + vertex_type_name +
                           "].");
@@ -596,7 +597,7 @@ Status MutablePropertyFragment::delete_edge_properties(
                       "] to [" + dst_type_name + "] does not exist";
     LOG(ERROR) << msg;
     if (error_on_conflict) {
-      return Status(StatusCode::INVALID_SCHEMA, msg);
+      return Status(StatusCode::ERR_INVALID_SCHEMA, msg);
     } else {
       return Status(StatusCode::OK, msg);
     }
@@ -612,7 +613,7 @@ Status MutablePropertyFragment::delete_edge_properties(
                         "].";
       LOG(ERROR) << msg;
       if (error_on_conflict) {
-        return Status(StatusCode::INVALID_SCHEMA, msg);
+        return Status(StatusCode::ERR_INVALID_SCHEMA, msg);
       } else {
         return Status(StatusCode::OK, msg);
       }
@@ -631,7 +632,7 @@ Status MutablePropertyFragment::delete_edge_properties(
     LOG(ERROR) << "Edge [" << edge_type_name << "] from [" << src_type_name
                << "] to [" << dst_type_name
                << "] does not exist, cannot delete properties.";
-    return Status(StatusCode::INVALID_SCHEMA,
+    return Status(StatusCode::ERR_INVALID_SCHEMA,
                   "Edge [" + edge_type_name + "] from [" + src_type_name +
                       "] to [" + dst_type_name +
                       "] does not exist, cannot delete properties.");
@@ -641,7 +642,7 @@ Status MutablePropertyFragment::delete_edge_properties(
     LOG(ERROR) << "Edge [" << edge_type_name << "] from [" << src_type_name
                << "] to [" << dst_type_name
                << "] does not support deleting properties.";
-    return Status(StatusCode::INVALID_SCHEMA,
+    return Status(StatusCode::ERR_INVALID_SCHEMA,
                   "Edge [" + edge_type_name + "] from [" + src_type_name +
                       "] to [" + dst_type_name +
                       "] does not support deleting properties.");
@@ -658,7 +659,7 @@ Status MutablePropertyFragment::delete_vertex_type(
   if (!schema_.contains_vertex_label(vertex_type_name)) {
     if (error_on_conflict) {
       LOG(ERROR) << "Vertex label[" << vertex_type_name << "] does not exists.";
-      return Status(StatusCode::INVALID_SCHEMA,
+      return Status(StatusCode::ERR_INVALID_SCHEMA,
                     "Vertex label[" + vertex_type_name + "] does not exists.");
     } else {
       LOG(INFO) << "Vertex label[" << vertex_type_name
@@ -677,7 +678,7 @@ Status MutablePropertyFragment::delete_edge_type(
     if (error_on_conflict) {
       LOG(ERROR) << "Edge [" << edge_type << "] from [" << src_vertex_type
                  << "] to [" << dst_vertex_type << "] does not exist";
-      return Status(StatusCode::INVALID_SCHEMA,
+      return Status(StatusCode::ERR_INVALID_SCHEMA,
                     "Edge [" + edge_type + "] from [" + src_vertex_type +
                         "] to [" + dst_vertex_type + "] does not exist");
     } else {

@@ -29,7 +29,7 @@ bl::result<Context> CSVDataSourceOpr::Eval(
     OprTimer& timer) {
   if (ctx.row_num() != 0) {
     LOG(ERROR) << "Expect a empty context, but got " << ctx.row_num();
-    return bl::new_error(gs::StatusCode::INVALID_ARGUMENT,
+    return bl::new_error(gs::StatusCode::ERR_INVALID_ARGUMENT,
                          "Expect a empty context");
   }
 
@@ -47,7 +47,7 @@ bl::result<Context> CSVDataSourceOpr::Eval(
     } else if (num_columns != batch->num_columns()) {
       LOG(ERROR) << "Expect the same number of columns, but got " << num_columns
                  << " and " << batch->num_columns();
-      return bl::new_error(gs::StatusCode::INVALID_ARGUMENT,
+      return bl::new_error(gs::StatusCode::ERR_INVALID_ARGUMENT,
                            "Expect the same number of columns");
     }
     arrow_columns.push_back(batch->columns());
@@ -57,7 +57,7 @@ bl::result<Context> CSVDataSourceOpr::Eval(
   // Expect there are no aliases in the context.
   if (ctx.col_num() != 0) {
     LOG(ERROR) << "Expect a empty context, but got " << ctx.col_num();
-    return bl::new_error(gs::StatusCode::INVALID_ARGUMENT,
+    return bl::new_error(gs::StatusCode::ERR_INVALID_ARGUMENT,
                          "Expect a empty context");
   }
   for (int i = 0; i < num_columns; i++) {

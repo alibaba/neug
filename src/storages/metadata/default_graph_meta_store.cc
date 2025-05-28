@@ -78,7 +78,7 @@ Result<bool> DefaultGraphMetaStore::UpdateGraphMeta(
         if (json.Parse(old_meta.c_str()).HasParseError()) {
           LOG(ERROR) << "Fail to parse old graph meta:" << json.GetParseError();
           return Result<std::string>(
-              Status(StatusCode::INTERNAL_ERROR,
+              Status(StatusCode::ERR_INTERNAL_ERROR,
                      std::string("Fail to parse old graph meta: ") +
                          std::to_string(json.GetParseError())));
         }
@@ -109,7 +109,7 @@ Result<PluginId> DefaultGraphMetaStore::CreatePluginMeta(
     return Result<PluginId>(request.id.value());
   } else {
     LOG(ERROR) << "Can not create plugin meta without id";
-    return Result<PluginId>(Status(StatusCode::INVALID_ARGUMENT,
+    return Result<PluginId>(Status(StatusCode::ERR_INVALID_ARGUMENT,
                                    "Can not create plugin meta without id"));
   }
 }
@@ -124,12 +124,12 @@ Result<PluginMeta> DefaultGraphMetaStore::GetPluginMeta(
   std::string meta_str = res.move_value();
   auto meta = PluginMeta::FromJson(meta_str);
   if (meta.bound_graph != graph_id) {
-    return Result<PluginMeta>(Status(StatusCode::INVALID_ARGUMENT,
+    return Result<PluginMeta>(Status(StatusCode::ERR_INVALID_ARGUMENT,
                                      "Plugin not belongs to the graph"));
   }
   if (meta.id != plugin_id) {
     return Result<PluginMeta>(
-        Status(StatusCode::INVALID_ARGUMENT,
+        Status(StatusCode::ERR_INVALID_ARGUMENT,
                "Plugin id not match: " + plugin_id + " vs " + meta.id));
   }
   return Result<PluginMeta>(meta);
@@ -195,19 +195,19 @@ Result<bool> DefaultGraphMetaStore::UpdatePluginMeta(
           LOG(ERROR) << "Fail to parse old plugin meta:"
                      << json.GetParseError();
           return Result<std::string>(
-              Status(StatusCode::INTERNAL_ERROR,
+              Status(StatusCode::ERR_INTERNAL_ERROR,
                      std::string("Fail to parse old plugin meta: ") +
                          std::to_string(json.GetParseError())));
         }
         auto plugin_meta = PluginMeta::FromJson(json);
         if (plugin_meta.bound_graph != graph_id) {
-          return Result<std::string>(Status(gs::StatusCode::INTERNAL_ERROR,
+          return Result<std::string>(Status(gs::StatusCode::ERR_INTERNAL_ERROR,
                                             "Plugin not belongs to the graph"));
         }
         if (update_request.bound_graph.has_value()) {
           if (update_request.bound_graph.value() != graph_id) {
             return Result<std::string>(
-                Status(gs::StatusCode::ILLEGAL_OPERATION,
+                Status(gs::StatusCode::ERR_ILLEGAL_OPERATION,
                        "The plugin_id in update payload is not "
                        "the same with original"));
           }
@@ -285,7 +285,7 @@ Result<bool> DefaultGraphMetaStore::UpdateJobMeta(
         if (json.Parse(old_meta.c_str()).HasParseError()) {
           LOG(ERROR) << "Fail to parse old job meta:" << json.GetParseError();
           return Result<std::string>(
-              Status(StatusCode::INTERNAL_ERROR,
+              Status(StatusCode::ERR_INTERNAL_ERROR,
                      std::string("Fail to parse old job meta: ") +
                          std::to_string(json.GetParseError())));
         }

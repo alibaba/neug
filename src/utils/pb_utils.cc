@@ -242,13 +242,13 @@ property_defs_to_tuple(
     std::get<1>(tuple) = property.name();
     if (!data_type_to_property_type(property.type(), std::get<0>(tuple))) {
       return Result<std::vector<std::tuple<PropertyType, std::string, Any>>>(
-          Status(StatusCode::INVALID_ARGUMENT,
+          Status(StatusCode::ERR_INVALID_ARGUMENT,
                  "Invalid property type: " + property.DebugString()));
     }
     if (property.has_default_value()) {
       if (!common_value_to_any(property.default_value(), std::get<2>(tuple))) {
         return Result<std::vector<std::tuple<PropertyType, std::string, Any>>>(
-            Status(StatusCode::INVALID_ARGUMENT,
+            Status(StatusCode::ERR_INVALID_ARGUMENT,
                    "Invalid default value: " + property.DebugString()));
       } else {
         // Use default default value if it is not set

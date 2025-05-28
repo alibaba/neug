@@ -141,7 +141,7 @@ class SetOpr : public IUpdateOperator {
                     graph, vertex.label_, vertex.vid_, key.second,
                     params.at(value.operators(0).param().name()))) {
               LOG(ERROR) << "Failed to set vertex property";
-              RETURN_BAD_REQUEST_ERROR("Failed to set vertex property");
+              RETURN_INVALID_ARGUMENT_ERROR("Failed to set vertex property");
             }
             return ctx;
           }
@@ -154,13 +154,13 @@ class SetOpr : public IUpdateOperator {
                     edge.dst_, key.second,
                     params.at(value.operators(0).param().name()))) {
               LOG(ERROR) << "Failed to set edge property";
-              RETURN_BAD_REQUEST_ERROR("Failed to set edge property");
+              RETURN_INVALID_ARGUMENT_ERROR("Failed to set edge property");
             }
             return ctx;
           }
         } else {
           LOG(ERROR) << "Failed to set property";
-          RETURN_BAD_REQUEST_ERROR("Failed to set property");
+          RETURN_INVALID_ARGUMENT_ERROR("Failed to set property");
         }
       }
       if (prop->column_type() == ContextColumnType::kVertex) {
@@ -174,7 +174,7 @@ class SetOpr : public IUpdateOperator {
           if (!set_vertex_property(graph, vertex.label_, vertex.vid_,
                                    key.second, val)) {
             LOG(ERROR) << "Failed to set vertex property";
-            RETURN_BAD_REQUEST_ERROR("Failed to set vertex property");
+            RETURN_INVALID_ARGUMENT_ERROR("Failed to set vertex property");
           }
         }
       } else {
@@ -186,7 +186,7 @@ class SetOpr : public IUpdateOperator {
           if (!set_edge_property(graph, edge.label_triplet(), edge.dir_,
                                  edge.src_, edge.dst_, key.second, val)) {
             LOG(ERROR) << "Failed to set edge property";
-            RETURN_BAD_REQUEST_ERROR("Failed to set edge property");
+            RETURN_INVALID_ARGUMENT_ERROR("Failed to set edge property");
           }
         }
       }

@@ -60,7 +60,8 @@ class UGetVFromEdgeWithPredOpr : public IUpdateOperator {
         graph, ctx, params, expr_, VarType::kPathVar);
     if (expr->is_optional()) {
       LOG(ERROR) << "GetV does not support optional expression now";
-      RETURN_BAD_REQUEST_ERROR("GetV does not support optional expression now");
+      RETURN_INVALID_ARGUMENT_ERROR(
+          "GetV does not support optional expression now");
     }
     LOG(INFO) << "GetVFromEdgeWithPredOpr";
     Arena arena;
@@ -94,7 +95,8 @@ class UGetVFromVerticesWithPredOpr : public IUpdateOperator {
         graph, ctx, params, expr_, VarType::kPathVar);
     if (expr->is_optional()) {
       LOG(ERROR) << "GetV does not support optional expression now";
-      RETURN_BAD_REQUEST_ERROR("GetV does not support optional expression now");
+      RETURN_INVALID_ARGUMENT_ERROR(
+          "GetV does not support optional expression now");
     }
     Arena arena;
     return UGetV::get_vertex_from_vertices(

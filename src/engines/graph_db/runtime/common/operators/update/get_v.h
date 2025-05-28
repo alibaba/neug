@@ -32,7 +32,7 @@ class UGetV {
     std::vector<size_t> shuffle_offsets;
     if (col->column_type() != ContextColumnType::kEdge) {
       LOG(ERROR) << "current only support edge column" << col->column_info();
-      RETURN_BAD_REQUEST_ERROR("current only support edge column");
+      RETURN_INVALID_ARGUMENT_ERROR("current only support edge column");
     }
     const auto input_edge_list = dynamic_cast<const IEdgeColumn*>(col.get());
     auto builder = MLVertexColumnBuilder::builder();
@@ -59,7 +59,7 @@ class UGetV {
       });
     } else {
       LOG(ERROR) << "current only support BDML edge column";
-      RETURN_BAD_REQUEST_ERROR("current only support BDML edge column");
+      RETURN_INVALID_ARGUMENT_ERROR("current only support BDML edge column");
     }
     ctx.set_with_reshuffle(params.alias, builder.finish(nullptr),
                            shuffle_offsets);
@@ -74,7 +74,7 @@ class UGetV {
     std::vector<size_t> shuffle_offsets;
     if (col->column_type() != ContextColumnType::kVertex) {
       LOG(ERROR) << "current only support vertex column" << col->column_info();
-      RETURN_BAD_REQUEST_ERROR("current only support vertex column");
+      RETURN_INVALID_ARGUMENT_ERROR("current only support vertex column");
     }
     const auto input_vertex_list =
         dynamic_cast<const IVertexColumn*>(col.get());

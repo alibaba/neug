@@ -89,7 +89,7 @@ Result<results::CollectiveResults> Connection::query_impl(
     return Result<results::CollectiveResults>(
         // TODO: Use the error code from the plan after plan.error_code is
         // defined as int.
-        Status(StatusCode::COMPILATION_FAILURE, plan.full_message));
+        Status(StatusCode::ERR_COMPILATION, plan.full_message));
   }
   // Dump plan to binary
   // {
@@ -97,7 +97,7 @@ Result<results::CollectiveResults> Connection::query_impl(
   //   if (!plan.physical_plan.SerializeToString(&plan_binary)) {
   //     LOG(ERROR) << "Error in serializing plan to binary.";
   //     return Result<results::CollectiveResults>(Status(
-  //         StatusCode::COMPILATION_FAILURE, "Error in serializing plan."));
+  //         StatusCode::ERR_COMPILATION, "Error in serializing plan."));
   //   }
   //   // Open ~/nexg.pb and write
   //   std::ofstream fs("/tmp/nexg.pb", std::ios::out | std::ios::binary);

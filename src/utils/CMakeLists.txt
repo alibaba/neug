@@ -1,9 +1,9 @@
 ############################################ Generate Error Code Proto ############################################
-# The error code of FLEX Interactive is defined in $GRAPHSCOPE_HOME/proto/error/interactive.proto
-set(GRAPHSCOPE_ERROR_PROTO_DIR ${CMAKE_CURRENT_SOURCE_DIR}/../../proto/error/)
+# The error code of FLEX Interactive is defined in $GRAPHSCOPE_HOME/proto/error.proto
+set(GRAPHSCOPE_ERROR_PROTO_DIR ${CMAKE_CURRENT_SOURCE_DIR}/../../proto/)
 # proto files of gie compiler
 set(INTERACTIVE_ERROR_PROTO_FILES
-        ${GRAPHSCOPE_ERROR_PROTO_DIR}/interactive.proto
+        ${GRAPHSCOPE_ERROR_PROTO_DIR}/error.proto
 )
 #create directory first
 file(MAKE_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/src/utils/error_pb)

@@ -272,13 +272,13 @@ PlanParser::parse_read_pipeline_with_meta(const gs::Schema& schema,
             },
             [&](const bl::error_info& err) {
               status =
-                  gs::Status(gs::StatusCode::INTERNAL_ERROR,
+                  gs::Status(gs::StatusCode::ERR_INTERNAL_ERROR,
                              "Error: " + std::to_string(err.error().value()) +
                                  ", Exception: " + err.exception()->what());
               return ReadOpBuildResultT(nullptr, ContextMeta());
             },
             [&]() {
-              status = gs::Status(gs::StatusCode::UNKNOWN, "Unknown error");
+              status = gs::Status(gs::StatusCode::ERR_UNKNOWN, "Unknown error");
               return ReadOpBuildResultT(nullptr, ContextMeta());
             });
         if (res_pair_status) {
@@ -294,7 +294,7 @@ PlanParser::parse_read_pipeline_with_meta(const gs::Schema& schema,
           } else {
             // If the operator is null, it means the builder has failed, we need
             // to stage the error.
-            status = gs::Status(gs::StatusCode::INTERNAL_ERROR,
+            status = gs::Status(gs::StatusCode::ERR_INTERNAL_ERROR,
                                 "Failed to build operator at index " +
                                     std::to_string(i) +
                                     ", op_kind: " + get_opr_name(cur_op_kind));
@@ -308,7 +308,7 @@ PlanParser::parse_read_pipeline_with_meta(const gs::Schema& schema,
          << " failed to parse plan at index " << i << " "
          << plan.query_plan().plan(i).DebugString() << ": "
          << ", last match error: " << status.ToString();
-      auto err = gs::Status(gs::StatusCode::INTERNAL_ERROR, ss.str());
+      auto err = gs::Status(gs::StatusCode::ERR_INTERNAL_ERROR, ss.str());
       LOG(ERROR) << err.ToString();
       return bl::new_error(err);
     }
@@ -335,7 +335,7 @@ bl::result<InsertPipeline> PlanParser::parse_write_pipeline(
       std::stringstream ss;
       ss << "[Parse Failed] " << get_opr_name(op_kind)
          << " failed to parse plan at index " << i;
-      auto err = gs::Status(gs::StatusCode::INTERNAL_ERROR, ss.str());
+      auto err = gs::Status(gs::StatusCode::ERR_INTERNAL_ERROR, ss.str());
       //      LOG(ERROR) << err.ToString();
       return bl::new_error(err);
     }
@@ -344,7 +344,7 @@ bl::result<InsertPipeline> PlanParser::parse_write_pipeline(
       std::stringstream ss;
       ss << "[Parse Failed]" << get_opr_name(op_kind)
          << " failed to parse plan at index " << i;
-      auto err = gs::Status(gs::StatusCode::INTERNAL_ERROR, ss.str());
+      auto err = gs::Status(gs::StatusCode::ERR_INTERNAL_ERROR, ss.str());
       LOG(ERROR) << err.ToString();
       return bl::new_error(err);
     }
@@ -367,7 +367,7 @@ bl::result<UpdatePipeline> PlanParser::parse_update_pipeline(
       std::stringstream ss;
       ss << "[Parse Failed] " << get_opr_name(op_kind)
          << " failed to parse plan at index " << i;
-      auto err = gs::Status(gs::StatusCode::INTERNAL_ERROR, ss.str());
+      auto err = gs::Status(gs::StatusCode::ERR_INTERNAL_ERROR, ss.str());
       LOG(ERROR) << err.ToString();
       return bl::new_error(err);
     }
@@ -376,7 +376,7 @@ bl::result<UpdatePipeline> PlanParser::parse_update_pipeline(
       std::stringstream ss;
       ss << "[Parse Failed]" << get_opr_name(op_kind)
          << " failed to Build plan at index " << i;
-      auto err = gs::Status(gs::StatusCode::INTERNAL_ERROR, ss.str());
+      auto err = gs::Status(gs::StatusCode::ERR_INTERNAL_ERROR, ss.str());
       LOG(ERROR) << err.ToString();
       return bl::new_error(err);
     }

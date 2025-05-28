@@ -32,13 +32,13 @@ bl::result<Context> ReadPipeline::Execute(
           return ctx;
         },
         [&](const bl::error_info& err) {
-          status = gs::Status(gs::StatusCode::INTERNAL_ERROR,
+          status = gs::Status(gs::StatusCode::ERR_INTERNAL_ERROR,
                               "Error: " + std::to_string(err.error().value()) +
                                   ", Exception: " + err.exception()->what());
           return ctx;
         },
         [&]() {
-          status = gs::Status(gs::StatusCode::UNKNOWN, "Unknown error");
+          status = gs::Status(gs::StatusCode::ERR_UNKNOWN, "Unknown error");
           return ctx;
         });
 
@@ -46,7 +46,7 @@ bl::result<Context> ReadPipeline::Execute(
       std::stringstream ss;
       ss << "[Execute Failed] " << opr->get_operator_name()
          << " execute failed: " << status.ToString();
-      auto err = gs::Status(gs::StatusCode::INTERNAL_ERROR, ss.str());
+      auto err = gs::Status(gs::StatusCode::ERR_INTERNAL_ERROR, ss.str());
       return bl::new_error(err);
     }
     ctx = std::move(ret);
@@ -69,13 +69,13 @@ bl::result<WriteContext> InsertPipeline::Execute(
           return WriteContext();
         },
         [&](const bl::error_info& err) {
-          status = gs::Status(gs::StatusCode::INTERNAL_ERROR,
+          status = gs::Status(gs::StatusCode::ERR_INTERNAL_ERROR,
                               "Error: " + std::to_string(err.error().value()) +
                                   ", Exception: " + err.exception()->what());
           return WriteContext();
         },
         [&]() {
-          status = gs::Status(gs::StatusCode::UNKNOWN, "Unknown error");
+          status = gs::Status(gs::StatusCode::ERR_UNKNOWN, "Unknown error");
           return WriteContext();
         });
 
@@ -83,7 +83,7 @@ bl::result<WriteContext> InsertPipeline::Execute(
       std::stringstream ss;
       ss << "[Execute Failed] " << opr->get_operator_name()
          << " execute failed: " << status.ToString();
-      auto err = gs::Status(gs::StatusCode::INTERNAL_ERROR, ss.str());
+      auto err = gs::Status(gs::StatusCode::ERR_INTERNAL_ERROR, ss.str());
       return bl::new_error(err);
     }
 
@@ -114,13 +114,13 @@ bl::result<Context> UpdatePipeline::Execute(
           return ctx;
         },
         [&](const bl::error_info& err) {
-          status = gs::Status(gs::StatusCode::INTERNAL_ERROR,
+          status = gs::Status(gs::StatusCode::ERR_INTERNAL_ERROR,
                               "Error: " + std::to_string(err.error().value()) +
                                   ", Exception: " + err.exception()->what());
           return ctx;
         },
         [&]() {
-          status = gs::Status(gs::StatusCode::UNKNOWN, "Unknown error");
+          status = gs::Status(gs::StatusCode::ERR_UNKNOWN, "Unknown error");
           return ctx;
         });
 
@@ -129,7 +129,7 @@ bl::result<Context> UpdatePipeline::Execute(
       ss << "[Execute Failed] " << opr->get_operator_name()
          << " execute failed: " << status.ToString();
       LOG(ERROR) << ss.str();
-      auto err = gs::Status(gs::StatusCode::INTERNAL_ERROR, ss.str());
+      auto err = gs::Status(gs::StatusCode::ERR_INTERNAL_ERROR, ss.str());
       return bl::new_error(err);
     }
     ctx = std::move(ret);

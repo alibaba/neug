@@ -313,7 +313,7 @@ gs::Result<seastar::sstring> to_json_str(
     if (job_json.Parse(job_meta.ToJson().c_str()).HasParseError()) {
       LOG(ERROR) << "Fail to parse job meta";
       return gs::Result<seastar::sstring>(gs::Status(
-          gs::StatusCode::INTERNAL_ERROR, "Fail to parse job meta: "));
+          gs::StatusCode::ERR_INTERNAL_ERROR, "Fail to parse job meta: "));
     }
     res.PushBack(job_json, res.GetAllocator());
   }
@@ -477,7 +477,7 @@ seastar::future<admin_query_result> admin_actor::run_delete_graph(
     LOG(ERROR) << "Graph is running, cannot delete: " << query_param.content;
     return seastar::make_ready_future<admin_query_result>(
         gs::Result<seastar::sstring>(gs::Status(
-            gs::StatusCode::ALREADY_LOCKED,
+            gs::StatusCode::ERR_ILLEGAL_OPERATION,
             "Graph is running, cannot delete: " + query_param.content)));
   }
 
@@ -537,13 +537,13 @@ seastar::future<admin_query_result> admin_actor::run_graph_loading(
     LOG(ERROR) << "Fail to parse json: " << e.what();
     return seastar::make_ready_future<admin_query_result>(
         gs::Result<seastar::sstring>(
-            gs::Status(gs::StatusCode::INVALID_IMPORT_FILE,
+            gs::Status(gs::StatusCode::ERR_INVALID_ARGUMENT,
                        "Fail to parse json: " + std::string(e.what()))));
   } catch (...) {
     LOG(ERROR) << "Fail to parse json: " << loading_config;
     return seastar::make_ready_future<admin_query_result>(
         gs::Result<seastar::sstring>(gs::Status(
-            gs::StatusCode::INVALID_IMPORT_FILE, "Fail to parse json: ")));
+            gs::StatusCode::ERR_INVALID_ARGUMENT, "Fail to parse json: ")));
   }
 
   int32_t loading_thread_num = 1;
@@ -564,7 +564,7 @@ seastar::future<admin_query_result> admin_actor::run_graph_loading(
     LOG(ERROR) << "Fail to lock graph indices dir: " << graph_id;
     return seastar::make_ready_future<admin_query_result>(
         gs::Result<seastar::sstring>(gs::Status(
-            gs::StatusCode::ALREADY_LOCKED,
+            gs::StatusCode::ERR_ILLEGAL_OPERATION,
             "Fail to acquire lock for graph indices dir: " + graph_id +
                 ", maybe the graph is already running")));
   }
@@ -679,7 +679,7 @@ seastar::future<admin_query_result> admin_actor::create_procedure(
     LOG(ERROR) << "Fail to lock graph plugin dir: " << graph_id;
     return seastar::make_ready_future<admin_query_result>(
         gs::Result<seastar::sstring>(gs::Status(
-            gs::StatusCode::ALREADY_LOCKED,
+            gs::StatusCode::ERR_ILLEGAL_OPERATION,
             "Fail to acquire lock for graph plugin dir: " + graph_id +
                 ", try again later")));
   }
@@ -698,7 +698,7 @@ seastar::future<admin_query_result> admin_actor::create_procedure(
           LOG(ERROR) << "Fail to create procedure: " << e.what();
           return seastar::make_ready_future<admin_query_result>(
               gs::Result<seastar::sstring>(gs::Status(
-                  gs::StatusCode::INTERNAL_ERROR,
+                  gs::StatusCode::ERR_INTERNAL_ERROR,
                   "Fail to create procedure: " + std::string(e.what()))));
         }
       });
@@ -722,7 +722,7 @@ seastar::future<admin_query_result> admin_actor::delete_procedure(
                << procedure_id;
     return seastar::make_ready_future<admin_query_result>(
         gs::Result<seastar::sstring>(gs::Status(
-            gs::StatusCode::ILLEGAL_OPERATION,
+            gs::StatusCode::ERR_ILLEGAL_OPERATION,
             "The plugin name is a builtin plugin, cannot be deleted: " +
                 procedure_id)));
   }
@@ -735,7 +735,7 @@ seastar::future<admin_query_result> admin_actor::delete_procedure(
                << " not exists on graph: " << graph_id;
     return seastar::make_ready_future<admin_query_result>(
         gs::Result<seastar::sstring>(
-            gs::Status(gs::StatusCode::NOT_FOUND,
+            gs::Status(gs::StatusCode::ERR_NOT_FOUND,
                        "Procedure " + procedure_id +
                            " not exists on graph: " + graph_id)));
   }
@@ -745,7 +745,7 @@ seastar::future<admin_query_result> admin_actor::delete_procedure(
     LOG(ERROR) << "Fail to lock graph plugin dir: " << graph_id;
     return seastar::make_ready_future<admin_query_result>(
         gs::Result<seastar::sstring>(gs::Status(
-            gs::StatusCode::ALREADY_LOCKED,
+            gs::StatusCode::ERR_ILLEGAL_OPERATION,
             "Fail to acquire lock for graph plugin dir: " + graph_id +
                 ", try again later")));
   }
@@ -788,7 +788,7 @@ seastar::future<admin_query_result> admin_actor::update_procedure(
                << procedure_id;
     return seastar::make_ready_future<admin_query_result>(
         gs::Result<seastar::sstring>(gs::Status(
-            gs::StatusCode::ILLEGAL_OPERATION,
+            gs::StatusCode::ERR_ILLEGAL_OPERATION,
             "The plugin name is a builtin plugin, cannot be updated: " +
                 procedure_id)));
   }
@@ -812,7 +812,7 @@ seastar::future<admin_query_result> admin_actor::update_procedure(
                   "library, or option, which should not be updated.";
     return seastar::make_ready_future<admin_query_result>(
         gs::Result<seastar::sstring>(gs::Status(
-            gs::StatusCode::ILLEGAL_OPERATION,
+            gs::StatusCode::ERR_ILLEGAL_OPERATION,
             "UpdatePluginMetaRequest contains field params, returns, library, "
             "and option, which should not be updated.")));
   }
@@ -822,7 +822,7 @@ seastar::future<admin_query_result> admin_actor::update_procedure(
                   "not be updated.";
     return seastar::make_ready_future<admin_query_result>(
         gs::Result<seastar::sstring>(
-            gs::Status(gs::StatusCode::ILLEGAL_OPERATION,
+            gs::Status(gs::StatusCode::ERR_ILLEGAL_OPERATION,
                        "UpdatePluginMetaRequest contains field "
                        "'name', which should not be updated.")));
   }
@@ -878,7 +878,7 @@ seastar::future<admin_query_result> admin_actor::start_service(
     LOG(ERROR) << "Fail to Start service: ";
     return seastar::make_ready_future<admin_query_result>(
         gs::Result<seastar::sstring>(
-            gs::Status(gs::StatusCode::INVALID_SCHEMA,
+            gs::Status(gs::StatusCode::ERR_INVALID_SCHEMA,
                        "Fail to parse json: " + std::string(e.what()))));
   }
 
@@ -905,7 +905,7 @@ seastar::future<admin_query_result> admin_actor::start_service(
                  << ", maybe a data loading job is running on this graph";
       return seastar::make_ready_future<admin_query_result>(
           gs::Result<seastar::sstring>(gs::Status(
-              gs::StatusCode::ALREADY_LOCKED,
+              gs::StatusCode::ERR_ILLEGAL_OPERATION,
               "The graph is locked but not running: " + graph_name +
                   ", maybe a data loading job is running on this graph")));
     }
@@ -916,7 +916,7 @@ seastar::future<admin_query_result> admin_actor::start_service(
       LOG(ERROR) << "Fail to lock graph: " << graph_name;
       return seastar::make_ready_future<admin_query_result>(
           gs::Result<seastar::sstring>(
-              gs::Status(gs::StatusCode::ALREADY_LOCKED,
+              gs::Status(gs::StatusCode::ERR_ILLEGAL_OPERATION,
                          "Fail to acquire lock for graph: " + graph_name +
                              ", try again later")));
     }
@@ -1023,7 +1023,7 @@ seastar::future<admin_query_result> admin_actor::start_service(
             }
             return seastar::make_ready_future<admin_query_result>(
                 gs::Result<seastar::sstring>(
-                    gs::Status(gs::StatusCode::INTERNAL_ERROR,
+                    gs::Status(gs::StatusCode::ERR_INTERNAL_ERROR,
                                "Fail to load graph from data directory: " +
                                    data_dir_value)));
           }
@@ -1086,7 +1086,7 @@ seastar::future<admin_query_result> admin_actor::stop_service(
     LOG(ERROR) << "Fail to stop service: ";
     return seastar::make_ready_future<admin_query_result>(
         gs::Result<seastar::sstring>(
-            gs::Status(gs::StatusCode::BAD_REQUEST,
+            gs::Status(gs::StatusCode::ERR_INVALID_ARGUMENT,
                        "Fail to parse json: " + std::string(e.what()))));
   }
 
@@ -1104,7 +1104,7 @@ seastar::future<admin_query_result> admin_actor::stop_service(
                      << cur_running_graph_res.value();
           return seastar::make_ready_future<admin_query_result>(
               gs::Result<seastar::sstring>(
-                  gs::Status(gs::StatusCode::NOT_FOUND,
+                  gs::Status(gs::StatusCode::ERR_NOT_FOUND,
                              "The graph is not running: " +
                                  cur_running_graph_res.value())));
         }
@@ -1120,7 +1120,7 @@ seastar::future<admin_query_result> admin_actor::stop_service(
           LOG(ERROR) << "Fail to clear running graph";
           return seastar::make_ready_future<admin_query_result>(
               gs::Result<seastar::sstring>(
-                  gs::Status(gs::StatusCode::INTERNAL_ERROR,
+                  gs::Status(gs::StatusCode::ERR_INTERNAL_ERROR,
                              "Fail to clear running graph")));
         }
       }
@@ -1138,7 +1138,7 @@ seastar::future<admin_query_result> admin_actor::service_ready(
              ? seastar::make_ready_future<admin_query_result>(
                    gs::Result<seastar::sstring>("true"))
              : seastar::make_exception_future<admin_query_result>(
-                   gs::Status(gs::StatusCode::SERVICE_UNAVAILABLE,
+                   gs::Status(gs::StatusCode::ERR_SERVICE_UNAVAILABLE,
                               "Service is not ready"));
 }
 
@@ -1288,7 +1288,7 @@ seastar::future<admin_query_result> admin_actor::cancel_job(
     LOG(ERROR) << "Invalid process id: " << job_meta.process_id;
     return seastar::make_ready_future<admin_query_result>(
         gs::Result<seastar::sstring>(
-            gs::StatusCode::INTERNAL_ERROR,
+            gs::StatusCode::ERR_INTERNAL_ERROR,
             "Invalid process id: " + std::to_string(job_meta.process_id)));
   }
   // if job is already cancelled, return directly.
@@ -1297,7 +1297,7 @@ seastar::future<admin_query_result> admin_actor::cancel_job(
       job_meta.status == gs::JobStatus::kSuccess) {
     return seastar::make_ready_future<admin_query_result>(
         gs::Result<seastar::sstring>(
-            gs::Status(gs::StatusCode::ILLEGAL_OPERATION,
+            gs::Status(gs::StatusCode::ERR_ILLEGAL_OPERATION,
                        "Job already " + std::to_string(job_meta.status) + ": " +
                            job_id.c_str())));
   }
@@ -1316,7 +1316,7 @@ seastar::future<admin_query_result> admin_actor::cancel_job(
                << ", error message: " << ec.message();
     return seastar::make_ready_future<admin_query_result>(
         gs::Result<seastar::sstring>(gs::Status(
-            gs::StatusCode::INTERNAL_ERROR,
+            gs::StatusCode::ERR_INTERNAL_ERROR,
             "Fail to kill process: " + std::to_string(job_meta.process_id) +
                 ", error message: " + ec.message())));
   }
@@ -1348,13 +1348,13 @@ seastar::future<admin_query_result> admin_actor::run_get_graph_statistic(
     // no graph is running
     return seastar::make_ready_future<admin_query_result>(
         gs::Result<seastar::sstring>(gs::Status(
-            gs::StatusCode::NOT_FOUND, "No graph is running currently")));
+            gs::StatusCode::ERR_NOT_FOUND, "No graph is running currently")));
   }
   auto& graph_id = cur_running_graph_res.value();
   if (graph_id != queried_graph) {
     return seastar::make_ready_future<admin_query_result>(
         gs::Result<seastar::sstring>(
-            gs::Status(gs::StatusCode::NOT_FOUND,
+            gs::Status(gs::StatusCode::ERR_NOT_FOUND,
                        "The queried graph is not running: " + graph_id +
                            ", current running graph is: " + queried_graph)));
   }

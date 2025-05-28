@@ -45,7 +45,7 @@ Result<results::CollectiveResults> QueryProcessor::execute(
             << " threads, max_num_threads: " << max_num_threads_;
   if (num_threads < 1) {
     return Result<results::CollectiveResults>(
-        gs::Status(gs::StatusCode::INVALID_ARGUMENT,
+        gs::Status(gs::StatusCode::ERR_INVALID_ARGUMENT,
                    "Number of threads must be greater than 0"));
   }
   VLOG(10) << "Executing plan: " << plan.DebugString();
@@ -54,7 +54,7 @@ Result<results::CollectiveResults> QueryProcessor::execute(
   if (plan.has_ddl_plan()) {
     if (is_read_only_) {
       return Result<results::CollectiveResults>(
-          gs::Status(gs::StatusCode::INVALID_ARGUMENT,
+          gs::Status(gs::StatusCode::ERR_INVALID_ARGUMENT,
                      "DDL queries are not supported in read-only mode"));
     }
     return execute_ddl(plan.ddl_plan(), num_threads);
@@ -72,21 +72,21 @@ Result<results::CollectiveResults> QueryProcessor::execute(
   } else if (mode == physical::QueryPlan::READ_WRITE) {
     if (is_read_only_) {
       return Result<results::CollectiveResults>(
-          gs::Status(gs::StatusCode::INVALID_ARGUMENT,
+          gs::Status(gs::StatusCode::ERR_INVALID_ARGUMENT,
                      "Read-write queries are not supported in read-only mode"));
     }
     return execute_read_write(plan, num_threads);
   } else if (mode == physical::QueryPlan::WRITE_ONLY) {
     if (is_read_only_) {
       return Result<results::CollectiveResults>(
-          gs::Status(gs::StatusCode::INVALID_ARGUMENT,
+          gs::Status(gs::StatusCode::ERR_INVALID_ARGUMENT,
                      "Write-only queries are not supported in read-only mode"));
     }
     return execute_write_only(plan, num_threads);
   } else {
     LOG(ERROR) << "Unknown query plan mode: " << mode;
     return Result<results::CollectiveResults>(gs::Status(
-        gs::StatusCode::INVALID_ARGUMENT, "Unknown query plan mode"));
+        gs::StatusCode::ERR_INVALID_ARGUMENT, "Unknown query plan mode"));
   }
 }
 
@@ -110,13 +110,13 @@ Result<results::CollectiveResults> QueryProcessor::execute_read_only(
           return runtime::Context();
         },
         [&](const bl::error_info& err) {
-          status = gs::Status(gs::StatusCode::INTERNAL_ERROR,
+          status = gs::Status(gs::StatusCode::ERR_INTERNAL_ERROR,
                               "Error: " + std::to_string(err.error().value()) +
                                   ", Exception: " + err.exception()->what());
           return runtime::Context();
         },
         [&]() {
-          status = gs::Status(gs::StatusCode::UNKNOWN, "Unknown error");
+          status = gs::Status(gs::StatusCode::ERR_UNKNOWN, "Unknown error");
           return runtime::Context();
         });
   }
@@ -133,7 +133,7 @@ Result<results::CollectiveResults> QueryProcessor::execute_read_only(
 Result<results::CollectiveResults> QueryProcessor::execute_read_write(
     const physical::PhysicalPlan& plan, int32_t num_threads) {
   return Result<results::CollectiveResults>(
-      gs::Status(gs::StatusCode::INVALID_ARGUMENT,
+      gs::Status(gs::StatusCode::ERR_INVALID_ARGUMENT,
                  "Read-write queries are not supported yet"));
 }
 
@@ -156,13 +156,13 @@ Result<results::CollectiveResults> QueryProcessor::execute_write_only(
           return runtime::Context();
         },
         [&](const bl::error_info& err) {
-          status = gs::Status(gs::StatusCode::INTERNAL_ERROR,
+          status = gs::Status(gs::StatusCode::ERR_INTERNAL_ERROR,
                               "Error: " + std::to_string(err.error().value()) +
                                   ", Exception: " + err.exception()->what());
           return runtime::Context();
         },
         [&]() {
-          status = gs::Status(gs::StatusCode::UNKNOWN, "Unknown error");
+          status = gs::Status(gs::StatusCode::ERR_UNKNOWN, "Unknown error");
           return runtime::Context();
         });
   }
@@ -284,11 +284,11 @@ Result<results::CollectiveResults> QueryProcessor::execute_ddl(
       return tuple_res.status();
     }
     if (create_vertex.primary_key_size() == 0) {
-      return Status(StatusCode::INVALID_ARGUMENT,
+      return Status(StatusCode::ERR_INVALID_ARGUMENT,
                     "Primary key is required for vertex type creation");
     }
     if (create_vertex.primary_key_size() > 1) {
-      return Status(StatusCode::INVALID_ARGUMENT,
+      return Status(StatusCode::ERR_INVALID_ARGUMENT,
                     "Only one primary key is supported");
     }
     std::vector<std::string> pks{create_vertex.primary_key(0)};
@@ -305,14 +305,14 @@ Result<results::CollectiveResults> QueryProcessor::execute_ddl(
     }
     if (create_edge.primary_key_size() != 0) {
       LOG(ERROR) << "Primary key is not supported for edge type creation";
-      return Status(StatusCode::INVALID_ARGUMENT,
+      return Status(StatusCode::ERR_INVALID_ARGUMENT,
                     "Primary key is not supported for edge type creation");
     }
     EdgeStrategy oe_stragety, ie_stragety;
     if (!multiplicity_to_storage_strategy(create_edge.multiplicity(),
                                           oe_stragety, ie_stragety)) {
       LOG(ERROR) << "Invalid edge multiplicity: " << create_edge.multiplicity();
-      return Status(StatusCode::INVALID_ARGUMENT,
+      return Status(StatusCode::ERR_INVALID_ARGUMENT,
                     "Invalid edge multiplicity: " + create_edge.multiplicity());
     }
 
@@ -336,7 +336,7 @@ Result<results::CollectiveResults> QueryProcessor::execute_ddl(
     return execute_rename_edge_property(ddl_plan.rename_edge_property_schema());
   } else {
     LOG(ERROR) << "Unknown DDL plan: " << ddl_plan.DebugString();
-    return Status(StatusCode::INVALID_ARGUMENT,
+    return Status(StatusCode::ERR_INVALID_ARGUMENT,
                   "Unknown DDL plan: " + ddl_plan.DebugString());
   }
 }

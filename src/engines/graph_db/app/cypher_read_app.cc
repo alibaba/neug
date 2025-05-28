@@ -42,13 +42,13 @@ bool CypherReadApp::Query(const GraphDBSession& graph, Decoder& input,
           },
           [&](const bl::error_info& err) {
             status =
-                gs::Status(gs::StatusCode::INTERNAL_ERROR,
+                gs::Status(gs::StatusCode::ERR_INTERNAL_ERROR,
                            "Error: " + std::to_string(err.error().value()) +
                                ", Exception: " + err.exception()->what());
             return runtime::Context();
           },
           [&]() {
-            status = gs::Status(gs::StatusCode::UNKNOWN, "Unknown error");
+            status = gs::Status(gs::StatusCode::ERR_UNKNOWN, "Unknown error");
             return runtime::Context();
           });
     }

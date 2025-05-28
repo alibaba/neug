@@ -29,18 +29,18 @@ namespace bl = boost::leaf;
 
 #define RETURN_UNSUPPORTED_ERROR(msg)           \
   return ::boost::leaf::new_error(::gs::Status( \
-      ::gs::StatusCode::UNSUPPORTED_OPERATION, PREPEND_LINE_INFO(msg)))
+      ::gs::StatusCode::ERR_NOT_SUPPORTED, PREPEND_LINE_INFO(msg)))
 
-#define RETURN_BAD_REQUEST_ERROR(msg) \
-  return ::boost::leaf::new_error(    \
-      ::gs::Status(::gs::StatusCode::BAD_REQUEST, PREPEND_LINE_INFO(msg)))
+#define RETURN_INVALID_ARGUMENT_ERROR(msg)      \
+  return ::boost::leaf::new_error(::gs::Status( \
+      ::gs::StatusCode::ERR_INVALID_ARGUMENT, PREPEND_LINE_INFO(msg)))
 
-#define RETURN_NOT_IMPLEMENTED_ERROR(msg) \
-  return ::boost::leaf::new_error(        \
-      ::gs::Status(::gs::StatusCode::UNIMPLEMENTED, PREPEND_LINE_INFO(msg)))
+#define RETURN_NOT_IMPLEMENTED_ERROR(msg)       \
+  return ::boost::leaf::new_error(::gs::Status( \
+      ::gs::StatusCode::ERR_NOT_IMPLEMENTED, PREPEND_LINE_INFO(msg)))
 
-#define RETURN_CALL_PROCEDURE_ERROR(msg) \
-  return ::boost::leaf::new_error(       \
-      ::gs::Status(::gs::StatusCode::QUERY_FAILED, PREPEND_LINE_INFO(msg)))
+#define RETURN_CALL_PROCEDURE_ERROR(msg)        \
+  return ::boost::leaf::new_error(::gs::Status( \
+      ::gs::StatusCode::ERR_QUERY_EXECUTION, PREPEND_LINE_INFO(msg)))
 
 #endif  // RUNTIME_COMMON_LEAF_UTILS_H_

@@ -69,7 +69,7 @@ seastar::future<admin_query_result> executor::create_vertex(
   if (input_json.Parse(param.content.c_str()).HasParseError()) {
     return seastar::make_ready_future<admin_query_result>(
         gs::Result<seastar::sstring>(gs::Status(
-            gs::StatusCode::INVALID_SCHEMA,
+            gs::StatusCode::ERR_INVALID_SCHEMA,
             "Bad input json : " + std::to_string(input_json.GetParseError()))));
   }
   auto result = gs::GraphDBOperations::CreateVertex(
@@ -89,7 +89,7 @@ seastar::future<admin_query_result> executor::create_edge(query_param&& param) {
   if (input_json.Parse(param.content.c_str()).HasParseError()) {
     return seastar::make_ready_future<admin_query_result>(
         gs::Result<seastar::sstring>(gs::Status(
-            gs::StatusCode::INVALID_SCHEMA,
+            gs::StatusCode::ERR_INVALID_SCHEMA,
             "Bad input json : " + std::to_string(input_json.GetParseError()))));
   }
   auto result = gs::GraphDBOperations::CreateEdge(
@@ -110,7 +110,7 @@ seastar::future<admin_query_result> executor::update_vertex(
   if (input_json.Parse(param.content.c_str()).HasParseError()) {
     return seastar::make_ready_future<admin_query_result>(
         gs::Result<seastar::sstring>(gs::Status(
-            gs::StatusCode::INVALID_SCHEMA,
+            gs::StatusCode::ERR_INVALID_SCHEMA,
             "Bad input json : " + std::to_string(input_json.GetParseError()))));
   }
   auto result = gs::GraphDBOperations::UpdateVertex(
@@ -130,7 +130,7 @@ seastar::future<admin_query_result> executor::update_edge(query_param&& param) {
   if (input_json.Parse(param.content.c_str()).HasParseError()) {
     return seastar::make_ready_future<admin_query_result>(
         gs::Result<seastar::sstring>(gs::Status(
-            gs::StatusCode::INVALID_SCHEMA,
+            gs::StatusCode::ERR_INVALID_SCHEMA,
             "Bad input json : " + std::to_string(input_json.GetParseError()))));
   }
   auto result = gs::GraphDBOperations::UpdateEdge(
@@ -184,14 +184,16 @@ seastar::future<admin_query_result> executor::get_edge(
 seastar::future<admin_query_result> executor::delete_vertex(
     query_param&& param) {
   return seastar::make_ready_future<admin_query_result>(
-      gs::Result<seastar::sstring>(gs::Status(
-          gs::StatusCode::UNIMPLEMENTED, "delete_vertex is not implemented")));
+      gs::Result<seastar::sstring>(
+          gs::Status(gs::StatusCode::ERR_NOT_IMPLEMENTED,
+                     "delete_vertex is not implemented")));
 }
 
 seastar::future<admin_query_result> executor::delete_edge(query_param&& param) {
   return seastar::make_ready_future<admin_query_result>(
-      gs::Result<seastar::sstring>(gs::Status(
-          gs::StatusCode::UNIMPLEMENTED, "delete_edge is not implemented")));
+      gs::Result<seastar::sstring>(
+          gs::Status(gs::StatusCode::ERR_NOT_IMPLEMENTED,
+                     "delete_edge is not implemented")));
 }
 
 }  // namespace server

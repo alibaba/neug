@@ -39,7 +39,7 @@ new_internal_error_reply(std::unique_ptr<seastar::httpd::reply> rep,
                          const std::string& msg) {
   rep->set_status(seastar::httpd::reply::status_type::bad_request);
   rep->set_content_type("application/json");
-  gs::Status status = gs::Status(gs::StatusCode::INTERNAL_ERROR, msg);
+  gs::Status status = gs::Status(gs::StatusCode::ERR_INTERNAL_ERROR, msg);
   rep->write_body("json", seastar::sstring(status.ToString()));
   rep->done();
   return seastar::make_ready_future<std::unique_ptr<seastar::httpd::reply>>(
@@ -51,29 +51,29 @@ seastar::httpd::reply::status_type status_code_to_http_code(
   switch (code) {
   case gs::StatusCode::OK:
     return seastar::httpd::reply::status_type::ok;
-  case gs::StatusCode::INVALID_ARGUMENT:
+  case gs::StatusCode::ERR_INVALID_ARGUMENT:
     return seastar::httpd::reply::status_type::bad_request;
   case gs::StatusCode::ALREADY_EXISTS:
     return seastar::httpd::reply::status_type::conflict;
-  case gs::StatusCode::ALREADY_LOCKED:
+  case gs::StatusCode::ERR_ILLEGAL_OPERATION:
     return seastar::httpd::reply::status_type::bad_request;
-  case gs::StatusCode::NOT_FOUND:
+  case gs::StatusCode::ERR_NOT_FOUND:
     return seastar::httpd::reply::status_type::not_found;
-  case gs::StatusCode::CODEGEN_ERROR:
+  case gs::StatusCode::ERR_CODEGEN_ERROR:
     return seastar::httpd::reply::status_type::internal_server_error;
-  case gs::StatusCode::INVALID_SCHEMA:
+  case gs::StatusCode::ERR_INVALID_SCHEMA:
     return seastar::httpd::reply::status_type::bad_request;
-  case gs::StatusCode::PERMISSION_DENIED:
+  case gs::StatusCode::ERR_PERMISSION:
     return seastar::httpd::reply::status_type::forbidden;
-  case gs::StatusCode::ILLEGAL_OPERATION:
+  case gs::StatusCode::ERR_ILLEGAL_OPERATION:
     return seastar::httpd::reply::status_type::bad_request;
-  case gs::StatusCode::INTERNAL_ERROR:
+  case gs::StatusCode::ERR_INTERNAL_ERROR:
     return seastar::httpd::reply::status_type::internal_server_error;
-  case gs::StatusCode::INVALID_IMPORT_FILE:
+  case gs::StatusCode::ERR_INVALID_ARGUMENT:
     return seastar::httpd::reply::status_type::bad_request;
-  case gs::StatusCode::IO_ERROR:
+  case gs::StatusCode::ERR_IO_ERROR:
     return seastar::httpd::reply::status_type::internal_server_error;
-  case gs::StatusCode::QUERY_FAILED:
+  case gs::StatusCode::ERR_QUERY_EXECUTION:
     return seastar::httpd::reply::status_type::internal_server_error;
   default:
     return seastar::httpd::reply::status_type::internal_server_error;
@@ -91,7 +91,7 @@ catch_exception_and_return_reply(std::unique_ptr<seastar::httpd::reply> rep,
     rep->set_content_type("application/json");
     // for the exception, we are not sure whether it is a bad request or
     // internal server error
-    gs::Status status = gs::Status(gs::StatusCode::UNKNOWN, what);
+    gs::Status status = gs::Status(gs::StatusCode::ERR_UNKNOWN, what);
     rep->write_body("json", seastar::sstring(status.ToString()));
     rep->set_status(seastar::httpd::reply::status_type::internal_server_error);
     rep->done();

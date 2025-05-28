@@ -110,7 +110,7 @@ Result<std::vector<char>> GraphDBSession::Eval(const std::string& input) {
 
   if (input.size() < 2) {
     return Result<std::vector<char>>(
-        StatusCode::INVALID_ARGUMENT,
+        StatusCode::ERR_INVALID_ARGUMENT,
         "Invalid input, input size: " + std::to_string(input.size()),
         std::vector<char>());
   }
@@ -133,7 +133,7 @@ Result<std::vector<char>> GraphDBSession::Eval(const std::string& input) {
   AppBase* app = GetApp(type);
   if (!app) {
     return Result<std::vector<char>>(
-        StatusCode::NOT_FOUND,
+        StatusCode::ERR_NOT_FOUND,
         "Procedure not found, id:" + std::to_string((int) type), result_buffer);
   }
 
@@ -171,14 +171,14 @@ Result<std::vector<char>> GraphDBSession::Eval(const std::string& input) {
   // be put in the output buffer.
   if (result_buffer.size() > 4) {
     return Result<std::vector<char>>(
-        StatusCode::QUERY_FAILED,
+        StatusCode::ERR_QUERY_EXECUTION,
         std::string{result_buffer.data() + 4,
                     result_buffer.size() -
                         4},  // The first 4 bytes are the length of the message.
         result_buffer);
   } else {
     return Result<std::vector<char>>(
-        StatusCode::QUERY_FAILED,
+        StatusCode::ERR_QUERY_EXECUTION,
         "Query failed for procedure id:" + std::to_string((int) type),
         result_buffer);
   }
@@ -256,15 +256,17 @@ GraphDBSession::parse_query_type_from_cypher_json(
   if (j.Parse(std::string(str_view.data(), str_view.size() - 1))
           .HasParseError()) {
     LOG(ERROR) << "Fail to parse json from input content";
-    return Result<std::pair<uint8_t, std::string_view>>(gs::Status(
-        StatusCode::INTERNAL_ERROR, "Fail to parse json from input content"));
+    return Result<std::pair<uint8_t, std::string_view>>(
+        gs::Status(StatusCode::ERR_INTERNAL_ERROR,
+                   "Fail to parse json from input content"));
   }
   std::string query_name = j["query_name"].GetString();
   const auto& app_name_to_path_index = schema().GetPlugins();
   if (app_name_to_path_index.count(query_name) <= 0) {
     LOG(ERROR) << "Query name is not registered: " << query_name;
-    return Result<std::pair<uint8_t, std::string_view>>(gs::Status(
-        StatusCode::NOT_FOUND, "Query name is not registered: " + query_name));
+    return Result<std::pair<uint8_t, std::string_view>>(
+        gs::Status(StatusCode::ERR_NOT_FOUND,
+                   "Query name is not registered: " + query_name));
   }
   if (j.HasMember("arguments")) {
     for (auto& arg : j["arguments"].GetArray()) {
@@ -281,14 +283,15 @@ GraphDBSession::parse_query_type_from_cypher_internal(
   procedure::Query cur_query;
   if (!cur_query.ParseFromArray(str_view.data(), str_view.size() - 1)) {
     LOG(ERROR) << "Fail to parse query from input content";
-    return Result<std::pair<uint8_t, std::string_view>>(gs::Status(
-        StatusCode::INTERNAL_ERROR, "Fail to parse query from input content"));
+    return Result<std::pair<uint8_t, std::string_view>>(
+        gs::Status(StatusCode::ERR_INTERNAL_ERROR,
+                   "Fail to parse query from input content"));
   }
   auto query_name = cur_query.query_name().name();
   if (query_name.empty()) {
     LOG(ERROR) << "Query name is empty";
     return Result<std::pair<uint8_t, std::string_view>>(
-        gs::Status(StatusCode::NOT_FOUND, "Query name is empty"));
+        gs::Status(StatusCode::ERR_NOT_FOUND, "Query name is empty"));
   }
   const auto& app_name_to_path_index = schema().GetPlugins();
 
@@ -302,8 +305,9 @@ GraphDBSession::parse_query_type_from_cypher_internal(
 
   if (app_name_to_path_index.count(query_name) <= 0) {
     LOG(ERROR) << "Query name is not registered: " << query_name;
-    return Result<std::pair<uint8_t, std::string_view>>(gs::Status(
-        StatusCode::NOT_FOUND, "Query name is not registered: " + query_name));
+    return Result<std::pair<uint8_t, std::string_view>>(
+        gs::Status(StatusCode::ERR_NOT_FOUND,
+                   "Query name is not registered: " + query_name));
   }
   return std::make_pair(app_name_to_path_index.at(query_name).second, str_view);
 }

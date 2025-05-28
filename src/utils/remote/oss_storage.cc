@@ -144,14 +144,14 @@ gs::Status OSSRemoteStorageUploader::Put(const std::string& local_path,
   LOG(INFO) << "OSS Put local file " << local_path << " to remote "
             << remote_path;
   if (!client_ || local_path.empty() || remote_path.empty()) {
-    return gs::Status(gs::StatusCode::INVALID_ARGUMENT,
+    return gs::Status(gs::StatusCode::ERR_INVALID_ARGUMENT,
                       "OSS Put invalid argument");
   }
 
   // check local path is exist
   if (!std::filesystem::exists(local_path)) {
     LOG(ERROR) << "OSS Put local file " << local_path << " not exist";
-    return gs::Status(gs::StatusCode::INVALID_ARGUMENT,
+    return gs::Status(gs::StatusCode::ERR_INVALID_ARGUMENT,
                       "OSS Put local file not exist");
   }
 
@@ -169,7 +169,7 @@ gs::Status OSSRemoteStorageUploader::Put(const std::string& local_path,
                                ", message: " + outcome.error().Message() +
                                ", requestId: " + outcome.error().RequestId();
     LOG(ERROR) << error_string;
-    return gs::Status(gs::StatusCode::IO_ERROR, error_string);
+    return gs::Status(gs::StatusCode::ERR_IO_ERROR, error_string);
   }
 
   return Status::OK();
@@ -184,7 +184,7 @@ gs::Status OSSRemoteStorageUploader::Delete(const std::string& remote_path) {
                                ", message: " + outcome.error().Message() +
                                ", requestId: " + outcome.error().RequestId();
     LOG(ERROR) << error_string;
-    return gs::Status(gs::StatusCode::IO_ERROR, error_string);
+    return gs::Status(gs::StatusCode::ERR_IO_ERROR, error_string);
   }
   return Status::OK();
 }
@@ -215,7 +215,7 @@ gs::Status OSSRemoteStorageDownloader::Get(const std::string& remote_path,
             << local_path;
   if (local_path.empty() || remote_path.empty()) {
     return gs::Status(
-        gs::StatusCode::INVALID_ARGUMENT,
+        gs::StatusCode::ERR_INVALID_ARGUMENT,
         "OSS Get invalid argument, local path or remote path is empty");
   }
 
@@ -243,7 +243,7 @@ gs::Status OSSRemoteStorageDownloader::Get(const std::string& remote_path,
             " to local " + local_path + " failed",
         outcome);
     LOG(ERROR) << error_string;
-    return gs::Status(gs::StatusCode::IO_ERROR, error_string);
+    return gs::Status(gs::StatusCode::ERR_IO_ERROR, error_string);
   }
 
   if (std::filesystem::exists(local_path)) {
@@ -253,13 +253,14 @@ gs::Status OSSRemoteStorageDownloader::Get(const std::string& remote_path,
               << " success, size: " << file_size;
   } else {
     LOG(ERROR) << "OSS Get local file " << local_path << " failed";
-    return gs::Status(gs::StatusCode::IO_ERROR, "OSS Get local file failed");
+    return gs::Status(gs::StatusCode::ERR_IO_ERROR,
+                      "OSS Get local file failed");
   }
 
   if (!(get_metadata_etag(remote_path, oss_etag) &&
         gs::write_string_to_file(oss_etag, etag_file))) {
     LOG(ERROR) << "OSS Get write etag file " << etag_file << " failed";
-    return gs::Status(gs::StatusCode::IO_ERROR,
+    return gs::Status(gs::StatusCode::ERR_IO_ERROR,
                       "OSS Get write etag file failed");
   }
 
@@ -279,7 +280,7 @@ gs::Status OSSRemoteStorageDownloader::List(
       std::string error_string = oss_outcome_to_string(
           "OSS ListObjects from remote " + remote_prefix + " failed", outcome);
       LOG(ERROR) << error_string;
-      return gs::Status(gs::StatusCode::IO_ERROR, error_string);
+      return gs::Status(gs::StatusCode::ERR_IO_ERROR, error_string);
     }
     for (const auto& object : outcome.result().ObjectSummarys()) {
       LOG(INFO) << "OSS ListObject:  " << object_summary_to_string(object);

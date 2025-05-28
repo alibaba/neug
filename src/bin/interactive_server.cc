@@ -71,7 +71,7 @@ Status unzip(const std::string& zip_file, const std::string& dest_dir) {
   boost::process::child process(cmd);
   process.wait();
   if (process.exit_code() != 0) {
-    return Status(StatusCode::IO_ERROR,
+    return Status(StatusCode::ERR_IO_ERROR,
                   "Fail to unzip file: " + zip_file +
                       ", error code: " + std::to_string(process.exit_code()));
   }
