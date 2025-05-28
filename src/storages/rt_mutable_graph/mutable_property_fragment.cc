@@ -112,9 +112,13 @@ void MutablePropertyFragment::Clear() {
 Status MutablePropertyFragment::create_vertex_type(
     const std::string& vertex_type_name,
     const std::vector<std::tuple<PropertyType, std::string, Any>>& properties,
-    const std::vector<std::string>& primary_key_names) {
+    const std::vector<std::string>& primary_key_names, bool error_on_conflict) {
   if (schema_.contains_vertex_label(vertex_type_name)) {
-    return Status(StatusCode::INVALID_SCHEMA, "Vertex label already exists.");
+    if (error_on_conflict) {
+      return Status(StatusCode::INVALID_SCHEMA, "Vertex label already exists.");
+    } else {
+      return Status(StatusCode::OK, "Vertex label already exists.");
+    }
   }
   std::vector<std::string> property_names;
   std::vector<PropertyType> property_types;
@@ -199,6 +203,10 @@ Status MutablePropertyFragment::create_vertex_type(
   DumpSchema(schema_path(work_dir_));
   dumpSchema();
   vertex_label_num_ = schema_.vertex_label_num();
+  LOG(INFO) << "create_vertex_type: vertex_type_name: " << vertex_type_name
+            << ", vertex_label_id: " << static_cast<int32_t>(vertex_label_id)
+            << ",properties " << property_names.size()
+            << ", primary_key_names: " << primary_key_names[0];
   return gs::Status::OK();
 }
 
@@ -206,6 +214,7 @@ Status MutablePropertyFragment::create_edge_type(
     const std::string& src_vertex_type, const std::string& dst_vertex_type,
     const std::string& edge_type_name,
     const std::vector<std::tuple<PropertyType, std::string, Any>>& properties,
+    bool error_on_conflict,  // Not used
     EdgeStrategy oe_edge_strategy, EdgeStrategy ie_edge_strategy) {
   LOG(INFO) << "create_edge_type: src_vertex_type: " << src_vertex_type
             << ", dst_vertex_type: " << dst_vertex_type
@@ -228,9 +237,13 @@ Status MutablePropertyFragment::create_edge_type(
                              edge_type_name)) {
     LOG(ERROR) << "Edge [" << edge_type_name << "] from [" << src_vertex_type
                << "] to [" << dst_vertex_type << "] already exists";
-    return Status(StatusCode::INVALID_SCHEMA,
-                  "Edge [" + edge_type_name + "] from [" + src_vertex_type +
-                      "] to [" + dst_vertex_type + "] already exists");
+    if (error_on_conflict) {
+      return Status(StatusCode::INVALID_SCHEMA,
+                    "Edge [" + edge_type_name + "] from [" + src_vertex_type +
+                        "] to [" + dst_vertex_type + "] already exists");
+    } else {
+      return Status(StatusCode::OK, "Edge triplet already exists.");
+    }
   }
   std::vector<std::string> property_names;
   std::vector<PropertyType> property_types;
@@ -264,8 +277,15 @@ Status MutablePropertyFragment::create_edge_type(
                  dst_label_i * edge_label_num_ + e_label_i;
   EdgeStrategy oe_strategy = EdgeStrategy::kMultiple;
   EdgeStrategy ie_strategy = EdgeStrategy::kMultiple;
-  dual_csr_list_[index] = create_csr(oe_strategy, ie_strategy, property_types,
-                                     oe_mutable, ie_mutable, property_names);
+  // TODO: We always create RecordView for edge data, to enabled adding/deleting
+  // edge properties
+  dual_csr_list_[index] =
+      new DualCsr<RecordView>(oe_strategy, ie_strategy, property_names,
+                              property_types, {}, oe_mutable, ie_mutable);
+
+  // dual_csr_list_[index] = create_csr(oe_strategy, ie_strategy,
+  // property_types,
+  //  oe_mutable, ie_mutable, property_names);
   ie_[index] = dual_csr_list_[index]->GetInCsr();
   oe_[index] = dual_csr_list_[index]->GetOutCsr();
   auto src_v_capacity =
@@ -285,116 +305,71 @@ Status MutablePropertyFragment::create_edge_type(
   return gs::Status::OK();
 }
 
-Status MutablePropertyFragment::update_vertex_type(
+Status MutablePropertyFragment::add_vertex_properties(
     const std::string& vertex_type_name,
     const std::vector<std::tuple<PropertyType, std::string, Any>>&
         add_properties,
-    const std::vector<std::tuple<std::string, std::string>>& update_properties,
-    const std::vector<std::tuple<PropertyType, std::string, Any>>&
-        delete_properties,
-    bool skip_exists) {
+    bool error_on_conflict) {
   if (!schema_.contains_vertex_label(vertex_type_name)) {
     LOG(ERROR) << "Vertex label[" << vertex_type_name << "] does not exists.";
-    return Status(StatusCode::INVALID_SCHEMA,
-                  "Vertex label[" + vertex_type_name + "] does not exists.");
+    if (error_on_conflict) {
+      return Status(StatusCode::INVALID_SCHEMA,
+                    "Vertex label[" + vertex_type_name + "] does not exists.");
+    } else {
+      return Status(StatusCode::OK,
+                    "Vertex label " + vertex_type_name + "] does not exists.");
+    }
   }
-
   std::vector<std::string> add_property_names;
   std::vector<PropertyType> add_property_types;
   std::vector<Any> add_default_property_values;
   for (size_t i = 0; i < add_properties.size(); i++) {
     auto [property_type, property_name, default_value] = add_properties[i];
     if (schema_.vertex_has_property(vertex_type_name, property_name)) {
-      if (skip_exists) {
-        continue;
-      } else {
-        LOG(ERROR) << "Property [" << property_name
-                   << "] already exists in vertex [" << vertex_type_name
-                   << "].";
+      LOG(ERROR) << "Property [" << property_name
+                 << "] already exists in vertex [" << vertex_type_name << "].";
+      if (error_on_conflict) {
         return Status(StatusCode::INVALID_SCHEMA,
                       "Property [" + property_name +
                           "] already exists in vertex [" + vertex_type_name +
                           "].");
+      } else {
+        return Status(StatusCode::OK, "Property [" + property_name +
+                                          "] already exists in vertex [" +
+                                          vertex_type_name + "].");
       }
     }
     add_property_names.emplace_back(property_name);
     add_property_types.emplace_back(property_type);
     add_default_property_values.emplace_back(default_value);
   }
-
-  std::vector<std::string> update_property_names;
-  std::vector<std::string> update_property_renames;
-  for (size_t i = 0; i < update_properties.size(); i++) {
-    auto [property_name, property_rename] = update_properties[i];
-    if (!schema_.vertex_has_property(vertex_type_name, property_name)) {
-      if (skip_exists) {
-        continue;
-      } else {
-        LOG(ERROR) << "Property [" << property_name
-                   << "] does not exist in vertex [" << vertex_type_name
-                   << "].";
-        return Status(StatusCode::INVALID_SCHEMA,
-                      "Property [" + property_name +
-                          "] does not exist in vertex [" + vertex_type_name +
-                          "].");
-      }
-    }
-    update_property_names.emplace_back(property_name);
-    update_property_renames.emplace_back(property_rename);
-  }
-
-  std::vector<std::string> delete_property_names;
-  for (size_t i = 0; i < delete_properties.size(); i++) {
-    auto [property_type, property_name, default_value] = delete_properties[i];
-    if (!schema_.vertex_has_property(vertex_type_name, property_name)) {
-      if (skip_exists) {
-        continue;
-      } else {
-        LOG(ERROR) << "Property [" << property_name
-                   << "] does not exist in vertex [" << vertex_type_name
-                   << "].";
-        return Status(StatusCode::INVALID_SCHEMA,
-                      "Property [" + property_name +
-                          "] does not exist in vertex [" + vertex_type_name +
-                          "].");
-      }
-    }
-    delete_property_names.emplace_back(property_name);
-  }
-
-  {
-    schema_.add_vertex_properties(vertex_type_name, add_property_names,
-                                  add_property_types,
-                                  add_default_property_values);
-    label_t v_label = schema_.get_vertex_label_id(vertex_type_name);
-    auto vertex_data = vertex_data_[v_label];
-    vertex_data.add_columns(add_property_names, add_property_types);
-  }
-
-  {
-    schema_.update_vertex_properties(vertex_type_name, update_property_names,
-                                     update_property_renames);
-  }
-  schema_.delete_vertex_properties(vertex_type_name, delete_property_names);
-  // todo: delete properties in fragment
+  schema_.add_vertex_properties(vertex_type_name, add_property_names,
+                                add_property_types,
+                                add_default_property_values);
+  label_t v_label = schema_.get_vertex_label_id(vertex_type_name);
+  auto& vertex_data = vertex_data_[v_label];
+  vertex_data.add_columns(add_property_names, add_property_types);
+  DumpSchema(schema_path(work_dir_));
+  dumpSchema();
   return gs::Status::OK();
 }
 
-Status MutablePropertyFragment::update_edge_type(
+Status MutablePropertyFragment::add_edge_properties(
     const std::string& src_type_name, const std::string& dst_type_name,
     const std::string& edge_type_name,
     const std::vector<std::tuple<PropertyType, std::string, Any>>&
         add_properties,
-    const std::vector<std::tuple<std::string, std::string>>& update_properties,
-    const std::vector<std::tuple<PropertyType, std::string, Any>>&
-        delete_properties,
-    bool skip_exists) {
+    bool error_on_conflict) {
   if (!schema_.has_edge_label(src_type_name, dst_type_name, edge_type_name)) {
     LOG(ERROR) << "Edge [" << edge_type_name << "] from [" << src_type_name
                << "] to [" << dst_type_name << "] does not exist";
-    return Status(StatusCode::INVALID_SCHEMA,
-                  "Edge [" + edge_type_name + "] from [" + src_type_name +
-                      "] to [" + dst_type_name + "] does not exist");
+    if (error_on_conflict) {
+      return Status(StatusCode::INVALID_SCHEMA,
+                    "Edge [" + edge_type_name + "] from [" + src_type_name +
+                        "] to [" + dst_type_name + "] does not exist");
+    } else {
+      return Status(StatusCode::OK, "Edge Triplet doesn't exists");
+    }
   }
   std::vector<std::string> add_property_names;
   std::vector<PropertyType> add_property_types;
@@ -403,88 +378,292 @@ Status MutablePropertyFragment::update_edge_type(
     auto [property_type, property_name, default_value] = add_properties[i];
     if (schema_.edge_has_property(src_type_name, dst_type_name, edge_type_name,
                                   property_name)) {
-      if (skip_exists) {
-        continue;
+      LOG(ERROR) << "Property [" << property_name
+                 << "] already exists in edge [" << edge_type_name << "] from ["
+                 << src_type_name << "] to [" << dst_type_name << "].";
+      std::string msg = "Property [" + property_name +
+                        "] already exists in edge [" + edge_type_name +
+                        "] from [" + src_type_name + "] to [" + dst_type_name +
+                        "].";
+      if (error_on_conflict) {
+        return Status(StatusCode::INVALID_SCHEMA, msg);
       } else {
-        LOG(ERROR) << "Property [" << property_name
-                   << "] does not exist in edge [" << edge_type_name
-                   << "] from [" << src_type_name << "] to [" << dst_type_name
-                   << "].";
-        return Status(StatusCode::INVALID_SCHEMA,
-                      "Property [" + property_name +
-                          "] does not exist in edge [" + edge_type_name +
-                          "] from [" + src_type_name + "] to [" +
-                          dst_type_name + "].");
+        return Status(StatusCode::OK, msg);
       }
     }
     add_property_names.emplace_back(property_name);
     add_property_types.emplace_back(property_type);
     add_default_property_values.emplace_back(default_value);
   }
+  schema_.add_edge_properties(src_type_name, dst_type_name, edge_type_name,
+                              add_property_names, add_property_types,
+                              add_default_property_values);
+  label_t src_label = schema_.get_vertex_label_id(src_type_name);
+  label_t dst_label = schema_.get_vertex_label_id(dst_type_name);
+  label_t e_label = schema_.get_edge_label_id(edge_type_name);
+  size_t index = src_label * vertex_label_num_ * edge_label_num_ +
+                 dst_label * edge_label_num_ + e_label;
+  auto dual_csr = dual_csr_list_[index];
+  if (dual_csr == NULL) {
+    LOG(ERROR) << "Edge [" << edge_type_name << "] from [" << src_type_name
+               << "] to [" << dst_type_name
+               << "] does not exist, cannot add properties.";
+    return Status(StatusCode::INVALID_SCHEMA,
+                  "Edge [" + edge_type_name + "] from [" + src_type_name +
+                      "] to [" + dst_type_name +
+                      "] does not exist, cannot add properties.");
+  }
 
+  auto casted_dual_csr = dynamic_cast<DualCsr<RecordView>*>(dual_csr);
+  if (casted_dual_csr == NULL) {
+    LOG(ERROR) << "Edge [" << edge_type_name << "] from [" << src_type_name
+               << "] to [" << dst_type_name
+               << "] does not support adding properties.";
+    return Status(StatusCode::INVALID_SCHEMA,
+                  "Edge [" + edge_type_name + "] from [" + src_type_name +
+                      "] to [" + dst_type_name +
+                      "] does not support adding properties.");
+  }
+  casted_dual_csr->add_properties(add_property_names, add_property_types);
+  DumpSchema(schema_path(work_dir_));
+  dumpSchema();
+  return gs::Status::OK();
+}
+
+Status MutablePropertyFragment::rename_vertex_properties(
+    const std::string& vertex_type_name,
+    const std::vector<std::tuple<std::string, std::string>>& update_properties,
+    bool error_on_conflict) {
+  if (!schema_.contains_vertex_label(vertex_type_name)) {
+    LOG(ERROR) << "Vertex label[" << vertex_type_name << "] does not exists.";
+    if (error_on_conflict) {
+      return Status(StatusCode::INVALID_SCHEMA,
+                    "Vertex label[" + vertex_type_name + "] does not exists.");
+    } else {
+      return Status(StatusCode::OK,
+                    "Vertex label[" + vertex_type_name + "] does not exists.");
+    }
+  }
+  std::vector<std::string> update_property_names;
+  std::vector<std::string> update_property_renames;
+  for (size_t i = 0; i < update_properties.size(); i++) {
+    auto [property_name, property_rename] = update_properties[i];
+    if (!schema_.vertex_has_property(vertex_type_name, property_name)) {
+      std::string msg = "Property [" + property_name +
+                        "] does not exist in vertex [" + vertex_type_name +
+                        "].";
+      LOG(ERROR) << msg;
+      if (error_on_conflict) {
+        return Status(StatusCode::INVALID_SCHEMA, msg);
+      } else {
+        return Status(StatusCode::OK, msg);
+      }
+    }
+    update_property_names.emplace_back(property_name);
+    update_property_renames.emplace_back(property_rename);
+  }
+  schema_.update_vertex_properties(vertex_type_name, update_property_names,
+                                   update_property_renames);
+  label_t v_label = schema_.get_vertex_label_id(vertex_type_name);
+  auto& vertex_data = vertex_data_[v_label];
+  for (size_t i = 0; i < update_property_names.size(); i++) {
+    vertex_data.rename_column(update_property_names[i],
+                              update_property_renames[i]);
+  }
+  DumpSchema(schema_path(work_dir_));
+  dumpSchema();
+  return gs::Status::OK();
+}
+
+Status MutablePropertyFragment::rename_edge_properties(
+    const std::string& src_type_name, const std::string& dst_type_name,
+    const std::string& edge_type_name,
+    const std::vector<std::tuple<std::string, std::string>>& update_properties,
+    bool error_on_conflict) {
+  if (!schema_.has_edge_label(src_type_name, dst_type_name, edge_type_name)) {
+    std::string msg = "Edge [" + edge_type_name + "] from [" + src_type_name +
+                      "] to [" + dst_type_name + "] does not exist";
+    LOG(ERROR) << msg;
+    if (error_on_conflict) {
+      return Status(StatusCode::INVALID_SCHEMA, msg);
+    } else {
+      return Status(StatusCode::OK, msg);
+    }
+  }
   std::vector<std::string> update_property_names;
   std::vector<std::string> update_property_renames;
   for (size_t i = 0; i < update_properties.size(); i++) {
     auto [property_name, property_rename] = update_properties[i];
     if (!schema_.edge_has_property(src_type_name, dst_type_name, edge_type_name,
                                    property_name)) {
-      if (skip_exists) {
-        continue;
+      std::string msg = "Property [" + property_name +
+                        "] does not exist in edge [" + edge_type_name +
+                        "] from [" + src_type_name + "] to [" + dst_type_name +
+                        "].";
+      LOG(ERROR) << msg;
+      if (error_on_conflict) {
+        return Status(StatusCode::INVALID_SCHEMA, msg);
       } else {
-        LOG(ERROR) << "Property [" << property_name
-                   << "] does not exist in edge [" << edge_type_name
-                   << "] from [" << src_type_name << "] to [" << dst_type_name
-                   << "].";
-        return Status(StatusCode::INVALID_SCHEMA,
-                      "Property [" + property_name +
-                          "] does not exist in edge [" + edge_type_name +
-                          "] from [" + src_type_name + "] to [" +
-                          dst_type_name + "].");
+        return Status(StatusCode::OK, msg);
       }
     }
     update_property_names.emplace_back(property_name);
     update_property_renames.emplace_back(property_rename);
   }
+  schema_.update_edge_properties(src_type_name, dst_type_name, edge_type_name,
+                                 update_property_names,
+                                 update_property_renames);
+  label_t src_label = schema_.get_vertex_label_id(src_type_name);
+  label_t dst_label = schema_.get_vertex_label_id(dst_type_name);
+  label_t e_label = schema_.get_edge_label_id(edge_type_name);
+  size_t index = src_label * vertex_label_num_ * edge_label_num_ +
+                 dst_label * edge_label_num_ + e_label;
+  auto dual_csr = dual_csr_list_[index];
+  if (dual_csr == NULL) {
+    LOG(ERROR) << "Edge [" << edge_type_name << "] from [" << src_type_name
+               << "] to [" << dst_type_name
+               << "] does not exist, cannot rename properties.";
+    return Status(StatusCode::INVALID_SCHEMA,
+                  "Edge [" + edge_type_name + "] from [" + src_type_name +
+                      "] to [" + dst_type_name +
+                      "] does not exist, cannot rename properties.");
+  }
+  auto casted_dual_csr = dynamic_cast<DualCsr<RecordView>*>(dual_csr);
+  if (casted_dual_csr == NULL) {
+    LOG(ERROR) << "Edge [" << edge_type_name << "] from [" << src_type_name
+               << "] to [" << dst_type_name
+               << "] does not support renaming properties.";
+    return Status(StatusCode::INVALID_SCHEMA,
+                  "Edge [" + edge_type_name + "] from [" + src_type_name +
+                      "] to [" + dst_type_name +
+                      "] does not support renaming properties.");
+  }
+  casted_dual_csr->rename_properties(update_property_names,
+                                     update_property_renames);
+  DumpSchema(schema_path(work_dir_));
+  dumpSchema();
+  return gs::Status::OK();
+}
 
+Status MutablePropertyFragment::delete_vertex_properties(
+    const std::string& vertex_type_name,
+    const std::vector<std::string>& delete_properties, bool error_on_conflict) {
+  if (!schema_.contains_vertex_label(vertex_type_name)) {
+    LOG(ERROR) << "Vertex label[" << vertex_type_name << "] does not exists.";
+    if (error_on_conflict) {
+      return Status(StatusCode::INVALID_SCHEMA,
+                    "Vertex label[" + vertex_type_name + "] does not exists.");
+    } else {
+      return gs::Status(StatusCode::OK, "Vertex label[" + vertex_type_name +
+                                            "] does not exists.");
+    }
+  }
   std::vector<std::string> delete_property_names;
   for (size_t i = 0; i < delete_properties.size(); i++) {
-    auto [property_type, property_name, default_value] = delete_properties[i];
-    if (!schema_.edge_has_property(src_type_name, dst_type_name, edge_type_name,
-                                   property_name)) {
-      if (skip_exists) {
-        continue;
-      } else {
-        LOG(ERROR) << "Property [" << property_name
-                   << "] does not exist in edge [" << edge_type_name
-                   << "] from [" << src_type_name << "] to [" << dst_type_name
-                   << "].";
+    auto property_name = delete_properties[i];
+    if (!schema_.vertex_has_property(vertex_type_name, property_name)) {
+      std::string msg = "Property [" + property_name +
+                        "] does not exist in vertex [" + vertex_type_name +
+                        "].";
+      if (error_on_conflict) {
         return Status(StatusCode::INVALID_SCHEMA,
                       "Property [" + property_name +
-                          "] does not exist in edge [" + edge_type_name +
-                          "] from [" + src_type_name + "] to [" +
-                          dst_type_name + "].");
+                          "] does not exist in vertex [" + vertex_type_name +
+                          "].");
+      } else {
+        return Status(StatusCode::OK, msg);
       }
     }
     delete_property_names.emplace_back(property_name);
   }
-  schema_.add_edge_properties(src_type_name, dst_type_name, edge_type_name,
-                              add_property_names, add_property_types,
-                              add_default_property_values);
-  schema_.update_edge_properties(src_type_name, dst_type_name, edge_type_name,
-                                 update_property_names,
-                                 update_property_renames);
+  schema_.delete_vertex_properties(vertex_type_name, delete_property_names);
+  label_t v_label = schema_.get_vertex_label_id(vertex_type_name);
+  auto& vertex_data = vertex_data_[v_label];
+  for (const auto& property_name : delete_property_names) {
+    vertex_data.delete_column(property_name);
+  }
+  DumpSchema(schema_path(work_dir_));
+  dumpSchema();
+  return gs::Status::OK();
+}
+
+Status MutablePropertyFragment::delete_edge_properties(
+    const std::string& src_type_name, const std::string& dst_type_name,
+    const std::string& edge_type_name,
+    const std::vector<std::string>& delete_properties, bool error_on_conflict) {
+  if (!schema_.has_edge_label(src_type_name, dst_type_name, edge_type_name)) {
+    std::string msg = "Edge [" + edge_type_name + "] from [" + src_type_name +
+                      "] to [" + dst_type_name + "] does not exist";
+    LOG(ERROR) << msg;
+    if (error_on_conflict) {
+      return Status(StatusCode::INVALID_SCHEMA, msg);
+    } else {
+      return Status(StatusCode::OK, msg);
+    }
+  }
+  std::vector<std::string> delete_property_names;
+  for (size_t i = 0; i < delete_properties.size(); i++) {
+    auto property_name = delete_properties[i];
+    if (!schema_.edge_has_property(src_type_name, dst_type_name, edge_type_name,
+                                   property_name)) {
+      std::string msg = "Property [" + property_name +
+                        "] does not exist in edge [" + edge_type_name +
+                        "] from [" + src_type_name + "] to [" + dst_type_name +
+                        "].";
+      LOG(ERROR) << msg;
+      if (error_on_conflict) {
+        return Status(StatusCode::INVALID_SCHEMA, msg);
+      } else {
+        return Status(StatusCode::OK, msg);
+      }
+    }
+    delete_property_names.emplace_back(property_name);
+  }
   schema_.delete_edge_properties(src_type_name, dst_type_name, edge_type_name,
                                  delete_property_names);
+  label_t src_label = schema_.get_vertex_label_id(src_type_name);
+  label_t dst_label = schema_.get_vertex_label_id(dst_type_name);
+  label_t e_label = schema_.get_edge_label_id(edge_type_name);
+  size_t index = src_label * vertex_label_num_ * edge_label_num_ +
+                 dst_label * edge_label_num_ + e_label;
+  auto dual_csr = dual_csr_list_[index];
+  if (dual_csr == NULL) {
+    LOG(ERROR) << "Edge [" << edge_type_name << "] from [" << src_type_name
+               << "] to [" << dst_type_name
+               << "] does not exist, cannot delete properties.";
+    return Status(StatusCode::INVALID_SCHEMA,
+                  "Edge [" + edge_type_name + "] from [" + src_type_name +
+                      "] to [" + dst_type_name +
+                      "] does not exist, cannot delete properties.");
+  }
+  auto casted_dual_csr = dynamic_cast<DualCsr<RecordView>*>(dual_csr);
+  if (casted_dual_csr == NULL) {
+    LOG(ERROR) << "Edge [" << edge_type_name << "] from [" << src_type_name
+               << "] to [" << dst_type_name
+               << "] does not support deleting properties.";
+    return Status(StatusCode::INVALID_SCHEMA,
+                  "Edge [" + edge_type_name + "] from [" + src_type_name +
+                      "] to [" + dst_type_name +
+                      "] does not support deleting properties.");
+  }
+  casted_dual_csr->delete_properties(delete_property_names);
+  DumpSchema(schema_path(work_dir_));
+  dumpSchema();
   return gs::Status::OK();
 }
 
 Status MutablePropertyFragment::delete_vertex_type(
-    const std::string& vertex_type_name, bool is_detach, bool skip_exists) {
+    const std::string& vertex_type_name, bool is_detach,
+    bool error_on_conflict) {
   if (!schema_.contains_vertex_label(vertex_type_name)) {
-    if (!skip_exists) {
+    if (error_on_conflict) {
       LOG(ERROR) << "Vertex label[" << vertex_type_name << "] does not exists.";
       return Status(StatusCode::INVALID_SCHEMA,
                     "Vertex label[" + vertex_type_name + "] does not exists.");
+    } else {
+      LOG(INFO) << "Vertex label[" << vertex_type_name
+                << "] does not exist, skip deletion.";
+      return gs::Status::OK();
     }
   }
   schema_.delete_vertex_label(vertex_type_name);
@@ -493,16 +672,22 @@ Status MutablePropertyFragment::delete_vertex_type(
 
 Status MutablePropertyFragment::delete_edge_type(
     const std::string& src_vertex_type, const std::string& dst_vertex_type,
-    const std::string& edge_type, bool skip_exists) {
+    const std::string& edge_type, bool error_on_conflict) {
   if (!schema_.has_edge_label(src_vertex_type, dst_vertex_type, edge_type)) {
-    if (!skip_exists) {
+    if (error_on_conflict) {
       LOG(ERROR) << "Edge [" << edge_type << "] from [" << src_vertex_type
                  << "] to [" << dst_vertex_type << "] does not exist";
       return Status(StatusCode::INVALID_SCHEMA,
                     "Edge [" + edge_type + "] from [" + src_vertex_type +
                         "] to [" + dst_vertex_type + "] does not exist");
+    } else {
+      LOG(INFO) << "Edge [" << edge_type << "] from [" << src_vertex_type
+                << "] to [" << dst_vertex_type
+                << "] does not exist, skip deletion.";
+      return gs::Status::OK();
     }
   }
+  schema_.delete_edge_label(src_vertex_type, dst_vertex_type, edge_type);
   return gs::Status::OK();
 }
 

@@ -41,6 +41,8 @@ void Table::init(const std::string& name, const std::string& work_dir,
                  const std::vector<std::string>& col_name,
                  const std::vector<PropertyType>& property_types,
                  const std::vector<StorageStrategy>& strategies_) {
+  name_ = name;
+  work_dir_ = work_dir;
   initColumns(col_name, property_types, strategies_);
   for (size_t i = 0; i < columns_.size(); ++i) {
     columns_[i]->open(name + ".col_" + std::to_string(i), "", work_dir);
@@ -54,6 +56,9 @@ void Table::open(const std::string& name, const std::string& snapshot_dir,
                  const std::vector<std::string>& col_name,
                  const std::vector<PropertyType>& property_types,
                  const std::vector<StorageStrategy>& strategies_) {
+  name_ = name;
+  work_dir_ = work_dir;
+  snapshot_dir_ = snapshot_dir;
   initColumns(col_name, property_types, strategies_);
   for (size_t i = 0; i < columns_.size(); ++i) {
     columns_[i]->open(name + ".col_" + std::to_string(i), snapshot_dir,
@@ -68,6 +73,8 @@ void Table::open_in_memory(const std::string& name,
                            const std::vector<std::string>& col_name,
                            const std::vector<PropertyType>& property_types,
                            const std::vector<StorageStrategy>& strategies_) {
+  name_ = name;
+  snapshot_dir_ = snapshot_dir;
   initColumns(col_name, property_types, strategies_);
   for (size_t i = 0; i < columns_.size(); ++i) {
     columns_[i]->open_in_memory(snapshot_dir + "/" + name + ".col_" +
@@ -145,6 +152,8 @@ void Table::reset_header(const std::vector<std::string>& col_name) {
 
 void Table::add_columns(const std::vector<std::string>& col_names,
                         const std::vector<PropertyType>& col_types) {
+  // When add_columns are called, the table is already initialized and col_files
+  // are opened.
   size_t old_size = columns_.size();
   columns_.resize(old_size + col_names.size());
 
@@ -153,7 +162,35 @@ void Table::add_columns(const std::vector<std::string>& col_names,
     col_id_indexer_.add(col_names[i], col_id);
     columns_[col_id] = CreateColumn(col_types[i], StorageStrategy::kMem);
   }
+  for (size_t i = old_size; i < columns_.size(); ++i) {
+    columns_[i]->open_in_memory(snapshot_dir_ + "/" + name_ + ".col_" +
+                                std::to_string(i));
+  }
   buildColumnPtrs();
+}
+
+void Table::rename_column(const std::string& old_name,
+                          const std::string& new_name) {
+  int col_id;
+  if (col_id_indexer_.get_index(old_name, col_id)) {
+    col_id_indexer_.remove(old_name);
+    col_id_indexer_.add(new_name, col_id);
+  } else {
+    LOG(ERROR) << "Column " << old_name << " does not exist.";
+  }
+}
+
+void Table::delete_column(const std::string& col_name) {
+  int col_id;
+  if (col_id_indexer_.get_index(col_name, col_id)) {
+    col_id_indexer_.remove(col_name);
+    columns_[col_id]->close();
+    columns_[col_id].reset();
+    columns_.erase(columns_.begin() + col_id);
+    column_ptrs_[col_id] = nullptr;
+  } else {
+    LOG(ERROR) << "Column " << col_name << " does not exist.";
+  }
 }
 
 std::vector<std::string> Table::column_names() const {

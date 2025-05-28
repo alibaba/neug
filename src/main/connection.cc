@@ -56,7 +56,9 @@ Result<results::CollectiveResults> Connection::query_impl(
   // Idealy we should compile the plan from query_string, but currently we use
   // string find to check whether we need to bulk load.
   if (query_string.find("CREATE") != std::string::npos ||
-      query_string.find("create") != std::string::npos) {
+      query_string.find("create") != std::string::npos ||
+      query_string.find("ALTER") != std::string::npos ||
+      query_string.find("alter") != std::string::npos) {
     auto ddl_plan = createDDLPlan(query_string);
     return query_processor_->execute(ddl_plan);
   }
@@ -126,6 +128,109 @@ physical::PhysicalPlan Connection::createDDLPlan(
   auto plan = physical_plan.mutable_ddl_plan();
   // Currently we use a builtin plan for testing
   // TODO(zhanglei): Remove this after we have a real plan.
+
+  if (query_string == "ALTER TABLE person ADD birthday DATE;") {
+    auto alter_vertex_request = plan->mutable_add_vertex_property_schema();
+    alter_vertex_request->mutable_vertex_type()->set_name("person");
+    auto birthday_property = alter_vertex_request->add_properties();
+    birthday_property->set_name("birthday");
+    birthday_property->mutable_type()
+        ->mutable_temporal()
+        ->mutable_date()
+        ->set_date_format(
+            common::Temporal::DateFormat::Temporal_DateFormat_DF_YYYY_MM_DD);
+    alter_vertex_request->set_conflict_action(
+        physical::ConflictAction::ON_CONFLICT_THROW);
+    return physical_plan;
+  }
+
+  if (query_string == "ALTER TABLE person ADD IF NOT EXISTS birthday DATE;") {
+    auto alter_vertex_request = plan->mutable_add_vertex_property_schema();
+    alter_vertex_request->mutable_vertex_type()->set_name("person");
+    auto birthday_property = alter_vertex_request->add_properties();
+    birthday_property->set_name("birthday");
+    birthday_property->mutable_type()
+        ->mutable_temporal()
+        ->mutable_date()
+        ->set_date_format(
+            common::Temporal::DateFormat::Temporal_DateFormat_DF_YYYY_MM_DD);
+    alter_vertex_request->set_conflict_action(
+        physical::ConflictAction::ON_CONFLICT_DO_NOTHING);
+    return physical_plan;
+  }
+
+  if (query_string == "ALTER TABLE person ADD name STRING;") {
+    auto alter_vertex_request = plan->mutable_add_vertex_property_schema();
+    alter_vertex_request->mutable_vertex_type()->set_name("person");
+    auto name_property = alter_vertex_request->add_properties();
+    name_property->set_name("name");
+    name_property->mutable_type()->mutable_string()->mutable_long_text();
+    alter_vertex_request->set_conflict_action(
+        physical::ConflictAction::ON_CONFLICT_THROW);
+    return physical_plan;
+  }
+
+  // Insert proeprty to edge schema
+  if (query_string == "ALTER TABLE knows ADD registion DATE;") {
+    auto alter_edge_request = plan->mutable_add_edge_property_schema();
+    alter_edge_request->mutable_edge_type()->mutable_type_name()->set_name(
+        "knows");
+    alter_edge_request->mutable_edge_type()->mutable_src_type_name()->set_name(
+        "person");
+    alter_edge_request->mutable_edge_type()->mutable_dst_type_name()->set_name(
+        "person");
+    auto registion_property = alter_edge_request->add_properties();
+    registion_property->set_name("registion");
+    registion_property->mutable_type()
+        ->mutable_temporal()
+        ->mutable_date()
+        ->set_date_format(
+            common::Temporal::DateFormat::Temporal_DateFormat_DF_YYYY_MM_DD);
+    alter_edge_request->set_conflict_action(
+        physical::ConflictAction::ON_CONFLICT_THROW);
+    return physical_plan;
+  }
+
+  // Drop an non-existing column
+  if (query_string == "ALTER TABLE person DROP non_existing_column;") {
+    auto alter_vertex_request = plan->mutable_drop_vertex_property_schema();
+    alter_vertex_request->mutable_vertex_type()->set_name("person");
+    alter_vertex_request->set_conflict_action(
+        physical::ConflictAction::ON_CONFLICT_THROW);
+    alter_vertex_request->add_properties("non_existing_column");
+    return physical_plan;
+  }
+
+  // Drop an existing column
+  if (query_string == "ALTER TABLE person DROP IF EXISTS birthday;") {
+    auto alter_vertex_request = plan->mutable_drop_vertex_property_schema();
+    alter_vertex_request->mutable_vertex_type()->set_name("person");
+    alter_vertex_request->set_conflict_action(
+        physical::ConflictAction::ON_CONFLICT_DO_NOTHING);
+    alter_vertex_request->add_properties("birthday");
+    return physical_plan;
+  }
+
+  // Drop a column that already been dropped
+  if (query_string == "ALTER TABLE person DROP birthday;") {
+    auto alter_vertex_request = plan->mutable_drop_vertex_property_schema();
+    alter_vertex_request->mutable_vertex_type()->set_name("person");
+    alter_vertex_request->set_conflict_action(
+        physical::ConflictAction::ON_CONFLICT_THROW);
+    alter_vertex_request->add_properties("birthday");
+    return physical_plan;
+  }
+
+  // Rename a column
+  if (query_string == "ALTER TABLE person RENAME name TO username;") {
+    auto alter_vertex_request = plan->mutable_rename_vertex_property_schema();
+    alter_vertex_request->mutable_vertex_type()->set_name("person");
+    alter_vertex_request->set_conflict_action(
+        physical::ConflictAction::ON_CONFLICT_THROW);
+    auto mappings = alter_vertex_request->mutable_mappings();
+    mappings->insert({"name", "username"});  // Rename 'name' to 'username'
+    return physical_plan;
+  }
 
   if (query_string.find("knows") != std::string::npos) {
     auto create_edge_request = plan->mutable_create_edge_schema();

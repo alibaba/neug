@@ -88,6 +88,10 @@ class Table {
 
   const std::shared_ptr<ColumnBase> get_column_by_id(size_t index) const;
 
+  void rename_column(const std::string& old_name, const std::string& new_name);
+
+  void delete_column(const std::string& col_name);
+
   size_t col_num() const;
   size_t row_num() const;
   std::vector<std::shared_ptr<ColumnBase>>& columns();
@@ -129,6 +133,8 @@ class Table {
   std::vector<ColumnBase*> column_ptrs_;
 
   bool touched_;
+  std::string name_;
+  std::string work_dir_, snapshot_dir_;
 };
 
 }  // namespace gs

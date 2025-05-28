@@ -54,6 +54,24 @@ class QueryProcessor {
   Result<results::CollectiveResults> execute_ddl(
       const physical::DDLPlan& ddl_plan, int32_t num_threads);
 
+  Result<results::CollectiveResults> execute_add_vertex_property(
+      const physical::AddVertexPropertySchema& add_vertex_property_schema);
+
+  Result<results::CollectiveResults> execute_add_edge_property(
+      const physical::AddEdgePropertySchema& add_edge_property_schema);
+
+  Result<results::CollectiveResults> execute_drop_vertex_property(
+      const physical::DropVertexPropertySchema& drop_vertex_property_schema);
+
+  Result<results::CollectiveResults> execute_drop_edge_property(
+      const physical::DropEdgePropertySchema& drop_edge_property_schema);
+
+  Result<results::CollectiveResults> execute_rename_vertex_property(
+      const physical::RenameVertexPropertySchema&
+          rename_vertex_property_schema);
+  Result<results::CollectiveResults> execute_rename_edge_property(
+      const physical::RenameEdgePropertySchema& rename_edge_property_schema);
+
   GraphDB& db_;
   int32_t max_num_threads_;
   runtime::OprTimer timer_;

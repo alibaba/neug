@@ -493,6 +493,70 @@ class DualCsr<RecordView> : public DualCsrBase {
     }
   }
 
+  void add_properties(const std::vector<std::string>& col_name,
+                      const std::vector<PropertyType>& property_types) {
+    CHECK(col_name.size() == property_types.size());
+    if (table_.row_num() > 0) {
+      LOG(ERROR) << "Cannot add properties when the table is not empty.";
+      return;
+    }
+    for (auto& col : col_name) {
+      if (std::find(col_name_.begin(), col_name_.end(), col) ==
+          col_name_.end()) {
+        LOG(ERROR) << "Column " << col << " already exists.";
+        return;
+      }
+    }
+    for (size_t i = 0; i < col_name.size(); ++i) {
+      col_name_.push_back(col_name[i]);
+      property_types_.push_back(property_types[i]);
+      storage_strategies_.push_back(StorageStrategy::kMem);
+    }
+
+    table_.add_columns(col_name, property_types);
+  }
+
+  void delete_properties(const std::vector<std::string>& col_name) {
+    for (const auto& col : col_name) {
+      auto it = std::find(col_name_.begin(), col_name_.end(), col);
+      if (it == col_name_.end()) {
+        LOG(ERROR) << "Column " << col << " does not exist.";
+        return;
+      }
+    }
+    for (const auto& col : col_name) {
+      auto it = std::find(col_name_.begin(), col_name_.end(), col);
+      size_t index = std::distance(col_name_.begin(), it);
+      col_name_.erase(it);
+      property_types_.erase(property_types_.begin() + index);
+      storage_strategies_.erase(storage_strategies_.begin() + index);
+    }
+    // Remove columns from the table
+    for (const auto& col : col_name) {
+      table_.delete_column(col);
+    }
+  }
+
+  void rename_properties(const std::vector<std::string>& old_names,
+                         const std::vector<std::string>& new_names) {
+    CHECK_EQ(old_names.size(), new_names.size());
+    for (size_t i = 0; i < old_names.size(); ++i) {
+      auto it = std::find(col_name_.begin(), col_name_.end(), old_names[i]);
+      if (it == col_name_.end()) {
+        LOG(ERROR) << "Column " << old_names[i] << " does not exist.";
+        return;
+      }
+      if (std::find(col_name_.begin(), col_name_.end(), new_names[i]) !=
+          col_name_.end()) {
+        LOG(ERROR) << "Column " << new_names[i] << " already exists.";
+        return;
+      }
+      size_t index = std::distance(col_name_.begin(), it);
+      col_name_[index] = new_names[i];
+      table_.rename_column(old_names[i], new_names[i]);
+    }
+  }
+
   void InitTable(const std::string& edata_name, const std::string& work_dir) {
     table_.init(edata_name, work_dir, col_name_, property_types_,
                 storage_strategies_);
@@ -637,9 +701,9 @@ class DualCsr<RecordView> : public DualCsrBase {
   }
 
  private:
-  const std::vector<std::string>& col_name_;
-  const std::vector<PropertyType>& property_types_;
-  const std::vector<StorageStrategy>& storage_strategies_;
+  std::vector<std::string> col_name_;
+  std::vector<PropertyType> property_types_;
+  std::vector<StorageStrategy> storage_strategies_;
   TypedCsrBase<RecordView>* in_csr_;
   TypedCsrBase<RecordView>* out_csr_;
   std::atomic<size_t> table_idx_;

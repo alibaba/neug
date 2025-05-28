@@ -22,6 +22,17 @@
 
 namespace gs {
 
+// Convert to a bool representing error_on_conflict.
+bool conflict_action_to_bool(const physical::ConflictAction& action) {
+  if (action == physical::ConflictAction::ON_CONFLICT_THROW) {
+    return true;
+  } else if (action == physical::ConflictAction::ON_CONFLICT_DO_NOTHING) {
+    return false;
+  } else {
+    LOG(FATAL) << "invalid action: " << action;
+  }
+}
+
 Result<results::CollectiveResults> QueryProcessor::execute(
     const physical::PhysicalPlan& plan, int32_t num_threads) {
   if (num_threads == 0) {
@@ -165,12 +176,108 @@ Result<results::CollectiveResults> QueryProcessor::execute_write_only(
   return Result<results::CollectiveResults>(Status::OK());
 }
 
+Result<results::CollectiveResults> QueryProcessor::execute_add_vertex_property(
+    const physical::AddVertexPropertySchema& add_vertex_property_schema) {
+  auto& graph_ = db_.graph();
+  auto vertex_type_name = add_vertex_property_schema.vertex_type().name();
+  auto tuple_res =
+      property_defs_to_tuple(add_vertex_property_schema.properties());
+  if (!tuple_res.ok()) {
+    return tuple_res.status();
+  }
+  return graph_.add_vertex_properties(
+      vertex_type_name, tuple_res.value(),
+      conflict_action_to_bool(add_vertex_property_schema.conflict_action()));
+}
+
+Result<results::CollectiveResults> QueryProcessor::execute_add_edge_property(
+    const physical::AddEdgePropertySchema& add_edge_property_schema) {
+  auto& graph_ = db_.graph();
+  auto edge_type_name = add_edge_property_schema.edge_type().type_name().name();
+  auto src_type_name =
+      add_edge_property_schema.edge_type().src_type_name().name();
+  auto dst_type_name =
+      add_edge_property_schema.edge_type().dst_type_name().name();
+  auto tuple_res =
+      property_defs_to_tuple(add_edge_property_schema.properties());
+  if (!tuple_res.ok()) {
+    return tuple_res.status();
+  }
+
+  return graph_.add_edge_properties(
+      src_type_name, dst_type_name, edge_type_name, tuple_res.value(),
+      conflict_action_to_bool(add_edge_property_schema.conflict_action()));
+}
+
+Result<results::CollectiveResults> QueryProcessor::execute_drop_vertex_property(
+    const physical::DropVertexPropertySchema& drop_vertex_property_schema) {
+  auto& graph_ = db_.graph();
+  auto vertex_type_name = drop_vertex_property_schema.vertex_type().name();
+  std::vector<std::string> property_names;
+  for (const auto& prop : drop_vertex_property_schema.properties()) {
+    property_names.push_back(prop);
+  }
+  return graph_.delete_vertex_properties(
+      vertex_type_name, property_names,
+      conflict_action_to_bool(drop_vertex_property_schema.conflict_action()));
+}
+
+Result<results::CollectiveResults> QueryProcessor::execute_drop_edge_property(
+    const physical::DropEdgePropertySchema& drop_edge_property_schema) {
+  auto& graph_ = db_.graph();
+  auto edge_type_name =
+      drop_edge_property_schema.edge_type().type_name().name();
+  auto src_type_name =
+      drop_edge_property_schema.edge_type().src_type_name().name();
+  auto dst_type_name =
+      drop_edge_property_schema.edge_type().dst_type_name().name();
+  std::vector<std::string> property_names;
+  for (const auto& prop : drop_edge_property_schema.properties()) {
+    property_names.push_back(prop);
+  }
+  return graph_.delete_edge_properties(
+      src_type_name, dst_type_name, edge_type_name, property_names,
+      conflict_action_to_bool(drop_edge_property_schema.conflict_action()));
+}
+
+Result<results::CollectiveResults>
+QueryProcessor::execute_rename_vertex_property(
+    const physical::RenameVertexPropertySchema& rename_vertex_property_schema) {
+  auto& graph_ = db_.graph();
+  auto vertex_type_name = rename_vertex_property_schema.vertex_type().name();
+  std::vector<std::tuple<std::string, std::string>> rename_pairs;
+  for (const auto& rename : rename_vertex_property_schema.mappings()) {
+    rename_pairs.emplace_back(rename.first, rename.second);
+  }
+  return graph_.rename_vertex_properties(
+      vertex_type_name, rename_pairs,
+      conflict_action_to_bool(rename_vertex_property_schema.conflict_action()));
+}
+
+Result<results::CollectiveResults> QueryProcessor::execute_rename_edge_property(
+    const physical::RenameEdgePropertySchema& rename_edge_property_schema) {
+  auto& graph_ = db_.graph();
+  auto edge_type_name =
+      rename_edge_property_schema.edge_type().type_name().name();
+  auto src_type_name =
+      rename_edge_property_schema.edge_type().src_type_name().name();
+  auto dst_type_name =
+      rename_edge_property_schema.edge_type().dst_type_name().name();
+  std::vector<std::tuple<std::string, std::string>> rename_pairs;
+  for (const auto& rename : rename_edge_property_schema.mappings()) {
+    rename_pairs.emplace_back(rename.first, rename.second);
+  }
+  return graph_.rename_edge_properties(
+      src_type_name, dst_type_name, edge_type_name, rename_pairs,
+      conflict_action_to_bool(rename_edge_property_schema.conflict_action()));
+}
+
 Result<results::CollectiveResults> QueryProcessor::execute_ddl(
     const physical::DDLPlan& ddl_plan, int32_t num_threads) {
   auto& graph_ = db_.graph();
   if (ddl_plan.has_create_vertex_schema()) {
     auto& create_vertex = ddl_plan.create_vertex_schema();
-    LOG(INFO) << "Got create vertex request: " << create_vertex.DebugString();
+    VLOG(10) << "Got create vertex request: " << create_vertex.DebugString();
     auto vertex_type_name = create_vertex.vertex_type().name();
     auto tuple_res = property_defs_to_tuple(create_vertex.properties());
     if (!tuple_res.ok()) {
@@ -188,7 +295,7 @@ Result<results::CollectiveResults> QueryProcessor::execute_ddl(
     return graph_.create_vertex_type(vertex_type_name, tuple_res.value(), pks);
   } else if (ddl_plan.has_create_edge_schema()) {
     auto& create_edge = ddl_plan.create_edge_schema();
-    LOG(INFO) << "Got create edge request: " << create_edge.DebugString();
+    VLOG(10) << "Got create edge request: " << create_edge.DebugString();
     auto edge_type_name = create_edge.edge_type().type_name().name();
     auto src_vertex_type_name = create_edge.edge_type().src_type_name().name();
     auto dst_vertex_type_name = create_edge.edge_type().dst_type_name().name();
@@ -209,9 +316,24 @@ Result<results::CollectiveResults> QueryProcessor::execute_ddl(
                     "Invalid edge multiplicity: " + create_edge.multiplicity());
     }
 
-    return graph_.create_edge_type(src_vertex_type_name, dst_vertex_type_name,
-                                   edge_type_name, tuple_res.value(),
-                                   oe_stragety, ie_stragety);
+    return graph_.create_edge_type(
+        src_vertex_type_name, dst_vertex_type_name, edge_type_name,
+        tuple_res.value(),
+        conflict_action_to_bool(create_edge.conflict_action()), oe_stragety,
+        ie_stragety);
+  } else if (ddl_plan.has_add_vertex_property_schema()) {
+    return execute_add_vertex_property(ddl_plan.add_vertex_property_schema());
+  } else if (ddl_plan.has_add_edge_property_schema()) {
+    return execute_add_edge_property(ddl_plan.add_edge_property_schema());
+  } else if (ddl_plan.has_drop_vertex_property_schema()) {
+    return execute_drop_vertex_property(ddl_plan.drop_vertex_property_schema());
+  } else if (ddl_plan.has_drop_edge_property_schema()) {
+    return execute_drop_edge_property(ddl_plan.drop_edge_property_schema());
+  } else if (ddl_plan.has_rename_vertex_property_schema()) {
+    return execute_rename_vertex_property(
+        ddl_plan.rename_vertex_property_schema());
+  } else if (ddl_plan.has_rename_edge_property_schema()) {
+    return execute_rename_edge_property(ddl_plan.rename_edge_property_schema());
   } else {
     LOG(ERROR) << "Unknown DDL plan: " << ddl_plan.DebugString();
     return Status(StatusCode::INVALID_ARGUMENT,

@@ -124,17 +124,16 @@ void testOpenEmptyGraph(const std::string& graph_dir) {
     std::string vertex_label_name = "PERSON";
     std::vector<std::tuple<PropertyType, std::string, Any>> add_properties;
     std::vector<std::tuple<std::string, std::string>> update_properties;
-    std::vector<std::tuple<PropertyType, std::string, Any>> delete_properties;
+    std::vector<std::string> delete_properties;
     add_properties.emplace_back(
         std::make_tuple<PropertyType, std::string, std::string>(
             PropertyType::String(), std::string("lastName"), std::string("")));
     update_properties.emplace_back(std::make_tuple<std::string, std::string>(
         std::string("name"), std::string("firstName")));
-    delete_properties.emplace_back(
-        std::make_tuple<PropertyType, std::string, std::string>(
-            PropertyType::Int32(), std::string("age"), std::string("")));
-    graph.update_vertex_type(vertex_label_name, add_properties,
-                             update_properties, delete_properties, false);
+    delete_properties.emplace_back("age");
+    graph.add_vertex_properties(vertex_label_name, add_properties);
+    graph.rename_vertex_properties(vertex_label_name, update_properties);
+    graph.delete_vertex_properties(vertex_label_name, delete_properties);
   }
 
   {

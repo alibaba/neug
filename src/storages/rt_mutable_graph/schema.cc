@@ -1738,8 +1738,17 @@ void Schema::delete_edge_label(const std::string& label) {
   elabel_tomb_.set(e_label_id);
 }
 
-void Schema::delete_edge(const label_t& src, const label_t& dst,
-                         const label_t& edge) {
+void Schema::delete_edge_label(const std::string& src_label,
+                               const std::string& dst_label,
+                               const std::string& edge_label) {
+  label_t src = get_vertex_label_id(src_label);
+  label_t dst = get_vertex_label_id(dst_label);
+  label_t edge = get_edge_label_id(edge_label);
+  return delete_edge_label(src, dst, edge);
+}
+
+void Schema::delete_edge_label(const label_t& src, const label_t& dst,
+                               const label_t& edge) {
   uint32_t index = generate_edge_label(src, dst, edge);
   eproperties_.erase(index);
   eprop_names_.erase(index);

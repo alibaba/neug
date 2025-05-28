@@ -315,7 +315,11 @@ class Schema {
 
   void delete_edge_label(const std::string& label);
 
-  void delete_edge(const label_t& src, const label_t& dst, const label_t& edge);
+  void delete_edge_label(const std::string& src, const std::string& dst,
+                         const std::string& edge);
+
+  void delete_edge_label(const label_t& src, const label_t& dst,
+                         const label_t& edge);
 
   void add_edge_properties(const std::string& src_label,
                            const std::string& dst_label,

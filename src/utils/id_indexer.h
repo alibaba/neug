@@ -614,6 +614,27 @@ class IdIndexer : public IdIndexerBase<INDEX_T> {
     return true;
   }
 
+  bool remove(const KEY_T& oid) {
+    size_t index =
+        hash_policy_.index_for_hash(hasher_(oid), num_slots_minus_one_);
+
+    int8_t distance_from_desired = 0;
+    for (; distances_[index] >= distance_from_desired;
+         ++index, ++distance_from_desired) {
+      INDEX_T cur_lid = indices_[index];
+      if (keys_[cur_lid] == oid) {
+        keys_[cur_lid] = keys_.back();
+        keys_.pop_back();
+        indices_[index] = indices_.back();
+        indices_.pop_back();
+        distances_[index] = -1;
+        --num_elements_;
+        return true;
+      }
+    }
+    return false;
+  }
+
   bool add(KEY_T&& oid, INDEX_T& lid) {
     size_t index =
         hash_policy_.index_for_hash(hasher_(oid), num_slots_minus_one_);

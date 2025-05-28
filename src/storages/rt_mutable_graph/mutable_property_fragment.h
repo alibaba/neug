@@ -123,45 +123,67 @@ class MutablePropertyFragment {
 
   void Clear();
 
+  // When error_on_conflict is true, it will return an error if the
+  // vertex type or edge type already exists.
+  // When error_on_conflict is false, it will skip the creation if the
+  // vertex type or edge type already exists.
   Status create_vertex_type(
       const std::string& vertex_type_name,
       const std::vector<std::tuple<PropertyType, std::string, Any>>& properties,
-      const std::vector<std::string>& primary_key_names);
+      const std::vector<std::string>& primary_key_names,
+      bool error_on_conflict = true);
 
   Status create_edge_type(
       const std::string& src_vertex_type, const std::string& dst_vertex_type,
       const std::string& edge_type_name,
       const std::vector<std::tuple<PropertyType, std::string, Any>>& properties,
+      bool error_on_conflict = true,
       EdgeStrategy oe_strategy = EdgeStrategy::kMultiple,
       EdgeStrategy ie_strategy = EdgeStrategy::kMultiple);
 
-  Status update_vertex_type(
+  Status add_vertex_properties(
       const std::string& vertex_type_name,
       const std::vector<std::tuple<PropertyType, std::string, Any>>&
           add_properties,
-      const std::vector<std::tuple<std::string, std::string>>&
-          update_properties,
-      const std::vector<std::tuple<PropertyType, std::string, Any>>&
-          delete_properties,
-      bool skip_exists);
+      bool error_on_conflict = true);
 
-  Status update_edge_type(
+  Status add_edge_properties(
       const std::string& src_type_name, const std::string& dst_type_name,
       const std::string& edge_type_name,
       const std::vector<std::tuple<PropertyType, std::string, Any>>&
           add_properties,
+      bool error_on_conflict = true);
+
+  Status rename_vertex_properties(
+      const std::string& vertex_type_name,
       const std::vector<std::tuple<std::string, std::string>>&
-          update_properties,
-      const std::vector<std::tuple<PropertyType, std::string, Any>>&
-          delete_properties,
-      bool skip_exists);
+          rename_properties,
+      bool error_on_conflict = true);
+
+  Status rename_edge_properties(
+      const std::string& src_type_name, const std::string& dst_type_name,
+      const std::string& edge_type_name,
+      const std::vector<std::tuple<std::string, std::string>>&
+          rename_properties,
+      bool error_on_conflict = true);
+
+  Status delete_vertex_properties(
+      const std::string& vertex_type_name,
+      const std::vector<std::string>& delete_properties,
+      bool error_on_conflict = true);
+
+  Status delete_edge_properties(
+      const std::string& src_type_name, const std::string& dst_type_name,
+      const std::string& edge_type_name,
+      const std::vector<std::string>& delete_properties,
+      bool error_on_conflict = true);
 
   Status delete_vertex_type(const std::string& vertex_type_name, bool is_detach,
-                            bool skip_exists);
+                            bool error_on_conflict);
 
   Status delete_edge_type(const std::string& src_vertex_type,
                           const std::string& dst_vertex_type,
-                          const std::string& edge_type, bool skip_exists);
+                          const std::string& edge_type, bool error_on_conflict);
 
   template <typename PK_T>
   Status batch_load_vertices(const label_t& v_label_id,
