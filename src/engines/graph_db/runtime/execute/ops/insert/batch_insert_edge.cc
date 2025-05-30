@@ -207,11 +207,7 @@ std::unique_ptr<IUpdateOperator> BatchInsertEdgeOprBuilder::Build(
   if (edge_props.empty()) {
     LOG(FATAL) << "BatchInsertEdgeOprBuilder::Build: edge type not found";
   }
-  if (edge_props.size() > 1) {
-    edge_prop_type = PropertyType::RecordView();
-  } else {
-    edge_prop_type = edge_props[0];
-  }
+  edge_prop_type = PropertyType::RecordView();
   src_pk_type = get_the_pk_type_from_schema(schema, src_type);
   dst_pk_type = get_the_pk_type_from_schema(schema, dst_type);
 

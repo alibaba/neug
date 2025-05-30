@@ -40,7 +40,125 @@ void testCreateEdgeType(
                          properties);
 }
 
-void testOpenEmptyGraph(const std::string& graph_dir) {
+void testLoadVertexBatch(MutablePropertyFragment& graph,
+                         std::string vertex_type_name, std::string& v_file,
+                         char delimiter, bool skip_head, int32_t batch_size,
+                         std::vector<std::string>& null_values) {
+  label_t v_label = graph.schema().get_vertex_label_id(vertex_type_name);
+  arrow::csv::ConvertOptions convert_options;
+  arrow::csv::ReadOptions read_options;
+  arrow::csv::ParseOptions parse_options;
+  convert_options.timestamp_parsers.emplace_back(
+      std::make_shared<LDBCTimeStampParser>());
+  convert_options.timestamp_parsers.emplace_back(
+      std::make_shared<LDBCLongDateParser>());
+  convert_options.timestamp_parsers.emplace_back(
+      arrow::TimestampParser::MakeISO8601());
+  put_boolean_option(convert_options);
+  parse_options.delimiter = delimiter;
+  if (skip_head) {
+    read_options.skip_rows = 1;
+  } else {
+    read_options.skip_rows = 0;
+  }
+  parse_options.escaping = false;
+  parse_options.quoting = false;
+  read_options.block_size = batch_size;
+  for (auto& null_value : null_values) {
+    convert_options.null_values.emplace_back(null_value);
+  }
+
+  auto property_size = graph.schema().get_vertex_properties(v_label).size();
+  std::vector<std::string> all_column_names;
+  all_column_names.resize(property_size + 1);
+  for (size_t i = 0; i < all_column_names.size(); ++i) {
+    all_column_names[i] = std::string("f") + std::to_string(i);
+  }
+  read_options.column_names = all_column_names;
+
+  std::vector<std::string> included_col_names;
+  std::vector<std::string> mapped_property_names;
+  auto primary_keys = graph.schema().get_vertex_primary_key(v_label);
+  auto primary_key = primary_keys[0];
+  auto primary_key_name = std::get<1>(primary_key);
+  auto primary_key_ind = std::get<2>(primary_key);
+  auto property_names = graph.schema().get_vertex_property_names(v_label);
+  property_names.insert(property_names.begin() + primary_key_ind,
+                        primary_key_name);
+  for (size_t i = 0; i < read_options.column_names.size(); ++i) {
+    included_col_names.emplace_back(read_options.column_names[i]);
+    // We assume the order of the columns in the file is the same as the
+    // order of the properties in the schema, except for primary key.
+    LOG(INFO) << "Emplace property name " << property_names[i] << "\n";
+    mapped_property_names.emplace_back(property_names[i]);
+  }
+  LOG(INFO) << "property_names size is " << property_names.size();
+  convert_options.include_columns = included_col_names;
+  std::unordered_map<std::string, std::shared_ptr<arrow::DataType>> arrow_types;
+  {
+    auto property_types = graph.schema().get_vertex_properties(v_label);
+    auto property_names = graph.schema().get_vertex_property_names(v_label);
+    CHECK(property_types.size() == property_names.size());
+
+    for (size_t i = 0; i < property_types.size(); ++i) {
+      // for each schema' property name, get the index of the column in
+      // vertex_column mapping, and bind the type with the column name
+      auto property_type = property_types[i];
+      auto property_name = property_names[i];
+      size_t ind = mapped_property_names.size();
+      for (size_t i = 0; i < mapped_property_names.size(); ++i) {
+        if (mapped_property_names[i] == property_name) {
+          ind = i;
+          break;
+        }
+      }
+      if (ind == mapped_property_names.size()) {
+        LOG(FATAL) << "The specified property name: " << property_name
+                   << " does not exist in the vertex column mapping for "
+                      "vertex label: "
+                   << graph.schema().get_vertex_label_name(v_label)
+                   << " please "
+                      "check your configuration";
+      }
+      VLOG(10) << "vertex_label: "
+               << graph.schema().get_vertex_label_name(v_label)
+               << " property_name: " << property_name
+               << " property_type: " << property_type << " ind: " << ind;
+      arrow_types.insert(
+          {included_col_names[ind], PropertyTypeToArrowType(property_type)});
+    }
+    {
+      // add primary key types;
+      auto primary_key_name = std::get<1>(primary_key);
+      auto primary_key_type = std::get<0>(primary_key);
+      size_t ind = mapped_property_names.size();
+      for (size_t i = 0; i < mapped_property_names.size(); ++i) {
+        LOG(INFO) << "Find mapped property name " << mapped_property_names[i];
+        if (mapped_property_names[i] == primary_key_name) {
+          ind = i;
+          break;
+        }
+      }
+      if (ind == mapped_property_names.size()) {
+        LOG(FATAL) << "The specified property name: " << primary_key_name
+                   << " does not exist in the vertex column mapping, please "
+                      "check your configuration";
+      }
+      arrow_types.insert(
+          {included_col_names[ind], PropertyTypeToArrowType(primary_key_type)});
+    }
+    convert_options.column_types = arrow_types;
+  }
+  auto supplier = std::make_shared<CSVStreamRecordBatchSupplier>(
+      v_file, convert_options, read_options, parse_options);
+  std::vector<std::shared_ptr<IRecordBatchSupplier>> suppliers;
+  suppliers.emplace_back(
+      std::dynamic_pointer_cast<IRecordBatchSupplier>(supplier));
+  graph.batch_load_vertices<int32_t>(v_label, suppliers);
+}
+
+void testOpenEmptyGraph(const std::string& graph_dir,
+                        const std::string& data_dir) {
   MutablePropertyFragment graph;
   graph.Open(graph_dir, 0);
 
@@ -119,6 +237,26 @@ void testOpenEmptyGraph(const std::string& graph_dir) {
               << "\n";
   }
 
+  // Load vertices for PERSON
+  {
+    std::string vertex_label_name = "PERSON";
+    std::string vfile = data_dir + "/person.csv.part1";
+    std::vector<std::string> vertex_null_values;
+    testLoadVertexBatch(graph, vertex_label_name, vfile, '|', true, 1024,
+                        vertex_null_values);
+    LOG(INFO) << "Vertices num after load " << graph.vertex_num(0);
+  }
+
+  // Insert vertices for PERSON
+  {
+    std::string vertex_label_name = "PERSON";
+    std::string vfile = data_dir + "/person.csv.part2";
+    std::vector<std::string> vertex_null_values;
+    testLoadVertexBatch(graph, vertex_label_name, vfile, '|', true, 1024,
+                        vertex_null_values);
+    LOG(INFO) << "Vertices num after load " << graph.vertex_num(0);
+  }
+
   // Update property for PERSON
   {
     std::string vertex_label_name = "PERSON";
@@ -159,11 +297,12 @@ void testOpenEmptyGraph(const std::string& graph_dir) {
 }  // namespace gs
 
 int main(int argc, char** argv) {
-  if (argc != 2) {
-    std::cerr << "Usage: bulk_load_test <graph_dir>" << std::endl;
+  if (argc != 3) {
+    std::cerr << "Usage: bulk_load_test <graph_dir> <data_dir>" << std::endl;
     return -1;
   }
   std::string work_dir = argv[1];
-  gs::testOpenEmptyGraph(work_dir);
+  std::string data_dir = argv[2];
+  gs::testOpenEmptyGraph(work_dir, data_dir);
   return 0;
 }

@@ -289,6 +289,8 @@ void AbstractArrowFragmentLoader::AddEdgesRecordBatch(
       src_label_name, dst_label_name, edge_label_name);
   bool ie_mutable = schema_.incoming_edge_mutable(
       src_label_name, dst_label_name, edge_label_name);
+  // Always create a RecordView DualCsr
+  col_num = 2;
   if (col_num == 0) {
     auto dual_csr = new DualCsr<grape::EmptyType>(oe_strategy, ie_strategy,
                                                   oe_mutable, ie_mutable);

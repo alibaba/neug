@@ -339,12 +339,12 @@ class Schema {
                               const std::string& edge_label,
                               std::vector<std::string>& properties_names);
 
+  uint32_t generate_edge_label(label_t src, label_t dst, label_t edge) const;
+
  private:
   label_t vertex_label_to_index(const std::string& label);
 
   label_t edge_label_to_index(const std::string& label);
-
-  uint32_t generate_edge_label(label_t src, label_t dst, label_t edge) const;
 
   std::string name_, id_;
   IdIndexer<std::string, label_t> vlabel_indexer_;

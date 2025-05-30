@@ -276,7 +276,7 @@ static Status parse_vertex_files(
         return Status(StatusCode::ERR_INVALID_ARGUMENT,
                       "The input for vertex [" + label_name + "] is empty");
       }
-      if (scheme == "file") {
+      if (scheme == "file" || scheme == "mutable") {
         if (!access_file(data_location, file_path)) {
           LOG(ERROR) << "vertex file - [" << file_path << "] file not found...";
           return Status(StatusCode::ERR_INVALID_ARGUMENT,
@@ -471,7 +471,7 @@ static Status parse_edge_files(
         return Status(StatusCode::ERR_INVALID_ARGUMENT,
                       "The input for edge [" + edge_label + "] is empty");
       }
-      if (scheme == "file") {
+      if (scheme == "file" || scheme == "mutable") {
         if (!access_file(data_location, file_path)) {
           LOG(ERROR) << "edge file - [" << file_path << "] file not found...";
           return Status(StatusCode::ERR_INVALID_ARGUMENT,

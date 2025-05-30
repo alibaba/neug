@@ -21,48 +21,6 @@
 #include "src/utils/string_utils.h"
 
 namespace gs {
-
-inline DualCsrBase* create_csr(EdgeStrategy oes, EdgeStrategy ies,
-                               const std::vector<PropertyType>& properties,
-                               bool oe_mutable, bool ie_mutable,
-                               const std::vector<std::string>& prop_names) {
-  if (properties.empty()) {
-    return new DualCsr<grape::EmptyType>(oes, ies, oe_mutable, ie_mutable);
-  } else if (properties.size() == 1) {
-    if (properties[0] == PropertyType::kBool) {
-      return new DualCsr<bool>(oes, ies, oe_mutable, ie_mutable);
-    } else if (properties[0] == PropertyType::kInt32) {
-      return new DualCsr<int32_t>(oes, ies, oe_mutable, ie_mutable);
-    } else if (properties[0] == PropertyType::kUInt32) {
-      return new DualCsr<uint32_t>(oes, ies, oe_mutable, ie_mutable);
-    } else if (properties[0] == PropertyType::kDate) {
-      return new DualCsr<Date>(oes, ies, oe_mutable, ie_mutable);
-    } else if (properties[0] == PropertyType::kInt64) {
-      return new DualCsr<int64_t>(oes, ies, oe_mutable, ie_mutable);
-    } else if (properties[0] == PropertyType::kUInt64) {
-      return new DualCsr<uint64_t>(oes, ies, oe_mutable, ie_mutable);
-    } else if (properties[0] == PropertyType::kDouble) {
-      return new DualCsr<double>(oes, ies, oe_mutable, ie_mutable);
-    } else if (properties[0] == PropertyType::kFloat) {
-      return new DualCsr<float>(oes, ies, oe_mutable, ie_mutable);
-    } else if (properties[0].type_enum == impl::PropertyTypeImpl::kVarChar) {
-      return new DualCsr<std::string_view>(
-          oes, ies, properties[0].additional_type_info.max_length, oe_mutable,
-          ie_mutable);
-    } else if (properties[0] == PropertyType::kStringView) {
-      return new DualCsr<std::string_view>(
-          oes, ies, gs::PropertyType::GetStringDefaultMaxLength(), oe_mutable,
-          ie_mutable);
-    }
-  } else {
-    // TODO: fix me, storage strategy not set
-    return new DualCsr<RecordView>(oes, ies, prop_names, properties, {},
-                                   oe_mutable, ie_mutable);
-  }
-  LOG(FATAL) << "not support edge strategy or edge data type";
-  return nullptr;
-}
-
 MutablePropertyFragment::MutablePropertyFragment() {}
 
 MutablePropertyFragment::~MutablePropertyFragment() {
@@ -74,12 +32,13 @@ MutablePropertyFragment::~MutablePropertyFragment() {
   for (size_t src_label = 0; src_label != vertex_label_num_; ++src_label) {
     for (size_t dst_label = 0; dst_label != vertex_label_num_; ++dst_label) {
       for (size_t e_label = 0; e_label != edge_label_num_; ++e_label) {
-        size_t index = src_label * vertex_label_num_ * edge_label_num_ +
-                       dst_label * edge_label_num_ + e_label;
-        if (dual_csr_list_[index] != NULL) {
-          dual_csr_list_[index]->Resize(degree_list[src_label],
-                                        degree_list[dst_label]);
-          delete dual_csr_list_[index];
+        size_t index =
+            schema_.generate_edge_label(src_label, dst_label, e_label);
+        auto dual_csr = dual_csr_map_.find(index);
+        if (dual_csr != dual_csr_map_.end() && dual_csr->second != NULL) {
+          dual_csr->second->Resize(degree_list[src_label],
+                                   degree_list[dst_label]);
+          delete dual_csr->second;
         }
       }
     }
@@ -94,16 +53,16 @@ void MutablePropertyFragment::loadSchema(const std::string& schema_path) {
 }
 
 void MutablePropertyFragment::Clear() {
-  for (auto ptr : dual_csr_list_) {
-    if (ptr != NULL) {
-      delete ptr;
+  for (auto pair : dual_csr_map_) {
+    if (pair.second != NULL) {
+      delete pair.second;
     }
   }
   lf_indexers_.clear();
   vertex_data_.clear();
-  ie_.clear();
-  oe_.clear();
-  dual_csr_list_.clear();
+  ie_map_.clear();
+  oe_map_.clear();
+  dual_csr_map_.clear();
   vertex_label_num_ = 0;
   edge_label_num_ = 0;
   schema_.Clear();
@@ -266,40 +225,31 @@ Status MutablePropertyFragment::create_edge_type(
                          oe_mutable, ie_mutable, cur_sort_on_compaction,
                          description);
   edge_label_num_ = schema_.edge_label_num();
-  ie_.resize(vertex_label_num_ * vertex_label_num_ * edge_label_num_, NULL);
-  oe_.resize(vertex_label_num_ * vertex_label_num_ * edge_label_num_, NULL);
-  dual_csr_list_.resize(vertex_label_num_ * vertex_label_num_ * edge_label_num_,
-                        NULL);
 
   label_t src_label_i = schema_.get_vertex_label_id(src_vertex_type);
   label_t dst_label_i = schema_.get_vertex_label_id(dst_vertex_type);
   label_t e_label_i = schema_.get_edge_label_id(edge_type_name);
-  size_t index = src_label_i * vertex_label_num_ * edge_label_num_ +
-                 dst_label_i * edge_label_num_ + e_label_i;
+  size_t index =
+      schema_.generate_edge_label(src_label_i, dst_label_i, e_label_i);
   EdgeStrategy oe_strategy = EdgeStrategy::kMultiple;
   EdgeStrategy ie_strategy = EdgeStrategy::kMultiple;
-  // TODO: We always create RecordView for edge data, to enabled adding/deleting
-  // edge properties
-  dual_csr_list_[index] =
+  DualCsrBase* dual_csr =
       new DualCsr<RecordView>(oe_strategy, ie_strategy, property_names,
                               property_types, {}, oe_mutable, ie_mutable);
-
-  // dual_csr_list_[index] = create_csr(oe_strategy, ie_strategy,
-  // property_types,
-  //  oe_mutable, ie_mutable, property_names);
-  ie_[index] = dual_csr_list_[index]->GetInCsr();
-  oe_[index] = dual_csr_list_[index]->GetOutCsr();
+  dual_csr_map_.emplace(index, dual_csr);
+  ie_map_.emplace(index, dual_csr->GetInCsr());
+  oe_map_.emplace(index, dual_csr->GetOutCsr());
   auto src_v_capacity =
       std::max(lf_indexers_[src_label_i].capacity(), (size_t) 4096);
   auto dst_v_capacity =
       std::max(lf_indexers_[dst_label_i].capacity(), (size_t) 4096);
-  dual_csr_list_[index]->OpenInMemory(
+  dual_csr->OpenInMemory(
       oe_prefix(src_vertex_type, dst_vertex_type, edge_type_name),
       ie_prefix(src_vertex_type, dst_vertex_type, edge_type_name),
       edata_prefix(src_vertex_type, dst_vertex_type, edge_type_name),
       snapshot_dir(work_dir_, 0), src_v_capacity, dst_v_capacity);
 
-  dual_csr_list_[index]->Resize(src_v_capacity, dst_v_capacity);
+  dual_csr->Resize(src_v_capacity, dst_v_capacity);
 
   DumpSchema(schema_path(work_dir_));
   dumpSchema();
@@ -402,9 +352,8 @@ Status MutablePropertyFragment::add_edge_properties(
   label_t src_label = schema_.get_vertex_label_id(src_type_name);
   label_t dst_label = schema_.get_vertex_label_id(dst_type_name);
   label_t e_label = schema_.get_edge_label_id(edge_type_name);
-  size_t index = src_label * vertex_label_num_ * edge_label_num_ +
-                 dst_label * edge_label_num_ + e_label;
-  auto dual_csr = dual_csr_list_[index];
+  size_t index = schema_.generate_edge_label(src_label, dst_label, e_label);
+  auto dual_csr = dual_csr_map_.at(index);
   if (dual_csr == NULL) {
     LOG(ERROR) << "Edge [" << edge_type_name << "] from [" << src_type_name
                << "] to [" << dst_type_name
@@ -517,9 +466,8 @@ Status MutablePropertyFragment::rename_edge_properties(
   label_t src_label = schema_.get_vertex_label_id(src_type_name);
   label_t dst_label = schema_.get_vertex_label_id(dst_type_name);
   label_t e_label = schema_.get_edge_label_id(edge_type_name);
-  size_t index = src_label * vertex_label_num_ * edge_label_num_ +
-                 dst_label * edge_label_num_ + e_label;
-  auto dual_csr = dual_csr_list_[index];
+  size_t index = schema_.generate_edge_label(src_label, dst_label, e_label);
+  auto dual_csr = dual_csr_map_.at(index);
   if (dual_csr == NULL) {
     LOG(ERROR) << "Edge [" << edge_type_name << "] from [" << src_type_name
                << "] to [" << dst_type_name
@@ -625,9 +573,8 @@ Status MutablePropertyFragment::delete_edge_properties(
   label_t src_label = schema_.get_vertex_label_id(src_type_name);
   label_t dst_label = schema_.get_vertex_label_id(dst_type_name);
   label_t e_label = schema_.get_edge_label_id(edge_type_name);
-  size_t index = src_label * vertex_label_num_ * edge_label_num_ +
-                 dst_label * edge_label_num_ + e_label;
-  auto dual_csr = dual_csr_list_[index];
+  size_t index = schema_.generate_edge_label(src_label, dst_label, e_label);
+  auto dual_csr = dual_csr_map_.at(index);
   if (dual_csr == NULL) {
     LOG(ERROR) << "Edge [" << edge_type_name << "] from [" << src_type_name
                << "] to [" << dst_type_name
@@ -666,8 +613,41 @@ Status MutablePropertyFragment::delete_vertex_type(
                 << "] does not exist, skip deletion.";
       return gs::Status::OK();
     }
+    return gs::Status::OK();
   }
+  label_t v_label_id = schema_.get_vertex_label_id(vertex_type_name);
   schema_.delete_vertex_label(vertex_type_name);
+  lf_indexers_[v_label_id].close();
+  vertex_data_[v_label_id].close();
+
+  if (is_detach) {
+    for (label_t i = 0; i < vertex_label_num_; i++) {
+      for (label_t j = 0; j < edge_label_num_; j++) {
+        if (schema_.exist(v_label_id, i, j)) {
+          schema_.delete_edge_label(v_label_id, i, j);
+          size_t index = schema_.generate_edge_label(v_label_id, i, j);
+          ie_map_.erase(index);
+          oe_map_.erase(index);
+          auto dual_csr = dual_csr_map_.find(index);
+          if (dual_csr != dual_csr_map_.end()) {
+            delete dual_csr->second;
+            dual_csr_map_.erase(index);
+          }
+        }
+        if (schema_.exist(i, v_label_id, j)) {
+          schema_.delete_edge_label(i, v_label_id, j);
+          size_t index = schema_.generate_edge_label(i, v_label_id, j);
+          ie_map_.erase(index);
+          oe_map_.erase(index);
+          auto dual_csr = dual_csr_map_.find(index);
+          if (dual_csr != dual_csr_map_.end()) {
+            delete dual_csr->second;
+            dual_csr_map_.erase(index);
+          }
+        }
+      }
+    }
+  }
   return gs::Status::OK();
 }
 
@@ -687,8 +667,21 @@ Status MutablePropertyFragment::delete_edge_type(
                 << "] does not exist, skip deletion.";
       return gs::Status::OK();
     }
+    return gs::Status::OK();
   }
-  schema_.delete_edge_label(src_vertex_type, dst_vertex_type, edge_type);
+  label_t src_v_label = schema_.get_vertex_label_id(src_vertex_type);
+  label_t dst_v_label = schema_.get_vertex_label_id(dst_vertex_type);
+  label_t edge_label = schema_.get_edge_label_id(edge_type);
+  schema_.delete_edge_label(src_v_label, dst_v_label, edge_label);
+  size_t index =
+      schema_.generate_edge_label(src_v_label, dst_v_label, edge_label);
+  ie_map_.erase(index);
+  oe_map_.erase(index);
+  auto dual_csr = dual_csr_map_.find(index);
+  if (dual_csr != dual_csr_map_.end()) {
+    delete dual_csr->second;
+    dual_csr_map_.erase(index);
+  }
   return gs::Status::OK();
 }
 
@@ -795,12 +788,6 @@ void MutablePropertyFragment::Open(const std::string& work_dir,
     vertex_capacities[i] = vertex_capacity;
   }
 
-  ie_.resize(vertex_label_num_ * vertex_label_num_ * edge_label_num_, NULL);
-  oe_.resize(vertex_label_num_ * vertex_label_num_ * edge_label_num_, NULL);
-
-  dual_csr_list_.resize(vertex_label_num_ * vertex_label_num_ * edge_label_num_,
-                        NULL);
-
   for (size_t src_label_i = 0; src_label_i != vertex_label_num_;
        ++src_label_i) {
     std::string src_label =
@@ -815,8 +802,8 @@ void MutablePropertyFragment::Open(const std::string& work_dir,
         if (!schema_.exist(src_label, dst_label, edge_label)) {
           continue;
         }
-        size_t index = src_label_i * vertex_label_num_ * edge_label_num_ +
-                       dst_label_i * edge_label_num_ + e_label_i;
+        size_t index =
+            schema_.generate_edge_label(src_label_i, dst_label_i, e_label_i);
         auto& properties =
             schema_.get_edge_properties(src_label, dst_label, edge_label);
         EdgeStrategy oe_strategy = schema_.get_outgoing_edge_strategy(
@@ -831,31 +818,32 @@ void MutablePropertyFragment::Open(const std::string& work_dir,
         auto& prop_names =
             schema_.get_edge_property_names(src_label, dst_label, edge_label);
 
-        dual_csr_list_[index] = create_csr(oe_strategy, ie_strategy, properties,
-                                           oe_mutable, ie_mutable, prop_names);
-        ie_[index] = dual_csr_list_[index]->GetInCsr();
-        oe_[index] = dual_csr_list_[index]->GetOutCsr();
+        DualCsrBase* dual_csr =
+            new DualCsr<RecordView>(oe_strategy, ie_strategy, prop_names,
+                                    properties, {}, oe_mutable, ie_mutable);
+        dual_csr_map_.emplace(index, dual_csr);
+        ie_map_.emplace(index, dual_csr->GetInCsr());
+        oe_map_.emplace(index, dual_csr->GetOutCsr());
         if (memory_level == 0) {
-          dual_csr_list_[index]->Open(
-              oe_prefix(src_label, dst_label, edge_label),
-              ie_prefix(src_label, dst_label, edge_label),
-              edata_prefix(src_label, dst_label, edge_label), snap_shot_dir,
-              tmp_dir_path);
+          dual_csr->Open(oe_prefix(src_label, dst_label, edge_label),
+                         ie_prefix(src_label, dst_label, edge_label),
+                         edata_prefix(src_label, dst_label, edge_label),
+                         snap_shot_dir, tmp_dir_path);
         } else if (memory_level >= 2) {
-          dual_csr_list_[index]->OpenWithHugepages(
+          dual_csr->OpenWithHugepages(
               oe_prefix(src_label, dst_label, edge_label),
               ie_prefix(src_label, dst_label, edge_label),
               edata_prefix(src_label, dst_label, edge_label), snap_shot_dir,
               vertex_capacities[src_label_i], vertex_capacities[dst_label_i]);
         } else {
-          dual_csr_list_[index]->OpenInMemory(
-              oe_prefix(src_label, dst_label, edge_label),
-              ie_prefix(src_label, dst_label, edge_label),
-              edata_prefix(src_label, dst_label, edge_label), snap_shot_dir,
-              vertex_capacities[src_label_i], vertex_capacities[dst_label_i]);
+          dual_csr->OpenInMemory(oe_prefix(src_label, dst_label, edge_label),
+                                 ie_prefix(src_label, dst_label, edge_label),
+                                 edata_prefix(src_label, dst_label, edge_label),
+                                 snap_shot_dir, vertex_capacities[src_label_i],
+                                 vertex_capacities[dst_label_i]);
         }
-        dual_csr_list_[index]->Resize(vertex_capacities[src_label_i],
-                                      vertex_capacities[dst_label_i]);
+        dual_csr->Resize(vertex_capacities[src_label_i],
+                         vertex_capacities[dst_label_i]);
       }
     }
   }
@@ -876,12 +864,13 @@ void MutablePropertyFragment::Compact(uint32_t version) {
         if (!schema_.exist(src_label, dst_label, edge_label)) {
           continue;
         }
-        size_t index = src_label_i * vertex_label_num_ * edge_label_num_ +
-                       dst_label_i * edge_label_num_ + e_label_i;
-        if (dual_csr_list_[index] != NULL) {
+        size_t index =
+            schema_.generate_edge_label(src_label_i, dst_label_i, e_label_i);
+        auto dual_csr = dual_csr_map_.find(index);
+        if (dual_csr != dual_csr_map_.end() && dual_csr->second != NULL) {
           if (schema_.get_sort_on_compaction(src_label, dst_label,
                                              edge_label)) {
-            dual_csr_list_[index]->SortByEdgeData(version);
+            dual_csr->second->SortByEdgeData(version);
           }
         }
       }
@@ -927,20 +916,20 @@ void MutablePropertyFragment::Dump(const std::string& work_dir,
         if (!schema_.exist(src_label, dst_label, edge_label)) {
           continue;
         }
-        size_t index = src_label_i * vertex_label_num_ * edge_label_num_ +
-                       dst_label_i * edge_label_num_ + e_label_i;
-        if (dual_csr_list_[index] != NULL) {
-          dual_csr_list_[index]->Resize(vertex_num[src_label_i],
-                                        vertex_num[dst_label_i]);
+        size_t index =
+            schema_.generate_edge_label(src_label_i, dst_label_i, e_label_i);
+        auto dual_csr = dual_csr_map_.find(index);
+        if (dual_csr != dual_csr_map_.end() && dual_csr->second != NULL) {
+          dual_csr->second->Resize(vertex_num[src_label_i],
+                                   vertex_num[dst_label_i]);
           if (schema_.get_sort_on_compaction(src_label, dst_label,
                                              edge_label)) {
-            dual_csr_list_[index]->SortByEdgeData(version + 1);
+            dual_csr->second->SortByEdgeData(version + 1);
           }
-          dual_csr_list_[index]->Dump(
-              oe_prefix(src_label, dst_label, edge_label),
-              ie_prefix(src_label, dst_label, edge_label),
-              edata_prefix(src_label, dst_label, edge_label),
-              snapshot_dir_path);
+          dual_csr->second->Dump(oe_prefix(src_label, dst_label, edge_label),
+                                 ie_prefix(src_label, dst_label, edge_label),
+                                 edata_prefix(src_label, dst_label, edge_label),
+                                 snapshot_dir_path);
         }
       }
     }
@@ -950,9 +939,9 @@ void MutablePropertyFragment::Dump(const std::string& work_dir,
 
 void MutablePropertyFragment::Warmup(int thread_num) {
   double t = -grape::GetCurrentTime();
-  for (auto ptr : dual_csr_list_) {
-    if (ptr != NULL) {
-      ptr->Warmup(thread_num);
+  for (auto ptr : dual_csr_map_) {
+    if (ptr.second != NULL) {
+      ptr.second->Warmup(thread_num);
     }
   }
   for (auto& indexer : lf_indexers_) {
@@ -966,18 +955,16 @@ void MutablePropertyFragment::IngestEdge(label_t src_label, vid_t src_lid,
                                          label_t edge_label, timestamp_t ts,
                                          grape::OutArchive& arc,
                                          Allocator& alloc) {
-  size_t index = src_label * vertex_label_num_ * edge_label_num_ +
-                 dst_label * edge_label_num_ + edge_label;
-  dual_csr_list_[index]->IngestEdge(src_lid, dst_lid, arc, ts, alloc);
+  size_t index = schema_.generate_edge_label(src_label, dst_label, edge_label);
+  dual_csr_map_.at(index)->IngestEdge(src_lid, dst_lid, arc, ts, alloc);
 }
 
 void MutablePropertyFragment::UpdateEdge(label_t src_label, vid_t src_lid,
                                          label_t dst_label, vid_t dst_lid,
                                          label_t edge_label, timestamp_t ts,
                                          const Any& arc, Allocator& alloc) {
-  size_t index = src_label * vertex_label_num_ * edge_label_num_ +
-                 dst_label * edge_label_num_ + edge_label;
-  dual_csr_list_[index]->UpdateEdge(src_lid, dst_lid, arc, ts, alloc);
+  size_t index = schema_.generate_edge_label(src_label, dst_label, edge_label);
+  dual_csr_map_.at(index)->UpdateEdge(src_lid, dst_lid, arc, ts, alloc);
 }
 const Schema& MutablePropertyFragment::schema() const { return schema_; }
 
@@ -989,10 +976,10 @@ vid_t MutablePropertyFragment::vertex_num(label_t vertex_label) const {
 
 size_t MutablePropertyFragment::edge_num(label_t src_label, label_t edge_label,
                                          label_t dst_label) const {
-  size_t index = src_label * vertex_label_num_ * edge_label_num_ +
-                 dst_label * edge_label_num_ + edge_label;
-  if (dual_csr_list_[index] != NULL) {
-    return dual_csr_list_[index]->EdgeNum();
+  size_t index = schema_.generate_edge_label(src_label, dst_label, edge_label);
+  auto dual_csr = dual_csr_map_.find(index);
+  if (dual_csr != dual_csr_map_.end()) {
+    return dual_csr->second->EdgeNum();
   } else {
     return 0;
   }
@@ -1070,23 +1057,10 @@ std::string MutablePropertyFragment::get_statistics_json() const {
 
   size_t edge_label_num = schema_.edge_label_num();
   std::vector<std::thread> count_threads;
-  std::vector<size_t> edge_count_list(dual_csr_list_.size(), 0);
-  for (size_t src_label = 0; src_label < vertex_label_num; ++src_label) {
-    const auto& src_label_name = schema_.get_vertex_label_name(src_label);
-    for (size_t dst_label = 0; dst_label < vertex_label_num; ++dst_label) {
-      const auto& dst_label_name = schema_.get_vertex_label_name(dst_label);
-      for (size_t edge_label = 0; edge_label < edge_label_num; ++edge_label) {
-        const auto& edge_label_name = schema_.get_edge_label_name(edge_label);
-        if (schema_.exist(src_label_name, dst_label_name, edge_label_name)) {
-          size_t index = src_label * vertex_label_num * edge_label_num +
-                         dst_label * edge_label_num + edge_label;
-          if (dual_csr_list_[index] != NULL) {
-            count_threads.emplace_back([&edge_count_list, index, this] {
-              edge_count_list[index] = dual_csr_list_[index]->EdgeNum();
-            });
-          }
-        }
-      }
+  std::unordered_map<uint32_t, size_t> edge_count_map;
+  for (auto dual_csr : dual_csr_map_) {
+    if (dual_csr.second != NULL) {
+      edge_count_map.emplace(dual_csr.first, dual_csr.second->EdgeNum());
     }
   }
   for (auto& t : count_threads) {
@@ -1107,8 +1081,8 @@ std::string MutablePropertyFragment::get_statistics_json() const {
       const auto& src_label_name = schema_.get_vertex_label_name(src_label);
       for (size_t dst_label = 0; dst_label < vertex_label_num; ++dst_label) {
         const auto& dst_label_name = schema_.get_vertex_label_name(dst_label);
-        size_t index = src_label * vertex_label_num * edge_label_num +
-                       dst_label * edge_label_num + edge_label;
+        size_t index =
+            schema_.generate_edge_label(src_label, dst_label, edge_label);
         if (schema_.exist(src_label_name, dst_label_name, edge_label_name)) {
           if (!first) {
             ss += ",\n";
@@ -1116,8 +1090,9 @@ std::string MutablePropertyFragment::get_statistics_json() const {
           first = false;
           ss += "{\n\"source_vertex\" : \"" + src_label_name + "\", \n";
           ss += "\"destination_vertex\" : \"" + dst_label_name + "\", \n";
-          ss += "\"count\" : " + std::to_string(edge_count_list[index]) + "\n";
-          edge_count += edge_count_list[index];
+          ss +=
+              "\"count\" : " + std::to_string(edge_count_map.at(index)) + "\n";
+          edge_count += edge_count_map.at(index);
           ss += "}";
         }
       }
