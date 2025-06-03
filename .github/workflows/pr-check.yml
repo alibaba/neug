@@ -19,8 +19,6 @@ concurrency:
 jobs:
   PR-Check:
     runs-on: ubuntu-22.04
-    container:
-      image: registry.cn-hongkong.aliyuncs.com/graphscope/graphscope-dev:v0.24.2-amd64
     permissions:
       pull-requests: write
 

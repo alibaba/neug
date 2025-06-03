@@ -4,17 +4,18 @@ on:
   # Trigger the workflow on push or pull request,
   # but only for the main branch
   workflow_dispatch:
-  push:
-    branches:
-      - main
-    paths:
-      - 'cmake/**'
-      - 'src/**'
-      - 'proto/**'
-      - '.github/workflows/python-test.yml'
-      - 'third_party/**'
-      - 'tools/python_bind/**'
-      - 'tests/**'
+  # Comment out to save some actions minutes
+  # push:
+  #   branches:
+  #     - main
+  #   paths:
+  #     - 'cmake/**'
+  #     - 'src/**'
+  #     - 'proto/**'
+  #     - '.github/workflows/python-test.yml'
+  #     - 'third_party/**'
+  #     - 'tools/python_bind/**'
+  #     - 'tests/**'
   pull_request:
     branches:
       - main
