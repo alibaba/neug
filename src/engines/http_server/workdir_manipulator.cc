@@ -80,7 +80,7 @@ gs::Result<seastar::sstring> WorkDirManipulator::DumpGraphSchema(
   auto dump_res = dump_graph_schema(yaml_config, graph_id);
   if (!dump_res.ok()) {
     return gs::Result<seastar::sstring>(gs::Status(
-        dump_res.status().code(),
+        dump_res.status().error_code(),
         "Fail to dump graph schema: " + dump_res.status().error_message()));
   }
   VLOG(10) << "Successfully dump graph schema to file: " << graph_id << ", "
@@ -150,7 +150,7 @@ gs::Result<bool> WorkDirManipulator::DumpGraphSchema(
   yaml_node["stored_procedures"] = procedures_node;
   auto dump_res = dump_graph_schema(yaml_node, graph_id);
   if (!dump_res.ok()) {
-    return gs::Result<bool>(gs::Status(dump_res.status().code(),
+    return gs::Result<bool>(gs::Status(dump_res.status().error_code(),
                                        "Fail to dump graph schema: " +
                                            dump_res.status().error_message()),
                             false);

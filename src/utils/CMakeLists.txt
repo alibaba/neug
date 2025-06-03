@@ -104,6 +104,11 @@ find_package(mimalloc REQUIRED)
 if (APPLE)
         target_link_libraries(nexg_utils PUBLIC absl::log_internal_message)
 endif()
+# for gcc < 9, link stdc++fs
+if (CMAKE_CXX_COMPILER_ID MATCHES "GNU" AND CMAKE_CXX_COMPILER_VERSION VERSION_LESS 9)
+        message(STATUS "Linking with stdc++fs for gcc < 9")
+        target_link_libraries(nexg_utils PUBLIC stdc++fs)
+endif()
 
 install_nexg_target(nexg_utils)
 

@@ -75,7 +75,7 @@ class CMakeBuild(build_ext):
         super().run()
         
     def download_compiler_jar(self):
-        resource_ur = "https://graphscope.oss-cn-beijing.aliyuncs.com/compiler/compiler-0.0.1-SNAPSHOT-shade.jar"
+        resource_ur = "https://graphscope.oss-cn-beijing.aliyuncs.com/compiler/compiler-0.0.1-SNAPSHOT-shade-0521.jar"
         target_dir = "nexg/resources"
         target_file = os.path.join(target_dir, "compiler.jar")
         if not os.path.exists(target_dir):

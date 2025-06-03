@@ -7,12 +7,21 @@ on:
   # push:
   #   branches:
   #     - main
+  #     - 'cmake/**'
+  #     - 'src/**'
+  #     - 'tests/**'
+  #     - 'proto/**'
+  #     - '.github/workflows/python-test.yml'
+  #     - 'third_party/**'
+  #     - 'tools/python_bind/**'
   # pull_request:
   #   branches:
   #     - main
   #   paths:
   #     - 'cmake/**'
   #     - 'src/**'
+  #     - 'tests/**'
+  #     - 'proto/**'
   #     - '.github/workflows/python-test.yml'
   #     - 'third_party/**'
   #     - 'tools/python_bind/**'
@@ -24,8 +33,8 @@ concurrency:
 jobs:
   build-nexg:
     runs-on: ubuntu-22.04
-    if: ${{ github.repository == 'alibaba/GraphScope' }}
     container:
+      # Need hiactor
       image: registry.cn-hongkong.aliyuncs.com/graphscope/graphscope-dev:v0.24.2-amd64
     steps:
     - uses: actions/checkout@v4
@@ -43,23 +52,24 @@ jobs:
         mkdir build && cd build
         cmake .. -DCMAKE_INSTALL_PREFIX=/opt/graphscope -DCMAKE_BUILD_TYPE=DEBUG \
              -DBUILD_EXECUTABLES=ON -DBUILD_HTTP_SERVER=ON -DBUILD_PYTHON=OFF
-        make -j8
+        make -j$(nproc)
     
     - name: Prepare test data
       run: |
         # Create the directory for test data
         mkdir -p /tmp/test_data
         cd ${GITHUB_WORKSPACE}/build
-        ./src/bin/bulk_loader -g ../example_dataset/tinysnb/graph.yaml -l ../example_dataset/tinysnb/bulk.yaml -d /tmp/csr-data
+        export FLEX_DATA_DIR=${GITHUB_WORKSPACE}/example_dataset/tinysnb
+        ./src/bin/bulk_loader -g ../example_dataset/tinysnb/graph-modify.yaml -l ../example_dataset/tinysnb/bulk.yaml -d /tmp/csr-data
 
     - name: Test NexG Service
       run: |
         # Start Nexg Server 
         # TODO: Currently we use InteractiveServer, but in the future, we need to start the service with python.
         cd ${GITHUB_WORKSPACE}/build
-        SCHEMA_PATH=${GITHUB_WORKSPACE}/example_dataset/tinysnb/graph.yaml
-        DATA_PATH=/tmp/csr_data
-        cmd="GLOG_v=10 ./src/bin/interactive_server -c ../test/engines/interactive_config_test.yaml -g ${SCHEMA_PATH} --data-path ${DATA_PATH}"
+        SCHEMA_PATH=${GITHUB_WORKSPACE}/example_dataset/tinysnb/graph-modify.yaml
+        DATA_PATH=/tmp/csr-data
+        cmd="GLOG_v=10 ./src/bin/interactive_server -c ../tests/engines/interactive_config_test.yaml -g ${SCHEMA_PATH} --data-path ${DATA_PATH}"
         echo "Starting Nexg Server with command: $cmd"
         eval $cmd &
         sleep 5
@@ -74,7 +84,7 @@ jobs:
 
         # Start compiler 
         GRAPH_SCHEMA_YAML=${GITHUB_WORKSPACE}/example_dataset/tinysnb/graph.yaml
-        ENGINE_CONFIG_PATH=${GITHUB_WORKSPACE}/test/engines/interactive_config_test.yaml
+        ENGINE_CONFIG_PATH=${GITHUB_WORKSPACE}/tests/engines/interactive_config_test.yaml
         cmd="make run graph.schema=${GRAPH_SCHEMA_YAML} config.path=${ENGINE_CONFIG_PATH}"
         #TODO: cd to compiler directory and run the command
 

@@ -53,8 +53,6 @@ seastar::httpd::reply::status_type status_code_to_http_code(
     return seastar::httpd::reply::status_type::ok;
   case gs::StatusCode::ERR_INVALID_ARGUMENT:
     return seastar::httpd::reply::status_type::bad_request;
-  case gs::StatusCode::ALREADY_EXISTS:
-    return seastar::httpd::reply::status_type::conflict;
   case gs::StatusCode::ERR_ILLEGAL_OPERATION:
     return seastar::httpd::reply::status_type::bad_request;
   case gs::StatusCode::ERR_NOT_FOUND:
@@ -65,12 +63,8 @@ seastar::httpd::reply::status_type status_code_to_http_code(
     return seastar::httpd::reply::status_type::bad_request;
   case gs::StatusCode::ERR_PERMISSION:
     return seastar::httpd::reply::status_type::forbidden;
-  case gs::StatusCode::ERR_ILLEGAL_OPERATION:
-    return seastar::httpd::reply::status_type::bad_request;
   case gs::StatusCode::ERR_INTERNAL_ERROR:
     return seastar::httpd::reply::status_type::internal_server_error;
-  case gs::StatusCode::ERR_INVALID_ARGUMENT:
-    return seastar::httpd::reply::status_type::bad_request;
   case gs::StatusCode::ERR_IO_ERROR:
     return seastar::httpd::reply::status_type::internal_server_error;
   case gs::StatusCode::ERR_QUERY_EXECUTION:

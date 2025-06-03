@@ -7,6 +7,14 @@ on:
   push:
     branches:
       - main
+    paths:
+      - 'cmake/**'
+      - 'src/**'
+      - 'proto/**'
+      - '.github/workflows/python-test.yml'
+      - 'third_party/**'
+      - 'tools/python_bind/**'
+      - 'tests/**'
   pull_request:
     branches:
       - main
@@ -17,7 +25,7 @@ on:
       - '.github/workflows/python-test.yml'
       - 'third_party/**'
       - 'tools/python_bind/**'
-      - 'tests/'
+      - 'tests/**'
 
 concurrency:
   group: ${{ github.repository }}-${{ github.event.number || github.head_ref || github.sha }}-${{ github.workflow }}
@@ -26,7 +34,6 @@ concurrency:
 jobs:
   test-py-nexg:
     runs-on: ubuntu-22.04
-    if: ${{ github.repository == 'alibaba/GraphScope' }}
     container:
       image: registry.cn-hongkong.aliyuncs.com/graphscope/graphscope-dev:v0.24.2-amd64
     steps:
@@ -43,23 +50,16 @@ jobs:
         git submodule update --init
         export BUILD_EXECUTABLES=ON
         export DEBUG=1
+        export CMAKE_BUILD_PARALLEL_LEVEL=$(nproc)
         cd tools/python_bind
         make build
 
-    - name: Prepare dataset and workspace
-      env:
-        MODERN_GRAPH_DB_DIR: /tmp/modern_graph
-      run: |
-        mkdir -p ${MODERN_GRAPH_DB_DIR}
-        export FLEX_DATA_DIR=../example_dataset/modern_graph
-        cd ${GITHUB_WORKSPACE}/tools/python_bind/build/nexg_py_bind
-        GLOG_v=10 ./src/bin/bulk_loader -g ${INTERACTIVE_WORKSPACE}/data/modern_graph/graph.yaml -l ../example_dataset/modern_graph/bulk_load.yaml -d ${MODERN_GRAPH_DB_DIR}
-    
+
     - name: Run Python Test
-      env:
-       MODERN_GRAPH_DB_DIR: /tmp/modern_graph
       run: |
         cd ${GITHUB_WORKSPACE}/tools/python_bind/
-        python3 -m pytest -v tests/test_query.py
+        export FLEX_DATA_DIR=${GITHUB_WORKSPACE}/example_dataset/modern_graph
+        pip3 install -r requirements_dev.txt
+        python3 -m pytest -v tests/test_batch_loading.py
 
 

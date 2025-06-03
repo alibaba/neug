@@ -24,7 +24,6 @@ import nexg_py_bind
 from nexg.connection import Connection
 from nexg.version import __version__
 
-from importlib.resources import files
 
 logger = logging.getLogger(__name__)
 
@@ -67,7 +66,16 @@ class Database(object):
         if planner_config_path is None:
             planner_config_path = self._get_default_planner_config_path()
         # Get the absolute path to files("nexg.resources")
-        resource_path = files("nexg").joinpath("resources")
+        # if python 3.9 or later, use importlib.resources.files
+        # if before python 3.9, use importlib_resources
+        try:
+            from importlib.resources import files
+            resource_path = files("nexg").joinpath("resources")
+        except ImportError:
+            import importlib_resources
+            #TODO
+            resource_path = importlib_resources.files("nexg").joinpath("resources")
+        
         if not resource_path.exists():
             raise RuntimeError(f"Resource path not found: {resource_path}")
         # Convert to string

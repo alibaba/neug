@@ -262,8 +262,9 @@ class MutablePropertyFragment {
       vids.reserve(row_num);
 
       vid_t vid;
-      static constexpr vid_t sentinel = std::numeric_limits<vid_t>::max();
+
       if constexpr (!std::is_same<std::string_view, PK_T>::value) {
+        static constexpr vid_t sentinel = std::numeric_limits<vid_t>::max();
         auto expected_type = gs::TypeConverter<PK_T>::ArrowTypeValue();
         using arrow_array_t = typename gs::TypeConverter<PK_T>::ArrowArrayType;
         if (!primary_key_column->type()->Equals(expected_type)) {
