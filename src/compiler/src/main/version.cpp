@@ -6,8 +6,6 @@ namespace kuzu {
 namespace main {
 const char* Version::getVersion() { return KUZU_CMAKE_VERSION; }
 
-uint64_t Version::getStorageVersion() {
-  return storage::StorageVersionInfo::getStorageVersion();
-}
+uint64_t Version::getStorageVersion() { return 0; }
 }  // namespace main
 }  // namespace kuzu

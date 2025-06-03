@@ -13,6 +13,19 @@ else()
     find_package(Threads REQUIRED)
 endif()
 
+# Include $GRAPHSCOPE_HOME/include
+# Read environment variable GRAPHSCOPE_HOME
+if(DEFINED ENV{GRAPHSCOPE_HOME})
+    set(GRAPHSCOPE_HOME $ENV{GRAPHSCOPE_HOME})
+else()
+    set(GRAPHSCOPE_HOME "")
+endif()
+
+if (GRAPHSCOPE_HOME)
+    message(STATUS "Using GRAPHSCOPE_HOME: ${GRAPHSCOPE_HOME}")
+    include_directories(SYSTEM ${GRAPHSCOPE_HOME}/include)
+endif()
+
 ## find yaml-cpp-----------------------------------------------------------------
 find_package(yaml-cpp REQUIRED)
 include_directories(SYSTEM ${yaml-cpp_INCLUDE_DIRS})
@@ -279,6 +292,18 @@ if(${BUILD_LCOV})
     set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fprofile-arcs -ftest-coverage")
 endif()
 
+if (BUILD_TESTS)
+    enable_testing()
+    find_package(GTest)
+    if (GTest_FOUND)
+        message(STATUS "GTest found")
+
+        add_library(neug::GTest INTERFACE IMPORTED)
+        target_link_libraries(neug::GTest INTERFACE GTest::gtest_main)
+        target_link_libraries(neug::GTest INTERFACE GTest::gmock_main)
+    endif()
+endif()
+
 if (ENABLE_BACKTRACES)
     find_package(cpptrace)
     if (NOT cpptrace_FOUND)
@@ -303,7 +328,7 @@ function(add_kuzu_test TEST_NAME)
     #endif()
     #target_include_directories(${TEST_NAME} PRIVATE ${PROJECT_SOURCE_DIR}/test/include)
 
-    target_link_libraries(${TEST_NAME} PUBLIC GTest::GTest kuzu)
+    target_link_libraries(${TEST_NAME} PUBLIC neug::GTest kuzu)
     target_include_directories(${TEST_NAME} PRIVATE src/include)
 
     include(GoogleTest)
@@ -393,7 +418,9 @@ add_subdirectory(src)
 include(CTest)
 enable_testing()
 
-add_subdirectory(test)
+if (BUILD_TESTS)
+    add_subdirectory(test)
+endif()
 
 #if (${BUILD_TESTS} OR ${BUILD_EXTENSION_TESTS})
 #    add_subdirectory(test)

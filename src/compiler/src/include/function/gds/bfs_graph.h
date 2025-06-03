@@ -57,7 +57,7 @@ class BaseBFSGraph {
 
   // This function should be called by a worker thread Ti to grab a block of
   // memory that Ti owns and writes to.
-  ObjectBlock<ParentList>* addNewBlock();
+  // ObjectBlock<ParentList>* addNewBlock();
 
   virtual void pinTableID(common::table_id_t tableID) = 0;
 

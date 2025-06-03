@@ -11,14 +11,14 @@ namespace function {
 
 static constexpr uint64_t BFS_GRAPH_BLOCK_SIZE = (std::uint64_t) 1 << 19;
 
-ObjectBlock<ParentList>* BaseBFSGraph::addNewBlock() {
-  std::unique_lock lck{mtx};
-  auto memBlock =
-      mm->allocateBuffer(false /* init to 0 */, BFS_GRAPH_BLOCK_SIZE);
-  blocks.push_back(std::make_unique<ObjectBlock<ParentList>>(
-      std::move(memBlock), BFS_GRAPH_BLOCK_SIZE));
-  return blocks[blocks.size() - 1].get();
-}
+// ObjectBlock<ParentList>* BaseBFSGraph::addNewBlock() {
+//   std::unique_lock lck{mtx};
+//   auto memBlock =
+//       mm->allocateBuffer(false /* init to 0 */, BFS_GRAPH_BLOCK_SIZE);
+//   blocks.push_back(std::make_unique<ObjectBlock<ParentList>>(
+//       std::move(memBlock), BFS_GRAPH_BLOCK_SIZE));
+//   return blocks[blocks.size() - 1].get();
+// }
 
 class BFSGraphInitVertexCompute : public VertexCompute {
  public:

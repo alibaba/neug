@@ -2,11 +2,11 @@
 
 #include <fstream>
 
-#include <nlohmann/json.hpp>
 #include "catalog/catalog_entry/rel_group_catalog_entry.h"
 #include "gopt/g_constants.h"
 #include "gopt/g_node_table.h"
 #include "gopt/g_rel_table.h"
+#include "json.hpp"
 
 namespace kuzu {
 namespace storage {

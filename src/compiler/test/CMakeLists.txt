@@ -1,12 +1,15 @@
 # Don't install gtest libraries.
-add_subdirectory(gtest EXCLUDE_FROM_ALL)
+if (NOT GTest_FOUND)
+    add_subdirectory(gtest EXCLUDE_FROM_ALL)
 
-# Make gtest available to subdirectories.
-add_library(GTest::GTest INTERFACE IMPORTED)
-target_link_libraries(GTest::GTest INTERFACE gtest_main)
-target_link_libraries(GTest::GTest INTERFACE gmock_main)
+    # Make gtest available to subdirectories.
 
-enable_testing()
+
+    add_library(neug::GTest INTERFACE IMPORTED)
+    target_link_libraries(neug::GTest INTERFACE gtest_main)
+    target_link_libraries(neug::GTest INTERFACE gmock_main)
+endif()
+
 #add_subdirectory(test_helper)
 #add_subdirectory(test_runner)
 #add_subdirectory(graph_test)
