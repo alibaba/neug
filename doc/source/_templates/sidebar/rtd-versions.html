@@ -1,0 +1,108 @@
+{# Add rst-badge after rst-versions for small badge style. #}
+{% if READTHEDOCS %}
+<div class="rst-versions rst-versions-ver shift-up" role="note" aria-label="versions">
+  <div class="rst-other-versions">
+    <hr />
+    <dl>
+      <dt><span class="fa fa-book">{{ _('Versions') }}</span></dt>
+      {% for ver in versions %}
+        {% if ver == "stable" %}
+          {% if version == "stable" %}
+            {% if 'zh' in pagename %}
+              <dd><a href="{{ pathto('zh/index.html', 1) }}">
+                {% if version == ver %}
+                  <strong><em>{{ ver }}</em></strong>
+                {% else %}
+                  {{ ver }}
+                {% endif %}
+              </a></dd>
+            {% else %}
+              <dd><a href="{{ pathto('index.html', 1) }}">
+                {% if version == ver %}
+                  <strong><em>{{ ver }}</em></strong>
+                {% else %}
+                  {{ ver }}
+                {% endif %}
+              </a></dd>
+            {% endif %}
+          {% else %}
+            {% if 'zh' in pagename %}
+              <dd><a href="../../{{ concat_path(pathto('zh/index.html', 1), 'zh') }}/index.html">
+                {% if version == ver %}
+                  <strong><em>{{ ver }}</em></strong>
+                {% else %}
+                  {{ ver }}
+                {% endif %}
+              </a></dd>
+            {% else %}
+              <dd><a href="../{{ pathto('index.html', 1) }}">
+                {% if version == ver %}
+                  <strong><em>{{ ver }}</em></strong>
+                {% else %}
+                  {{ ver }}
+                {% endif %}
+              </a></dd>
+            {% endif %}
+          {% endif %}
+        {% else %}
+          {% if version == "stable" %}
+            {% if 'zh' in pagename %}
+              <dd><a href="../{{ concat_path(pathto('zh/index.html', 1), ver) }}/zh/index.html">
+                {% if version == ver %}
+                  <strong><em>{{ ver }}</em></strong>
+                {% else %}
+                  {{ ver }}
+                {% endif %}
+              </a></dd>
+            {% else %}
+              <dd><a href="{{ concat_path(pathto('index.html', 1), ver) }}/index.html">
+                {% if version == ver %}
+                  <strong><em>{{ ver }}</em></strong>
+                {% else %}
+                  {{ ver }}
+                {% endif %}
+              </a></dd>
+            {% endif %}
+          {% else %}
+            {% if 'zh' in pagename %}
+              <dd><a href="../../{{ concat_path(pathto('zh/index.html', 1), ver) }}/zh/index.html">
+                {% if version == ver %}
+                  <strong><em>{{ ver }}</em></strong>
+                {% else %}
+                  {{ ver }}
+                {% endif %}
+              </a></dd>
+            {% else %}
+              <dd><a href="../{{ concat_path(pathto('index.html', 1), ver) }}/index.html">
+                {% if version == ver %}
+                  <strong><em>{{ ver }}</em></strong>
+                {% else %}
+                  {{ ver }}
+                {% endif %}
+              </a></dd>
+            {% endif %}
+          {% endif %}
+        {% endif %}
+      {% endfor %}
+      {# {% for slug, url in versions %}
+        <dd><a href="{{ url }}">{{ slug }}</a></dd>
+      {% endfor %} #}
+    </dl>
+  </div>
+</div>
+
+<div class="rst-versions rst-versions-lang shift-up" role="note" aria-label="versions">
+  <div class="rst-other-versions">
+    <dl>
+      <dt>{{ _('Languages') }}</dt>
+      <dd><a href="{{ pathto('index.html', 1) }}">en</a></dd>
+      <dd><a href="{{ pathto('zh/index.html', 1) }}">zh_CN</a></dd>
+    </dl>
+
+    <hr />
+    <small>
+      <span>Hosted on <a href="https://pages.cloudflare.com/">Cloudflare Pages</a>.</span>
+    </small>
+  </div>
+</div>
+{% endif %}

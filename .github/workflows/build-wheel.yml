@@ -4,12 +4,12 @@ on:
   # Trigger the workflow on push or pull request,
   # but only for the main branch
   workflow_dispatch:
-  push:
-    branches:
-      - main
-  pull_request:
-    branches:
-      - main
+  # push:
+  #   branches:
+  #     - main
+  # pull_request:
+  #   branches:
+  #     - main
 
 concurrency:
   group: ${{ github.repository }}-${{ github.event.number || github.head_ref || github.sha }}-${{ github.workflow }}
@@ -55,7 +55,7 @@ jobs:
           echo "MACOSX_DEPLOYMENT_TARGET={{ env.MACOSX_DEPLOYMENT_TARGET }}"
 
       - name: Setup tmate session
-        if: true
+        if: false
         uses: mxschmitt/action-tmate@v3
 
       - name: Build wheels
@@ -63,10 +63,13 @@ jobs:
           if [[ "${{matrix.os}}" == macos* ]]; then
             source ~/.graphscope_env
           fi
+          export DEBUG=1
+          export CMAKE_BUILD_PARALLEL_LEVEL=16
           python3 -m cibuildwheel ./tools/python_bind --output-dir wheelhouse
         env:
           # use macos version as the target
           CIBW_ENVIRONMENT_MACOS: "MACOSX_DEPLOYMENT_TARGET=$MACOSX_DEPLOYMENT_TARGET"
+          CIBW_ENVIRONMENT_LINUX: "CMAKE_BUILD_PARALLEL_LEVEL=$CMAKE_BUILD_PARALLEL_LEVEL"
 
       - uses: actions/upload-artifact@v4
         with:

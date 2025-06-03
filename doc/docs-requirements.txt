@@ -1,0 +1,8 @@
+furo        # sphinx theme
+linkify-it-py
+myst-parser>=0.13.0
+sphinx>=7.1.2
+sphinx-copybutton
+sphinx-panels
+sphinxemoji
+sphinxext-opengraph

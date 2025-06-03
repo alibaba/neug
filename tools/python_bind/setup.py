@@ -175,9 +175,10 @@ class CMakeBuild(build_ext):
         if "CMAKE_BUILD_PARALLEL_LEVEL" not in os.environ:
             # self.parallel is a Python 3 only way to set parallel jobs by hand
             # using -j in the build_ext call, not supported by pip or PyPA-build.
-            if hasattr(self, "parallel") and self.parallel:
-                # CMake 3.12+ only.
-                build_args += [f"-j{self.parallel}"]
+            build_args += [f"-j8"]
+        else:
+            # If the user has set CMAKE_BUILD_PARALLEL_LEVEL, we respect that.
+            build_args += [f"-j{os.environ['CMAKE_BUILD_PARALLEL_LEVEL']}"]
 
         build_temp = Path(self.build_temp) / ext.name
         if not build_temp.exists():
@@ -193,7 +194,7 @@ class CMakeBuild(build_ext):
             [cmake_executable, ext.sourcedir, *cmake_args], cwd=build_temp, check=True
         )
         subprocess.run(
-            [cmake_executable, "--build", ".", "-j8", *build_args],
+            [cmake_executable, "--build", ".", *build_args],
             cwd=build_temp,
             check=True,
         )

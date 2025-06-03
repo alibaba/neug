@@ -1,21 +1,21 @@
-name: Nexg Python Test
+name: Nexg Service Test
 
 on:
   # Trigger the workflow on push or pull request,
   # but only for the main branch
   workflow_dispatch:
-  push:
-    branches:
-      - main
-  pull_request:
-    branches:
-      - main
-    paths:
-      - 'cmake/**'
-      - 'src/**'
-      - '.github/workflows/python-test.yml'
-      - 'third_party/**'
-      - 'tools/python_bind/**'
+  # push:
+  #   branches:
+  #     - main
+  # pull_request:
+  #   branches:
+  #     - main
+  #   paths:
+  #     - 'cmake/**'
+  #     - 'src/**'
+  #     - '.github/workflows/python-test.yml'
+  #     - 'third_party/**'
+  #     - 'tools/python_bind/**'
 
 concurrency:
   group: ${{ github.repository }}-${{ github.event.number || github.head_ref || github.sha }}-${{ github.workflow }}
