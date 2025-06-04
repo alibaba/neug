@@ -313,6 +313,7 @@ void _create_batch_load_vertex_plan(physical::QueryPlan* query_plan,
     auto csv_options = read_csv_opr->mutable_csv_options();
     csv_options->set_delimiter("|");
     csv_options->set_header(true);
+    read_csv_opr->set_batch_reader(true);  // Using batch reader saves memory
   }
 
   {

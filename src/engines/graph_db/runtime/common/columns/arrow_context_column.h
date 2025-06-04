@@ -20,9 +20,17 @@
 
 namespace gs {
 namespace runtime {
-class ArrowContextColumn : public IContextColumn {
+
+/**
+ * @brief ArrowArrayContextColumn is a context column that holds multiple
+ * arrow::Array objects. It is used to represent a column in the context
+ * that can contain multiple arrays, such as when dealing with a record batch
+ * or a table in Apache Arrow format.
+ */
+class ArrowArrayContextColumn : public IContextColumn {
  public:
-  ArrowContextColumn(const std::vector<std::shared_ptr<arrow::Array>>& columns)
+  ArrowArrayContextColumn(
+      const std::vector<std::shared_ptr<arrow::Array>>& columns)
       : columns_(columns), size_(0) {
     for (const auto& column : columns_) {
       size_ += column->length();
@@ -33,16 +41,16 @@ class ArrowContextColumn : public IContextColumn {
     }
   }
 
-  ~ArrowContextColumn() = default;
+  ~ArrowArrayContextColumn() = default;
 
-  std::string column_info() const override { return "ArrowContextColumn"; }
+  std::string column_info() const override { return "ArrowArrayContextColumn"; }
 
   size_t size() const override { return size_; }
 
   RTAnyType elem_type() const override { return type_; }
 
   ContextColumnType column_type() const override {
-    return ContextColumnType::kArrow;
+    return ContextColumnType::kArrowArray;
   }
 
   bool is_optional() const override { return false; }
@@ -64,10 +72,10 @@ class ArrowContextColumn : public IContextColumn {
   RTAnyType type_;
 };
 
-class ArrowContextColumnBuilder : public IContextColumnBuilder {
+class ArrowArrayContextColumnBuilder : public IContextColumnBuilder {
  public:
-  ArrowContextColumnBuilder() = default;
-  ~ArrowContextColumnBuilder() = default;
+  ArrowArrayContextColumnBuilder() = default;
+  ~ArrowArrayContextColumnBuilder() = default;
 
   void reserve(size_t size) override {
     LOG(FATAL) << "not implemented for arrow column";
@@ -83,6 +91,74 @@ class ArrowContextColumnBuilder : public IContextColumnBuilder {
 
  private:
   std::vector<std::shared_ptr<arrow::Array>> columns_;
+};
+
+/**
+ * @brief There are num_cols ArrowStreamContextColumn objects for a record
+ * batch. Currently it is basiclly not well-implemented, and only workable with
+ * BatchInsertVertex/Edge operator followed by.
+ */
+class ArrowStreamContextColumn : public IContextColumn {
+ public:
+  ArrowStreamContextColumn(
+      int record_batch_col_id,
+      const std::vector<std::shared_ptr<IRecordBatchSupplier>>& suppliers)
+      : col_id_(record_batch_col_id), suppliers_(suppliers) {}
+
+  ~ArrowStreamContextColumn() = default;
+
+  std::string column_info() const override {
+    return "ArrowStreamContextColumn";
+  }
+
+  size_t size() const override { return suppliers_.size(); }
+
+  RTAnyType elem_type() const override { return type_; }
+
+  ContextColumnType column_type() const override {
+    return ContextColumnType::kArrowStream;
+  }
+
+  std::vector<std::shared_ptr<IRecordBatchSupplier>> GetSuppliers() const {
+    return suppliers_;
+  }
+
+ private:
+  int col_id_;
+  std::shared_ptr<arrow::RecordBatch> first_batch_;
+  std::vector<std::shared_ptr<IRecordBatchSupplier>> suppliers_;
+  RTAnyType type_;
+};
+
+/**
+ * @brief ArrowStreamContextColumnBuilder is a context column builder
+ * that is used to build a context column for streaming data in Apache Arrow
+ * format. Each column take data from the streamReader's one column.
+ */
+class ArrowStreamContextColumnBuilder : public IContextColumnBuilder {
+ public:
+  ArrowStreamContextColumnBuilder(
+      int record_batch_col_id,
+      const std::vector<std::shared_ptr<IRecordBatchSupplier>>& suppliers)
+      : record_batch_col_id_(record_batch_col_id), suppliers_(suppliers) {}
+  ~ArrowStreamContextColumnBuilder() = default;
+
+  void reserve(size_t size) override {
+    LOG(FATAL) << "not implemented for arrow stream column";
+  }
+  void push_back_elem(const RTAny& val) override {
+    LOG(FATAL) << "not implemented for arrow stream column";
+  }
+
+  std::shared_ptr<IContextColumn> finish(
+      const std::shared_ptr<Arena>& arena) override {
+    return std::make_shared<ArrowStreamContextColumn>(record_batch_col_id_,
+                                                      suppliers_);
+  }
+
+ private:
+  int record_batch_col_id_;
+  std::vector<std::shared_ptr<IRecordBatchSupplier>> suppliers_;
 };
 
 }  // namespace runtime

@@ -82,7 +82,7 @@ bool test_database(const std::string& data_path) {
   }
   {
     auto res = conn->query(
-        "COPY COPY knows [person->person] from \"person_knows_person.csv\"");
+        "COPY knows [person->person] from \"person_knows_person.csv\"");
     if (!res.ok()) {
       LOG(ERROR) << "Failed to copy edge table: " << res.status().ToString();
       return false;
@@ -135,7 +135,7 @@ bool test_dangling(const std::string& data_path) {
   }
   {
     auto res = conn->query(
-        "COPY COPY knows [person->person] from \"person_knows_person.csv\"");
+        "COPY knows [person->person] from \"person_knows_person.csv\"");
     if (!res.ok()) {
       LOG(ERROR) << "Failed to copy edge table: " << res.status().ToString();
       return false;

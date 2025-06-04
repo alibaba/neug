@@ -18,12 +18,12 @@
 namespace gs {
 namespace runtime {
 
-std::shared_ptr<IContextColumn> ArrowContextColumnBuilder::finish(
+std::shared_ptr<IContextColumn> ArrowArrayContextColumnBuilder::finish(
     const std::shared_ptr<Arena>& arena) {
-  return std::make_shared<ArrowContextColumn>(columns_);
+  return std::make_shared<ArrowArrayContextColumn>(columns_);
 }
 
-void ArrowContextColumnBuilder::push_back(
+void ArrowArrayContextColumnBuilder::push_back(
     const std::shared_ptr<arrow::Array>& column) {
   if (columns_.size() > 0) {
     if (columns_[0]->type()->Equals(column->type())) {

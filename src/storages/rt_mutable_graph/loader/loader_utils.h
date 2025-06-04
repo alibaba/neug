@@ -34,6 +34,44 @@ class IRecordBatchSupplier {
   virtual std::shared_ptr<arrow::RecordBatch> GetNextBatch() = 0;
 };
 
+class SupplierWrapperWithFirstBatch : public IRecordBatchSupplier {
+ public:
+  explicit SupplierWrapperWithFirstBatch(
+      const std::vector<std::shared_ptr<IRecordBatchSupplier>>& suppliers,
+      std::shared_ptr<arrow::RecordBatch> first_batch)
+      : suppliers_(suppliers),
+        first_batch_(std::move(first_batch)),
+        has_first_batch_(true) {}
+  SupplierWrapperWithFirstBatch(
+      const std::vector<std::shared_ptr<IRecordBatchSupplier>>& suppliers)
+      : suppliers_(suppliers), has_first_batch_(false) {}
+
+  std::shared_ptr<arrow::RecordBatch> GetNextBatch() override {
+    if (has_first_batch_) {
+      has_first_batch_ = false;
+      return first_batch_;
+    }
+    if (suppliers_.empty()) {
+      return nullptr;  // No more batches to supply
+    }
+    if (current_supplier_index_ >= suppliers_.size()) {
+      return nullptr;  // No more suppliers left
+    }
+    auto batch = suppliers_[current_supplier_index_]->GetNextBatch();
+    if (!batch) {
+      current_supplier_index_++;
+      return GetNextBatch();  // Try the next supplier
+    }
+    return batch;  // Return the batch from the current supplier
+  }
+
+ private:
+  std::vector<std::shared_ptr<IRecordBatchSupplier>> suppliers_;
+  std::shared_ptr<arrow::RecordBatch> first_batch_;
+  bool has_first_batch_;
+  size_t current_supplier_index_ = 0;
+};
+
 class CSVStreamRecordBatchSupplier : public IRecordBatchSupplier {
  public:
   CSVStreamRecordBatchSupplier(const std::string& file_path,
@@ -63,9 +101,13 @@ class CSVTableRecordBatchSupplier : public IRecordBatchSupplier {
   std::shared_ptr<arrow::TableBatchReader> reader_;
 };
 
-class ArrayRecordBatchSupplier : public IRecordBatchSupplier {
+/**
+ * @brief A record batch supplier that provides all record batches from a
+ * vector of arrays. Already in memory.
+ */
+class ArrowRecordBatchArraySupplier : public IRecordBatchSupplier {
  public:
-  ArrayRecordBatchSupplier(
+  ArrowRecordBatchArraySupplier(
       const std::vector<std::vector<std::shared_ptr<arrow::Array>>>& arrays,
       const std::shared_ptr<arrow::Schema>& schema)
       : arrays_(arrays), schema_(schema), current_batch_index_(0) {
@@ -84,6 +126,23 @@ class ArrayRecordBatchSupplier : public IRecordBatchSupplier {
   std::shared_ptr<arrow::Schema> schema_;
   size_t current_batch_index_;
   size_t batch_num_;
+};
+
+/**
+ * @brief A record batch supplier that provides all record batches from a arrow
+ * reader, which is a streaming reader or a table reader, producing record
+ * batches from a CSV file.
+ */
+class ArrowRecordBatchStreamSupplier : public IRecordBatchSupplier {
+ public:
+  ArrowRecordBatchStreamSupplier(
+      const std::shared_ptr<arrow::csv::StreamingReader>& reader)
+      : reader_(reader) {}
+
+  std::shared_ptr<arrow::RecordBatch> GetNextBatch() override;
+
+ private:
+  std::shared_ptr<arrow::csv::StreamingReader> reader_;
 };
 
 }  // namespace gs

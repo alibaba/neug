@@ -29,8 +29,9 @@ namespace ops {
 class CSVDataSourceOpr : public IUpdateOperator {
  public:
   CSVDataSourceOpr(
-      const std::vector<std::shared_ptr<IRecordBatchSupplier>>& suppliers)
-      : suppliers_(suppliers) {}
+      const std::vector<std::shared_ptr<IRecordBatchSupplier>>& suppliers,
+      bool batch_reader)
+      : suppliers_(suppliers), batch_reader_(batch_reader) {}
 
   ~CSVDataSourceOpr() = default;
 
@@ -41,7 +42,11 @@ class CSVDataSourceOpr : public IUpdateOperator {
                            Context&& ctx, OprTimer& timer) override;
 
  private:
+  bl::result<Context> eval_table_reader(Context&& ctx);
+  bl::result<Context> eval_batch_reader(Context&& ctx);
+
   std::vector<std::shared_ptr<IRecordBatchSupplier>> suppliers_;
+  bool batch_reader_;  // With batch reader, we will read the file in batches.
 };
 
 class DataSourceOprBuilder : public IUpdateOperatorBuilder {

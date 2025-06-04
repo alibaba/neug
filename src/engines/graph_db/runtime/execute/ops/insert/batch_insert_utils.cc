@@ -40,7 +40,8 @@ PropertyType get_the_pk_type_from_schema(const Schema& schema,
   return std::get<0>(pk);
 }
 
-std::vector<std::shared_ptr<IRecordBatchSupplier>> create_record_batch_supplier(
+std::vector<std::shared_ptr<IRecordBatchSupplier>>
+create_record_batch_supplier_from_arrow_array_column(
     const Context& ctx,
     const std::vector<std::pair<int32_t, std::string>>& prop_mappings) {
   std::vector<std::shared_ptr<IRecordBatchSupplier>> suppliers;
@@ -56,10 +57,12 @@ std::vector<std::shared_ptr<IRecordBatchSupplier>> create_record_batch_supplier(
     if (column == nullptr) {
       LOG(FATAL) << "Column not found for tag id: " << tag_id;
     }
-    auto arrow_column = std::dynamic_pointer_cast<ArrowContextColumn>(column);
+    auto arrow_column =
+        std::dynamic_pointer_cast<ArrowArrayContextColumn>(column);
     if (!arrow_column) {
       LOG(FATAL) << "Invalid column type for tag id: " << tag_id;
     }
+
     auto& column_arrays = arrow_column->GetColumns();
     // arrays[i].emplace(column_arrays.begin(), column_arrays.end());
     for (auto& array : column_arrays) {
@@ -80,8 +83,73 @@ std::vector<std::shared_ptr<IRecordBatchSupplier>> create_record_batch_supplier(
   }
   auto schema = std::make_shared<arrow::Schema>(fields);
   suppliers.emplace_back(
-      std::make_shared<ArrayRecordBatchSupplier>(arrays, schema));
+      std::make_shared<ArrowRecordBatchArraySupplier>(arrays, schema));
   return suppliers;
+}
+
+std::vector<std::shared_ptr<IRecordBatchSupplier>>
+create_record_batch_supplier_from_arrow_stream_column(
+    const Context& ctx,
+    const std::vector<std::pair<int32_t, std::string>>& prop_mappings) {
+  LOG(INFO) << "column mappings size: " << prop_mappings.size();
+  for (const auto& mapping : prop_mappings) {
+    auto tag_id = mapping.first;
+    auto column = ctx.get(tag_id);
+    if (column == nullptr) {
+      LOG(ERROR) << "Column not found for tag id: " << tag_id;
+      throw std::runtime_error("Column not found for tag id: " +
+                               std::to_string(tag_id));
+    }
+    if (column->column_type() != ContextColumnType::kArrowStream) {
+      LOG(ERROR) << "Invalid column type for tag id: " << tag_id;
+      throw std::runtime_error("Invalid column type for tag id: " +
+                               std::to_string(tag_id));
+    }
+    auto casted_column =
+        std::dynamic_pointer_cast<ArrowStreamContextColumn>(column);
+    if (!casted_column) {
+      LOG(ERROR) << "Failed to cast column for tag id: " << tag_id;
+      throw std::runtime_error("Failed to cast column for tag id: " +
+                               std::to_string(tag_id));
+    }
+    return casted_column->GetSuppliers();
+  }
+  LOG(ERROR) << "No valid column mappings found.";
+  throw std::runtime_error("No valid column mappings found.");
+}
+
+std::vector<std::shared_ptr<IRecordBatchSupplier>> create_record_batch_supplier(
+    const Context& ctx,
+    const std::vector<std::pair<int32_t, std::string>>& prop_mappings) {
+  // We expect all columns are of same type.
+  ContextColumnType column_type = ContextColumnType::kNone;
+  for (const auto& mapping : prop_mappings) {
+    auto tag_id = mapping.first;
+    auto column = ctx.get(tag_id);
+    if (column == nullptr) {
+      LOG(ERROR) << "Column not found for tag id: " << tag_id;
+      throw std::runtime_error("Column not found for tag id: " +
+                               std::to_string(tag_id));
+    }
+    if (column_type == ContextColumnType::kNone) {
+      column_type = column->column_type();
+    } else if (column_type != column->column_type()) {
+      LOG(ERROR) << "Column type mismatch for tag id: " << tag_id;
+      throw std::runtime_error("Column type mismatch for tag id: " +
+                               std::to_string(tag_id));
+    }
+  }
+  if (column_type == ContextColumnType::kArrowArray) {
+    return create_record_batch_supplier_from_arrow_array_column(ctx,
+                                                                prop_mappings);
+  } else if (column_type == ContextColumnType::kArrowStream) {
+    return create_record_batch_supplier_from_arrow_stream_column(ctx,
+                                                                 prop_mappings);
+  } else {
+    LOG(ERROR) << "Unsupported column type: " << static_cast<int>(column_type);
+    throw std::runtime_error("Unsupported column type: " +
+                             std::to_string(static_cast<int>(column_type)));
+  }
 }
 
 void to_arrow_csv_options(const physical::ReadCSV::options& csv_options,

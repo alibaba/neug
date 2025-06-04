@@ -114,7 +114,8 @@ CSVTableRecordBatchSupplier::GetNextBatch() {
   return batch;
 }
 
-std::shared_ptr<arrow::RecordBatch> ArrayRecordBatchSupplier::GetNextBatch() {
+std::shared_ptr<arrow::RecordBatch>
+ArrowRecordBatchArraySupplier::GetNextBatch() {
   if (current_batch_index_ >= batch_num_) {
     return nullptr;
   }
@@ -135,4 +136,23 @@ std::shared_ptr<arrow::RecordBatch> ArrayRecordBatchSupplier::GetNextBatch() {
   return batch;
 }
 
+std::shared_ptr<arrow::RecordBatch>
+ArrowRecordBatchStreamSupplier::GetNextBatch() {
+  if (!reader_) {
+    return nullptr;
+  }
+  auto result = reader_->ReadNext();
+  if (result.ok()) {
+    auto batch = result.ValueOrDie().batch;
+    auto metadata = result.ValueOrDie().custom_metadata;
+    if (metadata) {
+      // Handle metadata if needed
+      LOG(INFO) << "Batch metadata: " << metadata->ToString();
+    }
+    return batch;
+  } else {
+    LOG(INFO) << "No more batches";
+    return nullptr;  // Handle error appropriately in production code
+  }
+}
 }  // namespace gs
