@@ -108,6 +108,22 @@ int main(int argc, char** argv) {
     }
   }
 
+  {
+    auto res = conn->query("DROP TABLE knows;");
+    if (!res.ok()) {
+      LOG(ERROR) << "Failed to drop edge type: " << res.status().ToString();
+      return 1;
+    }
+  }
+
+  {
+    auto res = conn->query("DROP TABLE person;");
+    if (!res.ok()) {
+      LOG(ERROR) << "Failed to drop vertex type: " << res.status().ToString();
+      return 1;
+    }
+  }
+
   auto res = conn->query("MATCH (v) RETURN v;");
   LOG(INFO) << "Query result: " << res.ok() << ", "
             << res.status().error_message();

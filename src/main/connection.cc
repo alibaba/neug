@@ -63,7 +63,9 @@ Result<results::CollectiveResults> Connection::query_impl(
   if (query_string.find("CREATE") != std::string::npos ||
       query_string.find("create") != std::string::npos ||
       query_string.find("ALTER") != std::string::npos ||
-      query_string.find("alter") != std::string::npos) {
+      query_string.find("alter") != std::string::npos ||
+      query_string.find("DROP") != std::string::npos ||
+      query_string.find("drop") != std::string::npos) {
     auto ddl_plan = createDDLPlan(query_string);
     return query_processor_->execute(ddl_plan);
   }
@@ -234,6 +236,29 @@ physical::PhysicalPlan Connection::createDDLPlan(
         physical::ConflictAction::ON_CONFLICT_THROW);
     auto mappings = alter_vertex_request->mutable_mappings();
     mappings->insert({"name", "username"});  // Rename 'name' to 'username'
+    return physical_plan;
+  }
+
+  // Delete a vertex type
+  if (query_string == "DROP TABLE person;") {
+    auto drop_vertex_request = plan->mutable_drop_vertex_schema();
+    drop_vertex_request->mutable_vertex_type()->set_name("person");
+    drop_vertex_request->set_conflict_action(
+        physical::ConflictAction::ON_CONFLICT_THROW);
+    return physical_plan;
+  }
+
+  // Delete a edge type
+  if (query_string == "DROP TABLE knows;") {
+    auto drop_edge_request = plan->mutable_drop_edge_schema();
+    drop_edge_request->mutable_edge_type()->mutable_type_name()->set_name(
+        "knows");
+    drop_edge_request->mutable_edge_type()->mutable_src_type_name()->set_name(
+        "person");
+    drop_edge_request->mutable_edge_type()->mutable_dst_type_name()->set_name(
+        "person");
+    drop_edge_request->set_conflict_action(
+        physical::ConflictAction::ON_CONFLICT_THROW);
     return physical_plan;
   }
 

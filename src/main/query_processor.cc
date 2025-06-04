@@ -272,6 +272,27 @@ Result<results::CollectiveResults> QueryProcessor::execute_rename_edge_property(
       conflict_action_to_bool(rename_edge_property_schema.conflict_action()));
 }
 
+Result<results::CollectiveResults> QueryProcessor::execute_drop_vertex_schema(
+    const physical::DropVertexSchema& drop_vertex_schema) {
+  auto& graph_ = db_.graph();
+  auto vertex_type_name = drop_vertex_schema.vertex_type().name();
+  // Todo(NENG): Always drop vertex type with detach mode
+  return graph_.delete_vertex_type(
+      vertex_type_name, true,
+      conflict_action_to_bool(drop_vertex_schema.conflict_action()));
+}
+
+Result<results::CollectiveResults> QueryProcessor::execute_drop_edge_schema(
+    const physical::DropEdgeSchema& drop_edge_schema) {
+  auto& graph_ = db_.graph();
+  auto edge_type_name = drop_edge_schema.edge_type().type_name().name();
+  auto src_type_name = drop_edge_schema.edge_type().src_type_name().name();
+  auto dst_type_name = drop_edge_schema.edge_type().dst_type_name().name();
+  return graph_.delete_edge_type(
+      src_type_name, dst_type_name, edge_type_name,
+      conflict_action_to_bool(drop_edge_schema.conflict_action()));
+}
+
 Result<results::CollectiveResults> QueryProcessor::execute_ddl(
     const physical::DDLPlan& ddl_plan, int32_t num_threads) {
   auto& graph_ = db_.graph();
@@ -334,6 +355,10 @@ Result<results::CollectiveResults> QueryProcessor::execute_ddl(
         ddl_plan.rename_vertex_property_schema());
   } else if (ddl_plan.has_rename_edge_property_schema()) {
     return execute_rename_edge_property(ddl_plan.rename_edge_property_schema());
+  } else if (ddl_plan.has_drop_vertex_schema()) {
+    return execute_drop_vertex_schema(ddl_plan.drop_vertex_schema());
+  } else if (ddl_plan.has_drop_edge_schema()) {
+    return execute_drop_edge_schema(ddl_plan.drop_edge_schema());
   } else {
     LOG(ERROR) << "Unknown DDL plan: " << ddl_plan.DebugString();
     return Status(StatusCode::ERR_INVALID_ARGUMENT,

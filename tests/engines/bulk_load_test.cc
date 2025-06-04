@@ -157,6 +157,120 @@ void testLoadVertexBatch(MutablePropertyFragment& graph,
   graph.batch_load_vertices<int32_t>(v_label, suppliers);
 }
 
+void testLoadEdgeBatch(MutablePropertyFragment& graph,
+                       std::string src_vertex_type, std::string dst_vertex_type,
+                       std::string edge_type, std::string& e_file,
+                       char delimiter, bool skip_head, int32_t batch_size,
+                       std::vector<std::string>& null_values) {
+  label_t src_label_id = graph.schema().get_vertex_label_id(src_vertex_type);
+  label_t dst_label_id = graph.schema().get_vertex_label_id(dst_vertex_type);
+  label_t e_label_id = graph.schema().get_edge_label_id(edge_type);
+  arrow::csv::ConvertOptions convert_options;
+  arrow::csv::ReadOptions read_options;
+  arrow::csv::ParseOptions parse_options;
+  convert_options.timestamp_parsers.emplace_back(
+      std::make_shared<LDBCTimeStampParser>());
+  convert_options.timestamp_parsers.emplace_back(
+      std::make_shared<LDBCLongDateParser>());
+  convert_options.timestamp_parsers.emplace_back(
+      arrow::TimestampParser::MakeISO8601());
+  put_boolean_option(convert_options);
+  parse_options.delimiter = delimiter;
+  if (skip_head) {
+    read_options.skip_rows = 1;
+  } else {
+    read_options.skip_rows = 0;
+  }
+  parse_options.escaping = false;
+  parse_options.quoting = false;
+  read_options.block_size = batch_size;
+  for (auto& null_value : null_values) {
+    convert_options.null_values.emplace_back(null_value);
+  }
+
+  auto edge_prop_names = graph.schema().get_edge_property_names(
+      src_label_id, dst_label_id, e_label_id);
+
+  std::vector<std::string> all_column_names;
+  all_column_names.resize(edge_prop_names.size() + 2);
+  for (size_t i = 0; i < all_column_names.size(); ++i) {
+    all_column_names[i] = std::string("f") + std::to_string(i);
+  }
+  read_options.column_names = all_column_names;
+
+  std::vector<std::string> included_col_names;
+  std::vector<std::string> mapped_property_names;
+  included_col_names.emplace_back(read_options.column_names[0]);
+  included_col_names.emplace_back(read_options.column_names[1]);
+  for (size_t i = 0; i < edge_prop_names.size(); ++i) {
+    auto property_name = edge_prop_names[i];
+    included_col_names.emplace_back(read_options.column_names[i + 2]);
+    mapped_property_names.emplace_back(property_name);
+  }
+  convert_options.include_columns = included_col_names;
+  std::unordered_map<std::string, std::shared_ptr<arrow::DataType>> arrow_types;
+  {
+    std::unordered_map<std::string, std::shared_ptr<arrow::DataType>>
+        arrow_types;
+
+    auto property_types = graph.schema().get_edge_properties(
+        src_label_id, dst_label_id, e_label_id);
+    auto property_names = graph.schema().get_edge_property_names(
+        src_label_id, dst_label_id, e_label_id);
+    CHECK(property_types.size() == property_names.size());
+
+    for (size_t i = 0; i < property_types.size(); ++i) {
+      // for each schema' property name, get the index of the column in
+      // vertex_column mapping, and bind the type with the column name
+      auto property_type = property_types[i];
+      auto property_name = property_names[i];
+      size_t ind = mapped_property_names.size();
+      for (size_t i = 0; i < mapped_property_names.size(); ++i) {
+        if (mapped_property_names[i] == property_name) {
+          ind = i;
+          break;
+        }
+      }
+      if (ind == mapped_property_names.size()) {
+        LOG(FATAL) << "The specified property name: " << property_name
+                   << " does not exist in the vertex column mapping, please "
+                      "check your configuration";
+      }
+      arrow_types.insert({included_col_names[ind + 2],
+                          PropertyTypeToArrowType(property_type)});
+    }
+    {
+      // add primary key types;
+      PropertyType src_col_type, dst_col_type;
+      {
+        auto src_primary_keys =
+            graph.schema().get_vertex_primary_key(src_label_id);
+        CHECK(src_primary_keys.size() == 1);
+        src_col_type = std::get<0>(src_primary_keys[0]);
+        arrow_types.insert({read_options.column_names[0],
+                            PropertyTypeToArrowType(src_col_type)});
+      }
+      {
+        auto dst_primary_keys =
+            graph.schema().get_vertex_primary_key(dst_label_id);
+        CHECK(dst_primary_keys.size() == 1);
+        dst_col_type = std::get<0>(dst_primary_keys[0]);
+        arrow_types.insert({read_options.column_names[1],
+                            PropertyTypeToArrowType(dst_col_type)});
+      }
+    }
+    convert_options.column_types = arrow_types;
+  }
+  auto supplier = std::make_shared<CSVStreamRecordBatchSupplier>(
+      e_file, convert_options, read_options, parse_options);
+  std::vector<std::shared_ptr<IRecordBatchSupplier>> suppliers;
+  suppliers.emplace_back(
+      std::dynamic_pointer_cast<IRecordBatchSupplier>(supplier));
+  graph.batch_load_edges<int32_t, int32_t, RecordView,
+                         std::vector<std::tuple<vid_t, vid_t, size_t>>>(
+      src_label_id, dst_label_id, e_label_id, suppliers);
+}
+
 void testOpenEmptyGraph(const std::string& graph_dir,
                         const std::string& data_dir) {
   MutablePropertyFragment graph;
@@ -164,6 +278,7 @@ void testOpenEmptyGraph(const std::string& graph_dir,
 
   // Create vertex type PERSON
   {
+    LOG(INFO) << "Create vertex type PERSON";
     std::string vertex_label_name = "PERSON";
     std::vector<std::tuple<PropertyType, std::string, Any>> properties;
     std::vector<std::string> primary_keys;
@@ -173,7 +288,7 @@ void testOpenEmptyGraph(const std::string& graph_dir,
             PropertyType::Int32(), std::string("id"), std::string("")));
     properties.emplace_back(
         std::make_tuple<PropertyType, std::string, std::string>(
-            PropertyType::String(), std::string("name"), std::string("")));
+            PropertyType::StringView(), std::string("name"), std::string("")));
     properties.emplace_back(
         std::make_tuple<PropertyType, std::string, std::string>(
             PropertyType::Int32(), std::string("age"), std::string("")));
@@ -184,6 +299,7 @@ void testOpenEmptyGraph(const std::string& graph_dir,
 
   // Create vertex type SOFTWARE
   {
+    LOG(INFO) << "Create vertex type SOFTWARE";
     std::string vertex_label_name = "SOFTWARE";
     std::vector<std::tuple<PropertyType, std::string, Any>> properties;
     std::vector<std::string> primary_keys;
@@ -193,10 +309,10 @@ void testOpenEmptyGraph(const std::string& graph_dir,
             PropertyType::Int32(), std::string("id"), std::string("")));
     properties.emplace_back(
         std::make_tuple<PropertyType, std::string, std::string>(
-            PropertyType::String(), std::string("name"), std::string("")));
+            PropertyType::StringView(), std::string("name"), std::string("")));
     properties.emplace_back(
         std::make_tuple<PropertyType, std::string, std::string>(
-            PropertyType::String(), std::string("lang"), std::string("")));
+            PropertyType::StringView(), std::string("lang"), std::string("")));
     testCreateVertexType(graph, vertex_label_name, properties, primary_keys);
     std::cout << "Get vertex label num: "
               << static_cast<size_t>(graph.schema().vertex_label_num()) << "\n";
@@ -204,6 +320,7 @@ void testOpenEmptyGraph(const std::string& graph_dir,
 
   // Create edge type PERSON-KNOWS->PERSON
   {
+    LOG(INFO) << "Create edge type PERSON-KNOWS->PERSON";
     std::string src_vertex_label = "PERSON";
     std::string edge_label_name = "KNOWS";
     std::string dst_vertex_label = "PERSON";
@@ -220,6 +337,7 @@ void testOpenEmptyGraph(const std::string& graph_dir,
 
   // Create edge type PERSON-CREATED->SOFTWARE
   {
+    LOG(INFO) << "Create edge type PERSON-CREATED->SOFTWARE";
     std::string src_vertex_label = "PERSON";
     std::string edge_label_name = "CREATED";
     std::string dst_vertex_label = "SOFTWARE";
@@ -239,6 +357,7 @@ void testOpenEmptyGraph(const std::string& graph_dir,
 
   // Load vertices for PERSON
   {
+    LOG(INFO) << "Load vertices for PERSON";
     std::string vertex_label_name = "PERSON";
     std::string vfile = data_dir + "/person.csv.part1";
     std::vector<std::string> vertex_null_values;
@@ -249,6 +368,7 @@ void testOpenEmptyGraph(const std::string& graph_dir,
 
   // Insert vertices for PERSON
   {
+    LOG(INFO) << "Insert vertices for PERSON";
     std::string vertex_label_name = "PERSON";
     std::string vfile = data_dir + "/person.csv.part2";
     std::vector<std::string> vertex_null_values;
@@ -259,13 +379,15 @@ void testOpenEmptyGraph(const std::string& graph_dir,
 
   // Update property for PERSON
   {
+    LOG(INFO) << "Update property for PERSON";
     std::string vertex_label_name = "PERSON";
     std::vector<std::tuple<PropertyType, std::string, Any>> add_properties;
     std::vector<std::tuple<std::string, std::string>> update_properties;
     std::vector<std::string> delete_properties;
     add_properties.emplace_back(
         std::make_tuple<PropertyType, std::string, std::string>(
-            PropertyType::String(), std::string("lastName"), std::string("")));
+            PropertyType::StringView(), std::string("lastName"),
+            std::string("")));
     update_properties.emplace_back(std::make_tuple<std::string, std::string>(
         std::string("name"), std::string("firstName")));
     delete_properties.emplace_back("age");
@@ -284,6 +406,18 @@ void testOpenEmptyGraph(const std::string& graph_dir,
     CHECK_EQ(properties.size(), 2);
     CHECK_EQ(properties[0], "firstName");
     CHECK_EQ(properties[1], "lastName");
+  }
+
+  // Insert edges for PERSON-KNOWS->PERSON
+  {
+    std::string src_vertex_type = "PERSON";
+    std::string dst_vertex_type = "PERSON";
+    std::string edge_type_name = "KNOWS";
+    std::string efile = data_dir + "/person_knows_person.csv";
+    std::vector<std::string> null_values;
+    testLoadEdgeBatch(graph, src_vertex_type, dst_vertex_type, edge_type_name,
+                      efile, '|', true, 1024, null_values);
+    LOG(INFO) << "Edges num after load " << graph.edge_num(0, 0, 0);
   }
 
   // Delete vertex SOFTWARE

@@ -71,6 +71,10 @@ class QueryProcessor {
           rename_vertex_property_schema);
   Result<results::CollectiveResults> execute_rename_edge_property(
       const physical::RenameEdgePropertySchema& rename_edge_property_schema);
+  Result<results::CollectiveResults> execute_drop_vertex_schema(
+      const physical::DropVertexSchema& drop_vertex_schema);
+  Result<results::CollectiveResults> execute_drop_edge_schema(
+      const physical::DropEdgeSchema& drop_edge_schema);
 
   GraphDB& db_;
   int32_t max_num_threads_;

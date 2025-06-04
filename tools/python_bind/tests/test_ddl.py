@@ -86,6 +86,12 @@ class TestDDL(unittest.TestCase):
         # Rename a column
         conn.execute("ALTER TABLE person RENAME name TO username;")
 
+        # Delete a edge type
+        conn.execute("DROP TABLE knows;")
+
+        # Delete a vertex type
+        conn.execute("DROP TABLE person;")
+
 
 
 
