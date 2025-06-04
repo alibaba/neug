@@ -48,6 +48,17 @@ void NexgDB::close() {
     file_lock_.unlock();
   }
   db_.Close();
+  for (auto& conn : read_only_connections_) {
+    if (conn) {
+      LOG(INFO) << "Closing read-only connection.";
+      conn->close();
+    }
+  }
+  VLOG(10) << "Close all read-only connections.";
+  if (read_write_connection_) {
+    read_write_connection_->close();
+  }
+  VLOG(10) << "Close all connections.";
 }
 
 std::shared_ptr<Connection> NexgDB::connect() {

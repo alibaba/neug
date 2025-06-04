@@ -91,6 +91,12 @@ class TestBachLoading(unittest.TestCase):
         db.close()
         db1 = Database(str(db_dir), "r")
         db2 = Database(str(db_dir), "r")
+
+        conn = db2.connect()
         assert db1 is not None and db2 is not None
         db1.close()
         db2.close()
+
+        # Expect runtime error if we try to execute a query on a closed connection
+        with self.assertRaises(RuntimeError):
+            res = conn.execute('MATCH (n) return count(n);')

@@ -61,6 +61,7 @@ jobs:
         cd ${GITHUB_WORKSPACE}/tools/python_bind/
         export FLEX_DATA_DIR=${GITHUB_WORKSPACE}/example_dataset/modern_graph
         pip3 install -r requirements_dev.txt
-        python3 -m pytest -v tests/test_batch_loading.py
+        python3 -m pytest -sv tests/test_batch_loading.py
+        python3 -m pytest -sv tests/test_ddl.py
 
 

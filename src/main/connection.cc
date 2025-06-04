@@ -40,6 +40,11 @@ physical::PhysicalPlan load_plan_from_resource(
 
 Result<QueryResult> Connection::query(const std::string& query_string) {
   LOG(INFO) << "Query: " << query_string;
+  if (is_closed()) {
+    LOG(ERROR) << "Connection is closed, cannot execute query.";
+    return Result<QueryResult>(
+        Status(StatusCode::ERR_CONNECTION_BROKEN, "Connection is closed."));
+  }
   auto result = query_impl(query_string);
   if (result.ok()) {
     return Result<QueryResult>(

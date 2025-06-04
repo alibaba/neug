@@ -16,10 +16,12 @@
 #ifndef TOOLS_PYTHON_BIND_SRC_CONNECTION_H_
 #define TOOLS_PYTHON_BIND_SRC_CONNECTION_H_
 
+#include <atomic>
 #include <string>
 #include <vector>
 
 #include <glog/logging.h>
+
 #include "src/engines/graph_db/database/graph_db.h"
 #include "src/main/query_processor.h"
 #include "src/main/query_result.h"
@@ -45,8 +47,9 @@ class Connection {
       : db_(db),
         planner_(planner),
         query_processor_(query_processor),
-        resource_path_(resource_path) {}
-  ~Connection() = default;
+        resource_path_(resource_path),
+        is_closed_(false) {}
+  ~Connection() { close(); }
 
   /**
    * @brief call query_impl and convert results::CollectiveResults to
@@ -54,7 +57,25 @@ class Connection {
    */
   Result<QueryResult> query(const std::string& query_string);
 
-  const Schema& get_schema() const { return db_.schema(); }
+  const Schema& get_schema() const {
+    if (is_closed()) {
+      LOG(ERROR) << "Connection is closed, cannot get schema.";
+      throw std::runtime_error("Connection is closed, cannot get schema.");
+    }
+    return db_.schema();
+  }
+
+  void close() {
+    if (is_closed_.load(std::memory_order_relaxed)) {
+      LOG(WARNING) << "Connection is already closed.";
+      return;
+    }
+    LOG(INFO) << "Closing connection.";
+    is_closed_.store(true);
+    // Any necessary cleanup can be done here.
+  }
+
+  bool is_closed() const { return is_closed_.load(); }
 
  private:
   /**
@@ -76,6 +97,8 @@ class Connection {
   std::shared_ptr<IGraphPlanner> planner_;
   std::shared_ptr<QueryProcessor> query_processor_;
   std::string resource_path_;
+
+  std::atomic<bool> is_closed_{false};
 };
 }  // namespace gs
 
