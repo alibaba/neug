@@ -25,6 +25,7 @@ class QueryResult(object):
     def __init__(self, result):
         """
         Initialize the QueryResult.
+        TODO(zhanglei): add type hint for result.
 
         Parameters
         ----------
