@@ -1,3 +1,5 @@
 
 add_subdirectory(rt_mutable_graph)
-add_subdirectory(metadata)
+if (BUILD_METADATA)
+    add_subdirectory(metadata)
+endif()

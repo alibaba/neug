@@ -21,6 +21,7 @@ option(BUILD_WITH_OSS "Whether to build with oss support" OFF) # Whether to buil
 option(BUILD_EXECUTABLES "When to build executors" OFF) # Whether to build executables, default is OFF
 option(BUILD_HTTP_SERVER "Whether to build http server" OFF) # Whether to build http server, default is OFF
 option(BUILD_JNI_PLANNER "Whether to build jni wrapper for the java planner" ON) # Whether to build jni wrapper for the java planner, default is ON
+option(BUILD_METADATA "Whether to build metadata" OFF)
 
 # Options to control the building of tools
 option(BUILD_PYTHON "Whether to build python embedded" ON)

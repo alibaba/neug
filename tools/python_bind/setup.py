@@ -102,7 +102,7 @@ class CMakeBuild(build_ext):
         # auxiliary "native" libs
 
         debug = int(os.environ.get("DEBUG", 0))
-        cfg = "Debug" if debug else "Release"
+        cfg = "DEBUG" if debug else "Release"
         build_executables = "ON" if os.environ.get("BUILD_EXECUTABLES", "OFF") == "ON" else "OFF"
         # cfg is now dynamically set based on the DEBUG environment variable
 
@@ -193,6 +193,7 @@ class CMakeBuild(build_ext):
         subprocess.run(
             [cmake_executable, ext.sourcedir, *cmake_args], cwd=build_temp, check=True
         )
+        print(f"build args: {build_args}")
         subprocess.run(
             [cmake_executable, "--build", ".", *build_args],
             cwd=build_temp,
