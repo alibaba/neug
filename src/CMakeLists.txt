@@ -11,3 +11,4 @@ endif()
 add_subdirectory(planner)
 
 install(FILES resources/hqps/CMakeLists.txt.template DESTINATION lib/src/)
+add_subdirectory(compiler)

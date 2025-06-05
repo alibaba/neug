@@ -3,7 +3,7 @@
 #include <mutex>
 
 #include "common/api.h"
-#include "pcg_random.hpp"
+#include "third_party/pcg/pcg_random.hpp"
 
 namespace kuzu {
 

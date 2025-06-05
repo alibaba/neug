@@ -62,7 +62,7 @@ TEST(GOptTest, GCataLog) {
   auto& transaction = kuzu::Constants::DEFAULT_TRANSACTION;
   std::cout << "Transaction ID: " << transaction.getCommitTS() << std::endl;
   kuzu::catalog::GCatalog catalog(
-      getTestResourcePath("test/gopt/resources/ldbc_schema.yaml"));
+      getTestResourcePath("src/compiler/test/gopt/resources/ldbc_schema.yaml"));
   kuzu::catalog::TableCatalogEntry* tableEntry =
       catalog.getTableCatalogEntry(&transaction, "KNOWS");
   std::cout << "Table ID: " << tableEntry->getTableID() << std::endl;
@@ -79,17 +79,18 @@ TEST(GOptTest, GCataLog) {
 TEST(GOptTest, GStorageManager) {
   std::string schemaPath = getEnvVarOrDefault(
       "schema",
-      getTestResourcePath("test/gopt/resources/ldbc_relgo_schema2.yaml"));
+      getTestResourcePath(
+          "src/compiler/test/gopt/resources/ldbc_relgo_schema2.yaml"));
   std::string statsPath = getEnvVarOrDefault(
-      "stats",
-      getTestResourcePath("test/gopt/resources/ldbc_relgo_stats.json"));
+      "stats", getTestResourcePath(
+                   "src/compiler/test/gopt/resources/ldbc_relgo_stats.json"));
   kuzu::main::SystemConfig sysConfig;
   sysConfig.readOnly = true;
   auto database =
       std::make_unique<kuzu::main::GDatabase>(schemaPath, statsPath, sysConfig);
   auto ctx = std::make_unique<kuzu::main::ClientContext>(database.get());
   std::string queryPath = getEnvVarOrDefault(
-      "query", getTestResourcePath("test/gopt/resources/queries"));
+      "query", getTestResourcePath("src/compiler/test/gopt/resources/queries"));
   if (std::filesystem::is_directory(queryPath)) {
     for (auto& query : std::filesystem::directory_iterator(queryPath)) {
       if (query.is_regular_file()) {

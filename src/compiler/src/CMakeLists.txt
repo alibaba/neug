@@ -25,7 +25,7 @@ add_subdirectory(gopt)
 add_library(kuzu STATIC ${ALL_OBJECT_FILES})
 add_library(kuzu_shared SHARED ${ALL_OBJECT_FILES})
 
-set(KUZU_LIBRARIES antlr4_cypher antlr4_runtime fast_float utf8proc re2  parquet  thrift roaring_bitmap zstd miniz mbedtls lz4  yaml-cpp)
+set(KUZU_LIBRARIES antlr4_cypher antlr4_runtime fast_float utf8proc re2 roaring_bitmap parquet  thrift  zstd miniz mbedtls lz4  yaml-cpp)
 # brotlidec brotlicommon fastpfor snappy  yyjson 
 if (NOT __SINGLE_THREADED__)
         set(KUZU_LIBRARIES ${KUZU_LIBRARIES} Threads::Threads)

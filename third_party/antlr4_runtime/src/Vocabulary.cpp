@@ -11,8 +11,11 @@ using namespace antlr4::dfa;
 
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wdeprecated-declarations"
+// if clang
+#ifdef __clang__
 #pragma clang diagnostic push
 #pragma clang diagnostic ignored "-Wdeprecated-declarations"
+#endif
 #ifdef _MSC_VER
 #pragma warning(push)
 #pragma warning(disable : 4996)
@@ -23,17 +26,25 @@ const Vocabulary Vocabulary::EMPTY_VOCABULARY;
 #ifdef _MSC_VER
 #pragma warning(pop)
 #endif
+#ifdef __clang__
 #pragma clang diagnostic pop
 #pragma GCC diagnostic pop
-
-Vocabulary::Vocabulary(std::vector<std::string> literalNames, std::vector<std::string> symbolicNames)
-: Vocabulary(std::move(literalNames), std::move(symbolicNames), {}) {
-}
+#endif
 
 Vocabulary::Vocabulary(std::vector<std::string> literalNames,
-  std::vector<std::string> symbolicNames, std::vector<std::string> displayNames)
-  : _literalNames(std::move(literalNames)), _symbolicNames(std::move(symbolicNames)), _displayNames(std::move(displayNames)),
-    _maxTokenType(std::max(_displayNames.size(), std::max(_literalNames.size(), _symbolicNames.size())) - 1) {
+                       std::vector<std::string> symbolicNames)
+    : Vocabulary(std::move(literalNames), std::move(symbolicNames), {}) {}
+
+Vocabulary::Vocabulary(std::vector<std::string> literalNames,
+                       std::vector<std::string> symbolicNames,
+                       std::vector<std::string> displayNames)
+    : _literalNames(std::move(literalNames)),
+      _symbolicNames(std::move(symbolicNames)),
+      _displayNames(std::move(displayNames)),
+      _maxTokenType(
+          std::max(_displayNames.size(),
+                   std::max(_literalNames.size(), _symbolicNames.size())) -
+          1) {
   // See note here on -1 part: https://github.com/antlr/antlr4/pull/1146
 }
 

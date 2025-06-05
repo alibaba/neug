@@ -1,7 +1,7 @@
 #pragma once
 
 #include "common/mask.h"
-#include "roaring.hh"
+#include "third_party/roaring_bitmap/roaring.hh"
 
 namespace kuzu {
 namespace common {

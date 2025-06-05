@@ -7,8 +7,8 @@
 #include "common/types/int128_t.h"
 #include "common/types/timestamp_t.h"
 #include "common/types/types.h"
-#include "fast_float.h"
 #include "function/cast/functions/numeric_limits.h"
+#include "third_party/fast_float/include/fast_float.h"
 
 using namespace kuzu::common;
 

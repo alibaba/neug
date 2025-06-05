@@ -2,7 +2,7 @@
 
 #include <string>
 
-#include "mbedtls/sha256.h"
+#include "third_party/mbedtls/include/mbedtls/sha256.h"
 
 namespace kuzu {
 namespace common {

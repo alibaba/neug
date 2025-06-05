@@ -267,7 +267,9 @@ class TupleImpl<RTAny> : public TupleImplBase {
   ~TupleImpl() = default;
   TupleImpl(std::vector<RTAny>&& val) : values(std::move(val)) {}
   bool operator<(const TupleImplBase& p) const override {
-    return values < dynamic_cast<const TupleImpl<RTAny>&>(p).values;
+    // return values < dynamic_cast<const TupleImpl<RTAny>&>(p).values;
+    LOG(FATAL) << "TupleImpl<RTAny> should not be compared directly.";
+    return false;  // This line is unreachable but avoids compiler warning.
   }
   bool operator==(const TupleImplBase& p) const override {
     return values == dynamic_cast<const TupleImpl<RTAny>&>(p).values;
@@ -310,7 +312,9 @@ class MapImpl : public CObject {
   }
   size_t size() const { return keys.size(); }
   bool operator<(const MapImpl& p) const {
-    return std::tie(keys, values) < std::tie(p.keys, p.values);
+    // return std::tie(keys, values) < std::tie(p.keys, p.values);
+    LOG(FATAL) << "MapImpl should not be compared directly.";
+    return false;  // This line is unreachable but avoids compiler warning.
   }
   bool operator==(const MapImpl& p) const {
     return std::tie(keys, values) == std::tie(p.keys, p.values);

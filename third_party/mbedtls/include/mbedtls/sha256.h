@@ -4,7 +4,8 @@
  * \brief This file contains SHA-224 and SHA-256 definitions and functions.
  *
  * The Secure Hash Algorithms 224 and 256 (SHA-224 and SHA-256) cryptographic
- * hash functions are defined in <em>FIPS 180-4: Secure Hash Standard (SHS)</em>.
+ * hash functions are defined in <em>FIPS 180-4: Secure Hash Standard
+ * (SHS)</em>.
  */
 /*
  *  Copyright The Mbed TLS Contributors
@@ -27,8 +28,8 @@
 #include <stddef.h>
 #include <stdint.h>
 
-#include "mbedtls/build_info.h"
-#include "mbedtls/private_access.h"
+#include "third_party/mbedtls/include/mbedtls/build_info.h"
+#include "third_party/mbedtls/include/mbedtls/private_access.h"
 
 /** SHA-256 input data was malformed. */
 #define MBEDTLS_ERR_SHA256_BAD_INPUT_DATA -0x0074
@@ -49,11 +50,12 @@ extern "C" {
  *                 made in the call to mbedtls_sha256_starts().
  */
 typedef struct mbedtls_sha256_context {
-    uint32_t MBEDTLS_PRIVATE(total)[2];        /*!< The number of Bytes processed.  */
-    uint32_t MBEDTLS_PRIVATE(state)[8];        /*!< The intermediate digest state.  */
-    unsigned char MBEDTLS_PRIVATE(buffer)[64]; /*!< The data block being processed. */
-    int MBEDTLS_PRIVATE(is224);                /*!< Determines which function to use:
-                                   0: Use SHA-256, or 1: Use SHA-224. */
+  uint32_t MBEDTLS_PRIVATE(total)[2]; /*!< The number of Bytes processed.  */
+  uint32_t MBEDTLS_PRIVATE(state)[8]; /*!< The intermediate digest state.  */
+  unsigned char MBEDTLS_PRIVATE(
+      buffer)[64];            /*!< The data block being processed. */
+  int MBEDTLS_PRIVATE(is224); /*!< Determines which function to use:
+                  0: Use SHA-256, or 1: Use SHA-224. */
 } mbedtls_sha256_context;
 
 #else /* MBEDTLS_SHA256_ALT */
@@ -82,7 +84,8 @@ void mbedtls_sha256_free(mbedtls_sha256_context* ctx);
  * \param dst      The destination context. This must be initialized.
  * \param src      The context to clone. This must be initialized.
  */
-void mbedtls_sha256_clone(mbedtls_sha256_context* dst, const mbedtls_sha256_context* src);
+void mbedtls_sha256_clone(mbedtls_sha256_context* dst,
+                          const mbedtls_sha256_context* src);
 
 /**
  * \brief          This function starts a SHA-224 or SHA-256 checksum
@@ -110,7 +113,8 @@ int mbedtls_sha256_starts(mbedtls_sha256_context* ctx, int is224);
  * \return         \c 0 on success.
  * \return         A negative error code on failure.
  */
-int mbedtls_sha256_update(mbedtls_sha256_context* ctx, const unsigned char* input, size_t ilen);
+int mbedtls_sha256_update(mbedtls_sha256_context* ctx,
+                          const unsigned char* input, size_t ilen);
 
 /**
  * \brief          This function finishes the SHA-256 operation, and writes
@@ -139,7 +143,8 @@ int mbedtls_sha256_finish(mbedtls_sha256_context* ctx, unsigned char* output);
  * \return         \c 0 on success.
  * \return         A negative error code on failure.
  */
-int mbedtls_internal_sha256_process(mbedtls_sha256_context* ctx, const unsigned char data[64]);
+int mbedtls_internal_sha256_process(mbedtls_sha256_context* ctx,
+                                    const unsigned char data[64]);
 
 /**
  * \brief          This function calculates the SHA-224 or SHA-256
@@ -163,7 +168,8 @@ int mbedtls_internal_sha256_process(mbedtls_sha256_context* ctx, const unsigned 
  * \return         \c 0 on success.
  * \return         A negative error code on failure.
  */
-int mbedtls_sha256(const unsigned char* input, size_t ilen, unsigned char* output, int is224);
+int mbedtls_sha256(const unsigned char* input, size_t ilen,
+                   unsigned char* output, int is224);
 
 #if defined(MBEDTLS_SELF_TEST)
 

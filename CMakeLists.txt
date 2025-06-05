@@ -7,7 +7,7 @@ string(REGEX REPLACE "\n$" "" NEXG_VERSION "${NEXG_VERSION}")
 project (
   NexG
   VERSION ${NEXG_VERSION}
-  LANGUAGES CXX)
+  LANGUAGES C CXX)
 
 
 option(BUILD_TEST "Whether to build test" OFF)
@@ -22,6 +22,95 @@ option(BUILD_EXECUTABLES "When to build executors" OFF) # Whether to build execu
 option(BUILD_HTTP_SERVER "Whether to build http server" OFF) # Whether to build http server, default is OFF
 option(BUILD_JNI_PLANNER "Whether to build jni wrapper for the java planner" ON) # Whether to build jni wrapper for the java planner, default is ON
 option(BUILD_METADATA "Whether to build metadata" OFF)
+#---------------------------------------------------------------------------------
+option(SINGLE_THREADED "Single-threaded mode" FALSE)
+option(ENABLE_WERROR "Treat all warnings as errors" FALSE)
+option(ENABLE_ADDRESS_SANITIZER "Enable address sanitizer." FALSE)
+option(ENABLE_THREAD_SANITIZER "Enable thread sanitizer." FALSE)
+option(ENABLE_UBSAN "Enable undefined behavior sanitizer." FALSE)
+option(ENABLE_RUNTIME_CHECKS "Enable runtime coherency checks (e.g. asserts)" FALSE)
+option(ENABLE_LTO "Enable Link-Time Optimization" FALSE)
+option(AUTO_UPDATE_GRAMMAR "Automatically regenerate C++ grammar files on change." TRUE)
+option(BUILD_EXTENSIONS "Semicolon-separated list of extensions to build." "")
+option(BUILD_SINGLE_FILE_HEADER "Build single file header. Requires Python >= 3.9." FALSE)
+option(BUILD_TEST "Build C++ tests." TRUE)
+option(BUILD_EXTENSION_TESTS "Build C++ extension tests." FALSE)
+option(BUILD_KUZU "Build Kuzu." TRUE)
+option(ENABLE_BACKTRACES "Enable backtrace printing for exceptions and segfaults" FALSE)
+
+add_definitions(-DKUZU_CMAKE_VERSION="${CMAKE_PROJECT_VERSION}")
+#TODO: Fixme
+add_definitions(-DKUZU_EXTENSION_VERSION="0.9.0")
+
+
+if (BUILD_TEST)
+    enable_testing()
+    find_package(GTest)
+    if (GTest_FOUND)
+        message(STATUS "GTest found")
+
+        add_library(neug::GTest INTERFACE IMPORTED)
+        target_link_libraries(neug::GTest INTERFACE GTest::gtest_main)
+        target_link_libraries(neug::GTest INTERFACE GTest::gmock_main)
+    endif()
+endif()
+
+if (ENABLE_BACKTRACES)
+    find_package(cpptrace)
+    if (NOT cpptrace_FOUND)
+        include(FetchContent)
+        FetchContent_Declare(
+          cpptrace
+          GIT_REPOSITORY https://github.com/jeremy-rifkin/cpptrace.git
+          GIT_TAG        v0.5.4
+          GIT_SHALLOW    TRUE
+        )
+        FetchContent_MakeAvailable(cpptrace)
+    endif()
+    add_compile_definitions(KUZU_BACKTRACE)
+endif()
+
+if(SINGLE_THREADED)
+    set(__SINGLE_THREADED__ TRUE)
+    add_compile_definitions(__SINGLE_THREADED__)
+    message(STATUS "Single-threaded mode is enabled")
+else()
+    find_package(Threads REQUIRED)
+endif()
+if(CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
+    add_compile_options(-Wno-restrict) # no restrict until https://gcc.gnu.org/bugzilla/show_bug.cgi?id=105651 is fixed
+endif()
+
+#----------------------------------------------------------------------------------
+# Detect OS and architecture, copied from DuckDB
+set(OS_NAME "unknown")
+set(OS_ARCH "amd64")
+
+string(REGEX MATCH "(arm64|aarch64)" IS_ARM "${CMAKE_SYSTEM_PROCESSOR}")
+if(IS_ARM)
+  set(OS_ARCH "arm64")
+elseif(FORCE_32_BIT)
+  set(OS_ARCH "i386")
+endif()
+
+if(APPLE)
+  set(OS_NAME "osx")
+endif()
+if(WIN32)
+  set(OS_NAME "windows")
+endif()
+if(UNIX AND NOT APPLE)
+  set(OS_NAME "linux") # sorry BSD
+endif()
+
+if(CMAKE_SIZEOF_VOID_P EQUAL 8)
+    message(STATUS "64-bit architecture detected")
+    add_compile_definitions(__64BIT__)
+elseif(CMAKE_SIZEOF_VOID_P EQUAL 4)
+    message(STATUS "32-bit architecture detected")
+    add_compile_definitions(__32BIT__)
+    set(__32BIT__ TRUE)
+endif()
 
 # Options to control the building of tools
 option(BUILD_PYTHON "Whether to build python embedded" ON)
@@ -50,7 +139,58 @@ message(STATUS "CMAKE_CXX_COMPILER: ${CMAKE_CXX_COMPILER}")
 set(CMAKE_BUILD_WITH_INSTALL_RPATH FALSE)
 set(CMAKE_INSTALL_RPATH "${CMAKE_INSTALL_PREFIX}/lib")
 set(CMAKE_INSTALL_RPATH_USE_LINK_PATH TRUE)
-set(CMAKE_CXX_STANDARD 17)
+set(CMAKE_CXX_STANDARD 20)
+set(CMAKE_CXX_STANDARD_REQUIRED TRUE)
+# set(CMAKE_CXX_VISIBILITY_PRESET hidden)
+# set(CMAKE_C_VISIBILITY_PRESET hidden)
+# set(CMAKE_EXPORT_COMPILE_COMMANDS TRUE)
+# set(CMAKE_FIND_PACKAGE_RESOLVE_SYMLINKS TRUE)
+# set(CMAKE_POSITION_INDEPENDENT_CODE ON)
+# set(CMAKE_VISIBILITY_INLINES_HIDDEN ON)
+# On Linux, symbols in executables are not accessible by loaded shared libraries (e.g. via dlopen(3)). However, we need to export public symbols in executables so that extensions can access public symbols. This enables that behaviour.
+set(CMAKE_ENABLE_EXPORTS TRUE)
+
+if(ENABLE_WERROR)
+    if (CMAKE_VERSION VERSION_GREATER "3.24.0" OR CMAKE_VERSION VERSION_EQUAL "3.24.0")
+        set(CMAKE_COMPILE_WARNING_AS_ERROR TRUE)
+    elseif (MSVC)
+        add_compile_options(\WX)
+    else ()
+        add_compile_options(-Werror)
+    endif()
+endif()
+
+function(add_kuzu_test TEST_NAME)
+    set(SRCS ${ARGN})
+    add_executable(${TEST_NAME} ${SRCS})
+    #target_link_libraries(${TEST_NAME} PRIVATE test_helper test_runner graph_test)
+    #if (ENABLE_BACKTRACES)
+    #    target_link_libraries(${TEST_NAME} PRIVATE register_backtrace_signal_handler)
+    #endif()
+    #target_include_directories(${TEST_NAME} PRIVATE ${PROJECT_SOURCE_DIR}/test/include)
+
+    target_link_libraries(${TEST_NAME} PUBLIC neug::GTest kuzu)
+    target_include_directories(${TEST_NAME} PRIVATE src/include)
+
+    include(GoogleTest)
+
+    if (TEST_NAME STREQUAL "e2e_test")
+        gtest_discover_tests(${TEST_NAME}
+            DISCOVERY_TIMEOUT 600
+            # DISCOVERY_MODE PRE_TEST
+            DISCOVERY_MODE POST_BUILD
+            TEST_PREFIX e2e_test_
+        )
+    else()
+	    #    gtest_discover_tests(${TEST_NAME}
+            #    gtesDISCOVERY_TIMEOUT 600
+            #    gtes# DISCOVERY_MODE PRE_TEST
+            #    gtesDISCOVERY_MODE POST_BUILD
+	    #)
+	add_test(NAME ${TEST_NAME} COMMAND ${TEST_NAME})
+	gtest_add_tests(TARGET ${TEST_NAME} TEST_LIST ${TEST_NAME}_tests)
+    endif()
+endfunction()
 
 if(USE_PTHASH)
     message("Use PTHash")
@@ -180,7 +320,7 @@ if (NOT CMAKE_CXX_COMPILER_ID MATCHES "Clang")
     set(CMAKE_SHARED_LINKER_FLAGS "${CMAKE_SHARED_LINKER_FLAGS} -fopenmp")
 endif ()
 
-set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS}  -std=c++17 -Wall -fPIC -Wno-psabi")
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS}  -std=c++20 -Wall -fPIC -Wno-psabi")
 # -Wno-psabi for no warning about returning a pair in c++ function
 if (OPTIMIZE_FOR_HOST AND NOT APPLE)
     set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -march=native")
@@ -188,6 +328,42 @@ endif()
 
 set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} -O0 -g")
 set(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE} -O3")
+
+
+#------------------------Brought by compiler------------------------------------
+if(${ENABLE_THREAD_SANITIZER} AND (NOT __SINGLE_THREADED__))
+    if(MSVC)
+        message(FATAL_ERROR "Thread sanitizer is not supported on MSVC")
+    else()
+        set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fsanitize=thread -fno-omit-frame-pointer")
+    endif()
+endif()
+if(${ENABLE_ADDRESS_SANITIZER})
+    if(MSVC)
+        set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /fsanitize=address")
+    else()
+        set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fsanitize=address -fno-omit-frame-pointer")
+    endif()
+endif()
+if(${ENABLE_UBSAN})
+    if(MSVC)
+        message(FATAL_ERROR "Undefined behavior sanitizer is not supported on MSVC")
+    else()
+        set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fsanitize=undefined -fno-omit-frame-pointer")
+    endif()
+endif()
+
+if(${ENABLE_RUNTIME_CHECKS})
+    add_compile_definitions(KUZU_RUNTIME_CHECKS)
+endif()
+
+if (${ENABLE_DESER_DEBUG})
+    add_compile_definitions(KUZU_DESER_DEBUG)
+endif()
+
+if(${ENABLE_LTO})
+    set(CMAKE_INTERPROCEDURAL_OPTIMIZATION TRUE)
+endif()
 
 # find Threads------------------------------------------------------------------
 set(CMAKE_THREAD_PREFER_PTHREAD ON)
@@ -251,6 +427,29 @@ else ()
     endif()
 endif ()
 
+
+#-------------------------------Compiler related options-------------------------------
+option(KUZU_DEFAULT_REL_STORAGE_DIRECTION "Only store fwd direction in rel tables by default." BOTH)
+if(NOT KUZU_DEFAULT_REL_STORAGE_DIRECTION)
+    set(KUZU_DEFAULT_REL_STORAGE_DIRECTION BOTH)
+endif()
+option(KUZU_PAGE_SIZE_LOG2 "Log2 of the page size." 12)
+if(NOT KUZU_PAGE_SIZE_LOG2)
+    set(KUZU_PAGE_SIZE_LOG2 12)
+endif()
+message(STATUS "KUZU_PAGE_SIZE_LOG2: ${KUZU_PAGE_SIZE_LOG2}")
+option(KUZU_VECTOR_CAPACITY_LOG2 "Log2 of the vector capacity." 11)
+if(NOT KUZU_VECTOR_CAPACITY_LOG2)
+    set(KUZU_VECTOR_CAPACITY_LOG2 11)
+endif()
+message(STATUS "KUZU_VECTOR_CAPACITY_LOG2: ${KUZU_VECTOR_CAPACITY_LOG2}")
+
+# 64 * 2048 nodes per group
+option(KUZU_NODE_GROUP_SIZE_LOG2 "Log2 of the vector capacity." 17)
+if(NOT KUZU_NODE_GROUP_SIZE_LOG2)
+    set(KUZU_NODE_GROUP_SIZE_LOG2 17)
+endif()
+message(STATUS "KUZU_NODE_GROUP_SIZE_LOG2: ${KUZU_NODE_GROUP_SIZE_LOG2}")
 
 
 if (BUILD_WITH_OTEL)
@@ -323,6 +522,27 @@ endif()
 add_subdirectory(tools)
 add_subdirectory(third_party/libgrape-lite)
 include_directories(SYSTEM ${CMAKE_SOURCE_DIR}/third_party/libgrape-lite)
+
+include_directories(SYSTEM ${CMAKE_SOURCE_DIR}/third_party/thrift/)
+include_directories(SYSTEM ${CMAKE_SOURCE_DIR}/third_party/thrift/protocol)
+include_directories(SYSTEM ${CMAKE_SOURCE_DIR}/third_party/re2/include)
+include_directories(SYSTEM ${CMAKE_SOURCE_DIR}/third_party/antlr4_cypher/include)
+
+
+#-------------------Compiler's third party libraries-------------------
+add_subdirectory(third_party/antlr4_cypher)
+add_subdirectory(third_party/antlr4_runtime)
+add_subdirectory(third_party/fast_float)
+add_subdirectory(third_party/glob)
+add_subdirectory(third_party/lz4)
+add_subdirectory(third_party/mbedtls)
+add_subdirectory(third_party/miniz)
+add_subdirectory(third_party/parquet)
+add_subdirectory(third_party/re2)
+add_subdirectory(third_party/roaring_bitmap)
+add_subdirectory(third_party/thrift)
+add_subdirectory(third_party/utf8proc)
+add_subdirectory(third_party/zstd)
 
 
 configure_file(${CMAKE_CURRENT_SOURCE_DIR}/nexg-config.in.cmake
