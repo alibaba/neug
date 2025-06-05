@@ -259,9 +259,9 @@ void MutableFragmentLoader::loadVertices() {
       CHECK(primary_keys.size() == 1);
       auto primary_key = primary_keys[0];
       if (cur_label_col_mapping.size() == 0) {
-        // use default mapping, we assume the order of the columns in the file
-        // is the same as the order of the properties in the schema, except for
-        // primary key.
+        // use default mapping, we assume the order of the columns in the
+        // file is the same as the order of the properties in the schema,
+        // except for primary key.
         auto primary_key_name = std::get<1>(primary_key);
         auto primary_key_ind = std::get<2>(primary_key);
         auto property_names = schema_.get_vertex_property_names(v_label_id);
@@ -279,8 +279,9 @@ void MutableFragmentLoader::loadVertices() {
 
         for (size_t i = 0; i < read_options.column_names.size(); ++i) {
           included_col_names.emplace_back(read_options.column_names[i]);
-          // We assume the order of the columns in the file is the same as the
-          // order of the properties in the schema, except for primary key.
+          // We assume the order of the columns in the file is the same as
+          // the order of the properties in the schema, except for primary
+          // key.
           mapped_property_names.emplace_back(property_names[i]);
         }
       } else {
@@ -319,8 +320,9 @@ void MutableFragmentLoader::loadVertices() {
         CHECK(property_types.size() == property_names.size());
 
         for (size_t i = 0; i < property_types.size(); ++i) {
-          // for each schema' property name, get the index of the column in
-          // vertex_column mapping, and bind the type with the column name
+          // for each schema' property name, get the index of the column
+          // in vertex_column mapping, and bind the type with the column
+          // name
           auto property_type = property_types[i];
           auto property_name = property_names[i];
           size_t ind = mapped_property_names.size();

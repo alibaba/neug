@@ -223,120 +223,149 @@ class MutablePropertyFragment {
           },
           idx);
     }
+
+    std::shared_mutex rw_mutex;
+    std::atomic<size_t> offset(0);
+    for (unsigned idx = 0;
+         idx <
+         std::min(static_cast<unsigned>(8 * record_batch_supplier_vec.size()),
+                  std::thread::hardware_concurrency());
+         ++idx) {
+      work_threads.emplace_back(
+          [&](int i) {
+            auto& vtable = vertex_data_[v_label_id];
+            while (true) {
+              std::shared_ptr<arrow::RecordBatch> batch{nullptr};
+              auto ret = queue.Get(batch);
+              if (!ret) {
+                break;
+              }
+              if (!batch) {
+                LOG(FATAL) << "get nullptr batch";
+              }
+              auto columns = batch->columns();
+              CHECK(primary_key_ind < columns.size());
+              auto primary_key_column = columns[primary_key_ind];
+              auto other_columns_array = columns;
+              other_columns_array.erase(other_columns_array.begin() +
+                                        primary_key_ind);
+
+              auto local_offset =
+                  offset.fetch_add(primary_key_column->length());
+              size_t cur_row_num = std::max(vtable.row_num(), 1ul);
+              while (cur_row_num <
+                     local_offset + primary_key_column->length()) {
+                cur_row_num *= 2;
+              }
+              if (cur_row_num > vtable.row_num()) {
+                std::unique_lock<std::shared_mutex> lock(rw_mutex);
+                if (cur_row_num > vtable.row_num()) {
+                  vtable.resize(cur_row_num);
+                }
+              }
+
+              size_t row_num = primary_key_column->length();
+              auto col_num = other_columns_array.size();
+              for (size_t j = 0; j < col_num; ++j) {
+                CHECK_EQ(other_columns_array[j]->length(), row_num);
+              }
+              std::vector<size_t> vids;
+              vids.reserve(row_num);
+
+              {
+                std::unique_lock<std::mutex> lock(v_mutex_[v_label_id]);
+                vid_t vid;
+                if constexpr (!std::is_same<std::string_view, PK_T>::value) {
+                  static constexpr vid_t sentinel =
+                      std::numeric_limits<vid_t>::max();
+                  auto expected_type =
+                      gs::TypeConverter<PK_T>::ArrowTypeValue();
+                  using arrow_array_t =
+                      typename gs::TypeConverter<PK_T>::ArrowArrayType;
+                  if (!primary_key_column->type()->Equals(expected_type)) {
+                    LOG(FATAL) << "Inconsistent data type, expect "
+                               << expected_type->ToString() << ", but got "
+                               << primary_key_column->type()->ToString();
+                  }
+                  auto casted_array = std::static_pointer_cast<arrow_array_t>(
+                      primary_key_column);
+                  LOG(INFO) << "Indexer reserve size "
+                            << lf_indexers_[v_label_id].size() + row_num;
+                  {
+                    lf_indexers_[v_label_id].reserve(
+                        lf_indexers_[v_label_id].size() + row_num);
+                  }
+                  for (size_t j = 0; j < row_num; ++j) {
+                    auto vertex_exist = lf_indexers_[v_label_id].get_index(
+                        casted_array->Value(j), vid);
+                    if (vertex_exist) {
+                      vids.emplace_back(sentinel);
+                    } else {
+                      vid = lf_indexers_[v_label_id].insert(
+                          casted_array->Value(j));
+                      vids.emplace_back(vid);
+                    }
+                  }
+                } else {
+                  if (primary_key_column->type()->Equals(arrow::utf8())) {
+                    auto casted_array =
+                        std::static_pointer_cast<arrow::StringArray>(
+                            primary_key_column);
+                    for (size_t j = 0; j < row_num; ++j) {
+                      auto str = casted_array->GetView(j);
+                      std::string_view str_view(str.data(), str.size());
+                      auto vertex_exist =
+                          lf_indexers_[v_label_id].get_index(str_view, vid);
+                      if (vertex_exist) {
+                        vids.emplace_back(std::numeric_limits<size_t>::max());
+                      } else {
+                        vid = lf_indexers_[v_label_id].insert(str_view);
+                        vids.emplace_back(vid);
+                      }
+                    }
+                  } else if (primary_key_column->type()->Equals(
+                                 arrow::large_utf8())) {
+                    auto casted_array =
+                        std::static_pointer_cast<arrow::LargeStringArray>(
+                            primary_key_column);
+                    for (size_t j = 0; j < row_num; ++j) {
+                      auto str = casted_array->GetView(j);
+                      std::string_view str_view(str.data(), str.size());
+                      auto vertex_exist =
+                          lf_indexers_[v_label_id].get_index(str_view, vid);
+                      if (vertex_exist) {
+                        vids.emplace_back(std::numeric_limits<size_t>::max());
+                      } else {
+                        vid = lf_indexers_[v_label_id].insert(str_view);
+                        vids.emplace_back(vid);
+                      }
+                    }
+                  } else {
+                    LOG(FATAL) << "Not support type: "
+                               << primary_key_column->type()->ToString();
+                  }
+                }
+              }
+
+              LOG(INFO) << "Start to set property column";
+              // Set other columns
+              {
+                std::shared_lock<std::shared_mutex> lock(rw_mutex);
+                for (size_t j = 0; j < other_columns_array.size(); j++) {
+                  auto chunked_array = std::make_shared<arrow::ChunkedArray>(
+                      other_columns_array[j]);
+                  auto column = vertex_data_[v_label_id].column_ptrs()[j];
+                  set_properties_column(column, chunked_array, vids);
+                }
+              }
+            }
+          },
+          idx);
+    }
     for (auto& t : work_threads) {
       t.join();
     }
     work_threads.clear();
-    std::atomic<size_t> offset(0);
-    auto& vtable = vertex_data_[v_label_id];
-    while (true) {
-      std::shared_ptr<arrow::RecordBatch> batch{nullptr};
-      auto ret = queue.Get(batch);
-      if (!ret) {
-        break;
-      }
-      if (!batch) {
-        LOG(FATAL) << "get nullptr batch";
-      }
-      auto columns = batch->columns();
-      CHECK(primary_key_ind < columns.size());
-      auto primary_key_column = columns[primary_key_ind];
-      auto other_columns_array = columns;
-      other_columns_array.erase(other_columns_array.begin() + primary_key_ind);
-
-      auto local_offset = offset.fetch_add(primary_key_column->length());
-      size_t cur_row_num = std::max(vtable.row_num(), 1ul);
-      while (cur_row_num < local_offset + primary_key_column->length()) {
-        cur_row_num *= 2;
-      }
-      if (cur_row_num > vtable.row_num()) {
-        vtable.resize(cur_row_num);
-      }
-
-      size_t row_num = primary_key_column->length();
-      auto col_num = other_columns_array.size();
-      for (size_t j = 0; j < col_num; ++j) {
-        CHECK_EQ(other_columns_array[j]->length(), row_num);
-      }
-      std::vector<size_t> vids;
-      vids.reserve(row_num);
-
-      vid_t vid;
-
-      if constexpr (!std::is_same<std::string_view, PK_T>::value) {
-        static constexpr vid_t sentinel = std::numeric_limits<vid_t>::max();
-        auto expected_type = gs::TypeConverter<PK_T>::ArrowTypeValue();
-        using arrow_array_t = typename gs::TypeConverter<PK_T>::ArrowArrayType;
-        if (!primary_key_column->type()->Equals(expected_type)) {
-          LOG(FATAL) << "Inconsistent data type, expect "
-                     << expected_type->ToString() << ", but got "
-                     << primary_key_column->type()->ToString();
-        }
-        auto casted_array =
-            std::static_pointer_cast<arrow_array_t>(primary_key_column);
-        LOG(INFO) << "Indexer reserve size "
-                  << lf_indexers_[v_label_id].size() + row_num;
-        {
-          lf_indexers_[v_label_id].reserve(lf_indexers_[v_label_id].size() +
-                                           row_num);
-        }
-
-        for (size_t j = 0; j < row_num; ++j) {
-          auto vertex_exist =
-              lf_indexers_[v_label_id].get_index(casted_array->Value(j), vid);
-          if (vertex_exist) {
-            vids.emplace_back(sentinel);
-          } else {
-            vid = lf_indexers_[v_label_id].insert(casted_array->Value(j));
-            vids.emplace_back(vid);
-          }
-        }
-      } else {
-        if (primary_key_column->type()->Equals(arrow::utf8())) {
-          auto casted_array =
-              std::static_pointer_cast<arrow::StringArray>(primary_key_column);
-          for (size_t j = 0; j < row_num; ++j) {
-            auto str = casted_array->GetView(j);
-            std::string_view str_view(str.data(), str.size());
-            auto vertex_exist =
-                lf_indexers_[v_label_id].get_index(str_view, vid);
-            if (vertex_exist) {
-              vids.emplace_back(std::numeric_limits<size_t>::max());
-            } else {
-              vid = lf_indexers_[v_label_id].insert(str_view);
-              vids.emplace_back(vid);
-            }
-          }
-        } else if (primary_key_column->type()->Equals(arrow::large_utf8())) {
-          auto casted_array = std::static_pointer_cast<arrow::LargeStringArray>(
-              primary_key_column);
-          for (size_t j = 0; j < row_num; ++j) {
-            auto str = casted_array->GetView(j);
-            std::string_view str_view(str.data(), str.size());
-            auto vertex_exist =
-                lf_indexers_[v_label_id].get_index(str_view, vid);
-            if (vertex_exist) {
-              vids.emplace_back(std::numeric_limits<size_t>::max());
-            } else {
-              vid = lf_indexers_[v_label_id].insert(str_view);
-              vids.emplace_back(vid);
-            }
-          }
-        } else {
-          LOG(FATAL) << "Not support type: "
-                     << primary_key_column->type()->ToString();
-        }
-      }
-
-      LOG(INFO) << "Start to set property column";
-      // Set other columns
-      for (size_t j = 0; j < other_columns_array.size(); j++) {
-        auto chunked_array =
-            std::make_shared<arrow::ChunkedArray>(other_columns_array[j]);
-        auto column = vertex_data_[v_label_id].column_ptrs()[j];
-        set_properties_column(column, chunked_array, vids);
-      }
-    }
 
     vertex_data_[v_label_id].dump_without_close(
         vertex_table_prefix(vertex_type_name), snapshot_dir(work_dir_, 0));
@@ -387,12 +416,12 @@ class MutablePropertyFragment {
       oe_degree[idx].store(0);
     }
 
-    LOG(INFO) << "Start read supplier\n";
     std::atomic<size_t> offset(0);
     std::shared_mutex rw_mutex;
     for (size_t idx = 0; idx < record_batch_supplier_vec.size(); ++idx) {
       work_threads.emplace_back(
           [&](int idx) {
+            auto& string_column = string_columns[idx];
             bool first_batch = true;
             auto& record_batch_supplier = record_batch_supplier_vec[idx];
             while (true) {
@@ -412,123 +441,153 @@ class MutablePropertyFragment {
                     << " neq header size: " << header.size();
                 first_batch = false;
               }
+              for (auto i = 0; i < batch->num_columns(); ++i) {
+                if (batch->column(i)->type()->Equals(arrow::utf8()) ||
+                    batch->column(i)->type()->Equals(arrow::large_utf8())) {
+                  string_column.emplace_back(batch->column(i));
+                }
+              }
               queue.Put(batch);
             }
           },
           idx);
     }
-    for (auto& t : work_threads) {
-      t.join();
-    }
-    LOG(INFO) << "Join work thread\n";
     for (size_t idx = 0;
          idx <
          std::min(static_cast<unsigned>(8 * record_batch_supplier_vec.size()),
                   std::thread::hardware_concurrency());
          ++idx) {
-      auto& parsed_edges = parsed_edges_vec[idx];
-      while (true) {
-        std::shared_ptr<arrow::RecordBatch> batch{nullptr};
-        auto ret = queue.Get(batch);
-        if (!ret) {
-          break;
-        }
-        if (!batch) {
-          LOG(FATAL) << "get nullptr batch";
-        }
-        auto columns = batch->columns();
-        // We assume the src_col and dst_col will always be put
-        // at front.
-        CHECK(columns.size() >= 2);
-        auto src_col = columns[0];
-        auto dst_col = columns[1];
-        auto src_col_type = src_col->type();
-        auto dst_col_type = dst_col->type();
-        CHECK(check_primary_key_type(src_col_type))
-            << "unsupported src_col type: " << src_col_type->ToString();
-        CHECK(check_primary_key_type(dst_col_type))
-            << "unsupported dst_col type: " << dst_col_type->ToString();
-        std::vector<std::shared_ptr<arrow::Array>> property_cols;
-        for (size_t i = 2; i < columns.size(); ++i) {
-          property_cols.emplace_back(columns[i]);
-        }
-        size_t offset_i = 0;
-        if constexpr (std::is_same<EDATA_T, RecordView>::value) {
-          auto casted_csr =
-              dynamic_cast<DualCsr<RecordView>*>(dual_csr_map_.at(index));
-          CHECK(casted_csr != NULL);
-          auto table = casted_csr->GetTable();
-          CHECK(table.col_num() == property_cols.size());
-          offset_i = offset.fetch_add(src_col->length());
-          std::vector<size_t> offsets;
-          for (size_t _i = 0; _i < static_cast<size_t>(src_col->length());
-               ++_i) {
-            offsets.emplace_back(offset_i + _i);
-          }
-          size_t row_num = std::max(table.row_num(), 1ul);
+      work_threads.emplace_back(
+          [&](int idx) {
+            auto& parsed_edges = parsed_edges_vec[idx];
+            while (true) {
+              std::shared_ptr<arrow::RecordBatch> batch{nullptr};
+              auto ret = queue.Get(batch);
+              if (!ret) {
+                break;
+              }
+              if (!batch) {
+                LOG(FATAL) << "get nullptr batch";
+              }
+              auto columns = batch->columns();
+              // We assume the src_col and dst_col will always be put
+              // at front.
+              CHECK(columns.size() >= 2);
+              auto src_col = columns[0];
+              auto dst_col = columns[1];
+              auto src_col_type = src_col->type();
+              auto dst_col_type = dst_col->type();
+              CHECK(check_primary_key_type(src_col_type))
+                  << "unsupported src_col type: " << src_col_type->ToString();
+              CHECK(check_primary_key_type(dst_col_type))
+                  << "unsupported dst_col type: " << dst_col_type->ToString();
+              std::vector<std::shared_ptr<arrow::Array>> property_cols;
+              for (size_t i = 2; i < columns.size(); ++i) {
+                property_cols.emplace_back(columns[i]);
+              }
+              size_t offset_i = 0;
+              if constexpr (std::is_same<EDATA_T, RecordView>::value) {
+                auto casted_csr =
+                    dynamic_cast<DualCsr<RecordView>*>(dual_csr_map_.at(index));
+                CHECK(casted_csr != NULL);
+                auto table = casted_csr->GetTable();
+                CHECK(table.col_num() == property_cols.size());
+                offset_i = offset.fetch_add(src_col->length());
+                std::vector<size_t> offsets;
+                for (size_t _i = 0; _i < static_cast<size_t>(src_col->length());
+                     ++_i) {
+                  offsets.emplace_back(offset_i + _i);
+                }
+                size_t row_num = std::max(table.row_num(), 1ul);
 
-          while (row_num < offset_i + src_col->length()) {
-            row_num *= 2;
-          }
-          if (row_num > table.row_num()) {
-            table.resize(row_num);
-          }
+                while (row_num < offset_i + src_col->length()) {
+                  row_num *= 2;
+                }
+                if (row_num > table.row_num()) {
+                  std::unique_lock<std::shared_mutex> lock(rw_mutex);
+                  if (row_num > table.row_num()) {
+                    table.resize(row_num);
+                  }
+                }
 
-          {
-            for (size_t i = 0; i < table.col_num(); ++i) {
-              auto col = table.get_column_by_id(i);
-              auto chunked_array =
-                  std::make_shared<arrow::ChunkedArray>(property_cols[i]);
-              set_properties_column(col.get(), chunked_array, offsets);
+                {
+                  std::shared_lock<std::shared_mutex> lock(rw_mutex);
+                  for (size_t i = 0; i < table.col_num(); ++i) {
+                    auto col = table.get_column_by_id(i);
+                    auto chunked_array =
+                        std::make_shared<arrow::ChunkedArray>(property_cols[i]);
+                    set_properties_column(col.get(), chunked_array, offsets);
+                  }
+                }
+              }
+
+              CHECK(src_col->length() == dst_col->length());
+              auto old_size = parsed_edges.size();
+              parsed_edges.resize(old_size + src_col->length());
+
+              auto edata_col_thread = std::thread([&]() {
+                if constexpr (std::is_same<EDATA_T, RecordView>::value) {
+                  size_t cur_ind = old_size;
+                  for (auto j = 0; j < src_col->length(); ++j) {
+                    std::get<2>(parsed_edges[cur_ind++]) = offset++;
+                  }
+                } else if constexpr (!std::is_same<EDATA_T,
+                                                   grape::EmptyType>::value) {
+                  auto edata_col = property_cols[0];
+                  CHECK(src_col->length() == edata_col->length());
+                  size_t cur_ind = old_size;
+                  auto type = edata_col->type();
+                  if (!type->Equals(TypeConverter<EDATA_T>::ArrowTypeValue())) {
+                    LOG(FATAL)
+                        << "Inconsistent data type, expect "
+                        << TypeConverter<EDATA_T>::ArrowTypeValue()->ToString()
+                        << ", but got " << type->ToString();
+                  }
+
+                  using arrow_array_type =
+                      typename gs::TypeConverter<EDATA_T>::ArrowArrayType;
+                  // cast chunk to EDATA_T array
+                  auto data =
+                      std::static_pointer_cast<arrow_array_type>(edata_col);
+                  for (auto j = 0; j < edata_col->length(); ++j) {
+                    if constexpr (std::is_same<arrow_array_type,
+                                               arrow::StringArray>::value ||
+                                  std::is_same<
+                                      arrow_array_type,
+                                      arrow::LargeStringArray>::value) {
+                      auto str = data->GetView(j);
+                      std::string_view str_view(str.data(), str.size());
+                      std::get<2>(parsed_edges[cur_ind++]) = str_view;
+                    } else {
+                      std::get<2>(parsed_edges[cur_ind++]) = data->Value(j);
+                    }
+                  }
+                  LOG(INFO)
+                      << "Finish inserting:  " << src_col->length() << " edges";
+                }
+              });
+
+              size_t cur_ind = old_size;
+              auto src_col_thread = std::thread([&]() {
+                insert_edges<SRC_PK_T, EDATA_T>(false, cur_ind, src_col,
+                                                src_indexer, parsed_edges,
+                                                oe_degree);
+              });
+              auto dst_col_thread = std::thread([&]() {
+                insert_edges<DST_PK_T, EDATA_T>(true, cur_ind, dst_col,
+                                                dst_indexer, parsed_edges,
+                                                ie_degree);
+              });
+              edata_col_thread.join();
+              src_col_thread.join();
+              dst_col_thread.join();
             }
-          }
-        }
+          },
+          idx);
+    }
 
-        CHECK(src_col->length() == dst_col->length());
-        auto old_size = parsed_edges.size();
-        parsed_edges.resize(old_size + src_col->length());
-
-        if constexpr (std::is_same<EDATA_T, RecordView>::value) {
-          size_t cur_ind = old_size;
-          for (auto j = 0; j < src_col->length(); ++j) {
-            std::get<2>(parsed_edges[cur_ind++]) = offset++;
-          }
-        } else if constexpr (!std::is_same<EDATA_T, grape::EmptyType>::value) {
-          auto edata_col = property_cols[0];
-          CHECK(src_col->length() == edata_col->length());
-          size_t cur_ind = old_size;
-          auto type = edata_col->type();
-          if (!type->Equals(TypeConverter<EDATA_T>::ArrowTypeValue())) {
-            LOG(FATAL) << "Inconsistent data type, expect "
-                       << TypeConverter<EDATA_T>::ArrowTypeValue()->ToString()
-                       << ", but got " << type->ToString();
-          }
-
-          using arrow_array_type =
-              typename gs::TypeConverter<EDATA_T>::ArrowArrayType;
-          // cast chunk to EDATA_T array
-          auto data = std::static_pointer_cast<arrow_array_type>(edata_col);
-          for (auto j = 0; j < edata_col->length(); ++j) {
-            if constexpr (std::is_same<arrow_array_type,
-                                       arrow::StringArray>::value ||
-                          std::is_same<arrow_array_type,
-                                       arrow::LargeStringArray>::value) {
-              auto str = data->GetView(j);
-              std::string_view str_view(str.data(), str.size());
-              std::get<2>(parsed_edges[cur_ind++]) = str_view;
-            } else {
-              std::get<2>(parsed_edges[cur_ind++]) = data->Value(j);
-            }
-          }
-          LOG(INFO) << "Finish inserting:  " << src_col->length() << " edges";
-        }
-
-        size_t cur_ind = old_size;
-        insert_edges<SRC_PK_T, EDATA_T>(false, cur_ind, src_col, src_indexer,
-                                        parsed_edges, oe_degree);
-        insert_edges<DST_PK_T, EDATA_T>(true, cur_ind, dst_col, dst_indexer,
-                                        parsed_edges, ie_degree);
-      }
+    for (auto& t : work_threads) {
+      t.join();
     }
 
     std::vector<int32_t> ie_deg(ie_degree.size());
@@ -557,32 +616,48 @@ class MutablePropertyFragment {
         edata_prefix(src_vertex_type, dst_vertex_type, edge_type_name),
         tmp_dir(work_dir_), oe_deg, ie_deg);
     if constexpr (std::is_same_v<EDATA_T, std::string_view>) {
+      std::vector<std::thread> edge_threads;
       for (size_t i = 0; i < parsed_edges_vec.size(); ++i) {
-        edge_count.fetch_add(parsed_edges_vec[i].size());
-        for (auto& edge : parsed_edges_vec[i]) {
-          if (std::get<1>(edge) == INVALID_VID ||
-              std::get<0>(edge) == INVALID_VID) {
-            VLOG(10) << "Skip invalid edge:" << std::get<0>(edge) << "->"
-                     << std::get<1>(edge);
-            continue;
-          }
-          casted_dual_csr->BatchPutEdge(std::get<0>(edge), std::get<1>(edge),
-                                        std::get<2>(edge));
-        }
+        edge_threads.emplace_back(
+            [&](int idx) {
+              edge_count.fetch_add(parsed_edges_vec[idx].size());
+              for (auto& edge : parsed_edges_vec[idx]) {
+                if (std::get<1>(edge) == INVALID_VID ||
+                    std::get<0>(edge) == INVALID_VID) {
+                  VLOG(10) << "Skip invalid edge:" << std::get<0>(edge) << "->"
+                           << std::get<1>(edge);
+                  continue;
+                }
+                casted_dual_csr->BatchPutEdge(
+                    std::get<0>(edge), std::get<1>(edge), std::get<2>(edge));
+              }
+            },
+            i);
+      }
+      for (auto& t : edge_threads) {
+        t.join();
       }
     } else {
+      std::vector<std::thread> edge_threads;
       for (size_t i = 0; i < parsed_edges_vec.size(); ++i) {
-        edge_count.fetch_add(parsed_edges_vec[i].size());
-        for (auto& edge : parsed_edges_vec[i]) {
-          if (std::get<1>(edge) == INVALID_VID ||
-              std::get<0>(edge) == INVALID_VID) {
-            VLOG(10) << "Skip invalid edge:" << std::get<0>(edge) << "->"
-                     << std::get<1>(edge);
-            continue;
-          }
-          casted_dual_csr->BatchPutEdge(std::get<0>(edge), std::get<1>(edge),
-                                        std::get<2>(edge));
-        }
+        edge_threads.emplace_back(
+            [&](int idx) {
+              edge_count.fetch_add(parsed_edges_vec[idx].size());
+              for (auto& edge : parsed_edges_vec[idx]) {
+                if (std::get<1>(edge) == INVALID_VID ||
+                    std::get<0>(edge) == INVALID_VID) {
+                  VLOG(10) << "Skip invalid edge:" << std::get<0>(edge) << "->"
+                           << std::get<1>(edge);
+                  continue;
+                }
+                casted_dual_csr->BatchPutEdge(
+                    std::get<0>(edge), std::get<1>(edge), std::get<2>(edge));
+              }
+            },
+            i);
+      }
+      for (auto& t : edge_threads) {
+        t.join();
       }
     }
 
@@ -712,7 +787,7 @@ class MutablePropertyFragment {
 
   std::string work_dir_;
   Schema schema_;
-  std::shared_mutex rw_mutex_;
+  std::mutex* v_mutex_;
   std::vector<IndexerType> lf_indexers_;
   std::vector<Table> vertex_data_;
 
