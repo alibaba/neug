@@ -42,6 +42,10 @@ add_definitions(-DKUZU_CMAKE_VERSION="${CMAKE_PROJECT_VERSION}")
 #TODO: Fixme
 add_definitions(-DKUZU_EXTENSION_VERSION="0.9.0")
 
+if (BUILD_HTTP_SERVER AND NOT BUILD_METADATA)
+    message(FATAL_ERROR "BUILD_HTTP_SERVER requires BUILD_METADATA to be ON")
+endif()
+
 
 if (BUILD_TEST)
     enable_testing()
