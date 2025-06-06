@@ -1,4 +1,4 @@
-name: Nexg Python Test
+name: Neug Test
 
 on:
   # Trigger the workflow on push or pull request,
@@ -51,6 +51,8 @@ jobs:
         git submodule update --init
         export DEBUG=1
         export CMAKE_BUILD_PARALLEL_LEVEL=$(nproc)
+        export BUILD_EXECUTABLES=ON
+        export BUILD_TEST=ON
         cd tools/python_bind
         make build
 
@@ -63,4 +65,13 @@ jobs:
         python3 -m pytest -sv tests/test_batch_loading.py
         python3 -m pytest -sv tests/test_ddl.py
 
+
+    - name: Run lsqb test
+      run: |
+        cd ${GITHUB_WORKSPACE}/tools/python_bind/
+        rm -rf /tmp/lsqb
+        export FLEX_DATA_DIR=${GITHUB_WORKSPACE}/example_dataset/lsqb-sf01
+        GLOG_v=10 ./build/nexg_py_bind/src/bin/bulk_loader -g ../../example_dataset/lsqb-sf01/graph.yaml -l ../../example_dataset/lsqb-sf01/import.yaml -d /tmp/lsqb
+        export LSQB_DATA_DIR=/tmp/lsqb
+        python3 -m pytest -sv tests/test_lsqb.py
 

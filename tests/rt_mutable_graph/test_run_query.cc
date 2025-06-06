@@ -13,12 +13,21 @@ int main(int argc, char** argv) {
 
   std::string data_path = argv[1];
 
-  gs::NexgDB db(
-      data_path, 1, "w", "jni",
-      "/workspaces/neug/tools/python_bind/nexg/resources/compiler.jar",
-      "/workspaces/neug/tools/python_bind/nexg/resources/"
-      "planner_config.yaml",
-      "/workspaces/neug/tools/python_bind/nexg/resources/");
+  LOG(INFO) << "Current source file path: " << __FILE__;
+  LOG(INFO) << "Current source file directory: "
+            << std::filesystem::path(__FILE__).parent_path();
+  std::string cur_dir = std::filesystem::current_path().string();
+  std::string compiler_jar_path =
+      cur_dir + "/../tools/python_bind/nexg/resources/compiler.jar";
+  LOG(INFO) << "Compiler JAR path: " << compiler_jar_path;
+  std::string planner_config_path =
+      cur_dir + "/../tools/python_bind/nexg/resources/planner_config.yaml";
+  LOG(INFO) << "Planner config path: " << planner_config_path;
+  std::string resource_path = cur_dir + "/../tools/python_bind/nexg/resources";
+  LOG(INFO) << "Resource path: " << resource_path;
+
+  gs::NexgDB db(data_path, 1, "w", "jni", compiler_jar_path,
+                planner_config_path, resource_path);
   auto conn = db.connect();
 
   auto res = conn->query("MATCH (v) RETURN v;");

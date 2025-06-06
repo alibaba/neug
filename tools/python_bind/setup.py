@@ -104,6 +104,9 @@ class CMakeBuild(build_ext):
         debug = int(os.environ.get("DEBUG", 0))
         cfg = "DEBUG" if debug else "Release"
         build_executables = "ON" if os.environ.get("BUILD_EXECUTABLES", "OFF") == "ON" else "OFF"
+        build_test = "OFF"
+        if os.environ.get("BUILD_TEST", "OFF") == "ON":
+            build_test = "ON" 
         # cfg is now dynamically set based on the DEBUG environment variable
 
         # CMake lets you override the generator - we need to check this.
@@ -119,6 +122,7 @@ class CMakeBuild(build_ext):
             f"-DCMAKE_BUILD_TYPE={cfg}",  # not used on MSVC, but no harm
             f"-DOPTIMIZE_FOR_HOST=OFF",
             f"-DBUILD_EXECUTABLES={build_executables}",
+            f"-DBUILD_TEST={build_test}"
         ]
         build_args = []
         # Adding CMake arguments set as environment variable

@@ -106,7 +106,8 @@ int Bitmap256::FindNextSetBit(int c) const {
             return (3 * 64) + FindLSBSet(words_[3]);
         FALLTHROUGH_INTENDED;
     default:
-        return -1;
+        throw std::out_of_range("No more bits set in Bitmap256");
+        return 0;
     }
 }
 

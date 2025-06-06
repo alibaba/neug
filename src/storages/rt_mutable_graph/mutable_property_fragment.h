@@ -273,7 +273,7 @@ class MutablePropertyFragment {
               vids.reserve(row_num);
 
               {
-                std::unique_lock<std::mutex> lock(v_mutex_[v_label_id]);
+                std::unique_lock<std::mutex> lock(*v_mutex_[v_label_id]);
                 vid_t vid;
                 if constexpr (!std::is_same<std::string_view, PK_T>::value) {
                   static constexpr vid_t sentinel =
@@ -787,7 +787,7 @@ class MutablePropertyFragment {
 
   std::string work_dir_;
   Schema schema_;
-  std::mutex* v_mutex_;
+  std::vector<std::shared_ptr<std::mutex>> v_mutex_;
   std::vector<IndexerType> lf_indexers_;
   std::vector<Table> vertex_data_;
 

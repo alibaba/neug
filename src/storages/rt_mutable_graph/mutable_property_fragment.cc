@@ -43,9 +43,6 @@ MutablePropertyFragment::~MutablePropertyFragment() {
       }
     }
   }
-  if (v_mutex_) {
-    delete[] v_mutex_;
-  }
 }
 
 void MutablePropertyFragment::loadSchema(const std::string& schema_path) {
@@ -166,10 +163,9 @@ Status MutablePropertyFragment::create_vertex_type(
   DumpSchema(schema_path(work_dir_));
   dumpSchema();
   vertex_label_num_ = schema_.vertex_label_num();
-  if (v_mutex_) {
-    delete[] v_mutex_;
+  while (v_mutex_.size() < vertex_label_num_) {
+    v_mutex_.emplace_back(std::make_shared<std::mutex>());
   }
-  v_mutex_ = new std::mutex[vertex_label_num_];
 
   LOG(INFO) << "create_vertex_type: vertex_type_name: " << vertex_type_name
             << ", vertex_label_id: " << static_cast<int32_t>(vertex_label_id)
@@ -855,10 +851,10 @@ void MutablePropertyFragment::Open(const std::string& work_dir,
       }
     }
   }
-  if (v_mutex_) {
-    delete[] v_mutex_;
+  v_mutex_.resize(vertex_label_num_);
+  for (size_t i = 0; i < vertex_label_num_; ++i) {
+    v_mutex_[i] = std::make_shared<std::mutex>();
   }
-  v_mutex_ = new std::mutex[vertex_label_num_];
 }
 
 void MutablePropertyFragment::Compact(uint32_t version) {
