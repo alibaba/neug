@@ -104,6 +104,7 @@ class CMakeBuild(build_ext):
         debug = int(os.environ.get("DEBUG", 0))
         cfg = "DEBUG" if debug else "Release"
         build_executables = "ON" if os.environ.get("BUILD_EXECUTABLES", "OFF") == "ON" else "OFF"
+        use_ninja = os.environ.get("USE_NINJA", "OFF") == "ON"
         build_test = "OFF"
         if os.environ.get("BUILD_TEST", "OFF") == "ON":
             build_test = "ON" 
@@ -124,6 +125,8 @@ class CMakeBuild(build_ext):
             f"-DBUILD_EXECUTABLES={build_executables}",
             f"-DBUILD_TEST={build_test}"
         ]
+        if use_ninja:
+            cmake_args += ["-GNinja"]
         build_args = []
         # Adding CMake arguments set as environment variable
         # (needed e.g. to build for ARM OSx on conda-forge)

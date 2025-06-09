@@ -81,6 +81,7 @@ class Database(object):
         # Convert to string
         resource_path = str(resource_path.resolve())
         # TODO: refactor it into a pydict.
+        # Currently, no intellisense here. self._database is of class PyDatabase, defined in tools/python_bind/src/py_database.h
         self._database = nexg_py_bind.PyDatabase(db_path, max_thread_num, mode, planner, jni_planner_jar_path, planner_config_path, resource_path)
         logger.info(f"Open database {db_path} in {mode} mode, planner: {planner}, config: {planner_config_path}, jar: {jni_planner_jar_path}, resource_path: {resource_path}.")
 

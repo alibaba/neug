@@ -16,13 +16,26 @@
 # limitations under the License.
 #
 
+from nexg_py_bind import PyQueryResult
+# PyQueryResult is defined in the nexg_py_bind module, which is a C++ binding for the Python interface.
+# See py_query_result.h for the definition of PyQueryResult.
+
 
 class QueryResult(object):
     """
     QueryResult represents the result of a cypher query. Could be visited as a iterator.
+
+    Attributes
+    ----------
+    _result : PyQueryResult
+        The underlying result object that contains the query results, a c++ object that implements the necessary methods to access the results.
+        It should have methods like `hasNext()`, `getNext()`, and `length()` to iterate over the results.
+        - `hasNext()`: Returns True if there are more results to iterate over.
+        - `getNext()`: Returns the next result as a list.
+        - `length()`: Returns the total number of results.
     """
 
-    def __init__(self, result):
+    def __init__(self, result: PyQueryResult):
         """
         Initialize the QueryResult.
         TODO(zhanglei): add type hint for result.

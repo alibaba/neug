@@ -36,13 +36,19 @@ jobs:
   test-py-nexg:
     runs-on: ubuntu-22.04
     container:
-      image: registry.cn-hongkong.aliyuncs.com/graphscope/graphscope-dev:v0.24.2-amd64
+      image: registry.cn-hongkong.aliyuncs.com/graphscope/graphscope-dev:v0.24.2-amd64-ccache
     steps:
     - uses: actions/checkout@v4
 
     - name: Setup tmate session
       if: false
       uses: mxschmitt/action-tmate@v3
+
+    - name: Cache CCache
+      uses: actions/cache@v3
+      with:
+        path: ~/.cache
+        key: ${{ runner.os }}-ccache-amd64
 
     - name: Build Interactive
       run: |
@@ -53,6 +59,9 @@ jobs:
         export CMAKE_BUILD_PARALLEL_LEVEL=$(nproc)
         export BUILD_EXECUTABLES=ON
         export BUILD_TEST=ON
+        export USE_NINJA=ON
+        export CC="ccache gcc"
+        export CXX="ccache g++"
         cd tools/python_bind
         make build
 
