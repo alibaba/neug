@@ -1,14 +1,21 @@
 #include <cmath>
 #include <iostream>
+#include <memory>
 
 #include "binder/expression_visitor.h"
 #include "common/enums/join_type.h"
 #include "common/enums/rel_direction.h"
+#include "common/types/types.h"
 #include "common/utils.h"
+#include "gopt/logical_get_v.h"
 #include "main/client_context.h"
 #include "planner/join_order/cost_model.h"
 #include "planner/join_order/join_plan_solver.h"
 #include "planner/join_order/join_tree_constructor.h"
+#include "planner/operator/extend/logical_extend.h"
+#include "planner/operator/logical_filter.h"
+#include "planner/operator/logical_operator.h"
+#include "planner/operator/logical_plan.h"
 #include "planner/operator/scan/logical_scan_node_table.h"
 #include "planner/planner.h"
 
@@ -527,8 +534,9 @@ void Planner::planInnerJoin(uint32_t leftLevel, uint32_t rightLevel) {
       if (tryPlanINLJoin(rightSubgraph, nbrSubgraph, joinNodes)) {
         continue;
       }
-      planInnerHashJoin(rightSubgraph, nbrSubgraph, joinNodes,
-                        leftLevel != rightLevel);
+      // planInnerHashJoin(rightSubgraph, nbrSubgraph, joinNodes,
+      //                   leftLevel != rightLevel);
+      planGetV(rightSubgraph, nbrSubgraph, joinNodes);
     }
   }
 }
@@ -604,6 +612,92 @@ void Planner::planInnerHashJoin(
       }
     }
   }
+}
+
+void Planner::planGetV(
+    const SubqueryGraph& subgraph, const SubqueryGraph& otherSubgraph,
+    const std::vector<std::shared_ptr<NodeExpression>>& joinNodes) {
+  auto newSubgraph = subgraph;
+  newSubgraph.addSubqueryGraph(otherSubgraph);
+  auto maxCost = context.subPlansTable->getMaxCost(newSubgraph);
+  expression_vector joinNodeIDs;
+  for (auto& joinNode : joinNodes) {
+    joinNodeIDs.push_back(joinNode->getInternalID());
+  }
+  auto predicates = getNewlyMatchedExprs(subgraph, otherSubgraph, newSubgraph,
+                                         context.getWhereExpressions());
+  for (auto& leftPlan : context.getPlans(subgraph)) {
+    for (auto& rightPlan : context.getPlans(otherSubgraph)) {
+      if (CostModel::computeHashJoinCost(joinNodeIDs, *rightPlan, *leftPlan) <
+          maxCost) {
+        // extract extend operator from leftPlan, which top may be filtering
+        // operator
+        auto leftExtend = std::dynamic_pointer_cast<LogicalExtend>(
+            extractExtend(leftPlan->getLastOperator()));
+        // extract getV operator from rightPlan, which top may be filtering
+        // operator
+        auto rightGetV = std::dynamic_pointer_cast<LogicalScanNodeTable>(
+            extractGetV(rightPlan->getLastOperator()));
+        if (leftExtend && rightGetV) {
+          // build join for cost, cardinality and schema
+          auto leftPlanBuildCopy = leftPlan->shallowCopy();
+          auto rightPlanProbeCopy = rightPlan->shallowCopy();
+          appendHashJoin(joinNodeIDs, JoinType::INNER, *rightPlanProbeCopy,
+                         *leftPlanBuildCopy, *rightPlanProbeCopy);
+          auto joinCard =
+              rightPlanProbeCopy->getLastOperator()->getCardinality();
+          auto joinCost = rightPlanProbeCopy->getCost();
+          auto joinSchema = rightPlanProbeCopy->getSchema();
+
+          // start to build the getV operator
+          auto getVPlan = std::make_unique<LogicalPlan>();
+          auto getV = std::make_unique<gopt::LogicalGetV>(
+              rightGetV->getNodeID(), rightGetV->getTableIDs(),
+              rightGetV->getProperties(), leftExtend->getRel(),
+              leftPlan->getLastOperator(), joinSchema->copy(),
+              leftExtend->getDirection(), joinCard);
+          getVPlan->setLastOperator(std::move(getV));
+          // append filtering predicates corresponding to the getV
+          auto getVFilter = std::dynamic_pointer_cast<LogicalFilter>(
+              rightPlan->getLastOperator());
+          while (getVFilter) {
+            appendFilter(getVFilter->getPredicate(), *getVPlan);
+            if (getVFilter->getNumChildren() == 0) {
+              break;
+            }
+            getVFilter = std::dynamic_pointer_cast<LogicalFilter>(
+                getVFilter->getChild(0));
+          }
+          getVPlan->setCost(joinCost);
+          // appendFilters(predicates, *getVPlan);
+          context.addPlan(newSubgraph, std::move(getVPlan));
+          continue;
+        }
+      }
+    }
+  }
+}
+
+std::shared_ptr<planner::LogicalOperator> Planner::extractExtend(
+    std::shared_ptr<LogicalOperator> top) {
+  if (top->getOperatorType() == LogicalOperatorType::EXTEND) {
+    return top;
+  }
+  if (top->getOperatorType() == LogicalOperatorType::FILTER) {
+    return extractExtend(top->getChild(0));
+  }
+  return nullptr;
+}
+
+std::shared_ptr<planner::LogicalOperator> Planner::extractGetV(
+    std::shared_ptr<LogicalOperator> top) {
+  if (top->getOperatorType() == LogicalOperatorType::SCAN_NODE_TABLE) {
+    return top;
+  }
+  if (top->getOperatorType() == LogicalOperatorType::FILTER) {
+    return extractGetV(top->getChild(0));
+  }
+  return nullptr;
 }
 
 std::vector<std::unique_ptr<LogicalPlan>> Planner::planCrossProduct(

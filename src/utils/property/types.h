@@ -122,8 +122,9 @@ struct PropertyType {
   constexpr PropertyType(impl::PropertyTypeImpl type)
       : type_enum(type), additional_type_info() {}
   constexpr PropertyType(impl::PropertyTypeImpl type, uint16_t max_length)
-      : type_enum(type), additional_type_info({.max_length = max_length}) {
+      : type_enum(type) {
     assert(type == impl::PropertyTypeImpl::kVarChar);
+    additional_type_info.max_length = max_length;
   }
 
   bool IsVarchar() const;

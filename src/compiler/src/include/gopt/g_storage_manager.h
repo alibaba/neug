@@ -1,30 +1,38 @@
 #pragma once
 
+#include <filesystem>
+#include <unordered_map>
 #include "storage/storage_manager.h"
+#include "third_party/nlohmann_json/json.hpp"
 
 namespace kuzu {
 namespace storage {
 class GStorageManager : public StorageManager {
  private:
-  std::string statsPath;
   kuzu::storage::WAL& wal;
 
  public:
-  GStorageManager(const std::string& statsPath, const catalog::Catalog& catalog,
-                  MemoryManager& memoryManager, kuzu::storage::WAL& wal)
-      : StorageManager(memoryManager),
-        statsPath(std::move(statsPath)),
-        wal(wal) {
-    loadTables(catalog, nullptr, nullptr);
-  }
+  GStorageManager(const std::filesystem::path& statsPath,
+                  const catalog::Catalog& catalog, MemoryManager& memoryManager,
+                  kuzu::storage::WAL& wal);
+
+  GStorageManager(const std::string& statsData, const catalog::Catalog& catalog,
+                  MemoryManager& memoryManager, kuzu::storage::WAL& wal);
 
   ~GStorageManager() override = default;
 
+  WAL& getWAL() const override { return wal; }
+
   void loadTables(const catalog::Catalog& catalog,
                   common::VirtualFileSystem* vfs,
-                  main::ClientContext* context) override;
+                  main::ClientContext* context) override {}
 
-  WAL& getWAL() const override { return wal; }
+ private:
+  void loadStats(
+      const catalog::Catalog& catalog,
+      const std::unordered_map<std::string, common::row_idx_t>& countMap);
+  void getCardMap(const std::string& jsonData,
+                  std::unordered_map<std::string, common::row_idx_t>& countMap);
 };
 }  // namespace storage
 }  // namespace kuzu

@@ -48,6 +48,10 @@ YAML::Node property_type_to_yaml(const PropertyType& type) {
   case impl::PropertyTypeImpl::kStringMap:
     node["string"]["long_text"] = "";
     break;
+  case impl::PropertyTypeImpl::kVarChar:
+    node["string"]["var_char"]["max_length"] =
+        type.additional_type_info.max_length;
+    break;
   case impl::PropertyTypeImpl::kDate:
     node["temporal"] = config_parsing::TemporalTypeToYAML(type);
     break;

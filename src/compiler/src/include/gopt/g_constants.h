@@ -14,6 +14,5 @@ class Constants {
           kuzu::transaction::TransactionType::DUMMY,
           kuzu::transaction::Transaction::DUMMY_TRANSACTION_ID,
           common::INVALID_TRANSACTION);
-  static inline kuzu::storage::WAL DEFAULT_WAL = kuzu::storage::WAL();
 };
 }  // namespace kuzu

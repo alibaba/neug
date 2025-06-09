@@ -117,8 +117,16 @@ bool string_type_to_property_type(const common::String& string_type,
                                   PropertyType& out_type) {
   switch (string_type.item_case()) {
   case common::String::kVarChar: {
-    out_type = PropertyType::Varchar(string_type.var_char().max_length());
-    break;
+    // Take care of the casting from uint32_t to uint16_t
+    if (string_type.var_char().max_length() >
+        std::numeric_limits<uint16_t>::max()) {
+      LOG(WARNING) << "VarChar max length exceeds uint16_t limit, "
+                   << "using max uint16_t value instead.";
+      out_type = PropertyType::Varchar(std::numeric_limits<uint16_t>::max());
+    } else {
+      out_type = PropertyType::Varchar(string_type.var_char().max_length());
+      break;
+    }
   }
   case common::String::kLongText: {
     out_type = PropertyType::StringView();

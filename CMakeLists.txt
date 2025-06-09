@@ -134,6 +134,7 @@ include(GNUInstallDirs)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 include(CheckCXXSourceCompiles)
 include_directories(${CMAKE_CURRENT_SOURCE_DIR})
+include_directories(${CMAKE_CURRENT_SOURCE_DIR}/src/compiler/src/include)
 
 # Print cc and cxx compiler
 message(STATUS "CMAKE_C_COMPILER: ${CMAKE_C_COMPILER}")
@@ -173,7 +174,7 @@ function(add_kuzu_test TEST_NAME)
     #endif()
     #target_include_directories(${TEST_NAME} PRIVATE ${PROJECT_SOURCE_DIR}/test/include)
 
-    target_link_libraries(${TEST_NAME} PUBLIC neug::GTest kuzu)
+    target_link_libraries(${TEST_NAME} PUBLIC neug::GTest kuzu nexg_plan_proto)
     target_include_directories(${TEST_NAME} PRIVATE src/include)
 
     include(GoogleTest)

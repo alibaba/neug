@@ -1312,13 +1312,28 @@ bool dump_vertices_schema(const Schema& schema, YAML::Node& node) {
     auto properties = schema.get_vertex_properties(v_label);
     auto property_names = schema.get_vertex_property_names(v_label);
     CHECK_EQ(properties.size(), property_names.size());
+    {
+      YAML::Node pk_node(YAML::NodeType::Map);
+      pk_node["property_id"] = 0;  // primary key is always the first property
+      pk_node["property_name"] = schema.get_vertex_primary_key_name(v_label);
+      pk_node["property_type"] = property_type_to_yaml(
+          std::get<0>(schema.get_vertex_primary_key(v_label)[0]));
+      cur_node["properties"].push_back(pk_node);
+    }
+    // The first property is the primary key, so we start from 1
     for (size_t i = 0; i < properties.size(); ++i) {
       YAML::Node prop_node(YAML::NodeType::Map);
-      prop_node["property_id"] = i;
+      prop_node["property_id"] = i + 1;
       prop_node["property_name"] = property_names[i];
       prop_node["property_type"] = property_type_to_yaml(properties[i]);
       cur_node["properties"].push_back(prop_node);
     }
+    YAML::Node primary_keys_node(YAML::NodeType::Sequence);
+    for (const auto& pk : schema.get_vertex_primary_key(v_label)) {
+      primary_keys_node.push_back(std::get<1>(pk));  // push the property name
+    }
+    cur_node["primary_keys"] = primary_keys_node;
+
     node.push_back(cur_node);
   }
   return true;
@@ -1334,20 +1349,23 @@ bool dump_edges_schema(const Schema& schema, YAML::Node& node) {
     cur_node["properties"] = YAML::Node(YAML::NodeType::Sequence);
     cur_node["vertex_type_pair_relations"] =
         YAML::Node(YAML::NodeType::Sequence);
+    bool properties_set = false;
 
     for (auto src_v : v_labels) {
       for (auto dst_v : v_labels) {
         if (schema.has_edge_label(src_v, dst_v, e_label)) {
-          auto properties = schema.get_edge_properties(src_v, dst_v, e_label);
-          auto property_names =
-              schema.get_edge_property_names(src_v, dst_v, e_label);
-          CHECK_EQ(properties.size(), property_names.size());
-          for (size_t i = 0; i < properties.size(); ++i) {
-            YAML::Node prop_node;
-            prop_node["property_id"] = i;
-            prop_node["property_name"] = property_names[i];
-            prop_node["property_type"] = property_type_to_yaml(properties[i]);
-            cur_node["properties"].push_back(prop_node);
+          if (!properties_set) {
+            auto properties = schema.get_edge_properties(src_v, dst_v, e_label);
+            auto property_names =
+                schema.get_edge_property_names(src_v, dst_v, e_label);
+            CHECK_EQ(properties.size(), property_names.size());
+            for (size_t i = 0; i < properties.size(); ++i) {
+              YAML::Node prop_node;
+              prop_node["property_id"] = i;
+              prop_node["property_name"] = property_names[i];
+              prop_node["property_type"] = property_type_to_yaml(properties[i]);
+              cur_node["properties"].push_back(prop_node);
+            }
           }
 
           YAML::Node vertex_type_pair_node;
@@ -1355,6 +1373,8 @@ bool dump_edges_schema(const Schema& schema, YAML::Node& node) {
               schema.get_vertex_label_name(src_v);
           vertex_type_pair_node["destination_vertex"] =
               schema.get_vertex_label_name(dst_v);
+          vertex_type_pair_node["relation"] =
+              schema.get_edge_strategy(src_v, dst_v, e_label);
           cur_node["vertex_type_pair_relations"].push_back(
               vertex_type_pair_node);
         }
@@ -1813,6 +1833,38 @@ void Schema::delete_edge_properties(
         break;
       }
     }
+  }
+}
+
+std::string Schema::get_edge_strategy(label_t src_label, label_t dst_label,
+                                      label_t edge_label) const {
+  uint32_t index = generate_edge_label(src_label, dst_label, edge_label);
+  if (oe_strategy_.find(index) == oe_strategy_.end() ||
+      ie_strategy_.find(index) == ie_strategy_.end()) {
+    throw std::runtime_error(
+        "Edge strategy not found for edge label: " + std::to_string(src_label) +
+        "-" + std::to_string(edge_label) + "->" + std::to_string(dst_label));
+  }
+  auto oe_strategy = oe_strategy_.at(index);
+  auto ie_strategy = ie_strategy_.at(index);
+  if (oe_strategy == EdgeStrategy::kMultiple) {
+    if (ie_strategy == EdgeStrategy::kMultiple) {
+      return "MANY_TO_MANY";
+    } else if (ie_strategy == EdgeStrategy::kSingle) {
+      return "MANY_TO_ONE";
+    } else {
+      throw std::runtime_error("ie_strategy should not be none");
+    }
+  } else if (oe_strategy == EdgeStrategy::kSingle) {
+    if (ie_strategy == EdgeStrategy::kMultiple) {
+      return "ONE_TO_MANY";
+    } else if (ie_strategy == EdgeStrategy::kSingle) {
+      return "ONE_TO_ONE";
+    } else {
+      throw std::runtime_error("ie_strategy should not be none");
+    }
+  } else {
+    throw std::runtime_error("oe_strategy should not be none");
   }
 }
 

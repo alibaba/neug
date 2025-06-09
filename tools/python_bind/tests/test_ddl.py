@@ -55,7 +55,7 @@ class TestDDL(unittest.TestCase):
             os.system("rm -rf %s" % db_dir)
         os.makedirs(db_dir)
 
-        db = Database(db_dir, "w", 0, "dummy", "", "")
+        db = Database(db_dir, "w", 0, "gopt", "", "")
         conn = db.connect()
         # First create the graph schema
         conn.execute("CREATE NODE TABLE person(id INT64, name STRING, age INT64, PRIMARY KEY(id));")

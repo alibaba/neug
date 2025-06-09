@@ -84,3 +84,10 @@ jobs:
         export LSQB_DATA_DIR=/tmp/lsqb
         python3 -m pytest -sv tests/test_lsqb.py
 
+    - name: Run Gopt_planner_test
+      run: |
+        cd ${GITHUB_WORKSPACE}/tools/python_bind/
+        export FLEX_DATA_DIR=${GITHUB_WORKSPACE}/example_dataset/modern_graph
+        GLOG_v=10 ./build/nexg_py_bind/tests/rt_mutable_graph/test_gopt_planner /tmp/test_gopt_planner
+
+

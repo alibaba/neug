@@ -55,18 +55,26 @@ class TestBachLoading(unittest.TestCase):
             os.system("rm -rf %s" % db_dir)
         os.makedirs(db_dir)
 
-        db = Database(db_dir, "w", 0, "dummy", "", "")
+        # get env : FLEX_DATA_DIR
+        flex_data_dir = os.environ.get("FLEX_DATA_DIR")
+        if not flex_data_dir:
+            raise Exception("FLEX_DATA_DIR is not set")
+        person_csv = os.path.join(flex_data_dir, "person.csv")
+        person_knows_person_csv = os.path.join(flex_data_dir, "person_knows_person.csv")
+
+        db = Database(db_dir, "w", 0, "gopt", "", "")
         conn = db.connect()
         # First create the graph schema
         conn.execute("CREATE NODE TABLE person(id INT64, name STRING, age INT64, PRIMARY KEY(id));")
         conn.execute("CREATE REL TABLE knows(FROM person TO person, weight DOUBLE);")
 
         # Then load data.
-        conn.execute('COPY person from "person.csv"')
-        conn.execute('COPY knows [person->person] from "person_knows_person.csv"')
+        conn.execute(f'COPY person from "{person_csv}"')
+        # TODO(zhanglei,xiaoli): support specifying the starting/ending label name
+        conn.execute(f'COPY knows from "{person_knows_person_csv}" (from="person", to="person")')
 
         # Then run a query
-        res = conn.execute('MATCH (n) return count(n);')
+        res = conn.execute('MATCH (n) return n.id;')
         for record in res:
             print(record)
 

@@ -4,10 +4,18 @@
 #include "common/serializer/serializer.h"
 #include "common/types/types.h"
 #include "gopt/g_constants.h"
+#include "gopt/g_type_converter.h"
+#include "src/proto_generated_gie/basic_type.pb.h"
+
+#include <glog/logging.h>
 
 namespace kuzu {
+
+namespace common {
 class LogicalType;
-class kuzu::common::Serializer;
+class Serializer;
+}  // namespace common
+const static uint32_t VARCHAR_DEFAULT_LENGTH = 65536;
 
 class VarcharExtraInfo : public kuzu::common::ExtraTypeInfo {
  private:
@@ -58,22 +66,14 @@ class GTypeUtils {
     auto stringType = node["string"];
     if (stringType) {
       // denote varchar
-      return kuzu::common::LogicalType(kuzu::common::LogicalTypeID::STRING);
-      // auto varchar = stringType["var_char"];
-      // if (varchar) {
-      //     uint64_t maxLength = Constants::VARCHAR_MAX_LENGTH;
-      //     if (varchar["max_length"]) {
-      //         maxLength = varchar["max_length"].as<uint64_t>();
-      //     }
-      //     auto varcharType =
-      //     kuzu::common::LogicalType(kuzu::common::LogicalTypeID::STRING);
-      //     varcharType.setExtraTypeInfo(std::make_unique<VarcharExtraInfo>(maxLength));
-      //     return varcharType;
-      // }
+      if (stringType["var_char"] || stringType["long_text"]) {
+        return kuzu::common::LogicalType(kuzu::common::LogicalTypeID::STRING);
+      }
     }
     if (node["temporal"]) {
       return kuzu::common::LogicalType(kuzu::common::LogicalTypeID::INT64);
     }
+    LOG(WARNING) << "Unsupported type in YAML: " << node;
     return kuzu::common::LogicalType(kuzu::common::LogicalTypeID::ANY);
   }
 };

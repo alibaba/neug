@@ -164,7 +164,12 @@ void to_arrow_csv_options(const physical::ReadCSV::options& csv_options,
       arrow::TimestampParser::MakeISO8601());
   // BOOLEAN parser
   put_boolean_option(convert_options);
-  put_delimiter_option(csv_options.delimiter(), parse_options);
+  if (csv_options.delimiter().empty()) {
+    VLOG(10) << "Using default CSV delimiter: " << DEFAULT_CSV_DELIMITER;
+    put_delimiter_option(DEFAULT_CSV_DELIMITER, parse_options);
+  } else {
+    put_delimiter_option(csv_options.delimiter(), parse_options);
+  }
   if (!csv_options.escape_char().empty()) {
     if (csv_options.escape_char().size() == 1) {
       parse_options.escaping = true;

@@ -28,6 +28,7 @@
 #include "src/main/file_lock.h"
 #include "src/main/query_processor.h"
 #include "src/planner/dummy_graph_planner.h"
+#include "src/planner/gopt_planner.h"
 #include "src/planner/graph_planner.h"
 #include "src/planner/jni_graph_planner.h"
 #include "src/utils/file_utils.h"
@@ -120,6 +121,9 @@ class NexgDB {
       return jni_planner;
     } else if (planner_kind == "dummy") {
       return std::make_shared<DummyGraphPlanner>();
+    } else if (planner_kind == "gopt") {
+      // Gopt planner is the default planner, so we don't need to create it.
+      return std::make_shared<GOptPlanner>(planner_config_path);
     } else {
       throw std::invalid_argument("Invalid planner kind: " + planner_kind);
     }

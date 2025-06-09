@@ -28,6 +28,7 @@ namespace ops {
  */
 class CSVDataSourceOpr : public IUpdateOperator {
  public:
+  static constexpr bool batch_reader_default = true;
   CSVDataSourceOpr(
       const std::vector<std::shared_ptr<IRecordBatchSupplier>>& suppliers,
       bool batch_reader)

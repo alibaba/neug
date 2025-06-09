@@ -45,6 +45,59 @@
     ],
     "edge_type_statistics": [
         {
+            "type_id": 0,
+            "type_name": "HASCREATOR",
+            "vertex_type_pair_statistics": [
+                {
+                    "source_vertex": "COMMENT",
+                    "destination_vertex": "PERSON",
+                    "count": 151043
+                },
+                {
+                    "source_vertex": "POST",
+                    "destination_vertex": "PERSON",
+                    "count": 135701
+                }
+            ]
+        },
+        {
+            "type_id": 1,
+            "type_name": "HASTAG",
+            "vertex_type_pair_statistics": [
+                {
+                    "source_vertex": "COMMENT",
+                    "destination_vertex": "TAG",
+                    "count": 0
+                },
+                {
+                    "source_vertex": "POST",
+                    "destination_vertex": "TAG",
+                    "count": 51118
+                },
+                {
+                    "source_vertex": "FORUM",
+                    "destination_vertex": "TAG",
+                    "count": 0
+                }
+            ]
+        },
+        {
+            "type_id": 2,
+            "type_name": "REPLYOF",
+            "vertex_type_pair_statistics": [
+                {
+                    "source_vertex": "COMMENT",
+                    "destination_vertex": "COMMENT",
+                    "count": 76787
+                },
+                {
+                    "source_vertex": "COMMENT",
+                    "destination_vertex": "POST",
+                    "count": 74256
+                }
+            ]
+        },
+        {
             "type_id": 3,
             "type_name": "CONTAINEROF",
             "vertex_type_pair_statistics": [
@@ -90,41 +143,23 @@
         },
         {
             "type_id": 7,
-            "type_name": "PERSON_ISLOCATEDIN_PLACE",
+            "type_name": "ISLOCATEDIN",
             "vertex_type_pair_statistics": [
                 {
                     "source_vertex": "PERSON",
                     "destination_vertex": "PLACE",
                     "count": 1528
-                }
-            ]
-        },
-        {
-            "type_id": 15,
-            "type_name": "COMMENT_ISLOCATEDIN_PLACE",
-            "vertex_type_pair_statistics": [
+                },
                 {
                     "source_vertex": "COMMENT",
                     "destination_vertex": "PLACE",
                     "count": 151043
-                }
-            ]
-        },
-        {
-            "type_id": 16,
-            "type_name": "POST_ISLOCATEDIN_PLACE",
-            "vertex_type_pair_statistics": [
+                },
                 {
                     "source_vertex": "POST",
                     "destination_vertex": "PLACE",
                     "count": 135701
-                }
-            ]
-        },
-        {
-            "type_id": 17,
-            "type_name": "ORGANISATION_ISLOCATEDIN_PLACE",
-            "vertex_type_pair_statistics": [
+                },
                 {
                     "source_vertex": "ORGANISATION",
                     "destination_vertex": "PLACE",
@@ -140,6 +175,22 @@
                     "source_vertex": "PERSON",
                     "destination_vertex": "PERSON",
                     "count": 14073
+                }
+            ]
+        },
+        {
+            "type_id": 9,
+            "type_name": "LIKES",
+            "vertex_type_pair_statistics": [
+                {
+                    "source_vertex": "PERSON",
+                    "destination_vertex": "COMMENT",
+                    "count": 62225
+                },
+                {
+                    "source_vertex": "PERSON",
+                    "destination_vertex": "POST",
+                    "count": 47215
                 }
             ]
         },

@@ -1,4 +1,5 @@
 #include "planner/operator/extend/logical_extend.h"
+#include "gopt/g_rel_table_entry.h"
 
 namespace kuzu {
 namespace planner {
@@ -38,6 +39,44 @@ std::unique_ptr<LogicalOperator> LogicalExtend::copy() {
   extend->setPropertyPredicates(copyVector(propertyPredicates));
   extend->scanNbrID = scanNbrID;
   return extend;
+}
+
+std::string LogicalExtend::getAliasName() const {
+  return rel->getVariableName();
+  ;
+}
+
+std::string LogicalExtend::getStartAliasName() const {
+  return boundNode->getVariableName();
+}
+
+std::vector<common::table_id_t> LogicalExtend::getLabelIds() const {
+  auto relExpr = getRel();
+  auto& tableEntries = relExpr->getEntries();
+  std::vector<common::table_id_t> labelIds;
+  labelIds.reserve(tableEntries.size());
+  for (auto& entry : tableEntries) {
+    auto gRel = entry->constPtrCast<catalog::GRelTableCatalogEntry>();
+    if (!gRel) {
+      throw common::Exception("Invalid relation table entry in extend: " +
+                              entry->getName());
+    }
+    labelIds.emplace_back(gRel->getLabelId());
+  }
+  return labelIds;
+}
+
+std::unique_ptr<gopt::GRelType> LogicalExtend::getRelType() const {
+  std::vector<catalog::GRelTableCatalogEntry*> relTables;
+  for (const auto& entry : rel->getEntries()) {
+    auto gRel = entry->ptrCast<catalog::GRelTableCatalogEntry>();
+    if (!gRel) {
+      throw common::Exception("Invalid relation table entry in extend: " +
+                              entry->getName());
+    }
+    relTables.emplace_back(gRel);
+  }
+  return std::make_unique<gopt::GRelType>(std::move(relTables));
 }
 
 }  // namespace planner

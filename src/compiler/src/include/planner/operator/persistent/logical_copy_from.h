@@ -44,7 +44,15 @@ class LogicalCopyFrom final : public LogicalOperator {
         outExprs{std::move(outExprs)} {}
 
   std::string getExpressionsForPrinting() const override {
-    return info.tableEntry->getName();
+    // return info.tableEntry->getName();
+    std::string result = info.tableEntry->getName() + "\nColumns: ";
+    for (auto& expr : info.columnExprs) {
+      result += expr->toString() + ", ";
+    }
+    if (!info.columnExprs.empty()) {
+      result = result.substr(0, result.length() - 2);  // Remove trailing ", "
+    }
+    return result;
   }
 
   void computeFactorizedSchema() override;

@@ -1,6 +1,8 @@
 
 file(GLOB GS_TEST_FILES RELATIVE "${CMAKE_CURRENT_SOURCE_DIR}" "${CMAKE_CURRENT_SOURCE_DIR}/*.cc")
 
+include_directories(SYSTEM ${CMAKE_CURRENT_SOURCE_DIR}/../../src/compiler/src/include)
+include_directories(${CMAKE_CURRENT_BINARY_DIR}/../../src/compiler)
 
 foreach(f ${GS_TEST_FILES})
         string(REGEX MATCH "^(.*)\\.[^.]*$" dummy ${f})
@@ -24,6 +26,10 @@ foreach(f ${GS_TEST_FILES})
 
         if (${T_NAME} MATCHES "test_ddl")
                 message(STATUS "Found ddl test - " ${T_NAME})
+                target_link_libraries(${T_NAME} nexg_planner nexg_main)
+        endif()
+        if (${T_NAME} MATCHES "test_gopt_planner")
+                message(STATUS "Found gopt planner test - " ${T_NAME})
                 target_link_libraries(${T_NAME} nexg_planner nexg_main)
         endif()
 endforeach()

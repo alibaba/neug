@@ -27,6 +27,8 @@ namespace gs {
 namespace runtime {
 namespace ops {
 
+static constexpr const char* DEFAULT_CSV_DELIMITER = "|";
+
 PropertyType get_the_pk_type_from_schema(const Schema& schema,
                                          label_t label_id);
 

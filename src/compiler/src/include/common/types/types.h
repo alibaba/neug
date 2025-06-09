@@ -1,15 +1,16 @@
 #pragma once
 
+#include <cstdint>
 #include <memory>
 #include <string>
 #include <unordered_map>
 #include <unordered_set>
 #include <vector>
 
-#include "common/api.h"
-#include "common/cast.h"
-#include "common/copy_constructors.h"
-#include "common/types/interval_t.h"
+#include "src/compiler/src/include/common/api.h"
+#include "src/compiler/src/include/common/cast.h"
+#include "src/compiler/src/include/common/copy_constructors.h"
+#include "src/compiler/src/include/common/types/interval_t.h"
 
 namespace kuzu {
 namespace main {
@@ -40,6 +41,7 @@ using page_group_idx_t = uint32_t;
 using frame_group_idx_t = page_group_idx_t;
 using column_id_t = uint32_t;
 using property_id_t = uint32_t;
+using alias_id_t = uint32_t;
 constexpr column_id_t INVALID_COLUMN_ID = UINT32_MAX;
 constexpr column_id_t ROW_IDX_COLUMN_ID = INVALID_COLUMN_ID - 1;
 using idx_t = uint32_t;

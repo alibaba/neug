@@ -1,0 +1,97 @@
+// this class is used to convert kuzu LogicalPlan to PhysicalPlan in PB
+// here has more detailed functions:
+// std::unique_ptr<::physical::PhysicalOpr> convert(LogicalScanNodeTable&
+// scanNodeTable); std::unique_ptr<::physical::Project> convert(LogicalProject&
+// project);
+#pragma once
+
+#include <google/protobuf/wrappers.pb.h>
+#include <memory>
+#include <vector>
+#include "binder/expression/expression.h"
+#include "catalog/catalog.h"
+#include "catalog/catalog_entry/node_table_catalog_entry.h"
+#include "common/copier_config/file_scan_info.h"
+#include "common/types/types.h"
+#include "gopt/g_alias_manager.h"
+#include "gopt/g_catalog.h"
+#include "gopt/g_expr_converter.h"
+#include "gopt/g_type_converter.h"
+#include "gopt/logical_get_v.h"
+#include "planner/operator/extend/logical_extend.h"
+#include "planner/operator/logical_filter.h"
+#include "planner/operator/logical_operator.h"
+#include "planner/operator/logical_plan.h"
+#include "planner/operator/logical_projection.h"
+#include "planner/operator/logical_table_function_call.h"
+#include "planner/operator/persistent/logical_copy_from.h"
+#include "planner/operator/scan/logical_scan_node_table.h"
+#include "src/proto_generated_gie/algebra.pb.h"
+#include "src/proto_generated_gie/cypher_dml.pb.h"
+#include "src/proto_generated_gie/physical.pb.h"
+
+namespace kuzu {
+namespace gopt {
+const static common::alias_id_t INVALID_ALIAS_ID = -1;
+
+struct EdgeLabelId {
+  common::table_id_t edgeId;
+  common::table_id_t srcId;
+  common::table_id_t dstId;
+};
+class GQueryConvertor {
+ public:
+  GQueryConvertor(std::shared_ptr<GAliasManager> aliasManager,
+                  kuzu::catalog::Catalog* catalog);
+
+  std::unique_ptr<::physical::QueryPlan> convert(
+      const planner::LogicalPlan& plan);
+  static bool skipColumn(const std::string& columnName);
+
+ private:
+  void convertOperator(const planner::LogicalOperator& op,
+                       ::physical::QueryPlan* plan);
+  void convertScan(const planner::LogicalScanNodeTable& scan,
+                   ::physical::QueryPlan* plan);
+  void convertExtend(const planner::LogicalExtend& extend,
+                     ::physical::QueryPlan* plan);
+  void convertGetV(const gopt::LogicalGetV& getV, ::physical::QueryPlan* plan);
+  void convertFilter(const planner::LogicalFilter& filter,
+                     ::physical::QueryPlan* plan);
+  void convertProject(const planner::LogicalProjection& project,
+                      ::physical::QueryPlan* plan);
+  void convertTableFunc(const planner::LogicalTableFunctionCall& tableFunc,
+                        ::physical::QueryPlan* plan);
+  void convertCopyFrom(const planner::LogicalCopyFrom& copyFrom,
+                       ::physical::QueryPlan* plan);
+  void convertBatchInsertVertex(catalog::NodeTableCatalogEntry* nodeEntry,
+                                const binder::expression_vector& columnExprs,
+                                ::physical::QueryPlan* plan);
+  void convertBatchInsertEdge(catalog::GRelTableCatalogEntry* relEntry,
+                              const binder::expression_vector& columnExprs,
+                              ::physical::QueryPlan* plan);
+  // help functions
+  std::unique_ptr<::algebra::QueryParams> convertParams(
+      const std::vector<common::table_id_t>& labelIds);
+  std::string getAliasName(const planner::LogicalOperator& op);
+  std::unique_ptr<::physical::PropertyMapping> convertPropMapping(
+      const binder::Expression& expr, common::alias_id_t columnId);
+  std::unique_ptr<::physical::DataSource> convertDataSource(
+      const common::FileScanInfo& fileInfo);
+  std::unique_ptr<::physical::ReadCSV::options> convertCSVOptions(
+      const common::FileScanInfo& fileInfo);
+  std::unique_ptr<::physical::EdgeType> convertToEdgeType(
+      const EdgeLabelId& label);
+  // Expression has implemented move constructor and assignment operator, return
+  // it by value will not lead any deep copy.
+  std::shared_ptr<binder::Expression> bindPKExpr(common::table_id_t labelId);
+
+ private:
+  std::shared_ptr<GAliasManager> aliasManager;
+  std::unique_ptr<GExprConverter> exprConvertor;
+  std::unique_ptr<GTypeConverter> typeConverter;
+  kuzu::catalog::Catalog* catalog;
+};
+
+}  // namespace gopt
+}  // namespace kuzu

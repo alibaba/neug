@@ -457,15 +457,15 @@ std::vector<std::shared_ptr<Statement>> ClientContext::parseQuery(
 
 void ClientContext::validateTransaction(
     const PreparedStatement& preparedStatement) const {
-  if (!canExecuteWriteQuery() && !preparedStatement.isReadOnly()) {
-    throw ConnectionException(
-        "Cannot execute write operations in a read-only database!");
-  }
-  if (preparedStatement.parsedStatement->requireTransaction() &&
-      transactionContext->hasActiveTransaction()) {
-    KU_ASSERT(!transactionContext->isAutoTransaction());
-    transactionContext->validateManualTransaction(preparedStatement.readOnly);
-  }
+  // if (!canExecuteWriteQuery() && !preparedStatement.isReadOnly()) {
+  //   throw ConnectionException(
+  //       "Cannot execute write operations in a read-only database!");
+  // }
+  // if (preparedStatement.parsedStatement->requireTransaction() &&
+  //     transactionContext->hasActiveTransaction()) {
+  //   KU_ASSERT(!transactionContext->isAutoTransaction());
+  //   transactionContext->validateManualTransaction(preparedStatement.readOnly);
+  // }
 }
 
 std::unique_ptr<PreparedStatement> ClientContext::prepareNoLock(

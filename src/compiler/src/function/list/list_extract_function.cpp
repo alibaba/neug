@@ -26,12 +26,11 @@ static std::unique_ptr<FunctionBindData> ListExtractBindFunc(
     const ScalarBindFuncInput& input) {
   const auto& resultType = ListType::getChildType(input.arguments[0]->dataType);
   auto scalarFunction = input.definition->ptrCast<ScalarFunction>();
-  TypeUtils::visit(
-      resultType.getPhysicalType(), [&scalarFunction]<typename T>(T) {
-        scalarFunction->execFunc =
-            BinaryExecListExtractFunction<list_entry_t, int64_t, T,
-                                          ListExtract>;
-      });
+  TypeUtils::visit(resultType.getPhysicalType(), [&scalarFunction]<typename T>(
+                                                     T) {
+    scalarFunction->execFunc =
+        BinaryExecListExtractFunction<list_entry_t, int64_t, T, ListExtract>;
+  });
   std::vector<LogicalType> paramTypes;
   paramTypes.push_back(input.arguments[0]->getDataType().copy());
   paramTypes.push_back(LogicalType(input.definition->parameterTypeIDs[1]));

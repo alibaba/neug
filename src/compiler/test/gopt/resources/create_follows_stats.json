@@ -1,0 +1,24 @@
+{
+    "total_vertex_count": 6,
+    "total_edge_count": 6,
+    "vertex_type_statistics": [
+        {
+            "type_id": 0,
+            "type_name": "User",
+            "count": 1000
+        }
+    ],
+    "edge_type_statistics": [
+        {
+            "type_id": 0,
+            "type_name": "Follows",
+            "vertex_type_pair_statistics": [
+                {
+                    "source_vertex": "User",
+                    "destination_vertex": "User",
+                    "count": 10000
+                }
+            ]
+        }
+    ]
+}

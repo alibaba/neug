@@ -132,9 +132,7 @@ Result<results::CollectiveResults> QueryProcessor::execute_read_only(
 
 Result<results::CollectiveResults> QueryProcessor::execute_read_write(
     const physical::PhysicalPlan& plan, int32_t num_threads) {
-  return Result<results::CollectiveResults>(
-      gs::Status(gs::StatusCode::ERR_INVALID_ARGUMENT,
-                 "Read-write queries are not supported yet"));
+  return execute_write_only(plan, num_threads);
 }
 
 Result<results::CollectiveResults> QueryProcessor::execute_write_only(

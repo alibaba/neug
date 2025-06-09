@@ -1,3 +1,5 @@
+#pragma once
+
 #include "catalog/catalog_entry/rel_table_catalog_entry.h"
 
 namespace kuzu {
@@ -19,7 +21,7 @@ class GRelTableCatalogEntry : public RelTableCatalogEntry {
     this->setOID(tableId);
   }
 
-  common::table_id_t getLabelId() { return this->labelId; }
+  common::table_id_t getLabelId() const { return this->labelId; }
 
  private:
   common::table_id_t labelId;

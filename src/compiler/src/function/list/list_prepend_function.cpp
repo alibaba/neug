@@ -45,12 +45,12 @@ static std::unique_ptr<FunctionBindData> bindFunc(
   }
   const auto& resultType = input.arguments[0]->getDataType();
   auto scalarFunction = input.definition->ptrCast<ScalarFunction>();
-  TypeUtils::visit(
-      input.arguments[1]->getDataType().getPhysicalType(),
-      [&scalarFunction]<typename T>(T) {
-        scalarFunction->execFunc = ScalarFunction::BinaryExecListStructFunction<
-            list_entry_t, T, list_entry_t, ListPrepend>;
-      });
+  TypeUtils::visit(input.arguments[1]->getDataType().getPhysicalType(),
+                   [&scalarFunction]<typename T>(T) {
+                     scalarFunction->execFunc =
+                         ScalarFunction::BinaryExecListStructFunction<
+                             list_entry_t, T, list_entry_t, ListPrepend>;
+                   });
   return FunctionBindData::getSimpleBindData(input.arguments,
                                              resultType.copy());
 }

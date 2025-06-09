@@ -115,17 +115,17 @@ std::unique_ptr<BoundStatement> Binder::bindCopyNodeFrom(
   auto boundSource = bindScanSource(copyStatement.getSource(),
                                     copyStatement.getParsingOptions(),
                                     expectedColumnNames, expectedColumnTypes);
-  expression_vector warningDataExprs = boundSource->getWarningColumns();
-  if (boundSource->type == ScanSourceType::FILE) {
-    auto& source = boundSource->constCast<BoundTableScanSource>();
-    auto bindData = source.info.bindData->constPtrCast<ScanFileBindData>();
-    if (copyStatement.byColumn() &&
-        bindData->fileScanInfo.fileTypeInfo.fileType != FileType::NPY) {
-      throw BinderException(
-          stringFormat("Copy by column with {} file type is not supported.",
-                       bindData->fileScanInfo.fileTypeInfo.fileTypeStr));
-    }
-  }
+  // expression_vector warningDataExprs = boundSource->getWarningColumns();
+  // if (boundSource->type == ScanSourceType::FILE) {
+  //   auto& source = boundSource->constCast<BoundTableScanSource>();
+  //   auto bindData = source.info.bindData->constPtrCast<ScanFileBindData>();
+  //   if (copyStatement.byColumn() &&
+  //       bindData->fileScanInfo.fileTypeInfo.fileType != FileType::NPY) {
+  //     throw BinderException(
+  //         stringFormat("Copy by column with {} file type is not supported.",
+  //                      bindData->fileScanInfo.fileTypeInfo.fileTypeStr));
+  //   }
+  // }
   expression_vector columns;
   std::vector<ColumnEvaluateType> evaluateTypes;
   for (auto& property : nodeTableEntry->getProperties()) {
@@ -134,8 +134,8 @@ std::unique_ptr<BoundStatement> Binder::bindCopyNodeFrom(
     columns.push_back(column);
     evaluateTypes.push_back(evaluateType);
   }
-  columns.insert(columns.end(), warningDataExprs.begin(),
-                 warningDataExprs.end());
+  // columns.insert(columns.end(), warningDataExprs.begin(),
+  //                warningDataExprs.end());
   auto offset = createInvisibleVariable(
       std::string(InternalKeyword::ROW_OFFSET), LogicalType::INT64());
   auto boundCopyFromInfo = BoundCopyFromInfo(

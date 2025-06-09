@@ -11,7 +11,8 @@ namespace storage {
 
 class TableStats {
  public:
-  explicit TableStats(std::span<const common::LogicalType> dataTypes) {}
+  explicit TableStats(std::span<const common::LogicalType> dataTypes)
+      : cardinality(0) {}
 
   EXPLICIT_COPY_DEFAULT_MOVE(TableStats);
 

@@ -1,6 +1,8 @@
 #pragma once
 
 #include "binder/expression/expression_util.h"
+#include "catalog/catalog.h"
+#include "gopt/g_graph_type.h"
 #include "planner/operator/logical_operator.h"
 #include "storage/predicate/column_predicate.h"
 
@@ -31,6 +33,14 @@ struct PrimaryKeyScanInfo final : ExtraScanNodeTableInfo {
   std::unique_ptr<ExtraScanNodeTableInfo> copy() const override {
     return std::make_unique<PrimaryKeyScanInfo>(key);
   }
+};
+
+struct PrimaryKey {
+  std::string key;
+  PrimaryKeyScanInfo* value;
+
+  PrimaryKey(const std::string& key, PrimaryKeyScanInfo* value)
+      : key(key), value(value) {}
 };
 
 struct LogicalScanNodeTablePrintInfo final : OPPrintInfo {
@@ -74,6 +84,12 @@ class LogicalScanNodeTable final : public LogicalOperator {
   void computeFactorizedSchema() override;
   void computeFlatSchema() override;
 
+  std::string getAliasName() const;
+
+  std::optional<PrimaryKey> getPrimaryKey(catalog::Catalog* catalog) const;
+
+  std::unique_ptr<gopt::GNodeType> getNodeType(catalog::Catalog* catalog) const;
+
   std::string getExpressionsForPrinting() const override {
     auto message =
         nodeID->toString() + " " + binder::ExpressionUtil::toString(properties);
@@ -84,6 +100,7 @@ class LogicalScanNodeTable final : public LogicalOperator {
         message += " PK_SCAN(" + pkExtraInfo->key->toString() + ")";
       }
     }
+    message += ("Type: " + nodeID->getDataType().toString());
     return message;
   }
 

@@ -5,6 +5,7 @@
 #include <span>
 #include "catalog/catalog_entry/node_table_catalog_entry.h"
 #include "common/types/types.h"
+#include "storage/stats/table_stats.h"
 #include "storage/store/node_table.h"
 
 namespace kuzu {
@@ -16,7 +17,6 @@ class GNodeTable : public NodeTable {
  public:
   GNodeTable(const catalog::NodeTableCatalogEntry* tableEntry,
              StorageManager* storageManager, MemoryManager* memoryManager,
-             common::VirtualFileSystem* vfs, main::ClientContext* context,
              common::row_idx_t numRows)
       : NodeTable{storageManager, tableEntry}, numRows{numRows} {}
 

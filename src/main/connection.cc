@@ -77,7 +77,7 @@ Result<results::CollectiveResults> Connection::query_impl(
   }
   Plan plan;
   if (planner_->type() == "dummy") {
-    plan.error_code = "OK";
+    plan.error_code = StatusCode::OK;
     plan.full_message = "OK";
     plan.physical_plan = load_plan_from_resource(resource_path_ + "/nexg.pb");
   } else {
@@ -89,7 +89,7 @@ Result<results::CollectiveResults> Connection::query_impl(
   //     query_string, read_yaml_file_to_string(db_.get_schema_yaml_path()),
   //     db_.get_statistics_json());
 
-  if (plan.error_code != "OK") {
+  if (plan.error_code != StatusCode::OK) {
     LOG(ERROR) << "Error in query: " << query_string
                << ", error code: " << plan.error_code
                << ", message: " << plan.full_message;
@@ -262,44 +262,150 @@ physical::PhysicalPlan Connection::createDDLPlan(
     return physical_plan;
   }
 
-  if (query_string.find("knows") != std::string::npos) {
-    auto create_edge_request = plan->mutable_create_edge_schema();
-    create_edge_request->set_multiplicity(
-        physical::CreateEdgeSchema::Multiplicity::
-            CreateEdgeSchema_Multiplicity_MANY_TO_MANY);
-    create_edge_request->mutable_edge_type()->mutable_type_name()->set_name(
-        "knows");
-    create_edge_request->mutable_edge_type()->mutable_src_type_name()->set_name(
-        "person");
-    create_edge_request->mutable_edge_type()->mutable_dst_type_name()->set_name(
-        "person");
-    auto weight_prop = create_edge_request->add_properties();
-    weight_prop->set_name("weight");
-    weight_prop->mutable_type()->set_primitive_type(
-        common::PrimitiveType::DT_DOUBLE);
-    return physical_plan;
+  // Migrating to GraphPlanner
+  if (planner_->type() == "jni") {
+    if (query_string.find("person") != std::string::npos) {
+      auto create_vertex_reequest = plan->mutable_create_vertex_schema();
+      create_vertex_reequest->mutable_vertex_type()->set_name("person");
+      create_vertex_reequest->mutable_primary_key()->Add("id");
+      auto id_property = create_vertex_reequest->add_properties();
+      id_property->set_name("id");
+      id_property->mutable_type()->set_primitive_type(
+          common::PrimitiveType::DT_SIGNED_INT64);
+      auto name_property = create_vertex_reequest->add_properties();
+      name_property->set_name("name");
+      name_property->mutable_type()->mutable_string()->mutable_long_text();
+      auto age_property = create_vertex_reequest->add_properties();
+      age_property->set_name("age");
+      age_property->mutable_type()->set_primitive_type(
+          common::PrimitiveType::DT_SIGNED_INT64);
+      return physical_plan;
+    }
+
+    if (query_string.find("knows") != std::string::npos) {
+      auto create_edge_request = plan->mutable_create_edge_schema();
+      create_edge_request->set_multiplicity(
+          physical::CreateEdgeSchema::Multiplicity::
+              CreateEdgeSchema_Multiplicity_MANY_TO_MANY);
+      create_edge_request->mutable_edge_type()->mutable_type_name()->set_name(
+          "knows");
+      create_edge_request->mutable_edge_type()
+          ->mutable_src_type_name()
+          ->set_name("person");
+      create_edge_request->mutable_edge_type()
+          ->mutable_dst_type_name()
+          ->set_name("person");
+      auto weight_prop = create_edge_request->add_properties();
+      weight_prop->set_name("weight");
+      weight_prop->mutable_type()->set_primitive_type(
+          common::PrimitiveType::DT_DOUBLE);
+      return physical_plan;
+    }
+  } else if (planner_->type() == "gopt") {
+    if (query_string.find("person") != std::string::npos) {
+      LOG(INFO) << "Compiling plan for query: " << query_string;
+      auto plan = planner_->compilePlan(
+          query_string, read_yaml_file_to_string(db_.get_schema_yaml_path()),
+          db_.get_statistics_json());
+      if (plan.error_code != StatusCode::OK) {
+        throw std::runtime_error("Failed to compile DDL plan: " +
+                                 plan.full_message);
+      }
+      return plan.physical_plan;
+    }
+    if (query_string.find("knows") != std::string::npos) {
+      LOG(INFO) << "Compiling plan for query: " << query_string;
+      auto plan = planner_->compilePlan(
+          query_string, read_yaml_file_to_string(db_.get_schema_yaml_path()),
+          db_.get_statistics_json());
+      if (plan.error_code != StatusCode::OK) {
+        throw std::runtime_error("Failed to compile DDL plan: " +
+                                 plan.full_message);
+      }
+      return plan.physical_plan;
+    }
   }
 
-  if (query_string.find("person") != std::string::npos) {
-    auto create_vertex_reequest = plan->mutable_create_vertex_schema();
-    create_vertex_reequest->mutable_vertex_type()->set_name("person");
-    create_vertex_reequest->mutable_primary_key()->Add("id");
-    auto id_property = create_vertex_reequest->add_properties();
-    id_property->set_name("id");
-    id_property->mutable_type()->set_primitive_type(
-        common::PrimitiveType::DT_SIGNED_INT64);
-    auto name_property = create_vertex_reequest->add_properties();
-    name_property->set_name("name");
-    name_property->mutable_type()->mutable_string()->mutable_long_text();
-    auto age_property = create_vertex_reequest->add_properties();
-    age_property->set_name("age");
-    age_property->mutable_type()->set_primitive_type(
-        common::PrimitiveType::DT_SIGNED_INT64);
-    return physical_plan;
-  }
   LOG(FATAL) << "Unknown query: " << query_string;
 }
 
+physical::PhysicalPlan compiler_load_edge_plan_with_gopt(
+    std::shared_ptr<IGraphPlanner> planner, const std::string& query_string,
+    const std::string& graph_schema_yaml,
+    const std::string& graph_statistic_json) {
+  auto plan = planner->compilePlan(query_string, graph_schema_yaml,
+                                   graph_statistic_json);
+  if (plan.error_code != StatusCode::OK) {
+    throw std::runtime_error("Failed to compile load edge plan: " +
+                             plan.full_message);
+  }
+  LOG(INFO) << "Compiled plan for query: " << query_string
+            << ", plan size: " << plan.physical_plan.ByteSizeLong();
+  // Check if the plan is a load edge plan
+  if (plan.physical_plan.query_plan().plan_size() == 0 ||
+      plan.physical_plan.query_plan().plan_size() != 2) {
+    throw std::runtime_error(
+        "The compiled plan is not a load edge plan, "
+        "expected 2 operators, got: " +
+        std::to_string(plan.physical_plan.query_plan().plan_size()));
+  }
+  if (plan.physical_plan.query_plan().plan(0).opr().op_kind_case() !=
+      physical::PhysicalOpr::Operator::kSource) {
+    LOG(FATAL) << "The first operator is not a LoadEdge operator for query: "
+               << query_string << ", first operator: "
+               << plan.physical_plan.query_plan().plan(0).opr().DebugString();
+    return physical::PhysicalPlan();
+  }
+  if (plan.physical_plan.query_plan().plan(1).opr().op_kind_case() !=
+      physical::PhysicalOpr::Operator::kLoadEdge) {
+    LOG(FATAL) << "The second operator is not a LoadEdge operator for query: "
+               << query_string << ", second operator: "
+               << plan.physical_plan.query_plan().plan(1).opr().DebugString();
+    return physical::PhysicalPlan();
+  }
+  LOG(INFO) << "Successfully compiled load edge plan for query: "
+            << query_string;
+  return plan.physical_plan;
+}
+
+physical::PhysicalPlan compiler_load_vertex_plan_with_gopt(
+    std::shared_ptr<IGraphPlanner> planner, const std::string& query_string,
+    const std::string& graph_schema_yaml,
+    const std::string& graph_statistic_json) {
+  auto plan = planner->compilePlan(query_string, graph_schema_yaml,
+                                   graph_statistic_json);
+  if (plan.error_code != StatusCode::OK) {
+    throw std::runtime_error("Failed to compile load vertex plan: " +
+                             plan.full_message);
+  }
+  LOG(INFO) << "Compiled plan for query: " << query_string
+            << ", plan size: " << plan.physical_plan.ByteSizeLong();
+  // Check if the plan is a load vertex plan
+  if (plan.physical_plan.query_plan().plan_size() == 0 ||
+      plan.physical_plan.query_plan().plan_size() != 2) {
+    throw std::runtime_error(
+        "The compiled plan is not a load vertex plan, "
+        "expected 2 operators, got: " +
+        std::to_string(plan.physical_plan.query_plan().plan_size()));
+  }
+  if (plan.physical_plan.query_plan().plan(0).opr().op_kind_case() !=
+      physical::PhysicalOpr::Operator::kSource) {
+    LOG(FATAL) << "The first operator is not a LoadVertex operator for query: "
+               << query_string << ", first operator: "
+               << plan.physical_plan.query_plan().plan(0).opr().DebugString();
+    return physical::PhysicalPlan();
+  }
+  if (plan.physical_plan.query_plan().plan(1).opr().op_kind_case() !=
+      physical::PhysicalOpr::Operator::kLoadVertex) {
+    LOG(FATAL) << "The second operator is not a LoadVertex operator for query: "
+               << query_string << ", second operator: "
+               << plan.physical_plan.query_plan().plan(1).opr().DebugString();
+    return physical::PhysicalPlan();
+  }
+  LOG(INFO) << "Successfully compiled load vertex plan for query: "
+            << query_string;
+  return plan.physical_plan;
+}
 void _create_batch_load_vertex_plan(physical::QueryPlan* query_plan,
                                     const std::string& file_path,
                                     const std::string& vertex_type_name) {
@@ -422,10 +528,30 @@ physical::PhysicalPlan Connection::createDMLPlan(
   auto query_plan = plan.mutable_query_plan();
   query_plan->set_mode(physical::QueryPlan::Mode::QueryPlan_Mode_WRITE_ONLY);
   if (query_string.find("knows") != std::string::npos) {
-    _create_batch_load_edge_plan(query_plan, knows_csv_path, "knows", "person",
-                                 "person");
+    if (planner_->type() == "dummy") {
+      _create_batch_load_edge_plan(query_plan, knows_csv_path, "knows",
+                                   "person", "person");
+    } else if (planner_->type() == "gopt") {
+      return compiler_load_edge_plan_with_gopt(
+          planner_, query_string,
+          read_yaml_file_to_string(db_.get_schema_yaml_path()),
+          db_.get_statistics_json());
+    } else {
+      LOG(FATAL) << "Unknown planner type: " << planner_->type()
+                 << ", cannot create DML plan for query: " << query_string;
+    }
   } else if (query_string.find("person") != std::string::npos) {
-    _create_batch_load_vertex_plan(query_plan, person_csv_path, "person");
+    if (planner_->type() == "dummy") {
+      _create_batch_load_vertex_plan(query_plan, person_csv_path, "person");
+    } else if (planner_->type() == "gopt") {
+      return compiler_load_vertex_plan_with_gopt(
+          planner_, query_string,
+          read_yaml_file_to_string(db_.get_schema_yaml_path()),
+          db_.get_statistics_json());
+    } else {
+      LOG(FATAL) << "Unknown planner type: " << planner_->type()
+                 << ", cannot create DML plan for query: " << query_string;
+    }
   } else {
     LOG(FATAL) << "Unknown query: " << query_string;
   }

@@ -20,12 +20,13 @@
 #include <vector>
 
 #include "src/proto_generated_gie/physical.pb.h"
+#include "src/utils/result.h"
 
 namespace gs {
 struct Plan {
   // TODO(zhanglei,xiaoli): Use a general error code definition for the whole
   // system.
-  std::string error_code;
+  gs::StatusCode error_code;
   std::string full_message;
   physical::PhysicalPlan physical_plan;
   std::string result_schema;

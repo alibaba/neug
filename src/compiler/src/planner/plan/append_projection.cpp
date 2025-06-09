@@ -10,9 +10,9 @@ namespace planner {
 
 void Planner::appendProjection(const expression_vector& expressionsToProject,
                                LogicalPlan& plan) {
-  for (auto& expression : expressionsToProject) {
-    planSubqueryIfNecessary(expression, plan);
-  }
+  // for (auto& expression : expressionsToProject) {
+  //   planSubqueryIfNecessary(expression, plan);
+  // }
   bool hasRandomFunction = false;
   for (auto& expr : expressionsToProject) {
     if (ExpressionVisitor::isRandom(*expr)) {

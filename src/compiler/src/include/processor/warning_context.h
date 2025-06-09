@@ -45,7 +45,7 @@ class KUZU_API WarningContext {
 
   void defaultPopulateAllWarnings(uint64_t queryID) {}
 
-  const std::vector<WarningInfo>& getPopulatedWarnings() const { return {}; }
+  const std::vector<WarningInfo> getPopulatedWarnings() const { return {}; }
 
   uint64_t getWarningCount(uint64_t queryID) { return 0; }
   void clearPopulatedWarnings() {}

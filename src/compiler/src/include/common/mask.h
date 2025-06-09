@@ -8,7 +8,8 @@ namespace common {
 // Note that this class is NOT thread-safe.
 class SemiMask {
  public:
-  explicit SemiMask(offset_t maxOffset) : maxOffset{maxOffset}, enabled{false} {}
+  explicit SemiMask(offset_t maxOffset)
+      : maxOffset{maxOffset}, enabled{false} {}
 
   virtual ~SemiMask() = default;
 
@@ -57,7 +58,9 @@ class NodeOffsetMaskMap {
     return result;
   }
 
-  bool containsTableID(table_id_t tableID) const { return maskMap.contains(tableID); }
+  bool containsTableID(table_id_t tableID) const {
+    return maskMap.contains(tableID);
+  }
   SemiMask* getOffsetMask(table_id_t tableID) const {
     KU_ASSERT(containsTableID(tableID));
     return maskMap.at(tableID).get();

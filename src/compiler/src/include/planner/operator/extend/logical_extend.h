@@ -1,5 +1,7 @@
 #pragma once
 
+#include "gopt/g_graph_type.h"
+#include "gopt/g_rel_table_entry.h"
 #include "planner/operator/extend/base_logical_extend.h"
 #include "storage/predicate/column_predicate.h"
 
@@ -46,6 +48,14 @@ class LogicalExtend final : public BaseLogicalExtend {
   bool shouldScanNbrID() const { return scanNbrID; }
 
   std::unique_ptr<LogicalOperator> copy() override;
+
+  std::vector<common::table_id_t> getLabelIds() const;
+
+  std::string getAliasName() const;
+
+  std::string getStartAliasName() const;
+
+  std::unique_ptr<gopt::GRelType> getRelType() const;
 
  private:
   bool scanNbrID;

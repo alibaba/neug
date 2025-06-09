@@ -247,9 +247,14 @@ Plan compilePlanJNI(jclass graph_planner_clz_,
     return plan;
   }
 
-  plan.error_code = env->GetStringUTFChars(error_code, NULL);
+  std::string error_code_str = env->GetStringUTFChars(error_code, NULL);
+  if (error_code_str == "OK") {
+    plan.error_code = gs::nexg::interactive::Code::OK;
+  } else {
+    plan.error_code = gs::nexg::interactive::Code::ERR_COMPILATION;
+  }
 
-  if (plan.error_code != "OK") {
+  if (plan.error_code != StatusCode::OK) {
     jmethodID get_full_msg =
         env->GetMethodID(env->GetObjectClass(jni_plan), "getFullMessage",
                          "()Ljava/lang/String;");

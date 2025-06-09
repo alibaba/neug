@@ -46,12 +46,12 @@ static std::unique_ptr<FunctionBindData> bindFunc(
     const ScalarBindFuncInput& input) {
   validateArgumentType(input.arguments);
   auto scalarFunction = input.definition->ptrCast<ScalarFunction>();
-  TypeUtils::visit(
-      input.arguments[1]->getDataType().getPhysicalType(),
-      [&scalarFunction]<typename T>(T) {
-        scalarFunction->execFunc = ScalarFunction::BinaryExecListStructFunction<
-            list_entry_t, T, list_entry_t, ListAppend>;
-      });
+  TypeUtils::visit(input.arguments[1]->getDataType().getPhysicalType(),
+                   [&scalarFunction]<typename T>(T) {
+                     scalarFunction->execFunc =
+                         ScalarFunction::BinaryExecListStructFunction<
+                             list_entry_t, T, list_entry_t, ListAppend>;
+                   });
   return FunctionBindData::getSimpleBindData(input.arguments,
                                              input.arguments[0]->getDataType());
 }

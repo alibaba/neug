@@ -7,18 +7,21 @@
 namespace kuzu {
 namespace function {
 
-// ObjectBlock represents a pre-allocated amount of memory that can hold up to maxElements objects
-// ObjectBlock should be accessed by a single thread.
+// ObjectBlock represents a pre-allocated amount of memory that can hold up to
+// maxElements objects ObjectBlock should be accessed by a single thread.
 template <typename T>
 class ObjectBlock {
  public:
-  ObjectBlock(std::unique_ptr<storage::MemoryBuffer> block, uint64_t sizeInBytes)
+  ObjectBlock(std::unique_ptr<storage::MemoryBuffer> block,
+              uint64_t sizeInBytes)
       : block{std::move(block)} {
     maxElements.store(sizeInBytes / (sizeof(T)), std::memory_order_relaxed);
     nextPosToWrite.store(0, std::memory_order_relaxed);
   }
 
-  T* reserveNext() { return getData() + nextPosToWrite.fetch_add(1, std::memory_order_relaxed); }
+  T* reserveNext() {
+    return getData() + nextPosToWrite.fetch_add(1, std::memory_order_relaxed);
+  }
   void revertLast() { nextPosToWrite.fetch_sub(1, std::memory_order_relaxed); }
 
   bool hasSpace() const {
@@ -80,7 +83,8 @@ class AtomicObjectArray {
     return array.data[pos].load(std::memory_order_relaxed);
   }
 
-  bool compare_exchange_strong_max(const common::offset_t src, const common::offset_t dest) {
+  bool compare_exchange_strong_max(const common::offset_t src,
+                                   const common::offset_t dest) {
     auto srcValue = getRelaxed(src);
     auto dstValue = getRelaxed(dest);
     while (dstValue < srcValue) {
@@ -117,7 +121,8 @@ class GDSDenseObjectManager {
 template <typename T>
 class GDSSpareObjectManager {
  public:
-  explicit GDSSpareObjectManager(const common::table_id_map_t<common::offset_t>& nodeMaxOffsetMap) {
+  explicit GDSSpareObjectManager(
+      const common::table_id_map_t<common::offset_t>& nodeMaxOffsetMap) {
     for (auto& [tableID, _] : nodeMaxOffsetMap) {
       allocate(tableID);
     }
@@ -128,7 +133,8 @@ class GDSSpareObjectManager {
     mapPerTable.insert({tableID, {}});
   }
 
-  const common::table_id_map_t<std::unordered_map<common::offset_t, T>>& getData() {
+  const common::table_id_map_t<std::unordered_map<common::offset_t, T>>&
+  getData() {
     return mapPerTable;
   }
 

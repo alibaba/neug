@@ -41,7 +41,15 @@ class KUZU_API LogicalTableFunctionCall final : public LogicalOperator {
   void computeFactorizedSchema() override;
 
   std::string getExpressionsForPrinting() const override {
-    return tableFunc.name;
+    // return tableFunc.name;
+    auto result = tableFunc.name + "\nColumns: ";
+    for (const auto& expr : bindData->columns) {
+      result += expr->toString() + ", ";
+    }
+    if (!bindData->columns.empty()) {
+      result = result.substr(0, result.length() - 2);  // Remove trailing ", "
+    }
+    return result;
   }
 
   std::unique_ptr<LogicalOperator> copy() override {

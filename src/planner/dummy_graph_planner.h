@@ -31,7 +31,7 @@ class DummyGraphPlanner : public IGraphPlanner {
                    const std::string& graph_schema_yaml,
                    const std::string& graph_statistic_json) override {
     Plan plan;
-    plan.error_code = "OK";
+    plan.error_code = StatusCode::OK;
     plan.full_message = "OK";
     return plan;
   }

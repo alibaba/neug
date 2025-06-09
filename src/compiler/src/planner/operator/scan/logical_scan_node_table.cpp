@@ -1,4 +1,9 @@
 #include "planner/operator/scan/logical_scan_node_table.h"
+#include <memory>
+#include <optional>
+#include "binder/expression/property_expression.h"
+#include "catalog/catalog.h"
+#include "gopt/g_graph_type.h"
 
 namespace kuzu {
 namespace planner {
@@ -44,6 +49,62 @@ void LogicalScanNodeTable::computeFlatSchema() {
 
 std::unique_ptr<LogicalOperator> LogicalScanNodeTable::copy() {
   return std::make_unique<LogicalScanNodeTable>(*this);
+}
+
+std::string LogicalScanNodeTable::getAliasName() const {
+  // get the alias name from the node ID expression
+  auto nodeId = getNodeID();
+  if (!nodeId || nodeId->expressionType != common::ExpressionType::PROPERTY) {
+    throw common::Exception("Node ID expression is not a property expression.");
+  }
+  auto propertyExpr = nodeId->constCast<binder::PropertyExpression>();
+  auto varName = propertyExpr.getRawVariableName();
+  return varName;
+}
+
+std::unique_ptr<gopt::GNodeType> LogicalScanNodeTable::getNodeType(
+    catalog::Catalog* catalog) const {
+  // get node table from catalog by table ids
+  std::vector<catalog::NodeTableCatalogEntry*> nodeTables;
+  auto& transaction = kuzu::Constants::DEFAULT_TRANSACTION;
+  for (auto tableId : getTableIDs()) {
+    auto tableEntry = catalog->getTableCatalogEntry(&transaction, tableId);
+    auto nodeTableEntry =
+        dynamic_cast<catalog::NodeTableCatalogEntry*>(tableEntry);
+    if (!nodeTableEntry) {
+      throw common::Exception("Table with ID " + std::to_string(tableId) +
+                              " is not a node table in the catalog.");
+    }
+    nodeTables.push_back(nodeTableEntry);
+  }
+  return std::make_unique<gopt::GNodeType>(nodeTables);
+}
+
+std::optional<PrimaryKey> LogicalScanNodeTable::getPrimaryKey(
+    catalog::Catalog* catalog) const {
+  if (auto pkExtraInfo = dynamic_cast<PrimaryKeyScanInfo*>(getExtraInfo())) {
+    auto tableIds = getTableIDs();
+    if (tableIds.empty()) {
+      throw common::Exception("No table IDs found for primary key scan.");
+    }
+    auto tableEntry = catalog->getTableCatalogEntry(
+        &kuzu::Constants::DEFAULT_TRANSACTION, tableIds.at(0));
+    auto nodeTableEntry =
+        dynamic_cast<catalog::NodeTableCatalogEntry*>(tableEntry);
+    if (!nodeTableEntry) {
+      throw common::Exception(
+          "Primary key scan is only supported for node "
+          "tables, but got: " +
+          tableEntry->getName());
+    }
+    auto pkName = nodeTableEntry->getPrimaryKeyName();
+    if (pkName.empty()) {
+      throw common::Exception("Node table " + nodeTableEntry->getName() +
+                              " does not have a primary key.");
+    }
+    return PrimaryKey{pkName, pkExtraInfo};
+  }
+  return std::nullopt;
 }
 
 }  // namespace planner

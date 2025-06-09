@@ -94,6 +94,19 @@ BoundExtraCreateRelTableInfo::BoundExtraCreateRelTableInfo(
       dstTableID{dstTableID} {}
 
 BoundExtraCreateRelTableInfo::BoundExtraCreateRelTableInfo(
+    common::RelMultiplicity srcMultiplicity,
+    common::RelMultiplicity dstMultiplicity,
+    common::ExtendDirection storageDirection, const std::string& srcLabelName,
+    const std::string& dstLabelName,
+    std::vector<PropertyDefinition> definitions)
+    : BoundExtraCreateTableInfo{std::move(definitions)},
+      srcMultiplicity{srcMultiplicity},
+      dstMultiplicity{dstMultiplicity},
+      storageDirection(storageDirection),
+      srcLabelName{srcLabelName},
+      dstTableName{dstLabelName} {}
+
+BoundExtraCreateRelTableInfo::BoundExtraCreateRelTableInfo(
     const BoundExtraCreateRelTableInfo& other)
     : BoundExtraCreateTableInfo{copyVector(other.propertyDefinitions)},
       srcMultiplicity{other.srcMultiplicity},

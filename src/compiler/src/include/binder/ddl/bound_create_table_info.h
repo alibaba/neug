@@ -103,6 +103,8 @@ struct BoundExtraCreateRelTableInfo final : BoundExtraCreateTableInfo {
   common::ExtendDirection storageDirection;
   common::table_id_t srcTableID;
   common::table_id_t dstTableID;
+  std::string srcLabelName;
+  std::string dstTableName;
 
   BoundExtraCreateRelTableInfo(common::table_id_t srcTableID,
                                common::table_id_t dstTableID,
@@ -113,6 +115,14 @@ struct BoundExtraCreateRelTableInfo final : BoundExtraCreateTableInfo {
                                common::table_id_t srcTableID,
                                common::table_id_t dstTableID,
                                std::vector<PropertyDefinition> definitions);
+
+  BoundExtraCreateRelTableInfo(common::RelMultiplicity srcMultiplicity,
+                               common::RelMultiplicity dstMultiplicity,
+                               common::ExtendDirection storageDirection,
+                               const std::string& srcLabelName,
+                               const std::string& dstLabelName,
+                               std::vector<PropertyDefinition> definitions);
+
   BoundExtraCreateRelTableInfo(const BoundExtraCreateRelTableInfo& other);
 
   std::unique_ptr<BoundExtraCreateCatalogEntryInfo> copy() const override {

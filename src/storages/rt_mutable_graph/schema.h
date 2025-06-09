@@ -341,6 +341,12 @@ class Schema {
 
   uint32_t generate_edge_label(label_t src, label_t dst, label_t edge) const;
 
+  /*
+  Get the Edge strategy for the specified edge triplet. MANY_TO_MANY,
+  MANY_TO_ONE, ONE_TO_MANY, ONE_TO_ONE.
+  */
+  std::string get_edge_strategy(label_t src, label_t dst, label_t edge) const;
+
  private:
   label_t vertex_label_to_index(const std::string& label);
 

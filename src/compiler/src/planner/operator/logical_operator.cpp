@@ -107,6 +107,8 @@ std::string LogicalOperatorUtils::logicalOperatorTypeToString(
     return "USE_DATABASE";
   case LogicalOperatorType::CREATE_TYPE:
     return "CREATE_TYPE";
+  case kuzu::planner::LogicalOperatorType::GET_V:
+    return "GET_V";
   default:
     throw RuntimeException("Unknown logical operator type.");
   }

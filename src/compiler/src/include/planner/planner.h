@@ -7,9 +7,10 @@
 #include "common/enums/join_type.h"
 #include "planner/join_order/cardinality_estimator.h"
 #include "planner/join_order_enumerator_context.h"
+#include "planner/operator/extend/logical_extend.h"
 #include "planner/operator/logical_plan.h"
+#include "planner/operator/scan/logical_scan_node_table.h"
 #include "planner/operator/sip/semi_mask_target_type.h"
-
 namespace kuzu {
 namespace binder {
 struct BoundTableScanInfo;
@@ -446,6 +447,16 @@ class KUZU_API Planner {
       const binder::SubqueryGraph& leftPrev,
       const binder::SubqueryGraph& rightPrev, const binder::SubqueryGraph& new_,
       const binder::expression_vector& exprs);
+
+ private:
+  void planGetV(
+      const binder::SubqueryGraph& subgraph,
+      const binder::SubqueryGraph& otherSubgraph,
+      const std::vector<std::shared_ptr<binder::NodeExpression>>& joinNodes);
+  std::shared_ptr<planner::LogicalOperator> extractExtend(
+      std::shared_ptr<LogicalOperator> top);
+  std::shared_ptr<planner::LogicalOperator> extractGetV(
+      std::shared_ptr<LogicalOperator> top);
 
  private:
   main::ClientContext* clientContext;

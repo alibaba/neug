@@ -1,13 +1,13 @@
 #include "binder/binder.h"
 
+#include <memory>
 #include "binder/bound_statement_rewriter.h"
-#include "catalog/catalog.h"
-#include "common/copier_config/csv_reader_config.h"
+#include "binder/expression/expression.h"
 #include "common/exception/binder.h"
-#include "common/string_format.h"
 #include "common/string_utils.h"
-#include "function/built_in_function_utils.h"
-#include "function/table/table_function.h"
+#include "function/table/bind_data.h"
+#include "function/table/bind_input.h"
+#include "function/table/scan_file_function.h"
 
 using namespace kuzu::catalog;
 using namespace kuzu::common;
@@ -219,11 +219,22 @@ void Binder::replaceExpressionInScope(const std::string& oldName,
   scope.replaceExpression(oldName, newName, expression);
 }
 
+static std::unique_ptr<TableFuncBindData> scanBindFunc(
+    main::ClientContext* context, const TableFuncBindInput* input) {
+  auto& extraInput = input->extraInput;
+  // todo: check if extraInput is of type ExtraScanTableFuncBindInput
+  auto scanInput = extraInput->constPtrCast<ExtraScanTableFuncBindInput>();
+  auto vars = input->binder->createVariables(scanInput->expectedColumnNames,
+                                             scanInput->expectedColumnTypes);
+  return std::make_unique<function::ScanFileBindData>(
+      vars, vars.size(), scanInput->fileScanInfo.copy(), context);
+}
+
 TableFunction Binder::getScanFunction(const FileTypeInfo& typeInfo,
                                       const FileScanInfo& fileScanInfo) const {
-  throw std::runtime_error(
-      "getScanFunction is not implemented: removed dependency on processor "
-      "module");
+  TableFunction scanFunction;
+  scanFunction.bindFunc = scanBindFunc;
+  return scanFunction;
 }
 
 }  // namespace binder
