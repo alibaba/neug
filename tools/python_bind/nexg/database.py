@@ -56,6 +56,7 @@ class Database(object):
         planner_config_path : str
             Path to the planner config file. Default is None. If none, the default config path will be used.
         """
+        self._database = None
         self._db_path = db_path
         self._mode = mode
         # The default connection of the database, will be lazy initialized if get_default_connection is called.
