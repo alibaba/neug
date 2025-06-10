@@ -85,9 +85,6 @@ Result<results::CollectiveResults> Connection::query_impl(
         query_string, read_yaml_file_to_string(db_.get_schema_yaml_path()),
         db_.get_statistics_json());
   }
-  // auto plan = planner_->compilePlan(
-  //     query_string, read_yaml_file_to_string(db_.get_schema_yaml_path()),
-  //     db_.get_statistics_json());
 
   if (plan.error_code != StatusCode::OK) {
     LOG(ERROR) << "Error in query: " << query_string
@@ -129,8 +126,25 @@ Result<results::CollectiveResults> Connection::query_impl(
   return result;
 }
 
+physical::PhysicalPlan Connection::createDDLPlanWithGopt(
+    const std::string& query_string) {
+  auto plan = planner_->compilePlan(
+      query_string, read_yaml_file_to_string(db_.get_schema_yaml_path()),
+      db_.get_statistics_json());
+  if (plan.error_code != StatusCode::OK) {
+    throw std::runtime_error("Failed to compile DDL plan: " +
+                             plan.full_message);
+  }
+  return plan.physical_plan;
+}
+
 physical::PhysicalPlan Connection::createDDLPlan(
     const std::string& query_string) {
+  if (planner_->type() == "gopt" &&
+      query_string.find("ALTER") == std::string::npos &&
+      query_string.find("DROP") == std::string::npos) {
+    return createDDLPlanWithGopt(query_string);
+  }
   physical::PhysicalPlan physical_plan;
   auto plan = physical_plan.mutable_ddl_plan();
   // Currently we use a builtin plan for testing
@@ -301,111 +315,11 @@ physical::PhysicalPlan Connection::createDDLPlan(
           common::PrimitiveType::DT_DOUBLE);
       return physical_plan;
     }
-  } else if (planner_->type() == "gopt") {
-    if (query_string.find("person") != std::string::npos) {
-      LOG(INFO) << "Compiling plan for query: " << query_string;
-      auto plan = planner_->compilePlan(
-          query_string, read_yaml_file_to_string(db_.get_schema_yaml_path()),
-          db_.get_statistics_json());
-      if (plan.error_code != StatusCode::OK) {
-        throw std::runtime_error("Failed to compile DDL plan: " +
-                                 plan.full_message);
-      }
-      return plan.physical_plan;
-    }
-    if (query_string.find("knows") != std::string::npos) {
-      LOG(INFO) << "Compiling plan for query: " << query_string;
-      auto plan = planner_->compilePlan(
-          query_string, read_yaml_file_to_string(db_.get_schema_yaml_path()),
-          db_.get_statistics_json());
-      if (plan.error_code != StatusCode::OK) {
-        throw std::runtime_error("Failed to compile DDL plan: " +
-                                 plan.full_message);
-      }
-      return plan.physical_plan;
-    }
   }
 
   LOG(FATAL) << "Unknown query: " << query_string;
 }
 
-physical::PhysicalPlan compiler_load_edge_plan_with_gopt(
-    std::shared_ptr<IGraphPlanner> planner, const std::string& query_string,
-    const std::string& graph_schema_yaml,
-    const std::string& graph_statistic_json) {
-  auto plan = planner->compilePlan(query_string, graph_schema_yaml,
-                                   graph_statistic_json);
-  if (plan.error_code != StatusCode::OK) {
-    throw std::runtime_error("Failed to compile load edge plan: " +
-                             plan.full_message);
-  }
-  LOG(INFO) << "Compiled plan for query: " << query_string
-            << ", plan size: " << plan.physical_plan.ByteSizeLong();
-  // Check if the plan is a load edge plan
-  if (plan.physical_plan.query_plan().plan_size() == 0 ||
-      plan.physical_plan.query_plan().plan_size() != 2) {
-    throw std::runtime_error(
-        "The compiled plan is not a load edge plan, "
-        "expected 2 operators, got: " +
-        std::to_string(plan.physical_plan.query_plan().plan_size()));
-  }
-  if (plan.physical_plan.query_plan().plan(0).opr().op_kind_case() !=
-      physical::PhysicalOpr::Operator::kSource) {
-    LOG(FATAL) << "The first operator is not a LoadEdge operator for query: "
-               << query_string << ", first operator: "
-               << plan.physical_plan.query_plan().plan(0).opr().DebugString();
-    return physical::PhysicalPlan();
-  }
-  if (plan.physical_plan.query_plan().plan(1).opr().op_kind_case() !=
-      physical::PhysicalOpr::Operator::kLoadEdge) {
-    LOG(FATAL) << "The second operator is not a LoadEdge operator for query: "
-               << query_string << ", second operator: "
-               << plan.physical_plan.query_plan().plan(1).opr().DebugString();
-    return physical::PhysicalPlan();
-  }
-  LOG(INFO) << "Successfully compiled load edge plan for query: "
-            << query_string;
-  return plan.physical_plan;
-}
-
-physical::PhysicalPlan compiler_load_vertex_plan_with_gopt(
-    std::shared_ptr<IGraphPlanner> planner, const std::string& query_string,
-    const std::string& graph_schema_yaml,
-    const std::string& graph_statistic_json) {
-  auto plan = planner->compilePlan(query_string, graph_schema_yaml,
-                                   graph_statistic_json);
-  if (plan.error_code != StatusCode::OK) {
-    throw std::runtime_error("Failed to compile load vertex plan: " +
-                             plan.full_message);
-  }
-  LOG(INFO) << "Compiled plan for query: " << query_string
-            << ", plan size: " << plan.physical_plan.ByteSizeLong();
-  // Check if the plan is a load vertex plan
-  if (plan.physical_plan.query_plan().plan_size() == 0 ||
-      plan.physical_plan.query_plan().plan_size() != 2) {
-    throw std::runtime_error(
-        "The compiled plan is not a load vertex plan, "
-        "expected 2 operators, got: " +
-        std::to_string(plan.physical_plan.query_plan().plan_size()));
-  }
-  if (plan.physical_plan.query_plan().plan(0).opr().op_kind_case() !=
-      physical::PhysicalOpr::Operator::kSource) {
-    LOG(FATAL) << "The first operator is not a LoadVertex operator for query: "
-               << query_string << ", first operator: "
-               << plan.physical_plan.query_plan().plan(0).opr().DebugString();
-    return physical::PhysicalPlan();
-  }
-  if (plan.physical_plan.query_plan().plan(1).opr().op_kind_case() !=
-      physical::PhysicalOpr::Operator::kLoadVertex) {
-    LOG(FATAL) << "The second operator is not a LoadVertex operator for query: "
-               << query_string << ", second operator: "
-               << plan.physical_plan.query_plan().plan(1).opr().DebugString();
-    return physical::PhysicalPlan();
-  }
-  LOG(INFO) << "Successfully compiled load vertex plan for query: "
-            << query_string;
-  return plan.physical_plan;
-}
 void _create_batch_load_vertex_plan(physical::QueryPlan* query_plan,
                                     const std::string& file_path,
                                     const std::string& vertex_type_name) {
@@ -512,8 +426,43 @@ void _create_batch_load_edge_plan(physical::QueryPlan* query_plan,
   }
 }
 
+physical::PhysicalPlan Connection::createDMLPlanWithGopt(
+    const std::string& query_string) {
+  auto graph_schema_yaml = read_yaml_file_to_string(db_.get_schema_yaml_path());
+  auto graph_statistic_json = db_.get_statistics_json();
+  auto plan = planner_->compilePlan(query_string, graph_schema_yaml,
+                                    graph_statistic_json);
+  if (plan.error_code != StatusCode::OK) {
+    throw std::runtime_error("Failed to compile load edge plan: " +
+                             plan.full_message);
+  }
+  LOG(INFO) << "Compiled plan for query: " << query_string
+            << ", plan size: " << plan.physical_plan.ByteSizeLong();
+  // Check if the plan is a load edge plan
+  if (plan.physical_plan.query_plan().plan_size() == 0 ||
+      plan.physical_plan.query_plan().plan_size() != 2) {
+    throw std::runtime_error(
+        "The compiled plan is not a load edge plan, "
+        "expected 2 operators, got: " +
+        std::to_string(plan.physical_plan.query_plan().plan_size()));
+  }
+  if (plan.physical_plan.query_plan().plan(0).opr().op_kind_case() !=
+      physical::PhysicalOpr::Operator::kSource) {
+    LOG(FATAL) << "The first operator is not a LoadEdge operator for query: "
+               << query_string << ", first operator: "
+               << plan.physical_plan.query_plan().plan(0).opr().DebugString();
+    return physical::PhysicalPlan();
+  }
+  LOG(INFO) << "Successfully compiled load edge plan for query: "
+            << query_string;
+  return plan.physical_plan;
+}
+
 physical::PhysicalPlan Connection::createDMLPlan(
     const std::string& query_string) {
+  if (planner_->type() == "gopt") {
+    return createDMLPlanWithGopt(query_string);
+  }
   physical::PhysicalPlan plan;
   // Read env FLEX_DATA_DIR
   const char* env_p = std::getenv("FLEX_DATA_DIR");
@@ -531,11 +480,6 @@ physical::PhysicalPlan Connection::createDMLPlan(
     if (planner_->type() == "dummy") {
       _create_batch_load_edge_plan(query_plan, knows_csv_path, "knows",
                                    "person", "person");
-    } else if (planner_->type() == "gopt") {
-      return compiler_load_edge_plan_with_gopt(
-          planner_, query_string,
-          read_yaml_file_to_string(db_.get_schema_yaml_path()),
-          db_.get_statistics_json());
     } else {
       LOG(FATAL) << "Unknown planner type: " << planner_->type()
                  << ", cannot create DML plan for query: " << query_string;
@@ -543,11 +487,6 @@ physical::PhysicalPlan Connection::createDMLPlan(
   } else if (query_string.find("person") != std::string::npos) {
     if (planner_->type() == "dummy") {
       _create_batch_load_vertex_plan(query_plan, person_csv_path, "person");
-    } else if (planner_->type() == "gopt") {
-      return compiler_load_vertex_plan_with_gopt(
-          planner_, query_string,
-          read_yaml_file_to_string(db_.get_schema_yaml_path()),
-          db_.get_statistics_json());
     } else {
       LOG(FATAL) << "Unknown planner type: " << planner_->type()
                  << ", cannot create DML plan for query: " << query_string;

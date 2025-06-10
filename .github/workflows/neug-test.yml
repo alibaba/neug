@@ -45,10 +45,14 @@ jobs:
       uses: mxschmitt/action-tmate@v3
 
     - name: Cache CCache
-      uses: actions/cache@v3
+      uses: actions/cache@v4
       with:
         path: ~/.cache
-        key: ${{ runner.os }}-ccache-amd64-${{ hashFiles('**/CMakeLists.txt') }}
+        # use timestamp as cache key to avoid cache miss
+        key: ${{ runner.os }}-ccache-${{ github.run_id }}-${{ github.sha }}
+        restore-keys: |
+          ${{ runner.os }}-ccache-${{ github.run_id }}-
+          ${{ runner.os }}-ccache-
 
     - name: Build Interactive
       run: |
@@ -99,5 +103,7 @@ jobs:
         cd ${GITHUB_WORKSPACE}/tools/python_bind/
         export FLEX_DATA_DIR=${GITHUB_WORKSPACE}/example_dataset/modern_graph
         GLOG_v=10 ./build/nexg_py_bind/tests/rt_mutable_graph/test_gopt_planner /tmp/test_gopt_planner
+
+
 
 

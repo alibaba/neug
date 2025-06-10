@@ -92,6 +92,10 @@ class Connection {
 
   physical::PhysicalPlan createDMLPlan(const std::string& query_string);
 
+  physical::PhysicalPlan createDDLPlanWithGopt(const std::string& query_string);
+
+  physical::PhysicalPlan createDMLPlanWithGopt(const std::string& query_string);
+
   GraphDB& db_;
 
   std::shared_ptr<IGraphPlanner> planner_;
