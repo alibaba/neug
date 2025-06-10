@@ -7,10 +7,10 @@
 #include "main/client_context.h"
 #include "parser/create_macro.h"
 
-using namespace kuzu::common;
-using namespace kuzu::parser;
+using namespace gs::common;
+using namespace gs::parser;
 
-namespace kuzu {
+namespace gs {
 namespace binder {
 
 std::unique_ptr<BoundStatement> Binder::bindCreateMacro(
@@ -34,4 +34,4 @@ std::unique_ptr<BoundStatement> Binder::bindCreateMacro(
 }
 
 }  // namespace binder
-}  // namespace kuzu
+}  // namespace gs

@@ -7,7 +7,7 @@
 #include "common/enums/conflict_action.h"
 #include "parser/expression/parsed_expression.h"
 
-namespace kuzu {
+namespace gs {
 namespace parser {
 
 struct ExtraAlterInfo {
@@ -82,4 +82,4 @@ struct ExtraCommentInfo : public ExtraAlterInfo {
 };
 
 }  // namespace parser
-}  // namespace kuzu
+}  // namespace gs

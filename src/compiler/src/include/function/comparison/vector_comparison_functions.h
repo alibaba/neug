@@ -6,7 +6,7 @@
 #include "comparison_functions.h"
 #include "function/scalar_function.h"
 
-namespace kuzu {
+namespace gs {
 namespace function {
 
 struct ComparisonFunction {
@@ -287,4 +287,4 @@ struct LessThanEqualsFunction {
 };
 
 }  // namespace function
-}  // namespace kuzu
+}  // namespace gs

@@ -5,9 +5,9 @@
 #include "main/database.h"
 #include "transaction/transaction_manager.h"
 
-using namespace kuzu::common;
+using namespace gs::common;
 
-namespace kuzu {
+namespace gs {
 namespace transaction {
 
 TransactionContext::TransactionContext(main::ClientContext& clientContext)
@@ -86,4 +86,4 @@ void TransactionContext::beginTransactionInternal(
 }
 
 }  // namespace transaction
-}  // namespace kuzu
+}  // namespace gs

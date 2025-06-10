@@ -4,7 +4,7 @@
 #include "common/types/types.h"
 #include "common/vector/value_vector.h"
 
-namespace kuzu {
+namespace gs {
 namespace common {
 
 // scans are based on data specification found here
@@ -660,4 +660,4 @@ void ArrowConverter::fromArrowArray(const ArrowSchema* schema,
 }
 
 }  // namespace common
-}  // namespace kuzu
+}  // namespace gs

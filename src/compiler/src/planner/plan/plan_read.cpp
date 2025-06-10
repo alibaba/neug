@@ -4,10 +4,10 @@
 #include "binder/query/reading_clause/bound_table_function_call.h"
 #include "planner/planner.h"
 
-using namespace kuzu::binder;
-using namespace kuzu::common;
+using namespace gs::binder;
+using namespace gs::common;
 
-namespace kuzu {
+namespace gs {
 namespace planner {
 
 void Planner::planReadingClause(
@@ -169,4 +169,4 @@ void Planner::planReadOp(std::shared_ptr<LogicalOperator> op,
 }
 
 }  // namespace planner
-}  // namespace kuzu
+}  // namespace gs

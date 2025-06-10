@@ -3,7 +3,7 @@
 #include "common/vector/value_vector.h"
 // #include <simsimd.h>
 
-namespace kuzu {
+namespace gs {
 namespace function {
 
 struct ArraySquaredDistance {
@@ -30,4 +30,4 @@ struct ArraySquaredDistance {
 };
 
 }  // namespace function
-}  // namespace kuzu
+}  // namespace gs

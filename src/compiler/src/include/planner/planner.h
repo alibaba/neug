@@ -11,7 +11,7 @@
 #include "planner/operator/logical_plan.h"
 #include "planner/operator/scan/logical_scan_node_table.h"
 #include "planner/operator/sip/semi_mask_target_type.h"
-namespace kuzu {
+namespace gs {
 namespace binder {
 struct BoundTableScanInfo;
 struct BoundCopyFromInfo;
@@ -466,4 +466,4 @@ class KUZU_API Planner {
 };
 
 }  // namespace planner
-}  // namespace kuzu
+}  // namespace gs

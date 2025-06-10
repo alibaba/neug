@@ -4,7 +4,7 @@
 
 #include "progress_bar_display.h"
 
-namespace kuzu {
+namespace gs {
 namespace common {
 
 /**
@@ -30,4 +30,4 @@ class TerminalProgressBarDisplay final : public ProgressBarDisplay {
 };
 
 }  // namespace common
-}  // namespace kuzu
+}  // namespace gs

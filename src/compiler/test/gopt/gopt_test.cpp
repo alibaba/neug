@@ -24,7 +24,7 @@
 #include "storage/wal/wal.h"
 #include "transaction/transaction.h"
 
-namespace kuzu {
+namespace gs {
 namespace testing {
 
 std::string getEnvVarOrDefault(const char* varName,
@@ -112,8 +112,8 @@ void updateSchema(const std::string& line, main::GDatabase* database) {
 }
 
 TEST(GOptTest, GCataLog) {
-  auto& transaction = kuzu::Constants::DEFAULT_TRANSACTION;
-  kuzu::catalog::GCatalog catalog(
+  auto& transaction = gs::Constants::DEFAULT_TRANSACTION;
+  gs::catalog::GCatalog catalog(
       getTestResourcePath("test/gopt/resources/ldbc_schema.yaml"));
   auto entry = catalog.getTableCatalogEntry(&transaction, "KNOWS");
   auto knowsEntry = entry->constPtrCast<catalog::GRelTableCatalogEntry>();
@@ -147,12 +147,12 @@ TEST(GOptTest, GStorageManager) {
   auto schemaPath = getTestResourcePath("test/gopt/resources/ldbc_schema.yaml");
   auto statsPath =
       getTestResourcePath("test/gopt/resources/ldbc_0.1_statistics.json");
-  kuzu::catalog::GCatalog catalog(schemaPath);
+  gs::catalog::GCatalog catalog(schemaPath);
   storage::MemoryManager memoryManager;
   storage::WAL wal;
-  kuzu::storage::GStorageManager storageManager(statsPath, catalog,
-                                                memoryManager, wal);
-  auto& transaction = kuzu::Constants::DEFAULT_TRANSACTION;
+  gs::storage::GStorageManager storageManager(statsPath, catalog, memoryManager,
+                                              wal);
+  auto& transaction = gs::Constants::DEFAULT_TRANSACTION;
   auto entry = catalog.getTableCatalogEntry(&transaction, "KNOWS");
   auto knowsTable = storageManager.getTable(entry->getTableID());
   ASSERT_EQ(knowsTable->getNumTotalRows(&transaction), 14073);
@@ -169,10 +169,10 @@ TEST(GOptTest, GStorageManager) {
 TEST(GOptTest, Query) {
   std::string queryFile = getTestResourcePath("test/gopt/resources/query");
 
-  kuzu::main::SystemConfig sysConfig;
+  gs::main::SystemConfig sysConfig;
   sysConfig.readOnly = false;
-  auto database = std::make_unique<kuzu::main::GDatabase>(sysConfig);
-  auto ctx = std::make_unique<kuzu::main::ClientContext>(database.get());
+  auto database = std::make_unique<gs::main::GDatabase>(sysConfig);
+  auto ctx = std::make_unique<gs::main::ClientContext>(database.get());
   std::vector<std::string> queries;
   getQueries(queries, queryFile);
   for (auto& query : queries) {
@@ -244,11 +244,11 @@ TEST(GOptTest, GOptPlanner) {
 //   // std::string query = "Match (n:person)-[k:knows]->(m:person) where m.id =
 //   10 Return n.name"; std::string query = "Match
 //   (n:person)-[k:knows]->(m:person) Return m.id, k, n.name";
-//   kuzu::main::SystemConfig sysConfig;
+//   gs::main::SystemConfig sysConfig;
 //   sysConfig.readOnly = false;
-//   auto database = std::make_unique<kuzu::main::GDatabase>(sysConfig);
+//   auto database = std::make_unique<gs::main::GDatabase>(sysConfig);
 //   database->updateSchema(schemaData, statsData);
-//   auto ctx = std::make_unique<kuzu::main::ClientContext>(database.get());
+//   auto ctx = std::make_unique<gs::main::ClientContext>(database.get());
 //   auto statement = ctx->prepare(query);
 //   if (!statement->success) {
 //     std::cerr << "Query error: " << statement->errMsg << std::endl;
@@ -267,4 +267,4 @@ TEST(GOptTest, GOptPlanner) {
 // }
 
 }  // namespace testing
-}  // namespace kuzu
+}  // namespace gs

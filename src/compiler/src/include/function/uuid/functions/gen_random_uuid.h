@@ -4,7 +4,7 @@
 #include "function/function.h"
 #include "main/client_context.h"
 
-namespace kuzu {
+namespace gs {
 namespace function {
 
 struct GenRandomUUID {
@@ -16,4 +16,4 @@ struct GenRandomUUID {
 };
 
 }  // namespace function
-}  // namespace kuzu
+}  // namespace gs

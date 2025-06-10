@@ -8,7 +8,7 @@
 #include "common/serializer/buffered_file.h"
 #include "storage/wal/wal_record.h"
 
-namespace kuzu {
+namespace gs {
 namespace binder {
 struct BoundAlterInfo;
 struct BoundCreateTableInfo;
@@ -100,4 +100,4 @@ class WAL {
 };
 
 }  // namespace storage
-}  // namespace kuzu
+}  // namespace gs

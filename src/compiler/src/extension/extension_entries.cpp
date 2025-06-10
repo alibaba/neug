@@ -1,7 +1,7 @@
 #include "common/string_utils.h"
 #include "extension/extension_manager.h"
 
-namespace kuzu::extension {
+namespace gs::extension {
 
 struct EntriesForExtension {
   const char* extensionName;
@@ -71,4 +71,4 @@ std::optional<ExtensionEntry> ExtensionManager::lookupExtensionsByTypeName(
   return lookupExtensionsByEntryName(common::StringUtils::getUpper(typeName),
                                      typesForExtensions);
 }
-}  // namespace kuzu::extension
+}  // namespace gs::extension

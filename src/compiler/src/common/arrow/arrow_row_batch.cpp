@@ -8,7 +8,7 @@
 #include "common/types/value/rel.h"
 #include "common/types/value/value.h"
 
-namespace kuzu {
+namespace gs {
 namespace common {
 
 static void resizeVector(ArrowVector* vector, const LogicalType& type,
@@ -993,4 +993,4 @@ ArrowArray ArrowRowBatch::append(main::QueryResult& queryResult,
 }
 
 }  // namespace common
-}  // namespace kuzu
+}  // namespace gs

@@ -2,7 +2,7 @@
 
 #include "planner/operator/schema.h"
 
-namespace kuzu {
+namespace gs {
 namespace planner {
 
 // This class contains the logic for re-computing factorization structure after
@@ -31,4 +31,4 @@ class SinkOperatorUtil {
 };
 
 }  // namespace planner
-}  // namespace kuzu
+}  // namespace gs

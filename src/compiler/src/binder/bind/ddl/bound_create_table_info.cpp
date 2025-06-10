@@ -2,11 +2,11 @@
 
 #include "common/system_config.h"
 
-using namespace kuzu::parser;
-using namespace kuzu::common;
-using namespace kuzu::catalog;
+using namespace gs::parser;
+using namespace gs::common;
+using namespace gs::catalog;
 
-namespace kuzu {
+namespace gs {
 namespace binder {
 
 std::string BoundCreateTableInfo::toString() const {
@@ -116,4 +116,4 @@ BoundExtraCreateRelTableInfo::BoundExtraCreateRelTableInfo(
       dstTableID{other.dstTableID} {}
 
 }  // namespace binder
-}  // namespace kuzu
+}  // namespace gs

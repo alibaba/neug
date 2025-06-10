@@ -2,7 +2,7 @@
 
 #include "logical_operator_visitor.h"
 
-namespace kuzu {
+namespace gs {
 namespace optimizer {
 
 class CorrelatedSubqueryUnnestSolver : public LogicalOperatorVisitor {
@@ -23,4 +23,4 @@ class CorrelatedSubqueryUnnestSolver : public LogicalOperatorVisitor {
 };
 
 }  // namespace optimizer
-}  // namespace kuzu
+}  // namespace gs

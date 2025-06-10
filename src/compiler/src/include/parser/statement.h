@@ -3,7 +3,7 @@
 #include "common/cast.h"
 #include "common/enums/statement_type.h"
 
-namespace kuzu {
+namespace gs {
 namespace parser {
 
 class Statement {
@@ -52,4 +52,4 @@ class Statement {
 };
 
 }  // namespace parser
-}  // namespace kuzu
+}  // namespace gs

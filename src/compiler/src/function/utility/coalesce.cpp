@@ -3,9 +3,9 @@
 #include "function/scalar_function.h"
 #include "function/utility/vector_utility_functions.h"
 
-using namespace kuzu::common;
+using namespace gs::common;
 
-namespace kuzu {
+namespace gs {
 namespace function {
 
 static std::unique_ptr<FunctionBindData> bindFunc(
@@ -102,4 +102,4 @@ function_set IfNullFunction::getFunctionSet() {
 }
 
 }  // namespace function
-}  // namespace kuzu
+}  // namespace gs

@@ -2,9 +2,9 @@
 #include "function/list/vector_list_functions.h"
 #include "function/scalar_function.h"
 
-using namespace kuzu::common;
+using namespace gs::common;
 
-namespace kuzu {
+namespace gs {
 namespace function {
 
 struct ListAnyValue {
@@ -51,4 +51,4 @@ function_set ListAnyValueFunction::getFunctionSet() {
 }
 
 }  // namespace function
-}  // namespace kuzu
+}  // namespace gs

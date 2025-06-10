@@ -4,7 +4,7 @@
 #include "common/enums/extend_direction.h"
 #include "gds_state.h"
 
-namespace kuzu {
+namespace gs {
 namespace function {
 
 class KUZU_API GDSUtils {
@@ -44,4 +44,4 @@ class KUZU_API GDSUtils {
 };
 
 }  // namespace function
-}  // namespace kuzu
+}  // namespace gs

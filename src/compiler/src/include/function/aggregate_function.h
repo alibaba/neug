@@ -7,7 +7,7 @@
 #include "common/vector/value_vector.h"
 #include "function/function.h"
 
-namespace kuzu {
+namespace gs {
 namespace function {
 
 struct AggregateState {
@@ -157,4 +157,4 @@ struct CollectFunction {
 };
 
 }  // namespace function
-}  // namespace kuzu
+}  // namespace gs

@@ -2,10 +2,10 @@
 #include "planner/operator/logical_union.h"
 #include "planner/planner.h"
 
-using namespace kuzu::binder;
-using namespace kuzu::common;
+using namespace gs::binder;
+using namespace gs::common;
 
-namespace kuzu {
+namespace gs {
 namespace planner {
 
 static std::vector<std::vector<std::unique_ptr<LogicalPlan>>>
@@ -128,4 +128,4 @@ void Planner::exitPropertyExprCollection(PropertyExprCollection collection) {
 }
 
 }  // namespace planner
-}  // namespace kuzu
+}  // namespace gs

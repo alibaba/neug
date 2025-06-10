@@ -2,7 +2,7 @@
 #include "common/type_utils.h"
 #include "common/types/types.h"
 
-namespace kuzu {
+namespace gs {
 namespace function {
 
 template <typename... Fs>
@@ -52,4 +52,4 @@ static void checkWeight(T weight) {
 }
 
 }  // namespace function
-}  // namespace kuzu
+}  // namespace gs

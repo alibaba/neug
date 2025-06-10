@@ -1,6 +1,6 @@
 #include "common/metric.h"
 
-namespace kuzu {
+namespace gs {
 namespace common {
 
 TimeMetric::TimeMetric(bool enable) : Metric(enable) {
@@ -50,4 +50,4 @@ void NumericMetric::incrementByOne() {
 }
 
 }  // namespace common
-}  // namespace kuzu
+}  // namespace gs

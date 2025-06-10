@@ -7,7 +7,7 @@
 #include "common/cast.h"
 #include "file_info.h"
 
-namespace kuzu {
+namespace gs {
 namespace main {
 class ClientContext;
 }  // namespace main
@@ -139,4 +139,4 @@ class KUZU_API FileSystem {
 };
 
 }  // namespace common
-}  // namespace kuzu
+}  // namespace gs

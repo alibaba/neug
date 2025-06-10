@@ -2,7 +2,7 @@
 
 #include "planner/operator/scan/logical_scan_node_table.h"
 
-namespace kuzu {
+namespace gs {
 namespace optimizer {
 
 void LogicalOperatorCollector::collect(planner::LogicalOperator* op) {
@@ -22,4 +22,4 @@ void LogicalIndexScanNodeCollector::visitScanNodeTable(
 }
 
 }  // namespace optimizer
-}  // namespace kuzu
+}  // namespace gs

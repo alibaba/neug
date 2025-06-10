@@ -7,7 +7,7 @@
 #include "compressed_file_system.h"
 #include "file_system.h"
 
-namespace kuzu {
+namespace gs {
 namespace main {
 class Database;
 }
@@ -79,4 +79,4 @@ class KUZU_API VirtualFileSystem final : public FileSystem {
 };
 
 }  // namespace common
-}  // namespace kuzu
+}  // namespace gs

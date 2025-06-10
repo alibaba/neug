@@ -4,11 +4,11 @@
 #include "binder/expression/node_expression.h"
 #include "binder/expression/rel_expression.h"
 
-using namespace kuzu::common;
-using namespace kuzu::storage;
-using namespace kuzu::binder;
+using namespace gs::common;
+using namespace gs::storage;
+using namespace gs::binder;
 
-namespace kuzu {
+namespace gs {
 namespace function {
 
 void CountFunction::updateAll(uint8_t* state_, ValueVector* input,
@@ -41,4 +41,4 @@ function_set CountFunction::getFunctionSet() {
 }
 
 }  // namespace function
-}  // namespace kuzu
+}  // namespace gs

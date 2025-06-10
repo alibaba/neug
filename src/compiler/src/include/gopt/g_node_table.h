@@ -8,7 +8,7 @@
 #include "storage/stats/table_stats.h"
 #include "storage/store/node_table.h"
 
-namespace kuzu {
+namespace gs {
 namespace storage {
 class GNodeTable : public NodeTable {
  private:
@@ -36,4 +36,4 @@ class GNodeTable : public NodeTable {
   }
 };
 }  // namespace storage
-}  // namespace kuzu
+}  // namespace gs

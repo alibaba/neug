@@ -8,7 +8,7 @@
 #include "common/api.h"
 #include "function/cast/functions/numeric_limits.h"
 
-namespace kuzu {
+namespace gs {
 namespace common {
 
 class KUZU_API StringUtils {
@@ -142,4 +142,4 @@ class KUZU_API StringUtils {
 };
 
 }  // namespace common
-}  // namespace kuzu
+}  // namespace gs

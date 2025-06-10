@@ -7,7 +7,7 @@
 #include "common/types/int128_t.h"
 #include "common/types/types.h"
 
-namespace kuzu {
+namespace gs {
 namespace common {
 namespace numeric_utils {
 
@@ -75,4 +75,4 @@ constexpr int bitWidth<int128_t>(int128_t x) {
 }
 }  // namespace numeric_utils
 }  // namespace common
-}  // namespace kuzu
+}  // namespace gs

@@ -2,7 +2,7 @@
 
 #include "parser/parsed_statement_visitor.h"
 
-namespace kuzu {
+namespace gs {
 namespace parser {
 
 class StandaloneCallRewriter final : public StatementVisitor {
@@ -26,4 +26,4 @@ class StandaloneCallRewriter final : public StatementVisitor {
 };
 
 }  // namespace parser
-}  // namespace kuzu
+}  // namespace gs

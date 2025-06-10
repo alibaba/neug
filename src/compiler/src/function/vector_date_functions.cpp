@@ -3,9 +3,9 @@
 #include "function/date/date_functions.h"
 #include "function/scalar_function.h"
 
-using namespace kuzu::common;
+using namespace gs::common;
 
-namespace kuzu {
+namespace gs {
 namespace function {
 
 function_set DatePartFunction::getFunctionSet() {
@@ -154,4 +154,4 @@ function_set CurrentTimestampFunction::getFunctionSet() {
 }
 
 }  // namespace function
-}  // namespace kuzu
+}  // namespace gs

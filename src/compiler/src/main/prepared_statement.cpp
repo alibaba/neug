@@ -4,9 +4,9 @@
 #include "common/enums/statement_type.h"
 #include "planner/operator/logical_plan.h"
 
-using namespace kuzu::common;
+using namespace gs::common;
 
-namespace kuzu {
+namespace gs {
 namespace main {
 
 bool PreparedStatement::isTransactionStatement() const {
@@ -28,4 +28,4 @@ StatementType PreparedStatement::getStatementType() const {
 PreparedStatement::~PreparedStatement() = default;
 
 }  // namespace main
-}  // namespace kuzu
+}  // namespace gs

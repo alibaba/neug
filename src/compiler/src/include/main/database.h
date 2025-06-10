@@ -9,7 +9,7 @@
 #include "main/db_config.h"
 #include "storage/buffer_manager/memory_manager.h"
 
-namespace kuzu {
+namespace gs {
 namespace common {
 class FileSystem;
 enum class LogicalTypeID : uint8_t;
@@ -162,4 +162,4 @@ class Database {
 };
 
 }  // namespace main
-}  // namespace kuzu
+}  // namespace gs

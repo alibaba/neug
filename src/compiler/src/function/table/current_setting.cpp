@@ -4,10 +4,10 @@
 #include "function/table/simple_table_function.h"
 #include "main/client_context.h"
 
-using namespace kuzu::common;
-using namespace kuzu::main;
+using namespace gs::common;
+using namespace gs::main;
 
-namespace kuzu {
+namespace gs {
 namespace function {
 
 struct CurrentSettingBindData final : TableFuncBindData {
@@ -61,4 +61,4 @@ function_set CurrentSettingFunction::getFunctionSet() {
 }
 
 }  // namespace function
-}  // namespace kuzu
+}  // namespace gs

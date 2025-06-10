@@ -12,14 +12,14 @@
 #include "parser/port_db.h"
 #include "parser/query/regular_query.h"
 
-using namespace kuzu::binder;
-using namespace kuzu::common;
-using namespace kuzu::parser;
-using namespace kuzu::catalog;
-using namespace kuzu::transaction;
-using namespace kuzu::storage;
+using namespace gs::binder;
+using namespace gs::common;
+using namespace gs::parser;
+using namespace gs::catalog;
+using namespace gs::transaction;
+using namespace gs::storage;
 
-namespace kuzu {
+namespace gs {
 namespace binder {
 
 static std::vector<ExportedTableData> getExportInfo(
@@ -155,4 +155,4 @@ std::unique_ptr<BoundStatement> Binder::bindExportDatabaseClause(
 }
 
 }  // namespace binder
-}  // namespace kuzu
+}  // namespace gs

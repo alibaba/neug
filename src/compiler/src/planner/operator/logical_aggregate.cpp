@@ -5,7 +5,7 @@
 #include "planner/operator/factorization/flatten_resolver.h"
 #include "planner/operator/schema.h"
 
-namespace kuzu {
+namespace gs {
 namespace planner {
 
 std::string LogicalAggregatePrintInfo::toString() const {
@@ -88,4 +88,4 @@ void LogicalAggregate::insertAllExpressionsToGroupAndScope(
 }
 
 }  // namespace planner
-}  // namespace kuzu
+}  // namespace gs

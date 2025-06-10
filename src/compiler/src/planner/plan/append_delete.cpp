@@ -2,9 +2,9 @@
 #include "planner/operator/persistent/logical_delete.h"
 #include "planner/planner.h"
 
-using namespace kuzu::binder;
+using namespace gs::binder;
 
-namespace kuzu {
+namespace gs {
 namespace planner {
 
 void Planner::appendDelete(const std::vector<BoundDeleteInfo>& infos,
@@ -18,4 +18,4 @@ void Planner::appendDelete(const std::vector<BoundDeleteInfo>& infos,
 }
 
 }  // namespace planner
-}  // namespace kuzu
+}  // namespace gs

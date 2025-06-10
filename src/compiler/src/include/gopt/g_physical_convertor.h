@@ -11,13 +11,13 @@
 #include "planner/operator/logical_plan.h"
 #include "src/proto_generated_gie/physical.pb.h"
 
-namespace kuzu {
+namespace gs {
 namespace gopt {
 
 class GPhysicalConvertor {
  public:
   GPhysicalConvertor(std::shared_ptr<GAliasManager> aliasManager,
-                     kuzu::catalog::Catalog* catalog)
+                     gs::catalog::Catalog* catalog)
       : aliasManager{aliasManager}, catalog{catalog} {}
 
   std::unique_ptr<::physical::PhysicalPlan> convert(
@@ -66,8 +66,8 @@ class GPhysicalConvertor {
 
  private:
   std::shared_ptr<GAliasManager> aliasManager;
-  kuzu::catalog::Catalog* catalog;
+  gs::catalog::Catalog* catalog;
 };
 
 }  // namespace gopt
-}  // namespace kuzu
+}  // namespace gs

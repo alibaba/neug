@@ -3,7 +3,7 @@
 #include "expression.h"
 #include "parser/expression/parsed_expression.h"
 
-namespace kuzu {
+namespace gs {
 namespace binder {
 
 class LambdaExpression final : public Expression {
@@ -40,4 +40,4 @@ class LambdaExpression final : public Expression {
 };
 
 }  // namespace binder
-}  // namespace kuzu
+}  // namespace gs

@@ -3,10 +3,10 @@
 #include "function/string/functions/base_lower_upper_function.h"
 #include "utf8proc.h"
 
-using namespace kuzu::common;
-using namespace kuzu::utf8proc;
+using namespace gs::common;
+using namespace gs::utf8proc;
 
-namespace kuzu {
+namespace gs {
 namespace function {
 
 uint32_t BaseLowerUpperFunction::getResultLen(char* inputStr, uint32_t inputLen,
@@ -69,4 +69,4 @@ void BaseLowerUpperFunction::convertCase(char* result, uint32_t len,
 }
 
 }  // namespace function
-}  // namespace kuzu
+}  // namespace gs

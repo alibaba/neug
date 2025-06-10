@@ -6,7 +6,7 @@
 #include <span>
 #include "common/assert.h"
 
-namespace kuzu {
+namespace gs {
 namespace common {
 
 class ArrowNullMaskTree;
@@ -366,4 +366,4 @@ class NullMask {
 };
 
 }  // namespace common
-}  // namespace kuzu
+}  // namespace gs

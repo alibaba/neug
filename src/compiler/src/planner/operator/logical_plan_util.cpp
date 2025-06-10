@@ -6,9 +6,9 @@
 #include "planner/operator/logical_intersect.h"
 #include "planner/operator/scan/logical_scan_node_table.h"
 
-using namespace kuzu::binder;
+using namespace gs::binder;
 
-namespace kuzu {
+namespace gs {
 namespace planner {
 
 std::string LogicalPlanUtil::encodeJoin(LogicalPlan& logicalPlan) {
@@ -111,4 +111,4 @@ void LogicalPlanUtil::encodeFilter(LogicalOperator*,
 }
 
 }  // namespace planner
-}  // namespace kuzu
+}  // namespace gs

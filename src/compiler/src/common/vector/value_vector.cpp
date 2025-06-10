@@ -11,7 +11,7 @@
 #include "common/types/value/value.h"
 #include "common/vector/auxiliary_buffer.h"
 
-namespace kuzu {
+namespace gs {
 namespace common {
 
 ValueVector::ValueVector(LogicalType dataType,
@@ -579,7 +579,7 @@ void StringVector::addString(ValueVector* vector, ku_string_t& dstStr,
   }
 }
 
-void StringVector::addString(kuzu::common::ValueVector* vector,
+void StringVector::addString(gs::common::ValueVector* vector,
                              ku_string_t& dstStr, const std::string& srcStr) {
   addString(vector, dstStr, srcStr.data(), srcStr.length());
 }
@@ -761,4 +761,4 @@ void StructVector::copyFromVectorData(ValueVector* dstVector,
 }
 
 }  // namespace common
-}  // namespace kuzu
+}  // namespace gs

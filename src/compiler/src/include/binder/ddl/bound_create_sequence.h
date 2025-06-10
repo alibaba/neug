@@ -2,7 +2,7 @@
 
 #include "binder/bound_statement.h"
 #include "bound_create_sequence_info.h"
-namespace kuzu {
+namespace gs {
 namespace binder {
 
 class BoundCreateSequence final : public BoundStatement {
@@ -19,4 +19,4 @@ class BoundCreateSequence final : public BoundStatement {
 };
 
 }  // namespace binder
-}  // namespace kuzu
+}  // namespace gs

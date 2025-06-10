@@ -2,9 +2,9 @@
 
 #include "common/exception/binder.h"
 
-using namespace kuzu::common;
+using namespace gs::common;
 
-namespace kuzu {
+namespace gs {
 namespace binder {
 
 void LiteralExpression::cast(const LogicalType& type) {
@@ -22,4 +22,4 @@ void LiteralExpression::cast(const LogicalType& type) {
 }
 
 }  // namespace binder
-}  // namespace kuzu
+}  // namespace gs

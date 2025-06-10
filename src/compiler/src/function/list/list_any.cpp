@@ -1,10 +1,10 @@
 #include "function/list/vector_list_functions.h"
 #include "function/scalar_function.h"
 
-namespace kuzu {
+namespace gs {
 namespace function {
 
-using namespace kuzu::common;
+using namespace gs::common;
 
 bool anyHandler(uint64_t numSelectedValues, uint64_t /*originalSize*/) {
   return numSelectedValues > 0;
@@ -25,4 +25,4 @@ function_set ListAnyFunction::getFunctionSet() {
 }
 
 }  // namespace function
-}  // namespace kuzu
+}  // namespace gs

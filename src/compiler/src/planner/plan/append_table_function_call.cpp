@@ -3,9 +3,9 @@
 #include "planner/operator/logical_table_function_call.h"
 #include "planner/planner.h"
 
-using namespace kuzu::binder;
+using namespace gs::binder;
 
-namespace kuzu {
+namespace gs {
 namespace planner {
 
 void Planner::appendTableFunctionCall(const BoundTableScanInfo& info,
@@ -34,4 +34,4 @@ std::shared_ptr<LogicalOperator> Planner::getTableFunctionCall(
 }
 
 }  // namespace planner
-}  // namespace kuzu
+}  // namespace gs

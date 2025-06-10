@@ -9,7 +9,7 @@
 #include "function/cast/functions/numeric_limits.h"
 #include "function/hash/hash_functions.h"
 
-namespace kuzu::common {
+namespace gs::common {
 
 // NOLINTNEXTLINE(cert-err58-cpp): This initialization won't actually throw.
 const int128_t Int128_t::powerOf10[]{
@@ -389,13 +389,12 @@ int128_t Int128_t::BinaryNot(int128_t val) {
 int128_t Int128_t::LeftShift(int128_t lhs, int amount) {
   // adapted from
   // https://github.com/abseil/abseil-cpp/blob/master/absl/numeric/int128.h
-  return amount >= 64
-             ? int128_t(0, lhs.low << (amount - 64))
-             : amount == 0 ? lhs
-                           : int128_t{lhs.low << amount,
-                                      (lhs.high << amount) |
-                                          (numeric_utils::makeValueSigned(
-                                              lhs.low >> (64 - amount)))};
+  return amount >= 64 ? int128_t(0, lhs.low << (amount - 64))
+         : amount == 0
+             ? lhs
+             : int128_t{lhs.low << amount,
+                        (lhs.high << amount) | (numeric_utils::makeValueSigned(
+                                                   lhs.low >> (64 - amount)))};
 }
 
 int128_t Int128_t::RightShift(int128_t lhs, int amount) {
@@ -600,7 +599,7 @@ bool castFloatingToInt128(REAL_T value, int128_t& result) {
   result.low = (uint64_t) fmod(
       value, REAL_T(function::NumericLimits<uint64_t>::maximum()));
   result.high =
-      (uint64_t)(value / REAL_T(function::NumericLimits<uint64_t>::maximum()));
+      (uint64_t) (value / REAL_T(function::NumericLimits<uint64_t>::maximum()));
   if (negative) {
     Int128_t::negateInPlace(result);
   }
@@ -810,11 +809,11 @@ int128_t::operator float() const {
   return result;
 }
 
-}  // namespace kuzu::common
+}  // namespace gs::common
 
-std::size_t std::hash<kuzu::common::int128_t>::operator()(
-    const kuzu::common::int128_t& v) const noexcept {
-  kuzu::common::hash_t hash = 0;
-  kuzu::function::Hash::operation(v, hash);
+std::size_t std::hash<gs::common::int128_t>::operator()(
+    const gs::common::int128_t& v) const noexcept {
+  gs::common::hash_t hash = 0;
+  gs::function::Hash::operation(v, hash);
   return hash;
 }

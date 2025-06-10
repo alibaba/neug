@@ -3,7 +3,7 @@
 #include "logical_operator_visitor.h"
 #include "planner/operator/logical_plan.h"
 
-namespace kuzu {
+namespace gs {
 namespace optimizer {
 
 class FactorizationRewriter final : public LogicalOperatorVisitor {
@@ -39,4 +39,4 @@ class FactorizationRewriter final : public LogicalOperatorVisitor {
 };
 
 }  // namespace optimizer
-}  // namespace kuzu
+}  // namespace gs

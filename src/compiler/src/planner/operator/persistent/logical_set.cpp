@@ -4,10 +4,10 @@
 #include "binder/expression/rel_expression.h"
 #include "planner/operator/factorization/flatten_resolver.h"
 
-using namespace kuzu::binder;
-using namespace kuzu::common;
+using namespace gs::binder;
+using namespace gs::common;
 
-namespace kuzu {
+namespace gs {
 namespace planner {
 
 void LogicalSetProperty::computeFactorizedSchema() { copyChildSchema(0); }
@@ -57,4 +57,4 @@ common::TableType LogicalSetProperty::getTableType() const {
 }
 
 }  // namespace planner
-}  // namespace kuzu
+}  // namespace gs

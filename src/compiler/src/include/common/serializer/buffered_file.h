@@ -5,7 +5,7 @@
 #include "common/serializer/reader.h"
 #include "common/serializer/writer.h"
 
-namespace kuzu {
+namespace gs {
 namespace common {
 
 struct FileInfo;
@@ -58,4 +58,4 @@ class BufferedFileReader final : public Reader {
 };
 
 }  // namespace common
-}  // namespace kuzu
+}  // namespace gs

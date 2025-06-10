@@ -2,9 +2,9 @@
 
 #include "common/exception/binder.h"
 
-using namespace kuzu::common;
+using namespace gs::common;
 
-namespace kuzu {
+namespace gs {
 namespace binder {
 
 void Expression::cast(const LogicalType&) {
@@ -29,4 +29,4 @@ expression_vector Expression::splitOnAND() {
 }
 
 }  // namespace binder
-}  // namespace kuzu
+}  // namespace gs

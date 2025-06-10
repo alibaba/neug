@@ -4,7 +4,7 @@
 #include "common/vector/value_vector.h"
 #include "utf8proc.h"
 
-namespace kuzu {
+namespace gs {
 namespace function {
 
 // Padding logic has been taken from DuckDB:
@@ -63,4 +63,4 @@ struct BasePadOperation {
 };
 
 }  // namespace function
-}  // namespace kuzu
+}  // namespace gs

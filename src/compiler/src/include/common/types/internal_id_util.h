@@ -3,7 +3,7 @@
 #include "common/types/types.h"
 #include "function/hash/hash_functions.h"
 
-namespace kuzu {
+namespace gs {
 namespace common {
 
 using internal_id_set_t =
@@ -17,4 +17,4 @@ template <typename T>
 using node_id_map_t = internal_id_map_t<T>;
 
 }  // namespace common
-}  // namespace kuzu
+}  // namespace gs

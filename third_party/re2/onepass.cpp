@@ -69,10 +69,10 @@
 
 // Silence "zero-sized array in struct/union" warning for OneState::action.
 #ifdef _MSC_VER
-//#pragma warning(disable: 4200)
+// #pragma warning(disable: 4200)
 #endif
 
-namespace kuzu {
+namespace gs {
 namespace regex {
 
 // The key insight behind this implementation is that the
@@ -144,8 +144,8 @@ namespace regex {
 // maps next input bytes into equivalence classes, to reduce
 // the memory footprint.)
 struct OneState {
-    uint32_t matchcond; // conditions to match right now.
-    uint32_t action[1];
+  uint32_t matchcond;  // conditions to match right now.
+  uint32_t action[1];
 };
 
 // The uint32_t conditions in the action are a combination of
@@ -165,8 +165,8 @@ struct OneState {
 // and kEmptyNonWordBoundary, so we can use that as a sentinel
 // instead of needing an extra bit.
 
-static const int kIndexShift = 16; // number of bits below index
-static const int kEmptyShift = 6;  // number of empty flags in prog.h
+static const int kIndexShift = 16;  // number of bits below index
+static const int kEmptyShift = 6;   // number of empty flags in prog.h
 static const int kRealCapShift = kEmptyShift + 1;
 static const int kRealMaxCap = (kIndexShift - kRealCapShift) / 2 * 2;
 
@@ -182,162 +182,166 @@ static const uint32_t kImpossible = kEmptyWordBoundary | kEmptyNonWordBoundary;
 // Check, at compile time, that prog.h agrees with math above.
 // This function is never called.
 void OnePass_Checks() {
-    static_assert(
-        (1 << kEmptyShift) - 1 == kEmptyAllFlags, "kEmptyShift disagrees with kEmptyAllFlags");
-    // kMaxCap counts pointers, kMaxOnePassCapture counts pairs.
-    static_assert(
-        kMaxCap == Prog::kMaxOnePassCapture * 2, "kMaxCap disagrees with kMaxOnePassCapture");
+  static_assert((1 << kEmptyShift) - 1 == kEmptyAllFlags,
+                "kEmptyShift disagrees with kEmptyAllFlags");
+  // kMaxCap counts pointers, kMaxOnePassCapture counts pairs.
+  static_assert(kMaxCap == Prog::kMaxOnePassCapture * 2,
+                "kMaxCap disagrees with kMaxOnePassCapture");
 }
 
 static bool Satisfy(uint32_t cond, const StringPiece& context, const char* p) {
-    uint32_t satisfied = Prog::EmptyFlags(context, p);
-    if (cond & kEmptyAllFlags & ~satisfied)
-        return false;
-    return true;
+  uint32_t satisfied = Prog::EmptyFlags(context, p);
+  if (cond & kEmptyAllFlags & ~satisfied)
+    return false;
+  return true;
 }
 
 // Apply the capture bits in cond, saving p to the appropriate
 // locations in cap[].
-static void ApplyCaptures(uint32_t cond, const char* p, const char** cap, int ncap) {
-    for (int i = 2; i < ncap; i++)
-        if (cond & (1 << kCapShift << i))
-            cap[i] = p;
+static void ApplyCaptures(uint32_t cond, const char* p, const char** cap,
+                          int ncap) {
+  for (int i = 2; i < ncap; i++)
+    if (cond & (1 << kCapShift << i))
+      cap[i] = p;
 }
 
 // Computes the OneState* for the given nodeindex.
-static inline OneState* IndexToNode(uint8_t* nodes, int statesize, int nodeindex) {
-    return reinterpret_cast<OneState*>(nodes + statesize * nodeindex);
+static inline OneState* IndexToNode(uint8_t* nodes, int statesize,
+                                    int nodeindex) {
+  return reinterpret_cast<OneState*>(nodes + statesize * nodeindex);
 }
 
-bool Prog::SearchOnePass(const StringPiece& text, const StringPiece& const_context, Anchor anchor,
-    MatchKind kind, StringPiece* match, int nmatch) {
-    if (anchor != kAnchored && kind != kFullMatch) {
-        LOG(DFATAL) << "Cannot use SearchOnePass for unanchored matches.";
-        return false;
+bool Prog::SearchOnePass(const StringPiece& text,
+                         const StringPiece& const_context, Anchor anchor,
+                         MatchKind kind, StringPiece* match, int nmatch) {
+  if (anchor != kAnchored && kind != kFullMatch) {
+    LOG(DFATAL) << "Cannot use SearchOnePass for unanchored matches.";
+    return false;
+  }
+
+  // Make sure we have at least cap[1],
+  // because we use it to tell if we matched.
+  int ncap = 2 * nmatch;
+  if (ncap < 2)
+    ncap = 2;
+
+  const char* cap[kMaxCap];
+  for (int i = 0; i < ncap; i++)
+    cap[i] = NULL;
+
+  const char* matchcap[kMaxCap];
+  for (int i = 0; i < ncap; i++)
+    matchcap[i] = NULL;
+
+  StringPiece context = const_context;
+  if (context.begin() == NULL)
+    context = text;
+  if (anchor_start() && context.begin() != text.begin())
+    return false;
+  if (anchor_end() && context.end() != text.end())
+    return false;
+  if (anchor_end())
+    kind = kFullMatch;
+
+  uint8_t* nodes = onepass_nodes_.data();
+  int statesize = sizeof(OneState) + bytemap_range() * sizeof(uint32_t);
+  // start() is always mapped to the zeroth OneState.
+  OneState* state = IndexToNode(nodes, statesize, 0);
+  uint8_t* bytemap = bytemap_;
+  const char* bp = text.begin();
+  const char* ep = text.end();
+  const char* p;
+  bool matched = false;
+  matchcap[0] = bp;
+  cap[0] = bp;
+  uint32_t nextmatchcond = state->matchcond;
+  for (p = bp; p < ep; p++) {
+    int c = bytemap[*p & 0xFF];
+    uint32_t matchcond = nextmatchcond;
+    uint32_t cond = state->action[c];
+
+    // Determine whether we can reach act->next.
+    // If so, advance state and nextmatchcond.
+    if ((cond & kEmptyAllFlags) == 0 || Satisfy(cond, context, p)) {
+      uint32_t nextindex = cond >> kIndexShift;
+      state = IndexToNode(nodes, statesize, nextindex);
+      nextmatchcond = state->matchcond;
+    } else {
+      state = NULL;
+      nextmatchcond = kImpossible;
     }
 
-    // Make sure we have at least cap[1],
-    // because we use it to tell if we matched.
-    int ncap = 2 * nmatch;
-    if (ncap < 2)
-        ncap = 2;
+    // This code section is carefully tuned.
+    // The goto sequence is about 10% faster than the
+    // obvious rewrite as a large if statement in the
+    // ASCIIMatchRE2 and DotMatchRE2 benchmarks.
 
-    const char* cap[kMaxCap];
-    for (int i = 0; i < ncap; i++)
-        cap[i] = NULL;
+    // Saving the match capture registers is expensive.
+    // Is this intermediate match worth thinking about?
 
-    const char* matchcap[kMaxCap];
-    for (int i = 0; i < ncap; i++)
-        matchcap[i] = NULL;
+    // Not if we want a full match.
+    if (kind == kFullMatch)
+      goto skipmatch;
 
-    StringPiece context = const_context;
-    if (context.begin() == NULL)
-        context = text;
-    if (anchor_start() && context.begin() != text.begin())
-        return false;
-    if (anchor_end() && context.end() != text.end())
-        return false;
-    if (anchor_end())
-        kind = kFullMatch;
+    // Not if it's impossible.
+    if (matchcond == kImpossible)
+      goto skipmatch;
 
-    uint8_t* nodes = onepass_nodes_.data();
-    int statesize = sizeof(OneState) + bytemap_range() * sizeof(uint32_t);
-    // start() is always mapped to the zeroth OneState.
-    OneState* state = IndexToNode(nodes, statesize, 0);
-    uint8_t* bytemap = bytemap_;
-    const char* bp = text.begin();
-    const char* ep = text.end();
-    const char* p;
-    bool matched = false;
-    matchcap[0] = bp;
-    cap[0] = bp;
-    uint32_t nextmatchcond = state->matchcond;
-    for (p = bp; p < ep; p++) {
-        int c = bytemap[*p & 0xFF];
-        uint32_t matchcond = nextmatchcond;
-        uint32_t cond = state->action[c];
+    // Not if the possible match is beaten by the certain
+    // match at the next byte.  When this test is useless
+    // (e.g., HTTPPartialMatchRE2) it slows the loop by
+    // about 10%, but when it avoids work (e.g., DotMatchRE2),
+    // it cuts the loop execution by about 45%.
+    if ((cond & kMatchWins) == 0 && (nextmatchcond & kEmptyAllFlags) == 0)
+      goto skipmatch;
 
-        // Determine whether we can reach act->next.
-        // If so, advance state and nextmatchcond.
-        if ((cond & kEmptyAllFlags) == 0 || Satisfy(cond, context, p)) {
-            uint32_t nextindex = cond >> kIndexShift;
-            state = IndexToNode(nodes, statesize, nextindex);
-            nextmatchcond = state->matchcond;
-        } else {
-            state = NULL;
-            nextmatchcond = kImpossible;
-        }
+    // Finally, the match conditions must be satisfied.
+    if ((matchcond & kEmptyAllFlags) == 0 || Satisfy(matchcond, context, p)) {
+      for (int i = 2; i < 2 * nmatch; i++)
+        matchcap[i] = cap[i];
+      if (nmatch > 1 && (matchcond & kCapMask))
+        ApplyCaptures(matchcond, p, matchcap, ncap);
+      matchcap[1] = p;
+      matched = true;
 
-        // This code section is carefully tuned.
-        // The goto sequence is about 10% faster than the
-        // obvious rewrite as a large if statement in the
-        // ASCIIMatchRE2 and DotMatchRE2 benchmarks.
-
-        // Saving the match capture registers is expensive.
-        // Is this intermediate match worth thinking about?
-
-        // Not if we want a full match.
-        if (kind == kFullMatch)
-            goto skipmatch;
-
-        // Not if it's impossible.
-        if (matchcond == kImpossible)
-            goto skipmatch;
-
-        // Not if the possible match is beaten by the certain
-        // match at the next byte.  When this test is useless
-        // (e.g., HTTPPartialMatchRE2) it slows the loop by
-        // about 10%, but when it avoids work (e.g., DotMatchRE2),
-        // it cuts the loop execution by about 45%.
-        if ((cond & kMatchWins) == 0 && (nextmatchcond & kEmptyAllFlags) == 0)
-            goto skipmatch;
-
-        // Finally, the match conditions must be satisfied.
-        if ((matchcond & kEmptyAllFlags) == 0 || Satisfy(matchcond, context, p)) {
-            for (int i = 2; i < 2 * nmatch; i++)
-                matchcap[i] = cap[i];
-            if (nmatch > 1 && (matchcond & kCapMask))
-                ApplyCaptures(matchcond, p, matchcap, ncap);
-            matchcap[1] = p;
-            matched = true;
-
-            // If we're in longest match mode, we have to keep
-            // going and see if we find a longer match.
-            // In first match mode, we can stop if the match
-            // takes priority over the next state for this input byte.
-            // That bit is per-input byte and thus in cond, not matchcond.
-            if (kind == kFirstMatch && (cond & kMatchWins))
-                goto done;
-        }
-
-    skipmatch:
-        if (state == NULL)
-            goto done;
-        if ((cond & kCapMask) && nmatch > 1)
-            ApplyCaptures(cond, p, cap, ncap);
+      // If we're in longest match mode, we have to keep
+      // going and see if we find a longer match.
+      // In first match mode, we can stop if the match
+      // takes priority over the next state for this input byte.
+      // That bit is per-input byte and thus in cond, not matchcond.
+      if (kind == kFirstMatch && (cond & kMatchWins))
+        goto done;
     }
 
-    // Look for match at end of input.
-    {
-        uint32_t matchcond = state->matchcond;
-        if (matchcond != kImpossible &&
-            ((matchcond & kEmptyAllFlags) == 0 || Satisfy(matchcond, context, p))) {
-            if (nmatch > 1 && (matchcond & kCapMask))
-                ApplyCaptures(matchcond, p, cap, ncap);
-            for (int i = 2; i < ncap; i++)
-                matchcap[i] = cap[i];
-            matchcap[1] = p;
-            matched = true;
-        }
+  skipmatch:
+    if (state == NULL)
+      goto done;
+    if ((cond & kCapMask) && nmatch > 1)
+      ApplyCaptures(cond, p, cap, ncap);
+  }
+
+  // Look for match at end of input.
+  {
+    uint32_t matchcond = state->matchcond;
+    if (matchcond != kImpossible &&
+        ((matchcond & kEmptyAllFlags) == 0 || Satisfy(matchcond, context, p))) {
+      if (nmatch > 1 && (matchcond & kCapMask))
+        ApplyCaptures(matchcond, p, cap, ncap);
+      for (int i = 2; i < ncap; i++)
+        matchcap[i] = cap[i];
+      matchcap[1] = p;
+      matched = true;
     }
+  }
 
 done:
-    if (!matched)
-        return false;
-    for (int i = 0; i < nmatch; i++)
-        match[i] = StringPiece(
-            matchcap[2 * i], static_cast<size_t>(matchcap[2 * i + 1] - matchcap[2 * i]));
-    return true;
+  if (!matched)
+    return false;
+  for (int i = 0; i < nmatch; i++)
+    match[i] =
+        StringPiece(matchcap[2 * i],
+                    static_cast<size_t>(matchcap[2 * i + 1] - matchcap[2 * i]));
+  return true;
 }
 
 // Analysis to determine whether a given regexp program is one-pass.
@@ -347,17 +351,17 @@ done:
 // If ip is NULL, does nothing and returns true (pretends to add it).
 typedef SparseSet Instq;
 static bool AddQ(Instq* q, int id) {
-    if (id == 0)
-        return true;
-    if (q->contains(id))
-        return false;
-    q->insert(id);
+  if (id == 0)
     return true;
+  if (q->contains(id))
+    return false;
+  q->insert(id);
+  return true;
 }
 
 struct InstCond {
-    int id;
-    uint32_t cond;
+  int id;
+  uint32_t cond;
 };
 
 // Returns whether this is a one-pass program; that is,
@@ -376,196 +380,196 @@ struct InstCond {
 // instructions are involved.
 // Constructs and saves corresponding one-pass NFA on success.
 bool Prog::IsOnePass() {
-    if (did_onepass_)
-        return onepass_nodes_.data() != NULL;
-    did_onepass_ = true;
+  if (did_onepass_)
+    return onepass_nodes_.data() != NULL;
+  did_onepass_ = true;
 
-    if (start() == 0) // no match
-        return false;
+  if (start() == 0)  // no match
+    return false;
 
-    // Steal memory for the one-pass NFA from the overall DFA budget.
-    // Willing to use at most 1/4 of the DFA budget (heuristic).
-    // Limit max node count to 65000 as a conservative estimate to
-    // avoid overflowing 16-bit node index in encoding.
-    int maxnodes = 2 + inst_count(kInstByteRange);
-    int statesize = sizeof(OneState) + bytemap_range() * sizeof(uint32_t);
-    if (maxnodes >= 65000 || dfa_mem_ / 4 / statesize < maxnodes)
-        return false;
+  // Steal memory for the one-pass NFA from the overall DFA budget.
+  // Willing to use at most 1/4 of the DFA budget (heuristic).
+  // Limit max node count to 65000 as a conservative estimate to
+  // avoid overflowing 16-bit node index in encoding.
+  int maxnodes = 2 + inst_count(kInstByteRange);
+  int statesize = sizeof(OneState) + bytemap_range() * sizeof(uint32_t);
+  if (maxnodes >= 65000 || dfa_mem_ / 4 / statesize < maxnodes)
+    return false;
 
-    // Flood the graph starting at the start state, and check
-    // that in each reachable state, each possible byte leads
-    // to a unique next state.
-    int stacksize = inst_count(kInstCapture) + inst_count(kInstEmptyWidth) + inst_count(kInstNop) +
-                    1; // + 1 for start inst
-    PODArray<InstCond> stack(stacksize);
+  // Flood the graph starting at the start state, and check
+  // that in each reachable state, each possible byte leads
+  // to a unique next state.
+  int stacksize = inst_count(kInstCapture) + inst_count(kInstEmptyWidth) +
+                  inst_count(kInstNop) + 1;  // + 1 for start inst
+  PODArray<InstCond> stack(stacksize);
 
-    int size = this->size();
-    PODArray<int> nodebyid(size); // indexed by ip
-    memset(nodebyid.data(), 0xFF, size * sizeof nodebyid[0]);
+  int size = this->size();
+  PODArray<int> nodebyid(size);  // indexed by ip
+  memset(nodebyid.data(), 0xFF, size * sizeof nodebyid[0]);
 
-    // Originally, nodes was a uint8_t[maxnodes*statesize], but that was
-    // unnecessarily optimistic: why allocate a large amount of memory
-    // upfront for a large program when it is unlikely to be one-pass?
-    std::vector<uint8_t> nodes;
+  // Originally, nodes was a uint8_t[maxnodes*statesize], but that was
+  // unnecessarily optimistic: why allocate a large amount of memory
+  // upfront for a large program when it is unlikely to be one-pass?
+  std::vector<uint8_t> nodes;
 
-    Instq tovisit(size), workq(size);
-    AddQ(&tovisit, start());
-    nodebyid[start()] = 0;
-    int nalloc = 1;
-    nodes.insert(nodes.end(), statesize, 0);
-    for (Instq::iterator it = tovisit.begin(); it != tovisit.end(); ++it) {
-        int id = *it;
-        int nodeindex = nodebyid[id];
-        OneState* node = IndexToNode(nodes.data(), statesize, nodeindex);
+  Instq tovisit(size), workq(size);
+  AddQ(&tovisit, start());
+  nodebyid[start()] = 0;
+  int nalloc = 1;
+  nodes.insert(nodes.end(), statesize, 0);
+  for (Instq::iterator it = tovisit.begin(); it != tovisit.end(); ++it) {
+    int id = *it;
+    int nodeindex = nodebyid[id];
+    OneState* node = IndexToNode(nodes.data(), statesize, nodeindex);
 
-        // Flood graph using manual stack, filling in actions as found.
-        // Default is none.
-        for (int b = 0; b < bytemap_range_; b++)
-            node->action[b] = kImpossible;
-        node->matchcond = kImpossible;
+    // Flood graph using manual stack, filling in actions as found.
+    // Default is none.
+    for (int b = 0; b < bytemap_range_; b++)
+      node->action[b] = kImpossible;
+    node->matchcond = kImpossible;
 
-        workq.clear();
-        bool matched = false;
-        int nstack = 0;
-        stack[nstack].id = id;
-        stack[nstack++].cond = 0;
-        while (nstack > 0) {
-            int id = stack[--nstack].id;
-            uint32_t cond = stack[nstack].cond;
+    workq.clear();
+    bool matched = false;
+    int nstack = 0;
+    stack[nstack].id = id;
+    stack[nstack++].cond = 0;
+    while (nstack > 0) {
+      int id = stack[--nstack].id;
+      uint32_t cond = stack[nstack].cond;
 
-        Loop:
-            Prog::Inst* ip = inst(id);
-            switch (ip->opcode()) {
-            default:
-                LOG(DFATAL) << "unhandled opcode: " << ip->opcode();
-                break;
+    Loop:
+      Prog::Inst* ip = inst(id);
+      switch (ip->opcode()) {
+      default:
+        LOG(DFATAL) << "unhandled opcode: " << ip->opcode();
+        break;
 
-            case kInstAltMatch:
-                // TODO(rsc): Ignoring kInstAltMatch optimization.
-                // Should implement it in this engine, but it's subtle.
-                DCHECK(!ip->last());
-                // If already on work queue, (1) is violated: bail out.
-                if (!AddQ(&workq, id + 1))
-                    goto fail;
-                id = id + 1;
-                goto Loop;
+      case kInstAltMatch:
+        // TODO(rsc): Ignoring kInstAltMatch optimization.
+        // Should implement it in this engine, but it's subtle.
+        DCHECK(!ip->last());
+        // If already on work queue, (1) is violated: bail out.
+        if (!AddQ(&workq, id + 1))
+          goto fail;
+        id = id + 1;
+        goto Loop;
 
-            case kInstByteRange: {
-                int nextindex = nodebyid[ip->out()];
-                if (nextindex == -1) {
-                    if (nalloc >= maxnodes) {
-                        goto fail;
-                    }
-                    nextindex = nalloc;
-                    AddQ(&tovisit, ip->out());
-                    nodebyid[ip->out()] = nalloc;
-                    nalloc++;
-                    nodes.insert(nodes.end(), statesize, 0);
-                    // Update node because it might have been invalidated.
-                    node = IndexToNode(nodes.data(), statesize, nodeindex);
-                }
-                for (int c = ip->lo(); c <= ip->hi(); c++) {
-                    int b = bytemap_[c];
-                    // Skip any bytes immediately after c that are also in b.
-                    while (c < 256 - 1 && bytemap_[c + 1] == b)
-                        c++;
-                    uint32_t act = node->action[b];
-                    uint32_t newact = (nextindex << kIndexShift) | cond;
-                    if (matched)
-                        newact |= kMatchWins;
-                    if ((act & kImpossible) == kImpossible) {
-                        node->action[b] = newact;
-                    } else if (act != newact) {
-                        goto fail;
-                    }
-                }
-                if (ip->foldcase()) {
-                    Rune lo = std::max<Rune>(ip->lo(), 'a') + 'A' - 'a';
-                    Rune hi = std::min<Rune>(ip->hi(), 'z') + 'A' - 'a';
-                    for (int c = lo; c <= hi; c++) {
-                        int b = bytemap_[c];
-                        // Skip any bytes immediately after c that are also in b.
-                        while (c < 256 - 1 && bytemap_[c + 1] == b)
-                            c++;
-                        uint32_t act = node->action[b];
-                        uint32_t newact = (nextindex << kIndexShift) | cond;
-                        if (matched)
-                            newact |= kMatchWins;
-                        if ((act & kImpossible) == kImpossible) {
-                            node->action[b] = newact;
-                        } else if (act != newact) {
-                            goto fail;
-                        }
-                    }
-                }
-
-                if (ip->last())
-                    break;
-                // If already on work queue, (1) is violated: bail out.
-                if (!AddQ(&workq, id + 1))
-                    goto fail;
-                id = id + 1;
-                goto Loop;
-            }
-
-            case kInstCapture:
-            case kInstEmptyWidth:
-            case kInstNop:
-                if (!ip->last()) {
-                    // If already on work queue, (1) is violated: bail out.
-                    if (!AddQ(&workq, id + 1))
-                        goto fail;
-                    stack[nstack].id = id + 1;
-                    stack[nstack++].cond = cond;
-                }
-
-                if (ip->opcode() == kInstCapture && ip->cap() < kMaxCap)
-                    cond |= (1 << kCapShift) << ip->cap();
-                if (ip->opcode() == kInstEmptyWidth)
-                    cond |= ip->empty();
-
-                // kInstCapture and kInstNop always proceed to ip->out().
-                // kInstEmptyWidth only sometimes proceeds to ip->out(),
-                // but as a conservative approximation we assume it always does.
-                // We could be a little more precise by looking at what c
-                // is, but that seems like overkill.
-
-                // If already on work queue, (1) is violated: bail out.
-                if (!AddQ(&workq, ip->out())) {
-                    goto fail;
-                }
-                id = ip->out();
-                goto Loop;
-
-            case kInstMatch:
-                if (matched) {
-                    // (3) is violated
-                    goto fail;
-                }
-                matched = true;
-                node->matchcond = cond;
-
-                if (ip->last())
-                    break;
-                // If already on work queue, (1) is violated: bail out.
-                if (!AddQ(&workq, id + 1))
-                    goto fail;
-                id = id + 1;
-                goto Loop;
-
-            case kInstFail:
-                break;
-            }
+      case kInstByteRange: {
+        int nextindex = nodebyid[ip->out()];
+        if (nextindex == -1) {
+          if (nalloc >= maxnodes) {
+            goto fail;
+          }
+          nextindex = nalloc;
+          AddQ(&tovisit, ip->out());
+          nodebyid[ip->out()] = nalloc;
+          nalloc++;
+          nodes.insert(nodes.end(), statesize, 0);
+          // Update node because it might have been invalidated.
+          node = IndexToNode(nodes.data(), statesize, nodeindex);
         }
+        for (int c = ip->lo(); c <= ip->hi(); c++) {
+          int b = bytemap_[c];
+          // Skip any bytes immediately after c that are also in b.
+          while (c < 256 - 1 && bytemap_[c + 1] == b)
+            c++;
+          uint32_t act = node->action[b];
+          uint32_t newact = (nextindex << kIndexShift) | cond;
+          if (matched)
+            newact |= kMatchWins;
+          if ((act & kImpossible) == kImpossible) {
+            node->action[b] = newact;
+          } else if (act != newact) {
+            goto fail;
+          }
+        }
+        if (ip->foldcase()) {
+          Rune lo = std::max<Rune>(ip->lo(), 'a') + 'A' - 'a';
+          Rune hi = std::min<Rune>(ip->hi(), 'z') + 'A' - 'a';
+          for (int c = lo; c <= hi; c++) {
+            int b = bytemap_[c];
+            // Skip any bytes immediately after c that are also in b.
+            while (c < 256 - 1 && bytemap_[c + 1] == b)
+              c++;
+            uint32_t act = node->action[b];
+            uint32_t newact = (nextindex << kIndexShift) | cond;
+            if (matched)
+              newact |= kMatchWins;
+            if ((act & kImpossible) == kImpossible) {
+              node->action[b] = newact;
+            } else if (act != newact) {
+              goto fail;
+            }
+          }
+        }
+
+        if (ip->last())
+          break;
+        // If already on work queue, (1) is violated: bail out.
+        if (!AddQ(&workq, id + 1))
+          goto fail;
+        id = id + 1;
+        goto Loop;
+      }
+
+      case kInstCapture:
+      case kInstEmptyWidth:
+      case kInstNop:
+        if (!ip->last()) {
+          // If already on work queue, (1) is violated: bail out.
+          if (!AddQ(&workq, id + 1))
+            goto fail;
+          stack[nstack].id = id + 1;
+          stack[nstack++].cond = cond;
+        }
+
+        if (ip->opcode() == kInstCapture && ip->cap() < kMaxCap)
+          cond |= (1 << kCapShift) << ip->cap();
+        if (ip->opcode() == kInstEmptyWidth)
+          cond |= ip->empty();
+
+        // kInstCapture and kInstNop always proceed to ip->out().
+        // kInstEmptyWidth only sometimes proceeds to ip->out(),
+        // but as a conservative approximation we assume it always does.
+        // We could be a little more precise by looking at what c
+        // is, but that seems like overkill.
+
+        // If already on work queue, (1) is violated: bail out.
+        if (!AddQ(&workq, ip->out())) {
+          goto fail;
+        }
+        id = ip->out();
+        goto Loop;
+
+      case kInstMatch:
+        if (matched) {
+          // (3) is violated
+          goto fail;
+        }
+        matched = true;
+        node->matchcond = cond;
+
+        if (ip->last())
+          break;
+        // If already on work queue, (1) is violated: bail out.
+        if (!AddQ(&workq, id + 1))
+          goto fail;
+        id = id + 1;
+        goto Loop;
+
+      case kInstFail:
+        break;
+      }
     }
-    dfa_mem_ -= nalloc * statesize;
-    onepass_nodes_ = PODArray<uint8_t>(nalloc * statesize);
-    memmove(onepass_nodes_.data(), nodes.data(), nalloc * statesize);
-    return true;
+  }
+  dfa_mem_ -= nalloc * statesize;
+  onepass_nodes_ = PODArray<uint8_t>(nalloc * statesize);
+  memmove(onepass_nodes_.data(), nodes.data(), nalloc * statesize);
+  return true;
 
 fail:
-    return false;
+  return false;
 }
 
-} // namespace regex
-} // namespace kuzu
+}  // namespace regex
+}  // namespace gs

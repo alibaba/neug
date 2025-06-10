@@ -12,7 +12,7 @@
 #include "planner/operator/logical_operator.h"
 #include "planner/operator/schema.h"
 
-namespace kuzu {
+namespace gs {
 namespace gopt {
 
 struct GNodeType;
@@ -80,7 +80,7 @@ class LogicalGetV : public planner::LogicalOperator {
       catalog::Catalog* catalog) const {
     // get node table from catalog by table ids
     std::vector<catalog::NodeTableCatalogEntry*> nodeTables;
-    auto& transaction = kuzu::Constants::DEFAULT_TRANSACTION;
+    auto& transaction = gs::Constants::DEFAULT_TRANSACTION;
     for (auto tableId : getTableIDs()) {
       auto tableEntry = catalog->getTableCatalogEntry(&transaction, tableId);
       auto nodeTableEntry =
@@ -103,4 +103,4 @@ class LogicalGetV : public planner::LogicalOperator {
 };
 
 }  // namespace gopt
-}  // namespace kuzu
+}  // namespace gs

@@ -6,7 +6,7 @@
 #include "common/vector/value_vector.h"
 #include "function/cast/functions/numeric_cast.h"
 
-namespace kuzu {
+namespace gs {
 namespace function {
 
 struct CastToString {
@@ -415,4 +415,4 @@ inline void CastBetweenTimestamp::operation(
 }
 
 }  // namespace function
-}  // namespace kuzu
+}  // namespace gs

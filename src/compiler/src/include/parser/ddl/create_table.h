@@ -3,7 +3,7 @@
 #include "create_table_info.h"
 #include "parser/statement.h"
 
-namespace kuzu {
+namespace gs {
 namespace parser {
 
 class CreateTable final : public Statement {
@@ -18,4 +18,4 @@ class CreateTable final : public Statement {
 };
 
 }  // namespace parser
-}  // namespace kuzu
+}  // namespace gs

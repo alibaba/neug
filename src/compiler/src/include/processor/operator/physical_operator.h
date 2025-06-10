@@ -3,12 +3,12 @@
 #include "planner/operator/operator_print_info.h"
 #include "processor/result/result_set.h"
 
-namespace kuzu::common {
+namespace gs::common {
 class Profiler;
 class NumericMetric;
 class TimeMetric;
-}  // namespace kuzu::common
-namespace kuzu {
+}  // namespace gs::common
+namespace gs {
 namespace processor {
 struct ExecutionContext;
 
@@ -179,7 +179,7 @@ class KUZU_API PhysicalOperator {
   double getExecutionTime(common::Profiler& profiler) const;
   uint64_t getNumOutputTuples(common::Profiler& profiler) const;
 
-  virtual void finalizeInternal(ExecutionContext* /*context*/){};
+  virtual void finalizeInternal(ExecutionContext* /*context*/) {};
 
  protected:
   physical_op_id id;
@@ -194,4 +194,4 @@ class KUZU_API PhysicalOperator {
 };
 
 }  // namespace processor
-}  // namespace kuzu
+}  // namespace gs

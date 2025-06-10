@@ -3,9 +3,9 @@
 #include "function/map/vector_map_functions.h"
 #include "function/scalar_function.h"
 
-using namespace kuzu::common;
+using namespace gs::common;
 
-namespace kuzu {
+namespace gs {
 namespace function {
 
 static std::unique_ptr<FunctionBindData> bindFunc(
@@ -28,4 +28,4 @@ function_set MapValuesFunctions::getFunctionSet() {
 }
 
 }  // namespace function
-}  // namespace kuzu
+}  // namespace gs

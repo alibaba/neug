@@ -2,7 +2,7 @@
 
 #include "logical_operator.h"
 
-namespace kuzu {
+namespace gs {
 namespace planner {
 
 class LogicalUnion : public LogicalOperator {
@@ -41,4 +41,4 @@ class LogicalUnion : public LogicalOperator {
 };
 
 }  // namespace planner
-}  // namespace kuzu
+}  // namespace gs

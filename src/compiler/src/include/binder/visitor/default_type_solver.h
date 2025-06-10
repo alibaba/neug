@@ -2,7 +2,7 @@
 
 #include "binder/bound_statement_visitor.h"
 
-namespace kuzu {
+namespace gs {
 namespace binder {
 
 // Assign a default data type (STRING) for expressions with ANY data type for a
@@ -18,4 +18,4 @@ class DefaultTypeSolver final : public BoundStatementVisitor {
 };
 
 }  // namespace binder
-}  // namespace kuzu
+}  // namespace gs

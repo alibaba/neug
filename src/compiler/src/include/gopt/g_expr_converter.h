@@ -8,12 +8,11 @@
 #include "binder/expression/variable_expression.h"
 #include "common/types/types.h"
 #include "gopt/g_alias_manager.h"
+#include "gopt/g_type_converter.h"
 #include "src/proto_generated_gie/algebra.pb.h"
 #include "src/proto_generated_gie/expr.pb.h"
-#include "gopt/g_alias_manager.h"
-#include "gopt/g_type_converter.h"
 
-namespace kuzu {
+namespace gs {
 namespace gopt {
 
 class GExprConverter {
@@ -41,10 +40,11 @@ class GExprConverter {
       const binder::Expression& expr);
 
   // helper functions
-  std::unique_ptr<::common::Value> convertValue(kuzu::common::Value value);
+  std::unique_ptr<::common::Value> convertValue(gs::common::Value value);
   std::unique_ptr<::common::NameOrId> convertAlias(common::alias_id_t aliasId);
   std::unique_ptr<::common::Variable> convertVarProperty(
-      const std::string& aliasName, const std::string& propertyName, common::LogicalType &type);
+      const std::string& aliasName, const std::string& propertyName,
+      common::LogicalType& type);
   std::unique_ptr<::common::Variable> convertSingleVar(
       const std::string& aliasName, const common::LogicalType& type);
   ::common::Logical convertCompare(common::ExpressionType type);
@@ -57,4 +57,4 @@ class GExprConverter {
 };
 
 }  // namespace gopt
-}  // namespace kuzu
+}  // namespace gs

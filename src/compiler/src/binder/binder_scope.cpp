@@ -1,6 +1,6 @@
 #include "binder/binder_scope.h"
 
-namespace kuzu {
+namespace gs {
 namespace binder {
 
 void BinderScope::addExpression(const std::string& varName,
@@ -25,4 +25,4 @@ void BinderScope::clear() {
 }
 
 }  // namespace binder
-}  // namespace kuzu
+}  // namespace gs

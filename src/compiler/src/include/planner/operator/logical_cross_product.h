@@ -4,7 +4,7 @@
 #include "planner/operator/logical_operator.h"
 #include "planner/operator/sip/side_way_info_passing.h"
 
-namespace kuzu {
+namespace gs {
 namespace planner {
 
 class LogicalCrossProduct final : public LogicalOperator {
@@ -52,4 +52,4 @@ class LogicalCrossProduct final : public LogicalOperator {
 };
 
 }  // namespace planner
-}  // namespace kuzu
+}  // namespace gs

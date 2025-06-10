@@ -3,7 +3,7 @@
 #include "main/client_context.h"
 #include "query_graph.h"
 
-namespace kuzu {
+namespace gs {
 namespace binder {
 
 class QueryGraphLabelAnalyzer {
@@ -24,4 +24,4 @@ class QueryGraphLabelAnalyzer {
 };
 
 }  // namespace binder
-}  // namespace kuzu
+}  // namespace gs

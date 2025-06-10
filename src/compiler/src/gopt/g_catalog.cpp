@@ -11,7 +11,7 @@
 #include "gopt/g_constants.h"
 #include "transaction/transaction.h"
 
-namespace kuzu {
+namespace gs {
 namespace catalog {
 
 GCatalog::GCatalog(const std::filesystem::path& schemaPath) : Catalog() {
@@ -106,7 +106,7 @@ void GCatalog::loadSchema(const YAML::Node& schema) {
     }
   }
 
-  auto& transaction = kuzu::Constants::DEFAULT_TRANSACTION;
+  auto& transaction = gs::Constants::DEFAULT_TRANSACTION;
   for (auto& group : nameToSDPairMap) {
     // if the edge type has more than one rel table entries, we need to create
     // a rel group entry to record the mapping between the edge type and
@@ -208,13 +208,13 @@ PropertyDefinitionCollection GCatalog::createPropertyDefinitionCollection(
   switch (type) {
   case common::TableType::NODE: {
     for (auto& inner : getBaseNodeStructFields()) {
-      result.add(kuzu::binder::PropertyDefinition(std::move(inner)));
+      result.add(gs::binder::PropertyDefinition(std::move(inner)));
     }
     break;
   }
   case common::TableType::REL: {
     for (auto& inner : getBaseRelStructFields()) {
-      result.add(kuzu::binder::PropertyDefinition(std::move(inner)));
+      result.add(gs::binder::PropertyDefinition(std::move(inner)));
     }
     break;
   }
@@ -229,9 +229,9 @@ PropertyDefinitionCollection GCatalog::createPropertyDefinitionCollection(
       auto name = property["property_name"].as<std::string>();
       validatePropertyName(name, type);
       auto type = property["property_type"];
-      auto columnDefinition = kuzu::binder::ColumnDefinition(
+      auto columnDefinition = gs::binder::ColumnDefinition(
           name, GTypeUtils::createLogicalType(type));
-      result.add(kuzu::binder::PropertyDefinition(std::move(columnDefinition)));
+      result.add(gs::binder::PropertyDefinition(std::move(columnDefinition)));
     }
   }
 
@@ -370,4 +370,4 @@ void GCatalog::validatePropertyName(const std::string& name,
   }
 }
 }  // namespace catalog
-}  // namespace kuzu
+}  // namespace gs

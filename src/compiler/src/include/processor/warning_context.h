@@ -9,7 +9,7 @@
 #include "main/client_config.h"
 #include "processor/operator/persistent/reader/copy_from_error.h"
 
-namespace kuzu {
+namespace gs {
 namespace common {
 class ValueVector;
 }
@@ -64,4 +64,4 @@ class KUZU_API WarningContext {
 };
 
 }  // namespace processor
-}  // namespace kuzu
+}  // namespace gs

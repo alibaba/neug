@@ -2,9 +2,9 @@
 
 #include "binder/bound_standalone_call.h"
 
-using namespace kuzu::common;
+using namespace gs::common;
 
-namespace kuzu {
+namespace gs {
 namespace binder {
 
 void ConfidentialStatementAnalyzer::visitStandaloneCall(
@@ -14,4 +14,4 @@ void ConfidentialStatementAnalyzer::visitStandaloneCall(
 }
 
 }  // namespace binder
-}  // namespace kuzu
+}  // namespace gs

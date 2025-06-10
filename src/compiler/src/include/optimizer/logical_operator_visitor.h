@@ -2,7 +2,7 @@
 
 #include "planner/operator/logical_operator.h"
 
-namespace kuzu {
+namespace gs {
 namespace optimizer {
 
 class LogicalOperatorVisitor {
@@ -179,4 +179,4 @@ class LogicalOperatorVisitor {
 };
 
 }  // namespace optimizer
-}  // namespace kuzu
+}  // namespace gs

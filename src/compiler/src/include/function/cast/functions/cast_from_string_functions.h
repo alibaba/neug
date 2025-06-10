@@ -7,9 +7,9 @@
 #include "common/types/uuid.h"
 #include "common/vector/value_vector.h"
 
-using namespace kuzu::common;
+using namespace gs::common;
 
-namespace kuzu {
+namespace gs {
 namespace function {
 
 struct KUZU_API CastString {
@@ -237,4 +237,4 @@ void CastString::operation(const ku_string_t& input, union_entry_t& result,
                            const CSVOption* option);
 
 }  // namespace function
-}  // namespace kuzu
+}  // namespace gs

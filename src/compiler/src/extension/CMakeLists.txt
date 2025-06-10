@@ -42,9 +42,9 @@ include_directories(
         ${PROJECT_SOURCE_DIR}/third_party/httplib
 )
 
-add_library(kuzu_generated_extension_loader OBJECT ${GENERATED_CPP_FILE})
+add_library(nexg_generated_extension_loader OBJECT ${GENERATED_CPP_FILE})
 
-# Both the kuzu source and httpfs extension includes the httplib which is a header
+# Both the gs source and httpfs extension includes the httplib which is a header
 # only library. Httpfs requires the openssl function to be enabled in httplib, so
 # we also have to enable httplib there if httpfs is static linked.
 if("httpfs" IN_LIST STATICALLY_LINKED_EXTENSIONS)
@@ -52,7 +52,7 @@ if("httpfs" IN_LIST STATICALLY_LINKED_EXTENSIONS)
     include_directories(${OPENSSL_INCLUDE_DIR})
 endif ()
 
-add_library(kuzu_extension
+add_library(nexg_extension
         OBJECT
         catalog_extension.cpp
         extension.cpp
@@ -63,6 +63,6 @@ add_library(kuzu_extension
         )
 
 set(ALL_OBJECT_FILES
-        ${ALL_OBJECT_FILES} $<TARGET_OBJECTS:kuzu_extension>
-        ${ALL_OBJECT_FILES} $<TARGET_OBJECTS:kuzu_generated_extension_loader>
+        ${ALL_OBJECT_FILES} $<TARGET_OBJECTS:nexg_extension>
+        ${ALL_OBJECT_FILES} $<TARGET_OBJECTS:nexg_generated_extension_loader>
         PARENT_SCOPE)

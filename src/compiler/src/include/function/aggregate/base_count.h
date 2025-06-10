@@ -2,7 +2,7 @@
 
 #include "function/aggregate_function.h"
 
-namespace kuzu {
+namespace gs {
 namespace function {
 
 struct BaseCountFunction {
@@ -36,4 +36,4 @@ struct BaseCountFunction {
 };
 
 }  // namespace function
-}  // namespace kuzu
+}  // namespace gs

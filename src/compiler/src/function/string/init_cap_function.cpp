@@ -1,9 +1,9 @@
 #include "function/string/vector_string_functions.h"
 
-namespace kuzu {
+namespace gs {
 namespace function {
 
-using namespace kuzu::common;
+using namespace gs::common;
 
 struct InitCap {
   static void operation(ku_string_t& operand, ku_string_t& result,
@@ -28,4 +28,4 @@ function_set InitCapFunction::getFunctionSet() {
 }
 
 }  // namespace function
-}  // namespace kuzu
+}  // namespace gs

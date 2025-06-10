@@ -3,9 +3,9 @@
 #include "function/hash/vector_hash_functions.h"
 #include "function/scalar_function.h"
 
-using namespace kuzu::common;
+using namespace gs::common;
 
-namespace kuzu {
+namespace gs {
 namespace function {
 
 struct MD5Operator {
@@ -30,4 +30,4 @@ function_set MD5Function::getFunctionSet() {
 }
 
 }  // namespace function
-}  // namespace kuzu
+}  // namespace gs

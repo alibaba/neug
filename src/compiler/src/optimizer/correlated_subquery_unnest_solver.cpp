@@ -4,9 +4,9 @@
 #include "planner/operator/logical_hash_join.h"
 #include "planner/operator/scan/logical_expressions_scan.h"
 
-using namespace kuzu::planner;
+using namespace gs::planner;
 
-namespace kuzu {
+namespace gs {
 namespace optimizer {
 
 void CorrelatedSubqueryUnnestSolver::solve(planner::LogicalOperator* root_) {
@@ -51,4 +51,4 @@ void CorrelatedSubqueryUnnestSolver::visitExpressionsScan(LogicalOperator* op) {
 }
 
 }  // namespace optimizer
-}  // namespace kuzu
+}  // namespace gs

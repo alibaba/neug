@@ -1,7 +1,7 @@
 #include "parser/query/regular_query.h"
 #include "parser/transformer.h"
 
-namespace kuzu {
+namespace gs {
 namespace parser {
 
 std::unique_ptr<Statement> Transformer::transformQuery(
@@ -63,4 +63,4 @@ QueryPart Transformer::transformQueryPart(
 }
 
 }  // namespace parser
-}  // namespace kuzu
+}  // namespace gs

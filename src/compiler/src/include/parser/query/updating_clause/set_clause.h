@@ -3,7 +3,7 @@
 #include "parser/expression/parsed_expression.h"
 #include "updating_clause.h"
 
-namespace kuzu {
+namespace gs {
 namespace parser {
 
 class SetClause final : public UpdatingClause {
@@ -22,4 +22,4 @@ class SetClause final : public UpdatingClause {
 };
 
 }  // namespace parser
-}  // namespace kuzu
+}  // namespace gs

@@ -1,7 +1,7 @@
 #include "planner/operator/logical_flatten.h"
 #include "planner/planner.h"
 
-namespace kuzu {
+namespace gs {
 namespace planner {
 
 void Planner::appendFlattens(const f_group_pos_set& groupsPos,
@@ -26,4 +26,4 @@ void Planner::appendFlattenIfNecessary(f_group_pos groupPos,
 }
 
 }  // namespace planner
-}  // namespace kuzu
+}  // namespace gs

@@ -9,7 +9,7 @@
 #include "parser/ddl/parsed_property_definition.h"
 #include "statement.h"
 
-namespace kuzu {
+namespace gs {
 namespace main {
 class ClientContext;
 }
@@ -295,4 +295,4 @@ class Transformer {
 };
 
 }  // namespace parser
-}  // namespace kuzu
+}  // namespace gs

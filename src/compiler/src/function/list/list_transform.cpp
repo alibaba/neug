@@ -2,7 +2,7 @@
 #include "function/list/vector_list_functions.h"
 #include "function/scalar_function.h"
 
-namespace kuzu {
+namespace gs {
 namespace function {
 
 using namespace common;
@@ -55,4 +55,4 @@ function_set ListTransformFunction::getFunctionSet() {
 }
 
 }  // namespace function
-}  // namespace kuzu
+}  // namespace gs

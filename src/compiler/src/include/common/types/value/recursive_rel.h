@@ -2,7 +2,7 @@
 
 #include "common/api.h"
 
-namespace kuzu {
+namespace gs {
 namespace common {
 
 class Value;
@@ -28,4 +28,4 @@ class RecursiveRelVal {
 };
 
 }  // namespace common
-}  // namespace kuzu
+}  // namespace gs

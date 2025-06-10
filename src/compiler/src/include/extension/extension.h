@@ -16,7 +16,7 @@
   db->addExtensionOption(OPTION::NAME, OPTION::TYPE, \
                          OPTION::getDefaultValue(), true)
 
-namespace kuzu {
+namespace gs {
 namespace function {
 struct TableFunction;
 }  // namespace function
@@ -187,4 +187,4 @@ void* dlsym(void* handle, const char* name);
 #endif
 
 }  // namespace extension
-}  // namespace kuzu
+}  // namespace gs

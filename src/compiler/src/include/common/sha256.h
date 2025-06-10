@@ -4,7 +4,7 @@
 
 #include "third_party/mbedtls/include/mbedtls/sha256.h"
 
-namespace kuzu {
+namespace gs {
 namespace common {
 
 class SHA256 {
@@ -26,4 +26,4 @@ class SHA256 {
 };
 
 }  // namespace common
-}  // namespace kuzu
+}  // namespace gs

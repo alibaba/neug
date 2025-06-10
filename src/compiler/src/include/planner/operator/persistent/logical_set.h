@@ -3,7 +3,7 @@
 #include "binder/query/updating_clause/bound_set_info.h"
 #include "planner/operator/logical_operator.h"
 
-namespace kuzu {
+namespace gs {
 namespace planner {
 
 class LogicalSetProperty final : public LogicalOperator {
@@ -40,4 +40,4 @@ class LogicalSetProperty final : public LogicalOperator {
 };
 
 }  // namespace planner
-}  // namespace kuzu
+}  // namespace gs

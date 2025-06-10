@@ -4,7 +4,7 @@
 #include "common/enums/conflict_action.h"
 #include "common/enums/table_type.h"
 
-namespace kuzu {
+namespace gs {
 namespace binder {
 
 struct BoundInsertInfo {
@@ -31,4 +31,4 @@ struct BoundInsertInfo {
 };
 
 }  // namespace binder
-}  // namespace kuzu
+}  // namespace gs

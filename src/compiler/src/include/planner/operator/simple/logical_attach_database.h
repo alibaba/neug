@@ -3,7 +3,7 @@
 #include "binder/bound_attach_info.h"
 #include "logical_simple.h"
 
-namespace kuzu {
+namespace gs {
 namespace planner {
 
 struct LogicalAttachDatabasePrintInfo final : OPPrintInfo {
@@ -49,4 +49,4 @@ class LogicalAttachDatabase final : public LogicalSimple {
 };
 
 }  // namespace planner
-}  // namespace kuzu
+}  // namespace gs

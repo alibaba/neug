@@ -2,7 +2,7 @@
 
 #include "planner/operator/logical_operator.h"
 
-namespace kuzu {
+namespace gs {
 namespace planner {
 
 class LogicalNodeLabelFilter final : public LogicalOperator {
@@ -40,4 +40,4 @@ class LogicalNodeLabelFilter final : public LogicalOperator {
 };
 
 }  // namespace planner
-}  // namespace kuzu
+}  // namespace gs

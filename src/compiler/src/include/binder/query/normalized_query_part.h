@@ -6,7 +6,7 @@
 #include "binder/query/return_with_clause/bound_projection_body.h"
 #include "binder/query/updating_clause/bound_updating_clause.h"
 
-namespace kuzu {
+namespace gs {
 namespace binder {
 
 class NormalizedQueryPart {
@@ -68,4 +68,4 @@ class NormalizedQueryPart {
 };
 
 }  // namespace binder
-}  // namespace kuzu
+}  // namespace gs

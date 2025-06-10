@@ -3,7 +3,7 @@
 #include <memory>
 #include <vector>
 
-namespace kuzu {
+namespace gs {
 namespace parser {
 
 struct JoinHintNode {
@@ -19,4 +19,4 @@ struct JoinHintNode {
 };
 
 }  // namespace parser
-}  // namespace kuzu
+}  // namespace gs

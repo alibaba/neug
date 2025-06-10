@@ -2,7 +2,7 @@
 
 #include "binder/expression/expression.h"
 
-namespace kuzu {
+namespace gs {
 namespace binder {
 
 class BoundProjectionBody {
@@ -83,4 +83,4 @@ class BoundProjectionBody {
 };
 
 }  // namespace binder
-}  // namespace kuzu
+}  // namespace gs

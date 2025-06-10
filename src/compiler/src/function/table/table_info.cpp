@@ -12,10 +12,10 @@
 #include "main/client_context.h"
 #include "main/database_manager.h"
 
-using namespace kuzu::catalog;
-using namespace kuzu::common;
+using namespace gs::catalog;
+using namespace gs::common;
 
-namespace kuzu {
+namespace gs {
 namespace function {
 
 struct ExtraPropertyInfo {
@@ -246,4 +246,4 @@ function_set TableInfoFunction::getFunctionSet() {
 }
 
 }  // namespace function
-}  // namespace kuzu
+}  // namespace gs

@@ -3,10 +3,10 @@
 #include "binder/expression/node_rel_expression.h"
 #include "catalog/catalog_entry/table_catalog_entry.h"
 
-using namespace kuzu::common;
-using namespace kuzu::catalog;
+using namespace gs::common;
+using namespace gs::catalog;
 
-namespace kuzu {
+namespace gs {
 namespace binder {
 
 std::unique_ptr<PropertyExpression> PropertyExpression::construct(
@@ -58,4 +58,4 @@ column_id_t PropertyExpression::getColumnID(
 }
 
 }  // namespace binder
-}  // namespace kuzu
+}  // namespace gs

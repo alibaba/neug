@@ -3,7 +3,7 @@
 #include "common/cast.h"
 #include "common/enums/clause_type.h"
 
-namespace kuzu {
+namespace gs {
 namespace parser {
 
 class UpdatingClause {
@@ -24,4 +24,4 @@ class UpdatingClause {
 };
 
 }  // namespace parser
-}  // namespace kuzu
+}  // namespace gs

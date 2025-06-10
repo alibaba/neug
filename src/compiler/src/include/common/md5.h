@@ -26,7 +26,7 @@
 
 #include <cstdint>
 
-namespace kuzu {
+namespace gs {
 namespace common {
 
 class MD5 {
@@ -96,4 +96,4 @@ class MD5 {
 };
 
 }  // namespace common
-}  // namespace kuzu
+}  // namespace gs

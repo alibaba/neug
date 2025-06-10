@@ -10,7 +10,7 @@
 #include "gopt/g_rel_table_entry.h"
 #include "gopt/g_type_utils.h"
 
-namespace kuzu {
+namespace gs {
 namespace catalog {
 class GCatalog : public Catalog {
  public:
@@ -47,4 +47,4 @@ class GCatalog : public Catalog {
   void validatePropertyName(const std::string& name, common::TableType type);
 };
 }  // namespace catalog
-}  // namespace kuzu
+}  // namespace gs

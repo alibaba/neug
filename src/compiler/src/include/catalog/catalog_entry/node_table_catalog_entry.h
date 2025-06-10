@@ -2,7 +2,7 @@
 
 #include "table_catalog_entry.h"
 
-namespace kuzu {
+namespace gs {
 namespace transaction {
 class Transaction;
 }  // namespace transaction
@@ -49,4 +49,4 @@ class KUZU_API NodeTableCatalogEntry final : public TableCatalogEntry {
 };
 
 }  // namespace catalog
-}  // namespace kuzu
+}  // namespace gs

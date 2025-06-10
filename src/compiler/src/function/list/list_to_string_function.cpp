@@ -4,9 +4,9 @@
 #include "function/list/vector_list_functions.h"
 #include "function/scalar_function.h"
 
-using namespace kuzu::common;
+using namespace gs::common;
 
-namespace kuzu {
+namespace gs {
 namespace function {
 
 void ListToString::operation(list_entry_t& input, ku_string_t& delim,
@@ -52,4 +52,4 @@ function_set ListToStringFunction::getFunctionSet() {
 }
 
 }  // namespace function
-}  // namespace kuzu
+}  // namespace gs

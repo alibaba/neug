@@ -15,9 +15,9 @@
 #include "function/string/functions/starts_with_function.h"
 #include "function/string/functions/substr_function.h"
 
-using namespace kuzu::common;
+using namespace gs::common;
 
-namespace kuzu {
+namespace gs {
 namespace function {
 
 void BaseLowerUpperFunction::operation(ku_string_t& input, ku_string_t& result,
@@ -342,4 +342,4 @@ function_set RegexpSplitToArrayFunction::getFunctionSet() {
 }
 
 }  // namespace function
-}  // namespace kuzu
+}  // namespace gs

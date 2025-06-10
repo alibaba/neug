@@ -8,10 +8,10 @@
 #include "common/serializer/deserializer.h"
 #include "main/client_context.h"
 
-using namespace kuzu::binder;
-using namespace kuzu::common;
+using namespace gs::binder;
+using namespace gs::common;
 
-namespace kuzu {
+namespace gs {
 namespace catalog {
 
 bool RelTableCatalogEntry::isParent(table_id_t tableID) {
@@ -157,4 +157,4 @@ RelTableCatalogEntry::getBoundExtraCreateInfo(transaction::Transaction*) const {
 }
 
 }  // namespace catalog
-}  // namespace kuzu
+}  // namespace gs

@@ -9,7 +9,7 @@
 #include "parser/ddl/parsed_property_definition.h"
 #include "parser/query/graph_pattern/pattern_element.h"
 
-namespace kuzu {
+namespace gs {
 namespace parser {
 class ProjectionBody;
 class ReturnClause;
@@ -397,4 +397,4 @@ class Binder {
 };
 
 }  // namespace binder
-}  // namespace kuzu
+}  // namespace gs

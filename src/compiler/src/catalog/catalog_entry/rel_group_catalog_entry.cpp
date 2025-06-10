@@ -8,10 +8,10 @@
 #include "common/serializer/deserializer.h"
 #include "main/client_context.h"
 
-using namespace kuzu::common;
-using namespace kuzu::main;
+using namespace gs::common;
+using namespace gs::main;
 
-namespace kuzu {
+namespace gs {
 namespace catalog {
 
 std::unique_ptr<RelGroupCatalogEntry> RelGroupCatalogEntry::alter(
@@ -123,4 +123,4 @@ std::string RelGroupCatalogEntry::toCypher(const ToCypherInfo& info) const {
 }
 
 }  // namespace catalog
-}  // namespace kuzu
+}  // namespace gs

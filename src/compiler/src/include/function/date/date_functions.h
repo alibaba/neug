@@ -5,7 +5,7 @@
 #include "common/types/ku_string.h"
 #include "common/types/timestamp_t.h"
 
-namespace kuzu {
+namespace gs {
 namespace function {
 
 struct DayName {
@@ -171,4 +171,4 @@ struct CurrentTimestamp {
 };
 
 }  // namespace function
-}  // namespace kuzu
+}  // namespace gs

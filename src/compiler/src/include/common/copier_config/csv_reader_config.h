@@ -5,7 +5,7 @@
 #include "common/copy_constructors.h"
 #include "common/types/value/value.h"
 
-namespace kuzu {
+namespace gs {
 namespace common {
 
 struct CSVOption {
@@ -116,4 +116,4 @@ struct CSVReaderConfig {
 };
 
 }  // namespace common
-}  // namespace kuzu
+}  // namespace gs

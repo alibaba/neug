@@ -4,10 +4,10 @@
 #include "function/list/vector_list_functions.h"
 #include "function/scalar_function.h"
 
-using namespace kuzu::common;
-using namespace kuzu::binder;
+using namespace gs::common;
+using namespace gs::binder;
 
-namespace kuzu {
+namespace gs {
 namespace function {
 
 struct ListContains {
@@ -61,4 +61,4 @@ function_set ListContainsFunction::getFunctionSet() {
 }
 
 }  // namespace function
-}  // namespace kuzu
+}  // namespace gs

@@ -7,7 +7,7 @@
 #include "graph/graph_entry.h"
 #include "rj_output_writer.h"
 
-namespace kuzu {
+namespace gs {
 namespace function {
 
 struct RJBindData {
@@ -51,4 +51,4 @@ class RJAlgorithm {
 };
 
 }  // namespace function
-}  // namespace kuzu
+}  // namespace gs

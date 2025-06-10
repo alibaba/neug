@@ -2,7 +2,7 @@
 
 #include "parser/expression/parsed_expression.h"
 
-namespace kuzu {
+namespace gs {
 namespace parser {
 
 struct ParsedColumnDefinition {
@@ -41,4 +41,4 @@ struct ParsedPropertyDefinition {
 };
 
 }  // namespace parser
-}  // namespace kuzu
+}  // namespace gs

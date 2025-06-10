@@ -5,10 +5,10 @@
 #include "json.hpp"
 #include "planner/operator/logical_plan.h"
 
-using namespace kuzu::common;
-using namespace kuzu::planner;
+using namespace gs::common;
+using namespace gs::planner;
 
-namespace kuzu {
+namespace gs {
 namespace main {
 
 OpProfileBox::OpProfileBox(std::string opName, const std::string& paramsName,
@@ -368,4 +368,4 @@ nlohmann::json PlanPrinter::toJson(const LogicalOperator* logicalOperator) {
 }
 
 }  // namespace main
-}  // namespace kuzu
+}  // namespace gs

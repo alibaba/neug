@@ -3,7 +3,7 @@
 #include "join_tree.h"
 #include "planner/planner.h"
 
-namespace kuzu {
+namespace gs {
 namespace planner {
 
 class JoinPlanSolver {
@@ -27,4 +27,4 @@ class JoinPlanSolver {
 };
 
 }  // namespace planner
-}  // namespace kuzu
+}  // namespace gs

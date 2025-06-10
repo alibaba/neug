@@ -1,8 +1,8 @@
 #include "function/gds/frontier_morsel.h"
 
-using namespace kuzu::common;
+using namespace gs::common;
 
-namespace kuzu {
+namespace gs {
 namespace function {
 
 FrontierMorselDispatcher::FrontierMorselDispatcher(uint64_t maxThreads)
@@ -39,4 +39,4 @@ bool FrontierMorselDispatcher::getNextRangeMorsel(
 }
 
 }  // namespace function
-}  // namespace kuzu
+}  // namespace gs

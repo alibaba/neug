@@ -5,7 +5,7 @@
 #include "common/enums/explain_type.h"
 #include "planner/operator/logical_operator.h"
 
-namespace kuzu {
+namespace gs {
 namespace planner {
 
 class LogicalExplain final : public LogicalOperator {
@@ -49,4 +49,4 @@ class LogicalExplain final : public LogicalOperator {
 };
 
 }  // namespace planner
-}  // namespace kuzu
+}  // namespace gs

@@ -15,7 +15,7 @@
 #include "query_result.h"
 #include "transaction/transaction_context.h"
 
-namespace kuzu {
+namespace gs {
 namespace parser {
 class StandaloneCallRewriter;
 }  // namespace parser
@@ -262,4 +262,4 @@ class KUZU_API ClientContext {
 };
 
 }  // namespace main
-}  // namespace kuzu
+}  // namespace gs

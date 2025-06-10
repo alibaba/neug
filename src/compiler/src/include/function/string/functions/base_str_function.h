@@ -4,7 +4,7 @@
 #include "common/types/ku_string.h"
 #include "common/vector/value_vector.h"
 
-namespace kuzu {
+namespace gs {
 namespace function {
 
 struct BaseStrOperation {
@@ -17,4 +17,4 @@ struct BaseStrOperation {
 };
 
 }  // namespace function
-}  // namespace kuzu
+}  // namespace gs

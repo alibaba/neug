@@ -2,9 +2,9 @@
 
 #include "binder/query/reading_clause/bound_match_clause.h"
 
-using namespace kuzu::common;
+using namespace gs::common;
 
-namespace kuzu {
+namespace gs {
 namespace binder {
 
 void MatchClausePatternLabelRewriter::visitMatchUnsafe(
@@ -20,4 +20,4 @@ void MatchClausePatternLabelRewriter::visitMatchUnsafe(
 }
 
 }  // namespace binder
-}  // namespace kuzu
+}  // namespace gs

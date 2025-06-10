@@ -6,7 +6,7 @@
 #include "common/system_config.h"
 #include "common/vector/value_vector.h"
 
-namespace kuzu {
+namespace gs {
 namespace common {
 
 StructAuxiliaryBuffer::StructAuxiliaryBuffer(
@@ -100,4 +100,4 @@ std::unique_ptr<AuxiliaryBuffer> AuxiliaryBufferFactory::getAuxiliaryBuffer(
 }
 
 }  // namespace common
-}  // namespace kuzu
+}  // namespace gs

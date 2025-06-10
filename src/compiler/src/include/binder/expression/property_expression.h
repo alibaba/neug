@@ -3,7 +3,7 @@
 #include "common/constants.h"
 #include "expression.h"
 
-namespace kuzu {
+namespace gs {
 namespace catalog {
 class TableCatalogEntry;
 }
@@ -89,4 +89,4 @@ class PropertyExpression final : public Expression {
 };
 
 }  // namespace binder
-}  // namespace kuzu
+}  // namespace gs

@@ -2,7 +2,7 @@
 
 #include "function.h"
 
-namespace kuzu {
+namespace gs {
 namespace binder {
 class ExpressionBinder;
 }
@@ -44,4 +44,4 @@ struct RewriteFunction final : Function {
 };
 
 }  // namespace function
-}  // namespace kuzu
+}  // namespace gs

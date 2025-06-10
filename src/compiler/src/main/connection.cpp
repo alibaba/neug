@@ -4,13 +4,13 @@
 
 #include "common/random_engine.h"
 
-using namespace kuzu::parser;
-using namespace kuzu::binder;
-using namespace kuzu::common;
-using namespace kuzu::planner;
-using namespace kuzu::transaction;
+using namespace gs::parser;
+using namespace gs::binder;
+using namespace gs::common;
+using namespace gs::planner;
+using namespace gs::transaction;
 
-namespace kuzu {
+namespace gs {
 namespace main {
 
 Connection::Connection(Database* database) {
@@ -96,4 +96,4 @@ void Connection::removeScalarFunction(std::string name) {
 }
 
 }  // namespace main
-}  // namespace kuzu
+}  // namespace gs

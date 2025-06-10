@@ -11,7 +11,7 @@
 #include "common/vector/value_vector.h"
 #include "transaction/transaction.h"
 
-namespace kuzu {
+namespace gs {
 namespace catalog {
 class TableCatalogEntry;
 }
@@ -277,4 +277,4 @@ class Graph {
 };
 
 }  // namespace graph
-}  // namespace kuzu
+}  // namespace gs

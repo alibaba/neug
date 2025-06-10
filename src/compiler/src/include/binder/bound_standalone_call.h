@@ -4,7 +4,7 @@
 #include "binder/expression/expression.h"
 #include "main/db_config.h"
 
-namespace kuzu {
+namespace gs {
 namespace binder {
 
 class BoundStandaloneCall final : public BoundStatement {
@@ -26,4 +26,4 @@ class BoundStandaloneCall final : public BoundStatement {
 };
 
 }  // namespace binder
-}  // namespace kuzu
+}  // namespace gs

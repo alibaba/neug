@@ -8,10 +8,10 @@
 #include "parser/parser.h"
 #include "parser/port_db.h"
 
-using namespace kuzu::common;
-using namespace kuzu::parser;
+using namespace gs::common;
+using namespace gs::parser;
 
-namespace kuzu {
+namespace gs {
 namespace binder {
 
 static std::string getQueryFromFile(VirtualFileSystem* vfs,
@@ -133,4 +133,4 @@ std::unique_ptr<BoundStatement> Binder::bindImportDatabaseClause(
 }
 
 }  // namespace binder
-}  // namespace kuzu
+}  // namespace gs

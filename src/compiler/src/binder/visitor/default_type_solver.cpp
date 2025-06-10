@@ -1,8 +1,8 @@
 #include "binder/visitor/default_type_solver.h"
 
-using namespace kuzu::common;
+using namespace gs::common;
 
-namespace kuzu {
+namespace gs {
 namespace binder {
 
 static void resolveAnyType(Expression& expr) {
@@ -23,4 +23,4 @@ void DefaultTypeSolver::visitProjectionBody(
 }
 
 }  // namespace binder
-}  // namespace kuzu
+}  // namespace gs

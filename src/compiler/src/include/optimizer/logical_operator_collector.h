@@ -2,7 +2,7 @@
 
 #include "logical_operator_visitor.h"
 
-namespace kuzu {
+namespace gs {
 namespace optimizer {
 
 class LogicalOperatorCollector : public LogicalOperatorVisitor {
@@ -51,4 +51,4 @@ class LogicalRecursiveExtendCollector final : public LogicalOperatorCollector {
 };
 
 }  // namespace optimizer
-}  // namespace kuzu
+}  // namespace gs

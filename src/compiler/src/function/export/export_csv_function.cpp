@@ -5,7 +5,7 @@
 #include "function/scalar_function.h"
 #include "main/client_context.h"
 
-namespace kuzu {
+namespace gs {
 namespace function {
 
 using namespace common;
@@ -304,4 +304,4 @@ function_set ExportCSVFunction::getFunctionSet() {
 }
 
 }  // namespace function
-}  // namespace kuzu
+}  // namespace gs

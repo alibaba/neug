@@ -2,7 +2,7 @@
 
 #include "common/types/types.h"
 
-namespace kuzu {
+namespace gs {
 namespace function {
 
 struct Offset {
@@ -12,4 +12,4 @@ struct Offset {
 };
 
 }  // namespace function
-}  // namespace kuzu
+}  // namespace gs

@@ -7,7 +7,7 @@
 #include "density_state.h"
 #include "gds_object_manager.h"
 
-namespace kuzu {
+namespace gs {
 namespace processor {
 struct ExecutionContext;
 }
@@ -342,4 +342,4 @@ class SPEdgeCompute : public EdgeCompute {
 };
 
 }  // namespace function
-}  // namespace kuzu
+}  // namespace gs

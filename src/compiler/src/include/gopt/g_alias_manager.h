@@ -7,7 +7,7 @@
 #include "src/compiler/src/include/planner/operator/logical_operator.h"
 #include "src/compiler/src/include/planner/operator/logical_plan.h"
 
-namespace kuzu {
+namespace gs {
 namespace gopt {
 
 class GAliasManager {
@@ -32,4 +32,4 @@ class GAliasManager {
 };
 
 }  // namespace gopt
-}  // namespace kuzu
+}  // namespace gs

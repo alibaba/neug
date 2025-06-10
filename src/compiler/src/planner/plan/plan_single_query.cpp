@@ -2,9 +2,9 @@
 #include "binder/visitor/property_collector.h"
 #include "planner/planner.h"
 
-using namespace kuzu::binder;
+using namespace gs::binder;
 
-namespace kuzu {
+namespace gs {
 namespace planner {
 
 // Note: we cannot append ResultCollector for plans enumerated for single query
@@ -51,4 +51,4 @@ std::vector<std::unique_ptr<LogicalPlan>> Planner::planQueryPart(
 }
 
 }  // namespace planner
-}  // namespace kuzu
+}  // namespace gs

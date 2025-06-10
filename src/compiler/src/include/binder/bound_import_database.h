@@ -1,7 +1,7 @@
 #pragma once
 #include "binder/bound_statement.h"
 
-namespace kuzu {
+namespace gs {
 namespace binder {
 
 class BoundImportDatabase final : public BoundStatement {
@@ -29,4 +29,4 @@ class BoundImportDatabase final : public BoundStatement {
 };
 
 }  // namespace binder
-}  // namespace kuzu
+}  // namespace gs

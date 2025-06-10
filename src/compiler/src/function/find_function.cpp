@@ -2,9 +2,9 @@
 
 #include <cstring>
 
-using namespace kuzu::common;
+using namespace gs::common;
 
-namespace kuzu {
+namespace gs {
 namespace function {
 
 template <class UNSIGNED>
@@ -135,4 +135,4 @@ int64_t Find::find(const uint8_t* haystack, uint32_t haystackLen,
 }
 
 }  // namespace function
-}  // namespace kuzu
+}  // namespace gs

@@ -2,7 +2,7 @@
 
 #include "common/assert.h"
 
-namespace kuzu {
+namespace gs {
 namespace common {
 
 std::string TableTypeUtils::toString(TableType tableType) {
@@ -25,4 +25,4 @@ std::string TableTypeUtils::toString(TableType tableType) {
 }
 
 }  // namespace common
-}  // namespace kuzu
+}  // namespace gs

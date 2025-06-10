@@ -6,7 +6,7 @@
 #include "parser/scan_source.h"
 #include "parser/statement.h"
 
-namespace kuzu {
+namespace gs {
 namespace parser {
 
 class Copy : public Statement {
@@ -76,4 +76,4 @@ class CopyTo : public Copy {
 };
 
 }  // namespace parser
-}  // namespace kuzu
+}  // namespace gs

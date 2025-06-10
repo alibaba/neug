@@ -1,4 +1,4 @@
-// this class is used to analyze the physical mode of the given kuzu logical
+// this class is used to analyze the physical mode of the given gs logical
 // plan, it contains one field named mode to record the type of the plan. the
 // mode can be QUERY or DDL; it behaves like a visitor to the logical plan, and
 // it will visit each operator in the plan to analyze the physical mode. if it
@@ -9,7 +9,7 @@
 #include "planner/operator/logical_operator.h"
 #include "planner/operator/logical_plan.h"
 
-namespace kuzu {
+namespace gs {
 namespace gopt {
 
 enum class PhysicalMode { READ_ONLY, READ_WRITE, DDL };
@@ -60,4 +60,4 @@ class GPhysicalAnalyzer {
 };
 
 }  // namespace gopt
-}  // namespace kuzu
+}  // namespace gs

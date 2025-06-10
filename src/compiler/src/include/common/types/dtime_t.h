@@ -5,7 +5,7 @@
 
 #include "common/api.h"
 
-namespace kuzu {
+namespace gs {
 namespace common {
 
 // Type used to represent time (microseconds)
@@ -68,4 +68,4 @@ class Time {
 };
 
 }  // namespace common
-}  // namespace kuzu
+}  // namespace gs

@@ -4,7 +4,7 @@
 
 #include "common/types/types.h"
 
-namespace kuzu {
+namespace gs {
 namespace function {
 
 class FrontierMorsel {
@@ -47,4 +47,4 @@ class KUZU_API FrontierMorselDispatcher {
 };
 
 }  // namespace function
-}  // namespace kuzu
+}  // namespace gs

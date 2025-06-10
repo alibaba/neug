@@ -6,7 +6,7 @@
 
 #include "common/api.h"
 
-namespace kuzu {
+namespace gs {
 namespace common {
 
 inline std::string systemErrMessage(int code) {
@@ -25,4 +25,4 @@ inline std::string posixErrMessage() {
 KUZU_API std::string dlErrMessage();
 
 }  // namespace common
-}  // namespace kuzu
+}  // namespace gs

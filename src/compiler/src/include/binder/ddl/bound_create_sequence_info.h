@@ -5,7 +5,7 @@
 #include "common/copy_constructors.h"
 #include "common/enums/conflict_action.h"
 
-namespace kuzu {
+namespace gs {
 namespace binder {
 
 struct BoundCreateSequenceInfo {
@@ -47,4 +47,4 @@ struct BoundCreateSequenceInfo {
 };
 
 }  // namespace binder
-}  // namespace kuzu
+}  // namespace gs

@@ -8,32 +8,32 @@
 #include "gopt/g_transaction_manager.h"
 #include "main/database.h"
 
-namespace kuzu {
+namespace gs {
 namespace main {
 class GDatabase : public Database {
  private:
-  std::unique_ptr<kuzu::storage::WAL> wal;
+  std::unique_ptr<gs::storage::WAL> wal;
 
  public:
-  GDatabase(const kuzu::main::SystemConfig& sysConfig) : Database(sysConfig) {
-    this->memoryManager = std::make_unique<kuzu::storage::MemoryManager>();
-    this->wal = std::make_unique<kuzu::storage::WAL>();
+  GDatabase(const gs::main::SystemConfig& sysConfig) : Database(sysConfig) {
+    this->memoryManager = std::make_unique<gs::storage::MemoryManager>();
+    this->wal = std::make_unique<gs::storage::WAL>();
     this->transactionManager =
-        std::make_unique<kuzu::transaction::GTransactionManager>(*this->wal);
+        std::make_unique<gs::transaction::GTransactionManager>(*this->wal);
   };
 
   void updateSchema(const std::filesystem::path& schemaPath,
                     const std::filesystem::path& statsPath) {
-    this->catalog = std::make_unique<kuzu::catalog::GCatalog>(schemaPath);
-    this->storageManager = std::make_unique<kuzu::storage::GStorageManager>(
+    this->catalog = std::make_unique<gs::catalog::GCatalog>(schemaPath);
+    this->storageManager = std::make_unique<gs::storage::GStorageManager>(
         statsPath, *this->catalog, *this->memoryManager, *this->wal);
   }
 
   void updateSchema(const std::string& schema, const std::string& stats) {
-    this->catalog = std::make_unique<kuzu::catalog::GCatalog>(schema);
-    this->storageManager = std::make_unique<kuzu::storage::GStorageManager>(
+    this->catalog = std::make_unique<gs::catalog::GCatalog>(schema);
+    this->storageManager = std::make_unique<gs::storage::GStorageManager>(
         stats, *this->catalog, *this->memoryManager, *this->wal);
   }
 };
 }  // namespace main
-}  // namespace kuzu
+}  // namespace gs

@@ -3,7 +3,7 @@
 #include "catalog/catalog_entry/rel_table_catalog_entry.h"
 #include "storage/store/table.h"
 
-namespace kuzu {
+namespace gs {
 namespace evaluator {
 class ExpressionEvaluator;
 }
@@ -44,4 +44,4 @@ class KUZU_API RelTable : public Table {
 };
 
 }  // namespace storage
-}  // namespace kuzu
+}  // namespace gs

@@ -3,7 +3,7 @@
 #include "drop_info.h"
 #include "parser/statement.h"
 
-namespace kuzu {
+namespace gs {
 namespace parser {
 
 class Drop : public Statement {
@@ -20,4 +20,4 @@ class Drop : public Statement {
 };
 
 }  // namespace parser
-}  // namespace kuzu
+}  // namespace gs

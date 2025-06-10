@@ -3,14 +3,14 @@
 #include "common/api.h"
 #include "exception.h"
 
-namespace kuzu {
+namespace gs {
 namespace common {
 
 class KUZU_API CatalogException : public Exception {
  public:
   explicit CatalogException(const std::string& msg)
-      : Exception("Catalog exception: " + msg){};
+      : Exception("Catalog exception: " + msg) {};
 };
 
 }  // namespace common
-}  // namespace kuzu
+}  // namespace gs

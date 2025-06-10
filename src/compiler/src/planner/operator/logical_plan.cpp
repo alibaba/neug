@@ -2,7 +2,7 @@
 
 #include "planner/operator/logical_explain.h"
 
-namespace kuzu {
+namespace gs {
 namespace planner {
 
 bool LogicalPlan::isProfile() const {
@@ -31,4 +31,4 @@ std::unique_ptr<LogicalPlan> LogicalPlan::deepCopy() const {
 }
 
 }  // namespace planner
-}  // namespace kuzu
+}  // namespace gs

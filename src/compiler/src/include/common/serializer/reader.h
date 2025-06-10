@@ -2,7 +2,7 @@
 
 #include <cstdint>
 
-namespace kuzu {
+namespace gs {
 namespace common {
 
 class Reader {
@@ -14,4 +14,4 @@ class Reader {
 };
 
 }  // namespace common
-}  // namespace kuzu
+}  // namespace gs

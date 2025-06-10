@@ -9,7 +9,7 @@
 #include "storage/wal/wal.h"
 #include "transaction/transaction.h"
 
-namespace kuzu {
+namespace gs {
 namespace main {
 class ClientContext;
 }
@@ -70,4 +70,4 @@ class TransactionManager {
       common::DEFAULT_CHECKPOINT_WAIT_TIMEOUT_IN_MICROS;
 };
 }  // namespace transaction
-}  // namespace kuzu
+}  // namespace gs

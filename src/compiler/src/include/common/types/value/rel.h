@@ -8,7 +8,7 @@
 
 #include "common/api.h"
 
-namespace kuzu {
+namespace gs {
 namespace common {
 
 class Value;
@@ -66,4 +66,4 @@ class RelVal {
 };
 
 }  // namespace common
-}  // namespace kuzu
+}  // namespace gs

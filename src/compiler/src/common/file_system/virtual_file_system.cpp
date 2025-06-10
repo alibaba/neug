@@ -5,7 +5,7 @@
 #include "common/file_system/local_file_system.h"
 #include "main/client_context.h"
 
-namespace kuzu {
+namespace gs {
 namespace common {
 
 VirtualFileSystem::VirtualFileSystem() : VirtualFileSystem{""} {}
@@ -127,4 +127,4 @@ FileSystem* VirtualFileSystem::findFileSystem(const std::string& path) const {
 }
 
 }  // namespace common
-}  // namespace kuzu
+}  // namespace gs

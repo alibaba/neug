@@ -2,7 +2,7 @@
 #include "parser/standalone_call_function.h"
 #include "parser/transformer.h"
 
-namespace kuzu {
+namespace gs {
 namespace parser {
 
 std::unique_ptr<Statement> Transformer::transformStandaloneCall(
@@ -19,4 +19,4 @@ std::unique_ptr<Statement> Transformer::transformStandaloneCall(
 }
 
 }  // namespace parser
-}  // namespace kuzu
+}  // namespace gs

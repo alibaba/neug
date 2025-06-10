@@ -3,7 +3,7 @@
 #include <cstdint>
 #include <string>
 
-namespace kuzu {
+namespace gs {
 namespace common {
 
 enum class DropType : uint8_t {
@@ -16,4 +16,4 @@ struct DropTypeUtils {
 };
 
 }  // namespace common
-}  // namespace kuzu
+}  // namespace gs

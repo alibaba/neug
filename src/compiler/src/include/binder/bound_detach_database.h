@@ -2,7 +2,7 @@
 
 #include "binder/bound_database_statement.h"
 
-namespace kuzu {
+namespace gs {
 namespace binder {
 
 class BoundDetachDatabase final : public BoundDatabaseStatement {
@@ -13,4 +13,4 @@ class BoundDetachDatabase final : public BoundDatabaseStatement {
 };
 
 }  // namespace binder
-}  // namespace kuzu
+}  // namespace gs

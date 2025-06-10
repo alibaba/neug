@@ -7,7 +7,7 @@
 #include "storage/storage_manager.h"
 #include "transaction/transaction_manager.h"
 
-namespace kuzu {
+namespace gs {
 namespace main {
 
 void AttachedDatabase::invalidateCache() {
@@ -30,4 +30,4 @@ AttachedKuzuDatabase::AttachedKuzuDatabase(std::string dbPath,
                        nullptr /* catalog */} {}
 
 }  // namespace main
-}  // namespace kuzu
+}  // namespace gs

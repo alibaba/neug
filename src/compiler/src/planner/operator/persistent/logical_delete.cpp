@@ -5,10 +5,10 @@
 #include "binder/expression/rel_expression.h"
 #include "planner/operator/factorization/flatten_resolver.h"
 
-using namespace kuzu::binder;
-using namespace kuzu::common;
+using namespace gs::binder;
+using namespace gs::common;
 
-namespace kuzu {
+namespace gs {
 namespace planner {
 
 std::string LogicalDelete::getExpressionsForPrinting() const {
@@ -46,4 +46,4 @@ f_group_pos_set LogicalDelete::getGroupsPosToFlatten() const {
 }
 
 }  // namespace planner
-}  // namespace kuzu
+}  // namespace gs

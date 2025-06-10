@@ -9,7 +9,7 @@
 #include "common/task_system/task.h"
 #include "processor/execution_context.h"
 
-namespace kuzu {
+namespace gs {
 namespace common {
 
 struct ScheduledTask {
@@ -108,4 +108,4 @@ class TaskScheduler {
 };
 #endif
 }  // namespace common
-}  // namespace kuzu
+}  // namespace gs

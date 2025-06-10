@@ -3,7 +3,7 @@
 #include "binder/bound_statement.h"
 #include "bound_alter_info.h"
 
-namespace kuzu {
+namespace gs {
 namespace binder {
 
 class BoundAlter final : public BoundStatement {
@@ -20,4 +20,4 @@ class BoundAlter final : public BoundStatement {
 };
 
 }  // namespace binder
-}  // namespace kuzu
+}  // namespace gs

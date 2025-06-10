@@ -3,7 +3,7 @@
 #include "parser/query/graph_pattern/pattern_element.h"
 #include "updating_clause.h"
 
-namespace kuzu {
+namespace gs {
 namespace parser {
 
 class MergeClause final : public UpdatingClause {
@@ -38,4 +38,4 @@ class MergeClause final : public UpdatingClause {
 };
 
 }  // namespace parser
-}  // namespace kuzu
+}  // namespace gs

@@ -5,9 +5,9 @@
 #include "common/arrow/arrow_converter.h"
 #include "common/exception/runtime.h"
 
-using namespace kuzu::common;
+using namespace gs::common;
 
-namespace kuzu {
+namespace gs {
 namespace main {
 
 QueryResult::QueryResult()
@@ -97,4 +97,4 @@ std::unique_ptr<ArrowArray> QueryResult::getNextArrowChunk(int64_t chunkSize) {
 }
 
 }  // namespace main
-}  // namespace kuzu
+}  // namespace gs

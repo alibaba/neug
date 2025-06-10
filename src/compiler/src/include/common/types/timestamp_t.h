@@ -3,7 +3,7 @@
 #include "date_t.h"
 #include "dtime_t.h"
 
-namespace kuzu {
+namespace gs {
 namespace common {
 
 // Type used to represent timestamps (value is in microseconds since 1970-01-01)
@@ -126,4 +126,4 @@ class Timestamp {
 };
 
 }  // namespace common
-}  // namespace kuzu
+}  // namespace gs

@@ -4,9 +4,9 @@
 #include "common/system_config.h"
 #include "storage/buffer_manager/memory_manager.h"
 
-using namespace kuzu::storage;
+using namespace gs::storage;
 
-namespace kuzu {
+namespace gs {
 namespace common {
 
 BufferBlock::BufferBlock(std::unique_ptr<storage::MemoryBuffer> block)
@@ -42,4 +42,4 @@ void InMemOverflowBuffer::resetBuffer() {
 void InMemOverflowBuffer::allocateNewBlock(uint64_t size) {}
 
 }  // namespace common
-}  // namespace kuzu
+}  // namespace gs

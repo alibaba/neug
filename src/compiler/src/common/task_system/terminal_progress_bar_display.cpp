@@ -1,6 +1,6 @@
 #include "common/task_system/terminal_progress_bar_display.h"
 
-namespace kuzu {
+namespace gs {
 namespace common {
 
 void TerminalProgressBarDisplay::updateProgress(
@@ -10,8 +10,8 @@ void TerminalProgressBarDisplay::updateProgress(
   // progress is not done atomically However this error does not build up over
   // time and we don't require perfect progress bar accuracy So we implement it
   // this way with atomics (instead of mutexes) for better performance
-  uint32_t curPipelineProgress = (uint32_t)(newPipelineProgress * 100.0);
-  uint32_t oldPipelineProgress = (uint32_t)(pipelineProgress * 100.0);
+  uint32_t curPipelineProgress = (uint32_t) (newPipelineProgress * 100.0);
+  uint32_t oldPipelineProgress = (uint32_t) (pipelineProgress * 100.0);
   if (curPipelineProgress > oldPipelineProgress ||
       newNumPipelinesFinished > numPipelinesFinished) {
     pipelineProgress.store(newPipelineProgress);
@@ -60,4 +60,4 @@ void TerminalProgressBarDisplay::printProgressBar() {
 }
 
 }  // namespace common
-}  // namespace kuzu
+}  // namespace gs

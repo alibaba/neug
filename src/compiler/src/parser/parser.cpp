@@ -18,7 +18,7 @@
 
 using namespace antlr4;
 
-namespace kuzu {
+namespace gs {
 namespace parser {
 
 std::vector<std::shared_ptr<Statement>> Parser::parseQuery(
@@ -54,4 +54,4 @@ std::vector<std::shared_ptr<Statement>> Parser::parseQuery(
 }
 
 }  // namespace parser
-}  // namespace kuzu
+}  // namespace gs

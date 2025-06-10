@@ -4,7 +4,7 @@
 #include "common/enums/query_rel_type.h"
 #include "node_pattern.h"
 
-namespace kuzu {
+namespace gs {
 namespace parser {
 
 enum class ArrowDirection : uint8_t { LEFT = 0, RIGHT = 1, BOTH = 2 };
@@ -52,4 +52,4 @@ class RelPattern : public NodePattern {
 };
 
 }  // namespace parser
-}  // namespace kuzu
+}  // namespace gs

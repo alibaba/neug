@@ -2,7 +2,7 @@
 
 #include <cstdint>
 
-namespace kuzu {
+namespace gs {
 namespace common {
 
 enum class DeleteNodeType : uint8_t {
@@ -11,4 +11,4 @@ enum class DeleteNodeType : uint8_t {
 };
 
 }  // namespace common
-}  // namespace kuzu
+}  // namespace gs

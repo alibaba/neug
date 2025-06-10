@@ -6,9 +6,9 @@
 #include "binder/query/bound_regular_query.h"
 #include "common/cast.h"
 
-using namespace kuzu::common;
+using namespace gs::common;
 
-namespace kuzu {
+namespace gs {
 namespace binder {
 
 void BoundStatementVisitor::visit(const BoundStatement& statement) {
@@ -224,4 +224,4 @@ void BoundStatementVisitor::visitUpdatingClause(
 }
 
 }  // namespace binder
-}  // namespace kuzu
+}  // namespace gs

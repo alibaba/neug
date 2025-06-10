@@ -3,7 +3,7 @@
 #include "common/types/types.h"
 #include "parser/expression/parsed_expression.h"
 
-namespace kuzu {
+namespace gs {
 namespace binder {
 
 struct KUZU_API ColumnDefinition {
@@ -52,4 +52,4 @@ struct KUZU_API PropertyDefinition {
 };
 
 }  // namespace binder
-}  // namespace kuzu
+}  // namespace gs

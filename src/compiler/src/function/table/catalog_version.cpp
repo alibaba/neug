@@ -4,7 +4,7 @@
 #include "function/table/bind_input.h"
 #include "function/table/simple_table_function.h"
 
-namespace kuzu {
+namespace gs {
 namespace function {
 
 static common::offset_t internalTableFunc(const TableFuncMorsel& /*morsel*/,
@@ -39,4 +39,4 @@ function_set CatalogVersionFunction::getFunctionSet() {
 }
 
 }  // namespace function
-}  // namespace kuzu
+}  // namespace gs

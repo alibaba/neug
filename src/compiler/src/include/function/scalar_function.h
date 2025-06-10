@@ -7,7 +7,7 @@
 #include "ternary_function_executor.h"
 #include "unary_function_executor.h"
 
-namespace kuzu {
+namespace gs {
 namespace function {
 
 // Evaluate function at compile time, e.g. struct_extraction.
@@ -302,4 +302,4 @@ struct KUZU_API ScalarFunction : public ScalarOrAggregateFunction {
 };
 
 }  // namespace function
-}  // namespace kuzu
+}  // namespace gs

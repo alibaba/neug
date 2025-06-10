@@ -3,9 +3,9 @@
 #include "function/list/vector_list_functions.h"
 #include "function/scalar_function.h"
 
-using namespace kuzu::common;
+using namespace gs::common;
 
-namespace kuzu {
+namespace gs {
 namespace function {
 
 struct Range {
@@ -41,7 +41,7 @@ struct Range {
     // start, start + step, start + 2step, ..., end
     T number = start;
     auto size = ((end - start) * 1.0 / step);
-    size < 0 ? size = 0 : size = (int64_t)(size + 1);
+    size < 0 ? size = 0 : size = (int64_t) (size + 1);
 
     result = ListVector::addList(&resultVector, (int64_t) size);
     auto resultDataVector = ListVector::getDataVector(&resultVector);
@@ -111,4 +111,4 @@ function_set ListRangeFunction::getFunctionSet() {
 }
 
 }  // namespace function
-}  // namespace kuzu
+}  // namespace gs

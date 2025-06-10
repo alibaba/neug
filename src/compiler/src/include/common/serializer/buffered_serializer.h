@@ -6,7 +6,7 @@
 #include "common/api.h"
 #include "common/serializer/writer.h"
 
-namespace kuzu {
+namespace gs {
 namespace common {
 
 // TODO(Ziyi): Move this to constants.h once we have a unified serializer
@@ -60,4 +60,4 @@ class KUZU_API BufferedSerializer : public Writer {
 };
 
 }  // namespace common
-}  // namespace kuzu
+}  // namespace gs

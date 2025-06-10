@@ -4,7 +4,7 @@
 #include "binder/query/bound_regular_query.h"
 #include "common/copier_config/file_scan_info.h"
 
-namespace kuzu {
+namespace gs {
 namespace binder {
 
 struct ExportedTableData {
@@ -57,4 +57,4 @@ class BoundExportDatabase final : public BoundStatement {
 };
 
 }  // namespace binder
-}  // namespace kuzu
+}  // namespace gs

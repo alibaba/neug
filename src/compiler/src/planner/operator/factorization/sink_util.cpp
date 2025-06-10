@@ -1,6 +1,6 @@
 #include "planner/operator/factorization/sink_util.h"
 
-namespace kuzu {
+namespace gs {
 namespace planner {
 
 void SinkOperatorUtil::mergeSchema(
@@ -70,4 +70,4 @@ uint32_t SinkOperatorUtil::appendPayloadsToNewGroup(
 }
 
 }  // namespace planner
-}  // namespace kuzu
+}  // namespace gs

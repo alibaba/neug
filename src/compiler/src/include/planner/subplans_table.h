@@ -5,7 +5,7 @@
 #include "binder/query/query_graph.h"
 #include "planner/operator/logical_plan.h"
 
-namespace kuzu {
+namespace gs {
 namespace planner {
 
 const uint64_t MAX_LEVEL_TO_PLAN_EXACTLY = 7;
@@ -103,4 +103,4 @@ class SubPlansTable {
 };
 
 }  // namespace planner
-}  // namespace kuzu
+}  // namespace gs

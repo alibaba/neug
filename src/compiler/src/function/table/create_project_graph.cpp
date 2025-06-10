@@ -9,13 +9,13 @@
 #include "graph/graph_entry.h"
 #include "parser/parser.h"
 
-using namespace kuzu::binder;
-using namespace kuzu::common;
-using namespace kuzu::catalog;
-using namespace kuzu::graph;
-using namespace kuzu::common;
+using namespace gs::binder;
+using namespace gs::common;
+using namespace gs::catalog;
+using namespace gs::graph;
+using namespace gs::common;
 
-namespace kuzu {
+namespace gs {
 namespace function {
 
 struct CreateProjectedGraphBindData final : TableFuncBindData {
@@ -118,4 +118,4 @@ function_set CreateProjectedGraphFunction::getFunctionSet() {
 }
 
 }  // namespace function
-}  // namespace kuzu
+}  // namespace gs

@@ -2,7 +2,7 @@
 #include "common/exception/not_implemented.h"
 #include "common/string_utils.h"
 
-namespace kuzu {
+namespace gs {
 namespace common {
 
 // Pyarrow format string specifications can be found here
@@ -155,4 +155,4 @@ LogicalType ArrowConverter::fromArrowSchema(const ArrowSchema* schema) {
 }
 
 }  // namespace common
-}  // namespace kuzu
+}  // namespace gs

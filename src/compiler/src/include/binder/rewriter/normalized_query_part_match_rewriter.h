@@ -2,7 +2,7 @@
 
 #include "binder/bound_statement_visitor.h"
 
-namespace kuzu {
+namespace gs {
 namespace main {
 class ClientContext;
 }
@@ -28,4 +28,4 @@ class NormalizedQueryPartMatchRewriter final : public BoundStatementVisitor {
 };
 
 }  // namespace binder
-}  // namespace kuzu
+}  // namespace gs

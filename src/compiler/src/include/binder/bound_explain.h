@@ -3,7 +3,7 @@
 #include "binder/bound_statement.h"
 #include "common/enums/explain_type.h"
 
-namespace kuzu {
+namespace gs {
 namespace binder {
 
 class BoundExplain final : public BoundStatement {
@@ -28,4 +28,4 @@ class BoundExplain final : public BoundStatement {
 };
 
 }  // namespace binder
-}  // namespace kuzu
+}  // namespace gs

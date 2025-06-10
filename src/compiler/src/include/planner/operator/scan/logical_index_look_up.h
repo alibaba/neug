@@ -3,7 +3,7 @@
 #include "binder/copy/index_look_up_info.h"
 #include "planner/operator/logical_operator.h"
 
-namespace kuzu {
+namespace gs {
 namespace planner {
 
 // This operator is specifically used to transform primary key to offset during
@@ -37,4 +37,4 @@ class LogicalPrimaryKeyLookup final : public LogicalOperator {
 };
 
 }  // namespace planner
-}  // namespace kuzu
+}  // namespace gs

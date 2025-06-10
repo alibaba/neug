@@ -4,7 +4,7 @@
 
 #include "parser/database_statement.h"
 
-namespace kuzu {
+namespace gs {
 namespace parser {
 
 class DetachDatabase final : public DatabaseStatement {
@@ -17,4 +17,4 @@ class DetachDatabase final : public DatabaseStatement {
 };
 
 }  // namespace parser
-}  // namespace kuzu
+}  // namespace gs

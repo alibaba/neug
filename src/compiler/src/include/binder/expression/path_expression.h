@@ -2,7 +2,7 @@
 
 #include "binder/expression/expression.h"
 
-namespace kuzu {
+namespace gs {
 namespace binder {
 
 class PathExpression final : public Expression {
@@ -29,4 +29,4 @@ class PathExpression final : public Expression {
 };
 
 }  // namespace binder
-}  // namespace kuzu
+}  // namespace gs

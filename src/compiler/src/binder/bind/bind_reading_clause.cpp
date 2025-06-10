@@ -1,10 +1,10 @@
 #include "binder/binder.h"
 #include "parser/query/reading_clause/reading_clause.h"
 
-using namespace kuzu::common;
-using namespace kuzu::parser;
+using namespace gs::common;
+using namespace gs::parser;
 
-namespace kuzu {
+namespace gs {
 namespace binder {
 
 std::unique_ptr<BoundReadingClause> Binder::bindReadingClause(
@@ -28,4 +28,4 @@ std::unique_ptr<BoundReadingClause> Binder::bindReadingClause(
 }
 
 }  // namespace binder
-}  // namespace kuzu
+}  // namespace gs

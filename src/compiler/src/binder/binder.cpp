@@ -9,12 +9,12 @@
 #include "function/table/bind_input.h"
 #include "function/table/scan_file_function.h"
 
-using namespace kuzu::catalog;
-using namespace kuzu::common;
-using namespace kuzu::function;
-using namespace kuzu::parser;
+using namespace gs::catalog;
+using namespace gs::common;
+using namespace gs::function;
+using namespace gs::parser;
 
-namespace kuzu {
+namespace gs {
 namespace binder {
 
 std::unique_ptr<BoundStatement> Binder::bind(const Statement& statement) {
@@ -238,4 +238,4 @@ TableFunction Binder::getScanFunction(const FileTypeInfo& typeInfo,
 }
 
 }  // namespace binder
-}  // namespace kuzu
+}  // namespace gs

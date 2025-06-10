@@ -11,15 +11,15 @@
 #include "planner/operator/sip/logical_semi_masker.h"
 #include "planner/planner.h"
 
-using namespace kuzu::catalog;
-using namespace kuzu::common;
-using namespace kuzu::binder;
-using namespace kuzu::main;
-using namespace kuzu::graph;
-using namespace kuzu::processor;
-using namespace kuzu::planner;
+using namespace gs::catalog;
+using namespace gs::common;
+using namespace gs::binder;
+using namespace gs::main;
+using namespace gs::graph;
+using namespace gs::processor;
+using namespace gs::planner;
 
-namespace kuzu {
+namespace gs {
 namespace function {
 
 void GDSFuncSharedState::setGraphNodeMask(
@@ -233,4 +233,4 @@ void GDSFunction::getLogicalPlan(
 }
 
 }  // namespace function
-}  // namespace kuzu
+}  // namespace gs

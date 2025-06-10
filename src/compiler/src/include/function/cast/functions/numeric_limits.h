@@ -6,7 +6,7 @@
 
 #include "common/types/int128_t.h"
 
-namespace kuzu {
+namespace gs {
 namespace function {
 
 template <class T>
@@ -142,4 +142,4 @@ pow10Sequence() {
 }
 
 }  // namespace function
-}  // namespace kuzu
+}  // namespace gs

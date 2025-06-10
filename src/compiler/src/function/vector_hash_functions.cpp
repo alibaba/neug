@@ -5,9 +5,9 @@
 #include "function/hash/hash_functions.h"
 #include "function/scalar_function.h"
 
-using namespace kuzu::common;
+using namespace gs::common;
 
-namespace kuzu {
+namespace gs {
 namespace function {
 
 template <typename OPERAND_TYPE, typename RESULT_TYPE>
@@ -292,4 +292,4 @@ function_set HashFunction::getFunctionSet() {
 }
 
 }  // namespace function
-}  // namespace kuzu
+}  // namespace gs

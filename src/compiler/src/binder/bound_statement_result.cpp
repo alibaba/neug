@@ -2,9 +2,9 @@
 
 #include "binder/expression/literal_expression.h"
 
-using namespace kuzu::common;
+using namespace gs::common;
 
-namespace kuzu {
+namespace gs {
 namespace binder {
 
 BoundStatementResult BoundStatementResult::createSingleStringColumnResult(
@@ -18,4 +18,4 @@ BoundStatementResult BoundStatementResult::createSingleStringColumnResult(
 }
 
 }  // namespace binder
-}  // namespace kuzu
+}  // namespace gs

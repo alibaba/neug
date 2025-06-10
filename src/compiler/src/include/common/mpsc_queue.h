@@ -8,7 +8,7 @@
 #include "common/assert.h"
 #include "common/copy_constructors.h"
 
-namespace kuzu {
+namespace gs {
 namespace common {
 
 // Producers are completely wait-free.
@@ -109,4 +109,4 @@ class MPSCQueue {
 };
 
 }  // namespace common
-}  // namespace kuzu
+}  // namespace gs

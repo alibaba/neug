@@ -4,7 +4,7 @@
 #include "binder/query/reading_clause/bound_reading_clause.h"
 #include "function/table/table_function.h"
 
-namespace kuzu {
+namespace gs {
 namespace binder {
 
 class KUZU_API BoundTableFunctionCall : public BoundReadingClause {
@@ -25,4 +25,4 @@ class KUZU_API BoundTableFunctionCall : public BoundReadingClause {
 };
 
 }  // namespace binder
-}  // namespace kuzu
+}  // namespace gs

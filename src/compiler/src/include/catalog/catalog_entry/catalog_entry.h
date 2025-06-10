@@ -8,7 +8,7 @@
 #include "common/serializer/serializer.h"
 #include "common/types/types.h"
 
-namespace kuzu {
+namespace gs {
 namespace main {
 class ClientContext;
 }  // namespace main
@@ -118,4 +118,4 @@ class KUZU_API CatalogEntry {
 };
 
 }  // namespace catalog
-}  // namespace kuzu
+}  // namespace gs

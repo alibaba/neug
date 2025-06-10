@@ -4,9 +4,9 @@
 #include "parser/scan_source.h"
 #include "parser/transformer.h"
 
-using namespace kuzu::common;
+using namespace gs::common;
 
-namespace kuzu {
+namespace gs {
 namespace parser {
 
 std::unique_ptr<Statement> Transformer::transformCopyTo(
@@ -110,4 +110,4 @@ options_t Transformer::transformOptions(CypherParser::KU_OptionsContext& ctx) {
 }
 
 }  // namespace parser
-}  // namespace kuzu
+}  // namespace gs

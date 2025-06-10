@@ -5,7 +5,7 @@
 #include "common/types/ku_string.h"
 #include "utf8proc.h"
 
-namespace kuzu {
+namespace gs {
 namespace function {
 
 struct ListLen {
@@ -39,4 +39,4 @@ inline void ListLen::operation(common::ku_string_t& input, int64_t& result) {
 }
 
 }  // namespace function
-}  // namespace kuzu
+}  // namespace gs

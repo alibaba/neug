@@ -2,7 +2,7 @@
 
 #include "types.h"
 
-namespace kuzu {
+namespace gs {
 namespace common {
 
 struct ku_list_t {
@@ -22,4 +22,4 @@ struct ku_list_t {
 };
 
 }  // namespace common
-}  // namespace kuzu
+}  // namespace gs

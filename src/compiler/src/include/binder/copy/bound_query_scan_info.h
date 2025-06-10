@@ -2,7 +2,7 @@
 
 #include "common/case_insensitive_map.h"
 #include "common/types/value/value.h"
-namespace kuzu {
+namespace gs {
 namespace binder {
 
 struct BoundQueryScanSourceInfo {
@@ -14,4 +14,4 @@ struct BoundQueryScanSourceInfo {
 };
 
 }  // namespace binder
-}  // namespace kuzu
+}  // namespace gs

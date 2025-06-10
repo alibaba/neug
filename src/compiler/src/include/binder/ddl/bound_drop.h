@@ -3,7 +3,7 @@
 #include "binder/bound_statement.h"
 #include "parser/ddl/drop_info.h"
 
-namespace kuzu {
+namespace gs {
 namespace binder {
 
 class BoundDrop final : public BoundStatement {
@@ -22,4 +22,4 @@ class BoundDrop final : public BoundStatement {
 };
 
 }  // namespace binder
-}  // namespace kuzu
+}  // namespace gs

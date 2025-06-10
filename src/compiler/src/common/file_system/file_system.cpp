@@ -2,7 +2,7 @@
 
 #include "common/string_utils.h"
 
-namespace kuzu {
+namespace gs {
 namespace common {
 
 void FileSystem::overwriteFile(const std::string& /*from*/,
@@ -61,7 +61,7 @@ void FileSystem::truncate(FileInfo& /*fileInfo*/, uint64_t /*size*/) const {
   KU_UNREACHABLE;
 }
 
-void FileSystem::reset(kuzu::common::FileInfo& fileInfo) {
+void FileSystem::reset(gs::common::FileInfo& fileInfo) {
   fileInfo.seek(0, SEEK_SET);
 }
 
@@ -70,4 +70,4 @@ bool FileSystem::isGZIPCompressed(const std::filesystem::path& path) {
 }
 
 }  // namespace common
-}  // namespace kuzu
+}  // namespace gs

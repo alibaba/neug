@@ -2,7 +2,7 @@
 #include <cstdint>
 
 #include "common/api.h"
-namespace kuzu {
+namespace gs {
 namespace main {
 
 struct Version {
@@ -20,4 +20,4 @@ struct Version {
   KUZU_API static uint64_t getStorageVersion();
 };
 }  // namespace main
-}  // namespace kuzu
+}  // namespace gs

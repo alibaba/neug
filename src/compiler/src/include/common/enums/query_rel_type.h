@@ -5,7 +5,7 @@
 
 #include "path_semantic.h"
 
-namespace kuzu {
+namespace gs {
 namespace function {
 class RJAlgorithm;
 }
@@ -39,4 +39,4 @@ struct QueryRelTypeUtils {
 };
 
 }  // namespace common
-}  // namespace kuzu
+}  // namespace gs

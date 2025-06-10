@@ -10,7 +10,7 @@ namespace duckdb {
 class MaterializedQueryResult;
 }
 
-namespace kuzu {
+namespace gs {
 namespace storage {
 class StorageManager;
 }  // namespace storage
@@ -69,4 +69,4 @@ class AttachedKuzuDatabase : public AttachedDatabase {
 };
 
 }  // namespace main
-}  // namespace kuzu
+}  // namespace gs

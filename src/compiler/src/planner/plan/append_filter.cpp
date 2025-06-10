@@ -1,9 +1,9 @@
 #include "planner/operator/logical_filter.h"
 #include "planner/planner.h"
 
-using namespace kuzu::binder;
+using namespace gs::binder;
 
-namespace kuzu {
+namespace gs {
 namespace planner {
 
 void Planner::appendFilters(const expression_vector& predicates,
@@ -27,4 +27,4 @@ void Planner::appendFilter(const std::shared_ptr<Expression>& predicate,
 }
 
 }  // namespace planner
-}  // namespace kuzu
+}  // namespace gs

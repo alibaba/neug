@@ -4,7 +4,7 @@
 
 #include <atomic>
 
-namespace kuzu {
+namespace gs {
 namespace common {
 
 /**
@@ -39,4 +39,4 @@ class ProgressBarDisplay {
 };
 
 }  // namespace common
-}  // namespace kuzu
+}  // namespace gs

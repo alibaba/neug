@@ -7,7 +7,7 @@
 
 #include "common/api.h"
 
-namespace kuzu {
+namespace gs {
 namespace common {
 
 struct CaseInsensitiveStringHashFunction {
@@ -29,4 +29,4 @@ using case_insensitve_set_t =
                        CaseInsensitiveStringEquality>;
 
 }  // namespace common
-}  // namespace kuzu
+}  // namespace gs

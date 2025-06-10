@@ -2,7 +2,7 @@
 
 #include "parsed_expression.h"
 
-namespace kuzu {
+namespace gs {
 namespace parser {
 
 class ParsedExpressionVisitor {
@@ -82,4 +82,4 @@ class MacroParameterReplacer : public ParsedExpressionVisitor {
 };
 
 }  // namespace parser
-}  // namespace kuzu
+}  // namespace gs

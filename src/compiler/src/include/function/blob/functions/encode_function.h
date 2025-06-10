@@ -3,7 +3,7 @@
 #include "common/types/blob.h"
 #include "common/vector/value_vector.h"
 
-namespace kuzu {
+namespace gs {
 namespace function {
 
 struct Encode {
@@ -15,4 +15,4 @@ struct Encode {
 };
 
 }  // namespace function
-}  // namespace kuzu
+}  // namespace gs

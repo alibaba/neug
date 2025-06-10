@@ -2,7 +2,7 @@
 
 #include "binder/expression/expression_util.h"
 
-namespace kuzu {
+namespace gs {
 namespace planner {
 
 std::string LogicalPrimaryKeyLookup::getExpressionsForPrinting() const {
@@ -32,4 +32,4 @@ void LogicalPrimaryKeyLookup::computeFlatSchema() {
 }
 
 }  // namespace planner
-}  // namespace kuzu
+}  // namespace gs

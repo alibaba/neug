@@ -3,7 +3,7 @@
 #include "common/api.h"
 #include "exception.h"
 
-namespace kuzu {
+namespace gs {
 namespace common {
 
 class KUZU_API OverflowException : public Exception {
@@ -13,4 +13,4 @@ class KUZU_API OverflowException : public Exception {
 };
 
 }  // namespace common
-}  // namespace kuzu
+}  // namespace gs

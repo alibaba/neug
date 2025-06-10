@@ -2,7 +2,7 @@
 
 #include "node_rel_expression.h"
 
-namespace kuzu {
+namespace gs {
 namespace binder {
 
 class KUZU_API NodeExpression final : public NodeOrRelExpression {
@@ -31,4 +31,4 @@ class KUZU_API NodeExpression final : public NodeOrRelExpression {
 };
 
 }  // namespace binder
-}  // namespace kuzu
+}  // namespace gs

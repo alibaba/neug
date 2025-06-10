@@ -9,13 +9,13 @@
 #include "main/client_context.h"
 #include "parser/copy.h"
 
-using namespace kuzu::binder;
-using namespace kuzu::catalog;
-using namespace kuzu::common;
-using namespace kuzu::parser;
-using namespace kuzu::function;
+using namespace gs::binder;
+using namespace gs::catalog;
+using namespace gs::common;
+using namespace gs::parser;
+using namespace gs::function;
 
-namespace kuzu {
+namespace gs {
 namespace binder {
 
 std::unique_ptr<BoundStatement> Binder::bindCopyFromClause(
@@ -317,4 +317,4 @@ void bindExpectedRelColumns(const RelTableCatalogEntry* relTableEntry,
 }
 
 }  // namespace binder
-}  // namespace kuzu
+}  // namespace gs

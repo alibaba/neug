@@ -2,7 +2,7 @@
 
 #include "catalog_entry.h"
 
-namespace kuzu {
+namespace gs {
 namespace catalog {
 
 class TypeCatalogEntry : public CatalogEntry {
@@ -32,4 +32,4 @@ class TypeCatalogEntry : public CatalogEntry {
 };
 
 }  // namespace catalog
-}  // namespace kuzu
+}  // namespace gs

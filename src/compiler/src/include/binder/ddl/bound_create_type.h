@@ -2,7 +2,7 @@
 
 #include "binder/bound_statement.h"
 
-namespace kuzu {
+namespace gs {
 namespace binder {
 
 class BoundCreateType final : public BoundStatement {
@@ -26,4 +26,4 @@ class BoundCreateType final : public BoundStatement {
 };
 
 }  // namespace binder
-}  // namespace kuzu
+}  // namespace gs

@@ -6,7 +6,7 @@
 #include "function/string/functions/base_regexp_function.h"
 #include "re2.h"
 
-namespace kuzu {
+namespace gs {
 namespace function {
 
 struct RegexpExtract : BaseRegexpOperation {
@@ -50,4 +50,4 @@ struct RegexpExtract : BaseRegexpOperation {
 };
 
 }  // namespace function
-}  // namespace kuzu
+}  // namespace gs

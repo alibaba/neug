@@ -4,7 +4,7 @@
 #include "common/vector/value_vector.h"
 #include "function/string/functions/base_lower_upper_function.h"
 
-namespace kuzu {
+namespace gs {
 namespace function {
 
 struct Upper {
@@ -18,4 +18,4 @@ struct Upper {
 };
 
 }  // namespace function
-}  // namespace kuzu
+}  // namespace gs

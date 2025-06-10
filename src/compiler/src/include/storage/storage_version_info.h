@@ -6,7 +6,7 @@
 
 #include "common/api.h"
 
-namespace kuzu {
+namespace gs {
 namespace storage {
 
 using storage_version_t = uint64_t;
@@ -31,4 +31,4 @@ struct StorageVersionInfo {
 };
 
 }  // namespace storage
-}  // namespace kuzu
+}  // namespace gs

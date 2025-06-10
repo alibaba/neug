@@ -3,7 +3,7 @@
 #include "logical_operator_visitor.h"
 #include "planner/operator/logical_plan.h"
 
-namespace kuzu {
+namespace gs {
 namespace optimizer {
 
 /* Due to the nature of graph pattern, a (node)-[rel]-(node) is always
@@ -29,4 +29,4 @@ class RemoveUnnecessaryJoinOptimizer : public LogicalOperatorVisitor {
 };
 
 }  // namespace optimizer
-}  // namespace kuzu
+}  // namespace gs

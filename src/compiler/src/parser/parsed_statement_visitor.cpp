@@ -4,9 +4,9 @@
 #include "parser/explain_statement.h"
 #include "parser/query/regular_query.h"
 
-using namespace kuzu::common;
+using namespace gs::common;
 
-namespace kuzu {
+namespace gs {
 namespace parser {
 
 void StatementVisitor::visit(const Statement& statement) {
@@ -150,4 +150,4 @@ void StatementVisitor::visitUpdatingClause(
 }
 
 }  // namespace parser
-}  // namespace kuzu
+}  // namespace gs

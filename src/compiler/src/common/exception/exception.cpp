@@ -4,7 +4,7 @@
 #include <cpptrace/cpptrace.hpp>
 #endif
 
-namespace kuzu {
+namespace gs {
 namespace common {
 
 Exception::Exception(std::string msg)
@@ -15,4 +15,4 @@ Exception::Exception(std::string msg)
 }
 
 }  // namespace common
-}  // namespace kuzu
+}  // namespace gs

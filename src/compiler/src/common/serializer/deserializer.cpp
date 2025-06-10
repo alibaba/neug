@@ -1,6 +1,6 @@
 #include "common/serializer/deserializer.h"
 
-namespace kuzu {
+namespace gs {
 namespace common {
 
 template <>
@@ -24,4 +24,4 @@ void Deserializer::validateDebuggingInfo(std::string& value,
 }
 
 }  // namespace common
-}  // namespace kuzu
+}  // namespace gs

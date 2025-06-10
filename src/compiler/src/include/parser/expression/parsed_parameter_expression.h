@@ -3,7 +3,7 @@
 #include "common/assert.h"
 #include "parsed_expression.h"
 
-namespace kuzu {
+namespace gs {
 namespace parser {
 
 class ParsedParameterExpression : public ParsedExpression {
@@ -31,4 +31,4 @@ class ParsedParameterExpression : public ParsedExpression {
 };
 
 }  // namespace parser
-}  // namespace kuzu
+}  // namespace gs

@@ -5,7 +5,7 @@
 #include "common/api.h"
 #include "extension.h"
 
-namespace kuzu {
+namespace gs {
 namespace main {
 class ClientContext;
 }
@@ -40,4 +40,4 @@ class KUZU_API ExtensionInstaller {
 };
 
 }  // namespace extension
-}  // namespace kuzu
+}  // namespace gs

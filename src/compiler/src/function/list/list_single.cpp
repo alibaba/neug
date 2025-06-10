@@ -1,9 +1,9 @@
 #include "function/list/vector_list_functions.h"
 #include "function/scalar_function.h"
 
-using namespace kuzu::common;
+using namespace gs::common;
 
-namespace kuzu {
+namespace gs {
 namespace function {
 
 bool singleHandler(uint64_t numSelectedValues, uint64_t /*originalSize*/) {
@@ -25,4 +25,4 @@ function_set ListSingleFunction::getFunctionSet() {
 }
 
 }  // namespace function
-}  // namespace kuzu
+}  // namespace gs

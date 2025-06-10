@@ -7,10 +7,10 @@
 #include "catalog/catalog_entry/rel_table_catalog_entry.h"
 #include "common/serializer/deserializer.h"
 
-using namespace kuzu::binder;
-using namespace kuzu::common;
+using namespace gs::binder;
+using namespace gs::common;
 
-namespace kuzu {
+namespace gs {
 namespace catalog {
 
 std::unique_ptr<TableCatalogEntry> TableCatalogEntry::alter(
@@ -173,4 +173,4 @@ BoundCreateTableInfo TableCatalogEntry::getBoundCreateTableInfo(
 }
 
 }  // namespace catalog
-}  // namespace kuzu
+}  // namespace gs

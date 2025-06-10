@@ -9,9 +9,9 @@
 #include "common/exception/runtime.h"
 #include "common/types/value/nested.h"
 
-using namespace kuzu::common;
+using namespace gs::common;
 
-namespace kuzu {
+namespace gs {
 namespace binder {
 
 expression_vector ExpressionUtil::getExpressionsWithDataType(
@@ -521,4 +521,4 @@ template KUZU_API bool ExpressionUtil::evaluateLiteral<bool>(
     validate_param_func<bool> validateParamFunc);
 
 }  // namespace binder
-}  // namespace kuzu
+}  // namespace gs

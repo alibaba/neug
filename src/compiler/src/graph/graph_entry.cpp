@@ -2,12 +2,12 @@
 
 #include "common/exception/runtime.h"
 
-using namespace kuzu::planner;
-using namespace kuzu::binder;
-using namespace kuzu::common;
-using namespace kuzu::catalog;
+using namespace gs::planner;
+using namespace gs::binder;
+using namespace gs::common;
+using namespace gs::catalog;
 
-namespace kuzu {
+namespace gs {
 namespace graph {
 
 std::string GraphEntryTableInfo::toString() const {
@@ -82,4 +82,4 @@ void GraphEntry::setRelPredicate(std::shared_ptr<Expression> predicate) {
 }
 
 }  // namespace graph
-}  // namespace kuzu
+}  // namespace gs

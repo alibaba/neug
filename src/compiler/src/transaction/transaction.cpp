@@ -7,9 +7,9 @@
 #include "main/db_config.h"
 #include "storage/wal/wal.h"
 
-using namespace kuzu::catalog;
+using namespace gs::catalog;
 
-namespace kuzu {
+namespace gs {
 namespace transaction {
 
 bool LocalCacheManager::put(std::unique_ptr<LocalCacheObject> object) {
@@ -129,4 +129,4 @@ Transaction DUMMY_CHECKPOINT_TRANSACTION =
                 Transaction::START_TRANSACTION_ID - 1);
 
 }  // namespace transaction
-}  // namespace kuzu
+}  // namespace gs

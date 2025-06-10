@@ -2,7 +2,7 @@
 
 #include "statement.h"
 
-namespace kuzu {
+namespace gs {
 namespace main {
 class ClientContext;
 }
@@ -62,4 +62,4 @@ class StatementVisitor {
 };
 
 }  // namespace parser
-}  // namespace kuzu
+}  // namespace gs

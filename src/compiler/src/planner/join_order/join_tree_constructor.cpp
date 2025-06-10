@@ -6,10 +6,10 @@
 #include "common/exception/not_implemented.h"
 #include "planner/planner.h"
 
-using namespace kuzu::binder;
-using namespace kuzu::common;
+using namespace gs::binder;
+using namespace gs::common;
 
-namespace kuzu {
+namespace gs {
 namespace planner {
 
 JoinTree JoinTreeConstructor::construct(
@@ -219,4 +219,4 @@ std::shared_ptr<JoinTreeNode> JoinTreeConstructor::tryConstructNestedLoopJoin(
 }
 
 }  // namespace planner
-}  // namespace kuzu
+}  // namespace gs

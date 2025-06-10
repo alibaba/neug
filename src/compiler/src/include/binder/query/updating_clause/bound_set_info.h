@@ -3,7 +3,7 @@
 #include "binder/expression/expression.h"
 #include "common/enums/table_type.h"
 
-namespace kuzu {
+namespace gs {
 namespace binder {
 
 struct BoundSetPropertyInfo {
@@ -33,4 +33,4 @@ struct BoundSetPropertyInfo {
 };
 
 }  // namespace binder
-}  // namespace kuzu
+}  // namespace gs

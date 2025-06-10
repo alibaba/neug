@@ -5,7 +5,7 @@
 #include "extension/extension.h"
 #include "generated_extension_loader.h"
 
-namespace kuzu {
+namespace gs {
 namespace extension {
 
 static void executeExtensionLoader(main::ClientContext* context,
@@ -75,4 +75,4 @@ void ExtensionManager::autoLoadLinkedExtensions(main::ClientContext* context) {
 }
 
 }  // namespace extension
-}  // namespace kuzu
+}  // namespace gs

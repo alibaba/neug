@@ -2,7 +2,7 @@
 
 #include "planner/operator/logical_plan.h"
 
-namespace kuzu {
+namespace gs {
 namespace main {
 class ClientContext;
 }
@@ -21,4 +21,4 @@ class Optimizer {
 };
 
 }  // namespace optimizer
-}  // namespace kuzu
+}  // namespace gs

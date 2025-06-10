@@ -3,7 +3,7 @@
 #include <cstdint>
 #include <memory>
 
-namespace kuzu {
+namespace gs {
 namespace extension {
 
 enum class ExtensionAction : uint8_t {
@@ -43,4 +43,4 @@ struct InstallExtensionAuxInfo : public ExtensionAuxInfo {
 };
 
 }  // namespace extension
-}  // namespace kuzu
+}  // namespace gs

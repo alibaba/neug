@@ -10,11 +10,11 @@
 #include "storage/store/node_table.h"
 #include "storage/store/rel_table.h"
 
-using namespace kuzu::binder;
-using namespace kuzu::common;
-using namespace kuzu::transaction;
+using namespace gs::binder;
+using namespace gs::common;
+using namespace gs::transaction;
 
-namespace kuzu {
+namespace gs {
 namespace planner {
 
 static cardinality_t atLeastOne(uint64_t x) { return x == 0 ? 1 : x; }
@@ -277,4 +277,4 @@ double CardinalityEstimator::getExtensionRate(
 }
 
 }  // namespace planner
-}  // namespace kuzu
+}  // namespace gs

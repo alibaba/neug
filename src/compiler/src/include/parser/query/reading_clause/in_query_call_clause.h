@@ -3,7 +3,7 @@
 #include "parser/query/reading_clause/reading_clause.h"
 #include "yield_variable.h"
 
-namespace kuzu {
+namespace gs {
 namespace parser {
 
 class InQueryCallClause final : public ReadingClause {
@@ -31,4 +31,4 @@ class InQueryCallClause final : public ReadingClause {
 };
 
 }  // namespace parser
-}  // namespace kuzu
+}  // namespace gs

@@ -3,7 +3,7 @@
 #include "function/gds/compute.h"
 #include "function/gds/gds.h"
 
-namespace kuzu {
+namespace gs {
 namespace function {
 
 class GDSVertexCompute : public VertexCompute {
@@ -63,4 +63,4 @@ class GDSResultVertexCompute : public GDSVertexCompute {
 };
 
 }  // namespace function
-}  // namespace kuzu
+}  // namespace gs

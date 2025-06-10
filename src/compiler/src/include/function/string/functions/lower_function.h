@@ -3,7 +3,7 @@
 #include "base_lower_upper_function.h"
 #include "common/types/ku_string.h"
 
-namespace kuzu {
+namespace gs {
 namespace function {
 
 struct Lower {
@@ -17,4 +17,4 @@ struct Lower {
 };
 
 }  // namespace function
-}  // namespace kuzu
+}  // namespace gs

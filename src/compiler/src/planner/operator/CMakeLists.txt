@@ -4,7 +4,7 @@ add_subdirectory(persistent)
 add_subdirectory(scan)
 add_subdirectory(simple)
 
-add_library(kuzu_planner_operator
+add_library(nexg_planner_operator
         OBJECT
         logical_accumulate.cpp
         logical_aggregate.cpp
@@ -32,5 +32,5 @@ add_library(kuzu_planner_operator
         schema.cpp)
 
 set(ALL_OBJECT_FILES
-        ${ALL_OBJECT_FILES} $<TARGET_OBJECTS:kuzu_planner_operator>
+        ${ALL_OBJECT_FILES} $<TARGET_OBJECTS:nexg_planner_operator>
         PARENT_SCOPE)

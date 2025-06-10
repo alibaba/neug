@@ -13,7 +13,7 @@
 #include "common/exception/internal.h"
 #include "common/types/types.h"
 
-namespace kuzu {
+namespace gs {
 namespace binder {
 
 class Expression;
@@ -144,4 +144,4 @@ struct ExpressionEquality {
 };
 
 }  // namespace binder
-}  // namespace kuzu
+}  // namespace gs

@@ -5,7 +5,7 @@
 #include "common/enums/statement_type.h"
 #include "common/types/types.h"
 
-namespace kuzu {
+namespace gs {
 namespace binder {
 struct BoundAlterInfo;
 }
@@ -197,4 +197,4 @@ extern KUZU_API Transaction DUMMY_TRANSACTION;
 extern KUZU_API Transaction DUMMY_CHECKPOINT_TRANSACTION;
 
 }  // namespace transaction
-}  // namespace kuzu
+}  // namespace gs

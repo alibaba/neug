@@ -1,6 +1,6 @@
 #include "parser/antlr_parser/parser_error_strategy.h"
 
-namespace kuzu {
+namespace gs {
 namespace parser {
 
 void ParserErrorStrategy::reportNoViableAlternative(
@@ -21,4 +21,4 @@ void ParserErrorStrategy::reportNoViableAlternative(
 }
 
 }  // namespace parser
-}  // namespace kuzu
+}  // namespace gs

@@ -8,10 +8,10 @@
 #include "function/arithmetic/add.h"
 #include "transaction/transaction.h"
 
-using namespace kuzu::binder;
-using namespace kuzu::common;
+using namespace gs::binder;
+using namespace gs::common;
 
-namespace kuzu {
+namespace gs {
 namespace catalog {
 
 SequenceData SequenceCatalogEntry::getSequenceData() {
@@ -183,4 +183,4 @@ BoundCreateSequenceInfo SequenceCatalogEntry::getBoundCreateSequenceInfo(
 }
 
 }  // namespace catalog
-}  // namespace kuzu
+}  // namespace gs

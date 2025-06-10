@@ -1,6 +1,6 @@
 #include "catalog/catalog_entry/scalar_macro_catalog_entry.h"
 
-namespace kuzu {
+namespace gs {
 namespace catalog {
 
 ScalarMacroCatalogEntry::ScalarMacroCatalogEntry(
@@ -28,4 +28,4 @@ std::string ScalarMacroCatalogEntry::toCypher(
 }
 
 }  // namespace catalog
-}  // namespace kuzu
+}  // namespace gs

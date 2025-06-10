@@ -3,7 +3,7 @@
 #include "binder/bound_table_scan_info.h"
 #include "bound_reading_clause.h"
 
-namespace kuzu {
+namespace gs {
 namespace binder {
 
 class BoundLoadFrom final : public BoundReadingClause {
@@ -21,4 +21,4 @@ class BoundLoadFrom final : public BoundReadingClause {
 };
 
 }  // namespace binder
-}  // namespace kuzu
+}  // namespace gs

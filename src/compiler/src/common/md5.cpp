@@ -26,13 +26,13 @@
 
 #include <cstring>
 
-namespace kuzu {
+namespace gs {
 namespace common {
 
 void MD5::byteReverse(unsigned char* buf, unsigned longs) {
   uint32_t t = 0;
   do {
-    t = (uint32_t)((unsigned) buf[3] << 8 | buf[2]) << 16 |
+    t = (uint32_t) ((unsigned) buf[3] << 8 | buf[2]) << 16 |
         ((unsigned) buf[1] << 8 | buf[0]);
     *(uint32_t*) buf = t;
     buf += 4;
@@ -231,4 +231,4 @@ void MD5::DigestToBase16(const unsigned char* digest, char* zBuf) {
 }
 
 }  // namespace common
-}  // namespace kuzu
+}  // namespace gs

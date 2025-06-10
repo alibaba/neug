@@ -5,7 +5,7 @@
 #include "parser/attach_database.h"
 #include "parser/expression/parsed_literal_expression.h"
 
-namespace kuzu {
+namespace gs {
 namespace binder {
 
 static AttachInfo bindAttachInfo(const parser::AttachInfo& attachInfo) {
@@ -24,7 +24,7 @@ static AttachInfo bindAttachInfo(const parser::AttachInfo& attachInfo) {
           common::ATTACHED_KUZU_DB_TYPE &&
       attachInfo.dbAlias.empty()) {
     throw common::BinderException{
-        "Attaching a kuzu database without an alias is not allowed."};
+        "Attaching a gs database without an alias is not allowed."};
   }
   return binder::AttachInfo{attachInfo.dbPath, attachInfo.dbAlias,
                             attachInfo.dbType, std::move(attachOption)};
@@ -38,4 +38,4 @@ std::unique_ptr<BoundStatement> Binder::bindAttachDatabase(
 }
 
 }  // namespace binder
-}  // namespace kuzu
+}  // namespace gs

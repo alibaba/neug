@@ -9,7 +9,7 @@
 #include "common/enums/table_type.h"
 #include "common/vector/value_vector.h"
 
-namespace kuzu {
+namespace gs {
 namespace common {
 class Serializer;
 class Deserializer;
@@ -413,4 +413,4 @@ struct RelUpdateRecord final : WALRecord {
 };
 
 }  // namespace storage
-}  // namespace kuzu
+}  // namespace gs

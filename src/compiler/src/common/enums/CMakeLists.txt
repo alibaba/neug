@@ -1,4 +1,4 @@
-add_library(kuzu_common_enums
+add_library(nexg_common_enums
         OBJECT
         accumulate_type.cpp
         path_semantic.cpp
@@ -13,5 +13,5 @@ add_library(kuzu_common_enums
         conflict_action.cpp)
 
 set(ALL_OBJECT_FILES
-        ${ALL_OBJECT_FILES} $<TARGET_OBJECTS:kuzu_common_enums>
+        ${ALL_OBJECT_FILES} $<TARGET_OBJECTS:nexg_common_enums>
         PARENT_SCOPE)

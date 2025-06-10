@@ -5,7 +5,7 @@
 #include "common/enums/alter_type.h"
 #include "common/enums/conflict_action.h"
 
-namespace kuzu {
+namespace gs {
 namespace binder {
 
 struct BoundExtraAlterInfo {
@@ -122,4 +122,4 @@ struct BoundExtraCommentInfo final : BoundExtraAlterInfo {
 };
 
 }  // namespace binder
-}  // namespace kuzu
+}  // namespace gs

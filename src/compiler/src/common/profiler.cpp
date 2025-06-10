@@ -1,6 +1,6 @@
 #include "common/profiler.h"
 
-namespace kuzu {
+namespace gs {
 namespace common {
 
 TimeMetric* Profiler::registerTimeMetric(const std::string& key) {
@@ -49,4 +49,4 @@ void Profiler::addMetric(const std::string& key,
 }
 
 }  // namespace common
-}  // namespace kuzu
+}  // namespace gs

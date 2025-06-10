@@ -1,6 +1,6 @@
 #include "planner/join_order/join_order_util.h"
 
-namespace kuzu {
+namespace gs {
 namespace planner {
 
 uint64_t JoinOrderUtil::getJoinKeysFlatCardinality(
@@ -22,4 +22,4 @@ uint64_t JoinOrderUtil::getJoinKeysFlatCardinality(
 }
 
 }  // namespace planner
-}  // namespace kuzu
+}  // namespace gs

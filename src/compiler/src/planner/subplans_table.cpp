@@ -1,11 +1,11 @@
 #include "planner/subplans_table.h"
 
-using namespace kuzu::binder;
+using namespace gs::binder;
 
-namespace kuzu {
+namespace gs {
 namespace planner {
 
-SubgraphPlans::SubgraphPlans(const kuzu::binder::SubqueryGraph& subqueryGraph) {
+SubgraphPlans::SubgraphPlans(const gs::binder::SubqueryGraph& subqueryGraph) {
   for (auto i = 0u; i < subqueryGraph.queryGraph.getNumQueryNodes(); ++i) {
     if (subqueryGraph.queryNodesSelector[i]) {
       nodeIDsToEncode.push_back(
@@ -63,7 +63,7 @@ std::vector<SubqueryGraph> DPLevel::getSubqueryGraphs() {
   return result;
 }
 
-void DPLevel::addPlan(const kuzu::binder::SubqueryGraph& subqueryGraph,
+void DPLevel::addPlan(const gs::binder::SubqueryGraph& subqueryGraph,
                       std::unique_ptr<LogicalPlan> plan) {
   if (subgraph2Plans.size() > MAX_NUM_SUBGRAPH) {
     return;
@@ -120,4 +120,4 @@ void SubPlansTable::clear() {
 }
 
 }  // namespace planner
-}  // namespace kuzu
+}  // namespace gs

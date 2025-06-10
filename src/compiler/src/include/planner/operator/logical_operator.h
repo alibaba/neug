@@ -6,7 +6,7 @@
 #include "planner/operator/operator_print_info.h"
 #include "planner/operator/schema.h"
 
-namespace kuzu {
+namespace gs {
 namespace planner {
 
 // This ENUM is sorted by alphabetical order.
@@ -157,4 +157,4 @@ class KUZU_API LogicalOperator {
 };
 
 }  // namespace planner
-}  // namespace kuzu
+}  // namespace gs

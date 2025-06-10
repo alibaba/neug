@@ -2,7 +2,7 @@
 
 #include "binder/bound_statement_visitor.h"
 
-namespace kuzu {
+namespace gs {
 namespace binder {
 
 // WithClauseProjectionRewriter first analyze the properties need to be scanned
@@ -16,4 +16,4 @@ class WithClauseProjectionRewriter final : public BoundStatementVisitor {
 };
 
 }  // namespace binder
-}  // namespace kuzu
+}  // namespace gs

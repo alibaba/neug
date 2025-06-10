@@ -3,7 +3,7 @@
 #include "bound_statement.h"
 #include "transaction/transaction_action.h"
 
-namespace kuzu {
+namespace gs {
 namespace binder {
 
 class BoundTransactionStatement final : public BoundStatement {
@@ -26,4 +26,4 @@ class BoundTransactionStatement final : public BoundStatement {
 };
 
 }  // namespace binder
-}  // namespace kuzu
+}  // namespace gs

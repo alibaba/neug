@@ -5,7 +5,7 @@
 #include "function/aggregate_function.h"
 #include "function/arithmetic/add.h"
 
-namespace kuzu {
+namespace gs {
 namespace function {
 
 template <typename T>
@@ -16,14 +16,18 @@ struct AvgState : public AggregateState {
     outputVector->setValue(pos, avg);
   }
 
-  void finalize() requires common::IntegerTypes<T> {
+  void finalize()
+    requires common::IntegerTypes<T>
+  {
     if (!isNull) {
       avg = common::Int128_t::Cast<long double>(sum) /
             common::Int128_t::Cast<long double>(count);
     }
   }
 
-  void finalize() requires common::FloatingPointTypes<T> {
+  void finalize()
+    requires common::FloatingPointTypes<T>
+  {
     if (!isNull) {
       avg = sum / count;
     }
@@ -94,4 +98,4 @@ struct AvgFunction {
 };
 
 }  // namespace function
-}  // namespace kuzu
+}  // namespace gs

@@ -6,13 +6,13 @@
 #include "common/serializer/deserializer.h"
 #include "table_catalog_entry.h"
 
-namespace kuzu::common {
+namespace gs::common {
 struct BufferReader;
 }
-namespace kuzu::common {
+namespace gs::common {
 class BufferedSerializer;
 }
-namespace kuzu {
+namespace gs {
 namespace catalog {
 
 struct KUZU_API IndexToCypherInfo : ToCypherInfo {
@@ -121,4 +121,4 @@ class KUZU_API IndexCatalogEntry final : public CatalogEntry {
 };
 
 }  // namespace catalog
-}  // namespace kuzu
+}  // namespace gs

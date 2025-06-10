@@ -2,7 +2,7 @@
 
 #include "function/map/functions/base_map_extract_function.h"
 
-namespace kuzu {
+namespace gs {
 namespace function {
 
 struct MapKeys : public BaseMapExtract {
@@ -18,4 +18,4 @@ struct MapKeys : public BaseMapExtract {
 };
 
 }  // namespace function
-}  // namespace kuzu
+}  // namespace gs

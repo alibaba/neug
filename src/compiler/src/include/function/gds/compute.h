@@ -4,7 +4,7 @@
 #include "common/types/types.h"
 #include "graph/graph.h"
 
-namespace kuzu {
+namespace gs {
 namespace function {
 
 /**
@@ -64,4 +64,4 @@ class VertexCompute {
 };
 
 }  // namespace function
-}  // namespace kuzu
+}  // namespace gs

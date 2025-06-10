@@ -18,7 +18,7 @@
 #include "optimizer/top_k_optimizer.h"
 #include "planner/operator/logical_explain.h"
 
-namespace kuzu {
+namespace gs {
 namespace optimizer {
 
 void Optimizer::optimize(
@@ -87,4 +87,4 @@ void Optimizer::optimize(
 }
 
 }  // namespace optimizer
-}  // namespace kuzu
+}  // namespace gs

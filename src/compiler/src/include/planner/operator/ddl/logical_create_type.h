@@ -2,7 +2,7 @@
 
 #include "planner/operator/simple/logical_simple.h"
 
-namespace kuzu {
+namespace gs {
 namespace planner {
 
 struct LogicalCreateTypePrintInfo final : OPPrintInfo {
@@ -54,4 +54,4 @@ class LogicalCreateType : public LogicalSimple {
 };
 
 }  // namespace planner
-}  // namespace kuzu
+}  // namespace gs

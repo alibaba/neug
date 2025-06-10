@@ -6,10 +6,10 @@
 #include "planner/operator/sip/logical_semi_masker.h"
 #include "planner/planner.h"
 
-using namespace kuzu::binder;
-using namespace kuzu::common;
+using namespace gs::binder;
+using namespace gs::common;
 
-namespace kuzu {
+namespace gs {
 namespace planner {
 
 // Create a plan with a root semi masker for given node and node predicate.
@@ -43,4 +43,4 @@ LogicalPlan Planner::getNodeSemiMaskPlan(
 }
 
 }  // namespace planner
-}  // namespace kuzu
+}  // namespace gs

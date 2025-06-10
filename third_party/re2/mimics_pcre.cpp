@@ -27,7 +27,7 @@
 #include "util.h"
 #include "walker-inl.h"
 
-namespace kuzu {
+namespace gs {
 namespace regex {
 
 // Returns whether re might match an empty string.
@@ -37,79 +37,79 @@ static bool CanBeEmptyString(Regexp* re);
 // exactly as PCRE would.  See comment at top for conditions.
 
 class PCREWalker : public Regexp::Walker<bool> {
-public:
-    PCREWalker() {}
+ public:
+  PCREWalker() {}
 
-    virtual bool PostVisit(
-        Regexp* re, bool parent_arg, bool pre_arg, bool* child_args, int nchild_args);
+  virtual bool PostVisit(Regexp* re, bool parent_arg, bool pre_arg,
+                         bool* child_args, int nchild_args);
 
-    virtual bool ShortVisit(Regexp* re, bool a) {
-        // Should never be called: we use Walk(), not WalkExponential().
+  virtual bool ShortVisit(Regexp* re, bool a) {
+    // Should never be called: we use Walk(), not WalkExponential().
 #ifndef FUZZING_BUILD_MODE_UNSAFE_FOR_PRODUCTION
-        LOG(DFATAL) << "PCREWalker::ShortVisit called";
+    LOG(DFATAL) << "PCREWalker::ShortVisit called";
 #endif
-        return a;
-    }
+    return a;
+  }
 
-private:
-    PCREWalker(const PCREWalker&) = delete;
-    PCREWalker& operator=(const PCREWalker&) = delete;
+ private:
+  PCREWalker(const PCREWalker&) = delete;
+  PCREWalker& operator=(const PCREWalker&) = delete;
 };
 
 // Called after visiting each of re's children and accumulating
 // the return values in child_args.  So child_args contains whether
 // this library mimics PCRE for those subexpressions.
-bool PCREWalker::PostVisit(
-    Regexp* re, bool parent_arg, bool pre_arg, bool* child_args, int nchild_args) {
-    // If children failed, so do we.
-    for (int i = 0; i < nchild_args; i++)
-        if (!child_args[i])
-            return false;
+bool PCREWalker::PostVisit(Regexp* re, bool parent_arg, bool pre_arg,
+                           bool* child_args, int nchild_args) {
+  // If children failed, so do we.
+  for (int i = 0; i < nchild_args; i++)
+    if (!child_args[i])
+      return false;
 
-    // Otherwise look for other reasons to fail.
-    switch (re->op()) {
-    // Look for repeated empty string.
-    case kRegexpStar:
-    case kRegexpPlus:
-    case kRegexpQuest:
-        if (CanBeEmptyString(re->sub()[0]))
-            return false;
-        break;
-    case kRegexpRepeat:
-        if (re->max() == -1 && CanBeEmptyString(re->sub()[0]))
-            return false;
-        break;
+  // Otherwise look for other reasons to fail.
+  switch (re->op()) {
+  // Look for repeated empty string.
+  case kRegexpStar:
+  case kRegexpPlus:
+  case kRegexpQuest:
+    if (CanBeEmptyString(re->sub()[0]))
+      return false;
+    break;
+  case kRegexpRepeat:
+    if (re->max() == -1 && CanBeEmptyString(re->sub()[0]))
+      return false;
+    break;
 
-    // Look for \v
-    case kRegexpLiteral:
-        if (re->rune() == '\v')
-            return false;
-        break;
+  // Look for \v
+  case kRegexpLiteral:
+    if (re->rune() == '\v')
+      return false;
+    break;
 
-    // Look for $ in single-line mode.
-    case kRegexpEndText:
-    case kRegexpEmptyMatch:
-        if (re->parse_flags() & Regexp::WasDollar)
-            return false;
-        break;
+  // Look for $ in single-line mode.
+  case kRegexpEndText:
+  case kRegexpEmptyMatch:
+    if (re->parse_flags() & Regexp::WasDollar)
+      return false;
+    break;
 
-    // Look for ^ in multi-line mode.
-    case kRegexpBeginLine:
-        // No condition: in single-line mode ^ becomes kRegexpBeginText.
-        return false;
+  // Look for ^ in multi-line mode.
+  case kRegexpBeginLine:
+    // No condition: in single-line mode ^ becomes kRegexpBeginText.
+    return false;
 
-    default:
-        break;
-    }
+  default:
+    break;
+  }
 
-    // Not proven guilty.
-    return true;
+  // Not proven guilty.
+  return true;
 }
 
 // Returns whether this regexp's behavior will mimic PCRE's exactly.
 bool Regexp::MimicsPCRE() {
-    PCREWalker w;
-    return w.Walk(this, true);
+  PCREWalker w;
+  return w.Walk(this, true);
 }
 
 // Walker class to compute whether a Regexp can match an empty string.
@@ -120,79 +120,79 @@ bool Regexp::MimicsPCRE() {
 // but they won't break anything.
 
 class EmptyStringWalker : public Regexp::Walker<bool> {
-public:
-    EmptyStringWalker() {}
+ public:
+  EmptyStringWalker() {}
 
-    virtual bool PostVisit(
-        Regexp* re, bool parent_arg, bool pre_arg, bool* child_args, int nchild_args);
+  virtual bool PostVisit(Regexp* re, bool parent_arg, bool pre_arg,
+                         bool* child_args, int nchild_args);
 
-    virtual bool ShortVisit(Regexp* re, bool a) {
-        // Should never be called: we use Walk(), not WalkExponential().
+  virtual bool ShortVisit(Regexp* re, bool a) {
+    // Should never be called: we use Walk(), not WalkExponential().
 #ifndef FUZZING_BUILD_MODE_UNSAFE_FOR_PRODUCTION
-        LOG(DFATAL) << "EmptyStringWalker::ShortVisit called";
+    LOG(DFATAL) << "EmptyStringWalker::ShortVisit called";
 #endif
-        return a;
-    }
+    return a;
+  }
 
-private:
-    EmptyStringWalker(const EmptyStringWalker&) = delete;
-    EmptyStringWalker& operator=(const EmptyStringWalker&) = delete;
+ private:
+  EmptyStringWalker(const EmptyStringWalker&) = delete;
+  EmptyStringWalker& operator=(const EmptyStringWalker&) = delete;
 };
 
 // Called after visiting re's children.  child_args contains the return
 // value from each of the children's PostVisits (i.e., whether each child
 // can match an empty string).  Returns whether this clause can match an
 // empty string.
-bool EmptyStringWalker::PostVisit(
-    Regexp* re, bool parent_arg, bool pre_arg, bool* child_args, int nchild_args) {
-    switch (re->op()) {
-    case kRegexpNoMatch: // never empty
-    case kRegexpLiteral:
-    case kRegexpAnyChar:
-    case kRegexpAnyByte:
-    case kRegexpCharClass:
-    case kRegexpLiteralString:
-        return false;
-
-    case kRegexpEmptyMatch: // always empty
-    case kRegexpBeginLine:  // always empty, when they match
-    case kRegexpEndLine:
-    case kRegexpNoWordBoundary:
-    case kRegexpWordBoundary:
-    case kRegexpBeginText:
-    case kRegexpEndText:
-    case kRegexpStar: // can always be empty
-    case kRegexpQuest:
-    case kRegexpHaveMatch:
-        return true;
-
-    case kRegexpConcat: // can be empty if all children can
-        for (int i = 0; i < nchild_args; i++)
-            if (!child_args[i])
-                return false;
-        return true;
-
-    case kRegexpAlternate: // can be empty if any child can
-        for (int i = 0; i < nchild_args; i++)
-            if (child_args[i])
-                return true;
-        return false;
-
-    case kRegexpPlus: // can be empty if the child can
-    case kRegexpCapture:
-        return child_args[0];
-
-    case kRegexpRepeat: // can be empty if child can or is x{0}
-        return child_args[0] || re->min() == 0;
-    }
+bool EmptyStringWalker::PostVisit(Regexp* re, bool parent_arg, bool pre_arg,
+                                  bool* child_args, int nchild_args) {
+  switch (re->op()) {
+  case kRegexpNoMatch:  // never empty
+  case kRegexpLiteral:
+  case kRegexpAnyChar:
+  case kRegexpAnyByte:
+  case kRegexpCharClass:
+  case kRegexpLiteralString:
     return false;
+
+  case kRegexpEmptyMatch:  // always empty
+  case kRegexpBeginLine:   // always empty, when they match
+  case kRegexpEndLine:
+  case kRegexpNoWordBoundary:
+  case kRegexpWordBoundary:
+  case kRegexpBeginText:
+  case kRegexpEndText:
+  case kRegexpStar:  // can always be empty
+  case kRegexpQuest:
+  case kRegexpHaveMatch:
+    return true;
+
+  case kRegexpConcat:  // can be empty if all children can
+    for (int i = 0; i < nchild_args; i++)
+      if (!child_args[i])
+        return false;
+    return true;
+
+  case kRegexpAlternate:  // can be empty if any child can
+    for (int i = 0; i < nchild_args; i++)
+      if (child_args[i])
+        return true;
+    return false;
+
+  case kRegexpPlus:  // can be empty if the child can
+  case kRegexpCapture:
+    return child_args[0];
+
+  case kRegexpRepeat:  // can be empty if child can or is x{0}
+    return child_args[0] || re->min() == 0;
+  }
+  return false;
 }
 
 // Returns whether re can match an empty string.
 static bool CanBeEmptyString(Regexp* re) {
-    EmptyStringWalker w;
-    return w.Walk(re, true);
+  EmptyStringWalker w;
+  return w.Walk(re, true);
 }
 
-} // namespace regex
-} // namespace kuzu
+}  // namespace regex
+}  // namespace gs

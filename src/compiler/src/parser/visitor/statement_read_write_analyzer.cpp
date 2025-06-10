@@ -4,7 +4,7 @@
 #include "parser/query/reading_clause/reading_clause.h"
 #include "parser/query/return_with_clause/with_clause.h"
 
-namespace kuzu {
+namespace gs {
 namespace parser {
 
 void StatementReadWriteAnalyzer::visitReadingClause(
@@ -44,4 +44,4 @@ bool StatementReadWriteAnalyzer::isExprReadOnly(const ParsedExpression* expr) {
 }
 
 }  // namespace parser
-}  // namespace kuzu
+}  // namespace gs

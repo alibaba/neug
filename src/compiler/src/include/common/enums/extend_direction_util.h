@@ -4,7 +4,7 @@
 #include "common/enums/extend_direction.h"
 #include "common/enums/rel_direction.h"
 
-namespace kuzu {
+namespace gs {
 namespace common {
 
 class ExtendDirectionUtil {
@@ -20,4 +20,4 @@ class ExtendDirectionUtil {
 };
 
 }  // namespace common
-}  // namespace kuzu
+}  // namespace gs

@@ -22,8 +22,8 @@ add_subdirectory(transaction)
 add_subdirectory(extension)
 add_subdirectory(gopt)
 
-add_library(kuzu STATIC ${ALL_OBJECT_FILES})
-add_library(kuzu_shared SHARED ${ALL_OBJECT_FILES})
+add_library(nexg_compiler STATIC ${ALL_OBJECT_FILES})
+add_library(nexg_compiler_shared SHARED ${ALL_OBJECT_FILES})
 
 set(KUZU_LIBRARIES antlr4_cypher antlr4_runtime fast_float utf8proc re2 roaring_bitmap parquet  thrift  zstd miniz mbedtls lz4  yaml-cpp)
 # brotlidec brotlicommon fastpfor snappy  yyjson 
@@ -41,41 +41,27 @@ endif()
 if (ENABLE_BACKTRACES)
         set(KUZU_LIBRARIES ${KUZU_LIBRARIES} cpptrace::cpptrace)
 endif()
-target_link_libraries(kuzu PUBLIC ${KUZU_LIBRARIES})
-target_link_libraries(kuzu PUBLIC nexg_plan_proto)
-target_link_libraries(kuzu_shared PUBLIC ${KUZU_LIBRARIES})
-target_link_libraries(kuzu_shared PUBLIC nexg_plan_proto)
+target_link_libraries(nexg_compiler PUBLIC ${KUZU_LIBRARIES})
+target_link_libraries(nexg_compiler PUBLIC nexg_plan_proto)
+target_link_libraries(nexg_compiler_shared PUBLIC ${KUZU_LIBRARIES})
+target_link_libraries(nexg_compiler_shared PUBLIC nexg_plan_proto)
 unset(KUZU_LIBRARIES)
 
 set(KUZU_INCLUDES $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include> $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}> ${CMAKE_CURRENT_BINARY_DIR} ${CMAKE_CURRENT_SOURCE_DIR}/include/c_api)
-target_include_directories(kuzu PUBLIC ${KUZU_INCLUDES})
-target_include_directories(kuzu_shared PUBLIC ${KUZU_INCLUDES})
+target_include_directories(nexg_compiler PUBLIC ${KUZU_INCLUDES})
+target_include_directories(nexg_compiler_shared PUBLIC ${KUZU_INCLUDES})
 unset(KUZU_INCLUDES)
 
 if(WIN32)
         # Anything linking against the static library must not use dllimport.
-        target_compile_definitions(kuzu INTERFACE KUZU_STATIC_DEFINE)
+        target_compile_definitions(nexg_compiler INTERFACE KUZU_STATIC_DEFINE)
 endif()
 
 if(NOT WIN32)
-        set_target_properties(kuzu_shared PROPERTIES OUTPUT_NAME kuzu)
+        set_target_properties(nexg_compiler_shared PROPERTIES OUTPUT_NAME nexg_compiler_shared)
 endif()
 
-install(TARGETS kuzu kuzu_shared)
-
-#if(${BUILD_SINGLE_FILE_HEADER})
-#        # Create a command to generate kuzu.hpp, and then create a target that is
-#        # always built that depends on it. This allows our generator to detect when
-#        # exactly to build kuzu.hpp, while still building the target by default.
-#        find_package(Python3 3.9...4 REQUIRED)
-#        add_custom_command(
-#                OUTPUT kuzu.hpp
-#                COMMAND
-#                        ${Python3_EXECUTABLE} ${PROJECT_SOURCE_DIR}/scripts/collect-single-file-header.py ${CMAKE_CURRENT_BINARY_DIR}/..
-#                DEPENDS
-#                        ${PROJECT_SOURCE_DIR}/scripts/collect-single-file-header.py kuzu_shared)
-#        add_custom_target(single_file_header ALL DEPENDS kuzu.hpp)
-#endif()
+install(TARGETS nexg_compiler nexg_compiler_shared)
 
 install(FILES ${CMAKE_CURRENT_SOURCE_DIR}/include/c_api/kuzu.h TYPE INCLUDE)
 

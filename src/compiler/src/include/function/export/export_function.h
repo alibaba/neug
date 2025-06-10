@@ -4,7 +4,7 @@
 #include "common/types/value/value.h"
 #include "function/function.h"
 
-namespace kuzu {
+namespace gs {
 namespace function {
 
 struct ExportFuncLocalState {
@@ -111,4 +111,4 @@ struct ExportParquetFunction : public ExportFunction {
 };
 
 }  // namespace function
-}  // namespace kuzu
+}  // namespace gs

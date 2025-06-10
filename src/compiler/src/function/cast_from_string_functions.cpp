@@ -6,9 +6,9 @@
 #include "function/list/functions/list_unique_function.h"
 #include "utf8proc_wrapper.h"
 
-using namespace kuzu::common;
+using namespace gs::common;
 
-namespace kuzu {
+namespace gs {
 namespace function {
 
 // ---------------------- cast String Helper ------------------------------ //
@@ -341,7 +341,7 @@ struct SplitStringListOperation {
     skipWhitespace(start, end);
     trimRightWhitespace(start, end);
     CastString::copyStringToVector(
-        resultVector, offset, std::string_view{start, (uint32_t)(end - start)},
+        resultVector, offset, std::string_view{start, (uint32_t) (end - start)},
         option);
     offset++;
   }
@@ -494,7 +494,7 @@ bool SplitStringMapOperation::handleKey(const char* start, const char* end,
   trimRightWhitespace(start, end);
   auto fieldVector = StructVector::getFieldVector(resultVector, 0).get();
   CastString::copyStringToVector(
-      fieldVector, offset, std::string_view{start, (uint32_t)(end - start)},
+      fieldVector, offset, std::string_view{start, (uint32_t) (end - start)},
       option);
   if (fieldVector->isNull(offset)) {
     throw common::ConversionException{"Map does not allow null as key."};
@@ -515,7 +515,7 @@ void SplitStringMapOperation::handleValue(const char* start, const char* end,
   trimRightWhitespace(start, end);
   CastString::copyStringToVector(
       StructVector::getFieldVector(resultVector, 1).get(), offset++,
-      std::string_view{start, (uint32_t)(end - start)}, option);
+      std::string_view{start, (uint32_t) (end - start)}, option);
 }
 
 template <typename T>
@@ -714,7 +714,7 @@ static bool tryCastStringToStruct(const char* input, uint64_t len,
     fieldVector->setNull(rowToAdd, false);
     CastString::copyStringToVector(
         fieldVector, rowToAdd,
-        std::string_view{valStart, (uint32_t)(valEnd - valStart)}, option);
+        std::string_view{valStart, (uint32_t) (valEnd - valStart)}, option);
 
     if (closeBracket) {
       return (input == end);
@@ -1120,4 +1120,4 @@ void CastString::copyStringToVector(ValueVector* vector, uint64_t vectorPos,
 }
 
 }  // namespace function
-}  // namespace kuzu
+}  // namespace gs

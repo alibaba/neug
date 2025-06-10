@@ -4,10 +4,10 @@
 #include "planner/operator/factorization/flatten_resolver.h"
 #include "planner/planner.h"
 
-using namespace kuzu::binder;
-using namespace kuzu::common;
+using namespace gs::binder;
+using namespace gs::common;
 
-namespace kuzu {
+namespace gs {
 namespace planner {
 
 static expression_vector getDependentExprs(std::shared_ptr<Expression> expr,
@@ -332,4 +332,4 @@ void Planner::planSubqueryIfNecessary(std::shared_ptr<Expression> expression,
 }
 
 }  // namespace planner
-}  // namespace kuzu
+}  // namespace gs

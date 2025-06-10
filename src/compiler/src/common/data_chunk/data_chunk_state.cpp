@@ -4,7 +4,7 @@
 #include "common/system_config.h"
 #include "common/types/types.h"
 
-namespace kuzu {
+namespace gs {
 namespace common {
 
 DataChunkState::DataChunkState() : DataChunkState(DEFAULT_VECTOR_CAPACITY) {}
@@ -29,4 +29,4 @@ void DataChunkState::slice(offset_t offset) {
 }
 
 }  // namespace common
-}  // namespace kuzu
+}  // namespace gs

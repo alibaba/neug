@@ -2,7 +2,7 @@
 
 #include "expression.h"
 
-namespace kuzu {
+namespace gs {
 namespace binder {
 
 class VariableExpression final : public Expression {
@@ -31,4 +31,4 @@ class VariableExpression final : public Expression {
 };
 
 }  // namespace binder
-}  // namespace kuzu
+}  // namespace gs

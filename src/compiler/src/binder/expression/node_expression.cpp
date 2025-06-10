@@ -2,7 +2,7 @@
 
 #include "binder/expression/property_expression.h"
 
-namespace kuzu {
+namespace gs {
 namespace binder {
 
 NodeExpression::~NodeExpression() = default;
@@ -18,4 +18,4 @@ std::shared_ptr<Expression> NodeExpression::getPrimaryKey(
 }
 
 }  // namespace binder
-}  // namespace kuzu
+}  // namespace gs

@@ -8,7 +8,7 @@
 #include "common/types/timestamp_t.h"
 #include "re2.h"
 
-namespace kuzu {
+namespace gs {
 namespace common {
 
 date_t::date_t() : days{0} {}
@@ -514,4 +514,4 @@ const regex::RE2& Date::regexPattern() {
 }
 
 }  // namespace common
-}  // namespace kuzu
+}  // namespace gs

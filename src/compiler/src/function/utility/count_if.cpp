@@ -2,9 +2,9 @@
 #include "function/scalar_function.h"
 #include "function/utility/vector_utility_functions.h"
 
-using namespace kuzu::common;
+using namespace gs::common;
 
-namespace kuzu {
+namespace gs {
 namespace function {
 
 struct CountIf {
@@ -41,4 +41,4 @@ function_set CountIfFunction::getFunctionSet() {
 }
 
 }  // namespace function
-}  // namespace kuzu
+}  // namespace gs

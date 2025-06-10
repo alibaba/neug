@@ -5,7 +5,7 @@
 #include "common/arrow/arrow_row_batch.h"
 #include "common/exception/runtime.h"
 
-namespace kuzu {
+namespace gs {
 namespace common {
 
 static void releaseArrowSchema(ArrowSchema* schema) {
@@ -298,4 +298,4 @@ void ArrowConverter::toArrowArray(main::QueryResult& queryResult,
 }
 
 }  // namespace common
-}  // namespace kuzu
+}  // namespace gs

@@ -4,7 +4,7 @@
 #include "parser/expression/parsed_expression.h"
 #include "updating_clause.h"
 
-namespace kuzu {
+namespace gs {
 namespace parser {
 
 class DeleteClause final : public UpdatingClause {
@@ -27,4 +27,4 @@ class DeleteClause final : public UpdatingClause {
 };
 
 }  // namespace parser
-}  // namespace kuzu
+}  // namespace gs

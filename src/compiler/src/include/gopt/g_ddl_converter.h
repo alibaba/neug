@@ -13,7 +13,7 @@
 #include "src/proto_generated_gie/common.pb.h"
 #include "src/proto_generated_gie/cypher_ddl.pb.h"
 
-namespace kuzu {
+namespace gs {
 namespace gopt {
 
 struct EdgeLabel {
@@ -28,7 +28,7 @@ struct EdgeLabel {
 
 class GDDLConverter {
  public:
-  explicit GDDLConverter(kuzu::catalog::Catalog* catalog) : catalog{catalog} {}
+  explicit GDDLConverter(gs::catalog::Catalog* catalog) : catalog{catalog} {}
 
   virtual ~GDDLConverter() = default;
 
@@ -48,7 +48,7 @@ class GDDLConverter {
       const planner::LogicalPlan& plan);
 
  private:
-  kuzu::catalog::Catalog* catalog;
+  gs::catalog::Catalog* catalog;
 
   void checkCatalogInitialized() const {
     if (!catalog) {
@@ -84,15 +84,15 @@ class GDDLConverter {
 
   void getEdgeLabels(const std::string& labelName,
                      std::vector<EdgeLabel>& edgeLabels);
-  std::string getVertexLabelName(kuzu::common::oid_t tableId);
+  std::string getVertexLabelName(gs::common::oid_t tableId);
   bool checkEntryType(const std::string& labelName,
                       catalog::CatalogEntryType expectedType);
   std::unique_ptr<::physical::EdgeType> convertToEdgeType(
       const EdgeLabel& label);
 
  private:
-  kuzu::gopt::GTypeConverter typeConverter;
+  gs::gopt::GTypeConverter typeConverter;
 };
 
 }  // namespace gopt
-}  // namespace kuzu
+}  // namespace gs

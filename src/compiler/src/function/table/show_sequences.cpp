@@ -5,10 +5,10 @@
 #include "function/table/simple_table_function.h"
 #include "main/client_context.h"
 
-using namespace kuzu::common;
-using namespace kuzu::catalog;
+using namespace gs::common;
+using namespace gs::catalog;
 
-namespace kuzu {
+namespace gs {
 namespace function {
 
 struct SequenceInfo {
@@ -131,4 +131,4 @@ function_set ShowSequencesFunction::getFunctionSet() {
 }
 
 }  // namespace function
-}  // namespace kuzu
+}  // namespace gs

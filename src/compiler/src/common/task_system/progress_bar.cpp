@@ -2,7 +2,7 @@
 
 #include "common/task_system/terminal_progress_bar_display.h"
 
-namespace kuzu {
+namespace gs {
 namespace common {
 
 ProgressBar::ProgressBar(bool enableProgressBar) {
@@ -72,4 +72,4 @@ void ProgressBar::toggleProgressBarPrinting(bool enable) {
 }
 
 }  // namespace common
-}  // namespace kuzu
+}  // namespace gs

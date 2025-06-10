@@ -3,7 +3,7 @@
 #include "common/types/types.h"
 #include "storage/predicate/column_predicate.h"
 
-namespace kuzu {
+namespace gs {
 namespace common {
 class FileSystem;
 }
@@ -57,4 +57,4 @@ struct KUZU_API TableFuncBindData {
 };
 
 }  // namespace function
-}  // namespace kuzu
+}  // namespace gs

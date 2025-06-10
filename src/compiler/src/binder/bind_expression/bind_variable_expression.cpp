@@ -6,10 +6,10 @@
 #include "main/client_context.h"
 #include "parser/expression/parsed_variable_expression.h"
 
-using namespace kuzu::common;
-using namespace kuzu::parser;
+using namespace gs::common;
+using namespace gs::parser;
 
-namespace kuzu {
+namespace gs {
 namespace binder {
 
 std::shared_ptr<Expression> ExpressionBinder::bindVariableExpression(
@@ -41,4 +41,4 @@ std::shared_ptr<Expression> ExpressionBinder::createVariableExpression(
 }
 
 }  // namespace binder
-}  // namespace kuzu
+}  // namespace gs

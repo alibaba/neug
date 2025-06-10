@@ -3,7 +3,7 @@
 #include "binder/bound_statement.h"
 #include "function/scalar_macro_function.h"
 
-namespace kuzu {
+namespace gs {
 namespace binder {
 
 class BoundCreateMacro final : public BoundStatement {
@@ -29,4 +29,4 @@ class BoundCreateMacro final : public BoundStatement {
 };
 
 }  // namespace binder
-}  // namespace kuzu
+}  // namespace gs

@@ -3,7 +3,7 @@
 #include "boolean_function_executor.h"
 #include "function/scalar_function.h"
 
-namespace kuzu {
+namespace gs {
 namespace function {
 
 class VectorBooleanFunction {
@@ -75,4 +75,4 @@ class VectorBooleanFunction {
 };
 
 }  // namespace function
-}  // namespace kuzu
+}  // namespace gs

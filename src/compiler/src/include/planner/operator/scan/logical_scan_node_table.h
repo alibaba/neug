@@ -6,7 +6,7 @@
 #include "planner/operator/logical_operator.h"
 #include "storage/predicate/column_predicate.h"
 
-namespace kuzu {
+namespace gs {
 namespace planner {
 
 enum class LogicalScanNodeTableType : uint8_t {
@@ -145,4 +145,4 @@ class LogicalScanNodeTable final : public LogicalOperator {
 };
 
 }  // namespace planner
-}  // namespace kuzu
+}  // namespace gs

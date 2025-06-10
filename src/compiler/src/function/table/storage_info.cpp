@@ -13,12 +13,12 @@
 #include "storage/store/node_table.h"
 #include "storage/store/rel_table.h"
 
-using namespace kuzu::common;
-using namespace kuzu::catalog;
-using namespace kuzu::storage;
-using namespace kuzu::main;
+using namespace gs::common;
+using namespace gs::catalog;
+using namespace gs::storage;
+using namespace gs::main;
 
-namespace kuzu {
+namespace gs {
 namespace function {
 
 struct StorageInfoLocalState final : TableFuncLocalState {
@@ -87,4 +87,4 @@ function_set StorageInfoFunction::getFunctionSet() {
 }
 
 }  // namespace function
-}  // namespace kuzu
+}  // namespace gs

@@ -3,7 +3,7 @@
 #include "common/arrow/arrow.h"
 #include "common/arrow/arrow_nullmask_tree.h"
 
-namespace kuzu {
+namespace gs {
 namespace common {
 
 // scans are based on data specification found here
@@ -236,4 +236,4 @@ ArrowNullMaskTree::ArrowNullMaskTree(const ArrowSchema* schema,
 }
 
 }  // namespace common
-}  // namespace kuzu
+}  // namespace gs

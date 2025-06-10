@@ -3,9 +3,9 @@
 #include "function/scalar_function.h"
 #include "function/string/functions/substr_function.h"
 
-using namespace kuzu::common;
+using namespace gs::common;
 
-namespace kuzu {
+namespace gs {
 namespace function {
 
 static void normalizeIndices(int64_t& startIdx, int64_t& endIdx,
@@ -98,4 +98,4 @@ function_set ListSliceFunction::getFunctionSet() {
 }
 
 }  // namespace function
-}  // namespace kuzu
+}  // namespace gs

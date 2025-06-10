@@ -3,7 +3,7 @@
 #include "parsed_data/attach_info.h"
 #include "parser/statement.h"
 
-namespace kuzu {
+namespace gs {
 namespace parser {
 
 class AttachDatabase final : public Statement {
@@ -19,4 +19,4 @@ class AttachDatabase final : public Statement {
 };
 
 }  // namespace parser
-}  // namespace kuzu
+}  // namespace gs

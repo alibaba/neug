@@ -7,18 +7,17 @@
 #include "common/types/types.h"
 #include "common/vector/value_vector.h"
 
-namespace kuzu {
+namespace gs {
 namespace common {
 
 // NOLINTNEXTLINE(cert-err58-cpp): always evaluated at compile time, and even
 // not it would not throw
 static const std::array<sel_t, DEFAULT_VECTOR_CAPACITY>
     INCREMENTAL_SELECTED_POS = []() constexpr noexcept {
-  std::array<sel_t, DEFAULT_VECTOR_CAPACITY> selectedPos{};
-  std::iota(selectedPos.begin(), selectedPos.end(), 0);
-  return selectedPos;
-}
-();
+      std::array<sel_t, DEFAULT_VECTOR_CAPACITY> selectedPos{};
+      std::iota(selectedPos.begin(), selectedPos.end(), 0);
+      return selectedPos;
+    }();
 
 SelectionView::SelectionView(sel_t startPos, sel_t selectedSize)
     : selectedPositions{INCREMENTAL_SELECTED_POS.data() + startPos},
@@ -48,4 +47,4 @@ std::vector<SelectionVector*> SelectionVector::fromValueVectors(
 }
 
 }  // namespace common
-}  // namespace kuzu
+}  // namespace gs

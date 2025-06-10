@@ -4,7 +4,7 @@
 #include "database.h"
 #include "function/udf_function.h"
 
-namespace kuzu {
+namespace gs {
 namespace main {
 
 /**
@@ -185,4 +185,4 @@ class Connection {
 };
 
 }  // namespace main
-}  // namespace kuzu
+}  // namespace gs

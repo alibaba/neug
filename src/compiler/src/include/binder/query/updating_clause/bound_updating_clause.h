@@ -3,7 +3,7 @@
 #include "common/cast.h"
 #include "common/enums/clause_type.h"
 
-namespace kuzu {
+namespace gs {
 namespace binder {
 
 class BoundUpdatingClause {
@@ -28,4 +28,4 @@ class BoundUpdatingClause {
 };
 
 }  // namespace binder
-}  // namespace kuzu
+}  // namespace gs

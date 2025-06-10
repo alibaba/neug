@@ -9,7 +9,7 @@
 #include "expression/parsed_expression.h"
 #include "parser/statement.h"
 
-namespace kuzu {
+namespace gs {
 namespace parser {
 
 struct BaseScanSource {
@@ -65,4 +65,4 @@ struct TableFuncScanSource : public BaseScanSource {
 };
 
 }  // namespace parser
-}  // namespace kuzu
+}  // namespace gs

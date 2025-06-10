@@ -3,7 +3,7 @@
 
 #include "unicode_groups.h"
 
-namespace kuzu {
+namespace gs {
 namespace regex {
 
 static const URange16 code1[] = {
@@ -24,12 +24,9 @@ static const URange16 code3[] = {
     {0x61, 0x7a},
 };
 const UGroup perl_groups[] = {
-    {"\\d", +1, code1, 1, nullptr, 0},
-    {"\\D", -1, code1, 1, nullptr, 0},
-    {"\\s", +1, code2, 3, nullptr, 0},
-    {"\\S", -1, code2, 3, nullptr, 0},
-    {"\\w", +1, code3, 4, nullptr, 0},
-    {"\\W", -1, code3, 4, nullptr, 0},
+    {"\\d", +1, code1, 1, nullptr, 0}, {"\\D", -1, code1, 1, nullptr, 0},
+    {"\\s", +1, code2, 3, nullptr, 0}, {"\\S", -1, code2, 3, nullptr, 0},
+    {"\\w", +1, code3, 4, nullptr, 0}, {"\\W", -1, code3, 4, nullptr, 0},
 };
 const int num_perl_groups = 6;
 static const URange16 code4[] = {
@@ -134,5 +131,5 @@ const UGroup posix_groups[] = {
 };
 const int num_posix_groups = 28;
 
-} // namespace regex
-} // namespace kuzu
+}  // namespace regex
+}  // namespace gs

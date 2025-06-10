@@ -6,9 +6,9 @@
 #include "common/exception/binder.h"
 #include "common/utils.h"
 
-using namespace kuzu::common;
+using namespace gs::common;
 
-namespace kuzu {
+namespace gs {
 namespace binder {
 
 std::string RelExpression::detailsToString() const {
@@ -68,4 +68,4 @@ std::vector<common::ExtendDirection> RelExpression::getExtendDirections()
 }
 
 }  // namespace binder
-}  // namespace kuzu
+}  // namespace gs

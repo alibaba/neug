@@ -1,6 +1,6 @@
 #include "common/task_system/task.h"
 
-namespace kuzu {
+namespace gs {
 namespace common {
 
 Task::Task(uint64_t maxNumThreads)
@@ -37,4 +37,4 @@ void Task::deRegisterThreadAndFinalizeTask() {
 }
 
 }  // namespace common
-}  // namespace kuzu
+}  // namespace gs

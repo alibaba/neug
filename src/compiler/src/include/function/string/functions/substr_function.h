@@ -6,7 +6,7 @@
 #include "common/vector/value_vector.h"
 #include "utf8proc.h"
 
-namespace kuzu {
+namespace gs {
 namespace function {
 
 struct SubStr {
@@ -17,7 +17,7 @@ struct SubStr {
     std::string srcStr = src.getAsString();
     bool isAscii = true;
     int64_t startPos = start - 1;
-    int64_t endPos = std::min(srcStr.size(), (size_t)(startPos + len));
+    int64_t endPos = std::min(srcStr.size(), (size_t) (startPos + len));
     if (startPos >= endPos || startPos < 0 ||
         startPos >= (int64_t) srcStr.size()) {
       result.len = 0;
@@ -37,7 +37,7 @@ struct SubStr {
                  true /* isAscii */);
     } else {
       int64_t characterCount = 0, startBytePos = 0, endBytePos = 0;
-      kuzu::utf8proc::utf8proc_grapheme_callback(
+      gs::utf8proc::utf8proc_grapheme_callback(
           srcStr.c_str(), srcStr.size(), [&](int64_t gstart, int64_t /*gend*/) {
             if (characterCount == startPos) {
               startBytePos = gstart;
@@ -80,4 +80,4 @@ struct SubStr {
 };
 
 }  // namespace function
-}  // namespace kuzu
+}  // namespace gs

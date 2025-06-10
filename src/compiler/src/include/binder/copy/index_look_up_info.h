@@ -2,7 +2,7 @@
 
 #include "binder/expression/expression.h"
 
-namespace kuzu {
+namespace gs {
 namespace binder {
 
 struct IndexLookupInfo {
@@ -23,4 +23,4 @@ struct IndexLookupInfo {
 };
 
 }  // namespace binder
-}  // namespace kuzu
+}  // namespace gs

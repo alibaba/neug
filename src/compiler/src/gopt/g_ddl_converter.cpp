@@ -19,7 +19,7 @@
 #include <utility>
 #include <vector>
 
-namespace kuzu {
+namespace gs {
 namespace gopt {
 
 std::unique_ptr<::physical::DDLPlan> GDDLConverter::convert(
@@ -59,15 +59,15 @@ std::unique_ptr<::physical::DDLPlan> GDDLConverter::convertCreateTable(
 std::unique_ptr<::physical::DDLPlan> GDDLConverter::convertDropTable(
     const planner::LogicalDrop& op) {
   auto& info = op.getDropInfo();
-  if (info.dropType != kuzu::common::DropType::TABLE) {
+  if (info.dropType != gs::common::DropType::TABLE) {
     throw std::runtime_error("Expected DROP TABLE type");
   }
 
   if (checkEntryType(info.name,
-                     kuzu::catalog::CatalogEntryType::NODE_TABLE_ENTRY)) {
+                     gs::catalog::CatalogEntryType::NODE_TABLE_ENTRY)) {
     return convertToDropVertexSchema(op);
   } else if (checkEntryType(info.name,
-                            kuzu::catalog::CatalogEntryType::REL_TABLE_ENTRY)) {
+                            gs::catalog::CatalogEntryType::REL_TABLE_ENTRY)) {
     return convertToDropEdgeSchema(op);
   }
 
@@ -80,29 +80,29 @@ std::unique_ptr<::physical::DDLPlan> GDDLConverter::convertAlterTable(
 
   // Check table type
   if (checkEntryType(info->tableName,
-                     kuzu::catalog::CatalogEntryType::NODE_TABLE_ENTRY)) {
+                     gs::catalog::CatalogEntryType::NODE_TABLE_ENTRY)) {
     switch (info->alterType) {
-    case kuzu::common::AlterType::ADD_PROPERTY:
+    case gs::common::AlterType::ADD_PROPERTY:
       return convertToAddVertexPropertySchema(op);
-    case kuzu::common::AlterType::DROP_PROPERTY:
+    case gs::common::AlterType::DROP_PROPERTY:
       return convertToDropVertexPropertySchema(op);
-    case kuzu::common::AlterType::RENAME_PROPERTY:
+    case gs::common::AlterType::RENAME_PROPERTY:
       return convertToRenameVertexPropertySchema(op);
-    case kuzu::common::AlterType::RENAME:
+    case gs::common::AlterType::RENAME:
       return convertToRenameVertexTypeSchema(op);
     default:
       throw std::runtime_error("Invalid alter type for vertex schema");
     }
   } else if (checkEntryType(info->tableName,
-                            kuzu::catalog::CatalogEntryType::REL_TABLE_ENTRY)) {
+                            gs::catalog::CatalogEntryType::REL_TABLE_ENTRY)) {
     switch (info->alterType) {
-    case kuzu::common::AlterType::ADD_PROPERTY:
+    case gs::common::AlterType::ADD_PROPERTY:
       return convertToAddEdgePropertySchema(op);
-    case kuzu::common::AlterType::DROP_PROPERTY:
+    case gs::common::AlterType::DROP_PROPERTY:
       return convertToDropEdgePropertySchema(op);
-    case kuzu::common::AlterType::RENAME_PROPERTY:
+    case gs::common::AlterType::RENAME_PROPERTY:
       return convertToRenameEdgePropertySchema(op);
-    case kuzu::common::AlterType::RENAME:
+    case gs::common::AlterType::RENAME:
       return convertToRenameEdgeTypeSchema(op);
     default:
       throw std::runtime_error("Invalid alter type for edge schema");
@@ -220,9 +220,9 @@ std::unique_ptr<::physical::DDLPlan> GDDLConverter::convertToCreateEdgeSchema(
 std::unique_ptr<::physical::DDLPlan> GDDLConverter::convertToDropVertexSchema(
     const planner::LogicalDrop& op) {
   auto& info = op.getDropInfo();
-  if (info.dropType != kuzu::common::DropType::TABLE ||
+  if (info.dropType != gs::common::DropType::TABLE ||
       !checkEntryType(info.name,
-                      kuzu::catalog::CatalogEntryType::NODE_TABLE_ENTRY)) {
+                      gs::catalog::CatalogEntryType::NODE_TABLE_ENTRY)) {
     throw std::runtime_error("Expected DROP TABLE type for vertex schema");
   }
 
@@ -244,9 +244,9 @@ std::unique_ptr<::physical::DDLPlan> GDDLConverter::convertToDropVertexSchema(
 std::unique_ptr<::physical::DDLPlan> GDDLConverter::convertToDropEdgeSchema(
     const planner::LogicalDrop& op) {
   auto& info = op.getDropInfo();
-  if (info.dropType != kuzu::common::DropType::TABLE ||
+  if (info.dropType != gs::common::DropType::TABLE ||
       !checkEntryType(info.name,
-                      kuzu::catalog::CatalogEntryType::REL_TABLE_ENTRY)) {
+                      gs::catalog::CatalogEntryType::REL_TABLE_ENTRY)) {
     throw std::runtime_error("Expected DROP TABLE type for edge schema");
   }
   auto ddl_plan = std::make_unique<::physical::DDLPlan>();
@@ -274,9 +274,9 @@ std::unique_ptr<::physical::DDLPlan>
 GDDLConverter::convertToAddVertexPropertySchema(
     const planner::LogicalAlter& op) {
   const auto* info = op.getInfo();
-  if (info->alterType != kuzu::common::AlterType::ADD_PROPERTY ||
+  if (info->alterType != gs::common::AlterType::ADD_PROPERTY ||
       !checkEntryType(info->tableName,
-                      kuzu::catalog::CatalogEntryType::NODE_TABLE_ENTRY)) {
+                      gs::catalog::CatalogEntryType::NODE_TABLE_ENTRY)) {
     throw std::runtime_error(
         "Expected ADD_PROPERTY alter type for vertex schema");
   }
@@ -311,9 +311,9 @@ GDDLConverter::convertToAddVertexPropertySchema(
 std::unique_ptr<::physical::DDLPlan>
 GDDLConverter::convertToAddEdgePropertySchema(const planner::LogicalAlter& op) {
   const auto* info = op.getInfo();
-  if (info->alterType != kuzu::common::AlterType::ADD_PROPERTY ||
+  if (info->alterType != gs::common::AlterType::ADD_PROPERTY ||
       !checkEntryType(info->tableName,
-                      kuzu::catalog::CatalogEntryType::REL_TABLE_ENTRY)) {
+                      gs::catalog::CatalogEntryType::REL_TABLE_ENTRY)) {
     throw std::runtime_error(
         "Expected ADD_PROPERTY alter type for edge schema");
   }
@@ -353,9 +353,9 @@ std::unique_ptr<::physical::DDLPlan>
 GDDLConverter::convertToDropVertexPropertySchema(
     const planner::LogicalAlter& op) {
   const auto* info = op.getInfo();
-  if (info->alterType != kuzu::common::AlterType::DROP_PROPERTY ||
+  if (info->alterType != gs::common::AlterType::DROP_PROPERTY ||
       !checkEntryType(info->tableName,
-                      kuzu::catalog::CatalogEntryType::NODE_TABLE_ENTRY)) {
+                      gs::catalog::CatalogEntryType::NODE_TABLE_ENTRY)) {
     throw std::runtime_error(
         "Expected DROP_PROPERTY alter type for vertex schema");
   }
@@ -384,9 +384,9 @@ std::unique_ptr<::physical::DDLPlan>
 GDDLConverter::convertToDropEdgePropertySchema(
     const planner::LogicalAlter& op) {
   const auto* info = op.getInfo();
-  if (info->alterType != kuzu::common::AlterType::DROP_PROPERTY ||
+  if (info->alterType != gs::common::AlterType::DROP_PROPERTY ||
       !checkEntryType(info->tableName,
-                      kuzu::catalog::CatalogEntryType::REL_TABLE_ENTRY)) {
+                      gs::catalog::CatalogEntryType::REL_TABLE_ENTRY)) {
     throw std::runtime_error(
         "Expected DROP_PROPERTY alter type for edge schema");
   }
@@ -419,9 +419,9 @@ std::unique_ptr<::physical::DDLPlan>
 GDDLConverter::convertToRenameVertexPropertySchema(
     const planner::LogicalAlter& op) {
   const auto* info = op.getInfo();
-  if (info->alterType != kuzu::common::AlterType::RENAME_PROPERTY ||
+  if (info->alterType != gs::common::AlterType::RENAME_PROPERTY ||
       !checkEntryType(info->tableName,
-                      kuzu::catalog::CatalogEntryType::NODE_TABLE_ENTRY)) {
+                      gs::catalog::CatalogEntryType::NODE_TABLE_ENTRY)) {
     throw std::runtime_error(
         "Expected RENAME_PROPERTY alter type for vertex schema");
   }
@@ -450,9 +450,9 @@ std::unique_ptr<::physical::DDLPlan>
 GDDLConverter::convertToRenameEdgePropertySchema(
     const planner::LogicalAlter& op) {
   const auto* info = op.getInfo();
-  if (info->alterType != kuzu::common::AlterType::RENAME_PROPERTY ||
+  if (info->alterType != gs::common::AlterType::RENAME_PROPERTY ||
       !checkEntryType(info->tableName,
-                      kuzu::catalog::CatalogEntryType::REL_TABLE_ENTRY)) {
+                      gs::catalog::CatalogEntryType::REL_TABLE_ENTRY)) {
     throw std::runtime_error(
         "Expected RENAME_PROPERTY alter type for edge schema");
   }
@@ -486,9 +486,9 @@ std::unique_ptr<::physical::DDLPlan>
 GDDLConverter::convertToRenameVertexTypeSchema(
     const planner::LogicalAlter& op) {
   const auto* info = op.getInfo();
-  if (info->alterType != kuzu::common::AlterType::RENAME ||
+  if (info->alterType != gs::common::AlterType::RENAME ||
       !checkEntryType(info->tableName,
-                      kuzu::catalog::CatalogEntryType::NODE_TABLE_ENTRY)) {
+                      gs::catalog::CatalogEntryType::NODE_TABLE_ENTRY)) {
     throw std::runtime_error(
         "Expected RENAME_TABLE alter type for vertex schema");
   }
@@ -518,9 +518,9 @@ GDDLConverter::convertToRenameVertexTypeSchema(
 std::unique_ptr<::physical::DDLPlan>
 GDDLConverter::convertToRenameEdgeTypeSchema(const planner::LogicalAlter& op) {
   const auto* info = op.getInfo();
-  if (info->alterType != kuzu::common::AlterType::RENAME ||
+  if (info->alterType != gs::common::AlterType::RENAME ||
       !checkEntryType(info->tableName,
-                      kuzu::catalog::CatalogEntryType::REL_TABLE_ENTRY)) {
+                      gs::catalog::CatalogEntryType::REL_TABLE_ENTRY)) {
     throw std::runtime_error(
         "Expected RENAME_TABLE alter type for edge schema");
   }
@@ -582,8 +582,8 @@ void GDDLConverter::getEdgeLabels(const std::string& labelName,
                                   std::vector<EdgeLabel>& edgeLabels) {
   checkCatalogInitialized();
 
-  const auto& transaction = kuzu::Constants::DEFAULT_TRANSACTION;
-  std::vector<kuzu::catalog::GRelTableCatalogEntry*> relTableEntries;
+  const auto& transaction = gs::Constants::DEFAULT_TRANSACTION;
+  std::vector<gs::catalog::GRelTableCatalogEntry*> relTableEntries;
 
   if (catalog->containsRelGroup(&transaction, labelName)) {
     auto* groupEntry = catalog->getRelGroupEntry(&transaction, labelName);
@@ -597,7 +597,7 @@ void GDDLConverter::getEdgeLabels(const std::string& labelName,
         throw std::runtime_error("Edge Table Entry Not found: " + tableId);
       }
       auto* edgeTableEntry =
-          static_cast<kuzu::catalog::GRelTableCatalogEntry*>(entry);
+          static_cast<gs::catalog::GRelTableCatalogEntry*>(entry);
       relTableEntries.push_back(edgeTableEntry);
     }
   } else {
@@ -607,7 +607,7 @@ void GDDLConverter::getEdgeLabels(const std::string& labelName,
       throw std::runtime_error("Edge table entry not found: " + labelName);
     }
     auto* edgeTableEntry =
-        static_cast<kuzu::catalog::GRelTableCatalogEntry*>(entry);
+        static_cast<gs::catalog::GRelTableCatalogEntry*>(entry);
     relTableEntries.push_back(edgeTableEntry);
   }
 
@@ -621,11 +621,11 @@ void GDDLConverter::getEdgeLabels(const std::string& labelName,
   }
 }
 
-std::string GDDLConverter::getVertexLabelName(kuzu::common::oid_t tableId) {
+std::string GDDLConverter::getVertexLabelName(gs::common::oid_t tableId) {
   checkCatalogInitialized();
 
   auto* entry = catalog->getTableCatalogEntry(
-      &kuzu::Constants::DEFAULT_TRANSACTION, tableId);
+      &gs::Constants::DEFAULT_TRANSACTION, tableId);
   if (!entry ||
       entry->getType() != catalog::CatalogEntryType::NODE_TABLE_ENTRY) {
     throw std::runtime_error("Node table entry not found for id: " +
@@ -639,7 +639,7 @@ bool GDDLConverter::checkEntryType(const std::string& labelName,
   checkCatalogInitialized();
 
   auto* entry = catalog->getTableCatalogEntry(
-      &kuzu::Constants::DEFAULT_TRANSACTION, labelName);
+      &gs::Constants::DEFAULT_TRANSACTION, labelName);
   if (!entry) {
     throw std::runtime_error("Catalog entry not found for label: " + labelName);
   }
@@ -647,4 +647,4 @@ bool GDDLConverter::checkEntryType(const std::string& labelName,
 }
 
 }  // namespace gopt
-}  // namespace kuzu
+}  // namespace gs

@@ -2,7 +2,7 @@
 
 #include <mutex>
 
-namespace kuzu {
+namespace gs {
 namespace common {
 
 struct UniqLock {
@@ -24,4 +24,4 @@ struct UniqLock {
 };
 
 }  // namespace common
-}  // namespace kuzu
+}  // namespace gs

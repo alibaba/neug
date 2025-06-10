@@ -4,7 +4,7 @@
 
 #include "unicode_casefold.h"
 
-namespace kuzu {
+namespace gs {
 namespace regex {
 
 // 1374 groups, 2778 pairs, 349 ranges
@@ -560,5 +560,5 @@ const CaseFold unicode_tolower[] = {
 };
 const int num_unicode_tolower = 194;
 
-} // namespace regex
-} // namespace kuzu
+}  // namespace regex
+}  // namespace gs

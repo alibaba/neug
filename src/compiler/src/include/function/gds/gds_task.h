@@ -8,7 +8,7 @@
 #include "function/gds/gds_frontier.h"
 #include "graph/graph.h"
 
-namespace kuzu {
+namespace gs {
 namespace function {
 
 struct FrontierTaskInfo {
@@ -117,4 +117,4 @@ class VertexComputeTask : public common::Task {
 };
 
 }  // namespace function
-}  // namespace kuzu
+}  // namespace gs

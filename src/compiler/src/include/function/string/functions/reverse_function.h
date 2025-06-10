@@ -4,7 +4,7 @@
 #include "common/types/ku_string.h"
 #include "common/vector/value_vector.h"
 
-namespace kuzu {
+namespace gs {
 namespace function {
 
 struct Reverse {
@@ -23,4 +23,4 @@ struct Reverse {
 };
 
 }  // namespace function
-}  // namespace kuzu
+}  // namespace gs

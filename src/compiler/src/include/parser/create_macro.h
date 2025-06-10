@@ -3,7 +3,7 @@
 #include "parser/expression/parsed_expression.h"
 #include "parser/statement.h"
 
-namespace kuzu {
+namespace gs {
 namespace parser {
 
 using default_macro_args =
@@ -41,4 +41,4 @@ class CreateMacro final : public Statement {
 };
 
 }  // namespace parser
-}  // namespace kuzu
+}  // namespace gs

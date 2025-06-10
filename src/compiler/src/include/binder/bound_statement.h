@@ -4,7 +4,7 @@
 #include "common/copy_constructors.h"
 #include "common/enums/statement_type.h"
 
-namespace kuzu {
+namespace gs {
 namespace binder {
 
 class BoundStatement {
@@ -40,4 +40,4 @@ class BoundStatement {
 };
 
 }  // namespace binder
-}  // namespace kuzu
+}  // namespace gs

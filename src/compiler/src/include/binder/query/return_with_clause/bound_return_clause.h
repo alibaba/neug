@@ -3,7 +3,7 @@
 #include "binder/bound_statement_result.h"
 #include "bound_projection_body.h"
 
-namespace kuzu {
+namespace gs {
 namespace binder {
 
 class BoundReturnClause {
@@ -31,4 +31,4 @@ class BoundReturnClause {
 };
 
 }  // namespace binder
-}  // namespace kuzu
+}  // namespace gs

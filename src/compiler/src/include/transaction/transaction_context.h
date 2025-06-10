@@ -4,7 +4,7 @@
 
 #include "transaction.h"
 
-namespace kuzu {
+namespace gs {
 
 namespace main {
 class ClientContext;
@@ -67,4 +67,4 @@ class KUZU_API TransactionContext {
 };
 
 }  // namespace transaction
-}  // namespace kuzu
+}  // namespace gs

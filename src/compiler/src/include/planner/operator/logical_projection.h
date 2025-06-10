@@ -4,7 +4,7 @@
 #include "binder/expression/expression_util.h"
 #include "planner/operator/logical_operator.h"
 
-namespace kuzu {
+namespace gs {
 namespace planner {
 
 class LogicalProjection : public LogicalOperator {
@@ -36,4 +36,4 @@ class LogicalProjection : public LogicalOperator {
 };
 
 }  // namespace planner
-}  // namespace kuzu
+}  // namespace gs

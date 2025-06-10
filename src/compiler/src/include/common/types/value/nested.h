@@ -4,7 +4,7 @@
 
 #include "common/api.h"
 
-namespace kuzu {
+namespace gs {
 namespace common {
 
 class Value;
@@ -17,4 +17,4 @@ class NestedVal {
 };
 
 }  // namespace common
-}  // namespace kuzu
+}  // namespace gs

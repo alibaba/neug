@@ -6,7 +6,7 @@
 #include <dlfcn.h>
 #endif
 
-namespace kuzu {
+namespace gs {
 namespace common {
 
 std::string dlErrMessage() {
@@ -36,4 +36,4 @@ std::string dlErrMessage() {
 }
 
 }  // namespace common
-}  // namespace kuzu
+}  // namespace gs

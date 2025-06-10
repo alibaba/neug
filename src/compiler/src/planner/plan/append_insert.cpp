@@ -6,10 +6,10 @@
 #include "planner/operator/persistent/logical_insert.h"
 #include "planner/planner.h"
 
-using namespace kuzu::common;
-using namespace kuzu::binder;
+using namespace gs::common;
+using namespace gs::binder;
 
-namespace kuzu {
+namespace gs {
 namespace planner {
 
 std::unique_ptr<LogicalInsertInfo> Planner::createLogicalInsertInfo(
@@ -97,4 +97,4 @@ void Planner::appendInsertRel(
   plan.setLastOperator(insertRel);
 }
 }  // namespace planner
-}  // namespace kuzu
+}  // namespace gs

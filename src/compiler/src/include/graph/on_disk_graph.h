@@ -19,7 +19,7 @@
 #include "storage/store/node_table.h"
 #include "storage/store/rel_table.h"
 
-namespace kuzu {
+namespace gs {
 namespace storage {
 class MemoryManager;
 }
@@ -142,4 +142,4 @@ class KUZU_API OnDiskGraph final : public Graph {
 };
 
 }  // namespace graph
-}  // namespace kuzu
+}  // namespace gs

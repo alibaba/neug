@@ -8,10 +8,10 @@
 #include "parser/expression/parsed_property_expression.h"
 #include "parser/query/return_with_clause/with_clause.h"
 
-using namespace kuzu::common;
-using namespace kuzu::parser;
+using namespace gs::common;
+using namespace gs::parser;
 
-namespace kuzu {
+namespace gs {
 namespace binder {
 
 void validateColumnNamesAreUnique(const std::vector<std::string>& columnNames) {
@@ -318,4 +318,4 @@ std::shared_ptr<Expression> Binder::bindSkipLimitExpression(
 }
 
 }  // namespace binder
-}  // namespace kuzu
+}  // namespace gs

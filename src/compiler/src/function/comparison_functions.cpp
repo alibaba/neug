@@ -3,9 +3,9 @@
 #include "common/types/int128_t.h"
 #include "common/types/interval_t.h"
 
-using namespace kuzu::common;
+using namespace gs::common;
 
-namespace kuzu {
+namespace gs {
 namespace function {
 
 template <typename OP>
@@ -237,4 +237,4 @@ void GreaterThan::operation(const struct_entry_t& left,
 }
 
 }  // namespace function
-}  // namespace kuzu
+}  // namespace gs

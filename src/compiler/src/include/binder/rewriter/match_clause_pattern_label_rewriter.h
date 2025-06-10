@@ -3,7 +3,7 @@
 #include "binder/bound_statement_visitor.h"
 #include "binder/query/query_graph_label_analyzer.h"
 
-namespace kuzu {
+namespace gs {
 namespace binder {
 
 class MatchClausePatternLabelRewriter final : public BoundStatementVisitor {
@@ -19,4 +19,4 @@ class MatchClausePatternLabelRewriter final : public BoundStatementVisitor {
 };
 
 }  // namespace binder
-}  // namespace kuzu
+}  // namespace gs

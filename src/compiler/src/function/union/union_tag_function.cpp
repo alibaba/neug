@@ -2,9 +2,9 @@
 #include "function/union/functions/union_tag.h"
 #include "function/union/vector_union_functions.h"
 
-using namespace kuzu::common;
+using namespace gs::common;
 
-namespace kuzu {
+namespace gs {
 namespace function {
 
 static std::unique_ptr<FunctionBindData> bindFunc(
@@ -26,4 +26,4 @@ function_set UnionTagFunction::getFunctionSet() {
 }
 
 }  // namespace function
-}  // namespace kuzu
+}  // namespace gs

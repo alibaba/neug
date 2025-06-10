@@ -2,11 +2,11 @@
 
 #include "function/gds/gds_utils.h"
 
-using namespace kuzu::common;
-using namespace kuzu::graph;
-using namespace kuzu::processor;
+using namespace gs::common;
+using namespace gs::graph;
+using namespace gs::processor;
 
-namespace kuzu {
+namespace gs {
 namespace function {
 
 void SparseFrontier::pinTableID(table_id_t tableID) {
@@ -408,4 +408,4 @@ bool SPEdgeCompute::terminate(NodeOffsetMaskMap& maskMap) {
 }
 
 }  // namespace function
-}  // namespace kuzu
+}  // namespace gs

@@ -22,12 +22,12 @@
 #include "main/db_config.h"
 #include "transaction/transaction.h"
 
-using namespace kuzu::binder;
-using namespace kuzu::common;
-using namespace kuzu::storage;
-using namespace kuzu::transaction;
+using namespace gs::binder;
+using namespace gs::common;
+using namespace gs::storage;
+using namespace gs::transaction;
 
-namespace kuzu {
+namespace gs {
 namespace catalog {
 
 Catalog::Catalog() : version{0} {
@@ -611,4 +611,4 @@ void Catalog::dropSerialSequence(Transaction* transaction,
 }
 
 }  // namespace catalog
-}  // namespace kuzu
+}  // namespace gs

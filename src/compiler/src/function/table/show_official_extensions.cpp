@@ -4,11 +4,11 @@
 #include "function/table/bind_input.h"
 #include "function/table/simple_table_function.h"
 
-using namespace kuzu::catalog;
-using namespace kuzu::common;
-using namespace kuzu::main;
+using namespace gs::catalog;
+using namespace gs::common;
+using namespace gs::main;
 
-namespace kuzu {
+namespace gs {
 namespace function {
 
 static constexpr std::pair<std::string_view, std::string_view> extensions[] = {
@@ -65,4 +65,4 @@ function_set ShowOfficialExtensionsFunction::getFunctionSet() {
 }
 
 }  // namespace function
-}  // namespace kuzu
+}  // namespace gs

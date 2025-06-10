@@ -6,6 +6,7 @@
 #include "binder/expression/expression.h"
 #include "binder/expression/literal_expression.h"
 #include "binder/expression/property_expression.h"
+#include "binder/expression/rel_expression.h"
 #include "binder/expression/variable_expression.h"
 #include "common/enums/expression_type.h"
 #include "common/exception/exception.h"
@@ -13,16 +14,16 @@
 #include "common/types/value/value.h"
 #include "src/proto_generated_gie/common.pb.h"
 #include "src/proto_generated_gie/expr.pb.h"
-#include "binder/expression/rel_expression.h"
 
-namespace kuzu {
+namespace gs {
 namespace gopt {
 
 std::unique_ptr<::common::Expression> GExprConverter::convert(
     const binder::Expression& expr) {
   switch (expr.expressionType) {
   case common::ExpressionType::LITERAL:
-    return convertLiteral(static_cast<const binder::LiteralExpression&>(expr)); // todo: add literal data type
+    return convertLiteral(static_cast<const binder::LiteralExpression&>(
+        expr));  // todo: add literal data type
   case common::ExpressionType::PROPERTY:
     return convertProperty(
         static_cast<const binder::PropertyExpression&>(expr));
@@ -62,17 +63,17 @@ std::unique_ptr<::common::Expression> GExprConverter::convertPattern(
   variable->set_allocated_tag(aliasPB.release());
   std::unique_ptr<::common::IrDataType> varType;
   switch (expr.getDataType().getLogicalTypeID()) {
-    case common::LogicalTypeID::NODE: {
-      auto &nodeExpr = expr.constCast<binder::NodeExpression>();
-      varType = typeConverter.convertNodeType(gopt::GNodeType(nodeExpr));
-      break;
-    }
-    case common::LogicalTypeID::REL:
-    default: {
-      auto &relExpr = expr.constCast<binder::RelExpression>();
-      varType = typeConverter.convertRelType(gopt::GRelType(relExpr));
-      break;
-    }
+  case common::LogicalTypeID::NODE: {
+    auto& nodeExpr = expr.constCast<binder::NodeExpression>();
+    varType = typeConverter.convertNodeType(gopt::GNodeType(nodeExpr));
+    break;
+  }
+  case common::LogicalTypeID::REL:
+  default: {
+    auto& relExpr = expr.constCast<binder::RelExpression>();
+    varType = typeConverter.convertRelType(gopt::GRelType(relExpr));
+    break;
+  }
   }
   auto exprType = std::make_unique<::common::IrDataType>();
   exprType->CopyFrom(*varType);
@@ -134,7 +135,7 @@ std::unique_ptr<::algebra::IndexPredicate> GExprConverter::convertPrimaryKey(
 }
 
 std::unique_ptr<::common::Value> GExprConverter::convertValue(
-    kuzu::common::Value value) {
+    gs::common::Value value) {
   std::unique_ptr<::common::Value> valuePB =
       std::make_unique<::common::Value>();
   switch (value.getDataType().getLogicalTypeID()) {
@@ -214,8 +215,7 @@ std::unique_ptr<::common::Expression> GExprConverter::convertVariable(
   auto varType = typeConverter.convertLogicalType(expr.dataType);
   auto exprType = std::make_unique<::common::IrDataType>();
   exprType->CopyFrom(*varType);
-  variable->set_allocated_node_type(
-      varType.release());
+  variable->set_allocated_node_type(varType.release());
   opr->set_allocated_var(variable.release());
   opr->set_allocated_node_type(exprType.release());
   return result;
@@ -265,4 +265,4 @@ std::unique_ptr<::common::Expression> GExprConverter::convertAnd(
   return result;
 }
 }  // namespace gopt
-}  // namespace kuzu
+}  // namespace gs

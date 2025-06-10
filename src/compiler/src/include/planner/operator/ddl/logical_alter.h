@@ -3,7 +3,7 @@
 #include "binder/ddl/bound_alter_info.h"
 #include "planner/operator/simple/logical_simple.h"
 
-namespace kuzu {
+namespace gs {
 namespace planner {
 
 struct LogicalAlterPrintInfo final : OPPrintInfo {
@@ -51,4 +51,4 @@ class LogicalAlter final : public LogicalSimple {
 };
 
 }  // namespace planner
-}  // namespace kuzu
+}  // namespace gs

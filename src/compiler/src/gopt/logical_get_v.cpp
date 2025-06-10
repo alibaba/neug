@@ -4,10 +4,10 @@
 #include "common/exception/exception.h"
 #include "planner/operator/logical_operator.h"
 
-namespace kuzu {
+namespace gs {
 namespace gopt {
 
 // Implementation is in header file
 
 }  // namespace gopt
-}  // namespace kuzu
+}  // namespace gs

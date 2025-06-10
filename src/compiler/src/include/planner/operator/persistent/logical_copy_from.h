@@ -4,7 +4,7 @@
 #include "catalog/catalog_entry/table_catalog_entry.h"
 #include "planner/operator/logical_operator.h"
 
-namespace kuzu {
+namespace gs {
 namespace planner {
 
 struct LogicalCopyFromPrintInfo final : OPPrintInfo {
@@ -78,4 +78,4 @@ class LogicalCopyFrom final : public LogicalOperator {
 };
 
 }  // namespace planner
-}  // namespace kuzu
+}  // namespace gs

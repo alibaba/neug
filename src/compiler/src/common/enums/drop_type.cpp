@@ -2,7 +2,7 @@
 
 #include "common/assert.h"
 
-namespace kuzu {
+namespace gs {
 namespace common {
 
 std::string DropTypeUtils::toString(DropType type) {
@@ -17,4 +17,4 @@ std::string DropTypeUtils::toString(DropType type) {
 }
 
 }  // namespace common
-}  // namespace kuzu
+}  // namespace gs

@@ -3,10 +3,10 @@
 #include "extension/extension_action.h"
 #include "statement.h"
 
-namespace kuzu {
+namespace gs {
 namespace parser {
 
-using namespace kuzu::extension;
+using namespace gs::extension;
 
 class ExtensionStatement final : public Statement {
  public:
@@ -20,4 +20,4 @@ class ExtensionStatement final : public Statement {
 };
 
 }  // namespace parser
-}  // namespace kuzu
+}  // namespace gs

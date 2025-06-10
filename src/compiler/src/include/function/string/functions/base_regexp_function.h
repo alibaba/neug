@@ -4,7 +4,7 @@
 
 #include "common/vector/value_vector.h"
 
-namespace kuzu {
+namespace gs {
 namespace function {
 
 struct BaseRegexpOperation {
@@ -24,4 +24,4 @@ struct BaseRegexpOperation {
 };
 
 }  // namespace function
-}  // namespace kuzu
+}  // namespace gs

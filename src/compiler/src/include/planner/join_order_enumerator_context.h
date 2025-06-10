@@ -3,7 +3,7 @@
 #include "planner/operator/logical_plan.h"
 #include "planner/subplans_table.h"
 
-namespace kuzu {
+namespace gs {
 namespace planner {
 
 class JoinOrderEnumeratorContext {
@@ -56,4 +56,4 @@ class JoinOrderEnumeratorContext {
 };
 
 }  // namespace planner
-}  // namespace kuzu
+}  // namespace gs

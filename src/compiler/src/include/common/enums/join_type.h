@@ -2,7 +2,7 @@
 
 #include <cstdint>
 
-namespace kuzu {
+namespace gs {
 namespace common {
 
 enum class JoinType : uint8_t {
@@ -13,4 +13,4 @@ enum class JoinType : uint8_t {
 };
 
 }  // namespace common
-}  // namespace kuzu
+}  // namespace gs

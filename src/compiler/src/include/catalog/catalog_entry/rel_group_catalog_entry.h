@@ -2,7 +2,7 @@
 
 #include "table_catalog_entry.h"
 
-namespace kuzu {
+namespace gs {
 namespace catalog {
 
 struct RelGroupToCypherInfo : public ToCypherInfo {
@@ -65,4 +65,4 @@ class RelGroupCatalogEntry final : public CatalogEntry {
 };
 
 }  // namespace catalog
-}  // namespace kuzu
+}  // namespace gs

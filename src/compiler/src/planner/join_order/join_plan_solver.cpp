@@ -2,10 +2,10 @@
 
 #include "common/enums/extend_direction.h"
 
-using namespace kuzu::binder;
-using namespace kuzu::common;
+using namespace gs::binder;
+using namespace gs::common;
 
-namespace kuzu {
+namespace gs {
 namespace planner {
 
 LogicalPlan JoinPlanSolver::solve(const JoinTree& joinTree) {
@@ -159,4 +159,4 @@ LogicalPlan JoinPlanSolver::solveMultiwayJoinTreeNode(
 }
 
 }  // namespace planner
-}  // namespace kuzu
+}  // namespace gs

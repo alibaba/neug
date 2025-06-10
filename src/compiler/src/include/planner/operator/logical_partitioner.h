@@ -3,7 +3,7 @@
 #include "binder/copy/bound_copy_from.h"
 #include "planner/operator/logical_operator.h"
 
-namespace kuzu {
+namespace gs {
 namespace planner {
 
 struct LogicalPartitioningInfo {
@@ -76,4 +76,4 @@ class LogicalPartitioner final : public LogicalOperator {
 };
 
 }  // namespace planner
-}  // namespace kuzu
+}  // namespace gs

@@ -3,9 +3,9 @@
 #include "common/exception/runtime.h"
 #include "function/null/null_functions.h"
 
-using namespace kuzu::common;
+using namespace gs::common;
 
-namespace kuzu {
+namespace gs {
 namespace function {
 
 void VectorNullFunction::bindExecFunction(
@@ -50,4 +50,4 @@ void VectorNullFunction::bindSelectFunction(
 }
 
 }  // namespace function
-}  // namespace kuzu
+}  // namespace gs

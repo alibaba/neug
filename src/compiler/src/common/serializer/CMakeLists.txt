@@ -1,4 +1,4 @@
-add_library(kuzu_common_serializer
+add_library(nexg_common_serializer
         OBJECT
         serializer.cpp
         deserializer.cpp
@@ -6,5 +6,5 @@ add_library(kuzu_common_serializer
         buffered_serializer.cpp)
 
 set(ALL_OBJECT_FILES
-        ${ALL_OBJECT_FILES} $<TARGET_OBJECTS:kuzu_common_serializer>
+        ${ALL_OBJECT_FILES} $<TARGET_OBJECTS:nexg_common_serializer>
         PARENT_SCOPE)

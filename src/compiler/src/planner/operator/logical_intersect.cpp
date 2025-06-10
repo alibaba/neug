@@ -1,6 +1,6 @@
 #include "planner/operator/logical_intersect.h"
 
-namespace kuzu {
+namespace gs {
 namespace planner {
 
 f_group_pos_set LogicalIntersect::getGroupsPosToFlattenOnProbeSide() {
@@ -72,4 +72,4 @@ std::unique_ptr<LogicalOperator> LogicalIntersect::copy() {
 }
 
 }  // namespace planner
-}  // namespace kuzu
+}  // namespace gs

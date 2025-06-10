@@ -11,7 +11,7 @@
 #include "common/types/ku_string.h"
 #include "common/vector/auxiliary_buffer.h"
 
-namespace kuzu {
+namespace gs {
 namespace common {
 
 class Value;
@@ -186,7 +186,7 @@ class KUZU_API StringVector {
                         ku_string_t& srcStr);
   static void addString(ValueVector* vector, ku_string_t& dstStr,
                         const char* srcStr, uint64_t length);
-  static void addString(kuzu::common::ValueVector* vector, ku_string_t& dstStr,
+  static void addString(gs::common::ValueVector* vector, ku_string_t& dstStr,
                         const std::string& srcStr);
   static void copyToRowData(const ValueVector* vector, uint32_t pos,
                             uint8_t* rowData,
@@ -203,7 +203,7 @@ struct KUZU_API BlobVector {
     StringVector::addString(vector, pos, reinterpret_cast<const char*>(data),
                             length);
   }
-};  // namespace kuzu
+};  // namespace gs
 
 // ListVector is used for both LIST and ARRAY physical type
 class KUZU_API ListVector {
@@ -389,4 +389,4 @@ class MapVector {
 };
 
 }  // namespace common
-}  // namespace kuzu
+}  // namespace gs

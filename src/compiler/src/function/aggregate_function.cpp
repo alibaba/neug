@@ -4,10 +4,10 @@
 #include "function/aggregate/avg.h"
 #include "function/aggregate/sum.h"
 
-using namespace kuzu::common;
-using namespace kuzu::function;
+using namespace gs::common;
+using namespace gs::function;
 
-namespace kuzu {
+namespace gs {
 namespace function {
 
 AggregateFunction::AggregateFunction(const AggregateFunction& other)
@@ -56,4 +56,4 @@ void AggregateFunctionUtils::appendSumOrAvgFuncs(
 }
 
 }  // namespace function
-}  // namespace kuzu
+}  // namespace gs

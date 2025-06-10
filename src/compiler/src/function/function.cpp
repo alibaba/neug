@@ -2,10 +2,10 @@
 
 #include "binder/expression/expression_util.h"
 
-using namespace kuzu::binder;
-using namespace kuzu::common;
+using namespace gs::binder;
+using namespace gs::common;
 
-namespace kuzu {
+namespace gs {
 namespace function {
 
 std::unique_ptr<FunctionBindData> FunctionBindData::getSimpleBindData(
@@ -16,4 +16,4 @@ std::unique_ptr<FunctionBindData> FunctionBindData::getSimpleBindData(
 }
 
 }  // namespace function
-}  // namespace kuzu
+}  // namespace gs

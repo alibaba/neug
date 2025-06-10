@@ -8,7 +8,7 @@
 #include "common/types/value/value.h"
 #include "parser/query/reading_clause/yield_variable.h"
 
-namespace kuzu {
+namespace gs {
 namespace binder {
 class LiteralExpression;
 class Binder;
@@ -64,4 +64,4 @@ struct KUZU_API ExtraScanTableFuncBindInput : ExtraTableFuncBindInput {
 };
 
 }  // namespace function
-}  // namespace kuzu
+}  // namespace gs

@@ -1,8 +1,8 @@
 #include "planner/operator/persistent/logical_copy_from.h"
 
-using namespace kuzu::common;
+using namespace gs::common;
 
-namespace kuzu {
+namespace gs {
 namespace planner {
 
 void LogicalCopyFrom::computeFactorizedSchema() {
@@ -22,4 +22,4 @@ void LogicalCopyFrom::computeFlatSchema() {
 }
 
 }  // namespace planner
-}  // namespace kuzu
+}  // namespace gs

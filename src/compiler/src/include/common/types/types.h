@@ -12,7 +12,7 @@
 #include "src/compiler/src/include/common/copy_constructors.h"
 #include "src/compiler/src/include/common/types/interval_t.h"
 
-namespace kuzu {
+namespace gs {
 namespace main {
 class ClientContext;
 }
@@ -154,9 +154,9 @@ concept ComparableTypes =
     std::is_same_v<T, interval_t> || std::is_same_v<T, bool>;
 
 template <typename T>
-concept HashablePrimitive = ((std::integral<T> && !std::is_same_v<T, bool>) ||
-                             std::floating_point<T> ||
-                             std::is_same_v<T, int128_t>);
+concept HashablePrimitive =
+    ((std::integral<T> && !std::is_same_v<T, bool>) || std::floating_point<T> ||
+     std::is_same_v<T, int128_t>);
 template <typename T>
 concept IndexHashable =
     ((std::integral<T> && !std::is_same_v<T, bool>) || std::floating_point<T> ||
@@ -164,15 +164,14 @@ concept IndexHashable =
      std::is_same_v<T, std::string_view> || std::same_as<T, std::string>);
 
 template <typename T>
-concept HashableNonNestedTypes = (std::integral<T> || std::floating_point<T> ||
-                                  std::is_same_v<T, int128_t> ||
-                                  std::is_same_v<T, internalID_t> ||
-                                  std::is_same_v<T, interval_t> ||
-                                  std::is_same_v<T, ku_string_t>);
+concept HashableNonNestedTypes =
+    (std::integral<T> || std::floating_point<T> ||
+     std::is_same_v<T, int128_t> || std::is_same_v<T, internalID_t> ||
+     std::is_same_v<T, interval_t> || std::is_same_v<T, ku_string_t>);
 
 template <typename T>
-concept HashableNestedTypes = (std::is_same_v<T, list_entry_t> ||
-                               std::is_same_v<T, struct_entry_t>);
+concept HashableNestedTypes =
+    (std::is_same_v<T, list_entry_t> || std::is_same_v<T, struct_entry_t>);
 
 template <typename T>
 concept HashableTypes = (HashableNestedTypes<T> || HashableNonNestedTypes<T>);
@@ -383,7 +382,7 @@ class LogicalType {
  private:
   friend struct CAPIHelper;
   friend struct JavaAPIHelper;
-  friend class kuzu::processor::ParquetReader;
+  friend class gs::processor::ParquetReader;
   explicit LogicalType(LogicalTypeID typeID,
                        std::unique_ptr<ExtraTypeInfo> extraTypeInfo);
 
@@ -685,4 +684,4 @@ struct KUZU_API LogicalTypeUtils {
 enum class FileVersionType : uint8_t { ORIGINAL = 0, WAL_VERSION = 1 };
 
 }  // namespace common
-}  // namespace kuzu
+}  // namespace gs

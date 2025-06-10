@@ -3,7 +3,7 @@
 #include <memory>
 #include <string>
 
-namespace kuzu {
+namespace gs {
 
 struct OPPrintInfo {
   OPPrintInfo() {}
@@ -16,4 +16,4 @@ struct OPPrintInfo {
   }
 };
 
-}  // namespace kuzu
+}  // namespace gs

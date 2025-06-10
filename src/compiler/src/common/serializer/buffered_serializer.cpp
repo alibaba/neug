@@ -2,7 +2,7 @@
 
 #include <cstring>
 
-namespace kuzu {
+namespace gs {
 namespace common {
 
 BufferedSerializer::BufferedSerializer(uint64_t maximumSize)
@@ -32,4 +32,4 @@ void BufferedSerializer::write(const uint8_t* buffer, uint64_t len) {
 }
 
 }  // namespace common
-}  // namespace kuzu
+}  // namespace gs

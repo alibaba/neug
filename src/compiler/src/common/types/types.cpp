@@ -19,9 +19,9 @@
 #include "function/cast/functions/numeric_limits.h"
 #include "main/client_context.h"
 
-using kuzu::function::BuiltInFunctionsUtils;
+using gs::function::BuiltInFunctionsUtils;
 
-namespace kuzu {
+namespace gs {
 namespace common {
 
 internalID_t::internalID_t()
@@ -83,7 +83,7 @@ std::string DecimalType::insertDecimalPoint(const std::string& value,
   return retval;
 }
 
-bool UDTTypeInfo::operator==(const kuzu::common::ExtraTypeInfo& other) const {
+bool UDTTypeInfo::operator==(const gs::common::ExtraTypeInfo& other) const {
   return typeName == other.constPtrCast<UDTTypeInfo>()->typeName;
 }
 
@@ -114,8 +114,7 @@ uint32_t DecimalType::getScale(const LogicalType& type) {
   return decimalTypeInfo->getScale();
 }
 
-const LogicalType& ListType::getChildType(
-    const kuzu::common::LogicalType& type) {
+const LogicalType& ListType::getChildType(const gs::common::LogicalType& type) {
   KU_ASSERT(type.getPhysicalType() == PhysicalTypeID::LIST ||
             type.getPhysicalType() == PhysicalTypeID::ARRAY);
   auto listTypeInfo = type.extraTypeInfo->constPtrCast<ListTypeInfo>();
@@ -467,7 +466,7 @@ const StructField& StructTypeInfo::getStructField(
 }
 
 const LogicalType& StructTypeInfo::getChildType(
-    kuzu::common::struct_field_idx_t idx) const {
+    gs::common::struct_field_idx_t idx) const {
   return fields[idx].getType();
 }
 
@@ -1205,7 +1204,7 @@ bool LogicalTypeUtils::isNested(const LogicalType& dataType) {
   return isNested(dataType.typeID);
 }
 
-bool LogicalTypeUtils::isNested(kuzu::common::LogicalTypeID logicalTypeID) {
+bool LogicalTypeUtils::isNested(gs::common::LogicalTypeID logicalTypeID) {
   switch (logicalTypeID) {
   case LogicalTypeID::STRUCT:
   case LogicalTypeID::LIST:
@@ -1983,4 +1982,4 @@ LogicalType LogicalTypeUtils::purgeAny(const LogicalType& type,
 }
 
 }  // namespace common
-}  // namespace kuzu
+}  // namespace gs

@@ -3,7 +3,7 @@
 #include "binder/ddl/property_definition.h"
 #include "common/case_insensitive_map.h"
 
-namespace kuzu {
+namespace gs {
 namespace catalog {
 
 class KUZU_API PropertyDefinitionCollection {
@@ -56,4 +56,4 @@ class KUZU_API PropertyDefinitionCollection {
 };
 
 }  // namespace catalog
-}  // namespace kuzu
+}  // namespace gs

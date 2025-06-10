@@ -3,7 +3,7 @@
 #include "common/cast.h"
 #include "common/types/types.h"
 
-namespace kuzu {
+namespace gs {
 namespace graph {
 class Graph;
 }
@@ -46,4 +46,4 @@ class EmptyGDSAuxiliaryState : public GDSAuxiliaryState {
 };
 
 }  // namespace function
-}  // namespace kuzu
+}  // namespace gs

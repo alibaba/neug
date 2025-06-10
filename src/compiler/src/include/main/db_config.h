@@ -4,7 +4,7 @@
 
 #include "common/types/value/value.h"
 
-namespace kuzu {
+namespace gs {
 namespace common {
 class Value;
 enum class LogicalTypeID : uint8_t;
@@ -78,4 +78,4 @@ struct DBConfig {
 };
 
 }  // namespace main
-}  // namespace kuzu
+}  // namespace gs

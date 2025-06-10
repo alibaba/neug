@@ -4,7 +4,7 @@
 #include "logical_operator.h"
 #include "planner/operator/sip/side_way_info_passing.h"
 
-namespace kuzu {
+namespace gs {
 namespace planner {
 
 // We only support equality comparison as join condition
@@ -76,4 +76,4 @@ class KUZU_API LogicalHashJoin final : public LogicalOperator {
 };
 
 }  // namespace planner
-}  // namespace kuzu
+}  // namespace gs

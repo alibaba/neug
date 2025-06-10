@@ -1,7 +1,7 @@
 #include "parser/create_macro.h"
 #include "parser/transformer.h"
 
-namespace kuzu {
+namespace gs {
 namespace parser {
 
 std::vector<std::string> Transformer::transformPositionalArgs(
@@ -33,4 +33,4 @@ std::unique_ptr<Statement> Transformer::transformCreateMacro(
 }
 
 }  // namespace parser
-}  // namespace kuzu
+}  // namespace gs

@@ -3,7 +3,7 @@
 #include "catalog_entry.h"
 #include "function/scalar_macro_function.h"
 
-namespace kuzu {
+namespace gs {
 namespace catalog {
 
 class ScalarMacroCatalogEntry final : public CatalogEntry {
@@ -36,4 +36,4 @@ class ScalarMacroCatalogEntry final : public CatalogEntry {
 };
 
 }  // namespace catalog
-}  // namespace kuzu
+}  // namespace gs

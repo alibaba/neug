@@ -3,10 +3,10 @@
 #include "function/gds/rj_output_writer.h"
 #include "main/client_context.h"
 
-using namespace kuzu::common;
-using namespace kuzu::processor;
+using namespace gs::common;
+using namespace gs::processor;
 
-namespace kuzu {
+namespace gs {
 namespace function {
 
 RJOutputWriter::RJOutputWriter(main::ClientContext* context,
@@ -256,4 +256,4 @@ void PathsOutputWriter::addNode(nodeID_t nodeID, sel_t pos) const {
 }
 
 }  // namespace function
-}  // namespace kuzu
+}  // namespace gs

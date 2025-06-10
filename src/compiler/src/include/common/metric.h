@@ -2,7 +2,7 @@
 
 #include "common/timer.h"
 
-namespace kuzu {
+namespace gs {
 namespace common {
 
 /**
@@ -46,4 +46,4 @@ class NumericMetric : public Metric {
 };
 
 }  // namespace common
-}  // namespace kuzu
+}  // namespace gs

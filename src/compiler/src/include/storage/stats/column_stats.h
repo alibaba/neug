@@ -7,7 +7,7 @@
 #include "common/vector/value_vector.h"
 #include "storage/stats/hyperloglog.h"
 
-namespace kuzu {
+namespace gs {
 namespace storage {
 
 class ColumnStats {
@@ -61,4 +61,4 @@ class ColumnStats {
 };
 
 }  // namespace storage
-}  // namespace kuzu
+}  // namespace gs

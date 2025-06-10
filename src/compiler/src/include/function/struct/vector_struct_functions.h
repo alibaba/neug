@@ -3,7 +3,7 @@
 #include "common/vector/value_vector.h"
 #include "function/function.h"
 
-namespace kuzu {
+namespace gs {
 namespace function {
 
 struct StructPackFunctions {
@@ -61,4 +61,4 @@ struct KeysFunctions {
 };
 
 }  // namespace function
-}  // namespace kuzu
+}  // namespace gs

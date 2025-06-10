@@ -4,7 +4,7 @@
 #include "gds_object_manager.h"
 #include "graph/graph.h"
 
-namespace kuzu {
+namespace gs {
 namespace storage {
 class MemoryManager;
 }
@@ -205,4 +205,4 @@ class BFSGraphManager {
 };
 
 }  // namespace function
-}  // namespace kuzu
+}  // namespace gs

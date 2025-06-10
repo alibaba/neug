@@ -8,7 +8,7 @@
 #include "common/types/cast_helpers.h"
 #include "common/types/date_t.h"
 
-namespace kuzu {
+namespace gs {
 namespace common {
 
 static_assert(sizeof(dtime_t) == sizeof(int64_t), "dtime_t was padded");
@@ -226,4 +226,4 @@ void Time::convert(dtime_t dtime, int32_t& hour, int32_t& min, int32_t& sec,
 }
 
 }  // namespace common
-}  // namespace kuzu
+}  // namespace gs

@@ -7,7 +7,7 @@
 #include <span>
 #include "common/types/types.h"
 
-namespace kuzu {
+namespace gs {
 namespace common {
 
 class ValueVector;
@@ -180,4 +180,4 @@ class SelectionVector : public SelectionView {
 };
 
 }  // namespace common
-}  // namespace kuzu
+}  // namespace gs

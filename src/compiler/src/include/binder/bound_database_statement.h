@@ -2,7 +2,7 @@
 
 #include "binder/bound_statement.h"
 
-namespace kuzu {
+namespace gs {
 namespace binder {
 
 class BoundDatabaseStatement : public BoundStatement {
@@ -20,4 +20,4 @@ class BoundDatabaseStatement : public BoundStatement {
 };
 
 }  // namespace binder
-}  // namespace kuzu
+}  // namespace gs

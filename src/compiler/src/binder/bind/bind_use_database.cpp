@@ -2,7 +2,7 @@
 #include "binder/bound_use_database.h"
 #include "parser/use_database.h"
 
-namespace kuzu {
+namespace gs {
 namespace binder {
 
 std::unique_ptr<BoundStatement> Binder::bindUseDatabase(
@@ -12,4 +12,4 @@ std::unique_ptr<BoundStatement> Binder::bindUseDatabase(
 }
 
 }  // namespace binder
-}  // namespace kuzu
+}  // namespace gs

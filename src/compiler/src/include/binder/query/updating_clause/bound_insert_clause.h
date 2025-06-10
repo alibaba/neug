@@ -3,7 +3,7 @@
 #include "bound_insert_info.h"
 #include "bound_updating_clause.h"
 
-namespace kuzu {
+namespace gs {
 namespace binder {
 
 class BoundInsertClause final : public BoundUpdatingClause {
@@ -46,4 +46,4 @@ class BoundInsertClause final : public BoundUpdatingClause {
 };
 
 }  // namespace binder
-}  // namespace kuzu
+}  // namespace gs

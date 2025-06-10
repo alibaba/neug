@@ -1,11 +1,11 @@
 #include "function/aggregate_function.h"
 
-using namespace kuzu::binder;
-using namespace kuzu::common;
-using namespace kuzu::storage;
-using namespace kuzu::processor;
+using namespace gs::binder;
+using namespace gs::common;
+using namespace gs::storage;
+using namespace gs::processor;
 
-namespace kuzu {
+namespace gs {
 namespace function {
 
 struct CollectState : public AggregateState {
@@ -69,4 +69,4 @@ function_set CollectFunction::getFunctionSet() {
 }
 
 }  // namespace function
-}  // namespace kuzu
+}  // namespace gs

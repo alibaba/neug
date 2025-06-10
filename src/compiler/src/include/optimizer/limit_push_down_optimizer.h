@@ -2,7 +2,7 @@
 
 #include "planner/operator/logical_plan.h"
 
-namespace kuzu {
+namespace gs {
 namespace optimizer {
 
 class LimitPushDownOptimizer {
@@ -21,4 +21,4 @@ class LimitPushDownOptimizer {
 };
 
 }  // namespace optimizer
-}  // namespace kuzu
+}  // namespace gs

@@ -3,7 +3,7 @@
 #include "common/vector/value_vector.h"
 #include "function/function.h"
 
-namespace kuzu {
+namespace gs {
 namespace function {
 
 struct ListCreationFunction {
@@ -219,4 +219,4 @@ struct ListHasAllFunction {
 };
 
 }  // namespace function
-}  // namespace kuzu
+}  // namespace gs

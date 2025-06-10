@@ -2,7 +2,7 @@
 
 #include "common/data_chunk/sel_vector.h"
 
-namespace kuzu {
+namespace gs {
 namespace common {
 
 // F stands for Factorization
@@ -46,4 +46,4 @@ class KUZU_API DataChunkState {
 };
 
 }  // namespace common
-}  // namespace kuzu
+}  // namespace gs

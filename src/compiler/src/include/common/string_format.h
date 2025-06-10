@@ -6,7 +6,7 @@
 
 #include "common/exception/internal.h"
 
-namespace kuzu {
+namespace gs {
 namespace common {
 
 namespace string_format_detail {
@@ -103,4 +103,4 @@ inline std::string stringFormat(std::string_view format, Args... args) {
 }
 
 }  // namespace common
-}  // namespace kuzu
+}  // namespace gs

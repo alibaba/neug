@@ -19,10 +19,10 @@
 #include "planner/operator/scan/logical_scan_node_table.h"
 #include "planner/planner.h"
 
-using namespace kuzu::binder;
-using namespace kuzu::common;
+using namespace gs::binder;
+using namespace gs::common;
 
-namespace kuzu {
+namespace gs {
 namespace planner {
 
 std::unique_ptr<LogicalPlan> Planner::planQueryGraphCollection(
@@ -755,4 +755,4 @@ expression_vector Planner::getNewlyMatchedExprs(
 }
 
 }  // namespace planner
-}  // namespace kuzu
+}  // namespace gs

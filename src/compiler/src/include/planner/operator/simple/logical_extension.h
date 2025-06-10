@@ -3,10 +3,10 @@
 #include "extension/extension_action.h"
 #include "logical_simple.h"
 
-namespace kuzu {
+namespace gs {
 namespace planner {
 
-using namespace kuzu::extension;
+using namespace gs::extension;
 
 class LogicalExtension final : public LogicalSimple {
  public:
@@ -31,4 +31,4 @@ class LogicalExtension final : public LogicalSimple {
 };
 
 }  // namespace planner
-}  // namespace kuzu
+}  // namespace gs

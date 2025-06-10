@@ -3,7 +3,7 @@
 #include "common/mask.h"
 #include "third_party/roaring_bitmap/roaring.hh"
 
-namespace kuzu {
+namespace gs {
 namespace common {
 
 class Roaring32BitmapSemiMask final : public SemiMask {
@@ -56,4 +56,4 @@ class Roaring64BitmapSemiMask final : public SemiMask {
 };
 
 }  // namespace common
-}  // namespace kuzu
+}  // namespace gs

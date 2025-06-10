@@ -3,10 +3,10 @@
 #include "bound_statement.h"
 #include "extension/extension_action.h"
 
-namespace kuzu {
+namespace gs {
 namespace binder {
 
-using namespace kuzu::extension;
+using namespace gs::extension;
 
 class BoundExtensionStatement final : public BoundStatement {
  public:
@@ -22,4 +22,4 @@ class BoundExtensionStatement final : public BoundStatement {
 };
 
 }  // namespace binder
-}  // namespace kuzu
+}  // namespace gs

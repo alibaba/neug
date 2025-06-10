@@ -15,7 +15,7 @@
 #include <dlfcn.h>
 #endif
 
-namespace kuzu {
+namespace gs {
 namespace extension {
 
 std::string getOS() {
@@ -70,7 +70,7 @@ static ExtensionRepoInfo getExtensionFilePath(const std::string& extensionName,
                                               const std::string& fileName) {
   auto extensionURL = common::stringFormat(
       extensionRepo + ExtensionUtils::EXTENSION_FILE_REPO_PATH,
-      KUZU_EXTENSION_VERSION, getPlatform(), extensionName, fileName);
+      NEXG_EXTENSION_VERSION, getPlatform(), extensionName, fileName);
   return getExtensionRepoInfo(extensionURL);
 }
 
@@ -98,7 +98,7 @@ ExtensionRepoInfo ExtensionUtils::getSharedLibRepoInfo(
     const std::string& fileName, const std::string& extensionRepo) {
   auto extensionURL =
       common::stringFormat(extensionRepo + SHARED_LIB_REPO,
-                           KUZU_EXTENSION_VERSION, getPlatform(), fileName);
+                           NEXG_EXTENSION_VERSION, getPlatform(), fileName);
   return getExtensionRepoInfo(extensionURL);
 }
 
@@ -235,4 +235,4 @@ void* dlsym(void* handle, const char* name) {
 #endif
 
 }  // namespace extension
-}  // namespace kuzu
+}  // namespace gs

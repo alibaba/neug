@@ -16,14 +16,14 @@
 #include "processor/result/result_set.h"
 #include "storage/storage_manager.h"
 
-using namespace kuzu::catalog;
-using namespace kuzu::storage;
-using namespace kuzu::main;
-using namespace kuzu::common;
-using namespace kuzu::planner;
-using namespace kuzu::binder;
+using namespace gs::catalog;
+using namespace gs::storage;
+using namespace gs::main;
+using namespace gs::common;
+using namespace gs::planner;
+using namespace gs::binder;
 
-namespace kuzu {
+namespace gs {
 namespace graph {
 
 static std::vector<column_id_t> getColumnIDs(
@@ -48,8 +48,8 @@ static Schema getSchema(const expression_vector& exprs) {
   return schema;
 }
 
-static kuzu::processor::ResultSet getResultSet(Schema* schema,
-                                               MemoryManager* mm) {
+static gs::processor::ResultSet getResultSet(Schema* schema,
+                                             MemoryManager* mm) {
   throw new std::runtime_error(
       "getResultSet is not implemented, remove dependency of processor module");
 }
@@ -180,4 +180,4 @@ void OnDiskGraphVertexScanState::startScan(offset_t beginOffset,
 bool OnDiskGraphVertexScanState::next() {}
 
 }  // namespace graph
-}  // namespace kuzu
+}  // namespace gs

@@ -2,7 +2,7 @@
 
 #include "function/function.h"
 
-namespace kuzu {
+namespace gs {
 namespace function {
 
 struct NodesFunction {
@@ -59,4 +59,4 @@ struct LengthFunction {
 };
 
 }  // namespace function
-}  // namespace kuzu
+}  // namespace gs

@@ -5,11 +5,11 @@
 #include "function/table/simple_table_function.h"
 #include "main/client_context.h"
 
-using namespace kuzu::catalog;
-using namespace kuzu::common;
-using namespace kuzu::main;
+using namespace gs::catalog;
+using namespace gs::common;
+using namespace gs::main;
 
-namespace kuzu {
+namespace gs {
 namespace function {
 
 struct IndexInfo {
@@ -134,4 +134,4 @@ function_set ShowIndexesFunction::getFunctionSet() {
 }
 
 }  // namespace function
-}  // namespace kuzu
+}  // namespace gs

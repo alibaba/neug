@@ -3,10 +3,10 @@
 #include "common/types/types.h"
 #include "storage/stats/column_stats.h"
 
-namespace kuzu::common {
+namespace gs::common {
 class LogicalType;
 }
-namespace kuzu {
+namespace gs {
 namespace storage {
 
 class TableStats {
@@ -70,4 +70,4 @@ class TableStats {
 };
 
 }  // namespace storage
-}  // namespace kuzu
+}  // namespace gs

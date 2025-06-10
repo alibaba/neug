@@ -2,7 +2,7 @@
 
 #include "catalog/catalog.h"
 
-namespace kuzu {
+namespace gs {
 namespace extension {
 
 class KUZU_API CatalogExtension : public catalog::Catalog {
@@ -15,4 +15,4 @@ class KUZU_API CatalogExtension : public catalog::Catalog {
 };
 
 }  // namespace extension
-}  // namespace kuzu
+}  // namespace gs

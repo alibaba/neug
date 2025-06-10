@@ -3,9 +3,9 @@
 #include "function/function.h"
 #include "function/list/vector_list_functions.h"
 
-using namespace kuzu::common;
+using namespace gs::common;
 
-namespace kuzu {
+namespace gs {
 namespace function {
 
 void execQuantifierFunc(
@@ -25,4 +25,4 @@ std::unique_ptr<FunctionBindData> bindQuantifierFunc(
 }
 
 }  // namespace function
-}  // namespace kuzu
+}  // namespace gs

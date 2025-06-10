@@ -4,7 +4,7 @@
 #include "common/cast.h"
 #include "common/enums/zone_map_check_result.h"
 
-namespace kuzu {
+namespace gs {
 namespace storage {
 
 struct MergedColumnChunkStats;
@@ -65,4 +65,4 @@ struct ColumnPredicateUtil {
 };
 
 }  // namespace storage
-}  // namespace kuzu
+}  // namespace gs

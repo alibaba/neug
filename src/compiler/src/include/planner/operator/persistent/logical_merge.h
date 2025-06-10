@@ -4,7 +4,7 @@
 #include "planner/operator/logical_operator.h"
 #include "planner/operator/persistent/logical_insert.h"
 
-namespace kuzu {
+namespace gs {
 namespace planner {
 
 class LogicalMerge final : public LogicalOperator {
@@ -98,4 +98,4 @@ class LogicalMerge final : public LogicalOperator {
 };
 
 }  // namespace planner
-}  // namespace kuzu
+}  // namespace gs

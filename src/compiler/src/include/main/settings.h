@@ -5,7 +5,7 @@
 #include "main/client_context.h"
 #include "main/db_config.h"
 
-namespace kuzu {
+namespace gs {
 namespace main {
 
 struct ThreadsSetting {
@@ -298,4 +298,4 @@ struct EnableInternalCatalogSetting {
 };
 
 }  // namespace main
-}  // namespace kuzu
+}  // namespace gs

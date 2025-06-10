@@ -6,7 +6,7 @@
 
 #include "common/api.h"
 
-namespace kuzu {
+namespace gs {
 namespace common {
 
 struct KUZU_API ku_string_t {
@@ -98,4 +98,4 @@ struct KUZU_API ku_string_t {
 };
 
 }  // namespace common
-}  // namespace kuzu
+}  // namespace gs

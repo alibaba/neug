@@ -5,7 +5,7 @@
 #include "common/types/date_t.h"
 #include "interval_t.h"
 
-namespace kuzu {
+namespace gs {
 namespace common {
 
 // This is copied from third_party/fmt/include/fmt/format.h and format-inl.h.
@@ -304,4 +304,4 @@ struct IntervalToStringCast {
 };
 
 }  // namespace common
-}  // namespace kuzu
+}  // namespace gs

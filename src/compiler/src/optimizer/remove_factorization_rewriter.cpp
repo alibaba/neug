@@ -3,10 +3,10 @@
 #include "common/exception/internal.h"
 #include "optimizer/logical_operator_collector.h"
 
-using namespace kuzu::common;
-using namespace kuzu::planner;
+using namespace gs::common;
+using namespace gs::planner;
 
-namespace kuzu {
+namespace gs {
 namespace optimizer {
 
 void RemoveFactorizationRewriter::rewrite(planner::LogicalPlan* plan) {
@@ -38,4 +38,4 @@ RemoveFactorizationRewriter::visitFlattenReplace(
 }
 
 }  // namespace optimizer
-}  // namespace kuzu
+}  // namespace gs

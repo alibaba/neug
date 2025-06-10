@@ -5,11 +5,11 @@
 #include "common/enums/column_evaluate_type.h"
 #include "index_look_up_info.h"
 
-namespace kuzu::catalog {
+namespace gs::catalog {
 class TableCatalogEntry;
-}  // namespace kuzu::catalog
+}  // namespace gs::catalog
 
-namespace kuzu {
+namespace gs {
 namespace binder {
 
 struct ExtraBoundCopyFromInfo {
@@ -105,4 +105,4 @@ class BoundCopyFrom final : public BoundStatement {
 };
 
 }  // namespace binder
-}  // namespace kuzu
+}  // namespace gs

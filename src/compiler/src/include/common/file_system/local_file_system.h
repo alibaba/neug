@@ -4,7 +4,7 @@
 
 #include "file_system.h"
 
-namespace kuzu {
+namespace gs {
 namespace common {
 
 struct LocalFileInfo : public FileInfo {
@@ -74,4 +74,4 @@ class KUZU_API LocalFileSystem final : public FileSystem {
 };
 
 }  // namespace common
-}  // namespace kuzu
+}  // namespace gs

@@ -4,7 +4,7 @@
 
 #include "pattern_element_chain.h"
 
-namespace kuzu {
+namespace gs {
 namespace parser {
 
 class PatternElement {
@@ -36,4 +36,4 @@ class PatternElement {
 };
 
 }  // namespace parser
-}  // namespace kuzu
+}  // namespace gs

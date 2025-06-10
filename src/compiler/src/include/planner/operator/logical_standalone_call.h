@@ -3,7 +3,7 @@
 #include "main/db_config.h"
 #include "planner/operator/logical_operator.h"
 
-namespace kuzu {
+namespace gs {
 namespace planner {
 
 class LogicalStandaloneCall final : public LogicalOperator {
@@ -37,4 +37,4 @@ class LogicalStandaloneCall final : public LogicalOperator {
 };
 
 }  // namespace planner
-}  // namespace kuzu
+}  // namespace gs

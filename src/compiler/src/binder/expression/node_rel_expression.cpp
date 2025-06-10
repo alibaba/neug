@@ -3,10 +3,10 @@
 #include "catalog/catalog_entry/table_catalog_entry.h"
 #include "common/exception/runtime.h"
 
-using namespace kuzu::catalog;
-using namespace kuzu::common;
+using namespace gs::catalog;
+using namespace gs::common;
 
-namespace kuzu {
+namespace gs {
 namespace binder {
 
 table_id_vector_t NodeOrRelExpression::getTableIDs() const {
@@ -67,4 +67,4 @@ expression_vector NodeOrRelExpression::getPropertyExprs() const {
 }
 
 }  // namespace binder
-}  // namespace kuzu
+}  // namespace gs

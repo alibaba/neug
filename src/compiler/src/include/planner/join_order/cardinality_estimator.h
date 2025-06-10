@@ -4,7 +4,7 @@
 #include "planner/operator/logical_plan.h"
 #include "storage/stats/table_stats.h"
 
-namespace kuzu {
+namespace gs {
 namespace main {
 class ClientContext;
 }  // namespace main
@@ -82,4 +82,4 @@ class CardinalityEstimator {
 };
 
 }  // namespace planner
-}  // namespace kuzu
+}  // namespace gs

@@ -3,7 +3,7 @@
 #include <cstdint>
 #include <cstring>
 
-namespace kuzu {
+namespace gs {
 namespace common {
 
 class NullBuffer {
@@ -35,4 +35,4 @@ class NullBuffer {
 };
 
 }  // namespace common
-}  // namespace kuzu
+}  // namespace gs

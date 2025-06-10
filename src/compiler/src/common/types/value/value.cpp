@@ -13,7 +13,7 @@
 #include "common/vector/value_vector.h"
 #include "function/hash/hash_functions.h"
 
-namespace kuzu {
+namespace gs {
 namespace common {
 
 bool Value::operator==(const Value& rhs) const {
@@ -1059,4 +1059,4 @@ std::string Value::decimalToString() const {
 }
 
 }  // namespace common
-}  // namespace kuzu
+}  // namespace gs

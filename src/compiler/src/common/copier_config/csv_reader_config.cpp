@@ -6,7 +6,7 @@
 #include "common/exception/runtime.h"
 #include "common/string_utils.h"
 
-namespace kuzu {
+namespace gs {
 namespace common {
 
 static char bindParsingOptionValue(std::string value) {
@@ -155,4 +155,4 @@ CSVReaderConfig CSVReaderConfig::construct(
 }
 
 }  // namespace common
-}  // namespace kuzu
+}  // namespace gs

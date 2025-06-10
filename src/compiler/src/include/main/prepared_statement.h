@@ -9,7 +9,7 @@
 #include "parser/statement.h"
 #include "query_summary.h"
 
-namespace kuzu {
+namespace gs {
 namespace main {
 
 /**
@@ -63,4 +63,4 @@ class PreparedStatement {
 };
 
 }  // namespace main
-}  // namespace kuzu
+}  // namespace gs

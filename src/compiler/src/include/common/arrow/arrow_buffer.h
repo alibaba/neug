@@ -4,7 +4,7 @@
 
 struct ArrowSchema;
 
-namespace kuzu {
+namespace gs {
 namespace common {
 
 struct ArrowBuffer {
@@ -80,4 +80,4 @@ struct ArrowBuffer {
 };
 
 }  // namespace common
-}  // namespace kuzu
+}  // namespace gs

@@ -3,7 +3,7 @@
 #include "function/string/vector_string_functions.h"
 #include "re2.h"
 
-namespace kuzu {
+namespace gs {
 namespace function {
 
 using namespace common;
@@ -66,4 +66,4 @@ function_set RegexpFullMatchFunction::getFunctionSet() {
 }
 
 }  // namespace function
-}  // namespace kuzu
+}  // namespace gs

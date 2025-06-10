@@ -2,7 +2,7 @@
 
 #include <random>
 
-namespace kuzu {
+namespace gs {
 namespace common {
 
 RandomEngine::RandomEngine() : randomState(RandomState()) {
@@ -25,4 +25,4 @@ uint32_t RandomEngine::nextRandomInteger(uint32_t upper) {
 }
 
 }  // namespace common
-}  // namespace kuzu
+}  // namespace gs

@@ -10,12 +10,12 @@
 #include "planner/operator/scan/logical_scan_node_table.h"
 #include "planner/operator/sip/logical_semi_masker.h"
 
-using namespace kuzu::common;
-using namespace kuzu::binder;
-using namespace kuzu::planner;
-using namespace kuzu::function;
+using namespace gs::common;
+using namespace gs::binder;
+using namespace gs::planner;
+using namespace gs::function;
 
-namespace kuzu {
+namespace gs {
 namespace optimizer {
 
 static std::shared_ptr<LogicalOperator> appendAccumulate(
@@ -429,4 +429,4 @@ void HashJoinSIPOptimizer::visitPathPropertyProbe(LogicalOperator* op) {
 }
 
 }  // namespace optimizer
-}  // namespace kuzu
+}  // namespace gs

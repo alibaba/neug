@@ -1,6 +1,6 @@
 #include "binder/ddl/bound_alter_info.h"
 
-namespace kuzu {
+namespace gs {
 namespace binder {
 
 std::string BoundAlterInfo::toString() const {
@@ -44,4 +44,4 @@ std::string BoundAlterInfo::toString() const {
 }
 
 }  // namespace binder
-}  // namespace kuzu
+}  // namespace gs

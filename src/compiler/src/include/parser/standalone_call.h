@@ -3,7 +3,7 @@
 #include "parser/expression/parsed_expression.h"
 #include "parser/statement.h"
 
-namespace kuzu {
+namespace gs {
 namespace parser {
 
 class StandaloneCall : public Statement {
@@ -24,4 +24,4 @@ class StandaloneCall : public Statement {
 };
 
 }  // namespace parser
-}  // namespace kuzu
+}  // namespace gs

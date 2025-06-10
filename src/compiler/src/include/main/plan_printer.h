@@ -8,7 +8,7 @@
 #include "json_fwd.hpp"
 #include "kuzu_fwd.h"
 
-namespace kuzu {
+namespace gs {
 namespace main {
 
 class OpProfileBox {
@@ -106,4 +106,4 @@ struct PlanPrinter {
 };
 
 }  // namespace main
-}  // namespace kuzu
+}  // namespace gs

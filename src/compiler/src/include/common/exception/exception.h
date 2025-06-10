@@ -5,7 +5,7 @@
 
 #include "common/api.h"
 
-namespace kuzu {
+namespace gs {
 namespace common {
 
 class KUZU_API Exception : public std::exception {
@@ -22,4 +22,4 @@ class KUZU_API Exception : public std::exception {
 };
 
 }  // namespace common
-}  // namespace kuzu
+}  // namespace gs

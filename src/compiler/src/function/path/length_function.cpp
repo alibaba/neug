@@ -6,10 +6,10 @@
 #include "function/path/vector_path_functions.h"
 #include "function/rewrite_function.h"
 
-using namespace kuzu::binder;
-using namespace kuzu::common;
+using namespace gs::binder;
+using namespace gs::common;
 
-namespace kuzu {
+namespace gs {
 namespace function {
 
 static std::shared_ptr<Expression> rewriteFunc(
@@ -59,4 +59,4 @@ function_set LengthFunction::getFunctionSet() {
 }
 
 }  // namespace function
-}  // namespace kuzu
+}  // namespace gs

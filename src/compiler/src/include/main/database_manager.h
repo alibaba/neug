@@ -2,7 +2,7 @@
 
 #include "attached_database.h"
 
-namespace kuzu {
+namespace gs {
 namespace main {
 
 class DatabaseManager {
@@ -26,4 +26,4 @@ class DatabaseManager {
 };
 
 }  // namespace main
-}  // namespace kuzu
+}  // namespace gs

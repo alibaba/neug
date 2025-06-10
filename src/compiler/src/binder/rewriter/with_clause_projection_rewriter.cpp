@@ -7,9 +7,9 @@
 #include "binder/expression_visitor.h"
 #include "binder/visitor/property_collector.h"
 
-using namespace kuzu::common;
+using namespace gs::common;
 
-namespace kuzu {
+namespace gs {
 namespace binder {
 
 static void rewrite(std::shared_ptr<Expression> expr,
@@ -105,4 +105,4 @@ void WithClauseProjectionRewriter::visitSingleQueryUnsafe(
 }
 
 }  // namespace binder
-}  // namespace kuzu
+}  // namespace gs

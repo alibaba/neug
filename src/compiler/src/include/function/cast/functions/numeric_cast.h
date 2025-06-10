@@ -5,7 +5,7 @@
 
 #include "numeric_limits.h"
 
-namespace kuzu {
+namespace gs {
 namespace function {
 
 template <class SRC, class DST>
@@ -172,4 +172,4 @@ inline bool tryCastWithOverflowCheck(double input, float& result) {
 }
 
 }  // namespace function
-}  // namespace kuzu
+}  // namespace gs

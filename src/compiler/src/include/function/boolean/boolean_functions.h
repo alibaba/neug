@@ -2,7 +2,7 @@
 
 #include <cstdint>
 
-namespace kuzu {
+namespace gs {
 namespace function {
 
 /**
@@ -120,4 +120,4 @@ struct Not {
 };
 
 }  // namespace function
-}  // namespace kuzu
+}  // namespace gs

@@ -3,7 +3,7 @@
 #include "common/system_config.h"
 #include "function/table/table_function.h"
 
-namespace kuzu {
+namespace gs {
 namespace function {
 
 struct TableFuncMorsel {
@@ -171,4 +171,4 @@ struct LocalCacheArrayColumnFunction final {
 };
 
 }  // namespace function
-}  // namespace kuzu
+}  // namespace gs

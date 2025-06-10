@@ -3,7 +3,7 @@
 #include "binder/bound_statement_result.h"
 #include "normalized_query_part.h"
 
-namespace kuzu {
+namespace gs {
 namespace binder {
 
 class NormalizedSingleQuery {
@@ -35,4 +35,4 @@ class NormalizedSingleQuery {
 };
 
 }  // namespace binder
-}  // namespace kuzu
+}  // namespace gs

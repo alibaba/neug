@@ -21,12 +21,12 @@
 #include "planner/operator/persistent/logical_merge.h"
 #include "planner/operator/persistent/logical_set.h"
 
-using namespace kuzu::common;
-using namespace kuzu::planner;
-using namespace kuzu::binder;
-using namespace kuzu::function;
+using namespace gs::common;
+using namespace gs::planner;
+using namespace gs::binder;
+using namespace gs::function;
 
-namespace kuzu {
+namespace gs {
 namespace optimizer {
 
 void ProjectionPushDownOptimizer::rewrite(LogicalPlan* plan) {
@@ -357,4 +357,4 @@ void ProjectionPushDownOptimizer::preAppendProjection(
 }
 
 }  // namespace optimizer
-}  // namespace kuzu
+}  // namespace gs

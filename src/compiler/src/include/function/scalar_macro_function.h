@@ -4,7 +4,7 @@
 
 #include "parser/create_macro.h"
 
-namespace kuzu {
+namespace gs {
 namespace function {
 
 using macro_parameter_value_map =
@@ -47,4 +47,4 @@ struct ScalarMacroFunction {
 };
 
 }  // namespace function
-}  // namespace kuzu
+}  // namespace gs

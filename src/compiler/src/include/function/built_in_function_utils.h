@@ -3,7 +3,7 @@
 #include "aggregate_function.h"
 #include "function.h"
 
-namespace kuzu {
+namespace gs {
 namespace transaction {
 class Transaction;
 }  // namespace transaction
@@ -99,4 +99,4 @@ class BuiltInFunctionsUtils {
 };
 
 }  // namespace function
-}  // namespace kuzu
+}  // namespace gs

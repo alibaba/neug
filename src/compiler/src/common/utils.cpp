@@ -1,6 +1,6 @@
 #include "common/utils.h"
 
-namespace kuzu {
+namespace gs {
 namespace common {
 
 uint64_t nextPowerOfTwo(uint64_t v) {
@@ -64,4 +64,4 @@ bool integerFitsIn<uint8_t>(int64_t val) {
 }
 
 }  // namespace common
-}  // namespace kuzu
+}  // namespace gs

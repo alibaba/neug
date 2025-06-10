@@ -4,7 +4,7 @@
 
 #include "parser/expression/parsed_expression.h"
 
-namespace kuzu {
+namespace gs {
 namespace parser {
 
 class NodePattern {
@@ -33,4 +33,4 @@ class NodePattern {
 };
 
 }  // namespace parser
-}  // namespace kuzu
+}  // namespace gs

@@ -35,12 +35,11 @@ option(BUILD_EXTENSIONS "Semicolon-separated list of extensions to build." "")
 option(BUILD_SINGLE_FILE_HEADER "Build single file header. Requires Python >= 3.9." FALSE)
 option(BUILD_TEST "Build C++ tests." TRUE)
 option(BUILD_EXTENSION_TESTS "Build C++ extension tests." FALSE)
-option(BUILD_KUZU "Build Kuzu." TRUE)
 option(ENABLE_BACKTRACES "Enable backtrace printing for exceptions and segfaults" FALSE)
 
-add_definitions(-DKUZU_CMAKE_VERSION="${CMAKE_PROJECT_VERSION}")
+add_definitions(-DNEXG_CMAKE_VERSION="${CMAKE_PROJECT_VERSION}")
 #TODO: Fixme
-add_definitions(-DKUZU_EXTENSION_VERSION="0.9.0")
+add_definitions(-DNEXG_EXTENSION_VERSION="0.9.0")
 
 if (BUILD_HTTP_SERVER AND NOT BUILD_METADATA)
     message(FATAL_ERROR "BUILD_HTTP_SERVER requires BUILD_METADATA to be ON")
@@ -165,7 +164,7 @@ if(ENABLE_WERROR)
     endif()
 endif()
 
-function(add_kuzu_test TEST_NAME)
+function(add_compiler_test TEST_NAME)
     set(SRCS ${ARGN})
     add_executable(${TEST_NAME} ${SRCS})
     #target_link_libraries(${TEST_NAME} PRIVATE test_helper test_runner graph_test)
@@ -174,7 +173,7 @@ function(add_kuzu_test TEST_NAME)
     #endif()
     #target_include_directories(${TEST_NAME} PRIVATE ${PROJECT_SOURCE_DIR}/test/include)
 
-    target_link_libraries(${TEST_NAME} PUBLIC neug::GTest kuzu nexg_plan_proto)
+    target_link_libraries(${TEST_NAME} PUBLIC neug::GTest nexg_compiler nexg_plan_proto)
     target_include_directories(${TEST_NAME} PRIVATE src/include)
 
     include(GoogleTest)

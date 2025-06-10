@@ -7,7 +7,7 @@
 #include "common/file_system/file_info.h"
 #include "common/system_config.h"
 
-namespace kuzu {
+namespace gs {
 namespace common {
 
 static constexpr uint64_t BUFFER_SIZE = KUZU_PAGE_SIZE;
@@ -107,4 +107,4 @@ void BufferedFileReader::readNextPage() {
 }
 
 }  // namespace common
-}  // namespace kuzu
+}  // namespace gs

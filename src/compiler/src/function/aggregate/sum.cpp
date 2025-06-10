@@ -1,9 +1,9 @@
 #include "function/aggregate/sum.h"
 
-namespace kuzu {
+namespace gs {
 namespace function {
 
-using namespace kuzu::common;
+using namespace gs::common;
 
 function_set AggregateSumFunction::getFunctionSet() {
   function_set result;
@@ -15,4 +15,4 @@ function_set AggregateSumFunction::getFunctionSet() {
 }
 
 }  // namespace function
-}  // namespace kuzu
+}  // namespace gs

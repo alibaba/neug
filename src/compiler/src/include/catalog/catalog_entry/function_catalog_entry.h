@@ -3,7 +3,7 @@
 #include "catalog_entry.h"
 #include "function/function.h"
 
-namespace kuzu {
+namespace gs {
 namespace catalog {
 
 class KUZU_API FunctionCatalogEntry : public CatalogEntry {
@@ -34,4 +34,4 @@ class KUZU_API FunctionCatalogEntry : public CatalogEntry {
 };
 
 }  // namespace catalog
-}  // namespace kuzu
+}  // namespace gs

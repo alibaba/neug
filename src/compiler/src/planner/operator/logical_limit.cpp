@@ -5,11 +5,10 @@
 #include "common/type_utils.h"
 #include "planner/operator/factorization/flatten_resolver.h"
 
-namespace kuzu {
+namespace gs {
 namespace planner {
 
-static uint64_t getLiteralNumber(
-    std::shared_ptr<kuzu::binder::Expression> expr) {
+static uint64_t getLiteralNumber(std::shared_ptr<gs::binder::Expression> expr) {
   uint64_t number = common::INVALID_LIMIT;
   if (expr == nullptr) {
     return number;
@@ -79,4 +78,4 @@ f_group_pos LogicalLimit::getGroupPosToSelect() const {
 }
 
 }  // namespace planner
-}  // namespace kuzu
+}  // namespace gs

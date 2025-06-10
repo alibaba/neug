@@ -2,7 +2,7 @@
 
 #include "common/types/ku_string.h"
 
-namespace kuzu {
+namespace gs {
 namespace function {
 
 // The string find algorithm is copied from duckdb. Source code:
@@ -45,4 +45,4 @@ struct Find {
 };
 
 }  // namespace function
-}  // namespace kuzu
+}  // namespace gs

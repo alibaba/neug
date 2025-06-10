@@ -26,10 +26,10 @@
 #define DCHECK_GT(val1, val2) assert((val1) > (val2))
 
 // Always-on checking
-#define CHECK(x)                                                                                   \
-    if (x) {                                                                                       \
-    } else                                                                                         \
-        LogMessageFatal(__FILE__, __LINE__).stream() << "Check failed: " #x
+#define CHECK(x) \
+  if (x) {       \
+  } else         \
+    LogMessageFatal(__FILE__, __LINE__).stream() << "Check failed: " #x
 #define CHECK_LT(x, y) CHECK((x) < (y))
 #define CHECK_GT(x, y) CHECK((x) > (y))
 #define CHECK_LE(x, y) CHECK((x) <= (y))
@@ -56,41 +56,40 @@
 
 #define LOG(severity) LOG_##severity.stream()
 
-#define VLOG(x)                                                                                    \
-    if ((x) > 0) {                                                                                 \
-    } else                                                                                         \
-        LOG_INFO.stream()
+#define VLOG(x)  \
+  if ((x) > 0) { \
+  } else         \
+    LOG_INFO.stream()
 
-namespace kuzu {
+namespace gs {
 namespace regex {
 
 class LogMessage {
-public:
-    LogMessage(const char* file, int line) : flushed_(false) {
-        stream() << file << ":" << line << ": ";
+ public:
+  LogMessage(const char* file, int line) : flushed_(false) {
+    stream() << file << ":" << line << ": ";
+  }
+  void Flush() {
+    stream() << "\n";
+    /*// R does not allow us to have a reference to stderr even if we are not
+    using it std::string s = str_.str(); size_t n = s.size(); if
+    (fwrite(s.data(), 1, n, stderr) < n) {}  // shut up gcc
+    */
+    flushed_ = true;
+  }
+  ~LogMessage() {
+    if (!flushed_) {
+      Flush();
     }
-    void Flush() {
-        stream() << "\n";
-        /*// R does not allow us to have a reference to stderr even if we are not using it
-        std::string s = str_.str();
-        size_t n = s.size();
-        if (fwrite(s.data(), 1, n, stderr) < n) {}  // shut up gcc
-        */
-        flushed_ = true;
-    }
-    ~LogMessage() {
-        if (!flushed_) {
-            Flush();
-        }
-    }
-    std::ostream& stream() { return str_; }
+  }
+  std::ostream& stream() { return str_; }
 
-private:
-    bool flushed_;
-    std::ostringstream str_;
+ private:
+  bool flushed_;
+  std::ostringstream str_;
 
-    LogMessage(const LogMessage&) = delete;
-    LogMessage& operator=(const LogMessage&) = delete;
+  LogMessage(const LogMessage&) = delete;
+  LogMessage& operator=(const LogMessage&) = delete;
 };
 
 // Silence "destructor never returns" warning for ~LogMessageFatal().
@@ -101,21 +100,21 @@ private:
 #endif
 
 class LogMessageFatal : public LogMessage {
-public:
-    LogMessageFatal(const char* file, int line) : LogMessage(file, line) {}
-    ATTRIBUTE_NORETURN ~LogMessageFatal() {
-        Flush();
-        abort();
-    }
+ public:
+  LogMessageFatal(const char* file, int line) : LogMessage(file, line) {}
+  ATTRIBUTE_NORETURN ~LogMessageFatal() {
+    Flush();
+    abort();
+  }
 
-private:
-    LogMessageFatal(const LogMessageFatal&) = delete;
-    LogMessageFatal& operator=(const LogMessageFatal&) = delete;
+ private:
+  LogMessageFatal(const LogMessageFatal&) = delete;
+  LogMessageFatal& operator=(const LogMessageFatal&) = delete;
 };
-} // namespace regex
-} // namespace kuzu
+}  // namespace regex
+}  // namespace gs
 #ifdef _MSC_VER
-//#pragma warning(pop)
+// #pragma warning(pop)
 #endif
 
-#endif // UTIL_LOGGING_H_
+#endif  // UTIL_LOGGING_H_

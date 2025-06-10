@@ -5,7 +5,7 @@
 #include "common/copy_constructors.h"
 #include "common/enums/conflict_action.h"
 
-namespace kuzu {
+namespace gs {
 namespace parser {
 
 enum class SequenceInfoType {
@@ -43,4 +43,4 @@ struct CreateSequenceInfo {
 };
 
 }  // namespace parser
-}  // namespace kuzu
+}  // namespace gs

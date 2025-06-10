@@ -3,9 +3,9 @@
 #include "function/table/standalone_call_function.h"
 #include "graph/graph_entry.h"
 
-using namespace kuzu::common;
+using namespace gs::common;
 
-namespace kuzu {
+namespace gs {
 namespace function {
 
 struct DropProjectedGraphBindData final : TableFuncBindData {
@@ -42,4 +42,4 @@ function_set DropProjectedGraphFunction::getFunctionSet() {
 }
 
 }  // namespace function
-}  // namespace kuzu
+}  // namespace gs

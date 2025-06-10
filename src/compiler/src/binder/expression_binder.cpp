@@ -12,11 +12,11 @@
 #include "parser/expression/parsed_expression_visitor.h"
 #include "parser/expression/parsed_parameter_expression.h"
 
-using namespace kuzu::common;
-using namespace kuzu::function;
-using namespace kuzu::parser;
+using namespace gs::common;
+using namespace gs::function;
+using namespace gs::parser;
 
-namespace kuzu {
+namespace gs {
 namespace binder {
 
 std::shared_ptr<Expression> ExpressionBinder::bindExpression(
@@ -144,4 +144,4 @@ std::string ExpressionBinder::getUniqueName(const std::string& name) const {
 }
 
 }  // namespace binder
-}  // namespace kuzu
+}  // namespace gs

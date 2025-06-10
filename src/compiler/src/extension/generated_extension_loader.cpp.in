@@ -1,11 +1,13 @@
 #include "generated_extension_loader.h"
 
-namespace kuzu {
+namespace gs {
 namespace extension {
 
 void loadLinkedExtensions([[maybe_unused]] main::ClientContext* context) {
-    @LOAD_LINKED_EXTENSION@
+  //clang-format off
+  @LOAD_LINKED_EXTENSION@
+  //clang-format on
 }
 
-} // namespace extension
-} // namespace kuzu
+}  // namespace extension
+}  // namespace gs

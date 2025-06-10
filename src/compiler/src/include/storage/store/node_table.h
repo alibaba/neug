@@ -7,7 +7,7 @@
 #include "storage/stats/table_stats.h"
 #include "storage/store/table.h"
 
-namespace kuzu {
+namespace gs {
 namespace evaluator {
 class ExpressionEvaluator;
 }
@@ -50,4 +50,4 @@ class KUZU_API NodeTable : public Table {
 };
 
 }  // namespace storage
-}  // namespace kuzu
+}  // namespace gs

@@ -6,7 +6,7 @@
 #include "graph/graph.h"
 #include "graph/graph_entry.h"
 
-namespace kuzu {
+namespace gs {
 
 namespace main {
 class ClientContext;
@@ -103,4 +103,4 @@ class KUZU_API GDSFunction {
 };
 
 }  // namespace function
-}  // namespace kuzu
+}  // namespace gs

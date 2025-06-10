@@ -2,7 +2,7 @@
 
 #include "common/string_utils.h"
 
-namespace kuzu {
+namespace gs {
 namespace common {
 
 uint64_t CaseInsensitiveStringHashFunction::operator()(
@@ -16,4 +16,4 @@ bool CaseInsensitiveStringEquality::operator()(const std::string& lhs,
 }
 
 }  // namespace common
-}  // namespace kuzu
+}  // namespace gs

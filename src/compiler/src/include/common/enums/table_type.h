@@ -3,7 +3,7 @@
 #include <cstdint>
 #include <string>
 
-namespace kuzu {
+namespace gs {
 namespace common {
 
 // TODO(Guodong/Ziyi/Xiyang): Should we remove this and instead use
@@ -20,4 +20,4 @@ struct TableTypeUtils {
 };
 
 }  // namespace common
-}  // namespace kuzu
+}  // namespace gs

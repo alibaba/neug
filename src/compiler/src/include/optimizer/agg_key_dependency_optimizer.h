@@ -3,7 +3,7 @@
 #include "logical_operator_visitor.h"
 #include "planner/operator/logical_plan.h"
 
-namespace kuzu {
+namespace gs {
 namespace optimizer {
 
 // This optimizer analyzes the dependency between group by keys. If key2 depends
@@ -24,4 +24,4 @@ class AggKeyDependencyOptimizer : public LogicalOperatorVisitor {
 };
 
 }  // namespace optimizer
-}  // namespace kuzu
+}  // namespace gs

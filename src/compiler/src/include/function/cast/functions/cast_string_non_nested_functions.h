@@ -10,9 +10,9 @@
 #include "function/cast/functions/numeric_limits.h"
 #include "third_party/fast_float/include/fast_float.h"
 
-using namespace kuzu::common;
+using namespace gs::common;
 
-namespace kuzu {
+namespace gs {
 namespace function {
 
 bool isAnyType(std::string_view cpy);
@@ -365,4 +365,4 @@ void decimalCast(const char* input, uint64_t len, T& result,
 }
 
 }  // namespace function
-}  // namespace kuzu
+}  // namespace gs

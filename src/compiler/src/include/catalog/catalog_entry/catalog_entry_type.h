@@ -3,7 +3,7 @@
 #include <cstdint>
 #include <string>
 
-namespace kuzu {
+namespace gs {
 namespace catalog {
 
 enum class CatalogEntryType : uint8_t {
@@ -40,4 +40,4 @@ struct FunctionEntryTypeUtils {
 };
 
 }  // namespace catalog
-}  // namespace kuzu
+}  // namespace gs

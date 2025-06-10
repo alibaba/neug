@@ -5,9 +5,9 @@
 #include "parser/explain_statement.h"
 #include "parser/query/regular_query.h"  // IWYU pragma: keep (fixes a forward declaration error)
 
-using namespace kuzu::common;
+using namespace gs::common;
 
-namespace kuzu {
+namespace gs {
 namespace parser {
 
 std::vector<std::shared_ptr<Statement>> Transformer::transform() {
@@ -115,4 +115,4 @@ std::string Transformer::transformStringLiteral(
 }
 
 }  // namespace parser
-}  // namespace kuzu
+}  // namespace gs

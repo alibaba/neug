@@ -28,10 +28,10 @@
 #include "planner/operator/simple/logical_use_database.h"
 #include "planner/planner.h"
 
-using namespace kuzu::binder;
-using namespace kuzu::common;
+using namespace gs::binder;
+using namespace gs::common;
 
-namespace kuzu {
+namespace gs {
 namespace planner {
 
 void Planner::appendCreateTable(const BoundStatement& statement,
@@ -164,4 +164,4 @@ void Planner::appendUseDatabase(const BoundStatement& statement,
 }
 
 }  // namespace planner
-}  // namespace kuzu
+}  // namespace gs

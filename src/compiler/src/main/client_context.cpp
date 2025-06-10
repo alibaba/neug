@@ -31,14 +31,14 @@
 #include "common/windows_utils.h"
 #endif
 
-using namespace kuzu::parser;
-using namespace kuzu::binder;
-using namespace kuzu::common;
-using namespace kuzu::catalog;
-using namespace kuzu::planner;
-using namespace kuzu::transaction;
+using namespace gs::parser;
+using namespace gs::binder;
+using namespace gs::common;
+using namespace gs::catalog;
+using namespace gs::planner;
+using namespace gs::transaction;
 
-namespace kuzu {
+namespace gs {
 namespace main {
 
 ActiveQuery::ActiveQuery() : interrupted{false} {}
@@ -169,8 +169,8 @@ const main::ExtensionOption* ClientContext::getExtensionOption(
 }
 
 std::string ClientContext::getExtensionDir() const {
-  return stringFormat("{}/.kuzu/extension/{}/{}/", clientConfig.homeDirectory,
-                      KUZU_EXTENSION_VERSION, extension::getPlatform());
+  return stringFormat("{}/.gs/extension/{}/{}/", clientConfig.homeDirectory,
+                      NEXG_EXTENSION_VERSION, extension::getPlatform());
 }
 
 std::string ClientContext::getDatabasePath() const {
@@ -274,12 +274,11 @@ void ClientContext::removeScalarFunction(const std::string& name) {
       TransactionHelper::TransactionCommitAction::COMMIT_IF_NEW);
 }
 
-kuzu::processor::WarningContext& ClientContext::getWarningContextUnsafe() {
+gs::processor::WarningContext& ClientContext::getWarningContextUnsafe() {
   return warningContext;
 }
 
-const kuzu::processor::WarningContext& ClientContext::getWarningContext()
-    const {
+const gs::processor::WarningContext& ClientContext::getWarningContext() const {
   return warningContext;
 }
 
@@ -590,4 +589,4 @@ bool ClientContext::canExecuteWriteQuery() const {
 }
 
 }  // namespace main
-}  // namespace kuzu
+}  // namespace gs

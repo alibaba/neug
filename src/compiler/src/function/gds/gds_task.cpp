@@ -4,9 +4,9 @@
 #include "function/gds/frontier_morsel.h"
 #include "graph/graph.h"
 
-using namespace kuzu::common;
+using namespace gs::common;
 
-namespace kuzu {
+namespace gs {
 namespace function {
 
 void FrontierTask::run() {
@@ -122,4 +122,4 @@ void VertexComputeTask::runSparse() {
 }
 
 }  // namespace function
-}  // namespace kuzu
+}  // namespace gs

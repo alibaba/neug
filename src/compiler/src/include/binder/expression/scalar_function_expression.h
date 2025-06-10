@@ -3,7 +3,7 @@
 #include "expression.h"
 #include "function/scalar_function.h"
 
-namespace kuzu {
+namespace gs {
 namespace binder {
 
 class ScalarFunctionExpression final : public Expression {
@@ -31,4 +31,4 @@ class ScalarFunctionExpression final : public Expression {
 };
 
 }  // namespace binder
-}  // namespace kuzu
+}  // namespace gs

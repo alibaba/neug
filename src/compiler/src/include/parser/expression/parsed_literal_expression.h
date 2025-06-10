@@ -3,7 +3,7 @@
 #include "common/types/value/value.h"
 #include "parsed_expression.h"
 
-namespace kuzu {
+namespace gs {
 namespace parser {
 
 class ParsedLiteralExpression : public ParsedExpression {
@@ -47,4 +47,4 @@ class ParsedLiteralExpression : public ParsedExpression {
 };
 
 }  // namespace parser
-}  // namespace kuzu
+}  // namespace gs

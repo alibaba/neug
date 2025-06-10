@@ -2,10 +2,10 @@
 #include "parser/extension_statement.h"
 #include "parser/transformer.h"
 
-using namespace kuzu::common;
-using namespace kuzu::extension;
+using namespace gs::common;
+using namespace gs::extension;
 
-namespace kuzu {
+namespace gs {
 namespace parser {
 
 std::unique_ptr<Statement> Transformer::transformExtension(
@@ -33,4 +33,4 @@ std::unique_ptr<Statement> Transformer::transformExtension(
 }
 
 }  // namespace parser
-}  // namespace kuzu
+}  // namespace gs

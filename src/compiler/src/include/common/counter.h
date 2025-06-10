@@ -4,7 +4,7 @@
 
 #include "types/types.h"
 
-namespace kuzu {
+namespace gs {
 namespace common {
 
 class LimitCounter {
@@ -24,4 +24,4 @@ class LimitCounter {
 };
 
 }  // namespace common
-}  // namespace kuzu
+}  // namespace gs

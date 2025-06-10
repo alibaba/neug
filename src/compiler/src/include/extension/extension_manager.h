@@ -4,7 +4,7 @@
 #include "main/client_context.h"
 #include "main/db_config.h"
 
-namespace kuzu {
+namespace gs {
 namespace extension {
 
 struct ExtensionEntry {
@@ -41,4 +41,4 @@ class ExtensionManager {
 };
 
 }  // namespace extension
-}  // namespace kuzu
+}  // namespace gs

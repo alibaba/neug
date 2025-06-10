@@ -8,35 +8,37 @@
 #include <memory>
 #include <type_traits>
 
-namespace kuzu {
+namespace gs {
 namespace regex {
 
-template<typename T>
+template <typename T>
 class PODArray {
-public:
-    static_assert(std::is_trivial<T>::value && std::is_standard_layout<T>::value, "T must be POD");
+ public:
+  static_assert(std::is_trivial<T>::value && std::is_standard_layout<T>::value,
+                "T must be POD");
 
-    PODArray() : ptr_() {}
-    explicit PODArray(int len) : ptr_(std::allocator<T>().allocate(len), Deleter(len)) {}
+  PODArray() : ptr_() {}
+  explicit PODArray(int len)
+      : ptr_(std::allocator<T>().allocate(len), Deleter(len)) {}
 
-    T* data() const { return ptr_.get(); }
+  T* data() const { return ptr_.get(); }
 
-    int size() const { return ptr_.get_deleter().len_; }
+  int size() const { return ptr_.get_deleter().len_; }
 
-    T& operator[](int pos) const { return ptr_[pos]; }
+  T& operator[](int pos) const { return ptr_[pos]; }
 
-private:
-    struct Deleter {
-        Deleter() : len_(0) {}
-        explicit Deleter(int len) : len_(len) {}
+ private:
+  struct Deleter {
+    Deleter() : len_(0) {}
+    explicit Deleter(int len) : len_(len) {}
 
-        void operator()(T* ptr) const { std::allocator<T>().deallocate(ptr, len_); }
+    void operator()(T* ptr) const { std::allocator<T>().deallocate(ptr, len_); }
 
-        int len_;
-    };
+    int len_;
+  };
 
-    std::unique_ptr<T[], Deleter> ptr_;
+  std::unique_ptr<T[], Deleter> ptr_;
 };
-} // namespace regex
-} // namespace kuzu
-#endif // UTIL_POD_ARRAY_H_
+}  // namespace regex
+}  // namespace gs
+#endif  // UTIL_POD_ARRAY_H_

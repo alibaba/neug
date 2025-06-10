@@ -3,7 +3,7 @@
 #include "common/copy_constructors.h"
 #include "parser/expression/parsed_expression.h"
 
-namespace kuzu {
+namespace gs {
 namespace parser {
 
 class ProjectionBody {
@@ -64,4 +64,4 @@ class ProjectionBody {
 };
 
 }  // namespace parser
-}  // namespace kuzu
+}  // namespace gs

@@ -2,7 +2,7 @@
 
 #include "function/table/bind_data.h"
 
-namespace kuzu {
+namespace gs {
 namespace function {
 
 TableFuncMorsel SimpleTableFuncSharedState::getMorsel() {
@@ -40,4 +40,4 @@ table_func_t SimpleTableFunc::getTableFunc(
 }
 
 }  // namespace function
-}  // namespace kuzu
+}  // namespace gs

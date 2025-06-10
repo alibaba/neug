@@ -6,10 +6,10 @@
 #include "parser/copy.h"
 #include "parser/query/regular_query.h"
 
-using namespace kuzu::common;
-using namespace kuzu::parser;
+using namespace gs::common;
+using namespace gs::parser;
 
-namespace kuzu {
+namespace gs {
 namespace binder {
 
 std::unique_ptr<BoundStatement> Binder::bindCopyToClause(
@@ -43,4 +43,4 @@ std::unique_ptr<BoundStatement> Binder::bindCopyToClause(
 }
 
 }  // namespace binder
-}  // namespace kuzu
+}  // namespace gs

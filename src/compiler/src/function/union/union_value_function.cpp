@@ -1,9 +1,9 @@
 #include "function/scalar_function.h"
 #include "function/union/vector_union_functions.h"
 
-using namespace kuzu::common;
+using namespace gs::common;
 
-namespace kuzu {
+namespace gs {
 namespace function {
 
 static std::unique_ptr<FunctionBindData> bindFunc(
@@ -51,4 +51,4 @@ function_set UnionValueFunction::getFunctionSet() {
 }
 
 }  // namespace function
-}  // namespace kuzu
+}  // namespace gs

@@ -2,7 +2,7 @@
 
 #include <string>
 
-namespace kuzu {
+namespace gs {
 namespace parser {
 
 void KuzuCypherParser::notifyQueryNotConcludeWithReturn(
@@ -46,4 +46,4 @@ void KuzuCypherParser::notifyNonBinaryComparison(antlr4::Token* startToken) {
 }
 
 }  // namespace parser
-}  // namespace kuzu
+}  // namespace gs

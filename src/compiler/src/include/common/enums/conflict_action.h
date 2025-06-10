@@ -3,7 +3,7 @@
 #include <cstdint>
 #include <string>
 
-namespace kuzu {
+namespace gs {
 namespace common {
 
 enum class ConflictAction : uint8_t {
@@ -17,4 +17,4 @@ struct ConflictActionUtil {
 };
 
 }  // namespace common
-}  // namespace kuzu
+}  // namespace gs

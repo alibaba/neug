@@ -3,7 +3,7 @@
 #include "binder/expression/expression_util.h"
 #include "binder/expression/literal_expression.h"
 
-namespace kuzu {
+namespace gs {
 namespace function {
 
 void TableFuncBindInput::addLiteralParam(common::Value value) {
@@ -34,4 +34,4 @@ template KUZU_API uint8_t* TableFuncBindInput::getLiteralVal<uint8_t*>(
     common::idx_t idx) const;
 
 }  // namespace function
-}  // namespace kuzu
+}  // namespace gs

@@ -9,7 +9,7 @@
 #include "kuzu_fwd.h"
 #include "query_summary.h"
 
-namespace kuzu {
+namespace gs {
 namespace main {
 
 /**
@@ -147,4 +147,4 @@ class QueryResult {
 };
 
 }  // namespace main
-}  // namespace kuzu
+}  // namespace gs

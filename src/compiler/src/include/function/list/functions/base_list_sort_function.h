@@ -4,7 +4,7 @@
 #include "common/string_utils.h"
 #include "common/vector/value_vector.h"
 
-namespace kuzu {
+namespace gs {
 namespace function {
 
 struct BaseListSortOperation {
@@ -39,7 +39,7 @@ struct BaseListSortOperation {
                          bool nullFirst) {
     // TODO(Ziyi) - Replace this sort implementation with radix_sort
     // implementation:
-    //  https://github.com/kuzudb/kuzu/issues/1536.
+    //  https://github.com/kuzudb/gs/issues/1536.
     auto inputDataVector = common::ListVector::getDataVector(&inputVector);
     auto inputPos = input.offset;
 
@@ -106,4 +106,4 @@ struct BaseListSortOperation {
 };
 
 }  // namespace function
-}  // namespace kuzu
+}  // namespace gs

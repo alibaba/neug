@@ -9,13 +9,13 @@
 #include "storage/store/table.h"
 #include "transaction/transaction.h"
 
-namespace kuzu::catalog {
+namespace gs::catalog {
 class TableCatalogEntry;
 }
 
-using namespace kuzu::common;
+using namespace gs::common;
 
-namespace kuzu {
+namespace gs {
 namespace function {
 
 struct CacheArrayColumnBindData final : TableFuncBindData {
@@ -79,4 +79,4 @@ function_set LocalCacheArrayColumnFunction::getFunctionSet() {
 }
 
 }  // namespace function
-}  // namespace kuzu
+}  // namespace gs

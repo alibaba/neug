@@ -8,7 +8,7 @@
 #include <unistd.h>
 #endif
 
-namespace kuzu {
+namespace gs {
 namespace common {
 
 uint64_t FileInfo::getFileSize() const {
@@ -42,4 +42,4 @@ void FileInfo::truncate(uint64_t size) { fileSystem->truncate(*this, size); }
 bool FileInfo::canPerformSeek() const { return fileSystem->canPerformSeek(); }
 
 }  // namespace common
-}  // namespace kuzu
+}  // namespace gs

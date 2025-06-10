@@ -7,7 +7,7 @@
 #include "common/array_utils.h"
 #include "common/types/types.h"
 
-namespace kuzu {
+namespace gs {
 namespace common {
 
 extern const char* KUZU_VERSION;
@@ -238,9 +238,9 @@ struct WarningConstants {
 
 static constexpr char ATTACHED_KUZU_DB_TYPE[] = "KUZU";
 
-static constexpr char LOCAL_DB_NAME[] = "local(kuzu)";
+static constexpr char LOCAL_DB_NAME[] = "local(gs)";
 
 constexpr auto DECIMAL_PRECISION_LIMIT = 38;
 
 }  // namespace common
-}  // namespace kuzu
+}  // namespace gs

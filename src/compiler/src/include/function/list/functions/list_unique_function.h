@@ -4,7 +4,7 @@
 #include "common/types/value/value.h"
 #include "common/vector/value_vector.h"
 
-namespace kuzu {
+namespace gs {
 namespace function {
 
 struct ValueHashFunction {
@@ -40,4 +40,4 @@ struct ListUnique {
 };
 
 }  // namespace function
-}  // namespace kuzu
+}  // namespace gs

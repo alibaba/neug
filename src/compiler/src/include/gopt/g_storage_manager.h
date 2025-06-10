@@ -5,19 +5,19 @@
 #include "storage/storage_manager.h"
 #include "third_party/nlohmann_json/json.hpp"
 
-namespace kuzu {
+namespace gs {
 namespace storage {
 class GStorageManager : public StorageManager {
  private:
-  kuzu::storage::WAL& wal;
+  gs::storage::WAL& wal;
 
  public:
   GStorageManager(const std::filesystem::path& statsPath,
                   const catalog::Catalog& catalog, MemoryManager& memoryManager,
-                  kuzu::storage::WAL& wal);
+                  gs::storage::WAL& wal);
 
   GStorageManager(const std::string& statsData, const catalog::Catalog& catalog,
-                  MemoryManager& memoryManager, kuzu::storage::WAL& wal);
+                  MemoryManager& memoryManager, gs::storage::WAL& wal);
 
   ~GStorageManager() override = default;
 
@@ -35,4 +35,4 @@ class GStorageManager : public StorageManager {
                   std::unordered_map<std::string, common::row_idx_t>& countMap);
 };
 }  // namespace storage
-}  // namespace kuzu
+}  // namespace gs

@@ -3,7 +3,7 @@
 #include "common/vector/value_vector.h"
 // #include <simsimd.h>
 
-namespace kuzu {
+namespace gs {
 namespace function {
 
 struct ArrayInnerProduct {
@@ -30,4 +30,4 @@ struct ArrayInnerProduct {
 };
 
 }  // namespace function
-}  // namespace kuzu
+}  // namespace gs

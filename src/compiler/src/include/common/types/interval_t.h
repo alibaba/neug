@@ -5,7 +5,7 @@
 
 #include "common/api.h"
 
-namespace kuzu {
+namespace gs {
 
 namespace regex {
 class RE2;
@@ -131,4 +131,4 @@ class Interval {
 };
 
 }  // namespace common
-}  // namespace kuzu
+}  // namespace gs

@@ -1,4 +1,4 @@
-// this class is used to convert kuzu LogicalPlan to PhysicalPlan in PB
+// this class is used to convert gs LogicalPlan to PhysicalPlan in PB
 // here has more detailed functions:
 // std::unique_ptr<::physical::PhysicalOpr> convert(LogicalScanNodeTable&
 // scanNodeTable); std::unique_ptr<::physical::Project> convert(LogicalProject&
@@ -30,7 +30,7 @@
 #include "src/proto_generated_gie/cypher_dml.pb.h"
 #include "src/proto_generated_gie/physical.pb.h"
 
-namespace kuzu {
+namespace gs {
 namespace gopt {
 const static common::alias_id_t INVALID_ALIAS_ID = -1;
 
@@ -42,7 +42,7 @@ struct EdgeLabelId {
 class GQueryConvertor {
  public:
   GQueryConvertor(std::shared_ptr<GAliasManager> aliasManager,
-                  kuzu::catalog::Catalog* catalog);
+                  gs::catalog::Catalog* catalog);
 
   std::unique_ptr<::physical::QueryPlan> convert(
       const planner::LogicalPlan& plan);
@@ -90,8 +90,8 @@ class GQueryConvertor {
   std::shared_ptr<GAliasManager> aliasManager;
   std::unique_ptr<GExprConverter> exprConvertor;
   std::unique_ptr<GTypeConverter> typeConverter;
-  kuzu::catalog::Catalog* catalog;
+  gs::catalog::Catalog* catalog;
 };
 
 }  // namespace gopt
-}  // namespace kuzu
+}  // namespace gs

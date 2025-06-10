@@ -2,9 +2,9 @@
 #include "function/scalar_function.h"
 #include "function/utility/vector_utility_functions.h"
 
-using namespace kuzu::common;
+using namespace gs::common;
 
-namespace kuzu {
+namespace gs {
 namespace function {
 
 struct Error {
@@ -26,4 +26,4 @@ function_set ErrorFunction::getFunctionSet() {
 }
 
 }  // namespace function
-}  // namespace kuzu
+}  // namespace gs

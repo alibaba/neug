@@ -3,9 +3,9 @@
 #include "common/assert.h"
 #include "function/comparison/vector_comparison_functions.h"
 
-using namespace kuzu::function;
+using namespace gs::function;
 
-namespace kuzu {
+namespace gs {
 namespace common {
 
 bool ExpressionTypeUtil::isUnary(ExpressionType type) {
@@ -137,4 +137,4 @@ std::string ExpressionTypeUtil::toParsableString(ExpressionType type) {
 // LCOV_EXCL_STOP
 
 }  // namespace common
-}  // namespace kuzu
+}  // namespace gs

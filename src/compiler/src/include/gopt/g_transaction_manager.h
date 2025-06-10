@@ -2,7 +2,7 @@
 #include "storage/wal/wal.h"
 #include "transaction/transaction_manager.h"
 
-namespace kuzu {
+namespace gs {
 namespace transaction {
 class GTransactionManager : public TransactionManager {
  public:
@@ -15,4 +15,4 @@ class GTransactionManager : public TransactionManager {
   void checkpoint(main::ClientContext& clientContext) override;
 };
 }  // namespace transaction
-}  // namespace kuzu
+}  // namespace gs

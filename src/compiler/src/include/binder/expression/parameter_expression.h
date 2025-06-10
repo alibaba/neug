@@ -3,7 +3,7 @@
 #include "common/types/value/value.h"
 #include "expression.h"
 
-namespace kuzu {
+namespace gs {
 namespace binder {
 
 class KUZU_API ParameterExpression final : public Expression {
@@ -34,4 +34,4 @@ class KUZU_API ParameterExpression final : public Expression {
 };
 
 }  // namespace binder
-}  // namespace kuzu
+}  // namespace gs

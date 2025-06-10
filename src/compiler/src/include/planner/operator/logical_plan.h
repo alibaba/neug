@@ -2,7 +2,7 @@
 
 #include "logical_operator.h"
 
-namespace kuzu {
+namespace gs {
 namespace planner {
 
 using cardinality_t = uint64_t;
@@ -52,4 +52,4 @@ class KUZU_API LogicalPlan {
 };
 
 }  // namespace planner
-}  // namespace kuzu
+}  // namespace gs

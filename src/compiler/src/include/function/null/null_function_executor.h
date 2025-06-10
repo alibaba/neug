@@ -2,7 +2,7 @@
 
 #include "common/vector/value_vector.h"
 
-namespace kuzu {
+namespace gs {
 namespace function {
 
 struct NullOperationExecutor {
@@ -69,4 +69,4 @@ struct NullOperationExecutor {
 };
 
 }  // namespace function
-}  // namespace kuzu
+}  // namespace gs

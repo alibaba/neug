@@ -3,7 +3,7 @@
 #include "function/scalar_macro_function.h"
 #include "planner/operator/logical_operator.h"
 
-namespace kuzu {
+namespace gs {
 namespace planner {
 
 struct LogicalCreateMacroPrintInfo final : OPPrintInfo {
@@ -63,4 +63,4 @@ class LogicalCreateMacro final : public LogicalOperator {
 };
 
 }  // namespace planner
-}  // namespace kuzu
+}  // namespace gs

@@ -13,7 +13,7 @@
 #include "prefilter_tree.h"
 #include "util.h"
 
-namespace kuzu {
+namespace gs {
 namespace regex {
 
 FilteredRE2::FilteredRE2()
@@ -115,4 +115,4 @@ void FilteredRE2::PrintPrefilter(int regexpid) {
 }
 
 }  // namespace regex
-}  // namespace kuzu
+}  // namespace gs

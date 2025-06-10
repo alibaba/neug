@@ -4,7 +4,7 @@
 #include "storage/storage_manager.h"
 #include "storage/store/node_table.h"
 
-namespace kuzu {
+namespace gs {
 namespace function {
 
 struct FreeSpaceInfoBindData final : TableFuncBindData {
@@ -43,4 +43,4 @@ function_set FreeSpaceInfoFunction::getFunctionSet() {
 }
 
 }  // namespace function
-}  // namespace kuzu
+}  // namespace gs

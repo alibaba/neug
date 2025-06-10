@@ -5,7 +5,7 @@
 #include "common/types/types.h"
 #include "common/types/value/value.h"
 
-namespace kuzu {
+namespace gs {
 namespace common {
 
 std::vector<std::pair<std::string, std::unique_ptr<Value>>>
@@ -75,4 +75,4 @@ void NodeVal::throwIfNotNode(const Value* val) {
 }
 
 }  // namespace common
-}  // namespace kuzu
+}  // namespace gs

@@ -4,7 +4,7 @@
 
 #include "common/assert.h"
 
-namespace kuzu {
+namespace gs {
 namespace common {
 
 RelDataDirection RelDirectionUtils::getOppositeDirection(
@@ -33,4 +33,4 @@ common::idx_t RelDirectionUtils::relDirectionToKeyIdx(
 }
 
 }  // namespace common
-}  // namespace kuzu
+}  // namespace gs

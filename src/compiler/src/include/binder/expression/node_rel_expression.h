@@ -3,7 +3,7 @@
 #include "common/case_insensitive_map.h"
 #include "expression.h"
 
-namespace kuzu {
+namespace gs {
 namespace catalog {
 class TableCatalogEntry;
 }
@@ -98,4 +98,4 @@ class KUZU_API NodeOrRelExpression : public Expression {
 };
 
 }  // namespace binder
-}  // namespace kuzu
+}  // namespace gs

@@ -12,7 +12,7 @@
 #include "function/cast/functions/cast_string_non_nested_functions.h"
 #include "function/cast/functions/numeric_limits.h"
 
-namespace kuzu {
+namespace gs {
 namespace function {
 
 template <typename A, typename B>
@@ -58,9 +58,9 @@ struct CastToDecimal {
     auto scale = DecimalType::getScale(outputVec.dataType);
     if constexpr (std::is_floating_point<SRC>::value) {
       auto roundconst = (input < 0 ? -0.5 : 0.5);
-      output = (DST)((double) pow10s[scale] * input + roundconst);
+      output = (DST) ((double) pow10s[scale] * input + roundconst);
     } else {
-      output = (DST)(pow10s[scale] * input);
+      output = (DST) (pow10s[scale] * input);
     }
     if (output <= -pow10s[precision] || output >= pow10s[precision]) {
       throw OverflowException(stringFormat(
@@ -82,12 +82,12 @@ struct CastBetweenDecimal {
     if (inputScale == outputScale) {
       output = (DST) input;
     } else if (inputScale < outputScale) {
-      output = (DST)(pow10s[outputScale - inputScale] * input);
+      output = (DST) (pow10s[outputScale - inputScale] * input);
     } else {
       auto roundconst = (input < 0 ? -5 : 5);
       output =
-          (DST)((pow10s[inputScale - outputScale - 1] * roundconst + input) /
-                pow10s[inputScale - outputScale]);
+          (DST) ((pow10s[inputScale - outputScale - 1] * roundconst + input) /
+                 pow10s[inputScale - outputScale]);
     }
     if (pow10s[outputPrecision] <= output ||
         -pow10s[outputPrecision] >= output) {
@@ -174,4 +174,4 @@ inline void CastToDecimal::operation(ku_string_t& input,
 }
 
 }  // namespace function
-}  // namespace kuzu
+}  // namespace gs

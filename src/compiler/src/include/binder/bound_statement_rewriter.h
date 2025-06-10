@@ -3,7 +3,7 @@
 #include "bound_statement.h"
 #include "main/client_context.h"
 
-namespace kuzu {
+namespace gs {
 namespace binder {
 
 // Perform semantic rewrite over bound statement.
@@ -14,4 +14,4 @@ class BoundStatementRewriter {
 };
 
 }  // namespace binder
-}  // namespace kuzu
+}  // namespace gs

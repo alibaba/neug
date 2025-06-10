@@ -8,7 +8,7 @@ namespace arrow {
 class ChunkedArray;
 }  // namespace arrow
 
-namespace kuzu {
+namespace gs {
 namespace common {
 
 class ValueVector;
@@ -128,4 +128,4 @@ class AuxiliaryBufferFactory {
 };
 
 }  // namespace common
-}  // namespace kuzu
+}  // namespace gs

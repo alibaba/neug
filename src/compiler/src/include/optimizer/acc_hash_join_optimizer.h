@@ -3,7 +3,7 @@
 #include "logical_operator_visitor.h"
 #include "planner/operator/logical_plan.h"
 
-namespace kuzu {
+namespace gs {
 namespace optimizer {
 
 // This optimizer enables the Accumulated hash join algorithm as introduced in
@@ -23,4 +23,4 @@ class HashJoinSIPOptimizer final : public LogicalOperatorVisitor {
 };
 
 }  // namespace optimizer
-}  // namespace kuzu
+}  // namespace gs

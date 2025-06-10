@@ -3,7 +3,7 @@
 #include "boolean_functions.h"
 #include "common/vector/value_vector.h"
 
-namespace kuzu {
+namespace gs {
 namespace function {
 
 /**
@@ -375,4 +375,4 @@ struct UnaryBooleanOperationExecutor {
 };
 
 }  // namespace function
-}  // namespace kuzu
+}  // namespace gs

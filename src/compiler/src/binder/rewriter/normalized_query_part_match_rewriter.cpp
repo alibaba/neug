@@ -3,9 +3,9 @@
 #include "binder/binder.h"
 #include "binder/query/reading_clause/bound_match_clause.h"
 
-using namespace kuzu::common;
+using namespace gs::common;
 
-namespace kuzu {
+namespace gs {
 namespace binder {
 
 static bool canRewrite(const BoundMatchClause& matchClause) {
@@ -48,4 +48,4 @@ void NormalizedQueryPartMatchRewriter::visitQueryPartUnsafe(
 }
 
 }  // namespace binder
-}  // namespace kuzu
+}  // namespace gs

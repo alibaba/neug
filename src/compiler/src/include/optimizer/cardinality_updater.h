@@ -1,7 +1,7 @@
 #pragma once
 
 #include "optimizer/logical_operator_visitor.h"
-namespace kuzu {
+namespace gs {
 namespace planner {
 class LogicalPlan;
 class CardinalityEstimator;
@@ -40,4 +40,4 @@ class CardinalityUpdater : public LogicalOperatorVisitor {
   const transaction::Transaction* transaction;
 };
 }  // namespace optimizer
-}  // namespace kuzu
+}  // namespace gs

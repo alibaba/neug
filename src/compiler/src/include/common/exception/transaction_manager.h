@@ -3,14 +3,14 @@
 #include "common/api.h"
 #include "exception.h"
 
-namespace kuzu {
+namespace gs {
 namespace common {
 
 class KUZU_API TransactionManagerException : public Exception {
  public:
   explicit TransactionManagerException(const std::string& msg)
-      : Exception(msg){};
+      : Exception(msg) {};
 };
 
 }  // namespace common
-}  // namespace kuzu
+}  // namespace gs

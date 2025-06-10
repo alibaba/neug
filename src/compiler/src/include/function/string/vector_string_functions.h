@@ -8,7 +8,7 @@
 #include "function/string/functions/trim_function.h"
 #include "function/string/functions/upper_function.h"
 
-namespace kuzu {
+namespace gs {
 namespace function {
 
 struct VectorStringFunction {
@@ -261,4 +261,4 @@ struct SplitPartFunction {
 };
 
 }  // namespace function
-}  // namespace kuzu
+}  // namespace gs

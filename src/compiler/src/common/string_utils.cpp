@@ -7,7 +7,7 @@
 #include "function/string/functions/base_lower_upper_function.h"
 #include "utf8proc_wrapper.h"
 
-namespace kuzu {
+namespace gs {
 namespace common {
 
 std::vector<std::string> StringUtils::splitComma(const std::string& input) {
@@ -275,4 +275,4 @@ std::string StringUtils::rtrimNewlines(const std::string& input) {
 }
 
 }  // namespace common
-}  // namespace kuzu
+}  // namespace gs

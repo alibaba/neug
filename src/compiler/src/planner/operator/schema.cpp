@@ -3,10 +3,10 @@
 #include "binder/expression_visitor.h"
 #include "common/exception/internal.h"
 
-using namespace kuzu::binder;
-using namespace kuzu::common;
+using namespace gs::binder;
+using namespace gs::common;
 
-namespace kuzu {
+namespace gs {
 namespace planner {
 
 f_group_pos Schema::createGroup() {
@@ -167,4 +167,4 @@ void SchemaUtils::validateNoUnFlatGroup(
 }
 
 }  // namespace planner
-}  // namespace kuzu
+}  // namespace gs

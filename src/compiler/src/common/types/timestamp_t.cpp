@@ -5,7 +5,7 @@
 #include "common/exception/conversion.h"
 #include "function/arithmetic/multiply.h"
 
-namespace kuzu {
+namespace gs {
 namespace common {
 
 timestamp_t::timestamp_t() : value(0) {}
@@ -338,4 +338,4 @@ timestamp_t Timestamp::getCurrentTimestamp() {
 }
 
 }  // namespace common
-}  // namespace kuzu
+}  // namespace gs

@@ -2,7 +2,7 @@
 
 #include "common/types/types.h"
 
-namespace kuzu {
+namespace gs {
 namespace planner {
 class Schema;
 }  // namespace planner
@@ -38,4 +38,4 @@ struct KUZU_API ResultSetDescriptor {
 };
 
 }  // namespace processor
-}  // namespace kuzu
+}  // namespace gs

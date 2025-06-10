@@ -2,7 +2,7 @@
 
 #include "common/constants.h"
 
-namespace kuzu {
+namespace gs {
 namespace function {
 
 std::vector<bool> TableFuncBindData::getColumnSkips() const {
@@ -26,4 +26,4 @@ std::unique_ptr<TableFuncBindData> TableFuncBindData::copy() const {
 }
 
 }  // namespace function
-}  // namespace kuzu
+}  // namespace gs

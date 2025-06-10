@@ -6,7 +6,7 @@
 #include "common/copy_constructors.h"
 #include "query_part.h"
 
-namespace kuzu {
+namespace gs {
 namespace parser {
 
 class SingleQuery {
@@ -58,4 +58,4 @@ class SingleQuery {
 };
 
 }  // namespace parser
-}  // namespace kuzu
+}  // namespace gs

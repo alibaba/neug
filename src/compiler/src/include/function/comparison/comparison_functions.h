@@ -2,7 +2,7 @@
 
 #include "common/vector/value_vector.h"
 
-namespace kuzu {
+namespace gs {
 namespace function {
 
 struct Equals {
@@ -131,4 +131,4 @@ void GreaterThan::operation(const common::struct_entry_t& left,
                             common::ValueVector* rightVector);
 
 }  // namespace function
-}  // namespace kuzu
+}  // namespace gs

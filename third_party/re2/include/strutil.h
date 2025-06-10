@@ -10,7 +10,7 @@
 #include "stringpiece.h"
 #include "util.h"
 
-namespace kuzu {
+namespace gs {
 namespace regex {
 
 std::string CEscape(const StringPiece& src);
@@ -19,7 +19,7 @@ std::string StringPrintf(const char* format, ...);
 void SStringPrintf(std::string* dst, const char* format, ...);
 void StringAppendF(std::string* dst, const char* format, ...);
 
-} // namespace regex
-} // namespace kuzu
+}  // namespace regex
+}  // namespace gs
 
-#endif // UTIL_STRUTIL_H_
+#endif  // UTIL_STRUTIL_H_

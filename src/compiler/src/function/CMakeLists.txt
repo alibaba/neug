@@ -18,7 +18,7 @@ add_subdirectory(export)
 add_subdirectory(internal_id)
 add_subdirectory(timestamp)
 
-add_library(kuzu_function
+add_library(nexg_function
         OBJECT
         aggregate_function.cpp
         base_lower_upper_operation.cpp
@@ -43,5 +43,5 @@ add_library(kuzu_function
         vector_uuid_functions.cpp)
 
 set(ALL_OBJECT_FILES
-        ${ALL_OBJECT_FILES} $<TARGET_OBJECTS:kuzu_function>
+        ${ALL_OBJECT_FILES} $<TARGET_OBJECTS:nexg_function>
         PARENT_SCOPE)

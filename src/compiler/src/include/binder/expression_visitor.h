@@ -2,7 +2,7 @@
 
 #include "binder/expression/expression.h"
 
-namespace kuzu {
+namespace gs {
 namespace binder {
 
 class ExpressionChildrenCollector {
@@ -102,4 +102,4 @@ class ConstantExpressionVisitor {
 };
 
 }  // namespace binder
-}  // namespace kuzu
+}  // namespace gs

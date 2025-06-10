@@ -10,7 +10,7 @@
 #include "common/types/timestamp_t.h"
 #include "common/types/uuid.h"
 
-namespace kuzu {
+namespace gs {
 namespace common {
 
 class NodeVal;
@@ -860,4 +860,4 @@ KUZU_API inline Value Value::createValue(uint8_t* val) {
 }
 
 }  // namespace common
-}  // namespace kuzu
+}  // namespace gs

@@ -3,7 +3,7 @@
 #include "parser/expression/parsed_expression.h"
 #include "parser/parsed_statement_visitor.h"
 
-namespace kuzu {
+namespace gs {
 namespace parser {
 
 class StatementReadWriteAnalyzer final : public StatementVisitor {
@@ -57,4 +57,4 @@ class StatementReadWriteAnalyzer final : public StatementVisitor {
 };
 
 }  // namespace parser
-}  // namespace kuzu
+}  // namespace gs

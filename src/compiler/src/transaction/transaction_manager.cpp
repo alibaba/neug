@@ -8,10 +8,10 @@
 #include "main/db_config.h"
 #include "storage/storage_manager.h"
 
-using namespace kuzu::common;
-using namespace kuzu::storage;
+using namespace gs::common;
+using namespace gs::storage;
 
-namespace kuzu {
+namespace gs {
 namespace transaction {
 
 std::unique_ptr<Transaction> TransactionManager::beginTransaction(
@@ -81,4 +81,4 @@ void TransactionManager::finalizeCheckpointNoLock(
 void TransactionManager::checkpointNoLock(main::ClientContext& clientContext) {}
 
 }  // namespace transaction
-}  // namespace kuzu
+}  // namespace gs

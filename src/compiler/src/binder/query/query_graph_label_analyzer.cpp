@@ -5,11 +5,11 @@
 #include "common/exception/binder.h"
 #include "common/string_format.h"
 
-using namespace kuzu::common;
-using namespace kuzu::catalog;
-using namespace kuzu::transaction;
+using namespace gs::common;
+using namespace gs::catalog;
+using namespace gs::transaction;
 
-namespace kuzu {
+namespace gs {
 namespace binder {
 
 // NOLINTNEXTLINE(readability-non-const-parameter): graph is supposed to be
@@ -151,4 +151,4 @@ void QueryGraphLabelAnalyzer::pruneRel(RelExpression& rel) const {
 }
 
 }  // namespace binder
-}  // namespace kuzu
+}  // namespace gs

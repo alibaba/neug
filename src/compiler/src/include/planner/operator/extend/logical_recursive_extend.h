@@ -3,7 +3,7 @@
 #include "function/gds/rec_joins.h"
 #include "planner/operator/logical_operator.h"
 
-namespace kuzu {
+namespace gs {
 namespace planner {
 
 class LogicalRecursiveExtend final : public LogicalOperator {
@@ -79,4 +79,4 @@ class LogicalRecursiveExtend final : public LogicalOperator {
 };
 
 }  // namespace planner
-}  // namespace kuzu
+}  // namespace gs

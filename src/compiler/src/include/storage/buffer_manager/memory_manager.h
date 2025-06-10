@@ -9,7 +9,7 @@
 #include "common/system_config.h"
 #include "common/types/types.h"
 
-namespace kuzu {
+namespace gs {
 
 namespace common {
 class VirtualFileSystem;
@@ -98,4 +98,4 @@ class KUZU_API MemoryManager {
 };
 
 }  // namespace storage
-}  // namespace kuzu
+}  // namespace gs

@@ -4,7 +4,7 @@
 #include "function/list/functions/list_len_function.h"
 #include "substr_function.h"
 
-namespace kuzu {
+namespace gs {
 namespace function {
 
 struct Right {
@@ -21,4 +21,4 @@ struct Right {
 };
 
 }  // namespace function
-}  // namespace kuzu
+}  // namespace gs

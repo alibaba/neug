@@ -6,7 +6,7 @@
 #include "common/api.h"
 #include "common/cast.h"
 
-namespace kuzu {
+namespace gs {
 namespace common {
 
 class FileSystem;
@@ -61,4 +61,4 @@ struct KUZU_API FileInfo {
 };
 
 }  // namespace common
-}  // namespace kuzu
+}  // namespace gs

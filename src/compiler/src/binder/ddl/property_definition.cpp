@@ -4,10 +4,10 @@
 #include "common/serializer/serializer.h"
 #include "parser/expression/parsed_literal_expression.h"
 
-using namespace kuzu::common;
-using namespace kuzu::parser;
+using namespace gs::common;
+using namespace gs::parser;
 
-namespace kuzu {
+namespace gs {
 namespace binder {
 
 PropertyDefinition::PropertyDefinition(ColumnDefinition columnDefinition)
@@ -33,4 +33,4 @@ PropertyDefinition PropertyDefinition::deserialize(Deserializer& deserializer) {
 }
 
 }  // namespace binder
-}  // namespace kuzu
+}  // namespace gs

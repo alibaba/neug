@@ -5,7 +5,7 @@
 #include "common/type_utils.h"
 #include "function/cast/functions/numeric_limits.h"
 
-namespace kuzu {
+namespace gs {
 namespace function {
 
 // reference from duckDB arithmetic.cpp
@@ -81,4 +81,4 @@ void Negate::operation(int64_t& input, int64_t& result) {
 }
 
 }  // namespace function
-}  // namespace kuzu
+}  // namespace gs

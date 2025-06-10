@@ -12,24 +12,23 @@
 #define ZSTD_COMPRESS_ADVANCED_H
 
 /*-*************************************
-*  Dependencies
-***************************************/
+ *  Dependencies
+ ***************************************/
 
 #include "zstd.h" /* ZSTD_CCtx */
 
-namespace kuzu_zstd {
+namespace nexg_zstd {
 /*-*************************************
-*  Target Compressed Block Size
-***************************************/
+ *  Target Compressed Block Size
+ ***************************************/
 
 /* ZSTD_compressSuperBlock() :
  * Used to compress a super block when targetCBlockSize is being used.
- * The given block will be compressed into multiple sub blocks that are around targetCBlockSize. */
-size_t ZSTD_compressSuperBlock(ZSTD_CCtx* zc,
-                               void* dst, size_t dstCapacity,
+ * The given block will be compressed into multiple sub blocks that are around
+ * targetCBlockSize. */
+size_t ZSTD_compressSuperBlock(ZSTD_CCtx* zc, void* dst, size_t dstCapacity,
                                void const* src, size_t srcSize,
                                unsigned lastBlock);
-}
-
+}  // namespace nexg_zstd
 
 #endif /* ZSTD_COMPRESS_ADVANCED_H */

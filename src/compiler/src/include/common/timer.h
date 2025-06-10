@@ -6,7 +6,7 @@
 #include "common/assert.h"
 #include "exception/exception.h"
 
-namespace kuzu {
+namespace gs {
 namespace common {
 
 class Timer {
@@ -47,4 +47,4 @@ class Timer {
 };
 
 }  // namespace common
-}  // namespace kuzu
+}  // namespace gs

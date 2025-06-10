@@ -7,7 +7,7 @@
 #include "storage/store/table.h"
 #include "storage/wal/wal.h"
 
-namespace kuzu {
+namespace gs {
 namespace main {
 class Database;
 }
@@ -68,4 +68,4 @@ class KUZU_API StorageManager {
 };
 
 }  // namespace storage
-}  // namespace kuzu
+}  // namespace gs

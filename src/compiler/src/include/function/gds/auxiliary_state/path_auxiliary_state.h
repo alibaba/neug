@@ -3,7 +3,7 @@
 #include "function/gds/bfs_graph.h"
 #include "gds_auxilary_state.h"
 
-namespace kuzu {
+namespace gs {
 namespace function {
 
 class PathAuxiliaryState : public GDSAuxiliaryState {
@@ -58,4 +58,4 @@ class WSPPathsAuxiliaryState : public GDSAuxiliaryState {
 };
 
 }  // namespace function
-}  // namespace kuzu
+}  // namespace gs

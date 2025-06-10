@@ -6,7 +6,7 @@
 #include "cypher_parser.h"
 #pragma GCC diagnostic pop
 
-namespace kuzu {
+namespace gs {
 namespace parser {
 
 class KuzuCypherParser : public CypherParser {
@@ -28,4 +28,4 @@ class KuzuCypherParser : public CypherParser {
 };
 
 }  // namespace parser
-}  // namespace kuzu
+}  // namespace gs

@@ -7,7 +7,7 @@
 #include "common/api.h"
 #include "common/copy_constructors.h"
 
-namespace kuzu {
+namespace gs {
 namespace storage {
 class MemoryBuffer;
 class MemoryManager;
@@ -71,4 +71,4 @@ class InMemOverflowBuffer {
 };
 
 }  // namespace common
-}  // namespace kuzu
+}  // namespace gs

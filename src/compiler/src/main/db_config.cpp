@@ -4,13 +4,13 @@
 #include "main/database.h"
 #include "main/settings.h"
 
-using namespace kuzu::common;
+using namespace gs::common;
 
-namespace kuzu {
+namespace gs {
 namespace main {
 
 #define GET_CONFIGURATION(_PARAM) \
-  { _PARAM::name, _PARAM::inputType, _PARAM::setContext, _PARAM::getSetting }
+  {_PARAM::name, _PARAM::inputType, _PARAM::setContext, _PARAM::getSetting}
 
 static ConfigurationOption options[] = {  // NOLINT(cert-err58-cpp):
     GET_CONFIGURATION(ThreadsSetting),
@@ -62,4 +62,4 @@ bool DBConfig::isDBPathInMemory(const std::string& dbPath) {
 }
 
 }  // namespace main
-}  // namespace kuzu
+}  // namespace gs

@@ -10,7 +10,7 @@
 #include "common/types/types.h"
 #include "function/table/table_function.h"
 
-namespace kuzu {
+namespace gs {
 namespace binder {
 struct BoundExtraCreateCatalogEntryInfo;
 }  // namespace binder
@@ -103,4 +103,4 @@ using table_catalog_entry_set_t =
                        TableCatalogEntryEquality>;
 
 }  // namespace catalog
-}  // namespace kuzu
+}  // namespace gs

@@ -5,7 +5,7 @@
 
 #include "common/copy_constructors.h"
 
-namespace kuzu {
+namespace gs {
 namespace common {
 
 template <typename T>
@@ -59,4 +59,4 @@ class Mutex {
 };
 
 }  // namespace common
-}  // namespace kuzu
+}  // namespace gs

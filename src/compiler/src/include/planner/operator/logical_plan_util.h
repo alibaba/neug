@@ -2,7 +2,7 @@
 
 #include "planner/operator/logical_plan.h"
 
-namespace kuzu {
+namespace gs {
 namespace planner {
 
 class LogicalPlanUtil {
@@ -30,4 +30,4 @@ class LogicalPlanUtil {
 };
 
 }  // namespace planner
-}  // namespace kuzu
+}  // namespace gs

@@ -10,7 +10,7 @@
 #include "common/types/types.h"
 #include "common/types/value/value.h"
 
-namespace kuzu {
+namespace gs {
 namespace common {
 class ValueVector;
 }
@@ -124,4 +124,4 @@ WarningSourceData WarningSourceData::constructFrom(uint64_t blockIdx,
 }
 
 }  // namespace processor
-}  // namespace kuzu
+}  // namespace gs

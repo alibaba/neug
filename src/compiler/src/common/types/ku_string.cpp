@@ -1,6 +1,6 @@
 #include "common/types/ku_string.h"
 
-namespace kuzu {
+namespace gs {
 namespace common {
 
 ku_string_t::ku_string_t(const char* value, uint64_t length)
@@ -9,7 +9,7 @@ ku_string_t::ku_string_t(const char* value, uint64_t length)
     memcpy(prefix, value, length);
     return;
   }
-  overflowPtr = (uint64_t)(value);
+  overflowPtr = (uint64_t) (value);
   memcpy(prefix, value, PREFIX_LENGTH);
 }
 
@@ -81,4 +81,4 @@ bool ku_string_t::operator>(const ku_string_t& rhs) const {
 }
 
 }  // namespace common
-}  // namespace kuzu
+}  // namespace gs

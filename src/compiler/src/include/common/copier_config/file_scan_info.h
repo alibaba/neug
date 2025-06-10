@@ -7,7 +7,7 @@
 #include "common/copy_constructors.h"
 #include "common/types/value/value.h"
 
-namespace kuzu {
+namespace gs {
 namespace common {
 
 enum class FileType : uint8_t {
@@ -65,4 +65,4 @@ struct FileScanInfo {
 };
 
 }  // namespace common
-}  // namespace kuzu
+}  // namespace gs

@@ -19,12 +19,12 @@
 #include "storage/storage_manager.h"
 #include "transaction/transaction_manager.h"
 
-using namespace kuzu::catalog;
-using namespace kuzu::common;
-using namespace kuzu::storage;
-using namespace kuzu::transaction;
+using namespace gs::catalog;
+using namespace gs::common;
+using namespace gs::storage;
+using namespace gs::transaction;
 
-namespace kuzu {
+namespace gs {
 namespace main {
 
 SystemConfig::SystemConfig(uint64_t bufferPoolSize_, uint64_t maxNumThreads,
@@ -131,4 +131,4 @@ uint64_t Database::getNextQueryID() {
 }
 
 }  // namespace main
-}  // namespace kuzu
+}  // namespace gs

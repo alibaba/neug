@@ -20,11 +20,11 @@
 #include "planner/operator/persistent/logical_merge.h"
 #include "planner/operator/persistent/logical_set.h"
 
-using namespace kuzu::common;
-using namespace kuzu::binder;
-using namespace kuzu::planner;
+using namespace gs::common;
+using namespace gs::binder;
+using namespace gs::planner;
 
-namespace kuzu {
+namespace gs {
 namespace optimizer {
 
 void FactorizationRewriter::rewrite(planner::LogicalPlan* plan) {
@@ -202,4 +202,4 @@ FactorizationRewriter::appendFlattenIfNecessary(
 }
 
 }  // namespace optimizer
-}  // namespace kuzu
+}  // namespace gs

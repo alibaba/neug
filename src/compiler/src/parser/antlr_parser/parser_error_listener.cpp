@@ -4,9 +4,9 @@
 #include "common/string_utils.h"
 
 using namespace antlr4;
-using namespace kuzu::common;
+using namespace gs::common;
 
-namespace kuzu {
+namespace gs {
 namespace parser {
 
 void ParserErrorListener::syntaxError(Recognizer* recognizer,
@@ -39,4 +39,4 @@ std::string ParserErrorListener::formatUnderLineError(
 }
 
 }  // namespace parser
-}  // namespace kuzu
+}  // namespace gs

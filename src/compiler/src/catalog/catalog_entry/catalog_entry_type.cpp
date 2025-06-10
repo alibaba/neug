@@ -2,7 +2,7 @@
 
 #include "common/assert.h"
 
-namespace kuzu {
+namespace gs {
 namespace catalog {
 
 std::string CatalogEntryTypeUtils::toString(CatalogEntryType type) {
@@ -60,4 +60,4 @@ std::string FunctionEntryTypeUtils::toString(CatalogEntryType type) {
 }
 
 }  // namespace catalog
-}  // namespace kuzu
+}  // namespace gs

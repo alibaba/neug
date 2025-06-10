@@ -5,7 +5,7 @@
 #include "common/api.h"
 #include "third_party/pcg/pcg_random.hpp"
 
-namespace kuzu {
+namespace gs {
 
 namespace main {
 class ClientContext;
@@ -33,4 +33,4 @@ class KUZU_API RandomEngine {
 };
 
 }  // namespace common
-}  // namespace kuzu
+}  // namespace gs

@@ -2,7 +2,7 @@
 
 #include "interval_t.h"
 
-namespace kuzu {
+namespace gs {
 
 namespace regex {
 class RE2;
@@ -122,4 +122,4 @@ class Date {
 };
 
 }  // namespace common
-}  // namespace kuzu
+}  // namespace gs

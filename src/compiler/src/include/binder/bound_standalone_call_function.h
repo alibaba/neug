@@ -3,7 +3,7 @@
 #include "binder/bound_statement.h"
 #include "bound_table_scan_info.h"
 
-namespace kuzu {
+namespace gs {
 namespace binder {
 
 class BoundStandaloneCallFunction final : public BoundStatement {
@@ -27,4 +27,4 @@ class BoundStandaloneCallFunction final : public BoundStatement {
 };
 
 }  // namespace binder
-}  // namespace kuzu
+}  // namespace gs

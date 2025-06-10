@@ -1,7 +1,7 @@
 #include "parser/attach_database.h"
 #include "parser/transformer.h"
 
-namespace kuzu {
+namespace gs {
 namespace parser {
 
 std::unique_ptr<Statement> Transformer::transformAttachDatabase(
@@ -18,4 +18,4 @@ std::unique_ptr<Statement> Transformer::transformAttachDatabase(
 }
 
 }  // namespace parser
-}  // namespace kuzu
+}  // namespace gs

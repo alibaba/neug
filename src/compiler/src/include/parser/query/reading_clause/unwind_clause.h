@@ -3,7 +3,7 @@
 #include "parser/expression/parsed_expression.h"
 #include "reading_clause.h"
 
-namespace kuzu {
+namespace gs {
 namespace parser {
 
 class UnwindClause : public ReadingClause {
@@ -26,4 +26,4 @@ class UnwindClause : public ReadingClause {
 };
 
 }  // namespace parser
-}  // namespace kuzu
+}  // namespace gs

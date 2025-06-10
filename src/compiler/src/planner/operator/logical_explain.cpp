@@ -1,8 +1,8 @@
 #include "planner/operator/logical_explain.h"
 
-using namespace kuzu::common;
+using namespace gs::common;
 
-namespace kuzu {
+namespace gs {
 namespace planner {
 
 void LogicalExplain::computeSchema() {
@@ -33,4 +33,4 @@ void LogicalExplain::computeFactorizedSchema() {
 }
 
 }  // namespace planner
-}  // namespace kuzu
+}  // namespace gs

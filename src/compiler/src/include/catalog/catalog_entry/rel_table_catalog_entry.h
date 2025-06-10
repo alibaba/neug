@@ -5,7 +5,7 @@
 #include "common/enums/rel_multiplicity.h"
 #include "table_catalog_entry.h"
 
-namespace kuzu {
+namespace gs {
 namespace catalog {
 
 struct RelTableToCypherInfo : public ToCypherInfo {
@@ -87,4 +87,4 @@ class KUZU_API RelTableCatalogEntry : public TableCatalogEntry {
 };
 
 }  // namespace catalog
-}  // namespace kuzu
+}  // namespace gs

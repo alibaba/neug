@@ -651,9 +651,9 @@ Dan|Carol
 # Runtime exception: Found duplicate key: 23:00:00 in map.
 
 # -LOG DuplicateMapStringKey
-# -STATEMENT RETURN map(['kuzu', 'kuzuinc', 'kuzucorp', 'kuzu'], [20, 34, 50, 32]);
+# -STATEMENT RETURN map(['gs', 'kuzuinc', 'kuzucorp', 'gs'], [20, 34, 50, 32]);
 # ---- error
-# Runtime exception: Found duplicate key: kuzu in map.
+# Runtime exception: Found duplicate key: gs in map.
 
 # -LOG DuplicateMapArrayKey
 # -STATEMENT RETURN map([cast([3,2,1], 'int64[3]'), cast([3,2,1], 'int64[3]')], [20, 34]);

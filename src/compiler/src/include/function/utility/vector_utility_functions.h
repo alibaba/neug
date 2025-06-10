@@ -2,7 +2,7 @@
 
 #include "function/function.h"
 
-namespace kuzu {
+namespace gs {
 namespace function {
 
 struct CoalesceFunction {
@@ -48,4 +48,4 @@ struct TypeOfFunction {
 };
 
 }  // namespace function
-}  // namespace kuzu
+}  // namespace gs

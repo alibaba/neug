@@ -6,7 +6,7 @@
 #include "common/mask.h"
 #include "common/types/types.h"
 
-namespace kuzu {
+namespace gs {
 namespace function {
 
 class RJOutputWriter {
@@ -120,4 +120,4 @@ class SPPathsOutputWriter : public PathsOutputWriter {
 };
 
 }  // namespace function
-}  // namespace kuzu
+}  // namespace gs

@@ -4,10 +4,10 @@
 #include "common/cast.h"
 #include "planner/operator/factorization/flatten_resolver.h"
 
-using namespace kuzu::binder;
-using namespace kuzu::common;
+using namespace gs::binder;
+using namespace gs::common;
 
-namespace kuzu {
+namespace gs {
 namespace planner {
 
 void LogicalMerge::computeFactorizedSchema() {
@@ -50,4 +50,4 @@ std::unique_ptr<LogicalOperator> LogicalMerge::copy() {
 }
 
 }  // namespace planner
-}  // namespace kuzu
+}  // namespace gs

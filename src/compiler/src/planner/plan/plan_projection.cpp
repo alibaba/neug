@@ -2,9 +2,9 @@
 #include "binder/query/return_with_clause/bound_projection_body.h"
 #include "planner/planner.h"
 
-using namespace kuzu::binder;
+using namespace gs::binder;
 
-namespace kuzu {
+namespace gs {
 namespace planner {
 
 void Planner::planProjectionBody(
@@ -93,4 +93,4 @@ void Planner::planOrderBy(const binder::expression_vector& expressionsToProject,
 }
 
 }  // namespace planner
-}  // namespace kuzu
+}  // namespace gs

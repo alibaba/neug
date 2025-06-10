@@ -2,7 +2,7 @@
 
 #include "common/vector/value_vector.h"
 
-namespace kuzu {
+namespace gs {
 namespace common {
 
 std::string TypeUtils::entryToString(const LogicalType& dataType,
@@ -303,4 +303,4 @@ std::string TypeUtils::toString(const union_entry_t& val, void* valVector) {
 }
 
 }  // namespace common
-}  // namespace kuzu
+}  // namespace gs

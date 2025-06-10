@@ -2,7 +2,7 @@
 
 #include "bound_return_clause.h"
 
-namespace kuzu {
+namespace gs {
 namespace binder {
 
 class BoundWithClause final : public BoundReturnClause {
@@ -23,4 +23,4 @@ class BoundWithClause final : public BoundReturnClause {
 };
 
 }  // namespace binder
-}  // namespace kuzu
+}  // namespace gs

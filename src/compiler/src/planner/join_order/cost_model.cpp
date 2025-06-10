@@ -6,9 +6,9 @@
 #include "planner/join_order/join_order_util.h"
 #include "planner/operator/logical_hash_join.h"
 
-using namespace kuzu::common;
+using namespace gs::common;
 
-namespace kuzu {
+namespace gs {
 namespace planner {
 
 uint64_t CostModel::computeExtendCost(const LogicalPlan& childPlan) {
@@ -57,7 +57,7 @@ uint64_t CostModel::computeMarkJoinCost(
 }
 
 uint64_t CostModel::computeIntersectCost(
-    const kuzu::planner::LogicalPlan& probePlan,
+    const gs::planner::LogicalPlan& probePlan,
     const std::vector<std::unique_ptr<LogicalPlan>>& buildPlans) {
   uint64_t cost = 0ul;
   cost += probePlan.getCost();
@@ -72,4 +72,4 @@ uint64_t CostModel::computeIntersectCost(
 }
 
 }  // namespace planner
-}  // namespace kuzu
+}  // namespace gs

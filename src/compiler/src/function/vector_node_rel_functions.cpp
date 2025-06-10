@@ -5,9 +5,9 @@
 #include "function/schema/offset_functions.h"
 #include "function/unary_function_executor.h"
 
-using namespace kuzu::common;
+using namespace gs::common;
 
-namespace kuzu {
+namespace gs {
 namespace function {
 
 static void execFunc(
@@ -29,4 +29,4 @@ function_set OffsetFunction::getFunctionSet() {
 }
 
 }  // namespace function
-}  // namespace kuzu
+}  // namespace gs

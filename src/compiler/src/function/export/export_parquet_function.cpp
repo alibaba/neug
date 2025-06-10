@@ -5,7 +5,7 @@
 #include "main/client_context.h"
 #include "parquet_types.h"
 
-namespace kuzu {
+namespace gs {
 namespace function {
 
 using namespace common;
@@ -151,4 +151,4 @@ function_set ExportParquetFunction::getFunctionSet() {
 }
 
 }  // namespace function
-}  // namespace kuzu
+}  // namespace gs

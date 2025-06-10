@@ -3,10 +3,10 @@
 #include "function/path/vector_path_functions.h"
 #include "function/scalar_function.h"
 
-using namespace kuzu::binder;
-using namespace kuzu::common;
+using namespace gs::binder;
+using namespace gs::common;
 
-namespace kuzu {
+namespace gs {
 namespace function {
 
 static std::unique_ptr<FunctionBindData> bindFunc(
@@ -64,4 +64,4 @@ function_set IsACyclicFunction::getFunctionSet() {
 }
 
 }  // namespace function
-}  // namespace kuzu
+}  // namespace gs

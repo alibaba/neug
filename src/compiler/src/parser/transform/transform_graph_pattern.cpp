@@ -2,9 +2,9 @@
 #include "parser/query/graph_pattern/pattern_element.h"
 #include "parser/transformer.h"
 
-using namespace kuzu::common;
+using namespace gs::common;
 
-namespace kuzu {
+namespace gs {
 namespace parser {
 
 std::vector<PatternElement> Transformer::transformPattern(
@@ -231,4 +231,4 @@ std::string Transformer::transformRelTypeName(
 }
 
 }  // namespace parser
-}  // namespace kuzu
+}  // namespace gs

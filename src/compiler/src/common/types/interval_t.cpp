@@ -12,7 +12,7 @@
 #include "function/cast/functions/cast_functions.h"
 #include "re2.h"
 
-namespace kuzu {
+namespace gs {
 namespace common {
 
 interval_t::interval_t() = default;
@@ -232,7 +232,7 @@ interval_parse_number:
   }
   goto interval_parse_identifier;
 
-interval_parse_time : {
+interval_parse_time: {
   // parse the remainder of the time as a Time type
   dtime_t time;
   uint64_t tmpPos = 0;
@@ -520,4 +520,4 @@ const regex::RE2& Interval::regexPattern2() {
 }
 
 }  // namespace common
-}  // namespace kuzu
+}  // namespace gs

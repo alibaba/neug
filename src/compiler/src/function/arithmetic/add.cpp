@@ -5,7 +5,7 @@
 #include "common/type_utils.h"
 #include "function/cast/functions/numeric_limits.h"
 
-namespace kuzu {
+namespace gs {
 namespace function {
 
 // reference from duckDB add.cpp
@@ -161,4 +161,4 @@ void Add::operation(int64_t& left, int64_t& right, int64_t& result) {
 }
 
 }  // namespace function
-}  // namespace kuzu
+}  // namespace gs

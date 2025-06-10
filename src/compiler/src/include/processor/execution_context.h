@@ -4,7 +4,7 @@
 #include "common/profiler.h"
 #include "main/client_context.h"
 
-namespace kuzu {
+namespace gs {
 namespace processor {
 
 class FactorizedTable;
@@ -20,4 +20,4 @@ struct KUZU_API ExecutionContext {
 };
 
 }  // namespace processor
-}  // namespace kuzu
+}  // namespace gs

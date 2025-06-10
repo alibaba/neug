@@ -24,11 +24,11 @@
 #include "src/proto_generated_gie/expr.pb.h"
 #include "src/proto_generated_gie/physical.pb.h"
 
-namespace kuzu {
+namespace gs {
 namespace gopt {
 
 GQueryConvertor::GQueryConvertor(std::shared_ptr<GAliasManager> aliasManager,
-                                 kuzu::catalog::Catalog* catalog)
+                                 gs::catalog::Catalog* catalog)
     : aliasManager(aliasManager),
       catalog(catalog),
       exprConvertor(std::make_unique<GExprConverter>(aliasManager)),
@@ -38,9 +38,9 @@ std::unique_ptr<::physical::QueryPlan> GQueryConvertor::convert(
     const planner::LogicalPlan& plan) {
   auto planPB = std::make_unique<::physical::QueryPlan>();
   convertOperator(*plan.getLastOperator(), planPB.get());
-  if (plan.getLastOperator()->getOperatorType() == 
+  if (plan.getLastOperator()->getOperatorType() ==
       planner::LogicalOperatorType::PROJECTION) {
-    // add tail sink 
+    // add tail sink
     auto sink = std::make_unique<::physical::Sink>();
     auto physicalOpr = std::make_unique<::physical::PhysicalOpr>();
     auto oprPB = std::make_unique<::physical::PhysicalOpr_Operator>();
@@ -488,9 +488,9 @@ void GQueryConvertor::convertCopyFrom(const planner::LogicalCopyFrom& copyFrom,
 void GQueryConvertor::convertBatchInsertEdge(
     catalog::GRelTableCatalogEntry* relEntry,
     const binder::expression_vector& columnExprs, ::physical::QueryPlan* plan) {
-  kuzu::gopt::EdgeLabelId edgeLabelId(relEntry->getLabelId(),
-                                      relEntry->getSrcTableID(),
-                                      relEntry->getDstTableID());
+  gs::gopt::EdgeLabelId edgeLabelId(relEntry->getLabelId(),
+                                    relEntry->getSrcTableID(),
+                                    relEntry->getDstTableID());
   auto batchEdge = std::make_unique<::physical::BatchInsertEdge>();
   batchEdge->set_allocated_edge_type(convertToEdgeType(edgeLabelId).release());
   common::alias_id_t columnId = 0;
@@ -516,13 +516,13 @@ void GQueryConvertor::convertBatchInsertEdge(
 
 std::shared_ptr<binder::Expression> GQueryConvertor::bindPKExpr(
     common::table_id_t labelId) {
-  auto& transaction = kuzu::Constants::DEFAULT_TRANSACTION;
+  auto& transaction = gs::Constants::DEFAULT_TRANSACTION;
   auto table = catalog->getTableCatalogEntry(&transaction, labelId);
   if (!table) {
     throw common::Exception("Source vertex table not found: " +
                             std::to_string(labelId));
   }
-  auto nodeTable = table->constPtrCast<kuzu::catalog::NodeTableCatalogEntry>();
+  auto nodeTable = table->constPtrCast<gs::catalog::NodeTableCatalogEntry>();
   if (!nodeTable) {
     throw common::Exception("Source vertex table is not a node table: " +
                             table->getName());
@@ -535,8 +535,8 @@ std::shared_ptr<binder::Expression> GQueryConvertor::bindPKExpr(
   }
   // todo: set actual type of primary key
   return std::make_shared<binder::VariableExpression>(
-      std::move(kuzu::common::LogicalType(kuzu::common::LogicalTypeID::ANY)),
-      pk, pk);
+      std::move(gs::common::LogicalType(gs::common::LogicalTypeID::ANY)), pk,
+      pk);
 }
 
 void GQueryConvertor::convertBatchInsertVertex(
@@ -578,4 +578,4 @@ GQueryConvertor::convertPropMapping(const binder::Expression& expr,
 }
 
 }  // namespace gopt
-}  // namespace kuzu
+}  // namespace gs

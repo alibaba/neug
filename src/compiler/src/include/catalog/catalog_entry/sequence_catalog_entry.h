@@ -6,7 +6,7 @@
 #include "catalog_entry.h"
 #include "common/vector/value_vector.h"
 
-namespace kuzu {
+namespace gs {
 namespace common {
 class ValueVector;
 }
@@ -104,4 +104,4 @@ class KUZU_API SequenceCatalogEntry final : public CatalogEntry {
 };
 
 }  // namespace catalog
-}  // namespace kuzu
+}  // namespace gs

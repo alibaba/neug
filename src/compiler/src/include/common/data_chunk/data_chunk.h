@@ -7,7 +7,7 @@
 #include "common/data_chunk/data_chunk_state.h"
 #include "common/vector/value_vector.h"
 
-namespace kuzu {
+namespace gs {
 namespace common {
 
 // A DataChunk represents tuples as a set of value vectors and a selector array.
@@ -21,7 +21,7 @@ class KUZU_API DataChunk {
  public:
   DataChunk() : DataChunk{0} {}
   explicit DataChunk(uint32_t numValueVectors)
-      : DataChunk(numValueVectors, std::make_shared<DataChunkState>()){};
+      : DataChunk(numValueVectors, std::make_shared<DataChunkState>()) {};
 
   DataChunk(uint32_t numValueVectors,
             const std::shared_ptr<DataChunkState>& state)
@@ -47,4 +47,4 @@ class KUZU_API DataChunk {
 };
 
 }  // namespace common
-}  // namespace kuzu
+}  // namespace gs

@@ -3,7 +3,7 @@
 #include "common/vector/value_vector.h"
 #include "function/comparison/comparison_functions.h"
 
-namespace kuzu {
+namespace gs {
 namespace function {
 
 struct ListPosition {
@@ -36,4 +36,4 @@ struct ListPosition {
 };
 
 }  // namespace function
-}  // namespace kuzu
+}  // namespace gs

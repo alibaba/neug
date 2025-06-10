@@ -5,7 +5,7 @@
 #include "common/types/timestamp_t.h"
 #include "function/cast/functions/numeric_cast.h"
 
-namespace kuzu {
+namespace gs {
 namespace function {
 
 struct Century {
@@ -34,4 +34,4 @@ struct ToTimestamp {
 };
 
 }  // namespace function
-}  // namespace kuzu
+}  // namespace gs

@@ -8,7 +8,7 @@
 #include "parser/expression/parsed_function_expression.h"
 #include "parser/standalone_call_function.h"
 
-namespace kuzu {
+namespace gs {
 namespace parser {
 
 std::string StandaloneCallRewriter::getRewriteQuery(
@@ -50,4 +50,4 @@ void StandaloneCallRewriter::visitStandaloneCallFunction(
 }
 
 }  // namespace parser
-}  // namespace kuzu
+}  // namespace gs

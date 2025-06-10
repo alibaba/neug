@@ -4,7 +4,7 @@
 #include "common/copier_config/file_scan_info.h"
 #include "logical_simple.h"
 
-namespace kuzu {
+namespace gs {
 namespace planner {
 
 class LogicalExportDatabase final : public LogicalSimple {
@@ -45,4 +45,4 @@ class LogicalExportDatabase final : public LogicalSimple {
 };
 
 }  // namespace planner
-}  // namespace kuzu
+}  // namespace gs

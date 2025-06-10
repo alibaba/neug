@@ -2,7 +2,7 @@
 
 #include "parser/database_statement.h"
 
-namespace kuzu {
+namespace gs {
 namespace parser {
 
 class UseDatabase final : public DatabaseStatement {
@@ -13,4 +13,4 @@ class UseDatabase final : public DatabaseStatement {
 };
 
 }  // namespace parser
-}  // namespace kuzu
+}  // namespace gs

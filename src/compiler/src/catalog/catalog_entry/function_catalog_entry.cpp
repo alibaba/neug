@@ -1,6 +1,6 @@
 #include "catalog/catalog_entry/function_catalog_entry.h"
 
-namespace kuzu {
+namespace gs {
 namespace catalog {
 
 FunctionCatalogEntry::FunctionCatalogEntry(CatalogEntryType entryType,
@@ -10,4 +10,4 @@ FunctionCatalogEntry::FunctionCatalogEntry(CatalogEntryType entryType,
       functionSet{std::move(functionSet)} {}
 
 }  // namespace catalog
-}  // namespace kuzu
+}  // namespace gs

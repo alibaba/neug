@@ -7,10 +7,10 @@
 #include "common/serializer/serializer.h"
 #include "common/string_utils.h"
 
-using namespace kuzu::binder;
-using namespace kuzu::common;
+using namespace gs::binder;
+using namespace gs::common;
 
-namespace kuzu {
+namespace gs {
 namespace catalog {
 
 std::vector<binder::PropertyDefinition>
@@ -151,4 +151,4 @@ PropertyDefinitionCollection PropertyDefinitionCollection::deserialize(
 }
 
 }  // namespace catalog
-}  // namespace kuzu
+}  // namespace gs

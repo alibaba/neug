@@ -3,9 +3,9 @@
 #include "planner/operator/logical_limit.h"
 #include "planner/operator/logical_order_by.h"
 
-using namespace kuzu::planner;
+using namespace gs::planner;
 
-namespace kuzu {
+namespace gs {
 namespace optimizer {
 
 void TopKOptimizer::rewrite(planner::LogicalPlan* plan) {
@@ -62,4 +62,4 @@ std::shared_ptr<LogicalOperator> TopKOptimizer::visitLimitReplace(
 }
 
 }  // namespace optimizer
-}  // namespace kuzu
+}  // namespace gs

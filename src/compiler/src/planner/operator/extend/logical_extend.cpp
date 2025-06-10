@@ -1,7 +1,7 @@
 #include "planner/operator/extend/logical_extend.h"
 #include "gopt/g_rel_table_entry.h"
 
-namespace kuzu {
+namespace gs {
 namespace planner {
 
 void LogicalExtend::computeFactorizedSchema() {
@@ -80,4 +80,4 @@ std::unique_ptr<gopt::GRelType> LogicalExtend::getRelType() const {
 }
 
 }  // namespace planner
-}  // namespace kuzu
+}  // namespace gs

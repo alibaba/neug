@@ -1,8 +1,8 @@
 #include "optimizer/logical_operator_visitor.h"
 
-using namespace kuzu::planner;
+using namespace gs::planner;
 
-namespace kuzu {
+namespace gs {
 namespace optimizer {
 
 void LogicalOperatorVisitor::visitOperatorSwitch(LogicalOperator* op) {
@@ -184,4 +184,4 @@ LogicalOperatorVisitor::visitOperatorReplaceSwitch(
 }
 
 }  // namespace optimizer
-}  // namespace kuzu
+}  // namespace gs

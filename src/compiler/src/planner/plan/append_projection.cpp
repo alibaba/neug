@@ -3,9 +3,9 @@
 #include "planner/operator/logical_projection.h"
 #include "planner/planner.h"
 
-using namespace kuzu::binder;
+using namespace gs::binder;
 
-namespace kuzu {
+namespace gs {
 namespace planner {
 
 void Planner::appendProjection(const expression_vector& expressionsToProject,
@@ -37,4 +37,4 @@ void Planner::appendProjection(const expression_vector& expressionsToProject,
 }
 
 }  // namespace planner
-}  // namespace kuzu
+}  // namespace gs

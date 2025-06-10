@@ -3,14 +3,14 @@
 #include "common/api.h"
 #include "exception.h"
 
-namespace kuzu {
+namespace gs {
 namespace common {
 
 class KUZU_API ConnectionException : public Exception {
  public:
   explicit ConnectionException(const std::string& msg)
-      : Exception("Connection exception: " + msg){};
+      : Exception("Connection exception: " + msg) {};
 };
 
 }  // namespace common
-}  // namespace kuzu
+}  // namespace gs

@@ -3,7 +3,7 @@
 #include "function/export/export_function.h"
 #include "planner/operator/logical_operator.h"
 
-namespace kuzu {
+namespace gs {
 namespace planner {
 
 struct LogicalCopyToPrintInfo final : OPPrintInfo {
@@ -68,4 +68,4 @@ class LogicalCopyTo final : public LogicalOperator {
 };
 
 }  // namespace planner
-}  // namespace kuzu
+}  // namespace gs

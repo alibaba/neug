@@ -4,7 +4,7 @@
 #include "common/vector/value_vector.h"
 #include "re2.h"
 
-namespace kuzu {
+namespace gs {
 namespace function {
 
 struct RegexpSplitToArray : BaseRegexpOperation {
@@ -67,4 +67,4 @@ struct RegexpSplitToArray : BaseRegexpOperation {
 };
 
 }  // namespace function
-}  // namespace kuzu
+}  // namespace gs

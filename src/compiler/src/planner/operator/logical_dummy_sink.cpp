@@ -1,6 +1,6 @@
 #include "planner/operator/logical_dummy_sink.h"
 
-namespace kuzu {
+namespace gs {
 namespace planner {
 
 void LogicalDummySink::computeFactorizedSchema() {
@@ -14,4 +14,4 @@ void LogicalDummySink::computeFlatSchema() {
 }
 
 }  // namespace planner
-}  // namespace kuzu
+}  // namespace gs

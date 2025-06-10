@@ -1,6 +1,6 @@
 #include "parser/create_macro.h"
 
-namespace kuzu {
+namespace gs {
 namespace parser {
 
 std::vector<std::pair<std::string, ParsedExpression*>>
@@ -13,4 +13,4 @@ CreateMacro::getDefaultArgs() const {
 }
 
 }  // namespace parser
-}  // namespace kuzu
+}  // namespace gs

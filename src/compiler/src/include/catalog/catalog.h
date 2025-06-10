@@ -5,11 +5,11 @@
 #include "common/cast.h"
 #include "function/function.h"
 
-namespace kuzu::main {
+namespace gs::main {
 struct DBConfig;
-}  // namespace kuzu::main
+}  // namespace gs::main
 
-namespace kuzu {
+namespace gs {
 namespace main {
 class AttachedKuzuDatabase;
 }  // namespace main
@@ -285,4 +285,4 @@ class KUZU_API Catalog {
 };
 
 }  // namespace catalog
-}  // namespace kuzu
+}  // namespace gs

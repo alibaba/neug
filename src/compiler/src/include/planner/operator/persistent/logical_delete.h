@@ -3,7 +3,7 @@
 #include "binder/query/updating_clause/bound_delete_info.h"
 #include "planner/operator/logical_operator.h"
 
-namespace kuzu {
+namespace gs {
 namespace planner {
 
 struct LogicalDeletePrintInfo final : OPPrintInfo {
@@ -56,4 +56,4 @@ class LogicalDelete final : public LogicalOperator {
 };
 
 }  // namespace planner
-}  // namespace kuzu
+}  // namespace gs

@@ -4,7 +4,7 @@
 
 #include "extension.h"
 
-namespace kuzu {
+namespace gs {
 namespace extension {
 
 class LoadedExtension {
@@ -30,4 +30,4 @@ class LoadedExtension {
 };
 
 }  // namespace extension
-}  // namespace kuzu
+}  // namespace gs

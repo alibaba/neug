@@ -5,7 +5,7 @@
 #include "planner/operator/extend/base_logical_extend.h"
 #include "storage/predicate/column_predicate.h"
 
-namespace kuzu {
+namespace gs {
 namespace planner {
 
 class LogicalExtend final : public BaseLogicalExtend {
@@ -64,4 +64,4 @@ class LogicalExtend final : public BaseLogicalExtend {
 };
 
 }  // namespace planner
-}  // namespace kuzu
+}  // namespace gs

@@ -2,7 +2,7 @@
 
 #include "expression.h"
 
-namespace kuzu {
+namespace gs {
 namespace binder {
 
 struct CaseAlternative {
@@ -50,4 +50,4 @@ class CaseExpression final : public Expression {
 };
 
 }  // namespace binder
-}  // namespace kuzu
+}  // namespace gs

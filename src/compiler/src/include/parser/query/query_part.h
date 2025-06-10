@@ -4,7 +4,7 @@
 #include "parser/query/return_with_clause/with_clause.h"
 #include "parser/query/updating_clause/updating_clause.h"
 
-namespace kuzu {
+namespace gs {
 namespace parser {
 
 class QueryPart {
@@ -40,4 +40,4 @@ class QueryPart {
 };
 
 }  // namespace parser
-}  // namespace kuzu
+}  // namespace gs

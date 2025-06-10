@@ -3,10 +3,10 @@
 #include "function/list/vector_list_functions.h"
 #include "function/scalar_function.h"
 
-namespace kuzu {
+namespace gs {
 namespace function {
 
-using namespace kuzu::common;
+using namespace gs::common;
 
 static std::unique_ptr<FunctionBindData> bindFunc(
     const ScalarBindFuncInput& input) {
@@ -42,4 +42,4 @@ function_set ListReduceFunction::getFunctionSet() {
 }
 
 }  // namespace function
-}  // namespace kuzu
+}  // namespace gs

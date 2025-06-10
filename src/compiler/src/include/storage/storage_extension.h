@@ -2,7 +2,7 @@
 
 #include "main/attached_database.h"
 
-namespace kuzu {
+namespace gs {
 namespace binder {
 struct AttachOption;
 }
@@ -34,4 +34,4 @@ class StorageExtension {
 };
 
 }  // namespace storage
-}  // namespace kuzu
+}  // namespace gs

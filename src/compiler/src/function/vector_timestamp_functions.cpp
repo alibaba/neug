@@ -3,9 +3,9 @@
 #include "function/scalar_function.h"
 #include "function/timestamp/timestamp_function.h"
 
-using namespace kuzu::common;
+using namespace gs::common;
 
-namespace kuzu {
+namespace gs {
 namespace function {
 
 function_set CenturyFunction::getFunctionSet() {
@@ -36,4 +36,4 @@ function_set ToTimestampFunction::getFunctionSet() {
 }
 
 }  // namespace function
-}  // namespace kuzu
+}  // namespace gs

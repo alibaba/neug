@@ -1,6 +1,6 @@
 #include "function/gds/rec_joins.h"
 
-namespace kuzu {
+namespace gs {
 namespace function {
 
 RJBindData::RJBindData(const RJBindData& other) {
@@ -33,4 +33,4 @@ PathsOutputWriterInfo RJBindData::getPathWriterInfo() const {
 }
 
 }  // namespace function
-}  // namespace kuzu
+}  // namespace gs

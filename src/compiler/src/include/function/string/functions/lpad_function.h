@@ -3,7 +3,7 @@
 #include "base_pad_function.h"
 #include "common/types/ku_string.h"
 
-namespace kuzu {
+namespace gs {
 namespace function {
 
 struct Lpad : BasePadOperation {
@@ -30,4 +30,4 @@ struct Lpad : BasePadOperation {
 };
 
 }  // namespace function
-}  // namespace kuzu
+}  // namespace gs

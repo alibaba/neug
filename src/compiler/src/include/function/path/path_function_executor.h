@@ -4,7 +4,7 @@
 #include "common/vector/value_vector.h"
 #include "function/hash/hash_functions.h"
 
-namespace kuzu {
+namespace gs {
 namespace function {
 
 static bool isAllInternalIDDistinct(
@@ -148,4 +148,4 @@ struct UnaryPathExecutor {
 };
 
 }  // namespace function
-}  // namespace kuzu
+}  // namespace gs

@@ -1,7 +1,7 @@
 #include "common/task_system/task_scheduler.h"
-using namespace kuzu::common;
+using namespace gs::common;
 
-namespace kuzu {
+namespace gs {
 namespace common {
 
 #ifndef __SINGLE_THREADED__
@@ -123,4 +123,4 @@ void TaskScheduler::runTask(Task* task) {
   }
 }
 }  // namespace common
-}  // namespace kuzu
+}  // namespace gs

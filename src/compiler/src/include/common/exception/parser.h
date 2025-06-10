@@ -3,7 +3,7 @@
 #include "common/api.h"
 #include "exception.h"
 
-namespace kuzu {
+namespace gs {
 namespace common {
 
 class KUZU_API ParserException : public Exception {
@@ -11,8 +11,8 @@ class KUZU_API ParserException : public Exception {
   static constexpr const char* ERROR_PREFIX = "Parser exception: ";
 
   explicit ParserException(const std::string& msg)
-      : Exception(ERROR_PREFIX + msg){};
+      : Exception(ERROR_PREFIX + msg) {};
 };
 
 }  // namespace common
-}  // namespace kuzu
+}  // namespace gs

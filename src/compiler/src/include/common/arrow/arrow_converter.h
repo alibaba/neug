@@ -9,7 +9,7 @@
 
 struct ArrowSchema;
 
-namespace kuzu {
+namespace gs {
 namespace common {
 
 struct ArrowSchemaHolder {
@@ -52,4 +52,4 @@ struct ArrowConverter {
 };
 
 }  // namespace common
-}  // namespace kuzu
+}  // namespace gs

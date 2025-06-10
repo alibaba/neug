@@ -6,11 +6,11 @@
 #include "planner/operator/sip/logical_semi_masker.h"
 #include "planner/planner.h"
 
-using namespace kuzu::common;
-using namespace kuzu::planner;
-using namespace kuzu::processor;
+using namespace gs::common;
+using namespace gs::planner;
+using namespace gs::processor;
 
-namespace kuzu {
+namespace gs {
 namespace function {
 
 void TableFuncOutput::resetState() {
@@ -100,4 +100,4 @@ offset_t TableFunction::emptyTableFunc(const TableFuncInput&,
 }
 
 }  // namespace function
-}  // namespace kuzu
+}  // namespace gs

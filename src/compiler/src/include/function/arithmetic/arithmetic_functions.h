@@ -4,7 +4,7 @@
 
 #include "common/types/int128_t.h"
 
-namespace kuzu {
+namespace gs {
 namespace function {
 
 struct Power {
@@ -232,4 +232,4 @@ struct Pi {
 };
 
 }  // namespace function
-}  // namespace kuzu
+}  // namespace gs

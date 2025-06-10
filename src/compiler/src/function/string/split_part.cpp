@@ -1,10 +1,10 @@
 #include "common/string_utils.h"
 #include "function/string/vector_string_functions.h"
 
-namespace kuzu {
+namespace gs {
 namespace function {
 
-using namespace kuzu::common;
+using namespace gs::common;
 
 struct SplitPart {
   static void operation(ku_string_t& strToSplit, ku_string_t& separator,
@@ -39,4 +39,4 @@ function_set SplitPartFunction::getFunctionSet() {
 }
 
 }  // namespace function
-}  // namespace kuzu
+}  // namespace gs

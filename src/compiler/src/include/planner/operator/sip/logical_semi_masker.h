@@ -5,7 +5,7 @@
 #include "planner/operator/logical_operator.h"
 #include "semi_mask_target_type.h"
 
-namespace kuzu {
+namespace gs {
 namespace planner {
 
 /*
@@ -124,4 +124,4 @@ class LogicalSemiMasker final : public LogicalOperator {
 };
 
 }  // namespace planner
-}  // namespace kuzu
+}  // namespace gs

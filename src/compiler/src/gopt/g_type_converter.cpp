@@ -14,7 +14,7 @@
 #include "src/proto_generated_gie/basic_type.pb.h"
 #include "src/proto_generated_gie/type.pb.h"
 
-namespace kuzu {
+namespace gs {
 namespace gopt {
 
 std::unique_ptr<::common::IrDataType> GTypeConverter::convertNodeType(
@@ -133,7 +133,7 @@ std::unique_ptr<::common::IrDataType> GTypeConverter::convertLogicalType(
   case common::LogicalTypeID::STRING: {
     auto strType = std::make_unique<::common::String>();
     auto varChar = std::make_unique<::common::String::VarChar>();
-    varChar->set_max_length(kuzu::Constants::VARCHAR_MAX_LENGTH);
+    varChar->set_max_length(gs::Constants::VARCHAR_MAX_LENGTH);
     strType->set_allocated_var_char(varChar.release());
     result->set_allocated_string(strType.release());
     break;
@@ -193,4 +193,4 @@ GTypeConverter::convertRelTable(catalog::GRelTableCatalogEntry* relTable) {
 }
 
 }  // namespace gopt
-}  // namespace kuzu
+}  // namespace gs

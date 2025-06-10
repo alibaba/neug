@@ -5,7 +5,7 @@
 
 #include "common/exception/io.h"
 
-namespace kuzu {
+namespace gs {
 namespace common {
 
 std::wstring WindowsUtils::utf8ToUnicode(const char* input) {
@@ -40,5 +40,5 @@ std::string WindowsUtils::unicodeToUTF8(LPCWSTR input) {
 }
 
 }  // namespace common
-}  // namespace kuzu
+}  // namespace gs
 #endif

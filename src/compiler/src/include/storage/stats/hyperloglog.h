@@ -8,7 +8,7 @@
 
 #include "common/utils.h"
 
-namespace kuzu {
+namespace gs {
 namespace storage {
 
 class HyperLogLog {
@@ -55,4 +55,4 @@ class HyperLogLog {
 };
 
 }  // namespace storage
-}  // namespace kuzu
+}  // namespace gs

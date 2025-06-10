@@ -21,11 +21,11 @@
 #include "function/scalar_function.h"
 #include "function/string/vector_string_functions.h"
 
-using namespace kuzu::common;
+using namespace gs::common;
 using std::max;
 using std::min;
 
-namespace kuzu {
+namespace gs {
 namespace function {
 
 struct DecimalFunction {
@@ -710,10 +710,10 @@ struct DecimalFloor {
       // round to larger absolute value
       result = (R) input - (input % pow10s[scale] == 0
                                 ? 0
-                                : pow10s[scale] + (R)(input % pow10s[scale]));
+                                : pow10s[scale] + (R) (input % pow10s[scale]));
     } else {
       // round to smaller absolute value
-      result = (R) input - (R)(input % pow10s[scale]);
+      result = (R) input - (R) (input % pow10s[scale]);
     }
     result = result / pow10s[scale];
   }
@@ -731,12 +731,12 @@ struct DecimalCeil {
     auto scale = DecimalType::getScale(inputVector.dataType);
     if (input < 0) {
       // round to larger absolute value
-      result = (R) input - (R)(input % pow10s[scale]);
+      result = (R) input - (R) (input % pow10s[scale]);
     } else {
       // round to smaller absolute value
       result = (R) input + (input % pow10s[scale] == 0
                                 ? 0
-                                : pow10s[scale] - (R)(input % pow10s[scale]));
+                                : pow10s[scale] - (R) (input % pow10s[scale]));
     }
     result = result / pow10s[scale];
   }
@@ -973,4 +973,4 @@ std::unique_ptr<FunctionBindData> DecimalFunction::bindCeilFunc(
 }
 
 }  // namespace function
-}  // namespace kuzu
+}  // namespace gs

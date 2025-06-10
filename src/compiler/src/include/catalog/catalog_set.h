@@ -5,7 +5,7 @@
 #include "catalog_entry/catalog_entry.h"
 #include "common/case_insensitive_map.h"
 
-namespace kuzu {
+namespace gs {
 namespace binder {
 struct BoundAlterInfo;
 }  // namespace binder
@@ -89,4 +89,4 @@ class KUZU_API CatalogSet {
 };
 
 }  // namespace catalog
-}  // namespace kuzu
+}  // namespace gs

@@ -2,7 +2,7 @@
 #include "binder/bound_explain.h"
 #include "parser/explain_statement.h"
 
-namespace kuzu {
+namespace gs {
 namespace binder {
 
 std::unique_ptr<BoundStatement> Binder::bindExplain(
@@ -14,4 +14,4 @@ std::unique_ptr<BoundStatement> Binder::bindExplain(
 }
 
 }  // namespace binder
-}  // namespace kuzu
+}  // namespace gs

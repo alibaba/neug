@@ -2,7 +2,7 @@
 
 #include "common/types/ku_string.h"
 
-namespace kuzu {
+namespace gs {
 namespace common {
 
 struct blob_t {
@@ -52,4 +52,4 @@ struct Blob {
 };
 
 }  // namespace common
-}  // namespace kuzu
+}  // namespace gs

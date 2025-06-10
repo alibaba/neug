@@ -4,7 +4,7 @@
 #include "common/types/value/value.h"
 #include "parser/expression/parsed_expression.h"
 
-namespace kuzu {
+namespace gs {
 namespace main {
 class ClientContext;
 }
@@ -159,4 +159,4 @@ class ExpressionBinder {
 };
 
 }  // namespace binder
-}  // namespace kuzu
+}  // namespace gs

@@ -5,7 +5,7 @@
 #include "parser/scan_source.h"
 #include "reading_clause.h"
 
-namespace kuzu {
+namespace gs {
 namespace parser {
 
 class LoadFrom : public ReadingClause {
@@ -37,4 +37,4 @@ class LoadFrom : public ReadingClause {
 };
 
 }  // namespace parser
-}  // namespace kuzu
+}  // namespace gs

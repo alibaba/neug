@@ -2,7 +2,7 @@
 
 #include "catalog/catalog_entry/rel_table_catalog_entry.h"
 
-namespace kuzu {
+namespace gs {
 namespace catalog {
 class GRelTableCatalogEntry : public RelTableCatalogEntry {
  public:
@@ -27,4 +27,4 @@ class GRelTableCatalogEntry : public RelTableCatalogEntry {
   common::table_id_t labelId;
 };
 }  // namespace catalog
-}  // namespace kuzu
+}  // namespace gs

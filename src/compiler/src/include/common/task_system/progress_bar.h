@@ -5,7 +5,7 @@
 
 #include "progress_bar_display.h"
 
-namespace kuzu {
+namespace gs {
 namespace common {
 
 typedef std::unique_ptr<ProgressBarDisplay> (
@@ -53,4 +53,4 @@ class ProgressBar {
 };
 
 }  // namespace common
-}  // namespace kuzu
+}  // namespace gs

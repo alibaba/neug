@@ -2,7 +2,7 @@
 
 #include "binder/expression/expression.h"
 
-namespace kuzu {
+namespace gs {
 namespace binder {
 
 class BoundStatementResult {
@@ -54,4 +54,4 @@ class BoundStatementResult {
 };
 
 }  // namespace binder
-}  // namespace kuzu
+}  // namespace gs

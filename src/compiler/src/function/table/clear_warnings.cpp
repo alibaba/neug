@@ -2,9 +2,9 @@
 #include "function/table/standalone_call_function.h"
 #include "function/table/table_function.h"
 
-using namespace kuzu::common;
+using namespace gs::common;
 
-namespace kuzu {
+namespace gs {
 namespace function {
 
 static offset_t tableFunc(const TableFuncInput& input, TableFuncOutput&) {
@@ -30,4 +30,4 @@ function_set ClearWarningsFunction::getFunctionSet() {
 }
 
 }  // namespace function
-}  // namespace kuzu
+}  // namespace gs

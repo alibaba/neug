@@ -44,20 +44,20 @@
 #include "utf.h"
 #include "util.h"
 
-namespace kuzu {
+namespace gs {
 namespace regex {
 
 enum {
-    EvenOdd = 1,
-    OddEven = -1,
-    EvenOddSkip = 1 << 30,
-    OddEvenSkip,
+  EvenOdd = 1,
+  OddEven = -1,
+  EvenOddSkip = 1 << 30,
+  OddEvenSkip,
 };
 
 struct CaseFold {
-    Rune lo;
-    Rune hi;
-    int32_t delta;
+  Rune lo;
+  Rune hi;
+  int32_t delta;
 };
 
 extern const CaseFold unicode_casefold[];
@@ -74,6 +74,6 @@ extern const CaseFold* LookupCaseFold(const CaseFold*, int, Rune rune);
 // Returns the result of applying the fold f to the rune r.
 extern Rune ApplyFold(const CaseFold* f, Rune r);
 
-} // namespace regex
-} // namespace kuzu
-#endif // RE2_UNICODE_CASEFOLD_H_
+}  // namespace regex
+}  // namespace gs
+#endif  // RE2_UNICODE_CASEFOLD_H_

@@ -4,7 +4,7 @@
 #include <mutex>
 #include <vector>
 
-namespace kuzu {
+namespace gs {
 namespace common {
 
 using lock_t = std::unique_lock<std::mutex>;
@@ -36,7 +36,7 @@ class Task {
   //     already acquired. So do not attempt to acquire the task lock inside. If
   //     needed we can make the deregister function release the lock before
   //     calling finalizeIfNecessary and drop this assumption.
-  virtual void finalizeIfNecessary(){};
+  virtual void finalizeIfNecessary() {};
 
   void addChildTask(std::unique_ptr<Task> child) {
     child->parent = this;
@@ -101,4 +101,4 @@ class Task {
 };
 
 }  // namespace common
-}  // namespace kuzu
+}  // namespace gs

@@ -1,4 +1,4 @@
-// this class is used to convert kuzu DataType to physical metadata
+// this class is used to convert gs DataType to physical metadata
 // here have 3 more functions:
 // IrDataType convertNodeType(const GNodeType &nodeType);
 // IrDataType convertRelType(const GRelType &relType);
@@ -12,7 +12,7 @@
 #include "src/proto_generated_gie/basic_type.pb.h"
 #include "src/proto_generated_gie/type.pb.h"
 
-namespace kuzu {
+namespace gs {
 namespace gopt {
 
 struct GRelType;
@@ -38,4 +38,4 @@ class GTypeConverter {
 };
 
 }  // namespace gopt
-}  // namespace kuzu
+}  // namespace gs

@@ -3,7 +3,7 @@
 #include "binder/expression/expression_util.h"
 #include "planner/operator/logical_operator.h"
 
-namespace kuzu {
+namespace gs {
 namespace planner {
 
 // LogicalExpressionsScan scans from an outer factorize table
@@ -40,4 +40,4 @@ class LogicalExpressionsScan final : public LogicalOperator {
 };
 
 }  // namespace planner
-}  // namespace kuzu
+}  // namespace gs

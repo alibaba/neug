@@ -4,7 +4,7 @@
 
 #include "storage/buffer_manager/memory_manager.h"
 
-namespace kuzu {
+namespace gs {
 namespace function {
 
 // ObjectBlock represents a pre-allocated amount of memory that can hold up to
@@ -164,4 +164,4 @@ class GDSSpareObjectManager {
 };
 
 }  // namespace function
-}  // namespace kuzu
+}  // namespace gs

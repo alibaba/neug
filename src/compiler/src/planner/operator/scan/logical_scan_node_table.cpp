@@ -5,7 +5,7 @@
 #include "catalog/catalog.h"
 #include "gopt/g_graph_type.h"
 
-namespace kuzu {
+namespace gs {
 namespace planner {
 
 LogicalScanNodeTable::LogicalScanNodeTable(const LogicalScanNodeTable& other)
@@ -66,7 +66,7 @@ std::unique_ptr<gopt::GNodeType> LogicalScanNodeTable::getNodeType(
     catalog::Catalog* catalog) const {
   // get node table from catalog by table ids
   std::vector<catalog::NodeTableCatalogEntry*> nodeTables;
-  auto& transaction = kuzu::Constants::DEFAULT_TRANSACTION;
+  auto& transaction = gs::Constants::DEFAULT_TRANSACTION;
   for (auto tableId : getTableIDs()) {
     auto tableEntry = catalog->getTableCatalogEntry(&transaction, tableId);
     auto nodeTableEntry =
@@ -88,7 +88,7 @@ std::optional<PrimaryKey> LogicalScanNodeTable::getPrimaryKey(
       throw common::Exception("No table IDs found for primary key scan.");
     }
     auto tableEntry = catalog->getTableCatalogEntry(
-        &kuzu::Constants::DEFAULT_TRANSACTION, tableIds.at(0));
+        &gs::Constants::DEFAULT_TRANSACTION, tableIds.at(0));
     auto nodeTableEntry =
         dynamic_cast<catalog::NodeTableCatalogEntry*>(tableEntry);
     if (!nodeTableEntry) {
@@ -108,4 +108,4 @@ std::optional<PrimaryKey> LogicalScanNodeTable::getPrimaryKey(
 }
 
 }  // namespace planner
-}  // namespace kuzu
+}  // namespace gs

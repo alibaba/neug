@@ -2,7 +2,7 @@
 
 #include "common/types/types.h"
 
-namespace kuzu {
+namespace gs {
 namespace common {
 
 // Note that this class is NOT thread-safe.
@@ -91,4 +91,4 @@ class NodeOffsetMaskMap {
 };
 
 }  // namespace common
-}  // namespace kuzu
+}  // namespace gs

@@ -6,7 +6,7 @@
 #include "function/gds/rec_joins.h"
 #include "node_expression.h"
 
-namespace kuzu {
+namespace gs {
 namespace binder {
 
 enum class RelDirectionType : uint8_t {
@@ -131,4 +131,4 @@ class RelExpression final : public NodeOrRelExpression {
 };
 
 }  // namespace binder
-}  // namespace kuzu
+}  // namespace gs

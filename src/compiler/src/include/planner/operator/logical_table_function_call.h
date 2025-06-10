@@ -4,7 +4,7 @@
 #include "function/table/table_function.h"
 #include "planner/operator/logical_operator.h"
 
-namespace kuzu {
+namespace gs {
 namespace planner {
 
 class KUZU_API LogicalTableFunctionCall final : public LogicalOperator {
@@ -65,4 +65,4 @@ class KUZU_API LogicalTableFunctionCall final : public LogicalOperator {
 };
 
 }  // namespace planner
-}  // namespace kuzu
+}  // namespace gs

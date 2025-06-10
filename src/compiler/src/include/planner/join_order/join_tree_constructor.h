@@ -3,7 +3,7 @@
 #include "join_tree.h"
 #include "planner/planner.h"
 
-namespace kuzu {
+namespace gs {
 namespace planner {
 
 class PropertyExprCollection;
@@ -46,4 +46,4 @@ class JoinTreeConstructor {
 };
 
 }  // namespace planner
-}  // namespace kuzu
+}  // namespace gs

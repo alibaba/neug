@@ -4,7 +4,7 @@
 
 #include "binder/expression/expression.h"
 
-namespace kuzu {
+namespace gs {
 namespace planner {
 
 using f_group_pos = uint32_t;
@@ -159,4 +159,4 @@ class SchemaUtils {
 };
 
 }  // namespace planner
-}  // namespace kuzu
+}  // namespace gs

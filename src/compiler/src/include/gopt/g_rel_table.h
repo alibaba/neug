@@ -2,7 +2,7 @@
 
 #include "storage/store/rel_table.h"
 
-namespace kuzu {
+namespace gs {
 namespace storage {
 class GRelTable : public RelTable {
  private:
@@ -22,4 +22,4 @@ class GRelTable : public RelTable {
   }
 };
 }  // namespace storage
-}  // namespace kuzu
+}  // namespace gs

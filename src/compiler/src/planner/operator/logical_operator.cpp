@@ -2,9 +2,9 @@
 
 #include "common/exception/runtime.h"
 
-using namespace kuzu::common;
+using namespace gs::common;
 
-namespace kuzu {
+namespace gs {
 namespace planner {
 
 // LCOV_EXCL_START
@@ -107,7 +107,7 @@ std::string LogicalOperatorUtils::logicalOperatorTypeToString(
     return "USE_DATABASE";
   case LogicalOperatorType::CREATE_TYPE:
     return "CREATE_TYPE";
-  case kuzu::planner::LogicalOperatorType::GET_V:
+  case gs::planner::LogicalOperatorType::GET_V:
     return "GET_V";
   default:
     throw RuntimeException("Unknown logical operator type.");
@@ -194,4 +194,4 @@ logical_op_vector_t LogicalOperator::copy(const logical_op_vector_t& ops) {
 }
 
 }  // namespace planner
-}  // namespace kuzu
+}  // namespace gs

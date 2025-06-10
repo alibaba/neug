@@ -3,7 +3,7 @@
 #include "common/types/types.h"
 #include "common/vector/value_vector.h"
 
-namespace kuzu {
+namespace gs {
 namespace function {
 
 struct ListConcat {
@@ -16,4 +16,4 @@ struct ListConcat {
 };
 
 }  // namespace function
-}  // namespace kuzu
+}  // namespace gs

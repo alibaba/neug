@@ -2,7 +2,7 @@
 
 #include "common/string_format.h"
 
-namespace kuzu {
+namespace gs {
 namespace common {
 
 std::string ExceptionMessage::duplicatePKException(
@@ -77,4 +77,4 @@ std::string ExceptionMessage::listFunctionIncompatibleChildrenType(
 }
 
 }  // namespace common
-}  // namespace kuzu
+}  // namespace gs

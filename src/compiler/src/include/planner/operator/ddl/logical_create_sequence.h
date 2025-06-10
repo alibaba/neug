@@ -3,7 +3,7 @@
 #include "binder/ddl/bound_create_sequence_info.h"
 #include "planner/operator/simple/logical_simple.h"
 
-namespace kuzu {
+namespace gs {
 namespace planner {
 
 struct LogicalCreateSequencePrintInfo final : OPPrintInfo {
@@ -54,4 +54,4 @@ class LogicalCreateSequence : public LogicalSimple {
 };
 
 }  // namespace planner
-}  // namespace kuzu
+}  // namespace gs

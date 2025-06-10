@@ -10,7 +10,7 @@
 #include "planner/operator/logical_plan.h"
 #include "planner/operator/scan/logical_scan_node_table.h"
 
-namespace kuzu {
+namespace gs {
 namespace gopt {
 
 GAliasManager::GAliasManager(const planner::LogicalPlan& plan) {
@@ -114,4 +114,4 @@ std::string GAliasManager::printForDebug() {
 }
 
 }  // namespace gopt
-}  // namespace kuzu
+}  // namespace gs

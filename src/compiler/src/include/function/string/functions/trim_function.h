@@ -4,7 +4,7 @@
 #include "ltrim_function.h"
 #include "rtrim_function.h"
 
-namespace kuzu {
+namespace gs {
 namespace function {
 
 struct Trim : BaseStrOperation {
@@ -22,4 +22,4 @@ struct Trim : BaseStrOperation {
 };
 
 }  // namespace function
-}  // namespace kuzu
+}  // namespace gs

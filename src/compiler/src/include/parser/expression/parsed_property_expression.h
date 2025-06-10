@@ -4,7 +4,7 @@
 #include "common/serializer/serializer.h"
 #include "parsed_expression.h"
 
-namespace kuzu {
+namespace gs {
 namespace parser {
 
 class ParsedPropertyExpression : public ParsedExpression {
@@ -50,4 +50,4 @@ class ParsedPropertyExpression : public ParsedExpression {
 };
 
 }  // namespace parser
-}  // namespace kuzu
+}  // namespace gs

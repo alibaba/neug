@@ -23,10 +23,10 @@ class GOptPlanner : public gs::IGraphPlanner {
  public:
   GOptPlanner(const std::string& compiler_config_path)
       : IGraphPlanner(compiler_config_path) {
-    kuzu::main::SystemConfig sysConfig;
+    gs::main::SystemConfig sysConfig;
     sysConfig.readOnly = false;
-    database = std::make_unique<kuzu::main::GDatabase>(sysConfig);
-    ctx = std::make_unique<kuzu::main::ClientContext>(database.get());
+    database = std::make_unique<gs::main::GDatabase>(sysConfig);
+    ctx = std::make_unique<gs::main::ClientContext>(database.get());
   }
 
   std::string type() const override { return "gopt"; }
@@ -55,9 +55,9 @@ class GOptPlanner : public gs::IGraphPlanner {
                 << statement->logicalPlan->toString() << std::endl;
 
       auto aliasManager =
-          std::make_shared<kuzu::gopt::GAliasManager>(*statement->logicalPlan);
-      kuzu::gopt::GPhysicalConvertor converter(aliasManager,
-                                               database->getCatalog());
+          std::make_shared<gs::gopt::GAliasManager>(*statement->logicalPlan);
+      gs::gopt::GPhysicalConvertor converter(aliasManager,
+                                             database->getCatalog());
       auto physicalPlan = converter.convert(*statement->logicalPlan);
 
       plan.error_code = StatusCode::OK;
@@ -74,8 +74,8 @@ class GOptPlanner : public gs::IGraphPlanner {
   }
 
  private:
-  std::unique_ptr<kuzu::main::GDatabase> database;
-  std::unique_ptr<kuzu::main::ClientContext> ctx;
+  std::unique_ptr<gs::main::GDatabase> database;
+  std::unique_ptr<gs::main::ClientContext> ctx;
 };
 
 }  // namespace gs

@@ -5,7 +5,7 @@
 #include "main/database.h"
 #include "storage/buffer_manager/memory_manager.h"
 
-namespace kuzu {
+namespace gs {
 namespace function {
 
 struct BMInfoBindData final : TableFuncBindData {
@@ -53,4 +53,4 @@ function_set BMInfoFunction::getFunctionSet() {
 }
 
 }  // namespace function
-}  // namespace kuzu
+}  // namespace gs

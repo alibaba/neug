@@ -6,7 +6,7 @@
 
 #include "statement.h"
 
-namespace kuzu {
+namespace gs {
 namespace main {
 class ClientContext;
 }
@@ -19,4 +19,4 @@ class Parser {
 };
 
 }  // namespace parser
-}  // namespace kuzu
+}  // namespace gs

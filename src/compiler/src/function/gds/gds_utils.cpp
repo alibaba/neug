@@ -8,13 +8,13 @@
 #include "graph/graph.h"
 #include "graph/graph_entry.h"
 
-using namespace kuzu::common;
-using namespace kuzu::catalog;
-using namespace kuzu::function;
-using namespace kuzu::processor;
-using namespace kuzu::graph;
+using namespace gs::common;
+using namespace gs::catalog;
+using namespace gs::function;
+using namespace gs::processor;
+using namespace gs::graph;
 
-namespace kuzu {
+namespace gs {
 namespace function {
 
 static std::shared_ptr<FrontierTask> getFrontierTask(
@@ -196,4 +196,4 @@ void GDSUtils::runVertexCompute(
 }
 
 }  // namespace function
-}  // namespace kuzu
+}  // namespace gs

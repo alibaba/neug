@@ -4,7 +4,7 @@
 #include "common/enums/rel_direction.h"
 #include "common/mask.h"
 
-namespace kuzu {
+namespace gs {
 namespace evaluator {
 class ExpressionEvaluator;
 }
@@ -59,4 +59,4 @@ class KUZU_API Table {
 };
 
 }  // namespace storage
-}  // namespace kuzu
+}  // namespace gs

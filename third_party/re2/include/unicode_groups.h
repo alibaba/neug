@@ -23,26 +23,26 @@
 #include "utf.h"
 #include "util.h"
 
-namespace kuzu {
+namespace gs {
 namespace regex {
 
 struct URange16 {
-    uint16_t lo;
-    uint16_t hi;
+  uint16_t lo;
+  uint16_t hi;
 };
 
 struct URange32 {
-    Rune lo;
-    Rune hi;
+  Rune lo;
+  Rune hi;
 };
 
 struct UGroup {
-    const char* name;
-    int sign; // +1 for [abc], -1 for [^abc]
-    const URange16* r16;
-    int nr16;
-    const URange32* r32;
-    int nr32;
+  const char* name;
+  int sign;  // +1 for [abc], -1 for [^abc]
+  const URange16* r16;
+  int nr16;
+  const URange32* r32;
+  int nr32;
 };
 
 // Named by property or script name (e.g., "Nd", "N", "Han").
@@ -60,6 +60,6 @@ extern const int num_posix_groups;
 extern const UGroup perl_groups[];
 extern const int num_perl_groups;
 
-} // namespace regex
-} // namespace kuzu
-#endif // RE2_UNICODE_GROUPS_H_
+}  // namespace regex
+}  // namespace gs
+#endif  // RE2_UNICODE_GROUPS_H_

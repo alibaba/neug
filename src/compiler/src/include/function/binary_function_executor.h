@@ -2,7 +2,7 @@
 
 #include "common/vector/value_vector.h"
 
-namespace kuzu {
+namespace gs {
 namespace function {
 
 /**
@@ -408,4 +408,4 @@ struct BinaryFunctionExecutor {
 };
 
 }  // namespace function
-}  // namespace kuzu
+}  // namespace gs

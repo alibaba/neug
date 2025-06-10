@@ -8,12 +8,12 @@
 #include "gopt/g_rel_table.h"
 #include "json.hpp"
 
-namespace kuzu {
+namespace gs {
 namespace storage {
 GStorageManager::GStorageManager(const std::string& statsData,
                                  const catalog::Catalog& catalog,
                                  MemoryManager& memoryManager,
-                                 kuzu::storage::WAL& wal)
+                                 gs::storage::WAL& wal)
     : StorageManager(memoryManager), wal(wal) {
   std::unordered_map<std::string, common::row_idx_t> countMap;
   getCardMap(statsData, countMap);
@@ -23,7 +23,7 @@ GStorageManager::GStorageManager(const std::string& statsData,
 GStorageManager::GStorageManager(const std::filesystem::path& statsPath,
                                  const catalog::Catalog& catalog,
                                  MemoryManager& memoryManager,
-                                 kuzu::storage::WAL& wal)
+                                 gs::storage::WAL& wal)
     : StorageManager(memoryManager), wal(wal) {
   std::ifstream file(statsPath);
   if (!file.is_open()) {
@@ -83,7 +83,7 @@ void GStorageManager::getCardMap(
               auto srcName = srcDst["source_vertex"].get<std::string>();
               auto dstName = srcDst["destination_vertex"].get<std::string>();
               auto childName =
-                  kuzu::catalog::RelGroupCatalogEntry::getChildTableName(
+                  gs::catalog::RelGroupCatalogEntry::getChildTableName(
                       relName, srcName, dstName);
               auto count = srcDst["count"].get<common::row_idx_t>();
               countMap[childName] = count;
@@ -103,7 +103,7 @@ void GStorageManager::getCardMap(
 void GStorageManager::loadStats(
     const catalog::Catalog& catalog,
     const std::unordered_map<std::string, common::row_idx_t>& countMap) {
-  auto& transaction = kuzu::Constants::DEFAULT_TRANSACTION;
+  auto& transaction = gs::Constants::DEFAULT_TRANSACTION;
 
   // Process all node tables from catalog
   for (auto& tableEntry : catalog.getTableEntries(&transaction)) {
@@ -121,10 +121,9 @@ void GStorageManager::loadStats(
       auto relName = relTableEntry->getName();
       auto count = countMap.count(relName) ? countMap.at(relName) : 1;
       tables[relTableEntry->getTableID()] =
-          std::make_unique<kuzu::storage::GRelTable>(count, relTableEntry,
-                                                     this);
+          std::make_unique<gs::storage::GRelTable>(count, relTableEntry, this);
     }
   }
 }
 }  // namespace storage
-}  // namespace kuzu
+}  // namespace gs

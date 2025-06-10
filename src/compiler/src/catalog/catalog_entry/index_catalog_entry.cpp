@@ -3,7 +3,7 @@
 #include "common/exception/runtime.h"
 #include "common/serializer/buffered_serializer.h"
 
-namespace kuzu {
+namespace gs {
 namespace catalog {
 
 std::shared_ptr<common::BufferedSerializer> IndexAuxInfo::serialize() const {
@@ -75,4 +75,4 @@ std::unique_ptr<common::BufferReader> IndexCatalogEntry::getAuxBufferReader()
 }
 
 }  // namespace catalog
-}  // namespace kuzu
+}  // namespace gs

@@ -7,7 +7,7 @@
 #include "common/assert.h"
 #include "common/copy_constructors.h"
 
-namespace kuzu {
+namespace gs {
 namespace common {
 
 template <typename T>
@@ -29,7 +29,7 @@ class StaticVector {
   }
 
  public:
-  StaticVector() : len(0){};
+  StaticVector() : len(0) {};
   StaticVector(StaticVector&& other) : len(other.len) {
     std::uninitialized_move(other.begin(), other.end(), begin());
     other.len = 0;
@@ -85,4 +85,4 @@ class StaticVector {
 };
 
 }  // namespace common
-}  // namespace kuzu
+}  // namespace gs

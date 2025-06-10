@@ -6,7 +6,7 @@
 #include "common/vector/value_vector.h"
 #include "function/string/functions/array_extract_function.h"
 
-namespace kuzu {
+namespace gs {
 namespace function {
 
 struct ListExtract {
@@ -55,4 +55,4 @@ struct ListExtract {
 };
 
 }  // namespace function
-}  // namespace kuzu
+}  // namespace gs
