@@ -75,7 +75,7 @@ function prepare_workspace() {
         # construct the builtin graph.
         builtin_graph_import_path="${builtin_graph_dir}/import.yaml"
         cp /opt/src/share/${DEFAULT_GRAPH_NAME}/graph.yaml  ${builtin_graph_schema_path}
-        cp /opt/src/share/${DEFAULT_GRAPH_NAME}/bulk_load.yaml ${builtin_graph_import_path}
+        cp /opt/src/share/${DEFAULT_GRAPH_NAME}/import.yaml ${builtin_graph_import_path}
         export FLEX_DATA_DIR=/opt/src/share/gs_interactive_default_graph/
         builtin_graph_loader_cmd="${BULK_LOADER_BINARY_PATH} -g ${builtin_graph_schema_path} -d ${builtin_graph_data_path} -l ${builtin_graph_import_path}"
         echo "Loading builtin graph: ${DEFAULT_GRAPH_NAME} with command: $builtin_graph_loader_cmd"

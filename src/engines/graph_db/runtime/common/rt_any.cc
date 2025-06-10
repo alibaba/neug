@@ -41,6 +41,8 @@ PropertyType rt_type_to_property_type(RTAnyType type) {
     return PropertyType::kString;
   case RTAnyType::kDateTime:
     return PropertyType::kDateTime;
+  case RTAnyType::kTimestamp:
+    return PropertyType::kTimestamp;
   case RTAnyType::kDate:
     return PropertyType::kDate;  // FIXME
   default:
@@ -124,6 +126,9 @@ RTAny::RTAny(const EdgeData& val) {
   } else if (val.type == RTAnyType::kDateTime) {
     type_ = RTAnyType::kDateTime;
     value_.dt_val = val.value.dt_val;
+  } else if (val.type == RTAnyType::kTimestamp) {
+    type_ = RTAnyType::kTimestamp;
+    value_.ts_val = val.value.ts_val;
   } else if (val.type == RTAnyType::kDate) {
     type_ = RTAnyType::kDate;
     value_.date_val = val.value.date_val;
@@ -164,6 +169,8 @@ RTAny::RTAny(const RTAny& rhs) : type_(rhs.type_) {
     value_.date_val = rhs.value_.date_val;
   } else if (type_ == RTAnyType::kDateTime) {
     value_.dt_val = rhs.value_.dt_val;
+  } else if (type_ == RTAnyType::kTimestamp) {
+    value_.ts_val = rhs.value_.ts_val;
   } else if (type_ == RTAnyType::kEdge) {
     value_.edge = rhs.value_.edge;
   } else {
@@ -201,6 +208,8 @@ RTAny& RTAny::operator=(const RTAny& rhs) {
     value_.date_val = rhs.value_.date_val;
   } else if (type_ == RTAnyType::kDateTime) {
     value_.dt_val = rhs.value_.dt_val;
+  } else if (type_ == RTAnyType::kTimestamp) {
+    value_.ts_val = rhs.value_.ts_val;
   } else {
     LOG(FATAL) << "unexpected type: " << static_cast<int>(type_);
   }
@@ -226,6 +235,8 @@ Any RTAny::to_any() const {
     return Any(value_.date_val);
   case RTAnyType::kDateTime:
     return Any(value_.dt_val);
+  case RTAnyType::kTimestamp:
+    return Any(value_.ts_val);
   default:
     LOG(FATAL) << "not support for " << static_cast<int>(type_);
   }
@@ -308,6 +319,14 @@ RTAny RTAny::from_datetime(DateTime v) {
   ret.value_.dt_val = v;
   return ret;
 }
+
+RTAny RTAny::from_timestamp(TimeStamp v) {
+  RTAny ret;
+  ret.type_ = RTAnyType::kTimestamp;
+  ret.value_.ts_val = v;
+  return ret;
+}
+
 RTAny RTAny::from_tuple(const Tuple& t) {
   RTAny ret;
   ret.type_ = RTAnyType::kTuple;
@@ -374,9 +393,14 @@ Date RTAny::as_date32() const {
   return value_.date_val;
 }
 
-DateTime RTAny::as_timestamp() const {
+DateTime RTAny::as_datetime() const {
   assert(type_ == RTAnyType::kDateTime);
   return value_.dt_val;
+}
+
+TimeStamp RTAny::as_timestamp() const {
+  assert(type_ == RTAnyType::kTimestamp);
+  return value_.ts_val;
 }
 
 double RTAny::as_double() const {
@@ -514,6 +538,8 @@ bool RTAny::operator<(const RTAny& other) const {
     return value_.date_val < other.value_.date_val;
   } else if (type_ == RTAnyType::kDateTime) {
     return value_.dt_val < other.value_.dt_val;
+  } else if (type_ == RTAnyType::kTimestamp) {
+    return value_.ts_val < other.value_.ts_val;
   } else if (type_ == RTAnyType::kF64Value) {
     return value_.f64_val < other.value_.f64_val;
   } else if (type_ == RTAnyType::kEdge) {
@@ -553,6 +579,8 @@ bool RTAny::operator==(const RTAny& other) const {
     return value_.date_val == other.value_.date_val;
   } else if (type_ == RTAnyType::kDateTime) {
     return value_.dt_val == other.value_.dt_val;
+  } else if (type_ == RTAnyType::kTimestamp) {
+    return value_.ts_val == other.value_.ts_val;
   } else if (type_ == RTAnyType::kEdge) {
     return value_.edge == other.value_.edge;
   }
@@ -752,6 +780,8 @@ void RTAny::sink_impl(common::Value* value) const {
     value->set_str(date_str.data(), date_str.size());
   } else if (type_ == RTAnyType::kDateTime) {
     value->set_i64(value_.dt_val.milli_second);
+  } else if (type_ == RTAnyType::kTimestamp) {
+    value->mutable_timestamp()->set_item(value_.ts_val.milli_second);
   } else if (type_ == RTAnyType::kBoolValue) {
     value->set_boolean(value_.b_val);
   } else if (type_ == RTAnyType::kF64Value) {
@@ -806,6 +836,10 @@ static void sink_edge_data(const EdgeData& any, common::Value* value) {
     value->set_boolean(any.value.b_val);
   } else if (any.type == RTAnyType::kDateTime) {
     value->set_i64(any.value.dt_val.milli_second);
+  } else if (any.type == RTAnyType::kDate) {
+    value->mutable_date()->set_item(any.value.date_val.to_num_days());
+  } else if (any.type == RTAnyType::kTimestamp) {
+    value->mutable_timestamp()->set_item(any.value.ts_val.milli_second);
   } else {
     LOG(FATAL) << "Any value: " << any.to_string()
                << ", type = " << static_cast<int>(any.type);
@@ -1031,6 +1065,8 @@ std::string RTAny::to_string() const {
     return value_.dt_val.to_string();
   } else if (type_ == RTAnyType::kDate) {
     return value_.date_val.to_string();
+  } else if (type_ == RTAnyType::kTimestamp) {
+    return value_.ts_val.to_string();
   } else if (type_ == RTAnyType::kVertex) {
 #if 0
       return std::string("v") +

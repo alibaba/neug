@@ -85,6 +85,19 @@ class SigColumn<DateTime> : public ISigColumn {
 };
 
 template <>
+class SigColumn<TimeStamp> : public ISigColumn {
+ public:
+  SigColumn(const std::vector<TimeStamp>& data) : data_(data.data()) {}
+  ~SigColumn() = default;
+  inline size_t get_sig(size_t idx) const override {
+    return static_cast<size_t>(data_[idx].milli_second);
+  }
+
+ private:
+  const TimeStamp* data_;
+};
+
+template <>
 class SigColumn<VertexRecord> : public ISigColumn {
  public:
   SigColumn(const std::vector<VertexRecord>& data) : data_(data.data()) {}

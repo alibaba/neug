@@ -76,6 +76,12 @@ std::shared_ptr<IContextColumn> any_vec_to_column(
   } else if (first == RTAnyType::kDateTime) {
     ValueColumnBuilder<DateTime> builder;
     for (auto& any : any_vec) {
+      builder.push_back_opt(any.as_datetime());
+    }
+    return builder.finish(nullptr);
+  } else if (first == RTAnyType::kTimestamp) {
+    ValueColumnBuilder<TimeStamp> builder;
+    for (auto& any : any_vec) {
       builder.push_back_opt(any.as_timestamp());
     }
     return builder.finish(nullptr);

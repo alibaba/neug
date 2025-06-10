@@ -331,6 +331,8 @@ using DoubleColumn = TypedColumn<double>;
 using FloatColumn = TypedColumn<float>;
 using RecordViewColumn = TypedColumn<RecordView>;
 using DateTimeColumn = TypedColumn<DateTime>;
+using IntervalColumn = TypedColumn<Interval>;
+using TimeStampColumn = TypedColumn<TimeStamp>;
 
 template <>
 class TypedColumn<grape::EmptyType> : public ColumnBase {

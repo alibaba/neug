@@ -61,6 +61,8 @@ std::string PrimitivePropertyTypeToString(PropertyType type) {
     return DT_DATETIME;
   } else if (type == PropertyType::kInterval) {
     return DT_INTERVAL;
+  } else if (type == PropertyType::kTimestamp) {
+    return DT_TIMESTAMP;
   } else {
     LOG(FATAL) << "Unknown property type: " << type;
   }
@@ -79,6 +81,8 @@ PropertyType StringToPrimitivePropertyType(const std::string& str) {
     return PropertyType::kDateTime;
   } else if (str == "Interval" || str == DT_INTERVAL) {
     return PropertyType::kInterval;
+  } else if (str == "Timestamp" || str == DT_TIMESTAMP) {
+    return PropertyType::kTimestamp;
   } else if (str == "String" || str == "STRING" || str == DT_STRING) {
     // DT_STRING is a alias for VARCHAR(GetStringDefaultMaxLength());
     return PropertyType::Varchar(PropertyType::GetStringDefaultMaxLength());
@@ -105,6 +109,8 @@ YAML::Node TemporalTypeToYAML(PropertyType type) {
     node["temporal"]["date"] = "";
   } else if (type == PropertyType::kDateTime) {
     node["temporal"]["datetime"] = "";
+  } else if (type == PropertyType::kTimestamp) {
+    node["temporal"]["timestamp"] = "";
   } else {
     LOG(FATAL) << "Unsupported property type: " << type.type_enum;
   }
@@ -260,6 +266,8 @@ const PropertyType PropertyType::kDateTime =
     PropertyType(impl::PropertyTypeImpl::kDateTime);
 const PropertyType PropertyType::kInterval =
     PropertyType(impl::PropertyTypeImpl::kInterval);
+const PropertyType PropertyType::kTimestamp =
+    PropertyType(impl::PropertyTypeImpl::kTimestamp);
 
 bool PropertyType::operator==(const PropertyType& other) const {
   if (type_enum == impl::PropertyTypeImpl::kVarChar &&
@@ -336,6 +344,8 @@ std::string PropertyType::ToString() const {
     return "DateTime";
   case impl::PropertyTypeImpl::kInterval:
     return "Interval";
+  case impl::PropertyTypeImpl::kTimestamp:
+    return "Timestamp";
   default:
     return "Unknown";
   }
@@ -412,6 +422,10 @@ PropertyType PropertyType::DateTime() {
 
 PropertyType PropertyType::Interval() {
   return PropertyType(impl::PropertyTypeImpl::kInterval);
+}
+
+PropertyType PropertyType::Timestamp() {
+  return PropertyType(impl::PropertyTypeImpl::kTimestamp);
 }
 
 grape::InArchive& operator<<(grape::InArchive& in_archive,
@@ -708,6 +722,10 @@ std::string Interval::to_string() const {
       << std::setw(2) << std::setfill('0') << td.seconds() << "."
       << std::setw(3) << std::setfill('0') << value.integer % 1000;
   return oss.str();
+}
+
+std::string TimeStamp::to_string() const {
+  return std::to_string(milli_second);
 }
 
 Any ConvertStringToAny(const std::string& value, const gs::PropertyType& type) {

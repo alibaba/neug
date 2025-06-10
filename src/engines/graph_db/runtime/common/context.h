@@ -155,6 +155,8 @@ class WriteContext {
         return Any(Date(std::string(value)));
       } else if (type == PropertyType::kDateTime) {
         return Any(DateTime(std::stoll(std::string(value))));
+      } else if (type == PropertyType::kTimestamp) {
+        return Any(TimeStamp(std::stoll(std::string(value))));
       } else {
         LOG(FATAL) << "Unsupported type: " << type;
         return Any();

@@ -379,10 +379,13 @@ class ExtractExpr : public ExprBase {
   int32_t eval_impl(const RTAny& val) const {
     if constexpr (std::is_same_v<T, int64_t>) {
       return extract_time_from_milli_second(val.as_int64(), extract_);
-    } else if constexpr (std::is_same_v<T, Date>) {
-      return extract_time_from_milli_second(val.as_timestamp().milli_second,
+    } else if constexpr (std::is_same_v<T, DateTime>) {
+      return extract_time_from_milli_second(val.as_datetime().milli_second,
                                             extract_);
 
+    } else if constexpr (std::is_same_v<T, TimeStamp>) {
+      return extract_time_from_milli_second(val.as_timestamp().milli_second,
+                                            extract_);
     } else if constexpr (std::is_same_v<T, Date>) {
       if (extract_.interval() == common::Extract::DAY) {
         return val.as_date32().day();

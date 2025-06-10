@@ -69,9 +69,33 @@ void set_column_from_string_array(gs::ColumnBase* col,
                                   const std::vector<size_t>& offset,
                                   bool enable_resize = false);
 
+template <typename COL_T>  // COL_T = DateTime or Timestamp
 void set_column_from_timestamp_array(gs::ColumnBase* col,
                                      std::shared_ptr<arrow::ChunkedArray> array,
-                                     const std::vector<size_t>& offset);
+                                     const std::vector<size_t>& offset) {
+  auto type = array->type();
+  auto col_type = col->type();
+  auto size = col->size();
+  size_t cur_ind = 0;
+  if (type->Equals(arrow::timestamp(arrow::TimeUnit::type::MILLI))) {
+    for (auto j = 0; j < array->num_chunks(); ++j) {
+      auto casted =
+          std::static_pointer_cast<arrow::TimestampArray>(array->chunk(j));
+      for (auto k = 0; k < casted->length(); ++k) {
+        if (offset[cur_ind] >= size) {
+          cur_ind++;
+        } else {
+          col->set_any(
+              offset[cur_ind++],
+              std::move(AnyConverter<COL_T>::to_any(casted->Value(k))));
+        }
+      }
+    }
+  } else {
+    LOG(FATAL) << "Not implemented: converting " << type->ToString() << " to "
+               << col_type;
+  }
+}
 
 void set_column_from_date_array(gs::ColumnBase* col,
                                 std::shared_ptr<arrow::ChunkedArray> array,

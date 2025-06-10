@@ -135,7 +135,7 @@ rt_server -g /path/to/schema_config -d /path/to/data [-l /path/to/load_schema] [
 - `-g` Specifies the schema description file.
     - `storages/rt_mutable_graph/modern_graph/graph.yaml` is an example of schema description file.
 - `-l` Specifies the bulk loading description file.
-    - `storages/rt_mutable_graph/modern_graph/bulk_load.yaml` is an example of bulk loading description file, it defines the path of raw files and the mapping from raw files to vertex/edge labels.
+    - `storages/rt_mutable_graph/modern_graph/import.yaml` is an example of bulk loading description file, it defines the path of raw files and the mapping from raw files to vertex/edge labels.
 - `-s` Specifies the concurrency.
 
 Recovering from an existing work directory and then bulk loading from raw files is not supported. When the specified work directory is recoverable and the bulk loading description file is provided, the bulk loading will be ignored.

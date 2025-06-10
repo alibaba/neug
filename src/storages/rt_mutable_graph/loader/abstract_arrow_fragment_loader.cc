@@ -118,7 +118,9 @@ void set_properties_column(gs::ColumnBase* col,
   } else if (col_type == PropertyType::kFloat) {
     set_column<float>(col, array, offset);
   } else if (col_type == PropertyType::kDateTime) {
-    set_column_from_timestamp_array(col, array, offset);
+    set_column_from_timestamp_array<DateTime>(col, array, offset);
+  } else if (col_type == PropertyType::kTimestamp) {
+    set_column_from_timestamp_array<TimeStamp>(col, array, offset);
   } else if (col_type == PropertyType::kDate) {
     set_column_from_date_array(col, array, offset);
   } else if (col_type == PropertyType::kStringMap) {
@@ -129,33 +131,6 @@ void set_properties_column(gs::ColumnBase* col,
     set_column_from_string_array(col, array, offset, true);
   } else {
     LOG(FATAL) << "Not support type: " << type->ToString();
-  }
-}
-
-void set_column_from_timestamp_array(gs::ColumnBase* col,
-                                     std::shared_ptr<arrow::ChunkedArray> array,
-                                     const std::vector<size_t>& offset) {
-  auto type = array->type();
-  auto col_type = col->type();
-  auto size = col->size();
-  size_t cur_ind = 0;
-  if (type->Equals(arrow::timestamp(arrow::TimeUnit::type::MILLI))) {
-    for (auto j = 0; j < array->num_chunks(); ++j) {
-      auto casted =
-          std::static_pointer_cast<arrow::TimestampArray>(array->chunk(j));
-      for (auto k = 0; k < casted->length(); ++k) {
-        if (offset[cur_ind] >= size) {
-          cur_ind++;
-        } else {
-          col->set_any(
-              offset[cur_ind++],
-              std::move(AnyConverter<DateTime>::to_any(casted->Value(k))));
-        }
-      }
-    }
-  } else {
-    LOG(FATAL) << "Not implemented: converting " << type->ToString() << " to "
-               << col_type;
   }
 }
 

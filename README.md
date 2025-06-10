@@ -63,7 +63,7 @@ make -j
 ```bash
 cd build
 export FLEX_DATA_DIR=/workspaces/nexg/example_dataset/modern_graph
-GLOG_v=10 ./src/bin/bulk_loader -g ../example_dataset/modern_graph/graph.yaml -l ../example_dataset/modern_graph/bulk_load.yaml -d /tmp/csr-data-dir 
+GLOG_v=10 ./src/bin/bulk_loader -g ../example_dataset/modern_graph/graph.yaml -l ../example_dataset/modern_graph/import.yaml -d /tmp/csr-data-dir 
 # You will find a statistics.json under /tmp/csr-data-dir 
 ```
 

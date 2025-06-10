@@ -65,6 +65,19 @@ jobs:
         cd tools/python_bind
         make build
 
+    - name: Bulk Loader Test
+      env:
+        GS_TEST_DIR: ${{ github.workspace }}/gstest
+      run: |
+        git clone -b master --single-branch --depth=1 https://github.com/GraphScope/gstest.git ${GS_TEST_DIR}
+        rm -rf /tmp/modern_graph && rm -rf /tmp/lsqb && rm -rf /tmp/ldbc
+        cd ${GITHUB_WORKSPACE}/tools/python_bind/
+        export FLEX_DATA_DIR=${GITHUB_WORKSPACE}/example_dataset/modern_graph
+        GLOG_v=10 ./build/nexg_py_bind/src/bin/bulk_loader -g ../../example_dataset/modern_graph/graph.yaml -l ../../example_dataset/modern_graph/import.yaml -d /tmp/modern_graph
+        export FLEX_DATA_DIR=${GITHUB_WORKSPACE}/example_dataset/lsqb-sf01
+        GLOG_v=10 ./build/nexg_py_bind/src/bin/bulk_loader -g ../../example_dataset/lsqb-sf01/graph.yaml -l ../../example_dataset/lsqb-sf01/import.yaml -d /tmp/lsqb
+        export FLEX_DATA_DIR=${GS_TEST_DIR}/flex/ldbc-sf01-long-date
+        GLOG_v=10 ./build/nexg_py_bind/src/bin/bulk_loader -g ../../example_dataset/ldbc/graph.yaml -l ../../example_dataset/ldbc/import.yaml -d /tmp/ldbc/
 
     - name: Run Python Test
       run: |
@@ -78,9 +91,6 @@ jobs:
     - name: Run lsqb test
       run: |
         cd ${GITHUB_WORKSPACE}/tools/python_bind/
-        rm -rf /tmp/lsqb
-        export FLEX_DATA_DIR=${GITHUB_WORKSPACE}/example_dataset/lsqb-sf01
-        GLOG_v=10 ./build/nexg_py_bind/src/bin/bulk_loader -g ../../example_dataset/lsqb-sf01/graph.yaml -l ../../example_dataset/lsqb-sf01/import.yaml -d /tmp/lsqb
         export LSQB_DATA_DIR=/tmp/lsqb
         python3 -m pytest -sv tests/test_lsqb.py
 

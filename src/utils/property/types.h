@@ -60,6 +60,8 @@ static constexpr const char* DT_DATETIME =
     "DT_DATETIME";  // YYYY-MM-DD HH:MM:SS.zzz
 static constexpr const char* DT_INTERVAL =
     "DT_INTERVAL";  // Y Year, M Month, D Day, H Hour, M Minute, S Second
+static constexpr const char* DT_TIMESTAMP =
+    "DT_TIMESTAMP";  // millisecond timestamp
 
 enum class StorageStrategy {
   kNone,
@@ -100,6 +102,7 @@ enum class PropertyTypeImpl {
   kDateTime,
   // kDay,
   kInterval,
+  kTimestamp,  // millisecond timestamp
 };
 
 // Stores additional type information for PropertyTypeImpl
@@ -153,6 +156,7 @@ struct PropertyType {
   static PropertyType Date();
   static PropertyType DateTime();
   static PropertyType Interval();
+  static PropertyType Timestamp();
 
   static const PropertyType kEmpty;
   static const PropertyType kBool;
@@ -176,6 +180,7 @@ struct PropertyType {
   static const PropertyType kDate;
   static const PropertyType kDateTime;
   static const PropertyType kInterval;
+  static const PropertyType kTimestamp;  // millisecond timestamp
 
   bool operator==(const PropertyType& other) const;
   bool operator!=(const PropertyType& other) const;
@@ -239,6 +244,27 @@ struct __attribute__((packed)) DateTime {
   }
 
   inline bool operator==(const DateTime& rhs) const {
+    return milli_second == rhs.milli_second;
+  }
+
+  int64_t milli_second;
+};
+
+// Although DateTime and TimeStamp are similar, they are different types, parsed
+// from different arrow types, and has different usages.
+struct __attribute__((packed)) TimeStamp {
+  TimeStamp() = default;
+  ~TimeStamp() = default;
+
+  TimeStamp(int64_t x) : milli_second(x) {}
+
+  std::string to_string() const;
+
+  inline bool operator<(const TimeStamp& rhs) const {
+    return milli_second < rhs.milli_second;
+  }
+
+  inline bool operator==(const TimeStamp& rhs) const {
     return milli_second == rhs.milli_second;
   }
 
@@ -522,9 +548,9 @@ union AnyValue {
 
   // temporal types
   Date d;
-  // Day day;
   DateTime dt;
   Interval interval;
+  TimeStamp ts;
 
   // Non-trivial types
   Record record;
@@ -732,6 +758,11 @@ struct Any {
     value.interval.from_u64(v);
   }
 
+  void set_timestamp(int64_t v) {
+    type = PropertyType::kTimestamp;
+    value.ts.milli_second = v;
+  }
+
   std::string to_string() const {
     if (type == PropertyType::kInt32) {
       return std::to_string(value.i);
@@ -768,6 +799,8 @@ struct Any {
       return value.dt.to_string();
     } else if (type == PropertyType::kInterval) {
       return value.interval.to_string();
+    } else if (type == PropertyType::kTimestamp) {
+      return value.ts.to_string();
     } else {
       LOG(FATAL) << "Unexpected property type: "
                  << static_cast<int>(type.type_enum);
@@ -859,6 +892,11 @@ struct Any {
     return value.interval;
   }
 
+  const TimeStamp& AsTimeStamp() const {
+    assert(type == PropertyType::kTimestamp);
+    return value.ts;
+  }
+
   template <typename T>
   static Any From(const T& value) {
     return AnyConverter<T>::to_any(value);
@@ -899,6 +937,8 @@ struct Any {
         return value.d.to_u32() == other.value.d.to_u32();
       } else if (type == PropertyType::kDateTime) {
         return value.dt.milli_second == other.value.dt.milli_second;
+      } else if (type == PropertyType::kTimestamp) {
+        return value.ts.milli_second == other.value.ts.milli_second;
       } else if (type == PropertyType::kInterval) {
         return value.interval.to_u64() == other.value.interval.to_u64();
       } else {
@@ -964,6 +1004,8 @@ struct Any {
         return value.d.to_u32() < other.value.d.to_u32();
       } else if (type == PropertyType::kDateTime) {
         return value.dt.milli_second < other.value.dt.milli_second;
+      } else if (type == PropertyType::kTimestamp) {
+        return value.ts.milli_second < other.value.ts.milli_second;
       } else if (type == PropertyType::kInterval) {
         return value.interval.to_u64() < other.value.interval.to_u64();
       } else {
@@ -1553,6 +1595,28 @@ struct AnyConverter<Interval> {
   static std::string type_name() { return "Interval"; }
 };
 
+template <>
+struct AnyConverter<TimeStamp> {
+  static PropertyType type() { return PropertyType::kTimestamp; }
+
+  static Any to_any(const TimeStamp& value) {
+    Any ret;
+    ret.set_timestamp(value.milli_second);
+    return ret;
+  }
+
+  static const TimeStamp& from_any(const Any& value) {
+    assert(value.type == PropertyType::kTimestamp);
+    return value.value.ts;
+  }
+
+  static const TimeStamp& from_any_value(const AnyValue& value) {
+    return value.ts;
+  }
+
+  static std::string type_name() { return "TimeStamp"; }
+};
+
 template <typename T>
 T RecordView::get_field(int col_id) const {
   auto val = operator[](col_id);
@@ -1645,6 +1709,8 @@ inline ostream& operator<<(ostream& os, gs::PropertyType pt) {
     os << "datetime";
   } else if (pt == gs::PropertyType::Interval()) {
     os << "interval";
+  } else if (pt == gs::PropertyType::Timestamp()) {
+    os << "timestamp";
   } else {
     os << "unknown";
   }
@@ -1700,8 +1766,11 @@ struct convert<gs::PropertyType> {
         property_type = gs::PropertyType::DateTime();
       } else if (temporal["interval"]) {
         property_type = gs::PropertyType::Interval();
+      } else if (temporal["timestamp"]) {
+        property_type = gs::PropertyType::Timestamp();
       } else {
-        LOG(ERROR) << "Unrecognized temporal type";
+        throw std::runtime_error("Unrecognized temporal type: " +
+                                 temporal.as<std::string>());
       }
     }
     // compatibility with old config files

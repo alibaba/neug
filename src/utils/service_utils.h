@@ -180,6 +180,8 @@ inline bool from_json(const rapidjson::Value& j, PropertyType& p) {
       p = PropertyType::Date();
     } else if (j["temporal"].HasMember("interval")) {
       p = PropertyType::Interval();
+    } else if (j["temporal"].HasMember("timestamp")) {
+      p = PropertyType::Timestamp();
     } else {
       throw std::invalid_argument("Unknown temporal type: " +
                                   rapidjson_stringify(j));
