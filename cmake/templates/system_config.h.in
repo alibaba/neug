@@ -45,7 +45,7 @@ static const uint64_t TEMP_PAGE_SIZE = static_cast<uint64_t>(1)
                                        << TEMP_PAGE_SIZE_LOG2;
 
 //clang-format off
-#define DEFAULT_REL_STORAGE_DIRECTION @KUZU_DEFAULT_REL_STORAGE_DIRECTION @
+#define DEFAULT_REL_STORAGE_DIRECTION @KUZU_DEFAULT_REL_STORAGE_DIRECTION@
 // clang-format on
 #if DEFAULT_REL_STORAGE_DIRECTION == FWD_REL_STORAGE
 static constexpr ExtendDirection DEFAULT_EXTEND_DIRECTION =
@@ -60,7 +60,7 @@ static constexpr ExtendDirection DEFAULT_EXTEND_DIRECTION =
 
 struct StorageConfig {
   //clang-format off
-  static constexpr uint64_t NODE_GROUP_SIZE_LOG2 = @KUZU_NODE_GROUP_SIZE_LOG2 @;
+  static constexpr uint64_t NODE_GROUP_SIZE_LOG2 = @KUZU_NODE_GROUP_SIZE_LOG2@;
   // clang-format on
   static constexpr uint64_t NODE_GROUP_SIZE = static_cast<uint64_t>(1)
                                               << NODE_GROUP_SIZE_LOG2;

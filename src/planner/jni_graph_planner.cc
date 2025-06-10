@@ -16,7 +16,6 @@ limitations under the License.
 #include <sys/types.h>
 #include <sys/wait.h>
 #include <unistd.h>
-#include <zlib.h>
 #include <fstream>
 
 #include <fcntl.h>
@@ -348,13 +347,14 @@ physical::PhysicalPlan readPhysicalPlan(const std::string& plan_str) {
   return plan;
 }
 
-physical::PhysicalPlan compilePlanSubprocess(
-    const std::string& class_path, const std::string& jna_path,
-    const std::string& graph_schema_yaml,
-    const std::string& graph_statistic_json,
-    const std::string& compiler_config_path,
-    const std::string& cypher_query_string) {
-  physical::PhysicalPlan physical_plan;
+Plan compilePlanSubprocess(const std::string& class_path,
+                           const std::string& jna_path,
+                           const std::string& graph_schema_yaml,
+                           const std::string& graph_statistic_json,
+                           const std::string& compiler_config_path,
+                           const std::string& cypher_query_string) {
+  Plan plan;
+  // physical::PhysicalPlan physical_plan;
   auto random_prefix = std::to_string(
       std::chrono::system_clock::now().time_since_epoch().count());
   std::string dst_query_path = "/tmp/temp_query_" + random_prefix + ".cypher";
@@ -383,6 +383,8 @@ physical::PhysicalPlan compilePlanSubprocess(
     execvp(command_string_array[0],
            const_cast<char* const*>(command_string_array));
   } else if (pid < 0) {
+    plan.error_code = gs::nexg::interactive::Code::ERR_COMPILATION;
+    plan.full_message = "Error in fork: " + std::string(strerror(errno));
     LOG(ERROR) << "Error in fork.";
   } else {
     write_query_to_pipe(dst_query_path, cypher_query_string);
@@ -390,7 +392,9 @@ physical::PhysicalPlan compilePlanSubprocess(
     int fd_from_java = open(dst_output_file.c_str(), O_RDONLY);
     if (fd_from_java < 0) {
       LOG(ERROR) << "Fail to open pipe: " << dst_output_file;
-      return physical_plan;
+      plan.error_code = gs::nexg::interactive::Code::ERR_COMPILATION;
+      plan.full_message = "Fail to open pipe: " + dst_output_file;
+      return plan;
     }
     std::vector<char> stored_buffer;
     char buffer[128];
@@ -401,7 +405,7 @@ physical::PhysicalPlan compilePlanSubprocess(
       }
       stored_buffer.insert(stored_buffer.end(), buffer, buffer + bytesRead);
     }
-    physical_plan = readPhysicalPlan(
+    plan.physical_plan = readPhysicalPlan(
         std::string(stored_buffer.begin(), stored_buffer.end()));
     close(fd_from_java);
 
@@ -413,7 +417,9 @@ physical::PhysicalPlan compilePlanSubprocess(
   }
   unlink(dst_query_path.c_str());
   unlink(dst_output_file.c_str());
-  return physical_plan;
+  plan.error_code = gs::nexg::interactive::Code::OK;
+  plan.full_message = "Compilation successful.";
+  return plan;
 }
 #endif
 

@@ -16,7 +16,6 @@
 #ifndef SRC_PLANNER_JNI_GRAPH_PLANNER_H_
 #define SRC_PLANNER_JNI_GRAPH_PLANNER_H_
 
-#include <jni.h>
 #include <cstring>
 #include <filesystem>
 #include <sstream>
@@ -30,6 +29,10 @@
 
 #ifndef GRAPH_PLANNER_JNI_INVOKER
 #define GRAPH_PLANNER_JNI_INVOKER 1  // 1: JNI, 0: subprocess
+#endif
+
+#if (GRAPH_PLANNER_JNI_INVOKER)
+#include <jni.h>
 #endif
 
 namespace gs {
@@ -74,8 +77,9 @@ class JavaGraphPlanner : public IGraphPlanner {
    */
   JavaGraphPlanner(const std::string& compiler_config_path,
                    const std::string java_class_path)
+      : IGraphPlanner(compiler_config_path)
 #if (GRAPH_PLANNER_JNI_INVOKER)
-      : IGraphPlanner(compiler_config_path),
+        ,
         jni_wrapper_(generate_jvm_options(java_class_path)) {
     jclass clz = jni_wrapper_.env()->FindClass(kGraphPlannerClass);
     if (clz == NULL) {
