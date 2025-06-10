@@ -21,6 +21,48 @@
 #include "src/utils/string_utils.h"
 
 namespace gs {
+
+inline DualCsrBase* create_csr(EdgeStrategy oes, EdgeStrategy ies,
+                               const std::vector<PropertyType>& properties,
+                               bool oe_mutable, bool ie_mutable,
+                               const std::vector<std::string>& prop_names) {
+  if (properties.empty()) {
+    return new DualCsr<grape::EmptyType>(oes, ies, oe_mutable, ie_mutable);
+  } else if (properties.size() == 1) {
+    if (properties[0] == PropertyType::kBool) {
+      return new DualCsr<bool>(oes, ies, oe_mutable, ie_mutable);
+    } else if (properties[0] == PropertyType::kInt32) {
+      return new DualCsr<int32_t>(oes, ies, oe_mutable, ie_mutable);
+    } else if (properties[0] == PropertyType::kUInt32) {
+      return new DualCsr<uint32_t>(oes, ies, oe_mutable, ie_mutable);
+    } else if (properties[0] == PropertyType::kDate) {
+      return new DualCsr<Date>(oes, ies, oe_mutable, ie_mutable);
+    } else if (properties[0] == PropertyType::kInt64) {
+      return new DualCsr<int64_t>(oes, ies, oe_mutable, ie_mutable);
+    } else if (properties[0] == PropertyType::kUInt64) {
+      return new DualCsr<uint64_t>(oes, ies, oe_mutable, ie_mutable);
+    } else if (properties[0] == PropertyType::kDouble) {
+      return new DualCsr<double>(oes, ies, oe_mutable, ie_mutable);
+    } else if (properties[0] == PropertyType::kFloat) {
+      return new DualCsr<float>(oes, ies, oe_mutable, ie_mutable);
+    } else if (properties[0].type_enum == impl::PropertyTypeImpl::kVarChar) {
+      return new DualCsr<std::string_view>(
+          oes, ies, properties[0].additional_type_info.max_length, oe_mutable,
+          ie_mutable);
+    } else if (properties[0] == PropertyType::kStringView) {
+      return new DualCsr<std::string_view>(
+          oes, ies, gs::PropertyType::GetStringDefaultMaxLength(), oe_mutable,
+          ie_mutable);
+    }
+  } else {
+    // TODO: fix me, storage strategy not set
+    return new DualCsr<RecordView>(oes, ies, prop_names, properties, {},
+                                   oe_mutable, ie_mutable);
+  }
+  LOG(FATAL) << "not support edge strategy or edge data type";
+  return nullptr;
+}
+
 MutablePropertyFragment::MutablePropertyFragment() {}
 
 MutablePropertyFragment::~MutablePropertyFragment() {
@@ -237,9 +279,8 @@ Status MutablePropertyFragment::create_edge_type(
       schema_.generate_edge_label(src_label_i, dst_label_i, e_label_i);
   EdgeStrategy oe_strategy = EdgeStrategy::kMultiple;
   EdgeStrategy ie_strategy = EdgeStrategy::kMultiple;
-  DualCsrBase* dual_csr =
-      new DualCsr<RecordView>(oe_strategy, ie_strategy, property_names,
-                              property_types, {}, oe_mutable, ie_mutable);
+  DualCsrBase* dual_csr = create_csr(oe_strategy, ie_strategy, property_types,
+                                     oe_mutable, ie_mutable, property_names);
   dual_csr_map_.emplace(index, dual_csr);
   ie_map_.emplace(index, dual_csr->GetInCsr());
   oe_map_.emplace(index, dual_csr->GetOutCsr());
@@ -349,6 +390,15 @@ Status MutablePropertyFragment::add_edge_properties(
     add_property_names.emplace_back(property_name);
     add_property_types.emplace_back(property_type);
     add_default_property_values.emplace_back(default_value);
+  }
+  // Before adding properties, we need to check whether the csr data type
+  // needs to be changed.
+  auto prev_edge_prop_num =
+      schema_.get_edge_properties(src_type_name, dst_type_name, edge_type_name)
+          .size();
+  if (prev_edge_prop_num == 0 || prev_edge_prop_num == 1) {
+    change_csr_data_type_to_record_view(src_type_name, dst_type_name,
+                                        edge_type_name);
   }
   schema_.add_edge_properties(src_type_name, dst_type_name, edge_type_name,
                               add_property_names, add_property_types,
@@ -822,9 +872,8 @@ void MutablePropertyFragment::Open(const std::string& work_dir,
         auto& prop_names =
             schema_.get_edge_property_names(src_label, dst_label, edge_label);
 
-        DualCsrBase* dual_csr =
-            new DualCsr<RecordView>(oe_strategy, ie_strategy, prop_names,
-                                    properties, {}, oe_mutable, ie_mutable);
+        auto dual_csr = create_csr(oe_strategy, ie_strategy, properties,
+                                   oe_mutable, ie_mutable, prop_names);
         dual_csr_map_.emplace(index, dual_csr);
         ie_map_.emplace(index, dual_csr->GetInCsr());
         oe_map_.emplace(index, dual_csr->GetOutCsr());
@@ -1148,6 +1197,56 @@ void MutablePropertyFragment::dumpSchema() const {
     return;
   }
   write_yaml_file(schema_res.value(), filename);
+}
+
+void MutablePropertyFragment::change_csr_data_type_to_record_view(
+    const std::string& src_type_name, const std::string& dst_type_name,
+    const std::string& edge_type_name) {
+  LOG(INFO) << "Changing CSR data type to RecordView for edge ["
+            << edge_type_name << "] from [" << src_type_name << "] to ["
+            << dst_type_name << "]";
+  auto src_label_id = schema_.get_vertex_label_id(src_type_name);
+  auto dst_label_id = schema_.get_vertex_label_id(dst_type_name);
+  auto edge_label_id = schema_.get_edge_label_id(edge_type_name);
+  auto index =
+      schema_.generate_edge_label(src_label_id, dst_label_id, edge_label_id);
+  CHECK(dual_csr_map_.find(index) != dual_csr_map_.end())
+      << "Edge [" << edge_type_name << "] from [" << src_type_name << "] to ["
+      << dst_type_name << "] does not exist, cannot change data type.";
+  auto dual_csr = dual_csr_map_.at(index);
+  if (dual_csr == NULL) {
+    LOG(ERROR) << "Edge [" << edge_type_name << "] from [" << src_type_name
+               << "] to [" << dst_type_name
+               << "] does not exist, cannot change data type.";
+  }
+  auto prev_prop_names = schema_.get_edge_property_names(
+      src_label_id, dst_label_id, edge_label_id);
+  auto prev_prop_types =
+      schema_.get_edge_properties(src_label_id, dst_label_id, edge_label_id);
+  auto new_csr = new DualCsr<RecordView>(
+      schema_.get_outgoing_edge_strategy(src_label_id, dst_label_id,
+                                         edge_label_id),
+      schema_.get_incoming_edge_strategy(src_label_id, dst_label_id,
+                                         edge_label_id),
+      prev_prop_names, prev_prop_types, {},
+      schema_.outgoing_edge_mutable(src_type_name, dst_type_name,
+                                    edge_type_name),
+      schema_.incoming_edge_mutable(src_type_name, dst_type_name,
+                                    edge_type_name));
+  // TODO: open new_csr, and copy data from dual_csr to new_csr
+  LOG(INFO) << "Opening new CSR for edge [" << edge_type_name << "] from ["
+            << src_type_name << "] to [" << dst_type_name << "]";
+  LOG(WARNING) << "CURRENTLY NOT IMPLEMENTED, ASSUME the previous CSR is empty";
+  {
+    // Delete the old CSR and dump the new one
+    ie_map_.erase(index);
+    oe_map_.erase(index);
+    delete dual_csr;
+    dual_csr_map_.erase(index);
+    dual_csr_map_.emplace(index, new_csr);
+    ie_map_.emplace(index, new_csr->GetInCsr());
+    oe_map_.emplace(index, new_csr->GetOutCsr());
+  }
 }
 
 }  // namespace gs

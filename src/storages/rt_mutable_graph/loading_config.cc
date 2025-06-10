@@ -556,7 +556,7 @@ Status parse_bulk_load_method(const YAML::Node& node, BulkLoadMethod& method) {
 Status parse_bulk_load_config_yaml(const YAML::Node& root, const Schema& schema,
                                    LoadingConfig& load_config) {
   std::string data_location;
-  load_config.scheme_ = "file";  // default data source is file
+  load_config.scheme_ = "mutable";  // default data source is file
   load_config.method_ = BulkLoadMethod::kInit;
   load_config.format_ = "csv";
 

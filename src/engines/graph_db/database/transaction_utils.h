@@ -105,7 +105,7 @@ inline label_t deserialize_oid(const MutablePropertyFragment& graph,
                                grape::OutArchive& arc, Any& oid) {
   label_t label;
   arc >> label;
-  oid.type = std::get<0>(graph.schema_.get_vertex_primary_key(label).at(0));
+  oid.type = std::get<0>(graph.schema().get_vertex_primary_key(label).at(0));
   deserialize_field(arc, oid);
   return label;
 }

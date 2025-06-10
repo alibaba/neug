@@ -1125,6 +1125,8 @@ struct AnyConverter<bool> {
     return value.value.b;
   }
 
+  static std::string type_name() { return "bool"; }
+
   static const bool& from_any_value(const AnyValue& value) { return value.b; }
 };
 
@@ -1140,6 +1142,8 @@ struct AnyConverter<uint8_t> {
     assert(value.type == PropertyType::kUInt8);
     return value.value.u8;
   }
+
+  static std::string type_name() { return "uint8_t"; }
 };
 
 template <>
@@ -1154,6 +1158,8 @@ struct AnyConverter<uint16_t> {
     assert(value.type == PropertyType::kUInt8);
     return value.value.u16;
   }
+
+  static std::string type_name() { return "uint16_t"; }
 };
 
 template <>
@@ -1174,6 +1180,8 @@ struct AnyConverter<int32_t> {
   static const int32_t& from_any_value(const AnyValue& value) {
     return value.i;
   }
+
+  static std::string type_name() { return "int32_t"; }
 };
 
 template <>
@@ -1194,6 +1202,8 @@ struct AnyConverter<uint32_t> {
   static const uint32_t& from_any_value(const AnyValue& value) {
     return value.ui;
   }
+
+  static std::string type_name() { return "uint32_t"; }
 };
 template <>
 struct AnyConverter<int64_t> {
@@ -1213,6 +1223,8 @@ struct AnyConverter<int64_t> {
   static const int64_t& from_any_value(const AnyValue& value) {
     return value.l;
   }
+
+  static std::string type_name() { return "int64_t"; }
 };
 
 template <>
@@ -1233,6 +1245,8 @@ struct AnyConverter<uint64_t> {
   static const uint64_t& from_any_value(const AnyValue& value) {
     return value.ul;
   }
+
+  static std::string type_name() { return "uint64_t"; }
 };
 
 #ifdef __APPLE__
@@ -1254,6 +1268,8 @@ struct AnyConverter<size_t> {
   static const uint64_t& from_any_value(const AnyValue& value) {
     return value.ul;
   }
+
+  static std::string type_name() { return "size_t"; }
 };
 #endif
 
@@ -1275,6 +1291,8 @@ struct AnyConverter<GlobalId> {
   static const GlobalId& from_any_value(const AnyValue& value) {
     return value.vertex_gid;
   }
+
+  static std::string type_name() { return "GlobalId"; }
 };
 
 template <>
@@ -1296,6 +1314,8 @@ struct AnyConverter<std::string_view> {
   static const std::string_view& from_any_value(const AnyValue& value) {
     return value.s;
   }
+
+  static std::string type_name() { return "std::string_view"; }
 };
 
 template <>
@@ -1316,6 +1336,8 @@ struct AnyConverter<std::string> {
   static std::string& from_any_value(const AnyValue& value) {
     return *value.s_ptr.ptr;
   }
+
+  static std::string type_name() { return "std::string"; }
 };
 
 template <>
@@ -1335,6 +1357,8 @@ struct AnyConverter<grape::EmptyType> {
   static grape::EmptyType from_any_value(const AnyValue& value) {
     return grape::EmptyType();
   }
+
+  static std::string type_name() { return "grape::EmptyType"; }
 };
 
 template <>
@@ -1355,6 +1379,8 @@ struct AnyConverter<double> {
   static const double& from_any_value(const AnyValue& value) {
     return value.db;
   }
+
+  static std::string type_name() { return "double"; }
 };
 
 // specialization for float
@@ -1374,6 +1400,8 @@ struct AnyConverter<float> {
   }
 
   static const float& from_any_value(const AnyValue& value) { return value.f; }
+
+  static std::string type_name() { return "float"; }
 };
 
 template <>
@@ -1394,6 +1422,8 @@ struct AnyConverter<LabelKey> {
   static const LabelKey& from_any_value(const AnyValue& value) {
     return value.label_key;
   }
+
+  static std::string type_name() { return "LabelKey"; }
 };
 Any ConvertStringToAny(const std::string& value, const gs::PropertyType& type);
 
@@ -1415,6 +1445,8 @@ struct AnyConverter<RecordView> {
   static const RecordView& from_any_value(const AnyValue& value) {
     return value.record_view;
   }
+
+  static std::string type_name() { return "RecordView"; }
 };
 
 template <>
@@ -1435,6 +1467,8 @@ struct AnyConverter<Record> {
   static const Record& from_any_value(const AnyValue& value) {
     return value.record;
   }
+
+  static std::string type_name() { return "Record"; }
 };
 
 template <>
@@ -1459,6 +1493,8 @@ struct AnyConverter<Date> {
   }
 
   static const Date& from_any_value(const AnyValue& value) { return value.d; }
+
+  static std::string type_name() { return "Date"; }
 };
 
 template <>
@@ -1485,6 +1521,8 @@ struct AnyConverter<DateTime> {
   static const DateTime& from_any_value(const AnyValue& value) {
     return value.dt;
   }
+
+  static std::string type_name() { return "DateTime"; }
 };
 
 template <>
@@ -1511,6 +1549,8 @@ struct AnyConverter<Interval> {
   static const Interval& from_any_value(const AnyValue& value) {
     return value.interval;
   }
+
+  static std::string type_name() { return "Interval"; }
 };
 
 template <typename T>

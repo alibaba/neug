@@ -59,5 +59,11 @@ class TestLsqb(unittest.TestCase):
         for record in result:
             print("Record:", record)
         assert len(result) > 0
+
+        result = conn.execute("MATCH (n:Country)<-[:City_isPartOf_Country]-(:City) return count(n);")
+        assert result is not None
+        for record in result:
+            print("Record:", record)
+        assert len(result) > 0
         conn.close()
         db.close()

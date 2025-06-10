@@ -16,15 +16,15 @@ void test_open_close() {
   LOG(INFO) << "Current source file path: " << __FILE__;
   LOG(INFO) << "Current source file directory: "
             << std::filesystem::path(__FILE__).parent_path();
-  std::string cur_dir = std::filesystem::current_path().string();
+  std::string cur_dir = std::filesystem::path(__FILE__).parent_path().string();
   std::string compiler_jar_path =
-      cur_dir + "../../tools/python_bind/nexg/resources/compiler.jar";
+      cur_dir + "/../../tools/python_bind/nexg/resources/compiler.jar";
   LOG(INFO) << "Compiler JAR path: " << compiler_jar_path;
   std::string planner_config_path =
-      cur_dir + "../../tools/python_bind/nexg/resources/planner_config.yaml";
+      cur_dir + "/../../tools/python_bind/nexg/resources/planner_config.yaml";
   LOG(INFO) << "Planner config path: " << planner_config_path;
   std::string resource_path =
-      cur_dir + "../../tools/python_bind/nexg/resources";
+      cur_dir + "/../../tools/python_bind/nexg/resources";
   LOG(INFO) << "Resource path: " << resource_path;
 
   gs::NexgDB db(dir, 1, "rw", "jni", compiler_jar_path, planner_config_path,

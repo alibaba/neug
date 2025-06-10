@@ -272,7 +272,8 @@ static void append_edges(
   auto old_size = parsed_edges.size();
   parsed_edges.resize(old_size + src_col->length());
   VLOG(10) << "resize parsed_edges from" << old_size << " to "
-           << parsed_edges.size();
+           << parsed_edges.size()
+           << "EDATA_T: " << AnyConverter<EDATA_T>::type_name();
 
   // if EDATA_T is grape::EmptyType, no need to read columns
   auto edata_col_thread = std::thread([&]() {

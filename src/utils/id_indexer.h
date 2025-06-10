@@ -24,6 +24,8 @@ limitations under the License.
 #include <thread>
 #include <type_traits>
 #include <vector>
+// header for size_t
+#include <cstddef>
 
 #include "glog/logging.h"
 #include "src/utils/mmap_array.h"

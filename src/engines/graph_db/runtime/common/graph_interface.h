@@ -367,26 +367,42 @@ class GraphReadInterface {
   inline graph_view_t<EDATA_T> GetOutgoingGraphView(label_t v_label,
                                                     label_t neighbor_label,
                                                     label_t edge_label) const {
-    auto csr = dynamic_cast<const MutableCsr<EDATA_T>*>(
-        txn_.graph().get_oe_csr(v_label, neighbor_label, edge_label));
+    auto csr = txn_.graph().get_oe_csr(v_label, neighbor_label, edge_label);
     if (!csr) {
       VLOG(1) << "GetOutgoingGraphView: csr is null: " << (int32_t) v_label
               << " " << (int32_t) neighbor_label << " " << (int32_t) edge_label;
     }
-    return graph_view_t<EDATA_T>(csr, txn_.timestamp());
+    auto casted = dynamic_cast<const MutableCsr<EDATA_T>*>(csr);
+    if (!casted && csr) {
+      throw std::runtime_error(
+          "GetOutgoingGraphView: csr is not of type MutableCsr<EDATA_T>: " +
+          std::to_string(static_cast<int32_t>(v_label)) + " " +
+          std::to_string(static_cast<int32_t>(neighbor_label)) + " " +
+          std::to_string(static_cast<int32_t>(edge_label)) +
+          " EDATA_T:" + AnyConverter<EDATA_T>::type_name());
+    }
+    return graph_view_t<EDATA_T>(casted, txn_.timestamp());
   }
 
   template <typename EDATA_T>
   inline graph_view_t<EDATA_T> GetIncomingGraphView(label_t v_label,
                                                     label_t neighbor_label,
                                                     label_t edge_label) const {
-    auto csr = dynamic_cast<const MutableCsr<EDATA_T>*>(
-        txn_.graph().get_ie_csr(v_label, neighbor_label, edge_label));
+    auto csr = txn_.graph().get_ie_csr(v_label, neighbor_label, edge_label);
     if (!csr) {
       VLOG(1) << "GetIncomingGraphView: csr is null: " << (int32_t) v_label
               << " " << (int32_t) neighbor_label << " " << (int32_t) edge_label;
     }
-    return graph_view_t<EDATA_T>(csr, txn_.timestamp());
+    auto casted = dynamic_cast<const MutableCsr<EDATA_T>*>(csr);
+    if (!casted && csr) {
+      throw std::runtime_error(
+          "GetIncomingGraphView: csr is not of type MutableCsr<EDATA_T>: " +
+          std::to_string(static_cast<int32_t>(v_label)) + " " +
+          std::to_string(static_cast<int32_t>(neighbor_label)) + " " +
+          std::to_string(static_cast<int32_t>(edge_label)) +
+          " EDATA_T:" + AnyConverter<EDATA_T>::type_name());
+    }
+    return graph_view_t<EDATA_T>(casted, txn_.timestamp());
   }
 
   inline const Schema& schema() const { return txn_.schema(); }

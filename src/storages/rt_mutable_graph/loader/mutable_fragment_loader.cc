@@ -544,9 +544,9 @@ void MutableFragmentLoader::loadEdges() {
       // put column_types, col_name : col_type
       std::unordered_map<std::string, std::shared_ptr<arrow::DataType>>
           arrow_types;
+      auto property_types =
+          schema_.get_edge_properties(src_label_id, dst_label_id, e_label_id);
       {
-        auto property_types =
-            schema_.get_edge_properties(src_label_id, dst_label_id, e_label_id);
         auto property_names = schema_.get_edge_property_names(
             src_label_id, dst_label_id, e_label_id);
         CHECK(property_types.size() == property_names.size());
@@ -624,7 +624,40 @@ void MutableFragmentLoader::loadEdges() {
         suppliers.emplace_back(
             std::dynamic_pointer_cast<IRecordBatchSupplier>(res));
       }
-      addEdges<RecordView>(src_label_id, dst_label_id, e_label_id, suppliers);
+      auto col_num = property_types.size();
+      if (col_num == 0) {
+        addEdges<grape::EmptyType>(src_label_id, dst_label_id, e_label_id,
+                                   suppliers);
+      } else if (col_num == 1) {
+        auto property_type = property_types[0];
+        if (property_type == PropertyType::kInt32) {
+          addEdges<int32_t>(src_label_id, dst_label_id, e_label_id, suppliers);
+        } else if (property_type == PropertyType::kInt64) {
+          addEdges<int64_t>(src_label_id, dst_label_id, e_label_id, suppliers);
+        } else if (property_type == PropertyType::kUInt32) {
+          addEdges<uint32_t>(src_label_id, dst_label_id, e_label_id, suppliers);
+        } else if (property_type == PropertyType::kUInt64) {
+          addEdges<uint64_t>(src_label_id, dst_label_id, e_label_id, suppliers);
+        } else if (property_type.type_enum ==
+                       impl::PropertyTypeImpl::kVarChar ||
+                   property_type.type_enum ==
+                       impl::PropertyTypeImpl::kStringView) {
+          addEdges<std::string_view>(src_label_id, dst_label_id, e_label_id,
+                                     suppliers);
+        } else if (property_type == PropertyType::kDate) {
+          addEdges<Date>(src_label_id, dst_label_id, e_label_id, suppliers);
+        } else if (property_type == PropertyType::kBool) {
+          addEdges<bool>(src_label_id, dst_label_id, e_label_id, suppliers);
+        } else if (property_type == PropertyType::kFloat) {
+          addEdges<float>(src_label_id, dst_label_id, e_label_id, suppliers);
+        } else if (property_type == PropertyType::kDouble) {
+          addEdges<double>(src_label_id, dst_label_id, e_label_id, suppliers);
+        } else {
+          LOG(FATAL) << "Unsupported edge property type";
+        }
+      } else {
+        addEdges<RecordView>(src_label_id, dst_label_id, e_label_id, suppliers);
+      }
     }
   }
 }

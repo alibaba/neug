@@ -173,7 +173,6 @@ expand_vertex_without_predicate_optional_impl(
       label_dirs.emplace_back(triplet.src_label, triplet.edge_label,
                               Direction::kIn);
       const auto& properties = graph.schema().get_edge_properties(
-
           triplet.src_label, triplet.dst_label, triplet.edge_label);
       if (properties.empty()) {
         ed_types.push_back(PropertyType::Empty());

@@ -713,6 +713,12 @@ class MutablePropertyFragment {
                              label_t edge_label) {
     size_t index =
         schema_.generate_edge_label(label, neighbor_label, edge_label);
+    if (oe_map_.find(index) == oe_map_.end()) {
+      LOG(ERROR) << "Edge csr not found for label: " << label
+                 << ", neighbor_label: " << neighbor_label
+                 << ", edge_label: " << edge_label;
+      return nullptr;
+    }
     return oe_map_.at(index);
   }
 
@@ -720,20 +726,38 @@ class MutablePropertyFragment {
                                    label_t edge_label) const {
     size_t index =
         schema_.generate_edge_label(label, neighbor_label, edge_label);
+    if (oe_map_.find(index) == oe_map_.end()) {
+      LOG(ERROR) << "Edge csr not found for label: " << label
+                 << ", neighbor_label: " << neighbor_label
+                 << ", edge_label: " << edge_label;
+      return nullptr;
+    }
     return oe_map_.at(index);
   }
 
   inline CsrBase* get_ie_csr(label_t label, label_t neighbor_label,
                              label_t edge_label) {
     size_t index =
-        schema_.generate_edge_label(label, neighbor_label, edge_label);
+        schema_.generate_edge_label(neighbor_label, label, edge_label);
+    if (ie_map_.find(index) == ie_map_.end()) {
+      LOG(ERROR) << "Edge csr not found for label: " << label
+                 << ", neighbor_label: " << neighbor_label
+                 << ", edge_label: " << edge_label;
+      return nullptr;
+    }
     return ie_map_.at(index);
   }
 
   inline const CsrBase* get_ie_csr(label_t label, label_t neighbor_label,
                                    label_t edge_label) const {
     size_t index =
-        schema_.generate_edge_label(label, neighbor_label, edge_label);
+        schema_.generate_edge_label(neighbor_label, label, edge_label);
+    if (ie_map_.find(index) == ie_map_.end()) {
+      LOG(ERROR) << "Edge csr not found for label: " << (int32_t) label
+                 << ", neighbor_label: " << (int32_t) neighbor_label
+                 << ", edge_label: " << (int32_t) edge_label;
+      return nullptr;
+    }
     return ie_map_.at(index);
   }
 
@@ -785,6 +809,14 @@ class MutablePropertyFragment {
   void generateStatistics() const;
   void dumpSchema() const;
 
+ private:
+  /* For Edge previously has zero property or one property, change the EDATA_T
+   * to RecordView*/
+  void change_csr_data_type_to_record_view(const std::string& src_vertex_type,
+                                           const std::string& dst_vertex_type,
+                                           const std::string& edge_type_name);
+
+ public:
   std::string work_dir_;
   Schema schema_;
   std::vector<std::shared_ptr<std::mutex>> v_mutex_;
