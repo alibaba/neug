@@ -3,9 +3,6 @@
 QueryResult
 ===================
 
-API Reference
---------------------------
-
 .. currentmodule:: nexg.result
 .. autoclass:: QueryResult
    :special-members:

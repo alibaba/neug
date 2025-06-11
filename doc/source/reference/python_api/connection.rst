@@ -3,9 +3,6 @@
 Connection
 ===================
 
-API Reference
--------------------------
-
 .. currentmodule:: nexg
 .. autoclass:: nexg.connection.Connection
    :special-members:

@@ -18,16 +18,27 @@
 namespace gs {
 
 void PyDatabase::initialize(pybind11::handle& m) {
-  pybind11::class_<PyDatabase, std::shared_ptr<PyDatabase>>(m, "PyDatabase")
+  pybind11::class_<PyDatabase, std::shared_ptr<PyDatabase>>(
+      m, "PyDatabase",
+      "PyDatabase is the python binds for the actual c++ implementation of "
+      "the database: NexgDB.\n")
       .def(pybind11::init<const std::string&, int32_t, const std::string&,
                           const std::string&, const std::string&,
                           const std::string&, const std::string&>(),
            pybind11::arg("database_path"), pybind11::arg("max_thread_num"),
            pybind11::arg("mode"), pybind11::arg("planner"),
            pybind11::arg("jni_planner_jar_path"),
-           pybind11::arg("planner_config_path"), pybind11::arg("resource_path"))
-      .def("connect", &PyDatabase::connect)
-      .def("close", &PyDatabase::close);
+           pybind11::arg("planner_config_path"), pybind11::arg("resource_path"),
+           "Creating a PyDatabase. Holds a shared pointer to the C++ "
+           "NexgDB object.\n")
+      .def("connect", &PyDatabase::connect,
+           "Connect to the database and "
+           "return a PyConnection object.\n\n"
+           "Returns:\n"
+           "    PyConnection: A connection to the database.\n")
+      .def("close", &PyDatabase::close,
+           "Close the database connection and "
+           "release resources.\n");
 }
 
 PyConnection PyDatabase::connect() {

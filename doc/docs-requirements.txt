@@ -6,3 +6,4 @@ sphinx-copybutton
 sphinx-panels
 sphinxemoji
 sphinxext-opengraph
+breathe

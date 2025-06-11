@@ -3,9 +3,6 @@
 Database
 ===================
 
-API Reference
------------------------
-
 .. currentmodule:: nexg
 .. autoclass:: nexg.database.Database
    :special-members:

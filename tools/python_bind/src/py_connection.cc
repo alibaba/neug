@@ -20,11 +20,22 @@
 namespace gs {
 
 void PyConnection::initialize(pybind11::handle& m) {
-  pybind11::class_<PyConnection, std::shared_ptr<PyConnection>>(m,
-                                                                "PyConnection")
-      .def(pybind11::init<std::shared_ptr<Connection>>(), pybind11::arg("conn"))
-      .def("close", &PyConnection::close)
-      .def("execute", &PyConnection::execute, pybind11::arg("statement"));
+  pybind11::class_<PyConnection, std::shared_ptr<PyConnection>>(
+      m, "PyConnection",
+      "PyConnection is the python binds for the actual c++ implementation "
+      "of the connection to the database, gs::Connection.\n")
+      .def(pybind11::init<std::shared_ptr<Connection>>(), pybind11::arg("conn"),
+           "Creating a PyConnection. Holds a shared pointer to the C++ "
+           "Connection object.\n")
+      .def("close", &PyConnection::close,
+           "Close the connection to the database.\n")
+      .def("execute", &PyConnection::execute, pybind11::arg("statement"),
+           "Execute a statement on the database. Which is passed to the query "
+           "processor.\n\n"
+           "Args:\n"
+           "    statement (str): The query string to execute.\n\n"
+           "Returns:\n"
+           "    PyQueryResult: The result of the query execution.\n");
   PyDateTime_IMPORT;
 }
 

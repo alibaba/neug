@@ -243,11 +243,33 @@ pybind11::object entry_to_pyobject(const Schema& schema,
 }
 
 void PyQueryResult::initialize(pybind11::handle& m) {
-  pybind11::class_<PyQueryResult>(m, "PyQueryResult")
-      .def("hasNext", &PyQueryResult::hasNext)
-      .def("getNext", &PyQueryResult::getNext)
-      .def("length", &PyQueryResult::length)
-      .def("close", &PyQueryResult::close);
+  pybind11::class_<PyQueryResult>(
+      m, "PyQueryResult",
+      "PyQueryResult is a wrapper for query results in GraphScope NexG. It "
+      "actually store the query results defined by the proto results.proto "
+      "file. ")
+      .def("hasNext", &PyQueryResult::hasNext,
+           "Check if there are more results "
+           "available in the query result.\n\n"
+           "Returns:\n\n"
+           "    bool: True if there are more results, False otherwise.")
+      .def("getNext", &PyQueryResult::getNext,
+           "Get the next result from the "
+           "query result.\n\n"
+           "Returns:\n"
+           "    list: A list of results, where each result is a dictionary "
+           "representing a vertex, edge, or graph path.")
+      .def("length", &PyQueryResult::length,
+           "Get the number of results "
+           "in the query result.\n\n"
+           "Returns:\n"
+           "    int: The number of results in the query result.")
+      .def("close", &PyQueryResult::close,
+           "Close the query result and "
+           "release any resources associated with it.\n\n"
+           "This method is a no-op in this implementation, but it is provided "
+           "for compatibility with other query result implementations.");
+
   // PyDateTime_IMPORT is a macro that must be invoked before calling any
   // other cpython datetime macros. One could also invoke this in a separate
   // function like constructor. See

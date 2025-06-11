@@ -58,10 +58,10 @@ class NexgDB {
     config_.memory_level = 0;
     ensure_directory_exists(data_dir);
 
-    if (mode == "read_only" || mode == "r") {
+    if (mode == "read" || mode == "r") {
       mode_ = DBMode::READ_ONLY;
     } else if (mode == "read_write" || mode == "rw" || mode == "w" ||
-               mode == "wr") {
+               mode == "wr" || mode == "write") {
       mode_ = DBMode::READ_WRITE;
     } else {
       throw std::invalid_argument("Invalid mode: " + mode);
