@@ -104,6 +104,7 @@ class CMakeBuild(build_ext):
         debug = int(os.environ.get("DEBUG", 0))
         cfg = "DEBUG" if debug else "Release"
         build_executables = "ON" if os.environ.get("BUILD_EXECUTABLES", "OFF") == "ON" else "OFF"
+        build_compiler = "ON" if os.environ.get("BUILD_COMPILER", "ON") == "ON" else "OFF"
         use_ninja = os.environ.get("USE_NINJA", "OFF") == "ON"
         build_test = "OFF"
         if os.environ.get("BUILD_TEST", "OFF") == "ON":
@@ -123,7 +124,8 @@ class CMakeBuild(build_ext):
             f"-DCMAKE_BUILD_TYPE={cfg}",  # not used on MSVC, but no harm
             f"-DOPTIMIZE_FOR_HOST=OFF",
             f"-DBUILD_EXECUTABLES={build_executables}",
-            f"-DBUILD_TEST={build_test}"
+            f"-DBUILD_TEST={build_test}",
+            f"-DBUILD_COMPILER={build_compiler}",
         ]
         if use_ninja:
             cmake_args += ["-GNinja"]

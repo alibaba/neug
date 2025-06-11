@@ -1,3 +1,7 @@
 if (BUILD_PYTHON)
-    add_subdirectory(python_bind)
+    if (TARGET nexg_main AND TARGET nexg_planner)
+        add_subdirectory(python_bind)
+    else()
+        message(WARNING "nexg_main or nexg_planner not found, skipping python bindings")
+    endif()
 endif()

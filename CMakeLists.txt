@@ -22,7 +22,32 @@ option(BUILD_EXECUTABLES "When to build executors" OFF) # Whether to build execu
 option(BUILD_HTTP_SERVER "Whether to build http server" OFF) # Whether to build http server, default is OFF
 option(BUILD_JNI_PLANNER "Whether to build jni wrapper for the java planner" ON) # Whether to build jni wrapper for the java planner, default is ON
 option(BUILD_METADATA "Whether to build metadata" OFF)
+# Options to control the building of tools
+option(BUILD_PYTHON "Whether to build python embedded" ON)
+option(BUILD_COMPILER "Whether to build compiler" ON)
 #---------------------------------------------------------------------------------
+#-------------------------------Compiler related options-------------------------------
+option(KUZU_DEFAULT_REL_STORAGE_DIRECTION "Only store fwd direction in rel tables by default." BOTH)
+if(NOT KUZU_DEFAULT_REL_STORAGE_DIRECTION)
+    set(KUZU_DEFAULT_REL_STORAGE_DIRECTION BOTH)
+endif()
+option(KUZU_PAGE_SIZE_LOG2 "Log2 of the page size." 12)
+if(NOT KUZU_PAGE_SIZE_LOG2)
+    set(KUZU_PAGE_SIZE_LOG2 12)
+endif()
+message(STATUS "KUZU_PAGE_SIZE_LOG2: ${KUZU_PAGE_SIZE_LOG2}")
+option(KUZU_VECTOR_CAPACITY_LOG2 "Log2 of the vector capacity." 11)
+if(NOT KUZU_VECTOR_CAPACITY_LOG2)
+    set(KUZU_VECTOR_CAPACITY_LOG2 11)
+endif()
+message(STATUS "KUZU_VECTOR_CAPACITY_LOG2: ${KUZU_VECTOR_CAPACITY_LOG2}")
+
+# 64 * 2048 nodes per group
+option(KUZU_NODE_GROUP_SIZE_LOG2 "Log2 of the vector capacity." 17)
+if(NOT KUZU_NODE_GROUP_SIZE_LOG2)
+    set(KUZU_NODE_GROUP_SIZE_LOG2 17)
+endif()
+message(STATUS "KUZU_NODE_GROUP_SIZE_LOG2: ${KUZU_NODE_GROUP_SIZE_LOG2}")
 option(SINGLE_THREADED "Single-threaded mode" FALSE)
 option(ENABLE_WERROR "Treat all warnings as errors" FALSE)
 option(ENABLE_ADDRESS_SANITIZER "Enable address sanitizer." FALSE)
@@ -115,8 +140,7 @@ elseif(CMAKE_SIZEOF_VOID_P EQUAL 4)
     set(__32BIT__ TRUE)
 endif()
 
-# Options to control the building of tools
-option(BUILD_PYTHON "Whether to build python embedded" ON)
+
 
 #print options
 message(STATUS "Build test: ${BUILD_TEST}")
@@ -432,30 +456,6 @@ else ()
 endif ()
 
 
-#-------------------------------Compiler related options-------------------------------
-option(KUZU_DEFAULT_REL_STORAGE_DIRECTION "Only store fwd direction in rel tables by default." BOTH)
-if(NOT KUZU_DEFAULT_REL_STORAGE_DIRECTION)
-    set(KUZU_DEFAULT_REL_STORAGE_DIRECTION BOTH)
-endif()
-option(KUZU_PAGE_SIZE_LOG2 "Log2 of the page size." 12)
-if(NOT KUZU_PAGE_SIZE_LOG2)
-    set(KUZU_PAGE_SIZE_LOG2 12)
-endif()
-message(STATUS "KUZU_PAGE_SIZE_LOG2: ${KUZU_PAGE_SIZE_LOG2}")
-option(KUZU_VECTOR_CAPACITY_LOG2 "Log2 of the vector capacity." 11)
-if(NOT KUZU_VECTOR_CAPACITY_LOG2)
-    set(KUZU_VECTOR_CAPACITY_LOG2 11)
-endif()
-message(STATUS "KUZU_VECTOR_CAPACITY_LOG2: ${KUZU_VECTOR_CAPACITY_LOG2}")
-
-# 64 * 2048 nodes per group
-option(KUZU_NODE_GROUP_SIZE_LOG2 "Log2 of the vector capacity." 17)
-if(NOT KUZU_NODE_GROUP_SIZE_LOG2)
-    set(KUZU_NODE_GROUP_SIZE_LOG2 17)
-endif()
-message(STATUS "KUZU_NODE_GROUP_SIZE_LOG2: ${KUZU_NODE_GROUP_SIZE_LOG2}")
-
-
 if (BUILD_WITH_OTEL)
     find_package(opentelemetry-cpp CONFIG)
     if (OPENTELEMETRY_CPP_FOUND)
@@ -534,20 +534,21 @@ include_directories(SYSTEM ${CMAKE_SOURCE_DIR}/third_party/antlr4_cypher/include
 
 
 #-------------------Compiler's third party libraries-------------------
-add_subdirectory(third_party/antlr4_cypher)
-add_subdirectory(third_party/antlr4_runtime)
-add_subdirectory(third_party/fast_float)
-add_subdirectory(third_party/glob)
-add_subdirectory(third_party/lz4)
-add_subdirectory(third_party/mbedtls)
-add_subdirectory(third_party/miniz)
-add_subdirectory(third_party/parquet)
-add_subdirectory(third_party/re2)
-add_subdirectory(third_party/roaring_bitmap)
-add_subdirectory(third_party/thrift)
-add_subdirectory(third_party/utf8proc)
-add_subdirectory(third_party/zstd)
-
+if (BUILD_COMPILER)
+    add_subdirectory(third_party/antlr4_cypher)
+    add_subdirectory(third_party/antlr4_runtime)
+    add_subdirectory(third_party/fast_float)
+    add_subdirectory(third_party/glob)
+    add_subdirectory(third_party/lz4)
+    add_subdirectory(third_party/mbedtls)
+    add_subdirectory(third_party/miniz)
+    add_subdirectory(third_party/parquet)
+    add_subdirectory(third_party/re2)
+    add_subdirectory(third_party/roaring_bitmap)
+    add_subdirectory(third_party/thrift)
+    add_subdirectory(third_party/utf8proc)
+    add_subdirectory(third_party/zstd)
+endif()
 
 configure_file(${CMAKE_CURRENT_SOURCE_DIR}/nexg-config.in.cmake
                ${CMAKE_CURRENT_BINARY_DIR}/nexg-config.cmake @ONLY)
