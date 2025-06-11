@@ -23,10 +23,10 @@ on:
       - 'cmake/**'
       - 'src/**'
       - 'proto/**'
-      - '.github/workflows/python-test.yml'
       - 'third_party/**'
       - 'tools/python_bind/**'
       - 'tests/**'
+      - '.github/workflows/neug-test.yml'
 
 concurrency:
   group: ${{ github.repository }}-${{ github.event.number || github.head_ref || github.sha }}-${{ github.workflow }}
@@ -34,7 +34,7 @@ concurrency:
 
 jobs:
   test-py-nexg:
-    runs-on: ubuntu-22.04
+    runs-on: [self-hosted]
     container:
       image: registry.cn-hongkong.aliyuncs.com/graphscope/graphscope-dev:v0.24.2-amd64-ccache
     steps:
