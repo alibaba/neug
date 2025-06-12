@@ -1,0 +1,4 @@
+# originall query is MATCH (c:COMMENT) WHERE c.length IS NULL RETURN *;
+-NAME zonemap-node-null
+-QUERY MATCH (c:COMMENT) WHERE c.length IS NULL RETURN c;
+---- 0

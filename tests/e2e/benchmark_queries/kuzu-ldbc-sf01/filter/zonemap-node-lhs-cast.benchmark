@@ -1,0 +1,4 @@
+-NAME zonemap-node-lhs-cast
+-QUERY MATCH (c:Comment) WHERE c.length > 73786976294838206464 RETURN count(*);
+---- 1
+0

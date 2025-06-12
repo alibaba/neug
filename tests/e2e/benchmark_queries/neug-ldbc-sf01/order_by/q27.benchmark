@@ -1,0 +1,8 @@
+-NAME q27
+-QUERY MATCH (comment:COMMENT) WITH comment.browserUsed as browserUsed RETURN browserUsed ORDER BY browserUsed LIMIT 5
+---- 5
+Chrome
+Chrome
+Chrome
+Chrome
+Chrome

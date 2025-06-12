@@ -1,0 +1,4 @@
+-NAME q12
+-QUERY MATCH (comment:Comment) RETURN MIN(abs(comment.length))
+---- 1
+2

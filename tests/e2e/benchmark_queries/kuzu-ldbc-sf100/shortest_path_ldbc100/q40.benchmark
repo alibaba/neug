@@ -1,0 +1,4 @@
+-NAME q40
+-QUERY MATCH (a:Person)-[r:knows* SHORTEST 1..2]->(b:Person) WHERE a.ID < 1000 AND b.ID < 100000 RETURN COUNT(*)
+---- 1
+2609

@@ -1,0 +1,8 @@
+-NAME q35
+-QUERY MATCH (:PERSON {ID: 933})-[:knows]->(friend:PERSON)<-[:HASCREATOR]-(message:POST|COMMENT) WHERE message.creationDate < 1339884771500 RETURN friend.ID AS personId, friend.firstName AS personFirstName, friend.lastName AS personLastName, message.ID AS postOrCommentId, message.creationDate AS postOrCommentCreationDate ORDER BY postOrCommentCreationDate DESC, postOrCommentId ASC LIMIT 5
+---- 5
+24189255811254|Abdullah|Koksal|962073042930|1339748437971
+24189255811254|Abdullah|Koksal|962072731904|1339654825186
+10995116278291|Karl|Muller|962073041002|1339630087137
+2199023256077|Ibrahim Bare|Ousmane|962072942625|1339512006427
+10995116278291|Karl|Muller|962072913889|1339302346337

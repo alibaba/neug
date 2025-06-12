@@ -1,0 +1,4 @@
+-NAME q22
+-QUERY MATCH (post:Post) RETURN MIN(post.language)
+---- 1
+ar

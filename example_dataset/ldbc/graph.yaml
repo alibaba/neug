@@ -259,6 +259,11 @@ schema:
         - source_vertex: POST
           destination_vertex: PERSON
           relation: MANY_TO_ONE
+      properties:
+        - property_id: 0
+          property_name: creationDate
+          property_type:
+            primitive_type: DT_SIGNED_INT64
     - type_id: 1
       type_name: HASTAG
       vertex_type_pair_relations:

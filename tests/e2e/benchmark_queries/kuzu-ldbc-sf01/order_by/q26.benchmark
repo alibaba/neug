@@ -1,0 +1,8 @@
+-NAME q26
+-QUERY MATCH (comment:Comment) return comment.length,comment.creationDate ORDER BY comment.length, comment.creationDate LIMIT 5
+---- 5
+2|1264234458553
+2|1264851395623
+2|1264851453402
+2|1264852169344
+2|1264884534871

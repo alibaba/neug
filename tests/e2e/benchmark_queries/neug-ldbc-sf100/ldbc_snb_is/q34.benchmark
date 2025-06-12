@@ -1,0 +1,3 @@
+-NAME q34
+-QUERY MATCH (c:COMMENT {id: 2061584302085})-[:HASCREATOR]->(p:PERSON) RETURN p.id AS personId, p.firstName AS firstName, p.lastName AS lastName;
+---- 0

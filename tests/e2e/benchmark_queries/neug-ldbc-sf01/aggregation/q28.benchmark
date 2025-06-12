@@ -1,0 +1,8 @@
+-NAME q28
+-QUERY MATCH(comment:COMMENT) WHERE comment.id < 33980465466560 RETURN comment.id as id, count(comment.length) order by id LIMIT 5;
+---- 5
+32485|1
+32486|1
+32487|1
+32488|1
+32489|1

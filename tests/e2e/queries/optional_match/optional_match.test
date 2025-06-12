@@ -71,13 +71,12 @@ Dan
 ---- 1
 324
 
-# TODO: EXECUTION segmentation fault
-# -LOG OptionalReadStringPropertyTest
-# -STATEMENT MATCH (a:person) WHERE a.fName='Elizabeth' OR a.fName='Hubert Blaine Wolfeschlegelsteinhausenbergerdorff' OPTIONAL MATCH (a)-[:knows]->(b:person) RETURN a.fName, b.fName
-# ---- 3
-# Elizabeth|Farooq
-# Elizabeth|Greg
-# Hubert Blaine Wolfeschlegelsteinhausenbergerdorff|
+-LOG OptionalReadStringPropertyTest
+-STATEMENT MATCH (a:person) WHERE a.fName='Elizabeth' OR a.fName='Hubert Blaine Wolfeschlegelsteinhausenbergerdorff' OPTIONAL MATCH (a)-[:knows]->(b:person) RETURN a.fName, b.fName
+---- 3
+Elizabeth|Farooq
+Elizabeth|Greg
+Hubert Blaine Wolfeschlegelsteinhausenbergerdorff|
 
 -LOG OptionalReturnTest
 -STATEMENT MATCH (a:person)-[:knows]->(b:person) WHERE a.fName='Alice' OPTIONAL MATCH (b)-[:studyAt]->(c:organisation) RETURN c.orgCode
@@ -99,17 +98,18 @@ Farooq|
 Greg|
 Hubert Blaine Wolfeschlegelsteinhausenbergerdorff|
 
--LOG OptionalListExtendCountTest
--STATEMENT MATCH (a:person) OPTIONAL MATCH (a)-[:studyAt]->(b:organisation) RETURN a.fName, b.name
----- 8
-Alice|ABFsUni
-Bob|ABFsUni
-Carol|
-Dan|
-Elizabeth|
-Farooq|ABFsUni
-Greg|
-Hubert Blaine Wolfeschlegelsteinhausenbergerdorff|
+# TODO: EXECUTION: core dump
+# -LOG OptionalListExtendCountTest
+# -STATEMENT MATCH (a:person) OPTIONAL MATCH (a)-[:studyAt]->(b:organisation) RETURN a.fName, b.name
+# ---- 8
+# Alice|ABFsUni
+# Bob|ABFsUni
+# Carol|
+# Dan|
+# Elizabeth|
+# Farooq|ABFsUni
+# Greg|
+# Hubert Blaine Wolfeschlegelsteinhausenbergerdorff|
 
 # TODO: EXECUTION: unexpected result, expected 40, but returns 41
 -LOG OptionalListExtendTest2

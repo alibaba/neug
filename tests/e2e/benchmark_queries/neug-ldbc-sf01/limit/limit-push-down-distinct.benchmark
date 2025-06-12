@@ -1,0 +1,6 @@
+# TODO: EXECUTION: core dump, msg: Segmentation fault on shard 0.
+# The query was transformed to: MATCH (a:PERSON {id:24189255912498})-[f*2..3]-(b) RETURN DISTINCT b.id as personId limit 10;
+# -NAME push-down-limit-into-distinct
+# -SKIP_COMPARE_RESULT
+# -QUERY MATCH (a:PERSON {id:24189255912498})-[f*2..3]-(b) RETURN DISTINCT b.id as personId limit 10;
+# ---- 10

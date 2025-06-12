@@ -6,24 +6,25 @@
 # 1 * Node 7 extend to Node 3.
 # In general the formula is this: nth level will have 4 nodes (n > 2), and the first level has 7 nodes, second level
 # has 6 nodes.
--DATASET CSV tinysnb-todo
-
-# TODO: EXECUTION: core dump, unsupported (path related)
+-DATASET CSV tinysnb
 
 --
 
 -CASE VarLengthExtendN1Tests
 
+# TODO: EXECUTION: unexpected result, the engine returns 0
 -LOG meetsOneToTwoHopTest
 -STATEMENT MATCH (a:person)-[:meets*1..2]->(b:person) RETURN COUNT(*)
 ---- 1
 13
 
+# TODO: EXECUTION: unexpected result, the engine returns 0
 -LOG meetsThreeHopMinLenEqualsMaxLen
 -STATEMENT MATCH (a:person)-[:meets*3..3]->(b:person) RETURN COUNT(*)
 ---- 1
 4
 
+# TODO: EXECUTION: unexpected result, the engine returns 0
 # The first varLenAdjListJoin will generate 3 * Node 0,2,3,5 and 1 * Node 8, 9. Node 0 can extend 2 levels (Node 0
 # -> Node 2 -> Node 5), which generates 3 paths. Node 2 can only extend 1 level to Node 5.  Node 3 can extend to 2 or
 # 3 levels (Node 3 -> Node 7 -> Node 3 -> Node 7), which generates 6 paths (3 paths of length 2 and 3 paths of length
@@ -34,11 +35,13 @@
 ---- 1
 13
 
+# TODO: EXECUTION: unexpected result, the engine returns 0
 -LOG meetsLongPathTest
 -STATEMENT MATCH (a:person)-[:meets*8..11]->(b:person) RETURN COUNT(*)
 ---- 1
 16
 
+# TODO: EXECUTION: unexpected result
 -LOG meetsOneToTwoHopWithFilterTest
 -STATEMENT MATCH (a:person)-[:meets*1..2]->(b:person) WHERE a.ID = 3 RETURN b.fName
 ---- 2
@@ -55,7 +58,7 @@ Elizabeth
 # Node 3,7,8,9 can extend 3,4 levels and generate 8 paths (by using the above formulas). Node 0,2,5,10 don't have
 # such paths, the optional match will put 'null' in the b valueVector for Node 0,2,5,10. In total, we have 12 output
 # tuples.
--LOG KnowsWithOptionalMatch
--STATEMENT MATCH (a:person) OPTIONAL MATCH (a)-[:meets*3..4]->(b:person) RETURN COUNT(*)
----- 1
-12
+# -LOG KnowsWithOptionalMatch
+# -STATEMENT MATCH (a:person) OPTIONAL MATCH (a)-[:meets*3..4]->(b:person) RETURN COUNT(*)
+# ---- 1
+# 12

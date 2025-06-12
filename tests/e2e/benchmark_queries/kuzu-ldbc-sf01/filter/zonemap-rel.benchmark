@@ -1,0 +1,3 @@
+-NAME zonemap-rel
+-QUERY MATCH (a:person)-[l:likes_comment]->(b:comment) WHERE l.creationDate > 1757738159391 RETURN *;
+---- 0

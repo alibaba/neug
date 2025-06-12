@@ -1,0 +1,4 @@
+-NAME recursive-join-sparse
+-QUERY MATCH (a:COMMENT)-[e:REPLYOF * 3..3]->(b:COMMENT) WHERE a.id = 13194139533871 RETURN b.id, properties(nodes(e), "ID");
+---- 1
+13194139533868|[13194139533870,13194139533869]

@@ -39,7 +39,7 @@ edge_mappings:
       source_vertex: COMMENT
       destination_vertex: PERSON
     inputs:
-      - comment_hasCreator_person_0_0.csv
+      - comment_hasCreator_person_0_0.csv.creation_date
     source_vertex_mappings:
       - column:
           index: 0
@@ -53,7 +53,7 @@ edge_mappings:
       source_vertex: POST
       destination_vertex: PERSON
     inputs:
-      - post_hasCreator_person_0_0.csv
+      - post_hasCreator_person_0_0.csv.creation_date
     source_vertex_mappings:
       - column:
           index: 0

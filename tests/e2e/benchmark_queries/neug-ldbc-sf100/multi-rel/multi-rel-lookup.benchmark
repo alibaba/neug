@@ -1,0 +1,5 @@
+# TODO: core dump???
+-NAME multi-rel-lookup
+-QUERY match (a:PERSON)-[]-(b) where a.id='10027' return COUNT(b);
+---- 1
+6373

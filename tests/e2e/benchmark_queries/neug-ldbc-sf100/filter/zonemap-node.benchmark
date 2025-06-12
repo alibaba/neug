@@ -1,0 +1,3 @@
+-NAME zonemap-node
+-QUERY MATCH (c:COMMENT) WHERE c.length > 2000 RETURN c;
+---- 0

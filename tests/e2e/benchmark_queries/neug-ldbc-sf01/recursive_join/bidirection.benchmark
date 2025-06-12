@@ -1,0 +1,4 @@
+-NAME recursive-join-bidirection
+-QUERY MATCH (a:PERSON)-[e:KNOWS*4..4]->(b:PERSON) WHERE a.id = 933 AND b.id=21990232556027 RETURN COUNT(*);
+---- 1
+7

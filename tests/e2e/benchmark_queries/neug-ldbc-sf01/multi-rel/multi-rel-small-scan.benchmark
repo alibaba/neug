@@ -1,0 +1,4 @@
+-NAME multi-rel-small-scan
+-QUERY match (a:PERSON)-[]-(b) where a.birthday >= 631152000000 return COUNT(b);
+---- 1
+5421

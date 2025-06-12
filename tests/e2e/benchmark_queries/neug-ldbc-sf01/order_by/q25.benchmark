@@ -1,0 +1,8 @@
+-NAME q25
+-QUERY MATCH (comment:COMMENT) with comment.length as length RETURN length ORDER BY length LIMIT 5
+---- 5
+2
+2
+2
+2
+2

@@ -1,0 +1,3 @@
+-NAME q36
+-QUERY MATCH (person:PERSON {id: 10995116277918})-[:KNOWS*1..2]->(friend:PERSON) WHERE person.id <> friend.id WITH DISTINCT friend MATCH (friend)-[workAt:WORKAT]->(company:ORGANISATION)-[:ISLOCATEDIN]->(:Place {name: 'Hungary'}) WHERE workAt.workFrom < 2011 RETURN friend.id AS personId, friend.firstName AS personFirstName, friend.lastName AS personLastName, company.name AS organizationName, workAt.workFrom AS organizationWorkFromYear ORDER BY organizationWorkFromYear ASC, personId ASC, organizationName DESC LIMIT 10
+---- 0

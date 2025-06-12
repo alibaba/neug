@@ -1,0 +1,5 @@
+-NAME SelectiveTwoHopJoin
+-COMPARE_RESULT 1
+-QUERY MATCH (a:PERSON)-[:KNOWS]->(b:PERSON)-[:KNOWS]->(c:PERSON) WHERE a.id=933 RETURN MIN(a.birthday), MIN(b.birthday), MIN(c.birthday)
+---- 1
+1989-12-03|1980-03-31|1980-02-01

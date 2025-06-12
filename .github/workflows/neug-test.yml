@@ -104,6 +104,29 @@ jobs:
         export FLEX_DATA_DIR=${GITHUB_WORKSPACE}/example_dataset/modern_graph
         GLOG_v=10 ./build/nexg_py_bind/tests/rt_mutable_graph/test_gopt_planner /tmp/test_gopt_planner
 
+    - name: Run DB Init Test
+      run: |
+        cd ${GITHUB_WORKSPACE}/tools/python_bind/
+        # db tests
+        python3 -m pytest -sv tests/test_db_init.py
+
+    - name: Run DB Connection Test
+      run: |
+        cd ${GITHUB_WORKSPACE}/tools/python_bind/
+        # db connection tests
+        python3 -m pytest -sv tests/test_db_connection.py
+      
+    - name: Run Import/Export Test
+      run: |
+        cd ${GITHUB_WORKSPACE}/tools/python_bind/
+        # import/export tests
+        python3 -m pytest -sv tests/test_db_import_export.py
+
+    - name: Run DDL Test
+      run: |
+        cd ${GITHUB_WORKSPACE}/tools/python_bind/
+        # ddl tests
+        python3 -m pytest -sv tests/test_db_query.py
 
 
 

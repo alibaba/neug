@@ -1,0 +1,5 @@
+# TODO: EXECUTION: core dump, msg: not support var reduce
+# -NAME q06
+# -QUERY MATCH (comment:COMMENT) RETURN MIN(comment.browserUsed contains 'ed')
+# ---- 1
+# False
