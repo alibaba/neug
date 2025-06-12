@@ -78,8 +78,7 @@ static std::vector<T> copyVector(const std::vector<T>& objects) {
 }
 
 template <typename T>
-static std::vector<std::shared_ptr<T>> copyVector(
-    const std::vector<std::shared_ptr<T>>& objects) {
+static std::vector<std::shared_ptr<T>> copyVector(const std::vector<std::shared_ptr<T>>& objects) {
   std::vector<std::shared_ptr<T>> result;
   result.reserve(objects.size());
   for (auto& object : objects) {
@@ -90,8 +89,7 @@ static std::vector<std::shared_ptr<T>> copyVector(
 }
 
 template <typename T>
-static std::vector<std::unique_ptr<T>> copyVector(
-    const std::vector<std::unique_ptr<T>>& objects) {
+static std::vector<std::unique_ptr<T>> copyVector(const std::vector<std::unique_ptr<T>>& objects) {
   std::vector<std::unique_ptr<T>> result;
   result.reserve(objects.size());
   for (auto& object : objects) {
@@ -102,8 +100,7 @@ static std::vector<std::unique_ptr<T>> copyVector(
 }
 
 template <typename K, typename V>
-static std::unordered_map<K, V> copyUnorderedMap(
-    const std::unordered_map<K, V>& objects) {
+static std::unordered_map<K, V> copyUnorderedMap(const std::unordered_map<K, V>& objects) {
   std::unordered_map<K, V> result;
   for (auto& [k, v] : objects) {
     result.insert({k, v.copy()});

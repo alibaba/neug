@@ -53,8 +53,7 @@ struct to_string_impl<std::unordered_map<K, V>> {
     // map{key:value, ...}
     ss << "map{";
     for (auto& [k, v] : vec) {
-      ss << to_string_impl<K>::to_string(k) << ":"
-         << to_string_impl<V>::to_string(v) << ",";
+      ss << to_string_impl<K>::to_string(k) << ":" << to_string_impl<V>::to_string(v) << ",";
     }
     ss << "}";
     return ss.str();
@@ -74,8 +73,7 @@ struct to_string_impl<std::array<T, N>> {
 
 template <typename T, size_t M, size_t N>
 struct to_string_impl<std::array<std::array<T, N>, M>> {
-  static inline std::string to_string(
-      const std::array<std::array<T, N>, M>& empty) {
+  static inline std::string to_string(const std::array<std::array<T, N>, M>& empty) {
     std::stringstream ss;
     ss << "[";
     for (auto i : empty) {
@@ -88,23 +86,17 @@ struct to_string_impl<std::array<std::array<T, N>, M>> {
 
 template <>
 struct to_string_impl<Date> {
-  static inline std::string to_string(const Date& empty) {
-    return empty.to_string();
-  }
+  static inline std::string to_string(const Date& empty) { return empty.to_string(); }
 };
 
 template <>
 struct to_string_impl<std::string_view> {
-  static inline std::string to_string(const std::string_view& empty) {
-    return std::string(empty);
-  }
+  static inline std::string to_string(const std::string_view& empty) { return std::string(empty); }
 };
 
 template <>
 struct to_string_impl<grape::EmptyType> {
-  static inline std::string to_string(const grape::EmptyType& empty) {
-    return "";
-  }
+  static inline std::string to_string(const grape::EmptyType& empty) { return ""; }
 };
 
 template <>
@@ -116,51 +108,37 @@ struct to_string_impl<uint8_t> {
 
 template <>
 struct to_string_impl<int64_t> {
-  static inline std::string to_string(const int64_t& empty) {
-    return std::to_string(empty);
-  }
+  static inline std::string to_string(const int64_t& empty) { return std::to_string(empty); }
 };
 
 template <>
 struct to_string_impl<bool> {
-  static inline std::string to_string(const bool& empty) {
-    return std::to_string(empty);
-  }
+  static inline std::string to_string(const bool& empty) { return std::to_string(empty); }
 };
 
 template <>
 struct to_string_impl<unsigned long> {
-  static inline std::string to_string(const unsigned long& empty) {
-    return std::to_string(empty);
-  }
+  static inline std::string to_string(const unsigned long& empty) { return std::to_string(empty); }
 };
 
 template <>
 struct to_string_impl<int32_t> {
-  static inline std::string to_string(const int32_t& empty) {
-    return std::to_string(empty);
-  }
+  static inline std::string to_string(const int32_t& empty) { return std::to_string(empty); }
 };
 
 template <>
 struct to_string_impl<uint32_t> {
-  static inline std::string to_string(const uint32_t& empty) {
-    return std::to_string(empty);
-  }
+  static inline std::string to_string(const uint32_t& empty) { return std::to_string(empty); }
 };
 
 template <>
 struct to_string_impl<double> {
-  static inline std::string to_string(const double& empty) {
-    return std::to_string(empty);
-  }
+  static inline std::string to_string(const double& empty) { return std::to_string(empty); }
 };
 
 template <>
 struct to_string_impl<std::string> {
-  static inline std::string to_string(const std::string& empty) {
-    return empty;
-  }
+  static inline std::string to_string(const std::string& empty) { return empty; }
 };
 
 template <>
@@ -178,8 +156,8 @@ struct to_string_impl<std::tuple<Args...>> {
     std::apply(
         [&result](const auto&... v) {
           ((result +=
-            (to_string_impl<std::remove_const_t<
-                 std::remove_reference_t<decltype(v)>>>::to_string(v)) +
+            (to_string_impl<std::remove_const_t<std::remove_reference_t<decltype(v)>>>::to_string(
+                v)) +
             ","),
            ...);
         },

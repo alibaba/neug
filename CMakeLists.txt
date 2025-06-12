@@ -570,19 +570,12 @@ install(EXPORT nexg-targets
         DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/nexg)
 
 file(GLOB_RECURSE FILES_NEED_LINT
-        "src/engines/*.cc"
-        "src/engines/*.h"
-        "src/bin/*.cc"
-        "src/storages/*.h"
-        "src/storages/*.cc"
-        "src/otel/*.h"
-        "src/otel/*.cc"
-        "tests/*.h"
-        "tests/*.cc"
-        "src/utils/*.h"
-        "src/utils/*.cc"
-        "src/compiler/*.cpp"
-        "src/compiler/*.h"
+        "src/**/*.h"
+        "src/**/*.cc"
+        "tests/**/*.h"
+        "tests/**/*.cc"
+        "tools/**/*.h"
+        "tools/**/*.cc"
         EXCEPT "*.act.h" "*.actg.h" "*.autogen.h" "*.autogen.cc")
 list(FILTER FILES_NEED_LINT EXCLUDE REGEX ".*\.act.h$|.*\.actg.h$|.*\.autogen.h$|.*\.autogen.cc$")
 list(FILTER FILES_NEED_LINT EXCLUDE REGEX ".*/third_party/.*")

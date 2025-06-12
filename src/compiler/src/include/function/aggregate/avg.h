@@ -16,18 +16,14 @@ struct AvgState : public AggregateState {
     outputVector->setValue(pos, avg);
   }
 
-  void finalize()
-    requires common::IntegerTypes<T>
-  {
+  void finalize() requires common::IntegerTypes<T> {
     if (!isNull) {
       avg = common::Int128_t::Cast<long double>(sum) /
             common::Int128_t::Cast<long double>(count);
     }
   }
 
-  void finalize()
-    requires common::FloatingPointTypes<T>
-  {
+  void finalize() requires common::FloatingPointTypes<T> {
     if (!isNull) {
       avg = sum / count;
     }

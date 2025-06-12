@@ -11,7 +11,7 @@ class KUZU_API ParserException : public Exception {
   static constexpr const char* ERROR_PREFIX = "Parser exception: ";
 
   explicit ParserException(const std::string& msg)
-      : Exception(ERROR_PREFIX + msg) {};
+      : Exception(ERROR_PREFIX + msg){};
 };
 
 }  // namespace common

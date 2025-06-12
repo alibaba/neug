@@ -89,7 +89,7 @@ struct UDF {
 
   template <typename RESULT_TYPE, typename... Args>
   static function::scalar_func_exec_t createUnaryExecFunc(
-      RESULT_TYPE (* /*udfFunc*/)(Args...),
+      RESULT_TYPE (*/*udfFunc*/)(Args...),
       const std::vector<common::LogicalTypeID>& /*parameterTypes*/) {
     KU_UNREACHABLE;
   }
@@ -122,7 +122,7 @@ struct UDF {
 
   template <typename RESULT_TYPE, typename... Args>
   static function::scalar_func_exec_t createBinaryExecFunc(
-      RESULT_TYPE (* /*udfFunc*/)(Args...),
+      RESULT_TYPE (*/*udfFunc*/)(Args...),
       const std::vector<common::LogicalTypeID>& /*parameterTypes*/) {
     KU_UNREACHABLE;
   }
@@ -157,7 +157,7 @@ struct UDF {
 
   template <typename RESULT_TYPE, typename... Args>
   static function::scalar_func_exec_t createTernaryExecFunc(
-      RESULT_TYPE (* /*udfFunc*/)(Args...),
+      RESULT_TYPE (*/*udfFunc*/)(Args...),
       const std::vector<common::LogicalTypeID>& /*parameterTypes*/) {
     KU_UNREACHABLE;
   }
