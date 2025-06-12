@@ -1,5 +1,6 @@
 #pragma once
 
+#include "gopt/g_alias_name.h"
 #include "gopt/g_graph_type.h"
 #include "gopt/g_rel_table_entry.h"
 #include "planner/operator/extend/base_logical_extend.h"
@@ -7,6 +8,8 @@
 
 namespace gs {
 namespace planner {
+
+enum ExtendOpt { VERTEX = 0, EDGE = 1, DEGREE = 2 };
 
 class LogicalExtend final : public BaseLogicalExtend {
   static constexpr LogicalOperatorType type_ = LogicalOperatorType::EXTEND;
@@ -27,7 +30,8 @@ class LogicalExtend final : public BaseLogicalExtend {
                           extendFromSource,
                           std::move(child)},
         scanNbrID{true},
-        properties{std::move(properties)} {
+        properties{std::move(properties)},
+        opt{planner::ExtendOpt::EDGE} {
     this->cardinality = cardinality;
   }
 
@@ -55,12 +59,36 @@ class LogicalExtend final : public BaseLogicalExtend {
 
   std::string getStartAliasName() const;
 
+  gopt::GAliasName getGAliasName() const;
+
   std::unique_ptr<gopt::GRelType> getRelType() const;
+
+  void setPredicates(std::shared_ptr<binder::Expression> predicates_) {
+    predicates = std::move(predicates_);
+  }
+
+  std::shared_ptr<binder::Expression> getPredicates() const {
+    return predicates;
+  }
+
+  void setExtendOpt(planner::ExtendOpt opt_) { opt = opt_; }
+
+  planner::ExtendOpt getExtendOpt() const { return opt; }
+
+  std::string getExpressionsForPrinting() const {
+    auto base = BaseLogicalExtend::getExpressionsForPrinting();
+    if (predicates) {
+      return base + " WHERE " + predicates->toString();
+    }
+    return base;
+  }
 
  private:
   bool scanNbrID;
   binder::expression_vector properties;
   std::vector<storage::ColumnPredicateSet> propertyPredicates;
+  std::shared_ptr<binder::Expression> predicates;
+  planner::ExtendOpt opt;
 };
 
 }  // namespace planner

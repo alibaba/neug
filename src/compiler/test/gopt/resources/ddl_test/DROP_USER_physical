@@ -1,0 +1,11 @@
+{
+ "plan_id": 0,
+ "ddl_plan": {
+  "drop_vertex_schema": {
+   "vertex_type": {
+    "name": "User"
+   },
+   "conflict_action": "ON_CONFLICT_THROW"
+  }
+ }
+}

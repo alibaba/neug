@@ -1,0 +1,19 @@
+{
+ "plan_id": 0,
+ "ddl_plan": {
+  "add_vertex_property_schema": {
+   "vertex_type": {
+    "name": "User"
+   },
+   "properties": [
+    {
+     "name": "age",
+     "type": {
+      "primitive_type": "DT_SIGNED_INT64"
+     }
+    }
+   ],
+   "conflict_action": "ON_CONFLICT_THROW"
+  }
+ }
+}

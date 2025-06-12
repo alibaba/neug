@@ -1,0 +1,2 @@
+COPY person from "person.csv"; # COPY_PERSON
+COPY knows from "knows.csv"; # COPY_KNOWS

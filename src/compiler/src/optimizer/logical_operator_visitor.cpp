@@ -34,6 +34,9 @@ void LogicalOperatorVisitor::visitOperatorSwitch(LogicalOperator* op) {
   case LogicalOperatorType::EXTEND: {
     visitExtend(op);
   } break;
+  case LogicalOperatorType::GET_V: {
+    visitGetV(op);  // This is not implemented in the base class
+  } break;
   case LogicalOperatorType::FILTER: {
     visitFilter(op);
   } break;
@@ -123,6 +126,10 @@ LogicalOperatorVisitor::visitOperatorReplaceSwitch(
   }
   case LogicalOperatorType::EXTEND: {
     return visitExtendReplace(op);
+  }
+  case LogicalOperatorType::GET_V: {
+    // This is not implemented in the base class
+    return visitGetVReplace(op);
   }
   case LogicalOperatorType::FILTER: {
     return visitFilterReplace(op);

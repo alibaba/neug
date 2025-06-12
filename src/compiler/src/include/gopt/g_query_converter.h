@@ -1,8 +1,18 @@
-// this class is used to convert gs LogicalPlan to PhysicalPlan in PB
-// here has more detailed functions:
-// std::unique_ptr<::physical::PhysicalOpr> convert(LogicalScanNodeTable&
-// scanNodeTable); std::unique_ptr<::physical::Project> convert(LogicalProject&
-// project);
+/** Copyright 2020 Alibaba Group Holding Limited.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ * 	http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
 #pragma once
 
 #include <google/protobuf/wrappers.pb.h>
@@ -17,9 +27,10 @@
 #include "gopt/g_catalog.h"
 #include "gopt/g_expr_converter.h"
 #include "gopt/g_type_converter.h"
-#include "gopt/logical_get_v.h"
 #include "planner/operator/extend/logical_extend.h"
+#include "planner/operator/logical_aggregate.h"
 #include "planner/operator/logical_filter.h"
+#include "planner/operator/logical_get_v.h"
 #include "planner/operator/logical_operator.h"
 #include "planner/operator/logical_plan.h"
 #include "planner/operator/logical_projection.h"
@@ -55,11 +66,14 @@ class GQueryConvertor {
                    ::physical::QueryPlan* plan);
   void convertExtend(const planner::LogicalExtend& extend,
                      ::physical::QueryPlan* plan);
-  void convertGetV(const gopt::LogicalGetV& getV, ::physical::QueryPlan* plan);
+  void convertGetV(const planner::LogicalGetV& getV,
+                   ::physical::QueryPlan* plan);
   void convertFilter(const planner::LogicalFilter& filter,
                      ::physical::QueryPlan* plan);
   void convertProject(const planner::LogicalProjection& project,
                       ::physical::QueryPlan* plan);
+  void convertAggregate(const planner::LogicalAggregate& project,
+                        ::physical::QueryPlan* plan);
   void convertTableFunc(const planner::LogicalTableFunctionCall& tableFunc,
                         ::physical::QueryPlan* plan);
   void convertCopyFrom(const planner::LogicalCopyFrom& copyFrom,
@@ -70,9 +84,14 @@ class GQueryConvertor {
   void convertBatchInsertEdge(catalog::GRelTableCatalogEntry* relEntry,
                               const binder::expression_vector& columnExprs,
                               ::physical::QueryPlan* plan);
+  void setMetaData(::physical::PhysicalOpr* physicalOpr,
+                   const planner::LogicalOperator& op,
+                   std::vector<std::shared_ptr<binder::Expression>> exprs,
+                   std::vector<common::alias_id_t>& aliasIds);
   // help functions
   std::unique_ptr<::algebra::QueryParams> convertParams(
-      const std::vector<common::table_id_t>& labelIds);
+      const std::vector<common::table_id_t>& labelIds,
+      std::shared_ptr<binder::Expression> predicates);
   std::string getAliasName(const planner::LogicalOperator& op);
   std::unique_ptr<::physical::PropertyMapping> convertPropMapping(
       const binder::Expression& expr, common::alias_id_t columnId);
@@ -82,8 +101,6 @@ class GQueryConvertor {
       const common::FileScanInfo& fileInfo);
   std::unique_ptr<::physical::EdgeType> convertToEdgeType(
       const EdgeLabelId& label);
-  // Expression has implemented move constructor and assignment operator, return
-  // it by value will not lead any deep copy.
   std::shared_ptr<binder::Expression> bindPKExpr(common::table_id_t labelId);
 
  private:

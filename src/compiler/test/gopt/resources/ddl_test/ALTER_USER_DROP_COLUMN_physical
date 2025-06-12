@@ -1,0 +1,14 @@
+{
+ "plan_id": 0,
+ "ddl_plan": {
+  "drop_vertex_property_schema": {
+   "vertex_type": {
+    "name": "User"
+   },
+   "properties": [
+    "grade"
+   ],
+   "conflict_action": "ON_CONFLICT_THROW"
+  }
+ }
+}

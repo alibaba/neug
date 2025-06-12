@@ -29,7 +29,8 @@ add_library(nexg_planner_operator
         logical_projection.cpp
         logical_union.cpp
         logical_unwind.cpp
-        schema.cpp)
+        schema.cpp
+	logical_get_v.cpp)
 
 set(ALL_OBJECT_FILES
         ${ALL_OBJECT_FILES} $<TARGET_OBJECTS:nexg_planner_operator>

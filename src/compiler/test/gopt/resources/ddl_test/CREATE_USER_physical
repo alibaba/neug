@@ -1,0 +1,38 @@
+{
+ "plan_id": 0,
+ "ddl_plan": {
+  "create_vertex_schema": {
+   "vertex_type": {
+    "name": "User"
+   },
+   "properties": [
+    {
+     "name": "name",
+     "type": {
+      "string": {
+       "var_char": {
+        "max_length": 65536
+       }
+      }
+     }
+    },
+    {
+     "name": "age",
+     "type": {
+      "primitive_type": "DT_SIGNED_INT64"
+     }
+    },
+    {
+     "name": "reg_date",
+     "type": {
+      "primitive_type": "DT_SIGNED_INT64"
+     }
+    }
+   ],
+   "primary_key": [
+    "name"
+   ],
+   "conflict_action": "ON_CONFLICT_THROW"
+  }
+ }
+}

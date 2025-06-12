@@ -1,0 +1,6 @@
+Match (n:person) Return count(n); # COUNT
+Match (n:person)-[k:knows]->(m:person) Return m.age, count(n); # COUNT_BY_AGE
+Match (n:person)-[k:knows]->(m:person) Return m.age, n.id, count(n); # COUNT_BY_AGE_ID 
+Match (n:person)-[k:knows]->(m:person) Return m.age, count(n), n.id as id; # COUNT_BY_AGE_ID_2 
+Match (n:person) Return count(distinct n.name); # COUNT_DISTINCT
+// Match (n:person) Return count(*); # COUNT_STAR

@@ -1,0 +1,14 @@
+{
+ "plan_id": 0,
+ "ddl_plan": {
+  "rename_vertex_type_schema": {
+   "old_type": {
+    "name": "User"
+   },
+   "new_type": {
+    "name": "Student"
+   },
+   "conflict_action": "ON_CONFLICT_THROW"
+  }
+ }
+}

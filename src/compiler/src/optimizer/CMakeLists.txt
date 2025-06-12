@@ -14,7 +14,9 @@ add_library(nexg_optimizer
         remove_factorization_rewriter.cpp
         remove_unnecessary_join_optimizer.cpp
         top_k_optimizer.cpp
-        limit_push_down_optimizer.cpp)
+        limit_push_down_optimizer.cpp
+	expand_getv_fusion.cpp
+	filter_push_down_pattern.cpp)
 
 set(ALL_OBJECT_FILES
         ${ALL_OBJECT_FILES} $<TARGET_OBJECTS:nexg_optimizer>

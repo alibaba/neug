@@ -1,3 +1,18 @@
+/** Copyright 2020 Alibaba Group Holding Limited.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ * 	http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
 #include "gopt/g_query_converter.h"
 
 #include <google/protobuf/wrappers.pb.h>
@@ -68,13 +83,18 @@ void GQueryConvertor::convertOperator(const planner::LogicalOperator& op,
     break;
   }
   case planner::LogicalOperatorType::GET_V: {
-    auto getV = op.constPtrCast<gopt::LogicalGetV>();
+    auto getV = op.constPtrCast<planner::LogicalGetV>();
     convertGetV(*getV, plan);
     break;
   }
   case planner::LogicalOperatorType::PROJECTION: {
     auto project = op.constPtrCast<planner::LogicalProjection>();
     convertProject(*project, plan);
+    break;
+  }
+  case planner::LogicalOperatorType::AGGREGATE: {
+    auto aggregate = op.constPtrCast<planner::LogicalAggregate>();
+    convertAggregate(*aggregate, plan);
     break;
   }
   case planner::LogicalOperatorType::FILTER: {
@@ -121,16 +141,13 @@ void GQueryConvertor::convertScan(const planner::LogicalScanNodeTable& scan,
                                   ::physical::QueryPlan* plan) {
   auto scanPB = std::make_unique<::physical::Scan>();
   scanPB->set_scan_opt(::physical::Scan_ScanOpt::Scan_ScanOpt_VERTEX);
-  scanPB->set_allocated_params(convertParams(scan.getTableIDs()).release());
+  scanPB->set_allocated_params(
+      convertParams(scan.getTableIDs(), scan.getPredicates()).release());
 
-  auto aliasId = INVALID_ALIAS_ID;
-  auto aliasName = scan.getAliasName();
-  if (!aliasName.empty()) {
-    aliasId = aliasManager->getAliasId(aliasName);
-  }
+  auto aliasId = aliasManager->getAliasId(scan.getAliasName());
 
   // set alias Id if valid
-  if (aliasId != INVALID_ALIAS_ID) {
+  if (aliasId != DEFAULT_ALIAS_ID) {
     auto aliasValue = std::make_unique<::google::protobuf::Int32Value>();
     aliasValue->set_value(aliasId);
     scanPB->set_allocated_alias(aliasValue.release());
@@ -149,7 +166,7 @@ void GQueryConvertor::convertScan(const planner::LogicalScanNodeTable& scan,
   // set meta data type
   metaData->set_allocated_type(
       typeConverter->convertNodeType(*nodeType).release());
-  // set meta data alias, can be set a INVALID_ALIAS_ID if no alias
+  // set meta data alias, can be set a DEFAULT_ALIAS_ID if no alias
   metaData->set_alias(aliasId);
 
   // construct physical operator with scan
@@ -178,17 +195,35 @@ void GQueryConvertor::convertScan(const planner::LogicalScanNodeTable& scan,
   }
 }
 
-::physical::GetV::VOpt convertGetVOpt(common::ExtendDirection direction) {
+::physical::GetV::VOpt convertGetVOpt(planner::GetVOpt direction) {
   switch (direction) {
-  case common::ExtendDirection::FWD:
+  case planner::GetVOpt::END:
     return ::physical::GetV::END;
-  case common::ExtendDirection::BWD:
+  case planner::GetVOpt::START:
     return ::physical::GetV::START;
-  case common::ExtendDirection::BOTH:
+  case planner::GetVOpt::BOTH:
     return ::physical::GetV::BOTH;
+  case planner::GetVOpt::OTHER:
+    return ::physical::GetV::OTHER;
+  case planner::GetVOpt::ITSELF:
+    return ::physical::GetV::ITSELF;
   default:
     throw common::Exception("Unsupported getV direction: " +
                             std::to_string(static_cast<int>(direction)));
+  }
+}
+
+::physical::EdgeExpand_ExpandOpt convertExpandOpt(planner::ExtendOpt opt) {
+  switch (opt) {
+  case planner::ExtendOpt::VERTEX:
+    return ::physical::EdgeExpand_ExpandOpt::EdgeExpand_ExpandOpt_VERTEX;
+  case planner::ExtendOpt::EDGE:
+    return ::physical::EdgeExpand_ExpandOpt::EdgeExpand_ExpandOpt_EDGE;
+  case planner::ExtendOpt::DEGREE:
+    return ::physical::EdgeExpand_ExpandOpt::EdgeExpand_ExpandOpt_DEGREE;
+  default:
+    throw common::Exception("Unsupported extend option: " +
+                            std::to_string(static_cast<int>(opt)));
   }
 }
 
@@ -196,31 +231,26 @@ void GQueryConvertor::convertExtend(const planner::LogicalExtend& extend,
                                     ::physical::QueryPlan* plan) {
   auto extendPB = std::make_unique<::physical::EdgeExpand>();
   // set expand options
-  extendPB->set_expand_opt(
-      ::physical::EdgeExpand_ExpandOpt::EdgeExpand_ExpandOpt_EDGE);
+  extendPB->set_expand_opt(convertExpandOpt(extend.getExtendOpt()));
   // set direction
   extendPB->set_direction(convertDirection(extend.getDirection()));
 
   // set v tag
-  auto startAlias = extend.getStartAliasName();
-  if (!startAlias.empty()) {
-    auto aliasId = aliasManager->getAliasId(startAlias);
+  auto startAlias = aliasManager->getAliasId(extend.getStartAliasName());
+  if (startAlias != DEFAULT_ALIAS_ID) {
     auto aliasPB = std::make_unique<::google::protobuf::Int32Value>();
-    aliasPB->set_value(aliasId);
+    aliasPB->set_value(startAlias);
     extendPB->set_allocated_v_tag(aliasPB.release());
   }
 
   // set params
-  extendPB->set_allocated_params(convertParams(extend.getLabelIds()).release());
+  extendPB->set_allocated_params(
+      convertParams(extend.getLabelIds(), extend.getPredicates()).release());
 
-  auto aliasId = INVALID_ALIAS_ID;
-  auto aliasName = extend.getAliasName();
-  if (!aliasName.empty()) {
-    aliasId = aliasManager->getAliasId(aliasName);
-  }
+  auto aliasId = aliasManager->getAliasId(extend.getAliasName());
 
   // Set alias ID if valid
-  if (aliasId != INVALID_ALIAS_ID) {
+  if (aliasId != DEFAULT_ALIAS_ID) {
     auto aliasValue = std::make_unique<::google::protobuf::Int32Value>();
     aliasValue->set_value(aliasId);
     extendPB->set_allocated_alias(aliasValue.release());
@@ -245,25 +275,22 @@ void GQueryConvertor::convertExtend(const planner::LogicalExtend& extend,
   plan->mutable_plan()->AddAllocated(physicalPB.release());
 }
 
-void GQueryConvertor::convertGetV(const gopt::LogicalGetV& getV,
+void GQueryConvertor::convertGetV(const planner::LogicalGetV& getV,
                                   ::physical::QueryPlan* plan) {
   auto getVPB = std::make_unique<::physical::GetV>();
   // set opt
-  getVPB->set_opt(convertGetVOpt(getV.getDirection()));
+  getVPB->set_opt(convertGetVOpt(getV.getGetVOpt()));
 
   // todo: set start v tag
 
   // Set params
-  getVPB->set_allocated_params(convertParams(getV.getTableIDs()).release());
+  getVPB->set_allocated_params(
+      convertParams(getV.getTableIDs(), getV.getPredicates()).release());
 
-  auto aliasId = INVALID_ALIAS_ID;
-  auto aliasName = getV.getAliasName();
-  if (!aliasName.empty()) {
-    aliasId = aliasManager->getAliasId(aliasName);
-  }
+  auto aliasId = aliasManager->getAliasId(getV.getAliasName());
 
   // Set alias ID if valid
-  if (aliasId != INVALID_ALIAS_ID) {
+  if (aliasId != DEFAULT_ALIAS_ID) {
     auto aliasValue = std::make_unique<::google::protobuf::Int32Value>();
     aliasValue->set_value(aliasId);
     getVPB->set_allocated_alias(aliasValue.release());
@@ -335,31 +362,121 @@ void GQueryConvertor::convertFilter(const planner::LogicalFilter& filter,
   }
 }
 
+void GQueryConvertor::setMetaData(::physical::PhysicalOpr* physicalOpr,
+                                  const planner::LogicalOperator& op,
+                                  binder::expression_vector exprs,
+                                  std::vector<common::alias_id_t>& aliasIds) {
+  auto schema = op.getSchema()->getExpressionsInScope();
+  if (schema.size() != aliasIds.size()) {
+    throw common::Exception(
+        "Number of schema expressions does not match the number "
+        "of alias names.");
+  }
+  if (aliasIds.size() != exprs.size()) {
+    throw common::Exception(
+        "Number of expressions does not match the number of alias "
+        "names.");
+  }
+  // Set metadata by enumerating schema and aliasNames
+  for (size_t i = 0; i < schema.size(); i++) {
+    auto metaPB = std::make_unique<::physical::PhysicalOpr_MetaData>();
+    // Convert alias name to ID
+    auto& aliasId = aliasIds[i];
+    metaPB->set_alias(aliasId);
+    auto& type = schema[i]->dataType;
+    // Get type from schema expression
+    auto typePB = typeConverter->convertType(schema[i]->dataType, *exprs[i]);
+    metaPB->set_allocated_type(typePB.release());
+    physicalOpr->mutable_meta_data()->AddAllocated(metaPB.release());
+  }
+}
+
+void GQueryConvertor::convertAggregate(
+    const planner::LogicalAggregate& aggregate, ::physical::QueryPlan* plan) {
+  std::vector<common::alias_id_t> aliasIds;
+  aliasManager->extractAliasIds(aggregate, aliasIds);
+  size_t exprSize =
+      aggregate.getKeys().size() + aggregate.getAggregates().size();
+  if (exprSize != aliasIds.size()) {
+    throw common::Exception(
+        "Number of expressions in aggregate does not match "
+        "the number of alias names.");
+  }
+  auto groupPB = std::make_unique<::physical::GroupBy>();
+  size_t aliasPos = 0;
+  auto child = aggregate.getChild(0);
+  for (auto& key : aggregate.getKeys()) {
+    auto keyPB = exprConvertor->convert(*key, *child);
+    if (!keyPB) {
+      throw common::Exception("Failed to convert key expression: " +
+                              key->toString());
+    }
+    auto& aliasId = aliasIds[aliasPos++];
+    auto aliasPB = std::make_unique<::google::protobuf::Int32Value>();
+    aliasPB->set_value(aliasId);
+    auto keyAliasPB = std::make_unique<::physical::GroupBy::KeyAlias>();
+    auto keyAlias = keyAliasPB->mutable_key();
+    *keyAlias = std::move(*keyPB->mutable_operators(0)->mutable_var());
+    keyAliasPB->set_allocated_alias(aliasPB.release());
+    groupPB->mutable_mappings()->AddAllocated(keyAliasPB.release());
+  }
+  for (auto& value : aggregate.getAggregates()) {
+    auto aggFunc = value->ptrCast<binder::AggregateFunctionExpression>();
+    auto aggFuncPB = exprConvertor->convertAggFunc(*aggFunc, *child);
+    if (!aggFuncPB) {
+      throw common::Exception("Failed to convert aggregate function: " +
+                              value->toString());
+    }
+    auto& aliasId = aliasIds[aliasPos++];
+    auto aliasPB = std::make_unique<::google::protobuf::Int32Value>();
+    aliasPB->set_value(aliasId);
+    aggFuncPB->set_allocated_alias(aliasPB.release());
+    groupPB->mutable_functions()->AddAllocated(aggFuncPB.release());
+  }
+
+  auto physicalPB = std::make_unique<::physical::PhysicalOpr>();
+  auto oprPB = std::make_unique<::physical::PhysicalOpr_Operator>();
+  oprPB->set_allocated_group_by(groupPB.release());
+  physicalPB->set_allocated_opr(oprPB.release());
+
+  auto schema = aggregate.getSchema()->getExpressionsInScope();
+  auto aggregateExprs = binder::expression_vector();
+  aggregateExprs.reserve(exprSize);
+  for (auto& expr : aggregate.getKeys()) {
+    aggregateExprs.emplace_back(expr);
+  }
+  for (auto& expr : aggregate.getAggregates()) {
+    aggregateExprs.emplace_back(expr);
+  }
+  setMetaData(physicalPB.get(), aggregate, aggregateExprs, aliasIds);
+
+  plan->mutable_plan()->AddAllocated(physicalPB.release());
+}
+
 void GQueryConvertor::convertProject(const planner::LogicalProjection& project,
                                      ::physical::QueryPlan* plan) {
   auto projectPB = std::make_unique<::physical::Project>();
-  // auto schema = project.getSchema()->getExpressionsInScope();
-  std::vector<std::string> aliasNames;
-  GAliasManager::extractAliasName(project, aliasNames);
+  std::vector<common::alias_id_t> aliasIds;
+  aliasManager->extractAliasIds(project, aliasIds);
   auto exprs = project.getExpressionsToProject();
-  if (exprs.size() != aliasNames.size()) {
+  if (exprs.size() != aliasIds.size()) {
     throw common::Exception(
         "Number of expressions to project does not match "
         "the number of schema expressions.");
   }
+  auto child = project.getChild(0);
   // set project mappings
   for (size_t i = 0; i < exprs.size(); i++) {
     auto& expr = exprs[i];
-    auto exprPB = exprConvertor->convert(*expr);
+    auto exprPB = exprConvertor->convert(*expr, *child);
     if (!exprPB) {
       throw common::Exception("Failed to convert expression: " +
                               expr->toString());
     }
     auto exprAliasPB = std::make_unique<::physical::Project::ExprAlias>();
     exprAliasPB->set_allocated_expr(exprPB.release());
-    auto aliasName = aliasNames[i];
     // the aliasId should have existed in aliasManager
-    auto aliasId = aliasManager->getAliasId(aliasName);
+    auto& aliasId = aliasIds[i];
     auto aliasPB = std::make_unique<::google::protobuf::Int32Value>();
     aliasPB->set_value(aliasId);
     exprAliasPB->set_allocated_alias(aliasPB.release());
@@ -374,36 +491,32 @@ void GQueryConvertor::convertProject(const planner::LogicalProjection& project,
 
   // set meta data
   auto schema = project.getSchema()->getExpressionsInScope();
-  if (schema.size() != aliasNames.size()) {
+  if (schema.size() != aliasIds.size()) {
     throw common::Exception(
         "Number of schema expressions does not match the number of alias "
         "names.");
   }
-  // Set metadata by enumerating schema and aliasNames
-  for (size_t i = 0; i < schema.size(); i++) {
-    auto metaPB = std::make_unique<::physical::PhysicalOpr_MetaData>();
-    // Convert alias name to ID
-    auto aliasId = aliasManager->getAliasId(aliasNames[i]);
-    metaPB->set_alias(aliasId);
-    auto& type = schema[i]->dataType;
-
-    if (type.getLogicalTypeID() == common::LogicalTypeID::NODE) {}
-    // Get type from schema expression
-    auto typePB = typeConverter->convertType(schema[i]->dataType, *exprs[i]);
-    metaPB->set_allocated_type(typePB.release());
-    physicalOpr->mutable_meta_data()->AddAllocated(metaPB.release());
-  }
+  setMetaData(physicalOpr.get(), project, exprs, aliasIds);
 
   plan->mutable_plan()->AddAllocated(physicalOpr.release());
 }
 
 std::unique_ptr<algebra::QueryParams> GQueryConvertor::convertParams(
-    const std::vector<common::table_id_t>& labelIds) {
+    const std::vector<common::table_id_t>& labelIds,
+    std::shared_ptr<binder::Expression> predicates) {
   auto queryParams = std::make_unique<algebra::QueryParams>();
   for (auto& label : labelIds) {
     auto tableId = std::make_unique<::common::NameOrId>();
     tableId->set_id(label);
     queryParams->mutable_tables()->AddAllocated(tableId.release());
+  }
+  if (predicates != nullptr) {
+    auto predicatePB = exprConvertor->convert(*predicates);
+    if (!predicatePB) {
+      throw common::Exception("Failed to convert predicate: " +
+                              predicates->toString());
+    }
+    queryParams->set_allocated_predicate(predicatePB.release());
   }
   return queryParams;
 }

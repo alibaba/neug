@@ -1,0 +1,78 @@
+#include "gopt_test.h"
+
+namespace gs {
+namespace gopt {
+class RBOTest : public GOptTest {
+ public:
+  std::string schemaData = getGOptResource("schema/person_schema.yaml");
+  std::string statsData = getGOptResource("stats/person_stats.json");
+  std::string getRBOResourcePath(std::string resource) {
+    return getGOptResourcePath("rbo_test/" + resource);
+  };
+
+  std::string getRBOResource(std::string resource) {
+    return getGOptResource("rbo_test/" + resource);
+  };
+
+  std::vector<std::string> rules = {"FilterPushDown", "ExpandGetVFusion"};
+};
+
+TEST_F(RBOTest, FILTER_PUSH_DOWN) {
+  std::string query =
+      "Match (n:person)-[k:knows]->(m:person) where k.weight > 10.0 AND n.id = "
+      "1 AND m.name = 'mark' Return n.name;";
+  auto logical = planLogical(query, schemaData, statsData, rules);
+  auto physical = planPhysical(*logical);
+  VerifyFactory::verifyPhysicalByJson(
+      *physical, getRBOResource("FILTER_PUSH_DOWN_physical"));
+}
+
+TEST_F(RBOTest, EV_FUSION_ALIAS) {
+  std::string query =
+      "Match (n:person {id: 1})-[k:knows]->(m:person) Return m.name;";
+  auto logical = planLogical(query, schemaData, statsData, rules);
+  auto physical = planPhysical(*logical);
+  VerifyFactory::verifyPhysicalByJson(
+      *physical, getRBOResource("EV_FUSION_ALIAS_physical"));
+}
+
+TEST_F(RBOTest, EV_FUSION_LABEL) {
+  std::string query =
+      "Match (n:person {id: 1})-[:knows_v2]->(m:person_v2) Return m.name;";
+  auto logical = planLogical(query, schemaData, statsData, rules);
+  auto physical = planPhysical(*logical);
+  VerifyFactory::verifyPhysicalByJson(
+      *physical, getRBOResource("EV_FUSION_LABEL_physical"));
+}
+
+TEST_F(RBOTest, EV_FUSION_LABEL_2) {
+  std::string query =
+      "Match (n:person {id: 1})-[:knows_v2]->(m) Return m.name;";
+  auto logical = planLogical(query, schemaData, statsData, rules);
+  auto physical = planPhysical(*logical);
+  VerifyFactory::verifyPhysicalByJson(
+      *physical, getRBOResource("EV_FUSION_LABEL_2_physical"));
+}
+
+TEST_F(RBOTest, EV_FUSION_PREDICATE) {
+  std::string query =
+      "Match (n:person)-[:knows]->(m:person) where n.id = 1 AND m.name = "
+      "'mark' Return m.name;";
+  auto logical = planLogical(query, schemaData, statsData, rules);
+  auto physical = planPhysical(*logical);
+  VerifyFactory::verifyPhysicalByJson(
+      *physical, getRBOResource("EV_FUSION_PREDICATE_physical"));
+}
+
+TEST_F(RBOTest, EV_FUSION) {
+  std::string query =
+      "Match (n:person {id: 1})-[:knows {weight: 1.0}]->(m:person) Return "
+      "m.name;";
+  auto logical = planLogical(query, schemaData, statsData, rules);
+  auto physical = planPhysical(*logical);
+  VerifyFactory::verifyPhysicalByJson(*physical,
+                                      getRBOResource("EV_FUSION_physical"));
+}
+
+}  // namespace gopt
+}  // namespace gs

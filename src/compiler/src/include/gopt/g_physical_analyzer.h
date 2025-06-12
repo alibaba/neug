@@ -1,9 +1,18 @@
-// this class is used to analyze the physical mode of the given gs logical
-// plan, it contains one field named mode to record the type of the plan. the
-// mode can be QUERY or DDL; it behaves like a visitor to the logical plan, and
-// it will visit each operator in the plan to analyze the physical mode. if it
-// meet some operator that is DDL operations, like create, drop, alter, it is
-// DDL mode, otherwise it is QUERY mode. help me to write the class
+/** Copyright 2020 Alibaba Group Holding Limited.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ * 	http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
 #pragma once
 
 #include "planner/operator/logical_operator.h"

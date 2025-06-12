@@ -1,3 +1,18 @@
+/** Copyright 2020 Alibaba Group Holding Limited.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ * 	http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
 #include "gopt/g_type_converter.h"
 
 #include <google/protobuf/wrappers.pb.h>
@@ -50,18 +65,7 @@ std::unique_ptr<::common::IrDataType> GTypeConverter::convertType(
   switch (type.getLogicalTypeID()) {
   case common::LogicalTypeID::NODE: {
     if (auto nodeExpr = expr.constPtrCast<binder::NodeExpression>()) {
-      std::vector<catalog::NodeTableCatalogEntry*> nodeTables;
-      for (auto& entry : nodeExpr->getEntries()) {
-        auto nodeTable = entry->ptrCast<catalog::NodeTableCatalogEntry>();
-        if (!nodeTable) {
-          throw common::Exception(
-              "Expected NodeTableCatalogEntry for NODE "
-              "type, but got: " +
-              entry->getName());
-        }
-        nodeTables.emplace_back(nodeTable);
-      }
-      return convertNodeType(gopt::GNodeType(nodeTables));
+      return convertNodeType(gopt::GNodeType(*nodeExpr));
     } else {
       throw common::Exception(
           "Expected NodeExpression for NODE type, "
@@ -72,18 +76,7 @@ std::unique_ptr<::common::IrDataType> GTypeConverter::convertType(
   }
   case common::LogicalTypeID::REL: {
     if (auto relExpr = expr.constPtrCast<binder::RelExpression>()) {
-      std::vector<catalog::GRelTableCatalogEntry*> relTables;
-      for (auto& entry : relExpr->getEntries()) {
-        auto relTable = entry->ptrCast<catalog::GRelTableCatalogEntry>();
-        if (!relTable) {
-          throw common::Exception(
-              "Expected GRelTableCatalogEntry for REL "
-              "type, but got: " +
-              entry->getName());
-        }
-        relTables.emplace_back(relTable);
-      }
-      return convertRelType(gopt::GRelType(relTables));
+      return convertRelType(gopt::GRelType(*relExpr));
     } else {
       throw common::Exception(
           "Expected RelExpression for REL type, "
@@ -142,19 +135,6 @@ std::unique_ptr<::common::IrDataType> GTypeConverter::convertLogicalType(
     result->set_primitive_type(::common::PrimitiveType::DT_SIGNED_INT32);
     break;
   }
-  // case common::LogicalTypeID::NODE: {
-  //   auto extraInfo = type.getExtraTypeInfo();
-  //   if (auto structInfo = extraInfo->constPtrCast<common::StructTypeInfo>())
-  //   {
-  //     for (auto name : structInfo->getChildrenNames()) {
-  //       std::cout << "name: " << name << std::endl;
-  //     }
-  //     for (auto type : structInfo->getChildrenTypes()) {
-  //       std::cout << "type: " << type->toString() << std::endl;
-  //     }
-  //   }
-  //   // break;
-  // }
   default:
     throw common::Exception("Unsupported basic type for conversion: " +
                             type.toString());

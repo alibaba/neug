@@ -1,0 +1,29 @@
+{
+ "plan_id": 0,
+ "ddl_plan": {
+  "create_edge_schema": {
+   "edge_type": {
+    "type_name": {
+     "name": "Follows"
+    },
+    "src_type_name": {
+     "name": "User"
+    },
+    "dst_type_name": {
+     "name": "User"
+    }
+   },
+   "properties": [
+    {
+     "name": "since",
+     "type": {
+      "primitive_type": "DT_SIGNED_INT64"
+     }
+    }
+   ],
+   "primary_key": [],
+   "multiplicity": "MANY_TO_MANY",
+   "conflict_action": "ON_CONFLICT_THROW"
+  }
+ }
+}

@@ -8,8 +8,10 @@
 #include "optimizer/agg_key_dependency_optimizer.h"
 #include "optimizer/cardinality_updater.h"
 #include "optimizer/correlated_subquery_unnest_solver.h"
+#include "optimizer/expand_getv_fusion.h"
 #include "optimizer/factorization_rewriter.h"
 #include "optimizer/filter_push_down_optimizer.h"
+#include "optimizer/filter_push_down_pattern.h"
 #include "optimizer/limit_push_down_optimizer.h"
 #include "optimizer/projection_push_down_optimizer.h"
 #include "optimizer/remove_factorization_rewriter.h"
@@ -64,6 +66,12 @@ void Optimizer::optimize(
     // can be put after FactorizationRewriter.
     auto aggKeyDependencyOptimizer = AggKeyDependencyOptimizer();
     aggKeyDependencyOptimizer.rewrite(plan);
+
+    auto filterPushDownPattern = FilterPushDownPattern();
+    filterPushDownPattern.rewrite(plan);
+
+    auto expandGetVFusion = ExpandGetVFusion(context->getCatalog());
+    expandGetVFusion.rewrite(plan);
 
     // for EXPLAIN LOGICAL we need to update the cardinalities for the optimized
     // plan we don't need to do this otherwise as we don't use the cardinalities

@@ -2,6 +2,7 @@
 
 #include "binder/expression/expression_util.h"
 #include "catalog/catalog.h"
+#include "gopt/g_alias_name.h"
 #include "gopt/g_graph_type.h"
 #include "planner/operator/logical_operator.h"
 #include "storage/predicate/column_predicate.h"
@@ -86,6 +87,8 @@ class LogicalScanNodeTable final : public LogicalOperator {
 
   std::string getAliasName() const;
 
+  gopt::GAliasName getGAliasName() const;
+
   std::optional<PrimaryKey> getPrimaryKey(catalog::Catalog* catalog) const;
 
   std::unique_ptr<gopt::GNodeType> getNodeType(catalog::Catalog* catalog) const;
@@ -101,6 +104,9 @@ class LogicalScanNodeTable final : public LogicalOperator {
       }
     }
     message += ("Type: " + nodeID->getDataType().toString());
+    if (predicates != nullptr) {
+      message += " Predicates: " + predicates->toString();
+    }
     return message;
   }
 
@@ -135,6 +141,14 @@ class LogicalScanNodeTable final : public LogicalOperator {
 
   std::unique_ptr<LogicalOperator> copy() override;
 
+  void setPredicates(std::shared_ptr<binder::Expression> predicates_) {
+    predicates = std::move(predicates_);
+  }
+
+  std::shared_ptr<binder::Expression> getPredicates() const {
+    return predicates;
+  }
+
  private:
   LogicalScanNodeTableType scanType;
   std::shared_ptr<binder::Expression> nodeID;
@@ -142,6 +156,7 @@ class LogicalScanNodeTable final : public LogicalOperator {
   binder::expression_vector properties;
   std::vector<storage::ColumnPredicateSet> propertyPredicates;
   std::unique_ptr<ExtraScanNodeTableInfo> extraInfo;
+  std::shared_ptr<binder::Expression> predicates;
 };
 
 }  // namespace planner

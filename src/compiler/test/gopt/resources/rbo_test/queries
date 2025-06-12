@@ -1,0 +1,7 @@
+Match (n:person)-[k:knows]->(m:person) where k.weight > 10.0 AND n.id = 1 AND m.name = 'mark' Return n.name; # FILTER_PUSH_DOWN
+Match (n:person {id: 1})-[k:knows]->(m:person) Return m.name; # EV_FUSION_ALIAS
+Match (n:person {id: 1})-[:knows_v2]->(m:person_v2) Return m.name; # EV_FUSION_LABEL
+Match (n:person {id: 1})-[:knows_v2]->(m) Return m.name; # EV_FUSION_LABEL_2
+Match (n:person)-[:knows]->(m:person) where n.id = 1 AND m.name = 'mark' Return m.name; # EV_FUSION_PREDICATE
+Match (n:person {id: 1})-[:knows {weight: 1.0}]->(m:person) Return m.name; # EV_FUSION
+

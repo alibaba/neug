@@ -1,0 +1,14 @@
+{
+ "plan_id": 0,
+ "ddl_plan": {
+  "rename_vertex_property_schema": {
+   "vertex_type": {
+    "name": "User"
+   },
+   "mappings": {
+    "age": "grade"
+   },
+   "conflict_action": "ON_CONFLICT_THROW"
+  }
+ }
+}

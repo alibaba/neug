@@ -1,3 +1,18 @@
+/** Copyright 2020 Alibaba Group Holding Limited.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ * 	http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
 #include "gopt/g_expr_converter.h"
 
 #include <cstdint>
@@ -14,9 +29,32 @@
 #include "common/types/value/value.h"
 #include "src/proto_generated_gie/common.pb.h"
 #include "src/proto_generated_gie/expr.pb.h"
+#include "src/proto_generated_gie/physical.pb.h"
 
 namespace gs {
 namespace gopt {
+
+std::unique_ptr<::common::Expression> GExprConverter::convert(
+    const binder::Expression& expr, const planner::LogicalOperator& child) {
+  std::vector<gopt::GAliasName> schemaGAlias;
+  aliasManager->extractGAliasNames(child, schemaGAlias);
+  std::vector<std::string> schemaAlias;
+  for (auto& expr : schemaGAlias) {
+    schemaAlias.emplace_back(expr.uniqueName);
+  }
+  auto exprAlias = expr.getUniqueName();
+  // if expr is PATTERN type, it will be converted to variable later in
+  // function `convert(expr)`
+  if (expr.expressionType != common::ExpressionType::PATTERN &&
+      std::find(schemaAlias.begin(), schemaAlias.end(), exprAlias) !=
+          schemaAlias.end()) {
+    // the expression has been computed, convert the expr as the variable
+    binder::VariableExpression var(expr.getDataType().copy(), exprAlias,
+                                   exprAlias);
+    return convertVariable(var);
+  }
+  return convert(expr);
+}
 
 std::unique_ptr<::common::Expression> GExprConverter::convert(
     const binder::Expression& expr) {
@@ -49,18 +87,42 @@ std::unique_ptr<::common::Expression> GExprConverter::convert(
   }
 }
 
+::physical::GroupBy_AggFunc::Aggregate convertAggregate(
+    const function::AggregateFunction& func) {
+  if (func.name == "COUNT" || func.name == "COUNT_STAR") {
+    return func.isDistinct ? ::physical::GroupBy_AggFunc::COUNT_DISTINCT
+                           : ::physical::GroupBy_AggFunc::COUNT;
+  }
+  throw common::Exception("Unsupported aggregate function: " + func.name);
+}
+
+std::unique_ptr<::physical::GroupBy_AggFunc> GExprConverter::convertAggFunc(
+    const binder::AggregateFunctionExpression& expr,
+    const planner::LogicalOperator& child) {
+  auto aggFuncPB = std::make_unique<::physical::GroupBy_AggFunc>();
+  // todo: set agg function name
+  // set vars in agg func
+  for (auto expr : expr.getChildren()) {
+    auto varPB = aggFuncPB->add_vars();
+    auto exprPB = convert(*expr, child);
+    *varPB = std::move(*(exprPB->mutable_operators(0)->mutable_var()));
+  }
+  aggFuncPB->set_aggregate(convertAggregate(expr.getFunction()));
+  return aggFuncPB;
+}
+
 std::unique_ptr<::common::Expression> GExprConverter::convertPattern(
     const binder::NodeOrRelExpression& expr) {
   auto variable = std::make_unique<::common::Variable>();
-  auto aliasName = expr.getVariableName();
+  auto aliasName = expr.getUniqueName();
   if (aliasName.empty()) {
     throw common::Exception(
         "Variable name cannot be empty for pattern expression.");
   }
   auto aliasId = aliasManager->getAliasId(aliasName);
-  auto aliasPB = std::make_unique<::common::NameOrId>();
-  aliasPB->set_id(aliasId);
-  variable->set_allocated_tag(aliasPB.release());
+  if (aliasId != DEFAULT_ALIAS_ID) {
+    variable->set_allocated_tag(convertAlias(aliasId).release());
+  }
   std::unique_ptr<::common::IrDataType> varType;
   switch (expr.getDataType().getLogicalTypeID()) {
   case common::LogicalTypeID::NODE: {
@@ -98,10 +160,7 @@ std::unique_ptr<::common::Expression> GExprConverter::convertVar(
 
 std::unique_ptr<::algebra::IndexPredicate> GExprConverter::convertPrimaryKey(
     const std::string& key, const binder::Expression& expr) {
-  auto keyPB = std::make_unique<::common::Property>();
-  auto namePB = std::make_unique<::common::NameOrId>();
-  namePB->set_name(key);
-  keyPB->set_allocated_key(namePB.release());
+  auto keyPB = convertPropertyExpr(key);
   auto constPB = convert(expr)->operators(0).const_();
   auto tripletPB = std::make_unique<::algebra::IndexPredicate_Triplet>();
   tripletPB->set_allocated_key(keyPB.release());
@@ -177,21 +236,36 @@ std::unique_ptr<::common::Expression> GExprConverter::convertLiteral(
   return result;
 }
 
+std::unique_ptr<::common::Property> GExprConverter::convertPropertyExpr(
+    const std::string& propName) {
+  auto propPB = std::make_unique<::common::Property>();
+  if (propName == common::InternalKeyword::ID) {
+    propPB->set_allocated_id(new ::common::IdKey());
+  } else if (propName == common::InternalKeyword::LABEL) {
+    propPB->set_allocated_label(new ::common::LabelKey());
+  } else if (propName == common::InternalKeyword::LENGTH) {
+    propPB->set_allocated_len(new ::common::LengthKey());
+  } else {
+    auto namePB = std::make_unique<::common::NameOrId>();
+    namePB->set_name(propName);
+    propPB->set_allocated_key(namePB.release());
+  }
+  return propPB;
+}
+
 std::unique_ptr<::common::Expression> GExprConverter::convertProperty(
     const binder::PropertyExpression& expr) {
   auto result = std::make_unique<::common::Expression>();
   auto opr = result->add_operators();
-  auto aliasName = expr.getRawVariableName();
+  auto aliasName = expr.getVariableName();  // unique name
   auto propertyName = expr.getPropertyName();
-  std::unique_ptr<::common::NameOrId> aliasId =
-      convertAlias(aliasManager->getAliasId(std::move(aliasName)));
+  auto aliasId = aliasManager->getAliasId(std::move(aliasName));
   std::unique_ptr<::common::Variable> variable =
       std::make_unique<::common::Variable>();
-  variable->set_allocated_tag(aliasId.release());
-  auto property = std::make_unique<::common::Property>();
-  auto name = std::make_unique<::common::NameOrId>();
-  name->set_name(std::move(propertyName));
-  property->set_allocated_key(name.release());
+  if (aliasId != DEFAULT_ALIAS_ID) {
+    variable->set_allocated_tag(convertAlias(aliasId).release());
+  }
+  auto property = convertPropertyExpr(propertyName);
   variable->set_allocated_property(property.release());
   auto varType = typeConverter.convertLogicalType(expr.dataType);
   auto exprType = std::make_unique<::common::IrDataType>();
@@ -206,12 +280,13 @@ std::unique_ptr<::common::Expression> GExprConverter::convertVariable(
     const binder::VariableExpression& expr) {
   auto result = std::make_unique<::common::Expression>();
   auto opr = result->add_operators();
-  auto aliasName = expr.getVariableName();
-  std::unique_ptr<::common::NameOrId> aliasId =
-      convertAlias(aliasManager->getAliasId(std::move(aliasName)));
+  auto aliasName = expr.getUniqueName();
+  auto aliasId = aliasManager->getAliasId(std::move(aliasName));
   std::unique_ptr<::common::Variable> variable =
       std::make_unique<::common::Variable>();
-  variable->set_allocated_tag(aliasId.release());
+  if (aliasId != DEFAULT_ALIAS_ID) {
+    variable->set_allocated_tag(convertAlias(aliasId).release());
+  }
   auto varType = typeConverter.convertLogicalType(expr.dataType);
   auto exprType = std::make_unique<::common::IrDataType>();
   exprType->CopyFrom(*varType);

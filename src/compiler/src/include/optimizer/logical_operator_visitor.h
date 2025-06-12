@@ -69,6 +69,12 @@ class LogicalOperatorVisitor {
     return op;
   }
 
+  virtual void visitGetV(planner::LogicalOperator* /*op*/) {}
+  virtual std::shared_ptr<planner::LogicalOperator> visitGetVReplace(
+      std::shared_ptr<planner::LogicalOperator> op) {
+    return op;
+  }
+
   virtual void visitFilter(planner::LogicalOperator* /*op*/) {}
   virtual std::shared_ptr<planner::LogicalOperator> visitFilterReplace(
       std::shared_ptr<planner::LogicalOperator> op) {

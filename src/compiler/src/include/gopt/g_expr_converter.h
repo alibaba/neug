@@ -1,6 +1,22 @@
+/** Copyright 2020 Alibaba Group Holding Limited.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ * 	http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
 #pragma once
 
 #include <memory>
+#include "binder/expression/aggregate_function_expression.h"
 #include "binder/expression/expression.h"
 #include "binder/expression/literal_expression.h"
 #include "binder/expression/node_rel_expression.h"
@@ -11,6 +27,7 @@
 #include "gopt/g_type_converter.h"
 #include "src/proto_generated_gie/algebra.pb.h"
 #include "src/proto_generated_gie/expr.pb.h"
+#include "src/proto_generated_gie/physical.pb.h"
 
 namespace gs {
 namespace gopt {
@@ -22,9 +39,15 @@ class GExprConverter {
 
   // Main conversion function
   std::unique_ptr<::common::Expression> convert(const binder::Expression& expr);
+  std::unique_ptr<::common::Expression> convert(
+      const binder::Expression& expr, const planner::LogicalOperator& child);
   std::unique_ptr<::algebra::IndexPredicate> convertPrimaryKey(
       const std::string& key, const binder::Expression& expr);
   std::unique_ptr<::common::Expression> convertVar(common::alias_id_t columnId);
+  std::unique_ptr<::common::NameOrId> convertAlias(common::alias_id_t aliasId);
+  std::unique_ptr<::physical::GroupBy_AggFunc> convertAggFunc(
+      const binder::AggregateFunctionExpression& expr,
+      const planner::LogicalOperator& child);
 
  private:
   // Core expression type converters
@@ -41,7 +64,6 @@ class GExprConverter {
 
   // helper functions
   std::unique_ptr<::common::Value> convertValue(gs::common::Value value);
-  std::unique_ptr<::common::NameOrId> convertAlias(common::alias_id_t aliasId);
   std::unique_ptr<::common::Variable> convertVarProperty(
       const std::string& aliasName, const std::string& propertyName,
       common::LogicalType& type);
@@ -50,6 +72,8 @@ class GExprConverter {
   ::common::Logical convertCompare(common::ExpressionType type);
   std::unique_ptr<::common::Expression> convertPattern(
       const binder::NodeOrRelExpression& expr);
+  std::unique_ptr<::common::Property> convertPropertyExpr(
+      const std::string& propName);
 
  private:
   const std::shared_ptr<gopt::GAliasManager> aliasManager;

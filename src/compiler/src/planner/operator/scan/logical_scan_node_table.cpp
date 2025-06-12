@@ -19,6 +19,7 @@ LogicalScanNodeTable::LogicalScanNodeTable(const LogicalScanNodeTable& other)
     setExtraInfo(other.extraInfo->copy());
   }
   this->cardinality = other.cardinality;
+  this->predicates = other.predicates;
 }
 
 void LogicalScanNodeTable::computeFactorizedSchema() {
@@ -48,7 +49,9 @@ void LogicalScanNodeTable::computeFlatSchema() {
 }
 
 std::unique_ptr<LogicalOperator> LogicalScanNodeTable::copy() {
-  return std::make_unique<LogicalScanNodeTable>(*this);
+  auto scan = std::make_unique<LogicalScanNodeTable>(*this);
+  scan->setPredicates(predicates);
+  return scan;
 }
 
 std::string LogicalScanNodeTable::getAliasName() const {
@@ -58,8 +61,20 @@ std::string LogicalScanNodeTable::getAliasName() const {
     throw common::Exception("Node ID expression is not a property expression.");
   }
   auto propertyExpr = nodeId->constCast<binder::PropertyExpression>();
-  auto varName = propertyExpr.getRawVariableName();
-  return varName;
+  return propertyExpr.getVariableName();
+}
+
+gopt::GAliasName LogicalScanNodeTable::getGAliasName() const {
+  // get the alias name from the node ID expression
+  auto nodeId = getNodeID();
+  if (!nodeId || nodeId->expressionType != common::ExpressionType::PROPERTY) {
+    throw common::Exception("Node ID expression is not a property expression.");
+  }
+  auto propertyExpr = nodeId->constCast<binder::PropertyExpression>();
+  auto queryName = propertyExpr.getRawVariableName().empty()
+                       ? std::nullopt
+                       : std::make_optional(propertyExpr.getRawVariableName());
+  return gopt::GAliasName{propertyExpr.getVariableName(), queryName};
 }
 
 std::unique_ptr<gopt::GNodeType> LogicalScanNodeTable::getNodeType(

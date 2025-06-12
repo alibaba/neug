@@ -7,13 +7,13 @@
 #include "common/enums/rel_direction.h"
 #include "common/types/types.h"
 #include "common/utils.h"
-#include "gopt/logical_get_v.h"
 #include "main/client_context.h"
 #include "planner/join_order/cost_model.h"
 #include "planner/join_order/join_plan_solver.h"
 #include "planner/join_order/join_tree_constructor.h"
 #include "planner/operator/extend/logical_extend.h"
 #include "planner/operator/logical_filter.h"
+#include "planner/operator/logical_get_v.h"
 #include "planner/operator/logical_operator.h"
 #include "planner/operator/logical_plan.h"
 #include "planner/operator/scan/logical_scan_node_table.h"
@@ -614,6 +614,23 @@ void Planner::planInnerHashJoin(
   }
 }
 
+planner::GetVOpt getGetVOpt(const planner::LogicalExtend& extend) {
+  if (extend.getExtendOpt() == planner::ExtendOpt::VERTEX) {
+    return planner::GetVOpt::ITSELF;
+  }
+  switch (extend.getDirection()) {
+  case common::ExtendDirection::FWD:
+    return planner::GetVOpt::END;
+  case common::ExtendDirection::BWD:
+    return planner::GetVOpt::START;
+  case common::ExtendDirection::BOTH:
+    return planner::GetVOpt::OTHER;
+  default:
+    throw std::runtime_error("Unsupported extend direction for GetV: " +
+                             static_cast<u_int8_t>(extend.getDirection()));
+  }
+}
+
 void Planner::planGetV(
     const SubqueryGraph& subgraph, const SubqueryGraph& otherSubgraph,
     const std::vector<std::shared_ptr<NodeExpression>>& joinNodes) {
@@ -651,11 +668,11 @@ void Planner::planGetV(
 
           // start to build the getV operator
           auto getVPlan = std::make_unique<LogicalPlan>();
-          auto getV = std::make_unique<gopt::LogicalGetV>(
+          auto getV = std::make_unique<planner::LogicalGetV>(
               rightGetV->getNodeID(), rightGetV->getTableIDs(),
-              rightGetV->getProperties(), leftExtend->getRel(),
-              leftPlan->getLastOperator(), joinSchema->copy(),
-              leftExtend->getDirection(), joinCard);
+              rightGetV->getProperties(), getGetVOpt(*leftExtend),
+              leftExtend->getRel(), leftPlan->getLastOperator(),
+              joinSchema->copy(), joinCard);
           getVPlan->setLastOperator(std::move(getV));
           // append filtering predicates corresponding to the getV
           auto getVFilter = std::dynamic_pointer_cast<LogicalFilter>(

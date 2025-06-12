@@ -38,16 +38,34 @@ std::unique_ptr<LogicalOperator> LogicalExtend::copy() {
       children[0]->copy(), cardinality);
   extend->setPropertyPredicates(copyVector(propertyPredicates));
   extend->scanNbrID = scanNbrID;
+  extend->setPredicates(getPredicates());
+  extend->setExtendOpt(opt);
   return extend;
 }
 
 std::string LogicalExtend::getAliasName() const {
-  return rel->getVariableName();
-  ;
+  if (opt == planner::ExtendOpt::VERTEX) {
+    return nbrNode->getUniqueName();
+  }
+  return rel->getUniqueName();
 }
 
 std::string LogicalExtend::getStartAliasName() const {
-  return boundNode->getVariableName();
+  return boundNode->getUniqueName();
+}
+
+gopt::GAliasName getGAliasName0(const binder::NodeOrRelExpression& rel) {
+  auto queryName = rel.getVariableName().empty()
+                       ? std::nullopt
+                       : std::make_optional(rel.getVariableName());
+  return gopt::GAliasName{rel.getUniqueName(), queryName};
+}
+
+gopt::GAliasName LogicalExtend::getGAliasName() const {
+  if (opt == planner::ExtendOpt::VERTEX) {
+    return getGAliasName0(*nbrNode);
+  }
+  return getGAliasName0(*rel);
 }
 
 std::vector<common::table_id_t> LogicalExtend::getLabelIds() const {

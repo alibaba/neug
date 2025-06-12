@@ -1,0 +1,30 @@
+{
+ "plan_id": 0,
+ "ddl_plan": {
+  "rename_edge_type_schema": {
+   "old_type": {
+    "type_name": {
+     "name": "Follows"
+    },
+    "src_type_name": {
+     "name": "User"
+    },
+    "dst_type_name": {
+     "name": "User"
+    }
+   },
+   "new_type": {
+    "type_name": {
+     "name": "Follows2"
+    },
+    "src_type_name": {
+     "name": "User"
+    },
+    "dst_type_name": {
+     "name": "User"
+    }
+   },
+   "conflict_action": "ON_CONFLICT_THROW"
+  }
+ }
+}

@@ -9,7 +9,7 @@ project (
   VERSION ${NEXG_VERSION}
   LANGUAGES C CXX)
 
-
+option(BUILD_ENGINE "Whether to build engine" ON)
 option(BUILD_TEST "Whether to build test" OFF)
 option(BUILD_DOC "Whether to build doc" OFF)
 option(BUILD_ODPS_FRAGMENT_LOADER "Whether to build odps fragment loader" OFF)
@@ -518,12 +518,16 @@ macro(install_without_export_nexg_target target)
     )
 endmacro()
 
-
 add_subdirectory(src)
+
 if (BUILD_TEST)
-   add_subdirectory(tests)
+  if (BUILD_ENGINE)
+    add_subdirectory(tests)
+  endif()
 endif()
-add_subdirectory(tools)
+if (BUILD_ENGINE)
+ add_subdirectory(tools)
+endif()
 add_subdirectory(third_party/libgrape-lite)
 include_directories(SYSTEM ${CMAKE_SOURCE_DIR}/third_party/libgrape-lite)
 
