@@ -64,6 +64,8 @@ enum Code {
     ERR_ILLEGAL_OPERATION = 1013;
     // I/O error, e.g., an error occurred while reading or writing to a file.
     ERR_IO_ERROR = 1014;
+    // encoding error, unsupported encoding or decoding.
+    ERR_BAD_ENCODING = 1015;
 
     // Network related errors
     ERR_NETWORK = 2001;
@@ -73,6 +75,8 @@ enum Code {
     ERR_POOL_EXHAUSTED = 2003;
     // Service unavailable, e.g., the service is not available currently, or the service is not running.
     ERR_SERVICE_UNAVAILABLE = 2004;
+    // Load overflow, e.g., the service is overloaded and cannot handle more requests.
+    ERR_LOAD_OVERFLOW = 2005;
     
     // Error during query compilation
     ERR_COMPILATION = 3000;

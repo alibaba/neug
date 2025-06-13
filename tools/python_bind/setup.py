@@ -22,12 +22,15 @@ import re
 import shutil
 import subprocess
 import sys
+import glob
+import subprocess
 from pathlib import Path
 
 from setuptools import find_packages  # noqa: H301
 from setuptools import Extension, setup
 from setuptools.command.build_ext import build_ext
 from setuptools.command.build_py import build_py as _build_py
+from distutils.cmd import Command
 
 base_dir = os.path.dirname(__file__)
 
@@ -213,10 +216,52 @@ class CMakeBuild(build_ext):
         pass
 
 
+class BuildProto(Command):
+    description = "build protobuf file"
+    user_options = []
+
+    def initialize_options(self):
+        pass
+
+    def finalize_options(self):
+        pass
+
+    def generate_proto(self, proto_path, output_dir, proto_files=None):
+        if proto_files is None:
+            proto_files = glob.glob(os.path.join(proto_path, "*.proto"))
+        os.makedirs(output_dir, exist_ok=True)
+        for proto_file in proto_files:
+            if not os.path.exists(proto_file):
+                proto_file = os.path.join(proto_path, proto_file)
+            cmd = [
+                sys.executable,
+                "-m",
+                "grpc_tools.protoc",
+                "-I",
+                proto_path,
+                f"--python_out={output_dir}",
+                f"--mypy_out={output_dir}",
+                proto_file,
+            ]
+            subprocess.check_call(
+                cmd,
+                stderr=subprocess.STDOUT,
+            )
+    def run(self):
+        proto_path = os.path.join(repo_root, "proto")
+        output_dir = os.path.join(base_dir, "nexg", "proto")
+        if not os.path.exists(proto_path):
+            raise RuntimeError(f"Proto path {proto_path} does not exist.")
+        if not os.path.exists(output_dir):
+            os.makedirs(output_dir, exist_ok=True)
+        self.generate_proto(proto_path, output_dir, ["error.proto"])
+
+
 class BuildExtFirst(_build_py):
     # Override the build_py command to build the extension first.
     def run(self):
         self.run_command("build_ext")
+        self.run_command("build_proto")
         return super().run()
 
 
@@ -254,5 +299,6 @@ setup(
     cmdclass={
         "build_py": BuildExtFirst,
         "build_ext": CMakeBuild,
+        "build_proto": BuildProto,
     },
 )

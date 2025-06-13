@@ -79,6 +79,7 @@ jobs:
         # export CC="ccache gcc"
         # export CXX="ccache g++"
         cd tools/python_bind
+        make requirements
         make build
 
     - name: Bulk Loader Test

@@ -134,7 +134,6 @@ def test_readonly_write_operation(tmp_path):
 
 
 # DB-001-10 非法路径格式
-@pytest.mark.xfail(reason="no invalid path check, to be fixed")
 def test_invalid_path():
     with pytest.raises(Exception) as excinfo:
         Database("??/illegal", "r")

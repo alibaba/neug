@@ -94,6 +94,10 @@ class Database(object):
             If the planner is not one of 'jni', 'gopt'.
         """
         self._database = None
+        self._db_path = None
+        self._illegal_chars = ['?', '*', '"', '<', '>', '|', ':', '\\']
+        if any(char in db_path for char in self._illegal_chars):
+            raise ValueError(f"invalid path: database path '{db_path}' contains illegal characters: {self._illegal_chars}.")
         self._db_path = db_path
         self._mode = mode
         if self._mode not in ["r", "read", "w", "rw", "write", "readwrite"]:
@@ -161,11 +165,11 @@ class Database(object):
         """
         Close the database connection.
         """
-        logger.info(f"Closing database {self._db_path}.")
+        if self._db_path:
+            logger.info(f"Closing database {self._db_path}.")
         if self._database:
             self._database.close()
             self._database = None
-            logger.info(f"Close database {self._db_path}.")
             
     
     def _get_default_jni_planner_jar_path(self):

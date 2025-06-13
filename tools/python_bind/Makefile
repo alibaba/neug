@@ -14,6 +14,7 @@ requirements:  ## Install requirements
 build: ## Compile nexg and python bindings, and copy to build directory
 	@echo "Building C++ and Python bindings..."
 	python3 setup.py build_ext
+	python3 setup.py build_proto
 
 .PHONY: wheel
 wheel: ## Build the nexg python wheel package
@@ -25,6 +26,7 @@ clean:  ## Clean up build artifacts
 	@echo "Cleaning up..."
 	rm -rf build/ dist/ *.egg-info
 	rm -rf nexg.egg-info/ __pycache__/ *.so
+	rm -rf nexg/proto/
 
 .PHONY: help
 help:  ## Display this help information
