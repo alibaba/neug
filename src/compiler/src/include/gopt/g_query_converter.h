@@ -28,6 +28,7 @@
 #include "gopt/g_expr_converter.h"
 #include "gopt/g_type_converter.h"
 #include "planner/operator/extend/logical_extend.h"
+#include "planner/operator/extend/logical_recursive_extend.h"
 #include "planner/operator/logical_aggregate.h"
 #include "planner/operator/logical_filter.h"
 #include "planner/operator/logical_get_v.h"
@@ -66,6 +67,8 @@ class GQueryConvertor {
                    ::physical::QueryPlan* plan);
   void convertExtend(const planner::LogicalExtend& extend,
                      ::physical::QueryPlan* plan);
+  void convertRecursiveExtend(const planner::LogicalRecursiveExtend& extend,
+                              ::physical::QueryPlan* plan);
   void convertGetV(const planner::LogicalGetV& getV,
                    ::physical::QueryPlan* plan);
   void convertFilter(const planner::LogicalFilter& filter,
@@ -102,6 +105,15 @@ class GQueryConvertor {
   std::unique_ptr<::physical::EdgeType> convertToEdgeType(
       const EdgeLabelId& label);
   std::shared_ptr<binder::Expression> bindPKExpr(common::table_id_t labelId);
+  std::unique_ptr<::physical::EdgeExpand> convertExtendBase(
+      const planner::LogicalRecursiveExtend& extend, planner::ExtendOpt opt);
+  std::unique_ptr<::physical::GetV> convertGetVBase(
+      const planner::LogicalRecursiveExtend& extend, planner::GetVOpt getVOpt);
+  std::unique_ptr<::physical::PathExpand_ExpandBase> convertPathBase(
+      const planner::LogicalRecursiveExtend& extend);
+  ::physical::PathExpand_PathOpt convertPathOpt(common::PathSemantic semantic);
+  ::physical::PathExpand_ResultOpt convertResultOpt(
+      gs::planner::ResultOpt resultOpt);
 
  private:
   std::shared_ptr<GAliasManager> aliasManager;

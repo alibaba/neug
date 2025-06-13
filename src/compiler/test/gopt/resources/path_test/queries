@@ -1,0 +1,4 @@
+MATCH (a:person)-[:knows*1..2]->(b:person) WHERE a.ID = 7 RETURN b.name; # KNOWS_1_2
+MATCH (a:person)-[e:knows*1..2 (r,_ | WHERE r.weight > 1.0)]->(b:person) WHERE a.name = 'Alice' AND b.name = 'Bob' RETURN e; # KNOWS_1_2_FILTER 
+MATCH (a:person)-[:knows_v2*1..2]->(b:person) WHERE a.ID = 7 RETURN b.name; # KNOWS_V2_1_2
+MATCH (a:person)-[e:knows*3..3]->(b:person) RETURN COUNT(b.name); # KNOWS_3_3

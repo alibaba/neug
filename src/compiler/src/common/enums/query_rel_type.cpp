@@ -27,7 +27,8 @@ PathSemantic QueryRelTypeUtils::getPathSemantic(QueryRelType queryRelType) {
 
 std::unique_ptr<function::RJAlgorithm> QueryRelTypeUtils::getFunction(
     QueryRelType type) {
-  KU_UNREACHABLE;
+  // KU_UNREACHABLE;
+  return std::make_unique<function::DefaultRJAlgorithm>();
 }
 
 }  // namespace common

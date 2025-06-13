@@ -123,74 +123,24 @@ void Planner::appendRecursiveExtend(
 
   auto resultColumns = recursiveInfo->function->getResultColumns(*bindData);
 
-  std::shared_ptr<LogicalOperator> nodeMaskRoot = nullptr;
-  if (recursiveInfo->nodePredicate != nullptr) {
-    auto p =
-        getNodeSemiMaskPlan(SemiMaskTargetType::RECURSIVE_EXTEND_PATH_NODE,
-                            *recursiveInfo->node, recursiveInfo->nodePredicate);
-    nodeMaskRoot = p.getLastOperator();
-  }
-  auto probePlan = LogicalPlan();
   auto recursiveExtend = std::make_shared<LogicalRecursiveExtend>(
-      recursiveInfo->function->copy(), *recursiveInfo->bindData, resultColumns);
-  if (nodeMaskRoot != nullptr) {
-    recursiveExtend->addChild(nodeMaskRoot);
+      recursiveInfo->function->copy(), *recursiveInfo->bindData, resultColumns,
+      rel);
+
+  if (plan.getLastOperator()) {
+    recursiveExtend->addChild(plan.getLastOperator());
   }
+
   recursiveExtend->computeFactorizedSchema();
-  // recursiveExtend->addChild(plan.getLastOperator());
-  // plan.setLastOperator(std::move(recursiveExtend));
-  probePlan.setLastOperator(std::move(recursiveExtend));
-  // Scan path node property pipeline
-  std::shared_ptr<LogicalOperator> pathNodePropertyScanRoot = nullptr;
-  if (!recursiveInfo->nodeProjectionList.empty()) {
-    auto pathNodePropertyScanPlan = LogicalPlan();
-    createPathNodePropertyScanPlan(recursiveInfo->node,
-                                   recursiveInfo->nodeProjectionList,
-                                   pathNodePropertyScanPlan);
-    pathNodePropertyScanRoot = pathNodePropertyScanPlan.getLastOperator();
-  }
-  // Scan path rel property pipeline
-  std::shared_ptr<LogicalOperator> pathRelPropertyScanRoot = nullptr;
-  if (!recursiveInfo->relProjectionList.empty()) {
-    auto pathRelPropertyScanPlan = std::make_unique<LogicalPlan>();
-    auto relProperties = recursiveInfo->relProjectionList;
-    relProperties.push_back(recursiveInfo->rel->getInternalIDProperty());
-    bool extendFromSource = *boundNode == *rel->getSrcNode();
-    createPathRelPropertyScanPlan(
-        recursiveInfo->node, recursiveInfo->nodeCopy, recursiveInfo->rel,
-        direction, extendFromSource, relProperties, *pathRelPropertyScanPlan);
-    pathRelPropertyScanRoot = pathRelPropertyScanPlan->getLastOperator();
-  }
-  // Construct path by probing scanned properties
-  // auto pathPropertyProbe =
-  //     std::make_shared<LogicalPathPropertyProbe>(rel,
-  //     probePlan.getLastOperator(),
-  //         pathNodePropertyScanRoot, pathRelPropertyScanRoot,
-  //         RecursiveJoinType::TRACK_PATH);
-  auto pathPropertyProbe = std::make_shared<LogicalPathPropertyProbe>(
-      rel, probePlan.getLastOperator(), pathNodePropertyScanRoot,
-      pathRelPropertyScanRoot, RecursiveJoinType::TRACK_PATH);
-  pathPropertyProbe->direction = direction;
-  pathPropertyProbe->extendFromLeft = *boundNode == *rel->getLeftNode();
-  pathPropertyProbe->pathNodeIDs = recursiveInfo->bindData->pathNodeIDsExpr;
-  pathPropertyProbe->pathEdgeIDs = recursiveInfo->bindData->pathEdgeIDsExpr;
-  pathPropertyProbe->computeFactorizedSchema();
+
   auto extensionRate = cardinalityEstimator.getExtensionRate(
       *rel, *boundNode, clientContext->getTransaction());
   auto resultCard = cardinalityEstimator.multiply(
       extensionRate, plan.getLastOperator()->getCardinality());
-  pathPropertyProbe->setCardinality(resultCard);
-  probePlan.setLastOperator(pathPropertyProbe);
-  probePlan.setCost(plan.getCardinality());
-  // plan.setLastOperator(std::move(pathPropertyProbe));
-  // plan.setCost(plan.getCardinality());
 
-  // // Join with input node
-  auto joinConditions = expression_vector{boundNode->getInternalID()};
-  appendHashJoin(joinConditions, JoinType::INNER, probePlan, plan, plan);
-  // Hash join above is joining input node with its properties. So 1-1 match is
-  // guaranteed and thus should not change cardinality.
-  plan.getLastOperator()->setCardinality(resultCard);
+  recursiveExtend->setCardinality(resultCard);
+  plan.setCost(plan.getCost() + resultCard);
+  plan.setLastOperator(std::move(recursiveExtend));
 }
 
 void Planner::createPathNodePropertyScanPlan(

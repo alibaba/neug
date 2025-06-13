@@ -5,7 +5,8 @@ add_compiler_test(
 	pattern_test.cpp
 	rbo_rule_test.cpp
 	agg_test.cpp
-	metadata_test.cpp)
+	metadata_test.cpp
+	path_test.cpp)
 
 target_link_libraries(gopt_test
     PRIVATE

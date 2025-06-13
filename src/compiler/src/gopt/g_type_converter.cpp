@@ -74,7 +74,8 @@ std::unique_ptr<::common::IrDataType> GTypeConverter::convertType(
     }
     break;
   }
-  case common::LogicalTypeID::REL: {
+  case common::LogicalTypeID::REL:
+  case common::LogicalTypeID::RECURSIVE_REL: {
     if (auto relExpr = expr.constPtrCast<binder::RelExpression>()) {
       return convertRelType(gopt::GRelType(*relExpr));
     } else {

@@ -82,6 +82,11 @@ void GQueryConvertor::convertOperator(const planner::LogicalOperator& op,
     convertExtend(*extend, plan);
     break;
   }
+  case planner::LogicalOperatorType::RECURSIVE_EXTEND: {
+    auto recursiveExtend = op.constPtrCast<planner::LogicalRecursiveExtend>();
+    convertRecursiveExtend(*recursiveExtend, plan);
+    break;
+  }
   case planner::LogicalOperatorType::GET_V: {
     auto getV = op.constPtrCast<planner::LogicalGetV>();
     convertGetV(*getV, plan);
@@ -225,6 +230,161 @@ void GQueryConvertor::convertScan(const planner::LogicalScanNodeTable& scan,
     throw common::Exception("Unsupported extend option: " +
                             std::to_string(static_cast<int>(opt)));
   }
+}
+
+std::unique_ptr<::physical::EdgeExpand> GQueryConvertor::convertExtendBase(
+    const planner::LogicalRecursiveExtend& extend,
+    planner::ExtendOpt extendOpt) {
+  auto extendPB = std::make_unique<::physical::EdgeExpand>();
+  // set expand options
+  extendPB->set_expand_opt(convertExpandOpt(extendOpt));
+  // set direction
+  extendPB->set_direction(convertDirection(extend.getDirection()));
+
+  gopt::GRelType extendType(*extend.getRel());
+
+  auto recursiveInfo = extend.getRel()->getRecursiveInfo();
+  auto relPred = recursiveInfo ? recursiveInfo->relPredicate : nullptr;
+  // set params
+  extendPB->set_allocated_params(
+      convertParams(extendType.getLabelIds(), relPred).release());
+  return extendPB;
+}
+
+planner::GetVOpt getBaseGetVOpt(common::ExtendDirection direction) {
+  switch (direction) {
+  case common::ExtendDirection::FWD:
+    return planner::GetVOpt::END;
+  case common::ExtendDirection::BWD:
+    return planner::GetVOpt::START;
+  case common::ExtendDirection::BOTH:
+  default:
+    return planner::GetVOpt::OTHER;
+  }
+}
+
+std::unique_ptr<::physical::GetV> GQueryConvertor::convertGetVBase(
+    const planner::LogicalRecursiveExtend& extend, planner::GetVOpt getVOpt) {
+  auto getVPB = std::make_unique<::physical::GetV>();
+
+  getVPB->set_opt(convertGetVOpt(getVOpt));
+
+  gopt::GNodeType nbrType(*extend.getNbrNode());
+  auto recursiveInfo = extend.getRel()->getRecursiveInfo();
+  auto nodePred = recursiveInfo ? recursiveInfo->nodePredicate : nullptr;
+  // set params
+  getVPB->set_allocated_params(
+      convertParams(nbrType.getLabelIds(), nodePred).release());
+
+  return getVPB;
+}
+
+std::unique_ptr<::physical::PathExpand_ExpandBase>
+GQueryConvertor::convertPathBase(
+    const planner::LogicalRecursiveExtend& extend) {
+  switch (extend.getFusionType()) {
+  case gs::optimizer::FusionType::EXPANDE_GETV: {
+    auto pathBasePB = std::make_unique<::physical::PathExpand_ExpandBase>();
+    pathBasePB->set_allocated_edge_expand(
+        convertExtendBase(extend, planner::EDGE).release());
+    pathBasePB->set_allocated_get_v(
+        convertGetVBase(extend, getBaseGetVOpt(extend.getDirection()))
+            .release());
+    return pathBasePB;
+  }
+  case gs::optimizer::FusionType::EXPANDV: {
+    auto pathBasePB = std::make_unique<::physical::PathExpand_ExpandBase>();
+    pathBasePB->set_allocated_edge_expand(
+        convertExtendBase(extend, planner::VERTEX).release());
+    // no getV base for this fusion type
+    return pathBasePB;
+  }
+  default:
+    throw common::Exception(
+        "Unsupported fusion type for recursive extend: " +
+        std::to_string(static_cast<int>(extend.getFusionType())));
+  }
+}
+
+::physical::PathExpand_PathOpt GQueryConvertor::convertPathOpt(
+    common::PathSemantic semantic) {
+  switch (semantic) {
+  case common::PathSemantic::WALK:
+    return ::physical::PathExpand_PathOpt::PathExpand_PathOpt_ARBITRARY;
+  case common::PathSemantic::TRAIL:
+    return ::physical::PathExpand_PathOpt::PathExpand_PathOpt_TRAIL;
+  case common::PathSemantic::ACYCLIC:
+  default:
+    return ::physical::PathExpand_PathOpt::PathExpand_PathOpt_SIMPLE;
+  }
+}
+
+::physical::PathExpand_ResultOpt GQueryConvertor::convertResultOpt(
+    gs::planner::ResultOpt resultOpt) {
+  switch (resultOpt) {
+  case gs::planner::ResultOpt::ALL_V:
+    return ::physical::PathExpand_ResultOpt::PathExpand_ResultOpt_ALL_V;
+  case gs::planner::ResultOpt::END_V:
+    return ::physical::PathExpand_ResultOpt::PathExpand_ResultOpt_END_V;
+  case gs::planner::ResultOpt::ALL_V_E:
+  default:
+    return ::physical::PathExpand_ResultOpt::PathExpand_ResultOpt_ALL_V_E;
+  }
+}
+
+void GQueryConvertor::convertRecursiveExtend(
+    const planner::LogicalRecursiveExtend& extend,
+    ::physical::QueryPlan* plan) {
+  auto pathPB = std::make_unique<::physical::PathExpand>();
+  // set expand base
+  pathPB->set_allocated_base(convertPathBase(extend).release());
+
+  // set start tag
+  auto startAlias = aliasManager->getAliasId(extend.getStartAliasName());
+  if (startAlias != DEFAULT_ALIAS_ID) {
+    auto aliasPB = std::make_unique<::google::protobuf::Int32Value>();
+    aliasPB->set_value(startAlias);
+    pathPB->set_allocated_start_tag(aliasPB.release());
+  }
+
+  // set alias
+  auto aliasId = aliasManager->getAliasId(extend.getAliasName());
+  if (aliasId != DEFAULT_ALIAS_ID) {
+    auto aliasValue = std::make_unique<::google::protobuf::Int32Value>();
+    aliasValue->set_value(aliasId);
+    pathPB->set_allocated_alias(aliasValue.release());
+  }
+
+  // set hop ranges
+  auto rangePB = std::make_unique<::algebra::Range>();
+  auto bindData = extend.getBindData();
+  // the range in physical pb is [lower, upper), so we need to add 1 to upper
+  rangePB->set_lower(bindData.lowerBound);
+  rangePB->set_upper(bindData.upperBound + 1);
+  pathPB->set_allocated_hop_range(rangePB.release());
+
+  // set path opt
+  pathPB->set_path_opt(convertPathOpt(bindData.semantic));
+  // set result opt
+  pathPB->set_result_opt(convertResultOpt(extend.getResultOpt()));
+
+  // set edge type as the metadata
+  auto metaData = std::make_unique<::physical::PhysicalOpr_MetaData>();
+  gopt::GRelType relType(*extend.getRel());
+  // Set meta data type
+  metaData->set_allocated_type(
+      typeConverter->convertRelType(relType).release());
+  // Set meta data alias
+  metaData->set_alias(aliasId);
+
+  // Construct physical operator with path expand
+  auto physicalPB = std::make_unique<::physical::PhysicalOpr>();
+  auto oprPB = std::make_unique<::physical::PhysicalOpr_Operator>();
+  oprPB->set_allocated_path(pathPB.release());
+  physicalPB->set_allocated_opr(oprPB.release());
+  physicalPB->mutable_meta_data()->AddAllocated(metaData.release());
+  // Append path expand in query plan
+  plan->mutable_plan()->AddAllocated(physicalPB.release());
 }
 
 void GQueryConvertor::convertExtend(const planner::LogicalExtend& extend,

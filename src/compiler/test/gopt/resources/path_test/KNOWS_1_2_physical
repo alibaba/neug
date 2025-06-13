@@ -29,7 +29,7 @@
             }
            },
            "const": {
-            "i64": "1"
+            "i64": "7"
            },
            "cmp": "EQ"
           }
@@ -62,22 +62,33 @@
    },
    {
     "opr": {
-     "edge": {
-      "direction": "OUT",
-      "params": {
-       "tables": [
-        {
-         "id": 1
-        }
-       ],
-       "columns": [],
-       "is_all_columns": false,
-       "sample_ratio": 0,
-       "extra": {}
+     "path": {
+      "base": {
+       "edge_expand": {
+        "direction": "OUT",
+        "params": {
+         "tables": [
+          {
+           "id": 0
+          }
+         ],
+         "columns": [],
+         "is_all_columns": false,
+         "sample_ratio": 0,
+         "extra": {}
+        },
+        "expand_opt": "VERTEX",
+        "is_optional": false
+       }
       },
-      "expand_opt": "VERTEX",
+      "hop_range": {
+       "lower": 1,
+       "upper": 3
+      },
+      "path_opt": "ARBITRARY",
+      "result_opt": "END_V",
       "is_optional": false,
-      "v_tag": 0,
+      "start_tag": 0,
       "alias": 1
      }
     },
@@ -89,17 +100,9 @@
         "graph_data_type": [
          {
           "label": {
-           "label": 1,
+           "label": 0,
            "src_label": 0,
            "dst_label": 0
-          },
-          "props": []
-         },
-         {
-          "label": {
-           "label": 1,
-           "src_label": 0,
-           "dst_label": 1
           },
           "props": []
          }
@@ -107,6 +110,43 @@
        }
       },
       "alias": 1
+     }
+    ]
+   },
+   {
+    "opr": {
+     "vertex": {
+      "opt": "END",
+      "params": {
+       "tables": [
+        {
+         "id": 0
+        }
+       ],
+       "columns": [],
+       "is_all_columns": false,
+       "sample_ratio": 0,
+       "extra": {}
+      },
+      "alias": 2
+     }
+    },
+    "meta_data": [
+     {
+      "type": {
+       "graph_type": {
+        "element_opt": "VERTEX",
+        "graph_data_type": [
+         {
+          "label": {
+           "label": 0
+          },
+          "props": []
+         }
+        ]
+       }
+      },
+      "alias": 2
      }
     ]
    },
@@ -120,7 +160,7 @@
           {
            "var": {
             "tag": {
-             "id": 1
+             "id": 2
             },
             "property": {
              "key": {
@@ -149,7 +189,7 @@
           }
          ]
         },
-        "alias": 2
+        "alias": 3
        }
       ],
       "is_append": false
@@ -166,7 +206,7 @@
         }
        }
       },
-      "alias": 2
+      "alias": 3
      }
     ]
    },

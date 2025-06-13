@@ -12,6 +12,7 @@
 #include "planner/join_order/join_plan_solver.h"
 #include "planner/join_order/join_tree_constructor.h"
 #include "planner/operator/extend/logical_extend.h"
+#include "planner/operator/extend/logical_recursive_extend.h"
 #include "planner/operator/logical_filter.h"
 #include "planner/operator/logical_get_v.h"
 #include "planner/operator/logical_operator.h"
@@ -614,11 +615,8 @@ void Planner::planInnerHashJoin(
   }
 }
 
-planner::GetVOpt getGetVOpt(const planner::LogicalExtend& extend) {
-  if (extend.getExtendOpt() == planner::ExtendOpt::VERTEX) {
-    return planner::GetVOpt::ITSELF;
-  }
-  switch (extend.getDirection()) {
+planner::GetVOpt getGetVOpt(common::ExtendDirection direction) {
+  switch (direction) {
   case common::ExtendDirection::FWD:
     return planner::GetVOpt::END;
   case common::ExtendDirection::BWD:
@@ -627,7 +625,41 @@ planner::GetVOpt getGetVOpt(const planner::LogicalExtend& extend) {
     return planner::GetVOpt::OTHER;
   default:
     throw std::runtime_error("Unsupported extend direction for GetV: " +
-                             static_cast<u_int8_t>(extend.getDirection()));
+                             static_cast<u_int8_t>(direction));
+  }
+}
+
+planner::GetVOpt getGetVOpt(std::shared_ptr<LogicalOperator> op) {
+  switch (op->getOperatorType()) {
+  case LogicalOperatorType::EXTEND: {
+    auto extend = op->ptrCast<LogicalExtend>();
+    if (extend->getExtendOpt() == VERTEX) {
+      return GetVOpt::ITSELF;
+    }
+    return getGetVOpt(extend->getDirection());
+  }
+  case LogicalOperatorType::RECURSIVE_EXTEND: {
+    auto extend2 = op->ptrCast<LogicalRecursiveExtend>();
+    return getGetVOpt(extend2->getBindData().extendDirection);
+  }
+  default:
+    KU_UNREACHABLE;
+  }
+}
+
+std::shared_ptr<binder::RelExpression> getRel(
+    std::shared_ptr<LogicalOperator> op) {
+  switch (op->getOperatorType()) {
+  case LogicalOperatorType::EXTEND: {
+    auto extend = op->ptrCast<LogicalExtend>();
+    return extend->getRel();
+  }
+  case LogicalOperatorType::RECURSIVE_EXTEND: {
+    auto extend2 = op->ptrCast<LogicalRecursiveExtend>();
+    return extend2->getRel();
+  }
+  default:
+    KU_UNREACHABLE;
   }
 }
 
@@ -649,8 +681,7 @@ void Planner::planGetV(
           maxCost) {
         // extract extend operator from leftPlan, which top may be filtering
         // operator
-        auto leftExtend = std::dynamic_pointer_cast<LogicalExtend>(
-            extractExtend(leftPlan->getLastOperator()));
+        auto leftExtend = extractExtend(leftPlan->getLastOperator());
         // extract getV operator from rightPlan, which top may be filtering
         // operator
         auto rightGetV = std::dynamic_pointer_cast<LogicalScanNodeTable>(
@@ -670,8 +701,8 @@ void Planner::planGetV(
           auto getVPlan = std::make_unique<LogicalPlan>();
           auto getV = std::make_unique<planner::LogicalGetV>(
               rightGetV->getNodeID(), rightGetV->getTableIDs(),
-              rightGetV->getProperties(), getGetVOpt(*leftExtend),
-              leftExtend->getRel(), leftPlan->getLastOperator(),
+              rightGetV->getProperties(), getGetVOpt(leftExtend),
+              getRel(leftExtend), leftPlan->getLastOperator(),
               joinSchema->copy(), joinCard);
           getVPlan->setLastOperator(std::move(getV));
           // append filtering predicates corresponding to the getV
@@ -697,7 +728,8 @@ void Planner::planGetV(
 
 std::shared_ptr<planner::LogicalOperator> Planner::extractExtend(
     std::shared_ptr<LogicalOperator> top) {
-  if (top->getOperatorType() == LogicalOperatorType::EXTEND) {
+  if (top->getOperatorType() == LogicalOperatorType::EXTEND ||
+      top->getOperatorType() == LogicalOperatorType::RECURSIVE_EXTEND) {
     return top;
   }
   if (top->getOperatorType() == LogicalOperatorType::FILTER) {

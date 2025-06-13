@@ -40,6 +40,19 @@ struct GNodeType {
     }
   }
 
+  std::vector<common::table_id_t> getLabelIds() const {
+    std::vector<common::table_id_t> labelIds;
+    labelIds.reserve(nodeTables.size());
+    for (const auto& nodeTable : nodeTables) {
+      if (std::find(labelIds.begin(), labelIds.end(),
+                    nodeTable->getTableID()) == labelIds.end()) {
+        labelIds.emplace_back(
+            nodeTable->getTableID());  // avoid duplicate label ids
+      }
+    }
+    return labelIds;
+  }
+
   std::vector<catalog::NodeTableCatalogEntry*> nodeTables;
 };
 
@@ -61,7 +74,11 @@ struct GRelType {
     std::vector<common::table_id_t> labelIds;
     labelIds.reserve(relTables.size());
     for (const auto& relTable : relTables) {
-      labelIds.emplace_back(relTable->getLabelId());
+      if (std::find(labelIds.begin(), labelIds.end(), relTable->getLabelId()) ==
+          labelIds.end()) {
+        labelIds.emplace_back(
+            relTable->getLabelId());  // avoid duplicate label ids
+      }
     }
     return labelIds;
   }

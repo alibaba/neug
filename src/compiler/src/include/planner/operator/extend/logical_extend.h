@@ -61,6 +61,9 @@ class LogicalExtend final : public BaseLogicalExtend {
 
   gopt::GAliasName getGAliasName() const;
 
+  gopt::GAliasName getExprGAliasName(
+      const binder::NodeOrRelExpression& rel) const;
+
   std::unique_ptr<gopt::GRelType> getRelType() const;
 
   void setPredicates(std::shared_ptr<binder::Expression> predicates_) {

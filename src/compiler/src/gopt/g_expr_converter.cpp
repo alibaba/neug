@@ -131,6 +131,7 @@ std::unique_ptr<::common::Expression> GExprConverter::convertPattern(
     break;
   }
   case common::LogicalTypeID::REL:
+  case common::LogicalTypeID::RECURSIVE_REL:
   default: {
     auto& relExpr = expr.constCast<binder::RelExpression>();
     varType = typeConverter.convertRelType(gopt::GRelType(relExpr));

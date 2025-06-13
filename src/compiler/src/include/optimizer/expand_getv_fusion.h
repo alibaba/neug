@@ -57,6 +57,8 @@ class ExpandGetVFusion : public LogicalOperatorVisitor {
       const std::shared_ptr<planner::LogicalOperator>& op);
   std::shared_ptr<planner::LogicalOperator> visitGetVReplace(
       std::shared_ptr<planner::LogicalOperator> op) override;
+  std::shared_ptr<planner::LogicalOperator> visitRecursiveExtendReplace(
+      std::shared_ptr<planner::LogicalOperator> op) override;
 };
 
 }  // namespace optimizer

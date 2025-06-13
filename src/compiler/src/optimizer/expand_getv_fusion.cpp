@@ -1,4 +1,5 @@
 #include "optimizer/expand_getv_fusion.h"
+#include "planner/operator/extend/logical_recursive_extend.h"
 
 namespace gs {
 namespace optimizer {
@@ -19,6 +20,35 @@ std::shared_ptr<planner::LogicalOperator> ExpandGetVFusion::visitOperator(
   // schema of each operator is unchanged
   // result->computeFlatSchema();
   return result;
+}
+
+std::shared_ptr<planner::LogicalOperator>
+ExpandGetVFusion::visitRecursiveExtendReplace(
+    std::shared_ptr<planner::LogicalOperator> op) {
+  KU_ASSERT(op->getOperatorType() ==
+            planner::LogicalOperatorType::RECURSIVE_EXTEND);
+  auto extendOp = op->ptrCast<planner::LogicalRecursiveExtend>();
+  if (extendOp->getResultOpt() == planner::ResultOpt::ALL_V_E) {
+    // 'ALL_V_E' means edge must be kept independently, so we cannot fuse
+    return op;
+  }
+  auto recursiveInfo = extendOp->getRel()->getRecursiveInfo();
+  // check if the base node need to filter by predicates, if exist, we cannot
+  // fuse.
+  if (recursiveInfo && recursiveInfo->nodePredicate) {
+    return op;
+  }
+
+  // check if the base node need to filter by label, if exist, we cannot fuse.
+  if (hasLabelFiltering(gopt::GNodeType{*extendOp->getNbrNode()},
+                        gopt::GRelType{*extendOp->getRel()},
+                        gopt::GNodeType{*extendOp->getBoundNode()},
+                        extendOp->getDirection())) {
+    return op;
+  }
+  // todo: handle the case of EXPANDV_GETV
+  extendOp->setFusionType(gs::optimizer::FusionType::EXPANDV);
+  return op;
 }
 
 std::shared_ptr<planner::LogicalOperator> ExpandGetVFusion::visitGetVReplace(

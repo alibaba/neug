@@ -68,6 +68,20 @@ struct KUZU_API GraphEntry {
 
   void setRelPredicate(std::shared_ptr<binder::Expression> predicate);
 
+  std::string toString() const {
+    std::string result = "GraphEntry{";
+    result += "nodeInfos=[";
+    for (auto& nodeInfo : nodeInfos) {
+      result += nodeInfo.entry->getName() + ", ";
+    }
+    result += "], relInfos=[";
+    for (auto& relInfo : relInfos) {
+      result += relInfo.entry->getName() + ", ";
+    }
+    result += "]}";
+    return result;
+  }
+
  private:
   GraphEntry(const GraphEntry& other)
       : nodeInfos{other.nodeInfos}, relInfos{other.relInfos} {}

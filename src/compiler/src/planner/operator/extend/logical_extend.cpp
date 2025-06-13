@@ -54,7 +54,8 @@ std::string LogicalExtend::getStartAliasName() const {
   return boundNode->getUniqueName();
 }
 
-gopt::GAliasName getGAliasName0(const binder::NodeOrRelExpression& rel) {
+gopt::GAliasName LogicalExtend::getExprGAliasName(
+    const binder::NodeOrRelExpression& rel) const {
   auto queryName = rel.getVariableName().empty()
                        ? std::nullopt
                        : std::make_optional(rel.getVariableName());
@@ -63,38 +64,18 @@ gopt::GAliasName getGAliasName0(const binder::NodeOrRelExpression& rel) {
 
 gopt::GAliasName LogicalExtend::getGAliasName() const {
   if (opt == planner::ExtendOpt::VERTEX) {
-    return getGAliasName0(*nbrNode);
+    return getExprGAliasName(*nbrNode);
   }
-  return getGAliasName0(*rel);
+  return getExprGAliasName(*rel);
 }
 
 std::vector<common::table_id_t> LogicalExtend::getLabelIds() const {
-  auto relExpr = getRel();
-  auto& tableEntries = relExpr->getEntries();
-  std::vector<common::table_id_t> labelIds;
-  labelIds.reserve(tableEntries.size());
-  for (auto& entry : tableEntries) {
-    auto gRel = entry->constPtrCast<catalog::GRelTableCatalogEntry>();
-    if (!gRel) {
-      throw common::Exception("Invalid relation table entry in extend: " +
-                              entry->getName());
-    }
-    labelIds.emplace_back(gRel->getLabelId());
-  }
-  return labelIds;
+  gopt::GRelType relType(*rel);
+  return relType.getLabelIds();
 }
 
 std::unique_ptr<gopt::GRelType> LogicalExtend::getRelType() const {
-  std::vector<catalog::GRelTableCatalogEntry*> relTables;
-  for (const auto& entry : rel->getEntries()) {
-    auto gRel = entry->ptrCast<catalog::GRelTableCatalogEntry>();
-    if (!gRel) {
-      throw common::Exception("Invalid relation table entry in extend: " +
-                              entry->getName());
-    }
-    relTables.emplace_back(gRel);
-  }
-  return std::make_unique<gopt::GRelType>(std::move(relTables));
+  return std::make_unique<gopt::GRelType>(*rel);
 }
 
 }  // namespace planner

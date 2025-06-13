@@ -37,6 +37,19 @@ struct RJBindData {
   RJBindData(const RJBindData& other);
 
   PathsOutputWriterInfo getPathWriterInfo() const;
+
+  std::string toString() const {
+    return "RJBindData{"
+           "graphEntry=" +
+           graphEntry.toString() +
+           ", nodeInput=" + (nodeInput ? nodeInput->toString() : "null") +
+           ", nodeOutput=" + (nodeOutput ? nodeOutput->toString() : "null") +
+           ", lowerBound=" + std::to_string(lowerBound) +
+           ", upperBound=" + std::to_string(upperBound) + ", extendDirection=" +
+           std::to_string(static_cast<uint8_t>(extendDirection)) +
+           ", relPredicate=" + pathEdgeIDsExpr->toString() +
+           ", nodePredicate=" + pathNodeIDsExpr->toString() + "}";
+  }
 };
 
 class RJAlgorithm {
@@ -48,6 +61,20 @@ class RJAlgorithm {
       const RJBindData& bindData) const = 0;
 
   virtual std::unique_ptr<RJAlgorithm> copy() const = 0;
+};
+
+class DefaultRJAlgorithm : public RJAlgorithm {
+ public:
+  std::string getFunctionName() const override { return "DefaultRJ"; }
+
+  binder::expression_vector getResultColumns(
+      const RJBindData& bindData) const override {
+    return {};
+  }
+
+  std::unique_ptr<RJAlgorithm> copy() const override {
+    return std::make_unique<DefaultRJAlgorithm>(*this);
+  }
 };
 
 }  // namespace function

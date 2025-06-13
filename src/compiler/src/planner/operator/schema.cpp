@@ -56,8 +56,12 @@ void Schema::insertToGroupAndScope(const expression_vector& expressions,
 }
 
 f_group_pos Schema::getGroupPos(const std::string& expressionName) const {
-  KU_ASSERT(expressionNameToGroupPos.contains(expressionName));
-  return expressionNameToGroupPos.at(expressionName);
+  // KU_ASSERT(expressionNameToGroupPos.contains(expressionName));
+  if (expressionNameToGroupPos.contains(expressionName)) {
+    return expressionNameToGroupPos.at(expressionName);
+  } else {
+    return 0;
+  }
 }
 
 bool Schema::isExpressionInScope(const Expression& expression) const {

@@ -20,6 +20,7 @@
 #include "common/exception/exception.h"
 #include "common/types/types.h"
 #include "planner/operator/extend/logical_extend.h"
+#include "planner/operator/extend/logical_recursive_extend.h"
 #include "planner/operator/logical_aggregate.h"
 #include "planner/operator/logical_get_v.h"
 #include "planner/operator/logical_operator.h"
@@ -45,6 +46,11 @@ void GAliasManager::extractGAliasNames(
   }
   case planner::LogicalOperatorType::EXTEND: {
     auto& extendOp = op.constCast<planner::LogicalExtend>();
+    aliasNames.emplace_back(extendOp.getGAliasName());
+    break;
+  }
+  case planner::LogicalOperatorType::RECURSIVE_EXTEND: {
+    auto& extendOp = op.constCast<planner::LogicalRecursiveExtend>();
     aliasNames.emplace_back(extendOp.getGAliasName());
     break;
   }
@@ -103,15 +109,24 @@ void GAliasManager::visitOperator(const planner::LogicalOperator& op) {
   extractGAliasNames(op, aliasNames);
   for (const auto& name : aliasNames) {
     switch (op.getOperatorType()) {
-    case planner::LogicalOperatorType::EXTEND: {
-      auto& extendOp = op.constCast<planner::LogicalExtend>();
-      if (extendOp.getExtendOpt() == planner::ExtendOpt::VERTEX) {
-        auto relUniqueName = extendOp.getRel()->getUniqueName();
-        uniqueNameToId[relUniqueName] = DEFAULT_ALIAS_ID;
-      }
-    }
+    case planner::LogicalOperatorType::EXTEND:
+    case planner::LogicalOperatorType::RECURSIVE_EXTEND:
     case planner::LogicalOperatorType::SCAN_NODE_TABLE:
     case planner::LogicalOperatorType::GET_V: {
+      if (op.getOperatorType() == planner::LogicalOperatorType::EXTEND) {
+        auto& extendOp = op.constCast<planner::LogicalExtend>();
+        if (extendOp.getExtendOpt() == planner::ExtendOpt::VERTEX) {
+          auto relUniqueName = extendOp.getRel()->getUniqueName();
+          uniqueNameToId[relUniqueName] = DEFAULT_ALIAS_ID;
+        }
+      } else if (op.getOperatorType() ==
+                 planner::LogicalOperatorType::RECURSIVE_EXTEND) {
+        auto& extendOp = op.constCast<planner::LogicalRecursiveExtend>();
+        // add alias names of expand and getV base, which are required by the
+        // filtering on path node or rels.
+        uniqueNameToId[extendOp.getExpandBaseName()] = DEFAULT_ALIAS_ID;
+        uniqueNameToId[extendOp.getGetVBaseName()] = DEFAULT_ALIAS_ID;
+      }
       auto uniqueName = name.uniqueName;
       auto queryName = name.queryName;
       if (!queryName.has_value()) {

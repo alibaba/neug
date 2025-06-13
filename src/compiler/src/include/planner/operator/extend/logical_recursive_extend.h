@@ -1,10 +1,15 @@
 #pragma once
 
+#include "binder/expression/node_expression.h"
+#include "binder/expression/rel_expression.h"
 #include "function/gds/rec_joins.h"
+#include "optimizer/expand_getv_fusion.h"
 #include "planner/operator/logical_operator.h"
 
 namespace gs {
 namespace planner {
+
+enum ResultOpt { END_V = 0, ALL_V = 1, ALL_V_E = 2 };
 
 class LogicalRecursiveExtend final : public LogicalOperator {
   static constexpr LogicalOperatorType operatorType_ =
@@ -20,8 +25,29 @@ class LogicalRecursiveExtend final : public LogicalOperator {
         resultColumns{std::move(resultColumns)},
         limitNum{common::INVALID_LIMIT} {}
 
+  LogicalRecursiveExtend(std::unique_ptr<function::RJAlgorithm> function,
+                         const function::RJBindData& bindData,
+                         binder::expression_vector resultColumns,
+                         std::shared_ptr<binder::RelExpression> relExpr)
+      : LogicalOperator{operatorType_},
+        function{std::move(function)},
+        bindData{bindData},
+        resultColumns{std::move(resultColumns)},
+        limitNum{common::INVALID_LIMIT},
+        relExpr{relExpr} {}
+
   void computeFlatSchema() override;
   void computeFactorizedSchema() override;
+
+  common::ExtendDirection getDirection() const {
+    return bindData.extendDirection;
+  }
+
+  void setFusionType(gs::optimizer::FusionType fusionType_) {
+    fusionType = fusionType_;
+  }
+
+  gs::optimizer::FusionType getFusionType() const { return fusionType; }
 
   void setFunction(std::unique_ptr<function::RJAlgorithm> func) {
     function = std::move(func);
@@ -53,17 +79,71 @@ class LogicalRecursiveExtend final : public LogicalOperator {
     return nullptr;
   }
 
-  std::string getExpressionsForPrinting() const override {
-    return function->getFunctionName();
-  }
+  std::string getExpressionsForPrinting() const override;
 
   std::unique_ptr<LogicalOperator> copy() override {
     auto result = std::make_unique<LogicalRecursiveExtend>(
-        function->copy(), bindData, resultColumns);
+        function->copy(), bindData, resultColumns, relExpr);
     result->limitNum = limitNum;
     result->hasInputNodeMask_ = hasInputNodeMask_;
     result->hasOutputNodeMask_ = hasOutputNodeMask_;
     return result;
+  }
+
+  std::shared_ptr<binder::NodeExpression> getBoundNode() const {
+    return std::dynamic_pointer_cast<binder::NodeExpression>(
+        bindData.nodeInput);
+  }
+
+  std::shared_ptr<binder::NodeExpression> getNbrNode() const {
+    return std::dynamic_pointer_cast<binder::NodeExpression>(
+        bindData.nodeOutput);
+  }
+
+  std::shared_ptr<binder::RelExpression> getRel() const { return relExpr; }
+
+  void setResultOpt(ResultOpt opt) { resultOpt = opt; }
+
+  ResultOpt getResultOpt() const {
+    if (relExpr) {
+      std::string relVarName = relExpr->getVariableName();
+      if (relVarName.empty()) {
+        return ResultOpt::END_V;  // optimize the ResultOpt to 'END_V' if no
+                                  // query given alias
+      }
+    }
+    return resultOpt;
+  }
+
+  std::string getExpandBaseName() const {
+    auto recursiveInfo = relExpr->getRecursiveInfo();
+    return recursiveInfo->rel->getUniqueName();
+  }
+
+  std::string getGetVBaseName() const {
+    auto recursiveInfo = relExpr->getRecursiveInfo();
+    return recursiveInfo->node->getUniqueName();
+  }
+
+  std::string getAliasName() const {
+    if (!relExpr) {
+      throw common::Exception(
+          "LogicalRecursiveExtend does not have a relational expression.");
+    }
+    return relExpr->getUniqueName();
+  }
+
+  std::string getStartAliasName() const {
+    return getBoundNode()->getUniqueName();
+  }
+
+  gopt::GAliasName getGAliasName() const {
+    if (!relExpr) {
+      throw common::Exception(
+          "LogicalRecursiveExtend does not have a relational expression.");
+    }
+    return gopt::GAliasName{relExpr->getUniqueName(),
+                            relExpr->getVariableName()};
   }
 
  private:
@@ -76,6 +156,10 @@ class LogicalRecursiveExtend final : public LogicalOperator {
 
   bool hasInputNodeMask_ = false;
   bool hasOutputNodeMask_ = false;
+  std::shared_ptr<binder::RelExpression> relExpr;
+  gs::optimizer::FusionType fusionType =
+      gs::optimizer::FusionType::EXPANDE_GETV;
+  ResultOpt resultOpt = ResultOpt::ALL_V;
 };
 
 }  // namespace planner
