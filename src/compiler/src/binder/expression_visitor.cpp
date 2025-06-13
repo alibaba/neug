@@ -260,6 +260,12 @@ void PropertyExprCollector::visitNodeRelExpr(std::shared_ptr<Expression> expr) {
   }
 }
 
+void RenameDependentVar::visitPropertyExpr(std::shared_ptr<Expression> expr) {
+  // Rename the variable name of the property expression.
+  auto propertyExpr = expr->ptrCast<PropertyExpression>();
+  propertyExpr->setUniqueVarName(newVarName);
+}
+
 bool ConstantExpressionVisitor::needFold(const Expression& expr) {
   if (expr.expressionType == common::ExpressionType::LITERAL) {
     return false;  // No need to fold a literal.

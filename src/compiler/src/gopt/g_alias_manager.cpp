@@ -139,6 +139,9 @@ void GAliasManager::addGAliasName(const gopt::GAliasName& name) {
 }
 
 common::alias_id_t GAliasManager::getAliasId(const std::string& uniqueName) {
+  if (uniqueName == DEFAULT_ALIAS_NAME) {
+    return DEFAULT_ALIAS_ID;
+  }
   if (!uniqueNameToId.contains(uniqueName)) {
     throw common::Exception("Unique name not found: " + uniqueName);
   }

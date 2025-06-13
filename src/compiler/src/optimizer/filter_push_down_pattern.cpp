@@ -1,4 +1,5 @@
 #include "optimizer/filter_push_down_pattern.h"
+#include "gopt/g_alias_manager.h"
 
 namespace gs {
 namespace optimizer {
@@ -66,9 +67,17 @@ bool FilterPushDownPattern::canPushDown(
   return true;
 }
 
+void FilterPushDownPattern::renameDependentVar(
+    std::shared_ptr<binder::Expression> predicate,
+    const std::string& newVarName) {
+  binder::RenameDependentVar renameVisitor(newVarName);
+  renameVisitor.visit(predicate);
+}
+
 std::shared_ptr<planner::LogicalOperator> FilterPushDownPattern::perform(
     std::shared_ptr<planner::LogicalOperator> child,
     std::shared_ptr<binder::Expression> predicate) {
+  renameDependentVar(predicate, gs::gopt::DEFAULT_ALIAS_NAME);
   switch (child.get()->getOperatorType()) {
   case planner::LogicalOperatorType::SCAN_NODE_TABLE: {
     auto scanOp = child->ptrCast<planner::LogicalScanNodeTable>();

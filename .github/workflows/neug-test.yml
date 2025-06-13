@@ -87,7 +87,7 @@ jobs:
         GS_TEST_DIR: ${{ github.workspace }}/gstest
       run: |
         git clone -b master --single-branch --depth=1 https://github.com/GraphScope/gstest.git ${GS_TEST_DIR}
-        rm -rf /tmp/modern_graph && rm -rf /tmp/lsqb && rm -rf /tmp/ldbc
+        rm -rf /tmp/modern_graph && rm -rf /tmp/lsqb && rm -rf /tmp/ldbc && rm -rf /tmp/tinysnb
         cd ${GITHUB_WORKSPACE}/tools/python_bind/
         export FLEX_DATA_DIR=${GITHUB_WORKSPACE}/example_dataset/modern_graph
         GLOG_v=10 ./build/nexg_py_bind/src/bin/bulk_loader -g ../../example_dataset/modern_graph/graph.yaml -l ../../example_dataset/modern_graph/import.yaml -d /tmp/modern_graph
@@ -95,6 +95,8 @@ jobs:
         GLOG_v=10 ./build/nexg_py_bind/src/bin/bulk_loader -g ../../example_dataset/lsqb-sf01/graph.yaml -l ../../example_dataset/lsqb-sf01/import.yaml -d /tmp/lsqb
         export FLEX_DATA_DIR=${GS_TEST_DIR}/flex/ldbc-sf01-long-date
         GLOG_v=10 ./build/nexg_py_bind/src/bin/bulk_loader -g ../../example_dataset/ldbc/graph.yaml -l ../../example_dataset/ldbc/import.yaml -d /tmp/ldbc/
+        export FLEX_DATA_DIR=${GITHUB_WORKSPACE}/example_dataset/tinysnb
+        GLOG_v=10 ./build/nexg_py_bind/src/bin/bulk_loader -g ../../example_dataset/tinysnb/graph-modify.yaml -l ../../example_dataset/tinysnb/import.yaml -d /tmp/tinysnb
 
     - name: Run Python Test
       run: |
@@ -116,6 +118,11 @@ jobs:
         cd ${GITHUB_WORKSPACE}/tools/python_bind/
         export FLEX_DATA_DIR=${GITHUB_WORKSPACE}/example_dataset/modern_graph
         GLOG_v=10 ./build/nexg_py_bind/tests/rt_mutable_graph/test_gopt_planner /tmp/test_gopt_planner
+
+    - name: Run TinySNB Test
+      run: |
+        cd ${GITHUB_WORKSPACE}/tools/python_bind/
+        GLOG_v=10 ./build/nexg_py_bind/tests/rt_mutable_graph/test_run_query /tmp/tinysnb "MATCH (a:person)-[e1:knows]->(b:person) WHERE a.age > 35 RETURN b.fName"
 
     - name: Run DB Init Test
       run: |

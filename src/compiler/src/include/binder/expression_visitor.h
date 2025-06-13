@@ -90,6 +90,17 @@ class PropertyExprCollector final : public ExpressionVisitor {
   expression_vector expressions;
 };
 
+class RenameDependentVar final : public ExpressionVisitor {
+ public:
+  RenameDependentVar(const std::string& newVarName) : newVarName{newVarName} {}
+
+ protected:
+  void visitPropertyExpr(std::shared_ptr<Expression> expr) override;
+
+ private:
+  std::string newVarName;
+};
+
 class ConstantExpressionVisitor {
  public:
   static bool needFold(const Expression& expr);

@@ -58,6 +58,11 @@ class PropertyExpression final : public Expression {
   std::string getVariableName() const { return uniqueVarName; }
   std::string getRawVariableName() const { return rawVariableName; }
 
+  void setUniqueVarName(const std::string& uniqueVarName) {
+    this->uniqueVarName = uniqueVarName;
+    this->uniqueName = uniqueVarName + "." + propertyName;
+  }
+
   // If this property exists for given table.
   bool hasProperty(common::table_id_t tableID) const;
 

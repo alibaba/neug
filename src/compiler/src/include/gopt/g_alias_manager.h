@@ -27,6 +27,7 @@ namespace gs {
 namespace gopt {
 
 const static common::alias_id_t DEFAULT_ALIAS_ID = -1;
+const static std::string DEFAULT_ALIAS_NAME = "__default_alias_name__";
 
 class GAliasManager {
  public:
