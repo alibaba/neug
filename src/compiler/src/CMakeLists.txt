@@ -25,8 +25,8 @@ add_subdirectory(gopt)
 add_library(nexg_compiler STATIC ${ALL_OBJECT_FILES})
 add_library(nexg_compiler_shared SHARED ${ALL_OBJECT_FILES})
 
-set(KUZU_LIBRARIES antlr4_cypher antlr4_runtime fast_float utf8proc re2 roaring_bitmap parquet  thrift  zstd miniz mbedtls lz4  yaml-cpp)
-# brotlidec brotlicommon fastpfor snappy  yyjson 
+set(KUZU_LIBRARIES antlr4_cypher antlr4_runtime fast_float utf8proc re2 roaring_bitmap   thrift  zstd miniz mbedtls lz4  yaml-cpp)
+# brotlidec brotlicommon fastpfor snappy  yyjson parquet
 if (NOT __SINGLE_THREADED__)
         set(KUZU_LIBRARIES ${KUZU_LIBRARIES} Threads::Threads)
 endif()

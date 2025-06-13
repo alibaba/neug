@@ -539,6 +539,9 @@ include_directories(SYSTEM ${CMAKE_SOURCE_DIR}/third_party/antlr4_cypher/include
 
 #-------------------Compiler's third party libraries-------------------
 if (BUILD_COMPILER)
+    if(NOT MSVC)
+        add_compile_options(-Wno-extra)
+    endif()
     add_subdirectory(third_party/antlr4_cypher)
     add_subdirectory(third_party/antlr4_runtime)
     add_subdirectory(third_party/fast_float)
@@ -546,7 +549,6 @@ if (BUILD_COMPILER)
     add_subdirectory(third_party/lz4)
     add_subdirectory(third_party/mbedtls)
     add_subdirectory(third_party/miniz)
-    add_subdirectory(third_party/parquet)
     add_subdirectory(third_party/re2)
     add_subdirectory(third_party/roaring_bitmap)
     add_subdirectory(third_party/thrift)
