@@ -16,21 +16,21 @@
 # limitations under the License.
 #
 
+import glob
 import multiprocessing
 import os
 import re
 import shutil
 import subprocess
 import sys
-import glob
-import subprocess
+from distutils.cmd import Command
 from pathlib import Path
 
+from setuptools import Extension
 from setuptools import find_packages  # noqa: H301
-from setuptools import Extension, setup
+from setuptools import setup
 from setuptools.command.build_ext import build_ext
 from setuptools.command.build_py import build_py as _build_py
-from distutils.cmd import Command
 
 base_dir = os.path.dirname(__file__)
 
@@ -66,17 +66,17 @@ class CMakeExtension(Extension):
 
 
 class CMakeBuild(build_ext):
-    
+
     def initialize_options(self):
         super().initialize_options()
         # We set the build_temp to the local build/ directory
         self.build_temp = Path.cwd() / "build"
-        
+
     def run(self):
         # Currently uncommented to avoid containing the jar in the wheel
         self.download_compiler_jar()
         super().run()
-        
+
     def download_compiler_jar(self):
         resource_ur = "https://graphscope.oss-cn-beijing.aliyuncs.com/compiler/compiler-0.0.1-SNAPSHOT-shade-0521.jar"
         target_dir = "nexg/resources"
@@ -95,7 +95,7 @@ class CMakeBuild(build_ext):
                 )
         else:
             print(f"{target_file} already exists. Skipping download.")
-    
+
     def build_extension(self, ext: CMakeExtension) -> None:
         # Must be in this form due to bug in .resolve() only fixed in Python 3.10+
         ext_fullpath = Path.cwd() / self.get_ext_fullpath(ext.name)
@@ -106,12 +106,16 @@ class CMakeBuild(build_ext):
 
         debug = int(os.environ.get("DEBUG", 0))
         cfg = "DEBUG" if debug else "Release"
-        build_executables = "ON" if os.environ.get("BUILD_EXECUTABLES", "OFF") == "ON" else "OFF"
-        build_compiler = "ON" if os.environ.get("BUILD_COMPILER", "ON") == "ON" else "OFF"
+        build_executables = (
+            "ON" if os.environ.get("BUILD_EXECUTABLES", "OFF") == "ON" else "OFF"
+        )
+        build_compiler = (
+            "ON" if os.environ.get("BUILD_COMPILER", "ON") == "ON" else "OFF"
+        )
         use_ninja = os.environ.get("USE_NINJA", "OFF") == "ON"
         build_test = "OFF"
         if os.environ.get("BUILD_TEST", "OFF") == "ON":
-            build_test = "ON" 
+            build_test = "ON"
         # cfg is now dynamically set based on the DEBUG environment variable
 
         # CMake lets you override the generator - we need to check this.
@@ -125,7 +129,7 @@ class CMakeBuild(build_ext):
             f"-DCMAKE_LIBRARY_OUTPUT_DIRECTORY={extdir}{os.sep}",
             f"-DPYTHON_EXECUTABLE={sys.executable}",
             f"-DCMAKE_BUILD_TYPE={cfg}",  # not used on MSVC, but no harm
-            f"-DOPTIMIZE_FOR_HOST=OFF",
+            "-DOPTIMIZE_FOR_HOST=OFF",
             f"-DBUILD_EXECUTABLES={build_executables}",
             f"-DBUILD_TEST={build_test}",
             f"-DBUILD_COMPILER={build_compiler}",
@@ -187,7 +191,7 @@ class CMakeBuild(build_ext):
         if "CMAKE_BUILD_PARALLEL_LEVEL" not in os.environ:
             # self.parallel is a Python 3 only way to set parallel jobs by hand
             # using -j in the build_ext call, not supported by pip or PyPA-build.
-            build_args += [f"-j8"]
+            build_args += ["-j8"]
         else:
             # If the user has set CMAKE_BUILD_PARALLEL_LEVEL, we respect that.
             build_args += [f"-j{os.environ['CMAKE_BUILD_PARALLEL_LEVEL']}"]
@@ -211,7 +215,7 @@ class CMakeBuild(build_ext):
             cwd=build_temp,
             check=True,
         )
-        
+
     def copy_extensions_to_source(self):
         pass
 
@@ -247,6 +251,7 @@ class BuildProto(Command):
                 cmd,
                 stderr=subprocess.STDOUT,
             )
+
     def run(self):
         proto_path = os.path.join(repo_root, "proto")
         output_dir = os.path.join(base_dir, "nexg", "proto")

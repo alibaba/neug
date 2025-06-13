@@ -19,6 +19,7 @@
 """The Neug result module."""
 
 from nexg_py_bind import PyQueryResult
+
 # PyQueryResult is defined in the nexg_py_bind module, which is a C++ binding for the Python interface.
 # See py_query_result.h for the definition of PyQueryResult.
 
@@ -33,7 +34,7 @@ class QueryResult(object):
         - `length()`: Returns the total number of results.
 
     .. code:: python
-        
+
         >>> from nexg import Database
         >>> db = Database("/tmp/test.db", mode="r")
         >>> conn = db.connect()
@@ -44,7 +45,7 @@ class QueryResult(object):
 
     def __init__(self, result: PyQueryResult):
         """
-        Initialize the QueryResult. 
+        Initialize the QueryResult.
 
         Parameters
         ----------
@@ -58,10 +59,10 @@ class QueryResult(object):
         Iterate over the result.
         """
         return self
-    
+
     def __next__(self):
         if self._result.hasNext():
-            return self._result.getNext() # Returns a list
+            return self._result.getNext()  # Returns a list
         else:
             raise StopIteration
 

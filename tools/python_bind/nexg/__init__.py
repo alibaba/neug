@@ -15,13 +15,13 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
-import os
-import sys
-import platform
-
 import logging
+import os
+import platform
+import sys
 
 logger = logging.getLogger("nexg")
+
 
 def config_logging(log_level):
     """Set log level basic on config.
@@ -38,6 +38,7 @@ def config_logging(log_level):
 
     logger = logging.getLogger("nexg")
     logger.setLevel(log_level)
+
 
 def get_build_lib_dir() -> str:
     """
@@ -59,7 +60,11 @@ def get_build_lib_dir() -> str:
             build_dir = os.path.join(
                 build_dir_parent,
                 next(
-                    (d for d in os.listdir(os.path.join(cur_dir, "..", "build")) if d.startswith("lib.macosx")),
+                    (
+                        d
+                        for d in os.listdir(os.path.join(cur_dir, "..", "build"))
+                        if d.startswith("lib.macosx")
+                    ),
                     None,
                 ),
             )
@@ -71,13 +76,13 @@ def get_build_lib_dir() -> str:
             "..",
             "build",
             f"lib.{os_name}-{os.uname().machine}-{sys.version_info.major}.{sys.version_info.minor}",
-            )
+        )
     logger.info("Build directory: %s", build_dir)
     if build_dir is not None:
         if os.path.exists(build_dir):
             logger.info("Using build directory: %s", build_dir)
     return build_dir
-    
+
 
 config_logging("INFO")
 try:

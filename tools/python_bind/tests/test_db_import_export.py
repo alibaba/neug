@@ -1,17 +1,17 @@
 import os
-import pytest
 import sys
 
+import pytest
+
 sys.path.append(os.path.join(os.path.dirname(__file__), "../"))
+from errors import ERR_BAD_ENCODING
+from errors import ERR_DIRECTORY_NOT_EXIST
+from errors import ERR_PERMISSION
+from errors import ERR_SCHEMA_MISMATCH
+from errors import ERR_TYPE_CONVERSION
+from errors import ERROR_STRINGS
+
 from nexg.database import Database
-from errors import (
-    ERR_DIRECTORY_NOT_EXIST,
-    ERR_SCHEMA_MISMATCH,
-    ERR_TYPE_CONVERSION,
-    ERR_BAD_ENCODING,
-    ERR_PERMISSION,
-    ERROR_STRINGS,
-)
 
 
 # DB-005-01 数据导入-配置

@@ -1,8 +1,45 @@
 # NeuG v0.1 Error Code 定义
 
-from nexg.proto.error_pb2 import *
+from nexg.proto.error_pb2 import ERR_ARCH_MISMATCH
+from nexg.proto.error_pb2 import ERR_BAD_ENCODING
+from nexg.proto.error_pb2 import ERR_CODEGEN_ERROR
+from nexg.proto.error_pb2 import ERR_COMPILATION
+from nexg.proto.error_pb2 import ERR_CONCURRENT_WRITE
+from nexg.proto.error_pb2 import ERR_CONFIG_INVALID
+from nexg.proto.error_pb2 import ERR_CONNECTION_BROKEN
+from nexg.proto.error_pb2 import ERR_CORRUPTION_DETECTED
+from nexg.proto.error_pb2 import ERR_DATABASE_LOCKED
+from nexg.proto.error_pb2 import ERR_DEPLOY_DEPENDENCY
+from nexg.proto.error_pb2 import ERR_DIRECTORY_NOT_EXIST
+from nexg.proto.error_pb2 import ERR_DISK_SPACE_EXHAUSTED
+from nexg.proto.error_pb2 import ERR_ILLEGAL_OPERATION
+from nexg.proto.error_pb2 import ERR_INTERNAL_ERROR
+from nexg.proto.error_pb2 import ERR_INVALID_ARGUMENT
+from nexg.proto.error_pb2 import ERR_INVALID_PATH
+from nexg.proto.error_pb2 import ERR_INVALID_SCHEMA
+from nexg.proto.error_pb2 import ERR_IO_ERROR
+from nexg.proto.error_pb2 import ERR_LOAD_OVERFLOW
+from nexg.proto.error_pb2 import ERR_NETWORK
+from nexg.proto.error_pb2 import ERR_NOT_FOUND
+from nexg.proto.error_pb2 import ERR_NOT_IMPLEMENTED
+from nexg.proto.error_pb2 import ERR_NOT_SUPPORTED
+from nexg.proto.error_pb2 import ERR_PERMISSION
+from nexg.proto.error_pb2 import ERR_PLATFORM_ABI
+from nexg.proto.error_pb2 import ERR_POOL_EXHAUSTED
+from nexg.proto.error_pb2 import ERR_PY_BIND_INIT
+from nexg.proto.error_pb2 import ERR_QUERY_EXECUTION
+from nexg.proto.error_pb2 import ERR_QUERY_SYNTAX
+from nexg.proto.error_pb2 import ERR_QUERY_TIMEOUT
+from nexg.proto.error_pb2 import ERR_SCHEMA_MISMATCH
+from nexg.proto.error_pb2 import ERR_SERVICE_UNAVAILABLE
+from nexg.proto.error_pb2 import ERR_TX_STATE_CONFLICT
+from nexg.proto.error_pb2 import ERR_TX_TIMEOUT
+from nexg.proto.error_pb2 import ERR_TYPE_CONVERSION
+from nexg.proto.error_pb2 import ERR_UNKNOWN
+from nexg.proto.error_pb2 import ERR_VERSION_MISMATCHED
+from nexg.proto.error_pb2 import ERR_WAL_WRITE_FAIL
 
-
+# 兼容字符串映射（可根据实际报错内容调整）
 ERROR_STRINGS = {
     ERR_PERMISSION: "Permission denied",
     ERR_VERSION_MISMATCHED: "version mismatch",
@@ -19,33 +56,27 @@ ERROR_STRINGS = {
     ERR_ILLEGAL_OPERATION: "illegal operation",
     ERR_IO_ERROR: "io error",
     ERR_BAD_ENCODING: "bad encoding",
-
     ERR_NETWORK: "network error",
     ERR_CONNECTION_BROKEN: "connection broken",
     ERR_POOL_EXHAUSTED: "connection pool exhausted",
     ERR_SERVICE_UNAVAILABLE: "service unavailable",
     ERR_LOAD_OVERFLOW: "load overflow",
-
     ERR_COMPILATION: "compilation error",
     ERR_QUERY_EXECUTION: "execution error",
     ERR_QUERY_SYNTAX: "syntax error",
     ERR_QUERY_TIMEOUT: "query timeout",
     ERR_CONCURRENT_WRITE: "concurrent write conflict",
     ERR_CODEGEN_ERROR: "codegen error",
-
     ERR_TX_STATE_CONFLICT: "a read-write connection constructed",
     ERR_WAL_WRITE_FAIL: "wal write fail",
     ERR_TX_TIMEOUT: "transaction timeout",
-
     ERR_SCHEMA_MISMATCH: "schema mismatch",
     ERR_INVALID_SCHEMA: "invalid schema",
     ERR_TYPE_CONVERSION: "type conversion error",
-
     ERR_PLATFORM_ABI: "platform abi error",
     ERR_PY_BIND_INIT: "python binding init error",
     ERR_ARCH_MISMATCH: "arch mismatch",
     ERR_DEPLOY_DEPENDENCY: "deploy dependency error",
-
     ERR_NOT_IMPLEMENTED: "not implemented",
     ERR_UNKNOWN: "unknown error",
 }

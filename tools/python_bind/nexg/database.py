@@ -26,12 +26,11 @@ import nexg_py_bind
 from nexg.connection import Connection
 from nexg.version import __version__
 
-
 logger = logging.getLogger(__name__)
 
 cur_file_path = os.path.dirname(os.path.abspath(__file__))
 cur_dir_path = os.path.dirname(cur_file_path)
-resource_dir = os.path.join(cur_dir_path,"nexg", "resources")
+resource_dir = os.path.join(cur_dir_path, "nexg", "resources")
 
 
 class Database(object):
@@ -42,8 +41,10 @@ class Database(object):
 
     The database could be opened with different modes(read-only or read-write) and different planners.
 
-    When the database is opened in read-only mode, other databases could also open the same database directory in read-only mode, inside the same process or in different processes.
-    When the database is opened in read-write mode, no other databases could open the same database directory in either read-only or read-write mode, inside the same process or in different processes.
+    When the database is opened in read-only mode, other databases could also open the same database directory in
+    read-only mode, inside the same process or in different processes.
+    When the database is opened in read-write mode, no other databases could open the same database directory in
+    either read-only or read-write mode, inside the same process or in different processes.
 
     When the database is closed, all the connections to the database will be closed automatically.
 
@@ -56,7 +57,7 @@ class Database(object):
         >>> # Use the connection to interact with the database
         >>> conn.execute('CREATE TABLE person(id INT64, name STRING);')
         >>> conn.execute('CREATE TABLE knows(FROM person TO person, weight DOUBLE);')
-        
+
         >>> # Import data from csv file.
         >>> conn.execute('COPY person FROM "person.csv"')
         >>> conn.execute('COPY knows FROM "knows.csv" (from="person", to="person");')
@@ -66,7 +67,15 @@ class Database(object):
         >>>     print(record)
     """
 
-    def __init__(self, db_path: str, mode: str = "r",  max_thread_num : int = 0,  planner = "jni", jni_planner_jar_path = None, planner_config_path = None):
+    def __init__(
+        self,
+        db_path: str,
+        mode: str = "r",
+        max_thread_num: int = 0,
+        planner="jni",
+        jni_planner_jar_path=None,
+        planner_config_path=None,
+    ):
         """
         Open a database.
 
@@ -81,9 +90,11 @@ class Database(object):
         planner : str
             The planner to use, should be one of 'jni', 'gopt'. Default is 'jni'.
         jni_planner_jar_path : str
-            Only take effect when planner is 'jni'. Path to the JNI planner jar file. Default is None. If none, the default jar path will be used.
+            Only take effect when planner is 'jni'. Path to the JNI planner jar file. Default is None.
+            If none, the default jar path will be used.
         planner_config_path : str
-            Only take effect when planner is 'jni'. Path to the planner config file. Default is None. If none, the default config path will be used.
+            Only take effect when planner is 'jni'. Path to the planner config file. Default is None.
+            If none, the default config path will be used.
 
         Raises
         ------
@@ -95,18 +106,29 @@ class Database(object):
         """
         self._database = None
         self._db_path = None
-        self._illegal_chars = ['?', '*', '"', '<', '>', '|', ':', '\\']
+        self._illegal_chars = ["?", "*", '"', "<", ">", "|", ":", "\\"]
         if any(char in db_path for char in self._illegal_chars):
-            raise ValueError(f"invalid path: database path '{db_path}' contains illegal characters: {self._illegal_chars}.")
+            raise ValueError(
+                f"invalid path: database path '{db_path}' contains illegal characters: {self._illegal_chars}."
+            )
         self._db_path = db_path
         self._mode = mode
         if self._mode not in ["r", "read", "w", "rw", "write", "readwrite"]:
-            raise ValueError(f"Invalid mode: {self._mode}. Must be one of 'r', 'read', 'w', 'rw', 'write', 'readwrite'.")
-        if planner not in ["jni", "gopt", "dummy"]: # TODO(zhanglei): Remove 'dummy' when we have a real planner.
-            raise ValueError(f"Invalid planner: {planner}. Must be one of 'jni', 'gopt', 'dummy'.")
+            raise ValueError(
+                f"Invalid mode: {self._mode}. Must be one of 'r', 'read', 'w', 'rw', 'write', 'readwrite'."
+            )
+        if planner not in [
+            "jni",
+            "gopt",
+            "dummy",
+        ]:  # TODO(zhanglei): Remove 'dummy' when we have a real planner.
+            raise ValueError(
+                f"Invalid planner: {planner}. Must be one of 'jni', 'gopt', 'dummy'."
+            )
         # The default connection of the database, will be lazy initialized if get_default_connection is called.
         # In 'r' mode, the default connection will be a read-only connection.
-        # In 'w' mode, the default connection will be a read-write connection. And we won't allow to create any new connections.
+        # In 'w' mode, the default connection will be a read-write connection.
+        # And we won't allow to create any new connections.
         if planner == "jni" and jni_planner_jar_path is None:
             jni_planner_jar_path = self._get_default_jni_planner_jar_path()
         if planner_config_path is None:
@@ -116,20 +138,34 @@ class Database(object):
         # if before python 3.9, use importlib_resources
         try:
             from importlib.resources import files
+
             resource_path = files("nexg").joinpath("resources")
         except ImportError:
             import importlib_resources
-            #TODO
+
+            # TODO
             resource_path = importlib_resources.files("nexg").joinpath("resources")
-        
+
         if not resource_path.exists():
             raise RuntimeError(f"Resource path not found: {resource_path}")
         # Convert to string
         resource_path = str(resource_path.resolve())
         # TODO: refactor it into a pydict.
-        # Currently, no intellisense here. self._database is of class PyDatabase, defined in tools/python_bind/src/py_database.h
-        self._database = nexg_py_bind.PyDatabase(db_path, max_thread_num, mode, planner, jni_planner_jar_path, planner_config_path, resource_path)
-        logger.info(f"Open database {db_path} in {mode} mode, planner: {planner}, config: {planner_config_path}, jar: {jni_planner_jar_path}, resource_path: {resource_path}.")
+        # Currently, no intellisense here. self._database is of class PyDatabase,
+        # defined in tools/python_bind/src/py_database.h
+        self._database = nexg_py_bind.PyDatabase(
+            db_path,
+            max_thread_num,
+            mode,
+            planner,
+            jni_planner_jar_path,
+            planner_config_path,
+            resource_path,
+        )
+        logger.info(
+            f"Open database {db_path} in {mode} mode, planner: {planner}, config: {planner_config_path},"
+            f"jar: {jni_planner_jar_path}, resource_path: {resource_path}."
+        )
 
     def __del__(self):
         self.close()
@@ -170,8 +206,7 @@ class Database(object):
         if self._database:
             self._database.close()
             self._database = None
-            
-    
+
     def _get_default_jni_planner_jar_path(self):
         """
         Get the default JNI planner jar path.
@@ -183,7 +218,7 @@ class Database(object):
             raise RuntimeError(f"JNI planner jar file not found: {jar_path}")
         logger.info(f"Using JNI planner jar file: {jar_path}")
         return jar_path
-    
+
     def _get_default_planner_config_path(self):
         """
         Get the default planner config path.

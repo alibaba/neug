@@ -1,17 +1,18 @@
 import os
-import pytest
 import sys
 import time
 
+import pytest
+
 sys.path.append(os.path.join(os.path.dirname(__file__), "../"))
+from errors import ERR_SCHEMA_MISMATCH
+from errors import ERR_TX_STATE_CONFLICT
+from errors import ERR_TX_TIMEOUT
+from errors import ERR_TYPE_CONVERSION
+from errors import ERROR_STRINGS
+
 from nexg.database import Database
-from errors import (
-    ERR_TX_STATE_CONFLICT,
-    ERR_SCHEMA_MISMATCH,
-    ERR_TYPE_CONVERSION,
-    ERR_TX_TIMEOUT,
-    ERROR_STRINGS,
-)
+
 
 # DB-004-01 AP场景-读并发
 def test_ap_read_concurrent(tmp_path):
@@ -27,17 +28,19 @@ def test_ap_read_concurrent(tmp_path):
         conn.close()
     db.close()
 
+
 # DB-004-02 AP场景-写并发
 def test_ap_write_concurrent(tmp_path):
     db_dir = "/tmp/csr-data-lsqb"
     db = Database(str(db_dir), "rw")
     conn = db.connect()
     with pytest.raises(Exception) as excinfo:
-        # in rw mode, only one connection is allowed 
+        # in rw mode, only one connection is allowed
         db.connect()
     assert ERROR_STRINGS[ERR_TX_STATE_CONFLICT] in str(excinfo.value)
     conn.close()
     db.close()
+
 
 # DB-004-03 AP场景-读写并发
 def test_ap_read_write_concurrent(tmp_path):
@@ -45,11 +48,12 @@ def test_ap_read_write_concurrent(tmp_path):
     db = Database(str(db_dir), "rw")
     conn = db.connect()
     with pytest.raises(Exception) as excinfo:
-        # in rw mode, only one connection is allowed 
+        # in rw mode, only one connection is allowed
         db.connect()
     assert ERROR_STRINGS[ERR_TX_STATE_CONFLICT] in str(excinfo.value)
     conn.close()
     db.close()
+
 
 # DB-004-04 TP场景-读并发
 @pytest.mark.skip(reason="Session/TP模式未实现")
@@ -57,6 +61,7 @@ def test_tp_read_concurrent(started_server):
     # 参考 test_db_connection.py 的 started_server fixture
     db, port = started_server
     from nexg.session import Session
+
     s1 = Session.open(f"neug://user:pass@127.0.0.1:{port}/")
     s2 = Session.open(f"neug://user:pass@127.0.0.1:{port}/")
     r1 = s1.execute("MATCH (n) RETURN count(n);")
@@ -65,11 +70,13 @@ def test_tp_read_concurrent(started_server):
     s1.close()
     s2.close()
 
+
 # DB-004-05 TP场景-写并发
 @pytest.mark.skip(reason="Session/TP模式未实现")
 def test_tp_write_concurrent(started_server):
     db, port = started_server
     from nexg.session import Session
+
     s1 = Session.open(f"neug://user:pass@127.0.0.1:{port}/")
     s2 = Session.open(f"neug://user:pass@127.0.0.1:{port}/")
     s1.execute("CREATE NODE TABLE T(id INT32, PRIMARY KEY(id));")
@@ -81,11 +88,13 @@ def test_tp_write_concurrent(started_server):
     s1.close()
     s2.close()
 
+
 # DB-004-06 TP场景-读写并发
 @pytest.mark.skip(reason="Session/TP模式未实现")
 def test_tp_read_write_concurrent(started_server):
     db, port = started_server
     from nexg.session import Session
+
     s1 = Session.open(f"neug://user:pass@127.0.0.1:{port}/")
     s2 = Session.open(f"neug://user:pass@127.0.0.1:{port}/")
     r1 = s2.execute("MATCH (n) RETURN count(n);")
@@ -96,6 +105,7 @@ def test_tp_read_write_concurrent(started_server):
     assert r2[0][0] == 1
     s1.close()
     s2.close()
+
 
 # DB-004-07 自动事务管理
 @pytest.mark.skip(reason="not supported yet")
@@ -147,6 +157,7 @@ def test_auto_transaction_management(tmp_path):
 
     conn.close()
     db.close()
+
 
 # DB-004-08 手动事务管理
 @pytest.mark.skip(reason="not supported yet")
@@ -209,6 +220,7 @@ def test_manual_transaction_management(tmp_path):
     conn.close()
     db.close()
 
+
 # DB-004-09 只读事务写操作
 @pytest.mark.skip(reason="not supported yet")
 def test_readonly_transaction_write(tmp_path):
@@ -224,6 +236,7 @@ def test_readonly_transaction_write(tmp_path):
     conn.close()
     db.close()
 
+
 # DB-004-11 嵌套事务
 @pytest.mark.skip(reason="not supported yet")
 def test_nested_transaction(tmp_path):
@@ -238,6 +251,7 @@ def test_nested_transaction(tmp_path):
     conn.close()
     db.close()
 
+
 # DB-004-12 事务超时
 @pytest.mark.skip(reason="not supported yet")
 def test_transaction_timeout(tmp_path):
@@ -248,12 +262,13 @@ def test_transaction_timeout(tmp_path):
     conn.execute("BEGIN TRANSACTION;")
     conn.execute("CREATE NODE TABLE T(id INT32, PRIMARY KEY(id));")
     # sleep to trigger timeout, assuming timeout is set to 5 seconds
-    time.sleep(5)  
+    time.sleep(5)
     with pytest.raises(Exception) as excinfo:
         conn.execute("COMMIT;")
     assert ERROR_STRINGS[ERR_TX_TIMEOUT] in str(excinfo.value)
     conn.close()
     db.close()
+
 
 # DB-004-13 事务回滚后再提交
 @pytest.mark.skip(reason="not supported yet")
@@ -268,6 +283,7 @@ def test_commit_after_rollback(tmp_path):
         conn.execute("COMMIT;")
     conn.close()
     db.close()
+
 
 # DB-004-14 崩溃恢复
 @pytest.mark.skip(reason="not supported yet")

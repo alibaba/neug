@@ -65,16 +65,20 @@ class TestBachLoading(unittest.TestCase):
         db = Database(db_dir, "w", 0, "gopt", "", "")
         conn = db.connect()
         # First create the graph schema
-        conn.execute("CREATE NODE TABLE person(id INT64, name STRING, age INT64, PRIMARY KEY(id));")
+        conn.execute(
+            "CREATE NODE TABLE person(id INT64, name STRING, age INT64, PRIMARY KEY(id));"
+        )
         conn.execute("CREATE REL TABLE knows(FROM person TO person, weight DOUBLE);")
 
         # Then load data.
         conn.execute(f'COPY person from "{person_csv}"')
         # TODO(zhanglei,xiaoli): support specifying the starting/ending label name
-        conn.execute(f'COPY knows from "{person_knows_person_csv}" (from="person", to="person")')
+        conn.execute(
+            f'COPY knows from "{person_knows_person_csv}" (from="person", to="person")'
+        )
 
         # Then run a query
-        res = conn.execute('MATCH (n) return n.id;')
+        res = conn.execute("MATCH (n) return n.id;")
         for record in res:
             print(record)
 
@@ -84,7 +88,7 @@ class TestBachLoading(unittest.TestCase):
         db2 = Database(db_dir, "r")
         conn2 = db2.connect()
 
-        res = conn2.execute('MATCH (n) return count(n);')
+        res = conn2.execute("MATCH (n) return count(n);")
         for record in res:
             print(record)
 
@@ -107,4 +111,4 @@ class TestBachLoading(unittest.TestCase):
 
         # Expect runtime error if we try to execute a query on a closed connection
         with self.assertRaises(RuntimeError):
-            res = conn.execute('MATCH (n) return count(n);')
+            conn.execute("MATCH (n) return count(n);")

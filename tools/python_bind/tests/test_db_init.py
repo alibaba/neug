@@ -1,21 +1,21 @@
 import os
-import pytest
 import sys
 
+import pytest
+
 sys.path.append(os.path.join(os.path.dirname(__file__), "../"))
+from errors import ERR_CONFIG_INVALID
+from errors import ERR_CORRUPTION_DETECTED
+from errors import ERR_DATABASE_LOCKED
+from errors import ERR_DIRECTORY_NOT_EXIST
+from errors import ERR_DISK_SPACE_EXHAUSTED
+from errors import ERR_INVALID_ARGUMENT
+from errors import ERR_INVALID_PATH
+from errors import ERR_PERMISSION
+from errors import ERR_VERSION_MISMATCHED
+from errors import ERROR_STRINGS
+
 from nexg.database import Database
-from errors import (
-    ERR_DATABASE_LOCKED,
-    ERR_PERMISSION,
-    ERR_VERSION_MISMATCHED,
-    ERR_DIRECTORY_NOT_EXIST,
-    ERR_DISK_SPACE_EXHAUSTED,
-    ERR_CORRUPTION_DETECTED,
-    ERR_INVALID_PATH,
-    ERR_CONFIG_INVALID,
-    ERROR_STRINGS,
-    ERR_INVALID_ARGUMENT,
-)
 
 
 # DB-001-01 内存模式打开数据库
@@ -99,7 +99,7 @@ def test_rw_mode_exclusive(tmp_path):
     db1 = Database(str(db_dir), "rw")
     try:
         with pytest.raises(Exception) as excinfo:
-            db2 = Database(str(db_dir), "rw")
+            Database(str(db_dir), "rw")
         assert ERROR_STRINGS[ERR_DATABASE_LOCKED] in str(excinfo.value)
     finally:
         db1.close()
@@ -114,7 +114,7 @@ def test_rw_ro_conflict(tmp_path):
     db1 = Database(str(db_dir), "rw")
     try:
         with pytest.raises(Exception) as excinfo:
-            db2 = Database(str(db_dir), "r")
+            Database(str(db_dir), "r")
         assert ERROR_STRINGS[ERR_DATABASE_LOCKED] in str(excinfo.value)
     finally:
         db1.close()

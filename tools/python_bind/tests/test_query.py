@@ -50,7 +50,7 @@ class TestQuery(unittest.TestCase):
 
     def test_modern_graph(self):
         logger.info("Test query")
-        modern_graph_db_dir=os.environ.get("MODERN_GRAPH_DB_DIR")
+        modern_graph_db_dir = os.environ.get("MODERN_GRAPH_DB_DIR")
         if not modern_graph_db_dir:
             raise Exception("MODERN_GRAPH_DB_DIR is not set")
         db = Database(modern_graph_db_dir, "r")

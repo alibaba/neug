@@ -58,7 +58,9 @@ class TestDDL(unittest.TestCase):
         db = Database(db_dir, "w", 0, "gopt", "", "")
         conn = db.connect()
         # First create the graph schema
-        conn.execute("CREATE NODE TABLE person(id INT64, name STRING, age INT64, PRIMARY KEY(id));")
+        conn.execute(
+            "CREATE NODE TABLE person(id INT64, name STRING, age INT64, PRIMARY KEY(id));"
+        )
         conn.execute("CREATE REL TABLE knows(FROM person TO person, weight DOUBLE);")
 
         # Test Adding Column
@@ -91,7 +93,3 @@ class TestDDL(unittest.TestCase):
 
         # Delete a vertex type
         conn.execute("DROP TABLE person;")
-
-
-
-

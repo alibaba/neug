@@ -1,18 +1,18 @@
 import os
-import pytest
 import sys
 import time
 
+import pytest
+
 sys.path.append(os.path.join(os.path.dirname(__file__), "../"))
+from errors import ERR_CONNECTION_BROKEN
+from errors import ERR_INVALID_ARGUMENT
+from errors import ERR_LOAD_OVERFLOW
+from errors import ERR_NETWORK
+from errors import ERR_POOL_EXHAUSTED
+from errors import ERROR_STRINGS
+
 from nexg.database import Database
-from errors import (
-    ERR_NETWORK,
-    ERR_CONNECTION_BROKEN,
-    ERR_POOL_EXHAUSTED,
-    ERR_LOAD_OVERFLOW,
-    ERROR_STRINGS,
-    ERR_INVALID_ARGUMENT,
-)
 
 
 # DB-002-01 本地连接
@@ -243,5 +243,5 @@ def test_connection_param_boundary(tmp_path):
     db.close()
     with pytest.raises(Exception) as excinfo:
         # test with more than maximum cores
-        db2 = Database(str(db_dir), "w", max_thread_num=max_cores + 1)
+        Database(str(db_dir), "w", max_thread_num=max_cores + 1)
     assert ERROR_STRINGS[ERR_INVALID_ARGUMENT] in str(excinfo.value)

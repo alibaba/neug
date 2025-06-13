@@ -1,16 +1,16 @@
 import os
-import pytest
 import sys
 
+import pytest
+
 sys.path.append(os.path.join(os.path.dirname(__file__), "../"))
+from errors import ERR_COMPILATION
+from errors import ERR_INVALID_SCHEMA
+from errors import ERR_SCHEMA_MISMATCH
+from errors import ERR_TYPE_CONVERSION
+from errors import ERROR_STRINGS
+
 from nexg.database import Database
-from errors import (
-    ERR_COMPILATION,
-    ERR_TYPE_CONVERSION,
-    ERR_SCHEMA_MISMATCH,
-    ERR_INVALID_SCHEMA,
-    ERROR_STRINGS,
-)
 
 
 # DB-003-01 类型支持-创建schema
@@ -431,7 +431,8 @@ def test_insert_edge(tmp_path):
     conn.execute("CREATE (u:person{name:'Josh'});")
     # case 1: 匹配端点插入边
     conn.execute(
-        "MATCH (u1:person), (u2:person) WHERE u1.name = 'Alice' AND u2.name = 'Josh' CREATE (u1)-[:follows {since: 2011}]->(u2);"
+        "MATCH (u1:person), (u2:person) WHERE u1.name = 'Alice' "
+        "AND u2.name = 'Josh' CREATE (u1)-[:follows {since: 2011}]->(u2);"
     )
     # case 2: 只匹配一个端点
     conn.execute(
@@ -516,7 +517,8 @@ def test_set_edge_property(tmp_path):
     conn.execute("CREATE (u:person{name:'Alice'});")
     conn.execute("CREATE (u:person{name:'Josh'});")
     conn.execute(
-        "MATCH (u1:person), (u2:person) WHERE u1.name = 'Alice' AND u2.name = 'Josh' CREATE (u1)-[:follows {since: 2011}]->(u2);"
+        "MATCH (u1:person), (u2:person) WHERE u1.name = 'Alice' AND"
+        " u2.name = 'Josh' CREATE (u1)-[:follows {since: 2011}]->(u2);"
     )
     # case 1: 合法更新
     result = conn.execute(

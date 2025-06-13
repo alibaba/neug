@@ -60,7 +60,9 @@ class TestLsqb(unittest.TestCase):
             print("Record:", record)
         assert len(result) > 0
 
-        result = conn.execute("MATCH (n:Country)<-[:City_isPartOf_Country]-(:City) return count(n);")
+        result = conn.execute(
+            "MATCH (n:Country)<-[:City_isPartOf_Country]-(:City) return count(n);"
+        )
         assert result is not None
         for record in result:
             print("Record:", record)
@@ -74,7 +76,9 @@ class TestLsqb(unittest.TestCase):
             res_count += 1
         assert res_count == 1, "Expected exactly one record for Person with id 772"
 
-        result = conn.execute("MATCH (n: Comment)-[e:Comment_hasCreator_Person]->(p:Person) WHERE p.id = 772 return n.id LIMIT 10;")
+        result = conn.execute(
+            "MATCH (n: Comment)-[e:Comment_hasCreator_Person]->(p:Person) WHERE p.id = 772 return n.id LIMIT 10;"
+        )
         assert result is not None
         res_count = 0
         for record in result:
@@ -82,13 +86,17 @@ class TestLsqb(unittest.TestCase):
             res_count += 1
         assert res_count > 0, "Expected at least one comment for Person with id 772"
 
-        result = conn.execute("MATCH (n:Person)-[e:Person_likes_Post]-(p:Post) WHERE n.id = 772 AND p.id <> 206158439468 return n.id LIMIT 10;")
+        result = conn.execute(
+            "MATCH (n:Person)-[e:Person_likes_Post]-(p:Post) WHERE n.id = 772 AND p.id <> 206158439468 return n.id LIMIT 10;"
+        )
         assert result is not None
         res_count = 0
         for record in result:
             print("Record:", record)
             res_count += 1
-        assert res_count > 0 and res_count <= 10, "Expected at least one post liked by Person with id 772"
+        assert (
+            res_count > 0 and res_count <= 10
+        ), "Expected at least one post liked by Person with id 772"
 
         conn.close()
         db.close()

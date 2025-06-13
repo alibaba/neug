@@ -18,17 +18,20 @@
 
 """The Neug connection module."""
 
-from nexg.result import QueryResult
+from nexg_py_bind import PyConnection
 
-from nexg_py_bind import PyConnection  # This is the C++ binding for the Python interface, which provides the actual connection to the database.
+# This is the C++ binding for the Python interface, which provides the actual connection to the database.
+from nexg.result import QueryResult
 
 
 class Connection(object):
     """
     Connection represents a logical connection to a database. User should use this class to interact
     with the database, such as executing queries and managing transactions.
-    The connection is created by the `Database.connect` method, and should be closed by calling the `close` method when it is no longer needed. If the database is closed, all the connections to the database will be closed automatically.
+    The connection is created by the `Database.connect` method, and should be closed by calling the `close` method
+    when it is no longer needed. If the database is closed, all the connections to the database will be closed automatically.
     """
+
     def __init__(self, py_connection: PyConnection):
         """
         Initialize a Connection object.
@@ -51,24 +54,30 @@ class Connection(object):
 
     def execute(self, query: str) -> QueryResult:
         """
-        Execute a cypher query on the database. User could specify multiple queries in a single string, separated by semicolons.
-        The query will be executed in the order they are specified. If any query fails, the whole execution will be rolled back.
-        If the query is a DDL query, such as `CREATE TABLE`, `DROP TABLE`, etc., the database will be modified accordingly.
+        Execute a cypher query on the database. User could specify multiple queries in a single string,
+        separated by semicolons. The query will be executed in the order they are specified.
+        If any query fails, the whole execution will be rolled back.
+        If the query is a DDL query, such as `CREATE TABLE`, `DROP TABLE`, etc., the database will be
+        modified accordingly.
 
         For the details of the query syntax, please refer to the documentation of cypher manual.
-        The result of the query will be returned as a `QueryResult` object, which contains the result of the query and the metadata of the query.
-        The QueryResult object is like an iterator, providing methods to iterate over the results, such as `__iter__` and `__next__`.
+        The result of the query will be returned as a `QueryResult` object, which contains the result of
+        the query and the metadata of the query.
+        The QueryResult object is like an iterator, providing methods to iterate over the results,
+        such as `__iter__` and `__next__`.
 
         If the query is a DDL or DML query, the result will be an empty `QueryResult` object.
 
-        Some of the cypher queries could change the state of the database, such as `CREATE TABLE`, `INSERT`, `UPDATE`, `DELETE`, etc.
-        Other queries, such as `MATCH(n) RETURN n.id`, will not change the state of the database, but will return the results of the query.
+        Some of the cypher queries could change the state of the database, such as `CREATE TABLE`, `INSERT`,
+        `UPDATE`, `DELETE`, etc. Other queries, such as `MATCH(n) RETURN n.id`, will not change the state of
+        the database, but will return the results of the query.
 
         If the database is opened in read-only mode, any DDL or DML query will raise an exception.
-        If the database is opened in read-write mode, all queries could be executed, and the state of the database will be changed accordingly.
+        If the database is opened in read-write mode, all queries could be executed, and the state of the
+        database will be changed accordingly.
 
         .. code:: python
-            
+
             >>> from nexg import Database
             >>> db = Database("/tmp/test.db", mode="w")
             >>> conn = db.connect()
