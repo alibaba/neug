@@ -76,9 +76,6 @@
         "operators": [
          {
           "var": {
-           "tag": {
-            "id": 1
-           },
            "property": {
             "key": {
              "name": "weight"
@@ -152,9 +149,6 @@
         "operators": [
          {
           "var": {
-           "tag": {
-            "id": 2
-           },
            "property": {
             "key": {
              "name": "name"

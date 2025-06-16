@@ -23,6 +23,7 @@
 namespace gs {
 class Constants {
  public:
+  static inline uint64_t MAX_UPPER_BOUND = INT32_MAX;
   static inline uint64_t VARCHAR_MAX_LENGTH = 65536;
   static inline gs::transaction::Transaction DEFAULT_TRANSACTION =
       gs::transaction::Transaction(

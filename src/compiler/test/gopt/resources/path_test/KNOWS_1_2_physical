@@ -88,8 +88,7 @@
       "path_opt": "ARBITRARY",
       "result_opt": "END_V",
       "is_optional": false,
-      "start_tag": 0,
-      "alias": 1
+      "start_tag": 0
      }
     },
     "meta_data": [
@@ -109,7 +108,7 @@
         ]
        }
       },
-      "alias": 1
+      "alias": -1
      }
     ]
    },
@@ -128,7 +127,7 @@
        "sample_ratio": 0,
        "extra": {}
       },
-      "alias": 2
+      "alias": 1
      }
     },
     "meta_data": [
@@ -146,7 +145,7 @@
         ]
        }
       },
-      "alias": 2
+      "alias": 1
      }
     ]
    },
@@ -160,7 +159,7 @@
           {
            "var": {
             "tag": {
-             "id": 2
+             "id": 1
             },
             "property": {
              "key": {
@@ -189,7 +188,7 @@
           }
          ]
         },
-        "alias": 3
+        "alias": 2
        }
       ],
       "is_append": false
@@ -206,7 +205,7 @@
         }
        }
       },
-      "alias": 3
+      "alias": 2
      }
     ]
    },

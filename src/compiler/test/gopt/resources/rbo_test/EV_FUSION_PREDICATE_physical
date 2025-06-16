@@ -117,9 +117,6 @@
         "operators": [
          {
           "var": {
-           "tag": {
-            "id": 1
-           },
            "property": {
             "key": {
              "name": "name"

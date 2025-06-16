@@ -60,7 +60,10 @@ void GAliasManager::extractGAliasNames(
     break;
   }
   case planner::LogicalOperatorType::PROJECTION:
-  case planner::LogicalOperatorType::AGGREGATE: {
+  case planner::LogicalOperatorType::AGGREGATE:
+  case planner::LogicalOperatorType::FILTER:
+  case planner::LogicalOperatorType::ORDER_BY:
+  case planner::LogicalOperatorType::LIMIT: {
     auto schema = op.getSchema();
     if (schema != nullptr) {
       auto exprs = schema->getExpressionsInScope();
@@ -80,7 +83,7 @@ void GAliasManager::extractGAliasNames(
   case planner::LogicalOperatorType::CREATE_TABLE:
   case planner::LogicalOperatorType::INDEX_LOOK_UP:
   case planner::LogicalOperatorType::PARTITIONER:
-  case planner::LogicalOperatorType::FILTER:
+  case planner::LogicalOperatorType::MULTIPLICITY_REDUCER:
     // do nothing
     break;
   default: {

@@ -1,0 +1,4 @@
+MATCH (p:person) RETURN p.id ORDER BY p.id; # ORDER_BY_ID
+MATCH (a:person)-[:knows*1..2]->(b:person) Return b.name as name, a.id as id Order BY a.id DESC, b.name ASC Limit 10; # ORDER_BY_ID_NAME_LIMIT
+MATCH (a:person) Return a Limit 10; # RETURN_LIMIT
+MATCH (a:person) Return a skip 10; # RETURN_SKIP

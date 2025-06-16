@@ -19,9 +19,6 @@
         "operators": [
          {
           "var": {
-           "tag": {
-            "id": 0
-           },
            "property": {
             "key": {
              "name": "name"
@@ -183,9 +180,6 @@
         "operators": [
          {
           "var": {
-           "tag": {
-            "id": 2
-           },
            "property": {
             "key": {
              "name": "name"

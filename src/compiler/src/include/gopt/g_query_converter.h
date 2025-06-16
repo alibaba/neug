@@ -32,7 +32,9 @@
 #include "planner/operator/logical_aggregate.h"
 #include "planner/operator/logical_filter.h"
 #include "planner/operator/logical_get_v.h"
+#include "planner/operator/logical_limit.h"
 #include "planner/operator/logical_operator.h"
+#include "planner/operator/logical_order_by.h"
 #include "planner/operator/logical_plan.h"
 #include "planner/operator/logical_projection.h"
 #include "planner/operator/logical_table_function_call.h"
@@ -77,6 +79,10 @@ class GQueryConvertor {
                       ::physical::QueryPlan* plan);
   void convertAggregate(const planner::LogicalAggregate& project,
                         ::physical::QueryPlan* plan);
+  void convertOrder(const planner::LogicalOrderBy& order,
+                    ::physical::QueryPlan* plan);
+  void convertLimit(const planner::LogicalLimit& limit,
+                    ::physical::QueryPlan* plan);
   void convertTableFunc(const planner::LogicalTableFunctionCall& tableFunc,
                         ::physical::QueryPlan* plan);
   void convertCopyFrom(const planner::LogicalCopyFrom& copyFrom,
@@ -114,6 +120,11 @@ class GQueryConvertor {
   ::physical::PathExpand_PathOpt convertPathOpt(common::PathSemantic semantic);
   ::physical::PathExpand_ResultOpt convertResultOpt(
       gs::planner::ResultOpt resultOpt);
+  std::unique_ptr<::algebra::Range> convertRange(uint64_t skip, uint64_t limit);
+  std::unique_ptr<::algebra::Range> convertRange(
+      std::shared_ptr<binder::Expression> skip,
+      std::shared_ptr<binder::Expression> limit);
+  uint64_t convertValueAsUint64(common::Value value);
 
  private:
   std::shared_ptr<GAliasManager> aliasManager;

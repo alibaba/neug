@@ -27,6 +27,7 @@
 #include "common/exception/exception.h"
 #include "common/types/types.h"
 #include "gopt/g_alias_manager.h"
+#include "gopt/g_constants.h"
 #include "gopt/g_ddl_converter.h"
 #include "planner/operator/logical_filter.h"
 #include "planner/operator/logical_operator.h"
@@ -117,8 +118,19 @@ void GQueryConvertor::convertOperator(const planner::LogicalOperator& op,
     convertTableFunc(*tableFunc, plan);
     break;
   }
+  case planner::LogicalOperatorType::ORDER_BY: {
+    auto order = op.constPtrCast<planner::LogicalOrderBy>();
+    convertOrder(*order, plan);
+    break;
+  }
+  case planner::LogicalOperatorType::LIMIT: {
+    auto limit = op.constPtrCast<planner::LogicalLimit>();
+    convertLimit(*limit, plan);
+    break;
+  }
   case planner::LogicalOperatorType::PARTITIONER:
   case planner::LogicalOperatorType::INDEX_LOOK_UP:
+  case planner::LogicalOperatorType::MULTIPLICITY_REDUCER:
     break;
   default:
     throw common::Exception(
@@ -330,6 +342,49 @@ GQueryConvertor::convertPathBase(
   default:
     return ::physical::PathExpand_ResultOpt::PathExpand_ResultOpt_ALL_V_E;
   }
+}
+
+uint64_t GQueryConvertor::convertValueAsUint64(common::Value value) {
+  std::string valueStr = value.toString();
+  return std::stoull(valueStr);
+}
+
+std::unique_ptr<::algebra::Range> GQueryConvertor::convertRange(
+    std::shared_ptr<binder::Expression> skip,
+    std::shared_ptr<binder::Expression> limit) {
+  if (skip && skip->expressionType != common::ExpressionType::LITERAL ||
+      limit && limit->expressionType != common::ExpressionType::LITERAL) {
+    throw common::Exception("Skip and limit must be literal expressions.");
+  }
+  uint64_t skipValue = 0;
+  uint64_t limitValue = gs::Constants::MAX_UPPER_BOUND;
+  if (skip) {
+    auto valueExpr = skip->ptrCast<binder::LiteralExpression>()->getValue();
+    skipValue = convertValueAsUint64(valueExpr);
+  }
+  if (limit) {
+    auto valueExpr = limit->ptrCast<binder::LiteralExpression>()->getValue();
+    limitValue = convertValueAsUint64(valueExpr);
+  }
+  return convertRange(skipValue, limitValue);
+}
+
+std::unique_ptr<::algebra::Range> GQueryConvertor::convertRange(
+    uint64_t skip, uint64_t limit) {
+  auto rangePB = std::make_unique<::algebra::Range>();
+  if (skip > gs::Constants::MAX_UPPER_BOUND) {
+    throw common::Exception("Skip value exceeds maximum allowed value: " +
+                            std::to_string(gs::Constants::MAX_UPPER_BOUND));
+  }
+  int32_t upper = 0;
+  if (limit > gs::Constants::MAX_UPPER_BOUND - skip) {
+    upper = gs::Constants::MAX_UPPER_BOUND;
+  } else {
+    upper = static_cast<int32_t>(skip + limit);
+  }
+  rangePB->set_lower(skip);
+  rangePB->set_upper(upper);
+  return rangePB;
 }
 
 void GQueryConvertor::convertRecursiveExtend(
@@ -549,6 +604,65 @@ void GQueryConvertor::setMetaData(::physical::PhysicalOpr* physicalOpr,
     metaPB->set_allocated_type(typePB.release());
     physicalOpr->mutable_meta_data()->AddAllocated(metaPB.release());
   }
+}
+
+::algebra::OrderBy_OrderingPair_Order convertOrderOpt(bool isAsc) {
+  return isAsc ? ::algebra::OrderBy_OrderingPair_Order::
+                     OrderBy_OrderingPair_Order_ASC
+               : ::algebra::OrderBy_OrderingPair_Order::
+                     OrderBy_OrderingPair_Order_DESC;
+}
+
+void GQueryConvertor::convertLimit(const planner::LogicalLimit& limit,
+                                   ::physical::QueryPlan* plan) {
+  auto limitPB = std::make_unique<::algebra::Limit>();
+  auto rangePB = convertRange(limit.getSkipNum(), limit.getLimitNum());
+  limitPB->set_allocated_range(rangePB.release());
+  auto physicalPB = std::make_unique<::physical::PhysicalOpr>();
+  auto oprPB = std::make_unique<::physical::PhysicalOpr_Operator>();
+  oprPB->set_allocated_limit(limitPB.release());
+  physicalPB->set_allocated_opr(oprPB.release());
+  // add physical opr to query plan
+  plan->mutable_plan()->AddAllocated(physicalPB.release());
+}
+
+void GQueryConvertor::convertOrder(const planner::LogicalOrderBy& order,
+                                   ::physical::QueryPlan* plan) {
+  auto exprVec = order.getExpressionsToOrderBy();
+  auto orderVec = order.getIsAscOrders();
+  if (exprVec.empty()) {
+    throw common::Exception("No expressions to order by in order by operator.");
+  }
+  if (orderVec.size() != exprVec.size()) {
+    throw common::Exception(
+        "Number of expressions to order by does not match "
+        "the number of sort orders.");
+  }
+  auto orderPB = std::make_unique<::algebra::OrderBy>();
+  if (order.getChildren().empty()) {
+    throw common::Exception("Order by operator must have at least one child.");
+  }
+  auto child = order.getChild(0);
+  for (size_t i = 0; i < exprVec.size(); i++) {
+    auto& expr = exprVec[i];
+    auto exprPB = exprConvertor->convert(*expr, *child);
+    auto pairPB = std::make_unique<::algebra::OrderBy::OrderingPair>();
+    *pairPB->mutable_key() =
+        std::move(*exprPB->mutable_operators(0)->mutable_var());
+    pairPB->set_order(convertOrderOpt(orderVec[i]));
+    orderPB->mutable_pairs()->AddAllocated(pairPB.release());
+  }
+  if (order.isTopK()) {
+    auto rangePB = convertRange(order.getSkipNum(), order.getLimitNum());
+    orderPB->set_allocated_limit(rangePB.release());
+  }
+  // todo: set metadata
+  auto physicalPB = std::make_unique<::physical::PhysicalOpr>();
+  auto oprPB = std::make_unique<::physical::PhysicalOpr_Operator>();
+  oprPB->set_allocated_order_by(orderPB.release());
+  physicalPB->set_allocated_opr(oprPB.release());
+  // add physical opr to query plan
+  plan->mutable_plan()->AddAllocated(physicalPB.release());
 }
 
 void GQueryConvertor::convertAggregate(

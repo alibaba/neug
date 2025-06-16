@@ -142,8 +142,10 @@ class LogicalRecursiveExtend final : public LogicalOperator {
       throw common::Exception(
           "LogicalRecursiveExtend does not have a relational expression.");
     }
-    return gopt::GAliasName{relExpr->getUniqueName(),
-                            relExpr->getVariableName()};
+    auto queryName = relExpr->getVariableName().empty()
+                         ? std::nullopt
+                         : std::make_optional(relExpr->getVariableName());
+    return gopt::GAliasName{relExpr->getUniqueName(), queryName};
   }
 
  private:
