@@ -19,7 +19,7 @@ bool test_gopt_planner(const std::string& data_path) {
   // create the directory
   std::filesystem::create_directories(data_path);
 
-  gs::NexgDB db(data_path, 1, "w", "gopt", "", "", "");
+  gs::NexgDB db(data_path, 1, "w", "gopt", "", "");
   auto conn = db.connect();
   {
     auto res = conn->query(

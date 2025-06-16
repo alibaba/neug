@@ -44,8 +44,7 @@ class NexgDB {
   NexgDB(const std::string& data_dir, int32_t max_num_threads,
          const std::string& mode, const std::string& planner_kind,
          const std::string& jni_planner_class_path,
-         const std::string& planner_config_path,
-         const std::string& resource_path)
+         const std::string& planner_config_path)
       : file_lock_(data_dir) {
     LOG(INFO) << "Creating NexgDB with: " << data_dir << " in " << mode
               << " mode, "
@@ -84,7 +83,6 @@ class NexgDB {
 
     query_processor_ = std::make_shared<QueryProcessor>(
         db_, max_num_threads, mode_ == DBMode::READ_ONLY);
-    resource_path_ = resource_path;
   }
 
   void close();
@@ -141,8 +139,6 @@ class NexgDB {
   std::vector<std::shared_ptr<Connection>> read_only_connections_;
 
   std::mutex connection_mutex_;
-
-  std::string resource_path_;
 };
 }  // namespace gs
 

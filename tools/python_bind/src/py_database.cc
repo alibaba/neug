@@ -22,15 +22,32 @@ void PyDatabase::initialize(pybind11::handle& m) {
       m, "PyDatabase",
       "PyDatabase is the python binds for the actual c++ implementation of "
       "the database: NexgDB.\n")
-      .def(pybind11::init<const std::string&, int32_t, const std::string&,
-                          const std::string&, const std::string&,
-                          const std::string&, const std::string&>(),
-           pybind11::arg("database_path"), pybind11::arg("max_thread_num"),
-           pybind11::arg("mode"), pybind11::arg("planner"),
-           pybind11::arg("jni_planner_jar_path"),
-           pybind11::arg("planner_config_path"), pybind11::arg("resource_path"),
-           "Creating a PyDatabase. Holds a shared pointer to the C++ "
-           "NexgDB object.\n")
+      .def(pybind11::init([](pybind11::kwargs kwargs) {
+        std::string database_path =
+            kwargs.contains("database_path")
+                ? kwargs["database_path"].cast<std::string>()
+                : "";
+        int32_t max_thread_num = kwargs.contains("max_thread_num")
+                                     ? kwargs["max_thread_num"].cast<int32_t>()
+                                     : 0;
+        std::string mode =
+            kwargs.contains("mode") ? kwargs["mode"].cast<std::string>() : "r";
+        std::string planner = kwargs.contains("planner")
+                                  ? kwargs["planner"].cast<std::string>()
+                                  : "gopt";
+        std::string jni_planner_jar_path =
+            kwargs.contains("jni_planner_jar_path")
+                ? kwargs["jni_planner_jar_path"].cast<std::string>()
+                : "";
+        std::string planner_config_path =
+            kwargs.contains("planner_config_path")
+                ? kwargs["planner_config_path"].cast<std::string>()
+                : "";
+        return std::make_shared<PyDatabase>(database_path, max_thread_num, mode,
+                                            planner, jni_planner_jar_path,
+                                            planner_config_path);
+      }))  // "Creating a PyDatabase. Holds a shared pointer to the C++ "
+           // "NexgDB object.\n"
       .def("connect", &PyDatabase::connect,
            "Connect to the database and "
            "return a PyConnection object.\n\n"

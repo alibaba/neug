@@ -76,15 +76,10 @@ Result<results::CollectiveResults> Connection::query_impl(
     return query_processor_->execute(dml_plan);
   }
   Plan plan;
-  if (planner_->type() == "dummy") {
-    plan.error_code = StatusCode::OK;
-    plan.full_message = "OK";
-    plan.physical_plan = load_plan_from_resource(resource_path_ + "/nexg.pb");
-  } else {
-    plan = planner_->compilePlan(
-        query_string, read_yaml_file_to_string(db_.get_schema_yaml_path()),
-        db_.get_statistics_json());
-  }
+
+  plan = planner_->compilePlan(
+      query_string, read_yaml_file_to_string(db_.get_schema_yaml_path()),
+      db_.get_statistics_json());
 
   if (plan.error_code != StatusCode::OK) {
     LOG(ERROR) << "Error in query: " << query_string

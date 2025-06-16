@@ -23,21 +23,15 @@ void test_open_close() {
   std::string planner_config_path =
       cur_dir + "/../../tools/python_bind/nexg/resources/planner_config.yaml";
   LOG(INFO) << "Planner config path: " << planner_config_path;
-  std::string resource_path =
-      cur_dir + "/../../tools/python_bind/nexg/resources";
-  LOG(INFO) << "Resource path: " << resource_path;
 
-  gs::NexgDB db(dir, 1, "rw", "jni", compiler_jar_path, planner_config_path,
-                resource_path);
+  gs::NexgDB db(dir, 1, "rw", "jni", compiler_jar_path, planner_config_path);
   auto conn = db.connect();
   LOG(INFO) << "Before close db1";
   db.close();
   LOG(INFO) << "After close db1";
-  gs::NexgDB db2(dir, 1, "r", "jni", compiler_jar_path, planner_config_path,
-                 resource_path);
+  gs::NexgDB db2(dir, 1, "r", "jni", compiler_jar_path, planner_config_path);
   LOG(INFO) << "After open db2 in read-only mode";
-  gs::NexgDB db3(dir, 1, "r", "jni", compiler_jar_path, planner_config_path,
-                 resource_path);
+  gs::NexgDB db3(dir, 1, "r", "jni", compiler_jar_path, planner_config_path);
   LOG(INFO) << "After open db3 in read-only mode";
 
   db2.close();
@@ -54,7 +48,7 @@ bool test_database(const std::string& data_path) {
   // create the directory
   std::filesystem::create_directories(data_path);
 
-  gs::NexgDB db(data_path, 1, "w", "dummy", "", "", "");
+  gs::NexgDB db(data_path, 1, "w", "dummy", "", "");
   auto conn = db.connect();
   {
     auto res = conn->query(
@@ -107,7 +101,7 @@ bool test_dangling(const std::string& data_path) {
   // create the directory
   std::filesystem::create_directories(data_path);
 
-  gs::NexgDB db(data_path, 1, "w", "dummy", "", "", "");
+  gs::NexgDB db(data_path, 1, "w", "dummy", "", "");
   auto conn = db.connect();
   {
     auto res = conn->query(

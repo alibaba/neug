@@ -16,7 +16,7 @@ int main(int argc, char** argv) {
   std::string data_path = argv[1];
   std::string query_string = argv[2];
 
-  gs::NexgDB db(data_path, 1, "r", "gopt", "", "", "");
+  gs::NexgDB db(data_path, 1, "r", "gopt", "", "");
   auto conn = db.connect();
   LOG(INFO) << "Running query: " << query_string;
 

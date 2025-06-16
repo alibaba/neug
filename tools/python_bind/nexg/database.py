@@ -82,13 +82,13 @@ class Database(object):
         Parameters
         ----------
         db_path : str
-            Path to the database file.
+            Path to the database file. required.
         mode : str
             Mode to open the database, could be 'r', 'read', 'readwrite', 'w', 'rw', 'write'. Default is 'r' for read-only.
         max_thread_num : int
             Maximum number of threads to use. Default is 0, which means no limit.
         planner : str
-            The planner to use, should be one of 'jni', 'gopt'. Default is 'jni'.
+            The planner to use, should be one of 'jni', 'gopt'. Default is 'gopt'.
         jni_planner_jar_path : str
             Only take effect when planner is 'jni'. Path to the JNI planner jar file. Default is None.
             If none, the default jar path will be used.
@@ -133,38 +133,20 @@ class Database(object):
             jni_planner_jar_path = self._get_default_jni_planner_jar_path()
         if planner_config_path is None:
             planner_config_path = self._get_default_planner_config_path()
-        # Get the absolute path to files("nexg.resources")
-        # if python 3.9 or later, use importlib.resources.files
-        # if before python 3.9, use importlib_resources
-        try:
-            from importlib.resources import files
 
-            resource_path = files("nexg").joinpath("resources")
-        except ImportError:
-            import importlib_resources
-
-            # TODO
-            resource_path = importlib_resources.files("nexg").joinpath("resources")
-
-        if not resource_path.exists():
-            raise RuntimeError(f"Resource path not found: {resource_path}")
-        # Convert to string
-        resource_path = str(resource_path.resolve())
-        # TODO: refactor it into a pydict.
         # Currently, no intellisense here. self._database is of class PyDatabase,
         # defined in tools/python_bind/src/py_database.h
         self._database = nexg_py_bind.PyDatabase(
-            db_path,
-            max_thread_num,
-            mode,
-            planner,
-            jni_planner_jar_path,
-            planner_config_path,
-            resource_path,
+            database_path=db_path,
+            max_thread_num=max_thread_num,
+            mode=mode,
+            planner=planner,
+            jni_planner_jar_path=jni_planner_jar_path,
+            planner_config_path=planner_config_path,
         )
         logger.info(
             f"Open database {db_path} in {mode} mode, planner: {planner}, config: {planner_config_path},"
-            f"jar: {jni_planner_jar_path}, resource_path: {resource_path}."
+            f"jar: {jni_planner_jar_path}"
         )
 
     def __del__(self):
