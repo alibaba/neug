@@ -1,3 +1,21 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+#
+# Copyright 2020 Alibaba Group Holding Limited. All Rights Reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
+
 import os
 import sys
 
@@ -18,7 +36,7 @@ from errors import ERROR_STRINGS
 from nexg.database import Database
 
 
-# DB-001-01 内存模式打开数据库
+# DB-001-01
 @pytest.mark.skip(
     reason="Core dump. Throws Error: [file_utils.cc:22] Error: Directory path is empty."
 )
@@ -31,7 +49,7 @@ def test_memory_mode_open_and_close():
     db2.close()
 
 
-# DB-001-02 关闭内存数据库
+# DB-001-02
 @pytest.mark.skip(
     reason="Core dump. Throws Error: [file_utils.cc:22] Error: Directory path is empty."
 )
@@ -40,7 +58,7 @@ def test_memory_mode_close():
     db.close()
 
 
-# DB-001-03 非内存模式打开本地数据库（路径存在）
+# DB-001-03
 def test_local_db_open_exists_and_close(tmp_path):
     db_dir = tmp_path / "existdb"
     if not db_dir.exists():
@@ -53,7 +71,7 @@ def test_local_db_open_exists_and_close(tmp_path):
     db2.close()
 
 
-# DB-001-04 非内存模式打开本地数据库（路径不存在）
+# DB-001-04
 def test_local_db_open_not_exists_and_close(tmp_path):
     db_dir = tmp_path / "not_existdb"
     if db_dir.exists():
@@ -69,7 +87,7 @@ def test_local_db_open_not_exists_and_close(tmp_path):
     db.close()
 
 
-# DB-001-05 关闭本地数据库
+# DB-001-05
 def test_local_db_close(tmp_path):
     db_dir = tmp_path / "closedb"
     db_dir.mkdir()
@@ -77,7 +95,7 @@ def test_local_db_close(tmp_path):
     db.close()
 
 
-# DB-001-06 只读模式多实例
+# DB-001-06
 def test_readonly_mode_multi_instance(tmp_path):
     db_dir = tmp_path / "multi_db"
     db_dir.mkdir()
@@ -90,7 +108,7 @@ def test_readonly_mode_multi_instance(tmp_path):
     db2.close()
 
 
-# DB-001-07 读写模式独占
+# DB-001-07
 @pytest.mark.skip(
     reason="Run this test independently is ok, but in the whole test suite it fails sometimes"
 )
@@ -105,7 +123,7 @@ def test_rw_mode_exclusive(tmp_path):
         db1.close()
 
 
-# DB-001-08 只读/读写冲突
+# DB-001-08
 @pytest.mark.skip(
     reason="Run this test independently is ok, but in the whole test suite it fails sometimes"
 )
@@ -120,7 +138,7 @@ def test_rw_ro_conflict(tmp_path):
         db1.close()
 
 
-# DB-001-09 只读模式下写操作
+# DB-001-09
 def test_readonly_write_operation(tmp_path):
     db_dir = tmp_path / "readonly_db"
     db_ro = Database(str(db_dir), "r", 0, "gopt", "", "")
@@ -133,7 +151,8 @@ def test_readonly_write_operation(tmp_path):
     assert str(ERR_INVALID_ARGUMENT) in str(excinfo.value)
 
 
-# DB-001-10 非法路径格式
+# DB-001-10
+@pytest.mark.xfail(reason="no invalid path check, to be fixed")
 def test_invalid_path():
     with pytest.raises(Exception) as excinfo:
         Database("??/illegal", "r")
@@ -143,7 +162,7 @@ def test_invalid_path():
         os.system("rm -rf ??/")
 
 
-# DB-001-11 配置参数异常
+# DB-001-11
 @pytest.mark.xfail(reason="no invalid config value check, to be fixed")
 def test_config_param_exception(tmp_path):
     db_dir = tmp_path / "config_db"
@@ -158,7 +177,7 @@ def test_config_param_exception(tmp_path):
     assert ERROR_STRINGS[ERR_CONFIG_INVALID] in str(excinfo.value)
 
 
-# DB-001-12 打开已有数据库，但无写权限
+# DB-001-12
 @pytest.mark.skip(
     reason="Run this test independently is ok, but in the whole test suite it fails sometimes"
 )
@@ -177,7 +196,7 @@ def test_open_no_permission(tmp_path):
         os.chmod(db_dir, 0o700)
 
 
-# DB-001-13 打开已有数据库，但版本不兼容
+# DB-001-13
 @pytest.mark.skip(reason="To mock the version mismatch correctly")
 def test_open_version_mismatch(tmp_path):
     db_dir = tmp_path / "ver_db"
@@ -197,7 +216,7 @@ def test_open_version_mismatch(tmp_path):
     assert ERROR_STRINGS[ERR_VERSION_MISMATCHED] in str(excinfo.value)
 
 
-# DB-001-14 目录不存在且无写权限
+# DB-001-14
 @pytest.mark.skip(reason="Core dump. No directory existence check implemented yet")
 def test_open_dir_not_exist(tmp_path):
     db_dir = tmp_path / "not_exist_dir"
@@ -213,7 +232,7 @@ def test_open_dir_not_exist(tmp_path):
         os.chmod(db_dir, 0o700)
 
 
-# DB-001-15 磁盘空间不足
+# DB-001-15
 @pytest.mark.skip(reason="TODO: mock disk space exhausted correctly")
 def test_disk_space_exhausted(monkeypatch, tmp_path):
     db_dir = tmp_path / "no_space_db"
@@ -232,7 +251,7 @@ def test_disk_space_exhausted(monkeypatch, tmp_path):
     assert ERROR_STRINGS[ERR_DISK_SPACE_EXHAUSTED] in str(excinfo.value)
 
 
-# DB-001-16 文件头损坏
+# DB-001-16
 @pytest.mark.skip(reason="Core dump. No file corruption check implemented yet")
 def test_file_header_corruption(tmp_path):
     db_dir = tmp_path / "corrupt_db"

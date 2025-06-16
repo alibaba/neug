@@ -1,3 +1,21 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+#
+# Copyright 2020 Alibaba Group Holding Limited. All Rights Reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
+
 import os
 import sys
 
@@ -13,7 +31,7 @@ from errors import ERROR_STRINGS
 from nexg.database import Database
 
 
-# DB-003-01 类型支持-创建schema
+# DB-003-01
 def test_create_schema_basic_types(tmp_path):
     db_dir = tmp_path / "schema_basic_types"
     db_dir.mkdir()
@@ -38,14 +56,14 @@ def test_create_schema_all_types(tmp_path):
         "p5 FLOAT, p6 DOUBLE, p7 STRING, p8 Date, p9 DateTime, p10 Interval, "
         "p11 List, p12 Map, PRIMARY KEY (p1));"
     )
-    # 验证schema, TODO: support "SHOW TABLES"?
+    # TODO: support "SHOW TABLES"?
     result = conn.execute("SHOW TABLES;")
     assert len(result) == 1
     conn.close()
     db.close()
 
 
-# DB-003-02 类型支持-插入数据
+# DB-003-02
 @pytest.mark.skip(reason="DML is not fully supported yet")
 def test_insert_basic_type_check(tmp_path):
     db_dir = tmp_path / "insert_basic_type"
@@ -61,19 +79,19 @@ def test_insert_basic_type_check(tmp_path):
         "CREATE (t:person {id: 1, i64: 1234567890123, u32: 123, u64: 456, f: 1.23, d: 4.56, "
         "s: 'abc'});"
     )
-    # INT32非法
+    # INT32 invalid
     with pytest.raises(Exception) as excinfo:
         conn.execute("CREATE (t:person {id: 'abc'})")
     assert ERROR_STRINGS[ERR_TYPE_CONVERSION] in str(excinfo.value)
-    # INT64非法
+    # INT64 invalid
     with pytest.raises(Exception) as excinfo:
         conn.execute("CREATE (t:person {id: 2, i64: 'bad'})")
     assert ERROR_STRINGS[ERR_TYPE_CONVERSION] in str(excinfo.value)
-    # UNSIGNED非法
+    # UNSIGNED invalid
     with pytest.raises(Exception) as excinfo:
         conn.execute("CREATE (t:person {id: 3, u32: -1})")
     assert ERROR_STRINGS[ERR_TYPE_CONVERSION] in str(excinfo.value)
-    # FLOAT非法
+    # FLOAT invalid
     with pytest.raises(Exception) as excinfo:
         conn.execute("CREATE (t:person {id: 4, f: 'bad'})")
     assert ERROR_STRINGS[ERR_TYPE_CONVERSION] in str(excinfo.value)
@@ -87,44 +105,43 @@ def test_insert_type_check(tmp_path):
     db_dir.mkdir()
     db = Database(str(db_dir), "w", 0, "gopt", "", "")
     conn = db.connect()
-    # 创建包含所有类型的表
     conn.execute(
         "CREATE NODE TABLE T("
         "id INT32, i64 INT64, u32 UINT32, u64 UINT64, "
         "f FLOAT, d DOUBLE, s STRING, dt Date, dttm DateTime, ivl Interval, "
         "l List, m Map, PRIMARY KEY(id));"
     )
-    # 合法插入（所有字段）
+    # data insert
     conn.execute(
         "CREATE (t:T {id: 1, i64: 1234567890123, u32: 123, u64: 456, f: 1.23, d: 4.56, "
         "s: 'abc', dt: date('2023-01-01'), dttm: datetime('2023-01-01T12:00:00'), "
         "ivl: interval('1 year'), l: [1,2], m: {'k':1}});"
     )
-    # INT32非法
+    # INT32 invalid
     with pytest.raises(Exception) as excinfo:
         conn.execute("CREATE (t:T {id: 'abc'})")
     assert ERROR_STRINGS[ERR_TYPE_CONVERSION] in str(excinfo.value)
-    # INT64非法
+    # INT64 invalid
     with pytest.raises(Exception) as excinfo:
         conn.execute("CREATE (t:T {id: 1, i64: 'bad'})")
     assert ERROR_STRINGS[ERR_TYPE_CONVERSION] in str(excinfo.value)
-    # UNSIGNED非法
+    # UNSIGNED invalid
     with pytest.raises(Exception) as excinfo:
         conn.execute("CREATE (t:T {id: 2, u32: -1})")
     assert ERROR_STRINGS[ERR_TYPE_CONVERSION] in str(excinfo.value)
-    # FLOAT非法
+    # FLOAT invalid
     with pytest.raises(Exception) as excinfo:
         conn.execute("CREATE (t:T {id: 3, f: 'bad'})")
     assert ERROR_STRINGS[ERR_TYPE_CONVERSION] in str(excinfo.value)
-    # DATE非法
+    # DATE invalid
     with pytest.raises(Exception) as excinfo:
         conn.execute("CREATE (t:T {id: 4, dt: 'notadate'})")
     assert ERROR_STRINGS[ERR_TYPE_CONVERSION] in str(excinfo.value)
-    # DATETIME非法
+    # DATETIME invalid
     with pytest.raises(Exception) as excinfo:
         conn.execute("CREATE (t:T {id: 5, dttm: 'notadatetime'})")
     assert ERROR_STRINGS[ERR_TYPE_CONVERSION] in str(excinfo.value)
-    # INTERVAL非法
+    # INTERVAL invalid
     with pytest.raises(Exception) as excinfo:
         conn.execute("CREATE (t:T {id: 6, ivl: 'notaninterval'})")
     assert ERROR_STRINGS[ERR_TYPE_CONVERSION] in str(excinfo.value)
@@ -132,7 +149,7 @@ def test_insert_type_check(tmp_path):
     db.close()
 
 
-# DB-003-03 类型支持-计算表达式
+# DB-003-03
 @pytest.mark.skip(reason="expressions not yet supported")
 def test_return_expression(tmp_path):
     db_dir = tmp_path / "expr"
@@ -142,7 +159,7 @@ def test_return_expression(tmp_path):
     result = conn.execute("RETURN 1+2, date('2023-01-01'), interval('1 year 2 days');")
     assert result is not None
     assert len(result) == 1
-    row = result[0]
+    row = result.__next__()
     assert row[0] == 3  # 1 + 2
     assert row[1] == "2023-01-01"  # Date
     assert row[2] == "1 year 2 days"  # Interval
@@ -150,7 +167,7 @@ def test_return_expression(tmp_path):
     db.close()
 
 
-# DB-003-04 DDL-创建点表
+# DB-003-04
 def test_create_node_table(tmp_path):
     db_dir = tmp_path / "create_node"
     db_dir.mkdir()
@@ -185,15 +202,15 @@ def test_create_node_table_errors(tmp_path):
     conn.execute(
         "CREATE NODE TABLE person(name STRING, age INT64, PRIMARY KEY (name));"
     )
-    # 1. 重复创建点表
+    # 1. create duplicate node table
     with pytest.raises(Exception) as excinfo:
         conn.execute("CREATE NODE TABLE person(name STRING, PRIMARY KEY (name));")
     assert str(ERR_INVALID_SCHEMA) in str(excinfo.value)
-    # 2. 创建点表，主键缺失
+    # 2. create node table without primary key
     with pytest.raises(Exception) as excinfo:
         conn.execute("CREATE NODE TABLE person1(name STRING, age INT64);")
     assert str("Failed to compile DDL plan") in str(excinfo.value)
-    # 3. 创建点表，属性默认值不合法
+    # 3. create node table with invalid property value
     with pytest.raises(Exception) as excinfo:
         conn.execute(
             "CREATE NODE TABLE person2(name STRING, age INT64 DEFAULT 'abc', PRIMARY KEY (name));"
@@ -203,21 +220,33 @@ def test_create_node_table_errors(tmp_path):
     db.close()
 
 
-# DB-003-05 DDL-创建边表
+# DB-003-05
 def test_create_rel_table(tmp_path):
     db_dir = tmp_path / "create_rel"
     db_dir.mkdir()
     db = Database(str(db_dir), "w", 0, "gopt", "", "")
     conn = db.connect()
-    # 先创建点表
     conn.execute("CREATE NODE TABLE person(name STRING, PRIMARY KEY(name));")
-    # conn.execute("CREATE NODE TABLE city(name STRING, PRIMARY KEY(name));")
-    # 1. 创建单关系边表
+    # create single relationship edge table
     conn.execute(
         "CREATE REL TABLE follows(FROM person TO person, weight DOUBLE, MANY_MANY);"
     )
-    # 2. 创建多关系边表
-    # conn.execute("CREATE REL TABLE Knows(FROM person TO person, FROM person TO city);")
+    conn.close()
+    db.close()
+
+
+@pytest.mark.skip(reason="not supported yet")
+def test_create_rel_table_with_multiple_relationships(tmp_path):
+    db_dir = tmp_path / "create_rel_multiple"
+    db_dir.mkdir()
+    db = Database(str(db_dir), "w", 0, "gopt", "", "")
+    conn = db.connect()
+    conn.execute("CREATE NODE TABLE person(name STRING, PRIMARY KEY(name));")
+    conn.execute("CREATE NODE TABLE city(name STRING, PRIMARY KEY(name));")
+    # create edge table with multiple relationships
+    conn.execute(
+        "CREATE REL TABLE worksAt(FROM person TO city, FROM person TO person);"
+    )
     conn.close()
     db.close()
 
@@ -232,13 +261,13 @@ def test_create_rel_table_errors(tmp_path):
     conn.execute(
         "CREATE REL TABLE follows(FROM person TO person, weight DOUBLE, MANY_MANY);"
     )
-    # 1. 已有边表重复创建
+    # 1. create duplicate edge table
     with pytest.raises(Exception) as excinfo:
         conn.execute(
             "CREATE REL TABLE follows(FROM person TO person, weight DOUBLE, MANY_MANY);"
         )
     assert str(ERR_INVALID_SCHEMA) in str(excinfo.value)
-    # 2. 创建边表，FROM/TO端点表不存在
+    # 2. create edge table without FROM/TO vertex tables
     with pytest.raises(Exception) as excinfo:
         conn.execute("CREATE REL TABLE NewFollows(FROM person TO user, MANY_MANY);")
     assert str("Failed to compile DDL plan") in str(excinfo.value)
@@ -348,7 +377,6 @@ def test_drop_table(tmp_path):
     db_dir.mkdir()
     db = Database(str(db_dir), "w", 0, "gopt", "", "")
     conn = db.connect()
-    # 创建点表和边表
     conn.execute("CREATE NODE TABLE person(name STRING, PRIMARY KEY(name));")
     conn.execute(
         "CREATE REL TABLE knows(FROM person TO person, weight DOUBLE, MANY_MANY);"
@@ -366,7 +394,6 @@ def test_drop_table_errors(tmp_path):
     db_dir.mkdir()
     db = Database(str(db_dir), "w", 0, "gopt", "", "")
     conn = db.connect()
-    # 创建点表和边表
     conn.execute("CREATE NODE TABLE person(name STRING, PRIMARY KEY(name));")
     conn.execute(
         "CREATE REL TABLE knows(FROM person TO person, weight DOUBLE, MANY_MANY);"
@@ -385,8 +412,8 @@ def test_drop_table_errors(tmp_path):
     db.close()
 
 
-# DB-003-08 DML-创建节点
-@pytest.mark.skip(reason="DML语法暂未支持")
+# DB-003-08 DML-create node
+@pytest.mark.skip(reason="DML not fully supported yet")
 def test_insert_node(tmp_path):
     db_dir = tmp_path / "insert_node"
     db_dir.mkdir()
@@ -394,19 +421,19 @@ def test_insert_node(tmp_path):
     conn = db.connect()
     # 准备schema
     conn.execute("CREATE NODE TABLE person(name STRING, age INT64, PRIMARY KEY(name));")
-    # case 1: 合法插入（全属性）
+    # case 1: insert with all properties
     conn.execute("CREATE (u:person{name:'Alice',age:35});")
-    # case 2: 合法插入（缺省age，nullable，默认为NULL）
+    # case 2: insert with partial properties, age should be NULL
     conn.execute("CREATE (u:person{name:'Josh'});")
-    # case 3: 主键缺失，失败
+    # case 3: insert without primary key value, should fail
     with pytest.raises(Exception) as excinfo:
         conn.execute("CREATE (u:person{age:36});")
     assert ERROR_STRINGS[ERR_SCHEMA_MISMATCH] in str(excinfo.value)
-    # case 4: 主键重复，失败
+    # case 4: duplicate primary key value, should fail
     with pytest.raises(Exception) as excinfo:
         conn.execute("CREATE (u:person{name:'Alice', age:26});")
     assert ERROR_STRINGS[ERR_SCHEMA_MISMATCH] in str(excinfo.value)
-    # case 5: schema不一致，多余属性，失败
+    # case 5: insert values inconsistent with schema, should fail
     with pytest.raises(Exception) as excinfo:
         conn.execute("CREATE (u:person{name:'Alice', age:26, addr:'aa'});")
     assert ERROR_STRINGS[ERR_SCHEMA_MISMATCH] in str(excinfo.value)
@@ -414,14 +441,13 @@ def test_insert_node(tmp_path):
     db.close()
 
 
-# DB-003-09 DML-创建边
-@pytest.mark.skip(reason="DML语法暂未支持")
+# DB-003-09 DML-create edge
+@pytest.mark.skip(reason="DML not fully supported yet")
 def test_insert_edge(tmp_path):
     db_dir = tmp_path / "insert_edge"
     db_dir.mkdir()
     db = Database(str(db_dir), "w", 0, "gopt", "", "")
     conn = db.connect()
-    # 准备schema
     conn.execute("CREATE NODE TABLE person(name STRING, PRIMARY KEY(name));")
     conn.execute(
         "CREATE REL TABLE follows(FROM person TO person, since INT64, MANY_MANY);"
@@ -429,30 +455,30 @@ def test_insert_edge(tmp_path):
     # 插入端点
     conn.execute("CREATE (u:person{name:'Alice'});")
     conn.execute("CREATE (u:person{name:'Josh'});")
-    # case 1: 匹配端点插入边
+    # case 1: insert edge with specified two endpoints
     conn.execute(
         "MATCH (u1:person), (u2:person) WHERE u1.name = 'Alice' "
         "AND u2.name = 'Josh' CREATE (u1)-[:follows {since: 2011}]->(u2);"
     )
-    # case 2: 只匹配一个端点
+    # case 2: insert edge with one endpoint specified
     conn.execute(
         "MATCH (a:person), (b:person) WHERE a.name = 'Alice' CREATE (a)-[:follows {since:2022}]->(b);"
     )
-    # case 3: 匹配不到端点，不新增边
+    # case 3: insert edge with endpoints not existing, will NOT create edge
     conn.execute(
         "MATCH (a:person), (b:person) WHERE a.name = 'nobody' CREATE (a)-[:follows {since:2022}]->(b);"
     )
-    # case 4: 直接创建端点和边
+    # case 4: create edge together with new endpoints
     conn.execute(
         "CREATE (u:person {name: 'Alice1'})-[:follows {since:2022}]->(b:person {name: 'Josh1'});"
     )
-    # case 5: 端点已存在，主键冲突
+    # case 5: create edge with existing endpoints, will FAIL
     with pytest.raises(Exception) as excinfo:
         conn.execute(
             "CREATE (u:person {name: 'Alice'})-[:follows {since:2022}]->(b:person {name: 'Josh2'});"
         )
     assert ERROR_STRINGS[ERR_SCHEMA_MISMATCH] in str(excinfo.value)
-    # case 6: 边属性schema不一致
+    # case 6: edge property schema mismatch
     with pytest.raises(Exception) as excinfo:
         conn.execute(
             "CREATE (u:person {name: 'Alice'})-[:follows {nonprop:2022}]->(b:person {name: 'Josh2'});"
@@ -462,37 +488,36 @@ def test_insert_edge(tmp_path):
     db.close()
 
 
-# DB-003-10 DML-SET节点属性
-@pytest.mark.skip(reason="DML语法暂未支持")
+# DB-003-10 DML-SET node property
+@pytest.mark.skip(reason="DML not fully supported yet")
 def test_set_node_property(tmp_path):
     db_dir = tmp_path / "set_node_prop"
     db_dir.mkdir()
     db = Database(str(db_dir), "w", 0, "gopt", "", "")
     conn = db.connect()
-    # 准备schema和数据
     conn.execute("CREATE NODE TABLE person(name STRING, age INT64, PRIMARY KEY(name));")
     conn.execute("CREATE (u:person{name:'Alice',age:35});")
-    # case 1: 合法更新
+    # case 1: valid update
     result = conn.execute(
         "MATCH (u:person) WHERE u.name = 'Alice' SET u.age = 50 RETURN u.*;"
     )
-    assert result[0][1] == 50
-    # case 2: 设置为NULL
+    assert result.__next__()[1] == 50
+    # case 2: update property to NULL
     result = conn.execute(
         "MATCH (u:person) WHERE u.name = 'Alice' SET u.age = NULL RETURN u.*;"
     )
-    assert result[0][1] is None
-    # case 3: 新增属性
+    assert result.__next__()[1] is None
+    # case 3: add new property
     result = conn.execute(
         "MATCH (u) SET u.population = 0 RETURN label(u), u.name, u.population;"
     )
-    assert result[0][2] == 0
-    # case 4: 匹配不到节点
+    assert result.__next__()[2] == 0
+    # case 4: update non-existing node, should not affect anything
     result = conn.execute(
         "MATCH (u:person) WHERE u.name = 'nobody' SET u.age = 50 RETURN u.*;"
     )
-    assert result == []
-    # case 5: 属性schema不一致
+    assert len(result) == 0
+    # case 5: update with property schema mismatch, should fail
     with pytest.raises(Exception) as excinfo:
         conn.execute(
             "MATCH (u:person) WHERE u.name = 'Alice' SET u.addr = '' RETURN u.*;"
@@ -502,35 +527,36 @@ def test_set_node_property(tmp_path):
     db.close()
 
 
-# DB-003-11 DML-SET边属性
-@pytest.mark.skip(reason="DML语法暂未支持")
+# DB-003-11 DML-SET edge property
+@pytest.mark.skip(reason="DML not fully supported yet")
 def test_set_edge_property(tmp_path):
     db_dir = tmp_path / "set_edge_prop"
     db_dir.mkdir()
     db = Database(str(db_dir), "w", 0, "gopt", "", "")
     conn = db.connect()
-    # 准备schema和数据
     conn.execute("CREATE NODE TABLE person(name STRING, PRIMARY KEY(name));")
     conn.execute(
         "CREATE REL TABLE follows(FROM person TO person, since INT64, MANY_MANY);"
     )
+    conn.execute("CREATE REL TABLE likes(FROM person TO person, since INT64);")
     conn.execute("CREATE (u:person{name:'Alice'});")
     conn.execute("CREATE (u:person{name:'Josh'});")
     conn.execute(
         "MATCH (u1:person), (u2:person) WHERE u1.name = 'Alice' AND"
         " u2.name = 'Josh' CREATE (u1)-[:follows {since: 2011}]->(u2);"
     )
-    # case 1: 合法更新
+    # case 1: valid update with single label relationship
     result = conn.execute(
         "MATCH (u0:person)-[f:follows]->(u1:person) WHERE u0.name = 'Alice' AND u1.name = 'Josh' SET f.since = 1999 RETURN f;"
     )
-    assert result[0][0] == 1999 or result[0][1] == 1999  # 取决于返回格式
-    # case 2: 多label关系
+    assert result.__next__()[0] == 1999
+    # case 2: valid update with multiple label relationship
     result = conn.execute(
         "MATCH (u0)-[f]->() WHERE u0.name = 'Alice' SET f.since = 1999 RETURN f;"
     )
-    assert result[0][0] == 1999 or result[0][1] == 1999
-    # case 3: 属性schema不一致
+    assert result.__next__()[0] == 1999
+    assert result.__next__()[1] == 1999
+    # case 3: update with property schema mismatch, should fail
     with pytest.raises(Exception) as excinfo:
         conn.execute(
             "MATCH (u0)-[f]->() WHERE u0.name = 'Alice' SET f.noprop = 1999 RETURN f;"
@@ -540,8 +566,8 @@ def test_set_edge_property(tmp_path):
     db.close()
 
 
-# DB-003-13 查询-同步/异步
-@pytest.mark.skip(reason="DML语法暂未支持")
+# DB-003-13
+@pytest.mark.skip(reason="DML not fully supported yet")
 def test_query_sync(tmp_path):
     db_dir = tmp_path / "query_sync"
     db_dir.mkdir()
@@ -555,7 +581,7 @@ def test_query_sync(tmp_path):
     db.close()
 
 
-@pytest.mark.skip(reason="async_execute未实现")
+@pytest.mark.skip(reason="async_execute not implemented yet")
 def test_query_async(tmp_path):
     db_dir = tmp_path / "query_async"
     db_dir.mkdir()
@@ -568,14 +594,14 @@ def test_query_async(tmp_path):
     db.close()
 
 
-# DB-003-20 查询-错误处理
+# DB-003-20
 def test_query_syntax_error(tmp_path):
     db_dir = tmp_path / "syntax_error"
     db_dir.mkdir()
     db = Database(str(db_dir), "w", 0, "gopt", "", "")
     conn = db.connect()
     with pytest.raises(Exception) as excinfo:
-        conn.execute("MATCH (n RETURN n;")  # 括号不匹配
+        conn.execute("MATCH (n RETURN n;")
     assert str(ERR_COMPILATION) in str(excinfo.value)
     conn.close()
     db.close()

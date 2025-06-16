@@ -103,7 +103,7 @@ def parse_test_file(file_path, file_type=FileType.TEST, dataset=None):
 
         if line.startswith((NAME, CHECK_ORDER, RESULT_PREFIX)):
             if within_statement and query_lines:
-                current_query = " ".join(query_lines) 
+                current_query = " ".join(query_lines)
                 within_statement = False
                 query_lines.clear()
 
@@ -184,6 +184,7 @@ def parse_expected_results_from_json(json_file_path):
 
     return expected_results
 
+
 # Process queries to make them compatible with NexG
 def process_queries(queries):
     processed_queries = []
@@ -192,6 +193,7 @@ def process_queries(queries):
             query.query = preprocess_query(query.query)
             processed_queries.append(query)
     return processed_queries
+
 
 # Preprocess the query to make it compatible with NexG
 def preprocess_query(query):
@@ -269,6 +271,7 @@ def skip_query(query):
     skip_keywords = ["CREATE", "DELETE", "SET", "CALL", "p ="]
     # check if any of the skip_keywords exist in query
     return any(keyword in query for keyword in skip_keywords)
+
 
 def validate_result(query_name, result, expected_result, check_order):
     if check_order:

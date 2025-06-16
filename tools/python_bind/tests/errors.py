@@ -1,4 +1,22 @@
-# NeuG v0.1 Error Code 定义
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+#
+# Copyright 2020 Alibaba Group Holding Limited. All Rights Reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
+
+# NeuG v0.1 Error Code Definitions
 
 from nexg.proto.error_pb2 import ERR_ARCH_MISMATCH
 from nexg.proto.error_pb2 import ERR_BAD_ENCODING
@@ -39,7 +57,7 @@ from nexg.proto.error_pb2 import ERR_UNKNOWN
 from nexg.proto.error_pb2 import ERR_VERSION_MISMATCHED
 from nexg.proto.error_pb2 import ERR_WAL_WRITE_FAIL
 
-# 兼容字符串映射（可根据实际报错内容调整）
+# Error strings mapping for human-readable error messages
 ERROR_STRINGS = {
     ERR_PERMISSION: "Permission denied",
     ERR_VERSION_MISMATCHED: "version mismatch",

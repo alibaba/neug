@@ -1,3 +1,21 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+#
+# Copyright 2020 Alibaba Group Holding Limited. All Rights Reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
+
 import os
 import sys
 
@@ -14,7 +32,7 @@ from errors import ERROR_STRINGS
 from nexg.database import Database
 
 
-# DB-005-01 数据导入-配置
+# DB-005-01
 def test_import_default(tmp_path):
     db_dir = tmp_path / "import_default"
     db_dir.mkdir()
@@ -49,7 +67,7 @@ def test_import_config(tmp_path):
     db.close()
 
 
-# DB-005-02 数据导入-预处理
+# DB-005-02
 @pytest.mark.skip(
     reason="IGNORE_ERRORS is not supported yet; and when it is false, no exception is raised"
 )
@@ -65,7 +83,7 @@ def test_import_ignore_errors(tmp_path):
     # IGNORE_ERRORS True
     conn.execute(f'COPY person FROM "{csv_path}" (IGNORE_ERRORS TRUE);')
     res = conn.execute("MATCH (n:person) RETURN count(n);")
-    assert res[0][0] == 2  # 1和2被导入，\xff被忽略
+    assert res[0][0] == 2  # Two rows should be imported, ignoring the bad encoding row
     # IGNORE_ERRORS False
     with pytest.raises(Exception) as excinfo:
         conn.execute(f'COPY person FROM "{csv_path}" (IGNORE_ERRORS FALSE);')
@@ -74,7 +92,7 @@ def test_import_ignore_errors(tmp_path):
     db.close()
 
 
-# DB-005-03 数据导入-空值
+# DB-005-03
 def test_import_null(tmp_path):
     db_dir = tmp_path / "import_null"
     db_dir.mkdir()
@@ -91,7 +109,7 @@ def test_import_null(tmp_path):
     db.close()
 
 
-# DB-005-04 数据导入-类型转换
+# DB-005-04
 @pytest.mark.skip(
     reason="Inconsistent data type, expect string, but got int64. However, no error handling for type conversion yet"
 )
@@ -224,7 +242,7 @@ def test_import_uint64_pk(tmp_path):
     db.close()
 
 
-# DB-005-05 数据导出-配置
+# DB-005-05
 @pytest.mark.skip(reason="unsupported yet")
 def test_export_config(tmp_path):
     db_dir = tmp_path / "export_config"
@@ -241,7 +259,7 @@ def test_export_config(tmp_path):
     db.close()
 
 
-# DB-005-07 错误处理-文件不存在
+# DB-005-07
 # TODO: no error code is returned, need to fix it in the compiler
 def test_import_file_not_found(tmp_path):
     db_dir = tmp_path / "import_file_not_found"
@@ -256,7 +274,7 @@ def test_import_file_not_found(tmp_path):
     db.close()
 
 
-# DB-005-08 错误处理-无写权限
+# DB-005-08
 @pytest.mark.skip(reason="export not supported yet")
 def test_export_no_permission(tmp_path):
     db_dir = tmp_path / "export_no_permission"
@@ -278,7 +296,7 @@ def test_export_no_permission(tmp_path):
     db.close()
 
 
-# DB-005-09 错误处理-列数/类型不匹配
+# DB-005-09
 @pytest.mark.xfail(reason="No exception is raised")
 def test_import_schema_mismatch(tmp_path):
     db_dir = tmp_path / "import_schema_mismatch"
@@ -296,7 +314,7 @@ def test_import_schema_mismatch(tmp_path):
     db.close()
 
 
-# DB-005-10 错误处理-编码错误
+# DB-005-10
 @pytest.mark.skip(reason="Not supported yet")
 def test_import_bad_encoding(tmp_path):
     db_dir = tmp_path / "import_bad_encoding"

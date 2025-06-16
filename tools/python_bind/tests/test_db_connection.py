@@ -1,3 +1,21 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+#
+# Copyright 2020 Alibaba Group Holding Limited. All Rights Reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
+
 import os
 import sys
 import time
@@ -15,8 +33,8 @@ from errors import ERROR_STRINGS
 from nexg.database import Database
 
 
-# DB-002-01 本地连接
-# DB-002-02 关闭本地连接
+# DB-002-01
+# DB-002-02
 def test_local_connection(tmp_path):
     db_dir = tmp_path / "local_conn_db"
     db = Database(str(db_dir), "w")
@@ -26,7 +44,7 @@ def test_local_connection(tmp_path):
     db.close()
 
 
-# DB-002-03 本地连接参数
+# DB-002-03
 # TODO: more connection parameters to test
 def test_local_connection_params(tmp_path):
     db_dir = tmp_path / "local_conn_param_db"
@@ -37,7 +55,7 @@ def test_local_connection_params(tmp_path):
     db.close()
 
 
-# DB-002-04 本地连接异常
+# DB-002-04
 @pytest.mark.xfail(reason="Invalid parameters not handled")
 def test_local_connection_invalid_param(tmp_path):
     db_dir = tmp_path / "local_conn_invalid_db"
@@ -59,8 +77,8 @@ def started_server(tmp_path, unused_tcp_port):
     db.close()
 
 
-# DB-002-05 远程连接（需实现db.serve/Session.open，未实现时skip）
-# DB-002-06 关闭远程session
+# DB-002-05
+# DB-002-06
 @pytest.mark.skip(reason="db.serve/Session.open not implemented")
 def test_remote_connection(started_server):
     db, port = started_server
@@ -71,7 +89,7 @@ def test_remote_connection(started_server):
     session.close()
 
 
-# DB-002-07 远程连接参数
+# DB-002-07
 @pytest.mark.skip(reason="Session not implemented")
 def test_remote_connection_params(started_server):
     db, port = started_server
@@ -87,7 +105,7 @@ def test_remote_connection_params(started_server):
     session.close()
 
 
-# DB-002-08 远程连接错误IP/端口
+# DB-002-08
 @pytest.mark.skip(reason="Session not implemented")
 def test_remote_connection_wrong_ip_port(started_server):
     db, port = started_server
@@ -101,7 +119,7 @@ def test_remote_connection_wrong_ip_port(started_server):
     assert ERROR_STRINGS[ERR_NETWORK] in str(excinfo.value)
 
 
-# DB-002-09 远程连接中断
+# DB-002-09
 @pytest.mark.skip(reason="Session not implemented")
 def test_remote_connection_broken(started_server):
     db, port = started_server
@@ -117,7 +135,7 @@ def test_remote_connection_broken(started_server):
     session.close()
 
 
-# DB-002-10 事务未提交连接中断
+# DB-002-10
 @pytest.mark.skip(reason="Session not implemented")
 def test_tx_not_commit_connection_broken(started_server):
     db, port = started_server
@@ -142,7 +160,7 @@ def test_tx_not_commit_connection_broken(started_server):
     session2.close()
 
 
-# DB-002-11 服务端限流
+# DB-002-11
 @pytest.mark.skip(reason="Not supported in current version")
 def test_server_load_overflow(started_server):
     db, port = started_server
@@ -167,7 +185,7 @@ def test_server_load_overflow(started_server):
                 pass
 
 
-# DB-002-12 本地连接关闭后再操作
+# DB-002-12
 @pytest.mark.skip(reason="No exception is raised when executing after close")
 def test_local_connection_after_close(tmp_path):
     # local connection after close
@@ -181,7 +199,7 @@ def test_local_connection_after_close(tmp_path):
     db.close()
 
 
-# DB-002-12 远程连接关闭后再操作
+# DB-002-12
 @pytest.mark.skip(reason="Session not implemented")
 def test_remote_connection_after_close(started_server):
     # remote connection after close
@@ -196,7 +214,7 @@ def test_remote_connection_after_close(started_server):
     db.close()
 
 
-# DB-002-13 服务端重启
+# DB-002-13
 @pytest.mark.skip(reason="Session not implemented")
 def test_server_restart(started_server):
     db, port = started_server
@@ -218,7 +236,7 @@ def test_server_restart(started_server):
         db2.close()
 
 
-# DB-002-14 连接池耗尽
+# DB-002-14
 @pytest.mark.skip(reason="Session not implemented")
 def test_connection_pool_exhausted(started_server):
     db, port = started_server
@@ -233,7 +251,7 @@ def test_connection_pool_exhausted(started_server):
     s1.close()
 
 
-# DB-002-15 连接参数边界
+# DB-002-15
 @pytest.mark.xfail(reason="no exception is raised for max_thread_num > os.cpu_count()")
 def test_connection_param_boundary(tmp_path):
     db_dir = tmp_path / "conn_param_boundary_db"

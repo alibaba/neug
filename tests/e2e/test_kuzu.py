@@ -17,6 +17,7 @@
 #
 
 import pytest
+
 from base_test import BaseTest
 
 
@@ -32,8 +33,7 @@ class TestKuzu(BaseTest):
     @pytest.mark.kuzu_test
     def test_queries(self, kuzu_conn, query_object):
         self.run_test(kuzu_conn, query_object)
-    
+
     @pytest.mark.kuzu_benchmark
     def test_benchmark_queries(self, request, benchmark, kuzu_conn, query_object):
         self.run_benchmark(kuzu_conn, query_object, request, benchmark)
-        

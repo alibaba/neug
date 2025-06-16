@@ -16,15 +16,18 @@
 # limitations under the License.
 #
 
-import kuzu
 import sys
 
+import kuzu
+
+
 def execute_cypher_file(conn, file_path):
-    with open(file_path, 'r') as file:
+    with open(file_path, "r") as file:
         for line in file:
             statement = line.strip()
             if statement:
                 conn.execute(statement)
+
 
 def main(db_path, schema_path, dataloading_path):
     db = kuzu.Database(db_path)
@@ -52,6 +55,7 @@ def main(db_path, schema_path, dataloading_path):
         print(response.get_next())
 
     print("query end")
+
 
 if __name__ == "__main__":
     if len(sys.argv) != 4:
