@@ -48,8 +48,16 @@ jobs:
     runs-on: [self-hosted]
     container:
       image: registry.cn-hongkong.aliyuncs.com/graphscope/graphscope-dev:v0.24.2-amd64-ccache
+      options: --user root
     steps:
     - uses: actions/checkout@v4
+
+    - name: Mark directory safe
+      run: |
+        git config --global --add safe.directory "$GITHUB_WORKSPACE"
+        git config --global --add safe.directory "$GITHUB_WORKSPACE/third_party/aliyun-oss-cpp-sdk"
+        git config --global --add safe.directory "$GITHUB_WORKSPACE/third_party/parallel-hashmap"
+        git config --global --add safe.directory "$GITHUB_WORKSPACE/third_party/pybind11"
 
     - name: Setup tmate session
       if: false

@@ -92,7 +92,7 @@ class CMakeBuild(build_ext):
             raise ValueError(
                 f"Invalid BUILD_TYPE: {build_type}. Must be one of 'DEBUG' or 'RELEASE'."
             )
-        
+
         build_executables = (
             "ON" if os.environ.get("BUILD_EXECUTABLES", "OFF") == "ON" else "OFF"
         )
@@ -163,9 +163,9 @@ class CMakeBuild(build_ext):
             # Multi-config generators have a different way to specify configs
             if not single_config:
                 cmake_args += [
-                    f"-DCMAKE_LIBRARY_OUTPUT_DIRECTORY_{cfg.upper()}={extdir}"
+                    f"-DCMAKE_LIBRARY_OUTPUT_DIRECTORY_{build_type.upper()}={extdir}"
                 ]
-                build_args += ["--config", cfg]
+                build_args += ["--config", build_type]
 
         if sys.platform.startswith("darwin"):
             # Cross-compile support for macOS - respect ARCHFLAGS if set
