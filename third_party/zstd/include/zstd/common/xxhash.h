@@ -52,7 +52,7 @@ XXH32        6.8 GB/s            6.0 GB/s
  *  Definitions
  ******************************/
 #include <stddef.h> /* size_t */
-namespace nexg_zstd {
+namespace neug_zstd {
 typedef enum { XXH_OK = 0, XXH_ERROR } XXH_errorcode;
 
 /* ****************************
@@ -253,6 +253,6 @@ XXH32_hashFromCanonical(const XXH32_canonical_t* src);
 XXH_PUBLIC_API XXH64_hash_t
 XXH64_hashFromCanonical(const XXH64_canonical_t* src);
 
-}  // namespace nexg_zstd
+}  // namespace neug_zstd
 
 #endif /* XXHASH_H_5627135585666179 */

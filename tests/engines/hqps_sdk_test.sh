@@ -14,9 +14,9 @@
 # limitations under the License.
 set -e
 SCRIPT_DIR=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" &>/dev/null && pwd)
-NEXG_HOME=${SCRIPT_DIR}/../../
-SERVER_BIN=${NEXG_HOME}/build/bin/interactive_server
-GIE_HOME=${NEXG_HOME}/../interactive_engine/
+NEUG_HOME=${SCRIPT_DIR}/../../
+SERVER_BIN=${NEUG_HOME}/build/bin/interactive_server
+GIE_HOME=${NEUG_HOME}/../interactive_engine/
 ADMIN_PORT=7777
 QUERY_PORT=10000
 CYPHER_PORT=7687
@@ -94,7 +94,7 @@ start_engine_service(){
 
 run_java_sdk_test(){
   echo "run java sdk test"
-  pushd ${NEXG_HOME}/interactive/sdk/java/
+  pushd ${NEUG_HOME}/interactive/sdk/java/
   cmd="mvn test -Dtest=com.alibaba.graphscope.interactive.client.DriverTest"
   echo "Start java sdk test: ${cmd}"
   eval ${cmd} || (err "java sdk test failed" &&  exit 1)
@@ -104,7 +104,7 @@ run_java_sdk_test(){
 
 run_python_sdk_test(){
   echo "run python sdk test"
-  pushd ${NEXG_HOME}/interactive/sdk/python/gs_interactive
+  pushd ${NEUG_HOME}/interactive/sdk/python/gs_interactive
   cmd="python3 -m pytest -s tests/test_driver.py"
   echo "Run python sdk test: ${cmd}"
   eval ${cmd} || (err "test_driver failed" &&  exit 1)

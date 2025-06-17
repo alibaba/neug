@@ -41,7 +41,7 @@
 #define WEIGHT(stat, opt) (opt ? ZSTD_fracWeight(stat) : ZSTD_bitWeight(stat))
 #endif
 
-namespace nexg_zstd {
+namespace neug_zstd {
 
 MEM_STATIC U32 ZSTD_bitWeight(U32 stat) {
   return (ZSTD_highbit32(stat + 1) * BITCOST_MULTIPLIER);
@@ -448,7 +448,7 @@ static U32 ZSTD_insertBt1(ZSTD_matchState_t* ms, const BYTE* const ip,
       if (matchIndex <= btLow) {
         smallerPtr = &dummy32;
         break;
-      }                         /* beyond tree size, stop the search */
+      } /* beyond tree size, stop the search */
       smallerPtr = nextPtr + 1; /* new "smaller" => larger of match */
       matchIndex = nextPtr[1]; /* new matchIndex larger than previous (closer to
                                   current) */
@@ -502,7 +502,7 @@ static U32 ZSTD_insertBt1(ZSTD_matchState_t* ms, const BYTE* const ip,
       if (matchIndex <= btLow) {
         smallerPtr = &dummy32;
         break;
-      }                         /* beyond tree size, stop searching */
+      } /* beyond tree size, stop searching */
       smallerPtr = nextPtr + 1; /* new "candidate" => larger than match, which
                                    was smaller than target */
       matchIndex = nextPtr[1];  /* new matchIndex, larger than previous and
@@ -788,7 +788,7 @@ U32 ZSTD_insertBtAndGetAllMatches(
       if (matchIndex <= btLow) {
         smallerPtr = &dummy32;
         break;
-      }                         /* beyond tree size, stop the search */
+      } /* beyond tree size, stop the search */
       smallerPtr = nextPtr + 1; /* new candidate => larger than match, which was
                                    smaller than current */
       matchIndex = nextPtr[1];  /* new matchIndex, larger than previous, closer
@@ -1396,4 +1396,4 @@ size_t ZSTD_compressBlock_btultra_extDict(ZSTD_matchState_t* ms,
  * because btultra2 is not meant to work with dictionaries
  * and is only specific for the first block (no prefix) */
 
-}  // namespace nexg_zstd
+}  // namespace neug_zstd

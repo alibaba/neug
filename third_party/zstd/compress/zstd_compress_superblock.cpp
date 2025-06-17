@@ -19,7 +19,7 @@
 #include "zstd/compress/zstd_compress_literals.h"
 #include "zstd/compress/zstd_compress_sequences.h"
 
-namespace nexg_zstd {
+namespace neug_zstd {
 /*-*************************************
  *  Superblock entropy buffer structs
  ***************************************/
@@ -912,4 +912,4 @@ size_t ZSTD_compressSuperBlock(ZSTD_CCtx* zc, void* dst, size_t dstCapacity,
       HUF_WORKSPACE_SIZE /* statically allocated in resetCCtx */);
 }
 
-}  // namespace nexg_zstd
+}  // namespace neug_zstd

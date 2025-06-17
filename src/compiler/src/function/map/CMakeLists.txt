@@ -1,4 +1,4 @@
-add_library(nexg_function_map
+add_library(neug_function_map
         OBJECT
         map_creation_function.cpp
         map_extract_function.cpp
@@ -6,5 +6,5 @@ add_library(nexg_function_map
         map_values_function.cpp)
 
 set(ALL_OBJECT_FILES
-        ${ALL_OBJECT_FILES} $<TARGET_OBJECTS:nexg_function_map>
+        ${ALL_OBJECT_FILES} $<TARGET_OBJECTS:neug_function_map>
         PARENT_SCOPE)

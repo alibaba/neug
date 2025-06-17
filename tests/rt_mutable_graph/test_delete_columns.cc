@@ -1,6 +1,6 @@
 #include <iostream>
 #include <string>
-#include "src/main/nexg_db.h"
+#include "src/main/neug_db.h"
 #include "src/storages/rt_mutable_graph/file_names.h"
 #include "src/storages/rt_mutable_graph/schema.h"
 

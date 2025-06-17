@@ -1,6 +1,6 @@
 #include <iostream>
 #include <string>
-#include "src/main/nexg_db.h"
+#include "src/main/neug_db.h"
 #include "src/storages/rt_mutable_graph/file_names.h"
 #include "src/storages/rt_mutable_graph/schema.h"
 
@@ -14,15 +14,15 @@ void test_open_close() {
   std::filesystem::create_directories(dir);
   // Get the path of current source file
 
-  gs::NexgDB db(dir, 1, "rw", "gopt");
+  gs::NeugDB db(dir, 1, "rw", "gopt");
   auto conn = db.connect();
   LOG(INFO) << "Before close db1";
   db.close();
   LOG(INFO) << "After close db1";
-  gs::NexgDB db2(dir, 1, "r", "gopt");
+  gs::NeugDB db2(dir, 1, "r", "gopt");
 
   LOG(INFO) << "After open db2 in read-only mode";
-  gs::NexgDB db3(dir, 1, "r", "gopt");
+  gs::NeugDB db3(dir, 1, "r", "gopt");
   LOG(INFO) << "After open db3 in read-only mode";
 
   db2.close();
@@ -39,7 +39,7 @@ bool test_database(const std::string& data_path, const std::string& csv_dir) {
   // create the directory
   std::filesystem::create_directories(data_path);
 
-  gs::NexgDB db(data_path, 1, "w", "gopt");
+  gs::NeugDB db(data_path, 1, "w", "gopt");
   auto conn = db.connect();
   {
     auto res = conn->query(
@@ -94,7 +94,7 @@ bool test_dangling(const std::string& data_path, const std::string& csv_dir) {
   // create the directory
   std::filesystem::create_directories(data_path);
 
-  gs::NexgDB db(data_path, 1, "w", "gopt");
+  gs::NeugDB db(data_path, 1, "w", "gopt");
   auto conn = db.connect();
   {
     auto res = conn->query(

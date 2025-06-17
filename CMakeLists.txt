@@ -1,12 +1,12 @@
 cmake_minimum_required (VERSION 3.10)
 
-file(READ ${CMAKE_CURRENT_SOURCE_DIR}/NEXG_VERSION NEXG_VERSION)
+file(READ ${CMAKE_CURRENT_SOURCE_DIR}/NEUG_VERSION NEUG_VERSION)
 # Strip trailing newline
-string(REGEX REPLACE "\n$" "" NEXG_VERSION "${NEXG_VERSION}")
+string(REGEX REPLACE "\n$" "" NEUG_VERSION "${NEUG_VERSION}")
 
 project (
-  NexG
-  VERSION ${NEXG_VERSION}
+  NeuG
+  VERSION ${NEUG_VERSION}
   LANGUAGES C CXX)
 
 option(BUILD_ENGINE "Whether to build engine" ON)
@@ -62,9 +62,9 @@ option(BUILD_TEST "Build C++ tests." TRUE)
 option(BUILD_EXTENSION_TESTS "Build C++ extension tests." FALSE)
 option(ENABLE_BACKTRACES "Enable backtrace printing for exceptions and segfaults" FALSE)
 
-add_definitions(-DNEXG_CMAKE_VERSION="${CMAKE_PROJECT_VERSION}")
+add_definitions(-DNEUG_CMAKE_VERSION="${CMAKE_PROJECT_VERSION}")
 #TODO: Fixme
-add_definitions(-DNEXG_EXTENSION_VERSION="0.9.0")
+add_definitions(-DNEUG_EXTENSION_VERSION="0.9.0")
 
 if (BUILD_HTTP_SERVER AND NOT BUILD_METADATA)
     message(FATAL_ERROR "BUILD_HTTP_SERVER requires BUILD_METADATA to be ON")
@@ -197,7 +197,7 @@ function(add_compiler_test TEST_NAME)
     #endif()
     #target_include_directories(${TEST_NAME} PRIVATE ${PROJECT_SOURCE_DIR}/test/include)
 
-    target_link_libraries(${TEST_NAME} PUBLIC neug::GTest nexg_compiler_shared nexg_plan_proto)
+    target_link_libraries(${TEST_NAME} PUBLIC neug::GTest neug_compiler_shared neug_plan_proto)
     target_include_directories(${TEST_NAME} PRIVATE src/include)
 
     include(GoogleTest)
@@ -329,7 +329,7 @@ if (NOT CMAKE_BUILD_TYPE AND NOT CMAKE_CONFIGURATION_TYPES)
                "Debug" "Release" "MinSizeRel" "RelWithDebInfo")
 endif ()
 
-add_compile_definitions(NEXG_VERSION="${NEXG_VERSION}")
+add_compile_definitions(NEUG_VERSION="${NEUG_VERSION}")
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Werror")
 
 if (APPLE)
@@ -502,16 +502,16 @@ endif()
 include_directories(SYSTEM ${CMAKE_SOURCE_DIR}/third_party/flat_hash_map)
 include_directories(SYSTEM ${CMAKE_SOURCE_DIR}/third_party/parallel-hashmap)
 
-macro(install_nexg_target target)
+macro(install_neug_target target)
     install(TARGETS ${target}
-            EXPORT nexg-targets
+            EXPORT neug-targets
             RUNTIME DESTINATION bin
             LIBRARY DESTINATION lib
             ARCHIVE DESTINATION lib
     )
 endmacro()
 
-macro(install_without_export_nexg_target target)
+macro(install_without_export_neug_target target)
     install(TARGETS ${target}
             RUNTIME DESTINATION bin
             LIBRARY DESTINATION lib
@@ -557,20 +557,20 @@ if (BUILD_COMPILER)
     add_subdirectory(third_party/zstd)
 endif()
 
-configure_file(${CMAKE_CURRENT_SOURCE_DIR}/nexg-config.in.cmake
-               ${CMAKE_CURRENT_BINARY_DIR}/nexg-config.cmake @ONLY)
+configure_file(${CMAKE_CURRENT_SOURCE_DIR}/neug-config.in.cmake
+               ${CMAKE_CURRENT_BINARY_DIR}/neug-config.cmake @ONLY)
 
-configure_file(${CMAKE_CURRENT_SOURCE_DIR}/nexg-config-version.in.cmake
-               ${CMAKE_CURRENT_BINARY_DIR}/nexg-config-version.cmake @ONLY)
+configure_file(${CMAKE_CURRENT_SOURCE_DIR}/neug-config-version.in.cmake
+               ${CMAKE_CURRENT_BINARY_DIR}/neug-config-version.cmake @ONLY)
 
-install(FILES "${CMAKE_CURRENT_BINARY_DIR}/nexg-config.cmake"
-              "${CMAKE_CURRENT_BINARY_DIR}/nexg-config-version.cmake"
-        DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/nexg)
+install(FILES "${CMAKE_CURRENT_BINARY_DIR}/neug-config.cmake"
+              "${CMAKE_CURRENT_BINARY_DIR}/neug-config-version.cmake"
+        DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/neug)
 
-install(EXPORT nexg-targets
-        FILE nexg-targets.cmake
-	    NAMESPACE nexg::
-        DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/nexg)
+install(EXPORT neug-targets
+        FILE neug-targets.cmake
+	    NAMESPACE neug::
+        DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/neug)
 
 file(GLOB_RECURSE FILES_NEED_LINT
         "src/**/*.h"
@@ -583,17 +583,17 @@ file(GLOB_RECURSE FILES_NEED_LINT
 list(FILTER FILES_NEED_LINT EXCLUDE REGEX ".*\.act.h$|.*\.actg.h$|.*\.autogen.h$|.*\.autogen.cc$")
 list(FILTER FILES_NEED_LINT EXCLUDE REGEX ".*/third_party/.*")
 
-add_custom_target(nexg_clformat
+add_custom_target(neug_clformat
     COMMAND clang-format --style=file -i ${FILES_NEED_LINT}
     COMMENT "Running clang-format, using clang-format-8 from https://github.com/muttleyxd/clang-tools-static-binaries/releases"
     VERBATIM)
 
 if (NOT DEFINED CPACK_PACKAGE_NAME)
-  set(CPACK_PACKAGE_NAME "nexg")
+  set(CPACK_PACKAGE_NAME "neug")
 endif ()
-set(CPACK_PACKAGE_DESCRIPTION_SUMMARY "NexG is a embedded graph database")
+set(CPACK_PACKAGE_DESCRIPTION_SUMMARY "neug is a embedded graph database")
 set(CPACK_PACKAGE_VENDOR "GraphScope")
-set(CPACK_PACKAGE_VERSION ${NEXG_VERSION})
+set(CPACK_PACKAGE_VERSION ${NEUG_VERSION})
 set(CPACK_PACKAGE_RELEASE 1)
 set(CPACK_GENERATOR "DEB")
 set(CPACK_PACKAGE_CONTACT "graphscope@alibaba-inc.com")

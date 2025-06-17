@@ -20,7 +20,7 @@
 #include "zstd/common/mem.h"           /* BYTE, U16, U32 */
 #include "zstd/common/zstd_internal.h" /* ZSTD_seqSymbol */
 
-namespace nexg_zstd {
+namespace neug_zstd {
 
 /*-*******************************************************
  *  Constants
@@ -185,6 +185,6 @@ size_t ZSTD_loadDEntropy(ZSTD_entropyDTables_t* entropy, const void* const dict,
  * segment. This function cannot fail. */
 void ZSTD_checkContinuity(ZSTD_DCtx* dctx, const void* dst);
 
-}  // namespace nexg_zstd
+}  // namespace neug_zstd
 
 #endif /* ZSTD_DECOMPRESS_INTERNAL_H */

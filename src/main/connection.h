@@ -32,7 +32,7 @@
 
 namespace gs {
 
-class NexgDB;
+class NeugDB;
 
 /**
  * This the the internal connection class, which is used to execute the query.

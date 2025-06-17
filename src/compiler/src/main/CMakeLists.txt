@@ -1,4 +1,4 @@
-add_library(nexg_compiler_main
+add_library(neug_compiler_main
         OBJECT
         attached_database.cpp
         client_context.cpp
@@ -14,5 +14,5 @@ add_library(nexg_compiler_main
         settings.cpp)
 
 set(ALL_OBJECT_FILES
-        ${ALL_OBJECT_FILES} $<TARGET_OBJECTS:nexg_compiler_main>
+        ${ALL_OBJECT_FILES} $<TARGET_OBJECTS:neug_compiler_main>
         PARENT_SCOPE)

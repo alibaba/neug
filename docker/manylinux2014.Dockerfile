@@ -21,9 +21,9 @@ RUN mkdir /opt/graphscope /opt/vineyard && chown -R graphscope:graphscope /opt/g
 # For output logs
 RUN mkdir -p /var/log/graphscope && chown -R graphscope:graphscope /var/log/graphscope
 
-COPY . /root/nexg
-RUN cd /root/nexg && bash scripts/install_deps.sh && \
-    cd /root && rm -rf /root/nexg && \
+COPY . /root/neug
+RUN cd /root/neug && bash scripts/install_deps.sh && \
+    cd /root && rm -rf /root/neug && \
     source ~/.graphscope_env
 
 # change bash as default

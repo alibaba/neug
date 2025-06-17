@@ -241,7 +241,7 @@ class BuildProto(Command):
 
     def run(self):
         proto_path = os.path.join(repo_root, "proto")
-        output_dir = os.path.join(base_dir, "nexg", "proto")
+        output_dir = os.path.join(base_dir, "neug", "proto")
         if not os.path.exists(proto_path):
             raise RuntimeError(f"Proto path {proto_path} does not exist.")
         if not os.path.exists(output_dir):
@@ -262,7 +262,7 @@ setup(
     version=version,
     author="GraphScope Team",
     author_email="graphscope@alibaba-inc.com",
-    url="https://github.com/graphscope/nexg",
+    url="https://github.com/graphscope/neug",
     # license="Apache License 2.0",
     # classifiers=[
     #     "Development Status :: 5 - Production/Stable",
@@ -280,12 +280,12 @@ setup(
     #     "Programming Language :: Python :: 3.10",
     #     "Programming Language :: Python :: 3.11",
     # ],
-    ext_modules=[CMakeExtension(name="nexg_py_bind", sourcedir=repo_root)],
-    description="GraphScope NexG.",
+    ext_modules=[CMakeExtension(name="neug_py_bind", sourcedir=repo_root)],
+    description="GraphScope NeuG.",
     long_description=open(os.path.join(base_dir, "README.md"), "r").read(),
     long_description_content_type="text/markdown",
     packages=find_packages(exclude=["tests"]),
-    package_data={"nexg": ["VERSION", "resources/*"]},
+    package_data={"neug": ["VERSION", "resources/*"]},
     zip_safe=True,
     include_package_data=True,
     cmdclass={

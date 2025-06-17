@@ -35,7 +35,7 @@
 #include <sanitizer/msan_interface.h>
 #endif
 
-namespace nexg_zstd {
+namespace neug_zstd {
 
 /*-*************************************
  *  Structures
@@ -531,6 +531,6 @@ MEM_STATIC void ZSTD_cwksp_bump_oversized_duration(
   }
 }
 
-}  // namespace nexg_zstd
+}  // namespace neug_zstd
 
 #endif /* ZSTD_CWKSP_H */

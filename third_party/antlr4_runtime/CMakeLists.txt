@@ -319,7 +319,7 @@ target_include_directories(${ANTLR4_RUNTIME} PUBLIC
     $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/src>
 )
 
-install_nexg_target(${ANTLR4_RUNTIME})
+install_neug_target(${ANTLR4_RUNTIME})
 
 target_compile_definitions(${ANTLR4_RUNTIME} PUBLIC -DANTLR4CPP_STATIC)
 

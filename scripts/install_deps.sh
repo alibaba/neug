@@ -125,7 +125,7 @@ done
 
 if [[ ${debug_flag} == true ]]; then
   debug "OS: ${OS}, OS_PLATFORM: ${OS_PLATFORM}, OS_VERSION: ${OS_VERSION}"
-  debug "install dependencies for NexG, instanll prefix ${install_prefix}"
+  debug "install dependencies for NeuG, instanll prefix ${install_prefix}"
 fi
 
 # sudo
@@ -441,7 +441,7 @@ INTERACTIVE_MACOS=("rapidjson" "xsimd")
 INTERACTIVE_UBUNTU=("rapidjson-dev" "libgoogle-glog-dev" "libgflags-dev" "libyaml-cpp-dev" "libprotobuf-dev" "libgflags-dev")
 INTERACTIVE_CENTOS=("rapidjson-devel" "glog-devel")
 
-install_nexg_dependencies() {
+install_neug_dependencies() {
   # dependencies package
   if [[ "${OS_PLATFORM}" == *"Darwin"* ]]; then
     brew install ${INTERACTIVE_MACOS[*]}
@@ -495,11 +495,11 @@ write_env_config() {
 install_deps() {
   init_workspace_and_env
   install_basic_packages
-  install_nexg_dependencies
+  install_neug_dependencies
   write_env_config
   info "The script has installed all dependencies, don't forget to exec command:\n
   $ source ${OUTPUT_ENV_FILE}
-  \nbefore building NexG."
+  \nbefore building NeuG."
 }
 
 install_deps

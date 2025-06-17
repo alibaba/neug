@@ -9,7 +9,7 @@ these definitions in association with dynamic linking !
 #ifndef XXH_STATIC_H_3543687687345
 #define XXH_STATIC_H_3543687687345
 
-namespace nexg_zstd {
+namespace neug_zstd {
 
 /* These definitions are only meant to allow allocation of XXH state
    statically, on stack, or in a struct for example.
@@ -40,7 +40,7 @@ struct XXH64_state_s {
                            version */
 }; /* typedef'd to XXH64_state_t */
 
-}  // namespace nexg_zstd
+}  // namespace neug_zstd
 // #  ifdef XXH_PRIVATE_API
 // #    include "xxhash.cpp"   /* include xxhash functions as `static`, for
 // inlining */ #  endif

@@ -245,7 +245,7 @@ pybind11::object entry_to_pyobject(const Schema& schema,
 void PyQueryResult::initialize(pybind11::handle& m) {
   pybind11::class_<PyQueryResult>(
       m, "PyQueryResult",
-      "PyQueryResult is a wrapper for query results in GraphScope NexG. It "
+      "PyQueryResult is a wrapper for query results in GraphScope NeuG. It "
       "actually store the query results defined by the proto results.proto "
       "file. ")
       .def("hasNext", &PyQueryResult::hasNext,

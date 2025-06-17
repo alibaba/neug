@@ -11,7 +11,7 @@
 #include "zstd/compress/zstd_fast.h"
 #include "zstd/compress/zstd_compress_internal.h" /* ZSTD_hashPtr, ZSTD_count, ZSTD_storeSeq */
 
-namespace nexg_zstd {
+namespace neug_zstd {
 
 void ZSTD_fillHashTable(ZSTD_matchState_t* ms, const void* const end,
                         ZSTD_dictTableLoadMethod_e dtlm) {
@@ -579,4 +579,4 @@ size_t ZSTD_compressBlock_fast_extDict(ZSTD_matchState_t* ms,
   }
 }
 
-}  // namespace nexg_zstd
+}  // namespace neug_zstd

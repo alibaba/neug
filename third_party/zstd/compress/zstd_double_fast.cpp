@@ -11,7 +11,7 @@
 #include "zstd/compress/zstd_double_fast.h"
 #include "zstd/compress/zstd_compress_internal.h"
 
-namespace nexg_zstd {
+namespace neug_zstd {
 
 void ZSTD_fillDoubleHashTable(ZSTD_matchState_t* ms, void const* end,
                               ZSTD_dictTableLoadMethod_e dtlm) {
@@ -653,4 +653,4 @@ size_t ZSTD_compressBlock_doubleFast_extDict(ZSTD_matchState_t* ms,
   }
 }
 
-}  // namespace nexg_zstd
+}  // namespace neug_zstd

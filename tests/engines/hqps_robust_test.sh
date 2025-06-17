@@ -14,8 +14,8 @@
 # limitations under the License.
 set -e
 SCRIPT_DIR=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" &>/dev/null && pwd)
-NEXG_HOME=${SCRIPT_DIR}/../../
-SERVER_BIN=${NEXG_HOME}/build/bin/interactive_server
+NEUG_HOME=${SCRIPT_DIR}/../../
+SERVER_BIN=${NEUG_HOME}/build/bin/interactive_server
 ADMIN_PORT=7777
 QUERY_PORT=10000
 CYPHER_PORT=7687
@@ -95,7 +95,7 @@ start_engine_service(){
 
 
 run_robust_test(){
-    pushd ${NEXG_HOME}/interactive/sdk/python/gs_interactive
+    pushd ${NEUG_HOME}/interactive/sdk/python/gs_interactive
     cmd="python3 -m pytest -s tests/test_robustness.py"
     echo "Run robust test with command: ${cmd}"
     eval ${cmd} || (err "Run robust test failed"; exit 1)
@@ -104,7 +104,7 @@ run_robust_test(){
 }
 
 run_additional_robust_test(){
-    pushd ${NEXG_HOME}/interactive/sdk/python/gs_interactive
+    pushd ${NEUG_HOME}/interactive/sdk/python/gs_interactive
     export RUN_ON_PROTO=ON
     cmd='python3 -m pytest -s tests/test_robustness.py -k "test_call_proc_in_cypher or test_var_char_property"'
     echo "Run additional robust test with command: ${cmd}"

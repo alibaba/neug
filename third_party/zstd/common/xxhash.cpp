@@ -144,7 +144,7 @@ typedef unsigned long long
 #endif
 #endif
 
-namespace nexg_zstd {
+namespace neug_zstd {
 static void* XXH_malloc(size_t s) { return malloc(s); }
 static void XXH_free(void* p) { free(p); }
 static void* XXH_memcpy(void* dest, const void* src, size_t size) {
@@ -902,4 +902,4 @@ XXH64_hashFromCanonical(const XXH64_canonical_t* src) {
   return XXH_readBE64(src);
 }
 
-}  // namespace nexg_zstd
+}  // namespace neug_zstd

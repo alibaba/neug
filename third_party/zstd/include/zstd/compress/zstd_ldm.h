@@ -20,7 +20,7 @@
 
 #define ZSTD_LDM_DEFAULT_WINDOW_LOG ZSTD_WINDOWLOG_LIMIT_DEFAULT
 
-namespace nexg_zstd {
+namespace neug_zstd {
 
 void ZSTD_ldm_fillHashTable(ldmState_t* state, const BYTE* ip, const BYTE* iend,
                             ldmParams_t const* params);
@@ -99,6 +99,6 @@ size_t ZSTD_ldm_getMaxNbSeq(ldmParams_t params, size_t maxChunkSize);
 void ZSTD_ldm_adjustParameters(ldmParams_t* params,
                                ZSTD_compressionParameters const* cParams);
 
-}  // namespace nexg_zstd
+}  // namespace neug_zstd
 
 #endif /* ZSTD_FAST_H */

@@ -1,4 +1,4 @@
-add_library(nexg_planner_join_order
+add_library(neug_planner_join_order
         OBJECT
         cardinality_estimator.cpp
         cost_model.cpp
@@ -8,5 +8,5 @@ add_library(nexg_planner_join_order
         join_tree_constructor.cpp)
 
 set(ALL_OBJECT_FILES
-        ${ALL_OBJECT_FILES} $<TARGET_OBJECTS:nexg_planner_join_order>
+        ${ALL_OBJECT_FILES} $<TARGET_OBJECTS:neug_planner_join_order>
         PARENT_SCOPE)

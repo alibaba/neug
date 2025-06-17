@@ -13,7 +13,7 @@
 
 #include "zstd/compress/zstd_compress_internal.h"
 
-namespace nexg_zstd {
+namespace neug_zstd {
 
 /* used in ZSTD_loadDictionaryContent() */
 void ZSTD_updateTree(ZSTD_matchState_t* ms, const BYTE* ip, const BYTE* iend);
@@ -51,6 +51,6 @@ size_t ZSTD_compressBlock_btultra_extDict(ZSTD_matchState_t* ms,
  * because btultra2 is not meant to work with dictionaries
  * and is only specific for the first block (no prefix) */
 
-}  // namespace nexg_zstd
+}  // namespace neug_zstd
 
 #endif /* ZSTD_OPT_H */

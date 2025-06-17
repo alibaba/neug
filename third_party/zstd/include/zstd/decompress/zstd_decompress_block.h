@@ -19,7 +19,7 @@
 #include "zstd/common/zstd_internal.h" /* blockProperties_t, and some public functions */
 #include "zstd/decompress/zstd_decompress_internal.h" /* ZSTD_seqSymbol */
 
-namespace nexg_zstd {
+namespace neug_zstd {
 
 /* ===   Prototypes   === */
 
@@ -52,6 +52,6 @@ void ZSTD_buildFSETable(ZSTD_seqSymbol* dt, const short* normalizedCounter,
                         unsigned maxSymbolValue, const U32* baseValue,
                         const U32* nbAdditionalBits, unsigned tableLog);
 
-}  // namespace nexg_zstd
+}  // namespace neug_zstd
 
 #endif /* ZSTD_DEC_BLOCK_H */

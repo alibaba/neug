@@ -10,7 +10,7 @@ add_subdirectory(types)
 add_subdirectory(vector)
 add_subdirectory(file_system)
 
-add_library(nexg_common
+add_library(neug_common
         OBJECT
         case_insensitive_map.cpp
         constants.cpp
@@ -31,5 +31,5 @@ add_library(nexg_common
         windows_utils.cpp)
 
 set(ALL_OBJECT_FILES
-        ${ALL_OBJECT_FILES} $<TARGET_OBJECTS:nexg_common>
+        ${ALL_OBJECT_FILES} $<TARGET_OBJECTS:neug_common>
         PARENT_SCOPE)

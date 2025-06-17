@@ -21,7 +21,7 @@ void PyDatabase::initialize(pybind11::handle& m) {
   pybind11::class_<PyDatabase, std::shared_ptr<PyDatabase>>(
       m, "PyDatabase",
       "PyDatabase is the python binds for the actual c++ implementation of "
-      "the database: NexgDB.\n")
+      "the database: NeugDB.\n")
       .def(pybind11::init([](pybind11::kwargs kwargs) {
         std::string database_path =
             kwargs.contains("database_path")
@@ -47,7 +47,7 @@ void PyDatabase::initialize(pybind11::handle& m) {
                                             planner, jni_planner_jar_path,
                                             planner_config_path);
       }))  // "Creating a PyDatabase. Holds a shared pointer to the C++ "
-           // "NexgDB object.\n"
+           // "NeugDB object.\n"
       .def("connect", &PyDatabase::connect,
            "Connect to the database and "
            "return a PyConnection object.\n\n"

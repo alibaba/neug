@@ -185,7 +185,7 @@ def parse_expected_results_from_json(json_file_path):
     return expected_results
 
 
-# Process queries to make them compatible with NexG
+# Process queries to make them compatible with NeuG
 def process_queries(queries):
     processed_queries = []
     for query in queries:
@@ -195,7 +195,7 @@ def process_queries(queries):
     return processed_queries
 
 
-# Preprocess the query to make it compatible with NexG
+# Preprocess the query to make it compatible with NeuG
 def preprocess_query(query):
     # e.g., Match (a:person:user) should be Match (a:person|user)
     query = re.sub(r":([a-zA-Z0-9_]+):([a-zA-Z0-9_]+)", r":\1|\2", query)
@@ -265,7 +265,7 @@ def preprocess_query(query):
     return query
 
 
-# Skip queries that are not supported by NexG
+# Skip queries that are not supported by NeuG
 def skip_query(query):
     # list of keywords to skip, as we have not supported them yet
     skip_keywords = ["CREATE", "DELETE", "SET", "CALL", "p ="]

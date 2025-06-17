@@ -13,7 +13,7 @@
 
 #include "zstd/compress/zstd_compress_internal.h" /* ZSTD_hufCTables_t, ZSTD_minGain() */
 
-namespace nexg_zstd {
+namespace neug_zstd {
 
 size_t ZSTD_noCompressLiterals(void* dst, size_t dstCapacity, const void* src,
                                size_t srcSize);
@@ -28,6 +28,6 @@ size_t ZSTD_compressLiterals(ZSTD_hufCTables_t const* prevHuf,
                              size_t srcSize, void* entropyWorkspace,
                              size_t entropyWorkspaceSize, const int bmi2);
 
-}  // namespace nexg_zstd
+}  // namespace neug_zstd
 
 #endif /* ZSTD_COMPRESS_LITERALS_H */

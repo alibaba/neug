@@ -18,10 +18,10 @@
 
 """The Neug connection module."""
 
-from nexg_py_bind import PyConnection
+from neug_py_bind import PyConnection
 
 # This is the C++ binding for the Python interface, which provides the actual connection to the database.
-from nexg.result import QueryResult
+from neug.result import QueryResult
 
 
 class Connection(object):
@@ -78,7 +78,7 @@ class Connection(object):
 
         .. code:: python
 
-            >>> from nexg import Database
+            >>> from neug import Database
             >>> db = Database("/tmp/test.db", mode="w")
             >>> conn = db.connect()
             >>> res = conn.execute('CREATE TABLE person(id INT64, name STRING);')

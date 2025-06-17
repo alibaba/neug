@@ -1,4 +1,4 @@
-add_library(nexg_utility_function
+add_library(neug_utility_function
         OBJECT
         coalesce.cpp
         md5.cpp
@@ -10,5 +10,5 @@ add_library(nexg_utility_function
         typeof.cpp)
 
 set(ALL_OBJECT_FILES
-        ${ALL_OBJECT_FILES} $<TARGET_OBJECTS:nexg_utility_function>
+        ${ALL_OBJECT_FILES} $<TARGET_OBJECTS:neug_utility_function>
         PARENT_SCOPE)

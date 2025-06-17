@@ -93,7 +93,7 @@ typedef unsigned long long U64;
 typedef signed long long S64;
 #endif
 
-namespace nexg_zstd {
+namespace neug_zstd {
 
 /*-**************************************************************
  *  Memory I/O
@@ -403,6 +403,6 @@ MEM_STATIC void MEM_writeBEST(void* memPtr, size_t val) {
     MEM_writeBE64(memPtr, (U64) val);
 }
 
-}  // namespace nexg_zstd
+}  // namespace neug_zstd
 
 #endif /* MEM_H_MODULE */

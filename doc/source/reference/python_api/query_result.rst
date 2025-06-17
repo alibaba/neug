@@ -3,7 +3,7 @@
 QueryResult
 ===================
 
-.. currentmodule:: nexg.result
+.. currentmodule:: neug.result
 .. autoclass:: QueryResult
    :special-members:
    :members:

@@ -23,7 +23,7 @@
 #include "zstd/common/huf.h"
 #include "zstd/common/huf_static.h"
 
-namespace nexg_zstd {
+namespace neug_zstd {
 /* **************************************************************
  *  Macros
  ****************************************************************/
@@ -1391,4 +1391,4 @@ size_t HUF_decompress4X_hufOnly_wksp_bmi2(HUF_DTable* dctx, void* dst,
   }
 }
 
-}  // namespace nexg_zstd
+}  // namespace neug_zstd

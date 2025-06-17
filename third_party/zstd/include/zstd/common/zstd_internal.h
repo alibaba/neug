@@ -35,7 +35,7 @@
 #include "zstd/common/xxhash_static.h" /* XXH_reset, update, digest */
 #include "zstd_static.h"
 
-namespace nexg_zstd {
+namespace neug_zstd {
 
 /* ---- static assert (debug) --- */
 #define ZSTD_STATIC_ASSERT(c) DEBUG_STATIC_ASSERT(c)
@@ -439,6 +439,6 @@ size_t ZSTD_getcBlockSize(const void* src, size_t srcSize,
 size_t ZSTD_decodeSeqHeaders(ZSTD_DCtx* dctx, int* nbSeqPtr, const void* src,
                              size_t srcSize);
 
-}  // namespace nexg_zstd
+}  // namespace neug_zstd
 
 #endif /* ZSTD_CCOMMON_H_MODULE */

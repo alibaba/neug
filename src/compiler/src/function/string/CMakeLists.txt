@@ -1,4 +1,4 @@
-add_library(nexg_string_function
+add_library(neug_string_function
         OBJECT
         string_split_function.cpp
         init_cap_function.cpp
@@ -8,5 +8,5 @@ add_library(nexg_string_function
         regex_replace_function.cpp)
 
 set(ALL_OBJECT_FILES
-        ${ALL_OBJECT_FILES} $<TARGET_OBJECTS:nexg_string_function>
+        ${ALL_OBJECT_FILES} $<TARGET_OBJECTS:neug_string_function>
         PARENT_SCOPE)

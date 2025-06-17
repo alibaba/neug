@@ -1,4 +1,4 @@
-add_library(nexg_gopt
+add_library(neug_gopt
     OBJECT
     g_catalog.cpp
     g_storage_manager.cpp
@@ -10,12 +10,12 @@ add_library(nexg_gopt
     g_query_converter.cpp
 )
 
-target_link_libraries(nexg_gopt
+target_link_libraries(neug_gopt
     PUBLIC
     ${YAML_CPP_LIBRARIES}
-    nexg_plan_proto
+    neug_plan_proto
     ${Protobuf_LIBRARIES})
 
 set(ALL_OBJECT_FILES
-        ${ALL_OBJECT_FILES} $<TARGET_OBJECTS:nexg_gopt>
+        ${ALL_OBJECT_FILES} $<TARGET_OBJECTS:neug_gopt>
         PARENT_SCOPE)

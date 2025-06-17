@@ -44,7 +44,7 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  test-py-nexg:
+  test-py-neug:
     runs-on: [self-hosted]
     container:
       image: registry.cn-hongkong.aliyuncs.com/graphscope/graphscope-dev:v0.24.2-amd64-ccache
@@ -79,7 +79,7 @@ jobs:
         . /home/graphscope/.graphscope_env
         cd ${GITHUB_WORKSPACE}/
         git submodule update --init
-        export DEBUG=1
+        export BUILD_TYPE=DEBUG
         export CMAKE_BUILD_PARALLEL_LEVEL=$(nproc)
         export BUILD_EXECUTABLES=ON
         export BUILD_TEST=ON
@@ -98,13 +98,13 @@ jobs:
         rm -rf /tmp/modern_graph && rm -rf /tmp/lsqb && rm -rf /tmp/ldbc && rm -rf /tmp/tinysnb
         cd ${GITHUB_WORKSPACE}/tools/python_bind/
         export FLEX_DATA_DIR=${GITHUB_WORKSPACE}/example_dataset/modern_graph
-        GLOG_v=10 ./build/nexg_py_bind/src/bin/bulk_loader -g ../../example_dataset/modern_graph/graph.yaml -l ../../example_dataset/modern_graph/import.yaml -d /tmp/modern_graph
+        GLOG_v=10 ./build/neug_py_bind/src/bin/bulk_loader -g ../../example_dataset/modern_graph/graph.yaml -l ../../example_dataset/modern_graph/import.yaml -d /tmp/modern_graph
         export FLEX_DATA_DIR=${GITHUB_WORKSPACE}/example_dataset/lsqb-sf01
-        GLOG_v=10 ./build/nexg_py_bind/src/bin/bulk_loader -g ../../example_dataset/lsqb-sf01/graph.yaml -l ../../example_dataset/lsqb-sf01/import.yaml -d /tmp/lsqb
+        GLOG_v=10 ./build/neug_py_bind/src/bin/bulk_loader -g ../../example_dataset/lsqb-sf01/graph.yaml -l ../../example_dataset/lsqb-sf01/import.yaml -d /tmp/lsqb
         export FLEX_DATA_DIR=${GS_TEST_DIR}/flex/ldbc-sf01-long-date
-        GLOG_v=10 ./build/nexg_py_bind/src/bin/bulk_loader -g ../../example_dataset/ldbc/graph.yaml -l ../../example_dataset/ldbc/import.yaml -d /tmp/ldbc/
+        GLOG_v=10 ./build/neug_py_bind/src/bin/bulk_loader -g ../../example_dataset/ldbc/graph.yaml -l ../../example_dataset/ldbc/import.yaml -d /tmp/ldbc/
         export FLEX_DATA_DIR=${GITHUB_WORKSPACE}/example_dataset/tinysnb
-        GLOG_v=10 ./build/nexg_py_bind/src/bin/bulk_loader -g ../../example_dataset/tinysnb/graph.yaml -l ../../example_dataset/tinysnb/import.yaml -d /tmp/tinysnb
+        GLOG_v=10 ./build/neug_py_bind/src/bin/bulk_loader -g ../../example_dataset/tinysnb/graph.yaml -l ../../example_dataset/tinysnb/import.yaml -d /tmp/tinysnb
 
     - name: Run Python Test
       run: |
@@ -125,12 +125,12 @@ jobs:
       run: |
         cd ${GITHUB_WORKSPACE}/tools/python_bind/
         export FLEX_DATA_DIR=${GITHUB_WORKSPACE}/example_dataset/modern_graph
-        GLOG_v=10 ./build/nexg_py_bind/tests/rt_mutable_graph/test_gopt_planner /tmp/test_gopt_planner
+        GLOG_v=10 ./build/neug_py_bind/tests/rt_mutable_graph/test_gopt_planner /tmp/test_gopt_planner
 
     - name: Run TinySNB Test
       run: |
         cd ${GITHUB_WORKSPACE}/tools/python_bind/
-        GLOG_v=10 ./build/nexg_py_bind/tests/rt_mutable_graph/test_run_query /tmp/tinysnb "MATCH (a:person)-[e1:knows]->(b:person) WHERE a.age > 35 RETURN b.fName"
+        GLOG_v=10 ./build/neug_py_bind/tests/rt_mutable_graph/test_run_query /tmp/tinysnb "MATCH (a:person)-[e1:knows]->(b:person) WHERE a.age > 35 RETURN b.fName"
 
     - name: Run DB Init Test
       run: |

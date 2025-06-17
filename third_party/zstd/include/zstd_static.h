@@ -11,7 +11,7 @@
 #ifndef ZSTD_H_ZSTD_STATIC_LINKING_ONLY
 #define ZSTD_H_ZSTD_STATIC_LINKING_ONLY
 
-namespace nexg_zstd {
+namespace neug_zstd {
 
 /****************************************************************************************
  *   experimental API (static linking only)
@@ -66,7 +66,7 @@ namespace nexg_zstd {
       * requiring larger than (1<<ZSTD_WINDOWLOG_LIMIT_DEFAULT) window size, \
       * to preserve host's memory from unreasonable requirements.            \
       * This limit can be overridden using                                   \
-      * ZSTD_DCtx_setParameter(,ZSTD_d_windowLogMax,). The limit does not                                                          \
+      * ZSTD_DCtx_setParameter(,ZSTD_d_windowLogMax,). The limit does not    \
       * apply for one-pass decoders (such as ZSTD_decompress()), since no    \
       * additional memory is allocated */
 
@@ -1259,6 +1259,6 @@ ZSTDLIB_API size_t ZSTD_insertBlock(
     size_t blockSize); /**< insert uncompressed block into `dctx` history.
                           Useful for multi-blocks decompression. */
 
-}  // namespace nexg_zstd
+}  // namespace neug_zstd
 
 #endif /* ZSTD_H_ZSTD_STATIC_LINKING_ONLY */

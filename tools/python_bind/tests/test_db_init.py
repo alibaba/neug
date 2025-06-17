@@ -33,7 +33,7 @@ from errors import ERR_PERMISSION
 from errors import ERR_VERSION_MISMATCHED
 from errors import ERROR_STRINGS
 
-from nexg.database import Database
+from neug.database import Database
 
 
 # DB-001-01 & DB-001-02

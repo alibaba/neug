@@ -23,4 +23,4 @@ target_include_directories(antlr4_cypher
 
 target_link_libraries(antlr4_cypher PRIVATE antlr4_runtime)
 
-install_nexg_target(antlr4_cypher)
+install_neug_target(antlr4_cypher)

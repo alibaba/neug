@@ -17,7 +17,7 @@
 
 #include "zstd.h" /* ZSTD_CCtx */
 
-namespace nexg_zstd {
+namespace neug_zstd {
 /*-*************************************
  *  Target Compressed Block Size
  ***************************************/
@@ -29,6 +29,6 @@ namespace nexg_zstd {
 size_t ZSTD_compressSuperBlock(ZSTD_CCtx* zc, void* dst, size_t dstCapacity,
                                void const* src, size_t srcSize,
                                unsigned lastBlock);
-}  // namespace nexg_zstd
+}  // namespace neug_zstd
 
 #endif /* ZSTD_COMPRESS_ADVANCED_H */

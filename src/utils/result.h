@@ -28,7 +28,7 @@
 
 namespace gs {
 
-using StatusCode = gs::nexg::interactive::Code;
+using StatusCode = gs::neug::interactive::Code;
 
 class Status {
  public:
@@ -159,12 +159,12 @@ struct is_gs_status_type<Status> : std::true_type {};
 
 #define RETURN_FLEX_LEAF_ERROR(code, msg) \
   return ::boost::leaf::new_error(        \
-      gs::Status(::gs::nexg::interactive::Code::code, msg))
+      gs::Status(::gs::neug::interactive::Code::code, msg))
 
 }  // namespace gs
 
 namespace std {
-inline std::string to_string(const gs::nexg::interactive::Code& status) {
+inline std::string to_string(const gs::neug::interactive::Code& status) {
   // format the code into 0x-xxxx, where multiple zeros are prepend to the code
   std::stringstream ss;
   ss << "05-" << std::setw(4) << std::setfill('0')

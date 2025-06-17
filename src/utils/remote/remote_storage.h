@@ -13,8 +13,8 @@
  * limitations under the License.
  */
 
-#ifndef nexg_utils_REMOTE_REMOTE_STORAGE_H_
-#define nexg_utils_REMOTE_REMOTE_STORAGE_H_
+#ifndef SRC_UTILS_REMOTE_REMOTE_STORAGE_H_
+#define SRC_UTILS_REMOTE_REMOTE_STORAGE_H_
 
 #include <string>
 #include "src/utils/result.h"
@@ -92,4 +92,4 @@ class RemoteStorageDownloader {
 
 }  // namespace gs
 
-#endif  // nexg_utils_REMOTE_REMOTE_STORAGE_H_
+#endif  // SRC_UTILS_REMOTE_REMOTE_STORAGE_H_

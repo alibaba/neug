@@ -18,9 +18,9 @@
 
 """The Neug result module."""
 
-from nexg_py_bind import PyQueryResult
+from neug_py_bind import PyQueryResult
 
-# PyQueryResult is defined in the nexg_py_bind module, which is a C++ binding for the Python interface.
+# PyQueryResult is defined in the neug_py_bind module, which is a C++ binding for the Python interface.
 # See py_query_result.h for the definition of PyQueryResult.
 
 
@@ -35,7 +35,7 @@ class QueryResult(object):
 
     .. code:: python
 
-        >>> from nexg import Database
+        >>> from neug import Database
         >>> db = Database("/tmp/test.db", mode="r")
         >>> conn = db.connect()
         >>> result = conn.execute('MATCH (n) RETURN n')

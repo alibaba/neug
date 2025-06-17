@@ -14,7 +14,7 @@
 #include "zstd/common/fse.h"           /* FSE_repeat, FSE_CTable */
 #include "zstd/common/zstd_internal.h" /* symbolEncodingType_e, ZSTD_strategy */
 
-namespace nexg_zstd {
+namespace neug_zstd {
 
 typedef enum {
   ZSTD_defaultDisallowed = 0,
@@ -50,6 +50,6 @@ size_t ZSTD_fseBitCost(FSE_CTable const* ctable, unsigned const* count,
 size_t ZSTD_crossEntropyCost(short const* norm, unsigned accuracyLog,
                              unsigned const* count, unsigned const max);
 
-}  // namespace nexg_zstd
+}  // namespace neug_zstd
 
 #endif /* ZSTD_COMPRESS_SEQUENCES_H */

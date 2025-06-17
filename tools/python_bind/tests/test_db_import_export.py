@@ -29,7 +29,7 @@ from errors import ERR_SCHEMA_MISMATCH
 from errors import ERR_TYPE_CONVERSION
 from errors import ERROR_STRINGS
 
-from nexg.database import Database
+from neug.database import Database
 
 
 # DB-005-01

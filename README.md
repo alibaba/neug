@@ -1,4 +1,4 @@
-# nexg
+# NeuG
 A repo for maintaining the next-gen GraphScope.
 
 # Compiler 
@@ -6,7 +6,7 @@ Currently compiler are provided via jar.
 
 ```bash
 wget https://graphscope.oss-accelerate-overseas.aliyuncs.com/compiler/compiler-0.0.1-SNAPSHOT-shade.jar
-java -Dgraph.schema=/workspaces/nexg/example_dataset/modern_graph/graph.yaml \
+java -Dgraph.schema=/workspaces/neug/example_dataset/modern_graph/graph.yaml \
      -Dgraph.statistics=/tmp/csr-data/statistics.json \
     -jar compiler-0.0.1-SNAPSHOT-shade.jar ./tests/engines/interactive_config_test_cbo.yaml
 ```
@@ -62,7 +62,7 @@ make -j
 
 ```bash
 cd build
-export FLEX_DATA_DIR=/workspaces/nexg/example_dataset/modern_graph
+export FLEX_DATA_DIR=/workspaces/neug/example_dataset/modern_graph
 GLOG_v=10 ./src/bin/bulk_loader -g ../example_dataset/modern_graph/graph.yaml -l ../example_dataset/modern_graph/import.yaml -d /tmp/csr-data-dir 
 # You will find a statistics.json under /tmp/csr-data-dir 
 ```
@@ -70,11 +70,11 @@ GLOG_v=10 ./src/bin/bulk_loader -g ../example_dataset/modern_graph/graph.yaml -l
 ## Start Compiler Service
 
 ```bash
-java -Dgraph.schema=/workspaces/nexg/example_dataset/modern_graph/graph.yaml \
+java -Dgraph.schema=/workspaces/neug/example_dataset/modern_graph/graph.yaml \
      -Dgraph.statistics=/tmp/csr-data/statistics.json \
     -jar compiler-0.0.1-SNAPSHOT-shade.jar ./tests/engines/interactive_config_test_cbo.yaml
 ```
-## Start Nexg(Interactive) Server
+## Start NeuG(Interactive) Server
 
 ```bash
 GLOG_v=10 ./src/bin/interactive_server -c ../tests/engines/interactive_config_test_cbo.yaml -g ../example_dataset/modern_graph/graph.yaml --data-path /tmp/csr-data-dir

@@ -13,8 +13,8 @@
  * limitations under the License.
  */
 
-#ifndef nexg_utils_TOP_N_GENERATOR_H_
-#define nexg_utils_TOP_N_GENERATOR_H_
+#ifndef SRC_UTILS_TOP_N_GENERATOR_H_
+#define SRC_UTILS_TOP_N_GENERATOR_H_
 
 #include <queue>
 #include <vector>
@@ -161,4 +161,4 @@ class InplaceTopNGenerator {
 
 }  // namespace gs
 
-#endif  // nexg_utils_TOP_N_GENERATOR_H_
+#endif  // SRC_UTILS_TOP_N_GENERATOR_H_

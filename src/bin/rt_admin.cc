@@ -47,7 +47,7 @@ int main(int argc, char** argv) {
 
   std::string op = argv[1];
   if (op == "--version" || op == "-v") {
-    std::cout << "NexG version " << NEXG_VERSION << std::endl;
+    std::cout << "NeuG version " << NEUG_VERSION << std::endl;
     return 0;
   }
   std::string label_name, src_label, dst_label, edge_label;

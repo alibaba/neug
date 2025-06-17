@@ -19,7 +19,7 @@
 #define LDM_HASH_RLOG 7
 #define LDM_HASH_CHAR_OFFSET 10
 
-namespace nexg_zstd {
+namespace neug_zstd {
 
 void ZSTD_ldm_adjustParameters(ldmParams_t* params,
                                ZSTD_compressionParameters const* cParams) {
@@ -597,4 +597,4 @@ size_t ZSTD_ldm_blockCompress(rawSeqStore_t* rawSeqStore, ZSTD_matchState_t* ms,
   return blockCompressor(ms, seqStore, rep, ip, iend - ip);
 }
 
-}  // namespace nexg_zstd
+}  // namespace neug_zstd

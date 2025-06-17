@@ -30,7 +30,7 @@ from errors import ERR_NETWORK
 from errors import ERR_POOL_EXHAUSTED
 from errors import ERROR_STRINGS
 
-from nexg.database import Database
+from neug.database import Database
 
 
 # DB-002-01
@@ -82,7 +82,7 @@ def started_server(tmp_path, unused_tcp_port):
 @pytest.mark.skip(reason="db.serve/Session.open not implemented")
 def test_remote_connection(started_server):
     db, port = started_server
-    from nexg.session import Session
+    from neug.session import Session
 
     session = Session.open(f"neug://user:pass@127.0.0.1:{port}/")
     assert session is not None
@@ -93,7 +93,7 @@ def test_remote_connection(started_server):
 @pytest.mark.skip(reason="Session not implemented")
 def test_remote_connection_params(started_server):
     db, port = started_server
-    from nexg.session import Session
+    from neug.session import Session
 
     session = Session.open(
         f"neug://user:pass@127.0.0.1:{port}/",
@@ -109,7 +109,7 @@ def test_remote_connection_params(started_server):
 @pytest.mark.skip(reason="Session not implemented")
 def test_remote_connection_wrong_ip_port(started_server):
     db, port = started_server
-    from nexg.session import Session
+    from neug.session import Session
 
     with pytest.raises(Exception) as excinfo:
         Session.open(f"neug://user:pass@256.256.256.256:{port}/")
@@ -123,7 +123,7 @@ def test_remote_connection_wrong_ip_port(started_server):
 @pytest.mark.skip(reason="Session not implemented")
 def test_remote_connection_broken(started_server):
     db, port = started_server
-    from nexg.session import Session
+    from neug.session import Session
 
     session = Session.open(f"neug://user:pass@127.0.0.1:{port}/")
     # simulate server disconnect
@@ -139,7 +139,7 @@ def test_remote_connection_broken(started_server):
 @pytest.mark.skip(reason="Session not implemented")
 def test_tx_not_commit_connection_broken(started_server):
     db, port = started_server
-    from nexg.session import Session
+    from neug.session import Session
 
     session = Session.open(f"neug://user:pass@127.0.0.1:{port}/")
     session.begin()
@@ -164,7 +164,7 @@ def test_tx_not_commit_connection_broken(started_server):
 @pytest.mark.skip(reason="Not supported in current version")
 def test_server_load_overflow(started_server):
     db, port = started_server
-    from nexg.session import Session
+    from neug.session import Session
 
     sessions = []
     try:
@@ -203,7 +203,7 @@ def test_local_connection_after_close(tmp_path):
 @pytest.mark.skip(reason="Session not implemented")
 def test_remote_connection_after_close(started_server):
     # remote connection after close
-    from nexg.session import Session
+    from neug.session import Session
 
     db, port = started_server
     session = Session.open(f"neug://user:pass@127.0.0.1:{port}/")
@@ -218,7 +218,7 @@ def test_remote_connection_after_close(started_server):
 @pytest.mark.skip(reason="Session not implemented")
 def test_server_restart(started_server):
     db, port = started_server
-    from nexg.session import Session
+    from neug.session import Session
 
     session = Session.open(f"neug://user:pass@127.0.0.1:{port}/")
     db.close()
@@ -240,7 +240,7 @@ def test_server_restart(started_server):
 @pytest.mark.skip(reason="Session not implemented")
 def test_connection_pool_exhausted(started_server):
     db, port = started_server
-    from nexg.session import Session
+    from neug.session import Session
 
     # suppose the server has a connection pool limit of 8
     s1 = Session.open(f"neug://user:pass@127.0.0.1:{port}/", num_threads=8)

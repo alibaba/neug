@@ -15,7 +15,7 @@
  *  Binary Tree search
  ***************************************/
 
-namespace nexg_zstd {
+namespace neug_zstd {
 
 static void ZSTD_updateDUBT(ZSTD_matchState_t* ms, const BYTE* ip,
                             const BYTE* iend, U32 mls) {
@@ -239,7 +239,7 @@ static size_t ZSTD_DUBT_findBetterDictMatch(
     if (match[matchLength] < ip[matchLength]) {
       if (dictMatchIndex <= btLow) {
         break;
-      }                                  /* beyond tree size, stop the search */
+      } /* beyond tree size, stop the search */
       commonLengthSmaller = matchLength; /* all smaller will now have at least
                                             this guaranteed common length */
       dictMatchIndex = nextPtr[1];       /* new matchIndex larger than previous
@@ -395,7 +395,7 @@ static size_t ZSTD_DUBT_findBestMatch(ZSTD_matchState_t* ms,
         if (matchIndex <= btLow) {
           smallerPtr = &dummy32;
           break;
-        }                         /* beyond tree size, stop the search */
+        } /* beyond tree size, stop the search */
         smallerPtr = nextPtr + 1; /* new "smaller" => larger of match */
         matchIndex = nextPtr[1];  /* new matchIndex larger than previous (closer
                                      to current) */
@@ -1341,4 +1341,4 @@ size_t ZSTD_compressBlock_btlazy2_extDict(ZSTD_matchState_t* ms,
                                                  srcSize, search_binaryTree, 2);
 }
 
-}  // namespace nexg_zstd
+}  // namespace neug_zstd

@@ -1,4 +1,4 @@
-Contributing to NexG
+Contributing to NeuG
 ==========================
 
 TODO

@@ -12,7 +12,7 @@ void ExtensionInstaller::tryDownloadExtensionFile(
     const ExtensionRepoInfo& repoInfo, const std::string& localFilePath) {
   httplib::Client cli(repoInfo.hostURL.c_str());
   httplib::Headers headers = {
-      {"User-Agent", common::stringFormat("gs/v{}", NEXG_EXTENSION_VERSION)}};
+      {"User-Agent", common::stringFormat("gs/v{}", NEUG_EXTENSION_VERSION)}};
   auto res = cli.Get(repoInfo.hostPath.c_str(), headers);
   if (!res || res->status != 200) {
     if (res.error() == httplib::Error::Success) {
@@ -73,7 +73,7 @@ void ExtensionInstaller::installDependencies() {
       ExtensionUtils::getExtensionInstallerRepoInfo(info.name, info.repo);
   httplib::Client cli(extensionRepoInfo.hostURL.c_str());
   httplib::Headers headers = {
-      {"User-Agent", common::stringFormat("gs/v{}", NEXG_EXTENSION_VERSION)}};
+      {"User-Agent", common::stringFormat("gs/v{}", NEUG_EXTENSION_VERSION)}};
   auto res = cli.Get(extensionRepoInfo.hostPath.c_str(), headers);
   if (!res || res->status != 200) {
     // The extension doesn't have an installer.

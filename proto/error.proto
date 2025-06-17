@@ -25,13 +25,13 @@
  */
 syntax = "proto3";
 
-package gs.nexg.interactive;
+package gs.neug.interactive;
 
 option java_package = "com.alibaba.graphscope.interactive.proto";
 option java_multiple_files = true;
 
 
-// component-05: GraphScope Interactive (nexg)
+// component-05: GraphScope Interactive (neug)
 enum Code {
     // Not an error; returned on success.
     OK = 0;

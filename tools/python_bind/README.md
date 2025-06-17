@@ -1,4 +1,4 @@
-# The python binding API for NexG
+# The python binding API for NeuG
 
 # Building the Wheel
 

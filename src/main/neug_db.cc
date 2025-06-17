@@ -13,7 +13,7 @@
  * limitations under the License.
  */
 
-#include "src/main/nexg_db.h"
+#include "src/main/neug_db.h"
 
 namespace gs {
 
@@ -42,8 +42,8 @@ void setup_signal_handler() {
   std::signal(SIGABRT, signal_handler);
 }
 
-void NexgDB::close() {
-  LOG(INFO) << "Closing NexgDB.";
+void NeugDB::close() {
+  LOG(INFO) << "Closing NeugDB.";
   if (mode_ == DBMode::READ_WRITE) {
     file_lock_.unlock();
   }
@@ -61,7 +61,7 @@ void NexgDB::close() {
   VLOG(10) << "Close all connections.";
 }
 
-std::shared_ptr<Connection> NexgDB::connect() {
+std::shared_ptr<Connection> NeugDB::connect() {
   if (mode_ == DBMode::READ_ONLY) {
     auto conn = std::make_shared<Connection>(db_, planner_, query_processor_);
     read_only_connections_.push_back(conn);

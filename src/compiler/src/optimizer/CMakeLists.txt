@@ -1,4 +1,4 @@
-add_library(nexg_optimizer
+add_library(neug_optimizer
         OBJECT
         acc_hash_join_optimizer.cpp
         agg_key_dependency_optimizer.cpp
@@ -19,5 +19,5 @@ add_library(nexg_optimizer
 	filter_push_down_pattern.cpp)
 
 set(ALL_OBJECT_FILES
-        ${ALL_OBJECT_FILES} $<TARGET_OBJECTS:nexg_optimizer>
+        ${ALL_OBJECT_FILES} $<TARGET_OBJECTS:neug_optimizer>
         PARENT_SCOPE)

@@ -24,10 +24,12 @@
 #include "third_party/libgrape-lite/grape/serialization/out_archive.h"
 
 #define WORD_SIZE(n) (((n) + 63ul) >> 6)
-#define NEXG_BYTE_SIZE(n) (((n) + 63ul) >> 3)
+#define NEUG_BYTE_SIZE(n) (((n) + 63ul) >> 3)
 
 #define WORD_INDEX(i) ((i) >> 6)
+// clang-format off
 #define BIT_OFFSET(i) ((i) &0x3f)
+// clang-format on
 
 #define ROUND_UP(i) (((i) + 63ul) & (~63ul))
 #define ROUND_DOWN(i) ((i) & (~63ul))
@@ -50,7 +52,7 @@ class Bitset : public SPAllocator<uint64_t> {
       data_ = NULL;
     } else {
       data_ = this->allocate(capacity_in_words_);
-      memcpy(data_, other.data_, NEXG_BYTE_SIZE(capacity_));
+      memcpy(data_, other.data_, NEUG_BYTE_SIZE(capacity_));
     }
   }
 
@@ -91,7 +93,7 @@ class Bitset : public SPAllocator<uint64_t> {
       data_ = NULL;
     } else {
       data_ = this->allocate(capacity_in_words_);
-      memcpy(data_, other.data_, NEXG_BYTE_SIZE(size_));
+      memcpy(data_, other.data_, NEUG_BYTE_SIZE(size_));
     }
     return *this;
   }
@@ -215,7 +217,7 @@ class Bitset : public SPAllocator<uint64_t> {
 };
 
 #undef WORD_SIZE
-#undef NEXG_BYTE_SIZE
+#undef NEUG_BYTE_SIZE
 #undef WORD_INDEX
 #undef BIT_OFFSET
 #undef ROUND_UP

@@ -14,7 +14,7 @@
 #include "zstd/common/mem.h" /* U32 */
 #include "zstd/compress/zstd_compress_internal.h"
 
-namespace nexg_zstd {
+namespace neug_zstd {
 
 void ZSTD_fillHashTable(ZSTD_matchState_t* ms, void const* end,
                         ZSTD_dictTableLoadMethod_e dtlm);
@@ -30,6 +30,6 @@ size_t ZSTD_compressBlock_fast_extDict(ZSTD_matchState_t* ms,
                                        U32 rep[ZSTD_REP_NUM], void const* src,
                                        size_t srcSize);
 
-}  // namespace nexg_zstd
+}  // namespace neug_zstd
 
 #endif /* ZSTD_FAST_H */

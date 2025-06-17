@@ -113,7 +113,7 @@ jobs:
             echo "|"
             echo "| Run: "
             echo "|"
-            echo "|    cd src && make nexg_clformat"
+            echo "|    cd src && make neug_clformat"
             echo "|"
             echo "| to fix this error."
             echo "|"

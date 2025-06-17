@@ -1,6 +1,6 @@
 #include <iostream>
 #include <string>
-#include "src/main/nexg_db.h"
+#include "src/main/neug_db.h"
 #include "src/storages/rt_mutable_graph/file_names.h"
 #include "src/storages/rt_mutable_graph/schema.h"
 
@@ -16,7 +16,7 @@ int main(int argc, char** argv) {
   std::string data_path = argv[1];
   std::string query_string = argv[2];
 
-  gs::NexgDB db(data_path, 1, "r", "gopt", "", "");
+  gs::NeugDB db(data_path, 1, "r", "gopt", "", "");
   auto conn = db.connect();
   LOG(INFO) << "Running query: " << query_string;
 

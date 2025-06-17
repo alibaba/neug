@@ -22,7 +22,7 @@
 #include "zstd/common/huf_static.h"
 #include "zstd/common/mem.h"
 
-namespace nexg_zstd {
+namespace neug_zstd {
 
 /*===   Version   ===*/
 unsigned FSE_versionNumber(void) { return FSE_VERSION_NUMBER; }
@@ -254,4 +254,4 @@ size_t HUF_readStats(BYTE* huffWeight, size_t hwSize, U32* rankStats,
   return iSize + 1;
 }
 
-}  // namespace nexg_zstd
+}  // namespace neug_zstd

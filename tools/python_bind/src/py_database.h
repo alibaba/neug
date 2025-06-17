@@ -20,7 +20,7 @@
 #include "third_party/pybind11/include/pybind11/stl.h"
 
 #include "py_connection.h"
-#include "src/main/nexg_db.h"
+#include "src/main/neug_db.h"
 
 namespace gs {
 
@@ -33,7 +33,7 @@ class PyDatabase : public std::enable_shared_from_this<PyDatabase> {
                       const std::string& jni_planner_jar_path,
                       const std::string& planner_config_path) {
     database =
-        std::make_unique<NexgDB>(databasePath, max_thread_num, mode, planner,
+        std::make_unique<NeugDB>(databasePath, max_thread_num, mode, planner,
                                  jni_planner_jar_path, planner_config_path);
   }
 
@@ -44,7 +44,7 @@ class PyDatabase : public std::enable_shared_from_this<PyDatabase> {
   void close();
 
  private:
-  std::unique_ptr<NexgDB> database;
+  std::unique_ptr<NeugDB> database;
 };
 
 }  // namespace gs

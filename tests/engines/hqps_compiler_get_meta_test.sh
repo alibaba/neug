@@ -14,9 +14,9 @@
 # limitations under the License.
 set -e
 SCRIPT_DIR=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" &>/dev/null && pwd)
-NEXG_HOME=${SCRIPT_DIR}/../../
-SERVER_BIN=${NEXG_HOME}/build/bin/interactive_server
-GIE_HOME=${NEXG_HOME}/../interactive_engine/
+NEUG_HOME=${SCRIPT_DIR}/../../
+SERVER_BIN=${NEUG_HOME}/build/bin/interactive_server
+GIE_HOME=${NEUG_HOME}/../interactive_engine/
 ADMIN_PORT=7777
 QUERY_PORT=10000
 

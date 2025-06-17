@@ -20,7 +20,7 @@ import os
 import platform
 import sys
 
-logger = logging.getLogger("nexg")
+logger = logging.getLogger("neug")
 
 
 def config_logging(log_level):
@@ -36,7 +36,7 @@ def config_logging(log_level):
     if log_level == logging.NOTSET:
         log_level = logging.DEBUG
 
-    logger = logging.getLogger("nexg")
+    logger = logging.getLogger("neug")
     logger.setLevel(log_level)
 
 
@@ -77,10 +77,10 @@ def get_build_lib_dir() -> str:
             "build",
             f"lib.{os_name}-{os.uname().machine}-{sys.version_info.major}.{sys.version_info.minor}",
         )
-    logger.info("Build directory: %s", build_dir)
+    logger.debug("Build directory: %s", build_dir)
     if build_dir is not None:
         if os.path.exists(build_dir):
-            logger.info("Using build directory: %s", build_dir)
+            logger.debug("Using build directory: %s", build_dir)
     return build_dir
 
 
@@ -93,10 +93,10 @@ try:
         import sys
 
         sys.path.append(build_dir)
-    import nexg_py_bind
+    import neug_py_bind
 
 
 except ImportError:
     raise ImportError(
-        "NexG is not installed. Please install it using pip or build it from source."
+        "NeuG is not installed. Please install it using pip or build it from source."
     )

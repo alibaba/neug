@@ -1,8 +1,8 @@
-add_library(nexg_planner_factorization
+add_library(neug_planner_factorization
         OBJECT
         flatten_resolver.cpp
         sink_util.cpp)
 
 set(ALL_OBJECT_FILES
-        ${ALL_OBJECT_FILES} $<TARGET_OBJECTS:nexg_planner_factorization>
+        ${ALL_OBJECT_FILES} $<TARGET_OBJECTS:neug_planner_factorization>
         PARENT_SCOPE)

@@ -29,7 +29,7 @@ from errors import ERR_TX_TIMEOUT
 from errors import ERR_TYPE_CONVERSION
 from errors import ERROR_STRINGS
 
-from nexg.database import Database
+from neug.database import Database
 
 
 # DB-004-01
@@ -75,7 +75,7 @@ def test_ap_read_write_concurrent():
 @pytest.mark.skip(reason="Session not supported yet")
 def test_tp_read_concurrent(started_server):
     db, port = started_server
-    from nexg.session import Session
+    from neug.session import Session
 
     s1 = Session.open(f"neug://user:pass@127.0.0.1:{port}/")
     s2 = Session.open(f"neug://user:pass@127.0.0.1:{port}/")
@@ -90,7 +90,7 @@ def test_tp_read_concurrent(started_server):
 @pytest.mark.skip(reason="Session not supported yet")
 def test_tp_write_concurrent(started_server):
     db, port = started_server
-    from nexg.session import Session
+    from neug.session import Session
 
     s1 = Session.open(f"neug://user:pass@127.0.0.1:{port}/")
     s2 = Session.open(f"neug://user:pass@127.0.0.1:{port}/")
@@ -108,7 +108,7 @@ def test_tp_write_concurrent(started_server):
 @pytest.mark.skip(reason="Session not supported yet")
 def test_tp_read_write_concurrent(started_server):
     db, port = started_server
-    from nexg.session import Session
+    from neug.session import Session
 
     s1 = Session.open(f"neug://user:pass@127.0.0.1:{port}/")
     s2 = Session.open(f"neug://user:pass@127.0.0.1:{port}/")

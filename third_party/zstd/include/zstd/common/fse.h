@@ -20,7 +20,7 @@
  ******************************************/
 #include <stddef.h> /* size_t, ptrdiff_t */
 
-namespace nexg_zstd {
+namespace neug_zstd {
 /*-*****************************************
  *  FSE_PUBLIC_API : control library symbols visibility
  ******************************************/
@@ -314,6 +314,6 @@ will return an error code, which can be tested using FSE_isError(). (ex: dst
 buffer too small)
 */
 
-}  // namespace nexg_zstd
+}  // namespace neug_zstd
 
 #endif /* FSE_H */

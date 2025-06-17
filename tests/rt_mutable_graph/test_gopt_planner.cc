@@ -1,6 +1,6 @@
 #include <iostream>
 #include <string>
-#include "src/main/nexg_db.h"
+#include "src/main/neug_db.h"
 #include "src/storages/rt_mutable_graph/file_names.h"
 #include "src/storages/rt_mutable_graph/schema.h"
 
@@ -19,7 +19,7 @@ bool test_gopt_planner(const std::string& data_path) {
   // create the directory
   std::filesystem::create_directories(data_path);
 
-  gs::NexgDB db(data_path, 1, "w", "gopt", "", "");
+  gs::NeugDB db(data_path, 1, "w", "gopt", "", "");
   auto conn = db.connect();
   {
     auto res = conn->query(

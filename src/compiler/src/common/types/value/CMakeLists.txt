@@ -1,4 +1,4 @@
-add_library(nexg_common_types_value
+add_library(neug_common_types_value
         OBJECT
         nested.cpp
         node.cpp
@@ -7,5 +7,5 @@ add_library(nexg_common_types_value
         value.cpp)
 
 set(ALL_OBJECT_FILES
-        ${ALL_OBJECT_FILES} $<TARGET_OBJECTS:nexg_common_types_value>
+        ${ALL_OBJECT_FILES} $<TARGET_OBJECTS:neug_common_types_value>
         PARENT_SCOPE)

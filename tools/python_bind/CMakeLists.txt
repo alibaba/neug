@@ -1,4 +1,4 @@
-file(GLOB SOURCE_PY "nexg/*")
+file(GLOB SOURCE_PY "neug/*")
 
 file(GLOB_RECURSE SOURCE_CPP "${CMAKE_CURRENT_SOURCE_DIR}/src/*.cc")
 if(NOT EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/../../third_party/pybind11/CMakeLists.txt")
@@ -12,8 +12,8 @@ if(NOT EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/../../third_party/pybind11/CMakeLists
         message(FATAL_ERROR "Failed to update git submodule: ${result}")
     endif()
 endif()
-pybind11_add_module(nexg_py_bind SHARED ${SOURCE_CPP})
+pybind11_add_module(neug_py_bind SHARED ${SOURCE_CPP})
 include_directories(${CMAKE_CURRENT_SOURCE_DIR}/../../src/compiler/src/include)
 include_directories(${CMAKE_CURRENT_BINARY_DIR}/../../src/compiler)
 
-target_link_libraries(nexg_py_bind PRIVATE nexg_utils nexg_main nexg_graph_db)
+target_link_libraries(neug_py_bind PRIVATE neug_utils neug_main neug_graph_db)

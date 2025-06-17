@@ -11,13 +11,13 @@ requirements:  ## Install requirements
 	pip3 install -r requirements_dev.txt
 
 .PHONY: build
-build: ## Compile nexg and python bindings, and copy to build directory
+build: ## Compile neug and python bindings, and copy to build directory
 	@echo "Building C++ and Python bindings..."
 	python3 setup.py build_ext
 	python3 setup.py build_proto
 
 .PHONY: wheel
-wheel: ## Build the nexg python wheel package
+wheel: ## Build the neug python wheel package
 	@echo "Building wheel package..."
 	python3 setup.py bdist_wheel
 
@@ -25,8 +25,8 @@ wheel: ## Build the nexg python wheel package
 clean:  ## Clean up build artifacts
 	@echo "Cleaning up..."
 	rm -rf build/ dist/ *.egg-info
-	rm -rf nexg.egg-info/ __pycache__/ *.so
-	rm -rf nexg/proto/
+	rm -rf neug.egg-info/ __pycache__/ *.so
+	rm -rf neug/proto/
 
 .PHONY: help
 help:  ## Display this help information

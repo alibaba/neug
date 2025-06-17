@@ -33,7 +33,7 @@
 #else
 #define ZSTDERRORLIB_API ZSTDERRORLIB_VISIBILITY
 #endif
-namespace nexg_zstd {
+namespace neug_zstd {
 /*-*********************************************
  *  Error codes list
  *-*********************************************
@@ -89,6 +89,6 @@ ZSTDERRORLIB_API const char* ZSTD_getErrorString(
     ZSTD_ErrorCode code); /**< Same as ZSTD_getErrorName, but using a
                              `ZSTD_ErrorCode` enum argument */
 
-}  // namespace nexg_zstd
+}  // namespace neug_zstd
 
 #endif /* ZSTD_ERRORS_H_398273423 */

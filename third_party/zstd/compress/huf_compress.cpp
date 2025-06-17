@@ -41,7 +41,7 @@
 #define HUF_STATIC_ASSERT(c) \
   DEBUG_STATIC_ASSERT(c) /* use only *after* variable declarations */
 
-namespace nexg_zstd {
+namespace neug_zstd {
 /* **************************************************************
  *  Utils
  ****************************************************************/
@@ -927,4 +927,4 @@ size_t HUF_compress(void* dst, size_t maxDstSize, const void* src,
                        HUF_TABLELOG_DEFAULT);
 }
 
-}  // namespace nexg_zstd
+}  // namespace neug_zstd

@@ -18,14 +18,14 @@
 /* *** Dependency *** */
 #include "zstd/common/bitstream.h"
 
-namespace nexg_zstd {
+namespace neug_zstd {
 
 /* *****************************************
  *  Static allocation
  *******************************************/
 /* FSE buffer bounds */
 #define FSE_NCOUNTBOUND 512
-#define FSE_BLOCKBOUND(size)                                                \
+#define FSE_BLOCKBOUND(size) \
   (size + (size >> 7) + 4 /* fse states */ + sizeof(size_t) /* bitContainer \
                                                              */)
 #define FSE_COMPRESSBOUND(size) \
@@ -452,6 +452,6 @@ MEM_STATIC unsigned FSE_endOfDState(const FSE_DState_t* DStatePtr) {
 
 #define FSE_TABLESTEP(tableSize) ((tableSize >> 1) + (tableSize >> 3) + 3)
 
-}  // namespace nexg_zstd
+}  // namespace neug_zstd
 
 #endif /* FSE_H_FSE_STATIC_LINKING_ONLY */

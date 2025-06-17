@@ -16,7 +16,7 @@
 #include "zstd/common/error_private.h"
 #include "zstd/common/zstd_internal.h"
 
-namespace nexg_zstd {
+namespace neug_zstd {
 
 /*-****************************************
  *  Version
@@ -77,4 +77,4 @@ void ZSTD_free(void* ptr, ZSTD_customMem customMem) {
   }
 }
 
-}  // namespace nexg_zstd
+}  // namespace neug_zstd

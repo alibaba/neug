@@ -70,7 +70,7 @@ static ExtensionRepoInfo getExtensionFilePath(const std::string& extensionName,
                                               const std::string& fileName) {
   auto extensionURL = common::stringFormat(
       extensionRepo + ExtensionUtils::EXTENSION_FILE_REPO_PATH,
-      NEXG_EXTENSION_VERSION, getPlatform(), extensionName, fileName);
+      NEUG_EXTENSION_VERSION, getPlatform(), extensionName, fileName);
   return getExtensionRepoInfo(extensionURL);
 }
 
@@ -98,7 +98,7 @@ ExtensionRepoInfo ExtensionUtils::getSharedLibRepoInfo(
     const std::string& fileName, const std::string& extensionRepo) {
   auto extensionURL =
       common::stringFormat(extensionRepo + SHARED_LIB_REPO,
-                           NEXG_EXTENSION_VERSION, getPlatform(), fileName);
+                           NEUG_EXTENSION_VERSION, getPlatform(), fileName);
   return getExtensionRepoInfo(extensionURL);
 }
 

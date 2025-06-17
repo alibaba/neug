@@ -1,2 +1,3 @@
-include nexg/resources/planner_config.yaml nexg/resources/planner_config.yaml
-include nexg/resources/nexg.pb  nexg/resources/nexg.pb
+include neug / resources / planner_config.yaml neug / resources /
+    planner_config.yaml include neug / resources / neug.pb neug / resources /
+    neug.pb

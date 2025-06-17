@@ -13,7 +13,7 @@
 
 #include "zstd/common/error_private.h"
 
-namespace nexg_zstd {
+namespace neug_zstd {
 
 const char* ERR_getErrorString(ERR_enum code) {
 #ifdef ZSTD_STRIP_ERROR_STRINGS
@@ -83,4 +83,4 @@ const char* ERR_getErrorString(ERR_enum code) {
 #endif
 }
 
-}  // namespace nexg_zstd
+}  // namespace neug_zstd

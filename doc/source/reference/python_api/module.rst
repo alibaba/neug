@@ -4,7 +4,7 @@
 Neug Module Module
 =================================
 
-.. automodule:: nexg
+.. automodule:: neug
 .. autosummary::
 
     database
@@ -15,7 +15,7 @@ Neug Module Module
 Neug Pybindings Module
 =========================
 
-.. automodule:: nexg_py_bind
+.. automodule:: neug_py_bind
 .. autosummary::
 
    PyDatabase

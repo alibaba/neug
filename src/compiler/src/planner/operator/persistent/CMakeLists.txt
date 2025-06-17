@@ -1,4 +1,4 @@
-add_library(nexg_planner_persistent
+add_library(neug_planner_persistent
         OBJECT
         logical_copy_from.cpp
         logical_copy_to.cpp
@@ -9,5 +9,5 @@ add_library(nexg_planner_persistent
 )
 
 set(ALL_OBJECT_FILES
-        ${ALL_OBJECT_FILES} $<TARGET_OBJECTS:nexg_planner_persistent>
+        ${ALL_OBJECT_FILES} $<TARGET_OBJECTS:neug_planner_persistent>
         PARENT_SCOPE)

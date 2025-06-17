@@ -13,7 +13,7 @@
 
 #include "zstd/compress/zstd_compress_internal.h"
 
-namespace nexg_zstd {
+namespace neug_zstd {
 
 U32 ZSTD_insertAndFindFirstIndex(ZSTD_matchState_t* ms, const BYTE* ip);
 
@@ -71,6 +71,6 @@ size_t ZSTD_compressBlock_btlazy2_extDict(ZSTD_matchState_t* ms,
                                           U32 rep[ZSTD_REP_NUM],
                                           void const* src, size_t srcSize);
 
-}  // namespace nexg_zstd
+}  // namespace neug_zstd
 
 #endif /* ZSTD_LAZY_H */

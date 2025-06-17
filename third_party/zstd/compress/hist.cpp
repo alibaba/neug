@@ -19,7 +19,7 @@
 #include "zstd/common/error_private.h" /* ERROR */
 #include "zstd/common/mem.h"           /* U32, BYTE, etc. */
 
-namespace nexg_zstd {
+namespace neug_zstd {
 
 /* --- Error management --- */
 unsigned HIST_isError(size_t code) { return ERR_isError(code); }
@@ -215,4 +215,4 @@ size_t HIST_count(unsigned* count, unsigned* maxSymbolValuePtr, const void* src,
                          sizeof(tmpCounters));
 }
 
-}  // namespace nexg_zstd
+}  // namespace neug_zstd

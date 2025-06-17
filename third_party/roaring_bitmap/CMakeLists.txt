@@ -3,7 +3,7 @@ if (POLICY CMP0063)
 endif ()
 
 add_library(roaring_bitmap SHARED roaring.c)
-install_nexg_target(roaring_bitmap)
+install_neug_target(roaring_bitmap)
 
 target_include_directories(
         roaring_bitmap

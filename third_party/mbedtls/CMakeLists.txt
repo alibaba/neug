@@ -36,4 +36,4 @@ add_library(mbedtls STATIC
 
 set_property(TARGET mbedtls PROPERTY C_STANDARD 99)
 
-install_nexg_target(mbedtls)
+install_neug_target(mbedtls)

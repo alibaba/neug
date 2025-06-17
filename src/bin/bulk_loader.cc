@@ -157,7 +157,7 @@ int main(int argc, char** argv) {
   }
 
   if (vm.count("version")) {
-    std::cout << "NexG version " << NEXG_VERSION << std::endl;
+    std::cout << "NeuG version " << NEUG_VERSION << std::endl;
     return 0;
   }
 

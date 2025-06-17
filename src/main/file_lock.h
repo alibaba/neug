@@ -27,13 +27,13 @@ namespace gs {
 enum class DBMode { READ_ONLY = 0, READ_WRITE = 1 };
 /*
 A simple file lock mechanism to ensure that only one instance of the
-NexgDB can run at a time. This is useful for preventing multiple processes
+NeugDB can run at a time. This is useful for preventing multiple processes
 from modifying the database at the same time, which could lead to data
 corruption or inconsistencies.
 */
 class FileLock {
  public:
-  static constexpr const char* LOCK_FILE_NAME = "nexgdb.lock";
+  static constexpr const char* LOCK_FILE_NAME = "neugdb.lock";
   explicit FileLock(const std::string& data_dir)
       : data_dir_(data_dir), lock_file_path_(data_dir + "/" + LOCK_FILE_NAME) {}
 

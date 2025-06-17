@@ -14,9 +14,9 @@
 # limitations under the License.
 set -e
 SCRIPT_DIR=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" &>/dev/null && pwd)
-NEXG_HOME=${SCRIPT_DIR}/../../
-SERVER_BIN=${NEXG_HOME}/build/bin/interactive_server
-GIE_HOME=${NEXG_HOME}/../interactive_engine/
+NEUG_HOME=${SCRIPT_DIR}/../../
+SERVER_BIN=${NEUG_HOME}/build/bin/interactive_server
+GIE_HOME=${NEUG_HOME}/../interactive_engine/
 ADMIN_PORT=7777
 QUERY_PORT=10000
 
@@ -43,11 +43,11 @@ if [ ! -d ${GS_TEST_DIR} ]; then
   exit 1
 fi
 
-GRAPH_SCHEMA_YAML=${NEXG_HOME}/interactive/examples/movies/graph.yaml
-GRAPH_BULK_LOAD_YAML=${NEXG_HOME}/interactive/examples/movies/import.yaml
-RAW_CSV_FILES=${NEXG_HOME}/interactive/examples/movies/
+GRAPH_SCHEMA_YAML=${NEUG_HOME}/interactive/examples/movies/graph.yaml
+GRAPH_BULK_LOAD_YAML=${NEUG_HOME}/interactive/examples/movies/import.yaml
+RAW_CSV_FILES=${NEUG_HOME}/interactive/examples/movies/
 GRAPH_CSR_DATA_DIR=${HOME}/csr-data-dir/
-TEST_CYPHER_QUERIES="${NEXG_HOME}/interactive/examples/movies/0_get_user.cypher ${NEXG_HOME}/interactive/examples/movies/5_recommend_rule.cypher"
+TEST_CYPHER_QUERIES="${NEUG_HOME}/interactive/examples/movies/0_get_user.cypher ${NEUG_HOME}/interactive/examples/movies/5_recommend_rule.cypher"
 
 
 
@@ -96,7 +96,7 @@ start_engine_service(){
 
 run_admin_test(){
   echo "run admin test"
-  pushd ${NEXG_HOME}/build/
+  pushd ${NEUG_HOME}/build/
   cmd="GLOG_v=10 ./tests/engines/admin_http_test ${ADMIN_PORT} ${QUERY_PORT} ${GRAPH_SCHEMA_YAML} ${GRAPH_BULK_LOAD_YAML} ${RAW_CSV_FILES} ${TEST_CYPHER_QUERIES}"
   echo "Start admin test: ${cmd}"
   eval ${cmd} || (err "admin test failed" &&  exit 1)

@@ -26,19 +26,19 @@
 
 namespace py = pybind11;
 
-PYBIND11_MODULE(nexg_py_bind, m) {
+PYBIND11_MODULE(neug_py_bind, m) {
   m.doc() = R"pbdoc(
         
         -----------------------
-        GraphScope NexG, a high performence embedded graph database.
-        .. currentmodule:: nexg
+        GraphScope NeuG, a high performence embedded graph database.
+        .. currentmodule:: neug
 
         .. autosummary::
            :toctree: _generate
 
     )pbdoc";
 
-  m.attr("__version__") = MACRO_STRINGIFY(NEXG_VERSION);
+  m.attr("__version__") = MACRO_STRINGIFY(NEUG_VERSION);
   gs::PyDatabase::initialize(m);
   gs::PyConnection::initialize(m);
   gs::PyQueryResult::initialize(m);

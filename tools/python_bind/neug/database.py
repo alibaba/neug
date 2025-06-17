@@ -21,16 +21,16 @@
 import logging
 import os
 
-import nexg_py_bind
+import neug_py_bind
 
-from nexg.connection import Connection
-from nexg.version import __version__
+from neug.connection import Connection
+from neug.version import __version__
 
 logger = logging.getLogger(__name__)
 
 cur_file_path = os.path.dirname(os.path.abspath(__file__))
 cur_dir_path = os.path.dirname(cur_file_path)
-resource_dir = os.path.join(cur_dir_path, "nexg", "resources")
+resource_dir = os.path.join(cur_dir_path, "neug", "resources")
 
 
 class Database(object):
@@ -50,7 +50,7 @@ class Database(object):
 
     .. code:: python
 
-        >>> from nexg import Database
+        >>> from neug import Database
         >>> db = Database("/tmp/test.db", mode="w")
         >>> conn = db.connect()
 
@@ -136,7 +136,7 @@ class Database(object):
 
         # Currently, no intellisense here. self._database is of class PyDatabase,
         # defined in tools/python_bind/src/py_database.h
-        self._database = nexg_py_bind.PyDatabase(
+        self._database = neug_py_bind.PyDatabase(
             database_path=db_path,
             max_thread_num=max_thread_num,
             mode=mode,
@@ -193,7 +193,7 @@ class Database(object):
         """
         Get the default JNI planner jar path.
         """
-        # Load the file under nexg/resources/, ended with .jar
+        # Load the file under neug/resources/, ended with .jar
         jar_path = os.path.join(resource_dir, "compiler.jar")
         print(f"jar_path: {jar_path}")
         if not os.path.exists(jar_path):

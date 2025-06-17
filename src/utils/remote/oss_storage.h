@@ -13,8 +13,8 @@
  * limitations under the License.
  */
 
-#ifndef nexg_utils_REMOTE_OSS_STORAGE_H_
-#define nexg_utils_REMOTE_OSS_STORAGE_H_
+#ifndef SRC_UTILS_REMOTE_OSS_STORAGE_H_
+#define SRC_UTILS_REMOTE_OSS_STORAGE_H_
 
 #ifdef BUILD_WITH_OSS
 
@@ -92,4 +92,4 @@ class OSSRemoteStorageDownloader : public RemoteStorageDownloader {
 
 #endif  // BUILD_WITH_OSS
 
-#endif  // nexg_utils_REMOTE_OSS_STORAGE_H_
+#endif  // SRC_UTILS_REMOTE_OSS_STORAGE_H_

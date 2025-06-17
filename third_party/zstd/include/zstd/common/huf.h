@@ -37,7 +37,7 @@
 #define HUF_PUBLIC_API
 #endif
 
-namespace nexg_zstd {
+namespace neug_zstd {
 
 /* ========================== */
 /* ***  simple functions  *** */

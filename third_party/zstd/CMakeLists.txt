@@ -33,7 +33,7 @@ add_library(zstd STATIC
         decompress/zstd_decompress.cpp
         decompress/zstd_decompress_block.cpp)
 
-install_nexg_target(zstd)
+install_neug_target(zstd)
 
 # Hide all zstd symbols, since we are importing the library.
 add_compile_definitions(zstd ZSTDLIB_VISIBILITY= ZSTDERRORLIB_VISIBILITY=)

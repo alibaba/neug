@@ -16,7 +16,7 @@
 /* --- dependencies --- */
 #include <stddef.h> /* size_t */
 
-namespace nexg_zstd {
+namespace neug_zstd {
 /* --- simple histogram functions --- */
 
 /*! HIST_count():
@@ -75,4 +75,4 @@ size_t HIST_countFast_wksp(unsigned* count, unsigned* maxSymbolValuePtr,
 unsigned HIST_count_simple(unsigned* count, unsigned* maxSymbolValuePtr,
                            const void* src, size_t srcSize);
 
-}  // namespace nexg_zstd
+}  // namespace neug_zstd

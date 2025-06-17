@@ -93,7 +93,7 @@ set(RE2_SOURCES
         strutil.cpp)
 
 add_library(re2 STATIC ${RE2_SOURCES})
-install_nexg_target(re2)
+install_neug_target(re2)
 target_include_directories(
         re2
         PUBLIC $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}>)

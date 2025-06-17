@@ -53,7 +53,7 @@
 #define FSE_FUNCTION_NAME(X, Y) FSE_CAT(X, Y)
 #define FSE_TYPE_NAME(X, Y) FSE_CAT(X, Y)
 
-namespace nexg_zstd {
+namespace neug_zstd {
 
 /* Function templates */
 
@@ -190,8 +190,8 @@ size_t FSE_buildCTable_wksp(FSE_CTable* ct, const short* normalizedCounter,
 size_t FSE_buildCTable(FSE_CTable* ct, const short* normalizedCounter,
                        unsigned maxSymbolValue, unsigned tableLog) {
   FSE_FUNCTION_TYPE
-      tableSymbol[FSE_MAX_TABLESIZE]; /* memset() is not necessary, even if
-                                         static analyzer complain about it */
+  tableSymbol[FSE_MAX_TABLESIZE]; /* memset() is not necessary, even if
+                                     static analyzer complain about it */
   return FSE_buildCTable_wksp(ct, normalizedCounter, maxSymbolValue, tableLog,
                               tableSymbol, sizeof(tableSymbol));
 }

@@ -42,7 +42,7 @@
 #define STREAM_ACCUMULATOR_MIN \
   ((U32) (MEM_32bits() ? STREAM_ACCUMULATOR_MIN_32 : STREAM_ACCUMULATOR_MIN_64))
 
-namespace nexg_zstd {
+namespace neug_zstd {
 
 /*-******************************************
  *  bitStream encoding API (write forward)
@@ -467,6 +467,6 @@ MEM_STATIC unsigned BIT_endOfDStream(const BIT_DStream_t* DStream) {
           (DStream->bitsConsumed == sizeof(DStream->bitContainer) * 8));
 }
 
-}  // namespace nexg_zstd
+}  // namespace neug_zstd
 
 #endif /* BITSTREAM_H_MODULE */

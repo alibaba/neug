@@ -1,9 +1,9 @@
 add_library(
-        nexg_parser_visitor
+        neug_parser_visitor
         OBJECT
         standalone_call_rewriter.cpp
         statement_read_write_analyzer.cpp)
 
 set(ALL_OBJECT_FILES
-        ${ALL_OBJECT_FILES} $<TARGET_OBJECTS:nexg_parser_visitor>
+        ${ALL_OBJECT_FILES} $<TARGET_OBJECTS:neug_parser_visitor>
         PARENT_SCOPE)

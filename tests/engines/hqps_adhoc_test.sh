@@ -14,10 +14,10 @@
 # limitations under the License.
 set -e
 SCRIPT_DIR=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" &>/dev/null && pwd)
-NEXG_HOME=${SCRIPT_DIR}/../../
-BULK_LOADER=${NEXG_HOME}/build/bin/bulk_loader
-SERVER_BIN=${NEXG_HOME}/build/bin/interactive_server
-GIE_HOME=${NEXG_HOME}/../interactive_engine/
+NEUG_HOME=${SCRIPT_DIR}/../../
+BULK_LOADER=${NEUG_HOME}/build/bin/bulk_loader
+SERVER_BIN=${NEUG_HOME}/build/bin/interactive_server
+GIE_HOME=${NEUG_HOME}/../interactive_engine/
 
 # 
 if [ $# -lt 3 ] || [ $# -gt 4 ]; then
@@ -30,9 +30,9 @@ INTERACTIVE_WORKSPACE=$1
 GRAPH_NAME=$2
 COMPILER_PLANNER_OPT=$3
 if [ "${COMPILER_PLANNER_OPT}" == "CBO" ]; then
-  ENGINE_CONFIG_PATH=${NEXG_HOME}/tests/engines/interactive_config_test_cbo.yaml
+  ENGINE_CONFIG_PATH=${NEUG_HOME}/tests/engines/interactive_config_test_cbo.yaml
 elif [ "${COMPILER_PLANNER_OPT}" == "RBO" ]; then
-  ENGINE_CONFIG_PATH=${NEXG_HOME}/tests/engines/interactive_config_test.yaml
+  ENGINE_CONFIG_PATH=${NEUG_HOME}/tests/engines/interactive_config_test.yaml
 else
   echo "COMPILER_PLANNER_OPT: ${COMPILER_PLANNER_OPT} not supported, use CBO or RBO"
   exit 1

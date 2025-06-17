@@ -28,7 +28,7 @@
 // #  include "../legacy/zstd_legacy.h"
 // #endif
 
-namespace nexg_zstd {
+namespace neug_zstd {
 
 /*-*******************************************************
  *  Types
@@ -250,4 +250,4 @@ unsigned ZSTD_getDictID_fromDDict(const ZSTD_DDict* ddict) {
   return ZSTD_getDictID_fromDict(ddict->dictContent, ddict->dictSize);
 }
 
-}  // namespace nexg_zstd
+}  // namespace neug_zstd

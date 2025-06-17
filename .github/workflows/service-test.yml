@@ -1,4 +1,4 @@
-name: Nexg Service Test
+name: Neug Service Test
 
 on:
   # Trigger the workflow on push or pull request,
@@ -31,7 +31,7 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  build-nexg:
+  build-neug:
     runs-on: ubuntu-22.04
     container:
       # Need hiactor
@@ -43,7 +43,7 @@ jobs:
       if: false
       uses: mxschmitt/action-tmate@v3
 
-    - name: Build NexG
+    - name: Build NeuG
       run: |
         . /home/graphscope/.graphscope_env
         cd ${GITHUB_WORKSPACE}/
@@ -62,20 +62,20 @@ jobs:
         export FLEX_DATA_DIR=${GITHUB_WORKSPACE}/example_dataset/tinysnb
         ./src/bin/bulk_loader -g ../example_dataset/tinysnb/graph.yaml -l ../example_dataset/tinysnb/bulk.yaml -d /tmp/csr-data
 
-    - name: Test NexG Service
+    - name: Test NeuG Service
       run: |
-        # Start Nexg Server 
+        # Start Neug Server 
         # TODO: Currently we use InteractiveServer, but in the future, we need to start the service with python.
         cd ${GITHUB_WORKSPACE}/build
         SCHEMA_PATH=${GITHUB_WORKSPACE}/example_dataset/tinysnb/graph.yaml
         DATA_PATH=/tmp/csr-data
         cmd="GLOG_v=10 ./src/bin/interactive_server -c ../tests/engines/interactive_config_test.yaml -g ${SCHEMA_PATH} --data-path ${DATA_PATH}"
-        echo "Starting Nexg Server with command: $cmd"
+        echo "Starting Neug Server with command: $cmd"
         eval $cmd &
         sleep 5
         # Check if the server is running
         if ! pgrep -f "interactive_server" > /dev/null; then
-          echo "Nexg Server failed to start"
+          echo "Neug Server failed to start"
           exit 1
         fi
 

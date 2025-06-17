@@ -1,6 +1,6 @@
 #include <iostream>
 #include <string>
-#include "src/main/nexg_db.h"
+#include "src/main/neug_db.h"
 #include "src/storages/rt_mutable_graph/file_names.h"
 #include "src/storages/rt_mutable_graph/schema.h"
 
@@ -21,7 +21,7 @@ int main(int argc, char** argv) {
   // create the directory
   std::filesystem::create_directories(data_path);
 
-  gs::NexgDB db(data_path, 1, "w", "dummy", "", "");
+  gs::NeugDB db(data_path, 1, "w", "dummy", "", "");
   auto conn = db.connect();
   {
     auto res = conn->query(

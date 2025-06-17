@@ -57,19 +57,19 @@ protobuf_generate(APPEND_PATH
         PROTOC_OUT_DIR ${CMAKE_CURRENT_BINARY_DIR}/src/proto_generated_gie
 )
 
-add_library(nexg_plan_proto SHARED ${PROTO_SRCS_GIE})
-target_include_directories(nexg_plan_proto PUBLIC 
+add_library(neug_plan_proto SHARED ${PROTO_SRCS_GIE})
+target_include_directories(neug_plan_proto PUBLIC 
         $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}> 
         $<BUILD_INTERFACE:${CMAKE_CURRENT_BINARY_DIR}>)
 
 if (APPLE)
         find_package(absl REQUIRED)
         message(STATUS "Linking with ${Protobuf_LIBRARIES}")
-        target_link_libraries(nexg_plan_proto  PUBLIC ${Protobuf_LIBRARIES} ${Boost_LIBRARIES} ${GLOG_LIBRARIES})
+        target_link_libraries(neug_plan_proto  PUBLIC ${Protobuf_LIBRARIES} ${Boost_LIBRARIES} ${GLOG_LIBRARIES})
 else()
-        target_link_libraries(nexg_plan_proto ${Protobuf_LIBRARIES} ${GLOG_LIBRARIES})
+        target_link_libraries(neug_plan_proto ${Protobuf_LIBRARIES} ${GLOG_LIBRARIES})
 endif()
-install_nexg_target(nexg_plan_proto)
+install_neug_target(neug_plan_proto)
 
 #install proto_generated_files
 install(DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/src
@@ -86,31 +86,31 @@ if (NOT BUILD_WITH_OSS)
 endif()
 
 
-add_library(nexg_utils SHARED ${UTILS_SRC_FILES} ${ERROR_PROTO_SRCS})
-target_include_directories(nexg_utils PUBLIC 
+add_library(neug_utils SHARED ${UTILS_SRC_FILES} ${ERROR_PROTO_SRCS})
+target_include_directories(neug_utils PUBLIC 
         $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}> 
         $<BUILD_INTERFACE:${CMAKE_CURRENT_BINARY_DIR}>)
 # Link the static library of arrow, to save the trouble of linking the shared library of arrow
-target_link_libraries(nexg_utils PUBLIC nexg_plan_proto ${Protobuf_LIBRARIES} ${ARROW_LIB} ${YAML_CPP_LIBRARIES} ${Boost_LIBRARIES} ${GLOG_LIBRARIES})
+target_link_libraries(neug_utils PUBLIC neug_plan_proto ${Protobuf_LIBRARIES} ${ARROW_LIB} ${YAML_CPP_LIBRARIES} ${Boost_LIBRARIES} ${GLOG_LIBRARIES})
 if (BUILD_WITH_OSS)
-        target_link_libraries(nexg_utils PRIVATE cpp-sdk)
+        target_link_libraries(neug_utils PRIVATE cpp-sdk)
 endif()
 
 
 find_package(mimalloc REQUIRED)
 # must link with the dynamic library of mimalloc
 # NOTE: linking towards mimalloc will cause runtime memory error on macos 15 arm64
-# target_link_libraries(nexg_utils PUBLIC mimalloc)
+# target_link_libraries(neug_utils PUBLIC mimalloc)
 if (APPLE)
-        target_link_libraries(nexg_utils PUBLIC absl::log_internal_message)
+        target_link_libraries(neug_utils PUBLIC absl::log_internal_message)
 endif()
 # for gcc < 9, link stdc++fs
 if (CMAKE_CXX_COMPILER_ID MATCHES "GNU" AND CMAKE_CXX_COMPILER_VERSION VERSION_LESS 9)
         message(STATUS "Linking with stdc++fs for gcc < 9")
-        target_link_libraries(nexg_utils PUBLIC stdc++fs)
+        target_link_libraries(neug_utils PUBLIC stdc++fs)
 endif()
 
-install_nexg_target(nexg_utils)
+install_neug_target(neug_utils)
 
 install(DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
         DESTINATION include/src/

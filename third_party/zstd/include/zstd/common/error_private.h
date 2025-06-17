@@ -19,7 +19,7 @@
 #include <stddef.h>                  /* size_t */
 #include "zstd/common/zstd_errors.h" /* enum list */
 
-namespace nexg_zstd {
+namespace neug_zstd {
 /* ****************************************
  *  Compiler-specific
  ******************************************/
@@ -75,6 +75,6 @@ ERR_STATIC const char* ERR_getErrorName(size_t code) {
   return ERR_getErrorString(ERR_getErrorCode(code));
 }
 
-}  // namespace nexg_zstd
+}  // namespace neug_zstd
 
 #endif /* ERROR_H_MODULE */

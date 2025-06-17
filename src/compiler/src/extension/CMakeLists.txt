@@ -42,7 +42,7 @@ include_directories(
         ${PROJECT_SOURCE_DIR}/third_party/httplib
 )
 
-add_library(nexg_generated_extension_loader OBJECT ${GENERATED_CPP_FILE})
+add_library(neug_generated_extension_loader OBJECT ${GENERATED_CPP_FILE})
 
 # Both the gs source and httpfs extension includes the httplib which is a header
 # only library. Httpfs requires the openssl function to be enabled in httplib, so
@@ -52,7 +52,7 @@ if("httpfs" IN_LIST STATICALLY_LINKED_EXTENSIONS)
     include_directories(${OPENSSL_INCLUDE_DIR})
 endif ()
 
-add_library(nexg_extension
+add_library(neug_extension
         OBJECT
         catalog_extension.cpp
         extension.cpp
@@ -63,6 +63,6 @@ add_library(nexg_extension
         )
 
 set(ALL_OBJECT_FILES
-        ${ALL_OBJECT_FILES} $<TARGET_OBJECTS:nexg_extension>
-        ${ALL_OBJECT_FILES} $<TARGET_OBJECTS:nexg_generated_extension_loader>
+        ${ALL_OBJECT_FILES} $<TARGET_OBJECTS:neug_extension>
+        ${ALL_OBJECT_FILES} $<TARGET_OBJECTS:neug_generated_extension_loader>
         PARENT_SCOPE)

@@ -1,4 +1,4 @@
-add_library(nexg_parser_expression
+add_library(neug_parser_expression
         OBJECT
         parsed_case_expression.cpp
         parsed_expression.cpp
@@ -8,5 +8,5 @@ add_library(nexg_parser_expression
         parsed_variable_expression.cpp)
 
 set(ALL_OBJECT_FILES
-        ${ALL_OBJECT_FILES} $<TARGET_OBJECTS:nexg_parser_expression>
+        ${ALL_OBJECT_FILES} $<TARGET_OBJECTS:neug_parser_expression>
         PARENT_SCOPE)

@@ -103,7 +103,7 @@ def neo4j_client(pytestconfig):
 
 @pytest.fixture(scope="module")
 def neug_conn(pytestconfig):
-    from nexg.database import Database
+    from neug.database import Database
 
     db_dir = pytestconfig.getoption("db_dir")
     read_only = pytestconfig.getoption("read_only")

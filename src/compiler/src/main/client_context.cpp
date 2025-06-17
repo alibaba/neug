@@ -170,7 +170,7 @@ const main::ExtensionOption* ClientContext::getExtensionOption(
 
 std::string ClientContext::getExtensionDir() const {
   return stringFormat("{}/.gs/extension/{}/{}/", clientConfig.homeDirectory,
-                      NEXG_EXTENSION_VERSION, extension::getPlatform());
+                      NEUG_EXTENSION_VERSION, extension::getPlatform());
 }
 
 std::string ClientContext::getDatabasePath() const {

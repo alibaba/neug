@@ -98,11 +98,11 @@ Result<results::CollectiveResults> Connection::query_impl(
   //     return Result<results::CollectiveResults>(Status(
   //         StatusCode::ERR_COMPILATION, "Error in serializing plan."));
   //   }
-  //   // Open ~/nexg.pb and write
-  //   std::ofstream fs("/tmp/nexg.pb", std::ios::out | std::ios::binary);
+  //   // Open ~/neug.pb and write
+  //   std::ofstream fs("/tmp/neug.pb", std::ios::out | std::ios::binary);
   //   fs.write(plan_binary.data(), plan_binary.size());
   //   fs.close();
-  //   LOG(INFO) << "Serialized plan to /tmp/nexg.pb, size: "
+  //   LOG(INFO) << "Serialized plan to /tmp/neug.pb, size: "
   //             << plan_binary.size();
   // }
 

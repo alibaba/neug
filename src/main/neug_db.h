@@ -13,8 +13,8 @@
  * limitations under the License.
  */
 
-#ifndef SRC_MAIN_NEXG_DB_H_
-#define SRC_MAIN_NEXG_DB_H_
+#ifndef SRC_MAIN_NEUG_DB_H_
+#define SRC_MAIN_NEUG_DB_H_
 
 #include <csignal>
 #include <memory>
@@ -41,14 +41,14 @@ void signal_handler(int signal);
 
 void setup_signal_handler();
 
-class NexgDB {
+class NeugDB {
  public:
-  NexgDB(const std::string& data_dir, int32_t max_num_threads,
+  NeugDB(const std::string& data_dir, int32_t max_num_threads,
          const std::string& mode, const std::string& planner_kind,
          const std::string& jni_planner_class_path = "",
          const std::string& planner_config_path = "")
       : file_lock_(data_dir) {
-    LOG(INFO) << "Creating NexgDB with: " << data_dir << " in " << mode
+    LOG(INFO) << "Creating NeugDB with: " << data_dir << " in " << mode
               << " mode, "
               << " planner: " << planner_kind;
     if (max_num_threads == 0) {
@@ -89,7 +89,7 @@ class NexgDB {
 
   void close();
 
-  ~NexgDB() { close(); }
+  ~NeugDB() { close(); }
 
   /**
    * @brief Open a connection to the database.
@@ -149,4 +149,4 @@ class NexgDB {
 };
 }  // namespace gs
 
-#endif  // SRC_MAIN_NEXG_DB_H_
+#endif  // SRC_MAIN_NEUG_DB_H_

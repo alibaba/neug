@@ -25,7 +25,7 @@
 #include "zstd/common/zstd_internal.h"
 #include "zstd/decompress/zstd_ddict.h" /* ZSTD_DDictDictContent */
 #include "zstd/decompress/zstd_decompress_internal.h" /* ZSTD_DCtx */
-namespace nexg_zstd {
+namespace neug_zstd {
 /*_*******************************************************
  *  Macros
  **********************************************************/
@@ -1630,4 +1630,4 @@ size_t ZSTD_decompressBlock(ZSTD_DCtx* dctx, void* dst, size_t dstCapacity,
   return dSize;
 }
 
-}  // namespace nexg_zstd
+}  // namespace neug_zstd

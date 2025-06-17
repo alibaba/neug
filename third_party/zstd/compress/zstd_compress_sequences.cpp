@@ -13,7 +13,7 @@
  ***************************************/
 #include "zstd/compress/zstd_compress_sequences.h"
 
-namespace nexg_zstd {
+namespace neug_zstd {
 /**
  * -log2(x / 256) lookup table for x in [0, 256).
  * If x == 0: Return 0
@@ -336,9 +336,9 @@ FORCE_INLINE_TEMPLATE size_t ZSTD_encodeSequences_body(
       /* 32b*/ /* 64b*/
       /* (7)*/ /* (7)*/
       FSE_encodeSymbol(&blockStream, &stateOffsetBits, ofCode);
-          /* 15 */ /* 15 */
+      /* 15 */ /* 15 */
       FSE_encodeSymbol(&blockStream, &stateMatchLength, mlCode);
-          /* 24 */ /* 24 */
+      /* 24 */ /* 24 */
       if (MEM_32bits())
         BIT_flushBits(&blockStream);                                    /* (7)*/
       FSE_encodeSymbol(&blockStream, &stateLitLength, llCode); /* 16 */ /* 33 */
@@ -438,4 +438,4 @@ size_t ZSTD_encodeSequences(void* dst, size_t dstCapacity,
       longOffsets);
 }
 
-}  // namespace nexg_zstd
+}  // namespace neug_zstd

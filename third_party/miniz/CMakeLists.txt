@@ -8,4 +8,4 @@ target_include_directories(
   miniz
   PUBLIC $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}>)
 
-install_nexg_target(miniz)
+install_neug_target(miniz)

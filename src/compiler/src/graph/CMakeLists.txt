@@ -1,9 +1,9 @@
-add_library(nexg_graph
+add_library(neug_graph
         OBJECT
         graph.cpp
         graph_entry.cpp
         on_disk_graph.cpp)
 
 set(ALL_OBJECT_FILES
-        ${ALL_OBJECT_FILES} $<TARGET_OBJECTS:nexg_graph>
+        ${ALL_OBJECT_FILES} $<TARGET_OBJECTS:neug_graph>
         PARENT_SCOPE)

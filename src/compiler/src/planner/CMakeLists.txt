@@ -2,7 +2,7 @@ add_subdirectory(join_order)
 add_subdirectory(operator)
 add_subdirectory(plan)
 
-add_library(nexg_compiler_planner
+add_library(neug_compiler_planner
         OBJECT
         join_order_enumerator_context.cpp
         planner.cpp
@@ -10,5 +10,5 @@ add_library(nexg_compiler_planner
         subplans_table.cpp)
 
 set(ALL_OBJECT_FILES
-        ${ALL_OBJECT_FILES} $<TARGET_OBJECTS:nexg_compiler_planner>
+        ${ALL_OBJECT_FILES} $<TARGET_OBJECTS:neug_compiler_planner>
         PARENT_SCOPE)

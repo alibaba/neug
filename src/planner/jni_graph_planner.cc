@@ -248,9 +248,9 @@ Plan compilePlanJNI(jclass graph_planner_clz_,
 
   std::string error_code_str = env->GetStringUTFChars(error_code, NULL);
   if (error_code_str == "OK") {
-    plan.error_code = gs::nexg::interactive::Code::OK;
+    plan.error_code = gs::neug::interactive::Code::OK;
   } else {
-    plan.error_code = gs::nexg::interactive::Code::ERR_COMPILATION;
+    plan.error_code = gs::neug::interactive::Code::ERR_COMPILATION;
   }
 
   if (plan.error_code != StatusCode::OK) {
@@ -383,7 +383,7 @@ Plan compilePlanSubprocess(const std::string& class_path,
     execvp(command_string_array[0],
            const_cast<char* const*>(command_string_array));
   } else if (pid < 0) {
-    plan.error_code = gs::nexg::interactive::Code::ERR_COMPILATION;
+    plan.error_code = gs::neug::interactive::Code::ERR_COMPILATION;
     plan.full_message = "Error in fork: " + std::string(strerror(errno));
     LOG(ERROR) << "Error in fork.";
   } else {
@@ -392,7 +392,7 @@ Plan compilePlanSubprocess(const std::string& class_path,
     int fd_from_java = open(dst_output_file.c_str(), O_RDONLY);
     if (fd_from_java < 0) {
       LOG(ERROR) << "Fail to open pipe: " << dst_output_file;
-      plan.error_code = gs::nexg::interactive::Code::ERR_COMPILATION;
+      plan.error_code = gs::neug::interactive::Code::ERR_COMPILATION;
       plan.full_message = "Fail to open pipe: " + dst_output_file;
       return plan;
     }
@@ -417,7 +417,7 @@ Plan compilePlanSubprocess(const std::string& class_path,
   }
   unlink(dst_query_path.c_str());
   unlink(dst_output_file.c_str());
-  plan.error_code = gs::nexg::interactive::Code::OK;
+  plan.error_code = gs::neug::interactive::Code::OK;
   plan.full_message = "Compilation successful.";
   return plan;
 }

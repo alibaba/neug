@@ -19,12 +19,12 @@ BUILD_PROGRESS  	?= auto
 .PHONY: all graphscope
 
 # High order modules
-.PHONY: nexg
+.PHONY: neug
 
 # Base images and develop images
-.PHONY: nexg-manylinux
+.PHONY: neug-manylinux
 
-all: nexg nexg-manylinux
+all: neug neug-manylinux
 graphscope: all
 
 neug-manylinux:
@@ -33,5 +33,5 @@ neug-manylinux:
 		--build-arg REGISTRY=$(REGISTRY) \
 		--build-arg PLATFORM=${PLATFORM} \
 		--build-arg ARCH=${ARCH} \
-		-t graphscope/nexg-manylinux:${ARCH}  \
+		-t graphscope/neug-manylinux:${ARCH}  \
 		-f ${DOCKERFILES_DIR}/manylinux2014.Dockerfile .
