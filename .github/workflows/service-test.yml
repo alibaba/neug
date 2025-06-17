@@ -60,14 +60,14 @@ jobs:
         mkdir -p /tmp/test_data
         cd ${GITHUB_WORKSPACE}/build
         export FLEX_DATA_DIR=${GITHUB_WORKSPACE}/example_dataset/tinysnb
-        ./src/bin/bulk_loader -g ../example_dataset/tinysnb/graph-modify.yaml -l ../example_dataset/tinysnb/bulk.yaml -d /tmp/csr-data
+        ./src/bin/bulk_loader -g ../example_dataset/tinysnb/graph.yaml -l ../example_dataset/tinysnb/bulk.yaml -d /tmp/csr-data
 
     - name: Test NexG Service
       run: |
         # Start Nexg Server 
         # TODO: Currently we use InteractiveServer, but in the future, we need to start the service with python.
         cd ${GITHUB_WORKSPACE}/build
-        SCHEMA_PATH=${GITHUB_WORKSPACE}/example_dataset/tinysnb/graph-modify.yaml
+        SCHEMA_PATH=${GITHUB_WORKSPACE}/example_dataset/tinysnb/graph.yaml
         DATA_PATH=/tmp/csr-data
         cmd="GLOG_v=10 ./src/bin/interactive_server -c ../tests/engines/interactive_config_test.yaml -g ${SCHEMA_PATH} --data-path ${DATA_PATH}"
         echo "Starting Nexg Server with command: $cmd"

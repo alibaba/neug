@@ -44,14 +44,14 @@ schema:
           #   primitive_type: DT_DATE32
           property_type:
             temporal: 
-              date32: 
+              date: 
         - property_id: 8
           property_name: registerTime
           # property_type:
           #   primitive_type: DT_DATE32
           property_type:
             temporal: 
-              date32:
+              datetime:
         - property_id: 9
           property_name: lastJobDuration
           property_type:
@@ -198,7 +198,7 @@ schema:
           #   primitive_type: DT_DATE32
           property_type:
             temporal: 
-              date32:
+              date:
         - property_id: 1
           property_name: meetTime
           property_type:
@@ -257,7 +257,7 @@ schema:
         - property_id: 4
           property_name: code
           property_type:
-            primitive_type: DT_SIGNED_INT64
+            primitive_type: DT_UNSIGNED_INT64
         - property_id: 5
           property_name: temperature
           property_type:

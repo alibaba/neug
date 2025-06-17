@@ -191,6 +191,11 @@ int main(int argc, char** argv) {
     return -1;
   }
   bulk_load_config_path = vm["bulk-load"].as<std::string>();
+  if (!std::filesystem::exists(bulk_load_config_path)) {
+    LOG(ERROR) << "bulk-load-config file does not exist: "
+               << bulk_load_config_path;
+    return -1;
+  }
 
   setenv("TZ", "Asia/Shanghai", 1);
   tzset();

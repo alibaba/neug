@@ -96,7 +96,7 @@ jobs:
         export FLEX_DATA_DIR=${GS_TEST_DIR}/flex/ldbc-sf01-long-date
         GLOG_v=10 ./build/nexg_py_bind/src/bin/bulk_loader -g ../../example_dataset/ldbc/graph.yaml -l ../../example_dataset/ldbc/import.yaml -d /tmp/ldbc/
         export FLEX_DATA_DIR=${GITHUB_WORKSPACE}/example_dataset/tinysnb
-        GLOG_v=10 ./build/nexg_py_bind/src/bin/bulk_loader -g ../../example_dataset/tinysnb/graph-modify.yaml -l ../../example_dataset/tinysnb/import.yaml -d /tmp/tinysnb
+        GLOG_v=10 ./build/nexg_py_bind/src/bin/bulk_loader -g ../../example_dataset/tinysnb/graph.yaml -l ../../example_dataset/tinysnb/import.yaml -d /tmp/tinysnb
 
     - name: Run Python Test
       run: |
