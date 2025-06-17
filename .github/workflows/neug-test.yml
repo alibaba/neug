@@ -135,6 +135,18 @@ jobs:
         cd ${GITHUB_WORKSPACE}/tools/python_bind/
         # db connection tests
         python3 -m pytest -sv tests/test_db_connection.py
+
+    - name: Run Query Test
+      run: |
+        cd ${GITHUB_WORKSPACE}/tools/python_bind/
+        # ddl & dml & query tests
+        python3 -m pytest -sv tests/test_db_query.py
+
+    - name: Run Transaction Test
+      run: |
+        cd ${GITHUB_WORKSPACE}/tools/python_bind/
+        # import/export tests
+        python3 -m pytest -sv tests/test_db_transaction.py
       
     - name: Run Import/Export Test
       run: |
@@ -142,11 +154,6 @@ jobs:
         # import/export tests
         python3 -m pytest -sv tests/test_db_import_export.py
 
-    - name: Run DDL Test
-      run: |
-        cd ${GITHUB_WORKSPACE}/tools/python_bind/
-        # ddl tests
-        python3 -m pytest -sv tests/test_db_query.py
 
 
 

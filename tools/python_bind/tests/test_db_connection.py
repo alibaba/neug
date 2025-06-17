@@ -37,7 +37,7 @@ from nexg.database import Database
 # DB-002-02
 def test_local_connection(tmp_path):
     db_dir = tmp_path / "local_conn_db"
-    db = Database(str(db_dir), "w")
+    db = Database(db_path=str(db_dir), mode="w", planner="gopt")
     conn = db.connect()
     assert conn is not None
     conn.close()
@@ -48,7 +48,7 @@ def test_local_connection(tmp_path):
 # TODO: more connection parameters to test
 def test_local_connection_params(tmp_path):
     db_dir = tmp_path / "local_conn_param_db"
-    db = Database(str(db_dir), "w", max_thread_num=4)
+    db = Database(db_path=str(db_dir), mode="w", max_thread_num=4, planner="gopt")
     conn = db.connect()
     assert conn is not None
     conn.close()
@@ -60,7 +60,7 @@ def test_local_connection_params(tmp_path):
 def test_local_connection_invalid_param(tmp_path):
     db_dir = tmp_path / "local_conn_invalid_db"
     with pytest.raises(Exception) as excinfo:
-        db = Database(str(db_dir), "w", max_thread_num=-1)
+        db = Database(db_path=str(db_dir), mode="w", max_thread_num=-1, planner="gopt")
     assert ERROR_STRINGS[ERR_INVALID_ARGUMENT] in str(excinfo.value)
     db.close()
 
@@ -68,7 +68,7 @@ def test_local_connection_invalid_param(tmp_path):
 @pytest.fixture
 def started_server(tmp_path, unused_tcp_port):
     db_dir = tmp_path / "remote_db"
-    db = Database(str(db_dir), "w")
+    db = Database(db_path=str(db_dir), mode="w", planner="gopt")
     port = unused_tcp_port
     db.serve("127.0.0.1", port)
     # sleep to ensure server is ready
@@ -190,7 +190,7 @@ def test_server_load_overflow(started_server):
 def test_local_connection_after_close(tmp_path):
     # local connection after close
     db_dir = tmp_path / "conn_after_close_db"
-    db = Database(str(db_dir), "w")
+    db = Database(db_path=str(db_dir), mode="w", planner="gopt")
     conn = db.connect()
     conn.close()
     with pytest.raises(Exception) as excinfo:
@@ -223,7 +223,7 @@ def test_server_restart(started_server):
     session = Session.open(f"neug://user:pass@127.0.0.1:{port}/")
     db.close()
     time.sleep(2)
-    db2 = Database("remote_db", "w")
+    db2 = Database(db_path="remote_db", mode="w", planner="gopt")
     db2.serve("127.0.0.1", port)
     time.sleep(2)
     try:
@@ -257,9 +257,9 @@ def test_connection_param_boundary(tmp_path):
     db_dir = tmp_path / "conn_param_boundary_db"
     # test with maximum cores
     max_cores = os.cpu_count() or 1
-    db = Database(str(db_dir), "w", max_thread_num=max_cores)
+    db = Database(str(db_dir), "w", max_thread_num=max_cores, planner="gopt")
     db.close()
     with pytest.raises(Exception) as excinfo:
         # test with more than maximum cores
-        Database(str(db_dir), "w", max_thread_num=max_cores + 1)
+        Database(str(db_dir), "w", max_thread_num=max_cores + 1, planner="gopt")
     assert ERROR_STRINGS[ERR_INVALID_ARGUMENT] in str(excinfo.value)

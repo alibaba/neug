@@ -36,7 +36,7 @@ from nexg.database import Database
 def test_import_default(tmp_path):
     db_dir = tmp_path / "import_default"
     db_dir.mkdir()
-    db = Database(str(db_dir), "w", 0, "gopt", "", "")
+    db = Database(db_path=str(db_dir), mode="w", planner="gopt")
     conn = db.connect()
     conn.execute("CREATE NODE TABLE person(id INT64, name STRING, PRIMARY KEY(id));")
     csv_path = tmp_path / "person.csv"
@@ -54,7 +54,7 @@ def test_import_default(tmp_path):
 def test_import_config(tmp_path):
     db_dir = tmp_path / "import_config"
     db_dir.mkdir()
-    db = Database(str(db_dir), "w", 0, "gopt", "", "")
+    db = Database(db_path=str(db_dir), mode="w", planner="gopt")
     conn = db.connect()
     conn.execute("CREATE NODE TABLE person(id INT64, name STRING, PRIMARY KEY(id));")
     csv_path = tmp_path / "person.csv"
@@ -74,7 +74,7 @@ def test_import_config(tmp_path):
 def test_import_ignore_errors(tmp_path):
     db_dir = tmp_path / "import_ignore"
     db_dir.mkdir()
-    db = Database(str(db_dir), "w", 0, "gopt", "", "")
+    db = Database(db_path=str(db_dir), mode="w", planner="gopt")
     conn = db.connect()
     conn.execute("CREATE NODE TABLE person(id INT64, PRIMARY KEY(id));")
     csv_path = tmp_path / "bad.csv"
@@ -96,7 +96,7 @@ def test_import_ignore_errors(tmp_path):
 def test_import_null(tmp_path):
     db_dir = tmp_path / "import_null"
     db_dir.mkdir()
-    db = Database(str(db_dir), "w", 0, "gopt", "", "")
+    db = Database(db_path=str(db_dir), mode="w", planner="gopt")
     conn = db.connect()
     conn.execute("CREATE NODE TABLE person(id INT64, name STRING, PRIMARY KEY(id));")
     csv_path = tmp_path / "null.csv"
@@ -116,7 +116,7 @@ def test_import_null(tmp_path):
 def test_import_type_conversion1(tmp_path):
     db_dir = tmp_path / "import_type_conversion1"
     db_dir.mkdir()
-    db = Database(str(db_dir), "w", 0, "gopt", "", "")
+    db = Database(db_path=str(db_dir), mode="w", planner="gopt")
     conn = db.connect()
     conn.execute("CREATE NODE TABLE person(id INT64, name STRING, PRIMARY KEY(id));")
     csv_path = tmp_path / "type.csv"
@@ -135,7 +135,7 @@ def test_import_type_conversion1(tmp_path):
 def test_import_type_conversion2(tmp_path):
     db_dir = tmp_path / "import_type_conversion2"
     db_dir.mkdir()
-    db = Database(str(db_dir), "w", 0, "gopt", "", "")
+    db = Database(db_path=str(db_dir), mode="w", planner="gopt")
     conn = db.connect()
     conn.execute("CREATE NODE TABLE person2(id INT64, age INT32, PRIMARY KEY(id));")
     csv_path2 = tmp_path / "type2.csv"
@@ -155,7 +155,7 @@ def test_import_type_conversion2(tmp_path):
 def test_import_type_conversion_overflow(tmp_path):
     db_dir = tmp_path / "import_type_conversion_overflow"
     db_dir.mkdir()
-    db = Database(str(db_dir), "w", 0, "gopt", "", "")
+    db = Database(db_path=str(db_dir), mode="w", planner="gopt")
     conn = db.connect()
     conn.execute("CREATE NODE TABLE person(id INT64, PRIMARY KEY(id));")
     csv_path = tmp_path / "type2.csv"
@@ -175,7 +175,7 @@ def test_import_type_conversion_overflow(tmp_path):
 def test_import_string_pk(tmp_path):
     db_dir = tmp_path / "import_type"
     db_dir.mkdir()
-    db = Database(str(db_dir), "w", 0, "gopt", "", "")
+    db = Database(db_path=str(db_dir), mode="w", planner="gopt")
     conn = db.connect()
     conn.execute("CREATE NODE TABLE person(id STRING, PRIMARY KEY(id));")
     csv_path = tmp_path / "type.csv"
@@ -192,7 +192,7 @@ def test_import_string_pk(tmp_path):
 def test_import_int32_pk(tmp_path):
     db_dir = tmp_path / "import_primary_key"
     db_dir.mkdir()
-    db = Database(str(db_dir), "w", 0, "gopt", "", "")
+    db = Database(db_path=str(db_dir), mode="w", planner="gopt")
     conn = db.connect()
     # type of primary key is INT32
     conn.execute("CREATE NODE TABLE person(id INT32, name STRING, PRIMARY KEY(id));")
@@ -210,7 +210,7 @@ def test_import_int32_pk(tmp_path):
 def test_import_uint32_pk(tmp_path):
     db_dir = tmp_path / "import_uint32_pk"
     db_dir.mkdir()
-    db = Database(str(db_dir), "w", 0, "gopt", "", "")
+    db = Database(db_path=str(db_dir), mode="w", planner="gopt")
     conn = db.connect()
     # type of primary key is UINT32
     conn.execute("CREATE NODE TABLE person(id UINT32, name STRING, PRIMARY KEY(id));")
@@ -228,7 +228,7 @@ def test_import_uint32_pk(tmp_path):
 def test_import_uint64_pk(tmp_path):
     db_dir = tmp_path / "import_uint64_pk"
     db_dir.mkdir()
-    db = Database(str(db_dir), "w", 0, "gopt", "", "")
+    db = Database(db_path=str(db_dir), mode="w", planner="gopt")
     conn = db.connect()
     # type of primary key is UINT64
     conn.execute("CREATE NODE TABLE person(id UINT64, name STRING, PRIMARY KEY(id));")
@@ -247,7 +247,7 @@ def test_import_uint64_pk(tmp_path):
 def test_export_config(tmp_path):
     db_dir = tmp_path / "export_config"
     db_dir.mkdir()
-    db = Database(str(db_dir), "w", 0, "gopt", "", "")
+    db = Database(db_path=str(db_dir), mode="w", planner="gopt")
     conn = db.connect()
     conn.execute("CREATE NODE TABLE person(id INT64, PRIMARY KEY(id));")
     conn.execute("CREATE (u:person {id: 1}), (u2:person {id: 2});")
@@ -264,7 +264,7 @@ def test_export_config(tmp_path):
 def test_import_file_not_found(tmp_path):
     db_dir = tmp_path / "import_file_not_found"
     db_dir.mkdir()
-    db = Database(str(db_dir), "w", 0, "gopt", "", "")
+    db = Database(db_path=str(db_dir), mode="w", planner="gopt")
     conn = db.connect()
     conn.execute("CREATE NODE TABLE person(id INT64, PRIMARY KEY(id));")
     with pytest.raises(Exception) as excinfo:
@@ -279,7 +279,7 @@ def test_import_file_not_found(tmp_path):
 def test_export_no_permission(tmp_path):
     db_dir = tmp_path / "export_no_permission"
     db_dir.mkdir()
-    db = Database(str(db_dir), "w", 0, "gopt", "", "")
+    db = Database(db_path=str(db_dir), mode="w", planner="gopt")
     conn = db.connect()
     conn.execute("CREATE NODE TABLE person(id INT64, PRIMARY KEY(id));")
     out_dir = tmp_path / "no_perm"
@@ -301,7 +301,7 @@ def test_export_no_permission(tmp_path):
 def test_import_schema_mismatch(tmp_path):
     db_dir = tmp_path / "import_schema_mismatch"
     db_dir.mkdir()
-    db = Database(str(db_dir), "w", 0, "gopt", "", "")
+    db = Database(db_path=str(db_dir), mode="w", planner="gopt")
     conn = db.connect()
     conn.execute("CREATE NODE TABLE person(id INT64, PRIMARY KEY(id));")
     csv_path = tmp_path / "mismatch.csv"
@@ -319,7 +319,7 @@ def test_import_schema_mismatch(tmp_path):
 def test_import_bad_encoding(tmp_path):
     db_dir = tmp_path / "import_bad_encoding"
     db_dir.mkdir()
-    db = Database(str(db_dir), "w", 0, "gopt", "", "")
+    db = Database(db_path=str(db_dir), mode="w", planner="gopt")
     conn = db.connect()
     conn.execute("CREATE NODE TABLE person(id INT64, PRIMARY KEY(id));")
     csv_path = tmp_path / "badenc.csv"

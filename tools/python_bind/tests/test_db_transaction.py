@@ -33,15 +33,13 @@ from nexg.database import Database
 
 
 # DB-004-01
-def test_ap_read_concurrent(tmp_path):
-    # db_dir = tmp_path / "ap_read_concurrent"
-    # db_dir.mkdir()
-    db_dir = "/tmp/csr-data-lsqb"
-    db = Database(str(db_dir), "r")
+def test_ap_read_concurrent():
+    db_dir = "/tmp/modern_graph"
+    db = Database(db_path=str(db_dir), mode="r", planner="gopt")
     conns = [db.connect() for _ in range(4)]
     for conn in conns:
-        result = conn.execute("MATCH (n) RETURN n limit 10;")
-        assert len(result) == 10
+        result = conn.execute("MATCH (n) RETURN n")
+        assert len(result) == 6
     for conn in conns:
         conn.close()
     db.close()
@@ -49,8 +47,8 @@ def test_ap_read_concurrent(tmp_path):
 
 # DB-004-02
 def test_ap_write_concurrent(tmp_path):
-    db_dir = "/tmp/csr-data-lsqb"
-    db = Database(str(db_dir), "rw")
+    db_dir = tmp_path / "ap_write_concurrent"
+    db = Database(db_path=str(db_dir), mode="w", planner="gopt")
     conn = db.connect()
     with pytest.raises(Exception) as excinfo:
         # in rw mode, only one connection is allowed
@@ -61,9 +59,9 @@ def test_ap_write_concurrent(tmp_path):
 
 
 # DB-004-03
-def test_ap_read_write_concurrent(tmp_path):
+def test_ap_read_write_concurrent():
     db_dir = "/tmp/modern_graph"
-    db = Database(str(db_dir), "w", 0, "gopt", "", "")
+    db = Database(db_path=str(db_dir), mode="w", planner="gopt")
     conn = db.connect()
     with pytest.raises(Exception) as excinfo:
         # in rw mode, only one connection is allowed
@@ -128,14 +126,13 @@ def test_tp_read_write_concurrent(started_server):
 @pytest.mark.skip(reason="not supported yet")
 def test_auto_transaction_management(tmp_path):
     db_dir = tmp_path / "auto_tx_mgmt"
-    db_dir.mkdir()
-    db = Database(str(db_dir), "rw")
+    db = Database(db_path=str(db_dir), mode="w", planner="gopt")
     conn = db.connect()
     # create success, commit automatically
     conn.execute("CREATE NODE TABLE T(id INT32, PRIMARY KEY(id));")
     conn.execute("CREATE (n:T {id: 1});")
-    r = conn.execute("MATCH (n:T) RETURN count(n);")
-    assert r[0][0] == 1
+    r = conn.execute("MATCH (n:T) RETURN n;")
+    assert len(r) == 1
 
     # create with errors, rollback automatically
     with pytest.raises(Exception) as excinfo:
@@ -153,20 +150,20 @@ def test_auto_transaction_management(tmp_path):
     with pytest.raises(Exception) as excinfo:
         conn.execute("ALTER TABLE T DROP COLUMN not_exist;")
     assert ERROR_STRINGS[ERR_SCHEMA_MISMATCH] in str(excinfo.value)
-    r4 = conn.execute("MATCH (n:T) RETURN count(n);")
-    assert r4[0][0] == 1
+    r4 = conn.execute("MATCH (n:T) RETURN n;")
+    assert len(r4) == 1
 
     with pytest.raises(Exception) as excinfo:
         conn.execute("DROP TABLE not_exist;")
     assert ERROR_STRINGS[ERR_SCHEMA_MISMATCH] in str(excinfo.value)
-    r5 = conn.execute("MATCH (n:T) RETURN count(n);")
-    assert r5[0][0] == 1
+    r5 = conn.execute("MATCH (n:T) RETURN n;")
+    assert len(r5) == 1
 
     with pytest.raises(Exception) as excinfo:
         conn.execute("MATCH (n:T) WHERE n.id = 1 SET n.not_exist = 1;")
     assert ERROR_STRINGS[ERR_SCHEMA_MISMATCH] in str(excinfo.value)
-    r6 = conn.execute("MATCH (n:T) RETURN count(n);")
-    assert r6[0][0] == 1
+    r6 = conn.execute("MATCH (n:T) RETURN n;")
+    assert len(r6) == 1
 
     conn.close()
     db.close()
@@ -177,7 +174,7 @@ def test_auto_transaction_management(tmp_path):
 def test_manual_transaction_management(tmp_path):
     db_dir = tmp_path / "manual_tx_mgmt"
     db_dir.mkdir()
-    db = Database(str(db_dir), "rw")
+    db = Database(db_path=str(db_dir), mode="w", planner="gopt")
     conn = db.connect()
     # BEGIN/COMMIT
     conn.execute("BEGIN TRANSACTION;")
@@ -200,8 +197,8 @@ def test_manual_transaction_management(tmp_path):
         conn.execute("CREATE NODE TABLE T(id INT32, PRIMARY KEY(id));")  # 已存在
     assert ERROR_STRINGS[ERR_SCHEMA_MISMATCH] in str(excinfo.value)
     conn.execute("ROLLBACK;")
-    r3 = conn.execute("MATCH (n:T) RETURN count(n);")
-    assert r3[0][0] == 1
+    r3 = conn.execute("MATCH (n:T) RETURN n;")
+    assert len(r3) == 1
 
     # BEGIN/ROLLBACK: ALTER TABLE
     conn.execute("BEGIN TRANSACTION;")
@@ -209,8 +206,8 @@ def test_manual_transaction_management(tmp_path):
         conn.execute("ALTER TABLE T DROP COLUMN not_exist;")
     assert ERROR_STRINGS[ERR_SCHEMA_MISMATCH] in str(excinfo.value)
     conn.execute("ROLLBACK;")
-    r4 = conn.execute("MATCH (n:T) RETURN count(n);")
-    assert r4[0][0] == 1
+    r4 = conn.execute("MATCH (n:T) RETURN n;")
+    assert len(r4) == 1
 
     # BEGIN/ROLLBACK: DROP TABLE
     conn.execute("BEGIN TRANSACTION;")
@@ -218,8 +215,8 @@ def test_manual_transaction_management(tmp_path):
         conn.execute("DROP TABLE not_exist;")
     assert ERROR_STRINGS[ERR_SCHEMA_MISMATCH] in str(excinfo.value)
     conn.execute("ROLLBACK;")
-    r5 = conn.execute("MATCH (n:T) RETURN count(n);")
-    assert r5[0][0] == 1
+    r5 = conn.execute("MATCH (n:T) RETURN n;")
+    assert len(r5) == 1
 
     # BEGIN/ROLLBACK: SET properties
     conn.execute("BEGIN TRANSACTION;")
@@ -227,8 +224,8 @@ def test_manual_transaction_management(tmp_path):
         conn.execute("MATCH (n:T) WHERE n.id = 1 SET n.not_exist = 1;")
     assert ERROR_STRINGS[ERR_SCHEMA_MISMATCH] in str(excinfo.value)
     conn.execute("ROLLBACK;")
-    r6 = conn.execute("MATCH (n:T) RETURN count(n);")
-    assert r6[0][0] == 1
+    r6 = conn.execute("MATCH (n:T) RETURN n;")
+    assert len(r6) == 1
 
     conn.close()
     db.close()
@@ -239,7 +236,7 @@ def test_manual_transaction_management(tmp_path):
 def test_readonly_transaction_write(tmp_path):
     db_dir = tmp_path / "readonly_tx_write"
     db_dir.mkdir()
-    db = Database(str(db_dir), "rw")
+    db = Database(db_path=str(db_dir), mode="w", planner="gopt")
     conn = db.connect()
     conn.execute("BEGIN TRANSACTION READ ONLY;")
     with pytest.raises(Exception) as excinfo:
@@ -255,7 +252,7 @@ def test_readonly_transaction_write(tmp_path):
 def test_nested_transaction(tmp_path):
     db_dir = tmp_path / "nested_tx"
     db_dir.mkdir()
-    db = Database(str(db_dir), "rw")
+    db = Database(db_path=str(db_dir), mode="w", planner="gopt")
     conn = db.connect()
     conn.execute("BEGIN TRANSACTION;")
     with pytest.raises(Exception):
@@ -270,7 +267,7 @@ def test_nested_transaction(tmp_path):
 def test_transaction_timeout(tmp_path):
     db_dir = tmp_path / "tx_timeout"
     db_dir.mkdir()
-    db = Database(str(db_dir), "rw")
+    db = Database(db_path=str(db_dir), mode="w", planner="gopt")
     conn = db.connect()
     conn.execute("BEGIN TRANSACTION;")
     conn.execute("CREATE NODE TABLE T(id INT32, PRIMARY KEY(id));")
@@ -288,7 +285,7 @@ def test_transaction_timeout(tmp_path):
 def test_commit_after_rollback(tmp_path):
     db_dir = tmp_path / "commit_after_rollback"
     db_dir.mkdir()
-    db = Database(str(db_dir), "rw")
+    db = Database(db_path=str(db_dir), mode="w", planner="gopt")
     conn = db.connect()
     conn.execute("BEGIN TRANSACTION;")
     conn.execute("ROLLBACK;")
@@ -303,7 +300,7 @@ def test_commit_after_rollback(tmp_path):
 def test_crash_recovery(tmp_path):
     db_dir = tmp_path / "crash_recovery"
     db_dir.mkdir()
-    db = Database(str(db_dir), "rw")
+    db = Database(db_path=str(db_dir), mode="w", planner="gopt")
     conn = db.connect()
     conn.execute("BEGIN TRANSACTION;")
     conn.execute("CREATE NODE TABLE T(id INT32, PRIMARY KEY(id));")
@@ -313,7 +310,7 @@ def test_crash_recovery(tmp_path):
     conn.execute("CREATE (n:T {id: 2});")
     conn.close()
     db.close()
-    db2 = Database(str(db_dir), "rw")
+    db2 = Database(db_path=str(db_dir), mode="w", planner="gopt")
     conn2 = db2.connect()
     # committed transaction should be visible
     r = conn2.execute("MATCH (n:T) WHERE n.id = 1 RETURN n;")
