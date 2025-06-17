@@ -83,8 +83,16 @@ class CMakeBuild(build_ext):
         # Using this requires trailing slash for auto-detection & inclusion of
         # auxiliary "native" libs
 
-        debug = int(os.environ.get("DEBUG", 0))
-        cfg = "DEBUG" if debug else "Release"
+        build_type = os.environ.get("BUILD_TYPE")
+        if build_type is None:
+            # Default to Release if not set
+            build_type = "Release"
+        build_type = build_type.upper()
+        if build_type not in {"DEBUG", "RELEASE"}:
+            raise ValueError(
+                f"Invalid BUILD_TYPE: {build_type}. Must be one of 'DEBUG' or 'RELEASE'."
+            )
+        
         build_executables = (
             "ON" if os.environ.get("BUILD_EXECUTABLES", "OFF") == "ON" else "OFF"
         )
@@ -107,7 +115,7 @@ class CMakeBuild(build_ext):
         cmake_args = [
             f"-DCMAKE_LIBRARY_OUTPUT_DIRECTORY={extdir}{os.sep}",
             f"-DPYTHON_EXECUTABLE={sys.executable}",
-            f"-DCMAKE_BUILD_TYPE={cfg}",  # not used on MSVC, but no harm
+            f"-DCMAKE_BUILD_TYPE={build_type}",  # not used on MSVC, but no harm
             "-DOPTIMIZE_FOR_HOST=OFF",
             f"-DBUILD_EXECUTABLES={build_executables}",
             f"-DBUILD_TEST={build_test}",

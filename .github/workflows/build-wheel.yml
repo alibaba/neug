@@ -78,6 +78,7 @@ jobs:
           fi
           export DEBUG=1
           export CMAKE_BUILD_PARALLEL_LEVEL=$(nproc)
+          export BUILD_TYPE=RELEASE
           python3 -m cibuildwheel ./tools/python_bind --output-dir wheelhouse
 
       - uses: actions/upload-artifact@v4
