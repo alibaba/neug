@@ -35,3 +35,5 @@ add_library(mbedtls STATIC
         library/sha512.cpp)
 
 set_property(TARGET mbedtls PROPERTY C_STANDARD 99)
+
+install_nexg_target(mbedtls)

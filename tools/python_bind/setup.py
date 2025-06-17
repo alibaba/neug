@@ -73,28 +73,7 @@ class CMakeBuild(build_ext):
         self.build_temp = Path.cwd() / "build"
 
     def run(self):
-        # Currently uncommented to avoid containing the jar in the wheel
-        self.download_compiler_jar()
         super().run()
-
-    def download_compiler_jar(self):
-        resource_ur = "https://graphscope.oss-cn-beijing.aliyuncs.com/compiler/compiler-0.0.1-SNAPSHOT-shade-0521.jar"
-        target_dir = "nexg/resources"
-        target_file = os.path.join(target_dir, "compiler.jar")
-        if not os.path.exists(target_dir):
-            os.makedirs(target_dir)
-        if not os.path.exists(target_file):
-            try:
-                import urllib.request
-
-                urllib.request.urlretrieve(resource_ur, target_file)
-            except Exception as e:
-                print(f"Failed to download {resource_ur}: {e}")
-                raise RuntimeError(
-                    f"Failed to download {resource_ur}. Please download it manually and place it in {target_dir}."
-                )
-        else:
-            print(f"{target_file} already exists. Skipping download.")
 
     def build_extension(self, ext: CMakeExtension) -> None:
         # Must be in this form due to bug in .resolve() only fixed in Python 3.10+
@@ -265,17 +244,17 @@ class BuildProto(Command):
 class BuildExtFirst(_build_py):
     # Override the build_py command to build the extension first.
     def run(self):
-        self.run_command("build_ext")
         self.run_command("build_proto")
+        self.run_command("build_ext")
         return super().run()
 
 
 setup(
-    name="nexg",
+    name="neug",
     version=version,
     author="GraphScope Team",
     author_email="graphscope@alibaba-inc.com",
-    url="https://github.com/alibaba/nexg",
+    url="https://github.com/graphscope/nexg",
     # license="Apache License 2.0",
     # classifiers=[
     #     "Development Status :: 5 - Production/Stable",

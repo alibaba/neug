@@ -3,4 +3,8 @@ add_library(utf8proc
         utf8proc.cpp
         utf8proc_wrapper.cpp)
 
-target_include_directories(utf8proc PUBLIC ./include)
+install_nexg_target(utf8proc)
+
+target_include_directories(utf8proc PUBLIC 
+        $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}>
+        $<INSTALL_INTERFACE:include>)

@@ -72,8 +72,8 @@ class Database(object):
         db_path: str,
         mode: str = "r",
         max_thread_num: int = 0,
-        planner="jni",
-        jni_planner_jar_path=None,
+        planner="gopt",
+        jni_planner_jar_path="",
         planner_config_path=None,
     ):
         """

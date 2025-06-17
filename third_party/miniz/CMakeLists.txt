@@ -7,3 +7,5 @@ add_library(miniz STATIC miniz.cpp)
 target_include_directories(
   miniz
   PUBLIC $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}>)
+
+install_nexg_target(miniz)

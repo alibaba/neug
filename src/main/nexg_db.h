@@ -30,7 +30,9 @@
 #include "src/planner/dummy_graph_planner.h"
 #include "src/planner/gopt_planner.h"
 #include "src/planner/graph_planner.h"
+#ifdef BUILD_JNI_PLANNER
 #include "src/planner/jni_graph_planner.h"
+#endif  // BUILD_JNI_PLANNER
 #include "src/utils/file_utils.h"
 
 namespace gs {
@@ -43,8 +45,8 @@ class NexgDB {
  public:
   NexgDB(const std::string& data_dir, int32_t max_num_threads,
          const std::string& mode, const std::string& planner_kind,
-         const std::string& jni_planner_class_path,
-         const std::string& planner_config_path)
+         const std::string& jni_planner_class_path = "",
+         const std::string& planner_config_path = "")
       : file_lock_(data_dir) {
     LOG(INFO) << "Creating NexgDB with: " << data_dir << " in " << mode
               << " mode, "
@@ -107,6 +109,7 @@ class NexgDB {
       const std::string& jni_planner_class_path,
       const std::string& planner_config_path) {
     if (planner_kind == "jni") {
+#ifdef BUILD_JNI_PLANNER
       static std::shared_ptr<IGraphPlanner> jni_planner;
       if (jni_planner) {
         VLOG(10) << "Using existing JNI Graph Planner.";
@@ -117,6 +120,10 @@ class NexgDB {
             planner_config_path, jni_planner_class_path);
       }
       return jni_planner;
+#else
+      throw std::runtime_error(
+          "JNI planner is not built. Please build with BUILD_JNI_PLANNER=ON.");
+#endif  // BUILD_JNI_PLANNER
     } else if (planner_kind == "dummy") {
       return std::make_shared<DummyGraphPlanner>();
     } else if (planner_kind == "gopt") {

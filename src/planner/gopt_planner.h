@@ -29,49 +29,11 @@ class GOptPlanner : public gs::IGraphPlanner {
     ctx = std::make_unique<gs::main::ClientContext>(database.get());
   }
 
-  std::string type() const override { return "gopt"; }
+  inline std::string type() const override { return "gopt"; }
 
   gs::Plan compilePlan(const std::string& query,
                        const std::string& graph_schema_yaml,
-                       const std::string& graph_statistic_json) override {
-    LOG(INFO) << "[GOptPlanner] compilePlan called with query: " << query;
-    gs::Plan plan;
-
-    try {
-      if (!graph_schema_yaml.empty()) {
-        // Update schema
-        database->updateSchema(graph_schema_yaml, graph_statistic_json);
-      }
-
-      // Prepare and compile query
-      auto statement = ctx->prepare(query);
-      if (!statement->success) {
-        plan.error_code = StatusCode::ERR_QUERY_SYNTAX;
-        plan.full_message = statement->errMsg;
-        return plan;
-      }
-
-      std::cout << "Logical Plan: " << std::endl
-                << statement->logicalPlan->toString() << std::endl;
-
-      auto aliasManager =
-          std::make_shared<gs::gopt::GAliasManager>(*statement->logicalPlan);
-      gs::gopt::GPhysicalConvertor converter(aliasManager,
-                                             database->getCatalog());
-      auto physicalPlan = converter.convert(*statement->logicalPlan);
-
-      plan.error_code = StatusCode::OK;
-      plan.physical_plan = std::move(*physicalPlan);
-      // todo: set result schema
-
-      return plan;
-
-    } catch (const std::exception& e) {
-      plan.error_code = StatusCode::ERR_UNKNOWN;
-      plan.full_message = e.what();
-      return plan;
-    }
-  }
+                       const std::string& graph_statistic_json) override;
 
  private:
   std::unique_ptr<gs::main::GDatabase> database;

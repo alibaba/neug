@@ -87,7 +87,7 @@ class TestLsqb(unittest.TestCase):
         assert res_count > 0, "Expected at least one comment for Person with id 772"
 
         result = conn.execute(
-            "MATCH (n:Person)-[e:Person_likes_Post]-(p:Post) WHERE n.id = 772 AND p.id <> 206158439468 return n.id LIMIT 10;"
+            "MATCH (n:Person)-[e:Person_likes_Post]->(p:Post) WHERE n.id = 772 AND p.id <> 206158439468 return n.id LIMIT 10;"
         )
         assert result is not None
         res_count = 0

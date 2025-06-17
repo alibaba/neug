@@ -19,6 +19,8 @@ add_library(antlr4_cypher
         cypher_parser.cpp)
 
 target_include_directories(antlr4_cypher
-        PRIVATE ../antlr4_runtime/src)
+        PRIVATE $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/../antlr4_runtime/src>)
 
 target_link_libraries(antlr4_cypher PRIVATE antlr4_runtime)
+
+install_nexg_target(antlr4_cypher)

@@ -20,7 +20,7 @@ option(BUILD_WITH_OTEL "Whether to build with opentelemetry-cpp" OFF) # Whether 
 option(BUILD_WITH_OSS "Whether to build with oss support" OFF) # Whether to build with oss support, default is OFF
 option(BUILD_EXECUTABLES "When to build executors" OFF) # Whether to build executables, default is OFF
 option(BUILD_HTTP_SERVER "Whether to build http server" OFF) # Whether to build http server, default is OFF
-option(BUILD_JNI_PLANNER "Whether to build jni wrapper for the java planner" ON) # Whether to build jni wrapper for the java planner, default is ON
+option(BUILD_JNI_PLANNER "Whether to build jni wrapper for the java planner" OFF) # Whether to build jni wrapper for the java planner, default is ON
 option(BUILD_METADATA "Whether to build metadata" OFF)
 # Options to control the building of tools
 option(BUILD_PYTHON "Whether to build python embedded" ON)
@@ -197,7 +197,7 @@ function(add_compiler_test TEST_NAME)
     #endif()
     #target_include_directories(${TEST_NAME} PRIVATE ${PROJECT_SOURCE_DIR}/test/include)
 
-    target_link_libraries(${TEST_NAME} PUBLIC neug::GTest nexg_compiler nexg_plan_proto)
+    target_link_libraries(${TEST_NAME} PUBLIC neug::GTest nexg_compiler_shared nexg_plan_proto)
     target_include_directories(${TEST_NAME} PRIVATE src/include)
 
     include(GoogleTest)
@@ -269,6 +269,7 @@ set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wno-deprecated")
 
 if (BUILD_JNI_PLANNER)
     message(STATUS "Build jni planner")
+    add_compile_definitions(BUILD_JNI_PLANNER)
     set(JAVA_AWT_INCLUDE_PATH NotNeeded)
     # get JAVA_HOME from environment
     execute_process(COMMAND bash -c "echo $JAVA_HOME" OUTPUT_VARIABLE JAVA_HOME)

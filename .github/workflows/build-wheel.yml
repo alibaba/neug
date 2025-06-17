@@ -4,12 +4,28 @@ on:
   # Trigger the workflow on push or pull request,
   # but only for the main branch
   workflow_dispatch:
-  # push:
-  #   branches:
-  #     - main
-  # pull_request:
-  #   branches:
-  #     - main
+  push:
+    branches:
+      - main
+    paths:
+      - 'cmake/**'
+      - 'src/**'
+      - 'proto/**'
+      - 'third_party/**'
+      - 'tools/python_bind/**'
+      - 'tests/**'
+      - '.github/workflows/build-wheel.yml'
+  pull_request:
+    branches:
+      - main
+    paths:
+      - 'cmake/**'
+      - 'src/**'
+      - 'proto/**'
+      - 'third_party/**'
+      - 'tools/python_bind/**'
+      - 'tests/**'
+      - '.github/workflows/build-wheel.yml'
 
 concurrency:
   group: ${{ github.repository }}-${{ github.event.number || github.head_ref || github.sha }}-${{ github.workflow }}
@@ -17,14 +33,10 @@ concurrency:
 
 jobs:
   build_wheels:
-    name: Build wheels on ${{ matrix.os }}
-    runs-on: ${{ matrix.os }}
+    runs-on: [self-hosted]
     strategy:
       matrix:
-        # macos-13 is an intel runner, macos-14 is apple silicon
-        # os: [ubuntu-latest, ubuntu-24.04-arm, macos-13, macos-14]
-        os: [ubuntu-latest]
-
+        os: [linux-x86_64]
     steps:
       - uses: actions/checkout@v4
 
@@ -32,12 +44,6 @@ jobs:
         uses: actions/setup-python@v5
         with:
           python-version: '3.11'
-
-      - name: Setup Java
-        uses: actions/setup-java@v4
-        with:
-          java-version: '11'
-          distribution: 'temurin'
 
       # Only run install_dep.sh on macos system
       - name: Install dependencies
@@ -48,11 +54,18 @@ jobs:
       - name: Install cibuildwheel
         run: python3 -m pip install cibuildwheel==2.23.3
 
-      - name: Get macos version
+      - name: Prepare for macos
         if: startsWith(matrix.os, 'macos')
         run: |
           echo "MACOSX_DEPLOYMENT_TARGET=$(sw_vers -productVersion | cut -d '.' -f 1-2)" >> $GITHUB_ENV
           echo "MACOSX_DEPLOYMENT_TARGET={{ env.MACOSX_DEPLOYMENT_TARGET }}"
+          source ~/.graphscope_env
+          echo "CMAKE_BUILD_PARALLEL_LEVEL=$(sysctl -n hw.ncpu)" >> $GITHUB_ENV
+
+      - name: Prepare for linux
+        if: startsWith(matrix.os, 'linux')
+        run: |
+          echo "CMAKE_BUILD_PARALLEL_LEVEL=$(nproc)" >> $GITHUB_ENV
 
       - name: Setup tmate session
         if: false
@@ -64,14 +77,20 @@ jobs:
             source ~/.graphscope_env
           fi
           export DEBUG=1
-          export CMAKE_BUILD_PARALLEL_LEVEL=16
+          export CMAKE_BUILD_PARALLEL_LEVEL=$(nproc)
           python3 -m cibuildwheel ./tools/python_bind --output-dir wheelhouse
-        env:
-          # use macos version as the target
-          CIBW_ENVIRONMENT_MACOS: "MACOSX_DEPLOYMENT_TARGET=$MACOSX_DEPLOYMENT_TARGET"
-          CIBW_ENVIRONMENT_LINUX: "CMAKE_BUILD_PARALLEL_LEVEL=$CMAKE_BUILD_PARALLEL_LEVEL"
 
       - uses: actions/upload-artifact@v4
+        if: false
         with:
-          name: cibw-wheels-${{ matrix.os }}-${{ strategy.job-index }}
+          name: cibw-wheels-${{ matrix.os }}-${{ github.sha }}
           path: ./wheelhouse/*.whl
+
+      - name: Publish distribution to PyPI
+        uses: pypa/gh-action-pypi-publish@v1.4.2
+        if: (github.ref == 'refs/heads/main' && github.repository == 'GraphScope/neug') || (github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v') && github.repository == 'GraphScope/neug')
+        with:
+          user: __token__
+          password: ${{ secrets.PYPI_PASSWORD }}
+          packages_dir: wheelhouse/
+          verbose: true

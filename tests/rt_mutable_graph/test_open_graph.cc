@@ -13,25 +13,16 @@ void test_open_close() {
   // create the directory
   std::filesystem::create_directories(dir);
   // Get the path of current source file
-  LOG(INFO) << "Current source file path: " << __FILE__;
-  LOG(INFO) << "Current source file directory: "
-            << std::filesystem::path(__FILE__).parent_path();
-  std::string cur_dir = std::filesystem::path(__FILE__).parent_path().string();
-  std::string compiler_jar_path =
-      cur_dir + "/../../tools/python_bind/nexg/resources/compiler.jar";
-  LOG(INFO) << "Compiler JAR path: " << compiler_jar_path;
-  std::string planner_config_path =
-      cur_dir + "/../../tools/python_bind/nexg/resources/planner_config.yaml";
-  LOG(INFO) << "Planner config path: " << planner_config_path;
 
-  gs::NexgDB db(dir, 1, "rw", "jni", compiler_jar_path, planner_config_path);
+  gs::NexgDB db(dir, 1, "rw", "gopt");
   auto conn = db.connect();
   LOG(INFO) << "Before close db1";
   db.close();
   LOG(INFO) << "After close db1";
-  gs::NexgDB db2(dir, 1, "r", "jni", compiler_jar_path, planner_config_path);
+  gs::NexgDB db2(dir, 1, "r", "gopt");
+
   LOG(INFO) << "After open db2 in read-only mode";
-  gs::NexgDB db3(dir, 1, "r", "jni", compiler_jar_path, planner_config_path);
+  gs::NexgDB db3(dir, 1, "r", "gopt");
   LOG(INFO) << "After open db3 in read-only mode";
 
   db2.close();
@@ -40,7 +31,7 @@ void test_open_close() {
   LOG(INFO) << "After close db3";
 }
 
-bool test_database(const std::string& data_path) {
+bool test_database(const std::string& data_path, const std::string& csv_dir) {
   // remove the directory if it exists
   if (std::filesystem::exists(data_path)) {
     std::filesystem::remove_all(data_path);
@@ -48,7 +39,7 @@ bool test_database(const std::string& data_path) {
   // create the directory
   std::filesystem::create_directories(data_path);
 
-  gs::NexgDB db(data_path, 1, "w", "dummy", "", "");
+  gs::NexgDB db(data_path, 1, "w", "gopt");
   auto conn = db.connect();
   {
     auto res = conn->query(
@@ -67,22 +58,24 @@ bool test_database(const std::string& data_path) {
       return false;
     }
   }
+  auto person_csv_path = csv_dir + "/person.csv";
+  auto person_knows_person_csv_path = csv_dir + "/person_knows_person.csv";
   {
-    auto res = conn->query("COPY person from \"person.csv\"");
+    auto res = conn->query("COPY person from \"" + person_csv_path + "\"");
     if (!res.ok()) {
       LOG(ERROR) << "Failed to copy node table: " << res.status().ToString();
       return false;
     }
   }
   {
-    auto res = conn->query(
-        "COPY knows [person->person] from \"person_knows_person.csv\"");
+    auto res =
+        conn->query("COPY knows from \"" + person_knows_person_csv_path + "\"");
     if (!res.ok()) {
       LOG(ERROR) << "Failed to copy edge table: " << res.status().ToString();
       return false;
     }
   }
-  auto res = conn->query("MATCH (v) RETURN v;");
+  auto res = conn->query("MATCH (v) RETURN count(v);");
   LOG(INFO) << "Query result: " << res.ok() << ", "
             << res.status().error_message();
   auto res_val = res.value();
@@ -93,7 +86,7 @@ bool test_database(const std::string& data_path) {
   return true;
 }
 
-bool test_dangling(const std::string& data_path) {
+bool test_dangling(const std::string& data_path, const std::string& csv_dir) {
   // remove the directory if it exists
   if (std::filesystem::exists(data_path)) {
     std::filesystem::remove_all(data_path);
@@ -101,7 +94,7 @@ bool test_dangling(const std::string& data_path) {
   // create the directory
   std::filesystem::create_directories(data_path);
 
-  gs::NexgDB db(data_path, 1, "w", "dummy", "", "");
+  gs::NexgDB db(data_path, 1, "w", "gopt");
   auto conn = db.connect();
   {
     auto res = conn->query(
@@ -120,16 +113,18 @@ bool test_dangling(const std::string& data_path) {
       return false;
     }
   }
+  auto person_csv_path = csv_dir + "/person.csv";
+  auto person_knows_person_csv_path = csv_dir + "/person_knows_person.csv";
   {
-    auto res = conn->query("COPY person from \"person.csv\"");
+    auto res = conn->query("COPY person from \"" + person_csv_path + "\"");
     if (!res.ok()) {
       LOG(ERROR) << "Failed to copy node table: " << res.status().ToString();
       return false;
     }
   }
   {
-    auto res = conn->query(
-        "COPY knows [person->person] from \"person_knows_person.csv\"");
+    auto res =
+        conn->query("COPY knows from \"" + person_knows_person_csv_path + "\"");
     if (!res.ok()) {
       LOG(ERROR) << "Failed to copy edge table: " << res.status().ToString();
       return false;
@@ -148,9 +143,9 @@ bool test_dangling(const std::string& data_path) {
 }
 
 int main(int argc, char** argv) {
-  // Expect 1 args, data path
-  if (argc != 2) {
-    std::cerr << "Usage: " << argv[0] << " <data_path>" << std::endl;
+  // Expect 2 args, data path, and csv directory
+  if (argc != 3) {
+    std::cerr << "Usage: " << argv[0] << " <data_path> <csv_dir>" << std::endl;
     return 1;
   }
 
@@ -165,10 +160,12 @@ int main(int argc, char** argv) {
   LOG(INFO) << "------------------------------------";
 
   std::string data_path = argv[1];
-  CHECK(test_database(data_path)) << "Database test failed.";
+  std::string csv_dir = argv[2];
+  CHECK(test_database(data_path, csv_dir)) << "Database test failed.";
   LOG(INFO) << "------------------------------------";
 
-  CHECK(test_dangling(data_path)) << "Dangling connection test failed.";
+  CHECK(test_dangling(data_path, csv_dir))
+      << "Dangling connection test failed.";
   LOG(INFO) << "------------------------------------";
   LOG(INFO) << "All tests passed successfully.";
   return 0;

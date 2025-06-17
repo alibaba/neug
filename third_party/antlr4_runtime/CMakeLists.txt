@@ -316,8 +316,10 @@ set(ANTLR4_RUNTIME_SRC
 add_library(${ANTLR4_RUNTIME} STATIC ${ANTLR4_RUNTIME_SRC})
 
 target_include_directories(${ANTLR4_RUNTIME} PUBLIC
-    ${CMAKE_CURRENT_SOURCE_DIR}/src
+    $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/src>
 )
+
+install_nexg_target(${ANTLR4_RUNTIME})
 
 target_compile_definitions(${ANTLR4_RUNTIME} PUBLIC -DANTLR4CPP_STATIC)
 

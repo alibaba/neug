@@ -4,6 +4,8 @@ endif()
 
 add_library(lz4 STATIC lz4.cpp)
 
+install_nexg_target(lz4)
+
 target_include_directories(
   lz4
   PUBLIC $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}>)
