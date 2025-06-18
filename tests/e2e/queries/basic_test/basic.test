@@ -1,0 +1,35 @@
+-DATASET CSV tinysnb
+
+--
+
+-CASE BasicTests
+
+-LOG Basic1
+-STATEMENT MATCH (a:person) RETURN COUNT(a)
+---- 1
+8
+
+-LOG Basic2
+-STATEMENT MATCH (a) RETURN COUNT(a)
+---- 1
+14
+
+
+-LOG Basic3
+-STATEMENT MATCH (a:person)-[e:knows]->(b:person) RETURN COUNT(a)
+---- 1
+14
+
+-LOG Basic4
+-STATEMENT MATCH (a)-[e]->(b) RETURN COUNT(a)
+---- 1
+30
+
+-LOG AspMultiLabel
+-STATEMENT MATCH (a:person)-[e1:knows|:studyAt|:workAt]->(b:person:organisation) WHERE a.age > 35 RETURN b.fName, b.name
+---- 4
+Alice|
+Bob|
+Dan|
+|CsWork
+

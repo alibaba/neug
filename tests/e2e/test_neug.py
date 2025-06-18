@@ -23,10 +23,6 @@ from utils.utils import preprocess_query
 
 
 class TestNeug(BaseTest):
-
-    def prepare_query(self, query_object):
-        return preprocess_query(query_object.query)
-
     @pytest.mark.neug_test
     def test_queries(self, neug_conn, query_object):
         self.run_test(neug_conn, query_object)

@@ -165,6 +165,16 @@ jobs:
         # import/export tests
         python3 -m pytest -sv tests/test_db_import_export.py
 
+    - name: Run E2E Cypher Test
+      run: |
+        cd ${GITHUB_WORKSPACE}/tests/e2e
+        export LSQB_DATA_DIR=/tmp/lsqb
+        # e2e cypher tests
+        # 1. tests running on tinysnb
+        # TODO: Currently, we only include a few basic tests for cypher queries on tinysnb.
+        # We will add more tests for each cypher operator in e2e/queries directory when they are ready.
+        ./scripts/run_tinysnb_test.sh basic_test
+
 
 
 

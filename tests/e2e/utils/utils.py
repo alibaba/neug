@@ -76,11 +76,13 @@ def parse_test_file(file_path, file_type=FileType.TEST, dataset=None):
         NAME = "-LOG"
         STATEMENT = "-STATEMENT"
         CHECK_ORDER = "-CHECK_ORDER"
+        SKIP = "-SKIP"
         RESULT_PREFIX = "----"
     elif file_type == FileType.BENCHMARK:
         DATASET = "-DATASET"
         NAME = "-NAME"
         STATEMENT = "-QUERY"
+        SKIP = "-SKIP"
         CHECK_ORDER = "-CHECK_ORDER"
         RESULT_PREFIX = "----"
     else:
@@ -95,6 +97,7 @@ def parse_test_file(file_path, file_type=FileType.TEST, dataset=None):
     current_query = None
     expected_result = []
     check_order = False
+    skip = False
     query_lines = []
     within_statement = False
 
@@ -115,11 +118,14 @@ def parse_test_file(file_path, file_type=FileType.TEST, dataset=None):
         elif line.startswith(NAME):
             current_test_name = line.split()[1]
             check_order = False
+            skip = False
         elif line.startswith(STATEMENT):
             within_statement = True
             query_lines = [line[len(STATEMENT) :].strip()]
         elif line.startswith(CHECK_ORDER):
             check_order = True
+        elif line.startswith(SKIP):
+            skip = True
         elif line.startswith(RESULT_PREFIX):
             n = line.split()[1]
             if not n.isdigit():
@@ -136,14 +142,18 @@ def parse_test_file(file_path, file_type=FileType.TEST, dataset=None):
             except StopIteration:
                 print(f"Warning: Expected {n} result lines but file ended prematurely.")
 
-            tests.append(
-                Query(
-                    name=current_test_name,
-                    query=current_query,
-                    expected_result=expected_result,
-                    check_order=check_order,
+            if skip:
+                print(f"Skipping test: {current_test_name} due to skip flag.")
+                continue
+            else:
+                tests.append(
+                    Query(
+                        name=current_test_name,
+                        query=current_query,
+                        expected_result=expected_result,
+                        check_order=check_order,
+                    )
                 )
-            )
         else:
             if within_statement:
                 query_lines.append(line)
