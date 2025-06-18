@@ -97,7 +97,7 @@ jobs:
           password: ${{ secrets.PYPI_PASSWORD }}
           packages_dir: wheelhouse/
           verbose: true
-          skip-existing: true # Skip existing wheels to avoid errors if the same wheel is already published, to update the wheel for a specific version, add -{number} to the filename and
+          skip_existing: true # Skip existing wheels to avoid errors if the same wheel is already published, to update the wheel for a specific version, add -{number} to the filename and
           # update it manually
     
       # - name: cleanup runner workspace
