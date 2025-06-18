@@ -4,8 +4,7 @@ add_library(neug_file_system
         file_info.cpp
         file_system.cpp
         local_file_system.cpp
-        virtual_file_system.cpp
-        gzip_file_system.cpp)
+        virtual_file_system.cpp)
 
 target_link_libraries(neug_file_system Glob)
 

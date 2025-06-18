@@ -224,8 +224,7 @@ FunctionCollection* FunctionCollection::getFunctions() {
       SCALAR_FUNCTION(PropertiesFunction), SCALAR_FUNCTION(IsTrailFunction),
       SCALAR_FUNCTION(IsACyclicFunction), REWRITE_FUNCTION(LengthFunction),
 
-      SCALAR_FUNCTION(MD5Function), SCALAR_FUNCTION(SHA256Function),
-      SCALAR_FUNCTION(HashFunction),
+      SCALAR_FUNCTION(MD5Function), SCALAR_FUNCTION(HashFunction),
 
       SCALAR_FUNCTION(CoalesceFunction), SCALAR_FUNCTION(IfNullFunction),
       SCALAR_FUNCTION(ConstantOrNullFunction), SCALAR_FUNCTION(CountIfFunction),

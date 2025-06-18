@@ -2,7 +2,6 @@ add_library(neug_utility_function
         OBJECT
         coalesce.cpp
         md5.cpp
-        sha256.cpp
         constant_or_null.cpp
         count_if.cpp
         error.cpp

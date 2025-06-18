@@ -1,7 +1,6 @@
 #include "common/file_system/virtual_file_system.h"
 
 #include "common/assert.h"
-#include "common/file_system/gzip_file_system.h"
 #include "common/file_system/local_file_system.h"
 #include "main/client_context.h"
 
@@ -12,8 +11,6 @@ VirtualFileSystem::VirtualFileSystem() : VirtualFileSystem{""} {}
 
 VirtualFileSystem::VirtualFileSystem(std::string homeDir) {
   defaultFS = std::make_unique<LocalFileSystem>(homeDir);
-  compressedFileSystem.emplace(FileCompressionType::GZIP,
-                               std::make_unique<GZipFileSystem>());
 }
 
 VirtualFileSystem::~VirtualFileSystem() = default;

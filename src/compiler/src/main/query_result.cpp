@@ -86,15 +86,5 @@ void QueryResult::validateQuerySucceed() const {
   }
 }
 
-std::unique_ptr<ArrowSchema> QueryResult::getArrowSchema() const {
-  return ArrowConverter::toArrowSchema(getColumnDataTypes(), getColumnNames());
-}
-
-std::unique_ptr<ArrowArray> QueryResult::getNextArrowChunk(int64_t chunkSize) {
-  auto data = std::make_unique<ArrowArray>();
-  ArrowConverter::toArrowArray(*this, data.get(), chunkSize);
-  return data;
-}
-
 }  // namespace main
 }  // namespace gs

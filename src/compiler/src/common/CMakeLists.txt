@@ -1,4 +1,3 @@
-add_subdirectory(arrow)
 add_subdirectory(copier_config)
 add_subdirectory(data_chunk)
 add_subdirectory(enums)
@@ -23,7 +22,6 @@ add_library(neug_common
         profiler.cpp
         random_engine.cpp
         roaring_mask.cpp
-        sha256.cpp
         string_utils.cpp
         system_message.cpp
         type_utils.cpp
