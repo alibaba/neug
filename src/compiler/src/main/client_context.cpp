@@ -13,7 +13,6 @@
 #include "extension/extension.h"
 #include "extension/extension_manager.h"
 #include "graph/graph_entry.h"
-#include "json_fwd.hpp"
 #include "main/attached_database.h"
 #include "main/database.h"
 #include "main/database_manager.h"

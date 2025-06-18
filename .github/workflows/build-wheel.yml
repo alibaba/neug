@@ -38,7 +38,9 @@ jobs:
       matrix:
         os: [linux-x86_64]
     steps:
-      - uses: actions/checkout@v4
+      - name: checkout
+        id: checkout
+        uses: actions/checkout@v4
 
       - name: Setup Python 3.11
         uses: actions/setup-python@v5
@@ -95,3 +97,11 @@ jobs:
           password: ${{ secrets.PYPI_PASSWORD }}
           packages_dir: wheelhouse/
           verbose: true
+    
+      # - name: cleanup runner workspace
+      #   run: |
+      #     echo $GITHUB_WORKSPACE
+      #     rm -rf $GITHUB_WORKSPACE
+      #     mkdir $GITHUB_WORKSPACE
+      #   shell: bash
+      #   if: ${{ failure() && steps.checkout.conclusion == 'failure' }}

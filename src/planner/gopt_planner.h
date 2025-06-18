@@ -6,6 +6,7 @@
 #include <memory>
 #include <string>
 
+#include <rapidjson/document.h>
 #include <yaml-cpp/yaml.h>
 #include "src/compiler/src/include/gopt/g_alias_manager.h"
 #include "src/compiler/src/include/gopt/g_database.h"
@@ -13,7 +14,6 @@
 #include "src/compiler/src/include/main/client_context.h"
 #include "src/compiler/src/include/main/database.h"
 #include "src/planner/graph_planner.h"
-#include "third_party/nlohmann_json/json.hpp"
 
 #include <glog/logging.h>
 

@@ -48,9 +48,13 @@ jobs:
     runs-on: [self-hosted]
     container:
       image: registry.cn-hongkong.aliyuncs.com/graphscope/graphscope-dev:v0.24.2-amd64-ccache
-      options: --user root
+      # options: --user root
     steps:
-    - uses: actions/checkout@v4
+    - name: checkout
+      id: checkout
+      uses: actions/checkout@v4
+      with:
+        submodules: true
 
     - name: Mark directory safe
       run: |
@@ -78,7 +82,6 @@ jobs:
       run: |
         . /home/graphscope/.graphscope_env
         cd ${GITHUB_WORKSPACE}/
-        git submodule update --init
         export BUILD_TYPE=DEBUG
         export CMAKE_BUILD_PARALLEL_LEVEL=$(nproc)
         export BUILD_EXECUTABLES=ON

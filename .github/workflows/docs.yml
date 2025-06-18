@@ -1,0 +1,51 @@
+name: Generate Documentation
+
+on:
+    pull_request:
+      branches:
+        - main
+
+
+concurrency:
+  group: ${{ github.repository }}-${{ github.event.number || github.head_ref || github.sha }}-${{ github.workflow }}
+  cancel-in-progress: true
+
+jobs:
+  docs:
+    runs-on: [self-hosted]
+    container:
+      image: registry.cn-hongkong.aliyuncs.com/graphscope/graphscope-dev:v0.24.2-amd64-ccache
+      # options: --user root
+
+    steps:
+    - name: checkout
+      id: checkout
+      uses: actions/checkout@v4
+      with:
+        submodules: true
+
+    - name: Mark directory safe
+      run: |
+        git config --global --add safe.directory "$GITHUB_WORKSPACE"
+        git config --global --add safe.directory "$GITHUB_WORKSPACE/third_party/aliyun-oss-cpp-sdk"
+        git config --global --add safe.directory "$GITHUB_WORKSPACE/third_party/parallel-hashmap"
+        git config --global --add safe.directory "$GITHUB_WORKSPACE/third_party/pybind11"
+
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.10'
+
+
+    - name: Build Documentation
+      run: |
+        cd ${GITHUB_WORKSPACE}/tools/python_bind
+        pip3 install -r requirements.txt
+        pip3 install -r requirements_dev.txt
+        cd ${GITHUB_WORKSPACE}/doc
+        export BUILD_TYPE=DEBUG
+        export CMAKE_BUILD_PARALLEL_LEVEL=$(nproc)
+        . /home/graphscope/.graphscope_env
+        make dependencies
+        make html
+

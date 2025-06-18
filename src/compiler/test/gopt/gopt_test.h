@@ -6,7 +6,6 @@
 #include <iostream>
 #include <memory>
 #include <sstream>
-#include "third_party/nlohmann_json/json.hpp"
 
 #include <google/protobuf/util/json_util.h>
 #include <gtest/gtest.h>

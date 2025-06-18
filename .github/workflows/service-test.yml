@@ -38,6 +38,8 @@ jobs:
       image: registry.cn-hongkong.aliyuncs.com/graphscope/graphscope-dev:v0.24.2-amd64
     steps:
     - uses: actions/checkout@v4
+      with:
+        submodules: true
 
     - name: Setup tmate session
       if: false
@@ -47,7 +49,6 @@ jobs:
       run: |
         . /home/graphscope/.graphscope_env
         cd ${GITHUB_WORKSPACE}/
-        git submodule update --init
         cd ${GITHUB_WORKSPACE}
         mkdir build && cd build
         cmake .. -DCMAKE_INSTALL_PREFIX=/opt/graphscope -DCMAKE_BUILD_TYPE=DEBUG \

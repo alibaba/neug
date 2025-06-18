@@ -292,6 +292,9 @@ install_arrow_from_source() {
 }
 
 install_mimalloc() {
+  if [[ -f "${install_prefix}/include/mimalloc-1.8/mimalloc.h" ]]; then
+    return 0
+  fi
   pushd "${tempdir}" || exit
   git clone https://github.com/microsoft/mimalloc -b v1.8.6
   cd mimalloc
@@ -305,6 +308,9 @@ install_mimalloc() {
 }
 
 install_yaml_cpp() {
+  if [[ -f "${install_prefix}/include/yaml-cpp/yaml.h" ]]; then
+    return 0
+  fi
   pushd "${tempdir}" || exit
   git clone https://github.com/jbeder/yaml-cpp.git -b 0.8.0
   cd yaml-cpp
@@ -452,20 +458,20 @@ install_neug_dependencies() {
     install_boost
     install_yaml_cpp
     install_protobuf
-    install_mimalloc
+    # install_mimalloc
   elif [[ "${OS_PLATFORM}" == *"Ubuntu"* ]]; then
     DEBIAN_FRONTEND=noninteractive TZ=Etc/UTC ${SUDO} apt-get install -y ${INTERACTIVE_UBUNTU[*]}
     install_arrow
     install_boost
     # hiactor is only supported on ubuntu
-    install_mimalloc
+    # install_mimalloc
     ${SUDO} sh -c 'echo "fs.aio-max-nr = 1048576" >> /etc/sysctl.conf'
     ${SUDO} sysctl -p /etc/sysctl.conf
   else
     ${SUDO} yum install -y ${INTERACTIVE_CENTOS[*]}
     install_arrow
     install_boost
-    install_mimalloc
+    # install_mimalloc
     install_yaml_cpp
     install_protobuf
     install_gflags

@@ -21,7 +21,6 @@
 #include "gopt/g_constants.h"
 #include "gopt/g_node_table.h"
 #include "gopt/g_rel_table.h"
-#include "json.hpp"
 
 namespace gs {
 namespace storage {
@@ -63,44 +62,50 @@ void GStorageManager::getCardMap(
       // If JSON is empty, just return an empty countMap
       return;
     }
-    nlohmann::json jsonData = nlohmann::json::parse(json);
+
+    rapidjson::Document jsonData;
+
+    if (jsonData.Parse(json.c_str()).HasParseError()) {
+      throw common::Exception("Invalid JSON format: " +
+                              std::to_string(jsonData.GetParseError()));
+    }
     // Process node statistics if valid
-    if (jsonData.contains("vertex_type_statistics") &&
-        jsonData["vertex_type_statistics"].is_array()) {
-      for (const auto& nodeStat : jsonData["vertex_type_statistics"]) {
-        if (nodeStat.contains("type_name") && nodeStat.contains("count") &&
-            nodeStat["type_name"].is_string() &&
-            nodeStat["count"].is_number()) {
-          auto nodeName = nodeStat["type_name"].get<std::string>();
-          countMap[nodeName] = nodeStat["count"].get<common::row_idx_t>();
+    if (jsonData.HasMember("vertex_type_statistics") &&
+        jsonData["vertex_type_statistics"].IsArray()) {
+      for (const auto& nodeStat :
+           jsonData["vertex_type_statistics"].GetArray()) {
+        if (nodeStat.HasMember("type_name") && nodeStat.HasMember("count") &&
+            nodeStat["type_name"].IsString() && nodeStat["count"].IsInt64()) {
+          auto nodeName = nodeStat["type_name"].GetString();
+          countMap[nodeName] = nodeStat["count"].GetInt64();
         }
       }
     }
 
-    // Process relationship statistics if valid
-    if (jsonData.contains("edge_type_statistics") &&
-        jsonData["edge_type_statistics"].is_array()) {
-      for (const auto& relStat : jsonData["edge_type_statistics"]) {
-        if (relStat.contains("type_name") &&
-            relStat.contains("vertex_type_pair_statistics") &&
-            relStat["type_name"].is_string() &&
-            relStat["vertex_type_pair_statistics"].is_array()) {
-          auto relName = relStat["type_name"].get<std::string>();
+    if (jsonData.HasMember("edge_type_statistics") &&
+        jsonData["edge_type_statistics"].IsArray()) {
+      for (const auto& relStat : jsonData["edge_type_statistics"].GetArray()) {
+        if (relStat.HasMember("type_name") &&
+            relStat.HasMember("vertex_type_pair_statistics") &&
+            relStat["type_name"].IsString() &&
+            relStat["vertex_type_pair_statistics"].IsArray()) {
+          auto relName = relStat["type_name"].GetString();
           common::row_idx_t totalCount = 0;
 
-          for (const auto& srcDst : relStat["vertex_type_pair_statistics"]) {
-            if (srcDst.contains("source_vertex") &&
-                srcDst.contains("destination_vertex") &&
-                srcDst.contains("count") &&
-                srcDst["source_vertex"].is_string() &&
-                srcDst["destination_vertex"].is_string() &&
-                srcDst["count"].is_number()) {
-              auto srcName = srcDst["source_vertex"].get<std::string>();
-              auto dstName = srcDst["destination_vertex"].get<std::string>();
+          for (const auto& srcDst :
+               relStat["vertex_type_pair_statistics"].GetArray()) {
+            if (srcDst.HasMember("source_vertex") &&
+                srcDst.HasMember("destination_vertex") &&
+                srcDst.HasMember("count") &&
+                srcDst["source_vertex"].IsString() &&
+                srcDst["destination_vertex"].IsString() &&
+                srcDst["count"].IsInt64()) {
+              auto srcName = srcDst["source_vertex"].GetString();
+              auto dstName = srcDst["destination_vertex"].GetString();
               auto childName =
                   gs::catalog::RelGroupCatalogEntry::getChildTableName(
                       relName, srcName, dstName);
-              auto count = srcDst["count"].get<common::row_idx_t>();
+              auto count = srcDst["count"].GetInt64();
               countMap[childName] = count;
               totalCount += count;
             }

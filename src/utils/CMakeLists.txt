@@ -97,10 +97,6 @@ if (BUILD_WITH_OSS)
 endif()
 
 
-find_package(mimalloc REQUIRED)
-# must link with the dynamic library of mimalloc
-# NOTE: linking towards mimalloc will cause runtime memory error on macos 15 arm64
-# target_link_libraries(neug_utils PUBLIC mimalloc)
 if (APPLE)
         target_link_libraries(neug_utils PUBLIC absl::log_internal_message)
 endif()

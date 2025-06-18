@@ -15,10 +15,10 @@
 
 #pragma once
 
+#include <rapidjson/document.h>
 #include <filesystem>
 #include <unordered_map>
 #include "storage/storage_manager.h"
-#include "third_party/nlohmann_json/json.hpp"
 
 namespace gs {
 namespace storage {
