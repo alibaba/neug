@@ -402,6 +402,10 @@ class ImmutableCsr<std::string_view>
 
   size_t edge_num() const override { return csr_.edge_num(); }
 
+  std::unique_ptr<TypedCsrBase<size_t>> take_index_csr() override {
+    return nullptr;
+  }
+
  private:
   StringColumn& column_;
   ImmutableCsr<size_t> csr_;
@@ -764,6 +768,10 @@ class SingleImmutableCsr<std::string_view>
     return nbr;
   }
   void close() override { csr_.close(); }
+
+  std::unique_ptr<TypedCsrBase<size_t>> take_index_csr() override {
+    return nullptr;
+  }
 
  private:
   StringColumn& column_;

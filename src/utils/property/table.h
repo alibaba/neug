@@ -67,6 +67,9 @@ class Table {
 
   void reset_header(const std::vector<std::string>& col_name);
 
+  void add_column(const std::string& col_name, const PropertyType& col_types,
+                  std::shared_ptr<ColumnBase> column);
+
   void add_columns(const std::vector<std::string>& col_names,
                    const std::vector<PropertyType>& col_types);
 

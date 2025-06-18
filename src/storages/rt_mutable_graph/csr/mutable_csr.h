@@ -188,10 +188,30 @@ class MutableCsr : public TypedMutableCsrBase<EDATA_T> {
   using mut_slice_t = MutableNbrSliceMut<EDATA_T>;
 
   MutableCsr() : locks_(nullptr) {}
+  MutableCsr(MutableCsr<EDATA_T>&& rhs) {
+    locks_ = rhs.locks_;
+    rhs.locks_ = nullptr;
+    adj_lists_.swap(rhs.adj_lists_);
+    nbr_list_.swap(rhs.nbr_list_);
+    unsorted_since_ = rhs.unsorted_since_;
+  }
   ~MutableCsr() {
     if (locks_ != nullptr) {
       delete[] locks_;
     }
+  }
+
+  MutableCsr& operator=(const MutableCsr&) = delete;
+
+  MutableCsr& operator=(MutableCsr&& other) noexcept {
+    if (this != &other) {
+      locks_ = other.locks_;
+      other.locks_ = nullptr;
+      adj_lists_.swap(other.adj_lists_);
+      nbr_list_.swap(other.nbr_list_);
+      unsorted_since_ = other.unsorted_since_;
+    }
+    return *this;
   }
 
   size_t batch_init(const std::string& name, const std::string& work_dir,
@@ -654,6 +674,10 @@ class MutableCsr<std::string_view>
 
   void close() override { csr_.close(); }
 
+  std::unique_ptr<TypedCsrBase<size_t>> take_index_csr() override {
+    return std::make_unique<MutableCsr<size_t>>(std::move(csr_));
+  }
+
  private:
   StringColumn& column_;
   MutableCsr<size_t> csr_;
@@ -737,6 +761,11 @@ class MutableCsr<RecordView> : public TypedMutableCsrBase<RecordView> {
   }
 
   void close() override { csr_.close(); }
+
+  void set_csr(std::unique_ptr<TypedCsrBase<size_t>>& csr) override {
+    auto csr_ptr = dynamic_cast<MutableCsr<size_t>*>(csr.release());
+    csr_ = std::move(*csr_ptr);
+  }
 
  private:
   Table& table_;
@@ -1052,6 +1081,10 @@ class SingleMutableCsr<std::string_view>
 
   void close() override { csr_.close(); }
 
+  std::unique_ptr<TypedCsrBase<size_t>> take_index_csr() override {
+    return nullptr;
+  }
+
  private:
   StringColumn& column_;
   SingleMutableCsr<size_t> csr_;
@@ -1289,6 +1322,10 @@ class EmptyCsr<std::string_view>
   }
 
   void close() override {}
+
+  std::unique_ptr<TypedCsrBase<size_t>> take_index_csr() override {
+    return nullptr;
+  }
 
   StringColumn& column_;
 };

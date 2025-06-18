@@ -121,6 +121,7 @@ class TypedCsrBase<std::string_view> : public CsrBase {
                                          timestamp_t ts = 0) = 0;
   virtual void put_edge_with_index(vid_t src, vid_t dst, size_t index,
                                    timestamp_t ts, Allocator& alloc) = 0;
+  virtual std::unique_ptr<TypedCsrBase<size_t>> take_index_csr() = 0;
 };
 
 template <typename EDATA_T>
@@ -146,6 +147,8 @@ class TypedCsrBase<RecordView> : public CsrBase {
                                          timestamp_t ts = 0) = 0;
   virtual void put_edge_with_index(vid_t src, vid_t dst, size_t index,
                                    timestamp_t ts, Allocator& alloc) = 0;
+
+  virtual void set_csr(std::unique_ptr<TypedCsrBase<size_t>>& csr) {}
 };
 
 }  // namespace gs

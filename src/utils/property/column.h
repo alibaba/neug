@@ -381,6 +381,18 @@ class TypedColumn<std::string_view> : public ColumnBase {
       : strategy_(strategy),
         width_(PropertyType::GetStringDefaultMaxLength()),
         type_(PropertyType::kStringView) {}
+  TypedColumn(TypedColumn<std::string_view>&& rhs) {
+    basic_buffer_.swap(rhs.basic_buffer_);
+    basic_size_ = rhs.basic_size_;
+    extra_buffer_.swap(rhs.extra_buffer_);
+    extra_size_ = rhs.extra_size_;
+    pos_ = rhs.pos_.load();
+    basic_pos_ = rhs.basic_pos_.load();
+    strategy_ = rhs.strategy_;
+    width_ = rhs.width_;
+    type_ = rhs.type_;
+  }
+
   ~TypedColumn() { close(); }
 
   void open(const std::string& name, const std::string& snapshot_dir,

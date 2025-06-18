@@ -186,7 +186,6 @@ class DualCsr : public DualCsrBase {
             const std::string& new_snapshot_dir) override {
     in_csr_->dump(ie_name, new_snapshot_dir);
     out_csr_->dump(oe_name, new_snapshot_dir);
-    Close();
   }
 
   CsrBase* GetInCsr() override { return in_csr_; }
@@ -354,8 +353,7 @@ class DualCsr<std::string_view> : public DualCsrBase {
     in_csr_->dump(ie_name, new_snapshot_dir);
     out_csr_->dump(oe_name, new_snapshot_dir);
     column_.resize(column_idx_.load());
-    column_.dump(new_snapshot_dir + "/" + edata_name);
-    Close();
+    column_.dump_without_close(new_snapshot_dir + "/" + edata_name);
   }
 
   CsrBase* GetInCsr() override { return in_csr_; }
@@ -432,6 +430,20 @@ class DualCsr<std::string_view> : public DualCsrBase {
     column_.close();
   }
 
+  TypedCsrBase<std::string_view>* take_in_csr() {
+    auto in_csr = in_csr_;
+    in_csr_ = nullptr;
+    return in_csr;
+  }
+
+  TypedCsrBase<std::string_view>* take_out_csr() {
+    auto out_csr = out_csr_;
+    out_csr_ = nullptr;
+    return out_csr;
+  }
+
+  StringColumn&& take_string_column() { return std::move(column_); }
+
  private:
   TypedCsrBase<std::string_view>* in_csr_;
   TypedCsrBase<std::string_view>* out_csr_;
@@ -493,15 +505,32 @@ class DualCsr<RecordView> : public DualCsrBase {
     }
   }
 
+  void add_property(const std::string& col_name,
+                    const PropertyType& property_type,
+                    std::shared_ptr<ColumnBase> column) {
+    if (table_.col_num() != 0) {
+      if (column->size() != table_.row_num()) {
+        LOG(ERROR) << "The number of rows in the column is inconsistent with "
+                      "the number of rows in the table.";
+        return;
+      }
+    }
+    if (std::find(col_name_.begin(), col_name_.end(), col_name) !=
+        col_name_.end()) {
+      LOG(ERROR) << "Column " << col_name << " already exists.";
+      return;
+    }
+    col_name_.push_back(col_name);
+    property_types_.push_back(property_type);
+    storage_strategies_.push_back(StorageStrategy::kMem);
+    table_.add_column(col_name, property_type, column);
+  }
+
   void add_properties(const std::vector<std::string>& col_name,
                       const std::vector<PropertyType>& property_types) {
     CHECK(col_name.size() == property_types.size());
-    if (table_.row_num() > 0) {
-      LOG(ERROR) << "Cannot add properties when the table is not empty.";
-      return;
-    }
     for (auto& col : col_name) {
-      if (std::find(col_name_.begin(), col_name_.end(), col) ==
+      if (std::find(col_name_.begin(), col_name_.end(), col) !=
           col_name_.end()) {
         LOG(ERROR) << "Column " << col << " already exists.";
         return;
@@ -632,6 +661,10 @@ class DualCsr<RecordView> : public DualCsrBase {
   const CsrBase* GetInCsr() const override { return in_csr_; }
   const CsrBase* GetOutCsr() const override { return out_csr_; }
 
+  void SetInCsr() {}
+
+  void SetOutCsr() {}
+
   void BatchPutEdge(vid_t src, vid_t dst, size_t row_id) {
     in_csr_->batch_put_edge_with_index(dst, src, row_id);
     out_csr_->batch_put_edge_with_index(src, dst, row_id);
@@ -698,6 +731,14 @@ class DualCsr<RecordView> : public DualCsrBase {
     in_csr_->close();
     out_csr_->close();
     table_.close();
+  }
+
+  void SetInCsr(std::unique_ptr<TypedCsrBase<size_t>>&& in_csr) {
+    in_csr_->set_csr(in_csr);
+  }
+
+  void SetOutCsr(std::unique_ptr<TypedCsrBase<size_t>>&& out_csr) {
+    out_csr_->set_csr(out_csr);
   }
 
  private:

@@ -150,6 +150,17 @@ void Table::reset_header(const std::vector<std::string>& col_name) {
   col_id_indexer_.swap(new_col_id_indexer);
 }
 
+void Table::add_column(const std::string& col_name,
+                       const PropertyType& col_types,
+                       std::shared_ptr<ColumnBase> column) {
+  int col_id;
+  columns_.emplace_back(column);
+  col_id_indexer_.add(col_name, col_id);
+  CHECK_EQ(col_id, columns_.size() - 1);
+
+  buildColumnPtrs();
+}
+
 void Table::add_columns(const std::vector<std::string>& col_names,
                         const std::vector<PropertyType>& col_types) {
   // When add_columns are called, the table is already initialized and col_files
@@ -165,6 +176,7 @@ void Table::add_columns(const std::vector<std::string>& col_names,
   for (size_t i = old_size; i < columns_.size(); ++i) {
     columns_[i]->open_in_memory(snapshot_dir_ + "/" + name_ + ".col_" +
                                 std::to_string(i));
+    columns_[i]->resize(row_num());
   }
   buildColumnPtrs();
 }

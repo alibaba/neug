@@ -1646,6 +1646,20 @@ grape::InArchive& operator<<(grape::InArchive& in_archive,
                              const Interval& value);
 grape::OutArchive& operator>>(grape::OutArchive& out_archive, Interval& value);
 
+// Init value of types
+static const bool DEFAULT_BOOL_VALUE = false;
+static const uint8_t DEFAULT_UNSIGNED_INT8_VALUE = 0;
+static const uint16_t DEFAULT_UNSIGNED_INT16_VALUE = 0;
+static const int32_t DEFAULT_INT32_VALUE = 0;
+static const uint32_t DEFAULT_UNSIGNED_INT32_VALUE = 0;
+static const int64_t DEFAULT_INT64_VALUE = 0;
+static const uint64_t DEFAULT_UNSIGNED_INT64_VALUE = 0;
+static const double DEFAULT_DOUBLE_VALUE = 0;
+static const float DEFAULT_FLOAT_VALUE = 0;
+static const Date DEFAULT_DATE_VALUE = Date(0);
+static const DateTime DEFAULT_DATE_TIME_VALUE = DateTime(0);
+static const TimeStamp DEFAULT_TIME_STAMP_VALUE = TimeStamp(0);
+
 }  // namespace gs
 
 namespace boost {

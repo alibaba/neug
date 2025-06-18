@@ -1223,20 +1223,389 @@ void MutablePropertyFragment::change_csr_data_type_to_record_view(
       src_label_id, dst_label_id, edge_label_id);
   auto prev_prop_types =
       schema_.get_edge_properties(src_label_id, dst_label_id, edge_label_id);
+  std::vector<std::string> empty_prop_name;
+  std::vector<PropertyType> empty_prop_type;
   auto new_csr = new DualCsr<RecordView>(
       schema_.get_outgoing_edge_strategy(src_label_id, dst_label_id,
                                          edge_label_id),
       schema_.get_incoming_edge_strategy(src_label_id, dst_label_id,
                                          edge_label_id),
-      prev_prop_names, prev_prop_types, {},
+      empty_prop_name, empty_prop_type, {},
       schema_.outgoing_edge_mutable(src_type_name, dst_type_name,
                                     edge_type_name),
       schema_.incoming_edge_mutable(src_type_name, dst_type_name,
                                     edge_type_name));
+  if (prev_prop_types.size() == 1) {
+    if (prev_prop_types[0].type_enum == impl::PropertyTypeImpl::kVarChar ||
+        prev_prop_types[0].type_enum == impl::PropertyTypeImpl::kStringView) {
+      auto prev_csr = dynamic_cast<DualCsr<std::string_view>*>(dual_csr);
+      auto in_csr = prev_csr->take_in_csr();
+      auto out_csr = prev_csr->take_out_csr();
+      auto string_column =
+          std::make_shared<StringColumn>(prev_csr->take_string_column());
+      new_csr->add_property(prev_prop_names[0], prev_prop_types[0],
+                            string_column);
+      auto in_index_csr = in_csr->take_index_csr();
+      auto out_index_csr = out_csr->take_index_csr();
+      delete in_csr;
+      delete out_csr;
+      new_csr->SetInCsr(std::move(in_index_csr));
+      new_csr->SetOutCsr(std::move(out_index_csr));
+    } else {
+      std::vector<int32_t> ie_deg, oe_deg;
+      oe_deg.resize(vertex_num(src_label_id), 0);
+      ie_deg.resize(vertex_num(dst_label_id), 0);
+      if (prev_prop_types[0] == PropertyType::Bool()) {
+        auto out_csr = dynamic_cast<MutableCsr<bool>*>(dual_csr->GetOutCsr());
+        std::atomic<size_t> offset(0);
+        std::vector<std::tuple<vid_t, vid_t, size_t>> edges;
+        std::shared_ptr<BoolColumn> column =
+            std::make_shared<BoolColumn>(StorageStrategy::kMem);
+        column->resize(edge_num(src_label_id, edge_label_id, dst_label_id));
+        for (vid_t i = 0; i < vertex_num(src_label_id); i++) {
+          for (auto e : out_csr->get_edges(i)) {
+            auto local_offset = offset.fetch_add(1);
+            edges.emplace_back(std::make_tuple(i, e.neighbor, local_offset));
+            oe_deg[i]++;
+            ie_deg[e.neighbor]++;
+            column->set_value(local_offset, e.data);
+          }
+        }
+        new_csr->BatchInit(
+            oe_prefix(src_type_name, dst_type_name, edge_type_name),
+            ie_prefix(src_type_name, dst_type_name, edge_type_name),
+            edata_prefix(src_type_name, dst_type_name, edge_type_name),
+            tmp_dir(work_dir_), oe_deg, ie_deg);
+        for (auto& edge : edges) {
+          new_csr->BatchPutEdge(std::get<0>(edge), std::get<1>(edge),
+                                std::get<2>(edge));
+        }
+        new_csr->add_property(prev_prop_names[0], prev_prop_types[0], column);
+      } else if (prev_prop_types[0] == PropertyType::UInt8()) {
+        auto out_csr =
+            dynamic_cast<MutableCsr<uint8_t>*>(dual_csr->GetOutCsr());
+        std::atomic<size_t> offset(0);
+        std::vector<std::tuple<vid_t, vid_t, size_t>> edges;
+        std::shared_ptr<UInt8Column> column =
+            std::make_shared<UInt8Column>(StorageStrategy::kMem);
+        column->resize(edge_num(src_label_id, edge_label_id, dst_label_id));
+        for (vid_t i = 0; i < vertex_num(src_label_id); i++) {
+          for (auto e : out_csr->get_edges(i)) {
+            auto local_offset = offset.fetch_add(1);
+            edges.emplace_back(std::make_tuple(i, e.neighbor, local_offset));
+            oe_deg[i]++;
+            ie_deg[e.neighbor]++;
+            column->set_value(local_offset, e.data);
+          }
+        }
+        new_csr->BatchInit(
+            oe_prefix(src_type_name, dst_type_name, edge_type_name),
+            ie_prefix(src_type_name, dst_type_name, edge_type_name),
+            edata_prefix(src_type_name, dst_type_name, edge_type_name),
+            tmp_dir(work_dir_), oe_deg, ie_deg);
+        for (auto& edge : edges) {
+          new_csr->BatchPutEdge(std::get<0>(edge), std::get<1>(edge),
+                                std::get<2>(edge));
+        }
+        new_csr->add_property(prev_prop_names[0], prev_prop_types[0], column);
+      } else if (prev_prop_types[0] == PropertyType::UInt16()) {
+        auto out_csr =
+            dynamic_cast<MutableCsr<uint16_t>*>(dual_csr->GetOutCsr());
+        std::atomic<size_t> offset(0);
+        std::vector<std::tuple<vid_t, vid_t, size_t>> edges;
+        std::shared_ptr<UInt16Column> column =
+            std::make_shared<UInt16Column>(StorageStrategy::kMem);
+        column->resize(edge_num(src_label_id, edge_label_id, dst_label_id));
+        for (vid_t i = 0; i < vertex_num(src_label_id); i++) {
+          for (auto e : out_csr->get_edges(i)) {
+            auto local_offset = offset.fetch_add(1);
+            edges.emplace_back(std::make_tuple(i, e.neighbor, local_offset));
+            oe_deg[i]++;
+            ie_deg[e.neighbor]++;
+            column->set_value(local_offset, e.data);
+          }
+        }
+        new_csr->BatchInit(
+            oe_prefix(src_type_name, dst_type_name, edge_type_name),
+            ie_prefix(src_type_name, dst_type_name, edge_type_name),
+            edata_prefix(src_type_name, dst_type_name, edge_type_name),
+            tmp_dir(work_dir_), oe_deg, ie_deg);
+        for (auto& edge : edges) {
+          new_csr->BatchPutEdge(std::get<0>(edge), std::get<1>(edge),
+                                std::get<2>(edge));
+        }
+        new_csr->add_property(prev_prop_names[0], prev_prop_types[0], column);
+      } else if (prev_prop_types[0] == PropertyType::Int32()) {
+        auto out_csr =
+            dynamic_cast<MutableCsr<int32_t>*>(dual_csr->GetOutCsr());
+        std::atomic<size_t> offset(0);
+        std::vector<std::tuple<vid_t, vid_t, size_t>> edges;
+        std::shared_ptr<IntColumn> column =
+            std::make_shared<IntColumn>(StorageStrategy::kMem);
+        column->resize(edge_num(src_label_id, edge_label_id, dst_label_id));
+        for (vid_t i = 0; i < vertex_num(src_label_id); i++) {
+          for (auto e : out_csr->get_edges(i)) {
+            auto local_offset = offset.fetch_add(1);
+            edges.emplace_back(std::make_tuple(i, e.neighbor, local_offset));
+            oe_deg[i]++;
+            ie_deg[e.neighbor]++;
+            column->set_value(local_offset, e.data);
+          }
+        }
+        new_csr->BatchInit(
+            oe_prefix(src_type_name, dst_type_name, edge_type_name),
+            ie_prefix(src_type_name, dst_type_name, edge_type_name),
+            edata_prefix(src_type_name, dst_type_name, edge_type_name),
+            tmp_dir(work_dir_), oe_deg, ie_deg);
+        for (auto& edge : edges) {
+          new_csr->BatchPutEdge(std::get<0>(edge), std::get<1>(edge),
+                                std::get<2>(edge));
+        }
+        new_csr->add_property(prev_prop_names[0], prev_prop_types[0], column);
+      } else if (prev_prop_types[0] == PropertyType::UInt32()) {
+        auto out_csr =
+            dynamic_cast<MutableCsr<uint32_t>*>(dual_csr->GetOutCsr());
+        std::atomic<size_t> offset(0);
+        std::vector<std::tuple<vid_t, vid_t, size_t>> edges;
+        std::shared_ptr<UIntColumn> column =
+            std::make_shared<UIntColumn>(StorageStrategy::kMem);
+        column->resize(edge_num(src_label_id, edge_label_id, dst_label_id));
+        for (vid_t i = 0; i < vertex_num(src_label_id); i++) {
+          for (auto e : out_csr->get_edges(i)) {
+            auto local_offset = offset.fetch_add(1);
+            edges.emplace_back(std::make_tuple(i, e.neighbor, local_offset));
+            oe_deg[i]++;
+            ie_deg[e.neighbor]++;
+            column->set_value(local_offset, e.data);
+          }
+        }
+        new_csr->BatchInit(
+            oe_prefix(src_type_name, dst_type_name, edge_type_name),
+            ie_prefix(src_type_name, dst_type_name, edge_type_name),
+            edata_prefix(src_type_name, dst_type_name, edge_type_name),
+            tmp_dir(work_dir_), oe_deg, ie_deg);
+        for (auto& edge : edges) {
+          new_csr->BatchPutEdge(std::get<0>(edge), std::get<1>(edge),
+                                std::get<2>(edge));
+        }
+        new_csr->add_property(prev_prop_names[0], prev_prop_types[0], column);
+      } else if (prev_prop_types[0] == PropertyType::Int64()) {
+        auto out_csr =
+            dynamic_cast<MutableCsr<int64_t>*>(dual_csr->GetOutCsr());
+        std::atomic<size_t> offset(0);
+        std::vector<std::tuple<vid_t, vid_t, size_t>> edges;
+        std::shared_ptr<LongColumn> column =
+            std::make_shared<LongColumn>(StorageStrategy::kMem);
+        column->resize(edge_num(src_label_id, edge_label_id, dst_label_id));
+        for (vid_t i = 0; i < vertex_num(src_label_id); i++) {
+          for (auto e : out_csr->get_edges(i)) {
+            auto local_offset = offset.fetch_add(1);
+            edges.emplace_back(std::make_tuple(i, e.neighbor, local_offset));
+            oe_deg[i]++;
+            ie_deg[e.neighbor]++;
+            column->set_value(local_offset, e.data);
+          }
+        }
+        new_csr->BatchInit(
+            oe_prefix(src_type_name, dst_type_name, edge_type_name),
+            ie_prefix(src_type_name, dst_type_name, edge_type_name),
+            edata_prefix(src_type_name, dst_type_name, edge_type_name),
+            tmp_dir(work_dir_), oe_deg, ie_deg);
+        for (auto& edge : edges) {
+          new_csr->BatchPutEdge(std::get<0>(edge), std::get<1>(edge),
+                                std::get<2>(edge));
+        }
+        new_csr->add_property(prev_prop_names[0], prev_prop_types[0], column);
+      } else if (prev_prop_types[0] == PropertyType::UInt64()) {
+        auto out_csr =
+            dynamic_cast<MutableCsr<uint64_t>*>(dual_csr->GetOutCsr());
+        std::atomic<size_t> offset(0);
+        std::vector<std::tuple<vid_t, vid_t, size_t>> edges;
+        std::shared_ptr<ULongColumn> column =
+            std::make_shared<ULongColumn>(StorageStrategy::kMem);
+        column->resize(edge_num(src_label_id, edge_label_id, dst_label_id));
+        for (vid_t i = 0; i < vertex_num(src_label_id); i++) {
+          for (auto e : out_csr->get_edges(i)) {
+            auto local_offset = offset.fetch_add(1);
+            edges.emplace_back(std::make_tuple(i, e.neighbor, local_offset));
+            oe_deg[i]++;
+            ie_deg[e.neighbor]++;
+            column->set_value(local_offset, e.data);
+          }
+        }
+        new_csr->BatchInit(
+            oe_prefix(src_type_name, dst_type_name, edge_type_name),
+            ie_prefix(src_type_name, dst_type_name, edge_type_name),
+            edata_prefix(src_type_name, dst_type_name, edge_type_name),
+            tmp_dir(work_dir_), oe_deg, ie_deg);
+        for (auto& edge : edges) {
+          new_csr->BatchPutEdge(std::get<0>(edge), std::get<1>(edge),
+                                std::get<2>(edge));
+        }
+        new_csr->add_property(prev_prop_names[0], prev_prop_types[0], column);
+      } else if (prev_prop_types[0] == PropertyType::Double()) {
+        auto out_csr = dynamic_cast<MutableCsr<double>*>(dual_csr->GetOutCsr());
+        std::atomic<size_t> offset(0);
+        std::vector<std::tuple<vid_t, vid_t, size_t>> edges;
+        std::shared_ptr<DoubleColumn> column =
+            std::make_shared<DoubleColumn>(StorageStrategy::kMem);
+        column->resize(edge_num(src_label_id, edge_label_id, dst_label_id));
+        for (vid_t i = 0; i < vertex_num(src_label_id); i++) {
+          for (auto e : out_csr->get_edges(i)) {
+            auto local_offset = offset.fetch_add(1);
+            edges.emplace_back(std::make_tuple(i, e.neighbor, local_offset));
+            oe_deg[i]++;
+            ie_deg[e.neighbor]++;
+            column->set_value(local_offset, e.data);
+          }
+        }
+        new_csr->BatchInit(
+            oe_prefix(src_type_name, dst_type_name, edge_type_name),
+            ie_prefix(src_type_name, dst_type_name, edge_type_name),
+            edata_prefix(src_type_name, dst_type_name, edge_type_name),
+            tmp_dir(work_dir_), oe_deg, ie_deg);
+        for (auto& edge : edges) {
+          new_csr->BatchPutEdge(std::get<0>(edge), std::get<1>(edge),
+                                std::get<2>(edge));
+        }
+        new_csr->add_property(prev_prop_names[0], prev_prop_types[0], column);
+      } else if (prev_prop_types[0] == PropertyType::Float()) {
+        auto out_csr = dynamic_cast<MutableCsr<float>*>(dual_csr->GetOutCsr());
+        std::atomic<size_t> offset(0);
+        std::vector<std::tuple<vid_t, vid_t, size_t>> edges;
+        std::shared_ptr<FloatColumn> column =
+            std::make_shared<FloatColumn>(StorageStrategy::kMem);
+        column->resize(edge_num(src_label_id, edge_label_id, dst_label_id));
+        for (vid_t i = 0; i < vertex_num(src_label_id); i++) {
+          for (auto e : out_csr->get_edges(i)) {
+            auto local_offset = offset.fetch_add(1);
+            edges.emplace_back(std::make_tuple(i, e.neighbor, local_offset));
+            oe_deg[i]++;
+            ie_deg[e.neighbor]++;
+            column->set_value(local_offset, e.data);
+          }
+        }
+        new_csr->BatchInit(
+            oe_prefix(src_type_name, dst_type_name, edge_type_name),
+            ie_prefix(src_type_name, dst_type_name, edge_type_name),
+            edata_prefix(src_type_name, dst_type_name, edge_type_name),
+            tmp_dir(work_dir_), oe_deg, ie_deg);
+        for (auto& edge : edges) {
+          new_csr->BatchPutEdge(std::get<0>(edge), std::get<1>(edge),
+                                std::get<2>(edge));
+        }
+        new_csr->add_property(prev_prop_names[0], prev_prop_types[0], column);
+      } else if (prev_prop_types[0] == PropertyType::Date()) {
+        auto out_csr = dynamic_cast<MutableCsr<Date>*>(dual_csr->GetOutCsr());
+        std::atomic<size_t> offset(0);
+        std::vector<std::tuple<vid_t, vid_t, size_t>> edges;
+        std::shared_ptr<DateColumn> column =
+            std::make_shared<DateColumn>(StorageStrategy::kMem);
+        column->resize(edge_num(src_label_id, edge_label_id, dst_label_id));
+        for (vid_t i = 0; i < vertex_num(src_label_id); i++) {
+          for (auto e : out_csr->get_edges(i)) {
+            auto local_offset = offset.fetch_add(1);
+            edges.emplace_back(std::make_tuple(i, e.neighbor, local_offset));
+            oe_deg[i]++;
+            ie_deg[e.neighbor]++;
+            column->set_value(local_offset, e.data);
+          }
+        }
+        new_csr->BatchInit(
+            oe_prefix(src_type_name, dst_type_name, edge_type_name),
+            ie_prefix(src_type_name, dst_type_name, edge_type_name),
+            edata_prefix(src_type_name, dst_type_name, edge_type_name),
+            tmp_dir(work_dir_), oe_deg, ie_deg);
+        for (auto& edge : edges) {
+          new_csr->BatchPutEdge(std::get<0>(edge), std::get<1>(edge),
+                                std::get<2>(edge));
+        }
+        new_csr->add_property(prev_prop_names[0], prev_prop_types[0], column);
+      } else if (prev_prop_types[0] == PropertyType::DateTime()) {
+        auto out_csr =
+            dynamic_cast<MutableCsr<DateTime>*>(dual_csr->GetOutCsr());
+        std::atomic<size_t> offset(0);
+        std::vector<std::tuple<vid_t, vid_t, size_t>> edges;
+        std::shared_ptr<DateTimeColumn> column =
+            std::make_shared<DateTimeColumn>(StorageStrategy::kMem);
+        column->resize(edge_num(src_label_id, edge_label_id, dst_label_id));
+        for (vid_t i = 0; i < vertex_num(src_label_id); i++) {
+          for (auto e : out_csr->get_edges(i)) {
+            auto local_offset = offset.fetch_add(1);
+            edges.emplace_back(std::make_tuple(i, e.neighbor, local_offset));
+            oe_deg[i]++;
+            ie_deg[e.neighbor]++;
+            column->set_value(local_offset, e.data);
+          }
+        }
+        new_csr->BatchInit(
+            oe_prefix(src_type_name, dst_type_name, edge_type_name),
+            ie_prefix(src_type_name, dst_type_name, edge_type_name),
+            edata_prefix(src_type_name, dst_type_name, edge_type_name),
+            tmp_dir(work_dir_), oe_deg, ie_deg);
+        for (auto& edge : edges) {
+          new_csr->BatchPutEdge(std::get<0>(edge), std::get<1>(edge),
+                                std::get<2>(edge));
+        }
+        new_csr->add_property(prev_prop_names[0], prev_prop_types[0], column);
+      } else if (prev_prop_types[0] == PropertyType::Timestamp()) {
+        auto out_csr =
+            dynamic_cast<MutableCsr<TimeStamp>*>(dual_csr->GetOutCsr());
+        std::atomic<size_t> offset(0);
+        std::vector<std::tuple<vid_t, vid_t, size_t>> edges;
+        std::shared_ptr<TimeStampColumn> column =
+            std::make_shared<TimeStampColumn>(StorageStrategy::kMem);
+        column->resize(edge_num(src_label_id, edge_label_id, dst_label_id));
+        for (vid_t i = 0; i < vertex_num(src_label_id); i++) {
+          for (auto e : out_csr->get_edges(i)) {
+            auto local_offset = offset.fetch_add(1);
+            edges.emplace_back(std::make_tuple(i, e.neighbor, local_offset));
+            oe_deg[i]++;
+            ie_deg[e.neighbor]++;
+            column->set_value(local_offset, e.data);
+          }
+        }
+        new_csr->BatchInit(
+            oe_prefix(src_type_name, dst_type_name, edge_type_name),
+            ie_prefix(src_type_name, dst_type_name, edge_type_name),
+            edata_prefix(src_type_name, dst_type_name, edge_type_name),
+            tmp_dir(work_dir_), oe_deg, ie_deg);
+        for (auto& edge : edges) {
+          new_csr->BatchPutEdge(std::get<0>(edge), std::get<1>(edge),
+                                std::get<2>(edge));
+        }
+        new_csr->add_property(prev_prop_names[0], prev_prop_types[0], column);
+      }
+    }
+  } else if (prev_prop_types.size() == 0) {
+    std::vector<int32_t> ie_deg, oe_deg;
+    oe_deg.resize(vertex_num(src_label_id), 0);
+    ie_deg.resize(vertex_num(dst_label_id), 0);
+    auto out_csr =
+        dynamic_cast<MutableCsr<grape::EmptyType>*>(dual_csr->GetOutCsr());
+    std::atomic<size_t> offset(0);
+    std::vector<std::tuple<vid_t, vid_t, size_t>> edges;
+    for (vid_t i = 0; i < vertex_num(src_label_id); i++) {
+      for (auto e : out_csr->get_edges(i)) {
+        auto local_offset = offset.fetch_add(1);
+        edges.emplace_back(std::make_tuple(i, e.neighbor, local_offset));
+        oe_deg[i]++;
+        ie_deg[e.neighbor]++;
+      }
+    }
+    new_csr->BatchInit(
+        oe_prefix(src_type_name, dst_type_name, edge_type_name),
+        ie_prefix(src_type_name, dst_type_name, edge_type_name),
+        edata_prefix(src_type_name, dst_type_name, edge_type_name),
+        tmp_dir(work_dir_), oe_deg, ie_deg);
+    for (auto& edge : edges) {
+      new_csr->BatchPutEdge(std::get<0>(edge), std::get<1>(edge),
+                            std::get<2>(edge));
+    }
+  }
   // TODO: open new_csr, and copy data from dual_csr to new_csr
   LOG(INFO) << "Opening new CSR for edge [" << edge_type_name << "] from ["
             << src_type_name << "] to [" << dst_type_name << "]";
-  LOG(WARNING) << "CURRENTLY NOT IMPLEMENTED, ASSUME the previous CSR is empty";
   {
     // Delete the old CSR and dump the new one
     ie_map_.erase(index);
