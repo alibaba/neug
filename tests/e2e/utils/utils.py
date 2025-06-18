@@ -71,20 +71,19 @@ def collect_tests_from_files(test_files, dataset=None):
 
 
 def parse_test_file(file_path, file_type=FileType.TEST, dataset=None):
+    DATASET = "-DATASET"
+    # SKIP is used to mark the cases that we want to skip, usually because they are failed but will be fixed later.
+    SKIP = "-SKIP"
+    # UNSUPPORTED marks the cases that we won't support yet.
+    UNSUPPORTED = "-UNSUPPORTED"
+    CHECK_ORDER = "-CHECK_ORDER"
+    RESULT_PREFIX = "----"
     if file_type == FileType.TEST:
-        DATASET = "-DATASET"
         NAME = "-LOG"
         STATEMENT = "-STATEMENT"
-        CHECK_ORDER = "-CHECK_ORDER"
-        SKIP = "-SKIP"
-        RESULT_PREFIX = "----"
     elif file_type == FileType.BENCHMARK:
-        DATASET = "-DATASET"
         NAME = "-NAME"
         STATEMENT = "-QUERY"
-        SKIP = "-SKIP"
-        CHECK_ORDER = "-CHECK_ORDER"
-        RESULT_PREFIX = "----"
     else:
         raise ValueError(f"Unsupported file type: {file_type}")
 
@@ -124,7 +123,8 @@ def parse_test_file(file_path, file_type=FileType.TEST, dataset=None):
             query_lines = [line[len(STATEMENT) :].strip()]
         elif line.startswith(CHECK_ORDER):
             check_order = True
-        elif line.startswith(SKIP):
+        elif line.startswith(SKIP) or line.startswith(UNSUPPORTED):
+            # If the test is marked as SKIP or UNSUPPORTED, we skip it
             skip = True
         elif line.startswith(RESULT_PREFIX):
             n = line.split()[1]
@@ -143,7 +143,9 @@ def parse_test_file(file_path, file_type=FileType.TEST, dataset=None):
                 print(f"Warning: Expected {n} result lines but file ended prematurely.")
 
             if skip:
-                print(f"Skipping test: {current_test_name} due to skip flag.")
+                print(
+                    f"Skipping test: {current_test_name} due to skip or unsupported flag."
+                )
                 continue
             else:
                 tests.append(
