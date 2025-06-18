@@ -48,6 +48,7 @@ class GExprConverter {
   std::unique_ptr<::physical::GroupBy_AggFunc> convertAggFunc(
       const binder::AggregateFunctionExpression& expr,
       const planner::LogicalOperator& child);
+  std::unique_ptr<::common::Variable> convertDefaultVar();
 
  private:
   // Core expression type converters

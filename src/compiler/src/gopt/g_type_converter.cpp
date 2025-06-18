@@ -133,7 +133,7 @@ std::unique_ptr<::common::IrDataType> GTypeConverter::convertLogicalType(
     break;
   }
   case common::LogicalTypeID::INTERNAL_ID: {
-    result->set_primitive_type(::common::PrimitiveType::DT_SIGNED_INT32);
+    result->set_primitive_type(::common::PrimitiveType::DT_SIGNED_INT64);
     break;
   }
   default:

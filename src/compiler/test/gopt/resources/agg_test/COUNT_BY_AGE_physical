@@ -137,13 +137,13 @@
             },
             "node_type": {
              "data_type": {
-              "primitive_type": "DT_SIGNED_INT32"
+              "primitive_type": "DT_SIGNED_INT64"
              }
             }
            },
            "node_type": {
             "data_type": {
-             "primitive_type": "DT_SIGNED_INT32"
+             "primitive_type": "DT_SIGNED_INT64"
             }
            }
           }
@@ -188,7 +188,7 @@
      {
       "type": {
        "data_type": {
-        "primitive_type": "DT_SIGNED_INT32"
+        "primitive_type": "DT_SIGNED_INT64"
        }
       },
       "alias": 3
@@ -230,7 +230,7 @@
           },
           "node_type": {
            "data_type": {
-            "primitive_type": "DT_SIGNED_INT32"
+            "primitive_type": "DT_SIGNED_INT64"
            }
           }
          }

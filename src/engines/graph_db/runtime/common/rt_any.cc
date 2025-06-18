@@ -377,16 +377,8 @@ bool RTAny::as_bool() const {
   return value_.b_val;
 }
 int RTAny::as_int32() const {
-  // Support implicit conversion from i64 and f64 to int
-  if (type_ == RTAnyType::kI64Value) {
-    return static_cast<int>(value_.i64_val);
-  } else if (type_ == RTAnyType::kF64Value) {
-    return static_cast<int>(value_.f64_val);
-  } else if (type_ == RTAnyType::kI32Value) {
-    return value_.i32_val;
-  } else {
-    LOG(FATAL) << "not support for " << static_cast<int>(type_);
-  }
+  assert(type_ == RTAnyType::kI32Value);
+  return value_.i32_val;
 }
 
 int64_t RTAny::as_int64() const {

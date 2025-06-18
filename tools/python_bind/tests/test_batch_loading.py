@@ -82,6 +82,10 @@ class TestBachLoading(unittest.TestCase):
         for record in res:
             print(record)
 
+        res = conn.execute("MATCH (n) return count(*);")
+        for record in res:
+            print(record)
+
         conn.close()
         db.close()
 

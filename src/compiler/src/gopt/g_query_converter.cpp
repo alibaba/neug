@@ -729,10 +729,16 @@ void GQueryConvertor::convertAggregate(
 
 void GQueryConvertor::convertProject(const planner::LogicalProjection& project,
                                      ::physical::QueryPlan* plan) {
+  auto exprs = project.getExpressionsToProject();
+  // todo: hack ways to handle the case, Match (n) Return count(*) will add a
+  // empty projection before the aggregate, it's better to implement a
+  // ProjectRemoveRule.
+  if (exprs.empty()) {
+    return;
+  }
   auto projectPB = std::make_unique<::physical::Project>();
   std::vector<common::alias_id_t> aliasIds;
   aliasManager->extractAliasIds(project, aliasIds);
-  auto exprs = project.getExpressionsToProject();
   if (exprs.size() != aliasIds.size()) {
     throw common::Exception(
         "Number of expressions to project does not match "

@@ -58,5 +58,13 @@ TEST_F(AggTest, COUNT_DISTINCT) {
       *physical, getAggResource("COUNT_DISTINCT_physical"));
 }
 
+TEST_F(AggTest, COUNT_STAR) {
+  std::string query = "Match (n:person) Return count(*)";
+  auto logical = planLogical(query, schemaData, statsData, rules);
+  auto physical = planPhysical(*logical);
+  VerifyFactory::verifyPhysicalByJson(*physical,
+                                      getAggResource("COUNT_STAR_physical"));
+}
+
 }  // namespace gopt
 }  // namespace gs

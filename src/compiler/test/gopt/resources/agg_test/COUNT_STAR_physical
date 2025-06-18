@@ -43,20 +43,13 @@
    },
    {
     "opr": {
-     "project": {
-      "mappings": [],
-      "is_append": false
-     }
-    },
-    "meta_data": []
-   },
-   {
-    "opr": {
      "group_by": {
       "mappings": [],
       "functions": [
        {
-        "vars": [],
+        "vars": [
+         {}
+        ],
         "aggregate": "COUNT",
         "alias": 1
        }

@@ -44,7 +44,8 @@ Var::Var(const GraphInterface& graph, const Context& ctx,
     } else if (pb.has_property() && pb.property().has_label()) {
       type_ = RTAnyType::kI64Value;
     } else {
-      LOG(FATAL) << "not support" << pb.DebugString();
+      VLOG(10) << "receive empty variable, using tag -1";
+      tag = -1;
     }
   }
 

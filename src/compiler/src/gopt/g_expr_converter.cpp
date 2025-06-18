@@ -100,12 +100,18 @@ std::unique_ptr<::physical::GroupBy_AggFunc> GExprConverter::convertAggFunc(
     const binder::AggregateFunctionExpression& expr,
     const planner::LogicalOperator& child) {
   auto aggFuncPB = std::make_unique<::physical::GroupBy_AggFunc>();
-  // todo: set agg function name
-  // set vars in agg func
-  for (auto expr : expr.getChildren()) {
-    auto varPB = aggFuncPB->add_vars();
-    auto exprPB = convert(*expr, child);
-    *varPB = std::move(*(exprPB->mutable_operators(0)->mutable_var()));
+  auto exprVec = expr.getChildren();
+  if (exprVec.empty()) {
+    aggFuncPB->mutable_vars()->AddAllocated(
+        convertDefaultVar().release());  // default variable for COUNT(*)
+  } else {
+    // todo: set agg function name
+    // set vars in agg func
+    for (auto expr : exprVec) {
+      auto varPB = aggFuncPB->add_vars();
+      auto exprPB = convert(*expr, child);
+      *varPB = std::move(*(exprPB->mutable_operators(0)->mutable_var()));
+    }
   }
   aggFuncPB->set_aggregate(convertAggregate(expr.getFunction()));
   return aggFuncPB;
@@ -235,6 +241,11 @@ std::unique_ptr<::common::Expression> GExprConverter::convertLiteral(
   auto literal = result->add_operators();
   literal->set_allocated_const_(convertValue(expr.getValue()).release());
   return result;
+}
+
+std::unique_ptr<::common::Variable> GExprConverter::convertDefaultVar() {
+  auto variable = std::make_unique<::common::Variable>();
+  return variable;
 }
 
 std::unique_ptr<::common::Property> GExprConverter::convertPropertyExpr(
