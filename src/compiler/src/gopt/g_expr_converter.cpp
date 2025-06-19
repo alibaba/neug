@@ -22,11 +22,14 @@
 #include "binder/expression/literal_expression.h"
 #include "binder/expression/property_expression.h"
 #include "binder/expression/rel_expression.h"
+#include "binder/expression/scalar_function_expression.h"
 #include "binder/expression/variable_expression.h"
 #include "common/enums/expression_type.h"
 #include "common/exception/exception.h"
 #include "common/types/types.h"
 #include "common/types/value/value.h"
+#include "function/arithmetic/vector_arithmetic_functions.h"
+#include "gopt/g_scalar_type.h"
 #include "src/proto_generated_gie/common.pb.h"
 #include "src/proto_generated_gie/expr.pb.h"
 #include "src/proto_generated_gie/physical.pb.h"
@@ -74,16 +77,22 @@ std::unique_ptr<::common::Expression> GExprConverter::convert(
   case common::ExpressionType::GREATER_THAN_EQUALS:
   case common::ExpressionType::LESS_THAN:
   case common::ExpressionType::LESS_THAN_EQUALS:
-    return convertComparison(expr);
   case common::ExpressionType::AND:
-    return convertAnd(expr);
+  case common::ExpressionType::OR:
+  case common::ExpressionType::NOT:
+  case common::ExpressionType::IS_NULL:
+    return convertChildren(expr);
   case common::ExpressionType::PATTERN: {
     return convertPattern(expr.constCast<binder::NodeOrRelExpression>());
   }
+  case common::ExpressionType::IS_NOT_NULL: {
+    return convertIsNotNull(expr);  // convert to IS NOT NULL
+  }
+  case common::ExpressionType::FUNCTION: {
+    return convertScalarFunc(expr);  // convert to scalar function
+  }
   default:
-    throw common::Exception(
-        "Unsupported expression type: " +
-        std::to_string(static_cast<uint8_t>(expr.expressionType)));
+    throw common::Exception("Unsupported expression type: " + expr.toString());
   }
 }
 
@@ -180,25 +189,26 @@ std::unique_ptr<::algebra::IndexPredicate> GExprConverter::convertPrimaryKey(
   return indexPB;
 }
 
-::common::Logical GExprConverter::convertCompare(common::ExpressionType type) {
-  switch (type) {
-  case common::ExpressionType::EQUALS:
-    return ::common::Logical::EQ;
-  case common::ExpressionType::NOT_EQUALS:
-    return ::common::Logical::NE;
-  case common::ExpressionType::GREATER_THAN:
-    return ::common::Logical::GT;
-  case common::ExpressionType::GREATER_THAN_EQUALS:
-    return ::common::Logical::GE;
-  case common::ExpressionType::LESS_THAN:
-    return ::common::Logical::LT;
-  case common::ExpressionType::LESS_THAN_EQUALS:
-    return ::common::Logical::LE;
-  default:
-    throw common::Exception("Unsupported logical type: " +
-                            std::to_string(static_cast<uint8_t>(type)));
-  }
-}
+// ::common::Logical GExprConverter::convertCompare(common::ExpressionType type)
+// {
+//   switch (type) {
+//   case common::ExpressionType::EQUALS:
+//     return ::common::Logical::EQ;
+//   case common::ExpressionType::NOT_EQUALS:
+//     return ::common::Logical::NE;
+//   case common::ExpressionType::GREATER_THAN:
+//     return ::common::Logical::GT;
+//   case common::ExpressionType::GREATER_THAN_EQUALS:
+//     return ::common::Logical::GE;
+//   case common::ExpressionType::LESS_THAN:
+//     return ::common::Logical::LT;
+//   case common::ExpressionType::LESS_THAN_EQUALS:
+//     return ::common::Logical::LE;
+//   default:
+//     throw common::Exception("Unsupported logical type: " +
+//                             std::to_string(static_cast<uint8_t>(type)));
+//   }
+// }
 
 std::unique_ptr<::common::Value> GExprConverter::convertValue(
     gs::common::Value value) {
@@ -246,6 +256,18 @@ std::unique_ptr<::common::Expression> GExprConverter::convertLiteral(
 std::unique_ptr<::common::Variable> GExprConverter::convertDefaultVar() {
   auto variable = std::make_unique<::common::Variable>();
   return variable;
+}
+
+std::unique_ptr<::common::Expression> GExprConverter::convertScalarFunc(
+    const binder::Expression& expr) {
+  GScalarType scalarType{expr};
+  if (scalarType.isArithmetic()) {
+    return convertChildren(expr);
+  }
+  if (scalarType.getType() == CAST && !expr.getChildren().empty()) {
+    return convert(*expr.getChild(0));
+  }
+  throw common::Exception("Unsupported expression type: " + expr.toString());
 }
 
 std::unique_ptr<::common::Property> GExprConverter::convertPropertyExpr(
@@ -308,48 +330,212 @@ std::unique_ptr<::common::Expression> GExprConverter::convertVariable(
   return result;
 }
 
-std::unique_ptr<::common::Expression> GExprConverter::convertComparison(
+// std::unique_ptr<::common::Expression> GExprConverter::convertComparison(
+//     const binder::Expression& expr) {
+//   std::vector<std::unique_ptr<::common::Expression>> children;
+//   for (size_t i = 0; i < expr.getNumChildren(); ++i) {
+//     children.push_back(convert(*expr.getChild(i)));
+//   }
+//   if (children.size() != 2) {
+//     throw common::Exception(
+//         "Comparison expressions must have exactly two children.");
+//   }
+//   auto result = std::make_unique<::common::Expression>();
+//   auto leftOp = result->add_operators();
+//   *leftOp = children[0]->operators(0);
+//   auto comparison = result->add_operators();
+//   comparison->set_logical(convertCompare(expr.expressionType));
+//   // todo: set comparison data type
+//   auto rightOp = result->add_operators();
+//   *rightOp = children[1]->operators(0);
+//   return result;
+// }
+
+// std::unique_ptr<::common::Expression> GExprConverter::convertIsNull(
+//     const binder::Expression& expr) {
+//   if (expr.getNumChildren() != 1) {
+//     throw common::Exception("IS_NULL expressions must have exactly one
+//     child.");
+//   }
+//   auto result = std::make_unique<::common::Expression>();
+//   auto isnullOp = result->add_operators();
+//   isnullOp->set_allocated_node_type(
+//       typeConverter.convertLogicalType(expr.getDataType()).release());
+//   isnullOp->set_logical(::common::Logical::ISNULL);
+//   auto childExpr = convert(*expr.getChild(0));
+//   auto childOp = result->add_operators();
+//   *childOp = std::move(*childExpr->mutable_operators(0));
+//   return result;
+// }
+
+std::unique_ptr<::common::ExprOpr> GExprConverter::convertOperator(
     const binder::Expression& expr) {
-  std::vector<std::unique_ptr<::common::Expression>> children;
-  for (size_t i = 0; i < expr.getNumChildren(); ++i) {
-    children.push_back(convert(*expr.getChild(i)));
+  auto result = std::make_unique<::common::ExprOpr>();
+  result->set_allocated_node_type(
+      typeConverter.convertLogicalType(expr.getDataType()).release());
+
+  switch (expr.expressionType) {
+  case common::ExpressionType::OR:
+    result->set_logical(::common::Logical::OR);
+    break;
+  case common::ExpressionType::AND:
+    result->set_logical(::common::Logical::AND);
+    break;
+  case common::ExpressionType::EQUALS:
+    result->set_logical(::common::Logical::EQ);
+    break;
+  case common::ExpressionType::NOT_EQUALS:
+    result->set_logical(::common::Logical::NE);
+    break;
+  case common::ExpressionType::GREATER_THAN:
+    result->set_logical(::common::Logical::GT);
+    break;
+  case common::ExpressionType::GREATER_THAN_EQUALS:
+    result->set_logical(::common::Logical::GE);
+    break;
+  case common::ExpressionType::LESS_THAN:
+    result->set_logical(::common::Logical::LT);
+    break;
+  case common::ExpressionType::LESS_THAN_EQUALS:
+    result->set_logical(::common::Logical::LE);
+    break;
+  case common::ExpressionType::NOT:
+    result->set_logical(::common::Logical::NOT);
+    break;
+  case common::ExpressionType::IS_NULL:
+    result->set_logical(::common::Logical::ISNULL);
+    break;
+  case common::ExpressionType::FUNCTION: {
+    GScalarType scalarType{expr};
+    switch (scalarType.getType()) {
+    case ScalarType::ADD:
+      result->set_arith(::common::Arithmetic::ADD);
+      break;
+    case ScalarType::SUBTRACT:
+      result->set_arith(::common::Arithmetic::SUB);
+      break;
+    case ScalarType::MULTIPLY:
+      result->set_arith(::common::Arithmetic::MUL);
+      break;
+    case ScalarType::DIVIDE:
+      result->set_arith(::common::Arithmetic::DIV);
+      break;
+    case ScalarType::MODULO:
+      result->set_arith(::common::Arithmetic::MOD);
+      break;
+    case ScalarType::CAST:
+      // set nothing;
+      break;
+    default:
+      throw common::Exception("Unsupported scalar function: " +
+                              expr.toString() + " in convertOperator");
+    }
+    break;
   }
-  if (children.size() != 2) {
-    throw common::Exception(
-        "Comparison expressions must have exactly two children.");
+  default:
+    throw common::Exception("Unsupported expression: " + expr.toString() +
+                            " in convertOperator");
   }
-  auto result = std::make_unique<::common::Expression>();
-  auto leftOp = result->add_operators();
-  *leftOp = children[0]->operators(0);
-  auto comparison = result->add_operators();
-  comparison->set_logical(convertCompare(expr.expressionType));
-  // todo: set comparison data type
-  auto rightOp = result->add_operators();
-  *rightOp = children[1]->operators(0);
   return result;
 }
 
-std::unique_ptr<::common::Expression> GExprConverter::convertAnd(
+std::unique_ptr<::common::Expression> GExprConverter::convertChildren(
     const binder::Expression& expr) {
-  std::vector<std::unique_ptr<::common::Expression>> children;
-  for (size_t i = 0; i < expr.getNumChildren(); ++i) {
-    children.push_back(convert(*expr.getChild(i)));
-  }
-  if (children.size() < 2) {
-    throw common::Exception("AND expressions must have at least two children.");
-  }
+  bool leftAssociate = preced.isLeftAssociative(expr);
+  auto children = expr.getChildren();
   auto result = std::make_unique<::common::Expression>();
-  auto counter = 0;
-  for (auto& child : children) {
-    if (counter++ > 0) {
-      auto andOp = result->add_operators();
-      andOp->set_logical(::common::Logical::AND);
-      // todo: set and data type
+  for (size_t i = 0; i < children.size(); ++i) {
+    size_t idx = leftAssociate ? i : (children.size() - 1 - i);
+    auto& child = children[idx];
+
+    if (children.size() == 1  // unary operator, i.e. IS_NULL, NOT
+        || (leftAssociate && i > 0) ||
+        (!leftAssociate && idx < children.size() - 1)) {
+      auto opPB = convertOperator(expr);
+      if (opPB &&
+          opPB->item_case() != ::common::ExprOpr::ItemCase::ITEM_NOT_SET) {
+        *result->add_operators() = std::move(*opPB);
+      }
     }
-    auto childOp = result->add_operators();
-    *childOp = child->operators(0);
+
+    bool needBrace = preced.needBrace(expr, *child);
+    if (needBrace) {
+      auto leftBrace = result->add_operators();
+      leftBrace->set_brace(::common::ExprOpr::Brace::ExprOpr_Brace_LEFT_BRACE);
+    }
+
+    auto childExpr = convert(*child);
+    for (size_t j = 0; j < childExpr->operators_size(); ++j) {
+      auto& childOp = *result->add_operators();
+      childOp = std::move(*childExpr->mutable_operators(j));
+    }
+
+    if (needBrace) {
+      auto rightBrace = result->add_operators();
+      rightBrace->set_brace(
+          ::common::ExprOpr::Brace::ExprOpr_Brace_RIGHT_BRACE);
+    }
   }
   return result;
 }
+
+std::unique_ptr<::common::Expression> GExprConverter::convertIsNotNull(
+    const binder::Expression& expr) {
+  if (expr.getNumChildren() != 1) {
+    throw common::Exception(
+        "IS_NOT_NULL expressions must have exactly one child.");
+  }
+  auto result = std::make_unique<::common::Expression>();
+  auto notOp = result->add_operators();
+  notOp->set_logical(::common::Logical::NOT);
+  notOp->set_allocated_node_type(
+      typeConverter.convertLogicalType(expr.getDataType()).release());
+  auto leftBrace = result->add_operators();
+  leftBrace->set_brace(::common::ExprOpr::Brace::ExprOpr_Brace_LEFT_BRACE);
+  auto isnullOp = result->add_operators();
+  isnullOp->set_allocated_node_type(
+      typeConverter.convertLogicalType(expr.getDataType()).release());
+  isnullOp->set_logical(::common::Logical::ISNULL);
+  auto childExpr = convert(*expr.getChild(0));
+  auto childOp = result->add_operators();
+  *childOp = std::move(*childExpr->mutable_operators(0));
+  auto rightBrace = result->add_operators();
+  rightBrace->set_brace(::common::ExprOpr::Brace::ExprOpr_Brace_RIGHT_BRACE);
+  return result;
+}
+
+// std::unique_ptr<::common::Expression> GExprConverter::convertAnd(
+//     const binder::Expression& expr) {
+//   std::vector<std::unique_ptr<::common::Expression>> children;
+//   for (size_t i = 0; i < expr.getNumChildren(); ++i) {
+//     children.push_back(convert(*expr.getChild(i)));
+//   }
+//   if (children.size() < 2) {
+//     throw common::Exception("AND expressions must have at least two
+//     children.");
+//   }
+//   auto result = std::make_unique<::common::Expression>();
+//   auto counter = 0;
+//   for (auto& child : children) {
+//     if (counter++ > 0) {
+//       auto andOp = result->add_operators();
+//       andOp->set_logical(::common::Logical::AND);
+//       // todo: set and data type
+//     }
+//     bool needBrace = precedence.needBrace(expr, *child);
+//     if (needBrace) {
+//       auto leftBrace = result->add_operators();
+//       leftBrace->set_brace(::common::ExprOpr::Brace::ExprOpr_Brace_LEFT_BRACE);
+//     }
+//     auto childOp = result->add_operators();
+//     *childOp = child->operators(0);
+//     if (needBrace) {
+//       auto rightBrace = result->add_operators();
+//       rightBrace->set_brace(
+//           ::common::ExprOpr::Brace::ExprOpr_Brace_RIGHT_BRACE);
+//     }
+//   }
+//   return result;
+// }
 }  // namespace gopt
 }  // namespace gs

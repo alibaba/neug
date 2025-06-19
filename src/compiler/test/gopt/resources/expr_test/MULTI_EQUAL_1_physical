@@ -15,27 +15,84 @@
        ],
        "columns": [],
        "is_all_columns": false,
-       "sample_ratio": 0,
-       "extra": {}
-      },
-      "idx_predicate": {
-       "or_predicates": [
-        {
-         "predicates": [
-          {
-           "key": {
+       "predicate": {
+        "operators": [
+         {
+          "var": {
+           "property": {
             "key": {
-             "name": "id"
+             "name": "gender"
             }
            },
-           "const": {
-            "i64": "1"
-           },
-           "cmp": "EQ"
+           "node_type": {
+            "data_type": {
+             "primitive_type": "DT_SIGNED_INT32"
+            }
+           }
+          },
+          "node_type": {
+           "data_type": {
+            "primitive_type": "DT_SIGNED_INT32"
+           }
           }
-         ]
-        }
-       ]
+         },
+         {
+          "node_type": {
+           "data_type": {
+            "primitive_type": "DT_DOUBLE"
+           }
+          },
+          "arith": "MUL"
+         },
+         {
+          "const": {
+           "f64": 2.1
+          }
+         },
+         {
+          "node_type": {
+           "data_type": {
+            "primitive_type": "DT_BOOL"
+           }
+          },
+          "logical": "EQ"
+         },
+         {
+          "const": {
+           "f64": 2.1
+          }
+         },
+         {
+          "node_type": {
+           "data_type": {
+            "primitive_type": "DT_DOUBLE"
+           }
+          },
+          "arith": "MUL"
+         },
+         {
+          "var": {
+           "property": {
+            "key": {
+             "name": "gender"
+            }
+           },
+           "node_type": {
+            "data_type": {
+             "primitive_type": "DT_SIGNED_INT32"
+            }
+           }
+          },
+          "node_type": {
+           "data_type": {
+            "primitive_type": "DT_SIGNED_INT32"
+           }
+          }
+         }
+        ]
+       },
+       "sample_ratio": 0,
+       "extra": {}
       },
       "is_count_only": false,
       "alias": 0
@@ -62,76 +119,24 @@
    },
    {
     "opr": {
-     "edge": {
-      "direction": "OUT",
-      "params": {
-       "tables": [
-        {
-         "id": 0
-        }
-       ],
-       "columns": [],
-       "is_all_columns": false,
-       "predicate": {
-        "operators": [
-         {
-          "var": {
-           "property": {
-            "key": {
-             "name": "weight"
-            }
-           },
-           "node_type": {
-            "data_type": {
-             "primitive_type": "DT_DOUBLE"
-            }
-           }
-          },
-          "node_type": {
-           "data_type": {
-            "primitive_type": "DT_DOUBLE"
-           }
-          }
-         },
-         {
-          "node_type": {
-           "data_type": {
-            "primitive_type": "DT_BOOL"
-           }
-          },
-          "logical": "EQ"
-         },
-         {
-          "const": {
-           "f64": 1
-          }
-         }
-        ]
-       },
-       "sample_ratio": 0,
-       "extra": {}
-      },
-      "expand_opt": "VERTEX",
-      "is_optional": false,
-      "v_tag": 0,
-      "alias": 1
+     "group_by": {
+      "mappings": [],
+      "functions": [
+       {
+        "vars": [
+         {}
+        ],
+        "aggregate": "COUNT",
+        "alias": 1
+       }
+      ]
      }
     },
     "meta_data": [
      {
       "type": {
-       "graph_type": {
-        "element_opt": "EDGE",
-        "graph_data_type": [
-         {
-          "label": {
-           "label": 0,
-           "src_label": 0,
-           "dst_label": 0
-          },
-          "props": []
-         }
-        ]
+       "data_type": {
+        "primitive_type": "DT_SIGNED_INT64"
        }
       },
       "alias": 1
@@ -150,34 +155,21 @@
             "tag": {
              "id": 1
             },
-            "property": {
-             "key": {
-              "name": "name"
-             }
-            },
             "node_type": {
              "data_type": {
-              "string": {
-               "var_char": {
-                "max_length": 65536
-               }
-              }
+              "primitive_type": "DT_SIGNED_INT64"
              }
             }
            },
            "node_type": {
             "data_type": {
-             "string": {
-              "var_char": {
-               "max_length": 65536
-              }
-             }
+             "primitive_type": "DT_SIGNED_INT64"
             }
            }
           }
          ]
         },
-        "alias": 2
+        "alias": 1
        }
       ],
       "is_append": false
@@ -187,14 +179,10 @@
      {
       "type": {
        "data_type": {
-        "string": {
-         "var_char": {
-          "max_length": 65536
-         }
-        }
+        "primitive_type": "DT_SIGNED_INT64"
        }
       },
-      "alias": 2
+      "alias": 1
      }
     ]
    },

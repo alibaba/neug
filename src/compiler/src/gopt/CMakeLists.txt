@@ -8,6 +8,7 @@ add_library(neug_gopt
     g_alias_manager.cpp
     g_type_converter.cpp
     g_query_converter.cpp
+    g_precedence.cpp
 )
 
 target_link_libraries(neug_gopt

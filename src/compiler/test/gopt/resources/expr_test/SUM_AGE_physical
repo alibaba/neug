@@ -15,27 +15,44 @@
        ],
        "columns": [],
        "is_all_columns": false,
-       "sample_ratio": 0,
-       "extra": {}
-      },
-      "idx_predicate": {
-       "or_predicates": [
-        {
-         "predicates": [
-          {
-           "key": {
+       "predicate": {
+        "operators": [
+         {
+          "var": {
+           "property": {
             "key": {
-             "name": "id"
+             "name": "age"
             }
            },
-           "const": {
-            "i64": "1"
-           },
-           "cmp": "EQ"
+           "node_type": {
+            "data_type": {
+             "primitive_type": "DT_SIGNED_INT64"
+            }
+           }
+          },
+          "node_type": {
+           "data_type": {
+            "primitive_type": "DT_SIGNED_INT64"
+           }
           }
-         ]
-        }
-       ]
+         },
+         {
+          "node_type": {
+           "data_type": {
+            "primitive_type": "DT_BOOL"
+           }
+          },
+          "logical": "LT"
+         },
+         {
+          "const": {
+           "i64": "31"
+          }
+         }
+        ]
+       },
+       "sample_ratio": 0,
+       "extra": {}
       },
       "is_count_only": false,
       "alias": 0
@@ -72,46 +89,10 @@
        ],
        "columns": [],
        "is_all_columns": false,
-       "predicate": {
-        "operators": [
-         {
-          "var": {
-           "property": {
-            "key": {
-             "name": "weight"
-            }
-           },
-           "node_type": {
-            "data_type": {
-             "primitive_type": "DT_DOUBLE"
-            }
-           }
-          },
-          "node_type": {
-           "data_type": {
-            "primitive_type": "DT_DOUBLE"
-           }
-          }
-         },
-         {
-          "node_type": {
-           "data_type": {
-            "primitive_type": "DT_BOOL"
-           }
-          },
-          "logical": "GT"
-         },
-         {
-          "const": {
-           "f64": 10
-          }
-         }
-        ]
-       },
        "sample_ratio": 0,
        "extra": {}
       },
-      "expand_opt": "EDGE",
+      "expand_opt": "VERTEX",
       "is_optional": false,
       "v_tag": 0,
       "alias": 1
@@ -140,8 +121,8 @@
    },
    {
     "opr": {
-     "vertex": {
-      "opt": "END",
+     "edge": {
+      "direction": "OUT",
       "params": {
        "tables": [
         {
@@ -153,6 +134,9 @@
        "sample_ratio": 0,
        "extra": {}
       },
+      "expand_opt": "VERTEX",
+      "is_optional": false,
+      "v_tag": 1,
       "alias": 2
      }
     },
@@ -160,11 +144,13 @@
      {
       "type": {
        "graph_type": {
-        "element_opt": "VERTEX",
+        "element_opt": "EDGE",
         "graph_data_type": [
          {
           "label": {
-           "label": 0
+           "label": 0,
+           "src_label": 0,
+           "dst_label": 0
           },
           "props": []
          }
@@ -183,86 +169,71 @@
         "expr": {
          "operators": [
           {
+           "brace": "LEFT_BRACE"
+          },
+          {
            "var": {
             "tag": {
              "id": 0
             },
             "property": {
              "key": {
-              "name": "name"
+              "name": "age"
              }
             },
             "node_type": {
              "data_type": {
-              "string": {
-               "var_char": {
-                "max_length": 65536
-               }
-              }
+              "primitive_type": "DT_SIGNED_INT64"
              }
             }
            },
            "node_type": {
             "data_type": {
-             "string": {
-              "var_char": {
-               "max_length": 65536
-              }
-             }
+             "primitive_type": "DT_SIGNED_INT64"
             }
            }
-          }
-         ]
-        },
-        "alias": 3
-       },
-       {
-        "expr": {
-         "operators": [
+          },
+          {
+           "node_type": {
+            "data_type": {
+             "primitive_type": "DT_SIGNED_INT64"
+            }
+           },
+           "arith": "ADD"
+          },
           {
            "var": {
             "tag": {
              "id": 1
             },
+            "property": {
+             "key": {
+              "name": "age"
+             }
+            },
             "node_type": {
-             "graph_type": {
-              "element_opt": "EDGE",
-              "graph_data_type": [
-               {
-                "label": {
-                 "label": 0,
-                 "src_label": 0,
-                 "dst_label": 0
-                },
-                "props": []
-               }
-              ]
+             "data_type": {
+              "primitive_type": "DT_SIGNED_INT64"
              }
             }
            },
            "node_type": {
-            "graph_type": {
-             "element_opt": "EDGE",
-             "graph_data_type": [
-              {
-               "label": {
-                "label": 0,
-                "src_label": 0,
-                "dst_label": 0
-               },
-               "props": []
-              }
-             ]
+            "data_type": {
+             "primitive_type": "DT_SIGNED_INT64"
             }
            }
-          }
-         ]
-        },
-        "alias": 1
-       },
-       {
-        "expr": {
-         "operators": [
+          },
+          {
+           "brace": "RIGHT_BRACE"
+          },
+          {
+           "node_type": {
+            "data_type": {
+             "primitive_type": "DT_SIGNED_INT64"
+            }
+           },
+           "arith": "ADD"
+          },
           {
            "var": {
             "tag": {
@@ -270,32 +241,24 @@
             },
             "property": {
              "key": {
-              "name": "name"
+              "name": "age"
              }
             },
             "node_type": {
              "data_type": {
-              "string": {
-               "var_char": {
-                "max_length": 65536
-               }
-              }
+              "primitive_type": "DT_SIGNED_INT64"
              }
             }
            },
            "node_type": {
             "data_type": {
-             "string": {
-              "var_char": {
-               "max_length": 65536
-              }
-             }
+             "primitive_type": "DT_SIGNED_INT64"
             }
            }
           }
          ]
         },
-        "alias": 4
+        "alias": 3
        }
       ],
       "is_append": false
@@ -305,44 +268,10 @@
      {
       "type": {
        "data_type": {
-        "string": {
-         "var_char": {
-          "max_length": 65536
-         }
-        }
+        "primitive_type": "DT_SIGNED_INT64"
        }
       },
       "alias": 3
-     },
-     {
-      "type": {
-       "graph_type": {
-        "element_opt": "EDGE",
-        "graph_data_type": [
-         {
-          "label": {
-           "label": 0,
-           "src_label": 0,
-           "dst_label": 0
-          },
-          "props": []
-         }
-        ]
-       }
-      },
-      "alias": 1
-     },
-     {
-      "type": {
-       "data_type": {
-        "string": {
-         "var_char": {
-          "max_length": 65536
-         }
-        }
-       }
-      },
-      "alias": 4
      }
     ]
    },

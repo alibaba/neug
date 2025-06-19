@@ -7,7 +7,8 @@ add_compiler_test(
 	agg_test.cpp
 	metadata_test.cpp
 	path_test.cpp
-	order_test.cpp)
+	order_test.cpp
+	expr_test.cpp)
 
 target_link_libraries(gopt_test
     PRIVATE

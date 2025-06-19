@@ -15,27 +15,44 @@
        ],
        "columns": [],
        "is_all_columns": false,
-       "sample_ratio": 0,
-       "extra": {}
-      },
-      "idx_predicate": {
-       "or_predicates": [
-        {
-         "predicates": [
-          {
-           "key": {
+       "predicate": {
+        "operators": [
+         {
+          "var": {
+           "property": {
             "key": {
-             "name": "id"
+             "name": "gender"
             }
            },
-           "const": {
-            "i64": "1"
-           },
-           "cmp": "EQ"
+           "node_type": {
+            "data_type": {
+             "primitive_type": "DT_SIGNED_INT32"
+            }
+           }
+          },
+          "node_type": {
+           "data_type": {
+            "primitive_type": "DT_SIGNED_INT32"
+           }
           }
-         ]
-        }
-       ]
+         },
+         {
+          "node_type": {
+           "data_type": {
+            "primitive_type": "DT_BOOL"
+           }
+          },
+          "logical": "EQ"
+         },
+         {
+          "const": {
+           "i64": "1"
+          }
+         }
+        ]
+       },
+       "sample_ratio": 0,
+       "extra": {}
       },
       "is_count_only": false,
       "alias": 0
@@ -63,7 +80,7 @@
    {
     "opr": {
      "edge": {
-      "direction": "OUT",
+      "direction": "BOTH",
       "params": {
        "tables": [
         {
@@ -72,49 +89,12 @@
        ],
        "columns": [],
        "is_all_columns": false,
-       "predicate": {
-        "operators": [
-         {
-          "var": {
-           "property": {
-            "key": {
-             "name": "weight"
-            }
-           },
-           "node_type": {
-            "data_type": {
-             "primitive_type": "DT_DOUBLE"
-            }
-           }
-          },
-          "node_type": {
-           "data_type": {
-            "primitive_type": "DT_DOUBLE"
-           }
-          }
-         },
-         {
-          "node_type": {
-           "data_type": {
-            "primitive_type": "DT_BOOL"
-           }
-          },
-          "logical": "GT"
-         },
-         {
-          "const": {
-           "f64": 10
-          }
-         }
-        ]
-       },
        "sample_ratio": 0,
        "extra": {}
       },
       "expand_opt": "EDGE",
       "is_optional": false,
-      "v_tag": 0,
-      "alias": 1
+      "v_tag": 0
      }
     },
     "meta_data": [
@@ -134,14 +114,14 @@
         ]
        }
       },
-      "alias": 1
+      "alias": -1
      }
     ]
    },
    {
     "opr": {
      "vertex": {
-      "opt": "END",
+      "opt": "OTHER",
       "params": {
        "tables": [
         {
@@ -150,6 +130,164 @@
        ],
        "columns": [],
        "is_all_columns": false,
+       "predicate": {
+        "operators": [
+         {
+          "var": {
+           "property": {
+            "key": {
+             "name": "gender"
+            }
+           },
+           "node_type": {
+            "data_type": {
+             "primitive_type": "DT_SIGNED_INT32"
+            }
+           }
+          },
+          "node_type": {
+           "data_type": {
+            "primitive_type": "DT_SIGNED_INT32"
+           }
+          }
+         },
+         {
+          "node_type": {
+           "data_type": {
+            "primitive_type": "DT_BOOL"
+           }
+          },
+          "logical": "EQ"
+         },
+         {
+          "const": {
+           "i64": "2"
+          }
+         }
+        ]
+       },
+       "sample_ratio": 0,
+       "extra": {}
+      },
+      "alias": 1
+     }
+    },
+    "meta_data": [
+     {
+      "type": {
+       "graph_type": {
+        "element_opt": "VERTEX",
+        "graph_data_type": [
+         {
+          "label": {
+           "label": 0
+          },
+          "props": []
+         }
+        ]
+       }
+      },
+      "alias": 1
+     }
+    ]
+   },
+   {
+    "opr": {
+     "edge": {
+      "direction": "BOTH",
+      "params": {
+       "tables": [
+        {
+         "id": 0
+        }
+       ],
+       "columns": [],
+       "is_all_columns": false,
+       "sample_ratio": 0,
+       "extra": {}
+      },
+      "expand_opt": "EDGE",
+      "is_optional": false,
+      "v_tag": 1
+     }
+    },
+    "meta_data": [
+     {
+      "type": {
+       "graph_type": {
+        "element_opt": "EDGE",
+        "graph_data_type": [
+         {
+          "label": {
+           "label": 0,
+           "src_label": 0,
+           "dst_label": 0
+          },
+          "props": []
+         }
+        ]
+       }
+      },
+      "alias": -1
+     }
+    ]
+   },
+   {
+    "opr": {
+     "vertex": {
+      "opt": "OTHER",
+      "params": {
+       "tables": [
+        {
+         "id": 0
+        }
+       ],
+       "columns": [],
+       "is_all_columns": false,
+       "predicate": {
+        "operators": [
+         {
+          "var": {
+           "property": {
+            "key": {
+             "name": "fName"
+            }
+           },
+           "node_type": {
+            "data_type": {
+             "string": {
+              "var_char": {
+               "max_length": 65536
+              }
+             }
+            }
+           }
+          },
+          "node_type": {
+           "data_type": {
+            "string": {
+             "var_char": {
+              "max_length": 65536
+             }
+            }
+           }
+          }
+         },
+         {
+          "node_type": {
+           "data_type": {
+            "primitive_type": "DT_BOOL"
+           }
+          },
+          "logical": "EQ"
+         },
+         {
+          "const": {
+           "str": "Bob"
+          }
+         }
+        ]
+       },
        "sample_ratio": 0,
        "extra": {}
       },
@@ -189,7 +327,7 @@
             },
             "property": {
              "key": {
-              "name": "name"
+              "name": "fName"
              }
             },
             "node_type": {
@@ -224,53 +362,9 @@
             "tag": {
              "id": 1
             },
-            "node_type": {
-             "graph_type": {
-              "element_opt": "EDGE",
-              "graph_data_type": [
-               {
-                "label": {
-                 "label": 0,
-                 "src_label": 0,
-                 "dst_label": 0
-                },
-                "props": []
-               }
-              ]
-             }
-            }
-           },
-           "node_type": {
-            "graph_type": {
-             "element_opt": "EDGE",
-             "graph_data_type": [
-              {
-               "label": {
-                "label": 0,
-                "src_label": 0,
-                "dst_label": 0
-               },
-               "props": []
-              }
-             ]
-            }
-           }
-          }
-         ]
-        },
-        "alias": 1
-       },
-       {
-        "expr": {
-         "operators": [
-          {
-           "var": {
-            "tag": {
-             "id": 2
-            },
             "property": {
              "key": {
-              "name": "name"
+              "name": "fName"
              }
             },
             "node_type": {
@@ -313,24 +407,6 @@
        }
       },
       "alias": 3
-     },
-     {
-      "type": {
-       "graph_type": {
-        "element_opt": "EDGE",
-        "graph_data_type": [
-         {
-          "label": {
-           "label": 0,
-           "src_label": 0,
-           "dst_label": 0
-          },
-          "props": []
-         }
-        ]
-       }
-      },
-      "alias": 1
      },
      {
       "type": {

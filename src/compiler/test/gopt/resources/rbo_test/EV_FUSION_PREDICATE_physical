@@ -143,6 +143,11 @@
           }
          },
          {
+          "node_type": {
+           "data_type": {
+            "primitive_type": "DT_BOOL"
+           }
+          },
           "logical": "EQ"
          },
          {

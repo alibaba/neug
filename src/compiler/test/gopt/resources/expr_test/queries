@@ -1,0 +1,10 @@
+MATCH (a:person) WHERE a.age IS NULL RETURN COUNT(*); # IS_NULL
+MATCH (a:person) WHERE a.age IS NOT NULL RETURN COUNT(*); # IS_NOT_NULL
+MATCH (a:person) WHERE a.gender * 2.1 = 2.1 * a.gender RETURN COUNT(*); # MULTI_EQUAL_1
+MATCH (a:person) WHERE (a.gender*3.5 = 7.0) RETURN COUNT(*); # MULTI_EQUAL_2
+MATCH (a:person) WHERE a.age + null <= 200 RETURN COUNT(*); # ADD_NULL
+MATCH (p:person) RETURN p.ID, p.age ORDER BY p.age + p.ID; # ORDER_BY_ADD
+MATCH (a:person)-[:knows]-(b:person)-[:knows]-(c:person) WHERE a.gender = 1 AND b.gender = 2 AND c.fName = "Bob" RETURN a.fName, b.fName; # TYPE_CAST
+MATCH (a:person)-[:knows]->(b:person)-[:knows]->(c:person) WHERE a.age < 31 RETURN a.age + b.age + c.age; # SUM_AGE
+MATCH (a:person) WHERE (a.gender*3.5 = 7.0) RETURN COUNT(*); # MULTI_EQUAL_3
+// MATCH (a:person) WHERE a.isStudent OR null RETURN COUNT(*); # OR_NULL

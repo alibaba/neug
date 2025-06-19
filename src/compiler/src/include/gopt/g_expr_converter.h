@@ -24,6 +24,7 @@
 #include "binder/expression/variable_expression.h"
 #include "common/types/types.h"
 #include "gopt/g_alias_manager.h"
+#include "gopt/g_precedence.h"
 #include "gopt/g_type_converter.h"
 #include "src/proto_generated_gie/algebra.pb.h"
 #include "src/proto_generated_gie/expr.pb.h"
@@ -62,6 +63,14 @@ class GExprConverter {
       const binder::Expression& expr);
   std::unique_ptr<::common::Expression> convertAnd(
       const binder::Expression& expr);
+  std::unique_ptr<::common::Expression> convertIsNull(
+      const binder::Expression& expr);
+  std::unique_ptr<::common::Expression> convertIsNotNull(
+      const binder::Expression& expr);
+  std::unique_ptr<::common::Expression> convertChildren(
+      const binder::Expression& expr);
+  std::unique_ptr<::common::ExprOpr> convertOperator(
+      const binder::Expression& expr);
 
   // helper functions
   std::unique_ptr<::common::Value> convertValue(gs::common::Value value);
@@ -75,10 +84,13 @@ class GExprConverter {
       const binder::NodeOrRelExpression& expr);
   std::unique_ptr<::common::Property> convertPropertyExpr(
       const std::string& propName);
+  std::unique_ptr<::common::Expression> convertScalarFunc(
+      const binder::Expression& expr);
 
  private:
   const std::shared_ptr<gopt::GAliasManager> aliasManager;
   gopt::GTypeConverter typeConverter;
+  gopt::GPrecedence preced;
 };
 
 }  // namespace gopt
