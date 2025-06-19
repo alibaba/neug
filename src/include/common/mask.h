@@ -34,10 +34,6 @@ class SemiMask {
   bool enabled;
 };
 
-struct SemiMaskUtil {
-  KUZU_API static std::unique_ptr<SemiMask> createMask(offset_t maxOffset);
-};
-
 class NodeOffsetMaskMap {
  public:
   NodeOffsetMaskMap() = default;

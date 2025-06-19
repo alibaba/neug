@@ -21,7 +21,6 @@ add_library(neug_common
         null_mask.cpp
         profiler.cpp
         random_engine.cpp
-        roaring_mask.cpp
         string_utils.cpp
         system_message.cpp
         type_utils.cpp

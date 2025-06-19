@@ -532,8 +532,6 @@ endif()
 add_subdirectory(third_party/libgrape-lite)
 include_directories(SYSTEM ${CMAKE_SOURCE_DIR}/third_party/libgrape-lite)
 
-include_directories(SYSTEM ${CMAKE_SOURCE_DIR}/third_party/thrift/)
-include_directories(SYSTEM ${CMAKE_SOURCE_DIR}/third_party/thrift/protocol)
 include_directories(SYSTEM ${CMAKE_SOURCE_DIR}/third_party/re2/include)
 include_directories(SYSTEM ${CMAKE_SOURCE_DIR}/third_party/antlr4_cypher/include)
 
@@ -547,12 +545,8 @@ if (BUILD_COMPILER)
     add_subdirectory(third_party/antlr4_runtime)
     add_subdirectory(third_party/fast_float)
     add_subdirectory(third_party/glob)
-    add_subdirectory(third_party/lz4)
     add_subdirectory(third_party/re2)
-    add_subdirectory(third_party/roaring_bitmap)
-    add_subdirectory(third_party/thrift)
     add_subdirectory(third_party/utf8proc)
-    add_subdirectory(third_party/zstd)
 endif()
 
 configure_file(${CMAKE_CURRENT_SOURCE_DIR}/neug-config.in.cmake

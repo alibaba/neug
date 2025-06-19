@@ -8,8 +8,6 @@ include_directories(SYSTEM ${CMAKE_SOURCE_DIR}/third_party/antlr4_cypher/include
 include_directories(SYSTEM ${CMAKE_SOURCE_DIR}/third_party/antlr4_runtime/src)
 
 include_directories(SYSTEM ${CMAKE_SOURCE_DIR}/third_party/utf8proc/include)
-include_directories(SYSTEM ${CMAKE_SOURCE_DIR}/third_party/thrift)
-include_directories(SYSTEM ${CMAKE_SOURCE_DIR}/third_party/thrift/protocol)
 include_directories(SYSTEM ${CMAKE_SOURCE_DIR}/third_party/antlr_cypher)
 
 
@@ -49,8 +47,7 @@ add_subdirectory(gopt)
 # Note: The static neug_compiler target is currently unused and may be removed in the future if deemed unnecessary.
 add_library(neug_compiler_shared SHARED ${ALL_OBJECT_FILES})
 
-set(KUZU_LIBRARIES antlr4_cypher antlr4_runtime fast_float utf8proc re2 roaring_bitmap   thrift  zstd  lz4  yaml-cpp)
-# brotlidec brotlicommon fastpfor snappy  yyjson parquet mbedtls
+set(KUZU_LIBRARIES antlr4_cypher antlr4_runtime fast_float utf8proc re2 yaml-cpp)
 if (NOT __SINGLE_THREADED__)
         set(KUZU_LIBRARIES ${KUZU_LIBRARIES} Threads::Threads)
 endif()
