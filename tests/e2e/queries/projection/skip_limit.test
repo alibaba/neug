@@ -55,7 +55,6 @@ Greg
 Hubert Blaine Wolfeschlegelsteinhausenbergerdorff
 
 -LOG BasicLimitTest3
--SKIP: (compiler) not support limit with expr
 -STATEMENT MATCH (a:person) RETURN a.fName ORDER BY a.fName LIMIT 1 + 1
 -CHECK_ORDER
 ---- 2
@@ -134,7 +133,6 @@ Bob
 [3.800000,2.500000]
 
 -LOG LimitWithConstantExpr
--SKIP: (compiler) limit with expression
 -STATEMENT MATCH (a:person) RETURN a.ID LIMIT 2 + 3
 ---- 5
 0

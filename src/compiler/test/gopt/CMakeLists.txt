@@ -8,7 +8,8 @@ add_compiler_test(
 	metadata_test.cpp
 	path_test.cpp
 	order_test.cpp
-	expr_test.cpp)
+	expr_test.cpp
+	project_test.cpp)
 
 target_link_libraries(gopt_test
     PRIVATE

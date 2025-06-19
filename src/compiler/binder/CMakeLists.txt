@@ -15,7 +15,12 @@ add_library(neug_binder
         bound_statement_rewriter.cpp
         bound_statement_visitor.cpp
         expression_binder.cpp
-        expression_visitor.cpp)
+        expression_visitor.cpp
+        expression_evaluator.cpp
+        expression_evaluator_utils.cpp
+        expression_mapper.cpp
+        function_evaluator.cpp
+        literal_evaluator.cpp)
 
 set(ALL_OBJECT_FILES
         ${ALL_OBJECT_FILES} $<TARGET_OBJECTS:neug_binder>

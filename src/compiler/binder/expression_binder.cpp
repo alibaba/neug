@@ -11,6 +11,7 @@
 #include "src/include/main/client_context.h"
 #include "src/include/parser/expression/parsed_expression_visitor.h"
 #include "src/include/parser/expression/parsed_parameter_expression.h"
+#include "src/include/binder/expression_evaluator_utils.h"
 
 using namespace gs::common;
 using namespace gs::function;
@@ -84,7 +85,19 @@ std::shared_ptr<Expression> ExpressionBinder::bindExpression(
 
 std::shared_ptr<Expression> ExpressionBinder::foldExpression(
     const std::shared_ptr<Expression>& expression) const {
-  return nullptr;
+  auto value = evaluator::ExpressionEvaluatorUtils::evaluateConstantExpression(
+      expression, context);
+  auto result = createLiteralExpression(value);
+  // Fold result should preserve the alias original expression. E.g.
+  // RETURN 2, 1 + 1 AS x
+  // Once folded, 1 + 1 will become 2 and have the same identifier as the first
+  // RETURN element. We preserve alias (x) to avoid such conflict.
+  if (expression->hasAlias()) {
+    result->setAlias(expression->getAlias());
+  } else {
+    result->setAlias(expression->toString());
+  }
+  return result;
 }
 
 static std::string unsupportedImplicitCastException(
