@@ -1,0 +1,15 @@
+#pragma once
+
+#include "exception.h"
+#include "src/include/common/api.h"
+
+namespace gs {
+namespace common {
+
+class KUZU_API CheckpointException : public Exception {
+ public:
+  explicit CheckpointException(const std::exception& e) : Exception(e.what()){};
+};
+
+}  // namespace common
+}  // namespace gs

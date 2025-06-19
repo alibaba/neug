@@ -1,6 +1,8 @@
 # NeuG
 A repo for maintaining the next-gen GraphScope.
 
+[![Neug Test](https://github.com/GraphScope/neug/actions/workflows/neug-test.yml/badge.svg)](https://github.com/GraphScope/neug/actions/workflows/neug-test.yml)
+
 # Compiler 
 Currently compiler are provided via jar. 
 

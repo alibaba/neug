@@ -27,7 +27,7 @@
 #include <charconv>
 
 #include "arrow/util/value_parsing.h"
-#include "common/configuration.h"
+#include "src/include/common/configuration.h"
 #include "src/storages/rt_mutable_graph/loader/abstract_arrow_fragment_loader.h"
 #include "src/storages/rt_mutable_graph/loader/basic_fragment_loader.h"
 #include "src/storages/rt_mutable_graph/loader/i_fragment_loader.h"

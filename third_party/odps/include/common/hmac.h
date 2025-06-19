@@ -18,7 +18,7 @@
 #define APSARA_SECURITY_HMAC_H
 
 #include <stdint.h>
-#include "common/sha1.h"
+#include "src/include/common/sha1.h"
 
 namespace apsara {
 namespace security {

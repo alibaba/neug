@@ -9,16 +9,16 @@ find_package(Python3 REQUIRED COMPONENTS Interpreter)
 file(READ hash.md5 OLDHASH)
 
 #NOTE: Commented out by zhanglei, we regenerate the grammar files every time.
-# message(STATUS " generating keywords hash...")
-# execute_process(
-#     COMMAND ${Python3_EXECUTABLE} hash.py ${ROOT_DIR}/src/compiler/src/antlr4/keywords.txt ${ROOT_DIR}/src/compiler/src/antlr4/Cypher.g4 OUTPUT_VARIABLE NEWHASH)
+message(STATUS " generating keywords hash...")
+execute_process(
+    COMMAND ${Python3_EXECUTABLE} hash.py ${ROOT_DIR}/src/compiler/antlr4/keywords.txt ${ROOT_DIR}/src/compiler/antlr4/Cypher.g4 OUTPUT_VARIABLE NEWHASH)
 
-# if("${OLDHASH}" STREQUAL "${NEWHASH}")
-#     message(INFO " Not regenerating grammar files as Cypher.g4 and keywords.txt is unchanged.")
-#     return() # Exit.
-# endif()
+if("${OLDHASH}" STREQUAL "${NEWHASH}")
+    message(INFO " Not regenerating grammar files as Cypher.g4 and keywords.txt is unchanged.")
+    return() # Exit.
+endif()
 
-# file(WRITE hash.md5 "${NEWHASH}")
+file(WRITE hash.md5 "${NEWHASH}")
 
 message(STATUS " Regenerating grammar files...")
 
@@ -35,7 +35,7 @@ file(MAKE_DIRECTORY generated)
 find_package(Java REQUIRED)
 
 # use script to generate final Cypher.g4 file and update tools/shell/include/keywords.h
-execute_process(COMMAND ${Python3_EXECUTABLE} keywordhandler.py ${ROOT_DIR}/src/compiler/src/antlr4/Cypher.g4 ${ROOT_DIR}/src/compiler/src/antlr4/keywords.txt Cypher.g4 ${ROOT_DIR}/src/compiler/tools/shell/include/keywords.h)
+execute_process(COMMAND ${Python3_EXECUTABLE} keywordhandler.py ${ROOT_DIR}/src/compiler/antlr4/Cypher.g4 ${ROOT_DIR}/src/compiler/antlr4/keywords.txt Cypher.g4 ${ROOT_DIR}/src/compiler/tools/shell/include/keywords.h)
 
 # Generate files.
 message(INFO " Generating files...")

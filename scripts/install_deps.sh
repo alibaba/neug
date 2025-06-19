@@ -148,6 +148,10 @@ init_workspace_and_env() {
   ${SUDO} chown -R $(id -u):$(id -g) ${install_prefix} ${tempdir}
   export PATH=${install_prefix}/bin:${PATH}
   export LD_LIBRARY_PATH=${LD_LIBRARY_PATH}:${install_prefix}/lib:${install_prefix}/lib64
+  #if macos
+  if [[ "${OS_PLATFORM}" == *"Darwin"* ]]; then
+    export MACOSX_DEPLOYMENT_TARGET=11.0
+  fi
 }
 
 # utils functions
@@ -200,7 +204,7 @@ install_boost() {
     return 0
   fi
   pushd "${tempdir}" || exit
-  directory="boost_1_75_0"
+  directory="boost_1_88_0"
   file="${directory}.tar.gz"
   url="https://archives.boost.io/release/1.75.0/source"
   url=$(set_to_cn_url ${url})
@@ -209,7 +213,8 @@ install_boost() {
   # seastar needs filesystem program_options thread unit_test_framework
   # interactive needs context regex date_time
   ./bootstrap.sh --prefix="${install_prefix}" \
-    --with-libraries=system,filesystem,context,program_options,regex,thread,random,chrono,atomic,date_time,test
+    --with-toolset=gcc \
+    --with-libraries=system,filesystem,context,program_options,regex,thread,random,chrono,atomic,date_time
   ./b2 install link=shared runtime-link=shared variant=release threading=multi
   popd || exit
   popd || exit
@@ -393,7 +398,8 @@ install_gflags() {
   pushd ${directory} || exit
   cmake . -DCMAKE_INSTALL_PREFIX="${install_prefix}" \
           -DCMAKE_PREFIX_PATH="${install_prefix}" \
-          -DBUILD_SHARED_LIBS=ON
+          -DBUILD_SHARED_LIBS=ON \
+          -DCMAKE_POLICY_VERSION_MINIMUM=3.5
   make -j$(nproc)
   make install
   popd || exit
@@ -414,7 +420,8 @@ install_glog() {
   pushd ${directory} || exit
   cmake . -DCMAKE_INSTALL_PREFIX="${install_prefix}" \
           -DCMAKE_PREFIX_PATH="${install_prefix}" \
-          -DBUILD_SHARED_LIBS=ON
+          -DBUILD_SHARED_LIBS=ON \
+          -DCMAKE_POLICY_VERSION_MINIMUM=3.5
   make -j$(nproc)
   make install
   popd || exit

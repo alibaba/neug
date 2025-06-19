@@ -157,7 +157,7 @@ include(GNUInstallDirs)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 include(CheckCXXSourceCompiles)
 include_directories(${CMAKE_CURRENT_SOURCE_DIR})
-include_directories(${CMAKE_CURRENT_SOURCE_DIR}/src/compiler/src/include)
+include_directories(${CMAKE_CURRENT_BINARY_DIR})
 
 # Print cc and cxx compiler
 message(STATUS "CMAKE_C_COMPILER: ${CMAKE_C_COMPILER}")

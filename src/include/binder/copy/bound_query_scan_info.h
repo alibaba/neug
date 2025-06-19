@@ -1,0 +1,17 @@
+#pragma once
+
+#include "src/include/common/case_insensitive_map.h"
+#include "src/include/common/types/value/value.h"
+namespace gs {
+namespace binder {
+
+struct BoundQueryScanSourceInfo {
+  common::case_insensitive_map_t<common::Value> options;
+
+  explicit BoundQueryScanSourceInfo(
+      common::case_insensitive_map_t<common::Value> options)
+      : options{std::move(options)} {}
+};
+
+}  // namespace binder
+}  // namespace gs

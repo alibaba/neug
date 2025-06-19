@@ -59,7 +59,7 @@ jobs:
       - name: Prepare for macos
         if: startsWith(matrix.os, 'macos')
         run: |
-          echo "MACOSX_DEPLOYMENT_TARGET=$(sw_vers -productVersion | cut -d '.' -f 1-2)" >> $GITHUB_ENV
+          echo "MACOSX_DEPLOYMENT_TARGET=11.0" >> $GITHUB_ENV
           echo "MACOSX_DEPLOYMENT_TARGET={{ env.MACOSX_DEPLOYMENT_TARGET }}"
           source ~/.graphscope_env
           echo "CMAKE_BUILD_PARALLEL_LEVEL=$(sysctl -n hw.ncpu)" >> $GITHUB_ENV

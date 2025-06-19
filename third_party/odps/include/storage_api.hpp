@@ -5,14 +5,14 @@
 #include <string>
 #include <thread>
 #include <vector>
-#include "common/configuration.h"
-#include "common/http_flags.h"
+#include "src/include/common/configuration.h"
+#include "src/include/common/http_flags.h"
 
 #define CPPHTTPLIB_SEND_FLAGS MSG_NOSIGNAL
-#include "common/log.h"
-#include "common/md5.h"
-#include "common/signer.h"
 #include "nlohmann/json.hpp"
+#include "src/include/common/log.h"
+#include "src/include/common/md5.h"
+#include "src/include/common/signer.h"
 #include "third_party/httplib.h"
 
 #define STORAGE_VERSION "1"

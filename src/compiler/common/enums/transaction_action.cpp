@@ -1,0 +1,31 @@
+#include "src/include/transaction/transaction_action.h"
+
+#include "src/include/common/assert.h"
+
+namespace gs {
+namespace transaction {
+
+std::string TransactionActionUtils::toString(TransactionAction action) {
+  switch (action) {
+  case TransactionAction::BEGIN_READ: {
+    return "BEGIN_READ";
+  }
+  case TransactionAction::BEGIN_WRITE: {
+    return "BEGIN_WRITE";
+  }
+  case TransactionAction::COMMIT: {
+    return "COMMIT";
+  }
+  case TransactionAction::ROLLBACK: {
+    return "ROLLBACK";
+  }
+  case TransactionAction::CHECKPOINT: {
+    return "CHECKPOINT";
+  }
+  default:
+    KU_UNREACHABLE;
+  }
+}
+
+}  // namespace transaction
+}  // namespace gs

@@ -7,8 +7,8 @@
 #include "arrow/io/memory.h"
 #include "arrow/ipc/api.h"
 #include "arrow/type_fwd.h"
-#include "common/log.h"
-#include "common/thread_pool.h"
+#include "src/include/common/log.h"
+#include "src/include/common/thread_pool.h"
 
 namespace apsara {
 namespace odps {

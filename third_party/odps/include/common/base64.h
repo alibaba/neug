@@ -2,8 +2,8 @@
 #define APSARA_BASE64_H
 
 #include <iostream>
-#include "common/exception.h"
-#include "common/string_piece.h"
+#include "src/include/common/exception.h"
+#include "src/include/common/string_piece.h"
 
 namespace apsara {
 class BadBase64Exception : public apsara::ExceptionBase {
@@ -283,7 +283,7 @@ inline size_t ExpectedEncodeLength(size_t len) {
 }
 
 inline size_t ExpectedDecodeLength(size_t len) {
-  return (size_t)((len + 3) / 4 * 3);
+  return (size_t) ((len + 3) / 4 * 3);
 }
 
 }  // anonymous namespace

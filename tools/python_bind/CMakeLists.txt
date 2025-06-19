@@ -13,7 +13,6 @@ if(NOT EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/../../third_party/pybind11/CMakeLists
     endif()
 endif()
 pybind11_add_module(neug_py_bind SHARED ${SOURCE_CPP})
-include_directories(${CMAKE_CURRENT_SOURCE_DIR}/../../src/compiler/src/include)
 include_directories(${CMAKE_CURRENT_BINARY_DIR}/../../src/compiler)
 
 target_link_libraries(neug_py_bind PRIVATE neug_utils neug_main neug_graph_db)

@@ -11,7 +11,7 @@
 #include <algorithm>
 #include <cstdint>
 
-#include "common/enums/extend_direction.h"
+#include "src/include/common/enums/extend_direction.h"
 
 #define BOTH_REL_STORAGE 0
 #define FWD_REL_STORAGE 1

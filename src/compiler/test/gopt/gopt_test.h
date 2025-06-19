@@ -12,22 +12,22 @@
 #include <ranges>
 #include <string>
 #include <vector>
-#include "gopt/g_alias_manager.h"
-#include "gopt/g_catalog.h"
-#include "gopt/g_constants.h"
-#include "gopt/g_database.h"
-#include "gopt/g_node_table.h"
-#include "gopt/g_physical_convertor.h"
-#include "gopt/g_storage_manager.h"
-#include "main/client_context.h"
-#include "main/database.h"
-#include "optimizer/expand_getv_fusion.h"
-#include "optimizer/filter_push_down_pattern.h"
-#include "planner/operator/logical_plan_util.h"
+#include "src/include/gopt/g_alias_manager.h"
+#include "src/include/gopt/g_catalog.h"
+#include "src/include/gopt/g_constants.h"
+#include "src/include/gopt/g_database.h"
+#include "src/include/gopt/g_node_table.h"
+#include "src/include/gopt/g_physical_convertor.h"
+#include "src/include/gopt/g_storage_manager.h"
+#include "src/include/main/client_context.h"
+#include "src/include/main/database.h"
+#include "src/include/optimizer/expand_getv_fusion.h"
+#include "src/include/optimizer/filter_push_down_pattern.h"
+#include "src/include/planner/operator/logical_plan_util.h"
+#include "src/include/storage/buffer_manager/memory_manager.h"
+#include "src/include/storage/wal/wal.h"
+#include "src/include/transaction/transaction.h"
 #include "src/planner/gopt_planner.h"
-#include "storage/buffer_manager/memory_manager.h"
-#include "storage/wal/wal.h"
-#include "transaction/transaction.h"
 
 namespace gs {
 namespace gopt {

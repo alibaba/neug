@@ -9,7 +9,7 @@
 #include <thread>
 #include <vector>
 
-#include "common/log.h"
+#include "src/include/common/log.h"
 
 #define DURATION(start, end) \
   ((end.tv_sec - start.tv_sec) * 1000000000 + (end.tv_nsec - start.tv_nsec))

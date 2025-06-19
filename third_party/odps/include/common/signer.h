@@ -2,11 +2,11 @@
 
 #include <map>
 #include <sstream>
-#include "common/base64.h"
-#include "common/configuration.h"
-#include "common/hmac.h"
-#include "common/http_flags.h"
-#include "common/string_tools.h"
+#include "src/include/common/base64.h"
+#include "src/include/common/configuration.h"
+#include "src/include/common/hmac.h"
+#include "src/include/common/http_flags.h"
+#include "src/include/common/string_tools.h"
 #include "third_party/httplib.h"
 
 using namespace apsara;

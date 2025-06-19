@@ -1,0 +1,30 @@
+#pragma once
+
+#include "src/include/common/enums/delete_type.h"
+#include "src/include/parser/expression/parsed_expression.h"
+#include "updating_clause.h"
+
+namespace gs {
+namespace parser {
+
+class DeleteClause final : public UpdatingClause {
+ public:
+  explicit DeleteClause(common::DeleteNodeType deleteType)
+      : UpdatingClause{common::ClauseType::DELETE_}, deleteType{deleteType} {};
+
+  void addExpression(std::unique_ptr<ParsedExpression> expression) {
+    expressions.push_back(std::move(expression));
+  }
+  common::DeleteNodeType getDeleteClauseType() const { return deleteType; }
+  uint32_t getNumExpressions() const { return expressions.size(); }
+  ParsedExpression* getExpression(uint32_t idx) const {
+    return expressions[idx].get();
+  }
+
+ private:
+  common::DeleteNodeType deleteType;
+  parsed_expr_vector expressions;
+};
+
+}  // namespace parser
+}  // namespace gs
