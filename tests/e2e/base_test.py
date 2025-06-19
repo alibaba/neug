@@ -16,7 +16,8 @@
 # limitations under the License.
 #
 
-from utils.utils import Query, validate_result
+from utils.utils import Query
+from utils.utils import validate_result
 
 
 class BaseTest:

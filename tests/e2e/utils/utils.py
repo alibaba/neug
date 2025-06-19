@@ -36,7 +36,10 @@ class Query:
         self.check_order = check_order
 
     def __repr__(self):
-        return f"Query(name={self.name}, query={self.query}, expected_result={self.expected_result}, check_order={self.check_order})"
+        return (
+            f"Query(name={self.name}, query={self.query}, "
+            f"expected_result={self.expected_result}, check_order={self.check_order})"
+        )
 
 
 def collect_test_files(root_dir):
@@ -71,19 +74,10 @@ def collect_tests_from_files(test_files, dataset=None):
 
 
 def parse_test_file(file_path, file_type=FileType.TEST, dataset=None):
-    DATASET = "-DATASET"
-    # SKIP is used to mark the cases that we want to skip, usually because they are failed but will be fixed later.
-    SKIP = "-SKIP"
-    # UNSUPPORTED marks the cases that we won't support yet.
-    UNSUPPORTED = "-UNSUPPORTED"
-    CHECK_ORDER = "-CHECK_ORDER"
-    RESULT_PREFIX = "----"
     if file_type == FileType.TEST:
-        NAME = "-LOG"
-        STATEMENT = "-STATEMENT"
+        NAME, STATEMENT = "-LOG", "-STATEMENT"
     elif file_type == FileType.BENCHMARK:
-        NAME = "-NAME"
-        STATEMENT = "-QUERY"
+        NAME, STATEMENT = "-NAME", "-QUERY"
     else:
         raise ValueError(f"Unsupported file type: {file_type}")
 
@@ -92,50 +86,53 @@ def parse_test_file(file_path, file_type=FileType.TEST, dataset=None):
 
     tests = []
     current_dataset = None
-    current_test_name = None
-    current_query = None
-    expected_result = []
-    check_order = False
-    skip = False
-    query_lines = []
-    within_statement = False
 
     for line in lines:
         line = line.strip()
-
-        if line.startswith((NAME, CHECK_ORDER, RESULT_PREFIX)):
-            if within_statement and query_lines:
-                current_query = " ".join(query_lines)
-                within_statement = False
-                query_lines.clear()
-
-        if line.startswith(DATASET):
+        if line.startswith("-DATASET"):
             current_dataset = line.split()[2]
             if dataset and current_dataset != dataset:
                 print(f"Skip dataset: {current_dataset}")
                 return []
         elif line.startswith(NAME):
-            current_test_name = line.split()[1]
-            check_order = False
-            skip = False
-        elif line.startswith(STATEMENT):
+            test = parse_single_test(lines, line, NAME, STATEMENT)
+            if test:
+                tests.append(test)
+
+    return tests
+
+
+def parse_single_test(lines, name_line, NAME, STATEMENT):
+    CHECK_ORDER, RESULT_PREFIX, SKIP, UNSUPPORTED = (
+        "-CHECK_ORDER",
+        "----",
+        "-SKIP",
+        "-UNSUPPORTED",
+    )
+    check_order, skip, expected_result = False, False, []
+    current_test_name = name_line.split()[1]
+    query_lines, within_statement = [], False
+
+    for line in lines:
+        line = line.strip()
+        if line.startswith((NAME, CHECK_ORDER, RESULT_PREFIX)) and within_statement:
+            current_query = " ".join(query_lines)
+            within_statement = False
+            query_lines.clear()
+
+        if line.startswith(STATEMENT):
             within_statement = True
             query_lines = [line[len(STATEMENT) :].strip()]
         elif line.startswith(CHECK_ORDER):
             check_order = True
         elif line.startswith(SKIP) or line.startswith(UNSUPPORTED):
-            # If the test is marked as SKIP or UNSUPPORTED, we skip it
             skip = True
         elif line.startswith(RESULT_PREFIX):
             n = line.split()[1]
             if not n.isdigit():
-                # TODO: process expected results such as "ok" or "error", which usually for ddl/dml statements
-                # currently, we just skip them
                 print(f"Skip invalid result line: {line}")
                 continue
             n = int(n)
-            # Sometimes, the expected result is not available, so we need to handle it
-            expected_result = []
             try:
                 if n > 0:
                     expected_result = [next(lines).strip().split("|") for _ in range(n)]
@@ -146,21 +143,18 @@ def parse_test_file(file_path, file_type=FileType.TEST, dataset=None):
                 print(
                     f"Skipping test: {current_test_name} due to skip or unsupported flag."
                 )
-                continue
-            else:
-                tests.append(
-                    Query(
-                        name=current_test_name,
-                        query=current_query,
-                        expected_result=expected_result,
-                        check_order=check_order,
-                    )
-                )
+                return None
+            return Query(
+                name=current_test_name,
+                query=current_query,
+                expected_result=expected_result,
+                check_order=check_order,
+            )
         else:
             if within_statement:
                 query_lines.append(line)
 
-    return tests
+    return None
 
 
 def parse_cypher_file(file_path):
@@ -293,4 +287,7 @@ def validate_result(query_name, result, expected_result, check_order):
     else:
         assert set(tuple(r) for r in result) == set(
             tuple(r) for r in expected_result
-        ), f"Query {query_name} failed: Expected {set(tuple(r) for r in expected_result)}, but got {set(tuple(r) for r in result)}"
+        ), (
+            f"Query {query_name} failed: Expected {set(tuple(r) for r in expected_result)},"
+            f"but got {set(tuple(r) for r in result)}"
+        )

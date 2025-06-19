@@ -21,7 +21,8 @@ import re
 import pytest
 
 from utils.cypher_client import CypherClient
-from utils.utils import collect_test_files, collect_tests_from_files
+from utils.utils import collect_test_files
+from utils.utils import collect_tests_from_files
 
 
 def pytest_addoption(parser):

@@ -139,5 +139,6 @@ jobs:
         pushd ${GITHUB_WORKSPACE}/tests/e2e
         python3 -m isort --check --diff .
         python3 -m black --check --diff .
+        python3 -m flake8 .
         popd
         
