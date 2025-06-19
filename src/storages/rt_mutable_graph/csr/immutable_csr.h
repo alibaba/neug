@@ -435,6 +435,11 @@ class ImmutableCsr<RecordView> : public TypedImmutableCsrBase<RecordView> {
     csr_.batch_put_edge(src, dst, data, ts);
   }
 
+  void batch_append_edge_with_index(vid_t src, vid_t dst, size_t data,
+                                    timestamp_t ts = 0) override {
+    csr_.batch_put_edge(src, dst, data, ts);
+  }
+
   void open(const std::string& name, const std::string& snapshot_dir,
             const std::string& work_dir) override {
     csr_.open(name, snapshot_dir, work_dir);
@@ -800,6 +805,11 @@ class SingleImmutableCsr<RecordView>
 
   void batch_put_edge_with_index(vid_t src, vid_t dst, size_t data,
                                  timestamp_t ts) override {
+    csr_.batch_put_edge(src, dst, data, ts);
+  }
+
+  void batch_append_edge_with_index(vid_t src, vid_t dst, size_t data,
+                                    timestamp_t ts) override {
     csr_.batch_put_edge(src, dst, data, ts);
   }
 

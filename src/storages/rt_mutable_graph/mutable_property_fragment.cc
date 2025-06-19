@@ -295,6 +295,7 @@ Status MutablePropertyFragment::create_edge_type(
       snapshot_dir(work_dir_, 0), src_v_capacity, dst_v_capacity);
 
   dual_csr->Resize(src_v_capacity, dst_v_capacity);
+  init_state_.emplace(index, false);
 
   DumpSchema(schema_path(work_dir_));
   dumpSchema();

@@ -240,6 +240,11 @@ class DualCsr : public DualCsrBase {
     out_csr_->batch_put_edge(src, dst, data);
   }
 
+  void BatchAppendEdge(vid_t src, vid_t dst, const EDATA_T& data) {
+    in_csr_->batch_put_edge(dst, src, data);
+    out_csr_->batch_put_edge(src, dst, data);
+  }
+
   void Close() override {
     in_csr_->close();
     out_csr_->close();
@@ -417,6 +422,21 @@ class DualCsr<std::string_view> : public DualCsrBase {
   }
 
   void BatchPutEdge(vid_t src, vid_t dst, const std::string& data) {
+    size_t row_id = column_idx_.fetch_add(1);
+    column_.set_value(row_id, data);
+
+    in_csr_->batch_put_edge_with_index(dst, src, row_id);
+    out_csr_->batch_put_edge_with_index(src, dst, row_id);
+  }
+
+  void BatchAppendEdge(vid_t src, vid_t dst, const std::string_view& data) {
+    size_t row_id = column_idx_.fetch_add(1);
+    column_.set_value(row_id, data);
+    in_csr_->batch_put_edge_with_index(dst, src, row_id);
+    out_csr_->batch_put_edge_with_index(src, dst, row_id);
+  }
+
+  void BatchAppendEdge(vid_t src, vid_t dst, const std::string& data) {
     size_t row_id = column_idx_.fetch_add(1);
     column_.set_value(row_id, data);
 
@@ -666,6 +686,11 @@ class DualCsr<RecordView> : public DualCsrBase {
   void SetOutCsr() {}
 
   void BatchPutEdge(vid_t src, vid_t dst, size_t row_id) {
+    in_csr_->batch_put_edge_with_index(dst, src, row_id);
+    out_csr_->batch_put_edge_with_index(src, dst, row_id);
+  }
+
+  void BatchAppendEdge(vid_t src, vid_t dst, size_t row_id) {
     in_csr_->batch_put_edge_with_index(dst, src, row_id);
     out_csr_->batch_put_edge_with_index(src, dst, row_id);
   }

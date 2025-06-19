@@ -60,7 +60,12 @@ class TestBachLoading(unittest.TestCase):
         if not flex_data_dir:
             raise Exception("FLEX_DATA_DIR is not set")
         person_csv = os.path.join(flex_data_dir, "person.csv")
-        person_knows_person_csv = os.path.join(flex_data_dir, "person_knows_person.csv")
+        person_knows_person_csv_part1 = os.path.join(
+            flex_data_dir, "person_knows_person.csv.part1"
+        )
+        person_knows_person_csv_part2 = os.path.join(
+            flex_data_dir, "person_knows_person.csv.part2"
+        )
 
         db = Database(db_dir, "w", 0, "gopt", "", "")
         conn = db.connect()
@@ -74,7 +79,10 @@ class TestBachLoading(unittest.TestCase):
         conn.execute(f'COPY person from "{person_csv}"')
         # TODO(zhanglei,xiaoli): support specifying the starting/ending label name
         conn.execute(
-            f'COPY knows from "{person_knows_person_csv}" (from="person", to="person")'
+            f'COPY knows from "{person_knows_person_csv_part1}" (from="person", to="person")'
+        )
+        conn.execute(
+            f'COPY knows from "{person_knows_person_csv_part2}" (from="person", to="person")'
         )
 
         # Then run a query

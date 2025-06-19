@@ -398,11 +398,13 @@ class MutablePropertyFragment {
     queue.SetProducerNum(record_batch_supplier_vec.size());
 
     if constexpr (std::is_same<EDATA_T, RecordView>::value) {
-      auto casted_csr =
-          dynamic_cast<DualCsr<RecordView>*>(dual_csr_map_.at(index));
-      casted_csr->InitTable(
-          edata_prefix(src_vertex_type, dst_vertex_type, edge_type_name),
-          tmp_dir(work_dir_));
+      if (!init_state_.at(index)) {
+        auto casted_csr =
+            dynamic_cast<DualCsr<RecordView>*>(dual_csr_map_.at(index));
+        casted_csr->InitTable(
+            edata_prefix(src_vertex_type, dst_vertex_type, edge_type_name),
+            tmp_dir(work_dir_));
+      }
     }
 
     const auto& src_indexer = lf_indexers_[src_v_label];
@@ -599,9 +601,6 @@ class MutablePropertyFragment {
       oe_deg[idx] = oe_degree[idx];
     }
 
-    // basic_fragment_loader_.PutEdges<EDATA_T, VECTOR_T>(
-    //     src_label_id, dst_label_id, e_label_id, parsed_edges_vec, ie_deg,
-    //     oe_deg, build_csr_in_mem_);
     LOG(INFO) << "Init csr for " << src_vertex_type << " " << edge_type_name
               << " " << dst_vertex_type << ", index is " << index;
     auto dual_csr = dual_csr_map_.at(index);
@@ -610,11 +609,54 @@ class MutablePropertyFragment {
         BasicFragmentLoader::get_casted_dual_csr<EDATA_T>(dual_csr);
     auto INVALID_VID = std::numeric_limits<vid_t>::max();
     std::atomic<size_t> edge_count(0);
-    dual_csr->BatchInit(
-        oe_prefix(src_vertex_type, dst_vertex_type, edge_type_name),
-        ie_prefix(src_vertex_type, dst_vertex_type, edge_type_name),
-        edata_prefix(src_vertex_type, dst_vertex_type, edge_type_name),
-        tmp_dir(work_dir_), oe_deg, ie_deg);
+    if (!init_state_.at(index)) {
+      dual_csr->BatchInit(
+          oe_prefix(src_vertex_type, dst_vertex_type, edge_type_name),
+          ie_prefix(src_vertex_type, dst_vertex_type, edge_type_name),
+          edata_prefix(src_vertex_type, dst_vertex_type, edge_type_name),
+          tmp_dir(work_dir_), oe_deg, ie_deg);
+      init_state_[index] = true;
+    } else {
+      TypedMutableCsrBase<EDATA_T>* in_csr =
+          dynamic_cast<TypedMutableCsrBase<EDATA_T>*>(ie_map_.at(index));
+      TypedMutableCsrBase<EDATA_T>* out_csr =
+          dynamic_cast<TypedMutableCsrBase<EDATA_T>*>(oe_map_.at(index));
+      std::vector<int> cur_in_deg = in_csr->get_degree();
+      std::vector<int> cur_out_deg = out_csr->get_degree();
+      std::vector<int> cur_in_cap = in_csr->get_capacity();
+      std::vector<int> cur_out_cap = out_csr->get_capacity();
+      CHECK_EQ(ie_deg.size(), cur_in_deg.size());
+      CHECK_EQ(oe_deg.size(), cur_out_deg.size());
+      bool need_in_resize = false;
+      bool need_out_resize = false;
+      for (size_t i = 0; i < ie_deg.size(); i++) {
+        if (ie_deg[i] > cur_in_cap[i] - cur_in_cap[i]) {
+          need_in_resize = true;
+          break;
+        }
+      }
+
+      for (size_t i = 0; i < oe_deg.size(); i++) {
+        if (oe_deg[i] > cur_out_cap[i] - cur_out_deg[i]) {
+          need_out_resize = true;
+          break;
+        }
+      }
+      if (need_in_resize) {
+        for (size_t i = 0; i < ie_deg.size(); i++) {
+          ie_deg[i] += cur_in_deg[i];
+        }
+        in_csr->batch_resize(ie_deg);
+      }
+
+      if (need_out_resize) {
+        for (size_t i = 0; i < oe_deg.size(); i++) {
+          oe_deg[i] += cur_out_deg[i];
+        }
+        out_csr->batch_resize(oe_deg);
+      }
+    }
+
     if constexpr (std::is_same_v<EDATA_T, std::string_view>) {
       std::vector<std::thread> edge_threads;
       for (size_t i = 0; i < parsed_edges_vec.size(); ++i) {
@@ -827,6 +869,7 @@ class MutablePropertyFragment {
 
   std::unordered_map<uint32_t, CsrBase*> ie_map_, oe_map_;
   std::unordered_map<uint32_t, DualCsrBase*> dual_csr_map_;
+  std::unordered_map<uint32_t, bool> init_state_;
 
   size_t vertex_label_num_, edge_label_num_;
 };

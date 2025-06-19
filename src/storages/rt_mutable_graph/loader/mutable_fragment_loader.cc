@@ -207,200 +207,216 @@ void MutableFragmentLoader::createEdges() {
 
 void MutableFragmentLoader::loadVertices() {
   label_t vertex_label_num = schema_.vertex_label_num();
+  std::vector<std::thread> work_threads;
   for (label_t v_label_id = 0; v_label_id < vertex_label_num; v_label_id++) {
-    std::vector<std::string> v_files =
-        loading_config_.GetVertexLoadingMeta().at(v_label_id);
-    for (auto v_file : v_files) {
-      arrow::csv::ConvertOptions convert_options;
-      arrow::csv::ReadOptions read_options;
-      arrow::csv::ParseOptions parse_options;
-      convert_options.timestamp_parsers.emplace_back(
-          std::make_shared<LDBCTimeStampParser>());
-      convert_options.timestamp_parsers.emplace_back(
-          std::make_shared<LDBCLongDateParser>());
-      convert_options.timestamp_parsers.emplace_back(
-          arrow::TimestampParser::MakeISO8601());
-      put_boolean_option(convert_options);
-      parse_options.delimiter = loading_config_.GetDelimiter()[0];
-      bool header_row = loading_config_.GetHasHeaderRow();
-      if (header_row) {
-        read_options.skip_rows = 1;
-      } else {
-        read_options.skip_rows = 0;
-      }
-      if (loading_config_.GetIsEscaping()) {
-        parse_options.escaping = true;
-        parse_options.escape_char = loading_config_.GetEscapeChar();
-      } else {
-        parse_options.escaping = false;
-      }
-      if (loading_config_.GetIsQuoting()) {
-        parse_options.quoting = true;
-        parse_options.quote_char = loading_config_.GetQuotingChar();
-      } else {
-        parse_options.quoting = false;
-      }
-      read_options.block_size = loading_config_.GetBatchSize();
-      for (auto& null_value : loading_config_.GetNullValues()) {
-        convert_options.null_values.emplace_back(null_value);
-      }
-
-      std::vector<std::string> all_column_names;
-      auto property_names = schema_.get_vertex_property_names(v_label_id);
-      put_column_names_option(loading_config_, header_row, v_file,
-                              parse_options.delimiter, read_options,
-                              property_names.size() + 1);
-
-      std::vector<std::string> included_col_names;
-      std::vector<std::string> mapped_property_names;
-      auto cur_label_col_mapping =
-          loading_config_.GetVertexColumnMappings(v_label_id);
-      auto primary_keys = schema_.get_vertex_primary_key(v_label_id);
-      CHECK(primary_keys.size() == 1);
-      auto primary_key = primary_keys[0];
-      if (cur_label_col_mapping.size() == 0) {
-        // use default mapping, we assume the order of the columns in the
-        // file is the same as the order of the properties in the schema,
-        // except for primary key.
-        auto primary_key_name = std::get<1>(primary_key);
-        auto primary_key_ind = std::get<2>(primary_key);
-        auto property_names = schema_.get_vertex_property_names(v_label_id);
-        // for example, schema is : (name,age)
-        // file header is (id,name,age), the primary key is id.
-        // so, the mapped_property_names are: (id,name,age)
-        CHECK(property_names.size() + 1 == read_options.column_names.size())
-            << " size in schema: " << property_names.size()
-            << ", size in file: " << read_options.column_names.size() << ","
-            << gs::to_string(property_names)
-            << ", read options: " << gs::to_string(read_options.column_names);
-        // insert primary_key to property_names
-        property_names.insert(property_names.begin() + primary_key_ind,
-                              primary_key_name);
-
-        for (size_t i = 0; i < read_options.column_names.size(); ++i) {
-          included_col_names.emplace_back(read_options.column_names[i]);
-          // We assume the order of the columns in the file is the same as
-          // the order of the properties in the schema, except for primary
-          // key.
-          mapped_property_names.emplace_back(property_names[i]);
-        }
-      } else {
-        for (size_t i = 0; i < cur_label_col_mapping.size(); ++i) {
-          auto& [col_id, col_name, property_name] = cur_label_col_mapping[i];
-          if (col_name.empty()) {
-            if (col_id >= read_options.column_names.size() || col_id < 0) {
-              LOG(FATAL) << "The specified column index: " << col_id
-                         << " is out of range, please check your configuration";
+    work_threads.emplace_back(
+        [&](int label) {
+          std::vector<std::string> v_files =
+              loading_config_.GetVertexLoadingMeta().at(label);
+          for (auto v_file : v_files) {
+            arrow::csv::ConvertOptions convert_options;
+            arrow::csv::ReadOptions read_options;
+            arrow::csv::ParseOptions parse_options;
+            convert_options.timestamp_parsers.emplace_back(
+                std::make_shared<LDBCTimeStampParser>());
+            convert_options.timestamp_parsers.emplace_back(
+                std::make_shared<LDBCLongDateParser>());
+            convert_options.timestamp_parsers.emplace_back(
+                arrow::TimestampParser::MakeISO8601());
+            put_boolean_option(convert_options);
+            parse_options.delimiter = loading_config_.GetDelimiter()[0];
+            bool header_row = loading_config_.GetHasHeaderRow();
+            if (header_row) {
+              read_options.skip_rows = 1;
+            } else {
+              read_options.skip_rows = 0;
             }
-            col_name = read_options.column_names[col_id];
-          }
-          // check whether index match to the name if col_id is valid
-          if (col_id >= 0 && col_id < read_options.column_names.size()) {
-            if (col_name != read_options.column_names[col_id]) {
-              LOG(FATAL) << "The specified column name: " << col_name
-                         << " does not match the column name in the file: "
-                         << read_options.column_names[col_id];
+            if (loading_config_.GetIsEscaping()) {
+              parse_options.escaping = true;
+              parse_options.escape_char = loading_config_.GetEscapeChar();
+            } else {
+              parse_options.escaping = false;
+            }
+            if (loading_config_.GetIsQuoting()) {
+              parse_options.quoting = true;
+              parse_options.quote_char = loading_config_.GetQuotingChar();
+            } else {
+              parse_options.quoting = false;
+            }
+            read_options.block_size = loading_config_.GetBatchSize();
+            for (auto& null_value : loading_config_.GetNullValues()) {
+              convert_options.null_values.emplace_back(null_value);
+            }
+
+            std::vector<std::string> all_column_names;
+            auto property_names = schema_.get_vertex_property_names(label);
+            put_column_names_option(loading_config_, header_row, v_file,
+                                    parse_options.delimiter, read_options,
+                                    property_names.size() + 1);
+
+            std::vector<std::string> included_col_names;
+            std::vector<std::string> mapped_property_names;
+            auto cur_label_col_mapping =
+                loading_config_.GetVertexColumnMappings(label);
+            auto primary_keys = schema_.get_vertex_primary_key(label);
+            CHECK(primary_keys.size() == 1);
+            auto primary_key = primary_keys[0];
+            if (cur_label_col_mapping.size() == 0) {
+              // use default mapping, we assume the order of the columns in the
+              // file is the same as the order of the properties in the schema,
+              // except for primary key.
+              auto primary_key_name = std::get<1>(primary_key);
+              auto primary_key_ind = std::get<2>(primary_key);
+              auto property_names = schema_.get_vertex_property_names(label);
+              // for example, schema is : (name,age)
+              // file header is (id,name,age), the primary key is id.
+              // so, the mapped_property_names are: (id,name,age)
+              CHECK(property_names.size() + 1 ==
+                    read_options.column_names.size())
+                  << " size in schema: " << property_names.size()
+                  << ", size in file: " << read_options.column_names.size()
+                  << "," << gs::to_string(property_names) << ", read options: "
+                  << gs::to_string(read_options.column_names);
+              // insert primary_key to property_names
+              property_names.insert(property_names.begin() + primary_key_ind,
+                                    primary_key_name);
+
+              for (size_t i = 0; i < read_options.column_names.size(); ++i) {
+                included_col_names.emplace_back(read_options.column_names[i]);
+                // We assume the order of the columns in the file is the same as
+                // the order of the properties in the schema, except for primary
+                // key.
+                mapped_property_names.emplace_back(property_names[i]);
+              }
+            } else {
+              for (size_t i = 0; i < cur_label_col_mapping.size(); ++i) {
+                auto& [col_id, col_name, property_name] =
+                    cur_label_col_mapping[i];
+                if (col_name.empty()) {
+                  if (col_id >= read_options.column_names.size() ||
+                      col_id < 0) {
+                    LOG(FATAL)
+                        << "The specified column index: " << col_id
+                        << " is out of range, please check your configuration";
+                  }
+                  col_name = read_options.column_names[col_id];
+                }
+                // check whether index match to the name if col_id is valid
+                if (col_id >= 0 && col_id < read_options.column_names.size()) {
+                  if (col_name != read_options.column_names[col_id]) {
+                    LOG(FATAL)
+                        << "The specified column name: " << col_name
+                        << " does not match the column name in the file: "
+                        << read_options.column_names[col_id];
+                  }
+                }
+                included_col_names.emplace_back(col_name);
+                mapped_property_names.emplace_back(property_name);
+              }
+            }
+
+            VLOG(10) << "Include columns: " << included_col_names.size();
+            // if empty, then means need all columns
+            convert_options.include_columns = included_col_names;
+
+            // put column_types, col_name : col_type
+            std::unordered_map<std::string, std::shared_ptr<arrow::DataType>>
+                arrow_types;
+            {
+              auto property_types = schema_.get_vertex_properties(label);
+              auto property_names = schema_.get_vertex_property_names(label);
+              CHECK(property_types.size() == property_names.size());
+
+              for (size_t i = 0; i < property_types.size(); ++i) {
+                // for each schema' property name, get the index of the column
+                // in vertex_column mapping, and bind the type with the column
+                // name
+                auto property_type = property_types[i];
+                auto property_name = property_names[i];
+                size_t ind = mapped_property_names.size();
+                for (size_t i = 0; i < mapped_property_names.size(); ++i) {
+                  if (mapped_property_names[i] == property_name) {
+                    ind = i;
+                    break;
+                  }
+                }
+                if (ind == mapped_property_names.size()) {
+                  LOG(FATAL)
+                      << "The specified property name: " << property_name
+                      << " does not exist in the vertex column mapping for "
+                         "vertex label: "
+                      << schema_.get_vertex_label_name(label)
+                      << " please "
+                         "check your configuration";
+                }
+                VLOG(10) << "vertex_label: "
+                         << schema_.get_vertex_label_name(label)
+                         << " property_name: " << property_name
+                         << " property_type: " << property_type
+                         << " ind: " << ind;
+                arrow_types.insert({included_col_names[ind],
+                                    PropertyTypeToArrowType(property_type)});
+              }
+              {
+                // add primary key types;
+                auto primary_key_name = std::get<1>(primary_key);
+                auto primary_key_type = std::get<0>(primary_key);
+                size_t ind = mapped_property_names.size();
+                for (size_t i = 0; i < mapped_property_names.size(); ++i) {
+                  if (mapped_property_names[i] == primary_key_name) {
+                    ind = i;
+                    break;
+                  }
+                }
+                if (ind == mapped_property_names.size()) {
+                  LOG(FATAL)
+                      << "The specified property name: " << primary_key_name
+                      << " does not exist in the vertex column mapping, please "
+                         "check your configuration";
+                }
+                arrow_types.insert({included_col_names[ind],
+                                    PropertyTypeToArrowType(primary_key_type)});
+              }
+
+              convert_options.column_types = arrow_types;
+
+              std::vector<std::shared_ptr<IRecordBatchSupplier>> suppliers;
+              if (loading_config_.GetIsBatchReader()) {
+                auto res = std::make_shared<CSVStreamRecordBatchSupplier>(
+                    v_file, convert_options, read_options, parse_options);
+                suppliers.emplace_back(
+                    std::dynamic_pointer_cast<IRecordBatchSupplier>(res));
+              } else {
+                auto res = std::make_shared<CSVTableRecordBatchSupplier>(
+                    v_file, convert_options, read_options, parse_options);
+                suppliers.emplace_back(
+                    std::dynamic_pointer_cast<IRecordBatchSupplier>(res));
+              }
+              auto primary_type =
+                  std::get<0>(schema_.get_vertex_primary_key(label)[0]);
+              if (primary_type == PropertyType::kInt32) {
+                graph_.batch_load_vertices<int32_t>(label, suppliers);
+              } else if (primary_type == PropertyType::kInt64) {
+                graph_.batch_load_vertices<int64_t>(label, suppliers);
+              } else if (primary_type == PropertyType::kUInt32) {
+                graph_.batch_load_vertices<uint32_t>(label, suppliers);
+              } else if (primary_type == PropertyType::kUInt64) {
+                graph_.batch_load_vertices<uint64_t>(label, suppliers);
+              } else if (primary_type.type_enum ==
+                             impl::PropertyTypeImpl::kVarChar ||
+                         primary_type.type_enum ==
+                             impl::PropertyTypeImpl::kStringView) {
+                graph_.batch_load_vertices<std::string_view>(label, suppliers);
+              } else {
+                LOG(FATAL) << "Unsupported primary type";
+              }
             }
           }
-          included_col_names.emplace_back(col_name);
-          mapped_property_names.emplace_back(property_name);
-        }
-      }
-
-      VLOG(10) << "Include columns: " << included_col_names.size();
-      // if empty, then means need all columns
-      convert_options.include_columns = included_col_names;
-
-      // put column_types, col_name : col_type
-      std::unordered_map<std::string, std::shared_ptr<arrow::DataType>>
-          arrow_types;
-      {
-        auto property_types = schema_.get_vertex_properties(v_label_id);
-        auto property_names = schema_.get_vertex_property_names(v_label_id);
-        CHECK(property_types.size() == property_names.size());
-
-        for (size_t i = 0; i < property_types.size(); ++i) {
-          // for each schema' property name, get the index of the column
-          // in vertex_column mapping, and bind the type with the column
-          // name
-          auto property_type = property_types[i];
-          auto property_name = property_names[i];
-          size_t ind = mapped_property_names.size();
-          for (size_t i = 0; i < mapped_property_names.size(); ++i) {
-            if (mapped_property_names[i] == property_name) {
-              ind = i;
-              break;
-            }
-          }
-          if (ind == mapped_property_names.size()) {
-            LOG(FATAL) << "The specified property name: " << property_name
-                       << " does not exist in the vertex column mapping for "
-                          "vertex label: "
-                       << schema_.get_vertex_label_name(v_label_id)
-                       << " please "
-                          "check your configuration";
-          }
-          VLOG(10) << "vertex_label: "
-                   << schema_.get_vertex_label_name(v_label_id)
-                   << " property_name: " << property_name
-                   << " property_type: " << property_type << " ind: " << ind;
-          arrow_types.insert({included_col_names[ind],
-                              PropertyTypeToArrowType(property_type)});
-        }
-        {
-          // add primary key types;
-          auto primary_key_name = std::get<1>(primary_key);
-          auto primary_key_type = std::get<0>(primary_key);
-          size_t ind = mapped_property_names.size();
-          for (size_t i = 0; i < mapped_property_names.size(); ++i) {
-            if (mapped_property_names[i] == primary_key_name) {
-              ind = i;
-              break;
-            }
-          }
-          if (ind == mapped_property_names.size()) {
-            LOG(FATAL)
-                << "The specified property name: " << primary_key_name
-                << " does not exist in the vertex column mapping, please "
-                   "check your configuration";
-          }
-          arrow_types.insert({included_col_names[ind],
-                              PropertyTypeToArrowType(primary_key_type)});
-        }
-
-        convert_options.column_types = arrow_types;
-
-        std::vector<std::shared_ptr<IRecordBatchSupplier>> suppliers;
-        if (loading_config_.GetIsBatchReader()) {
-          auto res = std::make_shared<CSVStreamRecordBatchSupplier>(
-              v_file, convert_options, read_options, parse_options);
-          suppliers.emplace_back(
-              std::dynamic_pointer_cast<IRecordBatchSupplier>(res));
-        } else {
-          auto res = std::make_shared<CSVTableRecordBatchSupplier>(
-              v_file, convert_options, read_options, parse_options);
-          suppliers.emplace_back(
-              std::dynamic_pointer_cast<IRecordBatchSupplier>(res));
-        }
-        auto primary_type =
-            std::get<0>(schema_.get_vertex_primary_key(v_label_id)[0]);
-        if (primary_type == PropertyType::kInt32) {
-          graph_.batch_load_vertices<int32_t>(v_label_id, suppliers);
-        } else if (primary_type == PropertyType::kInt64) {
-          graph_.batch_load_vertices<int64_t>(v_label_id, suppliers);
-        } else if (primary_type == PropertyType::kUInt32) {
-          graph_.batch_load_vertices<uint32_t>(v_label_id, suppliers);
-        } else if (primary_type == PropertyType::kUInt64) {
-          graph_.batch_load_vertices<uint64_t>(v_label_id, suppliers);
-        } else if (primary_type.type_enum == impl::PropertyTypeImpl::kVarChar ||
-                   primary_type.type_enum ==
-                       impl::PropertyTypeImpl::kStringView) {
-          graph_.batch_load_vertices<std::string_view>(v_label_id, suppliers);
-        } else {
-          LOG(FATAL) << "Unsupported primary type";
-        }
-      }
-    }
+        },
+        v_label_id);
+  }
+  for (auto& t : work_threads) {
+    t.join();
   }
 }
 

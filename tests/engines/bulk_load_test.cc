@@ -266,8 +266,8 @@ void testLoadEdgeBatch(MutablePropertyFragment& graph,
   std::vector<std::shared_ptr<IRecordBatchSupplier>> suppliers;
   suppliers.emplace_back(
       std::dynamic_pointer_cast<IRecordBatchSupplier>(supplier));
-  graph.batch_load_edges<int32_t, int32_t, RecordView,
-                         std::vector<std::tuple<vid_t, vid_t, size_t>>>(
+  graph.batch_load_edges<int32_t, int32_t, float,
+                         std::vector<std::tuple<vid_t, vid_t, float>>>(
       src_label_id, dst_label_id, e_label_id, suppliers);
 }
 
@@ -410,10 +410,23 @@ void testOpenEmptyGraph(const std::string& graph_dir,
 
   // Insert edges for PERSON-KNOWS->PERSON
   {
+    LOG(INFO) << "Insert edges for PERSON-KNOWS->PERSON";
     std::string src_vertex_type = "PERSON";
     std::string dst_vertex_type = "PERSON";
     std::string edge_type_name = "KNOWS";
-    std::string efile = data_dir + "/person_knows_person.csv";
+    std::string efile = data_dir + "/person_knows_person.csv.part1";
+    std::vector<std::string> null_values;
+    testLoadEdgeBatch(graph, src_vertex_type, dst_vertex_type, edge_type_name,
+                      efile, '|', true, 1024, null_values);
+    LOG(INFO) << "Edges num after load " << graph.edge_num(0, 0, 0);
+  }
+
+  {
+    LOG(INFO) << "Insert edges for PERSON-KNOWS->PERSON";
+    std::string src_vertex_type = "PERSON";
+    std::string dst_vertex_type = "PERSON";
+    std::string edge_type_name = "KNOWS";
+    std::string efile = data_dir + "/person_knows_person.csv.part2";
     std::vector<std::string> null_values;
     testLoadEdgeBatch(graph, src_vertex_type, dst_vertex_type, edge_type_name,
                       efile, '|', true, 1024, null_values);
@@ -422,6 +435,7 @@ void testOpenEmptyGraph(const std::string& graph_dir,
 
   // Delete vertex SOFTWARE
   {
+    LOG(INFO) << "Delete vertices SOFTWARE";
     std::string vertex_label_name = "SOFTWARE";
     graph.delete_vertex_type(vertex_label_name, false, false);
     auto vertex_label_num = graph.schema().vertex_label_num();
