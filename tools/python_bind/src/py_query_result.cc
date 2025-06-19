@@ -107,6 +107,9 @@ pybind11::object value_to_pyobject(const common::Value& value) {
   case common::Value::kF32: {
     return pybind11::float_(value.f32());
   }
+  case common::Value::kF64: {
+    return pybind11::float_(value.f64());
+  }
   default: {
     throw std::runtime_error("Unknown value type");
   }

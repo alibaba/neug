@@ -1,5 +1,0 @@
-neo4j==5.10.0
-pytest==8.3.5
-pytest-benchmark[histogram]=5.1.0
-pytest-html==4.1.1
-allure-pytest==2.14.1

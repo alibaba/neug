@@ -818,6 +818,8 @@ static void sink_any(const Any& any, common::Value* value) {
     value->set_f64(any.AsDouble());
   } else if (any.type == PropertyType::Empty()) {
     value->mutable_none();
+  } else if (any.type == PropertyType::DateTime()) {
+    value->mutable_timestamp()->set_item(any.AsDateTime().milli_second);
   } else {
     LOG(FATAL) << "Any value: " << any.to_string()
                << ", type = " << any.type.type_enum;

@@ -16,13 +16,17 @@
 # limitations under the License.
 #
 
+import os
 import re
+import sys
 
 import pytest
 
 from utils.cypher_client import CypherClient
 from utils.utils import collect_test_files
 from utils.utils import collect_tests_from_files
+
+sys.path.append(os.path.join(os.path.dirname(__file__), "../../tools/python_bind"))
 
 
 def pytest_addoption(parser):
@@ -103,12 +107,6 @@ def pytest_generate_tests(metafunc):
         for query in all_tests
         if not any(keyword in query.query.lower() for keyword in skip_keywords)
     ]
-    # replace count(*) with count(a) for testing, as count(*) is not supported yet (and it will cause engine to crash)
-    for query in all_tests:
-        if "count(*)" in query.query.lower():
-            query.query = re.sub(
-                r"count\(\*\)", "count(a)", query.query, flags=re.IGNORECASE
-            )
 
     if "query_object" in metafunc.fixturenames:
         test_ids = [query.name for query in all_tests]  # use query name as test id

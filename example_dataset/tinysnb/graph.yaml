@@ -55,8 +55,8 @@ schema:
         - property_id: 9
           property_name: lastJobDuration
           property_type:
-            string:
-              long_text:
+            temporal:
+              interval: 
         - property_id: 10
           property_name: workedHours
           property_type:

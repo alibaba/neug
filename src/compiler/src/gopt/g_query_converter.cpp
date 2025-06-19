@@ -54,16 +54,12 @@ std::unique_ptr<::physical::QueryPlan> GQueryConvertor::convert(
     const planner::LogicalPlan& plan) {
   auto planPB = std::make_unique<::physical::QueryPlan>();
   convertOperator(*plan.getLastOperator(), planPB.get());
-  if (plan.getLastOperator()->getOperatorType() ==
-      planner::LogicalOperatorType::PROJECTION) {
-    // add tail sink
-    auto sink = std::make_unique<::physical::Sink>();
-    auto physicalOpr = std::make_unique<::physical::PhysicalOpr>();
-    auto oprPB = std::make_unique<::physical::PhysicalOpr_Operator>();
-    oprPB->set_allocated_sink(sink.release());
-    physicalOpr->set_allocated_opr(oprPB.release());
-    planPB->mutable_plan()->AddAllocated(physicalOpr.release());
-  }
+  auto sink = std::make_unique<::physical::Sink>();
+  auto physicalOpr = std::make_unique<::physical::PhysicalOpr>();
+  auto oprPB = std::make_unique<::physical::PhysicalOpr_Operator>();
+  oprPB->set_allocated_sink(sink.release());
+  physicalOpr->set_allocated_opr(oprPB.release());
+  planPB->mutable_plan()->AddAllocated(physicalOpr.release());
   return planPB;
 }
 

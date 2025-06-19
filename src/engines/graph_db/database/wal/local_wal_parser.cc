@@ -37,7 +37,6 @@ void LocalWalParser::open(const std::string& wal_uri) {
     paths.push_back(entry.path().string());
   }
   for (auto path : paths) {
-    LOG(INFO) << "Start to ingest WALs from file: " << path;
     size_t file_size = std::filesystem::file_size(path);
     if (file_size == 0) {
       continue;

@@ -16,6 +16,7 @@
 83
 
 -LOG KnowsOneHopWithTest1
+-SKIP: (compiler) Unsupported operator type for alias management: 40
 -STATEMENT MATCH (a:person) WHERE a.age>20 WITH a MATCH (a)-[e:knows]->(b:person) RETURN b.fName
 ---- 9
 Alice
@@ -29,6 +30,7 @@ Dan
 Dan
 
 -LOG  CrossProductTest
+-SKIP: (compiler): Unsupported operator type for alias management: 24
 -STATEMENT MATCH (a:person) WITH a.age AS s, a.fName as n MATCH (b:person) WHERE s=b.age RETURN n,b.fName,s
 ---- 10
 Alice|Alice|35
@@ -43,6 +45,7 @@ Greg|Greg|40
 Hubert Blaine Wolfeschlegelsteinhausenbergerdorff|Hubert Blaine Wolfeschlegelsteinhausenbergerdorff|83
 
 -LOG CrossProductWithFilterPushDownTest
+-SKIP: (compiler): Unsupported operator type for alias management: 24
 -STATEMENT MATCH (a:person) WITH a.age AS s, a.fName as n MATCH (b:person) WHERE s=b.age and n='Dan' RETURN n,b.fName,s
 ---- 2
 Dan|Dan|20

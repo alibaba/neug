@@ -111,6 +111,8 @@ YAML::Node TemporalTypeToYAML(PropertyType type) {
     node["temporal"]["datetime"] = "";
   } else if (type == PropertyType::kTimestamp) {
     node["temporal"]["timestamp"] = "";
+  } else if (type == PropertyType::kInterval) {
+    node["temporal"]["interval"] = "";
   } else {
     LOG(FATAL) << "Unsupported property type: " << type.type_enum;
   }

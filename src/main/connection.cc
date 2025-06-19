@@ -433,14 +433,6 @@ physical::PhysicalPlan Connection::createDMLPlanWithGopt(
   }
   LOG(INFO) << "Compiled plan for query: " << query_string
             << ", plan size: " << plan.physical_plan.ByteSizeLong();
-  // Check if the plan is a load edge plan
-  if (plan.physical_plan.query_plan().plan_size() == 0 ||
-      plan.physical_plan.query_plan().plan_size() != 2) {
-    throw std::runtime_error(
-        "The compiled plan is not a load edge plan, "
-        "expected 2 operators, got: " +
-        std::to_string(plan.physical_plan.query_plan().plan_size()));
-  }
   if (plan.physical_plan.query_plan().plan(0).opr().op_kind_case() !=
       physical::PhysicalOpr::Operator::kSource) {
     LOG(FATAL) << "The first operator is not a LoadEdge operator for query: "

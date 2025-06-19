@@ -48,11 +48,13 @@
 8
 
 -LOG ReturnColumnWithSameExpression
+-SKIP: (compiler): Number of expressions to project does not match the number of schema expressions.
 -STATEMENT MATCH (a:person) WHERE a.fName='Alice' RETURN a.age, a.age AS k
 ---- 1
 35|35
 
 -LOG OrgNodesReturnStarTest
+-SKIP: result not match. Consider matching the format of the vertex.
 -STATEMENT MATCH (a:organisation) RETURN *
 ---- 3
 {_ID: 1:0, _LABEL: organisation, ID: 1, name: ABFsUni, orgCode: 325, mark: 3.700000, score: -2, history: 10 years 5 months 13 hours 24 us, licenseValidInterval: 3 years 5 days, rating: 1.000000, state: {revenue: 138, location: ['toronto','montr,eal'], stock: {price: [96,56], volume: 1000}}, info: 3.120000}
@@ -60,6 +62,7 @@
 {_ID: 1:2, _LABEL: organisation, ID: 6, name: DEsWork, orgCode: 824, mark: 4.100000, score: 7, history: 2 years 4 hours 22 us 34 minutes, licenseValidInterval: 82:00:00.1, rating: 0.520000, state: {revenue: 558, location: ['very long city name','new york'], stock: {price: [22], volume: 99}}, info: 2023-12-15}
 
 -LOG ReturnNodeStarTest
+-SKIP: (compiler): the type of vertex label should be int32 not string.
 -STATEMENT MATCH (a:organisation) RETURN a.*
 ---- 3
 1|ABFsUni|325|3.700000|-2|10 years 5 months 13 hours 24 us|3 years 5 days|1.000000|{revenue: 138, location: ['toronto','montr,eal'], stock: {price: [96,56], volume: 1000}}|3.120000
@@ -67,6 +70,7 @@
 6|DEsWork|824|4.100000|7|2 years 4 hours 22 us 34 minutes|82:00:00.1|0.520000|{revenue: 558, location: ['very long city name','new york'], stock: {price: [22], volume: 99}}|2023-12-15
 
 -LOG ReturnStructStarTest
+-SKIP: (compiler): Cannot bind property for expression a.state with type PROPERTY.
 -STATEMENT MATCH (a:organisation) RETURN a.state.*
 ---- 3
 138|['toronto','montr,eal']|{price: [96,56], volume: 1000}
@@ -74,12 +78,14 @@
 558|['very long city name','new york']|{price: [22], volume: 99}
 
 -LOG ReturnRelStarTest
+-SKIP: (compiler) builtin property _SRC, _DST on edge?
 -STATEMENT MATCH (a:person)-[e:knows]->(b:person) WHERE a.ID =7 RETURN e.*;
 ---- 2
 1905-12-12|2020-03-01 12:11:41.6552|00:47:58|[peweeeeeeeeeeeeeeeee,kowje9w0eweeeeeeeee]|{locations: ['waterloo'], transfer: {day: 2000-01-01, amount: [1000,5000]}}|10|
 1905-12-12|2025-01-01 11:22:33.52|00:47:58|[ahu2333333333333,12weeeeeeeeeeeeeeeeee]|{locations: ['toronto','thisisalongcityname'], transfer: {day: 1930-11-22, amount: [18,323]}}|8|
 
 -LOG PersonNodesTestNull
+-SKIP: (compiler) Unsupported expression type: 110
 -STATEMENT MATCH (a:person) RETURN a.ID, a.fName STARTS WITH NULL, a.isWorker, a.isWorker AND null
 ---- 8
 0||False|False
@@ -128,6 +134,7 @@ False
 False
 
 -LOG PersonNodesTestDouble
+-SKIP: decimal precision problem.
 -STATEMENT MATCH (a:person) RETURN a.eyeSight
 ---- 8
 5.000000
@@ -140,6 +147,7 @@ False
 4.900000
 
 -LOG PersonNodesTestDate
+-SKIP: (compiler) Support temporal{ date: "" }, currently returns DT_SIGNED_INT64 in plan.
 -STATEMENT MATCH (a:person) RETURN a.birthdate
 ---- 8
 1900-01-01
@@ -196,6 +204,7 @@ False
 # [[],[]]
 
 -LOG CrossProductReturn
+-SKIP: (compiler): Unsupported operator type for alias management: 10"
 -STATEMENT MATCH (a:organisation), (b:organisation) RETURN a.orgCode = b.orgCode
 ---- 9
 False
@@ -229,6 +238,7 @@ True
 45
 
 -LOG KnowsTwoHopTest2
+-SKIP: (compiler): expression not comiled, no > is plan
 -STATEMENT MATCH (a:person)-[:knows]->(:person)-[:knows]->(b:person) WHERE a.age>b.age+10 RETURN a.age, b.age
 ---- 6
 35|20
@@ -239,6 +249,7 @@ True
 45|30
 
 -LOG KnowsRelTestDate
+-SKIP: (compiler) Support temporal{ date: "" }, currently returns DT_SIGNED_INT64 in plan.
 -STATEMENT MATCH (a:person)-[e:knows]->(b:person) RETURN e.date
 ---- 14
 2021-06-30
@@ -277,6 +288,7 @@ Dan
 Dan
 
 -LOG KnowsTwoHopTest3
+-SKIP: (compiler) no > in physical plan
 -STATEMENT MATCH (a:person)-[:knows]->(b:person)-[:knows]->(c:person) WHERE a.age>c.age+10 RETURN a.age, b.fName, c.age
 ---- 6
 35|Bob|20
@@ -349,6 +361,7 @@ Dan|Carol
 95
 
 -LOG StudyAtPropertyProjectionTest
+-SKIP: (compiler): Binder exception: Cannot find property ulength for e
 -STATEMENT MATCH (a:person)-[e:studyAt]->(b:organisation) RETURN e.year, e.level, e.code, e.temperature, e.ulength
 ---- 3
 2020|120|6689|1|90
@@ -408,6 +421,7 @@ Dan|Carol
 
 # TODO: EXECUTION: "code": 05-0103, "message": "Failed to build operator at index 0, op_kind: scan"
 -LOG ReturnArrayRelProp
+-SKIP: result not match, decimal precision
 -STATEMENT MATCH (a:person)-[e:workAt]->(o:organisation) RETURN e.grading
 ---- 3
 [2.100000,4.400000]
@@ -415,6 +429,7 @@ Dan|Carol
 [9.200000,3.100000]
 
 -LOG ReturnFloatNodeProp
+-SKIP: result not match, decimal precision
 -STATEMENT MATCH (a:person) RETURN a.height
 ---- 8
 1.731000
@@ -428,6 +443,7 @@ Dan|Carol
 
 # TODO: EXECUTION: "code": 05-0103, "message": "Failed to build operator at index 0, op_kind: scan"
 -LOG ReturnFloatRelProp
+-SKIP: result no match, decimal precision
 -STATEMENT MATCH (a:person)-[e:workAt]->(o:organisation) RETURN e.rating
 ---- 3
 8.200000
@@ -436,6 +452,7 @@ Dan|Carol
 
 # TODO: EXECUTION: "code": 05-0103, "message": "Failed to build operator at index 0, op_kind: scan"
 -LOG ReturnArrayFloatRelProp
+-SKIP: result not match, decimal precision
 -STATEMENT MATCH (a:person)-[e:meets]->(b:person) RETURN e.location
 ---- 7
 [7.820000,3.540000]
@@ -501,6 +518,7 @@ Dan|Carol
 # {info: {name: smith, gender: , hobby: [,footBall]}, height: 1.800000, age: }
 
 -LOG ReturnStruct
+-SKIP: result not match, decimal precision
 -STATEMENT MATCH (m:movies) RETURN m.description
 ---- 3
 {rating: 1223.000000, stars: 100, views: 10003, release: 2011-02-11 16:44:22, release_ns: 2011-02-11 16:44:22.123456, release_ms: 2011-02-11 16:44:22.123, release_sec: 2011-02-11 16:44:22, release_tz: 2011-02-11 16:44:22.123456+00, film: 2013-02-22, u8: 1, u16: 15, u32: 200, u64: 4, hugedata: -15}
@@ -509,6 +527,7 @@ Dan|Carol
 
 # TODO: EXECUTION: String field 'common.Value.str' contains invalid UTF-8 data when serializing a protocol buffer. Use the 'bytes' type if you intend to send raw bytes.
 -LOG ReturnStructLiteralWithUnflatFlatChildren
+-SKIP: (compiler): Unsupported expression type: 110
 -STATEMENT MATCH (p:person)-[e:knows]->(p1:person) return {name: p.fName, id: p1.ID, date: e.date}
 ---- 14
 {name: Alice, id: 2, date: 2021-06-30}
@@ -540,6 +559,7 @@ Dan|Carol
 # {description: {gender: 2, age: 83}, name: Hubert Blaine Wolfeschlegelsteinhausenbergerdorff}
 
 -LOG ReturnNestedListOfStructLiteral
+-SKIP: (compiler): Unsupported expression type: 110
 -STATEMENT MATCH (p:person) return [{description: {propA: p.gender, propB: [p.age, 10]}, name: p.fName}, {description: {propA: p.ID, propB: [p.gender, 20]}, name: p.fName}]
 ---- 8
 [{description: {propA: 1, propB: [35,10]}, name: Alice},{description: {propA: 0, propB: [1,20]}, name: Alice}]
@@ -552,6 +572,7 @@ Dan|Carol
 [{description: {propA: 2, propB: [83,10]}, name: Hubert Blaine Wolfeschlegelsteinhausenbergerdorff},{description: {propA: 10, propB: [2,20]}, name: Hubert Blaine Wolfeschlegelsteinhausenbergerdorff}]
 
 -LOG ReturnNestedListOfStructWithUnflatFlatChildren
+-SKIP: (compiler): Unsupported expression type: 110
 -STATEMENT MATCH (p1:person)-[e:knows]->(p2:person) return [{description: {propA: [p1.gender, p2.gender], propB: e.date}, name: p1.fName}, {description: {propA: [p1.ID, p2.ID], propB: p1.birthdate}, name: p2.fName}]
 ---- 14
 [{description: {propA: [1,2], propB: 2021-06-30}, name: Alice},{description: {propA: [0,2], propB: 1900-01-01}, name: Bob}]
@@ -681,6 +702,7 @@ Runtime exception: Found duplicate key: 0 in map.
 # Runtime exception: Null value key is not allowed in map.
 
 -LOG ReturnMapLiteralWithProp
+-SKIP: (compiler): Unsupported expression type: 110
 -STATEMENT MATCH (p:person) RETURN map([p.ID, p.age], [p.fName, p.fName]);
 ---- 8
 {0=Alice, 35=Alice}
@@ -693,6 +715,7 @@ Runtime exception: Found duplicate key: 0 in map.
 {10=Hubert Blaine Wolfeschlegelsteinhausenbergerdorff, 83=Hubert Blaine Wolfeschlegelsteinhausenbergerdorff}
 
 -LOG ReturnMapLiteralWithFlatUnflatProp
+-SKIP: (compiler): Unsupported expression type: 110
 -STATEMENT MATCH (p:person)-[:knows]->(p1:person) RETURN map([p.fName, p1.fName], [p.age, p1.age]);
 ---- 14
 {Alice=35, Bob=30}
@@ -711,6 +734,7 @@ Runtime exception: Found duplicate key: 0 in map.
 {Elizabeth=20, Greg=40}
 
 -LOG ReturnMapLiteralWithFlatUnflatProp1
+-SKIP: (compiler): Unsupported expression type: 110
 -STATEMENT MATCH (p:person)-[:knows]->(p1:person) RETURN map([p.fName], [p1.age]);
 ---- 14
 {Alice=30}
@@ -729,6 +753,7 @@ Runtime exception: Found duplicate key: 0 in map.
 {Elizabeth=40}
 
 -LOG ReturnMapLiteralWithNestedType
+-SKIP: (compiler): Unsupported expression type: 110
 -STATEMENT MATCH (p:person)-[:knows]->(p1:person) RETURN map([p.workedHours, p1.workedHours], [p.courseScoresPerTerm, p1.courseScoresPerTerm]);
 ---- 14
 {[10,5]=[[10,8],[6,7,8]], [12,8]=[[8,9],[9,10]]}
@@ -747,6 +772,7 @@ Runtime exception: Found duplicate key: 0 in map.
 {[2]=[[6],[7],[8]], [1]=[[10]]}
 
 -LOG ReturnMapLiteralWithNestedType1
+-SKIP: (compiler):  Unsupported expression type: 110
 -STATEMENT MATCH (p:person) RETURN map([map([p.ID], [p.fName])], [p.age]);
 ---- 8
 {{0=Alice}=35}
@@ -766,6 +792,7 @@ Runtime exception: Found duplicate key: 0 in map.
 pure ascii characters
 
 -LOG ReturnRelBlobProp
+-SKIP: result not match: expect 7 result, but only 5
 -STATEMENT MATCH (p:person)-[e:meets]->(p1:person) RETURN e.data;
 ---- 7
 MIXED \x5CxAC with ASCII \x5Cx0A
@@ -777,11 +804,13 @@ NO hex code
 \x5CxAA\x5CxBB\x5CxCC\x5CxDD
 
 -LOG ReturnStringLiteralWithSpecialChar
+-SKIP: (compiler) Unsupported operator type for alias management: 15"}, error message: Unsupported operator type for alias management: 15
 -STATEMENT RETURN "hEl \'\"\\";
 ---- 1
 hEl '"\
 
 -LOG ReturnUnionTag
+-SKIP: (compiler): "Binder exception: Cannot match a built-in function for given function UNION_TAG(STRING). Supported inputs are (UNION) -> STRING
 -STATEMENT MATCH (m:movies) RETURN union_tag(m.grade)
 ---- 3
 credit

@@ -652,6 +652,8 @@ void MutableFragmentLoader::loadEdges() {
           addEdges<float>(src_label_id, dst_label_id, e_label_id, suppliers);
         } else if (property_type == PropertyType::kDouble) {
           addEdges<double>(src_label_id, dst_label_id, e_label_id, suppliers);
+        } else if (property_type == PropertyType::kInterval) {
+          addEdges<Interval>(src_label_id, dst_label_id, e_label_id, suppliers);
         } else {
           LOG(FATAL) << "Unsupported edge property type";
         }

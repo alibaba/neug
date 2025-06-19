@@ -29,6 +29,7 @@ limitations under the License.
 #include "third_party/libgrape-lite/grape/serialization/out_archive.h"
 
 #include <yaml-cpp/yaml.h>
+#include <regex>
 
 namespace grape {
 
@@ -342,7 +343,6 @@ struct Interval {
   int32_t minute() const { return static_cast<int32_t>(value.internal.minute); }
   int32_t second() const { return static_cast<int32_t>(value.internal.second); }
 
- private:
   union {
     IntervalValue internal;
     uint64_t integer;
@@ -402,7 +402,6 @@ struct __attribute__((packed)) Date {
   }
 
   void from_timestamp(int64_t ts) {
-    LOG(INFO) << "Set date from timestamp: " << ts;
     const boost::posix_time::ptime epoch(boost::gregorian::date(1970, 1, 1));
     int64_t ts_sec = ts / 1000;
     boost::posix_time::ptime time_point =
@@ -413,12 +412,6 @@ struct __attribute__((packed)) Date {
     this->value.internal.month = date.month().as_number();
     this->value.internal.day = date.day();
     this->value.internal.hour = td.hours();
-    LOG(INFO) << "Set date from timestamp: " << ts
-              << ", year: " << this->value.internal.year
-              << ", month: " << this->value.internal.month
-              << ", day: " << this->value.internal.day
-              << ", hour: " << this->value.internal.hour;
-    LOG(INFO) << "to_timestamp: " << to_timestamp();
     assert(ts == to_timestamp());
   }
 
@@ -1580,6 +1573,54 @@ struct AnyConverter<Interval> {
   static Any to_any(int64_t value) {
     Any ret;
     ret.set_interval(value);
+    return ret;
+  }
+
+  /**
+   * Parse the interval from a string. Expect the string in specific format,
+   * such as "1 day 2 hours 3 minutes 4 seconds" or "3 years 2 days 13 hours 2
+   * minutes" or "18 minutes 24 milliseconds". If the string is not in the
+   * expected format, it will throw an exception.
+   * @param value The string to parse.
+   * @return An Any object containing the parsed Interval.
+   * TODO(zhanglei): optimize the performance.
+   */
+  static Any to_any(std::string_view value) {
+    static const std::regex interval_regex(
+        R"((\d+)\s*(years?|days?|hours?|minutes?|seconds?|milliseconds?|us?))");
+    std::smatch match;
+    Interval interval;
+    std::string value_str(value);
+    while (std::regex_search(value_str, match, interval_regex)) {
+      int64_t num = std::stoll(match[1].str());
+      std::string unit = match[2].str();
+      if (unit == "year" || unit == "years") {
+        interval.value.internal.year += num;
+      } else if (unit == "day" || unit == "days") {
+        interval.value.internal.day += num;
+      } else if (unit == "hour" || unit == "hours") {
+        interval.value.internal.hour += num;
+      } else if (unit == "minute" || unit == "minutes") {
+        interval.value.internal.minute += num;
+      } else if (unit == "second" || unit == "seconds") {
+        interval.value.internal.second += num;
+      } else if (unit == "millisecond" || unit == "milliseconds") {
+        interval.value.internal.millisecond += num;
+      } else if (unit == "us" || unit == "microsecond" ||
+                 unit == "microseconds") {
+        interval.value.internal.microsecond += num;
+      }
+      value_str = match.suffix().str();
+      // trim leading and trailing spaces
+      value_str.erase(0, value_str.find_first_not_of(' '));
+      value_str.erase(value_str.find_last_not_of(' ') + 1);
+    }
+    if (!value_str.empty()) {
+      throw std::invalid_argument("Invalid interval format: " + value_str +
+                                  ",size: " + std::to_string(value_str.size()));
+    }
+    Any ret;
+    ret.set_interval(interval);
     return ret;
   }
 

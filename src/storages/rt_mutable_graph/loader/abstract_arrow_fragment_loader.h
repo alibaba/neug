@@ -97,6 +97,10 @@ void set_column_from_timestamp_array(gs::ColumnBase* col,
   }
 }
 
+void set_interval_column_from_string_array(
+    gs::ColumnBase* col, std::shared_ptr<arrow::ChunkedArray> array,
+    const std::vector<size_t>& offset);
+
 void set_column_from_date_array(gs::ColumnBase* col,
                                 std::shared_ptr<arrow::ChunkedArray> array,
                                 const std::vector<size_t>& offset);

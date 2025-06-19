@@ -93,3 +93,10 @@ core.*
 src/compiler/.devcontainer
 
 src/compiler/test/gopt/resources/queries/*.out
+
+
+# tests
+
+tests/**/*.html
+tests/**/*.json
+tests/e2e/report/

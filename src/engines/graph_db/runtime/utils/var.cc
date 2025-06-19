@@ -46,6 +46,7 @@ Var::Var(const GraphInterface& graph, const Context& ctx,
     } else {
       VLOG(10) << "receive empty variable, using tag -1";
       tag = -1;
+      type_ = ctx.get(tag)->elem_type();
     }
   }
 
