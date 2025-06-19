@@ -1,7 +1,7 @@
 MATCH (a:person) RETURN a.fName ORDER BY a.fName LIMIT 1 + 1; # LIMIT
-// MATCH (a:organisation) RETURN *; # RETURN_STAR
-// MATCH (a:organisation) RETURN a.*; # VERTEX_STAR
-// MATCH (a:person)-[e:knows]->(b:person) WHERE a.ID =7 RETURN e.*; # EDGE_STAR
+MATCH (a:organisation) RETURN *; # RETURN_STAR
+MATCH (a:organisation) RETURN a.*; # VERTEX_STAR
+MATCH (a:person)-[e:knows]->(b:person) WHERE a.ID =7 RETURN e.*; # EDGE_STAR
 // MATCH (a:organisation) RETURN a.state.*; # PROPERTY_STAR
 // MATCH (a:person)-[e:knows]->(b:person) RETURN e.date; # E_DATE
 // MATCH (a:person)-[e:knows]->(b:person) WHERE b.age=20 RETURN b.age * 2; # AGE_MULTI

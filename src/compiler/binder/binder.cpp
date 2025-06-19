@@ -3,6 +3,7 @@
 #include <memory>
 #include "src/include/binder/bound_statement_rewriter.h"
 #include "src/include/binder/expression/expression.h"
+#include "src/include/common/constants.h"
 #include "src/include/common/exception/binder.h"
 #include "src/include/common/string_utils.h"
 #include "src/include/function/table/bind_data.h"
@@ -178,9 +179,8 @@ struct ReservedNames {
   }
 
   static std::unordered_set<std::string> getPropertyLookupName() {
-    return {
-        InternalKeyword::ID,
-    };
+    return {InternalKeyword::ID, InternalKeyword::LABEL, InternalKeyword::SRC,
+            InternalKeyword::DST};
   }
 };
 
