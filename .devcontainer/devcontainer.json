@@ -3,7 +3,7 @@
 {
 	"name": "NeuG",
 	// Or use a Dockerfile or Docker Compose file. More info: https://containers.dev/guide/dockerfile
-	"image": "registry.cn-hongkong.aliyuncs.com/graphscope/graphscope-dev:v0.24.2-amd64",
+	"image": "registry.cn-hongkong.aliyuncs.com/graphscope/graphscope-dev:v0.24.2",
 	// Features to add to the dev container. More info: https://containers.dev/features.
 	"features": {
 		"ghcr.io/devcontainers/features/common-utils:2": {
@@ -29,7 +29,7 @@
 	// Set `remoteUser` to `root` to connect as root instead. More info: https://aka.ms/vscode-remote/containers/non-root.
 	"remoteUser": "graphscope",
 	// Use 'postCreateCommand' to run commands before the container is created.
-	"initializeCommand": "sudo docker pull registry.cn-hongkong.aliyuncs.com/graphscope/graphscope-dev:v0.24.2-amd64",
+	"initializeCommand": "sudo docker pull registry.cn-hongkong.aliyuncs.com/graphscope/graphscope-dev:v0.24.2",
 	// Uncomment this to enable C++ and Rust debugging in containers
 	// "capAdd": ["SYS_PTRACE"],
 	// "securityOpt": ["seccomp=unconfined"],

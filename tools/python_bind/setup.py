@@ -23,7 +23,9 @@ import re
 import shutil
 import subprocess
 import sys
-from distutils.cmd import Command
+
+if sys.version_info < (3, 12):
+    from distutils.cmd import Command
 from pathlib import Path
 
 from setuptools import Extension
@@ -31,6 +33,9 @@ from setuptools import find_packages  # noqa: H301
 from setuptools import setup
 from setuptools.command.build_ext import build_ext
 from setuptools.command.build_py import build_py as _build_py
+
+if sys.version_info >= (3, 12):
+    from setuptools import Command  # noqa: F811
 
 base_dir = os.path.dirname(__file__)
 

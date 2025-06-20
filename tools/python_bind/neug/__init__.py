@@ -52,32 +52,57 @@ def get_build_lib_dir() -> str:
     """
     cur_dir = os.path.dirname(__file__)
     os_name = platform.system().lower()
+    build_dir = None
     if os_name == "darwin":
         # find the directory start with lib.macosx-* under build
         # and get the first one
         build_dir_parent = os.path.join(cur_dir, "..", "build")
         if os.path.exists(build_dir_parent):
-            build_dir = os.path.join(
-                build_dir_parent,
-                next(
-                    (
-                        d
-                        for d in os.listdir(os.path.join(cur_dir, "..", "build"))
-                        if d.startswith("lib.macosx")
+            build_dirs = [
+                d for d in os.listdir(build_dir_parent) if d.startswith("lib.macosx-")
+            ]
+            if build_dirs:
+                # select the most matching directory, the directories are like lib.macosx-11.0-arm64-cpython-312
+                # we should get the one matches current python version
+                logger.info("Found build directories: %s", build_dirs)
+                build_dirs.sort(
+                    key=lambda x: (
+                        x.split("-")[-1],  # e.g., cpython-312
+                        x.split("-")[2],  # e.g., arm64
                     ),
-                    None,
-                ),
-            )
+                    reverse=True,
+                )
+                first = build_dirs[0]
+                logger.info("Selected build directory: %s", first)
+                if (
+                    first.find(
+                        f"cpython-{sys.version_info.major}{sys.version_info.minor}"
+                    )
+                    != -1
+                    and first.find(os.uname().machine) != -1
+                ):
+                    build_dir = os.path.join(build_dir_parent, first)
+            else:
+                build_dir = None
         else:
             build_dir = None
     else:
-        build_dir = os.path.join(
-            cur_dir,
-            "..",
-            "build",
-            f"lib.{os_name}-{os.uname().machine}-{sys.version_info.major}.{sys.version_info.minor}",
-        )
-    logger.debug("Build directory: %s", build_dir)
+        if sys.version_info.major == 3 and sys.version_info.minor >= 12:
+            # For Python 3.8 and above, we use the new naming convention
+            build_dir = os.path.join(
+                cur_dir,
+                "..",
+                "build",
+                f"lib.{os_name}-{os.uname().machine}-cpython-{sys.version_info.major}{sys.version_info.minor}",
+            )
+        else:
+            build_dir = os.path.join(
+                cur_dir,
+                "..",
+                "build",
+                f"lib.{os_name}-{os.uname().machine}-{sys.version_info.major}.{sys.version_info.minor}",
+            )
+    logger.info("Build directory: %s", build_dir)
     if build_dir is not None:
         if os.path.exists(build_dir):
             logger.debug("Using build directory: %s", build_dir)
