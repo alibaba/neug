@@ -67,7 +67,7 @@ class TestBachLoading(unittest.TestCase):
             flex_data_dir, "person_knows_person.csv.part2"
         )
 
-        db = Database(db_dir, "w", 0, "gopt", "", "")
+        db = Database(db_dir, "w")
         conn = db.connect()
         # First create the graph schema
         conn.execute(

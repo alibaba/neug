@@ -37,7 +37,7 @@ test = [
 ]
 
 [tool.cibuildwheel]
-build = "cp38-* cp39-* cp310-*"
+build = "cp38-* cp39-* cp310-* cp311-*"
 skip = ["*-musllinux_*", "*i686*"]
 before-all = ["git submodule update --init"]
 environment = {MACOSX_DEPLOYMENT_TARGET="11.0",DYLD_LIBRARY_PATH="/opt/graphscope/lib",CMAKE_PREFIX_PATH="/opt/graphscope/",LD_LIBRARY_PATH="/opt/rh/devtoolset-10/root/usr/lib64:/opt/rh/devtoolset-10/root/usr/lib:/opt/rh/devtoolset-10/root/usr/lib64/dyninst:/opt/rh/devtoolset-10/root/usr/lib/dyninst:/usr/local/lib64:/opt/graphscope/lib:/opt/graphscope/lib64",LIBRARY_PATH="/opt/graphscope/lib:/opt/graphscope/lib64"}

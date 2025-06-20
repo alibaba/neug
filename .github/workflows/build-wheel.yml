@@ -69,9 +69,6 @@ jobs:
         run: |
           echo "CMAKE_BUILD_PARALLEL_LEVEL=$(nproc)" >> $GITHUB_ENV
 
-      - name: Setup tmate session
-        if: false
-        uses: mxschmitt/action-tmate@v3
 
       - name: Build wheels
         run: |
@@ -100,10 +97,13 @@ jobs:
           skip_existing: true # Skip existing wheels to avoid errors if the same wheel is already published, to update the wheel for a specific version, add -{number} to the filename and
           # update it manually
     
-      # - name: cleanup runner workspace
-      #   run: |
-      #     echo $GITHUB_WORKSPACE
-      #     rm -rf $GITHUB_WORKSPACE
-      #     mkdir $GITHUB_WORKSPACE
-      #   shell: bash
-      #   if: ${{ failure() && steps.checkout.conclusion == 'failure' }}
+      - name: Run simple test
+        env:
+          TMP_DIR: /tmp/${{ github.run_id }}
+        run: |
+          python3 -m pip install --upgrade pip
+          for i in $(ls wheelhouse/*.whl); do
+            python3 -m pip install $i || echo "Failed to install $i"
+          done
+          rm -rf ${TMP_DIR}/test_example
+          GLOG_v=10 python3 tools/python_bind/example/simple_example.py example_dataset/modern_graph ${TMP_DIR}/test_example

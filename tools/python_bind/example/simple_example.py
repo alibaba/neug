@@ -1,9 +1,36 @@
 import os
+import sys
 
 from neug.database import Database
 
-# Open a empty graph.
-db = Database("/tmp/csr-data-dir/", "r", 0, "dummy", "/tmp", "/tmp")
-conn = db.connect()
-res = conn.execute("MATCH(n) RETURN n;")
-print(res)
+if __name__ == "__main__":
+    # expect 2 args, csv_data_dir and db_dir
+    if len(sys.argv) != 3:
+        print("Usage: python simple_example.py <csv_data_dir> <db_dir>")
+        sys.exit(1)
+    data_dir = sys.argv[1]
+    db_dir = sys.argv[2]
+
+    print(f"Loading data from {data_dir} into database {db_dir}")
+
+    person_csv = os.path.join(data_dir, "person.csv")
+    person_knows_person_csv = os.path.join(data_dir, "person_knows_person.csv")
+
+    db = Database(db_dir, "w")
+    conn = db.connect()
+    # First create the graph schema
+    conn.execute(
+        "CREATE NODE TABLE person(id INT64, name STRING, age INT64, PRIMARY KEY(id));"
+    )
+    conn.execute("CREATE REL TABLE knows(FROM person TO person, weight DOUBLE);")
+
+    # Then load data.
+    conn.execute(f'COPY person from "{person_csv}"')
+    # TODO(zhanglei,xiaoli): support specifying the starting/ending label name
+    conn.execute(
+        f'COPY knows from "{person_knows_person_csv}" (from="person", to="person")'
+    )
+
+    res = conn.execute("MATCH (n) return count(*);")
+    for record in res:
+        print(record)
