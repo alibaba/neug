@@ -77,7 +77,7 @@ jobs:
     
       - name: Run simple test
         env:
-          TMP_DIR: /tmp/${{ github.run_id }}
+          TMP_DIR: ${{ github.workspace }}/${{ github.run_id }}
         run: |
           python3 -m pip install --upgrade pip
           for i in $(ls wheelhouse/*.whl); do
@@ -132,7 +132,7 @@ jobs:
     
       - name: Run simple test
         env:
-          TMP_DIR: /tmp/${{ github.run_id }}
+          TMP_DIR: ${{ github.workspace }}/${{ github.run_id }}
         run: |
           python3 -m pip install --upgrade pip
           for i in $(ls wheelhouse/*.whl); do
@@ -195,7 +195,7 @@ jobs:
     
       - name: Run simple test
         env:
-          TMP_DIR: /tmp/${{ github.run_id }}
+          TMP_DIR: ${{ github.workspace }}/${{ github.run_id }}
         run: |
           python3 -m pip install --upgrade pip
           for i in $(ls wheelhouse/*.whl); do
@@ -258,7 +258,7 @@ jobs:
     
       - name: Run simple test
         env:
-          TMP_DIR: /tmp/${{ github.run_id }}
+          TMP_DIR: ${{ github.workspace }}/${{ github.run_id }}
         run: |
           python3 -m pip install --upgrade pip
           for i in $(ls wheelhouse/*.whl); do
