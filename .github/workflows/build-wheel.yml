@@ -32,11 +32,117 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  build_wheels:
-    runs-on: [self-hosted]
-    strategy:
-      matrix:
-        os: [linux-x86_64]
+  build_wheels_linux_x86_64:
+    runs-on: [self-hosted, linux, x64]
+    steps:
+      - name: checkout
+        id: checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install cibuildwheel
+        run: python3 -m pip install cibuildwheel==2.23.3
+
+      - name: Prepare for linux
+        run: |
+          echo "CMAKE_BUILD_PARALLEL_LEVEL=$(nproc)" >> $GITHUB_ENV
+
+      - name: Build wheels
+        run: |
+          export CMAKE_BUILD_PARALLEL_LEVEL=$(nproc)
+          export BUILD_TYPE=RELEASE
+          python3 -m cibuildwheel ./tools/python_bind --output-dir wheelhouse
+
+      - uses: actions/upload-artifact@v4
+        if: false
+        with:
+          name: cibw-wheels-${{ matrix.os }}-${{ github.sha }}
+          path: ./wheelhouse/*.whl
+
+      - name: Publish distribution to PyPI
+        uses: pypa/gh-action-pypi-publish@v1.4.2
+        if: (github.ref == 'refs/heads/main' && github.repository == 'GraphScope/neug') || (github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v') && github.repository == 'GraphScope/neug')
+        with:
+          user: __token__
+          password: ${{ secrets.PYPI_PASSWORD }}
+          packages_dir: wheelhouse/
+          verbose: true
+          skip_existing: true # Skip existing wheels to avoid errors if the same wheel is already published, to update the wheel for a specific version, add -{number} to the filename and
+          # update it manually
+    
+      - name: Run simple test
+        env:
+          TMP_DIR: /tmp/${{ github.run_id }}
+        run: |
+          python3 -m pip install --upgrade pip
+          for i in $(ls wheelhouse/*.whl); do
+            python3 -m pip install $i || echo "Failed to install $i"
+          done
+          rm -rf ${TMP_DIR}/test_example
+          GLOG_v=10 python3 tools/python_bind/example/simple_example.py example_dataset/modern_graph ${TMP_DIR}/test_example
+
+  build_wheels_linux_arm64:
+    runs-on: [self-hosted, linux, arm64]
+    if: false
+    steps:
+      - name: checkout
+        id: checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python 3.11
+        if: runner.name != 'iZj6ceai23dyzfm63tvmu7Z'
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install cibuildwheel
+        run: python3 -m pip install cibuildwheel==2.23.3
+
+      - name: Prepare for linux
+        run: |
+          echo "CMAKE_BUILD_PARALLEL_LEVEL=$(nproc)" >> $GITHUB_ENV
+
+      - name: Build wheels
+        run: |
+          export CMAKE_BUILD_PARALLEL_LEVEL=$(nproc)
+          export BUILD_TYPE=RELEASE
+          python3 -m cibuildwheel ./tools/python_bind --output-dir wheelhouse
+
+      - uses: actions/upload-artifact@v4
+        if: false
+        with:
+          name: cibw-wheels-${{ matrix.os }}-${{ github.sha }}
+          path: ./wheelhouse/*.whl
+
+      - name: Publish distribution to PyPI
+        uses: pypa/gh-action-pypi-publish@v1.4.2
+        if: (github.ref == 'refs/heads/main' && github.repository == 'GraphScope/neug') || (github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v') && github.repository == 'GraphScope/neug')
+        with:
+          user: __token__
+          password: ${{ secrets.PYPI_PASSWORD }}
+          packages_dir: wheelhouse/
+          verbose: true
+          skip_existing: true # Skip existing wheels to avoid errors if the same wheel is already published, to update the wheel for a specific version, add -{number} to the filename and
+          # update it manually
+    
+      - name: Run simple test
+        env:
+          TMP_DIR: /tmp/${{ github.run_id }}
+        run: |
+          python3 -m pip install --upgrade pip
+          for i in $(ls wheelhouse/*.whl); do
+            python3 -m pip install $i || echo "Failed to install $i"
+          done
+          rm -rf ${TMP_DIR}/test_example
+          GLOG_v=10 python3 tools/python_bind/example/simple_example.py example_dataset/modern_graph ${TMP_DIR}/test_example
+
+  build_wheels_macos_x86_64:
+    runs-on: macos-13
+    if: false
     steps:
       - name: checkout
         id: checkout
@@ -49,7 +155,6 @@ jobs:
 
       # Only run install_dep.sh on macos system
       - name: Install dependencies
-        if: startsWith(matrix.os, 'macos')
         run: |
           bash scripts/install_deps.sh
 
@@ -57,25 +162,78 @@ jobs:
         run: python3 -m pip install cibuildwheel==2.23.3
 
       - name: Prepare for macos
-        if: startsWith(matrix.os, 'macos')
         run: |
           echo "MACOSX_DEPLOYMENT_TARGET=11.0" >> $GITHUB_ENV
           echo "MACOSX_DEPLOYMENT_TARGET={{ env.MACOSX_DEPLOYMENT_TARGET }}"
           source ~/.graphscope_env
           echo "CMAKE_BUILD_PARALLEL_LEVEL=$(sysctl -n hw.ncpu)" >> $GITHUB_ENV
 
-      - name: Prepare for linux
-        if: startsWith(matrix.os, 'linux')
+      - name: Build wheels
         run: |
-          echo "CMAKE_BUILD_PARALLEL_LEVEL=$(nproc)" >> $GITHUB_ENV
+          source ~/.graphscope_env
+          export CMAKE_BUILD_PARALLEL_LEVEL=$(nproc)
+          export BUILD_TYPE=RELEASE
+          python3 -m cibuildwheel ./tools/python_bind --output-dir wheelhouse
 
+      - uses: actions/upload-artifact@v4
+        if: false
+        with:
+          name: cibw-wheels-${{ matrix.os }}-${{ github.sha }}
+          path: ./wheelhouse/*.whl
+
+      - name: Publish distribution to PyPI
+        uses: pypa/gh-action-pypi-publish@v1.4.2
+        if: (github.ref == 'refs/heads/main' && github.repository == 'GraphScope/neug') || (github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v') && github.repository == 'GraphScope/neug')
+        with:
+          user: __token__
+          password: ${{ secrets.PYPI_PASSWORD }}
+          packages_dir: wheelhouse/
+          verbose: true
+          skip_existing: true # Skip existing wheels to avoid errors if the same wheel is already published, to update the wheel for a specific version, add -{number} to the filename and
+          # update it manually
+    
+      - name: Run simple test
+        env:
+          TMP_DIR: /tmp/${{ github.run_id }}
+        run: |
+          python3 -m pip install --upgrade pip
+          for i in $(ls wheelhouse/*.whl); do
+            python3 -m pip install $i || echo "Failed to install $i"
+          done
+          rm -rf ${TMP_DIR}/test_example
+          GLOG_v=10 python3 tools/python_bind/example/simple_example.py example_dataset/modern_graph ${TMP_DIR}/test_example
+
+  build_wheels_macos_aarch64:
+    runs-on: macos-14
+    if: false
+    steps:
+      - name: checkout
+        id: checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      # Only run install_dep.sh on macos system
+      - name: Install dependencies
+        run: |
+          bash scripts/install_deps.sh
+
+      - name: Install cibuildwheel
+        run: python3 -m pip install cibuildwheel==2.23.3
+
+      - name: Prepare for macos
+        run: |
+          echo "MACOSX_DEPLOYMENT_TARGET=11.0" >> $GITHUB_ENV
+          echo "MACOSX_DEPLOYMENT_TARGET={{ env.MACOSX_DEPLOYMENT_TARGET }}"
+          source ~/.graphscope_env
+          echo "CMAKE_BUILD_PARALLEL_LEVEL=$(sysctl -n hw.ncpu)" >> $GITHUB_ENV
 
       - name: Build wheels
         run: |
-          if [[ "${{matrix.os}}" == macos* ]]; then
-            source ~/.graphscope_env
-          fi
-          export DEBUG=1
+          source ~/.graphscope_env
           export CMAKE_BUILD_PARALLEL_LEVEL=$(nproc)
           export BUILD_TYPE=RELEASE
           python3 -m cibuildwheel ./tools/python_bind --output-dir wheelhouse
