@@ -47,7 +47,8 @@ add_subdirectory(gopt)
 # Note: The static neug_compiler target is currently unused and may be removed in the future if deemed unnecessary.
 add_library(neug_compiler_shared SHARED ${ALL_OBJECT_FILES})
 
-set(KUZU_LIBRARIES antlr4_cypher antlr4_runtime fast_float utf8proc re2 yaml-cpp)
+set(KUZU_LIBRARIES antlr4_cypher antlr4_runtime fast_float utf8proc re2 ${YAML_CPP_LIBRARIES})
+
 if (NOT __SINGLE_THREADED__)
         set(KUZU_LIBRARIES ${KUZU_LIBRARIES} Threads::Threads)
 endif()

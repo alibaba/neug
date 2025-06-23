@@ -39,11 +39,11 @@ test = [
 [tool.cibuildwheel]
 build = "cp38-* cp39-* cp310-* cp311-* cp312-* cp313-*"
 skip = ["*-musllinux_*", "*i686*"]
-before-all = ["git submodule update --init"]
-environment = {MACOSX_DEPLOYMENT_TARGET="11.0",DYLD_LIBRARY_PATH="/opt/graphscope/lib",CMAKE_PREFIX_PATH="/opt/graphscope/",LD_LIBRARY_PATH="/opt/rh/devtoolset-10/root/usr/lib64:/opt/rh/devtoolset-10/root/usr/lib:/opt/rh/devtoolset-10/root/usr/lib64/dyninst:/opt/rh/devtoolset-10/root/usr/lib/dyninst:/usr/local/lib64:/opt/graphscope/lib:/opt/graphscope/lib64",LIBRARY_PATH="/opt/graphscope/lib:/opt/graphscope/lib64"}
+before-all = ["git submodule update --init", "source /root/.graphscope_env"]
+environment = {MACOSX_DEPLOYMENT_TARGET="11.0", CMAKE_PREFIX_PATH="/opt/graphscope/"}
 environment-pass = ["BUILD_TYPE", "CMAKE_BUILD_PARALLEL_LEVEL", "CMAKE_PREFIX_PATH", "MACOSX_DEPLOYMENT_TARGET"]
 manylinux-x86_64-image = "registry.cn-hongkong.aliyuncs.com/graphscope/graphscope-dev:neug-dev-x86_64"
-manylinux-aarch64-image = "registry.cn-hongkong.aliyuncs.com/graphscope/graphscope-dev:neug-dev-arm64"
+manylinux-aarch64-image = "registry.cn-hongkong.aliyuncs.com/graphscope/graphscope-dev:neug-dev-arm64-0621"
 
 [tool.pytest.ini_options]
 log_cli = true

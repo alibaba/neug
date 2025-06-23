@@ -95,7 +95,9 @@ readonly OUTPUT_ENV_FILE="${HOME}/.graphscope_env"
 if [[ "${OS_PLATFORM}" == *"Darwin"* ]]; then
   readonly HOMEBREW_PREFIX=$(brew --prefix)
 fi
-readonly ARROW_VERSION="15.0.2"
+readonly ARROW_VERSION="17.0.0"
+# upgrade arrow version to 17.0.0, to avoid the cmake deprecation warning
+# for cmake version < 3.5 for third-party library: xsimd-ep. Which cause compilation failure
 readonly tempdir="/tmp/gs-local-deps"
 cn_flag=false
 debug_flag=false
@@ -206,7 +208,7 @@ install_boost() {
   pushd "${tempdir}" || exit
   directory="boost_1_88_0"
   file="${directory}.tar.gz"
-  url="https://archives.boost.io/release/1.75.0/source"
+  url="https://archives.boost.io/release/1.88.0/source"
   url=$(set_to_cn_url ${url})
   download_and_untar "${url}" "${file}" "${directory}"
   pushd ${directory} || exit
@@ -363,18 +365,18 @@ install_basic_packages() {
       # centos7
       ${SUDO} yum install -y ${BASIC_PACKAGES_CENTOS_7[*]}
       # change the source for centos-release-scl-rh
-      ${SUDO} sed -i 's/mirrorlist/#mirrorlist/g' /etc/yum.repos.d/CentOS-*scl*
-      ${SUDO} sed -i 's|#baseurl=http://mirror.centos.org|baseurl=http://vault.centos.org|g' /etc/yum.repos.d/CentOS-*scl*
-      ${SUDO} sed -i 's|# baseurl=http://mirror.centos.org|baseurl=http://vault.centos.org|g' /etc/yum.repos.d/CentOS-*scl*
+      ${SUDO} sed -i 's/mirrorlist/#mirrorlist/g' /etc/yum.repos.d/CentOS-*scl* || echo "No CentOS scl repo found, skipping."
+      ${SUDO} sed -i 's|#baseurl=http://mirror.centos.org|baseurl=http://vault.centos.org|g' /etc/yum.repos.d/CentOS-*scl* || echo "No CentOS scl repo found, skipping."
+      ${SUDO} sed -i 's|# baseurl=http://mirror.centos.org|baseurl=http://vault.centos.org|g' /etc/yum.repos.d/CentOS-*scl* || echo "No CentOS scl repo found, skipping."
       ${SUDO} yum install -y ${ADDITIONAL_PACKAGES_CENTOS_7[*]}
 	  else
       if [[ "${OS_PLATFORM}" == *"Aliyun"* ]]; then
         ${SUDO} yum install -y 'dnf-command(config-manager)'
         ${SUDO} dnf install -y epel-release --allowerasing
       else
-        ${SUDO} sed -i 's/mirrorlist/#mirrorlist/g' /etc/yum.repos.d/CentOS-*
-        ${SUDO} sed -i 's|#baseurl=http://mirror.centos.org|baseurl=http://vault.centos.org|g' /etc/yum.repos.d/CentOS-*
-        ${SUDO} yum install -y 'dnf-command(config-manager)'
+        ${SUDO} sed -i 's/mirrorlist/#mirrorlist/g' /etc/yum.repos.d/CentOS-* || echo "No CentOS repo found, skipping."
+        ${SUDO} sed -i 's|#baseurl=http://mirror.centos.org|baseurl=http://vault.centos.org|g' /etc/yum.repos.d/CentOS-* || echo "No CentOS repo found, skipping."
+        ${SUDO} yum install -y 'dnf-command(config-manager)' || echo "No dnf-command found, skipping."
         ${SUDO} dnf install -y epel-release
         ${SUDO} dnf config-manager --set-enabled powertools
       fi

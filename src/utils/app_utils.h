@@ -16,6 +16,7 @@
 #ifndef UTILS_APP_UTILS_H_
 #define UTILS_APP_UTILS_H_
 
+#include <cstdint>
 #include <string>
 #include <string_view>
 #include <vector>

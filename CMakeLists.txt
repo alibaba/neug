@@ -65,6 +65,7 @@ option(ENABLE_BACKTRACES "Enable backtrace printing for exceptions and segfaults
 add_definitions(-DNEUG_CMAKE_VERSION="${CMAKE_PROJECT_VERSION}")
 #TODO: Fixme
 add_definitions(-DNEUG_EXTENSION_VERSION="0.9.0")
+include(CheckCXXCompilerFlag)
 
 if (BUILD_HTTP_SERVER AND NOT BUILD_METADATA)
     message(FATAL_ERROR "BUILD_HTTP_SERVER requires BUILD_METADATA to be ON")
@@ -349,7 +350,19 @@ if (NOT CMAKE_CXX_COMPILER_ID MATCHES "Clang")
     set(CMAKE_SHARED_LINKER_FLAGS "${CMAKE_SHARED_LINKER_FLAGS} -fopenmp")
 endif ()
 
-set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS}  -std=c++20 -Wall -fPIC -Wno-psabi")
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wall -fPIC -Wno-psabi")
+check_cxx_compiler_flag("-std=c++20" COMPILER_SUPPORTS_CXX20)
+if (NOT COMPILER_SUPPORTS_CXX20)
+    check_cxx_compiler_flag("-std=c++2a" COMPILER_SUPPORTS_CXX2A)
+    if (COMPILER_SUPPORTS_CXX2A)
+        set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++2a")
+    else()
+        message(FATAL_ERROR "Compiler does not support C++20 or C++2a")
+    endif()
+else()
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++20")
+endif()
+
 # -Wno-psabi for no warning about returning a pair in c++ function
 if (OPTIMIZE_FOR_HOST AND NOT APPLE)
     set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -march=native")
@@ -412,6 +425,12 @@ include_directories(SYSTEM ${yaml-cpp_INCLUDE_DIRS})
 if (NOT yaml-cpp_FOUND)
     message(FATAL_ERROR "yaml-cpp not found, please install the yaml-cpp library")
 endif ()
+# In manylinux_2_28, it seems that yaml-cpp cannot be found via YAML_CPP_LIBRARIES, we adhere try to find via the absolute path.
+set(YAML_CPP_LIBRARY_PATH /opt/graphscope/lib64/libyaml-cpp.so)
+if (EXISTS ${YAML_CPP_LIBRARY_PATH})
+        set(YAML_CPP_LIBRARIES ${YAML_CPP_LIBRARY_PATH})
+endif()
+
 
 #find hiactor----------------------------------------------------------------------
 if (BUILD_HTTP_SERVER)

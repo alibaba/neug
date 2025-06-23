@@ -91,7 +91,7 @@ target_include_directories(neug_utils PUBLIC
         $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}> 
         $<BUILD_INTERFACE:${CMAKE_CURRENT_BINARY_DIR}>)
 # Link the static library of arrow, to save the trouble of linking the shared library of arrow
-target_link_libraries(neug_utils PUBLIC neug_plan_proto ${Protobuf_LIBRARIES} ${ARROW_LIB} ${YAML_CPP_LIBRARIES} ${Boost_LIBRARIES} ${GLOG_LIBRARIES})
+target_link_libraries(neug_utils PUBLIC neug_plan_proto ${Protobuf_LIBRARIES} ${ARROW_LIB}  ${Boost_LIBRARIES} ${GLOG_LIBRARIES} ${YAML_CPP_LIBRARIES})
 if (BUILD_WITH_OSS)
         target_link_libraries(neug_utils PRIVATE cpp-sdk)
 endif()
