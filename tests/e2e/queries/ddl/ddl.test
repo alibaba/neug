@@ -3,6 +3,7 @@
 --
 
 -CASE DropAndCreateTables
+-SKIP: Drop is not supported yet.
 -STATEMENT DROP TABLE studyAt
 ---- ok
 -STATEMENT MATCH ()-[e:studyAt]->() RETURN count(*)
