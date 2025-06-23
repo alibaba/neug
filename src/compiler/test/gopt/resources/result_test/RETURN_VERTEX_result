@@ -1,0 +1,9 @@
+returns:
+  - name: a
+    type:
+      graph_type:
+        element_opt: VERTEX
+        graph_data_type:
+          - label:
+              id: 0
+              name: person

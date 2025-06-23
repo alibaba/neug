@@ -1,0 +1,21 @@
+returns:
+  - name: k
+    type:
+      graph_type:
+        element_opt: EDGE
+        graph_data_type:
+          - label:
+              id: 0
+              name: knows
+              src_id: 0
+              src_name: person
+              dst_id: 0
+              dst_name: person
+  - name: name
+    type:
+      string:
+        var_char:
+          max_length: 65536
+  - name: age
+    type:
+      primitive_type: DT_SIGNED_INT64

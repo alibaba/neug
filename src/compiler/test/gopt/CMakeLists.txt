@@ -9,7 +9,8 @@ add_compiler_test(
 	path_test.cpp
 	order_test.cpp
 	expr_test.cpp
-	project_test.cpp)
+	project_test.cpp
+	result_test.cpp)
 
 target_link_libraries(gopt_test
     PRIVATE

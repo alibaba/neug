@@ -3,6 +3,7 @@
 #include "src/include/binder/expression/expression_util.h"
 #include "src/include/catalog/catalog.h"
 #include "src/include/gopt/g_alias_name.h"
+#include "src/include/gopt/g_constants.h"
 #include "src/include/gopt/g_graph_type.h"
 #include "src/include/planner/operator/logical_operator.h"
 #include "src/include/storage/predicate/column_predicate.h"

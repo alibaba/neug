@@ -15,12 +15,15 @@
 
 #pragma once
 
+#include <yaml-cpp/node/node.h>
 #include <vector>
 #include "src/include/binder/expression/node_expression.h"
 #include "src/include/binder/expression/rel_expression.h"
+#include "src/include/catalog/catalog.h"
 #include "src/include/catalog/catalog_entry/node_table_catalog_entry.h"
 #include "src/include/common/types/types.h"
 #include "src/include/gopt/g_catalog.h"
+#include "src/include/gopt/g_constants.h"
 
 namespace gs {
 namespace gopt {
@@ -54,6 +57,24 @@ struct GNodeType {
   }
 
   std::vector<catalog::NodeTableCatalogEntry*> nodeTables;
+
+  YAML::Node toYAML() const {
+    YAML::Node type;
+    type["element_opt"] = "VERTEX";
+    YAML::Node labels = YAML::Node(YAML::NodeType::Sequence);
+    for (auto& nodeTable : nodeTables) {
+      YAML::Node label;
+      label["id"] = nodeTable->getTableID();
+      label["name"] = nodeTable->getName();
+      YAML::Node labelNode;
+      labelNode["label"] = label;
+      labels.push_back(labelNode);
+    }
+    type["graph_data_type"] = labels;
+    YAML::Node typeNode;
+    typeNode["graph_type"] = type;
+    return typeNode;
+  }
 };
 
 struct GRelType {
@@ -81,6 +102,41 @@ struct GRelType {
       }
     }
     return labelIds;
+  }
+
+  YAML::Node toYAML(catalog::Catalog* catalog) const {
+    YAML::Node type;
+    type["element_opt"] = "EDGE";
+    YAML::Node labels = YAML::Node(YAML::NodeType::Sequence);
+    auto& transaction = gs::Constants::DEFAULT_TRANSACTION;
+    for (auto& relTable : relTables) {
+      YAML::Node label;
+      label["id"] = relTable->getLabelId();
+      label["name"] = relTable->getLabel(catalog, &transaction);
+      auto srcEntry = catalog->getTableCatalogEntry(&transaction,
+                                                    relTable->getSrcTableID());
+      if (srcEntry->getType() != catalog::CatalogEntryType::NODE_TABLE_ENTRY) {
+        throw common::Exception("src table is not a node table");
+      }
+      auto srcTable = srcEntry->ptrCast<catalog::NodeTableCatalogEntry>();
+      auto dstEntry = catalog->getTableCatalogEntry(&transaction,
+                                                    relTable->getDstTableID());
+      if (dstEntry->getType() != catalog::CatalogEntryType::NODE_TABLE_ENTRY) {
+        throw common::Exception("dst table is not a node table");
+      }
+      auto dstTable = dstEntry->ptrCast<catalog::NodeTableCatalogEntry>();
+      label["src_id"] = srcTable->getTableID();
+      label["src_name"] = srcTable->getName();
+      label["dst_id"] = dstTable->getTableID();
+      label["dst_name"] = dstTable->getName();
+      YAML::Node labelNode;
+      labelNode["label"] = label;
+      labels.push_back(labelNode);
+    }
+    type["graph_data_type"] = labels;
+    YAML::Node typeNode;
+    typeNode["graph_type"] = type;
+    return typeNode;
   }
 
   std::vector<catalog::GRelTableCatalogEntry*> relTables;

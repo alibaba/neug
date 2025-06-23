@@ -271,7 +271,13 @@ void PyQueryResult::initialize(pybind11::handle& m) {
            "Close the query result and "
            "release any resources associated with it.\n\n"
            "This method is a no-op in this implementation, but it is provided "
-           "for compatibility with other query result implementations.");
+           "for compatibility with other query result implementations.")
+      .def("getResultSchema", &PyQueryResult::getResultSchema,
+           "Get the schema of the query result.\n\n"
+           "Returns:\n"
+           "    str: The schema of the query result, which is a string "
+           "representing the structure of the results, including vertex and "
+           "edge labels, properties, etc.");
 
   // PyDateTime_IMPORT is a macro that must be invoked before calling any
   // other cpython datetime macros. One could also invoke this in a separate
@@ -298,5 +304,9 @@ pybind11::list PyQueryResult::getNext() {
 void PyQueryResult::close() {}
 
 int32_t PyQueryResult::length() const { return query_result_.length(); }
+
+const std::string& PyQueryResult::getResultSchema() const {
+  return query_result_.get_result_schema();
+}
 
 }  // namespace gs

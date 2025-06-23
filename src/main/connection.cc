@@ -54,8 +54,8 @@ Result<QueryResult> Connection::query(const std::string& query_string) {
   }
 }
 
-Result<results::CollectiveResults> Connection::query_impl(
-    const std::string& query_string) {
+Result<std::pair<results::CollectiveResults, std::string>>
+Connection::query_impl(const std::string& query_string) {
   LOG(INFO) << "Executing query: " << query_string;
   ////////////////////////////////////////////////////////////////////
   // Idealy we should compile the plan from query_string, but currently we use
@@ -67,13 +67,29 @@ Result<results::CollectiveResults> Connection::query_impl(
       query_string.find("DROP") != std::string::npos ||
       query_string.find("drop") != std::string::npos) {
     auto ddl_plan = createDDLPlan(query_string);
-    return query_processor_->execute(ddl_plan);
+    auto query_res = query_processor_->execute(ddl_plan.physical_plan);
+    if (!query_res.ok()) {
+      LOG(ERROR) << "Error in executing DDL query: " << query_string
+                 << ", error code: " << query_res.status().error_code()
+                 << ", message: " << query_res.status().error_message();
+      return Result<std::pair<results::CollectiveResults, std::string>>(
+          query_res.status());
+    }
+    return Result(std::make_pair(query_res.value(), ddl_plan.result_schema));
   }
 
   if (query_string.find("COPY") != std::string::npos ||
       query_string.find("copy") != std::string::npos) {
     auto dml_plan = createDMLPlan(query_string);
-    return query_processor_->execute(dml_plan);
+    auto query_res = query_processor_->execute(dml_plan.physical_plan);
+    if (!query_res.ok()) {
+      LOG(ERROR) << "Error in executing DML query: " << query_string
+                 << ", error code: " << query_res.status().error_code()
+                 << ", message: " << query_res.status().error_message();
+      return Result<std::pair<results::CollectiveResults, std::string>>(
+          query_res.status());
+    }
+    return Result(std::make_pair(query_res.value(), dml_plan.result_schema));
   }
   Plan plan;
 
@@ -85,26 +101,11 @@ Result<results::CollectiveResults> Connection::query_impl(
     LOG(ERROR) << "Error in query: " << query_string
                << ", error code: " << plan.error_code
                << ", message: " << plan.full_message;
-    return Result<results::CollectiveResults>(
+    return Result<std::pair<results::CollectiveResults, std::string>>(
         // TODO: Use the error code from the plan after plan.error_code is
         // defined as int.
         Status(StatusCode::ERR_COMPILATION, plan.full_message));
   }
-  // Dump plan to binary
-  // {
-  //   std::string plan_binary;
-  //   if (!plan.physical_plan.SerializeToString(&plan_binary)) {
-  //     LOG(ERROR) << "Error in serializing plan to binary.";
-  //     return Result<results::CollectiveResults>(Status(
-  //         StatusCode::ERR_COMPILATION, "Error in serializing plan."));
-  //   }
-  //   // Open ~/neug.pb and write
-  //   std::ofstream fs("/tmp/neug.pb", std::ios::out | std::ios::binary);
-  //   fs.write(plan_binary.data(), plan_binary.size());
-  //   fs.close();
-  //   LOG(INFO) << "Serialized plan to /tmp/neug.pb, size: "
-  //             << plan_binary.size();
-  // }
 
   VLOG(10) << "Physical plan: " << plan.physical_plan.DebugString();
   LOG(INFO) << "Got physical plan, "
@@ -118,11 +119,10 @@ Result<results::CollectiveResults> Connection::query_impl(
                << ", error code: " << result.status().error_code()
                << ", message: " << result.status().error_message();
   }
-  return result;
+  return std::make_pair(std::move(result.move_value()), plan.result_schema);
 }
 
-physical::PhysicalPlan Connection::createDDLPlanWithGopt(
-    const std::string& query_string) {
+Plan Connection::createDDLPlanWithGopt(const std::string& query_string) {
   auto plan = planner_->compilePlan(
       query_string, read_yaml_file_to_string(db_.get_schema_yaml_path()),
       db_.get_statistics_json());
@@ -130,18 +130,18 @@ physical::PhysicalPlan Connection::createDDLPlanWithGopt(
     throw std::runtime_error("Failed to compile DDL plan: " +
                              plan.full_message);
   }
-  return plan.physical_plan;
+  return plan;
 }
 
-physical::PhysicalPlan Connection::createDDLPlan(
-    const std::string& query_string) {
+Plan Connection::createDDLPlan(const std::string& query_string) {
   if (planner_->type() == "gopt" &&
       query_string.find("ALTER") == std::string::npos &&
       query_string.find("DROP") == std::string::npos) {
     return createDDLPlanWithGopt(query_string);
   }
-  physical::PhysicalPlan physical_plan;
-  auto plan = physical_plan.mutable_ddl_plan();
+  // physical::PhysicalPlan physical_plan;
+  Plan res_plan;
+  auto plan = res_plan.physical_plan.mutable_ddl_plan();
   // Currently we use a builtin plan for testing
   // TODO(zhanglei): Remove this after we have a real plan.
 
@@ -157,7 +157,7 @@ physical::PhysicalPlan Connection::createDDLPlan(
             common::Temporal::DateFormat::Temporal_DateFormat_DF_YYYY_MM_DD);
     alter_vertex_request->set_conflict_action(
         physical::ConflictAction::ON_CONFLICT_THROW);
-    return physical_plan;
+    return res_plan;
   }
 
   if (query_string == "ALTER TABLE person ADD IF NOT EXISTS birthday DATE;") {
@@ -172,7 +172,7 @@ physical::PhysicalPlan Connection::createDDLPlan(
             common::Temporal::DateFormat::Temporal_DateFormat_DF_YYYY_MM_DD);
     alter_vertex_request->set_conflict_action(
         physical::ConflictAction::ON_CONFLICT_DO_NOTHING);
-    return physical_plan;
+    return res_plan;
   }
 
   if (query_string == "ALTER TABLE person ADD name STRING;") {
@@ -183,7 +183,7 @@ physical::PhysicalPlan Connection::createDDLPlan(
     name_property->mutable_type()->mutable_string()->mutable_long_text();
     alter_vertex_request->set_conflict_action(
         physical::ConflictAction::ON_CONFLICT_THROW);
-    return physical_plan;
+    return res_plan;
   }
 
   // Insert proeprty to edge schema
@@ -204,7 +204,7 @@ physical::PhysicalPlan Connection::createDDLPlan(
             common::Temporal::DateFormat::Temporal_DateFormat_DF_YYYY_MM_DD);
     alter_edge_request->set_conflict_action(
         physical::ConflictAction::ON_CONFLICT_THROW);
-    return physical_plan;
+    return res_plan;
   }
 
   // Drop an non-existing column
@@ -214,7 +214,7 @@ physical::PhysicalPlan Connection::createDDLPlan(
     alter_vertex_request->set_conflict_action(
         physical::ConflictAction::ON_CONFLICT_THROW);
     alter_vertex_request->add_properties("non_existing_column");
-    return physical_plan;
+    return res_plan;
   }
 
   // Drop an existing column
@@ -224,7 +224,7 @@ physical::PhysicalPlan Connection::createDDLPlan(
     alter_vertex_request->set_conflict_action(
         physical::ConflictAction::ON_CONFLICT_DO_NOTHING);
     alter_vertex_request->add_properties("birthday");
-    return physical_plan;
+    return res_plan;
   }
 
   // Drop a column that already been dropped
@@ -234,7 +234,7 @@ physical::PhysicalPlan Connection::createDDLPlan(
     alter_vertex_request->set_conflict_action(
         physical::ConflictAction::ON_CONFLICT_THROW);
     alter_vertex_request->add_properties("birthday");
-    return physical_plan;
+    return res_plan;
   }
 
   // Rename a column
@@ -245,7 +245,7 @@ physical::PhysicalPlan Connection::createDDLPlan(
         physical::ConflictAction::ON_CONFLICT_THROW);
     auto mappings = alter_vertex_request->mutable_mappings();
     mappings->insert({"name", "username"});  // Rename 'name' to 'username'
-    return physical_plan;
+    return res_plan;
   }
 
   // Delete a vertex type
@@ -254,7 +254,7 @@ physical::PhysicalPlan Connection::createDDLPlan(
     drop_vertex_request->mutable_vertex_type()->set_name("person");
     drop_vertex_request->set_conflict_action(
         physical::ConflictAction::ON_CONFLICT_THROW);
-    return physical_plan;
+    return res_plan;
   }
 
   // Delete a edge type
@@ -268,7 +268,7 @@ physical::PhysicalPlan Connection::createDDLPlan(
         "person");
     drop_edge_request->set_conflict_action(
         physical::ConflictAction::ON_CONFLICT_THROW);
-    return physical_plan;
+    return res_plan;
   }
 
   // Migrating to GraphPlanner
@@ -288,7 +288,7 @@ physical::PhysicalPlan Connection::createDDLPlan(
       age_property->set_name("age");
       age_property->mutable_type()->set_primitive_type(
           common::PrimitiveType::DT_SIGNED_INT64);
-      return physical_plan;
+      return res_plan;
     }
 
     if (query_string.find("knows") != std::string::npos) {
@@ -308,7 +308,7 @@ physical::PhysicalPlan Connection::createDDLPlan(
       weight_prop->set_name("weight");
       weight_prop->mutable_type()->set_primitive_type(
           common::PrimitiveType::DT_DOUBLE);
-      return physical_plan;
+      return res_plan;
     }
   }
 
@@ -421,11 +421,10 @@ void _create_batch_load_edge_plan(physical::QueryPlan* query_plan,
   }
 }
 
-physical::PhysicalPlan Connection::createDMLPlanWithGopt(
-    const std::string& query_string) {
+Plan Connection::createDMLPlanWithGopt(const std::string& query_string) {
   auto graph_schema_yaml = read_yaml_file_to_string(db_.get_schema_yaml_path());
   auto graph_statistic_json = db_.get_statistics_json();
-  auto plan = planner_->compilePlan(query_string, graph_schema_yaml,
+  Plan plan = planner_->compilePlan(query_string, graph_schema_yaml,
                                     graph_statistic_json);
   if (plan.error_code != StatusCode::OK) {
     throw std::runtime_error("Failed to compile load edge plan: " +
@@ -438,19 +437,19 @@ physical::PhysicalPlan Connection::createDMLPlanWithGopt(
     LOG(FATAL) << "The first operator is not a LoadEdge operator for query: "
                << query_string << ", first operator: "
                << plan.physical_plan.query_plan().plan(0).opr().DebugString();
-    return physical::PhysicalPlan();
+    return plan;
   }
   LOG(INFO) << "Successfully compiled load edge plan for query: "
             << query_string;
-  return plan.physical_plan;
+  return plan;
 }
 
-physical::PhysicalPlan Connection::createDMLPlan(
-    const std::string& query_string) {
+Plan Connection::createDMLPlan(const std::string& query_string) {
   if (planner_->type() == "gopt") {
     return createDMLPlanWithGopt(query_string);
   }
-  physical::PhysicalPlan plan;
+  // physical::PhysicalPlan plan;
+  Plan plan;
   // Read env FLEX_DATA_DIR
   const char* env_p = std::getenv("FLEX_DATA_DIR");
   if (env_p == nullptr) {
@@ -461,7 +460,7 @@ physical::PhysicalPlan Connection::createDMLPlan(
   std::string person_csv_path = flex_data_dir + "/person.csv";
   std::string knows_csv_path = flex_data_dir + "/person_knows_person.csv";
 
-  auto query_plan = plan.mutable_query_plan();
+  auto query_plan = plan.physical_plan.mutable_query_plan();
   query_plan->set_mode(physical::QueryPlan::Mode::QueryPlan_Mode_WRITE_ONLY);
   if (query_string.find("knows") != std::string::npos) {
     if (planner_->type() == "dummy") {
@@ -482,7 +481,7 @@ physical::PhysicalPlan Connection::createDMLPlan(
     LOG(FATAL) << "Unknown query: " << query_string;
   }
 
-  LOG(INFO) << "plan: " << plan.DebugString();
+  LOG(INFO) << "plan: " << query_plan->DebugString();
   // TODO(zhanglei): Remove this after we have a real plan.
   return plan;
 }

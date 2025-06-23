@@ -104,6 +104,19 @@ class TestBachLoading(unittest.TestCase):
         for record in res:
             print(record)
 
+        # get the schema
+        result_schema = res.get_result_schema()
+        logger.info(f"result schema: {result_schema}")
+
+        res = conn2.execute("MATCH (n)-[e:knows]->(m) return e;")
+        for record in res:
+            print(record)
+            logger.info(f"record: {record}")
+
+        # get the schema
+        result_schema = res.get_result_schema()
+        logger.info(f"result schema: {result_schema}")
+
     def test_open_close(self):
         tmp_path = os.environ.get("TMPDIR", "/tmp")
         db_dir = tmp_path + "/test_open_close"

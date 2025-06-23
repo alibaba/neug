@@ -9,15 +9,19 @@
 
 #include <google/protobuf/util/json_util.h>
 #include <gtest/gtest.h>
+#include <yaml-cpp/node/emit.h>
+#include <yaml-cpp/node/node.h>
 #include <ranges>
 #include <string>
 #include <vector>
+#include "src/include/catalog/catalog.h"
 #include "src/include/gopt/g_alias_manager.h"
 #include "src/include/gopt/g_catalog.h"
 #include "src/include/gopt/g_constants.h"
 #include "src/include/gopt/g_database.h"
 #include "src/include/gopt/g_node_table.h"
 #include "src/include/gopt/g_physical_convertor.h"
+#include "src/include/gopt/g_result_schema.h"
 #include "src/include/gopt/g_storage_manager.h"
 #include "src/include/main/client_context.h"
 #include "src/include/main/database.h"
@@ -169,6 +173,8 @@ class GOptTest : public ::testing::Test {
     return Utils::readString(path);
   }
 
+  catalog::Catalog* getCatalog() { return database->getCatalog(); }
+
   std::string getGOptResourcePath(const std::string& resourceName) {
     return Utils::getTestResourcePath("test/gopt/resources/" + resourceName);
   }
@@ -187,7 +193,15 @@ class GOptTest : public ::testing::Test {
   }
 
   std::unique_ptr<::physical::PhysicalPlan> planPhysical(
-      const planner::LogicalPlan plan) {
+      const planner::LogicalPlan& plan,
+      std::shared_ptr<gopt::GAliasManager> aliasManager) {
+    gopt::GPhysicalConvertor converter(aliasManager, database->getCatalog());
+    auto physicalPlan = converter.convert(plan);
+    return std::move(physicalPlan);
+  }
+
+  std::unique_ptr<::physical::PhysicalPlan> planPhysical(
+      const planner::LogicalPlan& plan) {
     // Convert to physical plan
     auto aliasManager = std::make_shared<gopt::GAliasManager>(plan);
     gopt::GPhysicalConvertor converter(aliasManager, database->getCatalog());
@@ -250,6 +264,48 @@ class GOptTest : public ::testing::Test {
     }
   }
 
+  void generateResult(const std::string& fixtureName,
+                      const std::string& testName, const std::string& query,
+                      const std::string& schema, const std::string& stats,
+                      std::vector<std::string>& rules) {
+    auto logicalPlan = planLogical(query, schema, stats, rules);
+    auto aliasManager = std::make_shared<GAliasManager>(*logicalPlan);
+    auto resultYaml =
+        GResultSchema::infer(*logicalPlan, aliasManager, getCatalog());
+    Utils::writeString(
+        getGOptResourcePath(fixtureName + "/" + testName + "_result"),
+        YAML::Dump(resultYaml));
+  }
+
+  void generateResults(const std::string& fixtureName,
+                       const std::string& schema, const std::string& stats,
+                       std::vector<std::string>& rules) {
+    std::string queriesContent = getGOptResource(fixtureName + "/queries");
+    std::istringstream iss(queriesContent);
+    std::string line;
+    std::cout << "start to generate queries" << std::endl
+              << queriesContent << std::endl;
+    while (std::getline(iss, line)) {
+      if (line.empty() || line.starts_with("//")) {
+        continue;  // Skip empty lines and comments
+      }
+      size_t colonPos = line.find('#');
+      if (colonPos != std::string::npos) {
+        std::string query = line.substr(0, colonPos);
+        std::string testName = line.substr(colonPos + 1);
+        std::cout << "testName:" + testName << std::endl;
+        std::cout << "query:" + query << std::endl;
+        // Trim whitespace
+        testName.erase(0, testName.find_first_not_of(" \t"));
+        testName.erase(testName.find_last_not_of(" \t") + 1);
+        query.erase(0, query.find_first_not_of(" \t"));
+        query.erase(query.find_last_not_of(" \t") + 1);
+
+        generateResult(fixtureName, testName, query, schema, stats, rules);
+      }
+    }
+  }
+
  private:
   main::SystemConfig sysConfig;
   std::unique_ptr<main::GDatabase> database;
@@ -275,6 +331,13 @@ class VerifyFactory {
   static void verifyLogicalByEncodeStr(planner::LogicalPlan& plan,
                                        const std::string& expectedStr) {
     auto actualStr = planner::LogicalPlanUtil::encodeJoin(plan);
+    ASSERT_EQ(actualStr, expectedStr)
+        << "Expected: " << expectedStr << "\nActual: " << actualStr;
+  }
+
+  static void verifyResultByYaml(const YAML::Node& resultYaml,
+                                 const std::string& expectedStr) {
+    auto actualStr = YAML::Dump(resultYaml);
     ASSERT_EQ(actualStr, expectedStr)
         << "Expected: " << expectedStr << "\nActual: " << actualStr;
   }

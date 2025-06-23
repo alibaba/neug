@@ -1,3 +1,4 @@
+#include <gtest/gtest.h>
 #include "gopt_test.h"
 namespace gs {
 namespace gopt {
@@ -29,16 +30,24 @@ TEST_F(DMLTest, COPY_PERSON) {
   std::string query =
       replaceResource("COPY person from 'DML_RESOURCE/person.csv';");
   auto logical = planLogical(query, schemaData, statsData, rules);
-  auto physical = planPhysical(*logical);
+  auto aliasManager = std::make_shared<GAliasManager>(*logical);
+  auto physical = planPhysical(*logical, aliasManager);
   ASSERT_TRUE(physical != nullptr);
+  auto resultYaml = GResultSchema::infer(*logical, aliasManager, getCatalog());
+  auto returns = resultYaml["returns"];
+  ASSERT_TRUE(returns.IsSequence() && returns.size() == 0);
 }
 
 TEST_F(DMLTest, COPY_KNOWS) {
   std::string query =
       replaceResource("COPY knows from 'DML_RESOURCE/knows.csv';");
   auto logical = planLogical(query, schemaData, statsData, rules);
-  auto physical = planPhysical(*logical);
+  auto aliasManager = std::make_shared<GAliasManager>(*logical);
+  auto physical = planPhysical(*logical, aliasManager);
   ASSERT_TRUE(physical != nullptr);
+  auto resultYaml = GResultSchema::infer(*logical, aliasManager, getCatalog());
+  auto returns = resultYaml["returns"];
+  ASSERT_TRUE(returns.IsSequence() && returns.size() == 0);
 }
 }  // namespace gopt
 }  // namespace gs
