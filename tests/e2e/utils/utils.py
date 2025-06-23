@@ -51,15 +51,21 @@ def collect_test_files(root_dir):
 
 
 # Collect query_names, queries, and expected results from files
-def collect_tests_from_files(test_files, dataset=None):
+def collect_tests_from_files(
+    test_files, dataset=None, test_names=None, include_skip_tests=False
+):
     all_tests = []
     for file in test_files:
         file_suffix = os.path.splitext(file)[1]
         if file_suffix == ".test":
-            tests = parse_test_file(file, FileType.TEST, dataset)
+            tests = parse_test_file(
+                file, FileType.TEST, dataset, test_names, include_skip_tests
+            )
             all_tests.extend(tests)
         elif file_suffix == ".benchmark":
-            tests = parse_test_file(file, FileType.BENCHMARK, dataset)
+            tests = parse_test_file(
+                file, FileType.BENCHMARK, dataset, test_names, include_skip_tests
+            )
             all_tests.extend(tests)
         elif file_suffix == ".cypher":
             # .cypher files only contain queries, we could find expected results from json files
@@ -73,7 +79,25 @@ def collect_tests_from_files(test_files, dataset=None):
     return all_tests
 
 
-def parse_test_file(file_path, file_type=FileType.TEST, dataset=None):
+def parse_test_file(
+    file_path,
+    file_type=FileType.TEST,
+    dataset=None,
+    test_names=None,
+    include_skip_tests=False,
+):
+    """
+    Parse a test file and return a list of Query objects.
+    :param file_path: Path to the test file.
+    :param file_type: Type of the file (TEST, BENCHMARK).
+    :param dataset: Specific dataset to run tests or benchmarks on. If None, all datasets are considered.
+    :param test_names: Comma-separated list of test names to run. If None, all tests are considered.
+    :param also_run_skipped: Whether to run tests that are marked as skip.
+    :return: List of Query objects.
+    """
+    if not os.path.exists(file_path):
+        raise FileNotFoundError(f"File not found: {file_path}")
+
     if file_type == FileType.TEST:
         NAME, STATEMENT = "-LOG", "-STATEMENT"
     elif file_type == FileType.BENCHMARK:
@@ -95,14 +119,18 @@ def parse_test_file(file_path, file_type=FileType.TEST, dataset=None):
                 print(f"Skip dataset: {current_dataset}")
                 return []
         elif line.startswith(NAME):
-            test = parse_single_test(lines, line, NAME, STATEMENT)
+            test = parse_single_test(
+                lines, line, NAME, STATEMENT, test_names, include_skip_tests
+            )
             if test:
                 tests.append(test)
 
     return tests
 
 
-def parse_single_test(lines, name_line, NAME, STATEMENT):
+def parse_single_test(
+    lines, name_line, NAME, STATEMENT, test_names=None, include_skip_tests=False
+):
     CHECK_ORDER, RESULT_PREFIX, SKIP, UNSUPPORTED = (
         "-CHECK_ORDER",
         "----",
@@ -111,6 +139,11 @@ def parse_single_test(lines, name_line, NAME, STATEMENT):
     )
     check_order, skip, expected_result = False, False, []
     current_test_name = name_line.split()[1]
+    if test_names and current_test_name not in test_names.split(","):
+        print(
+            f"Skip test: {current_test_name} as it is not in the specified test names."
+        )
+        return None
     query_lines, within_statement = [], False
 
     for line in lines:
@@ -125,7 +158,9 @@ def parse_single_test(lines, name_line, NAME, STATEMENT):
             query_lines = [line[len(STATEMENT) :].strip()]
         elif line.startswith(CHECK_ORDER):
             check_order = True
-        elif line.startswith(SKIP) or line.startswith(UNSUPPORTED):
+        elif line.startswith(SKIP) and not include_skip_tests:
+            skip = True
+        elif line.startswith(UNSUPPORTED):
             skip = True
         elif line.startswith(RESULT_PREFIX):
             n = line.split()[1]

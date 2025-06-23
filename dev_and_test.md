@@ -92,3 +92,43 @@ For better visualization, you can also use Allure:
     allure serve path/to/report/filter/allure-results
     ```
     Replace `path/to/report/filter/allure-results` with the actual path to the desired test results directory.
+
+#### 4. Test File Structure
+
+Test files are located under `neug/tests/e2e/queries/` and its subdirectories (e.g., `acc/`, `agg/`, etc.).
+Each `.test` file contains multiple test cases, running on the specified dataset with `-DATASET CSV <DataSet>`. Each test case starts with `-LOG <TestName>`, followed by `-STATEMENT <Cypher Query>`, and expected output.
+
+If a test fails and you plan to fix it soon, you can temporarily skip it by adding `-SKIP` after the `-LOG` line. For cases involving operators that are currently not intended for support, you can skip them by adding a `-UNSUPPORTED` mark.
+
+#### 5. Custom Pytest Options
+
+The test framework provides customized options to make test execution flexible and efficient, such as:
+```
+Custom options:
+  --db_dir=DB_DIR       Directory for the database.
+  --read_only           Open the database in read-only mode or not (default: False).
+  --query_dir=QUERY_DIR
+                        Root directory to search for test files.
+  --dataset=DATASET     Specific <DataSet> to run tests or benchmarks on.
+  --test_names=TEST_NAMES
+                        Comma-separated list of <TestName> to run. If not set, run all tests.
+  --include_skip_tests  Include tests that are marked as skip to run (default: False).
+```
+
+**Usage examples:**
+
+* To run all tests in `neug/tests/e2e/queries/acc` using the `tinysnb` dataset:
+```bash
+cd neug/tests/e2e
+python3 -m pytest -m neug_test --db_dir=/tmp/tinysnb --query_dir=neug/tests/e2e/queries/acc --dataset tinysnb
+```
+
+* To further include tests that are marked with -SKIP:
+```bash
+python3 -m pytest -m neug_test --db_dir=/tmp/tinysnb --query_dir=neug/tests/e2e/queries/acc --dataset tinysnb --include_skip_tests
+```
+
+* To run only specific test cases, such as `AspIntersect` and `AspBasic`:
+```bash
+python3 -m pytest -m neug_test --db_dir=/tmp/tinysnb --query_dir=neug/tests/e2e/queries/acc --dataset tinysnb --test_names AspIntersect,AspBasic
+```
