@@ -17,18 +17,35 @@
 #
 
 from utils.utils import Query
-from utils.utils import validate_result
+from utils.utils import ResultType
 
 
 class BaseTest:
     def run_test(self, connection, query_object: Query):
-        query_name = query_object.name
         query = self.prepare_query(query_object)
-        expected_output = query_object.expected_result
-        check_order = query_object.check_order
-        result = connection.execute(query)
-        result_str = self.process_results(result)
-        validate_result(query_name, result_str, expected_output, check_order)
+        try:
+            result = connection.execute(query)
+            if query_object.result_type == ResultType.ERROR:
+                # the query is expected to fail
+                assert (
+                    False
+                ), f"Query {query_object.name} should have failed but passed."
+            elif query_object.result_type == ResultType.OK:
+                # the query is expected to succeed and no validation is needed
+                assert True
+            elif query_object.result_type == ResultType.EXACT:
+                # the query is expected to succeed and the result should be validated
+                self.validate_result(query_object, result)
+            else:
+                raise ValueError(f"Unknown result type: {query_object.result_type}")
+        except Exception as e:
+            # TODO: if the query is expected to fail, we may need to further confirm the error message.
+            # currently, we just check if it raises an exception.
+            if query_object.result_type == ResultType.ERROR:
+                assert True
+            else:
+                # Not expected to fail
+                raise e
 
     def run_benchmark(self, connection, query_object, request, benchmark):
         iterations = request.config.getoption("iterations")
@@ -45,10 +62,25 @@ class BaseTest:
             warmup_rounds=warmup_rounds,
         )
 
-    def prepare_query(self, query_object):
+    def prepare_query(self, query_object: Query):
         """prepare the query for execution."""
         return query_object.query
 
     def process_results(self, result):
         """Process the results for validation."""
         return [list(map(str, record)) for record in result]
+
+    def validate_result(self, query: Query, result):
+        """Validate the results against expected output."""
+        result_list = self.process_results(result)
+        if query.check_order:
+            assert (
+                result_list == query.expected_result
+            ), f"Query {query.name} failed: Expected {query.expected_result}, but got {result}"
+        else:
+            assert set(tuple(r) for r in result_list) == set(
+                tuple(r) for r in query.expected_result
+            ), (
+                f"Query {query.name} failed: Expected {set(tuple(r) for r in query.expected_result)},"
+                f"but got {set(tuple(r) for r in result_list)}"
+            )

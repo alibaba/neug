@@ -28,12 +28,29 @@ class FileType(Enum):
     BENCHMARK = 3
 
 
+class ResultType(Enum):
+    # the query is expected to succeed and the result should be validated
+    EXACT = 1
+    # the query is expected to succeed and no further validation is needed
+    OK = 2
+    # the query is expected to fail
+    ERROR = 3
+
+
 class Query:
-    def __init__(self, name, query, expected_result=None, check_order=False):
+    def __init__(
+        self,
+        name,
+        query,
+        expected_result=None,
+        check_order=False,
+        result_type=ResultType.EXACT,
+    ):
         self.name = name
         self.query = query
         self.expected_result = expected_result
         self.check_order = check_order
+        self.result_type = result_type
 
     def __repr__(self):
         return (
@@ -163,33 +180,59 @@ def parse_single_test(
         elif line.startswith(UNSUPPORTED):
             skip = True
         elif line.startswith(RESULT_PREFIX):
-            n = line.split()[1]
-            if not n.isdigit():
-                print(f"Skip invalid result line: {line}")
-                continue
-            n = int(n)
-            try:
-                if n > 0:
-                    expected_result = [next(lines).strip().split("|") for _ in range(n)]
-            except StopIteration:
-                print(f"Warning: Expected {n} result lines but file ended prematurely.")
-
-            if skip:
+            expected_result, result_type = parse_result_block(lines, line)
+            if expected_result is None or result_type is None:
+                print(f"Invalid result line: {line} in test {current_test_name}.")
+                return None
+            elif skip:
                 print(
                     f"Skipping test: {current_test_name} due to skip or unsupported flag."
                 )
                 return None
-            return Query(
-                name=current_test_name,
-                query=current_query,
-                expected_result=expected_result,
-                check_order=check_order,
-            )
+            else:
+                return Query(
+                    name=current_test_name,
+                    query=current_query,
+                    expected_result=expected_result,
+                    check_order=check_order,
+                    result_type=result_type,
+                )
         else:
             if within_statement:
                 query_lines.append(line)
 
     return None
+
+
+def parse_result_block(lines, line):
+    """Parse the result block after ---- and return (expected_result, result_type)."""
+    # e.g., ---- 3, ---- ok, ---- error
+    n = line.split()[1]
+    result_type = None
+    expected_result = []
+    if n.isdigit():
+        n = int(n)
+        result_type = ResultType.EXACT
+        try:
+            if n > 0:
+                expected_result = [next(lines).strip().split("|") for _ in range(n)]
+        except StopIteration:
+            print(f"Warning: Expected {n} result lines but file ended prematurely.")
+    elif n == "ok":
+        result_type = ResultType.OK
+    elif n == "error":
+        result_type = ResultType.ERROR
+        # Optionally read error message
+        error_message = ""
+        try:
+            error_message = next(lines).strip()
+        except StopIteration:
+            pass
+        expected_result = [error_message] if error_message else []
+    else:
+        print(f"Skip invalid result line: {line}")
+        return None, None
+    return expected_result, result_type
 
 
 def parse_cypher_file(file_path):
@@ -312,17 +355,3 @@ def skip_query(query):
     skip_keywords = ["CREATE", "DELETE", "SET", "CALL", "p ="]
     # check if any of the skip_keywords exist in query
     return any(keyword in query for keyword in skip_keywords)
-
-
-def validate_result(query_name, result, expected_result, check_order):
-    if check_order:
-        assert (
-            result == expected_result
-        ), f"Query {query_name} failed: Expected {expected_result}, but got {result}"
-    else:
-        assert set(tuple(r) for r in result) == set(
-            tuple(r) for r in expected_result
-        ), (
-            f"Query {query_name} failed: Expected {set(tuple(r) for r in expected_result)},"
-            f"but got {set(tuple(r) for r in result)}"
-        )
