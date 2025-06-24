@@ -178,8 +178,6 @@ void set_column_from_date_array(gs::ColumnBase* col,
         if (offset[cur_ind] >= size) {
           cur_ind++;
         } else {
-          LOG(INFO) << "Set date column at offset " << offset[cur_ind]
-                    << " with value " << casted->Value(k);
           col->set_any(offset[cur_ind++],
                        std::move(AnyConverter<Date>::to_any(casted->Value(k))));
         }

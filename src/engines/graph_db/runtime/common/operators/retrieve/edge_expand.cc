@@ -651,6 +651,12 @@ bl::result<Context> EdgeExpand::expand_edge_with_special_edge_predicate(
   } else if (pred.data_type() == RTAnyType::kI32Value) {
     return _expand_edge_with_special_edge_predicate<int32_t>(
         graph, std::move(ctx), params, pred);
+  } else if (pred.data_type() == RTAnyType::kU32Value) {
+    return _expand_edge_with_special_edge_predicate<uint32_t>(
+        graph, std::move(ctx), params, pred);
+  } else if (pred.data_type() == RTAnyType::kU64Value) {
+    return _expand_edge_with_special_edge_predicate<uint64_t>(
+        graph, std::move(ctx), params, pred);
   } else if (pred.data_type() == RTAnyType::kF64Value) {
     return _expand_edge_with_special_edge_predicate<double>(
         graph, std::move(ctx), params, pred);

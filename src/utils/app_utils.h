@@ -35,6 +35,8 @@ class Encoder {
 
   void put_int(int v);
 
+  void put_uint(uint32_t v);
+
   size_t skip_int();
 
   void put_int_at(size_t pos, int v);
@@ -73,6 +75,8 @@ class Decoder {
   ~Decoder() {}
 
   int get_int();
+
+  uint32_t get_uint();
 
   int64_t get_long();
 

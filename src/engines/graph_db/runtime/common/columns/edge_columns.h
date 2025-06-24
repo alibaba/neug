@@ -36,6 +36,14 @@ static inline void get_edge_data(EdgePropVecBase* prop, size_t idx,
     edge_data.type = RTAnyType::kI32Value;
     edge_data.value.i32_val =
         dynamic_cast<EdgePropVec<int32_t>*>(prop)->get_view(idx);
+  } else if (prop->type() == PropertyType::kUInt32) {
+    edge_data.type = RTAnyType::kU32Value;
+    edge_data.value.u32_val =
+        dynamic_cast<EdgePropVec<uint32_t>*>(prop)->get_view(idx);
+  } else if (prop->type() == PropertyType::kUInt64) {
+    edge_data.type = RTAnyType::kU64Value;
+    edge_data.value.u64_val =
+        dynamic_cast<EdgePropVec<uint64_t>*>(prop)->get_view(idx);
   } else if (prop->type() == PropertyType::kDouble) {
     edge_data.type = RTAnyType::kF64Value;
     edge_data.value.f64_val =
@@ -61,8 +69,21 @@ static inline void get_edge_data(EdgePropVecBase* prop, size_t idx,
     edge_data.type = RTAnyType::kRecordView;
     edge_data.value.record_view =
         dynamic_cast<EdgePropVec<RecordView>*>(prop)->get_view(idx);
+  } else if (prop->type() == PropertyType::kUInt64) {
+    edge_data.type = RTAnyType::kU64Value;
+    edge_data.value.u64_val =
+        dynamic_cast<EdgePropVec<uint64_t>*>(prop)->get_view(idx);
+  } else if (prop->type() == PropertyType::kTimestamp) {
+    edge_data.type = RTAnyType::kTimestamp;
+    edge_data.value.ts_val =
+        dynamic_cast<EdgePropVec<TimeStamp>*>(prop)->get_view(idx);
+  } else if (prop->type() == PropertyType::kUInt32) {
+    edge_data.type = RTAnyType::kU32Value;
+    edge_data.value.u32_val =
+        dynamic_cast<EdgePropVec<uint32_t>*>(prop)->get_view(idx);
   } else {
-    edge_data.type = RTAnyType::kUnknown;
+    throw std::runtime_error("get_edge_data: unsupported property type: " +
+                             prop->type().ToString());
   }
 }
 

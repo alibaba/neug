@@ -726,7 +726,8 @@ bool is_property_extract(const common::Expression& expr, int& tag,
       }
       // only support pod type
       if (type == RTAnyType::kTimestamp || type == RTAnyType::kDate ||
-          type == RTAnyType::kI64Value || type == RTAnyType::kI32Value) {
+          type == RTAnyType::kI64Value || type == RTAnyType::kI32Value ||
+          type == RTAnyType::kF64Value || type == RTAnyType::kU32Value) {
         return true;
       }
     }
@@ -826,6 +827,9 @@ make_project_expr(const common::Expression& expr, int alias) {
     } break;
     case RTAnyType::kMap: {
       return _make_project_expr<Map>(std::move(e), alias, ctx);
+    } break;
+    case RTAnyType::kU64Value: {
+      return _make_project_expr<uint64_t>(std::move(e), alias, ctx);
     } break;
     default:
       LOG(FATAL) << "not support - " << static_cast<int>(e.type());
@@ -1047,6 +1051,9 @@ make_project_expr(const common::Expression& expr,
     // compiler bug here
     case RTAnyType::kUnknown: {
       return make_project_expr(expr, alias);
+    } break;
+    case RTAnyType::kU64Value: {
+      return _make_project_expr<uint64_t>(expr, alias);
     } break;
     default: {
       LOG(INFO) << "not support" << data_type.DebugString();

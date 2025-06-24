@@ -71,7 +71,18 @@ class GTypeUtils {
       }
     }
     if (node["temporal"]) {
-      return gs::common::LogicalType(gs::common::LogicalTypeID::INT64);
+      if (node["temporal"]["date"].IsDefined()) {
+        return gs::common::LogicalType(gs::common::LogicalTypeID::DATE);
+      } else if (node["temporal"]["timestamp"].IsDefined() ||
+                 node["temporal"]["datetime"].IsDefined()) {
+        return gs::common::LogicalType(gs::common::LogicalTypeID::TIMESTAMP);
+      } else if (node["temporal"]["interval"].IsDefined()) {
+        return gs::common::LogicalType(gs::common::LogicalTypeID::INTERVAL);
+      } else {
+        // Print yaml node
+        LOG(ERROR) << "Unsupported temporal type in YAML: " << node["temporal"];
+        throw std::runtime_error("Unsupported temporal type in YAML");
+      }
     }
     LOG(WARNING) << "Unsupported type in YAML: " << node;
     return gs::common::LogicalType(gs::common::LogicalTypeID::ANY);

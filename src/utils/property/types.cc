@@ -106,13 +106,13 @@ PropertyType StringToPrimitivePropertyType(const std::string& str) {
 YAML::Node TemporalTypeToYAML(PropertyType type) {
   YAML::Node node;
   if (type == PropertyType::kDate) {
-    node["temporal"]["date"] = "";
+    node["date"] = "";
   } else if (type == PropertyType::kDateTime) {
-    node["temporal"]["datetime"] = "";
+    node["datetime"] = "";
   } else if (type == PropertyType::kTimestamp) {
-    node["temporal"]["timestamp"] = "";
+    node["timestamp"] = "";
   } else if (type == PropertyType::kInterval) {
-    node["temporal"]["interval"] = "";
+    node["interval"] = "";
   } else {
     LOG(FATAL) << "Unsupported property type: " << type.type_enum;
   }

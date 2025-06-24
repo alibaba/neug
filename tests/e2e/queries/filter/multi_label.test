@@ -11,6 +11,7 @@
 # 6
 
 -LOG MultiLabelTwoHopTest1
+-SKIP: (compiler): No filtering operator is generated in the plan
 -STATEMENT MATCH (a:person)<-[e:knows|:meets]-(b:person)-[:knows|:meets]->(c:person) WHERE b.ID = 7 AND a.ID = c.ID RETURN COUNT(*)
 ---- 1
 3

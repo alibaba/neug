@@ -41,6 +41,12 @@ void Encoder::put_int(int v) {
   memcpy(&buf_[size], &v, sizeof(int));
 }
 
+void Encoder::put_uint(uint32_t v) {
+  size_t size = buf_.size();
+  buf_.resize(size + sizeof(uint32_t));
+  memcpy(&buf_[size], &v, sizeof(uint32_t));
+}
+
 size_t Encoder::skip_int() {
   size_t size = buf_.size();
   buf_.resize(size + sizeof(int));
@@ -117,6 +123,11 @@ static int char_ptr_to_int(const char* data) {
   return *ptr;
 }
 
+static uint32_t char_ptr_to_uint(const char* data) {
+  const uint32_t* ptr = reinterpret_cast<const uint32_t*>(data);
+  return *ptr;
+}
+
 static double char_ptr_to_double(const char* data) {
   const double* ptr = reinterpret_cast<const double*>(data);
   return *ptr;
@@ -124,6 +135,12 @@ static double char_ptr_to_double(const char* data) {
 
 int Decoder::get_int() {
   int ret = char_ptr_to_int(data_);
+  data_ += 4;
+  return ret;
+}
+
+uint32_t Decoder::get_uint() {
+  uint32_t ret = char_ptr_to_uint(data_);
   data_ += 4;
   return ret;
 }

@@ -223,6 +223,10 @@ class ListValueColumn : public ListValueColumnBase {
       return unfold_impl<double>();
     } else if (elem_type_ == RTAnyType::kI32Value) {
       return unfold_impl<int32_t>();
+    } else if (elem_type_ == RTAnyType::kU32Value) {
+      return unfold_impl<uint32_t>();
+    } else if (elem_type_ == RTAnyType::kU64Value) {
+      return unfold_impl<uint64_t>();
     } else if (elem_type_ == RTAnyType::kDate) {
       return unfold_impl<Date>();
     } else if (elem_type_ == RTAnyType::kDateTime) {

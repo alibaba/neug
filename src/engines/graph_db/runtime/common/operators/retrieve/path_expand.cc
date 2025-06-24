@@ -892,6 +892,10 @@ PathExpand::single_source_shortest_path_with_special_vertex_predicate(
     return _single_shortest_path<double>(graph, std::move(ctx), params, pred);
   } else if (pred.data_type() == RTAnyType::kI32Value) {
     return _single_shortest_path<int>(graph, std::move(ctx), params, pred);
+  } else if (pred.data_type() == RTAnyType::kU32Value) {
+    return _single_shortest_path<uint32_t>(graph, std::move(ctx), params, pred);
+  } else if (pred.data_type() == RTAnyType::kU64Value) {
+    return _single_shortest_path<uint64_t>(graph, std::move(ctx), params, pred);
   } else if (pred.data_type() == RTAnyType::kDate) {
     return _single_shortest_path<Date>(graph, std::move(ctx), params, pred);
   } else if (pred.data_type() == RTAnyType::kEmpty) {

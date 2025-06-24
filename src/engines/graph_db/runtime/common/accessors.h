@@ -400,6 +400,7 @@ class MultiPropsEdgePropertyPathAccessor : public IAccessor {
                                      const std::string& prop_name,
                                      const Context& ctx, int tag)
       : col_(*std::dynamic_pointer_cast<IEdgeColumn>(ctx.get(tag))) {
+    VLOG(10) << "MultiPropsEdgePropertyPathAccessor: prop_name = " << prop_name;
     const auto& labels = col_.get_labels();
     vertex_label_num_ = graph.schema().vertex_label_num();
     edge_label_num_ = graph.schema().edge_label_num();

@@ -343,6 +343,7 @@ enum class RTAnyType {
   kI64Value,
   kU64Value,
   kI32Value,
+  kU32Value,
   kF64Value,
   kBoolValue,
   kStringValue,
@@ -432,6 +433,9 @@ struct EdgeData {
     if constexpr (std::is_same_v<T, int32_t>) {
       type = RTAnyType::kI32Value;
       value.i32_val = val;
+    } else if constexpr (std::is_same_v<T, uint32_t>) {
+      type = RTAnyType::kU32Value;
+      value.u32_val = val;
     } else if constexpr (std::is_same_v<T, int64_t>) {
       type = RTAnyType::kI64Value;
       value.i64_val = val;
@@ -463,6 +467,10 @@ struct EdgeData {
   std::string to_string() const {
     if (type == RTAnyType::kI32Value) {
       return std::to_string(value.i32_val);
+    } else if (type == RTAnyType::kU32Value) {
+      return std::to_string(value.u32_val);
+    } else if (type == RTAnyType::kU64Value) {
+      return std::to_string(value.u64_val);
     } else if (type == RTAnyType::kI64Value) {
       return std::to_string(value.i64_val);
     } else if (type == RTAnyType::kStringValue) {
@@ -502,6 +510,14 @@ struct EdgeData {
       type = RTAnyType::kI32Value;
       value.i32_val = any.value.i;
       break;
+    case impl::PropertyTypeImpl::kUInt32:
+      type = RTAnyType::kU32Value;
+      value.u32_val = any.value.ui;
+      break;
+    case impl::PropertyTypeImpl::kUInt64:
+      type = RTAnyType::kU64Value;
+      value.u64_val = any.value.ul;
+      break;
     case impl::PropertyTypeImpl::kStringView:
       type = RTAnyType::kStringValue;
       value.str_val = any.value.s;
@@ -536,6 +552,10 @@ struct EdgeData {
       return value.i64_val < e.value.i64_val;
     } else if (type == RTAnyType::kI32Value) {
       return value.i32_val < e.value.i32_val;
+    } else if (type == RTAnyType::kU64Value) {
+      return value.u64_val < e.value.u64_val;
+    } else if (type == RTAnyType::kU32Value) {
+      return value.u32_val < e.value.u32_val;
     } else if (type == RTAnyType::kF64Value) {
       return value.f64_val < e.value.f64_val;
     } else if (type == RTAnyType::kBoolValue) {
@@ -555,6 +575,10 @@ struct EdgeData {
       return value.i64_val == e.value.i64_val;
     } else if (type == RTAnyType::kI32Value) {
       return value.i32_val == e.value.i32_val;
+    } else if (type == RTAnyType::kU64Value) {
+      return value.u64_val == e.value.u64_val;
+    } else if (type == RTAnyType::kU32Value) {
+      return value.u32_val == e.value.u32_val;
     } else if (type == RTAnyType::kF64Value) {
       return value.f64_val == e.value.f64_val;
     } else if (type == RTAnyType::kBoolValue) {
@@ -578,6 +602,7 @@ struct EdgeData {
 
   union {
     int32_t i32_val;
+    uint32_t u32_val;
     int64_t i64_val;
     uint64_t u64_val;
     double f64_val;
@@ -622,6 +647,10 @@ inline RTAnyType parse_from_ir_data_type(const ::common::IrDataType& dt) {
       switch (pt) {
       case ::common::PrimitiveType::DT_SIGNED_INT32:
         return RTAnyType::kI32Value;
+      case ::common::PrimitiveType::DT_UNSIGNED_INT32:
+        return RTAnyType::kU32Value;
+      case ::common::PrimitiveType::DT_UNSIGNED_INT64:
+        return RTAnyType::kU64Value;
       case ::common::PrimitiveType::DT_SIGNED_INT64:
         return RTAnyType::kI64Value;
       case ::common::PrimitiveType::DT_DOUBLE:
@@ -688,6 +717,7 @@ union RTAnyValue {
   int64_t i64_val;
   uint64_t u64_val;
   int i32_val;
+  uint32_t u32_val;
   double f64_val;
   // Day day;
   Date date_val;
@@ -727,6 +757,7 @@ class RTAny {
   static RTAny from_int64(int64_t v);
   static RTAny from_uint64(uint64_t v);
   static RTAny from_int32(int v);
+  static RTAny from_uint32(uint32_t v);
   static RTAny from_string(const std::string& str);
   static RTAny from_string(const std::string_view& str);
   static RTAny from_date(Date v);
@@ -741,6 +772,7 @@ class RTAny {
 
   bool as_bool() const;
   int as_int32() const;
+  uint32_t as_uint32() const;
   int64_t as_int64() const;
   uint64_t as_uint64() const;
   Date as_date32() const;
@@ -793,6 +825,8 @@ class RTAny {
       encoder.put_long(value_.ts_val.milli_second);
     } else if (type_ == RTAnyType::kI32Value) {
       encoder.put_int(value_.i32_val);
+    } else if (type_ == RTAnyType::kU32Value) {
+      encoder.put_uint(value_.u32_val);
     } else if (type_ == RTAnyType::kF64Value) {
       int64_t long_value;
       std::memcpy(&long_value, &value_.f64_val, sizeof(long_value));
@@ -844,6 +878,17 @@ struct TypedConverter<int32_t> {
   static const std::string name() { return "int"; }
   static int32_t typed_from_string(const std::string& str) {
     return std::stoi(str);
+  }
+};
+
+template <>
+struct TypedConverter<uint32_t> {
+  static RTAnyType type() { return RTAnyType::kU32Value; }
+  static uint32_t to_typed(const RTAny& val) { return val.as_uint32(); }
+  static RTAny from_typed(uint32_t val) { return RTAny::from_uint32(val); }
+  static const std::string name() { return "uint"; }
+  static uint32_t typed_from_string(const std::string& str) {
+    return std::stoul(str);
   }
 };
 
