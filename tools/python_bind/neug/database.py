@@ -107,6 +107,11 @@ class Database(object):
         self._database = None
         self._db_path = None
         self._illegal_chars = ["?", "*", '"', "<", ">", "|", ":", "\\"]
+        if not isinstance(db_path, str):
+            raise TypeError("db_path must be a string." + str(type(db_path)))
+        # TODO(zhanglei): remove this check when we support pure in-memory database.
+        if db_path is None or db_path.strip() == "":
+            raise ValueError("Database path cannot be empty.")
         if any(char in db_path for char in self._illegal_chars):
             raise ValueError(
                 f"invalid path: database path '{db_path}' contains illegal characters: {self._illegal_chars}."
@@ -133,6 +138,11 @@ class Database(object):
             jni_planner_jar_path = self._get_default_jni_planner_jar_path()
         if planner_config_path is None:
             planner_config_path = self._get_default_planner_config_path()
+
+        if max_thread_num < 0:
+            raise ValueError(
+                f"Invalid config: max_thread_num: {max_thread_num}. Must be a non-negative integer."
+            )
 
         # Currently, no intellisense here. self._database is of class PyDatabase,
         # defined in tools/python_bind/src/py_database.h

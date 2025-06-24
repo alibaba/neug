@@ -57,7 +57,16 @@ struct SessionLocalContext {
   char _padding2[4096 - sizeof(GraphDBSession) % 4096];
 };
 
-GraphDB::GraphDB() = default;
+GraphDB::GraphDB()
+    : contexts_(nullptr),
+      thread_num_(1),
+      monitor_thread_running_(false),
+      last_compaction_ts_(0),
+      compact_thread_running_(false) {
+  app_paths_.fill("");
+  app_factories_.fill(nullptr);
+}
+
 GraphDB::~GraphDB() {
   if (compact_thread_running_) {
     compact_thread_running_ = false;

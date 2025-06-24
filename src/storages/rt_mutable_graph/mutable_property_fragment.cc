@@ -63,7 +63,8 @@ inline DualCsrBase* create_csr(EdgeStrategy oes, EdgeStrategy ies,
   return nullptr;
 }
 
-MutablePropertyFragment::MutablePropertyFragment() {}
+MutablePropertyFragment::MutablePropertyFragment()
+    : vertex_label_num_(0), edge_label_num_(0) {}
 
 MutablePropertyFragment::~MutablePropertyFragment() {
   std::vector<size_t> degree_list(vertex_label_num_, 0);

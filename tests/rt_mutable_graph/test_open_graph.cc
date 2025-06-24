@@ -142,6 +142,48 @@ bool test_dangling(const std::string& data_path, const std::string& csv_dir) {
   return true;
 }
 
+bool test_rw_conflict(const std::string& data_path) {
+  // remove the directory if it exists
+  if (std::filesystem::exists(data_path)) {
+    std::filesystem::remove_all(data_path);
+  }
+  // create the directory
+  std::filesystem::create_directories(data_path);
+
+  gs::NeugDB db(data_path, 1, "w", "gopt");
+  {
+    try {
+      auto db2 = gs::NeugDB(data_path, 1, "w", "gopt");
+    } catch (const std::runtime_error& e) {
+      LOG(INFO) << "Caught expected error: " << e.what();
+      return true;  // Expected error, test passes
+    } catch (const std::exception& e) {
+      LOG(ERROR) << "Unexpected exception: " << e.what();
+      return false;  // Unexpected error, test fails
+    } catch (...) {
+      LOG(ERROR) << "Caught an unknown exception.";
+      return false;  // Unknown error, test fails
+    }
+  }
+  {
+    try {
+      auto db2 = gs::NeugDB(data_path, 1, "r", "gopt");
+      LOG(ERROR) << "Expected an error when opening in read mode while write "
+                    "lock is held, but got success.";
+      return false;  // Test fails if no error is thrown
+    } catch (const std::runtime_error& e) {
+      LOG(INFO) << "Caught expected error: " << e.what();
+      return true;  // Expected error, test passes
+    } catch (const std::exception& e) {
+      LOG(ERROR) << "Unexpected exception: " << e.what();
+      return false;  // Unexpected error, test fails
+    } catch (...) {
+      LOG(ERROR) << "Caught an unknown exception.";
+      return false;  // Unknown error, test fails
+    }
+  }
+}
+
 int main(int argc, char** argv) {
   // Expect 2 args, data path, and csv directory
   if (argc != 3) {
@@ -166,6 +208,8 @@ int main(int argc, char** argv) {
 
   CHECK(test_dangling(data_path, csv_dir))
       << "Dangling connection test failed.";
+
+  CHECK(test_rw_conflict(data_path)) << "Read-write conflict test failed.";
   LOG(INFO) << "------------------------------------";
   LOG(INFO) << "All tests passed successfully.";
   return 0;

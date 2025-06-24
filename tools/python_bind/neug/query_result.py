@@ -32,7 +32,8 @@ class QueryResult(object):
         - `hasNext()`: Returns True if there are more results to iterate over.
         - `getNext()`: Returns the next result as a list.
         - `length()`: Returns the total number of results.
-        - `getResultSchema()`: Returns the schema of the result, which is a yaml string describing the structure of the result.
+        - `get_result_schema()`: Returns the schema of the result, which is a
+            yaml string describing the structure of the result.
 
     .. code:: python
 
@@ -111,4 +112,4 @@ class QueryResult(object):
         str
             The schema of the result, which is a yaml string describing the structure of the result.
         """
-        return self._result.getResultSchema()
+        return self._result.get_result_schema()

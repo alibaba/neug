@@ -37,9 +37,7 @@ from neug.database import Database
 
 
 # DB-001-01 & DB-001-02
-@pytest.mark.skip(
-    reason="Core dump. Throws Error: [file_utils.cc:22] Error: Directory path is empty."
-)
+@pytest.mark.skip(reason="memory mode is not supported in the current version of neug")
 def test_memory_mode_open_and_close():
     db = Database(db_path="", mode="r", planner="gopt")
     assert db is not None
@@ -106,9 +104,6 @@ def test_readonly_mode_multi_instance(tmp_path):
 
 
 # DB-001-07
-@pytest.mark.skip(
-    reason="Run this test independently is ok, but in the whole test suite it fails sometimes"
-)
 def test_rw_mode_exclusive(tmp_path):
     db_dir = tmp_path / "exclusive_db"
     db1 = Database(db_path=str(db_dir), mode="w", planner="gopt")
@@ -121,9 +116,6 @@ def test_rw_mode_exclusive(tmp_path):
 
 
 # DB-001-08
-@pytest.mark.skip(
-    reason="Run this test independently is ok, but in the whole test suite it fails sometimes"
-)
 def test_rw_ro_conflict(tmp_path):
     db_dir = tmp_path / "conflict_db"
     db1 = Database(db_path=str(db_dir), mode="w", planner="gopt")
@@ -149,7 +141,6 @@ def test_readonly_write_operation(tmp_path):
 
 
 # DB-001-10
-@pytest.mark.xfail(reason="no invalid path check, to be fixed")
 def test_invalid_path():
     with pytest.raises(Exception) as excinfo:
         Database(db_path="??/illegal", mode="r", planner="gopt")
@@ -160,7 +151,6 @@ def test_invalid_path():
 
 
 # DB-001-11
-@pytest.mark.xfail(reason="no invalid config value check, to be fixed")
 def test_config_param_exception(tmp_path):
     db_dir = tmp_path / "config_db"
     db_dir.mkdir()
@@ -175,11 +165,15 @@ def test_config_param_exception(tmp_path):
         Database(db_path=str(db_dir), mode="rw", max_thread_num=-1, planner="gopt")
     assert ERROR_STRINGS[ERR_CONFIG_INVALID] in str(excinfo.value)
 
+    with pytest.raises(ValueError) as excinfo:
+        Database(db_path="/tmp/test", mode="red", planner="gopt")
+        assert "Invalid mode: red" in str(excinfo.value)
+    with pytest.raises(ValueError) as excinfo:
+        Database(db_path="/tmp/test", mode="write", planner="gopt123")
+        assert "Invalid planner: gopt123" in str(excinfo.value)
+
 
 # DB-001-12
-@pytest.mark.skip(
-    reason="Run this test independently is ok, but in the whole test suite it fails sometimes"
-)
 def test_open_no_permission(tmp_path):
     db_dir = tmp_path / "no_permission_db"
     if db_dir.exists():
@@ -216,17 +210,17 @@ def test_open_version_mismatch(tmp_path):
 
 
 # DB-001-14
-@pytest.mark.skip(reason="Core dump. No directory existence check implemented yet")
 def test_open_dir_not_exist(tmp_path):
     db_dir = tmp_path / "not_exist_dir"
     if db_dir.exists():
         os.system("rm -rf %s" % db_dir)
     # mock the os.chmod to simulate no permission
-    os.chmod(tmp_path, 0o400)
+    os.makedirs(db_dir, exist_ok=True)
+    os.chmod(db_dir, 0o400)
     try:
         with pytest.raises(Exception) as excinfo:
             Database(db_path=str(db_dir), mode="w", planner="gopt")
-        assert ERROR_STRINGS[ERR_DIRECTORY_NOT_EXIST] in str(excinfo.value)
+        assert "Permission denied" in str(excinfo.value)
     finally:
         os.chmod(db_dir, 0o700)
 

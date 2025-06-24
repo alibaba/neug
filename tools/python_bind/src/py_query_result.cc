@@ -272,7 +272,7 @@ void PyQueryResult::initialize(pybind11::handle& m) {
            "release any resources associated with it.\n\n"
            "This method is a no-op in this implementation, but it is provided "
            "for compatibility with other query result implementations.")
-      .def("getResultSchema", &PyQueryResult::getResultSchema,
+      .def("get_result_schema", &PyQueryResult::get_result_schema,
            "Get the schema of the query result.\n\n"
            "Returns:\n"
            "    str: The schema of the query result, which is a string "
@@ -305,7 +305,7 @@ void PyQueryResult::close() {}
 
 int32_t PyQueryResult::length() const { return query_result_.length(); }
 
-const std::string& PyQueryResult::getResultSchema() const {
+const std::string& PyQueryResult::get_result_schema() const {
   return query_result_.get_result_schema();
 }
 
