@@ -262,6 +262,20 @@ schema:
           property_name: temperature
           property_type:
             primitive_type: DT_SIGNED_INT32
+        - property_id: 6
+          property_name: ulength
+          property_type:
+            primitive_type: DT_UNSIGNED_INT32
+        - property_id: 7
+          property_name: ulevel
+          property_type:
+            primitive_type: DT_UNSIGNED_INT32
+        - property_id: 8
+          property_name: hugedata
+          property_type:
+            string:
+              long_text:
+
     - type_id: 2
       type_name: workAt
       description: A workAt edge type
