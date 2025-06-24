@@ -196,9 +196,9 @@ function_set SubtractFunction::getFunctionSet() {
       LogicalTypeID::DECIMAL);
   func->bindFunc = DecimalFunction::bindSubtractFunc;
   result.push_back(std::move(func));
-  // date - date → int64
+  // date - date → interval
   result.push_back(getBinaryFunction<Subtract, date_t, int64_t>(
-      name, LogicalTypeID::DATE, LogicalTypeID::INT64));
+      name, LogicalTypeID::DATE, LogicalTypeID::INTERVAL));
   // date - integer → date
   result.push_back(make_unique<ScalarFunction>(
       name,
@@ -710,10 +710,10 @@ struct DecimalFloor {
       // round to larger absolute value
       result = (R) input - (input % pow10s[scale] == 0
                                 ? 0
-                                : pow10s[scale] + (R) (input % pow10s[scale]));
+                                : pow10s[scale] + (R)(input % pow10s[scale]));
     } else {
       // round to smaller absolute value
-      result = (R) input - (R) (input % pow10s[scale]);
+      result = (R) input - (R)(input % pow10s[scale]);
     }
     result = result / pow10s[scale];
   }
@@ -731,12 +731,12 @@ struct DecimalCeil {
     auto scale = DecimalType::getScale(inputVector.dataType);
     if (input < 0) {
       // round to larger absolute value
-      result = (R) input - (R) (input % pow10s[scale]);
+      result = (R) input - (R)(input % pow10s[scale]);
     } else {
       // round to smaller absolute value
       result = (R) input + (input % pow10s[scale] == 0
                                 ? 0
-                                : pow10s[scale] - (R) (input % pow10s[scale]));
+                                : pow10s[scale] - (R)(input % pow10s[scale]));
     }
     result = result / pow10s[scale];
   }

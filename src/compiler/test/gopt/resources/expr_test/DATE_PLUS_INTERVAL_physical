@@ -1,0 +1,84 @@
+{
+ "plan_id": 0,
+ "query_plan": {
+  "mode": "READ_ONLY",
+  "plan": [
+   {
+    "opr": {
+     "project": {
+      "mappings": [
+       {
+        "expr": {
+         "operators": [
+          {
+           "to_date": {
+            "date_str": "2021-10-12"
+           },
+           "node_type": {
+            "data_type": {
+             "temporal": {
+              "date": {
+               "date_format": "DF_YYYY_MM_DD"
+              }
+             }
+            }
+           }
+          },
+          {
+           "node_type": {
+            "data_type": {
+             "temporal": {
+              "date": {
+               "date_format": "DF_YYYY_MM_DD"
+              }
+             }
+            }
+           },
+           "arith": "ADD"
+          },
+          {
+           "to_interval": {
+            "interval_str": "3 DAYS"
+           },
+           "node_type": {
+            "data_type": {
+             "temporal": {
+              "interval": {}
+             }
+            }
+           }
+          }
+         ]
+        },
+        "alias": 0
+       }
+      ],
+      "is_append": false
+     }
+    },
+    "meta_data": [
+     {
+      "type": {
+       "data_type": {
+        "temporal": {
+         "date": {
+          "date_format": "DF_YYYY_MM_DD"
+         }
+        }
+       }
+      },
+      "alias": 0
+     }
+    ]
+   },
+   {
+    "opr": {
+     "sink": {
+      "tags": []
+     }
+    },
+    "meta_data": []
+   }
+  ]
+ }
+}

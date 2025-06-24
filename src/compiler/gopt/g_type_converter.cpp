@@ -16,7 +16,6 @@
 #include "src/include/gopt/g_type_converter.h"
 
 #include <google/protobuf/wrappers.pb.h>
-#include <cstdint>
 #include <memory>
 #include "src/include/binder/expression/node_expression.h"
 #include "src/include/binder/expression/rel_expression.h"
@@ -27,6 +26,7 @@
 #include "src/include/gopt/g_graph_type.h"
 #include "src/include/gopt/g_rel_table_entry.h"
 #include "src/proto_generated_gie/basic_type.pb.h"
+#include "src/proto_generated_gie/common.pb.h"
 #include "src/proto_generated_gie/type.pb.h"
 
 namespace gs {
@@ -134,6 +134,45 @@ std::unique_ptr<::common::IrDataType> GTypeConverter::convertLogicalType(
   }
   case common::LogicalTypeID::INTERNAL_ID: {
     result->set_primitive_type(::common::PrimitiveType::DT_SIGNED_INT64);
+    break;
+  }
+  case common::LogicalTypeID::DATE32: {
+    auto temporalType = std::make_unique<::common::Temporal>();
+    temporalType->set_allocated_date32(new ::common::Temporal::Date32());
+    result->set_allocated_temporal(temporalType.release());
+    break;
+  }
+  case common::LogicalTypeID::TIMESTAMP64: {
+    auto temporalType = std::make_unique<::common::Temporal>();
+    temporalType->set_allocated_timestamp(new ::common::Temporal::Timestamp());
+    result->set_allocated_temporal(temporalType.release());
+    break;
+  }
+  case common::LogicalTypeID::DATE: {
+    auto temporalType = std::make_unique<::common::Temporal>();
+    auto date = std::make_unique<::common::Temporal_Date>();
+    date->set_date_format(
+        ::common::Temporal::DateFormat::Temporal_DateFormat_DF_YYYY_MM_DD);
+    temporalType->set_allocated_date(date.release());
+    result->set_allocated_temporal(temporalType.release());
+    break;
+  }
+  case common::LogicalTypeID::TIMESTAMP: {
+    auto temporalType = std::make_unique<::common::Temporal>();
+    auto datetime = std::make_unique<::common::Temporal_DateTime>();
+    datetime->set_date_time_format(
+        ::common::Temporal::DateTimeFormat::
+            Temporal_DateTimeFormat_DTF_YYYY_MM_DD_HH_MM_SS_SSS);
+    datetime->set_time_zone_format(
+        ::common::Temporal::TimeZoneFormat::Temporal_TimeZoneFormat_TZF_UTC);
+    temporalType->set_allocated_date_time(datetime.release());
+    result->set_allocated_temporal(temporalType.release());
+    break;
+  }
+  case common::LogicalTypeID::INTERVAL: {
+    auto temporalType = std::make_unique<::common::Temporal>();
+    temporalType->set_allocated_interval(new ::common::Temporal::Interval());
+    result->set_allocated_temporal(temporalType.release());
     break;
   }
   default:

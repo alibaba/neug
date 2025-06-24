@@ -4,6 +4,7 @@
 #include "src/include/binder/expression/scalar_function_expression.h"
 #include "src/include/function/arithmetic/vector_arithmetic_functions.h"
 #include "src/include/function/cast/vector_cast_functions.h"
+#include "src/include/function/date/vector_date_functions.h"
 
 namespace gs {
 namespace gopt {
@@ -16,7 +17,11 @@ enum ScalarType {
   DIVIDE,
   MODULO,
   POWER,
-  CAST
+  CAST,
+  TO_DATE,
+  TO_DATETIME,
+  TO_INTERVAL,
+  DATE_PART
 };
 
 class GScalarType {
@@ -29,6 +34,11 @@ class GScalarType {
     return type == ScalarType::ADD || type == ScalarType::SUBTRACT ||
            type == ScalarType::MULTIPLY || type == ScalarType::DIVIDE ||
            type == ScalarType::MODULO;
+  }
+
+  bool isTemporal() const {
+    return type == ScalarType::TO_DATE || type == ScalarType::TO_DATETIME ||
+           type == ScalarType::TO_INTERVAL;
   }
 
  private:
@@ -54,6 +64,14 @@ class GScalarType {
       return ScalarType::POWER;
     } else if (func.name.starts_with(function::CastAnyFunction::name)) {
       return ScalarType::CAST;
+    } else if (func.name == function::CastToDateFunction::name) {
+      return ScalarType::TO_DATE;
+    } else if (func.name == function::CastToTimestampFunction::name) {
+      return ScalarType::TO_DATETIME;
+    } else if (func.name == function::CastToIntervalFunction::name) {
+      return ScalarType::TO_INTERVAL;
+    } else if (func.name == function::DatePartFunction::name) {
+      return ScalarType::DATE_PART;
     }
 
     // todo: support more scalar functions

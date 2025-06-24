@@ -1,0 +1,56 @@
+{
+ "plan_id": 0,
+ "query_plan": {
+  "mode": "READ_ONLY",
+  "plan": [
+   {
+    "opr": {
+     "project": {
+      "mappings": [
+       {
+        "expr": {
+         "operators": [
+          {
+           "to_interval": {
+            "interval_str": "1 year 2 days"
+           },
+           "node_type": {
+            "data_type": {
+             "temporal": {
+              "interval": {}
+             }
+            }
+           }
+          }
+         ]
+        },
+        "alias": 0
+       }
+      ],
+      "is_append": false
+     }
+    },
+    "meta_data": [
+     {
+      "type": {
+       "data_type": {
+        "temporal": {
+         "interval": {}
+        }
+       }
+      },
+      "alias": 0
+     }
+    ]
+   },
+   {
+    "opr": {
+     "sink": {
+      "tags": []
+     }
+    },
+    "meta_data": []
+   }
+  ]
+ }
+}

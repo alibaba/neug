@@ -57,6 +57,7 @@ YAML::Node property_type_to_yaml(const PropertyType& type) {
     break;
   case impl::PropertyTypeImpl::kDateTime:
     node["temporal"] = config_parsing::TemporalTypeToYAML(type);
+    break;
   case impl::PropertyTypeImpl::kInterval:
     node["temporal"] = config_parsing::TemporalTypeToYAML(type);
     break;

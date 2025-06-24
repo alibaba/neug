@@ -15,7 +15,10 @@
 
 #include "src/include/gopt/g_expr_converter.h"
 
+#include <boost/algorithm/string.hpp>
+#include <boost/algorithm/string/case_conv.hpp>
 #include <cstdint>
+#include <ios>
 #include <memory>
 #include <vector>
 #include "src/include/binder/expression/expression.h"
@@ -26,6 +29,7 @@
 #include "src/include/binder/expression/variable_expression.h"
 #include "src/include/common/enums/expression_type.h"
 #include "src/include/common/exception/exception.h"
+#include "src/include/common/string_utils.h"
 #include "src/include/common/types/types.h"
 #include "src/include/common/types/value/value.h"
 #include "src/include/function/arithmetic/vector_arithmetic_functions.h"
@@ -189,27 +193,6 @@ std::unique_ptr<::algebra::IndexPredicate> GExprConverter::convertPrimaryKey(
   return indexPB;
 }
 
-// ::common::Logical GExprConverter::convertCompare(common::ExpressionType type)
-// {
-//   switch (type) {
-//   case common::ExpressionType::EQUALS:
-//     return ::common::Logical::EQ;
-//   case common::ExpressionType::NOT_EQUALS:
-//     return ::common::Logical::NE;
-//   case common::ExpressionType::GREATER_THAN:
-//     return ::common::Logical::GT;
-//   case common::ExpressionType::GREATER_THAN_EQUALS:
-//     return ::common::Logical::GE;
-//   case common::ExpressionType::LESS_THAN:
-//     return ::common::Logical::LT;
-//   case common::ExpressionType::LESS_THAN_EQUALS:
-//     return ::common::Logical::LE;
-//   default:
-//     throw common::Exception("Unsupported logical type: " +
-//                             std::to_string(static_cast<uint8_t>(type)));
-//   }
-// }
-
 std::unique_ptr<::common::Value> GExprConverter::convertValue(
     gs::common::Value value) {
   std::unique_ptr<::common::Value> valuePB =
@@ -263,9 +246,12 @@ std::unique_ptr<::common::Expression> GExprConverter::convertScalarFunc(
   GScalarType scalarType{expr};
   if (scalarType.isArithmetic()) {
     return convertChildren(expr);
-  }
-  if (scalarType.getType() == CAST && !expr.getChildren().empty()) {
+  } else if (scalarType.getType() == CAST && !expr.getChildren().empty()) {
     return convert(*expr.getChild(0));
+  } else if (scalarType.isTemporal()) {
+    return convertTemporalFunc(expr);
+  } else if (scalarType.getType() == DATE_PART) {
+    return convertExtractFunc(expr);
   }
   throw common::Exception("Unsupported expression type: " + expr.toString());
 }
@@ -329,44 +315,6 @@ std::unique_ptr<::common::Expression> GExprConverter::convertVariable(
   opr->set_allocated_node_type(exprType.release());
   return result;
 }
-
-// std::unique_ptr<::common::Expression> GExprConverter::convertComparison(
-//     const binder::Expression& expr) {
-//   std::vector<std::unique_ptr<::common::Expression>> children;
-//   for (size_t i = 0; i < expr.getNumChildren(); ++i) {
-//     children.push_back(convert(*expr.getChild(i)));
-//   }
-//   if (children.size() != 2) {
-//     throw common::Exception(
-//         "Comparison expressions must have exactly two children.");
-//   }
-//   auto result = std::make_unique<::common::Expression>();
-//   auto leftOp = result->add_operators();
-//   *leftOp = children[0]->operators(0);
-//   auto comparison = result->add_operators();
-//   comparison->set_logical(convertCompare(expr.expressionType));
-//   // todo: set comparison data type
-//   auto rightOp = result->add_operators();
-//   *rightOp = children[1]->operators(0);
-//   return result;
-// }
-
-// std::unique_ptr<::common::Expression> GExprConverter::convertIsNull(
-//     const binder::Expression& expr) {
-//   if (expr.getNumChildren() != 1) {
-//     throw common::Exception("IS_NULL expressions must have exactly one
-//     child.");
-//   }
-//   auto result = std::make_unique<::common::Expression>();
-//   auto isnullOp = result->add_operators();
-//   isnullOp->set_allocated_node_type(
-//       typeConverter.convertLogicalType(expr.getDataType()).release());
-//   isnullOp->set_logical(::common::Logical::ISNULL);
-//   auto childExpr = convert(*expr.getChild(0));
-//   auto childOp = result->add_operators();
-//   *childOp = std::move(*childExpr->mutable_operators(0));
-//   return result;
-// }
 
 std::unique_ptr<::common::ExprOpr> GExprConverter::convertOperator(
     const binder::Expression& expr) {
@@ -439,6 +387,86 @@ std::unique_ptr<::common::ExprOpr> GExprConverter::convertOperator(
   return result;
 }
 
+std::unique_ptr<::common::Expression> GExprConverter::convertTemporalFunc(
+    const binder::Expression& expr) {
+  if (expr.getChildren().size() != 1) {
+    throw common::Exception("temporal function should have exactly one child");
+  }
+  auto child = expr.getChild(0);
+  GScalarType type{expr};
+  auto exprPB = std::make_unique<::common::Expression>();
+  switch (type.getType()) {
+  case ScalarType::TO_DATE: {
+    auto date = std::make_unique<::common::ToDate>();
+    date->set_date_str(child->toString());
+    exprPB->add_operators()->set_allocated_to_date(date.release());
+    break;
+  }
+  case ScalarType::TO_DATETIME: {
+    auto datetime = std::make_unique<::common::ToDatetime>();
+    datetime->set_datetime_str(child->toString());
+    exprPB->add_operators()->set_allocated_to_datetime(datetime.release());
+    break;
+  }
+  case ScalarType::TO_INTERVAL: {
+    auto interval = std::make_unique<::common::ToInterval>();
+    interval->set_interval_str(child->toString());
+    exprPB->add_operators()->set_allocated_to_interval(interval.release());
+    break;
+  }
+  default:
+    throw common::Exception("Unsupported scalar function " + expr.toString() +
+                            " in temporal func");
+  }
+  auto typePB = typeConverter.convertLogicalType(expr.getDataType());
+  exprPB->mutable_operators(0)->set_allocated_node_type(typePB.release());
+  return exprPB;
+}
+
+::common::Extract::Interval GExprConverter::convertTemporalField(
+    const binder::Expression& field) {
+  std::string fieldName = field.toString();
+  common::StringUtils::toLower(fieldName);
+  if (fieldName == "year") {
+    return ::common::Extract::YEAR;
+  } else if (fieldName == "month") {
+    return ::common::Extract::MONTH;
+  } else if (fieldName == "day") {
+    return ::common::Extract::DAY;
+  } else if (fieldName == "hour") {
+    return ::common::Extract::HOUR;
+  } else if (fieldName == "minute") {
+    return ::common::Extract::MINUTE;
+  } else if (fieldName == "second") {
+    return ::common::Extract::SECOND;
+  } else if (fieldName == "millisecond") {
+    return ::common::Extract::MILLISECOND;
+  }
+  throw common::Exception("invalid interval field " + fieldName);
+}
+
+std::unique_ptr<::common::Expression> GExprConverter::convertExtractFunc(
+    const binder::Expression& expr) {
+  GScalarType type{expr};
+  if (type.getType() != ScalarType::DATE_PART) {
+    throw common::Exception("Unsupport scalar function " + expr.toString() +
+                            "in extract func");
+  }
+  auto children = expr.getChildren();
+  if (children.size() != 2) {
+    throw common::Exception(
+        "extract function should have exactly two children, but is " +
+        children.size());
+  }
+  auto extractPB = std::make_unique<::common::Extract>();
+  extractPB->set_interval(convertTemporalField(*expr.getChild(0)));
+  auto exprPB = std::make_unique<::common::Expression>();
+  exprPB->add_operators()->set_allocated_extract(extractPB.release());
+  auto extractFrom = convert(*expr.getChild(1));
+  *exprPB->add_operators() = std::move(*extractFrom->mutable_operators(0));
+  return exprPB;
+}
+
 std::unique_ptr<::common::Expression> GExprConverter::convertChildren(
     const binder::Expression& expr) {
   bool leftAssociate = preced.isLeftAssociative(expr);
@@ -504,38 +532,5 @@ std::unique_ptr<::common::Expression> GExprConverter::convertIsNotNull(
   return result;
 }
 
-// std::unique_ptr<::common::Expression> GExprConverter::convertAnd(
-//     const binder::Expression& expr) {
-//   std::vector<std::unique_ptr<::common::Expression>> children;
-//   for (size_t i = 0; i < expr.getNumChildren(); ++i) {
-//     children.push_back(convert(*expr.getChild(i)));
-//   }
-//   if (children.size() < 2) {
-//     throw common::Exception("AND expressions must have at least two
-//     children.");
-//   }
-//   auto result = std::make_unique<::common::Expression>();
-//   auto counter = 0;
-//   for (auto& child : children) {
-//     if (counter++ > 0) {
-//       auto andOp = result->add_operators();
-//       andOp->set_logical(::common::Logical::AND);
-//       // todo: set and data type
-//     }
-//     bool needBrace = precedence.needBrace(expr, *child);
-//     if (needBrace) {
-//       auto leftBrace = result->add_operators();
-//       leftBrace->set_brace(::common::ExprOpr::Brace::ExprOpr_Brace_LEFT_BRACE);
-//     }
-//     auto childOp = result->add_operators();
-//     *childOp = child->operators(0);
-//     if (needBrace) {
-//       auto rightBrace = result->add_operators();
-//       rightBrace->set_brace(
-//           ::common::ExprOpr::Brace::ExprOpr_Brace_RIGHT_BRACE);
-//     }
-//   }
-//   return result;
-// }
 }  // namespace gopt
 }  // namespace gs

@@ -218,6 +218,8 @@ enum class LogicalTypeID : uint8_t {
 
   UUID = 59,
 
+  DATE32 = 60,      // return i32 in storage without any format
+  TIMESTAMP64 = 61  // return i64 in storage without any format
 };
 
 enum class PhysicalTypeID : uint8_t {

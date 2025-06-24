@@ -7,4 +7,18 @@ MATCH (p:person) RETURN p.ID, p.age ORDER BY p.age + p.ID; # ORDER_BY_ADD
 MATCH (a:person)-[:knows]-(b:person)-[:knows]-(c:person) WHERE a.gender = 1 AND b.gender = 2 AND c.fName = "Bob" RETURN a.fName, b.fName; # TYPE_CAST
 MATCH (a:person)-[:knows]->(b:person)-[:knows]->(c:person) WHERE a.age < 31 RETURN a.age + b.age + c.age; # SUM_AGE
 MATCH (a:person) WHERE (a.gender*3.5 = 7.0) RETURN COUNT(*); # MULTI_EQUAL_3
+MATCH (a:person)-[e:knows]->(b:person) RETURN e.date; # PROJECT_DATE
 // MATCH (a:person) WHERE a.isStudent OR null RETURN COUNT(*); # OR_NULL
+Match (n:person) Return date_part('month', n.birthdate); # DATE_PART_DATE32
+Return DATE('1995-11-02'); # RETURN_DATE
+Return TIMESTAMP('1995-11-02 12:00:00'); # RETURN_DATETIME
+Return INTERVAL('1 year 2 days'); # RETURN_INTERVAL
+Return date_part('year', DATE('1995-11-02')); # DATE_PART_DATE
+Return date_part('second', TIMESTAMP('1995-11-02 12:05:21')); # DATE_PART_DATETIME
+Return date_part('year', INTERVAL('1 year 2 days')); # DATE_PART_INTERVAL
+Return DATE('2021-10-12') + INTERVAL('3 DAYS'); # DATE_PLUS_INTERVAL
+Return DATE('2023-10-11') - INTERVAL('10 DAYS'); # DATE_MINUS_INTERVAL
+Return TIMESTAMP('2022-11-12 13:22:17') - INTERVAL('4 minutes 3 hours 2 days'); # TIMESTAMP_MINUS_INTERVAL
+Return INTERVAL('79 DAYS 32 YEARS') + INTERVAL('20 MILLISECONDS 30 HOURS 20 DAYS') # INTERVAL_PLUS_INTERVAL
+Return TIMESTAMP('2022-11-22 15:12:22') - TIMESTAMP('2011-10-09 13:00:21'); # TIMESTAMP_DIFFER
+Return date('2011-02-01') - date('2011-01-01'); # DATE_DIFFER

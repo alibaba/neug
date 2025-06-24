@@ -573,9 +573,9 @@ void StringVector::addString(ValueVector* vector, ku_string_t& dstStr,
   if (ku_string_t::isShortString(length)) {
     dstStr.setShortString(srcStr, length);
   } else {
-    dstStr.overflowPtr =
-        reinterpret_cast<uint64_t>(stringBuffer->allocateOverflow(length));
-    dstStr.setLongString(srcStr, length);
+    throw common::Exception(
+        "StringVector::addString: length is too long, exceeds " +
+        ku_string_t::SHORT_STR_LENGTH);
   }
 }
 

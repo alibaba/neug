@@ -72,6 +72,15 @@ class GExprConverter {
   std::unique_ptr<::common::ExprOpr> convertOperator(
       const binder::Expression& expr);
 
+  std::unique_ptr<::common::Expression> convertTemporalFunc(
+      const binder::Expression& expr);
+
+  std::unique_ptr<::common::Expression> convertExtractFunc(
+      const binder::Expression& expr);
+
+  ::common::Extract::Interval convertTemporalField(
+      const binder::Expression& field);
+
   // helper functions
   std::unique_ptr<::common::Value> convertValue(gs::common::Value value);
   std::unique_ptr<::common::Variable> convertVarProperty(

@@ -636,9 +636,10 @@ std::string GlobalId::to_string() const { return std::to_string(global_id); }
 Date::Date(int64_t x) { from_timestamp(x); }
 
 std::string Date::to_string() const {
-  return std::to_string(static_cast<int>(year())) + "-" +
-         std::to_string(static_cast<int>(month())) + "-" +
-         std::to_string(static_cast<int>(day()));
+  std::ostringstream oss;
+  oss << year() << "-" << std::setw(2) << std::setfill('0') << month() << "-"
+      << std::setw(2) << std::setfill('0') << day();
+  return oss.str();
 }
 
 uint32_t Date::to_u32() const { return value.integer; }

@@ -70,13 +70,17 @@ class GTypeUtils {
         return gs::common::LogicalType(gs::common::LogicalTypeID::STRING);
       }
     }
-    if (node["temporal"]) {
-      if (node["temporal"]["date"].IsDefined()) {
+    auto temporalType = node["temporal"];
+    if (temporalType && temporalType.IsMap()) {
+      if (temporalType["date32"].IsDefined()) {
+        return gs::common::LogicalType(gs::common::LogicalTypeID::DATE32);
+      } else if (temporalType["timestamp"].IsDefined()) {
+        return gs::common::LogicalType(gs::common::LogicalTypeID::TIMESTAMP64);
+      } else if (temporalType["date"].IsDefined()) {
         return gs::common::LogicalType(gs::common::LogicalTypeID::DATE);
-      } else if (node["temporal"]["timestamp"].IsDefined() ||
-                 node["temporal"]["datetime"].IsDefined()) {
+      } else if (temporalType["datetime"].IsDefined()) {
         return gs::common::LogicalType(gs::common::LogicalTypeID::TIMESTAMP);
-      } else if (node["temporal"]["interval"].IsDefined()) {
+      } else if (temporalType["interval"].IsDefined()) {
         return gs::common::LogicalType(gs::common::LogicalTypeID::INTERVAL);
       } else {
         // Print yaml node
@@ -106,6 +110,16 @@ class GTypeUtils {
       return YAML_NODE_DT_BOOL;
     case gs::common::LogicalTypeID::STRING:
       return YAML_NODE_STRING_VARCHAR(gs::Constants::VARCHAR_MAX_LENGTH);
+    case gs::common::LogicalTypeID::DATE32:
+      return YAML_NODE_TEMPORAL_DATE32();
+    case gs::common::LogicalTypeID::TIMESTAMP64:
+      return YAML_NODE_TEMPORAL_TIMESTAMP64();
+    case gs::common::LogicalTypeID::DATE:
+      return YAML_NODE_TEMPORAL_DATE();
+    case gs::common::LogicalTypeID::TIMESTAMP:
+      return YAML_NODE_TEMPORAL_DATETIME();
+    case gs::common::LogicalTypeID::INTERVAL:
+      return YAML_NODE_TEMPORAL_INTERVAL();
     default:
       LOG(WARNING) << "Unsupported type in YAML: "
                    << static_cast<uint8_t>(type.getLogicalTypeID());

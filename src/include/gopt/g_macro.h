@@ -84,6 +84,43 @@
     return n;                                           \
   }()
 
+#define YAML_NODE_TEMPORAL_DATE()                           \
+  [] {                                                      \
+    YAML::Node n;                                           \
+    n["temporal"]["date"]["date_format"] = "DF_YYYY_MM_DD"; \
+    return n;                                               \
+  }()
+
+#define YAML_NODE_TEMPORAL_DATETIME()                          \
+  [] {                                                         \
+    YAML::Node n;                                              \
+    n["temporal"]["datetime"]["date_time_format"] =            \
+        "DTF_YYYY_MM_DD_HH_MM_SS_SSS";                         \
+    n["temporal"]["datetime"]["time_zone_format"] = "TZF_UTC"; \
+    return n;                                                  \
+  }()
+
+#define YAML_NODE_TEMPORAL_INTERVAL() \
+  [] {                                \
+    YAML::Node n;                     \
+    n["temporal"]["interval"] = "";   \
+    return n;                         \
+  }()
+
+#define YAML_NODE_TEMPORAL_DATE32() \
+  [] {                              \
+    YAML::Node n;                   \
+    n["temporal"]["date32"] = "";   \
+    return n;                       \
+  }()
+
+#define YAML_NODE_TEMPORAL_TIMESTAMP64() \
+  [] {                                   \
+    YAML::Node n;                        \
+    n["temporal"]["timestamp"] = "";     \
+    return n;                            \
+  }()
+
 REGISTER_YAML_NODE_TYPE(YAML_NODE_DT_SIGNED_INT64, INT64)
 REGISTER_YAML_NODE_TYPE(YAML_NODE_DT_UNSIGNED_INT64, UINT64)
 REGISTER_YAML_NODE_TYPE(YAML_NODE_DT_SIGNED_INT32, INT32)

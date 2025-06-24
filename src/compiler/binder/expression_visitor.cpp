@@ -8,6 +8,8 @@
 #include "src/include/binder/expression/scalar_function_expression.h"
 #include "src/include/binder/expression/subquery_expression.h"
 #include "src/include/common/exception/not_implemented.h"
+#include "src/include/function/cast/vector_cast_functions.h"
+#include "src/include/function/date/vector_date_functions.h"
 #include "src/include/function/sequence/sequence_functions.h"
 #include "src/include/function/uuid/vector_uuid_functions.h"
 
@@ -319,6 +321,15 @@ bool ConstantExpressionVisitor::visitFunction(const Expression& expr) {
   if (funcExpr.getFunction().name == function::GenRandomUUIDFunction::name) {
     return false;
   }
+
+  std::string funcName = funcExpr.getFunction().name;
+  if (funcName == function::CastToDateFunction::name ||
+      funcName == function::CastToTimestampFunction::name ||
+      funcName == function::CastToIntervalFunction::name ||
+      funcName == function::DatePartFunction::name) {
+    return false;
+  }
+
   return visitChildren(expr);
 }
 

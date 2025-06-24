@@ -127,6 +127,7 @@ void GQueryConvertor::convertOperator(const planner::LogicalOperator& op,
   case planner::LogicalOperatorType::PARTITIONER:
   case planner::LogicalOperatorType::INDEX_LOOK_UP:
   case planner::LogicalOperatorType::MULTIPLICITY_REDUCER:
+  case planner::LogicalOperatorType::DUMMY_SCAN:
     break;
   default:
     throw common::Exception(

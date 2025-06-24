@@ -93,7 +93,10 @@ RTAny::RTAny(const Any& val) {
     type_ = RTAnyType::kStringValue;
     value_.str_val = val.AsStringView();
   } else if (val.type == PropertyType::Date()) {
-    type_ = RTAnyType::kI64Value;
+    type_ = RTAnyType::kDate;
+    value_.date_val = val.AsDate();
+  } else if (val.type == PropertyType::DateTime()) {
+    type_ = RTAnyType::kDateTime;
     value_.dt_val = val.AsDateTime();
   } else if (val.type == PropertyType::Int32()) {
     type_ = RTAnyType::kI32Value;
