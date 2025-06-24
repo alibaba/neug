@@ -831,6 +831,9 @@ make_project_expr(const common::Expression& expr, int alias) {
     case RTAnyType::kU64Value: {
       return _make_project_expr<uint64_t>(std::move(e), alias, ctx);
     } break;
+    case RTAnyType::kU32Value: {
+      return _make_project_expr<uint32_t>(std::move(e), alias, ctx);
+    } break;
     default:
       LOG(FATAL) << "not support - " << static_cast<int>(e.type());
       break;

@@ -91,6 +91,7 @@ jobs:
         # export CC="ccache gcc"
         # export CXX="ccache g++"
         cd tools/python_bind
+        make clean
         make requirements
         make build
 

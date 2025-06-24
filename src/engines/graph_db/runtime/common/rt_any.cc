@@ -886,6 +886,8 @@ void RTAny::sink_impl(common::Value* value) const {
     }
   } else if (type_ == RTAnyType::kU64Value) {
     value->set_u64(value_.u64_val);
+  } else if (type_ == RTAnyType::kU32Value) {
+    value->set_u32(value_.u32_val);
   } else {
     LOG(FATAL) << "not implemented for " << static_cast<int>(type_);
   }
