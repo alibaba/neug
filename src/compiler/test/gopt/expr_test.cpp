@@ -229,5 +229,21 @@ TEST_F(ExprTest, DATE_DIFFER) {
                                       getExprResource("DATE_DIFFER_physical"));
 }
 
+TEST_F(ExprTest, LOGICAL_NULL) {
+  std::string query = "Match (n) Return n.age > 10 and NULL";
+  auto logical = planLogical(query, schemaData, statsData, rules);
+  auto physical = planPhysical(*logical);
+  VerifyFactory::verifyPhysicalByJson(*physical,
+                                      getExprResource("LOGICAL_NULL_physical"));
+}
+
+TEST_F(ExprTest, COMPARE_NULL) {
+  std::string query = "Match (n) Return n.age <> NULL";
+  auto logical = planLogical(query, schemaData, statsData, rules);
+  auto physical = planPhysical(*logical);
+  VerifyFactory::verifyPhysicalByJson(*physical,
+                                      getExprResource("COMPARE_NULL_physical"));
+}
+
 }  // namespace gopt
 }  // namespace gs

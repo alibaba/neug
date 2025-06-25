@@ -11,59 +11,16 @@
        "tables": [
         {
          "id": 0
+        },
+        {
+         "id": 1
+        },
+        {
+         "id": 2
         }
        ],
        "columns": [],
        "is_all_columns": false,
-       "predicate": {
-        "operators": [
-         {
-          "var": {
-           "property": {
-            "key": {
-             "name": "age"
-            }
-           },
-           "node_type": {
-            "data_type": {
-             "primitive_type": "DT_SIGNED_INT64"
-            }
-           }
-          },
-          "node_type": {
-           "data_type": {
-            "primitive_type": "DT_SIGNED_INT64"
-           }
-          }
-         },
-         {
-          "node_type": {
-           "data_type": {
-            "primitive_type": "DT_SIGNED_INT64"
-           }
-          },
-          "arith": "ADD"
-         },
-         {
-          "const": {
-           "none": {}
-          }
-         },
-         {
-          "node_type": {
-           "data_type": {
-            "primitive_type": "DT_BOOL"
-           }
-          },
-          "logical": "LE"
-         },
-         {
-          "const": {
-           "i64": "200"
-          }
-         }
-        ]
-       },
        "sample_ratio": 0,
        "extra": {}
       },
@@ -82,37 +39,23 @@
            "label": 0
           },
           "props": []
+         },
+         {
+          "label": {
+           "label": 1
+          },
+          "props": []
+         },
+         {
+          "label": {
+           "label": 2
+          },
+          "props": []
          }
         ]
        }
       },
       "alias": 0
-     }
-    ]
-   },
-   {
-    "opr": {
-     "group_by": {
-      "mappings": [],
-      "functions": [
-       {
-        "vars": [
-         {}
-        ],
-        "aggregate": "COUNT",
-        "alias": 1
-       }
-      ]
-     }
-    },
-    "meta_data": [
-     {
-      "type": {
-       "data_type": {
-        "primitive_type": "DT_SIGNED_INT64"
-       }
-      },
-      "alias": 1
      }
     ]
    },
@@ -126,7 +69,12 @@
           {
            "var": {
             "tag": {
-             "id": 1
+             "id": 0
+            },
+            "property": {
+             "key": {
+              "name": "age"
+             }
             },
             "node_type": {
              "data_type": {
@@ -138,6 +86,32 @@
             "data_type": {
              "primitive_type": "DT_SIGNED_INT64"
             }
+           }
+          },
+          {
+           "node_type": {
+            "data_type": {
+             "primitive_type": "DT_BOOL"
+            }
+           },
+           "logical": "GT"
+          },
+          {
+           "const": {
+            "i64": "10"
+           }
+          },
+          {
+           "node_type": {
+            "data_type": {
+             "primitive_type": "DT_BOOL"
+            }
+           },
+           "logical": "AND"
+          },
+          {
+           "const": {
+            "none": {}
            }
           }
          ]
@@ -152,7 +126,7 @@
      {
       "type": {
        "data_type": {
-        "primitive_type": "DT_SIGNED_INT64"
+        "primitive_type": "DT_BOOL"
        }
       },
       "alias": 1

@@ -197,6 +197,10 @@ std::unique_ptr<::common::Value> GExprConverter::convertValue(
     gs::common::Value value) {
   std::unique_ptr<::common::Value> valuePB =
       std::make_unique<::common::Value>();
+  if (value.isNull()) {
+    valuePB->set_allocated_none(new ::common::None());
+    return valuePB;
+  }
   switch (value.getDataType().getLogicalTypeID()) {
   case common::LogicalTypeID::BOOL:
     valuePB->set_boolean(value.getValue<bool>());
