@@ -1,4 +1,9 @@
+#include <yaml-cpp/node/emit.h>
+#include <memory>
 #include "gopt_test.h"
+#include "src/include/gopt/g_alias_manager.h"
+#include "src/include/gopt/g_result_schema.h"
+#include "src/include/planner/operator/logical_projection.h"
 
 namespace gs {
 namespace gopt {
@@ -45,5 +50,19 @@ TEST_F(ProjectTest, EDGE_STAR) {
   VerifyFactory::verifyPhysicalByJson(*physical,
                                       getProjectResource("EDGE_STAR_physical"));
 }
+
+TEST_F(ProjectTest, DUPLICATE_EDGE) {
+  std::string query =
+      "MATCH (a:person) WHERE a.fName='Alice' RETURN a.age, a.age AS k;";
+  auto logical = planLogical(query, schemaData, statsData, rules);
+  auto aliasManager = std::make_shared<gopt::GAliasManager>(*logical);
+  auto physical = planPhysical(*logical, aliasManager);
+  VerifyFactory::verifyPhysicalByJson(
+      *physical, getProjectResource("DUPLICATE_EDGE_physical"));
+  auto resultYaml = GResultSchema::infer(*logical, aliasManager, getCatalog());
+  VerifyFactory::verifyResultByYaml(
+      resultYaml, getProjectResource("DUPLICATE_EDGE_result"));
+}
+
 }  // namespace gopt
 }  // namespace gs

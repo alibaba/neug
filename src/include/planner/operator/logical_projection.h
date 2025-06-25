@@ -31,6 +31,8 @@ class LogicalProjection : public LogicalOperator {
     return make_unique<LogicalProjection>(expressions, children[0]->copy());
   }
 
+  void resetExprUniqueNames();
+
  private:
   binder::expression_vector expressions;
 };

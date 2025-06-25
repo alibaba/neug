@@ -48,7 +48,6 @@
 8
 
 -LOG ReturnColumnWithSameExpression
--SKIP: (compiler): Number of expressions to project does not match the number of schema expressions.
 -STATEMENT MATCH (a:person) WHERE a.fName='Alice' RETURN a.age, a.age AS k
 ---- 1
 35|35

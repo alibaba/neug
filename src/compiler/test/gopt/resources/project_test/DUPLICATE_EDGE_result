@@ -1,0 +1,7 @@
+returns:
+  - name: _0_a.age
+    type:
+      primitive_type: DT_SIGNED_INT64
+  - name: k
+    type:
+      primitive_type: DT_SIGNED_INT64

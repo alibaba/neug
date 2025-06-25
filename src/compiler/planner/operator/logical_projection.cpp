@@ -1,4 +1,6 @@
 #include "src/include/planner/operator/logical_projection.h"
+#include <string>
+#include <unordered_set>
 
 #include "src/include/planner/operator/factorization/flatten_resolver.h"
 
@@ -33,10 +35,26 @@ void LogicalProjection::computeFactorizedSchema() {
   }
 }
 
+// Handles cases like `RETURN a.age, a.age AS k`, where the two expressions
+// (`a.age`) have the same unique name. Assigns a non-duplicated unique name
+// to each expression to fix this.
+void LogicalProjection::resetExprUniqueNames() {
+  std::unordered_set<std::string> uniqueNames;
+  for (auto& expr : expressions) {
+    if (uniqueNames.contains(expr->getUniqueName()) && expr->hasAlias()) {
+      std::string newUnique = expr->getUniqueName() + "_" + expr->getAlias();
+      expr->setUniqueName(newUnique);
+      continue;
+    }
+    uniqueNames.insert(expr->getUniqueName());
+  }
+}
+
 void LogicalProjection::computeFlatSchema() {
   copyChildSchema(0);
   auto childSchema = children[0]->getSchema();
   schema->clearExpressionsInScope();
+  resetExprUniqueNames();
   for (auto& expression : expressions) {
     if (childSchema->isExpressionInScope(*expression)) {
       schema->insertToScopeMayRepeat(expression, 0);
