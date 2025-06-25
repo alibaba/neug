@@ -78,5 +78,15 @@ TEST_F(PatternTest, PROJECT_AS) {
                                       getPatResource("PROJECT_AS_physical"));
 }
 
+TEST_F(PatternTest, FILTER) {
+  std::string query =
+      "MATCH (a:person)-[:knows]->(:person)-[:knows]->(b:person) WHERE "
+      "a.age>b.age+10 RETURN a.age, b.age;";
+  auto logical = planLogical(query, schemaData, statsData, rules);
+  auto physical = planPhysical(*logical);
+  VerifyFactory::verifyPhysicalByJson(*physical,
+                                      getPatResource("FILTER_physical"));
+}
+
 }  // namespace gopt
 }  // namespace gs

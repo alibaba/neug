@@ -5,3 +5,4 @@ Match (n:person)-[f:knows]->(m:person) Where n.id = 1 AND f.weight > 10.0 Return
 Match (n:person)-[f:knows]->(m:person) Where n.id = 1 AND f.weight > 10.0 AND m.name = 'cc' Return n.name, f.weight, m.name; # GETV_FILTER 
 Match (:person {name: "mark"})-[:knows {weight: 10.0}]->(m:person) Return m; # EXPAND_FILTER_2
 Match (:person {name: "mark"})-[:knows {weight: 10.0}]->(m:person) Return m as q; # PROJECT_AS 
+MATCH (a:person)-[:knows]->(:person)-[:knows]->(b:person) WHERE a.age>b.age+10 RETURN a.age, b.age; #FILTER
