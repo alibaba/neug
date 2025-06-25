@@ -126,40 +126,33 @@ pybind11::object name_or_id_to_pyobject(const common::NameOrId& name_or_id) {
   }
 }
 
-pybind11::object property_to_pyobject(const results::Property& property) {
-  pybind11::dict dict;
-  dict["key"] = name_or_id_to_pyobject(property.key());
-  dict["value"] = value_to_pyobject(property.value());
-  return dict;
-}
-
 pybind11::object vertex_to_pyobject(const Schema& schema,
                                     const results::Vertex& vertex) {
   pybind11::dict dict;
-  dict["id"] = pybind11::int_(vertex.id());
-  dict["label"] = schema.get_vertex_label_name(vertex.label().id());
-  pybind11::list properties;
+  dict["_ID"] = pybind11::int_(vertex.id());
+  dict["_LABEL"] = schema.get_vertex_label_name(vertex.label().id());
   for (const auto& property : vertex.properties()) {
-    properties.append(property_to_pyobject(property));
+    auto key = name_or_id_to_pyobject(property.key());
+    auto value = value_to_pyobject(property.value());
+    dict[key] = value;
   }
-  dict["properties"] = properties;
   return dict;
 }
 
 pybind11::object edge_to_pyobject(const Schema& schema,
                                   const results::Edge& edge) {
   pybind11::dict dict;
-  dict["id"] = pybind11::int_(edge.id());
-  dict["label"] = schema.get_edge_label_name(edge.label().id());
-  dict["src_label"] = schema.get_vertex_label_name(edge.src_label().id());
-  dict["dst_label"] = schema.get_vertex_label_name(edge.dst_label().id());
-  dict["src_id"] = pybind11::int_(edge.src_id());
-  dict["dst_id"] = pybind11::int_(edge.dst_id());
-  pybind11::list properties;
+  dict["_ID"] = pybind11::int_(edge.id());
+  dict["_LABEL"] = schema.get_edge_label_name(edge.label().id());
+  dict["_SRC_LABEL"] = schema.get_vertex_label_name(edge.src_label().id());
+  dict["_DST_LABEL"] = schema.get_vertex_label_name(edge.dst_label().id());
+  dict["_SRC_ID"] = pybind11::int_(edge.src_id());
+  dict["_DST_ID"] = pybind11::int_(edge.dst_id());
   for (const auto& property : edge.properties()) {
-    properties.append(property_to_pyobject(property));
+    auto key = name_or_id_to_pyobject(property.key());
+    auto value = value_to_pyobject(property.value());
+    dict[key] = value;
   }
-  dict["properties"] = properties;
   return dict;
 }
 
