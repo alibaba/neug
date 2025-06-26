@@ -24,7 +24,7 @@
 #include <memory>
 #include <ostream>
 
-#include "property/column.h"
+#include "src/utils/property/column.h"
 #include "src/utils/property/table.h"
 #include "src/utils/property/types.h"
 #include "third_party/libgrape-lite/grape/serialization/in_archive.h"

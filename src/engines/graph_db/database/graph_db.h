@@ -29,8 +29,6 @@
 #include <utility>
 #include <vector>
 
-#include "mmap_array.h"
-#include "property/table.h"
 #include "src/engines/graph_db/app/app_base.h"
 #include "src/engines/graph_db/database/insert_transaction.h"
 #include "src/engines/graph_db/database/read_transaction.h"
@@ -46,6 +44,8 @@
 #include "src/storages/rt_mutable_graph/mutable_property_fragment.h"
 #include "src/storages/rt_mutable_graph/schema.h"
 #include "src/storages/rt_mutable_graph/types.h"
+#include "src/utils/mmap_array.h"
+#include "src/utils/property/table.h"
 #include "src/utils/result.h"
 
 namespace gs {

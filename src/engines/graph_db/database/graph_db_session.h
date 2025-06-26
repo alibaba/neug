@@ -28,7 +28,6 @@
 #include <utility>
 #include <vector>
 
-#include "allocators.h"
 #include "src/engines/graph_db/app/app_base.h"
 #include "src/engines/graph_db/database/compact_transaction.h"
 #include "src/engines/graph_db/database/insert_transaction.h"
@@ -38,6 +37,7 @@
 #include "src/engines/graph_db/database/transaction_utils.h"
 #include "src/engines/graph_db/database/update_transaction.h"
 #include "src/storages/rt_mutable_graph/mutable_property_fragment.h"
+#include "src/utils/allocators.h"
 #include "src/utils/property/column.h"
 #include "src/utils/result.h"
 

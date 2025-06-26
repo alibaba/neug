@@ -22,7 +22,6 @@
 #include <utility>
 #include <vector>
 
-#include "app_utils.h"
 #include "src/engines/graph_db/app/cypher_app_utils.h"
 #include "src/engines/graph_db/database/graph_db.h"
 #include "src/engines/graph_db/database/graph_db_session.h"
@@ -37,6 +36,7 @@
 #include "src/engines/graph_db/runtime/utils/opr_timer.h"
 #include "src/proto_generated_gie/physical.pb.h"
 #include "src/storages/rt_mutable_graph/schema.h"
+#include "src/utils/app_utils.h"
 
 namespace gs {
 namespace runtime {

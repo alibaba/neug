@@ -25,7 +25,6 @@
 #include <stdexcept>
 #include <tuple>
 
-#include "arrow_utils.h"
 #include "src/engines/graph_db/runtime/common/columns/arrow_context_column.h"
 #include "src/engines/graph_db/runtime/common/columns/i_context_column.h"
 #include "src/engines/graph_db/runtime/common/context.h"
@@ -34,6 +33,7 @@
 #include "src/proto_generated_gie/physical.pb.h"
 #include "src/storages/rt_mutable_graph/loader/loader_utils.h"
 #include "src/storages/rt_mutable_graph/schema.h"
+#include "src/utils/arrow_utils.h"
 
 namespace arrow {
 class Array;

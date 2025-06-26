@@ -19,8 +19,6 @@
 #include <tuple>
 #include <unordered_map>
 
-#include "property/column.h"
-#include "service_utils.h"
 #include "src/engines/graph_db/app/app_base.h"
 #include "src/engines/graph_db/database/graph_db.h"
 #include "src/engines/graph_db/database/graph_db_session.h"
@@ -31,8 +29,10 @@
 #include "src/storages/rt_mutable_graph/schema.h"
 #include "src/storages/rt_mutable_graph/types.h"
 #include "src/utils/app_utils.h"
+#include "src/utils/property/column.h"
 #include "src/utils/property/types.h"
 #include "src/utils/result.h"
+#include "src/utils/service_utils.h"
 
 namespace gs {
 class UpdateBatch;

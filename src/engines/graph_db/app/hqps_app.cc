@@ -23,8 +23,8 @@
 #include <string_view>
 #include <vector>
 
-#include "app_utils.h"
 #include "src/engines/graph_db/database/graph_db_session.h"
+#include "src/utils/app_utils.h"
 
 namespace gs {
 class GraphDB;

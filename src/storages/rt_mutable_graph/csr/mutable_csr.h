@@ -37,15 +37,15 @@
 #include <utility>
 #include <vector>
 
-#include "allocators.h"
-#include "mmap_array.h"
-#include "property/column.h"
-#include "property/table.h"
 #include "src/storages/rt_mutable_graph/csr/adj_list.h"
 #include "src/storages/rt_mutable_graph/csr/csr_base.h"
 #include "src/storages/rt_mutable_graph/csr/nbr.h"
 #include "src/storages/rt_mutable_graph/file_names.h"
 #include "src/storages/rt_mutable_graph/types.h"
+#include "src/utils/allocators.h"
+#include "src/utils/mmap_array.h"
+#include "src/utils/property/column.h"
+#include "src/utils/property/table.h"
 #include "src/utils/property/types.h"
 #include "third_party/libgrape-lite/grape/types.h"
 #include "third_party/libgrape-lite/grape/utils/concurrent_queue.h"

@@ -25,9 +25,9 @@
 #include <unordered_map>
 #include <utility>
 
-#include "arrow_utils.h"
 #include "src/storages/rt_mutable_graph/loader/loader_factory.h"
 #include "src/storages/rt_mutable_graph/loader/loader_utils.h"
+#include "src/utils/arrow_utils.h"
 #include "src/utils/string_utils.h"
 #include "third_party/libgrape-lite/grape/types.h"
 

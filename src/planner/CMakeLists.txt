@@ -12,14 +12,18 @@ if (NOT BUILD_COMPILER)
 endif()
 
 # if no source files are found, we still need to create the target
-add_library(neug_planner SHARED ${PLANNER_SOURCE_FILES})
+if (BUILD_ALL_IN_ONE)
+    add_library(neug_planner OBJECT ${PLANNER_SOURCE_FILES})
+    add_dependencies(neug_planner neug_plan_proto)
+    set(ALL_OBJECT_FILES ${ALL_OBJECT_FILES} $<TARGET_OBJECTS:neug_planner> PARENT_SCOPE)
+else()
+    add_library(neug_planner SHARED ${PLANNER_SOURCE_FILES})
+    target_link_libraries(neug_planner ${GLOG_LIBRARIES} ${PROTOBUF_LIBRARIES} neug_utils)
+    if (BUILD_COMPILER)
+        target_link_libraries(neug_planner neug_compiler_shared)
+    endif()
+    install_neug_target(neug_planner)
+endif()
 
-target_link_libraries(neug_planner ${GLOG_LIBRARIES} ${PROTOBUF_LIBRARIES} neug_utils neug_plan_proto)
-if (BUILD_COMPILER)
-    target_link_libraries(neug_planner neug_compiler_shared)
-endif()
-if (BUILD_JNI_PLANNER)
-    target_link_libraries(neug_planner ${JAVA_JVM_LIBRARY} ${JNI_LIBRARIES})
-    target_include_directories(neug_planner PUBLIC ${JAVA_INCLUDE_PATH} ${JAVA_INCLUDE_PATH2})
-endif()
-install_neug_target(neug_planner)
+
+

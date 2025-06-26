@@ -31,14 +31,14 @@
 #include <utility>
 #include <vector>
 
-#include "property/column.h"
-#include "property/table.h"
 #include "src/storages/rt_mutable_graph/csr/immutable_csr.h"
 #include "src/storages/rt_mutable_graph/csr/mutable_csr.h"
 #include "src/storages/rt_mutable_graph/csr/nbr.h"
 #include "src/storages/rt_mutable_graph/mutable_property_fragment.h"
 #include "src/storages/rt_mutable_graph/schema.h"
 #include "src/storages/rt_mutable_graph/types.h"
+#include "src/utils/property/column.h"
+#include "src/utils/property/table.h"
 #include "src/utils/property/types.h"
 
 namespace gs {

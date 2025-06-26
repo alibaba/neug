@@ -31,14 +31,14 @@
 #include <stdexcept>                        // for runtime_e...
 #include <type_traits>                      // for __strip_r...
 #include <unordered_set>                    // for unordered...
-#include "id_indexer.h"                     // for IdIndexer
 #include "src/utils/exception.h"            // for LOG_FATAL_IF
+#include "src/utils/id_indexer.h"           // for IdIndexer
 #include "src/utils/property/types.h"       // for PropertyType
 #include "src/utils/result.h"               // for Status
+#include "src/utils/yaml_utils.h"           // for get_scalar
 #include "third_party/libgrape-lite/grape/io/local_io_adaptor.h"  // for LocalIOAd...
 #include "third_party/libgrape-lite/grape/serialization/in_archive.h"  // for operator<<
 #include "third_party/libgrape-lite/grape/serialization/out_archive.h"  // for operator>>
-#include "yaml_utils.h"  // for get_scalar
 
 namespace gs {
 

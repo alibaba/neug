@@ -31,7 +31,7 @@
 #include <string>                           // for string, allocator, char_t...
 #include <tuple>                            // for tuple, make_tuple, get
 #include "src/utils/exception.h"            // for LOG_FATAL_IF
-#include "yaml_utils.h"                     // for get_scalar
+#include "src/utils/yaml_utils.h"           // for get_scalar
 
 namespace gs {
 

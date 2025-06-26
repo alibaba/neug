@@ -17,7 +17,11 @@ if (Hiactor_FOUND)
   target_compile_options (neug_server
         PUBLIC
         -Wno-attributes)
-  target_link_libraries(neug_server Hiactor::hiactor neug_graph_db)
+  if (BUILD_ALL_IN_ONE)
+    target_link_libraries(neug_server Hiactor::hiactor neug_libraries)
+  else()
+    target_link_libraries(neug_server Hiactor::hiactor neug_graph_db) 
+  endif()
 
   # Hiactor/seastar could be compiled with a compiler support option: -Wno-maybe-uninitialized, 
   # so when we are compiling src with a compiler that does not support this option(e.g. AOCC compiler), 
@@ -33,12 +37,5 @@ if (Hiactor_FOUND)
   set_target_properties(Hiactor::seastar PROPERTIES INTERFACE_COMPILE_OPTIONS "${seastar_options}")
   
   target_include_directories(neug_server PUBLIC ${CMAKE_CURRENT_BINARY_DIR}/../../utils/)
-  target_link_libraries(neug_server neug_plan_proto)
-  if (OPENTELEMETRY_CPP_FOUND)
-    target_link_libraries(neug_server otel)
-  endif()
-  if (BUILD_METADATA)
-    target_link_libraries(neug_server neug_metadata_store)
-  endif()
   install_without_export_neug_target(neug_server)
 endif ()

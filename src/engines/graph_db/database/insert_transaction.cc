@@ -22,7 +22,6 @@
 #include <ostream>
 #include <thread>
 
-#include "property/table.h"
 #include "src/engines/graph_db/database/transaction_utils.h"
 #include "src/engines/graph_db/database/version_manager.h"
 #include "src/engines/graph_db/database/wal/wal.h"
@@ -30,6 +29,7 @@
 #include "src/storages/rt_mutable_graph/mutable_property_fragment.h"
 #include "src/storages/rt_mutable_graph/schema.h"
 #include "src/utils/allocators.h"
+#include "src/utils/property/table.h"
 #include "src/utils/property/types.h"
 #include "third_party/libgrape-lite/grape/serialization/in_archive.h"
 #include "third_party/libgrape-lite/grape/serialization/out_archive.h"

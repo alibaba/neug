@@ -21,14 +21,14 @@
 #include <system_error>
 #include <utility>
 
-#include "indexers.h"
-#include "property/table.h"
 #include "src/storages/rt_mutable_graph/csr/csr_base.h"
 #include "src/storages/rt_mutable_graph/csr/immutable_csr.h"
 #include "src/storages/rt_mutable_graph/csr/mutable_csr.h"
 #include "src/storages/rt_mutable_graph/csr/nbr.h"
 #include "src/storages/rt_mutable_graph/file_names.h"
 #include "src/storages/rt_mutable_graph/types.h"
+#include "src/utils/indexers.h"
+#include "src/utils/property/table.h"
 #include "src/utils/property/types.h"
 #include "src/utils/yaml_utils.h"
 #include "third_party/libgrape-lite/grape/io/local_io_adaptor.h"

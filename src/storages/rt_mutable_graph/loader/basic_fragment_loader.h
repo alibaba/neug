@@ -30,15 +30,15 @@
 #include <tuple>
 #include <vector>
 
-#include "id_indexer.h"
-#include "property/column.h"
-#include "property/table.h"
 #include "src/storages/rt_mutable_graph/csr/mutable_csr.h"
 #include "src/storages/rt_mutable_graph/dual_csr.h"
 #include "src/storages/rt_mutable_graph/file_names.h"
 #include "src/storages/rt_mutable_graph/schema.h"
 #include "src/storages/rt_mutable_graph/types.h"
+#include "src/utils/id_indexer.h"
 #include "src/utils/indexers.h"
+#include "src/utils/property/column.h"
+#include "src/utils/property/table.h"
 #include "src/utils/property/types.h"
 
 namespace gs {

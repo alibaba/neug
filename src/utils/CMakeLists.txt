@@ -56,20 +56,19 @@ protobuf_generate(APPEND_PATH
         IMPORT_DIRS ${PROTO_GENERATED_DIR}
         PROTOC_OUT_DIR ${CMAKE_CURRENT_BINARY_DIR}/src/proto_generated_gie
 )
-
-add_library(neug_plan_proto SHARED ${PROTO_SRCS_GIE})
-target_include_directories(neug_plan_proto PUBLIC 
-        $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}> 
-        $<BUILD_INTERFACE:${CMAKE_CURRENT_BINARY_DIR}>)
-
-if (APPLE)
-        find_package(absl REQUIRED)
-        message(STATUS "Linking with ${Protobuf_LIBRARIES}")
-        target_link_libraries(neug_plan_proto  PUBLIC ${Protobuf_LIBRARIES} ${Boost_LIBRARIES} ${GLOG_LIBRARIES})
+if (BUILD_ALL_IN_ONE)
+        add_library(neug_plan_proto OBJECT ${PROTO_SRCS_GIE})
 else()
-        target_link_libraries(neug_plan_proto ${Protobuf_LIBRARIES} ${GLOG_LIBRARIES})
+        add_library(neug_plan_proto SHARED ${PROTO_SRCS_GIE})
+        if (APPLE)
+                find_package(absl REQUIRED)
+                message(STATUS "Linking with ${Protobuf_LIBRARIES}")
+                target_link_libraries(neug_plan_proto  PUBLIC ${Protobuf_LIBRARIES} ${Boost_LIBRARIES} ${GLOG_LIBRARIES})
+        else()
+                target_link_libraries(neug_plan_proto ${Protobuf_LIBRARIES} ${GLOG_LIBRARIES})
+        endif()
+        install_neug_target(neug_plan_proto)
 endif()
-install_neug_target(neug_plan_proto)
 
 #install proto_generated_files
 install(DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/src
@@ -85,28 +84,22 @@ if (NOT BUILD_WITH_OSS)
         list(REMOVE_ITEM UTILS_SRC_FILES "${CMAKE_CURRENT_SOURCE_DIR}/remote/oss_storage.cc")
 endif()
 
-
-add_library(neug_utils SHARED ${UTILS_SRC_FILES} ${ERROR_PROTO_SRCS})
-target_include_directories(neug_utils PUBLIC 
-        $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}> 
-        $<BUILD_INTERFACE:${CMAKE_CURRENT_BINARY_DIR}>)
-# Link the static library of arrow, to save the trouble of linking the shared library of arrow
-target_link_libraries(neug_utils PUBLIC neug_plan_proto ${Protobuf_LIBRARIES} ${ARROW_LIB}  ${Boost_LIBRARIES} ${GLOG_LIBRARIES} ${YAML_CPP_LIBRARIES})
-if (BUILD_WITH_OSS)
-        target_link_libraries(neug_utils PRIVATE cpp-sdk)
+if (BUILD_ALL_IN_ONE)
+        add_library(neug_utils OBJECT ${UTILS_SRC_FILES} ${ERROR_PROTO_SRCS})
+        set(ALL_OBJECT_FILES ${ALL_OBJECT_FILES} $<TARGET_OBJECTS:neug_utils> $<TARGET_OBJECTS:neug_plan_proto> PARENT_SCOPE)
+else()
+        add_library(neug_utils SHARED ${UTILS_SRC_FILES} ${ERROR_PROTO_SRCS})
+        target_link_libraries(neug_utils PUBLIC neug_plan_proto ${Protobuf_LIBRARIES} ${ARROW_LIB}  ${Boost_LIBRARIES} ${GLOG_LIBRARIES} ${YAML_CPP_LIBRARIES})
+        if (BUILD_WITH_OSS)
+                target_link_libraries(neug_utils PRIVATE cpp-sdk)
+        endif()
+        # for gcc < 9, link stdc++fs
+        if (CMAKE_CXX_COMPILER_ID MATCHES "GNU" AND CMAKE_CXX_COMPILER_VERSION VERSION_LESS 9)
+                message(STATUS "Linking with stdc++fs for gcc < 9")
+                target_link_libraries(neug_utils PUBLIC stdc++fs)
+        endif()
+        install_neug_target(neug_utils)
 endif()
-
-
-if (APPLE)
-        target_link_libraries(neug_utils PUBLIC absl::log_internal_message)
-endif()
-# for gcc < 9, link stdc++fs
-if (CMAKE_CXX_COMPILER_ID MATCHES "GNU" AND CMAKE_CXX_COMPILER_VERSION VERSION_LESS 9)
-        message(STATUS "Linking with stdc++fs for gcc < 9")
-        target_link_libraries(neug_utils PUBLIC stdc++fs)
-endif()
-
-install_neug_target(neug_utils)
 
 install(DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
         DESTINATION include/src/

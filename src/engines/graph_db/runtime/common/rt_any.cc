@@ -18,10 +18,10 @@
 #include <arrow/type.h>
 #include <stdexcept>
 
-#include "app_utils.h"
 #include "src/proto_generated_gie/common.pb.h"
 #include "src/proto_generated_gie/results.pb.h"
 #include "src/storages/rt_mutable_graph/schema.h"
+#include "src/utils/app_utils.h"
 
 namespace gs {
 

@@ -29,7 +29,7 @@
 #include "src/proto_generated_gie/type.pb.h"
 #include "src/storages/rt_mutable_graph/schema.h"
 #include "src/utils/property/types.h"
-#include "top_n_generator.h"
+#include "src/utils/top_n_generator.h"
 
 namespace gs {
 

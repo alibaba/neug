@@ -21,10 +21,10 @@
 #include <string>
 #include <tuple>
 
-#include "app_utils.h"
 #include "src/engines/graph_db/runtime/common/columns/i_context_column.h"
 #include "src/engines/graph_db/runtime/common/context.h"
 #include "src/engines/graph_db/runtime/common/rt_any.h"
+#include "src/utils/app_utils.h"
 
 namespace gs {
 

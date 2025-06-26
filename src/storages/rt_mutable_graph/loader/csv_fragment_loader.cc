@@ -27,11 +27,11 @@
 #include <tuple>
 #include <unordered_map>
 #include <utility>
-#include "arrow_utils.h"
 #include "src/storages/rt_mutable_graph/loader/basic_fragment_loader.h"
 #include "src/storages/rt_mutable_graph/loader/loader_factory.h"
 #include "src/storages/rt_mutable_graph/loader/loader_utils.h"
 #include "src/storages/rt_mutable_graph/schema.h"
+#include "src/utils/arrow_utils.h"
 #include "src/utils/property/types.h"
 #include "src/utils/string_utils.h"
 

@@ -25,12 +25,12 @@
 #include <vector>
 
 #include "arrow/util/value_parsing.h"
-#include "arrow_utils.h"
 #include "src/storages/rt_mutable_graph/csr/csr_base.h"
 #include "src/storages/rt_mutable_graph/loader/loader_utils.h"
 #include "src/storages/rt_mutable_graph/mutable_property_fragment.h"
 #include "src/storages/rt_mutable_graph/schema.h"
 #include "src/storages/rt_mutable_graph/types.h"
+#include "src/utils/arrow_utils.h"
 #include "src/utils/property/types.h"
 
 namespace arrow {

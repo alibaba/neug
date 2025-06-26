@@ -26,7 +26,6 @@
 #include <tuple>
 #include <utility>
 
-#include "app_utils.h"
 #include "src/engines/graph_db/app/app_base.h"
 #include "src/engines/graph_db/database/graph_db_session.h"
 #include "src/engines/graph_db/runtime/common/columns/i_context_column.h"
@@ -42,6 +41,7 @@
 #include "src/proto_generated_gie/results.pb.h"
 #include "src/proto_generated_gie/stored_procedure.pb.h"
 #include "src/storages/rt_mutable_graph/types.h"
+#include "src/utils/app_utils.h"
 #include "src/utils/property/types.h"
 
 namespace gs {

@@ -24,10 +24,10 @@
 #include <tuple>
 #include <vector>
 
-#include "app_utils.h"
 #include "src/engines/graph_db/database/graph_db_session.h"
 #include "src/engines/graph_db/database/read_transaction.h"
 #include "src/storages/rt_mutable_graph/schema.h"
+#include "src/utils/app_utils.h"
 #include "src/utils/property/types.h"
 
 namespace gs {

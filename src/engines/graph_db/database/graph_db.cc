@@ -30,8 +30,6 @@
 #include <sstream>
 #include <vector>
 
-#include "allocators.h"
-#include "app_utils.h"
 #include "src/engines/graph_db/app/builtin/count_vertices.h"
 #include "src/engines/graph_db/app/builtin/k_hop_neighbors.h"
 #include "src/engines/graph_db/app/builtin/pagerank.h"
@@ -47,6 +45,8 @@
 #include "src/engines/graph_db/runtime/utils/cypher_runner_impl.h"
 #include "src/engines/graph_db/runtime/utils/opr_timer.h"
 #include "src/storages/rt_mutable_graph/file_names.h"
+#include "src/utils/allocators.h"
+#include "src/utils/app_utils.h"
 
 namespace gs {
 

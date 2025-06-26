@@ -41,9 +41,9 @@
 #include <filesystem>
 #include <stdexcept>
 
-#include "service_utils.h"
 #include "src/utils/property/types.h"
 #include "src/utils/result.h"
+#include "src/utils/service_utils.h"
 
 namespace gs {
 

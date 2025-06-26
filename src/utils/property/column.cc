@@ -17,7 +17,7 @@
 
 #include <ext/alloc_traits.h>
 
-#include "mmap_array.h"
+#include "src/utils/mmap_array.h"
 #include "src/utils/property/table.h"
 #include "src/utils/property/types.h"
 #include "third_party/libgrape-lite/grape/serialization/out_archive.h"

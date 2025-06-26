@@ -14,7 +14,7 @@ add_compiler_test(
 
 target_link_libraries(gopt_test
     PRIVATE
-    neug_gopt
-    neug_plan_proto
+	neug_gopt
+	neug_plan_proto
     ${Protobuf_LIBRARIES}
 )
