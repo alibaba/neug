@@ -59,6 +59,19 @@ class SigColumn : public ISigColumn {
 };
 
 template <>
+class SigColumn<Interval> : public ISigColumn {
+ public:
+  SigColumn(const std::vector<Interval>& data) : data_(data.data()) {}
+  ~SigColumn() = default;
+  inline size_t get_sig(size_t idx) const override {
+    return static_cast<size_t>(data_[idx].to_mill_seconds());
+  }
+
+ private:
+  const Interval* data_;
+};
+
+template <>
 class SigColumn<Date> : public ISigColumn {
  public:
   SigColumn(const std::vector<Date>& data) : data_(data.data()) {}

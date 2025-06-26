@@ -233,45 +233,6 @@ inline bool operator>(const GlobalId& lhs, const GlobalId& rhs) {
   return lhs.global_id > rhs.global_id;
 }
 
-struct __attribute__((packed)) DateTime {
-  DateTime() = default;
-  ~DateTime() = default;
-  DateTime(int64_t x) : milli_second(x) {}
-
-  std::string to_string() const;
-
-  inline bool operator<(const DateTime& rhs) const {
-    return milli_second < rhs.milli_second;
-  }
-
-  inline bool operator==(const DateTime& rhs) const {
-    return milli_second == rhs.milli_second;
-  }
-
-  int64_t milli_second;
-};
-
-// Although DateTime and TimeStamp are similar, they are different types, parsed
-// from different arrow types, and has different usages.
-struct __attribute__((packed)) TimeStamp {
-  TimeStamp() = default;
-  ~TimeStamp() = default;
-
-  TimeStamp(int64_t x) : milli_second(x) {}
-
-  std::string to_string() const;
-
-  inline bool operator<(const TimeStamp& rhs) const {
-    return milli_second < rhs.milli_second;
-  }
-
-  inline bool operator==(const TimeStamp& rhs) const {
-    return milli_second == rhs.milli_second;
-  }
-
-  int64_t milli_second;
-};
-
 struct DayValue {
   uint32_t year : 18;
   uint32_t month : 4;
@@ -279,74 +240,129 @@ struct DayValue {
   uint32_t hour : 5;
 };
 
-struct IntervalValue {
+struct __attribute__((packed)) IntervalValue {
   uint64_t year : 18;         // 0~8192
   uint64_t month : 4;         // 0~12
   uint64_t day : 5;           // 0~31
   uint64_t hour : 5;          // 0~23
   uint64_t minute : 6;        // 0~59
   uint64_t second : 6;        // 0~59
-  uint64_t microsecond : 10;  // 0~999
   uint64_t millisecond : 10;  // 0~999
+  uint64_t
+      microsecond : 10;  // 0~999, microseconds current stored but not used.
   // 14+4+5+5+6+6+10+10 = 60
+
+  inline bool operator==(const IntervalValue& rhs) const {
+    return year == rhs.year && month == rhs.month && day == rhs.day &&
+           hour == rhs.hour && minute == rhs.minute && second == rhs.second &&
+           millisecond == rhs.millisecond && microsecond == rhs.microsecond;
+  }
+
+  inline bool operator<(const IntervalValue& rhs) const {
+    if (year != rhs.year)
+      return year < rhs.year;
+    if (month != rhs.month)
+      return month < rhs.month;
+    if (day != rhs.day)
+      return day < rhs.day;
+    if (hour != rhs.hour)
+      return hour < rhs.hour;
+    if (minute != rhs.minute)
+      return minute < rhs.minute;
+    if (second != rhs.second)
+      return second < rhs.second;
+    if (millisecond != rhs.millisecond)
+      return millisecond < rhs.millisecond;
+    return microsecond < rhs.microsecond;
+  }
+  inline bool operator>(const IntervalValue& rhs) const {
+    return !(*this < rhs) && !(*this == rhs);
+  }
+
+  IntervalValue& operator=(const IntervalValue& rhs) = default;
 };
 
-struct Interval {
+struct __attribute__((packed)) Interval {
+  static constexpr int64_t SECOND_PER_YEAR = 365 * 24 * 3600;
+  static constexpr int64_t SECOND_PER_MONTH = 30 * 24 * 3600;
+  static constexpr int64_t SECOND_PER_DAY = 24 * 3600;
+  static constexpr int64_t SECOND_PER_HOUR = 3600;
+  static constexpr int64_t SECOND_PER_MINUTE = 60;
+
   Interval() = default;
   ~Interval() = default;
+  Interval& operator=(const Interval& rhs) = default;
 
-  Interval(const IntervalValue& x) { value.internal = x; }
-  Interval(const Interval& x) { value.internal = x.value.internal; }
-  Interval(const IntervalValue& x, bool) { value.internal = x; }
+  void from_mill_seconds(int64_t mill_seconds);
 
-  Interval(int64_t x) { from_u64(x); }
-  void from_u64(uint64_t x) { value.integer = x; }
-  uint64_t to_u64() const { return value.integer; }
-
-  void from_timestamp(int64_t ts) {
-    const boost::posix_time::ptime epoch(boost::gregorian::date(1970, 1, 1));
-    boost::posix_time::ptime time_point =
-        epoch + boost::posix_time::microseconds(ts);
-    boost::posix_time::time_duration td = time_point.time_of_day();
-    boost::gregorian::date date = time_point.date();
-    value.internal.year = date.year();
-    value.internal.month = date.month().as_number();
-    value.internal.day = date.day();
-    value.internal.hour = td.hours();
-    value.internal.minute = td.minutes();
-    value.internal.second = td.seconds();
-    value.internal.microsecond = td.total_microseconds() % 1000000;
-    value.internal.millisecond = td.total_milliseconds() % 1000;
-    assert(ts == to_timestamp());
-  }
-
-  int64_t to_timestamp() const {
-    const boost::posix_time::ptime epoch(boost::gregorian::date(1970, 1, 1));
-    boost::gregorian::date new_date(year(), month(), day());
-    boost::posix_time::ptime new_time_point(
-        new_date, boost::posix_time::time_duration(hour(), minute(), second()));
-    boost::posix_time::time_duration diff = new_time_point - epoch;
-    int64_t new_timestamp_sec = diff.total_seconds();
-    int64_t new_timestamp_mill_sec =
-        new_timestamp_sec * 1000 + value.internal.millisecond;
-    return new_timestamp_mill_sec;
-  }
+  int64_t to_mill_seconds() const;
 
   std::string to_string() const;
 
-  inline int32_t year() const {
-    return static_cast<int32_t>(value.internal.year);
+  inline int32_t year() const { return static_cast<int32_t>(internal.year); }
+  int32_t month() const { return static_cast<int32_t>(internal.month); }
+  int32_t day() const { return static_cast<int32_t>(internal.day); }
+  int32_t hour() const { return static_cast<int32_t>(internal.hour); }
+  int32_t minute() const { return static_cast<int32_t>(internal.minute); }
+  int32_t second() const { return static_cast<int32_t>(internal.second); }
+  int32_t millisecond() const {
+    return static_cast<int32_t>(internal.millisecond);
   }
-  int32_t month() const { return static_cast<int32_t>(value.internal.month); }
-  int32_t day() const { return static_cast<int32_t>(value.internal.day); }
-  int32_t hour() const { return static_cast<int32_t>(value.internal.hour); }
-  int32_t minute() const { return static_cast<int32_t>(value.internal.minute); }
-  int32_t second() const { return static_cast<int32_t>(value.internal.second); }
 
-  union {
-    IntervalValue internal;
-    uint64_t integer;
-  } value;
+  inline Interval& operator=(uint64_t ts) {
+    LOG(INFO) << "Set interval from mill seconds: " << ts;
+    from_mill_seconds(ts);
+    return *this;
+  }
+
+  inline bool operator==(const Interval& rhs) const {
+    return internal == rhs.internal;
+  }
+
+  inline bool operator<(const Interval& rhs) const {
+    return internal < internal;
+  }
+
+  inline bool operator>(const Interval& rhs) const {
+    return internal > rhs.internal;
+  }
+
+  inline bool operator<=(const Interval& rhs) const {
+    return !(internal > rhs.internal);
+  }
+
+  inline bool operator>=(const Interval& rhs) const {
+    return !(internal < rhs.internal);
+  }
+
+  Interval& operator+(const Interval& rhs);
+
+  Interval& operator+=(const Interval& rhs);
+
+  Interval& operator-(const Interval& rhs);
+
+  Interval& operator-=(const Interval& rhs);
+
+  bool negative;
+  IntervalValue internal;
+
+ private:
+  static void normalize(Interval& interval);
+
+  static void adjustNegative(Interval& interval);
+
+  // TODO(zhanglei): This is a simplified logic for month/year overflow and
+  // underflow.
+  //  It does not consider the actual number of days in each month.
+  //  A more robust implementation would require a mapping of month to days and
+  //  handling leap years for February.
+  static void adjustMonthYearOverflow(Interval& interval);
+
+  // TODO(zhanglei): This is a simplified logic for month/year underflow.
+  //   It does not consider the actual number of days in each month.
+  //   A more robust implementation would require a mapping of month to days and
+  //   handling leap years for February.
+  static void adjustMonthYearUnderflow(Interval& interval);
 };
 
 struct __attribute__((packed)) Date {
@@ -396,7 +412,7 @@ struct __attribute__((packed)) Date {
     boost::posix_time::ptime new_time_point(
         new_date, boost::posix_time::time_duration(hour(), 0, 0));
     boost::posix_time::time_duration diff = new_time_point - epoch;
-    int64_t new_timestamp_sec = diff.total_seconds();
+    uint64_t new_timestamp_sec = diff.total_seconds();
 
     return new_timestamp_sec * 1000;
   }
@@ -412,7 +428,15 @@ struct __attribute__((packed)) Date {
     this->value.internal.month = date.month().as_number();
     this->value.internal.day = date.day();
     this->value.internal.hour = td.hours();
-    assert(ts == to_timestamp());
+    LOG(INFO) << "Set date from timestamp: " << ts
+              << ", year: " << value.internal.year
+              << ", month: " << value.internal.month
+              << ", day: " << value.internal.day
+              << ", hour: " << value.internal.hour;
+    LOG(INFO) << "to_timestamp: " << to_timestamp();
+    // We could not assert here because we may lose precision when converting
+    //  from timestamp to date.
+    //  assert(ts == to_timestamp());
   }
 
   bool operator<(const Date& rhs) const {
@@ -421,6 +445,34 @@ struct __attribute__((packed)) Date {
   bool operator==(const Date& rhs) const {
     return this->to_u32() == rhs.to_u32();
   }
+
+  Date& operator+(const Interval& interval) {
+    auto ts = this->to_timestamp();
+    ts += interval.to_mill_seconds();
+    this->from_timestamp(ts);
+    return *this;
+  }
+
+  Date& operator+=(const Interval& interval) {
+    return this->operator+(interval);
+  }
+
+  Date& operator-(const Interval& interval) {
+    auto ts = this->to_timestamp();
+    LOG(INFO) << "old timestamp: " << ts
+              << ", interval: " << interval.to_mill_seconds();
+    ts -= interval.to_mill_seconds();
+    this->from_timestamp(ts);
+    return *this;
+  }
+
+  Date& operator-=(const Interval& interval) {
+    return this->operator-(interval);
+  }
+
+  Interval operator-(const Date& rhs) const;
+
+  Interval operator-=(const Date& rhs) const;
 
   int year() const;
   int month() const;
@@ -433,6 +485,144 @@ struct __attribute__((packed)) Date {
   } value;
 };
 
+struct __attribute__((packed)) DateTime {
+  DateTime() = default;
+  ~DateTime() = default;
+  DateTime(int64_t x) : milli_second(x) {}
+  DateTime(const std::string& date_time_str) {
+    // For input string like "YYYY-MM-DD HH:MM:SS.zzz". the .zzz part is
+    // optional.
+    boost::posix_time::ptime pt;
+    std::istringstream ss(date_time_str);
+    try {
+      ss >> pt;
+      if (ss.fail()) {
+        throw std::invalid_argument("Invalid date time string format");
+      }
+      if (pt.time_of_day().total_milliseconds() < 0 ||
+          pt.date().year() < 1970) {
+        throw std::invalid_argument("Date time string is before epoch");
+      }
+      // Convert to milliseconds since epoch
+      const boost::posix_time::ptime epoch(boost::gregorian::date(1970, 1, 1));
+      boost::posix_time::time_duration diff = pt - epoch;
+      milli_second = diff.total_milliseconds();
+      LOG(INFO) << "Set DateTime from string: " << date_time_str
+                << ", milliseconds since epoch: " << milli_second;
+    } catch (const std::exception& e) {
+      LOG(ERROR) << "Failed to parse DateTime from string: " << date_time_str
+                 << ", error: " << e.what();
+      throw std::invalid_argument("Invalid date time string format");
+    }
+  }
+
+  std::string to_string() const;
+
+  inline bool operator<(const DateTime& rhs) const {
+    return milli_second < rhs.milli_second;
+  }
+
+  inline bool operator==(const DateTime& rhs) const {
+    return milli_second == rhs.milli_second;
+  }
+
+  inline DateTime& operator+=(const Interval& interval) {
+    milli_second += interval.to_mill_seconds();
+    return *this;
+  }
+
+  inline DateTime& operator+(const Interval& interval) {
+    milli_second += interval.to_mill_seconds();
+    return *this;
+  }
+
+  inline DateTime& operator-=(const Interval& interval) {
+    milli_second -= interval.to_mill_seconds();
+    return *this;
+  }
+
+  inline DateTime& operator-(const Interval& interval) {
+    milli_second -= interval.to_mill_seconds();
+    return *this;
+  }
+
+  inline Interval operator-(const DateTime& rhs) const {
+    Interval interval;
+    interval.from_mill_seconds(this->milli_second - rhs.milli_second);
+    return interval;
+  }
+
+  inline Interval operator-=(const DateTime& rhs) {
+    return this->operator-(rhs);
+  }
+
+  int64_t milli_second;
+};
+
+// Although DateTime and TimeStamp are similar, they are different types, parsed
+// from different arrow types, and has different usages.
+struct __attribute__((packed)) TimeStamp {
+  TimeStamp() = default;
+  ~TimeStamp() = default;
+
+  TimeStamp(int64_t x) : milli_second(x) {}
+
+  std::string to_string() const;
+
+  inline bool operator<(const TimeStamp& rhs) const {
+    return milli_second < rhs.milli_second;
+  }
+
+  inline bool operator==(const TimeStamp& rhs) const {
+    return milli_second == rhs.milli_second;
+  }
+
+  TimeStamp& operator+(const Interval& interval) {
+    milli_second += interval.to_mill_seconds();
+    return *this;
+  }
+
+  TimeStamp& operator+=(const Interval& interval) {
+    milli_second += interval.to_mill_seconds();
+    return *this;
+  }
+
+  TimeStamp& operator-(const Interval& interval) {
+    milli_second -= interval.to_mill_seconds();
+    return *this;
+  }
+
+  inline TimeStamp& operator-=(const Interval& interval) {
+    milli_second -= interval.to_mill_seconds();
+    return *this;
+  }
+
+  Interval operator-(const TimeStamp& rhs) const {
+    Interval interval;
+    interval.from_mill_seconds(this->milli_second - rhs.milli_second);
+    return interval;
+  }
+
+  Interval operator-=(const TimeStamp& rhs) { return this->operator-(rhs); }
+
+  int64_t milli_second;
+};
+
+Date operator+(const Date& date, const Interval& interval);
+
+Date operator-(const Date& date, const Interval& interval);
+
+DateTime operator+(const DateTime& dt, const Interval& interval);
+
+DateTime operator-(const DateTime& dt, const Interval& interval);
+
+TimeStamp operator+(const TimeStamp& ts, const Interval& interval);
+
+TimeStamp operator-(const TimeStamp& ts, const Interval& interval);
+
+Interval operator+(const Interval& lhs, const Interval& rhs);
+
+Interval operator-(const Interval& lhs, const Interval& rhs);
 struct LabelKey {
   using label_data_type = uint8_t;
   int32_t label_id;
@@ -746,9 +936,9 @@ struct Any {
     value.interval = v;
   }
 
-  void set_interval(int64_t v) {
+  void set_interval(uint64_t v) {
     type = PropertyType::kInterval;
-    value.interval.from_u64(v);
+    value.interval.from_mill_seconds(v);
   }
 
   void set_timestamp(int64_t v) {
@@ -933,7 +1123,7 @@ struct Any {
       } else if (type == PropertyType::kTimestamp) {
         return value.ts.milli_second == other.value.ts.milli_second;
       } else if (type == PropertyType::kInterval) {
-        return value.interval.to_u64() == other.value.interval.to_u64();
+        return value.interval.internal == other.value.interval.internal;
       } else {
         return false;
       }
@@ -1000,7 +1190,7 @@ struct Any {
       } else if (type == PropertyType::kTimestamp) {
         return value.ts.milli_second < other.value.ts.milli_second;
       } else if (type == PropertyType::kInterval) {
-        return value.interval.to_u64() < other.value.interval.to_u64();
+        return value.interval < other.value.interval;
       } else {
         return false;
       }
@@ -1570,7 +1760,7 @@ struct AnyConverter<Interval> {
     return ret;
   }
 
-  static Any to_any(int64_t value) {
+  static Any to_any(uint64_t value) {
     Any ret;
     ret.set_interval(value);
     return ret;
@@ -1585,44 +1775,7 @@ struct AnyConverter<Interval> {
    * @return An Any object containing the parsed Interval.
    * TODO(zhanglei): optimize the performance.
    */
-  static Any to_any(std::string_view value) {
-    static const std::regex interval_regex(
-        R"((\d+)\s*(years?|days?|hours?|minutes?|seconds?|milliseconds?|us?))");
-    std::smatch match;
-    Interval interval;
-    std::string value_str(value);
-    while (std::regex_search(value_str, match, interval_regex)) {
-      int64_t num = std::stoll(match[1].str());
-      std::string unit = match[2].str();
-      if (unit == "year" || unit == "years") {
-        interval.value.internal.year += num;
-      } else if (unit == "day" || unit == "days") {
-        interval.value.internal.day += num;
-      } else if (unit == "hour" || unit == "hours") {
-        interval.value.internal.hour += num;
-      } else if (unit == "minute" || unit == "minutes") {
-        interval.value.internal.minute += num;
-      } else if (unit == "second" || unit == "seconds") {
-        interval.value.internal.second += num;
-      } else if (unit == "millisecond" || unit == "milliseconds") {
-        interval.value.internal.millisecond += num;
-      } else if (unit == "us" || unit == "microsecond" ||
-                 unit == "microseconds") {
-        interval.value.internal.microsecond += num;
-      }
-      value_str = match.suffix().str();
-      // trim leading and trailing spaces
-      value_str.erase(0, value_str.find_first_not_of(' '));
-      value_str.erase(value_str.find_last_not_of(' ') + 1);
-    }
-    if (!value_str.empty()) {
-      throw std::invalid_argument("Invalid interval format: " + value_str +
-                                  ",size: " + std::to_string(value_str.size()));
-    }
-    Any ret;
-    ret.set_interval(interval);
-    return ret;
-  }
+  static Any to_any(std::string_view value);
 
   static const Interval& from_any(const Any& value) {
     assert(value.type == PropertyType::kInterval);

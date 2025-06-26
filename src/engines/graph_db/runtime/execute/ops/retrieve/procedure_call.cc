@@ -284,7 +284,7 @@ bl::result<procedure::Query> fill_in_query(const procedure::Query& query,
       } else if (val.type() == gs::runtime::RTAnyType::kBoolValue) {
         const_value->set_boolean(val.as_bool());
       } else if (val.type() == gs::runtime::RTAnyType::kDate) {
-        const_value->mutable_date()->set_item(val.as_date32().to_num_days());
+        const_value->mutable_date()->set_item(val.as_date().to_num_days());
       } else {
         LOG(ERROR) << "Unsupported type: " << static_cast<int32_t>(val.type());
       }

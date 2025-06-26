@@ -101,6 +101,10 @@ std::shared_ptr<IAccessor> create_vertex_property_path_accessor(
   case RTAnyType::kBoolValue:
     return std::make_shared<VertexPropertyPathAccessor<GraphInterface, bool>>(
         graph, ctx, tag, prop_name);
+  case RTAnyType::kInterval:
+    return std::make_shared<
+        VertexPropertyPathAccessor<GraphInterface, Interval>>(graph, ctx, tag,
+                                                              prop_name);
   default:
     LOG(FATAL) << "not implemented - " << static_cast<int>(type);
   }

@@ -179,6 +179,7 @@ jobs:
         ./scripts/run_tinysnb_test.sh projection
         ./scripts/run_tinysnb_test.sh filter
         ./scripts/run_tinysnb_test.sh order_by
+        ./scripts/run_tinysnb_test.sh expr
 
 
 

@@ -376,7 +376,7 @@ class ExtractExpr : public ExprBase {
  public:
   ExtractExpr(std::unique_ptr<ExprBase>&& expr, const common::Extract& extract)
       : expr_(std::move(expr)), extract_(extract) {}
-  int32_t eval_impl(const RTAny& val) const {
+  int64_t eval_impl(const RTAny& val) const {
     if constexpr (std::is_same_v<T, int64_t>) {
       return extract_time_from_milli_second(val.as_int64(), extract_);
     } else if constexpr (std::is_same_v<T, DateTime>) {
@@ -388,11 +388,43 @@ class ExtractExpr : public ExprBase {
                                             extract_);
     } else if constexpr (std::is_same_v<T, Date>) {
       if (extract_.interval() == common::Extract::DAY) {
-        return val.as_date32().day();
+        return val.as_date().day();
       } else if (extract_.interval() == common::Extract::MONTH) {
-        return val.as_date32().month();
+        return val.as_date().month();
       } else if (extract_.interval() == common::Extract::YEAR) {
-        return val.as_date32().year();
+        return val.as_date().year();
+      } else if (extract_.interval() == common::Extract::HOUR) {
+        return val.as_date().hour();
+      } else if (extract_.interval() == common::Extract::MINUTE) {
+        throw std::runtime_error(
+            "Unsupported extract interval for Date type: MINUTE");
+      } else if (extract_.interval() == common::Extract::SECOND) {
+        throw std::runtime_error(
+            "Unsupported extract interval for Date type: SECOND");
+      } else if (extract_.interval() == common::Extract::MILLISECOND) {
+        throw std::runtime_error(
+            "Unsupported extract interval for Date type: MILLISECOND");
+      } else {
+        throw std::runtime_error("Unsupported extract interval for Date type");
+      }
+    } else if constexpr (std::is_same_v<T, Interval>) {
+      if (extract_.interval() == common::Extract::DAY) {
+        return val.as_interval().day();
+      } else if (extract_.interval() == common::Extract::MONTH) {
+        return val.as_interval().month();
+      } else if (extract_.interval() == common::Extract::YEAR) {
+        return val.as_interval().year();
+      } else if (extract_.interval() == common::Extract::HOUR) {
+        return val.as_interval().hour();
+      } else if (extract_.interval() == common::Extract::MINUTE) {
+        return val.as_interval().minute();
+      } else if (extract_.interval() == common::Extract::SECOND) {
+        return val.as_interval().second();
+      } else if (extract_.interval() == common::Extract::MILLISECOND) {
+        return val.as_interval().millisecond();
+      } else {
+        throw std::runtime_error(
+            "Unsupported extract interval for Interval type");
       }
     }
     LOG(FATAL) << "not support" << extract_.DebugString();
@@ -400,16 +432,16 @@ class ExtractExpr : public ExprBase {
   }
 
   RTAny eval_path(size_t idx, Arena& arena) const override {
-    return RTAny::from_int32(eval_impl(expr_->eval_path(idx, arena)));
+    return RTAny::from_int64(eval_impl(expr_->eval_path(idx, arena)));
   }
   RTAny eval_vertex(label_t label, vid_t v, size_t idx,
                     Arena& arena) const override {
-    return RTAny::from_int32(
+    return RTAny::from_int64(
         eval_impl(expr_->eval_vertex(label, v, idx, arena)));
   }
   RTAny eval_edge(const LabelTriplet& label, vid_t src, vid_t dst,
                   const Any& data, size_t idx, Arena& arena) const override {
-    return RTAny::from_int32(
+    return RTAny::from_int64(
         eval_impl(expr_->eval_edge(label, src, dst, data, idx, arena)));
   }
 

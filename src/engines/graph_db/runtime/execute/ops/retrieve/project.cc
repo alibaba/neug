@@ -834,6 +834,9 @@ make_project_expr(const common::Expression& expr, int alias) {
     case RTAnyType::kU32Value: {
       return _make_project_expr<uint32_t>(std::move(e), alias, ctx);
     } break;
+    case RTAnyType::kInterval: {
+      return _make_project_expr<Interval>(std::move(e), alias, ctx);
+    } break;
     default:
       LOG(FATAL) << "not support - " << static_cast<int>(e.type());
       break;
@@ -1058,8 +1061,11 @@ make_project_expr(const common::Expression& expr,
     case RTAnyType::kU64Value: {
       return _make_project_expr<uint64_t>(expr, alias);
     } break;
+    case RTAnyType::kInterval: {
+      return _make_project_expr<Interval>(expr, alias);
+    } break;
     default: {
-      LOG(INFO) << "not support" << data_type.DebugString();
+      throw std::runtime_error("not support type - " + data_type.DebugString());
       return std::nullopt;
     }
     }

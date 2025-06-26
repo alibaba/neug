@@ -338,28 +338,29 @@ class StringImpl : public CObject {
 };
 
 enum class RTAnyType {
-  kVertex,
-  kEdge,
-  kI64Value,
-  kU64Value,
-  kI32Value,
-  kU32Value,
-  kF64Value,
-  kBoolValue,
-  kStringValue,
-  kUnknown,
-  kDate,
-  kDateTime,
-  kTimestamp,
-  kPath,
-  kNull,
-  kTuple,
-  kList,
-  kMap,
-  kRelation,
-  kSet,
-  kEmpty,
-  kRecordView,
+  kVertex = 0,
+  kEdge = 1,
+  kI64Value = 2,
+  kU64Value = 3,
+  kI32Value = 4,
+  kU32Value = 5,
+  kF64Value = 6,
+  kBoolValue = 7,
+  kStringValue = 8,
+  kUnknown = 9,
+  kDate = 10,
+  kDateTime = 11,
+  kTimestamp = 12,
+  kInterval = 13,
+  kPath = 14,
+  kNull = 15,
+  kTuple = 16,
+  kList = 17,
+  kMap = 18,
+  kRelation = 19,
+  kSet = 20,
+  kEmpty = 21,
+  kRecordView = 22,
 };
 
 PropertyType rt_type_to_property_type(RTAnyType type);
@@ -488,6 +489,8 @@ struct EdgeData {
       return std::to_string(value.dt_val.milli_second);
     } else if (type == RTAnyType::kTimestamp) {
       return std::to_string(value.ts_val.milli_second);
+    } else if (type == RTAnyType::kInterval) {
+      return std::to_string(value.interval_val.to_mill_seconds());
     } else if (type == RTAnyType::kEmpty) {
       return "";
     } else if (type == RTAnyType::kRecordView) {
@@ -592,6 +595,8 @@ struct EdgeData {
       return value.dt_val == e.value.dt_val;
     } else if (type == RTAnyType::kTimestamp) {
       return value.ts_val == e.value.ts_val;
+    } else if (type == RTAnyType::kInterval) {
+      return value.interval_val == e.value.interval_val;
     } else if (type == RTAnyType::kRecordView) {
       return value.record_view == e.value.record_view;
     } else {
@@ -611,6 +616,7 @@ struct EdgeData {
     DateTime dt_val;
     Date date_val;
     TimeStamp ts_val;
+    Interval interval_val;
     RecordView record_view;
     // todo: make recordview as a pod type
     // RecordView record;
@@ -675,6 +681,8 @@ inline RTAnyType parse_from_ir_data_type(const ::common::IrDataType& dt) {
         return RTAnyType::kDate;
       } else if (ddt.temporal().item_case() == ::common::Temporal::kTimestamp) {
         return RTAnyType::kTimestamp;
+      } else if (ddt.temporal().item_case() == ::common::Temporal::kInterval) {
+        return RTAnyType::kInterval;
       } else {
         LOG(FATAL) << "unrecognized temporal type - "
                    << ddt.temporal().DebugString();
@@ -723,6 +731,7 @@ union RTAnyValue {
   Date date_val;
   DateTime dt_val;
   TimeStamp ts_val;
+  Interval interval_val;
   std::string_view str_val;
   Path p;
   Tuple t;
@@ -769,14 +778,16 @@ class RTAny {
   static RTAny from_double(double v);
   static RTAny from_map(const Map& m);
   static RTAny from_set(const Set& s);
+  static RTAny from_interval(const Interval& v);
 
   bool as_bool() const;
   int as_int32() const;
   uint32_t as_uint32() const;
   int64_t as_int64() const;
   uint64_t as_uint64() const;
-  Date as_date32() const;
+  Date as_date() const;
   DateTime as_datetime() const;
+  Interval as_interval() const;
   TimeStamp as_timestamp() const;
   double as_double() const;
   VertexRecord as_vertex() const;
@@ -823,6 +834,8 @@ class RTAny {
       encoder.put_long(value_.dt_val.milli_second);
     } else if (type_ == RTAnyType::kTimestamp) {
       encoder.put_long(value_.ts_val.milli_second);
+    } else if (type_ == RTAnyType::kInterval) {
+      encoder.put_long(value_.interval_val.to_mill_seconds());
     } else if (type_ == RTAnyType::kI32Value) {
       encoder.put_int(value_.i32_val);
     } else if (type_ == RTAnyType::kU32Value) {
@@ -949,7 +962,7 @@ struct TypedConverter<double> {
 template <>
 struct TypedConverter<Date> {
   static RTAnyType type() { return RTAnyType::kDate; }
-  static Date to_typed(const RTAny& val) { return val.as_date32(); }
+  static Date to_typed(const RTAny& val) { return val.as_date(); }
   static RTAny from_typed(Date val) { return RTAny::from_date(val); }
   static const std::string name() { return "date"; }
   static Date typed_from_string(const std::string& str) {
@@ -967,6 +980,20 @@ struct TypedConverter<DateTime> {
   static DateTime typed_from_string(const std::string& str) {
     int64_t val = std::stoll(str);
     return DateTime(val);
+  }
+};
+
+template <>
+struct TypedConverter<Interval> {
+  static RTAnyType type() { return RTAnyType::kInterval; }
+  static Interval to_typed(const RTAny& val) { return val.as_interval(); }
+  static RTAny from_typed(Interval val) { return RTAny::from_interval(val); }
+  static const std::string name() { return "interval"; }
+  static Interval typed_from_string(const std::string& str) {
+    int64_t val = std::stoll(str);
+    Interval ret;
+    ret.from_mill_seconds(val);
+    return ret;
   }
 };
 

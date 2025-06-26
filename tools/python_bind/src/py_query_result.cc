@@ -90,8 +90,8 @@ pybind11::object value_to_pyobject(const common::Value& value) {
   }
   case common::Value::kTimestamp: {
     auto seconds = value.timestamp().item();  // millseconds since epoch
-    auto microseconds = seconds * 1000;
-    auto datetime = PyDateTime_FromTimestamp(PyLong_FromLongLong(microseconds));
+    auto millseconds = seconds * 1000;
+    auto datetime = PyDateTime_FromTimestamp(PyLong_FromLongLong(millseconds));
 
     if (datetime == nullptr) {
       throw std::runtime_error("Failed to convert timestamp to datetime");
