@@ -235,7 +235,6 @@ Alice
 Alice
 
 -LOG OrderByThreeHopTest
--SKIP: (compiler): Unsupported operator type for alias management: 24"}, error message: Unsupported operator type for alias management: 24
 -STATEMENT MATCH (a:person)-[e1:knows]->(b:person)-[e2:knows]->(c:person)-[e3:knows]->(d:person) RETURN a.fName order by d.age desc, c.age asc, b.age asc, a.age desc limit 10
 -CHECK_ORDER
 ---- 10
@@ -253,7 +252,6 @@ Carol
 #If the payload column and the orderBy key column are in different dataChunks and one of them is unflat,                                                                                        \
 #the order by scanner can only scan one tuple from factorizedTable at a time.
 -LOG OrderByScanSingleTupleTest
--SKIP: (compiler):  Unsupported operator type for alias management: 24
 -STATEMENT MATCH (a:person)-[:knows]->(b:person) return a.fName order by b.fName, a.fName
 -CHECK_ORDER
 ---- 14
@@ -297,7 +295,6 @@ Elizabeth
 2|6
 
 -LOG OrderByMultipleCols
--SKIP: (compiler): Unsupported operator type for alias management: 24
 -STATEMENT MATCH (p:person)-[s:studyAt]->(o:organisation) return s.year ORDER BY s.length, p.lastJobDuration, o.mark, p.height limit 5
 -CHECK_ORDER
 ---- 3
@@ -306,7 +303,6 @@ Elizabeth
 2020
 
 -LOG OrderByFlatUnflat
--SKIP: (compiler): Unsupported operator type for alias management: 24
 -STATEMENT MATCH (p:person)-[:knows]->(p1:person) return p.ID, p1.ID ORDER BY p.ID, p1.ID limit 13
 -CHECK_ORDER
 ---- 13
@@ -325,7 +321,6 @@ Elizabeth
 7|8
 
 -LOG OrderByFlatUnflat1
--SKIP: (compiler) Unsupported operator type for alias management: 24
 -STATEMENT MATCH (p:person)-[:knows]->(p1:person) return p.ID, p1.ID ORDER BY p.ID, p1.ID
 -CHECK_ORDER
 ---- 14

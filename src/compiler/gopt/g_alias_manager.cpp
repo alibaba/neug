@@ -88,6 +88,7 @@ void GAliasManager::extractGAliasNames(
   case planner::LogicalOperatorType::PARTITIONER:
   case planner::LogicalOperatorType::MULTIPLICITY_REDUCER:
   case planner::LogicalOperatorType::DUMMY_SCAN:
+  case planner::LogicalOperatorType::FLATTEN:
     // do nothing
     break;
   default: {
