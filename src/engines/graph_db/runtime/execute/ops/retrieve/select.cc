@@ -13,12 +13,35 @@
  * limitations under the License.
  */
 #include "src/engines/graph_db/runtime/execute/ops/retrieve/select.h"
+
+#include <stddef.h>
+#include <stdint.h>
+#include <map>
+#include <memory>
+#include <set>
+#include <string>
+#include <type_traits>
+#include <utility>
+
+#include "src/engines/graph_db/runtime/common/columns/i_context_column.h"
+#include "src/engines/graph_db/runtime/common/columns/vertex_columns.h"
+#include "src/engines/graph_db/runtime/common/context.h"
+#include "src/engines/graph_db/runtime/common/graph_interface.h"
 #include "src/engines/graph_db/runtime/common/operators/retrieve/select.h"
+#include "src/engines/graph_db/runtime/common/rt_any.h"
 #include "src/engines/graph_db/runtime/utils/expr.h"
 #include "src/engines/graph_db/runtime/utils/special_predicates.h"
+#include "src/engines/graph_db/runtime/utils/var.h"
+#include "src/proto_generated_gie/algebra.pb.h"
+#include "src/proto_generated_gie/common.pb.h"
+#include "src/proto_generated_gie/expr.pb.h"
+#include "src/storages/rt_mutable_graph/schema.h"
+#include "src/storages/rt_mutable_graph/types.h"
 
 namespace gs {
 namespace runtime {
+class OprTimer;
+
 namespace ops {
 
 struct ExprWrapper {

@@ -16,11 +16,24 @@
 #ifndef RUNTIME_EXECUTE_PLAN_PARSER_H_
 #define RUNTIME_EXECUTE_PLAN_PARSER_H_
 
+#include <boost/leaf.hpp>
+#include <map>
+#include <memory>
+#include <utility>
+#include <vector>
+
+#include "src/engines/graph_db/runtime/execute/operator.h"
 #include "src/engines/graph_db/runtime/execute/pipeline.h"
+#include "src/proto_generated_gie/physical.pb.h"
 
 namespace gs {
+class Schema;
 
 namespace runtime {
+class ContextMeta;
+class InsertPipeline;
+class ReadPipeline;
+class UpdatePipeline;
 
 class PlanParser {
  public:

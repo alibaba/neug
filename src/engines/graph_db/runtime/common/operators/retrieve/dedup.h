@@ -16,8 +16,12 @@
 #ifndef RUNTIME_COMMON_OPERATORS_RETRIEVE_DEDUP_H_
 #define RUNTIME_COMMON_OPERATORS_RETRIEVE_DEDUP_H_
 
+#include <stddef.h>
+#include <boost/leaf.hpp>
+#include <functional>
 #include <set>
 #include <unordered_set>
+#include <vector>
 
 #include "src/engines/graph_db/runtime/common/context.h"
 #include "src/engines/graph_db/runtime/common/graph_interface.h"
@@ -26,6 +30,8 @@
 namespace gs {
 
 namespace runtime {
+class Context;
+class RTAny;
 
 class Dedup {
  public:

@@ -14,13 +14,18 @@
  */
 
 #include <string>
+#include <tuple>  // for tuple
 #include <vector>
+
+#include "src/proto_generated_gie/basic_type.pb.h"  // for DataType (ptr only)
+#include "src/proto_generated_gie/cypher_ddl.pb.h"
 #include "src/storages/rt_mutable_graph/types.h"
 #include "src/utils/property/types.h"
 #include "src/utils/result.h"
 
-#include "src/proto_generated_gie/cypher_ddl.pb.h"
-#include "src/proto_generated_gie/cypher_dml.pb.h"
+namespace common {
+class Value;
+}  // namespace common
 
 namespace gs {
 

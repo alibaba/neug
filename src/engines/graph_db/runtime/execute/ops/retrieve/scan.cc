@@ -14,12 +14,42 @@
  */
 
 #include "src/engines/graph_db/runtime/execute/ops/retrieve/scan.h"
+
+#include <glog/logging.h>
+#include <google/protobuf/wrappers.pb.h>
+#include <stddef.h>
+#include <cstdint>
+#include <functional>
+#include <limits>
+#include <map>
+#include <memory>
+#include <optional>
+#include <ostream>
+#include <set>
+#include <string>
+#include <type_traits>
+#include <utility>
+
+#include "src/engines/graph_db/runtime/common/context.h"
+#include "src/engines/graph_db/runtime/common/graph_interface.h"
 #include "src/engines/graph_db/runtime/common/operators/retrieve/scan.h"
+#include "src/engines/graph_db/runtime/common/rt_any.h"
 #include "src/engines/graph_db/runtime/execute/ops/retrieve/scan_utils.h"
 #include "src/engines/graph_db/runtime/utils/expr_impl.h"
+#include "src/engines/graph_db/runtime/utils/params.h"
+#include "src/engines/graph_db/runtime/utils/special_predicates.h"
+#include "src/engines/graph_db/runtime/utils/var.h"
+#include "src/proto_generated_gie/algebra.pb.h"
+#include "src/proto_generated_gie/common.pb.h"
+#include "src/proto_generated_gie/expr.pb.h"
+#include "src/storages/rt_mutable_graph/schema.h"
+#include "src/storages/rt_mutable_graph/types.h"
+#include "src/utils/property/types.h"
 
 namespace gs {
 namespace runtime {
+class OprTimer;
+
 namespace ops {
 
 typedef const std::map<std::string, std::string>& ParamsType;

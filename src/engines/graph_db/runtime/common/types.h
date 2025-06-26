@@ -16,7 +16,11 @@
 #ifndef RUNTIME_COMMON_TYPES_H_
 #define RUNTIME_COMMON_TYPES_H_
 
+#include <stdint.h>
+#include <ostream>
 #include <string>
+#include <tuple>
+#include <utility>
 
 #include "src/storages/rt_mutable_graph/types.h"
 #include "src/utils/property/types.h"

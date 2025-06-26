@@ -16,12 +16,16 @@
 #ifndef RUNTIME_COMMON_OPERATORS_RETRIEVE_JOIN_H_
 #define RUNTIME_COMMON_OPERATORS_RETRIEVE_JOIN_H_
 
+#include <boost/leaf.hpp>
 #include <vector>
+
 #include "src/engines/graph_db/runtime/common/context.h"
 #include "src/engines/graph_db/runtime/common/leaf_utils.h"
+#include "src/engines/graph_db/runtime/common/types.h"
 
 namespace gs {
 namespace runtime {
+class Context;
 
 struct JoinParams {
   std::vector<int> left_columns;

@@ -1,10 +1,27 @@
 #include "src/engines/graph_db/app/cypher_read_app.h"
-#include "src/engines/graph_db/app/cypher_app_utils.h"
 
+#include <glog/logging.h>
+#include <stddef.h>
+#include <stdint.h>
+#include <boost/leaf.hpp>
+#include <exception>
+#include <map>
+#include <ostream>
+#include <string_view>
+#include <utility>
+#include <vector>
+
+#include "app_utils.h"
+#include "src/engines/graph_db/app/cypher_app_utils.h"
 #include "src/engines/graph_db/database/graph_db.h"
+#include "src/engines/graph_db/database/graph_db_session.h"
+#include "src/engines/graph_db/runtime/common/context.h"
+#include "src/engines/graph_db/runtime/common/graph_interface.h"
 #include "src/engines/graph_db/runtime/common/operators/retrieve/sink.h"
 #include "src/engines/graph_db/runtime/execute/plan_parser.h"
 #include "src/engines/graph_db/runtime/utils/cypher_runner_impl.h"
+#include "src/storages/rt_mutable_graph/schema.h"
+#include "src/utils/result.h"
 
 namespace gs {
 

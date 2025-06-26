@@ -16,8 +16,18 @@
 #define UTILS_ARROW_UTILS_H_
 
 #include <arrow/api.h>
+#include <arrow/array/array_binary.h>     // for LargeStringArray
+#include <arrow/array/array_primitive.h>  // for NumericArray, BooleanArray
+#include <arrow/util/macros.h>            // for ARROW_PREDICT_FALSE, NULLPTR
+#include <arrow/util/time.h>              // for CastSecondsToUnit
 #include <arrow/util/value_parsing.h>
+#include <stddef.h>  // for size_t
+#include <stdint.h>  // for int64_t, uint32_t, uint64_t
+#include <chrono>    // for duration
 #include <memory>
+#include <ostream>      // for operator<<, basic_ostream
+#include <string>       // for string
+#include <string_view>  // for string_view
 #include "glog/logging.h"
 #include "src/utils/property/types.h"
 

@@ -14,11 +14,30 @@
  */
 
 #include "src/engines/graph_db/runtime/execute/ops/retrieve/dedup.h"
+
+#include <stddef.h>
+#include <functional>
+#include <map>
+#include <memory>
+#include <string>
+#include <utility>
+
+#include "src/engines/graph_db/runtime/common/columns/i_context_column.h"
+#include "src/engines/graph_db/runtime/common/context.h"
+#include "src/engines/graph_db/runtime/common/graph_interface.h"
 #include "src/engines/graph_db/runtime/common/operators/retrieve/dedup.h"
+#include "src/engines/graph_db/runtime/common/rt_any.h"
 #include "src/engines/graph_db/runtime/utils/var.h"
+#include "src/proto_generated_gie/algebra.pb.h"
+#include "src/proto_generated_gie/common.pb.h"
+#include "src/proto_generated_gie/expr.pb.h"
 
 namespace gs {
+class Schema;
+
 namespace runtime {
+class OprTimer;
+
 namespace ops {
 class DedupOpr : public IReadOperator {
  public:

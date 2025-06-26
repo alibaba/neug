@@ -16,6 +16,8 @@
 #ifndef ENGINES_GRAPH_DB_DATABASE_SINGLE_VERTEX_INSERT_TRANSACTION_H_
 #define ENGINES_GRAPH_DB_DATABASE_SINGLE_VERTEX_INSERT_TRANSACTION_H_
 
+#include <vector>
+
 #include "src/storages/rt_mutable_graph/types.h"
 #include "src/utils/allocators.h"
 #include "src/utils/property/types.h"

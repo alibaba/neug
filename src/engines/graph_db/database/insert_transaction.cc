@@ -14,13 +14,26 @@
  */
 
 #include "src/engines/graph_db/database/insert_transaction.h"
-#include "src/engines/graph_db/database/graph_db_session.h"
+
+#include <glog/logging.h>
+#include <chrono>
+#include <ext/alloc_traits.h>
+#include <limits>
+#include <ostream>
+#include <thread>
+
+#include "property/table.h"
 #include "src/engines/graph_db/database/transaction_utils.h"
 #include "src/engines/graph_db/database/version_manager.h"
 #include "src/engines/graph_db/database/wal/wal.h"
 #include "src/engines/graph_db/runtime/utils/cypher_runner_impl.h"
 #include "src/storages/rt_mutable_graph/mutable_property_fragment.h"
+#include "src/storages/rt_mutable_graph/schema.h"
 #include "src/utils/allocators.h"
+#include "src/utils/property/types.h"
+#include "third_party/libgrape-lite/grape/serialization/in_archive.h"
+#include "third_party/libgrape-lite/grape/serialization/out_archive.h"
+
 namespace gs {
 
 InsertTransaction::InsertTransaction(const GraphDBSession& session,

@@ -13,8 +13,23 @@
  * limitations under the License.
  */
 #include "src/engines/graph_db/runtime/utils/utils.h"
-#include "src/engines/graph_db/runtime/common/columns/value_columns.h"
+
+#include <glog/logging.h>
+#include <google/protobuf/wrappers.pb.h>
+#include <cstdint>
+#include <ext/alloc_traits.h>
+#include <ostream>
+#include <set>
+#include <string_view>
+#include <tuple>
+
 #include "src/engines/graph_db/runtime/common/columns/vertex_columns.h"
+#include "src/proto_generated_gie/algebra.pb.h"
+#include "src/proto_generated_gie/common.pb.h"
+#include "src/proto_generated_gie/type.pb.h"
+#include "src/storages/rt_mutable_graph/schema.h"
+#include "src/utils/property/types.h"
+#include "top_n_generator.h"
 
 namespace gs {
 

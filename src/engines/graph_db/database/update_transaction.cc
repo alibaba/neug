@@ -13,16 +13,32 @@
  * limitations under the License.
  */
 
-#include "third_party/libgrape-lite/grape/serialization/in_archive.h"
-#include "third_party/libgrape-lite/grape/serialization/out_archive.h"
+#include <glog/logging.h>
+#include <algorithm>
+#include <cstdint>
+#include <ext/alloc_traits.h>
+#include <filesystem>
+#include <flat_hash_map.hpp>
+#include <limits>
+#include <ostream>
+#include <string_view>
 
-#include "src/engines/graph_db/database/graph_db_session.h"
+#include "allocators.h"
+#include "id_indexer.h"
+#include "property/column.h"
+#include "property/table.h"
+#include "src/engines/graph_db/database/transaction_utils.h"
 #include "src/engines/graph_db/database/update_transaction.h"
 #include "src/engines/graph_db/database/version_manager.h"
 #include "src/engines/graph_db/database/wal/wal.h"
 #include "src/engines/graph_db/runtime/utils/cypher_runner_impl.h"
+#include "src/storages/rt_mutable_graph/csr/csr_base.h"
 #include "src/storages/rt_mutable_graph/file_names.h"
 #include "src/storages/rt_mutable_graph/mutable_property_fragment.h"
+#include "src/storages/rt_mutable_graph/schema.h"
+#include "src/utils/property/types.h"
+#include "third_party/libgrape-lite/grape/serialization/in_archive.h"
+#include "third_party/libgrape-lite/grape/serialization/out_archive.h"
 
 namespace gs {
 

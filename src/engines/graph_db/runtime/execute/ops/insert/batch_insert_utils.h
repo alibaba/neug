@@ -16,15 +16,35 @@
 #ifndef RUNTIME_EXECUTE_OPS_INSERT_BATCH_INSERT_UTILS_H_
 #define RUNTIME_EXECUTE_OPS_INSERT_BATCH_INSERT_UTILS_H_
 
+#include <glog/logging.h>
+#include <stdint.h>
+#include <memory>
+#include <string>
+#include <utility>
+#include <vector>
+
 #include "src/engines/graph_db/runtime/common/context.h"
+#include "src/proto_generated_gie/cypher_dml.pb.h"
 #include "src/proto_generated_gie/physical.pb.h"
 #include "src/storages/rt_mutable_graph/loader/abstract_arrow_fragment_loader.h"
+#include "src/storages/rt_mutable_graph/types.h"
+#include "src/utils/property/types.h"
 
-#include <glog/logging.h>
+namespace arrow {
+namespace csv {
+struct ConvertOptions;
+struct ParseOptions;
+struct ReadOptions;
+}  // namespace csv
+}  // namespace arrow
 
 namespace gs {
+class IRecordBatchSupplier;
+class Schema;
 
 namespace runtime {
+class Context;
+
 namespace ops {
 
 static constexpr const char* DEFAULT_CSV_DELIMITER = "|";

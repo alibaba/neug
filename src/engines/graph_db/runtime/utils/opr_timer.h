@@ -15,6 +15,8 @@
 #ifndef RUNTIME_UTILS_RUNTIME_H_
 #define RUNTIME_UTILS_RUNTIME_H_
 
+#include <string>
+
 #include "src/engines/graph_db/runtime/common/graph_interface.h"
 
 namespace gs {

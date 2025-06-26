@@ -14,10 +14,26 @@
  */
 
 #include "src/engines/graph_db/runtime/execute/ops/retrieve/limit.h"
+
+#include <stddef.h>
+#include <algorithm>
+#include <limits>
+#include <map>
+#include <memory>
+#include <string>
+#include <utility>
+
+#include "src/engines/graph_db/runtime/common/context.h"
+#include "src/engines/graph_db/runtime/common/graph_interface.h"
 #include "src/engines/graph_db/runtime/common/operators/retrieve/limit.h"
+#include "src/proto_generated_gie/algebra.pb.h"
 
 namespace gs {
+class Schema;
+
 namespace runtime {
+class OprTimer;
+
 namespace ops {
 class LimitOpr : public IReadOperator {
  public:

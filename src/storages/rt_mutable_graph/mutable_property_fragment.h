@@ -16,26 +16,58 @@
 #ifndef STORAGES_RT_MUTABLE_GRAPH_MUTABLE_PROPERTY_FRAGMENT_H_
 #define STORAGES_RT_MUTABLE_GRAPH_MUTABLE_PROPERTY_FRAGMENT_H_
 
+#include <arrow/api.h>
+#include <arrow/array/array_base.h>
+#include <arrow/array/array_binary.h>
+#include <glog/logging.h>
+#include <stddef.h>
+#include <algorithm>
+#include <atomic>
+#include <cstdint>
+#include <ext/alloc_traits.h>
+#include <limits>
+#include <memory>
+#include <mutex>
+#include <ostream>
 #include <shared_mutex>
+#include <string>
+#include <string_view>
 #include <thread>
 #include <tuple>
+#include <type_traits>
+#include <unordered_map>
 #include <vector>
 
+#include "allocators.h"
+#include "id_indexer.h"
+#include "property/column.h"
 #include "src/engines/graph_db/runtime/common/utils/bitset.h"
 #include "src/storages/rt_mutable_graph/csr/mutable_csr.h"
 #include "src/storages/rt_mutable_graph/dual_csr.h"
+#include "src/storages/rt_mutable_graph/file_names.h"
 #include "src/storages/rt_mutable_graph/loader/abstract_arrow_fragment_loader.h"
+#include "src/storages/rt_mutable_graph/loader/basic_fragment_loader.h"
 #include "src/storages/rt_mutable_graph/loader/loader_utils.h"
 #include "src/storages/rt_mutable_graph/schema.h"
 #include "src/storages/rt_mutable_graph/types.h"
 #include "src/utils/arrow_utils.h"
 #include "src/utils/indexers.h"
 #include "src/utils/property/table.h"
-#include "src/utils/yaml_utils.h"
-#include "third_party/libgrape-lite/grape/io/local_io_adaptor.h"
-#include "third_party/libgrape-lite/grape/serialization/out_archive.h"
+#include "src/utils/property/types.h"
+#include "src/utils/result.h"
+#include "third_party/libgrape-lite/grape/utils/concurrent_queue.h"
+
+namespace grape {
+class OutArchive;
+struct EmptyType;
+}  // namespace grape
 
 namespace gs {
+class CsrBase;
+class CsrConstEdgeIterBase;
+class CsrEdgeIterBase;
+template <typename EDATA_T>
+class TypedMutableCsrBase;
 
 template <typename PK_T, typename EDATA_T, typename VECTOR_T>
 void insert_edges(bool is_dst, size_t cur_ind,

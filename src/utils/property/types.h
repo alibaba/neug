@@ -17,21 +17,55 @@ limitations under the License.
 #define UTILS_PROPERTY_TYPES_H_
 
 #include <assert.h>
-
-#include <chrono>
-#include <istream>
-#include <ostream>
-#include <vector>
-
+#include <glog/logging.h>
+#include <yaml-cpp/node/emit.h>
+#include <yaml-cpp/node/impl.h>
+#include <yaml-cpp/node/node.h>
+#include <yaml-cpp/yaml.h>
+#include <boost/cstdint.hpp>
+#include <boost/date_time/date.hpp>
+#include <boost/date_time/gregorian/greg_date.hpp>
+#include <boost/date_time/gregorian_calendar.hpp>
 #include <boost/date_time/posix_time/posix_time.hpp>
+#include <boost/date_time/posix_time/posix_time_config.hpp>
+#include <boost/date_time/posix_time/posix_time_duration.hpp>
+#include <boost/date_time/posix_time/posix_time_io.hpp>
+#include <boost/date_time/posix_time/ptime.hpp>
+#include <boost/date_time/time.hpp>
+#include <boost/date_time/time_system_counted.hpp>
+#include <boost/exception/exception.hpp>
+#include <boost/iterator/iterator_facade.hpp>
+#include <boost/lexical_cast/bad_lexical_cast.hpp>
+#include <chrono>
+#include <compare>
+#include <cstdint>
+#include <cstring>
+#include <exception>
+#include <functional>
+#include <initializer_list>
+#include <istream>
+#include <new>
+#include <ostream>
+#include <regex>
+#include <sstream>
+#include <stdexcept>
+#include <string>
+#include <string_view>
+#include <utility>
+#include <vector>
 
 #include "third_party/libgrape-lite/grape/serialization/in_archive.h"
 #include "third_party/libgrape-lite/grape/serialization/out_archive.h"
+#include "third_party/libgrape-lite/grape/types.h"
 
-#include <yaml-cpp/yaml.h>
-#include <regex>
+namespace YAML {
+template <typename T>
+struct convert;
+}  // namespace YAML
 
 namespace grape {
+class InArchive;
+class OutArchive;
 
 inline bool operator<(const EmptyType& lhs, const EmptyType& rhs) {
   return false;
@@ -632,6 +666,7 @@ struct LabelKey {
 
 class Table;
 struct Any;
+
 struct RecordView {
   RecordView() = default;
   RecordView(size_t offset, const Table* table)
@@ -656,6 +691,7 @@ struct RecordView {
 };
 
 struct Any;
+
 struct Record {
   Record() : len(0), props(nullptr) {}
   Record(size_t len);

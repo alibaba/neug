@@ -14,7 +14,24 @@
  */
 #include "src/engines/graph_db/app/builtin/k_hop_neighbors.h"
 
+#include <glog/logging.h>
+#include <cstddef>
+#include <functional>
+#include <ostream>
+#include <type_traits>
+#include <unordered_set>
+#include <utility>
+#include <vector>
+
+#include "src/engines/graph_db/database/graph_db_session.h"
+#include "src/engines/graph_db/database/read_transaction.h"
+#include "src/proto_generated_gie/common.pb.h"
+#include "src/storages/rt_mutable_graph/schema.h"
+#include "src/storages/rt_mutable_graph/types.h"
+#include "src/utils/property/types.h"
+
 namespace gs {
+class GraphDB;
 
 results::CollectiveResults KNeighbors::Query(const GraphDBSession& sess,
                                              std::string label_name,

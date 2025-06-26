@@ -16,6 +16,11 @@
 #define SERVICE_UTILS_H
 
 #include <fcntl.h>
+#include <rapidjson/encodings.h>
+#include <stdint.h>
+#include <boost/filesystem/operations.hpp>
+#include <boost/filesystem/path.hpp>
+
 // Disable class-memaccess warning to facilitate compilation with gcc>7
 // https://github.com/Tencent/rapidjson/issues/1700
 #pragma GCC diagnostic push
@@ -24,6 +29,7 @@
 #endif
 #include <rapidjson/pointer.h>
 #include <rapidjson/rapidjson.h>
+
 #pragma GCC diagnostic pop
 
 #include <signal.h>
@@ -32,22 +38,26 @@
 #else
 #include <sys/sysinfo.h>
 #endif
+#include <glog/logging.h>
 #include <sys/types.h>
 #include <unistd.h>
+#include <algorithm>
 #include <cctype>
+#include <chrono>
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
 #include <exception>
 #include <filesystem>
 #include <iostream>
+#include <stdexcept>
 #include <string>
+#include <utility>
 #include <vector>
 
 #include "src/utils/property/types.h"
 #include "src/utils/yaml_utils.h"
 
-#include <glog/logging.h>
 // Disable class-memaccess warning to facilitate compilation with gcc>7
 // https://github.com/Tencent/rapidjson/issues/1700
 #pragma GCC diagnostic push
@@ -55,6 +65,7 @@
 #pragma GCC diagnostic ignored "-Wclass-memaccess"
 #endif
 #include <rapidjson/document.h>
+
 #pragma GCC diagnostic pop
 #include <rapidjson/prettywriter.h>
 #include <rapidjson/stringbuffer.h>

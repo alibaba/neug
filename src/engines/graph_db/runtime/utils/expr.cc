@@ -18,6 +18,7 @@
 namespace gs {
 
 namespace runtime {
+struct LabelTriplet;
 
 RTAny Expr::eval_path(size_t idx, Arena& arena) const {
   RTAny ret = expr_->eval_path(idx, arena);

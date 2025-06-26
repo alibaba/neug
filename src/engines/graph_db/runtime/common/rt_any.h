@@ -16,14 +16,45 @@
 #ifndef RUNTIME_COMMON_RT_ANY_H_
 #define RUNTIME_COMMON_RT_ANY_H_
 
-#include "src/proto_generated_gie/results.pb.h"
-#include "src/proto_generated_gie/type.pb.h"
+#include <arrow/type.h>
+#include <assert.h>
+#include <glog/logging.h>
+#include <compare>
+#include <cstdint>
+#include <cstring>
+#include <functional>
+#include <memory>
+#include <ostream>
+#include <set>
+#include <string>
+#include <string_view>
+#include <tuple>
+#include <type_traits>
+#include <typeinfo>
+#include <unordered_set>
+#include <utility>
+#include <variant>
+#include <vector>
 
 #include "src/engines/graph_db/runtime/common/graph_interface.h"
 #include "src/engines/graph_db/runtime/common/types.h"
+#include "src/proto_generated_gie/basic_type.pb.h"
+#include "src/proto_generated_gie/results.pb.h"
+#include "src/proto_generated_gie/type.pb.h"
+#include "src/storages/rt_mutable_graph/types.h"
 #include "src/utils/app_utils.h"
+#include "src/utils/property/types.h"
+#include "third_party/libgrape-lite/grape/types.h"
 
-#include <arrow/type.h>
+namespace arrow {
+class DataType;
+}  // namespace arrow
+namespace common {
+class Value;
+}  // namespace common
+namespace results {
+class Column;
+}  // namespace results
 
 namespace gs {
 
@@ -171,6 +202,7 @@ class Path {
 };
 
 class RTAny;
+
 enum class RTAnyType;
 
 class ListImplBase : public CObject {

@@ -13,11 +13,23 @@
  * limitations under the License.
  */
 #include "src/engines/graph_db/runtime/execute/ops/update/unfold.h"
+
+#include <google/protobuf/wrappers.pb.h>
+#include <boost/leaf.hpp>
+#include <map>
+#include <string>
+#include <utility>
+
+#include "src/engines/graph_db/runtime/common/context.h"
 #include "src/engines/graph_db/runtime/common/operators/update/unfold.h"
 
 namespace gs {
+class Schema;
 
 namespace runtime {
+class GraphInsertInterface;
+class GraphUpdateInterface;
+class OprTimer;
 
 namespace ops {
 

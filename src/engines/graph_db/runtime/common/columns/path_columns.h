@@ -15,8 +15,16 @@
 
 #ifndef RUNTIME_COMMON_COLUMNS_PATH_COLUMNS_H_
 #define RUNTIME_COMMON_COLUMNS_PATH_COLUMNS_H_
+#include <glog/logging.h>
+#include <stddef.h>
+#include <memory>
+#include <ostream>
+#include <string>
+#include <vector>
+
 #include "src/engines/graph_db/runtime/common/columns/columns_utils.h"
 #include "src/engines/graph_db/runtime/common/columns/i_context_column.h"
+#include "src/engines/graph_db/runtime/common/rt_any.h"
 
 namespace gs {
 namespace runtime {

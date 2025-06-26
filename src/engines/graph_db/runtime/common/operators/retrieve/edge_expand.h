@@ -16,23 +16,42 @@
 #ifndef RUNTIME_COMMON_OPERATORS_RETRIEVE_EDGE_EXPAND_H_
 #define RUNTIME_COMMON_OPERATORS_RETRIEVE_EDGE_EXPAND_H_
 
+#include <assert.h>
+#include <stddef.h>
+#include <array>
+#include <boost/leaf.hpp>
+#include <compare>
+#include <memory>
+#include <ostream>
 #include <set>
+#include <string>
+#include <string_view>
+#include <tuple>
+#include <utility>
+#include <vector>
 
+#include "glog/logging.h"
 #include "src/engines/graph_db/runtime/common/columns/edge_columns.h"
 #include "src/engines/graph_db/runtime/common/columns/vertex_columns.h"
 #include "src/engines/graph_db/runtime/common/context.h"
 #include "src/engines/graph_db/runtime/common/graph_interface.h"
 #include "src/engines/graph_db/runtime/common/leaf_utils.h"
 #include "src/engines/graph_db/runtime/common/operators/retrieve/edge_expand_impl.h"
+#include "src/engines/graph_db/runtime/common/rt_any.h"
+#include "src/engines/graph_db/runtime/common/types.h"
 #include "src/engines/graph_db/runtime/utils/params.h"
 #include "src/engines/graph_db/runtime/utils/special_predicates.h"
-
-#include "glog/logging.h"
+#include "src/storages/rt_mutable_graph/schema.h"
+#include "src/storages/rt_mutable_graph/types.h"
+#include "src/utils/property/types.h"
 
 namespace gs {
 namespace runtime {
 
 class OprTimer;
+class IContextColumn;
+class SPEdgePredicate;
+class SPVertexPredicate;
 
 class EdgeExpand {
  public:

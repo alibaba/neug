@@ -17,12 +17,20 @@
 #define ENGINES_GRAPH_DB_DATABASE_GRAPH_DB_H_
 
 #include <dlfcn.h>
-
+#include <stddef.h>
+#include <stdint.h>
+#include <array>
 #include <map>
+#include <memory>
 #include <mutex>
+#include <string>
 #include <thread>
+#include <unordered_map>
+#include <utility>
 #include <vector>
 
+#include "mmap_array.h"
+#include "property/table.h"
 #include "src/engines/graph_db/app/app_base.h"
 #include "src/engines/graph_db/database/insert_transaction.h"
 #include "src/engines/graph_db/database/read_transaction.h"
@@ -36,12 +44,19 @@
 #include "src/storages/rt_mutable_graph/loader/loader_factory.h"
 #include "src/storages/rt_mutable_graph/loading_config.h"
 #include "src/storages/rt_mutable_graph/mutable_property_fragment.h"
+#include "src/storages/rt_mutable_graph/schema.h"
+#include "src/storages/rt_mutable_graph/types.h"
+#include "src/utils/result.h"
 
 namespace gs {
 
 class GraphDB;
 class GraphDBSession;
 struct SessionLocalContext;
+class ColumnBase;
+class Encoder;
+class IWalParser;
+class RefColumnBase;
 
 struct GraphDBConfig {
   GraphDBConfig()

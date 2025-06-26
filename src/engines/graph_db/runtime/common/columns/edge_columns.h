@@ -15,9 +15,29 @@
 #ifndef RUNTIME_COMMON_COLUMNS_EDGE_COLUMNS_H_
 #define RUNTIME_COMMON_COLUMNS_EDGE_COLUMNS_H_
 
+#include <assert.h>
+#include <glog/logging.h>
+#include <stddef.h>
+#include <cstdint>
+#include <ext/alloc_traits.h>
+#include <limits>
+#include <map>
+#include <memory>
+#include <ostream>
+#include <stdexcept>
+#include <string>
+#include <string_view>
+#include <tuple>
+#include <utility>
+#include <vector>
+
 #include "src/engines/graph_db/runtime/common/columns/columns_utils.h"
 #include "src/engines/graph_db/runtime/common/columns/i_context_column.h"
+#include "src/engines/graph_db/runtime/common/rt_any.h"
+#include "src/engines/graph_db/runtime/common/types.h"
+#include "src/storages/rt_mutable_graph/types.h"
 #include "src/utils/property/column.h"
+#include "src/utils/property/types.h"
 
 namespace gs {
 
@@ -140,7 +160,6 @@ class IEdgeColumn : public IContextColumn {
 };
 
 class SDSLEdgeColumnBuilder;
-
 template <typename T>
 class SDSLEdgeColumnBuilderBeta;
 
@@ -285,8 +304,8 @@ class OptionalSDSLEdgeColumn : public IEdgeColumn {
 };
 
 class BDSLEdgeColumnBuilder;
-
 class OptionalBDSLEdgeColumnBuilder;
+
 class BDSLEdgeColumn : public IEdgeColumn {
  public:
   BDSLEdgeColumn(const LabelTriplet& label, PropertyType prop_type)

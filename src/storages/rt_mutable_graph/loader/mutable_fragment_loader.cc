@@ -14,7 +14,22 @@
  */
 
 #include "src/storages/rt_mutable_graph/loader/mutable_fragment_loader.h"
+
+#include <arrow/csv/options.h>
+#include <arrow/type.h>
+#include <arrow/util/value_parsing.h>
+#include <cstdint>
+#include <ext/alloc_traits.h>
+#include <istream>
+#include <thread>
+#include <unordered_map>
+#include <utility>
+
+#include "arrow_utils.h"
+#include "src/storages/rt_mutable_graph/loader/loader_factory.h"
+#include "src/storages/rt_mutable_graph/loader/loader_utils.h"
 #include "src/utils/string_utils.h"
+#include "third_party/libgrape-lite/grape/types.h"
 
 namespace gs {
 

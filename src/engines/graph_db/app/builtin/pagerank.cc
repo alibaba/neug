@@ -13,10 +13,27 @@
  * limitations under the License.
  */
 #include "src/engines/graph_db/app/builtin/pagerank.h"
+
+#include <bits/std_abs.h>
+#include <glog/logging.h>
+#include <stdlib.h>
+#include <algorithm>
+#include <cstdint>
+#include <ext/alloc_traits.h>
+#include <memory>
+#include <ostream>
+#include <vector>
+
+#include "src/engines/graph_db/database/graph_db_session.h"
+#include "src/engines/graph_db/database/read_transaction.h"
 #include "src/engines/graph_db/runtime/common/graph_interface.h"
 #include "src/engines/graph_db/runtime/common/rt_any.h"
+#include "src/proto_generated_gie/common.pb.h"
+#include "src/storages/rt_mutable_graph/schema.h"
+#include "src/storages/rt_mutable_graph/types.h"
 
 namespace gs {
+class GraphDB;
 
 void write_result(
     const ReadTransaction& txn, results::CollectiveResults& results,

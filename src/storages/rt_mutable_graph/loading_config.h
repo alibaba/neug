@@ -16,21 +16,25 @@
 #ifndef STORAGE_RT_MUTABLE_GRAPH_LOADING_CONFIG_H_
 #define STORAGE_RT_MUTABLE_GRAPH_LOADING_CONFIG_H_
 
-#include <boost/functional/hash.hpp>
-
-#include <filesystem>
-#include <iostream>
-#include <string>
-#include <tuple>
-#include <unordered_map>
-#include <unordered_set>
-#include "arrow/api.h"
-#include "arrow/csv/options.h"
-#include "src/storages/rt_mutable_graph/schema.h"
-#include "src/utils/arrow_utils.h"
-#include "src/utils/yaml_utils.h"
-
-#include "boost/algorithm/string.hpp"
+#include <stddef.h>                                // for size_t
+#include <stdint.h>                                // for int32_t
+#include <boost/container_hash/extensions.hpp>     // for hash
+#include <iostream>                                // for operator<<, ostream
+#include <string>                                  // for string, allocator
+#include <tuple>                                   // for tuple
+#include <unordered_map>                           // for unordered_map
+#include <unordered_set>                           // for unordered_set
+#include <utility>                                 // for pair
+#include <vector>                                  // for vector
+#include "src/storages/rt_mutable_graph/schema.h"  // for Schema, Schema::la...
+#include "src/storages/rt_mutable_graph/types.h"   // for label_t
+#include "src/utils/result.h"                      // for Status, Result
+namespace YAML {
+class Node;
+}  // namespace YAML
+namespace gs {
+class LoadingConfig;
+}  // namespace gs
 
 namespace gs {
 
@@ -70,8 +74,6 @@ static constexpr const int32_t DEFAULT_PARALLELISM = 1;
 static constexpr const bool DEFAULT_BUILD_CSR_IN_MEM = false;
 static constexpr const bool DEFAULT_USE_MMAP_VECTOR = false;
 }  // namespace loader_options
-
-class LoadingConfig;
 
 namespace config_parsing {
 Status parse_bulk_load_config_file(const std::string& config_file,

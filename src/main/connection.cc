@@ -16,6 +16,7 @@
 #include "src/main/connection.h"
 
 #include "src/proto_generated_gie/results.pb.h"
+#include "src/utils/yaml_utils.h"
 
 namespace gs {
 

@@ -13,10 +13,31 @@
  * limitations under the License.
  */
 #include "src/engines/graph_db/runtime/execute/ops/update/load.h"
+
+#include <glog/logging.h>
+#include <stddef.h>
+#include <boost/leaf.hpp>
+#include <map>
+#include <ostream>
+#include <string>
+#include <tuple>
+#include <unordered_map>
+#include <vector>
+
+#include "src/engines/graph_db/runtime/common/context.h"
+#include "src/engines/graph_db/runtime/common/graph_interface.h"
 #include "src/engines/graph_db/runtime/common/operators/update/load.h"
+#include "src/proto_generated_gie/common.pb.h"
+#include "src/proto_generated_gie/cypher_write.pb.h"
+#include "src/proto_generated_gie/expr.pb.h"
+#include "src/storages/rt_mutable_graph/schema.h"
+#include "src/storages/rt_mutable_graph/types.h"
+#include "src/utils/property/types.h"
 
 namespace gs {
 namespace runtime {
+class OprTimer;
+
 namespace ops {
 
 static PropertyType get_vertex_pk_type(const Schema& schema, label_t label) {

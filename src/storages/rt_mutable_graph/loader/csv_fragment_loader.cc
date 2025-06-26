@@ -14,7 +14,30 @@
  */
 
 #include "src/storages/rt_mutable_graph/loader/csv_fragment_loader.h"
+#include <arrow/csv/options.h>
+#include <arrow/type.h>
+#include <arrow/util/value_parsing.h>
+#include <glog/logging.h>
+#include <stddef.h>
+#include <atomic>
+#include <exception>
+#include <ext/alloc_traits.h>
+#include <istream>
+#include <thread>
+#include <tuple>
+#include <unordered_map>
+#include <utility>
+#include "arrow_utils.h"
+#include "src/storages/rt_mutable_graph/loader/basic_fragment_loader.h"
+#include "src/storages/rt_mutable_graph/loader/loader_factory.h"
+#include "src/storages/rt_mutable_graph/loader/loader_utils.h"
+#include "src/storages/rt_mutable_graph/schema.h"
+#include "src/utils/property/types.h"
 #include "src/utils/string_utils.h"
+
+namespace gs {
+class IFragmentLoader;
+}
 
 namespace gs {
 

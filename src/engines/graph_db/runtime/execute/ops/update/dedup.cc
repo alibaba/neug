@@ -14,10 +14,30 @@
  */
 
 #include "src/engines/graph_db/runtime/execute/ops/update/dedup.h"
+
+#include <glog/logging.h>
+#include <stddef.h>
+#include <boost/leaf.hpp>
+#include <map>
+#include <ostream>
+#include <string>
+#include <utility>
+#include <vector>
+
+#include "src/engines/graph_db/runtime/common/context.h"
 #include "src/engines/graph_db/runtime/common/operators/update/dedup.h"
+#include "src/proto_generated_gie/algebra.pb.h"
+#include "src/proto_generated_gie/common.pb.h"
+#include "src/proto_generated_gie/expr.pb.h"
 
 namespace gs {
+class Schema;
+
 namespace runtime {
+class GraphInsertInterface;
+class GraphUpdateInterface;
+class OprTimer;
+
 namespace ops {
 
 class DedupInsertOpr : public IInsertOperator {

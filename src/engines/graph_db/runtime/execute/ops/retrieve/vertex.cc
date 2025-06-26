@@ -14,13 +14,39 @@
  */
 
 #include "src/engines/graph_db/runtime/execute/ops/retrieve/vertex.h"
+
+#include <glog/logging.h>
+#include <google/protobuf/wrappers.pb.h>
+#include <stddef.h>
+#include <stdint.h>
+#include <limits>
+#include <map>
+#include <memory>
+#include <ostream>
+#include <set>
+#include <string>
+#include <utility>
+
+#include "src/engines/graph_db/runtime/common/columns/i_context_column.h"
+#include "src/engines/graph_db/runtime/common/columns/vertex_columns.h"
+#include "src/engines/graph_db/runtime/common/context.h"
+#include "src/engines/graph_db/runtime/common/graph_interface.h"
 #include "src/engines/graph_db/runtime/common/operators/retrieve/get_v.h"
+#include "src/engines/graph_db/runtime/common/rt_any.h"
+#include "src/engines/graph_db/runtime/common/types.h"
+#include "src/engines/graph_db/runtime/utils/params.h"
 #include "src/engines/graph_db/runtime/utils/predicates.h"
 #include "src/engines/graph_db/runtime/utils/special_predicates.h"
 #include "src/engines/graph_db/runtime/utils/utils.h"
+#include "src/proto_generated_gie/algebra.pb.h"
+#include "src/storages/rt_mutable_graph/types.h"
 
 namespace gs {
+class Schema;
+
 namespace runtime {
+class OprTimer;
+
 namespace ops {
 
 class GetVFromVerticesWithLabelWithInOpr : public IReadOperator {

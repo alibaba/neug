@@ -16,14 +16,35 @@
 #ifndef STORAGES_RT_MUTABLE_GRAPH_LOADER_BASIC_FRAGMENT_LOADER_H_
 #define STORAGES_RT_MUTABLE_GRAPH_LOADER_BASIC_FRAGMENT_LOADER_H_
 
+#include <glog/logging.h>
+#include <stddef.h>
+#include <stdint.h>
+#include <atomic>
+#include <limits>
+#include <memory>
+#include <mutex>
+#include <ostream>
+#include <string>
+#include <string_view>
+#include <thread>
+#include <tuple>
+#include <vector>
+
+#include "id_indexer.h"
+#include "property/column.h"
+#include "property/table.h"
 #include "src/storages/rt_mutable_graph/csr/mutable_csr.h"
 #include "src/storages/rt_mutable_graph/dual_csr.h"
 #include "src/storages/rt_mutable_graph/file_names.h"
 #include "src/storages/rt_mutable_graph/schema.h"
 #include "src/storages/rt_mutable_graph/types.h"
 #include "src/utils/indexers.h"
+#include "src/utils/property/types.h"
 
 namespace gs {
+class CsrBase;
+template <typename EDATA_T>
+class TypedMutableCsrBase;
 
 template <typename EDATA_T>
 TypedMutableCsrBase<EDATA_T>* create_typed_csr(EdgeStrategy es,

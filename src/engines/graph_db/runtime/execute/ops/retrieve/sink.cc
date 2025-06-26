@@ -15,8 +15,21 @@
 
 #include "src/engines/graph_db/runtime/execute/ops/retrieve/sink.h"
 
+#include <google/protobuf/wrappers.pb.h>
+#include <map>
+#include <memory>
+#include <string>
+#include <utility>
+
+#include "src/engines/graph_db/runtime/common/context.h"
+#include "src/engines/graph_db/runtime/common/graph_interface.h"
+
 namespace gs {
+class Schema;
+
 namespace runtime {
+class OprTimer;
+
 namespace ops {
 
 class SinkOpr : public IReadOperator {

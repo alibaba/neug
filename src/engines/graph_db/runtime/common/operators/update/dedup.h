@@ -16,12 +16,17 @@
 #ifndef RUNTIME_COMMON_OPERATORS_UPDATE_DEDUP_H_
 #define RUNTIME_COMMON_OPERATORS_UPDATE_DEDUP_H_
 
+#include <stddef.h>
+#include <boost/leaf.hpp>
+#include <vector>
+
 #include "src/engines/graph_db/runtime/common/context.h"
 #include "src/engines/graph_db/runtime/common/leaf_utils.h"
 
 namespace gs {
 
 namespace runtime {
+class WriteContext;
 
 class Dedup {
  public:

@@ -17,21 +17,27 @@
 #ifndef STORAGES_RT_MUTABLE_GRAPH_LOADER_MUTABLE_FRAGMENT_LOADER_H_
 #define STORAGES_RT_MUTABLE_GRAPH_LOADER_MUTABLE_FRAGMENT_LOADER_H_
 
-#include "src/storages/rt_mutable_graph/loader/abstract_arrow_fragment_loader.h"
-#include "src/storages/rt_mutable_graph/loader/basic_fragment_loader.h"
+#include <glog/logging.h>
+#include <stddef.h>
+#include <stdint.h>
+#include <memory>
+#include <ostream>
+#include <string>
+#include <string_view>
+#include <tuple>
+#include <variant>
+#include <vector>
+
 #include "src/storages/rt_mutable_graph/loader/i_fragment_loader.h"
-#include "src/storages/rt_mutable_graph/loader/loader_factory.h"
 #include "src/storages/rt_mutable_graph/loading_config.h"
 #include "src/storages/rt_mutable_graph/mutable_property_fragment.h"
-
-#include <arrow/api.h>
-#include <arrow/csv/api.h>
-#include <arrow/io/api.h>
-#include "arrow/util/value_parsing.h"
-
-#include "third_party/libgrape-lite/grape/util.h"
+#include "src/storages/rt_mutable_graph/schema.h"
+#include "src/storages/rt_mutable_graph/types.h"
+#include "src/utils/property/types.h"
+#include "src/utils/result.h"
 
 namespace gs {
+class IRecordBatchSupplier;
 
 // LoadFragment for csv files.
 class MutableFragmentLoader : public IFragmentLoader {

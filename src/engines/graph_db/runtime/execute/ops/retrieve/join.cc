@@ -14,12 +14,32 @@
  */
 
 #include "src/engines/graph_db/runtime/execute/ops/retrieve/join.h"
+
+#include <glog/logging.h>
+#include <algorithm>
+#include <map>
+#include <memory>
+#include <ostream>
+#include <set>
+#include <string>
+#include <type_traits>
+#include <utility>
+
+#include "src/engines/graph_db/runtime/common/context.h"
+#include "src/engines/graph_db/runtime/common/graph_interface.h"
 #include "src/engines/graph_db/runtime/common/operators/retrieve/join.h"
+#include "src/engines/graph_db/runtime/common/types.h"
 #include "src/engines/graph_db/runtime/execute/pipeline.h"
 #include "src/engines/graph_db/runtime/execute/plan_parser.h"
+#include "src/proto_generated_gie/common.pb.h"
+#include "src/proto_generated_gie/expr.pb.h"
 
 namespace gs {
+class Schema;
+
 namespace runtime {
+class OprTimer;
+
 namespace ops {
 
 class JoinOpr : public IReadOperator {

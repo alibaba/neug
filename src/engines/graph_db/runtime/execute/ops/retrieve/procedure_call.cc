@@ -14,18 +14,42 @@
  */
 
 #include "src/engines/graph_db/runtime/execute/ops/retrieve/procedure_call.h"
-#include "src/engines/graph_db/database/graph_db.h"
+
+#include <glog/logging.h>
+#include <stddef.h>
+#include <cstdint>
+#include <map>
+#include <memory>
+#include <ostream>
+#include <string>
+#include <string_view>
+#include <tuple>
+#include <utility>
+
+#include "app_utils.h"
+#include "src/engines/graph_db/app/app_base.h"
 #include "src/engines/graph_db/database/graph_db_session.h"
 #include "src/engines/graph_db/runtime/common/columns/i_context_column.h"
 #include "src/engines/graph_db/runtime/common/columns/value_columns.h"
 #include "src/engines/graph_db/runtime/common/context.h"
+#include "src/engines/graph_db/runtime/common/graph_interface.h"
 #include "src/engines/graph_db/runtime/common/leaf_utils.h"
 #include "src/engines/graph_db/runtime/common/rt_any.h"
-#include "src/engines/graph_db/runtime/utils/opr_timer.h"
-#include "src/proto_generated_gie/algebra.pb.h"
+#include "src/engines/graph_db/runtime/common/types.h"
+#include "src/proto_generated_gie/common.pb.h"
+#include "src/proto_generated_gie/expr.pb.h"
 #include "src/proto_generated_gie/physical.pb.h"
+#include "src/proto_generated_gie/results.pb.h"
+#include "src/proto_generated_gie/stored_procedure.pb.h"
+#include "src/storages/rt_mutable_graph/types.h"
+#include "src/utils/property/types.h"
+
 namespace gs {
+class Schema;
+
 namespace runtime {
+class OprTimer;
+
 namespace ops {
 std::shared_ptr<IContextColumn> any_vec_to_column(
     const std::vector<RTAny>& any_vec) {

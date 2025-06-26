@@ -14,12 +14,20 @@
  */
 
 #include "src/engines/graph_db/runtime/utils/expr_impl.h"
+
+#include <time.h>
+#include <iterator>
 #include <regex>
+#include <sstream>
 #include <stack>
+
+#include "src/proto_generated_gie/type.pb.h"
 
 namespace gs {
 
 namespace runtime {
+class Context;
+struct LabelTriplet;
 
 RTAny VariableExpr::eval_path(size_t idx, Arena&) const {
   return var_.get(idx);

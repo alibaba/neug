@@ -14,8 +14,12 @@
  */
 
 #include "src/engines/graph_db/database/read_transaction.h"
+
+#include <utility>
+
 #include "src/engines/graph_db/database/version_manager.h"
 #include "src/engines/graph_db/runtime/utils/cypher_runner_impl.h"
+#include "src/storages/rt_mutable_graph/csr/csr_base.h"
 #include "src/storages/rt_mutable_graph/mutable_property_fragment.h"
 
 namespace gs {

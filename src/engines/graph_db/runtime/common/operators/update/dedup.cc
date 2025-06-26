@@ -15,6 +15,15 @@
 
 #include "src/engines/graph_db/runtime/common/operators/update/dedup.h"
 
+#include <algorithm>
+#include <ext/alloc_traits.h>
+#include <memory>
+#include <numeric>
+#include <tuple>
+#include <utility>
+
+#include "src/engines/graph_db/runtime/common/context.h"
+
 namespace gs {
 
 namespace runtime {

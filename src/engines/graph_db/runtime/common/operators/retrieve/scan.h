@@ -16,15 +16,28 @@
 #ifndef RUNTIME_COMMON_OPERATORS_RETRIEVE_SCAN_H_
 #define RUNTIME_COMMON_OPERATORS_RETRIEVE_SCAN_H_
 
+#include <stdint.h>
+#include <boost/leaf.hpp>
+#include <compare>
+#include <memory>
+#include <string_view>
+#include <utility>
+#include <vector>
+
 #include "src/engines/graph_db/runtime/common/columns/vertex_columns.h"
 #include "src/engines/graph_db/runtime/common/context.h"
+#include "src/engines/graph_db/runtime/common/graph_interface.h"
 #include "src/engines/graph_db/runtime/common/leaf_utils.h"
 #include "src/engines/graph_db/runtime/utils/params.h"
 #include "src/engines/graph_db/runtime/utils/special_predicates.h"
+#include "src/storages/rt_mutable_graph/types.h"
+#include "src/utils/property/types.h"
 
 namespace gs {
 
 namespace runtime {
+class SPVertexPredicate;
+
 class Scan {
  public:
   template <typename PRED_T>

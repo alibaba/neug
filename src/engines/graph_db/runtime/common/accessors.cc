@@ -14,6 +14,10 @@
  */
 
 #include "src/engines/graph_db/runtime/common/accessors.h"
+
+#include <cstdint>
+#include <string_view>
+
 #include "src/engines/graph_db/runtime/common/rt_any.h"
 
 namespace gs {

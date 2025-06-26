@@ -16,11 +16,17 @@
 #ifndef ENGINES_GRAPH_DB_APP_SERVER_APP_H_
 #define ENGINES_GRAPH_DB_APP_SERVER_APP_H_
 
+#include <stdint.h>
+
 #include "src/engines/graph_db/app/app_base.h"
 #include "src/engines/graph_db/database/graph_db.h"
 #include "src/engines/graph_db/database/graph_db_session.h"
 
 namespace gs {
+class Decoder;
+class Encoder;
+class GraphDB;
+class GraphDBSession;
 
 class ServerApp : public WriteAppBase {
  public:

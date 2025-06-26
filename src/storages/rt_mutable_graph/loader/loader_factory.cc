@@ -14,9 +14,25 @@
  */
 
 #include "src/storages/rt_mutable_graph/loader/loader_factory.h"
-#include <dlfcn.h>
-#include <memory>
-#include <utility>
+#include <dlfcn.h>                                           // for dlerror
+#include <glog/logging.h>                                    // for LOG, Log...
+#include <stdlib.h>                                          // for getenv
+#include <boost/algorithm/string/classification.hpp>         // for is_any_of
+#include <boost/algorithm/string/detail/classification.hpp>  // for is_any_ofF
+#include <boost/algorithm/string/split.hpp>                  // for split
+#include <boost/iterator/iterator_facade.hpp>                // for operator!=
+#include <boost/iterator/iterator_traits.hpp>                // for iterator...
+#include <boost/type_index/type_index_facade.hpp>            // for operator==
+#include <memory>                                            // for allocator
+#include <ostream>                                           // for operator<<
+#include <utility>                                           // for pair
+#include <vector>                                            // for vector
+namespace gs {
+class IFragmentLoader;
+}
+namespace gs {
+class Schema;
+}
 
 namespace gs {
 

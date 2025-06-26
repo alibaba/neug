@@ -17,7 +17,17 @@
 #ifndef RUNTIME_COMMON_OPERATORS_RETRIEVE_EDGE_EXPAND_IMPL_H_
 #define RUNTIME_COMMON_OPERATORS_RETRIEVE_EDGE_EXPAND_IMPL_H_
 
+#include <glog/logging.h>
+#include <stddef.h>
+#include <stdint.h>
+#include <ext/alloc_traits.h>
+#include <limits>
 #include <memory>
+#include <ostream>
+#include <set>
+#include <string_view>
+#include <tuple>
+#include <type_traits>
 #include <utility>
 #include <vector>
 
@@ -25,9 +35,19 @@
 #include "src/engines/graph_db/runtime/common/columns/i_context_column.h"
 #include "src/engines/graph_db/runtime/common/columns/vertex_columns.h"
 #include "src/engines/graph_db/runtime/common/graph_interface.h"
+#include "src/engines/graph_db/runtime/common/types.h"
+#include "src/storages/rt_mutable_graph/schema.h"
+#include "src/storages/rt_mutable_graph/types.h"
+#include "src/utils/property/types.h"
+#include "third_party/libgrape-lite/grape/util.h"
+
+namespace grape {
+struct EmptyType;
+}  // namespace grape
 
 namespace gs {
 namespace runtime {
+class IContextColumn;
 
 inline bool check_exist_special_edge(const GraphReadInterface& graph,
                                      const std::vector<LabelTriplet>& labels,

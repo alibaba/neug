@@ -14,8 +14,23 @@
  */
 
 #include "src/engines/graph_db/runtime/execute/ops/update/sink.h"
+
+#include <google/protobuf/wrappers.pb.h>
+#include <boost/leaf.hpp>
+#include <map>
+#include <string>
+#include <vector>
+
+#include "src/engines/graph_db/runtime/common/context.h"
+
 namespace gs {
+class Schema;
+
 namespace runtime {
+class GraphInsertInterface;
+class GraphUpdateInterface;
+class OprTimer;
+
 namespace ops {
 
 class SinkInsertOpr : public IInsertOperator {

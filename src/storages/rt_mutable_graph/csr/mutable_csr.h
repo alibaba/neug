@@ -16,13 +16,39 @@
 #ifndef STORAGES_RT_MUTABLE_GRAPH_CSR_MUTABLE_CSR_H_
 #define STORAGES_RT_MUTABLE_GRAPH_CSR_MUTABLE_CSR_H_
 
+#include <errno.h>
+#include <glog/logging.h>
+#include <stdint.h>
+#include <stdio.h>
+#include <string.h>
+#include <algorithm>
+#include <atomic>
+#include <cmath>
+#include <filesystem>
+#include <limits>
+#include <memory>
+#include <ostream>
+#include <stdexcept>
+#include <string>
+#include <string_view>
+#include <system_error>
 #include <thread>
+#include <type_traits>
+#include <utility>
+#include <vector>
 
-#include "third_party/libgrape-lite/grape/utils/concurrent_queue.h"
-
+#include "allocators.h"
+#include "mmap_array.h"
+#include "property/column.h"
+#include "property/table.h"
 #include "src/storages/rt_mutable_graph/csr/adj_list.h"
 #include "src/storages/rt_mutable_graph/csr/csr_base.h"
 #include "src/storages/rt_mutable_graph/csr/nbr.h"
+#include "src/storages/rt_mutable_graph/file_names.h"
+#include "src/storages/rt_mutable_graph/types.h"
+#include "src/utils/property/types.h"
+#include "third_party/libgrape-lite/grape/types.h"
+#include "third_party/libgrape-lite/grape/utils/concurrent_queue.h"
 
 namespace gs {
 
@@ -79,7 +105,10 @@ class MutableCsrEdgeIter : public CsrEdgeIterBase {
   timestamp_t get_timestamp() const override { return cur_->timestamp.load(); }
 
   void set_data(const Any& value, timestamp_t ts) override {
-    ConvertAny<EDATA_T>::to(value, cur_->data);
+    if constexpr (!std::is_same<EDATA_T, grape::EmptyType>::value) {
+      ConvertAny<EDATA_T>::to(value, cur_->data);
+    }
+
     cur_->timestamp.store(ts);
   }
 

@@ -14,12 +14,23 @@
  */
 
 #include "src/engines/graph_db/runtime/common/operators/retrieve/edge_expand.h"
+
+#include <glog/logging.h>
+#include <cstdint>
+#include <ext/alloc_traits.h>
+#include <set>
+#include <string_view>
+
 #include "src/engines/graph_db/runtime/common/operators/retrieve/edge_expand_impl.h"
 #include "src/engines/graph_db/runtime/utils/opr_timer.h"
+#include "src/engines/graph_db/runtime/utils/special_predicates.h"
+#include "src/storages/rt_mutable_graph/csr/mutable_csr.h"
+#include "third_party/libgrape-lite/grape/util.h"
 
 namespace gs {
 
 namespace runtime {
+class IContextColumn;
 
 static std::vector<LabelTriplet> get_expand_label_set(
     const GraphReadInterface& graph, const std::set<label_t>& label_set,

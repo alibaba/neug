@@ -17,21 +17,55 @@
 #ifndef STORAGES_RT_MUTABLE_GRAPH_LOADER_ABSTRACT_ARROW_FRAGMENT_LOADER_H_
 #define STORAGES_RT_MUTABLE_GRAPH_LOADER_ABSTRACT_ARROW_FRAGMENT_LOADER_H_
 
+#include <arrow/api.h>
+#include <arrow/array/array_base.h>
+#include <arrow/array/array_binary.h>
+#include <arrow/array/array_primitive.h>
+#include <glog/logging.h>
+#include <stddef.h>
+#include <algorithm>
+#include <atomic>
+#include <cstdint>
+#include <ext/alloc_traits.h>
+#include <functional>
+#include <limits>
+#include <memory>
+#include <mutex>
+#include <ostream>
+#include <shared_mutex>
+#include <string>
+#include <string_view>
+#include <thread>
+#include <tuple>
+#include <type_traits>
+#include <utility>
+#include <variant>
+#include <vector>
+
+#include "id_indexer.h"
+#include "indexers.h"
+#include "property/column.h"
+#include "property/table.h"
+#include "src/storages/rt_mutable_graph/dual_csr.h"
+#include "src/storages/rt_mutable_graph/file_names.h"
 #include "src/storages/rt_mutable_graph/loader/basic_fragment_loader.h"
 #include "src/storages/rt_mutable_graph/loader/i_fragment_loader.h"
 #include "src/storages/rt_mutable_graph/loader/loader_utils.h"
 #include "src/storages/rt_mutable_graph/loading_config.h"
+#include "src/storages/rt_mutable_graph/schema.h"
+#include "src/storages/rt_mutable_graph/types.h"
+#include "src/utils/arrow_utils.h"
 #include "src/utils/mmap_vector.h"
+#include "src/utils/property/types.h"
 #include "third_party/libgrape-lite/grape/utils/concurrent_queue.h"
 
-#include <arrow/api.h>
-#include <arrow/io/api.h>
-#include <shared_mutex>
-#include "arrow/util/value_parsing.h"
-
-#include "third_party/libgrape-lite/grape/util.h"
+namespace grape {
+struct EmptyType;
+}  // namespace grape
 
 namespace gs {
+template <typename T>
+class mmap_vector;
 
 void printDiskRemaining(const std::string& path);
 // The interface providing visitor pattern for RecordBatch.

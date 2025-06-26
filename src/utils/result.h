@@ -16,15 +16,14 @@
 #ifndef UTILS_RESULT_H_
 #define UTILS_RESULT_H_
 
-#include <filesystem>
+#include <cstdint>
 #include <iomanip>
 #include <iostream>
 #include <string>
-#include <vector>
+#include <type_traits>
+#include <utility>
 
 #include "src/utils/error_pb/error.pb.h"
-
-#include "glog/logging.h"
 
 namespace gs {
 

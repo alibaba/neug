@@ -19,7 +19,27 @@
 #include <arrow/api.h>
 #include <arrow/csv/api.h>
 #include <arrow/io/api.h>
+#include <stddef.h>
+#include <ext/alloc_traits.h>
+#include <memory>
 #include <string>
+#include <utility>
+#include <vector>
+
+namespace arrow {
+class Array;
+class RecordBatch;
+class Schema;
+class Table;
+class TableBatchReader;
+
+namespace csv {
+class StreamingReader;
+struct ConvertOptions;
+struct ParseOptions;
+struct ReadOptions;
+}  // namespace csv
+}  // namespace arrow
 
 namespace gs {
 

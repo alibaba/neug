@@ -16,18 +16,40 @@
 #ifndef ENGINES_GRAPH_DB_DATABASE_READ_TRANSACTION_H_
 #define ENGINES_GRAPH_DB_DATABASE_READ_TRANSACTION_H_
 
+#include <glog/logging.h>
+#include <stddef.h>
+#include <stdint.h>
+#include <algorithm>
+#include <atomic>
 #include <limits>
+#include <map>
+#include <memory>
+#include <ostream>
+#include <string>
+#include <string_view>
+#include <tuple>
 #include <utility>
+#include <vector>
 
+#include "property/column.h"
+#include "property/table.h"
+#include "src/storages/rt_mutable_graph/csr/immutable_csr.h"
 #include "src/storages/rt_mutable_graph/csr/mutable_csr.h"
+#include "src/storages/rt_mutable_graph/csr/nbr.h"
 #include "src/storages/rt_mutable_graph/mutable_property_fragment.h"
+#include "src/storages/rt_mutable_graph/schema.h"
 #include "src/storages/rt_mutable_graph/types.h"
+#include "src/utils/property/types.h"
 
 namespace gs {
 
 class MutablePropertyFragment;
 class GraphDBSession;
 class VersionManager;
+class CsrConstEdgeIterBase;
+template <typename EDATA_T>
+class TypedMutableCsrBase;
+
 template <typename EDATA_T>
 class AdjListView {
   class nbr_iterator {

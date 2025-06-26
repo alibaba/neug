@@ -14,6 +14,24 @@
  */
 
 #include "src/engines/graph_db/database/graph_db.h"
+
+#include <glog/logging.h>
+#include <stdlib.h>
+#include <unistd.h>
+#include <algorithm>
+#include <atomic>
+#include <cstdint>
+#include <exception>
+#include <ext/alloc_traits.h>
+#include <filesystem>
+#include <limits>
+#include <new>
+#include <regex>
+#include <sstream>
+#include <vector>
+
+#include "allocators.h"
+#include "app_utils.h"
 #include "src/engines/graph_db/app/builtin/count_vertices.h"
 #include "src/engines/graph_db/app/builtin/k_hop_neighbors.h"
 #include "src/engines/graph_db/app/builtin/pagerank.h"
@@ -22,14 +40,13 @@
 #include "src/engines/graph_db/app/cypher_write_app.h"
 #include "src/engines/graph_db/app/hqps_app.h"
 #include "src/engines/graph_db/app/server_app.h"
+#include "src/engines/graph_db/database/compact_transaction.h"
 #include "src/engines/graph_db/database/graph_db_session.h"
 #include "src/engines/graph_db/database/wal/wal.h"
 #include "src/engines/graph_db/runtime/execute/plan_parser.h"
 #include "src/engines/graph_db/runtime/utils/cypher_runner_impl.h"
-#include "src/utils/pb_utils.h"
-#include "src/utils/yaml_utils.h"
-
-#include "third_party/httplib.h"
+#include "src/engines/graph_db/runtime/utils/opr_timer.h"
+#include "src/storages/rt_mutable_graph/file_names.h"
 
 namespace gs {
 

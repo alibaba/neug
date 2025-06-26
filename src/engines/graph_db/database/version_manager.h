@@ -18,8 +18,8 @@
 
 #include <assert.h>
 #include <fcntl.h>
+#include <stdint.h>
 #include <unistd.h>
-
 #include <array>
 #include <atomic>
 #include <bitset>

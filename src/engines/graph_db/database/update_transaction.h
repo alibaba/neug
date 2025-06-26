@@ -16,11 +16,18 @@
 #ifndef ENGINES_GRAPH_DB_DATABASE_UPDATE_TRANSACTION_H_
 #define ENGINES_GRAPH_DB_DATABASE_UPDATE_TRANSACTION_H_
 
+#include <stddef.h>
+#include <stdint.h>
 #include <limits>
+#include <map>
+#include <memory>
+#include <string>
 #include <utility>
+#include <vector>
 
 #include "src/engines/graph_db/database/transaction_utils.h"
 #include "src/storages/rt_mutable_graph/csr/mutable_csr.h"
+#include "src/storages/rt_mutable_graph/mutable_property_fragment.h"
 #include "src/storages/rt_mutable_graph/types.h"
 #include "src/utils/allocators.h"
 #include "src/utils/id_indexer.h"
@@ -35,6 +42,11 @@ class MutablePropertyFragment;
 class IWalWriter;
 class VersionManager;
 class GraphDBSession;
+class CsrConstEdgeIterBase;
+class Schema;
+class UpdateBatch;
+template <typename INDEX_T>
+class IdIndexerBase;
 
 class UpdateTransaction {
  public:

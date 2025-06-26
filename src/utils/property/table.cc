@@ -15,6 +15,18 @@
 
 #include "src/utils/property/table.h"
 
+#include <assert.h>            // for assert
+#include <glog/logging.h>      // for Check_EQImpl, CHECK_EQ, CHECK, COMPACT...
+#include <ext/alloc_traits.h>  // for __alloc_traits<>::value_type
+#include <ostream>             // for operator<<, basic_ostream
+
+#include "src/utils/id_indexer.h"       // for IdIndexer
+#include "src/utils/property/column.h"  // for ColumnBase, CreateColumn
+
+namespace grape {
+class OutArchive;
+}  // namespace grape
+
 namespace gs {
 
 Table::Table() : touched_(false) {}

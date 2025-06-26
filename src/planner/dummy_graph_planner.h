@@ -16,6 +16,8 @@
 #ifndef SRC_PLANNER_DUMMY_GRAPH_PLANNER_H_
 #define SRC_PLANNER_DUMMY_GRAPH_PLANNER_H_
 
+#include <string>
+
 #include "src/planner/graph_planner.h"
 
 namespace gs {
@@ -29,12 +31,7 @@ class DummyGraphPlanner : public IGraphPlanner {
 
   Plan compilePlan(const std::string& cypher_query_string,
                    const std::string& graph_schema_yaml,
-                   const std::string& graph_statistic_json) override {
-    Plan plan;
-    plan.error_code = StatusCode::OK;
-    plan.full_message = "OK";
-    return plan;
-  }
+                   const std::string& graph_statistic_json) override;
 };
 
 }  // namespace gs

@@ -16,11 +16,17 @@
 #ifndef RUNTIME_EXECUTE_RETRIEVE_OPS_JOIN_H_
 #define RUNTIME_EXECUTE_RETRIEVE_OPS_JOIN_H_
 
+#include <boost/leaf.hpp>
+#include <vector>
+
 #include "src/engines/graph_db/runtime/execute/operator.h"
+#include "src/proto_generated_gie/physical.pb.h"
 
 namespace gs {
+class Schema;
 
 namespace runtime {
+class ContextMeta;
 
 namespace ops {
 

@@ -16,9 +16,16 @@
 #ifndef STORAGES_RT_MUTABLE_GRAPH_LOADER_LOADER_FACTORY_H_
 #define STORAGES_RT_MUTABLE_GRAPH_LOADER_LOADER_FACTORY_H_
 
-#include <memory>
-#include "src/storages/rt_mutable_graph/loader/i_fragment_loader.h"
-#include "src/storages/rt_mutable_graph/loading_config.h"
+#include <memory>                                          // for shared_ptr
+#include <string>                                          // for string
+#include <unordered_map>                                   // for unordered_map
+#include "src/storages/rt_mutable_graph/loading_config.h"  // for LoadingConfig
+namespace gs {
+class IFragmentLoader;
+}
+namespace gs {
+class Schema;
+}
 
 namespace gs {
 

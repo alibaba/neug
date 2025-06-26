@@ -15,6 +15,14 @@
 
 #include "src/engines/graph_db/runtime/common/operators/retrieve/scan.h"
 
+#include <glog/logging.h>
+#include <ostream>
+#include <string_view>
+
+#include "src/engines/graph_db/runtime/common/leaf_utils.h"
+#include "src/engines/graph_db/runtime/common/rt_any.h"
+#include "src/engines/graph_db/runtime/utils/special_predicates.h"
+
 namespace gs {
 namespace runtime {
 

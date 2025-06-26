@@ -15,6 +15,10 @@
 
 #include "src/utils/file_utils.h"
 
+#include <glog/logging.h>
+#include <filesystem>
+#include <fstream>
+
 namespace gs {
 
 void ensure_directory_exists(const std::string& dir_path) {

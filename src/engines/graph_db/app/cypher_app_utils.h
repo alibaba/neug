@@ -18,8 +18,14 @@
 
 #include <map>
 #include <string>
+#include <string_view>
 #include <unordered_map>
+
 #include "src/proto_generated_gie/physical.pb.h"
+
+namespace physical {
+class PhysicalPlan;
+}  // namespace physical
 
 namespace gs {
 bool generate_plan(const std::string& query, const std::string& statistics,

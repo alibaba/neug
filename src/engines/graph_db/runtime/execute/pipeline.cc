@@ -15,8 +15,16 @@
 
 #include "src/engines/graph_db/runtime/execute/pipeline.h"
 
+#include <glog/logging.h>
+#include <exception>
+#include <ostream>
+
+#include "src/engines/graph_db/runtime/common/context.h"
+#include "src/utils/result.h"
+
 namespace gs {
 namespace runtime {
+class OprTimer;
 
 bl::result<Context> ReadPipeline::Execute(
     const GraphReadInterface& graph, Context&& ctx,

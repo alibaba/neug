@@ -12,12 +12,42 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+#include <google/protobuf/wrappers.pb.h>
+#include <array>
+#include <boost/leaf.hpp>
+#include <cstdint>
+#include <map>
+#include <memory>
+#include <string>
+#include <tuple>
+#include <utility>
+#include <vector>
+
+#include "src/engines/graph_db/runtime/common/context.h"
+#include "src/engines/graph_db/runtime/common/graph_interface.h"
 #include "src/engines/graph_db/runtime/common/operators/retrieve/edge_expand.h"
+#include "src/engines/graph_db/runtime/common/types.h"
+#include "src/engines/graph_db/runtime/execute/operator.h"
 #include "src/engines/graph_db/runtime/execute/ops/retrieve/edge.h"
+#include "src/engines/graph_db/runtime/utils/special_predicates.h"
 #include "src/engines/graph_db/runtime/utils/utils.h"
+#include "src/proto_generated_gie/algebra.pb.h"
+#include "src/proto_generated_gie/common.pb.h"
+#include "src/proto_generated_gie/expr.pb.h"
+#include "src/proto_generated_gie/physical.pb.h"
+#include "src/storages/rt_mutable_graph/csr/mutable_csr.h"
+#include "src/storages/rt_mutable_graph/schema.h"
+#include "src/storages/rt_mutable_graph/types.h"
+#include "src/utils/property/types.h"
+
+namespace grape {
+struct EmptyType;
+}  // namespace grape
 
 namespace gs {
 namespace runtime {
+class OprTimer;
+
 namespace ops {
 
 template <typename T1, typename T2, typename T3>

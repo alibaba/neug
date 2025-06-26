@@ -14,8 +14,13 @@
  */
 
 #include "src/engines/graph_db/runtime/common/context.h"
+
+#include <assert.h>
+
+#include "src/engines/graph_db/runtime/common/columns/i_context_column.h"
 #include "src/engines/graph_db/runtime/common/columns/value_columns.h"
 #include "src/engines/graph_db/runtime/common/columns/vertex_columns.h"
+#include "src/engines/graph_db/runtime/common/rt_any.h"
 
 namespace gs {
 

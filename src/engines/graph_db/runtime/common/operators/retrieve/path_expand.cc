@@ -14,8 +14,19 @@
  */
 
 #include "src/engines/graph_db/runtime/common/operators/retrieve/path_expand.h"
+
+#include <algorithm>
+#include <cstdint>
+#include <queue>
+#include <tuple>
+
+#include "src/engines/graph_db/runtime/common/columns/i_context_column.h"
+#include "src/engines/graph_db/runtime/common/columns/path_columns.h"
 #include "src/engines/graph_db/runtime/common/operators/retrieve/path_expand_impl.h"
-#include "src/engines/graph_db/runtime/common/utils/bitset.h"
+#include "src/engines/graph_db/runtime/common/rt_any.h"
+#include "src/engines/graph_db/runtime/utils/special_predicates.h"
+#include "src/storages/rt_mutable_graph/csr/mutable_csr.h"
+#include "third_party/libgrape-lite/grape/types.h"
 
 namespace gs {
 

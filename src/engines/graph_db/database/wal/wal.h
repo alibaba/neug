@@ -17,15 +17,18 @@
 #define ENGINES_GRAPH_DB_DATABASE_WAL_WAL_H_
 
 #include <fcntl.h>
+#include <stddef.h>
+#include <stdint.h>
 #include <sys/mman.h>
 #include <unistd.h>
-
 #include <algorithm>
 #include <filesystem>
+#include <memory>
 #include <queue>
 #include <string>
 #include <thread>
 #include <unordered_map>
+#include <vector>
 
 #include "glog/logging.h"
 

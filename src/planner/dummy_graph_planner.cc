@@ -13,31 +13,19 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-#ifndef UTILS_INDEXERS_H_
-#define UTILS_INDEXERS_H_
+#include "src/planner/dummy_graph_planner.h"
 
-#ifndef USE_PTHASH
-#include "src/utils/id_indexer.h"
-#else
-#include "src/utils/pt_indexer.h"
-#endif
-
-#include "src/storages/rt_mutable_graph/types.h"
+#include "src/utils/result.h"
 
 namespace gs {
 
-#ifndef USE_PTHASH
-using IndexerType = LFIndexer<vid_t>;
-
-template <typename KEY_T>
-using IndexerBuilderType = IdIndexer<KEY_T, vid_t>;
-#else
-using IndexerType = PTIndexer<vid_t>;
-
-template <typename KEY_T>
-using IndexerBuilderType = PTIndexerBuilder<KEY_T, vid_t>;
-#endif
+Plan DummyGraphPlanner::compilePlan(const std::string& cypher_query_string,
+                                    const std::string& graph_schema_yaml,
+                                    const std::string& graph_statistic_json) {
+  Plan plan;
+  plan.error_code = StatusCode::OK;
+  plan.full_message = "OK";
+  return plan;
+}
 
 }  // namespace gs
-
-#endif  // UTILS_INDEXERS_H_

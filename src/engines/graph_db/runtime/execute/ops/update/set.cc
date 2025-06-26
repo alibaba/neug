@@ -13,11 +13,41 @@
  * limitations under the License.
  */
 #include "src/engines/graph_db/runtime/execute/ops/update/set.h"
+
+#include <glog/logging.h>
+#include <stddef.h>
+#include <stdint.h>
+#include <boost/leaf.hpp>
+#include <ext/alloc_traits.h>
+#include <map>
+#include <ostream>
+#include <string>
+#include <utility>
+#include <vector>
+
+#include "src/engines/graph_db/runtime/common/columns/edge_columns.h"
+#include "src/engines/graph_db/runtime/common/columns/i_context_column.h"
+#include "src/engines/graph_db/runtime/common/columns/vertex_columns.h"
 #include "src/engines/graph_db/runtime/common/context.h"
+#include "src/engines/graph_db/runtime/common/graph_interface.h"
+#include "src/engines/graph_db/runtime/common/leaf_utils.h"
+#include "src/engines/graph_db/runtime/common/rt_any.h"
+#include "src/engines/graph_db/runtime/common/types.h"
 #include "src/engines/graph_db/runtime/utils/expr.h"
+#include "src/engines/graph_db/runtime/utils/var.h"
+#include "src/proto_generated_gie/basic_type.pb.h"
+#include "src/proto_generated_gie/common.pb.h"
+#include "src/proto_generated_gie/cypher_write.pb.h"
+#include "src/proto_generated_gie/expr.pb.h"
+#include "src/proto_generated_gie/type.pb.h"
+#include "src/storages/rt_mutable_graph/schema.h"
+#include "src/storages/rt_mutable_graph/types.h"
+#include "src/utils/property/types.h"
 
 namespace gs {
 namespace runtime {
+class OprTimer;
+
 namespace ops {
 
 class SetOpr : public IUpdateOperator {

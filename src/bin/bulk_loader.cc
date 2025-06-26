@@ -13,19 +13,37 @@
  * limitations under the License.
  */
 
+#include <glog/logging.h>
+#include <stdlib.h>
+#include <time.h>
+#include <boost/cstdint.hpp>
+#include <boost/lexical_cast/bad_lexical_cast.hpp>
+#include <boost/program_options.hpp>  // IWYU pragma: keep
+#include <boost/program_options/errors.hpp>
+#include <boost/program_options/options_description.hpp>
+#include <boost/program_options/parsers.hpp>
+#include <boost/program_options/value_semantic.hpp>
+#include <boost/program_options/variables_map.hpp>
+#include <boost/type_index/type_index_facade.hpp>
 #include <csignal>
+#include <cstdint>
 #include <filesystem>
 #include <iostream>
+#include <memory>
+#include <string>
+#include <system_error>
 
-#include <glog/logging.h>
-
-#include <boost/program_options.hpp>
-
-#include "src/engines/graph_db/database/graph_db.h"
-#include "src/engines/http_server/options.h"
+#include "src/storages/rt_mutable_graph/loader/i_fragment_loader.h"
+#include "src/storages/rt_mutable_graph/loader/loader_factory.h"
+#include "src/storages/rt_mutable_graph/loading_config.h"
+#include "src/storages/rt_mutable_graph/mutable_property_fragment.h"
+#include "src/storages/rt_mutable_graph/schema.h"
+#include "src/utils/result.h"
+#include "third_party/libgrape-lite/grape/util.h"
 
 #ifdef BUILD_WITH_OSS
 #include <boost/process.hpp>
+
 #include "src/utils/remote/oss_storage.h"
 #endif
 

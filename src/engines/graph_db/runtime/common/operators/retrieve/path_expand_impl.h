@@ -17,7 +17,18 @@
 #ifndef RUNTIME_COMMON_OPERATORS_RETRIEVE_PATH_EXPAND_IMPL_H_
 #define RUNTIME_COMMON_OPERATORS_RETRIEVE_PATH_EXPAND_IMPL_H_
 
+#include <glog/logging.h>
+#include <stddef.h>
+#include <algorithm>
+#include <cstdint>
+#include <ext/alloc_traits.h>
+#include <limits>
+#include <map>
 #include <memory>
+#include <ostream>
+#include <set>
+#include <tuple>
+#include <type_traits>
 #include <utility>
 #include <vector>
 
@@ -26,9 +37,14 @@
 #include "src/engines/graph_db/runtime/common/columns/value_columns.h"
 #include "src/engines/graph_db/runtime/common/columns/vertex_columns.h"
 #include "src/engines/graph_db/runtime/common/graph_interface.h"
+#include "src/engines/graph_db/runtime/common/rt_any.h"
+#include "src/engines/graph_db/runtime/common/types.h"
+#include "src/storages/rt_mutable_graph/schema.h"
+#include "src/storages/rt_mutable_graph/types.h"
 
 namespace gs {
 namespace runtime {
+class IContextColumn;
 
 template <typename EDATA_T>
 std::pair<std::shared_ptr<IContextColumn>, std::vector<size_t>>

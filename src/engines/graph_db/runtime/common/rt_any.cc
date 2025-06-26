@@ -15,6 +15,14 @@
 
 #include "src/engines/graph_db/runtime/common/rt_any.h"
 
+#include <arrow/type.h>
+#include <stdexcept>
+
+#include "app_utils.h"
+#include "src/proto_generated_gie/common.pb.h"
+#include "src/proto_generated_gie/results.pb.h"
+#include "src/storages/rt_mutable_graph/schema.h"
+
 namespace gs {
 
 namespace runtime {

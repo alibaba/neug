@@ -14,10 +14,23 @@
  */
 
 #include "src/engines/graph_db/runtime/common/operators/retrieve/intersect.h"
+
+#include <glog/logging.h>
+#include <parallel_hashmap/phmap_base.h>
+#include <stddef.h>
+#include <ext/alloc_traits.h>
+#include <limits>
+#include <memory>
+#include <ostream>
+#include <utility>
+
 #include "parallel_hashmap/phmap.h"
-#include "src/engines/graph_db/runtime/common/columns/edge_columns.h"
+#include "src/engines/graph_db/runtime/common/columns/i_context_column.h"
 #include "src/engines/graph_db/runtime/common/columns/value_columns.h"
 #include "src/engines/graph_db/runtime/common/columns/vertex_columns.h"
+#include "src/engines/graph_db/runtime/common/context.h"
+#include "src/engines/graph_db/runtime/common/leaf_utils.h"
+#include "src/engines/graph_db/runtime/common/rt_any.h"
 
 namespace gs {
 

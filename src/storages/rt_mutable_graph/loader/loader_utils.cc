@@ -2,7 +2,15 @@
 
 #include "src/storages/rt_mutable_graph/loader/loader_utils.h"
 
+#include <arrow/api.h>
+#include <arrow/array/array_base.h>
+#include <arrow/csv/options.h>
+#include <arrow/csv/reader.h>
+#include <arrow/io/file.h>
+#include <arrow/io/type_fwd.h>
 #include <glog/logging.h>
+#include <stdint.h>
+#include <ostream>
 
 namespace gs {
 

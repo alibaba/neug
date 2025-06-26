@@ -16,15 +16,32 @@
 #ifndef RUNTIME_COMMON_CONTEXT_H_
 #define RUNTIME_COMMON_CONTEXT_H_
 
+#include <glog/logging.h>
+#include <stddef.h>
+#include <stdint.h>
+#include <compare>
+#include <ext/alloc_traits.h>
+#include <iostream>
+#include <memory>
 #include <set>
+#include <string>
+#include <string_view>
+#include <type_traits>
+#include <utility>
+#include <vector>
 
 #include "src/engines/graph_db/database/read_transaction.h"
 #include "src/engines/graph_db/runtime/common/columns/i_context_column.h"
 #include "src/engines/graph_db/runtime/common/columns/value_columns.h"
+#include "src/engines/graph_db/runtime/common/graph_interface.h"
+#include "src/utils/property/types.h"
 
 namespace gs {
 
 namespace runtime {
+class IContextColumn;
+template <typename T>
+class ValueColumn;
 
 class Context {
  public:

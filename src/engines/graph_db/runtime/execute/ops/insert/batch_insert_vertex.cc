@@ -15,10 +15,22 @@
 
 #include "src/engines/graph_db/runtime/execute/ops/insert/batch_insert_vertex.h"
 
+#include <glog/logging.h>
+#include <ostream>
+
+#include "src/engines/graph_db/database/update_transaction.h"
+#include "src/engines/graph_db/runtime/common/context.h"
+#include "src/engines/graph_db/runtime/common/graph_interface.h"
 #include "src/engines/graph_db/runtime/execute/ops/insert/batch_insert_utils.h"
+#include "src/proto_generated_gie/common.pb.h"
+#include "src/proto_generated_gie/cypher_dml.pb.h"
+#include "src/storages/rt_mutable_graph/mutable_property_fragment.h"
+#include "src/storages/rt_mutable_graph/schema.h"
 
 namespace gs {
 namespace runtime {
+class OprTimer;
+
 namespace ops {
 
 bl::result<Context> BatchInsertVertexOpr::Eval(

@@ -13,10 +13,28 @@
  * limitations under the License.
  */
 #include "src/engines/graph_db/runtime/execute/ops/update/select.h"
+
+#include <stddef.h>
+#include <boost/leaf.hpp>
+#include <map>
+#include <string>
+#include <utility>
+
+#include "src/engines/graph_db/runtime/common/context.h"
+#include "src/engines/graph_db/runtime/common/graph_interface.h"
 #include "src/engines/graph_db/runtime/common/operators/retrieve/select.h"
+#include "src/engines/graph_db/runtime/common/rt_any.h"
 #include "src/engines/graph_db/runtime/utils/expr.h"
+#include "src/engines/graph_db/runtime/utils/var.h"
+#include "src/proto_generated_gie/algebra.pb.h"
+#include "src/proto_generated_gie/expr.pb.h"
+
 namespace gs {
+class Schema;
+
 namespace runtime {
+class OprTimer;
+
 namespace ops {
 class USelectOpr : public IUpdateOperator {
  public:

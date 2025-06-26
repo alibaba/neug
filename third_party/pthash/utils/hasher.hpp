@@ -21,6 +21,8 @@
 
 #pragma once
 
+#include <cstdint>
+
 // See also https://github.com/jermp/bench_hash_functions
 
 namespace pthash {
@@ -44,7 +46,7 @@ inline uint64_t MurmurHash2_64(void const* key, size_t len, uint64_t seed) {
 #if defined(__arm) || defined(__arm__)
   const size_t ksize = sizeof(uint64_t);
   const unsigned char* data = (const unsigned char*) key;
-  const unsigned char* end = data + (std::size_t)(len / 8) * ksize;
+  const unsigned char* end = data + (std::size_t) (len / 8) * ksize;
 #else
   const uint64_t* data = (const uint64_t*) key;
   const uint64_t* end = data + (len / 8);

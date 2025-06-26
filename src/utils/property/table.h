@@ -16,14 +16,19 @@
 #ifndef UTILS_PROPERTY_TABLE_H_
 #define UTILS_PROPERTY_TABLE_H_
 
-#include <map>
+#include <stddef.h>  // for size_t
+#include <stdint.h>  // for int32_t, uint32_t
 #include <memory>
-#include <string_view>
+#include <string>  // for string
+#include <vector>  // for vector
 
 #include "src/utils/id_indexer.h"
 #include "src/utils/property/column.h"
-#include "third_party/libgrape-lite/grape/io/local_io_adaptor.h"
-#include "third_party/libgrape-lite/grape/serialization/out_archive.h"
+#include "src/utils/property/types.h"  // for StorageStrategy, Any, Propert...
+
+namespace grape {
+class OutArchive;
+}  // namespace grape
 
 namespace gs {
 

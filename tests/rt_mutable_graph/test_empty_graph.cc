@@ -14,14 +14,17 @@
  */
 
 #include <glog/logging.h>
-
+#include <stddef.h>
+#include <stdint.h>
+#include <filesystem>
 #include <fstream>
-#include <random>
 #include <string>
-#include <thread>
+#include <tuple>
 
 #include "src/engines/graph_db/database/graph_db.h"
-#include "src/engines/graph_db/database/graph_db_session.h"
+#include "src/engines/graph_db/database/insert_transaction.h"
+#include "src/storages/rt_mutable_graph/schema.h"
+#include "src/storages/rt_mutable_graph/types.h"
 #include "src/utils/property/types.h"
 
 int main(int argc, char** argv) {

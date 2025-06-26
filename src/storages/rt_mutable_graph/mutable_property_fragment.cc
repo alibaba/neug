@@ -15,10 +15,26 @@
 
 #include "src/storages/rt_mutable_graph/mutable_property_fragment.h"
 
+#include <assert.h>
+#include <filesystem>
+#include <stdexcept>
+#include <system_error>
+#include <utility>
+
+#include "indexers.h"
+#include "property/table.h"
+#include "src/storages/rt_mutable_graph/csr/csr_base.h"
+#include "src/storages/rt_mutable_graph/csr/immutable_csr.h"
+#include "src/storages/rt_mutable_graph/csr/mutable_csr.h"
+#include "src/storages/rt_mutable_graph/csr/nbr.h"
 #include "src/storages/rt_mutable_graph/file_names.h"
 #include "src/storages/rt_mutable_graph/types.h"
 #include "src/utils/property/types.h"
-#include "src/utils/string_utils.h"
+#include "src/utils/yaml_utils.h"
+#include "third_party/libgrape-lite/grape/io/local_io_adaptor.h"
+#include "third_party/libgrape-lite/grape/serialization/out_archive.h"
+#include "third_party/libgrape-lite/grape/types.h"
+#include "third_party/libgrape-lite/grape/util.h"
 
 namespace gs {
 

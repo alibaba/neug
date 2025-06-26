@@ -14,6 +14,17 @@
  */
 #include <cmath>
 
+#include "src/utils/property/types.h"
+
+#include <algorithm>
+#include <cctype>
+#include <cstdlib>
+#include <iomanip>
+#include <istream>
+#include <memory>
+#include <ostream>
+
+#include "property/column.h"
 #include "src/utils/property/table.h"
 #include "src/utils/property/types.h"
 #include "third_party/libgrape-lite/grape/serialization/in_archive.h"

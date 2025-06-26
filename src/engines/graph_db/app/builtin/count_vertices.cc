@@ -14,7 +14,17 @@
  */
 #include "src/engines/graph_db/app/builtin/count_vertices.h"
 
+#include <glog/logging.h>
+#include <stddef.h>
+#include <ostream>
+
+#include "src/engines/graph_db/database/graph_db_session.h"
+#include "src/engines/graph_db/database/read_transaction.h"
+#include "src/proto_generated_gie/common.pb.h"
+#include "src/storages/rt_mutable_graph/schema.h"
+
 namespace gs {
+class GraphDB;
 
 results::CollectiveResults CountVertices::Query(const GraphDBSession& sess,
                                                 std::string label_name) {

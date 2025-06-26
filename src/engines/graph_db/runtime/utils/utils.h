@@ -16,19 +16,29 @@
 #ifndef RUNTIME_UTILS_UTILS_H_
 #define RUNTIME_UTILS_UTILS_H_
 
+#include <stddef.h>
+#include <memory>
+#include <string>
+#include <vector>
+
 #include "src/engines/graph_db/runtime/common/columns/i_context_column.h"
 #include "src/engines/graph_db/runtime/common/graph_interface.h"
 #include "src/engines/graph_db/runtime/common/rt_any.h"
 #include "src/engines/graph_db/runtime/common/types.h"
 #include "src/engines/graph_db/runtime/utils/expr.h"
-
 #include "src/proto_generated_gie/algebra.pb.h"
 #include "src/proto_generated_gie/physical.pb.h"
 #include "src/proto_generated_gie/type.pb.h"
+#include "src/storages/rt_mutable_graph/types.h"
+
+namespace algebra {
+class QueryParams;
+}  // namespace algebra
 
 namespace gs {
 
 namespace runtime {
+class IVertexColumn;
 
 VOpt parse_opt(const physical::GetV_VOpt& opt);
 

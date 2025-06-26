@@ -14,6 +14,9 @@
  */
 
 #include "src/engines/graph_db/runtime/common/columns/vertex_columns.h"
+
+#include <parallel_hashmap/phmap_base.h>
+
 #include "parallel_hashmap/phmap.h"
 
 namespace gs {

@@ -15,10 +15,29 @@
 
 #include "src/engines/graph_db/runtime/execute/ops/insert/batch_insert_edge.h"
 
+#include <glog/logging.h>
+#include <stddef.h>
+#include <ext/alloc_traits.h>
+#include <ostream>
 #include <string_view>
+#include <tuple>
+
+#include "src/engines/graph_db/database/update_transaction.h"
+#include "src/engines/graph_db/runtime/common/context.h"
+#include "src/engines/graph_db/runtime/common/graph_interface.h"
+#include "src/engines/graph_db/runtime/execute/ops/insert/batch_insert_utils.h"
+#include "src/proto_generated_gie/common.pb.h"
+#include "src/proto_generated_gie/cypher_ddl.pb.h"
+#include "src/proto_generated_gie/cypher_dml.pb.h"
+#include "src/storages/rt_mutable_graph/schema.h"
 
 namespace gs {
+class IRecordBatchSupplier;
+class MutablePropertyFragment;
+
 namespace runtime {
+class OprTimer;
+
 namespace ops {
 
 template <typename SRC_PK_T, typename DST_PK_T>

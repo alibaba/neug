@@ -20,6 +20,10 @@
 #include "src/engines/graph_db/database/graph_db_session.h"
 
 namespace gs {
+class Decoder;
+class Encoder;
+class GraphDB;
+class GraphDBSession;
 
 /**
  * @brief HQPSAdhocReadApp is a builtin, proxy app used to evaluate

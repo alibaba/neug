@@ -15,6 +15,8 @@
 
 #include "src/main/query_result.h"
 
+#include <glog/logging.h>
+
 namespace gs {
 QueryResult QueryResult::From(
     std::tuple<results::CollectiveResults, std::string>&& result) {

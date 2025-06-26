@@ -16,11 +16,28 @@
 #ifndef RUNTIME_EXECUTE_OPS_INSERT_BATCH_INSERT_EDGE_H_
 #define RUNTIME_EXECUTE_OPS_INSERT_BATCH_INSERT_EDGE_H_
 
+#include <boost/leaf.hpp>
+#include <cstdint>
+#include <map>
+#include <memory>
+#include <string>
+#include <utility>
+#include <vector>
+
 #include "src/engines/graph_db/runtime/execute/operator.h"
 #include "src/engines/graph_db/runtime/execute/ops/insert/batch_insert_utils.h"
+#include "src/proto_generated_gie/physical.pb.h"
+#include "src/storages/rt_mutable_graph/types.h"
+#include "src/utils/property/types.h"
 
 namespace gs {
+class Schema;
+
 namespace runtime {
+class Context;
+class GraphUpdateInterface;
+class OprTimer;
+
 namespace ops {
 
 class BatchInsertEdgeOpr : public IUpdateOperator {

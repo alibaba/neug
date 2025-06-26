@@ -16,14 +16,36 @@
 #ifndef RUNTIME_UTILS_RUNTIME_EXPR_IMPL_H_
 #define RUNTIME_UTILS_RUNTIME_EXPR_IMPL_H_
 
-#include "src/proto_generated_gie/expr.pb.h"
+#include <assert.h>
+#include <glog/logging.h>
+#include <stdint.h>
+#include <array>
+#include <compare>
+#include <cstddef>
+#include <ext/alloc_traits.h>
+#include <functional>
+#include <map>
+#include <memory>
+#include <ostream>
+#include <stdexcept>
+#include <string>
+#include <string_view>
+#include <tuple>
+#include <utility>
+#include <vector>
 
 #include "src/engines/graph_db/runtime/common/rt_any.h"
 #include "src/engines/graph_db/runtime/utils/var.h"
+#include "src/proto_generated_gie/common.pb.h"
+#include "src/proto_generated_gie/expr.pb.h"
+#include "src/storages/rt_mutable_graph/types.h"
+#include "src/utils/property/types.h"
 
 namespace gs {
 
 namespace runtime {
+class Context;
+struct LabelTriplet;
 
 class ExprBase {
  public:

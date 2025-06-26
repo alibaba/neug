@@ -15,9 +15,16 @@
 
 #include "src/engines/graph_db/runtime/common/operators/retrieve/edge_expand_impl.h"
 
+#include "src/storages/rt_mutable_graph/csr/mutable_csr.h"
+
+namespace grape {
+struct EmptyType;
+}  // namespace grape
+
 namespace gs {
 
 namespace runtime {
+class IContextColumn;
 
 template <typename EDATA_T>
 struct DummyPredicate {

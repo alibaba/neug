@@ -15,6 +15,8 @@
 
 #include "src/engines/graph_db/runtime/common/columns/arrow_context_column.h"
 
+#include <arrow/type.h>
+
 namespace gs {
 namespace runtime {
 
