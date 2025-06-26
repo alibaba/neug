@@ -1248,9 +1248,8 @@ LogicalTypeUtils::getAllValidComparableLogicalTypes() {
 std::vector<LogicalTypeID> LogicalTypeUtils::getIntegerTypeIDs() {
   return std::vector<LogicalTypeID>{
       LogicalTypeID::INT128, LogicalTypeID::INT64,  LogicalTypeID::INT32,
-      LogicalTypeID::INT16,  LogicalTypeID::INT8,   LogicalTypeID::SERIAL,
-      LogicalTypeID::UINT64, LogicalTypeID::UINT32, LogicalTypeID::UINT16,
-      LogicalTypeID::UINT8};
+      LogicalTypeID::INT16,  LogicalTypeID::INT8,   LogicalTypeID::UINT64,
+      LogicalTypeID::UINT32, LogicalTypeID::UINT16, LogicalTypeID::UINT8};
 }
 
 std::vector<LogicalTypeID> LogicalTypeUtils::getFloatingPointTypeIDs() {

@@ -186,7 +186,6 @@
 3
 
 -LOG PersonNodesGenderFilteredTest1
--SKIP: (compiler): Binder exception: Type Mismatch: Cannot compare types SERIAL and DOUBLE
 -STATEMENT MATCH (a:person) WHERE (a.gender/2 <= 0.5) RETURN COUNT(*)
 ---- 1
 3

@@ -245,5 +245,15 @@ TEST_F(ExprTest, COMPARE_NULL) {
                                       getExprResource("COMPARE_NULL_physical"));
 }
 
+TEST_F(ExprTest, INT32_MULTI_DOUBLE) {
+  std::string query =
+      "MATCH (a:person)-[e1:knows]->(b:person) WHERE (a.gender/2 <= 0.5) WITH "
+      "b WHERE b.gender*3.5 = 7.0 RETURN COUNT(*)";
+  auto logical = planLogical(query, schemaData, statsData, rules);
+  auto physical = planPhysical(*logical);
+  VerifyFactory::verifyPhysicalByJson(
+      *physical, getExprResource("INT32_MULTI_DOUBLE_physical"));
+}
+
 }  // namespace gopt
 }  // namespace gs

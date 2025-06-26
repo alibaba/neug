@@ -20,6 +20,7 @@
 #include <cstdint>
 #include <ios>
 #include <memory>
+#include <string>
 #include <vector>
 #include "src/include/binder/expression/expression.h"
 #include "src/include/binder/expression/literal_expression.h"
@@ -33,6 +34,7 @@
 #include "src/include/common/types/types.h"
 #include "src/include/common/types/value/value.h"
 #include "src/include/function/arithmetic/vector_arithmetic_functions.h"
+#include "src/include/gopt/g_alias_name.h"
 #include "src/include/gopt/g_scalar_type.h"
 #include "src/proto_generated_gie/common.pb.h"
 #include "src/proto_generated_gie/expr.pb.h"
@@ -49,22 +51,25 @@ std::unique_ptr<::common::Expression> GExprConverter::convert(
   for (auto& expr : schemaGAlias) {
     schemaAlias.emplace_back(expr.uniqueName);
   }
-  auto exprAlias = expr.getUniqueName();
-  // if expr is PATTERN type, it will be converted to variable later in
-  // function `convert(expr)`
-  if (expr.expressionType != common::ExpressionType::PATTERN &&
-      std::find(schemaAlias.begin(), schemaAlias.end(), exprAlias) !=
-          schemaAlias.end()) {
-    // the expression has been computed, convert the expr as the variable
-    binder::VariableExpression var(expr.getDataType().copy(), exprAlias,
-                                   exprAlias);
-    return convertVariable(var);
-  }
-  return convert(expr);
+  return convert(expr, schemaAlias);
 }
 
 std::unique_ptr<::common::Expression> GExprConverter::convert(
-    const binder::Expression& expr) {
+    const binder::Expression& expr,
+    const std::vector<std::string>& schemaAlias) {
+  if (!schemaAlias.empty()) {
+    auto exprAlias = expr.getUniqueName();
+    // if expr is PATTERN type, it will be converted to variable later in
+    // function `convert(expr)`
+    if (expr.expressionType != common::ExpressionType::PATTERN &&
+        std::find(schemaAlias.begin(), schemaAlias.end(), exprAlias) !=
+            schemaAlias.end()) {
+      // the expression has been computed, convert the expr as the variable
+      binder::VariableExpression var(expr.getDataType().copy(), exprAlias,
+                                     exprAlias);
+      return convertVariable(var);
+    }
+  }
   switch (expr.expressionType) {
   case common::ExpressionType::LITERAL:
     return convertLiteral(static_cast<const binder::LiteralExpression&>(
@@ -85,7 +90,7 @@ std::unique_ptr<::common::Expression> GExprConverter::convert(
   case common::ExpressionType::OR:
   case common::ExpressionType::NOT:
   case common::ExpressionType::IS_NULL:
-    return convertChildren(expr);
+    return convertChildren(expr, schemaAlias);
   case common::ExpressionType::PATTERN: {
     return convertPattern(expr.constCast<binder::NodeOrRelExpression>());
   }
@@ -93,7 +98,7 @@ std::unique_ptr<::common::Expression> GExprConverter::convert(
     return convertIsNotNull(expr);  // convert to IS NOT NULL
   }
   case common::ExpressionType::FUNCTION: {
-    return convertScalarFunc(expr);  // convert to scalar function
+    return convertScalarFunc(expr, schemaAlias);  // convert to scalar function
   }
   default:
     throw common::Exception("Unsupported expression type: " + expr.toString());
@@ -181,7 +186,7 @@ std::unique_ptr<::common::Expression> GExprConverter::convertVar(
 std::unique_ptr<::algebra::IndexPredicate> GExprConverter::convertPrimaryKey(
     const std::string& key, const binder::Expression& expr) {
   auto keyPB = convertPropertyExpr(key);
-  auto constPB = convert(expr)->operators(0).const_();
+  auto constPB = convert(expr, {})->operators(0).const_();
   auto tripletPB = std::make_unique<::algebra::IndexPredicate_Triplet>();
   tripletPB->set_allocated_key(keyPB.release());
   *tripletPB->mutable_const_() = constPB;
@@ -246,12 +251,13 @@ std::unique_ptr<::common::Variable> GExprConverter::convertDefaultVar() {
 }
 
 std::unique_ptr<::common::Expression> GExprConverter::convertScalarFunc(
-    const binder::Expression& expr) {
+    const binder::Expression& expr,
+    const std::vector<std::string>& schemaAlias) {
   GScalarType scalarType{expr};
   if (scalarType.isArithmetic()) {
-    return convertChildren(expr);
+    return convertChildren(expr, schemaAlias);
   } else if (scalarType.getType() == CAST && !expr.getChildren().empty()) {
-    return convert(*expr.getChild(0));
+    return convert(*expr.getChild(0), schemaAlias);
   } else if (scalarType.isTemporal()) {
     return convertTemporalFunc(expr);
   } else if (scalarType.getType() == DATE_PART) {
@@ -466,13 +472,14 @@ std::unique_ptr<::common::Expression> GExprConverter::convertExtractFunc(
   extractPB->set_interval(convertTemporalField(*expr.getChild(0)));
   auto exprPB = std::make_unique<::common::Expression>();
   exprPB->add_operators()->set_allocated_extract(extractPB.release());
-  auto extractFrom = convert(*expr.getChild(1));
+  auto extractFrom = convert(*expr.getChild(1), {});
   *exprPB->add_operators() = std::move(*extractFrom->mutable_operators(0));
   return exprPB;
 }
 
 std::unique_ptr<::common::Expression> GExprConverter::convertChildren(
-    const binder::Expression& expr) {
+    const binder::Expression& expr,
+    const std::vector<std::string>& schemaAlias) {
   bool leftAssociate = preced.isLeftAssociative(expr);
   auto children = expr.getChildren();
   auto result = std::make_unique<::common::Expression>();
@@ -496,7 +503,7 @@ std::unique_ptr<::common::Expression> GExprConverter::convertChildren(
       leftBrace->set_brace(::common::ExprOpr::Brace::ExprOpr_Brace_LEFT_BRACE);
     }
 
-    auto childExpr = convert(*child);
+    auto childExpr = convert(*child, schemaAlias);
     for (size_t j = 0; j < childExpr->operators_size(); ++j) {
       auto& childOp = *result->add_operators();
       childOp = std::move(*childExpr->mutable_operators(j));
@@ -528,7 +535,7 @@ std::unique_ptr<::common::Expression> GExprConverter::convertIsNotNull(
   isnullOp->set_allocated_node_type(
       typeConverter.convertLogicalType(expr.getDataType()).release());
   isnullOp->set_logical(::common::Logical::ISNULL);
-  auto childExpr = convert(*expr.getChild(0));
+  auto childExpr = convert(*expr.getChild(0), {});
   auto childOp = result->add_operators();
   *childOp = std::move(*childExpr->mutable_operators(0));
   auto rightBrace = result->add_operators();

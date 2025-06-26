@@ -16,6 +16,8 @@
 #pragma once
 
 #include <memory>
+#include <string>
+#include <vector>
 #include "src/include/binder/expression/aggregate_function_expression.h"
 #include "src/include/binder/expression/expression.h"
 #include "src/include/binder/expression/literal_expression.h"
@@ -39,7 +41,9 @@ class GExprConverter {
       : aliasManager{std::move(aliasManager)} {}
 
   // Main conversion function
-  std::unique_ptr<::common::Expression> convert(const binder::Expression& expr);
+  std::unique_ptr<::common::Expression> convert(
+      const binder::Expression& expr,
+      const std::vector<std::string>& schemaAlias);
   std::unique_ptr<::common::Expression> convert(
       const binder::Expression& expr, const planner::LogicalOperator& child);
   std::unique_ptr<::algebra::IndexPredicate> convertPrimaryKey(
@@ -68,7 +72,8 @@ class GExprConverter {
   std::unique_ptr<::common::Expression> convertIsNotNull(
       const binder::Expression& expr);
   std::unique_ptr<::common::Expression> convertChildren(
-      const binder::Expression& expr);
+      const binder::Expression& expr,
+      const std::vector<std::string>& schemaAlias);
   std::unique_ptr<::common::ExprOpr> convertOperator(
       const binder::Expression& expr);
 
@@ -94,7 +99,8 @@ class GExprConverter {
   std::unique_ptr<::common::Property> convertPropertyExpr(
       const std::string& propName);
   std::unique_ptr<::common::Expression> convertScalarFunc(
-      const binder::Expression& expr);
+      const binder::Expression& expr,
+      const std::vector<std::string>& schemaAlias);
 
  private:
   const std::shared_ptr<gopt::GAliasManager> aliasManager;

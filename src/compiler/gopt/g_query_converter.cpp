@@ -533,8 +533,14 @@ void GQueryConvertor::convertFilter(const planner::LogicalFilter& filter,
     throw common::Exception("Query plan is empty, cannot convert filter.");
   }
 
+  if (filter.getChildren().empty()) {
+    throw common::Exception("filter operation should have at least one child");
+  }
+
+  auto child = filter.getChild(0);
+
   auto predicate = filter.getPredicate();
-  auto predicatePB = exprConvertor->convert(*predicate);
+  auto predicatePB = exprConvertor->convert(*predicate, *child);
   auto filterPB = std::make_unique<::algebra::Select>();
   filterPB->set_allocated_predicate(predicatePB.release());
 
@@ -762,7 +768,7 @@ std::unique_ptr<algebra::QueryParams> GQueryConvertor::convertParams(
     queryParams->mutable_tables()->AddAllocated(tableId.release());
   }
   if (predicates != nullptr) {
-    auto predicatePB = exprConvertor->convert(*predicates);
+    auto predicatePB = exprConvertor->convert(*predicates, {});
     if (!predicatePB) {
       throw common::Exception("Failed to convert predicate: " +
                               predicates->toString());
