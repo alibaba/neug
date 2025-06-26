@@ -63,6 +63,10 @@ jobs:
         git config --global --add safe.directory "$GITHUB_WORKSPACE/third_party/parallel-hashmap"
         git config --global --add safe.directory "$GITHUB_WORKSPACE/third_party/pybind11"
 
+    - name: Clean the tool directory for self-hosted runner
+      run: |
+        rm -rf /__w/_tool/Python
+
     - name: Cache CCache
       if: false
       uses: actions/cache@v4
