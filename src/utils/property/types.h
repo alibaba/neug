@@ -282,33 +282,13 @@ struct __attribute__((packed)) IntervalValue {
   uint64_t minute : 6;        // 0~59
   uint64_t second : 6;        // 0~59
   uint64_t millisecond : 10;  // 0~999
-  uint64_t
-      microsecond : 10;  // 0~999, microseconds current stored but not used.
-  // 14+4+5+5+6+6+10+10 = 60
+  uint64_t microsecond : 10;  // 0~999, microseconds current stored but not
+                              // used. 14+4+5+5+6+6+10+10 = 60
 
-  inline bool operator==(const IntervalValue& rhs) const {
-    return year == rhs.year && month == rhs.month && day == rhs.day &&
-           hour == rhs.hour && minute == rhs.minute && second == rhs.second &&
-           millisecond == rhs.millisecond && microsecond == rhs.microsecond;
-  }
+  bool operator==(const IntervalValue& rhs) const;
 
-  inline bool operator<(const IntervalValue& rhs) const {
-    if (year != rhs.year)
-      return year < rhs.year;
-    if (month != rhs.month)
-      return month < rhs.month;
-    if (day != rhs.day)
-      return day < rhs.day;
-    if (hour != rhs.hour)
-      return hour < rhs.hour;
-    if (minute != rhs.minute)
-      return minute < rhs.minute;
-    if (second != rhs.second)
-      return second < rhs.second;
-    if (millisecond != rhs.millisecond)
-      return millisecond < rhs.millisecond;
-    return microsecond < rhs.microsecond;
-  }
+  bool operator<(const IntervalValue& rhs) const;
+
   inline bool operator>(const IntervalValue& rhs) const {
     return !(*this < rhs) && !(*this == rhs);
   }
@@ -407,27 +387,7 @@ struct __attribute__((packed)) Date {
 
   Date(int32_t num_days) { from_num_days(num_days); }
 
-  Date(const std::string date_str) {
-    // Parse date string in format YYYY-MM-DD
-    std::istringstream ss(date_str);
-    // Extract year, month, and day
-    int year, month, day;
-    char dash1, dash2;
-    ss >> year >> dash1 >> month >> dash2 >> day;
-    if (ss.fail() || dash1 != '-' || dash2 != '-' || month < 1 || month > 12 ||
-        day < 1 || day > 31) {
-      throw std::invalid_argument("Invalid date string format");
-    }
-    value.internal.year = year;
-    value.internal.month = month;
-    value.internal.day = day;
-    value.internal.hour = 0;  // Default hour to 0
-    LOG(INFO) << "Set date from string: " << date_str
-              << ", year: " << value.internal.year
-              << ", month: " << value.internal.month
-              << ", day: " << value.internal.day
-              << ", hour: " << value.internal.hour;
-  }
+  Date(const std::string& date_str);
 
   std::string to_string() const;
 
@@ -439,70 +399,20 @@ struct __attribute__((packed)) Date {
 
   void from_u32(uint32_t val);
 
-  int64_t to_timestamp() const {
-    const boost::posix_time::ptime epoch(boost::gregorian::date(1970, 1, 1));
+  int64_t to_timestamp() const;
 
-    boost::gregorian::date new_date(year(), month(), day());
-    boost::posix_time::ptime new_time_point(
-        new_date, boost::posix_time::time_duration(hour(), 0, 0));
-    boost::posix_time::time_duration diff = new_time_point - epoch;
-    uint64_t new_timestamp_sec = diff.total_seconds();
+  void from_timestamp(int64_t ts);
 
-    return new_timestamp_sec * 1000;
-  }
+  bool operator<(const Date& rhs) const;
+  bool operator==(const Date& rhs) const;
 
-  void from_timestamp(int64_t ts) {
-    const boost::posix_time::ptime epoch(boost::gregorian::date(1970, 1, 1));
-    int64_t ts_sec = ts / 1000;
-    boost::posix_time::ptime time_point =
-        epoch + boost::posix_time::seconds(ts_sec);
-    boost::posix_time::ptime::date_type date = time_point.date();
-    boost::posix_time::time_duration td = time_point.time_of_day();
-    this->value.internal.year = date.year();
-    this->value.internal.month = date.month().as_number();
-    this->value.internal.day = date.day();
-    this->value.internal.hour = td.hours();
-    LOG(INFO) << "Set date from timestamp: " << ts
-              << ", year: " << value.internal.year
-              << ", month: " << value.internal.month
-              << ", day: " << value.internal.day
-              << ", hour: " << value.internal.hour;
-    LOG(INFO) << "to_timestamp: " << to_timestamp();
-    // We could not assert here because we may lose precision when converting
-    //  from timestamp to date.
-    //  assert(ts == to_timestamp());
-  }
+  Date& operator+(const Interval& interval);
 
-  bool operator<(const Date& rhs) const {
-    return this->to_u32() < rhs.to_u32();
-  }
-  bool operator==(const Date& rhs) const {
-    return this->to_u32() == rhs.to_u32();
-  }
+  Date& operator+=(const Interval& interval);
 
-  Date& operator+(const Interval& interval) {
-    auto ts = this->to_timestamp();
-    ts += interval.to_mill_seconds();
-    this->from_timestamp(ts);
-    return *this;
-  }
+  Date& operator-(const Interval& interval);
 
-  Date& operator+=(const Interval& interval) {
-    return this->operator+(interval);
-  }
-
-  Date& operator-(const Interval& interval) {
-    auto ts = this->to_timestamp();
-    LOG(INFO) << "old timestamp: " << ts
-              << ", interval: " << interval.to_mill_seconds();
-    ts -= interval.to_mill_seconds();
-    this->from_timestamp(ts);
-    return *this;
-  }
-
-  Date& operator-=(const Interval& interval) {
-    return this->operator-(interval);
-  }
+  Date& operator-=(const Interval& interval);
 
   Interval operator-(const Date& rhs) const;
 
@@ -523,32 +433,7 @@ struct __attribute__((packed)) DateTime {
   DateTime() = default;
   ~DateTime() = default;
   DateTime(int64_t x) : milli_second(x) {}
-  DateTime(const std::string& date_time_str) {
-    // For input string like "YYYY-MM-DD HH:MM:SS.zzz". the .zzz part is
-    // optional.
-    boost::posix_time::ptime pt;
-    std::istringstream ss(date_time_str);
-    try {
-      ss >> pt;
-      if (ss.fail()) {
-        throw std::invalid_argument("Invalid date time string format");
-      }
-      if (pt.time_of_day().total_milliseconds() < 0 ||
-          pt.date().year() < 1970) {
-        throw std::invalid_argument("Date time string is before epoch");
-      }
-      // Convert to milliseconds since epoch
-      const boost::posix_time::ptime epoch(boost::gregorian::date(1970, 1, 1));
-      boost::posix_time::time_duration diff = pt - epoch;
-      milli_second = diff.total_milliseconds();
-      LOG(INFO) << "Set DateTime from string: " << date_time_str
-                << ", milliseconds since epoch: " << milli_second;
-    } catch (const std::exception& e) {
-      LOG(ERROR) << "Failed to parse DateTime from string: " << date_time_str
-                 << ", error: " << e.what();
-      throw std::invalid_argument("Invalid date time string format");
-    }
-  }
+  DateTime(const std::string& date_time_str);
 
   std::string to_string() const;
 
@@ -941,12 +826,6 @@ struct Any {
     new (&(value.record)) Record(v);
   }
 
-  // void set_date(int64_t v) {
-  //   LOG(INFO) << "set date from: " << v;
-  //   type = PropertyType::kDate;
-  //   value.d.from_timestamp(v);
-  // }
-
   void set_date(int32_t days) {
     type = PropertyType::kDate;
     value.d.from_num_days(days);
@@ -982,50 +861,7 @@ struct Any {
     value.ts.milli_second = v;
   }
 
-  std::string to_string() const {
-    if (type == PropertyType::kInt32) {
-      return std::to_string(value.i);
-    } else if (type == PropertyType::kInt64) {
-      return std::to_string(value.l);
-    } else if (type.type_enum == impl::PropertyTypeImpl::kString) {
-      return *value.s_ptr.ptr;
-    } else if (type == PropertyType::kStringView) {
-      return std::string(value.s.data(), value.s.size());
-      //      return value.s.to_string();
-    } else if (type == PropertyType::kEmpty) {
-      return "NULL";
-    } else if (type == PropertyType::kDouble) {
-      return std::to_string(value.db);
-    } else if (type == PropertyType::kUInt8) {
-      return std::to_string(value.u8);
-    } else if (type == PropertyType::kUInt16) {
-      return std::to_string(value.u16);
-    } else if (type == PropertyType::kUInt32) {
-      return std::to_string(value.ui);
-    } else if (type == PropertyType::kUInt64) {
-      return std::to_string(value.ul);
-    } else if (type == PropertyType::kBool) {
-      return value.b ? "true" : "false";
-    } else if (type == PropertyType::kFloat) {
-      return std::to_string(value.f);
-    } else if (type == PropertyType::kVertexGlobalId) {
-      return value.vertex_gid.to_string();
-    } else if (type == PropertyType::kLabel) {
-      return std::to_string(value.label_key.label_id);
-    } else if (type == PropertyType::kDate) {
-      return value.d.to_string();
-    } else if (type == PropertyType::kDateTime) {
-      return value.dt.to_string();
-    } else if (type == PropertyType::kInterval) {
-      return value.interval.to_string();
-    } else if (type == PropertyType::kTimestamp) {
-      return value.ts.to_string();
-    } else {
-      LOG(FATAL) << "Unexpected property type: "
-                 << static_cast<int>(type.type_enum);
-      return "";
-    }
-  }
+  std::string to_string() const;
 
   bool AsBool() const {
     assert(type == PropertyType::kBool);
@@ -1121,121 +957,9 @@ struct Any {
     return AnyConverter<T>::to_any(value);
   }
 
-  bool operator==(const Any& other) const {
-    if (type == other.type) {
-      if (type == PropertyType::kInt32) {
-        return value.i == other.value.i;
-      } else if (type == PropertyType::kInt64) {
-        return value.l == other.value.l;
-      } else if (type.type_enum == impl::PropertyTypeImpl::kString) {
-        return *value.s_ptr == other.AsStringView();
-      } else if (type == PropertyType::kStringView) {
-        return value.s == other.AsStringView();
-      } else if (type == PropertyType::kEmpty) {
-        return true;
-      } else if (type == PropertyType::kDouble) {
-        return value.db == other.value.db;
-      } else if (type == PropertyType::kUInt32) {
-        return value.ui == other.value.ui;
-      } else if (type == PropertyType::kUInt64) {
-        return value.ul == other.value.ul;
-      } else if (type == PropertyType::kBool) {
-        return value.b == other.value.b;
-      } else if (type == PropertyType::kFloat) {
-        return value.f == other.value.f;
-      } else if (type == PropertyType::kVertexGlobalId) {
-        return value.vertex_gid == other.value.vertex_gid;
-      } else if (type == PropertyType::kLabel) {
-        return value.label_key.label_id == other.value.label_key.label_id;
-      } else if (type.type_enum == impl::PropertyTypeImpl::kVarChar) {
-        if (other.type.type_enum != impl::PropertyTypeImpl::kVarChar) {
-          return false;
-        }
-        return value.s == other.value.s;
-      } else if (type == PropertyType::kDate) {
-        return value.d.to_u32() == other.value.d.to_u32();
-      } else if (type == PropertyType::kDateTime) {
-        return value.dt.milli_second == other.value.dt.milli_second;
-      } else if (type == PropertyType::kTimestamp) {
-        return value.ts.milli_second == other.value.ts.milli_second;
-      } else if (type == PropertyType::kInterval) {
-        return value.interval.internal == other.value.interval.internal;
-      } else {
-        return false;
-      }
-    } else if (type == PropertyType::kRecordView) {
-      return value.record_view.offset == other.value.record_view.offset &&
-             value.record_view.table == other.value.record_view.table;
-    } else if (type == PropertyType::kRecord) {
-      if (value.record.len != other.value.record.len) {
-        return false;
-      }
-      for (size_t i = 0; i < value.record.len; ++i) {
-        if (!(value.record.props[i] == other.value.record.props[i])) {
-          return false;
-        }
-      }
-      return true;
-    } else {
-      return false;
-    }
-  }
+  bool operator==(const Any& other) const;
 
-  bool operator<(const Any& other) const {
-    if (type == other.type) {
-      if (type == PropertyType::kInt32) {
-        return value.i < other.value.i;
-      } else if (type == PropertyType::kInt64) {
-        return value.l < other.value.l;
-      } else if (type.type_enum == impl::PropertyTypeImpl::kString) {
-        return *value.s_ptr < other.AsStringView();
-      } else if (type == PropertyType::kStringView) {
-        return value.s < other.AsStringView();
-      } else if (type == PropertyType::kEmpty) {
-        return false;
-      } else if (type == PropertyType::kDouble) {
-        return value.db < other.value.db;
-      } else if (type == PropertyType::kUInt32) {
-        return value.ui < other.value.ui;
-      } else if (type == PropertyType::kUInt64) {
-        return value.ul < other.value.ul;
-      } else if (type == PropertyType::kBool) {
-        return value.b < other.value.b;
-      } else if (type == PropertyType::kFloat) {
-        return value.f < other.value.f;
-      } else if (type == PropertyType::kVertexGlobalId) {
-        return value.vertex_gid < other.value.vertex_gid;
-      } else if (type == PropertyType::kLabel) {
-        return value.label_key.label_id < other.value.label_key.label_id;
-      } else if (type == PropertyType::kRecord) {
-        for (size_t i = 0; i < value.record.len; ++i) {
-          if (i >= other.value.record.len) {
-            return false;
-          }
-          if (value.record.props[i] < other.value.record.props[i]) {
-            return true;
-          } else if (other.value.record.props[i] < value.record.props[i]) {
-            return false;
-          }
-        }
-        return false;
-      } else if (type == PropertyType::kDate) {
-        return value.d.to_u32() < other.value.d.to_u32();
-      } else if (type == PropertyType::kDateTime) {
-        return value.dt.milli_second < other.value.dt.milli_second;
-      } else if (type == PropertyType::kTimestamp) {
-        return value.ts.milli_second < other.value.ts.milli_second;
-      } else if (type == PropertyType::kInterval) {
-        return value.interval < other.value.interval;
-      } else {
-        return false;
-      }
-    } else {
-      LOG(FATAL) << "Type [" << static_cast<int>(type.type_enum) << "] and ["
-                 << static_cast<int>(other.type.type_enum)
-                 << "] cannot be compared..";
-    }
-  }
+  bool operator<(const Any& other) const;
 
   PropertyType type;
   AnyValue value;

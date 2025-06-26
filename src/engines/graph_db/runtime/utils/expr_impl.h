@@ -78,35 +78,14 @@ class ExprBase {
 class VertexWithInSetExpr : public ExprBase {
  public:
   VertexWithInSetExpr(const Context& ctx, std::unique_ptr<ExprBase>&& key,
-                      std::unique_ptr<ExprBase>&& val_set)
-      : key_(std::move(key)), val_set_(std::move(val_set)) {
-    assert(key_->type() == RTAnyType::kVertex);
-    assert(val_set_->type() == RTAnyType::kSet);
-  }
-  RTAny eval_path(size_t idx, Arena& arena) const override {
-    auto key = key_->eval_path(idx, arena).as_vertex();
-    auto set = val_set_->eval_path(idx, arena).as_set();
-    assert(set.impl_ != nullptr);
-    auto ptr = dynamic_cast<SetImpl<VertexRecord>*>(set.impl_);
-    assert(ptr != nullptr);
-    return RTAny::from_bool(ptr->exists(key));
-  }
+                      std::unique_ptr<ExprBase>&& val_set);
+  RTAny eval_path(size_t idx, Arena& arena) const override;
 
   RTAny eval_vertex(label_t label, vid_t v, size_t idx,
-                    Arena& arena) const override {
-    auto key = key_->eval_vertex(label, v, idx, arena).as_vertex();
-    auto set = val_set_->eval_vertex(label, v, idx, arena).as_set();
-    return RTAny::from_bool(
-        dynamic_cast<SetImpl<VertexRecord>*>(set.impl_)->exists(key));
-  }
+                    Arena& arena) const override;
 
   RTAny eval_edge(const LabelTriplet& label, vid_t src, vid_t dst,
-                  const Any& data, size_t idx, Arena& arena) const override {
-    auto key = key_->eval_edge(label, src, dst, data, idx, arena).as_vertex();
-    auto set = val_set_->eval_edge(label, src, dst, data, idx, arena).as_set();
-    return RTAny::from_bool(
-        dynamic_cast<SetImpl<VertexRecord>*>(set.impl_)->exists(key));
-  }
+                  const Any& data, size_t idx, Arena& arena) const;
 
   RTAnyType type() const override { return RTAnyType::kBoolValue; }
 
@@ -119,47 +98,14 @@ class VertexWithInSetExpr : public ExprBase {
 class VertexWithInListExpr : public ExprBase {
  public:
   VertexWithInListExpr(const Context& ctx, std::unique_ptr<ExprBase>&& key,
-                       std::unique_ptr<ExprBase>&& val_list)
-      : key_(std::move(key)), val_list_(std::move(val_list)) {
-    assert(key_->type() == RTAnyType::kVertex);
-    assert(val_list_->type() == RTAnyType::kList);
-  }
+                       std::unique_ptr<ExprBase>&& val_list);
 
-  RTAny eval_path(size_t idx, Arena& arena) const override {
-    auto key = key_->eval_path(idx, arena).as_vertex();
-    auto list = val_list_->eval_path(idx, arena).as_list();
-    for (size_t i = 0; i < list.size(); i++) {
-      if (list.get(i).as_vertex() == key) {
-        return RTAny::from_bool(true);
-      }
-    }
-    return RTAny::from_bool(false);
-  }
+  RTAny eval_path(size_t idx, Arena& arena) const;
 
-  RTAny eval_vertex(label_t label, vid_t v, size_t idx,
-                    Arena& arena) const override {
-    auto key = key_->eval_vertex(label, v, idx, arena).as_vertex();
-    auto list = val_list_->eval_vertex(label, v, idx, arena).as_list();
-    for (size_t i = 0; i < list.size(); i++) {
-      if (list.get(i).as_vertex() == key) {
-        return RTAny::from_bool(true);
-      }
-    }
-    return RTAny::from_bool(false);
-  }
+  RTAny eval_vertex(label_t label, vid_t v, size_t idx, Arena& arena) const;
 
   RTAny eval_edge(const LabelTriplet& label, vid_t src, vid_t dst,
-                  const Any& data, size_t idx, Arena& arena) const override {
-    auto key = key_->eval_edge(label, src, dst, data, idx, arena).as_vertex();
-    auto list =
-        val_list_->eval_edge(label, src, dst, data, idx, arena).as_list();
-    for (size_t i = 0; i < list.size(); i++) {
-      if (list.get(i).as_vertex() == key) {
-        return RTAny::from_bool(true);
-      }
-    }
-    return RTAny::from_bool(false);
-  }
+                  const Any& data, size_t idx, Arena& arena) const;
 
   RTAnyType type() const override { return RTAnyType::kBoolValue; }
 

@@ -364,9 +364,9 @@ class GraphReadInterface {
   }
 
   template <typename EDATA_T>
-  inline graph_view_t<EDATA_T> GetOutgoingGraphView(label_t v_label,
-                                                    label_t neighbor_label,
-                                                    label_t edge_label) const {
+  graph_view_t<EDATA_T> GetOutgoingGraphView(label_t v_label,
+                                             label_t neighbor_label,
+                                             label_t edge_label) const {
     auto csr = txn_.graph().get_oe_csr(v_label, neighbor_label, edge_label);
     if (!csr) {
       VLOG(1) << "GetOutgoingGraphView: csr is null: " << (int32_t) v_label
@@ -385,9 +385,9 @@ class GraphReadInterface {
   }
 
   template <typename EDATA_T>
-  inline graph_view_t<EDATA_T> GetIncomingGraphView(label_t v_label,
-                                                    label_t neighbor_label,
-                                                    label_t edge_label) const {
+  graph_view_t<EDATA_T> GetIncomingGraphView(label_t v_label,
+                                             label_t neighbor_label,
+                                             label_t edge_label) const {
     auto csr = txn_.graph().get_ie_csr(v_label, neighbor_label, edge_label);
     if (!csr) {
       VLOG(1) << "GetIncomingGraphView: csr is null: " << (int32_t) v_label

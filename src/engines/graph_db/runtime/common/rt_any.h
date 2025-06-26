@@ -497,144 +497,15 @@ struct EdgeData {
     }
   }
 
-  std::string to_string() const {
-    if (type == RTAnyType::kI32Value) {
-      return std::to_string(value.i32_val);
-    } else if (type == RTAnyType::kU32Value) {
-      return std::to_string(value.u32_val);
-    } else if (type == RTAnyType::kU64Value) {
-      return std::to_string(value.u64_val);
-    } else if (type == RTAnyType::kI64Value) {
-      return std::to_string(value.i64_val);
-    } else if (type == RTAnyType::kStringValue) {
-      return std::string(value.str_val.data(), value.str_val.size());
-      return value.str_val.to_string();
-    } else if (type == RTAnyType::kNull) {
-      return "NULL";
-    } else if (type == RTAnyType::kF64Value) {
-      return std::to_string(value.f64_val);
-    } else if (type == RTAnyType::kBoolValue) {
-      return value.b_val ? "true" : "false";
-    } else if (type == RTAnyType::kDate) {
-      return value.date_val.to_string();
-    } else if (type == RTAnyType::kDateTime) {
-      return std::to_string(value.dt_val.milli_second);
-    } else if (type == RTAnyType::kTimestamp) {
-      return std::to_string(value.ts_val.milli_second);
-    } else if (type == RTAnyType::kInterval) {
-      return std::to_string(value.interval_val.to_mill_seconds());
-    } else if (type == RTAnyType::kEmpty) {
-      return "";
-    } else if (type == RTAnyType::kRecordView) {
-      return value.record_view.to_string();
-    } else {
-      LOG(FATAL) << "Unexpected property type: " << static_cast<int>(type);
-      return "";
-    }
-  }
+  std::string to_string() const;
 
   EdgeData() = default;
 
-  EdgeData(const Any& any) {
-    switch (any.type.type_enum) {
-    case impl::PropertyTypeImpl::kInt64:
-      type = RTAnyType::kI64Value;
-      value.i64_val = any.value.l;
-      break;
-    case impl::PropertyTypeImpl::kInt32:
-      type = RTAnyType::kI32Value;
-      value.i32_val = any.value.i;
-      break;
-    case impl::PropertyTypeImpl::kUInt32:
-      type = RTAnyType::kU32Value;
-      value.u32_val = any.value.ui;
-      break;
-    case impl::PropertyTypeImpl::kUInt64:
-      type = RTAnyType::kU64Value;
-      value.u64_val = any.value.ul;
-      break;
-    case impl::PropertyTypeImpl::kStringView:
-      type = RTAnyType::kStringValue;
-      value.str_val = any.value.s;
-      break;
-    case impl::PropertyTypeImpl::kDouble:
-      type = RTAnyType::kF64Value;
-      value.f64_val = any.value.db;
-      break;
-    case impl::PropertyTypeImpl::kBool:
-      type = RTAnyType::kBoolValue;
-      value.b_val = any.value.b;
-      break;
-    case impl::PropertyTypeImpl::kEmpty:
-      type = RTAnyType::kEmpty;
-      break;
-    case impl::PropertyTypeImpl::kDate:
-      type = RTAnyType::kDate;
-      value.date_val = any.value.d;
-      break;
-    case impl::PropertyTypeImpl::kRecordView:
-      type = RTAnyType::kRecordView;
-      value.record_view = any.value.record_view;
-      break;
-    default:
-      LOG(FATAL) << "Unexpected property type: "
-                 << static_cast<int>(any.type.type_enum);
-    }
-  }
+  EdgeData(const Any& any);
 
-  bool operator<(const EdgeData& e) const {
-    if (type == RTAnyType::kI64Value) {
-      return value.i64_val < e.value.i64_val;
-    } else if (type == RTAnyType::kI32Value) {
-      return value.i32_val < e.value.i32_val;
-    } else if (type == RTAnyType::kU64Value) {
-      return value.u64_val < e.value.u64_val;
-    } else if (type == RTAnyType::kU32Value) {
-      return value.u32_val < e.value.u32_val;
-    } else if (type == RTAnyType::kF64Value) {
-      return value.f64_val < e.value.f64_val;
-    } else if (type == RTAnyType::kBoolValue) {
-      return value.b_val < e.value.b_val;
-    } else if (type == RTAnyType::kStringValue) {
-      return std::string_view(value.str_val.data(), value.str_val.size()) <
-             std::string_view(e.value.str_val.data(), e.value.str_val.size());
-    } else if (type == RTAnyType::kDate) {
-      return value.date_val < e.value.date_val;
-    } else {
-      return false;
-    }
-  }
+  bool operator<(const EdgeData& e) const;
 
-  bool operator==(const EdgeData& e) const {
-    if (type == RTAnyType::kI64Value) {
-      return value.i64_val == e.value.i64_val;
-    } else if (type == RTAnyType::kI32Value) {
-      return value.i32_val == e.value.i32_val;
-    } else if (type == RTAnyType::kU64Value) {
-      return value.u64_val == e.value.u64_val;
-    } else if (type == RTAnyType::kU32Value) {
-      return value.u32_val == e.value.u32_val;
-    } else if (type == RTAnyType::kF64Value) {
-      return value.f64_val == e.value.f64_val;
-    } else if (type == RTAnyType::kBoolValue) {
-      return value.b_val == e.value.b_val;
-    } else if (type == RTAnyType::kStringValue) {
-      return std::string_view(value.str_val.data(), value.str_val.size()) ==
-             std::string_view(e.value.str_val.data(), e.value.str_val.size());
-    } else if (type == RTAnyType::kDate) {
-      return value.date_val == e.value.date_val;
-    } else if (type == RTAnyType::kDateTime) {
-      return value.dt_val == e.value.dt_val;
-    } else if (type == RTAnyType::kTimestamp) {
-      return value.ts_val == e.value.ts_val;
-    } else if (type == RTAnyType::kInterval) {
-      return value.interval_val == e.value.interval_val;
-    } else if (type == RTAnyType::kRecordView) {
-      return value.record_view == e.value.record_view;
-    } else {
-      return false;
-    }
-  }
+  bool operator==(const EdgeData& e) const;
   RTAnyType type;
 
   union {
@@ -675,77 +546,7 @@ class EdgeRecord {
   EdgeData prop_;
   Direction dir_;
 };
-inline RTAnyType parse_from_ir_data_type(const ::common::IrDataType& dt) {
-  switch (dt.type_case()) {
-  case ::common::IrDataType::TypeCase::kDataType: {
-    const ::common::DataType ddt = dt.data_type();
-    switch (ddt.item_case()) {
-    case ::common::DataType::kPrimitiveType: {
-      const ::common::PrimitiveType pt = ddt.primitive_type();
-      switch (pt) {
-      case ::common::PrimitiveType::DT_SIGNED_INT32:
-        return RTAnyType::kI32Value;
-      case ::common::PrimitiveType::DT_UNSIGNED_INT32:
-        return RTAnyType::kU32Value;
-      case ::common::PrimitiveType::DT_UNSIGNED_INT64:
-        return RTAnyType::kU64Value;
-      case ::common::PrimitiveType::DT_SIGNED_INT64:
-        return RTAnyType::kI64Value;
-      case ::common::PrimitiveType::DT_DOUBLE:
-        return RTAnyType::kF64Value;
-      case ::common::PrimitiveType::DT_BOOL:
-        return RTAnyType::kBoolValue;
-      case ::common::PrimitiveType::DT_ANY:
-        return RTAnyType::kUnknown;
-      default:
-        LOG(FATAL) << "unrecognized primitive type - " << pt;
-        break;
-      }
-    }
-    case ::common::DataType::kString:
-      return RTAnyType::kStringValue;
-    case ::common::DataType::kTemporal: {
-      if (ddt.temporal().item_case() == ::common::Temporal::kDate32) {
-        return RTAnyType::kDate;
-      } else if (ddt.temporal().item_case() == ::common::Temporal::kDateTime) {
-        return RTAnyType::kDateTime;
-      } else if (ddt.temporal().item_case() == ::common::Temporal::kDate) {
-        return RTAnyType::kDate;
-      } else if (ddt.temporal().item_case() == ::common::Temporal::kTimestamp) {
-        return RTAnyType::kTimestamp;
-      } else if (ddt.temporal().item_case() == ::common::Temporal::kInterval) {
-        return RTAnyType::kInterval;
-      } else {
-        LOG(FATAL) << "unrecognized temporal type - "
-                   << ddt.temporal().DebugString();
-      }
-    }
-    case ::common::DataType::kArray:
-      return RTAnyType::kList;
-    default:
-      LOG(FATAL) << "unrecognized data type - " << ddt.DebugString();
-      break;
-    }
-  } break;
-  case ::common::IrDataType::TypeCase::kGraphType: {
-    const ::common::GraphDataType gdt = dt.graph_type();
-    switch (gdt.element_opt()) {
-    case ::common::GraphDataType_GraphElementOpt::
-        GraphDataType_GraphElementOpt_VERTEX:
-      return RTAnyType::kVertex;
-    case ::common::GraphDataType_GraphElementOpt::
-        GraphDataType_GraphElementOpt_EDGE:
-      return RTAnyType::kEdge;
-    default:
-      LOG(FATAL) << "unrecognized graph data type";
-      break;
-    }
-  } break;
-  default:
-    break;
-  }
-  return RTAnyType::kUnknown;
-}
+RTAnyType parse_from_ir_data_type(const ::common::IrDataType& dt);
 
 union RTAnyValue {
   // TODO delete it later

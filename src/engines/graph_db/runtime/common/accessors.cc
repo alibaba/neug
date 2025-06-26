@@ -388,6 +388,75 @@ template std::shared_ptr<IAccessor> create_edge_property_edge_accessor(
     const GraphUpdateInterface& graph, const std::string& prop_name,
     RTAnyType type);
 
+template class VertexPropertyPathAccessor<GraphReadInterface, int64_t>;
+template class VertexPropertyPathAccessor<GraphReadInterface, int32_t>;
+template class VertexPropertyPathAccessor<GraphReadInterface, uint32_t>;
+template class VertexPropertyPathAccessor<GraphReadInterface, uint64_t>;
+template class VertexPropertyPathAccessor<GraphReadInterface, std::string_view>;
+template class VertexPropertyPathAccessor<GraphReadInterface, Date>;
+template class VertexPropertyPathAccessor<GraphReadInterface, DateTime>;
+template class VertexPropertyPathAccessor<GraphReadInterface, TimeStamp>;
+template class VertexPropertyPathAccessor<GraphReadInterface, double>;
+template class VertexPropertyPathAccessor<GraphReadInterface, Interval>;
+
+template class ContextValueAccessor<int64_t>;
+template class ContextValueAccessor<int32_t>;
+template class ContextValueAccessor<uint32_t>;
+template class ContextValueAccessor<uint64_t>;
+template class ContextValueAccessor<std::string_view>;
+template class ContextValueAccessor<DateTime>;
+template class ContextValueAccessor<Date>;
+template class ContextValueAccessor<TimeStamp>;
+template class ContextValueAccessor<bool>;
+template class ContextValueAccessor<Tuple>;
+template class ContextValueAccessor<List>;
+template class ContextValueAccessor<Relation>;
+template class ContextValueAccessor<Set>;
+template class ContextValueAccessor<Interval>;
+
+template class VertexPropertyVertexAccessor<GraphReadInterface, int64_t>;
+template class VertexPropertyVertexAccessor<GraphReadInterface, int32_t>;
+template class VertexPropertyVertexAccessor<GraphReadInterface, uint32_t>;
+template class VertexPropertyVertexAccessor<GraphReadInterface, uint64_t>;
+template class VertexPropertyVertexAccessor<GraphReadInterface,
+                                            std::string_view>;
+template class VertexPropertyVertexAccessor<GraphReadInterface, Date>;
+template class VertexPropertyVertexAccessor<GraphReadInterface, DateTime>;
+template class VertexPropertyVertexAccessor<GraphReadInterface, TimeStamp>;
+template class VertexPropertyVertexAccessor<GraphReadInterface, double>;
+
+template class EdgePropertyPathAccessor<GraphReadInterface, int64_t>;
+template class EdgePropertyPathAccessor<GraphReadInterface, int32_t>;
+template class EdgePropertyPathAccessor<GraphReadInterface, uint32_t>;
+template class EdgePropertyPathAccessor<GraphReadInterface, uint64_t>;
+template class EdgePropertyPathAccessor<GraphReadInterface, std::string_view>;
+template class EdgePropertyPathAccessor<GraphReadInterface, Date>;
+template class EdgePropertyPathAccessor<GraphReadInterface, DateTime>;
+template class EdgePropertyPathAccessor<GraphReadInterface, TimeStamp>;
+template class EdgePropertyPathAccessor<GraphReadInterface, double>;
+
+template class MultiPropsEdgePropertyPathAccessor<GraphReadInterface, int64_t>;
+template class MultiPropsEdgePropertyPathAccessor<GraphReadInterface, int32_t>;
+template class MultiPropsEdgePropertyPathAccessor<GraphReadInterface, uint32_t>;
+template class MultiPropsEdgePropertyPathAccessor<GraphReadInterface, uint64_t>;
+template class MultiPropsEdgePropertyPathAccessor<GraphReadInterface,
+                                                  std::string_view>;
+template class MultiPropsEdgePropertyPathAccessor<GraphReadInterface, Date>;
+template class MultiPropsEdgePropertyPathAccessor<GraphReadInterface, DateTime>;
+template class MultiPropsEdgePropertyPathAccessor<GraphReadInterface,
+                                                  TimeStamp>;
+template class MultiPropsEdgePropertyPathAccessor<GraphReadInterface, double>;
+
+template class EdgePropertyEdgeAccessor<GraphReadInterface, int64_t>;
+template class EdgePropertyEdgeAccessor<GraphReadInterface, int32_t>;
+template class EdgePropertyEdgeAccessor<GraphReadInterface, uint32_t>;
+template class EdgePropertyEdgeAccessor<GraphReadInterface, uint64_t>;
+template class EdgePropertyEdgeAccessor<GraphReadInterface, std::string_view>;
+template class EdgePropertyEdgeAccessor<GraphReadInterface, Date>;
+template class EdgePropertyEdgeAccessor<GraphReadInterface, DateTime>;
+template class EdgePropertyEdgeAccessor<GraphReadInterface, TimeStamp>;
+template class EdgePropertyEdgeAccessor<GraphReadInterface, double>;
+
 }  // namespace runtime
 
 }  // namespace gs
