@@ -111,7 +111,7 @@ message InsertEdge {
 message SetVertexProperty {
     // set a single vertex property based on the single alias, the alias can refer to vertices with different labels
     message Entry {
-        common.NameOrId vertex_binding = 1;
+        common.Variable vertex_binding = 1;
         PropertyMapping property_mapping = 2;
     }
 
@@ -126,7 +126,7 @@ message SetVertexProperty {
 message SetEdgeProperty {
     // set a single edge property based on the single alias, the alias can refer to edges with different labels
     message Entry {
-        common.NameOrId edge_binding = 1;
+        common.Variable edge_binding = 1;
         PropertyMapping property_mapping = 2;
     }
 
@@ -146,7 +146,7 @@ message DeleteVertex {
 
     // delete vertices bound to a single alias
     message Entry {
-        common.NameOrId vertex_binding = 1;
+        common.Variable vertex_binding = 1;
         type delete_type = 2;
     }
 
@@ -159,5 +159,5 @@ message DeleteVertex {
 // DELETE f;
 message DeleteEdge {
     // delete edges bound to multiple aliases
-    repeated common.NameOrId edge_binding = 1;
+    repeated common.Variable edge_binding = 1;
 }
