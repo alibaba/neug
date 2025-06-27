@@ -32,6 +32,7 @@
 #include "src/include/planner/operator/logical_aggregate.h"
 #include "src/include/planner/operator/logical_filter.h"
 #include "src/include/planner/operator/logical_get_v.h"
+#include "src/include/planner/operator/logical_intersect.h"
 #include "src/include/planner/operator/logical_limit.h"
 #include "src/include/planner/operator/logical_operator.h"
 #include "src/include/planner/operator/logical_order_by.h"
@@ -64,7 +65,7 @@ class GQueryConvertor {
 
  private:
   void convertOperator(const planner::LogicalOperator& op,
-                       ::physical::QueryPlan* plan);
+                       ::physical::QueryPlan* plan, bool skipScan = false);
   void convertScan(const planner::LogicalScanNodeTable& scan,
                    ::physical::QueryPlan* plan);
   void convertExtend(const planner::LogicalExtend& extend,
@@ -83,6 +84,8 @@ class GQueryConvertor {
                     ::physical::QueryPlan* plan);
   void convertLimit(const planner::LogicalLimit& limit,
                     ::physical::QueryPlan* plan);
+  void convertIntersect(const planner::LogicalIntersect& intersect,
+                        ::physical::QueryPlan* plan);
   void convertTableFunc(const planner::LogicalTableFunctionCall& tableFunc,
                         ::physical::QueryPlan* plan);
   void convertCopyFrom(const planner::LogicalCopyFrom& copyFrom,

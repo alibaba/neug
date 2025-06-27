@@ -49,15 +49,19 @@ void Optimizer::optimize(
     auto limitPushDownOptimizer = LimitPushDownOptimizer();
     limitPushDownOptimizer.rewrite(plan);
 
-    if (context->getClientConfig()->enableSemiMask) {
-      // HashJoinSIPOptimizer should be applied after optimizers that manipulate
-      // hash join.
-      auto hashJoinSIPOptimizer = HashJoinSIPOptimizer();
-      hashJoinSIPOptimizer.rewrite(plan);
-    }
+    // if (context->getClientConfig()->enableSemiMask) {
+    //   // HashJoinSIPOptimizer should be applied after optimizers that
+    //   manipulate
+    //   // hash join.
+    //   auto hashJoinSIPOptimizer = HashJoinSIPOptimizer();
+    //   hashJoinSIPOptimizer.rewrite(plan);
+    // }
 
     auto topKOptimizer = TopKOptimizer();
     topKOptimizer.rewrite(plan);
+
+    // auto factorizationRewriter = FactorizationRewriter();
+    // factorizationRewriter.rewrite(plan);
 
     // AggKeyDependencyOptimizer doesn't change factorization structure and thus
     // can be put after FactorizationRewriter.

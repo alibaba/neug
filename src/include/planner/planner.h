@@ -453,9 +453,15 @@ class KUZU_API Planner {
       const binder::SubqueryGraph& subgraph,
       const binder::SubqueryGraph& otherSubgraph,
       const std::vector<std::shared_ptr<binder::NodeExpression>>& joinNodes);
+  std::unique_ptr<LogicalPlan> planGetV(
+      std::unique_ptr<LogicalPlan> leftPlan,
+      std::unique_ptr<LogicalPlan> rightPlan,
+      const binder::expression_vector& joinNodeIDs);
   std::shared_ptr<planner::LogicalOperator> extractExtend(
       std::shared_ptr<LogicalOperator> top);
   std::shared_ptr<planner::LogicalOperator> extractGetV(
+      std::shared_ptr<LogicalOperator> top);
+  std::shared_ptr<planner::LogicalOperator> extractIntersect(
       std::shared_ptr<LogicalOperator> top);
 
  private:

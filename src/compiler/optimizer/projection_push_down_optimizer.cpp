@@ -106,36 +106,7 @@ void ProjectionPushDownOptimizer::visitHashJoin(LogicalOperator* op) {
   preAppendProjection(op, 1, expressionsAfterPruning);
 }
 
-void ProjectionPushDownOptimizer::visitIntersect(LogicalOperator* op) {
-  auto& intersect = op->constCast<LogicalIntersect>();
-  collectExpressionsInUse(intersect.getIntersectNodeID());
-  for (auto i = 0u; i < intersect.getNumBuilds(); ++i) {
-    auto childIdx = i + 1;
-    auto keyNodeID = intersect.getKeyNodeID(i);
-    collectExpressionsInUse(keyNodeID);
-    expression_vector expressionsBeforePruning;
-    expression_vector expressionsAfterPruning;
-    for (auto& expression :
-         intersect.getChild(childIdx)->getSchema()->getExpressionsInScope()) {
-      if (expression->getUniqueName() ==
-              intersect.getIntersectNodeID()->getUniqueName() ||
-          expression->getUniqueName() == keyNodeID->getUniqueName()) {
-        continue;
-      }
-      expressionsBeforePruning.push_back(expression);
-    }
-    expressionsAfterPruning.push_back(keyNodeID);
-    expressionsAfterPruning.push_back(intersect.getIntersectNodeID());
-    for (auto& expression : pruneExpressions(expressionsBeforePruning)) {
-      expressionsAfterPruning.push_back(expression);
-    }
-    if (expressionsBeforePruning.size() == expressionsAfterPruning.size()) {
-      return;
-    }
-
-    preAppendProjection(op, childIdx, expressionsAfterPruning);
-  }
-}
+void ProjectionPushDownOptimizer::visitIntersect(LogicalOperator* op) {}
 
 void ProjectionPushDownOptimizer::visitProjection(LogicalOperator* op) {
   ProjectionPushDownOptimizer optimizer(this->semantic);

@@ -41,7 +41,7 @@ class FactorizationGroup {
   double getMultiplier() const { return cardinalityMultiplier; }
 
   void insertExpression(const std::shared_ptr<binder::Expression>& expression) {
-    KU_ASSERT(!expressionNameToPos.contains(expression->getUniqueName()));
+    // KU_ASSERT(!expressionNameToPos.contains(expression->getUniqueName()));
     expressionNameToPos.insert(
         {expression->getUniqueName(), expressions.size()});
     expressions.push_back(expression);

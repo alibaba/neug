@@ -21,15 +21,18 @@
 #include <string>
 #include <vector>
 #include "src/include/binder/expression/expression.h"
+#include "src/include/binder/expression/property_expression.h"
 #include "src/include/catalog/catalog.h"
 #include "src/include/catalog/catalog_entry/node_table_catalog_entry.h"
 #include "src/include/common/constants.h"
+#include "src/include/common/enums/expression_type.h"
 #include "src/include/common/exception/exception.h"
 #include "src/include/common/types/types.h"
 #include "src/include/gopt/g_alias_manager.h"
 #include "src/include/gopt/g_constants.h"
 #include "src/include/gopt/g_ddl_converter.h"
 #include "src/include/planner/operator/logical_filter.h"
+#include "src/include/planner/operator/logical_intersect.h"
 #include "src/include/planner/operator/logical_operator.h"
 #include "src/include/planner/operator/logical_plan.h"
 #include "src/include/planner/operator/logical_projection.h"
@@ -64,14 +67,23 @@ std::unique_ptr<::physical::QueryPlan> GQueryConvertor::convert(
 }
 
 void GQueryConvertor::convertOperator(const planner::LogicalOperator& op,
-                                      ::physical::QueryPlan* plan) {
+                                      ::physical::QueryPlan* plan,
+                                      bool skipScan) {
+  if (op.getOperatorType() == planner::LogicalOperatorType::INTERSECT) {
+    auto intersect = op.constPtrCast<planner::LogicalIntersect>();
+    // convert children in the nested function
+    convertIntersect(*intersect, plan);
+    return;
+  }
   for (auto child : op.getChildren()) {
     convertOperator(*child, plan);
   }
   switch (op.getOperatorType()) {
   case planner::LogicalOperatorType::SCAN_NODE_TABLE: {
-    auto scanNodeTable = op.constPtrCast<planner::LogicalScanNodeTable>();
-    convertScan(*scanNodeTable, plan);
+    if (!skipScan) {
+      auto scanNodeTable = op.constPtrCast<planner::LogicalScanNodeTable>();
+      convertScan(*scanNodeTable, plan);
+    }
     break;
   }
   case planner::LogicalOperatorType::EXTEND: {
@@ -589,6 +601,43 @@ void GQueryConvertor::setMetaData(::physical::PhysicalOpr* physicalOpr,
                      OrderBy_OrderingPair_Order_ASC
                : ::algebra::OrderBy_OrderingPair_Order::
                      OrderBy_OrderingPair_Order_DESC;
+}
+
+void GQueryConvertor::convertIntersect(
+    const planner::LogicalIntersect& intersect, ::physical::QueryPlan* plan) {
+  auto children = intersect.getChildren();
+  if (children.empty()) {
+    throw common::Exception("intersect should have at least one child");
+  }
+  convertOperator(*children[0], plan);
+  if (children.size() < 2)
+    return;
+  // buid intersect opr
+  auto intersectPB = std::make_unique<::physical::Intersect>();
+  // set intersect key
+  auto keyNodeID = intersect.getIntersectNodeID();
+  if (keyNodeID->expressionType != common::ExpressionType::PROPERTY) {
+    throw common::Exception("Node ID expression is not a property expression.");
+  }
+  auto propertyExpr = keyNodeID->ptrCast<binder::PropertyExpression>();
+  auto aliasID = aliasManager->getAliasId(propertyExpr->getVariableName());
+  if (aliasID == DEFAULT_ALIAS_ID) {
+    throw common::Exception("invalid intersect key: " + aliasID);
+  }
+  intersectPB->set_key(aliasID);
+  // set intersect sub plans
+  for (size_t childIdx = 1; childIdx < children.size(); ++childIdx) {
+    auto childPlan = std::make_unique<::physical::QueryPlan>();
+    convertOperator(*children[childIdx], childPlan.get(), true);
+    intersectPB->add_sub_plans()->set_allocated_query_plan(childPlan.release());
+  }
+  // set intersect opr as physical opr
+  auto physicalPB = std::make_unique<::physical::PhysicalOpr>();
+  auto oprPB = std::make_unique<::physical::PhysicalOpr_Operator>();
+  oprPB->set_allocated_intersect(intersectPB.release());
+  physicalPB->set_allocated_opr(oprPB.release());
+  // add physical opr to query plan
+  plan->mutable_plan()->AddAllocated(physicalPB.release());
 }
 
 void GQueryConvertor::convertLimit(const planner::LogicalLimit& limit,

@@ -1,5 +1,6 @@
 #include <cmath>
 #include <iostream>
+#include <iterator>
 #include <memory>
 
 #include "src/include/binder/expression_visitor.h"
@@ -15,6 +16,7 @@
 #include "src/include/planner/operator/extend/logical_recursive_extend.h"
 #include "src/include/planner/operator/logical_filter.h"
 #include "src/include/planner/operator/logical_get_v.h"
+#include "src/include/planner/operator/logical_intersect.h"
 #include "src/include/planner/operator/logical_operator.h"
 #include "src/include/planner/operator/logical_plan.h"
 #include "src/include/planner/operator/scan/logical_scan_node_table.h"
@@ -399,6 +401,7 @@ static LogicalOperator* getSequentialScan(LogicalOperator* op) {
   case LogicalOperatorType::FLATTEN:
   case LogicalOperatorType::FILTER:
   case LogicalOperatorType::EXTEND:
+  case LogicalOperatorType::GET_V:
   case LogicalOperatorType::PROJECTION: {
     return getSequentialScan(op->getChild(0).get());
   }
@@ -460,7 +463,6 @@ void Planner::planWCOJoin(
         !common::containsValue(rel->getExtendDirections(), extendDirection)) {
       return;
     }
-
     boundNodeIDs.push_back(boundNode->getInternalID());
     auto relPos = context.getQueryGraph()->getQueryRelIdx(rel->getUniqueName());
     auto prevSubgraph = context.getEmptySubqueryGraph();
@@ -663,6 +665,70 @@ std::shared_ptr<binder::RelExpression> getRel(
   }
 }
 
+std::unique_ptr<LogicalPlan> Planner::planGetV(
+    std::unique_ptr<LogicalPlan> leftPlan,
+    std::unique_ptr<LogicalPlan> rightPlan,
+    const expression_vector& joinNodeIDs) {
+  // extract extend operator from leftPlan, which top may be filtering
+  // operator
+  auto leftExtend = extractExtend(leftPlan->getLastOperator());
+  // extract getV operator from rightPlan, which top may be filtering
+  // operator
+  auto rightGetV = std::dynamic_pointer_cast<LogicalScanNodeTable>(
+      extractGetV(rightPlan->getLastOperator()));
+  if (leftExtend && rightGetV) {
+    // build join for cost, cardinality and schema
+    auto leftPlanBuildCopy = leftPlan->shallowCopy();
+    auto rightPlanProbeCopy = rightPlan->shallowCopy();
+    appendHashJoin(joinNodeIDs, JoinType::INNER, *rightPlanProbeCopy,
+                   *leftPlanBuildCopy, *rightPlanProbeCopy);
+    auto joinCard = rightPlanProbeCopy->getLastOperator()->getCardinality();
+    auto joinCost = rightPlanProbeCopy->getCost();
+    auto joinSchema = rightPlanProbeCopy->getSchema();
+
+    // start to build the getV operator
+    auto getVPlan = std::make_unique<LogicalPlan>();
+    auto getV = std::make_unique<planner::LogicalGetV>(
+        rightGetV->getNodeID(), rightGetV->getTableIDs(),
+        rightGetV->getProperties(), getGetVOpt(leftExtend), getRel(leftExtend),
+        leftPlan->getLastOperator(), joinSchema->copy(), joinCard);
+    getVPlan->setLastOperator(std::move(getV));
+    // append filtering predicates corresponding to the getV
+    auto getVFilter =
+        std::dynamic_pointer_cast<LogicalFilter>(rightPlan->getLastOperator());
+    while (getVFilter) {
+      appendFilter(getVFilter->getPredicate(), *getVPlan);
+      if (getVFilter->getNumChildren() == 0) {
+        break;
+      }
+      getVFilter =
+          std::dynamic_pointer_cast<LogicalFilter>(getVFilter->getChild(0));
+    }
+    getVPlan->setCost(joinCost);
+    return getVPlan;
+  }
+  // if the left plan is a intersect, getV will be pushed into the intersect
+  auto leftIntersect = extractIntersect(leftPlan->getLastOperator());
+  if (leftIntersect && rightGetV) {
+    auto intersect = leftIntersect->ptrCast<planner::LogicalIntersect>();
+    for (size_t idx = 1; idx < intersect->getNumChildren(); ++idx) {
+      auto childLeft = intersect->getChild(idx);
+      auto childLeftPlan = std::make_unique<LogicalPlan>();
+      childLeftPlan->setLastOperator(childLeft);
+      auto childRight = rightPlan->getLastOperator();
+      auto childRightPlan = std::make_unique<LogicalPlan>();
+      childRightPlan->setLastOperator(childRight);
+      auto planChild = planGetV(std::move(childLeftPlan),
+                                std::move(childRightPlan), joinNodeIDs);
+      if (planChild && planChild->getLastOperator()) {
+        intersect->setChild(idx, planChild->getLastOperator());
+      }
+    }
+    return leftPlan;
+  }
+  return nullptr;
+}
+
 void Planner::planGetV(
     const SubqueryGraph& subgraph, const SubqueryGraph& otherSubgraph,
     const std::vector<std::shared_ptr<NodeExpression>>& joinNodes) {
@@ -679,51 +745,26 @@ void Planner::planGetV(
     for (auto& rightPlan : context.getPlans(otherSubgraph)) {
       if (CostModel::computeHashJoinCost(joinNodeIDs, *rightPlan, *leftPlan) <
           maxCost) {
-        // extract extend operator from leftPlan, which top may be filtering
-        // operator
-        auto leftExtend = extractExtend(leftPlan->getLastOperator());
-        // extract getV operator from rightPlan, which top may be filtering
-        // operator
-        auto rightGetV = std::dynamic_pointer_cast<LogicalScanNodeTable>(
-            extractGetV(rightPlan->getLastOperator()));
-        if (leftExtend && rightGetV) {
-          // build join for cost, cardinality and schema
-          auto leftPlanBuildCopy = leftPlan->shallowCopy();
-          auto rightPlanProbeCopy = rightPlan->shallowCopy();
-          appendHashJoin(joinNodeIDs, JoinType::INNER, *rightPlanProbeCopy,
-                         *leftPlanBuildCopy, *rightPlanProbeCopy);
-          auto joinCard =
-              rightPlanProbeCopy->getLastOperator()->getCardinality();
-          auto joinCost = rightPlanProbeCopy->getCost();
-          auto joinSchema = rightPlanProbeCopy->getSchema();
-
-          // start to build the getV operator
-          auto getVPlan = std::make_unique<LogicalPlan>();
-          auto getV = std::make_unique<planner::LogicalGetV>(
-              rightGetV->getNodeID(), rightGetV->getTableIDs(),
-              rightGetV->getProperties(), getGetVOpt(leftExtend),
-              getRel(leftExtend), leftPlan->getLastOperator(),
-              joinSchema->copy(), joinCard);
-          getVPlan->setLastOperator(std::move(getV));
-          // append filtering predicates corresponding to the getV
-          auto getVFilter = std::dynamic_pointer_cast<LogicalFilter>(
-              rightPlan->getLastOperator());
-          while (getVFilter) {
-            appendFilter(getVFilter->getPredicate(), *getVPlan);
-            if (getVFilter->getNumChildren() == 0) {
-              break;
-            }
-            getVFilter = std::dynamic_pointer_cast<LogicalFilter>(
-                getVFilter->getChild(0));
-          }
-          getVPlan->setCost(joinCost);
+        auto getVPlan = planGetV(leftPlan->shallowCopy(),
+                                 rightPlan->shallowCopy(), joinNodeIDs);
+        if (getVPlan) {
           appendFilters(predicates, *getVPlan);
           context.addPlan(newSubgraph, std::move(getVPlan));
-          continue;
         }
       }
     }
   }
+}
+
+std::shared_ptr<planner::LogicalOperator> Planner::extractIntersect(
+    std::shared_ptr<LogicalOperator> top) {
+  if (top->getOperatorType() == LogicalOperatorType::INTERSECT) {
+    return top;
+  }
+  if (top->getOperatorType() == LogicalOperatorType::FILTER) {
+    return extractIntersect(top->getChild(0));
+  }
+  return nullptr;
 }
 
 std::shared_ptr<planner::LogicalOperator> Planner::extractExtend(

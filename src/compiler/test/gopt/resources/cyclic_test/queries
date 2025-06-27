@@ -1,0 +1,22 @@
+MATCH (a:person)-[e1:knows]->(b:person)-[e2:knows]->(c:person), (a)-[e3:knows]->(c) WHERE a.fName='Alice' RETURN b.fName, c.fName #TRI_ALICE
+MATCH (a:person)-[:knows]->(b:person)-[:studyAt|:meets]->(c:organisation:person), (a)-[:studyAt|:meets]->(c) RETURN COUNT(*) #UNI_PATH
+// MATCH (a:person)-[:knows]->(b:person), (b)-[:knows]->(a) RETURN COUNT(*) #BI_CNT
+// MATCH (a:person)-[:knows]->(b:person), (b)-[:knows]->(a) RETURN a.fName, b.fName #BI_NAME
+MATCH (a:person)-[:knows]->(b:person)-[:knows]->(c:person), (a)-[:knows]->(c) RETURN COUNT(*) #TRI_CNT
+MATCH (a:person)-[:knows]->(b:person)-[:studyAt]->(c:organisation), (a)-[:studyAt]->(c) RETURN COUNT(*) #ORG_CNT
+MATCH (a:person)-[:knows]->(b:person)-[:knows]->(c:person), (a)-[:knows]->(c) WHERE a.ID = b.ID + c.ID  RETURN a.ID,b.ID,c.ID #ID_SUM
+MATCH (a:person)-[:knows]->(b:person)-[:studyAt]->(c:organisation), (a)-[e:studyAt]->(c) WHERE a.fName='Alice' RETURN COUNT(*) #ALI_ORG
+MATCH (a:person)-[:knows]->(b:person)-[:knows]->(c:person), (a)-[:knows]->(c) WHERE a.ID<b.ID and b.ID<c.ID RETURN a.fName, b.fName, c.fName #TRI_ORD
+MATCH (a:person)-[:knows]->(b:person)-[:knows]->(c:person)-[:knows]->(d:person), (a)-[:knows]->(d) RETURN COUNT(*) #QUAD_CNT
+MATCH (a:person)<-[:knows]-(b:person)-[:knows]->(c:person)-[:studyAt]->(d:organisation), (a)-[:studyAt]->(d) RETURN COUNT(*) #REV_CNT
+
+MATCH (a:person)<-[:knows]-(b:person)-[:knows]->(c:person)-[:studyAt]->(d:organisation), (a)-[:studyAt]->(d) WHERE a.fName='Bob' RETURN a.fName, b.fName, c.fName, d.name #BOB_PATH
+
+MATCH (a:person)<-[:knows]-(b:person)-[:knows]->(c:person)-[:studyAt]->(d:organisation), (a)-[:studyAt]->(d) WHERE b.fName='Elizabeth' RETURN COUNT(*) #ELIZ_CNT
+// MATCH (a:person)-[:workAt]-(b:organisation) RETURN a.ID, b.ID; #WORK_REL
+
+// lsqb
+MATCH (person1:Person)-[:Person_knows_Person]-(person2:Person), (person1)<-[:Comment_hasCreator_Person]-(comment:Comment)-[:Comment_replyOf_Post]->(Post:Post)-[:Post_hasCreator_Person]->(person2) RETURN count(*) AS count; #CMT_LOOP
+
+// MATCH (country:Country) MATCH (person1:Person)-[:Person_isLocatedIn_City]->(city1:City)-[:City_isPartOf_Country]->(country) MATCH (person2:Person)-[:Person_isLocatedIn_City]->(city2:City)-[:City_isPartOf_Country]->(country) MATCH (person3:Person)-[:Person_isLocatedIn_City]->(city3:City)-[:City_isPartOf_Country]->(country) MATCH (person1)-[:Person_knows_Person]-(person2)-[:Person_knows_Person]-(person3)-[:Person_knows_Person]-(person1) RETURN count(*) AS count; #TRI_CTRY
+

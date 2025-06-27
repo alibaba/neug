@@ -60,7 +60,9 @@ bool FilterPushDownPattern::canPushDown(
   binder::DependentVarNameCollector varCollector;
   varCollector.visit(predicate);
   for (const auto& varName : varCollector.getVarNames()) {
-    if (varName != uniqueName) {
+    // the expression may have been set if the child is one of sub plans in
+    // intersect.
+    if (varName != uniqueName && varName != gopt::DEFAULT_ALIAS_NAME) {
       return false;
     }
   }
