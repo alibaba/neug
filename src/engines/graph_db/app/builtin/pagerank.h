@@ -16,10 +16,19 @@
 #ifndef ENGINES_GRAPH_DB_APP_BUILDIN_PAGERANK_H_
 #define ENGINES_GRAPH_DB_APP_BUILDIN_PAGERANK_H_
 
+#include <stdint.h>
+#include <string>
+#include <tuple>
+
+#include "src/engines/graph_db/app/app_base.h"
 #include "src/engines/graph_db/app/cypher_proc_app_base.h"
 #include "src/engines/graph_db/database/graph_db_session.h"
+#include "src/proto_generated_gie/results.pb.h"
 
 namespace gs {
+class GraphDB;
+class GraphDBSession;
+
 class PageRank
     : public CypherReadProcAppBase<std::string, std::string, std::string,
                                    double, int32_t, double, int32_t> {

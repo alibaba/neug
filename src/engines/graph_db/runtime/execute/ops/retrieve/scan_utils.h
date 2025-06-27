@@ -15,7 +15,20 @@
 
 #ifndef RUNTIME_EXECUTE_RETRIEVE_OPS_SCAN_UTILS_H_
 #define RUNTIME_EXECUTE_RETRIEVE_OPS_SCAN_UTILS_H_
+#include <functional>
+#include <map>
+#include <string>
+#include <vector>
+
 #include "src/engines/graph_db/runtime/execute/operator.h"
+#include "src/utils/property/types.h"
+
+namespace algebra {
+class IndexPredicate;
+}  // namespace algebra
+namespace physical {
+class Scan;
+}  // namespace physical
 
 namespace gs {
 namespace runtime {

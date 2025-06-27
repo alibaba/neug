@@ -1,0 +1,4 @@
+returns:
+  - name: _2_COUNT_STAR()
+    type:
+      primitive_type: DT_SIGNED_INT64

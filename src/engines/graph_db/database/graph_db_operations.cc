@@ -13,13 +13,29 @@
  * limitations under the License.
  */
 
+#include <glog/logging.h>
+#include <rapidjson/rapidjson.h>
+#include <exception>
+#include <ext/alloc_traits.h>
+#include <memory>
+#include <ostream>
+#include <stdexcept>
 #include <string>
+#include <tuple>
+#include <type_traits>
 #include <unordered_map>
+#include <unordered_set>
+#include <utility>
 #include <vector>
 
-#include "src/engines/graph_db/database/graph_db.h"
 #include "src/engines/graph_db/database/graph_db_operations.h"
 #include "src/engines/graph_db/database/graph_db_session.h"
+#include "src/engines/graph_db/database/insert_transaction.h"
+#include "src/engines/graph_db/database/read_transaction.h"
+#include "src/engines/graph_db/database/single_edge_insert_transaction.h"
+#include "src/engines/graph_db/database/single_vertex_insert_transaction.h"
+#include "src/engines/graph_db/database/update_transaction.h"
+#include "src/storages/rt_mutable_graph/schema.h"
 #include "src/utils/result.h"
 #include "src/utils/service_utils.h"
 

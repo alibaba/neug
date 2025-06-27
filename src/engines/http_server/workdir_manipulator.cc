@@ -14,7 +14,7 @@
  */
 
 #include "src/engines/http_server/workdir_manipulator.h"
-#include "service_utils.h"
+#include "src/utils/service_utils.h"
 
 #include <boost/uuid/uuid.hpp>             // uuid class
 #include <boost/uuid/uuid_generators.hpp>  // generators

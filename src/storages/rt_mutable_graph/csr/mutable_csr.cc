@@ -15,8 +15,7 @@
 
 #include "src/storages/rt_mutable_graph/csr/mutable_csr.h"
 
-#include "third_party/libgrape-lite/grape/serialization/in_archive.h"
-#include "third_party/libgrape-lite/grape/serialization/out_archive.h"
+#include <cstdint>
 
 namespace gs {
 

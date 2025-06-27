@@ -15,6 +15,12 @@
 
 #include "src/engines/graph_db/runtime/common/operators/retrieve/union.h"
 
+#include <glog/logging.h>
+#include <ostream>
+
+#include "src/engines/graph_db/runtime/common/context.h"
+#include "src/engines/graph_db/runtime/common/leaf_utils.h"
+
 namespace gs {
 
 namespace runtime {

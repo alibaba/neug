@@ -14,14 +14,29 @@
  */
 
 #include "src/engines/graph_db/runtime/utils/cypher_runner_impl.h"
+
+#include <glog/logging.h>
+#include <boost/leaf.hpp>
+#include <memory>
+#include <ostream>
+#include <utility>
+#include <vector>
+
 #include "src/engines/graph_db/app/cypher_app_utils.h"
 #include "src/engines/graph_db/database/graph_db.h"
 #include "src/engines/graph_db/database/graph_db_session.h"
 #include "src/engines/graph_db/database/insert_transaction.h"
 #include "src/engines/graph_db/database/read_transaction.h"
 #include "src/engines/graph_db/database/update_transaction.h"
+#include "src/engines/graph_db/runtime/common/context.h"
+#include "src/engines/graph_db/runtime/common/graph_interface.h"
 #include "src/engines/graph_db/runtime/common/operators/retrieve/sink.h"
+#include "src/engines/graph_db/runtime/execute/pipeline.h"
 #include "src/engines/graph_db/runtime/execute/plan_parser.h"
+#include "src/engines/graph_db/runtime/utils/opr_timer.h"
+#include "src/proto_generated_gie/physical.pb.h"
+#include "src/storages/rt_mutable_graph/schema.h"
+#include "src/utils/app_utils.h"
 
 namespace gs {
 namespace runtime {

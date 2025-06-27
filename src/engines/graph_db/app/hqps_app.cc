@@ -14,9 +14,20 @@
  */
 
 #include "src/engines/graph_db/app/hqps_app.h"
-#include "src/proto_generated_gie/stored_procedure.pb.h"
+
+#include <glog/logging.h>
+#include <stddef.h>
+#include <memory>
+#include <ostream>
+#include <string>
+#include <string_view>
+#include <vector>
+
+#include "src/engines/graph_db/database/graph_db_session.h"
+#include "src/utils/app_utils.h"
 
 namespace gs {
+class GraphDB;
 
 AppWrapper loadAdhocQuery(const std::string& input_lib_path,
                           std::shared_ptr<SharedLibraryAppFactory> app_factory,

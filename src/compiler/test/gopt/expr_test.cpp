@@ -1,4 +1,7 @@
 #include "gopt_test.h"
+#include "src/include/binder/expression/literal_expression.h"
+#include "src/include/common/types/date_t.h"
+#include "src/include/planner/operator/logical_projection.h"
 
 namespace gs {
 namespace gopt {
@@ -104,6 +107,152 @@ TEST_F(ExprTest, MULTI_EQUAL_3) {
   auto physical = planPhysical(*logical);
   VerifyFactory::verifyPhysicalByJson(
       *physical, getExprResource("MULTI_EQUAL_3_physical"));
+}
+
+TEST_F(ExprTest, PROJECT_DATE) {
+  std::string query = "MATCH (a:person)-[e:knows]->(b:person) RETURN e.date;";
+  auto logical = planLogical(query, schemaData, statsData, rules);
+  auto physical = planPhysical(*logical);
+  VerifyFactory::verifyPhysicalByJson(*physical,
+                                      getExprResource("PROJECT_DATE_physical"));
+}
+
+TEST_F(ExprTest, DATE_PART_DATE32) {
+  std::string query =
+      "Match (n:person) Return date_part('month', n.birthdate);";
+  auto logical = planLogical(query, schemaData, statsData, rules);
+  auto physical = planPhysical(*logical);
+  VerifyFactory::verifyPhysicalByJson(
+      *physical, getExprResource("DATE_PART_DATE32_physical"));
+}
+
+TEST_F(ExprTest, RETURN_DATE) {
+  std::string query = "Return DATE('1995-11-02');";
+  auto logical = planLogical(query, schemaData, statsData, rules);
+  auto physical = planPhysical(*logical);
+  VerifyFactory::verifyPhysicalByJson(*physical,
+                                      getExprResource("RETURN_DATE_physical"));
+}
+
+TEST_F(ExprTest, RETURN_DATETIME) {
+  std::string query = "Return TIMESTAMP('1995-11-02 12:00:00');";
+  auto logical = planLogical(query, schemaData, statsData, rules);
+  auto physical = planPhysical(*logical);
+  VerifyFactory::verifyPhysicalByJson(
+      *physical, getExprResource("RETURN_DATETIME_physical"));
+}
+
+TEST_F(ExprTest, RETURN_INTERVAL) {
+  std::string query = "Return INTERVAL('1 year 2 days');";
+  auto logical = planLogical(query, schemaData, statsData, rules);
+  auto physical = planPhysical(*logical);
+  VerifyFactory::verifyPhysicalByJson(
+      *physical, getExprResource("RETURN_INTERVAL_physical"));
+}
+
+TEST_F(ExprTest, DATE_PART_DATE) {
+  std::string query = "Return date_part('year', DATE('1995-11-02'));";
+  auto logical = planLogical(query, schemaData, statsData, rules);
+  auto physical = planPhysical(*logical);
+  VerifyFactory::verifyPhysicalByJson(
+      *physical, getExprResource("DATE_PART_DATE_physical"));
+}
+
+TEST_F(ExprTest, DATE_PART_DATETIME) {
+  std::string query =
+      "Return date_part('second', TIMESTAMP('1995-11-02 12:05:21'));";
+  auto logical = planLogical(query, schemaData, statsData, rules);
+  auto physical = planPhysical(*logical);
+  VerifyFactory::verifyPhysicalByJson(
+      *physical, getExprResource("DATE_PART_DATETIME_physical"));
+}
+
+TEST_F(ExprTest, DATE_PART_INTERVAL) {
+  std::string query = "Return date_part('year', INTERVAL('1 year 2 days'));";
+  auto logical = planLogical(query, schemaData, statsData, rules);
+  auto physical = planPhysical(*logical);
+  VerifyFactory::verifyPhysicalByJson(
+      *physical, getExprResource("DATE_PART_INTERVAL_physical"));
+}
+
+TEST_F(ExprTest, DATE_PLUS_INTERVAL) {
+  std::string query = "Return DATE('2021-10-12') + INTERVAL('3 DAYS');";
+  auto logical = planLogical(query, schemaData, statsData, rules);
+  auto physical = planPhysical(*logical);
+  VerifyFactory::verifyPhysicalByJson(
+      *physical, getExprResource("DATE_PLUS_INTERVAL_physical"));
+}
+
+TEST_F(ExprTest, DATE_MINUS_INTERVAL) {
+  std::string query = "Return DATE('2023-10-11') - INTERVAL('10 DAYS');";
+  auto logical = planLogical(query, schemaData, statsData, rules);
+  auto physical = planPhysical(*logical);
+  VerifyFactory::verifyPhysicalByJson(
+      *physical, getExprResource("DATE_MINUS_INTERVAL_physical"));
+}
+
+TEST_F(ExprTest, TIMESTAMP_MINUS_INTERVAL) {
+  std::string query =
+      "Return TIMESTAMP('2022-11-12 13:22:17') - INTERVAL('4 minutes 3 hours 2 "
+      "days');";
+  auto logical = planLogical(query, schemaData, statsData, rules);
+  auto physical = planPhysical(*logical);
+  VerifyFactory::verifyPhysicalByJson(
+      *physical, getExprResource("TIMESTAMP_MINUS_INTERVAL_physical"));
+}
+
+TEST_F(ExprTest, INTERVAL_PLUS_INTERVAL) {
+  std::string query =
+      "Return INTERVAL('79 DAYS 32 YEARS') + INTERVAL('20 MILLISECONDS 30 "
+      "HOURS 20 DAYS')";
+  auto logical = planLogical(query, schemaData, statsData, rules);
+  auto physical = planPhysical(*logical);
+  VerifyFactory::verifyPhysicalByJson(
+      *physical, getExprResource("INTERVAL_PLUS_INTERVAL_physical"));
+}
+
+TEST_F(ExprTest, TIMESTAMP_DIFFER) {
+  std::string query =
+      "Return TIMESTAMP('2022-11-22 15:12:22') - TIMESTAMP('2011-10-09 "
+      "13:00:21');";
+  auto logical = planLogical(query, schemaData, statsData, rules);
+  auto physical = planPhysical(*logical);
+  VerifyFactory::verifyPhysicalByJson(
+      *physical, getExprResource("TIMESTAMP_DIFFER_physical"));
+}
+
+TEST_F(ExprTest, DATE_DIFFER) {
+  std::string query = "Return date('2011-02-01') - date('2011-01-01');";
+  auto logical = planLogical(query, schemaData, statsData, rules);
+  auto physical = planPhysical(*logical);
+  VerifyFactory::verifyPhysicalByJson(*physical,
+                                      getExprResource("DATE_DIFFER_physical"));
+}
+
+TEST_F(ExprTest, LOGICAL_NULL) {
+  std::string query = "Match (n) Return n.age > 10 and NULL";
+  auto logical = planLogical(query, schemaData, statsData, rules);
+  auto physical = planPhysical(*logical);
+  VerifyFactory::verifyPhysicalByJson(*physical,
+                                      getExprResource("LOGICAL_NULL_physical"));
+}
+
+TEST_F(ExprTest, COMPARE_NULL) {
+  std::string query = "Match (n) Return n.age <> NULL";
+  auto logical = planLogical(query, schemaData, statsData, rules);
+  auto physical = planPhysical(*logical);
+  VerifyFactory::verifyPhysicalByJson(*physical,
+                                      getExprResource("COMPARE_NULL_physical"));
+}
+
+TEST_F(ExprTest, INT32_MULTI_DOUBLE) {
+  std::string query =
+      "MATCH (a:person)-[e1:knows]->(b:person) WHERE (a.gender/2 <= 0.5) WITH "
+      "b WHERE b.gender*3.5 = 7.0 RETURN COUNT(*)";
+  auto logical = planLogical(query, schemaData, statsData, rules);
+  auto physical = planPhysical(*logical);
+  VerifyFactory::verifyPhysicalByJson(
+      *physical, getExprResource("INT32_MULTI_DOUBLE_physical"));
 }
 
 }  // namespace gopt

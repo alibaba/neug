@@ -1,0 +1,4 @@
+returns:
+  - name: cnt
+    type:
+      primitive_type: DT_SIGNED_INT64

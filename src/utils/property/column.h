@@ -16,16 +16,31 @@
 #ifndef UTILS_PROPERTY_COLUMN_H_
 #define UTILS_PROPERTY_COLUMN_H_
 
+#include <glog/logging.h>
+#include <stddef.h>
+#include <algorithm>
+#include <atomic>
+#include <cstdint>
+#include <filesystem>
+#include <limits>
+#include <memory>
+#include <mutex>
+#include <ostream>
 #include <shared_mutex>
+#include <stdexcept>
 #include <string>
 #include <string_view>
-#include "third_party/libgrape-lite/grape/utils/concurrent_queue.h"
+#include <vector>
 
+#include "src/storages/rt_mutable_graph/file_names.h"
 #include "src/utils/mmap_array.h"
 #include "src/utils/property/types.h"
 #include "third_party/libgrape-lite/grape/serialization/out_archive.h"
+#include "third_party/libgrape-lite/grape/types.h"
+#include "third_party/libgrape-lite/grape/utils/concurrent_queue.h"
 
 namespace gs {
+class Table;
 
 std::string_view truncate_utf8(std::string_view str, size_t length);
 

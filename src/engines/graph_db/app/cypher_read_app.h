@@ -15,12 +15,21 @@
 
 #ifndef ENGINES_GRAPH_DB_CYPHER_READ_APP_H_
 #define ENGINES_GRAPH_DB_CYPHER_READ_APP_H_
+#include <string>
+#include <unordered_map>
+
 #include "src/engines/graph_db/app/app_base.h"
 #include "src/engines/graph_db/database/graph_db_session.h"
 #include "src/engines/graph_db/runtime/execute/pipeline.h"
+#include "src/engines/graph_db/runtime/utils/opr_timer.h"
 #include "src/proto_generated_gie/physical.pb.h"
 
 namespace gs {
+class Decoder;
+class Encoder;
+class GraphDB;
+class GraphDBSession;
+
 class CypherReadApp : public ReadAppBase {
  public:
   CypherReadApp(const GraphDB& db) : db_(db) {}

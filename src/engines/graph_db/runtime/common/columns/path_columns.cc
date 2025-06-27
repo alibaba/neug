@@ -15,6 +15,8 @@
 
 #include "src/engines/graph_db/runtime/common/columns/path_columns.h"
 
+#include <limits>
+
 namespace gs {
 namespace runtime {
 

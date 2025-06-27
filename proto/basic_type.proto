@@ -89,6 +89,10 @@ message Temporal {
     message Timestamp {
     }
 
+    // type denotes date/time difference
+    message Interval {
+    }
+
     oneof item {
         Date date = 1;
         Time time = 2;
@@ -96,6 +100,7 @@ message Temporal {
         Date32 date32 = 4;
         Time32 time32 = 5;
         Timestamp timestamp = 6;
+        Interval interval = 7;
     }
 }
 

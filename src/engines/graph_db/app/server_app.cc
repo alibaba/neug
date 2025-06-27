@@ -15,7 +15,23 @@
 
 #include "src/engines/graph_db/app/server_app.h"
 
+#include <ctype.h>
+#include <glog/logging.h>
+#include <stddef.h>
+#include <cstdint>
+#include <limits>
+#include <string>
+#include <tuple>
+#include <vector>
+
+#include "src/engines/graph_db/database/graph_db_session.h"
+#include "src/engines/graph_db/database/read_transaction.h"
+#include "src/storages/rt_mutable_graph/schema.h"
+#include "src/utils/app_utils.h"
+#include "src/utils/property/types.h"
+
 namespace gs {
+class GraphDB;
 
 static uint32_t get_vertex_vid(const gs::ReadTransaction& txn, uint8_t label,
                                int64_t id) {

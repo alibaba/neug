@@ -66,7 +66,7 @@ ERROR_STRINGS = {
     ERR_DISK_SPACE_EXHAUSTED: "No space left",
     ERR_CORRUPTION_DETECTED: "corruption detected",
     ERR_INVALID_PATH: "invalid path",
-    ERR_CONFIG_INVALID: "invalid config",
+    ERR_CONFIG_INVALID: "Invalid config",
     ERR_INVALID_ARGUMENT: "invalid argument",
     ERR_NOT_FOUND: "not found",
     ERR_NOT_SUPPORTED: "not supported",

@@ -18,10 +18,10 @@
 #include <iostream>
 #include <string>
 
-#include "property/types.h"
-#include "service_utils.h"
 #include "src/storages/metadata/graph_meta_store.h"
 #include "src/storages/rt_mutable_graph/schema.h"
+#include "src/utils/property/types.h"
+#include "src/utils/service_utils.h"
 #include "src/utils/yaml_utils.h"
 
 #include <rapidjson/pointer.h>

@@ -47,7 +47,7 @@ jobs:
   test-py-neug:
     runs-on: [self-hosted]
     container:
-      image: registry.cn-hongkong.aliyuncs.com/graphscope/graphscope-dev:v0.24.2-amd64-ccache
+      image: registry.cn-hongkong.aliyuncs.com/graphscope/graphscope-dev:v0.24.2
       # options: --user root
     steps:
     - name: checkout
@@ -63,9 +63,9 @@ jobs:
         git config --global --add safe.directory "$GITHUB_WORKSPACE/third_party/parallel-hashmap"
         git config --global --add safe.directory "$GITHUB_WORKSPACE/third_party/pybind11"
 
-    - name: Setup tmate session
-      if: false
-      uses: mxschmitt/action-tmate@v3
+    - name: Clean the tool directory for self-hosted runner
+      run: |
+        rm -rf /__w/_tool/Python
 
     - name: Cache CCache
       if: false
@@ -77,6 +77,11 @@ jobs:
         restore-keys: |
           ${{ runner.os }}-ccache-${{ github.run_id }}-
           ${{ runner.os }}-ccache-
+
+    - name: Setup Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.13'
 
     - name: Build Interactive
       run: |
@@ -90,6 +95,7 @@ jobs:
         # export CC="ccache gcc"
         # export CXX="ccache g++"
         cd tools/python_bind
+        make clean
         make requirements
         make build
 
@@ -175,6 +181,9 @@ jobs:
         # We will add more tests for each cypher operator in e2e/queries directory when they are ready.
         ./scripts/run_tinysnb_test.sh basic_test
         ./scripts/run_tinysnb_test.sh projection
+        ./scripts/run_tinysnb_test.sh filter
+        ./scripts/run_tinysnb_test.sh order_by
+        ./scripts/run_tinysnb_test.sh expr
 
 
 

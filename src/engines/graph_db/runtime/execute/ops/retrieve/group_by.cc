@@ -14,13 +14,47 @@
  */
 
 #include "src/engines/graph_db/runtime/execute/ops/retrieve/group_by.h"
+
+#include <glog/logging.h>
+#include <google/protobuf/wrappers.pb.h>
+#include <stddef.h>
+#include <algorithm>
+#include <cstdint>
+#include <ext/alloc_traits.h>
+#include <functional>
+#include <map>
+#include <memory>
+#include <optional>
+#include <ostream>
+#include <set>
+#include <string>
+#include <string_view>
+#include <tuple>
+#include <type_traits>
+#include <typeindex>
+#include <unordered_set>
+#include <utility>
+
+#include "src/engines/graph_db/runtime/common/columns/i_context_column.h"
+#include "src/engines/graph_db/runtime/common/columns/value_columns.h"
 #include "src/engines/graph_db/runtime/common/columns/vertex_columns.h"
+#include "src/engines/graph_db/runtime/common/context.h"
+#include "src/engines/graph_db/runtime/common/graph_interface.h"
 #include "src/engines/graph_db/runtime/common/operators/retrieve/group_by.h"
 #include "src/engines/graph_db/runtime/common/operators/retrieve/project.h"
+#include "src/engines/graph_db/runtime/common/rt_any.h"
 #include "src/engines/graph_db/runtime/utils/var.h"
+#include "src/proto_generated_gie/common.pb.h"
+#include "src/proto_generated_gie/expr.pb.h"
+#include "src/storages/rt_mutable_graph/types.h"
+#include "src/utils/property/types.h"
 
 namespace gs {
+class Schema;
+
 namespace runtime {
+class OprTimer;
+
 namespace ops {
 
 static AggrKind parse_aggregate(physical::GroupBy_AggFunc::Aggregate v) {

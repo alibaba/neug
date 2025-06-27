@@ -33,3 +33,11 @@ Bob|
 Dan|
 |CsWork
 
+-LOG TestTestFrameworkWithOkResults
+-STATEMENT MATCH (a:person) RETURN COUNT(a)
+---- ok
+
+-LOG TestTestFrameworkWithErrorResults
+-STATEMENT MATCH (a:person RETURN COUNT(a)
+---- error
+-Parser exception: Invalid input <MATCH (a:person RETURN>: expected rule oC_SingleQuery (line: 1, offset: 16)

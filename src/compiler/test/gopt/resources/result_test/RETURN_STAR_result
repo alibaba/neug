@@ -1,0 +1,12 @@
+returns:
+  - name: _0_n.id
+    type:
+      primitive_type: DT_SIGNED_INT64
+  - name: _0_n.name
+    type:
+      string:
+        var_char:
+          max_length: 65536
+  - name: _0_n.age
+    type:
+      primitive_type: DT_SIGNED_INT64

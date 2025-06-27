@@ -14,10 +14,32 @@
  */
 
 #include "src/engines/graph_db/runtime/execute/ops/insert/data_source.h"
+
+#include <arrow/record_batch.h>
+#include <glog/logging.h>
+#include <stdint.h>
+#include <ext/alloc_traits.h>
+#include <ostream>
+#include <utility>
+
 #include "src/engines/graph_db/runtime/common/columns/arrow_context_column.h"
+#include "src/engines/graph_db/runtime/common/context.h"
+#include "src/engines/graph_db/runtime/execute/ops/insert/batch_insert_utils.h"
+#include "src/proto_generated_gie/cypher_dml.pb.h"
+#include "src/storages/rt_mutable_graph/loader/loader_utils.h"
+#include "src/utils/result.h"
+
+namespace arrow {
+class Array;
+}  // namespace arrow
 
 namespace gs {
+class Schema;
+
 namespace runtime {
+class GraphUpdateInterface;
+class OprTimer;
+
 namespace ops {
 
 // CSVDataSourceOpr read from csv file and load the arrow table into memory.
@@ -76,8 +98,7 @@ bl::result<Context> CSVDataSourceOpr::eval_batch_reader(Context&& ctx) {
   auto supplier_with_first_batch =
       std::make_shared<SupplierWrapperWithFirstBatch>(suppliers_, first_batch);
   for (int i = 0; i < num_columns; i++) {
-    ArrowStreamContextColumnBuilder column_builder(i,
-                                                   {supplier_with_first_batch});
+    ArrowStreamContextColumnBuilder column_builder({supplier_with_first_batch});
     ctx.set(i, column_builder.finish(nullptr));
   }
   return bl::result<Context>(std::move(ctx));

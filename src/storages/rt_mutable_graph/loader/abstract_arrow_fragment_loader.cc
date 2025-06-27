@@ -14,8 +14,12 @@
  */
 #include <sys/statvfs.h>
 
+#include "src/storages/rt_mutable_graph/csr/immutable_csr.h"
+#include "src/storages/rt_mutable_graph/csr/mutable_csr.h"
+#include "src/storages/rt_mutable_graph/csr/nbr.h"
 #include "src/storages/rt_mutable_graph/loader/abstract_arrow_fragment_loader.h"
-#include "src/utils/string_utils.h"
+#include "third_party/libgrape-lite/grape/serialization/out_archive.h"
+#include "third_party/libgrape-lite/grape/types.h"
 
 namespace gs {
 
@@ -178,8 +182,6 @@ void set_column_from_date_array(gs::ColumnBase* col,
         if (offset[cur_ind] >= size) {
           cur_ind++;
         } else {
-          LOG(INFO) << "Set date column at offset " << offset[cur_ind]
-                    << " with value " << casted->Value(k);
           col->set_any(offset[cur_ind++],
                        std::move(AnyConverter<Date>::to_any(casted->Value(k))));
         }

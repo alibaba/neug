@@ -28,12 +28,29 @@ class FileType(Enum):
     BENCHMARK = 3
 
 
+class ResultType(Enum):
+    # the query is expected to succeed and the result should be validated
+    EXACT = 1
+    # the query is expected to succeed and no further validation is needed
+    OK = 2
+    # the query is expected to fail
+    ERROR = 3
+
+
 class Query:
-    def __init__(self, name, query, expected_result=None, check_order=False):
+    def __init__(
+        self,
+        name,
+        query,
+        expected_result=None,
+        check_order=False,
+        result_type=ResultType.EXACT,
+    ):
         self.name = name
         self.query = query
         self.expected_result = expected_result
         self.check_order = check_order
+        self.result_type = result_type
 
     def __repr__(self):
         return (
@@ -51,15 +68,21 @@ def collect_test_files(root_dir):
 
 
 # Collect query_names, queries, and expected results from files
-def collect_tests_from_files(test_files, dataset=None):
+def collect_tests_from_files(
+    test_files, dataset=None, test_names=None, include_skip_tests=False
+):
     all_tests = []
     for file in test_files:
         file_suffix = os.path.splitext(file)[1]
         if file_suffix == ".test":
-            tests = parse_test_file(file, FileType.TEST, dataset)
+            tests = parse_test_file(
+                file, FileType.TEST, dataset, test_names, include_skip_tests
+            )
             all_tests.extend(tests)
         elif file_suffix == ".benchmark":
-            tests = parse_test_file(file, FileType.BENCHMARK, dataset)
+            tests = parse_test_file(
+                file, FileType.BENCHMARK, dataset, test_names, include_skip_tests
+            )
             all_tests.extend(tests)
         elif file_suffix == ".cypher":
             # .cypher files only contain queries, we could find expected results from json files
@@ -73,7 +96,25 @@ def collect_tests_from_files(test_files, dataset=None):
     return all_tests
 
 
-def parse_test_file(file_path, file_type=FileType.TEST, dataset=None):
+def parse_test_file(
+    file_path,
+    file_type=FileType.TEST,
+    dataset=None,
+    test_names=None,
+    include_skip_tests=False,
+):
+    """
+    Parse a test file and return a list of Query objects.
+    :param file_path: Path to the test file.
+    :param file_type: Type of the file (TEST, BENCHMARK).
+    :param dataset: Specific dataset to run tests or benchmarks on. If None, all datasets are considered.
+    :param test_names: Comma-separated list of test names to run. If None, all tests are considered.
+    :param also_run_skipped: Whether to run tests that are marked as skip.
+    :return: List of Query objects.
+    """
+    if not os.path.exists(file_path):
+        raise FileNotFoundError(f"File not found: {file_path}")
+
     if file_type == FileType.TEST:
         NAME, STATEMENT = "-LOG", "-STATEMENT"
     elif file_type == FileType.BENCHMARK:
@@ -95,14 +136,18 @@ def parse_test_file(file_path, file_type=FileType.TEST, dataset=None):
                 print(f"Skip dataset: {current_dataset}")
                 return []
         elif line.startswith(NAME):
-            test = parse_single_test(lines, line, NAME, STATEMENT)
+            test = parse_single_test(
+                lines, line, NAME, STATEMENT, test_names, include_skip_tests
+            )
             if test:
                 tests.append(test)
 
     return tests
 
 
-def parse_single_test(lines, name_line, NAME, STATEMENT):
+def parse_single_test(
+    lines, name_line, NAME, STATEMENT, test_names=None, include_skip_tests=False
+):
     CHECK_ORDER, RESULT_PREFIX, SKIP, UNSUPPORTED = (
         "-CHECK_ORDER",
         "----",
@@ -111,6 +156,11 @@ def parse_single_test(lines, name_line, NAME, STATEMENT):
     )
     check_order, skip, expected_result = False, False, []
     current_test_name = name_line.split()[1]
+    if test_names and current_test_name not in test_names.split(","):
+        print(
+            f"Skip test: {current_test_name} as it is not in the specified test names."
+        )
+        return None
     query_lines, within_statement = [], False
 
     for line in lines:
@@ -125,36 +175,64 @@ def parse_single_test(lines, name_line, NAME, STATEMENT):
             query_lines = [line[len(STATEMENT) :].strip()]
         elif line.startswith(CHECK_ORDER):
             check_order = True
-        elif line.startswith(SKIP) or line.startswith(UNSUPPORTED):
+        elif line.startswith(SKIP) and not include_skip_tests:
+            skip = True
+        elif line.startswith(UNSUPPORTED):
             skip = True
         elif line.startswith(RESULT_PREFIX):
-            n = line.split()[1]
-            if not n.isdigit():
-                print(f"Skip invalid result line: {line}")
-                continue
-            n = int(n)
-            try:
-                if n > 0:
-                    expected_result = [next(lines).strip().split("|") for _ in range(n)]
-            except StopIteration:
-                print(f"Warning: Expected {n} result lines but file ended prematurely.")
-
-            if skip:
+            expected_result, result_type = parse_result_block(lines, line)
+            if expected_result is None or result_type is None:
+                print(f"Invalid result line: {line} in test {current_test_name}.")
+                return None
+            elif skip:
                 print(
                     f"Skipping test: {current_test_name} due to skip or unsupported flag."
                 )
                 return None
-            return Query(
-                name=current_test_name,
-                query=current_query,
-                expected_result=expected_result,
-                check_order=check_order,
-            )
+            else:
+                return Query(
+                    name=current_test_name,
+                    query=current_query,
+                    expected_result=expected_result,
+                    check_order=check_order,
+                    result_type=result_type,
+                )
         else:
             if within_statement:
                 query_lines.append(line)
 
     return None
+
+
+def parse_result_block(lines, line):
+    """Parse the result block after ---- and return (expected_result, result_type)."""
+    # e.g., ---- 3, ---- ok, ---- error
+    n = line.split()[1]
+    result_type = None
+    expected_result = []
+    if n.isdigit():
+        n = int(n)
+        result_type = ResultType.EXACT
+        try:
+            if n > 0:
+                expected_result = [next(lines).strip().split("|") for _ in range(n)]
+        except StopIteration:
+            print(f"Warning: Expected {n} result lines but file ended prematurely.")
+    elif n == "ok":
+        result_type = ResultType.OK
+    elif n == "error":
+        result_type = ResultType.ERROR
+        # Optionally read error message
+        error_message = ""
+        try:
+            error_message = next(lines).strip()
+        except StopIteration:
+            pass
+        expected_result = [error_message] if error_message else []
+    else:
+        print(f"Skip invalid result line: {line}")
+        return None, None
+    return expected_result, result_type
 
 
 def parse_cypher_file(file_path):
@@ -277,17 +355,3 @@ def skip_query(query):
     skip_keywords = ["CREATE", "DELETE", "SET", "CALL", "p ="]
     # check if any of the skip_keywords exist in query
     return any(keyword in query for keyword in skip_keywords)
-
-
-def validate_result(query_name, result, expected_result, check_order):
-    if check_order:
-        assert (
-            result == expected_result
-        ), f"Query {query_name} failed: Expected {expected_result}, but got {result}"
-    else:
-        assert set(tuple(r) for r in result) == set(
-            tuple(r) for r in expected_result
-        ), (
-            f"Query {query_name} failed: Expected {set(tuple(r) for r in expected_result)},"
-            f"but got {set(tuple(r) for r in result)}"
-        )

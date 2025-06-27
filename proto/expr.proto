@@ -253,6 +253,18 @@ message UserDefinedFunction {
   repeated Expression parameters = 2;
 }
 
+message ToDate {
+  string date_str = 1;
+}
+
+message ToDatetime {
+  string datetime_str = 1;
+}
+
+message ToInterval {
+  string interval_str = 1;
+}
+
 // An operator of expression is one of Logical, Arithmetic, Const and Variable.
 message ExprOpr {
   enum Brace {
@@ -278,6 +290,9 @@ message ExprOpr {
     PathConcat path_concat = 16;
     PathFunction path_func = 17;
     UserDefinedFunction udf_func = 18;
+    ToDate to_date = 19;
+    ToDatetime to_datetime = 20;
+    ToInterval to_interval = 21;
   }
   // The data of type of ExprOpr
   common.IrDataType node_type = 12;

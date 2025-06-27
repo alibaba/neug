@@ -15,18 +15,35 @@
  */
 
 #include "src/utils/yaml_utils.h"
+
 // Disable class-memaccess warning to facilitate compilation with gcc>7
 // https://github.com/Tencent/rapidjson/issues/1700
 #pragma GCC diagnostic push
 #if defined(__GNUC__) && __GNUC__ >= 8
 #pragma GCC diagnostic ignored "-Wclass-memaccess"
 #endif
+#include <glog/logging.h>
 #include <rapidjson/document.h>
-#pragma GCC diagnostic pop
-#include <rapidjson/pointer.h>
-#include <rapidjson/prettywriter.h>
+#include <stdint.h>
+#include <yaml-cpp/emitter.h>
+#include <yaml-cpp/emittermanip.h>
+#include <yaml-cpp/exceptions.h>
+#include <yaml-cpp/node/detail/iterator.h>
+#include <yaml-cpp/node/emit.h>
+#include <yaml-cpp/node/iterator.h>
+#include <yaml-cpp/node/parse.h>
+#include <yaml-cpp/node/type.h>
+#include <yaml-cpp/null.h>
 #include <fstream>
-#include "service_utils.h"
+
+#pragma GCC diagnostic pop
+#include <exception>
+#include <filesystem>
+#include <stdexcept>
+
+#include "src/utils/property/types.h"
+#include "src/utils/result.h"
+#include "src/utils/service_utils.h"
 
 namespace gs {
 
@@ -57,6 +74,7 @@ YAML::Node property_type_to_yaml(const PropertyType& type) {
     break;
   case impl::PropertyTypeImpl::kDateTime:
     node["temporal"] = config_parsing::TemporalTypeToYAML(type);
+    break;
   case impl::PropertyTypeImpl::kInterval:
     node["temporal"] = config_parsing::TemporalTypeToYAML(type);
     break;

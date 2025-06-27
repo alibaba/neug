@@ -16,6 +16,8 @@
 #ifndef UTILS_APP_UTILS_H_
 #define UTILS_APP_UTILS_H_
 
+#include <cstddef>
+#include <cstdint>
 #include <string>
 #include <string_view>
 #include <vector>
@@ -33,6 +35,8 @@ class Encoder {
   void put_long_at(size_t pos, int64_t v);
 
   void put_int(int v);
+
+  void put_uint(uint32_t v);
 
   size_t skip_int();
 
@@ -72,6 +76,8 @@ class Decoder {
   ~Decoder() {}
 
   int get_int();
+
+  uint32_t get_uint();
 
   int64_t get_long();
 

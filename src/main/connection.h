@@ -82,17 +82,17 @@ class Connection {
    * 1. Parse the query string and generate the execution plan.
    * 2. Execute the execution plan using runtime engine.
    */
-  Result<results::CollectiveResults> query_impl(
+  Result<std::pair<results::CollectiveResults, std::string>> query_impl(
       const std::string& query_string);
 
   // TODO: Make sure
-  physical::PhysicalPlan createDDLPlan(const std::string& query_string);
+  Plan createDDLPlan(const std::string& query_string);
 
-  physical::PhysicalPlan createDMLPlan(const std::string& query_string);
+  Plan createDMLPlan(const std::string& query_string);
 
-  physical::PhysicalPlan createDDLPlanWithGopt(const std::string& query_string);
+  Plan createDDLPlanWithGopt(const std::string& query_string);
 
-  physical::PhysicalPlan createDMLPlanWithGopt(const std::string& query_string);
+  Plan createDMLPlanWithGopt(const std::string& query_string);
 
   GraphDB& db_;
 

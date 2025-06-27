@@ -90,10 +90,9 @@ struct ImmutableNbr<grape::EmptyType> {
   void set_neighbor(vid_t neighbor) { this->neighbor = neighbor; }
   const grape::EmptyType& get_data() const { return data; }
   vid_t get_neighbor() const { return neighbor; }
-  union {
-    vid_t neighbor;
-    grape::EmptyType data;
-  };
+
+  vid_t neighbor;
+  grape::EmptyType data;
 };
 
 template <typename EDATA_T>
@@ -308,10 +307,9 @@ struct MutableNbr<grape::EmptyType> {
   vid_t get_neighbor() const { return neighbor; }
   timestamp_t get_timestamp() const { return timestamp.load(); }
   vid_t neighbor;
-  union {
-    std::atomic<timestamp_t> timestamp;
-    grape::EmptyType data;
-  };
+  std::atomic<timestamp_t> timestamp;
+  // TODO: illimate the dummy field.
+  grape::EmptyType data;
 };
 
 template <typename EDATA_T>

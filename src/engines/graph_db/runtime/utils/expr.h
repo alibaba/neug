@@ -15,13 +15,27 @@
 #ifndef RUNTIME_UTILS_RUNTIME_EXPR_H_
 #define RUNTIME_UTILS_RUNTIME_EXPR_H_
 
+#include <stddef.h>
+#include <map>
+#include <memory>
+#include <string>
+
 #include "src/engines/graph_db/runtime/common/graph_interface.h"
 #include "src/engines/graph_db/runtime/common/rt_any.h"
 #include "src/engines/graph_db/runtime/utils/expr_impl.h"
+#include "src/engines/graph_db/runtime/utils/var.h"
+#include "src/storages/rt_mutable_graph/types.h"
+#include "src/utils/property/types.h"
+
+namespace common {
+class Expression;
+}  // namespace common
 
 namespace gs {
 
 namespace runtime {
+class Context;
+struct LabelTriplet;
 
 class Expr {
  public:

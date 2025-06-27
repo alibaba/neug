@@ -16,9 +16,13 @@
 #ifndef RUNTIME_EXECUTE_UPDATE_OPS_DEDUP_H_
 #define RUNTIME_EXECUTE_UPDATE_OPS_DEDUP_H_
 
+#include <memory>
+
 #include "src/engines/graph_db/runtime/execute/operator.h"
+#include "src/proto_generated_gie/physical.pb.h"
 
 namespace gs {
+class Schema;
 
 namespace runtime {
 

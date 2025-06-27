@@ -14,6 +14,27 @@
  */
 #include "src/engines/graph_db/runtime/common/operators/update/edge_expand.h"
 
+#include <glog/logging.h>
+#include <stddef.h>
+#include <memory>
+#include <ostream>
+#include <set>
+#include <string>
+#include <utility>
+#include <vector>
+
+#include "src/engines/graph_db/database/update_transaction.h"
+#include "src/engines/graph_db/runtime/common/columns/edge_columns.h"
+#include "src/engines/graph_db/runtime/common/columns/vertex_columns.h"
+#include "src/engines/graph_db/runtime/common/context.h"
+#include "src/engines/graph_db/runtime/common/leaf_utils.h"
+#include "src/engines/graph_db/runtime/common/rt_any.h"
+#include "src/engines/graph_db/runtime/common/types.h"
+#include "src/engines/graph_db/runtime/utils/params.h"
+#include "src/storages/rt_mutable_graph/schema.h"
+#include "src/storages/rt_mutable_graph/types.h"
+#include "src/utils/property/types.h"
+
 namespace gs {
 namespace runtime {
 bl::result<Context> UEdgeExpand::edge_expand_v_without_pred(

@@ -42,6 +42,8 @@ class PyQueryResult {
 
   int32_t length() const;
 
+  const std::string& get_result_schema() const;
+
  private:
   const Schema& schema_;
   QueryResult query_result_;

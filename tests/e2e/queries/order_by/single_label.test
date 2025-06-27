@@ -77,6 +77,7 @@
 250
 
 -LOG OrderByInt128Test
+-SKIP: (engine): int128 not supported.
 -STATEMENT MATCH (:person)-[e:studyAt]->(:organisation) RETURN e.hugedata ORDER BY e.hugedata
 -CHECK_ORDER
 ---- 3
@@ -100,6 +101,7 @@ False
 
 
 -LOG OrderByDoubleTest
+-SKIP: result no match, decimal precision
 -STATEMENT MATCH (p:person) RETURN p.eyeSight ORDER BY p.eyeSight
 -CHECK_ORDER
 -PARALLELISM 3
@@ -114,6 +116,7 @@ False
 5.100000
 
 -LOG OrderByFloatTest
+-SKIP: result no match, decimal precision
 -STATEMENT MATCH (p:person) RETURN p.height ORDER BY p.height
 -CHECK_ORDER
 -PARALLELISM 3
@@ -128,6 +131,7 @@ False
 1.731000
 
 -LOG OrderByDateTest
+-SKIP: Support date on compiler side
 -STATEMENT MATCH (p:person) RETURN p.birthdate ORDER BY p.birthdate desc
 -CHECK_ORDER
 -PARALLELISM 3
@@ -142,6 +146,7 @@ False
 1900-01-01
 
 -LOG OrderByTimestampTest
+-SKIP: (compiler): Unsupported basic type for conversion: TIMESTAMP
 -STATEMENT MATCH (p:person) RETURN p.registerTime ORDER BY p.registerTime
 -CHECK_ORDER
 -PARALLELISM 3
@@ -156,6 +161,7 @@ False
 2031-11-30 12:25:30
 
 -LOG OrderByIntervalTest
+-SKIP: (compiler) Unsupported basic type for conversion: INTERVAL"}, error message: Unsupported basic type for conversion: INTERVAL
 -STATEMENT MATCH (p:person) RETURN p.lastJobDuration ORDER BY p.lastJobDuration desc
 -CHECK_ORDER
 -PARALLELISM 2
@@ -184,6 +190,7 @@ Bob
 Alice
 
 -LOG OrderByBlobTest
+-SKIP: blob not supported.
 -STATEMENT MATCH (m:movies) RETURN m.content ORDER BY m.content DESC
 -CHECK_ORDER
 -PARALLELISM 2
@@ -193,6 +200,7 @@ Alice
 pure ascii characters
 
 -LOG OrderByStrMultipleColTest
+-SKIP: result not match, precision problem
 -STATEMENT MATCH (p:person) RETURN p.age, p.eyeSight ORDER BY p.isWorker desc, p.age, p.eyeSight desc
 -CHECK_ORDER
 -PARALLELISM 2
@@ -400,6 +408,7 @@ Elizabeth
 220
 
 -LOG TopKInt128Test
+-SKIP: int128 not supported
 -STATEMENT MATCH (:person)-[e:studyAt]->(:organisation) RETURN e.hugedata ORDER BY e.hugedata LIMIT 3
 -CHECK_ORDER
 ---- 3

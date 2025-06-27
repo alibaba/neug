@@ -14,6 +14,8 @@ limitations under the License.
 */
 
 #include "src/planner/gopt_planner.h"
+#include <yaml-cpp/node/emit.h>
+#include "src/include/gopt/g_result_schema.h"
 
 namespace gs {
 
@@ -48,7 +50,11 @@ Plan GOptPlanner::compilePlan(const std::string& query,
 
     plan.error_code = StatusCode::OK;
     plan.physical_plan = std::move(*physicalPlan);
-    // todo: set result schema
+
+    // set result schema
+    auto resultYaml = gopt::GResultSchema::infer(
+        *statement->logicalPlan, aliasManager, database->getCatalog());
+    plan.result_schema = YAML::Dump(resultYaml);
 
     return plan;
 

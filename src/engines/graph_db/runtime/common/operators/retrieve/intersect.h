@@ -16,6 +16,7 @@
 #ifndef RUNTIME_COMMON_OPERATORS_RETRIEVE_INTERSECT_H_
 #define RUNTIME_COMMON_OPERATORS_RETRIEVE_INTERSECT_H_
 
+#include <boost/leaf.hpp>
 #include <tuple>
 #include <vector>
 
@@ -25,6 +26,7 @@
 namespace gs {
 
 namespace runtime {
+class Context;
 
 class Intersect {
  public:

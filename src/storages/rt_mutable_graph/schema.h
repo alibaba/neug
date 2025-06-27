@@ -16,14 +16,28 @@
 #ifndef STORAGES_RT_MUTABLE_GRAPH_SCHEMA_H_
 #define STORAGES_RT_MUTABLE_GRAPH_SCHEMA_H_
 
-#include "src/engines/graph_db/runtime/common/utils/bitset.h"
-#include "src/storages/rt_mutable_graph/types.h"
-#include "src/utils/id_indexer.h"
-#include "src/utils/property/table.h"
-#include "src/utils/property/types.h"
-#include "src/utils/result.h"
-#include "src/utils/string_utils.h"
-#include "src/utils/yaml_utils.h"
+#include <stddef.h>                                            // for size_t
+#include <cstdint>                                             // for uint32_t
+#include <map>                                                 // for map
+#include <memory>                                              // for allocator
+#include <string>                                              // for string
+#include <tuple>                                               // for tuple
+#include <unordered_map>                                       // for unorde...
+#include <utility>                                             // for pair
+#include <vector>                                              // for vector
+#include "src/engines/graph_db/runtime/common/utils/bitset.h"  // for Bitset
+#include "src/storages/rt_mutable_graph/types.h"               // for label_t
+#include "src/utils/id_indexer.h"                              // for IdIndexer
+#include "src/utils/property/types.h"                          // for Proper...
+#include "src/utils/result.h"                                  // for Result
+
+namespace YAML {
+class Node;
+}
+
+namespace grape {
+class LocalIOAdaptor;
+}
 
 namespace gs {
 

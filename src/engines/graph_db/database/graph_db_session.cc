@@ -13,17 +13,29 @@
  * limitations under the License.
  */
 
+#include <rapidjson/document.h>
 #include <chrono>
+#include <thread>
+#include <tuple>
+#include <unordered_map>
 
 #include "src/engines/graph_db/app/app_base.h"
 #include "src/engines/graph_db/database/graph_db.h"
 #include "src/engines/graph_db/database/graph_db_session.h"
-#include "src/utils/app_utils.h"
-
-#include "service_utils.h"
+#include "src/engines/graph_db/database/version_manager.h"
+#include "src/proto_generated_gie/common.pb.h"
 #include "src/proto_generated_gie/stored_procedure.pb.h"
+#include "src/storages/rt_mutable_graph/mutable_property_fragment.h"
+#include "src/storages/rt_mutable_graph/schema.h"
+#include "src/storages/rt_mutable_graph/types.h"
+#include "src/utils/app_utils.h"
+#include "src/utils/property/column.h"
+#include "src/utils/property/types.h"
+#include "src/utils/result.h"
+#include "src/utils/service_utils.h"
 
 namespace gs {
+class UpdateBatch;
 
 ReadTransaction GraphDBSession::GetReadTransaction() const {
   uint32_t ts = db_.version_manager_.acquire_read_timestamp();

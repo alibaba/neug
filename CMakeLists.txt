@@ -25,6 +25,7 @@ option(BUILD_METADATA "Whether to build metadata" OFF)
 # Options to control the building of tools
 option(BUILD_PYTHON "Whether to build python embedded" ON)
 option(BUILD_COMPILER "Whether to build compiler" ON)
+option(BUILD_ALL_IN_ONE "Whether to build all in one" ON) # Whether to package all libraries into one dynamic library, default is OFF
 #---------------------------------------------------------------------------------
 #-------------------------------Compiler related options-------------------------------
 option(KUZU_DEFAULT_REL_STORAGE_DIRECTION "Only store fwd direction in rel tables by default." BOTH)
@@ -48,7 +49,6 @@ if(NOT KUZU_NODE_GROUP_SIZE_LOG2)
     set(KUZU_NODE_GROUP_SIZE_LOG2 17)
 endif()
 message(STATUS "KUZU_NODE_GROUP_SIZE_LOG2: ${KUZU_NODE_GROUP_SIZE_LOG2}")
-option(SINGLE_THREADED "Single-threaded mode" FALSE)
 option(ENABLE_WERROR "Treat all warnings as errors" FALSE)
 option(ENABLE_ADDRESS_SANITIZER "Enable address sanitizer." FALSE)
 option(ENABLE_THREAD_SANITIZER "Enable thread sanitizer." FALSE)
@@ -65,6 +65,7 @@ option(ENABLE_BACKTRACES "Enable backtrace printing for exceptions and segfaults
 add_definitions(-DNEUG_CMAKE_VERSION="${CMAKE_PROJECT_VERSION}")
 #TODO: Fixme
 add_definitions(-DNEUG_EXTENSION_VERSION="0.9.0")
+include(CheckCXXCompilerFlag)
 
 if (BUILD_HTTP_SERVER AND NOT BUILD_METADATA)
     message(FATAL_ERROR "BUILD_HTTP_SERVER requires BUILD_METADATA to be ON")
@@ -98,13 +99,6 @@ if (ENABLE_BACKTRACES)
     add_compile_definitions(KUZU_BACKTRACE)
 endif()
 
-if(SINGLE_THREADED)
-    set(__SINGLE_THREADED__ TRUE)
-    add_compile_definitions(__SINGLE_THREADED__)
-    message(STATUS "Single-threaded mode is enabled")
-else()
-    find_package(Threads REQUIRED)
-endif()
 if(CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
     add_compile_options(-Wno-restrict) # no restrict until https://gcc.gnu.org/bugzilla/show_bug.cgi?id=105651 is fixed
 endif()
@@ -158,6 +152,8 @@ set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 include(CheckCXXSourceCompiles)
 include_directories(${CMAKE_CURRENT_SOURCE_DIR})
 include_directories(${CMAKE_CURRENT_BINARY_DIR})
+# pb files generated under src/utils
+include_directories(${CMAKE_CURRENT_BINARY_DIR}/src/utils)
 
 # Print cc and cxx compiler
 message(STATUS "CMAKE_C_COMPILER: ${CMAKE_C_COMPILER}")
@@ -196,8 +192,11 @@ function(add_compiler_test TEST_NAME)
     #    target_link_libraries(${TEST_NAME} PRIVATE register_backtrace_signal_handler)
     #endif()
     #target_include_directories(${TEST_NAME} PRIVATE ${PROJECT_SOURCE_DIR}/test/include)
-
-    target_link_libraries(${TEST_NAME} PUBLIC neug::GTest neug_compiler_shared neug_plan_proto)
+    if (BUILD_ALL_IN_ONE)
+        target_link_libraries(${TEST_NAME} PUBLIC neug::GTest neug_libraries)
+    else()
+        target_link_libraries(${TEST_NAME} PUBLIC neug::GTest neug_compiler_shared neug_plan_proto)
+    endif()
     target_include_directories(${TEST_NAME} PRIVATE src/include)
 
     include(GoogleTest)
@@ -349,7 +348,19 @@ if (NOT CMAKE_CXX_COMPILER_ID MATCHES "Clang")
     set(CMAKE_SHARED_LINKER_FLAGS "${CMAKE_SHARED_LINKER_FLAGS} -fopenmp")
 endif ()
 
-set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS}  -std=c++20 -Wall -fPIC -Wno-psabi")
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wall -fPIC -Wno-psabi")
+check_cxx_compiler_flag("-std=c++20" COMPILER_SUPPORTS_CXX20)
+if (NOT COMPILER_SUPPORTS_CXX20)
+    check_cxx_compiler_flag("-std=c++2a" COMPILER_SUPPORTS_CXX2A)
+    if (COMPILER_SUPPORTS_CXX2A)
+        set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++2a")
+    else()
+        message(WARNING "Compiler does not support C++20 or C++2a")
+    endif()
+else()
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++20")
+endif()
+
 # -Wno-psabi for no warning about returning a pair in c++ function
 if (OPTIMIZE_FOR_HOST AND NOT APPLE)
     set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -march=native")
@@ -357,10 +368,11 @@ endif()
 
 set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} -O0 -g")
 set(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE} -O3")
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wno-class-memaccess")
 
 
 #------------------------Brought by compiler------------------------------------
-if(${ENABLE_THREAD_SANITIZER} AND (NOT __SINGLE_THREADED__))
+if(${ENABLE_THREAD_SANITIZER})
     if(MSVC)
         message(FATAL_ERROR "Thread sanitizer is not supported on MSVC")
     else()
@@ -412,6 +424,12 @@ include_directories(SYSTEM ${yaml-cpp_INCLUDE_DIRS})
 if (NOT yaml-cpp_FOUND)
     message(FATAL_ERROR "yaml-cpp not found, please install the yaml-cpp library")
 endif ()
+# In manylinux_2_28, it seems that yaml-cpp cannot be found via YAML_CPP_LIBRARIES, we adhere try to find via the absolute path.
+set(YAML_CPP_LIBRARY_PATH /opt/graphscope/lib64/libyaml-cpp.so)
+if (EXISTS ${YAML_CPP_LIBRARY_PATH})
+        set(YAML_CPP_LIBRARIES ${YAML_CPP_LIBRARY_PATH})
+endif()
+
 
 #find hiactor----------------------------------------------------------------------
 if (BUILD_HTTP_SERVER)
@@ -518,6 +536,24 @@ macro(install_without_export_neug_target target)
             ARCHIVE DESTINATION lib
     )
 endmacro()
+
+
+set(COMPILER_LIBRARIES antlr4_cypher antlr4_runtime fast_float utf8proc re2 ${YAML_CPP_LIBRARIES})
+message(STATUS "head: Compiler libraries: ${COMPILER_LIBRARIES}")
+
+set(COMPILER_LIBRARIES ${COMPILER_LIBRARIES} Threads::Threads)
+if(NOT WIN32)
+        set(COMPILER_LIBRARIES dl ${COMPILER_LIBRARIES})
+endif()
+# Seems to be needed for clang on linux only
+# for compiling std::atomic<T>::compare_exchange_weak
+if ((NOT APPLE AND CMAKE_CXX_COMPILER_ID STREQUAL "Clang") AND NOT __WASM__)
+        set(COMPILER_LIBRARIES atomic ${COMPILER_LIBRARIES})
+endif()
+if (ENABLE_BACKTRACES)
+        set(COMPILER_LIBRARIES ${COMPILER_LIBRARIES} cpptrace::cpptrace)
+endif()
+message(STATUS "head: Compiler libraries: ${COMPILER_LIBRARIES}")
 
 add_subdirectory(src)
 

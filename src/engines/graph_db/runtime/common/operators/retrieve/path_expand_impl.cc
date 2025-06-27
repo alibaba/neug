@@ -15,9 +15,17 @@
 
 #include "src/engines/graph_db/runtime/common/operators/retrieve/path_expand_impl.h"
 
+#include "src/storages/rt_mutable_graph/csr/mutable_csr.h"
+#include "src/utils/property/types.h"
+
+namespace grape {
+struct EmptyType;
+}  // namespace grape
+
 namespace gs {
 
 namespace runtime {
+class IContextColumn;
 
 std::pair<std::shared_ptr<IContextColumn>, std::vector<size_t>>
 iterative_expand_vertex(const GraphReadInterface& graph,

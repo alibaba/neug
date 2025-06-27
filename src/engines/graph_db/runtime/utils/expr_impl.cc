@@ -14,12 +14,98 @@
  */
 
 #include "src/engines/graph_db/runtime/utils/expr_impl.h"
+
+#include <time.h>
+#include <iterator>
 #include <regex>
+#include <sstream>
 #include <stack>
+
+#include "src/proto_generated_gie/type.pb.h"
 
 namespace gs {
 
 namespace runtime {
+class Context;
+struct LabelTriplet;
+
+VertexWithInSetExpr::VertexWithInSetExpr(const Context& ctx,
+                                         std::unique_ptr<ExprBase>&& key,
+                                         std::unique_ptr<ExprBase>&& val_set)
+    : key_(std::move(key)), val_set_(std::move(val_set)) {
+  assert(key_->type() == RTAnyType::kVertex);
+  assert(val_set_->type() == RTAnyType::kSet);
+}
+
+RTAny VertexWithInSetExpr::eval_path(size_t idx, Arena& arena) const {
+  auto key = key_->eval_path(idx, arena).as_vertex();
+  auto set = val_set_->eval_path(idx, arena).as_set();
+  assert(set.impl_ != nullptr);
+  auto ptr = dynamic_cast<SetImpl<VertexRecord>*>(set.impl_);
+  assert(ptr != nullptr);
+  return RTAny::from_bool(ptr->exists(key));
+}
+
+RTAny VertexWithInSetExpr::eval_vertex(label_t label, vid_t v, size_t idx,
+                                       Arena& arena) const {
+  auto key = key_->eval_vertex(label, v, idx, arena).as_vertex();
+  auto set = val_set_->eval_vertex(label, v, idx, arena).as_set();
+  return RTAny::from_bool(
+      dynamic_cast<SetImpl<VertexRecord>*>(set.impl_)->exists(key));
+}
+
+RTAny VertexWithInSetExpr::eval_edge(const LabelTriplet& label, vid_t src,
+                                     vid_t dst, const Any& data, size_t idx,
+                                     Arena& arena) const {
+  auto key = key_->eval_edge(label, src, dst, data, idx, arena).as_vertex();
+  auto set = val_set_->eval_edge(label, src, dst, data, idx, arena).as_set();
+  return RTAny::from_bool(
+      dynamic_cast<SetImpl<VertexRecord>*>(set.impl_)->exists(key));
+}
+
+VertexWithInListExpr::VertexWithInListExpr(const Context& ctx,
+                                           std::unique_ptr<ExprBase>&& key,
+                                           std::unique_ptr<ExprBase>&& val_list)
+    : key_(std::move(key)), val_list_(std::move(val_list)) {
+  assert(key_->type() == RTAnyType::kVertex);
+  assert(val_list_->type() == RTAnyType::kList);
+}
+
+RTAny VertexWithInListExpr::eval_path(size_t idx, Arena& arena) const {
+  auto key = key_->eval_path(idx, arena).as_vertex();
+  auto list = val_list_->eval_path(idx, arena).as_list();
+  for (size_t i = 0; i < list.size(); i++) {
+    if (list.get(i).as_vertex() == key) {
+      return RTAny::from_bool(true);
+    }
+  }
+  return RTAny::from_bool(false);
+}
+
+RTAny VertexWithInListExpr::eval_vertex(label_t label, vid_t v, size_t idx,
+                                        Arena& arena) const {
+  auto key = key_->eval_vertex(label, v, idx, arena).as_vertex();
+  auto list = val_list_->eval_vertex(label, v, idx, arena).as_list();
+  for (size_t i = 0; i < list.size(); i++) {
+    if (list.get(i).as_vertex() == key) {
+      return RTAny::from_bool(true);
+    }
+  }
+  return RTAny::from_bool(false);
+}
+
+RTAny VertexWithInListExpr::eval_edge(const LabelTriplet& label, vid_t src,
+                                      vid_t dst, const Any& data, size_t idx,
+                                      Arena& arena) const {
+  auto key = key_->eval_edge(label, src, dst, data, idx, arena).as_vertex();
+  auto list = val_list_->eval_edge(label, src, dst, data, idx, arena).as_list();
+  for (size_t i = 0; i < list.size(); i++) {
+    if (list.get(i).as_vertex() == key) {
+      return RTAny::from_bool(true);
+    }
+  }
+  return RTAny::from_bool(false);
+}
 
 RTAny VariableExpr::eval_path(size_t idx, Arena&) const {
   return var_.get(idx);
@@ -305,6 +391,27 @@ static int32_t extract_day(int64_t ms) {
   return tm.tm_mday;
 }
 
+static int32_t extract_second(int64_t ms) {
+  auto micro_second = ms / 1000;
+  struct tm tm;
+  gmtime_r((time_t*) (&micro_second), &tm);
+  return tm.tm_sec;
+}
+
+static int32_t extract_hour(int64_t ms) {
+  auto micro_second = ms / 1000;
+  struct tm tm;
+  gmtime_r((time_t*) (&micro_second), &tm);
+  return tm.tm_hour;
+}
+
+static int32_t extract_minute(int64_t ms) {
+  auto micro_second = ms / 1000;
+  struct tm tm;
+  gmtime_r((time_t*) (&micro_second), &tm);
+  return tm.tm_min;
+}
+
 int32_t extract_time_from_milli_second(int64_t ms, common::Extract extract) {
   if (extract.interval() == common::Extract::YEAR) {
     return extract_year(ms);
@@ -312,8 +419,16 @@ int32_t extract_time_from_milli_second(int64_t ms, common::Extract extract) {
     return extract_month(ms);
   } else if (extract.interval() == common::Extract::DAY) {
     return extract_day(ms);
+  } else if (extract.interval() == common::Extract::SECOND) {
+    return extract_second(ms);
+  } else if (extract.interval() == common::Extract::HOUR) {
+    return extract_hour(ms);
+  } else if (extract.interval() == common::Extract::MINUTE) {
+    return extract_minute(ms);
+  } else if (extract.interval() == common::Extract::MILLISECOND) {
+    return ms % 1000;
   } else {
-    LOG(FATAL) << "not support";
+    LOG(FATAL) << "not support: " << extract.DebugString();
   }
   return 0;
 }
@@ -504,6 +619,9 @@ static inline int get_proiority(const common::ExprOpr& opr) {
   case common::ExprOpr::kExtract: {
     return 2;
   }
+  case common::ExprOpr::kToDate: {
+    return 2;
+  }
   case common::ExprOpr::kLogical: {
     switch (opr.logical()) {
     case common::Logical::AND:
@@ -660,6 +778,8 @@ static std::unique_ptr<ExprBase> build_expr(
     }
     case common::ExprOpr::kExtract: {
       auto hs = build_expr(graph, ctx, params, opr_stack, var_type);
+      LOG(INFO) << "hs->type() = " << static_cast<int>(hs->type())
+                << ", opr.extract() = " << opr.extract().DebugString();
       if (hs->type() == RTAnyType::kI64Value) {
         return std::make_unique<ExtractExpr<int64_t>>(std::move(hs),
                                                       opr.extract());
@@ -669,10 +789,41 @@ static std::unique_ptr<ExprBase> build_expr(
       } else if (hs->type() == RTAnyType::kDateTime) {
         return std::make_unique<ExtractExpr<DateTime>>(std::move(hs),
                                                        opr.extract());
+      } else if (hs->type() == RTAnyType::kInterval) {
+        return std::make_unique<ExtractExpr<Interval>>(std::move(hs),
+                                                       opr.extract());
+      } else if (hs->type() == RTAnyType::kTimestamp) {
+        return std::make_unique<ExtractExpr<TimeStamp>>(std::move(hs),
+                                                        opr.extract());
       } else {
         LOG(FATAL) << "not support" << static_cast<int>(hs->type());
       }
     }
+    case common::ExprOpr::kToDate: {
+      auto date_str = opr.to_date().date_str();
+      // Parse the date string into Date
+      auto date = Date(date_str);
+      // Create a ConstExpr with the parsed Date
+      return std::make_unique<ConstExpr>(RTAny::from_date(date));
+    }
+
+    case common::ExprOpr::kToDatetime: {
+      auto date_time_str = opr.to_datetime().datetime_str();
+      // Parse the date time string into DateTime
+      auto date_time = DateTime(date_time_str);
+      // Create a ConstExpr with the parsed DateTime
+      return std::make_unique<ConstExpr>(RTAny::from_datetime(date_time));
+    }
+
+    case common::ExprOpr::kToInterval: {
+      auto interval_str = opr.to_interval().interval_str();
+      // Parse the interval string into Interval
+      auto interval = AnyConverter<Interval>::to_any(interval_str);
+      // Create a ConstExpr with the parsed Interval
+      return std::make_unique<ConstExpr>(
+          RTAny::from_interval(interval.AsInterval()));
+    }
+
     case common::ExprOpr::kVars: {
       auto op = opr.vars();
 
@@ -819,6 +970,21 @@ static std::unique_ptr<ExprBase> parse_expression_impl(
       break;
     }
     case common::ExprOpr::kUdfFunc: {
+      opr_stack2.push(*it);
+      break;
+    }
+
+    case common::ExprOpr::kToInterval: {
+      opr_stack2.push(*it);
+      break;
+    }
+
+    case common::ExprOpr::kToDate: {
+      opr_stack2.push(*it);
+      break;
+    }
+
+    case common::ExprOpr::kToDatetime: {
       opr_stack2.push(*it);
       break;
     }

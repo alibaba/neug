@@ -16,11 +16,22 @@
 #ifndef RUNTIME_EXECUTE_PIPELINE_H_
 #define RUNTIME_EXECUTE_PIPELINE_H_
 
+#include <boost/leaf.hpp>
+#include <map>
+#include <memory>
+#include <string>
+#include <utility>
+#include <vector>
+
+#include "src/engines/graph_db/runtime/common/graph_interface.h"
 #include "src/engines/graph_db/runtime/execute/operator.h"
 
 namespace gs {
 
 namespace runtime {
+class Context;
+class OprTimer;
+class WriteContext;
 
 class ReadPipeline {
  public:

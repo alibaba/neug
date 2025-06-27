@@ -16,14 +16,21 @@
 #ifndef UTILS_YAML_UTILS_H_
 #define UTILS_YAML_UTILS_H_
 
+#include <yaml-cpp/node/impl.h>
+#include <yaml-cpp/node/node.h>
 #include <yaml-cpp/yaml.h>
 #include <filesystem>
+#include <ostream>
 #include <string>
 #include <vector>
+
+#include "glog/logging.h"
 #include "src/utils/property/types.h"
 #include "src/utils/result.h"
 
-#include "glog/logging.h"
+namespace YAML {
+class Emitter;
+}  // namespace YAML
 
 namespace gs {
 

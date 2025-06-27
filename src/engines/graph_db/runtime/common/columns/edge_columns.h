@@ -15,9 +15,29 @@
 #ifndef RUNTIME_COMMON_COLUMNS_EDGE_COLUMNS_H_
 #define RUNTIME_COMMON_COLUMNS_EDGE_COLUMNS_H_
 
+#include <assert.h>
+#include <glog/logging.h>
+#include <stddef.h>
+#include <cstdint>
+#include <ext/alloc_traits.h>
+#include <limits>
+#include <map>
+#include <memory>
+#include <ostream>
+#include <stdexcept>
+#include <string>
+#include <string_view>
+#include <tuple>
+#include <utility>
+#include <vector>
+
 #include "src/engines/graph_db/runtime/common/columns/columns_utils.h"
 #include "src/engines/graph_db/runtime/common/columns/i_context_column.h"
+#include "src/engines/graph_db/runtime/common/rt_any.h"
+#include "src/engines/graph_db/runtime/common/types.h"
+#include "src/storages/rt_mutable_graph/types.h"
 #include "src/utils/property/column.h"
+#include "src/utils/property/types.h"
 
 namespace gs {
 
@@ -36,6 +56,14 @@ static inline void get_edge_data(EdgePropVecBase* prop, size_t idx,
     edge_data.type = RTAnyType::kI32Value;
     edge_data.value.i32_val =
         dynamic_cast<EdgePropVec<int32_t>*>(prop)->get_view(idx);
+  } else if (prop->type() == PropertyType::kUInt32) {
+    edge_data.type = RTAnyType::kU32Value;
+    edge_data.value.u32_val =
+        dynamic_cast<EdgePropVec<uint32_t>*>(prop)->get_view(idx);
+  } else if (prop->type() == PropertyType::kUInt64) {
+    edge_data.type = RTAnyType::kU64Value;
+    edge_data.value.u64_val =
+        dynamic_cast<EdgePropVec<uint64_t>*>(prop)->get_view(idx);
   } else if (prop->type() == PropertyType::kDouble) {
     edge_data.type = RTAnyType::kF64Value;
     edge_data.value.f64_val =
@@ -61,8 +89,21 @@ static inline void get_edge_data(EdgePropVecBase* prop, size_t idx,
     edge_data.type = RTAnyType::kRecordView;
     edge_data.value.record_view =
         dynamic_cast<EdgePropVec<RecordView>*>(prop)->get_view(idx);
+  } else if (prop->type() == PropertyType::kUInt64) {
+    edge_data.type = RTAnyType::kU64Value;
+    edge_data.value.u64_val =
+        dynamic_cast<EdgePropVec<uint64_t>*>(prop)->get_view(idx);
+  } else if (prop->type() == PropertyType::kTimestamp) {
+    edge_data.type = RTAnyType::kTimestamp;
+    edge_data.value.ts_val =
+        dynamic_cast<EdgePropVec<TimeStamp>*>(prop)->get_view(idx);
+  } else if (prop->type() == PropertyType::kUInt32) {
+    edge_data.type = RTAnyType::kU32Value;
+    edge_data.value.u32_val =
+        dynamic_cast<EdgePropVec<uint32_t>*>(prop)->get_view(idx);
   } else {
-    edge_data.type = RTAnyType::kUnknown;
+    throw std::runtime_error("get_edge_data: unsupported property type: " +
+                             prop->type().ToString());
   }
 }
 
@@ -119,7 +160,6 @@ class IEdgeColumn : public IContextColumn {
 };
 
 class SDSLEdgeColumnBuilder;
-
 template <typename T>
 class SDSLEdgeColumnBuilderBeta;
 
@@ -264,8 +304,8 @@ class OptionalSDSLEdgeColumn : public IEdgeColumn {
 };
 
 class BDSLEdgeColumnBuilder;
-
 class OptionalBDSLEdgeColumnBuilder;
+
 class BDSLEdgeColumn : public IEdgeColumn {
  public:
   BDSLEdgeColumn(const LabelTriplet& label, PropertyType prop_type)

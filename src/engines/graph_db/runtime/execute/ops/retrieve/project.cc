@@ -15,14 +15,50 @@
  */
 
 #include "src/engines/graph_db/runtime/execute/ops/retrieve/project.h"
-#include "src/engines/graph_db/runtime/common/operators/retrieve/order_by.h"
+
+#include <glog/logging.h>
+#include <google/protobuf/wrappers.pb.h>
+#include <stddef.h>
+#include <compare>
+#include <cstdint>
+#include <ext/alloc_traits.h>
+#include <functional>
+#include <limits>
+#include <map>
+#include <memory>
+#include <optional>
+#include <ostream>
+#include <set>
+#include <stdexcept>
+#include <string>
+#include <string_view>
+#include <tuple>
+#include <utility>
+
+#include "src/engines/graph_db/runtime/common/columns/edge_columns.h"
+#include "src/engines/graph_db/runtime/common/columns/i_context_column.h"
+#include "src/engines/graph_db/runtime/common/columns/value_columns.h"
+#include "src/engines/graph_db/runtime/common/columns/vertex_columns.h"
+#include "src/engines/graph_db/runtime/common/context.h"
+#include "src/engines/graph_db/runtime/common/graph_interface.h"
 #include "src/engines/graph_db/runtime/common/operators/retrieve/project.h"
+#include "src/engines/graph_db/runtime/common/rt_any.h"
 #include "src/engines/graph_db/runtime/execute/ops/retrieve/order_by_utils.h"
 #include "src/engines/graph_db/runtime/utils/expr.h"
 #include "src/engines/graph_db/runtime/utils/special_predicates.h"
+#include "src/engines/graph_db/runtime/utils/var.h"
+#include "src/proto_generated_gie/algebra.pb.h"
+#include "src/proto_generated_gie/common.pb.h"
+#include "src/proto_generated_gie/expr.pb.h"
+#include "src/proto_generated_gie/type.pb.h"
+#include "src/storages/rt_mutable_graph/schema.h"
+#include "src/storages/rt_mutable_graph/types.h"
+#include "src/utils/property/types.h"
 
 namespace gs {
 namespace runtime {
+class OprTimer;
+
 namespace ops {
 
 template <typename T>
@@ -726,7 +762,8 @@ bool is_property_extract(const common::Expression& expr, int& tag,
       }
       // only support pod type
       if (type == RTAnyType::kTimestamp || type == RTAnyType::kDate ||
-          type == RTAnyType::kI64Value || type == RTAnyType::kI32Value) {
+          type == RTAnyType::kI64Value || type == RTAnyType::kI32Value ||
+          type == RTAnyType::kF64Value || type == RTAnyType::kU32Value) {
         return true;
       }
     }
@@ -826,6 +863,15 @@ make_project_expr(const common::Expression& expr, int alias) {
     } break;
     case RTAnyType::kMap: {
       return _make_project_expr<Map>(std::move(e), alias, ctx);
+    } break;
+    case RTAnyType::kU64Value: {
+      return _make_project_expr<uint64_t>(std::move(e), alias, ctx);
+    } break;
+    case RTAnyType::kU32Value: {
+      return _make_project_expr<uint32_t>(std::move(e), alias, ctx);
+    } break;
+    case RTAnyType::kInterval: {
+      return _make_project_expr<Interval>(std::move(e), alias, ctx);
     } break;
     default:
       LOG(FATAL) << "not support - " << static_cast<int>(e.type());
@@ -1048,8 +1094,14 @@ make_project_expr(const common::Expression& expr,
     case RTAnyType::kUnknown: {
       return make_project_expr(expr, alias);
     } break;
+    case RTAnyType::kU64Value: {
+      return _make_project_expr<uint64_t>(expr, alias);
+    } break;
+    case RTAnyType::kInterval: {
+      return _make_project_expr<Interval>(expr, alias);
+    } break;
     default: {
-      LOG(INFO) << "not support" << data_type.DebugString();
+      throw std::runtime_error("not support type - " + data_type.DebugString());
       return std::nullopt;
     }
     }

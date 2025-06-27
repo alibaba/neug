@@ -35,15 +35,11 @@ jobs:
     runs-on: ubuntu-22.04
     container:
       # Need hiactor
-      image: registry.cn-hongkong.aliyuncs.com/graphscope/graphscope-dev:v0.24.2-amd64
+      image: registry.cn-hongkong.aliyuncs.com/graphscope/graphscope-dev:v0.24.2
     steps:
     - uses: actions/checkout@v4
       with:
         submodules: true
-
-    - name: Setup tmate session
-      if: false
-      uses: mxschmitt/action-tmate@v3
 
     - name: Build NeuG
       run: |

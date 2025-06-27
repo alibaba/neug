@@ -14,14 +14,19 @@
  */
 
 #include "src/engines/graph_db/app/cypher_app_utils.h"
-#include <glog/logging.h>
 
+#include <errno.h>
+#include <glog/logging.h>
+#include <stdlib.h>
+#include <string.h>
 #include <sys/wait.h>  // for waitpid()
 #include <unistd.h>    // for fork() and execvp()
 #include <fstream>
 #include <iostream>
-#include <sstream>
 #include <thread>
+#include <vector>
+
+#include "src/proto_generated_gie/physical.pb.h"
 
 namespace gs {
 

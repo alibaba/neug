@@ -16,14 +16,45 @@
 #ifndef RUNTIME_COMMON_RT_ANY_H_
 #define RUNTIME_COMMON_RT_ANY_H_
 
-#include "src/proto_generated_gie/results.pb.h"
-#include "src/proto_generated_gie/type.pb.h"
+#include <arrow/type.h>
+#include <assert.h>
+#include <glog/logging.h>
+#include <compare>
+#include <cstdint>
+#include <cstring>
+#include <functional>
+#include <memory>
+#include <ostream>
+#include <set>
+#include <string>
+#include <string_view>
+#include <tuple>
+#include <type_traits>
+#include <typeinfo>
+#include <unordered_set>
+#include <utility>
+#include <variant>
+#include <vector>
 
 #include "src/engines/graph_db/runtime/common/graph_interface.h"
 #include "src/engines/graph_db/runtime/common/types.h"
+#include "src/proto_generated_gie/basic_type.pb.h"
+#include "src/proto_generated_gie/results.pb.h"
+#include "src/proto_generated_gie/type.pb.h"
+#include "src/storages/rt_mutable_graph/types.h"
 #include "src/utils/app_utils.h"
+#include "src/utils/property/types.h"
+#include "third_party/libgrape-lite/grape/types.h"
 
-#include <arrow/type.h>
+namespace arrow {
+class DataType;
+}  // namespace arrow
+namespace common {
+class Value;
+}  // namespace common
+namespace results {
+class Column;
+}  // namespace results
 
 namespace gs {
 
@@ -171,6 +202,7 @@ class Path {
 };
 
 class RTAny;
+
 enum class RTAnyType;
 
 class ListImplBase : public CObject {
@@ -338,27 +370,29 @@ class StringImpl : public CObject {
 };
 
 enum class RTAnyType {
-  kVertex,
-  kEdge,
-  kI64Value,
-  kU64Value,
-  kI32Value,
-  kF64Value,
-  kBoolValue,
-  kStringValue,
-  kUnknown,
-  kDate,
-  kDateTime,
-  kTimestamp,
-  kPath,
-  kNull,
-  kTuple,
-  kList,
-  kMap,
-  kRelation,
-  kSet,
-  kEmpty,
-  kRecordView,
+  kVertex = 0,
+  kEdge = 1,
+  kI64Value = 2,
+  kU64Value = 3,
+  kI32Value = 4,
+  kU32Value = 5,
+  kF64Value = 6,
+  kBoolValue = 7,
+  kStringValue = 8,
+  kUnknown = 9,
+  kDate = 10,
+  kDateTime = 11,
+  kTimestamp = 12,
+  kInterval = 13,
+  kPath = 14,
+  kNull = 15,
+  kTuple = 16,
+  kList = 17,
+  kMap = 18,
+  kRelation = 19,
+  kSet = 20,
+  kEmpty = 21,
+  kRecordView = 22,
 };
 
 PropertyType rt_type_to_property_type(RTAnyType type);
@@ -432,6 +466,9 @@ struct EdgeData {
     if constexpr (std::is_same_v<T, int32_t>) {
       type = RTAnyType::kI32Value;
       value.i32_val = val;
+    } else if constexpr (std::is_same_v<T, uint32_t>) {
+      type = RTAnyType::kU32Value;
+      value.u32_val = val;
     } else if constexpr (std::is_same_v<T, int64_t>) {
       type = RTAnyType::kI64Value;
       value.i64_val = val;
@@ -460,124 +497,20 @@ struct EdgeData {
     }
   }
 
-  std::string to_string() const {
-    if (type == RTAnyType::kI32Value) {
-      return std::to_string(value.i32_val);
-    } else if (type == RTAnyType::kI64Value) {
-      return std::to_string(value.i64_val);
-    } else if (type == RTAnyType::kStringValue) {
-      return std::string(value.str_val.data(), value.str_val.size());
-      return value.str_val.to_string();
-    } else if (type == RTAnyType::kNull) {
-      return "NULL";
-    } else if (type == RTAnyType::kF64Value) {
-      return std::to_string(value.f64_val);
-    } else if (type == RTAnyType::kBoolValue) {
-      return value.b_val ? "true" : "false";
-    } else if (type == RTAnyType::kDate) {
-      return value.date_val.to_string();
-    } else if (type == RTAnyType::kDateTime) {
-      return std::to_string(value.dt_val.milli_second);
-    } else if (type == RTAnyType::kTimestamp) {
-      return std::to_string(value.ts_val.milli_second);
-    } else if (type == RTAnyType::kEmpty) {
-      return "";
-    } else if (type == RTAnyType::kRecordView) {
-      return value.record_view.to_string();
-    } else {
-      LOG(FATAL) << "Unexpected property type: " << static_cast<int>(type);
-      return "";
-    }
-  }
+  std::string to_string() const;
 
   EdgeData() = default;
 
-  EdgeData(const Any& any) {
-    switch (any.type.type_enum) {
-    case impl::PropertyTypeImpl::kInt64:
-      type = RTAnyType::kI64Value;
-      value.i64_val = any.value.l;
-      break;
-    case impl::PropertyTypeImpl::kInt32:
-      type = RTAnyType::kI32Value;
-      value.i32_val = any.value.i;
-      break;
-    case impl::PropertyTypeImpl::kStringView:
-      type = RTAnyType::kStringValue;
-      value.str_val = any.value.s;
-      break;
-    case impl::PropertyTypeImpl::kDouble:
-      type = RTAnyType::kF64Value;
-      value.f64_val = any.value.db;
-      break;
-    case impl::PropertyTypeImpl::kBool:
-      type = RTAnyType::kBoolValue;
-      value.b_val = any.value.b;
-      break;
-    case impl::PropertyTypeImpl::kEmpty:
-      type = RTAnyType::kEmpty;
-      break;
-    case impl::PropertyTypeImpl::kDate:
-      type = RTAnyType::kDate;
-      value.date_val = any.value.d;
-      break;
-    case impl::PropertyTypeImpl::kRecordView:
-      type = RTAnyType::kRecordView;
-      value.record_view = any.value.record_view;
-      break;
-    default:
-      LOG(FATAL) << "Unexpected property type: "
-                 << static_cast<int>(any.type.type_enum);
-    }
-  }
+  EdgeData(const Any& any);
 
-  bool operator<(const EdgeData& e) const {
-    if (type == RTAnyType::kI64Value) {
-      return value.i64_val < e.value.i64_val;
-    } else if (type == RTAnyType::kI32Value) {
-      return value.i32_val < e.value.i32_val;
-    } else if (type == RTAnyType::kF64Value) {
-      return value.f64_val < e.value.f64_val;
-    } else if (type == RTAnyType::kBoolValue) {
-      return value.b_val < e.value.b_val;
-    } else if (type == RTAnyType::kStringValue) {
-      return std::string_view(value.str_val.data(), value.str_val.size()) <
-             std::string_view(e.value.str_val.data(), e.value.str_val.size());
-    } else if (type == RTAnyType::kDate) {
-      return value.date_val < e.value.date_val;
-    } else {
-      return false;
-    }
-  }
+  bool operator<(const EdgeData& e) const;
 
-  bool operator==(const EdgeData& e) const {
-    if (type == RTAnyType::kI64Value) {
-      return value.i64_val == e.value.i64_val;
-    } else if (type == RTAnyType::kI32Value) {
-      return value.i32_val == e.value.i32_val;
-    } else if (type == RTAnyType::kF64Value) {
-      return value.f64_val == e.value.f64_val;
-    } else if (type == RTAnyType::kBoolValue) {
-      return value.b_val == e.value.b_val;
-    } else if (type == RTAnyType::kStringValue) {
-      return std::string_view(value.str_val.data(), value.str_val.size()) ==
-             std::string_view(e.value.str_val.data(), e.value.str_val.size());
-    } else if (type == RTAnyType::kDate) {
-      return value.date_val == e.value.date_val;
-    } else if (type == RTAnyType::kDateTime) {
-      return value.dt_val == e.value.dt_val;
-    } else if (type == RTAnyType::kTimestamp) {
-      return value.ts_val == e.value.ts_val;
-    } else if (type == RTAnyType::kRecordView) {
-      return value.record_view == e.value.record_view;
-    } else {
-      return false;
-    }
-  }
+  bool operator==(const EdgeData& e) const;
   RTAnyType type;
 
   union {
     int32_t i32_val;
+    uint32_t u32_val;
     int64_t i64_val;
     uint64_t u64_val;
     double f64_val;
@@ -586,6 +519,7 @@ struct EdgeData {
     DateTime dt_val;
     Date date_val;
     TimeStamp ts_val;
+    Interval interval_val;
     RecordView record_view;
     // todo: make recordview as a pod type
     // RecordView record;
@@ -612,71 +546,7 @@ class EdgeRecord {
   EdgeData prop_;
   Direction dir_;
 };
-inline RTAnyType parse_from_ir_data_type(const ::common::IrDataType& dt) {
-  switch (dt.type_case()) {
-  case ::common::IrDataType::TypeCase::kDataType: {
-    const ::common::DataType ddt = dt.data_type();
-    switch (ddt.item_case()) {
-    case ::common::DataType::kPrimitiveType: {
-      const ::common::PrimitiveType pt = ddt.primitive_type();
-      switch (pt) {
-      case ::common::PrimitiveType::DT_SIGNED_INT32:
-        return RTAnyType::kI32Value;
-      case ::common::PrimitiveType::DT_SIGNED_INT64:
-        return RTAnyType::kI64Value;
-      case ::common::PrimitiveType::DT_DOUBLE:
-        return RTAnyType::kF64Value;
-      case ::common::PrimitiveType::DT_BOOL:
-        return RTAnyType::kBoolValue;
-      case ::common::PrimitiveType::DT_ANY:
-        return RTAnyType::kUnknown;
-      default:
-        LOG(FATAL) << "unrecognized primitive type - " << pt;
-        break;
-      }
-    }
-    case ::common::DataType::kString:
-      return RTAnyType::kStringValue;
-    case ::common::DataType::kTemporal: {
-      if (ddt.temporal().item_case() == ::common::Temporal::kDate32) {
-        return RTAnyType::kDate;
-      } else if (ddt.temporal().item_case() == ::common::Temporal::kDateTime) {
-        return RTAnyType::kDateTime;
-      } else if (ddt.temporal().item_case() == ::common::Temporal::kDate) {
-        return RTAnyType::kDate;
-      } else if (ddt.temporal().item_case() == ::common::Temporal::kTimestamp) {
-        return RTAnyType::kTimestamp;
-      } else {
-        LOG(FATAL) << "unrecognized temporal type - "
-                   << ddt.temporal().DebugString();
-      }
-    }
-    case ::common::DataType::kArray:
-      return RTAnyType::kList;
-    default:
-      LOG(FATAL) << "unrecognized data type - " << ddt.DebugString();
-      break;
-    }
-  } break;
-  case ::common::IrDataType::TypeCase::kGraphType: {
-    const ::common::GraphDataType gdt = dt.graph_type();
-    switch (gdt.element_opt()) {
-    case ::common::GraphDataType_GraphElementOpt::
-        GraphDataType_GraphElementOpt_VERTEX:
-      return RTAnyType::kVertex;
-    case ::common::GraphDataType_GraphElementOpt::
-        GraphDataType_GraphElementOpt_EDGE:
-      return RTAnyType::kEdge;
-    default:
-      LOG(FATAL) << "unrecognized graph data type";
-      break;
-    }
-  } break;
-  default:
-    break;
-  }
-  return RTAnyType::kUnknown;
-}
+RTAnyType parse_from_ir_data_type(const ::common::IrDataType& dt);
 
 union RTAnyValue {
   // TODO delete it later
@@ -688,11 +558,13 @@ union RTAnyValue {
   int64_t i64_val;
   uint64_t u64_val;
   int i32_val;
+  uint32_t u32_val;
   double f64_val;
   // Day day;
   Date date_val;
   DateTime dt_val;
   TimeStamp ts_val;
+  Interval interval_val;
   std::string_view str_val;
   Path p;
   Tuple t;
@@ -727,6 +599,7 @@ class RTAny {
   static RTAny from_int64(int64_t v);
   static RTAny from_uint64(uint64_t v);
   static RTAny from_int32(int v);
+  static RTAny from_uint32(uint32_t v);
   static RTAny from_string(const std::string& str);
   static RTAny from_string(const std::string_view& str);
   static RTAny from_date(Date v);
@@ -738,13 +611,16 @@ class RTAny {
   static RTAny from_double(double v);
   static RTAny from_map(const Map& m);
   static RTAny from_set(const Set& s);
+  static RTAny from_interval(const Interval& v);
 
   bool as_bool() const;
   int as_int32() const;
+  uint32_t as_uint32() const;
   int64_t as_int64() const;
   uint64_t as_uint64() const;
-  Date as_date32() const;
+  Date as_date() const;
   DateTime as_datetime() const;
+  Interval as_interval() const;
   TimeStamp as_timestamp() const;
   double as_double() const;
   VertexRecord as_vertex() const;
@@ -791,8 +667,12 @@ class RTAny {
       encoder.put_long(value_.dt_val.milli_second);
     } else if (type_ == RTAnyType::kTimestamp) {
       encoder.put_long(value_.ts_val.milli_second);
+    } else if (type_ == RTAnyType::kInterval) {
+      encoder.put_long(value_.interval_val.to_mill_seconds());
     } else if (type_ == RTAnyType::kI32Value) {
       encoder.put_int(value_.i32_val);
+    } else if (type_ == RTAnyType::kU32Value) {
+      encoder.put_uint(value_.u32_val);
     } else if (type_ == RTAnyType::kF64Value) {
       int64_t long_value;
       std::memcpy(&long_value, &value_.f64_val, sizeof(long_value));
@@ -844,6 +724,17 @@ struct TypedConverter<int32_t> {
   static const std::string name() { return "int"; }
   static int32_t typed_from_string(const std::string& str) {
     return std::stoi(str);
+  }
+};
+
+template <>
+struct TypedConverter<uint32_t> {
+  static RTAnyType type() { return RTAnyType::kU32Value; }
+  static uint32_t to_typed(const RTAny& val) { return val.as_uint32(); }
+  static RTAny from_typed(uint32_t val) { return RTAny::from_uint32(val); }
+  static const std::string name() { return "uint"; }
+  static uint32_t typed_from_string(const std::string& str) {
+    return std::stoul(str);
   }
 };
 
@@ -904,7 +795,7 @@ struct TypedConverter<double> {
 template <>
 struct TypedConverter<Date> {
   static RTAnyType type() { return RTAnyType::kDate; }
-  static Date to_typed(const RTAny& val) { return val.as_date32(); }
+  static Date to_typed(const RTAny& val) { return val.as_date(); }
   static RTAny from_typed(Date val) { return RTAny::from_date(val); }
   static const std::string name() { return "date"; }
   static Date typed_from_string(const std::string& str) {
@@ -922,6 +813,20 @@ struct TypedConverter<DateTime> {
   static DateTime typed_from_string(const std::string& str) {
     int64_t val = std::stoll(str);
     return DateTime(val);
+  }
+};
+
+template <>
+struct TypedConverter<Interval> {
+  static RTAnyType type() { return RTAnyType::kInterval; }
+  static Interval to_typed(const RTAny& val) { return val.as_interval(); }
+  static RTAny from_typed(Interval val) { return RTAny::from_interval(val); }
+  static const std::string name() { return "interval"; }
+  static Interval typed_from_string(const std::string& str) {
+    int64_t val = std::stoll(str);
+    Interval ret;
+    ret.from_mill_seconds(val);
+    return ret;
   }
 };
 

@@ -42,9 +42,9 @@ Dan|Carol
 Carol
 Dan
 
-# TODO: COMPILATION: `e1.date=date('1950-05-14')` not supported yet. 
-# -LOG AspOneMaskToMultiScan
-# -STATEMENT MATCH (a:person)-[e1:knows]->(b:person), (a)-[e2:knows]->(b), (a)-[e3:knows]->(c:person)-[e4:knows]->(d:person) WHERE e1.date=date('1950-05-14') AND a.ID>0 AND c.fName='Bob' AND d.fName='Carol' RETURN a.fName, b.fName
-# ---- 2
-# Carol|Bob
-# Dan|Bob
+-LOG AspOneMaskToMultiScan
+-SKIP
+-STATEMENT MATCH (a:person)-[e1:knows]->(b:person), (a)-[e2:knows]->(b), (a)-[e3:knows]->(c:person)-[e4:knows]->(d:person) WHERE e1.date=date('1950-05-14') AND a.ID>0 AND c.fName='Bob' AND d.fName='Carol' RETURN a.fName, b.fName
+---- 2
+Carol|Bob
+Dan|Bob

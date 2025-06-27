@@ -17,6 +17,18 @@
 
 #include "src/engines/graph_db/runtime/execute/ops/retrieve/scan_utils.h"
 
+#include <glog/logging.h>
+#include <cstdint>
+#include <ostream>
+#include <type_traits>
+#include <utility>
+
+#include "src/engines/graph_db/runtime/common/rt_any.h"
+#include "src/proto_generated_gie/algebra.pb.h"
+#include "src/proto_generated_gie/common.pb.h"
+#include "src/proto_generated_gie/expr.pb.h"
+#include "src/proto_generated_gie/physical.pb.h"
+
 namespace gs {
 namespace runtime {
 namespace ops {

@@ -16,7 +16,20 @@
 #ifndef RUNTIME_COMMON_COLUMNS_VERTEX_COLUMNS_H_
 #define RUNTIME_COMMON_COLUMNS_VERTEX_COLUMNS_H_
 
+#include <assert.h>
+#include <glog/logging.h>
+#include <stddef.h>
+#include <limits>
+#include <memory>
+#include <ostream>
+#include <set>
+#include <string>
+#include <utility>
+#include <vector>
+
 #include "src/engines/graph_db/runtime/common/columns/i_context_column.h"
+#include "src/engines/graph_db/runtime/common/rt_any.h"
+#include "src/storages/rt_mutable_graph/types.h"
 
 namespace gs {
 
@@ -232,6 +245,7 @@ class OptionalSLVertexColumn : public SLVertexColumnBase {
 };
 
 class MSVertexColumnBuilder;
+
 class MSVertexColumn : public IVertexColumn {
  public:
   MSVertexColumn() = default;

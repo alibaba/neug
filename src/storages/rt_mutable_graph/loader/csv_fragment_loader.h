@@ -17,19 +17,34 @@
 #ifndef STORAGES_RT_MUTABLE_GRAPH_LOADER_CSV_FRAGMENT_LOADER_H_
 #define STORAGES_RT_MUTABLE_GRAPH_LOADER_CSV_FRAGMENT_LOADER_H_
 
+#include <memory>
+#include <string>
+#include <vector>
 #include "src/storages/rt_mutable_graph/loader/abstract_arrow_fragment_loader.h"
-#include "src/storages/rt_mutable_graph/loader/basic_fragment_loader.h"
-#include "src/storages/rt_mutable_graph/loader/i_fragment_loader.h"
-#include "src/storages/rt_mutable_graph/loader/loader_factory.h"
 #include "src/storages/rt_mutable_graph/loading_config.h"
-#include "src/storages/rt_mutable_graph/mutable_property_fragment.h"
-
-#include <arrow/api.h>
-#include <arrow/csv/api.h>
-#include <arrow/io/api.h>
-#include "arrow/util/value_parsing.h"
-
-#include "third_party/libgrape-lite/grape/util.h"
+#include "src/storages/rt_mutable_graph/types.h"
+#include "src/utils/result.h"
+namespace arrow {
+namespace csv {
+struct ConvertOptions;
+}
+}  // namespace arrow
+namespace arrow {
+namespace csv {
+struct ParseOptions;
+}
+}  // namespace arrow
+namespace arrow {
+namespace csv {
+struct ReadOptions;
+}
+}  // namespace arrow
+namespace gs {
+class IFragmentLoader;
+}
+namespace gs {
+class Schema;
+}
 
 namespace gs {
 

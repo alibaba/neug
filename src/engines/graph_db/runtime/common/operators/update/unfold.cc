@@ -15,6 +15,10 @@
 
 #include "src/engines/graph_db/runtime/common/operators/update/unfold.h"
 
+#include <utility>
+
+#include "src/engines/graph_db/runtime/common/context.h"
+
 namespace gs {
 
 namespace runtime {

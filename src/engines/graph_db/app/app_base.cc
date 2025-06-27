@@ -14,11 +14,12 @@
  */
 
 #include "src/engines/graph_db/app/app_base.h"
-#include "src/engines/graph_db/database/graph_db_session.h"
 
 #include <dlfcn.h>
 
 namespace gs {
+class Decoder;
+class Encoder;
 
 AppBase::AppMode ReadAppBase::mode() const { return AppMode::kRead; }
 

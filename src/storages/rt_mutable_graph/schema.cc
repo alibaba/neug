@@ -14,10 +14,31 @@
  */
 
 #include "src/storages/rt_mutable_graph/schema.h"
-#include <filesystem>
-#include "src/utils/exception.h"
-
-#include <yaml-cpp/yaml.h>
+#include <ctype.h>                          // for toupper
+#include <glog/logging.h>                   // for LogMessage
+#include <yaml-cpp/exceptions.h>            // for BadConver...
+#include <yaml-cpp/node/detail/iterator.h>  // for iterator_...
+#include <yaml-cpp/node/impl.h>             // for Node::ope...
+#include <yaml-cpp/node/iterator.h>         // for iterator_...
+#include <yaml-cpp/node/node.h>             // for Node
+#include <yaml-cpp/node/parse.h>            // for LoadFile
+#include <yaml-cpp/node/type.h>             // for NodeType
+#include <algorithm>                        // for find, tra...
+#include <exception>                        // for exception
+#include <ext/alloc_traits.h>               // for __alloc_t...
+#include <filesystem>                       // for exists, path
+#include <ostream>                          // for operator<<
+#include <stdexcept>                        // for runtime_e...
+#include <type_traits>                      // for __strip_r...
+#include <unordered_set>                    // for unordered...
+#include "src/utils/exception.h"            // for LOG_FATAL_IF
+#include "src/utils/id_indexer.h"           // for IdIndexer
+#include "src/utils/property/types.h"       // for PropertyType
+#include "src/utils/result.h"               // for Status
+#include "src/utils/yaml_utils.h"           // for get_scalar
+#include "third_party/libgrape-lite/grape/io/local_io_adaptor.h"  // for LocalIOAd...
+#include "third_party/libgrape-lite/grape/serialization/in_archive.h"  // for operator<<
+#include "third_party/libgrape-lite/grape/serialization/out_archive.h"  // for operator>>
 
 namespace gs {
 

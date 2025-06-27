@@ -127,6 +127,8 @@ void GQueryConvertor::convertOperator(const planner::LogicalOperator& op,
   case planner::LogicalOperatorType::PARTITIONER:
   case planner::LogicalOperatorType::INDEX_LOOK_UP:
   case planner::LogicalOperatorType::MULTIPLICITY_REDUCER:
+  case planner::LogicalOperatorType::DUMMY_SCAN:
+  case planner::LogicalOperatorType::FLATTEN:
     break;
   default:
     throw common::Exception(
@@ -532,45 +534,25 @@ void GQueryConvertor::convertFilter(const planner::LogicalFilter& filter,
     throw common::Exception("Query plan is empty, cannot convert filter.");
   }
 
-  // get the last operator in the query plan
-  auto lastOpr = plan->mutable_plan()->Mutable(plan->plan_size() - 1);
-  if (lastOpr && lastOpr->opr().has_scan()) {
-    // set predicates into query params in scan
-    auto scan = lastOpr->mutable_opr()->mutable_scan();
-    auto predicate = filter.getPredicate();
-    auto predicatePB = exprConvertor->convert(*predicate);
-    if (!predicatePB) {
-      throw common::Exception("Failed to convert predicate: " +
-                              predicate->toString());
-    }
-    scan->mutable_params()->set_allocated_predicate(predicatePB.release());
-  } else if (lastOpr && lastOpr->opr().has_edge()) {
-    // set predicates into query params in edge expand
-    auto edgeExpand = lastOpr->mutable_opr()->mutable_edge();
-    auto predicate = filter.getPredicate();
-    auto predicatePB = exprConvertor->convert(*predicate);
-    if (!predicatePB) {
-      throw common::Exception("Failed to convert predicate: " +
-                              predicate->toString());
-    }
-    edgeExpand->mutable_params()->set_allocated_predicate(
-        predicatePB.release());
-  } else if (lastOpr && lastOpr->opr().has_vertex()) {
-    // set predicates into query params in getV
-    auto getV = lastOpr->mutable_opr()->mutable_vertex();
-    auto predicate = filter.getPredicate();
-    auto predicatePB = exprConvertor->convert(*predicate);
-    if (!predicatePB) {
-      throw common::Exception("Failed to convert predicate: " +
-                              predicate->toString());
-    }
-    getV->mutable_params()->set_allocated_predicate(predicatePB.release());
-  } else {
-    // todo: add predicated into expand and getV operators, or append a
-    // filtering PB into plan
-    throw common::Exception(
-        "Cannot convert filter, last operator is not a scan operator.");
+  if (filter.getChildren().empty()) {
+    throw common::Exception("filter operation should have at least one child");
   }
+
+  auto child = filter.getChild(0);
+
+  auto predicate = filter.getPredicate();
+  auto predicatePB = exprConvertor->convert(*predicate, *child);
+  auto filterPB = std::make_unique<::algebra::Select>();
+  filterPB->set_allocated_predicate(predicatePB.release());
+
+  // Construct physical operator with filter
+  auto physicalPB = std::make_unique<::physical::PhysicalOpr>();
+  auto oprPB = std::make_unique<::physical::PhysicalOpr_Operator>();
+  oprPB->set_allocated_select(filterPB.release());
+  physicalPB->set_allocated_opr(oprPB.release());
+
+  // Append filter in query plan
+  plan->mutable_plan()->AddAllocated(physicalPB.release());
 }
 
 void GQueryConvertor::setMetaData(::physical::PhysicalOpr* physicalOpr,
@@ -787,7 +769,7 @@ std::unique_ptr<algebra::QueryParams> GQueryConvertor::convertParams(
     queryParams->mutable_tables()->AddAllocated(tableId.release());
   }
   if (predicates != nullptr) {
-    auto predicatePB = exprConvertor->convert(*predicates);
+    auto predicatePB = exprConvertor->convert(*predicates, {});
     if (!predicatePB) {
       throw common::Exception("Failed to convert predicate: " +
                               predicates->toString());

@@ -14,11 +14,30 @@
  */
 
 #include "src/engines/graph_db/runtime/execute/ops/update/edge.h"
+
+#include <glog/logging.h>
+#include <google/protobuf/wrappers.pb.h>
+#include <boost/leaf.hpp>
+#include <map>
+#include <ostream>
+#include <string>
+#include <utility>
+#include <vector>
+
+#include "src/engines/graph_db/runtime/common/context.h"
 #include "src/engines/graph_db/runtime/common/operators/update/edge_expand.h"
+#include "src/engines/graph_db/runtime/common/types.h"
+#include "src/engines/graph_db/runtime/utils/params.h"
 #include "src/engines/graph_db/runtime/utils/utils.h"
+#include "src/proto_generated_gie/algebra.pb.h"
 
 namespace gs {
+class Schema;
+
 namespace runtime {
+class GraphUpdateInterface;
+class OprTimer;
+
 namespace ops {
 
 class UEdgeExpandVWithoutPredOpr : public IUpdateOperator {

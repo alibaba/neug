@@ -14,12 +14,45 @@
  */
 
 #include "src/engines/graph_db/runtime/execute/ops/retrieve/edge.h"
+
+#include <glog/logging.h>
+#include <google/protobuf/wrappers.pb.h>
+#include <stddef.h>
+#include <stdint.h>
+#include <ext/alloc_traits.h>
+#include <functional>
+#include <limits>
+#include <map>
+#include <memory>
+#include <optional>
+#include <ostream>
+#include <set>
+#include <string>
+#include <utility>
+
+#include "src/engines/graph_db/runtime/common/context.h"
+#include "src/engines/graph_db/runtime/common/graph_interface.h"
+#include "src/engines/graph_db/runtime/common/leaf_utils.h"
 #include "src/engines/graph_db/runtime/common/operators/retrieve/edge_expand.h"
+#include "src/engines/graph_db/runtime/common/rt_any.h"
+#include "src/engines/graph_db/runtime/common/types.h"
+#include "src/engines/graph_db/runtime/utils/params.h"
 #include "src/engines/graph_db/runtime/utils/predicates.h"
+#include "src/engines/graph_db/runtime/utils/special_predicates.h"
 #include "src/engines/graph_db/runtime/utils/utils.h"
+#include "src/proto_generated_gie/algebra.pb.h"
+#include "src/proto_generated_gie/common.pb.h"
+#include "src/proto_generated_gie/expr.pb.h"
+#include "src/storages/rt_mutable_graph/csr/mutable_csr.h"
+#include "src/storages/rt_mutable_graph/types.h"
+#include "src/utils/property/types.h"
 
 namespace gs {
+class Schema;
+
 namespace runtime {
+class OprTimer;
+
 namespace ops {
 
 bool edge_expand_get_v_fusable(const physical::EdgeExpand& ee_opr,

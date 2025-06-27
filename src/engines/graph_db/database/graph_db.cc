@@ -14,6 +14,22 @@
  */
 
 #include "src/engines/graph_db/database/graph_db.h"
+
+#include <glog/logging.h>
+#include <stdlib.h>
+#include <unistd.h>
+#include <algorithm>
+#include <atomic>
+#include <cstdint>
+#include <exception>
+#include <ext/alloc_traits.h>
+#include <filesystem>
+#include <limits>
+#include <new>
+#include <regex>
+#include <sstream>
+#include <vector>
+
 #include "src/engines/graph_db/app/builtin/count_vertices.h"
 #include "src/engines/graph_db/app/builtin/k_hop_neighbors.h"
 #include "src/engines/graph_db/app/builtin/pagerank.h"
@@ -22,14 +38,15 @@
 #include "src/engines/graph_db/app/cypher_write_app.h"
 #include "src/engines/graph_db/app/hqps_app.h"
 #include "src/engines/graph_db/app/server_app.h"
+#include "src/engines/graph_db/database/compact_transaction.h"
 #include "src/engines/graph_db/database/graph_db_session.h"
 #include "src/engines/graph_db/database/wal/wal.h"
 #include "src/engines/graph_db/runtime/execute/plan_parser.h"
 #include "src/engines/graph_db/runtime/utils/cypher_runner_impl.h"
-#include "src/utils/pb_utils.h"
-#include "src/utils/yaml_utils.h"
-
-#include "third_party/httplib.h"
+#include "src/engines/graph_db/runtime/utils/opr_timer.h"
+#include "src/storages/rt_mutable_graph/file_names.h"
+#include "src/utils/allocators.h"
+#include "src/utils/app_utils.h"
 
 namespace gs {
 
@@ -57,7 +74,16 @@ struct SessionLocalContext {
   char _padding2[4096 - sizeof(GraphDBSession) % 4096];
 };
 
-GraphDB::GraphDB() = default;
+GraphDB::GraphDB()
+    : contexts_(nullptr),
+      thread_num_(1),
+      monitor_thread_running_(false),
+      last_compaction_ts_(0),
+      compact_thread_running_(false) {
+  app_paths_.fill("");
+  app_factories_.fill(nullptr);
+}
+
 GraphDB::~GraphDB() {
   if (compact_thread_running_) {
     compact_thread_running_ = false;

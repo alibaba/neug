@@ -16,6 +16,18 @@
 #ifndef ENGINES_GRAPH_DB_DATABASE_GRAPH_DB_SESSION_H_
 #define ENGINES_GRAPH_DB_DATABASE_GRAPH_DB_SESSION_H_
 
+#include <glog/logging.h>
+#include <stddef.h>
+#include <array>
+#include <atomic>
+#include <cstdint>
+#include <memory>
+#include <ostream>
+#include <string>
+#include <string_view>
+#include <utility>
+#include <vector>
+
 #include "src/engines/graph_db/app/app_base.h"
 #include "src/engines/graph_db/database/compact_transaction.h"
 #include "src/engines/graph_db/database/insert_transaction.h"
@@ -25,6 +37,7 @@
 #include "src/engines/graph_db/database/transaction_utils.h"
 #include "src/engines/graph_db/database/update_transaction.h"
 #include "src/storages/rt_mutable_graph/mutable_property_fragment.h"
+#include "src/utils/allocators.h"
 #include "src/utils/property/column.h"
 #include "src/utils/result.h"
 
@@ -32,6 +45,12 @@ namespace gs {
 
 class GraphDB;
 class IWalWriter;
+class ColumnBase;
+class Encoder;
+class MutablePropertyFragment;
+class RefColumnBase;
+class Schema;
+class UpdateBatch;
 
 class GraphDBSession {
  public:

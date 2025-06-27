@@ -14,7 +14,23 @@
  */
 #include "src/engines/graph_db/app/builtin/shortest_path_among_three.h"
 
+#include <glog/logging.h>
+#include <stdint.h>
+#include <algorithm>
+#include <cstddef>
+#include <iterator>
+#include <ostream>
+#include <unordered_map>
+#include <unordered_set>
+
+#include "src/engines/graph_db/database/graph_db_session.h"
+#include "src/engines/graph_db/database/read_transaction.h"
+#include "src/proto_generated_gie/common.pb.h"
+#include "src/storages/rt_mutable_graph/schema.h"
+#include "src/utils/property/types.h"
+
 namespace gs {
+class GraphDB;
 
 results::CollectiveResults ShortestPathAmongThree::Query(
     const GraphDBSession& sess, std::string label_name1, std::string oid1_str,

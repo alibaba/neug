@@ -14,6 +14,10 @@
  */
 #include "src/utils/arrow_utils.h"
 
+#include <glog/logging.h>  // for COMPACT_GOOGLE_LOG_FATAL, LOG, LogMessag...
+#include <vector>          // for vector
+#include "src/utils/property/types.h"  // for PropertyType, PropertyTypeImpl, Any (ptr...
+
 namespace gs {
 std::shared_ptr<arrow::DataType> PropertyTypeToArrowType(PropertyType type) {
   if (type == PropertyType::Bool()) {

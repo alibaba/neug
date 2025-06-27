@@ -19,7 +19,6 @@ in performance and is designed to be easy to use.
    :caption: Overview
    
    overview/introduction
-   overview/quickstart
 
 .. toctree::
    :maxdepth: 2
@@ -31,6 +30,7 @@ in performance and is designed to be easy to use.
    :maxdepth: 2
    :caption: Tutorials
 
+   tutorials/quick_start
    tutorials/python_tutorial
 
 .. toctree::
@@ -40,6 +40,7 @@ in performance and is designed to be easy to use.
    user_guide/create_graph
    user_guide/import_graph
    user_guide/cypher_query
+   user_guide/data_model
 
 .. toctree::
    :maxdepth: 2
@@ -48,6 +49,7 @@ in performance and is designed to be easy to use.
    reference/cpp_api/index
    reference/python_api/python_index
    reference/cypher_manual
+   reference/type_system
 
 .. toctree::
    :maxdepth: 2

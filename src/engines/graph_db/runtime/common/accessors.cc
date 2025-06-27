@@ -14,6 +14,10 @@
  */
 
 #include "src/engines/graph_db/runtime/common/accessors.h"
+
+#include <cstdint>
+#include <string_view>
+
 #include "src/engines/graph_db/runtime/common/rt_any.h"
 
 namespace gs {
@@ -29,6 +33,8 @@ std::shared_ptr<IAccessor> create_context_value_accessor(const Context& ctx,
     return std::make_shared<ContextValueAccessor<int64_t>>(ctx, tag);
   case RTAnyType::kI32Value:
     return std::make_shared<ContextValueAccessor<int>>(ctx, tag);
+  case RTAnyType::kU32Value:
+    return std::make_shared<ContextValueAccessor<uint32_t>>(ctx, tag);
   case RTAnyType::kU64Value:
     return std::make_shared<ContextValueAccessor<uint64_t>>(ctx, tag);
   case RTAnyType::kStringValue:
@@ -52,6 +58,8 @@ std::shared_ptr<IAccessor> create_context_value_accessor(const Context& ctx,
     return std::make_shared<ContextValueAccessor<double>>(ctx, tag);
   case RTAnyType::kSet:
     return std::make_shared<ContextValueAccessor<Set>>(ctx, tag);
+  case RTAnyType::kInterval:
+    return std::make_shared<ContextValueAccessor<Interval>>(ctx, tag);
   default:
     LOG(FATAL) << "not implemented - " << static_cast<int>(type);
   }
@@ -70,6 +78,10 @@ std::shared_ptr<IAccessor> create_vertex_property_path_accessor(
   case RTAnyType::kI32Value:
     return std::make_shared<VertexPropertyPathAccessor<GraphInterface, int>>(
         graph, ctx, tag, prop_name);
+  case RTAnyType::kU32Value:
+    return std::make_shared<
+        VertexPropertyPathAccessor<GraphInterface, uint32_t>>(graph, ctx, tag,
+                                                              prop_name);
   case RTAnyType::kU64Value:
     return std::make_shared<
         VertexPropertyPathAccessor<GraphInterface, uint64_t>>(graph, ctx, tag,
@@ -95,6 +107,10 @@ std::shared_ptr<IAccessor> create_vertex_property_path_accessor(
   case RTAnyType::kBoolValue:
     return std::make_shared<VertexPropertyPathAccessor<GraphInterface, bool>>(
         graph, ctx, tag, prop_name);
+  case RTAnyType::kInterval:
+    return std::make_shared<
+        VertexPropertyPathAccessor<GraphInterface, Interval>>(graph, ctx, tag,
+                                                              prop_name);
   default:
     LOG(FATAL) << "not implemented - " << static_cast<int>(type);
   }
@@ -118,6 +134,10 @@ std::shared_ptr<IAccessor> create_vertex_property_vertex_accessor(
     return std::make_shared<
         VertexPropertyVertexAccessor<GraphInterface, int32_t>>(graph,
                                                                prop_name);
+  case RTAnyType::kU32Value:
+    return std::make_shared<
+        VertexPropertyVertexAccessor<GraphInterface, uint32_t>>(graph,
+                                                                prop_name);
   case RTAnyType::kU64Value:
     return std::make_shared<
         VertexPropertyVertexAccessor<GraphInterface, uint64_t>>(graph,
@@ -176,6 +196,10 @@ std::shared_ptr<IAccessor> create_edge_property_path_accessor(
       return std::make_shared<
           MultiPropsEdgePropertyPathAccessor<GraphInterface, int32_t>>(
           graph, name, ctx, tag);
+    case RTAnyType::kU32Value:
+      return std::make_shared<
+          MultiPropsEdgePropertyPathAccessor<GraphInterface, uint32_t>>(
+          graph, name, ctx, tag);
     case RTAnyType::kU64Value:
       return std::make_shared<
           MultiPropsEdgePropertyPathAccessor<GraphInterface, uint64_t>>(
@@ -212,6 +236,10 @@ std::shared_ptr<IAccessor> create_edge_property_path_accessor(
     case RTAnyType::kI32Value:
       return std::make_shared<EdgePropertyPathAccessor<GraphInterface, int>>(
           graph, name, ctx, tag);
+    case RTAnyType::kU32Value:
+      return std::make_shared<
+          EdgePropertyPathAccessor<GraphInterface, uint32_t>>(graph, name, ctx,
+                                                              tag);
     case RTAnyType::kU64Value:
       return std::make_shared<
           EdgePropertyPathAccessor<GraphInterface, uint64_t>>(graph, name, ctx,
@@ -262,6 +290,10 @@ std::shared_ptr<IAccessor> create_edge_property_edge_accessor(
       return std::make_shared<
           MultiPropsEdgePropertyEdgeAccessor<GraphInterface, int>>(graph,
                                                                    prop_name);
+    case RTAnyType::kU32Value:
+      return std::make_shared<
+          MultiPropsEdgePropertyEdgeAccessor<GraphInterface, uint32_t>>(
+          graph, prop_name);
     case RTAnyType::kU64Value:
       return std::make_shared<
           MultiPropsEdgePropertyEdgeAccessor<GraphInterface, uint64_t>>(
@@ -297,6 +329,9 @@ std::shared_ptr<IAccessor> create_edge_property_edge_accessor(
     case RTAnyType::kI32Value:
       return std::make_shared<EdgePropertyEdgeAccessor<GraphInterface, int>>(
           graph, prop_name);
+    case RTAnyType::kU32Value:
+      return std::make_shared<
+          EdgePropertyEdgeAccessor<GraphInterface, uint32_t>>(graph, prop_name);
     case RTAnyType::kU64Value:
       return std::make_shared<
           EdgePropertyEdgeAccessor<GraphInterface, uint64_t>>(graph, prop_name);
@@ -352,6 +387,75 @@ template std::shared_ptr<IAccessor> create_edge_property_edge_accessor(
 template std::shared_ptr<IAccessor> create_edge_property_edge_accessor(
     const GraphUpdateInterface& graph, const std::string& prop_name,
     RTAnyType type);
+
+template class VertexPropertyPathAccessor<GraphReadInterface, int64_t>;
+template class VertexPropertyPathAccessor<GraphReadInterface, int32_t>;
+template class VertexPropertyPathAccessor<GraphReadInterface, uint32_t>;
+template class VertexPropertyPathAccessor<GraphReadInterface, uint64_t>;
+template class VertexPropertyPathAccessor<GraphReadInterface, std::string_view>;
+template class VertexPropertyPathAccessor<GraphReadInterface, Date>;
+template class VertexPropertyPathAccessor<GraphReadInterface, DateTime>;
+template class VertexPropertyPathAccessor<GraphReadInterface, TimeStamp>;
+template class VertexPropertyPathAccessor<GraphReadInterface, double>;
+template class VertexPropertyPathAccessor<GraphReadInterface, Interval>;
+
+template class ContextValueAccessor<int64_t>;
+template class ContextValueAccessor<int32_t>;
+template class ContextValueAccessor<uint32_t>;
+template class ContextValueAccessor<uint64_t>;
+template class ContextValueAccessor<std::string_view>;
+template class ContextValueAccessor<DateTime>;
+template class ContextValueAccessor<Date>;
+template class ContextValueAccessor<TimeStamp>;
+template class ContextValueAccessor<bool>;
+template class ContextValueAccessor<Tuple>;
+template class ContextValueAccessor<List>;
+template class ContextValueAccessor<Relation>;
+template class ContextValueAccessor<Set>;
+template class ContextValueAccessor<Interval>;
+
+template class VertexPropertyVertexAccessor<GraphReadInterface, int64_t>;
+template class VertexPropertyVertexAccessor<GraphReadInterface, int32_t>;
+template class VertexPropertyVertexAccessor<GraphReadInterface, uint32_t>;
+template class VertexPropertyVertexAccessor<GraphReadInterface, uint64_t>;
+template class VertexPropertyVertexAccessor<GraphReadInterface,
+                                            std::string_view>;
+template class VertexPropertyVertexAccessor<GraphReadInterface, Date>;
+template class VertexPropertyVertexAccessor<GraphReadInterface, DateTime>;
+template class VertexPropertyVertexAccessor<GraphReadInterface, TimeStamp>;
+template class VertexPropertyVertexAccessor<GraphReadInterface, double>;
+
+template class EdgePropertyPathAccessor<GraphReadInterface, int64_t>;
+template class EdgePropertyPathAccessor<GraphReadInterface, int32_t>;
+template class EdgePropertyPathAccessor<GraphReadInterface, uint32_t>;
+template class EdgePropertyPathAccessor<GraphReadInterface, uint64_t>;
+template class EdgePropertyPathAccessor<GraphReadInterface, std::string_view>;
+template class EdgePropertyPathAccessor<GraphReadInterface, Date>;
+template class EdgePropertyPathAccessor<GraphReadInterface, DateTime>;
+template class EdgePropertyPathAccessor<GraphReadInterface, TimeStamp>;
+template class EdgePropertyPathAccessor<GraphReadInterface, double>;
+
+template class MultiPropsEdgePropertyPathAccessor<GraphReadInterface, int64_t>;
+template class MultiPropsEdgePropertyPathAccessor<GraphReadInterface, int32_t>;
+template class MultiPropsEdgePropertyPathAccessor<GraphReadInterface, uint32_t>;
+template class MultiPropsEdgePropertyPathAccessor<GraphReadInterface, uint64_t>;
+template class MultiPropsEdgePropertyPathAccessor<GraphReadInterface,
+                                                  std::string_view>;
+template class MultiPropsEdgePropertyPathAccessor<GraphReadInterface, Date>;
+template class MultiPropsEdgePropertyPathAccessor<GraphReadInterface, DateTime>;
+template class MultiPropsEdgePropertyPathAccessor<GraphReadInterface,
+                                                  TimeStamp>;
+template class MultiPropsEdgePropertyPathAccessor<GraphReadInterface, double>;
+
+template class EdgePropertyEdgeAccessor<GraphReadInterface, int64_t>;
+template class EdgePropertyEdgeAccessor<GraphReadInterface, int32_t>;
+template class EdgePropertyEdgeAccessor<GraphReadInterface, uint32_t>;
+template class EdgePropertyEdgeAccessor<GraphReadInterface, uint64_t>;
+template class EdgePropertyEdgeAccessor<GraphReadInterface, std::string_view>;
+template class EdgePropertyEdgeAccessor<GraphReadInterface, Date>;
+template class EdgePropertyEdgeAccessor<GraphReadInterface, DateTime>;
+template class EdgePropertyEdgeAccessor<GraphReadInterface, TimeStamp>;
+template class EdgePropertyEdgeAccessor<GraphReadInterface, double>;
 
 }  // namespace runtime
 

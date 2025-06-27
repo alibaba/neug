@@ -14,9 +14,30 @@
  */
 
 #include "src/engines/graph_db/runtime/execute/ops/insert/batch_insert_utils.h"
+
+#include <arrow/csv/options.h>
+#include <arrow/type.h>
+#include <arrow/util/value_parsing.h>
+#include <glog/logging.h>
+#include <stddef.h>
+#include <cstdint>
+#include <ostream>
+#include <stdexcept>
+#include <tuple>
+
 #include "src/engines/graph_db/runtime/common/columns/arrow_context_column.h"
-#include "src/storages/rt_mutable_graph/loader/csv_fragment_loader.h"
+#include "src/engines/graph_db/runtime/common/columns/i_context_column.h"
+#include "src/engines/graph_db/runtime/common/context.h"
+#include "src/proto_generated_gie/common.pb.h"
+#include "src/proto_generated_gie/expr.pb.h"
+#include "src/proto_generated_gie/physical.pb.h"
 #include "src/storages/rt_mutable_graph/loader/loader_utils.h"
+#include "src/storages/rt_mutable_graph/schema.h"
+#include "src/utils/arrow_utils.h"
+
+namespace arrow {
+class Array;
+}  // namespace arrow
 
 namespace gs {
 

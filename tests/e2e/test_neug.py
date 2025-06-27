@@ -19,7 +19,6 @@
 import pytest
 
 from base_test import BaseTest
-from utils.utils import preprocess_query
 
 
 class TestNeug(BaseTest):

@@ -16,22 +16,25 @@
 #ifndef ENGINES_GRAPH_DB_APP_BASE_H_
 #define ENGINES_GRAPH_DB_APP_BASE_H_
 
-#include "src/utils/app_utils.h"
-
 #include <dlfcn.h>
+#include <glog/logging.h>
+#include <stdint.h>
 #include <string.h>
-
+#include <algorithm>
 #include <iostream>
 #include <limits>
 #include <string>
 #include <vector>
 
-#include <glog/logging.h>
+#include "src/utils/app_utils.h"
 
 namespace gs {
 
 class GraphDBSession;
 class GraphDB;
+class Decoder;
+class Encoder;
+
 class AppBase {
  public:
   enum class AppType : uint8_t {

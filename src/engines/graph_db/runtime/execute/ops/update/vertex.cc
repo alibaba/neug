@@ -14,13 +14,37 @@
  */
 
 #include "src/engines/graph_db/runtime/execute/ops/update/vertex.h"
+
+#include <glog/logging.h>
+#include <google/protobuf/wrappers.pb.h>
+#include <stddef.h>
+#include <boost/leaf.hpp>
+#include <map>
+#include <ostream>
+#include <string>
+#include <utility>
+#include <vector>
+
+#include "src/engines/graph_db/runtime/common/context.h"
+#include "src/engines/graph_db/runtime/common/graph_interface.h"
+#include "src/engines/graph_db/runtime/common/leaf_utils.h"
 #include "src/engines/graph_db/runtime/common/operators/update/get_v.h"
+#include "src/engines/graph_db/runtime/common/rt_any.h"
+#include "src/engines/graph_db/runtime/common/types.h"
 #include "src/engines/graph_db/runtime/utils/expr_impl.h"
 #include "src/engines/graph_db/runtime/utils/params.h"
 #include "src/engines/graph_db/runtime/utils/utils.h"
+#include "src/engines/graph_db/runtime/utils/var.h"
+#include "src/proto_generated_gie/algebra.pb.h"
+#include "src/proto_generated_gie/expr.pb.h"
+#include "src/storages/rt_mutable_graph/types.h"
 
 namespace gs {
+class Schema;
+
 namespace runtime {
+class OprTimer;
+
 namespace ops {
 
 class UGetVFromEdgeOpr : public IUpdateOperator {

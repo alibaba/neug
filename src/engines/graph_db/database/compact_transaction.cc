@@ -14,9 +14,15 @@
  */
 
 #include "src/engines/graph_db/database/compact_transaction.h"
+
+#include <glog/logging.h>
+#include <limits>
+#include <ostream>
+
 #include "src/engines/graph_db/database/version_manager.h"
 #include "src/engines/graph_db/database/wal/wal.h"
 #include "src/storages/rt_mutable_graph/mutable_property_fragment.h"
+#include "third_party/libgrape-lite/grape/serialization/in_archive.h"
 
 namespace gs {
 

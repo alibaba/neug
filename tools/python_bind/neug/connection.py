@@ -21,7 +21,7 @@
 from neug_py_bind import PyConnection
 
 # This is the C++ binding for the Python interface, which provides the actual connection to the database.
-from neug.result import QueryResult
+from neug.query_result import QueryResult
 
 
 class Connection(object):

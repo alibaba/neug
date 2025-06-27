@@ -717,7 +717,7 @@ void Planner::planGetV(
                 getVFilter->getChild(0));
           }
           getVPlan->setCost(joinCost);
-          // appendFilters(predicates, *getVPlan);
+          appendFilters(predicates, *getVPlan);
           context.addPlan(newSubgraph, std::move(getVPlan));
           continue;
         }

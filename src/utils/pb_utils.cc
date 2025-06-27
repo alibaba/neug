@@ -14,6 +14,14 @@
  */
 
 #include "src/utils/pb_utils.h"
+#include <glog/logging.h>                       // for LOG, LogMessage, COMP...
+#include <stdint.h>                             // for uint16_t
+#include <limits>                               // for numeric_limits
+#include <ostream>                              // for operator<<, basic_ost...
+#include <utility>                              // for move, __tuple_element_t
+#include "src/proto_generated_gie/common.pb.h"  // for Value, Value::ITEM_NO...
+#include "src/utils/property/types.h"           // for PropertyType, Any
+#include "src/utils/result.h"                   // for Result, Status, Statu...
 
 namespace gs {
 

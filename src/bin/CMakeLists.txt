@@ -24,11 +24,11 @@ endif()
 
 include_directories(${Boost_INCLUDE_DIRS})
 add_executable(bulk_loader bulk_loader.cc)
-target_link_libraries(bulk_loader neug_rt_mutable_graph ${GLOG_LIBRARIES} ${Boost_LIBRARIES} ${GFLAGS_LIBRARIES})
-# If gcc <9, we need to link with stdc++fs
-if (CMAKE_CXX_COMPILER_ID MATCHES "GNU" AND CMAKE_CXX_COMPILER_VERSION VERSION_LESS 9)
-        target_link_libraries(neug_utils PUBLIC stdc++fs)
-endif()
+if (BUILD_ALL_IN_ONE)
+        target_link_libraries(bulk_loader neug_libraries ${GLOG_LIBRARIES} ${Boost_LIBRARIES} ${GFLAGS_LIBRARIES})
+else()
+        target_link_libraries(bulk_loader neug_rt_mutable_graph ${GLOG_LIBRARIES} ${Boost_LIBRARIES} ${GFLAGS_LIBRARIES})
+endif()  
 
 if (BUILD_WITH_OSS)
         target_link_libraries(bulk_loader cpp-sdk)

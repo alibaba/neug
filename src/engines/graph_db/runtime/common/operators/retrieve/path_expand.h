@@ -16,6 +16,17 @@
 #ifndef RUNTIME_COMMON_OPERATORS_RETRIEVE_PATH_EXPAND_H_
 #define RUNTIME_COMMON_OPERATORS_RETRIEVE_PATH_EXPAND_H_
 
+#include <glog/logging.h>
+#include <stddef.h>
+#include <stdint.h>
+#include <boost/leaf.hpp>
+#include <ext/alloc_traits.h>
+#include <memory>
+#include <ostream>
+#include <set>
+#include <string_view>
+#include <tuple>
+#include <utility>
 #include <vector>
 
 #include "src/engines/graph_db/runtime/common/columns/path_columns.h"
@@ -26,10 +37,18 @@
 #include "src/engines/graph_db/runtime/common/operators/retrieve/path_expand_impl.h"
 #include "src/engines/graph_db/runtime/common/types.h"
 #include "src/engines/graph_db/runtime/utils/special_predicates.h"
+#include "src/storages/rt_mutable_graph/schema.h"
+#include "src/storages/rt_mutable_graph/types.h"
+#include "src/utils/property/types.h"
+
+namespace grape {
+struct EmptyType;
+}  // namespace grape
 
 namespace gs {
 
 namespace runtime {
+class SPVertexPredicate;
 
 struct PathExpandParams {
   int start_tag;

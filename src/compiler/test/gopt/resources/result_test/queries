@@ -1,0 +1,6 @@
+Match (n:person) Return count(*); # COUNT_NO_ALIAS
+Match (n:person) Return count(*) as cnt; # COUNT_ALIAS
+Match (n:person) Return n as a; # RETURN_VERTEX
+Match (n:person)-[k:knows]->(m:person) Return k; # RETURN_EDGE
+Match (n:person)-[k:knows]->(m:person) Return k, m.name as name, n.age + 1 as age; # RETURN_MIX
+Match (n:person) Return n.*; # RETURN_STAR

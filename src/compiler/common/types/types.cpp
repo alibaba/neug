@@ -672,6 +672,8 @@ std::string LogicalType::toString() const {
   case LogicalTypeID::UUID:
   case LogicalTypeID::STRING:
   case LogicalTypeID::SERIAL:
+  case LogicalTypeID::DATE32:
+  case LogicalTypeID::TIMESTAMP64:
     return LogicalTypeUtils::toString(typeID);
   default:
     KU_UNREACHABLE;
@@ -831,11 +833,13 @@ PhysicalTypeID LogicalType::getPhysicalType(
   case LogicalTypeID::TIMESTAMP_SEC:
   case LogicalTypeID::TIMESTAMP:
   case LogicalTypeID::SERIAL:
-  case LogicalTypeID::INT64: {
+  case LogicalTypeID::INT64:
+  case LogicalTypeID::TIMESTAMP64: {
     return PhysicalTypeID::INT64;
   }
   case LogicalTypeID::DATE:
-  case LogicalTypeID::INT32: {
+  case LogicalTypeID::INT32:
+  case LogicalTypeID::DATE32: {
     return PhysicalTypeID::INT32;
   }
   case LogicalTypeID::INT16: {
@@ -1047,6 +1051,10 @@ std::string LogicalTypeUtils::toString(LogicalTypeID dataTypeID) {
     return "UNION";
   case LogicalTypeID::POINTER:
     return "POINTER";
+  case LogicalTypeID::DATE32:
+    return "DATE32";
+  case LogicalTypeID::TIMESTAMP64:
+    return "TIMESTAMP64";
   default:
     KU_UNREACHABLE;
   }
@@ -1240,9 +1248,8 @@ LogicalTypeUtils::getAllValidComparableLogicalTypes() {
 std::vector<LogicalTypeID> LogicalTypeUtils::getIntegerTypeIDs() {
   return std::vector<LogicalTypeID>{
       LogicalTypeID::INT128, LogicalTypeID::INT64,  LogicalTypeID::INT32,
-      LogicalTypeID::INT16,  LogicalTypeID::INT8,   LogicalTypeID::SERIAL,
-      LogicalTypeID::UINT64, LogicalTypeID::UINT32, LogicalTypeID::UINT16,
-      LogicalTypeID::UINT8};
+      LogicalTypeID::INT16,  LogicalTypeID::INT8,   LogicalTypeID::UINT64,
+      LogicalTypeID::UINT32, LogicalTypeID::UINT16, LogicalTypeID::UINT8};
 }
 
 std::vector<LogicalTypeID> LogicalTypeUtils::getFloatingPointTypeIDs() {

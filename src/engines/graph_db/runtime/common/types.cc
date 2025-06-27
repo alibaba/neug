@@ -16,6 +16,10 @@
 
 #include "src/engines/graph_db/runtime/common/types.h"
 
+#include <glog/logging.h>
+
+#include "src/utils/property/types.h"
+
 namespace gs {
 namespace runtime {
 uint64_t encode_unique_vertex_id(label_t label_id, vid_t vid) {

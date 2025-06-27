@@ -15,6 +15,16 @@
 
 #include "src/engines/graph_db/runtime/common/operators/retrieve/unfold.h"
 
+#include <glog/logging.h>
+#include <memory>
+#include <ostream>
+
+#include "src/engines/graph_db/runtime/common/columns/i_context_column.h"
+#include "src/engines/graph_db/runtime/common/columns/value_columns.h"
+#include "src/engines/graph_db/runtime/common/context.h"
+#include "src/engines/graph_db/runtime/common/leaf_utils.h"
+#include "src/engines/graph_db/runtime/common/rt_any.h"
+
 namespace gs {
 
 namespace runtime {

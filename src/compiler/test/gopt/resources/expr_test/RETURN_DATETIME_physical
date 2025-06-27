@@ -1,0 +1,62 @@
+{
+ "plan_id": 0,
+ "query_plan": {
+  "mode": "READ_ONLY",
+  "plan": [
+   {
+    "opr": {
+     "project": {
+      "mappings": [
+       {
+        "expr": {
+         "operators": [
+          {
+           "to_datetime": {
+            "datetime_str": "1995-11-02 12:00:00"
+           },
+           "node_type": {
+            "data_type": {
+             "temporal": {
+              "date_time": {
+               "date_time_format": "DTF_YYYY_MM_DD_HH_MM_SS_SSS",
+               "time_zone_format": "TZF_UTC"
+              }
+             }
+            }
+           }
+          }
+         ]
+        },
+        "alias": 0
+       }
+      ],
+      "is_append": false
+     }
+    },
+    "meta_data": [
+     {
+      "type": {
+       "data_type": {
+        "temporal": {
+         "date_time": {
+          "date_time_format": "DTF_YYYY_MM_DD_HH_MM_SS_SSS",
+          "time_zone_format": "TZF_UTC"
+         }
+        }
+       }
+      },
+      "alias": 0
+     }
+    ]
+   },
+   {
+    "opr": {
+     "sink": {
+      "tags": []
+     }
+    },
+    "meta_data": []
+   }
+  ]
+ }
+}

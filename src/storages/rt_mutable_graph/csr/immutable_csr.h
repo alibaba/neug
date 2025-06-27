@@ -16,6 +16,8 @@
 #ifndef STORAGES_RT_MUTABLE_GRAPH_CSR_IMMUTABLE_CSR_H_
 #define STORAGES_RT_MUTABLE_GRAPH_CSR_IMMUTABLE_CSR_H_
 
+#include "src/storages/rt_mutable_graph/csr/csr_base.h"
+
 namespace gs {
 
 template <typename EDATA_T>

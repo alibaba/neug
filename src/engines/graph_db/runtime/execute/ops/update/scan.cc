@@ -14,12 +14,39 @@
  */
 
 #include "src/engines/graph_db/runtime/execute/ops/update/scan.h"
+
+#include <glog/logging.h>
+#include <google/protobuf/wrappers.pb.h>
+#include <boost/leaf.hpp>
+#include <functional>
+#include <map>
+#include <optional>
+#include <ostream>
+#include <set>
+#include <string>
+#include <type_traits>
+#include <utility>
+#include <vector>
+
+#include "src/engines/graph_db/runtime/common/context.h"
+#include "src/engines/graph_db/runtime/common/graph_interface.h"
 #include "src/engines/graph_db/runtime/common/operators/update/scan.h"
+#include "src/engines/graph_db/runtime/common/rt_any.h"
 #include "src/engines/graph_db/runtime/execute/ops/retrieve/scan_utils.h"
 #include "src/engines/graph_db/runtime/utils/expr_impl.h"
+#include "src/engines/graph_db/runtime/utils/params.h"
+#include "src/engines/graph_db/runtime/utils/var.h"
+#include "src/proto_generated_gie/algebra.pb.h"
+#include "src/proto_generated_gie/common.pb.h"
+#include "src/proto_generated_gie/expr.pb.h"
+#include "src/storages/rt_mutable_graph/schema.h"
+#include "src/storages/rt_mutable_graph/types.h"
+#include "src/utils/property/types.h"
 
 namespace gs {
 namespace runtime {
+class OprTimer;
+
 namespace ops {
 class UScanOpr : public IUpdateOperator {
  public:

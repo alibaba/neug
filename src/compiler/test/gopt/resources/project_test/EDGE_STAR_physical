@@ -158,13 +158,17 @@
             },
             "node_type": {
              "data_type": {
-              "primitive_type": "DT_SIGNED_INT64"
+              "temporal": {
+               "date32": {}
+              }
              }
             }
            },
            "node_type": {
             "data_type": {
-             "primitive_type": "DT_SIGNED_INT64"
+             "temporal": {
+              "date32": {}
+             }
             }
            }
           }
@@ -402,7 +406,9 @@
      {
       "type": {
        "data_type": {
-        "primitive_type": "DT_SIGNED_INT64"
+        "temporal": {
+         "date32": {}
+        }
        }
       },
       "alias": 3

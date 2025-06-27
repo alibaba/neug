@@ -16,12 +16,16 @@
 #ifndef RUNTIME_COMMON_OPERATORS_RETRIEVE_UNION_H_
 #define RUNTIME_COMMON_OPERATORS_RETRIEVE_UNION_H_
 
+#include <boost/leaf.hpp>
+#include <vector>
+
 #include "src/engines/graph_db/runtime/common/context.h"
 #include "src/engines/graph_db/runtime/common/leaf_utils.h"
 
 namespace gs {
 
 namespace runtime {
+class Context;
 
 class Union {
  public:

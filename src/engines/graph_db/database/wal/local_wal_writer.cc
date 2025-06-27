@@ -14,10 +14,16 @@
  */
 
 #include "src/engines/graph_db/database/wal/local_wal_writer.h"
-#include "src/engines/graph_db/database/wal/wal.h"
 
-#include <chrono>
+#include <errno.h>
+#include <fcntl.h>
+#include <glog/logging.h>
+#include <string.h>
+#include <unistd.h>
 #include <filesystem>
+#include <ostream>
+
+#include "src/engines/graph_db/database/wal/wal.h"
 
 namespace gs {
 

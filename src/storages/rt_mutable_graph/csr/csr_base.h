@@ -21,6 +21,7 @@
 
 #include "src/storages/rt_mutable_graph/csr/nbr.h"
 #include "src/storages/rt_mutable_graph/types.h"
+#include "src/utils/allocators.h"
 
 namespace gs {
 

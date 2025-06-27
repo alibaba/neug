@@ -14,11 +14,11 @@
  */
 
 #include "src/engines/graph_db/database/wal/wal.h"
-#include <dlfcn.h>
-#include <memory>
-#include <utility>
 
-#include <boost/algorithm/string.hpp>
+#include <glog/logging.h>
+#include <memory>
+#include <ostream>
+#include <utility>
 
 namespace gs {
 

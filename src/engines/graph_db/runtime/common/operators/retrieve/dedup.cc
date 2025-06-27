@@ -15,6 +15,17 @@
 
 #include "src/engines/graph_db/runtime/common/operators/retrieve/dedup.h"
 
+#include <algorithm>
+#include <memory>
+#include <set>
+#include <string>
+#include <tuple>
+
+#include "src/engines/graph_db/runtime/common/columns/i_context_column.h"
+#include "src/engines/graph_db/runtime/common/context.h"
+#include "src/engines/graph_db/runtime/common/rt_any.h"
+#include "src/utils/app_utils.h"
+
 namespace gs {
 
 namespace runtime {

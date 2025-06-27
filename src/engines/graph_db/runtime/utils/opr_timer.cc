@@ -14,7 +14,6 @@
  */
 
 #include "src/engines/graph_db/runtime/utils/opr_timer.h"
-#include "src/proto_generated_gie/physical.pb.h"
 
 namespace gs {
 

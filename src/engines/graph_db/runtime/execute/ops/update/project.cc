@@ -13,11 +13,37 @@
  * limitations under the License.
  */
 #include "src/engines/graph_db/runtime/execute/ops/update/project.h"
+
+#include <glog/logging.h>
+#include <google/protobuf/wrappers.pb.h>
+#include <stddef.h>
+#include <boost/leaf.hpp>
+#include <cstdint>
+#include <functional>
+#include <map>
+#include <ostream>
+#include <string>
+#include <string_view>
+#include <utility>
+#include <vector>
+
+#include "src/engines/graph_db/runtime/common/columns/value_columns.h"
+#include "src/engines/graph_db/runtime/common/context.h"
+#include "src/engines/graph_db/runtime/common/graph_interface.h"
+#include "src/engines/graph_db/runtime/common/leaf_utils.h"
 #include "src/engines/graph_db/runtime/common/operators/update/project.h"
+#include "src/engines/graph_db/runtime/common/rt_any.h"
 #include "src/engines/graph_db/runtime/utils/var.h"
+#include "src/proto_generated_gie/common.pb.h"
+#include "src/proto_generated_gie/expr.pb.h"
 
 namespace gs {
+class Schema;
+
 namespace runtime {
+class IContextColumn;
+class OprTimer;
+
 namespace ops {
 class ProjectInsertOpr : public IInsertOperator {
  public:

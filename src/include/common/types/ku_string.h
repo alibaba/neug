@@ -10,8 +10,8 @@ namespace gs {
 namespace common {
 
 struct KUZU_API ku_string_t {
-  static constexpr uint64_t PREFIX_LENGTH = 4;
-  static constexpr uint64_t INLINED_SUFFIX_LENGTH = 8;
+  static constexpr uint64_t PREFIX_LENGTH = 4 * 4;
+  static constexpr uint64_t INLINED_SUFFIX_LENGTH = 8 * 4;
   static constexpr uint64_t SHORT_STR_LENGTH =
       PREFIX_LENGTH + INLINED_SUFFIX_LENGTH;
 

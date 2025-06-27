@@ -16,7 +16,14 @@
 #ifndef ENGINES_GRAPH_DB_DATABASE_INSERT_TRANSACTION_H_
 #define ENGINES_GRAPH_DB_DATABASE_INSERT_TRANSACTION_H_
 
+#include <stddef.h>
+#include <stdint.h>
 #include <limits>
+#include <map>
+#include <set>
+#include <string>
+#include <utility>
+#include <vector>
 
 #include "src/storages/rt_mutable_graph/schema.h"
 #include "src/storages/rt_mutable_graph/types.h"
@@ -30,6 +37,7 @@ class MutablePropertyFragment;
 class IWalWriter;
 class VersionManager;
 class GraphDBSession;
+class Schema;
 
 class InsertTransaction {
  public:

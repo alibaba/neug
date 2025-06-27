@@ -16,15 +16,28 @@
 #ifndef RUNTIME_UTILS_VAR_H_
 #define RUNTIME_UTILS_VAR_H_
 
+#include <stddef.h>
+#include <memory>
+#include <string>
+
 #include "src/engines/graph_db/runtime/common/accessors.h"
 #include "src/engines/graph_db/runtime/common/context.h"
 #include "src/engines/graph_db/runtime/common/graph_interface.h"
-
+#include "src/engines/graph_db/runtime/common/rt_any.h"
 #include "src/proto_generated_gie/expr.pb.h"
+#include "src/storages/rt_mutable_graph/types.h"
+#include "src/utils/property/types.h"
+
+namespace common {
+class Variable;
+}  // namespace common
 
 namespace gs {
 
 namespace runtime {
+class Context;
+class IContextColumnBuilder;
+struct LabelTriplet;
 
 enum class VarType {
   kVertexVar,

@@ -59,9 +59,6 @@ void Optimizer::optimize(
     auto topKOptimizer = TopKOptimizer();
     topKOptimizer.rewrite(plan);
 
-    auto factorizationRewriter = FactorizationRewriter();
-    factorizationRewriter.rewrite(plan);
-
     // AggKeyDependencyOptimizer doesn't change factorization structure and thus
     // can be put after FactorizationRewriter.
     auto aggKeyDependencyOptimizer = AggKeyDependencyOptimizer();

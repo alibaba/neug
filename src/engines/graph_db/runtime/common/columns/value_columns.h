@@ -16,13 +16,24 @@
 #ifndef RUNTIME_COMMON_COLUMNS_VALUE_COLUMNS_H_
 #define RUNTIME_COMMON_COLUMNS_VALUE_COLUMNS_H_
 
+#include <assert.h>
+#include <glog/logging.h>
+#include <stddef.h>
+#include <cstdint>
+#include <limits>
+#include <memory>
+#include <ostream>
+#include <string>
+#include <string_view>
+#include <utility>
+#include <vector>
+
 #include "src/engines/graph_db/runtime/common/columns/columns_utils.h"
 #include "src/engines/graph_db/runtime/common/columns/i_context_column.h"
 #include "src/engines/graph_db/runtime/common/columns/vertex_columns.h"
 #include "src/engines/graph_db/runtime/common/rt_any.h"
+#include "src/utils/property/types.h"
 #include "src/utils/top_n_generator.h"
-
-#include <vector>
 
 namespace gs {
 
@@ -30,7 +41,6 @@ namespace runtime {
 
 template <typename T>
 class ValueColumnBuilder;
-
 template <typename T>
 class OptionalValueColumnBuilder;
 
@@ -223,6 +233,10 @@ class ListValueColumn : public ListValueColumnBase {
       return unfold_impl<double>();
     } else if (elem_type_ == RTAnyType::kI32Value) {
       return unfold_impl<int32_t>();
+    } else if (elem_type_ == RTAnyType::kU32Value) {
+      return unfold_impl<uint32_t>();
+    } else if (elem_type_ == RTAnyType::kU64Value) {
+      return unfold_impl<uint64_t>();
     } else if (elem_type_ == RTAnyType::kDate) {
       return unfold_impl<Date>();
     } else if (elem_type_ == RTAnyType::kDateTime) {

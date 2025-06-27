@@ -48,7 +48,6 @@
 8
 
 -LOG ReturnColumnWithSameExpression
--SKIP: (compiler): Number of expressions to project does not match the number of schema expressions.
 -STATEMENT MATCH (a:person) WHERE a.fName='Alice' RETURN a.age, a.age AS k
 ---- 1
 35|35
@@ -62,7 +61,7 @@
 {_ID: 1:2, _LABEL: organisation, ID: 6, name: DEsWork, orgCode: 824, mark: 4.100000, score: 7, history: 2 years 4 hours 22 us 34 minutes, licenseValidInterval: 82:00:00.1, rating: 0.520000, state: {revenue: 558, location: ['very long city name','new york'], stock: {price: [22], volume: 99}}, info: 2023-12-15}
 
 -LOG ReturnNodeStarTest
--SKIP: (compiler): the type of vertex label should be int32 not string.
+-SKIP: result not match, struct not supported.
 -STATEMENT MATCH (a:organisation) RETURN a.*
 ---- 3
 1|ABFsUni|325|3.700000|-2|10 years 5 months 13 hours 24 us|3 years 5 days|1.000000|{revenue: 138, location: ['toronto','montr,eal'], stock: {price: [96,56], volume: 1000}}|3.120000
@@ -78,7 +77,7 @@
 558|['very long city name','new york']|{price: [22], volume: 99}
 
 -LOG ReturnRelStarTest
--SKIP: (compiler) builtin property _SRC, _DST on edge?
+-SKIP: result not match, union not supported: https://github.com/kuzudb/kuzu/blob/12028b791c9789168c9aa45ed7deff361fdd2575/dataset/tinysnb/schema.cypher#L4
 -STATEMENT MATCH (a:person)-[e:knows]->(b:person) WHERE a.ID =7 RETURN e.*;
 ---- 2
 1905-12-12|2020-03-01 12:11:41.6552|00:47:58|[peweeeeeeeeeeeeeeeee,kowje9w0eweeeeeeeee]|{locations: ['waterloo'], transfer: {day: 2000-01-01, amount: [1000,5000]}}|10|
@@ -147,7 +146,6 @@ False
 4.900000
 
 -LOG PersonNodesTestDate
--SKIP: (compiler) Support temporal{ date: "" }, currently returns DT_SIGNED_INT64 in plan.
 -STATEMENT MATCH (a:person) RETURN a.birthdate
 ---- 8
 1900-01-01
@@ -249,7 +247,6 @@ True
 45|30
 
 -LOG KnowsRelTestDate
--SKIP: (compiler) Support temporal{ date: "" }, currently returns DT_SIGNED_INT64 in plan.
 -STATEMENT MATCH (a:person)-[e:knows]->(b:person) RETURN e.date
 ---- 14
 2021-06-30

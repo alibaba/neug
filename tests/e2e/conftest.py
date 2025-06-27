@@ -61,6 +61,18 @@ def pytest_addoption(parser):
         default=None,
         help="Specific dataset to run tests or benchmarks on",
     )
+    parser.addoption(
+        "--test_names",
+        action="store",
+        default=None,
+        help="Comma-separated list of test names to run",
+    )
+    parser.addoption(
+        "--include_skip_tests",
+        action="store_true",
+        default=False,
+        help="Include tests that are marked as skip to run",
+    )
     # benchmark options
     parser.addoption(
         "--iterations",
@@ -88,9 +100,13 @@ def pytest_addoption(parser):
 def pytest_generate_tests(metafunc):
     query_dir = metafunc.config.getoption("query_dir")
     dataset_to_run = metafunc.config.getoption("dataset")
+    test_names = metafunc.config.getoption("test_names")
+    include_skip_tests = metafunc.config.getoption("include_skip_tests")
 
     test_files = collect_test_files(query_dir)
-    all_tests = collect_tests_from_files(test_files, dataset_to_run)
+    all_tests = collect_tests_from_files(
+        test_files, dataset_to_run, test_names, include_skip_tests
+    )
     # skip some tests for the moment, as they are not supported yet (and they will cause engine to crash)
     skip_keywords = [
         "call",

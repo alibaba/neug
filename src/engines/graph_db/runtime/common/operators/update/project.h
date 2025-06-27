@@ -16,6 +16,14 @@
 #ifndef RUNTIME_COMMON_OPERATORS_UPDATE_PROJECT_H_
 #define RUNTIME_COMMON_OPERATORS_UPDATE_PROJECT_H_
 
+#include <stddef.h>
+#include <boost/leaf.hpp>
+#include <memory>
+#include <string>
+#include <string_view>
+#include <utility>
+#include <vector>
+
 #include "src/engines/graph_db/runtime/common/context.h"
 #include "src/engines/graph_db/runtime/common/leaf_utils.h"
 

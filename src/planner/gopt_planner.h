@@ -6,7 +6,6 @@
 #include <memory>
 #include <string>
 
-#include <rapidjson/document.h>
 #include <yaml-cpp/yaml.h>
 #include "src/include/gopt/g_alias_manager.h"
 #include "src/include/gopt/g_database.h"
@@ -14,8 +13,6 @@
 #include "src/include/main/client_context.h"
 #include "src/include/main/database.h"
 #include "src/planner/graph_planner.h"
-
-#include <glog/logging.h>
 
 namespace gs {
 

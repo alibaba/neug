@@ -14,12 +14,37 @@
  */
 
 #include "src/engines/graph_db/runtime/execute/ops/retrieve/order_by.h"
+
+#include <glog/logging.h>
+#include <stddef.h>
+#include <algorithm>
+#include <functional>
+#include <limits>
+#include <map>
+#include <memory>
+#include <optional>
+#include <ostream>
+#include <set>
+#include <string>
+#include <utility>
+
+#include "src/engines/graph_db/runtime/common/columns/i_context_column.h"
+#include "src/engines/graph_db/runtime/common/columns/vertex_columns.h"
+#include "src/engines/graph_db/runtime/common/context.h"
+#include "src/engines/graph_db/runtime/common/graph_interface.h"
 #include "src/engines/graph_db/runtime/common/operators/retrieve/order_by.h"
 #include "src/engines/graph_db/runtime/execute/ops/retrieve/order_by_utils.h"
 #include "src/engines/graph_db/runtime/utils/utils.h"
+#include "src/engines/graph_db/runtime/utils/var.h"
+#include "src/proto_generated_gie/algebra.pb.h"
+#include "src/proto_generated_gie/common.pb.h"
+#include "src/proto_generated_gie/expr.pb.h"
+#include "src/storages/rt_mutable_graph/schema.h"
 
 namespace gs {
 namespace runtime {
+class OprTimer;
+
 namespace ops {
 
 class OrderByOprBeta : public IReadOperator {

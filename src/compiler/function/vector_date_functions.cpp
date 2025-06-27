@@ -30,6 +30,19 @@ function_set DatePartFunction::getFunctionSet() {
       LogicalTypeID::INT64,
       ScalarFunction::BinaryExecFunction<ku_string_t, interval_t, int64_t,
                                          DatePart>));
+  result.push_back(make_unique<ScalarFunction>(
+      name,
+      std::vector<LogicalTypeID>{LogicalTypeID::STRING, LogicalTypeID::DATE32},
+      LogicalTypeID::INT64,
+      ScalarFunction::BinaryExecFunction<ku_string_t, interval_t, int64_t,
+                                         DatePart>));
+  result.push_back(make_unique<ScalarFunction>(
+      name,
+      std::vector<LogicalTypeID>{LogicalTypeID::STRING,
+                                 LogicalTypeID::TIMESTAMP64},
+      LogicalTypeID::INT64,
+      ScalarFunction::BinaryExecFunction<ku_string_t, interval_t, int64_t,
+                                         DatePart>));
   return result;
 }
 

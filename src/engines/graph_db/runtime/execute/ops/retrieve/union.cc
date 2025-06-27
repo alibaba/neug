@@ -14,12 +14,24 @@
  */
 
 #include "src/engines/graph_db/runtime/execute/ops/retrieve/union.h"
+
+#include <map>
+#include <memory>
+#include <string>
+#include <utility>
+
+#include "src/engines/graph_db/runtime/common/context.h"
+#include "src/engines/graph_db/runtime/common/graph_interface.h"
 #include "src/engines/graph_db/runtime/common/operators/retrieve/union.h"
 #include "src/engines/graph_db/runtime/execute/pipeline.h"
 #include "src/engines/graph_db/runtime/execute/plan_parser.h"
 
 namespace gs {
+class Schema;
+
 namespace runtime {
+class OprTimer;
+
 namespace ops {
 class UnionOpr : public IReadOperator {
  public:

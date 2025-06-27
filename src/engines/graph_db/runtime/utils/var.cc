@@ -14,14 +14,21 @@
  */
 
 #include "src/engines/graph_db/runtime/utils/var.h"
+
+#include <assert.h>
+#include <glog/logging.h>
+#include <ostream>
+
 #include "src/engines/graph_db/runtime/common/accessors.h"
-#include "src/engines/graph_db/runtime/common/columns/edge_columns.h"
 #include "src/engines/graph_db/runtime/common/columns/i_context_column.h"
-#include "src/engines/graph_db/runtime/common/columns/vertex_columns.h"
+#include "src/engines/graph_db/runtime/common/context.h"
+#include "src/proto_generated_gie/common.pb.h"
+#include "src/proto_generated_gie/expr.pb.h"
 
 namespace gs {
 
 namespace runtime {
+struct LabelTriplet;
 
 template <typename GraphInterface>
 Var::Var(const GraphInterface& graph, const Context& ctx,

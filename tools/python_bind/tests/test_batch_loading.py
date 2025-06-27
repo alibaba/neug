@@ -67,7 +67,7 @@ class TestBachLoading(unittest.TestCase):
             flex_data_dir, "person_knows_person.csv.part2"
         )
 
-        db = Database(db_dir, "w", 0, "gopt", "", "")
+        db = Database(db_dir, "w")
         conn = db.connect()
         # First create the graph schema
         conn.execute(
@@ -103,6 +103,19 @@ class TestBachLoading(unittest.TestCase):
         res = conn2.execute("MATCH (n) return count(n);")
         for record in res:
             print(record)
+
+        # get the schema
+        result_schema = res.get_result_schema()
+        logger.info(f"result schema: {result_schema}")
+
+        res = conn2.execute("MATCH (n)-[e:knows]->(m) return e;")
+        for record in res:
+            print(record)
+            logger.info(f"record: {record}")
+
+        # get the schema
+        result_schema = res.get_result_schema()
+        logger.info(f"result schema: {result_schema}")
 
     def test_open_close(self):
         tmp_path = os.environ.get("TMPDIR", "/tmp")

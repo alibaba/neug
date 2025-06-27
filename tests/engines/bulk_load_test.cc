@@ -12,16 +12,29 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+#include <arrow/csv/options.h>
+#include <glog/logging.h>
+#include <stddef.h>
+#include <stdint.h>
+#include <ext/alloc_traits.h>
 #include <iostream>
+#include <memory>
 #include <string>
+#include <tuple>
+#include <unordered_map>
+#include <vector>
 
-#include <arrow/api.h>
-#include <arrow/csv/api.h>
-#include <arrow/io/api.h>
 #include "arrow/util/value_parsing.h"
-
-#include "src/storages/rt_mutable_graph/loader/csv_fragment_loader.h"
+#include "src/storages/rt_mutable_graph/loader/loader_utils.h"
 #include "src/storages/rt_mutable_graph/mutable_property_fragment.h"
+#include "src/storages/rt_mutable_graph/schema.h"
+#include "src/storages/rt_mutable_graph/types.h"
+#include "src/utils/arrow_utils.h"
+#include "src/utils/property/types.h"
+
+namespace arrow {
+class DataType;
+}  // namespace arrow
 
 namespace gs {
 

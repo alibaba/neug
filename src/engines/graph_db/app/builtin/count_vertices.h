@@ -15,10 +15,18 @@
 
 #ifndef ENGINES_GRAPH_DB_APP_BUILDIN_COUNT_VERTICES_H_
 #define ENGINES_GRAPH_DB_APP_BUILDIN_COUNT_VERTICES_H_
+#include <string>
+#include <tuple>
+
+#include "src/engines/graph_db/app/app_base.h"
 #include "src/engines/graph_db/app/cypher_proc_app_base.h"
 #include "src/engines/graph_db/database/graph_db_session.h"
+#include "src/proto_generated_gie/results.pb.h"
 
 namespace gs {
+class GraphDB;
+class GraphDBSession;
+
 // A simple app to count the number of vertices of a given label.
 class CountVertices : public CypherReadProcAppBase<std::string> {
  public:

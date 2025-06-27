@@ -16,9 +16,27 @@
 #ifndef RUNTIME_COMMON_COLUMNS_ARROW_COLUMN_H_
 #define RUNTIME_COMMON_COLUMNS_ARROW_COLUMN_H_
 
+#include <arrow/array/array_base.h>
+#include <arrow/type_fwd.h>
+#include <glog/logging.h>
+#include <stddef.h>
+#include <ext/alloc_traits.h>
+#include <memory>
+#include <ostream>
+#include <string>
+#include <vector>
+
 #include "src/engines/graph_db/runtime/common/columns/i_context_column.h"
+#include "src/engines/graph_db/runtime/common/rt_any.h"
+
+namespace arrow {
+class DataType;
+class RecordBatch;
+}  // namespace arrow
 
 namespace gs {
+class IRecordBatchSupplier;
+
 namespace runtime {
 
 /**
@@ -80,7 +98,7 @@ class ArrowArrayContextColumnBuilder : public IContextColumnBuilder {
   void reserve(size_t size) override {
     LOG(FATAL) << "not implemented for arrow column";
   }
-  void push_back_elem(const RTAny& val) {
+  void push_back_elem(const RTAny& val) override {
     LOG(FATAL) << "not implemented for arrow column";
   }
 
@@ -101,9 +119,8 @@ class ArrowArrayContextColumnBuilder : public IContextColumnBuilder {
 class ArrowStreamContextColumn : public IContextColumn {
  public:
   ArrowStreamContextColumn(
-      int record_batch_col_id,
       const std::vector<std::shared_ptr<IRecordBatchSupplier>>& suppliers)
-      : col_id_(record_batch_col_id), suppliers_(suppliers) {}
+      : suppliers_(suppliers) {}
 
   ~ArrowStreamContextColumn() = default;
 
@@ -124,7 +141,6 @@ class ArrowStreamContextColumn : public IContextColumn {
   }
 
  private:
-  int col_id_;
   std::shared_ptr<arrow::RecordBatch> first_batch_;
   std::vector<std::shared_ptr<IRecordBatchSupplier>> suppliers_;
   RTAnyType type_;
@@ -138,9 +154,8 @@ class ArrowStreamContextColumn : public IContextColumn {
 class ArrowStreamContextColumnBuilder : public IContextColumnBuilder {
  public:
   ArrowStreamContextColumnBuilder(
-      int record_batch_col_id,
       const std::vector<std::shared_ptr<IRecordBatchSupplier>>& suppliers)
-      : record_batch_col_id_(record_batch_col_id), suppliers_(suppliers) {}
+      : suppliers_(suppliers) {}
   ~ArrowStreamContextColumnBuilder() = default;
 
   void reserve(size_t size) override {
@@ -152,12 +167,10 @@ class ArrowStreamContextColumnBuilder : public IContextColumnBuilder {
 
   std::shared_ptr<IContextColumn> finish(
       const std::shared_ptr<Arena>& arena) override {
-    return std::make_shared<ArrowStreamContextColumn>(record_batch_col_id_,
-                                                      suppliers_);
+    return std::make_shared<ArrowStreamContextColumn>(suppliers_);
   }
 
  private:
-  int record_batch_col_id_;
   std::vector<std::shared_ptr<IRecordBatchSupplier>> suppliers_;
 };
 

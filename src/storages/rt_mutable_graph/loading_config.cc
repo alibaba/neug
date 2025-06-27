@@ -14,14 +14,24 @@
  */
 
 #include "src/storages/rt_mutable_graph/loading_config.h"
-#include <yaml-cpp/yaml.h>
-#include <filesystem>
-#include <iostream>
-#include <sstream>
-#include <string>
-#include <tuple>
-#include "src/utils/exception.h"
-#include "src/utils/string_utils.h"
+#include <glog/logging.h>                   // for LogMessage, LOG, COMPACT_...
+#include <yaml-cpp/exceptions.h>            // for Exception
+#include <yaml-cpp/node/detail/iterator.h>  // for iterator_base, iterator_b...
+#include <yaml-cpp/node/emit.h>             // for operator<<
+#include <yaml-cpp/node/impl.h>             // for Node::operator[], Node::as
+#include <yaml-cpp/node/iterator.h>         // for iterator_value
+#include <yaml-cpp/node/node.h>             // for Node
+#include <yaml-cpp/node/parse.h>            // for LoadFile
+#include <cstdlib>                          // for size_t, getenv, NULL
+#include <filesystem>                       // for canonical, exists, path
+#include <iostream>                         // for operator<<, basic_ostream
+#include <memory>                           // for allocator_traits<>::value...
+#include <sstream>                          // for basic_stringbuf<>::int_type
+#include <stdexcept>                        // for runtime_error
+#include <string>                           // for string, allocator, char_t...
+#include <tuple>                            // for tuple, make_tuple, get
+#include "src/utils/exception.h"            // for LOG_FATAL_IF
+#include "src/utils/yaml_utils.h"           // for get_scalar
 
 namespace gs {
 

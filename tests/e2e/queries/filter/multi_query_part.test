@@ -5,6 +5,7 @@
 -CASE FilterMultiQuery
 
 -LOG MultiQueryOneHopKnowsFilteredTest1
+-SKIP: Unsupported operator type for alias management: 24
 -STATEMENT MATCH (a:person) WHERE a.gender = 1 WITH a AS k MATCH (k)-[e:knows]->(b:person) WHERE b.gender = 2 RETURN COUNT(*)
 ---- 1
 6

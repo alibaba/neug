@@ -1,4 +1,6 @@
+#include <memory>
 #include "gopt_test.h"
+#include "src/include/gopt/g_alias_manager.h"
 
 namespace gs {
 namespace gopt {
@@ -24,9 +26,13 @@ TEST_F(DDLTest, CREATE_USER) {
       "CREATE NODE TABLE User (name STRING, age INT64 DEFAULT 0, reg_date "
       "INT64, PRIMARY KEY (name));";
   auto logical = planLogical(query, schemaData, statsData, rules);
-  auto physical = planPhysical(*logical);
+  auto aliasManager = std::make_shared<gopt::GAliasManager>(*logical);
+  auto physical = planPhysical(*logical, aliasManager);
   VerifyFactory::verifyPhysicalByJson(*physical,
                                       getDDLResource("CREATE_USER_physical"));
+  auto resultYaml = GResultSchema::infer(*logical, aliasManager, getCatalog());
+  auto returns = resultYaml["returns"];
+  ASSERT_TRUE(returns.IsSequence() && returns.size() == 0);
 }
 
 TEST_F(DDLTest, CREATE_FOLLOWS) {

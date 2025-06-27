@@ -16,11 +16,25 @@
 #ifndef RUNTIME_EXECUTE_OPS_INSERT_DATA_SOURCE_H_
 #define RUNTIME_EXECUTE_OPS_INSERT_DATA_SOURCE_H_
 
+#include <boost/leaf.hpp>
+#include <map>
+#include <memory>
+#include <string>
+#include <vector>
+
 #include "src/engines/graph_db/runtime/execute/operator.h"
 #include "src/engines/graph_db/runtime/execute/ops/insert/batch_insert_utils.h"
+#include "src/proto_generated_gie/physical.pb.h"
 
 namespace gs {
+class IRecordBatchSupplier;
+class Schema;
+
 namespace runtime {
+class Context;
+class GraphUpdateInterface;
+class OprTimer;
+
 namespace ops {
 
 /**

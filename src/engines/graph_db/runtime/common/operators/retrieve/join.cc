@@ -14,8 +14,27 @@
  */
 
 #include "src/engines/graph_db/runtime/common/operators/retrieve/join.h"
+
+#include <glog/logging.h>
+#include <parallel_hashmap/phmap_base.h>
+#include <stddef.h>
+#include <limits>
+#include <map>
+#include <memory>
+#include <ostream>
+#include <set>
+#include <string>
+#include <type_traits>
+#include <utility>
+
 #include "parallel_hashmap/phmap.h"
+#include "src/engines/graph_db/runtime/common/columns/i_context_column.h"
 #include "src/engines/graph_db/runtime/common/columns/vertex_columns.h"
+#include "src/engines/graph_db/runtime/common/context.h"
+#include "src/engines/graph_db/runtime/common/leaf_utils.h"
+#include "src/engines/graph_db/runtime/common/rt_any.h"
+#include "src/storages/rt_mutable_graph/types.h"
+#include "src/utils/app_utils.h"
 
 // #define DEBUG_JOIN
 

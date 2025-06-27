@@ -21,7 +21,14 @@
 
 #include "src/engines/graph_db/database/graph_db.h"
 #include "src/engines/graph_db/database/graph_db_session.h"
+#include "src/storages/rt_mutable_graph/types.h"
+#include "src/utils/property/types.h"
 #include "src/utils/result.h"
+
+namespace gs {
+class GraphDBSession;
+class Schema;
+}  // namespace gs
 
 // Disable class-memaccess warning to facilitate compilation with gcc>7
 // https://github.com/Tencent/rapidjson/issues/1700
@@ -30,6 +37,7 @@
 #pragma GCC diagnostic ignored "-Wclass-memaccess"
 #endif
 #include <rapidjson/document.h>
+
 #pragma GCC diagnostic pop
 
 namespace gs {

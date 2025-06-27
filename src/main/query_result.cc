@@ -15,9 +15,13 @@
 
 #include "src/main/query_result.h"
 
+#include <glog/logging.h>
+
 namespace gs {
-QueryResult QueryResult::From(results::CollectiveResults&& result) {
-  QueryResult query_result(std::move(result));
+QueryResult QueryResult::From(
+    std::tuple<results::CollectiveResults, std::string>&& result) {
+  QueryResult query_result(std::move(std::get<0>(result)),
+                           std::move(std::get<1>(result)));
   return query_result;
 }
 
@@ -44,5 +48,9 @@ RecordLine QueryResult::next() {
     entries.emplace_back(entry);
   }
   return RecordLine(entries);
+}
+
+const std::string& QueryResult::get_result_schema() const {
+  return result_schema_;
 }
 }  // namespace gs

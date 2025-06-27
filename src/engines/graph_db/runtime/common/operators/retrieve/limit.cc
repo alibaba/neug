@@ -15,6 +15,11 @@
 
 #include "src/engines/graph_db/runtime/common/operators/retrieve/limit.h"
 
+#include <utility>
+#include <vector>
+
+#include "src/engines/graph_db/runtime/common/context.h"
+
 namespace gs {
 
 namespace runtime {

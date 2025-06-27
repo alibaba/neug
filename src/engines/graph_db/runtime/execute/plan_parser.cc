@@ -15,6 +15,16 @@
 
 #include "src/engines/graph_db/runtime/execute/plan_parser.h"
 
+#include <glog/logging.h>
+#include <stddef.h>
+#include <exception>
+#include <ostream>
+#include <string>
+
+#include "src/engines/graph_db/runtime/common/context.h"
+#include "src/engines/graph_db/runtime/execute/ops/insert/batch_insert_edge.h"
+#include "src/engines/graph_db/runtime/execute/ops/insert/batch_insert_vertex.h"
+#include "src/engines/graph_db/runtime/execute/ops/insert/data_source.h"
 #include "src/engines/graph_db/runtime/execute/ops/retrieve/dedup.h"
 #include "src/engines/graph_db/runtime/execute/ops/retrieve/edge.h"
 #include "src/engines/graph_db/runtime/execute/ops/retrieve/group_by.h"
@@ -31,24 +41,21 @@
 #include "src/engines/graph_db/runtime/execute/ops/retrieve/unfold.h"
 #include "src/engines/graph_db/runtime/execute/ops/retrieve/union.h"
 #include "src/engines/graph_db/runtime/execute/ops/retrieve/vertex.h"
-
 #include "src/engines/graph_db/runtime/execute/ops/update/dedup.h"
+#include "src/engines/graph_db/runtime/execute/ops/update/edge.h"
 #include "src/engines/graph_db/runtime/execute/ops/update/load.h"
 #include "src/engines/graph_db/runtime/execute/ops/update/project.h"
-#include "src/engines/graph_db/runtime/execute/ops/update/sink.h"
-#include "src/engines/graph_db/runtime/execute/ops/update/unfold.h"
-
-#include "src/engines/graph_db/runtime/execute/ops/update/edge.h"
 #include "src/engines/graph_db/runtime/execute/ops/update/scan.h"
 #include "src/engines/graph_db/runtime/execute/ops/update/select.h"
 #include "src/engines/graph_db/runtime/execute/ops/update/set.h"
+#include "src/engines/graph_db/runtime/execute/ops/update/sink.h"
+#include "src/engines/graph_db/runtime/execute/ops/update/unfold.h"
 #include "src/engines/graph_db/runtime/execute/ops/update/vertex.h"
-
-#include "src/engines/graph_db/runtime/execute/ops/insert/batch_insert_edge.h"
-#include "src/engines/graph_db/runtime/execute/ops/insert/batch_insert_vertex.h"
-#include "src/engines/graph_db/runtime/execute/ops/insert/data_source.h"
+#include "src/engines/graph_db/runtime/execute/pipeline.h"
+#include "src/utils/result.h"
 
 namespace gs {
+class Schema;
 
 namespace runtime {
 

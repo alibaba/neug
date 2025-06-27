@@ -57,6 +57,43 @@ edge_mappings:
       - column:
           index: 1
           name: id
+    column_mappings:
+      - column:
+          index: 2
+          name: year
+        property: year
+      - column:
+          index: 3
+          name: places
+        property: places
+      - column:
+          index: 4
+          name: length
+        property: length
+      - column:
+          index: 5
+          name: level
+        property: level
+      - column:
+          index: 6
+          name: code
+        property: code
+      - column:
+          index: 7
+          name: temperature
+        property: temperature
+      - column:
+          index: 8
+          name: ulength
+        property: ulength
+      - column:
+          index: 9
+          name: ulevel
+        property: ulevel
+      - column:
+          index: 10
+          name: hugedata
+        property: hugedata
   - type_triplet:
       edge: workAt
       source_vertex:  person

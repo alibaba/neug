@@ -9,7 +9,11 @@
 set(NEUG_HOME "${CMAKE_CURRENT_LIST_DIR}/../../..")
 include("${CMAKE_CURRENT_LIST_DIR}/neug-targets.cmake")
 
-set(NEUG_LIBRARIES neug::neug_utils neug::neug_rt_mutable_graph neug::neug_graph_db neug::neug_plan_proto)
+if (BUILD_ALL_IN_ONE)
+    set(NEUG_LIBRARIES neug::neug_libraries)
+else()
+    set(NEUG_LIBRARIES neug::neug_utils neug::neug_rt_mutable_graph neug::neug_graph_db neug::neug_plan_proto neug::neug_grape_lite)
+endif()
 set(NEUG_INCLUDE_DIR "${NEUG_HOME}/include")
 set(NEUG_INCLUDE_DIRS "${NEUG_INCLUDE_DIR}")
 

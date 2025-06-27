@@ -15,17 +15,19 @@
 
 #pragma once
 
+#include <yaml-cpp/node/node.h>
 #include <yaml-cpp/yaml.h>
+#include "src/include/catalog/catalog.h"
 #include "src/include/common/serializer/serializer.h"
 #include "src/include/common/types/types.h"
 #include "src/include/gopt/g_constants.h"
-#include "src/include/gopt/g_type_converter.h"
-#include "src/proto_generated_gie/basic_type.pb.h"
+#include "src/include/gopt/g_macro.h"
+#include "src/include/gopt/g_type_registry.h"
 
 #include <glog/logging.h>
+#include <cstdint>
 
 namespace gs {
-
 namespace common {
 class LogicalType;
 class Serializer;
@@ -56,28 +58,11 @@ class VarcharExtraInfo : public gs::common::ExtraTypeInfo {
 class GTypeUtils {
  public:
   static inline gs::common::LogicalType createLogicalType(YAML::Node& node) {
-    // Implementation of createLogicalType
-    // This function should parse the YAML node and create a LogicalType object.
-    // The actual implementation is not provided in the original code snippet.
-    auto primitiveType = node["primitive_type"];
-    if (primitiveType) {
-      auto typeStr = primitiveType.as<std::string>();
-      if (typeStr == "DT_SIGNED_INT64") {
-        return gs::common::LogicalType(gs::common::LogicalTypeID::INT64);
-      } else if (typeStr == "DT_UNSIGNED_INT64") {
-        return gs::common::LogicalType(gs::common::LogicalTypeID::UINT64);
-      } else if (typeStr == "DT_SIGNED_INT32") {
-        return gs::common::LogicalType(gs::common::LogicalTypeID::INT32);
-      } else if (typeStr == "DT_UNSIGNED_INT32") {
-        return gs::common::LogicalType(gs::common::LogicalTypeID::UINT32);
-      } else if (typeStr == "DT_FLOAT") {
-        return gs::common::LogicalType(gs::common::LogicalTypeID::FLOAT);
-      } else if (typeStr == "DT_DOUBLE") {
-        return gs::common::LogicalType(gs::common::LogicalTypeID::DOUBLE);
-      } else if (typeStr == "DT_BOOL") {
-        return gs::common::LogicalType(gs::common::LogicalTypeID::BOOL);
-      }
+    if (common::LogicalTypeRegistry::containsTypeYaml(node)) {
+      auto typeID = common::LogicalTypeRegistry::getTypeID(node);
+      return gs::common::LogicalType(typeID);
     }
+
     auto stringType = node["string"];
     if (stringType) {
       // denote varchar
@@ -85,11 +70,61 @@ class GTypeUtils {
         return gs::common::LogicalType(gs::common::LogicalTypeID::STRING);
       }
     }
-    if (node["temporal"]) {
-      return gs::common::LogicalType(gs::common::LogicalTypeID::INT64);
+    auto temporalType = node["temporal"];
+    if (temporalType && temporalType.IsMap()) {
+      if (temporalType["date32"].IsDefined()) {
+        return gs::common::LogicalType(gs::common::LogicalTypeID::DATE32);
+      } else if (temporalType["timestamp"].IsDefined()) {
+        return gs::common::LogicalType(gs::common::LogicalTypeID::TIMESTAMP64);
+      } else if (temporalType["date"].IsDefined()) {
+        return gs::common::LogicalType(gs::common::LogicalTypeID::DATE);
+      } else if (temporalType["datetime"].IsDefined()) {
+        return gs::common::LogicalType(gs::common::LogicalTypeID::TIMESTAMP);
+      } else if (temporalType["interval"].IsDefined()) {
+        return gs::common::LogicalType(gs::common::LogicalTypeID::INTERVAL);
+      } else {
+        // Print yaml node
+        LOG(ERROR) << "Unsupported temporal type in YAML: " << node["temporal"];
+        throw std::runtime_error("Unsupported temporal type in YAML");
+      }
     }
     LOG(WARNING) << "Unsupported type in YAML: " << node;
     return gs::common::LogicalType(gs::common::LogicalTypeID::ANY);
+  }
+
+  static inline YAML::Node toYAML(const gs::common::LogicalType& type) {
+    switch (type.getLogicalTypeID()) {
+    case gs::common::LogicalTypeID::INT64:
+      return YAML_NODE_DT_SIGNED_INT64;
+    case gs::common::LogicalTypeID::UINT64:
+      return YAML_NODE_DT_UNSIGNED_INT64;
+    case gs::common::LogicalTypeID::INT32:
+      return YAML_NODE_DT_SIGNED_INT32;
+    case gs::common::LogicalTypeID::UINT32:
+      return YAML_NODE_DT_UNSIGNED_INT32;
+    case gs::common::LogicalTypeID::FLOAT:
+      return YAML_NODE_DT_FLOAT;
+    case gs::common::LogicalTypeID::DOUBLE:
+      return YAML_NODE_DT_DOUBLE;
+    case gs::common::LogicalTypeID::BOOL:
+      return YAML_NODE_DT_BOOL;
+    case gs::common::LogicalTypeID::STRING:
+      return YAML_NODE_STRING_VARCHAR(gs::Constants::VARCHAR_MAX_LENGTH);
+    case gs::common::LogicalTypeID::DATE32:
+      return YAML_NODE_TEMPORAL_DATE32();
+    case gs::common::LogicalTypeID::TIMESTAMP64:
+      return YAML_NODE_TEMPORAL_TIMESTAMP64();
+    case gs::common::LogicalTypeID::DATE:
+      return YAML_NODE_TEMPORAL_DATE();
+    case gs::common::LogicalTypeID::TIMESTAMP:
+      return YAML_NODE_TEMPORAL_DATETIME();
+    case gs::common::LogicalTypeID::INTERVAL:
+      return YAML_NODE_TEMPORAL_INTERVAL();
+    default:
+      LOG(WARNING) << "Unsupported type in YAML: "
+                   << static_cast<uint8_t>(type.getLogicalTypeID());
+      return YAML_NODE_DT_ANY;
+    }
   }
 };
 }  // namespace gs

@@ -15,9 +15,15 @@
  */
 
 #include "src/storages/rt_mutable_graph/loader/basic_fragment_loader.h"
+
+#include <filesystem>
+
 #include "src/storages/rt_mutable_graph/file_names.h"
+#include "src/utils/indexers.h"
+#include "third_party/libgrape-lite/grape/io/local_io_adaptor.h"
 
 namespace gs {
+class CsrBase;
 
 std::ostream& operator<<(std::ostream& os, const LoadingStatus& status) {
   if (status == LoadingStatus::kLoading) {

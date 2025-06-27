@@ -5,3 +5,4 @@ protobuf>=4
 grpcio>=1.49
 grpcio-tools>=1.49
 mypy-protobuf>=3.4.0
+setuptools

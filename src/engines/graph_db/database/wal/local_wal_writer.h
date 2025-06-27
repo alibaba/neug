@@ -16,8 +16,11 @@
 #ifndef ENGINES_GRAPH_DB_DATABASE_WAL_LOCAL_WAL_WRITER_H_
 #define ENGINES_GRAPH_DB_DATABASE_WAL_LOCAL_WAL_WRITER_H_
 
+#include <stddef.h>
 #include <memory>
+#include <string>
 #include <unordered_map>
+
 #include "src/engines/graph_db/database/wal/wal.h"
 
 namespace gs {

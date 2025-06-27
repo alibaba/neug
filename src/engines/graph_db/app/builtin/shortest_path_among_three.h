@@ -15,10 +15,22 @@
 
 #ifndef ENGINES_GRAPH_DB_APP_BUILDIN_SHORTEST_PATH_AMONG_THREE_H_
 #define ENGINES_GRAPH_DB_APP_BUILDIN_SHORTEST_PATH_AMONG_THREE_H_
+#include <string>
+#include <tuple>
+#include <utility>
+#include <vector>
+
+#include "src/engines/graph_db/app/app_base.h"
 #include "src/engines/graph_db/app/cypher_proc_app_base.h"
 #include "src/engines/graph_db/database/graph_db_session.h"
+#include "src/proto_generated_gie/results.pb.h"
+#include "src/storages/rt_mutable_graph/types.h"
 
 namespace gs {
+class GraphDB;
+class GraphDBSession;
+class ReadTransaction;
+
 class ShortestPathAmongThree
     : public CypherReadProcAppBase<std::string, std::string, std::string,
                                    std::string, std::string, std::string> {

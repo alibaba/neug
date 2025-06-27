@@ -15,7 +15,13 @@
 
 #include "src/engines/graph_db/database/version_manager.h"
 
-#include "src/engines/graph_db/app/app_base.h"
+#include <glog/logging.h>
+#include <chrono>
+#include <ostream>
+#include <thread>
+
+#include "third_party/libgrape-lite/grape/utils/bitset.h"
+#include "third_party/libgrape-lite/grape/utils/concurrent_queue.h"
 
 #define likely(x) __builtin_expect(!!(x), 1)
 

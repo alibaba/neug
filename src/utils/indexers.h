@@ -22,6 +22,8 @@ limitations under the License.
 #include "src/utils/pt_indexer.h"
 #endif
 
+#include "src/storages/rt_mutable_graph/types.h"
+
 namespace gs {
 
 #ifndef USE_PTHASH

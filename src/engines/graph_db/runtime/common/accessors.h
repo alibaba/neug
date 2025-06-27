@@ -16,6 +16,19 @@
 #ifndef RUNTIME_COMMON_ACCESSORS_H_
 #define RUNTIME_COMMON_ACCESSORS_H_
 
+#include <assert.h>
+#include <glog/logging.h>
+#include <stddef.h>
+#include <stdint.h>
+#include <ext/alloc_traits.h>
+#include <limits>
+#include <map>
+#include <memory>
+#include <ostream>
+#include <set>
+#include <string>
+#include <vector>
+
 #include "src/engines/graph_db/database/read_transaction.h"
 #include "src/engines/graph_db/runtime/common/columns/edge_columns.h"
 #include "src/engines/graph_db/runtime/common/columns/path_columns.h"
@@ -24,10 +37,16 @@
 #include "src/engines/graph_db/runtime/common/context.h"
 #include "src/engines/graph_db/runtime/common/graph_interface.h"
 #include "src/engines/graph_db/runtime/common/rt_any.h"
+#include "src/engines/graph_db/runtime/common/types.h"
+#include "src/storages/rt_mutable_graph/types.h"
+#include "src/utils/property/types.h"
 
 namespace gs {
 
 namespace runtime {
+class IContextColumnBuilder;
+template <typename T>
+class IValueColumn;
 
 class IAccessor {
  public:
@@ -400,6 +419,7 @@ class MultiPropsEdgePropertyPathAccessor : public IAccessor {
                                      const std::string& prop_name,
                                      const Context& ctx, int tag)
       : col_(*std::dynamic_pointer_cast<IEdgeColumn>(ctx.get(tag))) {
+    VLOG(10) << "MultiPropsEdgePropertyPathAccessor: prop_name = " << prop_name;
     const auto& labels = col_.get_labels();
     vertex_label_num_ = graph.schema().vertex_label_num();
     edge_label_num_ = graph.schema().edge_label_num();
