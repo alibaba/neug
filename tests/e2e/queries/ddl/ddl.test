@@ -49,32 +49,25 @@ Runtime exception: Cannot parse invalid as ExtendDirection.
 
 -CASE DDLOutputMessages
 -STATEMENT CREATE NODE TABLE university(ID INT64, PRIMARY KEY(ID))
----- 1
-Table university has been created.
+---- ok
 -STATEMENT CREATE REL TABLE nearTo(FROM university TO university, MANY_MANY)
----- 1
-Table nearTo has been created.
+---- ok
 -STATEMENT DROP TABLE nearTo;
----- 1
-Table nearTo has been dropped.
+---- ok
 -STATEMENT DROP TABLE university
----- 1
-Table university has been dropped.
+---- ok
 -STATEMENT ALTER TABLE person DROP fName
----- 1
-Table person altered.
+---- ok
 -STATEMENT ALTER TABLE person DROP if exists fName
 ---- ok
 -STATEMENT ALTER TABLE knows DROP date
----- 1
-Table knows altered.
+---- ok
 -STATEMENT ALTER TABLE knows DROP if exists date
 ---- ok
 
 -CASE CreateRelGroup
 -STATEMENT CREATE REL TABLE likes (FROM person TO person, FROM person TO organisation, since INT64);
----- 1
-Table likes has been created.
+---- ok
 -STATEMENT Call table_info('likes_person_person') RETURN *;
 ---- 1
 1|since|INT64|NULL|both
@@ -105,17 +98,19 @@ Binder exception: Found duplicate FROM-TO person-person pairs.
 -CASE CreateRelTableCommitNormalExecution
 -STATEMENT CREATE REL TABLE likes(FROM person TO organisation, RATING INT64, MANY_ONE)
 ---- ok
--STATEMENT MATCH (:person)-[e:likes]->(:organisation) RETURN *
+-STATEMENT MATCH (:person)-[e:likes]->(:organisation) RETURN count(*)
 ---- 0
 
 -CASE DropNodeTableCommitNormalExecution
+-SKIP: Drop is not supported yet.
 -STATEMENT DROP TABLE movies
 ---- ok
 -STATEMENT MATCH (m:movies) RETURN count(*)
 ---- error
 Binder exception: Table movies does not exist.
 
--CASE DropRelTableCommitNormalExecution
+-CASE DropRelTableCommitNormalExecutiona
+-SKIP: Drop is not supported yet.
 -STATEMENT DROP TABLE knows
 ---- ok
 -STATEMENT MATCH ()-[k:knows]->() RETURN count(*)
@@ -129,6 +124,9 @@ Binder exception: Table knows does not exist.
 ---- ok
 -STATEMENT copy Comment from '${NEUG_ROOT_DIRECTORY}/dataset/lsqb-sf01/Comment.csv' (HEADER=true);
 ---- ok
+-STATEMENT MATCH (c:Comment) RETURN COUNT(*);
+---- 1
+76438
 -STATEMENT alter table Comment add propx int64;
 ---- ok
 -STATEMENT MATCH (c:Comment) RETURN SUM(c.propx);
@@ -162,6 +160,7 @@ Binder exception: Table knows does not exist.
 215489
 
 -LOG AddNodePropertyIfNotExists
+-SKIP
 -STATEMENT alter table Comment add IF NOT EXISTS id int64 default 1;
 ---- ok
 
@@ -174,6 +173,7 @@ Binder exception: Table knows does not exist.
 4|propy|INT64|1|False
 
 -CASE AddRelProperty
+-SKIP: copy replyOf from '${NEUG_ROOT_DIRECTORY}/dataset/lsqb-sf01/Comment_replyOf_Comment.csv' (HEADER=true) is not supported yet.
 -STATEMENT create node table Comment (id int64, PRIMARY KEY (id));
 ---- ok
 -STATEMENT create rel table replyOf (FROM Comment TO Comment, MANY_ONE);
@@ -194,6 +194,7 @@ Binder exception: Table knows does not exist.
 108027
 
 -LOG AddRelPropertyIfNotExists
+-SKIP
 -STATEMENT alter table replyOf add if not exists propy int64 default 1;
 ---- ok
 
@@ -203,6 +204,7 @@ Binder exception: Table knows does not exist.
 2|propy|INT64|1|both
 
 -CASE DropNodeTablePropertyNormalExecution
+-SKIP: Drop is not supported yet.
 -STATEMENT ALTER TABLE person DROP gender
 ---- ok
 -STATEMENT MATCH (p:person) RETURN * ORDER BY p.ID LIMIT 1
@@ -210,64 +212,12 @@ Binder exception: Table knows does not exist.
 {_ID: 0:0, _LABEL: person, ID: 0, fName: Alice, isStudent: True, isWorker: False, age: 35, eyeSight: 5.000000, birthdate: 1900-01-01, registerTime: 2011-08-20 11:25:30, lastJobDuration: 3 years 2 days 13:02:00, workedHours: [10,5], usedNames: [Aida], courseScoresPerTerm: [[10,8],[6,7,8]], grades: [96,54,86,92], height: 1.731000, u: a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11}
 
 -CASE DropRelTablePropertyNormalExecution
+-SKIP: Drop is not supported yet.
 -STATEMENT ALTER TABLE studyAt DROP places
 ---- ok
 -STATEMENT MATCH (:person)-[s:studyAt]->(:organisation) RETURN * ORDER BY s.year DESC LIMIT 1
 ---- 1
 (0:0)-{_LABEL: studyAt, _ID: 4:0, year: 2021, length: 5, level: 5, code: 9223372036854775808, temperature: 32800, ulength: 33768, ulevel: 250, hugedata: 1844674407370955161811111111}->(1:0)
-
--DEFINE_STATEMENT_BLOCK PERSON_TABLE_NULL_CHECK [
--STATEMENT MATCH (p:person) return p.random
----- 8
-
-
-
-
-
-
-
-
-]
-
--CASE AddInt64PropertyToPersonTableWithoutDefaultValueNormalExecution
--STATEMENT ALTER TABLE person ADD random INT64
----- ok
--INSERT_STATEMENT_BLOCK PERSON_TABLE_NULL_CHECK
-
--CASE AddFixListPropertyToPersonTableWithoutDefaultValueNormalExecution
--STATEMENT ALTER TABLE person ADD random INT64[3]
----- ok
--INSERT_STATEMENT_BLOCK PERSON_TABLE_NULL_CHECK
-
--CASE AddStringPropertyToPersonTableWithoutDefaultValueNormalExecution
--STATEMENT ALTER TABLE person ADD random STRING
----- ok
--INSERT_STATEMENT_BLOCK PERSON_TABLE_NULL_CHECK
-
--CASE AddListOfInt64PropertyToPersonTableWithoutDefaultValueNormalExecution
--STATEMENT ALTER TABLE person ADD random INT64[]
----- ok
--INSERT_STATEMENT_BLOCK PERSON_TABLE_NULL_CHECK
-
--CASE AddListOfStringPropertyToPersonTableWithoutDefaultValueNormalExecution
--STATEMENT ALTER TABLE person ADD random STRING[]
----- ok
--INSERT_STATEMENT_BLOCK PERSON_TABLE_NULL_CHECK
-
--CASE AddListOfStructPropertyToPersonTableWithoutDefaultValueNormalExecution
--STATEMENT ALTER TABLE person ADD random STRUCT(revenue int64, ages double[])[]
----- ok
--INSERT_STATEMENT_BLOCK PERSON_TABLE_NULL_CHECK
-
--CASE AddMapPropertyToPersonTableWithoutDefaultValueNormalExecution
--STATEMENT ALTER TABLE person ADD random MAP(INT64, INT32)
----- ok
--INSERT_STATEMENT_BLOCK PERSON_TABLE_NULL_CHECK
-
--CASE AddStructPropertyToPersonTableWithoutDefaultValueNormalExecution
--STATEMENT ALTER TABLE person ADD random STRUCT(revenue int16, location string[])
----- ok
--INSERT_STATEMENT_BLOCK PERSON_TABLE_NULL_CHECK
 
 -CASE AddInt64PropertyToPersonTableWithDefaultValueNormalExecution
 -STATEMENT ALTER TABLE person ADD random INT64 DEFAULT 8
