@@ -16,9 +16,6 @@
 #include "src/utils/service_utils.h"
 
 #include <fcntl.h>
-#include <linux/sysinfo.h>
-#include <sys/sysinfo.h>
-#include <sys/types.h>
 #include <unistd.h>
 #include <cstdint>
 #include <type_traits>
