@@ -34,6 +34,11 @@ function test_tinysnb_queries_embedded {
         # if subquery involves ddl/dml operations, open database in read-write mode, and copy the dataset for testing
         if [[ "$SUBQUERY_DIR" == *"ddl"* || "$SUBQUERY_DIR" == *"dml"* ]]; then
             READ_ONLY_FLAG=false
+            # if $BASE_DB_DIR_rw exists, remove it first
+            if [ -d "${BASE_DB_DIR}_rw" ]; then
+                rm -rf "${BASE_DB_DIR}_rw"
+            fi
+            # copy the database directory to a new one for read-write operations
             cp -r "$BASE_DB_DIR" "$BASE_DB_DIR"_rw
             DB_DIR="$BASE_DB_DIR"_rw
         else
