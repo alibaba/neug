@@ -716,12 +716,6 @@ void Date::from_timestamp(int64_t ts) {
   this->value.internal.month = date.month().as_number();
   this->value.internal.day = date.day();
   this->value.internal.hour = td.hours();
-  LOG(INFO) << "Set date from timestamp: " << ts
-            << ", year: " << value.internal.year
-            << ", month: " << value.internal.month
-            << ", day: " << value.internal.day
-            << ", hour: " << value.internal.hour;
-  LOG(INFO) << "to_timestamp: " << to_timestamp();
   // We could not assert here because we may lose precision when converting
   //  from timestamp to date.
   //  assert(ts == to_timestamp());

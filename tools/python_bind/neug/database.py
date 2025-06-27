@@ -23,6 +23,7 @@ import os
 
 import neug_py_bind
 
+from neug.async_connection import AsyncConnection
 from neug.connection import Connection
 from neug.version import __version__
 
@@ -188,6 +189,23 @@ class Database(object):
         if not self._database:
             raise RuntimeError("Database is closed.")
         return Connection(self._database.connect())
+
+    def async_connect(self) -> AsyncConnection:
+        """
+        Connect to the database asynchronously.
+
+        Returns
+        -------
+        AsyncConnection
+            An AsyncConnection object to interact with the database asynchronously.
+        Raises
+        ------
+        RuntimeError
+            If the database is closed or not opened.
+        """
+        if not self._database:
+            raise RuntimeError("Database is closed.")
+        return AsyncConnection(self._database.connect())
 
     def close(self):
         """
