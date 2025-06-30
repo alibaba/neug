@@ -14,6 +14,9 @@
  */
 
 #include "src/main/neug_db.h"
+#ifdef NEUG_BACKTRACE
+#include <cpptrace/cpptrace.hpp>
+#endif
 
 namespace gs {
 
@@ -25,6 +28,9 @@ void signal_handler(int signal) {
     LOG(ERROR) << "Received signal " << signal << ", Remove all filelocks";
     // remove all files in work_dir
     gs::FileLock::CleanupAllLocks();
+#ifdef NEUG_BACKTRACE
+    cpptrace::generate_trace(1 /*skip this function's frame*/).print();
+#endif
     exit(signal);
   } else {
     LOG(ERROR) << "Received unexpected signal " << signal << ", exiting...";
@@ -40,6 +46,7 @@ void setup_signal_handler() {
   std::signal(SIGKILL, signal_handler);
   std::signal(SIGSEGV, signal_handler);
   std::signal(SIGABRT, signal_handler);
+  std::signal(SIGFPE, signal_handler);
 }
 
 void NeugDB::close() {

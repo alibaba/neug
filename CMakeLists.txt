@@ -87,16 +87,18 @@ endif()
 if (ENABLE_BACKTRACES)
     find_package(cpptrace)
     if (NOT cpptrace_FOUND)
+        message(STATUS "cpptrace not found, fetching cpptrace from github")
         include(FetchContent)
         FetchContent_Declare(
           cpptrace
           GIT_REPOSITORY https://github.com/jeremy-rifkin/cpptrace.git
-          GIT_TAG        v0.5.4
+          GIT_TAG        v1.0.2
           GIT_SHALLOW    TRUE
         )
         FetchContent_MakeAvailable(cpptrace)
+        include_directories(SYSTEM ${cpptrace_SOURCE_DIR}/include)
     endif()
-    add_compile_definitions(KUZU_BACKTRACE)
+    add_compile_definitions(NEUG_BACKTRACE)
 endif()
 
 if(CMAKE_CXX_COMPILER_ID STREQUAL "GNU")

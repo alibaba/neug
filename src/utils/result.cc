@@ -34,6 +34,18 @@ bool Status::ok() const { return error_code_ == StatusCode::OK; }
 
 Status Status::OK() { return Status(StatusCode::OK); }
 
+Status Status::RuntimeError(const std::string& error_msg) {
+  return Status(StatusCode::ERR_QUERY_EXECUTION, error_msg);
+}
+
+Status Status::IntervalError(const std::string& error_msg) {
+  return Status(StatusCode::ERR_INTERNAL_ERROR, error_msg);
+}
+
+Status Status::Unknown(const std::string& error_msg) {
+  return Status(StatusCode::ERR_UNKNOWN, error_msg);
+}
+
 std::string Status::ToString() const {
   return "{\"code\": " + std::to_string(error_code_) + ", \"message\": \"" +
          error_msg_ + "\"}";

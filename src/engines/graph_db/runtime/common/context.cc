@@ -242,7 +242,10 @@ Context Context::union_ctx(const Context& other) const {
   }
   return ctx;
 }
-const ValueColumn<size_t>& Context::get_offsets() const { return *offset_ptr; }
+const ValueColumn<size_t>& Context::get_offsets() const {
+  assert(offset_ptr != nullptr);
+  return *offset_ptr;
+}
 size_t Context::col_num() const { return columns.size(); }
 
 }  // namespace runtime

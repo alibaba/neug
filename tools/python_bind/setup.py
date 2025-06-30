@@ -104,6 +104,9 @@ class CMakeBuild(build_ext):
         build_compiler = (
             "ON" if os.environ.get("BUILD_COMPILER", "ON") == "ON" else "OFF"
         )
+        enable_backtraces = (
+            "ON" if os.environ.get("ENABLE_BACKTRACES", "OFF") == "ON" else "OFF"
+        )
         use_ninja = os.environ.get("USE_NINJA", "OFF") == "ON"
         build_test = "OFF"
         if os.environ.get("BUILD_TEST", "OFF") == "ON":
@@ -125,6 +128,7 @@ class CMakeBuild(build_ext):
             f"-DBUILD_EXECUTABLES={build_executables}",
             f"-DBUILD_TEST={build_test}",
             f"-DBUILD_COMPILER={build_compiler}",
+            f"-DENABLE_BACKTRACES={enable_backtraces}",
         ]
         if use_ninja:
             cmake_args += ["-GNinja"]

@@ -1,4 +1,4 @@
-#ifdef KUZU_BACKTRACE
+#ifdef NEUG_BACKTRACE
 #include <csignal>
 #include <cstdlib>
 #include <cstring>
@@ -21,13 +21,13 @@ void handler(int signo) {
   std::_Exit(1);
 }
 
-int register_signal_handlers() noexcept {
-  std::signal(SIGSEGV, handler);
-  std::signal(SIGFPE, handler);
-  cpptrace::register_terminate_handler();
-  return 0;
-}
+// int register_signal_handlers() noexcept {
+//   std::signal(SIGSEGV, handler);
+//   std::signal(SIGFPE, handler);
+//   cpptrace::register_terminate_handler();
+//   return 0;
+// }
 
-static int ignore = register_signal_handlers();
+// static int ignore = register_signal_handlers();
 };  // namespace
 #endif

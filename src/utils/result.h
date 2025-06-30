@@ -40,6 +40,9 @@ class Status {
   StatusCode error_code() const;
 
   static Status OK();
+  static Status RuntimeError(const std::string& error_msg);
+  static Status IntervalError(const std::string& error_msg);
+  static Status Unknown(const std::string& error_msg);
 
   std::string ToString() const;
 

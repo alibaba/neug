@@ -287,6 +287,7 @@ int main(int argc, char** argv) {
   std::signal(SIGKILL, signal_handler);
   std::signal(SIGSEGV, signal_handler);
   std::signal(SIGABRT, signal_handler);
+  std::signal(SIGFPE, signal_handler);
 
   auto loader = gs::LoaderFactory::CreateFragmentLoader(
       data_dir_path.string(), schema_res.value(), loading_config_res.value());
