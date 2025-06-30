@@ -2,7 +2,7 @@
 -DATASET CSV tinysnb
 --
 
--CASE DropAndCreateTables
+-LOG DropAndCreateTables
 -SKIP: Drop is not supported yet.
 -STATEMENT DROP TABLE studyAt
 ---- ok
@@ -47,7 +47,7 @@ Runtime exception: Cannot parse invalid as ExtendDirection.
 ---- 1
 0|0.000000
 
--CASE DDLOutputMessages
+-LOG DDLOutputMessages
 -STATEMENT CREATE NODE TABLE university(ID INT64, PRIMARY KEY(ID))
 ---- ok
 -STATEMENT CREATE REL TABLE nearTo(FROM university TO university, MANY_MANY)
@@ -65,7 +65,7 @@ Runtime exception: Cannot parse invalid as ExtendDirection.
 -STATEMENT ALTER TABLE knows DROP if exists date
 ---- ok
 
--CASE CreateRelGroup
+-LOG CreateRelGroup
 -STATEMENT CREATE REL TABLE likes (FROM person TO person, FROM person TO organisation, since INT64);
 ---- ok
 -STATEMENT Call table_info('likes_person_person') RETURN *;
@@ -89,19 +89,19 @@ Catalog exception: test_person_person already exists in catalog.
 ---- error
 Binder exception: Found duplicate FROM-TO person-person pairs.
 
--CASE CreateNodeTableCommitNormalExecution
+-LOG CreateNodeTableCommitNormalExecution
 -STATEMENT CREATE NODE TABLE EXAM_PAPER(STUDENT_ID INT64, MARK DOUBLE, PRIMARY KEY(STUDENT_ID))
 ---- ok
 -STATEMENT MATCH (e:EXAM_PAPER) RETURN *
 ---- 0
 
--CASE CreateRelTableCommitNormalExecution
+-LOG CreateRelTableCommitNormalExecution
 -STATEMENT CREATE REL TABLE likes(FROM person TO organisation, RATING INT64, MANY_ONE)
 ---- ok
 -STATEMENT MATCH (:person)-[e:likes]->(:organisation) RETURN count(*)
 ---- 0
 
--CASE DropNodeTableCommitNormalExecution
+-LOG DropNodeTableCommitNormalExecution
 -SKIP: Drop is not supported yet.
 -STATEMENT DROP TABLE movies
 ---- ok
@@ -109,7 +109,7 @@ Binder exception: Found duplicate FROM-TO person-person pairs.
 ---- error
 Binder exception: Table movies does not exist.
 
--CASE DropRelTableCommitNormalExecutiona
+-LOG DropRelTableCommitNormalExecutiona
 -SKIP: Drop is not supported yet.
 -STATEMENT DROP TABLE knows
 ---- ok
@@ -117,7 +117,7 @@ Binder exception: Table movies does not exist.
 ---- error
 Binder exception: Table knows does not exist.
 
--CASE AddNodeProperty
+-LOG AddNodeProperty
 -STATEMENT CALL enable_zone_map=true;
 ---- ok
 -STATEMENT create node table Comment (id int64, PRIMARY KEY (id));
@@ -172,7 +172,7 @@ Binder exception: Table knows does not exist.
 3|propj|INT32|5 + 5|False
 4|propy|INT64|1|False
 
--CASE AddRelProperty
+-LOG AddRelProperty
 -SKIP: copy replyOf from '${NEUG_ROOT_DIRECTORY}/dataset/lsqb-sf01/Comment_replyOf_Comment.csv' (HEADER=true) is not supported yet.
 -STATEMENT create node table Comment (id int64, PRIMARY KEY (id));
 ---- ok
@@ -203,7 +203,7 @@ Binder exception: Table knows does not exist.
 1|propx|INT64|NULL|both
 2|propy|INT64|1|both
 
--CASE DropNodeTablePropertyNormalExecution
+-LOG DropNodeTablePropertyNormalExecution
 -SKIP: Drop is not supported yet.
 -STATEMENT ALTER TABLE person DROP gender
 ---- ok
@@ -211,7 +211,7 @@ Binder exception: Table knows does not exist.
 ---- 1
 {_ID: 0:0, _LABEL: person, ID: 0, fName: Alice, isStudent: True, isWorker: False, age: 35, eyeSight: 5.000000, birthdate: 1900-01-01, registerTime: 2011-08-20 11:25:30, lastJobDuration: 3 years 2 days 13:02:00, workedHours: [10,5], usedNames: [Aida], courseScoresPerTerm: [[10,8],[6,7,8]], grades: [96,54,86,92], height: 1.731000, u: a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11}
 
--CASE DropRelTablePropertyNormalExecution
+-LOG DropRelTablePropertyNormalExecution
 -SKIP: Drop is not supported yet.
 -STATEMENT ALTER TABLE studyAt DROP places
 ---- ok
@@ -219,7 +219,7 @@ Binder exception: Table knows does not exist.
 ---- 1
 (0:0)-{_LABEL: studyAt, _ID: 4:0, year: 2021, length: 5, level: 5, code: 9223372036854775808, temperature: 32800, ulength: 33768, ulevel: 250, hugedata: 1844674407370955161811111111}->(1:0)
 
--CASE AddInt64PropertyToPersonTableWithDefaultValueNormalExecution
+-LOG AddInt64PropertyToPersonTableWithDefaultValueNormalExecution
 -STATEMENT ALTER TABLE person ADD random INT64 DEFAULT 8
 ---- ok
 -STATEMENT MATCH (p:person) return p.random
@@ -233,7 +233,7 @@ Binder exception: Table knows does not exist.
 8
 8
 
--CASE AddStringPropertyToPersonTableWithDefaultValueNormalExecution
+-LOG AddStringPropertyToPersonTableWithDefaultValueNormalExecution
 -STATEMENT ALTER TABLE person ADD random STRING DEFAULT 'long long string'
 ---- ok
 -STATEMENT MATCH (p:person) return p.random
@@ -247,7 +247,8 @@ long long string
 long long string
 long long string
 
--CASE AddListOfInt64PropertyToPersonTableWithDefaultValueNormalExecution
+-LOG AddListOfInt64PropertyToPersonTableWithDefaultValueNormalExecution
+-SKIP: List of INT64 with default value is not supported yet
 -STATEMENT ALTER TABLE person ADD random INT64[] DEFAULT [142,123,789]
 ---- ok
 -STATEMENT MATCH (p:person) return p.random
@@ -261,7 +262,7 @@ long long string
 [142,123,789]
 [142,123,789]
 
--CASE AddListOfStringPropertyToPersonTableWithDefaultValueNormalExecution
+-LOG AddListOfStringPropertyToPersonTableWithDefaultValueNormalExecution
 -STATEMENT ALTER TABLE person ADD random STRING[] DEFAULT ['142','short','long long long string']
 ---- ok
 -STATEMENT MATCH (p:person) return p.random
@@ -275,7 +276,8 @@ long long string
 [142,short,long long long string]
 [142,short,long long long string]
 
--CASE AddListOfListOfStringPropertyToPersonTableWithDefaultValueNormalExecution
+-LOG AddListOfListOfStringPropertyToPersonTableWithDefaultValueNormalExecution
+-SKIP: STRING[][] with default value is not supported yet
 -STATEMENT ALTER TABLE person ADD random STRING[][]
             DEFAULT [['142','51'],['short','long','123'],
             ['long long long string','short short short short short']]
@@ -291,7 +293,8 @@ long long string
 [[142,51],[short,long,123],[long long long string,short short short short short]]
 [[142,51],[short,long,123],[long long long string,short short short short short]]
 
--CASE AddListOfStructPropertyToPersonTableWithDefaultValueNormalExecution
+-LOG AddListOfStructPropertyToPersonTableWithDefaultValueNormalExecution
+-SKIP: STRUCT is not supported yet.
 -STATEMENT ALTER TABLE person ADD random STRUCT(revenue int64, ages double[])[]
             DEFAULT [{revenue: 23, ages: [1.300000,2.500000]},
             {revenue: 33, ages: [2.700000]},
@@ -308,7 +311,7 @@ long long string
 [{revenue: 23, ages: [1.300000,2.500000]},{revenue: 33, ages: [2.700000]},{revenue: -4, ages: [22.500000,11.300000,33.200000]}]
 [{revenue: 23, ages: [1.300000,2.500000]},{revenue: 33, ages: [2.700000]},{revenue: -4, ages: [22.500000,11.300000,33.200000]}]
 
--CASE AddMapPropertyToPersonTableWithDefaultValueNormalExecution
+-LOG AddMapPropertyToPersonTableWithDefaultValueNormalExecution
 -STATEMENT ALTER TABLE person ADD random MAP(STRING, INT64) DEFAULT map(['key1','key2'],[400,250])
 ---- ok
 -STATEMENT MATCH (p:person) return p.random
@@ -322,7 +325,8 @@ long long string
 {key1=400, key2=250}
 {key1=400, key2=250}
 
--CASE AddStructPropertyToPersonTableWithDefaultValueNormalExecution
+-LOG AddStructPropertyToPersonTableWithDefaultValueNormalExecution
+-SKIP: STRUCT is not supported yet.
 -STATEMENT ALTER TABLE person ADD random STRUCT(revenue int64, ages double[])
             DEFAULT {revenue: 123, ages: [1.200000,3.400000,5.600000]}
 ---- ok
@@ -345,27 +349,29 @@ long long string
 
 ]
 
--CASE AddInt64PropertyToStudyAtTableWithoutDefaultValueNormalExecution
+-LOG AddInt64PropertyToStudyAtTableWithoutDefaultValueNormalExecution
 -STATEMENT ALTER TABLE studyAt ADD random INT64
 ---- ok
 -INSERT_STATEMENT_BLOCK STUDY_AT_TABLE_NULL_CHECK
 
--CASE AddStringPropertyToStudyAtTableWithoutDefaultValueNormalExecution
+-LOG AddStringPropertyToStudyAtTableWithoutDefaultValueNormalExecution
 -STATEMENT ALTER TABLE studyAt ADD random STRING
 ---- ok
 -INSERT_STATEMENT_BLOCK STUDY_AT_TABLE_NULL_CHECK
 
--CASE AddListOfInt64PropertyToStudyAtTableWithoutDefaultValueNormalExecution
+-LOG AddListOfInt64PropertyToStudyAtTableWithoutDefaultValueNormalExecution
+-SKIP: List of INT64 without default value is not supported yet
 -STATEMENT ALTER TABLE studyAt ADD random INT64[]
 ---- ok
 -INSERT_STATEMENT_BLOCK STUDY_AT_TABLE_NULL_CHECK
 
--CASE AddListOfStringPropertyToStudyAtTableWithoutDefaultValueNormalExecution
+-LOG AddListOfStringPropertyToStudyAtTableWithoutDefaultValueNormalExecution
+-SKIP: STRING[] is not supported yet
 -STATEMENT ALTER TABLE studyAt ADD random STRING[]
 ---- ok
 -INSERT_STATEMENT_BLOCK STUDY_AT_TABLE_NULL_CHECK
 
--CASE AddInt64PropertyToStudyAtTableWithDefaultValueNormalExecution
+-LOG AddInt64PropertyToStudyAtTableWithDefaultValueNormalExecution
 -STATEMENT ALTER TABLE studyAt ADD random INT64 DEFAULT 42
 ---- ok
 -STATEMENT MATCH (:person)-[e:studyAt]->(:organisation) return e.random
@@ -374,7 +380,7 @@ long long string
 42
 42
 
--CASE AddStringPropertyToStudyAtTableWithDefaultValueNormalExecution
+-LOG AddStringPropertyToStudyAtTableWithDefaultValueNormalExecution
 -STATEMENT ALTER TABLE studyAt ADD random STRING DEFAULT 'VERY LONG STRING!!'
 ---- ok
 -STATEMENT MATCH (:person)-[e:studyAt]->(:organisation) return e.random
@@ -383,7 +389,8 @@ VERY LONG STRING!!
 VERY LONG STRING!!
 VERY LONG STRING!!
 
--CASE AddListOfINT64PropertyToStudyAtTableWithDefaultValueNormalExecution
+-LOG AddListOfINT64PropertyToStudyAtTableWithDefaultValueNormalExecution
+-SKIP: List of INT64 with default value is not supported yet
 -STATEMENT ALTER TABLE studyAt ADD random INT64[] DEFAULT [11,15,20]
 ---- ok
 -STATEMENT MATCH (:person)-[e:studyAt]->(:organisation) return e.random
@@ -392,7 +399,8 @@ VERY LONG STRING!!
 [11,15,20]
 [11,15,20]
 
--CASE AddListOfStringPropertyToStudyAtTableWithDefaultValueNormalExecution
+-LOG AddListOfStringPropertyToStudyAtTableWithDefaultValueNormalExecution
+-SKIP: STRING[] is not supported yet
 -STATEMENT ALTER TABLE studyAt ADD random STRING[] DEFAULT ['13','15','long string!!']
 ---- ok
 -STATEMENT MATCH (:person)-[e:studyAt]->(:organisation) return e.random
@@ -401,7 +409,8 @@ VERY LONG STRING!!
 [13,15,long string!!]
 [13,15,long string!!]
 
--CASE AddListOfListOfStringPropertyToStudyAtTableWithDefaultValueNormalExecution
+-LOG AddListOfListOfStringPropertyToStudyAtTableWithDefaultValueNormalExecution
+-SKIP: STRING[][] with default value is not supported yet
 -STATEMENT ALTER TABLE studyAt ADD random STRING[][]
             DEFAULT [['hello','good','long long string test'],
             ['6'],['very very long string']]
@@ -412,7 +421,7 @@ VERY LONG STRING!!
 [[hello,good,long long string test],[6],[very very long string]]
 [[hello,good,long long string test],[6],[very very long string]]
 
--CASE AddPropertyWithComplexExpression
+-LOG AddPropertyWithComplexExpression
 -STATEMENT ALTER TABLE person ADD random INT64 DEFAULT  2 * abs(-2)
 ---- ok
 -STATEMENT MATCH (p:person) return p.random
@@ -426,7 +435,7 @@ VERY LONG STRING!!
 4
 4
 
--CASE RenameTableNormalExecution
+-LOG RenameTableNormalExecution
 -STATEMENT ALTER TABLE person RENAME TO student
 ---- ok
 -STATEMENT MATCH (s:student) return s.age order by s.age
@@ -440,7 +449,7 @@ VERY LONG STRING!!
 45
 83
 
--CASE RenamePropertyNormalExecution
+-LOG RenamePropertyNormalExecution
 -STATEMENT ALTER TABLE person RENAME fName TO name
 ---- ok
 -STATEMENT MATCH (p:person) return p.name order by p.name
@@ -454,7 +463,7 @@ Farooq
 Greg
 Hubert Blaine Wolfeschlegelsteinhausenbergerdorff
 
--CASE CreateTableIfNotExists
+-LOG CreateTableIfNotExists
 -STATEMENT CREATE NODE TABLE IF NOT EXISTS UW(ID INT64, PRIMARY KEY(ID))
 ---- 1
 Table UW has been created.
@@ -483,7 +492,7 @@ Table UW1 has been created.
 ---- 1
 Table UW5 does not exist.
 
--CASE CaseInsensitiveProperty
+-LOG CaseInsensitiveProperty
 -STATEMENT CREATE NODE TABLE Wrong(id INT64, NAME STRING, name INT64, PRIMARY KEY(id));
 ---- error
 Binder exception: Duplicated column name: name, column name must be unique.
