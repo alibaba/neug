@@ -20,6 +20,7 @@
 #include "src/include/binder/expression/node_expression.h"
 #include "src/include/binder/expression/rel_expression.h"
 #include "src/include/catalog/catalog_entry/node_table_catalog_entry.h"
+#include "src/include/common/cast.h"
 #include "src/include/common/exception/exception.h"
 #include "src/include/common/types/types.h"
 #include "src/include/gopt/g_constants.h"
@@ -60,7 +61,29 @@ std::unique_ptr<::common::IrDataType> GTypeConverter::convertRelType(
   return result;
 }
 
-std::unique_ptr<::common::IrDataType> GTypeConverter::convertType(
+std::unique_ptr<::common::IrDataType> GTypeConverter::convertArrayType(
+    const common::LogicalType& type, const binder::Expression& expr) {
+  auto arrayType = std::make_unique<::common::Array>();
+  LOG(INFO) << "Converting ARRAY child type: " << type.toString();
+  auto childType = convertLogicalType(type, expr);
+  if (!childType) {
+    throw common::Exception("Failed to convert child type for ARRAY type: " +
+                            type.toString());
+  }
+  if (!childType->has_data_type()) {
+    throw common::Exception("Child type for ARRAY type must be a data type: " +
+                            type.toString());
+  } else {
+    // Otherwise, we can directly set the data type
+    arrayType->mutable_component_type()->CopyFrom(childType->data_type());
+  }
+  auto result = std::make_unique<::common::IrDataType>();
+  result->mutable_data_type()->set_allocated_array(arrayType.release());
+  LOG(INFO) << "Converted ARRAY type: " << result->DebugString();
+  return result;
+}
+
+std::unique_ptr<::common::IrDataType> GTypeConverter::convertLogicalType(
     const common::LogicalType& type, const binder::Expression& expr) {
   switch (type.getLogicalTypeID()) {
   case common::LogicalTypeID::NODE: {
@@ -86,13 +109,43 @@ std::unique_ptr<::common::IrDataType> GTypeConverter::convertType(
     }
     break;
   }
+  case common::LogicalTypeID::ARRAY: {
+    auto extraTypeInfo = type.getExtraTypeInfo();
+    CHECK(extraTypeInfo) << "Array type should have extra type info: " +
+                                type.toString();
+    auto const_off = const_cast<common::ExtraTypeInfo*>(extraTypeInfo);
+    CHECK(const_off) << "Array type has null extra type info: " +
+                            type.toString();
+    auto array_type_info =
+        gs::common::ku_dynamic_cast<gs::common::ArrayTypeInfo*>(const_off);
+    CHECK(array_type_info) << "Expected ArrayTypeInfo for ARRAY type, ";
+    auto& child_type = array_type_info->getChildType();
+    return convertArrayType(child_type, expr);
+    break;
+  }
+  case common::LogicalTypeID::LIST: {
+    LOG(INFO) << "Converting LIST type: " << type.toString();
+    auto extraTypeInfo = type.getExtraTypeInfo();
+    CHECK(extraTypeInfo) << "List type should have extra type info: " +
+                                type.toString();
+    auto const_off = const_cast<common::ExtraTypeInfo*>(extraTypeInfo);
+    CHECK(const_off) << "List type has null extra type info: " +
+                            type.toString();
+    auto list_type_info =
+        gs::common::ku_dynamic_cast<gs::common::ListTypeInfo*>(const_off);
+    CHECK(list_type_info) << "Expected ListTypeInfo for LIST type, ";
+    auto& child_type = list_type_info->getChildType();
+    return convertArrayType(child_type, expr);
+    break;
+  }
   default:
     // For other types, we can convert them directly
-    return convertLogicalType(type);
+    LOG(INFO) << "Converting simple logical type: " << type.toString();
+    return convertSimpleLogicalType(type);
   }
 }
 
-std::unique_ptr<::common::IrDataType> GTypeConverter::convertLogicalType(
+std::unique_ptr<::common::IrDataType> GTypeConverter::convertSimpleLogicalType(
     const common::LogicalType& type) {
   auto result = std::make_unique<::common::DataType>();
   switch (type.getLogicalTypeID()) {

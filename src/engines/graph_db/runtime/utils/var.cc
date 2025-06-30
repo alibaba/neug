@@ -91,6 +91,8 @@ Var::Var(const GraphInterface& graph, const Context& ctx,
               create_edge_property_path_accessor(graph, name, ctx, tag, type_);
         } else if (pt.has_label()) {
           getter_ = create_edge_label_path_accessor(ctx, tag);
+        } else if (pt.has_id()) {
+          getter_ = std::make_shared<EdgeGIdPathAccessor>(ctx, tag);
         } else {
           LOG(FATAL) << "parse failed for " << pt.DebugString();
         }

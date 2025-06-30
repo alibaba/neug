@@ -378,6 +378,39 @@ class EdgeIdPathAccessor : public IAccessor {
   const IEdgeColumn& edge_col_;
 };
 
+class EdgeGIdPathAccessor : public IAccessor {
+ public:
+  using elem_t = int64_t;
+  EdgeGIdPathAccessor(const Context& ctx, int tag)
+      : edge_col_(*std::dynamic_pointer_cast<IEdgeColumn>(ctx.get(tag))) {}
+
+  elem_t typed_eval_path(size_t idx) const {
+    auto edge_record = edge_col_.get_edge(idx);
+    auto edge_label =
+        generate_edge_label_id(edge_record.label_triplet_.src_label,
+                               edge_record.label_triplet_.dst_label,
+                               edge_record.label_triplet_.edge_label);
+    return encode_unique_edge_id(edge_label, edge_record.src_,
+                                 edge_record.dst_);
+  }
+
+  RTAny eval_path(size_t idx) const override {
+    return RTAny::from_int64(typed_eval_path(idx));
+  }
+
+  bool is_optional() const override { return edge_col_.is_optional(); }
+
+  RTAny eval_path(size_t idx, int) const override {
+    if (!edge_col_.has_value(idx)) {
+      return RTAny(RTAnyType::kNull);
+    }
+    return RTAny::from_int64(typed_eval_path(idx));
+  }
+
+ private:
+  const IEdgeColumn& edge_col_;
+};
+
 template <typename GraphInterface, typename T>
 class EdgePropertyPathAccessor : public IAccessor {
  public:

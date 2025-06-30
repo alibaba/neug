@@ -111,6 +111,21 @@ std::unique_ptr<::common::Expression> GExprConverter::convert(
     return func.isDistinct ? ::physical::GroupBy_AggFunc::COUNT_DISTINCT
                            : ::physical::GroupBy_AggFunc::COUNT;
   }
+  if (func.name == "MIN") {
+    return ::physical::GroupBy_AggFunc::MIN;
+  }
+  if (func.name == "MAX") {
+    return ::physical::GroupBy_AggFunc::MAX;
+  }
+  if (func.name == "SUM") {
+    return ::physical::GroupBy_AggFunc::SUM;
+  }
+  if (func.name == "COLLECT") {
+    return ::physical::GroupBy_AggFunc::TO_LIST;
+  }
+  if (func.name == "AVG") {
+    return ::physical::GroupBy_AggFunc::AVG;
+  }
   throw common::Exception("Unsupported aggregate function: " + func.name);
 }
 
@@ -297,7 +312,7 @@ std::unique_ptr<::common::Expression> GExprConverter::convertProperty(
   }
   auto property = convertPropertyExpr(propertyName);
   variable->set_allocated_property(property.release());
-  auto varType = typeConverter.convertLogicalType(expr.dataType);
+  auto varType = typeConverter.convertLogicalType(expr.dataType, expr);
   auto exprType = std::make_unique<::common::IrDataType>();
   exprType->CopyFrom(*varType);
   variable->set_allocated_node_type(varType.release());
@@ -317,7 +332,7 @@ std::unique_ptr<::common::Expression> GExprConverter::convertVariable(
   if (aliasId != DEFAULT_ALIAS_ID) {
     variable->set_allocated_tag(convertAlias(aliasId).release());
   }
-  auto varType = typeConverter.convertLogicalType(expr.dataType);
+  auto varType = typeConverter.convertLogicalType(expr.dataType, expr);
   auto exprType = std::make_unique<::common::IrDataType>();
   exprType->CopyFrom(*varType);
   variable->set_allocated_node_type(varType.release());
@@ -330,7 +345,7 @@ std::unique_ptr<::common::ExprOpr> GExprConverter::convertOperator(
     const binder::Expression& expr) {
   auto result = std::make_unique<::common::ExprOpr>();
   result->set_allocated_node_type(
-      typeConverter.convertLogicalType(expr.getDataType()).release());
+      typeConverter.convertLogicalType(expr.getDataType(), expr).release());
 
   switch (expr.expressionType) {
   case common::ExpressionType::OR:
@@ -428,7 +443,7 @@ std::unique_ptr<::common::Expression> GExprConverter::convertTemporalFunc(
     throw common::Exception("Unsupported scalar function " + expr.toString() +
                             " in temporal func");
   }
-  auto typePB = typeConverter.convertLogicalType(expr.getDataType());
+  auto typePB = typeConverter.convertLogicalType(expr.getDataType(), expr);
   exprPB->mutable_operators(0)->set_allocated_node_type(typePB.release());
   return exprPB;
 }
@@ -528,12 +543,12 @@ std::unique_ptr<::common::Expression> GExprConverter::convertIsNotNull(
   auto notOp = result->add_operators();
   notOp->set_logical(::common::Logical::NOT);
   notOp->set_allocated_node_type(
-      typeConverter.convertLogicalType(expr.getDataType()).release());
+      typeConverter.convertLogicalType(expr.getDataType(), expr).release());
   auto leftBrace = result->add_operators();
   leftBrace->set_brace(::common::ExprOpr::Brace::ExprOpr_Brace_LEFT_BRACE);
   auto isnullOp = result->add_operators();
   isnullOp->set_allocated_node_type(
-      typeConverter.convertLogicalType(expr.getDataType()).release());
+      typeConverter.convertLogicalType(expr.getDataType(), expr).release());
   isnullOp->set_logical(::common::Logical::ISNULL);
   auto childExpr = convert(*expr.getChild(0), {});
   auto childOp = result->add_operators();

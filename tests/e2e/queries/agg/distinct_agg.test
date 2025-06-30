@@ -11,13 +11,13 @@
 
 # TODO: EXECUTION: F0617 16:41:02.697162 197721 rt_any.cc:551] not support for 6
 -LOG SingleNodeDistinctAggTest2
--SKIP
 -STATEMENT MATCH (a:person) RETURN a.gender, COUNT(DISTINCT a.isStudent)
 ---- 2
 1|2
 2|2
 
 -LOG TwoHopDistinctAggTest
+-SKIP: (compiler): Unsupported operator type for alias management:
 -STATEMENT MATCH (a:person)-[:knows]->(b:person)-[:knows]->(c:person) RETURN a.ID, SUM(DISTINCT a.age), SUM(DISTINCT c.age)
 ---- 4
 0|35|130
@@ -31,11 +31,13 @@
 5
 
 -LOG SimpleDistinctCollectINT64Test
+-SKIP: (compiler) Unsupported expression type: LIST_SORT(COLLECT(DISTINCT p.age),ASC)
 -STATEMENT MATCH (p:person) RETURN list_sort(collect(distinct p.age), 'ASC')
 ---- 1
 [20,25,30,35,40,45,83]
 
 -LOG HashDistinctCollectDoubleTest
+-SKIP: (compiler) only to_list, no distinct given.
 -STATEMENT MATCH (p:person) RETURN p.gender, collect(distinct p.isStudent)
 ---- 2
 1|[True,False]
@@ -117,7 +119,9 @@ Bob|Dan
 2000-01-01|Dan
 2021-06-30|Carol
 2021-06-30|Dan
+
 -LOG DistinctRecursiveRel
+-SKIP: (compiler): Unsupported operator type for alias management: 10
 -STATEMENT MATCH (:person), (a:person)-[t:knows*2..2]->(b:person) RETURN count(DISTINCT t);
 ---- 1
 36

@@ -590,7 +590,8 @@ void GQueryConvertor::setMetaData(::physical::PhysicalOpr* physicalOpr,
     metaPB->set_alias(aliasId);
     auto& type = schema[i]->dataType;
     // Get type from schema expression
-    auto typePB = typeConverter->convertType(schema[i]->dataType, *exprs[i]);
+    auto typePB =
+        typeConverter->convertLogicalType(schema[i]->dataType, *exprs[i]);
     metaPB->set_allocated_type(typePB.release());
     physicalOpr->mutable_meta_data()->AddAllocated(metaPB.release());
   }
@@ -864,7 +865,8 @@ void GQueryConvertor::convertTableFunc(
       continue;  // skip internal columns
     }
     auto dataPB = std::make_unique<::physical::PhysicalOpr_MetaData>();
-    auto typePB = typeConverter->convertLogicalType(column->getDataType());
+    auto typePB =
+        typeConverter->convertSimpleLogicalType(column->getDataType());
     dataPB->set_allocated_type(typePB.release());
     dataPB->set_alias(columnId++);
     physicalPB->mutable_meta_data()->AddAllocated(dataPB.release());

@@ -158,7 +158,7 @@ std::unique_ptr<::physical::DDLPlan> GDDLConverter::convertToCreateVertexSchema(
     }
     auto* propertyDef = create_vertex->add_properties();
     propertyDef->set_name(prop.getName());
-    auto irType = typeConverter.convertLogicalType(prop.getType());
+    auto irType = typeConverter.convertSimpleLogicalType(prop.getType());
     *propertyDef->mutable_type() = std::move(*irType->mutable_data_type());
   }
 
@@ -207,7 +207,7 @@ std::unique_ptr<::physical::DDLPlan> GDDLConverter::convertToCreateEdgeSchema(
     }
     auto* propertyDef = create_edge->add_properties();
     propertyDef->set_name(prop.getName());
-    auto irType = typeConverter.convertLogicalType(prop.getType());
+    auto irType = typeConverter.convertSimpleLogicalType(prop.getType());
     *propertyDef->mutable_type() = std::move(*irType->mutable_data_type());
   }
 
@@ -313,7 +313,7 @@ GDDLConverter::convertToAddVertexPropertySchema(
   // Add property definition
   auto* property = add_property->add_properties();
   property->set_name(propertyDef.getName());
-  auto irType = typeConverter.convertLogicalType(propertyDef.getType());
+  auto irType = typeConverter.convertSimpleLogicalType(propertyDef.getType());
   *property->mutable_type() = std::move(*irType->mutable_data_type());
 
   // Set conflict action
@@ -354,7 +354,7 @@ GDDLConverter::convertToAddEdgePropertySchema(const planner::LogicalAlter& op) {
   // Add property definition
   auto* property = add_property->add_properties();
   property->set_name(propertyDef.getName());
-  auto irType = typeConverter.convertLogicalType(propertyDef.getType());
+  auto irType = typeConverter.convertSimpleLogicalType(propertyDef.getType());
   *property->mutable_type() = std::move(*irType->mutable_data_type());
 
   // Set conflict action

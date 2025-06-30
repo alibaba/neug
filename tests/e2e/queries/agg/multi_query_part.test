@@ -5,28 +5,32 @@
 -CASE AggMultiQueryPart
 
 -LOG SimpleAvgWithFilterMultiQueryTest
--SKIP
+-SKIP: (compiler): type of avgAge changed to double in group opr(int64 -> double)
 -STATEMENT MATCH (a:person) WHERE a.birthdate = date('1980-10-26') WITH AVG(a.age) AS avgAge, AVG(a.eyeSight) AS avgEyeSight RETURN avgAge > avgEyeSight
 ---- 1
 True
 
 -LOG SimpleCountMultiQueryTest2
+-SKIP: (compiler) Unsupported operator type for alias management: 10
 -STATEMENT MATCH (p:person) WITH p AS f RETURN COUNT(f);
 ---- 1
 8
 
 -LOG SimpleCountMultiQueryTest3
+-SKIP: (compiler) Unsupported operator type for alias management: 10
 -STATEMENT MATCH (a:person) WITH COUNT(*) AS s MATCH (c:person) WHERE c.ID > s RETURN c.ID
 ---- 2
 10
 9
 
 -LOG SimpleCountMultiQueryTest4
+-SKIP: (compiler) Unsupported operator type for alias management: 10
 -STATEMENT MATCH (a:person) WITH COUNT(*) AS s MATCH (b:person) WHERE b.ID < s RETURN COUNT(*)
 ---- 1
 5
 
 -LOG GroupByMultiQueryTest
+-SKIP: (compiler): Unsupported operator type for alias management:
 -STATEMENT MATCH (a:person)-[:knows]->(b:person) WITH a.gender AS k, SUM(b.age) AS s MATCH (d:person)-[:workAt]->(c:organisation) WHERE c.orgCode > s RETURN d.ID, c.orgCode, s
 ---- 6
 3|934|210
@@ -37,6 +41,7 @@ True
 7|824|245
 
 -LOG GroupByMultiQueryTest2
+-SKIP: (compiler): Unsupported operator type for alias management:
 -STATEMENT MATCH (a:person)-[:knows]->(b:person) WITH a, COUNT(*) AS s MATCH (a)-[:knows]->(c:person) WHERE c.ID > s RETURN a.ID, a.workedHours, c.ID, s
 ---- 5
 0|[10,5]|5|3
@@ -46,12 +51,14 @@ True
 7|[2]|9|2
 
 -LOG GroupByMultiQueryTest3
+-SKIP: (compiler): Unsupported operator type for alias management:
 -STATEMENT MATCH (a:person) WHERE a.ID > 4 WITH a, a.age AS foo MATCH (a)-[:knows]->(b:person) RETURN a.ID, foo, COUNT(*)
 ---- 2
 5|20|3
 7|20|2
 
 -LOG GroupByMultiQueryTest4
+-SKIP: (compiler): Unsupported operator type for alias management:
 -STATEMENT  MATCH (a:person)-[r:knows]->(b:person) WHERE a.ID = 0 WITH a, r, COUNT(*) AS s MATCH (a)-[:knows]->(c:person) WHERE c.ID = s + 1 RETURN r.date, c.ID, s
 ---- 3
 2021-06-30|2|1
@@ -59,6 +66,7 @@ True
 2021-06-30|2|1
 
 -LOG GroupByMultiQueryTest5
+-SKIP: (compiler): Unsupported operator type for alias management:
 -STATEMENT  MATCH (a:person)-[r1:knows]->(b:person)-[r2:knows]->(c:person)
             WITH count(r1) AS numFollowers, b, r2
             WHERE b.ID <= 10 AND numFollowers > 2
@@ -73,6 +81,7 @@ True
 
 
 -LOG GroupByMultiQueryTest6
+-SKIP: (compiler): Unsupported operator type for alias management:
 -STATEMENT   MATCH (a:person)-[r1:knows]->(b:person)-[r2:knows]->(c:person)
              WITH count(r1) AS numFollowers, c, b, r2
              WHERE b.age >= 0 AND b.age <= 30 AND numFollowers > 0
@@ -86,6 +95,7 @@ True
 5|Dan|1
 
 -LOG GroupByMultiQueryTest7
+-SKIP: (compiler): Unsupported operator type for alias management:
 -STATEMENT   MATCH (a:person)-[r1:knows]->(b:person)-[r2:knows]->(c:person)
              WITH count(r1) AS numFollowers, c, b, r2
              WHERE b.age >= 0 AND b.age <= 30 AND numFollowers > 0

@@ -813,6 +813,32 @@ int RTAny::numerical_cmp(const RTAny& other) const {
       auto ret = value_.u32_val - other.value_.f64_val;
       return ret > 0 ? 1 : (ret < 0 ? -1 : 0);
     }
+    case RTAnyType::kU64Value: {
+      auto ret = value_.u32_val - other.value_.u64_val;
+      return ret > 0 ? 1 : (ret < 0 ? -1 : 0);
+    }
+    default:
+      LOG(FATAL) << "not support for " << static_cast<int>(type_);
+    }
+    break;
+  case RTAnyType::kU64Value:
+    switch (other.type_) {
+    case RTAnyType::kI64Value: {
+      auto ret = value_.u64_val - other.value_.i64_val;
+      return ret > 0 ? 1 : (ret < 0 ? -1 : 0);
+    }
+    case RTAnyType::kI32Value: {
+      auto ret = value_.u64_val - other.value_.i32_val;
+      return ret > 0 ? 1 : (ret < 0 ? -1 : 0);
+    }
+    case RTAnyType::kF64Value: {
+      auto ret = value_.u64_val - other.value_.f64_val;
+      return ret > 0 ? 1 : (ret < 0 ? -1 : 0);
+    }
+    case RTAnyType::kU32Value: {
+      auto ret = value_.u64_val - other.value_.u32_val;
+      return ret > 0 ? 1 : (ret < 0 ? -1 : 0);
+    }
     default:
       LOG(FATAL) << "not support for " << static_cast<int>(type_);
     }
@@ -1095,6 +1121,12 @@ RTAny RTAny::operator*(const RTAny& other) const {
   } else if (other.type_ == RTAnyType::kI32Value) {
     right_i64 = other.value_.i32_val;
     right_f64 = other.value_.i32_val;
+  } else if (other.type_ == RTAnyType::kU32Value) {
+    right_i64 = other.value_.u32_val;
+    right_f64 = other.value_.u32_val;
+  } else if (other.type_ == RTAnyType::kU64Value) {
+    right_i64 = other.value_.u64_val;
+    right_f64 = other.value_.u64_val;
   } else {
     LOG(FATAL) << "not support" << static_cast<int>(other.type_);
   }
@@ -1241,6 +1273,9 @@ static void sink_any(const Any& any, common::Value* value) {
     value->mutable_timestamp()->set_item(any.AsDateTime().milli_second);
   } else if (any.type == PropertyType::UInt64()) {
     value->set_u64(any.AsUInt64());
+  } else if (any.type == PropertyType::Interval()) {
+    auto interval_str = any.AsInterval().to_string();
+    value->set_str(interval_str.data(), interval_str.size());
   } else {
     LOG(FATAL) << "Any value: " << any.to_string()
                << ", type = " << any.type.type_enum;
@@ -1477,8 +1512,11 @@ void RTAny::encode_sig(RTAnyType type, Encoder& encoder) const {
     encoder.put_byte(r.label);
     encoder.put_int(r.src);
     encoder.put_int(r.dst);
+  } else if (type == RTAnyType::kU64Value) {
+    encoder.put_long(this->as_uint64());
   } else {
-    LOG(FATAL) << "not implemented for " << static_cast<int>(type_);
+    throw std::runtime_error("RTAny::encode_sig not support for " +
+                             std::to_string(static_cast<int>(type)));
   }
 }
 

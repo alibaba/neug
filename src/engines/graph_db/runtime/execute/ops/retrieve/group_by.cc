@@ -1016,6 +1016,16 @@ std::unique_ptr<ReducerBase> make_reducer(const GraphReadInterface& graph,
     return make_reducer<VertexRecord>(graph, ctx, std::move(var_), kind, alias);
   } else if (var_.type() == RTAnyType::kTuple) {
     return make_reducer<Tuple>(graph, ctx, std::move(var_), kind, alias);
+  } else if (var_.type() == RTAnyType::kU64Value) {
+    return make_reducer<uint64_t>(graph, ctx, std::move(var_), kind, alias);
+  } else if (var_.type() == RTAnyType::kBoolValue) {
+    return make_reducer<bool>(graph, ctx, std::move(var_), kind, alias);
+  } else if (var_.type() == RTAnyType::kU32Value) {
+    return make_reducer<uint32_t>(graph, ctx, std::move(var_), kind, alias);
+  } else if (var_.type() == RTAnyType::kInterval) {
+    return make_reducer<Interval>(graph, ctx, std::move(var_), kind, alias);
+  } else if (var_.type() == RTAnyType::kDateTime) {
+    return make_reducer<DateTime>(graph, ctx, std::move(var_), kind, alias);
   } else {
     return make_general_reducer(graph, ctx, std::move(var_), kind, alias);
   }
