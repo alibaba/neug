@@ -117,6 +117,7 @@ def pytest_generate_tests(metafunc):
         "nodes(",
         "unwind",
         "skip",
+        "drop",
     ]
     all_tests = [
         query
