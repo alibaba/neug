@@ -25,7 +25,6 @@
 26
 
 -LOG TwoHopKnowsFilteredTest
--SKIP: (compiler): no filtering operator is generated in the plan
 -STATEMENT MATCH (a:person)-[e1:knows]->(b:person)-[e2:knows]->(c:person {age:a.age}) WHERE a.age = c.age RETURN COUNT(*)
 ---- 1
 12

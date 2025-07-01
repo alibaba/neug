@@ -215,22 +215,17 @@
 ---- 1
 4
 
-# TODO: EXECUTION: unexpected result, the engine returns empty result
-# TODO: COMPILATION: No plan is sent to server.
 -LOG FilterNullTest1
--SKIP: (compiler): no filtering operator is generated.
 -STATEMENT MATCH (a:person) WHERE a.age <= null RETURN COUNT(*)
 ---- 1
 0
 
-# TODO: COMPILATION: LOGICAL_PLAN_BUILD_FAILED
 -LOG FilterNullTest2
--SKIP: (compiler): no filtering operator is generated.
+-SKIP: Define the behavor of a + null
 -STATEMENT MATCH (a:person) WHERE a.age + null <= 200 RETURN COUNT(*)
 ---- 1
 0
 
-# TODO: COMPILATION: LOGICAL_PLAN_BUILD_FAILED
 -LOG FilterNullTest3
 -STATEMENT MATCH (a:person) WHERE a.isStudent OR null RETURN COUNT(*)
 ---- 1

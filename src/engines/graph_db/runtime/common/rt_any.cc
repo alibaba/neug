@@ -1006,8 +1006,11 @@ RTAny RTAny::operator+(const RTAny& other) const {
   } else if (other.type_ == RTAnyType::kF64Value) {
     right_f64 = other.value_.f64_val;
     has_f64 = true;
+  } else if (other.type_ == RTAnyType::kNull) {
+    throw std::runtime_error("RTAny::operator+ not support for null value");
   } else {
-    LOG(FATAL) << "not support" << static_cast<int>(type_);
+    throw std::runtime_error("RTAny::operator+ not support for " +
+                             std::to_string(static_cast<int>(other.type_)));
   }
   if (has_f64) {
     return RTAny::from_double(left_f64 + right_f64);
