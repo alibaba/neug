@@ -14,23 +14,17 @@
  */
 
 #include "src/engines/http_server/handler/graph_db_http_handler.h"
+#include "src/engines//graph_db_service.h"
 #include "src/engines/graph_db/database/graph_db_session.h"
 #include "src/engines/http_server/executor_group.actg.h"
-#include "src/engines/http_server/graph_db_service.h"
+#include "src/engines/http_server/handler/http_utils.h"
 #include "src/engines/http_server/options.h"
 #include "src/engines/http_server/types.h"
-#include "src/otel/otel.h"
 
 #include <seastar/core/alien.hh>
 #include <seastar/core/print.hh>
 #include <seastar/core/when_all.hh>
 #include <seastar/http/handlers.hh>
-
-#ifdef HAVE_OPENTELEMETRY_CPP
-#include "opentelemetry/context/context.h"
-#include "opentelemetry/trace/span_metadata.h"
-#include "opentelemetry/trace/span_startoptions.h"
-#endif  // HAVE_OPENTELEMETRY_CPP
 
 #define RANDOM_DISPATCHER 1
 // when RANDOM_DISPATCHER is false, the dispatcher will use round-robin
@@ -188,11 +182,6 @@ class stored_proc_handler : public StoppableHandler {
             builder.build_ref<executor_ref>(i));
       }
     }
-#ifdef HAVE_OPENTELEMETRY_CPP
-    total_counter_ = otel::create_int_counter("hqps_procedure_query_total");
-    latency_histogram_ =
-        otel::create_double_histogram("hqps_procedure_query_latency");
-#endif
   }
   ~stored_proc_handler() override = default;
 
@@ -234,90 +223,7 @@ class stored_proc_handler : public StoppableHandler {
             std::unique_ptr<seastar::httpd::reply>>(std::move(rep));
       }
     }
-    auto& method = req->_method;
-    if (method == "POST") {
-      if (path.find("vertex") != seastar::sstring::npos) {
-        return get_executors()[StoppableHandler::shard_id()][dst_executor]
-            .create_vertex(query_param{std::move(req->content)})
-            .then_wrapped(
-                [rep = std::move(rep)](
-                    seastar::future<admin_query_result>&& fut) mutable {
-                  return return_reply_with_result(std::move(rep),
-                                                  std::move(fut));
-                });
-      } else if (path.find("edge") != seastar::sstring::npos) {
-        return get_executors()[StoppableHandler::shard_id()][dst_executor]
-            .create_edge(query_param{std::move(req->content)})
-            .then_wrapped(
-                [rep = std::move(rep)](
-                    seastar::future<admin_query_result>&& fut) mutable {
-                  return return_reply_with_result(std::move(rep),
-                                                  std::move(fut));
-                });
-      }
-    } else if (method == "GET") {
-      if (path.find("vertex") != seastar::sstring::npos) {
-        return get_executors()[StoppableHandler::shard_id()][dst_executor]
-            .get_vertex(
-                graph_management_query_param{std::move(req->query_parameters)})
-            .then_wrapped(
-                [rep = std::move(rep)](
-                    seastar::future<admin_query_result>&& fut) mutable {
-                  return return_reply_with_result(std::move(rep),
-                                                  std::move(fut));
-                });
-      } else if (path.find("edge") != seastar::sstring::npos) {
-        return get_executors()[StoppableHandler::shard_id()][dst_executor]
-            .get_edge(
-                graph_management_query_param{std::move(req->query_parameters)})
-            .then_wrapped(
-                [rep = std::move(rep)](
-                    seastar::future<admin_query_result>&& fut) mutable {
-                  return return_reply_with_result(std::move(rep),
-                                                  std::move(fut));
-                });
-      }
-    } else if (method == "DELETE") {
-      if (path.find("vertex") != seastar::sstring::npos) {
-        return get_executors()[StoppableHandler::shard_id()][dst_executor]
-            .delete_vertex(query_param{std::move(req->content)})
-            .then_wrapped(
-                [rep = std::move(rep)](
-                    seastar::future<admin_query_result>&& fut) mutable {
-                  return return_reply_with_result(std::move(rep),
-                                                  std::move(fut));
-                });
-      } else if (path.find("edge") != seastar::sstring::npos) {
-        return get_executors()[StoppableHandler::shard_id()][dst_executor]
-            .delete_edge(query_param{std::move(req->content)})
-            .then_wrapped(
-                [rep = std::move(rep)](
-                    seastar::future<admin_query_result>&& fut) mutable {
-                  return return_reply_with_result(std::move(rep),
-                                                  std::move(fut));
-                });
-      }
-    } else if (method == "PUT") {
-      if (path.find("vertex") != seastar::sstring::npos) {
-        return get_executors()[StoppableHandler::shard_id()][dst_executor]
-            .update_vertex(query_param{std::move(req->content)})
-            .then_wrapped(
-                [rep = std::move(rep)](
-                    seastar::future<admin_query_result>&& fut) mutable {
-                  return return_reply_with_result(std::move(rep),
-                                                  std::move(fut));
-                });
-      } else if (path.find("edge") != seastar::sstring::npos) {
-        return get_executors()[StoppableHandler::shard_id()][dst_executor]
-            .update_edge(query_param{std::move(req->content)})
-            .then_wrapped(
-                [rep = std::move(rep)](
-                    seastar::future<admin_query_result>&& fut) mutable {
-                  return return_reply_with_result(std::move(rep),
-                                                  std::move(fut));
-                });
-      }
-    }
+
     uint8_t last_byte;
     if (req->content.size() > 0) {
       // read last byte and get the format info from the byte.
@@ -342,27 +248,9 @@ class stored_proc_handler : public StoppableHandler {
           std::move(rep));
     }
 
-#ifdef HAVE_OPENTELEMETRY_CPP
-    auto tracer = otel::get_tracer("hqps_procedure_query_handler");
-    // Extract context from headers. This copy is necessary to avoid access
-    // after header content been freed
-    std::map<std::string, std::string> headers(req->_headers.begin(),
-                                               req->_headers.end());
-    auto current_ctx = opentelemetry::context::RuntimeContext::GetCurrent();
-    auto options = otel::get_parent_ctx(current_ctx, headers);
-    auto outer_span = tracer->StartSpan("procedure_query_handling", options);
-    auto scope = tracer->WithActiveSpan(outer_span);
-    auto start_ts = gs::GetCurrentTimeStamp();
-#endif  // HAVE_OPENTELEMETRY_CPP
-
     return get_executors()[StoppableHandler::shard_id()][dst_executor]
         .run_graph_db_query(query_param{std::move(req->content)})
-        .then([last_byte
-#ifdef HAVE_OPENTELEMETRY_CPP
-               ,
-               this, outer_span = outer_span
-#endif  // HAVE_OPENTELEMETRY_CPP
-    ](auto&& output) {
+        .then([last_byte](auto&& output) {
           if (last_byte == static_cast<uint8_t>(
                                gs::GraphDBSession::InputFormat::kCppEncoder) ||
               last_byte ==
@@ -376,27 +264,14 @@ class stored_proc_handler : public StoppableHandler {
             // to remove the first 4 bytes here.
             if (output.content.size() < 4) {
               LOG(ERROR) << "Invalid output size: " << output.content.size();
-#ifdef HAVE_OPENTELEMETRY_CPP
-              outer_span->SetStatus(opentelemetry::trace::StatusCode::kError,
-                                    "Invalid output size");
-              outer_span->End();
-              std::map<std::string, std::string> labels = {
-                  { "status",
-                    "fail" }};
-              total_counter_->Add(1, labels);
-#endif  // HAVE_OPENTELEMETRY_CPP
               return seastar::make_ready_future<query_param>(std::move(output));
             }
             return seastar::make_ready_future<query_param>(
                 std::move(output.content.substr(4)));
           }
         })
-        .then_wrapped([rep = std::move(rep)
-#ifdef HAVE_OPENTELEMETRY_CPP
-                           ,
-                       this, outer_span, start_ts
-#endif  // HAVE_OPENTELEMETRY_CPP
-    ](seastar::future<query_result>&& fut) mutable {
+        .then_wrapped([rep = std::move(rep)](
+                          seastar::future<query_result>&& fut) mutable {
           if (__builtin_expect(fut.failed(), false)) {
             try {
               std::rethrow_exception(fut.get_exception());
@@ -414,31 +289,12 @@ class stored_proc_handler : public StoppableHandler {
               }
               rep->write_body("bin", seastar::sstring(e.what()));
             }
-#ifdef HAVE_OPENTELEMETRY_CPP
-            outer_span->SetStatus(opentelemetry::trace::StatusCode::kError,
-                                  "Internal Server Error");
-            outer_span->End();
-            std::map<std::string, std::string> labels = {{ "status", "fail" }};
-            total_counter_->Add(1, labels);
-#endif  // HAVE_OPENTELEMETRY_CPP
             rep->done();
             return seastar::make_ready_future<
                 std::unique_ptr<seastar::httpd::reply>>(std::move(rep));
           }
           auto result = fut.get0();
           rep->write_body("bin", std::move(result.content));
-#ifdef HAVE_OPENTELEMETRY_CPP
-          outer_span->End();
-          std::map<std::string, std::string> labels = {{ "status", "success" }};
-          total_counter_->Add(1, labels);
-          auto end_ts = gs::GetCurrentTimeStamp();
-#if OPENTELEMETRY_ABI_VERSION_NO >= 2
-          latency_histogram_->Record(end_ts - start_ts);
-#else
-          latency_histogram_->Record(end_ts - start_ts,
-                                     opentelemetry::context::Context{});
-#endif
-#endif  // HAVE_OPENTELEMETRY_CPP
           rep->done();
           return seastar::make_ready_future<
               std::unique_ptr<seastar::httpd::reply>>(std::move(rep));
@@ -447,12 +303,6 @@ class stored_proc_handler : public StoppableHandler {
 
  private:
   query_dispatcher dispatcher_;
-#ifdef HAVE_OPENTELEMETRY_CPP
-  opentelemetry::nostd::unique_ptr<opentelemetry::metrics::Counter<uint64_t>>
-      total_counter_;
-  opentelemetry::nostd::unique_ptr<opentelemetry::metrics::Histogram<double>>
-      latency_histogram_;
-#endif
 };  // namespace server
 
 class adhoc_runtime_query_handler : public StoppableHandler {
@@ -495,11 +345,6 @@ class adhoc_runtime_query_handler : public StoppableHandler {
             builder.build_ref<executor_ref>(i));
       }
     }
-#ifdef HAVE_OPENTELEMETRY_CPP
-    total_counter_ = otel::create_int_counter("hqps_adhoc_query_total");
-    latency_histogram_ =
-        otel::create_double_histogram("hqps_adhoc_query_latency");
-#endif  // HAVE_OPENTELEMETRY_CPP
   }
 
   ~adhoc_runtime_query_handler() override = default;
@@ -547,48 +392,19 @@ class adhoc_runtime_query_handler : public StoppableHandler {
       }
     }
 
-#ifdef HAVE_OPENTELEMETRY_CPP
-    auto tracer = otel::get_tracer("adhoc_runtime_query_handler");
-    // Extract context from headers. This copy is necessary to avoid access
-    // after header content been freed
-    std::map<std::string, std::string> headers(req->_headers.begin(),
-                                               req->_headers.end());
-    auto current_ctx = opentelemetry::context::RuntimeContext::GetCurrent();
-    auto options = otel::get_parent_ctx(current_ctx, headers);
-    auto outer_span = tracer->StartSpan("adhoc_query_handling", options);
-    auto scope = tracer->WithActiveSpan(outer_span);
-    // create a new span for query execution, not started.
-    auto start_ts = std::chrono::duration_cast<std::chrono::milliseconds>(
-                        std::chrono::system_clock::now().time_since_epoch())
-                        .count();
-#endif  // HAVE_OPENTELEMETRY_CPP
-
-#ifdef HAVE_OPENTELEMETRY_CPP
-    options.parent = outer_span->GetContext();
-    auto query_span = tracer->StartSpan("adhoc_query_execution", options);
-    auto query_scope = tracer->WithActiveSpan(query_span);
-#endif  // HAVE_OPENTELEMETRY_CPP
-        // TODO(zhanglei): choose read or write based on the request, after the
-        //  read/write info is supported in physical plan
-        // The content contains the path to dynamic library
+    // TODO(zhanglei): choose read or write based on the request, after the
+    //  read/write info is supported in physical plan
+    // The content contains the path to dynamic library
     req->content.append(gs::Schema::ADHOC_READ_PLUGIN_ID_STR, 1);
     req->content.append(gs::GraphDBSession::kCypherProtoAdhocStr, 1);
     return get_executors()[StoppableHandler::shard_id()][dst_executor]
         .run_graph_db_query(query_param{std::move(req->content)})
-        .then([
-#ifdef HAVE_OPENTELEMETRY_CPP
-                  query_span = query_span, query_scope = std::move(query_scope)
-#endif  // HAVE_OPENTELEMETRY_CPP
-    ](auto&& output) {
+        .then([](auto&& output) {
           return seastar::make_ready_future<query_param>(
               std::move(output.content));
         })
-        .then_wrapped([rep = std::move(rep)
-#ifdef HAVE_OPENTELEMETRY_CPP
-                           ,
-                       this, outer_span, start_ts
-#endif  // HAVE_OPENTELEMETRY_CPP
-    ](seastar::future<query_result>&& fut) mutable {
+        .then_wrapped([rep = std::move(rep)](
+                          seastar::future<query_result>&& fut) mutable {
           if (__builtin_expect(fut.failed(), false)) {
             rep->set_status(
                 seastar::httpd::reply::status_type::internal_server_error);
@@ -597,31 +413,12 @@ class adhoc_runtime_query_handler : public StoppableHandler {
             } catch (std::exception& e) {
               rep->write_body("bin", seastar::sstring(e.what()));
             }
-#ifdef HAVE_OPENTELEMETRY_CPP
-            outer_span->SetStatus(opentelemetry::trace::StatusCode::kError,
-                                  "Internal Server Error");
-            outer_span->End();
-            std::map<std::string, std::string> labels = {{ "status", "fail" }};
-            total_counter_->Add(1, labels);
-#endif  // HAVE_OPENTELEMETRY_CPP
             rep->done();
             return seastar::make_ready_future<
                 std::unique_ptr<seastar::httpd::reply>>(std::move(rep));
           }
           auto result = fut.get0();
           rep->write_body("bin", std::move(result.content));
-#ifdef HAVE_OPENTELEMETRY_CPP
-          outer_span->End();
-          std::map<std::string, std::string> labels = {{ "status", "success" }};
-          total_counter_->Add(1, labels);
-          auto end_ts = gs::GetCurrentTimeStamp();
-#if OPENTELEMETRY_ABI_VERSION_NO >= 2
-          latency_histogram_->Record(end_ts - start_ts);
-#else
-          latency_histogram_->Record(end_ts - start_ts,
-                                     opentelemetry::context::Context{});
-#endif
-#endif  // HAVE_OPENTELEMETRY_CPP
           rep->done();
           return seastar::make_ready_future<
               std::unique_ptr<seastar::httpd::reply>>(std::move(rep));
@@ -630,13 +427,6 @@ class adhoc_runtime_query_handler : public StoppableHandler {
 
  private:
   query_dispatcher dispatcher_;
-
-#ifdef HAVE_OPENTELEMETRY_CPP
-  opentelemetry::nostd::unique_ptr<opentelemetry::metrics::Counter<uint64_t>>
-      total_counter_;
-  opentelemetry::nostd::unique_ptr<opentelemetry::metrics::Histogram<double>>
-      latency_histogram_;
-#endif
 };
 
 class service_status_handler : public seastar::httpd::handler_base {

@@ -19,10 +19,11 @@
 #include <hiactor/core/actor-app.hh>
 #include <iostream>
 #include <vector>
+#include "src/engines//graph_db_service.h"
 #include "src/engines/graph_db/database/graph_db.h"
 #include "src/engines/http_server/executor_group.actg.h"
 #include "src/engines/http_server/generated/actor/executor_ref.act.autogen.h"
-#include "src/engines/http_server/graph_db_service.h"
+#include "src/engines/http_server/types.h"
 
 namespace bpo = boost::program_options;
 using namespace std::chrono_literals;
@@ -177,7 +178,7 @@ int main(int argc, char** argv) {
     return 0;
   }
 
-  bool enable_dpdk = false;
+  // bool enable_dpdk = false;
   uint32_t shard_num = vm["shard-num"].as<uint32_t>();
 
   std::string graph_schema_path = "";

@@ -13,8 +13,8 @@
  * limitations under the License.
  */
 
+#include "src/engines//graph_db_service.h"
 #include "src/engines/graph_db/database/graph_db.h"
-#include "src/engines/http_server/graph_db_service.h"
 #include "src/engines/http_server/options.h"
 #include "src/utils/service_utils.h"
 
@@ -27,6 +27,9 @@ using namespace server;
 namespace bpo = boost::program_options;
 
 int main(int argc, char** argv) {
+  gs::blockSignal(SIGINT);
+  gs::blockSignal(SIGTERM);
+
   bpo::options_description desc("Usage:");
   desc.add_options()("help", "Display help message")(
       "version,v", "Display version")("shard-num,s",
@@ -76,9 +79,6 @@ int main(int argc, char** argv) {
   setenv("TZ", "Asia/Shanghai", 1);
   tzset();
 
-  gs::blockSignal(SIGINT);
-  gs::blockSignal(SIGTERM);
-
   double t0 = -grape::GetCurrentTime();
   gs::GraphDB& db = server::GraphDBService::get().graph_db();
   std::string graph_schema_path = data_path + "/graph.yaml";
@@ -89,6 +89,7 @@ int main(int argc, char** argv) {
   gs::GraphDBConfig config(schema.value(), data_path, compiler_path, shard_num);
   config.memory_level = memory_level;
   config.wal_uri = vm["wal-uri"].as<std::string>();
+  config.warmup = warmup;
   if (config.memory_level >= 2) {
     config.enable_auto_compaction = true;
   }

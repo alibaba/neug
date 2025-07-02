@@ -37,10 +37,6 @@ seastar::future<std::unique_ptr<seastar::httpd::reply>>
 catch_exception_and_return_reply(std::unique_ptr<seastar::httpd::reply> rep,
                                  std::exception_ptr ex);
 
-seastar::future<std::unique_ptr<seastar::httpd::reply>>
-return_reply_with_result(std::unique_ptr<seastar::httpd::reply> rep,
-                         seastar::future<admin_query_result>&& fut);
-
 // To avoid macro conflict between /usr/include/arpa/nameser_compact.h#120(which
 // is included by httplib.h) and seastar/http/common.hh#61
 static constexpr seastar::httpd::operation_type SEASTAR_DELETE =

@@ -47,7 +47,6 @@ set(ALL_OBJECT_FILES ${ALL_OBJECT_FILES} PARENT_SCOPE)
 
 # Note: The static neug_compiler target is currently unused and may be removed in the future if deemed unnecessary.
 if (NOT BUILD_ALL_IN_ONE)
-        message(STATUS "Building compiler as shared library: ${ALL_OBJECT_FILES}")
         message(STATUS "compiler: Compiler libraries: ${COMPILER_LIBRARIES}")
         add_library(neug_compiler_shared SHARED ${ALL_OBJECT_FILES})
         target_link_libraries(neug_compiler_shared PUBLIC ${COMPILER_LIBRARIES})

@@ -20,12 +20,10 @@
 #include "src/storages/metadata/default_graph_meta_store.h"
 #include "src/storages/metadata/graph_meta_store.h"
 #include "src/storages/metadata/local_file_metadata_store.h"
+#include "src/utils/http_handler_manager.h"
 
 namespace gs {
 
-enum class MetadataStoreType {
-  kLocalFile,
-};
 /**
  * @brief LoaderFactory is a factory class to create IFragmentLoader.
  * Support Using dynamically built library as plugin.

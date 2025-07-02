@@ -14,6 +14,7 @@
  */
 
 #include "src/engines/http_server/handler/http_utils.h"
+#include <glog/logging.h>
 
 namespace server {
 
@@ -92,30 +93,6 @@ catch_exception_and_return_reply(std::unique_ptr<seastar::httpd::reply> rep,
     return seastar::make_ready_future<std::unique_ptr<seastar::httpd::reply>>(
         std::move(rep));
   }
-}
-
-seastar::future<std::unique_ptr<seastar::httpd::reply>>
-return_reply_with_result(std::unique_ptr<seastar::httpd::reply> rep,
-                         seastar::future<admin_query_result>&& fut) {
-  if (__builtin_expect(fut.failed(), false)) {
-    return catch_exception_and_return_reply(std::move(rep),
-                                            fut.get_exception());
-  }
-  auto&& result = fut.get0();
-  auto status_code =
-      status_code_to_http_code(result.content.status().error_code());
-  rep->set_status(status_code);
-  rep->set_content_type("application/json");
-  if (status_code == seastar::httpd::reply::status_type::ok) {
-    rep->write_body("json", std::move(result.content.value()));
-  } else {
-    // Expect a json like "{"code": 400, "message": "Bad Request"}"
-    rep->write_body("json",
-                    seastar::sstring(result.content.status().ToString()));
-  }
-  rep->done();
-  return seastar::make_ready_future<std::unique_ptr<seastar::httpd::reply>>(
-      std::move(rep));
 }
 
 std::string trim_slash(const std::string& origin) {

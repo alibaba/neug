@@ -29,23 +29,6 @@ class ANNOTATION(actor:impl) executor : public hiactor::actor {
   ~executor() override;
 
   seastar::future<query_result> ANNOTATION(actor:method) run_graph_db_query(query_param&& param);
-  
-  seastar::future<admin_query_result> ANNOTATION(actor:method) create_vertex(query_param&& param);
-
-  seastar::future<admin_query_result> ANNOTATION(actor:method) create_edge(query_param&& param);
-
-  seastar::future<admin_query_result> ANNOTATION(actor:method) delete_vertex(query_param&& param);
-
-  seastar::future<admin_query_result> ANNOTATION(actor:method) delete_edge(query_param&& param);
-
-  seastar::future<admin_query_result> ANNOTATION(actor:method) update_vertex(query_param&& param);
-
-  seastar::future<admin_query_result> ANNOTATION(actor:method) update_edge(query_param&& param);
-
-  seastar::future<admin_query_result> ANNOTATION(actor:method) get_vertex(graph_management_query_param&& param);
-
-  seastar::future<admin_query_result> ANNOTATION(actor:method) get_edge(graph_management_query_param&& param);
-
 
   // DECLARE_RUN_QUERIES;
   /// Declare `do_work` func here, no need to implement.

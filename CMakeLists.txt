@@ -16,10 +16,16 @@ option(BUILD_ODPS_FRAGMENT_LOADER "Whether to build odps fragment loader" OFF)
 option(USE_PTHASH "Whether to use pthash" OFF)
 option(OPTIMIZE_FOR_HOST "Whether to optimize on host" ON) # Whether to build optimized code on host
 option(USE_STATIC_ARROW "Whether to use static arrow" OFF) # Whether to link arrow statically, default is OFF
-option(BUILD_WITH_OTEL "Whether to build with opentelemetry-cpp" OFF) # Whether to build with opentelemetry-cpp, default is OFF
 option(BUILD_WITH_OSS "Whether to build with oss support" OFF) # Whether to build with oss support, default is OFF
 option(BUILD_EXECUTABLES "When to build executors" OFF) # Whether to build executables, default is OFF
 option(BUILD_HTTP_SERVER "Whether to build http server" OFF) # Whether to build http server, default is OFF
+set(HTTP_SERVER_TYPE "hiactor" CACHE STRING "The type of http server to use, could be 'hiactor' or 'brpc'")
+if (HTTP_SERVER_TYPE STREQUAL "hiactor")
+    add_definitions(-DHTTP_SERVER_TYPE_HIACTOR)
+elseif (HTTP_SERVER_TYPE STREQUAL "brpc")
+    add_definitions(-DHTTP_SERVER_TYPE_BRPC)
+endif()
+
 option(BUILD_JNI_PLANNER "Whether to build jni wrapper for the java planner" OFF) # Whether to build jni wrapper for the java planner, default is ON
 option(BUILD_METADATA "Whether to build metadata" OFF)
 # Options to control the building of tools
@@ -62,6 +68,8 @@ option(BUILD_TEST "Build C++ tests." TRUE)
 option(BUILD_EXTENSION_TESTS "Build C++ extension tests." FALSE)
 option(ENABLE_BACKTRACES "Enable backtrace printing for exceptions and segfaults" FALSE)
 
+set (Seastar_SCHEDULING_GROUPS_COUNT "16" CACHE STRING "A positive number to set Seastar's reactor number of allowed different scheduling groups.")
+
 add_definitions(-DNEUG_CMAKE_VERSION="${CMAKE_PROJECT_VERSION}")
 #TODO: Fixme
 add_definitions(-DNEUG_EXTENSION_VERSION="0.9.0")
@@ -69,6 +77,9 @@ include(CheckCXXCompilerFlag)
 
 if (BUILD_HTTP_SERVER AND NOT BUILD_METADATA)
     message(FATAL_ERROR "BUILD_HTTP_SERVER requires BUILD_METADATA to be ON")
+endif()
+if (BUILD_HTTP_SERVER)
+    add_compile_definitions(BUILD_HTTP_SERVER)
 endif()
 
 
@@ -475,18 +486,6 @@ else ()
         endif()
     endif()
 endif ()
-
-
-if (BUILD_WITH_OTEL)
-    find_package(opentelemetry-cpp CONFIG)
-    if (OPENTELEMETRY_CPP_FOUND)
-        message(STATUS "opentelemetry-cpp found")
-        find_package(CURL REQUIRED)
-        add_definitions(-DHAVE_OPENTELEMETRY_CPP)
-    else()
-        message(STATUS "opentelemetry-cpp not found, build without opentelemetry-cpp")
-    endif ()
-endif()
 
 # Find Doxygen
 if (BUILD_DOC)

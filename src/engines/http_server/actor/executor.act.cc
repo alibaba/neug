@@ -15,11 +15,10 @@
 
 #include "src/engines/http_server/actor/executor.act.h"
 
-#include "graph_db_service.h"
+#include "src/engines//graph_db_service.h"
 #include "src/engines/graph_db/database/graph_db.h"
 #include "src/engines/graph_db/database/graph_db_operations.h"
 #include "src/engines/graph_db/database/graph_db_session.h"
-#include "src/engines/http_server/graph_db_service.h"
 
 // Disable class-memaccess warning to facilitate compilation with gcc>7
 // https://github.com/Tencent/rapidjson/issues/1700
@@ -60,140 +59,6 @@ seastar::future<query_result> executor::run_graph_db_query(
   auto result = ret.value();
   seastar::sstring content(result.data(), result.size());
   return seastar::make_ready_future<query_result>(std::move(content));
-}
-
-seastar::future<admin_query_result> executor::create_vertex(
-    query_param&& param) {
-  rapidjson::Document input_json;
-  // Parse the input json
-  if (input_json.Parse(param.content.c_str()).HasParseError()) {
-    return seastar::make_ready_future<admin_query_result>(
-        gs::Result<seastar::sstring>(gs::Status(
-            gs::StatusCode::ERR_INVALID_SCHEMA,
-            "Bad input json : " + std::to_string(input_json.GetParseError()))));
-  }
-  auto result = gs::GraphDBOperations::CreateVertex(
-      GraphDBService::get().graph_db().GetSession(hiactor::local_shard_id()),
-      std::move(input_json));
-
-  if (result.ok()) {
-    return seastar::make_ready_future<admin_query_result>(
-        gs::Result<seastar::sstring>(result.value()));
-  }
-  return seastar::make_ready_future<admin_query_result>(
-      gs::Result<seastar::sstring>(result.status()));
-}
-
-seastar::future<admin_query_result> executor::create_edge(query_param&& param) {
-  rapidjson::Document input_json;
-  if (input_json.Parse(param.content.c_str()).HasParseError()) {
-    return seastar::make_ready_future<admin_query_result>(
-        gs::Result<seastar::sstring>(gs::Status(
-            gs::StatusCode::ERR_INVALID_SCHEMA,
-            "Bad input json : " + std::to_string(input_json.GetParseError()))));
-  }
-  auto result = gs::GraphDBOperations::CreateEdge(
-      GraphDBService::get().graph_db().GetSession(hiactor::local_shard_id()),
-      std::move(input_json));
-  if (result.ok()) {
-    return seastar::make_ready_future<admin_query_result>(
-        gs::Result<seastar::sstring>(result.value()));
-  }
-  return seastar::make_ready_future<admin_query_result>(
-      gs::Result<seastar::sstring>(result.status()));
-}
-
-seastar::future<admin_query_result> executor::update_vertex(
-    query_param&& param) {
-  rapidjson::Document input_json;
-  // Parse the input json
-  if (input_json.Parse(param.content.c_str()).HasParseError()) {
-    return seastar::make_ready_future<admin_query_result>(
-        gs::Result<seastar::sstring>(gs::Status(
-            gs::StatusCode::ERR_INVALID_SCHEMA,
-            "Bad input json : " + std::to_string(input_json.GetParseError()))));
-  }
-  auto result = gs::GraphDBOperations::UpdateVertex(
-      GraphDBService::get().graph_db().GetSession(hiactor::local_shard_id()),
-      std::move(input_json));
-
-  if (result.ok()) {
-    return seastar::make_ready_future<admin_query_result>(
-        gs::Result<seastar::sstring>(result.value()));
-  }
-  return seastar::make_ready_future<admin_query_result>(
-      gs::Result<seastar::sstring>(result.status()));
-}
-seastar::future<admin_query_result> executor::update_edge(query_param&& param) {
-  rapidjson::Document input_json;
-  // Parse the input json
-  if (input_json.Parse(param.content.c_str()).HasParseError()) {
-    return seastar::make_ready_future<admin_query_result>(
-        gs::Result<seastar::sstring>(gs::Status(
-            gs::StatusCode::ERR_INVALID_SCHEMA,
-            "Bad input json : " + std::to_string(input_json.GetParseError()))));
-  }
-  auto result = gs::GraphDBOperations::UpdateEdge(
-      GraphDBService::get().graph_db().GetSession(hiactor::local_shard_id()),
-      std::move(input_json));
-
-  if (result.ok()) {
-    return seastar::make_ready_future<admin_query_result>(
-        gs::Result<seastar::sstring>(result.value()));
-  }
-  return seastar::make_ready_future<admin_query_result>(
-      gs::Result<seastar::sstring>(result.status()));
-}
-
-seastar::future<admin_query_result> executor::get_vertex(
-    graph_management_query_param&& param) {
-  std::unordered_map<std::string, std::string> params;
-  for (auto& [key, value] : param.content) {
-    params[std::string(key)] = std::string(value);
-  }
-  auto result = gs::GraphDBOperations::GetVertex(
-      GraphDBService::get().graph_db().GetSession(hiactor::local_shard_id()),
-      std::move(params));
-
-  if (result.ok()) {
-    return seastar::make_ready_future<admin_query_result>(
-        gs::Result<seastar::sstring>(result.value()));
-  }
-  return seastar::make_ready_future<admin_query_result>(
-      gs::Result<seastar::sstring>(result.status()));
-}
-
-seastar::future<admin_query_result> executor::get_edge(
-    graph_management_query_param&& param) {
-  std::unordered_map<std::string, std::string> params;
-  for (auto& [key, value] : param.content) {
-    params[std::string(key)] = std::string(value);
-  }
-  auto result = gs::GraphDBOperations::GetEdge(
-      GraphDBService::get().graph_db().GetSession(hiactor::local_shard_id()),
-      std::move(params));
-
-  if (result.ok()) {
-    return seastar::make_ready_future<admin_query_result>(
-        gs::Result<seastar::sstring>(result.value()));
-  }
-  return seastar::make_ready_future<admin_query_result>(
-      gs::Result<seastar::sstring>(result.status()));
-}
-
-seastar::future<admin_query_result> executor::delete_vertex(
-    query_param&& param) {
-  return seastar::make_ready_future<admin_query_result>(
-      gs::Result<seastar::sstring>(
-          gs::Status(gs::StatusCode::ERR_NOT_IMPLEMENTED,
-                     "delete_vertex is not implemented")));
-}
-
-seastar::future<admin_query_result> executor::delete_edge(query_param&& param) {
-  return seastar::make_ready_future<admin_query_result>(
-      gs::Result<seastar::sstring>(
-          gs::Status(gs::StatusCode::ERR_NOT_IMPLEMENTED,
-                     "delete_edge is not implemented")));
 }
 
 }  // namespace server

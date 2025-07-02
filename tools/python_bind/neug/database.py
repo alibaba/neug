@@ -166,6 +166,21 @@ class Database(object):
     def __enter__(self):
         return self
 
+    def serve(self, port: int = 10000, host: str = "localhost"):
+        """
+        Start the database server for handling remote connections(TP mode).
+
+        Neug does not support the ideally htap (hybrid transactional and analytical processing) mode, could only switch between
+        analytical and transactional mode. This method is used to start the database server for handling remote connections.
+        When db.serve() is called, the database will switch to the TP mode, and all the connections to the local database
+        will be closed.
+
+        It will start a server that listens on a specific port, and clients can connect to the server to interact with the
+        database. User could use RemoveDatabase to connect to the server. For detail usage, please refer to the
+        documentation of RemoveDatabase.
+        """
+        pass
+
     @property
     def version(self):
         """

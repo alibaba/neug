@@ -125,3 +125,8 @@ except ImportError:
     raise ImportError(
         "NeuG is not installed. Please install it using pip or build it from source."
     )
+
+from neug.async_connection import AsyncConnection
+from neug.connection import Connection
+from neug.database import Database
+from neug.query_result import QueryResult

@@ -11,6 +11,7 @@ if (BUILD_ALL_IN_ONE)
 else()
         add_library(neug_rt_mutable_graph SHARED ${RT_MUTABLE_GRAPH_SRC_FILES})
         target_link_libraries(neug_rt_mutable_graph neug_utils neug_grape_lite ${CMAKE_THREAD_LIBS_INIT})
+        add_dependencies(neug_rt_mutable_graph neug_utils)
 install_neug_target(neug_rt_mutable_graph)
 endif()
 

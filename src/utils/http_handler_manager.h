@@ -12,29 +12,22 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-#ifndef ENGINES_HTTP_SERVER_HQPS_SERVICE_H_
-#define ENGINES_HTTP_SERVER_HQPS_SERVICE_H_
 
-#include <cctype>
+#ifndef ENGINES_COMMON_HTTP_HANDLER_MANAGER_H_
+#define ENGINES_COMMON_HTTP_HANDLER_MANAGER_H_
+
+#include <atomic>
+#include <cstdint>
 #include <memory>
 #include <string>
 
-#include "src/engines/graph_db/database/graph_db.h"
-#include "src/engines/http_server/actor_system.h"
-#include "src/engines/http_server/handler/admin_http_handler.h"
-#include "src/engines/http_server/handler/graph_db_http_handler.h"
-#include "src/engines/http_server/workdir_manipulator.h"
-#include "src/storages/metadata/graph_meta_store.h"
-#include "src/storages/metadata/metadata_store_factory.h"
-#include "src/utils/result.h"
-#include "src/utils/service_utils.h"
-
-#include <yaml-cpp/yaml.h>
-#include <boost/process.hpp>
-
+namespace gs {
+enum class MetadataStoreType {
+  kLocalFile,
+};
+}
 namespace server {
-/* Stored service configuration, read from interactive_config.yaml
- */
+
 struct ServiceConfig {
   enum class ShardingMode { EXCLUSIVE, COOPERATIVE };
   static constexpr const uint32_t DEFAULT_SHARD_NUM = 1;
@@ -129,79 +122,15 @@ struct ServiceConfig {
   }
 };
 
-class GraphDBService {
+class IHttpHandlerManager {
  public:
-  static const std::string DEFAULT_GRAPH_NAME;
-  static const std::string DEFAULT_INTERACTIVE_HOME;
-  static const std::string COMPILER_SERVER_CLASS_NAME;
-  static GraphDBService& get();
-
-  gs::GraphDB& graph_db() { return db_; }
-  ~GraphDBService();
-
-  void init(const ServiceConfig& config);
-
-  const ServiceConfig& get_service_config() const;
-
-  bool is_initialized() const;
-
-  bool is_running() const;
-
-  uint16_t get_query_port() const;
-
-  uint64_t get_start_time() const;
-
-  void reset_start_time();
-
-  std::shared_ptr<gs::IGraphMetaStore> get_metadata_store() const;
-
-  gs::Result<seastar::sstring> service_status();
-
-  void run_and_wait_for_exit();
-
-  void set_exit_state();
-
-  // Actually stop the actors, the service is still on, but returns error code
-  // for each request.
-  seastar::future<> stop_query_actors();
-
-  bool is_actors_running() const;
-
-  // Actually create new actors with a different scope_id,
-  // Because we don't know whether the previous scope_id can be reused.
-  void start_query_actors();
-
-  bool start_compiler_subprocess(const std::string& graph_schema_path = "");
-
-  bool stop_compiler_subprocess();
-
-  bool check_compiler_ready() const;
-
- private:
-  GraphDBService() = default;
-
-  std::string find_interactive_class_path();
-  // Insert graph meta into metadata store.
-  gs::GraphId insert_default_graph_meta();
-  void open_default_graph();
-  void clear_running_graph();
-
- private:
-  gs::GraphDB db_;
-  std::unique_ptr<actor_system> actor_sys_;
-  std::unique_ptr<admin_http_handler> admin_hdl_;
-  std::unique_ptr<graph_db_http_handler> query_hdl_;
-  std::atomic<bool> running_{false};
-  std::atomic<bool> initialized_{false};
-  std::atomic<uint64_t> start_time_{0};
-  std::mutex mtx_;
-
-  ServiceConfig service_config_;
-  boost::process::child compiler_process_;
-  // handler for metadata store
-  std::shared_ptr<gs::IGraphMetaStore> metadata_store_;
+  virtual ~IHttpHandlerManager() = default;
+  virtual void Init(const ServiceConfig& config) = 0;
+  virtual void Start() = 0;
+  virtual void Stop() = 0;
+  virtual void RunAndWaitForExit() = 0;
+  virtual bool IsRunning() const = 0;
 };
-
 }  // namespace server
 
 namespace YAML {
@@ -368,4 +297,4 @@ struct convert<server::ServiceConfig> {
 };
 }  // namespace YAML
 
-#endif  // ENGINES_HTTP_SERVER_HQPS_SERVICE_H_
+#endif  // ENGINES_COMMON_HTTP_HANDLER_MANAGER_H_

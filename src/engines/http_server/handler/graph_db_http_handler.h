@@ -21,6 +21,7 @@
 
 #include <array>
 
+#include <glog/logging.h>
 #include <seastar/http/httpd.hh>
 
 namespace server {
