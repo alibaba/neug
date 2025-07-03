@@ -16,6 +16,7 @@
 #ifndef SRC_MAIN_NEUG_DB_H_
 #define SRC_MAIN_NEUG_DB_H_
 
+#include <chrono>
 #include <csignal>
 #include <memory>
 #include <mutex>
@@ -48,16 +49,40 @@ class NeugDB {
          const std::string& jni_planner_class_path = "",
          const std::string& planner_config_path = "")
       : file_lock_(data_dir) {
-    LOG(INFO) << "Creating NeugDB with: " << data_dir << " in " << mode
-              << " mode, "
-              << " planner: " << planner_kind;
     if (max_num_threads == 0) {
       max_num_threads = std::thread::hardware_concurrency();
     }
-    config_.data_dir = data_dir;
+    std::string db_dir = data_dir;
+    if (db_dir.empty()) {
+      std::string db_dir_prefix;
+      char* prefix_env = std::getenv("NEUG_DB_TMP_DIR");
+      if (prefix_env) {
+        db_dir_prefix = std::string(prefix_env);
+      } else {
+        db_dir_prefix = "/tmp";
+      }
+      std::stringstream ss;
+      auto now = std::chrono::system_clock::now();
+      auto duration = now.time_since_epoch();
+      ss << "neug_db_"
+         << std::chrono::duration_cast<std::chrono::milliseconds>(duration)
+                .count();
+      db_dir = db_dir_prefix + "/" + ss.str();
+      is_pure_memory_ = true;
+      file_lock_ = FileLock(db_dir);
+      LOG(INFO) << "Creating temp NeugDB with: " << db_dir << " in " << mode
+                << " mode, "
+                << " planner: " << planner_kind;
+    } else {
+      is_pure_memory_ = false;
+      LOG(INFO) << "Creating NeugDB with: " << db_dir << " in " << mode
+                << " mode, "
+                << " planner: " << planner_kind;
+    }
+    config_.data_dir = db_dir;
     config_.thread_num = max_num_threads;
     config_.memory_level = 0;
-    ensure_directory_exists(data_dir);
+    ensure_directory_exists(db_dir);
 
     if (mode == "read" || mode == "r") {
       mode_ = DBMode::READ_ONLY;
@@ -70,7 +95,7 @@ class NeugDB {
 
     std::string message;
     if (!file_lock_.lock(message, mode_)) {
-      throw std::runtime_error("Failed to lock directory: " + data_dir + "," +
+      throw std::runtime_error("Failed to lock directory: " + db_dir + "," +
                                message);
     }
 
@@ -146,6 +171,8 @@ class NeugDB {
   std::vector<std::shared_ptr<Connection>> read_only_connections_;
 
   std::mutex connection_mutex_;
+
+  bool is_pure_memory_;
 };
 }  // namespace gs
 

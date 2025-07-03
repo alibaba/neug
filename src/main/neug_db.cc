@@ -65,6 +65,9 @@ void NeugDB::close() {
   if (read_write_connection_) {
     read_write_connection_->close();
   }
+  if (is_pure_memory_) {
+    std::filesystem::remove_all(config_.data_dir);
+  }
   VLOG(10) << "Close all connections.";
 }
 
