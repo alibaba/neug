@@ -1,0 +1,64 @@
+#!/bin/bash
+set -e
+
+usage() {
+    echo "Usage: $0 <dataset_name> [db_dir] [subquery_dirs] [rw_flag]"
+    echo "  <dataset_name>   (required) Dataset name, e.g. tinysnb or modern-graph"
+    echo "  [db_dir]         (optional) Database directory, default: /tmp/<dataset_name>"
+    echo "  [subquery_dirs]  (optional) Comma-separated list of subquery dirs, default: all"
+    echo "  [rw_flag]        (optional) If set, run in read-write mode, default: false"
+    echo "Example: $0 tinysnb /tmp/tinysnb basic_test,projection,filter"
+    echo "Example: $0 modern-graph /tmp/modern_graph ddl true"
+    exit 1
+}
+
+if [ $# -lt 1 ]; then
+    usage
+fi
+
+DATASET_NAME="$1"
+DB_DIR="${2:-/tmp/${DATASET_NAME}}"
+SUBQUERY_ARG="${3:-}"
+READ_WRITE_FLAG="${4:-false}"
+
+SCRIPT_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
+TEST_DIR="$SCRIPT_DIR/.."
+BASE_QUERY_DIR="$TEST_DIR/queries"
+BASE_REPORT_DIR="$TEST_DIR/report/$DATASET_NAME"
+TEST_MARKER="neug_test"
+
+function test_queries_embedded {
+    if [ -z "$SUBQUERY_ARG" ]; then
+        SUBQUERY_DIRS=()
+        for d in "$BASE_QUERY_DIR"/*/; do
+            [ -d "$d" ] && SUBQUERY_DIRS+=("$(basename "$d")")
+        done
+    else
+        IFS=',' read -ra SUBQUERY_DIRS <<<"$SUBQUERY_ARG"
+    fi
+
+    pushd "$TEST_DIR" >/dev/null
+
+    for SUBQUERY_DIR in "${SUBQUERY_DIRS[@]}"; do
+        QUERY_DIR="$BASE_QUERY_DIR/$SUBQUERY_DIR"
+        REPORT_DIR="$BASE_REPORT_DIR/$SUBQUERY_DIR"
+        cmd="python3 -m pytest -sv -m $TEST_MARKER --query_dir=$QUERY_DIR --dataset $DATASET_NAME"
+        if [[ "$READ_WRITE_FLAG" == "true" ]]; then
+            # If read-write mode is requested, copy the database directory
+            if [ -d "${DB_DIR}_rw" ]; then
+                rm -rf "${DB_DIR}_rw"
+            fi
+            cp -r "$DB_DIR" "${DB_DIR}_rw"
+            cmd+=" --db_dir=${DB_DIR}_rw"
+        else
+            cmd+=" --db_dir=$DB_DIR --read_only"
+        fi
+        cmd+=" --html=\"$REPORT_DIR/test_report.html\" --alluredir=\"$REPORT_DIR/allure-results\""
+        printf "Running command: %s\n" "$cmd"
+        eval "$cmd"
+    done
+
+    popd >/dev/null
+}
+
+test_queries_embedded

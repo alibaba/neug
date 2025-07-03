@@ -174,18 +174,13 @@ jobs:
     - name: Run E2E Cypher Test
       run: |
         cd ${GITHUB_WORKSPACE}/tests/e2e
-        export LSQB_DATA_DIR=/tmp/lsqb
         # e2e cypher tests
-        # 1. tests running on tinysnb
+        # 1. tests running on modern_graph
+        ./scripts/run_embed_test.sh modern_graph /tmp/modern_graph basic_test
+        # 2. tests running on tinysnb
         # TODO: Currently, we only include a few basic tests for cypher queries on tinysnb.
         # We will add more tests for each cypher operator in e2e/queries directory when they are ready.
-        ./scripts/run_tinysnb_test.sh basic_test
-        ./scripts/run_tinysnb_test.sh projection
-        ./scripts/run_tinysnb_test.sh filter
-        ./scripts/run_tinysnb_test.sh order_by
-        ./scripts/run_tinysnb_test.sh expr
-        ./scripts/run_tinysnb_test.sh acc
-        ./scripts/run_tinysnb_test.sh agg
+        ./scripts/run_embed_test.sh tinysnb /tmp/tinysnb basic_test,projection,filter,order_by,expr,acc,agg
 
 
 

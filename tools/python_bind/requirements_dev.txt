@@ -9,3 +9,4 @@ pytest-benchmark[histogram]==5.1.0
 pytest-html==4.1.1
 allure-pytest==2.14.1
 importlib-metadata>=5.0.0
+pyyaml>=6.0.0

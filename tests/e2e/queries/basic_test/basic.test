@@ -41,3 +41,25 @@ Dan|
 -STATEMENT MATCH (a:person RETURN COUNT(a)
 ---- error
 -Parser exception: Invalid input <MATCH (a:person RETURN>: expected rule oC_SingleQuery (line: 1, offset: 16)
+
+-LOG TestTestFrameworkWithDoubleResults
+-STATEMENT MATCH (n:organisation) RETURN n.rating
+---- 3
+1.000000
+0.780000
+0.520000
+
+-LOG TestTestFrameworkWithDoubleInvolvedResults
+-STATEMENT MATCH (n:organisation) RETURN n.ID, n.name, n.rating
+---- 3
+1|ABFsUni|1.000000
+4|CsWork|0.780000
+6|DEsWork|0.520000
+
+-LOG TestTestFrameworkWithVertexResults
+-UNSUPPORTED: this test is unsupported because the result schema is not consistent with kuzu (as types like struct, union are not supported in neug), so we cannot directly compare with kuzu results as expected results
+-STATEMENT MATCH (n:organisation) RETURN n
+---- 3
+{_ID: 1:0, _LABEL: organisation, ID: 1, name: ABFsUni, orgCode: 325, mark: 3.700000, score: -2, history: 10 years 5 months 13 hours 24 us, licenseValidInterval: 3 years 5 days, rating: 1.000000, state: {revenue: 138, location: ['toronto','montr,eal'], stock: {price: [96,56], volume: 1000}}, info: 3.120000}
+{_ID: 1:1, _LABEL: organisation, ID: 4, name: CsWork, orgCode: 934, mark: 4.100000, score: -100, history: 2 years 4 days 10 hours, licenseValidInterval: 26 years 52 days 48:00:00, rating: 0.780000, state: {revenue: 152, location: ["vanco,uver north area"], stock: {price: [15,78,671], volume: 432}}, info: abcd}
+{_ID: 1:2, _LABEL: organisation, ID: 6, name: DEsWork, orgCode: 824, mark: 4.100000, score: 7, history: 2 years 4 hours 22 us 34 minutes, licenseValidInterval: 82 hours 100 milliseconds, rating: 0.520000, state: {revenue: 558, location: ['very long city name','new york'], stock: {price: [22], volume: 99}}, info: 2023-12-15}

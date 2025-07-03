@@ -1,0 +1,33 @@
+-DATASET CSV modern_graph
+
+--
+
+-CASE BasicTests
+
+-LOG TestTestFrameworkWithVertexResults
+-STATEMENT MATCH (n:person) RETURN n
+---- 4
+{_ID: 1:0, _LABEL: person, id: 1, name: marko, age: 29}
+{_ID: 1:1, _LABEL: person, id: 2, name: vadas, age: 27}
+{_ID: 1:2, _LABEL: person, id: 4, name: josh, age: 32}
+{_ID: 1:3, _LABEL: person, id: 6, name: peter, age: 35}
+
+-LOG TestTestFrameworkWithVertexInvolvedResults
+-STATEMENT MATCH (n:person) RETURN n.id, n
+---- 4
+1|{_ID: 1:0, _LABEL: person, id: 1, name: marko, age: 29}
+2|{_ID: 1:1, _LABEL: person, id: 2, name: vadas, age: 27}
+4|{_ID: 1:2, _LABEL: person, id: 4, name: josh, age: 32}
+6|{_ID: 1:3, _LABEL: person, id: 6, name: peter, age: 35}
+
+-LOG TestTestFrameworkWithEDGEResults
+-STATEMENT MATCH (:person)-[e:knows]->(:person) RETURN e;
+---- 2
+(0:0)-{_LABEL: knows, _ID: 3:0, weight: 0.500000}->(0:1)
+(0:1)-{_LABEL: knows, _ID: 3:1, weight: 1.000000}->(0:2)
+
+-LOG TestTestFrameworkWithEdgeInvolvedResults
+-STATEMENT MATCH (:person)-[e:knows]->(:person) RETURN e.weight, e
+---- 2
+0.500000|(0:0)-{_LABEL: knows, _ID: 3:0, weight: 0.500000}->(0:1)
+1.000000|(0:1)-{_LABEL: knows, _ID: 3:1, weight: 1.000000}->(0:2)
