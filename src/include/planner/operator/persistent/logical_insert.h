@@ -2,6 +2,7 @@
 
 #include "src/include/common/enums/conflict_action.h"
 #include "src/include/common/enums/table_type.h"
+#include "src/include/gopt/g_alias_name.h"
 #include "src/include/planner/operator/logical_operator.h"
 
 namespace gs {
@@ -60,6 +61,8 @@ class LogicalInsert final : public LogicalOperator {
     return std::make_unique<LogicalInsert>(copyVector(infos),
                                            children[0]->copy());
   }
+
+  std::vector<gopt::GAliasName> getGAliasNames() const;
 
  private:
   std::vector<LogicalInsertInfo> infos;

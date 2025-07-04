@@ -22,6 +22,7 @@
 #include "src/include/catalog/catalog.h"
 #include "src/include/catalog/catalog_entry/node_table_catalog_entry.h"
 #include "src/include/common/copier_config/file_scan_info.h"
+#include "src/include/common/enums/table_type.h"
 #include "src/include/common/types/types.h"
 #include "src/include/gopt/g_alias_manager.h"
 #include "src/include/gopt/g_catalog.h"
@@ -30,6 +31,7 @@
 #include "src/include/planner/operator/extend/logical_extend.h"
 #include "src/include/planner/operator/extend/logical_recursive_extend.h"
 #include "src/include/planner/operator/logical_aggregate.h"
+#include "src/include/planner/operator/logical_cross_product.h"
 #include "src/include/planner/operator/logical_filter.h"
 #include "src/include/planner/operator/logical_get_v.h"
 #include "src/include/planner/operator/logical_intersect.h"
@@ -40,6 +42,9 @@
 #include "src/include/planner/operator/logical_projection.h"
 #include "src/include/planner/operator/logical_table_function_call.h"
 #include "src/include/planner/operator/persistent/logical_copy_from.h"
+#include "src/include/planner/operator/persistent/logical_delete.h"
+#include "src/include/planner/operator/persistent/logical_insert.h"
+#include "src/include/planner/operator/persistent/logical_set.h"
 #include "src/include/planner/operator/scan/logical_scan_node_table.h"
 #include "src/proto_generated_gie/algebra.pb.h"
 #include "src/proto_generated_gie/cypher_dml.pb.h"
@@ -96,17 +101,42 @@ class GQueryConvertor {
   void convertBatchInsertEdge(catalog::GRelTableCatalogEntry* relEntry,
                               const binder::expression_vector& columnExprs,
                               ::physical::QueryPlan* plan);
+  void convertInsert(const planner::LogicalInsert& insert,
+                     ::physical::QueryPlan* plan);
+  void convertInsertVertex(const planner::LogicalInsert& insert,
+                           ::physical::QueryPlan* plan);
+  void convertInsertEdge(const planner::LogicalInsert& insert,
+                         ::physical::QueryPlan* plan);
+  void convertSetProperty(const planner::LogicalSetProperty& set,
+                          ::physical::QueryPlan* plan);
+  void convertSetVertexProperty(const planner::LogicalSetProperty& set,
+                                ::physical::QueryPlan* plan);
+  void convertSetEdgeProperty(const planner::LogicalSetProperty& set,
+                              ::physical::QueryPlan* plan);
+  void convertDelete(const planner::LogicalDelete& deleteOp,
+                     ::physical::QueryPlan* plan);
+  void convertDeleteVertex(const planner::LogicalDelete& deleteOp,
+                           ::physical::QueryPlan* plan);
+  void convertDeleteEdge(const planner::LogicalDelete& deleteOp,
+                         ::physical::QueryPlan* plan);
+  void convertCrossProduct(const planner::LogicalCrossProduct& cross,
+                           ::physical::QueryPlan* plan);
+
+  // help functions
+  common::TableType getTableType(const planner::LogicalInsert& insert);
+
   void setMetaData(::physical::PhysicalOpr* physicalOpr,
                    const planner::LogicalOperator& op,
                    std::vector<std::shared_ptr<binder::Expression>> exprs,
                    std::vector<common::alias_id_t>& aliasIds);
-  // help functions
   std::unique_ptr<::algebra::QueryParams> convertParams(
       const std::vector<common::table_id_t>& labelIds,
       std::shared_ptr<binder::Expression> predicates);
   std::string getAliasName(const planner::LogicalOperator& op);
   std::unique_ptr<::physical::PropertyMapping> convertPropMapping(
       const binder::Expression& expr, common::alias_id_t columnId);
+  std::unique_ptr<::physical::PropertyMapping> convertPropMapping(
+      const std::string& propertyName, const binder::Expression& data);
   std::unique_ptr<::physical::DataSource> convertDataSource(
       const common::FileScanInfo& fileInfo);
   std::unique_ptr<::physical::ReadCSV::options> convertCSVOptions(

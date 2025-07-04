@@ -1,0 +1,250 @@
+{
+ "plan_id": 0,
+ "query_plan": {
+  "mode": "READ_WRITE",
+  "plan": [
+   {
+    "opr": {
+     "scan": {
+      "scan_opt": "VERTEX",
+      "params": {
+       "tables": [
+        {
+         "id": 0
+        }
+       ],
+       "columns": [],
+       "is_all_columns": false,
+       "predicate": {
+        "operators": [
+         {
+          "var": {
+           "property": {
+            "key": {
+             "name": "name"
+            }
+           },
+           "node_type": {
+            "data_type": {
+             "string": {
+              "var_char": {
+               "max_length": 65536
+              }
+             }
+            }
+           }
+          },
+          "node_type": {
+           "data_type": {
+            "string": {
+             "var_char": {
+              "max_length": 65536
+             }
+            }
+           }
+          }
+         },
+         {
+          "node_type": {
+           "data_type": {
+            "primitive_type": "DT_BOOL"
+           }
+          },
+          "logical": "EQ"
+         },
+         {
+          "const": {
+           "str": "Karissa"
+          }
+         }
+        ]
+       },
+       "sample_ratio": 0,
+       "extra": {}
+      },
+      "is_count_only": false,
+      "alias": 0
+     }
+    },
+    "meta_data": [
+     {
+      "type": {
+       "graph_type": {
+        "element_opt": "VERTEX",
+        "graph_data_type": [
+         {
+          "label": {
+           "label": 0
+          },
+          "props": []
+         }
+        ]
+       }
+      },
+      "alias": 0
+     }
+    ]
+   },
+   {
+    "opr": {
+     "edge": {
+      "direction": "OUT",
+      "params": {
+       "tables": [
+        {
+         "id": 0
+        },
+        {
+         "id": 1
+        }
+       ],
+       "columns": [],
+       "is_all_columns": false,
+       "sample_ratio": 0,
+       "extra": {}
+      },
+      "expand_opt": "EDGE",
+      "is_optional": false,
+      "v_tag": 0,
+      "alias": 1
+     }
+    },
+    "meta_data": [
+     {
+      "type": {
+       "graph_type": {
+        "element_opt": "EDGE",
+        "graph_data_type": [
+         {
+          "label": {
+           "label": 0,
+           "src_label": 0,
+           "dst_label": 0
+          },
+          "props": []
+         },
+         {
+          "label": {
+           "label": 1,
+           "src_label": 0,
+           "dst_label": 0
+          },
+          "props": []
+         },
+         {
+          "label": {
+           "label": 1,
+           "src_label": 0,
+           "dst_label": 1
+          },
+          "props": []
+         }
+        ]
+       }
+      },
+      "alias": 1
+     }
+    ]
+   },
+   {
+    "opr": {
+     "vertex": {
+      "opt": "END",
+      "params": {
+       "tables": [
+        {
+         "id": 0
+        },
+        {
+         "id": 1
+        }
+       ],
+       "columns": [],
+       "is_all_columns": false,
+       "sample_ratio": 0,
+       "extra": {}
+      },
+      "alias": 2
+     }
+    },
+    "meta_data": [
+     {
+      "type": {
+       "graph_type": {
+        "element_opt": "VERTEX",
+        "graph_data_type": [
+         {
+          "label": {
+           "label": 0
+          },
+          "props": []
+         },
+         {
+          "label": {
+           "label": 1
+          },
+          "props": []
+         }
+        ]
+       }
+      },
+      "alias": 2
+     }
+    ]
+   },
+   {
+    "opr": {
+     "delete_edge": {
+      "edge_binding": [
+       {
+        "tag": {
+         "id": 1
+        },
+        "node_type": {
+         "graph_type": {
+          "element_opt": "EDGE",
+          "graph_data_type": [
+           {
+            "label": {
+             "label": 0,
+             "src_label": 0,
+             "dst_label": 0
+            },
+            "props": []
+           },
+           {
+            "label": {
+             "label": 1,
+             "src_label": 0,
+             "dst_label": 0
+            },
+            "props": []
+           },
+           {
+            "label": {
+             "label": 1,
+             "src_label": 0,
+             "dst_label": 1
+            },
+            "props": []
+           }
+          ]
+         }
+        }
+       }
+      ]
+     }
+    },
+    "meta_data": []
+   },
+   {
+    "opr": {
+     "sink": {
+      "tags": []
+     }
+    },
+    "meta_data": []
+   }
+  ]
+ }
+}

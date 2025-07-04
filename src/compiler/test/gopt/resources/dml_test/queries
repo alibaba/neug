@@ -1,2 +1,10 @@
-COPY person from "person.csv"; # COPY_PERSON
-COPY knows from "knows.csv"; # COPY_KNOWS
+// COPY person from "person.csv"; # COPY_PERSON
+// COPY knows from "knows.csv"; # COPY_KNOWS
+CREATE (p1:person {id: 1}), (p2:person {id: 2}); # CREATE_VERTEX
+CREATE (p1:person {id: 3})<-[:knows {weight: 3.0}]-(p2:person {id: 4}); # CREATE_VERTEX_EDGE
+MATCH (p1:person {id: 1}), (p2:person {id: 2}) CREATE (p1)-[:knows {weight: 3.0}]->(p2); # CREATE_EDGE
+MATCH (u:person) WHERE u.name = 'A' DELETE u; # DEL_VERTEX
+MATCH (u:person) WHERE u.name = 'A' DETACH DELETE u; # DETACH_DEL_VERTEX
+MATCH (u:person)-[f]->(u1) WHERE u.name = 'Karissa' DELETE f; # DEL_EDGE
+MATCH (u:person) WHERE u.name = 'Adam' SET u.age = 50, u.name = 'mark' RETURN u; # SET_VER_PROP
+MATCH (u0:person)-[f:knows]->() WHERE u0.name = 'Adam' SET f.weight = 1999.0, u0.age = 10 RETURN f; # SET_VER_EDGE_PROP

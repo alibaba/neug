@@ -1,0 +1,222 @@
+{
+ "plan_id": 0,
+ "query_plan": {
+  "mode": "READ_WRITE",
+  "plan": [
+   {
+    "opr": {
+     "join": {
+      "left_keys": [],
+      "right_keys": [],
+      "join_kind": "TIMES",
+      "left_plan": {
+       "plan_id": 0,
+       "query_plan": {
+        "mode": "READ_ONLY",
+        "plan": [
+         {
+          "opr": {
+           "scan": {
+            "scan_opt": "VERTEX",
+            "params": {
+             "tables": [
+              {
+               "id": 0
+              }
+             ],
+             "columns": [],
+             "is_all_columns": false,
+             "sample_ratio": 0,
+             "extra": {}
+            },
+            "idx_predicate": {
+             "or_predicates": [
+              {
+               "predicates": [
+                {
+                 "key": {
+                  "key": {
+                   "name": "id"
+                  }
+                 },
+                 "const": {
+                  "i64": "1"
+                 },
+                 "cmp": "EQ"
+                }
+               ]
+              }
+             ]
+            },
+            "is_count_only": false,
+            "alias": 0
+           }
+          },
+          "meta_data": [
+           {
+            "type": {
+             "graph_type": {
+              "element_opt": "VERTEX",
+              "graph_data_type": [
+               {
+                "label": {
+                 "label": 0
+                },
+                "props": []
+               }
+              ]
+             }
+            },
+            "alias": 0
+           }
+          ]
+         },
+         {
+          "opr": {
+           "sink": {
+            "tags": []
+           }
+          },
+          "meta_data": []
+         }
+        ]
+       }
+      },
+      "right_plan": {
+       "plan_id": 0,
+       "query_plan": {
+        "mode": "READ_ONLY",
+        "plan": [
+         {
+          "opr": {
+           "scan": {
+            "scan_opt": "VERTEX",
+            "params": {
+             "tables": [
+              {
+               "id": 0
+              }
+             ],
+             "columns": [],
+             "is_all_columns": false,
+             "sample_ratio": 0,
+             "extra": {}
+            },
+            "idx_predicate": {
+             "or_predicates": [
+              {
+               "predicates": [
+                {
+                 "key": {
+                  "key": {
+                   "name": "id"
+                  }
+                 },
+                 "const": {
+                  "i64": "2"
+                 },
+                 "cmp": "EQ"
+                }
+               ]
+              }
+             ]
+            },
+            "is_count_only": false,
+            "alias": 1
+           }
+          },
+          "meta_data": [
+           {
+            "type": {
+             "graph_type": {
+              "element_opt": "VERTEX",
+              "graph_data_type": [
+               {
+                "label": {
+                 "label": 0
+                },
+                "props": []
+               }
+              ]
+             }
+            },
+            "alias": 1
+           }
+          ]
+         },
+         {
+          "opr": {
+           "sink": {
+            "tags": []
+           }
+          },
+          "meta_data": []
+         }
+        ]
+       }
+      }
+     }
+    },
+    "meta_data": []
+   },
+   {
+    "opr": {
+     "create_edge": {
+      "entries": [
+       {
+        "edge_type": {
+         "type_name": {
+          "id": 0
+         },
+         "src_type_name": {
+          "id": 0
+         },
+         "dst_type_name": {
+          "id": 0
+         }
+        },
+        "source_vertex_binding": {
+         "id": 0
+        },
+        "destination_vertex_binding": {
+         "id": 1
+        },
+        "property_mappings": [
+         {
+          "property": {
+           "key": {
+            "name": "weight"
+           }
+          },
+          "data": {
+           "operators": [
+            {
+             "const": {
+              "f64": 3
+             }
+            }
+           ]
+          }
+         }
+        ],
+        "alias": {
+         "id": 2
+        },
+        "conflict_action": "ON_CONFLICT_THROW"
+       }
+      ]
+     }
+    },
+    "meta_data": []
+   },
+   {
+    "opr": {
+     "sink": {
+      "tags": []
+     }
+    },
+    "meta_data": []
+   }
+  ]
+ }
+}

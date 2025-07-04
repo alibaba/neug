@@ -9,6 +9,7 @@
 #include "src/include/gopt/g_graph_type.h"
 #include "src/include/gopt/g_physical_analyzer.h"
 #include "src/include/gopt/g_type_utils.h"
+#include "src/include/planner/operator/logical_operator.h"
 #include "src/include/planner/operator/logical_plan.h"
 
 #pragma once
@@ -69,10 +70,14 @@ class GResultSchema {
     if (mode == PhysicalMode::DDL) {
       return false;
     }
-    if (mode == PhysicalMode::READ_WRITE &&
-        plan.getLastOperator()->getOperatorType() ==
-            planner::LogicalOperatorType::COPY_FROM) {
-      return false;
+    if (mode == PhysicalMode::READ_WRITE) {
+      auto opType = plan.getLastOperator()->getOperatorType();
+      if (opType == planner::LogicalOperatorType::COPY_FROM ||
+          opType == planner::LogicalOperatorType::INSERT ||
+          opType == planner::LogicalOperatorType::SET_PROPERTY ||
+          opType == planner::LogicalOperatorType::DELETE) {
+        return false;
+      }
     }
     return true;
   }

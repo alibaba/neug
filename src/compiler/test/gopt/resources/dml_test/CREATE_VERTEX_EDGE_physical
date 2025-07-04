@@ -1,0 +1,193 @@
+{
+ "plan_id": 0,
+ "query_plan": {
+  "mode": "READ_WRITE",
+  "plan": [
+   {
+    "opr": {
+     "create_vertex": {
+      "entries": [
+       {
+        "vertex_type": {
+         "id": 0
+        },
+        "property_mappings": [
+         {
+          "property": {
+           "key": {
+            "name": "id"
+           }
+          },
+          "data": {
+           "operators": [
+            {
+             "const": {
+              "i64": "3"
+             }
+            }
+           ]
+          }
+         },
+         {
+          "property": {
+           "key": {
+            "name": "name"
+           }
+          },
+          "data": {
+           "operators": [
+            {
+             "const": {
+              "none": {}
+             }
+            }
+           ]
+          }
+         },
+         {
+          "property": {
+           "key": {
+            "name": "age"
+           }
+          },
+          "data": {
+           "operators": [
+            {
+             "const": {
+              "none": {}
+             }
+            }
+           ]
+          }
+         }
+        ],
+        "alias": {
+         "id": 0
+        },
+        "conflict_action": "ON_CONFLICT_THROW"
+       },
+       {
+        "vertex_type": {
+         "id": 0
+        },
+        "property_mappings": [
+         {
+          "property": {
+           "key": {
+            "name": "id"
+           }
+          },
+          "data": {
+           "operators": [
+            {
+             "const": {
+              "i64": "4"
+             }
+            }
+           ]
+          }
+         },
+         {
+          "property": {
+           "key": {
+            "name": "name"
+           }
+          },
+          "data": {
+           "operators": [
+            {
+             "const": {
+              "none": {}
+             }
+            }
+           ]
+          }
+         },
+         {
+          "property": {
+           "key": {
+            "name": "age"
+           }
+          },
+          "data": {
+           "operators": [
+            {
+             "const": {
+              "none": {}
+             }
+            }
+           ]
+          }
+         }
+        ],
+        "alias": {
+         "id": 1
+        },
+        "conflict_action": "ON_CONFLICT_THROW"
+       }
+      ]
+     }
+    },
+    "meta_data": []
+   },
+   {
+    "opr": {
+     "create_edge": {
+      "entries": [
+       {
+        "edge_type": {
+         "type_name": {
+          "id": 0
+         },
+         "src_type_name": {
+          "id": 0
+         },
+         "dst_type_name": {
+          "id": 0
+         }
+        },
+        "source_vertex_binding": {
+         "id": 1
+        },
+        "destination_vertex_binding": {
+         "id": 0
+        },
+        "property_mappings": [
+         {
+          "property": {
+           "key": {
+            "name": "weight"
+           }
+          },
+          "data": {
+           "operators": [
+            {
+             "const": {
+              "f64": 3
+             }
+            }
+           ]
+          }
+         }
+        ],
+        "alias": {
+         "id": 2
+        },
+        "conflict_action": "ON_CONFLICT_THROW"
+       }
+      ]
+     }
+    },
+    "meta_data": []
+   },
+   {
+    "opr": {
+     "sink": {
+      "tags": []
+     }
+    },
+    "meta_data": []
+   }
+  ]
+ }
+}

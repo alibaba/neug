@@ -52,6 +52,9 @@ class GPhysicalAnalyzer {
       mode = PhysicalMode::DDL;
       break;
     case planner::LogicalOperatorType::COPY_FROM:
+    case planner::LogicalOperatorType::INSERT:
+    case planner::LogicalOperatorType::SET_PROPERTY:
+    case planner::LogicalOperatorType::DELETE:
       if (mode == PhysicalMode::DDL) {
         throw common::Exception(
             "Cannot mix READ_WRITE with DDL operations in the same plan.");

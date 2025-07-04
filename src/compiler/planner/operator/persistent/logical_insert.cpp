@@ -1,6 +1,9 @@
 #include "src/include/planner/operator/persistent/logical_insert.h"
+#include <optional>
 
 #include "src/include/binder/expression/node_expression.h"
+#include "src/include/binder/expression/node_rel_expression.h"
+#include "src/include/binder/expression/property_expression.h"
 #include "src/include/common/cast.h"
 #include "src/include/planner/operator/factorization/flatten_resolver.h"
 
@@ -55,6 +58,21 @@ f_group_pos_set LogicalInsert::getGroupsPosToFlatten() {
   auto childSchema = children[0]->getSchema();
   return FlattenAll::getGroupsPosToFlatten(childSchema->getGroupsPosInScope(),
                                            *childSchema);
+}
+
+std::vector<gopt::GAliasName> LogicalInsert::getGAliasNames() const {
+  std::vector<gopt::GAliasName> aliasNames;
+  for (const auto& info : infos) {
+    auto pattern = info.pattern;
+    if (pattern->expressionType == ExpressionType::PATTERN) {
+      auto patternExpr = pattern->ptrCast<binder::NodeOrRelExpression>();
+      std::string varName = patternExpr->getVariableName();
+      aliasNames.emplace_back(
+          patternExpr->getUniqueName(),
+          varName.empty() ? std::nullopt : std::make_optional(varName));
+    }
+  }
+  return aliasNames;
 }
 
 }  // namespace planner

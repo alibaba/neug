@@ -25,6 +25,7 @@
 #include "src/include/planner/operator/logical_get_v.h"
 #include "src/include/planner/operator/logical_operator.h"
 #include "src/include/planner/operator/logical_plan.h"
+#include "src/include/planner/operator/persistent/logical_insert.h"
 #include "src/include/planner/operator/scan/logical_scan_node_table.h"
 
 namespace gs {
@@ -59,6 +60,12 @@ void GAliasManager::extractGAliasNames(
     aliasNames.emplace_back(getVOp.getGAliasName());
     break;
   }
+  case planner::LogicalOperatorType::INSERT: {
+    auto& insertOp = op.constCast<planner::LogicalInsert>();
+    auto aliases = insertOp.getGAliasNames();
+    aliasNames.insert(aliasNames.end(), aliases.begin(), aliases.end());
+    break;
+  }
   case planner::LogicalOperatorType::PROJECTION:
   case planner::LogicalOperatorType::AGGREGATE: {
     auto schema = op.getSchema();
@@ -75,7 +82,9 @@ void GAliasManager::extractGAliasNames(
   }
   case planner::LogicalOperatorType::FILTER:
   case planner::LogicalOperatorType::ORDER_BY:
-  case planner::LogicalOperatorType::LIMIT: {
+  case planner::LogicalOperatorType::LIMIT:
+  case planner::LogicalOperatorType::SET_PROPERTY:
+  case planner::LogicalOperatorType::DELETE: {
     extractGAliasNames(*op.getChild(0), aliasNames);
     break;
   }
@@ -89,7 +98,9 @@ void GAliasManager::extractGAliasNames(
   case planner::LogicalOperatorType::MULTIPLICITY_REDUCER:
   case planner::LogicalOperatorType::DUMMY_SCAN:
   case planner::LogicalOperatorType::INTERSECT:
+  case planner::LogicalOperatorType::CROSS_PRODUCT:
   case planner::LogicalOperatorType::FLATTEN:
+  case planner::LogicalOperatorType::ACCUMULATE:
     // do nothing
     break;
   default: {
@@ -143,6 +154,14 @@ void GAliasManager::visitOperator(const planner::LogicalOperator& op) {
         break;
       }
     }
+    case planner::LogicalOperatorType::INSERT:
+      // TODO: Apply field trimming rule.
+      // Currently, we assign unique alias IDs for each `CREATE` vertex or edge
+      // operation to ensure correctness in cases like:
+      // `CREATE (:Person {id:1})-[:knows]->(:Person {id: 2})`.
+      // In such cases, node aliases are not
+      // explicitly provided, but the edge still requires source and destination
+      // aliases for proper binding.
     default:
       addGAliasName(name);
       break;

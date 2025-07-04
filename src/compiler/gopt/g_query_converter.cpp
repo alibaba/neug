@@ -22,15 +22,19 @@
 #include <vector>
 #include "src/include/binder/expression/expression.h"
 #include "src/include/binder/expression/property_expression.h"
+#include "src/include/binder/expression/rel_expression.h"
 #include "src/include/catalog/catalog.h"
 #include "src/include/catalog/catalog_entry/node_table_catalog_entry.h"
 #include "src/include/common/constants.h"
 #include "src/include/common/enums/expression_type.h"
+#include "src/include/common/enums/table_type.h"
 #include "src/include/common/exception/exception.h"
 #include "src/include/common/types/types.h"
 #include "src/include/gopt/g_alias_manager.h"
 #include "src/include/gopt/g_constants.h"
 #include "src/include/gopt/g_ddl_converter.h"
+#include "src/include/gopt/g_graph_type.h"
+#include "src/include/gopt/g_physical_convertor.h"
 #include "src/include/planner/operator/logical_filter.h"
 #include "src/include/planner/operator/logical_intersect.h"
 #include "src/include/planner/operator/logical_operator.h"
@@ -39,6 +43,7 @@
 #include "src/include/planner/operator/scan/logical_scan_node_table.h"
 #include "src/proto_generated_gie/algebra.pb.h"
 #include "src/proto_generated_gie/common.pb.h"
+#include "src/proto_generated_gie/cypher_ddl.pb.h"
 #include "src/proto_generated_gie/cypher_dml.pb.h"
 #include "src/proto_generated_gie/expr.pb.h"
 #include "src/proto_generated_gie/physical.pb.h"
@@ -73,6 +78,11 @@ void GQueryConvertor::convertOperator(const planner::LogicalOperator& op,
     auto intersect = op.constPtrCast<planner::LogicalIntersect>();
     // convert children in the nested function
     convertIntersect(*intersect, plan);
+    return;
+  } else if (op.getOperatorType() ==
+             planner::LogicalOperatorType::CROSS_PRODUCT) {
+    auto cross = op.constPtrCast<planner::LogicalCrossProduct>();
+    convertCrossProduct(*cross, plan);
     return;
   }
   for (auto child : op.getChildren()) {
@@ -136,11 +146,27 @@ void GQueryConvertor::convertOperator(const planner::LogicalOperator& op,
     convertLimit(*limit, plan);
     break;
   }
+  case planner::LogicalOperatorType::INSERT: {
+    auto insert = op.constPtrCast<planner::LogicalInsert>();
+    convertInsert(*insert, plan);
+    break;
+  }
+  case planner::LogicalOperatorType::SET_PROPERTY: {
+    auto set = op.constPtrCast<planner::LogicalSetProperty>();
+    convertSetProperty(*set, plan);
+    break;
+  }
+  case planner::LogicalOperatorType::DELETE: {
+    auto deleteOp = op.constPtrCast<planner::LogicalDelete>();
+    convertDelete(*deleteOp, plan);
+    break;
+  }
   case planner::LogicalOperatorType::PARTITIONER:
   case planner::LogicalOperatorType::INDEX_LOOK_UP:
   case planner::LogicalOperatorType::MULTIPLICITY_REDUCER:
   case planner::LogicalOperatorType::DUMMY_SCAN:
   case planner::LogicalOperatorType::FLATTEN:
+  case planner::LogicalOperatorType::ACCUMULATE:
     break;
   default:
     throw common::Exception(
@@ -936,6 +962,356 @@ void GQueryConvertor::convertBatchInsertEdge(
   plan->mutable_plan()->AddAllocated(physicalPB.release());
 }
 
+void GQueryConvertor::convertInsert(const planner::LogicalInsert& insert,
+                                    ::physical::QueryPlan* plan) {
+  auto& infos = insert.getInfos();
+  if (infos.empty()) {
+    throw common::Exception("Insert info should not be empty");
+  }
+  common::TableType tableType = infos[0].tableType;
+  for (auto& info : infos) {
+    if (info.tableType != common::TableType::NODE &&
+        info.tableType != common::TableType::REL) {
+      throw common::Exception("Invalid tableType for Insert: " +
+                              static_cast<uint8_t>(info.tableType));
+    }
+    if (info.tableType != tableType) {
+      throw common::Exception("tableType of Insert is not consistent");
+    }
+  }
+  if (tableType == common::TableType::NODE) {
+    convertInsertVertex(insert, plan);
+  } else {  // REL
+    convertInsertEdge(insert, plan);
+  }
+}
+
+void GQueryConvertor::convertInsertVertex(const planner::LogicalInsert& insert,
+                                          ::physical::QueryPlan* plan) {
+  auto& infos = insert.getInfos();
+  auto insertPB = std::make_unique<::physical::InsertVertex>();
+  for (auto& info : infos) {
+    auto nodeExpr = info.pattern->ptrCast<binder::NodeExpression>();
+    // set vertex type by NodeExpression
+    GNodeType nodeType(*nodeExpr);
+    auto typeIds = nodeType.getLabelIds();
+    if (typeIds.size() != 1) {
+      throw common::Exception(
+          "insert vertex with multiple labels is not supported");
+    }
+    auto labelId = typeIds[0];
+    auto labelPB = std::make_unique<::common::NameOrId>();
+    labelPB->set_id(labelId);
+    auto entryPB = std::make_unique<::physical::InsertVertex::Entry>();
+    entryPB->set_allocated_vertex_type(labelPB.release());
+    // set property mappings
+    if (info.columnExprs.size() != info.columnDataExprs.size()) {
+      throw common::Exception(
+          "Number of column expressions does not match the number of column "
+          "data expressions");
+    }
+    for (size_t i = 0; i < info.columnExprs.size(); i++) {
+      auto column = info.columnExprs[i];
+      std::string columnName;
+      if (column->expressionType == common::ExpressionType::PROPERTY) {
+        auto property = column->ptrCast<binder::PropertyExpression>();
+        columnName = property->getPropertyName();
+      } else {
+        columnName = column->toString();
+      }
+      if (skipColumn(columnName)) {
+        continue;
+      }
+      auto data = info.columnDataExprs[i];
+      entryPB->mutable_property_mappings()->AddAllocated(
+          convertPropMapping(columnName, *data).release());
+    }
+    // set alias id by NodeExpression
+    auto aliasId = aliasManager->getAliasId(nodeExpr->getUniqueName());
+    if (aliasId != DEFAULT_ALIAS_ID) {
+      auto aliasPB = std::make_unique<::common::NameOrId>();
+      aliasPB->set_id(aliasId);
+      entryPB->set_allocated_alias(aliasPB.release());
+    }
+    // set conflict action
+    entryPB->set_conflict_action(
+        static_cast<::physical::ConflictAction>(info.conflictAction));
+    insertPB->mutable_entries()->AddAllocated(entryPB.release());
+  }
+  auto physicalPB = std::make_unique<::physical::PhysicalOpr>();
+  auto oprPB = std::make_unique<::physical::PhysicalOpr_Operator>();
+  oprPB->set_allocated_create_vertex(insertPB.release());
+  physicalPB->set_allocated_opr(oprPB.release());
+  plan->mutable_plan()->AddAllocated(physicalPB.release());
+}
+
+void GQueryConvertor::convertInsertEdge(const planner::LogicalInsert& insert,
+                                        ::physical::QueryPlan* plan) {
+  auto& infos = insert.getInfos();
+  auto insertPB = std::make_unique<::physical::InsertEdge>();
+  for (auto& info : infos) {
+    auto relExpr = info.pattern->ptrCast<binder::RelExpression>();
+    // // set edge type by RelExpression
+    GRelType relType(*relExpr);
+    auto& rels = relType.relTables;
+    if (rels.size() != 1) {
+      throw common::Exception(
+          "insert edge bound by multiple node labels is not supported");
+    }
+    EdgeLabelId edgeLabel(rels[0]->getLabelId(), rels[0]->getSrcTableID(),
+                          rels[0]->getDstTableID());
+    auto entryPB = std::make_unique<::physical::InsertEdge::Entry>();
+    entryPB->set_allocated_edge_type(convertToEdgeType(edgeLabel).release());
+    // set property mappings
+    if (info.columnExprs.size() != info.columnDataExprs.size()) {
+      throw common::Exception(
+          "Number of column expressions does not match the number of column "
+          "data expressions");
+    }
+    for (size_t i = 0; i < info.columnExprs.size(); i++) {
+      auto column = info.columnExprs[i];
+      std::string columnName;
+      if (column->expressionType == common::ExpressionType::PROPERTY) {
+        auto property = column->ptrCast<binder::PropertyExpression>();
+        columnName = property->getPropertyName();
+      } else {
+        columnName = column->toString();
+      }
+      if (skipColumn(columnName)) {
+        continue;
+      }
+      auto data = info.columnDataExprs[i];
+      entryPB->mutable_property_mappings()->AddAllocated(
+          convertPropMapping(columnName, *data).release());
+    }
+    // set source binding
+    auto srcAliasId = aliasManager->getAliasId(relExpr->getSrcNodeName());
+    if (srcAliasId != DEFAULT_ALIAS_ID) {
+      auto srcAliasPB = std::make_unique<::common::NameOrId>();
+      srcAliasPB->set_id(srcAliasId);
+      entryPB->set_allocated_source_vertex_binding(srcAliasPB.release());
+    } else {
+      throw common::Exception("Source vertex binding not found: " +
+                              relExpr->getSrcNodeName());
+    }
+    // set destination binding
+    auto dstAliasId = aliasManager->getAliasId(relExpr->getDstNodeName());
+    if (dstAliasId != DEFAULT_ALIAS_ID) {
+      auto dstAliasPB = std::make_unique<::common::NameOrId>();
+      dstAliasPB->set_id(dstAliasId);
+      entryPB->set_allocated_destination_vertex_binding(dstAliasPB.release());
+    } else {
+      throw common::Exception("Destination vertex binding not found: " +
+                              relExpr->getDstNodeName());
+    }
+    // set alias id by RelExpression
+    auto aliasId = aliasManager->getAliasId(relExpr->getUniqueName());
+    if (aliasId != DEFAULT_ALIAS_ID) {
+      auto aliasPB = std::make_unique<::common::NameOrId>();
+      aliasPB->set_id(aliasId);
+      entryPB->set_allocated_alias(aliasPB.release());
+    }
+    // set conflict action
+    entryPB->set_conflict_action(
+        static_cast<::physical::ConflictAction>(info.conflictAction));
+    insertPB->mutable_entries()->AddAllocated(entryPB.release());
+  }
+  auto physicalPB = std::make_unique<::physical::PhysicalOpr>();
+  auto oprPB = std::make_unique<::physical::PhysicalOpr_Operator>();
+  oprPB->set_allocated_create_edge(insertPB.release());
+  physicalPB->set_allocated_opr(oprPB.release());
+  plan->mutable_plan()->AddAllocated(physicalPB.release());
+}
+
+void GQueryConvertor::convertSetVertexProperty(
+    const planner::LogicalSetProperty& set, ::physical::QueryPlan* plan) {
+  auto& infos = set.getInfos();
+  auto setPB = std::make_unique<::physical::SetVertexProperty>();
+  for (const auto& info : infos) {
+    // set vertex binding
+    auto vertexExpr = exprConvertor->convert(*info.pattern, {});
+    auto entryPB = std::make_unique<::physical::SetVertexProperty::Entry>();
+    *entryPB->mutable_vertex_binding() =
+        std::move(*vertexExpr->mutable_operators(0)->mutable_var());
+    // set property mappings
+    auto& column = info.column;
+    std::string columnName;
+    if (column->expressionType == common::ExpressionType::PROPERTY) {
+      auto property = column->ptrCast<binder::PropertyExpression>();
+      columnName = property->getPropertyName();
+    } else {
+      columnName = column->toString();
+    }
+    if (skipColumn(columnName)) {
+      continue;
+    }
+    auto data = info.columnData;
+    entryPB->set_allocated_property_mapping(
+        convertPropMapping(columnName, *data).release());
+    setPB->mutable_entries()->AddAllocated(entryPB.release());
+  }
+  auto physicalPB = std::make_unique<::physical::PhysicalOpr>();
+  auto oprPB = std::make_unique<::physical::PhysicalOpr_Operator>();
+  oprPB->set_allocated_set_vertex(setPB.release());
+  physicalPB->set_allocated_opr(oprPB.release());
+  plan->mutable_plan()->AddAllocated(physicalPB.release());
+}
+
+void GQueryConvertor::convertSetEdgeProperty(
+    const planner::LogicalSetProperty& set, ::physical::QueryPlan* plan) {
+  auto& infos = set.getInfos();
+  auto setPB = std::make_unique<::physical::SetEdgeProperty>();
+  for (const auto& info : infos) {
+    // set edge binding
+    auto edgeExpr = exprConvertor->convert(*info.pattern, {});
+    auto entryPB = std::make_unique<::physical::SetEdgeProperty::Entry>();
+    *entryPB->mutable_edge_binding() =
+        std::move(*edgeExpr->mutable_operators(0)->mutable_var());
+    // set property mappings
+    auto& column = info.column;
+    std::string columnName;
+    if (column->expressionType == common::ExpressionType::PROPERTY) {
+      auto property = column->ptrCast<binder::PropertyExpression>();
+      columnName = property->getPropertyName();
+    } else {
+      columnName = column->toString();
+    }
+    if (skipColumn(columnName)) {
+      continue;
+    }
+    auto data = info.columnData;
+    entryPB->set_allocated_property_mapping(
+        convertPropMapping(columnName, *data).release());
+    setPB->mutable_entries()->AddAllocated(entryPB.release());
+  }
+  auto physicalPB = std::make_unique<::physical::PhysicalOpr>();
+  auto oprPB = std::make_unique<::physical::PhysicalOpr_Operator>();
+  oprPB->set_allocated_set_edge(setPB.release());
+  physicalPB->set_allocated_opr(oprPB.release());
+  plan->mutable_plan()->AddAllocated(physicalPB.release());
+}
+
+void GQueryConvertor::convertSetProperty(const planner::LogicalSetProperty& set,
+                                         ::physical::QueryPlan* plan) {
+  auto& infos = set.getInfos();
+  if (infos.empty()) {
+    throw common::Exception("SetProperty info should not be empty");
+  }
+  common::TableType tableType = infos[0].tableType;
+  for (auto& info : infos) {
+    if (info.tableType != common::TableType::NODE &&
+        info.tableType != common::TableType::REL) {
+      throw common::Exception("Invalid tableType for SetProperty: " +
+                              static_cast<uint8_t>(info.tableType));
+    }
+    if (info.tableType != tableType) {
+      throw common::Exception("tableType of SetProperty is not consistent");
+    }
+  }
+  if (tableType == common::TableType::NODE) {
+    convertSetVertexProperty(set, plan);
+  } else {  // REL
+    convertSetEdgeProperty(set, plan);
+  }
+}
+
+void GQueryConvertor::convertDelete(const planner::LogicalDelete& deleteOp,
+                                    ::physical::QueryPlan* plan) {
+  auto& infos = deleteOp.getInfos();
+  if (infos.empty()) {
+    throw common::Exception("Delete info should not be empty");
+  }
+  common::TableType tableType = infos[0].tableType;
+  for (auto& info : infos) {
+    if (info.tableType != common::TableType::NODE &&
+        info.tableType != common::TableType::REL) {
+      throw common::Exception("Invalid tableType for Delete: " +
+                              static_cast<uint8_t>(info.tableType));
+    }
+    if (info.tableType != tableType) {
+      throw common::Exception("tableType of Delete is not consistent");
+    }
+  }
+  if (tableType == common::TableType::NODE) {
+    convertDeleteVertex(deleteOp, plan);
+  } else {  // REL
+    convertDeleteEdge(deleteOp, plan);
+  }
+}
+void GQueryConvertor::convertDeleteVertex(
+    const planner::LogicalDelete& deleteOp, ::physical::QueryPlan* plan) {
+  auto& infos = deleteOp.getInfos();
+  auto deletePB = std::make_unique<::physical::DeleteVertex>();
+  for (const auto& info : infos) {
+    auto vertexExpr = exprConvertor->convert(*info.pattern, {});
+    auto entryPB = std::make_unique<::physical::DeleteVertex::Entry>();
+    *entryPB->mutable_vertex_binding() =
+        std::move(*vertexExpr->mutable_operators(0)->mutable_var());
+    entryPB->set_delete_type(
+        static_cast<::physical::DeleteVertex::type>(info.deleteType));
+    deletePB->mutable_entries()->AddAllocated(entryPB.release());
+  }
+  auto physicalPB = std::make_unique<::physical::PhysicalOpr>();
+  auto oprPB = std::make_unique<::physical::PhysicalOpr_Operator>();
+  oprPB->set_allocated_delete_vertex(deletePB.release());
+  physicalPB->set_allocated_opr(oprPB.release());
+  plan->mutable_plan()->AddAllocated(physicalPB.release());
+}
+
+void GQueryConvertor::convertDeleteEdge(const planner::LogicalDelete& deleteOp,
+                                        ::physical::QueryPlan* plan) {
+  auto& infos = deleteOp.getInfos();
+  auto deletePB = std::make_unique<::physical::DeleteEdge>();
+  for (const auto& info : infos) {
+    auto edgeExpr = exprConvertor->convert(*info.pattern, {});
+    *deletePB->add_edge_binding() =
+        std::move(*edgeExpr->mutable_operators(0)->mutable_var());
+  }
+  auto physicalPB = std::make_unique<::physical::PhysicalOpr>();
+  auto oprPB = std::make_unique<::physical::PhysicalOpr_Operator>();
+  oprPB->set_allocated_delete_edge(deletePB.release());
+  physicalPB->set_allocated_opr(oprPB.release());
+  plan->mutable_plan()->AddAllocated(physicalPB.release());
+}
+
+common::TableType GQueryConvertor::getTableType(
+    const planner::LogicalInsert& insert) {
+  auto& infos = insert.getInfos();
+  if (infos.empty()) {
+    return common::TableType::UNKNOWN;
+  }
+  auto firstType = infos[0].tableType;
+  for (auto& info : infos) {
+    if (info.tableType != firstType) {
+      throw common::Exception("Insert table type is not consistent");
+    }
+  }
+  return firstType;
+}
+
+void GQueryConvertor::convertCrossProduct(
+    const planner::LogicalCrossProduct& cross, ::physical::QueryPlan* plan) {
+  auto joinPB = std::make_unique<::physical::Join>();
+  GPhysicalConvertor convertor(aliasManager, catalog);
+  // convert left plan
+  planner::LogicalPlan leftPlan;
+  leftPlan.setLastOperator(cross.getChild(0));
+  auto leftPB = convertor.convert(leftPlan);
+  // convert right plan
+  planner::LogicalPlan rightPlan;
+  rightPlan.setLastOperator(cross.getChild(1));
+  auto rightPB = convertor.convert(rightPlan);
+  // set join PB
+  joinPB->set_allocated_left_plan(leftPB.release());
+  joinPB->set_allocated_right_plan(rightPB.release());
+  joinPB->set_join_kind(::physical::Join::JoinKind::Join_JoinKind_TIMES);
+  auto physicalPB = std::make_unique<::physical::PhysicalOpr>();
+  auto oprPB = std::make_unique<::physical::PhysicalOpr_Operator>();
+  oprPB->set_allocated_join(joinPB.release());
+  physicalPB->set_allocated_opr(oprPB.release());
+  plan->mutable_plan()->AddAllocated(physicalPB.release());
+}
+
 std::shared_ptr<binder::Expression> GQueryConvertor::bindPKExpr(
     common::table_id_t labelId) {
   auto& transaction = gs::Constants::DEFAULT_TRANSACTION;
@@ -995,6 +1371,20 @@ GQueryConvertor::convertPropMapping(const binder::Expression& expr,
   auto mappingPB = std::make_unique<::physical::PropertyMapping>();
   mappingPB->set_allocated_property(propertyPB.release());
   auto dataPB = exprConvertor->convertVar(columnId);
+  mappingPB->set_allocated_data(dataPB.release());
+  return mappingPB;
+}
+
+std::unique_ptr<::physical::PropertyMapping>
+GQueryConvertor::convertPropMapping(const std::string& propertyName,
+                                    const binder::Expression& data) {
+  auto namePB = std::make_unique<::common::NameOrId>();
+  namePB->set_name(propertyName);
+  auto propertyPB = std::make_unique<::common::Property>();
+  propertyPB->set_allocated_key(namePB.release());
+  auto mappingPB = std::make_unique<::physical::PropertyMapping>();
+  mappingPB->set_allocated_property(propertyPB.release());
+  auto dataPB = exprConvertor->convert(data, {});
   mappingPB->set_allocated_data(dataPB.release());
   return mappingPB;
 }

@@ -35,9 +35,6 @@ class GAliasManager {
 
   common::alias_id_t getAliasId(const std::string& uniqueName);
   gopt::GAliasName getGAliasName(common::alias_id_t aliasId);
-  // common::alias_id_t tryGetAliasId(const std::string& uniqueName,
-  // common::alias_id_t defaultId); std::string getAliasName(common::alias_id_t
-  // id); std::string printForDebug();
 
   void extractGAliasNames(const planner::LogicalOperator& op,
                           std::vector<gopt::GAliasName>& aliasNames);

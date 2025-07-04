@@ -1,0 +1,143 @@
+{
+ "plan_id": 0,
+ "query_plan": {
+  "mode": "READ_WRITE",
+  "plan": [
+   {
+    "opr": {
+     "create_vertex": {
+      "entries": [
+       {
+        "vertex_type": {
+         "id": 0
+        },
+        "property_mappings": [
+         {
+          "property": {
+           "key": {
+            "name": "id"
+           }
+          },
+          "data": {
+           "operators": [
+            {
+             "const": {
+              "i64": "1"
+             }
+            }
+           ]
+          }
+         },
+         {
+          "property": {
+           "key": {
+            "name": "name"
+           }
+          },
+          "data": {
+           "operators": [
+            {
+             "const": {
+              "none": {}
+             }
+            }
+           ]
+          }
+         },
+         {
+          "property": {
+           "key": {
+            "name": "age"
+           }
+          },
+          "data": {
+           "operators": [
+            {
+             "const": {
+              "none": {}
+             }
+            }
+           ]
+          }
+         }
+        ],
+        "alias": {
+         "id": 0
+        },
+        "conflict_action": "ON_CONFLICT_THROW"
+       },
+       {
+        "vertex_type": {
+         "id": 0
+        },
+        "property_mappings": [
+         {
+          "property": {
+           "key": {
+            "name": "id"
+           }
+          },
+          "data": {
+           "operators": [
+            {
+             "const": {
+              "i64": "2"
+             }
+            }
+           ]
+          }
+         },
+         {
+          "property": {
+           "key": {
+            "name": "name"
+           }
+          },
+          "data": {
+           "operators": [
+            {
+             "const": {
+              "none": {}
+             }
+            }
+           ]
+          }
+         },
+         {
+          "property": {
+           "key": {
+            "name": "age"
+           }
+          },
+          "data": {
+           "operators": [
+            {
+             "const": {
+              "none": {}
+             }
+            }
+           ]
+          }
+         }
+        ],
+        "alias": {
+         "id": 1
+        },
+        "conflict_action": "ON_CONFLICT_THROW"
+       }
+      ]
+     }
+    },
+    "meta_data": []
+   },
+   {
+    "opr": {
+     "sink": {
+      "tags": []
+     }
+    },
+    "meta_data": []
+   }
+  ]
+ }
+}

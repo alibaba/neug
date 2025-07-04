@@ -49,7 +49,7 @@ void Planner::planInsertClause(const BoundUpdatingClause* updatingClause,
   if (plan.isEmpty()) {  // E.g. CREATE (a:Person {age:20})
     appendDummyScan(plan);
   } else {
-    appendAccumulate(plan);
+    // appendAccumulate(plan);
   }
   if (insertClause.hasNodeInfo()) {
     appendInsertNode(insertClause.getNodeInfos(), plan);
@@ -125,7 +125,7 @@ void Planner::planMergeClause(const BoundUpdatingClause* updatingClause,
 
 void Planner::planSetClause(const BoundUpdatingClause* updatingClause,
                             LogicalPlan& plan) {
-  appendAccumulate(plan);
+  // appendAccumulate(plan);
   auto& setClause = updatingClause->constCast<BoundSetClause>();
   if (setClause.hasNodeInfo()) {
     appendSetProperty(setClause.getNodeInfos(), plan);
@@ -137,7 +137,7 @@ void Planner::planSetClause(const BoundUpdatingClause* updatingClause,
 
 void Planner::planDeleteClause(const BoundUpdatingClause* updatingClause,
                                LogicalPlan& plan) {
-  appendAccumulate(plan);
+  // appendAccumulate(plan);
   auto& deleteClause = updatingClause->constCast<BoundDeleteClause>();
   if (deleteClause.hasRelInfo()) {
     appendDelete(deleteClause.getRelInfos(), plan);
