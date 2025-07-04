@@ -14,12 +14,11 @@
  */
 #include "src/engines/graph_db/app/builtin/pagerank.h"
 
-#include <bits/std_abs.h>
 #include <glog/logging.h>
 #include <stdlib.h>
 #include <algorithm>
 #include <cstdint>
-#include <ext/alloc_traits.h>
+
 #include <memory>
 #include <ostream>
 #include <vector>

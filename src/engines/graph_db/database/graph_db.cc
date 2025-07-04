@@ -22,7 +22,7 @@
 #include <atomic>
 #include <cstdint>
 #include <exception>
-#include <ext/alloc_traits.h>
+
 #include <filesystem>
 #include <limits>
 #include <new>
@@ -296,6 +296,7 @@ void GraphDB::Close() {
   version_manager_.clear();
   if (contexts_ != nullptr) {
     for (int i = 0; i < thread_num_; ++i) {
+      LOG(INFO) << "Destroying session local context for thread: " << i;
       contexts_[i].~SessionLocalContext();
     }
     free(contexts_);

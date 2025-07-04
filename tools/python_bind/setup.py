@@ -80,7 +80,7 @@ class CMakeBuild(build_ext):
     def run(self):
         super().run()
 
-    def build_extension(self, ext: CMakeExtension) -> None:
+    def build_extension(self, ext: CMakeExtension) -> None:  # noqa: C901
         # Must be in this form due to bug in .resolve() only fixed in Python 3.10+
         ext_fullpath = Path.cwd() / self.get_ext_fullpath(ext.name)
         extdir = ext_fullpath.parent.resolve()
@@ -101,6 +101,11 @@ class CMakeBuild(build_ext):
         build_executables = (
             "ON" if os.environ.get("BUILD_EXECUTABLES", "OFF") == "ON" else "OFF"
         )
+        build_http_server = (
+            "ON" if os.environ.get("BUILD_HTTP_SERVER", "ON") == "ON" else "OFF"
+        )
+        if build_http_server == "ON":
+            http_server_type = os.environ.get("HTTP_SERVER_TYPE", "brpc")
         build_compiler = (
             "ON" if os.environ.get("BUILD_COMPILER", "ON") == "ON" else "OFF"
         )
@@ -129,7 +134,13 @@ class CMakeBuild(build_ext):
             f"-DBUILD_TEST={build_test}",
             f"-DBUILD_COMPILER={build_compiler}",
             f"-DENABLE_BACKTRACES={enable_backtraces}",
+            f"-DBUILD_HTTP_SERVER={build_http_server}",
         ]
+        if build_http_server == "ON":
+            cmake_args += [
+                "-DBUILD_METADATA=ON",
+                f"-DHTTP_SERVER_TYPE={http_server_type}",
+            ]
         if use_ninja:
             cmake_args += ["-GNinja"]
         build_args = []

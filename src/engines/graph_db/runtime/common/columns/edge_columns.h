@@ -19,7 +19,7 @@
 #include <glog/logging.h>
 #include <stddef.h>
 #include <cstdint>
-#include <ext/alloc_traits.h>
+
 #include <limits>
 #include <map>
 #include <memory>

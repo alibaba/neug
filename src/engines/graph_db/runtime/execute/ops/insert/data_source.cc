@@ -18,7 +18,7 @@
 #include <arrow/record_batch.h>
 #include <glog/logging.h>
 #include <stdint.h>
-#include <ext/alloc_traits.h>
+
 #include <ostream>
 #include <utility>
 

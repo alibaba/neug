@@ -15,8 +15,6 @@
 
 #include "src/utils/property/column.h"
 
-#include <ext/alloc_traits.h>
-
 #include "src/utils/mmap_array.h"
 #include "src/utils/property/table.h"
 #include "src/utils/property/types.h"

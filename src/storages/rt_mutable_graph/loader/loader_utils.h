@@ -20,7 +20,7 @@
 #include <arrow/csv/api.h>
 #include <arrow/io/api.h>
 #include <stddef.h>
-#include <ext/alloc_traits.h>
+
 #include <memory>
 #include <string>
 #include <utility>

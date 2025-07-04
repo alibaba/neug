@@ -15,6 +15,7 @@
 
 #include "src/include/gopt/g_storage_manager.h"
 #include <fstream>
+#include <sstream>
 
 #include "src/include/catalog/catalog_entry/rel_group_catalog_entry.h"
 #include "src/include/common/exception/exception.h"

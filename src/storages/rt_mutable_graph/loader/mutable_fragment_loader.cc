@@ -19,7 +19,7 @@
 #include <arrow/type.h>
 #include <arrow/util/value_parsing.h>
 #include <cstdint>
-#include <ext/alloc_traits.h>
+
 #include <istream>
 #include <thread>
 #include <unordered_map>

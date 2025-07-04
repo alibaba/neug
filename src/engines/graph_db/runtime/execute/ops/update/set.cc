@@ -18,7 +18,7 @@
 #include <stddef.h>
 #include <stdint.h>
 #include <boost/leaf.hpp>
-#include <ext/alloc_traits.h>
+
 #include <map>
 #include <ostream>
 #include <string>

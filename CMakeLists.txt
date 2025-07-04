@@ -24,6 +24,8 @@ if (HTTP_SERVER_TYPE STREQUAL "hiactor")
     add_definitions(-DHTTP_SERVER_TYPE_HIACTOR)
 elseif (HTTP_SERVER_TYPE STREQUAL "brpc")
     add_definitions(-DHTTP_SERVER_TYPE_BRPC)
+else()
+    message(FATAL_ERROR "Invalid HTTP_SERVER_TYPE: ${HTTP_SERVER_TYPE}. Supported values are 'hiactor' or 'brpc'.")
 endif()
 
 option(BUILD_JNI_PLANNER "Whether to build jni wrapper for the java planner" OFF) # Whether to build jni wrapper for the java planner, default is ON
@@ -171,6 +173,7 @@ include_directories(${CMAKE_CURRENT_BINARY_DIR}/src/utils)
 # Print cc and cxx compiler
 message(STATUS "CMAKE_C_COMPILER: ${CMAKE_C_COMPILER}")
 message(STATUS "CMAKE_CXX_COMPILER: ${CMAKE_CXX_COMPILER}")
+
 
 # reference: https://gitlab.kitware.com/cmake/community/-/wikis/doc/cmake/RPATH-handling#always-full-rpath
 set(CMAKE_BUILD_WITH_INSTALL_RPATH FALSE)
@@ -342,7 +345,6 @@ if (NOT CMAKE_BUILD_TYPE AND NOT CMAKE_CONFIGURATION_TYPES)
 endif ()
 
 add_compile_definitions(NEUG_VERSION="${NEUG_VERSION}")
-set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Werror")
 
 if (APPLE)
     set(CMAKE_MACOSX_RPATH ON)
@@ -351,6 +353,7 @@ else ()
         set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -lopen-pal")
     else ()
         set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wl,-rpath,$ORIGIN")
+        set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Werror")
     endif ()
 endif ()
 # Only add -fopenmp if not using clang
@@ -381,7 +384,10 @@ endif()
 
 set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} -O0 -g")
 set(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE} -O3")
-set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wno-class-memaccess")
+#if compiler is gcc
+if (CMAKE_CXX_COMPILER_ID MATCHES "GNU")
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wno-class-memaccess")
+endif()
 
 
 #------------------------Brought by compiler------------------------------------
@@ -427,6 +433,7 @@ find_package(Threads REQUIRED)
 include("cmake/FindGFlags.cmake")
 if (NOT GFLAGS_FOUND)
     message(STATUS "gflags not found, build without gflags")
+    message(STATUS "gflags library ${GFLAGS_LIBRARIES}")
 else ()
     include_directories(SYSTEM ${GFLAGS_INCLUDE_DIRS})
 endif ()
@@ -446,11 +453,26 @@ endif()
 
 #find hiactor----------------------------------------------------------------------
 if (BUILD_HTTP_SERVER)
-    find_package(Hiactor)
-    if (NOT Hiactor_FOUND)
-        message(STATUS "hiactor not found, please install the hiactor library")
-    else ()
+    if (HTTP_SERVER_TYPE STREQUAL "hiactor")        
+        find_package(Hiactor REQUIRED)
         include_directories(SYSTEM ${Hiactor_INCLUDE_DIRS})
+    elseif (HTTP_SERVER_TYPE STREQUAL "brpc")
+        find_library(BRPC_LIB NAMES brpc)
+        find_path(BRPC_INCLUDE_PATH NAMES brpc/server.h)
+        if((NOT BRPC_INCLUDE_PATH) OR (NOT BRPC_LIB))
+                message(FATAL_ERROR "Fail to find brpc")
+        endif()
+        find_package(OpenSSL REQUIRED)
+        find_path(LEVELDB_INCLUDE_PATH NAMES leveldb/db.h)
+        find_library(LEVELDB_LIB NAMES leveldb)
+        if ((NOT LEVELDB_INCLUDE_PATH) OR (NOT LEVELDB_LIB))
+                message(FATAL_ERROR "Fail to find leveldb")
+        endif()
+        include_directories(${LEVELDB_INCLUDE_PATH})
+        find_library(PROTOC_LIB NAMES protoc)
+        if(NOT PROTOC_LIB)
+            message(FATAL_ERROR "Fail to find protoc lib")
+        endif()
     endif()
 endif()
 

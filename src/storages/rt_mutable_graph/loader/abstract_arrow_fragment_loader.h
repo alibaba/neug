@@ -26,7 +26,6 @@
 #include <algorithm>
 #include <atomic>
 #include <cstdint>
-#include <ext/alloc_traits.h>
 #include <functional>
 #include <limits>
 #include <memory>

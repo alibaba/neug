@@ -21,7 +21,7 @@
 #include <stddef.h>
 #include <compare>
 #include <cstdint>
-#include <ext/alloc_traits.h>
+
 #include <functional>
 #include <limits>
 #include <map>

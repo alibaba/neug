@@ -18,7 +18,7 @@
 #ifdef HTTP_SERVER_TYPE_HIACTOR
 #include "src/engines/http_server/hiactor_http_hdl_mgr.h"
 #elif defined(HTTP_SERVER_TYPE_BRPC)
-#include "src/engines/http_server/brpc_http_hdl_mgr.h"
+#include "src/engines/brpc_server/brpc_http_hdl_mgr.h"
 #else
 #error "HTTP_SERVER_TYPE must be defined as either HIACTOR or BRPC"
 #endif
@@ -111,7 +111,6 @@ void GraphDBService::init(const ServiceConfig& config) {
 
   initialized_.store(true);
   service_config_ = config;
-  gs::init_cpu_usage_watch();
 }
 
 GraphDBService::~GraphDBService() {

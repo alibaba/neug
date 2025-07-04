@@ -18,7 +18,7 @@
 #include <glog/logging.h>
 #include <parallel_hashmap/phmap_base.h>
 #include <stddef.h>
-#include <ext/alloc_traits.h>
+
 #include <limits>
 #include <memory>
 #include <ostream>

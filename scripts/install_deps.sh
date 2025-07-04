@@ -215,7 +215,6 @@ install_boost() {
   # seastar needs filesystem program_options thread unit_test_framework
   # interactive needs context regex date_time
   ./bootstrap.sh --prefix="${install_prefix}" \
-    --with-toolset=gcc \
     --with-libraries=system,filesystem,context,program_options,regex,thread,random,chrono,atomic,date_time
   ./b2 install link=shared runtime-link=shared variant=release threading=multi
   popd || exit
@@ -452,9 +451,38 @@ install_abseil() {
   rm -rf "${tempdir:?}/${directory:?}" "${tempdir:?}/${file:?}"
 }
 
+install_brpc() {
+  if [[ -f "${install_prefix}/include/brpc/channel.h" ]]; then
+    return 0
+  fi
+  pushd "${tempdir}" || exit
+  directory="brpc-1.12.1"
+  file="1.12.1.tar.gz"
+  url="https://github.com/apache/brpc/archive/refs/tags"
+  download_and_untar "${url}" "${file}" "${directory}"
+  pushd ${directory} || exit
+  # if on darwin, requires using apple-clang, otherwise will fail to compile
+  if [[ "${OS_PLATFORM}" == *"Darwin"* ]]; then
+    export CC=clang
+    export CXX=clang++
+    # check whether clang, and clang++ works
+    if ! command -v clang &> /dev/null || ! command -v clang++ &> /dev/null; then
+      err "clang or clang++ not found, please install it first."
+      exit 1
+    fi
+  fi
+
+  mkdir build && cd build && cmake .. -DWITH_DEBUG_SYMBOLS=OFF -DWITH_GLOG=ON -DCMAKE_INSTALL_PREFIX="${install_prefix}" -DBUILD_SHARED_LIBS=ON -DCMAKE_POLICY_VERSION_MINIMUM=3.5
+  make -j$(nproc)
+  make install
+  popd || exit
+  popd || exit
+  rm -rf "${tempdir:?}/${directory:?}" "${tempdir:?}/${file:?}"
+}
+
 INTERACTIVE_MACOS=("rapidjson" "xsimd")
-INTERACTIVE_UBUNTU=("rapidjson-dev" "libgoogle-glog-dev" "libgflags-dev" "libyaml-cpp-dev" "libprotobuf-dev" "libgflags-dev")
-INTERACTIVE_CENTOS=("rapidjson-devel" "glog-devel")
+INTERACTIVE_UBUNTU=("rapidjson-dev" "libgoogle-glog-dev" "libgflags-dev" "libyaml-cpp-dev" "libprotobuf-dev" "libssl-dev" "libprotoc-dev" "libgflags-dev" "libleveldb-dev") # levedb for brpc
+INTERACTIVE_CENTOS=("rapidjson-devel" "glog-devel" "openssl-devel" "leveldb-devel")
 
 install_neug_dependencies() {
   # dependencies package
@@ -467,11 +495,13 @@ install_neug_dependencies() {
     install_boost
     install_yaml_cpp
     install_protobuf
+    install_brpc
     # install_mimalloc
   elif [[ "${OS_PLATFORM}" == *"Ubuntu"* ]]; then
     DEBIAN_FRONTEND=noninteractive TZ=Etc/UTC ${SUDO} apt-get install -y ${INTERACTIVE_UBUNTU[*]}
     install_arrow
     install_boost
+    install_brpc
     # hiactor is only supported on ubuntu
     # install_mimalloc
     ${SUDO} sh -c 'echo "fs.aio-max-nr = 1048576" >> /etc/sysctl.conf'
@@ -484,6 +514,7 @@ install_neug_dependencies() {
     install_yaml_cpp
     install_protobuf
     install_gflags
+    install_brpc
   fi
 }
 
@@ -496,6 +527,7 @@ write_env_config() {
     echo "export PATH=${install_prefix}/bin:\$HOME/.local/bin:\$HOME/.cargo/bin:\$PATH"
     echo "export LD_LIBRARY_PATH=${LD_LIBRARY_PATH}"
     echo "export LIBRARY_PATH=${install_prefix}/lib:${install_prefix}/lib64"
+    echo "export DYLD_LIBRARY_PATH=${LD_LIBRARY_PATH}"
   } >> "${OUTPUT_ENV_FILE}"
   {
     if [[ "${OS_PLATFORM}" == *"CentOS"* || "${OS_PLATFORM}" == *"Aliyun"* ]]; then

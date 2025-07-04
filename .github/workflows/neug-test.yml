@@ -90,6 +90,7 @@ jobs:
         export BUILD_TYPE=DEBUG
         export CMAKE_BUILD_PARALLEL_LEVEL=$(nproc)
         export BUILD_EXECUTABLES=ON
+        export BUILD_HTTP_SERVER=OFF
         export BUILD_TEST=ON
         export USE_NINJA=OFF
         # export CC="ccache gcc"

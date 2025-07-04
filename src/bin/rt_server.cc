@@ -18,10 +18,8 @@
 #include "src/engines/http_server/options.h"
 #include "src/utils/service_utils.h"
 
-#include <boost/program_options.hpp>
-#include <seastar/core/alien.hh>
-
 #include <glog/logging.h>
+#include <boost/program_options.hpp>
 
 using namespace server;
 namespace bpo = boost::program_options;

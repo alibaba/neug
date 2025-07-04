@@ -18,7 +18,7 @@
 #include <glog/logging.h>
 #include <google/protobuf/wrappers.pb.h>
 #include <stdint.h>
-#include <ext/alloc_traits.h>
+
 #include <functional>
 #include <map>
 #include <memory>

@@ -229,10 +229,6 @@ std::string get_current_dir();
 
 std::pair<uint64_t, uint64_t> get_total_physical_memory_usage();
 
-void init_cpu_usage_watch();
-
-std::pair<double, double> get_current_cpu_usage();
-
 std::string memory_to_mb_str(uint64_t mem_bytes);
 
 size_t human_readable_to_bytes(const std::string& human_readable);

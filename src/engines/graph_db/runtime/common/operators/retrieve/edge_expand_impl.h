@@ -20,7 +20,7 @@
 #include <glog/logging.h>
 #include <stddef.h>
 #include <stdint.h>
-#include <ext/alloc_traits.h>
+
 #include <limits>
 #include <memory>
 #include <ostream>

@@ -250,14 +250,14 @@ class Set {
  public:
   Set() = default;
   Set(SetImplBase* impl) : impl_(impl) {}
-  void insert(const RTAny& val) { impl_->insert(val); }
-  bool operator<(const Set& p) const { return *impl_ < *(p.impl_); }
-  bool operator==(const Set& p) const { return *(impl_) == *(p.impl_); }
-  bool exists(const RTAny& val) const { return impl_->exists(val); }
-  std::vector<RTAny> values() const { return impl_->values(); }
+  void insert(const RTAny& val);
+  bool operator<(const Set& p) const;
+  bool operator==(const Set& p) const;
+  bool exists(const RTAny& val) const;
+  std::vector<RTAny> values() const;
 
   RTAnyType elem_type() const;
-  size_t size() const { return impl_->size(); }
+  size_t size() const;
   SetImplBase* impl_;
 };
 
@@ -296,17 +296,11 @@ template <>
 class TupleImpl<RTAny> : public TupleImplBase {
  public:
   TupleImpl() = default;
-  ~TupleImpl() = default;
-  TupleImpl(std::vector<RTAny>&& val) : values(std::move(val)) {}
-  bool operator<(const TupleImplBase& p) const override {
-    // return values < dynamic_cast<const TupleImpl<RTAny>&>(p).values;
-    LOG(FATAL) << "TupleImpl<RTAny> should not be compared directly.";
-    return false;  // This line is unreachable but avoids compiler warning.
-  }
-  bool operator==(const TupleImplBase& p) const override {
-    return values == dynamic_cast<const TupleImpl<RTAny>&>(p).values;
-  }
-  size_t size() const override { return values.size(); }
+  ~TupleImpl();
+  TupleImpl(std::vector<RTAny>&& val);
+  bool operator<(const TupleImplBase& p) const override;
+  bool operator==(const TupleImplBase& p) const override;
+  size_t size() const override;
   RTAny get(size_t idx) const override;
 
   std::vector<RTAny> values;
@@ -335,22 +329,13 @@ class Tuple {
 
 class MapImpl : public CObject {
  public:
+  MapImpl();
+  ~MapImpl();
   static std::unique_ptr<MapImpl> make_map_impl(
-      const std::vector<RTAny>& keys, const std::vector<RTAny>& values) {
-    auto new_map = std::make_unique<MapImpl>();
-    new_map->keys = keys;
-    new_map->values = values;
-    return new_map;
-  }
-  size_t size() const { return keys.size(); }
-  bool operator<(const MapImpl& p) const {
-    // return std::tie(keys, values) < std::tie(p.keys, p.values);
-    LOG(FATAL) << "MapImpl should not be compared directly.";
-    return false;  // This line is unreachable but avoids compiler warning.
-  }
-  bool operator==(const MapImpl& p) const {
-    return std::tie(keys, values) == std::tie(p.keys, p.values);
-  }
+      const std::vector<RTAny>& keys, const std::vector<RTAny>& values);
+  size_t size() const;
+  bool operator<(const MapImpl& p) const;
+  bool operator==(const MapImpl& p) const;
 
   std::vector<RTAny> keys;
   std::vector<RTAny> values;
@@ -401,17 +386,11 @@ RTAnyType arrow_type_to_rt_type(const std::shared_ptr<arrow::DataType>& type);
 
 class Map {
  public:
-  static Map make_map(MapImpl* impl) {
-    Map m;
-    m.map_ = impl;
-    return m;
-  }
+  static Map make_map(MapImpl* impl);
   std::pair<const std::vector<RTAny>, const std::vector<RTAny>> key_vals()
-      const {
-    return std::make_pair(map_->keys, map_->values);
-  }
-  bool operator<(const Map& p) const { return *map_ < *(p.map_); }
-  bool operator==(const Map& p) const { return *map_ == *(p.map_); }
+      const;
+  bool operator<(const Map& p) const;
+  bool operator==(const Map& p) const;
 
   MapImpl* map_;
 };

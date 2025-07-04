@@ -22,7 +22,7 @@
 #include <array>
 #include <compare>
 #include <cstddef>
-#include <ext/alloc_traits.h>
+
 #include <functional>
 #include <map>
 #include <memory>
@@ -85,7 +85,7 @@ class VertexWithInSetExpr : public ExprBase {
                     Arena& arena) const override;
 
   RTAny eval_edge(const LabelTriplet& label, vid_t src, vid_t dst,
-                  const Any& data, size_t idx, Arena& arena) const;
+                  const Any& data, size_t idx, Arena& arena) const override;
 
   RTAnyType type() const override { return RTAnyType::kBoolValue; }
 
@@ -100,12 +100,13 @@ class VertexWithInListExpr : public ExprBase {
   VertexWithInListExpr(const Context& ctx, std::unique_ptr<ExprBase>&& key,
                        std::unique_ptr<ExprBase>&& val_list);
 
-  RTAny eval_path(size_t idx, Arena& arena) const;
+  RTAny eval_path(size_t idx, Arena& arena) const override;
 
-  RTAny eval_vertex(label_t label, vid_t v, size_t idx, Arena& arena) const;
+  RTAny eval_vertex(label_t label, vid_t v, size_t idx,
+                    Arena& arena) const override;
 
   RTAny eval_edge(const LabelTriplet& label, vid_t src, vid_t dst,
-                  const Any& data, size_t idx, Arena& arena) const;
+                  const Any& data, size_t idx, Arena& arena) const override;
 
   RTAnyType type() const override { return RTAnyType::kBoolValue; }
 

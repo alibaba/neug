@@ -38,9 +38,11 @@ if (BUILD_HTTP_SERVER)
         target_link_libraries(neug_graph_db_service PUBLIC Hiactor::hiactor)
 
     elseif (HTTP_SERVER_TYPE STREQUAL "brpc")
-        add_subdirectory(brpc_http_server)
+        add_library(neug_graph_db_service STATIC
+            ${CMAKE_CURRENT_SOURCE_DIR}/graph_db_service.cc
+            ${CMAKE_CURRENT_SOURCE_DIR}/brpc_server/brpc_http_hdl_mgr.cc)
+        target_compile_definitions(neug_graph_db_service PUBLIC HTTP_SERVER_TYPE="${HTTP_SERVER_TYPE}")
     endif()
-
     
     if (BUILD_ALL_IN_ONE)
         target_link_libraries(neug_graph_db_service PUBLIC neug_libraries)

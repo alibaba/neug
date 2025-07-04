@@ -23,9 +23,6 @@
 
 namespace gs {
 
-static unsigned long long lastTotalUser, lastTotalUserLow, lastTotalSys,
-    lastTotalIdle;
-
 // get current executable's directory
 std::string get_current_dir() {
   char buf[1024];
@@ -76,44 +73,6 @@ std::pair<uint64_t, uint64_t> get_total_physical_memory_usage() {
   phy_mem_used *= memInfo.mem_unit;
   return std::make_pair(phy_mem_used, total_mem);
 #endif
-}
-
-void init_cpu_usage_watch() {
-  FILE* file = fopen("/proc/stat", "r");
-  CHECK_EQ(fscanf(file, "cpu %llu %llu %llu %llu", &lastTotalUser,
-                  &lastTotalUserLow, &lastTotalSys, &lastTotalIdle),
-           4);
-  fclose(file);
-}
-
-std::pair<double, double> get_current_cpu_usage() {
-  double used;
-  FILE* file;
-  unsigned long long totalUser, totalUserLow, totalSys, totalIdle, total;
-
-  file = fopen("/proc/stat", "r");
-  CHECK_EQ(fscanf(file, "cpu %llu %llu %llu %llu", &totalUser, &totalUserLow,
-                  &totalSys, &totalIdle),
-           4);
-  fclose(file);
-
-  if (totalUser < lastTotalUser || totalUserLow < lastTotalUserLow ||
-      totalSys < lastTotalSys || totalIdle < lastTotalIdle) {
-    // Overflow detection. Just skip this value.
-    used = total = 0.0;
-  } else {
-    total = (totalUser - lastTotalUser) + (totalUserLow - lastTotalUserLow) +
-            (totalSys - lastTotalSys);
-    used = total;
-    total += (totalIdle - lastTotalIdle);
-  }
-
-  lastTotalUser = totalUser;
-  lastTotalUserLow = totalUserLow;
-  lastTotalSys = totalSys;
-  lastTotalIdle = totalIdle;
-
-  return std::make_pair(used, total);
 }
 
 std::string memory_to_mb_str(uint64_t mem_bytes) {

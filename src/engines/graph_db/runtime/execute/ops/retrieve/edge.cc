@@ -19,7 +19,7 @@
 #include <google/protobuf/wrappers.pb.h>
 #include <stddef.h>
 #include <stdint.h>
-#include <ext/alloc_traits.h>
+
 #include <functional>
 #include <limits>
 #include <map>

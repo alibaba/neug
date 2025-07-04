@@ -18,6 +18,24 @@ protobuf_generate(APPEND_PATH
         PROTOC_OUT_DIR ${CMAKE_CURRENT_BINARY_DIR}/src/utils/error_pb
 )
 
+############################################ Generate Http service Proto ############################################
+set(HTTP_SERVICE_PROTO_DIR ${CMAKE_CURRENT_SOURCE_DIR}/../../proto)
+set(HTTP_SERVICE_PROTO_FILES
+        ${HTTP_SERVICE_PROTO_DIR}/http_svc.proto)
+file(MAKE_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/src/http_service)
+
+# proto gen for http service proto
+protobuf_generate(APPEND_PATH
+        TARGET ${LOCAL_EXE_NAME}
+        LANGUAGE cpp
+        OUT_VAR HTTP_SERVICE_PROTO_SRCS
+        PROTOS ${HTTP_SERVICE_PROTO_FILES}
+        IMPORT_DIRS ${HTTP_SERVICE_PROTO_DIR}   
+        PROTOC_OUT_DIR ${CMAKE_CURRENT_BINARY_DIR}/src/http_service
+)
+
+
+
 
 ############################################ Generate Physical Plan Proto ############################################
 set(GIE_COMPILER_PROTO_DIR ${CMAKE_CURRENT_SOURCE_DIR}/../../proto/)
@@ -84,11 +102,18 @@ if (NOT BUILD_WITH_OSS)
         list(REMOVE_ITEM UTILS_SRC_FILES "${CMAKE_CURRENT_SOURCE_DIR}/remote/oss_storage.cc")
 endif()
 
+set(ALL_UTILS_SRC_FILES ${UTILS_SRC_FILES} ${ERROR_PROTO_SRCS})
+if (BUILD_HTTP_SERVER)
+        if (HTTP_SERVER_TYPE STREQUAL "brpc")
+                list(APPEND ALL_UTILS_SRC_FILES ${HTTP_SERVICE_PROTO_SRCS})
+        endif()
+endif()
+
 if (BUILD_ALL_IN_ONE)
-        add_library(neug_utils OBJECT ${UTILS_SRC_FILES} ${ERROR_PROTO_SRCS})
+        add_library(neug_utils OBJECT ${ALL_UTILS_SRC_FILES})
         set(ALL_OBJECT_FILES ${ALL_OBJECT_FILES} $<TARGET_OBJECTS:neug_utils> $<TARGET_OBJECTS:neug_plan_proto> PARENT_SCOPE)
 else()
-        add_library(neug_utils SHARED ${UTILS_SRC_FILES} ${ERROR_PROTO_SRCS})
+        add_library(neug_utils SHARED ${UTILS_SRC_FILES})
         target_link_libraries(neug_utils PUBLIC neug_plan_proto ${Protobuf_LIBRARIES} ${ARROW_LIB}  ${Boost_LIBRARIES} ${GLOG_LIBRARIES} ${YAML_CPP_LIBRARIES})
         if (BUILD_WITH_OSS)
                 target_link_libraries(neug_utils PRIVATE cpp-sdk)

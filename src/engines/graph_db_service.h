@@ -27,7 +27,6 @@
 #include "src/utils/service_utils.h"
 
 #include <yaml-cpp/yaml.h>
-#include <boost/process.hpp>
 
 namespace server {
 /* Stored service configuration, read from interactive_config.yaml
@@ -93,7 +92,6 @@ class GraphDBService {
   std::mutex mtx_;
 
   ServiceConfig service_config_;
-  boost::process::child compiler_process_;
   // handler for metadata store
   std::shared_ptr<gs::IGraphMetaStore> metadata_store_;
 };

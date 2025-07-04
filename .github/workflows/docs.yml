@@ -45,6 +45,8 @@ jobs:
         cd ${GITHUB_WORKSPACE}/doc
         export BUILD_TYPE=DEBUG
         export CMAKE_BUILD_PARALLEL_LEVEL=$(nproc)
+        export BUILD_EXECUTABLES=OFF
+        export BUILD_HTTP_SERVER=OFF
         . /home/graphscope/.graphscope_env
         make dependencies
         make html

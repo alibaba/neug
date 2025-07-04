@@ -17,7 +17,7 @@
 #include <glog/logging.h>
 #include <google/protobuf/wrappers.pb.h>
 #include <cstdint>
-#include <ext/alloc_traits.h>
+
 #include <ostream>
 #include <set>
 #include <string_view>

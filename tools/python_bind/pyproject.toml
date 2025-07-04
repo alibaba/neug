@@ -42,7 +42,7 @@ skip = ["*-musllinux_*", "*i686*"]
 environment = {MACOSX_DEPLOYMENT_TARGET="11.0", CMAKE_PREFIX_PATH="/opt/graphscope/"}
 environment-pass = ["BUILD_TYPE", "CMAKE_BUILD_PARALLEL_LEVEL", "CMAKE_PREFIX_PATH", "MACOSX_DEPLOYMENT_TARGET"]
 manylinux-x86_64-image = "registry.cn-hongkong.aliyuncs.com/graphscope/graphscope-dev:neug-dev-x86_64"
-manylinux-aarch64-image = "registry.cn-hongkong.aliyuncs.com/graphscope/graphscope-dev:neug-dev-arm64-0621"
+manylinux-aarch64-image = "registry.cn-hongkong.aliyuncs.com/graphscope/graphscope-dev:neug-dev-arm64"
 
 [tool.cibuildwheel.linux]
 before-all = ["git submodule update --init", "source /root/.graphscope_env"]

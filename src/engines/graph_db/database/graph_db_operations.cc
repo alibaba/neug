@@ -16,7 +16,7 @@
 #include <glog/logging.h>
 #include <rapidjson/rapidjson.h>
 #include <exception>
-#include <ext/alloc_traits.h>
+
 #include <memory>
 #include <ostream>
 #include <stdexcept>

@@ -20,7 +20,7 @@
 #include <stddef.h>
 #include <algorithm>
 #include <cstdint>
-#include <ext/alloc_traits.h>
+
 #include <functional>
 #include <map>
 #include <memory>

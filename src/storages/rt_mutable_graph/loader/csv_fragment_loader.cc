@@ -21,7 +21,7 @@
 #include <stddef.h>
 #include <atomic>
 #include <exception>
-#include <ext/alloc_traits.h>
+
 #include <istream>
 #include <thread>
 #include <tuple>

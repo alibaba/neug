@@ -16,7 +16,7 @@
 #include <glog/logging.h>
 #include <algorithm>
 #include <cstdint>
-#include <ext/alloc_traits.h>
+
 #include <filesystem>
 #include <flat_hash_map.hpp>
 #include <limits>

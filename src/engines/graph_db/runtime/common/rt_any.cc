@@ -240,6 +240,13 @@ RTAny List::get(size_t idx) const { return impl_->get(idx); }
 
 RTAnyType Set::elem_type() const { return impl_->type(); }
 
+void Set::insert(const RTAny& val) { impl_->insert(val); }
+bool Set::operator<(const Set& p) const { return *impl_ < *(p.impl_); }
+bool Set::operator==(const Set& p) const { return *(impl_) == *(p.impl_); }
+bool Set::exists(const RTAny& val) const { return impl_->exists(val); }
+std::vector<RTAny> Set::values() const { return impl_->values(); }
+size_t Set::size() const { return impl_->size(); }
+
 RTAnyType List::elem_type() const { return impl_->type(); }
 
 RTAny Tuple::get(size_t idx) const { return impl_->get(idx); }
@@ -299,6 +306,20 @@ RTAnyType arrow_type_to_rt_type(const std::shared_ptr<arrow::DataType>& type) {
     LOG(FATAL) << "not support for " << type->ToString();
   }
 }
+
+Map Map::make_map(MapImpl* impl) {
+  Map m;
+  m.map_ = impl;
+  return m;
+}
+
+std::pair<const std::vector<RTAny>, const std::vector<RTAny>> Map::key_vals()
+    const {
+  return std::make_pair(map_->keys, map_->values);
+}
+
+bool Map::operator<(const Map& p) const { return *map_ < *(p.map_); }
+bool Map::operator==(const Map& p) const { return *map_ == *(p.map_); }
 
 RTAny::RTAny() : type_(RTAnyType::kUnknown) {}
 RTAny::RTAny(RTAnyType type) : type_(type) {}
@@ -740,6 +761,44 @@ Relation RTAny::as_relation() const {
 RTAny TupleImpl<RTAny>::get(size_t idx) const {
   CHECK(idx < values.size());
   return values[idx];
+}
+
+TupleImpl<RTAny>::TupleImpl(std::vector<RTAny>&& val)
+    : values(std::move(val)) {}
+
+TupleImpl<RTAny>::~TupleImpl() {}
+
+bool TupleImpl<RTAny>::operator<(const TupleImplBase& p) const {
+  // return values < dynamic_cast<const TupleImpl<RTAny>&>(p).values;
+  LOG(FATAL) << "TupleImpl<RTAny> should not be compared directly.";
+  return false;  // This line is unreachable but avoids compiler warning.
+}
+bool TupleImpl<RTAny>::operator==(const TupleImplBase& p) const {
+  return values == dynamic_cast<const TupleImpl<RTAny>&>(p).values;
+}
+size_t TupleImpl<RTAny>::size() const { return values.size(); }
+
+MapImpl::MapImpl() {}
+
+MapImpl::~MapImpl() {}
+
+std::unique_ptr<MapImpl> MapImpl::make_map_impl(
+    const std::vector<RTAny>& keys, const std::vector<RTAny>& values) {
+  auto new_map = std::make_unique<MapImpl>();
+  new_map->keys = keys;
+  new_map->values = values;
+  return new_map;
+}
+
+size_t MapImpl::size() const { return keys.size(); }
+
+bool MapImpl::operator<(const MapImpl& p) const {
+  // return std::tie(keys, values) < std::tie(p.keys, p.values);
+  LOG(FATAL) << "MapImpl should not be compared directly.";
+  return false;  // This line is unreachable but avoids compiler warning.
+}
+bool MapImpl::operator==(const MapImpl& p) const {
+  return std::tie(keys, values) == std::tie(p.keys, p.values);
 }
 
 int RTAny::numerical_cmp(const RTAny& other) const {
