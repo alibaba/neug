@@ -180,44 +180,6 @@
          "plan": [
           {
            "opr": {
-            "scan": {
-             "scan_opt": "VERTEX",
-             "params": {
-              "tables": [
-               {
-                "id": 0
-               }
-              ],
-              "columns": [],
-              "is_all_columns": false,
-              "sample_ratio": 0,
-              "extra": {}
-             },
-             "is_count_only": false,
-             "alias": 2
-            }
-           },
-           "meta_data": [
-            {
-             "type": {
-              "graph_type": {
-               "element_opt": "VERTEX",
-               "graph_data_type": [
-                {
-                 "label": {
-                  "label": 0
-                 },
-                 "props": []
-                }
-               ]
-              }
-             },
-             "alias": 2
-            }
-           ]
-          },
-          {
-           "opr": {
             "edge": {
              "direction": "OUT",
              "params": {
@@ -266,44 +228,6 @@
         "query_plan": {
          "mode": "READ_ONLY",
          "plan": [
-          {
-           "opr": {
-            "scan": {
-             "scan_opt": "VERTEX",
-             "params": {
-              "tables": [
-               {
-                "id": 0
-               }
-              ],
-              "columns": [],
-              "is_all_columns": false,
-              "sample_ratio": 0,
-              "extra": {}
-             },
-             "is_count_only": false,
-             "alias": 0
-            }
-           },
-           "meta_data": [
-            {
-             "type": {
-              "graph_type": {
-               "element_opt": "VERTEX",
-               "graph_data_type": [
-                {
-                 "label": {
-                  "label": 0
-                 },
-                 "props": []
-                }
-               ]
-              }
-             },
-             "alias": 0
-            }
-           ]
-          },
           {
            "opr": {
             "edge": {

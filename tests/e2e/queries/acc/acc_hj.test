@@ -5,7 +5,6 @@
 -CASE Acc
 
 -LOG AspIntersect
--SKIP: (compiler): "unordered_map::at"
 -STATEMENT MATCH (a:person)<-[e1:knows]-(b:person)-[e2:knows]->(c:person), (a)-[e3:knows]->(c)
             WHERE b.fName='Bob' AND a.fName='Alice'
             RETURN COUNT(*)
@@ -28,7 +27,6 @@ Dan|
 |CsWork
 
 -LOG AspMultiKey
--SKIP: (compiler): unordered_map::at
 -STATEMENT MATCH (a:person)-[e1:knows]->(b:person)-[e2:knows]->(c:person), (a)-[e3:knows]->(c) WHERE a.fName='Alice' RETURN b.fName, c.fName
 ---- 6
 Bob|Carol

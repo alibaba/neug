@@ -59,15 +59,17 @@ GQueryConvertor::GQueryConvertor(std::shared_ptr<GAliasManager> aliasManager,
       typeConverter(std::make_unique<GTypeConverter>()) {}
 
 std::unique_ptr<::physical::QueryPlan> GQueryConvertor::convert(
-    const planner::LogicalPlan& plan) {
+    const planner::LogicalPlan& plan, bool skipSink) {
   auto planPB = std::make_unique<::physical::QueryPlan>();
   convertOperator(*plan.getLastOperator(), planPB.get());
-  auto sink = std::make_unique<::physical::Sink>();
-  auto physicalOpr = std::make_unique<::physical::PhysicalOpr>();
-  auto oprPB = std::make_unique<::physical::PhysicalOpr_Operator>();
-  oprPB->set_allocated_sink(sink.release());
-  physicalOpr->set_allocated_opr(oprPB.release());
-  planPB->mutable_plan()->AddAllocated(physicalOpr.release());
+  if (!skipSink) {
+    auto sink = std::make_unique<::physical::Sink>();
+    auto physicalOpr = std::make_unique<::physical::PhysicalOpr>();
+    auto oprPB = std::make_unique<::physical::PhysicalOpr_Operator>();
+    oprPB->set_allocated_sink(sink.release());
+    physicalOpr->set_allocated_opr(oprPB.release());
+    planPB->mutable_plan()->AddAllocated(physicalOpr.release());
+  }
   return planPB;
 }
 
@@ -86,7 +88,7 @@ void GQueryConvertor::convertOperator(const planner::LogicalOperator& op,
     return;
   }
   for (auto child : op.getChildren()) {
-    convertOperator(*child, plan);
+    convertOperator(*child, plan, skipScan);
   }
   switch (op.getOperatorType()) {
   case planner::LogicalOperatorType::SCAN_NODE_TABLE: {
@@ -1296,11 +1298,11 @@ void GQueryConvertor::convertCrossProduct(
   // convert left plan
   planner::LogicalPlan leftPlan;
   leftPlan.setLastOperator(cross.getChild(0));
-  auto leftPB = convertor.convert(leftPlan);
+  auto leftPB = convertor.convert(leftPlan, true);
   // convert right plan
   planner::LogicalPlan rightPlan;
   rightPlan.setLastOperator(cross.getChild(1));
-  auto rightPB = convertor.convert(rightPlan);
+  auto rightPB = convertor.convert(rightPlan, true);
   // set join PB
   joinPB->set_allocated_left_plan(leftPB.release());
   joinPB->set_allocated_right_plan(rightPB.release());

@@ -32,7 +32,7 @@ class GPhysicalConvertor {
       : aliasManager{aliasManager}, catalog{catalog} {}
 
   std::unique_ptr<::physical::PhysicalPlan> convert(
-      const planner::LogicalPlan& plan) {
+      const planner::LogicalPlan& plan, bool skipSink = false) {
     GPhysicalAnalyzer analyzer;
     auto mode = analyzer.analyze(plan);
     switch (mode) {
@@ -43,14 +43,14 @@ class GPhysicalConvertor {
       return physicalPlan;
     }
     case PhysicalMode::READ_ONLY: {
-      auto queryPlan = convertQuery(plan);
+      auto queryPlan = convertQuery(plan, skipSink);
       queryPlan->set_mode(::physical::QueryPlan::READ_ONLY);
       auto physicalPlan = std::make_unique<::physical::PhysicalPlan>();
       physicalPlan->set_allocated_query_plan(queryPlan.release());
       return physicalPlan;
     }
     case PhysicalMode::READ_WRITE: {
-      auto queryPlan = convertQuery(plan);
+      auto queryPlan = convertQuery(plan, skipSink);
       queryPlan->set_mode(::physical::QueryPlan::READ_WRITE);
       auto physicalPlan = std::make_unique<::physical::PhysicalPlan>();
       physicalPlan->set_allocated_query_plan(queryPlan.release());
@@ -70,9 +70,9 @@ class GPhysicalConvertor {
   }
 
   std::unique_ptr<::physical::QueryPlan> convertQuery(
-      const planner::LogicalPlan& plan) {
+      const planner::LogicalPlan& plan, bool skipSink) {
     auto converter = std::make_unique<GQueryConvertor>(aliasManager, catalog);
-    return converter->convert(plan);
+    return converter->convert(plan, skipSink);
   }
 
  private:

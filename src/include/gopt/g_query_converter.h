@@ -65,7 +65,7 @@ class GQueryConvertor {
                   gs::catalog::Catalog* catalog);
 
   std::unique_ptr<::physical::QueryPlan> convert(
-      const planner::LogicalPlan& plan);
+      const planner::LogicalPlan& plan, bool skipSink);
   static bool skipColumn(const std::string& columnName);
 
  private:
