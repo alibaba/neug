@@ -27,9 +27,11 @@ class TransactionManager {
 
  public:
   explicit TransactionManager(storage::WAL& wal)
-      : wal{wal},
+      : wal_(wal),
         lastTransactionID{Transaction::START_TRANSACTION_ID},
         lastTimestamp{1} {};
+
+  virtual ~TransactionManager() {}
 
   virtual std::unique_ptr<Transaction> beginTransaction(
       main::ClientContext& clientContext, TransactionType type) = 0;
@@ -59,7 +61,7 @@ class TransactionManager {
   }
 
  private:
-  storage::WAL& wal;
+  storage::WAL& wal_;
   std::unordered_set<common::transaction_t> activeWriteTransactions;
   std::unordered_set<common::transaction_t> activeReadOnlyTransactions;
   common::transaction_t lastTransactionID;

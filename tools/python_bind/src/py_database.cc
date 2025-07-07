@@ -35,17 +35,12 @@ void PyDatabase::initialize(pybind11::handle& m) {
         std::string planner = kwargs.contains("planner")
                                   ? kwargs["planner"].cast<std::string>()
                                   : "gopt";
-        std::string jni_planner_jar_path =
-            kwargs.contains("jni_planner_jar_path")
-                ? kwargs["jni_planner_jar_path"].cast<std::string>()
-                : "";
         std::string planner_config_path =
             kwargs.contains("planner_config_path")
                 ? kwargs["planner_config_path"].cast<std::string>()
                 : "";
         return std::make_shared<PyDatabase>(database_path, max_thread_num, mode,
-                                            planner, jni_planner_jar_path,
-                                            planner_config_path);
+                                            planner, planner_config_path);
       }))  // "Creating a PyDatabase. Holds a shared pointer to the C++ "
            // "NeugDB object.\n"
       .def("connect", &PyDatabase::connect,

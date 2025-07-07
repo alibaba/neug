@@ -67,7 +67,7 @@ bool TransactionManager::canAutoCheckpoint(
   }
   const auto expectedSize =
       clientContext.getTransaction()->getEstimatedMemUsage() +
-      wal.getFileSize();
+      wal_.getFileSize();
   return expectedSize > clientContext.getDBConfig()->checkpointThreshold;
 }
 

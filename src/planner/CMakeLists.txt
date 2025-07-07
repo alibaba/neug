@@ -1,10 +1,6 @@
 include_directories(${CMAKE_CURRENT_BINARY_DIR}/../utils)
 include_directories(${CMAKE_CURRENT_BINARY_DIR}/../compiler/)
 file(GLOB_RECURSE PLANNER_SOURCE_FILES "${CMAKE_CURRENT_SOURCE_DIR}/*.cc")
-if (NOT BUILD_JNI_PLANNER)
-    # remove jni planner files
-    list(FILTER PLANNER_SOURCE_FILES EXCLUDE REGEX "jni_graph_planner.cc")
-endif()
 
 if (NOT BUILD_COMPILER)
     # remove compiler files

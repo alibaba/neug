@@ -37,6 +37,8 @@ class GDatabase : public Database {
         std::make_unique<gs::transaction::GTransactionManager>(*this->wal);
   };
 
+  ~GDatabase() = default;
+
   void updateSchema(const std::filesystem::path& schemaPath,
                     const std::filesystem::path& statsPath) {
     this->catalog = std::make_unique<gs::catalog::GCatalog>(schemaPath);

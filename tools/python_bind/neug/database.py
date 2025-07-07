@@ -40,6 +40,8 @@ class Database(object):
     This class is used to open a database connection and manage the database. User should use this class to
     open a database connection, and then use the `connect` method to get a `Connection` object to interact with the database.
 
+    By passing an empty string as the database path, the database will be opened in memory mode.
+
     The database could be opened with different modes(read-only or read-write) and different planners.
 
     When the database is opened in read-only mode, other databases could also open the same database directory in
@@ -74,7 +76,6 @@ class Database(object):
         mode: str = "r",
         max_thread_num: int = 0,
         planner="gopt",
-        jni_planner_jar_path="",
         planner_config_path=None,
     ):
         """
@@ -83,16 +84,15 @@ class Database(object):
         Parameters
         ----------
         db_path : str
-            Path to the database file. required.
+            Path to the database file. required. If it is set to empty string, the database will be opened in memory mode.
+            Note that in memory mode, the database will not be persisted to disk, and all data will be
+            lost when the program exits. In this case, the db_path should not contain any illegal characters.
         mode : str
             Mode to open the database, could be 'r', 'read', 'readwrite', 'w', 'rw', 'write'. Default is 'r' for read-only.
         max_thread_num : int
             Maximum number of threads to use. Default is 0, which means no limit.
         planner : str
             The planner to use, should be one of 'jni', 'gopt'. Default is 'gopt'.
-        jni_planner_jar_path : str
-            Only take effect when planner is 'jni'. Path to the JNI planner jar file. Default is None.
-            If none, the default jar path will be used.
         planner_config_path : str
             Only take effect when planner is 'jni'. Path to the planner config file. Default is None.
             If none, the default config path will be used.
@@ -110,9 +110,6 @@ class Database(object):
         self._illegal_chars = ["?", "*", '"', "<", ">", "|", ":", "\\"]
         if not isinstance(db_path, str):
             raise TypeError("db_path must be a string." + str(type(db_path)))
-        # TODO(zhanglei): remove this check when we support pure in-memory database.
-        if db_path is None or db_path.strip() == "":
-            raise ValueError("Database path cannot be empty.")
         if any(char in db_path for char in self._illegal_chars):
             raise ValueError(
                 f"invalid path: database path '{db_path}' contains illegal characters: {self._illegal_chars}."
@@ -135,8 +132,6 @@ class Database(object):
         # In 'r' mode, the default connection will be a read-only connection.
         # In 'w' mode, the default connection will be a read-write connection.
         # And we won't allow to create any new connections.
-        if planner == "jni" and jni_planner_jar_path is None:
-            jni_planner_jar_path = self._get_default_jni_planner_jar_path()
         if planner_config_path is None:
             planner_config_path = self._get_default_planner_config_path()
 
@@ -152,13 +147,19 @@ class Database(object):
             max_thread_num=max_thread_num,
             mode=mode,
             planner=planner,
-            jni_planner_jar_path=jni_planner_jar_path,
             planner_config_path=planner_config_path,
         )
-        logger.info(
-            f"Open database {db_path} in {mode} mode, planner: {planner}, config: {planner_config_path},"
-            f"jar: {jni_planner_jar_path}"
-        )
+        if db_path.strip() == "":
+            # In memory mode, the database will not be persisted to disk, and all data will be lost when the program exits.
+            # So we don't need to log the db_path.
+            logger.info(
+                f"Open in-memory database in {mode} mode, planner: {planner},"
+                f"config: {planner_config_path}"
+            )
+        else:
+            logger.info(
+                f"Open database {db_path} in {mode} mode, planner: {planner}, config: {planner_config_path}"
+            )
 
     def __del__(self):
         self.close()
@@ -226,23 +227,11 @@ class Database(object):
         """
         Close the database connection.
         """
-        if self._db_path:
+        if self._db_path and self._db_path.strip() != "":
             logger.info(f"Closing database {self._db_path}.")
         if self._database:
             self._database.close()
             self._database = None
-
-    def _get_default_jni_planner_jar_path(self):
-        """
-        Get the default JNI planner jar path.
-        """
-        # Load the file under neug/resources/, ended with .jar
-        jar_path = os.path.join(resource_dir, "compiler.jar")
-        print(f"jar_path: {jar_path}")
-        if not os.path.exists(jar_path):
-            raise RuntimeError(f"JNI planner jar file not found: {jar_path}")
-        logger.info(f"Using JNI planner jar file: {jar_path}")
-        return jar_path
 
     def _get_default_planner_config_path(self):
         """

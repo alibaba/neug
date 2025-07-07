@@ -29,6 +29,19 @@ void test_open_close() {
   LOG(INFO) << "After close db2";
   db3.close();
   LOG(INFO) << "After close db3";
+
+  {
+    gs::NeugDB db4("", 1, "w", "gopt");
+    gs::NeugDB db5("", 1, "r", "gopt");
+    gs::NeugDB db6("", 1, "rw", "gopt");
+
+    db6.close();
+    LOG(INFO) << "After close db6";
+    db5.close();
+    LOG(INFO) << "After close db5";
+    db4.close();
+    LOG(INFO) << "After close db4";
+  }
 }
 
 bool test_database(const std::string& data_path, const std::string& csv_dir) {
@@ -192,11 +205,6 @@ int main(int argc, char** argv) {
   }
 
   gs::setup_signal_handler();
-
-  // Test parse date
-  std::string date_str = "1900-01-01";
-  gs::Date date(date_str);
-  LOG(INFO) << "date str: " << date.to_string();
 
   test_open_close();
   LOG(INFO) << "------------------------------------";

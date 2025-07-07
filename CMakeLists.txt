@@ -28,7 +28,6 @@ else()
     message(FATAL_ERROR "Invalid HTTP_SERVER_TYPE: ${HTTP_SERVER_TYPE}. Supported values are 'hiactor' or 'brpc'.")
 endif()
 
-option(BUILD_JNI_PLANNER "Whether to build jni wrapper for the java planner" OFF) # Whether to build jni wrapper for the java planner, default is ON
 option(BUILD_METADATA "Whether to build metadata" OFF)
 # Options to control the building of tools
 option(BUILD_PYTHON "Whether to build python embedded" ON)
@@ -281,29 +280,6 @@ if (CMAKE_CXX_COMPILER_ID MATCHES "Clang")
     set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wno-class-conversion -fclang-abi-compat=14") # need fclang-abi-compat for clang compiler, due to absl problem: https://github.com/protocolbuffers/protobuf/issues/12693
 endif()
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wno-deprecated")
-
-if (BUILD_JNI_PLANNER)
-    message(STATUS "Build jni planner")
-    add_compile_definitions(BUILD_JNI_PLANNER)
-    set(JAVA_AWT_INCLUDE_PATH NotNeeded)
-    # get JAVA_HOME from environment
-    execute_process(COMMAND bash -c "echo $JAVA_HOME" OUTPUT_VARIABLE JAVA_HOME)
-    string(STRIP ${JAVA_HOME} JAVA_HOME)
-    message(STATUS "JAVA_HOME: ${JAVA_HOME}")
-    set(JAVA_INCLUDE_PATH "${JAVA_HOME}/include/")
-    if (APPLE)
-        set(JAVA_INCLUDE_PATH2 "${JAVA_HOME}/include/darwin/")
-    else()
-        set(JAVA_INCLUDE_PATH2 "${JAVA_HOME}/include/linux/")
-    endif()
-    find_package(JNI REQUIRED)
-    if (JNI_FOUND)
-        include_directories(SYSTEM ${JAVA_INCLUDE_PATH})
-        include_directories(SYSTEM ${JAVA_INCLUDE_PATH2})
-    else()
-        message(FATAL_ERROR "JNI not found")
-    endif()
-endif()
 
 if (BUILD_WITH_OSS)
     add_definitions(-DBUILD_WITH_OSS)

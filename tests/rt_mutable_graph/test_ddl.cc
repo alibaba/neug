@@ -21,7 +21,7 @@ int main(int argc, char** argv) {
   // create the directory
   std::filesystem::create_directories(data_path);
 
-  gs::NeugDB db(data_path, 1, "w", "dummy", "", "");
+  gs::NeugDB db(data_path, 1, "w", "dummy", "");
   auto conn = db.connect();
   {
     auto res = conn->query(

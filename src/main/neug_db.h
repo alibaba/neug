@@ -31,9 +31,6 @@
 #include "src/planner/dummy_graph_planner.h"
 #include "src/planner/gopt_planner.h"
 #include "src/planner/graph_planner.h"
-#ifdef BUILD_JNI_PLANNER
-#include "src/planner/jni_graph_planner.h"
-#endif  // BUILD_JNI_PLANNER
 #include "src/utils/file_utils.h"
 
 namespace gs {
@@ -46,7 +43,6 @@ class NeugDB {
  public:
   NeugDB(const std::string& data_dir, int32_t max_num_threads,
          const std::string& mode, const std::string& planner_kind,
-         const std::string& jni_planner_class_path = "",
          const std::string& planner_config_path = "")
       : file_lock_(data_dir) {
     if (max_num_threads == 0) {
@@ -105,8 +101,7 @@ class NeugDB {
                                res.status().error_message());
     }
     LOG(INFO) << "Database opened successfully in " << mode << " mode.";
-    planner_ = create_planner(planner_kind, jni_planner_class_path,
-                              planner_config_path);
+    planner_ = create_planner(planner_kind, planner_config_path);
 
     query_processor_ = std::make_shared<QueryProcessor>(
         db_, max_num_threads, mode_ == DBMode::READ_ONLY);
@@ -130,26 +125,8 @@ class NeugDB {
 
  private:
   std::shared_ptr<IGraphPlanner> create_planner(
-      const std::string& planner_kind,
-      const std::string& jni_planner_class_path,
-      const std::string& planner_config_path) {
-    if (planner_kind == "jni") {
-#ifdef BUILD_JNI_PLANNER
-      static std::shared_ptr<IGraphPlanner> jni_planner;
-      if (jni_planner) {
-        VLOG(10) << "Using existing JNI Graph Planner.";
-      } else {
-        VLOG(10) << "Creating new JNI Graph Planner with class path: "
-                 << jni_planner_class_path;
-        jni_planner = std::make_shared<JavaGraphPlanner>(
-            planner_config_path, jni_planner_class_path);
-      }
-      return jni_planner;
-#else
-      throw std::runtime_error(
-          "JNI planner is not built. Please build with BUILD_JNI_PLANNER=ON.");
-#endif  // BUILD_JNI_PLANNER
-    } else if (planner_kind == "dummy") {
+      const std::string& planner_kind, const std::string& planner_config_path) {
+    if (planner_kind == "dummy") {
       return std::make_shared<DummyGraphPlanner>();
     } else if (planner_kind == "gopt") {
       // Gopt planner is the default planner, so we don't need to create it.

@@ -115,6 +115,12 @@ jobs:
         GLOG_v=10 ./build/neug_py_bind/src/bin/bulk_loader -g ../../example_dataset/ldbc/graph.yaml -l ../../example_dataset/ldbc/import.yaml -d /tmp/ldbc/
         export FLEX_DATA_DIR=${GITHUB_WORKSPACE}/example_dataset/tinysnb
         GLOG_v=10 ./build/neug_py_bind/src/bin/bulk_loader -g ../../example_dataset/tinysnb/graph.yaml -l ../../example_dataset/tinysnb/import.yaml -d /tmp/tinysnb
+    
+    - name: Run C++ Test
+      run: |
+        cd ${GITHUB_WORKSPACE}/tools/python_bind/
+        export FLEX_DATA_DIR=${GITHUB_WORKSPACE}/example_dataset/modern_graph
+        GLOG_v=10 ./build/neug_py_bind/tests/rt_mutable_graph/test_open_graph /tmp/test_open_graph ${FLEX_DATA_DIR}
 
     - name: Run Python Test
       run: |
