@@ -183,6 +183,15 @@ jobs:
         # We will add more tests for each cypher operator in e2e/queries directory when they are ready.
         ./scripts/run_embed_test.sh tinysnb /tmp/tinysnb basic_test,projection,filter,order_by,expr,acc,agg
 
+    - name: Build CLI tool
+      run: |
+        cd ${GITHUB_WORKSPACE}/tools/shell/
+        pip3 install .
 
-
-
+    - name: Test CLI tool
+      run: |
+        cd ${GITHUB_WORKSPACE}/tools/shell/tests/
+        # test ngcli commands
+        python3 -m pytest -sv test_ngcli_commands.py
+        # test ngcli shell
+        python3 -m pytest -sv test_ngcli_basics.py
