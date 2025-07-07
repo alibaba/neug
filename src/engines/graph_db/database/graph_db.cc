@@ -296,7 +296,6 @@ void GraphDB::Close() {
   version_manager_.clear();
   if (contexts_ != nullptr) {
     for (int i = 0; i < thread_num_; ++i) {
-      LOG(INFO) << "Destroying session local context for thread: " << i;
       contexts_[i].~SessionLocalContext();
     }
     free(contexts_);
@@ -501,7 +500,7 @@ void GraphDB::openWalAndCreateContexts(const GraphDBConfig& config,
   // Open the wal writer.
   std::string wal_uri = config.wal_uri;
   if (wal_uri.empty()) {
-    LOG(ERROR) << "wal_uri is not set, use default wal_uri";
+    LOG(INFO) << "wal_uri is not set, use default wal_uri";
     wal_uri = wal_dir(data_dir);
   } else if (wal_uri.find("{GRAPH_DATA_DIR}") != std::string::npos) {
     LOG(INFO) << "Template {GRAPH_DATA_DIR} found in wal_uri, replace it with "

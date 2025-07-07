@@ -14,8 +14,10 @@
  */
 
 #include <pybind11/pybind11.h>
+#include <iostream>
 #include <string>
 
+#include <glog/logging.h>
 #include "py_connection.h"
 #include "py_database.h"
 #include "py_query_result.h"
@@ -25,6 +27,29 @@
 #define MACRO_STRINGIFY(x) STRINGIFY(x)
 
 namespace py = pybind11;
+
+namespace gs {
+void setup_logging() {
+  google::InitGoogleLogging("neug");
+  const char* debug = std::getenv("DEBUG");
+
+  if (debug) {
+    std::string mode = debug;
+    if (mode == "1" || mode == "true" || mode == "ON") {
+      FLAGS_minloglevel = 0;     // 0 for verbose, 1 for
+      FLAGS_logtostderr = true;  // Log to stderr
+    } else {
+      std::cerr << "Invalid DEBUG value: " << mode
+                << ". Expected '1', 'true', or 'ON'." << std::endl;
+      FLAGS_minloglevel = 2;      // 2 for error, 3 for
+      FLAGS_logtostderr = false;  // Log to file instead of stderr
+    }
+  } else {
+    FLAGS_minloglevel = 2;      // 2 for error, 3 for fatal
+    FLAGS_logtostderr = false;  // Log to file instead of stderr
+  }
+}
+}  // namespace gs
 
 PYBIND11_MODULE(neug_py_bind, m) {
   m.doc() = R"pbdoc(
@@ -45,4 +70,6 @@ PYBIND11_MODULE(neug_py_bind, m) {
 
   // Setup signal handling, for cleaning up resources on exit.
   gs::setup_signal_handler();
+
+  gs::setup_logging();
 }

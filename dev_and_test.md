@@ -132,3 +132,8 @@ python3 -m pytest -m neug_test --db_dir=/tmp/tinysnb --query_dir=neug/tests/e2e/
 ```bash
 python3 -m pytest -m neug_test --db_dir=/tmp/tinysnb --query_dir=neug/tests/e2e/queries/acc --dataset tinysnb --test_names AspIntersect,AspBasic
 ```
+
+
+## log level
+
+When running python test, set environment variable `DEBUG` to `ON`, to display all c++ logs. All c++ logs are suppressed by default. See `setup_logging` method in `neug_bindings.cc`.

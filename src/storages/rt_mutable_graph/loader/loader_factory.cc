@@ -80,7 +80,7 @@ std::shared_ptr<IFragmentLoader> LoaderFactory::CreateFragmentLoader(
 bool LoaderFactory::Register(const std::string& scheme_type,
                              const std::string& format,
                              LoaderFactory::loader_initializer_t initializer) {
-  LOG(INFO) << "Registering loader: " << scheme_type << ", format:" << format;
+  VLOG(1) << "Registering loader: " << scheme_type << ", format:" << format;
   auto& known_loaders_ = getKnownLoaders();
   auto key = scheme_type + format;
   known_loaders_.emplace(key, initializer);

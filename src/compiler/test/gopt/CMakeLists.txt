@@ -17,5 +17,6 @@ target_link_libraries(gopt_test
     PRIVATE
 	neug_gopt
 	neug_plan_proto
+	neug::GTest
     ${Protobuf_LIBRARIES}
 )
