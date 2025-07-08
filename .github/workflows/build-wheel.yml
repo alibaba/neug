@@ -13,6 +13,7 @@ on:
       - 'proto/**'
       - 'third_party/**'
       - 'tools/python_bind/**'
+      - 'tools/shell/**'
       - 'tests/**'
       - '.github/workflows/build-wheel.yml'
   pull_request:
@@ -24,6 +25,7 @@ on:
       - 'proto/**'
       - 'third_party/**'
       - 'tools/python_bind/**'
+      - 'tools/shell/**'
       - 'tests/**'
       - '.github/workflows/build-wheel.yml'
 
@@ -265,3 +267,44 @@ jobs:
           done
           rm -rf ${TMP_DIR}/test_example
           GLOG_v=10 python3 tools/python_bind/example/simple_example.py example_dataset/modern_graph ${TMP_DIR}/test_example
+
+  build_ngcli_wheel:
+    runs-on: [self-hosted]
+    steps:
+      - name: checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python 3.13
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+
+      - name: Build ngcli wheel
+        run: |
+          cd tools/shell
+          python3 -m pip install build
+          python3 -m build
+
+      - uses: actions/upload-artifact@v4
+        if: false
+        with:
+          name: ngcli-wheel-${{ github.sha }}
+          path: tools/shell/dist/ngcli-*.whl
+
+      - name: Publish distribution to PyPI
+        uses: pypa/gh-action-pypi-publish@v1.4.2
+        if: (github.ref == 'refs/heads/main' && github.repository == 'GraphScope/neug') || (github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v') && github.repository == 'GraphScope/neug')
+        with:
+          user: __token__
+          password: ${{ secrets.PYPI_PASSWORD }}
+          packages_dir: tools/shell/dist/
+          verbose: true
+          skip_existing: true # Skip existing wheels to avoid errors if the same wheel is already published, to update the wheel for a specific version, add -{number} to the filename and
+          # update it manually
+
+      - name: Test ngcli wheel install and CLI
+        run: |
+          cd tools/shell/dist
+          NGCLI_WHL=$(ls ngcli-*.whl | head -n 1)
+          python3 -m pip install --force-reinstall $NGCLI_WHL
+          ngcli --help

@@ -16,24 +16,6 @@
 # limitations under the License.
 #
 
-from setuptools import find_packages
 from setuptools import setup
 
-setup(
-    name="ngcli",
-    version="0.1.0",
-    description="NeuG CLI Tool",
-    packages=find_packages(),
-    include_package_data=True,
-    install_requires=[
-        "click>=8.2.1",
-        "tabulate>=0.9.0",
-        "PyYAML>=6.0.2",
-        "neug==0.1.0",
-        "setuptools>=59.6.0",
-    ],
-    entry_points="""
-        [console_scripts]
-        ngcli=ngcli.neug_cli:cli
-    """,
-)
+setup()

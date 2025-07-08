@@ -1,15 +1,20 @@
 # Neug CLI Tool
 
-The `Neug` CLI tool provides an interactive shell for querying and managing Neug database. It supports both local and remote database connections, Cypher query execution, and result formatting.
+The `Neug` CLI tool provides an interactive shell for querying and managing NeuG database. It supports both local and remote database connections, Cypher query execution, and result formatting.
 
 ## Installation
+You can install `ngcli` using pip:
 
-Currently, `ngcli` can be installed from source. Support for installation via `pip install ngcli` will be added soon.
+```bash
+pip install ngcli
+```
+
+Alternatively, to install from source:
 
 ```bash
 git clone https://github.com/GraphScope/neug.git
 cd neug/tools/shell
-pip3 install .
+pip install .
 ```
 
 After installation, you can verify that `ngcli` is installed correctly by running:
