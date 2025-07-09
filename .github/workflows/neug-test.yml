@@ -129,6 +129,12 @@ jobs:
         pip3 install -r requirements_dev.txt
         python3 -m pytest -sv tests/test_batch_loading.py
         python3 -m pytest -sv tests/test_ddl.py
+        export NEUG_DB_DIR=/tmp/tinysnb
+        export NEUG_QUERY='MATCH (n1:person)-[:knows]-(n2:person)-[:knows]-(n3:person), (n1)-[:knows]-(n3) RETURN n1.fName, n2.fName, n3.fName'
+        python3 -m pytest -sv tests/test_query.py
+        export NEUG_DB_DIR=/tmp/modern_graph
+        export NEUG_QUERY='MATCH (n1:person)-[:knows]-(n2:person)-[:knows]-(n3:person), (n1)-[:knows]-(n3) RETURN n1.name, n2.name, n3.name'
+        python3 -m pytest -sv tests/test_query.py
 
 
     - name: Run lsqb test
