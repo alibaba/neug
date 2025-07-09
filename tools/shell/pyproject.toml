@@ -7,7 +7,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "ngcli"
-version = "0.1.0"
+version = "0.1.1"
 description = "GraphScope CLI shell for NeuG"
 authors = [{name="GraphScope Team", email="graphscope@alibaba-inc.com"}]
 readme = "README.md"
