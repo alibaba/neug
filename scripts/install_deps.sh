@@ -149,7 +149,12 @@ init_workspace_and_env() {
   ${SUDO} mkdir -p ${install_prefix} ${tempdir}
   ${SUDO} chown -R $(id -u):$(id -g) ${install_prefix} ${tempdir}
   export PATH=${install_prefix}/bin:${PATH}
-  export LD_LIBRARY_PATH=${LD_LIBRARY_PATH}:${install_prefix}/lib:${install_prefix}/lib64
+  # if LD_LIBRARY_PATH is not set
+  if [[ -z "${LD_LIBRARY_PATH}" ]]; then
+    export LD_LIBRARY_PATH=${install_prefix}/lib:${install_prefix}/lib64
+  else
+    export LD_LIBRARY_PATH=${LD_LIBRARY_PATH}:${install_prefix}/lib:${install_prefix}/lib
+  fi
   #if macos
   if [[ "${OS_PLATFORM}" == *"Darwin"* ]]; then
     export MACOSX_DEPLOYMENT_TARGET=11.0
@@ -525,9 +530,9 @@ write_env_config() {
     echo "export GRAPHSCOPE_HOME=${install_prefix}"
     echo "export CMAKE_PREFIX_PATH=/opt/graphscope/"
     echo "export PATH=${install_prefix}/bin:\$HOME/.local/bin:\$HOME/.cargo/bin:\$PATH"
-    echo "export LD_LIBRARY_PATH=${LD_LIBRARY_PATH}"
-    echo "export LIBRARY_PATH=${install_prefix}/lib:${install_prefix}/lib64"
-    echo "export DYLD_LIBRARY_PATH=${LD_LIBRARY_PATH}"
+    echo "export LD_LIBRARY_PATH=${LD_LIBRARY_PATH}:\${LD_LIBRARY_PATH}"
+    echo "export LIBRARY_PATH=${install_prefix}/lib:${install_prefix}/lib64:\${LIBRARY_PATH}"
+    echo "export DYLD_LIBRARY_PATH=${LD_LIBRARY_PATH}:\${DYLD_LIBRARY_PATH}"
   } >> "${OUTPUT_ENV_FILE}"
   {
     if [[ "${OS_PLATFORM}" == *"CentOS"* || "${OS_PLATFORM}" == *"Aliyun"* ]]; then

@@ -35,3 +35,11 @@ neug-manylinux:
 		--build-arg ARCH=${ARCH} \
 		-t graphscope/neug-manylinux:${ARCH}  \
 		-f ${DOCKERFILES_DIR}/manylinux2014.Dockerfile .
+
+neug-dev:
+	cd .. && \
+	docker build \
+		--build-arg REGISTRY=$(REGISTRY) \
+		--build-arg ARCH=${ARCH} \
+		-t graphscope/neug-dev:${ARCH}  \
+		-f ${DOCKERFILES_DIR}/neug-dev.Dockerfile .

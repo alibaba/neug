@@ -290,6 +290,17 @@ endif()
 
 if (BUILD_PYTHON)
     message("Build python embedded")
+    if(NOT EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/third_party/pybind11/CMakeLists.txt")
+    message(STAUTS "pybind11 not found, running git submodule update --init")
+    execute_process(
+        COMMAND git submodule update --init
+        WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
+        RESULT_VARIABLE result
+    )
+    if(result)
+        message(FATAL_ERROR "Failed to update git submodule: ${result}")
+    endif()
+endif()
     # To build wheel in manylinux docker, we should not link to a specific python library.
     set(PYBIND11_FINDPYTHON OFF)
     add_subdirectory(third_party/pybind11)

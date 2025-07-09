@@ -47,7 +47,7 @@ jobs:
   test-py-neug:
     runs-on: [self-hosted]
     container:
-      image: registry.cn-hongkong.aliyuncs.com/graphscope/graphscope-dev:v0.24.2
+      image: registry.cn-hongkong.aliyuncs.com/graphscope/graphscope-dev:neug
       # options: --user root
     steps:
     - name: checkout

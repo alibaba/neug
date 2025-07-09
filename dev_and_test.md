@@ -137,3 +137,11 @@ python3 -m pytest -m neug_test --db_dir=/tmp/tinysnb --query_dir=neug/tests/e2e/
 ## log level
 
 When running python test, set environment variable `DEBUG` to `ON`, to display all c++ logs. All c++ logs are suppressed by default. See `setup_logging` method in `neug_bindings.cc`.
+
+
+## Dev images
+
+- registry.cn-hongkong.aliyuncs.com/graphscope/graphscope-dev:neug-dev-x86_64: image built upon manylinux_2_28_ for x86_64
+- registry.cn-hongkong.aliyuncs.com/graphscope/graphscope-dev:neug-dev-x86_64: image built upon manylinux_2_28_ for arm64
+- registry.cn-hongkong.aliyuncs.com/graphscope/graphscope-dev:neug-x86_64: dev container built upload ubuntu for x86_64
+- registry.cn-hongkong.aliyuncs.com/graphscope/graphscope-dev:neug-arm64: dev container built upload ubuntu for amr64
