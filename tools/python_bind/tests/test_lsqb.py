@@ -22,6 +22,10 @@ import sys
 import time
 import unittest
 
+from conftest import ensure_result_cnt_eq
+from conftest import ensure_result_cnt_gt_zero
+from conftest import submit_cypher_query
+
 sys.path.append(os.path.join(os.path.dirname(__file__), "../"))
 
 from neug.database import Database
@@ -43,60 +47,59 @@ class TestLsqb(unittest.TestCase):
         pass
 
     def setUp(self):
-        pass
-
-    def tearDown(self):
-        pass
-
-    def test_open_graph(self):
         db_dir = os.environ.get("LSQB_DATA_DIR")
         if db_dir is None:
             raise RuntimeError("LSQB_DATA_DIR environment variable is not set")
-        db = Database(str(db_dir), "r")
-        conn = db.connect()
-        result = conn.execute("MATCH (n:Country) return n limit 10;")
-        assert result is not None
-        for record in result:
-            print("Record:", record)
-        assert len(result) > 0
+        self.db = Database(str(db_dir), "r")
+        self.conn = self.db.connect()
 
-        result = conn.execute(
-            "MATCH (n:Country)<-[:City_isPartOf_Country]-(:City) return count(n);"
+    def tearDown(self):
+        if self.conn:
+            self.conn.close()
+        if self.db:
+            self.db.close()
+
+    def test_queries(self):
+
+        submit_cypher_query(
+            conn=self.conn,
+            query="MATCH (n:Country) return n limit 10;",
+            lambda_func=ensure_result_cnt_gt_zero,
         )
-        assert result is not None
-        for record in result:
-            print("Record:", record)
-        assert len(result) > 0
 
-        result = conn.execute("MATCH (n:Person) WHERE n.id = 772 return n;")
-        assert result is not None
-        res_count = 0
-        for record in result:
-            print("Record:", record)
-            res_count += 1
-        assert res_count == 1, "Expected exactly one record for Person with id 772"
-
-        result = conn.execute(
-            "MATCH (n: Comment)-[e:Comment_hasCreator_Person]->(p:Person) WHERE p.id = 772 return n.id LIMIT 10;"
+        submit_cypher_query(
+            conn=self.conn,
+            query="MATCH (n:Country)<-[:City_isPartOf_Country]-(:City) return count(n);",
+            lambda_func=ensure_result_cnt_gt_zero,
         )
-        assert result is not None
-        res_count = 0
-        for record in result:
-            print("Record:", record)
-            res_count += 1
-        assert res_count > 0, "Expected at least one comment for Person with id 772"
 
-        result = conn.execute(
-            "MATCH (n:Person)-[e:Person_likes_Post]->(p:Post) WHERE n.id = 772 AND p.id <> 206158439468 return n.id LIMIT 10;"
+        submit_cypher_query(
+            conn=self.conn,
+            query="MATCH (n:Person) WHERE n.id = 772 return n;",
+            lambda_func=lambda result: ensure_result_cnt_eq(result, 1),
         )
-        assert result is not None
-        res_count = 0
-        for record in result:
-            print("Record:", record)
-            res_count += 1
-        assert (
-            res_count > 0 and res_count <= 10
-        ), "Expected at least one post liked by Person with id 772"
 
-        conn.close()
-        db.close()
+        submit_cypher_query(
+            conn=self.conn,
+            query="MATCH (n: Comment)-[e:Comment_hasCreator_Person]->(p:Person) WHERE p.id = 772 return n.id LIMIT 10;",
+            lambda_func=ensure_result_cnt_gt_zero,
+        )
+
+        submit_cypher_query(
+            conn=self.conn,
+            query="MATCH (n:Person)-[e:Person_likes_Post]->(p:Post) WHERE n.id = 772 AND p.id <>"
+            "206158439468 return n.id LIMIT 10;",
+            lambda_func=lambda result: ensure_result_cnt_gt_zero(result)
+            and ensure_result_cnt_eq(result, 10),
+        )
+
+        # TODO(xiaoli): plan not correct,
+        # submit_cypher_query(
+        #     conn=self.conn,
+        #     query="" \
+        #     "MATCH (:Country)<-[:City_isPartOf_Country]-(:City)<-[:Person_isLocatedIn_City]" \
+        #     "-(:Person)<-[:Forum_hasMember_Person]-(:Forum)-[:Forum_containerOf_Post]->(:Post)" \
+        #     "<-[Comment_replyOf_Post]-(:Comment)-[:Comment_hasTag_Tag]->(:Tag)-[:Tag_hasType_TagClass]->" \
+        #     "(:TagClass) RETURN count(*) as count;",
+        #     lambda_func=lambda result: ensure_result_cnt_eq(result, 8773828)
+        # )

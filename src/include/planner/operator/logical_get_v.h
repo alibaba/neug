@@ -56,7 +56,7 @@ class LogicalGetV : public LogicalOperator {
 
   std::string getExpressionsForPrinting() const override;
   void computeFlatSchema() override;
-  virtual void computeFactorizedSchema();
+  virtual void computeFactorizedSchema() override;
   std::unique_ptr<LogicalOperator> copy() override;
 
   // Getters

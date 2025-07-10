@@ -55,12 +55,8 @@ class KUZU_API WarningContext {
 
  private:
   std::mutex mtx;
-  main::ClientConfig* clientConfig;
   std::vector<CopyFromFileError> unpopulatedWarnings;
   std::vector<WarningInfo> populatedWarnings;
-  uint64_t queryWarningCount;
-  uint64_t numStoredWarnings;
-  bool ignoreErrorsOption;
 };
 
 }  // namespace processor

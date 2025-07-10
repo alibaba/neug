@@ -78,7 +78,7 @@ class LogicalExtend final : public BaseLogicalExtend {
 
   planner::ExtendOpt getExtendOpt() const { return opt; }
 
-  std::string getExpressionsForPrinting() const {
+  std::string getExpressionsForPrinting() const override {
     auto base = BaseLogicalExtend::getExpressionsForPrinting();
     if (predicates) {
       return base + " WHERE " + predicates->toString();
