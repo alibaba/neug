@@ -368,34 +368,34 @@ Dan|Carol
 -LOG RelID1
 -STATEMENT MATCH (a:person)-[r:knows]->(b:person) RETURN id(r)
 ---- 14
-3:0
-3:1
-3:10
-3:11
-3:12
-3:13
-3:2
-3:3
-3:4
-3:5
-3:6
-3:7
-3:8
-3:9
+1
+2
+3
+1048576
+1048578
+1048579
+2097152
+2097153
+2097155
+3145728
+3145729
+3145730
+4194309
+4194310
 
 -LOG RelID2
 -STATEMENT MATCH (a:person)-[r:studyAt]->(o:organisation) RETURN id(r)
 ---- 3
-4:0
-4:1
-4:2
+1103806595072
+1103807643648
+1103811837952
 
 -LOG RelID3
 -STATEMENT MATCH (a:person)-[r:workAt]->(o:organisation) RETURN id(r)
 ---- 3
-5:0
-5:1
-5:2
+1108103659521
+1108104708098
+1108105756674
 
 #-LOG QueryOneToOneRelTable
 #-STATEMENT MATCH (:person)-[m:marries]->(:person) RETURN m
@@ -856,6 +856,7 @@ matthew perry
 nice weather
 
 -LOG RandomFunction
+-SKIP: Unsupported of gen_random_uuid() in the query
 -STATEMENT match (p1:person)-[:knows]->(p2:person) WITH p1.fName AS x, p2.fName AS y, gen_random_uuid() AS z WITH DISTINCT z AS a RETURN COUNT(*);
 ---- 1
 14

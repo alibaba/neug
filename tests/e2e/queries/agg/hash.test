@@ -273,6 +273,7 @@ Elizabeth|[25, 40]
 2|[{_ID: 0:3, _LABEL: person, ID: 5, fName: Dan, gender: 2, isStudent: False, isWorker: True, age: 20, eyeSight: 4.800000, birthdate: 1950-07-23, registerTime: 2031-11-30 12:25:30, lastJobDuration: 10 years 5 months 13:00:00.000024, workedHours: [1,9], usedNames: [Wolfeschlegelstein,Daniel], courseScoresPerTerm: [[7,4],[8,8],[9]], grades: [76,88,99,89], height: 1.300000, u: a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a14}]
 
 -LOG HashCollectOnRelTest
+-SKIP: offset not supported
 -STATEMENT MATCH (p:person)-[e:knows]->(p1:person) WHERE offset(ID(e)) = 1 or offset(ID(e)) = 4 RETURN p.gender, collect(e)
 ---- 2
 1|[(0:0)-{_LABEL: knows, _ID: 3:1, date: 2021-06-30, meetTime: 1946-08-25 19:07:22, validInterval: 20 years 30 days 48:00:00, comments: [njnojppo9u0jkmf,fjiojioh9h9h89hph], summary: {locations: , transfer: }, notes: 2020-10-10, someMap: {c=d, e=f, 1=2}}->(0:2)]

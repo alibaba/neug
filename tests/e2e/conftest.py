@@ -111,7 +111,6 @@ def pytest_generate_tests(metafunc):
     skip_keywords = [
         "call",
         "p =",
-        "id(",
         "label(",
         "rels(",
         "nodes(",
