@@ -40,7 +40,6 @@ Hubert Blaine Wolfeschlegelsteinhausenbergerdorff|
 {_ID: 0:4, _LABEL: person, ID: 7, fName: Elizabeth, gender: 1, isStudent: False, isWorker: True, age: 20, eyeSight: 4.700000, birthdate: 1980-10-26, registerTime: 1976-12-23 11:21:42, lastJobDuration: 48:24:11, workedHours: [2], usedNames: [Ein], courseScoresPerTerm: [[6],[7],[8]], grades: [96,59,65,88], height: 1.463000, u: a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a15}|2
 
 -LOG SingleNodeAggTest
--SKIP: decimal precision
 -STATEMENT MATCH (a:person) RETURN a.age, MIN(a.ID), AVG(a.eyeSight), COUNT(*)
 ---- 7
 20|5|4.750000|2
@@ -145,7 +144,7 @@ Alice|1
 2|[30, 20, 25, 40, 83]
 
 -LOG HashCollectFloatTest
--SKIP: decimal precision
+-SKIP: result not match, decimal precision in collection
 -STATEMENT MATCH (p:person) RETURN p.height, collect(p.eyeSight)
 ---- 8
 1.731000|[5.000000]

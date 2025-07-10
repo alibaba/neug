@@ -101,7 +101,6 @@ False
 
 
 -LOG OrderByDoubleTest
--SKIP: result no match, decimal precision
 -STATEMENT MATCH (p:person) RETURN p.eyeSight ORDER BY p.eyeSight
 -CHECK_ORDER
 -PARALLELISM 3
@@ -116,7 +115,6 @@ False
 5.100000
 
 -LOG OrderByFloatTest
--SKIP: result no match, decimal precision
 -STATEMENT MATCH (p:person) RETURN p.height ORDER BY p.height
 -CHECK_ORDER
 -PARALLELISM 3

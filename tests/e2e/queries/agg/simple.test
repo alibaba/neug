@@ -11,12 +11,6 @@
 ---- 1
 36|Alice|5|36
 
--LOG SimpleAvgTest
--SKIP: decimal precision
--STATEMENT MATCH (a:person) RETURN AVG(a.age), AVG(a.eyeSight)
----- 1
-37.250000|4.8625
-
 -LOG SimpleAvgFloatTest
 -STATEMENT MATCH (a:person) RETURN AVG(a.height) + 5
 ---- 1
@@ -53,19 +47,18 @@
 False
 
 -LOG SimpleSumTest4
--SKIP: result not match, decimal precision
 -STATEMENT MATCH (a:person) RETURN sum(a.height) + 2.2
 ---- 1
 13.117000
 
 -LOG SimpleAvgTest
--SKIP: decimal precision
+-SKIP: unexpected result, got 37|4.8625, where `37` is not as expected?
 -STATEMENT MATCH (a:person) RETURN AVG(a.age), AVG(a.eyeSight)
 ---- 1
 37.250000|4.862500
 
 -LOG SimpleAvgTest2
--SKIP: result not match, decimal precision
+-SKIP: unexpected result, got 28|4.7, where `28` is not as expected?
 -STATEMENT MATCH (a:person) WHERE a.birthdate = date('1980-10-26') RETURN AVG(a.age), AVG(a.eyeSight)
 ---- 1
 28.333333|4.700000
@@ -189,7 +182,7 @@ False
 ['Alice', 'Bob', 'Carol', 'Dan', 'Elizabeth', 'Farooq', 'Greg', 'Hubert Blaine Wolfeschlegelsteinhausenbergerdorff']
 
 -LOG SimpleCollectFLOATTest
--SKIP: result not match, decimal precision
+-SKIP: result not match, decimal precision in collection
 -STATEMENT MATCH (p:person) RETURN collect(p.height)
 ---- 1
 [1.731000,0.990000,1.000000,1.300000,1.463000,1.510000,1.600000,1.323000]
@@ -246,7 +239,6 @@ False
 00:18:00.024
 
 -LOG SimpleAggMaxFloatTest
--SKIP: result not match decimal precision
 -STATEMENT MATCH (:person)-[w:workAt]->(:organisation) RETURN MAX(w.rating)
 ---- 1
 9.200000
@@ -264,7 +256,7 @@ False
 41
 
 -LOG SimpleAggAvgInt16Test
--SKIP: result not match, decimal precision
+-SKIP: unexpected result, got 999|3|3, where `999` is not as expected?
 -STATEMENT MATCH (m:movies) RETURN AVG(m.length), count(m.audience), count(m.grade)
 ---- 1
 989.333333|3|3
@@ -381,7 +373,6 @@ pure ascii characters
 2410
 
 -LOG AvgInt8Overflow
--SKIP: result not match, decimal precision
 -STATEMENT MATCH (a:person)-[s:studyAt]->(o:organisation) RETURN AVG(3 * s.level)
 ---- 1
 127.000000

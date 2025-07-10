@@ -133,7 +133,6 @@ False
 False
 
 -LOG PersonNodesTestDouble
--SKIP: decimal precision problem.
 -STATEMENT MATCH (a:person) RETURN a.eyeSight
 ---- 8
 5.000000
@@ -418,7 +417,7 @@ Dan|Carol
 
 # TODO: EXECUTION: "code": 05-0103, "message": "Failed to build operator at index 0, op_kind: scan"
 -LOG ReturnArrayRelProp
--SKIP: result not match, decimal precision
+-SKIP: result not match, decimal precision in collection
 -STATEMENT MATCH (a:person)-[e:workAt]->(o:organisation) RETURN e.grading
 ---- 3
 [2.100000,4.400000]
@@ -426,7 +425,6 @@ Dan|Carol
 [9.200000,3.100000]
 
 -LOG ReturnFloatNodeProp
--SKIP: result not match, decimal precision
 -STATEMENT MATCH (a:person) RETURN a.height
 ---- 8
 1.731000
@@ -440,7 +438,6 @@ Dan|Carol
 
 # TODO: EXECUTION: "code": 05-0103, "message": "Failed to build operator at index 0, op_kind: scan"
 -LOG ReturnFloatRelProp
--SKIP: result no match, decimal precision
 -STATEMENT MATCH (a:person)-[e:workAt]->(o:organisation) RETURN e.rating
 ---- 3
 8.200000
@@ -449,7 +446,7 @@ Dan|Carol
 
 # TODO: EXECUTION: "code": 05-0103, "message": "Failed to build operator at index 0, op_kind: scan"
 -LOG ReturnArrayFloatRelProp
--SKIP: result not match, decimal precision
+-SKIP: result not match, decimal precision in collection
 -STATEMENT MATCH (a:person)-[e:meets]->(b:person) RETURN e.location
 ---- 7
 [7.820000,3.540000]
@@ -515,7 +512,7 @@ Dan|Carol
 # {info: {name: smith, gender: , hobby: [,footBall]}, height: 1.800000, age: }
 
 -LOG ReturnStruct
--SKIP: result not match, decimal precision
+-SKIP: result not match, struct
 -STATEMENT MATCH (m:movies) RETURN m.description
 ---- 3
 {rating: 1223.000000, stars: 100, views: 10003, release: 2011-02-11 16:44:22, release_ns: 2011-02-11 16:44:22.123456, release_ms: 2011-02-11 16:44:22.123, release_sec: 2011-02-11 16:44:22, release_tz: 2011-02-11 16:44:22.123456+00, film: 2013-02-22, u8: 1, u16: 15, u32: 200, u64: 4, hugedata: -15}
