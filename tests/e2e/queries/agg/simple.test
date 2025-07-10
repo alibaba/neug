@@ -11,6 +11,11 @@
 ---- 1
 36|Alice|5|36
 
+-LOG SimpleAvgTest
+-STATEMENT MATCH (a:person) RETURN AVG(a.age), AVG(a.eyeSight)
+---- 1
+37.250000|4.8625
+
 -LOG SimpleAvgFloatTest
 -STATEMENT MATCH (a:person) RETURN AVG(a.height) + 5
 ---- 1
@@ -52,13 +57,11 @@ False
 13.117000
 
 -LOG SimpleAvgTest
--SKIP: unexpected result, got 37|4.8625, where `37` is not as expected?
 -STATEMENT MATCH (a:person) RETURN AVG(a.age), AVG(a.eyeSight)
 ---- 1
 37.250000|4.862500
 
 -LOG SimpleAvgTest2
--SKIP: unexpected result, got 28|4.7, where `28` is not as expected?
 -STATEMENT MATCH (a:person) WHERE a.birthdate = date('1980-10-26') RETURN AVG(a.age), AVG(a.eyeSight)
 ---- 1
 28.333333|4.700000
@@ -256,7 +259,6 @@ False
 41
 
 -LOG SimpleAggAvgInt16Test
--SKIP: unexpected result, got 999|3|3, where `999` is not as expected?
 -STATEMENT MATCH (m:movies) RETURN AVG(m.length), count(m.audience), count(m.grade)
 ---- 1
 989.333333|3|3

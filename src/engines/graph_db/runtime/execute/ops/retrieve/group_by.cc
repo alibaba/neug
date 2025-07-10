@@ -704,18 +704,20 @@ struct AvgReducer<
     EXPR, IS_OPTIONAL,
     std::enable_if_t<std::is_arithmetic<typename EXPR::V>::value>> {
   EXPR expr;
-  using V = typename EXPR::V;
+  using V = double;
   AvgReducer(EXPR&& expr) : expr(std::move(expr)) {}
-  bool operator()(const std::vector<size_t>& group, V& avg) const {
+
+  bool operator()(const std::vector<size_t>& group, double& avg) const {
+    // The result of avg is always a double, even if the input is integer.
     if constexpr (!IS_OPTIONAL) {
-      avg = 0;
+      avg = 0.0;
       for (auto idx : group) {
         avg += expr(idx);
       }
       avg = avg / group.size();
       return true;
     } else {
-      avg = 0;
+      avg = 0.0;
       size_t count = 0;
       for (auto idx : group) {
         auto v = expr(idx);
@@ -854,7 +856,7 @@ std::unique_ptr<ReducerBase> _make_reducer(const Context& ctx, EXPR&& expr,
   case AggrKind::kAvg: {
     if constexpr (std::is_arithmetic<typename EXPR::V>::value) {
       AvgReducer<EXPR, IS_OPTIONAL> r(std::move(expr));
-      SingleValueCollector<typename EXPR::V> collector;
+      SingleValueCollector<typename AvgReducer<EXPR, IS_OPTIONAL>::V> collector;
       return std::make_unique<Reducer<decltype(r), decltype(collector)>>(
           std::move(r), std::move(collector), alias);
     } else {
