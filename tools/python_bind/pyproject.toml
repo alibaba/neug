@@ -8,9 +8,6 @@ requires = [
     "pybind11>=2.9.2",
     "packaging>=24.2",
     "protobuf>=4",
-    "grpcio>=1.49",
-    "grpcio-tools>=1.49",
-    "mypy-protobuf>=3.4.0"
 ]
 build-backend = "setuptools.build_meta"
 
@@ -41,11 +38,12 @@ build = "cp38-* cp39-* cp310-* cp311-* cp312-* cp313-*"
 skip = ["*-musllinux_*", "*i686*"]
 environment = {MACOSX_DEPLOYMENT_TARGET="11.0", CMAKE_PREFIX_PATH="/opt/graphscope/"}
 environment-pass = ["BUILD_TYPE", "CMAKE_BUILD_PARALLEL_LEVEL", "CMAKE_PREFIX_PATH", "MACOSX_DEPLOYMENT_TARGET"]
-manylinux-x86_64-image = "registry.cn-hongkong.aliyuncs.com/graphscope/graphscope-dev:neug-dev-x86_64"
-manylinux-aarch64-image = "registry.cn-hongkong.aliyuncs.com/graphscope/graphscope-dev:neug-dev-arm64"
+manylinux-x86_64-image = "registry.cn-hongkong.aliyuncs.com/graphscope/graphscope-dev:neug-manylinux-brpc-x86_64"
+manylinux-aarch64-image = "registry.cn-hongkong.aliyuncs.com/graphscope/graphscope-dev:neug-manylinux-brpc-arm64"
 
 [tool.cibuildwheel.linux]
-before-all = ["git submodule update --init", "source /root/.graphscope_env"]
+before-all = ["git submodule update --init"]
+before-build = [". /root/.graphscope_env"]
 
 [tool.cibuildwheel.macos]
 before-all = ["git submodule update --init"]

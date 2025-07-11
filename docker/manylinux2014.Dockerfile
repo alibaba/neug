@@ -1,6 +1,6 @@
 ARG ARCH=x86_64
 ARG REGISTRY=registry.cn-hongkong.aliyuncs.com
-FROM quay.io/pypa/manylinux_2_28_$ARCH:latest AS builder
+FROM quay.io/pypa/manylinux2014_$ARCH:latest AS builder
 # Got issue with manylinux2014: https://github.com/grpc/grpc/issues/30218, upgrade to manylinux_2_28
 
 ENV DEBIAN_FRONTEND=noninteractive
@@ -22,10 +22,8 @@ RUN mkdir /opt/graphscope /opt/vineyard && chown -R graphscope:graphscope /opt/g
 # For output logs
 RUN mkdir -p /var/log/graphscope && chown -R graphscope:graphscope /var/log/graphscope
 
-COPY . /root/neug
-RUN cd /root/neug && bash scripts/install_deps.sh && \
-    cd /root && rm -rf /root/neug && \
-    source ~/.graphscope_env
+COPY scripts/install_deps.sh /root/install_deps.sh
+RUN cd /root/ && bash install_deps.sh
 
 # change bash as default
 SHELL ["/bin/bash", "-c"]

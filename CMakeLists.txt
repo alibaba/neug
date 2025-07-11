@@ -352,6 +352,7 @@ if (NOT CMAKE_CXX_COMPILER_ID MATCHES "Clang")
 endif ()
 
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wall -fPIC -Wno-psabi")
+set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -fPIC")
 check_cxx_compiler_flag("-std=c++20" COMPILER_SUPPORTS_CXX20)
 if (NOT COMPILER_SUPPORTS_CXX20)
     check_cxx_compiler_flag("-std=c++2a" COMPILER_SUPPORTS_CXX2A)

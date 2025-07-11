@@ -36,6 +36,17 @@ neug-manylinux:
 		-t graphscope/neug-manylinux:${ARCH}  \
 		-f ${DOCKERFILES_DIR}/manylinux2014.Dockerfile .
 
+neug-manylinux-brpc:
+	cd .. && \
+	docker build \
+		--progress=plain \
+		--no-cache \
+		--build-arg REGISTRY=$(REGISTRY) \
+		--build-arg PLATFORM=${PLATFORM} \
+		--build-arg ARCH=${ARCH} \
+		-t graphscope/neug-manylinux-brpc:${ARCH}  \
+		-f ${DOCKERFILES_DIR}/manylinux2014-brpc.Dockerfile .
+
 neug-dev:
 	cd .. && \
 	docker build \

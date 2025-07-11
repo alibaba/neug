@@ -241,19 +241,21 @@ class BuildProto(Command):
         if proto_files is None:
             proto_files = glob.glob(os.path.join(proto_path, "*.proto"))
         os.makedirs(output_dir, exist_ok=True)
+        # find protoc executable
+        protoc_executable = shutil.which("protoc")
+        if protoc_executable is None:
+            # trying /opt/graphscope/bin/protoc
+            protoc_executable = "/opt/graphscope/bin/protoc"
         for proto_file in proto_files:
             if not os.path.exists(proto_file):
                 proto_file = os.path.join(proto_path, proto_file)
             cmd = [
-                sys.executable,
-                "-m",
-                "grpc_tools.protoc",
-                "-I",
-                proto_path,
+                protoc_executable,
+                f"--proto_path={proto_path}",
                 f"--python_out={output_dir}",
-                f"--mypy_out={output_dir}",
                 proto_file,
             ]
+            print(f"Running command: {' '.join(cmd)}")
             subprocess.check_call(
                 cmd,
                 stderr=subprocess.STDOUT,

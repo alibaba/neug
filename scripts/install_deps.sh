@@ -102,6 +102,7 @@ readonly tempdir="/tmp/gs-local-deps"
 cn_flag=false
 debug_flag=false
 install_prefix="/opt/graphscope"
+install_brpc=false
 
 # parse args
 while (( "$#" )); do
@@ -116,6 +117,10 @@ while (( "$#" )); do
       ;;
     --debug)
       debug_flag=true
+      shift
+      ;;
+    --brpc)
+      install_brpc=true
       shift
       ;;
     *)
@@ -456,6 +461,67 @@ install_abseil() {
   rm -rf "${tempdir:?}/${directory:?}" "${tempdir:?}/${file:?}"
 }
 
+install_rapidjson() {
+  if [[ -f "${install_prefix}/include/rapidjson/document.h" ]]; then
+    return 0
+  fi
+  pushd "${tempdir}" || exit
+  git clone https://github.com/Tencent/rapidjson.git -b master --single-branch
+  pushd rapidjson || exit
+  git checkout 24b5e7a8b27f42fa16b96fc70aade9106cf7102f
+  mkdir -p build && cd build
+  git submodule update --init
+  cmake .. -DRAPIDJSON_BUILD_TESTS=OFF -DRAPIDJSON_BUILD_DOC=OFF -DRAPIDJSON_BUILD_EXAMPLES=OFF \
+          -DCMAKE_INSTALL_PREFIX="${install_prefix}" -DCMAKE_BUILD_TYPE=Release \
+          -DRAPIDJSON_ENABLE_INSTRUMENTATION_OPT=OFF
+  make -j$(nproc)
+  make install
+  popd || exit
+  popd || exit
+  rm -rf "${tempdir:?}/rapidjson"
+}
+
+install_leveldb() {
+  if [[ -f "${install_prefix}/include/leveldb/db.h" ]]; then
+    return 0
+  fi
+  pushd "${tempdir}" || exit
+  git clone https://github.com/google/leveldb.git -b 1.23 --single-branch
+  pushd leveldb || exit
+  git submodule update --init
+  mkdir -p build && cd build
+  cmake .. -DCMAKE_INSTALL_PREFIX="${install_prefix}" \
+          -DCMAKE_BUILD_TYPE=Release -DLEVELDB_BUILD_TESTS=OFF \
+	  -DLEVELDB_BUILD_BENCHMARKS=OFF -DCMAKE_CXX_FLAGS="-fPIC"
+  make -j$(nproc)
+  make install
+  popd || exit
+  popd || exit
+  rm -rf "${tempdir:?}/leveldb"
+}
+
+install_openssl() {
+  if [[ -f "${install_prefix}/include/openssl/ssl.h" ]]; then
+    info "openssl already installed, skip."
+    return 0
+  fi
+
+  directory="openssl-OpenSSL_1_1_1k"
+  file="OpenSSL_1_1_1k.tar.gz"
+  url="https://github.com/openssl/openssl/archive/refs/tags"
+  pushd "${tempdir}" || exit
+  download_and_untar "${url}" "${file}" "${directory}"
+  pushd ${directory} || exit
+
+  ./config --prefix="${install_prefix}" no-shared -fPIC 
+  make -j$(nproc)
+  make install
+  popd || exit
+  popd || exit
+  rm -rf "${tempdir:?}/${directory:?}" "${tempdir:?}/${file:?}"
+  export OPENSSL_ROOT_DIR="${install_prefix}"
+}
+
 install_brpc() {
   if [[ -f "${install_prefix}/include/brpc/channel.h" ]]; then
     return 0
@@ -477,8 +543,9 @@ install_brpc() {
     fi
   fi
 
-  mkdir build && cd build && cmake .. -DWITH_DEBUG_SYMBOLS=OFF -DWITH_GLOG=ON -DCMAKE_INSTALL_PREFIX="${install_prefix}" -DBUILD_SHARED_LIBS=ON -DCMAKE_POLICY_VERSION_MINIMUM=3.5
+  mkdir build && cd build && cmake .. -DWITH_DEBUG_SYMBOLS=OFF -DWITH_GLOG=OFF -DCMAKE_INSTALL_PREFIX="${install_prefix}" -DBUILD_SHARED_LIBS=OFF -DCMAKE_POLICY_VERSION_MINIMUM=3.5 -DOPENSSL_ROOT_DIR="{install_prefix}"
   make -j$(nproc)
+  info "building brpc complete"
   make install
   popd || exit
   popd || exit
@@ -487,12 +554,13 @@ install_brpc() {
 
 INTERACTIVE_MACOS=("rapidjson" "xsimd")
 INTERACTIVE_UBUNTU=("rapidjson-dev" "libgoogle-glog-dev" "libgflags-dev" "libyaml-cpp-dev" "libprotobuf-dev" "libssl-dev" "libprotoc-dev" "libgflags-dev" "libleveldb-dev") # levedb for brpc
-INTERACTIVE_CENTOS=("rapidjson-devel" "glog-devel" "openssl-devel" "leveldb-devel")
 
 install_neug_dependencies() {
   # dependencies package
   if [[ "${OS_PLATFORM}" == *"Darwin"* ]]; then
     brew install ${INTERACTIVE_MACOS[*]}
+    install_openssl
+    install_rapidjson # We need to install rapidjson from source, since the latest release available has issue https://github.com/Tencent/rapidjson/issues/2277
     install_abseil
     install_gflags
     install_glog
@@ -500,26 +568,38 @@ install_neug_dependencies() {
     install_boost
     install_yaml_cpp
     install_protobuf
-    install_brpc
+    if [[ "${install_brpc}" == true ]]; then
+      install_leveldb
+      install_brpc
+    fi
     # install_mimalloc
   elif [[ "${OS_PLATFORM}" == *"Ubuntu"* ]]; then
     DEBIAN_FRONTEND=noninteractive TZ=Etc/UTC ${SUDO} apt-get install -y ${INTERACTIVE_UBUNTU[*]}
     install_arrow
     install_boost
-    install_brpc
+    if [[ "${install_brpc}" == true ]]; then
+      install_brpc
+    fi
     # hiactor is only supported on ubuntu
     # install_mimalloc
     ${SUDO} sh -c 'echo "fs.aio-max-nr = 1048576" >> /etc/sysctl.conf'
     ${SUDO} sysctl -p /etc/sysctl.conf
   else
-    ${SUDO} yum install -y ${INTERACTIVE_CENTOS[*]}
-    install_arrow
+    export LD_LIBRARY_PATH=${LD_LIBRARY_PATH}:/lib/:/lib64${install_prefix}/lib:${install_prefix}/lib64
+    source /opt/rh/devtoolset-10/enable
+    install_rapidjson # We need to install rapidjson from source, since the latest release available has issue https://github.com/Tencent/rapidjson/issues/2277
+    install_protobuf
+    install_openssl
+    install_gflags
+    install_glog
     install_boost
+    install_arrow
     # install_mimalloc
     install_yaml_cpp
-    install_protobuf
-    install_gflags
-    install_brpc
+    if [[ "${install_brpc}" == true ]]; then
+      install_leveldb
+      install_brpc
+    fi
   fi
 }
 
@@ -537,9 +617,10 @@ write_env_config() {
   {
     if [[ "${OS_PLATFORM}" == *"CentOS"* || "${OS_PLATFORM}" == *"Aliyun"* ]]; then
       if [[ "${OS_VERSION}" -eq "7" ]]; then
-        echo "source /opt/rh/devtoolset-8/enable"
+        echo "source /opt/rh/devtoolset-10/enable"
         echo "source /opt/rh/rh-python38/enable"
       fi
+      echo "export OPENSSL_ROOT_DIR=${install_prefix}"
     fi
   } >> "${OUTPUT_ENV_FILE}"
 }
