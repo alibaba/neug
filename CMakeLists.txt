@@ -28,7 +28,6 @@ else()
     message(FATAL_ERROR "Invalid HTTP_SERVER_TYPE: ${HTTP_SERVER_TYPE}. Supported values are 'hiactor' or 'brpc'.")
 endif()
 
-option(BUILD_METADATA "Whether to build metadata" OFF)
 # Options to control the building of tools
 option(BUILD_PYTHON "Whether to build python embedded" ON)
 option(BUILD_COMPILER "Whether to build compiler" ON)
@@ -76,9 +75,6 @@ add_definitions(-DNEUG_CMAKE_VERSION="${CMAKE_PROJECT_VERSION}")
 add_definitions(-DNEUG_EXTENSION_VERSION="0.9.0")
 include(CheckCXXCompilerFlag)
 
-if (BUILD_HTTP_SERVER AND NOT BUILD_METADATA)
-    message(FATAL_ERROR "BUILD_HTTP_SERVER requires BUILD_METADATA to be ON")
-endif()
 if (BUILD_HTTP_SERVER)
     add_compile_definitions(BUILD_HTTP_SERVER)
 endif()

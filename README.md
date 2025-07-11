@@ -59,7 +59,7 @@ TODO: Currently we use the old interactive_server to provide TP service, in the 
 
 ```bash
 mkdir build && cd build
-cmake .. -DBUILD_EXECUTABLES=ON -DBUILD_HTTP_SERVER=ON -DCMAKE_BUILD_TYPE=DEBUG -DBUILD_METADATA=ON
+cmake .. -DBUILD_EXECUTABLES=ON -DBUILD_HTTP_SERVER=ON -DCMAKE_BUILD_TYPE=DEBUG
 make -j
 ```
 

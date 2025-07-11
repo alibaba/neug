@@ -138,7 +138,6 @@ class CMakeBuild(build_ext):
         ]
         if build_http_server == "ON":
             cmake_args += [
-                "-DBUILD_METADATA=ON",
                 f"-DHTTP_SERVER_TYPE={http_server_type}",
             ]
         if use_ninja:

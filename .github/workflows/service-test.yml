@@ -48,7 +48,7 @@ jobs:
         cd ${GITHUB_WORKSPACE}
         mkdir build && cd build
         cmake .. -DCMAKE_INSTALL_PREFIX=/opt/graphscope -DCMAKE_BUILD_TYPE=DEBUG \
-             -DBUILD_EXECUTABLES=ON -DBUILD_HTTP_SERVER=ON -DBUILD_PYTHON=OFF -DBUILD_METADATA=ON
+             -DBUILD_EXECUTABLES=ON -DBUILD_HTTP_SERVER=ON -DBUILD_PYTHON=OFF
         make -j$(nproc)
     
     - name: Prepare test data
