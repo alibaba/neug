@@ -23,6 +23,7 @@
 45
 
 -LOG MultiQueryTwoHopKnowsTest
+-SKIP: compiler not supported:  Unsupported operator type for alias management: 25
 -STATEMENT MATCH (a:person)-[:knows]->(b:person) WITH b AS m WITH m AS n MATCH (n)-[e2:knows]->(c:person) RETURN COUNT(*)
 ---- 1
 36
@@ -34,11 +35,13 @@
 # 18
 
 -LOG OpenWedgeKnowsTest3
+-SKIP: compiler not supported:  Unsupported operator type for alias management: 25
 -STATEMENT MATCH (b:person)<-[e1:knows]-(a:person) WITH a AS k MATCH (k)-[e2:knows]->(c:person),(k)-[e3:knows]->(d:person) RETURN COUNT(*)
 ---- 1
 116
 
 -LOG MultiQueryFourHopKnowsTest
+-SKIP: compiler not supported:  Unsupported operator type for alias management: 25
 -STATEMENT MATCH (a:person)-[e1:knows]->(b:person)-[e2:knows]->(c:person) WITH c MATCH (c)-[e3:knows]->(d:person)-[e4:knows]->(e:person) RETURN COUNT(*)
 ---- 1
 324

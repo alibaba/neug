@@ -193,7 +193,7 @@ jobs:
         # 2. tests running on tinysnb
         # TODO: Currently, we only include a few basic tests for cypher queries on tinysnb.
         # We will add more tests for each cypher operator in e2e/queries directory when they are ready.
-        ./scripts/run_embed_test.sh tinysnb /tmp/tinysnb basic_test,projection,filter,order_by,expr,acc,agg
+        ./scripts/run_embed_test.sh tinysnb /tmp/tinysnb basic_test,projection,filter,order_by,expr,acc,agg,match
 
     - name: Run E2E LSQB Test
       run: |

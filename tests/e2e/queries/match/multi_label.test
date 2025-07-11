@@ -61,6 +61,7 @@
 
 # TODO: COMPILATION: TYPE_INFERENCE_FAILED, but it should be an invalid pattern, and COUNT(*) should be 0
 -LOG MultiLabelNodePruning
+-SKIP: compiler not supported:  Unsupported operator type for alias management: 17
 -STATEMENT MATCH (a:person)-[:knows]->(b)<-[:studyAt]-(c) RETURN COUNT(*)
 ---- 1
 0

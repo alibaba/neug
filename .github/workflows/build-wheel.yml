@@ -41,6 +41,10 @@ jobs:
         id: checkout
         uses: actions/checkout@v4
 
+      - name: Clean the tool directory for self-hosted runner
+        run: |
+          rm -rf /__w/_tool/Python
+
       - name: Setup Python 3.13
         uses: actions/setup-python@v5
         with:
