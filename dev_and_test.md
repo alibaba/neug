@@ -50,9 +50,9 @@ cd tools/python_bind
 python3 -m pytest -s tests/test_query.py
 ```
 
-### More End-to-End Cypher Tests
+### End-to-End Cypher Tests
 
-A comprehensive set of end-to-end Cypher tests is available in the `neug/tests/e2e/queries` directory, primarily using the `tinysnb` dataset.
+A comprehensive set of end-to-end Cypher tests is available in the `neug/tests/e2e/queries` directory. The following instructions use the `tinysnb` dataset as an example to demonstrate how to run these tests.
 
 #### 1. Load the tinysnb Graph
 
@@ -63,18 +63,20 @@ export FLEX_DATA_DIR="../example_dataset/tinysnb"
 
 #### 2. Run the Tests
 
+To run all end-to-end Cypher tests for the `tinysnb` dataset:
+
 ```bash
-export LSQB_DATA_DIR=/tmp/lsqb
-# Run all test cases in neug/tests/e2e/queries
 cd neug/tests/e2e
-./scripts/run_tinysnb_test.sh
+./scripts/run_embed_test.sh tinysnb /tmp/tinysnb ""
 ```
+This command executes all test cases in `neug/tests/e2e/queries` using the `tinysnb` dataset located at `/tmp/tinysnb`.
 
-Or, to run tests for a specific operator (for example, `filter`), use the operator's subdirectory name under `neug/tests/e2e/queries` as an argument:
+To run tests for a specific operator (for example, `filter`), specify the operator's subdirectory as the third argument:
 
 ```bash
-./scripts/run_tinysnb_test.sh filter
+./scripts/run_tinysnb_test.sh tinysnb /tmp/tinysnb "filter"
 ```
+This will only run tests in `neug/tests/e2e/queries/filter`.
 
 #### 3. View the Test Report
 
@@ -131,6 +133,40 @@ python3 -m pytest -m neug_test --db_dir=/tmp/tinysnb --query_dir=neug/tests/e2e/
 * To run only specific test cases, such as `AspIntersect` and `AspBasic`:
 ```bash
 python3 -m pytest -m neug_test --db_dir=/tmp/tinysnb --query_dir=neug/tests/e2e/queries/acc --dataset tinysnb --test_names AspIntersect,AspBasic
+```
+
+### End-to-End Cypher Benchmark
+
+In addition to E2E Cypher tests, this framework also supports benchmarking. The following example demonstrates how to benchmark using the `lsqb` dataset.
+
+#### 1. Load the lsqb Graph
+
+```bash
+export FLEX_DATA_DIR="../example_dataset/lsqb"
+./src/bin/bulk_loader -g ../example_dataset/lsqb/graph.yaml -l ../example_dataset/lsqb/import.yaml -d /tmp/lsqb
+```
+
+#### 2. Run the Benchmarks
+
+To run end-to-end LSQB benchmarks for the `lsqb` dataset:
+
+```bash
+cd neug/tests/e2e
+python3 -m pytest -m neug_benchmark --db_dir=/tmp/lsqb/ --query_dir=./queries/lsqb/ --dataset lsqb --read_only --benchmark-save=benchmark-lsqb
+```
+
+This command benchmarks all tests in `./queries/lsqb` using the `lsqb` dataset at `/tmp/lsqb` in read-only mode. The benchmark report is saved as `0001_benchmark-lsqb.json` by default.
+
+#### 3. Custom Benchmark Options
+
+Benchmarking uses the same framework and options as the E2E tests, with additional options for controlling benchmark runs:
+
+```
+Custom options:
+  --iterations=ITERATIONS      Number of iterations for each benchmark
+  --rounds=ROUNDS             Number of rounds for each benchmark
+  --warmup_rounds=WARMUP_ROUNDS
+                              Number of warmup rounds for each benchmark
 ```
 
 
