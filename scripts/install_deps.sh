@@ -546,7 +546,7 @@ install_brpc() {
   # see https://github.com/apache/brpc/pull/2727
   sed -i '36i add_definitions(-DNO_PTHREAD_MUTEX_HOOK)' CMakeLists.txt
 
-  mkdir build && cd build && cmake .. -DWITH_DEBUG_SYMBOLS=OFF -DWITH_GLOG=OFF -DCMAKE_INSTALL_PREFIX="${install_prefix}" -DBUILD_SHARED_LIBS=OFF -DCMAKE_POLICY_VERSION_MINIMUM=3.5 -DOPENSSL_ROOT_DIR="{install_prefix}"
+  mkdir build && cd build && cmake .. -DWITH_DEBUG_SYMBOLS=OFF -DWITH_GLOG=ON -DCMAKE_INSTALL_PREFIX="${install_prefix}" -DBUILD_SHARED_LIBS=OFF -DCMAKE_POLICY_VERSION_MINIMUM=3.5 -DOPENSSL_ROOT_DIR="{install_prefix}"
   make -j$(nproc)
   info "building brpc complete"
   make install

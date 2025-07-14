@@ -78,6 +78,9 @@ YAML::Node property_type_to_yaml(const PropertyType& type) {
   case impl::PropertyTypeImpl::kInterval:
     node["temporal"] = config_parsing::TemporalTypeToYAML(type);
     break;
+  case impl::PropertyTypeImpl::kTimestamp:
+    node["temporal"] = config_parsing::TemporalTypeToYAML(type);
+    break;
   default:
     LOG(FATAL) << "Unsupported property type: " << type.type_enum;
   }

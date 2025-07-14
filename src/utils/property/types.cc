@@ -846,21 +846,22 @@ std::string Interval::to_string() const {
   // Convert to a string representation, YYYY-MM-DD HH:MM:SS.zzz
   std::ostringstream oss;
 
-  auto lambda_func = [&](int64_t value, const std::string& unit) {
+  auto lambda_func = [&](int64_t value, const std::string& unit,
+                         const std::string& plural_unit) {
     if (value > 0) {
       if (!oss.str().empty()) {
         oss << " ";
       }
-      oss << std::abs(value) << " " << unit;
+      oss << value << " " << (value == 1 ? unit : plural_unit);
     }
   };
-  lambda_func(year(), "years");
-  lambda_func(month(), "months");
-  lambda_func(day(), "days");
-  lambda_func(hour(), "hours");
-  lambda_func(minute(), "minutes");
-  lambda_func(second(), "seconds");
-  lambda_func(millisecond(), "milliseconds");
+  lambda_func(year(), "year", "years");
+  lambda_func(month(), "month", "months");
+  lambda_func(day(), "day", "days");
+  lambda_func(hour(), "hour", "hours");
+  lambda_func(minute(), "minute", "minutes");
+  lambda_func(second(), "second", "seconds");
+  lambda_func(millisecond(), "millisecond", "milliseconds");
   if (negative) {
     // prepend
     auto neg_str = oss.str();

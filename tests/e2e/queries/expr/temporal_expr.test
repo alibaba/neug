@@ -70,4 +70,4 @@
 -LOG TestDateMinusDate
 -STATEMENT MATCH(n: person) WHERE n.ID = 0 RETURN n.birthdate - date('1899-01-01')
 ---- 1
-1 years
+1 year

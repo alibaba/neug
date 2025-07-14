@@ -146,9 +146,6 @@ def test_insert_type_check(tmp_path):
 
 
 # DB-003-03
-@pytest.mark.skip(
-    reason="unexpected result of interval(), the returned value is '-1 year 2 days'"
-)
 def test_return_expression():
     db_dir = "/tmp/modern_graph"
     db = Database(db_path=str(db_dir), mode="w", planner="gopt")
@@ -291,7 +288,6 @@ def test_create_duplicated_rel_table_between_same_vertex_tables(tmp_path):
 
 
 # DB-003-06 DDL-ALTER TABLE
-@pytest.mark.skip(reason="success in commit 2e71a77, but failed after commit 92b3d80")
 def test_alter_vertex_table(tmp_path):
     db_dir = tmp_path / "alter_table"
     db_dir.mkdir()

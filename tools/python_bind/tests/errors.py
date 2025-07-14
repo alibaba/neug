@@ -67,7 +67,7 @@ ERROR_STRINGS = {
     ERR_CORRUPTION_DETECTED: "corruption detected",
     ERR_INVALID_PATH: "invalid path",
     ERR_CONFIG_INVALID: "Invalid config",
-    ERR_INVALID_ARGUMENT: "invalid argument",
+    ERR_INVALID_ARGUMENT: "Invalid argument",
     ERR_NOT_FOUND: "not found",
     ERR_NOT_SUPPORTED: "not supported",
     ERR_INTERNAL_ERROR: "internal error",

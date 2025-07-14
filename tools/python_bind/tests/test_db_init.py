@@ -45,7 +45,6 @@ def test_memory_mode_open_and_close():
     db2.close()
 
 
-@pytest.mark.skip(reason="open None is not supported")
 def test_memory_mode_open_and_close_none():
     db = Database(db_path=None, mode="r", planner="gopt")
     assert db is not None
@@ -68,9 +67,6 @@ def test_local_db_open_exists_and_close(tmp_path):
     db2.close()
 
 
-@pytest.mark.skip(
-    reason="open ldbc db fails, F0710 15:40:18.283864 3740356 yaml_utils.cc:82] Unsupported property type: timestamp"
-)
 def test_local_ldbc_open_and_close():
     db_dir = "/tmp/ldbc"
     db = Database(db_path=str(db_dir), mode="r", planner="gopt")
@@ -165,8 +161,6 @@ def test_invalid_path():
         os.system("rm -rf ??/")
 
 
-# DB-001-11
-@pytest.mark.skip(reason="two cases fails: mode with 'readwrite', planner with 'jni'")
 def test_config_param(tmp_path):
     db_dir = tmp_path / "config_db"
     # mode: 'r', 'read', 'readwrite', 'w', 'rw', 'write'
@@ -200,13 +194,9 @@ def test_config_param(tmp_path):
     )
     assert db8 is not None
     db8.close()
-    # planner: 'jni', 'gopt'
-    db9 = Database(db_path=str(db_dir), mode="r", max_thread_num=0, planner="jni")
+    db9 = Database(db_path=str(db_dir), mode="r", max_thread_num=0, planner="gopt")
     assert db9 is not None
     db9.close()
-    db10 = Database(db_path=str(db_dir), mode="r", max_thread_num=0, planner="gopt")
-    assert db10 is not None
-    db10.close()
 
 
 def test_config_param_exception(tmp_path):
@@ -225,7 +215,6 @@ def test_config_param_exception(tmp_path):
         assert "Invalid planner: gopt123" in str(excinfo.value)
 
 
-@pytest.mark.skip(reason="no exception is raised for max_thread_num > os.cpu_count()")
 def test_config_param_boundary(tmp_path):
     db_dir = tmp_path / "conn_param_boundary_db"
     # test with more than maximum cores

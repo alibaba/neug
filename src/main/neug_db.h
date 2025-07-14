@@ -90,7 +90,7 @@ class NeugDB {
     if (mode == "read" || mode == "r") {
       mode_ = DBMode::READ_ONLY;
     } else if (mode == "read_write" || mode == "rw" || mode == "w" ||
-               mode == "wr" || mode == "write") {
+               mode == "wr" || mode == "write" || mode == "readwrite") {
       mode_ = DBMode::READ_WRITE;
     } else {
       throw std::invalid_argument("Invalid mode: " + mode);

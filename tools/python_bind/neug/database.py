@@ -92,9 +92,9 @@ class Database(object):
         max_thread_num : int
             Maximum number of threads to use. Default is 0, which means no limit.
         planner : str
-            The planner to use, should be one of 'jni', 'gopt'. Default is 'gopt'.
+            The planner to use, currently only 'gopt' is supported. Default is 'gopt'.
         planner_config_path : str
-            Only take effect when planner is 'jni'. Path to the planner config file. Default is None.
+            Path to the planner config file for the planner to use. Default is None.
             If none, the default config path will be used.
 
         Raises
@@ -103,30 +103,28 @@ class Database(object):
             If the database file does not exist or the mode is invalid.
         ValueError
             If the mode is not one of 'r', 'read', 'w', 'rw', 'write'.
-            If the planner is not one of 'jni', 'gopt'.
+            If the planner is not 'gopt'.
         """
         self._database = None
         self._db_path = None
         self._illegal_chars = ["?", "*", '"', "<", ">", "|", ":", "\\"]
-        if not isinstance(db_path, str):
-            raise TypeError("db_path must be a string." + str(type(db_path)))
-        if any(char in db_path for char in self._illegal_chars):
-            raise ValueError(
-                f"invalid path: database path '{db_path}' contains illegal characters: {self._illegal_chars}."
-            )
-        self._db_path = db_path
+        if isinstance(db_path, str):
+            if any(char in db_path for char in self._illegal_chars):
+                raise ValueError(
+                    f"invalid path: database path '{db_path}' contains illegal characters: {self._illegal_chars}."
+                )
+        self._db_path = db_path if db_path is not None else ""
         self._mode = mode
         if self._mode not in ["r", "read", "w", "rw", "write", "readwrite"]:
             raise ValueError(
                 f"Invalid mode: {self._mode}. Must be one of 'r', 'read', 'w', 'rw', 'write', 'readwrite'."
             )
         if planner not in [
-            "jni",
             "gopt",
             "dummy",
         ]:  # TODO(zhanglei): Remove 'dummy' when we have a real planner.
             raise ValueError(
-                f"Invalid planner: {planner}. Must be one of 'jni', 'gopt', 'dummy'."
+                f"Invalid planner: {planner}. Must be one of 'gopt', 'dummy'."  # 'dummy' is for testing purpose only.
             )
         # The default connection of the database, will be lazy initialized if get_default_connection is called.
         # In 'r' mode, the default connection will be a read-only connection.
@@ -140,10 +138,16 @@ class Database(object):
                 f"Invalid config: max_thread_num: {max_thread_num}. Must be a non-negative integer."
             )
 
+        if max_thread_num > os.cpu_count():
+            raise ValueError(
+                f"Invalid argument: max_thread_num: {max_thread_num}. "
+                f"Must be less than or equal to the number of CPU cores: {os.cpu_count()}."
+            )
+
         # Currently, no intellisense here. self._database is of class PyDatabase,
         # defined in tools/python_bind/src/py_database.h
         self._database = neug_py_bind.PyDatabase(
-            database_path=db_path,
+            database_path=self._db_path,
             max_thread_num=max_thread_num,
             mode=mode,
             planner=planner,
@@ -152,7 +156,7 @@ class Database(object):
         self._connections = []
         self._async_connections = []
         self._serving = False
-        if db_path.strip() == "":
+        if self._db_path is None or self._db_path.strip() == "":
             # In memory mode, the database will not be persisted to disk, and all data will be lost when the program exits.
             # So we don't need to log the db_path.
             logger.info(
@@ -161,7 +165,7 @@ class Database(object):
             )
         else:
             logger.info(
-                f"Open database {db_path} in {mode} mode, planner: {planner}, config: {planner_config_path}"
+                f"Open database {self._db_path} in {mode} mode, planner: {planner}, config: {planner_config_path}"
             )
 
     def __del__(self):
