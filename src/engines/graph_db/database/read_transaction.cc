@@ -49,11 +49,19 @@ const MutablePropertyFragment& ReadTransaction::graph() const { return graph_; }
 
 ReadTransaction::vertex_iterator::vertex_iterator(
     label_t label, vid_t cur, vid_t num, const MutablePropertyFragment& graph)
-    : label_(label), cur_(cur), num_(num), graph_(graph) {}
+    : label_(label), cur_(cur), num_(num), graph_(graph) {
+  is_deleted_ = graph.is_deleted(label);
+}
 ReadTransaction::vertex_iterator::~vertex_iterator() = default;
 
 bool ReadTransaction::vertex_iterator::IsValid() const { return cur_ < num_; }
-void ReadTransaction::vertex_iterator::Next() { ++cur_; }
+void ReadTransaction::vertex_iterator::Next() {
+  if (is_deleted_) {
+    while (++cur_ < num_ && !graph_.is_valid_lid(label_, cur_)) {}
+  } else {
+    ++cur_;
+  }
+}
 void ReadTransaction::vertex_iterator::Goto(vid_t target) {
   cur_ = std::min(target, num_);
 }
@@ -103,16 +111,16 @@ label_t ReadTransaction::edge_iterator::GetEdgeLabel() const {
 
 ReadTransaction::vertex_iterator ReadTransaction::GetVertexIterator(
     label_t label) const {
-  return {label, 0, graph_.vertex_num(label), graph_};
+  return {label, 0, graph_.lid_num(label), graph_};
 }
 
 ReadTransaction::vertex_iterator ReadTransaction::FindVertex(
     label_t label, const Any& id) const {
   vid_t lid;
   if (graph_.get_lid(label, id, lid)) {
-    return {label, lid, graph_.vertex_num(label), graph_};
+    return {label, lid, graph_.lid_num(label), graph_};
   } else {
-    return {label, graph_.vertex_num(label), graph_.vertex_num(label), graph_};
+    return {label, graph_.lid_num(label), graph_.lid_num(label), graph_};
   }
 }
 
@@ -123,6 +131,10 @@ bool ReadTransaction::GetVertexIndex(label_t label, const Any& id,
 
 vid_t ReadTransaction::GetVertexNum(label_t label) const {
   return graph_.vertex_num(label);
+}
+
+VertexSet ReadTransaction::GetVertexSet(label_t label) const {
+  return VertexSet(graph_.lid_num(label), graph_.get_vertex_tomb(label));
 }
 
 Any ReadTransaction::GetVertexId(label_t label, vid_t index) const {

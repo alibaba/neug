@@ -13,8 +13,8 @@
  * limitations under the License.
  */
 
-#ifndef RUNTIME_EXECUTE_OPS_INSERT_DATA_SOURCE_H_
-#define RUNTIME_EXECUTE_OPS_INSERT_DATA_SOURCE_H_
+#ifndef RUNTIME_EXECUTE_OPS_BATCH_DATA_SOURCE_H_
+#define RUNTIME_EXECUTE_OPS_BATCH_DATA_SOURCE_H_
 
 #include <boost/leaf.hpp>
 #include <map>
@@ -23,7 +23,7 @@
 #include <vector>
 
 #include "src/engines/graph_db/runtime/execute/operator.h"
-#include "src/engines/graph_db/runtime/execute/ops/insert/batch_insert_utils.h"
+#include "src/engines/graph_db/runtime/execute/ops/batch/batch_update_utils.h"
 #include "src/proto_generated_gie/physical.pb.h"
 
 namespace gs {
@@ -82,4 +82,4 @@ class DataSourceOprBuilder : public IUpdateOperatorBuilder {
 }  // namespace runtime
 }  // namespace gs
 
-#endif  // RUNTIME_EXECUTE_OPS_INSERT_DATA_SOURCE_H_
+#endif  // RUNTIME_EXECUTE_OPS_BATCH_DATA_SOURCE_H_

@@ -25,6 +25,65 @@
 
 namespace gs {
 
+class VertexSet {
+ public:
+  VertexSet(vid_t size, std::shared_ptr<Bitset> vertex_tomb)
+      : size_(size), vertex_tomb_(vertex_tomb) {
+    if (vertex_tomb_->count() == 0) {
+      is_deleted_ = false;
+    } else {
+      is_deleted_ = true;
+    }
+  }
+  ~VertexSet() {}
+
+  class iterator {
+   public:
+    iterator(vid_t v, std::shared_ptr<Bitset> vertex_tomb)
+        : v_(v), vertex_tomb_(vertex_tomb) {
+      is_deleted_ = vertex_tomb_->count() == 0 ? false : true;
+      if (is_deleted_) {
+        while (v_ < vertex_tomb_->size()) {
+          if (!vertex_tomb_->get(v_)) {
+            break;
+          }
+          v_++;
+        }
+      }
+    }
+    ~iterator() {}
+
+    inline vid_t operator*() const { return v_; }
+
+    inline iterator& operator++() {
+      if (is_deleted_) {
+        while (++v_ < vertex_tomb_->size() && vertex_tomb_->get(v_)) {}
+      } else {
+        ++v_;
+      }
+      return *this;
+    }
+
+    inline bool operator==(const iterator& rhs) const { return v_ == rhs.v_; }
+
+    inline bool operator!=(const iterator& rhs) const { return v_ != rhs.v_; }
+
+   private:
+    vid_t v_;
+    std::shared_ptr<Bitset> vertex_tomb_;
+    bool is_deleted_;
+  };
+
+  inline iterator begin() const { return iterator(0, vertex_tomb_); }
+  inline iterator end() const { return iterator(size_, vertex_tomb_); }
+  inline size_t size() const { return size_; }
+
+ private:
+  vid_t size_;
+  std::shared_ptr<Bitset> vertex_tomb_;
+  bool is_deleted_;
+};
+
 inline void serialize_field(grape::InArchive& arc, const Any& prop) {
   if (prop.type == PropertyType::Bool()) {
     arc << prop.value.b;

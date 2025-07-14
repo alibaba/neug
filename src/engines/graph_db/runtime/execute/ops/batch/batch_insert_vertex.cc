@@ -13,15 +13,14 @@
  * limitations under the License.
  */
 
-#include "src/engines/graph_db/runtime/execute/ops/insert/batch_insert_vertex.h"
-
 #include <glog/logging.h>
 #include <ostream>
 
 #include "src/engines/graph_db/database/update_transaction.h"
 #include "src/engines/graph_db/runtime/common/context.h"
 #include "src/engines/graph_db/runtime/common/graph_interface.h"
-#include "src/engines/graph_db/runtime/execute/ops/insert/batch_insert_utils.h"
+#include "src/engines/graph_db/runtime/execute/ops/batch/batch_insert_vertex.h"
+#include "src/engines/graph_db/runtime/execute/ops/batch/batch_update_utils.h"
 #include "src/proto_generated_gie/common.pb.h"
 #include "src/proto_generated_gie/cypher_dml.pb.h"
 #include "src/storages/rt_mutable_graph/mutable_property_fragment.h"

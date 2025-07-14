@@ -68,6 +68,12 @@ class DualCsrBase {
   virtual void UpdateEdge(vid_t src, vid_t dst, const Any& oarc,
                           timestamp_t timestamp, Allocator& alloc) = 0;
 
+  virtual void BatchDeleteVertices(bool is_src,
+                                   const std::vector<vid_t>& vids) {}
+
+  virtual void BatchDeleteEdge(
+      const std::vector<std::tuple<vid_t, vid_t>>& parsed_edges_vec) {}
+
   void Resize(vid_t src_vertex_num, vid_t dst_vertex_num) {
     GetInCsr()->resize(dst_vertex_num);
     GetOutCsr()->resize(src_vertex_num);
@@ -243,6 +249,43 @@ class DualCsr : public DualCsrBase {
   void BatchAppendEdge(vid_t src, vid_t dst, const EDATA_T& data) {
     in_csr_->batch_put_edge(dst, src, data);
     out_csr_->batch_put_edge(src, dst, data);
+  }
+
+  void BatchDeleteVertices(bool is_src,
+                           const std::vector<vid_t>& vids) override {
+    MutableCsr<EDATA_T>* casted_in_csr =
+        dynamic_cast<MutableCsr<EDATA_T>*>(in_csr_);
+    MutableCsr<EDATA_T>* casted_out_csr =
+        dynamic_cast<MutableCsr<EDATA_T>*>(out_csr_);
+    if (is_src) {
+      if (casted_in_csr) {
+        casted_in_csr->batch_delete_vertices(false, vids);
+      }
+      if (casted_out_csr) {
+        casted_out_csr->batch_delete_vertices(true, vids);
+      }
+    } else {
+      if (casted_in_csr) {
+        casted_in_csr->batch_delete_vertices(true, vids);
+      }
+      if (casted_out_csr) {
+        casted_out_csr->batch_delete_vertices(false, vids);
+      }
+    }
+  }
+
+  void BatchDeleteEdge(
+      const std::vector<std::tuple<vid_t, vid_t>>& parsed_edges_vec) override {
+    MutableCsr<EDATA_T>* casted_in_csr =
+        dynamic_cast<MutableCsr<EDATA_T>*>(in_csr_);
+    MutableCsr<EDATA_T>* casted_out_csr =
+        dynamic_cast<MutableCsr<EDATA_T>*>(out_csr_);
+    if (casted_in_csr) {
+      casted_in_csr->batch_delete_edges(false, parsed_edges_vec);
+    }
+    if (casted_out_csr) {
+      casted_out_csr->batch_delete_edges(true, parsed_edges_vec);
+    }
   }
 
   void Close() override {
@@ -442,6 +485,43 @@ class DualCsr<std::string_view> : public DualCsrBase {
 
     in_csr_->batch_put_edge_with_index(dst, src, row_id);
     out_csr_->batch_put_edge_with_index(src, dst, row_id);
+  }
+
+  void BatchDeleteVertices(bool is_src,
+                           const std::vector<vid_t>& vids) override {
+    MutableCsr<std::string_view>* casted_in_csr =
+        dynamic_cast<MutableCsr<std::string_view>*>(in_csr_);
+    MutableCsr<std::string_view>* casted_out_csr =
+        dynamic_cast<MutableCsr<std::string_view>*>(out_csr_);
+    if (is_src) {
+      if (casted_in_csr) {
+        casted_in_csr->batch_delete_vertices(false, vids);
+      }
+      if (casted_out_csr) {
+        casted_out_csr->batch_delete_vertices(true, vids);
+      }
+    } else {
+      if (casted_in_csr) {
+        casted_in_csr->batch_delete_vertices(true, vids);
+      }
+      if (casted_out_csr) {
+        casted_out_csr->batch_delete_vertices(false, vids);
+      }
+    }
+  }
+
+  void BatchDeleteEdge(
+      const std::vector<std::tuple<vid_t, vid_t>>& parsed_edges_vec) override {
+    MutableCsr<std::string_view>* casted_in_csr =
+        dynamic_cast<MutableCsr<std::string_view>*>(in_csr_);
+    MutableCsr<std::string_view>* casted_out_csr =
+        dynamic_cast<MutableCsr<std::string_view>*>(out_csr_);
+    if (casted_in_csr) {
+      casted_in_csr->batch_delete_edges(false, parsed_edges_vec);
+    }
+    if (casted_out_csr) {
+      casted_out_csr->batch_delete_edges(true, parsed_edges_vec);
+    }
   }
 
   void Close() override {
@@ -749,6 +829,43 @@ class DualCsr<RecordView> : public DualCsrBase {
       table_.ingest(row_id, oarc);
       in_csr_->put_edge_with_index(dst, src, row_id, ts, alloc);
       out_csr_->put_edge_with_index(src, dst, row_id, ts, alloc);
+    }
+  }
+
+  void BatchDeleteVertices(bool is_src,
+                           const std::vector<vid_t>& vids) override {
+    MutableCsr<RecordView>* casted_in_csr =
+        dynamic_cast<MutableCsr<RecordView>*>(in_csr_);
+    MutableCsr<RecordView>* casted_out_csr =
+        dynamic_cast<MutableCsr<RecordView>*>(out_csr_);
+    if (is_src) {
+      if (casted_in_csr) {
+        casted_in_csr->batch_delete_vertices(false, vids);
+      }
+      if (casted_out_csr) {
+        casted_out_csr->batch_delete_vertices(true, vids);
+      }
+    } else {
+      if (casted_in_csr) {
+        casted_in_csr->batch_delete_vertices(true, vids);
+      }
+      if (casted_out_csr) {
+        casted_out_csr->batch_delete_vertices(false, vids);
+      }
+    }
+  }
+
+  void BatchDeleteEdge(
+      const std::vector<std::tuple<vid_t, vid_t>>& parsed_edges_vec) override {
+    MutableCsr<RecordView>* casted_in_csr =
+        dynamic_cast<MutableCsr<RecordView>*>(in_csr_);
+    MutableCsr<RecordView>* casted_out_csr =
+        dynamic_cast<MutableCsr<RecordView>*>(out_csr_);
+    if (casted_in_csr) {
+      casted_in_csr->batch_delete_edges(false, parsed_edges_vec);
+    }
+    if (casted_out_csr) {
+      casted_out_csr->batch_delete_edges(true, parsed_edges_vec);
     }
   }
 

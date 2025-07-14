@@ -13,8 +13,6 @@
  * limitations under the License.
  */
 
-#include "src/engines/graph_db/runtime/execute/ops/insert/batch_insert_edge.h"
-
 #include <glog/logging.h>
 #include <stddef.h>
 
@@ -25,7 +23,7 @@
 #include "src/engines/graph_db/database/update_transaction.h"
 #include "src/engines/graph_db/runtime/common/context.h"
 #include "src/engines/graph_db/runtime/common/graph_interface.h"
-#include "src/engines/graph_db/runtime/execute/ops/insert/batch_insert_utils.h"
+#include "src/engines/graph_db/runtime/execute/ops/batch/batch_insert_edge.h"
 #include "src/proto_generated_gie/common.pb.h"
 #include "src/proto_generated_gie/cypher_ddl.pb.h"
 #include "src/proto_generated_gie/cypher_dml.pb.h"

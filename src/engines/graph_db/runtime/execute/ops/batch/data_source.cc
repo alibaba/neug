@@ -13,8 +13,6 @@
  * limitations under the License.
  */
 
-#include "src/engines/graph_db/runtime/execute/ops/insert/data_source.h"
-
 #include <arrow/record_batch.h>
 #include <glog/logging.h>
 #include <stdint.h>
@@ -24,7 +22,7 @@
 
 #include "src/engines/graph_db/runtime/common/columns/arrow_context_column.h"
 #include "src/engines/graph_db/runtime/common/context.h"
-#include "src/engines/graph_db/runtime/execute/ops/insert/batch_insert_utils.h"
+#include "src/engines/graph_db/runtime/execute/ops/batch/data_source.h"
 #include "src/proto_generated_gie/cypher_dml.pb.h"
 #include "src/storages/rt_mutable_graph/loader/loader_utils.h"
 #include "src/utils/result.h"

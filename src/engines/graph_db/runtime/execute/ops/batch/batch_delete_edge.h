@@ -13,43 +13,25 @@
  * limitations under the License.
  */
 
-#ifndef RUNTIME_EXECUTE_OPS_INSERT_BATCH_INSERT_VERTEX_H_
-#define RUNTIME_EXECUTE_OPS_INSERT_BATCH_INSERT_VERTEX_H_
-
-#include <boost/leaf.hpp>
-#include <cstdint>
-#include <map>
-#include <memory>
-#include <string>
-#include <utility>
-#include <vector>
+#ifndef RUNTIME_EXECUTE_OPS_BATCH_BATCH_DELETE_EDGE_H_
+#define RUNTIME_EXECUTE_OPS_BATCH_BATCH_DELETE_EDGE_H_
 
 #include "src/engines/graph_db/runtime/execute/operator.h"
-#include "src/proto_generated_gie/physical.pb.h"
-#include "src/storages/rt_mutable_graph/types.h"
-#include "src/utils/property/types.h"
+#include "src/engines/graph_db/runtime/execute/ops/batch/batch_update_utils.h"
 
 namespace gs {
-class Schema;
-
 namespace runtime {
-class Context;
-class GraphUpdateInterface;
-class OprTimer;
-
 namespace ops {
-
-class BatchInsertVertexOpr : public IUpdateOperator {
+class BatchDeleteEdgeOpr : public IUpdateOperator {
  public:
-  BatchInsertVertexOpr(
-      const label_t& vertex_label_id, const PropertyType& pk_type,
-      const std::vector<std::pair<int32_t, std::string>>& prop_mappings)
-      : vertex_label_id_(vertex_label_id),
-        pk_type_(pk_type),
-        prop_mappings_(prop_mappings) {}
+  BatchDeleteEdgeOpr(
+      const std::vector<std::vector<std::tuple<label_t, label_t, label_t>>>&
+          edge_triplets,
+      const std::vector<int32_t> edge_bindings)
+      : edge_triplets_(edge_triplets), edge_bindings_(edge_bindings) {}
 
   std::string get_operator_name() const override {
-    return "BatchInsertVertexOpr";
+    return "BatchDeleteEdgeOpr";
   }
 
   bl::result<Context> Eval(GraphUpdateInterface& graph,
@@ -57,29 +39,27 @@ class BatchInsertVertexOpr : public IUpdateOperator {
                            Context&& ctx, OprTimer& timer) override;
 
  private:
-  label_t vertex_label_id_;
-  PropertyType pk_type_;
-  std::vector<std::pair<int32_t, std::string>> prop_mappings_;
+  std::vector<std::vector<std::tuple<label_t, label_t, label_t>>>
+      edge_triplets_;
+  std::vector<int32_t> edge_bindings_;
 };
 
-class BatchInsertVertexOprBuilder : public IUpdateOperatorBuilder {
+class BatchDeleteEdgeOprBuilder : public IUpdateOperatorBuilder {
  public:
-  BatchInsertVertexOprBuilder() = default;
-  ~BatchInsertVertexOprBuilder() = default;
+  BatchDeleteEdgeOprBuilder() = default;
+  ~BatchDeleteEdgeOprBuilder() = default;
 
   std::unique_ptr<IUpdateOperator> Build(const Schema& schema,
                                          const physical::PhysicalPlan& plan,
                                          int op_idx) override;
 
   physical::PhysicalOpr_Operator::OpKindCase GetOpKind() const override {
-    return physical::PhysicalOpr_Operator::OpKindCase::kLoadVertex;
+    return physical::PhysicalOpr_Operator::OpKindCase::kDeleteEdge;
   }
 };
 
 }  // namespace ops
-
 }  // namespace runtime
-
 }  // namespace gs
 
-#endif  // RUNTIME_EXECUTE_OPS_INSERT_BATCH_INSERT_VERTEX_H_
+#endif  // RUNTIME_EXECUTE_OPS_BATCH_BATCH_DELETE_EDGE_H_

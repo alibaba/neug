@@ -256,6 +256,8 @@ class OptionalSDSLEdgeColumn : public IEdgeColumn {
 
   inline size_t size() const override { return column_.size(); }
 
+  inline Direction dir() const { return column_.dir(); }
+
   void generate_dedup_offset(std::vector<size_t>& offsets) const override {
     column_.generate_dedup_offset(offsets);
   }

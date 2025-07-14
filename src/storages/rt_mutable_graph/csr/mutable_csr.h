@@ -338,9 +338,56 @@ class MutableCsr : public TypedMutableCsrBase<EDATA_T> {
     adj_lists_[src].batch_put_edge(dst, data, ts);
   }
 
-  void batch_append_edge(const std::vector<std::pair<vid_t, vid_t>>& edges,
-                         const std::vector<EDATA_T>& data) {
-    LOG(INFO) << "Start append edge";
+  void batch_delete_vertices(bool is_src, const std::vector<vid_t>& vids) {
+    if (is_src) {
+      for (auto v : vids) {
+        if (v < adj_lists_.size()) {
+          adj_lists_[v].clear();
+        }
+      }
+    } else {
+      std::unordered_set<vid_t> vertices_set;
+      for (auto v : vids) {
+        vertices_set.emplace(v);
+      }
+      for (size_t i = 0; i < adj_lists_.size(); i++) {
+        adj_lists_[i].remove_nbrs(vertices_set);
+      }
+    }
+  }
+
+  void batch_delete_edges(
+      bool is_out,
+      const std::vector<std::tuple<vid_t, vid_t>>& delete_edges_vec) {
+    std::unordered_map<vid_t, std::unordered_set<vid_t>> edge_map;
+    for (auto& e : delete_edges_vec) {
+      if (is_out) {
+        auto it = edge_map.find(std::get<0>(e));
+        if (it != edge_map.end()) {
+          it->second.emplace(std::get<1>(e));
+        } else {
+          std::unordered_set<vid_t> edge_set;
+          edge_set.emplace(std::get<1>(e));
+          edge_map.insert({std::get<0>(e), edge_set});
+        }
+      } else {
+        auto it = edge_map.find(std::get<1>(e));
+        if (it != edge_map.end()) {
+          it->second.emplace(std::get<0>(e));
+        } else {
+          std::unordered_set<vid_t> edge_set;
+          edge_set.emplace(std::get<0>(e));
+          edge_map.insert({std::get<1>(e), edge_set});
+        }
+      }
+    }
+    for (size_t i = 0; i < adj_lists_.size(); i++) {
+      auto it = edge_map.find(i);
+      if (it != edge_map.end()) {
+        adj_lists_[i].remove_nbrs(it->second);
+      }
+    }
+    return;
   }
 
   void batch_sort_by_edge_data(timestamp_t ts) override {
@@ -753,6 +800,16 @@ class MutableCsr<std::string_view>
     csr_.put_edge(src, dst, index, ts, alloc);
   }
 
+  void batch_delete_vertices(bool is_src, const std::vector<vid_t>& vids) {
+    csr_.batch_delete_vertices(is_src, vids);
+  }
+
+  void batch_delete_edges(
+      bool is_out,
+      const std::vector<std::tuple<vid_t, vid_t>>& delete_edges_vec) {
+    csr_.batch_delete_edges(is_out, delete_edges_vec);
+  }
+
   inline slice_t get_edges(vid_t i) const override {
     return slice_t(csr_.get_edges(i), column_);
   }
@@ -848,6 +905,16 @@ class MutableCsr<RecordView> : public TypedMutableCsrBase<RecordView> {
   void put_edge_with_index(vid_t src, vid_t dst, size_t index, timestamp_t ts,
                            Allocator& alloc) override {
     csr_.put_edge(src, dst, index, ts, alloc);
+  }
+
+  void batch_delete_vertices(bool is_src, const std::vector<vid_t>& vids) {
+    csr_.batch_delete_vertices(is_src, vids);
+  }
+
+  void batch_delete_edges(
+      bool is_out,
+      const std::vector<std::tuple<vid_t, vid_t>>& delete_edges_vec) {
+    csr_.batch_delete_edges(is_out, delete_edges_vec);
   }
 
   inline slice_t get_edges(vid_t i) const override {

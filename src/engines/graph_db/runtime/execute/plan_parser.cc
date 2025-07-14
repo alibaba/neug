@@ -22,9 +22,11 @@
 #include <string>
 
 #include "src/engines/graph_db/runtime/common/context.h"
-#include "src/engines/graph_db/runtime/execute/ops/insert/batch_insert_edge.h"
-#include "src/engines/graph_db/runtime/execute/ops/insert/batch_insert_vertex.h"
-#include "src/engines/graph_db/runtime/execute/ops/insert/data_source.h"
+#include "src/engines/graph_db/runtime/execute/ops/batch/batch_delete_edge.h"
+#include "src/engines/graph_db/runtime/execute/ops/batch/batch_delete_vertex.h"
+#include "src/engines/graph_db/runtime/execute/ops/batch/batch_insert_edge.h"
+#include "src/engines/graph_db/runtime/execute/ops/batch/batch_insert_vertex.h"
+#include "src/engines/graph_db/runtime/execute/ops/batch/data_source.h"
 #include "src/engines/graph_db/runtime/execute/ops/retrieve/dedup.h"
 #include "src/engines/graph_db/runtime/execute/ops/retrieve/edge.h"
 #include "src/engines/graph_db/runtime/execute/ops/retrieve/group_by.h"
@@ -102,7 +104,8 @@ void PlanParser::init() {
   register_read_operator_builder(
       std::make_unique<ops::ProcedureCallOprBuilder>());
 
-  //////////////////////////////Write operators////////////////////////////////
+  //////////////////////////////Write
+  /// operators////////////////////////////////
   register_write_operator_builder(std::make_unique<ops::LoadOprBuilder>());
   register_write_operator_builder(
       std::make_unique<ops::DedupInsertOprBuilder>());
@@ -113,7 +116,8 @@ void PlanParser::init() {
   register_write_operator_builder(
       std::make_unique<ops::UnfoldInsertOprBuilder>());
 
-  //////////////////////////////Update operators////////////////////////////////
+  //////////////////////////////Update
+  /// operators////////////////////////////////
   register_update_operator_builder(
       std::make_unique<ops::UEdgeExpandOprBuilder>());
   register_update_operator_builder(std::make_unique<ops::UScanOprBuilder>());
@@ -128,6 +132,10 @@ void PlanParser::init() {
       std::make_unique<ops::BatchInsertVertexOprBuilder>());
   register_update_operator_builder(
       std::make_unique<ops::BatchInsertEdgeOprBuilder>());
+  register_update_operator_builder(
+      std::make_unique<ops::BatchDeleteVertexOprBuilder>());
+  register_update_operator_builder(
+      std::make_unique<ops::BatchDeleteEdgeOprBuilder>());
 }
 
 PlanParser& PlanParser::get() {
@@ -299,8 +307,8 @@ PlanParser::parse_read_pipeline_with_meta(const gs::Schema& schema,
             status = gs::Status::OK();
             break;
           } else {
-            // If the operator is null, it means the builder has failed, we need
-            // to stage the error.
+            // If the operator is null, it means the builder has failed, we
+            // need to stage the error.
             status = gs::Status(gs::StatusCode::ERR_INTERNAL_ERROR,
                                 "Failed to build operator at index " +
                                     std::to_string(i) +

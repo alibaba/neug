@@ -81,6 +81,7 @@ Result<results::CollectiveResults> Connection::query_impl(
 
   if (query_string.find("COPY") != std::string::npos ||
       query_string.find("copy") != std::string::npos) {
+    LOG(INFO) << "Start create DML plan for " << query_string;
     auto dml_plan = createDMLPlan(query_string);
     auto query_res = query_processor_->execute(dml_plan.physical_plan);
     if (!query_res.ok()) {
@@ -137,8 +138,7 @@ Plan Connection::createDDLPlanWithGopt(const std::string& query_string) {
 }
 
 Plan Connection::createDDLPlan(const std::string& query_string) {
-  if (planner_->type() == "gopt" &&
-      query_string.find("ALTER") == std::string::npos &&
+  if (query_string.find("ALTER") == std::string::npos &&
       query_string.find("DROP") == std::string::npos) {
     return createDDLPlanWithGopt(query_string);
   }
@@ -237,6 +237,16 @@ Plan Connection::createDDLPlan(const std::string& query_string) {
     alter_vertex_request->set_conflict_action(
         physical::ConflictAction::ON_CONFLICT_THROW);
     alter_vertex_request->add_properties("birthday");
+    return res_plan;
+  }
+
+  // Drop a column that already been dropped
+  if (query_string == "ALTER TABLE person DROP age;") {
+    auto alter_vertex_request = plan->mutable_drop_vertex_property_schema();
+    alter_vertex_request->mutable_vertex_type()->set_name("person");
+    alter_vertex_request->set_conflict_action(
+        physical::ConflictAction::ON_CONFLICT_THROW);
+    alter_vertex_request->add_properties("age");
     return res_plan;
   }
 

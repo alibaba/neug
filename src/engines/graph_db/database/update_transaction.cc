@@ -90,7 +90,7 @@ UpdateTransaction::UpdateTransaction(const GraphDBSession& session,
   added_vertices_base_.resize(vertex_label_num_);
   vertex_nums_.resize(vertex_label_num_);
   for (size_t i = 0; i < vertex_label_num_; ++i) {
-    added_vertices_base_[i] = vertex_nums_[i] = graph_.vertex_num(i);
+    added_vertices_base_[i] = vertex_nums_[i] = graph_.lid_num(i);
   }
   vertex_offsets_.resize(vertex_label_num_);
   extra_vertex_properties_.resize(vertex_label_num_);
@@ -478,7 +478,7 @@ bool UpdateTransaction::SetVertexField(label_t label, vid_t lid, int col_id,
     if (table.col_num() <= static_cast<size_t>(col_id)) {
       return false;
     }
-    if (graph_.vertex_num(label) <= lid) {
+    if (graph_.lid_num(label) <= lid) {
       return false;
     }
     vid_t new_offset = vertex_offset.size();
@@ -604,7 +604,7 @@ void UpdateTransaction::IngestWal(MutablePropertyFragment& graph,
   added_vertices_base.resize(vertex_label_num);
   vertex_nums.resize(vertex_label_num);
   for (size_t i = 0; i < vertex_label_num; ++i) {
-    added_vertices_base[i] = vertex_nums[i] = graph.vertex_num(i);
+    added_vertices_base[i] = vertex_nums[i] = graph.lid_num(i);
   }
   vertex_offsets.resize(vertex_label_num);
   extra_vertex_properties.resize(vertex_label_num);
@@ -723,7 +723,7 @@ bool UpdateTransaction::oid_to_lid(label_t label, const Any& oid,
 }
 
 Any UpdateTransaction::lid_to_oid(label_t label, vid_t lid) const {
-  if (graph_.vertex_num(label) > lid) {
+  if (graph_.lid_num(label) > lid) {
     return graph_.get_oid(label, lid);
   } else {
     Any ret;
@@ -826,7 +826,7 @@ void UpdateTransaction::applyVerticesUpdates() {
       graph_.get_vertex_table(label).insert(lid, table.get_row(offset));
     }
 
-    CHECK_EQ(graph_.vertex_num(label), vertex_nums_[label]);
+    CHECK_EQ(graph_.lid_num(label), vertex_nums_[label]);
   }
 
   added_vertices_.clear();

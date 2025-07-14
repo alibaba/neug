@@ -5,15 +5,7 @@
 #include "src/storages/rt_mutable_graph/schema.h"
 
 int main(int argc, char** argv) {
-  // Expect 1 args, data path
-  if (argc != 2) {
-    std::cerr << "Usage: " << argv[0] << " <data_path>" << std::endl;
-    return 1;
-  }
-
-  // gs::setup_signal_handler();
-
-  std::string data_path = argv[1];
+  std::string data_path = "/tmp/test_batch_loading";
   // remove the directory if it exists
   if (std::filesystem::exists(data_path)) {
     std::filesystem::remove_all(data_path);
@@ -21,7 +13,9 @@ int main(int argc, char** argv) {
   // create the directory
   std::filesystem::create_directories(data_path);
 
-  gs::NeugDB db(data_path, 1, "w", "dummy", "");
+  gs::NeugDB db(data_path, 1, "w", "gopt", "");
+
+  std::string flex_data_dir = std::getenv("FLEX_DATA_DIR");
   auto conn = db.connect();
   {
     auto res = conn->query(
@@ -34,9 +28,69 @@ int main(int argc, char** argv) {
   }
   {
     auto res = conn->query(
+        "CREATE NODE TABLE software(id INT64, name STRING, lang STRING, "
+        "PRIMARY "
+        "KEY(id));");
+    if (!res.ok()) {
+      LOG(ERROR) << "Failed to create node table: " << res.status().ToString();
+      return 1;
+    }
+  }
+  {
+    auto res = conn->query(
         "CREATE REL TABLE knows(FROM person TO person, weight DOUBLE);");
     if (!res.ok()) {
       LOG(ERROR) << "Failed to create edge table: " << res.status().ToString();
+      return 1;
+    }
+  }
+  {
+    auto res = conn->query(
+        "CREATE REL TABLE created(FROM person TO software, weight DOUBLE, "
+        "since INT64);");
+    if (!res.ok()) {
+      LOG(ERROR) << "Failed to create edge table: " << res.status().ToString();
+      return 1;
+    }
+  }
+
+  {
+    auto res =
+        conn->query("COPY person from \"" + flex_data_dir + "/person.csv\";");
+    if (!res.ok()) {
+      LOG(ERROR) << "Failed to load person vertex: " << res.status().ToString();
+      return 1;
+    }
+  }
+
+  {
+    auto res = conn->query("COPY software from \"" + flex_data_dir +
+                           "/software.csv\";");
+    if (!res.ok()) {
+      LOG(ERROR) << "Failed to load software vertex: "
+                 << res.status().ToString();
+      return 1;
+    }
+  }
+
+  {
+    auto res = conn->query(
+        "COPY knows from \"" + flex_data_dir +
+        "/person_knows_person.csv\" (from=\"person\", to=\"person\");");
+    if (!res.ok()) {
+      LOG(ERROR) << "Failed to load person-knows->person edge: "
+                 << res.status().ToString();
+      return 1;
+    }
+  }
+
+  {
+    auto res = conn->query(
+        "COPY created from \"" + flex_data_dir +
+        "/person_created_software.csv\" (from=\"person\", to=\"software\");");
+    if (!res.ok()) {
+      LOG(ERROR) << "Failed to load person-knows->software edge: "
+                 << res.status().ToString();
       return 1;
     }
   }
@@ -94,7 +148,15 @@ int main(int argc, char** argv) {
 
   {
     auto res = conn->query("ALTER TABLE person DROP IF EXISTS birthday;");
-    if (res.ok()) {
+    if (!res.ok()) {
+      LOG(ERROR) << "Failed to alter table: " << res.status().ToString();
+      return 1;
+    }
+  }
+
+  {
+    auto res = conn->query("ALTER TABLE person DROP age;");
+    if (!res.ok()) {
       LOG(ERROR) << "Failed to alter table: " << res.status().ToString();
       return 1;
     }
@@ -109,6 +171,23 @@ int main(int argc, char** argv) {
   }
 
   {
+    auto res =
+        conn->query("MATCH (v:person)-[e:created]->(:software) DELETE e;");
+    if (!res.ok()) {
+      LOG(ERROR) << "Failed to drop edge type: " << res.status().ToString();
+      return 1;
+    }
+  }
+
+  {
+    auto res = conn->query("MATCH (v:person) DELETE v;");
+    if (!res.ok()) {
+      LOG(ERROR) << "Failed to drop vertex type: " << res.status().ToString();
+      return 1;
+    }
+  }
+
+  {
     auto res = conn->query("DROP TABLE knows;");
     if (!res.ok()) {
       LOG(ERROR) << "Failed to drop edge type: " << res.status().ToString();
@@ -117,20 +196,47 @@ int main(int argc, char** argv) {
   }
 
   {
-    auto res = conn->query("DROP TABLE person;");
+    auto res = conn->query("MATCH (v:person) RETURN v;");
+    LOG(INFO) << "Query result: " << res.ok() << ", "
+              << res.status().error_message();
+    auto res_val = res.value();
+    while (res_val.hasNext()) {
+      auto row = res_val.next();
+      LOG(INFO) << "Row: " << row.ToString();
+    }
+  }
+
+  {
+    auto res =
+        conn->query("MATCH (v:software)<-[e:created]-(:person) RETURN e;");
+    LOG(INFO) << "Query result: " << res.ok() << ", "
+              << res.status().error_message();
+    auto res_val = res.value();
+    while (res_val.hasNext()) {
+      auto row = res_val.next();
+      LOG(INFO) << "Row: " << row.ToString();
+    }
+  }
+
+  {
+    auto res =
+        conn->query("COPY person from \"" + flex_data_dir + "/person.csv\";");
     if (!res.ok()) {
-      LOG(ERROR) << "Failed to drop vertex type: " << res.status().ToString();
+      LOG(ERROR) << "Failed to load person vertex: " << res.status().ToString();
       return 1;
     }
   }
 
-  auto res = conn->query("MATCH (v) RETURN v;");
-  LOG(INFO) << "Query result: " << res.ok() << ", "
-            << res.status().error_message();
-  auto res_val = res.value();
-  while (res_val.hasNext()) {
-    auto row = res_val.next();
-    LOG(INFO) << "Row: " << row.ToString();
+  {
+    auto res = conn->query("MATCH (v:person) RETURN count(v);");
+    LOG(INFO) << "Query result: " << res.ok() << ", "
+              << res.status().error_message();
+    auto res_val = res.value();
+    while (res_val.hasNext()) {
+      auto row = res_val.next();
+      LOG(INFO) << "Row: " << row.ToString();
+    }
   }
+
   return 0;
 }

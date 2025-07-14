@@ -399,6 +399,10 @@ class MutablePropertyFragment {
     }
     work_threads.clear();
 
+    if (lid_num(v_label_id) > vertex_tomb_[v_label_id]->size()) {
+      vertex_tomb_[v_label_id]->resize(lid_num(v_label_id));
+    }
+
     vertex_data_[v_label_id].dump_without_close(
         vertex_table_prefix(vertex_type_name), snapshot_dir(work_dir_, 0));
     lf_indexers_[v_label_id].dump_without_close(
@@ -745,6 +749,14 @@ class MutablePropertyFragment {
     return gs::Status::OK();
   }
 
+  Status batch_delete_vertices(const label_t& v_label_id,
+                               const std::vector<vid_t>& vids);
+
+  Status batch_delete_edges(const label_t& src_v_label,
+                            const label_t& dst_v_label,
+                            const label_t& edge_label,
+                            std::vector<std::tuple<vid_t, vid_t>>& edges_vec);
+
   inline Table& get_vertex_table(label_t vertex_label) {
     return vertex_data_[vertex_label];
   }
@@ -753,7 +765,11 @@ class MutablePropertyFragment {
     return vertex_data_[vertex_label];
   }
 
+  vid_t lid_num(label_t vertex_label) const;
+
   vid_t vertex_num(label_t vertex_label) const;
+
+  bool is_valid_lid(label_t vertex_label, vid_t lid) const;
 
   size_t edge_num(label_t src_label, label_t edge_label,
                   label_t dst_label) const;
@@ -835,6 +851,14 @@ class MutablePropertyFragment {
     return ie_map_.at(index);
   }
 
+  inline bool is_deleted(label_t label) const {
+    return vertex_tomb_[label]->count() != 0;
+  }
+
+  inline std::shared_ptr<Bitset> get_vertex_tomb(label_t label) const {
+    return vertex_tomb_[label];
+  }
+
   void loadSchema(const std::string& filename);
   inline std::shared_ptr<ColumnBase> get_vertex_property_column(
       uint8_t label, const std::string& prop) const {
@@ -897,7 +921,7 @@ class MutablePropertyFragment {
   std::vector<IndexerType> lf_indexers_;
   std::vector<Table> vertex_data_;
 
-  std::vector<Bitset> vertex_tomb_;
+  std::vector<std::shared_ptr<Bitset>> vertex_tomb_;
 
   std::unordered_map<uint32_t, CsrBase*> ie_map_, oe_map_;
   std::unordered_map<uint32_t, DualCsrBase*> dual_csr_map_;

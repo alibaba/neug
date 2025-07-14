@@ -74,6 +74,51 @@ class MutableAdjlist {
     nbr.timestamp.store(ts);
   }
 
+  void remove_nbrs(const std::unordered_set<vid_t>& nbrs) {
+    int size = size_.load(std::memory_order_acquire);
+    int delete_count = 0;
+    nbr_t* start = buffer_;
+    nbr_t* end = start + size - 1;
+    if (size > 0) {
+      while (start <= end) {
+        if (start == end) {
+          if (nbrs.find(start->get_neighbor()) != nbrs.end()) {
+            delete_count++;
+          }
+          break;
+        }
+        bool find_left = false;
+        bool find_right = false;
+        while (start <= end) {
+          if (nbrs.find(start->get_neighbor()) != nbrs.end()) {
+            delete_count++;
+            find_left = true;
+            break;
+          }
+          start++;
+        }
+        while (start < end) {
+          if (nbrs.find(end->get_neighbor()) == nbrs.end()) {
+            find_right = true;
+            break;
+          }
+          delete_count++;
+          end--;
+        }
+        if (find_left && find_right) {
+          std::swap(*start, *end);
+          start++;
+          end--;
+        } else {
+          break;
+        }
+      }
+    }
+    size_.store(size - delete_count);
+  }
+
+  inline void clear() { size_.store(0); }
+
   inline slice_t get_edges() const {
     slice_t ret;
     ret.set_size(size_.load(std::memory_order_acquire));

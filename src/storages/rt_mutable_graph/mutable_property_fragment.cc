@@ -199,6 +199,7 @@ Status MutablePropertyFragment::create_vertex_type(
                            primary_keys, strategies, max_num, description);
   label_t vertex_label_id = schema_.get_vertex_label_id(vertex_type_name);
   lf_indexers_.resize(schema_.vertex_label_num());
+  vertex_tomb_.emplace_back(std::make_shared<Bitset>());
   lf_indexers_[vertex_label_id].init(
       std::get<0>(schema_.get_vertex_primary_key(vertex_label_id)[0]));
   // TODO: use memory level.
@@ -757,6 +758,46 @@ Status MutablePropertyFragment::delete_edge_type(
   return gs::Status::OK();
 }
 
+Status MutablePropertyFragment::batch_delete_vertices(
+    const label_t& v_label_id, const std::vector<vid_t>& vids) {
+  for (auto v : vids) {
+    if (v < lf_indexers_[v_label_id].size() &&
+        !vertex_tomb_[v_label_id]->get(v)) {
+      auto oid = lf_indexers_[v_label_id].get_key(v);
+      lf_indexers_[v_label_id].remove(oid);
+      vertex_tomb_[v_label_id]->set(v);
+    }
+  }
+
+  for (label_t i = 0; i < vertex_label_num_; i++) {
+    for (label_t j = 0; j < edge_label_num_; j++) {
+      if (schema_.has_edge_label(i, v_label_id, j)) {
+        size_t index = schema_.generate_edge_label(i, v_label_id, j);
+        dual_csr_map_.at(index)->BatchDeleteVertices(false, vids);
+      }
+      if (schema_.has_edge_label(v_label_id, i, j)) {
+        size_t index = schema_.generate_edge_label(v_label_id, i, j);
+        dual_csr_map_.at(index)->BatchDeleteVertices(true, vids);
+      }
+    }
+  }
+
+  return Status::OK();
+}
+
+Status MutablePropertyFragment::batch_delete_edges(
+    const label_t& src_v_label, const label_t& dst_v_label,
+    const label_t& edge_label,
+    std::vector<std::tuple<vid_t, vid_t>>& edges_vec) {
+  std::string src_vertex_type = schema_.get_vertex_label_name(src_v_label);
+  std::string dst_vertex_type = schema_.get_vertex_label_name(dst_v_label);
+  std::string edge_type_name = schema_.get_edge_label_name(edge_label);
+  size_t index =
+      schema_.generate_edge_label(src_v_label, dst_v_label, edge_label);
+  dual_csr_map_.at(index)->BatchDeleteEdge(edges_vec);
+  return Status::OK();
+}
+
 void MutablePropertyFragment::DumpSchema(const std::string& schema_path) {
   auto io_adaptor = std::unique_ptr<grape::LocalIOAdaptor>(
       new grape::LocalIOAdaptor(schema_path));
@@ -777,11 +818,17 @@ void MutablePropertyFragment::Open(const std::string& work_dir,
     vertex_label_num_ = schema_.vertex_label_num();
     edge_label_num_ = schema_.edge_label_num();
     lf_indexers_.resize(vertex_label_num_);
+    for (size_t i = 0; i < vertex_label_num_; i++) {
+      vertex_tomb_.emplace_back(std::make_shared<Bitset>());
+    }
     snap_shot_dir = get_latest_snapshot(work_dir_);
   } else {
     vertex_label_num_ = schema_.vertex_label_num();
     edge_label_num_ = schema_.edge_label_num();
     lf_indexers_.resize(vertex_label_num_);
+    for (size_t i = 0; i < vertex_label_num_; i++) {
+      vertex_tomb_.emplace_back(std::make_shared<Bitset>());
+    }
     build_empty_graph = true;
     LOG(INFO) << "Schema file not found, build empty graph";
     for (size_t i = 0; i < vertex_label_num_; ++i) {
@@ -849,6 +896,7 @@ void MutablePropertyFragment::Open(const std::string& work_dir,
           schema_.get_vertex_properties(i),
           schema_.get_vertex_storage_strategies(v_label_name), true);
     }
+    vertex_tomb_[i]->resize(lf_indexers_[i].size());
 
     // We will reserve the at least 4096 slots for each vertex label
     size_t vertex_capacity =
@@ -1045,8 +1093,18 @@ const Schema& MutablePropertyFragment::schema() const { return schema_; }
 
 Schema& MutablePropertyFragment::mutable_schema() { return schema_; }
 
-vid_t MutablePropertyFragment::vertex_num(label_t vertex_label) const {
+vid_t MutablePropertyFragment::lid_num(label_t vertex_label) const {
   return static_cast<vid_t>(lf_indexers_[vertex_label].size());
+}
+
+vid_t MutablePropertyFragment::vertex_num(label_t vertex_label) const {
+  return static_cast<vid_t>(lf_indexers_[vertex_label].size()) -
+         vertex_tomb_[vertex_label]->count();
+}
+
+bool MutablePropertyFragment::is_valid_lid(label_t vertex_label,
+                                           vid_t lid) const {
+  return !vertex_tomb_[vertex_label]->get(lid);
 }
 
 size_t MutablePropertyFragment::edge_num(label_t src_label, label_t edge_label,
@@ -1118,7 +1176,7 @@ std::string MutablePropertyFragment::get_statistics_json() const {
   for (size_t idx = 0; idx < vertex_label_num; ++idx) {
     ss += "{\n\"type_id\": " + std::to_string(idx) + ", \n";
     ss += "\"type_name\": \"" + schema_.get_vertex_label_name(idx) + "\", \n";
-    size_t count = lf_indexers_[idx].size();
+    size_t count = vertex_num(idx);
     ss += "\"count\": " + std::to_string(count) + "\n}";
     vertex_count += count;
     if (idx != vertex_label_num - 1) {
@@ -1271,8 +1329,8 @@ void MutablePropertyFragment::change_csr_data_type_to_record_view(
       new_csr->SetOutCsr(std::move(out_index_csr));
     } else {
       std::vector<int32_t> ie_deg, oe_deg;
-      oe_deg.resize(vertex_num(src_label_id), 0);
-      ie_deg.resize(vertex_num(dst_label_id), 0);
+      oe_deg.resize(lid_num(src_label_id), 0);
+      ie_deg.resize(lid_num(dst_label_id), 0);
       if (prev_prop_types[0] == PropertyType::Bool()) {
         auto out_csr = dynamic_cast<MutableCsr<bool>*>(dual_csr->GetOutCsr());
         std::atomic<size_t> offset(0);
@@ -1280,7 +1338,7 @@ void MutablePropertyFragment::change_csr_data_type_to_record_view(
         std::shared_ptr<BoolColumn> column =
             std::make_shared<BoolColumn>(StorageStrategy::kMem);
         column->resize(edge_num(src_label_id, edge_label_id, dst_label_id));
-        for (vid_t i = 0; i < vertex_num(src_label_id); i++) {
+        for (vid_t i = 0; i < lid_num(src_label_id); i++) {
           for (auto e : out_csr->get_edges(i)) {
             auto local_offset = offset.fetch_add(1);
             edges.emplace_back(std::make_tuple(i, e.neighbor, local_offset));
@@ -1307,7 +1365,7 @@ void MutablePropertyFragment::change_csr_data_type_to_record_view(
         std::shared_ptr<UInt8Column> column =
             std::make_shared<UInt8Column>(StorageStrategy::kMem);
         column->resize(edge_num(src_label_id, edge_label_id, dst_label_id));
-        for (vid_t i = 0; i < vertex_num(src_label_id); i++) {
+        for (vid_t i = 0; i < lid_num(src_label_id); i++) {
           for (auto e : out_csr->get_edges(i)) {
             auto local_offset = offset.fetch_add(1);
             edges.emplace_back(std::make_tuple(i, e.neighbor, local_offset));
@@ -1334,7 +1392,7 @@ void MutablePropertyFragment::change_csr_data_type_to_record_view(
         std::shared_ptr<UInt16Column> column =
             std::make_shared<UInt16Column>(StorageStrategy::kMem);
         column->resize(edge_num(src_label_id, edge_label_id, dst_label_id));
-        for (vid_t i = 0; i < vertex_num(src_label_id); i++) {
+        for (vid_t i = 0; i < lid_num(src_label_id); i++) {
           for (auto e : out_csr->get_edges(i)) {
             auto local_offset = offset.fetch_add(1);
             edges.emplace_back(std::make_tuple(i, e.neighbor, local_offset));
@@ -1361,7 +1419,7 @@ void MutablePropertyFragment::change_csr_data_type_to_record_view(
         std::shared_ptr<IntColumn> column =
             std::make_shared<IntColumn>(StorageStrategy::kMem);
         column->resize(edge_num(src_label_id, edge_label_id, dst_label_id));
-        for (vid_t i = 0; i < vertex_num(src_label_id); i++) {
+        for (vid_t i = 0; i < lid_num(src_label_id); i++) {
           for (auto e : out_csr->get_edges(i)) {
             auto local_offset = offset.fetch_add(1);
             edges.emplace_back(std::make_tuple(i, e.neighbor, local_offset));
@@ -1388,7 +1446,7 @@ void MutablePropertyFragment::change_csr_data_type_to_record_view(
         std::shared_ptr<UIntColumn> column =
             std::make_shared<UIntColumn>(StorageStrategy::kMem);
         column->resize(edge_num(src_label_id, edge_label_id, dst_label_id));
-        for (vid_t i = 0; i < vertex_num(src_label_id); i++) {
+        for (vid_t i = 0; i < lid_num(src_label_id); i++) {
           for (auto e : out_csr->get_edges(i)) {
             auto local_offset = offset.fetch_add(1);
             edges.emplace_back(std::make_tuple(i, e.neighbor, local_offset));
@@ -1415,7 +1473,7 @@ void MutablePropertyFragment::change_csr_data_type_to_record_view(
         std::shared_ptr<LongColumn> column =
             std::make_shared<LongColumn>(StorageStrategy::kMem);
         column->resize(edge_num(src_label_id, edge_label_id, dst_label_id));
-        for (vid_t i = 0; i < vertex_num(src_label_id); i++) {
+        for (vid_t i = 0; i < lid_num(src_label_id); i++) {
           for (auto e : out_csr->get_edges(i)) {
             auto local_offset = offset.fetch_add(1);
             edges.emplace_back(std::make_tuple(i, e.neighbor, local_offset));
@@ -1442,7 +1500,7 @@ void MutablePropertyFragment::change_csr_data_type_to_record_view(
         std::shared_ptr<ULongColumn> column =
             std::make_shared<ULongColumn>(StorageStrategy::kMem);
         column->resize(edge_num(src_label_id, edge_label_id, dst_label_id));
-        for (vid_t i = 0; i < vertex_num(src_label_id); i++) {
+        for (vid_t i = 0; i < lid_num(src_label_id); i++) {
           for (auto e : out_csr->get_edges(i)) {
             auto local_offset = offset.fetch_add(1);
             edges.emplace_back(std::make_tuple(i, e.neighbor, local_offset));
@@ -1468,7 +1526,7 @@ void MutablePropertyFragment::change_csr_data_type_to_record_view(
         std::shared_ptr<DoubleColumn> column =
             std::make_shared<DoubleColumn>(StorageStrategy::kMem);
         column->resize(edge_num(src_label_id, edge_label_id, dst_label_id));
-        for (vid_t i = 0; i < vertex_num(src_label_id); i++) {
+        for (vid_t i = 0; i < lid_num(src_label_id); i++) {
           for (auto e : out_csr->get_edges(i)) {
             auto local_offset = offset.fetch_add(1);
             edges.emplace_back(std::make_tuple(i, e.neighbor, local_offset));
@@ -1494,7 +1552,7 @@ void MutablePropertyFragment::change_csr_data_type_to_record_view(
         std::shared_ptr<FloatColumn> column =
             std::make_shared<FloatColumn>(StorageStrategy::kMem);
         column->resize(edge_num(src_label_id, edge_label_id, dst_label_id));
-        for (vid_t i = 0; i < vertex_num(src_label_id); i++) {
+        for (vid_t i = 0; i < lid_num(src_label_id); i++) {
           for (auto e : out_csr->get_edges(i)) {
             auto local_offset = offset.fetch_add(1);
             edges.emplace_back(std::make_tuple(i, e.neighbor, local_offset));
@@ -1520,7 +1578,7 @@ void MutablePropertyFragment::change_csr_data_type_to_record_view(
         std::shared_ptr<DateColumn> column =
             std::make_shared<DateColumn>(StorageStrategy::kMem);
         column->resize(edge_num(src_label_id, edge_label_id, dst_label_id));
-        for (vid_t i = 0; i < vertex_num(src_label_id); i++) {
+        for (vid_t i = 0; i < lid_num(src_label_id); i++) {
           for (auto e : out_csr->get_edges(i)) {
             auto local_offset = offset.fetch_add(1);
             edges.emplace_back(std::make_tuple(i, e.neighbor, local_offset));
@@ -1547,7 +1605,7 @@ void MutablePropertyFragment::change_csr_data_type_to_record_view(
         std::shared_ptr<DateTimeColumn> column =
             std::make_shared<DateTimeColumn>(StorageStrategy::kMem);
         column->resize(edge_num(src_label_id, edge_label_id, dst_label_id));
-        for (vid_t i = 0; i < vertex_num(src_label_id); i++) {
+        for (vid_t i = 0; i < lid_num(src_label_id); i++) {
           for (auto e : out_csr->get_edges(i)) {
             auto local_offset = offset.fetch_add(1);
             edges.emplace_back(std::make_tuple(i, e.neighbor, local_offset));
@@ -1574,7 +1632,7 @@ void MutablePropertyFragment::change_csr_data_type_to_record_view(
         std::shared_ptr<TimeStampColumn> column =
             std::make_shared<TimeStampColumn>(StorageStrategy::kMem);
         column->resize(edge_num(src_label_id, edge_label_id, dst_label_id));
-        for (vid_t i = 0; i < vertex_num(src_label_id); i++) {
+        for (vid_t i = 0; i < lid_num(src_label_id); i++) {
           for (auto e : out_csr->get_edges(i)) {
             auto local_offset = offset.fetch_add(1);
             edges.emplace_back(std::make_tuple(i, e.neighbor, local_offset));
@@ -1597,13 +1655,13 @@ void MutablePropertyFragment::change_csr_data_type_to_record_view(
     }
   } else if (prev_prop_types.size() == 0) {
     std::vector<int32_t> ie_deg, oe_deg;
-    oe_deg.resize(vertex_num(src_label_id), 0);
-    ie_deg.resize(vertex_num(dst_label_id), 0);
+    oe_deg.resize(lid_num(src_label_id), 0);
+    ie_deg.resize(lid_num(dst_label_id), 0);
     auto out_csr =
         dynamic_cast<MutableCsr<grape::EmptyType>*>(dual_csr->GetOutCsr());
     std::atomic<size_t> offset(0);
     std::vector<std::tuple<vid_t, vid_t, size_t>> edges;
-    for (vid_t i = 0; i < vertex_num(src_label_id); i++) {
+    for (vid_t i = 0; i < lid_num(src_label_id); i++) {
       for (auto e : out_csr->get_edges(i)) {
         auto local_offset = offset.fetch_add(1);
         edges.emplace_back(std::make_tuple(i, e.neighbor, local_offset));

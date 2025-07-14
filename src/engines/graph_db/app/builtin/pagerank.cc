@@ -100,8 +100,10 @@ results::CollectiveResults PageRank::Query(
       sess.schema().get_vertex_label_id(dst_vertex_label);
   auto edge_label_id = sess.schema().get_edge_label_id(edge_label);
 
-  auto num_src_vertices = txn.GetVertexNum(src_vertex_label_id);
-  auto num_dst_vertices = txn.GetVertexNum(dst_vertex_label_id);
+  auto src_vertex_set = txn.GetVertexSet(src_vertex_label_id);
+  auto dst_vertex_set = txn.GetVertexSet(dst_vertex_label_id);
+  auto num_src_vertices = src_vertex_set.size();
+  auto num_dst_vertices = dst_vertex_set.size();
   auto num_vertices = src_vertex_label_id == dst_vertex_label_id
                           ? num_src_vertices
                           : num_src_vertices + num_dst_vertices;

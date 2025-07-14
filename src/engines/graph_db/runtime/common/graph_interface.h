@@ -51,39 +51,6 @@ class VertexColumn {
   std::shared_ptr<TypedRefColumn<PROP_T>> column_;
 };
 
-class VertexSet {
- public:
-  VertexSet(vid_t size) : size_(size) {}
-  ~VertexSet() {}
-
-  class iterator {
-   public:
-    iterator(vid_t v) : v_(v) {}
-    ~iterator() {}
-
-    inline vid_t operator*() const { return v_; }
-
-    inline iterator& operator++() {
-      ++v_;
-      return *this;
-    }
-
-    inline bool operator==(const iterator& rhs) const { return v_ == rhs.v_; }
-
-    inline bool operator!=(const iterator& rhs) const { return v_ != rhs.v_; }
-
-   private:
-    vid_t v_;
-  };
-
-  inline iterator begin() const { return iterator(0); }
-  inline iterator end() const { return iterator(size_); }
-  inline size_t size() const { return size_; }
-
- private:
-  vid_t size_;
-};
-
 class EdgeIterator {
  public:
   EdgeIterator(gs::ReadTransaction::edge_iterator&& iter)
@@ -311,7 +278,7 @@ class GraphReadInterface {
   template <typename PROP_T>
   using vertex_column_t = graph_interface_impl::VertexColumn<PROP_T>;
 
-  using vertex_set_t = graph_interface_impl::VertexSet;
+  using vertex_set_t = gs::VertexSet;
 
   using edge_iterator_t = graph_interface_impl::EdgeIterator;
 
@@ -334,11 +301,15 @@ class GraphReadInterface {
   }
 
   inline vertex_set_t GetVertexSet(label_t label) const {
-    return vertex_set_t(txn_.GetVertexNum(label));
+    return txn_.GetVertexSet(label);
   }
 
   inline bool GetVertexIndex(label_t label, const Any& id, vid_t& index) const {
     return txn_.GetVertexIndex(label, id, index);
+  }
+
+  inline bool IsValidIndex(label_t label, vid_t index) const {
+    return txn_.graph().is_valid_lid(label, index);
   }
 
   inline Any GetVertexId(label_t label, vid_t index) const {

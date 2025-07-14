@@ -225,7 +225,7 @@ bool ServerApp::Query(GraphDBSession& graph, Decoder& input, Encoder& output) {
 
         if (src_id == std::numeric_limits<int64_t>::max()) {
           src_range.from = 0;
-          src_range.to = txn.GetVertexNum(src_label_id);
+          src_range.to = txn.GetVertexSet(src_label_id).size();
         } else {
           uint32_t src_vid = get_vertex_vid(txn, src_label_id, src_id);
           if (src_vid != std::numeric_limits<uint32_t>::max()) {
@@ -236,7 +236,7 @@ bool ServerApp::Query(GraphDBSession& graph, Decoder& input, Encoder& output) {
 
         if (dst_id == std::numeric_limits<int64_t>::max()) {
           dst_range.from = 0;
-          dst_range.to = txn.GetVertexNum(dst_label_id);
+          dst_range.to = txn.GetVertexSet(dst_label_id).size();
         } else {
           uint32_t dst_vid = get_vertex_vid(txn, dst_label_id, dst_id);
           if (dst_vid != std::numeric_limits<uint32_t>::max()) {

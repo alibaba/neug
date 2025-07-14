@@ -88,6 +88,10 @@ class TestDDL(unittest.TestCase):
         # Rename a column
         conn.execute("ALTER TABLE person RENAME name TO username;")
 
+        # Batch delete vertices in table
+        # Neng: This is a temporary query intended to test the batch deletion functionality.
+        conn.execute("MATCH (v:person) DELETE v;")
+
         # Delete a edge type
         conn.execute("DROP TABLE knows;")
 

@@ -31,6 +31,7 @@
 #include <utility>
 #include <vector>
 
+#include "src/engines/graph_db/database/transaction_utils.h"
 #include "src/storages/rt_mutable_graph/csr/immutable_csr.h"
 #include "src/storages/rt_mutable_graph/csr/mutable_csr.h"
 #include "src/storages/rt_mutable_graph/csr/nbr.h"
@@ -471,6 +472,7 @@ class ReadTransaction {
     label_t label_;
     vid_t cur_;
     vid_t num_;
+    bool is_deleted_;
     const MutablePropertyFragment& graph_;
   };
 
@@ -506,6 +508,8 @@ class ReadTransaction {
   bool GetVertexIndex(label_t label, const Any& id, vid_t& index) const;
 
   vid_t GetVertexNum(label_t label) const;
+
+  VertexSet GetVertexSet(label_t label) const;
 
   Any GetVertexId(label_t label, vid_t index) const;
 

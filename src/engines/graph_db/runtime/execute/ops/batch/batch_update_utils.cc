@@ -13,8 +13,6 @@
  * limitations under the License.
  */
 
-#include "src/engines/graph_db/runtime/execute/ops/insert/batch_insert_utils.h"
-
 #include <arrow/csv/options.h>
 #include <arrow/type.h>
 #include <arrow/util/value_parsing.h>
@@ -28,6 +26,7 @@
 #include "src/engines/graph_db/runtime/common/columns/arrow_context_column.h"
 #include "src/engines/graph_db/runtime/common/columns/i_context_column.h"
 #include "src/engines/graph_db/runtime/common/context.h"
+#include "src/engines/graph_db/runtime/execute/ops/batch/batch_update_utils.h"
 #include "src/proto_generated_gie/common.pb.h"
 #include "src/proto_generated_gie/expr.pb.h"
 #include "src/proto_generated_gie/physical.pb.h"

@@ -44,7 +44,8 @@ bl::result<Context> Scan::find_vertex_with_gid(Context&& ctx,
                                                label_t label, int64_t gid,
                                                int32_t alias) {
   auto builder = SLVertexColumnBuilder::builder(label);
-  if (GlobalId::get_label_id(gid) == label) {
+  if (GlobalId::get_label_id(gid) == label &&
+      graph.IsValidIndex(label, GlobalId::get_vid(gid))) {
     builder.push_back_opt(GlobalId::get_vid(gid));
   } else {
     LOG(ERROR) << "Invalid label id: "

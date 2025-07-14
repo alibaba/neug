@@ -13,8 +13,8 @@
  * limitations under the License.
  */
 
-#ifndef RUNTIME_EXECUTE_OPS_INSERT_BATCH_INSERT_EDGE_H_
-#define RUNTIME_EXECUTE_OPS_INSERT_BATCH_INSERT_EDGE_H_
+#ifndef RUNTIME_EXECUTE_OPS_BATCH_BATCH_INSERT_VERTEX_H_
+#define RUNTIME_EXECUTE_OPS_BATCH_BATCH_INSERT_VERTEX_H_
 
 #include <boost/leaf.hpp>
 #include <cstdint>
@@ -25,7 +25,6 @@
 #include <vector>
 
 #include "src/engines/graph_db/runtime/execute/operator.h"
-#include "src/engines/graph_db/runtime/execute/ops/insert/batch_insert_utils.h"
 #include "src/proto_generated_gie/physical.pb.h"
 #include "src/storages/rt_mutable_graph/types.h"
 #include "src/utils/property/types.h"
@@ -40,27 +39,17 @@ class OprTimer;
 
 namespace ops {
 
-class BatchInsertEdgeOpr : public IUpdateOperator {
+class BatchInsertVertexOpr : public IUpdateOperator {
  public:
-  BatchInsertEdgeOpr(
-      const label_t& edge_label_id, const label_t& src_label_id,
-      const label_t& dst_label_id, const PropertyType& e_prop,
-      const PropertyType& src_pk_prop, const PropertyType& dst_pk_prop,
-      const std::vector<std::pair<int32_t, std::string>>& prop_mappings,
-      const std::vector<std::pair<int32_t, std::string>>& src_vertex_bindings,
-      const std::vector<std::pair<int32_t, std::string>>& dst_vertex_bindings)
-      : edge_label_id_(edge_label_id),
-        src_label_id_(src_label_id),
-        dst_label_id_(dst_label_id),
-        e_prop_(e_prop),
-        src_pk_prop_(src_pk_prop),
-        dst_pk_prop_(dst_pk_prop),
-        prop_mappings_(prop_mappings),
-        src_vertex_bindings_(src_vertex_bindings),
-        dst_vertex_bindings_(dst_vertex_bindings) {}
+  BatchInsertVertexOpr(
+      const label_t& vertex_label_id, const PropertyType& pk_type,
+      const std::vector<std::pair<int32_t, std::string>>& prop_mappings)
+      : vertex_label_id_(vertex_label_id),
+        pk_type_(pk_type),
+        prop_mappings_(prop_mappings) {}
 
   std::string get_operator_name() const override {
-    return "BatchInsertEdgeOpr";
+    return "BatchInsertVertexOpr";
   }
 
   bl::result<Context> Eval(GraphUpdateInterface& graph,
@@ -68,28 +57,29 @@ class BatchInsertEdgeOpr : public IUpdateOperator {
                            Context&& ctx, OprTimer& timer) override;
 
  private:
-  label_t edge_label_id_, src_label_id_, dst_label_id_;
-  PropertyType e_prop_, src_pk_prop_, dst_pk_prop_;
-  std::vector<std::pair<int32_t, std::string>> prop_mappings_,
-      src_vertex_bindings_, dst_vertex_bindings_;
+  label_t vertex_label_id_;
+  PropertyType pk_type_;
+  std::vector<std::pair<int32_t, std::string>> prop_mappings_;
 };
 
-class BatchInsertEdgeOprBuilder : public IUpdateOperatorBuilder {
+class BatchInsertVertexOprBuilder : public IUpdateOperatorBuilder {
  public:
-  BatchInsertEdgeOprBuilder() = default;
-  ~BatchInsertEdgeOprBuilder() = default;
+  BatchInsertVertexOprBuilder() = default;
+  ~BatchInsertVertexOprBuilder() = default;
 
   std::unique_ptr<IUpdateOperator> Build(const Schema& schema,
                                          const physical::PhysicalPlan& plan,
                                          int op_idx) override;
 
   physical::PhysicalOpr_Operator::OpKindCase GetOpKind() const override {
-    return physical::PhysicalOpr_Operator::OpKindCase::kLoadEdge;
+    return physical::PhysicalOpr_Operator::OpKindCase::kLoadVertex;
   }
 };
 
 }  // namespace ops
+
 }  // namespace runtime
+
 }  // namespace gs
 
-#endif  // RUNTIME_EXECUTE_OPS_INSERT_BATCH_INSERT_EDGE_H_
+#endif  // RUNTIME_EXECUTE_OPS_BATCH_BATCH_INSERT_VERTEX_H_

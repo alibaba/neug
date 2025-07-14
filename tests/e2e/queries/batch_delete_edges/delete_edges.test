@@ -1,0 +1,29 @@
+-DATASET CSV tinysnb
+
+--
+
+-CASE DeleteEdgesTest
+
+
+-LOG EdgesCount
+-STATEMENT MATCH (a:person)-[e:knows]->(b:person) RETURN COUNT(e)
+---- 1
+14
+
+-LOG DeleteSomeEdges
+-STATEMENT MATCH (a:person)-[e:knows]->(:person) WHERE a.age > 25 DELETE e
+---- 0
+
+-LOG EdgesCountAfterDelete
+-STATEMENT MATCH (a:person)-[e:knows]->(b:person) RETURN COUNT(e)
+---- 1
+5
+
+-LOG DeleteAllEdges
+-STATEMENT MATCH (a:person)-[e:knows]->(:person) DELETE e
+---- 0
+
+-LOG EmptyEdgesCount
+-STATEMENT MATCH (a:person)-[e:knows]->(b:person) RETURN COUNT(e)
+---- 1
+0

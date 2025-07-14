@@ -234,6 +234,10 @@ class OptionalSLVertexColumn : public SLVertexColumnBase {
     }
   }
 
+  inline label_t label() const { return label_; }
+
+  inline const std::vector<vid_t>& vertices() const { return vertices_; }
+
   std::set<label_t> get_labels_set() const override { return {label_}; }
 
   ISigColumn* generate_signature() const override;

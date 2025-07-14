@@ -1,0 +1,43 @@
+-DATASET CSV tinysnb
+
+--
+
+-CASE BatchDeleteTest
+
+-LOG VerticesCount
+-STATEMENT MATCH (a:person) RETURN COUNT(a)
+---- 1
+8
+
+-LOG EdgesCount
+-STATEMENT MATCH (a:person)-[e:knows]->(b:person) RETURN COUNT(e)
+---- 1
+14
+
+-LOG DeleteSomeVertices
+-STATEMENT MATCH (a:person) WHERE a.age > 25 DELETE a
+---- 0
+
+-LOG VerticesCountAfterDelete
+-STATEMENT MATCH (a:person) RETURN COUNT(a)
+---- 1
+3
+
+-LOG EdgesCountAfterDelete
+-STATEMENT MATCH (a:person)-[e:knows]->(b:person) RETURN COUNT(e)
+---- 1
+1
+
+-LOG DeleteAllVertices
+-STATEMENT MATCH (a:person) DELETE a
+---- 0
+
+-LOG EmptyVerticesCount
+-STATEMENT MATCH (a:person) RETURN COUNT(a)
+---- 1
+0
+
+-LOG EmptyEdgesCount
+-STATEMENT MATCH (a:person)-[e:knows]->(b:person) RETURN COUNT(e)
+---- 1
+0

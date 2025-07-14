@@ -122,6 +122,7 @@ jobs:
         cd ${GITHUB_WORKSPACE}/tools/python_bind/
         export FLEX_DATA_DIR=${GITHUB_WORKSPACE}/example_dataset/modern_graph
         GLOG_v=10 ./build/neug_py_bind/tests/rt_mutable_graph/test_open_graph /tmp/test_open_graph ${FLEX_DATA_DIR}
+        build/neug_py_bind/tests/rt_mutable_graph/test_ddl
 
     - name: Run Python Test
       run: |
@@ -196,6 +197,8 @@ jobs:
         # TODO: Currently, we only include a few basic tests for cypher queries on tinysnb.
         # We will add more tests for each cypher operator in e2e/queries directory when they are ready.
         ./scripts/run_embed_test.sh tinysnb /tmp/tinysnb basic_test,projection,filter,order_by,expr,acc,agg,match
+        ./scripts/run_embed_test.sh tinysnb /tmp/tinysnb batch_delete_vertices true
+        ./scripts/run_embed_test.sh tinysnb /tmp/tinysnb batch_delete_edges true
 
     - name: Run E2E LSQB Test
       run: |
