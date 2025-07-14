@@ -45,20 +45,16 @@ def test_create_schema_basic_types(tmp_path):
     db.close()
 
 
-@pytest.mark.skip(reason="not all types supported yet")
-def test_create_schema_all_types(tmp_path):
+@pytest.mark.skip(reason="complex types are not supported yet")
+def test_create_schema_complex_types(tmp_path):
     db_dir = tmp_path / "schema_types"
     db_dir.mkdir()
     db = Database(db_path=str(db_dir), mode="w", planner="gopt")
     conn = db.connect()
     conn.execute(
-        "CREATE NODE TABLE Type (p1 INT32, p2 INT64, p3 UINT32, p4 UINT64, "
-        "p5 FLOAT, p6 DOUBLE, p7 STRING, p8 Date, p9 DateTime, p10 Interval, "
+        "CREATE NODE TABLE Type (p1 INT32, p8 Date, p9 DateTime, p10 Interval, "
         "p11 List, p12 Map, PRIMARY KEY (p1));"
     )
-    # TODO: support "SHOW TABLES"?
-    result = conn.execute("SHOW TABLES;")
-    assert len(result) == 1
     conn.close()
     db.close()
 
@@ -150,14 +146,18 @@ def test_insert_type_check(tmp_path):
 
 
 # DB-003-03
-@pytest.mark.skip(reason="expressions not yet supported")
-def test_return_expression(tmp_path):
-    db_dir = tmp_path / "expr"
-    db_dir.mkdir()
+@pytest.mark.skip(
+    reason="unexpected result of interval(), the returned value is '-1 year 2 days'"
+)
+def test_return_expression():
+    db_dir = "/tmp/modern_graph"
     db = Database(db_path=str(db_dir), mode="w", planner="gopt")
     conn = db.connect()
-    result = conn.execute("RETURN 1+2, date('2023-01-01'), interval('1 year 2 days');")
+    result = conn.execute(
+        "Match (n) RETURN 1+2, date('2023-01-01'), interval('1 year 2 days') limit 1;"
+    )
     assert result is not None
+    print(result)
     assert len(result) == 1
     row = result.__next__()
     assert row[0] == 3  # 1 + 2
@@ -566,30 +566,24 @@ def test_set_edge_property(tmp_path):
     db.close()
 
 
-# DB-003-13
-@pytest.mark.skip(reason="DML not fully supported yet")
-def test_query_sync(tmp_path):
-    db_dir = tmp_path / "query_sync"
-    db_dir.mkdir()
-    db = Database(db_path=str(db_dir), mode="w", planner="gopt")
+# DB-003-12
+def test_query_sync():
+    db_dir = "/tmp/modern_graph"
+    db = Database(db_path=str(db_dir), mode="r", planner="gopt")
     conn = db.connect()
-    conn.execute("CREATE NODE TABLE T(id INT32, PRIMARY KEY(id));")
-    conn.execute("INSERT INTO T(id) VALUES (1);")
-    result = conn.execute("MATCH (n:T) RETURN n;")
-    assert result is not None
+    result = conn.execute("MATCH (n) RETURN n;")
+    assert len(result) == 6
     conn.close()
     db.close()
 
 
-@pytest.mark.skip(reason="async_execute not implemented yet")
-def test_query_async(tmp_path):
-    db_dir = tmp_path / "query_async"
-    db_dir.mkdir()
-    db = Database(db_path=str(db_dir), mode="w", planner="gopt")
-    conn = db.connect()
-    fut = conn.async_execute("MATCH (n) RETURN n;")
-    result = fut.result()
-    assert result is not None
+@pytest.mark.asyncio
+async def test_query_async():
+    db_dir = "/tmp/modern_graph"
+    db = Database(db_path=str(db_dir), mode="r", planner="gopt")
+    conn = db.async_connect()
+    result = await conn.execute("MATCH (n) RETURN n;")
+    assert len(result) == 6
     conn.close()
     db.close()
 

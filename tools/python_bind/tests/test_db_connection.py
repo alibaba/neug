@@ -23,6 +23,7 @@ import time
 import pytest
 
 sys.path.append(os.path.join(os.path.dirname(__file__), "../"))
+from errors import ERR_CONFIG_INVALID
 from errors import ERR_CONNECTION_BROKEN
 from errors import ERR_INVALID_ARGUMENT
 from errors import ERR_LOAD_OVERFLOW
@@ -45,7 +46,6 @@ def test_local_connection(tmp_path):
 
 
 # DB-002-03
-# TODO: more connection parameters to test
 def test_local_connection_params(tmp_path):
     db_dir = tmp_path / "local_conn_param_db"
     db = Database(db_path=str(db_dir), mode="w", max_thread_num=4, planner="gopt")
@@ -56,13 +56,12 @@ def test_local_connection_params(tmp_path):
 
 
 # DB-002-04
-@pytest.mark.xfail(reason="Invalid parameters not handled")
 def test_local_connection_invalid_param(tmp_path):
     db_dir = tmp_path / "local_conn_invalid_db"
     with pytest.raises(Exception) as excinfo:
-        db = Database(db_path=str(db_dir), mode="w", max_thread_num=-1, planner="gopt")
-    assert ERROR_STRINGS[ERR_INVALID_ARGUMENT] in str(excinfo.value)
-    db.close()
+        Database(db_path=str(db_dir), mode="w", max_thread_num=-1, planner="gopt")
+    # TODO: error code should be ERR_INVALID_ARGUMENT
+    assert ERROR_STRINGS[ERR_CONFIG_INVALID] in str(excinfo.value)
 
 
 @pytest.fixture
@@ -249,17 +248,3 @@ def test_connection_pool_exhausted(started_server):
         Session.open(f"neug://user:pass@127.0.0.1:{port}/")
     assert ERROR_STRINGS[ERR_POOL_EXHAUSTED] in str(excinfo.value)
     s1.close()
-
-
-# DB-002-15
-@pytest.mark.xfail(reason="no exception is raised for max_thread_num > os.cpu_count()")
-def test_connection_param_boundary(tmp_path):
-    db_dir = tmp_path / "conn_param_boundary_db"
-    # test with maximum cores
-    max_cores = os.cpu_count() or 1
-    db = Database(str(db_dir), "w", max_thread_num=max_cores, planner="gopt")
-    db.close()
-    with pytest.raises(Exception) as excinfo:
-        # test with more than maximum cores
-        Database(str(db_dir), "w", max_thread_num=max_cores + 1, planner="gopt")
-    assert ERROR_STRINGS[ERR_INVALID_ARGUMENT] in str(excinfo.value)

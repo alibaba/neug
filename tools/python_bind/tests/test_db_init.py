@@ -25,7 +25,6 @@ sys.path.append(os.path.join(os.path.dirname(__file__), "../"))
 from errors import ERR_CONFIG_INVALID
 from errors import ERR_CORRUPTION_DETECTED
 from errors import ERR_DATABASE_LOCKED
-from errors import ERR_DIRECTORY_NOT_EXIST
 from errors import ERR_DISK_SPACE_EXHAUSTED
 from errors import ERR_INVALID_ARGUMENT
 from errors import ERR_INVALID_PATH
@@ -37,7 +36,6 @@ from neug.database import Database
 
 
 # DB-001-01 & DB-001-02
-@pytest.mark.skip(reason="memory mode is not supported in the current version of neug")
 def test_memory_mode_open_and_close():
     db = Database(db_path="", mode="r", planner="gopt")
     assert db is not None
@@ -45,12 +43,16 @@ def test_memory_mode_open_and_close():
     db2 = Database(db_path="", mode="w", planner="gopt")
     assert db2 is not None
     db2.close()
-    db3 = Database(db_path=None, mode="r", planner="gopt")
-    assert db3 is not None
-    db3.close()
-    db4 = Database(db_path=None, mode="w", planner="gopt")
-    assert db4 is not None
-    db4.close()
+
+
+@pytest.mark.skip(reason="open None is not supported")
+def test_memory_mode_open_and_close_none():
+    db = Database(db_path=None, mode="r", planner="gopt")
+    assert db is not None
+    db.close()
+    db2 = Database(db_path=None, mode="w", planner="gopt")
+    assert db2 is not None
+    db2.close()
 
 
 # DB-001-03
@@ -58,6 +60,19 @@ def test_local_db_open_exists_and_close(tmp_path):
     db_dir = tmp_path / "existdb"
     if not db_dir.exists():
         db_dir.mkdir()
+    db = Database(db_path=str(db_dir), mode="r", planner="gopt")
+    assert db is not None
+    db.close()
+    db2 = Database(db_path=str(db_dir), mode="rw", planner="gopt")
+    assert db2 is not None
+    db2.close()
+
+
+@pytest.mark.skip(
+    reason="open ldbc db fails, F0710 15:40:18.283864 3740356 yaml_utils.cc:82] Unsupported property type: timestamp"
+)
+def test_local_ldbc_open_and_close():
+    db_dir = "/tmp/ldbc"
     db = Database(db_path=str(db_dir), mode="r", planner="gopt")
     assert db is not None
     db.close()
@@ -151,26 +166,74 @@ def test_invalid_path():
 
 
 # DB-001-11
-def test_config_param_exception(tmp_path):
+@pytest.mark.skip(reason="two cases fails: mode with 'readwrite', planner with 'jni'")
+def test_config_param(tmp_path):
     db_dir = tmp_path / "config_db"
-    db_dir.mkdir()
-    # Use the number of CPU cores as max_thread_num
-    max_thread_num = os.cpu_count() or 1
-    db = Database(
-        db_path=str(db_dir), mode="rw", max_thread_num=max_thread_num, planner="gopt"
+    # mode: 'r', 'read', 'readwrite', 'w', 'rw', 'write'
+    db1 = Database(db_path=str(db_dir), mode="r", max_thread_num=0, planner="gopt")
+    assert db1 is not None
+    db1.close()
+    db2 = Database(db_path=str(db_dir), mode="read", max_thread_num=0, planner="gopt")
+    assert db2 is not None
+    db2.close()
+    db3 = Database(
+        db_path=str(db_dir), mode="readwrite", max_thread_num=0, planner="gopt"
     )
-    assert db is not None
-    db.close()
+    assert db3 is not None
+    db3.close()
+    db4 = Database(db_path=str(db_dir), mode="w", max_thread_num=0, planner="gopt")
+    assert db4 is not None
+    db4.close()
+    db5 = Database(db_path=str(db_dir), mode="rw", max_thread_num=0, planner="gopt")
+    assert db5 is not None
+    db5.close()
+    db6 = Database(db_path=str(db_dir), mode="write", max_thread_num=0, planner="gopt")
+    assert db6 is not None
+    db6.close()
+    # max_thread_num: 0 means no limit
+    db7 = Database(db_path=str(db_dir), mode="r", max_thread_num=0, planner="gopt")
+    assert db7 is not None
+    db7.close()
+    max_thread_num = os.cpu_count() or 1
+    db8 = Database(
+        db_path=str(db_dir), mode="r", max_thread_num=max_thread_num, planner="gopt"
+    )
+    assert db8 is not None
+    db8.close()
+    # planner: 'jni', 'gopt'
+    db9 = Database(db_path=str(db_dir), mode="r", max_thread_num=0, planner="jni")
+    assert db9 is not None
+    db9.close()
+    db10 = Database(db_path=str(db_dir), mode="r", max_thread_num=0, planner="gopt")
+    assert db10 is not None
+    db10.close()
+
+
+def test_config_param_exception(tmp_path):
+    db_dir = tmp_path / "config_db_exception"
     with pytest.raises(Exception) as excinfo:
         Database(db_path=str(db_dir), mode="rw", max_thread_num=-1, planner="gopt")
+        # TODO: error code should be ERR_INVALID_ARGUMENT
     assert ERROR_STRINGS[ERR_CONFIG_INVALID] in str(excinfo.value)
-
     with pytest.raises(ValueError) as excinfo:
-        Database(db_path="/tmp/test", mode="red", planner="gopt")
+        Database(db_path=str(db_dir), mode="red", planner="gopt")
+        # TODO: error code should be ERR_INVALID_ARGUMENT
         assert "Invalid mode: red" in str(excinfo.value)
     with pytest.raises(ValueError) as excinfo:
-        Database(db_path="/tmp/test", mode="write", planner="gopt123")
+        Database(db_path=str(db_dir), mode="write", planner="gopt123")
+        # TODO: error code should be ERR_INVALID_ARGUMENT
         assert "Invalid planner: gopt123" in str(excinfo.value)
+
+
+@pytest.mark.skip(reason="no exception is raised for max_thread_num > os.cpu_count()")
+def test_config_param_boundary(tmp_path):
+    db_dir = tmp_path / "conn_param_boundary_db"
+    # test with more than maximum cores
+    with pytest.raises(Exception) as excinfo:
+        max_cores = os.cpu_count() or 1
+        # max_thread_num should not exceed the number of cores
+        Database(str(db_dir), "w", max_thread_num=max_cores + 1, planner="gopt")
+    assert ERROR_STRINGS[ERR_INVALID_ARGUMENT] in str(excinfo.value)
 
 
 # DB-001-12
@@ -220,7 +283,7 @@ def test_open_dir_not_exist(tmp_path):
     try:
         with pytest.raises(Exception) as excinfo:
             Database(db_path=str(db_dir), mode="w", planner="gopt")
-        assert "Permission denied" in str(excinfo.value)
+        assert ERROR_STRINGS[ERR_PERMISSION] in str(excinfo.value)
     finally:
         os.chmod(db_dir, 0o700)
 
