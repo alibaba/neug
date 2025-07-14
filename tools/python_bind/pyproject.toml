@@ -36,7 +36,6 @@ test = [
 [tool.cibuildwheel]
 build = "cp38-* cp39-* cp310-* cp311-* cp312-* cp313-*"
 skip = ["*-musllinux_*", "*i686*"]
-environment = {MACOSX_DEPLOYMENT_TARGET="11.0", CMAKE_PREFIX_PATH="/opt/graphscope/"}
 environment-pass = ["BUILD_TYPE", "CMAKE_BUILD_PARALLEL_LEVEL", "CMAKE_PREFIX_PATH", "MACOSX_DEPLOYMENT_TARGET"]
 manylinux-x86_64-image = "registry.cn-hongkong.aliyuncs.com/graphscope/graphscope-dev:neug-manylinux-brpc-x86_64"
 manylinux-aarch64-image = "registry.cn-hongkong.aliyuncs.com/graphscope/graphscope-dev:neug-manylinux-brpc-arm64"
@@ -44,9 +43,15 @@ manylinux-aarch64-image = "registry.cn-hongkong.aliyuncs.com/graphscope/graphsco
 [tool.cibuildwheel.linux]
 before-all = ["git submodule update --init"]
 before-build = [". /root/.graphscope_env"]
+environment = {CMAKE_PREFIX_PATH="/opt/graphscope/", OPENSSL_ROOT_DIR="/opt/graphscope"}
 
 [tool.cibuildwheel.macos]
 before-all = ["git submodule update --init"]
+environment = {MACOSX_DEPLOYMENT_TARGET="11.0", CMAKE_PREFIX_PATH="/opt/graphscope/", DYLD_LIBRARY_PATH="/opt/graphscope/lib:/opt/graphscope/lib64", OPENSSL_ROOT_DIR="/opt/graphscope"}
+repair-wheel-command = [
+    'source ~/.graphscope_env',
+    'delocate-wheel --require-archs {delocate_archs} -w {dest_dir} -v {wheel}'
+]
 
 [tool.pytest.ini_options]
 log_cli = true

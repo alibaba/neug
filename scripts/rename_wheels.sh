@@ -15,7 +15,7 @@
 
 # Specify the directory containing the wheel packages
 DIR="../wheelhouse"
-REVERSION="2"
+REVERSION="3"
 
 # Navigate to the specified directory
 cd "$DIR" || exit
@@ -23,7 +23,9 @@ cd "$DIR" || exit
 # Loop through each wheel file in the directory
 for file in *.whl; do
   # Use pattern matching to insert '-2-' after version number
-  new_name=$(echo "$file" | sed 's/\(neug-[0-9]\+\.[0-9]\+\.[0-9]\+\)-/\1-'"$REVERSION"'-/')
+  # new_name=$(echo "$file" | sed 's/\(neug-[0-9]\+\.[0-9]\+\.[0-9]\+\)-/\1-'"$REVERSION"'-/')
+  # on macos, the file name is like neug-0.1.0-cp310-cp310-macosx_11_0_arm64.whl
+  new_name=$(echo "$file" | sed -E 's/(neug-[0-9]+\.[0-9]+\.[0-9]+)-/\1-'"$REVERSION"'-/')
 
   # Rename the file
   mv "$file" "$new_name"
