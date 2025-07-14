@@ -542,6 +542,9 @@ install_brpc() {
       exit 1
     fi
   fi
+  # We need to add -DNO_PTHREAD_MUTEX_HOOK to avoid brpc introducing the private symbol dysym@@GLIBC, which will cause auditwheel failure
+  # see https://github.com/apache/brpc/pull/2727
+  sed -i '36i add_definitions(-DNO_PTHREAD_MUTEX_HOOK)' CMakeLists.txt
 
   mkdir build && cd build && cmake .. -DWITH_DEBUG_SYMBOLS=OFF -DWITH_GLOG=OFF -DCMAKE_INSTALL_PREFIX="${install_prefix}" -DBUILD_SHARED_LIBS=OFF -DCMAKE_POLICY_VERSION_MINIMUM=3.5 -DOPENSSL_ROOT_DIR="{install_prefix}"
   make -j$(nproc)
@@ -586,7 +589,9 @@ install_neug_dependencies() {
     ${SUDO} sysctl -p /etc/sysctl.conf
   else
     export LD_LIBRARY_PATH=${LD_LIBRARY_PATH}:/lib/:/lib64${install_prefix}/lib:${install_prefix}/lib64
-    source /opt/rh/devtoolset-10/enable
+    if [[ "${OS_VERSION}" -eq "7" ]]; then
+      source /opt/rh/devtoolset-10/enable
+    fi
     install_rapidjson # We need to install rapidjson from source, since the latest release available has issue https://github.com/Tencent/rapidjson/issues/2277
     install_protobuf
     install_openssl

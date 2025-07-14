@@ -149,6 +149,9 @@ class Database(object):
             planner=planner,
             planner_config_path=planner_config_path,
         )
+        self._connections = []
+        self._async_connections = []
+        self._serving = False
         if db_path.strip() == "":
             # In memory mode, the database will not be persisted to disk, and all data will be lost when the program exits.
             # So we don't need to log the db_path.
@@ -166,21 +169,6 @@ class Database(object):
 
     def __enter__(self):
         return self
-
-    def serve(self, port: int = 10000, host: str = "localhost"):
-        """
-        Start the database server for handling remote connections(TP mode).
-
-        Neug does not support the ideally htap (hybrid transactional and analytical processing) mode, could only switch between
-        analytical and transactional mode. This method is used to start the database server for handling remote connections.
-        When db.serve() is called, the database will switch to the TP mode, and all the connections to the local database
-        will be closed.
-
-        It will start a server that listens on a specific port, and clients can connect to the server to interact with the
-        database. User could use RemoveDatabase to connect to the server. For detail usage, please refer to the
-        documentation of RemoveDatabase.
-        """
-        pass
 
     @property
     def version(self):
@@ -204,7 +192,85 @@ class Database(object):
         """
         if not self._database:
             raise RuntimeError("Database is closed.")
-        return Connection(self._database.connect())
+        if self._serving:
+            raise RuntimeError(
+                "Cannot create connection while the database server is running."
+            )
+        conn = Connection(self._database.connect())
+        self._connections.append(conn)
+        return conn
+
+    def serve(self, port: int = 10000, host: str = "localhost"):
+        """
+        Start the database server for handling remote connections(TP mode).
+        This method is used to start the database server for handling remote connections.
+        When db.serve() is called, the database will switch to the TP mode, and all the connections to the local database
+        will be closed. After that, no new connections to the local database will be allowed.
+        It will start a server that listens on a specific port, and clients can connect to the server to interact with the
+        database. User could use Session to connect to the server. For detail usage, please refer to the
+        documentation of Session.
+
+        Parameters
+        ----------
+        port : int
+            The port to listen on. Default is 10000.
+        host : str
+            The host to listen on. Default is 'localhost'.
+
+        Returns
+        -------
+        uri : str
+            The URI of the server, in the format of 'http://host:port'.
+
+        Raises
+        ------
+        RuntimeError
+            If there are open connections to the local database.
+            If the database is already serving.
+
+        Notes
+        -----
+        Make sure to close all connections before starting the server.
+        After starting the server, no new connections to the local database will be allowed.
+        """
+        # Before starting the server, we should check all current connections are closed.
+        # And also after starting the server, no new connections should be allowed to the local database.
+        for conn in self._connections:
+            if conn and conn.is_open:
+                raise RuntimeError(
+                    "Cannot start the server while there are open connections to the local database."
+                )
+        for async_conn in self._async_connections:
+            if async_conn and async_conn.is_open:
+                raise RuntimeError(
+                    "Cannot start the server while there are open async connections to the local database."
+                )
+        # We should not clear the connections here, because the connection maybe held by the user.
+        # Instead, we will close all connections when the server is stopped.
+        if self._serving:
+            logger.warning("Database server is already running.")
+            return
+        self._serving = True
+        logger.info(f"Starting database server on {host}:{port}.")
+        return self._database.serve(port, host)
+
+    def stop_serving(self):
+        """
+        Stop the database server.
+        This method is used to stop the database server that was started by the `serve` method.
+        After calling this method, the database will switch back to the local mode, and new connections to the local
+        database will be allowed again.
+
+        Raises
+        ------
+        RuntimeError
+            If the database is not serving.
+        """
+        if not self._serving:
+            raise RuntimeError("Database server is not running.")
+        logger.info("Stopping database server.")
+        self._database.stop_serving()
+        self._serving = False
 
     def async_connect(self) -> AsyncConnection:
         """
@@ -221,7 +287,13 @@ class Database(object):
         """
         if not self._database:
             raise RuntimeError("Database is closed.")
-        return AsyncConnection(self._database.connect())
+        if self._serving:
+            raise RuntimeError(
+                "Cannot create async connection while the database server is running."
+            )
+        async_conn = AsyncConnection(self._database.connect())
+        self._async_connections.append(async_conn)
+        return async_conn
 
     def close(self):
         """
@@ -229,9 +301,21 @@ class Database(object):
         """
         if self._db_path and self._db_path.strip() != "":
             logger.info(f"Closing database {self._db_path}.")
+        # Close all connections
+        for conn in self._connections:
+            try:
+                conn.close()
+            except Exception as e:
+                logger.warning(f"Failed to close connection: {e}")
+        for async_conn in self._async_connections:
+            try:
+                async_conn.close()
+            except Exception as e:
+                logger.warning(f"Failed to close async connection: {e}")
         if self._database:
             self._database.close()
             self._database = None
+        # Don't clear the connections list, because the connections may be held by the user.
 
     def _get_default_planner_config_path(self):
         """

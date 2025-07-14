@@ -19,7 +19,7 @@ option(USE_STATIC_ARROW "Whether to use static arrow" OFF) # Whether to link arr
 option(BUILD_WITH_OSS "Whether to build with oss support" OFF) # Whether to build with oss support, default is OFF
 option(BUILD_EXECUTABLES "When to build executors" OFF) # Whether to build executables, default is OFF
 option(BUILD_HTTP_SERVER "Whether to build http server" OFF) # Whether to build http server, default is OFF
-set(HTTP_SERVER_TYPE "hiactor" CACHE STRING "The type of http server to use, could be 'hiactor' or 'brpc'")
+set(HTTP_SERVER_TYPE "brpc" CACHE STRING "The type of http server to use, could be 'hiactor' or 'brpc'")
 if (HTTP_SERVER_TYPE STREQUAL "hiactor")
     add_definitions(-DHTTP_SERVER_TYPE_HIACTOR)
 elseif (HTTP_SERVER_TYPE STREQUAL "brpc")
@@ -561,6 +561,20 @@ if (ENABLE_BACKTRACES)
         set(COMPILER_LIBRARIES ${COMPILER_LIBRARIES} cpptrace::cpptrace)
 endif()
 message(STATUS "head: Compiler libraries: ${COMPILER_LIBRARIES}")
+
+set(MACOS_DYLIBS 
+"-framework CoreFoundation"
+"-framework CoreGraphics"
+"-framework CoreData"
+"-framework CoreText"
+"-framework Security"
+"-framework Foundation"
+"-Wl,-U,_MallocExtension_ReleaseFreeMemory"
+"-Wl,-U,_ProfilerStart"
+"-Wl,-U,_ProfilerStop"
+"-Wl,-U,__Z13GetStackTracePPvii"
+"-Wl,-U,_mallctl"
+"-Wl,-U,_malloc_stats_print")
 
 add_subdirectory(src)
 

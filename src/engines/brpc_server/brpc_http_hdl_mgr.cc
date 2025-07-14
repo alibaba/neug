@@ -15,11 +15,28 @@
 
 #include "src/engines/brpc_server/brpc_http_hdl_mgr.h"
 
+#include "src/planner/graph_planner.h"
+
 namespace server {
 
 void cleanup(void* ptr) { delete (int*) ptr; }
 
-BrpcHttpHandlerManager::BrpcHttpHandlerManager() {
+bool has_update_opr_in_plan(const physical::PhysicalPlan& plan) {
+  for (auto i = 0; i < plan.query_plan().plan_size(); ++i) {
+    auto& opr = plan.query_plan().plan(i).opr();
+    if (opr.has_source() || opr.has_load_vertex() || opr.has_load_edge() ||
+        opr.has_create_vertex() || opr.has_create_edge() ||
+        opr.has_set_vertex() || opr.has_set_edge() || opr.has_delete_vertex() ||
+        opr.has_delete_edge()) {
+      return true;
+    }
+  }
+  return false;
+}
+
+BrpcHttpHandlerManager::BrpcHttpHandlerManager(
+    gs::GraphDB& graph_db, std::shared_ptr<gs::IGraphPlanner> planner)
+    : graph_db_(graph_db), svc_(graph_db, planner) {
   brpc_server_ = std::make_unique<brpc::Server>();
 }
 
@@ -28,31 +45,32 @@ BrpcHttpHandlerManager::~BrpcHttpHandlerManager() {}
 void BrpcHttpHandlerManager::Init(const ServiceConfig& config) {
   service_config_ = config;
 
-  if (brpc_server_->AddService(&cypher_query_service_,
-                               brpc::SERVER_DOESNT_OWN_SERVICE,
-                               "/v1/graph/current/query => CypherQuery,"
-                               "/v1/graph/*/query => CypherQuery") == -1) {
+  // The API start with Internval marks the legacy API for submitting queries
+  if (brpc_server_->AddService(&svc_, brpc::SERVER_DOESNT_OWN_SERVICE,
+                               "/cypher => CypherQuery,"
+                               "/service_status => ServiceStatus,"
+                               "/schema => Schema") == -1) {
     LOG(ERROR) << "Failed to add CypherQueryService";
   }
 }
 
-void BrpcHttpHandlerManager::Start() {
+std::string BrpcHttpHandlerManager::Start() {
   LOG(INFO) << "Starting brpc server";
   butil::EndPoint endpoint;
   std::string ip_port =
       std::string("0.0.0.0") + ":" + std::to_string(service_config_.query_port);
   if (butil::str2endpoint(ip_port.c_str(), &endpoint) != 0) {
-    LOG(ERROR) << "Failed to parse endpoint from port "
-               << service_config_.query_port;
-    return;
+    throw std::runtime_error("Failed to parse endpoint: " + ip_port);
   }
   brpc::ServerOptions options = get_server_options();
   if (brpc_server_->Start(endpoint, &options) != 0) {
-    LOG(ERROR) << "Failed to start brpc server on port "
-               << service_config_.query_port;
-    return;
+    throw std::runtime_error("Failed to start brpc server on " + ip_port);
   }
-  LOG(INFO) << "Brpc server started on port " << service_config_.query_port;
+  LOG(INFO) << "Brpc server started on : " << butil::my_hostname() << ":"
+            << service_config_.query_port;
+  std::stringstream ss;
+  ss << "http://" << butil::my_hostname() << ":" << service_config_.query_port;
+  return ss.str();
 }
 
 void BrpcHttpHandlerManager::RunAndWaitForExit() {

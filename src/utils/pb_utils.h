@@ -57,4 +57,7 @@ property_defs_to_tuple(
     const google::protobuf::RepeatedPtrField<physical::PropertyDef>&
         properties);
 
+// Convert to a bool representing error_on_conflict.
+bool conflict_action_to_bool(const physical::ConflictAction& action);
+
 }  // namespace gs

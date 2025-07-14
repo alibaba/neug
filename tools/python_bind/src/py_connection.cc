@@ -57,8 +57,7 @@ std::unique_ptr<PyQueryResult> PyConnection::execute(
         "Failed to execute query: " + query_result.status().ToString() +
         ", error message: " + query_result.status().error_message());
   }
-  return std::make_unique<PyQueryResult>(conn_->get_schema(),
-                                         std::move(query_result.move_value()));
+  return std::make_unique<PyQueryResult>(std::move(query_result.move_value()));
 }
 
 }  // namespace gs

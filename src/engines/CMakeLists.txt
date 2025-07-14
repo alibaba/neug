@@ -1,5 +1,6 @@
 
 add_subdirectory(graph_db)
+set(ENGINES_ALL_OBJECT_FILES "")
 if (BUILD_HTTP_SERVER)
     if (NOT HTTP_SERVER_TYPE STREQUAL "hiactor" AND NOT HTTP_SERVER_TYPE STREQUAL "brpc")
         message(FATAL_ERROR "Invalid HTTP_SERVER_TYPE: ${HTTP_SERVER_TYPE}. It should be either 'hiactor' or 'brpc'.")
@@ -36,21 +37,27 @@ if (BUILD_HTTP_SERVER)
         endif ()
         set_target_properties(Hiactor::seastar PROPERTIES INTERFACE_COMPILE_OPTIONS "${seastar_options}")
         target_link_libraries(neug_graph_db_service PUBLIC Hiactor::hiactor)
+        install_neug_target(neug_graph_db_service)
 
     elseif (HTTP_SERVER_TYPE STREQUAL "brpc")
-        add_library(neug_graph_db_service STATIC
-            ${CMAKE_CURRENT_SOURCE_DIR}/graph_db_service.cc
-            ${CMAKE_CURRENT_SOURCE_DIR}/brpc_server/brpc_http_hdl_mgr.cc)
+#        if (BUILD_ALL_IN_ONE)
+#            add_library(neug_graph_db_service OBJECT
+#                ${CMAKE_CURRENT_SOURCE_DIR}/graph_db_service.cc
+#                ${CMAKE_CURRENT_SOURCE_DIR}/brpc_server/brpc_http_hdl_mgr.cc)
+#            set(ENGINES_ALL_OBJECT_FILES ${ENGINES_ALL_OBJECT_FILES} $<TARGET_OBJECTS:neug_graph_db_service>) 
+#        else()
+            add_library(neug_graph_db_service STATIC
+                ${CMAKE_CURRENT_SOURCE_DIR}/graph_db_service.cc
+                ${CMAKE_CURRENT_SOURCE_DIR}/brpc_server/brpc_http_hdl_mgr.cc)
+            install_neug_target(neug_graph_db_service)
+#        endif()
         target_compile_definitions(neug_graph_db_service PUBLIC HTTP_SERVER_TYPE="${HTTP_SERVER_TYPE}")
     endif()
     
-    if (BUILD_ALL_IN_ONE)
-        target_link_libraries(neug_graph_db_service PUBLIC neug_libraries)
-    else()
-        # target_link_libraries(neug_graph_db_service_static PUBLIC neug_graph_db) 
-        target_link_libraries(neug_graph_db_service PUBLIC neug_graph_db)
-    endif()
-    target_include_directories(neug_graph_db_service PUBLIC ${CMAKE_CURRENT_BINARY_DIR}/../utils/)
+ #   if (NOT BUILD_ALL_IN_ONE)
+#        target_link_libraries(neug_graph_db_service PUBLIC neug_graph_db neug_brpc_proto)
+#    endif()
+    target_include_directories(neug_graph_db_service PRIVATE ${CMAKE_CURRENT_BINARY_DIR}/../utils/)
 
 endif()
-set(ALL_OBJECT_FILES ${ALL_OBJECT_FILES} PARENT_SCOPE)
+set(ALL_OBJECT_FILES ${ALL_OBJECT_FILES} ${ENGINES_ALL_OBJECT_FILES} PARENT_SCOPE)

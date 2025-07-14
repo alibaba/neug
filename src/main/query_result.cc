@@ -18,11 +18,17 @@
 #include <glog/logging.h>
 
 namespace gs {
-QueryResult QueryResult::From(
-    std::tuple<results::CollectiveResults, std::string>&& result) {
-  QueryResult query_result(std::move(std::get<0>(result)),
-                           std::move(std::get<1>(result)));
-  return query_result;
+
+QueryResult QueryResult::From(results::CollectiveResults&& result) {
+  return QueryResult(std::move(result));
+}
+
+QueryResult QueryResult::From(const std::string& result_str) {
+  results::CollectiveResults result;
+  if (!result.ParseFromString(result_str)) {
+    throw std::runtime_error("Failed to parse CollectiveResults from string");
+  }
+  return QueryResult(std::move(result));
 }
 
 bool QueryResult::hasNext() const {
@@ -51,6 +57,6 @@ RecordLine QueryResult::next() {
 }
 
 const std::string& QueryResult::get_result_schema() const {
-  return result_schema_;
+  return result_.result_schema();
 }
 }  // namespace gs

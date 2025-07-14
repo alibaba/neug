@@ -112,6 +112,9 @@ class CMakeBuild(build_ext):
         enable_backtraces = (
             "ON" if os.environ.get("ENABLE_BACKTRACES", "OFF") == "ON" else "OFF"
         )
+        build_all_in_one = (
+            "ON" if os.environ.get("BUILD_ALL_IN_ONE", "ON") == "ON" else "OFF"
+        )
         use_ninja = os.environ.get("USE_NINJA", "OFF") == "ON"
         build_test = "OFF"
         if os.environ.get("BUILD_TEST", "OFF") == "ON":
@@ -135,6 +138,7 @@ class CMakeBuild(build_ext):
             f"-DBUILD_COMPILER={build_compiler}",
             f"-DENABLE_BACKTRACES={enable_backtraces}",
             f"-DBUILD_HTTP_SERVER={build_http_server}",
+            f"-DBUILD_ALL_IN_ONE={build_all_in_one}",
         ]
         if build_http_server == "ON":
             cmake_args += [
@@ -267,7 +271,24 @@ class BuildProto(Command):
             raise RuntimeError(f"Proto path {proto_path} does not exist.")
         if not os.path.exists(output_dir):
             os.makedirs(output_dir, exist_ok=True)
-        self.generate_proto(proto_path, output_dir, ["error.proto"])
+        self.generate_proto(
+            proto_path,
+            output_dir,
+            [
+                "algebra.proto",
+                "common.proto",
+                "expr.proto",
+                "results.proto",
+                "schema.proto",
+                "type.proto",
+                "basic_type.proto",
+                "physical.proto",
+                "cypher_write.proto",
+                "cypher_dml.proto",
+                "cypher_ddl.proto",
+                "error.proto",
+            ],
+        )
 
 
 class BuildExtFirst(_build_py):

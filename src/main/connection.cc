@@ -55,8 +55,8 @@ Result<QueryResult> Connection::query(const std::string& query_string) {
   }
 }
 
-Result<std::pair<results::CollectiveResults, std::string>>
-Connection::query_impl(const std::string& query_string) {
+Result<results::CollectiveResults> Connection::query_impl(
+    const std::string& query_string) {
   LOG(INFO) << "Executing query: " << query_string;
   ////////////////////////////////////////////////////////////////////
   // Idealy we should compile the plan from query_string, but currently we use
@@ -73,10 +73,10 @@ Connection::query_impl(const std::string& query_string) {
       LOG(ERROR) << "Error in executing DDL query: " << query_string
                  << ", error code: " << query_res.status().error_code()
                  << ", message: " << query_res.status().error_message();
-      return Result<std::pair<results::CollectiveResults, std::string>>(
-          query_res.status());
+      return Result<results::CollectiveResults>(query_res.status());
     }
-    return Result(std::make_pair(query_res.value(), ddl_plan.result_schema));
+    query_res.value().set_result_schema(ddl_plan.result_schema);
+    return Result(std::move(query_res.move_value()));
   }
 
   if (query_string.find("COPY") != std::string::npos ||
@@ -87,10 +87,10 @@ Connection::query_impl(const std::string& query_string) {
       LOG(ERROR) << "Error in executing DML query: " << query_string
                  << ", error code: " << query_res.status().error_code()
                  << ", message: " << query_res.status().error_message();
-      return Result<std::pair<results::CollectiveResults, std::string>>(
-          query_res.status());
+      return Result<results::CollectiveResults>(query_res.status());
     }
-    return Result(std::make_pair(query_res.value(), dml_plan.result_schema));
+    query_res.value().set_result_schema(dml_plan.result_schema);
+    return Result(std::move(query_res.move_value()));
   }
   Plan plan;
 
@@ -102,7 +102,7 @@ Connection::query_impl(const std::string& query_string) {
     LOG(ERROR) << "Error in query: " << query_string
                << ", error code: " << plan.error_code
                << ", message: " << plan.full_message;
-    return Result<std::pair<results::CollectiveResults, std::string>>(
+    return Result<results::CollectiveResults>(
         // TODO: Use the error code from the plan after plan.error_code is
         // defined as int.
         Status(StatusCode::ERR_COMPILATION, plan.full_message));
@@ -119,8 +119,10 @@ Connection::query_impl(const std::string& query_string) {
     LOG(ERROR) << "Error in executing query: " << query_string
                << ", error code: " << result.status().error_code()
                << ", message: " << result.status().error_message();
+    return result.status();
   }
-  return std::make_pair(std::move(result.move_value()), plan.result_schema);
+  result.value().set_result_schema(plan.result_schema);
+  return Result(std::move(result.move_value()));
 }
 
 Plan Connection::createDDLPlanWithGopt(const std::string& query_string) {

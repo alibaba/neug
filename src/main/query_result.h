@@ -53,15 +53,15 @@ class RecordLine {
 
 class QueryResult {
  public:
+  static QueryResult From(results::CollectiveResults&& result);
+
   static QueryResult From(
-      std::tuple<results::CollectiveResults, std::string>&& result);
+      const std::string& result_str);  // deserialize from string
 
   QueryResult() = default;
 
-  QueryResult(results::CollectiveResults&& res, std::string&& schema)
-      : cur_index_(0),
-        result_(std::move(res)),
-        result_schema_(std::move(schema)) {}
+  QueryResult(results::CollectiveResults&& res)
+      : cur_index_(0), result_(std::move(res)) {}
   ~QueryResult() {}
 
   bool hasNext() const;
@@ -81,7 +81,6 @@ class QueryResult {
  private:
   size_t cur_index_;
   results::CollectiveResults result_;
-  std::string result_schema_;  // result schema in YAML format
 };
 }  // namespace gs
 

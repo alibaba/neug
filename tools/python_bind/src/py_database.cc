@@ -50,7 +50,18 @@ void PyDatabase::initialize(pybind11::handle& m) {
            "    PyConnection: A connection to the database.\n")
       .def("close", &PyDatabase::close,
            "Close the database connection and "
-           "release resources.\n");
+           "release resources.\n")
+      .def("serve", &PyDatabase::serve,
+           "Start the database server.\n\n"
+           "Args:\n"
+           "    port (int): The port to listen on, default is 10000.\n"
+           "    host (str): The host to bind to, default is 'localhost'.\n"
+           "Returns:\n"
+           "    uri (str): A string containing the URL of the server.\n")
+      .def("stop_serving", &PyDatabase::stop_serving,
+           "Stop the database server.\n\n"
+           "Returns:\n"
+           "    None: This method will stop the server if it is running.\n");
 }
 
 PyConnection PyDatabase::connect() {
@@ -58,6 +69,20 @@ PyConnection PyDatabase::connect() {
     throw std::runtime_error("Database is not initialized.");
   }
   return PyConnection(database->connect());
+}
+
+std::string PyDatabase::serve(int port, const std::string& host) {
+  if (!database) {
+    throw std::runtime_error("Database is not initialized.");
+  }
+  return database->serve(port, host);
+}
+
+void PyDatabase::stop_serving() {
+  if (!database) {
+    throw std::runtime_error("Database is not initialized.");
+  }
+  database->stop_serving();
 }
 
 void PyDatabase::close() {

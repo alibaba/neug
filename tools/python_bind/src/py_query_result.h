@@ -29,8 +29,11 @@ class PyQueryResult {
  public:
   static void initialize(pybind11::handle& m);
 
-  PyQueryResult(const Schema& schema, QueryResult&& result)
-      : schema_(schema), query_result_(std::move(std::move(result))) {}
+  PyQueryResult(QueryResult&& result)
+      : query_result_(std::move(std::move(result))) {}
+
+  PyQueryResult(const std::string& result_str)
+      : query_result_(QueryResult::From(result_str)) {}
 
   ~PyQueryResult() { close(); }
 
@@ -45,7 +48,7 @@ class PyQueryResult {
   const std::string& get_result_schema() const;
 
  private:
-  const Schema& schema_;
+  // const Schema& schema_;
   QueryResult query_result_;
 };
 

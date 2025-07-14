@@ -29,7 +29,7 @@ class HiactorHttpHandlerManager : public IHttpHandlerManager {
   HiactorHttpHandlerManager() = default;
   ~HiactorHttpHandlerManager() override;
   void Init(const ServiceConfig& config) override;
-  void Start() override;
+  std::string Start() override;
   void Stop() override;
   void RunAndWaitForExit() override;
   bool IsRunning() const override {

@@ -41,16 +41,28 @@ class Connection(object):
             The underlying c++ connection object that provides the actual database connection.
         """
         self._py_connection = py_connection
-        pass
+        self._is_open = True
 
     def __del__(self):
         self.close()
+
+    @property
+    def is_open(self) -> bool:
+        """
+        Check if the connection is open.
+        Returns
+        -------
+        bool
+            True if the connection is open, False otherwise.
+        """
+        return self._is_open
 
     def close(self):
         """
         Close the connection.
         """
         self._py_connection.close()
+        self._is_open = False
 
     def execute(self, query: str) -> QueryResult:
         """
@@ -101,4 +113,8 @@ class Connection(object):
         query_result : QueryResult
             The result of the query.
         """
+        if not self._is_open:
+            raise RuntimeError(
+                "Connection is closed. Please open the connection before executing queries."
+            )
         return QueryResult(self._py_connection.execute(query))

@@ -21,6 +21,8 @@
 #include <memory>
 #include <string>
 
+#include "src/utils/service_utils.h"
+
 namespace gs {
 enum class MetadataStoreType {
   kLocalFile,
@@ -83,8 +85,27 @@ struct ServiceConfig {
   std::string engine_config_path;       // used for codegen.
   size_t admin_svc_max_content_length;  // max content length for admin service.
   std::string wal_uri;                  // The uri of the wal storage.
+  std::string host_str;
 
-  ServiceConfig();
+  ServiceConfig()
+      : bolt_port(DEFAULT_BOLT_PORT),
+        admin_port(DEFAULT_ADMIN_PORT),
+        query_port(DEFAULT_QUERY_PORT),
+        shard_num(DEFAULT_SHARD_NUM),
+        enable_adhoc_handler(false),
+        dpdk_mode(false),
+        enable_thread_resource_pool(true),
+        external_thread_num(2),
+        start_admin_service(false),
+        start_compiler(false),
+        enable_gremlin(false),
+        enable_bolt(false),
+        metadata_store_type_(gs::MetadataStoreType::kLocalFile),
+        log_level(DEFAULT_LOG_LEVEL),
+        verbose_level(DEFAULT_VERBOSE_LEVEL),
+        sharding_mode(DEFAULT_SHARDING_MODE),
+        admin_svc_max_content_length(DEFAULT_MAX_CONTENT_LENGTH),
+        wal_uri(DEFAULT_WAL_URI) {}
 
   void set_sharding_mode(const std::string& mode) {
     VLOG(10) << "Set sharding mode: " << mode;
@@ -126,7 +147,7 @@ class IHttpHandlerManager {
  public:
   virtual ~IHttpHandlerManager() = default;
   virtual void Init(const ServiceConfig& config) = 0;
-  virtual void Start() = 0;
+  virtual std::string Start() = 0;
   virtual void Stop() = 0;
   virtual void RunAndWaitForExit() = 0;
   virtual bool IsRunning() const = 0;

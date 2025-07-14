@@ -26,7 +26,6 @@ clean:  ## Clean up build artifacts
 	@echo "Cleaning up..."
 	rm -rf build/ dist/ *.egg-info
 	rm -rf neug.egg-info/ __pycache__/ *.so
-	rm -rf neug/proto/
 
 .PHONY: help
 help:  ## Display this help information

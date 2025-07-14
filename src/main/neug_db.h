@@ -32,6 +32,13 @@
 #include "src/planner/gopt_planner.h"
 #include "src/planner/graph_planner.h"
 #include "src/utils/file_utils.h"
+#include "src/utils/http_handler_manager.h"
+#ifdef BUILD_HTTP_SERVER
+#include "src/engines/brpc_server/brpc_http_hdl_mgr.h"
+#endif  // BUILD_HTTP_SERVER
+
+#define STRINGIFY(x) #x
+#define TOSTRING(x) STRINGIFY(x)
 
 namespace gs {
 
@@ -44,7 +51,7 @@ class NeugDB {
   NeugDB(const std::string& data_dir, int32_t max_num_threads,
          const std::string& mode, const std::string& planner_kind,
          const std::string& planner_config_path = "")
-      : file_lock_(data_dir) {
+      : file_lock_(data_dir), planner_config_path_(planner_config_path) {
     if (max_num_threads == 0) {
       max_num_threads = std::thread::hardware_concurrency();
     }
@@ -123,6 +130,23 @@ class NeugDB {
    */
   std::shared_ptr<Connection> connect();
 
+  /**
+   * @brief Start the database server.
+   * @param port The port to listen on, default is 10000.
+   * @param host The host to bind to, default is "localhost".
+   * @return A string containing the URL of the server.
+   * @note This method will block until the server is stopped. It will launch
+   * the brpc service serving both rpc and http requests.
+   *
+   */
+  std::string serve(int port = 10000, const std::string& host = "localhost");
+
+  /**
+   * @brief Stop the database server.
+   * @note This method will stop the server and release resources.
+   */
+  void stop_serving();
+
  private:
   std::shared_ptr<IGraphPlanner> create_planner(
       const std::string& planner_kind, const std::string& planner_config_path) {
@@ -140,7 +164,9 @@ class NeugDB {
   GraphDB db_;
   DBMode mode_;
   FileLock file_lock_;
+  bool is_pure_memory_;
 
+  std::string planner_config_path_;
   std::shared_ptr<IGraphPlanner> planner_;
   std::shared_ptr<QueryProcessor> query_processor_;
 
@@ -149,7 +175,9 @@ class NeugDB {
 
   std::mutex connection_mutex_;
 
-  bool is_pure_memory_;
+  // For serving the database
+  server::ServiceConfig service_config_;
+  std::unique_ptr<server::IHttpHandlerManager> hdl_mgr_;
 };
 }  // namespace gs
 

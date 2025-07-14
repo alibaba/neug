@@ -10,30 +10,18 @@ if (BUILD_HTTP_SERVER)
         if (HTTP_SERVER_TYPE STREQUAL "hiactor")
                 message(STATUS "Building rt_server with Hiactor HTTP server support")
                 target_link_libraries(rt_server PUBLIC Hiactor::hiactor)
+                target_link_libraries(rt_server PUBLIC neug_graph_db_service)
         else()
                 message(STATUS "openssl library: ${OPENSSL_LIBRARIES}")
-                set(MACOS_DYLIBS 
-                        "-framework CoreFoundation"
-                        "-framework CoreGraphics"
-                        "-framework CoreData"
-                        "-framework CoreText"
-                        "-framework Security"
-                        "-framework Foundation"
-                        "-Wl,-U,_MallocExtension_ReleaseFreeMemory"
-                        "-Wl,-U,_ProfilerStart"
-                        "-Wl,-U,_ProfilerStop"
-                        "-Wl,-U,__Z13GetStackTracePPvii"
-                        "-Wl,-U,_mallctl"
-                        "-Wl,-U,_malloc_stats_print")
                 target_link_libraries(rt_server PUBLIC ${BRPC_LIB} ${LEVELDB_LIB} ${OPENSSL_LIBRARIES} ${GFLAGS_LIBRARIES} ${GLOG_LIBRARIES} ${Protobuf_LIBRARIES} ${PROTOC_LIB} ${Boost_LIBRARIES})
                 if (APPLE)
                         target_link_libraries(rt_server PUBLIC ${MACOS_DYLIBS})
                 endif() 
         endif()
         if (BUILD_ALL_IN_ONE)
-                target_link_libraries(rt_server PUBLIC neug_graph_db_service neug_libraries)
+                target_link_libraries(rt_server PUBLIC neug_libraries neug_utils neug_graph_db neug_rt_mutable_graph)
         else()
-                target_link_libraries(rt_server PUBLIC neug_rt_mutable_graph neug_utils)
+                target_link_libraries(rt_server PUBLIC neug_compiler_shared neug_brpc_proto neug_rt_mutable_graph neug_utils neug_planner)
         endif()
         install_without_export_neug_target(rt_server)
 endif()

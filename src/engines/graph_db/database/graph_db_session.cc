@@ -77,6 +77,8 @@ const MutablePropertyFragment& GraphDBSession::graph() const {
 
 const GraphDB& GraphDBSession::db() const { return db_; }
 
+GraphDB& GraphDBSession::db() { return db_; }
+
 MutablePropertyFragment& GraphDBSession::graph() { return db_.graph(); }
 
 const Schema& GraphDBSession::schema() const { return db_.schema(); }

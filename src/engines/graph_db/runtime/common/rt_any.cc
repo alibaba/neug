@@ -1376,7 +1376,9 @@ void sink_vertex(const GraphReadInterface& graph, const VertexRecord& vertex,
     return;
   }
   auto v = ele->mutable_vertex();
-  v->mutable_label()->set_id(vertex.label_);
+  // v->mutable_label()->set_id(vertex.label_);
+  v->mutable_label()->set_name(
+      graph.schema().get_vertex_label_name(vertex.label_));
   v->set_id(encode_unique_vertex_id(vertex.label_, vertex.vid_));
   const auto& names = graph.schema().get_vertex_property_names(vertex.label_);
   // Add primary keys first, since primary keys are also the properties of a
@@ -1451,11 +1453,16 @@ void RTAny::sink(const GraphReadInterface& graph, int id,
   } else if (type_ == RTAnyType::kEdge) {
     auto e = col->mutable_entry()->mutable_element()->mutable_edge();
     auto [label, src, dst, prop, dir] = this->as_edge();
-    e->mutable_src_label()->set_id(label.src_label);
-    e->mutable_dst_label()->set_id(label.dst_label);
+    // e->mutable_src_label()->set_id(label.src_label);
+    // e->mutable_dst_label()->set_id(label.dst_label);
+    e->mutable_src_label()->set_name(
+        graph.schema().get_vertex_label_name(label.src_label));
+    e->mutable_dst_label()->set_name(
+        graph.schema().get_vertex_label_name(label.dst_label));
     auto edge_label = generate_edge_label_id(label.src_label, label.dst_label,
                                              label.edge_label);
-    e->mutable_label()->set_id(label.edge_label);
+    e->mutable_label()->set_name(
+        graph.schema().get_edge_label_name(label.edge_label));
     e->set_src_id(encode_unique_vertex_id(label.src_label, src));
     e->set_dst_id(encode_unique_vertex_id(label.dst_label, dst));
     e->set_id(encode_unique_edge_id(edge_label, src, dst));
@@ -1493,15 +1500,20 @@ void RTAny::sink(const GraphReadInterface& graph, int id,
       auto vertex_in_path = mutable_path->add_path();
 
       auto node = vertex_in_path->mutable_vertex();
-      node->mutable_label()->set_id(path_nodes[i].label());
+      // node->mutable_label()->set_id(path_nodes[i].label());
+      node->mutable_label()->set_name(
+          graph.schema().get_vertex_label_name(path_nodes[i].label()));
       node->set_id(
           encode_unique_vertex_id(path_nodes[i].label(), path_nodes[i].vid()));
       auto edge_in_path = mutable_path->add_path();
 
       auto edge = edge_in_path->mutable_edge();
-      edge->mutable_src_label()->set_id(path_nodes[i].label());
-      edge->mutable_dst_label()->set_id(path_nodes[i + 1].label());
-      edge->mutable_label()->set_id(edge_labels[i]);
+      edge->mutable_src_label()->set_name(
+          graph.schema().get_vertex_label_name(path_nodes[i].label()));
+      edge->mutable_dst_label()->set_name(
+          graph.schema().get_vertex_label_name(path_nodes[i + 1].label()));
+      edge->mutable_label()->set_name(
+          graph.schema().get_edge_label_name(edge_labels[i]));
       edge->set_id(encode_unique_edge_id(edge_labels[i], path_nodes[i].vid(),
                                          path_nodes[i + 1].vid()));
       edge->set_src_id(
@@ -1511,7 +1523,9 @@ void RTAny::sink(const GraphReadInterface& graph, int id,
     }
     auto vertex_in_path = mutable_path->add_path();
     auto node = vertex_in_path->mutable_vertex();
-    node->mutable_label()->set_id(path_nodes[len - 1].label());
+    // node->mutable_label()->set_id(path_nodes[len - 1].label());
+    node->mutable_label()->set_name(
+        graph.schema().get_vertex_label_name(path_nodes[len - 1].label()));
     node->set_id(encode_unique_vertex_id(path_nodes[len - 1].label(),
                                          path_nodes[len - 1].vid()));
   } else {

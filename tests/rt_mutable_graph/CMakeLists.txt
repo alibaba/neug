@@ -14,7 +14,12 @@ set(STRING_LIST
 if (BUILD_ALL_IN_ONE)
         set(NEUG_LIBRARIES neug_libraries)
 else()
-        set(NEUG_LIBRARIES neug_planner neug_graph_db neug_main)
+        set(NEUG_LIBRARIES neug_planner neug_graph_db neug_main neug_brpc_proto)
+endif()
+if (BUILD_HTTP_SERVER)
+        if (HTTP_SERVER_TYPE STREQUAL "brpc")
+                set(NEUG_LIBRARIES ${NEUG_LIBRARIES} ${BRPC_LIB})
+        endif()
 endif()
 
 foreach(f ${GS_TEST_FILES})

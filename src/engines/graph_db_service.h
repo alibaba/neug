@@ -20,6 +20,8 @@
 #include <string>
 
 #include "src/engines/graph_db/database/graph_db.h"
+#include "src/planner/gopt_planner.h"
+#include "src/planner/graph_planner.h"
 #include "src/storages/metadata/graph_meta_store.h"
 #include "src/storages/metadata/metadata_store_factory.h"
 #include "src/utils/http_handler_manager.h"
@@ -72,8 +74,6 @@ class GraphDBService {
   // Because we don't know whether the previous scope_id can be reused.
   void start_query_actors();
 
-  bool check_compiler_ready() const;
-
  private:
   GraphDBService() = default;
 
@@ -85,6 +85,7 @@ class GraphDBService {
 
  private:
   gs::GraphDB db_;
+  std::shared_ptr<gs::IGraphPlanner> planner_;
   std::unique_ptr<IHttpHandlerManager> hdl_mgr_;
   std::atomic<bool> running_{false};
   std::atomic<bool> initialized_{false};

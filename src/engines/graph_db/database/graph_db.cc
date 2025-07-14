@@ -35,8 +35,8 @@
 #include "src/engines/graph_db/app/builtin/pagerank.h"
 #include "src/engines/graph_db/app/builtin/shortest_path_among_three.h"
 #include "src/engines/graph_db/app/cypher_read_app.h"
+#include "src/engines/graph_db/app/cypher_update_app.h"
 #include "src/engines/graph_db/app/cypher_write_app.h"
-#include "src/engines/graph_db/app/hqps_app.h"
 #include "src/engines/graph_db/app/server_app.h"
 #include "src/engines/graph_db/database/compact_transaction.h"
 #include "src/engines/graph_db/database/graph_db_session.h"
@@ -452,18 +452,13 @@ void GraphDB::initApps(
   app_factories_[Schema::BUILTIN_TVSP_PLUGIN_ID] =
       std::make_shared<ShortestPathAmongThreeFactory>();
 
-  app_factories_[Schema::HQPS_ADHOC_READ_PLUGIN_ID] =
-      std::make_shared<HQPSAdhocReadAppFactory>();
-  app_factories_[Schema::HQPS_ADHOC_WRITE_PLUGIN_ID] =
-      std::make_shared<HQPSAdhocWriteAppFactory>();
-  app_factories_[Schema::ADHOC_READ_PLUGIN_ID] =
-      std::make_shared<CypherReadAppFactory>();
-  app_factories_[Schema::CYPHER_READ_DEBUG_PLUGIN_ID] =
-      std::make_shared<CypherReadAppFactory>();
-
   auto& parser = gs::runtime::PlanParser::get();
   parser.init();
   app_factories_[Schema::ADHOC_READ_PLUGIN_ID] =
+      std::make_shared<CypherReadAppFactory>();
+  app_factories_[Schema::ADHOC_UPDATE_PLUGIN_ID] =
+      std::make_shared<CypherUpdateAppFactory>();
+  app_factories_[Schema::CYPHER_READ_DEBUG_PLUGIN_ID] =
       std::make_shared<CypherReadAppFactory>();
 
   app_factories_[Schema::CYPHER_READ_PLUGIN_ID] =

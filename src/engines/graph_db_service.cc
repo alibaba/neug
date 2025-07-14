@@ -29,41 +29,6 @@
 
 namespace server {
 
-bool check_port_occupied(uint16_t port) {
-  VLOG(10) << "Check port " << port << " is occupied or not.";
-  int sockfd = socket(AF_INET, SOCK_STREAM, 0);
-  if (sockfd == -1) {
-    return false;
-  }
-  struct sockaddr_in addr;
-  addr.sin_family = AF_INET;
-  addr.sin_port = htons(port);
-  addr.sin_addr.s_addr = htonl(INADDR_ANY);
-  int ret = bind(sockfd, (struct sockaddr*) &addr, sizeof(addr));
-  close(sockfd);
-  return ret < 0;
-}
-
-ServiceConfig::ServiceConfig()
-    : bolt_port(DEFAULT_BOLT_PORT),
-      admin_port(DEFAULT_ADMIN_PORT),
-      query_port(DEFAULT_QUERY_PORT),
-      shard_num(DEFAULT_SHARD_NUM),
-      enable_adhoc_handler(false),
-      dpdk_mode(false),
-      enable_thread_resource_pool(true),
-      external_thread_num(2),
-      start_admin_service(false),
-      start_compiler(false),
-      enable_gremlin(false),
-      enable_bolt(false),
-      metadata_store_type_(gs::MetadataStoreType::kLocalFile),
-      log_level(DEFAULT_LOG_LEVEL),
-      verbose_level(DEFAULT_VERBOSE_LEVEL),
-      sharding_mode(DEFAULT_SHARDING_MODE),
-      admin_svc_max_content_length(DEFAULT_MAX_CONTENT_LENGTH),
-      wal_uri(DEFAULT_WAL_URI) {}
-
 const std::string GraphDBService::DEFAULT_GRAPH_NAME = "modern_graph";
 const std::string GraphDBService::DEFAULT_INTERACTIVE_HOME = "/opt/src/";
 const std::string GraphDBService::COMPILER_SERVER_CLASS_NAME =
@@ -89,6 +54,7 @@ void GraphDBService::init(const ServiceConfig& config) {
     LOG(ERROR) << "High QPS service has already been initialized!";
     return;
   }
+  planner_ = std::make_shared<gs::GOptPlanner>(config.engine_config_path);
 
   if (strcmp(HTTP_SERVER_TYPE_VAL, "hiactor") == 0) {
 #ifdef HTTP_SERVER_TYPE_HIACTOR
@@ -99,7 +65,7 @@ void GraphDBService::init(const ServiceConfig& config) {
 #endif
   } else if (strcmp(HTTP_SERVER_TYPE_VAL, "brpc") == 0) {
 #ifdef HTTP_SERVER_TYPE_BRPC
-    hdl_mgr_ = std::make_unique<BrpcHttpHandlerManager>();
+    hdl_mgr_ = std::make_unique<BrpcHttpHandlerManager>(db_, planner_);
 #else
     LOG(FATAL) << "HTTP server type is not set to BRPC, but the code is "
                   "compiled with BRPC support.";
@@ -197,28 +163,6 @@ void GraphDBService::start_query_actors() {
     std::cerr << "Query handler has not been inited!" << std::endl;
     return;
   }
-}
-
-bool GraphDBService::check_compiler_ready() const {
-  if (service_config_.start_compiler) {
-    if (service_config_.enable_gremlin) {
-      if (check_port_occupied(service_config_.gremlin_port)) {
-        return true;
-      } else {
-        LOG(ERROR) << "Gremlin server is not ready!";
-        return false;
-      }
-    }
-    if (service_config_.enable_bolt) {
-      if (check_port_occupied(service_config_.bolt_port)) {
-        return true;
-      } else {
-        LOG(ERROR) << "Bolt server is not ready!";
-        return false;
-      }
-    }
-  }
-  return true;
 }
 
 }  // namespace server

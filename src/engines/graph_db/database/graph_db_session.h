@@ -100,6 +100,7 @@ class GraphDBSession {
   const MutablePropertyFragment& graph() const;
   MutablePropertyFragment& graph();
   const GraphDB& db() const;
+  GraphDB& db();
 
   const Schema& schema() const;
 

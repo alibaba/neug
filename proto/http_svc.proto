@@ -18,6 +18,8 @@
 syntax = "proto3";
 package server;
 
+import "google/protobuf/empty.proto";
+
 option cc_generic_services = true;
 
 message HttpRequest {};
@@ -25,5 +27,9 @@ message HttpRequest {};
 message HttpResponse {};
 
 service HttpService {
+  rpc Schema(google.protobuf.Empty) returns (HttpResponse);
+  rpc ServiceStatus(google.protobuf.Empty)
+      returns (HttpResponse);  // Use a different name to avoid conflict with
+                               // the brpc status method
   rpc CypherQuery(HttpRequest) returns (HttpResponse);
 };

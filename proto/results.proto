@@ -1,12 +1,12 @@
 /**
  * Copyright 2020 Alibaba Group Holding Limited.
- * 
+ *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
- * 
+ *
  * http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
@@ -70,7 +70,8 @@ message KeyValues {
     common.Value key = 1;
     // the value is an entry, which includes cases of:
     // 1. element, e.g., results of vertex.valueMap('name');
-    // 2. collection, e.g., results of select('a','b'), where a is a Path, the result value of 'a' is a collection;
+    // 2. collection, e.g., results of select('a','b'), where a is a Path, the
+    // result value of 'a' is a collection;
     // 3. nested map, e.g., results of select('a','b').valueMap('name').
     Entry value = 2;
   }
@@ -79,9 +80,9 @@ message KeyValues {
 
 message Entry {
   oneof inner {
-      Element element = 1;
-      Collection collection = 2;
-      KeyValues map = 3;
+    Element element = 1;
+    Collection collection = 2;
+    KeyValues map = 3;
   }
 }
 
@@ -103,4 +104,5 @@ message Results {
 message CollectiveResults {
   // may be add schema here.
   repeated Results results = 1;
+  string result_schema = 2;
 }

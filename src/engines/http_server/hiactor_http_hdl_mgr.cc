@@ -39,11 +39,13 @@ void HiactorHttpHandlerManager::Init(const ServiceConfig& config) {
       config.query_port, config.shard_num, config.get_cooperative_shard_num(),
       config.enable_adhoc_handler);
 }
-void HiactorHttpHandlerManager::Start() {
+std::string HiactorHttpHandlerManager::Start() {
   // Start logic
   if (query_hdl_) {
     query_hdl_->start_query_actors();
   }
+  return "http://" + service_config_.host_str + ":" +
+         std::to_string(service_config_.query_port);
 }
 
 void HiactorHttpHandlerManager::Stop() {

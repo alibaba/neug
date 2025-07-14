@@ -90,4 +90,46 @@ std::shared_ptr<Connection> NeugDB::connect() {
     throw std::runtime_error("Invalid mode.");
   }
 }
+
+std::string NeugDB::serve(int port, const std::string& host) {
+#ifdef BUILD_HTTP_SERVER
+  if (hdl_mgr_) {
+    LOG(WARNING) << "HTTP service is already started.";
+    return "";
+  }
+  service_config_.query_port = port;
+  service_config_.host_str = host;
+  service_config_.engine_config_path = planner_config_path_;
+  if (is_pure_memory_) {
+    throw std::runtime_error(
+        "Cannot serve a pure memory database. Please use a persistent "
+        "database.");
+  }
+  std::shared_ptr<IGraphPlanner> planner =
+      std::make_shared<GOptPlanner>(planner_config_path_);
+  hdl_mgr_ = std::make_unique<server::BrpcHttpHandlerManager>(db_, planner);
+  hdl_mgr_->Init(service_config_);
+  LOG(INFO) << "Starting HTTP service on " << host << ":" << port;
+  return hdl_mgr_->Start();
+#else
+  LOG(ERROR) << "HTTP server is not built. Please build with HTTP server "
+                "support.";
+  throw std::runtime_error(
+      "HTTP server is not built. Please build with HTTP server support.");
+#endif
+}
+
+void NeugDB::stop_serving() {
+#ifdef BUILD_HTTP_SERVER
+  if (hdl_mgr_) {
+    LOG(INFO) << "Stopping HTTP service.";
+    hdl_mgr_->Stop();
+  } else {
+    LOG(WARNING) << "HTTP service is not running.";
+  }
+#else
+  LOG(ERROR) << "HTTP server is not built. Please build with HTTP server "
+                "support.";
+#endif
+}
 }  // namespace gs

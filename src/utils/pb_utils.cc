@@ -279,4 +279,15 @@ property_defs_to_tuple(
       Status(StatusCode::OK), std::move(result));
 }
 
+// Convert to a bool representing error_on_conflict.
+bool conflict_action_to_bool(const physical::ConflictAction& action) {
+  if (action == physical::ConflictAction::ON_CONFLICT_THROW) {
+    return true;
+  } else if (action == physical::ConflictAction::ON_CONFLICT_DO_NOTHING) {
+    return false;
+  } else {
+    LOG(FATAL) << "invalid action: " << action;
+  }
+}
+
 }  // namespace gs

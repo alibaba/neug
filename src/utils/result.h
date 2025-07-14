@@ -24,7 +24,7 @@
 #include <type_traits>
 #include <utility>
 
-#include "src/utils/error_pb/error.pb.h"
+#include "src/proto_generated_gie/error.pb.h"
 
 namespace gs {
 

@@ -14,6 +14,7 @@
  */
 
 #include "src/main/query_processor.h"
+#include "src/engines/graph_db/app/cypher_update_app.h"
 #include "src/engines/graph_db/runtime/common/context.h"
 #include "src/engines/graph_db/runtime/common/operators/retrieve/sink.h"
 #include "src/engines/graph_db/runtime/execute/plan_parser.h"
@@ -25,17 +26,6 @@
 #endif
 
 namespace gs {
-
-// Convert to a bool representing error_on_conflict.
-bool conflict_action_to_bool(const physical::ConflictAction& action) {
-  if (action == physical::ConflictAction::ON_CONFLICT_THROW) {
-    return true;
-  } else if (action == physical::ConflictAction::ON_CONFLICT_DO_NOTHING) {
-    return false;
-  } else {
-    LOG(FATAL) << "invalid action: " << action;
-  }
-}
 
 Result<results::CollectiveResults> QueryProcessor::execute(
     const physical::PhysicalPlan& plan, int32_t num_threads) {
@@ -235,231 +225,12 @@ Result<results::CollectiveResults> QueryProcessor::execute_read_write(
 
 Result<results::CollectiveResults> QueryProcessor::execute_write_only(
     const physical::PhysicalPlan& plan, int32_t num_threads) {
-  auto txn = db_.GetUpdateTransaction();
-  runtime::GraphUpdateInterface gii(txn);
-  runtime::Context ctx;
-  gs::Status status = gs::Status::OK();
-  {
-    ctx = bl::try_handle_all(
-        [this, &gii, &plan]() -> bl::result<runtime::Context> {
-          return runtime::PlanParser::get()
-              .parse_update_pipeline(gii.schema(), plan)
-              .value()
-              .Execute(gii, runtime::Context(), {}, timer_);
-        },
-        [&status](const gs::Status& err) {
-          status = err;
-          return runtime::Context();
-        },
-        [&](const bl::error_info& err) {
-          status = gs::Status(gs::StatusCode::ERR_INTERNAL_ERROR,
-                              "Error: " + std::to_string(err.error().value()) +
-                                  ", Exception: " + err.exception()->what());
-          return runtime::Context();
-        },
-        [&]() {
-          status = gs::Status(gs::StatusCode::ERR_UNKNOWN, "Unknown error");
-          return runtime::Context();
-        });
-  }
-  if (!status.ok()) {
-    LOG(ERROR) << "Error: " << status.ToString();
-    // We encode the error message to the output, so that the client can
-    // get the error message.
-    return Result<results::CollectiveResults>(status);
-  }
-  // No results for write-only queries
-  return Result<results::CollectiveResults>(Status::OK());
-}
-
-Result<results::CollectiveResults> QueryProcessor::execute_add_vertex_property(
-    const physical::AddVertexPropertySchema& add_vertex_property_schema) {
-  auto& graph_ = db_.graph();
-  auto vertex_type_name = add_vertex_property_schema.vertex_type().name();
-  auto tuple_res =
-      property_defs_to_tuple(add_vertex_property_schema.properties());
-  if (!tuple_res.ok()) {
-    return tuple_res.status();
-  }
-  return graph_.add_vertex_properties(
-      vertex_type_name, tuple_res.value(),
-      conflict_action_to_bool(add_vertex_property_schema.conflict_action()));
-}
-
-Result<results::CollectiveResults> QueryProcessor::execute_add_edge_property(
-    const physical::AddEdgePropertySchema& add_edge_property_schema) {
-  auto& graph_ = db_.graph();
-  auto edge_type_name = add_edge_property_schema.edge_type().type_name().name();
-  auto src_type_name =
-      add_edge_property_schema.edge_type().src_type_name().name();
-  auto dst_type_name =
-      add_edge_property_schema.edge_type().dst_type_name().name();
-  auto tuple_res =
-      property_defs_to_tuple(add_edge_property_schema.properties());
-  if (!tuple_res.ok()) {
-    return tuple_res.status();
-  }
-
-  return graph_.add_edge_properties(
-      src_type_name, dst_type_name, edge_type_name, tuple_res.value(),
-      conflict_action_to_bool(add_edge_property_schema.conflict_action()));
-}
-
-Result<results::CollectiveResults> QueryProcessor::execute_drop_vertex_property(
-    const physical::DropVertexPropertySchema& drop_vertex_property_schema) {
-  auto& graph_ = db_.graph();
-  auto vertex_type_name = drop_vertex_property_schema.vertex_type().name();
-  std::vector<std::string> property_names;
-  for (const auto& prop : drop_vertex_property_schema.properties()) {
-    property_names.push_back(prop);
-  }
-  return graph_.delete_vertex_properties(
-      vertex_type_name, property_names,
-      conflict_action_to_bool(drop_vertex_property_schema.conflict_action()));
-}
-
-Result<results::CollectiveResults> QueryProcessor::execute_drop_edge_property(
-    const physical::DropEdgePropertySchema& drop_edge_property_schema) {
-  auto& graph_ = db_.graph();
-  auto edge_type_name =
-      drop_edge_property_schema.edge_type().type_name().name();
-  auto src_type_name =
-      drop_edge_property_schema.edge_type().src_type_name().name();
-  auto dst_type_name =
-      drop_edge_property_schema.edge_type().dst_type_name().name();
-  std::vector<std::string> property_names;
-  for (const auto& prop : drop_edge_property_schema.properties()) {
-    property_names.push_back(prop);
-  }
-  return graph_.delete_edge_properties(
-      src_type_name, dst_type_name, edge_type_name, property_names,
-      conflict_action_to_bool(drop_edge_property_schema.conflict_action()));
-}
-
-Result<results::CollectiveResults>
-QueryProcessor::execute_rename_vertex_property(
-    const physical::RenameVertexPropertySchema& rename_vertex_property_schema) {
-  auto& graph_ = db_.graph();
-  auto vertex_type_name = rename_vertex_property_schema.vertex_type().name();
-  std::vector<std::tuple<std::string, std::string>> rename_pairs;
-  for (const auto& rename : rename_vertex_property_schema.mappings()) {
-    rename_pairs.emplace_back(rename.first, rename.second);
-  }
-  return graph_.rename_vertex_properties(
-      vertex_type_name, rename_pairs,
-      conflict_action_to_bool(rename_vertex_property_schema.conflict_action()));
-}
-
-Result<results::CollectiveResults> QueryProcessor::execute_rename_edge_property(
-    const physical::RenameEdgePropertySchema& rename_edge_property_schema) {
-  auto& graph_ = db_.graph();
-  auto edge_type_name =
-      rename_edge_property_schema.edge_type().type_name().name();
-  auto src_type_name =
-      rename_edge_property_schema.edge_type().src_type_name().name();
-  auto dst_type_name =
-      rename_edge_property_schema.edge_type().dst_type_name().name();
-  std::vector<std::tuple<std::string, std::string>> rename_pairs;
-  for (const auto& rename : rename_edge_property_schema.mappings()) {
-    rename_pairs.emplace_back(rename.first, rename.second);
-  }
-  return graph_.rename_edge_properties(
-      src_type_name, dst_type_name, edge_type_name, rename_pairs,
-      conflict_action_to_bool(rename_edge_property_schema.conflict_action()));
-}
-
-Result<results::CollectiveResults> QueryProcessor::execute_drop_vertex_schema(
-    const physical::DropVertexSchema& drop_vertex_schema) {
-  auto& graph_ = db_.graph();
-  auto vertex_type_name = drop_vertex_schema.vertex_type().name();
-  // Todo(NENG): Always drop vertex type with detach mode
-  return graph_.delete_vertex_type(
-      vertex_type_name, true,
-      conflict_action_to_bool(drop_vertex_schema.conflict_action()));
-}
-
-Result<results::CollectiveResults> QueryProcessor::execute_drop_edge_schema(
-    const physical::DropEdgeSchema& drop_edge_schema) {
-  auto& graph_ = db_.graph();
-  auto edge_type_name = drop_edge_schema.edge_type().type_name().name();
-  auto src_type_name = drop_edge_schema.edge_type().src_type_name().name();
-  auto dst_type_name = drop_edge_schema.edge_type().dst_type_name().name();
-  return graph_.delete_edge_type(
-      src_type_name, dst_type_name, edge_type_name,
-      conflict_action_to_bool(drop_edge_schema.conflict_action()));
+  return CypherUpdateApp::execute_update_query(db_.GetSession(0), plan, timer_);
 }
 
 Result<results::CollectiveResults> QueryProcessor::execute_ddl(
     const physical::DDLPlan& ddl_plan, int32_t num_threads) {
-  auto& graph_ = db_.graph();
-  if (ddl_plan.has_create_vertex_schema()) {
-    auto& create_vertex = ddl_plan.create_vertex_schema();
-    VLOG(10) << "Got create vertex request: " << create_vertex.DebugString();
-    auto vertex_type_name = create_vertex.vertex_type().name();
-    auto tuple_res = property_defs_to_tuple(create_vertex.properties());
-    if (!tuple_res.ok()) {
-      return tuple_res.status();
-    }
-    if (create_vertex.primary_key_size() == 0) {
-      return Status(StatusCode::ERR_INVALID_ARGUMENT,
-                    "Primary key is required for vertex type creation");
-    }
-    if (create_vertex.primary_key_size() > 1) {
-      return Status(StatusCode::ERR_INVALID_ARGUMENT,
-                    "Only one primary key is supported");
-    }
-    std::vector<std::string> pks{create_vertex.primary_key(0)};
-    return graph_.create_vertex_type(vertex_type_name, tuple_res.value(), pks);
-  } else if (ddl_plan.has_create_edge_schema()) {
-    auto& create_edge = ddl_plan.create_edge_schema();
-    VLOG(10) << "Got create edge request: " << create_edge.DebugString();
-    auto edge_type_name = create_edge.edge_type().type_name().name();
-    auto src_vertex_type_name = create_edge.edge_type().src_type_name().name();
-    auto dst_vertex_type_name = create_edge.edge_type().dst_type_name().name();
-    auto tuple_res = property_defs_to_tuple(create_edge.properties());
-    if (!tuple_res.ok()) {
-      return tuple_res.status();
-    }
-    if (create_edge.primary_key_size() != 0) {
-      LOG(ERROR) << "Primary key is not supported for edge type creation";
-      return Status(StatusCode::ERR_INVALID_ARGUMENT,
-                    "Primary key is not supported for edge type creation");
-    }
-    EdgeStrategy oe_stragety, ie_stragety;
-    if (!multiplicity_to_storage_strategy(create_edge.multiplicity(),
-                                          oe_stragety, ie_stragety)) {
-      LOG(ERROR) << "Invalid edge multiplicity: " << create_edge.multiplicity();
-      return Status(StatusCode::ERR_INVALID_ARGUMENT,
-                    "Invalid edge multiplicity: " + create_edge.multiplicity());
-    }
-
-    return graph_.create_edge_type(
-        src_vertex_type_name, dst_vertex_type_name, edge_type_name,
-        tuple_res.value(),
-        conflict_action_to_bool(create_edge.conflict_action()), oe_stragety,
-        ie_stragety);
-  } else if (ddl_plan.has_add_vertex_property_schema()) {
-    return execute_add_vertex_property(ddl_plan.add_vertex_property_schema());
-  } else if (ddl_plan.has_add_edge_property_schema()) {
-    return execute_add_edge_property(ddl_plan.add_edge_property_schema());
-  } else if (ddl_plan.has_drop_vertex_property_schema()) {
-    return execute_drop_vertex_property(ddl_plan.drop_vertex_property_schema());
-  } else if (ddl_plan.has_drop_edge_property_schema()) {
-    return execute_drop_edge_property(ddl_plan.drop_edge_property_schema());
-  } else if (ddl_plan.has_rename_vertex_property_schema()) {
-    return execute_rename_vertex_property(
-        ddl_plan.rename_vertex_property_schema());
-  } else if (ddl_plan.has_rename_edge_property_schema()) {
-    return execute_rename_edge_property(ddl_plan.rename_edge_property_schema());
-  } else if (ddl_plan.has_drop_vertex_schema()) {
-    return execute_drop_vertex_schema(ddl_plan.drop_vertex_schema());
-  } else if (ddl_plan.has_drop_edge_schema()) {
-    return execute_drop_edge_schema(ddl_plan.drop_edge_schema());
-  } else {
-    LOG(ERROR) << "Unknown DDL plan: " << ddl_plan.DebugString();
-    return Status(StatusCode::ERR_INVALID_ARGUMENT,
-                  "Unknown DDL plan: " + ddl_plan.DebugString());
-  }
+  return CypherUpdateApp::execute_ddl(db_.GetSession(0), ddl_plan);
 }
 
 }  // namespace gs

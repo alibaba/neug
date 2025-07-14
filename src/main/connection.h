@@ -82,7 +82,7 @@ class Connection {
    * 1. Parse the query string and generate the execution plan.
    * 2. Execute the execution plan using runtime engine.
    */
-  Result<std::pair<results::CollectiveResults, std::string>> query_impl(
+  Result<results::CollectiveResults> query_impl(
       const std::string& query_string);
 
   // TODO: Make sure

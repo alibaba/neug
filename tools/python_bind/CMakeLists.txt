@@ -9,5 +9,8 @@ if (BUILD_ALL_IN_ONE)
 else()
     set(NEUG_LIBRARIES neug_graph_db neug_main neug_utils)
 endif()
+if (BUILD_HTTP_SERVER AND HTTP_SERVER_TYPE STREQUAL "brpc")
+    set(NEUG_LIBRARIES ${NEUG_LIBRARIES} ${BRPC_LIB} ${LEVELDB_LIB} ${OPENSSL_LIBRARIES} ${GFLAGS_LIBRARIES} ${GLOG_LIBRARIES} ${Protobuf_LIBRARIES} ${PROTOC_LIB} ${Boost_LIBRARIES})
+endif()
 
 target_link_libraries(neug_py_bind PRIVATE ${NEUG_LIBRARIES}) 

@@ -126,11 +126,10 @@ pybind11::object name_or_id_to_pyobject(const common::NameOrId& name_or_id) {
   }
 }
 
-pybind11::object vertex_to_pyobject(const Schema& schema,
-                                    const results::Vertex& vertex) {
+pybind11::object vertex_to_pyobject(const results::Vertex& vertex) {
   pybind11::dict dict;
   dict["_ID"] = pybind11::int_(vertex.id());
-  dict["_LABEL"] = schema.get_vertex_label_name(vertex.label().id());
+  dict["_LABEL"] = vertex.label().name();
   for (const auto& property : vertex.properties()) {
     auto key = name_or_id_to_pyobject(property.key());
     auto value = value_to_pyobject(property.value());
@@ -139,13 +138,12 @@ pybind11::object vertex_to_pyobject(const Schema& schema,
   return dict;
 }
 
-pybind11::object edge_to_pyobject(const Schema& schema,
-                                  const results::Edge& edge) {
+pybind11::object edge_to_pyobject(const results::Edge& edge) {
   pybind11::dict dict;
   dict["_ID"] = pybind11::int_(edge.id());
-  dict["_LABEL"] = schema.get_edge_label_name(edge.label().id());
-  dict["_SRC_LABEL"] = schema.get_vertex_label_name(edge.src_label().id());
-  dict["_DST_LABEL"] = schema.get_vertex_label_name(edge.dst_label().id());
+  dict["_LABEL"] = edge.label().name();
+  dict["_SRC_LABEL"] = edge.src_label().name();
+  dict["_DST_LABEL"] = edge.dst_label().name();
   dict["_SRC_ID"] = pybind11::int_(edge.src_id());
   dict["_DST_ID"] = pybind11::int_(edge.dst_id());
   for (const auto& property : edge.properties()) {
@@ -156,16 +154,15 @@ pybind11::object edge_to_pyobject(const Schema& schema,
   return dict;
 }
 
-pybind11::object graph_path_to_pyobject(const Schema& schema,
-                                        const results::GraphPath& graph_path) {
+pybind11::object graph_path_to_pyobject(const results::GraphPath& graph_path) {
   pybind11::list list;
   for (const auto& vertex_or_edge : graph_path.path()) {
     if (vertex_or_edge.inner_case() ==
         results::GraphPath::VertexOrEdge::kVertex) {
-      list.append(vertex_to_pyobject(schema, vertex_or_edge.vertex()));
+      list.append(vertex_to_pyobject(vertex_or_edge.vertex()));
     } else if (vertex_or_edge.inner_case() ==
                results::GraphPath::VertexOrEdge::kEdge) {
-      list.append(edge_to_pyobject(schema, vertex_or_edge.edge()));
+      list.append(edge_to_pyobject(vertex_or_edge.edge()));
     } else {
       throw std::runtime_error("Unknown VertexOrEdge type");
     }
@@ -173,17 +170,16 @@ pybind11::object graph_path_to_pyobject(const Schema& schema,
   return list;
 }
 
-pybind11::object element_to_pyobject(const Schema& schema,
-                                     const results::Element& element) {
+pybind11::object element_to_pyobject(const results::Element& element) {
   switch (element.inner_case()) {
   case results::Element::kVertex: {
-    return vertex_to_pyobject(schema, element.vertex());
+    return vertex_to_pyobject(element.vertex());
   }
   case results::Element::kEdge: {
-    return edge_to_pyobject(schema, element.edge());
+    return edge_to_pyobject(element.edge());
   }
   case results::Element::kGraphPath: {
-    return graph_path_to_pyobject(schema, element.graph_path());
+    return graph_path_to_pyobject(element.graph_path());
   }
   case results::Element::kObject: {
     return value_to_pyobject(element.object());
@@ -194,43 +190,39 @@ pybind11::object element_to_pyobject(const Schema& schema,
   }
 }
 
-pybind11::object collection_to_pyobject(const Schema& schema,
-                                        const results::Collection& collection) {
+pybind11::object collection_to_pyobject(const results::Collection& collection) {
   pybind11::list list;
   for (const auto& element : collection.collection()) {
-    list.append(element_to_pyobject(schema, element));
+    list.append(element_to_pyobject(element));
   }
   return list;
 }
 
-pybind11::object entry_to_pyobject(const Schema& schema,
-                                   const results::Entry* entry);
+pybind11::object entry_to_pyobject(const results::Entry* entry);
 
-pybind11::object map_to_pyobject(const Schema& schema,
-                                 const results::KeyValues& map) {
+pybind11::object map_to_pyobject(const results::KeyValues& map) {
   pybind11::dict dict;
   for (const auto& pair : map.key_values()) {
     auto key = value_to_pyobject(pair.key());
-    auto value = entry_to_pyobject(schema, &pair.value());
+    auto value = entry_to_pyobject(&pair.value());
     dict[key] = value;
   }
   return dict;
 }
 
-pybind11::object entry_to_pyobject(const Schema& schema,
-                                   const results::Entry* entry) {
+pybind11::object entry_to_pyobject(const results::Entry* entry) {
   if (!entry) {
     return pybind11::none();
   }
   switch (entry->inner_case()) {
   case results::Entry::kElement: {
-    return element_to_pyobject(schema, entry->element());
+    return element_to_pyobject(entry->element());
   }
   case results::Entry::kCollection: {
-    return collection_to_pyobject(schema, entry->collection());
+    return collection_to_pyobject(entry->collection());
   }
   case results::Entry::kMap: {
-    return map_to_pyobject(schema, entry->map());
+    return map_to_pyobject(entry->map());
   }
   default: {
     throw std::runtime_error("Unknown entry type");
@@ -244,6 +236,17 @@ void PyQueryResult::initialize(pybind11::handle& m) {
       "PyQueryResult is a wrapper for query results in GraphScope NeuG. It "
       "actually store the query results defined by the proto results.proto "
       "file. ")
+      .def(
+          pybind11::init([](const std::string& result_str) {
+            return new PyQueryResult(result_str);
+          }),
+          pybind11::arg("result_str"),
+          "Initialize a PyQueryResult with a serialized result string.\n\n"
+          "Args:\n"
+          "    result_str (str): The serialized query result string.\n\n"
+          "Returns:\n"
+          "    PyQueryResult: A new instance of PyQueryResult initialized with "
+          "the provided result string.")
       .def("hasNext", &PyQueryResult::hasNext,
            "Check if there are more results "
            "available in the query result.\n\n"
@@ -289,7 +292,7 @@ pybind11::list PyQueryResult::getNext() {
 
   pybind11::list list;
   for (const auto& entry : result.entries()) {
-    list.append(entry_to_pyobject(schema_, entry));
+    list.append(entry_to_pyobject(entry));
   }
   return list;
 }

@@ -30,7 +30,8 @@ class PyDatabase : public std::enable_shared_from_this<PyDatabase> {
 
   explicit PyDatabase(const std::string& databasePath, int32_t max_thread_num,
                       const std::string& mode, const std::string& planner,
-                      const std::string& planner_config_path) {
+                      const std::string& planner_config_path)
+      : planner_config_path_(planner_config_path) {
     database = std::make_unique<NeugDB>(databasePath, max_thread_num, mode,
                                         planner, planner_config_path);
   }
@@ -39,9 +40,25 @@ class PyDatabase : public std::enable_shared_from_this<PyDatabase> {
 
   PyConnection connect();
 
+  /**
+   * @brief Start the database server.
+   * @param port The port to listen on, default is 10000.
+   * @param host The host to bind to, default is "localhost".
+   * @return A string containing the URL of the server.
+   * @note This method will block until the server is stopped.
+   */
+  std::string serve(int port = 10000, const std::string& host = "localhost");
+
+  /**
+   * @brief Stop the database server.
+   * @note This method will stop the server if it is running.
+   */
+  void stop_serving();
+
   void close();
 
  private:
+  std::string planner_config_path_;
   std::unique_ptr<NeugDB> database;
 };
 
