@@ -72,6 +72,10 @@ class LogicalGetV : public LogicalOperator {
     return nodeTableIDs;
   }
 
+  inline std::string getStartAliasName() const {
+    return boundRel->getUniqueName();
+  }
+
   inline GetVOpt getGetVOpt() const { return opt; }
 
   inline void setGetVOpt(GetVOpt opt_) { opt = opt_; }

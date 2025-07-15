@@ -21,6 +21,19 @@ class LSQBTest : public GOptTest {
   std::vector<std::string> rules = {"FilterPushDown", "ExpandGetVFusion"};
 };
 
+TEST_F(LSQBTest, LQ_1_SUB) {
+  std::string query =
+      "MATCH "
+      "(:Forum)-[:Forum_containerOf_Post]->(:Post)<-[Comment_replyOf_Post]-(:"
+      "Comment) return count(*);";
+  // use lsqb1 stats to reproduce the bug
+  auto logical = planLogical(query, schemaData,
+                             getGOptResource("stats/lsqb_stats.json"), rules);
+  auto physical = planPhysical(*logical);
+  VerifyFactory::verifyPhysicalByJson(*physical,
+                                      getLSQBResource("LQ_1_SUB_physical"));
+}
+
 TEST_F(LSQBTest, LQ_1) {
   std::string query =
       "MATCH "

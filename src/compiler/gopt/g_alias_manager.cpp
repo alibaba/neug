@@ -15,8 +15,10 @@
 
 #include "src/include/gopt/g_alias_manager.h"
 
+#include <optional>
 #include <string>
 #include <unordered_map>
+#include <unordered_set>
 #include "src/include/common/exception/exception.h"
 #include "src/include/common/types/types.h"
 #include "src/include/planner/operator/extend/logical_extend.h"
@@ -33,7 +35,8 @@ namespace gopt {
 
 GAliasManager::GAliasManager(const planner::LogicalPlan& plan) {
   auto lastOp = plan.getLastOperator();
-  visitOperator(*lastOp);
+  std::unordered_set<std::string> vTags;
+  visitOperator(*lastOp, vTags);
 }
 
 void GAliasManager::extractGAliasNames(
@@ -120,9 +123,53 @@ void GAliasManager::extractAliasIds(const planner::LogicalOperator& op,
   }
 }
 
-void GAliasManager::visitOperator(const planner::LogicalOperator& op) {
+std::optional<std::string> getUniqueName(const planner::LogicalOperator& op) {
+  if (op.getOperatorType() == planner::LogicalOperatorType::EXTEND) {
+    auto& extendOp = op.constCast<planner::LogicalExtend>();
+    return extendOp.getAliasName();
+  } else if (op.getOperatorType() ==
+             planner::LogicalOperatorType::RECURSIVE_EXTEND) {
+    auto& pathOp = op.constCast<planner::LogicalRecursiveExtend>();
+    return pathOp.getAliasName();
+  } else if (op.getOperatorType() == planner::LogicalOperatorType::GET_V) {
+    auto& getVOp = op.constCast<planner::LogicalGetV>();
+    return getVOp.getAliasName();
+  } else if (op.getOperatorType() ==
+             planner::LogicalOperatorType::SCAN_NODE_TABLE) {
+    auto& scanOp = op.constCast<planner::LogicalScanNodeTable>();
+    return scanOp.getAliasName();
+  }
+  return std::nullopt;
+}
+
+void GAliasManager::visitOperator(const planner::LogicalOperator& op,
+                                  std::unordered_set<std::string>& vTags) {
+  if (op.getOperatorType() == planner::LogicalOperatorType::EXTEND) {
+    auto& extendOp = op.constCast<planner::LogicalExtend>();
+    auto childNameOpt = getUniqueName(*op.getChild(0));
+    if (childNameOpt.has_value() &&
+        childNameOpt.value() != extendOp.getStartAliasName()) {
+      vTags.insert(extendOp.getStartAliasName());
+    }
+  } else if (op.getOperatorType() ==
+             planner::LogicalOperatorType::RECURSIVE_EXTEND) {
+    auto& pathOp = op.constCast<planner::LogicalRecursiveExtend>();
+    auto childNameOpt = getUniqueName(*op.getChild(0));
+    if (childNameOpt.has_value() &&
+        childNameOpt.value() != pathOp.getStartAliasName()) {
+      vTags.insert(pathOp.getStartAliasName());
+    }
+  } else if (op.getOperatorType() == planner::LogicalOperatorType::GET_V) {
+    auto& getVOp = op.constCast<planner::LogicalGetV>();
+    auto childNameOpt = getUniqueName(*op.getChild(0));
+    if (childNameOpt.has_value() &&
+        childNameOpt.value() != getVOp.getStartAliasName()) {
+      vTags.insert(getVOp.getStartAliasName());
+    }
+  }
+
   for (auto child : op.getChildren()) {
-    visitOperator(*child);
+    visitOperator(*child, vTags);
   }
 
   std::vector<gopt::GAliasName> aliasNames;
@@ -149,7 +196,9 @@ void GAliasManager::visitOperator(const planner::LogicalOperator& op) {
       }
       auto uniqueName = name.uniqueName;
       auto queryName = name.queryName;
-      if (!queryName.has_value()) {
+      // if the unique name is not used by any later operators and the query
+      // given name is not set, we set it as the default alias id
+      if (!vTags.contains(uniqueName) && !queryName.has_value()) {
         uniqueNameToId[uniqueName] = DEFAULT_ALIAS_ID;
         break;
       }

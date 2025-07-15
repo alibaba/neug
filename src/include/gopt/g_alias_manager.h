@@ -17,6 +17,7 @@
 
 #include <string>
 #include <unordered_map>
+#include <unordered_set>
 #include <vector>
 #include "src/include/common/types/types.h"
 #include "src/include/gopt/g_alias_name.h"
@@ -49,7 +50,8 @@ class GAliasManager {
   common::alias_id_t nextId{0};
 
  private:
-  void visitOperator(const planner::LogicalOperator& op);
+  void visitOperator(const planner::LogicalOperator& op,
+                     std::unordered_set<std::string>& vTags);
   // void addAliasName(const std::string& name);
   void addGAliasName(const gopt::GAliasName& gAliasName);
 };
