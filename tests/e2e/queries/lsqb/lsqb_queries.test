@@ -14,8 +14,7 @@
 82990
 
 -LOG q3
--SKIP: Failed to execute query: {"code": 05-3000, "message": "Unique name not found: _20_city3"}, error message: Unique name not found: _20_city3
--STATEMENT MATCH (country:Country) MATCH (person1:Person)-[:Person_isLocatedIn_City]->(city1:City)-[:City_isPartOf_Country]->(country) MATCH (person2:Person)-[:Person_isLocatedIn_City]->(city2:City)-[:City_isPartOf_Country]->(country) MATCH (person3:Person)-[:Person_isLocatedIn_City]->(city3:City)-[:City_isPartOf_Country]->(country) MATCH (person1)-[:Person_knows_Person]-(person2)-[:Person_knows_Person]-(person3)-[:Person_knows_Person]-(person1) RETURN count(*) AS count;
+-STATEMENT MATCH (person1:Person)-[:Person_isLocatedIn_City]->(city1:City)-[:City_isPartOf_Country]->(country:Country), (person2:Person)-[:Person_isLocatedIn_City]->(city2:City)-[:City_isPartOf_Country]->(country:Country), (person3:Person)-[:Person_isLocatedIn_City]->(city3:City)-[:City_isPartOf_Country]->(country:Country), (person1)-[:Person_knows_Person]-(person2)-[:Person_knows_Person]-(person3), (person3)-[:Person_knows_Person]-(person1) RETURN count(*) AS count;
 ---- 1
 30456
 
