@@ -308,8 +308,8 @@ jobs:
       - uses: actions/upload-artifact@v4
         if: false
         with:
-          name: ngcli-wheel-${{ github.sha }}
-          path: tools/shell/dist/ngcli-*.whl
+          name: neug-cli-wheel-${{ github.sha }}
+          path: tools/shell/dist/neug-cli-*.whl
 
       - name: Publish distribution to PyPI
         uses: pypa/gh-action-pypi-publish@v1.4.2
@@ -322,9 +322,9 @@ jobs:
           skip_existing: true # Skip existing wheels to avoid errors if the same wheel is already published, to update the wheel for a specific version, add -{number} to the filename and
           # update it manually
 
-      - name: Test ngcli wheel install and CLI
+      - name: Test neug-cli wheel install and CLI
         run: |
           cd tools/shell/dist
-          NGCLI_WHL=$(ls ngcli-*.whl | head -n 1)
+          NGCLI_WHL=$(ls neug_cli-*.whl | head -n 1)
           python3 -m pip install --force-reinstall $NGCLI_WHL
-          ngcli --help
+          neug-cli --help

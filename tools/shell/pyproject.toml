@@ -6,7 +6,7 @@ requires = [
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "ngcli"
+name = "neug-cli"
 version = "0.1.1"
 description = "GraphScope CLI shell for NeuG"
 authors = [{name="GraphScope Team", email="graphscope@alibaba-inc.com"}]
@@ -30,4 +30,4 @@ test = [
 ]
 
 [project.scripts]
-ngcli = "ngcli.neug_cli:cli"
+neug-cli = "ngcli.neug_cli:cli"

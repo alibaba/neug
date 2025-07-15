@@ -3,10 +3,10 @@
 The `Neug` CLI tool provides an interactive shell for querying and managing NeuG database. It supports both local and remote database connections, Cypher query execution, and result formatting.
 
 ## Installation
-You can install `ngcli` using pip:
+You can install `neug-cli` using pip:
 
 ```bash
-pip install ngcli
+pip install neug-cli
 ```
 
 Alternatively, to install from source:
@@ -17,32 +17,32 @@ cd neug/tools/shell
 pip install .
 ```
 
-After installation, you can verify that `ngcli` is installed correctly by running:
+After installation, you can verify that `neug-cli` is installed correctly by running:
 
 ```bash
-ngcli --version
+neug-cli --version
 ```
 
 This should display:
 
 ```
-ngcli, version 0.1.0
+neug-cli, version 0.1.0
 ```
 
 ## Usage
 
 ### Overview
 
-The `ngcli` tool allows you to interact with the Neug database in both local and remote modes. To view the basic usage, run:
+The `neug-cli` tool allows you to interact with the Neug database in both local and remote modes. To view the basic usage, run:
 
 ```bash
-ngcli --help
+neug-cli --help
 ```
 
 This displays:
 
 ```
-Usage: ngcli [OPTIONS] COMMAND [ARGS]...
+Usage: neug-cli [OPTIONS] COMMAND [ARGS]...
 
     Neug CLI Tool.
 
@@ -62,7 +62,7 @@ To open a local Neug database, specify the database path when starting the CLI. 
 To open the database in read-only mode, use the `--readonly` or `-r` option.
 
 ```bash
-ngcli open <path-to-db> [--readonly | -r]
+neug-cli open <path-to-db> [--readonly | -r]
 ```
 
 - `--readonly`, `-r`: Open the database in read-only mode.
@@ -72,7 +72,7 @@ ngcli open <path-to-db> [--readonly | -r]
 To connect to a remote Neug server, specify the server URI when starting the CLI. You can optionally provide a username, password, and query timeout. Note that remote connection support is under development.
 
 ```bash
-ngcli connect <host:port> [--user <username> | -u <username>] [--password <password> | -p <password>] [--timeout <seconds>]
+neug-cli connect <host:port> [--user <username> | -u <username>] [--password <password> | -p <password>] [--timeout <seconds>]
 ```
 
 - `--user`, `-u`: Username for authentication.
@@ -93,7 +93,7 @@ Once you start the shell, you can execute Cypher queries and use various interac
 ## Example
 
 ```bash
-ngcli open /tmp/modern_graph
+neug-cli open /tmp/modern_graph
 ```
 
 This will open embedded Neug database at `/tmp/modern_graph` in `rw` mode by default, and start the shell. Then you can execute Cypher queries directly:

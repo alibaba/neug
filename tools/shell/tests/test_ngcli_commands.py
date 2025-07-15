@@ -31,7 +31,7 @@ def test_help_option(runner):
     result = runner.invoke(neug_cli.cli, ["--help"])
     assert result.exit_code == 0
     expected_output = """\
-Usage: ngcli [OPTIONS] COMMAND [ARGS]...
+Usage: neug-cli [OPTIONS] COMMAND [ARGS]...
 
   Neug CLI Tool.
 
@@ -52,7 +52,7 @@ def test_open_help_option(monkeypatch, runner):
     result = runner.invoke(neug_cli.cli, ["open", "--help"])
     assert result.exit_code == 0
     expected_output = """\
-Usage: ngcli open [OPTIONS] PATH
+Usage: neug-cli open [OPTIONS] PATH
 
   Open a local database.
 
@@ -96,7 +96,7 @@ def test_connect_help_option(monkeypatch, runner):
     result = runner.invoke(neug_cli.cli, ["connect", "--help"])
     assert result.exit_code == 0
     excepted_output = """\
-Usage: ngcli connect [OPTIONS] URI
+Usage: neug-cli connect [OPTIONS] URI
 
   Connect to a remote database.
 
