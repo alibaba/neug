@@ -29,7 +29,9 @@ class LogicalFilter final : public LogicalOperator {
   f_group_pos_set getGroupsPosToFlatten();
 
   inline std::string getExpressionsForPrinting() const override {
-    return expression->toString();
+    std::string result = expression->toString();
+    result += " Cardinality: " + std::to_string(cardinality);
+    return result;
   }
 
   inline std::shared_ptr<binder::Expression> getPredicate() const {

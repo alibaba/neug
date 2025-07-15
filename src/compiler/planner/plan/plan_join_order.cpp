@@ -8,7 +8,9 @@
 #include "src/include/common/enums/rel_direction.h"
 #include "src/include/common/types/types.h"
 #include "src/include/common/utils.h"
+#include "src/include/gopt/g_constants.h"
 #include "src/include/main/client_context.h"
+#include "src/include/planner/join_order/cardinality_estimator.h"
 #include "src/include/planner/join_order/cost_model.h"
 #include "src/include/planner/join_order/join_plan_solver.h"
 #include "src/include/planner/join_order/join_tree_constructor.h"
@@ -27,6 +29,8 @@ using namespace gs::common;
 
 namespace gs {
 namespace planner {
+
+static cardinality_t atLeastOne(uint64_t x) { return x == 0 ? 1 : x; }
 
 std::unique_ptr<LogicalPlan> Planner::planQueryGraphCollection(
     const QueryGraphCollection& queryGraphCollection,
@@ -445,6 +449,53 @@ static std::unique_ptr<LogicalPlan> getWCOJBuildPlanForRel(
   return result;
 }
 
+double Planner::computeRelCardRate(
+    size_t relIdx, const std::vector<std::shared_ptr<RelExpression>>& rels,
+    const std::shared_ptr<NodeExpression>& intersectNode) {
+  auto& transaction = gs::Constants::DEFAULT_TRANSACTION;
+  auto& rel = rels[relIdx];
+  auto boundNode = rel->getSrcNodeName() == intersectNode->getUniqueName()
+                       ? rel->getDstNode()
+                       : rel->getSrcNode();
+  auto extensionRate =
+      cardinalityEstimator.getExtensionRate(*rel, *boundNode, &transaction);
+  auto intersectNodes = static_cast<double>(cardinalityEstimator.getNumNodes(
+      &transaction, intersectNode->getTableIDs()));
+  if (relIdx == 0) {
+    return extensionRate;
+  } else {
+    return extensionRate / atLeastOne(intersectNodes);
+  }
+}
+
+/**
+ * Sort rels by the extension rate of the bound node.
+ * The rel with the smallest extension rate is put at the front.
+ */
+std::vector<std::shared_ptr<RelExpression>> Planner::sortRels(
+    const std::vector<std::shared_ptr<RelExpression>>& rels,
+    const std::shared_ptr<NodeExpression>& intersectNode) {
+  std::vector<std::shared_ptr<RelExpression>> sortedRels = rels;
+  std::sort(
+      sortedRels.begin(), sortedRels.end(),
+      [&](const std::shared_ptr<RelExpression>& a,
+          const std::shared_ptr<RelExpression>& b) {
+        auto aBound = a->getSrcNodeName() == intersectNode->getUniqueName()
+                          ? a->getDstNode()
+                          : a->getSrcNode();
+        auto& transaction = gs::Constants::DEFAULT_TRANSACTION;
+        double aRate =
+            cardinalityEstimator.getExtensionRate(*a, *aBound, &transaction);
+        auto bBound = b->getSrcNodeName() == intersectNode->getUniqueName()
+                          ? b->getDstNode()
+                          : b->getSrcNode();
+        double bRate =
+            cardinalityEstimator.getExtensionRate(*b, *bBound, &transaction);
+        return aRate < bRate;
+      });
+  return std::move(sortedRels);
+}
+
 void Planner::planWCOJoin(
     const SubqueryGraph& subgraph,
     const std::vector<std::shared_ptr<RelExpression>>& rels,
@@ -454,7 +505,9 @@ void Planner::planWCOJoin(
   prevSubgraphs.push_back(subgraph);
   expression_vector boundNodeIDs;
   std::vector<std::unique_ptr<LogicalPlan>> relPlans;
-  for (auto& rel : rels) {
+  std::vector<std::shared_ptr<RelExpression>> sortedRels =
+      sortRels(rels, intersectNode);
+  for (auto& rel : sortedRels) {
     auto boundNode = rel->getSrcNodeName() == intersectNode->getUniqueName()
                          ? rel->getDstNode()
                          : rel->getSrcNode();
@@ -475,6 +528,7 @@ void Planner::planWCOJoin(
     auto& relPlanCandidates =
         context.subPlansTable->getSubgraphPlans(relSubgraph);
     auto relPlan = getWCOJBuildPlanForRel(relPlanCandidates, *boundNode);
+
     if (relPlan == nullptr) {
       return;
     }
@@ -487,14 +541,25 @@ void Planner::planWCOJoin(
             *intersectNode->getInternalID())) {
       continue;
     }
+    auto leftPlanCard = leftPlan->getLastOperator()->getCardinality();
     auto leftPlanCopy = leftPlan->shallowCopy();
     std::vector<std::unique_ptr<LogicalPlan>> rightPlansCopy;
     rightPlansCopy.reserve(relPlans.size());
     for (auto& relPlan : relPlans) {
       rightPlansCopy.push_back(relPlan->shallowCopy());
     }
+    common::cardinality_t prevCard = leftPlan->getCardinality();
+    size_t relIdx = 0;
+    std::vector<cardinality_t> buildCards;
+    for (auto& relPlan : relPlans) {
+      auto relCardRate =
+          computeRelCardRate(relIdx++, sortedRels, intersectNode);
+      auto relCard = prevCard * relCardRate;
+      prevCard = relCard;
+      buildCards.emplace_back(relCard);
+    }
     appendIntersect(intersectNode->getInternalID(), boundNodeIDs, *leftPlanCopy,
-                    rightPlansCopy);
+                    rightPlansCopy, buildCards);
     for (auto& predicate : predicates) {
       appendFilter(predicate, *leftPlanCopy);
     }

@@ -1,0 +1,14 @@
+PROJECTION[count]
+AGGREGATE[Group By [], Aggregate [count, ]]
+PROJECTION[]
+INTERSECT[person1._ID Cardinality: 3675]
+CHILD:
+    EXTEND[Post<-Comment_replyOf_Post,-comment Cardinality: 3835041]
+    EXTEND[Post-Post_hasCreator_Person,->person2 Cardinality: 3182834]
+    SCAN_NODE_TABLE[Post._ID Type: INTERNAL_ID Cardinality: 3182834]
+CHILD:
+    EXTEND[comment-Comment_hasCreator_Person,->person1 Cardinality: 3835041]
+    SCAN_NODE_TABLE[comment._ID Type: INTERNAL_ID Cardinality: 7751913]
+CHILD:
+    EXTEND[person2<-Person_knows_Person,-person1 Cardinality: 3675]
+    SCAN_NODE_TABLE[person2._ID Type: INTERNAL_ID Cardinality: 27000]

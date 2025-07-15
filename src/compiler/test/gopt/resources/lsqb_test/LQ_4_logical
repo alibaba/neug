@@ -1,0 +1,8 @@
+PROJECTION[count]
+AGGREGATE[Group By [], Aggregate [count, ]]
+PROJECTION[]
+EXTEND[message-Comment_hasTag_Tag,Post_hasTag_Tag,-> Cardinality: 6527676]
+EXTEND[message-Comment_hasCreator_Person,Post_hasCreator_Person,->creator Cardinality: 5977735]
+EXTEND[message<-Person_likes_Comment,Person_likes_Post,-liker Cardinality: 5977735]
+EXTEND[message<-Comment_replyOf_Comment,Comment_replyOf_Post,-comment Cardinality: 7751913]
+SCAN_NODE_TABLE[message._ID Type: INTERNAL_ID Cardinality: 10934747]

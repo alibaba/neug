@@ -348,10 +348,17 @@ class KUZU_API Planner {
       const std::vector<binder::expression_pair>& joinConditions,
       const std::shared_ptr<binder::Expression>& mark, LogicalPlan& probePlan,
       LogicalPlan& buildPlan, LogicalPlan& resultPlan);
+
   void appendIntersect(
       const std::shared_ptr<binder::Expression>& intersectNodeID,
       binder::expression_vector& boundNodeIDs, LogicalPlan& probePlan,
       std::vector<std::unique_ptr<LogicalPlan>>& buildPlans);
+
+  void appendIntersect(
+      const std::shared_ptr<binder::Expression>& intersectNodeID,
+      binder::expression_vector& boundNodeIDs, LogicalPlan& probePlan,
+      std::vector<std::unique_ptr<LogicalPlan>>& buildPlans,
+      std::vector<cardinality_t>& buildCards);
 
   void appendCrossProduct(const LogicalPlan& probePlan,
                           const LogicalPlan& buildPlan,
@@ -463,6 +470,13 @@ class KUZU_API Planner {
       std::shared_ptr<LogicalOperator> top);
   std::shared_ptr<planner::LogicalOperator> extractIntersect(
       std::shared_ptr<LogicalOperator> top);
+  double computeRelCardRate(
+      size_t relIdx,
+      const std::vector<std::shared_ptr<binder::RelExpression>>& rels,
+      const std::shared_ptr<binder::NodeExpression>& intersectNode);
+  std::vector<std::shared_ptr<binder::RelExpression>> sortRels(
+      const std::vector<std::shared_ptr<binder::RelExpression>>& rels,
+      const std::shared_ptr<binder::NodeExpression>& intersectNode);
 
  private:
   main::ClientContext* clientContext;

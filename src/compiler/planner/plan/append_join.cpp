@@ -1,6 +1,8 @@
+#include "src/include/common/exception/exception.h"
 #include "src/include/planner/join_order/cost_model.h"
 #include "src/include/planner/operator/logical_hash_join.h"
 #include "src/include/planner/operator/logical_intersect.h"
+#include "src/include/planner/operator/logical_plan.h"
 #include "src/include/planner/planner.h"
 
 using namespace gs::common;
@@ -140,6 +142,48 @@ void Planner::appendIntersect(
   intersect->setCardinality(cardinalityEstimator.estimateIntersect(
       boundNodeIDs, probePlan.getLastOperatorRef(), buildOps));
   probePlan.setCost(CostModel::computeIntersectCost(probePlan, buildPlans));
+  probePlan.setLastOperator(std::move(intersect));
+}
+
+void Planner::appendIntersect(
+    const std::shared_ptr<Expression>& intersectNodeID,
+    expression_vector& boundNodeIDs, LogicalPlan& probePlan,
+    std::vector<std::unique_ptr<LogicalPlan>>& buildPlans,
+    std::vector<cardinality_t>& buildCards) {
+  KU_ASSERT(boundNodeIDs.size() == buildPlans.size());
+  std::vector<std::shared_ptr<LogicalOperator>> buildChildren;
+  expression_vector keyNodeIDs;
+  for (auto i = 0u; i < buildPlans.size(); ++i) {
+    keyNodeIDs.push_back(boundNodeIDs[i]);
+    buildChildren.push_back(buildPlans[i]->getLastOperator());
+  }
+  auto intersect = make_shared<LogicalIntersect>(
+      intersectNodeID, std::move(keyNodeIDs), probePlan.getLastOperator(),
+      std::move(buildChildren));
+  intersect->setBuildCards(buildCards);
+  appendFlattens(intersect->getGroupsPosToFlattenOnProbeSide(), probePlan);
+  intersect->setChild(0, probePlan.getLastOperator());
+  for (auto i = 0u; i < buildPlans.size(); ++i) {
+    appendFlattens(intersect->getGroupsPosToFlattenOnBuildSide(i),
+                   *buildPlans[i]);
+    intersect->setChild(i + 1, buildPlans[i]->getLastOperator());
+    auto ratio = probePlan.getCardinality() / buildPlans[i]->getCardinality();
+    if (ratio > PlannerKnobs::SIP_RATIO) {
+      intersect->getSIPInfoUnsafe().position = SemiMaskPosition::PROHIBIT;
+    }
+  }
+  intersect->computeFactorizedSchema();
+  // update cost
+  std::vector<LogicalOperator*> buildOps;
+  for (const auto& plan : buildPlans) {
+    buildOps.push_back(plan->getLastOperator().get());
+  }
+  if (buildCards.empty()) {
+    throw common::Exception("buildCards is empty");
+  }
+  intersect->setCardinality(buildCards[buildCards.size() - 1]);
+  probePlan.setCost(
+      CostModel::estimateIntersectCostByCard(probePlan, buildCards));
   probePlan.setLastOperator(std::move(intersect));
 }
 

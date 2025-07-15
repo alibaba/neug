@@ -16,8 +16,10 @@ void CardinalityUpdater::rewrite(planner::LogicalPlan* plan) {
 }
 
 void CardinalityUpdater::visitOperator(planner::LogicalOperator* op) {
-  for (auto i = 0u; i < op->getNumChildren(); ++i) {
-    visitOperator(op->getChild(i).get());
+  if (op->getOperatorType() != planner::LogicalOperatorType::INTERSECT) {
+    for (auto i = 0u; i < op->getNumChildren(); ++i) {
+      visitOperator(op->getChild(i).get());
+    }
   }
   visitOperatorSwitchWithDefault(op);
 }
@@ -103,12 +105,16 @@ void CardinalityUpdater::visitCrossProduct(planner::LogicalOperator* op) {
 void CardinalityUpdater::visitIntersect(planner::LogicalOperator* op) {
   auto& intersect = op->cast<planner::LogicalIntersect&>();
   KU_ASSERT(intersect.getNumChildren() >= 2);
-  std::vector<planner::LogicalOperator*> buildOps;
-  for (uint32_t i = 1; i < intersect.getNumChildren(); ++i) {
-    buildOps.push_back(intersect.getChild(i).get());
+  visitOperator(intersect.getChild(0).get());
+  auto buildCards = intersect.getBuildCards();
+  if (buildCards.size() + 1 != intersect.getNumChildren()) {
+    throw common::Exception(
+        "buildCards size is not consistent with buildPlans size in intersect");
   }
-  intersect.setCardinality(cardinalityEstimator.estimateIntersect(
-      intersect.getKeyNodeIDs(), *intersect.getChild(0), buildOps));
+  for (size_t i = 1; i < intersect.getNumChildren(); ++i) {
+    intersect.getChild(i)->setCardinality(buildCards[i - 1]);
+  }
+  intersect.setCardinality(buildCards[buildCards.size() - 1]);
 }
 
 void CardinalityUpdater::visitFlatten(planner::LogicalOperator* op) {

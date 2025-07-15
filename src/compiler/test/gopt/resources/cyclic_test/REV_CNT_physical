@@ -10,7 +10,7 @@
       "params": {
        "tables": [
         {
-         "id": 1
+         "id": 0
         }
        ],
        "columns": [],
@@ -30,7 +30,7 @@
         "graph_data_type": [
          {
           "label": {
-           "label": 1
+           "label": 0
           },
           "props": []
          }
@@ -44,7 +44,7 @@
    {
     "opr": {
      "edge": {
-      "direction": "IN",
+      "direction": "OUT",
       "params": {
        "tables": [
         {
@@ -90,7 +90,7 @@
       "params": {
        "tables": [
         {
-         "id": 0
+         "id": 1
         }
        ],
        "columns": [],
@@ -112,9 +112,9 @@
         "graph_data_type": [
          {
           "label": {
-           "label": 0,
+           "label": 1,
            "src_label": 0,
-           "dst_label": 0
+           "dst_label": 1
           },
           "props": []
          }
@@ -137,7 +137,7 @@
           {
            "opr": {
             "edge": {
-             "direction": "OUT",
+             "direction": "IN",
              "params": {
               "tables": [
                {
@@ -191,7 +191,7 @@
              "params": {
               "tables": [
                {
-                "id": 1
+                "id": 0
                }
               ],
               "columns": [],
@@ -213,9 +213,9 @@
                "graph_data_type": [
                 {
                  "label": {
-                  "label": 1,
+                  "label": 0,
                   "src_label": 0,
-                  "dst_label": 1
+                  "dst_label": 0
                  },
                  "props": []
                 }

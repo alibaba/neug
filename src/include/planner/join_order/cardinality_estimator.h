@@ -57,11 +57,12 @@ class CardinalityEstimator {
                           const transaction::Transaction* transaction) const;
   cardinality_t multiply(double extensionRate, cardinality_t card) const;
 
- private:
-  cardinality_t getNodeIDDom(const std::string& nodeIDName) const;
   cardinality_t getNumNodes(
       const transaction::Transaction* transaction,
       const std::vector<common::table_id_t>& tableIDs) const;
+
+ private:
+  cardinality_t getNodeIDDom(const std::string& nodeIDName) const;
   cardinality_t getNumRels(
       const transaction::Transaction* transaction,
       const std::vector<common::table_id_t>& tableIDs) const;

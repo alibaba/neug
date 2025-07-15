@@ -108,6 +108,7 @@ class LogicalScanNodeTable final : public LogicalOperator {
     if (predicates != nullptr) {
       message += " Predicates: " + predicates->toString();
     }
+    message += " Cardinality: " + std::to_string(cardinality);
     return message;
   }
 

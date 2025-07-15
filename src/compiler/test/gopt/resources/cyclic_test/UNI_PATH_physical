@@ -119,56 +119,6 @@
              "params": {
               "tables": [
                {
-                "id": 0
-               }
-              ],
-              "columns": [],
-              "is_all_columns": false,
-              "sample_ratio": 0,
-              "extra": {}
-             },
-             "expand_opt": "VERTEX",
-             "is_optional": false,
-             "v_tag": 1,
-             "alias": 2
-            }
-           },
-           "meta_data": [
-            {
-             "type": {
-              "graph_type": {
-               "element_opt": "EDGE",
-               "graph_data_type": [
-                {
-                 "label": {
-                  "label": 0,
-                  "src_label": 0,
-                  "dst_label": 0
-                 },
-                 "props": []
-                }
-               ]
-              }
-             },
-             "alias": 2
-            }
-           ]
-          }
-         ]
-        }
-       },
-       {
-        "plan_id": 0,
-        "query_plan": {
-         "mode": "READ_ONLY",
-         "plan": [
-          {
-           "opr": {
-            "edge": {
-             "direction": "IN",
-             "params": {
-              "tables": [
-               {
                 "id": 1
                },
                {
@@ -203,6 +153,56 @@
                 {
                  "label": {
                   "label": 3,
+                  "src_label": 0,
+                  "dst_label": 0
+                 },
+                 "props": []
+                }
+               ]
+              }
+             },
+             "alias": 2
+            }
+           ]
+          }
+         ]
+        }
+       },
+       {
+        "plan_id": 0,
+        "query_plan": {
+         "mode": "READ_ONLY",
+         "plan": [
+          {
+           "opr": {
+            "edge": {
+             "direction": "IN",
+             "params": {
+              "tables": [
+               {
+                "id": 0
+               }
+              ],
+              "columns": [],
+              "is_all_columns": false,
+              "sample_ratio": 0,
+              "extra": {}
+             },
+             "expand_opt": "VERTEX",
+             "is_optional": false,
+             "v_tag": 1,
+             "alias": 2
+            }
+           },
+           "meta_data": [
+            {
+             "type": {
+              "graph_type": {
+               "element_opt": "EDGE",
+               "graph_data_type": [
+                {
+                 "label": {
+                  "label": 0,
                   "src_label": 0,
                   "dst_label": 0
                  },

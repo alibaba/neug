@@ -74,24 +74,9 @@ void Optimizer::optimize(
     auto expandGetVFusion = ExpandGetVFusion(context->getCatalog());
     expandGetVFusion.rewrite(plan);
 
-    // for EXPLAIN LOGICAL we need to update the cardinalities for the optimized
-    // plan we don't need to do this otherwise as we don't use the cardinalities
-    // after planning
-    if (plan->getLastOperatorRef().getOperatorType() ==
-        planner::LogicalOperatorType::EXPLAIN) {
-      const auto& explain =
-          plan->getLastOperatorRef().cast<planner::LogicalExplain>();
-      if (explain.getExplainType() == common::ExplainType::LOGICAL_PLAN) {
-        auto cardinalityUpdater =
-            CardinalityUpdater(cardinalityEstimator, context->getTransaction());
-        cardinalityUpdater.rewrite(plan);
-      }
-    }
-  } else {
-    // we still need to compute the schema for each operator even if we have
-    // optimizations disabled
-    auto schemaPopulator = SchemaPopulator{};
-    schemaPopulator.rewrite(plan);
+    auto cardinalityUpdater =
+        CardinalityUpdater(cardinalityEstimator, context->getTransaction());
+    cardinalityUpdater.rewrite(plan);
   }
 }
 

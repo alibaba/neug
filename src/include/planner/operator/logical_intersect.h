@@ -31,7 +31,9 @@ class LogicalIntersect final : public LogicalOperator {
   void computeFlatSchema() override;
 
   std::string getExpressionsForPrinting() const override {
-    return intersectNodeID->toString();
+    std::string message = intersectNodeID->toString();
+    message += " Cardinality: " + std::to_string(cardinality);
+    return message;
   }
 
   std::shared_ptr<binder::Expression> getIntersectNodeID() const {
@@ -48,10 +50,19 @@ class LogicalIntersect final : public LogicalOperator {
 
   std::unique_ptr<LogicalOperator> copy() override;
 
+  void setBuildCards(std::vector<common::cardinality_t> buildCards_) {
+    buildCards = std::move(buildCards_);
+  }
+
+  std::vector<common::cardinality_t> getBuildCards() const {
+    return buildCards;
+  }
+
  private:
   std::shared_ptr<binder::Expression> intersectNodeID;
   binder::expression_vector keyNodeIDs;
   SIPInfo sipInfo;
+  std::vector<common::cardinality_t> buildCards;
 };
 
 }  // namespace planner

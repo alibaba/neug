@@ -15,6 +15,10 @@ static std::string relToString(const binder::RelExpression& rel) {
     result += "ALL SHORTEST";
   } break;
   default:
+    for (auto& entry : rel.getEntries()) {
+      result += entry->getName();
+      result += ",";
+    }
     break;
   }
   if (QueryRelTypeUtils::isRecursive(rel.getRelType())) {

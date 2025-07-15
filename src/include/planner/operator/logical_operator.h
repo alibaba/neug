@@ -3,6 +3,7 @@
 #include <optional>
 
 #include "src/include/common/cast.h"
+#include "src/include/common/types/types.h"
 #include "src/include/planner/operator/operator_print_info.h"
 #include "src/include/planner/operator/schema.h"
 
@@ -103,6 +104,12 @@ class KUZU_API LogicalOperator {
     this->cardinality = cardinality_;
   }
 
+  void setIntersectCard(common::cardinality_t intersectCard_) {
+    intersectCard = intersectCard_;
+  }
+
+  common::cardinality_t getIntersectCard() const { return intersectCard; }
+
   // Operator type.
   LogicalOperatorType getOperatorType() const { return operatorType; }
   bool hasUpdateRecursive();
@@ -154,6 +161,7 @@ class KUZU_API LogicalOperator {
   std::unique_ptr<Schema> schema;
   logical_op_vector_t children;
   common::cardinality_t cardinality;
+  common::cardinality_t intersectCard;
 };
 
 }  // namespace planner

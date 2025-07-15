@@ -235,6 +235,7 @@ class GOptTest : public ::testing::Test {
         physicalJson);
   }
 
+  // generate physical plan
   void generateQueries(const std::string& fixtureName,
                        const std::string& schema, const std::string& stats,
                        std::vector<std::string>& rules) {
@@ -277,6 +278,7 @@ class GOptTest : public ::testing::Test {
         YAML::Dump(resultYaml));
   }
 
+  // generate result schema
   void generateResults(const std::string& fixtureName,
                        const std::string& schema, const std::string& stats,
                        std::vector<std::string>& rules) {
@@ -302,6 +304,46 @@ class GOptTest : public ::testing::Test {
         query.erase(query.find_last_not_of(" \t") + 1);
 
         generateResult(fixtureName, testName, query, schema, stats, rules);
+      }
+    }
+  }
+
+  void generateLPlan(const std::string& fixtureName,
+                     const std::string& testName, const std::string& query,
+                     const std::string& schema, const std::string& stats,
+                     std::vector<std::string>& rules) {
+    auto logicalPlan = planLogical(query, schema, stats, rules);
+    Utils::writeString(
+        getGOptResourcePath(fixtureName + "/" + testName + "_logical"),
+        logicalPlan->toString());
+  }
+
+  // generate logical plan
+  void generateLPlans(const std::string& fixtureName, const std::string& schema,
+                      const std::string& stats,
+                      std::vector<std::string>& rules) {
+    std::string queriesContent = getGOptResource(fixtureName + "/queries");
+    std::istringstream iss(queriesContent);
+    std::string line;
+    std::cout << "start to generate queries" << std::endl
+              << queriesContent << std::endl;
+    while (std::getline(iss, line)) {
+      if (line.empty() || line.starts_with("//")) {
+        continue;  // Skip empty lines and comments
+      }
+      size_t colonPos = line.find('#');
+      if (colonPos != std::string::npos) {
+        std::string query = line.substr(0, colonPos);
+        std::string testName = line.substr(colonPos + 1);
+        std::cout << "testName:" + testName << std::endl;
+        std::cout << "query:" + query << std::endl;
+        // Trim whitespace
+        testName.erase(0, testName.find_first_not_of(" \t"));
+        testName.erase(testName.find_last_not_of(" \t") + 1);
+        query.erase(0, query.find_first_not_of(" \t"));
+        query.erase(query.find_last_not_of(" \t") + 1);
+
+        generateLPlan(fixtureName, testName, query, schema, stats, rules);
       }
     }
   }

@@ -29,6 +29,9 @@ static uint64_t getLiteralNumber(std::shared_ptr<gs::binder::Expression> expr) {
 }
 
 bool LogicalLimit::canEvaluateSkipNum() const {
+  if (!skipNum) {
+    return false;
+  }
   return binder::ExpressionUtil::canEvaluateAsLiteral(*skipNum);
 }
 
@@ -37,6 +40,9 @@ uint64_t LogicalLimit::evaluateSkipNum() const {
 }
 
 bool LogicalLimit::canEvaluateLimitNum() const {
+  if (!limitNum) {
+    return false;
+  }
   return binder::ExpressionUtil::canEvaluateAsLiteral(*limitNum);
 }
 

@@ -23,6 +23,9 @@ class CostModel {
   static uint64_t computeIntersectCost(
       const LogicalPlan& probePlan,
       const std::vector<std::unique_ptr<LogicalPlan>>& buildPlans);
+  static cardinality_t estimateIntersectCostByCard(
+      const gs::planner::LogicalPlan& probePlan,
+      const std::vector<cardinality_t>& buildCards);
 };
 
 }  // namespace planner

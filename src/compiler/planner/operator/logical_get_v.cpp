@@ -26,6 +26,7 @@ std::string LogicalGetV::getExpressionsForPrinting() const {
     result += predicates->toString();
   }
   result += ")";
+  result += " Cardinality: " + std::to_string(cardinality);
   return result;
 }
 

@@ -66,7 +66,19 @@ uint64_t CostModel::computeIntersectCost(
   cost += probePlan.getCardinality();
   for (auto& buildPlan : buildPlans) {
     KU_ASSERT(buildPlan->getCardinality() >= 1);
-    cost += buildPlan->getCost();
+    cost += buildPlan->getLastOperator()->getIntersectCard();
+  }
+  return cost;
+}
+
+cardinality_t CostModel::estimateIntersectCostByCard(
+    const gs::planner::LogicalPlan& probePlan,
+    const std::vector<cardinality_t>& buildCards) {
+  uint64_t cost = 0ul;
+  cost += probePlan.getCost();
+  cost += probePlan.getCardinality();
+  for (auto& card : buildCards) {
+    cost += card;
   }
   return cost;
 }

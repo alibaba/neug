@@ -1,0 +1,8 @@
+PROJECTION[count]
+AGGREGATE[Group By [], Aggregate [count, ]]
+PROJECTION[]
+EXTEND[person3-Person_hasInterest_Tag,->tag Cardinality: 42452944]
+FILTER[NOT_EQUALS(person1._ID,person3._ID) Cardinality: 1807702]
+EXTEND[person2-Person_knows_Person,->person3 Cardinality: 18077025]
+EXTEND[person1-Person_knows_Person,->person2 Cardinality: 698627]
+SCAN_NODE_TABLE[person1._ID Type: INTERNAL_ID Cardinality: 27000]

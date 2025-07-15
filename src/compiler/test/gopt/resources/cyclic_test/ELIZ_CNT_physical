@@ -134,7 +134,7 @@
       "params": {
        "tables": [
         {
-         "id": 0
+         "id": 1
         }
        ],
        "columns": [],
@@ -144,7 +144,7 @@
       },
       "expand_opt": "VERTEX",
       "is_optional": false,
-      "v_tag": 0,
+      "v_tag": 1,
       "alias": 2
      }
     },
@@ -156,9 +156,9 @@
         "graph_data_type": [
          {
           "label": {
-           "label": 0,
+           "label": 1,
            "src_label": 0,
-           "dst_label": 0
+           "dst_label": 1
           },
           "props": []
          }
@@ -181,7 +181,7 @@
           {
            "opr": {
             "edge": {
-             "direction": "OUT",
+             "direction": "IN",
              "params": {
               "tables": [
                {
@@ -195,7 +195,7 @@
              },
              "expand_opt": "VERTEX",
              "is_optional": false,
-             "v_tag": 1,
+             "v_tag": 2,
              "alias": 3
             }
            },
@@ -235,7 +235,7 @@
              "params": {
               "tables": [
                {
-                "id": 1
+                "id": 0
                }
               ],
               "columns": [],
@@ -245,7 +245,7 @@
              },
              "expand_opt": "VERTEX",
              "is_optional": false,
-             "v_tag": 2,
+             "v_tag": 0,
              "alias": 3
             }
            },
@@ -257,9 +257,9 @@
                "graph_data_type": [
                 {
                  "label": {
-                  "label": 1,
+                  "label": 0,
                   "src_label": 0,
-                  "dst_label": 1
+                  "dst_label": 0
                  },
                  "props": []
                 }

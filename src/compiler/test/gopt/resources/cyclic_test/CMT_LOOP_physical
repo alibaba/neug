@@ -90,7 +90,7 @@
       "params": {
        "tables": [
         {
-         "id": 1
+         "id": 19
         }
        ],
        "columns": [],
@@ -100,7 +100,7 @@
       },
       "expand_opt": "VERTEX",
       "is_optional": false,
-      "v_tag": 1,
+      "v_tag": 0,
       "alias": 2
      }
     },
@@ -112,8 +112,8 @@
         "graph_data_type": [
          {
           "label": {
-           "label": 1,
-           "src_label": 3,
+           "label": 19,
+           "src_label": 4,
            "dst_label": 2
           },
           "props": []
@@ -129,6 +129,56 @@
     "opr": {
      "intersect": {
       "sub_plans": [
+       {
+        "plan_id": 0,
+        "query_plan": {
+         "mode": "READ_ONLY",
+         "plan": [
+          {
+           "opr": {
+            "edge": {
+             "direction": "OUT",
+             "params": {
+              "tables": [
+               {
+                "id": 1
+               }
+              ],
+              "columns": [],
+              "is_all_columns": false,
+              "sample_ratio": 0,
+              "extra": {}
+             },
+             "expand_opt": "VERTEX",
+             "is_optional": false,
+             "v_tag": 1,
+             "alias": 3
+            }
+           },
+           "meta_data": [
+            {
+             "type": {
+              "graph_type": {
+               "element_opt": "EDGE",
+               "graph_data_type": [
+                {
+                 "label": {
+                  "label": 1,
+                  "src_label": 3,
+                  "dst_label": 2
+                 },
+                 "props": []
+                }
+               ]
+              }
+             },
+             "alias": 3
+            }
+           ]
+          }
+         ]
+        }
+       },
        {
         "plan_id": 0,
         "query_plan": {
@@ -165,56 +215,6 @@
                  "label": {
                   "label": 14,
                   "src_label": 2,
-                  "dst_label": 2
-                 },
-                 "props": []
-                }
-               ]
-              }
-             },
-             "alias": 3
-            }
-           ]
-          }
-         ]
-        }
-       },
-       {
-        "plan_id": 0,
-        "query_plan": {
-         "mode": "READ_ONLY",
-         "plan": [
-          {
-           "opr": {
-            "edge": {
-             "direction": "OUT",
-             "params": {
-              "tables": [
-               {
-                "id": 19
-               }
-              ],
-              "columns": [],
-              "is_all_columns": false,
-              "sample_ratio": 0,
-              "extra": {}
-             },
-             "expand_opt": "VERTEX",
-             "is_optional": false,
-             "v_tag": 0,
-             "alias": 3
-            }
-           },
-           "meta_data": [
-            {
-             "type": {
-              "graph_type": {
-               "element_opt": "EDGE",
-               "graph_data_type": [
-                {
-                 "label": {
-                  "label": 19,
-                  "src_label": 4,
                   "dst_label": 2
                  },
                  "props": []
