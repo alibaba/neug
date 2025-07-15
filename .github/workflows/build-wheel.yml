@@ -285,7 +285,7 @@ jobs:
           GLOG_v=10 python3 tools/python_bind/example/simple_example.py example_dataset/modern_graph ${TMP_DIR}/test_example
 
   build_ngcli_wheel:
-    runs-on: [self-hosted]
+    runs-on: [self-hosted, linux, x64] # ngclid should not be built on arm64 self-hosted runners, since the GLIBC version is too low
     steps:
       - name: checkout
         uses: actions/checkout@v4
