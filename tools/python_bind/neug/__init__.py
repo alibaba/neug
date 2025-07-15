@@ -20,6 +20,8 @@ import os
 import platform
 import sys
 
+from neug.version import __version__
+
 logger = logging.getLogger("neug")
 
 

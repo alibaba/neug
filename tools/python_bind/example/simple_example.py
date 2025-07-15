@@ -1,6 +1,7 @@
 import os
 import sys
 
+import neug
 from neug.database import Database
 
 if __name__ == "__main__":
@@ -8,6 +9,8 @@ if __name__ == "__main__":
     if len(sys.argv) != 3:
         print("Usage: python simple_example.py <csv_data_dir> <db_dir>")
         sys.exit(1)
+
+    print(f"Neug version {neug.__version__}")
     data_dir = sys.argv[1]
     db_dir = sys.argv[2]
 

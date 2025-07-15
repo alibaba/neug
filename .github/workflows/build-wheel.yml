@@ -85,6 +85,7 @@ jobs:
           TMP_DIR: ${{ github.workspace }}/${{ github.run_id }}
         run: |
           python3 -m pip install --upgrade pip
+          python3 -m pip uninstall -y neug || echo "Uninstalled neug if it was installed"
           for i in $(ls wheelhouse/*.whl); do
             python3 -m pip install $i || echo "Failed to install $i"
           done
@@ -144,6 +145,7 @@ jobs:
           TMP_DIR: ${{ github.workspace }}/${{ github.run_id }}
         run: |
           python3 -m pip install --upgrade pip
+          python3 -m pip uninstall -y neug || echo "Uninstalled neug if it was installed"
           for i in $(ls wheelhouse/*.whl); do
             python3 -m pip install $i || echo "Failed to install $i"
           done
@@ -211,6 +213,7 @@ jobs:
           TMP_DIR: ${{ github.workspace }}/${{ github.run_id }}
         run: |
           python3 -m pip install --upgrade pip
+          python3 -m pip uninstall -y neug || echo "Uninstalled neug if it was installed"
           for i in $(ls wheelhouse/*.whl); do
             python3 -m pip install $i || echo "Failed to install $i"
           done
@@ -278,6 +281,7 @@ jobs:
           TMP_DIR: ${{ github.workspace }}/${{ github.run_id }}
         run: |
           python3 -m pip install --upgrade pip
+          python3 -m pip uninstall -y neug || echo "Uninstalled neug if it was installed"
           for i in $(ls wheelhouse/*.whl); do
             python3 -m pip install $i || echo "Failed to install $i"
           done
