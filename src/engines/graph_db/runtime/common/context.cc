@@ -123,7 +123,8 @@ std::shared_ptr<IContextColumn> Context::get(int alias) {
   if (alias == -1) {
     return head;
   }
-  CHECK(static_cast<size_t>(alias) < columns.size());
+  CHECK(static_cast<size_t>(alias) < columns.size())
+      << "alias: " << alias << ", columns.size(): " << columns.size();
   return columns[alias];
 }
 
