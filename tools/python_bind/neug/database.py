@@ -104,6 +104,8 @@ class Database(object):
         """
         self._database = None
         self._db_path = None
+        self._connections = []
+        self._async_connections = []
         self._illegal_chars = ["?", "*", '"', "<", ">", "|", ":", "\\"]
         if isinstance(db_path, str):
             if any(char in db_path for char in self._illegal_chars):
@@ -143,8 +145,6 @@ class Database(object):
             planner="gopt",
             planner_config_path=planner_config_path,
         )
-        self._connections = []
-        self._async_connections = []
         self._serving = False
         if self._db_path is None or self._db_path.strip() == "":
             # In memory mode, the database will not be persisted to disk, and all data will be lost when the program exits.

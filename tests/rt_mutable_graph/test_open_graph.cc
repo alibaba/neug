@@ -149,7 +149,7 @@ bool test_dangling(const std::string& data_path, const std::string& csv_dir) {
   LOG(INFO) << "Database closed, connection should be dangling now.";
   auto res = conn->query("MATCH (v) RETURN v;");
   CHECK(!res.ok() &&
-        res.status().error_code() == gs::StatusCode::ERR_CONNECTION_BROKEN)
+        res.status().error_code() == gs::StatusCode::ERR_CONNECTION_CLOSED)
       << "Expected connection to be broken, but got: "
       << res.status().ToString();
   return true;

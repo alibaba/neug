@@ -19,6 +19,7 @@
 import logging
 
 import requests
+import requests.adapters
 from neug_py_bind import PyQueryResult
 
 from neug.proto.results_pb2 import CollectiveResults
@@ -55,15 +56,78 @@ class Session:
     To close the session, user could call the `close()` method.
     """
 
-    def __init__(self, endpoint: str = "http://localhost:10000", timeout: str = "10s"):
+    def __init__(
+        self,
+        endpoint: str = "http://localhost:10000",
+        timeout: str = "10s",
+        num_threads: int = 1,
+    ):
         """
         Initialize a session with the given endpoint and timeout.
 
         :param endpoint: The endpoint URL for the session.
         :param timeout: The timeout duration for the session.
         """
-        self.endpoint = endpoint + "/cypher"
+        self._endpoint = endpoint
+        self._query_endpoint = endpoint + "/cypher"
+        self._status_endpoint = endpoint + "/service_status"
         self._timeout = timeout
+        if isinstance(self._timeout, int):
+            self._timeout = f"{self._timeout}s"
+        self._http_session = requests.Session()
+        self._http_adapter = requests.adapters.HTTPAdapter(
+            pool_connections=num_threads,
+            pool_maxsize=num_threads,
+            max_retries=5,
+            pool_block=False,
+        )
+        self._http_session.mount("http://", self._http_adapter)
+        # check whether the endpoint is reachable
+        try:
+            self._http_session.get(self._status_endpoint, timeout=self.timeout)
+        except requests.exceptions.RequestException as e:
+            logger.error(
+                f"Failed to connect to the endpoint {self._status_endpoint}: {e}"
+            )
+            raise ConnectionError(
+                f"Could not connect to the endpoint: {self._status_endpoint}"
+            ) from e
+        logger.info(
+            f"Session initialized with endpoint: {endpoint} and timeout: {self.timeout}"
+        )
+        self._closed = False
+
+    @staticmethod
+    def open(
+        endpoint: str = "http://localhost:10000",
+        timeout: str = "10s",
+        num_threads: int = 1,
+    ):
+        """
+        Open a session with the given endpoint and timeout.
+        :param endpoint: The endpoint URL for the session.
+        :param timeout: The timeout duration for the session.
+        :return: An instance of the Session class.
+        """
+        logger.info(
+            f"Opening session at endpoint: {endpoint} with timeout: {timeout}, num_threads: {num_threads}"
+        )
+        return Session(endpoint, timeout, num_threads)
+
+    def close(self):
+        """
+        Close the session. This method is a placeholder for any cleanup operations.
+        Currently, it does not perform any specific actions.
+        """
+        if self._closed:
+            logger.warning("Session is already closed.")
+            return
+        logger.info(f"Closing session at endpoint: {self._endpoint}")
+        self._closed = True
+        self._http_session.close()
+        self._http_adapter.close()
+        self._http_session = None
+        self._http_adapter = None
 
     def execute(self, query: str):
         """
@@ -72,17 +136,45 @@ class Session:
         :param query: The query string to be executed.
         :return: The result of the query execution.
         """
+        if self._closed:
+            logger.error("Session is closed. Cannot execute query.")
+            raise ConnectionError("Session is closed. Cannot execute query.")
         logger.info(
-            f"Executing query: {query} on endpoint: {self.endpoint} with timeout: {self.timeout}"
+            f"Executing query: {query} on endpoint: {self._query_endpoint} with timeout: {self.timeout}"
         )
-        response = requests.post(self.endpoint, data=query, timeout=self.timeout)
-        response.raise_for_status()
-        if response.status_code != 200:
-            raise Exception(
-                f"Failed to execute query: {query}. Status code: {response.status_code}, Response: {response.text}"
+        try:
+            response = self._http_session.post(
+                self._query_endpoint, data=query, timeout=self.timeout
             )
+            response.raise_for_status()
+        except requests.exceptions.RequestException as e:
+            logger.error(f"Request failed: {e}")
+            raise ConnectionError("Could not connect to the server") from e
+        if response.status_code != 200:
+            error_message = f"Failed to execute query: {query}. Status code: {response.status_code}, Response: {response.text}"
+            logger.error(error_message)
+            raise Exception(error_message)
 
         return QueryResult(PyQueryResult(response._content))
+
+    def service_status(self):
+        """
+        Get the service status of the NeuG server.
+
+        :return: The status of the NeuG server.
+        """
+        logger.info(f"Fetching service status from endpoint: {self._status_endpoint}")
+        try:
+            response = self._http_session.get(
+                self._status_endpoint, timeout=self.timeout
+            )
+            response.raise_for_status()
+        except requests.exceptions.RequestException as e:
+            logger.error(f"Failed to fetch service status: {e}")
+            raise ConnectionError("Could not fetch service status") from e
+
+        # Json string
+        return response.json()
 
     @property
     def timeout(self):

@@ -45,7 +45,7 @@ Result<QueryResult> Connection::query(const std::string& query_string) {
   if (is_closed()) {
     LOG(ERROR) << "Connection is closed, cannot execute query.";
     return Result<QueryResult>(
-        Status(StatusCode::ERR_CONNECTION_BROKEN, "Connection is closed."));
+        Status(StatusCode::ERR_CONNECTION_CLOSED, "Connection is closed."));
   }
   auto result = query_impl(query_string);
   if (result.ok()) {

@@ -24,7 +24,7 @@ from neug.proto.error_pb2 import ERR_CODEGEN_ERROR
 from neug.proto.error_pb2 import ERR_COMPILATION
 from neug.proto.error_pb2 import ERR_CONCURRENT_WRITE
 from neug.proto.error_pb2 import ERR_CONFIG_INVALID
-from neug.proto.error_pb2 import ERR_CONNECTION_BROKEN
+from neug.proto.error_pb2 import ERR_CONNECTION_CLOSED
 from neug.proto.error_pb2 import ERR_CORRUPTION_DETECTED
 from neug.proto.error_pb2 import ERR_DATABASE_LOCKED
 from neug.proto.error_pb2 import ERR_DEPLOY_DEPENDENCY
@@ -50,6 +50,7 @@ from neug.proto.error_pb2 import ERR_QUERY_SYNTAX
 from neug.proto.error_pb2 import ERR_QUERY_TIMEOUT
 from neug.proto.error_pb2 import ERR_SCHEMA_MISMATCH
 from neug.proto.error_pb2 import ERR_SERVICE_UNAVAILABLE
+from neug.proto.error_pb2 import ERR_SESSION_CLOSED
 from neug.proto.error_pb2 import ERR_TX_STATE_CONFLICT
 from neug.proto.error_pb2 import ERR_TX_TIMEOUT
 from neug.proto.error_pb2 import ERR_TYPE_CONVERSION
@@ -74,8 +75,9 @@ ERROR_STRINGS = {
     ERR_ILLEGAL_OPERATION: "illegal operation",
     ERR_IO_ERROR: "io error",
     ERR_BAD_ENCODING: "bad encoding",
-    ERR_NETWORK: "network error",
-    ERR_CONNECTION_BROKEN: "connection broken",
+    ERR_NETWORK: "Could not connect",
+    ERR_SESSION_CLOSED: "Session is closed",
+    ERR_CONNECTION_CLOSED: "Connection is closed",
     ERR_POOL_EXHAUSTED: "connection pool exhausted",
     ERR_SERVICE_UNAVAILABLE: "service unavailable",
     ERR_LOAD_OVERFLOW: "load overflow",

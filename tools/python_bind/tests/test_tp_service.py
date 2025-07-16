@@ -76,3 +76,8 @@ def test_batch_loading(setup_database):
     res = sess.execute("MATCH (n) return n.id;")
     for record in res:
         print(record)
+
+    # get service status
+    status = sess.service_status()
+    logger.info(f"Service status: {status}")
+    assert status["status"] == "OK"
