@@ -56,7 +56,7 @@ class NeugDB {
       max_num_threads = std::thread::hardware_concurrency();
     }
     std::string db_dir = data_dir;
-    if (db_dir.empty()) {
+    if (db_dir.empty() || db_dir == ":memory" || db_dir == ":memory:") {
       std::string db_dir_prefix;
       char* prefix_env = std::getenv("NEUG_DB_TMP_DIR");
       if (prefix_env) {

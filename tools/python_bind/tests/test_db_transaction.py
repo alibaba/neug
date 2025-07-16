@@ -35,7 +35,7 @@ from neug.database import Database
 # DB-004-01
 def test_ap_read_concurrent():
     db_dir = "/tmp/modern_graph"
-    db = Database(db_path=str(db_dir), mode="r", planner="gopt")
+    db = Database(db_path=str(db_dir), mode="r")
     conns = [db.connect() for _ in range(4)]
     for conn in conns:
         result = conn.execute("MATCH (n) RETURN n")
@@ -48,7 +48,7 @@ def test_ap_read_concurrent():
 # DB-004-02
 def test_ap_write_concurrent(tmp_path):
     db_dir = tmp_path / "ap_write_concurrent"
-    db = Database(db_path=str(db_dir), mode="w", planner="gopt")
+    db = Database(db_path=str(db_dir), mode="w")
     conn = db.connect()
     with pytest.raises(Exception) as excinfo:
         # in rw mode, only one connection is allowed
@@ -61,7 +61,7 @@ def test_ap_write_concurrent(tmp_path):
 # DB-004-03
 def test_ap_read_write_concurrent():
     db_dir = "/tmp/modern_graph"
-    db = Database(db_path=str(db_dir), mode="w", planner="gopt")
+    db = Database(db_path=str(db_dir), mode="w")
     conn = db.connect()
     with pytest.raises(Exception) as excinfo:
         # in rw mode, only one connection is allowed
@@ -126,7 +126,7 @@ def test_tp_read_write_concurrent(started_server):
 @pytest.mark.skip(reason="not supported yet")
 def test_auto_transaction_management(tmp_path):
     db_dir = tmp_path / "auto_tx_mgmt"
-    db = Database(db_path=str(db_dir), mode="w", planner="gopt")
+    db = Database(db_path=str(db_dir), mode="w")
     conn = db.connect()
     # create success, commit automatically
     conn.execute("CREATE NODE TABLE T(id INT32, PRIMARY KEY(id));")
@@ -174,7 +174,7 @@ def test_auto_transaction_management(tmp_path):
 def test_manual_transaction_management(tmp_path):
     db_dir = tmp_path / "manual_tx_mgmt"
     db_dir.mkdir()
-    db = Database(db_path=str(db_dir), mode="w", planner="gopt")
+    db = Database(db_path=str(db_dir), mode="w")
     conn = db.connect()
     # BEGIN/COMMIT
     conn.execute("BEGIN TRANSACTION;")
@@ -236,7 +236,7 @@ def test_manual_transaction_management(tmp_path):
 def test_readonly_transaction_write(tmp_path):
     db_dir = tmp_path / "readonly_tx_write"
     db_dir.mkdir()
-    db = Database(db_path=str(db_dir), mode="w", planner="gopt")
+    db = Database(db_path=str(db_dir), mode="w")
     conn = db.connect()
     conn.execute("BEGIN TRANSACTION READ ONLY;")
     with pytest.raises(Exception) as excinfo:
@@ -252,7 +252,7 @@ def test_readonly_transaction_write(tmp_path):
 def test_nested_transaction(tmp_path):
     db_dir = tmp_path / "nested_tx"
     db_dir.mkdir()
-    db = Database(db_path=str(db_dir), mode="w", planner="gopt")
+    db = Database(db_path=str(db_dir), mode="w")
     conn = db.connect()
     conn.execute("BEGIN TRANSACTION;")
     with pytest.raises(Exception):
@@ -267,7 +267,7 @@ def test_nested_transaction(tmp_path):
 def test_transaction_timeout(tmp_path):
     db_dir = tmp_path / "tx_timeout"
     db_dir.mkdir()
-    db = Database(db_path=str(db_dir), mode="w", planner="gopt")
+    db = Database(db_path=str(db_dir), mode="w")
     conn = db.connect()
     conn.execute("BEGIN TRANSACTION;")
     conn.execute("CREATE NODE TABLE T(id INT32, PRIMARY KEY(id));")
@@ -285,7 +285,7 @@ def test_transaction_timeout(tmp_path):
 def test_commit_after_rollback(tmp_path):
     db_dir = tmp_path / "commit_after_rollback"
     db_dir.mkdir()
-    db = Database(db_path=str(db_dir), mode="w", planner="gopt")
+    db = Database(db_path=str(db_dir), mode="w")
     conn = db.connect()
     conn.execute("BEGIN TRANSACTION;")
     conn.execute("ROLLBACK;")
@@ -300,7 +300,7 @@ def test_commit_after_rollback(tmp_path):
 def test_crash_recovery(tmp_path):
     db_dir = tmp_path / "crash_recovery"
     db_dir.mkdir()
-    db = Database(db_path=str(db_dir), mode="w", planner="gopt")
+    db = Database(db_path=str(db_dir), mode="w")
     conn = db.connect()
     conn.execute("BEGIN TRANSACTION;")
     conn.execute("CREATE NODE TABLE T(id INT32, PRIMARY KEY(id));")
@@ -310,7 +310,7 @@ def test_crash_recovery(tmp_path):
     conn.execute("CREATE (n:T {id: 2});")
     conn.close()
     db.close()
-    db2 = Database(db_path=str(db_dir), mode="w", planner="gopt")
+    db2 = Database(db_path=str(db_dir), mode="w")
     conn2 = db2.connect()
     # committed transaction should be visible
     r = conn2.execute("MATCH (n:T) WHERE n.id = 1 RETURN n;")

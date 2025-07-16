@@ -35,7 +35,7 @@ from neug.database import Database
 def test_create_schema_basic_types(tmp_path):
     db_dir = tmp_path / "schema_basic_types"
     db_dir.mkdir()
-    db = Database(db_path=str(db_dir), mode="w", planner="gopt")
+    db = Database(db_path=str(db_dir), mode="w")
     conn = db.connect()
     conn.execute(
         "CREATE NODE TABLE person(p1 INT32, p2 INT64, p3 UINT32, p4 UINT64, "
@@ -49,7 +49,7 @@ def test_create_schema_basic_types(tmp_path):
 def test_create_schema_complex_types(tmp_path):
     db_dir = tmp_path / "schema_types"
     db_dir.mkdir()
-    db = Database(db_path=str(db_dir), mode="w", planner="gopt")
+    db = Database(db_path=str(db_dir), mode="w")
     conn = db.connect()
     conn.execute(
         "CREATE NODE TABLE Type (p1 INT32, p8 Date, p9 DateTime, p10 Interval, "
@@ -64,7 +64,7 @@ def test_create_schema_complex_types(tmp_path):
 def test_insert_basic_type_check(tmp_path):
     db_dir = tmp_path / "insert_basic_type"
     db_dir.mkdir()
-    db = Database(db_path=str(db_dir), mode="w", planner="gopt")
+    db = Database(db_path=str(db_dir), mode="w")
     conn = db.connect()
     conn.execute(
         "CREATE NODE TABLE person(id INT32, i64 INT64, u32 UINT32, u64 UINT64, "
@@ -99,7 +99,7 @@ def test_insert_basic_type_check(tmp_path):
 def test_insert_type_check(tmp_path):
     db_dir = tmp_path / "insert_type"
     db_dir.mkdir()
-    db = Database(db_path=str(db_dir), mode="w", planner="gopt")
+    db = Database(db_path=str(db_dir), mode="w")
     conn = db.connect()
     conn.execute(
         "CREATE NODE TABLE T("
@@ -148,7 +148,7 @@ def test_insert_type_check(tmp_path):
 # DB-003-03
 def test_return_expression():
     db_dir = "/tmp/modern_graph"
-    db = Database(db_path=str(db_dir), mode="w", planner="gopt")
+    db = Database(db_path=str(db_dir), mode="w")
     conn = db.connect()
     result = conn.execute(
         "Match (n) RETURN 1+2, date('2023-01-01'), interval('1 year 2 days') limit 1;"
@@ -168,7 +168,7 @@ def test_return_expression():
 def test_create_node_table(tmp_path):
     db_dir = tmp_path / "create_node"
     db_dir.mkdir()
-    db = Database(db_path=str(db_dir), mode="w", planner="gopt")
+    db = Database(db_path=str(db_dir), mode="w")
     conn = db.connect()
     conn.execute(
         "CREATE NODE TABLE person(name STRING, age INT64, PRIMARY KEY (name));"
@@ -181,7 +181,7 @@ def test_create_node_table(tmp_path):
 def test_create_node_table_with_default_value(tmp_path):
     db_dir = tmp_path / "create_node_with_default"
     db_dir.mkdir()
-    db = Database(db_path=str(db_dir), mode="w", planner="gopt")
+    db = Database(db_path=str(db_dir), mode="w")
     conn = db.connect()
     conn.execute(
         "CREATE NODE TABLE person (name STRING, age INT64 DEFAULT 0, PRIMARY KEY (name));"
@@ -194,7 +194,7 @@ def test_create_node_table_with_default_value(tmp_path):
 def test_create_node_table_errors(tmp_path):
     db_dir = tmp_path / "create_node_errors"
     db_dir.mkdir()
-    db = Database(db_path=str(db_dir), mode="w", planner="gopt")
+    db = Database(db_path=str(db_dir), mode="w")
     conn = db.connect()
     conn.execute(
         "CREATE NODE TABLE person(name STRING, age INT64, PRIMARY KEY (name));"
@@ -221,7 +221,7 @@ def test_create_node_table_errors(tmp_path):
 def test_create_rel_table(tmp_path):
     db_dir = tmp_path / "create_rel"
     db_dir.mkdir()
-    db = Database(db_path=str(db_dir), mode="w", planner="gopt")
+    db = Database(db_path=str(db_dir), mode="w")
     conn = db.connect()
     conn.execute("CREATE NODE TABLE person(name STRING, PRIMARY KEY(name));")
     # create single relationship edge table
@@ -236,7 +236,7 @@ def test_create_rel_table(tmp_path):
 def test_create_rel_table_with_multiple_relationships(tmp_path):
     db_dir = tmp_path / "create_rel_multiple"
     db_dir.mkdir()
-    db = Database(db_path=str(db_dir), mode="w", planner="gopt")
+    db = Database(db_path=str(db_dir), mode="w")
     conn = db.connect()
     conn.execute("CREATE NODE TABLE person(name STRING, PRIMARY KEY(name));")
     conn.execute("CREATE NODE TABLE city(name STRING, PRIMARY KEY(name));")
@@ -252,7 +252,7 @@ def test_create_rel_table_with_multiple_relationships(tmp_path):
 def test_create_rel_table_errors(tmp_path):
     db_dir = tmp_path / "create_rel_errors"
     db_dir.mkdir()
-    db = Database(db_path=str(db_dir), mode="w", planner="gopt")
+    db = Database(db_path=str(db_dir), mode="w")
     conn = db.connect()
     conn.execute("CREATE NODE TABLE person(name STRING, PRIMARY KEY(name));")
     conn.execute(
@@ -276,7 +276,7 @@ def test_create_rel_table_errors(tmp_path):
 def test_create_duplicated_rel_table_between_same_vertex_tables(tmp_path):
     db_dir = tmp_path / "create_duplicated_rel"
     db_dir.mkdir()
-    db = Database(db_path=str(db_dir), mode="w", planner="gopt")
+    db = Database(db_path=str(db_dir), mode="w")
     conn = db.connect()
     conn.execute("CREATE NODE TABLE person(name STRING, PRIMARY KEY(name));")
     conn.execute(
@@ -291,7 +291,7 @@ def test_create_duplicated_rel_table_between_same_vertex_tables(tmp_path):
 def test_alter_vertex_table(tmp_path):
     db_dir = tmp_path / "alter_table"
     db_dir.mkdir()
-    db = Database(db_path=str(db_dir), mode="w", planner="gopt")
+    db = Database(db_path=str(db_dir), mode="w")
     conn = db.connect()
     conn.execute("CREATE NODE TABLE person(name STRING, age INT64, PRIMARY KEY(name));")
     # 1. add property
@@ -323,7 +323,7 @@ def test_alter_vertex_table(tmp_path):
 def test_alter_edge_table(tmp_path):
     db_dir = tmp_path / "alter_edge_table"
     db_dir.mkdir()
-    db = Database(db_path=str(db_dir), mode="w", planner="gopt")
+    db = Database(db_path=str(db_dir), mode="w")
     conn = db.connect()
     conn.execute("CREATE NODE TABLE person(name STRING, PRIMARY KEY(name));")
     conn.execute(
@@ -351,7 +351,7 @@ def test_alter_edge_table(tmp_path):
 def test_alter_edge_table_drop_property(tmp_path):
     db_dir = tmp_path / "alter_edge_table_drop_property"
     db_dir.mkdir()
-    db = Database(db_path=str(db_dir), mode="w", planner="gopt")
+    db = Database(db_path=str(db_dir), mode="w")
     conn = db.connect()
     conn.execute("CREATE NODE TABLE person(name STRING, PRIMARY KEY(name));")
     conn.execute(
@@ -371,7 +371,7 @@ def test_alter_edge_table_drop_property(tmp_path):
 def test_drop_table(tmp_path):
     db_dir = tmp_path / "drop_table"
     db_dir.mkdir()
-    db = Database(db_path=str(db_dir), mode="w", planner="gopt")
+    db = Database(db_path=str(db_dir), mode="w")
     conn = db.connect()
     conn.execute("CREATE NODE TABLE person(name STRING, PRIMARY KEY(name));")
     conn.execute(
@@ -388,7 +388,7 @@ def test_drop_table(tmp_path):
 def test_drop_table_errors(tmp_path):
     db_dir = tmp_path / "drop_table_errors"
     db_dir.mkdir()
-    db = Database(db_path=str(db_dir), mode="w", planner="gopt")
+    db = Database(db_path=str(db_dir), mode="w")
     conn = db.connect()
     conn.execute("CREATE NODE TABLE person(name STRING, PRIMARY KEY(name));")
     conn.execute(
@@ -413,7 +413,7 @@ def test_drop_table_errors(tmp_path):
 def test_insert_node(tmp_path):
     db_dir = tmp_path / "insert_node"
     db_dir.mkdir()
-    db = Database(db_path=str(db_dir), mode="w", planner="gopt")
+    db = Database(db_path=str(db_dir), mode="w")
     conn = db.connect()
     # 准备schema
     conn.execute("CREATE NODE TABLE person(name STRING, age INT64, PRIMARY KEY(name));")
@@ -442,7 +442,7 @@ def test_insert_node(tmp_path):
 def test_insert_edge(tmp_path):
     db_dir = tmp_path / "insert_edge"
     db_dir.mkdir()
-    db = Database(db_path=str(db_dir), mode="w", planner="gopt")
+    db = Database(db_path=str(db_dir), mode="w")
     conn = db.connect()
     conn.execute("CREATE NODE TABLE person(name STRING, PRIMARY KEY(name));")
     conn.execute(
@@ -489,7 +489,7 @@ def test_insert_edge(tmp_path):
 def test_set_node_property(tmp_path):
     db_dir = tmp_path / "set_node_prop"
     db_dir.mkdir()
-    db = Database(db_path=str(db_dir), mode="w", planner="gopt")
+    db = Database(db_path=str(db_dir), mode="w")
     conn = db.connect()
     conn.execute("CREATE NODE TABLE person(name STRING, age INT64, PRIMARY KEY(name));")
     conn.execute("CREATE (u:person{name:'Alice',age:35});")
@@ -528,7 +528,7 @@ def test_set_node_property(tmp_path):
 def test_set_edge_property(tmp_path):
     db_dir = tmp_path / "set_edge_prop"
     db_dir.mkdir()
-    db = Database(db_path=str(db_dir), mode="w", planner="gopt")
+    db = Database(db_path=str(db_dir), mode="w")
     conn = db.connect()
     conn.execute("CREATE NODE TABLE person(name STRING, PRIMARY KEY(name));")
     conn.execute(
@@ -565,7 +565,7 @@ def test_set_edge_property(tmp_path):
 # DB-003-12
 def test_query_sync():
     db_dir = "/tmp/modern_graph"
-    db = Database(db_path=str(db_dir), mode="r", planner="gopt")
+    db = Database(db_path=str(db_dir), mode="r")
     conn = db.connect()
     result = conn.execute("MATCH (n) RETURN n;")
     assert len(result) == 6
@@ -576,7 +576,7 @@ def test_query_sync():
 @pytest.mark.asyncio
 async def test_query_async():
     db_dir = "/tmp/modern_graph"
-    db = Database(db_path=str(db_dir), mode="r", planner="gopt")
+    db = Database(db_path=str(db_dir), mode="r")
     conn = db.async_connect()
     result = await conn.execute("MATCH (n) RETURN n;")
     assert len(result) == 6
@@ -588,7 +588,7 @@ async def test_query_async():
 def test_query_syntax_error(tmp_path):
     db_dir = tmp_path / "syntax_error"
     db_dir.mkdir()
-    db = Database(db_path=str(db_dir), mode="w", planner="gopt")
+    db = Database(db_path=str(db_dir), mode="w")
     conn = db.connect()
     with pytest.raises(Exception) as excinfo:
         conn.execute("MATCH (n RETURN n;")

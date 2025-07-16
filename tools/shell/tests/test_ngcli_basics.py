@@ -24,7 +24,7 @@ from ngcli import neug_cli
 
 def test_shell_do_help(capsys, tmp_path):
     db_path = tmp_path / "test_shell_help_db"
-    database = Database(db_path=str(db_path), mode="r", planner="gopt")
+    database = Database(db_path=str(db_path), mode="r")
     connection = database.connect()
     shell = neug_cli.NeugShell(connection)
     shell.default(":help")
@@ -43,7 +43,7 @@ def test_shell_do_help(capsys, tmp_path):
 
 def test_shell_do_quit(capsys, tmp_path):
     db_path = tmp_path / "test_shell_quit_db"
-    database = Database(db_path=str(db_path), mode="r", planner="gopt")
+    database = Database(db_path=str(db_path), mode="r")
     connection = database.connect()
     shell = neug_cli.NeugShell(connection)
     shell.default(":quit")
@@ -54,7 +54,7 @@ def test_shell_do_quit(capsys, tmp_path):
 
 def test_shell_do_max_rows(capsys):
     db_path = "/tmp/modern_graph"
-    database = Database(db_path=str(db_path), mode="r", planner="gopt")
+    database = Database(db_path=str(db_path), mode="r")
     connection = database.connect()
     shell = neug_cli.NeugShell(connection)
     shell.default("MATCH (n) RETURN n;")
@@ -97,7 +97,7 @@ def test_shell_do_max_rows(capsys):
 
 def test_shell_do_max_rows_invalid(capsys, tmp_path):
     db_path = tmp_path / "test_shell_max_rows_invalid_db"
-    database = Database(db_path=str(db_path), mode="r", planner="gopt")
+    database = Database(db_path=str(db_path), mode="r")
     connection = database.connect()
     shell = neug_cli.NeugShell(connection)
     shell.default(":max_rows -1")
@@ -108,7 +108,7 @@ def test_shell_do_max_rows_invalid(capsys, tmp_path):
 
 def test_shell_do_query(capsys):
     db_path = "/tmp/modern_graph"
-    database = Database(db_path=str(db_path), mode="r", planner="gopt")
+    database = Database(db_path=str(db_path), mode="r")
     connection = database.connect()
     shell = neug_cli.NeugShell(connection)
     shell.default("MATCH (n) where n.name = 'marko' RETURN n;")
@@ -148,7 +148,7 @@ def test_shell_do_query(capsys):
 
 def test_shell_do_query_multiline(capsys):
     db_path = "/tmp/modern_graph"
-    database = Database(db_path=str(db_path), mode="r", planner="gopt")
+    database = Database(db_path=str(db_path), mode="r")
     connection = database.connect()
     shell = neug_cli.NeugShell(connection)
     shell.default("MATCH (n) where n.name = 'marko'")
@@ -167,7 +167,7 @@ def test_shell_do_query_multiline(capsys):
 
 def test_shell_do_query_in_write_mode(capsys, tmp_path):
     db_path = tmp_path / "test_shell_query_write_db"
-    database = Database(db_path=str(db_path), mode="rw", planner="gopt")
+    database = Database(db_path=str(db_path), mode="rw")
     connection = database.connect()
     shell = neug_cli.NeugShell(connection)
     # Attempt to query a non-existing table, return error

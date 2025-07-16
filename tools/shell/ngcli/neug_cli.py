@@ -148,7 +148,7 @@ def open(path, readonly):
     """Open a local database."""
     mode = "r" if readonly else "rw"
     click.echo(f"Opened database at {path} in {mode} mode")
-    database = Database(db_path=str(path), mode=mode, planner="gopt")
+    database = Database(db_path=str(path), mode=mode)
     connection = database.connect()
     shell = NeugShell(connection)
     shell.cmdloop()

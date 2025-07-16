@@ -32,9 +32,9 @@ This mode may be beneficial when you require temporary computations, have a larg
 from neug.database import Database
 
 # Open an empty directory.
-db = Database(db_path = '/tmp/demo_db', "w")
+db = Database(db_path = '/tmp/demo_db', mode = 'w')
 # Or open the database in memory mode
-# db = Database(db_path = '', mode = 'w')
+# db = Database(db_path = ':memory:', mode = 'w')
 
 # Establish a connection.
 conn = db.connect()

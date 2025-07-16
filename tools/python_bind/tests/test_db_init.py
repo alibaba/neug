@@ -37,19 +37,19 @@ from neug.database import Database
 
 # DB-001-01 & DB-001-02
 def test_memory_mode_open_and_close():
-    db = Database(db_path="", mode="r", planner="gopt")
+    db = Database(db_path="", mode="r")
     assert db is not None
     db.close()
-    db2 = Database(db_path="", mode="w", planner="gopt")
+    db2 = Database(db_path="", mode="w")
     assert db2 is not None
     db2.close()
 
 
 def test_memory_mode_open_and_close_none():
-    db = Database(db_path=None, mode="r", planner="gopt")
+    db = Database(db_path=None, mode="r")
     assert db is not None
     db.close()
-    db2 = Database(db_path=None, mode="w", planner="gopt")
+    db2 = Database(db_path=None, mode="w")
     assert db2 is not None
     db2.close()
 
@@ -59,20 +59,20 @@ def test_local_db_open_exists_and_close(tmp_path):
     db_dir = tmp_path / "existdb"
     if not db_dir.exists():
         db_dir.mkdir()
-    db = Database(db_path=str(db_dir), mode="r", planner="gopt")
+    db = Database(db_path=str(db_dir), mode="r")
     assert db is not None
     db.close()
-    db2 = Database(db_path=str(db_dir), mode="rw", planner="gopt")
+    db2 = Database(db_path=str(db_dir), mode="rw")
     assert db2 is not None
     db2.close()
 
 
 def test_local_ldbc_open_and_close():
     db_dir = "/tmp/ldbc"
-    db = Database(db_path=str(db_dir), mode="r", planner="gopt")
+    db = Database(db_path=str(db_dir), mode="r")
     assert db is not None
     db.close()
-    db2 = Database(db_path=str(db_dir), mode="rw", planner="gopt")
+    db2 = Database(db_path=str(db_dir), mode="rw")
     assert db2 is not None
     db2.close()
 
@@ -83,12 +83,12 @@ def test_local_db_open_not_exists_and_close(tmp_path):
     if db_dir.exists():
         os.system("rm -rf %s" % db_dir)
     assert not db_dir.exists()
-    db = Database(db_path=str(db_dir), mode="r", planner="gopt")
+    db = Database(db_path=str(db_dir), mode="r")
     assert db is not None
     db.close()
     if not db_dir.exists():
         db_dir.mkdir()
-    db = Database(db_path=str(db_dir), mode="w", planner="gopt")
+    db = Database(db_path=str(db_dir), mode="w")
     assert db is not None
     db.close()
 
@@ -97,7 +97,7 @@ def test_local_db_open_not_exists_and_close(tmp_path):
 def test_local_db_close(tmp_path):
     db_dir = tmp_path / "closedb"
     db_dir.mkdir()
-    db = Database(db_path=str(db_dir), mode="w", planner="gopt")
+    db = Database(db_path=str(db_dir), mode="w")
     db.close()
 
 
@@ -105,10 +105,10 @@ def test_local_db_close(tmp_path):
 def test_readonly_mode_multi_instance(tmp_path):
     db_dir = tmp_path / "multi_db"
     db_dir.mkdir()
-    db = Database(db_path=str(db_dir), mode="w", planner="gopt")
+    db = Database(db_path=str(db_dir), mode="w")
     db.close()
-    db1 = Database(db_path=str(db_dir), mode="r", planner="gopt")
-    db2 = Database(db_path=str(db_dir), mode="r", planner="gopt")
+    db1 = Database(db_path=str(db_dir), mode="r")
+    db2 = Database(db_path=str(db_dir), mode="r")
     assert db1 is not None and db2 is not None
     db1.close()
     db2.close()
@@ -117,10 +117,10 @@ def test_readonly_mode_multi_instance(tmp_path):
 # DB-001-07
 def test_rw_mode_exclusive(tmp_path):
     db_dir = tmp_path / "exclusive_db"
-    db1 = Database(db_path=str(db_dir), mode="w", planner="gopt")
+    db1 = Database(db_path=str(db_dir), mode="w")
     try:
         with pytest.raises(Exception) as excinfo:
-            Database(db_path=str(db_dir), mode="w", planner="gopt")
+            Database(db_path=str(db_dir), mode="w")
         assert ERROR_STRINGS[ERR_DATABASE_LOCKED] in str(excinfo.value)
     finally:
         db1.close()
@@ -129,10 +129,10 @@ def test_rw_mode_exclusive(tmp_path):
 # DB-001-08
 def test_rw_ro_conflict(tmp_path):
     db_dir = tmp_path / "conflict_db"
-    db1 = Database(db_path=str(db_dir), mode="w", planner="gopt")
+    db1 = Database(db_path=str(db_dir), mode="w")
     try:
         with pytest.raises(Exception) as excinfo:
-            Database(db_path=str(db_dir), mode="r", planner="gopt")
+            Database(db_path=str(db_dir), mode="r")
         assert ERROR_STRINGS[ERR_DATABASE_LOCKED] in str(excinfo.value)
     finally:
         db1.close()
@@ -141,7 +141,7 @@ def test_rw_ro_conflict(tmp_path):
 # DB-001-09
 def test_readonly_write_operation(tmp_path):
     db_dir = tmp_path / "readonly_db"
-    db_ro = Database(db_path=str(db_dir), mode="r", planner="gopt")
+    db_ro = Database(db_path=str(db_dir), mode="r")
     with pytest.raises(Exception) as excinfo:
         conn = db_ro.connect()
         conn.execute("CREATE NODE TABLE person(id INT32, PRIMARY KEY(id));")
@@ -154,7 +154,7 @@ def test_readonly_write_operation(tmp_path):
 # DB-001-10
 def test_invalid_path():
     with pytest.raises(Exception) as excinfo:
-        Database(db_path="??/illegal", mode="r", planner="gopt")
+        Database(db_path="??/illegal", mode="r")
     assert ERROR_STRINGS[ERR_INVALID_PATH] in str(excinfo.value)
     # remove the invalid path after the test
     if os.path.exists("??/illegal"):
@@ -164,37 +164,33 @@ def test_invalid_path():
 def test_config_param(tmp_path):
     db_dir = tmp_path / "config_db"
     # mode: 'r', 'read', 'readwrite', 'w', 'rw', 'write'
-    db1 = Database(db_path=str(db_dir), mode="r", max_thread_num=0, planner="gopt")
+    db1 = Database(db_path=str(db_dir), mode="r", max_thread_num=0)
     assert db1 is not None
     db1.close()
-    db2 = Database(db_path=str(db_dir), mode="read", max_thread_num=0, planner="gopt")
+    db2 = Database(db_path=str(db_dir), mode="read", max_thread_num=0)
     assert db2 is not None
     db2.close()
-    db3 = Database(
-        db_path=str(db_dir), mode="readwrite", max_thread_num=0, planner="gopt"
-    )
+    db3 = Database(db_path=str(db_dir), mode="readwrite", max_thread_num=0)
     assert db3 is not None
     db3.close()
-    db4 = Database(db_path=str(db_dir), mode="w", max_thread_num=0, planner="gopt")
+    db4 = Database(db_path=str(db_dir), mode="w", max_thread_num=0)
     assert db4 is not None
     db4.close()
-    db5 = Database(db_path=str(db_dir), mode="rw", max_thread_num=0, planner="gopt")
+    db5 = Database(db_path=str(db_dir), mode="rw", max_thread_num=0)
     assert db5 is not None
     db5.close()
-    db6 = Database(db_path=str(db_dir), mode="write", max_thread_num=0, planner="gopt")
+    db6 = Database(db_path=str(db_dir), mode="write", max_thread_num=0)
     assert db6 is not None
     db6.close()
     # max_thread_num: 0 means no limit
-    db7 = Database(db_path=str(db_dir), mode="r", max_thread_num=0, planner="gopt")
+    db7 = Database(db_path=str(db_dir), mode="r", max_thread_num=0)
     assert db7 is not None
     db7.close()
     max_thread_num = os.cpu_count() or 1
-    db8 = Database(
-        db_path=str(db_dir), mode="r", max_thread_num=max_thread_num, planner="gopt"
-    )
+    db8 = Database(db_path=str(db_dir), mode="r", max_thread_num=max_thread_num)
     assert db8 is not None
     db8.close()
-    db9 = Database(db_path=str(db_dir), mode="r", max_thread_num=0, planner="gopt")
+    db9 = Database(db_path=str(db_dir), mode="r", max_thread_num=0)
     assert db9 is not None
     db9.close()
 
@@ -202,17 +198,17 @@ def test_config_param(tmp_path):
 def test_config_param_exception(tmp_path):
     db_dir = tmp_path / "config_db_exception"
     with pytest.raises(Exception) as excinfo:
-        Database(db_path=str(db_dir), mode="rw", max_thread_num=-1, planner="gopt")
+        Database(db_path=str(db_dir), mode="rw", max_thread_num=-1)
         # TODO: error code should be ERR_INVALID_ARGUMENT
     assert ERROR_STRINGS[ERR_CONFIG_INVALID] in str(excinfo.value)
     with pytest.raises(ValueError) as excinfo:
-        Database(db_path=str(db_dir), mode="red", planner="gopt")
+        Database(db_path=str(db_dir), mode="red")
         # TODO: error code should be ERR_INVALID_ARGUMENT
         assert "Invalid mode: red" in str(excinfo.value)
-    with pytest.raises(ValueError) as excinfo:
+    with pytest.raises(TypeError) as excinfo:
         Database(db_path=str(db_dir), mode="write", planner="gopt123")
         # TODO: error code should be ERR_INVALID_ARGUMENT
-        assert "Invalid planner: gopt123" in str(excinfo.value)
+        assert "unexpected keyword argument" in str(excinfo.value)
 
 
 def test_config_param_boundary(tmp_path):
@@ -221,7 +217,7 @@ def test_config_param_boundary(tmp_path):
     with pytest.raises(Exception) as excinfo:
         max_cores = os.cpu_count() or 1
         # max_thread_num should not exceed the number of cores
-        Database(str(db_dir), "w", max_thread_num=max_cores + 1, planner="gopt")
+        Database(str(db_dir), "w", max_thread_num=max_cores + 1)
     assert ERROR_STRINGS[ERR_INVALID_ARGUMENT] in str(excinfo.value)
 
 
@@ -230,12 +226,12 @@ def test_open_no_permission(tmp_path):
     db_dir = tmp_path / "no_permission_db"
     if db_dir.exists():
         os.system("rm -rf %s" % db_dir)
-    db = Database(db_path=str(db_dir), mode="w", planner="gopt")
+    db = Database(db_path=str(db_dir), mode="w")
     db.close()
     os.chmod(db_dir, 0o400)
     try:
         with pytest.raises(Exception) as excinfo:
-            Database(db_path=str(db_dir), mode="w", planner="gopt")
+            Database(db_path=str(db_dir), mode="w")
         assert ERROR_STRINGS[ERR_PERMISSION] in str(excinfo.value)
     finally:
         os.chmod(db_dir, 0o700)
@@ -246,7 +242,7 @@ def test_open_no_permission(tmp_path):
 def test_open_version_mismatch(tmp_path):
     db_dir = tmp_path / "ver_db"
     db_dir.mkdir()
-    db = Database(db_path=str(db_dir), mode="w", planner="gopt")
+    db = Database(db_path=str(db_dir), mode="w")
     db.close()
 
     # Simulate version mismatch by modifying the version metadata file
@@ -257,7 +253,7 @@ def test_open_version_mismatch(tmp_path):
 
     # Attempt to open the database
     with pytest.raises(Exception) as excinfo:
-        Database(db_path=str(db_dir), mode="r", planner="gopt")
+        Database(db_path=str(db_dir), mode="r")
     assert ERROR_STRINGS[ERR_VERSION_MISMATCHED] in str(excinfo.value)
 
 
@@ -271,7 +267,7 @@ def test_open_dir_not_exist(tmp_path):
     os.chmod(db_dir, 0o400)
     try:
         with pytest.raises(Exception) as excinfo:
-            Database(db_path=str(db_dir), mode="w", planner="gopt")
+            Database(db_path=str(db_dir), mode="w")
         assert ERROR_STRINGS[ERR_PERMISSION] in str(excinfo.value)
     finally:
         os.chmod(db_dir, 0o700)
@@ -290,7 +286,7 @@ def test_disk_space_exhausted(monkeypatch, tmp_path):
     # Mock open function to raise a disk space error
     monkeypatch.setattr(os, "open", mock_open)
     with pytest.raises(Exception) as excinfo:
-        Database(db_path=str(db_dir), mode="w", planner="gopt")
+        Database(db_path=str(db_dir), mode="w")
     assert ERROR_STRINGS[ERR_DISK_SPACE_EXHAUSTED] in str(excinfo.value)
 
 
@@ -299,7 +295,7 @@ def test_disk_space_exhausted(monkeypatch, tmp_path):
 def test_file_header_corruption(tmp_path):
     db_dir = tmp_path / "corrupt_db"
     db_dir.mkdir()
-    Database(db_path=str(db_dir), mode="w", planner="gopt")
+    Database(db_path=str(db_dir), mode="w")
     # db_file such as "wal/thread_0_0.wal" should exist after db creation
     db_file = db_dir / "wal/thread_0_0.wal"
     assert db_file.exists(), "Database file should exist after creation"
@@ -307,7 +303,7 @@ def test_file_header_corruption(tmp_path):
     with open(db_file, "wb") as f:
         f.write(b"corrupt-header")
     try:
-        Database(db_path=str(db_dir), mode="w", planner="gopt")
+        Database(db_path=str(db_dir), mode="w")
     except Exception as exc:
         assert ERROR_STRINGS[ERR_CORRUPTION_DETECTED] in str(exc)
     else:

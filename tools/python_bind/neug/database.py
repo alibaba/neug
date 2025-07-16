@@ -72,10 +72,9 @@ class Database(object):
 
     def __init__(
         self,
-        db_path: str,
+        db_path: str = None,
         mode: str = "r",
         max_thread_num: int = 0,
-        planner="gopt",
         planner_config_path=None,
     ):
         """
@@ -91,8 +90,6 @@ class Database(object):
             Mode to open the database, could be 'r', 'read', 'readwrite', 'w', 'rw', 'write'. Default is 'r' for read-only.
         max_thread_num : int
             Maximum number of threads to use. Default is 0, which means no limit.
-        planner : str
-            The planner to use, currently only 'gopt' is supported. Default is 'gopt'.
         planner_config_path : str
             Path to the planner config file for the planner to use. Default is None.
             If none, the default config path will be used.
@@ -119,13 +116,6 @@ class Database(object):
             raise ValueError(
                 f"Invalid mode: {self._mode}. Must be one of 'r', 'read', 'w', 'rw', 'write', 'readwrite'."
             )
-        if planner not in [
-            "gopt",
-            "dummy",
-        ]:  # TODO(zhanglei): Remove 'dummy' when we have a real planner.
-            raise ValueError(
-                f"Invalid planner: {planner}. Must be one of 'gopt', 'dummy'."  # 'dummy' is for testing purpose only.
-            )
         # The default connection of the database, will be lazy initialized if get_default_connection is called.
         # In 'r' mode, the default connection will be a read-only connection.
         # In 'w' mode, the default connection will be a read-write connection.
@@ -150,7 +140,7 @@ class Database(object):
             database_path=self._db_path,
             max_thread_num=max_thread_num,
             mode=mode,
-            planner=planner,
+            planner="gopt",
             planner_config_path=planner_config_path,
         )
         self._connections = []
@@ -160,12 +150,11 @@ class Database(object):
             # In memory mode, the database will not be persisted to disk, and all data will be lost when the program exits.
             # So we don't need to log the db_path.
             logger.info(
-                f"Open in-memory database in {mode} mode, planner: {planner},"
-                f"config: {planner_config_path}"
+                f"Open in-memory database in {mode} mode, config: {planner_config_path}"
             )
         else:
             logger.info(
-                f"Open database {self._db_path} in {mode} mode, planner: {planner}, config: {planner_config_path}"
+                f"Open database {self._db_path} in {mode} mode, config: {planner_config_path}"
             )
 
     def __del__(self):
@@ -306,16 +295,18 @@ class Database(object):
         if self._db_path and self._db_path.strip() != "":
             logger.info(f"Closing database {self._db_path}.")
         # Close all connections
-        for conn in self._connections:
-            try:
-                conn.close()
-            except Exception as e:
-                logger.warning(f"Failed to close connection: {e}")
-        for async_conn in self._async_connections:
-            try:
-                async_conn.close()
-            except Exception as e:
-                logger.warning(f"Failed to close async connection: {e}")
+        if self._connections:
+            for conn in self._connections:
+                try:
+                    conn.close()
+                except Exception as e:
+                    logger.warning(f"Failed to close connection: {e}")
+        if self._async_connections:
+            for async_conn in self._async_connections:
+                try:
+                    async_conn.close()
+                except Exception as e:
+                    logger.warning(f"Failed to close async connection: {e}")
         if self._database:
             self._database.close()
             self._database = None

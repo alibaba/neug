@@ -38,7 +38,7 @@ from neug.database import Database
 # DB-002-02
 def test_local_connection(tmp_path):
     db_dir = tmp_path / "local_conn_db"
-    db = Database(db_path=str(db_dir), mode="w", planner="gopt")
+    db = Database(db_path=str(db_dir), mode="w")
     conn = db.connect()
     assert conn is not None
     conn.close()
@@ -48,7 +48,7 @@ def test_local_connection(tmp_path):
 # DB-002-03
 def test_local_connection_params(tmp_path):
     db_dir = tmp_path / "local_conn_param_db"
-    db = Database(db_path=str(db_dir), mode="w", max_thread_num=4, planner="gopt")
+    db = Database(db_path=str(db_dir), mode="w", max_thread_num=4)
     conn = db.connect()
     assert conn is not None
     conn.close()
@@ -59,7 +59,7 @@ def test_local_connection_params(tmp_path):
 def test_local_connection_invalid_param(tmp_path):
     db_dir = tmp_path / "local_conn_invalid_db"
     with pytest.raises(Exception) as excinfo:
-        Database(db_path=str(db_dir), mode="w", max_thread_num=-1, planner="gopt")
+        Database(db_path=str(db_dir), mode="w", max_thread_num=-1)
     # TODO: error code should be ERR_INVALID_ARGUMENT
     assert ERROR_STRINGS[ERR_CONFIG_INVALID] in str(excinfo.value)
 
@@ -67,7 +67,7 @@ def test_local_connection_invalid_param(tmp_path):
 @pytest.fixture
 def started_server(tmp_path, unused_tcp_port):
     db_dir = tmp_path / "remote_db"
-    db = Database(db_path=str(db_dir), mode="w", planner="gopt")
+    db = Database(db_path=str(db_dir), mode="w")
     port = unused_tcp_port
     db.serve("127.0.0.1", port)
     # sleep to ensure server is ready
@@ -189,7 +189,7 @@ def test_server_load_overflow(started_server):
 def test_local_connection_after_close(tmp_path):
     # local connection after close
     db_dir = tmp_path / "conn_after_close_db"
-    db = Database(db_path=str(db_dir), mode="w", planner="gopt")
+    db = Database(db_path=str(db_dir), mode="w")
     conn = db.connect()
     conn.close()
     with pytest.raises(Exception) as excinfo:
@@ -222,7 +222,7 @@ def test_server_restart(started_server):
     session = Session.open(f"neug://user:pass@127.0.0.1:{port}/")
     db.close()
     time.sleep(2)
-    db2 = Database(db_path="remote_db", mode="w", planner="gopt")
+    db2 = Database(db_path="remote_db", mode="w")
     db2.serve("127.0.0.1", port)
     time.sleep(2)
     try:

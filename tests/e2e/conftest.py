@@ -147,9 +147,9 @@ def neug_conn(pytestconfig):
     db_dir = pytestconfig.getoption("db_dir")
     read_only = pytestconfig.getoption("read_only")
     if read_only:
-        db = Database(db_path=str(db_dir), mode="r", planner="gopt")
+        db = Database(db_path=str(db_dir), mode="r")
     else:
-        db = Database(db_path=str(db_dir), mode="w", planner="gopt")
+        db = Database(db_path=str(db_dir), mode="w")
     conn = db.connect()
     yield conn
     conn.close()
