@@ -42,17 +42,11 @@ class QueryProcessor {
   Result<results::CollectiveResults> execute(const physical::PhysicalPlan& plan,
                                              int32_t num_threads = 0);
 
-  Result<results::CollectiveResults> execute_update_query(
-      GraphDBSession& graph, const physical::PhysicalPlan& plan,
-      runtime::OprTimer& timer_);
-
  private:
   Result<results::CollectiveResults> execute_read_only(
       const physical::PhysicalPlan& plan, int32_t num_threads);
 
   Result<results::CollectiveResults> execute_read_write(
-      const physical::PhysicalPlan& plan, int32_t num_threads);
-  Result<results::CollectiveResults> execute_write_only(
       const physical::PhysicalPlan& plan, int32_t num_threads);
 
   Result<results::CollectiveResults> execute_ddl(

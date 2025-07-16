@@ -107,6 +107,8 @@ std::string NeugDB::serve(int port, const std::string& host) {
   }
   std::shared_ptr<IGraphPlanner> planner =
       std::make_shared<GOptPlanner>(planner_config_path_);
+  planner->update_meta(db_.schema().to_yaml().value(),
+                       db_.get_statistics_json());
   hdl_mgr_ = std::make_unique<server::BrpcHttpHandlerManager>(db_, planner);
   hdl_mgr_->Init(service_config_);
   LOG(INFO) << "Starting HTTP service on " << host << ":" << port;

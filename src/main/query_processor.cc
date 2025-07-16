@@ -149,7 +149,7 @@ Result<results::CollectiveResults> QueryProcessor::execute(
     cpptrace::try_catch(
         [&] {  // try block
 #endif
-          res = execute_write_only(plan, num_threads);
+          res = execute_read_write(plan, num_threads);
 #ifdef NEUG_BACKTRACE
         },
         [&](const std::runtime_error& e) {
@@ -219,11 +219,6 @@ Result<results::CollectiveResults> QueryProcessor::execute_read_only(
 }
 
 Result<results::CollectiveResults> QueryProcessor::execute_read_write(
-    const physical::PhysicalPlan& plan, int32_t num_threads) {
-  return execute_write_only(plan, num_threads);
-}
-
-Result<results::CollectiveResults> QueryProcessor::execute_write_only(
     const physical::PhysicalPlan& plan, int32_t num_threads) {
   return CypherUpdateApp::execute_update_query(db_.GetSession(0), plan, timer_);
 }

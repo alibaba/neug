@@ -51,6 +51,12 @@ class GDatabase : public Database {
     this->storageManager = std::make_unique<gs::storage::GStorageManager>(
         stats, *this->catalog, *this->memoryManager, *this->wal);
   }
+
+  void updateSchema(const YAML::Node& schema, const std::string& stats) {
+    this->catalog = std::make_unique<gs::catalog::GCatalog>(schema);
+    this->storageManager = std::make_unique<gs::storage::GStorageManager>(
+        stats, *this->catalog, *this->memoryManager, *this->wal);
+  }
 };
 }  // namespace main
 }  // namespace gs

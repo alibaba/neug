@@ -22,8 +22,8 @@ import sys
 import pytest
 
 sys.path.append(os.path.join(os.path.dirname(__file__), "../"))
-from errors import ERR_COMPILATION
 from errors import ERR_INVALID_SCHEMA
+from errors import ERR_QUERY_SYNTAX
 from errors import ERR_SCHEMA_MISMATCH
 from errors import ERR_TYPE_CONVERSION
 from errors import ERROR_STRINGS
@@ -206,13 +206,13 @@ def test_create_node_table_errors(tmp_path):
     # 2. create node table without primary key
     with pytest.raises(Exception) as excinfo:
         conn.execute("CREATE NODE TABLE person1(name STRING, age INT64);")
-    assert str("Failed to compile DDL plan") in str(excinfo.value)
+    assert str("Failed to compile plan") in str(excinfo.value)
     # 3. create node table with invalid property value
     with pytest.raises(Exception) as excinfo:
         conn.execute(
             "CREATE NODE TABLE person2(name STRING, age INT64 DEFAULT 'abc', PRIMARY KEY (name));"
         )
-    assert str("Failed to compile DDL plan") in str(excinfo.value)
+    assert str("Failed to compile plan") in str(excinfo.value)
     conn.close()
     db.close()
 
@@ -267,7 +267,7 @@ def test_create_rel_table_errors(tmp_path):
     # 2. create edge table without FROM/TO vertex tables
     with pytest.raises(Exception) as excinfo:
         conn.execute("CREATE REL TABLE NewFollows(FROM person TO user, MANY_MANY);")
-    assert str("Failed to compile DDL plan") in str(excinfo.value)
+    assert str("Failed to compile plan") in str(excinfo.value)
     conn.close()
     db.close()
 
@@ -592,6 +592,6 @@ def test_query_syntax_error(tmp_path):
     conn = db.connect()
     with pytest.raises(Exception) as excinfo:
         conn.execute("MATCH (n RETURN n;")
-    assert str(ERR_COMPILATION) in str(excinfo.value)
+    assert str(ERR_QUERY_SYNTAX) in str(excinfo.value)
     conn.close()
     db.close()

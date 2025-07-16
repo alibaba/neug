@@ -31,6 +31,7 @@ class GCatalog : public Catalog {
  public:
   GCatalog(const std::filesystem::path& schemaPath);
   GCatalog(const std::string& schemaData);
+  GCatalog(const YAML::Node& schema);
   ~GCatalog() = default;
 
  private:

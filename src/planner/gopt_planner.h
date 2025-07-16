@@ -4,6 +4,7 @@
 #pragma once
 
 #include <memory>
+#include <shared_mutex>
 #include <string>
 
 #include <yaml-cpp/yaml.h>
@@ -28,13 +29,15 @@ class GOptPlanner : public gs::IGraphPlanner {
 
   inline std::string type() const override { return "gopt"; }
 
-  gs::Plan compilePlan(const std::string& query,
-                       const std::string& graph_schema_yaml,
-                       const std::string& graph_statistic_json) override;
+  gs::Plan compilePlan(const std::string& query) override;
+
+  void update_meta(const YAML::Node& schema_yaml_node,
+                   const std::string& graph_statistic_json) override;
 
  private:
   std::unique_ptr<gs::main::GDatabase> database;
   std::unique_ptr<gs::main::ClientContext> ctx;
+  std::shared_mutex planner_mutex;  // Protects access to the planner
 };
 
 }  // namespace gs

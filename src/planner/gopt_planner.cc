@@ -15,22 +15,25 @@ limitations under the License.
 
 #include "src/planner/gopt_planner.h"
 #include <yaml-cpp/node/emit.h>
+#include "src/include/common/exception/catalog.h"
 #include "src/include/gopt/g_result_schema.h"
 
 namespace gs {
 
-Plan GOptPlanner::compilePlan(const std::string& query,
-                              const std::string& graph_schema_yaml,
-                              const std::string& graph_statistic_json) {
+Plan GOptPlanner::compilePlan(const std::string& query) {
   LOG(INFO) << "[GOptPlanner] compilePlan called with query: " << query;
   gs::Plan plan;
 
-  try {
-    if (!graph_schema_yaml.empty()) {
-      // Update schema
-      database->updateSchema(graph_schema_yaml, graph_statistic_json);
-    }
+  // read access to the planner
+  std::shared_lock<std::shared_mutex> lock(planner_mutex);
 
+  if (database->getCatalog() == nullptr) {
+    throw gs::common::CatalogException(
+        "GOptPlanner: Catalog is not initialized. Please update the schema "
+        "first.");
+  }
+
+  try {
     // Prepare and compile query
     auto statement = ctx->prepare(query);
     if (!statement->success) {
@@ -58,10 +61,29 @@ Plan GOptPlanner::compilePlan(const std::string& query,
 
     return plan;
 
+  } catch (const gs::common::CatalogException& e) {
+    plan.error_code = StatusCode::ERR_INVALID_SCHEMA;
+    plan.full_message = e.what();
   } catch (const std::exception& e) {
     plan.error_code = StatusCode::ERR_UNKNOWN;
     plan.full_message = e.what();
-    return plan;
   }
+  return plan;
+}
+
+void GOptPlanner::update_meta(const YAML::Node& schema_yaml_node,
+                              const std::string& graph_statistic_json) {
+  VLOG(1) << "[GOptPlanner] update_meta called";
+  std::unique_lock<std::shared_mutex> lock(planner_mutex);
+  if (schema_yaml_node.IsNull()) {
+    LOG(ERROR) << "Schema YAML node is null";
+    return;
+  }
+  if (!schema_yaml_node.IsMap()) {
+    LOG(ERROR) << "Schema YAML node is not a map";
+    return;
+  }
+  // Update schema and statistics
+  database->updateSchema(schema_yaml_node, graph_statistic_json);
 }
 }  // namespace gs

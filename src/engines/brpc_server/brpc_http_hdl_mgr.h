@@ -29,13 +29,12 @@
 #include "src/storages/metadata/graph_meta_store.h"
 #include "src/storages/rt_mutable_graph/schema.h"
 #include "src/utils/http_handler_manager.h"
+#include "src/utils/pb_utils.h"
 #include "src/utils/yaml_utils.h"
 
 namespace server {
 
 void cleanup(void* ptr);
-
-bool has_update_opr_in_plan(const physical::PhysicalPlan& plan);
 
 class HttpServiceImpl : public HttpService {
  public:
@@ -79,9 +78,7 @@ class HttpServiceImpl : public HttpService {
                       "Planner is not set");
       return;
     }
-    auto plan = planner_->compilePlan(
-        req, gs::read_yaml_file_to_string(graph_db_.get_schema_yaml_path()),
-        graph_db_.get_statistics_json());
+    auto plan = planner_->compilePlan(req);
     if (plan.error_code != gs::StatusCode::OK) {
       LOG(ERROR) << "Plan compilation failed: " << plan.full_message;
       cntl->SetFailed(plan.full_message);
@@ -92,8 +89,14 @@ class HttpServiceImpl : public HttpService {
     VLOG(10) << "got plan: " << plan.physical_plan.DebugString();
     std::string plan_proto_str;
     plan.physical_plan.SerializeToString(&plan_proto_str);
+    // There are two possible cases:
+    //  1. Query plan contains operator that mutate the graph(schema or data)
+    //  2. Query plan that only execute read-only operations
+    // We need to determine which plugin to use based on the plan type.
+    // ALSO, if the query mutate the graph, we should also update the schema
+    // and statistics for the compiler.
     if (plan.physical_plan.has_query_plan()) {
-      if (has_update_opr_in_plan(plan.physical_plan)) {
+      if (gs::has_update_opr_in_plan(plan.physical_plan)) {
         VLOG(10) << "Update operation detected, using update plugin";
         plan_proto_str.append(1, *gs::Schema::ADHOC_UPDATE_PLUGIN_ID_STR);
         plan_proto_str.append(
@@ -130,6 +133,20 @@ class HttpServiceImpl : public HttpService {
       cntl->http_response().set_status_code(
           brpc::HTTP_STATUS_INTERNAL_SERVER_ERROR);
       return;
+    }
+
+    if (result.ok()) {
+      VLOG(10) << "Query executed successfully, updating planner's schema and "
+                  "statistics";
+      auto yaml_node = graph_db_.schema().to_yaml();
+      if (!yaml_node.ok()) {
+        LOG(ERROR) << "Failed to convert schema to YAML: "
+                   << yaml_node.status().error_message();
+        // If schema updating fails, we should not proceed on.
+        throw std::runtime_error("Failed to convert schema to YAML: " +
+                                 yaml_node.status().error_message());
+      }
+      planner_->update_meta(yaml_node.value(), graph_db_.get_statistics_json());
     }
 
     std::string_view actual_res = decoder.get_bytes();

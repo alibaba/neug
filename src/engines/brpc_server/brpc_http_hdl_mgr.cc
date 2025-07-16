@@ -21,19 +21,6 @@ namespace server {
 
 void cleanup(void* ptr) { delete (int*) ptr; }
 
-bool has_update_opr_in_plan(const physical::PhysicalPlan& plan) {
-  for (auto i = 0; i < plan.query_plan().plan_size(); ++i) {
-    auto& opr = plan.query_plan().plan(i).opr();
-    if (opr.has_source() || opr.has_load_vertex() || opr.has_load_edge() ||
-        opr.has_create_vertex() || opr.has_create_edge() ||
-        opr.has_set_vertex() || opr.has_set_edge() || opr.has_delete_vertex() ||
-        opr.has_delete_edge()) {
-      return true;
-    }
-  }
-  return false;
-}
-
 BrpcHttpHandlerManager::BrpcHttpHandlerManager(
     gs::GraphDB& graph_db, std::shared_ptr<gs::IGraphPlanner> planner)
     : graph_db_(graph_db), svc_(graph_db, planner) {

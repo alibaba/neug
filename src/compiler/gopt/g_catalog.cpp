@@ -42,6 +42,8 @@ GCatalog::GCatalog(const std::string& schemaData) : Catalog() {
   loadSchema(YAML::Load(schemaData));
 }
 
+GCatalog::GCatalog(const YAML::Node& schema) : Catalog() { loadSchema(schema); }
+
 void GCatalog::loadSchema(const YAML::Node& schema) {
   validateYAMLStructure(schema);
 

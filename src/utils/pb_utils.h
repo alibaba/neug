@@ -19,6 +19,7 @@
 
 #include "src/proto_generated_gie/basic_type.pb.h"  // for DataType (ptr only)
 #include "src/proto_generated_gie/cypher_ddl.pb.h"
+#include "src/proto_generated_gie/physical.pb.h"
 #include "src/storages/rt_mutable_graph/types.h"
 #include "src/utils/property/types.h"
 #include "src/utils/result.h"
@@ -39,18 +40,18 @@ bool multiplicity_to_storage_strategy(
     EdgeStrategy& oe_strategy, EdgeStrategy& ie_strategy);
 
 bool primitive_type_to_property_type(
-    const common::PrimitiveType& primitive_type, PropertyType& out_type);
+    const ::common::PrimitiveType& primitive_type, PropertyType& out_type);
 
-bool string_type_to_property_type(const common::String& string_type,
+bool string_type_to_property_type(const ::common::String& string_type,
                                   PropertyType& out_type);
 
-bool temporal_type_to_property_type(const common::Temporal& temporal_type,
+bool temporal_type_to_property_type(const ::common::Temporal& temporal_type,
                                     PropertyType& out_type);
 
-bool data_type_to_property_type(const common::DataType& data_type,
+bool data_type_to_property_type(const ::common::DataType& data_type,
                                 PropertyType& out_type);
 
-bool common_value_to_any(const common::Value& value, Any& out_any);
+bool common_value_to_any(const ::common::Value& value, Any& out_any);
 
 Result<std::vector<std::tuple<PropertyType, std::string, Any>>>
 property_defs_to_tuple(
@@ -60,4 +61,5 @@ property_defs_to_tuple(
 // Convert to a bool representing error_on_conflict.
 bool conflict_action_to_bool(const physical::ConflictAction& action);
 
+bool has_update_opr_in_plan(const physical::PhysicalPlan& plan);
 }  // namespace gs

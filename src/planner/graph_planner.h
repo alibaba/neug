@@ -19,6 +19,7 @@
 #include <string>
 #include <vector>
 
+#include <yaml-cpp/yaml.h>
 #include "src/proto_generated_gie/physical.pb.h"
 #include "src/utils/result.h"
 
@@ -50,8 +51,15 @@ class IGraphPlanner {
    * @param query The cypher query.
    * @return The executable plan.
    */
-  virtual Plan compilePlan(const std::string& query,
-                           const std::string& graph_schema_yaml,
+  virtual Plan compilePlan(const std::string& query) = 0;
+
+  /**
+   * @brief Update the metadata of the graph. To let the planner be aware of the
+   * changes in the graph schema and statistics.
+   * @param schema_yaml_node The YAML node of the graph schema.
+   * @param graph_statistic_json The JSON string of the graph statistics.
+   */
+  virtual void update_meta(const YAML::Node& schema_yaml_node,
                            const std::string& graph_statistic_json) = 0;
 
  protected:

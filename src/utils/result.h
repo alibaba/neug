@@ -156,7 +156,7 @@ struct is_gs_status_type<Status> : std::true_type {};
 // function, which returns result, and check the status of the result, if ok,
 // continue to execute, otherwise, return the status. the macro accept the
 // calling code of a function, the function name, and the variable name.
-#define FLEX_AUTO(var, expr) ASSIGN_AND_RETURN_IF_NOT_OK(auto var, expr)
+#define NEUG_AUTO(var, expr) ASSIGN_AND_RETURN_IF_NOT_OK(auto var, expr)
 
 // Return boost::leaf::error object with error code and error message,
 
