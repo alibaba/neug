@@ -205,11 +205,11 @@ jobs:
         cd ${GITHUB_WORKSPACE}/tests/e2e
         ./scripts/run_embed_test.sh lsqb /tmp/lsqb lsqb
 
-    - name: Run E2E LSQB Benchmark
-      run: |
-        cd ${GITHUB_WORKSPACE}/tests/e2e
-        # run lsqb benchmark
-        python3 -m pytest -m neug_benchmark --db_dir=/tmp/lsqb/ --query_dir=./queries/lsqb/ --dataset lsqb --iterations 1 --rounds 1 --read_only --benchmark-save=benchmark-lsqb
+    # - name: Run E2E LSQB Benchmark
+    #   run: |
+    #     cd ${GITHUB_WORKSPACE}/tests/e2e
+    #     # run lsqb benchmark
+    #     python3 -m pytest -m neug_benchmark --db_dir=/tmp/lsqb/ --query_dir=./queries/lsqb/ --dataset lsqb --iterations 1 --rounds 1 --read_only --benchmark-save=benchmark-lsqb
 
     - name: Build CLI tool
       run: |

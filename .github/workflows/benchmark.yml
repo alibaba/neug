@@ -1,0 +1,97 @@
+name: Neug Benchmark
+
+on:
+  # Trigger the workflow on push or pull request,
+  # but only for the main branch
+  workflow_dispatch:
+  schedule:
+    # The notifications for scheduled workflows are sent to the user who
+    # last modified the cron syntax in the workflow file.
+    # Trigger the workflow at 03:00(CST) every day.
+    - cron:  '00 19 * * *'
+  push:
+    tags:
+      - "v*"
+  pull_request:
+    branches:
+      - main
+    paths:
+      - '.github/workflows/benchmark.yml'
+
+concurrency:
+  group: ${{ github.repository }}-${{ github.event.number || github.head_ref || github.sha }}-${{ github.workflow }}
+  cancel-in-progress: true
+
+jobs:
+  test-py-neug:
+    runs-on: [self-hosted, x64]
+    container:
+      image: registry.cn-hongkong.aliyuncs.com/graphscope/graphscope-dev:neug
+      # options: --user root
+    steps:
+    - name: checkout
+      id: checkout
+      uses: actions/checkout@v4
+      with:
+        submodules: true
+
+    - name: Mark directory safe
+      run: |
+        git config --global --add safe.directory "$GITHUB_WORKSPACE"
+        git config --global --add safe.directory "$GITHUB_WORKSPACE/third_party/aliyun-oss-cpp-sdk"
+        git config --global --add safe.directory "$GITHUB_WORKSPACE/third_party/parallel-hashmap"
+        git config --global --add safe.directory "$GITHUB_WORKSPACE/third_party/pybind11"
+
+    - name: Clean the tool directory for self-hosted runner
+      run: |
+        rm -rf /__w/_tool/Python
+
+    - name: Cache CCache
+      if: false
+      uses: actions/cache@v4
+      with:
+        path: ~/.cache
+        # use timestamp as cache key to avoid cache miss
+        key: ${{ runner.os }}-ccache-${{ github.run_id }}-${{ github.sha }}
+        restore-keys: |
+          ${{ runner.os }}-ccache-${{ github.run_id }}-
+          ${{ runner.os }}-ccache-
+
+    - name: Setup Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.13'
+
+    - name: Build Interactive
+      run: |
+        . /home/graphscope/.graphscope_env
+        cd ${GITHUB_WORKSPACE}/
+        export BUILD_TYPE=RELEASE
+        export CMAKE_BUILD_PARALLEL_LEVEL=$(nproc)
+        export BUILD_EXECUTABLES=ON
+        export BUILD_HTTP_SERVER=ON
+        export HTTP_SERVER_TYPE=brpc
+        export BUILD_TEST=OFF
+        export USE_NINJA=OFF
+        # export CC="ccache gcc"
+        # export CXX="ccache g++"
+        cd tools/python_bind
+        make clean
+        make requirements
+        make build
+
+    - name: Bulk Loader Test
+      env:
+        GS_TEST_DIR: ${{ github.workspace }}/gstest
+      run: |
+        git clone -b master --single-branch --depth=1 https://github.com/GraphScope/gstest.git ${GS_TEST_DIR}
+        rm -rf /tmp/modern_graph && rm -rf /tmp/lsqb && rm -rf /tmp/ldbc && rm -rf /tmp/tinysnb
+        cd ${GITHUB_WORKSPACE}/tools/python_bind/
+        export FLEX_DATA_DIR=${GITHUB_WORKSPACE}/example_dataset/lsqb-sf01
+        GLOG_v=10 ./build/neug_py_bind/src/bin/bulk_loader -g ../../example_dataset/lsqb-sf01/graph.yaml -l ../../example_dataset/lsqb-sf01/import.yaml -d /tmp/lsqb
+
+    - name: Run E2E LSQB Benchmark
+      run: |
+        cd ${GITHUB_WORKSPACE}/tests/e2e
+        # run lsqb benchmark
+        python3 -m pytest -m neug_benchmark -sv --db_dir=/tmp/lsqb/ --query_dir=./queries/lsqb/ --dataset lsqb --iterations 1 --rounds 1 --read_only --benchmark-save=benchmark-lsqb

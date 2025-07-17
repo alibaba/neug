@@ -32,8 +32,8 @@ class TestNeug(BaseTest):
         self.run_test(neug_conn, query_object)
 
     @pytest.mark.neug_benchmark
-    def test_benchmark_queries(self, request, benchmark, neug_conn, query_object):
-        self.run_benchmark(neug_conn, query_object, request, benchmark)
+    def test_benchmark_queries(self, request, benchmark, neug_sess, query_object):
+        self.run_benchmark(neug_sess, query_object, request, benchmark)
 
     def _extract_result_headers(self, schema_yaml: str):
         """

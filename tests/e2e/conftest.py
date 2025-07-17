@@ -28,6 +28,8 @@ from utils.utils import collect_tests_from_files
 
 sys.path.append(os.path.join(os.path.dirname(__file__), "../../tools/python_bind"))
 
+from neug.session import Session
+
 
 def pytest_addoption(parser):
     # database options
@@ -153,6 +155,24 @@ def neug_conn(pytestconfig):
     conn = db.connect()
     yield conn
     conn.close()
+    db.close()
+
+
+@pytest.fixture(scope="module")
+def neug_sess(pytestconfig):
+    from neug.database import Database
+
+    db_dir = pytestconfig.getoption("db_dir")
+    read_only = pytestconfig.getoption("read_only")
+    if read_only:
+        db = Database(db_path=str(db_dir), mode="r")
+    else:
+        db = Database(db_path=str(db_dir), mode="w")
+    # conn = db.connect()
+    endpoint = db.serve(port=10000, host="localhost")
+    sess = Session.open(endpoint=endpoint, timeout="30s", num_threads=5)
+    yield sess
+    sess.close()
     db.close()
 
 
