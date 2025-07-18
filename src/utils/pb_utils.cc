@@ -303,4 +303,34 @@ bool has_update_opr_in_plan(const physical::PhysicalPlan& plan) {
   return false;
 }
 
+Any const_value_to_any(const common::Value& value) {
+  switch (value.item_case()) {
+  case common::Value::ItemCase::kI32: {
+    return Any::From(value.i32());
+  }
+  case common::Value::ItemCase::kI64: {
+    return Any::From(value.i64());
+  }
+  case common::Value::ItemCase::kU32: {
+    return Any::From(value.u32());
+  }
+  case common::Value::ItemCase::kU64: {
+    return Any::From(value.u64());
+  }
+  case common::Value::ItemCase::kF64: {
+    return Any::From(value.f64());
+  }
+  case common::Value::ItemCase::kBoolean: {
+    return Any::From(value.boolean());
+  }
+  case common::Value::ItemCase::kStr: {
+    return Any::From(value.str());
+  }
+  default: {
+    throw std::runtime_error("Unsupported constant value type: " +
+                             value.DebugString());
+  }
+  }
+}
+
 }  // namespace gs

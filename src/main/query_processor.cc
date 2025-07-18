@@ -220,7 +220,8 @@ Result<results::CollectiveResults> QueryProcessor::execute_read_only(
 
 Result<results::CollectiveResults> QueryProcessor::execute_read_write(
     const physical::PhysicalPlan& plan, int32_t num_threads) {
-  return CypherUpdateApp::execute_update_query(db_.GetSession(0), plan, timer_);
+  return CypherUpdateApp::execute_update_query(db_.GetSession(0), plan, timer_,
+                                               true);
 }
 
 Result<results::CollectiveResults> QueryProcessor::execute_ddl(

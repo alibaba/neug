@@ -287,6 +287,41 @@ static Context default_inner_join(Context&& ctx, Context&& ctx2,
   return ret;
 }
 
+static Context default_times_join(Context&& ctx, Context&& ctx2,
+                                  const JoinParams& params) {
+  /*
+   * For times join, we need to generate a Cartesian product of the two
+   * contexts. This means that for each row in the left context, we will
+   * pair it with every row in the right context.
+   * The resulting context will have size left_size * right_size.
+   * Each row in the resulting context will contain the data from both
+   * contexts, with the left context's data appearing first.
+   */
+  std::vector<size_t> left_offset, right_offset;
+  size_t left_size = ctx.row_num();
+  size_t right_size = ctx2.row_num();
+  for (size_t r_i = 0; r_i < left_size; ++r_i) {
+    for (size_t r_j = 0; r_j < right_size; ++r_j) {
+      left_offset.emplace_back(r_i);
+      right_offset.emplace_back(r_j);
+    }
+  }
+  ctx.reshuffle(left_offset);
+  ctx2.reshuffle(right_offset);
+  Context ret;
+  for (size_t i = 0; i < ctx.col_num(); i++) {
+    ret.set(i, ctx.get(i));
+  }
+  for (size_t i = 0; i < ctx2.col_num(); i++) {
+    ret.set(i + ctx.col_num(), ctx2.get(i));
+  }
+  LOG(INFO) << "times join: left size = " << left_size
+            << ", right size = " << right_size
+            << ", resulting size = " << ret.row_num()
+            << "col num: " << ret.col_num();
+  return ret;
+}
+
 static Context single_vertex_column_left_outer_join(Context&& ctx,
                                                     Context&& ctx2,
                                                     const JoinParams& params) {
@@ -546,6 +581,8 @@ bl::result<Context> Join::join(Context&& ctx, Context&& ctx2,
     } else {
       return default_left_outer_join(std::move(ctx), std::move(ctx2), params);
     }
+  } else if (params.join_type == JoinKind::kTimes) {
+    return default_times_join(std::move(ctx), std::move(ctx2), params);
   }
   LOG(FATAL) << "Unsupported join type" << params.join_type;
   return ctx;

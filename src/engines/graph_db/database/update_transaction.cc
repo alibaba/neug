@@ -55,6 +55,7 @@ UpdateTransaction::UpdateTransaction(const GraphDBSession& session,
                                      IWalWriter& logger, VersionManager& vm,
                                      timestamp_t timestamp)
     : session_(session),
+      insert_vertex_with_resize_(false),
       graph_(graph),
       alloc_(alloc),
       logger_(logger),
@@ -117,6 +118,11 @@ UpdateTransaction::UpdateTransaction(const GraphDBSession& session,
 UpdateTransaction::~UpdateTransaction() { release(); }
 
 timestamp_t UpdateTransaction::timestamp() const { return timestamp_; }
+
+void UpdateTransaction::set_insert_vertex_with_resize(
+    bool insert_vertex_with_resize) {
+  insert_vertex_with_resize_ = insert_vertex_with_resize;
+}
 
 bool UpdateTransaction::Commit() {
   if (timestamp_ == std::numeric_limits<timestamp_t>::max()) {
@@ -196,6 +202,80 @@ static size_t get_offset(const std::shared_ptr<CsrConstEdgeIterBase>& base,
     base->next();
   }
   return std::numeric_limits<size_t>::max();
+}
+
+bool UpdateTransaction::AddEdge(label_t src_label, vid_t src_lid,
+                                label_t dst_label, vid_t dst_lid,
+                                label_t edge_label, const Any& value) {
+  static constexpr size_t sentinel = std::numeric_limits<size_t>::max();
+  size_t offset_out = sentinel, offset_in = sentinel;
+  // TODO(zhanglei): refactor this part after delete vertex is supported.
+  if (src_lid >= graph_.vertex_num(src_label) &&
+      dst_lid >= graph_.vertex_num(dst_label)) {
+    throw std::runtime_error("Source or destination vertex id is out of range");
+  }
+  const auto& oe =
+      graph_.get_outgoing_edges(src_label, src_lid, dst_label, edge_label);
+  offset_out = get_offset(oe, dst_lid);
+  const auto& ie =
+      graph_.get_incoming_edges(dst_label, dst_lid, src_label, edge_label);
+  offset_in = get_offset(ie, src_lid);
+
+  if (value.type != PropertyType::kRecord) {
+    const PropertyType& type =
+        graph_.schema().get_edge_property(src_label, dst_label, edge_label);
+    if (value.type != type) {
+      std::string label_name = graph_.schema().get_edge_label_name(edge_label);
+      LOG(ERROR) << "Edge property " << label_name
+                 << " type not match, expected " << type << ", got "
+                 << value.type;
+      return false;
+    }
+  } else {
+    const auto& types =
+        graph_.schema().get_edge_properties(src_label, dst_label, edge_label);
+    if (value.AsRecord().size() != types.size()) {
+      std::string label_name = graph_.schema().get_edge_label_name(edge_label);
+      LOG(ERROR) << "Edge property " << label_name
+                 << " size not match, expected " << types.size() << ", got "
+                 << value.AsRecord().size();
+      return false;
+    }
+    auto r = value.AsRecord();
+    for (size_t i = 0; i < r.size(); ++i) {
+      if (r[i].type != types[i]) {
+        std::string label_name =
+            graph_.schema().get_edge_label_name(edge_label);
+        LOG(ERROR) << "Edge property " << label_name
+                   << " type not match, expected " << types[i] << ", got "
+                   << r[i].type;
+        return false;
+      }
+    }
+  }
+
+  size_t in_csr_index = get_in_csr_index(src_label, dst_label, edge_label);
+  size_t out_csr_index = get_out_csr_index(src_label, dst_label, edge_label);
+  if (offset_in == sentinel) {
+    added_edges_[in_csr_index][dst_lid].push_back(src_lid);
+  }
+  updated_edge_data_[in_csr_index][dst_lid].emplace(
+      src_lid, std::pair<Any, size_t>{value, offset_in});
+  if (offset_out == sentinel) {
+    added_edges_[out_csr_index][src_lid].push_back(dst_lid);
+  }
+  updated_edge_data_[out_csr_index][src_lid].emplace(
+      dst_lid, std::pair<Any, size_t>{value, offset_out});
+
+  op_num_ += 1;
+  arc_ << static_cast<uint8_t>(1) << src_label;
+  serialize_field(arc_, lid_to_oid(src_label, src_lid));
+  arc_ << dst_label;
+  serialize_field(arc_, lid_to_oid(dst_label, dst_lid));
+  arc_ << edge_label;
+  serialize_field(arc_, value);
+
+  return true;
 }
 
 bool UpdateTransaction::AddEdge(label_t src_label, const Any& src,
@@ -815,7 +895,12 @@ void UpdateTransaction::applyVerticesUpdates() {
     for (auto& pair : added_vertices) {
       vid_t offset = vertex_offset.at(pair.first);
       vid_t lid = graph_.add_vertex(label, pair.second);
-      graph_.get_vertex_table(label).insert(lid, table.get_row(offset));
+      if (insert_vertex_with_resize_) {
+        graph_.get_vertex_table(label).insert_with_resize(
+            lid, table.get_row(offset));
+      } else {
+        graph_.get_vertex_table(label).insert(lid, table.get_row(offset));
+      }
       CHECK_EQ(lid, pair.first);
       vertex_offset.erase(pair.first);
     }

@@ -1337,6 +1337,7 @@ Any AnyConverter<Interval>::to_any(std::string_view value) {
                                 ",size: " + std::to_string(value_str.size()));
   }
   Any ret;
+  interval.negative = false;
   interval.internal.year = years;
   interval.internal.month = months;
   interval.internal.day = days;

@@ -91,6 +91,32 @@ std::shared_ptr<Connection> NeugDB::connect() {
   }
 }
 
+void NeugDB::remove_connection(std::shared_ptr<Connection> conn) {
+  if (mode_ == DBMode::READ_ONLY) {
+    for (auto it = read_only_connections_.begin();
+         it != read_only_connections_.end(); ++it) {
+      if (*it == conn) {
+        read_only_connections_.erase(it);
+        VLOG(10) << "Removed a read-only connection.";
+        return;
+      }
+    }
+    LOG(ERROR) << "Connection not found in read-only connections.";
+  } else if (mode_ == DBMode::READ_WRITE) {
+    std::unique_lock<std::mutex> lock(connection_mutex_);
+    if (read_write_connection_ == conn) {
+      read_write_connection_.reset();
+      VLOG(10) << "Removed the read-write connection.";
+      return;
+    } else {
+      LOG(ERROR) << "Connection not found in read-write connection.";
+    }
+  } else {
+    throw std::runtime_error("Invalid mode.");
+  }
+  LOG(ERROR) << "Connection not found.";
+}
+
 std::string NeugDB::serve(int port, const std::string& host) {
 #ifdef BUILD_HTTP_SERVER
   if (hdl_mgr_) {

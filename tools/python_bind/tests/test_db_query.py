@@ -595,3 +595,44 @@ def test_query_syntax_error(tmp_path):
     assert str(ERR_QUERY_SYNTAX) in str(excinfo.value)
     conn.close()
     db.close()
+
+
+def test_insert_vertex_edge(tmp_path):
+    db_dir = tmp_path / "insert_vertex_edge"
+    import shutil
+
+    shutil.rmtree(db_dir, ignore_errors=True)
+    db = Database(db_path=str(db_dir), mode="w")
+    conn = db.connect()
+    conn.execute("CREATE NODE TABLE person(id INT64, name STRING, PRIMARY KEY(id));")
+    conn.execute("CREATE REL TABLE knows(FROM person TO person, weight DOUBLE);")
+
+    # Insert vertex
+    conn.execute("CREATE (p:person {id: 1, name: 'Alice'});")
+    conn.execute("CREATE (p:person {id: 2, name: 'Bob'});")
+    conn.execute("CREATE (p:person {id: 3, name: 'Charlie'});")
+
+    # Insert edge
+    conn.execute(
+        "MATCH (a:person), (b:person) WHERE a.name = 'Alice' AND b.name = 'Bob' "
+        "CREATE (a)-[:knows {weight: 1.0}]->(b);"
+    )
+    conn.execute(
+        "MATCH (a:person), (b:person) WHERE a.name = 'Alice' AND b.name = 'Charlie' "
+        "CREATE (a)-[:knows {weight: 2.0}]->(b);"
+    )
+
+    # Verify insertion
+    result = conn.execute("MATCH (n) RETURN n;")
+    assert len(result) == 3
+
+    result = conn.execute("MATCH (a:person)-[r:knows]->(b:person) RETURN a, r, b;")
+    assert len(result) == 2  # Only one edge should be present
+    result = conn.execute(
+        "MATCH (a:person)-[b:knows]->(c:person) WHERE c.name = 'Charlie' RETURN b.weight;"
+    )
+    assert len(result) == 1
+    assert result.__next__()[0] == 2.0  # Weight of the
+
+    conn.close()
+    db.close()

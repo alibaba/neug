@@ -16,6 +16,7 @@
 #include "py_connection.h"
 #include <datetime.h>
 #include <memory>
+#include "src/main/neug_db.h"
 
 namespace gs {
 
@@ -24,7 +25,8 @@ void PyConnection::initialize(pybind11::handle& m) {
       m, "PyConnection",
       "PyConnection is the python binds for the actual c++ implementation "
       "of the connection to the database, gs::Connection.\n")
-      .def(pybind11::init<std::shared_ptr<Connection>>(), pybind11::arg("conn"),
+      .def(pybind11::init<NeugDB&, std::shared_ptr<Connection>>(),
+           pybind11::arg("db"), pybind11::arg("conn"),
            "Creating a PyConnection. Holds a shared pointer to the C++ "
            "Connection object.\n")
       .def("close", &PyConnection::close,
@@ -39,13 +41,17 @@ void PyConnection::initialize(pybind11::handle& m) {
   PyDateTime_IMPORT;
 }
 
-PyConnection::PyConnection(std::shared_ptr<Connection> conn) : conn_(conn) {
+PyConnection::PyConnection(NeugDB& db, std::shared_ptr<Connection> conn)
+    : db_(db), conn_(conn) {
   if (!conn_) {
     throw std::runtime_error("Connection is null");
   }
 }
 
-void PyConnection::close() { conn_.reset(); }
+void PyConnection::close() {
+  db_.remove_connection(conn_);
+  conn_.reset();
+}
 
 std::unique_ptr<PyQueryResult> PyConnection::execute(
     const std::string& statement) {

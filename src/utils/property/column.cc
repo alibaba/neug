@@ -74,6 +74,8 @@ class TypedEmptyColumn : public ColumnBase {
 
   void set_any(size_t index, const Any& value) override {}
 
+  void set_any_with_resize(size_t index, const Any& value) override {}
+
   T get_view(size_t index) const { T{}; }
 
   Any get(size_t index) const override { return Any(); }
@@ -113,6 +115,8 @@ class TypedEmptyColumn<std::string_view> : public ColumnBase {
   void set_value(size_t index, const std::string_view& val) {}
 
   void set_any(size_t index, const Any& value) override {}
+
+  void set_any_with_resize(size_t index, const Any& value) override {}
 
   std::string_view get_view(size_t index) const { return std::string_view{}; }
 
@@ -340,7 +344,6 @@ void TypedColumn<RecordView>::set_any(size_t index, const Any& value) {
 }
 
 void TypedColumn<RecordView>::set_value(size_t index, const RecordView& val) {
-  std::vector<Any> vec;
   auto& cols = table_->columns();
   for (size_t i = 0; i < val.size(); ++i) {
     if (cols[i]->type() == PropertyType::kStringView) {
@@ -350,6 +353,24 @@ void TypedColumn<RecordView>::set_value(size_t index, const RecordView& val) {
       cols[i]->set_any(index, val[i]);
     }
   }
+}
+
+void TypedColumn<RecordView>::set_value_with_check(size_t index,
+                                                   const RecordView& val) {
+  auto& cols = table_->columns();
+  for (size_t i = 0; i < val.size(); ++i) {
+    if (cols[i]->type() == PropertyType::kStringView) {
+      (dynamic_cast<TypedColumn<std::string_view>*>(cols[i].get()))
+          ->set_value_with_check(index, val[i].AsStringView());
+    } else {
+      cols[i]->set_any_with_resize(index, val[i]);
+    }
+  }
+}
+void TypedColumn<RecordView>::set_any_with_resize(size_t index,
+                                                  const Any& value) {
+  auto rv = value.AsRecordView();
+  set_value_with_check(index, rv);
 }
 
 Any TypedColumn<RecordView>::get(size_t index) const {

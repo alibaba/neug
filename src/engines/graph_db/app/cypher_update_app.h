@@ -46,7 +46,7 @@ class CypherUpdateApp : public WriteAppBase {
 
   static Result<results::CollectiveResults> execute_update_query(
       GraphDBSession& graph, const physical::PhysicalPlan& plan,
-      runtime::OprTimer& timer_);
+      runtime::OprTimer& timer_, bool insert_with_resize = false);
 
   static Result<results::CollectiveResults> execute_add_vertex_property(
       GraphDBSession& graph,

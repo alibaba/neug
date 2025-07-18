@@ -45,6 +45,7 @@
 #include "src/engines/graph_db/runtime/execute/ops/retrieve/vertex.h"
 #include "src/engines/graph_db/runtime/execute/ops/update/dedup.h"
 #include "src/engines/graph_db/runtime/execute/ops/update/edge.h"
+#include "src/engines/graph_db/runtime/execute/ops/update/join.h"
 #include "src/engines/graph_db/runtime/execute/ops/update/load.h"
 #include "src/engines/graph_db/runtime/execute/ops/update/project.h"
 #include "src/engines/graph_db/runtime/execute/ops/update/scan.h"
@@ -127,6 +128,8 @@ void PlanParser::init() {
   register_update_operator_builder(std::make_unique<ops::UProjectOprBuilder>());
   register_update_operator_builder(std::make_unique<ops::USelectOprBuilder>());
   register_update_operator_builder(
+      std::make_unique<ops::UJoinUpdateOprBuilder>());
+  register_update_operator_builder(
       std::make_unique<ops::DataSourceOprBuilder>());
   register_update_operator_builder(
       std::make_unique<ops::BatchInsertVertexOprBuilder>());
@@ -136,6 +139,10 @@ void PlanParser::init() {
       std::make_unique<ops::BatchDeleteVertexOprBuilder>());
   register_update_operator_builder(
       std::make_unique<ops::BatchDeleteEdgeOprBuilder>());
+  register_update_operator_builder(
+      std::make_unique<ops::InsertVertexOprBuilder>());
+  register_update_operator_builder(
+      std::make_unique<ops::InsertEdgeOprBuilder>());
 }
 
 PlanParser& PlanParser::get() {

@@ -87,6 +87,49 @@ class BatchInsertEdgeOprBuilder : public IUpdateOperatorBuilder {
   }
 };
 
+class InsertEdgeOpr : public IUpdateOperator {
+ public:
+  using edge_prop_vec_t = std::vector<std::pair<std::string, Any>>;
+  using edge_triplet_t =
+      std::tuple<label_t, label_t, label_t>;  // edge, src, dst
+  using edge_data_t =
+      std::tuple<edge_triplet_t, int32_t, int32_t, edge_prop_vec_t>;
+  // type_triplet, src_vertex_bindings, dst_vertex_bindings, edge_properties
+  InsertEdgeOpr(std::vector<edge_data_t>&& edge_data)
+      : edge_data_(std::move(edge_data)) {}
+
+  std::string get_operator_name() const override { return "InsertEdgeOpr"; }
+
+  template <typename GraphInterface>
+  bl::result<Context> eval_impl(
+      GraphInterface& graph, const std::map<std::string, std::string>& params,
+      Context&& ctx, gs::runtime::OprTimer& timer);
+
+  bl::result<Context> Eval(gs::runtime::GraphUpdateInterface& graph,
+                           const std::map<std::string, std::string>& params,
+                           Context&& ctx,
+                           gs::runtime::OprTimer& timer) override {
+    return eval_impl(graph, params, std::move(ctx), timer);
+  }
+
+ private:
+  std::vector<edge_data_t> edge_data_;
+};
+
+class InsertEdgeOprBuilder : public IUpdateOperatorBuilder {
+ public:
+  InsertEdgeOprBuilder() = default;
+  ~InsertEdgeOprBuilder() = default;
+
+  std::unique_ptr<IUpdateOperator> Build(const Schema& schema,
+                                         const physical::PhysicalPlan& plan,
+                                         int op_idx) override;
+
+  physical::PhysicalOpr_Operator::OpKindCase GetOpKind() const override {
+    return physical::PhysicalOpr_Operator::OpKindCase::kCreateEdge;
+  }
+};
+
 }  // namespace ops
 }  // namespace runtime
 }  // namespace gs

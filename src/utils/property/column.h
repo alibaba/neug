@@ -73,6 +73,8 @@ class ColumnBase {
 
   virtual void set_any(size_t index, const Any& value) = 0;
 
+  virtual void set_any_with_resize(size_t index, const Any& value) = 0;
+
   virtual Any get(size_t index) const = 0;
 
   virtual void ingest(uint32_t index, grape::OutArchive& arc) = 0;
@@ -230,8 +232,25 @@ class TypedColumn : public ColumnBase {
     }
   }
 
+  void set_value_with_check(size_t index, const T& val) {
+    if (index >= basic_size_ && index < basic_size_ + extra_size_) {
+      extra_buffer_.set(index - basic_size_, val);
+    } else if (index < basic_size_) {
+      basic_buffer_.set(index, val);
+    } else {
+      // TODO(zhanglei): Revisit the size increase logic
+      size_t new_size = std::max(index, 64UL) + index / 4;
+      resize(new_size);
+      set_value(index, val);
+    }
+  }
+
   void set_any(size_t index, const Any& value) override {
     set_value(index, AnyConverter<T>::from_any(value));
+  }
+
+  void set_any_with_resize(size_t index, const Any& value) override {
+    set_value_with_check(index, AnyConverter<T>::from_any(value));
   }
 
   inline T get_view(size_t index) const {
@@ -311,7 +330,11 @@ class TypedColumn<RecordView> : public ColumnBase {
 
   void set_any(size_t index, const Any& value) override;
 
+  void set_any_with_resize(size_t index, const Any& value) override;
+
   void set_value(size_t index, const RecordView& val);
+
+  void set_value_with_check(size_t index, const RecordView& val);
 
   RecordView get_view(size_t index) const;
 
@@ -371,6 +394,8 @@ class TypedColumn<grape::EmptyType> : public ColumnBase {
   PropertyType type() const override { return PropertyType::kEmpty; }
 
   void set_any(size_t index, const Any& value) override {}
+
+  void set_any_with_resize(size_t index, const Any& value) override {}
 
   void set_value(size_t index, const grape::EmptyType& value) {}
 
@@ -607,12 +632,26 @@ class TypedColumn<std::string_view> : public ColumnBase {
       size_t offset = basic_pos_.fetch_add(copied_val.size());
       basic_buffer_.set(idx, offset, copied_val);
     } else {
-      LOG(FATAL) << "Index out of range";
+      LOG(FATAL) << "Index out of range: " << idx
+                 << ", basic_size_: " << basic_size_
+                 << ", extra_size_: " << extra_size_;
     }
   }
 
   void set_any(size_t idx, const Any& value) override {
     set_value(idx, value.AsStringView());
+  }
+
+  void set_any_with_resize(size_t idx, const Any& value) override {
+    return set_value_with_resize(idx, value.AsStringView());
+  }
+
+  void set_value_with_resize(size_t idx, const std::string_view& value) {
+    if (idx >= basic_size_ + extra_size_) {
+      size_t new_size = std::max(idx, 64UL) + idx / 4;
+      resize(new_size);
+    }
+    set_value_with_check(idx, value);
   }
 
   // make sure there is enough space for the value
@@ -730,8 +769,14 @@ class StringMapColumn : public ColumnBase {
 
   void set_value(size_t idx, const std::string_view& val);
 
+  void set_value_with_check(size_t idx, const std::string_view& val);
+
   void set_any(size_t idx, const Any& value) override {
     set_value(idx, value.AsStringView());
+  }
+
+  void set_any_with_resize(size_t idx, const Any& value) override {
+    set_value_with_check(idx, value.AsStringView());
   }
 
   std::string_view get_view(size_t idx) const;
@@ -815,6 +860,20 @@ void StringMapColumn<INDEX_T>::set_value(size_t idx,
   index_col_.set_value(idx, lid);
 }
 
+template <typename INDEX_T>
+void StringMapColumn<INDEX_T>::set_value_with_check(
+    size_t idx, const std::string_view& val) {
+  INDEX_T lid;
+  if (!meta_map_->get_index(val, lid)) {
+    lock_.lock();
+    if (!meta_map_->get_index(val, lid)) {
+      lid = meta_map_->insert(val);
+    }
+    lock_.unlock();
+  }
+  index_col_.set_value_with_check(idx, lid);
+}
+
 using DefaultStringMapColumn = StringMapColumn<uint8_t>;
 
 std::shared_ptr<ColumnBase> CreateColumn(
@@ -869,6 +928,10 @@ class ConcatColumn : public ColumnBase {
   PropertyType type() const { return AnyConverter<EDATA_T>::type(); }
 
   void set_any(size_t index, const Any& value) {
+    LOG(FATAL) << "not implemented";
+  }
+
+  void set_any_with_resize(size_t index, const Any& value) {
     LOG(FATAL) << "not implemented";
   }
 

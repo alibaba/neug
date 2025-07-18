@@ -228,8 +228,9 @@ Result<results::CollectiveResults> CypherUpdateApp::execute_ddl(
 
 Result<results::CollectiveResults> CypherUpdateApp::execute_update_query(
     GraphDBSession& graph, const physical::PhysicalPlan& plan,
-    runtime::OprTimer& timer_) {
+    runtime::OprTimer& timer_, bool insert_with_resize) {
   auto txn = graph.GetUpdateTransaction();
+  txn.set_insert_vertex_with_resize(insert_with_resize);
   runtime::GraphUpdateInterface gii(txn);
   runtime::Context ctx;
   gs::Status status = gs::Status::OK();
@@ -258,9 +259,16 @@ Result<results::CollectiveResults> CypherUpdateApp::execute_update_query(
   }
   if (!status.ok()) {
     LOG(ERROR) << "Error: " << status.ToString();
+    txn.Abort();
     // We encode the error message to the output, so that the client can
     // get the error message.
     return Result<results::CollectiveResults>(status);
+  }
+  if (!txn.Commit()) {
+    LOG(ERROR) << "Commit failed";
+    // If commit fails, we return an error.
+    return Result<results::CollectiveResults>(
+        Status(StatusCode::ERR_INTERNAL_ERROR, "Commit failed"));
   }
   // No results for write-only queries
   return Result<results::CollectiveResults>(Status::OK());
@@ -268,7 +276,6 @@ Result<results::CollectiveResults> CypherUpdateApp::execute_update_query(
 
 bool CypherUpdateApp::Query(GraphDBSession& graph, Decoder& input,
                             Encoder& output) {
-  auto txn = graph.GetUpdateTransaction();
   std::string_view r_bytes = input.get_bytes();
   uint8_t type = static_cast<uint8_t>(r_bytes.back());
   std::string_view bytes = std::string_view(r_bytes.data(), r_bytes.size() - 1);
@@ -291,33 +298,12 @@ bool CypherUpdateApp::Query(GraphDBSession& graph, Decoder& input,
       return true;
     }
 
-    gs::runtime::GraphUpdateInterface gri(txn);
+    auto res = execute_update_query(graph, plan, timer_);
 
-    gs::runtime::Context ctx;
-    gs::Status status = gs::Status::OK();
-    {
-      ctx = bl::try_handle_all(
-          [this, &gri, &plan]() -> bl::result<runtime::Context> {
-            return runtime::PlanParser::get()
-                .parse_update_pipeline(gri.schema(), plan)
-                .value()
-                .Execute(gri, runtime::Context(), {}, timer_);
-          },
-          [&status](const gs::Status& err) {
-            status = err;
-            return runtime::Context();
-          },
-          [&](const bl::error_info& err) {
-            status =
-                gs::Status(gs::StatusCode::ERR_INTERNAL_ERROR,
-                           "Error: " + std::to_string(err.error().value()) +
-                               ", Exception: " + err.exception()->what());
-            return runtime::Context();
-          });
-      if (!status.ok()) {
-        output.put_string(status.ToString());
-        return false;
-      }
+    if (!res.ok()) {
+      LOG(ERROR) << "Execute update query failed: " << res.status().ToString();
+      output.put_string(res.status().ToString());
+      return false;
     }
     // TODO(zhanglei): sink for update queries
     // runtime::Sink::sink(ctx, gri, output);

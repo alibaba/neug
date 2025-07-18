@@ -68,7 +68,7 @@ PyConnection PyDatabase::connect() {
   if (!database) {
     throw std::runtime_error("Database is not initialized.");
   }
-  return PyConnection(database->connect());
+  return PyConnection(*database, database->connect());
 }
 
 std::string PyDatabase::serve(int port, const std::string& host) {

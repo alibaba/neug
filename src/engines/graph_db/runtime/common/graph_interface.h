@@ -399,6 +399,11 @@ class GraphInsertInterface {
     return txn_.AddEdge(src_label, src, dst_label, dst, edge_label, prop);
   }
 
+  inline bool AddEdge(label_t src_label, vid_t src, label_t dst_label,
+                      vid_t dst, label_t edge_label, const Any& prop) {
+    return txn_.AddEdge(src_label, src, dst_label, dst, edge_label, prop);
+  }
+
   inline bool Commit() { return txn_.Commit(); }
 
   inline void Abort() { txn_.Abort(); }
@@ -466,6 +471,11 @@ class GraphUpdateInterface {
 
   inline bool AddEdge(label_t src_label, const Any& src, label_t dst_label,
                       const Any& dst, label_t edge_label, const Any& prop) {
+    return txn_.AddEdge(src_label, src, dst_label, dst, edge_label, prop);
+  }
+
+  inline bool AddEdge(label_t src_label, vid_t src, label_t dst_label,
+                      vid_t dst, label_t edge_label, const Any& prop) {
     return txn_.AddEdge(src_label, src, dst_label, dst, edge_label, prop);
   }
 

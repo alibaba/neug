@@ -56,6 +56,7 @@ enum class JoinKind {
   kInnerJoin,
   kAntiJoin,
   kLeftOuterJoin,
+  kTimes,
 };
 
 struct LabelTriplet {

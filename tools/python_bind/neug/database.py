@@ -34,6 +34,18 @@ cur_dir_path = os.path.dirname(cur_file_path)
 resource_dir = os.path.join(cur_dir_path, "neug", "resources")
 
 
+def readable(mode: str) -> str:
+    """Convert mode to a readable string."""
+    if mode in ["r", "read"]:
+        return "read-only"
+    elif mode in ["w", "rw", "write", "readwrite", "read-write"]:
+        return "read-write"
+    else:
+        raise ValueError(
+            f"Invalid mode: {mode}. Must be one of 'r', 'read', 'w', 'rw', 'write', 'readwrite'."
+        )
+
+
 class Database(object):
     """The entrance of the Neug database.
 
@@ -73,7 +85,7 @@ class Database(object):
     def __init__(
         self,
         db_path: str = None,
-        mode: str = "r",
+        mode: str = "read-write",
         max_thread_num: int = 0,
         planner_config_path=None,
     ):
@@ -114,9 +126,17 @@ class Database(object):
                 )
         self._db_path = db_path if db_path is not None else ""
         self._mode = mode
-        if self._mode not in ["r", "read", "w", "rw", "write", "readwrite"]:
+        if self._mode not in [
+            "r",
+            "read",
+            "w",
+            "rw",
+            "write",
+            "readwrite",
+            "read-write",
+        ]:
             raise ValueError(
-                f"Invalid mode: {self._mode}. Must be one of 'r', 'read', 'w', 'rw', 'write', 'readwrite'."
+                f"Invalid mode: {self._mode}. Must be one of 'r', 'read', 'w', 'rw', 'write', 'readwrite', 'read-write'."
             )
         # The default connection of the database, will be lazy initialized if get_default_connection is called.
         # In 'r' mode, the default connection will be a read-only connection.
@@ -150,7 +170,7 @@ class Database(object):
             # In memory mode, the database will not be persisted to disk, and all data will be lost when the program exits.
             # So we don't need to log the db_path.
             logger.info(
-                f"Open in-memory database in {mode} mode, config: {planner_config_path}"
+                f"Open in-memory database in {readable(mode)} mode, config: {planner_config_path}"
             )
         else:
             logger.info(
@@ -169,6 +189,18 @@ class Database(object):
         Get the version of the database.
         """
         return __version__
+
+    @property
+    def mode(self) -> str:
+        """
+        Get the mode of the database.
+
+        Returns
+        -------
+        str
+            The mode of the database, could be 'r', 'read', 'w', 'rw', 'write', 'readwrite'.
+        """
+        return self._mode
 
     def connect(self) -> Connection:
         """

@@ -60,6 +60,13 @@ class UpdateTransaction {
 
   ~UpdateTransaction();
 
+  /**
+   * @brief By default update transaction will not resize the vertex column
+   * When inserting properties for a vertex. By setting this to true, it will
+   * resize the vertex column.
+   */
+  void set_insert_vertex_with_resize(bool insert_vertex_with_resize);
+
   timestamp_t timestamp() const;
 
   const Schema& schema() const { return graph_.schema(); }
@@ -72,6 +79,9 @@ class UpdateTransaction {
 
   bool AddEdge(label_t src_label, const Any& src, label_t dst_label,
                const Any& dst, label_t edge_label, const Any& value);
+
+  bool AddEdge(label_t src_label, vid_t src, label_t dst_label, vid_t dst,
+               label_t edge_label, const Any& value);
 
   class vertex_iterator {
    public:
@@ -193,6 +203,8 @@ class UpdateTransaction {
   void applyEdgesUpdates();
 
   const GraphDBSession& session_;
+
+  bool insert_vertex_with_resize_;
 
   MutablePropertyFragment& graph_;
   Allocator& alloc_;

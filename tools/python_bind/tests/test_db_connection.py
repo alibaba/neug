@@ -48,6 +48,20 @@ def test_local_connection(tmp_path):
     db.close()
 
 
+def test_open_after_close(tmp_path):
+    shutil.rmtree("/tmp/test_open_after_close_db", ignore_errors=True)
+    db_dir = tmp_path / "test_open_after_close_db"
+    db = Database(db_path=str(db_dir), mode="w")
+    conn = db.connect()
+    assert conn is not None
+    conn.close()
+    # try to open a new connection after closing the previous one
+    new_conn = db.connect()
+    assert new_conn is not None
+    new_conn.close()
+    db.close()
+
+
 # DB-002-03
 def test_local_connection_params(tmp_path):
     shutil.rmtree("/tmp/local_conn_param_db", ignore_errors=True)

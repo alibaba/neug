@@ -308,3 +308,11 @@ def test_file_header_corruption(tmp_path):
         assert ERROR_STRINGS[ERR_CORRUPTION_DETECTED] in str(exc)
     else:
         pytest.fail("Expected ERR_CORRUPTION_DETECTED but no exception was raised")
+
+
+def test_db_default_mode(tmp_path):
+    db_dir = tmp_path / "default_mode_db"
+    db_dir.mkdir()
+    db = Database(db_path=str(db_dir))
+    assert db is not None
+    assert db.mode == "read-write"

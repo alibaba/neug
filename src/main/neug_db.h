@@ -90,7 +90,8 @@ class NeugDB {
     if (mode == "read" || mode == "r") {
       mode_ = DBMode::READ_ONLY;
     } else if (mode == "read_write" || mode == "rw" || mode == "w" ||
-               mode == "wr" || mode == "write" || mode == "readwrite") {
+               mode == "wr" || mode == "write" || mode == "readwrite" ||
+               mode == "read-write") {
       mode_ = DBMode::READ_WRITE;
     } else {
       throw std::invalid_argument("Invalid mode: " + mode);
@@ -132,6 +133,16 @@ class NeugDB {
    * the planner with other connections in the same database.
    */
   std::shared_ptr<Connection> connect();
+
+  /**
+   * @brief Remove a connection from the database.
+   * @param conn The connection to be removed.
+   * @note This method is used to remove a connection when it is closed, to
+   * remove the handle from the database.
+   * @note This method is not thread-safe, so it should be called only when the
+   * connection is closed. And should be only called internally.
+   */
+  void remove_connection(std::shared_ptr<Connection> conn);
 
   /**
    * @brief Start the database server.

@@ -61,8 +61,9 @@ class Connection(object):
         """
         Close the connection.
         """
-        self._py_connection.close()
-        self._is_open = False
+        if self._is_open:
+            self._py_connection.close()
+            self._is_open = False
 
     def execute(self, query: str) -> QueryResult:
         """

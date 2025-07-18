@@ -107,6 +107,14 @@ class Table {
 
   void insert(size_t index, const std::vector<Any>& values);
 
+  /**
+   * @brief Different from insert, this function will resize the columns
+   * if the index is larger than the current row number.
+   * @param index The index to insert the row.
+   * @param values The values to insert.
+   */
+  void insert_with_resize(size_t index, const std::vector<Any>& values);
+
   // insert properties except for the primary key
   // col_ind_mapping: the mapping from the column index in
   // the raw file row to the column index in the schema

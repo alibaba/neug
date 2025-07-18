@@ -62,4 +62,6 @@ property_defs_to_tuple(
 bool conflict_action_to_bool(const physical::ConflictAction& action);
 
 bool has_update_opr_in_plan(const physical::PhysicalPlan& plan);
+
+Any const_value_to_any(const common::Value& value);
 }  // namespace gs

@@ -76,6 +76,42 @@ class BatchInsertVertexOprBuilder : public IUpdateOperatorBuilder {
   }
 };
 
+class InsertVertexOpr : public IUpdateOperator {
+ public:
+  using vertex_prop_vec_t = std::vector<std::pair<std::string, Any>>;
+  InsertVertexOpr(
+      std::vector<std::pair<label_t, vertex_prop_vec_t>>&& vertex_data)
+      : vertex_data_(std::move(vertex_data)) {}
+
+  std::string get_operator_name() const override { return "InsertVertexOpr"; }
+
+  template <typename GraphInterface>
+  bl::result<Context> eval_impl(
+      GraphInterface& graph, const std::map<std::string, std::string>& params,
+      Context&& ctx, OprTimer& timer);
+
+  bl::result<Context> Eval(GraphUpdateInterface& graph,
+                           const std::map<std::string, std::string>& params,
+                           Context&& ctx, OprTimer& timer) override;
+
+ private:
+  std::vector<std::pair<label_t, vertex_prop_vec_t>> vertex_data_;
+};
+
+class InsertVertexOprBuilder : public IUpdateOperatorBuilder {
+ public:
+  InsertVertexOprBuilder() = default;
+  ~InsertVertexOprBuilder() = default;
+
+  std::unique_ptr<IUpdateOperator> Build(const Schema& schema,
+                                         const physical::PhysicalPlan& plan,
+                                         int op_idx) override;
+
+  physical::PhysicalOpr_Operator::OpKindCase GetOpKind() const override {
+    return physical::PhysicalOpr_Operator::OpKindCase::kCreateVertex;
+  }
+};
+
 }  // namespace ops
 
 }  // namespace runtime

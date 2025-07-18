@@ -30,7 +30,7 @@ class PyConnection : public std::enable_shared_from_this<PyConnection> {
   static void initialize(pybind11::handle& m);
 
   // TODO: Add more parameter? thread_num, etc.
-  explicit PyConnection(std::shared_ptr<Connection> conn);
+  explicit PyConnection(NeugDB& db, std::shared_ptr<Connection> conn);
 
   void close();
 
@@ -44,6 +44,7 @@ class PyConnection : public std::enable_shared_from_this<PyConnection> {
   std::unique_ptr<PyQueryResult> execute(const std::string& query_string);
 
  private:
+  NeugDB& db_;
   std::shared_ptr<Connection> conn_;
 };
 
