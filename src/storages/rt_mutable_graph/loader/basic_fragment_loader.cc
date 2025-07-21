@@ -75,6 +75,14 @@ BasicFragmentLoader::BasicFragmentLoader(const Schema& schema,
   init_loading_status_file();
 }
 
+BasicFragmentLoader::~BasicFragmentLoader() {
+  for (auto& csr : dual_csr_list_) {
+    if (csr != NULL) {
+      delete csr;
+    }
+  }
+}
+
 void BasicFragmentLoader::append_vertex_loading_progress(
     const std::string& label_name, LoadingStatus status) {
   auto status_file_path = bulk_load_progress_file(work_dir_);

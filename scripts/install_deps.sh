@@ -575,7 +575,7 @@ install_neug_dependencies() {
       install_leveldb
       install_brpc
     fi
-    # install_mimalloc
+    install_mimalloc
   elif [[ "${OS_PLATFORM}" == *"Ubuntu"* ]]; then
     DEBIAN_FRONTEND=noninteractive TZ=Etc/UTC ${SUDO} apt-get install -y ${INTERACTIVE_UBUNTU[*]}
     install_arrow
@@ -584,7 +584,7 @@ install_neug_dependencies() {
       install_brpc
     fi
     # hiactor is only supported on ubuntu
-    # install_mimalloc
+    install_mimalloc
     ${SUDO} sh -c 'echo "fs.aio-max-nr = 1048576" >> /etc/sysctl.conf'
     ${SUDO} sysctl -p /etc/sysctl.conf
   else
@@ -599,7 +599,7 @@ install_neug_dependencies() {
     install_glog
     install_boost
     install_arrow
-    # install_mimalloc
+    install_mimalloc
     install_yaml_cpp
     if [[ "${install_brpc}" == true ]]; then
       install_leveldb

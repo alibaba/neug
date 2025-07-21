@@ -19,6 +19,7 @@ option(USE_STATIC_ARROW "Whether to use static arrow" OFF) # Whether to link arr
 option(BUILD_WITH_OSS "Whether to build with oss support" OFF) # Whether to build with oss support, default is OFF
 option(BUILD_EXECUTABLES "When to build executors" OFF) # Whether to build executables, default is OFF
 option(BUILD_HTTP_SERVER "Whether to build http server" OFF) # Whether to build http server, default is OFF
+option(WITH_MIMALLOC "Whether to use mimalloc" ON) # Whether to use mimalloc, default is ON
 set(HTTP_SERVER_TYPE "brpc" CACHE STRING "The type of http server to use, could be 'hiactor' or 'brpc'")
 if (HTTP_SERVER_TYPE STREQUAL "hiactor")
     add_definitions(-DHTTP_SERVER_TYPE_HIACTOR)
@@ -79,6 +80,9 @@ if (BUILD_HTTP_SERVER)
     add_compile_definitions(BUILD_HTTP_SERVER)
 endif()
 
+if (WITH_MIMALLOC)
+    find_package(mimalloc 1.8 REQUIRED)
+endif()
 
 if (BUILD_TEST)
     enable_testing()

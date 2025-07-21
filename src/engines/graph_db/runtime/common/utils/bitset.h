@@ -24,7 +24,7 @@
 #include "third_party/libgrape-lite/grape/serialization/out_archive.h"
 
 #define WORD_SIZE(n) (((n) + 63ul) >> 6)
-#define NEUG_BYTE_SIZE(n) (((n) + 63ul) >> 3)
+#define NEUG_BYTE_SIZE(n) (WORD_SIZE(n) * sizeof(uint64_t))
 
 #define WORD_INDEX(i) ((i) >> 6)
 // clang-format off

@@ -28,7 +28,7 @@ WORKDIR /home/graphscope
 
 COPY --chown=graphscope:graphscope scripts/install_deps.sh /home/graphscope/install_deps.sh
 RUN cd /home/graphscope/ && \
-    bash install_deps.sh && \
+    bash install_deps.sh --brpc && \
     rm -fr install_deps.sh
 
 RUN echo ". /home/graphscope/.graphscope_env" >> ~/.bashrc

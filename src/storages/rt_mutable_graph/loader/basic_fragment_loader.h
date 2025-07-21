@@ -78,6 +78,8 @@ class BasicFragmentLoader {
  public:
   BasicFragmentLoader(const Schema& schema, const std::string& prefix);
 
+  ~BasicFragmentLoader();
+
   void LoadFragment();
 
   inline void SetVertexProperty(label_t v_label, size_t col_ind, vid_t vid,

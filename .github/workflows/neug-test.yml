@@ -94,6 +94,7 @@ jobs:
         export HTTP_SERVER_TYPE=brpc
         export BUILD_TEST=ON
         export USE_NINJA=OFF
+        export WITH_MIMALLOC=ON
         # export CC="ccache gcc"
         # export CXX="ccache g++"
         cd tools/python_bind

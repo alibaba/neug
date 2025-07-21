@@ -115,6 +115,7 @@ class CMakeBuild(build_ext):
         build_all_in_one = (
             "ON" if os.environ.get("BUILD_ALL_IN_ONE", "ON") == "ON" else "OFF"
         )
+        with_mimalloc = "ON" if os.environ.get("WITH_MIMALLOC", "ON") == "ON" else "OFF"
         use_ninja = os.environ.get("USE_NINJA", "OFF") == "ON"
         build_test = "OFF"
         if os.environ.get("BUILD_TEST", "OFF") == "ON":
@@ -140,6 +141,7 @@ class CMakeBuild(build_ext):
             f"-DENABLE_BACKTRACES={enable_backtraces}",
             f"-DBUILD_HTTP_SERVER={build_http_server}",
             f"-DBUILD_ALL_IN_ONE={build_all_in_one}",
+            f"-DWITH_MIMALLOC={with_mimalloc}",
         ]
         if build_http_server == "ON":
             cmake_args += [

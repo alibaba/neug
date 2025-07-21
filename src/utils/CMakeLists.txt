@@ -104,6 +104,7 @@ else()
         if (BUILD_WITH_OSS)
                 target_link_libraries(neug_utils PRIVATE cpp-sdk)
         endif()
+        target_link_libraries(neug_utils PUBLIC mimalloc)
         # for gcc < 9, link stdc++fs
         if (CMAKE_CXX_COMPILER_ID MATCHES "GNU" AND CMAKE_CXX_COMPILER_VERSION VERSION_LESS 9)
                 message(STATUS "Linking with stdc++fs for gcc < 9")
