@@ -130,21 +130,30 @@ jobs:
         pip3 install -r requirements_dev.txt
         pip3 install -r requirements.txt
 
-        python3 -m isort --check --diff .
-        python3 -m black --check --diff .
-        python3 -m flake8 .
+        function print_error() {
+            echo "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
+            echo "| $1"
+            echo "|"
+            echo "| Please cd into $2 and run 'python3 -m $3 .' to fix it"
+            echo "|"
+            echo "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
+        }
+
+        (python3 -m isort --check --diff .) || (print_error "isort check failed" "tools/python_bind" "isort" && exit 1)
+        (python3 -m black --check --diff .) || (print_error "black check failed" "tools/python_bind" "black" && exit 1)
+        (python3 -m flake8 .) || (print_error "flake8 check failed" "tools/python_bind" "flake8" && exit 1)
 
         popd
 
         pushd ${GITHUB_WORKSPACE}/tests/e2e
-        python3 -m isort --check --diff .
-        python3 -m black --check --diff .
-        python3 -m flake8 .
+        (python3 -m isort --check --diff .) || (print_error "isort check failed" "tests/e2e" "isort" && exit 1)
+        (python3 -m black --check --diff .) || (print_error "black check failed" "tests/e2e" "black" && exit 1)
+        (python3 -m flake8 .) || (print_error "flake8 check failed" "tests/e2e" "flake8" && exit 1)
         popd
 
         pushd ${GITHUB_WORKSPACE}/tools/shell
-        python3 -m isort --check --diff .
-        python3 -m black --check --diff .
-        python3 -m flake8 .
+        (python3 -m isort --check --diff .) || (print_error "isort check failed" "tools/shell" "isort" && exit 1)
+        (python3 -m black --check --diff .) || (print_error "black check failed" "tools/shell" "black" && exit 1)
+        (python3 -m flake8 .) || (print_error "flake8 check failed" "tools/shell" "flake8" && exit 1)
         popd
         
