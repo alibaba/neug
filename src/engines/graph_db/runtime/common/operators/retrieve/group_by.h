@@ -165,8 +165,6 @@ struct Reducer : public ReducerBase {
       const auto& group = groups[i];
       T val{};
 
-      LOG(INFO) << "group size: " << group.size();
-
       if (!reducer_(group, val)) {
         filter.insert(i);
       }
