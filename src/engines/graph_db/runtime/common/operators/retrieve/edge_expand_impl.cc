@@ -56,10 +56,10 @@ expand_vertex_without_predicate_impl(const GraphReadInterface& graph,
           triplet.src_label, triplet.dst_label, triplet.edge_label);
       if (properties.empty()) {
         ed_types.push_back(PropertyType::Empty());
+      } else if (properties.size() == 1) {
+        ed_types.push_back(properties[0]);
       } else {
-        for (auto& prop : properties) {
-          ed_types.push_back(prop);
-        }
+        ed_types.push_back(PropertyType::RecordView());
       }
     }
     if (triplet.dst_label == input_label &&
@@ -70,10 +70,10 @@ expand_vertex_without_predicate_impl(const GraphReadInterface& graph,
           triplet.src_label, triplet.dst_label, triplet.edge_label);
       if (properties.empty()) {
         ed_types.push_back(PropertyType::Empty());
+      } else if (properties.size() == 1) {
+        ed_types.push_back(properties[0]);
       } else {
-        for (auto& prop : properties) {
-          ed_types.push_back(prop);
-        }
+        ed_types.push_back(PropertyType::RecordView());
       }
     }
   }
@@ -92,9 +92,7 @@ expand_vertex_without_predicate_impl(const GraphReadInterface& graph,
     auto builder = MLVertexColumnBuilder::builder();
     return std::make_pair(builder.finish(nullptr), std::vector<size_t>());
   }
-
-  if (sp && (!check_exist_special_edge(graph, labels, dir)) &&
-      ed_types.size() == 1) {
+  if (sp && (!check_exist_special_edge(graph, labels, dir))) {
     auto ed_type = ed_types[0];
     if (ed_type == PropertyType::Empty()) {
       if (se) {
@@ -169,10 +167,10 @@ expand_vertex_without_predicate_optional_impl(
           triplet.src_label, triplet.dst_label, triplet.edge_label);
       if (properties.empty()) {
         ed_types.push_back(PropertyType::Empty());
+      } else if (properties.size() == 1) {
+        ed_types.push_back(properties[0]);
       } else {
-        for (auto& prop : properties) {
-          ed_types.push_back(prop);
-        }
+        ed_types.push_back(PropertyType::RecordView());
       }
     }
     if (triplet.dst_label == input_label &&
@@ -183,10 +181,10 @@ expand_vertex_without_predicate_optional_impl(
           triplet.src_label, triplet.dst_label, triplet.edge_label);
       if (properties.empty()) {
         ed_types.push_back(PropertyType::Empty());
+      } else if (properties.size() == 1) {
+        ed_types.push_back(properties[0]);
       } else {
-        for (auto& prop : properties) {
-          ed_types.push_back(prop);
-        }
+        ed_types.push_back(PropertyType::RecordView());
       }
     }
   }
@@ -197,8 +195,7 @@ expand_vertex_without_predicate_optional_impl(
     auto builder = MLVertexColumnBuilder::builder();
     return std::make_pair(builder.finish(nullptr), std::vector<size_t>());
   }
-  if (sp && (!check_exist_special_edge(graph, labels, dir)) &&
-      ed_types.size() == 1) {
+  if (sp && (!check_exist_special_edge(graph, labels, dir))) {
     const PropertyType& ed_type = ed_types[0];
     if (ed_type == PropertyType::Empty()) {
       if (se) {
@@ -257,10 +254,10 @@ expand_vertex_without_predicate_impl(const GraphReadInterface& graph,
           triplet.src_label, triplet.dst_label, triplet.edge_label);
       if (properties.empty()) {
         ed_types.push_back(PropertyType::Empty());
+      } else if (properties.size() == 1) {
+        ed_types.push_back(properties[0]);
       } else {
-        for (auto edge_type : properties) {
-          ed_types.push_back(edge_type);
-        }
+        ed_types.push_back(PropertyType::RecordView());
       }
     }
     if ((input_labels.find(triplet.dst_label) != input_labels.end()) &&
@@ -271,10 +268,10 @@ expand_vertex_without_predicate_impl(const GraphReadInterface& graph,
           triplet.src_label, triplet.dst_label, triplet.edge_label);
       if (properties.empty()) {
         ed_types.push_back(PropertyType::Empty());
+      } else if (properties.size() == 1) {
+        ed_types.push_back(properties[0]);
       } else {
-        for (auto edge_type : properties) {
-          ed_types.push_back(edge_type);
-        }
+        ed_types.push_back(PropertyType::RecordView());
       }
     }
   }
@@ -300,8 +297,7 @@ expand_vertex_without_predicate_impl(const GraphReadInterface& graph,
     auto builder = MLVertexColumnBuilder::builder();
     return std::make_pair(builder.finish(nullptr), std::vector<size_t>());
   }
-  if (sp && (!check_exist_special_edge(graph, labels, dir)) &&
-      ed_types.size() == 1) {
+  if (sp && (!check_exist_special_edge(graph, labels, dir))) {
     const PropertyType& ed_type = ed_types[0];
     if (ed_type == PropertyType::Empty()) {
       if (se) {
@@ -370,10 +366,10 @@ expand_vertex_without_predicate_optional_impl(
           triplet.src_label, triplet.dst_label, triplet.edge_label);
       if (properties.empty()) {
         ed_types.push_back(PropertyType::Empty());
+      } else if (properties.size() == 1) {
+        ed_types.push_back(properties[0]);
       } else {
-        for (auto edge_type : properties) {
-          ed_types.push_back(edge_type);
-        }
+        ed_types.push_back(PropertyType::RecordView());
       }
     }
     if ((input_labels.find(triplet.dst_label) != input_labels.end()) &&
@@ -384,10 +380,10 @@ expand_vertex_without_predicate_optional_impl(
           triplet.src_label, triplet.dst_label, triplet.edge_label);
       if (properties.empty()) {
         ed_types.push_back(PropertyType::Empty());
+      } else if (properties.size() == 1) {
+        ed_types.push_back(properties[0]);
       } else {
-        for (auto edge_type : properties) {
-          ed_types.push_back(edge_type);
-        }
+        ed_types.push_back(PropertyType::RecordView());
       }
     }
   }
@@ -413,8 +409,7 @@ expand_vertex_without_predicate_optional_impl(
     auto builder = MLVertexColumnBuilder::builder();
     return std::make_pair(builder.finish(nullptr), std::vector<size_t>());
   }
-  if (sp && (!check_exist_special_edge(graph, labels, dir)) &&
-      ed_types.size() == 1) {
+  if (sp && (!check_exist_special_edge(graph, labels, dir))) {
     const PropertyType& ed_type = ed_types[0];
     if (ed_type == PropertyType::Empty()) {
       if (!se) {
@@ -463,10 +458,10 @@ expand_vertex_without_predicate_impl(const GraphReadInterface& graph,
           triplet.src_label, triplet.dst_label, triplet.edge_label);
       if (properties.empty()) {
         ed_types.push_back(PropertyType::Empty());
+      } else if (properties.size() == 1) {
+        ed_types.push_back(properties[0]);
       } else {
-        for (auto edge_type : properties) {
-          ed_types.push_back(edge_type);
-        }
+        ed_types.push_back(PropertyType::RecordView());
       }
     }
     if ((input_labels.find(triplet.dst_label) != input_labels.end()) &&
@@ -477,10 +472,10 @@ expand_vertex_without_predicate_impl(const GraphReadInterface& graph,
           triplet.src_label, triplet.dst_label, triplet.edge_label);
       if (properties.empty()) {
         ed_types.push_back(PropertyType::Empty());
+      } else if (properties.size() == 1) {
+        ed_types.push_back(properties[0]);
       } else {
-        for (auto edge_type : properties) {
-          ed_types.push_back(edge_type);
-        }
+        ed_types.push_back(PropertyType::RecordView());
       }
     }
   }
@@ -502,8 +497,7 @@ expand_vertex_without_predicate_impl(const GraphReadInterface& graph,
     auto builder = MLVertexColumnBuilder::builder();
     return std::make_pair(builder.finish(nullptr), std::vector<size_t>());
   }
-  if (sp && (!check_exist_special_edge(graph, labels, dir)) &&
-      ed_types.size() == 1) {
+  if (sp && (!check_exist_special_edge(graph, labels, dir))) {
     const PropertyType& ed_type = ed_types[0];
     if (ed_type == PropertyType::Empty()) {
       if (se) {
