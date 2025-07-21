@@ -1038,10 +1038,10 @@ expand_vertex_impl(const GraphReadInterface& graph, const SLVertexColumn& input,
           triplet.src_label, triplet.dst_label, triplet.edge_label);
       if (properties.empty()) {
         ed_types.push_back(PropertyType::Empty());
+      } else if (properties.size() == 1) {
+        ed_types.push_back(properties[0]);
       } else {
-        for (auto& p : properties) {
-          ed_types.push_back(p);
-        }
+        ed_types.push_back(PropertyType::RecordView());
       }
     }
     if (triplet.dst_label == input_label &&
@@ -1052,10 +1052,10 @@ expand_vertex_impl(const GraphReadInterface& graph, const SLVertexColumn& input,
           triplet.src_label, triplet.dst_label, triplet.edge_label);
       if (properties.empty()) {
         ed_types.push_back(PropertyType::Empty());
+      } else if (properties.size() == 1) {
+        ed_types.push_back(properties[0]);
       } else {
-        for (auto& p : properties) {
-          ed_types.push_back(p);
-        }
+        ed_types.push_back(PropertyType::RecordView());
       }
     }
   }
@@ -1155,10 +1155,10 @@ expand_vertex_impl(const GraphReadInterface& graph, const MLVertexColumn& input,
           triplet.src_label, triplet.dst_label, triplet.edge_label);
       if (properties.empty()) {
         ed_types.push_back(PropertyType::Empty());
+      } else if (properties.size() == 1) {
+        ed_types.push_back(properties[0]);
       } else {
-        for (auto& p : properties) {
-          ed_types.push_back(p);
-        }
+        ed_types.push_back(PropertyType::RecordView());
       }
     }
     if ((input_labels.find(triplet.dst_label) != input_labels.end()) &&
@@ -1169,10 +1169,10 @@ expand_vertex_impl(const GraphReadInterface& graph, const MLVertexColumn& input,
           triplet.src_label, triplet.dst_label, triplet.edge_label);
       if (properties.empty()) {
         ed_types.push_back(PropertyType::Empty());
+      } else if (properties.size() == 1) {
+        ed_types.push_back(properties[0]);
       } else {
-        for (auto& p : properties) {
-          ed_types.push_back(p);
-        }
+        ed_types.push_back(PropertyType::RecordView());
       }
     }
   }
@@ -1267,10 +1267,10 @@ expand_vertex_impl(const GraphReadInterface& graph, const MSVertexColumn& input,
           triplet.src_label, triplet.dst_label, triplet.edge_label);
       if (properties.empty()) {
         ed_types.push_back(PropertyType::Empty());
+      } else if (properties.size() == 1) {
+        ed_types.push_back(properties[0]);
       } else {
-        for (auto& p : properties) {
-          ed_types.push_back(p);
-        }
+        ed_types.push_back(PropertyType::RecordView());
       }
     }
     if ((input_labels.find(triplet.dst_label) != input_labels.end()) &&
@@ -1281,10 +1281,10 @@ expand_vertex_impl(const GraphReadInterface& graph, const MSVertexColumn& input,
           triplet.src_label, triplet.dst_label, triplet.edge_label);
       if (properties.empty()) {
         ed_types.push_back(PropertyType::Empty());
+      } else if (properties.size() == 1) {
+        ed_types.push_back(properties[0]);
       } else {
-        for (auto& p : properties) {
-          ed_types.push_back(p);
-        }
+        ed_types.push_back(PropertyType::RecordView());
       }
     }
   }
