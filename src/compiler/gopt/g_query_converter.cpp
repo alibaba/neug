@@ -15,6 +15,7 @@
 
 #include "src/include/gopt/g_query_converter.h"
 
+#include <google/protobuf/map.h>
 #include <google/protobuf/wrappers.pb.h>
 #include <cstdlib>
 #include <memory>
@@ -30,6 +31,7 @@
 #include "src/include/common/enums/table_type.h"
 #include "src/include/common/exception/exception.h"
 #include "src/include/common/types/types.h"
+#include "src/include/function/export/export_function.h"
 #include "src/include/gopt/g_alias_manager.h"
 #include "src/include/gopt/g_constants.h"
 #include "src/include/gopt/g_ddl_converter.h"
@@ -40,6 +42,7 @@
 #include "src/include/planner/operator/logical_operator.h"
 #include "src/include/planner/operator/logical_plan.h"
 #include "src/include/planner/operator/logical_projection.h"
+#include "src/include/planner/operator/persistent/logical_copy_to.h"
 #include "src/include/planner/operator/scan/logical_scan_node_table.h"
 #include "src/proto_generated_gie/algebra.pb.h"
 #include "src/proto_generated_gie/common.pb.h"
@@ -136,6 +139,11 @@ void GQueryConvertor::convertOperator(const planner::LogicalOperator& op,
   case planner::LogicalOperatorType::TABLE_FUNCTION_CALL: {
     auto tableFunc = op.constPtrCast<planner::LogicalTableFunctionCall>();
     convertTableFunc(*tableFunc, plan);
+    break;
+  }
+  case planner::LogicalOperatorType::COPY_TO: {
+    auto copyTo = op.constPtrCast<planner::LogicalCopyTo>();
+    convertCopyTo(*copyTo, plan);
     break;
   }
   case planner::LogicalOperatorType::ORDER_BY: {
@@ -859,18 +867,42 @@ std::unique_ptr<algebra::QueryParams> GQueryConvertor::convertParams(
 
 std::unique_ptr<::physical::DataSource> GQueryConvertor::convertDataSource(
     const common::FileScanInfo& fileInfo) {
-  auto options = convertCSVOptions(fileInfo);
-  auto csvPB = std::make_unique<::physical::ReadCSV>();
-  csvPB->set_allocated_csv_options(options.release());
-  csvPB->set_file_path(fileInfo.filePaths[0]);
+  // set extension_name from file type info
+  auto extensionName = fileInfo.fileTypeInfo.fileTypeStr;
+  if (extensionName.empty()) {
+    throw common::Exception("File type info is not set");
+  }
   auto sourcePB = std::make_unique<::physical::DataSource>();
-  sourcePB->set_allocated_read_csv(csvPB.release());
+  sourcePB->set_extension_name(extensionName);
+  sourcePB->set_file_path(fileInfo.filePaths[0]);
+  *sourcePB->mutable_options() = std::move(*convertDataSourceOptions(fileInfo));
   return sourcePB;
 }
 
-std::unique_ptr<::physical::ReadCSV::options>
-GQueryConvertor::convertCSVOptions(const common::FileScanInfo& fileInfo) {
-  return std::make_unique<::physical::ReadCSV::options>();
+std::unique_ptr<Options> GQueryConvertor::convertDataSourceOptions(
+    const common::FileScanInfo& fileInfo) {
+  auto options = std::make_unique<Options>();
+  for (auto& option : fileInfo.options) {
+    options->insert({option.first, option.second.toString()});
+  }
+  return options;
+}
+
+std::unique_ptr<Options> GQueryConvertor::convertExportOptions(
+    const planner::LogicalCopyTo& copyTo) {
+  auto bindData = copyTo.getBindData();
+  auto csvBindData = bindData->ptrCast<function::ExportCSVBindData>();
+  auto options = std::make_unique<Options>();
+  if (csvBindData) {
+    auto csvOptions = csvBindData->exportOption;
+    // csvOptions is not a map, but has defined fields; insert each as a
+    // key-value pair.
+    options->insert({"ESCAPE", std::string(1, csvOptions.escapeChar)});
+    options->insert({"DELIM", std::string(1, csvOptions.delimiter)});
+    options->insert({"QUOTE", std::string(1, csvOptions.quoteChar)});
+    options->insert({"HEADER", csvOptions.hasHeader ? "True" : "False"});
+  }
+  return options;
 }
 
 void GQueryConvertor::convertTableFunc(
@@ -1362,10 +1394,76 @@ void GQueryConvertor::convertBatchInsertVertex(
   plan->mutable_plan()->AddAllocated(physicalPB.release());
 }
 
+std::string GQueryConvertor::getExtensionName(
+    const planner::LogicalCopyTo& copyTo) {
+  auto exportFunc = copyTo.getExportFunc();
+  if (exportFunc.name == gs::function::ExportCSVFunction::name) {
+    return "csv";
+  } else {
+    throw common::Exception("Unsupported export function: " + exportFunc.name);
+  }
+}
+
+void GQueryConvertor::convertCopyTo(const planner::LogicalCopyTo& copyTo,
+                                    ::physical::QueryPlan* plan) {
+  auto exportPB = std::make_unique<::physical::DataExport>();
+  auto extensionName = getExtensionName(copyTo);
+  exportPB->set_extension_name(extensionName);
+  std::string path = copyTo.getBindData()->fileName;
+  exportPB->set_file_path(path);
+  *exportPB->mutable_options() = std::move(*convertExportOptions(copyTo));
+  auto columnNames = copyTo.getBindData()->columnNames;
+  // // set column mappings, here assume input column ID is the same as output
+  // column ID of the previous operator.
+  // // todo: consider about column reordering.
+  // size_t inputColumnId = 0;
+  if (copyTo.getChildren().empty()) {
+    throw common::Exception("COPY TO operator should have at least one child");
+  }
+  auto child = copyTo.getChild(0);
+  auto outputSchema = child->getSchema()->getExpressionsInScope();
+  if (outputSchema.size() != columnNames.size()) {
+    throw common::Exception(
+        "Mismatch between number of output columns (" +
+        std::to_string(columnNames.size()) + ") and number of input columns (" +
+        std::to_string(outputSchema.size()) + ") in COPY TO operator.");
+  }
+  size_t pos = 0;
+  for (auto& column : columnNames) {
+    auto& outputExpr = outputSchema[pos++];
+    auto outputAliasId = aliasManager->getAliasId(outputExpr->getUniqueName());
+    if (outputAliasId == DEFAULT_ALIAS_ID) {
+      throw common::Exception("Invalid alias id in output column: " +
+                              outputExpr->toString());
+    }
+    auto mappingPB = convertPropMapping(column, outputAliasId);
+    exportPB->mutable_property_mappings()->AddAllocated(mappingPB.release());
+  }
+  auto physicalPB = std::make_unique<::physical::PhysicalOpr>();
+  auto oprPB = std::make_unique<::physical::PhysicalOpr_Operator>();
+  oprPB->set_allocated_data_export(exportPB.release());
+  physicalPB->set_allocated_opr(oprPB.release());
+  plan->mutable_plan()->AddAllocated(physicalPB.release());
+}
+
 std::unique_ptr<::physical::PropertyMapping>
 GQueryConvertor::convertPropMapping(const binder::Expression& expr,
                                     common::alias_id_t columnId) {
   auto propertyName = expr.toString();
+  auto namePB = std::make_unique<::common::NameOrId>();
+  namePB->set_name(propertyName);
+  auto propertyPB = std::make_unique<::common::Property>();
+  propertyPB->set_allocated_key(namePB.release());
+  auto mappingPB = std::make_unique<::physical::PropertyMapping>();
+  mappingPB->set_allocated_property(propertyPB.release());
+  auto dataPB = exprConvertor->convertVar(columnId);
+  mappingPB->set_allocated_data(dataPB.release());
+  return mappingPB;
+}
+
+std::unique_ptr<::physical::PropertyMapping>
+GQueryConvertor::convertPropMapping(const std::string& propertyName,
+                                    common::alias_id_t columnId) {
   auto namePB = std::make_unique<::common::NameOrId>();
   namePB->set_name(propertyName);
   auto propertyPB = std::make_unique<::common::Property>();

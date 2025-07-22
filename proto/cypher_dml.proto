@@ -21,34 +21,33 @@ import "common.proto";
 import "expr.proto";
 import "cypher_ddl.proto";
 
-// A implementation of data source by reading from CSV files
-message ReadCSV {
-    message options {
-        string delimiter = 1; // Character that separates different columns in a lines, default is ','
-        bool header = 2; // Whether the first line of the CSV file is the header. Can be true or false, default is false 
-        uint64 skip_num = 3; // Number of rows to skip from the input file, default is 0
-        string quote_char = 4; // Character to start a string quote, default is '"'
-        string escape_char = 5; // Character within string quotes to escape QUOTE and other characters, default is '\'
-        bool ignore_errors = 6; // Skips malformed rows in CSV files if set to true, default is false
-        bool auto_detection = 7; // Automatically detect HEADER, DELIM, QUOTE, ESCAPE if not manually set, default is true
-        bool parallel = 8; // Whether to read the CSV file in parallel, default is true
-    }
-
-    string file_path = 1;
-    options csv_options = 2;
-    bool batch_reader = 3; // Whether to read the CSV file in batch mode, default is false
-}
-
 // Unified abstraction of data source, used to load external data sources and encapsulate them into an internal unified row-based data structure.
 message DataSource {
-    oneof source {
-        ReadCSV read_csv = 1;
-    }
+    string extension_name = 1;
+    string file_path = 2;
+    map<string, string> options = 3;
 }
 
 message PropertyMapping {
     common.Property property = 1;
     common.Expression data = 2;
+}
+
+// Defines the configuration for exporting query results to different file formats (e.g., CSV, JSON).
+// Example: COPY (MATCH (u:User) RETURN u.*) TO 'user.csv' (header=true);
+message DataExport {
+    // The file format to export to, e.g., "csv", "json".
+    string extension_name = 1;
+
+    // The target file path where the export will be written.
+    string file_path = 2;
+
+    // Format-specific options, such as delimiters, headers, etc.
+    map<string, string> options = 3;
+
+    // Specifies the columns to include in the export.
+    // To support extensibility and column reordering, each item maps a column name to its corresponding input column ID.
+    repeated PropertyMapping property_mappings = 4;
 }
 
 // COPY User from 'user.csv'

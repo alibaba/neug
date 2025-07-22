@@ -92,6 +92,7 @@ void GAliasManager::extractGAliasNames(
     break;
   }
   case planner::LogicalOperatorType::COPY_FROM:
+  case planner::LogicalOperatorType::COPY_TO:
   case planner::LogicalOperatorType::TABLE_FUNCTION_CALL:
   case planner::LogicalOperatorType::ALTER:
   case planner::LogicalOperatorType::DROP:

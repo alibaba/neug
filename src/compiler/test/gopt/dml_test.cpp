@@ -1,4 +1,5 @@
 #include <gtest/gtest.h>
+#include <yaml-cpp/node/emit.h>
 #include "gopt_test.h"
 namespace gs {
 namespace gopt {
@@ -27,8 +28,8 @@ class DMLTest : public GOptTest {
 };
 
 TEST_F(DMLTest, COPY_PERSON) {
-  std::string query =
-      replaceResource("COPY person from 'DML_RESOURCE/person.csv';");
+  std::string query = replaceResource(
+      "COPY person from 'DML_RESOURCE/person.csv' (HEADER=true, DELIM=' | ');");
   auto logical = planLogical(query, schemaData, statsData, rules);
   auto aliasManager = std::make_shared<GAliasManager>(*logical);
   auto physical = planPhysical(*logical, aliasManager);
@@ -41,6 +42,32 @@ TEST_F(DMLTest, COPY_PERSON) {
 TEST_F(DMLTest, COPY_KNOWS) {
   std::string query =
       replaceResource("COPY knows from 'DML_RESOURCE/knows.csv';");
+  auto logical = planLogical(query, schemaData, statsData, rules);
+  auto aliasManager = std::make_shared<GAliasManager>(*logical);
+  auto physical = planPhysical(*logical, aliasManager);
+  ASSERT_TRUE(physical != nullptr);
+  auto resultYaml = GResultSchema::infer(*logical, aliasManager, getCatalog());
+  auto returns = resultYaml["returns"];
+  ASSERT_TRUE(returns.IsSequence() && returns.size() == 0);
+}
+
+TEST_F(DMLTest, EXPORT_PERSON) {
+  std::string query = replaceResource(
+      "COPY (MATCH (u:person) RETURN u.*) TO '/workspace/person.csv' "
+      "(header=true);");
+  auto logical = planLogical(query, schemaData, statsData, rules);
+  auto aliasManager = std::make_shared<GAliasManager>(*logical);
+  auto physical = planPhysical(*logical, aliasManager);
+  ASSERT_TRUE(physical != nullptr);
+  auto resultYaml = GResultSchema::infer(*logical, aliasManager, getCatalog());
+  auto returns = resultYaml["returns"];
+  ASSERT_TRUE(returns.IsSequence() && returns.size() == 0);
+}
+
+TEST_F(DMLTest, EXPORT_KNOWS) {
+  std::string query = replaceResource(
+      "COPY (MATCH (a:person)-[f:knows]->(b:person) RETURN a.name, f.weight, "
+      "b.name) TO 'knows.csv' (header=false, delim='|');");
   auto logical = planLogical(query, schemaData, statsData, rules);
   auto aliasManager = std::make_shared<GAliasManager>(*logical);
   auto physical = planPhysical(*logical, aliasManager);

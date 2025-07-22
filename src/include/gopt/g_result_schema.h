@@ -69,8 +69,7 @@ class GResultSchema {
     auto mode = analyzer.analyze(plan);
     if (mode == PhysicalMode::DDL) {
       return false;
-    }
-    if (mode == PhysicalMode::READ_WRITE) {
+    } else if (mode == PhysicalMode::READ_WRITE) {
       auto opType = plan.getLastOperator()->getOperatorType();
       if (opType == planner::LogicalOperatorType::COPY_FROM ||
           opType == planner::LogicalOperatorType::INSERT ||
@@ -78,8 +77,11 @@ class GResultSchema {
           opType == planner::LogicalOperatorType::DELETE) {
         return false;
       }
+    } else {
+      auto opType = plan.getLastOperator()->getOperatorType();
+      return opType == planner::LogicalOperatorType::COPY_TO ? false : true;
     }
-    return true;
+    return false;
   }
 };
 }  // namespace gopt

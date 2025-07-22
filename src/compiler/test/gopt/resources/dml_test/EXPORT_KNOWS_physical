@@ -1,0 +1,350 @@
+{
+ "plan_id": 0,
+ "query_plan": {
+  "mode": "READ_ONLY",
+  "plan": [
+   {
+    "opr": {
+     "scan": {
+      "scan_opt": "VERTEX",
+      "params": {
+       "tables": [
+        {
+         "id": 0
+        }
+       ],
+       "columns": [],
+       "is_all_columns": false,
+       "sample_ratio": 0,
+       "extra": {}
+      },
+      "is_count_only": false,
+      "alias": 0
+     }
+    },
+    "meta_data": [
+     {
+      "type": {
+       "graph_type": {
+        "element_opt": "VERTEX",
+        "graph_data_type": [
+         {
+          "label": {
+           "label": 0
+          },
+          "props": []
+         }
+        ]
+       }
+      },
+      "alias": 0
+     }
+    ]
+   },
+   {
+    "opr": {
+     "edge": {
+      "direction": "OUT",
+      "params": {
+       "tables": [
+        {
+         "id": 0
+        }
+       ],
+       "columns": [],
+       "is_all_columns": false,
+       "sample_ratio": 0,
+       "extra": {}
+      },
+      "expand_opt": "EDGE",
+      "is_optional": false,
+      "v_tag": 0,
+      "alias": 1
+     }
+    },
+    "meta_data": [
+     {
+      "type": {
+       "graph_type": {
+        "element_opt": "EDGE",
+        "graph_data_type": [
+         {
+          "label": {
+           "label": 0,
+           "src_label": 0,
+           "dst_label": 0
+          },
+          "props": []
+         }
+        ]
+       }
+      },
+      "alias": 1
+     }
+    ]
+   },
+   {
+    "opr": {
+     "vertex": {
+      "opt": "END",
+      "params": {
+       "tables": [
+        {
+         "id": 0
+        }
+       ],
+       "columns": [],
+       "is_all_columns": false,
+       "sample_ratio": 0,
+       "extra": {}
+      },
+      "alias": 2
+     }
+    },
+    "meta_data": [
+     {
+      "type": {
+       "graph_type": {
+        "element_opt": "VERTEX",
+        "graph_data_type": [
+         {
+          "label": {
+           "label": 0
+          },
+          "props": []
+         }
+        ]
+       }
+      },
+      "alias": 2
+     }
+    ]
+   },
+   {
+    "opr": {
+     "project": {
+      "mappings": [
+       {
+        "expr": {
+         "operators": [
+          {
+           "var": {
+            "tag": {
+             "id": 0
+            },
+            "property": {
+             "key": {
+              "name": "name"
+             }
+            },
+            "node_type": {
+             "data_type": {
+              "string": {
+               "var_char": {
+                "max_length": 65536
+               }
+              }
+             }
+            }
+           },
+           "node_type": {
+            "data_type": {
+             "string": {
+              "var_char": {
+               "max_length": 65536
+              }
+             }
+            }
+           }
+          }
+         ]
+        },
+        "alias": 3
+       },
+       {
+        "expr": {
+         "operators": [
+          {
+           "var": {
+            "tag": {
+             "id": 1
+            },
+            "property": {
+             "key": {
+              "name": "weight"
+             }
+            },
+            "node_type": {
+             "data_type": {
+              "primitive_type": "DT_DOUBLE"
+             }
+            }
+           },
+           "node_type": {
+            "data_type": {
+             "primitive_type": "DT_DOUBLE"
+            }
+           }
+          }
+         ]
+        },
+        "alias": 4
+       },
+       {
+        "expr": {
+         "operators": [
+          {
+           "var": {
+            "tag": {
+             "id": 2
+            },
+            "property": {
+             "key": {
+              "name": "name"
+             }
+            },
+            "node_type": {
+             "data_type": {
+              "string": {
+               "var_char": {
+                "max_length": 65536
+               }
+              }
+             }
+            }
+           },
+           "node_type": {
+            "data_type": {
+             "string": {
+              "var_char": {
+               "max_length": 65536
+              }
+             }
+            }
+           }
+          }
+         ]
+        },
+        "alias": 5
+       }
+      ],
+      "is_append": false
+     }
+    },
+    "meta_data": [
+     {
+      "type": {
+       "data_type": {
+        "string": {
+         "var_char": {
+          "max_length": 65536
+         }
+        }
+       }
+      },
+      "alias": 3
+     },
+     {
+      "type": {
+       "data_type": {
+        "primitive_type": "DT_DOUBLE"
+       }
+      },
+      "alias": 4
+     },
+     {
+      "type": {
+       "data_type": {
+        "string": {
+         "var_char": {
+          "max_length": 65536
+         }
+        }
+       }
+      },
+      "alias": 5
+     }
+    ]
+   },
+   {
+    "opr": {
+     "data_export": {
+      "extension_name": "csv",
+      "file_path": "knows.csv",
+      "options": {
+       "HEADER": "False",
+       "ESCAPE": "\\",
+       "QUOTE": "\"",
+       "DELIM": "|"
+      },
+      "property_mappings": [
+       {
+        "property": {
+         "key": {
+          "name": "a.name"
+         }
+        },
+        "data": {
+         "operators": [
+          {
+           "var": {
+            "tag": {
+             "id": 3
+            }
+           }
+          }
+         ]
+        }
+       },
+       {
+        "property": {
+         "key": {
+          "name": "f.weight"
+         }
+        },
+        "data": {
+         "operators": [
+          {
+           "var": {
+            "tag": {
+             "id": 4
+            }
+           }
+          }
+         ]
+        }
+       },
+       {
+        "property": {
+         "key": {
+          "name": "b.name"
+         }
+        },
+        "data": {
+         "operators": [
+          {
+           "var": {
+            "tag": {
+             "id": 5
+            }
+           }
+          }
+         ]
+        }
+       }
+      ]
+     }
+    },
+    "meta_data": []
+   },
+   {
+    "opr": {
+     "sink": {
+      "tags": []
+     }
+    },
+    "meta_data": []
+   }
+  ]
+ }
+}

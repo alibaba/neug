@@ -633,6 +633,23 @@ def test_insert_vertex_edge(tmp_path):
     )
     assert len(result) == 1
     assert result.__next__()[0] == 2.0  # Weight of the
+    conn.close()
+    db.close()
 
+
+# DB-005-01
+def test_export_vertex_edge(tmp_path):
+    db_dir = tmp_path / "syntax_error"
+    db_dir.mkdir()
+    db = Database(db_path=str(db_dir), mode="w")
+    conn = db.connect()
+    with pytest.raises(Exception) as excinfo:
+        conn.execute("COPY (MATCH (v:person) RETURN v) to 'person.csv';")
+    assert str(ERR_QUERY_SYNTAX) in str(excinfo.value)
+    with pytest.raises(Exception) as excinfo:
+        conn.execute(
+            "COPY (MATCH (:person)-[e:knows]->(:person) RETURN e) to 'person_knows_person.csv' (HEADER = true);"
+        )
+    assert str(ERR_QUERY_SYNTAX) in str(excinfo.value)
     conn.close()
     db.close()

@@ -8,6 +8,7 @@ set(STRING_LIST
     "test_run_query"
     "test_delete_columns"
     "test_ddl"
+    "test_export"
     "test_gopt_planner"
 )
 

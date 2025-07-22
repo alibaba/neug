@@ -15,8 +15,10 @@
 
 #pragma once
 
+#include <google/protobuf/map.h>
 #include <google/protobuf/wrappers.pb.h>
 #include <memory>
+#include <string>
 #include <vector>
 #include "src/include/binder/expression/expression.h"
 #include "src/include/catalog/catalog.h"
@@ -42,6 +44,7 @@
 #include "src/include/planner/operator/logical_projection.h"
 #include "src/include/planner/operator/logical_table_function_call.h"
 #include "src/include/planner/operator/persistent/logical_copy_from.h"
+#include "src/include/planner/operator/persistent/logical_copy_to.h"
 #include "src/include/planner/operator/persistent/logical_delete.h"
 #include "src/include/planner/operator/persistent/logical_insert.h"
 #include "src/include/planner/operator/persistent/logical_set.h"
@@ -53,7 +56,7 @@
 namespace gs {
 namespace gopt {
 const static common::alias_id_t INVALID_ALIAS_ID = -1;
-
+typedef ::google::protobuf::Map<std::string, std::string> Options;
 struct EdgeLabelId {
   common::table_id_t edgeId;
   common::table_id_t srcId;
@@ -121,6 +124,8 @@ class GQueryConvertor {
                          ::physical::QueryPlan* plan);
   void convertCrossProduct(const planner::LogicalCrossProduct& cross,
                            ::physical::QueryPlan* plan);
+  void convertCopyTo(const planner::LogicalCopyTo& copyTo,
+                     ::physical::QueryPlan* plan);
 
   // help functions
   common::TableType getTableType(const planner::LogicalInsert& insert);
@@ -136,11 +141,15 @@ class GQueryConvertor {
   std::unique_ptr<::physical::PropertyMapping> convertPropMapping(
       const binder::Expression& expr, common::alias_id_t columnId);
   std::unique_ptr<::physical::PropertyMapping> convertPropMapping(
+      const std::string& columnName, common::alias_id_t columnId);
+  std::unique_ptr<::physical::PropertyMapping> convertPropMapping(
       const std::string& propertyName, const binder::Expression& data);
   std::unique_ptr<::physical::DataSource> convertDataSource(
       const common::FileScanInfo& fileInfo);
-  std::unique_ptr<::physical::ReadCSV::options> convertCSVOptions(
+  std::unique_ptr<Options> convertDataSourceOptions(
       const common::FileScanInfo& fileInfo);
+  std::unique_ptr<Options> convertExportOptions(
+      const planner::LogicalCopyTo& copyTo);
   std::unique_ptr<::physical::EdgeType> convertToEdgeType(
       const EdgeLabelId& label);
   std::shared_ptr<binder::Expression> bindPKExpr(common::table_id_t labelId);
@@ -158,6 +167,7 @@ class GQueryConvertor {
       std::shared_ptr<binder::Expression> skip,
       std::shared_ptr<binder::Expression> limit);
   uint64_t convertValueAsUint64(common::Value value);
+  std::string getExtensionName(const planner::LogicalCopyTo& copyTo);
 
  private:
   std::shared_ptr<GAliasManager> aliasManager;

@@ -330,6 +330,7 @@ message PhysicalOpr {
       SetEdgeProperty set_edge = 43;
       DeleteVertex delete_vertex = 44;
       DeleteEdge delete_edge = 45;
+      DataExport data_export = 46;
     }
   }
   message MetaData {

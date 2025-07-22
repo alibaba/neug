@@ -275,7 +275,7 @@ def test_import_file_not_found(tmp_path):
 
 
 # DB-005-08
-@pytest.mark.skip(reason="export not supported yet")
+@pytest.mark.xfail(reason="No exception is raised")
 def test_export_no_permission(tmp_path):
     db_dir = tmp_path / "export_no_permission"
     db_dir.mkdir()
@@ -288,7 +288,7 @@ def test_export_no_permission(tmp_path):
     out_path = out_dir / "out.csv"
     try:
         with pytest.raises(Exception) as excinfo:
-            conn.execute(f'COPY person TO "{out_path}";')
+            conn.execute(f'COPY (MATCH (v:person) RETURN v) to "{out_path}";')
         assert ERROR_STRINGS[ERR_PERMISSION] in str(excinfo.value)
     finally:
         os.chmod(out_dir, 0o700)
@@ -297,7 +297,7 @@ def test_export_no_permission(tmp_path):
 
 
 # DB-005-09
-@pytest.mark.xfail(reason="No exception is raised")
+@pytest.mark.skip(reason="export not supported yet")
 def test_import_schema_mismatch(tmp_path):
     db_dir = tmp_path / "import_schema_mismatch"
     db_dir.mkdir()

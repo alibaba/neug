@@ -124,6 +124,9 @@ jobs:
         export FLEX_DATA_DIR=${GITHUB_WORKSPACE}/example_dataset/modern_graph
         GLOG_v=10 ./build/neug_py_bind/tests/rt_mutable_graph/test_open_graph /tmp/test_open_graph ${FLEX_DATA_DIR}
         build/neug_py_bind/tests/rt_mutable_graph/test_ddl
+        build/neug_py_bind/tests/rt_mutable_graph/test_export
+        diff person.csv ../../example_dataset/modern_graph/person_export.csv
+        diff person_knows_person.csv ../../example_dataset/modern_graph/person_knows_person_export.csv
 
     - name: Run Python Test
       run: |

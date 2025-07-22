@@ -39,7 +39,8 @@ add_library(neug_function
         vector_string_functions.cpp
         vector_timestamp_functions.cpp
         vector_blob_functions.cpp
-        vector_uuid_functions.cpp)
+        vector_uuid_functions.cpp
+        export_csv_function.cpp)
 
 set(ALL_OBJECT_FILES
         ${ALL_OBJECT_FILES} $<TARGET_OBJECTS:neug_function>

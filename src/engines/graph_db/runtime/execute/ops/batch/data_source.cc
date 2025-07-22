@@ -146,11 +146,18 @@ std::unique_ptr<IUpdateOperator> DataSourceOprBuilder::Build(
     LOG(ERROR) << "Data source operator is not found in the plan.";
   }
   auto source_opr = plan.query_plan().plan(op_idx).opr().source();
-  if (source_opr.has_read_csv()) {
-    auto csv_record_suppliers =
-        create_csv_record_suppliers(source_opr.read_csv());
-    return std::make_unique<CSVDataSourceOpr>(
-        csv_record_suppliers, source_opr.read_csv().batch_reader());
+  auto extension_name = source_opr.extension_name();
+  auto file_path = source_opr.file_path();
+  std::unordered_map<std::string, std::string> options;
+  for (const auto& entry : source_opr.options()) {
+    std::string upper_str;
+    std::transform(entry.first.begin(), entry.first.end(),
+                   std::back_inserter(upper_str), ::toupper);
+    options.insert({upper_str, entry.second});
+  }
+  if (extension_name == "csv") {
+    auto csv_record_suppliers = create_csv_record_suppliers(file_path, options);
+    return std::make_unique<CSVDataSourceOpr>(csv_record_suppliers, true);
   } else {
     LOG(FATAL) << "Unsupported csv data source, got: "
                << source_opr.ShortDebugString();

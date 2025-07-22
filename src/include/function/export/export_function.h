@@ -1,6 +1,7 @@
 #pragma once
 
 #include "src/include/common/case_insensitive_map.h"
+#include "src/include/common/copier_config/csv_reader_config.h"
 #include "src/include/common/types/value/value.h"
 #include "src/include/function/function.h"
 
@@ -47,6 +48,11 @@ struct ExportFuncBindData {
   template <class TARGET>
   const TARGET& constCast() const {
     return common::ku_dynamic_cast<const TARGET&>(*this);
+  }
+
+  template <class TARGET>
+  TARGET* ptrCast() {
+    return common::ku_dynamic_cast<TARGET*>(this);
   }
 
   virtual std::unique_ptr<ExportFuncBindData> copy() const = 0;
@@ -108,6 +114,22 @@ struct ExportParquetFunction : public ExportFunction {
   static constexpr const char* name = "COPY_PARQUET";
 
   static function_set getFunctionSet();
+};
+
+struct ExportCSVBindData : public ExportFuncBindData {
+  common::CSVOption exportOption;
+
+  ExportCSVBindData(std::vector<std::string> names, std::string fileName,
+                    common::CSVOption exportOption)
+      : ExportFuncBindData{std::move(names), std::move(fileName)},
+        exportOption{std::move(exportOption)} {}
+
+  std::unique_ptr<ExportFuncBindData> copy() const override {
+    auto bindData = std::make_unique<ExportCSVBindData>(columnNames, fileName,
+                                                        exportOption.copy());
+    bindData->types = common::LogicalType::copy(types);
+    return bindData;
+  }
 };
 
 }  // namespace function

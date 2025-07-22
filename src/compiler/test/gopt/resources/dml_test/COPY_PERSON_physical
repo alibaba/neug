@@ -6,19 +6,11 @@
    {
     "opr": {
      "source": {
-      "read_csv": {
-       "file_path": "person.csv",
-       "csv_options": {
-        "delimiter": "",
-        "header": false,
-        "skip_num": "0",
-        "quote_char": "",
-        "escape_char": "",
-        "ignore_errors": false,
-        "auto_detection": false,
-        "parallel": false
-       },
-       "batch_reader": false
+      "extension_name": "csv",
+      "file_path": "/workspaces/neug/src/compiler/test/gopt/resources/dml_test/person.csv",
+      "options": {
+       "DELIM": " | ",
+       "HEADER": "True"
       }
      }
     },
@@ -115,6 +107,14 @@
         }
        }
       ]
+     }
+    },
+    "meta_data": []
+   },
+   {
+    "opr": {
+     "sink": {
+      "tags": []
      }
     },
     "meta_data": []

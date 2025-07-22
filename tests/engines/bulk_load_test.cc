@@ -372,7 +372,7 @@ void testOpenEmptyGraph(const std::string& graph_dir,
   {
     LOG(INFO) << "Load vertices for PERSON";
     std::string vertex_label_name = "PERSON";
-    std::string vfile = data_dir + "/person.csv.part1";
+    std::string vfile = data_dir + "/person.part1.csv";
     std::vector<std::string> vertex_null_values;
     testLoadVertexBatch(graph, vertex_label_name, vfile, '|', true, 1024,
                         vertex_null_values);
@@ -383,7 +383,7 @@ void testOpenEmptyGraph(const std::string& graph_dir,
   {
     LOG(INFO) << "Insert vertices for PERSON";
     std::string vertex_label_name = "PERSON";
-    std::string vfile = data_dir + "/person.csv.part2";
+    std::string vfile = data_dir + "/person.part2.csv";
     std::vector<std::string> vertex_null_values;
     testLoadVertexBatch(graph, vertex_label_name, vfile, '|', true, 1024,
                         vertex_null_values);
@@ -427,7 +427,7 @@ void testOpenEmptyGraph(const std::string& graph_dir,
     std::string src_vertex_type = "PERSON";
     std::string dst_vertex_type = "PERSON";
     std::string edge_type_name = "KNOWS";
-    std::string efile = data_dir + "/person_knows_person.csv.part1";
+    std::string efile = data_dir + "/person_knows_person.part1.csv";
     std::vector<std::string> null_values;
     testLoadEdgeBatch(graph, src_vertex_type, dst_vertex_type, edge_type_name,
                       efile, '|', true, 1024, null_values);
@@ -439,7 +439,7 @@ void testOpenEmptyGraph(const std::string& graph_dir,
     std::string src_vertex_type = "PERSON";
     std::string dst_vertex_type = "PERSON";
     std::string edge_type_name = "KNOWS";
-    std::string efile = data_dir + "/person_knows_person.csv.part2";
+    std::string efile = data_dir + "/person_knows_person.part2.csv";
     std::vector<std::string> null_values;
     testLoadEdgeBatch(graph, src_vertex_type, dst_vertex_type, edge_type_name,
                       efile, '|', true, 1024, null_values);

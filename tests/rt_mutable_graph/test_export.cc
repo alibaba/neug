@@ -96,107 +96,7 @@ int main(int argc, char** argv) {
   }
 
   {
-    auto res = conn->query("ALTER TABLE person ADD birthday DATE;");
-    if (!res.ok()) {
-      LOG(ERROR) << "Failed to alter table: " << res.status().ToString();
-      return 1;
-    }
-  }
-
-  {
-    auto res =
-        conn->query("ALTER TABLE person ADD IF NOT EXISTS birthday DATE;");
-    if (!res.ok()) {
-      LOG(ERROR) << "Failed to alter table: " << res.status().ToString();
-      return 1;
-    }
-  }
-
-  {
-    auto res = conn->query("ALTER TABLE person ADD name STRING;");
-    if (res.ok()) {
-      LOG(ERROR) << "Altered table successfully, but it should have failed "
-                 << "because the column already exists.";
-      return 1;
-    }
-  }
-
-  {
-    auto res = conn->query("ALTER TABLE knows ADD registion DATE;");
-    if (!res.ok()) {
-      LOG(ERROR) << "Failed to alter table: " << res.status().ToString();
-      return 1;
-    }
-  }
-
-  {
-    auto res = conn->query("ALTER TABLE person DROP non_existing_column;");
-    if (res.ok()) {
-      LOG(ERROR) << "Altered table successfully, but it should have failed "
-                 << "because the column does not exist.";
-      return 1;
-    }
-  }
-
-  {
-    auto res = conn->query("ALTER TABLE person DROP birthday;");
-    if (!res.ok()) {
-      LOG(ERROR) << "Failed to alter table: " << res.status().ToString();
-      return 1;
-    }
-  }
-
-  {
-    auto res = conn->query("ALTER TABLE person DROP IF EXISTS birthday;");
-    if (!res.ok()) {
-      LOG(ERROR) << "Failed to alter table: " << res.status().ToString();
-      return 1;
-    }
-  }
-
-  // {
-  //   auto res = conn->query("ALTER TABLE person DROP age;");
-  //   if (!res.ok()) {
-  //     LOG(ERROR) << "Failed to alter table: " << res.status().ToString();
-  //     return 1;
-  //   }
-  // }
-
-  {
-    auto res = conn->query("ALTER TABLE person RENAME name TO username;");
-    if (!res.ok()) {
-      LOG(ERROR) << "Failed to alter table: " << res.status().ToString();
-      return 1;
-    }
-  }
-
-  {
-    auto res =
-        conn->query("MATCH (v:person)-[e:created]->(:software) DELETE e;");
-    if (!res.ok()) {
-      LOG(ERROR) << "Failed to drop edge type: " << res.status().ToString();
-      return 1;
-    }
-  }
-
-  {
-    auto res = conn->query("MATCH (v:person) DELETE v;");
-    if (!res.ok()) {
-      LOG(ERROR) << "Failed to drop vertex type: " << res.status().ToString();
-      return 1;
-    }
-  }
-
-  {
-    auto res = conn->query("DROP TABLE knows;");
-    if (!res.ok()) {
-      LOG(ERROR) << "Failed to drop edge type: " << res.status().ToString();
-      return 1;
-    }
-  }
-
-  {
-    auto res = conn->query("MATCH (v:person) RETURN v;");
+    auto res = conn->query("COPY (MATCH (v:person) RETURN v) to 'person.csv';");
     LOG(INFO) << "Query result: " << res.ok() << ", "
               << res.status().error_message();
     auto res_val = res.value();
@@ -207,28 +107,9 @@ int main(int argc, char** argv) {
   }
 
   {
-    auto res =
-        conn->query("MATCH (v:software)<-[e:created]-(:person) RETURN e;");
-    LOG(INFO) << "Query result: " << res.ok() << ", "
-              << res.status().error_message();
-    auto res_val = res.value();
-    while (res_val.hasNext()) {
-      auto row = res_val.next();
-      LOG(INFO) << "Row: " << row.ToString();
-    }
-  }
-
-  {
-    auto res =
-        conn->query("COPY person from \"" + flex_data_dir + "/person.csv\";");
-    if (!res.ok()) {
-      LOG(ERROR) << "Failed to load person vertex: " << res.status().ToString();
-      return 1;
-    }
-  }
-
-  {
-    auto res = conn->query("MATCH (v:person) RETURN count(v);");
+    auto res = conn->query(
+        "COPY (MATCH (:person)-[e:knows]->(:person) RETURN e) to "
+        "'person_knows_person.csv' (HEADER = true);");
     LOG(INFO) << "Query result: " << res.ok() << ", "
               << res.status().error_message();
     auto res_val = res.value();
