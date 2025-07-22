@@ -40,7 +40,7 @@ class KUZU_API StorageManager {
   void finalizeCheckpoint(main::ClientContext& clientContext);
   void rollbackCheckpoint(main::ClientContext& clientContext);
 
-  Table* getTable(common::table_id_t tableID) {
+  virtual Table* getTable(common::table_id_t tableID) {
     std::lock_guard lck{mtx};
     KU_ASSERT(tables.contains(tableID));
     return tables.at(tableID).get();
@@ -60,7 +60,7 @@ class KUZU_API StorageManager {
   std::unordered_map<common::table_id_t, std::unique_ptr<Table>> tables;
   MemoryManager& memoryManager;
 
- private:
+ protected:
   std::mutex mtx;
   std::string databasePath;
   bool readOnly;

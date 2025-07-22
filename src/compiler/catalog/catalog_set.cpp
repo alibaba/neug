@@ -262,7 +262,6 @@ CatalogEntrySet CatalogSet::getEntries(const Transaction* transaction) {
 
 CatalogEntry* CatalogSet::getEntryOfOID(const Transaction* transaction,
                                         oid_t oid) {
-  std::shared_lock lck{mtx};
   for (auto& [_, entry] : entries) {
     if (entry->getOID() != oid) {
       continue;

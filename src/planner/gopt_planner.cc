@@ -71,8 +71,7 @@ Plan GOptPlanner::compilePlan(const std::string& query) {
   return plan;
 }
 
-void GOptPlanner::update_meta(const YAML::Node& schema_yaml_node,
-                              const std::string& graph_statistic_json) {
+void GOptPlanner::update_meta(const YAML::Node& schema_yaml_node) {
   VLOG(1) << "[GOptPlanner] update_meta called";
   std::unique_lock<std::shared_mutex> lock(planner_mutex);
   if (schema_yaml_node.IsNull()) {
@@ -83,7 +82,16 @@ void GOptPlanner::update_meta(const YAML::Node& schema_yaml_node,
     LOG(ERROR) << "Schema YAML node is not a map";
     return;
   }
-  // Update schema and statistics
-  database->updateSchema(schema_yaml_node, graph_statistic_json);
+  database->updateSchema(schema_yaml_node);
+}
+
+void GOptPlanner::update_statistics(const std::string& graph_statistic_json) {
+  VLOG(1) << "[GOptPlanner] update_statistics called";
+  std::unique_lock<std::shared_mutex> lock(planner_mutex);
+  if (graph_statistic_json.empty()) {
+    LOG(ERROR) << "Graph statistics JSON is empty";
+    return;
+  }
+  database->updateStats(graph_statistic_json);
 }
 }  // namespace gs

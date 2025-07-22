@@ -18,28 +18,115 @@
 #include <sstream>
 
 #include "src/include/catalog/catalog_entry/rel_group_catalog_entry.h"
+#include "src/include/catalog/catalog_entry/rel_table_catalog_entry.h"
+#include "src/include/catalog/catalog_entry/table_catalog_entry.h"
 #include "src/include/common/exception/exception.h"
+#include "src/include/common/types/types.h"
 #include "src/include/gopt/g_constants.h"
 #include "src/include/gopt/g_node_table.h"
 #include "src/include/gopt/g_rel_table.h"
+#include "src/include/main/database.h"
 
 namespace gs {
 namespace storage {
 GStorageManager::GStorageManager(const std::string& statsData,
-                                 const catalog::Catalog& catalog,
+                                 main::Database* database,
                                  MemoryManager& memoryManager,
                                  gs::storage::WAL& wal)
-    : StorageManager(memoryManager), wal(wal) {
+    : StorageManager(memoryManager), wal(wal), database(database) {
   std::unordered_map<std::string, common::row_idx_t> countMap;
   getCardMap(statsData, countMap);
-  loadStats(catalog, countMap);
+  if (!database || !database->getCatalog()) {
+    throw common::Exception("Database or catalog is not initialized");
+  }
+  loadStats(*database->getCatalog(), countMap);
+}
+
+bool GStorageManager::checkTableConsistency(
+    Table* oldTable, catalog::TableCatalogEntry* curEntry) {
+  if (oldTable->getTableType() != curEntry->getTableType() ||
+      oldTable->getTableName() != curEntry->getName()) {
+    return false;
+  }
+  if (oldTable->getTableType() == common::TableType::REL) {
+    auto catalog = database->getCatalog();
+    auto& transaction = gs::Constants::DEFAULT_TRANSACTION;
+    // check if the src and dst table ids are consistent
+    auto oldRelTable = oldTable->ptrCast<GRelTable>();
+    if (!catalog->containsTable(&transaction, oldRelTable->getSrcTableId()) ||
+        !catalog->containsTable(&transaction, oldRelTable->getDstTableId())) {
+      return false;
+    }
+    auto oldSrcEntry = catalog->getTableCatalogEntry(
+        &transaction, oldRelTable->getSrcTableId());
+    auto oldDstEntry = catalog->getTableCatalogEntry(
+        &transaction, oldRelTable->getDstTableId());
+    auto curRelEntry = curEntry->ptrCast<catalog::RelTableCatalogEntry>();
+    auto curSrcEntry = catalog->getTableCatalogEntry(
+        &transaction, curRelEntry->getSrcTableID());
+    auto curDstEntry = catalog->getTableCatalogEntry(
+        &transaction, curRelEntry->getDstTableID());
+    if (curSrcEntry->getTableType() != oldSrcEntry->getTableType() ||
+        curDstEntry->getTableType() != oldDstEntry->getTableType() ||
+        curSrcEntry->getName() != oldSrcEntry->getName() ||
+        curDstEntry->getName() != oldDstEntry->getName()) {
+      return false;
+    }
+  }
+  return true;
+}
+
+// check if cached table data is consistent with the schema, return false if
+// not, otherwise return true
+Table* GStorageManager::getTableByName(common::table_id_t tableID,
+                                       catalog::TableCatalogEntry* curEntry) {
+  if (tables.contains(tableID)) {
+    auto oldTable = tables.at(tableID).get();
+    if (checkTableConsistency(oldTable, curEntry)) {
+      return oldTable;
+    }
+  }
+  for (auto& [_, table] : tables) {
+    if (checkTableConsistency(table.get(), curEntry)) {
+      return table.get();
+    }
+  }
+  return nullptr;
+}
+
+Table* GStorageManager::getTable(common::table_id_t tableID) {
+  auto& transaction = gs::Constants::DEFAULT_TRANSACTION;
+  auto catalog = database->getCatalog();
+  if (!catalog) {
+    throw common::Exception("Catalog is not initialized");
+  }
+  KU_ASSERT(catalog->containsTable(&transaction, tableID));
+  auto curEntry = catalog->getTableCatalogEntry(&transaction, tableID);
+  Table* oldTable = getTableByName(tableID, curEntry);
+  if (oldTable) {
+    return oldTable;
+  }
+  switch (curEntry->getTableType()) {
+  case common::TableType::NODE: {
+    auto defaultNode = std::make_unique<GNodeTable>(
+        curEntry->ptrCast<catalog::NodeTableCatalogEntry>(), this,
+        &memoryManager, 1);
+    return defaultNode.release();
+  }
+  case common::TableType::REL:
+  default: {
+    auto defaultRel = std::make_unique<GRelTable>(
+        1, curEntry->ptrCast<catalog::RelTableCatalogEntry>(), this);
+    return defaultRel.release();
+  }
+  }
 }
 
 GStorageManager::GStorageManager(const std::filesystem::path& statsPath,
-                                 const catalog::Catalog& catalog,
+                                 main::Database* database,
                                  MemoryManager& memoryManager,
                                  gs::storage::WAL& wal)
-    : StorageManager(memoryManager), wal(wal) {
+    : StorageManager(memoryManager), wal(wal), database(database) {
   std::ifstream file(statsPath);
   if (!file.is_open()) {
     throw common::Exception("Statistics file " + statsPath.string() +
@@ -52,7 +139,10 @@ GStorageManager::GStorageManager(const std::filesystem::path& statsPath,
 
   std::unordered_map<std::string, common::row_idx_t> countMap;
   getCardMap(statsJson, countMap);
-  loadStats(catalog, countMap);
+  if (!database || !database->getCatalog()) {
+    throw common::Exception("Database or catalog is not initialized");
+  }
+  loadStats(*database->getCatalog(), countMap);
 }
 
 void GStorageManager::getCardMap(

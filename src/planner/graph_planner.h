@@ -57,10 +57,14 @@ class IGraphPlanner {
    * @brief Update the metadata of the graph. To let the planner be aware of the
    * changes in the graph schema and statistics.
    * @param schema_yaml_node The YAML node of the graph schema.
+   */
+  virtual void update_meta(const YAML::Node& schema_yaml_node) = 0;
+
+  /**
+   * @brief Update the statistics of the graph.
    * @param graph_statistic_json The JSON string of the graph statistics.
    */
-  virtual void update_meta(const YAML::Node& schema_yaml_node,
-                           const std::string& graph_statistic_json) = 0;
+  virtual void update_statistics(const std::string& graph_statistic_json) = 0;
 
  protected:
   std::string compiler_config_path_;

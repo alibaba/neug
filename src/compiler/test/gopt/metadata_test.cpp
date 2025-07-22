@@ -1,4 +1,6 @@
 #include "gopt_test.h"
+#include "src/include/gopt/g_database.h"
+#include "src/include/main/db_config.h"
 
 namespace gs {
 namespace gopt {
@@ -7,6 +9,16 @@ class MetaDataTest : public GOptTest {
  public:
   std::string schemaData = getGOptResource("schema/ldbc_schema.yaml");
   std::string statsData = getGOptResource("stats/ldbc_0.1_statistics.json");
+
+  common::cardinality_t getTableCard(main::ClientContext* ctx,
+                                     const std::string& tableName) {
+    auto catalog = ctx->getCatalog();
+    auto storageManager = ctx->getStorageManager();
+    auto& transaction = gs::Constants::DEFAULT_TRANSACTION;
+    auto tableEntry = catalog->getTableCatalogEntry(&transaction, tableName);
+    auto table = ctx->getStorageManager()->getTable(tableEntry->getTableID());
+    return table->getNumTotalRows(&transaction);
+  }
 };
 
 TEST_F(MetaDataTest, GCataLog) {
@@ -41,11 +53,14 @@ TEST_F(MetaDataTest, GCataLog) {
 }
 
 TEST_F(MetaDataTest, GStorageManager) {
-  gs::catalog::GCatalog catalog(schemaData);
-  storage::MemoryManager memoryManager;
-  storage::WAL wal;
-  gs::storage::GStorageManager storageManager(statsData, catalog, memoryManager,
-                                              wal);
+  main::SystemConfig sysConfig;
+  sysConfig.readOnly = true;
+  auto database = std::make_unique<main::GDatabase>(sysConfig);
+  auto ctx = std::make_unique<main::ClientContext>(database.get());
+  database->updateSchema(schemaData);
+  database->updateStats(statsData);
+  auto& catalog = *ctx->getCatalog();
+  auto& storageManager = *ctx->getStorageManager();
   auto& transaction = gs::Constants::DEFAULT_TRANSACTION;
   auto entry = catalog.getTableCatalogEntry(&transaction, "KNOWS");
   auto knowsTable = storageManager.getTable(entry->getTableID());
@@ -58,6 +73,49 @@ TEST_F(MetaDataTest, GStorageManager) {
       catalog.getTableCatalogEntry(&transaction, "HASCREATOR_COMMENT_PERSON");
   auto hasCreatorTable = storageManager.getTable(entry3->getTableID());
   ASSERT_EQ(hasCreatorTable->getNumTotalRows(&transaction), 151043);
+}
+
+// update schema but stats unchanged, check if the stats returned as expected
+// there are 3 ways to update schema:
+// 1. add new node type
+// 2. remove existing node type
+// 3. replace existing node type with a new one, i.e. the same label id but type
+// name is changed. check if the stats returned as expected for all 3 ways
+TEST_F(MetaDataTest, CheckStats) {
+  std::string beforeSchema = getGOptResource("schema/modern_schema.yaml");
+  std::string beforeStats = getGOptResource("stats/modern_stats.json");
+  std::string afterSchema = getGOptResource("schema/modern_schema_v2.yaml");
+  std::string afterStats = getGOptResource("stats/modern_stats_v2.json");
+  main::SystemConfig sysConfig;
+  sysConfig.readOnly = true;
+  auto database = std::make_unique<main::GDatabase>(sysConfig);
+  auto ctx = std::make_unique<main::ClientContext>(database.get());
+  database->updateSchema(beforeSchema);
+  database->updateStats(beforeStats);
+  ASSERT_EQ(getTableCard(ctx.get(), "person"), 3);
+  ASSERT_EQ(getTableCard(ctx.get(), "software"), 3);
+  ASSERT_EQ(getTableCard(ctx.get(), "created"), 4);
+  ASSERT_EQ(getTableCard(ctx.get(), "knows"), 2);
+
+  // check the statistics after schema update
+  database->updateSchema(afterSchema);
+  // person is not updated
+  ASSERT_EQ(getTableCard(ctx.get(), "person"), 3);
+  // add a new label 'person_v2'
+  ASSERT_EQ(getTableCard(ctx.get(), "person_v2"), 1);
+  // knows is not updated
+  ASSERT_EQ(getTableCard(ctx.get(), "knows"), 2);
+  // add a new label 'knows_v2', it has two kinds of <src, dst> pairs
+  ASSERT_EQ(getTableCard(ctx.get(), "knows_v2_person_person"), 1);
+  ASSERT_EQ(getTableCard(ctx.get(), "knows_v2_person_person_v2"), 1);
+
+  // check the statistics after schema and stats are updated
+  database->updateStats(afterStats);
+  ASSERT_EQ(getTableCard(ctx.get(), "person"), 3);
+  ASSERT_EQ(getTableCard(ctx.get(), "person_v2"), 3);
+  ASSERT_EQ(getTableCard(ctx.get(), "knows"), 6);
+  ASSERT_EQ(getTableCard(ctx.get(), "knows_v2_person_person"), 2);
+  ASSERT_EQ(getTableCard(ctx.get(), "knows_v2_person_person_v2"), 4);
 }
 
 }  // namespace gopt

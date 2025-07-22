@@ -26,7 +26,9 @@ Plan DummyGraphPlanner::compilePlan(const std::string& cypher_query_string) {
   return plan;
 }
 
-void DummyGraphPlanner::update_meta(const YAML::Node& schema_yaml_node,
-                                    const std::string& graph_statistic_json) {}
+void DummyGraphPlanner::update_meta(const YAML::Node& schema_yaml_node) {}
+
+void DummyGraphPlanner::update_statistics(
+    const std::string& graph_statistic_json) {}
 
 }  // namespace gs

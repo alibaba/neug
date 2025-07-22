@@ -18,6 +18,10 @@
 #include <rapidjson/document.h>
 #include <filesystem>
 #include <unordered_map>
+#include "src/include/catalog/catalog.h"
+#include "src/include/catalog/catalog_entry/table_catalog_entry.h"
+#include "src/include/common/types/types.h"
+#include "src/include/main/database.h"
 #include "src/include/storage/storage_manager.h"
 
 namespace gs {
@@ -25,13 +29,14 @@ namespace storage {
 class GStorageManager : public StorageManager {
  private:
   gs::storage::WAL& wal;
+  main::Database* database;
 
  public:
   GStorageManager(const std::filesystem::path& statsPath,
-                  const catalog::Catalog& catalog, MemoryManager& memoryManager,
+                  main::Database* database, MemoryManager& memoryManager,
                   gs::storage::WAL& wal);
 
-  GStorageManager(const std::string& statsData, const catalog::Catalog& catalog,
+  GStorageManager(const std::string& statsData, main::Database* catalog,
                   MemoryManager& memoryManager, gs::storage::WAL& wal);
 
   ~GStorageManager() override = default;
@@ -42,12 +47,18 @@ class GStorageManager : public StorageManager {
                   common::VirtualFileSystem* vfs,
                   main::ClientContext* context) override {}
 
+  Table* getTable(common::table_id_t tableID) override;
+
  private:
   void loadStats(
       const catalog::Catalog& catalog,
       const std::unordered_map<std::string, common::row_idx_t>& countMap);
   void getCardMap(const std::string& jsonData,
                   std::unordered_map<std::string, common::row_idx_t>& countMap);
+  Table* getTableByName(common::table_id_t tableID,
+                        catalog::TableCatalogEntry* curEntry);
+  bool checkTableConsistency(Table* oldTable,
+                             catalog::TableCatalogEntry* curEntry);
 };
 }  // namespace storage
 }  // namespace gs

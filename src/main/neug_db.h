@@ -110,9 +110,8 @@ class NeugDB {
     }
     LOG(INFO) << "Database opened successfully in " << mode << " mode.";
     planner_ = create_planner(planner_kind, planner_config_path);
-    // Init planner with graph meta
-    planner_->update_meta(db_.schema().to_yaml().value(),
-                          db_.get_statistics_json());
+    planner_->update_meta(db_.schema().to_yaml().value());
+    planner_->update_statistics(db_.get_statistics_json());
 
     query_processor_ = std::make_shared<QueryProcessor>(
         db_, max_num_threads, mode_ == DBMode::READ_ONLY);

@@ -143,8 +143,8 @@ class Utils {
   static void updateSchema(const std::string& line, main::GDatabase* database) {
     // Split line into segments
     auto segments = splitSchemaQuery(line);
-    database->updateSchema(getTestResourcePath(segments.first),
-                           getTestResourcePath(segments.second));
+    database->updateSchema(getTestResourcePath(segments.first));
+    database->updateStats(getTestResourcePath(segments.second));
   }
 };
 
@@ -182,7 +182,8 @@ class GOptTest : public ::testing::Test {
       const std::string& query, const std::string& schemaData,
       const std::string& statsData, std::vector<std::string> rules) {
     // Update schema and stats
-    database->updateSchema(schemaData, statsData);
+    database->updateSchema(schemaData);
+    database->updateStats(statsData);
 
     // Prepare the query
     auto statement = ctx->prepare(query);

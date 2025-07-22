@@ -31,8 +31,9 @@ class DummyGraphPlanner : public IGraphPlanner {
 
   Plan compilePlan(const std::string& cypher_query_string) override;
 
-  void update_meta(const YAML::Node& schema_yaml_node,
-                   const std::string& graph_statistic_json) override;
+  void update_meta(const YAML::Node& schema_yaml_node) override;
+
+  void update_statistics(const std::string& graph_statistic_json) override;
 };
 
 }  // namespace gs

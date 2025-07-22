@@ -95,6 +95,7 @@ class HttpServiceImpl : public HttpService {
     // We need to determine which plugin to use based on the plan type.
     // ALSO, if the query mutate the graph, we should also update the schema
     // and statistics for the compiler.
+    bool update_schema = false, update_statistics = false;
     if (plan.physical_plan.has_query_plan()) {
       if (gs::has_update_opr_in_plan(plan.physical_plan)) {
         VLOG(10) << "Update operation detected, using update plugin";
@@ -102,6 +103,7 @@ class HttpServiceImpl : public HttpService {
         plan_proto_str.append(
             1,
             static_cast<char>(gs::GraphDBSession::InputFormat::kCypherString));
+        update_statistics = true;
       } else {
         VLOG(10) << "Read operation detected, using read plugin";
         plan_proto_str.append(1, *gs::Schema::ADHOC_READ_PLUGIN_ID_STR);
@@ -114,6 +116,8 @@ class HttpServiceImpl : public HttpService {
       plan_proto_str.append(1, *gs::Schema::ADHOC_UPDATE_PLUGIN_ID_STR);
       plan_proto_str.append(
           1, static_cast<char>(gs::GraphDBSession::InputFormat::kCypherString));
+      update_schema = true;
+      update_statistics = true;
     } else {
       cntl->SetFailed(
           "Unsupported plan type, only query and DDL plans are supported");
@@ -135,18 +139,21 @@ class HttpServiceImpl : public HttpService {
       return;
     }
 
-    if (result.ok()) {
-      VLOG(10) << "Query executed successfully, updating planner's schema and "
-                  "statistics";
-      auto yaml_node = graph_db_.schema().to_yaml();
-      if (!yaml_node.ok()) {
-        LOG(ERROR) << "Failed to convert schema to YAML: "
-                   << yaml_node.status().error_message();
-        // If schema updating fails, we should not proceed on.
-        throw std::runtime_error("Failed to convert schema to YAML: " +
-                                 yaml_node.status().error_message());
-      }
-      planner_->update_meta(yaml_node.value(), graph_db_.get_statistics_json());
+    VLOG(10) << "Query executed successfully, updating planner's schema and "
+                "statistics";
+    auto yaml_node = graph_db_.schema().to_yaml();
+    if (!yaml_node.ok()) {
+      LOG(ERROR) << "Failed to convert schema to YAML: "
+                 << yaml_node.status().error_message();
+      // If schema updating fails, we should not proceed on.
+      throw std::runtime_error("Failed to convert schema to YAML: " +
+                               yaml_node.status().error_message());
+    }
+    if (update_schema) {
+      planner_->update_meta(yaml_node.value());
+    }
+    if (update_statistics) {
+      planner_->update_statistics(graph_db_.get_statistics_json());
     }
 
     std::string_view actual_res = decoder.get_bytes();

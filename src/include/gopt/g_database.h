@@ -39,23 +39,26 @@ class GDatabase : public Database {
 
   ~GDatabase() = default;
 
-  void updateSchema(const std::filesystem::path& schemaPath,
-                    const std::filesystem::path& statsPath) {
+  void updateSchema(const std::filesystem::path& schemaPath) {
     this->catalog = std::make_unique<gs::catalog::GCatalog>(schemaPath);
-    this->storageManager = std::make_unique<gs::storage::GStorageManager>(
-        statsPath, *this->catalog, *this->memoryManager, *this->wal);
   }
 
-  void updateSchema(const std::string& schema, const std::string& stats) {
+  void updateSchema(const std::string& schema) {
     this->catalog = std::make_unique<gs::catalog::GCatalog>(schema);
-    this->storageManager = std::make_unique<gs::storage::GStorageManager>(
-        stats, *this->catalog, *this->memoryManager, *this->wal);
   }
 
-  void updateSchema(const YAML::Node& schema, const std::string& stats) {
+  void updateSchema(const YAML::Node& schema) {
     this->catalog = std::make_unique<gs::catalog::GCatalog>(schema);
+  }
+
+  void updateStats(const std::filesystem::path& statsPath) {
     this->storageManager = std::make_unique<gs::storage::GStorageManager>(
-        stats, *this->catalog, *this->memoryManager, *this->wal);
+        statsPath, this, *this->memoryManager, *this->wal);
+  }
+
+  void updateStats(const std::string& stats) {
+    this->storageManager = std::make_unique<gs::storage::GStorageManager>(
+        stats, this, *this->memoryManager, *this->wal);
   }
 };
 }  // namespace main

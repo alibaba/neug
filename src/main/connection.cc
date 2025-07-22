@@ -86,9 +86,7 @@ Result<results::CollectiveResults> Connection::query_impl(
   result.value().set_result_schema(plan.result_schema);
   // If the query contains operator that may mutable the graph schema or data,
   // we should update the schema and statistics for the planner.
-  if (has_update_opr_in_plan(plan.physical_plan) ||
-      plan.physical_plan.has_ddl_plan()) {
-    VLOG(10) << "Update operation detected, updating schema and statistics.";
+  if (plan.physical_plan.has_ddl_plan()) {
     auto yaml = db_.schema().to_yaml();
     if (!yaml.ok()) {
       LOG(ERROR) << "Failed to convert schema to YAML: "
@@ -96,10 +94,10 @@ Result<results::CollectiveResults> Connection::query_impl(
       throw std::runtime_error("Failed to convert schema to YAML: " +
                                yaml.status().error_message());
     }
-    planner_->update_meta(yaml.value(), db_.get_statistics_json());
-  } else {
-    LOG(INFO) << "No update operation detected, no need to update schema."
-              << (int) plan.physical_plan.has_ddl_plan();
+    planner_->update_meta(yaml.value());
+    planner_->update_statistics(db_.get_statistics_json());
+  } else if (has_update_opr_in_plan(plan.physical_plan)) {
+    planner_->update_statistics(db_.get_statistics_json());
   }
 
   return Result(std::move(result.move_value()));

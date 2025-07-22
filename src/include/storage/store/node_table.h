@@ -3,6 +3,7 @@
 #include <cstdint>
 
 #include "src/include/catalog/catalog_entry/node_table_catalog_entry.h"
+#include "src/include/common/enums/table_type.h"
 #include "src/include/common/types/types.h"
 #include "src/include/storage/stats/table_stats.h"
 #include "src/include/storage/store/table.h"

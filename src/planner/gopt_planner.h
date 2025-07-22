@@ -31,8 +31,9 @@ class GOptPlanner : public gs::IGraphPlanner {
 
   gs::Plan compilePlan(const std::string& query) override;
 
-  void update_meta(const YAML::Node& schema_yaml_node,
-                   const std::string& graph_statistic_json) override;
+  void update_meta(const YAML::Node& schema_yaml_node) override;
+
+  void update_statistics(const std::string& graph_statistic_json) override;
 
  private:
   std::unique_ptr<gs::main::GDatabase> database;

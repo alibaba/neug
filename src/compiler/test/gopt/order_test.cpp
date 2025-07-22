@@ -5,8 +5,8 @@ namespace gopt {
 
 class OrderTest : public GOptTest {
  public:
-  std::string schemaData = getGOptResource("schema/person_schema.yaml");
-  std::string statsData = getGOptResource("stats/person_stats.json");
+  std::string schemaData = getGOptResource("schema/modern_schema.yaml");
+  std::string statsData = getGOptResource("stats/modern_stats.json");
   std::string getOrderResourcePath(std::string resource) {
     return getGOptResourcePath("order_test/" + resource);
   };

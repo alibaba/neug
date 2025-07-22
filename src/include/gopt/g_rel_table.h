@@ -22,12 +22,17 @@ namespace storage {
 class GRelTable : public RelTable {
  private:
   common::row_idx_t numRows;
+  common::table_id_t srcTableId;
+  common::table_id_t dstTableId;
 
  public:
   GRelTable(common::row_idx_t numRows,
             catalog::RelTableCatalogEntry* tableEntry,
             StorageManager* storageManager)
-      : RelTable{tableEntry, storageManager}, numRows{numRows} {}
+      : RelTable{tableEntry, storageManager},
+        numRows{numRows},
+        srcTableId{tableEntry->getSrcTableID()},
+        dstTableId{tableEntry->getDstTableID()} {}
 
   ~GRelTable() override = default;
 
@@ -35,6 +40,9 @@ class GRelTable : public RelTable {
       const transaction::Transaction* transaction) override {
     return this->numRows;
   }
+
+  common::table_id_t getSrcTableId() const { return this->srcTableId; }
+  common::table_id_t getDstTableId() const { return this->dstTableId; }
 };
 }  // namespace storage
 }  // namespace gs

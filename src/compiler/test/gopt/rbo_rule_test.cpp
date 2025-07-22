@@ -4,8 +4,8 @@ namespace gs {
 namespace gopt {
 class RBOTest : public GOptTest {
  public:
-  std::string schemaData = getGOptResource("schema/person_schema.yaml");
-  std::string statsData = getGOptResource("stats/person_stats.json");
+  std::string schemaData = getGOptResource("schema/modern_schema_v2.yaml");
+  std::string statsData = getGOptResource("stats/modern_stats_v2.json");
   std::string getRBOResourcePath(std::string resource) {
     return getGOptResourcePath("rbo_test/" + resource);
   };

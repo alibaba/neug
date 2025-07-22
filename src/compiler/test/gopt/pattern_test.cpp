@@ -4,8 +4,8 @@ namespace gopt {
 
 class PatternTest : public GOptTest {
  public:
-  std::string schemaData = getGOptResource("schema/person_schema.yaml");
-  std::string statsData = getGOptResource("stats/person_stats.json");
+  std::string schemaData = getGOptResource("schema/modern_schema.yaml");
+  std::string statsData = getGOptResource("stats/modern_stats.json");
   std::string getPatResource(std::string resource) {
     return getGOptResource("pattern_test/" + resource);
   };
