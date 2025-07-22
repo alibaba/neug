@@ -26,12 +26,11 @@ namespace gs {
 
 namespace runtime {
 
-Context::Context() : head(nullptr), offset_ptr(nullptr) {}
+Context::Context() : head(nullptr) {}
 
 void Context::clear() {
   columns.clear();
   head.reset();
-  offset_ptr = nullptr;
   tag_ids.clear();
 }
 
@@ -85,10 +84,6 @@ void Context::reshuffle(const std::vector<size_t>& offsets) {
     head = head->shuffle(offsets);
   }
   std::swap(new_cols, columns);
-  if (offset_ptr != nullptr) {
-    offset_ptr = std::dynamic_pointer_cast<ValueColumn<size_t>>(
-        offset_ptr->shuffle(offsets));
-  }
 }
 
 void Context::optional_reshuffle(const std::vector<size_t>& offsets) {
@@ -113,10 +108,6 @@ void Context::optional_reshuffle(const std::vector<size_t>& offsets) {
     head = head->optional_shuffle(offsets);
   }
   std::swap(new_cols, columns);
-  if (offset_ptr != nullptr) {
-    offset_ptr = std::dynamic_pointer_cast<ValueColumn<size_t>>(
-        offset_ptr->optional_shuffle(offsets));
-  }
 }
 
 std::shared_ptr<IContextColumn> Context::get(int alias) {
@@ -211,17 +202,6 @@ void Context::show(const GraphReadInterface& graph) const {
   }
 }
 
-void Context::gen_offset() {
-  ValueColumnBuilder<size_t> builder;
-  size_t prev_row_num = row_num();
-  builder.reserve(prev_row_num);
-  for (size_t i = 0; i < prev_row_num; ++i) {
-    builder.push_back_opt(i);
-  }
-  offset_ptr =
-      std::dynamic_pointer_cast<ValueColumn<size_t>>(builder.finish(nullptr));
-}
-
 Context Context::union_ctx(const Context& other) const {
   Context ctx;
   CHECK(columns.size() == other.columns.size());
@@ -236,17 +216,9 @@ Context Context::union_ctx(const Context& other) const {
       }
     }
   }
-  if (offset_ptr != nullptr) {
-    CHECK(other.offset_ptr != nullptr);
-    ctx.offset_ptr = std::dynamic_pointer_cast<ValueColumn<size_t>>(
-        offset_ptr->union_col(other.offset_ptr));
-  }
   return ctx;
 }
-const ValueColumn<size_t>& Context::get_offsets() const {
-  assert(offset_ptr != nullptr);
-  return *offset_ptr;
-}
+
 size_t Context::col_num() const { return columns.size(); }
 
 }  // namespace runtime

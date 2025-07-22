@@ -26,6 +26,10 @@
 #include "src/engines/graph_db/runtime/common/operators/retrieve/intersect.h"
 #include "src/engines/graph_db/runtime/execute/pipeline.h"
 #include "src/engines/graph_db/runtime/execute/plan_parser.h"
+#include "src/engines/graph_db/runtime/utils/params.h"
+#include "src/engines/graph_db/runtime/utils/predicates.h"
+#include "src/engines/graph_db/runtime/utils/special_predicates.h"
+#include "src/engines/graph_db/runtime/utils/utils.h"
 
 namespace gs {
 class Schema;
@@ -34,58 +38,195 @@ namespace runtime {
 class OprTimer;
 
 namespace ops {
-class IntersectOpr : public IReadOperator {
- public:
-  IntersectOpr(const physical::Intersect& intersect_opr,
-               std::vector<ReadPipeline>&& sub_plans)
-      : key_(intersect_opr.key()), sub_plans_(std::move(sub_plans)) {}
 
-  std::string get_operator_name() const override { return "IntersectOpr"; }
+struct GeneralVertexPredWrapper {
+  GeneralVertexPredWrapper(const GeneralVertexPredicate& pred) : pred_(pred) {}
+
+  inline bool operator()(label_t label, vid_t v, size_t path_idx, int) const {
+    return pred_(label, v, path_idx, arena_, 0);
+  }
+
+  inline bool operator()(label_t label, vid_t v, size_t path_idx) const {
+    return pred_(label, v, path_idx, arena_);
+  }
+  mutable Arena arena_;
+
+  const GeneralVertexPredicate& pred_;
+};
+
+class IntersectOprMultip : public IReadOperator {
+ public:
+  IntersectOprMultip(const std::vector<EdgeExpandParams>& eeps,
+                     std::vector<std::optional<common::Expression>>&& preds,
+                     int alias)
+      : eeps_(eeps), preds_(std::move(preds)), alias_(alias) {}
+  std::string get_operator_name() const override {
+    return "IntersectOprMultip";
+  }
+
+  bl::result<gs::runtime::Context> Eval_Impl(
+      const gs::runtime::GraphReadInterface& graph,
+      const std::map<std::string, std::string>& params,
+      gs::runtime::Context&& ctx,
+      const std::vector<std::function<bool(label_t, vid_t, size_t)>>& preds,
+      gs::runtime::OprTimer& timer) {
+    return Intersect::Multiple_Intersect(graph, params, std::move(ctx), preds,
+                                         eeps_, alias_);
+  }
+  bl::result<gs::runtime::Context> Eval(
+      const gs::runtime::GraphReadInterface& graph,
+      const std::map<std::string, std::string>& params,
+      gs::runtime::Context&& ctx, gs::runtime::OprTimer& timer) override {
+    std::vector<std::function<bool(label_t, vid_t, size_t)>> preds;
+    std::vector<std::unique_ptr<GeneralVertexPredWrapper>> pred_wrappers;
+    for (const auto& pred : preds_) {
+      if (pred.has_value()) {
+        GeneralVertexPredicate p(graph, ctx, params, pred.value());
+        auto vpred = std::make_unique<GeneralVertexPredWrapper>(p);
+
+        pred_wrappers.emplace_back(std::move(vpred));
+        auto& vpred_ref = *pred_wrappers.back();
+        preds.emplace_back([&vpred_ref](label_t label, vid_t v, size_t idx) {
+          return vpred_ref(label, v, idx);
+        });
+      } else {
+        preds.emplace_back([](label_t, vid_t, size_t) { return true; });
+      }
+    }
+    return Eval_Impl(graph, params, std::move(ctx), preds, timer);
+  }
+
+  std::vector<EdgeExpandParams> eeps_;
+  std::vector<std::optional<common::Expression>> preds_;
+  int alias_;
+};
+class IntersectOprBeta : public IReadOperator {
+ public:
+  IntersectOprBeta(const EdgeExpandParams& eep0, const EdgeExpandParams& eep1,
+                   int alias,
+                   const std::optional<common::Expression>& left_pred,
+                   const std::optional<common::Expression>& right_pred)
+      : eep0_(eep0),
+        eep1_(eep1),
+        alias_(alias),
+        left_pred_(left_pred),
+        right_pred_(right_pred) {}
+
+  std::string get_operator_name() const override { return "IntersectOprBeta"; }
 
   bl::result<gs::runtime::Context> Eval(
       const gs::runtime::GraphReadInterface& graph,
       const std::map<std::string, std::string>& params,
       gs::runtime::Context&& ctx, gs::runtime::OprTimer& timer) override {
-    std::vector<gs::runtime::Context> ctxs;
-    for (auto& plan : sub_plans_) {
-      Context n_ctx(ctx);
-      n_ctx.gen_offset();
-      auto n_ctx_res = plan.Execute(graph, std::move(n_ctx), params, timer);
-      if (!n_ctx_res) {
-        return n_ctx_res;
+    auto lambda = [](label_t label, vid_t v, size_t idx) {
+      return true;  // Dummy predicate that always returns true
+    };
+    if (left_pred_.has_value()) {
+      GeneralVertexPredicate pred(graph, ctx, params, left_pred_.value());
+      GeneralVertexPredWrapper vpred(pred);
+      if (right_pred_.has_value()) {
+        GeneralVertexPredicate pred(graph, ctx, params, right_pred_.value());
+        GeneralVertexPredWrapper rpred(pred);
+        return Intersect::Binary_Intersect(graph, params, std::move(ctx), vpred,
+                                           rpred, eep0_, eep1_, alias_);
+      } else {
+        return Intersect::Binary_Intersect(graph, params, std::move(ctx), vpred,
+                                           lambda, eep0_, eep1_, alias_);
       }
-      ctxs.push_back(std::move(n_ctx_res.value()));
+    } else {
+      if (right_pred_.has_value()) {
+        GeneralVertexPredicate pred(graph, ctx, params, right_pred_.value());
+        GeneralVertexPredWrapper rpred(pred);
+        return Intersect::Binary_Intersect(graph, params, std::move(ctx),
+                                           lambda, rpred, eep0_, eep1_, alias_);
+      } else {
+        return Intersect::Binary_Intersect(graph, params, std::move(ctx),
+                                           lambda, lambda, eep0_, eep1_,
+                                           alias_);
+      }
     }
-    return Intersect::intersect(std::move(ctx), std::move(ctxs), key_);
   }
 
  private:
-  int key_;
-  std::vector<ReadPipeline> sub_plans_;
+  EdgeExpandParams eep0_;
+  EdgeExpandParams eep1_;
+  int alias_;
+  std::optional<common::Expression> left_pred_;
+  std::optional<common::Expression> right_pred_;
 };
 
+EdgeExpandParams parse_edge_params(
+    const physical::EdgeExpand& edge,
+    const physical::PhysicalOpr_MetaData& meta_data) {
+  EdgeExpandParams eep;
+  int alias = -1;
+  if (edge.has_alias()) {
+    alias = edge.alias().value();
+  }
+  int v_tag = edge.has_v_tag() ? edge.v_tag().value() : -1;
+  Direction dir = parse_direction(edge.direction());
+  bool is_optional = edge.is_optional();
+  eep.labels = parse_label_triplets(meta_data);
+  eep.v_tag = v_tag;
+  eep.dir = dir;
+  eep.alias = alias;
+  eep.is_optional = is_optional;
+  return eep;
+}
+
+void parse(const physical::PhysicalPlan& plan, EdgeExpandParams& params,
+           std::optional<common::Expression>& pred) {
+  const auto& edge = plan.query_plan().plan(0).opr().edge();
+  CHECK(plan.query_plan().plan_size() <= 2)
+      << "sub-plan of intersect operator should have at most two plans";
+  CHECK(plan.query_plan().plan(0).opr().op_kind_case() ==
+        physical::PhysicalOpr_Operator::OpKindCase::kEdge);
+  params = parse_edge_params(edge, plan.query_plan().plan(0).meta_data(0));
+  if (plan.query_plan().plan_size() == 2) {
+    CHECK(plan.query_plan().plan(1).opr().op_kind_case() ==
+          physical::PhysicalOpr_Operator::OpKindCase::kVertex);
+    const auto& vertex = plan.query_plan().plan(1).opr().vertex();
+    if (vertex.has_params() && vertex.params().has_predicate()) {
+      pred = vertex.params().predicate();
+    } else {
+      pred = std::nullopt;
+    }
+  } else {
+    pred = std::nullopt;  // No predicate if no vertex operator is present
+  }
+}
 bl::result<ReadOpBuildResultT> IntersectOprBuilder::Build(
     const Schema& schema, const ContextMeta& ctx_meta,
     const physical::PhysicalPlan& plan, int op_idx) {
-  std::vector<ReadPipeline> sub_plans;
-  for (int i = 0;
-       i < plan.query_plan().plan(op_idx).opr().intersect().sub_plans_size();
-       ++i) {
-    auto& sub_plan =
-        plan.query_plan().plan(op_idx).opr().intersect().sub_plans(i);
-    auto sub_plan_res = PlanParser::get().parse_read_pipeline_with_meta(
-        schema, ctx_meta, sub_plan);
-    if (!sub_plan_res) {
-      return std::make_pair(nullptr, ContextMeta());
-    }
-    sub_plans.push_back(std::move(sub_plan_res.value().first));
+  const auto& intersect_opr = plan.query_plan().plan(op_idx).opr().intersect();
+  std::vector<EdgeExpandParams> eeps_(intersect_opr.sub_plans_size());
+  std::vector<std::optional<common::Expression>> preds_(
+      intersect_opr.sub_plans_size());
+  for (int i = 0; i < intersect_opr.sub_plans_size(); ++i) {
+    parse(intersect_opr.sub_plans(i), eeps_[i],
+          preds_[i]);  // Parse edge expand params and predicates
+  }
+  const auto& sub_left = intersect_opr.sub_plans(0);
+  const auto& edge_left = sub_left.query_plan().plan(0).opr().edge();
+
+  int alias = -1;
+  if (edge_left.has_alias()) {
+    alias = edge_left.alias().value();
+  }
+  if (sub_left.query_plan().plan_size() == 2) {
+    alias = sub_left.query_plan().plan(1).opr().vertex().alias().value();
   }
   ContextMeta meta = ctx_meta;
   meta.set(plan.query_plan().plan(op_idx).opr().intersect().key());
-  return std::make_pair(std::make_unique<IntersectOpr>(
-                            plan.query_plan().plan(op_idx).opr().intersect(),
-                            std::move(sub_plans)),
-                        meta);
+  if (eeps_.size() == 2) {
+    return std::make_pair(std::make_unique<IntersectOprBeta>(
+                              eeps_[0], eeps_[1], alias, preds_[0], preds_[1]),
+                          meta);
+  } else {
+    return std::make_pair(
+        std::make_unique<IntersectOprMultip>(eeps_, std::move(preds_), alias),
+        meta);
+  }
 }
 
 }  // namespace ops
