@@ -2,6 +2,9 @@
 A repo for maintaining the next-gen GraphScope.
 
 [![Neug Test](https://github.com/GraphScope/neug/actions/workflows/neug-test.yml/badge.svg)](https://github.com/GraphScope/neug/actions/workflows/neug-test.yml)
+[![Neug wheel packaging](https://github.com/GraphScope/neug/actions/workflows/build-wheel.yml/badge.svg)](https://github.com/GraphScope/neug/actions/workflows/build-wheel.yml)
+[![Neug Doc](https://github.com/GraphScope/neug/actions/workflows/docs.yml/badge.svg)](https://github.com/GraphScope/neug/actions/workflows/docs.yml)
+
 
 # Compiler 
 Currently compiler are provided via jar. 
