@@ -74,7 +74,19 @@ def get_build_lib_dir() -> str:
                     ),
                     reverse=True,
                 )
-                first = build_dirs[0]
+                # select the directory that matches the current Python version
+                py_version = f"cpython-{sys.version_info.major}{sys.version_info.minor}"
+                matching_dirs = [
+                    d for d in build_dirs if py_version in d and os.uname().machine in d
+                ]
+                if matching_dirs:
+                    first = matching_dirs[0]
+                    logger.info("Selected build directory: %s", first)
+                    build_dir = os.path.join(build_dir_parent, first)
+                else:
+                    raise RuntimeError(
+                        f"No matching build directory found for Python {sys.version_info.major}.{sys.version_info.minor} and architecture {os.uname().machine}."
+                    )
                 logger.info("Selected build directory: %s", first)
                 if (
                     first.find(
@@ -132,3 +144,4 @@ from neug.async_connection import AsyncConnection
 from neug.connection import Connection
 from neug.database import Database
 from neug.query_result import QueryResult
+from neug.session import Session

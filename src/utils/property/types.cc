@@ -24,6 +24,8 @@
 #include <memory>
 #include <ostream>
 
+#include <boost/date_time.hpp>
+
 #include "src/utils/property/column.h"
 #include "src/utils/property/table.h"
 #include "src/utils/property/types.h"
@@ -801,9 +803,29 @@ DateTime::DateTime(const std::string& date_time_str) {
   // For input string like "YYYY-MM-DD HH:MM:SS.zzz". the .zzz part is
   // optional.
   boost::posix_time::ptime pt;
+  static const std::locale formats[] = {
+      std::locale(std::locale::classic(),
+                  new boost::posix_time::time_input_facet("%Y-%m-%d %H:%M:%S")),
+      std::locale(
+          std::locale::classic(),
+          new boost::posix_time::time_input_facet("%Y-%m-%d %H:%M:%S.%f")),
+      std::locale(
+          std::locale::classic(),
+          new boost::posix_time::time_input_facet("%Y-%m-%dT%H:%M:%S.%f%z"))};
+  static const size_t formats_n = sizeof(formats) / sizeof(formats[0]);
+
   std::istringstream ss(date_time_str);
   try {
-    ss >> pt;
+    for (size_t i = 0; i < formats_n; ++i) {
+      ss.imbue(formats[i]);
+      LOG(INFO) << "Trying to parse DateTime with format: " << i;
+      ss >> pt;
+      if (!ss.fail()) {
+        break;  // Successfully parsed
+      }
+      ss.clear();             // Clear the fail state
+      ss.str(date_time_str);  // Reset the string stream
+    }
     if (ss.fail()) {
       throw std::invalid_argument("Invalid date time string format");
     }
@@ -841,6 +863,48 @@ std::string DateTime::to_string() const {
 }
 
 // Interval
+Interval::Interval(std::string str) {
+  static const std::regex interval_regex(
+      R"((\d+)\s*(years?|days?|hours?|minutes?|seconds?|milliseconds?|us?))");
+  std::smatch match;
+  negative = false;
+  internal.year = internal.month = internal.day = internal.hour =
+      internal.minute = internal.second = internal.millisecond =
+          internal.microsecond = 0;
+  while (std::regex_search(str, match, interval_regex)) {
+    int64_t num = std::stoll(match[1].str());
+    std::string unit = match[2].str();
+    if (unit == "year" || unit == "years") {
+      internal.year = num;
+    } else if (unit == "month" || unit == "months") {
+      internal.month = num;
+    } else if (unit == "day" || unit == "days") {
+      internal.day = num;
+    } else if (unit == "hour" || unit == "hours") {
+      internal.hour = num;
+    } else if (unit == "minute" || unit == "minutes") {
+      internal.minute = num;
+    } else if (unit == "second" || unit == "seconds") {
+      internal.second = num;
+    } else if (unit == "millisecond" || unit == "milliseconds") {
+      internal.millisecond = num;
+    } else if (unit == "us" || unit == "microsecond" ||
+               unit == "microseconds") {
+      internal.microsecond = num;
+    } else {
+      throw std::invalid_argument("Invalid interval unit: " + unit);
+    }
+    LOG(INFO) << "Parsed interval part: " << num << " " << unit;
+    str = match.suffix().str();
+    // trim leading and trailing spaces
+    str.erase(0, str.find_first_not_of(' '));
+    str.erase(str.find_last_not_of(' ') + 1);
+  }
+  if (!str.empty()) {
+    throw std::invalid_argument("Invalid interval format: " + str +
+                                ",size: " + std::to_string(str.size()));
+  }
+}
 
 std::string Interval::to_string() const {
   // Convert to a string representation, YYYY-MM-DD HH:MM:SS.zzz
@@ -1294,60 +1358,7 @@ Any ConvertStringToAny(const std::string& value, const gs::PropertyType& type) {
 }
 
 Any AnyConverter<Interval>::to_any(std::string_view value) {
-  static const std::regex interval_regex(
-      R"((\d+)\s*(years?|days?|hours?|minutes?|seconds?|milliseconds?|us?))");
-  std::smatch match;
-  Interval interval;
-  std::string value_str(value);
-  int32_t years, months, days, hours, minutes, seconds, milliseconds,
-      microseconds;
-  years = months = days = hours = minutes = seconds = milliseconds =
-      microseconds = 0;
-  while (std::regex_search(value_str, match, interval_regex)) {
-    int64_t num = std::stoll(match[1].str());
-    std::string unit = match[2].str();
-    if (unit == "year" || unit == "years") {
-      years = num;
-    } else if (unit == "month" || unit == "months") {
-      months = num;
-    } else if (unit == "day" || unit == "days") {
-      days = num;
-    } else if (unit == "hour" || unit == "hours") {
-      hours = num;
-    } else if (unit == "minute" || unit == "minutes") {
-      minutes = num;
-    } else if (unit == "second" || unit == "seconds") {
-      seconds = num;
-    } else if (unit == "millisecond" || unit == "milliseconds") {
-      milliseconds = num;
-    } else if (unit == "us" || unit == "microsecond" ||
-               unit == "microseconds") {
-      microseconds = num;
-    } else {
-      throw std::invalid_argument("Invalid interval unit: " + unit);
-    }
-    LOG(INFO) << "Parsed interval part: " << num << " " << unit;
-    value_str = match.suffix().str();
-    // trim leading and trailing spaces
-    value_str.erase(0, value_str.find_first_not_of(' '));
-    value_str.erase(value_str.find_last_not_of(' ') + 1);
-  }
-  if (!value_str.empty()) {
-    throw std::invalid_argument("Invalid interval format: " + value_str +
-                                ",size: " + std::to_string(value_str.size()));
-  }
-  Any ret;
-  interval.negative = false;
-  interval.internal.year = years;
-  interval.internal.month = months;
-  interval.internal.day = days;
-  interval.internal.hour = hours;
-  interval.internal.minute = minutes;
-  interval.internal.second = seconds;
-  interval.internal.millisecond = milliseconds;
-  interval.internal.microsecond = microseconds;
-  ret.set_interval(interval);
-  return ret;
+  return Any::From(Interval(value));
 }
 
 }  // namespace gs

@@ -124,7 +124,7 @@ std::unique_ptr<IUpdateOperator> UpdateVertexOprBuilder::Build(
     }
     vertex_data.emplace_back(
         tag_id, prop_mapping.property().key().name(),
-        const_value_to_any(prop_mapping.data().operators(0).const_()));
+        expr_opr_value_to_any(prop_mapping.data().operators(0)));
   }
   return std::make_unique<UpdateVertexOpr>(std::move(vertex_data));
 }

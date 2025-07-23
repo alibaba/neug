@@ -298,7 +298,10 @@ bool CypherUpdateApp::Query(GraphDBSession& graph, Decoder& input,
       return true;
     }
 
-    auto res = execute_update_query(graph, plan, timer_);
+    // TODO(lexiao,zhanglei): Currently we resize the vertex property column is
+    // space is not enough.
+    //  This may infect the performance of the update query.
+    auto res = execute_update_query(graph, plan, timer_, true);
 
     if (!res.ok()) {
       LOG(ERROR) << "Execute update query failed: " << res.status().ToString();

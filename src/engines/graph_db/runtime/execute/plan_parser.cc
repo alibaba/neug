@@ -334,7 +334,7 @@ PlanParser::parse_read_pipeline_with_meta(const gs::Schema& schema,
     }
     if (i == old_i) {
       std::stringstream ss;
-      ss << "[Parse Failed] " << get_opr_name(cur_op_kind)
+      ss << "[ReadPipeline Parse Failed] " << get_opr_name(cur_op_kind)
          << " failed to parse plan at index " << i << " "
          << plan.query_plan().plan(i).DebugString() << ": "
          << ", last match error: " << status.ToString();
@@ -363,7 +363,7 @@ bl::result<InsertPipeline> PlanParser::parse_write_pipeline(
     auto op_kind = plan.query_plan().plan(i).opr().op_kind_case();
     if (write_op_builders_.find(op_kind) == write_op_builders_.end()) {
       std::stringstream ss;
-      ss << "[Parse Failed] " << get_opr_name(op_kind)
+      ss << "[Write Pipeline Parse Failed] " << get_opr_name(op_kind)
          << " failed to parse plan at index " << i;
       auto err = gs::Status(gs::StatusCode::ERR_INTERNAL_ERROR, ss.str());
       //      LOG(ERROR) << err.ToString();
@@ -372,7 +372,7 @@ bl::result<InsertPipeline> PlanParser::parse_write_pipeline(
     auto op = write_op_builders_.at(op_kind)->Build(schema, plan, i);
     if (!op) {
       std::stringstream ss;
-      ss << "[Parse Failed]" << get_opr_name(op_kind)
+      ss << "[Write Pipeline Parse Failed] " << get_opr_name(op_kind)
          << " failed to parse plan at index " << i;
       auto err = gs::Status(gs::StatusCode::ERR_INTERNAL_ERROR, ss.str());
       LOG(ERROR) << err.ToString();
@@ -395,7 +395,7 @@ bl::result<UpdatePipeline> PlanParser::parse_update_pipeline(
     auto op_kind = plan.query_plan().plan(i).opr().op_kind_case();
     if (update_op_builders_.find(op_kind) == update_op_builders_.end()) {
       std::stringstream ss;
-      ss << "[Parse Failed] " << get_opr_name(op_kind)
+      ss << "[Update Pipeline Parse Failed] " << get_opr_name(op_kind)
          << " failed to parse plan at index " << i;
       auto err = gs::Status(gs::StatusCode::ERR_INTERNAL_ERROR, ss.str());
       LOG(ERROR) << err.ToString();
@@ -404,8 +404,8 @@ bl::result<UpdatePipeline> PlanParser::parse_update_pipeline(
     auto op = update_op_builders_.at(op_kind)->Build(schema, plan, i);
     if (!op) {
       std::stringstream ss;
-      ss << "[Parse Failed]" << get_opr_name(op_kind)
-         << " failed to Build plan at index " << i;
+      ss << "[Update Pipeline Parse Failed] " << get_opr_name(op_kind)
+         << ", op_kind " << op_kind << " failed to Build plan at index " << i;
       auto err = gs::Status(gs::StatusCode::ERR_INTERNAL_ERROR, ss.str());
       LOG(ERROR) << err.ToString();
       return bl::new_error(err);

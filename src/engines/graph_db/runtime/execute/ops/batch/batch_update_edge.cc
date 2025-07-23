@@ -132,7 +132,7 @@ std::unique_ptr<IUpdateOperator> UpdateEdgeOprBuilder::Build(
     }
     edge_data_vec.emplace_back(
         tag_id, prop_mapping.property().key().name(),
-        const_value_to_any(prop_mapping.data().operators(0).const_()));
+        expr_opr_value_to_any(prop_mapping.data().operators(0)));
   }
   return std::make_unique<UpdateEdgeOpr>(std::move(edge_data_vec));
 }

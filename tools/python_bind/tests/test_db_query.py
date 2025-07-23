@@ -29,6 +29,7 @@ from errors import ERR_SCHEMA_MISMATCH
 from errors import ERR_TYPE_CONVERSION
 from errors import ERROR_STRINGS
 
+from neug import Session
 from neug.database import Database
 
 
@@ -723,3 +724,120 @@ def test_export_vertex_edge(tmp_path):
     assert str(ERR_QUERY_SYNTAX) in str(excinfo.value)
     conn.close()
     db.close()
+
+
+def test_complex_example(tmp_path):
+    db_dir = tmp_path / "complex_example"
+    shutil.rmtree(db_dir, ignore_errors=True)
+    db_dir.mkdir()
+    db = Database(db_path=str(db_dir), mode="w")
+    conn = db.connect()
+
+    # Create schema
+    conn.execute(
+        """
+        CREATE NODE TABLE Person(
+            id INT64 PRIMARY KEY,
+            name STRING,
+            age INT64,
+            email STRING
+        )
+    """
+    )
+
+    conn.execute(
+        """
+        CREATE NODE TABLE Company(
+            id INT64 PRIMARY KEY,
+            name STRING,
+            industry STRING,
+            founded_year INT64
+        )
+    """
+    )
+
+    # Create edge tables
+    conn.execute(
+        """
+        CREATE REL TABLE WORKS_FOR(
+            FROM Person TO Company,
+            position STRING,
+            start_date DATE,
+            salary DOUBLE
+        )
+    """
+    )
+
+    conn.execute(
+        """
+        CREATE REL TABLE KNOWS(
+            FROM Person TO Person,
+            since_year INT64,
+            relationship_type STRING
+        )
+    """
+    )
+
+    conn.execute(
+        """
+    CREATE (p:Person {id: 1, name: 'Alice Johnson', age: 30, email: 'alice@example.com'})
+    """
+    )
+
+    conn.execute(
+        """
+        CREATE (p:Person {id: 2, name: 'Bob Smith', age: 35, email: 'bob@example.com'})
+    """
+    )
+
+    conn.execute(
+        """
+        CREATE (c:Company {id: 1, name: 'TechCorp', industry: 'Technology', founded_year: 2010})
+    """
+    )
+
+    # Insert relationships
+    conn.execute(
+        """
+        MATCH (p:Person), (c:Company) WHERE p.id = 1 AND c.id = 1
+        CREATE (p)-[:WORKS_FOR {position: 'Software Engineer', start_date: date('2020-01-15'), salary: 75000.0}]->(c)
+    """
+    )
+
+    conn.execute(
+        """
+        MATCH (p1:Person {id: 1}), (p2:Person {id: 2})
+        CREATE (p1)-[:KNOWS {since_year: 2018, relationship_type: 'colleague'}]->(p2)
+    """
+    )
+
+    conn.close()
+
+    service_endpoint = db.serve(host="localhost", port=10000)
+    print(f"Serving database at {service_endpoint}")
+
+    session = Session("http://localhost:10000/")
+
+    session.execute(
+        """
+        CREATE NODE TABLE User(
+            id INT64 PRIMARY KEY,
+            username STRING,
+            created_at TIMESTAMP
+        )
+    """
+    )
+
+    session.execute(
+        """
+        CREATE (u:User {id: 1, username: 'user1', created_at: timestamp('2024-01-01 10:00:00')})
+    """
+    )
+
+    result = session.execute("MATCH (u:User) RETURN u.username, u.created_at")
+    for record in result:
+        print(f"User: {record[0]}, Created: {record[1]}")
+
+    session.close()
+
+    db.stop_serving()

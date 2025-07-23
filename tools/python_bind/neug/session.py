@@ -148,8 +148,12 @@ class Session:
             )
             response.raise_for_status()
         except requests.exceptions.RequestException as e:
-            logger.error(f"Request failed: {e}")
-            raise ConnectionError("Could not connect to the server") from e
+            logger.error(f"Request failed: {e}, {e.errno}")
+            if "Connection refused" in str(e):
+                raise Exception(
+                    "Could not connect to the server. Is the server running?"
+                ) from e
+            raise Exception(f"Failed to execute query: {query}") from e
         if response.status_code != 200:
             error_message = f"Failed to execute query: {query}. Status code: {response.status_code}, Response: {response.text}"
             logger.error(error_message)

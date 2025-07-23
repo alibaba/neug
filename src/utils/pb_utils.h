@@ -63,5 +63,10 @@ bool conflict_action_to_bool(const physical::ConflictAction& action);
 
 bool has_update_opr_in_plan(const physical::PhysicalPlan& plan);
 
-Any const_value_to_any(const common::Value& value);
+// Currently support
+// 1. common::Value const
+// 2. ToDate to_date
+// 3. ToDatetime to_datetime
+// 4. ToInterval to_interval
+Any expr_opr_value_to_any(const ::common::ExprOpr& value);
 }  // namespace gs

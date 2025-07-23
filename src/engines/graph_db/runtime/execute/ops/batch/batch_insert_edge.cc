@@ -366,11 +366,6 @@ bl::result<Context> InsertEdgeOpr::eval_impl(
                "id is invalid";
         continue;
       }
-      VLOG(10) << "InsertEdgeOpr::eval_impl: inserting edge from "
-               << (int32_t) src_label_id << ":" << (int32_t) src_vertex
-               << " to   " << (int32_t) dst_label_id << ":"
-               << (int32_t) dst_vertex << " with edge label "
-               << (int32_t) edge_label_id;
       bool insert_res = false;
       if (edge_properties_ordered.size() == 1) {
         insert_res =
@@ -396,6 +391,7 @@ bl::result<Context> InsertEdgeOpr::eval_impl(
 std::unique_ptr<IUpdateOperator> InsertEdgeOprBuilder::Build(
     const Schema& schema, const physical::PhysicalPlan& plan, int op_idx) {
   auto& opr = plan.query_plan().plan(op_idx).opr().create_edge();
+  LOG(INFO) << "InsertEdgeOprBuilder::Build: opr = " << opr.DebugString();
   std::vector<InsertEdgeOpr::edge_data_t> edge_data;
   for (const auto& edge : opr.entries()) {
     auto edge_triplet = std::make_tuple(edge.edge_type().type_name().id(),
@@ -405,9 +401,14 @@ std::unique_ptr<IUpdateOperator> InsertEdgeOprBuilder::Build(
     auto dst_vertex_mapping = edge.destination_vertex_binding().id();
     std::vector<std::pair<std::string, Any>> edge_properties;
     for (const auto& prop : edge.property_mappings()) {
+      if (prop.data().operators_size() != 1) {
+        throw std::runtime_error(
+            "InsertEdgeOprBuilder::Build: property value must have exactly "
+            "one operator");
+      }
       edge_properties.emplace_back(
           prop.property().key().name(),
-          const_value_to_any(prop.data().operators(0).const_()));
+          expr_opr_value_to_any(prop.data().operators(0)));
     }
     edge_data.emplace_back(edge_triplet, src_vertex_mapping, dst_vertex_mapping,
                            edge_properties);

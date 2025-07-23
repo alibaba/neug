@@ -254,13 +254,8 @@ std::unique_ptr<IUpdateOperator> InsertVertexOprBuilder::Build(
         throw std::runtime_error(
             "Property value must have exactly one operator");
       }
-      if (prop.data().operators(0).item_case() !=
-          common::ExprOpr::ItemCase::kConst) {
-        throw std::runtime_error("Property value must be a constant value");
-      }
-      properties.emplace_back(
-          prop.property().key().name(),
-          const_value_to_any(prop.data().operators(0).const_()));
+      properties.emplace_back(prop.property().key().name(),
+                              expr_opr_value_to_any(prop.data().operators(0)));
     }
     vertex_data.emplace_back(vertex_label_id, properties, entry.alias().id());
   }

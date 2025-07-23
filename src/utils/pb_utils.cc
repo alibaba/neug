@@ -162,8 +162,11 @@ bool temporal_type_to_property_type(const common::Temporal& temporal_type,
   case common::Temporal::kDate32:
     out_type = PropertyType::Date();
     break;
-  case common::Temporal::kTimestamp:
+  case common::Temporal::kDateTime:
     out_type = PropertyType::DateTime();
+    break;
+  case common::Temporal::kTimestamp:
+    out_type = PropertyType::Timestamp();
     break;
   case common::Temporal::kDate:
     // TODO: Parse format
@@ -328,6 +331,27 @@ Any const_value_to_any(const common::Value& value) {
   }
   default: {
     throw std::runtime_error("Unsupported constant value type: " +
+                             value.DebugString());
+  }
+  }
+}
+
+Any expr_opr_value_to_any(const common::ExprOpr& value) {
+  switch (value.item_case()) {
+  case common::ExprOpr::ItemCase::kConst: {
+    return const_value_to_any(value.const_());
+  }
+  case common::ExprOpr::ItemCase::kToDate: {
+    return Any::From(Date(value.to_date().date_str()));
+  }
+  case common::ExprOpr::ItemCase::kToDatetime: {
+    return Any::From(DateTime(value.to_datetime().datetime_str()));
+  }
+  case common::ExprOpr::ItemCase::kToInterval: {
+    return Any::From(Interval(value.to_interval().interval_str()));
+  }
+  default: {
+    throw std::runtime_error("Unsupported ExprOpr value type: " +
                              value.DebugString());
   }
   }

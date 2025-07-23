@@ -152,6 +152,8 @@ void NeugDB::stop_serving() {
   if (hdl_mgr_) {
     LOG(INFO) << "Stopping HTTP service.";
     hdl_mgr_->Stop();
+    hdl_mgr_.reset();
+    LOG(INFO) << "HTTP service stopped.";
   } else {
     LOG(WARNING) << "HTTP service is not running.";
   }

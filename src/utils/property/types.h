@@ -305,6 +305,10 @@ struct __attribute__((packed)) Interval {
 
   Interval() = default;
   ~Interval() = default;
+  explicit Interval(std::string str);
+  explicit Interval(std::string_view str_view)
+      : Interval(std::string(str_view)) {}
+
   Interval& operator=(const Interval& rhs) = default;
 
   void from_mill_seconds(int64_t mill_seconds);
