@@ -622,8 +622,8 @@ class RTAny {
   RTAny operator/(const RTAny& other) const;
   RTAny operator%(const RTAny& other) const;
 
-  void sink(const GraphReadInterface& graph, int id,
-            results::Column* column) const;
+  template <typename GraphInterface>
+  void sink(const GraphInterface& graph, int id, results::Column* column) const;
 
   template <typename GraphInterface>
   void sink(const GraphInterface& graph, Encoder& encoder) const {

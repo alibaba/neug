@@ -180,7 +180,8 @@ void Context::desc(const std::string& info) const {
   LOG(INFO) << "\thead: " << ((head == nullptr) ? "NULL" : head->column_info());
 }
 
-void Context::show(const GraphReadInterface& graph) const {
+template <typename GraphInterface>
+void Context::show(const GraphInterface& graph) const {
   size_t rn = row_num();
   size_t cn = col_num();
   for (size_t ri = 0; ri < rn; ++ri) {
@@ -190,8 +191,7 @@ void Context::show(const GraphReadInterface& graph) const {
           columns[ci]->column_type() == ContextColumnType::kVertex) {
         auto v = std::dynamic_pointer_cast<IVertexColumn>(columns[ci])
                      ->get_vertex(ri);
-        int64_t id = graph.GetVertexId(v.label_, v.vid_).AsInt64();
-        line += std::to_string(id);
+        line += graph.GetVertexId(v.label_, v.vid_).to_string();
         line += ", ";
       } else if (columns[ci] != nullptr) {
         line += columns[ci]->get_elem(ri).to_string();
@@ -201,6 +201,10 @@ void Context::show(const GraphReadInterface& graph) const {
     LOG(INFO) << line;
   }
 }
+
+template void Context::show(const GraphReadInterface& graph) const;
+
+template void Context::show(const GraphUpdateInterface& graph) const;
 
 Context Context::union_ctx(const Context& other) const {
   Context ctx;

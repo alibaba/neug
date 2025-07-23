@@ -104,7 +104,8 @@ class MutableCsrEdgeIter : public CsrEdgeIterBase {
   }
   timestamp_t get_timestamp() const override { return cur_->timestamp.load(); }
 
-  void set_data(const Any& value, timestamp_t ts) override {
+  void set_data(const Any& value, timestamp_t ts, int32_t col_id = 0) override {
+    assert(col_id == 0);
     if constexpr (!std::is_same<EDATA_T, grape::EmptyType>::value) {
       ConvertAny<EDATA_T>::to(value, cur_->data);
     }
@@ -145,7 +146,8 @@ class MutableCsrEdgeIter<std::string_view> : public CsrEdgeIterBase {
   }
   timestamp_t get_timestamp() const override { return cur_.get_timestamp(); }
 
-  void set_data(const Any& value, timestamp_t ts) override {
+  void set_data(const Any& value, timestamp_t ts, int32_t col_id = 0) override {
+    assert(col_id == 0);
     cur_.set_data(value.AsStringView(), ts);
   }
   size_t get_index() const { return cur_.get_index(); }
@@ -187,9 +189,11 @@ class MutableCsrEdgeIter<RecordView> : public CsrEdgeIterBase {
 
   void set_timestamp(timestamp_t ts) { cur_->set_timestamp(ts); }
 
-  void set_data(const Any& value, timestamp_t ts) override {
-    Record rv = value.AsRecord();
-    cur_->set_data(rv, ts);
+  void set_data(const Any& value, timestamp_t ts, int32_t col_id = 0) override {
+    if (col_id == -1) {
+      assert(value.type == PropertyType::kRecord);
+    }
+    cur_->set_data(value, ts, col_id);
   }
 
   CsrEdgeIterBase& operator+=(size_t offset) override {

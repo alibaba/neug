@@ -58,8 +58,15 @@ bl::result<Context> BatchDeleteVertexOpr::Eval(
       for (auto& vids_pair : vids_map) {
         frag.batch_delete_vertices(vids_pair.first, vids_pair.second);
       }
+    } else {
+      throw std::runtime_error(
+          "Unsupported vertex column type for batch delete vertex operation.");
     }
+    std::vector<size_t> offsets;
+    ctx.reshuffle(offsets);  // reshuffle the context with empty offsets, to
+                             // remove all data.
   }
+
   return bl::result<Context>(std::move(ctx));
 }
 

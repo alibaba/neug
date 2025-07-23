@@ -451,10 +451,15 @@ class GraphUpdateInterface {
     txn_.SetVertexField(label, lid, col_id, value);
   }
 
+  inline Any GetVertexProperty(label_t label, vid_t index, int prop_id) const {
+    return txn_.GetGraph().get_vertex_table(label).at(index, prop_id);
+  }
+
   inline void SetEdgeData(bool dir, label_t label, vid_t v,
                           label_t neighbor_label, vid_t nbr, label_t edge_label,
-                          const Any& value) {
-    txn_.SetEdgeData(dir, label, v, neighbor_label, nbr, edge_label, value);
+                          const Any& value, int32_t col_id = 0) {
+    txn_.SetEdgeData(dir, label, v, neighbor_label, nbr, edge_label, value,
+                     col_id);
   }
 
   inline bool GetUpdatedEdgeData(bool dir, label_t label, vid_t v,
@@ -467,6 +472,13 @@ class GraphUpdateInterface {
   inline bool AddVertex(label_t label, const Any& id,
                         const std::vector<Any>& props) {
     return txn_.AddVertex(label, id, props);
+  }
+
+  inline bool AddVertex(label_t label, const Any& id,
+                        const std::vector<Any>& props, vid_t& vid) {
+    LOG(INFO) << "AddVertex called with label: " << static_cast<int>(label)
+              << ", id: " << id.to_string();
+    return txn_.AddVertex(label, id, props, vid);
   }
 
   inline bool AddEdge(label_t src_label, const Any& src, label_t dst_label,
@@ -487,6 +499,10 @@ class GraphUpdateInterface {
 
   inline Any GetVertexId(label_t label, vid_t index) const {
     return txn_.GetVertexId(label, index);
+  }
+
+  inline bool HasVertex(label_t label, const Any& oid) const {
+    return txn_.HasVertex(label, oid);
   }
 
   inline auto GetVertexIterator(label_t label) const {

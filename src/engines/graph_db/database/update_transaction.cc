@@ -153,7 +153,12 @@ void UpdateTransaction::Abort() { release(); }
 
 bool UpdateTransaction::AddVertex(label_t label, const Any& oid,
                                   const std::vector<Any>& props) {
-  vid_t id;
+  vid_t vid;
+  return AddVertex(label, oid, props, vid);
+}
+
+bool UpdateTransaction::AddVertex(label_t label, const Any& oid,
+                                  const std::vector<Any>& props, vid_t& vid) {
   const std::vector<PropertyType>& types =
       graph_.schema().get_vertex_properties(label);
   if (types.size() != props.size()) {
@@ -169,13 +174,13 @@ bool UpdateTransaction::AddVertex(label_t label, const Any& oid,
       return false;
     }
   }
-  if (!oid_to_lid(label, oid, id)) {
+  if (!oid_to_lid(label, oid, vid)) {
     added_vertices_[label]->_add(oid);
-    id = vertex_nums_[label]++;
+    vid = vertex_nums_[label]++;
   }
 
   vid_t row_num = vertex_offsets_[label].size();
-  vertex_offsets_[label].emplace(id, row_num);
+  vertex_offsets_[label].emplace(vid, row_num);
   grape::InArchive arc;
   for (auto& prop : props) {
     serialize_field(arc, prop);
@@ -204,22 +209,29 @@ static size_t get_offset(const std::shared_ptr<CsrConstEdgeIterBase>& base,
   return std::numeric_limits<size_t>::max();
 }
 
+// Currently multiple edges between two vertices are not supported, could not be
+// added
 bool UpdateTransaction::AddEdge(label_t src_label, vid_t src_lid,
                                 label_t dst_label, vid_t dst_lid,
                                 label_t edge_label, const Any& value) {
   static constexpr size_t sentinel = std::numeric_limits<size_t>::max();
   size_t offset_out = sentinel, offset_in = sentinel;
-  // TODO(zhanglei): refactor this part after delete vertex is supported.
-  if (src_lid >= graph_.vertex_num(src_label) &&
-      dst_lid >= graph_.vertex_num(dst_label)) {
+  // TODO(lineng): refactor this part after delete vertex is supported.
+  if (src_lid >= vertex_nums_[src_label] ||
+      dst_lid >= vertex_nums_[dst_label]) {
     throw std::runtime_error("Source or destination vertex id is out of range");
   }
-  const auto& oe =
-      graph_.get_outgoing_edges(src_label, src_lid, dst_label, edge_label);
-  offset_out = get_offset(oe, dst_lid);
-  const auto& ie =
-      graph_.get_incoming_edges(dst_label, dst_lid, src_label, edge_label);
-  offset_in = get_offset(ie, src_lid);
+  // To check whether the src/dst is inserted in this transaction or not.
+  if (src_lid <= graph_.vertex_num(src_label)) {
+    const auto& oe =
+        graph_.get_outgoing_edges(src_label, src_lid, dst_label, edge_label);
+    offset_out = get_offset(oe, dst_lid);
+  }
+  if (dst_lid <= graph_.vertex_num(dst_label)) {
+    const auto& ie =
+        graph_.get_incoming_edges(dst_label, dst_lid, src_label, edge_label);
+    offset_in = get_offset(ie, src_lid);
+  }
 
   if (value.type != PropertyType::kRecord) {
     const PropertyType& type =
@@ -260,12 +272,12 @@ bool UpdateTransaction::AddEdge(label_t src_label, vid_t src_lid,
     added_edges_[in_csr_index][dst_lid].push_back(src_lid);
   }
   updated_edge_data_[in_csr_index][dst_lid].emplace(
-      src_lid, std::pair<Any, size_t>{value, offset_in});
+      src_lid, std::tuple<Any, int32_t, size_t>{value, 0, offset_in});
   if (offset_out == sentinel) {
     added_edges_[out_csr_index][src_lid].push_back(dst_lid);
   }
   updated_edge_data_[out_csr_index][src_lid].emplace(
-      dst_lid, std::pair<Any, size_t>{value, offset_out});
+      dst_lid, std::tuple<Any, int32_t, size_t>{value, 0, offset_out});
 
   op_num_ += 1;
   arc_ << static_cast<uint8_t>(1) << src_label;
@@ -338,12 +350,12 @@ bool UpdateTransaction::AddEdge(label_t src_label, const Any& src,
     added_edges_[in_csr_index][dst_lid].push_back(src_lid);
   }
   updated_edge_data_[in_csr_index][dst_lid].emplace(
-      src_lid, std::pair<Any, size_t>{value, offset_in});
+      src_lid, std::tuple<Any, int32_t, size_t>{value, 0, offset_in});
   if (offset_out == sentinel) {
     added_edges_[out_csr_index][src_lid].push_back(dst_lid);
   }
   updated_edge_data_[out_csr_index][src_lid].emplace(
-      dst_lid, std::pair<Any, size_t>{value, offset_out});
+      dst_lid, std::tuple<Any, int32_t, size_t>{value, 0, offset_out});
 
   op_num_ += 1;
   arc_ << static_cast<uint8_t>(1) << src_label;
@@ -586,31 +598,47 @@ bool UpdateTransaction::SetVertexField(label_t label, vid_t lid, int col_id,
 
 void UpdateTransaction::SetEdgeData(bool dir, label_t label, vid_t v,
                                     label_t neighbor_label, vid_t nbr,
-                                    label_t edge_label, const Any& value) {
+                                    label_t edge_label, const Any& value,
+                                    int32_t col_id) {
   const auto& edges =
       dir ? graph_.get_outgoing_edges(label, v, neighbor_label, edge_label)
           : graph_.get_incoming_edges(label, v, neighbor_label, edge_label);
   size_t offset = get_offset(edges, nbr);
   set_edge_data_with_offset(dir, label, v, neighbor_label, nbr, edge_label,
-                            value, offset);
+                            value, offset, col_id);
 }
 
 void UpdateTransaction::set_edge_data_with_offset(
     bool dir, label_t label, vid_t v, label_t neighbor_label, vid_t nbr,
-    label_t edge_label, const Any& value, size_t offset) {
+    label_t edge_label, const Any& value, size_t offset, int32_t col_id) {
   size_t csr_index = dir ? get_out_csr_index(label, neighbor_label, edge_label)
                          : get_in_csr_index(neighbor_label, label, edge_label);
+  const auto& edge_prop_types = dir ? graph_.schema().get_edge_properties(
+                                          label, neighbor_label, edge_label)
+                                    : graph_.schema().get_edge_properties(
+                                          neighbor_label, label, edge_label);
+  if (col_id >= 0 && static_cast<size_t>(col_id) >= edge_prop_types.size()) {
+    throw std::runtime_error("Column id out of range for edge properties");
+  }
+  if (col_id >= 0 && value.type != edge_prop_types[col_id]) {
+    throw std::runtime_error("Edge property type does not match the schema");
+  }
+  if (edge_prop_types.size() > 1) {
+    if (value.type != PropertyType::kRecord && col_id == -1) {
+      throw std::runtime_error(
+          "Edge property type is not record, but column id is -1");
+    }
+  }
+  Any dup_value;
   if (value.type == PropertyType::kStringView) {
     size_t loc = sv_vec_.size();
     sv_vec_.emplace_back(value.AsStringView());
-    Any dup_value;
     dup_value.set_string(sv_vec_[loc]);
-    updated_edge_data_[csr_index][v].emplace(
-        nbr, std::pair<Any, size_t>{dup_value, offset});
   } else {
-    updated_edge_data_[csr_index][v].emplace(
-        nbr, std::pair<Any, size_t>{value, offset});
+    dup_value = value;
   }
+  updated_edge_data_[csr_index][v].emplace(
+      nbr, std::tuple<Any, int32_t, size_t>{dup_value, col_id, offset});
 
   op_num_ += 1;
   arc_ << static_cast<uint8_t>(3) << static_cast<uint8_t>(dir ? 1 : 0) << label;
@@ -618,7 +646,28 @@ void UpdateTransaction::set_edge_data_with_offset(
   arc_ << neighbor_label;
   serialize_field(arc_, lid_to_oid(neighbor_label, nbr));
   arc_ << edge_label;
+  arc_ << col_id;  // column id
   serialize_field(arc_, value);
+
+  // Modify the edge data in place, since in this transaction the updated edge
+  // data should be visible right now.
+  std::shared_ptr<CsrEdgeIterBase> iter;
+  if (dir) {
+    iter = graph_.get_outgoing_edges_mut(label, v, neighbor_label, edge_label);
+  } else {
+    iter = graph_.get_incoming_edges_mut(label, v, neighbor_label, edge_label);
+  }
+  if (!iter) {
+    throw std::runtime_error(
+        "Failed to get edge iterator for updating edge data");
+  }
+  if (offset != std::numeric_limits<size_t>::max()) {
+    auto& edge_iter = *iter;
+    edge_iter += offset;
+    if (edge_iter.is_valid() && edge_iter.get_neighbor() == nbr) {
+      edge_iter.set_data(value, timestamp_, col_id);
+    }
+  }
 }
 
 bool UpdateTransaction::GetUpdatedEdgeData(bool dir, label_t label, vid_t v,
@@ -635,7 +684,7 @@ bool UpdateTransaction::GetUpdatedEdgeData(bool dir, label_t label, vid_t v,
     if (iter == updates.end()) {
       return false;
     } else {
-      ret = iter->second.first;
+      ret = std::get<0>(iter->second);
       return true;
     }
   }
@@ -742,10 +791,12 @@ void UpdateTransaction::IngestWal(MutablePropertyFragment& graph,
       label_t label, neighbor_label, edge_label;
       Any v, nbr;
       vid_t v_lid, nbr_lid;
+      int32_t col_id = 0;
       arc >> dir;
       label = deserialize_oid(graph, arc, v);
       neighbor_label = deserialize_oid(graph, arc, nbr);
       arc >> edge_label;
+      arc >> col_id;
       CHECK(graph.get_lid(label, v, v_lid));
       CHECK(graph.get_lid(neighbor_label, nbr, nbr_lid));
 
@@ -758,14 +809,23 @@ void UpdateTransaction::IngestWal(MutablePropertyFragment& graph,
         edge_iter = graph.get_outgoing_edges_mut(label, v_lid, neighbor_label,
                                                  edge_label);
       }
+      const auto& edge_prop_types = graph.schema().get_edge_properties(
+          dir == 0 ? label : neighbor_label, dir == 0 ? neighbor_label : label,
+          edge_label);
+      if (col_id >= 0 &&
+          static_cast<size_t>(col_id) >= edge_prop_types.size()) {
+        throw std::runtime_error("Column id out of range for edge properties");
+      }
       Any value;
-      value.type = graph.schema().get_edge_property(
-          dir == 0 ? neighbor_label : label, dir == 0 ? label : neighbor_label,
-          label);
+      if (col_id >= 0) {
+        value.type = edge_prop_types[col_id];
+      } else {
+        value.type = PropertyType::kRecordView;
+      }
       while (edge_iter->is_valid()) {
         if (edge_iter->get_neighbor() == nbr_lid) {
           deserialize_field(arc, value);
-          edge_iter->set_data(value, timestamp);
+          edge_iter->set_data(value, timestamp, col_id);
         }
         edge_iter->next();
       }
@@ -800,6 +860,15 @@ bool UpdateTransaction::oid_to_lid(label_t label, const Any& oid,
     }
   }
   return false;
+}
+
+bool UpdateTransaction::HasVertex(label_t label, const Any& oid) const {
+  vid_t lid;
+  if (graph_.get_lid(label, oid, lid)) {
+    return true;
+  } else {
+    return added_vertices_[label]->get_index(oid, lid);
+  }
 }
 
 Any UpdateTransaction::lid_to_oid(label_t label, vid_t lid) const {
@@ -926,31 +995,6 @@ void UpdateTransaction::applyEdgesUpdates() {
       for (label_t edge_label = 0; edge_label < edge_label_num_; ++edge_label) {
         size_t oe_csr_index =
             get_out_csr_index(src_label, dst_label, edge_label);
-        for (auto& pair : updated_edge_data_[oe_csr_index]) {
-          auto& updates = pair.second;
-          if (updates.empty()) {
-            continue;
-          }
-
-          std::shared_ptr<CsrEdgeIterBase> edge_iter =
-              graph_.get_outgoing_edges_mut(src_label, pair.first, dst_label,
-                                            edge_label);
-          for (auto& edge : updates) {
-            if (edge.second.second != std::numeric_limits<size_t>::max()) {
-              auto& iter = *edge_iter;
-              iter += edge.second.second;
-              if (iter.is_valid() && iter.get_neighbor() == edge.first) {
-                iter.set_data(edge.second.first, timestamp_);
-              } else if (iter.is_valid() && iter.get_neighbor() != edge.first) {
-                LOG(FATAL) << "Inconsistent neighbor id:" << iter.get_neighbor()
-                           << " " << edge.first << "\n";
-              } else {
-                LOG(FATAL) << "Illegal offset: " << edge.first << " "
-                           << edge.second.second << "\n";
-              }
-            }
-          }
-        }
 
         for (auto& pair : added_edges_[oe_csr_index]) {
           vid_t v = pair.first;
@@ -965,7 +1009,7 @@ void UpdateTransaction::applyEdgesUpdates() {
             if (idx && add_list[idx] == add_list[idx - 1])
               continue;
             auto u = add_list[idx];
-            auto value = edge_data.at(u).first;
+            auto value = std::get<0>(edge_data.at(u));
             grape::InArchive iarc;
             serialize_field(iarc, value);
             grape::OutArchive oarc(std::move(iarc));
@@ -977,38 +1021,6 @@ void UpdateTransaction::applyEdgesUpdates() {
     }
   }
 
-  for (label_t src_label = 0; src_label < vertex_label_num_; ++src_label) {
-    for (label_t dst_label = 0; dst_label < vertex_label_num_; ++dst_label) {
-      for (label_t edge_label = 0; edge_label < edge_label_num_; ++edge_label) {
-        size_t ie_csr_index =
-            get_in_csr_index(src_label, dst_label, edge_label);
-        for (auto& pair : updated_edge_data_[ie_csr_index]) {
-          auto& updates = pair.second;
-          if (updates.empty()) {
-            continue;
-          }
-          std::shared_ptr<CsrEdgeIterBase> edge_iter =
-              graph_.get_incoming_edges_mut(dst_label, pair.first, src_label,
-                                            edge_label);
-          for (auto& edge : updates) {
-            if (edge.second.second != std::numeric_limits<size_t>::max()) {
-              auto& iter = *edge_iter;
-              iter += edge.second.second;
-              if (iter.is_valid() && iter.get_neighbor() == edge.first) {
-                iter.set_data(edge.second.first, timestamp_);
-              } else if (iter.is_valid() && iter.get_neighbor() != edge.first) {
-                LOG(FATAL) << "Inconsistent neighbor id:" << iter.get_neighbor()
-                           << " " << edge.first << "\n";
-              } else {
-                LOG(FATAL) << "Illegal offset: " << edge.first << " "
-                           << edge.second.second << "\n";
-              }
-            }
-          }
-        }
-      }
-    }
-  }
   added_edges_.clear();
   updated_edge_data_.clear();
 }

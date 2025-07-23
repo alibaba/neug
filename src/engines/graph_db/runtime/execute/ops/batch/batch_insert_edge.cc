@@ -297,9 +297,9 @@ bl::result<Context> InsertEdgeOpr::eval_impl(
       LOG(ERROR) << "InsertEdgeOpr::eval_impl: source vertex label "
                     "mismatch, expected "
                  << (int32_t) src_label_id << ", got "
-                 << src_v_column->column_info();
-      RETURN_FLEX_LEAF_ERROR(gs::StatusCode::ERR_INTERNAL_ERROR,
-                             "src label not found");
+                 << src_v_column->column_info()
+                 << ", src label set: " << src_label_set.size();
+      return bl::result<Context>(std::move(ctx));
     }
     if (dst_label_set.find(dst_label_id) == dst_label_set.end()) {
       LOG(ERROR) << "InsertEdgeOpr::eval_impl: destination vertex label "

@@ -26,6 +26,8 @@
 #include "src/engines/graph_db/runtime/execute/ops/batch/batch_delete_vertex.h"
 #include "src/engines/graph_db/runtime/execute/ops/batch/batch_insert_edge.h"
 #include "src/engines/graph_db/runtime/execute/ops/batch/batch_insert_vertex.h"
+#include "src/engines/graph_db/runtime/execute/ops/batch/batch_update_edge.h"
+#include "src/engines/graph_db/runtime/execute/ops/batch/batch_update_vertex.h"
 #include "src/engines/graph_db/runtime/execute/ops/batch/data_export.h"
 #include "src/engines/graph_db/runtime/execute/ops/batch/data_source.h"
 #include "src/engines/graph_db/runtime/execute/ops/retrieve/dedup.h"
@@ -145,6 +147,10 @@ void PlanParser::init() {
       std::make_unique<ops::InsertVertexOprBuilder>());
   register_update_operator_builder(
       std::make_unique<ops::InsertEdgeOprBuilder>());
+  register_update_operator_builder(
+      std::make_unique<ops::UpdateVertexOprBuilder>());
+  register_update_operator_builder(
+      std::make_unique<ops::UpdateEdgeOprBuilder>());
 }
 
 PlanParser& PlanParser::get() {

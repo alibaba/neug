@@ -215,7 +215,7 @@ Result<results::CollectiveResults> QueryProcessor::execute_read_only(
     return Result<results::CollectiveResults>(status);
   }
   return Result<results::CollectiveResults>(Status::OK(),
-                                            runtime::Sink::sink(ctx, txn));
+                                            runtime::Sink::sink(ctx, gri));
 }
 
 Result<results::CollectiveResults> QueryProcessor::execute_read_write(

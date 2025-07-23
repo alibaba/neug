@@ -56,5 +56,9 @@
 	// https://code.visualstudio.com/remote/advancedcontainers/improve-performance#_use-a-named-volume-for-your-entire-source-tree
 	// "workspaceMount": "source=gs,target=/workspaces,type=volume",
 	// "workspaceFolder": "/workspaces"
+	"runArgs": [
+		"--cap-add=SYS_PTRACE",
+		"--privileged"
+	],
 	"postCreateCommand": "sudo chown -R graphscope /workspaces && bash pre-commit/install-hook.sh && bash pre-commit/prepare-commit-msg"
 }

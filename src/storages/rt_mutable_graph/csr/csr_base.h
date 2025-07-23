@@ -56,7 +56,8 @@ class CsrEdgeIterBase {
   virtual void next() = 0;
   virtual bool is_valid() const = 0;
 
-  virtual void set_data(const Any& value, timestamp_t ts) = 0;
+  virtual void set_data(const Any& value, timestamp_t ts,
+                        int32_t col_id = 0) = 0;
 };
 
 class CsrBase {

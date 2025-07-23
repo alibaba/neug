@@ -169,7 +169,9 @@ bl::result<Context> BatchDeleteEdgeOpr::Eval(
             << "Size of edge triplet is not consistent with edge column type.";
       }
     }
-    ctx.remove(alias);
+    std::vector<size_t> offsets;
+    ctx.reshuffle(offsets);  // reshuffle the context with empty offsets, to
+                             // remove all data.
   }
 
   return bl::result<Context>(std::move(ctx));

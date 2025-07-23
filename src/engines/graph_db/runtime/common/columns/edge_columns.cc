@@ -19,6 +19,59 @@ namespace gs {
 
 namespace runtime {
 
+void set_edge_data(PropertyType col_ele_type, EdgePropVecBase* col, size_t idx,
+                   int32_t col_id, const Any& edge_data) {
+  if (col_ele_type != PropertyType::kRecordView) {
+    if (col_id != 0) {
+      throw std::runtime_error(
+          "set_edge_data: col_id should be 0 for non-record edge property");
+    }
+    if (edge_data.type == PropertyType::kEmpty) {
+      return;
+    } else if (edge_data.type == PropertyType::kInt64) {
+      dynamic_cast<EdgePropVec<int64_t>*>(col)->set(idx, edge_data.AsInt64());
+    } else if (edge_data.type == PropertyType::kInt32) {
+      dynamic_cast<EdgePropVec<int32_t>*>(col)->set(idx, edge_data.AsInt32());
+    } else if (edge_data.type == PropertyType::kDouble) {
+      dynamic_cast<EdgePropVec<double>*>(col)->set(idx, edge_data.AsDouble());
+    } else if (edge_data.type == PropertyType::kBool) {
+      dynamic_cast<EdgePropVec<bool>*>(col)->set(idx, edge_data.AsBool());
+    } else if (edge_data.type == PropertyType::kStringView) {
+      auto str_view = edge_data.AsStringView();
+      dynamic_cast<EdgePropVec<std::string_view>*>(col)->set(
+          idx, std::string_view(str_view.data(), str_view.size()));
+    } else if (edge_data.type == PropertyType::kDateTime) {
+      dynamic_cast<EdgePropVec<DateTime>*>(col)->set(idx,
+                                                     edge_data.AsDateTime());
+    } else if (edge_data.type == PropertyType::kDate) {
+      dynamic_cast<EdgePropVec<Date>*>(col)->set(idx, edge_data.AsDate());
+    } else {
+      throw std::runtime_error("set_edge_data: unsupported property type: " +
+                               edge_data.type.ToString());
+    }
+  } else {
+    if (col_id == -1 && col_ele_type != edge_data.type) {
+      throw std::runtime_error(
+          "set_edge_data: edge_data type does not match the column type: " +
+          edge_data.type.ToString() + " vs " + col_ele_type.ToString());
+    }
+    auto ptr = dynamic_cast<EdgePropVec<RecordView>*>(col);
+    if (ptr == nullptr) {
+      throw std::runtime_error("set_edge_data: cast failed");
+    }
+    auto record_view = col->get(idx).as<RecordView>();
+    if (col_id >= 0 && col_id >= (int32_t) record_view.size()) {
+      throw std::runtime_error(
+          "set_edge_data: col_id out of range for record view: " +
+          std::to_string(col_id) +
+          ", size = " + std::to_string(record_view.size()));
+    }
+    // No need to call set, since RecordView is just a view, the updated value
+    // will be visible in the EdgePropVec<RecordView> after this function
+    // returns.
+  }
+}
+
 std::shared_ptr<IContextColumn> SDSLEdgeColumn::shuffle(
     const std::vector<size_t>& offsets) const {
   SDSLEdgeColumnBuilder builder(dir_, label_, prop_type_);

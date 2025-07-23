@@ -77,7 +77,7 @@ bool CypherReadApp::Query(const GraphDBSession& graph, Decoder& input,
       output.put_string(status.ToString());
       return false;
     }
-    runtime::Sink::sink(ctx, txn, output);
+    runtime::Sink::sink(ctx, gri, output);
     return true;
   } else {
     size_t sep = bytes.find_first_of("&?");

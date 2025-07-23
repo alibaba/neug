@@ -197,6 +197,84 @@ bool test_rw_conflict(const std::string& data_path) {
   }
 }
 
+bool test_update_record_view() {
+  // Create a new database with multi-prop on edge, and update the edge property
+  // as a whole property(RecordView).
+  std::string data_path = "/tmp/test_update_record_view";
+  // remove the directory if it exists
+  if (std::filesystem::exists(data_path)) {
+    std::filesystem::remove_all(data_path);
+  }
+
+  {
+    gs::NeugDB db(data_path, 1, "w", "gopt");
+    auto conn = db.connect();
+
+    CHECK(conn->query("CREATE NODE TABLE person(id INT64, name STRING, age "
+                      "INT64, PRIMARY "
+                      "KEY(id));")
+              .ok());
+    CHECK(conn->query("CREATE REL TABLE knows(FROM person TO person, weight "
+                      "DOUBLE, since "
+                      "INT64);")
+              .ok());
+    CHECK(conn->query("CREATE (t: person {id: 1, name: 'Alice', age: 30});")
+              .ok());
+    CHECK(
+        conn->query("CREATE (t: person {id: 2, name: 'Bob', age: 25});").ok());
+    CHECK(conn->query("CREATE (t: person {id: 3, name: 'Charlie', age: 35});")
+              .ok());
+    CHECK(conn->query(
+                  "MATCH(u1: person), (u2: person) WHERE u1.id = 1 AND u2.id = "
+                  "2 CREATE (u1)-[:knows {weight: 0.5, since: 2020}]->(u2);")
+              .ok());
+
+    auto& graph_db = db.db();
+    auto txn = graph_db.GetUpdateTransaction(0);
+    std::vector<gs::Any> props = {gs::Any::From<double>(0.8),
+                                  gs::Any::From<int64_t>(2021)};
+    gs::Record record(props);
+    CHECK(txn.AddEdge(0, 0, 0, 2, 0, record));
+    CHECK(txn.Commit());
+
+    auto res = conn->query(
+        "MATCH (u1: person)-[r:knows]->(u2: person) "
+        "RETURN r.weight;");
+    if (!res.ok()) {
+      LOG(ERROR) << "Failed to query after adding edge: "
+                 << res.status().ToString();
+      return false;
+    }
+    auto res_val = res.value();
+    auto row1 = res_val.next();
+    CHECK(row1.ToString() == "<element { object { f64: 0.5 } }>");
+    auto row2 = res_val.next();
+    CHECK(row2.ToString() == "<element { object { f64: 0.8 } }>");
+
+    // Now update the property with whole new record
+    props = {gs::Any::From<double>(0.9), gs::Any::From<int64_t>(2022)};
+    record = gs::Record(props);
+    auto txn2 = graph_db.GetUpdateTransaction(0);
+    txn2.SetEdgeData(true, 0, 0, 0, 2, 0, record, -1);
+    CHECK(txn2.Commit());
+
+    res = conn->query(
+        "MATCH (u1: person)-[r:knows]->(u2: person) "
+        "RETURN r.weight;");
+    if (!res.ok()) {
+      LOG(ERROR) << "Failed to query after adding edge: "
+                 << res.status().ToString();
+      return false;
+    }
+    res_val = res.value();
+    auto row3 = res_val.next();
+    CHECK(row3.ToString() == "<element { object { f64: 0.5 } }>");
+    auto row4 = res_val.next();
+    CHECK(row4.ToString() == "<element { object { f64: 0.9 } }>");
+    return true;
+  }
+}
+
 int main(int argc, char** argv) {
   // Expect 2 args, data path, and csv directory
   if (argc != 3) {
@@ -218,6 +296,8 @@ int main(int argc, char** argv) {
       << "Dangling connection test failed.";
 
   CHECK(test_rw_conflict(data_path)) << "Read-write conflict test failed.";
+
+  CHECK(test_update_record_view()) << "Update record view test failed.";
   LOG(INFO) << "------------------------------------";
   LOG(INFO) << "All tests passed successfully.";
   return 0;

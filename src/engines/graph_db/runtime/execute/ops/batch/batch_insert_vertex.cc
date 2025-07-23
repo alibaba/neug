@@ -124,7 +124,9 @@ std::pair<Any, std::vector<Any>> get_pk_and_prop_values(
           }
           if (prop_value.type != properties_type[idx]) {
             throw std::runtime_error("Property type mismatch for property " +
-                                     prop_name);
+                                     prop_name + ": expected " +
+                                     properties_type[idx].ToString() +
+                                     ", got " + prop_value.type.ToString());
           }
           prop_values.push_back(prop_value);
         } else {
@@ -150,8 +152,9 @@ bl::result<Context> InsertVertexOpr::eval_impl(
     GraphInterface& graph, const std::map<std::string, std::string>& params,
     Context&& ctx, OprTimer& timer) {
   for (auto& entry : vertex_data_) {
-    label_t vertex_label_id = entry.first;
-    auto& properties = entry.second;
+    label_t vertex_label_id = std::get<0>(entry);
+    auto& properties = std::get<1>(entry);
+    auto res_alias = std::get<2>(entry);
 
     auto properties_name =
         graph.schema().get_vertex_property_names(vertex_label_id);
@@ -185,7 +188,17 @@ bl::result<Context> InsertVertexOpr::eval_impl(
                                properties_name, properties_type);
     VLOG(10) << "Inserting vertex with label " << (int32_t) vertex_label_id
              << " and primary key " << pk_value.to_string();
-    if (!graph.AddVertex(vertex_label_id, pk_value, prop_values)) {
+    if (graph.HasVertex(vertex_label_id, pk_value)) {
+      LOG(ERROR) << "Vertex with label " << (int32_t) vertex_label_id
+                 << " and primary key " << pk_value.to_string()
+                 << " already exists.";
+      RETURN_FLEX_LEAF_ERROR(
+          gs::StatusCode::ERR_INVALID_ARGUMENT,
+          "Vertex with label " + std::to_string(vertex_label_id) +
+              " and primary key " + pk_value.to_string() + " already exists.");
+    }
+    vid_t vid;
+    if (!graph.AddVertex(vertex_label_id, pk_value, prop_values, vid)) {
       LOG(ERROR) << "Failed to add vertex with label "
                  << (int32_t) vertex_label_id << " and primary key "
                  << pk_value.to_string();
@@ -194,8 +207,13 @@ bl::result<Context> InsertVertexOpr::eval_impl(
                                  std::to_string(vertex_label_id) +
                                  " and primary key " + pk_value.to_string());
     }
+    auto builder = SLVertexColumnBuilder::builder(vertex_label_id);
+    builder.push_back_opt(vid);
+    auto col = builder.finish(nullptr);
+    ctx.set(res_alias, std::move(col));
   }
-  VLOG(10) << "Inserted " << vertex_data_.size() << " vertices successfully.";
+  VLOG(10) << "Inserted " << vertex_data_.size()
+           << " vertices successfully, col num: " << ctx.col_num();
   return bl::result<Context>(std::move(ctx));
 }
 
@@ -210,7 +228,7 @@ std::unique_ptr<IUpdateOperator> InsertVertexOprBuilder::Build(
     const Schema& schema, const physical::PhysicalPlan& plan, int op_idx) {
   const auto& opr = plan.query_plan().plan(op_idx).opr().create_vertex();
   using vertex_prop_vec_t = typename InsertVertexOpr::vertex_prop_vec_t;
-  std::vector<std::pair<label_t, vertex_prop_vec_t>> vertex_data;
+  std::vector<std::tuple<label_t, vertex_prop_vec_t, int32_t>> vertex_data;
   for (auto& entry : opr.entries()) {
     label_t vertex_label_id = 0;
     switch (entry.vertex_type().item_case()) {
@@ -244,7 +262,7 @@ std::unique_ptr<IUpdateOperator> InsertVertexOprBuilder::Build(
           prop.property().key().name(),
           const_value_to_any(prop.data().operators(0).const_()));
     }
-    vertex_data.emplace_back(vertex_label_id, properties);
+    vertex_data.emplace_back(vertex_label_id, properties, entry.alias().id());
   }
   return std::make_unique<InsertVertexOpr>(std::move(vertex_data));
 }

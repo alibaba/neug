@@ -139,6 +139,12 @@ static inline void set_edge_data(EdgePropVecBase* col, size_t idx,
   }
 }
 
+/**
+ * @brief Update a single field for the edge property.
+ */
+void set_edge_data(PropertyType col_ele_type, EdgePropVecBase* col, size_t idx,
+                   int32_t col_id, const Any& edge_data);
+
 class IEdgeColumn : public IContextColumn {
  public:
   IEdgeColumn() = default;
@@ -149,6 +155,9 @@ class IEdgeColumn : public IContextColumn {
   }
 
   virtual EdgeRecord get_edge(size_t idx) const = 0;
+
+  virtual void set_edge_data(size_t idx, int32_t col_id,
+                             const Any& new_val) = 0;
 
   inline RTAny get_elem(size_t idx) const override {
     return RTAny::from_edge(this->get_edge(idx));
@@ -181,6 +190,15 @@ class SDSLEdgeColumn : public IEdgeColumn {
     get_edge_data(prop_col_.get(), idx, ret.prop_);
     ret.dir_ = dir_;
     return ret;
+  }
+
+  inline void set_edge_data(size_t idx, int32_t col_id,
+                            const Any& new_val) override {
+    if (new_val.type == PropertyType::kEmpty) {
+      return;
+    }
+    gs::runtime::set_edge_data(prop_type_, prop_col_.get(), idx, col_id,
+                               new_val);
   }
 
   inline size_t size() const override { return edges_.size(); }
@@ -252,6 +270,11 @@ class OptionalSDSLEdgeColumn : public IEdgeColumn {
 
   inline EdgeRecord get_edge(size_t idx) const override {
     return column_.get_edge(idx);
+  }
+
+  inline void set_edge_data(size_t idx, int32_t col_id,
+                            const Any& new_val) override {
+    column_.set_edge_data(idx, col_id, new_val);
   }
 
   inline size_t size() const override { return column_.size(); }
@@ -328,6 +351,15 @@ class BDSLEdgeColumn : public IEdgeColumn {
     return ret;
   }
 
+  inline void set_edge_data(size_t idx, int32_t col_id,
+                            const Any& new_val) override {
+    if (new_val.type == PropertyType::kEmpty) {
+      return;
+    }
+    gs::runtime::set_edge_data(prop_type_, prop_col_.get(), idx, col_id,
+                               new_val);
+  }
+
   inline size_t size() const override { return edges_.size(); }
 
   std::string column_info() const override {
@@ -372,6 +404,11 @@ class OptionalBDSLEdgeColumn : public IEdgeColumn {
 
   inline EdgeRecord get_edge(size_t idx) const override {
     return column_.get_edge(idx);
+  }
+
+  inline void set_edge_data(size_t idx, int32_t col_id,
+                            const Any& new_val) override {
+    column_.set_edge_data(idx, col_id, new_val);
   }
 
   inline size_t size() const override { return column_.edges_.size(); }
@@ -451,6 +488,17 @@ class SDMLEdgeColumn : public IEdgeColumn {
     return ret;
   }
 
+  inline void set_edge_data(size_t idx, int32_t col_id,
+                            const Any& new_val) override {
+    if (new_val.type == PropertyType::kEmpty) {
+      return;
+    }
+    auto index = std::get<0>(edges_[idx]);
+    auto prop_type = edge_labels_[index].second;
+    gs::runtime::set_edge_data(prop_type, prop_cols_[index].get(), idx, col_id,
+                               new_val);
+  }
+
   inline size_t size() const override { return edges_.size(); }
 
   std::string column_info() const override {
@@ -519,6 +567,11 @@ class OptionalSDMLEdgeColumn : public IEdgeColumn {
 
   inline EdgeRecord get_edge(size_t idx) const override {
     return column_.get_edge(idx);
+  }
+
+  inline void set_edge_data(size_t idx, int32_t col_id,
+                            const Any& new_val) override {
+    column_.set_edge_data(idx, col_id, new_val);
   }
 
   inline size_t size() const override { return column_.edges_.size(); }
@@ -599,6 +652,17 @@ class BDMLEdgeColumn : public IEdgeColumn {
     return ret;
   }
 
+  inline void set_edge_data(size_t idx, int32_t col_id,
+                            const Any& new_val) override {
+    if (new_val.type == PropertyType::kEmpty) {
+      return;
+    }
+    auto index = std::get<0>(edges_[idx]);
+    auto prop_type = labels_[index].second;
+    gs::runtime::set_edge_data(prop_type, prop_cols_[index].get(), idx, col_id,
+                               new_val);
+  }
+
   inline size_t size() const override { return edges_.size(); }
 
   std::string column_info() const override {
@@ -664,6 +728,11 @@ class OptionalBDMLEdgeColumn : public IEdgeColumn {
 
   inline EdgeRecord get_edge(size_t idx) const override {
     return column_.get_edge(idx);
+  }
+
+  inline void set_edge_data(size_t idx, int32_t col_id,
+                            const Any& new_val) override {
+    column_.set_edge_data(idx, col_id, new_val);
   }
 
   inline size_t size() const override { return column_.size(); }

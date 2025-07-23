@@ -1369,7 +1369,8 @@ static void sink_edge_data(const EdgeData& any, common::Value* value) {
   }
 }
 
-void sink_vertex(const GraphReadInterface& graph, const VertexRecord& vertex,
+template <typename GraphInterface>
+void sink_vertex(const GraphInterface& graph, const VertexRecord& vertex,
                  results::Element* ele) {
   if (vertex.label_ >= graph.schema().vertex_label_num()) {
     ele->mutable_object()->mutable_none();
@@ -1407,7 +1408,8 @@ template void RTAny::sink(const GraphReadInterface& graph,
 template void RTAny::sink(const GraphUpdateInterface& graph,
                           Encoder& encoder) const;
 
-void RTAny::sink(const GraphReadInterface& graph, int id,
+template <typename GraphInterface>
+void RTAny::sink(const GraphInterface& graph, int id,
                  results::Column* col) const {
   col->mutable_name_or_id()->set_id(id);
   if (type_ == RTAnyType::kList) {
@@ -1532,6 +1534,12 @@ void RTAny::sink(const GraphReadInterface& graph, int id,
     sink_impl(col->mutable_entry()->mutable_element()->mutable_object());
   }
 }
+
+template void RTAny::sink(const GraphReadInterface& graph, int id,
+                          results::Column* col) const;
+
+template void RTAny::sink(const GraphUpdateInterface& graph, int id,
+                          results::Column* col) const;
 
 // just for ldbc snb interactive queries
 void RTAny::encode_sig(RTAnyType type, Encoder& encoder) const {

@@ -21,6 +21,7 @@
 #include "src/engines/graph_db/runtime/common/context.h"
 #include "src/engines/graph_db/runtime/common/leaf_utils.h"
 #include "src/engines/graph_db/runtime/utils/params.h"
+#include "src/engines/graph_db/runtime/utils/predicates.h"
 
 namespace gs {
 namespace runtime {
@@ -50,9 +51,9 @@ inline std::vector<label_t> extract_labels(
 }
 class GetV {
  public:
-  template <typename PRED_T>
+  template <typename GraphInterface, typename PRED_T>
   static bl::result<Context> get_vertex_from_edges_optional_impl(
-      const GraphReadInterface& graph, Context&& ctx, const GetVParams& params,
+      const GraphInterface& graph, Context&& ctx, const GetVParams& params,
       const PRED_T& pred) {
     auto column = std::dynamic_pointer_cast<IEdgeColumn>(ctx.get(params.tag));
     if (column == nullptr) {
@@ -136,10 +137,11 @@ class GetV {
         std::to_string(static_cast<int>(column->edge_column_type())));
   }
 
-  template <typename PRED_T>
-  static bl::result<Context> get_vertex_from_edges(
-      const GraphReadInterface& graph, Context&& ctx, const GetVParams& params,
-      const PRED_T& pred) {
+  template <typename GraphInterface, typename PRED_T>
+  static bl::result<Context> get_vertex_from_edges(const GraphInterface& graph,
+                                                   Context&& ctx,
+                                                   const GetVParams& params,
+                                                   const PRED_T& pred) {
     std::vector<size_t> shuffle_offset;
     auto col = ctx.get(params.tag);
     if (col->column_type() == ContextColumnType::kPath) {
@@ -494,6 +496,22 @@ class GetV {
     }
     return ctx;
   }
+};
+
+struct GeneralVertexPredicateWrapper {
+  GeneralVertexPredicateWrapper(const GeneralVertexPredicate& pred)
+      : pred_(pred) {}
+
+  inline bool operator()(label_t label, vid_t v, size_t path_idx, int) const {
+    return pred_(label, v, path_idx, arena_, 0);
+  }
+
+  inline bool operator()(label_t label, vid_t v, size_t path_idx) const {
+    return pred_(label, v, path_idx, arena_);
+  }
+  mutable Arena arena_;
+
+  const GeneralVertexPredicate& pred_;
 };
 
 }  // namespace runtime

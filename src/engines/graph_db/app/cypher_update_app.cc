@@ -264,14 +264,14 @@ Result<results::CollectiveResults> CypherUpdateApp::execute_update_query(
     // get the error message.
     return Result<results::CollectiveResults>(status);
   }
+  auto res = runtime::Sink::sink(ctx, gii);
   if (!txn.Commit()) {
     LOG(ERROR) << "Commit failed";
     // If commit fails, we return an error.
     return Result<results::CollectiveResults>(
         Status(StatusCode::ERR_INTERNAL_ERROR, "Commit failed"));
   }
-  // No results for write-only queries
-  return Result<results::CollectiveResults>(Status::OK());
+  return Result<results::CollectiveResults>(std::move(res));
 }
 
 bool CypherUpdateApp::Query(GraphDBSession& graph, Decoder& input,
@@ -305,8 +305,8 @@ bool CypherUpdateApp::Query(GraphDBSession& graph, Decoder& input,
       output.put_string(res.status().ToString());
       return false;
     }
-    // TODO(zhanglei): sink for update queries
-    // runtime::Sink::sink(ctx, gri, output);
+    auto collective_results = res.value().SerializeAsString();
+    output.put_bytes(collective_results.data(), collective_results.size());
     return true;
   } else {
     LOG(ERROR) << "Unsupported write type: " << static_cast<int>(type);

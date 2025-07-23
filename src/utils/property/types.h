@@ -1055,7 +1055,7 @@ template <>
 struct ConvertAny<std::string_view> {
   static void to(const Any& value, std::string_view& out) {
     assert(value.type == PropertyType::kStringView);
-    out = value.value.s;
+    out = value.AsStringView();
   }
 };
 

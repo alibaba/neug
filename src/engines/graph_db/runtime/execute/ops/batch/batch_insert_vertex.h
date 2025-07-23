@@ -79,8 +79,8 @@ class BatchInsertVertexOprBuilder : public IUpdateOperatorBuilder {
 class InsertVertexOpr : public IUpdateOperator {
  public:
   using vertex_prop_vec_t = std::vector<std::pair<std::string, Any>>;
-  InsertVertexOpr(
-      std::vector<std::pair<label_t, vertex_prop_vec_t>>&& vertex_data)
+  InsertVertexOpr(std::vector<std::tuple<label_t, vertex_prop_vec_t, int32_t>>&&
+                      vertex_data)
       : vertex_data_(std::move(vertex_data)) {}
 
   std::string get_operator_name() const override { return "InsertVertexOpr"; }
@@ -95,7 +95,7 @@ class InsertVertexOpr : public IUpdateOperator {
                            Context&& ctx, OprTimer& timer) override;
 
  private:
-  std::vector<std::pair<label_t, vertex_prop_vec_t>> vertex_data_;
+  std::vector<std::tuple<label_t, vertex_prop_vec_t, int32_t>> vertex_data_;
 };
 
 class InsertVertexOprBuilder : public IUpdateOperatorBuilder {

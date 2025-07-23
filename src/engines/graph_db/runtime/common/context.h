@@ -71,7 +71,8 @@ class Context {
 
   void desc(const std::string& info = "") const;
 
-  void show(const GraphReadInterface& graph) const;
+  template <typename GraphInterface>
+  void show(const GraphInterface& graph) const;
 
   size_t col_num() const;
 

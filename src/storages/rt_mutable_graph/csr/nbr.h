@@ -615,6 +615,30 @@ class MutableNbrSliceMut<RecordView> {
       table_.ingest(ptr_->data, out);
       ptr_->timestamp.store(ts);
     }
+
+    void set_data(const Any& r, timestamp_t ts, int32_t col_id) {
+      if (col_id >= 0) {
+        auto col_ptr = table_.get_column_by_id(col_id);
+        if (col_ptr == nullptr) {
+          throw std::runtime_error("Column with id " + std::to_string(col_id) +
+                                   " does not exist.");
+        }
+        col_ptr->set_any(ptr_->data, r);
+      } else {
+        assert(col_id == -1);
+        assert(r.type == PropertyType::kRecord);
+        auto record = r.AsRecord();
+        for (size_t i = 0; i < record.size(); ++i) {
+          auto col_ptr = table_.get_column_by_id(i);
+          if (col_ptr == nullptr) {
+            throw std::runtime_error("Column with id " + std::to_string(i) +
+                                     " does not exist.");
+          }
+          col_ptr->set_any(ptr_->data, record[i]);
+        }
+      }
+    }
+
     void set_neighbor(vid_t neighbor) { ptr_->neighbor = neighbor; }
 
     void set_timestamp(timestamp_t ts) { ptr_->timestamp.store(ts); }

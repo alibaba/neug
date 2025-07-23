@@ -156,21 +156,6 @@ class GetVFromVerticesWithPredicateOpr : public IReadOperator {
   GetVParams v_params_;
 };
 
-struct GeneralVertexPredicateWrapper {
-  GeneralVertexPredicateWrapper(const GeneralVertexPredicate& pred)
-      : pred_(pred) {}
-
-  inline bool operator()(label_t label, vid_t v, size_t path_idx, int) const {
-    return pred_(label, v, path_idx, arena_, 0);
-  }
-
-  inline bool operator()(label_t label, vid_t v, size_t path_idx) const {
-    return pred_(label, v, path_idx, arena_);
-  }
-  mutable Arena arena_;
-
-  const GeneralVertexPredicate& pred_;
-};
 class GetVFromEdgesWithPredicateOpr : public IReadOperator {
  public:
   GetVFromEdgesWithPredicateOpr(const physical::GetV& opr, const GetVParams& p)

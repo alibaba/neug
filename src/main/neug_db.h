@@ -160,6 +160,8 @@ class NeugDB {
    */
   void stop_serving();
 
+  inline GraphDB& db() { return db_; }
+
  private:
   std::shared_ptr<IGraphPlanner> create_planner(
       const std::string& planner_kind, const std::string& planner_config_path) {
