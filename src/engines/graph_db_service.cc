@@ -55,6 +55,8 @@ void GraphDBService::init(const ServiceConfig& config) {
     return;
   }
   planner_ = std::make_shared<gs::GOptPlanner>(config.engine_config_path);
+  planner_->update_meta(db_.schema().to_yaml().value());
+  planner_->update_statistics(db_.get_statistics_json());
 
   if (strcmp(HTTP_SERVER_TYPE_VAL, "hiactor") == 0) {
 #ifdef HTTP_SERVER_TYPE_HIACTOR
