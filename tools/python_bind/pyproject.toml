@@ -3,11 +3,11 @@ license = "Apache 2.0"
 
 [build-system]
 requires = [
+    "pybind11>=2.9.2",
     "setuptools",
     "wheel",
-    "pybind11>=2.9.2",
+    "protobuf<=3.20",
     "packaging>=24.2",
-    "protobuf>=4",
 ]
 build-backend = "setuptools.build_meta"
 
@@ -21,8 +21,8 @@ readme = "README.md"
 keywords = ["Graph", "Python", "Embedded", "Graph Database"]
 dependencies = [
     "pybind11>=2.9.2",
-    "cibuildwheel>=2.0.0",
-    "packaging>=24.2"
+    "packaging>=24.2",
+    "protobuf<=3.20"
 ]
 
 [project.optional-dependencies]
