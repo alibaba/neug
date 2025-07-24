@@ -1,7 +1,7 @@
 SHELL=/bin/bash
 
-.PHONY: all wheel clean build requirements
-all: wheel build
+.PHONY: all wheel clean dev build requirements
+all: wheel dev
 
 
 .PHONY: requirements
@@ -10,11 +10,14 @@ requirements:  ## Install requirements
 	pip3 install -r requirements.txt 
 	pip3 install -r requirements_dev.txt
 
-.PHONY: build
-build: ## Compile neug and python bindings, and copy to build directory
-	@echo "Building C++ and Python bindings..."
-	python3 setup.py build_ext
+.PHONY: dev
+dev: ## Compile neug and python bindings, and copy to build directory
+	@echo "Building neug python package..."
 	python3 setup.py build_proto
+	python3 setup.py build_ext
+
+.PHONY: build
+build: dev ## Build the neug python package, alias for dev
 
 .PHONY: wheel
 wheel: ## Build the neug python wheel package

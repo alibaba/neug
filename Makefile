@@ -1,0 +1,28 @@
+.PHONY: python-dev python-wheel python-clean clean help
+
+all: wheel build
+
+.PHONY: python-dev
+python-dev:  ## Install Python development environment
+	@cd tools/python_bind && \
+	make requirements && \
+	make dev
+
+.PHONY: python-wheel
+python-wheel: ## Build the neug python wheel package
+	@cd tools/python_bind && \
+	make wheel
+
+.PHONY: python-clean
+python-clean:  ## Clean up Python build artifacts
+	@cd tools/python_bind && \
+	make clean
+
+.PHONY: clean
+clean: ## Clean up all build artifacts
+	make python-clean
+
+.PHONY: help
+help:  ## Display this help information
+	@echo -e "\033[1mAvailable commands:\033[0m"
+	@grep -E '^[a-z.A-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "  \033[36m%-18s\033[0m %s\n", $$1, $$2}' | sort

@@ -1,96 +1,59 @@
 # NeuG
-A repo for maintaining the next-gen GraphScope.
 
-[![Neug Test](https://github.com/GraphScope/neug/actions/workflows/neug-test.yml/badge.svg)](https://github.com/GraphScope/neug/actions/workflows/neug-test.yml)
-[![Neug wheel packaging](https://github.com/GraphScope/neug/actions/workflows/build-wheel.yml/badge.svg)](https://github.com/GraphScope/neug/actions/workflows/build-wheel.yml)
-[![Neug Doc](https://github.com/GraphScope/neug/actions/workflows/docs.yml/badge.svg)](https://github.com/GraphScope/neug/actions/workflows/docs.yml)
+**NeuG** (pronounced "new-gee") is a Hybrid Transactional/Analytical Processing (HTAP) graph database designed for high-performance embedded graph analytics and real-time transaction processing.
 
+[![NeuG Test](https://github.com/GraphScope/neug/actions/workflows/neug-test.yml/badge.svg)](https://github.com/GraphScope/neug/actions/workflows/neug-test.yml)
+[![NeuG Wheel Packaging](https://github.com/GraphScope/neug/actions/workflows/build-wheel.yml/badge.svg)](https://github.com/GraphScope/neug/actions/workflows/build-wheel.yml)
+[![NeuG Documentation](https://github.com/GraphScope/neug/actions/workflows/docs.yml/badge.svg)](https://github.com/GraphScope/neug/actions/workflows/docs.yml)
 
-# Compiler 
-Currently compiler are provided via jar. 
+## Table of Contents
 
-```bash
-wget https://graphscope.oss-accelerate-overseas.aliyuncs.com/compiler/compiler-0.0.1-SNAPSHOT-shade.jar
-java -Dgraph.schema=/workspaces/neug/example_dataset/modern_graph/graph.yaml \
-     -Dgraph.statistics=/tmp/csr-data/statistics.json \
-    -jar compiler-0.0.1-SNAPSHOT-shade.jar ./tests/engines/interactive_config_test_cbo.yaml
-```
+- [Installation](#installation)
+- [Documentation](#documentation)
+- [Development](#development)
+- [Contributing](#contributing)
+- [License](#license)
 
-# Building Wheel
+## Installation
 
-## Install the depdencies
+**NeuG** is available as a Python package and can be easily installed using `pip`:
 
 ```bash
-bash scripst/install_dep.sh
-source ~/.graphscope_env
+pip3 install neug
 ```
 
-Building wheels for all python version on this platform.
+Please note that `neug` requires `Python` version 3.8 or above and `pip` version 19.3 or higher. The package is developed and tested on major Linux distributions (Ubuntu 20.04+ / CentOS 7+) as well as macOS 11+ (Intel/Apple silicon). Windows users are encouraged to install Ubuntu via WSL2 to use this package.
+
+For more detailed installation instructions, please refer to the [installation guide](./doc/source/installation/installation.md).
+
+## Documentation
+
+We are working on the documentation. For the latest information, visit [NeuG Documentation](https://github.com/GraphScope/neug).(TODO: release the doc)
+
+You can also build the NeuG documentation locally:
 
 ```bash
-# install patchelf
-https://github.com/NixOS/patchelf/archive/refs/tags/0.14.4.zip
-unzip 0.14.4.zip
-cd patchelf-0.14.4
-./bootstrap.sh
-./configure
-make install
+cd doc
+make dependencies
+make html
+python3 -m http.server --directory build/html 8080 # Access the documentation at http://localhost:8080
 ```
 
-```bash
-pip3 install cibuildwheel
-cibuildwheel ./tools/python_bind
-auditwheel repair ./wheelhouse/*.whl
-```
+## Development
 
-Building for local development
+For instructions on building NeuG from source, as well as for development and debugging, consult the [Development Guide](./doc/source/development/dev_guide.md).
 
-```bash
-cd tools/python_bind
-pip3 install -r requirements.txt
-pip3 install -r requirements_dev.txt
-python3 setup.py build_proto
-python3 setup.py build_ext
-```
+To test NeuG's functionality, see the [Testing](./doc/source/development/dev_and_test.md) section.
 
-# Start Service
+For information on the code style adhered to by NeuG, please refer to the [Code Style Guide](./doc/source/development/code_style_guide.md).
 
-TODO: Currently we use the old interactive_server to provide TP service, in the future, we will use python-based server.
+## Contributing
 
+We deeply value any contributions you make! Please refer to the [Development](#development) and [Testing](doc/source/development/dev_and_test.md) sections for instructions on building and testing NeuG. Before contributing, be sure to read our [Contributing Guide](./CONTRIBUTING.md).
 
-## Build server
+- To report bugs, [submit an issue on GitHub](https://github.com/GraphScope/neug/issues).
+- Submit your contributions via [pull requests](https://github.com/GraphScope/neug/pulls).
 
-```bash
-mkdir build && cd build
-cmake .. -DBUILD_EXECUTABLES=ON -DBUILD_HTTP_SERVER=ON -DCMAKE_BUILD_TYPE=DEBUG
-make -j
-```
+## License
 
-## Load Graph
-
-```bash
-cd build
-export FLEX_DATA_DIR=/workspaces/neug/example_dataset/modern_graph
-GLOG_v=10 ./src/bin/bulk_loader -g ../example_dataset/modern_graph/graph.yaml -l ../example_dataset/modern_graph/import.yaml -d /tmp/csr-data-dir 
-# You will find a statistics.json under /tmp/csr-data-dir 
-```
-
-## Start Compiler Service
-
-```bash
-java -Dgraph.schema=/workspaces/neug/example_dataset/modern_graph/graph.yaml \
-     -Dgraph.statistics=/tmp/csr-data/statistics.json \
-    -jar compiler-0.0.1-SNAPSHOT-shade.jar ./tests/engines/interactive_config_test_cbo.yaml
-```
-## Start NeuG(Interactive) Server
-
-```bash
-GLOG_v=10 ./src/bin/interactive_server -c ../tests/engines/interactive_config_test_cbo.yaml -g ../example_dataset/modern_graph/graph.yaml --data-path /tmp/csr-data-dir
-```
-
-## Start cypher shell, submit query
-
-```bash
-wget https://dist.neo4j.org/cypher-shell/cypher-shell-4.4.19.zip
-unzip cypher-shell-4.4.19.zip && cd cypher-shell
-```
+NeuG is distributed under the [Apache License 2.0](https://www.apache.org/licenses/LICENSE-2.0). Please be aware that third-party libraries may have different licenses from GraphScope.
