@@ -739,7 +739,7 @@ def test_complex_example(tmp_path):
         CREATE NODE TABLE Person(
             id INT64 PRIMARY KEY,
             name STRING,
-            age INT64,
+            age INT32,
             email STRING
         )
     """
@@ -751,7 +751,7 @@ def test_complex_example(tmp_path):
             id INT64 PRIMARY KEY,
             name STRING,
             industry STRING,
-            founded_year INT64
+            founded_year INT32
         )
     """
     )
@@ -772,7 +772,7 @@ def test_complex_example(tmp_path):
         """
         CREATE REL TABLE KNOWS(
             FROM Person TO Person,
-            since_year INT64,
+            since_year INT32,
             relationship_type STRING
         )
     """

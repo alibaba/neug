@@ -36,12 +36,12 @@ schema:
           property_type:
               string:
                 long_text:
-        - property_id: 8
-          property_name: prop_char
-          property_type:
-              string:
-                char:
-                  fixed_length: 4
+        # - property_id: 8
+        #   property_name: prop_char
+        #   property_type:
+        #       string:
+        #         char:
+        #           fixed_length: 4
         - property_id: 9
           property_name: prop_varchar
           property_type:

@@ -413,6 +413,8 @@ RTAny::RTAny(const RTAny& rhs) : type_(rhs.type_) {
     value_.b_val = rhs.value_.b_val;
   } else if (type_ == RTAnyType::kI64Value) {
     value_.i64_val = rhs.value_.i64_val;
+  } else if (type_ == RTAnyType::kU64Value) {
+    value_.u64_val = rhs.value_.u64_val;
   } else if (type_ == RTAnyType::kI32Value) {
     value_.i32_val = rhs.value_.i32_val;
   } else if (type_ == RTAnyType::kU32Value) {

@@ -257,7 +257,7 @@ schema:
         - property_id: 4
           property_name: code
           property_type:
-            primitive_type: DT_SIGNED_INT64
+            primitive_type: DT_UNSIGNED_INT64
         - property_id: 5
           property_name: temperature
           property_type:

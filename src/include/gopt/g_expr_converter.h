@@ -23,12 +23,14 @@
 #include "src/include/binder/expression/literal_expression.h"
 #include "src/include/binder/expression/node_rel_expression.h"
 #include "src/include/binder/expression/property_expression.h"
+#include "src/include/binder/expression/scalar_function_expression.h"
 #include "src/include/binder/expression/variable_expression.h"
 #include "src/include/common/types/types.h"
 #include "src/include/gopt/g_alias_manager.h"
 #include "src/include/gopt/g_precedence.h"
 #include "src/include/gopt/g_type_converter.h"
 #include "src/proto_generated_gie/algebra.pb.h"
+#include "src/proto_generated_gie/common.pb.h"
 #include "src/proto_generated_gie/expr.pb.h"
 #include "src/proto_generated_gie/physical.pb.h"
 
@@ -85,6 +87,9 @@ class GExprConverter {
 
   ::common::Extract::Interval convertTemporalField(
       const binder::Expression& field);
+  ::std::unique_ptr<::common::Expression> convertCast(
+      const binder::Expression& expr,
+      const std::vector<std::string>& schemaAlias);
 
   // helper functions
   std::unique_ptr<::common::Value> convertValue(gs::common::Value value);

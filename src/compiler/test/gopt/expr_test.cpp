@@ -255,5 +255,24 @@ TEST_F(ExprTest, INT32_MULTI_DOUBLE) {
       *physical, getExprResource("INT32_MULTI_DOUBLE_physical"));
 }
 
+TEST_F(ExprTest, CAST_TYPE) {
+  std::string query =
+      "Match (a:person {eyeSight: 1009, gender: 1000}) Return a;";
+  auto logical = planLogical(query, schemaData, statsData, rules);
+  auto physical = planPhysical(*logical);
+  VerifyFactory::verifyPhysicalByJson(*physical,
+                                      getExprResource("CAST_TYPE_physical"));
+}
+
+TEST_F(ExprTest, CAST_UINT64) {
+  std::string query =
+      "MATCH (p:person)-[s:studyAt]->(o:organisation) WHERE s.code = 6689 "
+      "RETURN p.ID, o.ID";
+  auto logical = planLogical(query, schemaData, statsData, rules);
+  auto physical = planPhysical(*logical);
+  VerifyFactory::verifyPhysicalByJson(*physical,
+                                      getExprResource("CAST_UINT64_physical"));
+}
+
 }  // namespace gopt
 }  // namespace gs

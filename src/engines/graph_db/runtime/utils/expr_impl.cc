@@ -526,10 +526,14 @@ static RTAny parse_const_value(const common::Value& val) {
   switch (val.item_case()) {
   case common::Value::kI32:
     return RTAny::from_int32(val.i32());
+  case common::Value::kU32:
+    return RTAny::from_uint32(val.u32());
   case common::Value::kStr:
     return RTAny::from_string(val.str());
   case common::Value::kI64:
     return RTAny::from_int64(val.i64());
+  case common::Value::kU64:
+    return RTAny::from_uint64(val.u64());
   case common::Value::kBoolean:
     return RTAny::from_bool(val.boolean());
   case common::Value::kNone:

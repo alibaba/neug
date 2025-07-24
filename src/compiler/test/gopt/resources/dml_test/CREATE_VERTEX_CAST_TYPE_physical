@@ -1,0 +1,212 @@
+{
+ "plan_id": 0,
+ "query_plan": {
+  "mode": "READ_WRITE",
+  "plan": [
+   {
+    "opr": {
+     "create_vertex": {
+      "entries": [
+       {
+        "vertex_type": {
+         "id": 0
+        },
+        "property_mappings": [
+         {
+          "property": {
+           "key": {
+            "name": "prop_int32"
+           }
+          },
+          "data": {
+           "operators": [
+            {
+             "const": {
+              "i32": 1
+             }
+            }
+           ]
+          }
+         },
+         {
+          "property": {
+           "key": {
+            "name": "prop_uint32"
+           }
+          },
+          "data": {
+           "operators": [
+            {
+             "const": {
+              "u32": 123
+             }
+            }
+           ]
+          }
+         },
+         {
+          "property": {
+           "key": {
+            "name": "prop_int64"
+           }
+          },
+          "data": {
+           "operators": [
+            {
+             "const": {
+              "i64": "1234567890123"
+             }
+            }
+           ]
+          }
+         },
+         {
+          "property": {
+           "key": {
+            "name": "prop_uint64"
+           }
+          },
+          "data": {
+           "operators": [
+            {
+             "const": {
+              "u64": "456"
+             }
+            }
+           ]
+          }
+         },
+         {
+          "property": {
+           "key": {
+            "name": "prop_bool"
+           }
+          },
+          "data": {
+           "operators": [
+            {
+             "const": {
+              "none": {}
+             }
+            }
+           ]
+          }
+         },
+         {
+          "property": {
+           "key": {
+            "name": "prop_float"
+           }
+          },
+          "data": {
+           "operators": [
+            {
+             "const": {
+              "f32": 1.23
+             }
+            }
+           ]
+          }
+         },
+         {
+          "property": {
+           "key": {
+            "name": "prop_double"
+           }
+          },
+          "data": {
+           "operators": [
+            {
+             "const": {
+              "f64": 4.56
+             }
+            }
+           ]
+          }
+         },
+         {
+          "property": {
+           "key": {
+            "name": "prop_text"
+           }
+          },
+          "data": {
+           "operators": [
+            {
+             "const": {
+              "none": {}
+             }
+            }
+           ]
+          }
+         },
+         {
+          "property": {
+           "key": {
+            "name": "prop_varchar"
+           }
+          },
+          "data": {
+           "operators": [
+            {
+             "const": {
+              "str": "abc"
+             }
+            }
+           ]
+          }
+         },
+         {
+          "property": {
+           "key": {
+            "name": "prop_date"
+           }
+          },
+          "data": {
+           "operators": [
+            {
+             "const": {
+              "none": {}
+             }
+            }
+           ]
+          }
+         },
+         {
+          "property": {
+           "key": {
+            "name": "prop_ts"
+           }
+          },
+          "data": {
+           "operators": [
+            {
+             "const": {
+              "none": {}
+             }
+            }
+           ]
+          }
+         }
+        ],
+        "alias": {
+         "id": 0
+        },
+        "conflict_action": "ON_CONFLICT_THROW"
+       }
+      ]
+     }
+    },
+    "meta_data": []
+   },
+   {
+    "opr": {
+     "sink": {
+      "tags": []
+     }
+    },
+    "meta_data": []
+   }
+  ]
+ }
+}

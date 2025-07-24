@@ -86,6 +86,19 @@ TEST_F(DMLTest, CREATE_VERTEX) {
                                       getDMLResource("CREATE_VERTEX_physical"));
 }
 
+TEST_F(DMLTest, CREATE_VERTEX_CAST_TYPE) {
+  std::string query =
+      "CREATE (t:User {prop_int32: 1, prop_int64: 1234567890123, "
+      "prop_uint32: 123, prop_uint64: 456, prop_float: 1.23, prop_double: "
+      "4.56, prop_varchar: 'abc'})";
+  auto logical = planLogical(
+      query, getGOptResource("schema/create_follows_schema.yaml"), "", rules);
+  auto aliasManager = std::make_shared<GAliasManager>(*logical);
+  auto physical = planPhysical(*logical, aliasManager);
+  VerifyFactory::verifyPhysicalByJson(
+      *physical, getDMLResource("CREATE_VERTEX_CAST_TYPE_physical"));
+}
+
 TEST_F(DMLTest, CREATE_VERTEX_EDGE) {
   std::string query =
       "CREATE (p1:person {id: 3})<-[:knows {weight: 3.0}]-(p2:person {id: 4})";

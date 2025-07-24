@@ -31,6 +31,7 @@
 #include "src/include/common/enums/expression_type.h"
 #include "src/include/common/exception/exception.h"
 #include "src/include/common/string_utils.h"
+#include "src/include/common/types/int128_t.h"
 #include "src/include/common/types/types.h"
 #include "src/include/common/types/value/value.h"
 #include "src/include/function/arithmetic/vector_arithmetic_functions.h"
@@ -232,11 +233,24 @@ std::unique_ptr<::common::Value> GExprConverter::convertValue(
     valuePB->set_i64(value.getValue<int64_t>());
     break;
   case common::LogicalTypeID::FLOAT:
+    valuePB->set_f32(value.getValue<float>());
+    break;
   case common::LogicalTypeID::DOUBLE:
     valuePB->set_f64(value.getValue<double>());
     break;
   case common::LogicalTypeID::STRING:
     valuePB->set_str(value.getValue<std::string>());
+    break;
+  case common::LogicalTypeID::UINT32:
+    valuePB->set_u32(value.getValue<uint32_t>());
+    break;
+  case common::LogicalTypeID::UINT64:
+    valuePB->set_u64(value.getValue<uint64_t>());
+    break;
+  case common::LogicalTypeID::INT128:
+    // todo: hack ways to convert int128 to uint64, int128 is unsupported in PB
+    // yet.
+    valuePB->set_u64(value.getValue<common::int128_t>().low);
     break;
   default:
     throw common::Exception("Unsupported value type " +
@@ -272,7 +286,7 @@ std::unique_ptr<::common::Expression> GExprConverter::convertScalarFunc(
   if (scalarType.isArithmetic()) {
     return convertChildren(expr, schemaAlias);
   } else if (scalarType.getType() == CAST && !expr.getChildren().empty()) {
-    return convert(*expr.getChild(0), schemaAlias);
+    return convertCast(expr, schemaAlias);
   } else if (scalarType.isTemporal()) {
     return convertTemporalFunc(expr);
   } else if (scalarType.getType() == DATE_PART) {
@@ -396,9 +410,6 @@ std::unique_ptr<::common::ExprOpr> GExprConverter::convertOperator(
     case ScalarType::MODULO:
       result->set_arith(::common::Arithmetic::MOD);
       break;
-    case ScalarType::CAST:
-      // set nothing;
-      break;
     default:
       throw common::Exception("Unsupported scalar function: " +
                               expr.toString() + " in convertOperator");
@@ -410,6 +421,47 @@ std::unique_ptr<::common::ExprOpr> GExprConverter::convertOperator(
                             " in convertOperator");
   }
   return result;
+}
+
+::std::unique_ptr<::common::Expression> GExprConverter::convertCast(
+    const binder::Expression& expr,
+    const std::vector<std::string>& schemaAlias) {
+  if (expr.expressionType != common::ExpressionType::FUNCTION) {
+    throw common::Exception("CAST function should be a function expression");
+  }
+  auto& scalarExpr = expr.constCast<binder::ScalarFunctionExpression>();
+  auto children = expr.getChildren();
+  if (children.empty()) {
+    throw common::Exception("CAST function should have at least one children");
+  }
+  auto sourceExpr = children[0];
+  if (sourceExpr->expressionType != common::ExpressionType::LITERAL) {
+    return convert(*sourceExpr, schemaAlias);
+  }
+  auto sourceValue =
+      sourceExpr->constCast<binder::LiteralExpression>().getValue();
+  auto execFunc = scalarExpr.getFunction().execFunc;
+  // construct parameters of the cast function
+  // construct input parameters
+  auto inputVec = std::make_shared<common::ValueVector>(
+      scalarExpr.getChild(0)->getDataType().copy());
+  inputVec->copyFromValue(0, sourceValue);
+  auto state = std::make_shared<common::DataChunkState>(1);
+  state->initOriginalAndSelectedSize(1);
+  inputVec->setState(state);
+  std::vector<std::shared_ptr<common::ValueVector>> inputParams{inputVec};
+  // construct output parameters
+  common::ValueVector outputVec(scalarExpr.getBindData()->resultType.copy());
+  outputVec.setState(state);
+  // exec the cast function with parameters
+  execFunc(inputParams, common::SelectionVector::fromValueVectors(inputParams),
+           outputVec, outputVec.getSelVectorPtr(), scalarExpr.getBindData());
+  // extract casted value from the ouput vector
+  auto castValue = outputVec.getAsValue(0);
+  auto valuePB = convertValue(*castValue);
+  auto exprPB = std::make_unique<::common::Expression>();
+  exprPB->add_operators()->set_allocated_const_(valuePB.release());
+  return exprPB;
 }
 
 std::unique_ptr<::common::Expression> GExprConverter::convertTemporalFunc(
