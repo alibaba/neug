@@ -40,12 +40,28 @@ def test_create_schema_basic_types(tmp_path):
     db_dir.mkdir()
     db = Database(db_path=str(db_dir), mode="w")
     conn = db.connect()
+    conn.execute("CREATE NODE TABLE person(p1 INT32, p2 INT64, PRIMARY KEY (p1));")
     conn.execute(
-        "CREATE NODE TABLE person(p1 INT32, p2 INT64, p3 UINT32, p4 UINT64, "
-        "p5 FLOAT, p6 DOUBLE, p7 STRING, PRIMARY KEY (p1));"
+        "CREATE REL TABLE worksAt(FROM person TO person, weight DOUBLE, since INT64);"
+    )
+    conn.execute("CREATE (t:person {p1: 1, p2: 1234567890123})")
+    conn.execute("CREATE (t:person {p1: 2, p2: 9876543210987})")
+    conn.execute(
+        "MATCH(t1:person), (t2:person) WHERE t1.p1 = 1 AND t2.p1 = 2 "
+        "CREATE (t1)-[:worksAt {weight: 1.5, since: 2020}]->(t2);"
     )
     conn.close()
     db.close()
+
+    db2 = Database(db_path=str(db_dir), mode="w")
+    conn2 = db2.connect()
+    res = conn2.execute("MATCH (t:person) return count(t);")
+    assert res.__next__()[0] == 2
+
+    res = conn2.execute(
+        "MATCH (t1:person {p1: 1})-[r:worksAt]->(t2:person) return r.weight;"
+    )
+    assert res.__next__()[0] == 1.5
 
 
 @pytest.mark.skip(reason="complex types are not supported yet")

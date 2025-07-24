@@ -84,7 +84,7 @@ class NeugDB {
     }
     config_.data_dir = db_dir;
     config_.thread_num = max_num_threads;
-    config_.memory_level = 0;
+    config_.memory_level = 1;
     ensure_directory_exists(db_dir);
 
     if (mode == "read" || mode == "r") {

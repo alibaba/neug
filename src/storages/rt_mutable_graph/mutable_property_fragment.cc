@@ -222,6 +222,11 @@ Status MutablePropertyFragment::create_vertex_type(
   // Dump schema
   DumpSchema(schema_path(work_dir_));
   dumpSchema();
+  vertex_data_[vertex_label_id].dump_without_close(
+      vertex_table_prefix(vertex_type_name), snapshot_dir(work_dir_, 0));
+  lf_indexers_[vertex_label_id].dump_without_close(
+      LFIndexer<vid_t>::prefix() + "_" + vertex_map_prefix(vertex_type_name),
+      snapshot_dir(work_dir_, 0));
   vertex_label_num_ = schema_.vertex_label_num();
   while (v_mutex_.size() < vertex_label_num_) {
     v_mutex_.emplace_back(std::make_shared<std::mutex>());
