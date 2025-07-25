@@ -1,0 +1,23 @@
+#pragma once
+
+#include "bound_attach_info.h"
+#include "neug/compiler/binder/bound_statement.h"
+
+namespace gs {
+namespace binder {
+
+class BoundAttachDatabase final : public BoundStatement {
+ public:
+  explicit BoundAttachDatabase(binder::AttachInfo attachInfo)
+      : BoundStatement{common::StatementType::ATTACH_DATABASE,
+                       BoundStatementResult::createSingleStringColumnResult()},
+        attachInfo{std::move(attachInfo)} {}
+
+  binder::AttachInfo getAttachInfo() const { return attachInfo; }
+
+ private:
+  binder::AttachInfo attachInfo;
+};
+
+}  // namespace binder
+}  // namespace gs

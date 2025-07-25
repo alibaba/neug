@@ -18,8 +18,8 @@ limitations under the License.
 
 #include <string>
 
-#include "third_party/libgrape-lite/grape/serialization/in_archive.h"
-#include "third_party/libgrape-lite/grape/serialization/out_archive.h"
+#include "libgrape-lite/grape/serialization/in_archive.h"
+#include "libgrape-lite/grape/serialization/out_archive.h"
 
 namespace grape {
 

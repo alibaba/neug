@@ -1,0 +1,36 @@
+#pragma once
+
+#include "neug/compiler/common/cast.h"
+#include "neug/compiler/common/enums/clause_type.h"
+#include "neug/compiler/parser/expression/parsed_expression.h"
+
+namespace gs {
+namespace parser {
+
+class ReadingClause {
+ public:
+  explicit ReadingClause(common::ClauseType clauseType)
+      : clauseType{clauseType} {};
+  virtual ~ReadingClause() = default;
+
+  common::ClauseType getClauseType() const { return clauseType; }
+
+  void setWherePredicate(std::unique_ptr<ParsedExpression> expression) {
+    wherePredicate = std::move(expression);
+  }
+  bool hasWherePredicate() const { return wherePredicate != nullptr; }
+  const ParsedExpression* getWherePredicate() const {
+    return wherePredicate.get();
+  }
+
+  template <class TARGET>
+  const TARGET& constCast() const {
+    return common::ku_dynamic_cast<const TARGET&>(*this);
+  }
+
+ private:
+  common::ClauseType clauseType;
+  std::unique_ptr<ParsedExpression> wherePredicate;
+};
+}  // namespace parser
+}  // namespace gs

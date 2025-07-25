@@ -19,9 +19,9 @@
 #include <memory>
 #include <string>
 
+#include "neug/main/connection.h"
 #include "py_query_result.h"
-#include "src/main/connection.h"
-#include "third_party/pybind11/include/pybind11/pybind11.h"
+#include "pybind11/include/pybind11/pybind11.h"
 
 namespace gs {
 

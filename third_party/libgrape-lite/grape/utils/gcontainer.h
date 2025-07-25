@@ -26,8 +26,8 @@
 #include <type_traits>
 #include <utility>
 
-#include "third_party/libgrape-lite/grape/config.h"
-#include "third_party/libgrape-lite/grape/types.h"
+#include "libgrape-lite/grape/config.h"
+#include "libgrape-lite/grape/types.h"
 
 namespace grape {
 

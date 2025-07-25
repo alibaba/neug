@@ -164,10 +164,11 @@ include(CheckLibraryExists)
 include(GNUInstallDirs)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 include(CheckCXXSourceCompiles)
-include_directories(${CMAKE_CURRENT_SOURCE_DIR})
-include_directories(${CMAKE_CURRENT_BINARY_DIR})
+include_directories(${CMAKE_CURRENT_SOURCE_DIR}/src/)
 # pb files generated under src/utils
-include_directories(${CMAKE_CURRENT_BINARY_DIR}/src/utils)
+include_directories(${CMAKE_CURRENT_BINARY_DIR}/src/neug/utils)
+# system_config.h generated under src/compiler
+include_directories(${CMAKE_CURRENT_BINARY_DIR}/src/neug/compiler)
 
 # Print cc and cxx compiler
 message(STATUS "CMAKE_C_COMPILER: ${CMAKE_C_COMPILER}")
@@ -212,7 +213,6 @@ function(add_compiler_test TEST_NAME)
     else()
         target_link_libraries(${TEST_NAME} PUBLIC neug::GTest neug_compiler_shared neug_plan_proto)
     endif()
-    target_include_directories(${TEST_NAME} PRIVATE src/include)
 
     include(GoogleTest)
 
@@ -556,7 +556,7 @@ endmacro()
 set(COMPILER_LIBRARIES antlr4_cypher antlr4_runtime fast_float utf8proc re2 ${YAML_CPP_LIBRARIES})
 message(STATUS "head: Compiler libraries: ${COMPILER_LIBRARIES}")
 
-set(COMPILER_LIBRARIES ${COMPILER_LIBRARIES} Threads::Threads)
+# set(COMPILER_LIBRARIES ${COMPILER_LIBRARIES} Threads::Threads)
 if(NOT WIN32)
         set(COMPILER_LIBRARIES dl ${COMPILER_LIBRARIES})
 endif()
@@ -612,6 +612,12 @@ if (BUILD_COMPILER)
     add_subdirectory(third_party/glob)
     add_subdirectory(third_party/re2)
     add_subdirectory(third_party/utf8proc)
+endif()
+
+if (BUILD_ALL_IN_ONE)
+    set(NEUG_LIBRARIES neug::neug_libraries)
+else()
+    set(NEUG_LIBRARIES neug::neug_utils neug::neug_rt_mutable_graph neug::neug_graph_db neug::neug_plan_proto neug::neug_grape_lite)
 endif()
 
 configure_file(${CMAKE_CURRENT_SOURCE_DIR}/neug-config.in.cmake
@@ -672,5 +678,36 @@ if(USE_PTHASH)
             PATTERN "*.hpp"
     )
 endif()
+
+install(DIRECTORY ${PROJECT_SOURCE_DIR}/third_party/flat_hash_map
+            DESTINATION include/
+            FILES_MATCHING
+            PATTERN "*.h"
+            PATTERN "*.hpp"
+)
+
+install(DIRECTORY ${PROJECT_SOURCE_DIR}/third_party/re2/include/
+            DESTINATION include/re2
+            FILES_MATCHING
+            PATTERN "*.h"
+            PATTERN "*.hpp"
+)
+install(FILES ${PROJECT_SOURCE_DIR}/third_party/utf8proc/include/utf8proc_data.h
+            ${PROJECT_SOURCE_DIR}/third_party/utf8proc/include/utf8proc.h   
+            ${PROJECT_SOURCE_DIR}/third_party/utf8proc/include/utf8proc_wrapper.h
+            DESTINATION include/utf8proc
+)
+
+install(DIRECTORY ${PROJECT_SOURCE_DIR}/third_party/pthash
+            DESTINATION include
+            FILES_MATCHING
+            PATTERN "*.h"
+            PATTERN "*.hpp"
+)
+install(DIRECTORY ${PROJECT_SOURCE_DIR}/third_party/string_view
+            DESTINATION include
+            FILES_MATCHING
+            PATTERN "*.hpp"
+)
 
 include(CPack)

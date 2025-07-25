@@ -20,8 +20,8 @@ limitations under the License.
 #include <string>
 #include <utility>
 
-#include "third_party/libgrape-lite/grape/config.h"
-#include "third_party/libgrape-lite/grape/io/line_parser_base.h"
+#include "libgrape-lite/grape/config.h"
+#include "libgrape-lite/grape/io/line_parser_base.h"
 
 namespace grape {
 

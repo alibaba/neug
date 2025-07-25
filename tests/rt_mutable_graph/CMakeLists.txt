@@ -1,7 +1,7 @@
 
 file(GLOB GS_TEST_FILES RELATIVE "${CMAKE_CURRENT_SOURCE_DIR}" "${CMAKE_CURRENT_SOURCE_DIR}/*.cc")
 
-include_directories(${CMAKE_CURRENT_BINARY_DIR}/../../src/compiler)
+include_directories(${CMAKE_CURRENT_BINARY_DIR}/../../src/neug/compiler)
 
 set(STRING_LIST
     "test_open_graph"

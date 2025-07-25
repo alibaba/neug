@@ -1,8 +1,8 @@
 #include <iostream>
 #include <string>
-#include "src/main/neug_db.h"
-#include "src/storages/rt_mutable_graph/file_names.h"
-#include "src/storages/rt_mutable_graph/schema.h"
+#include "neug/main/neug_db.h"
+#include "neug/storages/rt_mutable_graph/file_names.h"
+#include "neug/storages/rt_mutable_graph/schema.h"
 
 bool test_gopt_planner(const std::string& data_path) {
   // remove the directory if it exists

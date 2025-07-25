@@ -38,7 +38,7 @@ limitations under the License.
 
 #include <glog/logging.h>
 
-#include "third_party/libgrape-lite/grape/config.h"
+#include "libgrape-lite/grape/config.h"
 
 namespace grape {
 

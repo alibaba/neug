@@ -41,7 +41,7 @@
 #include <glog/logging.h>
 
 // #include "grape/parallel/parallel_engine_spec.h"
-#include "third_party/libgrape-lite/grape/types.h"
+#include "libgrape-lite/grape/types.h"
 
 #if __linux__
 #ifndef _GNU_SOURCE

@@ -18,10 +18,10 @@
 #include <string>
 
 #include <glog/logging.h>
+#include "neug/main/file_lock.h"
 #include "py_connection.h"
 #include "py_database.h"
 #include "py_query_result.h"
-#include "src/main/file_lock.h"
 
 #define STRINGIFY(x) #x
 #define MACRO_STRINGIFY(x) STRINGIFY(x)

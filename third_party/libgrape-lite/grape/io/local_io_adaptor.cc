@@ -13,7 +13,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-#include "third_party/libgrape-lite/grape/io/local_io_adaptor.h"
+#include "libgrape-lite/grape/io/local_io_adaptor.h"
 
 #include <sys/stat.h>
 
@@ -21,8 +21,8 @@ limitations under the License.
 
 #include <glog/logging.h>
 
-#include "third_party/libgrape-lite/grape/serialization/in_archive.h"
-#include "third_party/libgrape-lite/grape/serialization/out_archive.h"
+#include "libgrape-lite/grape/serialization/in_archive.h"
+#include "libgrape-lite/grape/serialization/out_archive.h"
 
 namespace grape {
 

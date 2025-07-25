@@ -13,10 +13,10 @@
  * limitations under the License.
  */
 
-#include "src/engines//graph_db_service.h"
-#include "src/engines/graph_db/database/graph_db.h"
-#include "src/engines/http_server/options.h"
-#include "src/utils/service_utils.h"
+#include "neug/engines//graph_db_service.h"
+#include "neug/engines/graph_db/database/graph_db.h"
+#include "neug/engines/http_server/options.h"
+#include "neug/utils/service_utils.h"
 
 #include <glog/logging.h>
 #include <boost/program_options.hpp>

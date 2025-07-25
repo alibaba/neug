@@ -22,7 +22,7 @@ limitations under the License.
 #include <string>
 #include <vector>
 
-#include "third_party/libgrape-lite/grape/io/io_adaptor_base.h"
+#include "libgrape-lite/grape/io/io_adaptor_base.h"
 
 namespace grape {
 class InArchive;

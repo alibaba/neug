@@ -116,6 +116,7 @@ class CMakeBuild(build_ext):
             "ON" if os.environ.get("BUILD_ALL_IN_ONE", "ON") == "ON" else "OFF"
         )
         with_mimalloc = "ON" if os.environ.get("WITH_MIMALLOC", "ON") == "ON" else "OFF"
+        cmake_install_prefix = os.environ.get("CMAKE_INSTALL_PREFIX", None)
         use_ninja = os.environ.get("USE_NINJA", "OFF") == "ON"
         build_test = "OFF"
         if os.environ.get("BUILD_TEST", "OFF") == "ON":
@@ -146,6 +147,10 @@ class CMakeBuild(build_ext):
         if build_http_server == "ON":
             cmake_args += [
                 f"-DHTTP_SERVER_TYPE={http_server_type}",
+            ]
+        if cmake_install_prefix:
+            cmake_args += [
+                f"-DCMAKE_INSTALL_PREFIX={cmake_install_prefix}",
             ]
         if use_ninja:
             cmake_args += ["-GNinja"]

@@ -19,8 +19,8 @@
 #include <string_view>
 #include <vector>
 
-#include "src/engines/graph_db/app/app_base.h"
-#include "third_party/httplib.h"
+#include "httplib.h"
+#include "neug/engines/graph_db/app/app_base.h"
 
 int main(int argc, char** argv) {
   if (argc < 2) {

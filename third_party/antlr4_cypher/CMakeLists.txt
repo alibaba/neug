@@ -8,9 +8,9 @@ if(${AUTO_UPDATE_GRAMMAR})
                         ${CMAKE_CURRENT_SOURCE_DIR}/include/cypher_parser.h
                 COMMAND cmake -D ROOT_DIR=${PROJECT_SOURCE_DIR} -P generate_grammar.cmake
                 DEPENDS
-                        ${PROJECT_SOURCE_DIR}/src/compiler/antlr4/Cypher.g4
-                        ${PROJECT_SOURCE_DIR}/src/compiler/scripts/antlr4/generate_grammar.cmake
-                WORKING_DIRECTORY ${PROJECT_SOURCE_DIR}/src/compiler/scripts/antlr4)
+                        ${PROJECT_SOURCE_DIR}/src/neug/compiler/antlr4/Cypher.g4
+                        ${PROJECT_SOURCE_DIR}/src/neug/compiler/scripts/antlr4/generate_grammar.cmake
+                WORKING_DIRECTORY ${PROJECT_SOURCE_DIR}/src/neug/compiler/scripts/antlr4)
 endif()
 
 add_library(antlr4_cypher

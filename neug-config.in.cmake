@@ -9,13 +9,26 @@
 set(NEUG_HOME "${CMAKE_CURRENT_LIST_DIR}/../../..")
 include("${CMAKE_CURRENT_LIST_DIR}/neug-targets.cmake")
 
-if (BUILD_ALL_IN_ONE)
-    set(NEUG_LIBRARIES neug::neug_libraries)
-else()
-    set(NEUG_LIBRARIES neug::neug_utils neug::neug_rt_mutable_graph neug::neug_graph_db neug::neug_plan_proto neug::neug_grape_lite)
-endif()
+set(NEUG_LIBRARIES @NEUG_LIBRARIES@)
 set(NEUG_INCLUDE_DIR "${NEUG_HOME}/include")
 set(NEUG_INCLUDE_DIRS "${NEUG_INCLUDE_DIR}")
+
+find_package(Boost REQUIRED COMPONENTS system filesystem
+             # required by folly
+             context program_options regex thread date_time)
+add_definitions("-DBOOST_BIND_GLOBAL_PLACEHOLDERS")
+include_directories(SYSTEM ${Boost_INCLUDE_DIRS})
+
+find_package(Arrow REQUIRED)
+
+if (@WITH_MIMALLOC@)
+    find_package(mimalloc 1.8 REQUIRED)
+endif()
+
+add_definitions(-DRAPIDJSON_HAS_CXX11=1)
+add_definitions(-DRAPIDJSON_HAS_STDSTRING=1)
+add_definitions(-DRAPIDJSON_HAS_CXX11_RVALUE_REFS=1)
+add_definitions(-DRAPIDJSON_HAS_CXX11_RANGE_FOR=1)
 
 include(FindPackageMessage)
 find_package_message(neug

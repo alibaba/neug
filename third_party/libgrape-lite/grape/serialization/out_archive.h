@@ -26,10 +26,10 @@ limitations under the License.
 #include <utility>
 #include <vector>
 
-#include "third_party/flat_hash_map/flat_hash_map.hpp"
-#include "third_party/libgrape-lite/grape/serialization/in_archive.h"
-#include "third_party/libgrape-lite/grape/types.h"
-#include "third_party/libgrape-lite/grape/utils/gcontainer.h"
+#include "flat_hash_map/flat_hash_map.hpp"
+#include "libgrape-lite/grape/serialization/in_archive.h"
+#include "libgrape-lite/grape/types.h"
+#include "libgrape-lite/grape/utils/gcontainer.h"
 
 namespace grape {
 

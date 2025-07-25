@@ -1,0 +1,27 @@
+#include "neug/compiler/parser/expression/parsed_function_expression.h"
+
+#include "neug/compiler/common/serializer/deserializer.h"
+#include "neug/compiler/common/serializer/serializer.h"
+
+using namespace gs::common;
+
+namespace gs {
+namespace parser {
+
+std::unique_ptr<ParsedFunctionExpression> ParsedFunctionExpression::deserialize(
+    Deserializer& deserializer) {
+  bool isDistinct = false;
+  deserializer.deserializeValue(isDistinct);
+  std::string functionName;
+  deserializer.deserializeValue(functionName);
+  return std::make_unique<ParsedFunctionExpression>(std::move(functionName),
+                                                    isDistinct);
+}
+
+void ParsedFunctionExpression::serializeInternal(Serializer& serializer) const {
+  serializer.serializeValue(isDistinct);
+  serializer.serializeValue(functionName);
+}
+
+}  // namespace parser
+}  // namespace gs

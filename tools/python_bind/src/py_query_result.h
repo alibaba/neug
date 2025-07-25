@@ -16,12 +16,12 @@
 #ifndef TOOLS_PYTHON_BIND_SRC_PY_QUERY_RESULT_H_
 #define TOOLS_PYTHON_BIND_SRC_PY_QUERY_RESULT_H_
 
-#include "third_party/pybind11/include/pybind11/pybind11.h"
+#include "pybind11/include/pybind11/pybind11.h"
 
-#include "src/main/query_result.h"
-#include "src/proto_generated_gie/results.pb.h"
-#include "src/storages/rt_mutable_graph/schema.h"
-#include "src/utils/result.h"
+#include "neug/main/query_result.h"
+#include "neug/proto_generated_gie/results.pb.h"
+#include "neug/storages/rt_mutable_graph/schema.h"
+#include "neug/utils/result.h"
 
 namespace gs {
 

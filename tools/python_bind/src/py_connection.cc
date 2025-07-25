@@ -16,7 +16,7 @@
 #include "py_connection.h"
 #include <datetime.h>
 #include <memory>
-#include "src/main/neug_db.h"
+#include "neug/main/neug_db.h"
 
 namespace gs {
 

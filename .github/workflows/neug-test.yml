@@ -95,6 +95,9 @@ jobs:
         export BUILD_TEST=ON
         export USE_NINJA=OFF
         export WITH_MIMALLOC=ON
+        export CMAKE_INSTALL_PREFIX=/opt/neug/
+        sudo mkdir -p /opt/neug
+        sudo chown -R $USER:$USER /opt/neug
         # export CC="ccache gcc"
         # export CXX="ccache g++"
         cd tools/python_bind
@@ -208,6 +211,18 @@ jobs:
       run: |
         cd ${GITHUB_WORKSPACE}/tests/e2e
         ./scripts/run_embed_test.sh lsqb /tmp/lsqb lsqb
+
+    - name: Test installation c++ sdk
+      run: |
+        cd ${GITHUB_WORKSPACE}/tools/python_bind/build/neug_py_bind
+        sudo make install
+        ldd /opt/neug/lib/libneug_libraries.so
+        printenv
+        cd  ${GITHUB_WORKSPACE}/tests/test_cpp_installation
+        mkdir build && cd build
+        export CMAKE_PREFIX_PATH=/opt/neug/:/opt/graphscope/
+        cmake .. && make -j1
+        ./test
 
     # - name: Run E2E LSQB Benchmark
     #   run: |

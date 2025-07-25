@@ -17,11 +17,11 @@
 #include <fstream>
 #include <iostream>
 #include <vector>
-#include "src/engines/graph_db/database/graph_db.h"
-#include "src/engines/graph_db/runtime/common/operators/retrieve/sink.h"
-#include "src/engines/graph_db/runtime/execute/plan_parser.h"
-#include "src/engines/graph_db/runtime/utils/opr_timer.h"
-#include "src/proto_generated_gie/physical.pb.h"
+#include "neug/engines/graph_db/database/graph_db.h"
+#include "neug/engines/graph_db/runtime/common/operators/retrieve/sink.h"
+#include "neug/engines/graph_db/runtime/execute/plan_parser.h"
+#include "neug/engines/graph_db/runtime/utils/opr_timer.h"
+#include "neug/proto_generated_gie/physical.pb.h"
 
 namespace bpo = boost::program_options;
 

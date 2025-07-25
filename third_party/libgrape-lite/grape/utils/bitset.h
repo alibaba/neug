@@ -21,7 +21,7 @@ limitations under the License.
 #include <algorithm>
 #include <utility>
 
-#include "third_party/libgrape-lite/grape/config.h"
+#include "libgrape-lite/grape/config.h"
 #include "thread_pool.h"
 
 #define WORD_SIZE(n) (((n) + 63ul) >> 6)

@@ -15,8 +15,8 @@
 
 #include "py_query_result.h"
 #include <datetime.h>
-#include "src/storages/rt_mutable_graph/schema.h"
-#include "src/utils/property/types.h"
+#include "neug/storages/rt_mutable_graph/schema.h"
+#include "neug/utils/property/types.h"
 
 #include <datetime.h>
 namespace gs {

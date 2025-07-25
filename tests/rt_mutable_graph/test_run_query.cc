@@ -1,8 +1,8 @@
 #include <iostream>
 #include <string>
-#include "src/main/neug_db.h"
-#include "src/storages/rt_mutable_graph/file_names.h"
-#include "src/storages/rt_mutable_graph/schema.h"
+#include "neug/main/neug_db.h"
+#include "neug/storages/rt_mutable_graph/file_names.h"
+#include "neug/storages/rt_mutable_graph/schema.h"
 
 int main(int argc, char** argv) {
   // Expect 1 args, data path

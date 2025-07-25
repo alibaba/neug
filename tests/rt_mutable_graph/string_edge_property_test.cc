@@ -21,18 +21,18 @@
 #include <string>
 #include <string_view>
 
-#include "src/engines/graph_db/database/graph_db.h"
-#include "src/engines/graph_db/database/read_transaction.h"
-#include "src/engines/graph_db/database/single_edge_insert_transaction.h"
-#include "src/engines/graph_db/database/single_vertex_insert_transaction.h"
-#include "src/storages/rt_mutable_graph/csr/csr_base.h"
-#include "src/storages/rt_mutable_graph/csr/nbr.h"
-#include "src/storages/rt_mutable_graph/mutable_property_fragment.h"
-#include "src/storages/rt_mutable_graph/schema.h"
-#include "src/storages/rt_mutable_graph/types.h"
-#include "src/utils/property/types.h"
-#include "src/utils/result.h"
-#include "third_party/libgrape-lite/grape/util.h"
+#include "libgrape-lite/grape/util.h"
+#include "neug/engines/graph_db/database/graph_db.h"
+#include "neug/engines/graph_db/database/read_transaction.h"
+#include "neug/engines/graph_db/database/single_edge_insert_transaction.h"
+#include "neug/engines/graph_db/database/single_vertex_insert_transaction.h"
+#include "neug/storages/rt_mutable_graph/csr/csr_base.h"
+#include "neug/storages/rt_mutable_graph/csr/nbr.h"
+#include "neug/storages/rt_mutable_graph/mutable_property_fragment.h"
+#include "neug/storages/rt_mutable_graph/schema.h"
+#include "neug/storages/rt_mutable_graph/types.h"
+#include "neug/utils/property/types.h"
+#include "neug/utils/result.h"
 
 namespace gs {
 class TestStringEdgeProperty {

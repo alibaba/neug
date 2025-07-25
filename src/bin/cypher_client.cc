@@ -17,9 +17,9 @@
 #include <fstream>
 #include <iostream>
 #include <vector>
-#include "src/engines/graph_db/database/graph_db_session.h"
-#include "src/storages/rt_mutable_graph/schema.h"
-#include "third_party/httplib.h"
+#include "httplib.h"
+#include "neug/engines/graph_db/database/graph_db_session.h"
+#include "neug/storages/rt_mutable_graph/schema.h"
 
 namespace bpo = boost::program_options;
 

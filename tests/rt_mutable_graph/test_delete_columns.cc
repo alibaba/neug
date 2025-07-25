@@ -1,8 +1,8 @@
 #include <iostream>
 #include <string>
-#include "src/main/neug_db.h"
-#include "src/storages/rt_mutable_graph/file_names.h"
-#include "src/storages/rt_mutable_graph/schema.h"
+#include "neug/main/neug_db.h"
+#include "neug/storages/rt_mutable_graph/file_names.h"
+#include "neug/storages/rt_mutable_graph/schema.h"
 
 void print_schema(const gs::Schema& schema) {
   std::cout << "Vertex labels: " << schema.vertex_label_num() << "\n";

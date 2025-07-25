@@ -16,11 +16,11 @@
 #ifndef TOOLS_PYTHON_BIND_SRC_PY_DATABASE_H_
 #define TOOLS_PYTHON_BIND_SRC_PY_DATABASE_H_
 
-#include "third_party/pybind11/include/pybind11/pybind11.h"
-#include "third_party/pybind11/include/pybind11/stl.h"
+#include "pybind11/include/pybind11/pybind11.h"
+#include "pybind11/include/pybind11/stl.h"
 
+#include "neug/main/neug_db.h"
 #include "py_connection.h"
-#include "src/main/neug_db.h"
 
 namespace gs {
 

@@ -24,8 +24,8 @@ limitations under the License.
 #include <thrust/host_vector.h>
 #endif
 
-#include "third_party/libgrape-lite/grape/utils/default_allocator.h"
-#include "third_party/libgrape-lite/grape/utils/hp_allocator.h"
+#include "libgrape-lite/grape/utils/default_allocator.h"
+#include "libgrape-lite/grape/utils/hp_allocator.h"
 
 namespace google {}
 namespace grape {

@@ -16,8 +16,8 @@ limitations under the License.
 #ifndef GRAPE_SERIALIZATION_FIXED_IN_ARCHIVE_H_
 #define GRAPE_SERIALIZATION_FIXED_IN_ARCHIVE_H_
 
-#include "third_party/libgrape-lite/grape/serialization/in_archive.h"
-#include "third_party/libgrape-lite/grape/utils/message_buffer_pool.h"
+#include "libgrape-lite/grape/serialization/in_archive.h"
+#include "libgrape-lite/grape/utils/message_buffer_pool.h"
 
 namespace grape {
 

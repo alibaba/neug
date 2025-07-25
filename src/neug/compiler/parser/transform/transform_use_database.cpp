@@ -1,0 +1,14 @@
+#include "neug/compiler/parser/transformer.h"
+#include "neug/compiler/parser/use_database.h"
+
+namespace gs {
+namespace parser {
+
+std::unique_ptr<Statement> Transformer::transformUseDatabase(
+    CypherParser::KU_UseDatabaseContext& ctx) {
+  auto dbName = transformSchemaName(*ctx.oC_SchemaName());
+  return std::make_unique<UseDatabase>(std::move(dbName));
+}
+
+}  // namespace parser
+}  // namespace gs

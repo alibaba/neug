@@ -1,0 +1,14 @@
+#pragma once
+
+#include "neug/compiler/main/client_context.h"
+//clang-format off
+@INCLUDES@
+    //clang-format on
+
+    namespace gs {
+  namespace extension {
+
+  void loadLinkedExtensions(main::ClientContext* context);
+
+  }  // namespace extension
+}  // namespace gs
