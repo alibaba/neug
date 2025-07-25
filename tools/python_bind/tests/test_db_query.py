@@ -857,3 +857,10 @@ def test_complex_example(tmp_path):
     session.close()
 
     db.stop_serving()
+
+
+def test_query_on_empty_graph():
+    db = Database()
+    conn = db.connect()
+    res = conn.execute("MATCH (n) RETURN n;")
+    assert res is not None and len(res) == 0

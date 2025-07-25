@@ -49,8 +49,10 @@ PyConnection::PyConnection(NeugDB& db, std::shared_ptr<Connection> conn)
 }
 
 void PyConnection::close() {
-  db_.remove_connection(conn_);
-  conn_.reset();
+  if (conn_) {
+    db_.remove_connection(conn_);
+    conn_.reset();
+  }
 }
 
 std::unique_ptr<PyQueryResult> PyConnection::execute(

@@ -100,6 +100,8 @@ enum Code {
   ERR_CONCURRENT_WRITE = 3004;
   // Error during query code generation
   ERR_CODEGEN_ERROR = 3005;
+  // infer empty result from the logical plan in compilation phase
+  ERR_EMPTY_RESULT = 3006;
 
   // Error during transaction management
   ERR_TX_STATE_CONFLICT = 4001;

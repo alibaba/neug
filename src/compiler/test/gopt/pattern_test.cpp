@@ -88,5 +88,31 @@ TEST_F(PatternTest, FILTER) {
                                       getPatResource("FILTER_physical"));
 }
 
+// return empty code if schema is empty, and the query does not give a explict
+// label
+TEST_F(PatternTest, EMPTY_RESULT) {
+  std::string emptySchema = getGOptResource("schema/empty_schema.yaml");
+  std::string query = "MATCH (n) Return count(n);";
+  auto logical = planLogical(query, emptySchema, "", rules);
+  ASSERT_TRUE(logical->emptyResult(logical->getLastOperator()));
+}
+
+// throw exception if the query contains a explict label, even if the schema is
+// empty
+TEST_F(PatternTest, INVALID_LABEL) {
+  try {
+    std::string emptySchema = getGOptResource("schema/empty_schema.yaml");
+    std::string query = "MATCH (n:person) Return count(n);";
+    auto logical = planLogical(query, emptySchema, "", rules);
+  } catch (const std::exception& e) {
+    ASSERT_TRUE(std::string(e.what()).find("Table person does not exist") !=
+                std::string::npos)
+        << "Unexpected exception message: " << e.what();
+    return;
+  }
+  FAIL() << "Expected exception to be thrown due to invalid label, but no "
+            "exception was thrown.";
+}
+
 }  // namespace gopt
 }  // namespace gs

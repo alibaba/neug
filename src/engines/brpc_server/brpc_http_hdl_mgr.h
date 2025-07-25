@@ -79,7 +79,8 @@ class HttpServiceImpl : public HttpService {
       return;
     }
     auto plan = planner_->compilePlan(req);
-    if (plan.error_code != gs::StatusCode::OK) {
+    if (plan.error_code != gs::StatusCode::OK &&
+        plan.error_code != gs::StatusCode::ERR_EMPTY_RESULT) {
       LOG(ERROR) << "Plan compilation failed: " << plan.full_message;
       cntl->SetFailed(plan.full_message);
       cntl->http_response().set_status_code(

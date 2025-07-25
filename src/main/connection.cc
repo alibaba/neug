@@ -64,7 +64,8 @@ Result<results::CollectiveResults> Connection::query_impl(
 
   plan = planner_->compilePlan(query_string);
 
-  if (plan.error_code != StatusCode::OK) {
+  if (plan.error_code != StatusCode::OK &&
+      plan.error_code != StatusCode::ERR_EMPTY_RESULT) {
     throw std::runtime_error("Failed to compile plan, error code " +
                              std::to_string(static_cast<int>(plan.error_code)) +
                              ", " + plan.full_message);

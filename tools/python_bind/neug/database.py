@@ -177,9 +177,6 @@ class Database(object):
                 f"Open database {self._db_path} in {mode} mode, config: {planner_config_path}"
             )
 
-    def __del__(self):
-        self.close()
-
     def __enter__(self):
         return self
 

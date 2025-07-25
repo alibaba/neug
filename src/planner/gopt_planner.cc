@@ -45,6 +45,13 @@ Plan GOptPlanner::compilePlan(const std::string& query) {
     std::cout << "Logical Plan: " << std::endl
               << statement->logicalPlan->toString() << std::endl;
 
+    if (statement->logicalPlan->emptyResult(
+            statement->logicalPlan->getLastOperator())) {
+      plan.error_code = StatusCode::ERR_EMPTY_RESULT;
+      plan.full_message = "Query returns empty result";
+      return plan;
+    }
+
     auto aliasManager =
         std::make_shared<gs::gopt::GAliasManager>(*statement->logicalPlan);
     gs::gopt::GPhysicalConvertor converter(aliasManager,

@@ -43,9 +43,6 @@ class Connection(object):
         self._py_connection = py_connection
         self._is_open = True
 
-    def __del__(self):
-        self.close()
-
     @property
     def is_open(self) -> bool:
         """

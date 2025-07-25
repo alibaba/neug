@@ -20,6 +20,18 @@ class KUZU_API LogicalPlan {
 
   bool isEmpty() const { return lastOperator == nullptr; }
 
+  bool emptyResult(std::shared_ptr<LogicalOperator> op) const {
+    if (!op)
+      return false;
+    // check if any child returns empty result
+    for (auto& child : op->getChildren()) {
+      if (emptyResult(child)) {
+        return true;
+      }
+    }
+    return op->getOperatorType() == LogicalOperatorType::EMPTY_RESULT;
+  }
+
   std::shared_ptr<LogicalOperator> getLastOperator() const {
     return lastOperator;
   }

@@ -79,6 +79,7 @@ void FileLock::unlock() {
     LOG(WARNING) << "Attempted to unlock a non-locked file: "
                  << lock_file_path_;
   }
+  locked_ = false;
 }
 
 std::set<std::string> FileLock::allLockFiles;
