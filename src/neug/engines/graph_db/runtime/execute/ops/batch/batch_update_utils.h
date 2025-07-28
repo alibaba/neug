@@ -57,8 +57,6 @@ static const std::string CSV_ESCAPE_KEY = "ESCAPE";
 static const std::string CSV_SKIP_KEY = "SKIP";
 static const std::string CSV_IGNORE_ERRORS_KEY = "IGNORE_ERRORS";
 static const std::string CSV_PARALLEL_KEY = "PARALLEL";
-static const std::string CSV_AUTO_DETECT_KEY = "AUTO_DETECT";
-static const std::string CSV_SAMPLE_SIZE_KEY = "SAMPLE_SIZE";
 static const std::string CSV_NULL_STRINGS_KEY = "NULL_STRINGS";
 
 bool check_csv_import_options(

@@ -643,6 +643,9 @@ class DualCsr<RecordView> : public DualCsrBase {
     }
 
     table_.add_columns(col_name, property_types);
+    if (table_.col_num() == col_name.size()) {
+      table_.resize(EdgeNum());
+    }
   }
 
   void delete_properties(const std::vector<std::string>& col_name) {

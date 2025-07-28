@@ -37,16 +37,19 @@ void Table::initColumns(const std::vector<std::string>& col_name,
                         const std::vector<StorageStrategy>& strategies_) {
   size_t col_num = col_name.size();
   columns_.clear();
+  col_names_.clear();
+  col_id_map_.clear();
   columns_.resize(col_num, nullptr);
   auto strategies = strategies_;
   strategies.resize(col_num, StorageStrategy::kMem);
 
   for (size_t i = 0; i < col_num; ++i) {
-    int col_id;
-    col_id_indexer_.add(col_name[i], col_id);
+    int col_id = col_names_.size();
+    col_id_map_.insert({col_name[i], col_id});
+    col_names_.emplace_back(col_name[i]);
     columns_[col_id] = CreateColumn(property_types[i], strategies[i]);
   }
-  columns_.resize(col_id_indexer_.size());
+  columns_.resize(col_id_map_.size());
 }
 
 void Table::init(const std::string& name, const std::string& work_dir,
@@ -152,22 +155,23 @@ void Table::dump_without_close(const std::string& name,
 }
 
 void Table::reset_header(const std::vector<std::string>& col_name) {
-  IdIndexer<std::string, int> new_col_id_indexer;
+  std::unordered_map<std::string, int> new_col_id_map;
   size_t col_num = col_name.size();
   for (size_t i = 0; i < col_num; ++i) {
-    int tmp;
-    new_col_id_indexer.add(col_name[i], tmp);
+    new_col_id_map.insert({col_name[i], i});
+    col_names_[i] = col_name[i];
   }
-  CHECK_EQ(col_num, new_col_id_indexer.size());
-  col_id_indexer_.swap(new_col_id_indexer);
+  CHECK_EQ(col_num, new_col_id_map.size());
+  col_id_map_.swap(new_col_id_map);
 }
 
 void Table::add_column(const std::string& col_name,
                        const PropertyType& col_types,
                        std::shared_ptr<ColumnBase> column) {
-  int col_id;
+  int col_id = col_names_.size();
   columns_.emplace_back(column);
-  col_id_indexer_.add(col_name, col_id);
+  col_id_map_.insert({col_name, col_id});
+  col_names_.emplace_back(col_name);
   CHECK_EQ(col_id, columns_.size() - 1);
 
   buildColumnPtrs();
@@ -181,8 +185,9 @@ void Table::add_columns(const std::vector<std::string>& col_names,
   columns_.resize(old_size + col_names.size());
 
   for (size_t i = 0; i < col_names.size(); ++i) {
-    int col_id;
-    col_id_indexer_.add(col_names[i], col_id);
+    int col_id = col_names_.size();
+    col_id_map_.insert({col_names[i], col_id});
+    col_names_.emplace_back(col_names[i]);
     columns_[col_id] = CreateColumn(col_types[i], StorageStrategy::kMem);
   }
   for (size_t i = old_size; i < columns_.size(); ++i) {
@@ -195,55 +200,59 @@ void Table::add_columns(const std::vector<std::string>& col_names,
 
 void Table::rename_column(const std::string& old_name,
                           const std::string& new_name) {
-  int col_id;
-  if (col_id_indexer_.get_index(old_name, col_id)) {
-    col_id_indexer_.remove(old_name);
-    col_id_indexer_.add(new_name, col_id);
+  auto it = col_id_map_.find(old_name);
+  if (it != col_id_map_.end()) {
+    int col_id = it->second;
+    col_id_map_.erase(it);
+    col_id_map_.insert({new_name, col_id});
+    col_names_[col_id] = new_name;
   } else {
     LOG(ERROR) << "Column " << old_name << " does not exist.";
   }
 }
 
 void Table::delete_column(const std::string& col_name) {
-  int col_id;
-  if (col_id_indexer_.get_index(col_name, col_id)) {
-    col_id_indexer_.remove(col_name);
+  auto it = col_id_map_.find(col_name);
+  if (it != col_id_map_.end()) {
+    int col_id = it->second;
+    col_id_map_.erase(it);
     columns_[col_id]->close();
     columns_[col_id].reset();
     columns_.erase(columns_.begin() + col_id);
-    column_ptrs_[col_id] = nullptr;
+    col_names_.erase(col_names_.begin() + col_id);
+    for (size_t i = col_id; i < column_ptrs_.size() - 1; i++) {
+      column_ptrs_[i] = column_ptrs_[i + 1];
+    }
+    for (auto& pair : col_id_map_) {
+      if (pair.second > col_id) {
+        pair.second -= 1;
+      }
+    }
+    column_ptrs_.resize(column_ptrs_.size() - 1);
   } else {
     LOG(ERROR) << "Column " << col_name << " does not exist.";
   }
 }
 
-std::vector<std::string> Table::column_names() const {
-  size_t col_num = col_id_indexer_.size();
-  std::vector<std::string> names(col_num);
-  for (size_t col_i = 0; col_i < col_num; ++col_i) {
-    CHECK(col_id_indexer_.get_key(col_i, names[col_i]));
-  }
-  return names;
+const std::vector<std::string>& Table::column_names() const {
+  return col_names_;
 }
 
 std::string Table::column_name(size_t index) const {
-  size_t col_num = col_id_indexer_.size();
-  CHECK(index < col_num);
-  std::string name{};
-  CHECK(col_id_indexer_.get_key(index, name));
-  return name;
+  CHECK(index < col_names_.size());
+  return col_names_[index];
 }
 
 int Table::get_column_id_by_name(const std::string& name) const {
-  int col_id;
-  if (col_id_indexer_.get_index(name, col_id)) {
-    return col_id;
+  auto it = col_id_map_.find(name);
+  if (it != col_id_map_.end()) {
+    return it->second;
   }
   return -1;
 }
 
 std::vector<PropertyType> Table::column_types() const {
-  size_t col_num = col_id_indexer_.size();
+  size_t col_num = col_id_map_.size();
   std::vector<PropertyType> types(col_num);
   for (size_t col_i = 0; col_i < col_num; ++col_i) {
     types[col_i] = columns_[col_i]->type();
@@ -252,8 +261,9 @@ std::vector<PropertyType> Table::column_types() const {
 }
 
 std::shared_ptr<ColumnBase> Table::get_column(const std::string& name) {
-  int col_id;
-  if (col_id_indexer_.get_index(name, col_id)) {
+  auto it = col_id_map_.find(name);
+  if (it != col_id_map_.end()) {
+    int col_id = it->second;
     if (static_cast<size_t>(col_id) < columns_.size()) {
       return columns_[col_id];
     }
@@ -264,8 +274,9 @@ std::shared_ptr<ColumnBase> Table::get_column(const std::string& name) {
 
 const std::shared_ptr<ColumnBase> Table::get_column(
     const std::string& name) const {
-  int col_id;
-  if (col_id_indexer_.get_index(name, col_id)) {
+  auto it = col_id_map_.find(name);
+  if (it != col_id_map_.end()) {
+    int col_id = it->second;
     if (static_cast<size_t>(col_id) < columns_.size()) {
       return columns_[col_id];
     }
@@ -327,8 +338,8 @@ void Table::insert_with_resize(size_t index, const std::vector<Any>& values) {
   }
 }
 
-// column_id_mapping is the mapping from the column id in the input table to the
-// column id in the current table
+// column_id_mapping is the mapping from the column id in the input table to
+// the column id in the current table
 void Table::insert(size_t index, const std::vector<Any>& values,
                    const std::vector<int32_t>& col_ind_mapping) {
   assert(values.size() == columns_.size() + 1);

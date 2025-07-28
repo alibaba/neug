@@ -38,6 +38,12 @@
 
 namespace gs {
 
+void delete_dual_csr(const std::string& oe_name, const std::string& ie_name,
+                     const std::string& edata_name,
+                     const std::string& snapshot_dir) {
+  std::vector<std::string> delete_file;
+}
+
 inline DualCsrBase* create_csr(EdgeStrategy oes, EdgeStrategy ies,
                                const std::vector<PropertyType>& properties,
                                bool oe_mutable, bool ie_mutable,
@@ -415,22 +421,19 @@ Status MutablePropertyFragment::add_edge_properties(
     add_property_types.emplace_back(property_type);
     add_default_property_values.emplace_back(default_value);
   }
+  label_t src_label = schema_.get_vertex_label_id(src_type_name);
+  label_t dst_label = schema_.get_vertex_label_id(dst_type_name);
+  label_t e_label = schema_.get_edge_label_id(edge_type_name);
+  size_t index = schema_.generate_edge_label(src_label, dst_label, e_label);
   // Before adding properties, we need to check whether the csr data type
   // needs to be changed.
-  auto prev_edge_prop_num =
-      schema_.get_edge_properties(src_type_name, dst_type_name, edge_type_name)
-          .size();
-  if (prev_edge_prop_num == 0 || prev_edge_prop_num == 1) {
+  if (!dynamic_cast<DualCsr<RecordView>*>(dual_csr_map_.at(index))) {
     change_csr_data_type_to_record_view(src_type_name, dst_type_name,
                                         edge_type_name);
   }
   schema_.add_edge_properties(src_type_name, dst_type_name, edge_type_name,
                               add_property_names, add_property_types,
                               add_default_property_values);
-  label_t src_label = schema_.get_vertex_label_id(src_type_name);
-  label_t dst_label = schema_.get_vertex_label_id(dst_type_name);
-  label_t e_label = schema_.get_edge_label_id(edge_type_name);
-  size_t index = schema_.generate_edge_label(src_label, dst_label, e_label);
   auto dual_csr = dual_csr_map_.at(index);
   if (dual_csr == NULL) {
     LOG(ERROR) << "Edge [" << edge_type_name << "] from [" << src_type_name
@@ -664,15 +667,125 @@ Status MutablePropertyFragment::delete_edge_properties(
   }
   auto casted_dual_csr = dynamic_cast<DualCsr<RecordView>*>(dual_csr);
   if (casted_dual_csr == NULL) {
-    LOG(ERROR) << "Edge [" << edge_type_name << "] from [" << src_type_name
-               << "] to [" << dst_type_name
-               << "] does not support deleting properties.";
-    return Status(StatusCode::ERR_INVALID_SCHEMA,
-                  "Edge [" + edge_type_name + "] from [" + src_type_name +
-                      "] to [" + dst_type_name +
-                      "] does not support deleting properties.");
+    std::vector<vid_t> src_vids, dst_vids;
+    size_t edge_num = dual_csr->EdgeNum();
+    auto oe_csr = oe_map_.at(index);
+    src_vids.reserve(edge_num);
+    dst_vids.reserve(edge_num);
+    for (vid_t i = 0; i < lid_num(src_label); i++) {
+      if (!vertex_tomb_[src_label]->get(i)) {
+        auto e_iter = oe_csr->edge_iter(i);
+        while (e_iter->is_valid()) {
+          src_vids.emplace_back(i);
+          dst_vids.emplace_back(e_iter->get_neighbor());
+          e_iter->next();
+        }
+      }
+    }
+    std::vector<std::atomic<int32_t>> ie_degree(lid_num(dst_label)),
+        oe_degree(lid_num(src_label));
+    for (size_t idx = 0; idx < ie_degree.size(); ++idx) {
+      ie_degree[idx].store(0);
+    }
+    for (size_t idx = 0; idx < oe_degree.size(); ++idx) {
+      oe_degree[idx].store(0);
+    }
+    std::vector<std::vector<std::pair<vid_t, vid_t>>> edges(
+        std::thread::hardware_concurrency());
+    std::atomic<vid_t> vid(0);
+    vid_t src_lid_num = lid_num(src_label);
+    std::vector<std::thread> work_threads;
+    for (size_t idx = 0; idx < std::thread::hardware_concurrency(); ++idx) {
+      work_threads.emplace_back(
+          [&](int idx) {
+            while (true) {
+              vid_t vid_i = vid.fetch_add(1);
+              if (vid_i >= src_lid_num) {
+                break;
+              }
+              if (vertex_tomb_[src_label]->get(vid_i)) {
+                continue;
+              }
+              auto e_iter = oe_csr->edge_iter(vid_i);
+              while (e_iter->is_valid()) {
+                ie_degree[e_iter->get_neighbor()]++;
+                oe_degree[vid_i]++;
+                edges[idx].emplace_back(
+                    std::make_pair(vid_i, e_iter->get_neighbor()));
+                e_iter->next();
+              }
+            }
+          },
+          idx);
+    }
+    for (auto& t : work_threads) {
+      t.join();
+    }
+    dual_csr->Close();
+    // delete_dual_csr(oe_prefix(src_type_name, dst_type_name, edge_type_name),
+    //                 ie_prefix(src_type_name, dst_type_name, edge_type_name),
+    //                 edata_prefix(src_type_name, dst_type_name,
+    //                 edge_type_name), snapshot_dir(work_dir_, 0));
+    bool oe_mutable = true, ie_mutable = true;
+    EdgeStrategy oe_strategy = EdgeStrategy::kMultiple;
+    EdgeStrategy ie_strategy = EdgeStrategy::kMultiple;
+    delete dual_csr;
+    dual_csr = new DualCsr<grape::EmptyType>(oe_strategy, ie_strategy,
+                                             oe_mutable, ie_mutable);
+    auto src_v_capacity =
+        std::max(lf_indexers_[src_label].capacity(), (size_t) 4096);
+    auto dst_v_capacity =
+        std::max(lf_indexers_[dst_label].capacity(), (size_t) 4096);
+    dual_csr->OpenInMemory(
+        oe_prefix(src_type_name, dst_type_name, edge_type_name),
+        ie_prefix(src_type_name, dst_type_name, edge_type_name),
+        edata_prefix(src_type_name, dst_type_name, edge_type_name),
+        snapshot_dir(work_dir_, 0), src_v_capacity, dst_v_capacity);
+
+    std::vector<int32_t> ie_deg(ie_degree.size());
+    std::vector<int32_t> oe_deg(oe_degree.size());
+    for (size_t idx = 0; idx < ie_deg.size(); ++idx) {
+      ie_deg[idx] = ie_degree[idx];
+    }
+    for (size_t idx = 0; idx < oe_deg.size(); ++idx) {
+      oe_deg[idx] = oe_degree[idx];
+    }
+
+    dual_csr->BatchInit(
+        oe_prefix(src_type_name, dst_type_name, edge_type_name),
+        ie_prefix(src_type_name, dst_type_name, edge_type_name),
+        edata_prefix(src_type_name, dst_type_name, edge_type_name),
+        tmp_dir(work_dir_), oe_deg, ie_deg);
+    auto new_csr = dynamic_cast<DualCsr<grape::EmptyType>*>(dual_csr);
+    std::vector<std::thread> edge_threads;
+    for (size_t i = 0; i < edges.size(); ++i) {
+      edge_threads.emplace_back(
+          [&](int idx) {
+            for (auto& edge : edges[idx]) {
+              new_csr->BatchPutEdge(edge.first, edge.second,
+                                    grape::EmptyType());
+            }
+          },
+          i);
+    }
+    for (auto& t : edge_threads) {
+      t.join();
+    }
+    dual_csr_map_.erase(index);
+    ie_map_.erase(index);
+    oe_map_.erase(index);
+    dual_csr_map_.insert({index, dual_csr});
+    ie_map_.insert({index, dual_csr->GetInCsr()});
+    oe_map_.insert({index, dual_csr->GetOutCsr()});
+
+    dual_csr->Dump(oe_prefix(src_type_name, dst_type_name, edge_type_name),
+                   ie_prefix(src_type_name, dst_type_name, edge_type_name),
+                   edata_prefix(src_type_name, dst_type_name, edge_type_name),
+                   snapshot_dir(work_dir_, 0));
+
+  } else {
+    casted_dual_csr->delete_properties(delete_property_names);
   }
-  casted_dual_csr->delete_properties(delete_property_names);
   DumpSchema(schema_path(work_dir_));
   dumpSchema();
   return gs::Status::OK();

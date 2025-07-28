@@ -78,7 +78,7 @@ class Table {
   void add_columns(const std::vector<std::string>& col_names,
                    const std::vector<PropertyType>& col_types);
 
-  std::vector<std::string> column_names() const;
+  const std::vector<std::string>& column_names() const;
 
   std::string column_name(size_t index) const;
 
@@ -143,7 +143,8 @@ class Table {
                    const std::vector<PropertyType>& types,
                    const std::vector<StorageStrategy>& strategies_);
 
-  IdIndexer<std::string, int> col_id_indexer_;
+  std::unordered_map<std::string, int> col_id_map_;
+  std::vector<std::string> col_names_;
 
   std::vector<std::shared_ptr<ColumnBase>> columns_;
   std::vector<ColumnBase*> column_ptrs_;

@@ -73,6 +73,10 @@ class TestDDL(unittest.TestCase):
         with self.assertRaises(Exception):
             conn.execute("ALTER TABLE person ADD name STRING;")
 
+        # Drop the only edge property
+        conn.execute("ALTER TABLE knows DROP weight;")
+
+        # Add a edge property
         conn.execute("ALTER TABLE knows ADD registion DATE;")
 
         # Drop an non-existing column
@@ -89,7 +93,6 @@ class TestDDL(unittest.TestCase):
         conn.execute("ALTER TABLE person RENAME name TO username;")
 
         # Batch delete vertices in table
-        # Neng: This is a temporary query intended to test the batch deletion functionality.
         conn.execute("MATCH (v:person) DELETE v;")
 
         # Delete a edge type

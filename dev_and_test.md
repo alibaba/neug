@@ -181,3 +181,15 @@ When running python test, set environment variable `DEBUG` to `ON`, to display a
 - registry.cn-hongkong.aliyuncs.com/graphscope/graphscope-dev:neug-dev-x86_64: image built upon manylinux_2_28_ for arm64
 - registry.cn-hongkong.aliyuncs.com/graphscope/graphscope-dev:neug-x86_64: dev container built upload ubuntu for x86_64
 - registry.cn-hongkong.aliyuncs.com/graphscope/graphscope-dev:neug-arm64: dev container built upload ubuntu for amr64
+
+## Alter property on edge
+1. Alter property on edge with single property
+  Add property: Create a new `DualCsr<RecordView>`, copy the data from the original CSR to the new CSR
+  Drop property:Create a new `DualCsr<grape::EmptyType>`, copy the data from the original CSR to the new CSR
+2. Alter property on edge with no property
+  Add property: Create a new `DualCsr<RecordView>`, copy the data from the original CSR to the new CSR
+3. Alter property on edge with multi property
+  Add/Drop property: Add/Drop property in table of `DualCsr<RecordView>`
+
+Therefore, when there is only one edge property on edge, there may be two types of DualCsr, `DualCsr<T>` or `DualCsr<RecordView>`. 
+When the `EdgeExpand` operator accesses an edge, it creates EdgeData based on the property type, and then retrieves property data according to the type of DualCsr.

@@ -231,6 +231,8 @@ class MutablePropertyFragment {
     queue.SetLimit(1024);
     std::vector<std::thread> work_threads;
     queue.SetProducerNum(record_batch_supplier_vec.size());
+    std::vector<Status> status;
+    status.resize(record_batch_supplier_vec.size());
     for (size_t idx = 0; idx < record_batch_supplier_vec.size(); ++idx) {
       work_threads.emplace_back(
           [&](int i) {
@@ -244,20 +246,38 @@ class MutablePropertyFragment {
               }
               if (first_batch) {
                 auto header = batch->schema()->field_names();
-                CHECK(schema_column_names.size() + 1 == header.size())
-                    << "File header of size: " << header.size()
-                    << " does not match schema column size: "
-                    << schema_column_names.size() + 1;
+                if (schema_column_names.size() + 1 != header.size()) {
+                  LOG(ERROR) << "File header of size: " << header.size()
+                             << " does not match schema column size: "
+                             << schema_column_names.size() + 1;
+                  status[i] = Status(
+                      StatusCode::ERR_SCHEMA_MISMATCH,
+                      "Schema mismatch: File header of size : " +
+                          std::to_string(header.size()) +
+                          " does not match schema column size: " +
+                          std::to_string(schema_column_names.size() + 1));
+                  return;
+                }
                 first_batch = false;
               }
               queue.Put(batch);
+              status[i] = Status::OK();
             }
           },
           idx);
     }
+    for (auto& t : work_threads) {
+      t.join();
+    }
+    for (auto& s : status) {
+      if (!s.ok()) {
+        return s;
+      }
+    }
+    work_threads.clear();
 
     std::shared_mutex rw_mutex;
-    std::atomic<size_t> offset(0);
+    std::atomic<size_t> offset(lid_num(v_label_id));
     for (unsigned idx = 0;
          idx <
          std::min(static_cast<unsigned>(8 * record_batch_supplier_vec.size()),

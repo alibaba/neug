@@ -264,7 +264,7 @@ bl::result<Context> EdgeExpand::expand_edge_without_predicate(
                            label, v, output_vertex_label, edge_label);
                        while (ie_iter.IsValid()) {
                          auto nbr = ie_iter.GetNeighbor();
-                         assert(ie_iter.GetData().type == pt);
+                         //  assert(ie_iter.GetData().type == pt);
                          builder.push_back_opt(nbr, v, ie_iter.GetData());
                          shuffle_offset.push_back(index);
                          ie_iter.Next();
@@ -305,7 +305,7 @@ bl::result<Context> EdgeExpand::expand_edge_without_predicate(
 
                        while (oe_iter.IsValid()) {
                          auto nbr = oe_iter.GetNeighbor();
-                         assert(oe_iter.GetData().type == pt);
+                         //  assert(oe_iter.GetData().type == pt);
                          builder.push_back_opt(v, nbr, oe_iter.GetData());
                          shuffle_offset.push_back(index);
                          oe_iter.Next();

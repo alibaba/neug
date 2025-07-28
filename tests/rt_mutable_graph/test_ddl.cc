@@ -154,13 +154,13 @@ int main(int argc, char** argv) {
     }
   }
 
-  // {
-  //   auto res = conn->query("ALTER TABLE person DROP age;");
-  //   if (!res.ok()) {
-  //     LOG(ERROR) << "Failed to alter table: " << res.status().ToString();
-  //     return 1;
-  //   }
-  // }
+  {
+    auto res = conn->query("ALTER TABLE person DROP age;");
+    if (!res.ok()) {
+      LOG(ERROR) << "Failed to alter table: " << res.status().ToString();
+      return 1;
+    }
+  }
 
   {
     auto res = conn->query("ALTER TABLE person RENAME name TO username;");
@@ -219,8 +219,8 @@ int main(int argc, char** argv) {
   }
 
   {
-    auto res =
-        conn->query("COPY person from \"" + flex_data_dir + "/person.csv\";");
+    auto res = conn->query("COPY person from \"" + flex_data_dir +
+                           "/person_after_alter.csv\";");
     if (!res.ok()) {
       LOG(ERROR) << "Failed to load person vertex: " << res.status().ToString();
       return 1;

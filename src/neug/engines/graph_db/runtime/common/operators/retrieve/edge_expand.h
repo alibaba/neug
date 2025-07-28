@@ -109,7 +109,7 @@ class EdgeExpand {
                            auto nbr = ie_iter.GetNeighbor();
                            if (pred(params.labels[0], nbr, v, ie_iter.GetData(),
                                     Direction::kIn, index)) {
-                             assert(ie_iter.GetData().type == pt);
+                             //  assert(ie_iter.GetData().type == pt);
                              builder.push_back_opt(nbr, v, ie_iter.GetData());
                              shuffle_offset.push_back(index);
                            }
@@ -152,7 +152,7 @@ class EdgeExpand {
                            auto nbr = oe_iter.GetNeighbor();
                            if (pred(params.labels[0], v, nbr, oe_iter.GetData(),
                                     Direction::kOut, index)) {
-                             assert(oe_iter.GetData().type == pt);
+                             //  assert(oe_iter.GetData().type == pt);
                              builder.push_back_opt(v, nbr, oe_iter.GetData());
                              shuffle_offset.push_back(index);
                            }
@@ -189,7 +189,7 @@ class EdgeExpand {
                   auto nbr = oe_iter.GetNeighbor();
                   if (pred(params.labels[0], v, nbr, oe_iter.GetData(),
                            Direction::kOut, index)) {
-                    assert(oe_iter.GetData().type == pt);
+                    // assert(oe_iter.GetData().type == pt);
                     builder.push_back_opt(v, nbr, oe_iter.GetData(),
                                           Direction::kOut);
                     shuffle_offset.push_back(index);
@@ -204,7 +204,7 @@ class EdgeExpand {
                   auto nbr = ie_iter.GetNeighbor();
                   if (pred(params.labels[0], nbr, v, ie_iter.GetData(),
                            Direction::kIn, index)) {
-                    assert(ie_iter.GetData().type == pt);
+                    // assert(ie_iter.GetData().type == pt);
                     builder.push_back_opt(nbr, v, ie_iter.GetData(),
                                           Direction::kIn);
                     shuffle_offset.push_back(index);
@@ -245,7 +245,7 @@ class EdgeExpand {
                     auto nbr = oe_iter.GetNeighbor();
                     if (pred(triplet, v, nbr, oe_iter.GetData(),
                              Direction::kOut, index)) {
-                      assert(oe_iter.GetData().type == label_prop.second);
+                      // assert(oe_iter.GetData().type == label_prop.second);
                       builder.push_back_opt(triplet, v, nbr, oe_iter.GetData(),
                                             Direction::kOut);
                       shuffle_offset.push_back(index);
@@ -260,7 +260,7 @@ class EdgeExpand {
                     auto nbr = ie_iter.GetNeighbor();
                     if (pred(triplet, nbr, v, ie_iter.GetData(), Direction::kIn,
                              index)) {
-                      assert(ie_iter.GetData().type == label_prop.second);
+                      // assert(ie_iter.GetData().type == label_prop.second);
                       builder.push_back_opt(triplet, nbr, v, ie_iter.GetData(),
                                             Direction::kIn);
                       shuffle_offset.push_back(index);
@@ -301,7 +301,7 @@ class EdgeExpand {
                   auto nbr = oe_iter.GetNeighbor();
                   if (pred(triplet, v, nbr, oe_iter.GetData(), Direction::kOut,
                            index)) {
-                    assert(oe_iter.GetData().type == label_prop.second);
+                    // assert(oe_iter.GetData().type == label_prop.second);
                     builder.push_back_opt(triplet, v, nbr, oe_iter.GetData());
                     shuffle_offset.push_back(index);
                   }
@@ -340,7 +340,7 @@ class EdgeExpand {
                   auto nbr = ie_iter.GetNeighbor();
                   if (pred(triplet, nbr, v, ie_iter.GetData(), Direction::kIn,
                            index)) {
-                    assert(ie_iter.GetData().type == label_prop.second);
+                    // assert(ie_iter.GetData().type == label_prop.second);
                     builder.push_back_opt(triplet, nbr, v, ie_iter.GetData());
                     shuffle_offset.push_back(index);
                   }

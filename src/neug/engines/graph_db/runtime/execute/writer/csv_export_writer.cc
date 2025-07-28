@@ -17,6 +17,7 @@
 #include <arrow/csv/api.h>
 #include <arrow/csv/options.h>
 
+#include <cerrno>
 #include <iostream>
 
 #include "neug/engines/graph_db/runtime/execute/ops/batch/batch_update_utils.h"
@@ -58,13 +59,20 @@ void CsvExportWriter::parse_csv_options(
     put_delimiter_option(ops::DEFAULT_CSV_DELIMITER, delimeter_);
   }
   if (csv_options.find(ops::CSV_HEADER_KEY) != csv_options.end()) {
-    LOG(INFO) << "Find csv option " << ops::CSV_HEADER_KEY << " "
-              << csv_options.at(ops::CSV_HEADER_KEY);
     if (csv_options.at(ops::CSV_HEADER_KEY) == "True" ||
-        csv_options.at(ops::CSV_HEADER_KEY) == "true") {
+        csv_options.at(ops::CSV_HEADER_KEY) == "true" ||
+        csv_options.at(ops::CSV_HEADER_KEY) == "TRUE" ||
+        csv_options.at(ops::CSV_HEADER_KEY) == "1") {
       write_header_ = true;
-    } else {
+    } else if (csv_options.at(ops::CSV_HEADER_KEY) == "False" ||
+               csv_options.at(ops::CSV_HEADER_KEY) == "false" ||
+               csv_options.at(ops::CSV_HEADER_KEY) == "FALSE" ||
+               csv_options.at(ops::CSV_HEADER_KEY) == "0") {
       write_header_ = false;
+    } else {
+      LOG(FATAL) << "Invalid parameter, key: \"" << ops::CSV_HEADER_KEY
+                 << "\", value: \"" << csv_options.at(ops::CSV_HEADER_KEY)
+                 << "\"";
     }
   } else {
     write_header_ = false;
@@ -97,7 +105,7 @@ std::shared_ptr<IExportWriter> CsvExportWriter::Make(
   return std::make_shared<CsvExportWriter>(file_path, header, write_config);
 }
 
-void CsvExportWriter::Write(
+Status CsvExportWriter::Write(
     const std::vector<std::shared_ptr<IContextColumn>>& columns_map,
     const gs::runtime::GraphReadInterface& graph) {
   std::string dir_path;
@@ -107,23 +115,36 @@ void CsvExportWriter::Write(
   if (!dir_path.empty() && (!std::filesystem::exists(dir_path) ||
                             !std::filesystem::is_directory(dir_path))) {
     LOG(ERROR) << "Directory \"" << dir_path << "\" does not exist";
-    return;
+    return Status(StatusCode::ERR_DIRECTORY_NOT_EXIST,
+                  "Directory \"" + dir_path + "\" does not exist");
   }
-  if (columns_map.size() == 0) {
-    LOG(ERROR) << "The number of export columns is 0";
-    return;
-  }
+  CHECK(columns_map.size() > 0);
   size_t row_num = columns_map[0]->size();
   for (size_t i = 1; i < columns_map.size(); i++) {
-    if (columns_map[i]->size() != row_num) {
-      LOG(ERROR) << "The row counts between columns are inconsistent";
-      return;
-    }
+    CHECK(columns_map[i]->size() == row_num);
   }
-  std::ofstream ofs(file_path_);
-  if (!ofs.is_open()) {
-    LOG(ERROR) << "Failed to open file \"" << file_path_ << "\"";
-    return;
+  std::ofstream ofs;
+  ofs.open(file_path_, std::ios::out);
+  if (!ofs) {
+    int error_code = errno;
+    std::string error = strerror(error_code);
+    switch (error_code) {
+    case EACCES:
+      return Status(StatusCode::ERR_PERMISSION,
+                    "Failed to open file " + file_path_ + ";" + error);
+    case EISDIR:
+      return Status(StatusCode::ERR_INVALID_PATH,
+                    "Failed to open file " + file_path_ + ";" + error);
+    case EMFILE:
+      return Status(StatusCode::ERR_INTERNAL_ERROR,
+                    "Failed to open file " + file_path_ + ";" + error);
+    case ENOSPC:
+      return Status(StatusCode::ERR_DISK_SPACE_EXHAUSTED,
+                    "Failed to open file " + file_path_ + ";" + error);
+    default:
+      return Status(StatusCode::ERR_UNKNOWN,
+                    "Failed to open file " + file_path_ + ";" + error);
+    }
   }
   if (write_header_) {
     for (size_t i = 0; i < header_.size(); i++) {
@@ -141,6 +162,7 @@ void CsvExportWriter::Write(
       }
       if (columns_map[j]->column_type() == ContextColumnType::kVertex) {
         auto vertex = columns_map[j]->get_elem(i).as_vertex();
+        LOG(INFO) << "Start write vertex " << vertex.vid_;
         ofs << ops::vertex_to_json_string(vertex.label_, vertex.vid_, graph);
       } else if (columns_map[j]->column_type() == ContextColumnType::kEdge) {
         auto edge = columns_map[j]->get_elem(i).as_edge();
@@ -155,7 +177,7 @@ void CsvExportWriter::Write(
     ofs << "\n";
   }
   ofs.close();
-  return;
+  return Status::OK();
 }
 
 const bool CsvExportWriter::registered_ = ExportWriterFactory::Register(

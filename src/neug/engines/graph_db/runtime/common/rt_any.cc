@@ -1365,6 +1365,9 @@ static void sink_edge_data(const EdgeData& any, common::Value* value) {
     value->mutable_date()->set_item(any.value.date_val.to_num_days());
   } else if (any.type == RTAnyType::kTimestamp) {
     value->mutable_timestamp()->set_item(any.value.ts_val.milli_second);
+  } else if (any.type == RTAnyType::kRecordView) {
+    assert(any.value.record_view.size() == 1);
+    sink_any(any.value.record_view[0], value);
   } else {
     LOG(FATAL) << "Any value: " << any.to_string()
                << ", type = " << static_cast<int>(any.type);

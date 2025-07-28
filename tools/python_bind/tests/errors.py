@@ -90,7 +90,7 @@ ERROR_STRINGS = {
     ERR_TX_STATE_CONFLICT: "a read-write connection constructed",
     ERR_WAL_WRITE_FAIL: "wal write fail",
     ERR_TX_TIMEOUT: "transaction timeout",
-    ERR_SCHEMA_MISMATCH: "schema mismatch",
+    ERR_SCHEMA_MISMATCH: "Schema mismatch",
     ERR_INVALID_SCHEMA: "invalid schema",
     ERR_TYPE_CONVERSION: "type conversion error",
     ERR_PLATFORM_ABI: "platform abi error",

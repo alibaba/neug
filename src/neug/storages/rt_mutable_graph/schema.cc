@@ -1737,6 +1737,13 @@ void Schema::delete_vertex_properties(
         if (it != vprop_name_to_type_and_index_[v_label_id].end()) {
           vprop_name_to_type_and_index_[v_label_id].erase(it);
         }
+        for (size_t k = j; k < vprop_names_[v_label_id].size(); k++) {
+          auto it = vprop_name_to_type_and_index_[v_label_id].find(
+              vprop_names_[v_label_id][k]);
+          if (it != vprop_name_to_type_and_index_[v_label_id].end()) {
+            it->second.second -= 1;
+          }
+        }
         break;
       }
     }
@@ -1851,6 +1858,7 @@ void Schema::delete_edge_properties(
     for (size_t j = 0; j < eprop_names_.at(index).size(); j++) {
       if (eprop_names_.at(index)[j] == properties_names[i]) {
         eprop_names_.at(index).erase(eprop_names_.at(index).begin() + j);
+        eproperties_.at(index).erase(eproperties_.at(index).begin() + j);
         break;
       }
     }

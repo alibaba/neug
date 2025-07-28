@@ -40,14 +40,21 @@ bl::result<Context> BatchInsertVertexOpr::Eval(
   auto& frag = graph.GetTransaction().GetGraph();
 
   auto suppliers = create_record_batch_supplier(ctx, prop_mappings_);
+  Status status = Status::OK();
   if (pk_type_ == PropertyType::kInt64) {
-    frag.template batch_load_vertices<int64_t>(vertex_label_id_, suppliers);
+    status =
+        frag.template batch_load_vertices<int64_t>(vertex_label_id_, suppliers);
   } else if (pk_type_ == PropertyType::kInt32) {
-    frag.template batch_load_vertices<int32_t>(vertex_label_id_, suppliers);
+    status =
+        frag.template batch_load_vertices<int32_t>(vertex_label_id_, suppliers);
   } else if (pk_type_ == PropertyType::kString) {
-    frag.template batch_load_vertices<std::string>(vertex_label_id_, suppliers);
+    status = frag.template batch_load_vertices<std::string>(vertex_label_id_,
+                                                            suppliers);
   } else {
     LOG(FATAL) << "Unsupported primary key type: " << pk_type_;
+  }
+  if (!status.ok()) {
+    RETURN_FLEX_LEAF_ERROR(status.error_code(), status.error_message());
   }
   return bl::result<Context>(std::move(ctx));
 }

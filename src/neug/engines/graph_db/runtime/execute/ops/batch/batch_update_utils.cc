@@ -51,9 +51,9 @@ namespace ops {
 bool check_csv_import_options(
     const std::unordered_map<std::string, std::string>& options) {
   std::unordered_set<std::string> valid_keys = {
-      CSV_DELIMITER_KEY,     CSV_DELIM_KEY,    CSV_HEADER_KEY,
-      CSV_QUOTE_KEY,         CSV_ESCAPE_KEY,   CSV_SKIP_KEY,
-      CSV_IGNORE_ERRORS_KEY, CSV_PARALLEL_KEY, CSV_AUTO_DETECT_KEY};
+      CSV_DELIMITER_KEY,     CSV_DELIM_KEY,   CSV_HEADER_KEY,
+      CSV_QUOTE_KEY,         CSV_ESCAPE_KEY,  CSV_SKIP_KEY,
+      CSV_IGNORE_ERRORS_KEY, CSV_PARALLEL_KEY};
   int32_t delim_count = 0;
   for (const auto& [key, value] : options) {
     if (valid_keys.find(key) == valid_keys.end()) {
@@ -458,13 +458,24 @@ void to_arrow_csv_options(
       parse_options.quoting = false;
     }
   }
-  // put_block_size_option(loading_config_, read_options);
-  // put_null_values(loading_config_, convert_options);
   if (csv_options.find(CSV_HEADER_KEY) != csv_options.end()) {
-    // TODO: FIXME, seems skip_rows skips the first row.
-    read_options.skip_rows = 1;
+    if (csv_options.at(CSV_HEADER_KEY) == "True" ||
+        csv_options.at(CSV_HEADER_KEY) == "true" ||
+        csv_options.at(CSV_HEADER_KEY) == "TRUE" ||
+        csv_options.at(CSV_HEADER_KEY) == "1") {
+      read_options.autogenerate_column_names = false;
+    } else if (csv_options.at(CSV_HEADER_KEY) == "False" ||
+               csv_options.at(CSV_HEADER_KEY) == "false" ||
+               csv_options.at(CSV_HEADER_KEY) == "FALSE" ||
+               csv_options.at(CSV_HEADER_KEY) == "0") {
+      read_options.autogenerate_column_names = true;
+    } else {
+      LOG(FATAL) << "Invalid parameter, key: \"" << ops::CSV_HEADER_KEY
+                 << "\", value: \"" << csv_options.at(ops::CSV_HEADER_KEY)
+                 << "\"";
+    }
   } else {
-    read_options.skip_rows = 0;
+    read_options.autogenerate_column_names = false;
   }
 
   if (csv_options.find(CSV_SKIP_KEY) != csv_options.end()) {
@@ -474,15 +485,6 @@ void to_arrow_csv_options(
 
   if (csv_options.find(CSV_PARALLEL_KEY) != csv_options.end()) {
     LOG(WARNING) << "The parameter \"" << ops::CSV_PARALLEL_KEY
-                 << "\" is currently not supported.";
-  }
-  if (csv_options.find(CSV_AUTO_DETECT_KEY) != csv_options.end()) {
-    LOG(WARNING) << "The parameter \"" << ops::CSV_AUTO_DETECT_KEY
-                 << "\" is currently not supported.";
-  }
-
-  if (csv_options.find(CSV_SAMPLE_SIZE_KEY) != csv_options.end()) {
-    LOG(WARNING) << "The parameter \"" << ops::CSV_SAMPLE_SIZE_KEY
                  << "\" is currently not supported.";
   }
 

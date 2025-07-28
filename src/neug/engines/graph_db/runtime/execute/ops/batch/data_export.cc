@@ -29,7 +29,10 @@ bl::result<gs::runtime::Context> DataExportOpr::Eval(
   for (size_t i = 0; i < headers_.size(); i++) {
     columns.emplace_back(ctx.get(headers_[i].first));
   }
-  writer_->Write(columns, graph);
+  Status status = writer_->Write(columns, graph);
+  if (!status.ok()) {
+    RETURN_FLEX_LEAF_ERROR(status.error_code(), status.error_message());
+  }
   for (size_t i = 0; i < headers_.size(); i++) {
     ctx.remove(headers_[i].first);
   }

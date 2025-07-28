@@ -139,6 +139,7 @@ jobs:
         export FLEX_DATA_DIR=${GITHUB_WORKSPACE}/example_dataset/modern_graph
         pip3 install -r requirements_dev.txt
         python3 -m pytest -sv tests/test_batch_loading.py
+        python3 -m pytest -sv tests/test_alter_property.py
         python3 -m pytest -sv tests/test_ddl.py
         export NEUG_DB_DIR=/tmp/tinysnb
         export NEUG_QUERY='MATCH (n1:person)-[:knows]-(n2:person)-[:knows]-(n3:person), (n1)-[:knows]-(n3) RETURN n1.fName, n2.fName, n3.fName'

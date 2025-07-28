@@ -29,7 +29,7 @@ namespace runtime {
 class IExportWriter {
  public:
   virtual ~IExportWriter() = default;
-  virtual void Write(
+  virtual Status Write(
       const std::vector<std::shared_ptr<IContextColumn>>& columns_map,
       const gs::runtime::GraphReadInterface& graph) = 0;
 };

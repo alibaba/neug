@@ -129,11 +129,39 @@ static inline void set_edge_data(EdgePropVecBase* col, size_t idx,
     dynamic_cast<EdgePropVec<Date>*>(col)->set(idx, edge_data.value.date_val);
   } else if (edge_data.type == RTAnyType::kRecordView) {
     auto ptr = dynamic_cast<EdgePropVec<RecordView>*>(col);
-    if (ptr == nullptr) {
-      LOG(FATAL) << "cast failed";
+    if (ptr != nullptr) {
+      ptr->set(idx, edge_data.value.record_view);
+    } else {
+      if (edge_data.value.record_view.size() == 0) {
+        return;
+      } else if (edge_data.value.record_view[0].type == PropertyType::kInt64) {
+        dynamic_cast<EdgePropVec<int64_t>*>(col)->set(
+            idx, edge_data.value.record_view[0].AsInt64());
+      } else if (edge_data.value.record_view[0].type == PropertyType::kInt32) {
+        dynamic_cast<EdgePropVec<int32_t>*>(col)->set(
+            idx, edge_data.value.record_view[0].AsInt32());
+      } else if (edge_data.value.record_view[0].type == PropertyType::kDouble) {
+        dynamic_cast<EdgePropVec<double>*>(col)->set(
+            idx, edge_data.value.record_view[0].AsDouble());
+      } else if (edge_data.value.record_view[0].type == PropertyType::kBool) {
+        dynamic_cast<EdgePropVec<bool>*>(col)->set(
+            idx, edge_data.value.record_view[0].AsBool());
+      } else if (edge_data.value.record_view[0].type ==
+                 PropertyType::kStringView) {
+        dynamic_cast<EdgePropVec<std::string_view>*>(col)->set(
+            idx, edge_data.value.record_view[0].AsStringView());
+      } else if (edge_data.value.record_view[0].type ==
+                 PropertyType::kDateTime) {
+        dynamic_cast<EdgePropVec<DateTime>*>(col)->set(
+            idx, edge_data.value.record_view[0].AsDateTime());
+      } else if (edge_data.value.record_view[0].type == PropertyType::kDate) {
+        dynamic_cast<EdgePropVec<Date>*>(col)->set(
+            idx, edge_data.value.record_view[0].AsDate());
+      } else {
+        // LOG(FATAL) << "not support for " <<
+        // edge_data.value.record_view[0].type;
+      }
     }
-    dynamic_cast<EdgePropVec<RecordView>*>(col)->set(
-        idx, edge_data.value.record_view);
   } else {
     // LOG(FATAL) << "not support for " << edge_data.type;
   }
