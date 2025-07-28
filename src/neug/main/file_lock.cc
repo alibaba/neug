@@ -14,15 +14,20 @@
  */
 
 #include "neug/main/file_lock.h"
+#include <fcntl.h>
+#include <sys/stat.h>
+#include <unistd.h>
+#include <fstream>
+#include <iostream>
 
 namespace gs {
 
 bool FileLock::lock(std::string& error_msg, DBMode mode) {
   // If the lock file already exists, it means another process is using the
   // database.
-  if (std::filesystem::exists(lock_file_path_)) {
+  struct stat buffer;
+  if (stat(lock_file_path_.c_str(), &buffer) == 0) {
     LOG(ERROR) << "Lock file already exists: " << lock_file_path_;
-    // Read the lock file's content
     std::ifstream lock_file(lock_file_path_);
     if (!lock_file.is_open()) {
       LOG(ERROR) << "Failed to open lock file: " << lock_file_path_;
@@ -33,15 +38,22 @@ bool FileLock::lock(std::string& error_msg, DBMode mode) {
     // Expect content like "READ", "WRITE".
     if (line.find("READ") != std::string::npos) {
       if (mode == DBMode::READ_WRITE) {
-        error_msg = "Database is locked for read-only access.";
+        error_msg =
+            "The database has already been locked for read-only access: " +
+            line +
+            ", if you are sure you want to proceed(in case the process "
+            "has already died), please remove the lock file manually.";
         LOG(ERROR) << error_msg;
         return false;
       }
       LOG(INFO) << "Database is locked for read access, proceeding in "
                    "read-only mode.";
+      return true;
     } else if (line.find("WRITE") != std::string::npos) {
-      LOG(ERROR) << "Database is locked for write access.";
-      error_msg = "Database is locked for write access.";
+      error_msg = "The database is already locked for write access: " + line +
+                  ", if you are sure you want to proceed(in case the process "
+                  "has already died), please remove the "
+                  "lock file manually.";
       return false;
     } else {
       error_msg = "Unknown lock type in lock file: " + line;
@@ -50,18 +62,27 @@ bool FileLock::lock(std::string& error_msg, DBMode mode) {
     }
   }
 
-  // Create the lock file
-  std::ofstream lock_file(lock_file_path_);
-  if (!lock_file.is_open()) {
-    LOG(ERROR) << "Failed to create lock file: " << lock_file_path_;
+  int32_t fd = ::open(lock_file_path_.c_str(), O_CREAT | O_EXCL | O_RDWR);
+  if (fd < 0) {
+    error_msg = "Failed to create lock file: " + std::string(strerror(errno));
+    LOG(ERROR) << error_msg;
     return false;
   }
-  // Write the current process ID to the lock file
-  lock_file << (mode == DBMode::READ_WRITE ? "WRITE" : "READ") << "\n";
-  lock_file.close();
+
+  // Write to the lock file to indicate the lock type
+  std::string content = (mode == DBMode::READ_WRITE ? "WRITE" : "READ");
+  content += ":" + std::to_string(getpid()) + "\n";
+  if (write(fd, content.c_str(), content.size()) < 0) {
+    error_msg = "Failed to write to lock file: " + std::string(strerror(errno));
+    LOG(ERROR) << error_msg;
+    ::close(fd);
+    return false;
+  }
   VLOG(10) << "Successfully locked directory: " << data_dir_
            << ", lock file: " << lock_file_path_;
   allLockFiles.insert(lock_file_path_);
+
+  ::close(fd);  // Close the file descriptor after writing
   locked_ = true;
   return true;
 }
@@ -70,14 +91,13 @@ void FileLock::unlock() {
   if (!locked_) {
     return;
   }
-  remove(lock_file_path_.c_str());
+  if (std::remove(lock_file_path_.c_str()) != 0) {
+    LOG(ERROR) << "Failed to remove lock file: " << lock_file_path_;
+  } else {
+    VLOG(10) << "Successfully removed lock file: " << lock_file_path_;
+  }
   if (allLockFiles.find(lock_file_path_) != allLockFiles.end()) {
     allLockFiles.erase(lock_file_path_);
-    VLOG(10) << "Unlocked directory: " << data_dir_
-             << ", lock file: " << lock_file_path_;
-  } else {
-    LOG(WARNING) << "Attempted to unlock a non-locked file: "
-                 << lock_file_path_;
   }
   locked_ = false;
 }

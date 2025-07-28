@@ -41,7 +41,6 @@ class FileLock {
     for (const auto& lock_file : allLockFiles) {
       if (std::filesystem::exists(lock_file)) {
         std::remove(lock_file.c_str());
-        VLOG(10) << "Cleaned up lock file: " << lock_file;
       }
     }
     allLockFiles.clear();

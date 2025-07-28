@@ -1,4 +1,5 @@
 import os
+import shutil
 import sys
 
 import neug
@@ -13,6 +14,7 @@ if __name__ == "__main__":
     print(f"Neug version {neug.__version__}")
     data_dir = sys.argv[1]
     db_dir = sys.argv[2]
+    shutil.rmtree(db_dir, ignore_errors=True)
 
     print(f"Loading data from {data_dir} into database {db_dir}")
 

@@ -47,6 +47,9 @@ void setup_signal_handler() {
   std::signal(SIGSEGV, signal_handler);
   std::signal(SIGABRT, signal_handler);
   std::signal(SIGFPE, signal_handler);
+  std::signal(SIGQUIT, signal_handler);
+  std::signal(SIGKILL, signal_handler);
+  std::signal(SIGHUP, signal_handler);
 }
 
 void NeugDB::close() {

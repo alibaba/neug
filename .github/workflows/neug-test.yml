@@ -125,6 +125,8 @@ jobs:
       run: |
         cd ${GITHUB_WORKSPACE}/tools/python_bind/
         export FLEX_DATA_DIR=${GITHUB_WORKSPACE}/example_dataset/modern_graph
+        rm -rf /tmp/test_open_graph
+        rm -rf /tmp/test_open_close
         GLOG_v=10 ./build/neug_py_bind/tests/rt_mutable_graph/test_open_graph /tmp/test_open_graph ${FLEX_DATA_DIR}
         build/neug_py_bind/tests/rt_mutable_graph/test_ddl
         build/neug_py_bind/tests/rt_mutable_graph/test_export
