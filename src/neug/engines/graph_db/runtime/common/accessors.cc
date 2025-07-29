@@ -117,9 +117,9 @@ std::shared_ptr<IAccessor> create_vertex_property_path_accessor(
   return nullptr;
 }
 
-std::shared_ptr<IAccessor> create_vertex_label_path_accessor(const Context& ctx,
-                                                             int tag) {
-  return std::make_shared<VertexLabelPathAccessor>(ctx, tag);
+std::shared_ptr<IAccessor> create_vertex_label_path_accessor(
+    const Schema& schema, const Context& ctx, int tag) {
+  return std::make_shared<VertexLabelPathAccessor>(schema, ctx, tag);
 }
 
 template <typename GraphInterface>
@@ -270,9 +270,54 @@ std::shared_ptr<IAccessor> create_edge_property_path_accessor(
   return nullptr;
 }
 
-std::shared_ptr<IAccessor> create_edge_label_path_accessor(const Context& ctx,
+template <typename GraphInterface, typename T>
+VertexPropertyPathAccessor<GraphInterface, T>::VertexPropertyPathAccessor(
+    const GraphInterface& graph, const Context& ctx, int tag,
+    const std::string& prop_name)
+    : is_optional_(false),
+      vertex_col_(*std::dynamic_pointer_cast<IVertexColumn>(ctx.get(tag))) {
+  int label_num = graph.schema().vertex_label_num();
+  property_columns_.resize(label_num);
+  const auto& labels = vertex_col_.get_labels_set();
+  if (vertex_col_.is_optional()) {
+    is_optional_ = true;
+  }
+  for (auto label : labels) {
+    property_columns_[label] =
+        graph.template GetVertexColumn<T>(label, prop_name);
+    if (property_columns_[label].is_null()) {
+      is_optional_ = true;
+    }
+  }
+}
+
+VertexLabelPathAccessor::elem_t VertexLabelPathAccessor::typed_eval_path(
+    size_t idx) const {
+  auto label_id = vertex_col_.get_vertex(idx).label_;
+  return schema_.get_vertex_label_name(label_id);
+}
+
+RTAny VertexLabelPathAccessor::eval_path(size_t idx) const {
+  auto label_id = vertex_col_.get_vertex(idx).label_;
+  return RTAny::from_string(schema_.get_vertex_label_name(label_id));
+}
+
+EdgeLabelPathAccessor::elem_t EdgeLabelPathAccessor::typed_eval_path(
+    size_t idx) const {
+  const auto& e = col_.get_edge(idx);
+  return schema_.get_edge_label_name(e.label_triplet_.edge_label);
+}
+
+RTAny EdgeLabelPathAccessor::eval_path(size_t idx) const {
+  const auto& e = col_.get_edge(idx);
+  return RTAny::from_string(
+      schema_.get_edge_label_name(e.label_triplet_.edge_label));
+}
+
+std::shared_ptr<IAccessor> create_edge_label_path_accessor(const Schema& schema,
+                                                           const Context& ctx,
                                                            int tag) {
-  return std::make_shared<EdgeLabelPathAccessor>(ctx, tag);
+  return std::make_shared<EdgeLabelPathAccessor>(schema, ctx, tag);
 }
 
 template <typename GraphInterface>

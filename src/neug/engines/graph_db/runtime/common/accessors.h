@@ -134,23 +134,7 @@ class VertexPropertyPathAccessor : public IAccessor {
  public:
   using elem_t = T;
   VertexPropertyPathAccessor(const GraphInterface& graph, const Context& ctx,
-                             int tag, const std::string& prop_name)
-      : is_optional_(false),
-        vertex_col_(*std::dynamic_pointer_cast<IVertexColumn>(ctx.get(tag))) {
-    int label_num = graph.schema().vertex_label_num();
-    property_columns_.resize(label_num);
-    const auto& labels = vertex_col_.get_labels_set();
-    if (vertex_col_.is_optional()) {
-      is_optional_ = true;
-    }
-    for (auto label : labels) {
-      property_columns_[label] =
-          graph.template GetVertexColumn<T>(label, prop_name);
-      if (property_columns_[label].is_null()) {
-        is_optional_ = true;
-      }
-    }
-  }
+                             int tag, const std::string& prop_name);
 
   bool is_optional() const override { return is_optional_; }
 
@@ -165,8 +149,16 @@ class VertexPropertyPathAccessor : public IAccessor {
   }
 
   RTAny eval_path(size_t idx) const override {
-    auto val = TypedConverter<T>::from_typed(typed_eval_path(idx));
-    return val;
+    if (!vertex_col_.has_value(idx)) {
+      return RTAny(RTAnyType::kNull);
+    }
+    const auto& v = vertex_col_.get_vertex(idx);
+    auto& col = property_columns_[v.label_];
+    if (!col.is_null()) {
+      return TypedConverter<T>::from_typed(col.get_view(v.vid_));
+    } else {
+      return RTAny(RTAnyType::kNull);
+    }
   }
 
   RTAny eval_path(size_t idx, int) const override {
@@ -192,29 +184,27 @@ class VertexPropertyPathAccessor : public IAccessor {
 
 class VertexLabelPathAccessor : public IAccessor {
  public:
-  using elem_t = int32_t;
-  VertexLabelPathAccessor(const Context& ctx, int tag)
-      : vertex_col_(*std::dynamic_pointer_cast<IVertexColumn>(ctx.get(tag))) {}
+  using elem_t = std::string_view;
+  VertexLabelPathAccessor(const Schema& schema, const Context& ctx, int tag)
+      : vertex_col_(*std::dynamic_pointer_cast<IVertexColumn>(ctx.get(tag))),
+        schema_(schema) {}
 
-  elem_t typed_eval_path(size_t idx) const {
-    return static_cast<int32_t>(vertex_col_.get_vertex(idx).label_);
-  }
+  elem_t typed_eval_path(size_t idx) const;
 
-  RTAny eval_path(size_t idx) const override {
-    return RTAny(static_cast<int32_t>(typed_eval_path(idx)));
-  }
+  RTAny eval_path(size_t idx) const override;
 
  private:
   const IVertexColumn& vertex_col_;
+  const Schema& schema_;
 };
 
 class VertexLabelVertexAccessor : public IAccessor {
  public:
-  using elem_t = int64_t;
-  VertexLabelVertexAccessor() {}
+  using elem_t = std::string_view;
+  VertexLabelVertexAccessor(const Schema& schema) : schema_(schema) {}
 
   elem_t typed_eval_vertex(label_t label, vid_t v, size_t idx) const {
-    return static_cast<int64_t>(label);
+    return schema_.get_vertex_label_name(label);
   }
 
   RTAny eval_path(size_t idx) const override {
@@ -223,8 +213,11 @@ class VertexLabelVertexAccessor : public IAccessor {
   }
 
   RTAny eval_vertex(label_t label, vid_t v, size_t idx) const override {
-    return RTAny::from_int64(label);
+    return RTAny::from_string(schema_.get_vertex_label_name(label));
   }
+
+ private:
+  const Schema& schema_;
 };
 template <typename T>
 class ContextValueAccessor : public IAccessor {
@@ -532,22 +525,18 @@ class MultiPropsEdgePropertyPathAccessor : public IAccessor {
 
 class EdgeLabelPathAccessor : public IAccessor {
  public:
-  using elem_t = int32_t;
-  EdgeLabelPathAccessor(const Context& ctx, int tag)
-      : col_(*std::dynamic_pointer_cast<IEdgeColumn>(ctx.get(tag))) {}
+  using elem_t = std::string_view;
+  EdgeLabelPathAccessor(const Schema& schema, const Context& ctx, int tag)
+      : col_(*std::dynamic_pointer_cast<IEdgeColumn>(ctx.get(tag))),
+        schema_(schema) {}
 
-  RTAny eval_path(size_t idx) const override {
-    const auto& e = col_.get_edge(idx);
-    return RTAny(static_cast<int32_t>(e.label_triplet_.edge_label));
-  }
+  RTAny eval_path(size_t idx) const override;
 
-  elem_t typed_eval_path(size_t idx) const {
-    const auto& e = col_.get_edge(idx);
-    return static_cast<int32_t>(e.label_triplet_.edge_label);
-  }
+  elem_t typed_eval_path(size_t idx) const;
 
  private:
   const IEdgeColumn& col_;
+  const Schema& schema_;
 };
 
 template <typename GraphInterface, typename T>
@@ -755,15 +744,16 @@ template <typename GraphInterface>
 std::shared_ptr<IAccessor> create_vertex_property_vertex_accessor(
     const GraphInterface& graph, RTAnyType type, const std::string& prop_name);
 
-std::shared_ptr<IAccessor> create_vertex_label_path_accessor(const Context& ctx,
-                                                             int tag);
+std::shared_ptr<IAccessor> create_vertex_label_path_accessor(
+    const Schema& schema, const Context& ctx, int tag);
 
 template <typename GraphInterface>
 std::shared_ptr<IAccessor> create_edge_property_path_accessor(
     const GraphInterface& graph, const std::string& prop_name,
     const Context& ctx, int tag, RTAnyType type);
 
-std::shared_ptr<IAccessor> create_edge_label_path_accessor(const Context& ctx,
+std::shared_ptr<IAccessor> create_edge_label_path_accessor(const Schema& schema,
+                                                           const Context& ctx,
                                                            int tag);
 
 template <typename GraphInterface>

@@ -407,22 +407,18 @@ bool Schema::contains_edge_label(const std::string& label) const {
   return elabel_indexer_.get_index(label, ret) && !elabel_tomb_.get(ret);
 }
 
-std::string Schema::get_vertex_label_name(label_t index) const {
+const std::string& Schema::get_vertex_label_name(label_t index) const {
   std::string ret;
   LOG_FATAL_IF(vlabel_tomb_.get(index),
                "Label id: " + std::to_string(index) + " was deleted");
-  LOG_FATAL_IF(!vlabel_indexer_.get_key(index, ret),
-               "No vertex label found for label id: " + std::to_string(index));
-  return ret;
+  return vlabel_indexer_.get_key(index);
 }
 
-std::string Schema::get_edge_label_name(label_t index) const {
+const std::string& Schema::get_edge_label_name(label_t index) const {
   std::string ret;
   LOG_FATAL_IF(elabel_tomb_.get(index),
                "Label id: " + std::to_string(index) + " was deleted");
-  LOG_FATAL_IF(!elabel_indexer_.get_key(index, ret),
-               "No edge label found for label id: " + std::to_string(index));
-  return ret;
+  return elabel_indexer_.get_key(index);
 }
 
 const std::vector<std::tuple<PropertyType, std::string, size_t>>&

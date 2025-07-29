@@ -22,7 +22,8 @@ keywords = ["Graph", "Python", "Embedded", "Graph Database"]
 dependencies = [
     "pybind11>=2.9.2",
     "packaging>=24.2",
-    "protobuf<=3.20"
+    "protobuf<=3.20",
+    "requests"
 ]
 
 [project.optional-dependencies]

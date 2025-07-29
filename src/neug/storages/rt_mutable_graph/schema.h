@@ -254,9 +254,9 @@ class Schema {
 
   std::vector<label_t> get_edge_label_ids() const;
 
-  std::string get_vertex_label_name(label_t index) const;
+  const std::string& get_vertex_label_name(label_t index) const;
 
-  std::string get_edge_label_name(label_t index) const;
+  const std::string& get_edge_label_name(label_t index) const;
 
   const std::vector<std::tuple<PropertyType, std::string, size_t>>&
   get_vertex_primary_key(label_t index) const;

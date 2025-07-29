@@ -819,6 +819,15 @@ class IdIndexer : public IdIndexerBase<INDEX_T> {
     return true;
   }
 
+  const KEY_T& get_key(INDEX_T lid) const {
+    if (static_cast<size_t>(lid) >= num_elements_) {
+      throw std::out_of_range("Index out of range in IdIndexer::get_key " +
+                              std::to_string(lid) + " with size " +
+                              std::to_string(num_elements_));
+    }
+    return keys_[lid];
+  }
+
   bool get_index(const KEY_T& oid, INDEX_T& lid) const {
     size_t index =
         hash_policy_.index_for_hash(hasher_(oid), num_slots_minus_one_);

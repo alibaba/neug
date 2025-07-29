@@ -5,6 +5,7 @@
 #include "neug/compiler/function/arithmetic/vector_arithmetic_functions.h"
 #include "neug/compiler/function/cast/vector_cast_functions.h"
 #include "neug/compiler/function/date/vector_date_functions.h"
+#include "neug/compiler/function/schema/vector_node_rel_functions.h"
 
 namespace gs {
 namespace gopt {
@@ -21,7 +22,8 @@ enum ScalarType {
   TO_DATE,
   TO_DATETIME,
   TO_INTERVAL,
-  DATE_PART
+  DATE_PART,
+  LABEL,
 };
 
 class GScalarType {
@@ -72,6 +74,8 @@ class GScalarType {
       return ScalarType::TO_INTERVAL;
     } else if (func.name == function::DatePartFunction::name) {
       return ScalarType::DATE_PART;
+    } else if (func.name == function::LabelFunction::name) {
+      return ScalarType::LABEL;
     }
 
     // todo: support more scalar functions

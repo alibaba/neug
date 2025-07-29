@@ -231,7 +231,9 @@ std::unique_ptr<ProjectExprBase> create_sl_property_expr(
                                                               collector, alias);
   }
   default:
-    LOG(INFO) << "not implemented - " << static_cast<int>(type);
+    throw std::runtime_error(
+        "create_sl_property_expr: not implemented for type: " +
+        std::to_string(static_cast<int>(type)));
   }
   return nullptr;
 }
@@ -288,7 +290,9 @@ std::unique_ptr<ProjectExprBase> create_ml_property_expr(
                                                               collector, alias);
   }
   default:
-    LOG(INFO) << "not implemented - " << static_cast<int>(type);
+    throw std::runtime_error(
+        "create_ml_property_expr: not implemented for type: " +
+        std::to_string(static_cast<int>(type)));
   }
   return nullptr;
 }
@@ -902,6 +906,7 @@ parse_special_expr(const common::Expression& expr, int alias) {
                  const std::map<std::string, std::string>& params,
                  const Context& ctx) -> std::unique_ptr<ProjectExprBase> {
         auto col = ctx.get(tag);
+        std::unique_ptr<ProjectExprBase> result;
         if ((!col->is_optional()) &&
             col->column_type() == ContextColumnType::kVertex) {
           auto vertex_col = std::dynamic_pointer_cast<IVertexColumn>(col);
@@ -909,29 +914,32 @@ parse_special_expr(const common::Expression& expr, int alias) {
             if (vertex_col->vertex_column_type() == VertexColumnType::kSingle) {
               auto typed_vertex_col =
                   std::dynamic_pointer_cast<SLVertexColumn>(vertex_col);
-              return create_sl_property_expr(ctx, graph, *typed_vertex_col,
-                                             name, type, alias);
+              result = create_sl_property_expr(ctx, graph, *typed_vertex_col,
+                                               name, type, alias);
 
             } else {
-              return create_sl_property_expr(ctx, graph, *vertex_col, name,
-                                             type, alias);
+              result = create_sl_property_expr(ctx, graph, *vertex_col, name,
+                                               type, alias);
             }
           } else {
             if (vertex_col->vertex_column_type() ==
                 VertexColumnType::kMultiple) {
               auto typed_vertex_col =
                   std::dynamic_pointer_cast<MLVertexColumn>(vertex_col);
-              return create_ml_property_expr(ctx, graph, *typed_vertex_col,
-                                             name, type, alias);
+              result = create_ml_property_expr(ctx, graph, *typed_vertex_col,
+                                               name, type, alias);
             } else {
               auto typed_vertex_col =
                   std::dynamic_pointer_cast<MSVertexColumn>(vertex_col);
-              return create_ml_property_expr(ctx, graph, *typed_vertex_col,
-                                             name, type, alias);
+              result = create_ml_property_expr(ctx, graph, *typed_vertex_col,
+                                               name, type, alias);
             }
           }
         }
-        return make_project_expr(expr, alias)(graph, params, ctx);
+        if (!result) {
+          result = make_project_expr(expr, alias)(graph, params, ctx);
+        }
+        return result;
       };
     }
   }
@@ -1191,7 +1199,14 @@ class ProjectOpr : public IReadOperator {
       }
     }
     for (size_t i = 0; i < exprs_.size(); ++i) {
-      exprs.push_back(exprs_[i](graph, params, ctx));
+      auto expr = exprs_[i](graph, params, ctx);
+      if (!expr) {
+        LOG(ERROR) << "Failed to create project expr for " << i;
+        RETURN_FLEX_LEAF_ERROR(
+            gs::StatusCode::ERR_INTERNAL_ERROR,
+            "Failed to create project expr for " + std::to_string(i));
+      }
+      exprs.push_back(std::move(expr));
     }
 
     auto ret = Project::project(std::move(ctx), exprs, is_append_);

@@ -279,6 +279,25 @@ std::unique_ptr<::common::Variable> GExprConverter::convertDefaultVar() {
   return variable;
 }
 
+std::unique_ptr<::common::Expression> GExprConverter::convertLabel(
+    const binder::Expression& expr) {
+  auto children = expr.getChildren();
+  if (children.empty()) {
+    throw common::Exception("Label function should have at least one child");
+  }
+  auto child = children[0];
+  if (child->expressionType != common::ExpressionType::PROPERTY) {
+    throw common::Exception(
+        "The first child of Label function should be NodeId, but is " +
+        child->toString());
+  }
+  auto nodeID = child->ptrCast<binder::PropertyExpression>();
+  binder::PropertyExpression labelExpr(
+      expr.getDataType().copy(), common::InternalKeyword::LABEL,
+      nodeID->getVariableName(), nodeID->getRawVariableName(), {});
+  return convertProperty(labelExpr);
+}
+
 std::unique_ptr<::common::Expression> GExprConverter::convertScalarFunc(
     const binder::Expression& expr,
     const std::vector<std::string>& schemaAlias) {
@@ -291,6 +310,8 @@ std::unique_ptr<::common::Expression> GExprConverter::convertScalarFunc(
     return convertTemporalFunc(expr);
   } else if (scalarType.getType() == DATE_PART) {
     return convertExtractFunc(expr);
+  } else if (scalarType.getType() == LABEL) {
+    return convertLabel(expr);
   }
   throw common::Exception("Unsupported expression type: " + expr.toString());
 }

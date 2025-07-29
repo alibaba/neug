@@ -49,7 +49,7 @@ Var::Var(const GraphInterface& graph, const Context& ctx,
       assert(ctx.get(tag) != nullptr);
       type_ = ctx.get(tag)->elem_type();
     } else if (pb.has_property() && pb.property().has_label()) {
-      type_ = RTAnyType::kI64Value;
+      type_ = RTAnyType::kStringValue;
     } else {
       VLOG(10) << "receive empty variable, using tag -1";
       tag = -1;
@@ -68,7 +68,7 @@ Var::Var(const GraphInterface& graph, const Context& ctx,
           getter_ = create_vertex_property_path_accessor(graph, ctx, tag, type_,
                                                          pt.key().name());
         } else if (pt.has_label()) {
-          getter_ = create_vertex_label_path_accessor(ctx, tag);
+          getter_ = create_vertex_label_path_accessor(graph.schema(), ctx, tag);
         } else {
           LOG(FATAL) << "not support for " << pt.DebugString();
         }
@@ -90,7 +90,7 @@ Var::Var(const GraphInterface& graph, const Context& ctx,
           getter_ =
               create_edge_property_path_accessor(graph, name, ctx, tag, type_);
         } else if (pt.has_label()) {
-          getter_ = create_edge_label_path_accessor(ctx, tag);
+          getter_ = create_edge_label_path_accessor(graph.schema(), ctx, tag);
         } else if (pt.has_id()) {
           getter_ = std::make_shared<EdgeGIdPathAccessor>(ctx, tag);
         } else {
@@ -124,7 +124,7 @@ Var::Var(const GraphInterface& graph, const Context& ctx,
                                                            pt.key().name());
 
         } else if (pt.has_label()) {
-          getter_ = std::make_shared<VertexLabelVertexAccessor>();
+          getter_ = std::make_shared<VertexLabelVertexAccessor>(graph.schema());
         } else {
           LOG(FATAL) << "not support for " << pt.DebugString();
         }

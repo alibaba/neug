@@ -5,22 +5,22 @@
 -CASE ProjectionMultiLabel
 
 -LOG MultiLabelReturn
--STATEMENT MATCH (a:person:organisation) RETURN a.ID, label(a), a.fName, a.orgCode
+-STATEMENT MATCH (a:person:organisation) RETURN a.ID, label(a), a.fName, a.orgCode ORDER BY a.ID
 ---- 11
-0|person|Alice|
+0|person|Alice|0
 1|organisation||325
-2|person|Bob|
-3|person|Carol|
+2|person|Bob|0
+3|person|Carol|0
 4|organisation||934
-5|person|Dan|
+5|person|Dan|0
 6|organisation||824
-7|person|Elizabeth|
-8|person|Farooq|
-9|person|Greg|
-10|person|Hubert Blaine Wolfeschlegelsteinhausenbergerdorff|
+7|person|Elizabeth|0
+8|person|Farooq|0
+9|person|Greg|0
+10|person|Hubert Blaine Wolfeschlegelsteinhausenbergerdorff|0
 
 -LOG MultiLabelFilter
--STATEMENT MATCH (a) WHERE label(a)='organisation' RETURN a.orgCode
+-STATEMENT MATCH (a) WHERE label(a)="organisation" RETURN a.orgCode
 ---- 3
 325
 934

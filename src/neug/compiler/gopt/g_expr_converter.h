@@ -90,6 +90,8 @@ class GExprConverter {
   ::std::unique_ptr<::common::Expression> convertCast(
       const binder::Expression& expr,
       const std::vector<std::string>& schemaAlias);
+  std::unique_ptr<::common::Expression> convertLabel(
+      const binder::Expression& expr);
 
   // helper functions
   std::unique_ptr<::common::Value> convertValue(gs::common::Value value);

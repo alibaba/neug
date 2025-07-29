@@ -1,5 +1,6 @@
 #include "gopt_test.h"
 #include "neug/compiler/binder/expression/literal_expression.h"
+#include "neug/compiler/binder/expression/scalar_function_expression.h"
 #include "neug/compiler/common/types/date_t.h"
 #include "neug/compiler/planner/operator/logical_projection.h"
 
@@ -272,6 +273,41 @@ TEST_F(ExprTest, CAST_UINT64) {
   auto physical = planPhysical(*logical);
   VerifyFactory::verifyPhysicalByJson(*physical,
                                       getExprResource("CAST_UINT64_physical"));
+}
+
+TEST_F(ExprTest, VERTEX_LABEL) {
+  std::string query =
+      "MATCH (a:person:organisation) RETURN a.ID, label(a), a.fName, a.orgCode";
+  auto logical = planLogical(query, schemaData, statsData, rules);
+  auto physical = planPhysical(*logical);
+  VerifyFactory::verifyPhysicalByJson(*physical,
+                                      getExprResource("VERTEX_LABEL_physical"));
+}
+
+TEST_F(ExprTest, VERTEX_LABEL_EQUAL) {
+  std::string query =
+      "MATCH (a) WHERE label(a)='organisation' RETURN a.orgCode";
+  auto logical = planLogical(query, schemaData, statsData, rules);
+  auto physical = planPhysical(*logical);
+  VerifyFactory::verifyPhysicalByJson(
+      *physical, getExprResource("VERTEX_LABEL_EQUAL_physical"));
+}
+
+TEST_F(ExprTest, EDGE_LABEL) {
+  std::string query =
+      "MATCH (a:person)-[b]->(c) RETURN 1 + 1, label(b) LIMIT 2";
+  auto logical = planLogical(query, schemaData, statsData, rules);
+  auto physical = planPhysical(*logical);
+  VerifyFactory::verifyPhysicalByJson(*physical,
+                                      getExprResource("EDGE_LABEL_physical"));
+}
+
+TEST_F(ExprTest, COUNT_DISTINCT_LABEL) {
+  std::string query = "MATCH (n) return COUNT(DISTINCT label(n));";
+  auto logical = planLogical(query, schemaData, statsData, rules);
+  auto physical = planPhysical(*logical);
+  VerifyFactory::verifyPhysicalByJson(
+      *physical, getExprResource("COUNT_DISTINCT_LABEL_physical"));
 }
 
 }  // namespace gopt
