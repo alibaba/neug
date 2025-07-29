@@ -14,6 +14,10 @@ protobuf_generate(APPEND_PATH
         PROTOC_OUT_DIR ${CMAKE_CURRENT_BINARY_DIR}/neug/http_service
 )
 
+add_custom_target(generate_http_proto ALL
+        DEPENDS ${HTTP_SERVICE_PROTO_SRCS}
+        COMMENT "Generating HTTP service proto files"
+)
 
 
 
@@ -112,6 +116,7 @@ else()
         endif()
         install_neug_target(neug_utils)
 endif()
+add_dependencies(neug_utils neug_plan_proto generate_http_proto)
 
 install(DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
         DESTINATION include/neug/

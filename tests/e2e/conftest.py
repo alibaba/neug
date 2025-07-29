@@ -28,7 +28,7 @@ from utils.utils import collect_tests_from_files
 
 sys.path.append(os.path.join(os.path.dirname(__file__), "../../tools/python_bind"))
 
-from neug.session import Session
+from neug import Session
 
 
 def pytest_addoption(parser):

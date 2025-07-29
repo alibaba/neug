@@ -131,13 +131,14 @@ try:
     if build_dir and os.path.exists(build_dir):
         import sys
 
+        logger.info("Adding build directory to sys.path: %s", build_dir)
         sys.path.append(build_dir)
     import neug_py_bind
 
 
-except ImportError:
+except ImportError as e:
     raise ImportError(
-        "NeuG is not installed. Please install it using pip or build it from source."
+        f"NeuG is not installed. Please install it using pip or build it from source: {e}"
     )
 
 from neug.async_connection import AsyncConnection

@@ -582,7 +582,15 @@ set(MACOS_DYLIBS
 "-Wl,-U,_ProfilerStop"
 "-Wl,-U,__Z13GetStackTracePPvii"
 "-Wl,-U,_mallctl"
-"-Wl,-U,_malloc_stats_print")
+"-Wl,-U,_malloc_stats_print"
+"-Wl,-U,_OBJC_CLASS_$_NSObject"
+"-Wl,-U,_objc_autorelease"
+"-Wl,-U,_objc_msgSend"
+"-Wl,-U,_objc_retain"
+"-Wl,-U,_objc_release"
+"-Wl,-U,_objc_opt_class"
+"-Wl,-U,_objc_opt_isKindOfClass"
+)
 
 add_subdirectory(src)
 
