@@ -161,6 +161,7 @@ def test_invalid_path():
         os.system("rm -rf ??/")
 
 
+# DB-001-11
 def test_config_param(tmp_path):
     db_dir = tmp_path / "config_db"
     # mode: 'r', 'read', 'readwrite', 'w', 'rw', 'write'
@@ -310,6 +311,7 @@ def test_file_header_corruption(tmp_path):
         pytest.fail("Expected ERR_CORRUPTION_DETECTED but no exception was raised")
 
 
+# DB-001-17
 def test_db_default_mode(tmp_path):
     db_dir = tmp_path / "default_mode_db"
     db_dir.mkdir()
