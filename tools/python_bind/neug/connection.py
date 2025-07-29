@@ -18,7 +18,14 @@
 
 """The Neug connection module."""
 
-from neug_py_bind import PyConnection
+try:
+    from neug_py_bind import PyConnection
+except ImportError as e:
+    import os
+
+    if os.environ.get("BUILD_DOC", "OFF") == "OFF":
+        # re-raise the import error if building documentation
+        raise e
 
 # This is the C++ binding for the Python interface, which provides the actual connection to the database.
 from neug.query_result import QueryResult
@@ -32,7 +39,7 @@ class Connection(object):
     when it is no longer needed. If the database is closed, all the connections to the database will be closed automatically.
     """
 
-    def __init__(self, py_connection: PyConnection):
+    def __init__(self, py_connection):  # py_connection: PyConnection
         """
         Initialize a Connection object.
         Parameters

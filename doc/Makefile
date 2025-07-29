@@ -19,12 +19,9 @@ help:
 dependencies:
 	pip3 install -r docs-requirements.txt
 
-neug-python:
-# cd to ../tools/python_bind
-	@cd ${WORKING_DIR}/../tools/python_bind && \
-	python3 setup.py build_proto && python3 setup.py build_ext
-
 # Catch-all target: route all unknown targets to Sphinx using the new
 # "make mode" option.  $(O) is meant as a shortcut for $(SPHINXOPTS).
-%: Makefile neug-python
-	@$(SPHINXBUILD) -M $@ "$(SOURCEDIR)" "$(BUILDDIR)" $(SPHINXOPTS) $(O)
+%: Makefile
+	@BUILD_DOC=ON $(SPHINXBUILD) -M $@ "$(SOURCEDIR)" "$(BUILDDIR)" $(SPHINXOPTS) $(O)
+
+	@doxygen source/reference/cpp_api/Doxyfile

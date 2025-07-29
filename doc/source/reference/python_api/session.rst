@@ -1,10 +1,10 @@
-.. _query_result:
+.. _session:
 
-QueryResult
+Session
 ===================
 
-.. currentmodule:: neug.query_result
-.. autoclass:: QueryResult
+.. currentmodule:: neug
+.. autoclass:: neug.session.Session
    :special-members:
    :members:
    :exclude-members: __call__, __repr__

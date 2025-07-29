@@ -133,7 +133,16 @@ try:
 
         logger.info("Adding build directory to sys.path: %s", build_dir)
         sys.path.append(build_dir)
-    import neug_py_bind
+    try:
+        import neug_py_bind
+    except ImportError as e:
+        import os
+
+        if os.environ.get("BUILD_DOC", "OFF") == "ON":
+            # If we are building docs, we don't need the C++ extension
+            logger.warning("Building docs, skipping C++ extension import.")
+        else:
+            raise e
 
 
 except ImportError as e:

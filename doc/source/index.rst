@@ -57,7 +57,6 @@ in performance and is designed to be easy to use.
 
    development/dev_guide
    development/code_style_guide
-   development/dev_and_test
 
 
 Indices and tables

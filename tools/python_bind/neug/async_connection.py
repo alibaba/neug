@@ -21,7 +21,14 @@ import asyncio
 import random
 from concurrent.futures import ThreadPoolExecutor
 
-from neug_py_bind import PyConnection
+try:
+    from neug_py_bind import PyConnection
+except ImportError as e:
+    import os
+
+    if os.environ.get("BUILD_DOC", "OFF") == "OFF":
+        # re-raise the import error if building documentation
+        raise e
 
 from neug.query_result import QueryResult
 
@@ -38,7 +45,7 @@ class AsyncConnection(object):
     But with a thread pool to execute the queries asynchronously.
     """
 
-    def __init__(self, connection: PyConnection):
+    def __init__(self, connection):  # connection: PyConnection
         """
         Initialize an AsyncConnection object.
         Parameters

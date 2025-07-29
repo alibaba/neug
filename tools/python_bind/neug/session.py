@@ -20,7 +20,15 @@ import logging
 
 import requests
 import requests.adapters
-from neug_py_bind import PyQueryResult
+
+try:
+    from neug_py_bind import PyQueryResult
+except ImportError as e:
+    import os
+
+    if os.environ.get("BUILD_DOC", "OFF") == "OFF":
+        # re-raise the import error if building documentation
+        raise e
 
 from neug.proto.results_pb2 import CollectiveResults
 from neug.query_result import QueryResult

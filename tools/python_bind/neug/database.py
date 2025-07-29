@@ -21,7 +21,12 @@
 import logging
 import os
 
-import neug_py_bind
+try:
+    import neug_py_bind
+except ImportError as e:
+    if os.environ.get("BUILD_DOC", "OFF") == "OFF":
+        # re-raise the import error if building documentation
+        raise e
 
 from neug.async_connection import AsyncConnection
 from neug.connection import Connection

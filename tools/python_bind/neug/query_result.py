@@ -18,7 +18,14 @@
 
 """The Neug result module."""
 
-from neug_py_bind import PyQueryResult
+try:
+    from neug_py_bind import PyQueryResult
+except ImportError as e:
+    import os
+
+    if os.environ.get("BUILD_DOC", "OFF") == "OFF":
+        # re-raise the import error if building documentation
+        raise e
 
 # PyQueryResult is defined in the neug_py_bind module, which is a C++ binding for the Python interface.
 # See py_query_result.h for the definition of PyQueryResult.
@@ -45,7 +52,7 @@ class QueryResult(object):
         >>>     print(row)
     """
 
-    def __init__(self, result: PyQueryResult):
+    def __init__(self, result):  # result: PyQueryResult
         """
         Initialize the QueryResult.
 

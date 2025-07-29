@@ -30,7 +30,11 @@ bool FileLock::lock(std::string& error_msg, DBMode mode) {
     LOG(ERROR) << "Lock file already exists: " << lock_file_path_;
     std::ifstream lock_file(lock_file_path_);
     if (!lock_file.is_open()) {
-      LOG(ERROR) << "Failed to open lock file: " << lock_file_path_;
+      // Get the error message if the file cannot be opened
+      error_msg = "Failed to open lock file: " + lock_file_path_ +
+                  ", error: " + std::string(strerror(errno));
+      VLOG(10) << error_msg;
+      LOG(ERROR) << error_msg;
       return false;
     }
     std::string line;
@@ -62,7 +66,7 @@ bool FileLock::lock(std::string& error_msg, DBMode mode) {
     }
   }
 
-  int32_t fd = ::open(lock_file_path_.c_str(), O_CREAT | O_EXCL | O_RDWR);
+  int32_t fd = ::open(lock_file_path_.c_str(), O_CREAT | O_EXCL | O_RDWR, 0600);
   if (fd < 0) {
     error_msg = "Failed to create lock file: " + std::string(strerror(errno));
     LOG(ERROR) << error_msg;

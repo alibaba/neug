@@ -1,0 +1,21 @@
+PROJECT_NAME = "NeuG"
+PROJECT_NUMBER = "0.0.1"
+OUTPUT_DIRECTORY = "build/html/reference"
+HTML_OUTPUT = "cpp_api"
+
+INPUT = ../src/neug/engines \
+        ../src/neug/main \
+        ../src/neug/planner \
+        ../src/neug/storages \
+        ../src/neug/utils
+
+FILE_PATTERNS = *.h *.cc
+RECURSIVE = YES
+OPTIMIZE_OUTPUT_FOR_C = NO
+
+EXTRACT_ALL = YES
+EXTRACT_STATIC = YES
+
+TYPED_HIDES_STRUCT = YES
+GENERATE_LATEX = NO
+GENERATE_HTML = YES
