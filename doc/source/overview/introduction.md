@@ -84,6 +84,8 @@ NeuG is designed to work seamlessly with your existing data ecosystem:
 - **Error Handling**: Comprehensive error management and recovery mechanisms
 - **Monitoring**: Built-in performance monitoring and query profiling
 
+NeuG is developed by the [GraphScope](https://graphscope.io) team, a leading research group from Alibaba renowned for its expertise in graph computing and large-scale data processing. The framework integrates advanced methodologies derived from Alibaba’s extensive experience in deploying graph analytics to solve enterprise-scale challenges across domains such as e-commerce, supply chain optimization, and fraud detection.
+
 ## Core Architecture
 
 NeuG's architecture is built around several key components:

@@ -21,20 +21,20 @@ in performance and is designed to be easy to use.
    overview/introduction
 
 .. toctree::
-   :maxdepth: 2
+   :maxdepth: 1
    :caption: Installation
 
    installation/installation
 
 .. toctree::
-   :maxdepth: 2
+   :maxdepth: 1
    :caption: Tutorials
 
-   tutorials/quick_start
+   tutorials/getting_started
    tutorials/python_tutorial
 
 .. toctree::
-   :maxdepth: 2
+   :maxdepth: 1
    :caption: User Guide
 
    user_guide/create_graph
