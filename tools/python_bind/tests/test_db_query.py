@@ -375,7 +375,6 @@ def test_alter_edge_table(tmp_path):
     db.close()
 
 
-@pytest.mark.skip(reason="issue-368")
 def test_alter_edge_table_drop_property(tmp_path):
     db_dir = tmp_path / "alter_edge_table_drop_property"
     shutil.rmtree(db_dir, ignore_errors=True)
