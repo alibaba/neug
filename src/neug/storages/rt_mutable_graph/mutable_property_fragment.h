@@ -799,6 +799,9 @@ class MutablePropertyFragment {
   Any get_oid(label_t label, vid_t lid) const;
 
   vid_t add_vertex(label_t label, const Any& id);
+
+  vid_t add_vertex_safe(label_t label, const Any& id);
+
   std::shared_ptr<CsrConstEdgeIterBase> get_outgoing_edges(
       label_t label, vid_t u, label_t neighbor_label, label_t edge_label) const;
 

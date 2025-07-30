@@ -1249,6 +1249,10 @@ vid_t MutablePropertyFragment::add_vertex(label_t label, const Any& id) {
   return lf_indexers_[label].insert(id);
 }
 
+vid_t MutablePropertyFragment::add_vertex_safe(label_t label, const Any& id) {
+  return lf_indexers_[label].insert_safe(id);
+}
+
 std::shared_ptr<CsrConstEdgeIterBase>
 MutablePropertyFragment::get_outgoing_edges(label_t label, vid_t u,
                                             label_t neighbor_label,

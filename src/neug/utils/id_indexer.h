@@ -310,11 +310,19 @@ class LFIndexer {
   size_t size() const { return num_elements_.load(); }
   PropertyType get_type() const { return keys_->type(); }
 
+  // only for update transaction
+  INDEX_T insert_safe(const Any& oid) {
+    INDEX_T ind = static_cast<INDEX_T>(num_elements_.load());
+    if (ind >= capacity()) {
+      reserve(capacity() + (capacity() >> 2));
+    }
+    return insert(oid);
+  }
+
   INDEX_T insert(const Any& oid) {
     assert(oid.type == get_type());
     INDEX_T ind = static_cast<INDEX_T>(num_elements_.fetch_add(1));
-    // TODO(zhanglei): Check the impact to performance
-    keys_->set_any_with_resize(ind, oid);
+    keys_->set_any(ind, oid);
     size_t index =
         hash_policy_.index_for_hash(hasher_(oid), num_slots_minus_one_);
     static constexpr INDEX_T sentinel = std::numeric_limits<INDEX_T>::max();

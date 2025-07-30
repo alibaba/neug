@@ -763,7 +763,7 @@ void UpdateTransaction::IngestWal(MutablePropertyFragment& graph,
       label = deserialize_oid(graph, arc, oid);
       vid_t vid;
       if (!graph.get_lid(label, oid, vid)) {
-        vid = graph.add_vertex(label, oid);
+        vid = graph.add_vertex_safe(label, oid);
       }
       graph.get_vertex_table(label).ingest(vid, arc);
     } else if (op_type == 1) {
@@ -910,7 +910,7 @@ bool UpdateTransaction::batch_commit(UpdateBatch& batch) {
     if (graph_.get_lid(label, oid, lid)) {
       graph_.get_vertex_table(label).insert(lid, props);
     } else {
-      lid = graph_.add_vertex(label, oid);
+      lid = graph_.add_vertex_safe(label, oid);
       graph_.get_vertex_table(label).insert(lid, props);
     }
   }
@@ -963,7 +963,7 @@ void UpdateTransaction::applyVerticesUpdates() {
     auto& vertex_offset = vertex_offsets_[label];
     for (auto& pair : added_vertices) {
       vid_t offset = vertex_offset.at(pair.first);
-      vid_t lid = graph_.add_vertex(label, pair.second);
+      vid_t lid = graph_.add_vertex_safe(label, pair.second);
       if (insert_vertex_with_resize_) {
         graph_.get_vertex_table(label).insert_with_resize(
             lid, table.get_row(offset));
