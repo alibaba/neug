@@ -92,7 +92,7 @@ ERROR_STRINGS = {
     ERR_TX_TIMEOUT: "transaction timeout",
     ERR_SCHEMA_MISMATCH: "Schema mismatch",
     ERR_INVALID_SCHEMA: "invalid schema",
-    ERR_TYPE_CONVERSION: "type conversion error",
+    ERR_TYPE_CONVERSION: "Implicit cast is not supported.",
     ERR_PLATFORM_ABI: "platform abi error",
     ERR_PY_BIND_INIT: "python binding init error",
     ERR_ARCH_MISMATCH: "arch mismatch",

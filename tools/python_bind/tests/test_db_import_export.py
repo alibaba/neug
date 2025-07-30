@@ -25,6 +25,7 @@ sys.path.append(os.path.join(os.path.dirname(__file__), "../"))
 from errors import ERR_BAD_ENCODING
 from errors import ERR_DIRECTORY_NOT_EXIST
 from errors import ERR_PERMISSION
+from errors import ERR_QUERY_SYNTAX
 from errors import ERR_SCHEMA_MISMATCH
 from errors import ERR_TYPE_CONVERSION
 from errors import ERROR_STRINGS
@@ -50,7 +51,6 @@ def test_import_default(tmp_path):
     db.close()
 
 
-@pytest.mark.skip(reason="config is not supported in compiler yet")
 def test_import_config(tmp_path):
     db_dir = tmp_path / "import_config"
     db_dir.mkdir()
@@ -327,5 +327,23 @@ def test_import_bad_encoding(tmp_path):
     with pytest.raises(Exception) as excinfo:
         conn.execute(f'COPY person FROM "{csv_path}" (IGNORE_ERRORS FALSE);')
     assert ERROR_STRINGS[ERR_BAD_ENCODING] in str(excinfo.value)
+    conn.close()
+    db.close()
+
+
+# DB-005-11
+def test_export_vertex_edge(tmp_path):
+    db_dir = tmp_path / "syntax_error"
+    db_dir.mkdir()
+    db = Database(db_path=str(db_dir), mode="w")
+    conn = db.connect()
+    with pytest.raises(Exception) as excinfo:
+        conn.execute("COPY (MATCH (v:person) RETURN v) to 'person.csv';")
+    assert str(ERR_QUERY_SYNTAX) in str(excinfo.value)
+    with pytest.raises(Exception) as excinfo:
+        conn.execute(
+            "COPY (MATCH (:person)-[e:knows]->(:person) RETURN e) to 'person_knows_person.csv' (HEADER = true);"
+        )
+    assert str(ERR_QUERY_SYNTAX) in str(excinfo.value)
     conn.close()
     db.close()
