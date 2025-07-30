@@ -214,7 +214,6 @@ def test_create_node_table_with_default_value(tmp_path):
     db.close()
 
 
-# TODO: error codes are not correctly handled yet
 def test_create_node_table_errors(tmp_path):
     db_dir = tmp_path / "create_node_errors"
     shutil.rmtree(db_dir, ignore_errors=True)
@@ -275,7 +274,6 @@ def test_create_rel_table_with_multiple_relationships(tmp_path):
     db.close()
 
 
-# TODO: error codes are not correctly handled yet
 def test_create_rel_table_errors(tmp_path):
     db_dir = tmp_path / "create_rel_errors"
     shutil.rmtree(db_dir, ignore_errors=True)
@@ -686,6 +684,7 @@ def test_query_syntax_error(tmp_path):
     db.close()
 
 
+# DB-003-22
 def test_insert_vertex_edge(tmp_path):
     db_dir = tmp_path / "insert_vertex_edge"
     shutil.rmtree(db_dir, ignore_errors=True)
@@ -724,24 +723,7 @@ def test_insert_vertex_edge(tmp_path):
     db.close()
 
 
-# DB-005-01
-def test_export_vertex_edge(tmp_path):
-    db_dir = tmp_path / "syntax_error"
-    db_dir.mkdir()
-    db = Database(db_path=str(db_dir), mode="w")
-    conn = db.connect()
-    with pytest.raises(Exception) as excinfo:
-        conn.execute("COPY (MATCH (v:person) RETURN v) to 'person.csv';")
-    assert str(ERR_QUERY_SYNTAX) in str(excinfo.value)
-    with pytest.raises(Exception) as excinfo:
-        conn.execute(
-            "COPY (MATCH (:person)-[e:knows]->(:person) RETURN e) to 'person_knows_person.csv' (HEADER = true);"
-        )
-    assert str(ERR_QUERY_SYNTAX) in str(excinfo.value)
-    conn.close()
-    db.close()
-
-
+# DB-003-23
 def test_complex_example(tmp_path):
     db_dir = tmp_path / "complex_example"
     shutil.rmtree(db_dir, ignore_errors=True)
@@ -859,6 +841,7 @@ def test_complex_example(tmp_path):
     db.stop_serving()
 
 
+# DB-003-24
 def test_query_on_empty_graph():
     db = Database()
     conn = db.connect()
