@@ -75,6 +75,8 @@ inline DualCsrBase* create_csr(EdgeStrategy oes, EdgeStrategy ies,
       return new DualCsr<std::string_view>(
           oes, ies, gs::PropertyType::GetStringDefaultMaxLength(), oe_mutable,
           ie_mutable);
+    } else if (properties[0] == PropertyType::kTimestamp) {
+      return new DualCsr<TimeStamp>(oes, ies, oe_mutable, ie_mutable);
     }
   } else {
     // TODO: fix me, storage strategy not set

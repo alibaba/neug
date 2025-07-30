@@ -93,6 +93,8 @@ inline void serialize_field(grape::InArchive& arc, const Any& prop) {
     arc << prop.value.ui;
   } else if (prop.type == PropertyType::Date()) {
     arc << prop.value.d.to_u32();
+  } else if (prop.type == PropertyType::Timestamp()) {
+    arc << prop.value.ts.milli_second;
   } else if (prop.type == PropertyType::DateTime()) {
     arc << prop.value.dt.milli_second;
   } else if (prop.type.type_enum == impl::PropertyTypeImpl::kString) {
@@ -130,6 +132,10 @@ inline void deserialize_field(grape::OutArchive& arc, Any& prop) {
     uint32_t date_val;
     arc >> date_val;
     prop.value.d.from_u32(date_val);
+  } else if (prop.type == PropertyType::Timestamp()) {
+    int64_t ts_val;
+    arc >> ts_val;
+    prop.value.ts.milli_second = ts_val;
   } else if (prop.type == PropertyType::DateTime()) {
     int64_t dt_val;
     arc >> dt_val;

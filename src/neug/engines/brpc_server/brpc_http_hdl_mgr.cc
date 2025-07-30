@@ -75,6 +75,7 @@ void BrpcHttpHandlerManager::Stop() {
 brpc::ServerOptions BrpcHttpHandlerManager::get_server_options() const {
   brpc::ServerOptions options;
   options.idle_timeout_sec = 60;  // 1 minute
+  options.num_threads = service_config_.shard_num;
   return options;
 }
 }  // namespace server

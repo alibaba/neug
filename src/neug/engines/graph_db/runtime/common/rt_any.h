@@ -431,8 +431,8 @@ struct EdgeData {
       return std::string_view(value.str_val.data(), value.str_val.size());
     } else if constexpr (std::is_same_v<T, grape::EmptyType>) {
       return grape::EmptyType();
-    } else if constexpr (std::is_same_v<T, Date>) {
-      return Date(value.i64_val);
+    } else if constexpr (std::is_same_v<T, TimeStamp>) {
+      return TimeStamp(value.ts_val);
     } else if constexpr (std::is_same_v<T, RecordView>) {
       return value.record_view;
     } else {
@@ -465,9 +465,9 @@ struct EdgeData {
       value.str_val = val;
     } else if constexpr (std::is_same_v<T, grape::EmptyType>) {
       type = RTAnyType::kEmpty;
-    } else if constexpr (std::is_same_v<T, Date>) {
-      type = RTAnyType::kDate;
-      value.date_val = val;
+    } else if constexpr (std::is_same_v<T, TimeStamp>) {
+      type = RTAnyType::kTimestamp;
+      value.ts_val = val;
     } else if constexpr (std::is_same_v<T, RecordView>) {
       type = RTAnyType::kRecordView;
       value.record_view = val;
@@ -641,13 +641,11 @@ class RTAny {
     } else if (type_ == RTAnyType::kI64Value) {
       encoder.put_long(value_.i64_val);
     } else if (type_ == RTAnyType::kDate) {
-      encoder.put_int(value_.date_val.to_u32());
+      encoder.put_long(value_.date_val.to_timestamp());
     } else if (type_ == RTAnyType::kDateTime) {
       encoder.put_long(value_.dt_val.milli_second);
     } else if (type_ == RTAnyType::kTimestamp) {
       encoder.put_long(value_.ts_val.milli_second);
-    } else if (type_ == RTAnyType::kInterval) {
-      encoder.put_long(value_.interval_val.to_mill_seconds());
     } else if (type_ == RTAnyType::kI32Value) {
       encoder.put_int(value_.i32_val);
     } else if (type_ == RTAnyType::kU32Value) {

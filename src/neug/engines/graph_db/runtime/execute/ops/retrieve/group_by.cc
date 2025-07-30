@@ -994,9 +994,9 @@ std::unique_ptr<ReducerBase> make_reducer(const GraphReadInterface& graph,
               *dynamic_cast<const ValueColumn<std::string_view>*>(col.get()));
           return _make_reducer<decltype(wrapper), false>(
               ctx, std::move(wrapper), kind, alias);
-        } else if (col->elem_type() == RTAnyType::kDate) {
-          ValueWrapper<Date> wrapper(
-              *dynamic_cast<const ValueColumn<Date>*>(col.get()));
+        } else if (col->elem_type() == RTAnyType::kTimestamp) {
+          ValueWrapper<TimeStamp> wrapper(
+              *dynamic_cast<const ValueColumn<TimeStamp>*>(col.get()));
           return _make_reducer<decltype(wrapper), false>(
               ctx, std::move(wrapper), kind, alias);
         }
@@ -1027,8 +1027,8 @@ std::unique_ptr<ReducerBase> make_reducer(const GraphReadInterface& graph,
     return make_reducer<uint32_t>(graph, ctx, std::move(var_), kind, alias);
   } else if (var_.type() == RTAnyType::kInterval) {
     return make_reducer<Interval>(graph, ctx, std::move(var_), kind, alias);
-  } else if (var_.type() == RTAnyType::kDateTime) {
-    return make_reducer<DateTime>(graph, ctx, std::move(var_), kind, alias);
+  } else if (var_.type() == RTAnyType::kTimestamp) {
+    return make_reducer<TimeStamp>(graph, ctx, std::move(var_), kind, alias);
   } else {
     return make_general_reducer(graph, ctx, std::move(var_), kind, alias);
   }

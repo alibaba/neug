@@ -126,15 +126,15 @@ expand_vertex_without_predicate_impl(const GraphReadInterface& graph,
         return expand_vertex_np_me_sp<int64_t, DummyPredicate<int64_t>>(
             graph, input, label_dirs, DummyPredicate<int64_t>());
       }
-    } else if (ed_type == PropertyType::Date()) {
+    } else if (ed_type == PropertyType::Timestamp()) {
       if (se) {
-        return expand_vertex_np_se<Date, DummyPredicate<Date>>(
+        return expand_vertex_np_se<TimeStamp, DummyPredicate<TimeStamp>>(
             graph, input, std::get<0>(label_dirs[0]),
             std::get<1>(label_dirs[0]), std::get<2>(label_dirs[0]),
-            DummyPredicate<Date>());
+            DummyPredicate<TimeStamp>());
       } else {
-        return expand_vertex_np_me_sp<Date, DummyPredicate<Date>>(
-            graph, input, label_dirs, DummyPredicate<Date>());
+        return expand_vertex_np_me_sp<TimeStamp, DummyPredicate<TimeStamp>>(
+            graph, input, label_dirs, DummyPredicate<TimeStamp>());
       }
     } else {
       LOG(INFO) << "type - " << ed_type << " - not implemented, fallback";
@@ -209,15 +209,17 @@ expand_vertex_without_predicate_optional_impl(
             grape::EmptyType, DummyPredicate<grape::EmptyType>>(
             graph, input, label_dirs, DummyPredicate<grape::EmptyType>());
       }
-    } else if (ed_type == PropertyType::Date()) {
+    } else if (ed_type == PropertyType::Timestamp()) {
       if (se) {
-        return expand_vertex_np_se_optional<Date, DummyPredicate<Date>>(
+        return expand_vertex_np_se_optional<TimeStamp,
+                                            DummyPredicate<TimeStamp>>(
             graph, input, std::get<0>(label_dirs[0]),
             std::get<1>(label_dirs[0]), std::get<2>(label_dirs[0]),
-            DummyPredicate<Date>());
+            DummyPredicate<TimeStamp>());
       } else {
-        return expand_vertex_np_me_sp_optional<Date, DummyPredicate<Date>>(
-            graph, input, label_dirs, DummyPredicate<Date>());
+        return expand_vertex_np_me_sp_optional<TimeStamp,
+                                               DummyPredicate<TimeStamp>>(
+            graph, input, label_dirs, DummyPredicate<TimeStamp>());
       }
     }
   }
@@ -325,13 +327,13 @@ expand_vertex_without_predicate_impl(const GraphReadInterface& graph,
         return expand_vertex_np_me_sp<int64_t, DummyPredicate<int64_t>>(
             graph, input, label_dirs, DummyPredicate<int64_t>());
       }
-    } else if (ed_type == PropertyType::Date()) {
+    } else if (ed_type == PropertyType::Timestamp()) {
       if (se) {
-        return expand_vertex_np_se<Date, DummyPredicate<Date>>(
-            graph, input, label_dirs, DummyPredicate<Date>());
+        return expand_vertex_np_se<TimeStamp, DummyPredicate<TimeStamp>>(
+            graph, input, label_dirs, DummyPredicate<TimeStamp>());
       } else {
-        return expand_vertex_np_me_sp<Date, DummyPredicate<Date>>(
-            graph, input, label_dirs, DummyPredicate<Date>());
+        return expand_vertex_np_me_sp<TimeStamp, DummyPredicate<TimeStamp>>(
+            graph, input, label_dirs, DummyPredicate<TimeStamp>());
       }
     } else {
       LOG(INFO) << "type - " << ed_type << " - not implemented, fallback";
@@ -417,10 +419,11 @@ expand_vertex_without_predicate_optional_impl(
             grape::EmptyType, DummyPredicate<grape::EmptyType>>(
             graph, input, label_dirs, DummyPredicate<grape::EmptyType>());
       }
-    } else if (ed_type == PropertyType::Date()) {
+    } else if (ed_type == PropertyType::Timestamp()) {
       if (!se) {
-        return expand_vertex_np_me_sp_optional<Date, DummyPredicate<Date>>(
-            graph, input, label_dirs, DummyPredicate<Date>());
+        return expand_vertex_np_me_sp_optional<TimeStamp,
+                                               DummyPredicate<TimeStamp>>(
+            graph, input, label_dirs, DummyPredicate<TimeStamp>());
       }
     } else if (ed_type == PropertyType::Int32()) {
       if (!se) {
@@ -525,13 +528,13 @@ expand_vertex_without_predicate_impl(const GraphReadInterface& graph,
         return expand_vertex_np_me_sp<int64_t, DummyPredicate<int64_t>>(
             graph, input, label_dirs, DummyPredicate<int64_t>());
       }
-    } else if (ed_type == PropertyType::Date()) {
+    } else if (ed_type == PropertyType::Timestamp()) {
       if (se) {
-        return expand_vertex_np_se<Date, DummyPredicate<Date>>(
-            graph, input, label_dirs, DummyPredicate<Date>());
+        return expand_vertex_np_se<TimeStamp, DummyPredicate<TimeStamp>>(
+            graph, input, label_dirs, DummyPredicate<TimeStamp>());
       } else {
-        return expand_vertex_np_me_sp<Date, DummyPredicate<Date>>(
-            graph, input, label_dirs, DummyPredicate<Date>());
+        return expand_vertex_np_me_sp<TimeStamp, DummyPredicate<TimeStamp>>(
+            graph, input, label_dirs, DummyPredicate<TimeStamp>());
       }
     } else {
       LOG(INFO) << "type - " << ed_type << " - not implemented, fallback";

@@ -75,7 +75,7 @@ struct ProjectExpr : public ProjectExprBase {
       return false;
     }
     using T = typename EXPR::V;
-    if constexpr (std::is_same_v<T, Date> || std::is_same_v<T, DateTime> ||
+    if constexpr (std::is_same_v<T, Date> || std::is_same_v<T, TimeStamp> ||
                   std::is_same_v<T, std::string_view> ||
                   std::is_same_v<T, int32_t> || std::is_same_v<T, int64_t> ||
                   std::is_same_v<T, double>) {

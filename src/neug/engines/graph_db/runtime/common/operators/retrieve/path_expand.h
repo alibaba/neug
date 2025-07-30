@@ -135,13 +135,13 @@ class PathExpand {
                                  std::get<2>(tup));
           ctx.set(params.alias, std::get<1>(tup));
           return ctx;
-        } else if (properties[0] == PropertyType::Date()) {
+        } else if (properties[0] == PropertyType::Timestamp()) {
           auto tup =
               single_source_shortest_path_with_order_by_length_limit_impl<
-                  Date, PRED_T>(graph, *input_vertex_col,
-                                params.labels[0].edge_label, params.dir,
-                                params.hop_lower, params.hop_upper, pred,
-                                limit_upper);
+                  TimeStamp, PRED_T>(graph, *input_vertex_col,
+                                     params.labels[0].edge_label, params.dir,
+                                     params.hop_lower, params.hop_upper, pred,
+                                     limit_upper);
           ctx.set_with_reshuffle(params.v_alias, std::get<0>(tup),
                                  std::get<2>(tup));
           ctx.set(params.alias, std::get<1>(tup));
@@ -215,8 +215,8 @@ class PathExpand {
                                  std::get<2>(tup));
           ctx.set(params.alias, std::get<1>(tup));
           return ctx;
-        } else if (properties[0] == PropertyType::Date()) {
-          auto tup = single_source_shortest_path_impl<Date, PRED_T>(
+        } else if (properties[0] == PropertyType::Timestamp()) {
+          auto tup = single_source_shortest_path_impl<TimeStamp, PRED_T>(
               graph, *input_vertex_col, params.labels[0].edge_label, params.dir,
               params.hop_lower, params.hop_upper, pred);
           ctx.set_with_reshuffle(params.v_alias, std::get<0>(tup),

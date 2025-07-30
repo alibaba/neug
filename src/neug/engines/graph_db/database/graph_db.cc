@@ -144,10 +144,6 @@ Result<bool> GraphDB::Open(const GraphDBConfig& config) {
   if (!schema.Empty() && (!create_empty_graph) &&
       (!graph_.schema().Equals(schema))) {
     LOG(ERROR) << "Schema inconsistent..\n";
-    return Result<bool>(StatusCode::ERR_INTERNAL_ERROR,
-                        "Schema of work directory is not compatible with the "
-                        "graph schema",
-                        false);
   }
   // Set the plugin info from schema to graph_.schema(), since the plugin info
   // is not serialized and deserialized.
@@ -504,7 +500,6 @@ void GraphDB::openWalAndCreateContexts(const GraphDBConfig& config,
                                  data_dir);
   }
   VLOG(1) << "Using wal uri: " << wal_uri;
-
   for (int i = 0; i < thread_num_; ++i) {
     new (&contexts_[i])
         SessionLocalContext(*this, data_dir, i, allocator_strategy,
@@ -512,7 +507,6 @@ void GraphDB::openWalAndCreateContexts(const GraphDBConfig& config,
   }
   auto wal_parser = WalParserFactory::CreateWalParser(wal_uri);
   ingestWals(*wal_parser, data_dir, thread_num_);
-
   for (int i = 0; i < thread_num_; ++i) {
     contexts_[i].logger->open(wal_uri, i);
   }

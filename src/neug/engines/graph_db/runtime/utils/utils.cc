@@ -224,9 +224,9 @@ bool vertex_property_topN(bool asc, size_t limit,
   } else if (prop_types[0] == PropertyType::String()) {
     return vertex_property_topN_impl<std::string_view>(asc, limit, col, graph,
                                                        prop_name, offsets);
-  } else if (prop_types[0] == PropertyType::DateTime()) {
-    return vertex_property_topN_impl<DateTime>(asc, limit, col, graph,
-                                               prop_name, offsets);
+  } else if (prop_types[0] == PropertyType::Timestamp()) {
+    return vertex_property_topN_impl<TimeStamp>(asc, limit, col, graph,
+                                                prop_name, offsets);
   } else {
     LOG(INFO) << "prop type not support..." << prop_types[0];
     return false;

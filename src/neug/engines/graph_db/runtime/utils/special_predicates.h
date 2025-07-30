@@ -637,13 +637,13 @@ parse_special_vertex_predicate(const common::Expression& expr) {
                                             params.at(name));
       };
 
-    } else if (type == RTAnyType::kDateTime) {
+    } else if (type == RTAnyType::kTimestamp) {
       return [ptype, property_name, name](
                  const GraphReadInterface& graph,
                  const std::map<std::string, std::string>& params)
                  -> std::unique_ptr<SPVertexPredicate> {
-        return _make_vertex_predicate<DateTime>(ptype, graph, property_name,
-                                                params.at(name));
+        return _make_vertex_predicate<TimeStamp>(ptype, graph, property_name,
+                                                 params.at(name));
       };
 
     } else if (type == RTAnyType::kI32Value) {
@@ -775,6 +775,14 @@ parse_special_vertex_predicate(const common::Expression& expr) {
             graph, property_name, params.at(from_str), params.at(to_str));
       };
 
+    } else if (type == RTAnyType::kTimestamp) {
+      return [property_name, from_str, to_str](
+                 const GraphReadInterface& graph,
+                 const std::map<std::string, std::string>& params)
+                 -> std::unique_ptr<SPVertexPredicate> {
+        return std::make_unique<VertexPropertyBetweenPredicateBeta<TimeStamp>>(
+            graph, property_name, params.at(from_str), params.at(to_str));
+      };
     } else if (type == RTAnyType::kI32Value) {
       return [property_name, from_str, to_str](
                  const GraphReadInterface& graph,
@@ -1107,10 +1115,10 @@ parse_special_edge_predicate(const common::Expression& expr) {
                            const std::map<std::string, std::string>& params) {
         return _make_edge_predicate<int32_t>(ptype, params.at(name));
       };
-    } else if (type == RTAnyType::kDateTime) {
+    } else if (type == RTAnyType::kTimestamp) {
       return [ptype, name](const GraphReadInterface& graph,
                            const std::map<std::string, std::string>& params) {
-        return _make_edge_predicate<DateTime>(ptype, params.at(name));
+        return _make_edge_predicate<TimeStamp>(ptype, params.at(name));
       };
     } else if (type == RTAnyType::kStringValue) {
       return [ptype, name](const GraphReadInterface& graph,

@@ -128,6 +128,7 @@ static inline void set_edge_data(EdgePropVecBase* col, size_t idx,
   } else if (edge_data.type == RTAnyType::kDate) {
     dynamic_cast<EdgePropVec<Date>*>(col)->set(idx, edge_data.value.date_val);
   } else if (edge_data.type == RTAnyType::kRecordView) {
+    // TODO: delete this
     auto ptr = dynamic_cast<EdgePropVec<RecordView>*>(col);
     if (ptr != nullptr) {
       ptr->set(idx, edge_data.value.record_view);
@@ -162,8 +163,11 @@ static inline void set_edge_data(EdgePropVecBase* col, size_t idx,
         // edge_data.value.record_view[0].type;
       }
     }
+  } else if (edge_data.type == RTAnyType::kTimestamp) {
+    dynamic_cast<EdgePropVec<TimeStamp>*>(col)->set(idx,
+                                                    edge_data.value.ts_val);
   } else {
-    // LOG(FATAL) << "not support for " << edge_data.type;
+    LOG(FATAL) << "not support for " << static_cast<int32_t>(edge_data.type);
   }
 }
 
@@ -222,9 +226,6 @@ class SDSLEdgeColumn : public IEdgeColumn {
 
   inline void set_edge_data(size_t idx, int32_t col_id,
                             const Any& new_val) override {
-    if (new_val.type == PropertyType::kEmpty) {
-      return;
-    }
     gs::runtime::set_edge_data(prop_type_, prop_col_.get(), idx, col_id,
                                new_val);
   }
@@ -518,9 +519,6 @@ class SDMLEdgeColumn : public IEdgeColumn {
 
   inline void set_edge_data(size_t idx, int32_t col_id,
                             const Any& new_val) override {
-    if (new_val.type == PropertyType::kEmpty) {
-      return;
-    }
     auto index = std::get<0>(edges_[idx]);
     auto prop_type = edge_labels_[index].second;
     gs::runtime::set_edge_data(prop_type, prop_cols_[index].get(), idx, col_id,
@@ -682,9 +680,6 @@ class BDMLEdgeColumn : public IEdgeColumn {
 
   inline void set_edge_data(size_t idx, int32_t col_id,
                             const Any& new_val) override {
-    if (new_val.type == PropertyType::kEmpty) {
-      return;
-    }
     auto index = std::get<0>(edges_[idx]);
     auto prop_type = labels_[index].second;
     gs::runtime::set_edge_data(prop_type, prop_cols_[index].get(), idx, col_id,

@@ -96,9 +96,9 @@ EdgeData::EdgeData(const Any& any) {
   case impl::PropertyTypeImpl::kEmpty:
     type = RTAnyType::kEmpty;
     break;
-  case impl::PropertyTypeImpl::kDate:
-    type = RTAnyType::kDate;
-    value.date_val = any.value.d;
+  case impl::PropertyTypeImpl::kTimestamp:
+    type = RTAnyType::kTimestamp;
+    value.ts_val = any.value.ts.milli_second;
     break;
   case impl::PropertyTypeImpl::kRecordView:
     type = RTAnyType::kRecordView;
@@ -126,8 +126,8 @@ bool EdgeData::operator<(const EdgeData& e) const {
   } else if (type == RTAnyType::kStringValue) {
     return std::string_view(value.str_val.data(), value.str_val.size()) <
            std::string_view(e.value.str_val.data(), e.value.str_val.size());
-  } else if (type == RTAnyType::kDate) {
-    return value.date_val < e.value.date_val;
+  } else if (type == RTAnyType::kTimestamp) {
+    return value.ts_val < e.value.ts_val;
   } else {
     return false;
   }
@@ -1715,6 +1715,8 @@ std::shared_ptr<EdgePropVecBase> EdgePropVecBase::make_edge_prop_vec(
     return std::make_shared<EdgePropVec<grape::EmptyType>>();
   } else if (type == PropertyType::RecordView()) {
     return std::make_shared<EdgePropVec<RecordView>>();
+  } else if (type == PropertyType::Timestamp()) {
+    return std::make_shared<EdgePropVec<TimeStamp>>();
   } else {
     LOG(FATAL) << "not support for " << type;
     return nullptr;

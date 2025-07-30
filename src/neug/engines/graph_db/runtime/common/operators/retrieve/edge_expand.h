@@ -493,12 +493,12 @@ class EdgeExpand {
     d0_set.Init(graph.GetVertexSet(d0_nbr_label), false);
     for (auto v : casted_input_vertex_list->vertices()) {
       if (LT) {
-        csr0.foreach_edges_lt(v, param, [&](vid_t u, const Date& date) {
+        csr0.foreach_edges_lt(v, param, [&](vid_t u, const TimeStamp& date) {
           d0_set[u] = true;
           d0_vec.push_back(u);
         });
       } else {
-        csr0.foreach_edges_gt(v, param, [&](vid_t u, const Date& date) {
+        csr0.foreach_edges_gt(v, param, [&](vid_t u, const TimeStamp& date) {
           d0_set[u] = true;
           d0_vec.push_back(u);
         });

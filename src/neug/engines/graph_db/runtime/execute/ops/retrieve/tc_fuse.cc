@@ -265,8 +265,8 @@ std::unique_ptr<IReadOperator> _make_tc_opr(
   if (eps[2] == PropertyType::Empty()) {
     return std::make_unique<TCOpr<T1, T2, grape::EmptyType>>(
         ee_opr0, ee_opr1, v_opr1, ee_opr2, label0, label1, label2);
-  } else if (eps[2] == PropertyType::Date()) {
-    return std::make_unique<TCOpr<T1, T2, Date>>(
+  } else if (eps[2] == PropertyType::Timestamp()) {
+    return std::make_unique<TCOpr<T1, T2, TimeStamp>>(
         ee_opr0, ee_opr1, v_opr1, ee_opr2, label0, label1, label2);
   } else if (eps[2] == PropertyType::Int64()) {
     return std::make_unique<TCOpr<T1, T2, int64_t>>(
@@ -280,18 +280,18 @@ std::unique_ptr<IReadOperator> make_tc_opr(
     const physical::GetV& v_opr1, const physical::EdgeExpand& ee_opr2,
     const LabelTriplet& label0, const LabelTriplet& label1,
     const LabelTriplet& label2, const std::array<PropertyType, 3>& eps) {
-  if (eps[0] == PropertyType::Date()) {
-    if (eps[1] == PropertyType::Date()) {
-      return _make_tc_opr<Date, Date>(ee_opr0, ee_opr1, v_opr1, ee_opr2, label0,
-                                      label1, label2, eps);
+  if (eps[0] == PropertyType::Timestamp()) {
+    if (eps[1] == PropertyType::Timestamp()) {
+      return _make_tc_opr<TimeStamp, TimeStamp>(
+          ee_opr0, ee_opr1, v_opr1, ee_opr2, label0, label1, label2, eps);
     } else if (eps[1] == PropertyType::Empty()) {
-      return _make_tc_opr<Date, grape::EmptyType>(
+      return _make_tc_opr<TimeStamp, grape::EmptyType>(
           ee_opr0, ee_opr1, v_opr1, ee_opr2, label0, label1, label2, eps);
     }
   } else if (eps[0] == PropertyType::Int64()) {
-    if (eps[1] == PropertyType::Date()) {
-      return _make_tc_opr<int64_t, Date>(ee_opr0, ee_opr1, v_opr1, ee_opr2,
-                                         label0, label1, label2, eps);
+    if (eps[1] == PropertyType::Timestamp()) {
+      return _make_tc_opr<int64_t, TimeStamp>(ee_opr0, ee_opr1, v_opr1, ee_opr2,
+                                              label0, label1, label2, eps);
     } else if (eps[1] == PropertyType::Empty()) {
       return _make_tc_opr<int64_t, grape::EmptyType>(
           ee_opr0, ee_opr1, v_opr1, ee_opr2, label0, label1, label2, eps);

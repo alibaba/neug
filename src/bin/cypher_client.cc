@@ -67,7 +67,7 @@ int main(int argc, char** argv) {
     char input_format =
         static_cast<char>(gs::GraphDBSession::InputFormat::kCypherString);
     query.append(1, input_format);
-    auto res = cli.Post("/v1/graph/current/query", query, "text/plain");
+    auto res = cli.Post("/cypher", query, "text/plain");
     std::string ret = res->body;
     std::cout << ret << std::endl;
   }

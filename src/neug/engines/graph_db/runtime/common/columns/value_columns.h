@@ -241,6 +241,8 @@ class ListValueColumn : public ListValueColumnBase {
       return unfold_impl<Date>();
     } else if (elem_type_ == RTAnyType::kDateTime) {
       return unfold_impl<DateTime>();
+    } else if (elem_type_ == RTAnyType::kTimestamp) {
+      return unfold_impl<TimeStamp>();
     } else if (elem_type_ == RTAnyType::kStringValue) {
       return unfold_impl<std::string_view>();
     } else if (elem_type_ == RTAnyType::kTuple) {

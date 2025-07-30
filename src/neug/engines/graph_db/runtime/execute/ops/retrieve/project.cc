@@ -230,6 +230,17 @@ std::unique_ptr<ProjectExprBase> create_sl_property_expr(
                                         decltype(collector)>>(std::move(expr),
                                                               collector, alias);
   }
+  case RTAnyType::kTimestamp: {
+    auto expr =
+        SLPropertyExpr<VertexColumn, TimeStamp>(graph, column, property_name);
+    PropertyValueCollector<decltype(expr)> collector(ctx);
+    if (expr.is_optional()) {
+      return nullptr;
+    }
+    return std::make_unique<ProjectExpr<SLPropertyExpr<VertexColumn, TimeStamp>,
+                                        decltype(collector)>>(std::move(expr),
+                                                              collector, alias);
+  }
   default:
     throw std::runtime_error(
         "create_sl_property_expr: not implemented for type: " +
@@ -286,6 +297,17 @@ std::unique_ptr<ProjectExprBase> create_ml_property_expr(
       return nullptr;
     }
     return std::make_unique<ProjectExpr<MLPropertyExpr<VertexColumn, DateTime>,
+                                        decltype(collector)>>(std::move(expr),
+                                                              collector, alias);
+  }
+  case RTAnyType::kTimestamp: {
+    auto expr =
+        MLPropertyExpr<VertexColumn, TimeStamp>(graph, column, property_name);
+    PropertyValueCollector<decltype(expr)> collector(ctx);
+    if (expr.is_optional()) {
+      return nullptr;
+    }
+    return std::make_unique<ProjectExpr<MLPropertyExpr<VertexColumn, TimeStamp>,
                                         decltype(collector)>>(std::move(expr),
                                                               collector, alias);
   }
@@ -839,6 +861,9 @@ make_project_expr(const common::Expression& expr, int alias) {
     case RTAnyType::kDateTime: {
       return _make_project_expr<DateTime>(std::move(e), alias, ctx);
     } break;
+    case RTAnyType::kTimestamp: {
+      return _make_project_expr<TimeStamp>(std::move(e), alias, ctx);
+    } break;
     case RTAnyType::kVertex: {
       MLVertexCollector collector;
       collector.builder.reserve(ctx.row_num());
@@ -989,12 +1014,12 @@ parse_special_expr(const common::Expression& expr, int alias) {
           return std::make_unique<
               ProjectExpr<decltype(sp), decltype(collector)>>(std::move(sp),
                                                               collector, alias);
-        } else if (type_ == RTAnyType::kDate) {
+        } else if (type_ == RTAnyType::kTimestamp) {
           if (vertex_col->vertex_column_type() == VertexColumnType::kSingle) {
             auto typed_vertex_col =
                 std::dynamic_pointer_cast<SLVertexColumn>(vertex_col);
             SPOpr sp(typed_vertex_col,
-                     VertexPropertyBetweenPredicateBeta<Date>(
+                     VertexPropertyBetweenPredicateBeta<TimeStamp>(
                          graph, name, params.at(lower), params.at(upper)),
                      then_value.i32(), else_value.i32());
             CaseWhenCollector<decltype(sp), int32_t> collector(ctx);
@@ -1003,7 +1028,7 @@ parse_special_expr(const common::Expression& expr, int alias) {
                 std::move(sp), collector, alias);
           } else {
             SPOpr sp(vertex_col,
-                     VertexPropertyBetweenPredicateBeta<Date>(
+                     VertexPropertyBetweenPredicateBeta<TimeStamp>(
                          graph, name, params.at(lower), params.at(upper)),
                      then_value.i32(), else_value.i32());
             CaseWhenCollector<decltype(sp), int32_t> collector(ctx);
@@ -1048,8 +1073,8 @@ parse_special_expr(const common::Expression& expr, int alias) {
           if (ptr) {
             return ptr;
           }
-        } else if (type_ == RTAnyType::kDate) {
-          auto ptr = create_sp_pred_case_when<Date>(
+        } else if (type_ == RTAnyType::kTimestamp) {
+          auto ptr = create_sp_pred_case_when<TimeStamp>(
               ctx, graph, params, vertex_col, ptype, name, target, then_value,
               else_value, alias);
           if (ptr) {
@@ -1099,6 +1124,9 @@ make_project_expr(const common::Expression& expr,
     } break;
     case RTAnyType::kDateTime: {
       return _make_project_expr<DateTime>(expr, alias);
+    } break;
+    case RTAnyType::kTimestamp: {
+      return _make_project_expr<TimeStamp>(expr, alias);
     } break;
     case RTAnyType::kDate: {
       return _make_project_expr<Date>(expr, alias);

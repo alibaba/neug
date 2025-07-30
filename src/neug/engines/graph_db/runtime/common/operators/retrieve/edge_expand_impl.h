@@ -1111,15 +1111,16 @@ expand_vertex_impl(const GraphReadInterface& graph, const SLVertexColumn& input,
         return expand_vertex_np_me_sp<int64_t, GPredWrapper<GPRED_T, int64_t>>(
             graph, input, label_dirs, GPredWrapper<GPRED_T, int64_t>(gpred));
       }
-    } else if (ed_type == PropertyType::Date()) {
+    } else if (ed_type == PropertyType::Timestamp()) {
       if (se) {
-        return expand_vertex_np_se<Date, GPredWrapper<GPRED_T, Date>>(
+        return expand_vertex_np_se<TimeStamp, GPredWrapper<GPRED_T, TimeStamp>>(
             graph, input, std::get<0>(label_dirs[0]),
             std::get<1>(label_dirs[0]), std::get<2>(label_dirs[0]),
-            GPredWrapper<GPRED_T, Date>(gpred));
+            GPredWrapper<GPRED_T, TimeStamp>(gpred));
       } else {
-        return expand_vertex_np_me_sp<Date, GPredWrapper<GPRED_T, Date>>(
-            graph, input, label_dirs, GPredWrapper<GPRED_T, Date>(gpred));
+        return expand_vertex_np_me_sp<TimeStamp,
+                                      GPredWrapper<GPRED_T, TimeStamp>>(
+            graph, input, label_dirs, GPredWrapper<GPRED_T, TimeStamp>(gpred));
       }
     } else {
       LOG(INFO) << "type - " << ed_type << " - not implemented, fallback";
@@ -1225,13 +1226,14 @@ expand_vertex_impl(const GraphReadInterface& graph, const MLVertexColumn& input,
         return expand_vertex_np_me_sp<int64_t, GPredWrapper<GPRED_T, int64_t>>(
             graph, input, label_dirs, GPredWrapper<GPRED_T, int64_t>(gpred));
       }
-    } else if (ed_type == PropertyType::Date()) {
+    } else if (ed_type == PropertyType::Timestamp()) {
       if (se) {
-        return expand_vertex_np_se<Date, GPredWrapper<GPRED_T, Date>>(
-            graph, input, label_dirs, GPredWrapper<GPRED_T, Date>(gpred));
+        return expand_vertex_np_se<TimeStamp, GPredWrapper<GPRED_T, TimeStamp>>(
+            graph, input, label_dirs, GPredWrapper<GPRED_T, TimeStamp>(gpred));
       } else {
-        return expand_vertex_np_me_sp<Date, GPredWrapper<GPRED_T, Date>>(
-            graph, input, label_dirs, GPredWrapper<GPRED_T, Date>(gpred));
+        return expand_vertex_np_me_sp<TimeStamp,
+                                      GPredWrapper<GPRED_T, TimeStamp>>(
+            graph, input, label_dirs, GPredWrapper<GPRED_T, TimeStamp>(gpred));
       }
     } else {
       LOG(INFO) << "type - " << ed_type << " - not implemented, fallback";
@@ -1337,13 +1339,14 @@ expand_vertex_impl(const GraphReadInterface& graph, const MSVertexColumn& input,
         return expand_vertex_np_me_sp<int64_t, GPredWrapper<GPRED_T, int64_t>>(
             graph, input, label_dirs, GPredWrapper<GPRED_T, int64_t>(gpred));
       }
-    } else if (ed_type == PropertyType::Date()) {
+    } else if (ed_type == PropertyType::Timestamp()) {
       if (se) {
-        return expand_vertex_np_se<Date, GPredWrapper<GPRED_T, Date>>(
-            graph, input, label_dirs, GPredWrapper<GPRED_T, Date>(gpred));
+        return expand_vertex_np_se<TimeStamp, GPredWrapper<GPRED_T, TimeStamp>>(
+            graph, input, label_dirs, GPredWrapper<GPRED_T, TimeStamp>(gpred));
       } else {
-        return expand_vertex_np_me_sp<Date, GPredWrapper<GPRED_T, Date>>(
-            graph, input, label_dirs, GPredWrapper<GPRED_T, Date>(gpred));
+        return expand_vertex_np_me_sp<TimeStamp,
+                                      GPredWrapper<GPRED_T, TimeStamp>>(
+            graph, input, label_dirs, GPredWrapper<GPRED_T, TimeStamp>(gpred));
       }
     } else {
       LOG(INFO) << "type - " << ed_type << " - not implemented, fallback";
@@ -1472,8 +1475,8 @@ expand_edge_impl(const GraphReadInterface& graph, const SLVertexColumn& input,
       return expand_edge_ep_se<int64_t, PRED_T>(
           graph, input, std::get<0>(label_dir), std::get<1>(label_dir),
           std::get<2>(label_dir), ed_type, pred);
-    } else if (ed_type == PropertyType::Date()) {
-      return expand_edge_ep_se<Date, PRED_T>(
+    } else if (ed_type == PropertyType::Timestamp()) {
+      return expand_edge_ep_se<TimeStamp, PRED_T>(
           graph, input, std::get<0>(label_dir), std::get<1>(label_dir),
           std::get<2>(label_dir), ed_type, pred);
     } else if (ed_type == PropertyType::Double()) {

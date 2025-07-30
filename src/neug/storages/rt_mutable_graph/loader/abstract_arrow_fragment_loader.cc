@@ -412,6 +412,21 @@ void AbstractArrowFragmentLoader::AddEdgesRecordBatch(
         addEdgesRecordBatchImpl<float>(src_label_i, dst_label_i, edge_label_i,
                                        filenames, supplier_creator);
       }
+    } else if (property_types[0] == PropertyType::kTimestamp) {
+      auto dual_csr = new DualCsr<TimeStamp>(oe_strategy, ie_strategy,
+                                             oe_mutable, ie_mutable);
+      basic_fragment_loader_.set_csr(src_label_i, dst_label_i, edge_label_i,
+                                     dual_csr);
+
+      if (filenames.empty()) {
+        basic_fragment_loader_.AddNoPropEdgeBatch<TimeStamp>(
+            src_label_i, dst_label_i, edge_label_i);
+      } else {
+        addEdgesRecordBatchImpl<TimeStamp>(src_label_i, dst_label_i,
+                                           edge_label_i, filenames,
+                                           supplier_creator);
+      }
+
     } else if (property_types[0].type_enum ==
                    impl::PropertyTypeImpl::kVarChar ||
                property_types[0].type_enum ==

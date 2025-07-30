@@ -601,9 +601,9 @@ static RTAny parse_param(const common::DynamicParam& param,
     } else if (type == RTAnyType::kI64Value) {
       int64_t val = std::stoll(input.at(name));
       return RTAny::from_int64(val);
-    } else if (type == RTAnyType::kDateTime) {
-      DateTime val = DateTime(std::stoll(input.at(name)));
-      return RTAny::from_datetime(val);
+    } else if (type == RTAnyType::kTimestamp) {
+      TimeStamp val = TimeStamp(std::stoll(input.at(name)));
+      return RTAny::from_timestamp(val);
     } else if (type == RTAnyType::kF64Value) {
       double val = std::stod(input.at(name));
       return RTAny::from_double(val);
@@ -782,8 +782,6 @@ static std::unique_ptr<ExprBase> build_expr(
     }
     case common::ExprOpr::kExtract: {
       auto hs = build_expr(graph, ctx, params, opr_stack, var_type);
-      LOG(INFO) << "hs->type() = " << static_cast<int>(hs->type())
-                << ", opr.extract() = " << opr.extract().DebugString();
       if (hs->type() == RTAnyType::kI64Value) {
         return std::make_unique<ExtractExpr<int64_t>>(std::move(hs),
                                                       opr.extract());
@@ -803,6 +801,7 @@ static std::unique_ptr<ExprBase> build_expr(
         LOG(FATAL) << "not support" << static_cast<int>(hs->type());
       }
     }
+
     case common::ExprOpr::kToDate: {
       auto date_str = opr.to_date().date_str();
       // Parse the date string into Date

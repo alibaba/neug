@@ -215,11 +215,11 @@ path_expand_vertex_without_predicate_impl(
                 graph.GetOutgoingGraphView<int64_t>(v_label, v_label, e_label);
             return iterative_expand_vertex_on_dual_graph_view(
                 iview, oview, input, lower, upper);
-          } else if (properties[0] == PropertyType::Date()) {
-            auto iview =
-                graph.GetIncomingGraphView<Date>(v_label, v_label, e_label);
-            auto oview =
-                graph.GetOutgoingGraphView<Date>(v_label, v_label, e_label);
+          } else if (properties[0] == PropertyType::Timestamp()) {
+            auto iview = graph.GetIncomingGraphView<TimeStamp>(v_label, v_label,
+                                                               e_label);
+            auto oview = graph.GetOutgoingGraphView<TimeStamp>(v_label, v_label,
+                                                               e_label);
             return iterative_expand_vertex_on_dual_graph_view(
                 iview, oview, input, lower, upper);
           }
@@ -239,9 +239,9 @@ path_expand_vertex_without_predicate_impl(
                 graph.GetIncomingGraphView<int64_t>(v_label, v_label, e_label);
             return iterative_expand_vertex_on_graph_view(iview, input, lower,
                                                          upper);
-          } else if (properties[0] == PropertyType::Date()) {
-            auto iview =
-                graph.GetIncomingGraphView<Date>(v_label, v_label, e_label);
+          } else if (properties[0] == PropertyType::Timestamp()) {
+            auto iview = graph.GetIncomingGraphView<TimeStamp>(v_label, v_label,
+                                                               e_label);
             return iterative_expand_vertex_on_graph_view(iview, input, lower,
                                                          upper);
           }
@@ -261,9 +261,9 @@ path_expand_vertex_without_predicate_impl(
                 graph.GetOutgoingGraphView<int64_t>(v_label, v_label, e_label);
             return iterative_expand_vertex_on_graph_view(oview, input, lower,
                                                          upper);
-          } else if (properties[0] == PropertyType::Date()) {
-            auto oview =
-                graph.GetOutgoingGraphView<Date>(v_label, v_label, e_label);
+          } else if (properties[0] == PropertyType::Timestamp()) {
+            auto oview = graph.GetOutgoingGraphView<TimeStamp>(v_label, v_label,
+                                                               e_label);
             return iterative_expand_vertex_on_graph_view(oview, input, lower,
                                                          upper);
           }

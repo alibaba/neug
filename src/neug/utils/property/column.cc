@@ -316,6 +316,9 @@ std::shared_ptr<RefColumnBase> CreateRefColumn(
   } else if (type == PropertyType::kInterval) {
     return std::make_shared<TypedRefColumn<Interval>>(
         *std::dynamic_pointer_cast<TypedColumn<Interval>>(column));
+  } else if (type == PropertyType::kTimestamp) {
+    return std::make_shared<TypedRefColumn<TimeStamp>>(
+        *std::dynamic_pointer_cast<TypedColumn<TimeStamp>>(column));
   } else {
     LOG(FATAL) << "unexpected type to create column, "
                << static_cast<int>(type.type_enum);
