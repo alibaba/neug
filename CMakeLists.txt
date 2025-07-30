@@ -81,7 +81,7 @@ if (BUILD_HTTP_SERVER)
 endif()
 
 if (WITH_MIMALLOC)
-    find_package(mimalloc 1.8 REQUIRED)
+    find_package(mimalloc 2.0 REQUIRED)
 endif()
 
 if (BUILD_TEST)

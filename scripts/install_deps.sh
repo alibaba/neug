@@ -308,15 +308,16 @@ install_arrow_from_source() {
 }
 
 install_mimalloc() {
-  if [[ -f "${install_prefix}/include/mimalloc-1.8/mimalloc.h" ]]; then
+  if [[ -f "${install_prefix}/include/mimalloc-2.0/mimalloc.h" ]]; then
     return 0
   fi
   pushd "${tempdir}" || exit
-  git clone https://github.com/microsoft/mimalloc -b v1.8.6
+  git clone https://github.com/microsoft/mimalloc -b v2.0.6 --single-branch
   cd mimalloc
   mkdir -p build && cd build
   cmake .. -DCMAKE_BUILD_TYPE=Release \
-    -DCMAKE_INSTALL_PREFIX="${install_prefix}"
+    -DCMAKE_INSTALL_PREFIX="${install_prefix}" \
+    -DCMAKE_POLICY_VERSION_MINIMUM=3.5
   make -j$(nproc)
   make install
   popd || exit

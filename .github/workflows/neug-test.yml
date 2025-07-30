@@ -27,6 +27,7 @@ on:
       - 'tools/python_bind/**'
       - 'tests/**'
       - '.github/workflows/neug-test.yml'
+      - 'scripts/install_deps.sh'
   push:
     branches:
       - main

@@ -22,7 +22,7 @@ include_directories(SYSTEM ${Boost_INCLUDE_DIRS})
 find_package(Arrow REQUIRED)
 
 if (@WITH_MIMALLOC@)
-    find_package(mimalloc 1.8 REQUIRED)
+    find_package(mimalloc 2.0 REQUIRED)
 endif()
 
 add_definitions(-DRAPIDJSON_HAS_CXX11=1)

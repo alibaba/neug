@@ -16,6 +16,7 @@ on:
       - 'tools/shell/**'
       - 'tests/**'
       - '.github/workflows/build-wheel.yml'
+      - 'scripts/install_deps.sh'
   pull_request:
     branches:
       - main
@@ -28,6 +29,7 @@ on:
       - 'tools/shell/**'
       - 'tests/**'
       - '.github/workflows/build-wheel.yml'
+      - 'scripts/install_deps.sh'
 
 concurrency:
   group: ${{ github.repository }}-${{ github.event.number || github.head_ref || github.sha }}-${{ github.workflow }}
