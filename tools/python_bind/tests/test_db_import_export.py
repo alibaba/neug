@@ -25,10 +25,10 @@ sys.path.append(os.path.join(os.path.dirname(__file__), "../"))
 from errors import ERR_BAD_ENCODING
 from errors import ERR_DIRECTORY_NOT_EXIST
 from errors import ERR_PERMISSION
+from errors import ERR_QUERY_SYNTAX
 from errors import ERR_SCHEMA_MISMATCH
 from errors import ERR_TYPE_CONVERSION
 from errors import ERROR_STRINGS
-from errors import ERR_QUERY_SYNTAX
 
 from neug.database import Database
 
