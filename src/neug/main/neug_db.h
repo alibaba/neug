@@ -88,7 +88,8 @@ class NeugDB {
     config_.memory_level = 1;
     ensure_directory_exists(db_dir);
 
-    if (mode == "read" || mode == "r") {
+    if (mode == "read" || mode == "r" || mode == "read-only" ||
+        mode == "read_only") {
       mode_ = DBMode::READ_ONLY;
     } else if (mode == "read_write" || mode == "rw" || mode == "w" ||
                mode == "wr" || mode == "write" || mode == "readwrite" ||

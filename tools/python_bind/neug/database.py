@@ -41,9 +41,9 @@ resource_dir = os.path.join(cur_dir_path, "neug", "resources")
 
 def readable(mode: str) -> str:
     """Convert mode to a readable string."""
-    if mode in ["r", "read"]:
+    if mode in ["r", "read", "read-only", "read_only"]:
         return "read-only"
-    elif mode in ["w", "rw", "write", "readwrite", "read-write"]:
+    elif mode in ["w", "rw", "write", "readwrite", "read-write", "read_write"]:
         return "read-write"
     else:
         raise ValueError(
@@ -139,6 +139,9 @@ class Database(object):
             "write",
             "readwrite",
             "read-write",
+            "read_write",
+            "read-only",
+            "read_only",
         ]:
             raise ValueError(
                 f"Invalid mode: {self._mode}. Must be one of 'r', 'read', 'w', 'rw', 'write', 'readwrite', 'read-write'."
@@ -161,12 +164,17 @@ class Database(object):
                 f"Must be less than or equal to the number of CPU cores: {os.cpu_count()}."
             )
 
+        if db_path is None and mode in ["r", "read", "read-only", "read_only"]:
+            raise ValueError(
+                f"Invalid mode: {mode}. In-memory database can not be opened in read-only mode."
+            )
+
         # Currently, no intellisense here. self._database is of class PyDatabase,
         # defined in tools/python_bind/src/py_database.h
         self._database = neug_py_bind.PyDatabase(
             database_path=self._db_path,
             max_thread_num=max_thread_num,
-            mode=mode,
+            mode=readable(mode),
             planner="gopt",
             planner_config_path=planner_config_path,
         )

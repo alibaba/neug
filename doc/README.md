@@ -5,6 +5,13 @@ make requirements
 make html
 ```
 
+Then start the documentation website by 
+```bash
+python3 -m http.server 8080
+```
+
+Then NeuG documentation is available at `http://localhost:8080`.
+
 ## Knows Issues
 
 ### rpath issue

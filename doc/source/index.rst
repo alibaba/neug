@@ -37,6 +37,7 @@ in performance and is designed to be easy to use.
    :maxdepth: 1
    :caption: User Guide
 
+   user_guide/key_concepts
    user_guide/create_graph
    user_guide/import_graph
    user_guide/cypher_query

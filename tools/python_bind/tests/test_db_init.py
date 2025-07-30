@@ -46,9 +46,10 @@ def test_memory_mode_open_and_close():
 
 
 def test_memory_mode_open_and_close_none():
-    db = Database(db_path=None, mode="r")
-    assert db is not None
-    db.close()
+    with pytest.raises(Exception) as excinfo:
+        # In memory database should not be read-only
+        Database(db_path=None, mode="r")
+        assert str(ERR_INVALID_ARGUMENT) in str(excinfo.value)
     db2 = Database(db_path=None, mode="w")
     assert db2 is not None
     db2.close()
