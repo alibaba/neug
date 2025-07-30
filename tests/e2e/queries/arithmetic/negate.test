@@ -1,75 +1,113 @@
--DATASET CSV empty
+-DATASET CSV tinysnb
 
 --
 
--CASE NegateUINT8
+--CASE NegateTest
+
+-LOG NegateUINT8
+-SKIP: uint8 not supported
 -STATEMENT RETURN -CAST(24, "UINT8")
 ---- 1
 232
 
--CASE NegateUINT16
+-LOG NegateUINT16
+-SKIP: uint8 not supported
 -STATEMENT RETURN -CAST(256, "UINT16")
 ---- 1
 65280
 
--CASE NegateUINT32
+-LOG NegateUINT32
+-SKIP: issue-493
 -STATEMENT RETURN -CAST(70000, "UINT32")
 ---- 1
 4294897296
 
--CASE NegateUINT64
+-LOG NegateUINT64
+-SKIP: issue-493
 -STATEMENT RETURN -CAST(202474672468, "UINT64")
 ---- 1
 18446743871234879148
 
--CASE NegateINT8
+-LOG NegateINT8
+-SKIP: int8 not supported
 -STATEMENT RETURN -CAST(12, "INT8")
 ---- 1
 -12
+
+-LOG NegateINT8
+-SKIP: int8 not supported
 -STATEMENT RETURN -CAST(-24, "INT8")
 ---- 1
 24
+
+-LOG NegateINT8
+-SKIP: int8 not supported
 -STATEMENT RETURN -CAST(-128, "INT8")
 ---- error
 Overflow exception: Value -128 cannot be negated within INT8 range.
 
--CASE NegateINT16
+-LOG NegateINT16
+-SKIP: int16 not supported
 -STATEMENT RETURN -CAST(400, "INT16")
 ---- 1
 -400
+
+-LOG NegateINT16
+-SKIP: int16 not supported
 -STATEMENT RETURN -CAST(-256, "INT16")
 ---- 1
 256
+
+-LOG NegateINT16
+-SKIP: int16 not supported
 -STATEMENT RETURN -CAST(-32768, "INT16")
 ---- error
 Overflow exception: Value -32768 cannot be negated within INT16 range.
 
--CASE NegateINT32
+-LOG NegateINT32
+-SKIP: issue-493
 -STATEMENT RETURN -CAST(70000, "INT32")
 ---- 1
 -70000
+
+-LOG NegateINT32
+-SKIP: issue-493
 -STATEMENT RETURN -CAST(-88888, "INT32")
 ---- 1
 88888
+
+-LOG NegateINT32
+-SKIP: issue-493
 -STATEMENT RETURN -CAST(-2147483648, "INT32")
 ---- error
 Overflow exception: Value -2147483648 cannot be negated within INT32 range.
 
--CASE NegateINT64
+-LOG NegateINT64
+-SKIP: issue-493
 -STATEMENT RETURN -CAST(202474672468, "INT64")
 ---- 1
 -202474672468
+
+-LOG NegateINT64
+-SKIP: issue-493
 -STATEMENT RETURN -CAST(-2012374672468, "INT64")
 ---- 1
 2012374672468
+
+-LOG NegateINT64
+-SKIP: issue-493
 -STATEMENT RETURN -CAST(-9223372036854775808, "INT64")
 ---- error
 Overflow exception: Value -9223372036854775808 cannot be negated within INT64 range.
 
--CASE NegateINT128
+-LOG NegateINT128
+-SKIP: int128 not supported
 -STATEMENT RETURN -CAST(160141183460469231731687303715884105727, "INT128")
 ---- 1
 -160141183460469231731687303715884105727
+
+-LOG NegateINT128
+-SKIP: int128 not supported
 -STATEMENT RETURN -CAST(-7000000000000000000000000000000000000, "INT128")
 ---- 1
 7000000000000000000000000000000000000

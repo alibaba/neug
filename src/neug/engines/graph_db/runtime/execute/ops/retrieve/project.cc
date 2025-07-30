@@ -310,6 +310,7 @@ struct OptionalValueCollector {
       }
       return TypedConverter<T>::to_typed(val);
     }
+
     mutable std::shared_ptr<Arena> arena;
     Expr expr;
   };
@@ -377,6 +378,7 @@ struct EdgeCollector {
     inline EdgeRecord operator()(size_t idx) const {
       return expr.eval_path(idx, arena).as_edge();
     }
+
     mutable Arena arena;
     Expr expr;
   };
@@ -446,6 +448,7 @@ struct SPOpr {
       return else_value;
     }
   }
+
   VERTEX_COL_PTR vertex_col;
   SP_PRED_T pred;
   RESULT_T then_value;
@@ -1081,6 +1084,9 @@ make_project_expr(const common::Expression& expr,
     } break;
     case RTAnyType::kI32Value: {
       return _make_project_expr<int32_t>(expr, alias);
+    } break;
+    case RTAnyType::kU32Value: {
+      return _make_project_expr<uint32_t>(expr, alias);
     } break;
     case RTAnyType::kF64Value: {
       return _make_project_expr<double>(expr, alias);

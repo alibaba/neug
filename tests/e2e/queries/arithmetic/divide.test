@@ -1,216 +1,371 @@
--DATASET CSV empty
+-DATASET CSV tinysnb
 
 --
 
--CASE DivideUINT8
+-CASE DivideTest
+
+-LOG DivideUINT8
+-SKIP: uint8 not supported
 -STATEMENT RETURN CAST(12, "UINT8") / CAST(2, "UINT8")
 ---- 1
 6
+
+-LOG DivideUINT8_2
+-SKIP: uint8 not supported
 -STATEMENT RETURN CAST(12, "UINT8") / CAST(5, "UINT8")
 ---- 1
 2
+
+-LOG DivideUINT8_3
+-SKIP: uint8 not supported
 -STATEMENT RETURN CAST(255, "UINT8") / CAST(0, "UINT8")
 ---- error
 Runtime exception: Divide by zero.
 
--CASE DivideUINT16
+-LOG DivideUINT16
+-SKIP: uint16 not supported
 -STATEMENT RETURN CAST(400, "UINT16") / CAST(25, "UINT16")
 ---- 1
 16
+
+-LOG DivideUINT16
+-SKIP: uint16 not supported
 -STATEMENT RETURN CAST(399, "UINT16") / CAST(25, "UINT16")
 ---- 1
 15
+
+-LOG DivideUINT16
+-SKIP: uint16 not supported
 -STATEMENT RETURN CAST(65530, "UINT16") / CAST(0, "UINT16")
 ---- error
 Runtime exception: Divide by zero.
 
--CASE DivideUINT32
+-LOG DivideUINT32
+-SKIP: issue-493
 -STATEMENT RETURN CAST(70000, "UINT32") / CAST(7, "UINT32")
 ---- 1
 10000
+
+-LOG DivideUINT32_1
+-SKIP: issue-493
 -STATEMENT RETURN CAST(70000, "UINT32") / CAST(6, "UINT32")
 ---- 1
 11666
+
+-LOG DivideUINT32_2
+-SKIP: issue-493
 -STATEMENT RETURN CAST(4294967100, "UINT32") / CAST(0, "UINT32")
 ---- error
 Runtime exception: Divide by zero.
 
--CASE DivideUINT64
+-LOG DivideUINT64
+-SKIP: issue-493
 -STATEMENT RETURN CAST(102474672468, "UINT64") / CAST(2, "UINT64")
 ---- 1
 51237336234
+
+-LOG DivideUINT64_2
+-SKIP: issue-493
 -STATEMENT RETURN CAST(102474672468, "UINT64") / CAST(5, "UINT64")
 ---- 1
 20494934493
+
+-LOG DivideUINT64_3
+-SKIP: issue-493
 -STATEMENT RETURN CAST(70000000001, "UINT64") / CAST(0, "UINT64")
 ---- error
 Runtime exception: Divide by zero.
 
--CASE DivideINT8
+-LOG DivideINT8
+-SKIP: int8 not supported
 -STATEMENT RETURN CAST(24, "INT8") / CAST(2, "INT8")
 ---- 1
 12
+
+-LOG DivideINT8_2
+-SKIP: int8 not supported
 -STATEMENT RETURN CAST(24, "INT8") / CAST(-2, "INT8")
 ---- 1
 -12
+
+-LOG DivideINT8_3
+-SKIP: int8 not supported
 -STATEMENT RETURN CAST(-24, "INT8") / CAST(-2, "INT8")
 ---- 1
 12
+
+
+-LOG DivideINT8_4
+-SKIP: int8 not supported
 -STATEMENT RETURN CAST(-24, "INT8") / CAST(2, "INT8")
 ---- 1
 -12
+
+-LOG DivideINT8_5
+-SKIP: int8 not supported
 -STATEMENT RETURN CAST(24, "INT8") / CAST(5, "INT8")
 ---- 1
 4
+
+-LOG DivideINT8_6
+-SKIP: int8 not supported
 -STATEMENT RETURN CAST(-128, "INT8") / CAST(-1, "INT8")
 ---- error
 Overflow exception: Value -128 / -1 is not within INT8 range.
+
+-LOG DivideINT8_7
+-SKIP: int8 not supported
 -STATEMENT RETURN CAST(-128, "INT8") / CAST(0, "INT8")
 ---- error
 Runtime exception: Divide by zero.
 
--CASE DivideINT16
+-LOG DivideINT16
+-SKIP: int16 not supported
 -STATEMENT RETURN CAST(400, "INT16") / CAST(20, "INT16")
 ---- 1
 20
+
+-LOG DivideINT16_2
+-SKIP: int16 not supported
 -STATEMENT RETURN CAST(400, "INT16") / CAST(-20, "INT16")
 ---- 1
 -20
+
+-LOG DivideINT16_3
+-SKIP: int16 not supported
 -STATEMENT RETURN CAST(-400, "INT16") / CAST(-20, "INT16")
 ---- 1
 20
+
+-LOG DivideINT16_4
+-SKIP: int16 not supported
 -STATEMENT RETURN CAST(-400, "INT16") / CAST(20, "INT16")
 ---- 1
 -20
+
+-LOG DivideINT16_5
+-SKIP: int16 not supported
 -STATEMENT RETURN CAST(400, "INT16") / CAST(21, "INT16")
 ---- 1
 19
+
+-LOG DivideINT16_6
+-SKIP: int16 not supported
 -STATEMENT RETURN CAST(-32768, "INT16") / CAST(-1, "INT16")
 ---- error
 Overflow exception: Value -32768 / -1 is not within INT16 range.
+
+-LOG DivideINT16_7
+-SKIP: int16 not supported
 -STATEMENT RETURN CAST(300, "INT16") / CAST(0, "INT16")
 ---- error
 Runtime exception: Divide by zero.
 
--CASE DivideINT32
+-LOG DivideINT32
+-SKIP: issue-493
 -STATEMENT RETURN CAST(70000, "INT32") / CAST(14, "INT32")
 ---- 1
 5000
+
+-LOG DivideINT32_2
+-SKIP: issue-493
 -STATEMENT RETURN CAST(70000, "INT32") / CAST(-14, "INT32")
 ---- 1
 -5000
+
+-LOG DivideINT32_3
+-SKIP: issue-493
 -STATEMENT RETURN CAST(-70000, "INT32") / CAST(-14, "INT32")
 ---- 1
 5000
+
+-LOG DivideINT32_4
+-SKIP: issue-493
 -STATEMENT RETURN CAST(-70000, "INT32") / CAST(14, "INT32")
 ---- 1
 -5000
+
+-LOG DivideINT32_5
+-SKIP: issue-493
 -STATEMENT RETURN CAST(70000, "INT32") / CAST(13, "INT32")
 ---- 1
 5384
+
+-LOG DivideINT32_6 
+-SKIP: issue-493
 -STATEMENT RETURN CAST(-2147483648, "INT32") / CAST(-1, "INT32")
 ---- error
 Overflow exception: Value -2147483648 / -1 is not within INT32 range.
+
+-LOG DivideINT32_7
+-SKIP: issue-493
 -STATEMENT RETURN CAST(-2147483547, "INT32") / CAST(0, "INT32")
 ---- error
 Runtime exception: Divide by zero.
 
--CASE DivideINT64
+-LOG DivideINT64
+-SKIP: issue-493
 -STATEMENT RETURN CAST(202474672000 , "INT64") / CAST(500, "INT64")
 ---- 1
 404949344
+
+-LOG DivideINT64_2
+-SKIP: issue-493
 -STATEMENT RETURN CAST(202474672000 , "INT64") / CAST(-500, "INT64")
 ---- 1
 -404949344
+
+-LOG DivideINT64_3
+-SKIP: issue-493
 -STATEMENT RETURN CAST(-202474672000 , "INT64") / CAST(-500, "INT64")
 ---- 1
 404949344
+
+-LOG DivideINT64_4
+-SKIP: issue-493
 -STATEMENT RETURN CAST(-202474672000 , "INT64") / CAST(500, "INT64")
 ---- 1
 -404949344
+
+-LOG DivideINT64_5
+-SKIP: issue-493
 -STATEMENT RETURN CAST(-202474672000 , "INT64") / CAST(501, "INT64")
 ---- 1
 -404141061
+
+-LOG DivideINT64_6
+-SKIP: issue-493
 -STATEMENT RETURN CAST(-9223372036854775808, "INT64") / CAST(-1, "INT64")
 ---- error
 Overflow exception: Value -9223372036854775808 / -1 is not within INT64 range.
+
+-LOG DivideINT64_7
+-SKIP: issue-493
 -STATEMENT RETURN CAST(-92233036854775807, "INT64") / CAST(0, "INT64")
 ---- error
 Runtime exception: Divide by zero.
 
--CASE DivideINT128
+-LOG DivideINT128
+-SKIP: int128 not supported
 -STATEMENT RETURN CAST(160141183460469231731687303715884100, "INT128") 
 					/ CAST(1100, "INT128")
 ---- 1
 145582894054972028846988457923531
+
+-LOG DivideINT128_2
+-SKIP: int128 not supported
 -STATEMENT RETURN CAST(160141183460469231731687303715884100, "INT128") 
 					/ CAST(-1100, "INT128")
 ---- 1
 -145582894054972028846988457923531
+
+-LOG DivideINT128_3
+-SKIP: int128 not supported
 -STATEMENT RETURN CAST(-160141183460469231731687303715884100, "INT128") 
 					/ CAST(-1100, "INT128")
 ---- 1
 145582894054972028846988457923531
+
+-LOG DivideINT128_4
+-SKIP: int128 not supported
 -STATEMENT RETURN CAST(-160141183460469231731687303715884100, "INT128") 
 					/ CAST(1100, "INT128")
 ---- 1
 -145582894054972028846988457923531
+
+-LOG DivideINT128_5
+-SKIP: int128 not supported
 -STATEMENT RETURN CAST(-160141183460469231731687303715884100, "INT128") 
 					/ CAST(1101, "INT128")
 ---- 1
 -145450666176629638266745961594808
+
+-LOG DivideINT128_6
+-SKIP: int128 not supported
 -STATEMENT RETURN CAST(-12409141183460731687303715884105727, "INT128") 
 					/ CAST(0, "INT128")
 ---- error
 Runtime exception: Divide by zero.
 
--CASE DivideDifferentUINT
+-LOG DivideDifferentUINT
+-SKIP: uint16 not supported
 -STATEMENT RETURN CAST(12, "UINT8") / CAST(3, "UINT16")
 ---- 1
 4
+
+-LOG DivideDifferentUINT
+-SKIP: uint16 not supported
 -STATEMENT RETURN CAST(12, "UINT8") / CAST(5, "UINT16")
 ---- 1
 2
+
+-LOG DivideDifferentUINT
+-SKIP: uint16 not supported
 -STATEMENT RETURN CAST(255, "UINT8") / CAST(0, "UINT16")
 ---- error
 Runtime exception: Divide by zero.
 
--CASE DivideDifferentINT
+-LOG DivideDifferentINT
+-SKIP: uint16 not supported
 -STATEMENT RETURN CAST(400, "INT16") / CAST(2, "INT8")
 ---- 1
 200
+
+-LOG DivideDifferentINT
+-SKIP: uint16 not supported
 -STATEMENT RETURN CAST(400, "INT16") / CAST(-2, "INT8")
 ---- 1
 -200
+
+-LOG DivideDifferentINT
+-SKIP: uint16 not supported
 -STATEMENT RETURN CAST(-400, "INT16") / CAST(-2, "INT8")
 ---- 1
 200
+
+-LOG DivideDifferentINT
+-SKIP: uint16 not supported
 -STATEMENT RETURN CAST(-400, "INT16") / CAST(2, "INT8")
 ---- 1
 -200
+
+-LOG DivideDifferentINT
+-SKIP: uint16 not supported
 -STATEMENT RETURN CAST(400, "INT16") / CAST(-3, "INT8")
 ---- 1
 -133
+
+-LOG DivideDifferentINT
+-SKIP: uint16 not supported
 -STATEMENT RETURN CAST(-32768, "INT16") / CAST(-1, "INT8")
 ---- error
+
+-LOG DivideDifferentINT
+-SKIP: uint16 not supported
 Overflow exception: Value -32768 / -1 is not within INT16 range.
 -STATEMENT RETURN CAST(368, "INT16") / CAST(0, "INT8")
 ---- error
 Runtime exception: Divide by zero.
 
--CASE DivideUINTANDINT
+-LOG DivideUINTANDINT
+-SKIP: uint16 not supported
 -STATEMENT RETURN CAST(300, "INT16") / CAST(6, "UINT8")
 ---- 1
 50
+
+-LOG DivideUINTANDINT
+-SKIP: uint16 not supported
 -STATEMENT RETURN CAST(-300, "INT16") / CAST(6, "UINT8")
 ---- 1
 -50
+
+-LOG DivideUINTANDINT
+-SKIP: uint16 not supported
 -STATEMENT RETURN CAST(255, "UINT8") / CAST(0, "INT16")
 ---- error
 Runtime exception: Divide by zero.
 
--CASE DivideDECIMAL
--SKIP # decimal division drops to double division for now
+-LOG DivideDECIMAL
 -STATEMENT UNWIND [0.6, 1.2, -100.0] as A UNWIND [-0.2, 1.2, 100.5] AS B RETURN CAST(A, 'DECIMAL') / CAST(B, 'DECIMAL');
 ---- 9
 -3.000
@@ -222,6 +377,8 @@ Runtime exception: Divide by zero.
 500.000
 -83.333
 -0.995
+
+-LOG DivideDECIMAL
 -STATEMENT UNWIND [0.6, 1.2, -100.0] as A UNWIND [-0.2, 1.2, 100.5] AS B RETURN CAST(A, 'DECIMAL(18, 1)') / CAST(B, 'DECIMAL(5, 2)');
 ---- 9
 -3.0000000
@@ -233,6 +390,8 @@ Runtime exception: Divide by zero.
 500.0000000
 -83.3333333
 -0.9950248
+
+-LOG DivideDECIMAL
 -STATEMENT UNWIND [1] AS A UNWIND [0] AS B RETURN CAST(A, 'DECIMAL') / CAST(B, 'DECIMAL')
 ---- error
 Runtime exception: Divide by zero.

@@ -231,6 +231,7 @@ struct TypedKeyCollector {
     V operator()(size_t idx) const {
       return TypedConverter<T>::to_typed(expr.get(idx));
     }
+
     Var expr;
   };
 
