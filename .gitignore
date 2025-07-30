@@ -96,7 +96,7 @@ src/neug/compiler/test/gopt/resources/queries/*.out
 
 
 # tests
-
 tests/**/*.html
 tests/**/*.json
 tests/e2e/report/
+gstest/

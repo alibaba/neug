@@ -27,6 +27,7 @@ from errors import ERR_INVALID_SCHEMA
 from errors import ERR_QUERY_SYNTAX
 from errors import ERR_SCHEMA_MISMATCH
 from errors import ERR_TYPE_CONVERSION
+from errors import ERR_TYPE_OVERFLOW
 from errors import ERROR_STRINGS
 
 from neug import Session
@@ -107,7 +108,7 @@ def test_insert_basic_type_check(tmp_path):
     # UNSIGNED invalid
     with pytest.raises(Exception) as excinfo:
         conn.execute("CREATE (t:person {id: 3, u32: -1})")
-    assert ERROR_STRINGS[ERR_TYPE_CONVERSION] in str(excinfo.value)
+    assert ERROR_STRINGS[ERR_TYPE_OVERFLOW] in str(excinfo.value)
     # FLOAT invalid
     with pytest.raises(Exception) as excinfo:
         conn.execute("CREATE (t:person {id: 4, f: 'bad'})")

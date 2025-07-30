@@ -54,6 +54,7 @@ from neug.proto.error_pb2 import ERR_SESSION_CLOSED
 from neug.proto.error_pb2 import ERR_TX_STATE_CONFLICT
 from neug.proto.error_pb2 import ERR_TX_TIMEOUT
 from neug.proto.error_pb2 import ERR_TYPE_CONVERSION
+from neug.proto.error_pb2 import ERR_TYPE_OVERFLOW
 from neug.proto.error_pb2 import ERR_UNKNOWN
 from neug.proto.error_pb2 import ERR_VERSION_MISMATCHED
 from neug.proto.error_pb2 import ERR_WAL_WRITE_FAIL
@@ -93,6 +94,7 @@ ERROR_STRINGS = {
     ERR_SCHEMA_MISMATCH: "Schema mismatch",
     ERR_INVALID_SCHEMA: "invalid schema",
     ERR_TYPE_CONVERSION: "Implicit cast is not supported.",
+    ERR_TYPE_OVERFLOW: "Overflow exception",
     ERR_PLATFORM_ABI: "platform abi error",
     ERR_PY_BIND_INIT: "python binding init error",
     ERR_ARCH_MISMATCH: "arch mismatch",

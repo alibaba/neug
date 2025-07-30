@@ -119,6 +119,8 @@ enum Code {
   // Error during type conversion, e.g., trying to convert a value to a type
   // that is not compatible.
   ERR_TYPE_CONVERSION = 5003;
+  // Error during type overflow, e.g., assign -1 to uint32.
+  ERR_TYPE_OVERFLOW = 5004;
 
   // Deployment related errors
   ERR_PLATFORM_ABI = 6001;
