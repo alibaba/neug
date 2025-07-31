@@ -1,5 +1,7 @@
 #pragma once
 
+#include <cstdint>
+#include <string>
 #include "neug/compiler/common/enums/accumulate_type.h"
 #include "neug/compiler/planner/operator/logical_operator.h"
 #include "neug/compiler/planner/operator/sip/side_way_info_passing.h"
@@ -27,7 +29,7 @@ class LogicalCrossProduct final : public LogicalOperator {
   void computeFlatSchema() override;
 
   std::string getExpressionsForPrinting() const override {
-    return std::string();
+    return std::to_string(static_cast<uint8_t>(accumulateType));
   }
 
   common::AccumulateType getAccumulateType() const { return accumulateType; }

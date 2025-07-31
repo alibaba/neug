@@ -36,6 +36,7 @@
 #include "neug/compiler/planner/operator/logical_cross_product.h"
 #include "neug/compiler/planner/operator/logical_filter.h"
 #include "neug/compiler/planner/operator/logical_get_v.h"
+#include "neug/compiler/planner/operator/logical_hash_join.h"
 #include "neug/compiler/planner/operator/logical_intersect.h"
 #include "neug/compiler/planner/operator/logical_limit.h"
 #include "neug/compiler/planner/operator/logical_operator.h"
@@ -124,10 +125,17 @@ class GQueryConvertor {
                          ::physical::QueryPlan* plan);
   void convertCrossProduct(const planner::LogicalCrossProduct& cross,
                            ::physical::QueryPlan* plan);
+  void convertHashJoin(const planner::LogicalHashJoin& join,
+                       ::physical::QueryPlan* plan);
   void convertCopyTo(const planner::LogicalCopyTo& copyTo,
                      ::physical::QueryPlan* plan);
 
   // help functions
+  ::physical::Join::JoinKind convertJoinKind(common::JoinType joinType);
+  void extractJoinKeys(
+      const std::vector<planner::join_condition_t>& joinConditions,
+      std::vector<std::shared_ptr<binder::Expression>>& leftKeys,
+      std::vector<std::shared_ptr<binder::Expression>>& rightKeys);
   common::TableType getTableType(const planner::LogicalInsert& insert);
 
   void setMetaData(::physical::PhysicalOpr* physicalOpr,

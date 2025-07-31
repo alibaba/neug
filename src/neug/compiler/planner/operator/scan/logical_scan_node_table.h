@@ -118,6 +118,10 @@ class LogicalScanNodeTable final : public LogicalOperator {
   std::shared_ptr<binder::Expression> getNodeID() const { return nodeID; }
   std::vector<common::table_id_t> getTableIDs() const { return nodeTableIDs; }
 
+  void setTableIDs(std::vector<common::table_id_t> tableIDs) {
+    nodeTableIDs = std::move(tableIDs);
+  }
+
   binder::expression_vector getProperties() const { return properties; }
   void addProperty(std::shared_ptr<binder::Expression> expr) {
     properties.push_back(std::move(expr));

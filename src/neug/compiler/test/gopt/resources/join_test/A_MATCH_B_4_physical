@@ -1,0 +1,314 @@
+{
+ "plan_id": 0,
+ "query_plan": {
+  "mode": "READ_ONLY",
+  "plan": [
+   {
+    "opr": {
+     "join": {
+      "left_keys": [
+       {
+        "tag": {
+         "id": 0
+        },
+        "property": {
+         "key": {
+          "name": "ID"
+         }
+        },
+        "node_type": {
+         "data_type": {
+          "primitive_type": "DT_SIGNED_INT64"
+         }
+        }
+       },
+       {
+        "tag": {
+         "id": 0
+        },
+        "property": {
+         "key": {
+          "name": "courseScoresPerTerm"
+         }
+        },
+        "node_type": {
+         "data_type": {
+          "string": {
+           "var_char": {
+            "max_length": 65536
+           }
+          }
+         }
+        }
+       }
+      ],
+      "right_keys": [
+       {
+        "tag": {
+         "id": 1
+        },
+        "property": {
+         "key": {
+          "name": "ID"
+         }
+        },
+        "node_type": {
+         "data_type": {
+          "primitive_type": "DT_SIGNED_INT64"
+         }
+        }
+       },
+       {
+        "tag": {
+         "id": 1
+        },
+        "property": {
+         "key": {
+          "name": "courseScoresPerTerm"
+         }
+        },
+        "node_type": {
+         "data_type": {
+          "string": {
+           "var_char": {
+            "max_length": 65536
+           }
+          }
+         }
+        }
+       }
+      ],
+      "join_kind": "INNER",
+      "left_plan": {
+       "plan_id": 0,
+       "query_plan": {
+        "mode": "READ_ONLY",
+        "plan": [
+         {
+          "opr": {
+           "scan": {
+            "scan_opt": "VERTEX",
+            "params": {
+             "tables": [
+              {
+               "id": 0
+              }
+             ],
+             "columns": [],
+             "is_all_columns": false,
+             "sample_ratio": 0,
+             "extra": {}
+            },
+            "is_count_only": false,
+            "alias": 0
+           }
+          },
+          "meta_data": [
+           {
+            "type": {
+             "graph_type": {
+              "element_opt": "VERTEX",
+              "graph_data_type": [
+               {
+                "label": {
+                 "label": 0
+                },
+                "props": []
+               }
+              ]
+             }
+            },
+            "alias": 0
+           }
+          ]
+         }
+        ]
+       }
+      },
+      "right_plan": {
+       "plan_id": 0,
+       "query_plan": {
+        "mode": "READ_ONLY",
+        "plan": [
+         {
+          "opr": {
+           "scan": {
+            "scan_opt": "VERTEX",
+            "params": {
+             "tables": [
+              {
+               "id": 0
+              }
+             ],
+             "columns": [],
+             "is_all_columns": false,
+             "sample_ratio": 0,
+             "extra": {}
+            },
+            "is_count_only": false,
+            "alias": 1
+           }
+          },
+          "meta_data": [
+           {
+            "type": {
+             "graph_type": {
+              "element_opt": "VERTEX",
+              "graph_data_type": [
+               {
+                "label": {
+                 "label": 0
+                },
+                "props": []
+               }
+              ]
+             }
+            },
+            "alias": 1
+           }
+          ]
+         }
+        ]
+       }
+      }
+     }
+    },
+    "meta_data": []
+   },
+   {
+    "opr": {
+     "project": {
+      "mappings": [
+       {
+        "expr": {
+         "operators": [
+          {
+           "var": {
+            "tag": {
+             "id": 0
+            },
+            "property": {
+             "key": {
+              "name": "ID"
+             }
+            },
+            "node_type": {
+             "data_type": {
+              "primitive_type": "DT_SIGNED_INT64"
+             }
+            }
+           },
+           "node_type": {
+            "data_type": {
+             "primitive_type": "DT_SIGNED_INT64"
+            }
+           }
+          }
+         ]
+        },
+        "alias": 2
+       }
+      ],
+      "is_append": false
+     }
+    },
+    "meta_data": [
+     {
+      "type": {
+       "data_type": {
+        "primitive_type": "DT_SIGNED_INT64"
+       }
+      },
+      "alias": 2
+     }
+    ]
+   },
+   {
+    "opr": {
+     "group_by": {
+      "mappings": [],
+      "functions": [
+       {
+        "vars": [
+         {
+          "tag": {
+           "id": 2
+          },
+          "node_type": {
+           "data_type": {
+            "primitive_type": "DT_SIGNED_INT64"
+           }
+          }
+         }
+        ],
+        "aggregate": "SUM",
+        "alias": 3
+       }
+      ]
+     }
+    },
+    "meta_data": [
+     {
+      "type": {
+       "data_type": {
+        "primitive_type": "DT_SIGNED_INT64"
+       }
+      },
+      "alias": 3
+     }
+    ]
+   },
+   {
+    "opr": {
+     "project": {
+      "mappings": [
+       {
+        "expr": {
+         "operators": [
+          {
+           "var": {
+            "tag": {
+             "id": 3
+            },
+            "node_type": {
+             "data_type": {
+              "primitive_type": "DT_SIGNED_INT64"
+             }
+            }
+           },
+           "node_type": {
+            "data_type": {
+             "primitive_type": "DT_SIGNED_INT64"
+            }
+           }
+          }
+         ]
+        },
+        "alias": 3
+       }
+      ],
+      "is_append": false
+     }
+    },
+    "meta_data": [
+     {
+      "type": {
+       "data_type": {
+        "primitive_type": "DT_SIGNED_INT64"
+       }
+      },
+      "alias": 3
+     }
+    ]
+   },
+   {
+    "opr": {
+     "sink": {
+      "tags": []
+     }
+    },
+    "meta_data": []
+   }
+  ]
+ }
+}

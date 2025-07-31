@@ -10,8 +10,8 @@ namespace binder {
 
 void BoundStatementRewriter::rewrite(BoundStatement& boundStatement,
                                      main::ClientContext& clientContext) {
-  auto withClauseProjectionRewriter = WithClauseProjectionRewriter();
-  withClauseProjectionRewriter.visitUnsafe(boundStatement);
+  //   auto withClauseProjectionRewriter = WithClauseProjectionRewriter();
+  //   withClauseProjectionRewriter.visitUnsafe(boundStatement);
 
   auto normalizedQueryPartMatchRewriter =
       NormalizedQueryPartMatchRewriter(&clientContext);

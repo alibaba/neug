@@ -410,28 +410,46 @@ bool ExpressionUtil::tryCombineDataType(const expression_vector& expressions,
                                         LogicalType& result) {
   std::vector<Value> secondaryValues;
   std::vector<LogicalType> primaryTypes;
+  bool propKeyValues = true;
+  for (auto& expr : expressions) {
+    if (expr->expressionType != ExpressionType::LITERAL &&
+        expr->expressionType != ExpressionType::PROPERTY) {
+      propKeyValues = false;
+      break;
+    }
+  }
   for (auto& expr : expressions) {
     if (expr->expressionType != ExpressionType::LITERAL) {
       primaryTypes.push_back(expr->getDataType().copy());
       continue;
     }
-    auto literalExpr = expr->constPtrCast<LiteralExpression>();
-    if (literalExpr->getValue().allowTypeChange()) {
-      secondaryValues.push_back(literalExpr->getValue());
-      continue;
+    // if expressions are all property key values, i.e. {a.id = 10, a.age = 20},
+    // then infer combine type from non literal expressions, the literal
+    // expression type will be aligned with the non literal expression type.
+    // i.e. a.length = 12345, the combined type will be int32 if length is
+    // int32 in schema, even though the literal expression '12345' is int64,
+    // which has a wider range.
+    if (!propKeyValues) {
+      auto literalExpr = expr->constPtrCast<LiteralExpression>();
+      if (literalExpr->getValue().allowTypeChange()) {
+        secondaryValues.push_back(literalExpr->getValue());
+        continue;
+      }
+      primaryTypes.push_back(expr->getDataType().copy());
     }
-    primaryTypes.push_back(expr->getDataType().copy());
   }
   if (!LogicalTypeUtils::tryGetMaxLogicalType(primaryTypes, result)) {
     return false;
   }
-  for (auto& value : secondaryValues) {
-    if (compatible(value, result)) {
-      continue;
-    }
-    if (!LogicalTypeUtils::tryGetMaxLogicalType(result, value.getDataType(),
-                                                result)) {
-      return false;
+  if (!propKeyValues) {
+    for (auto& value : secondaryValues) {
+      if (compatible(value, result)) {
+        continue;
+      }
+      if (!LogicalTypeUtils::tryGetMaxLogicalType(result, value.getDataType(),
+                                                  result)) {
+        return false;
+      }
     }
   }
   return true;

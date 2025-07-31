@@ -21,6 +21,8 @@
 #include <memory>
 #include <string>
 #include <vector>
+#include "common/enums/accumulate_type.h"
+#include "common/enums/join_type.h"
 #include "neug/compiler/binder/expression/expression.h"
 #include "neug/compiler/binder/expression/property_expression.h"
 #include "neug/compiler/binder/expression/rel_expression.h"
@@ -50,6 +52,7 @@
 #include "neug/proto_generated_gie/cypher_dml.pb.h"
 #include "neug/proto_generated_gie/expr.pb.h"
 #include "neug/proto_generated_gie/physical.pb.h"
+#include "planner/operator/logical_hash_join.h"
 
 namespace gs {
 namespace gopt {
@@ -88,6 +91,10 @@ void GQueryConvertor::convertOperator(const planner::LogicalOperator& op,
              planner::LogicalOperatorType::CROSS_PRODUCT) {
     auto cross = op.constPtrCast<planner::LogicalCrossProduct>();
     convertCrossProduct(*cross, plan);
+    return;
+  } else if (op.getOperatorType() == planner::LogicalOperatorType::HASH_JOIN) {
+    auto hashJoin = op.constPtrCast<planner::LogicalHashJoin>();
+    convertHashJoin(*hashJoin, plan);
     return;
   }
   for (auto child : op.getChildren()) {
@@ -1338,7 +1345,82 @@ void GQueryConvertor::convertCrossProduct(
   // set join PB
   joinPB->set_allocated_left_plan(leftPB.release());
   joinPB->set_allocated_right_plan(rightPB.release());
-  joinPB->set_join_kind(::physical::Join::JoinKind::Join_JoinKind_TIMES);
+  if (cross.getAccumulateType() == common::AccumulateType::OPTIONAL_) {
+    joinPB->set_join_kind(::physical::Join::JoinKind::Join_JoinKind_LEFT_OUTER);
+  } else {
+    joinPB->set_join_kind(::physical::Join::JoinKind::Join_JoinKind_TIMES);
+  }
+  auto physicalPB = std::make_unique<::physical::PhysicalOpr>();
+  auto oprPB = std::make_unique<::physical::PhysicalOpr_Operator>();
+  oprPB->set_allocated_join(joinPB.release());
+  physicalPB->set_allocated_opr(oprPB.release());
+  plan->mutable_plan()->AddAllocated(physicalPB.release());
+}
+
+::physical::Join::JoinKind GQueryConvertor::convertJoinKind(
+    common::JoinType joinType) {
+  switch (joinType) {
+  case common::JoinType::INNER:
+    return ::physical::Join::JoinKind::Join_JoinKind_INNER;
+  case common::JoinType::LEFT:
+    return ::physical::Join::JoinKind::Join_JoinKind_LEFT_OUTER;
+  default:
+    throw common::Exception("Unsupported join type: " +
+                            static_cast<uint8_t>(joinType));
+  }
+}
+
+void GQueryConvertor::extractJoinKeys(
+    const std::vector<planner::join_condition_t>& joinConditions,
+    std::vector<std::shared_ptr<binder::Expression>>& leftKeys,
+    std::vector<std::shared_ptr<binder::Expression>>& rightKeys) {
+  for (auto& condition : joinConditions) {
+    leftKeys.emplace_back(condition.first);
+    rightKeys.emplace_back(condition.second);
+  }
+}
+
+void GQueryConvertor::convertHashJoin(const planner::LogicalHashJoin& join,
+                                      ::physical::QueryPlan* plan) {
+  auto joinPB = std::make_unique<::physical::Join>();
+  GPhysicalConvertor convertor(aliasManager, catalog);
+  // convert left plan
+  planner::LogicalPlan leftPlan;
+  auto leftOp = join.getChild(0);
+  leftPlan.setLastOperator(leftOp);
+  auto leftPB = convertor.convert(leftPlan, true);
+  // convert right plan
+  planner::LogicalPlan rightPlan;
+  auto rightOp = join.getChild(1);
+  rightPlan.setLastOperator(rightOp);
+  auto rightPB = convertor.convert(rightPlan, true);
+  // set join PB
+  joinPB->set_allocated_left_plan(leftPB.release());
+  joinPB->set_allocated_right_plan(rightPB.release());
+  // set join kind
+  joinPB->set_join_kind(convertJoinKind(join.getJoinType()));
+  // set join conditions
+  auto conditions = join.getJoinConditions();
+  if (conditions.empty()) {
+    throw common::Exception(
+        "Hash join should have at least one join condition");
+  }
+  std::vector<std::shared_ptr<binder::Expression>> leftKeys, rightKeys;
+  extractJoinKeys(conditions, leftKeys, rightKeys);
+  if (leftKeys.size() != rightKeys.size()) {
+    throw common::Exception(
+        "Number of left keys does not match the number of right keys");
+  }
+  for (auto leftKey : leftKeys) {
+    auto leftKeyPB = exprConvertor->convert(*leftKey, *leftOp);
+    joinPB->mutable_left_keys()->AddAllocated(
+        leftKeyPB->mutable_operators(0)->release_var());
+  }
+  for (auto rightKey : rightKeys) {
+    auto rightKeyPB = exprConvertor->convert(*rightKey, *rightOp);
+    joinPB->mutable_right_keys()->AddAllocated(
+        rightKeyPB->mutable_operators(0)->release_var());
+  }
   auto physicalPB = std::make_unique<::physical::PhysicalOpr>();
   auto oprPB = std::make_unique<::physical::PhysicalOpr_Operator>();
   oprPB->set_allocated_join(joinPB.release());

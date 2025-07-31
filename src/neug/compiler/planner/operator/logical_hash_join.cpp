@@ -132,8 +132,10 @@ std::string LogicalHashJoin::getExpressionsForPrinting() const {
       {JoinType::MARK, "MARK"},
   };
 
-  auto extra = ", SIP: " + maskToStr.at(getSIPInfo().position) +
-               ", Join Type: " + joinToStr.at(joinType);
+  auto extra =
+      ", SIP: " + maskToStr.at(getSIPInfo().position) +
+      ", Join Type: " + joinToStr.at(joinType) +
+      ", Join Conditions: " + binder::ExpressionUtil::toString(joinConditions);
   if (isNodeIDOnlyJoin(joinConditions)) {
     return binder::ExpressionUtil::toStringOrdered(getJoinNodeIDs())
         .append(extra);

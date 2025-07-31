@@ -247,11 +247,6 @@ std::unique_ptr<::common::Value> GExprConverter::convertValue(
   case common::LogicalTypeID::UINT64:
     valuePB->set_u64(value.getValue<uint64_t>());
     break;
-  case common::LogicalTypeID::INT128:
-    // todo: hack ways to convert int128 to uint64, int128 is unsupported in PB
-    // yet.
-    valuePB->set_u64(value.getValue<common::int128_t>().low);
-    break;
   default:
     throw common::Exception("Unsupported value type " +
                             value.getDataType().toString());

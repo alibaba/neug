@@ -3,6 +3,7 @@
 #include <iterator>
 #include <memory>
 
+#include "common/exception/exception.h"
 #include "neug/compiler/binder/expression_visitor.h"
 #include "neug/compiler/common/enums/join_type.h"
 #include "neug/compiler/common/enums/rel_direction.h"
@@ -117,12 +118,17 @@ Planner::enumerateQueryGraphCollection(
   }
   if (info.subqueryType == SubqueryPlanningType::CORRELATED &&
       queryGraphIdxToPlanExpressionsScan == -1) {
-    auto plan = std::make_unique<LogicalPlan>();
-    appendExpressionsScan(corrExprs, *plan);
-    appendDistinct(corrExprs, *plan);
-    std::vector<std::unique_ptr<LogicalPlan>> plans;
-    plans.push_back(std::move(plan));
-    plansPerQueryGraph.push_back(std::move(plans));
+    // todo: support query like `MATCH (a)-[]->(b) WHERE a.ID = 0 OPTIONAL MATCH
+    // (c:person) WHERE c.ID = b.ID + 3`, here the 2nd Match is not connected to
+    // the 1st Match, but they have the correlated expression `c.ID = b.ID + 3`.
+    throw common::Exception(
+        "Unconnected correlated query is not supported yet");
+    // auto plan = std::make_unique<LogicalPlan>();
+    // appendExpressionsScan(corrExprs, *plan);
+    // appendDistinct(corrExprs, *plan);
+    // std::vector<std::unique_ptr<LogicalPlan>> plans;
+    // plans.push_back(std::move(plan));
+    // plansPerQueryGraph.push_back(std::move(plans));
   }
   auto result = std::move(plansPerQueryGraph[0]);
   for (auto i = 1u; i < plansPerQueryGraph.size(); ++i) {
@@ -217,13 +223,22 @@ void Planner::planBaseTableScans(const QueryGraphPlanningInfo& info) {
   case SubqueryPlanningType::CORRELATED: {
     for (auto nodePos = 0u; nodePos < queryGraph->getNumQueryNodes();
          ++nodePos) {
+      // The query `MATCH (a:person)-[:knows]->(b:person) OPTIONAL
+      // MATCH (b)-[:knows]->(c:person) WHERE b.age > 10` is a correlated query.
+      // For now, we disable optimizations for correlated queries and replace
+      // ExpressionScan with a global Scan. Support for correlated queries
+      // will be added later in two ways:
+      // 1. Flatten ExpressionScan into Extend operations by
+      // `FlatJoinToExtendRule`.
+      // 2. Keep the ExpressionScan structure and transform it into a fork-join
+      //    implementation, which requires engine support.
       auto queryNode = queryGraph->getQueryNode(nodePos);
-      if (info.containsCorrExpr(*queryNode->getInternalID())) {
-        continue;
-      }
+      // if (info.containsCorrExpr(*queryNode->getInternalID())) {
+      //   continue;
+      // }
       planNodeScan(nodePos);
     }
-    planCorrelatedExpressionsScan(info);
+    // planCorrelatedExpressionsScan(info);
   } break;
   default:
     KU_UNREACHABLE;

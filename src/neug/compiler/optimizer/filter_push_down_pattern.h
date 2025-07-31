@@ -23,6 +23,7 @@
 #include "neug/compiler/planner/operator/extend/logical_extend.h"
 #include "neug/compiler/planner/operator/logical_filter.h"
 #include "neug/compiler/planner/operator/logical_get_v.h"
+#include "neug/compiler/planner/operator/logical_node_label_filter.h"
 #include "neug/compiler/planner/operator/logical_plan.h"
 #include "neug/compiler/planner/operator/scan/logical_scan_node_table.h"
 
@@ -35,6 +36,8 @@ class FilterPushDownPattern : public LogicalOperatorVisitor {
   std::shared_ptr<planner::LogicalOperator> visitOperator(
       const std::shared_ptr<planner::LogicalOperator>& op);
   std::shared_ptr<planner::LogicalOperator> visitFilterReplace(
+      std::shared_ptr<planner::LogicalOperator> op) override;
+  std::shared_ptr<planner::LogicalOperator> visitNodeLabelFilterReplace(
       std::shared_ptr<planner::LogicalOperator> op) override;
 
  private:

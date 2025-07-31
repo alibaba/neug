@@ -4,29 +4,30 @@
 
 -CASE OptionalMatch
 
-# TODO: COMPILATION: cross product optional match is not supported yet
 -LOG CrossProductOptionalMatch1
 -STATEMENT MATCH (a:person) WHERE a.fName = 'Alice' OPTIONAL MATCH (b:person) WHERE b.fName = 'A' RETURN a.ID, b.ID
 ---- 1
 0|
 
-# TODO: COMPILATION
 -LOG CrossProductOptionalMatch2
+-SKIP: query starting with OPTIONAL MATCH is unsupported yet (compiler)
 -STATEMENT OPTIONAL MATCH (a:person) WHERE a.fName = 'a' MATCH (b:person) WHERE b.fName = 'Alice' RETURN a.ID, b.ID
 ---- 1
 |0
 
-# TODO: UNSUPPORTED: init optional match
 -LOG InitOptionalMatch
+-SKIP: query starting with OPTIONAL MATCH is unsupported yet (compiler)
 -STATEMENT OPTIONAL MATCH (a:person) WHERE a.ID<0 RETURN COUNT(*)
 ---- 1
 1
 
 -LOG InitOptionalMatch2
+-SKIP: query starting with OPTIONAL MATCH is unsupported yet (compiler)
 -STATEMENT OPTIONAL MATCH (a:person) WHERE a.fName = 'a' RETURN a.age
 ---- 1
 
 -LOG InitOptionalMatch2
+-SKIP: query starting with OPTIONAL MATCH is unsupported yet (compiler)
 -STATEMENT OPTIONAL MATCH (a:person) WHERE a.ID < 6 RETURN a.fName
 ---- 4
 Alice

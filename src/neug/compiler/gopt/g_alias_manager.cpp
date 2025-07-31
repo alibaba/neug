@@ -105,6 +105,7 @@ void GAliasManager::extractGAliasNames(
   case planner::LogicalOperatorType::CROSS_PRODUCT:
   case planner::LogicalOperatorType::FLATTEN:
   case planner::LogicalOperatorType::ACCUMULATE:
+  case planner::LogicalOperatorType::HASH_JOIN:
     // do nothing
     break;
   default: {

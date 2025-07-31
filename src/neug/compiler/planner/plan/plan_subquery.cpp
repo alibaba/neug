@@ -1,3 +1,7 @@
+#include "binder/expression/node_expression.h"
+#include "binder/expression/node_rel_expression.h"
+#include "common/enums/expression_type.h"
+#include "common/types/types.h"
 #include "neug/compiler/binder/expression/expression_util.h"
 #include "neug/compiler/binder/expression/subquery_expression.h"
 #include "neug/compiler/binder/expression_visitor.h"
@@ -22,14 +26,34 @@ expression_vector Planner::getCorrelatedExprs(
     const QueryGraphCollection& collection, const expression_vector& predicates,
     Schema* outerSchema) {
   expression_vector result;
-  for (auto& predicate : predicates) {
-    for (auto& expression : getDependentExprs(predicate, *outerSchema)) {
-      result.push_back(expression);
-    }
-  }
+  // for query `MATCH (a:person) OPTIONAL MATCH (a)-[:knows]->(b:person) WHERE
+  // b.age > a.age`, a.age = a.age will be put into join condition by the
+  // following codes, we skip here.
+
+  // for (auto& predicate : predicates) {
+  //   for (auto& expression : getDependentExprs(predicate, *outerSchema)) {
+  //     result.push_back(expression);
+  //   }
+  // }
   for (auto& node : collection.getQueryNodes()) {
     if (outerSchema->isExpressionInScope(*node->getInternalID())) {
       result.push_back(node->getInternalID());
+    }
+    // for query `MATCH (a:person) WHERE a.gender = 1 WITH a AS k MATCH
+    // (k)-[e:knows]->(b:person)`, `with a` will project a pattern expression of
+    // the query node, but its schema does not contain the internal ID. the
+    // following code is to handle this case and identify the join node by
+    // comparing internal ID directly.
+    for (auto& exprScope : outerSchema->getExpressionsInScope()) {
+      if (exprScope->expressionType == common::ExpressionType::PATTERN &&
+          exprScope->getDataType().getLogicalTypeID() ==
+              common::LogicalTypeID::NODE) {
+        auto nodeScope = exprScope->ptrCast<NodeExpression>();
+        if (nodeScope->getInternalID()->getUniqueName() ==
+            node->getInternalID()->getUniqueName()) {
+          result.push_back(node->getInternalID());
+        }
+      }
     }
   }
   return ExpressionUtil::removeDuplication(result);

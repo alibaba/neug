@@ -12,7 +12,8 @@ add_compiler_test(
 	project_test.cpp
 	result_test.cpp
 	cyclic_test.cpp
-	lsqb_test.cpp)
+	lsqb_test.cpp
+	join_test.cpp)
 
 target_link_libraries(gopt_test
     PRIVATE

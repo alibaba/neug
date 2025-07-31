@@ -23,6 +23,26 @@ std::shared_ptr<planner::LogicalOperator> FilterPushDownPattern::visitOperator(
 }
 
 std::shared_ptr<planner::LogicalOperator>
+FilterPushDownPattern::visitNodeLabelFilterReplace(
+    std::shared_ptr<planner::LogicalOperator> op) {
+  auto filter = op->ptrCast<planner::LogicalNodeLabelFilter>();
+  auto child = op->getChild(0);
+  if (child->getOperatorType() !=
+      planner::LogicalOperatorType::SCAN_NODE_TABLE) {
+    return op;
+  }
+  auto scanOp = child->ptrCast<planner::LogicalScanNodeTable>();
+  if (scanOp->getNodeID()->getUniqueName() ==
+      filter->getNodeID()->getUniqueName()) {
+    auto tableIDSet = filter->getTableIDSet();
+    scanOp->setTableIDs(
+        std::vector<common::table_id_t>(tableIDSet.begin(), tableIDSet.end()));
+    return child;
+  }
+  return op;
+}
+
+std::shared_ptr<planner::LogicalOperator>
 FilterPushDownPattern::visitFilterReplace(
     std::shared_ptr<planner::LogicalOperator> op) {
   auto filter = op->constPtrCast<planner::LogicalFilter>();

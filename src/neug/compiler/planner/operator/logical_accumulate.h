@@ -24,7 +24,9 @@ class LogicalAccumulate final : public LogicalOperator {
 
   f_group_pos_set getGroupPositionsToFlatten() const;
 
-  std::string getExpressionsForPrinting() const override { return {}; }
+  std::string getExpressionsForPrinting() const override {
+    return std::to_string(static_cast<uint8_t>(accumulateType));
+  }
 
   common::AccumulateType getAccumulateType() const { return accumulateType; }
   binder::expression_vector getPayloads() const {

@@ -1,11 +1,11 @@
 -DATASET CSV tinysnb
 
-# TODO: UNSUPPORTED: currently, such disconnected pattern graph is not supported (in compilation)
 
 --
 
 -CASE BasicGenericHashJoin
 
+-LOG A_CROSS_PRODUCT_B_TEST
 -STATEMENT MATCH (a:person), (b:person) WHERE a.ID = b.ID AND a.ID = 7 RETURN a.fName, b.fName, a.grades, b.grades
 ---- 1
 Elizabeth|Elizabeth|[96,59,65,88]|[96,59,65,88]

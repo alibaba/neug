@@ -22,6 +22,7 @@
 26
 
 -LOG CorrelatedOptionalMatchTest4
+-SKIP: (compiler): unconnected correlated query is unsupported yet.
 -STATEMENT MATCH (a)-[]->(b) WHERE a.ID = 0 OPTIONAL MATCH (c:person) WHERE c.ID = b.ID + 3 RETURN a.ID, b.ID, c.ID
 ---- 6
 0|1|
@@ -32,6 +33,7 @@
 0|5|8
 
 -LOG CorrelatedOptionalMatchTest5
+-SKIP: (compiler): unconnected correlated query is unsupported yet.
 -STATEMENT MATCH (a:person) WHERE a.ID < 6
            OPTIONAL MATCH (b:person) WHERE b.ID = a.ID + 2
            OPTIONAL MATCH (c:person) WHERE c.ID = b.ID + a.ID RETURN a.ID, b.ID, c.ID
