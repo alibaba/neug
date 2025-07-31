@@ -97,7 +97,10 @@ Result<results::CollectiveResults> Connection::query_impl(
     }
     planner_->update_meta(yaml.value());
     planner_->update_statistics(db_.get_statistics_json());
-  } else if (has_update_opr_in_plan(plan.physical_plan)) {
+  } else if (plan.physical_plan.query_plan().mode() ==
+                 physical::QueryPlan::Mode::QueryPlan_Mode_READ_WRITE ||
+             plan.physical_plan.query_plan().mode() ==
+                 physical::QueryPlan::Mode::QueryPlan_Mode_WRITE_ONLY) {
     planner_->update_statistics(db_.get_statistics_json());
   }
 

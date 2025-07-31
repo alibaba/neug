@@ -61,8 +61,6 @@ property_defs_to_tuple(
 // Convert to a bool representing error_on_conflict.
 bool conflict_action_to_bool(const physical::ConflictAction& action);
 
-bool has_update_opr_in_plan(const physical::PhysicalPlan& plan);
-
 // Currently support
 // 1. common::Value const
 // 2. ToDate to_date

@@ -293,19 +293,6 @@ bool conflict_action_to_bool(const physical::ConflictAction& action) {
   }
 }
 
-bool has_update_opr_in_plan(const physical::PhysicalPlan& plan) {
-  for (auto i = 0; i < plan.query_plan().plan_size(); ++i) {
-    auto& opr = plan.query_plan().plan(i).opr();
-    if (opr.has_source() || opr.has_load_vertex() || opr.has_load_edge() ||
-        opr.has_create_vertex() || opr.has_create_edge() ||
-        opr.has_set_vertex() || opr.has_set_edge() || opr.has_delete_vertex() ||
-        opr.has_delete_edge()) {
-      return true;
-    }
-  }
-  return false;
-}
-
 Any const_value_to_any(const common::Value& value) {
   switch (value.item_case()) {
   case common::Value::ItemCase::kI32: {

@@ -98,22 +98,20 @@ class HttpServiceImpl : public HttpService {
     // and statistics for the compiler.
     bool update_schema = false, update_statistics = false;
     if (plan.physical_plan.has_query_plan()) {
-      if (gs::has_update_opr_in_plan(plan.physical_plan)) {
-        VLOG(10) << "Update operation detected, using update plugin";
+      if (plan.physical_plan.query_plan().mode() ==
+          physical::QueryPlan::Mode::QueryPlan_Mode_READ_ONLY) {
+        plan_proto_str.append(1, *gs::Schema::ADHOC_READ_PLUGIN_ID_STR);
+        plan_proto_str.append(
+            1,
+            static_cast<char>(gs::GraphDBSession::InputFormat::kCypherString));
+      } else {
         plan_proto_str.append(1, *gs::Schema::ADHOC_UPDATE_PLUGIN_ID_STR);
         plan_proto_str.append(
             1,
             static_cast<char>(gs::GraphDBSession::InputFormat::kCypherString));
         update_statistics = true;
-      } else {
-        VLOG(10) << "Read operation detected, using read plugin";
-        plan_proto_str.append(1, *gs::Schema::ADHOC_READ_PLUGIN_ID_STR);
-        plan_proto_str.append(
-            1,
-            static_cast<char>(gs::GraphDBSession::InputFormat::kCypherString));
       }
     } else if (plan.physical_plan.has_ddl_plan()) {
-      VLOG(10) << "DDL plan detected, using DDL plugin";
       plan_proto_str.append(1, *gs::Schema::ADHOC_UPDATE_PLUGIN_ID_STR);
       plan_proto_str.append(
           1, static_cast<char>(gs::GraphDBSession::InputFormat::kCypherString));
