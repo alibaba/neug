@@ -81,7 +81,6 @@ def test_create_schema_complex_types(tmp_path):
 
 
 # DB-003-02
-@pytest.mark.skip(reason="issue-416")
 def test_insert_basic_type_check(tmp_path):
     db_dir = tmp_path / "insert_basic_type"
     shutil.rmtree(db_dir, ignore_errors=True)

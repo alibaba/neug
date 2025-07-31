@@ -323,6 +323,9 @@ Any const_value_to_any(const common::Value& value) {
   case common::Value::ItemCase::kF64: {
     return Any::From(value.f64());
   }
+  case common::Value::ItemCase::kF32: {
+    return Any::From(value.f32());
+  }
   case common::Value::ItemCase::kBoolean: {
     return Any::From(value.boolean());
   }
