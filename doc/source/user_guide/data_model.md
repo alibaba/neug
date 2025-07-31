@@ -1,5 +1,7 @@
 # Data Model
 
+## Data Types
+
 
 `Neug` provides robust support for a wide range of data types utilized in both vertex and edge properties. These data types are organized into five distinct categories:
 
@@ -14,7 +16,7 @@
 - **Complex Types:** (Currently not supported) These may include user-defined objects or compound structures that combine multiple primitive types, enabling more sophisticated data modeling and relationships within the graph.
 
 
-## Primitive Types
+### Primitive Types
 
 Certainly! Here's a Markdown table with the specified header and first line entry:
 
@@ -34,17 +36,17 @@ Certainly! Here's a Markdown table with the specified header and first line entr
 
 
 
-## String Types
+### String Types
 
 
 | Type   | Size    | Description                    |
 |--------|---------|--------------------------------|
 | STRING | -       | Variable length string         |
 
-## Temporal types
+### Temporal types
 
 
-### DATE
+#### DATE
 
 `DATE` denotes a calendar day characterized by the components of year, month, and day, formatted to comply with the ISO-8601 standard (YYYY-MM-DD). It takes 4 bytes in storage.
 
@@ -52,23 +54,23 @@ Certainly! Here's a Markdown table with the specified header and first line entr
 RETURN date('2022-06-06') as x;
 ```
 
-### DATE32
+#### DATE32
 
-`DATE32` represents a calendar day by counting the number of days since January 1, 1970. Days preceding this date are indicated by negative values. It takes 4 bytes in storage.(TODO: (xiaoli): make suire it works)
+`DATE32` represents a calendar day by counting the number of days since January 1, 1970. Days preceding this date are indicated by negative values. It takes 4 bytes in storage.(TODO: (xiaoli): make sure it works)
 
 ```cypher
 RETURN date32('2022-06-06') as x;
 ```
 
-### TIMESTAMP
+#### TIMESTAMP
 
-`TIMESTAMP` integrates both the date and time components—hour, minute, second, and millisecond—formatted in the ISO-8601 standard (YYYY-MM-DD hh:mm:ss[.zzzzzz][+-TT[:tt]]). This format specifies the date (YYYY-MM-DD), time (hh:mm:ss[.zzzzzz]), and optional time offset [+-TT[:tt]]. The date portion is mandatory, while the time component is optional, allowing inclusion of milliseconds [.zzzzzz] and a time offset if desired. It takes 8 byte in storage. For example: "1970-01-01 00:00:00.004666-10"
+`TIMESTAMP` integrates both the date and time components—hour, minute, second, and millisecond—formatted in the ISO-8601 standard (YYYY-MM-DD hh:mm:ss[.zzzzzz][+-TT[:tt]]). This format specifies the date (YYYY-MM-DD), time (hh:mm:ss[.zzzzzz]), and optional time offset [+-TT[:tt]]. The date portion is mandatory, while the time component is optional, allowing inclusion of milliseconds [.zzzzzz] and a time offset if desired. It takes 8 bytes in storage. For example: "1970-01-01 00:00:00.004666-10"
 
 ```cypher
 RETURN timestamp("1970-01-01 00:00:00.004666-10") as x;
 ```
 
-### INTERVAL
+#### INTERVAL
 
 `INTERVAL` represents a period of time, could be characterized by the components of year, month, and day, hour, minutes, microseconds. We follow the definition for Interval in [kuzu](https://docs.kuzudb.com/cypher/data-types/#interval).
 
@@ -80,3 +82,32 @@ RETURN interval("1 year 2 days") as x;
 
 Array types are currently not supported, but are planned to be supported in the near future.
 Once supported, albeit requiring that every element within the array adheres to one of the previously mentioned primitive types. 
+
+
+### Complex Types
+
+Complex types are currently not supported, including `STRUCT`, `MAP`, `UNION`, `BLOB`.
+
+
+## Type conversion
+
+We support for type [casting between numeric types](https://github.com/GraphScope/neug/issues/416).
+
+- INT32
+- UINT32
+- INT64
+- UINT64
+- FLOAT
+- DOUBLE
+
+**All pairs of these types are allowed to convert between each other**. During casting, the compiler will perform overflow checks to ensure conversions are safe. The table below summarizes potential overflow scenarios handled during these conversions:
+
+
+| From \ To | INT32  | UINT32 | INT64  | UINT64 | FLOAT  | DOUBLE |
+|--------|--------|--------|--------|--------|--------|--------|
+| **INT32**  | ✅ Safe | ⚠️ May Overflow (if value < 0)        | ✅ Safe | ⚠️ May Overflow (if value < 0)        | ✅ Safe | ✅ Safe |
+| **UINT32** | ⚠️ May Overflow (if value > INT32_MAX)         | ✅ Safe | ✅ Safe | ✅ Safe | ✅ Safe | ✅ Safe |
+| **INT64**  | ⚠️ May Overflow (if value < INT32_MIN or > INT32_MAX) | ⚠️ May Overflow (if value < 0 or > UINT32_MAX) | ✅ Safe | ⚠️ May Overflow (if value < 0)        | ✅ Safe | ✅ Safe |
+| **UINT64** | ⚠️ May Overflow (if value > INT32_MAX)         | ⚠️ May Overflow (if value > UINT32_MAX)       | ⚠️ May Overflow (if value > INT64_MAX) | ✅ Safe | ✅ Safe | ✅ Safe |
+| **FLOAT**  | ⚠️ May Overflow (if value < INT32_MIN or > INT32_MAX) | ⚠️ May Overflow (if value < 0 or > UINT32_MAX) | ⚠️ May Overflow (if value < INT64_MIN or > INT64_MAX) | ⚠️ May Overflow (if value < 0 or > UINT64_MAX) | ✅ Safe | ✅ Safe |
+| **DOUBLE** | ⚠️ May Overflow (if value < INT32_MIN or > INT32_MAX) | ⚠️ May Overflow (if value < 0 or > UINT32_MAX) | ⚠️ May Overflow (if value < INT64_MIN or > INT64_MAX) | ⚠️ May Overflow (if value < 0 or > UINT64_MAX) | ⚠️ May Overflow (if value < -FLT_MAX or > FLT_MAX) | ✅ Safe |
