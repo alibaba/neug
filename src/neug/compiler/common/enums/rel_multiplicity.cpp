@@ -1,9 +1,9 @@
 #include "neug/compiler/common/enums/rel_multiplicity.h"
 
 #include "neug/compiler/common/assert.h"
-#include "neug/compiler/common/exception/binder.h"
 #include "neug/compiler/common/string_format.h"
 #include "neug/compiler/common/string_utils.h"
+#include "neug/utils/exception/binder.h"
 
 namespace gs {
 namespace common {

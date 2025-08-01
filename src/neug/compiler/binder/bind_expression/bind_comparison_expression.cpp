@@ -3,9 +3,9 @@
 #include "neug/compiler/binder/expression/scalar_function_expression.h"
 #include "neug/compiler/binder/expression_binder.h"
 #include "neug/compiler/catalog/catalog.h"
-#include "neug/compiler/common/exception/binder.h"
 #include "neug/compiler/function/built_in_function_utils.h"
 #include "neug/compiler/main/client_context.h"
+#include "neug/utils/exception/binder.h"
 
 using namespace gs::common;
 using namespace gs::parser;

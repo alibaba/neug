@@ -1,10 +1,10 @@
 #include "neug/compiler/function/arithmetic/divide.h"
 
-#include "neug/compiler/common/exception/overflow.h"
-#include "neug/compiler/common/exception/runtime.h"
 #include "neug/compiler/common/string_format.h"
 #include "neug/compiler/common/type_utils.h"
 #include "neug/compiler/function/cast/functions/numeric_limits.h"
+#include "neug/utils/exception/overflow.h"
+#include "neug/utils/exception/runtime.h"
 
 namespace gs {
 namespace function {

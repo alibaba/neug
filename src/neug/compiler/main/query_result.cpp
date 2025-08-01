@@ -3,7 +3,7 @@
 #include <memory>
 
 #include "neug/compiler/common/arrow/arrow_converter.h"
-#include "neug/compiler/common/exception/runtime.h"
+#include "neug/utils/exception/runtime.h"
 
 using namespace gs::common;
 

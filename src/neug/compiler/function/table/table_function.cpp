@@ -1,10 +1,10 @@
 #include "neug/compiler/function/table/table_function.h"
 
-#include "neug/compiler/common/exception/binder.h"
 #include "neug/compiler/parser/query/reading_clause/yield_variable.h"
 #include "neug/compiler/planner/operator/logical_table_function_call.h"
 #include "neug/compiler/planner/operator/sip/logical_semi_masker.h"
 #include "neug/compiler/planner/planner.h"
+#include "neug/utils/exception/binder.h"
 
 using namespace gs::common;
 using namespace gs::planner;

@@ -2,10 +2,10 @@
 
 #include "neug/compiler/catalog/catalog_entry/node_table_catalog_entry.h"
 #include "neug/compiler/catalog/catalog_entry/rel_group_catalog_entry.h"
-#include "neug/compiler/common/exception/runtime.h"
 #include "neug/compiler/main/client_context.h"
 #include "neug/compiler/main/db_config.h"
 #include "neug/compiler/storage/wal/wal.h"
+#include "neug/utils/exception/runtime.h"
 
 using namespace gs::catalog;
 

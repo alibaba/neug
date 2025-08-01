@@ -1,7 +1,7 @@
 #include "neug/compiler/parser/antlr_parser/parser_error_listener.h"
 
-#include "neug/compiler/common/exception/parser.h"
 #include "neug/compiler/common/string_utils.h"
+#include "neug/utils/exception/parser.h"
 
 using namespace antlr4;
 using namespace gs::common;

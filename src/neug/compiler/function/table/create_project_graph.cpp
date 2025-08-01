@@ -1,5 +1,3 @@
-#include "neug/compiler/common/exception/binder.h"
-#include "neug/compiler/common/exception/runtime.h"
 #include "neug/compiler/common/string_utils.h"
 #include "neug/compiler/common/types/value/nested.h"
 #include "neug/compiler/common/types/value/value.h"
@@ -8,6 +6,8 @@
 #include "neug/compiler/function/table/standalone_call_function.h"
 #include "neug/compiler/graph/graph_entry.h"
 #include "neug/compiler/parser/parser.h"
+#include "neug/utils/exception/binder.h"
+#include "neug/utils/exception/runtime.h"
 
 using namespace gs::binder;
 using namespace gs::common;

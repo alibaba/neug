@@ -3,14 +3,14 @@
 #include "neug/compiler/binder/expression/expression_util.h"
 #include "neug/compiler/binder/expression/literal_expression.h"
 #include "neug/compiler/catalog/catalog.h"
-#include "neug/compiler/common/exception/binder.h"
-#include "neug/compiler/common/exception/conversion.h"
 #include "neug/compiler/function/built_in_function_utils.h"
 #include "neug/compiler/function/cast/functions/cast_array.h"
 #include "neug/compiler/function/cast/functions/cast_decimal.h"
 #include "neug/compiler/function/cast/functions/cast_from_string_functions.h"
 #include "neug/compiler/function/cast/functions/cast_functions.h"
 #include "neug/compiler/main/client_context.h"
+#include "neug/utils/exception/binder.h"
+#include "neug/utils/exception/conversion.h"
 
 using namespace gs::common;
 using namespace gs::binder;

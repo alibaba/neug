@@ -5,9 +5,9 @@
 #include "neug/compiler/binder/expression/literal_expression.h"
 #include "neug/compiler/binder/expression/node_rel_expression.h"
 #include "neug/compiler/binder/expression/parameter_expression.h"
-#include "neug/compiler/common/exception/binder.h"
-#include "neug/compiler/common/exception/runtime.h"
 #include "neug/compiler/common/types/value/nested.h"
+#include "neug/utils/exception/binder.h"
+#include "neug/utils/exception/runtime.h"
 
 using namespace gs::common;
 

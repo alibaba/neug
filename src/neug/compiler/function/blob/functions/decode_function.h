@@ -1,8 +1,8 @@
 #pragma once
 
-#include "neug/compiler/common/exception/runtime.h"
 #include "neug/compiler/common/types/blob.h"
 #include "neug/compiler/common/vector/value_vector.h"
+#include "neug/utils/exception/runtime.h"
 #include "utf8proc_wrapper.h"
 
 namespace gs {

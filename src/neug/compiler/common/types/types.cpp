@@ -4,9 +4,6 @@
 #include "neug/compiler/catalog/catalog_entry/node_table_catalog_entry.h"
 #include "neug/compiler/common/cast.h"
 #include "neug/compiler/common/constants.h"
-#include "neug/compiler/common/exception/binder.h"
-#include "neug/compiler/common/exception/conversion.h"
-#include "neug/compiler/common/exception/runtime.h"
 #include "neug/compiler/common/null_buffer.h"
 #include "neug/compiler/common/serializer/deserializer.h"
 #include "neug/compiler/common/serializer/serializer.h"
@@ -18,6 +15,9 @@
 #include "neug/compiler/function/built_in_function_utils.h"
 #include "neug/compiler/function/cast/functions/numeric_limits.h"
 #include "neug/compiler/main/client_context.h"
+#include "neug/utils/exception/binder.h"
+#include "neug/utils/exception/conversion.h"
+#include "neug/utils/exception/runtime.h"
 
 using gs::function::BuiltInFunctionsUtils;
 

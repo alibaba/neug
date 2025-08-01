@@ -30,7 +30,6 @@
 #include <stdexcept>                        // for runtime_error
 #include <string>                           // for string, allocator, char_t...
 #include <tuple>                            // for tuple, make_tuple, get
-#include "neug/utils/exception.h"           // for LOG_FATAL_IF
 #include "neug/utils/yaml_utils.h"          // for get_scalar
 
 namespace gs {

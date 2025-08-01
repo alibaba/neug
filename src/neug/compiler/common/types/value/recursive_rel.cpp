@@ -1,9 +1,9 @@
 #include "neug/compiler/common/types/value/recursive_rel.h"
 
-#include "neug/compiler/common/exception/exception.h"
 #include "neug/compiler/common/string_format.h"
 #include "neug/compiler/common/types/types.h"
 #include "neug/compiler/common/types/value/value.h"
+#include "neug/utils/exception/exception.h"
 
 namespace gs {
 namespace common {

@@ -12,12 +12,12 @@
 #include <unistd.h>
 #endif
 
-#include "neug/compiler/common/exception/exception.h"
 #include "neug/compiler/common/file_system/virtual_file_system.h"
 #include "neug/compiler/main/db_config.h"
 #include "neug/compiler/storage/storage_extension.h"
 #include "neug/compiler/storage/storage_manager.h"
 #include "neug/compiler/transaction/transaction_manager.h"
+#include "neug/utils/exception/exception.h"
 
 using namespace gs::catalog;
 using namespace gs::common;

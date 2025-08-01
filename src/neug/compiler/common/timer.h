@@ -3,8 +3,8 @@
 #include <chrono>
 #include <string>
 
-#include "exception/exception.h"
 #include "neug/compiler/common/assert.h"
+#include "neug/utils/exception/exception.h"
 
 namespace gs {
 namespace common {

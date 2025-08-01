@@ -1,9 +1,9 @@
-#include "neug/compiler/common/exception/exception.h"
 #include "neug/compiler/planner/join_order/cost_model.h"
 #include "neug/compiler/planner/operator/logical_hash_join.h"
 #include "neug/compiler/planner/operator/logical_intersect.h"
 #include "neug/compiler/planner/operator/logical_plan.h"
 #include "neug/compiler/planner/planner.h"
+#include "neug/utils/exception/exception.h"
 
 using namespace gs::common;
 using namespace gs::binder;

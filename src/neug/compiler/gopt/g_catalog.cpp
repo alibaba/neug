@@ -21,10 +21,10 @@
 #include <boost/algorithm/string.hpp>
 #include <string>
 #include "neug/compiler/common/constants.h"
-#include "neug/compiler/common/exception/runtime.h"
 #include "neug/compiler/common/string_format.h"
 #include "neug/compiler/gopt/g_constants.h"
 #include "neug/compiler/transaction/transaction.h"
+#include "neug/utils/exception/runtime.h"
 
 namespace gs {
 namespace catalog {

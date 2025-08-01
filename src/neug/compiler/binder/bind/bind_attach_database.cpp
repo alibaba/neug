@@ -1,9 +1,9 @@
 #include "neug/compiler/binder/binder.h"
 #include "neug/compiler/binder/bound_attach_database.h"
-#include "neug/compiler/common/exception/binder.h"
 #include "neug/compiler/common/string_utils.h"
 #include "neug/compiler/parser/attach_database.h"
 #include "neug/compiler/parser/expression/parsed_literal_expression.h"
+#include "neug/utils/exception/binder.h"
 
 namespace gs {
 namespace binder {

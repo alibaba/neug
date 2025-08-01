@@ -1,12 +1,12 @@
 #include "neug/compiler/catalog/catalog_entry/sequence_catalog_entry.h"
 
 #include "neug/compiler/binder/ddl/bound_create_sequence_info.h"
-#include "neug/compiler/common/exception/catalog.h"
-#include "neug/compiler/common/exception/overflow.h"
 #include "neug/compiler/common/serializer/deserializer.h"
 #include "neug/compiler/common/vector/value_vector.h"
 #include "neug/compiler/function/arithmetic/add.h"
 #include "neug/compiler/transaction/transaction.h"
+#include "neug/utils/exception/catalog.h"
+#include "neug/utils/exception/overflow.h"
 
 using namespace gs::binder;
 using namespace gs::common;

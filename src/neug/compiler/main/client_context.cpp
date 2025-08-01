@@ -3,9 +3,6 @@
 #include <fstream>
 
 #include "neug/compiler/binder/binder.h"
-#include "neug/compiler/common/exception/checkpoint.h"
-#include "neug/compiler/common/exception/connection.h"
-#include "neug/compiler/common/exception/runtime.h"
 #include "neug/compiler/common/random_engine.h"
 #include "neug/compiler/common/string_utils.h"
 #include "neug/compiler/common/task_system/progress_bar.h"
@@ -25,6 +22,9 @@
 #include "neug/compiler/planner/planner.h"
 #include "neug/compiler/storage/storage_manager.h"
 #include "neug/compiler/transaction/transaction_context.h"
+#include "neug/utils/exception/checkpoint.h"
+#include "neug/utils/exception/connection.h"
+#include "neug/utils/exception/runtime.h"
 
 #if defined(_WIN32)
 #include "neug/compiler/common/windows_utils.h"

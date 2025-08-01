@@ -4,11 +4,11 @@
 #include "neug/compiler/binder/bound_statement_rewriter.h"
 #include "neug/compiler/binder/expression/expression.h"
 #include "neug/compiler/common/constants.h"
-#include "neug/compiler/common/exception/binder.h"
 #include "neug/compiler/common/string_utils.h"
 #include "neug/compiler/function/table/bind_data.h"
 #include "neug/compiler/function/table/bind_input.h"
 #include "neug/compiler/function/table/scan_file_function.h"
+#include "neug/utils/exception/binder.h"
 
 using namespace gs::catalog;
 using namespace gs::common;

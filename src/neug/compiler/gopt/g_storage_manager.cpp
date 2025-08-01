@@ -20,12 +20,12 @@
 #include "neug/compiler/catalog/catalog_entry/rel_group_catalog_entry.h"
 #include "neug/compiler/catalog/catalog_entry/rel_table_catalog_entry.h"
 #include "neug/compiler/catalog/catalog_entry/table_catalog_entry.h"
-#include "neug/compiler/common/exception/exception.h"
 #include "neug/compiler/common/types/types.h"
 #include "neug/compiler/gopt/g_constants.h"
 #include "neug/compiler/gopt/g_node_table.h"
 #include "neug/compiler/gopt/g_rel_table.h"
 #include "neug/compiler/main/database.h"
+#include "neug/utils/exception/exception.h"
 
 namespace gs {
 namespace storage {

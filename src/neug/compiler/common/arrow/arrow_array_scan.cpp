@@ -1,8 +1,8 @@
 #include "neug/compiler/common/arrow/arrow_converter.h"
-#include "neug/compiler/common/exception/runtime.h"
 #include "neug/compiler/common/types/interval_t.h"
 #include "neug/compiler/common/types/types.h"
 #include "neug/compiler/common/vector/value_vector.h"
+#include "neug/utils/exception/runtime.h"
 
 namespace gs {
 namespace common {

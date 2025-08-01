@@ -4,7 +4,7 @@
 #include <string_view>
 #include <type_traits>
 
-#include "neug/compiler/common/exception/internal.h"
+#include "neug/utils/exception/internal.h"
 
 namespace gs {
 namespace common {

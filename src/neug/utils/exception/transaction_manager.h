@@ -1,7 +1,7 @@
 #pragma once
 
-#include "exception.h"
 #include "neug/compiler/common/api.h"
+#include "neug/utils/exception/exception.h"
 
 namespace gs {
 namespace common {

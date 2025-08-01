@@ -2,12 +2,12 @@
 
 #include <cmath>
 
-#include "neug/compiler/common/exception/overflow.h"
-#include "neug/compiler/common/exception/runtime.h"
 #include "neug/compiler/common/numeric_utils.h"
 #include "neug/compiler/common/type_utils.h"
 #include "neug/compiler/function/cast/functions/numeric_limits.h"
 #include "neug/compiler/function/hash/hash_functions.h"
+#include "neug/utils/exception/overflow.h"
+#include "neug/utils/exception/runtime.h"
 
 namespace gs::common {
 

@@ -1,10 +1,10 @@
 #include "neug/compiler/optimizer/limit_push_down_optimizer.h"
 
-#include "neug/compiler/common/exception/runtime.h"
 #include "neug/compiler/planner/operator/extend/logical_recursive_extend.h"
 #include "neug/compiler/planner/operator/logical_distinct.h"
 #include "neug/compiler/planner/operator/logical_hash_join.h"
 #include "neug/compiler/planner/operator/logical_limit.h"
+#include "neug/utils/exception/runtime.h"
 
 using namespace gs::binder;
 using namespace gs::common;

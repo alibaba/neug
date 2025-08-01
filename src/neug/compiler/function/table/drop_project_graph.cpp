@@ -1,7 +1,7 @@
-#include "neug/compiler/common/exception/runtime.h"
 #include "neug/compiler/function/table/bind_data.h"
 #include "neug/compiler/function/table/standalone_call_function.h"
 #include "neug/compiler/graph/graph_entry.h"
+#include "neug/utils/exception/runtime.h"
 
 using namespace gs::common;
 

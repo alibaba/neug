@@ -1,7 +1,7 @@
 #include "neug/compiler/main/database_manager.h"
 
-#include "neug/compiler/common/exception/runtime.h"
 #include "neug/compiler/common/string_utils.h"
+#include "neug/utils/exception/runtime.h"
 
 using namespace gs::common;
 

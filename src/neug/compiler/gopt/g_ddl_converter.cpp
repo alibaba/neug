@@ -19,7 +19,6 @@
 #include "neug/compiler/catalog/catalog_entry/catalog_entry_type.h"
 #include "neug/compiler/catalog/catalog_entry/table_catalog_entry.h"
 #include "neug/compiler/common/enums/alter_type.h"
-#include "neug/compiler/common/exception/exception.h"
 #include "neug/compiler/gopt/g_catalog.h"
 #include "neug/compiler/gopt/g_constants.h"
 #include "neug/compiler/gopt/g_query_converter.h"
@@ -27,6 +26,7 @@
 #include "neug/compiler/planner/operator/logical_plan.h"
 #include "neug/proto_generated_gie/common.pb.h"
 #include "neug/proto_generated_gie/cypher_ddl.pb.h"
+#include "neug/utils/exception/exception.h"
 
 #include <memory>
 #include <stdexcept>

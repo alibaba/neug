@@ -3,11 +3,11 @@
 #include "neug/compiler/catalog/catalog_entry/node_table_catalog_entry.h"
 #include "neug/compiler/catalog/catalog_entry/rel_group_catalog_entry.h"
 #include "neug/compiler/catalog/catalog_entry/rel_table_catalog_entry.h"
-#include "neug/compiler/common/exception/binder.h"
 #include "neug/compiler/function/table/bind_data.h"
 #include "neug/compiler/function/table/bind_input.h"
 #include "neug/compiler/function/table/simple_table_function.h"
 #include "neug/compiler/main/client_context.h"
+#include "neug/utils/exception/binder.h"
 
 using namespace gs::catalog;
 using namespace gs::common;

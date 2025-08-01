@@ -7,7 +7,6 @@
 #include "neug/compiler/catalog/catalog_entry/node_table_catalog_entry.h"
 #include "neug/compiler/catalog/catalog_entry/rel_group_catalog_entry.h"
 #include "neug/compiler/catalog/catalog_entry/rel_table_catalog_entry.h"
-#include "neug/compiler/common/exception/binder.h"
 #include "neug/compiler/common/string_format.h"
 #include "neug/compiler/common/utils.h"
 #include "neug/compiler/function/cast/functions/cast_from_string_functions.h"
@@ -15,6 +14,7 @@
 #include "neug/compiler/function/rewrite_function.h"
 #include "neug/compiler/function/schema/vector_node_rel_functions.h"
 #include "neug/compiler/main/client_context.h"
+#include "neug/utils/exception/binder.h"
 
 using namespace gs::common;
 using namespace gs::parser;

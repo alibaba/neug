@@ -1,7 +1,6 @@
 #include <concepts>
 #include "neug/compiler/binder/binder.h"
 #include "neug/compiler/common/data_chunk/data_chunk_collection.h"
-#include "neug/compiler/common/exception/binder.h"
 #include "neug/compiler/common/type_utils.h"
 #include "neug/compiler/common/types/interval_t.h"
 #include "neug/compiler/common/types/ku_string.h"
@@ -12,6 +11,7 @@
 #include "neug/compiler/storage/storage_manager.h"
 #include "neug/compiler/storage/store/node_table.h"
 #include "neug/compiler/storage/store/rel_table.h"
+#include "neug/utils/exception/binder.h"
 
 using namespace gs::common;
 using namespace gs::catalog;

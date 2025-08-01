@@ -1,10 +1,10 @@
 #include "neug/compiler/binder/binder.h"
 #include "neug/compiler/catalog/catalog_entry/table_catalog_entry.h"
-#include "neug/compiler/common/exception/binder.h"
 #include "neug/compiler/function/table/bind_data.h"
 #include "neug/compiler/function/table/simple_table_function.h"
 #include "neug/compiler/storage/storage_manager.h"
 #include "neug/compiler/storage/store/node_table.h"
+#include "neug/utils/exception/binder.h"
 
 using namespace gs::catalog;
 using namespace gs::common;

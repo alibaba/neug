@@ -1,7 +1,7 @@
-#include "neug/compiler/common/exception/runtime.h"
 #include "neug/compiler/common/type_utils.h"
 #include "neug/compiler/function/list/vector_list_functions.h"
 #include "neug/compiler/function/scalar_function.h"
+#include "neug/utils/exception/runtime.h"
 
 using namespace gs::common;
 

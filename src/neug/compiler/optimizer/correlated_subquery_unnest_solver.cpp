@@ -1,8 +1,8 @@
 #include "neug/compiler/optimizer/correlated_subquery_unnest_solver.h"
 
-#include "neug/compiler/common/exception/internal.h"
 #include "neug/compiler/planner/operator/logical_hash_join.h"
 #include "neug/compiler/planner/operator/scan/logical_expressions_scan.h"
+#include "neug/utils/exception/internal.h"
 
 using namespace gs::planner;
 

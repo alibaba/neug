@@ -3,7 +3,6 @@
 #include "neug/compiler/binder/expression/expression.h"
 #include "neug/compiler/binder/expression/node_expression.h"
 #include "neug/compiler/catalog/catalog.h"
-#include "neug/compiler/common/exception/exception.h"
 #include "neug/compiler/common/types/types.h"
 #include "neug/compiler/gopt/g_alias_manager.h"
 #include "neug/compiler/gopt/g_graph_type.h"
@@ -11,6 +10,7 @@
 #include "neug/compiler/gopt/g_type_utils.h"
 #include "neug/compiler/planner/operator/logical_operator.h"
 #include "neug/compiler/planner/operator/logical_plan.h"
+#include "neug/utils/exception/exception.h"
 
 #pragma once
 namespace gs {

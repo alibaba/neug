@@ -1,6 +1,6 @@
 #include "neug/compiler/binder/expression_evaluator.h"
 
-#include "neug/compiler/common/exception/runtime.h"
+#include "neug/utils/exception/runtime.h"
 
 using namespace gs::common;
 

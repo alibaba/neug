@@ -1,7 +1,7 @@
 #include "neug/compiler/common/types/value/nested.h"
 
-#include "neug/compiler/common/exception/runtime.h"
 #include "neug/compiler/common/types/value/value.h"
+#include "neug/utils/exception/runtime.h"
 
 namespace gs {
 namespace common {

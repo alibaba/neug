@@ -31,7 +31,6 @@
 #include "neug/compiler/common/constants.h"
 #include "neug/compiler/common/enums/expression_type.h"
 #include "neug/compiler/common/enums/table_type.h"
-#include "neug/compiler/common/exception/exception.h"
 #include "neug/compiler/common/types/types.h"
 #include "neug/compiler/function/export/export_function.h"
 #include "neug/compiler/gopt/g_alias_manager.h"
@@ -53,6 +52,7 @@
 #include "neug/proto_generated_gie/expr.pb.h"
 #include "neug/proto_generated_gie/physical.pb.h"
 #include "planner/operator/logical_hash_join.h"
+#include "neug/utils/exception/exception.h"
 
 namespace gs {
 namespace gopt {

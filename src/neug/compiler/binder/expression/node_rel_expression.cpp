@@ -1,7 +1,7 @@
 #include "neug/compiler/binder/expression/node_rel_expression.h"
 
 #include "neug/compiler/catalog/catalog_entry/table_catalog_entry.h"
-#include "neug/compiler/common/exception/runtime.h"
+#include "neug/utils/exception/runtime.h"
 
 using namespace gs::catalog;
 using namespace gs::common;

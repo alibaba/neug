@@ -4,13 +4,13 @@
 #include "neug/compiler/catalog/catalog_entry/index_catalog_entry.h"
 #include "neug/compiler/catalog/catalog_entry/node_table_catalog_entry.h"
 #include "neug/compiler/catalog/catalog_entry/rel_table_catalog_entry.h"
-#include "neug/compiler/common/exception/binder.h"
 #include "neug/compiler/common/file_system/virtual_file_system.h"
 #include "neug/compiler/common/string_utils.h"
 #include "neug/compiler/main/client_context.h"
 #include "neug/compiler/parser/parser.h"
 #include "neug/compiler/parser/port_db.h"
 #include "neug/compiler/parser/query/regular_query.h"
+#include "neug/utils/exception/binder.h"
 
 using namespace gs::binder;
 using namespace gs::common;

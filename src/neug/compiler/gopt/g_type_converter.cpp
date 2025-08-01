@@ -21,7 +21,6 @@
 #include "neug/compiler/binder/expression/rel_expression.h"
 #include "neug/compiler/catalog/catalog_entry/node_table_catalog_entry.h"
 #include "neug/compiler/common/cast.h"
-#include "neug/compiler/common/exception/exception.h"
 #include "neug/compiler/common/types/types.h"
 #include "neug/compiler/gopt/g_constants.h"
 #include "neug/compiler/gopt/g_graph_type.h"
@@ -29,6 +28,7 @@
 #include "neug/proto_generated_gie/basic_type.pb.h"
 #include "neug/proto_generated_gie/common.pb.h"
 #include "neug/proto_generated_gie/type.pb.h"
+#include "neug/utils/exception/exception.h"
 
 namespace gs {
 namespace gopt {

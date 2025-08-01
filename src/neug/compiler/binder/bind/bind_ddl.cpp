@@ -11,8 +11,6 @@
 #include "neug/compiler/catalog/catalog_entry/rel_table_catalog_entry.h"
 #include "neug/compiler/catalog/catalog_entry/sequence_catalog_entry.h"
 #include "neug/compiler/common/enums/extend_direction_util.h"
-#include "neug/compiler/common/exception/binder.h"
-#include "neug/compiler/common/exception/message.h"
 #include "neug/compiler/common/string_format.h"
 #include "neug/compiler/common/system_config.h"
 #include "neug/compiler/common/types/types.h"
@@ -27,6 +25,8 @@
 #include "neug/compiler/parser/ddl/drop.h"
 #include "neug/compiler/parser/expression/parsed_function_expression.h"
 #include "neug/compiler/parser/expression/parsed_literal_expression.h"
+#include "neug/utils/exception/binder.h"
+#include "neug/utils/exception/message.h"
 
 using namespace gs::common;
 using namespace gs::parser;

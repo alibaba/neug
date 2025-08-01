@@ -1,9 +1,9 @@
 #include "neug/compiler/planner/operator/logical_limit.h"
 
 #include "neug/compiler/binder/expression/expression_util.h"
-#include "neug/compiler/common/exception/runtime.h"
 #include "neug/compiler/common/type_utils.h"
 #include "neug/compiler/planner/operator/factorization/flatten_resolver.h"
+#include "neug/utils/exception/runtime.h"
 
 namespace gs {
 namespace planner {

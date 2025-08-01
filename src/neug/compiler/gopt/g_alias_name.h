@@ -17,7 +17,7 @@
 
 #include <optional>
 #include <string>
-#include "neug/compiler/common/exception/exception.h"
+#include "neug/utils/exception/exception.h"
 
 namespace gs {
 namespace gopt {

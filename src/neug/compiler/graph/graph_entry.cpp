@@ -1,6 +1,6 @@
 #include "neug/compiler/graph/graph_entry.h"
 
-#include "neug/compiler/common/exception/runtime.h"
+#include "neug/utils/exception/runtime.h"
 
 using namespace gs::planner;
 using namespace gs::binder;

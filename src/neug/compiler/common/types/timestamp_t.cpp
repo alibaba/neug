@@ -2,8 +2,8 @@
 
 #include <chrono>
 
-#include "neug/compiler/common/exception/conversion.h"
 #include "neug/compiler/function/arithmetic/multiply.h"
+#include "neug/utils/exception/conversion.h"
 
 namespace gs {
 namespace common {

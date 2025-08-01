@@ -15,7 +15,7 @@
 
 #include "neug/compiler/planner/operator/logical_get_v.h"
 #include "neug/compiler/common/constants.h"
-#include "neug/compiler/common/exception/exception.h"
+#include "neug/utils/exception/exception.h"
 
 namespace gs {
 namespace planner {

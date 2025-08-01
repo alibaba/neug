@@ -3,8 +3,8 @@
 #include "neug/compiler/catalog/catalog_entry/rel_table_catalog_entry.h"
 #include "neug/compiler/catalog/catalog_entry/table_catalog_entry.h"
 #include "neug/compiler/common/enums/extend_direction_util.h"
-#include "neug/compiler/common/exception/binder.h"
 #include "neug/compiler/common/utils.h"
+#include "neug/utils/exception/binder.h"
 
 using namespace gs::common;
 

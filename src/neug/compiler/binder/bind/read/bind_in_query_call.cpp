@@ -1,10 +1,10 @@
 #include "neug/compiler/binder/binder.h"
 #include "neug/compiler/binder/query/reading_clause/bound_table_function_call.h"
 #include "neug/compiler/catalog/catalog.h"
-#include "neug/compiler/common/exception/binder.h"
 #include "neug/compiler/main/client_context.h"
 #include "neug/compiler/parser/expression/parsed_function_expression.h"
 #include "neug/compiler/parser/query/reading_clause/in_query_call_clause.h"
+#include "neug/utils/exception/binder.h"
 
 using namespace gs::common;
 using namespace gs::catalog;

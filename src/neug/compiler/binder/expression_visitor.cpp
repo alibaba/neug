@@ -7,11 +7,11 @@
 #include "neug/compiler/binder/expression/rel_expression.h"
 #include "neug/compiler/binder/expression/scalar_function_expression.h"
 #include "neug/compiler/binder/expression/subquery_expression.h"
-#include "neug/compiler/common/exception/not_implemented.h"
 #include "neug/compiler/function/cast/vector_cast_functions.h"
 #include "neug/compiler/function/date/vector_date_functions.h"
 #include "neug/compiler/function/sequence/sequence_functions.h"
 #include "neug/compiler/function/uuid/vector_uuid_functions.h"
+#include "neug/utils/exception/not_implemented.h"
 
 using namespace gs::common;
 

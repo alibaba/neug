@@ -1,7 +1,7 @@
 #include "neug/compiler/binder/expression/expression_util.h"
-#include "neug/compiler/common/exception/binder.h"
 #include "neug/compiler/function/string/functions/base_regexp_function.h"
 #include "neug/compiler/function/string/vector_string_functions.h"
+#include "neug/utils/exception/binder.h"
 #include "re2.h"
 
 namespace gs {

@@ -29,7 +29,6 @@
 #include "neug/compiler/binder/expression/scalar_function_expression.h"
 #include "neug/compiler/binder/expression/variable_expression.h"
 #include "neug/compiler/common/enums/expression_type.h"
-#include "neug/compiler/common/exception/exception.h"
 #include "neug/compiler/common/string_utils.h"
 #include "neug/compiler/common/types/int128_t.h"
 #include "neug/compiler/common/types/types.h"
@@ -40,6 +39,7 @@
 #include "neug/proto_generated_gie/common.pb.h"
 #include "neug/proto_generated_gie/expr.pb.h"
 #include "neug/proto_generated_gie/physical.pb.h"
+#include "neug/utils/exception/exception.h"
 
 namespace gs {
 namespace gopt {

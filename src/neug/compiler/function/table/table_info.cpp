@@ -4,13 +4,13 @@
 #include "neug/compiler/catalog/catalog_entry/rel_group_catalog_entry.h"
 #include "neug/compiler/catalog/catalog_entry/rel_table_catalog_entry.h"
 #include "neug/compiler/common/enums/extend_direction_util.h"
-#include "neug/compiler/common/exception/catalog.h"
 #include "neug/compiler/common/string_utils.h"
 #include "neug/compiler/function/table/bind_data.h"
 #include "neug/compiler/function/table/bind_input.h"
 #include "neug/compiler/function/table/simple_table_function.h"
 #include "neug/compiler/main/client_context.h"
 #include "neug/compiler/main/database_manager.h"
+#include "neug/utils/exception/catalog.h"
 
 using namespace gs::catalog;
 using namespace gs::common;

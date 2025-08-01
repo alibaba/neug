@@ -3,13 +3,13 @@
 #include "neug/compiler/binder/binder.h"
 #include "neug/compiler/binder/query/reading_clause/bound_table_function_call.h"
 #include "neug/compiler/catalog/catalog_entry/rel_group_catalog_entry.h"
-#include "neug/compiler/common/exception/binder.h"
 #include "neug/compiler/graph/on_disk_graph.h"
 #include "neug/compiler/main/client_context.h"
 #include "neug/compiler/parser/parser.h"
 #include "neug/compiler/planner/operator/logical_table_function_call.h"
 #include "neug/compiler/planner/operator/sip/logical_semi_masker.h"
 #include "neug/compiler/planner/planner.h"
+#include "neug/utils/exception/binder.h"
 
 using namespace gs::catalog;
 using namespace gs::common;

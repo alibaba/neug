@@ -1,11 +1,11 @@
 #include "neug/compiler/main/attached_database.h"
 
-#include "neug/compiler/common/exception/runtime.h"
 #include "neug/compiler/common/types/types.h"
 #include "neug/compiler/main/client_context.h"
 #include "neug/compiler/main/db_config.h"
 #include "neug/compiler/storage/storage_manager.h"
 #include "neug/compiler/transaction/transaction_manager.h"
+#include "neug/utils/exception/runtime.h"
 
 namespace gs {
 namespace main {

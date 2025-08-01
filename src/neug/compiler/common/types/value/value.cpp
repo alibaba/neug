@@ -2,7 +2,6 @@
 
 #include <utility>
 
-#include "neug/compiler/common/exception/binder.h"
 #include "neug/compiler/common/null_buffer.h"
 #include "neug/compiler/common/serializer/deserializer.h"
 #include "neug/compiler/common/serializer/serializer.h"
@@ -12,6 +11,7 @@
 #include "neug/compiler/common/types/uuid.h"
 #include "neug/compiler/common/vector/value_vector.h"
 #include "neug/compiler/function/hash/hash_functions.h"
+#include "neug/utils/exception/binder.h"
 
 namespace gs {
 namespace common {

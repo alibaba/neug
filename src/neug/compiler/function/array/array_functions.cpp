@@ -1,5 +1,4 @@
 #include "neug/compiler/binder/expression/literal_expression.h"
-#include "neug/compiler/common/exception/binder.h"
 #include "neug/compiler/function/array/functions/array_cosine_similarity.h"
 #include "neug/compiler/function/array/functions/array_cross_product.h"
 #include "neug/compiler/function/array/functions/array_distance.h"
@@ -7,6 +6,7 @@
 #include "neug/compiler/function/array/functions/array_squared_distance.h"
 #include "neug/compiler/function/array/vector_array_functions.h"
 #include "neug/compiler/function/scalar_function.h"
+#include "neug/utils/exception/binder.h"
 
 using namespace gs::common;
 

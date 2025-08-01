@@ -1,4 +1,4 @@
-#include "neug/compiler/common/exception/exception.h"
+#include "neug/utils/exception/exception.h"
 
 #ifdef NEUG_BACKTRACE
 #include <cpptrace/cpptrace.hpp>

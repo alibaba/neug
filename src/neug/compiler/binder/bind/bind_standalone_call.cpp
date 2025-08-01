@@ -3,10 +3,10 @@
 #include "neug/compiler/binder/expression/expression_util.h"
 #include "neug/compiler/binder/expression_visitor.h"
 #include "neug/compiler/common/cast.h"
-#include "neug/compiler/common/exception/binder.h"
 #include "neug/compiler/main/client_context.h"
 #include "neug/compiler/main/db_config.h"
 #include "neug/compiler/parser/standalone_call.h"
+#include "neug/utils/exception/binder.h"
 
 using namespace gs::common;
 

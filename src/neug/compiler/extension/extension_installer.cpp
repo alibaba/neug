@@ -1,9 +1,9 @@
 #include "neug/compiler/extension/extension_installer.h"
 
 #include "httplib.h"
-#include "neug/compiler/common/exception/io.h"
 #include "neug/compiler/common/file_system/virtual_file_system.h"
 #include "neug/compiler/main/client_context.h"
+#include "neug/utils/exception/io.h"
 
 namespace gs {
 namespace extension {

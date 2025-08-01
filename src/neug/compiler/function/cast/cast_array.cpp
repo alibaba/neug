@@ -1,7 +1,7 @@
 #include "neug/compiler/function/cast/functions/cast_array.h"
 
-#include "neug/compiler/common/exception/conversion.h"
 #include "neug/compiler/common/type_utils.h"
+#include "neug/utils/exception/conversion.h"
 
 namespace gs {
 namespace function {

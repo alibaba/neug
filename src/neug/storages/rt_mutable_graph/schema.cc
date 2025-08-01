@@ -34,7 +34,6 @@
 #include "libgrape-lite/grape/io/local_io_adaptor.h"        // for LocalIOAd...
 #include "libgrape-lite/grape/serialization/in_archive.h"   // for operator<<
 #include "libgrape-lite/grape/serialization/out_archive.h"  // for operator>>
-#include "neug/utils/exception.h"                           // for LOG_FATAL_IF
 #include "neug/utils/id_indexer.h"                          // for IdIndexer
 #include "neug/utils/property/types.h"                      // for PropertyType
 #include "neug/utils/result.h"                              // for Status

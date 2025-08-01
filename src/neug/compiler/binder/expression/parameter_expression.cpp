@@ -1,6 +1,6 @@
 #include "neug/compiler/binder/expression/parameter_expression.h"
 
-#include "neug/compiler/common/exception/binder.h"
+#include "neug/utils/exception/binder.h"
 
 namespace gs {
 using namespace common;

@@ -2,11 +2,11 @@
 
 #include "neug/compiler/catalog/catalog.h"
 #include "neug/compiler/catalog/catalog_entry/function_catalog_entry.h"
-#include "neug/compiler/common/exception/not_implemented.h"
 #include "neug/compiler/main/client_context.h"
 #include "neug/compiler/parser/expression/parsed_case_expression.h"
 #include "neug/compiler/parser/expression/parsed_function_expression.h"
 #include "neug/compiler/parser/expression/parsed_lambda_expression.h"
+#include "neug/utils/exception/not_implemented.h"
 
 using namespace gs::common;
 using namespace gs::catalog;

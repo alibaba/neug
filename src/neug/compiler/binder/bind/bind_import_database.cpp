@@ -1,12 +1,12 @@
 #include "neug/compiler/binder/binder.h"
 #include "neug/compiler/binder/bound_import_database.h"
 #include "neug/compiler/common/copier_config/csv_reader_config.h"
-#include "neug/compiler/common/exception/binder.h"
 #include "neug/compiler/common/file_system/virtual_file_system.h"
 #include "neug/compiler/main/client_context.h"
 #include "neug/compiler/parser/copy.h"
 #include "neug/compiler/parser/parser.h"
 #include "neug/compiler/parser/port_db.h"
+#include "neug/utils/exception/binder.h"
 
 using namespace gs::common;
 using namespace gs::parser;

@@ -1,9 +1,6 @@
 #include "neug/compiler/binder/binder.h"
 #include "neug/compiler/binder/bound_scan_source.h"
 #include "neug/compiler/binder/expression/literal_expression.h"
-#include "neug/compiler/common/exception/binder.h"
-#include "neug/compiler/common/exception/copy.h"
-#include "neug/compiler/common/exception/message.h"
 #include "neug/compiler/common/file_system/local_file_system.h"
 #include "neug/compiler/common/file_system/virtual_file_system.h"
 #include "neug/compiler/common/string_format.h"
@@ -13,6 +10,9 @@
 #include "neug/compiler/main/database_manager.h"
 #include "neug/compiler/parser/expression/parsed_function_expression.h"
 #include "neug/compiler/parser/scan_source.h"
+#include "neug/utils/exception/binder.h"
+#include "neug/utils/exception/copy.h"
+#include "neug/utils/exception/message.h"
 
 using namespace gs::parser;
 using namespace gs::binder;

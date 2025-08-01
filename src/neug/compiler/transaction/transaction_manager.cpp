@@ -2,11 +2,11 @@
 
 #include <thread>
 
-#include "neug/compiler/common/exception/checkpoint.h"
-#include "neug/compiler/common/exception/transaction_manager.h"
 #include "neug/compiler/main/client_context.h"
 #include "neug/compiler/main/db_config.h"
 #include "neug/compiler/storage/storage_manager.h"
+#include "neug/utils/exception/checkpoint.h"
+#include "neug/utils/exception/transaction_manager.h"
 
 using namespace gs::common;
 using namespace gs::storage;

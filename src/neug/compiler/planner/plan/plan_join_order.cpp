@@ -3,7 +3,6 @@
 #include <iterator>
 #include <memory>
 
-#include "common/exception/exception.h"
 #include "neug/compiler/binder/expression_visitor.h"
 #include "neug/compiler/common/enums/join_type.h"
 #include "neug/compiler/common/enums/rel_direction.h"
@@ -24,6 +23,7 @@
 #include "neug/compiler/planner/operator/logical_plan.h"
 #include "neug/compiler/planner/operator/scan/logical_scan_node_table.h"
 #include "neug/compiler/planner/planner.h"
+#include "neug/utils/exception/exception.h"
 
 using namespace gs::binder;
 using namespace gs::common;

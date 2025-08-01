@@ -3,9 +3,9 @@
 #include <cstring>
 
 #include "neug/compiler/common/assert.h"
-#include "neug/compiler/common/exception/runtime.h"
 #include "neug/compiler/common/file_system/file_info.h"
 #include "neug/compiler/common/system_config.h"
+#include "neug/utils/exception/runtime.h"
 
 namespace gs {
 namespace common {

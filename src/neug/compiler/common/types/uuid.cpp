@@ -1,7 +1,7 @@
 #include "neug/compiler/common/types/uuid.h"
 
-#include "neug/compiler/common/exception/conversion.h"
 #include "neug/compiler/common/random_engine.h"
+#include "neug/utils/exception/conversion.h"
 #include "re2.h"
 
 namespace gs {

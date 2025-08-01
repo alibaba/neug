@@ -7,10 +7,10 @@
 #include "neug/compiler/catalog/catalog_entry/rel_group_catalog_entry.h"
 #include "neug/compiler/catalog/catalog_entry/table_catalog_entry.h"
 #include "neug/compiler/common/assert.h"
-#include "neug/compiler/common/exception/catalog.h"
 #include "neug/compiler/common/serializer/deserializer.h"
 #include "neug/compiler/common/string_format.h"
 #include "neug/compiler/transaction/transaction.h"
+#include "neug/utils/exception/catalog.h"
 
 using namespace gs::common;
 using namespace gs::transaction;

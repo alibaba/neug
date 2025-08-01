@@ -1,7 +1,5 @@
 #include "neug/compiler/function/arithmetic/vector_arithmetic_functions.h"
 
-#include "neug/compiler/common/exception/overflow.h"
-#include "neug/compiler/common/exception/runtime.h"
 #include "neug/compiler/common/type_utils.h"
 #include "neug/compiler/common/types/date_t.h"
 #include "neug/compiler/common/types/int128_t.h"
@@ -20,6 +18,8 @@
 #include "neug/compiler/function/list/vector_list_functions.h"
 #include "neug/compiler/function/scalar_function.h"
 #include "neug/compiler/function/string/vector_string_functions.h"
+#include "neug/utils/exception/overflow.h"
+#include "neug/utils/exception/runtime.h"
 
 using namespace gs::common;
 using std::max;

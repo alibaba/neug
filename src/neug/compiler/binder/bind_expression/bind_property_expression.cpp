@@ -4,10 +4,10 @@
 #include "neug/compiler/binder/expression/property_expression.h"
 #include "neug/compiler/binder/expression_binder.h"
 #include "neug/compiler/common/cast.h"
-#include "neug/compiler/common/exception/binder.h"
 #include "neug/compiler/common/string_format.h"
 #include "neug/compiler/function/struct/vector_struct_functions.h"
 #include "neug/compiler/parser/expression/parsed_property_expression.h"
+#include "neug/utils/exception/binder.h"
 
 using namespace gs::common;
 using namespace gs::parser;

@@ -5,13 +5,13 @@
 #include "neug/compiler/binder/expression/parameter_expression.h"
 #include "neug/compiler/binder/expression_evaluator_utils.h"
 #include "neug/compiler/binder/expression_visitor.h"
-#include "neug/compiler/common/exception/binder.h"
-#include "neug/compiler/common/exception/not_implemented.h"
 #include "neug/compiler/common/string_format.h"
 #include "neug/compiler/function/cast/vector_cast_functions.h"
 #include "neug/compiler/main/client_context.h"
 #include "neug/compiler/parser/expression/parsed_expression_visitor.h"
 #include "neug/compiler/parser/expression/parsed_parameter_expression.h"
+#include "neug/utils/exception/binder.h"
+#include "neug/utils/exception/not_implemented.h"
 
 using namespace gs::common;
 using namespace gs::function;

@@ -4,9 +4,9 @@
 #include "neug/compiler/binder/expression_visitor.h"
 #include "neug/compiler/binder/query/return_with_clause/bound_return_clause.h"
 #include "neug/compiler/binder/query/return_with_clause/bound_with_clause.h"
-#include "neug/compiler/common/exception/binder.h"
 #include "neug/compiler/parser/expression/parsed_property_expression.h"
 #include "neug/compiler/parser/query/return_with_clause/with_clause.h"
+#include "neug/utils/exception/binder.h"
 
 using namespace gs::common;
 using namespace gs::parser;

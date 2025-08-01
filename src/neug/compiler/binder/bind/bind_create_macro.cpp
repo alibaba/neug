@@ -1,11 +1,11 @@
 #include "neug/compiler/binder/binder.h"
 #include "neug/compiler/binder/bound_create_macro.h"
 #include "neug/compiler/catalog/catalog.h"
-#include "neug/compiler/common/exception/binder.h"
 #include "neug/compiler/common/string_format.h"
 #include "neug/compiler/common/string_utils.h"
 #include "neug/compiler/main/client_context.h"
 #include "neug/compiler/parser/create_macro.h"
+#include "neug/utils/exception/binder.h"
 
 using namespace gs::common;
 using namespace gs::parser;

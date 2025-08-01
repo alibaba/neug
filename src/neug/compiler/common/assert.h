@@ -1,7 +1,7 @@
 #pragma once
 
-#include "neug/compiler/common/exception/internal.h"
 #include "neug/compiler/common/string_format.h"
+#include "neug/utils/exception/internal.h"
 
 namespace gs {
 namespace common {

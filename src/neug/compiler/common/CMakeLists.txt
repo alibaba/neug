@@ -1,7 +1,6 @@
 add_subdirectory(copier_config)
 add_subdirectory(data_chunk)
 add_subdirectory(enums)
-add_subdirectory(exception)
 add_subdirectory(serializer)
 add_subdirectory(signal)
 add_subdirectory(task_system)

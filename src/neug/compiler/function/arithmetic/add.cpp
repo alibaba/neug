@@ -1,9 +1,9 @@
 #include "neug/compiler/function/arithmetic/add.h"
 
-#include "neug/compiler/common/exception/overflow.h"
 #include "neug/compiler/common/string_format.h"
 #include "neug/compiler/common/type_utils.h"
 #include "neug/compiler/function/cast/functions/numeric_limits.h"
+#include "neug/utils/exception/overflow.h"
 
 namespace gs {
 namespace function {

@@ -19,7 +19,6 @@
 #include <string>
 #include <unordered_map>
 #include <unordered_set>
-#include "neug/compiler/common/exception/exception.h"
 #include "neug/compiler/common/types/types.h"
 #include "neug/compiler/planner/operator/extend/logical_extend.h"
 #include "neug/compiler/planner/operator/extend/logical_recursive_extend.h"
@@ -29,6 +28,7 @@
 #include "neug/compiler/planner/operator/logical_plan.h"
 #include "neug/compiler/planner/operator/persistent/logical_insert.h"
 #include "neug/compiler/planner/operator/scan/logical_scan_node_table.h"
+#include "neug/utils/exception/exception.h"
 
 namespace gs {
 namespace gopt {

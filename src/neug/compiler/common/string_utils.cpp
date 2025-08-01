@@ -3,8 +3,8 @@
 #include <sstream>
 #include <vector>
 
-#include "neug/compiler/common/exception/runtime.h"
 #include "neug/compiler/function/string/functions/base_lower_upper_function.h"
+#include "neug/utils/exception/runtime.h"
 #include "utf8proc_wrapper.h"
 
 namespace gs {

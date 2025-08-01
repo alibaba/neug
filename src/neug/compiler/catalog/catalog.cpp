@@ -10,8 +10,6 @@
 #include "neug/compiler/catalog/catalog_entry/scalar_macro_catalog_entry.h"
 #include "neug/compiler/catalog/catalog_entry/sequence_catalog_entry.h"
 #include "neug/compiler/catalog/catalog_entry/type_catalog_entry.h"
-#include "neug/compiler/common/exception/catalog.h"
-#include "neug/compiler/common/exception/runtime.h"
 #include "neug/compiler/common/file_system/virtual_file_system.h"
 #include "neug/compiler/common/serializer/buffered_file.h"
 #include "neug/compiler/common/serializer/deserializer.h"
@@ -21,6 +19,8 @@
 #include "neug/compiler/function/function_collection.h"
 #include "neug/compiler/main/db_config.h"
 #include "neug/compiler/transaction/transaction.h"
+#include "neug/utils/exception/catalog.h"
+#include "neug/utils/exception/runtime.h"
 
 using namespace gs::binder;
 using namespace gs::common;

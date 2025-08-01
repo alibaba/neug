@@ -2,9 +2,9 @@
 #include "neug/compiler/binder/bound_scan_source.h"
 #include "neug/compiler/binder/expression/expression_util.h"
 #include "neug/compiler/binder/query/reading_clause/bound_load_from.h"
-#include "neug/compiler/common/exception/binder.h"
 #include "neug/compiler/parser/query/reading_clause/load_from.h"
 #include "neug/compiler/parser/scan_source.h"
+#include "neug/utils/exception/binder.h"
 
 using namespace gs::function;
 using namespace gs::common;

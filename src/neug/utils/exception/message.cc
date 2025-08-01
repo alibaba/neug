@@ -1,4 +1,4 @@
-#include "neug/compiler/common/exception/message.h"
+#include "neug/utils/exception/message.h"
 
 #include "neug/compiler/common/string_format.h"
 
