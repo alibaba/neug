@@ -82,6 +82,7 @@ endif()
 
 if (WITH_MIMALLOC)
     find_package(mimalloc 2.0 REQUIRED)
+    unset(PACKAGE_VERSION) # Unset PACKAGE_VERSION to avoid generate two PACKAGE_VERSION in config.h for libdwarf-lite.
 endif()
 
 if (BUILD_TEST)
@@ -99,7 +100,6 @@ endif()
 if (ENABLE_BACKTRACES)
     find_package(cpptrace)
     if (NOT cpptrace_FOUND)
-        message(STATUS "cpptrace not found, fetching cpptrace from github")
         include(FetchContent)
         FetchContent_Declare(
           cpptrace

@@ -20,10 +20,6 @@
 #include "neug/engines/graph_db/runtime/execute/plan_parser.h"
 #include "neug/storages/rt_mutable_graph/mutable_property_fragment.h"
 #include "neug/utils/pb_utils.h"
-#ifdef NEUG_BACKTRACE
-#include <cpptrace/cpptrace.hpp>
-#include <cpptrace/from_current.hpp>
-#endif
 
 namespace gs {
 
@@ -51,27 +47,7 @@ Result<results::CollectiveResults> QueryProcessor::execute(
           gs::Status(gs::StatusCode::ERR_INVALID_ARGUMENT,
                      "DDL queries are not supported in read-only mode"));
     }
-#ifdef NEUG_BACKTRACE
-    cpptrace::try_catch(
-        [&] {  // try block
-#endif
-          return execute_ddl(plan.ddl_plan(), num_threads);
-#ifdef NEUG_BACKTRACE
-        },
-        [&](const std::runtime_error& e) {
-          std::cerr << "Runtime error: " << e.what() << std::endl;
-          cpptrace::from_current_exception().print();
-        },
-        [&](const std::exception& e) {
-          std::cerr << "Exception: " << e.what() << std::endl;
-          cpptrace::from_current_exception().print();
-        },
-        [&]() {  // serves the same role as `catch(...)`, an any exception
-                 // handler
-          std::cerr << "Unknown exception occurred: " << std::endl;
-          cpptrace::from_current_exception().print();
-        });
-#endif
+    return execute_ddl(plan.ddl_plan(), num_threads);
   }
 
   if (!plan.has_query_plan()) {
@@ -83,93 +59,23 @@ Result<results::CollectiveResults> QueryProcessor::execute(
   auto mode = plan.query_plan().mode();
   Result<results::CollectiveResults> res;
   if (mode == physical::QueryPlan::READ_ONLY) {
-#ifdef NEUG_BACKTRACE
-    cpptrace::try_catch(
-        [&] {  // try block
-#endif
-          res = execute_read_only(plan, num_threads);
-#ifdef NEUG_BACKTRACE
-        },
-        [&](const std::runtime_error& e) {
-          std::cerr << "Runtime error: " << e.what() << std::endl;
-          cpptrace::from_current_exception().print();
-          return Status::RuntimeError("Runtime error: " +
-                                      std::string(e.what()));
-        },
-        [&](const std::exception& e) {
-          std::cerr << "Exception: " << e.what() << std::endl;
-          cpptrace::from_current_exception().print();
-          return Status::IntervalError("Exception: " + std::string(e.what()));
-        },
-        [&]() {  // serves the same role as `catch(...)`, an any exception
-                 // handler
-          std::cerr << "Unknown exception occurred: " << std::endl;
-          cpptrace::from_current_exception().print();
-          return Status::Unknown("Unknown exception occurred");
-        });
-#endif
+    res = execute_read_only(plan, num_threads);
   } else if (mode == physical::QueryPlan::READ_WRITE) {
     if (is_read_only_) {
       return Result<results::CollectiveResults>(
           gs::Status(gs::StatusCode::ERR_INVALID_ARGUMENT,
                      "Read-write queries are not supported in read-only mode"));
     }
-#ifdef NEUG_BACKTRACE
-    cpptrace::try_catch(
-        [&] {  // try block
-#endif
-          res = execute_read_write(plan, num_threads);
-#ifdef NEUG_BACKTRACE
-        },
-        [&](const std::runtime_error& e) {
-          std::cerr << "Runtime error: " << e.what() << std::endl;
-          cpptrace::from_current_exception().print();
-          return Status::RuntimeError("Runtime error: " +
-                                      std::string(e.what()));
-        },
-        [&](const std::exception& e) {
-          std::cerr << "Exception: " << e.what() << std::endl;
-          cpptrace::from_current_exception().print();
-          return Status::IntervalError("Exception: " + std::string(e.what()));
-        },
-        [&]() {  // serves the same role as `catch(...)`, an any exception
-                 // handler
-          std::cerr << "Unknown exception occurred: " << std::endl;
-          cpptrace::from_current_exception().print();
-          return Status::Unknown("Unknown exception occurred");
-        });
-#endif
+    res = execute_read_write(plan, num_threads);
+
   } else if (mode == physical::QueryPlan::WRITE_ONLY) {
     if (is_read_only_) {
       return Result<results::CollectiveResults>(
           gs::Status(gs::StatusCode::ERR_INVALID_ARGUMENT,
                      "Write-only queries are not supported in read-only mode"));
     }
-#ifdef NEUG_BACKTRACE
-    cpptrace::try_catch(
-        [&] {  // try block
-#endif
-          res = execute_read_write(plan, num_threads);
-#ifdef NEUG_BACKTRACE
-        },
-        [&](const std::runtime_error& e) {
-          std::cerr << "Runtime error: " << e.what() << std::endl;
-          cpptrace::from_current_exception().print();
-          return Status::RuntimeError("Runtime error: " +
-                                      std::string(e.what()));
-        },
-        [&](const std::exception& e) {
-          std::cerr << "Exception: " << e.what() << std::endl;
-          cpptrace::from_current_exception().print();
-          return Status::IntervalError("Exception: " + std::string(e.what()));
-        },
-        [&]() {  // serves the same role as `catch(...)`, an any exception
-                 // handler
-          std::cerr << "Unknown exception occurred: " << std::endl;
-          cpptrace::from_current_exception().print();
-          return Status::Unknown("Unknown exception occurred");
-        });
-#endif
+
+    res = execute_read_write(plan, num_threads);
   } else {
     LOG(ERROR) << "Unknown query plan mode: " << mode;
     return Result<results::CollectiveResults>(gs::Status(
@@ -182,32 +88,12 @@ Result<results::CollectiveResults> QueryProcessor::execute_read_only(
     const physical::PhysicalPlan& plan, int32_t num_threads) {
   auto txn = db_.GetReadTransaction();
   runtime::GraphReadInterface gri(txn);
+
   runtime::Context ctx;
-  gs::Status status = gs::Status::OK();
-  {
-    ctx = bl::try_handle_all(
-        [this, &gri, &plan]() -> bl::result<runtime::Context> {
-          return runtime::PlanParser::get()
-              .parse_read_pipeline(gri.schema(), gs::runtime::ContextMeta(),
-                                   plan)
-              .value()
-              .Execute(gri, runtime::Context(), {}, timer_);
-        },
-        [&status](const gs::Status& err) {
-          status = err;
-          return runtime::Context();
-        },
-        [&](const bl::error_info& err) {
-          status = gs::Status(gs::StatusCode::ERR_INTERNAL_ERROR,
-                              "Error: " + std::to_string(err.error().value()) +
-                                  ", Exception: " + err.exception()->what());
-          return runtime::Context();
-        },
-        [&]() {
-          status = gs::Status(gs::StatusCode::ERR_UNKNOWN, "Unknown error");
-          return runtime::Context();
-        });
-  }
+  Status status;
+  std::tie(ctx, status) =
+      runtime::ParseAndExecuteReadPipeline(gri, plan, timer_);
+
   if (!status.ok()) {
     LOG(ERROR) << "Error: " << status.ToString();
     // We encode the error message to the output, so that the client can

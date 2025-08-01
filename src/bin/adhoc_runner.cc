@@ -82,29 +82,14 @@ gs::runtime::Context eval_plan(
   gs::runtime::OprTimer timer;
 
   gs::runtime::Context ctx;
-  {
-    ctx = bl::try_handle_all(
-        [&plan, &params, &gri, &timer]() {
-          return gs::runtime::PlanParser::get()
-              .parse_read_pipeline(gri.schema(), gs::runtime::ContextMeta(),
-                                   plan)
-              .value()
-              .Execute(gri, gs::runtime::Context(), params, timer);
-        },
-        [&ctx](const gs::Status& err) {
-          LOG(FATAL) << "Error in execution: " << err.error_message();
-          return ctx;
-        },
-        [&](const bl::error_info& err) {
-          LOG(FATAL) << "Error: " << err.error().value() << ", "
-                     << err.exception()->what();
-          return ctx;
-        },
-        [&]() {
-          LOG(FATAL) << "Unknown error in execution";
-          return ctx;
-        });
+  gs::Status status;
+  std::tie(ctx, status) =
+      gs::runtime::ParseAndExecuteReadPipeline(gri, plan, timer);
+  if (!status.ok()) {
+    LOG(FATAL) << "Failed to execute read pipeline: " << status.ToString();
+    return gs::runtime::Context();
   }
+
   return ctx;
 }
 

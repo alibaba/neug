@@ -83,6 +83,14 @@ class PlanParser {
       update_op_builders_;
 };
 
+std::pair<runtime::Context, Status> ParseAndExecuteReadPipeline(
+    const GraphReadInterface& graph, const physical::PhysicalPlan& plan,
+    OprTimer& timer);
+
+std::pair<runtime::Context, Status> ParseAndExecuteUpdatePipeline(
+    GraphUpdateInterface& graph, const physical::PhysicalPlan& plan,
+    OprTimer& timer);
+
 }  // namespace runtime
 
 }  // namespace gs

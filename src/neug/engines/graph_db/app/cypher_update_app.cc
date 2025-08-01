@@ -233,30 +233,11 @@ Result<results::CollectiveResults> CypherUpdateApp::execute_update_query(
   txn.set_insert_vertex_with_resize(insert_with_resize);
   runtime::GraphUpdateInterface gii(txn);
   runtime::Context ctx;
-  gs::Status status = gs::Status::OK();
-  {
-    ctx = bl::try_handle_all(
-        [&gii, &plan, &timer_]() -> bl::result<runtime::Context> {
-          return runtime::PlanParser::get()
-              .parse_update_pipeline(gii.schema(), plan)
-              .value()
-              .Execute(gii, runtime::Context(), {}, timer_);
-        },
-        [&status](const gs::Status& err) {
-          status = err;
-          return runtime::Context();
-        },
-        [&](const bl::error_info& err) {
-          status = gs::Status(gs::StatusCode::ERR_INTERNAL_ERROR,
-                              "Error: " + std::to_string(err.error().value()) +
-                                  ", Exception: " + err.exception()->what());
-          return runtime::Context();
-        },
-        [&]() {
-          status = gs::Status(gs::StatusCode::ERR_UNKNOWN, "Unknown error");
-          return runtime::Context();
-        });
-  }
+  gs::Status status;
+
+  std::tie(ctx, status) =
+      runtime::ParseAndExecuteUpdatePipeline(gii, plan, timer_);
+
   if (!status.ok()) {
     LOG(ERROR) << "Error: " << status.ToString();
     txn.Abort();

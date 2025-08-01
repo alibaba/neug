@@ -44,31 +44,8 @@ bool CypherReadApp::Query(const GraphDBSession& graph, Decoder& input,
 
     gs::runtime::Context ctx;
     gs::Status status = gs::Status::OK();
-    {
-      ctx = bl::try_handle_all(
-          [this, &gri, &plan]() -> bl::result<runtime::Context> {
-            return runtime::PlanParser::get()
-                .parse_read_pipeline(gri.schema(), gs::runtime::ContextMeta(),
-                                     plan)
-                .value()
-                .Execute(gri, runtime::Context(), {}, timer_);
-          },
-          [&status](const gs::Status& err) {
-            status = err;
-            return runtime::Context();
-          },
-          [&](const bl::error_info& err) {
-            status =
-                gs::Status(gs::StatusCode::ERR_INTERNAL_ERROR,
-                           "Error: " + std::to_string(err.error().value()) +
-                               ", Exception: " + err.exception()->what());
-            return runtime::Context();
-          },
-          [&]() {
-            status = gs::Status(gs::StatusCode::ERR_UNKNOWN, "Unknown error");
-            return runtime::Context();
-          });
-    }
+    std::tie(ctx, status) =
+        runtime::ParseAndExecuteReadPipeline(gri, plan, timer_);
 
     if (!status.ok()) {
       LOG(ERROR) << "Error: " << status.ToString();
