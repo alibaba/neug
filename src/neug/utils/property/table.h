@@ -60,8 +60,6 @@ class Table {
                            const std::vector<StorageStrategy>& strategies_,
                            bool force);
 
-  void touch(const std::string& name, const std::string& work_dir);
-
   void copy_to_tmp(const std::string& name, const std::string& snapshot_dir,
                    const std::string& work_dir);
 

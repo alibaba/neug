@@ -59,7 +59,6 @@ class TypedEmptyColumn : public ColumnBase {
             const std::string& work_dir) override {}
   void open_in_memory(const std::string& name) override {}
   void open_with_hugepages(const std::string& name, bool force) override {}
-  void touch(const std::string& filename) override {}
   void dump(const std::string& filename) override {}
   void dump_without_close(const std::string& filename) override {}
   void copy_to_tmp(const std::string& cur_path,
@@ -101,7 +100,6 @@ class TypedEmptyColumn<std::string_view> : public ColumnBase {
             const std::string& work_dir) override {}
   void open_in_memory(const std::string& name) override {}
   void open_with_hugepages(const std::string& name, bool force) override {}
-  void touch(const std::string& filename) override {}
   void dump(const std::string& filename) override {}
   void dump_without_close(const std::string& filename) override {}
   void copy_to_tmp(const std::string& cur_path,
@@ -238,37 +236,20 @@ std::shared_ptr<ColumnBase> CreateColumn(
 void TypedColumn<std::string_view>::set_value_safe(
     size_t idx, const std::string_view& value) {
   std::shared_lock<std::shared_mutex> lock(rw_mutex_);
-
-  if (idx >= basic_size_ && idx < basic_size_ + extra_size_) {
+  if (idx < size_) {
     size_t offset = pos_.fetch_add(value.size());
-    if (pos_.load() > extra_buffer_.data_size()) {
+    if (pos_.load() > buffer_.data_size()) {
       lock.unlock();
       std::unique_lock<std::shared_mutex> w_lock(rw_mutex_);
-      if (pos_.load() > extra_buffer_.data_size()) {
-        size_t new_avg_width =
-            (pos_.load() + idx - basic_size_) / (idx - basic_size_ + 1);
-        size_t new_len = std::max(extra_size_ * new_avg_width, pos_.load());
-        extra_buffer_.resize(extra_buffer_.size(), new_len);
+      if (pos_.load() > buffer_.data_size()) {
+        size_t new_avg_width = (pos_.load() + idx) / (idx + 1);
+        size_t new_len = std::max(size_ * new_avg_width, pos_.load());
+        buffer_.resize(buffer_.size(), new_len);
       }
       w_lock.unlock();
       lock.lock();
     }
-    extra_buffer_.set(idx - basic_size_, offset, value);
-  } else if (idx < basic_size_) {
-    size_t offset = basic_pos_.fetch_add(value.size());
-    if (basic_pos_.load() > basic_buffer_.data_size()) {
-      lock.unlock();
-      std::unique_lock<std::shared_mutex> w_lock(rw_mutex_);
-      if (basic_pos_.load() > basic_buffer_.data_size()) {
-        size_t new_avg_width = (basic_pos_.load() + idx) / (idx + 1);
-        size_t new_len =
-            std::max(basic_size_ * new_avg_width, basic_pos_.load());
-        basic_buffer_.resize(basic_buffer_.size(), new_len);
-      }
-      w_lock.unlock();
-      lock.lock();
-    }
-    basic_buffer_.set(idx, offset, value);
+    buffer_.set(idx, offset, value);
   } else {
     LOG(FATAL) << "Index out of range";
   }

@@ -114,18 +114,6 @@ void Table::open_with_hugepages(const std::string& name,
   buildColumnPtrs();
 }
 
-void Table::touch(const std::string& name, const std::string& work_dir) {
-  if (touched_) {
-    LOG(ERROR) << "Table " << name << " has been touched before";
-    return;
-  }
-  int i = 0;
-  for (auto& col : columns_) {
-    col->touch(work_dir + "/" + name + ".col_" + std::to_string(i++));
-  }
-  touched_ = true;
-}
-
 void Table::copy_to_tmp(const std::string& name,
                         const std::string& snapshot_dir,
                         const std::string& work_dir) {
@@ -136,6 +124,7 @@ void Table::copy_to_tmp(const std::string& name,
     ++i;
   }
 }
+
 void Table::dump(const std::string& name, const std::string& snapshot_dir) {
   int i = 0;
   for (auto col : columns_) {
