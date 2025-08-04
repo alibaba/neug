@@ -10,7 +10,7 @@
 #include "neug/compiler/function/table/simple_table_function.h"
 #include "neug/compiler/main/client_context.h"
 #include "neug/compiler/main/database_manager.h"
-#include "neug/utils/exception/catalog.h"
+#include "neug/utils/exception/exception.h"
 
 using namespace gs::catalog;
 using namespace gs::common;

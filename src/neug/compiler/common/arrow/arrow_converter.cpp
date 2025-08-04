@@ -3,7 +3,7 @@
 #include <cstring>
 
 #include "neug/compiler/common/arrow/arrow_row_batch.h"
-#include "neug/utils/exception/runtime.h"
+#include "neug/utils/exception/exception.h"
 
 namespace gs {
 namespace common {

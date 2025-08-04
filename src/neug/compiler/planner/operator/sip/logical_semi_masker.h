@@ -2,7 +2,7 @@
 
 #include "neug/compiler/common/enums/extend_direction.h"
 #include "neug/compiler/planner/operator/logical_operator.h"
-#include "neug/utils/exception/runtime.h"
+#include "neug/utils/exception/exception.h"
 #include "semi_mask_target_type.h"
 
 namespace gs {

@@ -1,6 +1,6 @@
 #include "neug/compiler/planner/operator/logical_operator.h"
 
-#include "neug/utils/exception/runtime.h"
+#include "neug/utils/exception/exception.h"
 
 using namespace gs::common;
 

@@ -22,9 +22,7 @@
 #include "neug/compiler/planner/planner.h"
 #include "neug/compiler/storage/storage_manager.h"
 #include "neug/compiler/transaction/transaction_context.h"
-#include "neug/utils/exception/checkpoint.h"
-#include "neug/utils/exception/connection.h"
-#include "neug/utils/exception/runtime.h"
+#include "neug/utils/exception/exception.h"
 
 #if defined(_WIN32)
 #include "neug/compiler/common/windows_utils.h"

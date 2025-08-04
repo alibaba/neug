@@ -2,7 +2,7 @@
 
 #include "neug/compiler/common/file_system/virtual_file_system.h"
 #include "neug/compiler/main/client_context.h"
-#include "neug/utils/exception/runtime.h"
+#include "neug/utils/exception/exception.h"
 
 namespace gs {
 namespace main {

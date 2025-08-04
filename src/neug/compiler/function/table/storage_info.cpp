@@ -11,7 +11,7 @@
 #include "neug/compiler/storage/storage_manager.h"
 #include "neug/compiler/storage/store/node_table.h"
 #include "neug/compiler/storage/store/rel_table.h"
-#include "neug/utils/exception/binder.h"
+#include "neug/utils/exception/exception.h"
 
 using namespace gs::common;
 using namespace gs::catalog;

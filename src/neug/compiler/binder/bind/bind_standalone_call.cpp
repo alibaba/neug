@@ -6,7 +6,7 @@
 #include "neug/compiler/main/client_context.h"
 #include "neug/compiler/main/db_config.h"
 #include "neug/compiler/parser/standalone_call.h"
-#include "neug/utils/exception/binder.h"
+#include "neug/utils/exception/exception.h"
 
 using namespace gs::common;
 

@@ -5,7 +5,7 @@
 #include "neug/compiler/parser/ddl/drop.h"
 #include "neug/compiler/parser/ddl/drop_info.h"
 #include "neug/compiler/parser/transformer.h"
-#include "neug/utils/exception/parser.h"
+#include "neug/utils/exception/exception.h"
 
 using namespace gs::common;
 using namespace gs::catalog;

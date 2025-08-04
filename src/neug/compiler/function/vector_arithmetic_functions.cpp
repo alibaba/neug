@@ -18,8 +18,7 @@
 #include "neug/compiler/function/list/vector_list_functions.h"
 #include "neug/compiler/function/scalar_function.h"
 #include "neug/compiler/function/string/vector_string_functions.h"
-#include "neug/utils/exception/overflow.h"
-#include "neug/utils/exception/runtime.h"
+#include "neug/utils/exception/exception.h"
 
 using namespace gs::common;
 using std::max;
@@ -710,10 +709,10 @@ struct DecimalFloor {
       // round to larger absolute value
       result = (R) input - (input % pow10s[scale] == 0
                                 ? 0
-                                : pow10s[scale] + (R) (input % pow10s[scale]));
+                                : pow10s[scale] + (R)(input % pow10s[scale]));
     } else {
       // round to smaller absolute value
-      result = (R) input - (R) (input % pow10s[scale]);
+      result = (R) input - (R)(input % pow10s[scale]);
     }
     result = result / pow10s[scale];
   }
@@ -731,12 +730,12 @@ struct DecimalCeil {
     auto scale = DecimalType::getScale(inputVector.dataType);
     if (input < 0) {
       // round to larger absolute value
-      result = (R) input - (R) (input % pow10s[scale]);
+      result = (R) input - (R)(input % pow10s[scale]);
     } else {
       // round to smaller absolute value
       result = (R) input + (input % pow10s[scale] == 0
                                 ? 0
-                                : pow10s[scale] - (R) (input % pow10s[scale]));
+                                : pow10s[scale] - (R)(input % pow10s[scale]));
     }
     result = result / pow10s[scale];
   }

@@ -2,7 +2,7 @@
 
 #include "neug/compiler/planner/operator/logical_hash_join.h"
 #include "neug/compiler/planner/operator/scan/logical_expressions_scan.h"
-#include "neug/utils/exception/internal.h"
+#include "neug/utils/exception/exception.h"
 
 using namespace gs::planner;
 

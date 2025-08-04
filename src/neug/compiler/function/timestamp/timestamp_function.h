@@ -3,7 +3,7 @@
 #include "neug/compiler/common/types/interval_t.h"
 #include "neug/compiler/common/types/timestamp_t.h"
 #include "neug/compiler/function/cast/functions/numeric_cast.h"
-#include "neug/utils/exception/conversion.h"
+#include "neug/utils/exception/exception.h"
 
 namespace gs {
 namespace function {

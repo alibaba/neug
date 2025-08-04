@@ -3,7 +3,7 @@
 #include "neug/compiler/binder/query/return_with_clause/bound_return_clause.h"
 #include "neug/compiler/binder/query/return_with_clause/bound_with_clause.h"
 #include "neug/compiler/parser/query/regular_query.h"
-#include "neug/utils/exception/binder.h"
+#include "neug/utils/exception/exception.h"
 
 using namespace gs::common;
 using namespace gs::parser;

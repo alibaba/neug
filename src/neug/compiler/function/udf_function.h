@@ -3,8 +3,7 @@
 #include "neug/compiler/common/type_utils.h"
 #include "neug/compiler/common/types/ku_string.h"
 #include "neug/compiler/function/scalar_function.h"
-#include "neug/utils/exception/binder.h"
-#include "neug/utils/exception/catalog.h"
+#include "neug/utils/exception/exception.h"
 
 namespace gs {
 namespace function {

@@ -8,8 +8,7 @@
 #include "neug/compiler/function/arithmetic/multiply.h"
 #include "neug/compiler/function/cast/functions/cast_from_string_functions.h"
 #include "neug/compiler/function/cast/functions/cast_functions.h"
-#include "neug/utils/exception/conversion.h"
-#include "neug/utils/exception/overflow.h"
+#include "neug/utils/exception/exception.h"
 #include "re2.h"
 
 namespace gs {
@@ -232,7 +231,7 @@ interval_parse_number:
   }
   goto interval_parse_identifier;
 
-interval_parse_time: {
+interval_parse_time : {
   // parse the remainder of the time as a Time type
   dtime_t time;
   uint64_t tmpPos = 0;

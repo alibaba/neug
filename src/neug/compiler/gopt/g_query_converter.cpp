@@ -51,8 +51,8 @@
 #include "neug/proto_generated_gie/cypher_dml.pb.h"
 #include "neug/proto_generated_gie/expr.pb.h"
 #include "neug/proto_generated_gie/physical.pb.h"
-#include "planner/operator/logical_hash_join.h"
 #include "neug/utils/exception/exception.h"
+#include "planner/operator/logical_hash_join.h"
 
 namespace gs {
 namespace gopt {

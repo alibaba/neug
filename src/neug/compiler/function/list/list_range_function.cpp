@@ -1,7 +1,7 @@
 #include "neug/compiler/common/type_utils.h"
 #include "neug/compiler/function/list/vector_list_functions.h"
 #include "neug/compiler/function/scalar_function.h"
-#include "neug/utils/exception/runtime.h"
+#include "neug/utils/exception/exception.h"
 
 using namespace gs::common;
 
@@ -41,7 +41,7 @@ struct Range {
     // start, start + step, start + 2step, ..., end
     T number = start;
     auto size = ((end - start) * 1.0 / step);
-    size < 0 ? size = 0 : size = (int64_t) (size + 1);
+    size < 0 ? size = 0 : size = (int64_t)(size + 1);
 
     result = ListVector::addList(&resultVector, (int64_t) size);
     auto resultDataVector = ListVector::getDataVector(&resultVector);

@@ -11,7 +11,7 @@
 #include "neug/compiler/common/types/uuid.h"
 #include "neug/compiler/common/vector/value_vector.h"
 #include "neug/compiler/function/hash/hash_functions.h"
-#include "neug/utils/exception/binder.h"
+#include "neug/utils/exception/exception.h"
 
 namespace gs {
 namespace common {

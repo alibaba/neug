@@ -4,8 +4,7 @@
 #include "neug/compiler/function/list/functions/list_reverse_sort_function.h"
 #include "neug/compiler/function/list/vector_list_functions.h"
 #include "neug/compiler/function/scalar_function.h"
-#include "neug/utils/exception/binder.h"
-#include "neug/utils/exception/runtime.h"
+#include "neug/utils/exception/exception.h"
 
 using namespace gs::common;
 

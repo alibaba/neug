@@ -2,7 +2,7 @@
 #include "neug/compiler/binder/expression/literal_expression.h"
 #include "neug/compiler/function/scalar_function.h"
 #include "neug/compiler/function/struct/vector_struct_functions.h"
-#include "neug/utils/exception/binder.h"
+#include "neug/utils/exception/exception.h"
 
 using namespace gs::common;
 using namespace gs::binder;

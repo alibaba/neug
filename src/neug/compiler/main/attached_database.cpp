@@ -5,7 +5,7 @@
 #include "neug/compiler/main/db_config.h"
 #include "neug/compiler/storage/storage_manager.h"
 #include "neug/compiler/transaction/transaction_manager.h"
-#include "neug/utils/exception/runtime.h"
+#include "neug/utils/exception/exception.h"
 
 namespace gs {
 namespace main {

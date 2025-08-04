@@ -3,8 +3,7 @@
 #include "neug/compiler/common/string_format.h"
 #include "neug/compiler/common/type_utils.h"
 #include "neug/compiler/function/cast/functions/numeric_limits.h"
-#include "neug/utils/exception/overflow.h"
-#include "neug/utils/exception/runtime.h"
+#include "neug/utils/exception/exception.h"
 
 namespace gs {
 namespace function {

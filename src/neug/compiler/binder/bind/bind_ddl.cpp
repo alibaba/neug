@@ -25,7 +25,7 @@
 #include "neug/compiler/parser/ddl/drop.h"
 #include "neug/compiler/parser/expression/parsed_function_expression.h"
 #include "neug/compiler/parser/expression/parsed_literal_expression.h"
-#include "neug/utils/exception/binder.h"
+#include "neug/utils/exception/exception.h"
 #include "neug/utils/exception/message.h"
 
 using namespace gs::common;

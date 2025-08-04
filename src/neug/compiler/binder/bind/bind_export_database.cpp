@@ -10,7 +10,7 @@
 #include "neug/compiler/parser/parser.h"
 #include "neug/compiler/parser/port_db.h"
 #include "neug/compiler/parser/query/regular_query.h"
-#include "neug/utils/exception/binder.h"
+#include "neug/utils/exception/exception.h"
 
 using namespace gs::binder;
 using namespace gs::common;

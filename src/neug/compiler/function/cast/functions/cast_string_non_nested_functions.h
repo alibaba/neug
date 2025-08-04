@@ -8,7 +8,7 @@
 #include "neug/compiler/common/types/timestamp_t.h"
 #include "neug/compiler/common/types/types.h"
 #include "neug/compiler/function/cast/functions/numeric_limits.h"
-#include "neug/utils/exception/conversion.h"
+#include "neug/utils/exception/exception.h"
 
 using namespace gs::common;
 

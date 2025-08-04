@@ -3,7 +3,7 @@
 #include "neug/compiler/common/type_utils.h"
 #include "neug/compiler/function/map/vector_map_functions.h"
 #include "neug/compiler/function/scalar_function.h"
-#include "neug/utils/exception/runtime.h"
+#include "neug/utils/exception/exception.h"
 
 using namespace gs::common;
 

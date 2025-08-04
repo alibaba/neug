@@ -4,7 +4,7 @@
 #include "neug/compiler/common/types/ku_string.h"
 #include "neug/compiler/common/vector/value_vector.h"
 #include "neug/compiler/function/string/functions/array_extract_function.h"
-#include "neug/utils/exception/runtime.h"
+#include "neug/utils/exception/exception.h"
 
 namespace gs {
 namespace function {

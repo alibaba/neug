@@ -10,8 +10,7 @@
 #include "neug/compiler/main/client_context.h"
 #include "neug/compiler/parser/expression/parsed_expression_visitor.h"
 #include "neug/compiler/parser/expression/parsed_parameter_expression.h"
-#include "neug/utils/exception/binder.h"
-#include "neug/utils/exception/not_implemented.h"
+#include "neug/utils/exception/exception.h"
 
 using namespace gs::common;
 using namespace gs::function;

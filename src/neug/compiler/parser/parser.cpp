@@ -14,7 +14,7 @@
 #include "neug/compiler/parser/antlr_parser/parser_error_listener.h"
 #include "neug/compiler/parser/antlr_parser/parser_error_strategy.h"
 #include "neug/compiler/parser/transformer.h"
-#include "neug/utils/exception/parser.h"
+#include "neug/utils/exception/exception.h"
 
 using namespace antlr4;
 

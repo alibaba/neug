@@ -6,8 +6,7 @@
 #include "neug/compiler/function/table/standalone_call_function.h"
 #include "neug/compiler/graph/graph_entry.h"
 #include "neug/compiler/parser/parser.h"
-#include "neug/utils/exception/binder.h"
-#include "neug/utils/exception/runtime.h"
+#include "neug/utils/exception/exception.h"
 
 using namespace gs::binder;
 using namespace gs::common;

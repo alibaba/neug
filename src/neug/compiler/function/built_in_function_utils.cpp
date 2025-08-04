@@ -3,7 +3,7 @@
 #include "neug/compiler/catalog/catalog_entry/function_catalog_entry.h"
 #include "neug/compiler/function/aggregate_function.h"
 #include "neug/compiler/function/arithmetic/vector_arithmetic_functions.h"
-#include "neug/utils/exception/binder.h"
+#include "neug/utils/exception/exception.h"
 
 using namespace gs::common;
 using namespace gs::catalog;

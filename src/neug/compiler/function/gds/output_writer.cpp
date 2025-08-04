@@ -1,7 +1,7 @@
 #include "neug/compiler/function/gds/gds_frontier.h"
 #include "neug/compiler/function/gds/rj_output_writer.h"
 #include "neug/compiler/main/client_context.h"
-#include "neug/utils/exception/interrupt.h"
+#include "neug/utils/exception/exception.h"
 
 using namespace gs::common;
 using namespace gs::processor;

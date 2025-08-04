@@ -6,7 +6,7 @@
 #include "neug/compiler/common/string_format.h"
 #include "neug/compiler/common/types/cast_helpers.h"
 #include "neug/compiler/common/types/date_t.h"
-#include "neug/utils/exception/conversion.h"
+#include "neug/utils/exception/exception.h"
 
 namespace gs {
 namespace common {

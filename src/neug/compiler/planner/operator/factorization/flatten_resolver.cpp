@@ -7,7 +7,7 @@
 #include "neug/compiler/binder/expression/scalar_function_expression.h"
 #include "neug/compiler/binder/expression/subquery_expression.h"
 #include "neug/compiler/planner/operator/schema.h"
-#include "neug/utils/exception/not_implemented.h"
+#include "neug/utils/exception/exception.h"
 
 using namespace gs::common;
 using namespace gs::binder;

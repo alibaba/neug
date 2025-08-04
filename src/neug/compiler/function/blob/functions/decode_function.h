@@ -2,7 +2,7 @@
 
 #include "neug/compiler/common/types/blob.h"
 #include "neug/compiler/common/vector/value_vector.h"
-#include "neug/utils/exception/runtime.h"
+#include "neug/utils/exception/exception.h"
 #include "utf8proc_wrapper.h"
 
 namespace gs {

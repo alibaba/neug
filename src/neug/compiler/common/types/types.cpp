@@ -15,9 +15,7 @@
 #include "neug/compiler/function/built_in_function_utils.h"
 #include "neug/compiler/function/cast/functions/numeric_limits.h"
 #include "neug/compiler/main/client_context.h"
-#include "neug/utils/exception/binder.h"
-#include "neug/utils/exception/conversion.h"
-#include "neug/utils/exception/runtime.h"
+#include "neug/utils/exception/exception.h"
 
 using gs::function::BuiltInFunctionsUtils;
 

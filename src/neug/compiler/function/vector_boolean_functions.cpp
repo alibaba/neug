@@ -1,7 +1,7 @@
 #include "neug/compiler/function/boolean/vector_boolean_functions.h"
 
 #include "neug/compiler/function/boolean/boolean_functions.h"
-#include "neug/utils/exception/runtime.h"
+#include "neug/utils/exception/exception.h"
 
 using namespace gs::common;
 

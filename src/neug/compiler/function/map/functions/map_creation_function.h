@@ -5,7 +5,7 @@
 #include "neug/compiler/common/vector/value_vector.h"
 #include "neug/compiler/function/list/functions/list_unique_function.h"
 #include "neug/compiler/main/client_context.h"
-#include "neug/utils/exception/runtime.h"
+#include "neug/utils/exception/exception.h"
 
 namespace gs {
 namespace function {

@@ -5,8 +5,7 @@
 #include "neug/compiler/common/vector/value_vector.h"
 #include "neug/compiler/function/arithmetic/add.h"
 #include "neug/compiler/transaction/transaction.h"
-#include "neug/utils/exception/catalog.h"
-#include "neug/utils/exception/overflow.h"
+#include "neug/utils/exception/exception.h"
 
 using namespace gs::binder;
 using namespace gs::common;

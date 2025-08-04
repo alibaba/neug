@@ -6,7 +6,7 @@
 #include "neug/compiler/main/client_context.h"
 #include "neug/compiler/parser/expression/parsed_function_expression.h"
 #include "neug/compiler/parser/standalone_call_function.h"
-#include "neug/utils/exception/parser.h"
+#include "neug/utils/exception/exception.h"
 
 namespace gs {
 namespace parser {

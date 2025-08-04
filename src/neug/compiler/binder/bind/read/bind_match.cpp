@@ -1,7 +1,7 @@
 #include "neug/compiler/binder/binder.h"
 #include "neug/compiler/binder/query/reading_clause/bound_match_clause.h"
 #include "neug/compiler/parser/query/reading_clause/match_clause.h"
-#include "neug/utils/exception/binder.h"
+#include "neug/utils/exception/exception.h"
 
 using namespace gs::common;
 using namespace gs::parser;

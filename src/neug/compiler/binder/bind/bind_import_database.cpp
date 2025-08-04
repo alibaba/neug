@@ -6,7 +6,7 @@
 #include "neug/compiler/parser/copy.h"
 #include "neug/compiler/parser/parser.h"
 #include "neug/compiler/parser/port_db.h"
-#include "neug/utils/exception/binder.h"
+#include "neug/utils/exception/exception.h"
 
 using namespace gs::common;
 using namespace gs::parser;

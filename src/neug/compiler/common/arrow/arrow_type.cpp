@@ -1,6 +1,6 @@
 #include "neug/compiler/common/arrow/arrow_converter.h"
 #include "neug/compiler/common/string_utils.h"
-#include "neug/utils/exception/not_implemented.h"
+#include "neug/utils/exception/exception.h"
 
 namespace gs {
 namespace common {

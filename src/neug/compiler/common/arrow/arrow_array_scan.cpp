@@ -2,7 +2,7 @@
 #include "neug/compiler/common/types/interval_t.h"
 #include "neug/compiler/common/types/types.h"
 #include "neug/compiler/common/vector/value_vector.h"
-#include "neug/utils/exception/runtime.h"
+#include "neug/utils/exception/exception.h"
 
 namespace gs {
 namespace common {

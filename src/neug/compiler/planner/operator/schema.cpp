@@ -1,7 +1,7 @@
 #include "neug/compiler/planner/operator/schema.h"
 
 #include "neug/compiler/binder/expression_visitor.h"
-#include "neug/utils/exception/internal.h"
+#include "neug/utils/exception/exception.h"
 
 using namespace gs::binder;
 using namespace gs::common;

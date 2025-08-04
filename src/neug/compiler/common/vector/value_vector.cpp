@@ -9,7 +9,7 @@
 #include "neug/compiler/common/types/value/nested.h"
 #include "neug/compiler/common/types/value/value.h"
 #include "neug/compiler/common/vector/auxiliary_buffer.h"
-#include "neug/utils/exception/runtime.h"
+#include "neug/utils/exception/exception.h"
 
 namespace gs {
 namespace common {

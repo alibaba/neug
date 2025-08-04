@@ -4,7 +4,7 @@
 #include "neug/compiler/function/table/simple_table_function.h"
 #include "neug/compiler/storage/storage_manager.h"
 #include "neug/compiler/storage/store/node_table.h"
-#include "neug/utils/exception/binder.h"
+#include "neug/utils/exception/exception.h"
 
 using namespace gs::catalog;
 using namespace gs::common;

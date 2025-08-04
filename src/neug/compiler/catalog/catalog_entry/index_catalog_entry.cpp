@@ -1,7 +1,7 @@
 #include "neug/compiler/catalog/catalog_entry/index_catalog_entry.h"
 
 #include "neug/compiler/common/serializer/buffered_serializer.h"
-#include "neug/utils/exception/runtime.h"
+#include "neug/utils/exception/exception.h"
 
 namespace gs {
 namespace catalog {

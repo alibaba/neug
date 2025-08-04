@@ -5,7 +5,7 @@
 #include "neug/compiler/common/assert.h"
 #include "neug/compiler/common/file_system/file_info.h"
 #include "neug/compiler/common/system_config.h"
-#include "neug/utils/exception/runtime.h"
+#include "neug/utils/exception/exception.h"
 
 namespace gs {
 namespace common {

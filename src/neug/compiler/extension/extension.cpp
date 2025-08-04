@@ -4,7 +4,7 @@
 #include "neug/compiler/common/string_utils.h"
 #include "neug/compiler/common/system_message.h"
 #include "neug/compiler/main/client_context.h"
-#include "neug/utils/exception/io.h"
+#include "neug/utils/exception/exception.h"
 #ifdef _WIN32
 
 #include "windows.h"

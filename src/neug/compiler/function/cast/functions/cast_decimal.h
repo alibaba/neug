@@ -10,7 +10,7 @@
 #include "neug/compiler/common/vector/value_vector.h"
 #include "neug/compiler/function/cast/functions/cast_string_non_nested_functions.h"
 #include "neug/compiler/function/cast/functions/numeric_limits.h"
-#include "neug/utils/exception/overflow.h"
+#include "neug/utils/exception/exception.h"
 
 namespace gs {
 namespace function {

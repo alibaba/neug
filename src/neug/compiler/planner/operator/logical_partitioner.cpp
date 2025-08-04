@@ -1,7 +1,7 @@
 #include "neug/compiler/planner/operator/logical_partitioner.h"
 
 #include "neug/compiler/binder/expression/expression_util.h"
-#include "neug/utils/exception/runtime.h"
+#include "neug/utils/exception/exception.h"
 
 namespace gs {
 namespace planner {

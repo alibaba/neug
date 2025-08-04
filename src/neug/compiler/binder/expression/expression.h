@@ -11,7 +11,7 @@
 #include "neug/compiler/common/copy_constructors.h"
 #include "neug/compiler/common/enums/expression_type.h"
 #include "neug/compiler/common/types/types.h"
-#include "neug/utils/exception/internal.h"
+#include "neug/utils/exception/exception.h"
 
 namespace gs {
 namespace binder {

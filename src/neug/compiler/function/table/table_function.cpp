@@ -4,7 +4,7 @@
 #include "neug/compiler/planner/operator/logical_table_function_call.h"
 #include "neug/compiler/planner/operator/sip/logical_semi_masker.h"
 #include "neug/compiler/planner/planner.h"
-#include "neug/utils/exception/binder.h"
+#include "neug/utils/exception/exception.h"
 
 using namespace gs::common;
 using namespace gs::planner;

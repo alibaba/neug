@@ -3,8 +3,7 @@
 #include <algorithm>
 
 #include "neug/compiler/common/string_utils.h"
-#include "neug/utils/exception/binder.h"
-#include "neug/utils/exception/runtime.h"
+#include "neug/utils/exception/exception.h"
 
 namespace gs {
 namespace common {

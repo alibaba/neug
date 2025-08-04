@@ -5,7 +5,7 @@
 #include "neug/compiler/binder/function_evaluator.h"
 #include "neug/compiler/binder/literal_evaluator.h"
 #include "neug/compiler/common/string_format.h"
-#include "neug/utils/exception/not_implemented.h"
+#include "neug/utils/exception/exception.h"
 
 using namespace gs::binder;
 using namespace gs::common;

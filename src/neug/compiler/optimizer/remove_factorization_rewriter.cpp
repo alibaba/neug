@@ -1,7 +1,7 @@
 #include "neug/compiler/optimizer/remove_factorization_rewriter.h"
 
 #include "neug/compiler/optimizer/logical_operator_collector.h"
-#include "neug/utils/exception/internal.h"
+#include "neug/utils/exception/exception.h"
 
 using namespace gs::common;
 using namespace gs::planner;

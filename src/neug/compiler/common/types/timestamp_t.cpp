@@ -3,7 +3,7 @@
 #include <chrono>
 
 #include "neug/compiler/function/arithmetic/multiply.h"
-#include "neug/utils/exception/conversion.h"
+#include "neug/utils/exception/exception.h"
 
 namespace gs {
 namespace common {

@@ -3,7 +3,7 @@
 #include "neug/compiler/binder/expression/expression_util.h"
 #include "neug/compiler/common/type_utils.h"
 #include "neug/compiler/planner/operator/factorization/flatten_resolver.h"
-#include "neug/utils/exception/runtime.h"
+#include "neug/utils/exception/exception.h"
 
 namespace gs {
 namespace planner {

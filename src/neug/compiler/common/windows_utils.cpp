@@ -3,7 +3,7 @@
 
 #include <memory>
 
-#include "neug/utils/exception/io.h"
+#include "neug/utils/exception/exception.h"
 
 namespace gs {
 namespace common {

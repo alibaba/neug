@@ -16,7 +16,7 @@ limitations under the License.
 #include "neug/planner/gopt_planner.h"
 #include <yaml-cpp/node/emit.h>
 #include "neug/compiler/gopt/g_result_schema.h"
-#include "neug/utils/exception/catalog.h"
+#include "neug/utils/exception/exception.h"
 
 namespace gs {
 

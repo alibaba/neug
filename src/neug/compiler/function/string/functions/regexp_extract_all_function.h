@@ -2,7 +2,7 @@
 
 #include "base_regexp_function.h"
 #include "neug/compiler/common/vector/value_vector.h"
-#include "neug/utils/exception/runtime.h"
+#include "neug/utils/exception/exception.h"
 #include "re2.h"
 
 namespace gs {

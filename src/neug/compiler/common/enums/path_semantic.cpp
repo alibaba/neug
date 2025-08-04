@@ -3,7 +3,7 @@
 #include "neug/compiler/common/assert.h"
 #include "neug/compiler/common/string_format.h"
 #include "neug/compiler/common/string_utils.h"
-#include "neug/utils/exception/binder.h"
+#include "neug/utils/exception/exception.h"
 
 namespace gs {
 namespace common {

@@ -3,7 +3,7 @@
 #include "neug/compiler/binder/expression_binder.h"
 #include "neug/compiler/main/client_context.h"
 #include "neug/compiler/parser/expression/parsed_variable_expression.h"
-#include "neug/utils/exception/binder.h"
+#include "neug/utils/exception/exception.h"
 #include "neug/utils/exception/message.h"
 
 using namespace gs::common;

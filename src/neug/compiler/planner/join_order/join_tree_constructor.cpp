@@ -3,8 +3,7 @@
 #include "neug/compiler/binder/expression/expression_util.h"
 #include "neug/compiler/binder/query/reading_clause/bound_join_hint.h"
 #include "neug/compiler/planner/planner.h"
-#include "neug/utils/exception/binder.h"
-#include "neug/utils/exception/not_implemented.h"
+#include "neug/utils/exception/exception.h"
 
 using namespace gs::binder;
 using namespace gs::common;

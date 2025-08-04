@@ -5,7 +5,7 @@
 #include "neug/compiler/common/string_utils.h"
 #include "neug/compiler/common/types/cast_helpers.h"
 #include "neug/compiler/common/types/timestamp_t.h"
-#include "neug/utils/exception/conversion.h"
+#include "neug/utils/exception/exception.h"
 #include "re2.h"
 
 namespace gs {

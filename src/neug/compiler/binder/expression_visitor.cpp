@@ -11,7 +11,7 @@
 #include "neug/compiler/function/date/vector_date_functions.h"
 #include "neug/compiler/function/sequence/sequence_functions.h"
 #include "neug/compiler/function/uuid/vector_uuid_functions.h"
-#include "neug/utils/exception/not_implemented.h"
+#include "neug/utils/exception/exception.h"
 
 using namespace gs::common;
 

@@ -7,7 +7,7 @@
 #include "neug/compiler/storage/store/node_table.h"
 #include "neug/compiler/storage/store/table.h"
 #include "neug/compiler/transaction/transaction.h"
-#include "neug/utils/exception/binder.h"
+#include "neug/utils/exception/exception.h"
 
 namespace gs::catalog {
 class TableCatalogEntry;

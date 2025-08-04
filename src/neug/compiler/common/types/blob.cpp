@@ -1,7 +1,7 @@
 #include "neug/compiler/common/types/blob.h"
 
 #include "neug/compiler/common/string_format.h"
-#include "neug/utils/exception/conversion.h"
+#include "neug/utils/exception/exception.h"
 
 namespace gs {
 namespace common {

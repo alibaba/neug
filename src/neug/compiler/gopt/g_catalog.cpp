@@ -24,7 +24,7 @@
 #include "neug/compiler/common/string_format.h"
 #include "neug/compiler/gopt/g_constants.h"
 #include "neug/compiler/transaction/transaction.h"
-#include "neug/utils/exception/runtime.h"
+#include "neug/utils/exception/exception.h"
 
 namespace gs {
 namespace catalog {

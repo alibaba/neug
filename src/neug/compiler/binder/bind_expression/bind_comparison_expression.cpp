@@ -5,7 +5,7 @@
 #include "neug/compiler/catalog/catalog.h"
 #include "neug/compiler/function/built_in_function_utils.h"
 #include "neug/compiler/main/client_context.h"
-#include "neug/utils/exception/binder.h"
+#include "neug/utils/exception/exception.h"
 
 using namespace gs::common;
 using namespace gs::parser;

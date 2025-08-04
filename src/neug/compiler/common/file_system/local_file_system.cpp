@@ -7,7 +7,7 @@
 #include "neug/compiler/common/system_message.h"
 #include "neug/compiler/main/client_context.h"
 #include "neug/compiler/main/settings.h"
-#include "neug/utils/exception/io.h"
+#include "neug/utils/exception/exception.h"
 
 #if defined(_WIN32)
 #include <fileapi.h>
@@ -137,7 +137,7 @@ std::unique_ptr<FileInfo> LocalFileSystem::openFile(
         stringFormat("Cannot open file {}: {}", fullPath, posixErrMessage()));
   }
   if (flags.lockType != FileLockType::NO_LOCK) {
-    struct flock fl{};
+    struct flock fl {};
     memset(&fl, 0, sizeof fl);
     fl.l_type = flags.lockType == FileLockType::READ_LOCK ? F_RDLCK : F_WRLCK;
     fl.l_whence = SEEK_SET;
@@ -498,7 +498,7 @@ int64_t LocalFileSystem::seek(FileInfo& fileInfo, uint64_t offset,
 void LocalFileSystem::truncate(FileInfo& fileInfo, uint64_t size) const {
   auto localFileInfo = fileInfo.constPtrCast<LocalFileInfo>();
 #if defined(_WIN32)
-  auto offsetHigh = (LONG) (size >> 32);
+  auto offsetHigh = (LONG)(size >> 32);
   LONG* offsetHighPtr = NULL;
   if (offsetHigh > 0)
     offsetHighPtr = &offsetHigh;
@@ -541,7 +541,7 @@ uint64_t LocalFileSystem::getFileSize(const FileInfo& fileInfo) const {
   }
   return size.QuadPart;
 #else
-  struct stat s{};
+  struct stat s {};
   if (fstat(localFileInfo->fd, &s) == -1) {
     throw IOException(
         stringFormat("Cannot read size of file. path: {} - Error {}: {}",

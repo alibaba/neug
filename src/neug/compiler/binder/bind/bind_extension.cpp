@@ -4,7 +4,7 @@
 #include "neug/compiler/common/string_utils.h"
 #include "neug/compiler/extension/extension.h"
 #include "neug/compiler/parser/extension_statement.h"
-#include "neug/utils/exception/binder.h"
+#include "neug/utils/exception/exception.h"
 
 using namespace gs::parser;
 

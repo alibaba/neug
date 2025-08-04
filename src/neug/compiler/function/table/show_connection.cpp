@@ -7,7 +7,7 @@
 #include "neug/compiler/function/table/bind_input.h"
 #include "neug/compiler/function/table/simple_table_function.h"
 #include "neug/compiler/main/client_context.h"
-#include "neug/utils/exception/binder.h"
+#include "neug/utils/exception/exception.h"
 
 using namespace gs::catalog;
 using namespace gs::common;

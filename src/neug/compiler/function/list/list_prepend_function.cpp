@@ -1,7 +1,7 @@
 #include "neug/compiler/common/type_utils.h"
 #include "neug/compiler/function/list/vector_list_functions.h"
 #include "neug/compiler/function/scalar_function.h"
-#include "neug/utils/exception/binder.h"
+#include "neug/utils/exception/exception.h"
 #include "neug/utils/exception/message.h"
 
 using namespace gs::common;
@@ -45,12 +45,12 @@ static std::unique_ptr<FunctionBindData> bindFunc(
   }
   const auto& resultType = input.arguments[0]->getDataType();
   auto scalarFunction = input.definition->ptrCast<ScalarFunction>();
-  TypeUtils::visit(input.arguments[1]->getDataType().getPhysicalType(),
-                   [&scalarFunction]<typename T>(T) {
-                     scalarFunction->execFunc =
-                         ScalarFunction::BinaryExecListStructFunction<
-                             list_entry_t, T, list_entry_t, ListPrepend>;
-                   });
+  TypeUtils::visit(
+      input.arguments[1]->getDataType().getPhysicalType(),
+      [&scalarFunction]<typename T>(T) {
+        scalarFunction->execFunc = ScalarFunction::BinaryExecListStructFunction<
+            list_entry_t, T, list_entry_t, ListPrepend>;
+      });
   return FunctionBindData::getSimpleBindData(input.arguments,
                                              resultType.copy());
 }
