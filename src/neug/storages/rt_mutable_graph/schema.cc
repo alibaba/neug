@@ -1402,7 +1402,7 @@ bool dump_edges_schema(const Schema& schema, YAML::Node& node) {
 }
 
 bool dump_stored_procedures(const Schema& schema, YAML::Node& node) {
-  LOG(WARNING) << "Not implemented yet";
+  VLOG(10) << "Not implemented yet";
   return true;
 }
 }  // namespace config_parsing

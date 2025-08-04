@@ -229,7 +229,6 @@ Status MutablePropertyFragment::create_vertex_type(
 
   // Dump schema
   DumpSchema(schema_path(work_dir_));
-  dumpSchema();
   vertex_data_[vertex_label_id].dump_without_close(
       vertex_table_prefix(vertex_type_name), snapshot_dir(work_dir_, 0));
   lf_indexers_[vertex_label_id].dump_without_close(
@@ -329,7 +328,6 @@ Status MutablePropertyFragment::create_edge_type(
   init_state_.emplace(index, false);
 
   DumpSchema(schema_path(work_dir_));
-  dumpSchema();
   return gs::Status::OK();
 }
 
@@ -378,7 +376,6 @@ Status MutablePropertyFragment::add_vertex_properties(
   auto& vertex_data = vertex_data_[v_label];
   vertex_data.add_columns(add_property_names, add_property_types);
   DumpSchema(schema_path(work_dir_));
-  dumpSchema();
   return gs::Status::OK();
 }
 
@@ -459,7 +456,6 @@ Status MutablePropertyFragment::add_edge_properties(
   }
   casted_dual_csr->add_properties(add_property_names, add_property_types);
   DumpSchema(schema_path(work_dir_));
-  dumpSchema();
   return gs::Status::OK();
 }
 
@@ -504,7 +500,6 @@ Status MutablePropertyFragment::rename_vertex_properties(
                               update_property_renames[i]);
   }
   DumpSchema(schema_path(work_dir_));
-  dumpSchema();
   return gs::Status::OK();
 }
 
@@ -573,7 +568,6 @@ Status MutablePropertyFragment::rename_edge_properties(
   casted_dual_csr->rename_properties(update_property_names,
                                      update_property_renames);
   DumpSchema(schema_path(work_dir_));
-  dumpSchema();
   return gs::Status::OK();
 }
 
@@ -615,7 +609,6 @@ Status MutablePropertyFragment::delete_vertex_properties(
     vertex_data.delete_column(property_name);
   }
   DumpSchema(schema_path(work_dir_));
-  dumpSchema();
   return gs::Status::OK();
 }
 
@@ -789,7 +782,6 @@ Status MutablePropertyFragment::delete_edge_properties(
     casted_dual_csr->delete_properties(delete_property_names);
   }
   DumpSchema(schema_path(work_dir_));
-  dumpSchema();
   return gs::Status::OK();
 }
 
