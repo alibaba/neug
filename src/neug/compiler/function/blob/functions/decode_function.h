@@ -15,7 +15,7 @@ struct Decode {
     if (utf8proc::Utf8Proc::analyze(
             reinterpret_cast<const char*>(input.value.getData()),
             input.value.len) == utf8proc::UnicodeType::INVALID) {
-      throw common::RuntimeException(
+      throw exception::RuntimeError(
           "Failure in decode: could not convert blob to UTF8 string, "
           "the blob contained invalid UTF8 characters");
     }

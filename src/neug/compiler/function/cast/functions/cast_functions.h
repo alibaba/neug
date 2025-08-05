@@ -105,7 +105,7 @@ struct CastToDouble {
   template <typename T>
   static inline void operation(T& input, double& result) {
     if (!tryCastWithOverflowCheck(input, result)) {
-      throw common::OverflowException{
+      throw exception::OverflowException{
           common::stringFormat("Value {} is not within DOUBLE range",
                                common::TypeUtils::toString(input))};
     }
@@ -115,7 +115,7 @@ struct CastToDouble {
 template <>
 inline void CastToDouble::operation(common::int128_t& input, double& result) {
   if (!common::Int128_t::tryCast(input, result)) {  // LCOV_EXCL_START
-    throw common::OverflowException{
+    throw exception::OverflowException{
         common::stringFormat("Value {} is not within DOUBLE range",
                              common::TypeUtils::toString(input))};
   }  // LCOV_EXCL_STOP
@@ -125,7 +125,7 @@ struct CastToFloat {
   template <typename T>
   static inline void operation(T& input, float& result) {
     if (!tryCastWithOverflowCheck(input, result)) {
-      throw common::OverflowException{
+      throw exception::OverflowException{
           common::stringFormat("Value {} is not within FLOAT range",
                                common::TypeUtils::toString(input))};
     }
@@ -135,7 +135,7 @@ struct CastToFloat {
 template <>
 inline void CastToFloat::operation(common::int128_t& input, float& result) {
   if (!common::Int128_t::tryCast(input, result)) {  // LCOV_EXCL_START
-    throw common::OverflowException{
+    throw exception::OverflowException{
         common::stringFormat("Value {} is not within FLOAT range",
                              common::TypeUtils::toString(input))};
   };  // LCOV_EXCL_STOP
@@ -152,7 +152,7 @@ struct CastToInt64 {
   template <typename T>
   static inline void operation(T& input, int64_t& result) {
     if (!tryCastWithOverflowCheck(input, result)) {
-      throw common::OverflowException{
+      throw exception::OverflowException{
           common::stringFormat("Value {} is not within INT64 range",
                                common::TypeUtils::toString(input))};
     }
@@ -162,7 +162,7 @@ struct CastToInt64 {
 template <>
 inline void CastToInt64::operation(common::int128_t& input, int64_t& result) {
   if (!common::Int128_t::tryCast(input, result)) {
-    throw common::OverflowException{
+    throw exception::OverflowException{
         common::stringFormat("Value {} is not within INT64 range",
                              common::TypeUtils::toString(input))};
   };
@@ -172,7 +172,7 @@ struct CastToSerial {
   template <typename T>
   static inline void operation(T& input, int64_t& result) {
     if (!tryCastWithOverflowCheck(input, result)) {
-      throw common::OverflowException{
+      throw exception::OverflowException{
           common::stringFormat("Value {} is not within INT64 range",
                                common::TypeUtils::toString(input))};
     }
@@ -182,7 +182,7 @@ struct CastToSerial {
 template <>
 inline void CastToSerial::operation(common::int128_t& input, int64_t& result) {
   if (!common::Int128_t::tryCast(input, result)) {
-    throw common::OverflowException{
+    throw exception::OverflowException{
         common::stringFormat("Value {} is not within INT64 range",
                              common::TypeUtils::toString(input))};
   };
@@ -192,7 +192,7 @@ struct CastToInt32 {
   template <typename T>
   static inline void operation(T& input, int32_t& result) {
     if (!tryCastWithOverflowCheck(input, result)) {
-      throw common::OverflowException{
+      throw exception::OverflowException{
           common::stringFormat("Value {} is not within INT32 range",
                                common::TypeUtils::toString(input))};
     }
@@ -202,7 +202,7 @@ struct CastToInt32 {
 template <>
 inline void CastToInt32::operation(common::int128_t& input, int32_t& result) {
   if (!common::Int128_t::tryCast(input, result)) {
-    throw common::OverflowException{
+    throw exception::OverflowException{
         common::stringFormat("Value {} is not within INT32 range",
                              common::TypeUtils::toString(input))};
   };
@@ -212,7 +212,7 @@ struct CastToInt16 {
   template <typename T>
   static inline void operation(T& input, int16_t& result) {
     if (!tryCastWithOverflowCheck(input, result)) {
-      throw common::OverflowException{
+      throw exception::OverflowException{
           common::stringFormat("Value {} is not within INT16 range",
                                common::TypeUtils::toString(input))};
     }
@@ -222,7 +222,7 @@ struct CastToInt16 {
 template <>
 inline void CastToInt16::operation(common::int128_t& input, int16_t& result) {
   if (!common::Int128_t::tryCast(input, result)) {
-    throw common::OverflowException{
+    throw exception::OverflowException{
         common::stringFormat("Value {} is not within INT16 range",
                              common::TypeUtils::toString(input))};
   };
@@ -232,7 +232,7 @@ struct CastToInt8 {
   template <typename T>
   static inline void operation(T& input, int8_t& result) {
     if (!tryCastWithOverflowCheck(input, result)) {
-      throw common::OverflowException{
+      throw exception::OverflowException{
           common::stringFormat("Value {} is not within INT8 range",
                                common::TypeUtils::toString(input))};
     }
@@ -242,7 +242,7 @@ struct CastToInt8 {
 template <>
 inline void CastToInt8::operation(common::int128_t& input, int8_t& result) {
   if (!common::Int128_t::tryCast(input, result)) {
-    throw common::OverflowException{
+    throw exception::OverflowException{
         common::stringFormat("Value {} is not within INT8 range",
                              common::TypeUtils::toString(input))};
   };
@@ -252,7 +252,7 @@ struct CastToUInt64 {
   template <typename T>
   static inline void operation(T& input, uint64_t& result) {
     if (!tryCastWithOverflowCheck(input, result)) {
-      throw common::OverflowException{
+      throw exception::OverflowException{
           common::stringFormat("Value {} is not within UINT64 range",
                                common::TypeUtils::toString(input))};
     }
@@ -262,7 +262,7 @@ struct CastToUInt64 {
 template <>
 inline void CastToUInt64::operation(common::int128_t& input, uint64_t& result) {
   if (!common::Int128_t::tryCast(input, result)) {
-    throw common::OverflowException{
+    throw exception::OverflowException{
         common::stringFormat("Value {} is not within UINT64 range",
                              common::TypeUtils::toString(input))};
   };
@@ -272,7 +272,7 @@ struct CastToUInt32 {
   template <typename T>
   static inline void operation(T& input, uint32_t& result) {
     if (!tryCastWithOverflowCheck(input, result)) {
-      throw common::OverflowException{
+      throw exception::OverflowException{
           common::stringFormat("Value {} is not within UINT32 range",
                                common::TypeUtils::toString(input))};
     }
@@ -282,7 +282,7 @@ struct CastToUInt32 {
 template <>
 inline void CastToUInt32::operation(common::int128_t& input, uint32_t& result) {
   if (!common::Int128_t::tryCast(input, result)) {
-    throw common::OverflowException{
+    throw exception::OverflowException{
         common::stringFormat("Value {} is not within UINT32 range",
                              common::TypeUtils::toString(input))};
   };
@@ -292,7 +292,7 @@ struct CastToUInt16 {
   template <typename T>
   static inline void operation(T& input, uint16_t& result) {
     if (!tryCastWithOverflowCheck(input, result)) {
-      throw common::OverflowException{
+      throw exception::OverflowException{
           common::stringFormat("Value {} is not within UINT16 range",
                                common::TypeUtils::toString(input))};
     }
@@ -302,7 +302,7 @@ struct CastToUInt16 {
 template <>
 inline void CastToUInt16::operation(common::int128_t& input, uint16_t& result) {
   if (!common::Int128_t::tryCast(input, result)) {
-    throw common::OverflowException{
+    throw exception::OverflowException{
         common::stringFormat("Value {} is not within UINT16 range",
                              common::TypeUtils::toString(input))};
   };
@@ -312,7 +312,7 @@ struct CastToUInt8 {
   template <typename T>
   static inline void operation(T& input, uint8_t& result) {
     if (!tryCastWithOverflowCheck(input, result)) {
-      throw common::OverflowException{
+      throw exception::OverflowException{
           common::stringFormat("Value {} is not within UINT8 range",
                                common::TypeUtils::toString(input))};
     }
@@ -322,7 +322,7 @@ struct CastToUInt8 {
 template <>
 inline void CastToUInt8::operation(common::int128_t& input, uint8_t& result) {
   if (!common::Int128_t::tryCast(input, result)) {
-    throw common::OverflowException{
+    throw exception::OverflowException{
         common::stringFormat("Value {} is not within UINT8 range",
                              common::TypeUtils::toString(input))};
   };

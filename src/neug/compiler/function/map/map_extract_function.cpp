@@ -15,7 +15,8 @@ static void validateKeyType(
     const std::shared_ptr<binder::Expression>& extractKeyExpression) {
   const auto& mapKeyType = MapType::getKeyType(mapExpression->dataType);
   if (mapKeyType != extractKeyExpression->dataType) {
-    throw RuntimeException("Unmatched map key type and extract key type");
+    throw exception::RuntimeError(
+        "Unmatched map key type and extract key type");
   }
 }
 

@@ -105,7 +105,7 @@ void Interval::addition(interval_t& result, uint64_t number,
              specifierStr == "us") {
     result.micros += number;
   } else {
-    throw ConversionException(
+    throw exception::ConversionException(
         "Unrecognized interval specifier string: " + specifierStr + ".");
   }
 }
@@ -129,7 +129,7 @@ T intervalTryCastInteger(int64_t input) {
     function::CastToInt64::operation<int64_t>(input, result);
     return result;
   } else {
-    throw ConversionException("The destination is not an integer");
+    throw exception::ConversionException("The destination is not an integer");
   }
 }
 
@@ -139,14 +139,14 @@ void intervalTryAddition(T& target, int64_t input, int64_t multiplier,
   int64_t addition = 0;
   try {
     function::Multiply::operation(input, multiplier, addition);
-  } catch (const OverflowException& e) {
-    throw OverflowException{"Interval value is out of range"};
+  } catch (const exception::OverflowException& e) {
+    throw exception::OverflowException{"Interval value is out of range"};
   }
   T additionBase = intervalTryCastInteger<T>(addition);
   try {
     function::Add::operation(target, additionBase, target);
-  } catch (const OverflowException& e) {
-    throw OverflowException{"Interval value is out of range"};
+  } catch (const exception::OverflowException& e) {
+    throw exception::OverflowException{"Interval value is out of range"};
   }
   if (fraction) {
     //	Add in (fraction * multiplier) / MICROS_PER_SEC
@@ -155,8 +155,8 @@ void intervalTryAddition(T& target, int64_t input, int64_t multiplier,
     additionBase = intervalTryCastInteger<T>(addition);
     try {
       function::Add::operation(target, additionBase, target);
-    } catch (const OverflowException& e) {
-      throw OverflowException{"Interval fraction is out of range"};
+    } catch (const exception::OverflowException& e) {
+      throw exception::OverflowException{"Interval fraction is out of range"};
     }
   }
 }
@@ -176,7 +176,7 @@ interval_t Interval::fromCString(const char* str, uint64_t len) {
   result.months = 0;
 
   if (len == 0) {
-    throw ConversionException(
+    throw exception::ConversionException(
         "Error occurred during parsing interval. Given empty string.");
   }
 
@@ -195,7 +195,7 @@ parse_interval:
       goto interval_parse_number;
     } else {
       // unrecognized character, expected a number or end of string
-      throw ConversionException(
+      throw exception::ConversionException(
           "Error occurred during parsing interval. Given: \"" +
           std::string(str, len) + "\".");
     }
@@ -236,9 +236,9 @@ interval_parse_time : {
   dtime_t time;
   uint64_t tmpPos = 0;
   if (!Time::tryConvertInterval(str + startPos, len - startPos, tmpPos, time)) {
-    throw ConversionException("Error occurred during parsing time. Given: \"" +
-                              std::string(str + startPos, len - startPos) +
-                              "\".");
+    throw exception::ConversionException(
+        "Error occurred during parsing time. Given: \"" +
+        std::string(str + startPos, len - startPos) + "\".");
   }
   result.micros += time.micros;
   foundAny = true;
@@ -270,7 +270,7 @@ interval_parse_identifier:
 
   // Specifier string is empty, missing field name
   if (specifierStr.empty()) {
-    throw ConversionException(
+    throw exception::ConversionException(
         "Error occurred during parsing interval. Field name is missing.");
   }
 
@@ -338,7 +338,7 @@ interval_parse_identifier:
     intervalTryAddition<int64_t>(result.micros, number, 1);
     break;
   default:
-    throw ConversionException(
+    throw exception::ConversionException(
         "Unrecognized interval specifier string: " + specifierStr + ".");
   }
 
@@ -347,7 +347,7 @@ interval_parse_identifier:
 
 end_of_string:
   if (!foundAny) {
-    throw ConversionException(
+    throw exception::ConversionException(
         "Error occurred during parsing interval. Given: \"" +
         std::string(str, len) + "\".");
   }
@@ -444,7 +444,7 @@ void Interval::tryGetDatePartSpecifier(std::string specifier,
     // quarter of the year (1-4)
     result = DatePartSpecifier::QUARTER;
   } else {
-    throw ConversionException(
+    throw exception::ConversionException(
         "Unrecognized interval specifier string: " + specifier + ".");
   }
 }

@@ -19,7 +19,7 @@ PathSemantic PathSemanticUtils::fromString(const std::string& str) {
   if (normalizedStr == "ACYCLIC") {
     return PathSemantic::ACYCLIC;
   }
-  throw BinderException(
+  throw exception::BinderException(
       stringFormat("Cannot parse {} as a path semantic. Supported inputs are "
                    "[WALK, TRAIL, ACYCLIC]",
                    str));

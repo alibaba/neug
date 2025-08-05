@@ -11,7 +11,7 @@ namespace function {
 static std::unique_ptr<FunctionBindData> bindFunc(
     const ScalarBindFuncInput& input) {
   if (input.arguments.empty()) {
-    throw BinderException("COALESCE requires at least one argument");
+    throw exception::BinderException("COALESCE requires at least one argument");
   }
   LogicalType resultType(LogicalTypeID::ANY);
   binder::ExpressionUtil::tryCombineDataType(input.arguments, resultType);

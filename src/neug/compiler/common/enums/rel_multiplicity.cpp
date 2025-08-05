@@ -15,7 +15,7 @@ RelMultiplicity RelMultiplicityUtils::getFwd(const std::string& str) {
   } else if ("MANY_ONE" == normStr || "MANY_MANY" == normStr) {
     return RelMultiplicity::MANY;
   }
-  throw BinderException(
+  throw exception::BinderException(
       stringFormat("Cannot bind {} as relationship multiplicity.", str));
 }
 
@@ -26,7 +26,7 @@ RelMultiplicity RelMultiplicityUtils::getBwd(const std::string& str) {
   } else if ("ONE_MANY" == normStr || "MANY_MANY" == normStr) {
     return RelMultiplicity::MANY;
   }
-  throw BinderException(
+  throw exception::BinderException(
       stringFormat("Cannot bind {} as relationship multiplicity.", str));
 }
 

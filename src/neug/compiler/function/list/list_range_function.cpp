@@ -35,7 +35,7 @@ struct Range {
                         ValueVector& /*inputVector*/,
                         ValueVector& resultVector) {
     if (step == 0) {
-      throw RuntimeException("Step of range cannot be 0.");
+      throw exception::RuntimeError("Step of range cannot be 0.");
     }
 
     // start, start + step, start + 2step, ..., end

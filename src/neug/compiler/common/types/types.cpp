@@ -458,7 +458,8 @@ const StructField& StructTypeInfo::getStructField(
     const std::string& fieldName) const {
   auto idx = getStructFieldIdx(fieldName);
   if (idx == INVALID_STRUCT_FIELD_IDX) {
-    throw BinderException("Cannot find field " + fieldName + " in STRUCT.");
+    throw exception::BinderException("Cannot find field " + fieldName +
+                                     " in STRUCT.");
   }
   return fields[idx];
 }
@@ -546,7 +547,7 @@ LogicalType::LogicalType(LogicalTypeID typeID, TypeCategory info)
   case LogicalTypeID::STRUCT:
   case LogicalTypeID::MAP:
   case LogicalTypeID::UNION:
-    throw BinderException(getIncompleteTypeErrMsg(typeID));
+    throw exception::BinderException(getIncompleteTypeErrMsg(typeID));
   default:
     break;
   }
@@ -746,7 +747,7 @@ LogicalType LogicalType::convertFromString(const std::string& str,
     type = context->getCatalog()->getType(context->getTransaction(),
                                           upperDataTypeString);
   } else {
-    throw common::RuntimeException{"Invalid datatype string: " + str};
+    throw exception::RuntimeError{"Invalid datatype string: " + str};
   }
   return type;
 }
@@ -870,7 +871,7 @@ PhysicalTypeID LogicalType::getPhysicalType(
   }
   case LogicalTypeID::DECIMAL: {
     if (extraTypeInfo == nullptr) {
-      throw BinderException(getIncompleteTypeErrMsg(typeID));
+      throw exception::BinderException(getIncompleteTypeErrMsg(typeID));
     }
     auto decimalTypeInfo = extraTypeInfo->constPtrCast<DecimalTypeInfo>();
     auto precision = decimalTypeInfo->getPrecision();
@@ -883,7 +884,8 @@ PhysicalTypeID LogicalType::getPhysicalType(
     } else if (precision <= 38) {
       return PhysicalTypeID::INT128;
     } else {
-      throw BinderException("Precision of decimal must be no greater than 38");
+      throw exception::BinderException(
+          "Precision of decimal must be no greater than 38");
     }
   }
   case LogicalTypeID::INTERVAL: {
@@ -1367,7 +1369,7 @@ LogicalType parseArrayType(const std::string& trimmedStr,
           .c_str(),
       nullptr, 0 /* base */);
   if (numElements <= 0) {
-    throw BinderException(
+    throw exception::BinderException(
         "The number of elements in an array must be greater than 0. Given: " +
         std::to_string(numElements) + ".");
   }
@@ -1380,7 +1382,7 @@ std::vector<StructField> parseStructTypeInfo(const std::string& structTypeStr,
   auto rightBracketPos = structTypeStr.find_last_of(')');
   if (leftBracketPos == std::string::npos ||
       rightBracketPos == std::string::npos) {
-    throw Exception("Cannot parse struct type: " + structTypeStr);
+    throw exception::Exception("Cannot parse struct type: " + structTypeStr);
   }
   auto structFieldsStr = structTypeStr.substr(
       leftBracketPos + 1, rightBracketPos - leftBracketPos - 1);
@@ -1408,7 +1410,7 @@ LogicalType parseMapType(const std::string& trimmedStr,
   auto rightBracketPos = trimmedStr.find_last_of(')');
   if (leftBracketPos == std::string::npos ||
       rightBracketPos == std::string::npos) {
-    throw Exception("Cannot parse map type: " + trimmedStr);
+    throw exception::Exception("Cannot parse map type: " + trimmedStr);
   }
   auto mapTypeStr = trimmedStr.substr(leftBracketPos + 1,
                                       rightBracketPos - leftBracketPos - 1);
@@ -1433,7 +1435,7 @@ LogicalType parseDecimalType(const std::string& trimmedStr) {
       leftBracketPos + 1, rightBracketPos - leftBracketPos - 1)));
   auto commaPos = paramSubstr.find_last_of(',');
   if (commaPos == std::string::npos) {
-    throw BinderException(
+    throw exception::BinderException(
         "Only found 1 parameter for NUMERIC/DECIMAL type, expected 2");
   }
   auto precisionStr =
@@ -1443,12 +1445,12 @@ LogicalType parseDecimalType(const std::string& trimmedStr) {
   auto precision = std::strtoll(precisionStr.c_str(), nullptr, 0);
   auto scale = std::strtoll(scaleStr.c_str(), nullptr, 0);
   if (precision <= 0 || precision > 38) {
-    throw BinderException(
+    throw exception::BinderException(
         "Precision of DECIMAL/NUMERIC must be a positive integer no greater "
         "than 38");
   }
   if (scale < 0 || scale > precision) {
-    throw BinderException(
+    throw exception::BinderException(
         "Scale of DECIMAL/NUMERIC must be a nonnegative integer no greater "
         "than the precision");
   }
@@ -1877,7 +1879,7 @@ bool LogicalTypeUtils::tryGetMaxLogicalType(const LogicalType& left,
     case LogicalTypeID::MAP:
       return tryCombineMapTypes(left, right, result);
     case LogicalTypeID::UNION:
-      throw ConversionException("Union casting is not supported");
+      throw exception::ConversionException("Union casting is not supported");
     default:
       KU_UNREACHABLE;
     }

@@ -58,7 +58,8 @@ std::string LogicalScanNodeTable::getAliasName() const {
   // get the alias name from the node ID expression
   auto nodeId = getNodeID();
   if (!nodeId || nodeId->expressionType != common::ExpressionType::PROPERTY) {
-    throw common::Exception("Node ID expression is not a property expression.");
+    throw exception::Exception(
+        "Node ID expression is not a property expression.");
   }
   auto propertyExpr = nodeId->constCast<binder::PropertyExpression>();
   return propertyExpr.getVariableName();
@@ -68,7 +69,8 @@ gopt::GAliasName LogicalScanNodeTable::getGAliasName() const {
   // get the alias name from the node ID expression
   auto nodeId = getNodeID();
   if (!nodeId || nodeId->expressionType != common::ExpressionType::PROPERTY) {
-    throw common::Exception("Node ID expression is not a property expression.");
+    throw exception::Exception(
+        "Node ID expression is not a property expression.");
   }
   auto propertyExpr = nodeId->constCast<binder::PropertyExpression>();
   auto queryName = propertyExpr.getRawVariableName().empty()
@@ -87,8 +89,8 @@ std::unique_ptr<gopt::GNodeType> LogicalScanNodeTable::getNodeType(
     auto nodeTableEntry =
         dynamic_cast<catalog::NodeTableCatalogEntry*>(tableEntry);
     if (!nodeTableEntry) {
-      throw common::Exception("Table with ID " + std::to_string(tableId) +
-                              " is not a node table in the catalog.");
+      throw exception::Exception("Table with ID " + std::to_string(tableId) +
+                                 " is not a node table in the catalog.");
     }
     nodeTables.push_back(nodeTableEntry);
   }
@@ -100,22 +102,22 @@ std::optional<PrimaryKey> LogicalScanNodeTable::getPrimaryKey(
   if (auto pkExtraInfo = dynamic_cast<PrimaryKeyScanInfo*>(getExtraInfo())) {
     auto tableIds = getTableIDs();
     if (tableIds.empty()) {
-      throw common::Exception("No table IDs found for primary key scan.");
+      throw exception::Exception("No table IDs found for primary key scan.");
     }
     auto tableEntry = catalog->getTableCatalogEntry(
         &gs::Constants::DEFAULT_TRANSACTION, tableIds.at(0));
     auto nodeTableEntry =
         dynamic_cast<catalog::NodeTableCatalogEntry*>(tableEntry);
     if (!nodeTableEntry) {
-      throw common::Exception(
+      throw exception::Exception(
           "Primary key scan is only supported for node "
           "tables, but got: " +
           tableEntry->getName());
     }
     auto pkName = nodeTableEntry->getPrimaryKeyName();
     if (pkName.empty()) {
-      throw common::Exception("Node table " + nodeTableEntry->getName() +
-                              " does not have a primary key.");
+      throw exception::Exception("Node table " + nodeTableEntry->getName() +
+                                 " does not have a primary key.");
     }
     return PrimaryKey{pkName, pkExtraInfo};
   }

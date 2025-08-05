@@ -96,7 +96,7 @@ class KUZU_API Expression : public std::enable_shared_from_this<Expression> {
   }
 
   virtual std::unique_ptr<Expression> copy() const {
-    throw common::InternalException("Unimplemented expression copy().");
+    throw exception::InternalException("Unimplemented expression copy().");
   }
 
   template <class TARGET>

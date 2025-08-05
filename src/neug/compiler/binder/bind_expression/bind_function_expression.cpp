@@ -38,7 +38,7 @@ std::shared_ptr<Expression> ExpressionBinder::bindFunctionExpression(
   case CatalogEntryType::SCALAR_MACRO_ENTRY:
     return bindMacroExpression(expr, functionName);
   default:
-    throw BinderException(stringFormat(
+    throw exception::BinderException(stringFormat(
         "{} is a {}. Scalar function, aggregate function or macro was "
         "expected. ",
         functionName, CatalogEntryTypeUtils::toString(entry->getType())));
@@ -86,7 +86,7 @@ std::shared_ptr<Expression> ExpressionBinder::bindScalarFunctionExpression(
   if (children.size() == 2 &&
       children[1]->expressionType == ExpressionType::LAMBDA) {
     if (!function->isListLambda) {
-      throw BinderException(
+      throw exception::BinderException(
           stringFormat("{} does not support lambda input.", functionName));
     }
     bindLambdaExpression(*children[0], *children[1]);
@@ -212,8 +212,8 @@ std::shared_ptr<Expression> ExpressionBinder::bindMacroExpression(
   auto positionalArgs = scalarMacroFunction->getPositionalArgs();
   if (parsedFuncExpr.getNumChildren() > scalarMacroFunction->getNumArgs() ||
       parsedFuncExpr.getNumChildren() < positionalArgs.size()) {
-    throw BinderException{"Invalid number of arguments for macro " + macroName +
-                          "."};
+    throw exception::BinderException{"Invalid number of arguments for macro " +
+                                     macroName + "."};
   }
   // Bind positional arguments.
   for (auto i = 0u; i < positionalArgs.size(); i++) {

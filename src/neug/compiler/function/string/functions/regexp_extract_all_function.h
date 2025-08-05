@@ -45,7 +45,7 @@ struct RegexpExtractAll : BaseRegexpOperation {
     RE2 regex(parseCypherPattern(pattern));
     auto submatchCount = regex.NumberOfCapturingGroups() + 1;
     if (group >= submatchCount) {
-      throw common::RuntimeException("Regex match group index is out of range");
+      throw exception::RuntimeError("Regex match group index is out of range");
     }
 
     regex::StringPiece input(value);

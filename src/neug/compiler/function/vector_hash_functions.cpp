@@ -249,8 +249,8 @@ void VectorHashFunction::computeHash(const ValueVector& operand,
       },
       [&operand](auto) {
         // LCOV_EXCL_START
-        throw RuntimeException("Cannot hash data type " +
-                               operand.dataType.toString());
+        throw exception::RuntimeError("Cannot hash data type " +
+                                      operand.dataType.toString());
         // LCOV_EXCL_STOP
       });
 }

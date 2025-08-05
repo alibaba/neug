@@ -48,8 +48,8 @@ FileType FileTypeUtils::fromString(std::string fileType) {
     return FileType::NPY;
   } else {
     return FileType::UNKNOWN;
-    // throw BinderException(stringFormat("Unsupported file type: {}.",
-    // fileType));
+    // throw exception::BinderException(stringFormat("Unsupported file type:
+    // {}.", fileType));
   }
 }
 

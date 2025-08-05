@@ -32,7 +32,7 @@ std::shared_ptr<Expression> ExpressionBinder::bindComparisonExpression(
   auto functionName = ExpressionTypeUtil::toString(expressionType);
   LogicalType combinedType(LogicalTypeID::ANY);
   if (!ExpressionUtil::tryCombineDataType(children, combinedType)) {
-    throw BinderException(stringFormat(
+    throw exception::BinderException(stringFormat(
         "Type Mismatch: Cannot compare types {} and {}",
         children[0]->dataType.toString(), children[1]->dataType.toString()));
   }

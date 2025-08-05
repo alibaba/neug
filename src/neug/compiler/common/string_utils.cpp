@@ -134,7 +134,7 @@ std::string StringUtils::getLower(const std::string& input) {
 template <bool toUpper>
 static void changeCase(std::string& input) {
   if (!utf8proc::Utf8Proc::isValid(input.c_str(), input.length())) {
-    throw RuntimeException{"Invalid UTF8-encoded string."};
+    throw exception::RuntimeError{"Invalid UTF8-encoded string."};
   }
   auto resultLen = function::BaseLowerUpperFunction::getResultLen(
       (char*) input.data(), input.length(), toUpper);

@@ -16,57 +16,58 @@
 #include "py_query_result.h"
 #include <datetime.h>
 #include "neug/storages/rt_mutable_graph/schema.h"
+#include "neug/utils/exception/exception.h"
 #include "neug/utils/property/types.h"
 
 #include <datetime.h>
 namespace gs {
 
-pybind11::object value_to_pyobject(const common::Value& value) {
+pybind11::object value_to_pyobject(const ::common::Value& value) {
   switch (value.item_case()) {
-  case common::Value::kBoolean: {
+  case ::common::Value::kBoolean: {
     return pybind11::bool_(value.boolean());
   }
-  case common::Value::kI32: {
+  case ::common::Value::kI32: {
     return pybind11::int_(value.i32());
   }
-  case common::Value::kI64: {
+  case ::common::Value::kI64: {
     return pybind11::int_(value.i64());
   }
-  case common::Value::kStr: {
+  case ::common::Value::kStr: {
     return pybind11::str(value.str());
   }
-  case common::Value::kBlob: {
+  case ::common::Value::kBlob: {
     return pybind11::bytes(value.blob());
   }
-  case common::Value::kI32Array: {
+  case ::common::Value::kI32Array: {
     pybind11::list list;
     for (const auto& item : value.i32_array().item()) {
       list.append(pybind11::int_(item));
     }
     return list;
   }
-  case common::Value::kI64Array: {
+  case ::common::Value::kI64Array: {
     pybind11::list list;
     for (const auto& item : value.i64_array().item()) {
       list.append(pybind11::int_(item));
     }
     return list;
   }
-  case common::Value::kF64Array: {
+  case ::common::Value::kF64Array: {
     pybind11::list list;
     for (const auto& item : value.f64_array().item()) {
       list.append(pybind11::float_(item));
     }
     return list;
   }
-  case common::Value::kStrArray: {
+  case ::common::Value::kStrArray: {
     pybind11::list list;
     for (const auto& item : value.str_array().item()) {
       list.append(pybind11::str(item));
     }
     return list;
   }
-  case common::Value::kPairArray: {
+  case ::common::Value::kPairArray: {
     pybind11::list list;
     for (const auto& item : value.pair_array().item()) {
       pybind11::tuple tuple;
@@ -75,43 +76,44 @@ pybind11::object value_to_pyobject(const common::Value& value) {
     }
     return list;
   }
-  case common::Value::kNone: {
+  case ::common::Value::kNone: {
     return pybind11::none();
   }
-  case common::Value::kDate: {        // date32
+  case ::common::Value::kDate: {      // date32
     auto days = value.date().item();  // days since epoch
     Date day;
     day.from_num_days(days);
     return pybind11::cast<pybind11::object>(
         PyDate_FromDate(day.year(), day.month(), day.day()));
   }
-  case common::Value::kTime: {
+  case ::common::Value::kTime: {
     LOG(FATAL) << "Time type is not supported:";
   }
-  case common::Value::kTimestamp: {
+  case ::common::Value::kTimestamp: {
     auto seconds = value.timestamp().item();  // millseconds since epoch
     auto millseconds = seconds * 1000;
     auto datetime = PyDateTime_FromTimestamp(PyLong_FromLongLong(millseconds));
 
     if (datetime == nullptr) {
-      throw std::runtime_error("Failed to convert timestamp to datetime");
+      throw gs::exception::RuntimeError(
+          "Failed to convert timestamp to datetime");
     }
     return pybind11::cast<pybind11::object>(datetime);
   }
-  case common::Value::kU32: {
+  case ::common::Value::kU32: {
     return pybind11::int_(value.u32());
   }
-  case common::Value::kU64: {
+  case ::common::Value::kU64: {
     return pybind11::int_(value.u64());
   }
-  case common::Value::kF32: {
+  case ::common::Value::kF32: {
     return pybind11::float_(value.f32());
   }
-  case common::Value::kF64: {
+  case ::common::Value::kF64: {
     return pybind11::float_(value.f64());
   }
   default: {
-    throw std::runtime_error("Unknown value type");
+    throw gs::exception::RuntimeError("Unknown value type");
   }
   }
 }
@@ -122,7 +124,7 @@ pybind11::object name_or_id_to_pyobject(const common::NameOrId& name_or_id) {
   } else if (name_or_id.item_case() == common::NameOrId::kName) {
     return pybind11::str(name_or_id.name());
   } else {
-    throw std::runtime_error("Unknown NameOrId type");
+    throw gs::exception::RuntimeError("Unknown NameOrId type");
   }
 }
 
@@ -164,7 +166,7 @@ pybind11::object graph_path_to_pyobject(const results::GraphPath& graph_path) {
                results::GraphPath::VertexOrEdge::kEdge) {
       list.append(edge_to_pyobject(vertex_or_edge.edge()));
     } else {
-      throw std::runtime_error("Unknown VertexOrEdge type");
+      throw gs::exception::RuntimeError("Unknown VertexOrEdge type");
     }
   }
   return list;
@@ -185,7 +187,7 @@ pybind11::object element_to_pyobject(const results::Element& element) {
     return value_to_pyobject(element.object());
   }
   default: {
-    throw std::runtime_error("Unknown element type");
+    throw gs::exception::RuntimeError("Unknown element type");
   }
   }
 }
@@ -225,7 +227,7 @@ pybind11::object entry_to_pyobject(const results::Entry* entry) {
     return map_to_pyobject(entry->map());
   }
   default: {
-    throw std::runtime_error("Unknown entry type");
+    throw gs::exception::RuntimeError("Unknown entry type");
   }
   }
 }
@@ -286,7 +288,7 @@ bool PyQueryResult::hasNext() { return query_result_.hasNext(); }
 
 pybind11::list PyQueryResult::getNext() {
   if (!hasNext()) {
-    throw std::runtime_error("No more results");
+    throw gs::exception::RuntimeError("No more results");
   }
   auto result = query_result_.next();
 

@@ -120,7 +120,7 @@ std::shared_ptr<planner::LogicalOperator> FilterPushDownPattern::perform(
     return child;
   }
   default:
-    throw common::Exception(
+    throw exception::Exception(
         "Unsupported operator type for filter push down: " +
         std::to_string(static_cast<int>(child->getOperatorType())));
   }
@@ -143,7 +143,7 @@ std::string FilterPushDownPattern::getUniqueName(
     return getVOp->getAliasName();
   }
   default:
-    throw common::Exception(
+    throw exception::Exception(
         "Unsupported operator type for getting unique name: " +
         std::to_string(static_cast<int>(childType)));
   }

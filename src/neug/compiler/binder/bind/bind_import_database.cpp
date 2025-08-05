@@ -23,7 +23,8 @@ static std::string getQueryFromFile(VirtualFileSystem* vfs,
     if (fileName == PortDBConstants::INDEX_FILE_NAME) {
       return "";
     }
-    throw BinderException(stringFormat("File {} does not exist.", filePath));
+    throw exception::BinderException(
+        stringFormat("File {} does not exist.", filePath));
   }
   auto fileInfo = vfs->openFile(filePath, FileOpenFlags(FileFlags::READ_ONLY
 #ifdef _WIN32
@@ -88,7 +89,7 @@ std::unique_ptr<BoundStatement> Binder::bindImportDatabaseClause(
   auto fs = clientContext->getVFSUnsafe();
   auto boundFilePath = fs->expandPath(clientContext, importDB.getFilePath());
   if (!fs->fileOrPathExists(boundFilePath, clientContext)) {
-    throw BinderException(
+    throw exception::BinderException(
         stringFormat("Directory {} does not exist.", boundFilePath));
   }
   std::string finalQueryStatements;

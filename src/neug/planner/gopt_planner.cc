@@ -28,7 +28,7 @@ Plan GOptPlanner::compilePlan(const std::string& query) {
   std::shared_lock<std::shared_mutex> lock(planner_mutex);
 
   if (database->getCatalog() == nullptr) {
-    throw gs::common::CatalogException(
+    throw gs::exception::CatalogException(
         "GOptPlanner: Catalog is not initialized. Please update the schema "
         "first.");
   }
@@ -68,7 +68,7 @@ Plan GOptPlanner::compilePlan(const std::string& query) {
 
     return plan;
 
-  } catch (const gs::common::CatalogException& e) {
+  } catch (const gs::exception::CatalogException& e) {
     plan.error_code = StatusCode::ERR_INVALID_SCHEMA;
     plan.full_message = e.what();
   } catch (const std::exception& e) {

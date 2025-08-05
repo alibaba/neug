@@ -16,7 +16,7 @@ struct BaseListSortOperation {
     } else if (upperSortOrder == "DESC") {
       return false;
     } else {
-      throw common::RuntimeException("Invalid sortOrder");
+      throw exception::RuntimeError("Invalid sortOrder");
     }
   }
 
@@ -27,7 +27,7 @@ struct BaseListSortOperation {
     } else if (upperNullOrder == "NULLS LAST") {
       return false;
     } else {
-      throw common::RuntimeException("Invalid nullOrder");
+      throw exception::RuntimeError("Invalid nullOrder");
     }
   }
 

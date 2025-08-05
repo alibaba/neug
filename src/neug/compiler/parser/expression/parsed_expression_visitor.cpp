@@ -79,7 +79,7 @@ void ParsedExpressionVisitor::visitSwitch(const ParsedExpression* expr) {
   } break;
     // LCOV_EXCL_START
   default:
-    throw NotImplementedException("ExpressionVisitor::visitSwitch");
+    throw exception::NotImplementedException("ExpressionVisitor::visitSwitch");
     // LCOV_EXCL_STOP
   }
 }

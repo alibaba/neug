@@ -21,7 +21,7 @@ void validateUnionColumnsOfTheSameType(
     auto otherColumns =
         normalizedSingleQueries[i].getStatementResult()->getColumns();
     if (columns.size() != otherColumns.size()) {
-      throw BinderException(
+      throw exception::BinderException(
           "The number of columns to union/union all must be the same.");
     }
     // Check whether the dataTypes in union expressions are exactly the same in
@@ -40,7 +40,8 @@ void validateIsAllUnionOrUnionAll(const BoundRegularQuery& regularQuery) {
   }
   if ((0 < unionAllExpressionCounter) &&
       (unionAllExpressionCounter < regularQuery.getNumSingleQueries() - 1)) {
-    throw BinderException("Union and union all can not be used together.");
+    throw exception::BinderException(
+        "Union and union all can not be used together.");
   }
 }
 

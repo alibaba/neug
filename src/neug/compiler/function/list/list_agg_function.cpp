@@ -21,7 +21,7 @@ static std::unique_ptr<FunctionBindData> bindFuncListAggr(
                                                         OPERATION>;
       },
       [&input, &resultType](auto) {
-        throw BinderException(stringFormat(
+        throw exception::BinderException(stringFormat(
             "Unsupported inner data type for {}: {}", input.definition->name,
             LogicalTypeUtils::toString(resultType.getLogicalTypeID())));
       });

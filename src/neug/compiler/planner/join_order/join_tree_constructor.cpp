@@ -14,7 +14,7 @@ namespace planner {
 JoinTree JoinTreeConstructor::construct(
     std::shared_ptr<BoundJoinHintNode> root) {
   if (planningInfo.subqueryType == SubqueryPlanningType::CORRELATED) {
-    throw NotImplementedException(
+    throw exception::NotImplementedException(
         stringFormat("Hint join pattern has correlation with previous "
                      "patterns. This is not supported yet."));
   }
@@ -53,7 +53,8 @@ std::shared_ptr<NodeExpression> getIntersectNode(
     candidates = intersect(candidates, buildSubgraphs[i].getNbrNodeIndices());
   }
   if (candidates.size() != 1) {
-    throw BinderException("Cannot resolve join condition for multi-way join.");
+    throw exception::BinderException(
+        "Cannot resolve join condition for multi-way join.");
   }
   return queryGraph.getQueryNode(candidates[0]);
 }
@@ -79,7 +80,7 @@ JoinTreeConstructor::IntermediateResult JoinTreeConstructor::constructTreeNode(
       joinNodes = getJoinNodes(right.subqueryGraph, left.subqueryGraph);
     }
     if (joinNodes.empty()) {
-      throw BinderException(
+      throw exception::BinderException(
           stringFormat("Cannot resolve join condition between {} and {}.",
                        left.treeNode->toString(), right.treeNode->toString()));
     }
@@ -113,7 +114,7 @@ JoinTreeConstructor::IntermediateResult JoinTreeConstructor::constructTreeNode(
   for (auto i = 1u; i < hintNode->children.size(); ++i) {
     auto build = constructTreeNode(hintNode->children[i]);
     if (build.treeNode->type != TreeNodeType::REL_SCAN) {
-      throw BinderException(
+      throw exception::BinderException(
           stringFormat("Cannot construct multi-way join because build side is "
                        "not a relationship table."));
     }

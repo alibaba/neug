@@ -59,17 +59,17 @@ std::vector<std::string> TableFunction::extractYieldVariables(
   std::vector<std::string> variableNames;
   if (!yieldVariables.empty()) {
     if (yieldVariables.size() < names.size()) {
-      throw BinderException{
+      throw exception::BinderException{
           "Output variables must all appear in the yield clause."};
     }
     if (yieldVariables.size() > names.size()) {
-      throw BinderException{
+      throw exception::BinderException{
           "The number of variables in the yield clause exceeds the "
           "number of output variables of the table function."};
     }
     for (auto i = 0u; i < names.size(); i++) {
       if (names[i] != yieldVariables[i].name) {
-        throw BinderException{
+        throw exception::BinderException{
             stringFormat("Unknown table function output variable name: {}.",
                          yieldVariables[i].name)};
       }

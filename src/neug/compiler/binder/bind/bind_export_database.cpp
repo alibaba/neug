@@ -52,7 +52,8 @@ FileTypeInfo getFileType(case_insensitive_map_t<Value>& options) {
   if (options.contains("FORMAT")) {
     auto value = options.at("FORMAT");
     if (value.getDataType().getLogicalTypeID() != LogicalTypeID::STRING) {
-      throw BinderException("The type of format option must be a string.");
+      throw exception::BinderException(
+          "The type of format option must be a string.");
     }
     auto valueStr = value.getValue<std::string>();
     StringUtils::toUpper(valueStr);
@@ -143,11 +144,11 @@ std::unique_ptr<BoundStatement> Binder::bindExportDatabaseClause(
   case FileType::PARQUET:
     break;
   default:
-    throw BinderException(
+    throw exception::BinderException(
         "Export database currently only supports csv and parquet files.");
   }
   if (fileTypeInfo.fileType != FileType::CSV && parsedOptions.size() != 0) {
-    throw BinderException{"Only export to csv can have options."};
+    throw exception::BinderException{"Only export to csv can have options."};
   }
   return std::make_unique<BoundExportDatabase>(boundFilePath, fileTypeInfo,
                                                std::move(exportData),

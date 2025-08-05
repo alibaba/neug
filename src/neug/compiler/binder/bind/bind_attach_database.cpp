@@ -12,7 +12,7 @@ static AttachInfo bindAttachInfo(const parser::AttachInfo& attachInfo) {
   binder::AttachOption attachOption;
   for (auto& [name, value] : attachInfo.options) {
     if (value->getExpressionType() != common::ExpressionType::LITERAL) {
-      throw common::BinderException{
+      throw exception::BinderException{
           "Attach option must be a literal expression."};
     }
     auto val =
@@ -23,7 +23,7 @@ static AttachInfo bindAttachInfo(const parser::AttachInfo& attachInfo) {
   if (common::StringUtils::getUpper(attachInfo.dbType) ==
           common::ATTACHED_KUZU_DB_TYPE &&
       attachInfo.dbAlias.empty()) {
-    throw common::BinderException{
+    throw exception::BinderException{
         "Attaching a gs database without an alias is not allowed."};
   }
   return binder::AttachInfo{attachInfo.dbPath, attachInfo.dbAlias,

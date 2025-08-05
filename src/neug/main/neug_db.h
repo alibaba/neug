@@ -96,19 +96,19 @@ class NeugDB {
                mode == "read-write") {
       mode_ = DBMode::READ_WRITE;
     } else {
-      throw std::invalid_argument("Invalid mode: " + mode);
+      throw exception::InvalidArgumentException("Invalid mode: " + mode);
     }
 
     std::string message;
     if (!file_lock_.lock(message, mode_)) {
-      throw std::runtime_error("Failed to lock directory: " + db_dir + "," +
-                               message);
+      throw exception::IOException("Failed to lock directory: " + db_dir + "," +
+                                   message);
     }
 
     auto res = db_.Open(config_);
     if (!res.ok()) {
-      throw std::runtime_error("Failed to open database: " +
-                               res.status().error_message());
+      throw exception::IOException("Failed to open database: " +
+                                   res.status().error_message());
     }
     LOG(INFO) << "Database opened successfully in " << mode << " mode.";
     planner_ = create_planner(planner_kind, planner_config_path);

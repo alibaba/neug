@@ -69,7 +69,7 @@ const BoundGraphEntryTableInfo& GraphEntry::getRelInfo(
     }
   }
   // LCOV_EXCL_START
-  throw RuntimeException(
+  throw exception::RuntimeError(
       stringFormat("Cannot find rel table with id {}", tableID));
   // LCOV_EXCL_STOP
 }

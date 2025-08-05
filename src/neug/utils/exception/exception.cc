@@ -5,7 +5,7 @@
 #endif
 
 namespace gs {
-namespace common {
+namespace exception {
 
 Exception::Exception(std::string msg)
     : exception(), exception_message_(std::move(msg)) {
@@ -14,5 +14,5 @@ Exception::Exception(std::string msg)
 #endif
 }
 
-}  // namespace common
+}  // namespace exception
 }  // namespace gs

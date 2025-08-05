@@ -20,11 +20,11 @@ static uint64_t getLiteralNumber(std::shared_ptr<gs::binder::Expression> expr) {
       value.getDataType(),
       [&]<common::IntegerTypes T>(T) {
         if (value.getValue<T>() < 0) {
-          throw common::RuntimeException{errorMsg};
+          throw exception::RuntimeError{errorMsg};
         }
         number = (uint64_t) value.getValue<T>();
       },
-      [&](auto) { throw common::RuntimeException{errorMsg}; });
+      [&](auto) { throw exception::RuntimeError{errorMsg}; });
   return number;
 }
 

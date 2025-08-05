@@ -10,7 +10,7 @@ using namespace gs::common;
 static std::unique_ptr<FunctionBindData> bindFunc(
     const ScalarBindFuncInput& input) {
   if (input.arguments[1]->expressionType != ExpressionType::LAMBDA) {
-    throw BinderException(stringFormat(
+    throw exception::BinderException(stringFormat(
         "The second argument of LIST_FILTER should be a lambda expression but "
         "got {}.",
         ExpressionTypeUtil::toString(input.arguments[1]->expressionType)));
@@ -19,7 +19,7 @@ static std::unique_ptr<FunctionBindData> bindFunc(
   paramTypes.push_back(input.arguments[0]->getDataType().copy());
   paramTypes.push_back(input.arguments[1]->getDataType().copy());
   if (input.arguments[1]->getDataType() != LogicalType::BOOL()) {
-    throw BinderException(stringFormat(
+    throw exception::BinderException(stringFormat(
         "{} requires the result type of lambda expression be BOOL.",
         ListFilterFunction::name));
   }

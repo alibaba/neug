@@ -126,7 +126,8 @@ Value ClientContext::getCurrentSetting(const std::string& optionName) const {
   if (defaultOption != nullptr) {
     return defaultOption->defaultValue;
   }
-  throw RuntimeException{"Invalid option name: " + lowerCaseOptionName + "."};
+  throw exception::RuntimeError{"Invalid option name: " + lowerCaseOptionName +
+                                "."};
 }
 
 Transaction* ClientContext::getTransaction() const {
@@ -402,7 +403,7 @@ void ClientContext::bindParametersNoLock(
   auto& parameterMap = preparedStatement->parameterMap;
   for (auto& [name, value] : inputParams) {
     if (!parameterMap.contains(name)) {
-      throw Exception("Parameter " + name + " not found.");
+      throw exception::Exception("Parameter " + name + " not found.");
     }
     auto expectParam = parameterMap.at(name);
     *parameterMap.at(name) = std::move(*value);
@@ -412,7 +413,7 @@ void ClientContext::bindParametersNoLock(
 std::vector<std::shared_ptr<Statement>> ClientContext::parseQuery(
     std::string_view query) {
   if (query.empty()) {
-    throw ConnectionException("Query is empty.");
+    throw exception::ConnectionException("Query is empty.");
   }
   std::vector<std::shared_ptr<Statement>> statements;
   auto parserTimer = TimeMetric(true /*enable*/);
@@ -563,7 +564,7 @@ void ClientContext::TransactionHelper::runFuncInTransaction(
         (context.isAutoTransaction() && commitIfAuto(action))) {
       context.commit();
     }
-  } catch (CheckpointException&) {
+  } catch (exception::CheckpointException&) {
     context.clearTransaction();
     throw;
   } catch (std::exception&) {

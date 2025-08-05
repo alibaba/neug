@@ -30,7 +30,7 @@ std::vector<std::shared_ptr<Statement>> Parser::parseQuery(
   // We should have enforced this in connection, but I also realize empty query
   // will cause antlr to hang. So enforce a duplicate check here.
   if (queryStr.empty()) {
-    throw common::ParserException(
+    throw exception::ParserException(
         "Cannot parse empty query. This should be handled in connection.");
   }
   // LCOV_EXCL_STOP

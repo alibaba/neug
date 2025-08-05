@@ -23,7 +23,7 @@ std::unique_ptr<BoundStatement> Binder::bindStandaloneCall(
     option = clientContext->getExtensionOption(callStatement.getOptionName());
   }
   if (option == nullptr) {
-    throw BinderException{
+    throw exception::BinderException{
         "Invalid option name: " + callStatement.getOptionName() + "."};
   }
   auto optionValue =
@@ -32,7 +32,7 @@ std::unique_ptr<BoundStatement> Binder::bindStandaloneCall(
   if (LogicalTypeUtils::isFloatingPoint(
           optionValue->dataType.getLogicalTypeID()) &&
       LogicalTypeUtils::isIntegral(LogicalType(option->parameterType))) {
-    throw BinderException{stringFormat(
+    throw exception::BinderException{stringFormat(
         "Expression {} has data type {} but expected {}. Implicit cast is not "
         "supported.",
         optionValue->toString(),

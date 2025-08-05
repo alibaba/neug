@@ -35,7 +35,7 @@ static void validateArrayColumnType(const catalog::TableCatalogEntry* entry,
                                     property_id_t propertyID) {
   auto& type = entry->getProperty(propertyID).getType();
   if (type.getLogicalTypeID() != LogicalTypeID::ARRAY) {
-    throw BinderException{
+    throw exception::BinderException{
         stringFormat("Column {} is not of the expected type {}.",
                      entry->getProperty(propertyID).getName(),
                      LogicalTypeUtils::toString(LogicalTypeID::ARRAY))};

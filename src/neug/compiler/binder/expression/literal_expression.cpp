@@ -12,7 +12,7 @@ void LiteralExpression::cast(const LogicalType& type) {
   // unexpectedly.
   if (!value.allowTypeChange()) {
     // LCOV_EXCL_START
-    throw BinderException(stringFormat(
+    throw exception::BinderException(stringFormat(
         "Cannot change literal expression data type from {} to {}.",
         dataType.toString(), type.toString()));
     // LCOV_EXCL_STOP

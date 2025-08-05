@@ -38,7 +38,7 @@ struct GNodeType {
       if (nodeTable) {
         nodeTables.emplace_back(nodeTable);
       } else {
-        throw common::Exception("Expected a NodeTableCatalogEntry.");
+        throw exception::Exception("Expected a NodeTableCatalogEntry.");
       }
     }
   }
@@ -87,7 +87,7 @@ struct GRelType {
       if (relTable) {
         relTables.emplace_back(relTable);
       } else {
-        throw common::Exception("Expected a GRelTableCatalogEntry.");
+        throw exception::Exception("Expected a GRelTableCatalogEntry.");
       }
     }
   }
@@ -116,13 +116,13 @@ struct GRelType {
       auto srcEntry = catalog->getTableCatalogEntry(&transaction,
                                                     relTable->getSrcTableID());
       if (srcEntry->getType() != catalog::CatalogEntryType::NODE_TABLE_ENTRY) {
-        throw common::Exception("src table is not a node table");
+        throw exception::Exception("src table is not a node table");
       }
       auto srcTable = srcEntry->ptrCast<catalog::NodeTableCatalogEntry>();
       auto dstEntry = catalog->getTableCatalogEntry(&transaction,
                                                     relTable->getDstTableID());
       if (dstEntry->getType() != catalog::CatalogEntryType::NODE_TABLE_ENTRY) {
-        throw common::Exception("dst table is not a node table");
+        throw exception::Exception("dst table is not a node table");
       }
       auto dstTable = dstEntry->ptrCast<catalog::NodeTableCatalogEntry>();
       label["src_id"] = srcTable->getTableID();

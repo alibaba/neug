@@ -109,7 +109,7 @@ void GAliasManager::extractGAliasNames(
     // do nothing
     break;
   default: {
-    throw common::Exception(
+    throw exception::Exception(
         "Unsupported operator type for alias management: " +
         std::to_string(static_cast<int>(op.getOperatorType())));
   }
@@ -237,7 +237,7 @@ common::alias_id_t GAliasManager::getAliasId(const std::string& uniqueName) {
     return DEFAULT_ALIAS_ID;
   }
   if (!uniqueNameToId.contains(uniqueName)) {
-    throw common::Exception("Unique name not found: " + uniqueName);
+    throw exception::Exception("Unique name not found: " + uniqueName);
   }
   return uniqueNameToId[uniqueName];
 }
@@ -246,7 +246,7 @@ gopt::GAliasName GAliasManager::getGAliasName(common::alias_id_t id) {
   if (idToGName.contains(id)) {
     return idToGName[id];
   }
-  throw common::Exception("Alias ID not found: " + std::to_string(id));
+  throw exception::Exception("Alias ID not found: " + std::to_string(id));
 }
 
 std::string GAliasManager::printForDebug() {

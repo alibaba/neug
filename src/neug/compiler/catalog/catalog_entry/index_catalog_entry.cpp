@@ -67,7 +67,7 @@ std::unique_ptr<common::BufferReader> IndexCatalogEntry::getAuxBufferReader()
     const {
   // LCOV_EXCL_START
   if (!auxBuffer) {
-    throw common::RuntimeException(common::stringFormat(
+    throw exception::RuntimeError(common::stringFormat(
         "Auxiliary buffer for index \"{}\" is not set.", indexName));
   }
   // LCOV_EXCL_STOP

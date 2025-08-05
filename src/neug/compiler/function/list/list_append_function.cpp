@@ -35,7 +35,7 @@ struct ListAppend {
 static void validateArgumentType(const binder::expression_vector& arguments) {
   if (ListType::getChildType(arguments[0]->dataType) !=
       arguments[1]->getDataType()) {
-    throw BinderException(
+    throw exception::BinderException(
         ExceptionMessage::listFunctionIncompatibleChildrenType(
             ListAppendFunction::name, arguments[0]->getDataType().toString(),
             arguments[1]->getDataType().toString()));

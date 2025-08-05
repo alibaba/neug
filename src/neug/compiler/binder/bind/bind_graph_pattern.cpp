@@ -175,7 +175,7 @@ static std::unique_ptr<Expression> createPropertyExpression(
   KU_ASSERT(!dataTypes.empty());
   for (const auto& type : dataTypes) {
     if (dataTypes[0] != type) {
-      throw BinderException(stringFormat(
+      throw exception::BinderException(stringFormat(
           "Expected the same data type for property {} but found {} and {}.",
           propertyName, type.toString(), dataTypes[0].toString()));
     }
@@ -198,7 +198,7 @@ static void checkRelDirectionTypeAgainstStorageDirection(
   case RelDirectionType::SINGLE:
     // Directed pattern is in the fwd direction
     if (!containsValue(rel->getExtendDirections(), ExtendDirection::FWD)) {
-      throw BinderException(
+      throw exception::BinderException(
           stringFormat("Querying table matched in rel pattern '{}' with "
                        "bwd-only storage direction isn't supported.",
                        rel->toString()));
@@ -206,7 +206,7 @@ static void checkRelDirectionTypeAgainstStorageDirection(
     break;
   case RelDirectionType::BOTH:
     if (rel->getExtendDirections().size() < NUM_REL_DIRECTIONS) {
-      throw BinderException(stringFormat(
+      throw exception::BinderException(stringFormat(
           "Undirected rel pattern '{}' has at least one matched rel table with "
           "storage type 'fwd' or 'bwd'. Undirected rel patterns are only "
           "supported if every matched rel table has storage type 'both'.",
@@ -230,8 +230,9 @@ std::shared_ptr<RelExpression> Binder::bindQueryRel(
             ? LogicalTypeID::RECURSIVE_REL
             : LogicalTypeID::REL;
     ExpressionUtil::validateDataType(*prevVariable, expectedDataType);
-    throw BinderException("Bind relationship " + parsedName +
-                          " to relationship with same name is not supported.");
+    throw exception::BinderException(
+        "Bind relationship " + parsedName +
+        " to relationship with same name is not supported.");
   }
   auto entries = bindRelTableEntries(relPattern.getTableNames());
   // bind src & dst node
@@ -338,7 +339,7 @@ static void bindProjectionListAsStructField(
     const expression_vector& projectionList, std::vector<StructField>& fields) {
   for (auto& expression : projectionList) {
     if (expression->expressionType != ExpressionType::PROPERTY) {
-      throw BinderException(
+      throw exception::BinderException(
           stringFormat("Unsupported projection item {} on recursive rel.",
                        expression->toString()));
     }
@@ -364,7 +365,7 @@ static void checkWeightedShortestPathSupportedType(const LogicalType& type) {
   default:
     break;
   }
-  throw BinderException(stringFormat(
+  throw exception::BinderException(stringFormat(
       "{} weight type is not supported for weighted shortest path.",
       type.toString()));
 }
@@ -441,7 +442,7 @@ std::shared_ptr<RelExpression> Binder::createRecursiveQueryRel(
           dependentVariableNames.contains(node->getUniqueName());
       auto dependOnRel = dependentVariableNames.contains(rel->getUniqueName());
       if (dependOnNode && dependOnRel) {
-        throw BinderException(stringFormat(
+        throw exception::BinderException(stringFormat(
             "Cannot evaluate {} because it depends on both {} and {}.",
             predicate->toString(), node->toString(), rel->toString()));
       } else if (dependOnNode) {
@@ -452,7 +453,7 @@ std::shared_ptr<RelExpression> Binder::createRecursiveQueryRel(
             ExpressionType::AND, relPredicate, predicate);
       } else {
         if (!ExpressionUtil::isBoolLiteral(*predicate)) {
-          throw BinderException(stringFormat(
+          throw exception::BinderException(stringFormat(
               "Cannot evaluate {} because it does not depend on {} or {}. "
               "Treating it as "
               "a node or relationship predicate is ambiguous.",
@@ -577,19 +578,19 @@ std::pair<uint64_t, uint64_t> Binder::bindVariableLengthRelBound(
         upperBound);
   }
   if (lowerBound > upperBound) {
-    throw BinderException(
+    throw exception::BinderException(
         stringFormat("Lower bound of rel {} is greater than upperBound.",
                      relPattern.getVariableName()));
   }
   if (upperBound > maxDepth) {
-    throw BinderException(
+    throw exception::BinderException(
         stringFormat("Upper bound of rel {} exceeds maximum: {}.",
                      relPattern.getVariableName(), std::to_string(maxDepth)));
   }
   if ((relPattern.getRelType() == QueryRelType::ALL_SHORTEST ||
        relPattern.getRelType() == QueryRelType::SHORTEST) &&
       lowerBound != 1) {
-    throw BinderException(
+    throw exception::BinderException(
         "Lower bound of shortest/all_shortest path must be 1.");
   }
   return std::make_pair(lowerBound, upperBound);
@@ -618,7 +619,7 @@ std::shared_ptr<NodeExpression> Binder::bindQueryNode(
     auto prevVariable = scope.getExpression(parsedName);
     if (!ExpressionUtil::isNodePattern(*prevVariable)) {
       if (!scope.hasNodeReplacement(parsedName)) {
-        throw BinderException(
+        throw exception::BinderException(
             stringFormat("Cannot bind {} as node pattern.", parsedName));
       }
       queryNode = scope.getNodeReplacement(parsedName);
@@ -721,7 +722,7 @@ std::vector<TableCatalogEntry*> Binder::bindNodeTableEntries(
     for (auto& name : tableNames) {
       auto entry = bindNodeTableEntry(name);
       if (entry->getType() != CatalogEntryType::NODE_TABLE_ENTRY) {
-        throw BinderException(stringFormat(
+        throw exception::BinderException(stringFormat(
             "Cannot bind {} as a node pattern label.", entry->getName()));
       }
       entrySet.insert(entry);
@@ -735,7 +736,8 @@ TableCatalogEntry* Binder::bindNodeTableEntry(const std::string& name) const {
   auto catalog = clientContext->getCatalog();
   auto useInternal = clientContext->useInternalCatalogEntry();
   if (!catalog->containsTable(transaction, name, useInternal)) {
-    throw BinderException(stringFormat("Table {} does not exist.", name));
+    throw exception::BinderException(
+        stringFormat("Table {} does not exist.", name));
   }
   return catalog->getTableCatalogEntry(transaction, name, useInternal);
 }
@@ -762,13 +764,14 @@ std::vector<TableCatalogEntry*> Binder::bindRelTableEntries(
         auto entry =
             catalog->getTableCatalogEntry(transaction, name, useInternal);
         if (entry->getType() != CatalogEntryType::REL_TABLE_ENTRY) {
-          throw BinderException(
+          throw exception::BinderException(
               stringFormat("Cannot bind {} as a relationship pattern label.",
                            entry->getName()));
         }
         entrySet.insert(entry);
       } else {
-        throw BinderException(stringFormat("Table {} does not exist.", name));
+        throw exception::BinderException(
+            stringFormat("Table {} does not exist.", name));
       }
     }
   }

@@ -160,7 +160,7 @@ void GroupDependencyAnalyzer::visit(std::shared_ptr<binder::Expression> expr) {
   } break;
     // LCOV_EXCL_START
   default:
-    throw NotImplementedException("GroupDependencyAnalyzer::visit");
+    throw exception::NotImplementedException("GroupDependencyAnalyzer::visit");
     // LCOV_EXCL_STOP
   }
 }

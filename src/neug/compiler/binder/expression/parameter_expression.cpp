@@ -10,7 +10,7 @@ namespace binder {
 void ParameterExpression::cast(const LogicalType& type) {
   if (!dataType.containsAny()) {
     // LCOV_EXCL_START
-    throw BinderException(stringFormat(
+    throw exception::BinderException(stringFormat(
         "Cannot change parameter expression data type from {} to {}.",
         dataType.toString(), type.toString()));
     // LCOV_EXCL_STOP

@@ -62,7 +62,7 @@ void LimitPushDownOptimizer::visitOperator(planner::LogicalOperator* op) {
       // LCOV_EXCL_START
       if (op->getChild(0)->getChild(0)->getOperatorType() !=
           LogicalOperatorType::RECURSIVE_EXTEND) {
-        throw RuntimeException(
+        throw exception::RuntimeError(
             "Trying to push limit to a non RECURSIVE_EXTEND operator. "
             "This should never happen.");
       }

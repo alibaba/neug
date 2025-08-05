@@ -68,8 +68,8 @@ std::string NodeVal::toString(const Value* val) {
 void NodeVal::throwIfNotNode(const Value* val) {
   // LCOV_EXCL_START
   if (val->dataType.getLogicalTypeID() != LogicalTypeID::NODE) {
-    throw Exception(stringFormat("Expected NODE type, but got {} type",
-                                 val->dataType.toString()));
+    throw exception::Exception(stringFormat(
+        "Expected NODE type, but got {} type", val->dataType.toString()));
   }
   // LCOV_EXCL_STOP
 }

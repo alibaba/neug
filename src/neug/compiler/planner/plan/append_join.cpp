@@ -179,7 +179,7 @@ void Planner::appendIntersect(
     buildOps.push_back(plan->getLastOperator().get());
   }
   if (buildCards.empty()) {
-    throw common::Exception("buildCards is empty");
+    throw exception::Exception("buildCards is empty");
   }
   intersect->setCardinality(buildCards[buildCards.size() - 1]);
   probePlan.setCost(

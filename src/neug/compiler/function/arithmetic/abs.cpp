@@ -47,7 +47,7 @@ bool AbsInPlace::operation(int64_t& input, int64_t& result) {
 template <>
 void Abs::operation(int8_t& input, int8_t& result) {
   if (!AbsInPlace::operation(input, result)) {
-    throw common::OverflowException{common::stringFormat(
+    throw exception::OverflowException{common::stringFormat(
         "Cannot take the absolute value of {} within INT8 range.",
         common::TypeUtils::toString(input))};
   }
@@ -56,7 +56,7 @@ void Abs::operation(int8_t& input, int8_t& result) {
 template <>
 void Abs::operation(int16_t& input, int16_t& result) {
   if (!AbsInPlace::operation(input, result)) {
-    throw common::OverflowException{common::stringFormat(
+    throw exception::OverflowException{common::stringFormat(
         "Cannot take the absolute value of {} within INT16 range.",
         common::TypeUtils::toString(input))};
   }
@@ -65,7 +65,7 @@ void Abs::operation(int16_t& input, int16_t& result) {
 template <>
 void Abs::operation(int32_t& input, int32_t& result) {
   if (!AbsInPlace::operation(input, result)) {
-    throw common::OverflowException{common::stringFormat(
+    throw exception::OverflowException{common::stringFormat(
         "Cannot take the absolute value of {} within INT32 range.",
         common::TypeUtils::toString(input))};
   }
@@ -74,7 +74,7 @@ void Abs::operation(int32_t& input, int32_t& result) {
 template <>
 void Abs::operation(int64_t& input, int64_t& result) {
   if (!AbsInPlace::operation(input, result)) {
-    throw common::OverflowException{common::stringFormat(
+    throw exception::OverflowException{common::stringFormat(
         "Cannot take the absolute value of {} within INT64 range.",
         common::TypeUtils::toString(input))};
   }

@@ -77,8 +77,8 @@ std::string RelVal::toString(const Value* val) {
 void RelVal::throwIfNotRel(const Value* val) {
   // LCOV_EXCL_START
   if (val->dataType.getLogicalTypeID() != LogicalTypeID::REL) {
-    throw Exception(stringFormat("Expected REL type, but got {} type",
-                                 val->dataType.toString()));
+    throw exception::Exception(stringFormat(
+        "Expected REL type, but got {} type", val->dataType.toString()));
   }
   // LCOV_EXCL_STOP
 }

@@ -37,7 +37,7 @@ static std::unique_ptr<FunctionBindData> bindFunc(
           LogicalTypeID::ANY &&
       input.arguments[1]->dataType !=
           ListType::getChildType(input.arguments[0]->dataType)) {
-    throw BinderException(
+    throw exception::BinderException(
         ExceptionMessage::listFunctionIncompatibleChildrenType(
             ListPrependFunction::name,
             input.arguments[0]->getDataType().toString(),

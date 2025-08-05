@@ -216,7 +216,7 @@ static std::unique_ptr<TableFuncBindData> bindFunc(
       infos = getRelPropertyInfos(relEntry->ptrCast<RelTableCatalogEntry>());
       type = CatalogEntryType::REL_TABLE_ENTRY;
     } else {
-      throw CatalogException(
+      throw exception::CatalogException(
           stringFormat("{} does not exist in catalog.", tableName));
     }
   } else {

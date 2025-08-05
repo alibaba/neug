@@ -34,7 +34,7 @@ void CompressedFileSystem::syncFile(
 void CompressedFileSystem::readFromFile(FileInfo& /*fileInfo*/,
                                         void* /*buffer*/, uint64_t /*numBytes*/,
                                         uint64_t /*position*/) const {
-  throw IOException(
+  throw exception::IOException(
       "Only sequential read is allowed in compressed file system.");
 }
 

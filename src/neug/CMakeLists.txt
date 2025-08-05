@@ -31,4 +31,7 @@ if (BUILD_ALL_IN_ONE)
         target_include_directories(neug_libraries PUBLIC $<BUILD_INTERFACE:${CMAKE_CURRENT_BINARY_DIR}/compiler>
             $<INSTALL_INTERFACE:include/neug/compiler>)
         install_neug_target(neug_libraries)
+        if (ENABLE_BACKTRACES)
+            target_link_libraries(neug_libraries PUBLIC cpptrace::cpptrace)
+        endif()
 endif()

@@ -6,7 +6,7 @@
 #include "neug/compiler/common/api.h"
 
 namespace gs {
-namespace common {
+namespace exception {
 
 class KUZU_API Exception : public std::exception {
  public:
@@ -19,6 +19,12 @@ class KUZU_API Exception : public std::exception {
 
  private:
   std::string exception_message_;
+};
+
+class KUZU_API InvalidArgumentException : public Exception {
+ public:
+  explicit InvalidArgumentException(const std::string& msg)
+      : Exception("Invalid argument: " + msg){};
 };
 
 class KUZU_API BinderException : public Exception {
@@ -56,10 +62,22 @@ class KUZU_API ConversionException : public Exception {
       : Exception("Conversion exception: " + msg) {}
 };
 
+class KUZU_API QueryExecutionError : public Exception {
+ public:
+  explicit QueryExecutionError(const std::string& msg)
+      : Exception("Query execution error: " + msg){};
+};
+
 class KUZU_API CopyException : public Exception {
  public:
   explicit CopyException(const std::string& msg)
       : Exception("Copy exception: " + msg){};
+};
+
+class KUZU_API IndexException : public Exception {
+ public:
+  explicit IndexException(const std::string& msg)
+      : Exception("Index exception: " + msg){};
 };
 
 class KUZU_API ExtensionException : public Exception {
@@ -89,6 +107,12 @@ class KUZU_API NotImplementedException : public Exception {
   explicit NotImplementedException(const std::string& msg) : Exception(msg){};
 };
 
+class KUZU_API NotSupportedException : public Exception {
+ public:
+  explicit NotSupportedException(const std::string& msg)
+      : Exception("Not supported: " + msg){};
+};
+
 class KUZU_API OverflowException : public Exception {
  public:
   explicit OverflowException(const std::string& msg)
@@ -103,9 +127,9 @@ class KUZU_API ParserException : public Exception {
       : Exception(ERROR_PREFIX + msg){};
 };
 
-class KUZU_API RuntimeException : public Exception {
+class KUZU_API RuntimeError : public Exception {
  public:
-  explicit RuntimeException(const std::string& msg)
+  explicit RuntimeError(const std::string& msg)
       : Exception("Runtime exception: " + msg){};
 };
 
@@ -127,5 +151,6 @@ class KUZU_API TransactionManagerException : public Exception {
       : Exception(msg){};
 };
 
-}  // namespace common
+}  // namespace exception
+
 }  // namespace gs

@@ -96,7 +96,7 @@ bool BufferedFileReader::finished() {
 
 void BufferedFileReader::readNextPage() {
   if (fileSize <= fileOffset) {
-    throw RuntimeException(stringFormat(
+    throw exception::RuntimeError(stringFormat(
         "Reading past the end of the file {} with size {} at offset {}",
         fileInfo->path, fileSize, fileOffset));
   }

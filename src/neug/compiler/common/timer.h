@@ -28,7 +28,7 @@ class Timer {
                  duration)
           .count();
     }
-    throw Exception("Timer is still running.");
+    throw exception::Exception("Timer is still running.");
   }
 
   uint64_t getElapsedTimeInMS() const {

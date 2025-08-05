@@ -38,7 +38,7 @@ void ExpressionEvaluator::resolveResultStateFromChildren(
 
 void ExpressionEvaluator::evaluate(common::sel_t) {
   // LCOV_EXCL_START
-  throw RuntimeException(
+  throw exception::RuntimeError(
       stringFormat("Cannot evaluate expression {} with count. This should "
                    "never happen.",
                    expression->toString()));

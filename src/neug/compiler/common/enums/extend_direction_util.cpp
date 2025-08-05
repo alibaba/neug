@@ -15,7 +15,7 @@ ExtendDirection ExtendDirectionUtil::fromString(const std::string& str) {
   } else if (normalizedString == "BOTH") {
     return ExtendDirection::BOTH;
   } else {
-    throw RuntimeException(
+    throw exception::RuntimeError(
         stringFormat("Cannot parse {} as ExtendDirection.", str));
   }
 }

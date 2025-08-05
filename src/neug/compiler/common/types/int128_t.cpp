@@ -182,14 +182,15 @@ bool Int128_t::subInPlace(int128_t& lhs, int128_t rhs) {
 
 int128_t Int128_t::Add(int128_t lhs, const int128_t rhs) {
   if (!addInPlace(lhs, rhs)) {
-    throw common::OverflowException("INT128 is out of range: cannot add.");
+    throw exception::OverflowException("INT128 is out of range: cannot add.");
   }
   return lhs;
 }
 
 int128_t Int128_t::Sub(int128_t lhs, const int128_t rhs) {
   if (!subInPlace(lhs, rhs)) {
-    throw common::OverflowException("INT128 is out of range: cannot subtract.");
+    throw exception::OverflowException(
+        "INT128 is out of range: cannot subtract.");
   }
   return lhs;
 }
@@ -296,7 +297,8 @@ bool Int128_t::tryMultiply(int128_t lhs, int128_t rhs, int128_t& result) {
 int128_t Int128_t::Mul(int128_t lhs, int128_t rhs) {
   int128_t result{};
   if (!tryMultiply(lhs, rhs, result)) {
-    throw common::OverflowException("INT128 is out of range: cannot multiply.");
+    throw exception::OverflowException(
+        "INT128 is out of range: cannot multiply.");
   }
   return result;
 }
@@ -351,7 +353,7 @@ int128_t Int128_t::divMod(int128_t lhs, int128_t rhs, int128_t& remainder) {
 
 int128_t Int128_t::Div(int128_t lhs, int128_t rhs) {
   if (rhs.high == 0 && rhs.low == 0) {
-    throw common::RuntimeException("Divide by zero.");
+    throw exception::RuntimeError("Divide by zero.");
   }
   int128_t remainder{};
   return divMod(lhs, rhs, remainder);
@@ -359,7 +361,7 @@ int128_t Int128_t::Div(int128_t lhs, int128_t rhs) {
 
 int128_t Int128_t::Mod(int128_t lhs, int128_t rhs) {
   if (rhs.high == 0 && rhs.low == 0) {
-    throw common::RuntimeException("Modulo by zero.");
+    throw exception::RuntimeError("Modulo by zero.");
   }
   int128_t result{};
   divMod(lhs, rhs, result);
@@ -424,9 +426,9 @@ bool TryCastInt128Template(int128_t input, DST& result) {
     break;
   case -1:
     if constexpr (!SIGNED) {
-      throw common::OverflowException("Cast failed. Cannot cast " +
-                                      Int128_t::ToString(input) +
-                                      " to unsigned type.");
+      throw exception::OverflowException("Cast failed. Cannot cast " +
+                                         Int128_t::ToString(input) +
+                                         " to unsigned type.");
     }
     if (input.low >= function::NumericLimits<uint64_t>::maximum() -
                          uint64_t(function::NumericLimits<DST>::maximum())) {
@@ -747,7 +749,7 @@ int128_t operator>>(const int128_t& lhs, int amount) {
 // inplace arithmetic operators
 int128_t& int128_t::operator+=(const int128_t& rhs) {
   if (!Int128_t::addInPlace(*this, rhs)) {
-    throw common::OverflowException(
+    throw exception::OverflowException(
         "INT128 is out of range: cannot add in place.");
   }
   return *this;
@@ -792,7 +794,7 @@ int128_t::operator uint8_t() const { return NarrowCast<uint8_t>(*this); }
 int128_t::operator double() const {
   double result = NAN;
   if (!Int128_t::tryCast(*this, result)) {  // LCOV_EXCL_START
-    throw common::OverflowException(
+    throw exception::OverflowException(
         common::stringFormat("Value {} is not within DOUBLE range",
                              common::TypeUtils::toString(*this)));
   }  // LCOV_EXCL_STOP
@@ -802,7 +804,7 @@ int128_t::operator double() const {
 int128_t::operator float() const {
   float result = NAN;
   if (!Int128_t::tryCast(*this, result)) {  // LCOV_EXCL_START
-    throw common::OverflowException(
+    throw exception::OverflowException(
         common::stringFormat("Value {} is not within FLOAT range",
                              common::TypeUtils::toString(*this)));
   }  // LCOV_EXCL_STOP

@@ -14,6 +14,7 @@
  */
 
 #include "neug/main/query_result.h"
+#include "neug/utils/exception/exception.h"
 
 #include <glog/logging.h>
 
@@ -26,7 +27,8 @@ QueryResult QueryResult::From(results::CollectiveResults&& result) {
 QueryResult QueryResult::From(const std::string& result_str) {
   results::CollectiveResults result;
   if (!result.ParseFromString(result_str)) {
-    throw std::runtime_error("Failed to parse CollectiveResults from string");
+    throw exception::RuntimeError(
+        "Failed to parse CollectiveResults from string");
   }
   return QueryResult(std::move(result));
 }

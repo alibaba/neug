@@ -17,7 +17,7 @@ static std::shared_ptr<Expression> rewriteFunc(
             LogicalTypeID::RECURSIVE_REL);
   auto recursiveInfo = param->ptrCast<RelExpression>()->getRecursiveInfo();
   if (recursiveInfo->bindData->weightOutputExpr == nullptr) {
-    throw BinderException(
+    throw exception::BinderException(
         stringFormat("Cost function is not defined for {}", param->toString()));
   }
   return recursiveInfo->bindData->weightOutputExpr;

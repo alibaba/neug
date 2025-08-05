@@ -158,7 +158,8 @@ std::vector<BoundInsertInfo> Binder::bindInsertInfos(
     }
   }
   if (result.empty()) {
-    throw BinderException("Cannot resolve any node or relationship to create.");
+    throw exception::BinderException(
+        "Cannot resolve any node or relationship to create.");
   }
   return result;
 }
@@ -170,7 +171,7 @@ static void validatePrimaryKeyExistence(
   auto pkeyDefaultExpr = defaultExprs.at(nodeTableEntry->getPrimaryKeyID());
   if (!node.hasPropertyDataExpr(primaryKeyName) &&
       ExpressionUtil::isNullLiteral(*pkeyDefaultExpr)) {
-    throw BinderException(
+    throw exception::BinderException(
         stringFormat("Create node {} expects primary key {} as input.",
                      node.toString(), primaryKeyName));
   }
@@ -179,8 +180,9 @@ static void validatePrimaryKeyExistence(
 void Binder::bindInsertNode(std::shared_ptr<NodeExpression> node,
                             std::vector<BoundInsertInfo>& infos) {
   if (node->isMultiLabeled()) {
-    throw BinderException("Create node " + node->toString() +
-                          " with multiple node labels is not supported.");
+    throw exception::BinderException(
+        "Create node " + node->toString() +
+        " with multiple node labels is not supported.");
   }
   auto entry = node->getSingleEntry();
   KU_ASSERT(entry->getTableType() == TableType::NODE);
@@ -211,7 +213,7 @@ static TableCatalogEntry* tryPruneMultiLabeled(const RelExpression& rel,
     }
   }
   if (candidates.size() != 1) {
-    throw BinderException(
+    throw exception::BinderException(
         stringFormat("Create rel {} with multiple rel labels is not supported.",
                      rel.toString()));
   }
@@ -221,17 +223,17 @@ static TableCatalogEntry* tryPruneMultiLabeled(const RelExpression& rel,
 void Binder::bindInsertRel(std::shared_ptr<RelExpression> rel,
                            std::vector<BoundInsertInfo>& infos) {
   if (rel->isBoundByMultiLabeledNode()) {
-    throw BinderException(stringFormat(
+    throw exception::BinderException(stringFormat(
         "Create rel {} bound by multiple node labels is not supported.",
         rel->toString()));
   }
   if (rel->getDirectionType() == RelDirectionType::BOTH) {
-    throw BinderException(
+    throw exception::BinderException(
         stringFormat("Create undirected relationship is not supported. "
                      "Try create 2 directed relationships instead."));
   }
   if (ExpressionUtil::isRecursiveRelPattern(*rel)) {
-    throw BinderException(
+    throw exception::BinderException(
         stringFormat("Cannot create recursive rel {}.", rel->toString()));
   }
   TableCatalogEntry* entry = nullptr;
@@ -243,7 +245,7 @@ void Binder::bindInsertRel(std::shared_ptr<RelExpression> rel,
     entry = tryPruneMultiLabeled(*rel, srcTableID, dstTableID);
     // LCOV_EXCL_START
     if (entry == nullptr) {
-      throw BinderException(
+      throw exception::BinderException(
           stringFormat("Cannot find a valid label in {} to create. This should "
                        "not happen."));
     }
@@ -296,7 +298,7 @@ BoundSetPropertyInfo Binder::bindSetPropertyInfo(
   auto isNode = ExpressionUtil::isNodePattern(*expr);
   auto isRel = ExpressionUtil::isRelPattern(*expr);
   if (!isNode && !isRel) {
-    throw BinderException(stringFormat(
+    throw exception::BinderException(stringFormat(
         "Cannot set expression {} with type {}. Expect node or rel pattern.",
         expr->toString(), ExpressionTypeUtil::toString(expr->expressionType)));
   }
@@ -343,17 +345,19 @@ std::unique_ptr<BoundUpdatingClause> Binder::bindDeleteClause(
     } else if (ExpressionUtil::isRelPattern(*pattern)) {
       // LCOV_EXCL_START
       if (deleteClause.getDeleteClauseType() == DeleteNodeType::DETACH_DELETE) {
-        throw BinderException("Detach delete on rel tables is not supported.");
+        throw exception::BinderException(
+            "Detach delete on rel tables is not supported.");
       }
       // LCOV_EXCL_STOP
       auto rel = pattern->constPtrCast<RelExpression>();
       if (rel->getDirectionType() == RelDirectionType::BOTH) {
-        throw BinderException("Delete undirected rel is not supported.");
+        throw exception::BinderException(
+            "Delete undirected rel is not supported.");
       }
       auto deleteRel = BoundDeleteInfo(deleteType, TableType::REL, pattern);
       boundDeleteClause->addInfo(std::move(deleteRel));
     } else {
-      throw BinderException(
+      throw exception::BinderException(
           stringFormat("Cannot delete expression {} with type {}. Expect node "
                        "or rel pattern.",
                        pattern->toString(),

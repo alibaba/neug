@@ -153,7 +153,8 @@ bool Timestamp::tryConvertTimestamp(const char* str, uint64_t len,
 timestamp_t Timestamp::fromCString(const char* str, uint64_t len) {
   timestamp_t result;
   if (!tryConvertTimestamp(str, len, result)) {
-    throw ConversionException(getTimestampConversionExceptionMsg(str, len));
+    throw exception::ConversionException(
+        getTimestampConversionExceptionMsg(str, len));
   }
   return result;
 }

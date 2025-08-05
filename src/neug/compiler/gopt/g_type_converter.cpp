@@ -67,12 +67,12 @@ std::unique_ptr<::common::IrDataType> GTypeConverter::convertArrayType(
   LOG(INFO) << "Converting ARRAY child type: " << type.toString();
   auto childType = convertLogicalType(type, expr);
   if (!childType) {
-    throw common::Exception("Failed to convert child type for ARRAY type: " +
-                            type.toString());
+    throw exception::Exception("Failed to convert child type for ARRAY type: " +
+                               type.toString());
   }
   if (!childType->has_data_type()) {
-    throw common::Exception("Child type for ARRAY type must be a data type: " +
-                            type.toString());
+    throw exception::Exception(
+        "Child type for ARRAY type must be a data type: " + type.toString());
   } else {
     // Otherwise, we can directly set the data type
     arrayType->mutable_component_type()->CopyFrom(childType->data_type());
@@ -90,7 +90,7 @@ std::unique_ptr<::common::IrDataType> GTypeConverter::convertLogicalType(
     if (auto nodeExpr = expr.constPtrCast<binder::NodeExpression>()) {
       return convertNodeType(gopt::GNodeType(*nodeExpr));
     } else {
-      throw common::Exception(
+      throw exception::Exception(
           "Expected NodeExpression for NODE type, "
           "but got: " +
           expr.toString());
@@ -102,7 +102,7 @@ std::unique_ptr<::common::IrDataType> GTypeConverter::convertLogicalType(
     if (auto relExpr = expr.constPtrCast<binder::RelExpression>()) {
       return convertRelType(gopt::GRelType(*relExpr));
     } else {
-      throw common::Exception(
+      throw exception::Exception(
           "Expected RelExpression for REL type, "
           "but got: " +
           expr.toString());
@@ -229,8 +229,8 @@ std::unique_ptr<::common::IrDataType> GTypeConverter::convertSimpleLogicalType(
     break;
   }
   default:
-    throw common::Exception("Unsupported basic type for conversion: " +
-                            type.toString());
+    throw exception::Exception("Unsupported basic type for conversion: " +
+                               type.toString());
   }
   auto irType = std::make_unique<::common::IrDataType>();
   irType->set_allocated_data_type(result.release());

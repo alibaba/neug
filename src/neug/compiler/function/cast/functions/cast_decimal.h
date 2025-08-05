@@ -39,7 +39,7 @@ struct CastDecimalTo {
                  pow10s[scale];
       if (tmp < NumericLimits<DST>::minimum() ||
           tmp > NumericLimits<DST>::maximum()) {
-        throw OverflowException(stringFormat(
+        throw exception::OverflowException(stringFormat(
             "Cast Failed: {} is not in {} range",
             DecimalType::insertDecimalPoint(TypeUtils::toString(input), scale),
             outputVec.dataType.toString()));
@@ -63,7 +63,7 @@ struct CastToDecimal {
       output = (DST)(pow10s[scale] * input);
     }
     if (output <= -pow10s[precision] || output >= pow10s[precision]) {
-      throw OverflowException(stringFormat(
+      throw exception::OverflowException(stringFormat(
           "To Decimal Cast Failed: {} is not in {} range",
           TypeUtils::toString(input), outputVec.dataType.toString()));
     }
@@ -91,7 +91,7 @@ struct CastBetweenDecimal {
     }
     if (pow10s[outputPrecision] <= output ||
         -pow10s[outputPrecision] >= output) {
-      throw OverflowException(
+      throw exception::OverflowException(
           stringFormat("Decimal Cast Failed: input {} is not in range of {}",
                        DecimalType::insertDecimalPoint(
                            TypeUtils::toString(input, nullptr), inputScale),

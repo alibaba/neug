@@ -26,7 +26,7 @@ struct ToTimestamp {
   static inline void operation(double& sec, common::timestamp_t& result) {
     int64_t ms = 0;
     if (!tryCastWithOverflowCheck(sec * common::Interval::MICROS_PER_SEC, ms)) {
-      throw common::ConversionException(
+      throw exception::ConversionException(
           "Could not convert epoch seconds to TIMESTAMP");
     }
     result = common::timestamp_t(ms);

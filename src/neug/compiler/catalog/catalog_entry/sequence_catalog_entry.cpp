@@ -21,7 +21,7 @@ SequenceData SequenceCatalogEntry::getSequenceData() {
 int64_t SequenceCatalogEntry::currVal() {
   std::lock_guard lck(mtx);
   if (sequenceData.usageCount == 0) {
-    throw CatalogException(
+    throw exception::CatalogException(
         "currval: sequence \"" + name +
         "\" is not yet defined. To define the sequence, call nextval first.");
   }
@@ -38,7 +38,7 @@ void SequenceCatalogEntry::nextValNoLock() {
   auto next = sequenceData.currVal;
   try {
     function::Add::operation(next, sequenceData.increment, next);
-  } catch (const OverflowException&) { overflow = true; }
+  } catch (const exception::OverflowException&) { overflow = true; }
   if (sequenceData.cycle) {
     if (overflow) {
       next = sequenceData.increment < 0 ? sequenceData.maxValue
@@ -54,14 +54,14 @@ void SequenceCatalogEntry::nextValNoLock() {
     const bool maxError =
         overflow ? sequenceData.increment > 0 : next > sequenceData.maxValue;
     if (minError) {
-      throw CatalogException("nextval: reached minimum value of sequence \"" +
-                             name + "\" " +
-                             std::to_string(sequenceData.minValue));
+      throw exception::CatalogException(
+          "nextval: reached minimum value of sequence \"" + name + "\" " +
+          std::to_string(sequenceData.minValue));
     }
     if (maxError) {
-      throw CatalogException("nextval: reached maximum value of sequence \"" +
-                             name + "\" " +
-                             std::to_string(sequenceData.maxValue));
+      throw exception::CatalogException(
+          "nextval: reached maximum value of sequence \"" + name + "\" " +
+          std::to_string(sequenceData.maxValue));
     }
   }
   sequenceData.currVal = next;

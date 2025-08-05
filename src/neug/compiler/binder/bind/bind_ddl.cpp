@@ -40,13 +40,13 @@ static void validatePropertyName(
   case_insensitve_set_t nameSet;
   for (auto& definition : definitions) {
     if (nameSet.contains(definition.getName())) {
-      throw BinderException(stringFormat(
+      throw exception::BinderException(stringFormat(
           "Duplicated column name: {}, column name must be unique.",
           definition.getName()));
     }
     if (Binder::reservedInColumnName(definition.getName())) {
-      throw BinderException(stringFormat("{} is a reserved property name.",
-                                         definition.getName()));
+      throw exception::BinderException(stringFormat(
+          "{} is a reserved property name.", definition.getName()));
     }
     nameSet.insert(definition.getName());
   }
@@ -90,7 +90,7 @@ std::unique_ptr<parser::ParsedExpression> Binder::resolvePropertyDefault(
     }
   } else {
     if (type.getLogicalTypeID() == LogicalTypeID::SERIAL) {
-      throw BinderException(
+      throw exception::BinderException(
           "No DEFAULT value should be set for SERIAL columns");
     }
     return parsedDefault->copy();
@@ -107,13 +107,14 @@ static void validatePrimaryKey(
     }
   }
   if (primaryKeyIdx == UINT32_MAX) {
-    throw BinderException(
+    throw exception::BinderException(
         "Primary key " + pkColName +
         " does not match any of the predefined node properties.");
   }
   const auto& pkType = definitions[primaryKeyIdx].getType();
   if (!pkType.isInternalType()) {
-    throw BinderException(ExceptionMessage::invalidPKType(pkType.toString()));
+    throw exception::BinderException(
+        ExceptionMessage::invalidPKType(pkType.toString()));
   }
   switch (pkType.getPhysicalType()) {
   case PhysicalTypeID::UINT8:
@@ -130,7 +131,8 @@ static void validatePrimaryKey(
   case PhysicalTypeID::DOUBLE:
     break;
   default:
-    throw BinderException(ExceptionMessage::invalidPKType(pkType.toString()));
+    throw exception::BinderException(
+        ExceptionMessage::invalidPKType(pkType.toString()));
   }
 }
 
@@ -152,7 +154,7 @@ void Binder::validateNoIndexOnProperty(const std::string& tableName,
     if (indexCatalogEntry->getTableID() == tableEntry->getTableID() &&
         std::find(propertiesWithIndex.begin(), propertiesWithIndex.end(),
                   propertyID) != propertiesWithIndex.end()) {
-      throw BinderException{
+      throw exception::BinderException{
           stringFormat("Cannot drop property {} in table {} because it is used "
                        "in one or more indexes. "
                        "Please remove the associated indexes before attempting "
@@ -194,7 +196,7 @@ BoundCreateTableInfo Binder::bindCreateNodeTableInfo(
 
 void Binder::validateNodeTableType(const TableCatalogEntry* entry) {
   if (entry->getType() != CatalogEntryType::NODE_TABLE_ENTRY) {
-    throw BinderException(
+    throw exception::BinderException(
         stringFormat("{} is not of type NODE.", entry->getName()));
   }
 }
@@ -203,15 +205,16 @@ void Binder::validateTableExistence(const main::ClientContext& context,
                                     const std::string& tableName) {
   if (!context.getCatalog()->containsTable(context.getTransaction(),
                                            tableName)) {
-    throw BinderException{stringFormat("Table {} does not exist.", tableName)};
+    throw exception::BinderException{
+        stringFormat("Table {} does not exist.", tableName)};
   }
 }
 
 void Binder::validateColumnExistence(const TableCatalogEntry* entry,
                                      const std::string& columnName) {
   if (!entry->containsProperty(columnName)) {
-    throw BinderException{stringFormat("Column {} does not exist in table {}.",
-                                       columnName, entry->getName())};
+    throw exception::BinderException{stringFormat(
+        "Column {} does not exist in table {}.", columnName, entry->getName())};
   }
 }
 
@@ -266,7 +269,7 @@ static void validateUniqueFromToPairs(
   for (auto [from, to] : pairs) {
     auto key = from + to;
     if (set.contains(key)) {
-      throw BinderException(
+      throw exception::BinderException(
           stringFormat("Found duplicate FROM-TO {}-{} pairs.", from, to));
     }
     set.insert(key);
@@ -315,7 +318,8 @@ std::unique_ptr<BoundStatement> Binder::bindCreateType(
       LogicalType::convertFromString(createType->getDataType(), clientContext);
   if (clientContext->getCatalog()->containsType(clientContext->getTransaction(),
                                                 name)) {
-    throw BinderException{stringFormat("Duplicated type name: {}.", name)};
+    throw exception::BinderException{
+        stringFormat("Duplicated type name: {}.", name)};
   }
   return std::make_unique<BoundCreateType>(std::move(name), std::move(type));
 }
@@ -333,7 +337,8 @@ std::unique_ptr<BoundStatement> Binder::bindCreateSequence(
   case ConflictAction::ON_CONFLICT_THROW: {
     if (clientContext->getCatalog()->containsSequence(
             clientContext->getTransaction(), sequenceName)) {
-      throw BinderException(sequenceName + " already exists in catalog.");
+      throw exception::BinderException(sequenceName +
+                                       " already exists in catalog.");
     }
   } break;
   default:
@@ -341,11 +346,11 @@ std::unique_ptr<BoundStatement> Binder::bindCreateSequence(
   }
   auto literal = ku_string_t{info.increment.c_str(), info.increment.length()};
   if (!function::CastString::tryCast(literal, increment)) {
-    throw BinderException(
+    throw exception::BinderException(
         "Out of bounds: SEQUENCE accepts integers within INT64.");
   }
   if (increment == 0) {
-    throw BinderException("INCREMENT must be non-zero.");
+    throw exception::BinderException("INCREMENT must be non-zero.");
   }
 
   if (info.minValue == "") {
@@ -353,7 +358,7 @@ std::unique_ptr<BoundStatement> Binder::bindCreateSequence(
   } else {
     literal = ku_string_t{info.minValue.c_str(), info.minValue.length()};
     if (!function::CastString::tryCast(literal, minValue)) {
-      throw BinderException(
+      throw exception::BinderException(
           "Out of bounds: SEQUENCE accepts integers within INT64.");
     }
   }
@@ -362,7 +367,7 @@ std::unique_ptr<BoundStatement> Binder::bindCreateSequence(
   } else {
     literal = ku_string_t{info.maxValue.c_str(), info.maxValue.length()};
     if (!function::CastString::tryCast(literal, maxValue)) {
-      throw BinderException(
+      throw exception::BinderException(
           "Out of bounds: SEQUENCE accepts integers within INT64.");
     }
   }
@@ -371,17 +376,17 @@ std::unique_ptr<BoundStatement> Binder::bindCreateSequence(
   } else {
     literal = ku_string_t{info.startWith.c_str(), info.startWith.length()};
     if (!function::CastString::tryCast(literal, startWith)) {
-      throw BinderException(
+      throw exception::BinderException(
           "Out of bounds: SEQUENCE accepts integers within INT64.");
     }
   }
 
   if (maxValue < minValue) {
-    throw BinderException(
+    throw exception::BinderException(
         "SEQUENCE MAXVALUE should be greater than or equal to MINVALUE.");
   }
   if (startWith < minValue || startWith > maxValue) {
-    throw BinderException(
+    throw exception::BinderException(
         "SEQUENCE START value should be between MINVALUE and MAXVALUE.");
   }
 

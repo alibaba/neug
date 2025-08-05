@@ -20,11 +20,11 @@ struct ListExtract {
                                common::ValueVector& resultVector,
                                uint64_t resPos) {
     if (pos == 0) {
-      throw common::RuntimeException("List extract takes 1-based position.");
+      throw exception::RuntimeError("List extract takes 1-based position.");
     }
     if ((pos > 0 && pos > listEntry.size) ||
         (pos < 0 && pos < -(int64_t) listEntry.size)) {
-      throw common::RuntimeException(common::stringFormat(
+      throw exception::RuntimeError(common::stringFormat(
           "list_extract(list, index): index={} is out of range.",
           common::TypeUtils::toString(pos)));
     }

@@ -38,7 +38,7 @@ LogicalType ArrowConverter::fromArrowSchema(const ArrowSchema* schema) {
   case 'L':
     return LogicalType(LogicalTypeID::UINT64);
   case 'e':
-    throw NotImplementedException("16 bit floats are not supported");
+    throw exception::NotImplementedException("16 bit floats are not supported");
   case 'f':
     return LogicalType(LogicalTypeID::FLOAT);
   case 'g':
@@ -62,7 +62,7 @@ LogicalType ArrowConverter::fromArrowSchema(const ArrowSchema* schema) {
   case 'd': {
     auto split = StringUtils::splitComma(std::string(arrowType + 2));
     if (split.size() > 2 && split[2] != "128") {
-      throw NotImplementedException(
+      throw exception::NotImplementedException(
           "Decimal bitwidths other than 128 are not implemented");
     }
     return LogicalType::DECIMAL(stoul(split[0]), stoul(split[1]));
@@ -79,7 +79,8 @@ LogicalType ArrowConverter::fromArrowSchema(const ArrowSchema* schema) {
       }
     case 't':
       // TODO implement pure time type
-      throw NotImplementedException("Pure time types are not supported");
+      throw exception::NotImplementedException(
+          "Pure time types are not supported");
     case 's':
       // TODO maxwell: timezone support
       switch (arrowType[2]) {

@@ -31,7 +31,7 @@ namespace catalog {
 
 GCatalog::GCatalog(const std::filesystem::path& schemaPath) : Catalog() {
   if (!std::filesystem::exists(schemaPath)) {
-    throw common::RuntimeException(common::stringFormat(
+    throw exception::RuntimeError(common::stringFormat(
         "YAML file does not exist: {}", schemaPath.string()));
   }
 
@@ -165,7 +165,7 @@ std::unique_ptr<NodeTableCatalogEntry> GCatalog::createNodeTableEntry(
   } else {
     auto pks = info["primary_keys"].as<std::vector<std::string>>();
     if (pks.size() != 1) {
-      throw common::RuntimeException(
+      throw exception::RuntimeError(
           common::stringFormat("Only one primary key is supported for node "
                                "table, but {} are provided.",
                                pks.size()));
@@ -189,12 +189,12 @@ std::unique_ptr<GRelTableCatalogEntry> GCatalog::createRelTableEntry(
   auto dstName = relation["destination_vertex"].as<std::string>();
   auto srcEntry = nodeTableMap.at(srcName);
   if (!srcEntry) {
-    throw common::RuntimeException(common::stringFormat(
+    throw exception::RuntimeError(common::stringFormat(
         "Cannot find source vertex {} for rel table {}.", srcName, labelName));
   }
   auto dstEntry = nodeTableMap.at(dstName);
   if (!dstEntry) {
-    throw common::RuntimeException(common::stringFormat(
+    throw exception::RuntimeError(common::stringFormat(
         "Cannot find destination vertex {} for rel table {}.", dstName,
         labelName));
   }
@@ -240,7 +240,7 @@ PropertyDefinitionCollection GCatalog::createPropertyDefinitionCollection(
     auto properties = info["properties"].as<std::vector<YAML::Node>>();
     for (const auto& property : properties) {
       if (!property["property_name"] || !property["property_type"]) {
-        throw common::RuntimeException(
+        throw exception::RuntimeError(
             "Property must have both property_name and property_type");
       }
       auto name = property["property_name"].as<std::string>();
@@ -279,17 +279,17 @@ std::vector<binder::ColumnDefinition> GCatalog::getBaseRelStructFields() {
 
 void GCatalog::validateYAMLStructure(const YAML::Node& schema) {
   if (!schema.IsMap()) {
-    throw common::RuntimeException(
+    throw exception::RuntimeError(
         "Invalid YAML structure: root node must be a map");
   }
 
   auto info = schema["schema"];
   if (!info) {
-    throw common::RuntimeException("Cannot find schema in the YAML file.");
+    throw exception::RuntimeError("Cannot find schema in the YAML file.");
   }
 
   if (!info.IsMap()) {
-    throw common::RuntimeException(
+    throw exception::RuntimeError(
         "Invalid YAML structure: schema node must be a map");
   }
 }
@@ -299,12 +299,12 @@ void GCatalog::validateVertexType(
     const std::unordered_set<std::string>& existingNames,
     const std::unordered_set<common::table_id_t>& existingIds) {
   if (!vertexType.IsMap()) {
-    throw common::RuntimeException(
+    throw exception::RuntimeError(
         "Invalid vertex type structure: must be a map");
   }
 
   if (!vertexType["type_name"] || !vertexType["type_id"]) {
-    throw common::RuntimeException(
+    throw exception::RuntimeError(
         "Vertex type must have both type_name and type_id");
   }
 
@@ -312,12 +312,12 @@ void GCatalog::validateVertexType(
   auto id = vertexType["type_id"].as<common::table_id_t>();
 
   if (existingNames.count(name) > 0) {
-    throw common::RuntimeException(
+    throw exception::RuntimeError(
         common::stringFormat("Duplicate vertex type name: {}", name));
   }
 
   if (existingIds.count(id) > 0) {
-    throw common::RuntimeException(
+    throw exception::RuntimeError(
         common::stringFormat("Duplicate vertex type ID: {}", id));
   }
 }
@@ -327,13 +327,12 @@ void GCatalog::validateEdgeType(
     const std::unordered_set<std::string>& existingNames,
     const std::unordered_set<common::table_id_t>& existingIds) {
   if (!edgeType.IsMap()) {
-    throw common::RuntimeException(
-        "Invalid edge type structure: must be a map");
+    throw exception::RuntimeError("Invalid edge type structure: must be a map");
   }
 
   if (!edgeType["type_name"] || !edgeType["type_id"] ||
       !edgeType["vertex_type_pair_relations"]) {
-    throw common::RuntimeException(
+    throw exception::RuntimeError(
         "Edge type must have type_name, type_id, "
         "and vertex_type_pair_relations");
   }
@@ -342,25 +341,25 @@ void GCatalog::validateEdgeType(
   auto id = edgeType["type_id"].as<common::table_id_t>();
 
   if (existingNames.count(name) > 0) {
-    throw common::RuntimeException(
+    throw exception::RuntimeError(
         common::stringFormat("Duplicate edge type name: {}", name));
   }
 
   if (existingIds.count(id) > 0) {
-    throw common::RuntimeException(
+    throw exception::RuntimeError(
         common::stringFormat("Duplicate edge type ID: {}", id));
   }
 
   auto relations = edgeType["vertex_type_pair_relations"];
   if (!relations.IsSequence()) {
-    throw common::RuntimeException(
+    throw exception::RuntimeError(
         "vertex_type_pair_relations must be a sequence");
   }
 
   for (const auto& relation : relations) {
     if (!relation["source_vertex"] || !relation["destination_vertex"] ||
         !relation["relation"]) {
-      throw common::RuntimeException(
+      throw exception::RuntimeError(
           "Each relation must have source_vertex, "
           "destination_vertex, and relation");
     }
@@ -373,7 +372,7 @@ void GCatalog::validatePropertyName(const std::string& name,
   if (type == common::TableType::NODE) {
     if (name == common::InternalKeyword::ID ||
         name == common::InternalKeyword::LABEL) {
-      throw common::RuntimeException(common::stringFormat(
+      throw exception::RuntimeError(common::stringFormat(
           "Property name '{}' conflicts with base node property", name));
     }
   } else if (type == common::TableType::REL) {
@@ -381,7 +380,7 @@ void GCatalog::validatePropertyName(const std::string& name,
         name == common::InternalKeyword::SRC ||
         name == common::InternalKeyword::DST ||
         name == common::InternalKeyword::LABEL) {
-      throw common::RuntimeException(common::stringFormat(
+      throw exception::RuntimeError(common::stringFormat(
           "Property name '{}' conflicts with base edge property", name));
     }
   }

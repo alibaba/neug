@@ -58,7 +58,7 @@ std::unique_ptr<::physical::DDLPlan> GDDLConverter::convertCreateTable(
     const planner::LogicalCreateTable& op) {
   const auto* info = op.getInfo();
   if (!info) {
-    throw std::runtime_error("Invalid operation info");
+    throw exception::InvalidArgumentException("Invalid operation info");
   }
 
   switch (info->type) {
@@ -67,7 +67,8 @@ std::unique_ptr<::physical::DDLPlan> GDDLConverter::convertCreateTable(
   case catalog::CatalogEntryType::REL_TABLE_ENTRY:
     return convertToCreateEdgeSchema(op);
   default:
-    throw std::runtime_error("Invalid table type for create table");
+    throw exception::InvalidArgumentException(
+        "Unsupported catalog entry type for create");
   }
 }
 
@@ -75,7 +76,7 @@ std::unique_ptr<::physical::DDLPlan> GDDLConverter::convertDropTable(
     const planner::LogicalDrop& op) {
   auto& info = op.getDropInfo();
   if (info.dropType != gs::common::DropType::TABLE) {
-    throw std::runtime_error("Expected DROP TABLE type");
+    throw exception::InvalidArgumentException("Expected DROP TABLE type");
   }
 
   if (checkEntryType(info.name,
@@ -124,7 +125,8 @@ std::unique_ptr<::physical::DDLPlan> GDDLConverter::convertAlterTable(
     }
   }
 
-  throw std::runtime_error("Invalid table type for alter table");
+  throw exception::InvalidArgumentException(
+      "Invalid table type for alter table");
 }
 
 std::unique_ptr<::physical::DDLPlan> GDDLConverter::convertToCreateVertexSchema(
@@ -135,13 +137,14 @@ std::unique_ptr<::physical::DDLPlan> GDDLConverter::convertToCreateVertexSchema(
   }
 
   if (info->type != catalog::CatalogEntryType::NODE_TABLE_ENTRY) {
-    throw common::Exception("Expected Create Table Type for vertex schema");
+    throw exception::InvalidArgumentException(
+        "Expected Create Table Type for vertex schema");
   }
 
   const auto* nodeInfo =
       info->extraInfo->constPtrCast<binder::BoundExtraCreateNodeTableInfo>();
   if (!nodeInfo) {
-    throw std::runtime_error("Invalid node table info");
+    throw exception::InvalidArgumentException("Invalid node table info");
   }
 
   auto ddl_plan = std::make_unique<::physical::DDLPlan>();
@@ -182,7 +185,7 @@ std::unique_ptr<::physical::DDLPlan> GDDLConverter::convertToCreateEdgeSchema(
   }
 
   if (info->type != catalog::CatalogEntryType::REL_TABLE_ENTRY) {
-    throw common::Exception("Expected Create Table Type for edge schema");
+    throw exception::Exception("Expected Create Table Type for edge schema");
   }
 
   const auto* relInfo =

@@ -155,8 +155,8 @@ void convert_yaml_node_to_json(const YAML::Node& node,
       }
       break;
     default:
-      throw std::runtime_error("Unsupported YAML node type" +
-                               std::to_string(node.Type()));
+      throw exception::RuntimeError("Unsupported YAML node type" +
+                                    std::to_string(node.Type()));
       break;
     }
   } catch (const YAML::BadConversion& e) {
@@ -237,8 +237,8 @@ Status write_yaml_node_to_yaml_string(const YAML::Node& node,
       break;
     }
     default:
-      throw std::runtime_error("Unsupported YAML node type" +
-                               std::to_string(node.Type()));
+      throw exception::RuntimeError("Unsupported YAML node type" +
+                                    std::to_string(node.Type()));
       break;
     }
   } catch (const YAML::BadConversion& e) {
@@ -253,7 +253,7 @@ std::string read_yaml_file_to_string(const std::string& file_path) {
   YAML::Emitter emitter;
   auto status = write_yaml_node_to_yaml_string(node, emitter);
   if (!status.ok()) {
-    throw std::runtime_error("Failed to read yaml file: " + file_path);
+    throw exception::IOException("Failed to read yaml file: " + file_path);
   }
   return std::string(emitter.c_str());
 }

@@ -152,7 +152,7 @@ void SchemaUtils::validateAtMostOneUnFlatGroup(
   for (auto groupPos : groupPositions) {
     if (!schema.getGroup(groupPos)->isFlat()) {
       if (hasUnFlatGroup) {
-        throw InternalException(
+        throw exception::InternalException(
             "Unexpected multiple unFlat factorization groups found.");
       }
       hasUnFlatGroup = true;
@@ -165,7 +165,8 @@ void SchemaUtils::validateNoUnFlatGroup(
     const Schema& schema) {
   for (auto groupPos : groupPositions) {
     if (!schema.getGroup(groupPos)->isFlat()) {
-      throw InternalException("Unexpected unFlat factorization group found.");
+      throw exception::InternalException(
+          "Unexpected unFlat factorization group found.");
     }
   }
 }

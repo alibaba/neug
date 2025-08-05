@@ -53,6 +53,7 @@ limitations under the License.
 #include <string_view>
 #include <utility>
 #include <vector>
+#include "neug/utils/exception/exception.h"
 
 #include "libgrape-lite/grape/serialization/in_archive.h"
 #include "libgrape-lite/grape/serialization/out_archive.h"
@@ -1741,8 +1742,8 @@ struct convert<gs::PropertyType> {
       } else if (temporal["timestamp"]) {
         property_type = gs::PropertyType::Timestamp();
       } else {
-        throw std::runtime_error("Unrecognized temporal type: " +
-                                 temporal.as<std::string>());
+        throw gs::exception::RuntimeError("Unrecognized temporal type: " +
+                                          temporal.as<std::string>());
       }
     }
     // compatibility with old config files

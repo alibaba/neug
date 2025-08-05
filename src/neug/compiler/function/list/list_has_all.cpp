@@ -50,7 +50,7 @@ std::unique_ptr<FunctionBindData> bindFunc(const ScalarBindFuncInput& input) {
     }
   }
   if (types[0] != types[1]) {
-    throw common::BinderException(
+    throw exception::BinderException(
         ExceptionMessage::listFunctionIncompatibleChildrenType(
             ListHasAllFunction::name,
             input.arguments[0]->getDataType().toString(),

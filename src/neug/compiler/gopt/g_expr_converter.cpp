@@ -102,7 +102,8 @@ std::unique_ptr<::common::Expression> GExprConverter::convert(
     return convertScalarFunc(expr, schemaAlias);  // convert to scalar function
   }
   default:
-    throw common::Exception("Unsupported expression type: " + expr.toString());
+    throw exception::Exception("Unsupported expression type: " +
+                               expr.toString());
   }
 }
 
@@ -127,7 +128,7 @@ std::unique_ptr<::common::Expression> GExprConverter::convert(
   if (func.name == "AVG") {
     return ::physical::GroupBy_AggFunc::AVG;
   }
-  throw common::Exception("Unsupported aggregate function: " + func.name);
+  throw exception::Exception("Unsupported aggregate function: " + func.name);
 }
 
 std::unique_ptr<::physical::GroupBy_AggFunc> GExprConverter::convertAggFunc(
@@ -156,7 +157,7 @@ std::unique_ptr<::common::Expression> GExprConverter::convertPattern(
   auto variable = std::make_unique<::common::Variable>();
   auto aliasName = expr.getUniqueName();
   if (aliasName.empty()) {
-    throw common::Exception(
+    throw exception::Exception(
         "Variable name cannot be empty for pattern expression.");
   }
   auto aliasId = aliasManager->getAliasId(aliasName);
@@ -248,8 +249,8 @@ std::unique_ptr<::common::Value> GExprConverter::convertValue(
     valuePB->set_u64(value.getValue<uint64_t>());
     break;
   default:
-    throw common::Exception("Unsupported value type " +
-                            value.getDataType().toString());
+    throw exception::Exception("Unsupported value type " +
+                               value.getDataType().toString());
   }
   return valuePB;
 }
@@ -278,11 +279,11 @@ std::unique_ptr<::common::Expression> GExprConverter::convertLabel(
     const binder::Expression& expr) {
   auto children = expr.getChildren();
   if (children.empty()) {
-    throw common::Exception("Label function should have at least one child");
+    throw exception::Exception("Label function should have at least one child");
   }
   auto child = children[0];
   if (child->expressionType != common::ExpressionType::PROPERTY) {
-    throw common::Exception(
+    throw exception::Exception(
         "The first child of Label function should be NodeId, but is " +
         child->toString());
   }
@@ -308,7 +309,7 @@ std::unique_ptr<::common::Expression> GExprConverter::convertScalarFunc(
   } else if (scalarType.getType() == LABEL) {
     return convertLabel(expr);
   }
-  throw common::Exception("Unsupported expression type: " + expr.toString());
+  throw exception::Exception("Unsupported expression type: " + expr.toString());
 }
 
 std::unique_ptr<::common::Property> GExprConverter::convertPropertyExpr(
@@ -427,14 +428,14 @@ std::unique_ptr<::common::ExprOpr> GExprConverter::convertOperator(
       result->set_arith(::common::Arithmetic::MOD);
       break;
     default:
-      throw common::Exception("Unsupported scalar function: " +
-                              expr.toString() + " in convertOperator");
+      throw exception::Exception("Unsupported scalar function: " +
+                                 expr.toString() + " in convertOperator");
     }
     break;
   }
   default:
-    throw common::Exception("Unsupported expression: " + expr.toString() +
-                            " in convertOperator");
+    throw exception::Exception("Unsupported expression: " + expr.toString() +
+                               " in convertOperator");
   }
   return result;
 }
@@ -443,12 +444,13 @@ std::unique_ptr<::common::ExprOpr> GExprConverter::convertOperator(
     const binder::Expression& expr,
     const std::vector<std::string>& schemaAlias) {
   if (expr.expressionType != common::ExpressionType::FUNCTION) {
-    throw common::Exception("CAST function should be a function expression");
+    throw exception::Exception("CAST function should be a function expression");
   }
   auto& scalarExpr = expr.constCast<binder::ScalarFunctionExpression>();
   auto children = expr.getChildren();
   if (children.empty()) {
-    throw common::Exception("CAST function should have at least one children");
+    throw exception::Exception(
+        "CAST function should have at least one children");
   }
   auto sourceExpr = children[0];
   if (sourceExpr->expressionType != common::ExpressionType::LITERAL) {
@@ -483,7 +485,8 @@ std::unique_ptr<::common::ExprOpr> GExprConverter::convertOperator(
 std::unique_ptr<::common::Expression> GExprConverter::convertTemporalFunc(
     const binder::Expression& expr) {
   if (expr.getChildren().size() != 1) {
-    throw common::Exception("temporal function should have exactly one child");
+    throw exception::Exception(
+        "temporal function should have exactly one child");
   }
   auto child = expr.getChild(0);
   GScalarType type{expr};
@@ -508,8 +511,8 @@ std::unique_ptr<::common::Expression> GExprConverter::convertTemporalFunc(
     break;
   }
   default:
-    throw common::Exception("Unsupported scalar function " + expr.toString() +
-                            " in temporal func");
+    throw exception::Exception("Unsupported scalar function " +
+                               expr.toString() + " in temporal func");
   }
   auto typePB = typeConverter.convertLogicalType(expr.getDataType(), expr);
   exprPB->mutable_operators(0)->set_allocated_node_type(typePB.release());
@@ -535,19 +538,19 @@ std::unique_ptr<::common::Expression> GExprConverter::convertTemporalFunc(
   } else if (fieldName == "millisecond") {
     return ::common::Extract::MILLISECOND;
   }
-  throw common::Exception("invalid interval field " + fieldName);
+  throw exception::Exception("invalid interval field " + fieldName);
 }
 
 std::unique_ptr<::common::Expression> GExprConverter::convertExtractFunc(
     const binder::Expression& expr) {
   GScalarType type{expr};
   if (type.getType() != ScalarType::DATE_PART) {
-    throw common::Exception("Unsupport scalar function " + expr.toString() +
-                            "in extract func");
+    throw exception::Exception("Unsupport scalar function " + expr.toString() +
+                               "in extract func");
   }
   auto children = expr.getChildren();
   if (children.size() != 2) {
-    throw common::Exception(
+    throw exception::Exception(
         "extract function should have exactly two children, but is " +
         children.size());
   }
@@ -604,7 +607,7 @@ std::unique_ptr<::common::Expression> GExprConverter::convertChildren(
 std::unique_ptr<::common::Expression> GExprConverter::convertIsNotNull(
     const binder::Expression& expr) {
   if (expr.getNumChildren() != 1) {
-    throw common::Exception(
+    throw exception::Exception(
         "IS_NOT_NULL expressions must have exactly one child.");
   }
   auto result = std::make_unique<::common::Expression>();

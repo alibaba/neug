@@ -18,8 +18,9 @@ void validateColumnNamesAreUnique(const std::vector<std::string>& columnNames) {
   auto existColumnNames = std::unordered_set<std::string>();
   for (auto& name : columnNames) {
     if (existColumnNames.contains(name)) {
-      throw BinderException("Multiple result column with the same name " +
-                            name + " are not supported.");
+      throw exception::BinderException(
+          "Multiple result column with the same name " + name +
+          " are not supported.");
     }
     existColumnNames.insert(name);
   }
@@ -44,7 +45,8 @@ BoundWithClause Binder::bindWithClause(const WithClause& withClause) {
   // Check all expressions are aliased
   for (auto& alias : aliases) {
     if (alias.empty()) {
-      throw BinderException("Expression in WITH must be aliased (use AS).");
+      throw exception::BinderException(
+          "Expression in WITH must be aliased (use AS).");
     }
   }
   auto columnNames = getColumnNames(projectionExprs, aliases);
@@ -108,7 +110,7 @@ Binder::bindProjectionList(const ProjectionBody& projectionBody) {
     if (parsedExpr->getExpressionType() == ExpressionType::STAR) {
       // Rewrite star expression as all expression in scope.
       if (scope.empty()) {
-        throw BinderException(
+        throw exception::BinderException(
             "RETURN or WITH * is not allowed when there are no variables in "
             "scope.");
       }
@@ -181,7 +183,7 @@ static void validateNestedAggregate(const Expression& expr,
   collector.visit(expr.getChild(0));
   for (auto& childAgg : collector.exprs) {
     if (!scope.contains(childAgg->getAlias())) {
-      throw BinderException(stringFormat(
+      throw exception::BinderException(stringFormat(
           "Expression {} contains nested aggregation.", expr.toString()));
     }
   }
@@ -281,7 +283,7 @@ expression_vector Binder::bindOrderByExpressions(
   for (auto& parsedExpr : parsedExprs) {
     auto expr = expressionBinder.bindExpression(*parsedExpr);
     if (!isOrderByKeyTypeSupported(expr->dataType)) {
-      throw BinderException(
+      throw exception::BinderException(
           stringFormat("Cannot order by {}. Order by {} is not supported.",
                        expr->toString(), expr->dataType.toString()));
     }
@@ -310,7 +312,7 @@ std::shared_ptr<Expression> Binder::bindSkipLimitExpression(
   auto boundExpression = expressionBinder.bindExpression(expression);
   if (boundExpression->expressionType != ExpressionType::LITERAL &&
       boundExpression->expressionType != ExpressionType::PARAMETER) {
-    throw BinderException(
+    throw exception::BinderException(
         "The number of rows to skip/limit must be a parameter/literal "
         "expression.");
   }

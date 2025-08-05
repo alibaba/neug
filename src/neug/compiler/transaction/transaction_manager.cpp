@@ -37,7 +37,7 @@ TransactionManager::stopNewTransactionsAndWaitUntilAllTransactionsLeave() {
       numTimesWaited++;
       if (numTimesWaited * THREAD_SLEEP_TIME_WHEN_WAITING_IN_MICROS >
           checkpointWaitTimeoutInMicros) {
-        throw TransactionManagerException(
+        throw exception::TransactionManagerException(
             "Timeout waiting for active transactions to leave the system "
             "before "
             "checkpointing. If you have an open transaction, please close it "

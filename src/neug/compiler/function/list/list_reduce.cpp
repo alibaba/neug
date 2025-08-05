@@ -10,7 +10,7 @@ using namespace gs::common;
 static std::unique_ptr<FunctionBindData> bindFunc(
     const ScalarBindFuncInput& input) {
   if (input.arguments[1]->expressionType != ExpressionType::LAMBDA) {
-    throw BinderException(stringFormat(
+    throw exception::BinderException(stringFormat(
         "The second argument of LIST_REDUCE should be a lambda expression but "
         "got {}.",
         ExpressionTypeUtil::toString(input.arguments[1]->expressionType)));

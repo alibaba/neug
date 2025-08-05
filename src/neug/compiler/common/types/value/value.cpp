@@ -841,9 +841,9 @@ void Value::validateType(LogicalTypeID targetTypeID) const {
   if (dataType.getLogicalTypeID() == targetTypeID) {
     return;
   }
-  throw BinderException(stringFormat("{} has data type {} but {} was expected.",
-                                     toString(), dataType.toString(),
-                                     LogicalTypeUtils::toString(targetTypeID)));
+  throw exception::BinderException(stringFormat(
+      "{} has data type {} but {} was expected.", toString(),
+      dataType.toString(), LogicalTypeUtils::toString(targetTypeID)));
 }
 
 bool Value::hasNoneNullChildren() const {

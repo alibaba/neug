@@ -250,7 +250,7 @@ void Date::convert(date_t date, int32_t& out_year, int32_t& out_month,
 date_t Date::fromDate(int32_t year, int32_t month, int32_t day) {
   int32_t n = 0;
   if (!Date::isValid(year, month, day)) {
-    throw ConversionException(
+    throw exception::ConversionException(
         stringFormat("Date out of range: {}-{}-{}.", year, month, day));
   }
   while (year < 1970) {
@@ -356,7 +356,7 @@ bool Date::tryConvertDate(const char* buf, uint64_t len, uint64_t& pos,
 
   try {
     result = Date::fromDate(year, month, day);
-  } catch (ConversionException& exc) { return false; }
+  } catch (exception::ConversionException& exc) { return false; }
   return true;
 }
 
@@ -364,9 +364,9 @@ date_t Date::fromCString(const char* str, uint64_t len) {
   date_t result;
   uint64_t pos = 0;
   if (!tryConvertDate(str, len, pos, result)) {
-    throw ConversionException("Error occurred during parsing date. Given: \"" +
-                              std::string(str, len) +
-                              "\". Expected format: (YYYY-MM-DD)");
+    throw exception::ConversionException(
+        "Error occurred during parsing date. Given: \"" +
+        std::string(str, len) + "\". Expected format: (YYYY-MM-DD)");
   }
   return result;
 }

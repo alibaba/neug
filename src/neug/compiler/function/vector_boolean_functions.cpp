@@ -54,7 +54,7 @@ void VectorBooleanFunction::bindBinaryExecFunction(
     return;
   }
   default:
-    throw RuntimeException(
+    throw exception::RuntimeError(
         "Invalid expression type " +
         ExpressionTypeUtil::toString(expressionType) +
         " for VectorBooleanFunctions::bindBinaryExecFunction.");
@@ -85,7 +85,7 @@ void VectorBooleanFunction::bindBinarySelectFunction(
     return;
   }
   default:
-    throw RuntimeException(
+    throw exception::RuntimeError(
         "Invalid expression type " +
         ExpressionTypeUtil::toString(expressionType) +
         " for VectorBooleanFunctions::bindBinarySelectFunction.");
@@ -104,7 +104,7 @@ void VectorBooleanFunction::bindUnaryExecFunction(
     return;
   }
   default:
-    throw RuntimeException(
+    throw exception::RuntimeError(
         "Invalid expression type " +
         ExpressionTypeUtil::toString(expressionType) +
         " for VectorBooleanFunctions::bindUnaryExecFunction.");
@@ -123,7 +123,7 @@ void VectorBooleanFunction::bindUnarySelectFunction(
     return;
   }
   default:
-    throw RuntimeException(
+    throw exception::RuntimeError(
         "Invalid expression type " +
         ExpressionTypeUtil::toString(expressionType) +
         " for VectorBooleanFunctions::bindUnaryExecFunction.");

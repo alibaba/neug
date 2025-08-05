@@ -72,9 +72,9 @@ std::shared_ptr<Expression> ExpressionBinder::bindExpression(
   } else if (ExpressionType::LAMBDA == expressionType) {
     expression = bindLambdaExpression(parsedExpression);
   } else {
-    throw NotImplementedException("bindExpression(" +
-                                  ExpressionTypeUtil::toString(expressionType) +
-                                  ").");
+    throw exception::NotImplementedException(
+        "bindExpression(" + ExpressionTypeUtil::toString(expressionType) +
+        ").");
   }
   if (ConstantExpressionVisitor::needFold(*expression)) {
     return foldExpression(expression);
@@ -137,7 +137,7 @@ std::shared_ptr<Expression> ExpressionBinder::implicitCast(
   if (CastFunction::hasImplicitCast(expression->dataType, targetType)) {
     return forceCast(expression, targetType);
   } else {
-    throw BinderException(
+    throw exception::BinderException(
         unsupportedImplicitCastException(*expression, targetType.toString()));
   }
 }
