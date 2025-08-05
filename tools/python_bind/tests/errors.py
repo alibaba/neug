@@ -33,6 +33,7 @@ from neug.proto.error_pb2 import ERR_DISK_SPACE_EXHAUSTED
 from neug.proto.error_pb2 import ERR_ILLEGAL_OPERATION
 from neug.proto.error_pb2 import ERR_INTERNAL_ERROR
 from neug.proto.error_pb2 import ERR_INVALID_ARGUMENT
+from neug.proto.error_pb2 import ERR_INVALID_FILE
 from neug.proto.error_pb2 import ERR_INVALID_PATH
 from neug.proto.error_pb2 import ERR_INVALID_SCHEMA
 from neug.proto.error_pb2 import ERR_IO_ERROR
@@ -76,6 +77,7 @@ ERROR_STRINGS = {
     ERR_ILLEGAL_OPERATION: "illegal operation",
     ERR_IO_ERROR: "io error",
     ERR_BAD_ENCODING: "bad encoding",
+    ERR_INVALID_FILE: "Provided path is not a file",
     ERR_NETWORK: "Could not connect",
     ERR_SESSION_CLOSED: "Session is closed",
     ERR_CONNECTION_CLOSED: "Connection is closed",

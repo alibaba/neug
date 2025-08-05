@@ -69,6 +69,8 @@ enum Code {
   ERR_IO_ERROR = 1014;
   // encoding error, unsupported encoding or decoding.
   ERR_BAD_ENCODING = 1015;
+  // Import file not exists.
+  ERR_INVALID_FILE = 1016;
 
   // Network related errors
   ERR_NETWORK = 2001;

@@ -24,6 +24,7 @@ import pytest
 sys.path.append(os.path.join(os.path.dirname(__file__), "../"))
 from errors import ERR_BAD_ENCODING
 from errors import ERR_DIRECTORY_NOT_EXIST
+from errors import ERR_INVALID_FILE
 from errors import ERR_PERMISSION
 from errors import ERR_QUERY_SYNTAX
 from errors import ERR_SCHEMA_MISMATCH
@@ -269,7 +270,7 @@ def test_import_file_not_found(tmp_path):
     conn.execute("CREATE NODE TABLE person(id INT64, PRIMARY KEY(id));")
     with pytest.raises(Exception) as excinfo:
         conn.execute('COPY person FROM "/not/exist.csv";')
-    assert "Provided path is not a file" in str(excinfo.value)
+    assert ERROR_STRINGS[ERR_INVALID_FILE] in str(excinfo.value)
     conn.close()
     db.close()
 
