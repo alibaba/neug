@@ -39,7 +39,8 @@ in performance and is designed to be easy to use.
 
    user_guide/key_concepts
    user_guide/create_graph
-   user_guide/import_graph
+   user_guide/import_data
+   user_guide/export_data
    user_guide/cypher_query
    user_guide/data_model
 
