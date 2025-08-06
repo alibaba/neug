@@ -41,65 +41,6 @@ class IFragmentLoader;
 
 namespace gs {
 
-static std::string process_header_row_token(const std::string& token,
-                                            const LoadingConfig& config) {
-  std::string new_token = token;
-  // trim the quote char at the beginning and end of the token
-  if (config.GetIsQuoting()) {
-    auto quote_char = config.GetQuotingChar();
-    if (token.size() >= 2 && token[0] == quote_char &&
-        token[token.size() - 1] == quote_char) {
-      new_token = token.substr(1, token.size() - 2);
-    }
-  }
-  // unescape the token
-  if (config.GetIsEscaping()) {
-    auto escape_char = config.GetEscapeChar();
-    std::string res;
-    for (size_t i = 0; i < new_token.size(); ++i) {
-      if (new_token[i] == escape_char) {
-        if (i + 1 < new_token.size()) {
-          res.push_back(new_token[i + 1]);
-          i++;
-        }
-      } else {
-        res.push_back(new_token[i]);
-      }
-    }
-    new_token = res;
-  }
-  return new_token;
-}
-
-static std::vector<std::string> read_header(
-    const std::string& file_name, char delimiter,
-    const LoadingConfig& loading_config) {
-  // read the header line of the file, and split into vector to string by
-  // delimiter. If quote_char is not empty, then use it to parse the header
-  // line.
-  std::vector<std::string> res_vec;
-  std::ifstream file(file_name);
-  std::string line;
-  if (file.is_open()) {
-    if (std::getline(file, line)) {
-      std::stringstream ss(line);
-      std::string token;
-      while (std::getline(ss, token, delimiter)) {
-        // trim the token
-        token.erase(token.find_last_not_of(" \n\r\t") + 1);
-        token = process_header_row_token(token, loading_config);
-        res_vec.push_back(token);
-      }
-    } else {
-      LOG(FATAL) << "Fail to read header line of file: " << file_name;
-    }
-    file.close();
-  } else {
-    LOG(FATAL) << "Fail to open file: " << file_name;
-  }
-  return res_vec;
-}
-
 static bool put_skip_rows_option(const LoadingConfig& loading_config,
                                  arrow::csv::ReadOptions& read_options) {
   bool header_row = loading_config.GetHasHeaderRow();
@@ -135,49 +76,6 @@ static void put_quote_char_option(const LoadingConfig& loading_config,
     parse_options.quote_char = loading_config.GetQuotingChar();
   }
   parse_options.double_quote = loading_config.GetIsDoubleQuoting();
-}
-
-static void put_column_names_option(const LoadingConfig& loading_config,
-                                    bool header_row,
-                                    const std::string& file_path,
-                                    char delimiter,
-                                    arrow::csv::ReadOptions& read_options,
-                                    size_t len) {
-  std::vector<std::string> all_column_names;
-  if (header_row) {
-    all_column_names = read_header(file_path, delimiter, loading_config);
-    // It is possible that there exists duplicate column names in the header,
-    // transform them to unique names
-    std::unordered_map<std::string, int> name_count;
-    for (auto& name : all_column_names) {
-      if (name_count.find(name) == name_count.end()) {
-        name_count[name] = 1;
-      } else {
-        name_count[name]++;
-      }
-    }
-    VLOG(10) << "before Got all column names: " << all_column_names.size()
-             << gs::to_string(all_column_names);
-    for (size_t i = 0; i < all_column_names.size(); ++i) {
-      auto& name = all_column_names[i];
-      if (name_count[name] > 1) {
-        auto cur_cnt = name_count[name];
-        name_count[name] -= 1;
-        all_column_names[i] = name + "_" + std::to_string(cur_cnt);
-      }
-    }
-    VLOG(10) << "Got all column names: " << all_column_names.size()
-             << gs::to_string(all_column_names);
-  } else {
-    // just get the number of columns.
-    all_column_names.resize(len);
-    for (size_t i = 0; i < all_column_names.size(); ++i) {
-      all_column_names[i] = std::string("f") + std::to_string(i);
-    }
-  }
-  read_options.column_names = all_column_names;
-  VLOG(10) << "Got all column names: " << all_column_names.size()
-           << gs::to_string(all_column_names);
 }
 
 static void put_null_values(const LoadingConfig& loading_config,
@@ -316,9 +214,11 @@ void CSVFragmentLoader::fillVertexReaderMeta(
   put_delimiter_option(loading_config_.GetDelimiter(), parse_options);
   bool header_row = put_skip_rows_option(loading_config_, read_options);
   auto property_names = schema_.get_vertex_property_names(v_label);
-  put_column_names_option(loading_config_, header_row, v_file,
-                          parse_options.delimiter, read_options,
-                          property_names.size() + 1);
+  put_column_names_option(
+      header_row, v_file, parse_options.delimiter,
+      loading_config_.GetIsQuoting(), loading_config_.GetQuotingChar(),
+      loading_config_.GetIsEscaping(), loading_config_.GetEscapeChar(),
+      read_options, property_names.size() + 1);
   put_escape_char_option(loading_config_, parse_options);
   put_quote_char_option(loading_config_, parse_options);
   put_block_size_option(loading_config_, read_options);
@@ -462,9 +362,11 @@ void CSVFragmentLoader::fillEdgeReaderMeta(
   auto edge_prop_names =
       schema_.get_edge_property_names(src_label_id, dst_label_id, label_id);
 
-  put_column_names_option(loading_config_, header_row, e_file,
-                          parse_options.delimiter, read_options,
-                          edge_prop_names.size() + 2);
+  put_column_names_option(
+      header_row, e_file, parse_options.delimiter,
+      loading_config_.GetIsQuoting(), loading_config_.GetQuotingChar(),
+      loading_config_.GetIsEscaping(), loading_config_.GetEscapeChar(),
+      read_options, edge_prop_names.size() + 2);
   put_escape_char_option(loading_config_, parse_options);
   put_quote_char_option(loading_config_, parse_options);
   put_block_size_option(loading_config_, read_options);

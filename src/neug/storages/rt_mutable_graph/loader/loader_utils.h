@@ -19,12 +19,18 @@
 #include <arrow/api.h>
 #include <arrow/csv/api.h>
 #include <arrow/io/api.h>
+#include <glog/logging.h>
 #include <stddef.h>
 
+#include <fstream>
 #include <memory>
 #include <string>
+#include <unordered_map>
 #include <utility>
 #include <vector>
+
+#include "neug/utils/exception/exception.h"
+#include "neug/utils/string_utils.h"
 
 namespace arrow {
 class Array;
@@ -47,6 +53,20 @@ void put_boolean_option(arrow::csv::ConvertOptions& convert_options);
 
 void put_delimiter_option(const std::string& delimiter_str,
                           arrow::csv::ParseOptions& parse_options);
+
+std::string process_header_row_token(const std::string& token, bool is_quoting,
+                                     char quote_char, bool is_escaping,
+                                     char escape_char);
+
+std::vector<std::string> read_header(const std::string& file_name,
+                                     char delimiter, bool is_quoting,
+                                     char quote_char, bool is_escaping,
+                                     char escape_char);
+
+void put_column_names_option(bool header_row, const std::string& file_path,
+                             char delimiter, bool is_quoting, char quote_char,
+                             bool is_escaping, char escape_char,
+                             arrow::csv::ReadOptions& read_options, size_t len);
 
 class IRecordBatchSupplier {
  public:

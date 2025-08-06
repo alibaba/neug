@@ -23,6 +23,7 @@
 #include <rapidjson/stringbuffer.h>
 #include <rapidjson/writer.h>
 #include <stddef.h>
+#include <boost/algorithm/string.hpp>
 #include <cstdint>
 #include <ostream>
 #include <stdexcept>
@@ -47,6 +48,27 @@ namespace gs {
 namespace runtime {
 
 namespace ops {
+
+void put_column_types_option(const std::vector<PropertyType>& column_types,
+                             std::vector<std::string>& column_names,
+                             arrow::csv::ConvertOptions& convert_options) {
+  if (column_types.size() != column_names.size()) {
+    throw gs::exception::RuntimeError(
+        "Column types size does not match column names size: " +
+        std::to_string(column_types.size()) + " vs " +
+        std::to_string(column_names.size()));
+  }
+  for (size_t i = 0; i < column_types.size(); ++i) {
+    const auto& col_name = column_names[i];
+    if (convert_options.column_types.find(col_name) !=
+        convert_options.column_types.end()) {
+      throw gs::exception::RuntimeError("Duplicate column name found: " +
+                                        col_name);
+    }
+    convert_options.column_types.insert(
+        {col_name, gs::PropertyTypeToArrowType(column_types[i])});
+  }
+}
 
 bool check_csv_import_options(
     const std::unordered_map<std::string, std::string>& options) {
@@ -419,7 +441,9 @@ std::vector<std::shared_ptr<IRecordBatchSupplier>> create_record_batch_supplier(
 }
 
 void to_arrow_csv_options(
+    const std::string& file_path,
     const std::unordered_map<std::string, std::string>& csv_options,
+    const std::vector<PropertyType>& column_types,
     arrow::csv::ConvertOptions& convert_options,
     arrow::csv::ReadOptions& read_options,
     arrow::csv::ParseOptions& parse_options) {
@@ -458,24 +482,38 @@ void to_arrow_csv_options(
       parse_options.quoting = false;
     }
   }
+
+  bool header_row = true;
   if (csv_options.find(CSV_HEADER_KEY) != csv_options.end()) {
-    if (csv_options.at(CSV_HEADER_KEY) == "True" ||
-        csv_options.at(CSV_HEADER_KEY) == "true" ||
-        csv_options.at(CSV_HEADER_KEY) == "TRUE" ||
-        csv_options.at(CSV_HEADER_KEY) == "1") {
-      read_options.autogenerate_column_names = false;
-    } else if (csv_options.at(CSV_HEADER_KEY) == "False" ||
-               csv_options.at(CSV_HEADER_KEY) == "false" ||
-               csv_options.at(CSV_HEADER_KEY) == "FALSE" ||
-               csv_options.at(CSV_HEADER_KEY) == "0") {
-      read_options.autogenerate_column_names = true;
-    } else {
-      LOG(FATAL) << "Invalid parameter, key: \"" << ops::CSV_HEADER_KEY
-                 << "\", value: \"" << csv_options.at(ops::CSV_HEADER_KEY)
-                 << "\"";
+    // check lower-case
+    auto val = boost::algorithm::to_lower_copy(csv_options.at(CSV_HEADER_KEY));
+    if (val == "false" || val == "0") {
+      header_row = false;
+    } else if (val != "true" && val != "1") {
+      LOG(WARNING) << "Invalid value for CSV_HEADER_KEY: "
+                   << csv_options.at(CSV_HEADER_KEY)
+                   << ". Defaulting to true (header row enabled).";
     }
   } else {
-    read_options.autogenerate_column_names = false;
+    VLOG(10) << "Using default CSV header row: true";
+  }
+  put_column_names_option(header_row, file_path, parse_options.delimiter,
+                          parse_options.quoting, parse_options.quote_char,
+                          parse_options.escaping, parse_options.escape_char,
+                          read_options, column_types.size());
+  if (read_options.column_names.size() != column_types.size()) {
+    throw gs::exception::RuntimeError(
+        "Schema mismatch: column names size (" +
+        std::to_string(read_options.column_names.size()) +
+        ") does not match column types size (" +
+        std::to_string(column_types.size()) + ")");
+  }
+  // Currently we assume the column_types are corresponding to column names
+  put_column_types_option(column_types, read_options.column_names,
+                          convert_options);
+
+  if (header_row) {
+    read_options.skip_rows = 1;
   }
 
   if (csv_options.find(CSV_SKIP_KEY) != csv_options.end()) {
@@ -497,16 +535,31 @@ void to_arrow_csv_options(
 }
 
 std::vector<std::shared_ptr<IRecordBatchSupplier>> create_csv_record_suppliers(
-    const std::string& file_path,
+    const std::string& file_path, const std::vector<PropertyType>& column_types,
     const std::unordered_map<std::string, std::string> csv_options) {
   std::vector<std::shared_ptr<IRecordBatchSupplier>> suppliers;
   arrow::csv::ConvertOptions convert_options;
   arrow::csv::ReadOptions read_options;
   arrow::csv::ParseOptions parse_options;
 
-  to_arrow_csv_options(csv_options, convert_options, read_options,
-                       parse_options);
-  if (true) {
+  to_arrow_csv_options(file_path, csv_options, column_types, convert_options,
+                       read_options, parse_options);
+
+  bool stream_reader = true;
+  if (csv_options.find(CSV_STREAM_READER) != csv_options.end()) {
+    // check lower-case
+    auto val =
+        boost::algorithm::to_lower_copy(csv_options.at(CSV_STREAM_READER));
+    if (val == "false" || val == "0") {
+      stream_reader = false;
+    } else if (val != "true" && val != "1") {
+      LOG(WARNING) << "Invalid value for CSV_STREAM_READER: "
+                   << csv_options.at(CSV_STREAM_READER)
+                   << ". Defaulting to true (stream reader enabled).";
+    }
+  }
+
+  if (stream_reader) {
     suppliers.emplace_back(std::dynamic_pointer_cast<IRecordBatchSupplier>(
         std::make_shared<CSVStreamRecordBatchSupplier>(
             file_path, convert_options, read_options, parse_options)));

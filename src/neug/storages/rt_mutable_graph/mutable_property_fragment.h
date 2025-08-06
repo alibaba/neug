@@ -327,7 +327,8 @@ class MutablePropertyFragment {
               {
                 std::unique_lock<std::mutex> lock(*v_mutex_[v_label_id]);
                 vid_t vid;
-                if constexpr (!std::is_same<std::string_view, PK_T>::value) {
+                if constexpr (!std::is_same<std::string_view, PK_T>::value &&
+                              !std::is_same<std::string, PK_T>::value) {
                   static constexpr vid_t sentinel =
                       std::numeric_limits<vid_t>::max();
                   auto expected_type =
@@ -353,7 +354,7 @@ class MutablePropertyFragment {
                     if (vertex_exist) {
                       vids.emplace_back(sentinel);
                     } else {
-                      vid = lf_indexers_[v_label_id].insert(
+                      vid = lf_indexers_[v_label_id].insert_safe(
                           casted_array->Value(j));
                       vids.emplace_back(vid);
                     }
@@ -371,7 +372,7 @@ class MutablePropertyFragment {
                       if (vertex_exist) {
                         vids.emplace_back(std::numeric_limits<size_t>::max());
                       } else {
-                        vid = lf_indexers_[v_label_id].insert(str_view);
+                        vid = lf_indexers_[v_label_id].insert_safe(str_view);
                         vids.emplace_back(vid);
                       }
                     }
@@ -388,7 +389,7 @@ class MutablePropertyFragment {
                       if (vertex_exist) {
                         vids.emplace_back(std::numeric_limits<size_t>::max());
                       } else {
-                        vid = lf_indexers_[v_label_id].insert(str_view);
+                        vid = lf_indexers_[v_label_id].insert_safe(str_view);
                         vids.emplace_back(vid);
                       }
                     }

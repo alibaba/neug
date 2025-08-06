@@ -58,6 +58,7 @@ static const std::string CSV_SKIP_KEY = "SKIP";
 static const std::string CSV_IGNORE_ERRORS_KEY = "IGNORE_ERRORS";
 static const std::string CSV_PARALLEL_KEY = "PARALLEL";
 static const std::string CSV_NULL_STRINGS_KEY = "NULL_STRINGS";
+static const std::string CSV_STREAM_READER = "STREAM_READER";
 
 bool check_csv_import_options(
     const std::unordered_map<std::string, std::string>& options);
@@ -86,13 +87,15 @@ std::vector<std::shared_ptr<IRecordBatchSupplier>> create_record_batch_supplier(
     const std::vector<std::pair<int32_t, std::string>>& prop_mappings);
 
 void to_arrow_csv_options(
+    const std::string& file_path,
     const std::unordered_map<std::string, std::string>& csv_options,
+    const std::vector<PropertyType>& column_types,
     arrow::csv::ConvertOptions& convert_options,
     arrow::csv::ReadOptions& read_options,
     arrow::csv::ParseOptions& parse_options);
 
 std::vector<std::shared_ptr<IRecordBatchSupplier>> create_csv_record_suppliers(
-    const std::string& file_path,
+    const std::string& file_path, const std::vector<PropertyType>& column_types,
     const std::unordered_map<std::string, std::string> csv_options);
 
 void parse_property_mappings(

@@ -25,6 +25,7 @@
 #include "neug/engines/graph_db/runtime/execute/ops/batch/data_source.h"
 #include "neug/proto_generated_gie/cypher_dml.pb.h"
 #include "neug/storages/rt_mutable_graph/loader/loader_utils.h"
+#include "neug/utils/pb_utils.h"
 #include "neug/utils/result.h"
 
 namespace arrow {
@@ -155,8 +156,20 @@ std::unique_ptr<IUpdateOperator> DataSourceOprBuilder::Build(
                    std::back_inserter(upper_str), ::toupper);
     options.insert({upper_str, entry.second});
   }
+  const auto& metadatas = plan.query_plan().plan(op_idx).meta_data();
+  std::vector<PropertyType> column_types;
+  for (const auto& metadata : metadatas) {
+    PropertyType type;
+    if (!gs::data_type_to_property_type(metadata.type().data_type(), type)) {
+      throw gs::exception::RuntimeError("Unrecognized data type: " +
+                                        metadata.type().DebugString());
+    }
+    column_types.push_back(type);
+  }
+
   if (extension_name == "csv") {
-    auto csv_record_suppliers = create_csv_record_suppliers(file_path, options);
+    auto csv_record_suppliers =
+        create_csv_record_suppliers(file_path, column_types, options);
     return std::make_unique<CSVDataSourceOpr>(csv_record_suppliers, true);
   } else {
     LOG(FATAL) << "Unsupported csv data source, got: "

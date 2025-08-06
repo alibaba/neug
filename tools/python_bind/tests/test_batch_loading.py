@@ -18,6 +18,7 @@
 
 import logging
 import os
+import shutil
 import sys
 import time
 import unittest
@@ -137,3 +138,32 @@ class TestBachLoading(unittest.TestCase):
         # Expect runtime error if we try to execute a query on a closed connection
         with self.assertRaises(RuntimeError):
             conn.execute("MATCH (n) return count(n);")
+
+    def test_copy_from(self):
+        tmp_path = os.environ.get("TMPDIR", "/tmp")
+        db_dir = tmp_path + "/test_copy_from"
+        if os.path.exists(db_dir):
+            os.system("rm -rf %s" % db_dir)
+        db = Database(str(db_dir), "w")
+        conn = db.connect()
+        conn.execute(
+            "CREATE NODE TABLE person(name STRING, age INT32, PRIMARY KEY(name));"
+        )
+        # write to file person.csv
+        person_csv = os.path.join(db_dir, "person.csv")
+        with open(person_csv, "w") as f:
+            f.write("name|age\n")
+            f.write("Alice|30\n")
+            f.write("Bob|25\n")
+            f.write("Charlie|35\n")
+
+        conn.execute(f'COPY person from "{person_csv}"')
+        res = conn.execute("MATCH (n) return n.name, n.age;")
+        for record in res:
+            print(record)
+
+        # rm the file
+        shutil.rmtree(db_dir)
+
+        res = conn.execute("MATCH (n: person) WHERE n.age > 34 return n.name;")
+        assert res.__next__()[0] == "Charlie"
