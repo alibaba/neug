@@ -66,9 +66,31 @@ class BaseTest:
         """prepare the query for execution."""
         return query_object.query
 
+    def replace_none_with_empty_string(self, record):
+        """Replace None values in the record with empty strings."""
+        if isinstance(record, list):
+            return [self.replace_none_with_empty_string(item) for item in record]
+        elif isinstance(record, dict):
+            return {
+                k: self.replace_none_with_empty_string(v) for k, v in record.items()
+            }
+        elif record is None:
+            return ""
+        else:
+            return record
+
     def process_results(self, result):
         """Process the results for validation."""
-        return [list(map(str, record)) for record in result]
+        return [
+            list(map(str, self.replace_none_with_empty_string(record)))
+            for record in result
+        ]
+
+    def result_to_tuple(self, result):
+        """Convert the result to a tuple for easier comparison."""
+        # If the result contains None, replace it with ''
+        result = self.replace_none_with_empty_string(result)
+        return tuple(result)
 
     def validate_result(self, query: Query, result):
         """Validate the results against expected output."""
@@ -78,7 +100,7 @@ class BaseTest:
                 result_list == query.expected_result
             ), f"Query {query.name} failed: Expected {query.expected_result}, but got {result}"
         else:
-            assert set(tuple(r) for r in result_list) == set(
+            assert set(self.result_to_tuple(r) for r in result_list) == set(
                 tuple(r) for r in query.expected_result
             ), (
                 f"Query {query.name} failed: Expected {set(tuple(r) for r in query.expected_result)},"

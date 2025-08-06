@@ -96,6 +96,10 @@ class TestNeug(BaseTest):
             f2 = float(v2)
             return abs(f1 - f2) <= float_tol
         except Exception:
+            if v1 is None:
+                v1 = ""
+            if v2 is None:
+                v2 = ""
             return v1 == v2
 
     def _dict_equal(self, d1, d2, float_tol=1e-5):

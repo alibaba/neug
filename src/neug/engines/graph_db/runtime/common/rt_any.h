@@ -556,6 +556,11 @@ union RTAnyValue {
 
 class RTAny {
  public:
+  static inline RTAny Null() {
+    RTAny any;
+    any.type_ = RTAnyType::kNull;
+    return any;
+  }
   RTAny();
   RTAny(RTAnyType type);
   RTAny(const Any& val);

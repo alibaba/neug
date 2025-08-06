@@ -848,6 +848,25 @@ def test_query_on_empty_graph():
     assert res is not None and len(res) == 0
 
 
+def test_join_queries():
+    db_dir = "/tmp/modern_graph"
+    db = Database(db_path=str(db_dir), mode="r")
+    conn = db.connect()
+    res = conn.execute(
+        """
+        MATCH (a:person), (b:person) WHERE a.ID = b.ID AND a.ID = 1 RETURN a.id, b.id, a.age, b.age;
+        """
+    )
+    assert res.__next__() == [1, 1, 29, 29]
+
+    res = conn.execute(
+        """
+        MATCH (a:person) WHERE a.name = 'marko' OPTIONAL MATCH (b:person) WHERE b.name = 'm' RETURN a.ID, b.ID;
+        """
+    )
+    assert res.__next__() == [1, None]
+
+
 def test_path_expand():
     db_dir = "/tmp/modern_graph"
     db = Database(db_path=str(db_dir), mode="r")
@@ -1005,3 +1024,16 @@ def test_query_cyclic():
         """
     )
     assert res.__next__()[0] == 1
+
+
+def test_no_existing_property():
+    db_dir = "/tmp/tinysnb"
+    db = Database(db_path=str(db_dir), mode="r")
+    conn = db.connect()
+    res = conn.execute(
+        """
+        MATCH (a:person)-[e1:knows|:studyAt|:workAt]->(b:person:organisation) WHERE a.age > 35 RETURN b.fName, b.name;
+        """
+    )
+    for record in res:
+        print(record)

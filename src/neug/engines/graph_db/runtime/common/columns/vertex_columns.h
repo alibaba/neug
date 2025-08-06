@@ -215,6 +215,10 @@ class OptionalSLVertexColumn : public SLVertexColumnBase {
       const std::vector<size_t>& offset) const override;
 
   inline VertexRecord get_vertex(size_t idx) const override {
+    if (idx >= vertices_.size()) {
+      return {std::numeric_limits<label_t>::max(),
+              std::numeric_limits<vid_t>::max()};
+    }
     return {label_, vertices_[idx]};
   }
 

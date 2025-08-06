@@ -551,14 +551,14 @@ bl::result<Context> Join::join(Context&& ctx, Context&& ctx2,
     return default_semi_join(std::move(ctx), std::move(ctx2), params);
   } else if (params.join_type == JoinKind::kInnerJoin) {
     if (params.right_columns.size() == 1 &&
-        ctx.get(params.right_columns[0])->column_type() ==
+        ctx2.get(params.right_columns[0])->column_type() ==
             ContextColumnType::kVertex) {
       return single_vertex_column_inner_join(std::move(ctx), std::move(ctx2),
                                              params);
     } else if (params.right_columns.size() == 2 &&
-               ctx.get(params.right_columns[0])->column_type() ==
+               ctx2.get(params.right_columns[0])->column_type() ==
                    ContextColumnType::kVertex &&
-               ctx.get(params.right_columns[1])->column_type() ==
+               ctx2.get(params.right_columns[1])->column_type() ==
                    ContextColumnType::kVertex) {
       return dual_vertex_column_inner_join(std::move(ctx), std::move(ctx2),
                                            params);
@@ -567,15 +567,16 @@ bl::result<Context> Join::join(Context&& ctx, Context&& ctx2,
     }
   } else if (params.join_type == JoinKind::kLeftOuterJoin) {
     if (params.right_columns.size() == 1 &&
-        ctx.get(params.right_columns[0])->column_type() ==
+        ctx2.get(params.right_columns[0])->column_type() ==
             ContextColumnType::kVertex) {
       return single_vertex_column_left_outer_join(std::move(ctx),
                                                   std::move(ctx2), params);
     } else if (params.right_columns.size() == 2 &&
-               ctx.get(params.right_columns[0])->column_type() ==
+               ctx2.get(params.right_columns[0])->column_type() ==
                    ContextColumnType::kVertex &&
-               ctx.get(params.right_columns[1])->column_type() ==
+               ctx2.get(params.right_columns[1])->column_type() ==
                    ContextColumnType::kVertex) {
+      LOG(INFO) << "dual vertex column left outer join";
       return dual_vertex_column_left_outer_join(std::move(ctx), std::move(ctx2),
                                                 params);
     } else {

@@ -1310,6 +1310,8 @@ void RTAny::sink_impl(common::Value* value) const {
     value->set_u64(value_.u64_val);
   } else if (type_ == RTAnyType::kU32Value) {
     value->set_u32(value_.u32_val);
+  } else if (type_ == RTAnyType::kNull) {
+    value->mutable_none();
   } else {
     LOG(FATAL) << "not implemented for " << static_cast<int>(type_);
   }
@@ -1377,7 +1379,8 @@ static void sink_edge_data(const EdgeData& any, common::Value* value) {
 template <typename GraphInterface>
 void sink_vertex(const GraphInterface& graph, const VertexRecord& vertex,
                  results::Element* ele) {
-  if (vertex.label_ >= graph.schema().vertex_label_num()) {
+  if (vertex.label_ >= graph.schema().vertex_label_num() ||
+      vertex.vid_ == std::numeric_limits<vid_t>::max()) {
     ele->mutable_object()->mutable_none();
     return;
   }
