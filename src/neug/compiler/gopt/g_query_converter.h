@@ -167,7 +167,8 @@ class GQueryConvertor {
       const planner::LogicalRecursiveExtend& extend, planner::GetVOpt getVOpt);
   std::unique_ptr<::physical::PathExpand_ExpandBase> convertPathBase(
       const planner::LogicalRecursiveExtend& extend);
-  ::physical::PathExpand_PathOpt convertPathOpt(common::PathSemantic semantic);
+  ::physical::PathExpand_PathOpt convertPathOpt(
+      const planner::LogicalRecursiveExtend& extend);
   ::physical::PathExpand_ResultOpt convertResultOpt(
       gs::planner::ResultOpt resultOpt);
   std::unique_ptr<::algebra::Range> convertRange(uint64_t skip, uint64_t limit);

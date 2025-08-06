@@ -23,6 +23,8 @@
 #include <vector>
 #include "common/enums/accumulate_type.h"
 #include "common/enums/join_type.h"
+#include "common/enums/path_semantic.h"
+#include "common/enums/query_rel_type.h"
 #include "neug/compiler/binder/expression/expression.h"
 #include "neug/compiler/binder/expression/property_expression.h"
 #include "neug/compiler/binder/expression/rel_expression.h"
@@ -52,6 +54,7 @@
 #include "neug/proto_generated_gie/expr.pb.h"
 #include "neug/proto_generated_gie/physical.pb.h"
 #include "neug/utils/exception/exception.h"
+#include "planner/operator/extend/logical_recursive_extend.h"
 #include "planner/operator/logical_hash_join.h"
 
 namespace gs {
@@ -372,15 +375,23 @@ GQueryConvertor::convertPathBase(
 }
 
 ::physical::PathExpand_PathOpt GQueryConvertor::convertPathOpt(
-    common::PathSemantic semantic) {
-  switch (semantic) {
-  case common::PathSemantic::WALK:
+    const planner::LogicalRecursiveExtend& extend) {
+  auto rel = extend.getRel();
+  auto pathOpt = rel->getRelType();
+  switch (pathOpt) {
+  case common::QueryRelType::VARIABLE_LENGTH_WALK:
     return ::physical::PathExpand_PathOpt::PathExpand_PathOpt_ARBITRARY;
-  case common::PathSemantic::TRAIL:
+  case common::QueryRelType::VARIABLE_LENGTH_TRAIL:
     return ::physical::PathExpand_PathOpt::PathExpand_PathOpt_TRAIL;
-  case common::PathSemantic::ACYCLIC:
-  default:
+  case common::QueryRelType::VARIABLE_LENGTH_ACYCLIC:
     return ::physical::PathExpand_PathOpt::PathExpand_PathOpt_SIMPLE;
+  case common::QueryRelType::SHORTEST:
+    return ::physical::PathExpand_PathOpt::PathExpand_PathOpt_ANY_SHORTEST;
+  case common::QueryRelType::ALL_SHORTEST:
+    return ::physical::PathExpand_PathOpt::PathExpand_PathOpt_ALL_SHORTEST;
+  default:
+    throw exception::Exception("Unsupported path option: " +
+                               std::to_string(static_cast<int>(pathOpt)));
   }
 }
 
@@ -472,7 +483,7 @@ void GQueryConvertor::convertRecursiveExtend(
   pathPB->set_allocated_hop_range(rangePB.release());
 
   // set path opt
-  pathPB->set_path_opt(convertPathOpt(bindData.semantic));
+  pathPB->set_path_opt(convertPathOpt(extend));
   // set result opt
   pathPB->set_result_opt(convertResultOpt(extend.getResultOpt()));
 

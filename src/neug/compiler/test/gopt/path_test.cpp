@@ -57,5 +57,45 @@ TEST_F(PathTest, KNOWS_3_3) {
                                       getPathResource("KNOWS_3_3_physical"));
 }
 
+TEST_F(PathTest, TRAIL_Path) {
+  std::string query =
+      "MATCH (a:person)-[e:knows* TRAIL 2..3]->(b:person) RETURN "
+      "COUNT(b.name);";
+  auto logical = planLogical(query, schemaData, statsData, rules);
+  auto physical = planPhysical(*logical);
+  VerifyFactory::verifyPhysicalByJson(*physical,
+                                      getPathResource("TRAIL_Path_physical"));
+}
+
+TEST_F(PathTest, ACYCLIC_Path) {
+  std::string query =
+      "MATCH (a:person)-[e:knows* ACYCLIC 2..3]->(b:person) RETURN "
+      "COUNT(b.name);";
+  auto logical = planLogical(query, schemaData, statsData, rules);
+  auto physical = planPhysical(*logical);
+  VerifyFactory::verifyPhysicalByJson(*physical,
+                                      getPathResource("ACYCLIC_Path_physical"));
+}
+
+TEST_F(PathTest, ANY_SHORTEST_Path) {
+  std::string query =
+      "MATCH (p: person {id : 1}) -[k:knows* SHORTEST 1..4]-(f:PERSON {name : "
+      "'lion'}) RETURN k;";
+  auto logical = planLogical(query, schemaData, statsData, rules);
+  auto physical = planPhysical(*logical);
+  VerifyFactory::verifyPhysicalByJson(
+      *physical, getPathResource("ANY_SHORTEST_Path_physical"));
+}
+
+TEST_F(PathTest, ALL_SHORTEST_Path) {
+  std::string query =
+      "MATCH (a:person)-[e:knows* ALL SHORTEST 1..3]->(b:person) RETURN "
+      "COUNT(b.name);";
+  auto logical = planLogical(query, schemaData, statsData, rules);
+  auto physical = planPhysical(*logical);
+  VerifyFactory::verifyPhysicalByJson(
+      *physical, getPathResource("ALL_SHORTEST_Path_physical"));
+}
+
 }  // namespace gopt
 }  // namespace gs
