@@ -846,3 +846,17 @@ def test_query_on_empty_graph():
     conn = db.connect()
     res = conn.execute("MATCH (n) RETURN n;")
     assert res is not None and len(res) == 0
+
+
+def test_query_cyclic():
+    db_dir = "/tmp/modern_graph"
+    db = Database(db_path=str(db_dir), mode="w")
+    conn = db.connect()
+    res = conn.execute(
+        """Match (a:person)-[:created]->(b:software),
+           (c:person)-[:created]->(b:software),
+           (a:person)-[:knows]->(c:person)
+Where a.name <> b.name AND b.name <> c.name
+Return count(*);"""
+    )
+    assert res.__next__()[0] == 1
