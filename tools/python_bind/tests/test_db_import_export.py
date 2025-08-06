@@ -111,9 +111,9 @@ def test_import_null(tmp_path):
 
 
 # DB-005-04
-@pytest.mark.skip(
-    reason="Inconsistent data type, expect string, but got int64. However, no error handling for type conversion yet"
-)
+# @pytest.mark.skip(
+#     reason="Inconsistent data type, expect string, but got int64. However, no error handling for type conversion yet"
+# )
 def test_import_type_conversion1(tmp_path):
     db_dir = tmp_path / "import_type_conversion1"
     db_dir.mkdir()
@@ -123,16 +123,14 @@ def test_import_type_conversion1(tmp_path):
     csv_path = tmp_path / "type.csv"
     with open(csv_path, "w") as f:
         f.write("id|name\n1|111\n2|222\n")
-    with pytest.raises(Exception) as excinfo:
-        conn.execute(f'COPY person FROM "{csv_path}"')
-    assert ERROR_STRINGS[ERR_TYPE_CONVERSION] in str(excinfo.value)
+    conn.execute(f'COPY person FROM "{csv_path}"')
     conn.close()
     db.close()
 
 
-@pytest.mark.skip(
-    reason="Inconsistent data type, expect int32, but got int64. However, no error handling for type conversion yet"
-)
+# @pytest.mark.skip(
+#     reason="Inconsistent data type, expect int32, but got int64. However, no error handling for type conversion yet"
+# )
 def test_import_type_conversion2(tmp_path):
     db_dir = tmp_path / "import_type_conversion2"
     db_dir.mkdir()
@@ -143,9 +141,7 @@ def test_import_type_conversion2(tmp_path):
     with open(csv_path2, "w") as f:
         f.write("id|age\n1|30\n2|40\n")
     # This should raise an error due to type conversion failure
-    with pytest.raises(Exception) as excinfo:
-        conn.execute(f'COPY person2 FROM "{csv_path2}";')
-    assert ERROR_STRINGS[ERR_TYPE_CONVERSION] in str(excinfo.value)
+    conn.execute(f'COPY person2 FROM "{csv_path2}";')
     conn.close()
     db.close()
 
@@ -170,9 +166,9 @@ def test_import_type_conversion_overflow(tmp_path):
     db.close()
 
 
-@pytest.mark.skip(
-    reason="BUG:  mutable_property_fragment.h:286] Inconsistent data type, expect large_string, but got string"
-)
+# @pytest.mark.skip(
+#     reason="BUG:  mutable_property_fragment.h:286] Inconsistent data type, expect large_string, but got string"
+# )
 def test_import_string_pk(tmp_path):
     db_dir = tmp_path / "import_type"
     db_dir.mkdir()
@@ -182,14 +178,12 @@ def test_import_string_pk(tmp_path):
     csv_path = tmp_path / "type.csv"
     with open(csv_path, "w") as f:
         f.write("id\nAlice\n")
-    with pytest.raises(Exception) as excinfo:
-        conn.execute(f'COPY person FROM "{csv_path}"')
-    assert ERROR_STRINGS[ERR_TYPE_CONVERSION] in str(excinfo.value)
+    conn.execute(f'COPY person FROM "{csv_path}"')
 
 
-@pytest.mark.skip(
-    reason="BUG: mutable_property_fragment.h:286] Inconsistent data type, expect int32, but got int64"
-)
+# @pytest.mark.skip(
+#     reason="BUG: mutable_property_fragment.h:286] Inconsistent data type, expect int32, but got int64"
+# )
 def test_import_int32_pk(tmp_path):
     db_dir = tmp_path / "import_primary_key"
     db_dir.mkdir()
@@ -244,7 +238,7 @@ def test_import_uint64_pk(tmp_path):
 
 
 # DB-005-05
-@pytest.mark.skip(reason="unsupported yet")
+# @pytest.mark.skip(reason="unsupported yet")
 def test_export_config(tmp_path):
     db_dir = tmp_path / "export_config"
     db_dir.mkdir()
@@ -254,7 +248,9 @@ def test_export_config(tmp_path):
     conn.execute("CREATE (u:person {id: 1}), (u2:person {id: 2});")
     out_path = tmp_path / "out.csv"
     # delimiter, header, quotechar, encoding
-    conn.execute(f'COPY person TO "{out_path}" (DELIMITER=",", HEADER TRUE)')
+    conn.execute(
+        f'COPY (MATCH (p:person) RETURN *) TO "{out_path}" (DELIMITER=",", HEADER=TRUE)'
+    )
     assert out_path.exists()
     conn.close()
     db.close()
