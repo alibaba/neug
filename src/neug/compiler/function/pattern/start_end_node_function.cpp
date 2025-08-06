@@ -14,10 +14,10 @@ namespace function {
 static std::shared_ptr<Expression> startRewriteFunc(
     const RewriteFunctionBindInput& input) {
   KU_ASSERT(input.arguments.size() == 1);
-  auto param = input.arguments[0].get();
-  if (ExpressionUtil::isRelPattern(*param)) {
-    return param->constCast<RelExpression>().getSrcNode();
-  }
+  // auto param = input.arguments[0].get();
+  // if (ExpressionUtil::isRelPattern(*param)) {
+  //   return param->constCast<RelExpression>().getSrcNode();
+  // }
   auto extractKey =
       input.expressionBinder->createLiteralExpression(InternalKeyword::SRC);
   return input.expressionBinder->bindScalarFunctionExpression(
@@ -35,10 +35,10 @@ function_set StartNodeFunction::getFunctionSet() {
 static std::shared_ptr<Expression> endRewriteFunc(
     const RewriteFunctionBindInput& input) {
   KU_ASSERT(input.arguments.size() == 1);
-  auto param = input.arguments[0].get();
-  if (ExpressionUtil::isRelPattern(*param)) {
-    return param->constCast<RelExpression>().getDstNode();
-  }
+  // auto param = input.arguments[0].get();
+  // if (ExpressionUtil::isRelPattern(*param)) {
+  //   return param->constCast<RelExpression>().getDstNode();
+  // }
   auto extractKey =
       input.expressionBinder->createLiteralExpression(InternalKeyword::DST);
   return input.expressionBinder->bindScalarFunctionExpression(

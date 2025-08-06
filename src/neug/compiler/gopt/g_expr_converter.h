@@ -108,6 +108,16 @@ class GExprConverter {
   std::unique_ptr<::common::Expression> convertScalarFunc(
       const binder::Expression& expr,
       const std::vector<std::string>& schemaAlias);
+  std::unique_ptr<::common::Expression> convertPatternExtractFunc(
+      const binder::Expression& expr,
+      const std::vector<std::string>& schemaAlias);
+  // project properties for each node or rel in path expand
+  std::unique_ptr<::common::Expression> convertPropertiesFunc(
+      const binder::Expression& expr,
+      const std::vector<std::string>& schemaAlias);
+  std::unique_ptr<::common::Expression> convertUDFFunc(
+      const std::string& funcName, const binder::Expression& expr,
+      size_t paramNum, const std::vector<std::string>& schemaAlias);
 
  private:
   const std::shared_ptr<gopt::GAliasManager> aliasManager;

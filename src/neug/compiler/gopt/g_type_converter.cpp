@@ -64,22 +64,24 @@ std::unique_ptr<::common::IrDataType> GTypeConverter::convertRelType(
 std::unique_ptr<::common::IrDataType> GTypeConverter::convertArrayType(
     const common::LogicalType& type, const binder::Expression& expr) {
   auto arrayType = std::make_unique<::common::Array>();
-  LOG(INFO) << "Converting ARRAY child type: " << type.toString();
+  VLOG(1) << "Converting ARRAY child type: " << type.toString();
   auto childType = convertLogicalType(type, expr);
   if (!childType) {
     throw exception::Exception("Failed to convert child type for ARRAY type: " +
                                type.toString());
   }
   if (!childType->has_data_type()) {
-    throw exception::Exception(
-        "Child type for ARRAY type must be a data type: " + type.toString());
+    LOG(WARNING) << "Component type of Array should be basic, others are "
+                    "unsupported, return ANY instead.";
+    arrayType->mutable_component_type()->set_primitive_type(
+        ::common::PrimitiveType::DT_ANY);
   } else {
     // Otherwise, we can directly set the data type
     arrayType->mutable_component_type()->CopyFrom(childType->data_type());
   }
   auto result = std::make_unique<::common::IrDataType>();
   result->mutable_data_type()->set_allocated_array(arrayType.release());
-  LOG(INFO) << "Converted ARRAY type: " << result->DebugString();
+  VLOG(1) << "Converted ARRAY type: " << result->DebugString();
   return result;
 }
 
@@ -87,25 +89,27 @@ std::unique_ptr<::common::IrDataType> GTypeConverter::convertLogicalType(
     const common::LogicalType& type, const binder::Expression& expr) {
   switch (type.getLogicalTypeID()) {
   case common::LogicalTypeID::NODE: {
-    if (auto nodeExpr = expr.constPtrCast<binder::NodeExpression>()) {
+    auto nodeExpr = dynamic_cast<const binder::NodeExpression*>(&expr);
+    if (nodeExpr) {
       return convertNodeType(gopt::GNodeType(*nodeExpr));
     } else {
-      throw exception::Exception(
-          "Expected NodeExpression for NODE type, "
-          "but got: " +
-          expr.toString());
+      LOG(WARNING) << "Expected NodeExpression for NODE type, "
+                   << "but got: " << expr.toString()
+                   << " , return NODE type with empty label";
+      return convertNodeType(gopt::GNodeType({}));
     }
     break;
   }
   case common::LogicalTypeID::REL:
   case common::LogicalTypeID::RECURSIVE_REL: {
-    if (auto relExpr = expr.constPtrCast<binder::RelExpression>()) {
+    auto relExpr = dynamic_cast<const binder::RelExpression*>(&expr);
+    if (relExpr) {
       return convertRelType(gopt::GRelType(*relExpr));
     } else {
-      throw exception::Exception(
-          "Expected RelExpression for REL type, "
-          "but got: " +
-          expr.toString());
+      LOG(WARNING) << "Expected RelExpression for REL type, "
+                   << "but got: " << expr.toString()
+                   << " , return REL type with empty label";
+      return convertRelType(gopt::GRelType({}));
     }
     break;
   }
@@ -124,7 +128,7 @@ std::unique_ptr<::common::IrDataType> GTypeConverter::convertLogicalType(
     break;
   }
   case common::LogicalTypeID::LIST: {
-    LOG(INFO) << "Converting LIST type: " << type.toString();
+    VLOG(1) << "Converting LIST type: " << type.toString();
     auto extraTypeInfo = type.getExtraTypeInfo();
     CHECK(extraTypeInfo) << "List type should have extra type info: " +
                                 type.toString();
@@ -140,7 +144,7 @@ std::unique_ptr<::common::IrDataType> GTypeConverter::convertLogicalType(
   }
   default:
     // For other types, we can convert them directly
-    LOG(INFO) << "Converting simple logical type: " << type.toString();
+    VLOG(1) << "Converting simple logical type: " << type.toString();
     return convertSimpleLogicalType(type);
   }
 }
@@ -149,6 +153,10 @@ std::unique_ptr<::common::IrDataType> GTypeConverter::convertSimpleLogicalType(
     const common::LogicalType& type) {
   auto result = std::make_unique<::common::DataType>();
   switch (type.getLogicalTypeID()) {
+  case common::LogicalTypeID::ANY: {
+    result->set_primitive_type(::common::PrimitiveType::DT_ANY);
+    break;
+  }
   case common::LogicalTypeID::BOOL: {
     result->set_primitive_type(::common::PrimitiveType::DT_BOOL);
     break;

@@ -1,3 +1,5 @@
+#include "common/constants.h"
+#include "common/types/types.h"
 #include "neug/compiler/binder/expression/expression_util.h"
 #include "neug/compiler/binder/expression/literal_expression.h"
 #include "neug/compiler/function/scalar_function.h"
@@ -28,6 +30,14 @@ std::unique_ptr<FunctionBindData> StructExtractFunctions::bindFunc(
   }
   auto paramTypes = ExpressionUtil::getDataTypes(input.arguments);
   auto resultType = StructType::getField(structType, fieldIdx).getType().copy();
+  // the default type of START_NODE(e) is the INNER_ID of the source vertex, but
+  // in NEUG, we support it as the source vertex directly, here convert the type
+  // from INNER_ID to NODE. END_NODE(e) is the same.
+  if ((key == common::InternalKeyword::SRC ||
+       key == common::InternalKeyword::DST) &&
+      resultType.getLogicalTypeID() == common::LogicalTypeID::INTERNAL_ID) {
+    resultType = LogicalType(common::LogicalTypeID::NODE);
+  }
   auto bindData =
       std::make_unique<StructExtractBindData>(std::move(resultType), fieldIdx);
   bindData->paramTypes.push_back(input.arguments[0]->getDataType().copy());

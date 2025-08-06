@@ -1,4 +1,5 @@
 #include "gopt_test.h"
+#include "planner/operator/logical_projection.h"
 
 namespace gs {
 namespace gopt {
@@ -95,6 +96,45 @@ TEST_F(PathTest, ALL_SHORTEST_Path) {
   auto physical = planPhysical(*logical);
   VerifyFactory::verifyPhysicalByJson(
       *physical, getPathResource("ALL_SHORTEST_Path_physical"));
+}
+
+TEST_F(PathTest, START_NODE) {
+  std::string query =
+      "Match (a:person)-[b:knows]-(c:person) Return START_NODE(b) as n1, "
+      "END_NODE(b) as n2;";
+  auto logical = planLogical(query, schemaData, statsData, rules);
+  auto physical = planPhysical(*logical);
+  VerifyFactory::verifyPhysicalByJson(*physical,
+                                      getPathResource("START_NODE_physical"));
+}
+
+TEST_F(PathTest, Length) {
+  std::string query =
+      "Match (a:person)-[b:knows*1..3]-(c:person) Return length(b) as len";
+  auto logical = planLogical(query, schemaData, statsData, rules);
+  auto physical = planPhysical(*logical);
+  VerifyFactory::verifyPhysicalByJson(*physical,
+                                      getPathResource("Length_physical"));
+}
+
+TEST_F(PathTest, Nodes) {
+  std::string query =
+      "Match (a:person)-[b:knows*1..3]-(c:person) Return nodes(b) as n1, "
+      "rels(b) as n2";
+  auto logical = planLogical(query, schemaData, statsData, rules);
+  auto physical = planPhysical(*logical);
+  VerifyFactory::verifyPhysicalByJson(*physical,
+                                      getPathResource("Nodes_physical"));
+}
+
+TEST_F(PathTest, Properties) {
+  std::string query =
+      "Match (a:person)-[b:knows*1..3]-(c:person) Return properties(nodes(b), "
+      "'name') as n1, properties(rels(b), 'weight') as n2";
+  auto logical = planLogical(query, schemaData, statsData, rules);
+  auto physical = planPhysical(*logical);
+  VerifyFactory::verifyPhysicalByJson(*physical,
+                                      getPathResource("Properties_physical"));
 }
 
 }  // namespace gopt

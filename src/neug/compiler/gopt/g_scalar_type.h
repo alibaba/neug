@@ -1,5 +1,7 @@
 #pragma once
 
+#include "function/path/vector_path_functions.h"
+#include "function/struct/vector_struct_functions.h"
 #include "neug/compiler/binder/expression/expression.h"
 #include "neug/compiler/binder/expression/scalar_function_expression.h"
 #include "neug/compiler/function/arithmetic/vector_arithmetic_functions.h"
@@ -24,6 +26,8 @@ enum ScalarType {
   TO_INTERVAL,
   DATE_PART,
   LABEL,
+  PATTERN_EXTRACT,  // startNode, endNode, nodes, rels
+  PROPERTIES,       // properties(nodes(), 'name')
 };
 
 class GScalarType {
@@ -76,6 +80,12 @@ class GScalarType {
       return ScalarType::DATE_PART;
     } else if (func.name == function::LabelFunction::name) {
       return ScalarType::LABEL;
+    } else if (func.name == function::StructExtractFunctions::name ||
+               func.name == function::NodesFunction::name ||
+               func.name == function::RelsFunction::name) {
+      return ScalarType::PATTERN_EXTRACT;
+    } else if (func.name == function::PropertiesFunction::name) {
+      return ScalarType::PROPERTIES;
     }
 
     // todo: support more scalar functions

@@ -22,6 +22,7 @@
 #include <memory>
 #include <string>
 #include <vector>
+#include "gopt/g_alias_manager.h"
 #include "neug/compiler/binder/expression/expression.h"
 #include "neug/compiler/binder/expression/literal_expression.h"
 #include "neug/compiler/binder/expression/property_expression.h"
@@ -34,6 +35,7 @@
 #include "neug/compiler/common/types/types.h"
 #include "neug/compiler/common/types/value/value.h"
 #include "neug/compiler/function/arithmetic/vector_arithmetic_functions.h"
+#include "neug/compiler/function/struct/vector_struct_functions.h"
 #include "neug/compiler/gopt/g_alias_name.h"
 #include "neug/compiler/gopt/g_scalar_type.h"
 #include "neug/proto_generated_gie/common.pb.h"
@@ -294,6 +296,119 @@ std::unique_ptr<::common::Expression> GExprConverter::convertLabel(
   return convertProperty(labelExpr);
 }
 
+std::unique_ptr<::common::Expression> GExprConverter::convertUDFFunc(
+    const std::string& funcName, const binder::Expression& expr,
+    size_t paramNum, const std::vector<std::string>& schemaAlias) {
+  auto udfFuncPB = std::make_unique<::common::UserDefinedFunction>();
+  udfFuncPB->set_name(funcName);
+  for (size_t i = 0; i < paramNum; i++) {
+    auto paramExpr = convert(*expr.getChild(i), schemaAlias);
+    udfFuncPB->mutable_parameters()->AddAllocated(paramExpr.release());
+  }
+  auto exprPB = std::make_unique<::common::Expression>();
+  exprPB->add_operators()->set_allocated_udf_func(udfFuncPB.release());
+  return exprPB;
+}
+
+std::unique_ptr<::common::Expression> GExprConverter::convertPropertiesFunc(
+    const binder::Expression& expr,
+    const std::vector<std::string>& schemaAlias) {
+  if (expr.expressionType != common::ExpressionType::FUNCTION) {
+    throw exception::Exception(
+        "Properties function should be a function expression");
+  }
+  auto& scalarExpr = expr.constCast<binder::ScalarFunctionExpression>();
+  if (expr.getChildren().size() < 2) {
+    throw exception::Exception(
+        "Properties function should have at least two children");
+  }
+  auto pathFuncPB = std::make_unique<::common::PathFunction>();
+  // convert property key
+  auto literalExpr =
+      expr.getChild(1)->constPtrCast<binder::LiteralExpression>();
+  auto key = literalExpr->getValue().getValue<std::string>();
+  pathFuncPB->set_allocated_property(convertPropertyExpr(key).release());
+
+  // convert path tag
+  auto nodeOrRelExpr = expr.getChild(0);
+  if (nodeOrRelExpr->getChildren().empty()) {
+    throw exception::Exception(
+        "The first child of Properties function should be a list of nodes or "
+        "rels, but is " +
+        expr.getChild(0)->toString());
+  }
+  auto pathExpr = nodeOrRelExpr->getChild(0);
+  auto pathAlias = aliasManager->getAliasId(pathExpr->getUniqueName());
+  if (pathAlias != DEFAULT_ALIAS_ID) {
+    pathFuncPB->set_allocated_tag(convertAlias(pathAlias).release());
+  }
+
+  // convert function opt: vertex or edge
+  const auto& listType = expr.getChild(0)->getDataType();
+  const auto& childType = common::ListType::getChildType(listType);
+  // project properties for each node in path expand
+  if (childType.getLogicalTypeID() == common::LogicalTypeID::NODE) {
+    pathFuncPB->set_opt(
+        ::common::PathFunction::FuncOpt::PathFunction_FuncOpt_VERTEX);
+  } else if (childType.getLogicalTypeID() == common::LogicalTypeID::REL) {
+    pathFuncPB->set_opt(
+        ::common::PathFunction::FuncOpt::PathFunction_FuncOpt_EDGE);
+  } else {
+    throw exception::Exception(
+        "The first child of Properties function should be a list of nodes or "
+        "rels, but is " +
+        expr.getChild(0)->toString());
+  }
+  auto oprPB = std::make_unique<::common::ExprOpr>();
+  oprPB->set_allocated_path_func(pathFuncPB.release());
+  oprPB->set_allocated_node_type(
+      typeConverter.convertLogicalType(expr.getDataType(), expr).release());
+  auto exprPB = std::make_unique<::common::Expression>();
+  *exprPB->add_operators() = std::move(*oprPB);
+  return exprPB;
+}
+
+std::unique_ptr<::common::Expression> GExprConverter::convertPatternExtractFunc(
+    const binder::Expression& expr,
+    const std::vector<std::string>& schemaAlias) {
+  if (expr.expressionType != common::ExpressionType::FUNCTION) {
+    throw exception::Exception(
+        "Pattern extract function should be a function expression");
+  }
+  if (expr.getChildren().empty()) {
+    throw exception::Exception(
+        "Pattern extract function should have at least one child");
+  }
+  auto& scalarExpr = expr.constCast<binder::ScalarFunctionExpression>();
+  std::string extractKey;
+  if (scalarExpr.getFunction().name == function::NodesFunction::name) {
+    extractKey = common::InternalKeyword::NODES;
+  } else if (scalarExpr.getFunction().name == function::RelsFunction::name) {
+    extractKey = common::InternalKeyword::RELS;
+  } else if (expr.getChildren().size() > 1 &&
+             expr.getChild(1)->expressionType ==
+                 common::ExpressionType::LITERAL) {
+    extractKey = expr.getChild(1)
+                     ->constCast<binder::LiteralExpression>()
+                     .getValue()
+                     .getValue<std::string>();
+  } else {
+    throw exception::Exception(
+        "cannot evaluate <extract key> from pattern extract function: " +
+        expr.toString());
+  }
+  if (extractKey == common::InternalKeyword::SRC) {
+    return convertUDFFunc("gs.function.startNode", expr, 1, schemaAlias);
+  } else if (extractKey == common::InternalKeyword::DST) {
+    return convertUDFFunc("gs.function.endNode", expr, 1, schemaAlias);
+  } else if (extractKey == common::InternalKeyword::NODES) {
+    return convertUDFFunc("gs.function.nodes", expr, 1, schemaAlias);
+  } else if (extractKey == common::InternalKeyword::RELS) {
+    return convertUDFFunc("gs.function.relationships", expr, 1, schemaAlias);
+  }
+  throw exception::Exception("Unsupported struct extract key: " + extractKey);
+}
+
 std::unique_ptr<::common::Expression> GExprConverter::convertScalarFunc(
     const binder::Expression& expr,
     const std::vector<std::string>& schemaAlias) {
@@ -308,6 +423,10 @@ std::unique_ptr<::common::Expression> GExprConverter::convertScalarFunc(
     return convertExtractFunc(expr);
   } else if (scalarType.getType() == LABEL) {
     return convertLabel(expr);
+  } else if (scalarType.getType() == PATTERN_EXTRACT) {
+    return convertPatternExtractFunc(expr, schemaAlias);
+  } else if (scalarType.getType() == PROPERTIES) {
+    return convertPropertiesFunc(expr, schemaAlias);
   }
   throw exception::Exception("Unsupported expression type: " + expr.toString());
 }
