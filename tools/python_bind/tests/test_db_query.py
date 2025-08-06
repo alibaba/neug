@@ -848,15 +848,160 @@ def test_query_on_empty_graph():
     assert res is not None and len(res) == 0
 
 
+def test_path_expand():
+    db_dir = "/tmp/modern_graph"
+    db = Database(db_path=str(db_dir), mode="r")
+    conn = db.connect()
+    # Test path expansion with a simple query
+    result = conn.execute("MATCH (p:person)-[k*1..2]->(f) RETURN k;")
+    assert result is not None
+    expected_result = [
+        [
+            [
+                {"_ID": 0, "_LABEL": "person"},
+                {
+                    "_ID": 1,
+                    "_LABEL": "knows",
+                    "_SRC_LABEL": "person",
+                    "_DST_LABEL": "person",
+                    "_SRC_ID": 0,
+                    "_DST_ID": 1,
+                },
+                {"_ID": 1, "_LABEL": "person"},
+            ]
+        ],
+        [
+            [
+                {"_ID": 0, "_LABEL": "person"},
+                {
+                    "_ID": 2,
+                    "_LABEL": "knows",
+                    "_SRC_LABEL": "person",
+                    "_DST_LABEL": "person",
+                    "_SRC_ID": 0,
+                    "_DST_ID": 2,
+                },
+                {"_ID": 2, "_LABEL": "person"},
+            ]
+        ],
+        [
+            [
+                {"_ID": 0, "_LABEL": "person"},
+                {
+                    "_ID": 4294967296,
+                    "_LABEL": "created",
+                    "_SRC_LABEL": "person",
+                    "_DST_LABEL": "software",
+                    "_SRC_ID": 0,
+                    "_DST_ID": 72057594037927936,
+                },
+                {"_ID": 72057594037927936, "_LABEL": "software"},
+            ]
+        ],
+        [
+            [
+                {"_ID": 2, "_LABEL": "person"},
+                {
+                    "_ID": 4297064448,
+                    "_LABEL": "created",
+                    "_SRC_LABEL": "person",
+                    "_DST_LABEL": "software",
+                    "_SRC_ID": 2,
+                    "_DST_ID": 72057594037927936,
+                },
+                {"_ID": 72057594037927936, "_LABEL": "software"},
+            ]
+        ],
+        [
+            [
+                {"_ID": 2, "_LABEL": "person"},
+                {
+                    "_ID": 4297064449,
+                    "_LABEL": "created",
+                    "_SRC_LABEL": "person",
+                    "_DST_LABEL": "software",
+                    "_SRC_ID": 2,
+                    "_DST_ID": 72057594037927937,
+                },
+                {"_ID": 72057594037927937, "_LABEL": "software"},
+            ]
+        ],
+        [
+            [
+                {"_ID": 3, "_LABEL": "person"},
+                {
+                    "_ID": 4298113024,
+                    "_LABEL": "created",
+                    "_SRC_LABEL": "person",
+                    "_DST_LABEL": "software",
+                    "_SRC_ID": 3,
+                    "_DST_ID": 72057594037927936,
+                },
+                {"_ID": 72057594037927936, "_LABEL": "software"},
+            ]
+        ],
+        [
+            [
+                {"_ID": 0, "_LABEL": "person"},
+                {
+                    "_ID": 2,
+                    "_LABEL": "knows",
+                    "_SRC_LABEL": "person",
+                    "_DST_LABEL": "person",
+                    "_SRC_ID": 0,
+                    "_DST_ID": 2,
+                },
+                {"_ID": 2, "_LABEL": "person"},
+                {
+                    "_ID": 4297064448,
+                    "_LABEL": "created",
+                    "_SRC_LABEL": "person",
+                    "_DST_LABEL": "software",
+                    "_SRC_ID": 2,
+                    "_DST_ID": 72057594037927936,
+                },
+                {"_ID": 72057594037927936, "_LABEL": "software"},
+            ]
+        ],
+        [
+            [
+                {"_ID": 0, "_LABEL": "person"},
+                {
+                    "_ID": 2,
+                    "_LABEL": "knows",
+                    "_SRC_LABEL": "person",
+                    "_DST_LABEL": "person",
+                    "_SRC_ID": 0,
+                    "_DST_ID": 2,
+                },
+                {"_ID": 2, "_LABEL": "person"},
+                {
+                    "_ID": 4297064449,
+                    "_LABEL": "created",
+                    "_SRC_LABEL": "person",
+                    "_DST_LABEL": "software",
+                    "_SRC_ID": 2,
+                    "_DST_ID": 72057594037927937,
+                },
+                {"_ID": 72057594037927937, "_LABEL": "software"},
+            ]
+        ],
+    ]
+
+    for i, record in enumerate(result):
+        assert (
+            record[0] == expected_result[i][0]
+        ), f"Record {i} does not match expected result"
+
+
 def test_query_cyclic():
     db_dir = "/tmp/modern_graph"
     db = Database(db_path=str(db_dir), mode="w")
     conn = db.connect()
     res = conn.execute(
-        """Match (a:person)-[:created]->(b:software),
-           (c:person)-[:created]->(b:software),
-           (a:person)-[:knows]->(c:person)
-Where a.name <> b.name AND b.name <> c.name
-Return count(*);"""
+        """Match (a:person)-[:created]->(b:software), (c:person)-[:created]->(b:software),
+           (a:person)-[:knows]->(c:person) Where a.name <> b.name AND b.name <> c.name
+           Return count(*);
+        """
     )
     assert res.__next__()[0] == 1

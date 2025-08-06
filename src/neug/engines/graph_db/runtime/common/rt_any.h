@@ -144,6 +144,7 @@ class PathImpl : public CObject {
                                    vid_t v) const {
     auto new_path = std::make_unique<PathImpl>();
     new_path->path_ = path_;
+    new_path->edge_labels_ = edge_labels_;
     new_path->edge_labels_.emplace_back(edge_label);
     new_path->path_.push_back({label, v});
     return new_path;
