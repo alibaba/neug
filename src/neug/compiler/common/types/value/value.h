@@ -11,6 +11,7 @@
 #include "neug/compiler/common/types/uuid.h"
 
 namespace gs {
+
 namespace common {
 
 class NodeVal;
@@ -296,6 +297,7 @@ class Value {
   LogicalType dataType;
   bool isNull_;
 
+ public:
   // Note: ALWAYS use childrenSize over children.size(). We do NOT resize
   // children when iterating with nested value. So children.size() reflects the
   // capacity() rather the actual size.

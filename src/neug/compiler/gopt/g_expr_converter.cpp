@@ -250,9 +250,76 @@ std::unique_ptr<::common::Value> GExprConverter::convertValue(
   case common::LogicalTypeID::UINT64:
     valuePB->set_u64(value.getValue<uint64_t>());
     break;
+  case common::LogicalTypeID::ARRAY: {
+    auto extraInfo = value.getDataType().getExtraTypeInfo();
+    if (extraInfo == nullptr) {
+      throw exception::Exception("List type should have extra info");
+    }
+    auto arrayInfo = extraInfo->constPtrCast<common::ArrayTypeInfo>();
+    auto& childType = arrayInfo->getChildType();
+    return convertToLiteralArray(value, childType);
+  }
+  case common::LogicalTypeID::LIST: {
+    auto extraInfo = value.getDataType().getExtraTypeInfo();
+    if (extraInfo == nullptr) {
+      throw exception::Exception("List type should have extra info");
+    }
+    auto listInfo = extraInfo->constPtrCast<common::ListTypeInfo>();
+    auto& childType = listInfo->getChildType();
+    return convertToLiteralArray(value, childType);
+  }
   default:
     throw exception::Exception("Unsupported value type " +
                                value.getDataType().toString());
+  }
+  return valuePB;
+}
+
+std::unique_ptr<::common::Value> GExprConverter::convertToLiteralArray(
+    const common::Value& value, const common::LogicalType& childType) {
+  if (value.children.empty()) {
+    throw exception::Exception("Array function should have at least one child");
+  }
+  auto valuePB = std::make_unique<::common::Value>();
+  switch (childType.getLogicalTypeID()) {
+  case common::LogicalTypeID::INT32: {
+    auto i32Array = valuePB->mutable_i32_array();
+    for (auto& child : value.children) {
+      i32Array->add_item(child->getValue<int32_t>());
+    }
+    break;
+  }
+  case common::LogicalTypeID::INT64: {
+    auto i64Array = valuePB->mutable_i64_array();
+    for (auto& child : value.children) {
+      i64Array->add_item(child->getValue<int64_t>());
+    }
+    break;
+  }
+  case common::LogicalTypeID::FLOAT: {
+    auto f32Array = valuePB->mutable_f64_array();
+    for (auto& child : value.children) {
+      f32Array->add_item(child->getValue<float>());
+    }
+    break;
+  }
+  case common::LogicalTypeID::DOUBLE: {
+    auto f64Array = valuePB->mutable_f64_array();
+    for (auto& child : value.children) {
+      f64Array->add_item(child->getValue<double>());
+    }
+    break;
+  }
+  case common::LogicalTypeID::STRING: {
+    auto strArray = valuePB->mutable_str_array();
+    for (auto& child : value.children) {
+      strArray->add_item(child->getValue<std::string>());
+    }
+    break;
+  }
+  default:
+    throw exception::Exception("Unsupported value type " +
+                               childType.toString());
   }
   return valuePB;
 }
@@ -409,6 +476,43 @@ std::unique_ptr<::common::Expression> GExprConverter::convertPatternExtractFunc(
   throw exception::Exception("Unsupported struct extract key: " + extractKey);
 }
 
+bool isVariable(const binder::Expression& expr) {
+  if (expr.expressionType == common::ExpressionType::FUNCTION) {
+    auto& funcExpr = expr.constCast<binder::ScalarFunctionExpression>();
+    GScalarType type{funcExpr};
+    if (type.getType() == ScalarType::CAST) {
+      return isVariable(*funcExpr.getChild(0));
+    }
+  }
+  return expr.expressionType == common::ExpressionType::VARIABLE ||
+         expr.expressionType == common::ExpressionType::PROPERTY;
+}
+
+std::unique_ptr<::common::Expression> GExprConverter::convertToArrayFunc(
+    const binder::Expression& expr,
+    const std::vector<std::string>& schemaAlias) {
+  if (expr.getChildren().empty()) {
+    throw exception::Exception("Array function should have at least one child");
+  }
+  for (auto child : expr.getChildren()) {
+    if (!isVariable(*child)) {
+      throw exception::Exception(
+          "Array Function can only support variable as children, but "
+          "is " +
+          expr.toString());
+    }
+  }
+  auto varArray = std::make_unique<::common::VariableKeys>();
+  for (auto child : expr.getChildren()) {
+    auto varPB = varArray->add_keys();
+    auto exprPB = convert(*child, {});
+    *varPB = std::move(*(exprPB->mutable_operators(0)->mutable_var()));
+  }
+  auto exprPB = std::make_unique<::common::Expression>();
+  exprPB->add_operators()->set_allocated_vars(varArray.release());
+  return exprPB;
+}
+
 std::unique_ptr<::common::Expression> GExprConverter::convertScalarFunc(
     const binder::Expression& expr,
     const std::vector<std::string>& schemaAlias) {
@@ -427,6 +531,8 @@ std::unique_ptr<::common::Expression> GExprConverter::convertScalarFunc(
     return convertPatternExtractFunc(expr, schemaAlias);
   } else if (scalarType.getType() == PROPERTIES) {
     return convertPropertiesFunc(expr, schemaAlias);
+  } else if (scalarType.getType() == TO_ARRAY) {
+    return convertToArrayFunc(expr, schemaAlias);
   }
   throw exception::Exception("Unsupported expression type: " + expr.toString());
 }

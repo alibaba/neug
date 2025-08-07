@@ -26,6 +26,7 @@
 #include "neug/compiler/binder/expression/scalar_function_expression.h"
 #include "neug/compiler/binder/expression/variable_expression.h"
 #include "neug/compiler/common/types/types.h"
+#include "neug/compiler/common/types/value/value.h"
 #include "neug/compiler/gopt/g_alias_manager.h"
 #include "neug/compiler/gopt/g_precedence.h"
 #include "neug/compiler/gopt/g_type_converter.h"
@@ -93,6 +94,10 @@ class GExprConverter {
   std::unique_ptr<::common::Expression> convertLabel(
       const binder::Expression& expr);
 
+  std::unique_ptr<::common::Expression> convertToArrayFunc(
+      const binder::Expression& expr,
+      const std::vector<std::string>& schemaAlias);
+
   // helper functions
   std::unique_ptr<::common::Value> convertValue(gs::common::Value value);
   std::unique_ptr<::common::Variable> convertVarProperty(
@@ -118,6 +123,8 @@ class GExprConverter {
   std::unique_ptr<::common::Expression> convertUDFFunc(
       const std::string& funcName, const binder::Expression& expr,
       size_t paramNum, const std::vector<std::string>& schemaAlias);
+  std::unique_ptr<::common::Value> convertToLiteralArray(
+      const common::Value& value, const common::LogicalType& childType);
 
  private:
   const std::shared_ptr<gopt::GAliasManager> aliasManager;

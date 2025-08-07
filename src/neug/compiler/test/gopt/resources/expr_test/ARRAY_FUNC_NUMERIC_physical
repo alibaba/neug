@@ -1,0 +1,58 @@
+{
+ "plan_id": 0,
+ "query_plan": {
+  "mode": "READ_ONLY",
+  "plan": [
+   {
+    "opr": {
+     "project": {
+      "mappings": [
+       {
+        "expr": {
+         "operators": [
+          {
+           "const": {
+            "f64_array": {
+             "item": [
+              3,
+              2,
+              4
+             ]
+            }
+           }
+          }
+         ]
+        },
+        "alias": 0
+       }
+      ],
+      "is_append": false
+     }
+    },
+    "meta_data": [
+     {
+      "type": {
+       "data_type": {
+        "array": {
+         "component_type": {
+          "primitive_type": "DT_DOUBLE"
+         },
+         "max_length": 0
+        }
+       }
+      },
+      "alias": 0
+     }
+    ]
+   },
+   {
+    "opr": {
+     "sink": {
+      "tags": []
+     }
+    },
+    "meta_data": []
+   }
+  ]
+ }
+}

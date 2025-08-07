@@ -409,13 +409,13 @@ bool ExpressionUtil::tryCombineDataType(const expression_vector& expressions,
                                         LogicalType& result) {
   std::vector<Value> secondaryValues;
   std::vector<LogicalType> primaryTypes;
-  bool propKeyValues = true;
-  for (auto& expr : expressions) {
-    if (expr->expressionType != ExpressionType::LITERAL &&
-        expr->expressionType != ExpressionType::PROPERTY) {
-      propKeyValues = false;
-      break;
-    }
+  bool propKeyValues = false;
+  if (expressions.size() == 2 &&
+          expressions.at(0)->expressionType == ExpressionType::PROPERTY &&
+          expressions.at(1)->expressionType == ExpressionType::LITERAL ||
+      expressions.at(0)->expressionType == ExpressionType::LITERAL &&
+          expressions.at(1)->expressionType == ExpressionType::PROPERTY) {
+    propKeyValues = true;
   }
   for (auto& expr : expressions) {
     if (expr->expressionType != ExpressionType::LITERAL) {

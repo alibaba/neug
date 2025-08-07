@@ -1,5 +1,6 @@
 #pragma once
 
+#include "function/list/vector_list_functions.h"
 #include "function/path/vector_path_functions.h"
 #include "function/struct/vector_struct_functions.h"
 #include "neug/compiler/binder/expression/expression.h"
@@ -28,6 +29,7 @@ enum ScalarType {
   LABEL,
   PATTERN_EXTRACT,  // startNode, endNode, nodes, rels
   PROPERTIES,       // properties(nodes(), 'name')
+  TO_ARRAY
 };
 
 class GScalarType {
@@ -86,6 +88,8 @@ class GScalarType {
       return ScalarType::PATTERN_EXTRACT;
     } else if (func.name == function::PropertiesFunction::name) {
       return ScalarType::PROPERTIES;
+    } else if (func.name == function::ListCreationFunction::name) {
+      return ScalarType::TO_ARRAY;
     }
 
     // todo: support more scalar functions

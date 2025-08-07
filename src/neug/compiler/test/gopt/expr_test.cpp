@@ -310,5 +310,30 @@ TEST_F(ExprTest, COUNT_DISTINCT_LABEL) {
       *physical, getExprResource("COUNT_DISTINCT_LABEL_physical"));
 }
 
+TEST_F(ExprTest, ARRAY_FUNC_NUMERIC) {
+  std::string query = "RETURN [3, 2.0, 4]";
+  auto logical = planLogical(query, schemaData, statsData, rules);
+  auto physical = planPhysical(*logical);
+  VerifyFactory::verifyPhysicalByJson(
+      *physical, getExprResource("ARRAY_FUNC_NUMERIC_physical"));
+}
+
+TEST_F(ExprTest, ARRAY_FUNC_STRING) {
+  std::string query = "RETURN [CAST(3, 'STRING'), 'abc']";
+  auto logical = planLogical(query, schemaData, statsData, rules);
+  auto physical = planPhysical(*logical);
+  VerifyFactory::verifyPhysicalByJson(
+      *physical, getExprResource("ARRAY_FUNC_STRING_physical"));
+}
+
+TEST_F(ExprTest, ARRAY_FUNC_VAR) {
+  std::string query =
+      "MATCH (f: person) RETURN [f.fName, CAST(f.gender, 'STRING')]";
+  auto logical = planLogical(query, schemaData, statsData, rules);
+  auto physical = planPhysical(*logical);
+  VerifyFactory::verifyPhysicalByJson(
+      *physical, getExprResource("ARRAY_FUNC_VAR_physical"));
+}
+
 }  // namespace gopt
 }  // namespace gs
