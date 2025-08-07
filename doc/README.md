@@ -1,7 +1,7 @@
 # Neug Documentation
 
 ```bash
-make requirements
+make dependencies
 make html
 ```
 
