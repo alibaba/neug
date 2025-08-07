@@ -385,10 +385,28 @@ bl::result<InsertPipeline> PlanParser::parse_write_pipeline(
 
 bl::result<UpdatePipeline> PlanParser::parse_update_pipeline(
     const gs::Schema& schema, const physical::PhysicalPlan& plan) {
-  auto res = parse_write_pipeline(schema, plan);
+  Status status = Status::OK();
+  auto write_pipeline = bl::try_handle_all(
+      [&]() -> bl::result<InsertPipeline> {
+        return parse_write_pipeline(schema, plan);
+      },
+      [&status](const gs::Status& err) {
+        status = err;
+        return InsertPipeline();
+      },
+      [&status](const bl::error_info& err) {
+        status = gs::Status(gs::StatusCode::ERR_INTERNAL_ERROR,
+                            "Error: " + std::to_string(err.error().value()) +
+                                ", Exception: " + err.exception()->what());
+        return InsertPipeline();
+      },
+      [&]() {
+        status = gs::Status(gs::StatusCode::ERR_UNKNOWN, "Unknown error");
+        return InsertPipeline();
+      });
   // insert pipeline
-  if (res) {
-    return UpdatePipeline(std::move(res.value()));
+  if (status.ok()) {
+    return UpdatePipeline(std::move(write_pipeline));
   }
   std::vector<std::unique_ptr<IUpdateOperator>> operators;
   for (int i = 0; i < plan.query_plan().plan_size(); ++i) {

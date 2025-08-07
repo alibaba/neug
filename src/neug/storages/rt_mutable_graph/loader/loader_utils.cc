@@ -171,8 +171,9 @@ CSVStreamRecordBatchSupplier::CSVStreamRecordBatchSupplier(
                                                file, read_options,
                                                parse_options, convert_options);
   if (!res.ok()) {
-    LOG(FATAL) << "Failed to create streaming reader for file: " << file_path
-               << " error: " << res.status().message();
+    throw gs::exception::RuntimeError(
+        "Failed to create streaming reader for file: " + file_path +
+        " error: " + res.status().message());
   }
   reader_ = res.ValueOrDie();
   VLOG(10) << "Finish init CSVRecordBatchSupplier for file: " << file_path;

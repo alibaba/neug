@@ -50,8 +50,23 @@ bl::result<Context> BatchInsertVertexOpr::Eval(
   } else if (pk_type_ == PropertyType::kString) {
     status = frag.template batch_load_vertices<std::string>(vertex_label_id_,
                                                             suppliers);
+  } else if (pk_type_ == PropertyType::kUInt64) {
+    status = frag.template batch_load_vertices<uint64_t>(vertex_label_id_,
+                                                         suppliers);
+  } else if (pk_type_ == PropertyType::kUInt32) {
+    status = frag.template batch_load_vertices<uint32_t>(vertex_label_id_,
+                                                         suppliers);
+  } else if (pk_type_ == PropertyType::kFloat) {
+    status =
+        frag.template batch_load_vertices<float>(vertex_label_id_, suppliers);
+  } else if (pk_type_ == PropertyType::kDouble) {
+    status =
+        frag.template batch_load_vertices<double>(vertex_label_id_, suppliers);
   } else {
-    LOG(FATAL) << "Unsupported primary key type: " << pk_type_;
+    RETURN_FLEX_LEAF_ERROR(
+        StatusCode::ERR_INVALID_ARGUMENT,
+        "Unsupported primary key type for batch insert vertex: " +
+            pk_type_.ToString());
   }
   if (!status.ok()) {
     RETURN_FLEX_LEAF_ERROR(status.error_code(), status.error_message());

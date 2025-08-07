@@ -52,7 +52,8 @@ Result<QueryResult> Connection::query(const std::string& query_string) {
     return Result<QueryResult>(
         QueryResult::From(std::move(result.move_value())));
   } else {
-    return Result<QueryResult>(result.status());
+    throw std::runtime_error("Query execution failed: " +
+                             result.status().ToString());
   }
 }
 

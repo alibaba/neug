@@ -1327,12 +1327,12 @@ static void sink_any(const Any& any, common::Value* value) {
     value->set_u32(any.AsDate().to_u32());
   } else if (any.type == PropertyType::Int32()) {
     value->set_i32(any.AsInt32());
+  } else if (any.type == PropertyType::UInt32()) {
+    value->set_u32(any.AsUInt32());
   } else if (any.type == PropertyType::Double()) {
     value->set_f64(any.AsDouble());
   } else if (any.type == PropertyType::Bool()) {
     value->set_boolean(any.AsBool());
-  } else if (any.type == PropertyType::Double()) {
-    value->set_f64(any.AsDouble());
   } else if (any.type == PropertyType::Empty()) {
     value->mutable_none();
   } else if (any.type == PropertyType::DateTime()) {

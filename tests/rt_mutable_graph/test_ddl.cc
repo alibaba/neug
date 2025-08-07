@@ -113,8 +113,14 @@ int main(int argc, char** argv) {
   }
 
   {
-    auto res = conn->query("ALTER TABLE person ADD name STRING;");
-    if (res.ok()) {
+    bool exception_thrown = false;
+    try {
+      auto res = conn->query("ALTER TABLE person ADD name STRING;");
+    } catch (const std::runtime_error& e) {
+      LOG(INFO) << "Expected error: " << e.what();
+      exception_thrown = true;
+    }
+    if (!exception_thrown) {
       LOG(ERROR) << "Altered table successfully, but it should have failed "
                  << "because the column already exists.";
       return 1;
@@ -130,8 +136,14 @@ int main(int argc, char** argv) {
   }
 
   {
-    auto res = conn->query("ALTER TABLE person DROP non_existing_column;");
-    if (res.ok()) {
+    bool exception_thrown = false;
+    try {
+      auto res = conn->query("ALTER TABLE person DROP non_existing_column;");
+    } catch (const std::runtime_error& e) {
+      LOG(INFO) << "Expected error: " << e.what();
+      exception_thrown = true;
+    }
+    if (!exception_thrown) {
       LOG(ERROR) << "Altered table successfully, but it should have failed "
                  << "because the column does not exist.";
       return 1;

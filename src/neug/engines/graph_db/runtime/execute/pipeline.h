@@ -51,6 +51,7 @@ class ReadPipeline {
 
 class InsertPipeline {
  public:
+  InsertPipeline() = default;
   InsertPipeline(InsertPipeline&& rhs)
       : operators_(std::move(rhs.operators_)) {}
   InsertPipeline(std::vector<std::unique_ptr<IInsertOperator>>&& operators)
