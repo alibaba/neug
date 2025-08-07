@@ -174,10 +174,6 @@ Result<bool> GraphDB::Open(const GraphDBConfig& config) {
 
   openWalAndCreateContexts(config, data_dir, allocator_strategy);
 
-  if ((!create_empty_graph) && config.warmup) {
-    graph_.Warmup(thread_num_);
-  }
-
   if (config.enable_monitoring) {
     if (monitor_thread_running_) {
       monitor_thread_running_ = false;

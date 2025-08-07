@@ -35,30 +35,16 @@
 #include "neug/storages/rt_mutable_graph/file_names.h"
 #include "neug/storages/rt_mutable_graph/schema.h"
 #include "neug/storages/rt_mutable_graph/types.h"
-#include "neug/utils/id_indexer.h"
-#include "neug/utils/indexers.h"
-#include "neug/utils/property/column.h"
-#include "neug/utils/property/table.h"
+
 #include "neug/utils/property/types.h"
+
+#include "neug/storages/rt_mutable_graph/edge_table.h"
+#include "neug/storages/rt_mutable_graph/vertex_table.h"
 
 namespace gs {
 class CsrBase;
 template <typename EDATA_T>
 class TypedMutableCsrBase;
-
-template <typename EDATA_T>
-TypedMutableCsrBase<EDATA_T>* create_typed_csr(EdgeStrategy es,
-                                               PropertyType edge_property) {
-  if (es == EdgeStrategy::kSingle) {
-    return new SingleMutableCsr<EDATA_T>(edge_property);
-  } else if (es == EdgeStrategy::kMultiple) {
-    return new MutableCsr<EDATA_T>(edge_property);
-  } else if (es == EdgeStrategy::kNone) {
-    return new EmptyCsr<EDATA_T>();
-  }
-  LOG(FATAL) << "not support edge strategy or edge data type";
-  return nullptr;
-}
 
 enum class LoadingStatus {
   kLoading = 0,
@@ -82,13 +68,6 @@ class BasicFragmentLoader {
 
   void LoadFragment();
 
-  inline void SetVertexProperty(label_t v_label, size_t col_ind, vid_t vid,
-                                Any&& prop) {
-    auto& table = vertex_data_[v_label];
-    auto dst_columns = table.column_ptrs();
-    CHECK(col_ind < dst_columns.size());
-    dst_columns[col_ind]->set_any(vid, prop);
-  }
 #ifndef USE_PTHASH
   template <typename KEY_T>
   void FinishAddingVertex(label_t v_label,
@@ -101,13 +80,13 @@ class BasicFragmentLoader {
 
     build_lf_indexer<KEY_T, vid_t>(
         indexer, LFIndexer<vid_t>::prefix() + "_" + filename,
-        lf_indexers_[v_label], snapshot_dir(work_dir_, 0), tmp_dir(work_dir_),
-        type);
+        vertex_tables_[v_label].get_indexer(), snapshot_dir(work_dir_, 0),
+        tmp_dir(work_dir_), type);
     append_vertex_loading_progress(schema_.get_vertex_label_name(v_label),
                                    LoadingStatus::kLoaded);
-    auto& v_data = vertex_data_[v_label];
     auto label_name = schema_.get_vertex_label_name(v_label);
-    v_data.resize(lf_indexers_[v_label].size());
+    auto& v_data = vertex_tables_[v_label].get_properties_table();
+    v_data.resize(vertex_tables_[v_label].get_indexer().size());
     v_data.dump(vertex_table_prefix(label_name), snapshot_dir(work_dir_, 0));
     append_vertex_loading_progress(label_name, LoadingStatus::kCommited);
   }
@@ -135,44 +114,11 @@ class BasicFragmentLoader {
                           label_t edge_label_id) {
     size_t index = src_label_id * vertex_label_num_ * edge_label_num_ +
                    dst_label_id * edge_label_num_ + edge_label_id;
-    CHECK(ie_[index] == NULL);
-    CHECK(oe_[index] == NULL);
+
     auto src_label_name = schema_.get_vertex_label_name(src_label_id);
     auto dst_label_name = schema_.get_vertex_label_name(dst_label_id);
     auto edge_label_name = schema_.get_edge_label_name(edge_label_id);
-    EdgeStrategy oe_strategy = schema_.get_outgoing_edge_strategy(
-        src_label_name, dst_label_name, edge_label_name);
-    EdgeStrategy ie_strategy = schema_.get_incoming_edge_strategy(
-        src_label_name, dst_label_name, edge_label_name);
-    if constexpr (std::is_same_v<EDATA_T, std::string_view>) {
-      const auto& prop = schema_.get_edge_properties(src_label_id, dst_label_id,
-                                                     edge_label_id);
-
-      size_t max_length = PropertyType::GetStringDefaultMaxLength();
-      if (prop[0].IsVarchar()) {
-        max_length = prop[0].additional_type_info.max_length;
-      }
-      bool oe_mutable = schema_.outgoing_edge_mutable(
-          src_label_name, dst_label_name, edge_label_name);
-      bool ie_mutable = schema_.incoming_edge_mutable(
-          src_label_name, dst_label_name, edge_label_name);
-      dual_csr_list_[index] = new DualCsr<std::string_view>(
-          oe_strategy, ie_strategy, max_length, oe_mutable, ie_mutable);
-    } else {
-      bool oe_mutable = schema_.outgoing_edge_mutable(
-          src_label_name, dst_label_name, edge_label_name);
-      bool ie_mutable = schema_.incoming_edge_mutable(
-          src_label_name, dst_label_name, edge_label_name);
-      dual_csr_list_[index] = new DualCsr<EDATA_T>(oe_strategy, ie_strategy,
-                                                   oe_mutable, ie_mutable);
-    }
-    ie_[index] = dual_csr_list_[index]->GetInCsr();
-    oe_[index] = dual_csr_list_[index]->GetOutCsr();
-    dual_csr_list_[index]->BatchInit(
-        oe_prefix(src_label_name, dst_label_name, edge_label_name),
-        ie_prefix(src_label_name, dst_label_name, edge_label_name),
-        edata_prefix(src_label_name, dst_label_name, edge_label_name),
-        tmp_dir(work_dir_), {}, {});
+    edge_tables_.at(index).BatchInit(tmp_dir(work_dir_), {}, {}, false);
   }
 
   template <typename EDATA_T>
@@ -194,123 +140,60 @@ class BasicFragmentLoader {
                 const std::vector<int32_t>& oe_degree, bool build_csr_in_mem) {
     size_t index = src_label_id * vertex_label_num_ * edge_label_num_ +
                    dst_label_id * edge_label_num_ + edge_label_id;
-    auto dual_csr = dual_csr_list_[index];
-    CHECK(dual_csr != NULL);
+    auto dual_csr = edge_tables_.at(index).GetDualCsr();
     auto casted_dual_csr = get_casted_dual_csr<EDATA_T>(dual_csr);
     CHECK(casted_dual_csr != NULL);
-    auto& src_indexer = lf_indexers_[src_label_id];
-    auto& dst_indexer = lf_indexers_[dst_label_id];
+    auto& src_indexer = vertex_tables_[src_label_id].get_indexer();
+    auto& dst_indexer = vertex_tables_[dst_label_id].get_indexer();
     auto src_label_name = schema_.get_vertex_label_name(src_label_id);
     auto dst_label_name = schema_.get_vertex_label_name(dst_label_id);
     auto edge_label_name = schema_.get_edge_label_name(edge_label_id);
 
     auto INVALID_VID = std::numeric_limits<vid_t>::max();
     std::atomic<size_t> edge_count(0);
-    if constexpr (std::is_same_v<EDATA_T, std::string_view>) {
-      CHECK(ie_degree.size() == dst_indexer.size());
-      CHECK(oe_degree.size() == src_indexer.size());
-      if (build_csr_in_mem) {
-        dual_csr->BatchInitInMemory(
-            edata_prefix(src_label_name, dst_label_name, edge_label_name),
-            tmp_dir(work_dir_), oe_degree, ie_degree);
-      } else {
-        dual_csr->BatchInit(
-            oe_prefix(src_label_name, dst_label_name, edge_label_name),
-            ie_prefix(src_label_name, dst_label_name, edge_label_name),
-            edata_prefix(src_label_name, dst_label_name, edge_label_name),
-            tmp_dir(work_dir_), oe_degree, ie_degree);
-      }
-      std::vector<std::thread> work_threads;
-      for (size_t i = 0; i < edges_vec.size(); ++i) {
-        work_threads.emplace_back(
-            [&](int idx) {
-              edge_count.fetch_add(edges_vec[idx].size());
-              for (auto& edge : edges_vec[idx]) {
-                if (std::get<1>(edge) == INVALID_VID ||
-                    std::get<0>(edge) == INVALID_VID) {
-                  VLOG(10) << "Skip invalid edge:" << std::get<0>(edge) << "->"
-                           << std::get<1>(edge);
-                  continue;
-                }
-                casted_dual_csr->BatchPutEdge(
-                    std::get<0>(edge), std::get<1>(edge), std::get<2>(edge));
+    CHECK(ie_degree.size() == dst_indexer.size());
+    CHECK(oe_degree.size() == src_indexer.size());
+
+    edge_tables_.at(index).BatchInit(tmp_dir(work_dir_), oe_degree, ie_degree,
+                                     build_csr_in_mem);
+
+    std::vector<std::thread> work_threads;
+    for (size_t i = 0; i < edges_vec.size(); ++i) {
+      work_threads.emplace_back(
+          [&](int idx) {
+            edge_count.fetch_add(edges_vec[idx].size());
+            for (auto& edge : edges_vec[idx]) {
+              if (std::get<1>(edge) == INVALID_VID ||
+                  std::get<0>(edge) == INVALID_VID) {
+                VLOG(10) << "Skip invalid edge:" << std::get<0>(edge) << "->"
+                         << std::get<1>(edge);
+                continue;
               }
-            },
-            i);
-      }
-      for (auto& t : work_threads) {
-        t.join();
-      }
-
-      append_edge_loading_progress(src_label_name, dst_label_name,
-                                   edge_label_name, LoadingStatus::kLoaded);
-      if (schema_.get_sort_on_compaction(src_label_name, dst_label_name,
-                                         edge_label_name)) {
-        dual_csr->SortByEdgeData(1);
-      }
-      dual_csr->Dump(
-          oe_prefix(src_label_name, dst_label_name, edge_label_name),
-          ie_prefix(src_label_name, dst_label_name, edge_label_name),
-          edata_prefix(src_label_name, dst_label_name, edge_label_name),
-          snapshot_dir(work_dir_, 0));
-    } else {
-      CHECK(ie_degree.size() == dst_indexer.size());
-      CHECK(oe_degree.size() == src_indexer.size());
-
-      if (build_csr_in_mem) {
-        dual_csr->BatchInitInMemory(
-            edata_prefix(src_label_name, dst_label_name, edge_label_name),
-            tmp_dir(work_dir_), oe_degree, ie_degree);
-      } else {
-        dual_csr->BatchInit(
-            oe_prefix(src_label_name, dst_label_name, edge_label_name),
-            ie_prefix(src_label_name, dst_label_name, edge_label_name),
-            edata_prefix(src_label_name, dst_label_name, edge_label_name),
-            tmp_dir(work_dir_), oe_degree, ie_degree);
-      }
-
-      std::vector<std::thread> work_threads;
-      for (size_t i = 0; i < edges_vec.size(); ++i) {
-        work_threads.emplace_back(
-            [&](int idx) {
-              edge_count.fetch_add(edges_vec[idx].size());
-              for (auto& edge : edges_vec[idx]) {
-                if (std::get<1>(edge) == INVALID_VID ||
-                    std::get<0>(edge) == INVALID_VID) {
-                  VLOG(10) << "Skip invalid edge:" << std::get<0>(edge) << "->"
-                           << std::get<1>(edge);
-                  continue;
-                }
-                casted_dual_csr->BatchPutEdge(
-                    std::get<0>(edge), std::get<1>(edge), std::get<2>(edge));
-              }
-            },
-            i);
-      }
-      for (auto& t : work_threads) {
-        t.join();
-      }
-      append_edge_loading_progress(src_label_name, dst_label_name,
-                                   edge_label_name, LoadingStatus::kLoaded);
-      if (schema_.get_sort_on_compaction(src_label_name, dst_label_name,
-                                         edge_label_name)) {
-        dual_csr->SortByEdgeData(1);
-      }
-
-      dual_csr->Dump(
-          oe_prefix(src_label_name, dst_label_name, edge_label_name),
-          ie_prefix(src_label_name, dst_label_name, edge_label_name),
-          edata_prefix(src_label_name, dst_label_name, edge_label_name),
-          snapshot_dir(work_dir_, 0));
+              casted_dual_csr->BatchPutEdge(
+                  std::get<0>(edge), std::get<1>(edge), std::get<2>(edge));
+            }
+          },
+          i);
     }
+    for (auto& t : work_threads) {
+      t.join();
+    }
+    append_edge_loading_progress(src_label_name, dst_label_name,
+                                 edge_label_name, LoadingStatus::kLoaded);
+    if (schema_.get_sort_on_compaction(src_label_name, dst_label_name,
+                                       edge_label_name)) {
+      edge_tables_.at(index).SortByEdgeData(1);
+    }
+
+    edge_tables_.at(index).Dump(snapshot_dir(work_dir_, 0));
     append_edge_loading_progress(src_label_name, dst_label_name,
                                  edge_label_name, LoadingStatus::kCommited);
     VLOG(10) << "Finish adding edge batch of size: " << edge_count.load();
   }
 
   Table& GetVertexTable(size_t ind) {
-    CHECK(ind < vertex_data_.size());
-    return vertex_data_[ind];
+    CHECK(ind < vertex_tables_.size());
+    return vertex_tables_[ind].get_properties_table();
   }
 
   // get lf_indexer
@@ -319,13 +202,7 @@ class BasicFragmentLoader {
 
   const std::string& work_dir() const { return work_dir_; }
 
-  void set_csr(label_t src_label_id, label_t dst_label_id,
-               label_t edge_label_id, DualCsrBase* dual_csr);
-
   DualCsrBase* get_csr(label_t src_label_id, label_t dst_label_id,
-                       label_t edge_label_id);
-
-  void init_edge_table(label_t src_label_id, label_t dst_label_id,
                        label_t edge_label_id);
 
  private:
@@ -338,14 +215,12 @@ class BasicFragmentLoader {
                                     const std::string& edge_label_name,
                                     LoadingStatus status);
   void init_loading_status_file();
-  void init_vertex_data();
+
   const Schema& schema_;
   std::string work_dir_;
   size_t vertex_label_num_, edge_label_num_;
-  std::vector<IndexerType> lf_indexers_;
-  std::vector<CsrBase*> ie_, oe_;
-  std::vector<DualCsrBase*> dual_csr_list_;
-  std::vector<Table> vertex_data_;
+  std::unordered_map<uint32_t, EdgeTable> edge_tables_;
+  std::vector<VertexTable> vertex_tables_;
 
   // loading progress related
   std::mutex loading_progress_mutex_;

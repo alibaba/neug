@@ -373,4 +373,9 @@ void Table::close() {
   column_ptrs_.clear();
 }
 
+void Table::drop() {
+  close();
+  // TODO: delete files in work_dir
+}
+
 }  // namespace gs

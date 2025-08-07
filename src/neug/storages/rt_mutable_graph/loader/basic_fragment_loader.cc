@@ -59,29 +59,58 @@ BasicFragmentLoader::BasicFragmentLoader(const Schema& schema,
       work_dir_(prefix),
       vertex_label_num_(schema_.vertex_label_num()),
       edge_label_num_(schema_.edge_label_num()) {
-  vertex_data_.resize(vertex_label_num_);
-  ie_.resize(vertex_label_num_ * vertex_label_num_ * edge_label_num_, NULL);
-  oe_.resize(vertex_label_num_ * vertex_label_num_ * edge_label_num_, NULL);
-  dual_csr_list_.resize(vertex_label_num_ * vertex_label_num_ * edge_label_num_,
-                        NULL);
-  lf_indexers_.resize(vertex_label_num_);
   std::filesystem::create_directories(runtime_dir(prefix));
   std::filesystem::create_directories(snapshot_dir(prefix, 0));
   std::filesystem::create_directories(wal_dir(prefix));
   std::filesystem::create_directories(tmp_dir(prefix));
+  for (label_t v_label = 0; v_label < vertex_label_num_; v_label++) {
+    const auto& v_label_name = schema_.get_vertex_label_name(v_label);
+    vertex_tables_.emplace_back(
+        schema_.get_vertex_label_name(v_label),
+        std::get<0>(schema_.get_vertex_primary_key(v_label)[0]),
+        schema_.get_vertex_property_names(v_label),
+        schema_.get_vertex_properties(v_label),
+        schema_.get_vertex_storage_strategies(v_label_name));
+    vertex_tables_.back().Open(snapshot_dir(work_dir_, 0), tmp_dir(work_dir_),
+                               0, true);
+  }
+  for (label_t src_label = 0; src_label < vertex_label_num_; src_label++) {
+    for (label_t dst_label = 0; dst_label < vertex_label_num_; dst_label++) {
+      for (label_t edge_label = 0; edge_label < edge_label_num_; edge_label++) {
+        if (schema_.exist(src_label, dst_label, edge_label)) {
+          std::string src_label_name = schema_.get_vertex_label_name(src_label);
+          std::string dst_label_name = schema_.get_vertex_label_name(dst_label);
+          std::string edge_label_name = schema_.get_edge_label_name(edge_label);
+          EdgeStrategy oe_strategy = schema_.get_outgoing_edge_strategy(
+              src_label, dst_label, edge_label);
+          EdgeStrategy ie_strategy = schema_.get_incoming_edge_strategy(
+              src_label, dst_label, edge_label);
+          auto properties =
+              schema_.get_edge_properties(src_label, dst_label, edge_label);
+          auto prop_names =
+              schema_.get_edge_property_names(src_label, dst_label, edge_label);
+          bool oe_mutable = schema_.outgoing_edge_mutable(
+              src_label_name, dst_label_name, edge_label_name);
+          bool ie_mutable = schema_.incoming_edge_mutable(
+              src_label_name, dst_label_name, edge_label_name);
+          EdgeTable edge_table(src_label_name, dst_label_name, edge_label_name,
+                               oe_strategy, ie_strategy, prop_names, properties,
+                               oe_mutable, ie_mutable);
+          size_t index = src_label * vertex_label_num_ * edge_label_num_ +
+                         dst_label * edge_label_num_ + edge_label;
+          edge_tables_.emplace(index, std::move(edge_table));
+          edge_tables_.at(index).Open(snapshot_dir(work_dir_, 0),
+                                      tmp_dir(work_dir_), 0);
+        }
+      }
+    }
+  }
 
-  init_vertex_data();
-  // initially create all status files for vertices and edges.
+  //  initially create all status files for vertices and edges.
   init_loading_status_file();
 }
 
-BasicFragmentLoader::~BasicFragmentLoader() {
-  for (auto& csr : dual_csr_list_) {
-    if (csr != NULL) {
-      delete csr;
-    }
-  }
-}
+BasicFragmentLoader::~BasicFragmentLoader() {}
 
 void BasicFragmentLoader::append_vertex_loading_progress(
     const std::string& label_name, LoadingStatus status) {
@@ -132,20 +161,6 @@ void BasicFragmentLoader::init_loading_status_file() {
   }
 }
 
-void BasicFragmentLoader::init_vertex_data() {
-  for (label_t v_label = 0; v_label < vertex_label_num_; v_label++) {
-    auto& v_data = vertex_data_[v_label];
-    auto label_name = schema_.get_vertex_label_name(v_label);
-    auto& property_types = schema_.get_vertex_properties(v_label);
-    auto& property_names = schema_.get_vertex_property_names(v_label);
-    v_data.init(vertex_table_prefix(label_name), tmp_dir(work_dir_),
-                property_names, property_types,
-                schema_.get_vertex_storage_strategies(label_name));
-    v_data.resize(schema_.get_max_vnum(label_name));
-  }
-  VLOG(10) << "Finish init vertex data";
-}
-
 void BasicFragmentLoader::LoadFragment() {
   std::string schema_filename = schema_path(work_dir_);
   auto io_adaptor = std::unique_ptr<grape::LocalIOAdaptor>(
@@ -160,22 +175,12 @@ void BasicFragmentLoader::LoadFragment() {
 
 const IndexerType& BasicFragmentLoader::GetLFIndexer(label_t v_label) const {
   CHECK(v_label < vertex_label_num_);
-  return lf_indexers_[v_label];
+  return vertex_tables_[v_label].get_indexer();
 }
 
 IndexerType& BasicFragmentLoader::GetLFIndexer(label_t v_label) {
   CHECK(v_label < vertex_label_num_);
-  return lf_indexers_[v_label];
-}
-
-void BasicFragmentLoader::set_csr(label_t src_label_id, label_t dst_label_id,
-                                  label_t edge_label_id,
-                                  DualCsrBase* dual_csr) {
-  size_t index = src_label_id * vertex_label_num_ * edge_label_num_ +
-                 dst_label_id * edge_label_num_ + edge_label_id;
-  dual_csr_list_[index] = dual_csr;
-  ie_[index] = dual_csr->GetInCsr();
-  oe_[index] = dual_csr->GetOutCsr();
+  return vertex_tables_[v_label].get_indexer();
 }
 
 DualCsrBase* BasicFragmentLoader::get_csr(label_t src_label_id,
@@ -183,23 +188,7 @@ DualCsrBase* BasicFragmentLoader::get_csr(label_t src_label_id,
                                           label_t edge_label_id) {
   size_t index = src_label_id * vertex_label_num_ * edge_label_num_ +
                  dst_label_id * edge_label_num_ + edge_label_id;
-  return dual_csr_list_[index];
-}
-
-void BasicFragmentLoader::init_edge_table(label_t src_label_id,
-                                          label_t dst_label_id,
-                                          label_t edge_label_id) {
-  size_t index = src_label_id * vertex_label_num_ * edge_label_num_ +
-                 dst_label_id * edge_label_num_ + edge_label_id;
-  auto cast_dual_csr =
-      dynamic_cast<DualCsr<RecordView>*>(dual_csr_list_[index]);
-  CHECK(cast_dual_csr != nullptr);
-  auto src_label_name = schema_.get_vertex_label_name(src_label_id);
-  auto dst_label_name = schema_.get_vertex_label_name(dst_label_id);
-  auto edge_label_name = schema_.get_edge_label_name(edge_label_id);
-  cast_dual_csr->InitTable(
-      edata_prefix(src_label_name, dst_label_name, edge_label_name),
-      tmp_dir(work_dir_));
+  return edge_tables_.at(index).GetDualCsr();
 }
 
 }  // namespace gs

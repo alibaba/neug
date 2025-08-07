@@ -287,19 +287,7 @@ void AbstractArrowFragmentLoader::AddEdgesRecordBatch(
   auto& property_types = schema_.get_edge_properties(
       src_label_name, dst_label_name, edge_label_name);
   size_t col_num = property_types.size();
-  EdgeStrategy oe_strategy = schema_.get_outgoing_edge_strategy(
-      src_label_name, dst_label_name, edge_label_name);
-  EdgeStrategy ie_strategy = schema_.get_incoming_edge_strategy(
-      src_label_name, dst_label_name, edge_label_name);
-  bool oe_mutable = schema_.outgoing_edge_mutable(
-      src_label_name, dst_label_name, edge_label_name);
-  bool ie_mutable = schema_.incoming_edge_mutable(
-      src_label_name, dst_label_name, edge_label_name);
   if (col_num == 0) {
-    auto dual_csr = new DualCsr<grape::EmptyType>(oe_strategy, ie_strategy,
-                                                  oe_mutable, ie_mutable);
-    basic_fragment_loader_.set_csr(src_label_i, dst_label_i, edge_label_i,
-                                   dual_csr);
     if (filenames.empty()) {
       basic_fragment_loader_.AddNoPropEdgeBatch<grape::EmptyType>(
           src_label_i, dst_label_i, edge_label_i);
@@ -309,10 +297,6 @@ void AbstractArrowFragmentLoader::AddEdgesRecordBatch(
     }
   } else if (col_num == 1) {
     if (property_types[0] == PropertyType::kBool) {
-      auto dual_csr =
-          new DualCsr<bool>(oe_strategy, ie_strategy, oe_mutable, ie_mutable);
-      basic_fragment_loader_.set_csr(src_label_i, dst_label_i, edge_label_i,
-                                     dual_csr);
       if (filenames.empty()) {
         basic_fragment_loader_.AddNoPropEdgeBatch<bool>(
             src_label_i, dst_label_i, edge_label_i);
@@ -321,11 +305,6 @@ void AbstractArrowFragmentLoader::AddEdgesRecordBatch(
                                       filenames, supplier_creator);
       }
     } else if (property_types[0] == PropertyType::kDate) {
-      auto dual_csr =
-          new DualCsr<Date>(oe_strategy, ie_strategy, oe_mutable, ie_mutable);
-      basic_fragment_loader_.set_csr(src_label_i, dst_label_i, edge_label_i,
-                                     dual_csr);
-
       if (filenames.empty()) {
         basic_fragment_loader_.AddNoPropEdgeBatch<Date>(
             src_label_i, dst_label_i, edge_label_i);
@@ -334,11 +313,6 @@ void AbstractArrowFragmentLoader::AddEdgesRecordBatch(
                                       filenames, supplier_creator);
       }
     } else if (property_types[0] == PropertyType::kInt32) {
-      auto dual_csr = new DualCsr<int32_t>(oe_strategy, ie_strategy, oe_mutable,
-                                           ie_mutable);
-      basic_fragment_loader_.set_csr(src_label_i, dst_label_i, edge_label_i,
-                                     dual_csr);
-
       if (filenames.empty()) {
         basic_fragment_loader_.AddNoPropEdgeBatch<int32_t>(
             src_label_i, dst_label_i, edge_label_i);
@@ -347,11 +321,6 @@ void AbstractArrowFragmentLoader::AddEdgesRecordBatch(
                                          filenames, supplier_creator);
       }
     } else if (property_types[0] == PropertyType::kUInt32) {
-      auto dual_csr = new DualCsr<uint32_t>(oe_strategy, ie_strategy,
-                                            oe_mutable, ie_mutable);
-      basic_fragment_loader_.set_csr(src_label_i, dst_label_i, edge_label_i,
-                                     dual_csr);
-
       if (filenames.empty()) {
         basic_fragment_loader_.AddNoPropEdgeBatch<uint32_t>(
             src_label_i, dst_label_i, edge_label_i);
@@ -361,11 +330,6 @@ void AbstractArrowFragmentLoader::AddEdgesRecordBatch(
                                           supplier_creator);
       }
     } else if (property_types[0] == PropertyType::kInt64) {
-      auto dual_csr = new DualCsr<int64_t>(oe_strategy, ie_strategy, oe_mutable,
-                                           ie_mutable);
-      basic_fragment_loader_.set_csr(src_label_i, dst_label_i, edge_label_i,
-                                     dual_csr);
-
       if (filenames.empty()) {
         basic_fragment_loader_.AddNoPropEdgeBatch<int64_t>(
             src_label_i, dst_label_i, edge_label_i);
@@ -374,11 +338,6 @@ void AbstractArrowFragmentLoader::AddEdgesRecordBatch(
                                          filenames, supplier_creator);
       }
     } else if (property_types[0] == PropertyType::kUInt64) {
-      auto dual_csr = new DualCsr<uint64_t>(oe_strategy, ie_strategy,
-                                            oe_mutable, ie_mutable);
-      basic_fragment_loader_.set_csr(src_label_i, dst_label_i, edge_label_i,
-                                     dual_csr);
-
       if (filenames.empty()) {
         basic_fragment_loader_.AddNoPropEdgeBatch<uint64_t>(
             src_label_i, dst_label_i, edge_label_i);
@@ -388,10 +347,6 @@ void AbstractArrowFragmentLoader::AddEdgesRecordBatch(
                                           supplier_creator);
       }
     } else if (property_types[0] == PropertyType::kDouble) {
-      auto dual_csr =
-          new DualCsr<double>(oe_strategy, ie_strategy, oe_mutable, ie_mutable);
-      basic_fragment_loader_.set_csr(src_label_i, dst_label_i, edge_label_i,
-                                     dual_csr);
       if (filenames.empty()) {
         basic_fragment_loader_.AddNoPropEdgeBatch<double>(
             src_label_i, dst_label_i, edge_label_i);
@@ -400,11 +355,6 @@ void AbstractArrowFragmentLoader::AddEdgesRecordBatch(
                                         filenames, supplier_creator);
       }
     } else if (property_types[0] == PropertyType::kFloat) {
-      auto dual_csr =
-          new DualCsr<float>(oe_strategy, ie_strategy, oe_mutable, ie_mutable);
-      basic_fragment_loader_.set_csr(src_label_i, dst_label_i, edge_label_i,
-                                     dual_csr);
-
       if (filenames.empty()) {
         basic_fragment_loader_.AddNoPropEdgeBatch<float>(
             src_label_i, dst_label_i, edge_label_i);
@@ -413,11 +363,6 @@ void AbstractArrowFragmentLoader::AddEdgesRecordBatch(
                                        filenames, supplier_creator);
       }
     } else if (property_types[0] == PropertyType::kTimestamp) {
-      auto dual_csr = new DualCsr<TimeStamp>(oe_strategy, ie_strategy,
-                                             oe_mutable, ie_mutable);
-      basic_fragment_loader_.set_csr(src_label_i, dst_label_i, edge_label_i,
-                                     dual_csr);
-
       if (filenames.empty()) {
         basic_fragment_loader_.AddNoPropEdgeBatch<TimeStamp>(
             src_label_i, dst_label_i, edge_label_i);
@@ -433,14 +378,7 @@ void AbstractArrowFragmentLoader::AddEdgesRecordBatch(
                    impl::PropertyTypeImpl::kStringView) {
       // Both varchar and string are treated as string. For String, we use the
       // default max length defined in PropertyType::GetStringDefaultMaxLength()
-      uint16_t max_length = PropertyType::GetStringDefaultMaxLength();
-      if (property_types[0].type_enum == impl::PropertyTypeImpl::kVarChar) {
-        max_length = property_types[0].additional_type_info.max_length;
-      }
-      auto dual_csr = new DualCsr<std::string_view>(
-          oe_strategy, ie_strategy, max_length, oe_mutable, ie_mutable);
-      basic_fragment_loader_.set_csr(src_label_i, dst_label_i, edge_label_i,
-                                     dual_csr);
+
       if (filenames.empty()) {
         basic_fragment_loader_.AddNoPropEdgeBatch<std::string_view>(
             src_label_i, dst_label_i, edge_label_i);
@@ -453,15 +391,6 @@ void AbstractArrowFragmentLoader::AddEdgesRecordBatch(
       LOG(FATAL) << "Unsupported edge property type." << property_types[0];
     }
   } else {
-    const auto& props = schema_.get_edge_properties(
-        src_label_name, dst_label_name, edge_label_name);
-    const auto& prop_names = schema_.get_edge_property_names(
-        src_label_name, dst_label_name, edge_label_name);
-    auto dual_csr =
-        new DualCsr<RecordView>(oe_strategy, ie_strategy, prop_names, props, {},
-                                ie_mutable, oe_mutable);
-    basic_fragment_loader_.set_csr(src_label_i, dst_label_i, edge_label_i,
-                                   dual_csr);
     if (filenames.empty()) {
       LOG(FATAL) << "No edge files found for src label: " << src_label_name
                  << " dst label: " << dst_label_name

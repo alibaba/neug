@@ -67,20 +67,20 @@ UpdateTransaction::UpdateTransaction(const GraphDBSession& session,
   vertex_label_num_ = graph_.schema().vertex_label_num();
   edge_label_num_ = graph_.schema().edge_label_num();
   for (label_t idx = 0; idx < vertex_label_num_; ++idx) {
-    if (graph_.lf_indexers_[idx].get_type() == PropertyType::kInt64) {
+    auto type = graph_.vertex_tables_[idx].get_indexer().get_type();
+    if (type == PropertyType::kInt64) {
       added_vertices_.emplace_back(
           std::make_shared<IdIndexer<int64_t, vid_t>>());
-    } else if (graph_.lf_indexers_[idx].get_type() == PropertyType::kUInt64) {
+    } else if (type == PropertyType::kUInt64) {
       added_vertices_.emplace_back(
           std::make_shared<IdIndexer<uint64_t, vid_t>>());
-    } else if (graph_.lf_indexers_[idx].get_type() == PropertyType::kInt32) {
+    } else if (type == PropertyType::kInt32) {
       added_vertices_.emplace_back(
           std::make_shared<IdIndexer<int32_t, vid_t>>());
-    } else if (graph_.lf_indexers_[idx].get_type() == PropertyType::kUInt32) {
+    } else if (type == PropertyType::kUInt32) {
       added_vertices_.emplace_back(
           std::make_shared<IdIndexer<uint32_t, vid_t>>());
-    } else if (graph_.lf_indexers_[idx].get_type() ==
-               PropertyType::kStringView) {
+    } else if (type == PropertyType::kStringView) {
       added_vertices_.emplace_back(
           std::make_shared<IdIndexer<std::string_view, vid_t>>());
     } else {
@@ -708,20 +708,20 @@ void UpdateTransaction::IngestWal(MutablePropertyFragment& graph,
   size_t edge_label_num = graph.schema().edge_label_num();
 
   for (label_t idx = 0; idx < vertex_label_num; ++idx) {
-    if (graph.lf_indexers_[idx].get_type() == PropertyType::kInt64) {
+    auto type = graph.vertex_tables_[idx].get_indexer().get_type();
+    if (type == PropertyType::kInt64) {
       added_vertices.emplace_back(
           std::make_shared<IdIndexer<int64_t, vid_t>>());
-    } else if (graph.lf_indexers_[idx].get_type() == PropertyType::kUInt64) {
+    } else if (type == PropertyType::kUInt64) {
       added_vertices.emplace_back(
           std::make_shared<IdIndexer<uint64_t, vid_t>>());
-    } else if (graph.lf_indexers_[idx].get_type() == PropertyType::kInt32) {
+    } else if (type == PropertyType::kInt32) {
       added_vertices.emplace_back(
           std::make_shared<IdIndexer<int32_t, vid_t>>());
-    } else if (graph.lf_indexers_[idx].get_type() == PropertyType::kUInt32) {
+    } else if (type == PropertyType::kUInt32) {
       added_vertices.emplace_back(
           std::make_shared<IdIndexer<uint32_t, vid_t>>());
-    } else if (graph.lf_indexers_[idx].get_type() ==
-               PropertyType::kStringView) {
+    } else if (type == PropertyType::kStringView) {
       added_vertices.emplace_back(
           std::make_shared<IdIndexer<std::string_view, vid_t>>());
     } else {

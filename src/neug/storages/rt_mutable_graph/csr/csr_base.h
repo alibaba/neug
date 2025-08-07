@@ -90,8 +90,6 @@ class CsrBase {
   virtual void dump(const std::string& name,
                     const std::string& new_snapshot_dir) = 0;
 
-  virtual void warmup(int thread_num) const = 0;
-
   virtual void resize(vid_t vnum) = 0;
   virtual size_t size() const = 0;
 
@@ -103,7 +101,6 @@ class CsrBase {
   virtual void close() = 0;
 
   virtual std::shared_ptr<CsrConstEdgeIterBase> edge_iter(vid_t v) const = 0;
-  virtual CsrConstEdgeIterBase* edge_iter_raw(vid_t v) const = 0;
   virtual std::shared_ptr<CsrEdgeIterBase> edge_iter_mut(vid_t v) = 0;
 };
 
@@ -123,7 +120,6 @@ class TypedCsrBase<std::string_view> : public CsrBase {
                                          timestamp_t ts = 0) = 0;
   virtual void put_edge_with_index(vid_t src, vid_t dst, size_t index,
                                    timestamp_t ts, Allocator& alloc) = 0;
-  virtual std::unique_ptr<TypedCsrBase<size_t>> take_index_csr() = 0;
 };
 
 template <typename EDATA_T>
@@ -164,8 +160,6 @@ class TypedCsrBase<RecordView> : public CsrBase {
                                             timestamp_t ts = 0) = 0;
   virtual void put_edge_with_index(vid_t src, vid_t dst, size_t index,
                                    timestamp_t ts, Allocator& alloc) = 0;
-
-  virtual void set_csr(std::unique_ptr<TypedCsrBase<size_t>>& csr) {}
 };
 
 }  // namespace gs

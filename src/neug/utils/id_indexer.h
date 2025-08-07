@@ -504,6 +504,11 @@ class LFIndexer {
     indices_.reset();
   }
 
+  void drop() {
+    close();
+    // TODO: delete files in work_dir
+  }
+
   void dump_meta(const std::string& filename) const {
     grape::InArchive arc;
     arc << get_type() << num_elements_.load() << num_slots_minus_one_
@@ -537,46 +542,6 @@ class LFIndexer {
 
   // get keys
   const ColumnBase& get_keys() const { return *keys_; }
-  void warmup(int thread_num) const {
-    size_t keys_size = num_elements_.load();
-    size_t indices_size = indices_.size();
-    std::atomic<size_t> k_i(0), i_i(0);
-    std::atomic<size_t> output(0);
-    size_t chunk = 4096;
-    std::vector<std::thread> threads;
-    for (int i = 0; i < thread_num; ++i) {
-      threads.emplace_back([&]() {
-        size_t ret = 0;
-        while (true) {
-          size_t begin = std::min(k_i.fetch_add(chunk), keys_size);
-          size_t end = std::min(begin + chunk, keys_size);
-          if (begin == end) {
-            break;
-          }
-          while (begin < end) {
-            keys_->get(begin);
-            ++begin;
-          }
-        }
-        while (true) {
-          size_t begin = std::min(i_i.fetch_add(chunk), indices_size);
-          size_t end = std::min(begin + chunk, indices_size);
-          if (begin >= end) {
-            break;
-          }
-          while (begin < end) {
-            ret += indices_.get(begin);
-            ++begin;
-          }
-        }
-        output.fetch_add(ret);
-      });
-    }
-    for (auto& thrd : threads) {
-      thrd.join();
-    }
-    (void) output.load();
-  }
 
  private:
   mmap_array<INDEX_T>

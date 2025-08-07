@@ -44,18 +44,25 @@ class DualCsrBase {
   virtual void Open(const std::string& oe_name, const std::string& ie_name,
                     const std::string& edata_name,
                     const std::string& snapshot_dir,
-                    const std::string& work_dir) = 0;
+                    const std::string& work_dir,
+                    const std::vector<std::string>& col_names,
+                    const std::vector<PropertyType>& property_types) = 0;
+
   virtual void OpenInMemory(const std::string& oe_name,
                             const std::string& ie_name,
                             const std::string& edata_name,
                             const std::string& snapshot_dir,
+                            const std::vector<std::string>& col_names,
+                            const std::vector<PropertyType>& property_types,
                             size_t src_vertex_cap, size_t dst_vertex_cap) = 0;
-  virtual void OpenWithHugepages(const std::string& oe_name,
-                                 const std::string& ie_name,
-                                 const std::string& edata_name,
-                                 const std::string& snapshot_dir,
-                                 size_t src_vertex_cap,
-                                 size_t dst_vertex_cap) = 0;
+
+  virtual void OpenWithHugepages(
+      const std::string& oe_name, const std::string& ie_name,
+      const std::string& edata_name, const std::string& snapshot_dir,
+      const std::vector<std::string>& col_names,
+      const std::vector<PropertyType>& property_types, size_t src_vertex_cap,
+      size_t dst_vertex_cap) = 0;
+
   virtual void Dump(const std::string& oe_name, const std::string& ie_name,
                     const std::string& edata_name,
                     const std::string& new_snapshot_dir) = 0;
@@ -79,11 +86,6 @@ class DualCsrBase {
     GetOutCsr()->resize(src_vertex_num);
   }
 
-  void Warmup(int thread_num) {
-    GetInCsr()->warmup(thread_num);
-    GetOutCsr()->warmup(thread_num);
-  }
-
   size_t EdgeNum() const {
     const CsrBase* oe_csr = GetOutCsr();
     const CsrBase* ie_csr = GetInCsr();
@@ -101,6 +103,11 @@ class DualCsrBase {
   virtual const CsrBase* GetInCsr() const = 0;
   virtual const CsrBase* GetOutCsr() const = 0;
   virtual void Close() = 0;
+
+  virtual void Drop() {
+    // TODO: Implement drop logic.
+    LOG(ERROR) << "Drop is not supported for DualCsrBase.";
+  }
 };
 
 template <typename EDATA_T>
@@ -166,22 +173,29 @@ class DualCsr : public DualCsrBase {
 
   void Open(const std::string& oe_name, const std::string& ie_name,
             const std::string& edata_name, const std::string& snapshot_dir,
-            const std::string& work_dir) override {
+            const std::string& work_dir,
+            const std::vector<std::string>& col_names,
+            const std::vector<PropertyType>& property_types) override {
     in_csr_->open(ie_name, snapshot_dir, work_dir);
     out_csr_->open(oe_name, snapshot_dir, work_dir);
   }
 
   void OpenInMemory(const std::string& oe_name, const std::string& ie_name,
                     const std::string& edata_name,
-                    const std::string& snapshot_dir, size_t src_vertex_cap,
-                    size_t dst_vertex_cap) override {
+                    const std::string& snapshot_dir,
+                    const std::vector<std::string>& col_names,
+                    const std::vector<PropertyType>& property_types,
+                    size_t src_vertex_cap, size_t dst_vertex_cap) override {
     in_csr_->open_in_memory(snapshot_dir + "/" + ie_name, dst_vertex_cap);
     out_csr_->open_in_memory(snapshot_dir + "/" + oe_name, src_vertex_cap);
   }
 
   void OpenWithHugepages(const std::string& oe_name, const std::string& ie_name,
                          const std::string& edata_name,
-                         const std::string& snapshot_dir, size_t src_vertex_cap,
+                         const std::string& snapshot_dir,
+                         const std::vector<std::string>& col_names,
+                         const std::vector<PropertyType>& property_types,
+                         size_t src_vertex_cap,
                          size_t dst_vertex_cap) override {
     in_csr_->open_with_hugepages(snapshot_dir + "/" + ie_name, dst_vertex_cap);
     out_csr_->open_with_hugepages(snapshot_dir + "/" + oe_name, src_vertex_cap);
@@ -246,11 +260,6 @@ class DualCsr : public DualCsrBase {
     out_csr_->batch_put_edge(src, dst, data);
   }
 
-  void BatchAppendEdge(vid_t src, vid_t dst, const EDATA_T& data) {
-    in_csr_->batch_put_edge(dst, src, data);
-    out_csr_->batch_put_edge(src, dst, data);
-  }
-
   void BatchDeleteVertices(bool is_src,
                            const std::vector<vid_t>& vids) override {
     MutableCsr<EDATA_T>* casted_in_csr =
@@ -288,6 +297,11 @@ class DualCsr : public DualCsrBase {
     }
   }
 
+  void Drop() override {
+    Close();
+    // TODO: delete file in work_dir
+  }
+
   void Close() override {
     in_csr_->close();
     out_csr_->close();
@@ -301,39 +315,37 @@ class DualCsr : public DualCsrBase {
 template <>
 class DualCsr<std::string_view> : public DualCsrBase {
  public:
-  DualCsr(EdgeStrategy oe_strategy, EdgeStrategy ie_strategy, uint16_t width,
+  DualCsr(EdgeStrategy oe_strategy, EdgeStrategy ie_strategy, Table& table,
           bool oe_mutable, bool ie_mutable)
-      : in_csr_(nullptr),
-        out_csr_(nullptr),
-        column_(StorageStrategy::kMem, width) {
+      : in_csr_(nullptr), out_csr_(nullptr), column_idx_(0), table_(table) {
     if (ie_strategy == EdgeStrategy::kNone) {
-      in_csr_ = new EmptyCsr<std::string_view>(column_);
+      in_csr_ = new EmptyCsr<std::string_view>(table_);
     } else if (ie_strategy == EdgeStrategy::kMultiple) {
       if (ie_mutable) {
-        in_csr_ = new MutableCsr<std::string_view>(column_);
+        in_csr_ = new MutableCsr<std::string_view>(table_);
       } else {
-        in_csr_ = new ImmutableCsr<std::string_view>(column_);
+        in_csr_ = new ImmutableCsr<std::string_view>(table_);
       }
     } else if (ie_strategy == EdgeStrategy::kSingle) {
       if (ie_mutable) {
-        in_csr_ = new SingleMutableCsr<std::string_view>(column_);
+        in_csr_ = new SingleMutableCsr<std::string_view>(table_);
       } else {
-        in_csr_ = new SingleImmutableCsr<std::string_view>(column_);
+        in_csr_ = new SingleImmutableCsr<std::string_view>(table_);
       }
     }
     if (oe_strategy == EdgeStrategy::kNone) {
-      out_csr_ = new EmptyCsr<std::string_view>(column_);
+      out_csr_ = new EmptyCsr<std::string_view>(table_);
     } else if (oe_strategy == EdgeStrategy::kMultiple) {
       if (oe_mutable) {
-        out_csr_ = new MutableCsr<std::string_view>(column_);
+        out_csr_ = new MutableCsr<std::string_view>(table_);
       } else {
-        out_csr_ = new ImmutableCsr<std::string_view>(column_);
+        out_csr_ = new ImmutableCsr<std::string_view>(table_);
       }
     } else if (oe_strategy == EdgeStrategy::kSingle) {
       if (oe_mutable) {
-        out_csr_ = new SingleMutableCsr<std::string_view>(column_);
+        out_csr_ = new SingleMutableCsr<std::string_view>(table_);
       } else {
-        out_csr_ = new SingleImmutableCsr<std::string_view>(column_);
+        out_csr_ = new SingleImmutableCsr<std::string_view>(table_);
       }
     }
   }
@@ -351,9 +363,8 @@ class DualCsr<std::string_view> : public DualCsrBase {
                  const std::vector<int>& ie_degree) override {
     size_t ie_num = in_csr_->batch_init(ie_name, work_dir, ie_degree);
     size_t oe_num = out_csr_->batch_init(oe_name, work_dir, oe_degree);
-    column_.open(edata_name, "", work_dir);
-    column_.resize(std::max(ie_num, oe_num));
-    column_idx_.store(0);
+    table_.resize(std::max(ie_num, oe_num));
+    column_idx_.store(std::max(ie_num, oe_num));
   }
 
   void BatchInitInMemory(const std::string& edata_name,
@@ -362,35 +373,45 @@ class DualCsr<std::string_view> : public DualCsrBase {
                          const std::vector<int>& ie_degree) override {
     size_t ie_num = in_csr_->batch_init_in_memory(ie_degree);
     size_t oe_num = out_csr_->batch_init_in_memory(oe_degree);
-    column_.open(edata_name, "", work_dir);
-    column_.resize(std::max(ie_num, oe_num));
-    column_idx_.store(0);
+    table_.resize(std::max(ie_num, oe_num));
+    column_idx_.store(std::max(ie_num, oe_num));
   }
 
   void Open(const std::string& oe_name, const std::string& ie_name,
             const std::string& edata_name, const std::string& snapshot_dir,
-            const std::string& work_dir) override {
+            const std::string& work_dir,
+            const std::vector<std::string>& col_names,
+            const std::vector<PropertyType>& property_types) override {
     in_csr_->open(ie_name, snapshot_dir, work_dir);
     out_csr_->open(oe_name, snapshot_dir, work_dir);
-    column_.open(edata_name, snapshot_dir, work_dir);
-    column_idx_.store(column_.size());
-    column_.resize(std::max(column_.size() + (column_.size() + 4) / 5, 4096ul));
+    table_.open(edata_name, snapshot_dir, work_dir, {col_names[0]},
+                {PropertyType::StringView()}, {});
+    column_idx_.store(table_.row_num());
+    table_.resize(
+        std::max(table_.row_num() + (table_.row_num() + 4) / 5, 4096ul));
   }
 
   void OpenInMemory(const std::string& oe_name, const std::string& ie_name,
                     const std::string& edata_name,
-                    const std::string& snapshot_dir, size_t src_vertex_cap,
-                    size_t dst_vertex_cap) override {
+                    const std::string& snapshot_dir,
+                    const std::vector<std::string>& col_names,
+                    const std::vector<PropertyType>& property_types,
+                    size_t src_vertex_cap, size_t dst_vertex_cap) override {
     in_csr_->open_in_memory(snapshot_dir + "/" + ie_name, dst_vertex_cap);
     out_csr_->open_in_memory(snapshot_dir + "/" + oe_name, src_vertex_cap);
-    column_.open_in_memory(snapshot_dir + "/" + edata_name);
-    column_idx_.store(column_.size());
-    column_.resize(std::max(column_.size() + (column_.size() + 4) / 5, 4096ul));
+    table_.open_in_memory(edata_name, snapshot_dir, {col_names[0]},
+                          {PropertyType::StringView()}, {});
+    column_idx_.store(table_.row_num());
+    table_.resize(
+        std::max(table_.row_num() + (table_.row_num() + 4) / 5, 4096ul));
   }
 
   void OpenWithHugepages(const std::string& oe_name, const std::string& ie_name,
                          const std::string& edata_name,
-                         const std::string& snapshot_dir, size_t src_vertex_cap,
+                         const std::string& snapshot_dir,
+                         const std::vector<std::string>& col_names,
+                         const std::vector<PropertyType>& property_types,
+                         size_t src_vertex_cap,
                          size_t dst_vertex_cap) override {
     LOG(FATAL) << "not supported...";
   }
@@ -400,8 +421,7 @@ class DualCsr<std::string_view> : public DualCsrBase {
             const std::string& new_snapshot_dir) override {
     in_csr_->dump(ie_name, new_snapshot_dir);
     out_csr_->dump(oe_name, new_snapshot_dir);
-    column_.resize(column_idx_.load());
-    column_.dump_without_close(new_snapshot_dir + "/" + edata_name);
+    table_.resize(column_idx_.load());
   }
 
   CsrBase* GetInCsr() override { return in_csr_; }
@@ -414,7 +434,8 @@ class DualCsr<std::string_view> : public DualCsrBase {
     std::string_view prop;
     oarc >> prop;
     size_t row_id = column_idx_.fetch_add(1);
-    column_.set_value(row_id, prop);
+    auto& column = dynamic_cast<StringColumn&>(*table_.get_column_by_id(0));
+    column.set_value(row_id, prop);
     in_csr_->put_edge_with_index(dst, src, row_id, ts, alloc);
     out_csr_->put_edge_with_index(src, dst, row_id, ts, alloc);
   }
@@ -447,11 +468,12 @@ class DualCsr<std::string_view> : public DualCsrBase {
       }
       ie->next();
     }
+    auto& column = dynamic_cast<StringColumn&>(*table_.get_column_by_id(0));
     if (index != std::numeric_limits<size_t>::max()) {
-      column_.set_value(index, prop);
+      column.set_value(index, prop);
     } else {
       size_t row_id = column_idx_.fetch_add(1);
-      column_.set_value(row_id, prop);
+      column.set_value(row_id, prop);
       in_csr_->put_edge_with_index(dst, src, row_id, ts, alloc);
       out_csr_->put_edge_with_index(src, dst, row_id, ts, alloc);
     }
@@ -459,29 +481,16 @@ class DualCsr<std::string_view> : public DualCsrBase {
 
   void BatchPutEdge(vid_t src, vid_t dst, const std::string_view& data) {
     size_t row_id = column_idx_.fetch_add(1);
-    column_.set_value(row_id, data);
+    dynamic_cast<StringColumn&>(*table_.get_column_by_id(0))
+        .set_value(row_id, data);
     in_csr_->batch_put_edge_with_index(dst, src, row_id);
     out_csr_->batch_put_edge_with_index(src, dst, row_id);
   }
 
   void BatchPutEdge(vid_t src, vid_t dst, const std::string& data) {
     size_t row_id = column_idx_.fetch_add(1);
-    column_.set_value(row_id, data);
-
-    in_csr_->batch_put_edge_with_index(dst, src, row_id);
-    out_csr_->batch_put_edge_with_index(src, dst, row_id);
-  }
-
-  void BatchAppendEdge(vid_t src, vid_t dst, const std::string_view& data) {
-    size_t row_id = column_idx_.fetch_add(1);
-    column_.set_value(row_id, data);
-    in_csr_->batch_put_edge_with_index(dst, src, row_id);
-    out_csr_->batch_put_edge_with_index(src, dst, row_id);
-  }
-
-  void BatchAppendEdge(vid_t src, vid_t dst, const std::string& data) {
-    size_t row_id = column_idx_.fetch_add(1);
-    column_.set_value(row_id, data);
+    dynamic_cast<StringColumn&>(*table_.get_column_by_id(0))
+        .set_value(row_id, data);
 
     in_csr_->batch_put_edge_with_index(dst, src, row_id);
     out_csr_->batch_put_edge_with_index(src, dst, row_id);
@@ -524,46 +533,29 @@ class DualCsr<std::string_view> : public DualCsrBase {
     }
   }
 
+  void Drop() override {
+    Close();
+    // TODO: delete file in work_dir
+  }
+
   void Close() override {
     in_csr_->close();
     out_csr_->close();
-    column_.close();
   }
-
-  TypedCsrBase<std::string_view>* take_in_csr() {
-    auto in_csr = in_csr_;
-    in_csr_ = nullptr;
-    return in_csr;
-  }
-
-  TypedCsrBase<std::string_view>* take_out_csr() {
-    auto out_csr = out_csr_;
-    out_csr_ = nullptr;
-    return out_csr;
-  }
-
-  StringColumn&& take_string_column() { return std::move(column_); }
 
  private:
   TypedCsrBase<std::string_view>* in_csr_;
   TypedCsrBase<std::string_view>* out_csr_;
   std::atomic<size_t> column_idx_;
-  StringColumn column_;
+  Table& table_;
 };
 
 template <>
 class DualCsr<RecordView> : public DualCsrBase {
  public:
-  DualCsr(EdgeStrategy oe_strategy, EdgeStrategy ie_strategy,
-          const std::vector<std::string>& col_name,
-          const std::vector<PropertyType>& property_types,
-          const std::vector<StorageStrategy>& storage_strategies,
+  DualCsr(EdgeStrategy oe_strategy, EdgeStrategy ie_strategy, Table& table,
           bool oe_mutable, bool ie_mutable)
-      : col_name_(col_name),
-        property_types_(property_types),
-        storage_strategies_(storage_strategies),
-        in_csr_(nullptr),
-        out_csr_(nullptr) {
+      : in_csr_(nullptr), out_csr_(nullptr), table_(table) {
     if (ie_strategy == EdgeStrategy::kNone) {
       in_csr_ = new EmptyCsr<RecordView>(table_);
     } else if (ie_strategy == EdgeStrategy::kMultiple) {
@@ -605,95 +597,6 @@ class DualCsr<RecordView> : public DualCsrBase {
     }
   }
 
-  void add_property(const std::string& col_name,
-                    const PropertyType& property_type,
-                    std::shared_ptr<ColumnBase> column) {
-    if (table_.col_num() != 0) {
-      if (column->size() != table_.row_num()) {
-        LOG(ERROR) << "The number of rows in the column is inconsistent with "
-                      "the number of rows in the table.";
-        return;
-      }
-    }
-    if (std::find(col_name_.begin(), col_name_.end(), col_name) !=
-        col_name_.end()) {
-      LOG(ERROR) << "Column " << col_name << " already exists.";
-      return;
-    }
-    col_name_.push_back(col_name);
-    property_types_.push_back(property_type);
-    storage_strategies_.push_back(StorageStrategy::kMem);
-    table_.add_column(col_name, property_type, column);
-  }
-
-  void add_properties(const std::vector<std::string>& col_name,
-                      const std::vector<PropertyType>& property_types) {
-    CHECK(col_name.size() == property_types.size());
-    for (auto& col : col_name) {
-      if (std::find(col_name_.begin(), col_name_.end(), col) !=
-          col_name_.end()) {
-        LOG(ERROR) << "Column " << col << " already exists.";
-        return;
-      }
-    }
-    for (size_t i = 0; i < col_name.size(); ++i) {
-      col_name_.push_back(col_name[i]);
-      property_types_.push_back(property_types[i]);
-      storage_strategies_.push_back(StorageStrategy::kMem);
-    }
-
-    table_.add_columns(col_name, property_types);
-    if (table_.col_num() == col_name.size()) {
-      table_.resize(EdgeNum());
-    }
-  }
-
-  void delete_properties(const std::vector<std::string>& col_name) {
-    for (const auto& col : col_name) {
-      auto it = std::find(col_name_.begin(), col_name_.end(), col);
-      if (it == col_name_.end()) {
-        LOG(ERROR) << "Column " << col << " does not exist.";
-        return;
-      }
-    }
-    for (const auto& col : col_name) {
-      auto it = std::find(col_name_.begin(), col_name_.end(), col);
-      size_t index = std::distance(col_name_.begin(), it);
-      col_name_.erase(it);
-      property_types_.erase(property_types_.begin() + index);
-      storage_strategies_.erase(storage_strategies_.begin() + index);
-    }
-    // Remove columns from the table
-    for (const auto& col : col_name) {
-      table_.delete_column(col);
-    }
-  }
-
-  void rename_properties(const std::vector<std::string>& old_names,
-                         const std::vector<std::string>& new_names) {
-    CHECK_EQ(old_names.size(), new_names.size());
-    for (size_t i = 0; i < old_names.size(); ++i) {
-      auto it = std::find(col_name_.begin(), col_name_.end(), old_names[i]);
-      if (it == col_name_.end()) {
-        LOG(ERROR) << "Column " << old_names[i] << " does not exist.";
-        return;
-      }
-      if (std::find(col_name_.begin(), col_name_.end(), new_names[i]) !=
-          col_name_.end()) {
-        LOG(ERROR) << "Column " << new_names[i] << " already exists.";
-        return;
-      }
-      size_t index = std::distance(col_name_.begin(), it);
-      col_name_[index] = new_names[i];
-      table_.rename_column(old_names[i], new_names[i]);
-    }
-  }
-
-  void InitTable(const std::string& edata_name, const std::string& work_dir) {
-    table_.init(edata_name, work_dir, col_name_, property_types_,
-                storage_strategies_);
-  }
-
   void BatchInit(const std::string& oe_name, const std::string& ie_name,
                  const std::string& edata_name, const std::string& work_dir,
                  const std::vector<int>& oe_degree,
@@ -717,12 +620,14 @@ class DualCsr<RecordView> : public DualCsrBase {
 
   void Open(const std::string& oe_name, const std::string& ie_name,
             const std::string& edata_name, const std::string& snapshot_dir,
-            const std::string& work_dir) override {
+            const std::string& work_dir,
+            const std::vector<std::string>& col_names,
+            const std::vector<PropertyType>& property_types) override {
     in_csr_->open(ie_name, snapshot_dir, work_dir);
     out_csr_->open(oe_name, snapshot_dir, work_dir);
 
     // fix me: storage_strategies_ is not used
-    table_.open(edata_name, snapshot_dir, work_dir, col_name_, property_types_,
+    table_.open(edata_name, snapshot_dir, work_dir, col_names, property_types,
                 {});
     table_idx_.store(table_.row_num());
     table_.resize(
@@ -731,12 +636,14 @@ class DualCsr<RecordView> : public DualCsrBase {
 
   void OpenInMemory(const std::string& oe_name, const std::string& ie_name,
                     const std::string& edata_name,
-                    const std::string& snapshot_dir, size_t src_vertex_cap,
-                    size_t dst_vertex_cap) override {
+                    const std::string& snapshot_dir,
+                    const std::vector<std::string>& col_names,
+                    const std::vector<PropertyType>& property_types,
+                    size_t src_vertex_cap, size_t dst_vertex_cap) override {
     in_csr_->open_in_memory(snapshot_dir + "/" + ie_name, dst_vertex_cap);
     out_csr_->open_in_memory(snapshot_dir + "/" + oe_name, src_vertex_cap);
     // fix me: storage_strategies_ is not used
-    table_.open_in_memory(edata_name, snapshot_dir, col_name_, property_types_,
+    table_.open_in_memory(edata_name, snapshot_dir, col_names, property_types,
                           {});
     table_idx_.store(table_.row_num());
     table_.resize(
@@ -745,7 +652,10 @@ class DualCsr<RecordView> : public DualCsrBase {
 
   void OpenWithHugepages(const std::string& oe_name, const std::string& ie_name,
                          const std::string& edata_name,
-                         const std::string& snapshot_dir, size_t src_vertex_cap,
+                         const std::string& snapshot_dir,
+                         const std::vector<std::string>& col_names,
+                         const std::vector<PropertyType>& property_types,
+                         size_t src_vertex_cap,
                          size_t dst_vertex_cap) override {
     LOG(FATAL) << "not supported...";
   }
@@ -756,7 +666,6 @@ class DualCsr<RecordView> : public DualCsrBase {
     in_csr_->dump(ie_name, new_snapshot_dir);
     out_csr_->dump(oe_name, new_snapshot_dir);
     table_.resize(table_idx_.load());
-    table_.dump(edata_name, new_snapshot_dir);
   }
 
   CsrBase* GetInCsr() override { return in_csr_; }
@@ -764,16 +673,7 @@ class DualCsr<RecordView> : public DualCsrBase {
   const CsrBase* GetInCsr() const override { return in_csr_; }
   const CsrBase* GetOutCsr() const override { return out_csr_; }
 
-  void SetInCsr() {}
-
-  void SetOutCsr() {}
-
   void BatchPutEdge(vid_t src, vid_t dst, size_t row_id) {
-    in_csr_->batch_put_edge_with_index(dst, src, row_id);
-    out_csr_->batch_put_edge_with_index(src, dst, row_id);
-  }
-
-  void BatchAppendEdge(vid_t src, vid_t dst, size_t row_id) {
     in_csr_->batch_put_edge_with_index(dst, src, row_id);
     out_csr_->batch_put_edge_with_index(src, dst, row_id);
   }
@@ -872,28 +772,21 @@ class DualCsr<RecordView> : public DualCsrBase {
     }
   }
 
+  void Drop() override {
+    Close();
+    // TODO: delete file in work_dir
+  }
+
   void Close() override {
     in_csr_->close();
     out_csr_->close();
-    table_.close();
-  }
-
-  void SetInCsr(std::unique_ptr<TypedCsrBase<size_t>>&& in_csr) {
-    in_csr_->set_csr(in_csr);
-  }
-
-  void SetOutCsr(std::unique_ptr<TypedCsrBase<size_t>>&& out_csr) {
-    out_csr_->set_csr(out_csr);
   }
 
  private:
-  std::vector<std::string> col_name_;
-  std::vector<PropertyType> property_types_;
-  std::vector<StorageStrategy> storage_strategies_;
   TypedCsrBase<RecordView>* in_csr_;
   TypedCsrBase<RecordView>* out_csr_;
   std::atomic<size_t> table_idx_;
-  Table table_;
+  Table& table_;
 };
 
 }  // namespace gs

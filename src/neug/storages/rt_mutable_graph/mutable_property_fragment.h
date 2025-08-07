@@ -57,6 +57,9 @@
 #include "neug/utils/property/types.h"
 #include "neug/utils/result.h"
 
+#include "neug/storages/rt_mutable_graph/edge_table.h"
+#include "neug/storages/rt_mutable_graph/vertex_table.h"
+
 namespace grape {
 class OutArchive;
 struct EmptyType;
@@ -142,8 +145,6 @@ class MutablePropertyFragment {
   void Open(const std::string& work_dir, int memory_level);
 
   void Compact(uint32_t version);
-
-  void Warmup(int thread_num);
 
   void Dump(const std::string& work_dir, uint32_t version);
 
@@ -285,7 +286,7 @@ class MutablePropertyFragment {
          ++idx) {
       work_threads.emplace_back(
           [&](int i) {
-            auto& vtable = vertex_data_[v_label_id];
+            auto& vtable = vertex_tables_.at(v_label_id).get_properties_table();
             while (true) {
               std::shared_ptr<arrow::RecordBatch> batch{nullptr};
               auto ret = queue.Get(batch);
@@ -343,18 +344,18 @@ class MutablePropertyFragment {
                   auto casted_array = std::static_pointer_cast<arrow_array_t>(
                       primary_key_column);
                   LOG(INFO) << "Indexer reserve size "
-                            << lf_indexers_[v_label_id].size() + row_num;
+                            << vertex_tables_[v_label_id].lid_num() + row_num;
                   {
-                    lf_indexers_[v_label_id].reserve(
-                        lf_indexers_[v_label_id].size() + row_num);
+                    vertex_tables_[v_label_id].get_indexer().reserve(
+                        vertex_tables_[v_label_id].lid_num() + row_num);
                   }
                   for (size_t j = 0; j < row_num; ++j) {
-                    auto vertex_exist = lf_indexers_[v_label_id].get_index(
+                    auto vertex_exist = vertex_tables_[v_label_id].get_index(
                         casted_array->Value(j), vid);
                     if (vertex_exist) {
                       vids.emplace_back(sentinel);
                     } else {
-                      vid = lf_indexers_[v_label_id].insert_safe(
+                      vid = vertex_tables_[v_label_id].add_vertex_safe(
                           casted_array->Value(j));
                       vids.emplace_back(vid);
                     }
@@ -368,11 +369,12 @@ class MutablePropertyFragment {
                       auto str = casted_array->GetView(j);
                       std::string_view str_view(str.data(), str.size());
                       auto vertex_exist =
-                          lf_indexers_[v_label_id].get_index(str_view, vid);
+                          vertex_tables_[v_label_id].get_index(str_view, vid);
                       if (vertex_exist) {
                         vids.emplace_back(std::numeric_limits<size_t>::max());
                       } else {
-                        vid = lf_indexers_[v_label_id].insert_safe(str_view);
+                        vid = vertex_tables_[v_label_id].add_vertex_safe(
+                            str_view);
                         vids.emplace_back(vid);
                       }
                     }
@@ -385,11 +387,12 @@ class MutablePropertyFragment {
                       auto str = casted_array->GetView(j);
                       std::string_view str_view(str.data(), str.size());
                       auto vertex_exist =
-                          lf_indexers_[v_label_id].get_index(str_view, vid);
+                          vertex_tables_[v_label_id].get_index(str_view, vid);
                       if (vertex_exist) {
                         vids.emplace_back(std::numeric_limits<size_t>::max());
                       } else {
-                        vid = lf_indexers_[v_label_id].insert_safe(str_view);
+                        vid = vertex_tables_[v_label_id].add_vertex_safe(
+                            str_view);
                         vids.emplace_back(vid);
                       }
                     }
@@ -407,7 +410,7 @@ class MutablePropertyFragment {
                 for (size_t j = 0; j < other_columns_array.size(); j++) {
                   auto chunked_array = std::make_shared<arrow::ChunkedArray>(
                       other_columns_array[j]);
-                  auto column = vertex_data_[v_label_id].column_ptrs()[j];
+                  auto& column = vtable.column_ptrs()[j];
                   set_properties_column(column, chunked_array, vids);
                 }
               }
@@ -420,15 +423,10 @@ class MutablePropertyFragment {
     }
     work_threads.clear();
 
-    if (lid_num(v_label_id) > vertex_tomb_[v_label_id]->size()) {
-      vertex_tomb_[v_label_id]->resize(lid_num(v_label_id));
-    }
+    vertex_tables_.at(v_label_id).Dump(snapshot_dir(work_dir_, 0));
 
-    vertex_data_[v_label_id].dump_without_close(
-        vertex_table_prefix(vertex_type_name), snapshot_dir(work_dir_, 0));
-    lf_indexers_[v_label_id].dump_without_close(
-        LFIndexer<vid_t>::prefix() + "_" + vertex_map_prefix(vertex_type_name),
-        snapshot_dir(work_dir_, 0));
+    vertex_tables_.at(v_label_id)
+        .Open(snapshot_dir(work_dir_, 0), tmp_dir(work_dir_), false);
     return gs::Status::OK();
   }
 
@@ -454,18 +452,8 @@ class MutablePropertyFragment {
         std::thread::hardware_concurrency());
     queue.SetProducerNum(record_batch_supplier_vec.size());
 
-    if constexpr (std::is_same<EDATA_T, RecordView>::value) {
-      if (!init_state_.at(index)) {
-        auto casted_csr =
-            dynamic_cast<DualCsr<RecordView>*>(dual_csr_map_.at(index));
-        casted_csr->InitTable(
-            edata_prefix(src_vertex_type, dst_vertex_type, edge_type_name),
-            tmp_dir(work_dir_));
-      }
-    }
-
-    const auto& src_indexer = lf_indexers_[src_v_label];
-    const auto& dst_indexer = lf_indexers_[dst_v_label];
+    const auto& src_indexer = vertex_tables_[src_v_label].get_indexer();
+    const auto& dst_indexer = vertex_tables_[dst_v_label].get_indexer();
     std::vector<std::atomic<int32_t>> ie_degree(dst_indexer.size()),
         oe_degree(src_indexer.size());
     for (size_t idx = 0; idx < ie_degree.size(); ++idx) {
@@ -546,10 +534,10 @@ class MutablePropertyFragment {
               }
               size_t offset_i = 0;
               if constexpr (std::is_same<EDATA_T, RecordView>::value) {
-                auto casted_csr =
-                    dynamic_cast<DualCsr<RecordView>*>(dual_csr_map_.at(index));
+                auto casted_csr = dynamic_cast<DualCsr<RecordView>*>(
+                    edge_tables_.at(index).GetDualCsr());
                 CHECK(casted_csr != NULL);
-                auto table = casted_csr->GetTable();
+                auto& table = casted_csr->GetTable();
                 CHECK(table.col_num() == property_cols.size());
                 offset_i = offset.fetch_add(src_col->length());
                 std::vector<size_t> offsets;
@@ -660,7 +648,7 @@ class MutablePropertyFragment {
 
     LOG(INFO) << "Init csr for " << src_vertex_type << " " << edge_type_name
               << " " << dst_vertex_type << ", index is " << index;
-    auto dual_csr = dual_csr_map_.at(index);
+    auto dual_csr = edge_tables_.at(index).GetDualCsr();
     CHECK(dual_csr != NULL);
     auto casted_dual_csr =
         BasicFragmentLoader::get_casted_dual_csr<EDATA_T>(dual_csr);
@@ -675,9 +663,11 @@ class MutablePropertyFragment {
       init_state_[index] = true;
     } else {
       TypedMutableCsrBase<EDATA_T>* in_csr =
-          dynamic_cast<TypedMutableCsrBase<EDATA_T>*>(ie_map_.at(index));
+          dynamic_cast<TypedMutableCsrBase<EDATA_T>*>(
+              edge_tables_.at(index).GetInCsr());
       TypedMutableCsrBase<EDATA_T>* out_csr =
-          dynamic_cast<TypedMutableCsrBase<EDATA_T>*>(oe_map_.at(index));
+          dynamic_cast<TypedMutableCsrBase<EDATA_T>*>(
+              edge_tables_.at(index).GetOutCsr());
       std::vector<int> cur_in_deg = in_csr->get_degree();
       std::vector<int> cur_out_deg = out_csr->get_degree();
       std::vector<int> cur_in_cap = in_csr->get_capacity();
@@ -687,7 +677,7 @@ class MutablePropertyFragment {
       bool need_in_resize = false;
       bool need_out_resize = false;
       for (size_t i = 0; i < ie_deg.size(); i++) {
-        if (ie_deg[i] > cur_in_cap[i] - cur_in_cap[i]) {
+        if (ie_deg[i] > cur_in_cap[i] - cur_in_deg[i]) {
           need_in_resize = true;
           break;
         }
@@ -779,11 +769,11 @@ class MutablePropertyFragment {
                             std::vector<std::tuple<vid_t, vid_t>>& edges_vec);
 
   inline Table& get_vertex_table(label_t vertex_label) {
-    return vertex_data_[vertex_label];
+    return vertex_tables_[vertex_label].get_properties_table();
   }
 
   inline const Table& get_vertex_table(label_t vertex_label) const {
-    return vertex_data_[vertex_label];
+    return vertex_tables_[vertex_label].get_properties_table();
   }
 
   vid_t lid_num(label_t vertex_label) const;
@@ -815,107 +805,76 @@ class MutablePropertyFragment {
   std::shared_ptr<CsrEdgeIterBase> get_incoming_edges_mut(
       label_t label, vid_t u, label_t neighbor_label, label_t edge_label);
 
-  CsrConstEdgeIterBase* get_outgoing_edges_raw(label_t label, vid_t u,
-                                               label_t neighbor_label,
-                                               label_t edge_label) const;
-
-  CsrConstEdgeIterBase* get_incoming_edges_raw(label_t label, vid_t u,
-                                               label_t neighbor_label,
-                                               label_t edge_label) const;
-
   inline CsrBase* get_oe_csr(label_t label, label_t neighbor_label,
                              label_t edge_label) {
     size_t index =
         schema_.generate_edge_label(label, neighbor_label, edge_label);
-    if (oe_map_.find(index) == oe_map_.end()) {
+    if (edge_tables_.find(index) == edge_tables_.end()) {
       LOG(ERROR) << "Edge csr not found for label: " << label
                  << ", neighbor_label: " << neighbor_label
                  << ", edge_label: " << edge_label;
       return nullptr;
     }
-    return oe_map_.at(index);
+    return edge_tables_.at(index).GetOutCsr();
   }
 
   inline const CsrBase* get_oe_csr(label_t label, label_t neighbor_label,
                                    label_t edge_label) const {
     size_t index =
         schema_.generate_edge_label(label, neighbor_label, edge_label);
-    if (oe_map_.find(index) == oe_map_.end()) {
+    if (edge_tables_.find(index) == edge_tables_.end()) {
       LOG(ERROR) << "Edge csr not found for label: " << label
                  << ", neighbor_label: " << neighbor_label
                  << ", edge_label: " << edge_label;
       return nullptr;
     }
-    return oe_map_.at(index);
+    return edge_tables_.at(index).GetOutCsr();
   }
 
   inline CsrBase* get_ie_csr(label_t label, label_t neighbor_label,
                              label_t edge_label) {
     size_t index =
         schema_.generate_edge_label(neighbor_label, label, edge_label);
-    if (ie_map_.find(index) == ie_map_.end()) {
+    if (edge_tables_.find(index) == edge_tables_.end()) {
       LOG(ERROR) << "Edge csr not found for label: " << label
                  << ", neighbor_label: " << neighbor_label
                  << ", edge_label: " << edge_label;
       return nullptr;
     }
-    return ie_map_.at(index);
+    return edge_tables_.at(index).GetInCsr();
   }
 
   inline const CsrBase* get_ie_csr(label_t label, label_t neighbor_label,
                                    label_t edge_label) const {
     size_t index =
         schema_.generate_edge_label(neighbor_label, label, edge_label);
-    if (ie_map_.find(index) == ie_map_.end()) {
+    if (edge_tables_.find(index) == edge_tables_.end()) {
       LOG(ERROR) << "Edge csr not found for label: " << (int32_t) label
                  << ", neighbor_label: " << (int32_t) neighbor_label
                  << ", edge_label: " << (int32_t) edge_label;
       return nullptr;
     }
-    return ie_map_.at(index);
+    return edge_tables_.at(index).GetInCsr();
   }
 
   inline bool is_deleted(label_t label) const {
-    return vertex_tomb_[label]->count() != 0;
+    return vertex_tables_[label].is_deleted();
   }
 
   inline std::shared_ptr<Bitset> get_vertex_tomb(label_t label) const {
-    return vertex_tomb_[label];
+    return vertex_tables_[label].get_vertex_tomb();
   }
 
   void loadSchema(const std::string& filename);
+
   inline std::shared_ptr<ColumnBase> get_vertex_property_column(
       uint8_t label, const std::string& prop) const {
-    return vertex_data_[label].get_column(prop);
+    return vertex_tables_[label].get_property_column(prop);
   }
 
   inline std::shared_ptr<RefColumnBase> get_vertex_id_column(
       uint8_t label) const {
-    if (lf_indexers_[label].get_type() == PropertyType::kInt64) {
-      return std::make_shared<TypedRefColumn<int64_t>>(
-          dynamic_cast<const TypedColumn<int64_t>&>(
-              lf_indexers_[label].get_keys()));
-    } else if (lf_indexers_[label].get_type() == PropertyType::kInt32) {
-      return std::make_shared<TypedRefColumn<int32_t>>(
-          dynamic_cast<const TypedColumn<int32_t>&>(
-              lf_indexers_[label].get_keys()));
-    } else if (lf_indexers_[label].get_type() == PropertyType::kUInt64) {
-      return std::make_shared<TypedRefColumn<uint64_t>>(
-          dynamic_cast<const TypedColumn<uint64_t>&>(
-              lf_indexers_[label].get_keys()));
-    } else if (lf_indexers_[label].get_type() == PropertyType::kUInt32) {
-      return std::make_shared<TypedRefColumn<uint32_t>>(
-          dynamic_cast<const TypedColumn<uint32_t>&>(
-              lf_indexers_[label].get_keys()));
-    } else if (lf_indexers_[label].get_type() == PropertyType::kStringView) {
-      return std::make_shared<TypedRefColumn<std::string_view>>(
-          dynamic_cast<const TypedColumn<std::string_view>&>(
-              lf_indexers_[label].get_keys()));
-    } else {
-      LOG(ERROR) << "Unsupported vertex id type: "
-                 << lf_indexers_[label].get_type();
-      return nullptr;
-    }
+    return vertex_tables_[label].get_vertex_id_column();
   }
 
   inline std::string statisticsFilePath() const {
@@ -931,24 +890,13 @@ class MutablePropertyFragment {
   void generateStatistics() const;
   void dumpSchema() const;
 
- private:
-  /* For Edge previously has zero property or one property, change the EDATA_T
-   * to RecordView*/
-  void change_csr_data_type_to_record_view(const std::string& src_vertex_type,
-                                           const std::string& dst_vertex_type,
-                                           const std::string& edge_type_name);
-
  public:
   std::string work_dir_;
   Schema schema_;
   std::vector<std::shared_ptr<std::mutex>> v_mutex_;
-  std::vector<IndexerType> lf_indexers_;
-  std::vector<Table> vertex_data_;
+  std::vector<VertexTable> vertex_tables_;
+  std::unordered_map<uint32_t, EdgeTable> edge_tables_;
 
-  std::vector<std::shared_ptr<Bitset>> vertex_tomb_;
-
-  std::unordered_map<uint32_t, CsrBase*> ie_map_, oe_map_;
-  std::unordered_map<uint32_t, DualCsrBase*> dual_csr_map_;
   std::unordered_map<uint32_t, bool> init_state_;
 
   size_t vertex_label_num_, edge_label_num_;

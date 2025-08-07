@@ -883,11 +883,6 @@ class AbstractArrowFragmentLoader : public IFragmentLoader {
     std::vector<std::vector<std::shared_ptr<arrow::Array>>> string_columns(
         std::thread::hardware_concurrency());
 
-    if constexpr (std::is_same<EDATA_T, RecordView>::value) {
-      basic_fragment_loader_.init_edge_table(src_label_id, dst_label_id,
-                                             e_label_id);
-    }
-
     // use a dummy vector to store the string columns, to avoid the
     // strings being released as record batch is released.
     std::vector<std::shared_ptr<arrow::Array>> string_cols;
@@ -977,8 +972,9 @@ class AbstractArrowFragmentLoader : public IFragmentLoader {
                       basic_fragment_loader_.get_csr(src_label_id, dst_label_id,
                                                      e_label_id));
                   CHECK(casted_csr != NULL);
-                  auto table = casted_csr->GetTable();
-                  CHECK(table.col_num() == property_cols.size());
+                  auto& table = casted_csr->GetTable();
+                  CHECK(table.col_num() == property_cols.size())
+                      << table.col_num() << " " << property_cols.size();
                   offset_i = offset.fetch_add(src_col->length());
                   std::vector<size_t> offsets;
                   for (size_t _i = 0;

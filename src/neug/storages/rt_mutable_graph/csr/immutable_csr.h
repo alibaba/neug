@@ -243,8 +243,6 @@ class ImmutableCsr : public TypedImmutableCsrBase<EDATA_T> {
     }
   }
 
-  void warmup(int thread_num) const override {}
-
   void resize(vid_t vnum) override {
     if (vnum > adj_lists_.size()) {
       size_t old_size = adj_lists_.size();
@@ -273,9 +271,7 @@ class ImmutableCsr : public TypedImmutableCsrBase<EDATA_T> {
   std::shared_ptr<CsrConstEdgeIterBase> edge_iter(vid_t v) const override {
     return std::make_shared<ImmutableCsrConstEdgeIter<EDATA_T>>(get_edges(v));
   }
-  CsrConstEdgeIterBase* edge_iter_raw(vid_t v) const override {
-    return new ImmutableCsrConstEdgeIter<EDATA_T>(get_edges(v));
-  }
+
   std::shared_ptr<CsrEdgeIterBase> edge_iter_mut(vid_t v) override {
     return nullptr;
   }
@@ -331,7 +327,7 @@ class ImmutableCsr<std::string_view>
  public:
   using nbr_t = ImmutableNbr<size_t>;
   using slice_t = ImmutableNbrSlice<std::string_view>;
-  ImmutableCsr(StringColumn& column) : column_(column), csr_() {}
+  ImmutableCsr(Table& table) : table_(table), csr_() {}
   ~ImmutableCsr() {}
 
   size_t batch_init(const std::string& name, const std::string& work_dir,
@@ -368,8 +364,6 @@ class ImmutableCsr<std::string_view>
     csr_.dump(name, new_snapshot_dir);
   }
 
-  void warmup(int thread_num) const override { csr_.warmup(thread_num); }
-
   void resize(vid_t vnum) override { csr_.resize(vnum); }
 
   size_t size() const override { return csr_.size(); }
@@ -379,9 +373,6 @@ class ImmutableCsr<std::string_view>
         get_edges(v));
   }
 
-  CsrConstEdgeIterBase* edge_iter_raw(vid_t v) const override {
-    return new ImmutableCsrConstEdgeIter<std::string_view>(get_edges(v));
-  }
   std::shared_ptr<CsrEdgeIterBase> edge_iter_mut(vid_t v) override {
     return nullptr;
   }
@@ -397,19 +388,16 @@ class ImmutableCsr<std::string_view>
   }
 
   slice_t get_edges(vid_t i) const override {
-    return slice_t(csr_.get_edges(i), column_);
+    auto& column = dynamic_cast<StringColumn&>(*table_.get_column_by_id(0));
+    return slice_t(csr_.get_edges(i), column);
   }
 
   void close() override { csr_.close(); }
 
   size_t edge_num() const override { return csr_.edge_num(); }
 
-  std::unique_ptr<TypedCsrBase<size_t>> take_index_csr() override {
-    return nullptr;
-  }
-
  private:
-  StringColumn& column_;
+  Table& table_;
   ImmutableCsr<size_t> csr_;
 };
 
@@ -460,8 +448,6 @@ class ImmutableCsr<RecordView> : public TypedImmutableCsrBase<RecordView> {
     csr_.dump(name, new_snapshot_dir);
   }
 
-  void warmup(int thread_num) const override { csr_.warmup(thread_num); }
-
   void resize(vid_t vnum) override { csr_.resize(vnum); }
 
   size_t size() const override { return csr_.size(); }
@@ -471,9 +457,6 @@ class ImmutableCsr<RecordView> : public TypedImmutableCsrBase<RecordView> {
         get_edges(v));
   }
 
-  CsrConstEdgeIterBase* edge_iter_raw(vid_t v) const override {
-    return new ImmutableCsrConstEdgeIter<RecordView>(get_edges(v));
-  }
   std::shared_ptr<CsrEdgeIterBase> edge_iter_mut(vid_t v) override {
     return nullptr;
   }
@@ -595,36 +578,6 @@ class SingleImmutableCsr : public TypedImmutableCsrBase<EDATA_T> {
     }
   }
 
-  void warmup(int thread_num) const override {
-    size_t vnum = nbr_list_.size();
-    std::vector<std::thread> threads;
-    std::atomic<size_t> v_i(0);
-    std::atomic<size_t> output(0);
-    const size_t chunk = 4096;
-    for (int i = 0; i < thread_num; ++i) {
-      threads.emplace_back([&]() {
-        size_t ret = 0;
-        while (true) {
-          size_t begin = std::min(v_i.fetch_add(chunk), vnum);
-          size_t end = std::min(begin + chunk, vnum);
-          if (begin == end) {
-            break;
-          }
-          while (begin < end) {
-            auto& nbr = nbr_list_[begin];
-            ret += nbr.neighbor;
-            ++begin;
-          }
-        }
-        output.fetch_add(ret);
-      });
-    }
-    for (auto& thrd : threads) {
-      thrd.join();
-    }
-    (void) output.load();
-  }
-
   void resize(vid_t vnum) override {
     if (vnum > nbr_list_.size()) {
       size_t old_size = nbr_list_.size();
@@ -651,10 +604,6 @@ class SingleImmutableCsr : public TypedImmutableCsrBase<EDATA_T> {
 
   std::shared_ptr<CsrConstEdgeIterBase> edge_iter(vid_t v) const override {
     return std::make_shared<ImmutableCsrConstEdgeIter<EDATA_T>>(get_edges(v));
-  }
-
-  CsrConstEdgeIterBase* edge_iter_raw(vid_t v) const override {
-    return new ImmutableCsrConstEdgeIter<EDATA_T>(get_edges(v));
   }
 
   std::shared_ptr<CsrEdgeIterBase> edge_iter_mut(vid_t v) override {
@@ -694,7 +643,7 @@ class SingleImmutableCsr<std::string_view>
   using nbr_t = ImmutableNbr<size_t>;
   using slice_t = ImmutableNbrSlice<std::string_view>;
 
-  SingleImmutableCsr(StringColumn& column) : column_(column), csr_() {}
+  SingleImmutableCsr(Table& table) : table_(table), csr_() {}
   ~SingleImmutableCsr() {}
 
   size_t batch_init(const std::string& name, const std::string& work_dir,
@@ -737,8 +686,6 @@ class SingleImmutableCsr<std::string_view>
     csr_.dump(name, new_snapshot_dir);
   }
 
-  void warmup(int thread_num) const override { csr_.warmup(thread_num); }
-
   void resize(vid_t vnum) override { csr_.resize(vnum); }
 
   size_t size() const override { return csr_.size(); }
@@ -748,10 +695,6 @@ class SingleImmutableCsr<std::string_view>
   std::shared_ptr<CsrConstEdgeIterBase> edge_iter(vid_t v) const override {
     return std::make_shared<ImmutableCsrConstEdgeIter<std::string_view>>(
         get_edges(v));
-  }
-
-  CsrConstEdgeIterBase* edge_iter_raw(vid_t v) const override {
-    return new ImmutableCsrConstEdgeIter<std::string_view>(get_edges(v));
   }
 
   std::shared_ptr<CsrEdgeIterBase> edge_iter_mut(vid_t v) override {
@@ -764,24 +707,22 @@ class SingleImmutableCsr<std::string_view>
   }
 
   slice_t get_edges(vid_t i) const override {
-    return slice_t(csr_.get_edges(i), column_);
+    auto& column = dynamic_cast<StringColumn&>(*table_.get_column_by_id(0));
+    return slice_t(csr_.get_edges(i), column);
   }
 
   ImmutableNbr<std::string_view> get_edge(vid_t i) const {
     ImmutableNbr<std::string_view> nbr;
     nbr.neighbor = csr_.get_edge(i).neighbor;
     size_t index = csr_.get_edge(i).data;
-    nbr.data = column_.get_view(index);
+    auto& column = dynamic_cast<StringColumn&>(*table_.get_column_by_id(0));
+    nbr.data = column.get_view(index);
     return nbr;
   }
   void close() override { csr_.close(); }
 
-  std::unique_ptr<TypedCsrBase<size_t>> take_index_csr() override {
-    return nullptr;
-  }
-
  private:
-  StringColumn& column_;
+  Table& table_;
   SingleImmutableCsr<size_t> csr_;
 };
 
@@ -839,8 +780,6 @@ class SingleImmutableCsr<RecordView>
     csr_.dump(name, new_snapshot_dir);
   }
 
-  void warmup(int thread_num) const override { csr_.warmup(thread_num); }
-
   void resize(vid_t vnum) override { csr_.resize(vnum); }
 
   size_t size() const override { return csr_.size(); }
@@ -850,10 +789,6 @@ class SingleImmutableCsr<RecordView>
   std::shared_ptr<CsrConstEdgeIterBase> edge_iter(vid_t v) const override {
     return std::make_shared<ImmutableCsrConstEdgeIter<RecordView>>(
         get_edges(v));
-  }
-
-  CsrConstEdgeIterBase* edge_iter_raw(vid_t v) const override {
-    return new ImmutableCsrConstEdgeIter<RecordView>(get_edges(v));
   }
 
   std::shared_ptr<CsrEdgeIterBase> edge_iter_mut(vid_t v) override {

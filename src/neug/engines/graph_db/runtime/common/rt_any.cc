@@ -1485,7 +1485,8 @@ void RTAny::sink(const GraphInterface& graph, int id,
     } else if (prop_names.size() > 1) {
       auto rv = prop.as<RecordView>();
       if (rv.size() != prop_names.size()) {
-        LOG(ERROR) << "record view size not match with prop names";
+        LOG(FATAL) << "record view size not match with prop names" << rv.size()
+                   << " vs " << prop_names.size();
       }
       for (size_t i = 0; i < prop_names.size(); ++i) {
         auto props = e->add_properties();

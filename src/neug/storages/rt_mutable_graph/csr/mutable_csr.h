@@ -599,40 +599,6 @@ class MutableCsr : public TypedMutableCsrBase<EDATA_T> {
     }
   }
 
-  void warmup(int thread_num) const override {
-    size_t vnum = adj_lists_.size();
-    std::vector<std::thread> threads;
-    std::atomic<size_t> v_i(0);
-    const size_t chunk = 4096;
-    std::atomic<size_t> output(0);
-    for (int i = 0; i < thread_num; ++i) {
-      threads.emplace_back([&]() {
-        size_t ret = 0;
-        while (true) {
-          size_t begin = std::min(v_i.fetch_add(chunk), vnum);
-          size_t end = std::min(begin + chunk, vnum);
-
-          if (begin == end) {
-            break;
-          }
-
-          while (begin < end) {
-            auto adj_list = get_edges(begin);
-            for (auto& nbr : adj_list) {
-              ret += nbr.neighbor;
-            }
-            ++begin;
-          }
-        }
-        output.fetch_add(ret);
-      });
-    }
-    for (auto& thrd : threads) {
-      thrd.join();
-    }
-    (void) output.load();
-  }
-
   void resize(vid_t vnum) override {
     if (vnum > adj_lists_.size()) {
       size_t old_size = adj_lists_.size();
@@ -659,9 +625,7 @@ class MutableCsr : public TypedMutableCsrBase<EDATA_T> {
   std::shared_ptr<CsrConstEdgeIterBase> edge_iter(vid_t v) const override {
     return std::make_shared<MutableCsrConstEdgeIter<EDATA_T>>(get_edges(v));
   }
-  CsrConstEdgeIterBase* edge_iter_raw(vid_t v) const override {
-    return new MutableCsrConstEdgeIter<EDATA_T>(get_edges(v));
-  }
+
   std::shared_ptr<CsrEdgeIterBase> edge_iter_mut(vid_t v) override {
     return std::make_shared<MutableCsrEdgeIter<EDATA_T>>(get_edges_mut(v));
   }
@@ -740,7 +704,7 @@ class MutableCsr<std::string_view>
   using slice_t = MutableNbrSlice<std::string_view>;
   using mut_slice_t = MutableNbrSliceMut<std::string_view>;
 
-  MutableCsr(StringColumn& column) : column_(column), csr_() {}
+  MutableCsr(Table& table) : table_(table), csr_() {}
   ~MutableCsr() {}
 
   size_t batch_init(const std::string& name, const std::string& work_dir,
@@ -773,8 +737,6 @@ class MutableCsr<std::string_view>
     csr_.dump(name, new_snapshot_dir);
   }
 
-  void warmup(int thread_num) const override { csr_.warmup(thread_num); }
-
   void resize(vid_t vnum) override { csr_.resize(vnum); }
 
   size_t size() const override { return csr_.size(); }
@@ -786,9 +748,6 @@ class MutableCsr<std::string_view>
         get_edges(v));
   }
 
-  CsrConstEdgeIterBase* edge_iter_raw(vid_t v) const override {
-    return new MutableCsrConstEdgeIter<std::string_view>(get_edges(v));
-  }
   std::shared_ptr<CsrEdgeIterBase> edge_iter_mut(vid_t v) override {
     return std::make_shared<MutableCsrEdgeIter<std::string_view>>(
         get_edges_mut(v));
@@ -815,11 +774,13 @@ class MutableCsr<std::string_view>
   }
 
   inline slice_t get_edges(vid_t i) const override {
-    return slice_t(csr_.get_edges(i), column_);
+    auto& column = dynamic_cast<StringColumn&>(*table_.get_column_by_id(0));
+    return slice_t(csr_.get_edges(i), column);
   }
 
   inline mut_slice_t get_edges_mut(vid_t i) {
-    return mut_slice_t(csr_.get_edges_mut(i), column_);
+    auto& column = dynamic_cast<StringColumn&>(*table_.get_column_by_id(0));
+    return mut_slice_t(csr_.get_edges_mut(i), column);
   }
 
   std::vector<int> get_degree() const override { return csr_.get_degree(); }
@@ -828,12 +789,8 @@ class MutableCsr<std::string_view>
 
   void close() override { csr_.close(); }
 
-  std::unique_ptr<TypedCsrBase<size_t>> take_index_csr() override {
-    return std::make_unique<MutableCsr<size_t>>(std::move(csr_));
-  }
-
  private:
-  StringColumn& column_;
+  Table& table_;
   MutableCsr<size_t> csr_;
 };
 
@@ -882,8 +839,6 @@ class MutableCsr<RecordView> : public TypedMutableCsrBase<RecordView> {
     csr_.dump(name, new_snapshot_dir);
   }
 
-  void warmup(int thread_num) const override { csr_.warmup(thread_num); }
-
   void resize(vid_t vnum) override { csr_.resize(vnum); }
 
   size_t size() const override { return csr_.size(); }
@@ -894,9 +849,6 @@ class MutableCsr<RecordView> : public TypedMutableCsrBase<RecordView> {
     return std::make_shared<MutableCsrConstEdgeIter<RecordView>>(get_edges(v));
   }
 
-  CsrConstEdgeIterBase* edge_iter_raw(vid_t v) const override {
-    return new MutableCsrConstEdgeIter<RecordView>(get_edges(v));
-  }
   std::shared_ptr<CsrEdgeIterBase> edge_iter_mut(vid_t v) override {
     return std::make_shared<MutableCsrEdgeIter<RecordView>>(get_edges_mut(v));
   }
@@ -934,11 +886,6 @@ class MutableCsr<RecordView> : public TypedMutableCsrBase<RecordView> {
   std::vector<int> get_capacity() const override { return csr_.get_capacity(); }
 
   void close() override { csr_.close(); }
-
-  void set_csr(std::unique_ptr<TypedCsrBase<size_t>>& csr) override {
-    auto csr_ptr = dynamic_cast<MutableCsr<size_t>*>(csr.release());
-    csr_ = std::move(*csr_ptr);
-  }
 
  private:
   Table& table_;
@@ -1048,36 +995,6 @@ class SingleMutableCsr : public TypedMutableCsrBase<EDATA_T> {
     }
   }
 
-  void warmup(int thread_num) const override {
-    size_t vnum = nbr_list_.size();
-    std::vector<std::thread> threads;
-    std::atomic<size_t> v_i(0);
-    std::atomic<size_t> output(0);
-    const size_t chunk = 4096;
-    for (int i = 0; i < thread_num; ++i) {
-      threads.emplace_back([&]() {
-        size_t ret = 0;
-        while (true) {
-          size_t begin = std::min(v_i.fetch_add(chunk), vnum);
-          size_t end = std::min(begin + chunk, vnum);
-          if (begin == end) {
-            break;
-          }
-          while (begin < end) {
-            auto& nbr = nbr_list_[begin];
-            ret += nbr.neighbor;
-            ++begin;
-          }
-        }
-        output.fetch_add(ret);
-      });
-    }
-    for (auto& thrd : threads) {
-      thrd.join();
-    }
-    (void) output.load();
-  }
-
   void resize(vid_t vnum) override {
     if (vnum > nbr_list_.size()) {
       size_t old_size = nbr_list_.size();
@@ -1106,9 +1023,7 @@ class SingleMutableCsr : public TypedMutableCsrBase<EDATA_T> {
   std::shared_ptr<CsrConstEdgeIterBase> edge_iter(vid_t v) const override {
     return std::make_shared<MutableCsrConstEdgeIter<EDATA_T>>(get_edges(v));
   }
-  CsrConstEdgeIterBase* edge_iter_raw(vid_t v) const override {
-    return new MutableCsrConstEdgeIter<EDATA_T>(get_edges(v));
-  }
+
   std::shared_ptr<CsrEdgeIterBase> edge_iter_mut(vid_t v) override {
     return std::make_shared<MutableCsrEdgeIter<EDATA_T>>(get_edges_mut(v));
   }
@@ -1162,7 +1077,7 @@ class SingleMutableCsr<std::string_view>
   using slice_t = MutableNbrSlice<std::string_view>;
   using mut_slice_t = MutableNbrSliceMut<std::string_view>;
 
-  SingleMutableCsr(StringColumn& column) : column_(column), csr_() {}
+  SingleMutableCsr(Table& table) : table_(table), csr_() {}
   ~SingleMutableCsr() {}
 
   size_t batch_init(const std::string& name, const std::string& work_dir,
@@ -1201,8 +1116,6 @@ class SingleMutableCsr<std::string_view>
     csr_.dump(name, new_snapshot_dir);
   }
 
-  void warmup(int thread_num) const override { csr_.warmup(thread_num); }
-
   void resize(vid_t vnum) override { csr_.resize(vnum); }
 
   size_t size() const override { return csr_.size(); }
@@ -1212,10 +1125,6 @@ class SingleMutableCsr<std::string_view>
   std::shared_ptr<CsrConstEdgeIterBase> edge_iter(vid_t v) const override {
     return std::make_shared<MutableCsrConstEdgeIter<std::string_view>>(
         get_edges(v));
-  }
-
-  CsrConstEdgeIterBase* edge_iter_raw(vid_t v) const override {
-    return new MutableCsrConstEdgeIter<std::string_view>(get_edges(v));
   }
 
   std::shared_ptr<CsrEdgeIterBase> edge_iter_mut(vid_t v) override {
@@ -1235,12 +1144,14 @@ class SingleMutableCsr<std::string_view>
 
   inline slice_t get_edges(vid_t i) const override {
     auto ret = csr_.get_edges(i);
-    return slice_t(ret, column_);
+    auto& column = dynamic_cast<StringColumn&>(*table_.get_column_by_id(0));
+    return slice_t(ret, column);
   }
 
   inline mut_slice_t get_edges_mut(vid_t i) {
     auto ret = csr_.get_edges_mut(i);
-    return mut_slice_t(ret, column_);
+    auto& column = dynamic_cast<StringColumn&>(*table_.get_column_by_id(0));
+    return mut_slice_t(ret, column);
   }
 
   inline MutableNbr<std::string_view> get_edge(vid_t i) const {
@@ -1248,18 +1159,15 @@ class SingleMutableCsr<std::string_view>
     auto nbr_tmp = csr_.get_edge(i);
     nbr.neighbor = nbr_tmp.neighbor;
     nbr.timestamp.store(nbr_tmp.timestamp.load());
-    nbr.data = column_.get_view(nbr_tmp.data);
+    auto& column = dynamic_cast<StringColumn&>(*table_.get_column_by_id(0));
+    nbr.data = column.get_view(nbr_tmp.data);
     return nbr;
   }
 
   void close() override { csr_.close(); }
 
-  std::unique_ptr<TypedCsrBase<size_t>> take_index_csr() override {
-    return nullptr;
-  }
-
  private:
-  StringColumn& column_;
+  Table& table_;
   SingleMutableCsr<size_t> csr_;
 };
 
@@ -1314,8 +1222,6 @@ class SingleMutableCsr<RecordView> : public TypedMutableCsrBase<RecordView> {
     csr_.dump(name, new_snapshot_dir);
   }
 
-  void warmup(int thread_num) const override { csr_.warmup(thread_num); }
-
   void resize(vid_t vnum) override { csr_.resize(vnum); }
 
   size_t size() const override { return csr_.size(); }
@@ -1324,10 +1230,6 @@ class SingleMutableCsr<RecordView> : public TypedMutableCsrBase<RecordView> {
 
   std::shared_ptr<CsrConstEdgeIterBase> edge_iter(vid_t v) const override {
     return std::make_shared<MutableCsrConstEdgeIter<RecordView>>(get_edges(v));
-  }
-
-  CsrConstEdgeIterBase* edge_iter_raw(vid_t v) const override {
-    return new MutableCsrConstEdgeIter<RecordView>(get_edges(v));
   }
 
   std::shared_ptr<CsrEdgeIterBase> edge_iter_mut(vid_t v) override {
@@ -1406,8 +1308,6 @@ class EmptyCsr : public TypedMutableCsrBase<EDATA_T> {
   void dump(const std::string& name,
             const std::string& new_snapshot_dir) override {}
 
-  void warmup(int thread_num) const override {}
-
   void resize(vid_t vnum) override {}
 
   size_t size() const override { return 0; }
@@ -1423,10 +1323,7 @@ class EmptyCsr : public TypedMutableCsrBase<EDATA_T> {
     return std::make_shared<MutableCsrConstEdgeIter<EDATA_T>>(
         MutableNbrSlice<EDATA_T>::empty());
   }
-  CsrConstEdgeIterBase* edge_iter_raw(vid_t v) const override {
-    return new MutableCsrConstEdgeIter<EDATA_T>(
-        MutableNbrSlice<EDATA_T>::empty());
-  }
+
   std::shared_ptr<CsrEdgeIterBase> edge_iter_mut(vid_t v) override {
     return std::make_shared<MutableCsrEdgeIter<EDATA_T>>(
         MutableNbrSliceMut<EDATA_T>::empty());
@@ -1449,7 +1346,7 @@ class EmptyCsr<std::string_view>
  public:
   using slice_t = MutableNbrSlice<std::string_view>;
 
-  EmptyCsr(StringColumn& column) : column_(column) {}
+  EmptyCsr(Table& table) : table_(table) {}
   ~EmptyCsr() = default;
 
   size_t batch_init(const std::string& name, const std::string& work_dir,
@@ -1470,8 +1367,6 @@ class EmptyCsr<std::string_view>
   void dump(const std::string& name,
             const std::string& new_snapshot_dir) override {}
 
-  void warmup(int thread_num) const override {}
-
   void resize(vid_t vnum) override {}
 
   size_t size() const override { return 0; }
@@ -1482,30 +1377,27 @@ class EmptyCsr<std::string_view>
                            Allocator& alloc) override {}
   void batch_put_edge_with_index(vid_t src, vid_t dst, size_t data,
                                  timestamp_t ts = 0) override {}
+
   std::shared_ptr<CsrConstEdgeIterBase> edge_iter(vid_t v) const override {
+    auto& column = dynamic_cast<StringColumn&>(*table_.get_column_by_id(0));
     return std::make_shared<MutableCsrConstEdgeIter<std::string_view>>(
-        MutableNbrSlice<std::string_view>::empty(column_));
+        MutableNbrSlice<std::string_view>::empty(column));
   }
-  CsrConstEdgeIterBase* edge_iter_raw(vid_t v) const override {
-    return new MutableCsrConstEdgeIter<std::string_view>(
-        MutableNbrSlice<std::string_view>::empty(column_));
-  }
+
   std::shared_ptr<CsrEdgeIterBase> edge_iter_mut(vid_t v) override {
+    auto& column = dynamic_cast<StringColumn&>(*table_.get_column_by_id(0));
     return std::make_shared<MutableCsrEdgeIter<std::string_view>>(
-        MutableNbrSliceMut<std::string_view>::empty(column_));
+        MutableNbrSliceMut<std::string_view>::empty(column));
   }
 
   inline slice_t get_edges(vid_t v) const override {
-    return slice_t::empty(column_);
+    auto& column = dynamic_cast<StringColumn&>(*table_.get_column_by_id(0));
+    return slice_t::empty(column);
   }
 
   void close() override {}
 
-  std::unique_ptr<TypedCsrBase<size_t>> take_index_csr() override {
-    return nullptr;
-  }
-
-  StringColumn& column_;
+  Table& table_;
 };
 
 template <>
@@ -1535,8 +1427,6 @@ class EmptyCsr<RecordView> : public TypedMutableCsrBase<RecordView> {
   void dump(const std::string& name,
             const std::string& new_snapshot_dir) override {}
 
-  void warmup(int thread_num) const override {}
-
   void resize(vid_t vnum) override {}
 
   size_t size() const override { return 0; }
@@ -1553,10 +1443,7 @@ class EmptyCsr<RecordView> : public TypedMutableCsrBase<RecordView> {
     return std::make_shared<MutableCsrConstEdgeIter<RecordView>>(
         MutableNbrSlice<RecordView>::empty(table_));
   }
-  CsrConstEdgeIterBase* edge_iter_raw(vid_t v) const override {
-    return new MutableCsrConstEdgeIter<RecordView>(
-        MutableNbrSlice<RecordView>::empty(table_));
-  }
+
   std::shared_ptr<CsrEdgeIterBase> edge_iter_mut(vid_t v) override {
     return std::make_shared<MutableCsrEdgeIter<RecordView>>(
         MutableNbrSliceMut<RecordView>::empty(table_));

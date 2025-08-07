@@ -38,74 +38,24 @@
 
 namespace gs {
 
-void delete_dual_csr(const std::string& oe_name, const std::string& ie_name,
-                     const std::string& edata_name,
-                     const std::string& snapshot_dir) {
-  std::vector<std::string> delete_file;
-}
-
-inline DualCsrBase* create_csr(EdgeStrategy oes, EdgeStrategy ies,
-                               const std::vector<PropertyType>& properties,
-                               bool oe_mutable, bool ie_mutable,
-                               const std::vector<std::string>& prop_names) {
-  if (properties.empty()) {
-    return new DualCsr<grape::EmptyType>(oes, ies, oe_mutable, ie_mutable);
-  } else if (properties.size() == 1) {
-    if (properties[0] == PropertyType::kBool) {
-      return new DualCsr<bool>(oes, ies, oe_mutable, ie_mutable);
-    } else if (properties[0] == PropertyType::kInt32) {
-      return new DualCsr<int32_t>(oes, ies, oe_mutable, ie_mutable);
-    } else if (properties[0] == PropertyType::kUInt32) {
-      return new DualCsr<uint32_t>(oes, ies, oe_mutable, ie_mutable);
-    } else if (properties[0] == PropertyType::kDate) {
-      return new DualCsr<Date>(oes, ies, oe_mutable, ie_mutable);
-    } else if (properties[0] == PropertyType::kInt64) {
-      return new DualCsr<int64_t>(oes, ies, oe_mutable, ie_mutable);
-    } else if (properties[0] == PropertyType::kUInt64) {
-      return new DualCsr<uint64_t>(oes, ies, oe_mutable, ie_mutable);
-    } else if (properties[0] == PropertyType::kDouble) {
-      return new DualCsr<double>(oes, ies, oe_mutable, ie_mutable);
-    } else if (properties[0] == PropertyType::kFloat) {
-      return new DualCsr<float>(oes, ies, oe_mutable, ie_mutable);
-    } else if (properties[0].type_enum == impl::PropertyTypeImpl::kVarChar) {
-      return new DualCsr<std::string_view>(
-          oes, ies, properties[0].additional_type_info.max_length, oe_mutable,
-          ie_mutable);
-    } else if (properties[0] == PropertyType::kStringView) {
-      return new DualCsr<std::string_view>(
-          oes, ies, gs::PropertyType::GetStringDefaultMaxLength(), oe_mutable,
-          ie_mutable);
-    } else if (properties[0] == PropertyType::kTimestamp) {
-      return new DualCsr<TimeStamp>(oes, ies, oe_mutable, ie_mutable);
-    }
-  } else {
-    // TODO: fix me, storage strategy not set
-    return new DualCsr<RecordView>(oes, ies, prop_names, properties, {},
-                                   oe_mutable, ie_mutable);
-  }
-  LOG(FATAL) << "not support edge strategy or edge data type";
-  return nullptr;
-}
-
 MutablePropertyFragment::MutablePropertyFragment()
     : vertex_label_num_(0), edge_label_num_(0) {}
 
 MutablePropertyFragment::~MutablePropertyFragment() {
   std::vector<size_t> degree_list(vertex_label_num_, 0);
   for (size_t i = 0; i < vertex_label_num_; ++i) {
-    degree_list[i] = lf_indexers_[i].size();
-    vertex_data_[i].resize(degree_list[i]);
+    degree_list[i] = vertex_tables_[i].lid_num();
+    vertex_tables_[i].Reserve(degree_list[i]);
   }
   for (size_t src_label = 0; src_label != vertex_label_num_; ++src_label) {
     for (size_t dst_label = 0; dst_label != vertex_label_num_; ++dst_label) {
       for (size_t e_label = 0; e_label != edge_label_num_; ++e_label) {
         size_t index =
             schema_.generate_edge_label(src_label, dst_label, e_label);
-        auto dual_csr = dual_csr_map_.find(index);
-        if (dual_csr != dual_csr_map_.end() && dual_csr->second != NULL) {
-          dual_csr->second->Resize(degree_list[src_label],
-                                   degree_list[dst_label]);
-          delete dual_csr->second;
+        auto edge_table = edge_tables_.find(index);
+        if (edge_table != edge_tables_.end()) {
+          edge_table->second.Reserve(degree_list[src_label],
+                                     degree_list[dst_label]);
         }
       }
     }
@@ -120,16 +70,8 @@ void MutablePropertyFragment::loadSchema(const std::string& schema_path) {
 }
 
 void MutablePropertyFragment::Clear() {
-  for (auto pair : dual_csr_map_) {
-    if (pair.second != NULL) {
-      delete pair.second;
-    }
-  }
-  lf_indexers_.clear();
-  vertex_data_.clear();
-  ie_map_.clear();
-  oe_map_.clear();
-  dual_csr_map_.clear();
+  vertex_tables_.clear();
+  edge_tables_.clear();
   vertex_label_num_ = 0;
   edge_label_num_ = 0;
   schema_.Clear();
@@ -200,40 +142,26 @@ Status MutablePropertyFragment::create_vertex_type(
     property_names.erase(property_names.begin() + primary_key_inds[i]);
     property_types.erase(property_types.begin() + primary_key_inds[i]);
   }
-  std::vector<StorageStrategy> strategies;
+  std::vector<StorageStrategy> strategies(property_types.size(),
+                                          StorageStrategy::kMem);
   std::string description;
   size_t max_num = ((size_t) 1) << 8;
-  schema_.add_vertex_label(vertex_type_name, property_types, property_names,
-                           primary_keys, strategies, max_num, description);
-  label_t vertex_label_id = schema_.get_vertex_label_id(vertex_type_name);
-  lf_indexers_.resize(schema_.vertex_label_num());
-  vertex_tomb_.emplace_back(std::make_shared<Bitset>());
-  lf_indexers_[vertex_label_id].init(
-      std::get<0>(schema_.get_vertex_primary_key(vertex_label_id)[0]));
-  // TODO: use memory level.
-  lf_indexers_[vertex_label_id].open_in_memory(
-      snapshot_dir(work_dir_, 0) + "/" + IndexerType::prefix() +
-      vertex_map_prefix(vertex_type_name));
-  size_t vertex_capacity =
-      std::max(lf_indexers_[vertex_label_id].capacity(), (size_t) 4096);
-  if (vertex_capacity > lf_indexers_[vertex_label_id].capacity()) {
-    lf_indexers_[vertex_label_id].reserve(vertex_capacity);
-  }
-  vertex_data_.resize(schema_.vertex_label_num());
-  vertex_data_[vertex_label_id].open_in_memory(
-      // TODO: FIXME, assume version 0
-      vertex_table_prefix(vertex_type_name), snapshot_dir(work_dir_, 0),
-      schema_.get_vertex_property_names(vertex_label_id),
-      schema_.get_vertex_properties(vertex_label_id),
-      schema_.get_vertex_storage_strategies(vertex_type_name));
+  schema_.add_vertex_label(vertex_type_name,
 
+                           property_types, property_names, primary_keys,
+                           strategies, max_num, description);
+  label_t vertex_label_id = schema_.get_vertex_label_id(vertex_type_name);
+  vertex_tables_.emplace_back(
+      vertex_type_name,
+      std::get<0>(schema_.get_vertex_primary_key(vertex_label_id)[0]),
+      property_names, property_types, strategies);
+
+  // TODO: use memory level.
+  vertex_tables_.back().Open(snapshot_dir(work_dir_, 0), tmp_dir(work_dir_), 0,
+                             true);
+  vertex_tables_.back().Reserve(4096);
   // Dump schema
   DumpSchema(schema_path(work_dir_));
-  vertex_data_[vertex_label_id].dump_without_close(
-      vertex_table_prefix(vertex_type_name), snapshot_dir(work_dir_, 0));
-  lf_indexers_[vertex_label_id].dump_without_close(
-      LFIndexer<vid_t>::prefix() + "_" + vertex_map_prefix(vertex_type_name),
-      snapshot_dir(work_dir_, 0));
   vertex_label_num_ = schema_.vertex_label_num();
   while (v_mutex_.size() < vertex_label_num_) {
     v_mutex_.emplace_back(std::make_shared<std::mutex>());
@@ -309,25 +237,22 @@ Status MutablePropertyFragment::create_edge_type(
       schema_.generate_edge_label(src_label_i, dst_label_i, e_label_i);
   EdgeStrategy oe_strategy = EdgeStrategy::kMultiple;
   EdgeStrategy ie_strategy = EdgeStrategy::kMultiple;
-  DualCsrBase* dual_csr = create_csr(oe_strategy, ie_strategy, property_types,
-                                     oe_mutable, ie_mutable, property_names);
-  dual_csr_map_.emplace(index, dual_csr);
-  ie_map_.emplace(index, dual_csr->GetInCsr());
-  oe_map_.emplace(index, dual_csr->GetOutCsr());
-  auto src_v_capacity =
-      std::max(lf_indexers_[src_label_i].capacity(), (size_t) 4096);
-  auto dst_v_capacity =
-      std::max(lf_indexers_[dst_label_i].capacity(), (size_t) 4096);
-  dual_csr->OpenInMemory(
-      oe_prefix(src_vertex_type, dst_vertex_type, edge_type_name),
-      ie_prefix(src_vertex_type, dst_vertex_type, edge_type_name),
-      edata_prefix(src_vertex_type, dst_vertex_type, edge_type_name),
-      snapshot_dir(work_dir_, 0), src_v_capacity, dst_v_capacity);
+  EdgeTable edge_table(src_vertex_type, dst_vertex_type, edge_type_name,
+                       oe_strategy, ie_strategy, property_names, property_types,
+                       oe_mutable, ie_mutable);
+  edge_tables_.emplace(index, std::move(edge_table));
+  auto src_v_capacity = std::max(
+      vertex_tables_[src_label_i].get_indexer().capacity(), (size_t) 4096);
+  auto dst_v_capacity = std::max(
+      vertex_tables_[dst_label_i].get_indexer().capacity(), (size_t) 4096);
+  edge_tables_.at(index).Open(snapshot_dir(work_dir_, 0), tmp_dir(work_dir_), 0,
+                              src_v_capacity, dst_v_capacity);
 
-  dual_csr->Resize(src_v_capacity, dst_v_capacity);
+  edge_tables_.at(index).Reserve(src_v_capacity, dst_v_capacity);
   init_state_.emplace(index, false);
 
   DumpSchema(schema_path(work_dir_));
+
   return gs::Status::OK();
 }
 
@@ -373,8 +298,7 @@ Status MutablePropertyFragment::add_vertex_properties(
                                 add_property_types,
                                 add_default_property_values);
   label_t v_label = schema_.get_vertex_label_id(vertex_type_name);
-  auto& vertex_data = vertex_data_[v_label];
-  vertex_data.add_columns(add_property_names, add_property_types);
+  vertex_tables_[v_label].AddProperties(add_property_names, add_property_types);
   DumpSchema(schema_path(work_dir_));
   return gs::Status::OK();
 }
@@ -426,15 +350,11 @@ Status MutablePropertyFragment::add_edge_properties(
   size_t index = schema_.generate_edge_label(src_label, dst_label, e_label);
   // Before adding properties, we need to check whether the csr data type
   // needs to be changed.
-  if (!dynamic_cast<DualCsr<RecordView>*>(dual_csr_map_.at(index))) {
-    change_csr_data_type_to_record_view(src_type_name, dst_type_name,
-                                        edge_type_name);
-  }
+
   schema_.add_edge_properties(src_type_name, dst_type_name, edge_type_name,
                               add_property_names, add_property_types,
                               add_default_property_values);
-  auto dual_csr = dual_csr_map_.at(index);
-  if (dual_csr == NULL) {
+  if (edge_tables_.find(index) == edge_tables_.end()) {
     LOG(ERROR) << "Edge [" << edge_type_name << "] from [" << src_type_name
                << "] to [" << dst_type_name
                << "] does not exist, cannot add properties.";
@@ -444,18 +364,10 @@ Status MutablePropertyFragment::add_edge_properties(
                       "] does not exist, cannot add properties.");
   }
 
-  auto casted_dual_csr = dynamic_cast<DualCsr<RecordView>*>(dual_csr);
-  if (casted_dual_csr == NULL) {
-    LOG(ERROR) << "Edge [" << edge_type_name << "] from [" << src_type_name
-               << "] to [" << dst_type_name
-               << "] does not support adding properties.";
-    return Status(StatusCode::ERR_INVALID_SCHEMA,
-                  "Edge [" + edge_type_name + "] from [" + src_type_name +
-                      "] to [" + dst_type_name +
-                      "] does not support adding properties.");
-  }
-  casted_dual_csr->add_properties(add_property_names, add_property_types);
+  auto& edge_table = edge_tables_.at(index);
+  edge_table.AddProperties(add_property_names, add_property_types);
   DumpSchema(schema_path(work_dir_));
+
   return gs::Status::OK();
 }
 
@@ -494,12 +406,11 @@ Status MutablePropertyFragment::rename_vertex_properties(
   schema_.update_vertex_properties(vertex_type_name, update_property_names,
                                    update_property_renames);
   label_t v_label = schema_.get_vertex_label_id(vertex_type_name);
-  auto& vertex_data = vertex_data_[v_label];
-  for (size_t i = 0; i < update_property_names.size(); i++) {
-    vertex_data.rename_column(update_property_names[i],
-                              update_property_renames[i]);
-  }
+  vertex_tables_.at(v_label).RenameProperties(update_property_names,
+                                              update_property_renames);
+
   DumpSchema(schema_path(work_dir_));
+
   return gs::Status::OK();
 }
 
@@ -545,8 +456,7 @@ Status MutablePropertyFragment::rename_edge_properties(
   label_t dst_label = schema_.get_vertex_label_id(dst_type_name);
   label_t e_label = schema_.get_edge_label_id(edge_type_name);
   size_t index = schema_.generate_edge_label(src_label, dst_label, e_label);
-  auto dual_csr = dual_csr_map_.at(index);
-  if (dual_csr == NULL) {
+  if (edge_tables_.find(index) == edge_tables_.end()) {
     LOG(ERROR) << "Edge [" << edge_type_name << "] from [" << src_type_name
                << "] to [" << dst_type_name
                << "] does not exist, cannot rename properties.";
@@ -555,18 +465,9 @@ Status MutablePropertyFragment::rename_edge_properties(
                       "] to [" + dst_type_name +
                       "] does not exist, cannot rename properties.");
   }
-  auto casted_dual_csr = dynamic_cast<DualCsr<RecordView>*>(dual_csr);
-  if (casted_dual_csr == NULL) {
-    LOG(ERROR) << "Edge [" << edge_type_name << "] from [" << src_type_name
-               << "] to [" << dst_type_name
-               << "] does not support renaming properties.";
-    return Status(StatusCode::ERR_INVALID_SCHEMA,
-                  "Edge [" + edge_type_name + "] from [" + src_type_name +
-                      "] to [" + dst_type_name +
-                      "] does not support renaming properties.");
-  }
-  casted_dual_csr->rename_properties(update_property_names,
-                                     update_property_renames);
+  auto& edge_table = edge_tables_.at(index);
+
+  edge_table.RenameProperties(update_property_names, update_property_renames);
   DumpSchema(schema_path(work_dir_));
   return gs::Status::OK();
 }
@@ -604,10 +505,8 @@ Status MutablePropertyFragment::delete_vertex_properties(
   }
   schema_.delete_vertex_properties(vertex_type_name, delete_property_names);
   label_t v_label = schema_.get_vertex_label_id(vertex_type_name);
-  auto& vertex_data = vertex_data_[v_label];
-  for (const auto& property_name : delete_property_names) {
-    vertex_data.delete_column(property_name);
-  }
+
+  vertex_tables_[v_label].DeleteProperties(delete_property_names);
   DumpSchema(schema_path(work_dir_));
   return gs::Status::OK();
 }
@@ -650,8 +549,8 @@ Status MutablePropertyFragment::delete_edge_properties(
   label_t dst_label = schema_.get_vertex_label_id(dst_type_name);
   label_t e_label = schema_.get_edge_label_id(edge_type_name);
   size_t index = schema_.generate_edge_label(src_label, dst_label, e_label);
-  auto dual_csr = dual_csr_map_.at(index);
-  if (dual_csr == NULL) {
+
+  if (edge_tables_.find(index) == edge_tables_.end()) {
     LOG(ERROR) << "Edge [" << edge_type_name << "] from [" << src_type_name
                << "] to [" << dst_type_name
                << "] does not exist, cannot delete properties.";
@@ -660,127 +559,7 @@ Status MutablePropertyFragment::delete_edge_properties(
                       "] to [" + dst_type_name +
                       "] does not exist, cannot delete properties.");
   }
-  auto casted_dual_csr = dynamic_cast<DualCsr<RecordView>*>(dual_csr);
-  if (casted_dual_csr == NULL) {
-    std::vector<vid_t> src_vids, dst_vids;
-    size_t edge_num = dual_csr->EdgeNum();
-    auto oe_csr = oe_map_.at(index);
-    src_vids.reserve(edge_num);
-    dst_vids.reserve(edge_num);
-    for (vid_t i = 0; i < lid_num(src_label); i++) {
-      if (!vertex_tomb_[src_label]->get(i)) {
-        auto e_iter = oe_csr->edge_iter(i);
-        while (e_iter->is_valid()) {
-          src_vids.emplace_back(i);
-          dst_vids.emplace_back(e_iter->get_neighbor());
-          e_iter->next();
-        }
-      }
-    }
-    std::vector<std::atomic<int32_t>> ie_degree(lid_num(dst_label)),
-        oe_degree(lid_num(src_label));
-    for (size_t idx = 0; idx < ie_degree.size(); ++idx) {
-      ie_degree[idx].store(0);
-    }
-    for (size_t idx = 0; idx < oe_degree.size(); ++idx) {
-      oe_degree[idx].store(0);
-    }
-    std::vector<std::vector<std::pair<vid_t, vid_t>>> edges(
-        std::thread::hardware_concurrency());
-    std::atomic<vid_t> vid(0);
-    vid_t src_lid_num = lid_num(src_label);
-    std::vector<std::thread> work_threads;
-    for (size_t idx = 0; idx < std::thread::hardware_concurrency(); ++idx) {
-      work_threads.emplace_back(
-          [&](int idx) {
-            while (true) {
-              vid_t vid_i = vid.fetch_add(1);
-              if (vid_i >= src_lid_num) {
-                break;
-              }
-              if (vertex_tomb_[src_label]->get(vid_i)) {
-                continue;
-              }
-              auto e_iter = oe_csr->edge_iter(vid_i);
-              while (e_iter->is_valid()) {
-                ie_degree[e_iter->get_neighbor()]++;
-                oe_degree[vid_i]++;
-                edges[idx].emplace_back(
-                    std::make_pair(vid_i, e_iter->get_neighbor()));
-                e_iter->next();
-              }
-            }
-          },
-          idx);
-    }
-    for (auto& t : work_threads) {
-      t.join();
-    }
-    dual_csr->Close();
-    // delete_dual_csr(oe_prefix(src_type_name, dst_type_name, edge_type_name),
-    //                 ie_prefix(src_type_name, dst_type_name, edge_type_name),
-    //                 edata_prefix(src_type_name, dst_type_name,
-    //                 edge_type_name), snapshot_dir(work_dir_, 0));
-    bool oe_mutable = true, ie_mutable = true;
-    EdgeStrategy oe_strategy = EdgeStrategy::kMultiple;
-    EdgeStrategy ie_strategy = EdgeStrategy::kMultiple;
-    delete dual_csr;
-    dual_csr = new DualCsr<grape::EmptyType>(oe_strategy, ie_strategy,
-                                             oe_mutable, ie_mutable);
-    auto src_v_capacity =
-        std::max(lf_indexers_[src_label].capacity(), (size_t) 4096);
-    auto dst_v_capacity =
-        std::max(lf_indexers_[dst_label].capacity(), (size_t) 4096);
-    dual_csr->OpenInMemory(
-        oe_prefix(src_type_name, dst_type_name, edge_type_name),
-        ie_prefix(src_type_name, dst_type_name, edge_type_name),
-        edata_prefix(src_type_name, dst_type_name, edge_type_name),
-        snapshot_dir(work_dir_, 0), src_v_capacity, dst_v_capacity);
-
-    std::vector<int32_t> ie_deg(ie_degree.size());
-    std::vector<int32_t> oe_deg(oe_degree.size());
-    for (size_t idx = 0; idx < ie_deg.size(); ++idx) {
-      ie_deg[idx] = ie_degree[idx];
-    }
-    for (size_t idx = 0; idx < oe_deg.size(); ++idx) {
-      oe_deg[idx] = oe_degree[idx];
-    }
-
-    dual_csr->BatchInit(
-        oe_prefix(src_type_name, dst_type_name, edge_type_name),
-        ie_prefix(src_type_name, dst_type_name, edge_type_name),
-        edata_prefix(src_type_name, dst_type_name, edge_type_name),
-        tmp_dir(work_dir_), oe_deg, ie_deg);
-    auto new_csr = dynamic_cast<DualCsr<grape::EmptyType>*>(dual_csr);
-    std::vector<std::thread> edge_threads;
-    for (size_t i = 0; i < edges.size(); ++i) {
-      edge_threads.emplace_back(
-          [&](int idx) {
-            for (auto& edge : edges[idx]) {
-              new_csr->BatchPutEdge(edge.first, edge.second,
-                                    grape::EmptyType());
-            }
-          },
-          i);
-    }
-    for (auto& t : edge_threads) {
-      t.join();
-    }
-    dual_csr_map_.erase(index);
-    ie_map_.erase(index);
-    oe_map_.erase(index);
-    dual_csr_map_.insert({index, dual_csr});
-    ie_map_.insert({index, dual_csr->GetInCsr()});
-    oe_map_.insert({index, dual_csr->GetOutCsr()});
-
-    dual_csr->Dump(oe_prefix(src_type_name, dst_type_name, edge_type_name),
-                   ie_prefix(src_type_name, dst_type_name, edge_type_name),
-                   edata_prefix(src_type_name, dst_type_name, edge_type_name),
-                   snapshot_dir(work_dir_, 0));
-
-  } else {
-    casted_dual_csr->delete_properties(delete_property_names);
-  }
+  edge_tables_.at(index).DeleteProperties(delete_property_names);
   DumpSchema(schema_path(work_dir_));
   return gs::Status::OK();
 }
@@ -802,8 +581,7 @@ Status MutablePropertyFragment::delete_vertex_type(
   }
   label_t v_label_id = schema_.get_vertex_label_id(vertex_type_name);
   schema_.delete_vertex_label(vertex_type_name);
-  lf_indexers_[v_label_id].close();
-  vertex_data_[v_label_id].close();
+  vertex_tables_[v_label_id].Drop();
 
   if (is_detach) {
     for (label_t i = 0; i < vertex_label_num_; i++) {
@@ -811,23 +589,20 @@ Status MutablePropertyFragment::delete_vertex_type(
         if (schema_.exist(v_label_id, i, j)) {
           schema_.delete_edge_label(v_label_id, i, j);
           size_t index = schema_.generate_edge_label(v_label_id, i, j);
-          ie_map_.erase(index);
-          oe_map_.erase(index);
-          auto dual_csr = dual_csr_map_.find(index);
-          if (dual_csr != dual_csr_map_.end()) {
-            delete dual_csr->second;
-            dual_csr_map_.erase(index);
+
+          auto edge_table = edge_tables_.find(index);
+          if (edge_table != edge_tables_.end()) {
+            edge_table->second.Drop();
+            edge_tables_.erase(index);
           }
         }
         if (schema_.exist(i, v_label_id, j)) {
           schema_.delete_edge_label(i, v_label_id, j);
           size_t index = schema_.generate_edge_label(i, v_label_id, j);
-          ie_map_.erase(index);
-          oe_map_.erase(index);
-          auto dual_csr = dual_csr_map_.find(index);
-          if (dual_csr != dual_csr_map_.end()) {
-            delete dual_csr->second;
-            dual_csr_map_.erase(index);
+          auto edge_table = edge_tables_.find(index);
+          if (edge_table != edge_tables_.end()) {
+            edge_table->second.Drop();
+            edge_tables_.erase(index);
           }
         }
       }
@@ -860,36 +635,27 @@ Status MutablePropertyFragment::delete_edge_type(
   schema_.delete_edge_label(src_v_label, dst_v_label, edge_label);
   size_t index =
       schema_.generate_edge_label(src_v_label, dst_v_label, edge_label);
-  ie_map_.erase(index);
-  oe_map_.erase(index);
-  auto dual_csr = dual_csr_map_.find(index);
-  if (dual_csr != dual_csr_map_.end()) {
-    delete dual_csr->second;
-    dual_csr_map_.erase(index);
+  auto edge_table = edge_tables_.find(index);
+  if (edge_table != edge_tables_.end()) {
+    edge_table->second.Drop();
+    edge_tables_.erase(index);
   }
   return gs::Status::OK();
 }
 
 Status MutablePropertyFragment::batch_delete_vertices(
     const label_t& v_label_id, const std::vector<vid_t>& vids) {
-  for (auto v : vids) {
-    if (v < lf_indexers_[v_label_id].size() &&
-        !vertex_tomb_[v_label_id]->get(v)) {
-      auto oid = lf_indexers_[v_label_id].get_key(v);
-      lf_indexers_[v_label_id].remove(oid);
-      vertex_tomb_[v_label_id]->set(v);
-    }
-  }
+  vertex_tables_.at(v_label_id).BatchDeleteVertices(vids);
 
   for (label_t i = 0; i < vertex_label_num_; i++) {
     for (label_t j = 0; j < edge_label_num_; j++) {
       if (schema_.has_edge_label(i, v_label_id, j)) {
         size_t index = schema_.generate_edge_label(i, v_label_id, j);
-        dual_csr_map_.at(index)->BatchDeleteVertices(false, vids);
+        edge_tables_.at(index).BatchDeleteVertices(false, vids);
       }
       if (schema_.has_edge_label(v_label_id, i, j)) {
         size_t index = schema_.generate_edge_label(v_label_id, i, j);
-        dual_csr_map_.at(index)->BatchDeleteVertices(true, vids);
+        edge_tables_.at(index).BatchDeleteVertices(true, vids);
       }
     }
   }
@@ -906,7 +672,7 @@ Status MutablePropertyFragment::batch_delete_edges(
   std::string edge_type_name = schema_.get_edge_label_name(edge_label);
   size_t index =
       schema_.generate_edge_label(src_v_label, dst_v_label, edge_label);
-  dual_csr_map_.at(index)->BatchDeleteEdge(edges_vec);
+  edge_tables_.at(index).BatchDeleteEdge(edges_vec);
   return Status::OK();
 }
 
@@ -929,30 +695,39 @@ void MutablePropertyFragment::Open(const std::string& work_dir,
     loadSchema(schema_file);
     vertex_label_num_ = schema_.vertex_label_num();
     edge_label_num_ = schema_.edge_label_num();
-    lf_indexers_.resize(vertex_label_num_);
     for (size_t i = 0; i < vertex_label_num_; i++) {
-      vertex_tomb_.emplace_back(std::make_shared<Bitset>());
+      std::string v_label_name = schema_.get_vertex_label_name(i);
+      const auto& properties = schema_.get_vertex_properties(i);
+      const auto& property_names = schema_.get_vertex_property_names(i);
+      const auto& property_strategies =
+          schema_.get_vertex_storage_strategies(v_label_name);
+      vertex_tables_.emplace_back(
+          v_label_name, std::get<0>(schema_.get_vertex_primary_key(i)[0]),
+          property_names, properties, property_strategies);
     }
     snap_shot_dir = get_latest_snapshot(work_dir_);
   } else {
     vertex_label_num_ = schema_.vertex_label_num();
     edge_label_num_ = schema_.edge_label_num();
-    lf_indexers_.resize(vertex_label_num_);
     for (size_t i = 0; i < vertex_label_num_; i++) {
-      vertex_tomb_.emplace_back(std::make_shared<Bitset>());
+      std::string v_label_name = schema_.get_vertex_label_name(i);
+      const auto& properties = schema_.get_vertex_properties(i);
+      const auto& property_names = schema_.get_vertex_property_names(i);
+      const auto& property_strategies =
+          schema_.get_vertex_storage_strategies(v_label_name);
+      vertex_tables_.emplace_back(
+          v_label_name, std::get<0>(schema_.get_vertex_primary_key(i)[0]),
+          property_names, properties, property_strategies);
     }
     build_empty_graph = true;
     LOG(INFO) << "Schema file not found, build empty graph";
-    for (size_t i = 0; i < vertex_label_num_; ++i) {
-      lf_indexers_[i].init(std::get<0>(schema_.get_vertex_primary_key(i)[0]));
-    }
+
     // create snapshot dir
     std::string snap_shot_dir = snapshot_dir(work_dir_, 0);
     std::filesystem::create_directories(snap_shot_dir);
     set_snapshot_version(work_dir_, 0);
   }
 
-  vertex_data_.resize(vertex_label_num_);
   std::string tmp_dir_path = tmp_dir(work_dir_);
 
   if (std::filesystem::exists(tmp_dir_path)) {
@@ -965,58 +740,14 @@ void MutablePropertyFragment::Open(const std::string& work_dir,
   for (size_t i = 0; i < vertex_label_num_; ++i) {
     std::string v_label_name = schema_.get_vertex_label_name(i);
 
-    if (memory_level == 0) {
-      lf_indexers_[i].open(
-          IndexerType::prefix() + "_" + vertex_map_prefix(v_label_name),
-          snap_shot_dir, tmp_dir_path);
-      vertex_data_[i].open(vertex_table_prefix(v_label_name), snap_shot_dir,
-                           tmp_dir_path, schema_.get_vertex_property_names(i),
-                           schema_.get_vertex_properties(i),
-                           schema_.get_vertex_storage_strategies(v_label_name));
-      if (!build_empty_graph) {
-        vertex_data_[i].copy_to_tmp(vertex_table_prefix(v_label_name),
-                                    snap_shot_dir, tmp_dir_path);
-      }
-    } else if (memory_level == 1) {
-      lf_indexers_[i].open_in_memory(snap_shot_dir + "/" +
-                                     IndexerType::prefix() + "_" +
-                                     vertex_map_prefix(v_label_name));
-      vertex_data_[i].open_in_memory(
-          vertex_table_prefix(v_label_name), snap_shot_dir,
-          schema_.get_vertex_property_names(i),
-          schema_.get_vertex_properties(i),
-          schema_.get_vertex_storage_strategies(v_label_name));
-    } else if (memory_level == 2) {
-      lf_indexers_[i].open_with_hugepages(snap_shot_dir + "/" +
-                                              IndexerType::prefix() + "_" +
-                                              vertex_map_prefix(v_label_name),
-                                          false);
-      vertex_data_[i].open_with_hugepages(
-          vertex_table_prefix(v_label_name), snap_shot_dir,
-          schema_.get_vertex_property_names(i),
-          schema_.get_vertex_properties(i),
-          schema_.get_vertex_storage_strategies(v_label_name), false);
-    } else {
-      assert(memory_level == 3);
-      lf_indexers_[i].open_with_hugepages(snap_shot_dir + "/" +
-                                              IndexerType::prefix() + "_" +
-                                              vertex_map_prefix(v_label_name),
-                                          true);
-      vertex_data_[i].open_with_hugepages(
-          vertex_table_prefix(v_label_name), snap_shot_dir,
-          schema_.get_vertex_property_names(i),
-          schema_.get_vertex_properties(i),
-          schema_.get_vertex_storage_strategies(v_label_name), true);
-    }
-    vertex_tomb_[i]->resize(lf_indexers_[i].size());
+    vertex_tables_[i].Open(snap_shot_dir, tmp_dir_path, memory_level,
+                           build_empty_graph);
 
     // We will reserve the at least 4096 slots for each vertex label
     size_t vertex_capacity =
-        std::max(lf_indexers_[i].capacity(), (size_t) 4096);
-    if (vertex_capacity > lf_indexers_[i].capacity()) {
-      lf_indexers_[i].reserve(vertex_capacity);
-    }
-    vertex_data_[i].resize(vertex_capacity);
+        std::max(vertex_tables_[i].get_indexer().capacity(), (size_t) 4096);
+    vertex_tables_[i].Reserve(vertex_capacity);
+
     vertex_capacities[i] = vertex_capacity;
   }
 
@@ -1050,31 +781,16 @@ void MutablePropertyFragment::Open(const std::string& work_dir,
         auto& prop_names =
             schema_.get_edge_property_names(src_label, dst_label, edge_label);
 
-        auto dual_csr = create_csr(oe_strategy, ie_strategy, properties,
-                                   oe_mutable, ie_mutable, prop_names);
-        dual_csr_map_.emplace(index, dual_csr);
-        ie_map_.emplace(index, dual_csr->GetInCsr());
-        oe_map_.emplace(index, dual_csr->GetOutCsr());
-        if (memory_level == 0) {
-          dual_csr->Open(oe_prefix(src_label, dst_label, edge_label),
-                         ie_prefix(src_label, dst_label, edge_label),
-                         edata_prefix(src_label, dst_label, edge_label),
-                         snap_shot_dir, tmp_dir_path);
-        } else if (memory_level >= 2) {
-          dual_csr->OpenWithHugepages(
-              oe_prefix(src_label, dst_label, edge_label),
-              ie_prefix(src_label, dst_label, edge_label),
-              edata_prefix(src_label, dst_label, edge_label), snap_shot_dir,
-              vertex_capacities[src_label_i], vertex_capacities[dst_label_i]);
-        } else {
-          dual_csr->OpenInMemory(oe_prefix(src_label, dst_label, edge_label),
-                                 ie_prefix(src_label, dst_label, edge_label),
-                                 edata_prefix(src_label, dst_label, edge_label),
-                                 snap_shot_dir, vertex_capacities[src_label_i],
-                                 vertex_capacities[dst_label_i]);
-        }
-        dual_csr->Resize(vertex_capacities[src_label_i],
-                         vertex_capacities[dst_label_i]);
+        EdgeTable edge_table(src_label, dst_label, edge_label, oe_strategy,
+                             ie_strategy, prop_names, properties, oe_mutable,
+                             ie_mutable);
+
+        edge_table.Open(snap_shot_dir, tmp_dir_path, memory_level,
+                        vertex_capacities[src_label_i],
+                        vertex_capacities[dst_label_i]);
+        edge_table.Reserve(vertex_capacities[src_label_i],
+                           vertex_capacities[dst_label_i]);
+        edge_tables_.emplace(index, std::move(edge_table));
       }
     }
   }
@@ -1101,11 +817,11 @@ void MutablePropertyFragment::Compact(uint32_t version) {
         }
         size_t index =
             schema_.generate_edge_label(src_label_i, dst_label_i, e_label_i);
-        auto dual_csr = dual_csr_map_.find(index);
-        if (dual_csr != dual_csr_map_.end() && dual_csr->second != NULL) {
+        auto edge_table = edge_tables_.find(index);
+        if (edge_table != edge_tables_.end()) {
           if (schema_.get_sort_on_compaction(src_label, dst_label,
                                              edge_label)) {
-            dual_csr->second->SortByEdgeData(version);
+            edge_table->second.SortByEdgeData(version);
           }
         }
       }
@@ -1127,14 +843,8 @@ void MutablePropertyFragment::Dump(const std::string& work_dir,
   }
   std::vector<size_t> vertex_num(vertex_label_num_, 0);
   for (size_t i = 0; i < vertex_label_num_; ++i) {
-    vertex_num[i] = lf_indexers_[i].size();
-    lf_indexers_[i].dump(
-        IndexerType::prefix() + "_" +
-            vertex_map_prefix(schema_.get_vertex_label_name(i)),
-        snapshot_dir_path);
-    vertex_data_[i].resize(vertex_num[i]);
-    vertex_data_[i].dump(vertex_table_prefix(schema_.get_vertex_label_name(i)),
-                         snapshot_dir_path);
+    vertex_num[i] = vertex_tables_[i].lid_num();
+    vertex_tables_[i].Dump(snapshot_dir_path);
   }
 
   for (size_t src_label_i = 0; src_label_i != vertex_label_num_;
@@ -1153,18 +863,15 @@ void MutablePropertyFragment::Dump(const std::string& work_dir,
         }
         size_t index =
             schema_.generate_edge_label(src_label_i, dst_label_i, e_label_i);
-        auto dual_csr = dual_csr_map_.find(index);
-        if (dual_csr != dual_csr_map_.end() && dual_csr->second != NULL) {
-          dual_csr->second->Resize(vertex_num[src_label_i],
-                                   vertex_num[dst_label_i]);
+        auto edge_table = edge_tables_.find(index);
+        if (edge_table != edge_tables_.end()) {
+          edge_table->second.Reserve(vertex_num[src_label_i],
+                                     vertex_num[dst_label_i]);
           if (schema_.get_sort_on_compaction(src_label, dst_label,
                                              edge_label)) {
-            dual_csr->second->SortByEdgeData(version + 1);
+            edge_table->second.SortByEdgeData(version + 1);
           }
-          dual_csr->second->Dump(oe_prefix(src_label, dst_label, edge_label),
-                                 ie_prefix(src_label, dst_label, edge_label),
-                                 edata_prefix(src_label, dst_label, edge_label),
-                                 snapshot_dir_path);
+          edge_table->second.Dump(snapshot_dir_path);
         }
       }
     }
@@ -1172,26 +879,13 @@ void MutablePropertyFragment::Dump(const std::string& work_dir,
   set_snapshot_version(work_dir, version);
 }
 
-void MutablePropertyFragment::Warmup(int thread_num) {
-  double t = -grape::GetCurrentTime();
-  for (auto ptr : dual_csr_map_) {
-    if (ptr.second != NULL) {
-      ptr.second->Warmup(thread_num);
-    }
-  }
-  for (auto& indexer : lf_indexers_) {
-    indexer.warmup(thread_num);
-  }
-  t += grape::GetCurrentTime();
-  LOG(INFO) << "Warmup takes: " << t << " s";
-}
 void MutablePropertyFragment::IngestEdge(label_t src_label, vid_t src_lid,
                                          label_t dst_label, vid_t dst_lid,
                                          label_t edge_label, timestamp_t ts,
                                          grape::OutArchive& arc,
                                          Allocator& alloc) {
   size_t index = schema_.generate_edge_label(src_label, dst_label, edge_label);
-  dual_csr_map_.at(index)->IngestEdge(src_lid, dst_lid, arc, ts, alloc);
+  edge_tables_.at(index).IngestEdge(src_lid, dst_lid, arc, ts, alloc);
 }
 
 void MutablePropertyFragment::UpdateEdge(label_t src_label, vid_t src_lid,
@@ -1199,32 +893,31 @@ void MutablePropertyFragment::UpdateEdge(label_t src_label, vid_t src_lid,
                                          label_t edge_label, timestamp_t ts,
                                          const Any& arc, Allocator& alloc) {
   size_t index = schema_.generate_edge_label(src_label, dst_label, edge_label);
-  dual_csr_map_.at(index)->UpdateEdge(src_lid, dst_lid, arc, ts, alloc);
+  edge_tables_.at(index).UpdateEdge(src_lid, dst_lid, arc, ts, alloc);
 }
 const Schema& MutablePropertyFragment::schema() const { return schema_; }
 
 Schema& MutablePropertyFragment::mutable_schema() { return schema_; }
 
 vid_t MutablePropertyFragment::lid_num(label_t vertex_label) const {
-  return static_cast<vid_t>(lf_indexers_[vertex_label].size());
+  return vertex_tables_[vertex_label].lid_num();
 }
 
 vid_t MutablePropertyFragment::vertex_num(label_t vertex_label) const {
-  return static_cast<vid_t>(lf_indexers_[vertex_label].size()) -
-         vertex_tomb_[vertex_label]->count();
+  return vertex_tables_[vertex_label].vertex_num();
 }
 
 bool MutablePropertyFragment::is_valid_lid(label_t vertex_label,
                                            vid_t lid) const {
-  return !vertex_tomb_[vertex_label]->get(lid);
+  return vertex_tables_[vertex_label].is_valid_lid(lid);
 }
 
 size_t MutablePropertyFragment::edge_num(label_t src_label, label_t edge_label,
                                          label_t dst_label) const {
   size_t index = schema_.generate_edge_label(src_label, dst_label, edge_label);
-  auto dual_csr = dual_csr_map_.find(index);
-  if (dual_csr != dual_csr_map_.end()) {
-    return dual_csr->second->EdgeNum();
+  auto edge_table = edge_tables_.find(index);
+  if (edge_table != edge_tables_.end()) {
+    return edge_table->second.EdgeNum();
   } else {
     return 0;
   }
@@ -1232,19 +925,19 @@ size_t MutablePropertyFragment::edge_num(label_t src_label, label_t edge_label,
 
 bool MutablePropertyFragment::get_lid(label_t label, const Any& oid,
                                       vid_t& lid) const {
-  return lf_indexers_[label].get_index(oid, lid);
+  return vertex_tables_[label].get_index(oid, lid);
 }
 
 Any MutablePropertyFragment::get_oid(label_t label, vid_t lid) const {
-  return lf_indexers_[label].get_key(lid);
+  return vertex_tables_[label].get_oid(lid);
 }
 
 vid_t MutablePropertyFragment::add_vertex(label_t label, const Any& id) {
-  return lf_indexers_[label].insert(id);
+  return vertex_tables_[label].add_vertex(id);
 }
 
 vid_t MutablePropertyFragment::add_vertex_safe(label_t label, const Any& id) {
-  return lf_indexers_[label].insert_safe(id);
+  return vertex_tables_[label].add_vertex_safe(id);
 }
 
 std::shared_ptr<CsrConstEdgeIterBase>
@@ -1259,16 +952,6 @@ MutablePropertyFragment::get_incoming_edges(label_t label, vid_t u,
                                             label_t neighbor_label,
                                             label_t edge_label) const {
   return get_ie_csr(label, neighbor_label, edge_label)->edge_iter(u);
-}
-
-CsrConstEdgeIterBase* MutablePropertyFragment::get_outgoing_edges_raw(
-    label_t label, vid_t u, label_t neighbor_label, label_t edge_label) const {
-  return get_oe_csr(label, neighbor_label, edge_label)->edge_iter_raw(u);
-}
-
-CsrConstEdgeIterBase* MutablePropertyFragment::get_incoming_edges_raw(
-    label_t label, vid_t u, label_t neighbor_label, label_t edge_label) const {
-  return get_ie_csr(label, neighbor_label, edge_label)->edge_iter_raw(u);
 }
 
 std::shared_ptr<CsrEdgeIterBase>
@@ -1307,10 +990,8 @@ std::string MutablePropertyFragment::get_statistics_json() const {
   size_t edge_label_num = schema_.edge_label_num();
   std::vector<std::thread> count_threads;
   std::unordered_map<uint32_t, size_t> edge_count_map;
-  for (auto dual_csr : dual_csr_map_) {
-    if (dual_csr.second != NULL) {
-      edge_count_map.emplace(dual_csr.first, dual_csr.second->EdgeNum());
-    }
+  for (const auto& edge_table : edge_tables_) {
+    edge_count_map.emplace(edge_table.first, edge_table.second.EdgeNum());
   }
   for (auto& t : count_threads) {
     t.join();
@@ -1389,425 +1070,6 @@ void MutablePropertyFragment::dumpSchema() const {
     return;
   }
   write_yaml_file(schema_res.value(), filename);
-}
-
-void MutablePropertyFragment::change_csr_data_type_to_record_view(
-    const std::string& src_type_name, const std::string& dst_type_name,
-    const std::string& edge_type_name) {
-  LOG(INFO) << "Changing CSR data type to RecordView for edge ["
-            << edge_type_name << "] from [" << src_type_name << "] to ["
-            << dst_type_name << "]";
-  auto src_label_id = schema_.get_vertex_label_id(src_type_name);
-  auto dst_label_id = schema_.get_vertex_label_id(dst_type_name);
-  auto edge_label_id = schema_.get_edge_label_id(edge_type_name);
-  auto index =
-      schema_.generate_edge_label(src_label_id, dst_label_id, edge_label_id);
-  CHECK(dual_csr_map_.find(index) != dual_csr_map_.end())
-      << "Edge [" << edge_type_name << "] from [" << src_type_name << "] to ["
-      << dst_type_name << "] does not exist, cannot change data type.";
-  auto dual_csr = dual_csr_map_.at(index);
-  if (dual_csr == NULL) {
-    LOG(ERROR) << "Edge [" << edge_type_name << "] from [" << src_type_name
-               << "] to [" << dst_type_name
-               << "] does not exist, cannot change data type.";
-  }
-  auto prev_prop_names = schema_.get_edge_property_names(
-      src_label_id, dst_label_id, edge_label_id);
-  auto prev_prop_types =
-      schema_.get_edge_properties(src_label_id, dst_label_id, edge_label_id);
-  std::vector<std::string> empty_prop_name;
-  std::vector<PropertyType> empty_prop_type;
-  auto new_csr = new DualCsr<RecordView>(
-      schema_.get_outgoing_edge_strategy(src_label_id, dst_label_id,
-                                         edge_label_id),
-      schema_.get_incoming_edge_strategy(src_label_id, dst_label_id,
-                                         edge_label_id),
-      empty_prop_name, empty_prop_type, {},
-      schema_.outgoing_edge_mutable(src_type_name, dst_type_name,
-                                    edge_type_name),
-      schema_.incoming_edge_mutable(src_type_name, dst_type_name,
-                                    edge_type_name));
-  if (prev_prop_types.size() == 1) {
-    if (prev_prop_types[0].type_enum == impl::PropertyTypeImpl::kVarChar ||
-        prev_prop_types[0].type_enum == impl::PropertyTypeImpl::kStringView) {
-      auto prev_csr = dynamic_cast<DualCsr<std::string_view>*>(dual_csr);
-      auto in_csr = prev_csr->take_in_csr();
-      auto out_csr = prev_csr->take_out_csr();
-      auto string_column =
-          std::make_shared<StringColumn>(prev_csr->take_string_column());
-      new_csr->add_property(prev_prop_names[0], prev_prop_types[0],
-                            string_column);
-      auto in_index_csr = in_csr->take_index_csr();
-      auto out_index_csr = out_csr->take_index_csr();
-      delete in_csr;
-      delete out_csr;
-      new_csr->SetInCsr(std::move(in_index_csr));
-      new_csr->SetOutCsr(std::move(out_index_csr));
-    } else {
-      std::vector<int32_t> ie_deg, oe_deg;
-      oe_deg.resize(lid_num(src_label_id), 0);
-      ie_deg.resize(lid_num(dst_label_id), 0);
-      if (prev_prop_types[0] == PropertyType::Bool()) {
-        auto out_csr = dynamic_cast<MutableCsr<bool>*>(dual_csr->GetOutCsr());
-        std::atomic<size_t> offset(0);
-        std::vector<std::tuple<vid_t, vid_t, size_t>> edges;
-        std::shared_ptr<BoolColumn> column =
-            std::make_shared<BoolColumn>(StorageStrategy::kMem);
-        column->resize(edge_num(src_label_id, edge_label_id, dst_label_id));
-        for (vid_t i = 0; i < lid_num(src_label_id); i++) {
-          for (auto e : out_csr->get_edges(i)) {
-            auto local_offset = offset.fetch_add(1);
-            edges.emplace_back(std::make_tuple(i, e.neighbor, local_offset));
-            oe_deg[i]++;
-            ie_deg[e.neighbor]++;
-            column->set_value(local_offset, e.data);
-          }
-        }
-        new_csr->BatchInit(
-            oe_prefix(src_type_name, dst_type_name, edge_type_name),
-            ie_prefix(src_type_name, dst_type_name, edge_type_name),
-            edata_prefix(src_type_name, dst_type_name, edge_type_name),
-            tmp_dir(work_dir_), oe_deg, ie_deg);
-        for (auto& edge : edges) {
-          new_csr->BatchPutEdge(std::get<0>(edge), std::get<1>(edge),
-                                std::get<2>(edge));
-        }
-        new_csr->add_property(prev_prop_names[0], prev_prop_types[0], column);
-      } else if (prev_prop_types[0] == PropertyType::UInt8()) {
-        auto out_csr =
-            dynamic_cast<MutableCsr<uint8_t>*>(dual_csr->GetOutCsr());
-        std::atomic<size_t> offset(0);
-        std::vector<std::tuple<vid_t, vid_t, size_t>> edges;
-        std::shared_ptr<UInt8Column> column =
-            std::make_shared<UInt8Column>(StorageStrategy::kMem);
-        column->resize(edge_num(src_label_id, edge_label_id, dst_label_id));
-        for (vid_t i = 0; i < lid_num(src_label_id); i++) {
-          for (auto e : out_csr->get_edges(i)) {
-            auto local_offset = offset.fetch_add(1);
-            edges.emplace_back(std::make_tuple(i, e.neighbor, local_offset));
-            oe_deg[i]++;
-            ie_deg[e.neighbor]++;
-            column->set_value(local_offset, e.data);
-          }
-        }
-        new_csr->BatchInit(
-            oe_prefix(src_type_name, dst_type_name, edge_type_name),
-            ie_prefix(src_type_name, dst_type_name, edge_type_name),
-            edata_prefix(src_type_name, dst_type_name, edge_type_name),
-            tmp_dir(work_dir_), oe_deg, ie_deg);
-        for (auto& edge : edges) {
-          new_csr->BatchPutEdge(std::get<0>(edge), std::get<1>(edge),
-                                std::get<2>(edge));
-        }
-        new_csr->add_property(prev_prop_names[0], prev_prop_types[0], column);
-      } else if (prev_prop_types[0] == PropertyType::UInt16()) {
-        auto out_csr =
-            dynamic_cast<MutableCsr<uint16_t>*>(dual_csr->GetOutCsr());
-        std::atomic<size_t> offset(0);
-        std::vector<std::tuple<vid_t, vid_t, size_t>> edges;
-        std::shared_ptr<UInt16Column> column =
-            std::make_shared<UInt16Column>(StorageStrategy::kMem);
-        column->resize(edge_num(src_label_id, edge_label_id, dst_label_id));
-        for (vid_t i = 0; i < lid_num(src_label_id); i++) {
-          for (auto e : out_csr->get_edges(i)) {
-            auto local_offset = offset.fetch_add(1);
-            edges.emplace_back(std::make_tuple(i, e.neighbor, local_offset));
-            oe_deg[i]++;
-            ie_deg[e.neighbor]++;
-            column->set_value(local_offset, e.data);
-          }
-        }
-        new_csr->BatchInit(
-            oe_prefix(src_type_name, dst_type_name, edge_type_name),
-            ie_prefix(src_type_name, dst_type_name, edge_type_name),
-            edata_prefix(src_type_name, dst_type_name, edge_type_name),
-            tmp_dir(work_dir_), oe_deg, ie_deg);
-        for (auto& edge : edges) {
-          new_csr->BatchPutEdge(std::get<0>(edge), std::get<1>(edge),
-                                std::get<2>(edge));
-        }
-        new_csr->add_property(prev_prop_names[0], prev_prop_types[0], column);
-      } else if (prev_prop_types[0] == PropertyType::Int32()) {
-        auto out_csr =
-            dynamic_cast<MutableCsr<int32_t>*>(dual_csr->GetOutCsr());
-        std::atomic<size_t> offset(0);
-        std::vector<std::tuple<vid_t, vid_t, size_t>> edges;
-        std::shared_ptr<IntColumn> column =
-            std::make_shared<IntColumn>(StorageStrategy::kMem);
-        column->resize(edge_num(src_label_id, edge_label_id, dst_label_id));
-        for (vid_t i = 0; i < lid_num(src_label_id); i++) {
-          for (auto e : out_csr->get_edges(i)) {
-            auto local_offset = offset.fetch_add(1);
-            edges.emplace_back(std::make_tuple(i, e.neighbor, local_offset));
-            oe_deg[i]++;
-            ie_deg[e.neighbor]++;
-            column->set_value(local_offset, e.data);
-          }
-        }
-        new_csr->BatchInit(
-            oe_prefix(src_type_name, dst_type_name, edge_type_name),
-            ie_prefix(src_type_name, dst_type_name, edge_type_name),
-            edata_prefix(src_type_name, dst_type_name, edge_type_name),
-            tmp_dir(work_dir_), oe_deg, ie_deg);
-        for (auto& edge : edges) {
-          new_csr->BatchPutEdge(std::get<0>(edge), std::get<1>(edge),
-                                std::get<2>(edge));
-        }
-        new_csr->add_property(prev_prop_names[0], prev_prop_types[0], column);
-      } else if (prev_prop_types[0] == PropertyType::UInt32()) {
-        auto out_csr =
-            dynamic_cast<MutableCsr<uint32_t>*>(dual_csr->GetOutCsr());
-        std::atomic<size_t> offset(0);
-        std::vector<std::tuple<vid_t, vid_t, size_t>> edges;
-        std::shared_ptr<UIntColumn> column =
-            std::make_shared<UIntColumn>(StorageStrategy::kMem);
-        column->resize(edge_num(src_label_id, edge_label_id, dst_label_id));
-        for (vid_t i = 0; i < lid_num(src_label_id); i++) {
-          for (auto e : out_csr->get_edges(i)) {
-            auto local_offset = offset.fetch_add(1);
-            edges.emplace_back(std::make_tuple(i, e.neighbor, local_offset));
-            oe_deg[i]++;
-            ie_deg[e.neighbor]++;
-            column->set_value(local_offset, e.data);
-          }
-        }
-        new_csr->BatchInit(
-            oe_prefix(src_type_name, dst_type_name, edge_type_name),
-            ie_prefix(src_type_name, dst_type_name, edge_type_name),
-            edata_prefix(src_type_name, dst_type_name, edge_type_name),
-            tmp_dir(work_dir_), oe_deg, ie_deg);
-        for (auto& edge : edges) {
-          new_csr->BatchPutEdge(std::get<0>(edge), std::get<1>(edge),
-                                std::get<2>(edge));
-        }
-        new_csr->add_property(prev_prop_names[0], prev_prop_types[0], column);
-      } else if (prev_prop_types[0] == PropertyType::Int64()) {
-        auto out_csr =
-            dynamic_cast<MutableCsr<int64_t>*>(dual_csr->GetOutCsr());
-        std::atomic<size_t> offset(0);
-        std::vector<std::tuple<vid_t, vid_t, size_t>> edges;
-        std::shared_ptr<LongColumn> column =
-            std::make_shared<LongColumn>(StorageStrategy::kMem);
-        column->resize(edge_num(src_label_id, edge_label_id, dst_label_id));
-        for (vid_t i = 0; i < lid_num(src_label_id); i++) {
-          for (auto e : out_csr->get_edges(i)) {
-            auto local_offset = offset.fetch_add(1);
-            edges.emplace_back(std::make_tuple(i, e.neighbor, local_offset));
-            oe_deg[i]++;
-            ie_deg[e.neighbor]++;
-            column->set_value(local_offset, e.data);
-          }
-        }
-        new_csr->BatchInit(
-            oe_prefix(src_type_name, dst_type_name, edge_type_name),
-            ie_prefix(src_type_name, dst_type_name, edge_type_name),
-            edata_prefix(src_type_name, dst_type_name, edge_type_name),
-            tmp_dir(work_dir_), oe_deg, ie_deg);
-        for (auto& edge : edges) {
-          new_csr->BatchPutEdge(std::get<0>(edge), std::get<1>(edge),
-                                std::get<2>(edge));
-        }
-        new_csr->add_property(prev_prop_names[0], prev_prop_types[0], column);
-      } else if (prev_prop_types[0] == PropertyType::UInt64()) {
-        auto out_csr =
-            dynamic_cast<MutableCsr<uint64_t>*>(dual_csr->GetOutCsr());
-        std::atomic<size_t> offset(0);
-        std::vector<std::tuple<vid_t, vid_t, size_t>> edges;
-        std::shared_ptr<ULongColumn> column =
-            std::make_shared<ULongColumn>(StorageStrategy::kMem);
-        column->resize(edge_num(src_label_id, edge_label_id, dst_label_id));
-        for (vid_t i = 0; i < lid_num(src_label_id); i++) {
-          for (auto e : out_csr->get_edges(i)) {
-            auto local_offset = offset.fetch_add(1);
-            edges.emplace_back(std::make_tuple(i, e.neighbor, local_offset));
-            oe_deg[i]++;
-            ie_deg[e.neighbor]++;
-            column->set_value(local_offset, e.data);
-          }
-        }
-        new_csr->BatchInit(
-            oe_prefix(src_type_name, dst_type_name, edge_type_name),
-            ie_prefix(src_type_name, dst_type_name, edge_type_name),
-            edata_prefix(src_type_name, dst_type_name, edge_type_name),
-            tmp_dir(work_dir_), oe_deg, ie_deg);
-        for (auto& edge : edges) {
-          new_csr->BatchPutEdge(std::get<0>(edge), std::get<1>(edge),
-                                std::get<2>(edge));
-        }
-        new_csr->add_property(prev_prop_names[0], prev_prop_types[0], column);
-      } else if (prev_prop_types[0] == PropertyType::Double()) {
-        auto out_csr = dynamic_cast<MutableCsr<double>*>(dual_csr->GetOutCsr());
-        std::atomic<size_t> offset(0);
-        std::vector<std::tuple<vid_t, vid_t, size_t>> edges;
-        std::shared_ptr<DoubleColumn> column =
-            std::make_shared<DoubleColumn>(StorageStrategy::kMem);
-        column->resize(edge_num(src_label_id, edge_label_id, dst_label_id));
-        for (vid_t i = 0; i < lid_num(src_label_id); i++) {
-          for (auto e : out_csr->get_edges(i)) {
-            auto local_offset = offset.fetch_add(1);
-            edges.emplace_back(std::make_tuple(i, e.neighbor, local_offset));
-            oe_deg[i]++;
-            ie_deg[e.neighbor]++;
-            column->set_value(local_offset, e.data);
-          }
-        }
-        new_csr->BatchInit(
-            oe_prefix(src_type_name, dst_type_name, edge_type_name),
-            ie_prefix(src_type_name, dst_type_name, edge_type_name),
-            edata_prefix(src_type_name, dst_type_name, edge_type_name),
-            tmp_dir(work_dir_), oe_deg, ie_deg);
-        for (auto& edge : edges) {
-          new_csr->BatchPutEdge(std::get<0>(edge), std::get<1>(edge),
-                                std::get<2>(edge));
-        }
-        new_csr->add_property(prev_prop_names[0], prev_prop_types[0], column);
-      } else if (prev_prop_types[0] == PropertyType::Float()) {
-        auto out_csr = dynamic_cast<MutableCsr<float>*>(dual_csr->GetOutCsr());
-        std::atomic<size_t> offset(0);
-        std::vector<std::tuple<vid_t, vid_t, size_t>> edges;
-        std::shared_ptr<FloatColumn> column =
-            std::make_shared<FloatColumn>(StorageStrategy::kMem);
-        column->resize(edge_num(src_label_id, edge_label_id, dst_label_id));
-        for (vid_t i = 0; i < lid_num(src_label_id); i++) {
-          for (auto e : out_csr->get_edges(i)) {
-            auto local_offset = offset.fetch_add(1);
-            edges.emplace_back(std::make_tuple(i, e.neighbor, local_offset));
-            oe_deg[i]++;
-            ie_deg[e.neighbor]++;
-            column->set_value(local_offset, e.data);
-          }
-        }
-        new_csr->BatchInit(
-            oe_prefix(src_type_name, dst_type_name, edge_type_name),
-            ie_prefix(src_type_name, dst_type_name, edge_type_name),
-            edata_prefix(src_type_name, dst_type_name, edge_type_name),
-            tmp_dir(work_dir_), oe_deg, ie_deg);
-        for (auto& edge : edges) {
-          new_csr->BatchPutEdge(std::get<0>(edge), std::get<1>(edge),
-                                std::get<2>(edge));
-        }
-        new_csr->add_property(prev_prop_names[0], prev_prop_types[0], column);
-      } else if (prev_prop_types[0] == PropertyType::Date()) {
-        auto out_csr = dynamic_cast<MutableCsr<Date>*>(dual_csr->GetOutCsr());
-        std::atomic<size_t> offset(0);
-        std::vector<std::tuple<vid_t, vid_t, size_t>> edges;
-        std::shared_ptr<DateColumn> column =
-            std::make_shared<DateColumn>(StorageStrategy::kMem);
-        column->resize(edge_num(src_label_id, edge_label_id, dst_label_id));
-        for (vid_t i = 0; i < lid_num(src_label_id); i++) {
-          for (auto e : out_csr->get_edges(i)) {
-            auto local_offset = offset.fetch_add(1);
-            edges.emplace_back(std::make_tuple(i, e.neighbor, local_offset));
-            oe_deg[i]++;
-            ie_deg[e.neighbor]++;
-            column->set_value(local_offset, e.data);
-          }
-        }
-        new_csr->BatchInit(
-            oe_prefix(src_type_name, dst_type_name, edge_type_name),
-            ie_prefix(src_type_name, dst_type_name, edge_type_name),
-            edata_prefix(src_type_name, dst_type_name, edge_type_name),
-            tmp_dir(work_dir_), oe_deg, ie_deg);
-        for (auto& edge : edges) {
-          new_csr->BatchPutEdge(std::get<0>(edge), std::get<1>(edge),
-                                std::get<2>(edge));
-        }
-        new_csr->add_property(prev_prop_names[0], prev_prop_types[0], column);
-      } else if (prev_prop_types[0] == PropertyType::DateTime()) {
-        auto out_csr =
-            dynamic_cast<MutableCsr<DateTime>*>(dual_csr->GetOutCsr());
-        std::atomic<size_t> offset(0);
-        std::vector<std::tuple<vid_t, vid_t, size_t>> edges;
-        std::shared_ptr<DateTimeColumn> column =
-            std::make_shared<DateTimeColumn>(StorageStrategy::kMem);
-        column->resize(edge_num(src_label_id, edge_label_id, dst_label_id));
-        for (vid_t i = 0; i < lid_num(src_label_id); i++) {
-          for (auto e : out_csr->get_edges(i)) {
-            auto local_offset = offset.fetch_add(1);
-            edges.emplace_back(std::make_tuple(i, e.neighbor, local_offset));
-            oe_deg[i]++;
-            ie_deg[e.neighbor]++;
-            column->set_value(local_offset, e.data);
-          }
-        }
-        new_csr->BatchInit(
-            oe_prefix(src_type_name, dst_type_name, edge_type_name),
-            ie_prefix(src_type_name, dst_type_name, edge_type_name),
-            edata_prefix(src_type_name, dst_type_name, edge_type_name),
-            tmp_dir(work_dir_), oe_deg, ie_deg);
-        for (auto& edge : edges) {
-          new_csr->BatchPutEdge(std::get<0>(edge), std::get<1>(edge),
-                                std::get<2>(edge));
-        }
-        new_csr->add_property(prev_prop_names[0], prev_prop_types[0], column);
-      } else if (prev_prop_types[0] == PropertyType::Timestamp()) {
-        auto out_csr =
-            dynamic_cast<MutableCsr<TimeStamp>*>(dual_csr->GetOutCsr());
-        std::atomic<size_t> offset(0);
-        std::vector<std::tuple<vid_t, vid_t, size_t>> edges;
-        std::shared_ptr<TimeStampColumn> column =
-            std::make_shared<TimeStampColumn>(StorageStrategy::kMem);
-        column->resize(edge_num(src_label_id, edge_label_id, dst_label_id));
-        for (vid_t i = 0; i < lid_num(src_label_id); i++) {
-          for (auto e : out_csr->get_edges(i)) {
-            auto local_offset = offset.fetch_add(1);
-            edges.emplace_back(std::make_tuple(i, e.neighbor, local_offset));
-            oe_deg[i]++;
-            ie_deg[e.neighbor]++;
-            column->set_value(local_offset, e.data);
-          }
-        }
-        new_csr->BatchInit(
-            oe_prefix(src_type_name, dst_type_name, edge_type_name),
-            ie_prefix(src_type_name, dst_type_name, edge_type_name),
-            edata_prefix(src_type_name, dst_type_name, edge_type_name),
-            tmp_dir(work_dir_), oe_deg, ie_deg);
-        for (auto& edge : edges) {
-          new_csr->BatchPutEdge(std::get<0>(edge), std::get<1>(edge),
-                                std::get<2>(edge));
-        }
-        new_csr->add_property(prev_prop_names[0], prev_prop_types[0], column);
-      }
-    }
-  } else if (prev_prop_types.size() == 0) {
-    std::vector<int32_t> ie_deg, oe_deg;
-    oe_deg.resize(lid_num(src_label_id), 0);
-    ie_deg.resize(lid_num(dst_label_id), 0);
-    auto out_csr =
-        dynamic_cast<MutableCsr<grape::EmptyType>*>(dual_csr->GetOutCsr());
-    std::atomic<size_t> offset(0);
-    std::vector<std::tuple<vid_t, vid_t, size_t>> edges;
-    for (vid_t i = 0; i < lid_num(src_label_id); i++) {
-      for (auto e : out_csr->get_edges(i)) {
-        auto local_offset = offset.fetch_add(1);
-        edges.emplace_back(std::make_tuple(i, e.neighbor, local_offset));
-        oe_deg[i]++;
-        ie_deg[e.neighbor]++;
-      }
-    }
-    new_csr->BatchInit(
-        oe_prefix(src_type_name, dst_type_name, edge_type_name),
-        ie_prefix(src_type_name, dst_type_name, edge_type_name),
-        edata_prefix(src_type_name, dst_type_name, edge_type_name),
-        tmp_dir(work_dir_), oe_deg, ie_deg);
-    for (auto& edge : edges) {
-      new_csr->BatchPutEdge(std::get<0>(edge), std::get<1>(edge),
-                            std::get<2>(edge));
-    }
-  }
-  // TODO: open new_csr, and copy data from dual_csr to new_csr
-  LOG(INFO) << "Opening new CSR for edge [" << edge_type_name << "] from ["
-            << src_type_name << "] to [" << dst_type_name << "]";
-  {
-    // Delete the old CSR and dump the new one
-    ie_map_.erase(index);
-    oe_map_.erase(index);
-    delete dual_csr;
-    dual_csr_map_.erase(index);
-    dual_csr_map_.emplace(index, new_csr);
-    ie_map_.emplace(index, new_csr->GetInCsr());
-    oe_map_.emplace(index, new_csr->GetOutCsr());
-  }
 }
 
 }  // namespace gs

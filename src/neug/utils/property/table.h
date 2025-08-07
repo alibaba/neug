@@ -135,6 +135,8 @@ class Table {
 
   void close();
 
+  void drop();
+
  private:
   void buildColumnPtrs();
   void initColumns(const std::vector<std::string>& col_name,
