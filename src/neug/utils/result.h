@@ -174,8 +174,7 @@ namespace std {
 inline std::string to_string(const gs::neug::interactive::Code& status) {
   // format the code into 0x-xxxx, where multiple zeros are prepend to the code
   std::stringstream ss;
-  ss << "05-" << std::setw(4) << std::setfill('0')
-     << static_cast<int32_t>(status);
+  ss << std::setw(4) << std::setfill('0') << static_cast<int32_t>(status);
   return ss.str();
 }
 }  // namespace std

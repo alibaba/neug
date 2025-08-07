@@ -17,7 +17,7 @@
 
 #include "neug/engines/graph_db/runtime/common/context.h"
 #include "neug/engines/graph_db/runtime/common/graph_interface.h"
-#include "neug/engines/graph_db/runtime/common/leaf_utils.h"
+#include "neug/utils/leaf_utils.h"
 
 #include <queue>
 

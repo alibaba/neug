@@ -61,22 +61,22 @@ Result<results::CollectiveResults> Connection::query_impl(
     const std::string& query_string) {
   LOG(INFO) << "Executing query: " << query_string;
 
-  Plan plan;
-
-  plan = planner_->compilePlan(query_string);
-
-  if (plan.error_code != StatusCode::OK &&
-      plan.error_code != StatusCode::ERR_EMPTY_RESULT) {
-    throw std::runtime_error("Failed to compile plan, error code " +
-                             std::to_string(static_cast<int>(plan.error_code)) +
-                             ", " + plan.full_message);
+  auto plan_res = planner_->compilePlan(query_string);
+  if (!plan_res.ok()) {
+    LOG(ERROR) << "Failed to compile plan for query: " << query_string
+               << ", error code: " << plan_res.status().error_code()
+               << ", message: " << plan_res.status().error_message();
+    return plan_res.status();
   }
 
-  VLOG(10) << "Physical plan: " << plan.physical_plan.DebugString();
-  LOG(INFO) << "Got physical plan, "
-            << plan.physical_plan.query_plan().plan_size() << " operators.";
+  const auto& physical_plan = plan_res.value().first;
+  const auto& result_schema = plan_res.value().second;
 
-  auto result = query_processor_->execute(plan.physical_plan);
+  VLOG(10) << "Physical plan: " << physical_plan.DebugString();
+  LOG(INFO) << "Got physical plan, " << physical_plan.query_plan().plan_size()
+            << " operators.";
+
+  auto result = query_processor_->execute(physical_plan);
   if (result.ok()) {
     LOG(INFO) << "Query executed successfully.";
   } else {
@@ -85,10 +85,10 @@ Result<results::CollectiveResults> Connection::query_impl(
                << ", message: " << result.status().error_message();
     return result.status();
   }
-  result.value().set_result_schema(plan.result_schema);
+  result.value().set_result_schema(result_schema);
   // If the query contains operator that may mutable the graph schema or data,
   // we should update the schema and statistics for the planner.
-  if (plan.physical_plan.has_ddl_plan()) {
+  if (physical_plan.has_ddl_plan()) {
     auto yaml = db_.schema().to_yaml();
     if (!yaml.ok()) {
       LOG(ERROR) << "Failed to convert schema to YAML: "
@@ -98,9 +98,9 @@ Result<results::CollectiveResults> Connection::query_impl(
     }
     planner_->update_meta(yaml.value());
     planner_->update_statistics(db_.get_statistics_json());
-  } else if (plan.physical_plan.query_plan().mode() ==
+  } else if (physical_plan.query_plan().mode() ==
                  physical::QueryPlan::Mode::QueryPlan_Mode_READ_WRITE ||
-             plan.physical_plan.query_plan().mode() ==
+             physical_plan.query_plan().mode() ==
                  physical::QueryPlan::Mode::QueryPlan_Mode_WRITE_ONLY) {
     planner_->update_statistics(db_.get_statistics_json());
   }

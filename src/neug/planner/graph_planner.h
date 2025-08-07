@@ -21,17 +21,10 @@
 
 #include <yaml-cpp/yaml.h>
 #include "neug/proto_generated_gie/physical.pb.h"
+#include "neug/utils/leaf_utils.h"
 #include "neug/utils/result.h"
 
 namespace gs {
-struct Plan {
-  // TODO(zhanglei,xiaoli): Use a general error code definition for the whole
-  // system.
-  gs::StatusCode error_code;
-  std::string full_message;
-  physical::PhysicalPlan physical_plan;
-  std::string result_schema;
-};
 
 /**
  * @brief Graph planner interface. Receive the cypher query, and generate the
@@ -51,7 +44,8 @@ class IGraphPlanner {
    * @param query The cypher query.
    * @return The executable plan.
    */
-  virtual Plan compilePlan(const std::string& query) = 0;
+  virtual Result<std::pair<physical::PhysicalPlan, std::string>> compilePlan(
+      const std::string& query) = 0;
 
   /**
    * @brief Update the metadata of the graph. To let the planner be aware of the

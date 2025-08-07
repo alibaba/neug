@@ -19,11 +19,9 @@ limitations under the License.
 
 namespace gs {
 
-Plan DummyGraphPlanner::compilePlan(const std::string& cypher_query_string) {
-  Plan plan;
-  plan.error_code = StatusCode::OK;
-  plan.full_message = "OK";
-  return plan;
+Result<std::pair<physical::PhysicalPlan, std::string>>
+DummyGraphPlanner::compilePlan(const std::string& cypher_query_string) {
+  return std::make_pair(physical::PhysicalPlan(), std::string(""));
 }
 
 void DummyGraphPlanner::update_meta(const YAML::Node& schema_yaml_node) {}

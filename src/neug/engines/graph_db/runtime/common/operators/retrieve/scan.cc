@@ -19,9 +19,9 @@
 #include <ostream>
 #include <string_view>
 
-#include "neug/engines/graph_db/runtime/common/leaf_utils.h"
 #include "neug/engines/graph_db/runtime/common/rt_any.h"
 #include "neug/engines/graph_db/runtime/utils/special_predicates.h"
+#include "neug/utils/leaf_utils.h"
 
 namespace gs {
 namespace runtime {

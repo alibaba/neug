@@ -29,7 +29,8 @@ class DummyGraphPlanner : public IGraphPlanner {
 
   std::string type() const override { return "dummy"; }
 
-  Plan compilePlan(const std::string& cypher_query_string) override;
+  Result<std::pair<physical::PhysicalPlan, std::string>> compilePlan(
+      const std::string& cypher_query_string) override;
 
   void update_meta(const YAML::Node& schema_yaml_node) override;
 

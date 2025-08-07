@@ -43,4 +43,28 @@ namespace bl = boost::leaf;
   return ::boost::leaf::new_error(::gs::Status( \
       ::gs::StatusCode::ERR_QUERY_EXECUTION, PREPEND_LINE_INFO(msg)))
 
+inline std::string build_error_message(gs::StatusCode code,
+                                       const bl::error_info& e) {
+  /* Build a json error message from the error info:
+    {
+      "error_code": <error_code>,
+      "error_message": <error_message>
+    }
+  */
+  return std::string("{\"error_code\":") + std::to_string(code) +
+         ",\"error_message\":\"" + std::to_string(e.error().value()) + "," +
+         (e.exception() ? e.exception()->what() : "no exception") + "\"}";
+}
+
+inline std::string build_error_message(gs::StatusCode code,
+                                       const std::string& msg) {
+  /* Build a json error message from the error info:
+    { "error_code": <error_code>,
+      "error_message": <error_message>
+    }
+  */
+  return std::string("{\"error_code\":") + std::to_string(code) +
+         ",\"error_message\":\"" + msg + "\"}";
+}
+
 #endif  // RUNTIME_COMMON_LEAF_UTILS_H_

@@ -33,12 +33,12 @@
 #include "neug/engines/graph_db/runtime/common/columns/vertex_columns.h"
 #include "neug/engines/graph_db/runtime/common/context.h"
 #include "neug/engines/graph_db/runtime/common/graph_interface.h"
-#include "neug/engines/graph_db/runtime/common/leaf_utils.h"
 #include "neug/engines/graph_db/runtime/common/operators/retrieve/path_expand_impl.h"
 #include "neug/engines/graph_db/runtime/common/types.h"
 #include "neug/engines/graph_db/runtime/utils/special_predicates.h"
 #include "neug/storages/rt_mutable_graph/schema.h"
 #include "neug/storages/rt_mutable_graph/types.h"
+#include "neug/utils/leaf_utils.h"
 #include "neug/utils/property/types.h"
 
 namespace grape {

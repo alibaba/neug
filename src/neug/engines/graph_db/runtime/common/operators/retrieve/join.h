@@ -20,8 +20,8 @@
 #include <vector>
 
 #include "neug/engines/graph_db/runtime/common/context.h"
-#include "neug/engines/graph_db/runtime/common/leaf_utils.h"
 #include "neug/engines/graph_db/runtime/common/types.h"
+#include "neug/utils/leaf_utils.h"
 
 namespace gs {
 namespace runtime {

@@ -230,13 +230,13 @@ def test_create_node_table_errors(tmp_path):
     # 2. create node table without primary key
     with pytest.raises(Exception) as excinfo:
         conn.execute("CREATE NODE TABLE person1(name STRING, age INT64);")
-    assert str("Failed to compile plan") in str(excinfo.value)
+    assert str("Can not find primary key") in str(excinfo.value)
     # 3. create node table with invalid property value
     with pytest.raises(Exception) as excinfo:
         conn.execute(
             "CREATE NODE TABLE person2(name STRING, age INT64 DEFAULT 'abc', PRIMARY KEY (name));"
         )
-    assert str("Failed to compile plan") in str(excinfo.value)
+    assert str("Implicit cast is not supported") in str(excinfo.value)
     conn.close()
     db.close()
 
@@ -293,7 +293,7 @@ def test_create_rel_table_errors(tmp_path):
     # 2. create edge table without FROM/TO vertex tables
     with pytest.raises(Exception) as excinfo:
         conn.execute("CREATE REL TABLE NewFollows(FROM person TO user, MANY_MANY);")
-    assert str("Failed to compile plan") in str(excinfo.value)
+    assert str("Table user does not exist") in str(excinfo.value)
     conn.close()
     db.close()
 

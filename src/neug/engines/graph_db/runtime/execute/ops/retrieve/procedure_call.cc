@@ -32,7 +32,6 @@
 #include "neug/engines/graph_db/runtime/common/columns/value_columns.h"
 #include "neug/engines/graph_db/runtime/common/context.h"
 #include "neug/engines/graph_db/runtime/common/graph_interface.h"
-#include "neug/engines/graph_db/runtime/common/leaf_utils.h"
 #include "neug/engines/graph_db/runtime/common/rt_any.h"
 #include "neug/engines/graph_db/runtime/common/types.h"
 #include "neug/proto_generated_gie/common.pb.h"
@@ -42,6 +41,7 @@
 #include "neug/proto_generated_gie/stored_procedure.pb.h"
 #include "neug/storages/rt_mutable_graph/types.h"
 #include "neug/utils/app_utils.h"
+#include "neug/utils/leaf_utils.h"
 #include "neug/utils/property/types.h"
 
 namespace gs {

@@ -20,9 +20,9 @@
 
 #include "neug/engines/graph_db/runtime/common/context.h"
 #include "neug/engines/graph_db/runtime/common/graph_interface.h"
-#include "neug/engines/graph_db/runtime/common/leaf_utils.h"
 #include "neug/engines/graph_db/runtime/utils/opr_timer.h"
 #include "neug/proto_generated_gie/physical.pb.h"
+#include "neug/utils/leaf_utils.h"
 
 namespace gs {
 

@@ -22,11 +22,11 @@
 #include <boost/leaf.hpp>
 #include "neug/engines/graph_db/database/graph_db.h"
 #include "neug/engines/graph_db/runtime/common/graph_interface.h"
-#include "neug/engines/graph_db/runtime/common/leaf_utils.h"
 #include "neug/engines/graph_db/runtime/utils/opr_timer.h"
 #include "neug/main/query_result.h"
 #include "neug/proto_generated_gie/physical.pb.h"
 #include "neug/proto_generated_gie/results.pb.h"
+#include "neug/utils/leaf_utils.h"
 #include "neug/utils/result.h"
 
 namespace gs {

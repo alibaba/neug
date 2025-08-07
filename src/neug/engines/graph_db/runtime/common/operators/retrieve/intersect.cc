@@ -28,8 +28,8 @@
 #include "neug/engines/graph_db/runtime/common/columns/value_columns.h"
 #include "neug/engines/graph_db/runtime/common/columns/vertex_columns.h"
 #include "neug/engines/graph_db/runtime/common/context.h"
-#include "neug/engines/graph_db/runtime/common/leaf_utils.h"
 #include "neug/engines/graph_db/runtime/common/rt_any.h"
+#include "neug/utils/leaf_utils.h"
 #include "parallel_hashmap/phmap.h"
 
 namespace gs {

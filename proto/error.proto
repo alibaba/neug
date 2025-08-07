@@ -104,6 +104,9 @@ enum Code {
   ERR_CODEGEN_ERROR = 3005;
   // infer empty result from the logical plan in compilation phase
   ERR_EMPTY_RESULT = 3006;
+  // Not initialized, e.g., the database is not initialized or the session is not
+  // initialized.
+  ERR_NOT_INITIALIZED = 3007;
 
   // Error during transaction management
   ERR_TX_STATE_CONFLICT = 4001;

@@ -17,8 +17,8 @@
 #define RUNTIME_COMMON_OPERATORS_UPDATE_GET_V_H_
 #include "neug/engines/graph_db/runtime/common/columns/edge_columns.h"
 #include "neug/engines/graph_db/runtime/common/context.h"
-#include "neug/engines/graph_db/runtime/common/leaf_utils.h"
 #include "neug/engines/graph_db/runtime/utils/params.h"
+#include "neug/utils/leaf_utils.h"
 
 namespace gs {
 namespace runtime {

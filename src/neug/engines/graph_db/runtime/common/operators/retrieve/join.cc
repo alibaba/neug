@@ -30,10 +30,10 @@
 #include "neug/engines/graph_db/runtime/common/columns/i_context_column.h"
 #include "neug/engines/graph_db/runtime/common/columns/vertex_columns.h"
 #include "neug/engines/graph_db/runtime/common/context.h"
-#include "neug/engines/graph_db/runtime/common/leaf_utils.h"
 #include "neug/engines/graph_db/runtime/common/rt_any.h"
 #include "neug/storages/rt_mutable_graph/types.h"
 #include "neug/utils/app_utils.h"
+#include "neug/utils/leaf_utils.h"
 #include "parallel_hashmap/phmap.h"
 
 // #define DEBUG_JOIN

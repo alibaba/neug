@@ -21,6 +21,71 @@ namespace server {
 
 void cleanup(void* ptr) { delete (int*) ptr; }
 
+bool append_plugin_id(const physical::PhysicalPlan& physical_plan,
+                      std::string& plan_proto_str, bool& update_schema,
+                      bool& update_statistics) {
+  // There are two possible cases:
+  //  1. Query plan contains operator that mutate the graph(schema or data)
+  //  2. Query plan that only execute read-only operations
+  // We need to determine which plugin to use based on the plan type.
+  // ALSO, if the query mutate the graph, we should also update the schema
+  // and statistics for the compiler.
+  if (physical_plan.has_query_plan()) {
+    if (physical_plan.query_plan().mode() ==
+        physical::QueryPlan::Mode::QueryPlan_Mode_READ_ONLY) {
+      plan_proto_str.append(1, *gs::Schema::ADHOC_READ_PLUGIN_ID_STR);
+      plan_proto_str.append(
+          1, static_cast<char>(gs::GraphDBSession::InputFormat::kCypherString));
+    } else {
+      plan_proto_str.append(1, *gs::Schema::ADHOC_UPDATE_PLUGIN_ID_STR);
+      plan_proto_str.append(
+          1, static_cast<char>(gs::GraphDBSession::InputFormat::kCypherString));
+      update_statistics = true;
+    }
+    return true;
+  } else if (physical_plan.has_ddl_plan()) {
+    plan_proto_str.append(1, *gs::Schema::ADHOC_UPDATE_PLUGIN_ID_STR);
+    plan_proto_str.append(
+        1, static_cast<char>(gs::GraphDBSession::InputFormat::kCypherString));
+    update_schema = true;
+    update_statistics = true;
+    return true;
+  } else {
+    return false;
+  }
+}
+
+int32_t status_code_to_http_code(gs::StatusCode code) {
+  switch (code) {
+  case gs::StatusCode::OK:
+    return brpc::HTTP_STATUS_OK;
+  case gs::StatusCode::ERR_PERMISSION:
+    return brpc::HTTP_STATUS_INTERNAL_SERVER_ERROR;
+  case gs::StatusCode::ERR_DATABASE_LOCKED:
+    return brpc::HTTP_STATUS_INTERNAL_SERVER_ERROR;
+  case gs::StatusCode::ERR_NOT_SUPPORTED:
+    return brpc::HTTP_STATUS_NOT_IMPLEMENTED;
+  case gs::StatusCode::ERR_NOT_IMPLEMENTED:
+    return brpc::HTTP_STATUS_NOT_IMPLEMENTED;
+  case gs::StatusCode::ERR_QUERY_SYNTAX:
+    return brpc::HTTP_STATUS_BAD_REQUEST;
+  case gs::StatusCode::ERR_NOT_INITIALIZED:
+    return brpc::HTTP_STATUS_INTERNAL_SERVER_ERROR;
+  case gs::StatusCode::ERR_QUERY_EXECUTION:
+    return brpc::HTTP_STATUS_INTERNAL_SERVER_ERROR;
+  case gs::StatusCode::ERR_INTERNAL_ERROR:
+    return brpc::HTTP_STATUS_INTERNAL_SERVER_ERROR;
+  case gs::StatusCode::ERR_NOT_FOUND:
+    return brpc::HTTP_STATUS_INTERNAL_SERVER_ERROR;
+  case gs::StatusCode::ERR_INVALID_ARGUMENT:
+    return brpc::HTTP_STATUS_BAD_REQUEST;
+  case gs::StatusCode::ERR_COMPILATION:
+    return brpc::HTTP_STATUS_INTERNAL_SERVER_ERROR;
+  default:
+    return brpc::HTTP_STATUS_INTERNAL_SERVER_ERROR;
+  }
+}
+
 BrpcHttpHandlerManager::BrpcHttpHandlerManager(
     gs::GraphDB& graph_db, std::shared_ptr<gs::IGraphPlanner> planner)
     : graph_db_(graph_db), svc_(graph_db, planner) {

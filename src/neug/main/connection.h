@@ -85,15 +85,6 @@ class Connection {
   Result<results::CollectiveResults> query_impl(
       const std::string& query_string);
 
-  // TODO: Make sure
-  Plan createDDLPlan(const std::string& query_string);
-
-  Plan createDMLPlan(const std::string& query_string);
-
-  Plan createDDLPlanWithGopt(const std::string& query_string);
-
-  Plan createDMLPlanWithGopt(const std::string& query_string);
-
   GraphDB& db_;
 
   std::shared_ptr<IGraphPlanner> planner_;

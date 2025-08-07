@@ -29,7 +29,8 @@ class GOptPlanner : public gs::IGraphPlanner {
 
   inline std::string type() const override { return "gopt"; }
 
-  gs::Plan compilePlan(const std::string& query) override;
+  Result<std::pair<physical::PhysicalPlan, std::string>> compilePlan(
+      const std::string& query) override;
 
   void update_meta(const YAML::Node& schema_yaml_node) override;
 

@@ -20,26 +20,21 @@ limitations under the License.
 
 namespace gs {
 
-Plan GOptPlanner::compilePlan(const std::string& query) {
+Result<std::pair<physical::PhysicalPlan, std::string>> GOptPlanner::compilePlan(
+    const std::string& query) {
   LOG(INFO) << "[GOptPlanner] compilePlan called with query: " << query;
-  gs::Plan plan;
-
   // read access to the planner
   std::shared_lock<std::shared_mutex> lock(planner_mutex);
 
   if (database->getCatalog() == nullptr) {
-    throw gs::exception::CatalogException(
-        "GOptPlanner: Catalog is not initialized. Please update the schema "
-        "first.");
+    return Status(StatusCode::ERR_INVALID_SCHEMA, "Catalog is not initialized");
   }
 
   try {
     // Prepare and compile query
     auto statement = ctx->prepare(query);
     if (!statement->success) {
-      plan.error_code = StatusCode::ERR_QUERY_SYNTAX;
-      plan.full_message = statement->errMsg;
-      return plan;
+      return Status(StatusCode::ERR_QUERY_SYNTAX, statement->errMsg);
     }
 
     std::cout << "Logical Plan: " << std::endl
@@ -47,9 +42,9 @@ Plan GOptPlanner::compilePlan(const std::string& query) {
 
     if (statement->logicalPlan->emptyResult(
             statement->logicalPlan->getLastOperator())) {
-      plan.error_code = StatusCode::ERR_EMPTY_RESULT;
-      plan.full_message = "Query returns empty result";
-      return plan;
+      // If the logical plan results in an empty result,
+      // return an empty physical plan.
+      return std::make_pair(physical::PhysicalPlan(), std::string(""));
     }
 
     auto aliasManager =
@@ -58,24 +53,19 @@ Plan GOptPlanner::compilePlan(const std::string& query) {
                                            database->getCatalog());
     auto physicalPlan = converter.convert(*statement->logicalPlan);
 
-    plan.error_code = StatusCode::OK;
-    plan.physical_plan = std::move(*physicalPlan);
-
     // set result schema
     auto resultYaml = gopt::GResultSchema::infer(
         *statement->logicalPlan, aliasManager, database->getCatalog());
-    plan.result_schema = YAML::Dump(resultYaml);
-
-    return plan;
-
+    return std::make_pair(std::move(*physicalPlan), YAML::Dump(resultYaml));
   } catch (const gs::exception::CatalogException& e) {
-    plan.error_code = StatusCode::ERR_INVALID_SCHEMA;
-    plan.full_message = e.what();
+    return Status(StatusCode::ERR_INVALID_SCHEMA, e.what());
   } catch (const std::exception& e) {
-    plan.error_code = StatusCode::ERR_UNKNOWN;
-    plan.full_message = e.what();
+    return Status(StatusCode::ERR_COMPILATION, e.what());
+  } catch (...) {
+    return Status(StatusCode::ERR_UNKNOWN,
+                  "Unknown error during plan "
+                  "compilation");
   }
-  return plan;
 }
 
 void GOptPlanner::update_meta(const YAML::Node& schema_yaml_node) {

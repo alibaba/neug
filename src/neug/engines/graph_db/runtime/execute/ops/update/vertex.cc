@@ -27,7 +27,6 @@
 
 #include "neug/engines/graph_db/runtime/common/context.h"
 #include "neug/engines/graph_db/runtime/common/graph_interface.h"
-#include "neug/engines/graph_db/runtime/common/leaf_utils.h"
 #include "neug/engines/graph_db/runtime/common/operators/retrieve/get_v.h"
 #include "neug/engines/graph_db/runtime/common/operators/update/get_v.h"
 #include "neug/engines/graph_db/runtime/common/rt_any.h"
@@ -40,6 +39,7 @@
 #include "neug/proto_generated_gie/algebra.pb.h"
 #include "neug/proto_generated_gie/expr.pb.h"
 #include "neug/storages/rt_mutable_graph/types.h"
+#include "neug/utils/leaf_utils.h"
 
 namespace gs {
 class Schema;

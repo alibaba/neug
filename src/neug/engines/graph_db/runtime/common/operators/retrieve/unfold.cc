@@ -22,8 +22,8 @@
 #include "neug/engines/graph_db/runtime/common/columns/i_context_column.h"
 #include "neug/engines/graph_db/runtime/common/columns/value_columns.h"
 #include "neug/engines/graph_db/runtime/common/context.h"
-#include "neug/engines/graph_db/runtime/common/leaf_utils.h"
 #include "neug/engines/graph_db/runtime/common/rt_any.h"
+#include "neug/utils/leaf_utils.h"
 
 namespace gs {
 

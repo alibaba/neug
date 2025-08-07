@@ -29,12 +29,19 @@
 #include "neug/storages/metadata/graph_meta_store.h"
 #include "neug/storages/rt_mutable_graph/schema.h"
 #include "neug/utils/http_handler_manager.h"
+#include "neug/utils/leaf_utils.h"
 #include "neug/utils/pb_utils.h"
 #include "neug/utils/yaml_utils.h"
 
 namespace server {
 
 void cleanup(void* ptr);
+
+bool append_plugin_id(const physical::PhysicalPlan& physical_plan,
+                      std::string& plan_proto_str, bool& update_schema,
+                      bool& update_statistics);
+
+int32_t status_code_to_http_code(gs::StatusCode code);
 
 class HttpServiceImpl : public HttpService {
  public:
@@ -70,54 +77,31 @@ class HttpServiceImpl : public HttpService {
       cntl->SetFailed(brpc::HTTP_STATUS_BAD_REQUEST, "Eval request is empty");
       return;
     }
-    // TODO(zhanglei): we could tell whether to call read_app or write_app from
-    // planner.
     if (!planner_) {
       LOG(ERROR) << "Planner is not set";
       cntl->SetFailed(brpc::HTTP_STATUS_INTERNAL_SERVER_ERROR,
                       "Planner is not set");
       return;
     }
-    auto plan = planner_->compilePlan(req);
-    if (plan.error_code != gs::StatusCode::OK &&
-        plan.error_code != gs::StatusCode::ERR_EMPTY_RESULT) {
-      LOG(ERROR) << "Plan compilation failed: " << plan.full_message;
-      cntl->SetFailed(plan.full_message);
+    gs::Status status;
+    auto plan_res = planner_->compilePlan(req);
+
+    if (!plan_res.ok()) {
+      LOG(ERROR) << "Plan compilation failed: "
+                 << plan_res.status().error_message();
+      cntl->SetFailed(plan_res.status().ToString());
       cntl->http_response().set_status_code(
-          brpc::HTTP_STATUS_INTERNAL_SERVER_ERROR);
+          status_code_to_http_code(plan_res.status().error_code()));
       return;
     }
-    VLOG(10) << "got plan: " << plan.physical_plan.DebugString();
+    const auto& physical_plan = plan_res.value().first;
+
+    VLOG(10) << "got plan: " << physical_plan.DebugString();
     std::string plan_proto_str;
-    plan.physical_plan.SerializeToString(&plan_proto_str);
-    // There are two possible cases:
-    //  1. Query plan contains operator that mutate the graph(schema or data)
-    //  2. Query plan that only execute read-only operations
-    // We need to determine which plugin to use based on the plan type.
-    // ALSO, if the query mutate the graph, we should also update the schema
-    // and statistics for the compiler.
+    physical_plan.SerializeToString(&plan_proto_str);
     bool update_schema = false, update_statistics = false;
-    if (plan.physical_plan.has_query_plan()) {
-      if (plan.physical_plan.query_plan().mode() ==
-          physical::QueryPlan::Mode::QueryPlan_Mode_READ_ONLY) {
-        plan_proto_str.append(1, *gs::Schema::ADHOC_READ_PLUGIN_ID_STR);
-        plan_proto_str.append(
-            1,
-            static_cast<char>(gs::GraphDBSession::InputFormat::kCypherString));
-      } else {
-        plan_proto_str.append(1, *gs::Schema::ADHOC_UPDATE_PLUGIN_ID_STR);
-        plan_proto_str.append(
-            1,
-            static_cast<char>(gs::GraphDBSession::InputFormat::kCypherString));
-        update_statistics = true;
-      }
-    } else if (plan.physical_plan.has_ddl_plan()) {
-      plan_proto_str.append(1, *gs::Schema::ADHOC_UPDATE_PLUGIN_ID_STR);
-      plan_proto_str.append(
-          1, static_cast<char>(gs::GraphDBSession::InputFormat::kCypherString));
-      update_schema = true;
-      update_statistics = true;
-    } else {
+    if (!append_plugin_id(physical_plan, plan_proto_str, update_schema,
+                          update_statistics)) {
       cntl->SetFailed(
           "Unsupported plan type, only query and DDL plans are supported");
       cntl->http_response().set_status_code(brpc::HTTP_STATUS_BAD_REQUEST);
@@ -163,7 +147,7 @@ class HttpServiceImpl : public HttpService {
       // unnecessary serialization and deserialization
       results::CollectiveResults final_res;
       final_res.ParseFromArray(actual_res.data(), actual_res.size());
-      final_res.set_result_schema(plan.result_schema);
+      final_res.set_result_schema(plan_res.value().second);
       auto final_res_str = final_res.SerializeAsString();
       cntl->response_attachment().append(final_res_str.data(),
                                          final_res_str.size());
