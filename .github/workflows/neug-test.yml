@@ -198,12 +198,11 @@ jobs:
         # import/export tests
         python3 -m pytest -sv tests/test_db_import_export.py
 
-    # todo(engine): IC test is not ready yet
-    # - name: Run IC Test
-    #   run: |
-    #     cd ${GITHUB_WORKSPACE}/tools/python_bind/
-    #     # import/export tests
-    #     python3 -m pytest -sv tests/test_ic.py
+    - name: Run IC Test
+      run: |
+        cd ${GITHUB_WORKSPACE}/tools/python_bind/
+        export LDBC_DATA_DIR=/tmp/ldbc
+        python3 -m pytest -sv tests/test_ic.py
 
     - name: Run E2E Cypher Test
       run: |

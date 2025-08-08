@@ -103,6 +103,10 @@ std::unique_ptr<::common::Expression> GExprConverter::convert(
   case common::ExpressionType::FUNCTION: {
     return convertScalarFunc(expr, schemaAlias);  // convert to scalar function
   }
+  case common::ExpressionType::CASE_ELSE: {
+    return convertCaseExpression(expr.constCast<binder::CaseExpression>(),
+                                 schemaAlias);
+  }
   default:
     throw exception::Exception("Unsupported expression type: " +
                                expr.toString());
@@ -486,6 +490,31 @@ bool isVariable(const binder::Expression& expr) {
   }
   return expr.expressionType == common::ExpressionType::VARIABLE ||
          expr.expressionType == common::ExpressionType::PROPERTY;
+}
+
+std::unique_ptr<::common::Expression> GExprConverter::convertCaseExpression(
+    const binder::CaseExpression& expr,
+    const std::vector<std::string>& schemaAlias) {
+  size_t caseNum = expr.getNumCaseAlternatives();
+  if (caseNum == 0) {
+    throw exception::Exception(
+        "Case expression should have at least one case "
+        "alternative");
+  }
+  auto casePB = std::make_unique<::common::Case>();
+  for (size_t i = 0; i < caseNum; i++) {
+    auto caseAlternative = expr.getCaseAlternative(i);
+    auto whenExprPB = convert(*caseAlternative->whenExpression, schemaAlias);
+    auto thenExprPB = convert(*caseAlternative->thenExpression, schemaAlias);
+    auto alterPB = casePB->add_when_then_expressions();
+    alterPB->set_allocated_when_expression(whenExprPB.release());
+    alterPB->set_allocated_then_result_expression(thenExprPB.release());
+  }
+  auto elseExprPB = convert(*expr.getElseExpression(), schemaAlias);
+  casePB->set_allocated_else_result_expression(elseExprPB.release());
+  auto exprPB = std::make_unique<::common::Expression>();
+  exprPB->add_operators()->set_allocated_case_(casePB.release());
+  return exprPB;
 }
 
 std::unique_ptr<::common::Expression> GExprConverter::convertToArrayFunc(

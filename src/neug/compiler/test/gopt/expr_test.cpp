@@ -335,5 +335,18 @@ TEST_F(ExprTest, ARRAY_FUNC_VAR) {
       *physical, getExprResource("ARRAY_FUNC_VAR_physical"));
 }
 
+TEST_F(ExprTest, CASE_ELSE) {
+  std::string query =
+      "MATCH (p: person) RETURN p, CASE WHEN p.registerTime >= "
+      "date('2012-01-01') "
+      "THEN 1 ELSE 0 END AS valid, CASE WHEN p.registerTime < "
+      "date('2011-01-01') "
+      "THEN 1 ELSE 0 END";
+  auto logical = planLogical(query, schemaData, statsData, rules);
+  auto physical = planPhysical(*logical);
+  VerifyFactory::verifyPhysicalByJson(*physical,
+                                      getExprResource("CASE_ELSE_physical"));
+}
+
 }  // namespace gopt
 }  // namespace gs

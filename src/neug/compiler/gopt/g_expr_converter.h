@@ -19,6 +19,7 @@
 #include <string>
 #include <vector>
 #include "neug/compiler/binder/expression/aggregate_function_expression.h"
+#include "neug/compiler/binder/expression/case_expression.h"
 #include "neug/compiler/binder/expression/expression.h"
 #include "neug/compiler/binder/expression/literal_expression.h"
 #include "neug/compiler/binder/expression/node_rel_expression.h"
@@ -96,6 +97,10 @@ class GExprConverter {
 
   std::unique_ptr<::common::Expression> convertToArrayFunc(
       const binder::Expression& expr,
+      const std::vector<std::string>& schemaAlias);
+
+  std::unique_ptr<::common::Expression> convertCaseExpression(
+      const binder::CaseExpression& expr,
       const std::vector<std::string>& schemaAlias);
 
   // helper functions
