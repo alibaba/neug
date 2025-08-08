@@ -161,8 +161,8 @@ std::unique_ptr<IUpdateOperator> DataSourceOprBuilder::Build(
   for (const auto& metadata : metadatas) {
     PropertyType type;
     if (!gs::data_type_to_property_type(metadata.type().data_type(), type)) {
-      throw gs::exception::RuntimeError("Unrecognized data type: " +
-                                        metadata.type().DebugString());
+      THROW_RUNTIME_ERROR("Unrecognized data type: " +
+                          metadata.type().DebugString());
     }
     column_types.push_back(type);
   }

@@ -127,7 +127,7 @@ class LogicalRecursiveExtend final : public LogicalOperator {
 
   std::string getAliasName() const {
     if (!relExpr) {
-      throw exception::Exception(
+      THROW_EXCEPTION_WITH_FILE_LINE(
           "LogicalRecursiveExtend does not have a relational expression.");
     }
     return relExpr->getUniqueName();
@@ -139,7 +139,7 @@ class LogicalRecursiveExtend final : public LogicalOperator {
 
   gopt::GAliasName getGAliasName() const {
     if (!relExpr) {
-      throw exception::Exception(
+      THROW_EXCEPTION_WITH_FILE_LINE(
           "LogicalRecursiveExtend does not have a relational expression.");
     }
     auto queryName = relExpr->getVariableName().empty()

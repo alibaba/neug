@@ -40,7 +40,7 @@ FileTypeInfo Binder::bindFileTypeInfo(
                            ? fileType
                            : expectedFileType;
     if (fileType.fileType != expectedFileType.fileType) {
-      throw exception::CopyException(
+      THROW_COPY_EXCEPTION(
           "Loading files with different types is not currently supported.");
     }
   }
@@ -71,7 +71,7 @@ std::vector<std::string> Binder::bindFilePaths(
   //   auto globbedFilePaths =
   //       clientContext->getVFSUnsafe()->glob(clientContext, filePath);
   //   if (globbedFilePaths.empty()) {
-  //     throw exception::BinderException{stringFormat(
+  //     THROW_BINDER_EXCEPTION{stringFormat(
   //         "No file found that matches the pattern: {}.", filePath)};
   //   }
   //   for (auto& globbedPath : globbedFilePaths) {
@@ -140,8 +140,8 @@ std::unique_ptr<BoundBaseScanSource> Binder::bindFileScanSource(
     for (const auto& filePath : filePaths) {
       if (!LocalFileSystem::fileExists(filePath) &&
           LocalFileSystem::isLocalPath(filePath)) {
-        throw exception::BinderException{
-            stringFormat("Provided path is not a file: {}.", filePath)};
+        THROW_BINDER_EXCEPTION(
+            stringFormat("Provided path is not a file: {}.", filePath));
       }
     }
   }
@@ -175,7 +175,7 @@ std::unique_ptr<BoundBaseScanSource> Binder::bindQueryScanSource(
   auto boundStatement = bind(*querySource->statement);
   auto columns = boundStatement->getStatementResult()->getColumns();
   if (columns.size() != columnNames.size()) {
-    throw exception::BinderException(
+    THROW_BINDER_EXCEPTION(
         stringFormat("Query returns {} columns but {} columns were expected.",
                      columns.size(), columnNames.size()));
   }
@@ -208,7 +208,7 @@ BoundTableScanInfo bindTableScanSourceInfo(
   if (columnTypes.empty()) {
   } else {
     if (bindData->getNumColumns() != columnTypes.size()) {
-      throw exception::BinderException(stringFormat(
+      THROW_BINDER_EXCEPTION(stringFormat(
           "{} has {} columns but {} columns were expected.", sourceName,
           bindData->getNumColumns(), columnTypes.size()));
     }
@@ -251,8 +251,7 @@ std::unique_ptr<BoundBaseScanSource> Binder::bindObjectScanSource(
                                clientContext);
       bindData = func.bindFunc(clientContext, &bindInput);
     } else {
-      throw exception::BinderException(
-          ExceptionMessage::variableNotInScope(objectName));
+      THROW_BINDER_EXCEPTION(ExceptionMessage::variableNotInScope(objectName));
     }
   } else if (objectSource->objectNames.size() == 2) {
     // Bind external database table
@@ -263,7 +262,7 @@ std::unique_ptr<BoundBaseScanSource> Binder::bindObjectScanSource(
     bindData = func.bindFunc(clientContext, &bindInput);
   } else {
     // LCOV_EXCL_START
-    throw exception::BinderException(
+    THROW_BINDER_EXCEPTION(
         stringFormat("Cannot find object {}.",
                      StringUtils::join(objectSource->objectNames, ",")));
     // LCOV_EXCL_STOP
@@ -279,8 +278,8 @@ std::unique_ptr<BoundBaseScanSource> Binder::bindTableFuncScanSource(
     const std::vector<std::string>& columnNames,
     const std::vector<LogicalType>& columnTypes) {
   if (!options.empty()) {
-    throw exception::BinderException{
-        "No option is supported when copying from table functions."};
+    THROW_BINDER_EXCEPTION(
+        "No option is supported when copying from table functions.");
   }
   auto tableFuncScanSource = scanSource.constPtrCast<TableFuncScanSource>();
   auto& parsedFuncExpression =

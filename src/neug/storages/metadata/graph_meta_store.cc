@@ -589,8 +589,8 @@ Result<std::string> preprocess_and_check_schema_json_string(
   try {
     rapidjson::Document doc;
     if (doc.Parse(raw_json_str).HasParseError()) {
-      throw exception::RuntimeError("Fail to parse json: " +
-                                    std::to_string(doc.GetParseError()));
+      THROW_RUNTIME_ERROR("Fail to parse json: " +
+                          std::to_string(doc.GetParseError()));
     }
     std::stringstream json_ss;
     json_ss << raw_json_str;

@@ -67,7 +67,7 @@ class GDDLConverter {
 
   void checkCatalogInitialized() const {
     if (!catalog) {
-      throw std::runtime_error("Catalog is not initialized.");
+      THROW_RUNTIME_ERROR("Catalog is not initialized.");
     }
   }
 

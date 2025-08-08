@@ -32,7 +32,7 @@ std::unique_ptr<BoundReadingClause> Binder::bindInQueryCall(
         std::make_unique<BoundTableFunctionCall>(std::move(boundTableFunction));
   } break;
   default:
-    throw exception::BinderException(
+    THROW_BINDER_EXCEPTION(
         stringFormat("{} is not a table or algorithm function.", functionName));
   }
   if (call.hasWherePredicate()) {

@@ -95,8 +95,7 @@ pybind11::object value_to_pyobject(const ::common::Value& value) {
     auto datetime = PyDateTime_FromTimestamp(PyLong_FromLongLong(millseconds));
 
     if (datetime == nullptr) {
-      throw gs::exception::RuntimeError(
-          "Failed to convert timestamp to datetime");
+      THROW_CONVERSION_EXCEPTION("Failed to convert timestamp to datetime");
     }
     return pybind11::cast<pybind11::object>(datetime);
   }
@@ -113,7 +112,7 @@ pybind11::object value_to_pyobject(const ::common::Value& value) {
     return pybind11::float_(value.f64());
   }
   default: {
-    throw gs::exception::RuntimeError("Unknown value type");
+    THROW_NOT_SUPPORTED_EXCEPTION("Unknown value type");
   }
   }
 }
@@ -124,7 +123,7 @@ pybind11::object name_or_id_to_pyobject(const common::NameOrId& name_or_id) {
   } else if (name_or_id.item_case() == common::NameOrId::kName) {
     return pybind11::str(name_or_id.name());
   } else {
-    throw gs::exception::RuntimeError("Unknown NameOrId type");
+    THROW_NOT_SUPPORTED_EXCEPTION("Unknown NameOrId type");
   }
 }
 
@@ -166,7 +165,7 @@ pybind11::object graph_path_to_pyobject(const results::GraphPath& graph_path) {
                results::GraphPath::VertexOrEdge::kEdge) {
       list.append(edge_to_pyobject(vertex_or_edge.edge()));
     } else {
-      throw gs::exception::RuntimeError("Unknown VertexOrEdge type");
+      THROW_NOT_SUPPORTED_EXCEPTION("Unknown VertexOrEdge type");
     }
   }
   return list;
@@ -187,7 +186,7 @@ pybind11::object element_to_pyobject(const results::Element& element) {
     return value_to_pyobject(element.object());
   }
   default: {
-    throw gs::exception::RuntimeError("Unknown element type");
+    THROW_NOT_SUPPORTED_EXCEPTION("Unknown element type");
   }
   }
 }
@@ -227,7 +226,7 @@ pybind11::object entry_to_pyobject(const results::Entry* entry) {
     return map_to_pyobject(entry->map());
   }
   default: {
-    throw gs::exception::RuntimeError("Unknown entry type");
+    THROW_NOT_SUPPORTED_EXCEPTION("Unknown entry type");
   }
   }
 }
@@ -275,7 +274,24 @@ void PyQueryResult::initialize(pybind11::handle& m) {
            "Returns:\n"
            "    str: The schema of the query result, which is a string "
            "representing the structure of the results, including vertex and "
-           "edge labels, properties, etc.");
+           "edge labels, properties, etc.")
+      .def("status_code", &PyQueryResult::status_code,
+           "Get the status code of the query result.\n\n"
+           "Returns:\n"
+           "    int: The status code of the query result, indicating success "
+           "or failure."
+           "A status code of 0 indicates success, while non-zero values "
+           "indicate various error conditions. For details on error codes, "
+           "refer to the 'StatusCode' enum in the `error.proto` file.")
+      .def("status_message", &PyQueryResult::status_message,
+           "Get the status message of the query result.\n\n"
+           "Returns:\n"
+           "    str: The status message of the query result, providing "
+           "additional information about the status of the query execution. "
+           "This message can include details about errors, warnings, or "
+           "other relevant information related to the query execution. "
+           "If the query executed successfully, this message may indicate "
+           "success or provide context about the results returned.");
 
   // PyDateTime_IMPORT is a macro that must be invoked before calling any
   // other cpython datetime macros. One could also invoke this in a separate
@@ -288,7 +304,7 @@ bool PyQueryResult::hasNext() { return query_result_.hasNext(); }
 
 pybind11::list PyQueryResult::getNext() {
   if (!hasNext()) {
-    throw gs::exception::RuntimeError("No more results");
+    THROW_RUNTIME_ERROR("No more results");
   }
   auto result = query_result_.next();
 
@@ -305,6 +321,12 @@ int32_t PyQueryResult::length() const { return query_result_.length(); }
 
 const std::string& PyQueryResult::get_result_schema() const {
   return query_result_.get_result_schema();
+}
+
+int32_t PyQueryResult::status_code() const { return status_.error_code(); }
+
+const std::string& PyQueryResult::status_message() const {
+  return status_.error_message();
 }
 
 }  // namespace gs

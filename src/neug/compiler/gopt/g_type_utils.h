@@ -85,7 +85,7 @@ class GTypeUtils {
       } else {
         // Print yaml node
         LOG(ERROR) << "Unsupported temporal type in YAML: " << node["temporal"];
-        throw std::runtime_error("Unsupported temporal type in YAML");
+        THROW_RUNTIME_ERROR("Unsupported temporal type in YAML");
       }
     }
     LOG(WARNING) << "Unsupported type in YAML: " << node;

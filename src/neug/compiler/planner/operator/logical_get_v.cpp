@@ -46,7 +46,7 @@ std::string LogicalGetV::getAliasName() const {
   // get the alias name from the node ID expression
   auto nodeId = getNodeID();
   if (!nodeId || nodeId->expressionType != common::ExpressionType::PROPERTY) {
-    throw exception::Exception(
+    THROW_EXCEPTION_WITH_FILE_LINE(
         "Node ID expression is not a property expression.");
   }
   auto propertyExpr = nodeId->constCast<binder::PropertyExpression>();
@@ -57,7 +57,7 @@ gopt::GAliasName LogicalGetV::getGAliasName() const {
   // get the alias name from the node ID expression
   auto nodeId = getNodeID();
   if (!nodeId || nodeId->expressionType != common::ExpressionType::PROPERTY) {
-    throw exception::Exception(
+    THROW_EXCEPTION_WITH_FILE_LINE(
         "Node ID expression is not a property expression.");
   }
   auto propertyExpr = nodeId->constCast<binder::PropertyExpression>();
@@ -77,8 +77,9 @@ std::unique_ptr<gopt::GNodeType> LogicalGetV::getNodeType(
     auto nodeTableEntry =
         dynamic_cast<catalog::NodeTableCatalogEntry*>(tableEntry);
     if (!nodeTableEntry) {
-      throw exception::Exception("Table with ID " + std::to_string(tableId) +
-                                 " is not a node table in the catalog.");
+      THROW_EXCEPTION_WITH_FILE_LINE("Table with ID " +
+                                     std::to_string(tableId) +
+                                     " is not a node table in the catalog.");
     }
     nodeTables.push_back(nodeTableEntry);
   }

@@ -9,7 +9,7 @@ namespace binder {
 
 void Expression::cast(const LogicalType&) {
   // LCOV_EXCL_START
-  throw exception::BinderException(stringFormat(
+  THROW_BINDER_EXCEPTION(stringFormat(
       "Data type of expression {} should not be modified.", toString()));
   // LCOV_EXCL_STOP
 }

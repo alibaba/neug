@@ -62,18 +62,26 @@ void GraphDBService::init(const ServiceConfig& config) {
 #ifdef HTTP_SERVER_TYPE_HIACTOR
     hdl_mgr_ = std::make_unique<HiactorHttpHandlerManager>();
 #else
-    LOG(FATAL) << "HTTP server type is not set to HIACTOR, but the code is "
+    LOG(ERROR) << "HTTP server type is not set to HIACTOR, but the code is "
                   "compiled with HIACTOR support.";
+    THROW_NOT_SUPPORTED_EXCEPTION(
+        "HTTP server type is not set to HIACTOR, but the code is compiled with "
+        "HIACTOR support.");
 #endif
   } else if (strcmp(HTTP_SERVER_TYPE_VAL, "brpc") == 0) {
 #ifdef HTTP_SERVER_TYPE_BRPC
     hdl_mgr_ = std::make_unique<BrpcHttpHandlerManager>(db_, planner_);
 #else
-    LOG(FATAL) << "HTTP server type is not set to BRPC, but the code is "
+    LOG(ERROR) << "HTTP server type is not set to BRPC, but the code is "
                   "compiled with BRPC support.";
+    THROW_NOT_SUPPORTED_EXCEPTION(
+        "HTTP server type is not set to BRPC, but the code is compiled with "
+        "BRPC support.");
 #endif
   } else {
-    LOG(FATAL) << "Unsupported HTTP server type: " << HTTP_SERVER_TYPE_VAL;
+    LOG(ERROR) << "Unsupported HTTP server type: " << HTTP_SERVER_TYPE_VAL;
+    THROW_NOT_SUPPORTED_EXCEPTION("Unsupported HTTP server type: " +
+                                  std::string(HTTP_SERVER_TYPE_VAL));
   }
   hdl_mgr_->Init(config);
 

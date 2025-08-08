@@ -14,7 +14,7 @@ static char bindParsingOptionValue(std::string value) {
   }
   if (value.length() < 1 || value.length() > 2 ||
       (value.length() == 2 && value[0] != '\\')) {
-    throw exception::BinderException(
+    THROW_BINDER_EXCEPTION(
         "Copy csv option value must be a single character with an "
         "optional escape character.");
   }
@@ -63,16 +63,14 @@ static void bindIntParsingOption(CSVReaderConfig& config,
                                  const int64_t& optionValue) {
   if (optionName == "SKIP") {
     if (optionValue < 0) {
-      throw exception::RuntimeError{
-          "Skip number must be a non-negative integer"};
+      THROW_RUNTIME_ERROR("Skip number must be a non-negative integer");
     }
     config.option.skipNum = optionValue;
   } else if (optionName == "SAMPLE_SIZE") {
     if (optionValue < 0) {
       // technically impossible at the moment since negative values aren't
       // supported in parameters
-      throw exception::RuntimeError{
-          "Sample size must be a non-negative integer"};
+      THROW_RUNTIME_ERROR("Sample size must be a non-negative integer");
     }
     config.option.sampleSize = optionValue;
   } else {
@@ -114,7 +112,7 @@ static bool isValidBooleanOptionValue(const Value& value,
     return false;
   } else {
     // In this case the boolean is not valid
-    throw exception::BinderException(stringFormat(
+    THROW_BINDER_EXCEPTION(stringFormat(
         "The type of csv parsing option {} must be a boolean.", name));
   }
 }
@@ -132,18 +130,18 @@ CSVReaderConfig CSVReaderConfig::construct(
                             isValidBooleanOptionValue(op.second, name));
     } else if (isValidStringParsingOption) {
       if (op.second.getDataType() != LogicalType::STRING()) {
-        throw exception::BinderException(stringFormat(
+        THROW_BINDER_EXCEPTION(stringFormat(
             "The type of csv parsing option {} must be a string.", name));
       }
       bindStringParsingOption(config, name, op.second.getValue<std::string>());
     } else if (isValidIntParsingOption) {
       if (op.second.getDataType() != LogicalType::INT64()) {
-        throw exception::BinderException(stringFormat(
+        THROW_BINDER_EXCEPTION(stringFormat(
             "The type of csv parsing option {} must be a INT64.", name));
       }
       bindIntParsingOption(config, name, op.second.getValue<int64_t>());
     } else {
-      throw exception::BinderException(
+      THROW_BINDER_EXCEPTION(
           stringFormat("Unrecognized csv parsing option: {}.", name));
     }
   }

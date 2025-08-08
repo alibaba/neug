@@ -66,21 +66,21 @@ void PyDatabase::initialize(pybind11::handle& m) {
 
 PyConnection PyDatabase::connect() {
   if (!database) {
-    throw exception::RuntimeError("Database is not initialized.");
+    THROW_RUNTIME_ERROR("Database is not initialized.");
   }
   return PyConnection(*database, database->connect());
 }
 
 std::string PyDatabase::serve(int port, const std::string& host) {
   if (!database) {
-    throw exception::RuntimeError("Database is not initialized.");
+    THROW_RUNTIME_ERROR("Database is not initialized.");
   }
   return database->serve(port, host);
 }
 
 void PyDatabase::stop_serving() {
   if (!database) {
-    throw exception::RuntimeError("Database is not initialized.");
+    THROW_RUNTIME_ERROR("Database is not initialized.");
   }
   database->stop_serving();
 }

@@ -22,7 +22,7 @@ ValueVector::ValueVector(LogicalType dataType,
     // LCOV_EXCL_START
     // Alternatively we can assign a default type here but I don't think it's a
     // good practice.
-    throw exception::RuntimeError(
+    THROW_RUNTIME_ERROR(
         "Trying to a create a vector with ANY type. This should not happen. "
         "Data type is expected to be resolved during binding.");
     // LCOV_EXCL_STOP
@@ -573,7 +573,7 @@ void StringVector::addString(ValueVector* vector, ku_string_t& dstStr,
   if (ku_string_t::isShortString(length)) {
     dstStr.setShortString(srcStr, length);
   } else {
-    throw exception::Exception(
+    THROW_EXCEPTION_WITH_FILE_LINE(
         "StringVector::addString: length is too long, exceeds " +
         ku_string_t::SHORT_STR_LENGTH);
   }

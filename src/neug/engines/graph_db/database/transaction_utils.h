@@ -117,7 +117,9 @@ inline void serialize_field(grape::InArchive& arc, const Any& prop) {
       serialize_field(arc, field);
     }
   } else {
-    LOG(FATAL) << "Unexpected property type" << int(prop.type.type_enum);
+    THROW_NOT_SUPPORTED_EXCEPTION(
+        "Unexpected property type: " + prop.type.ToString() + ", " +
+        std::to_string((int32_t) prop.type.type_enum));
   }
 }
 

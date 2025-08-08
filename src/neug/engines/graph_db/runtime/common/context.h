@@ -148,7 +148,9 @@ class WriteContext {
     std::pair<WriteParams, WriteParams> pairs() const {
       size_t pos = value.find_first_of(',');
       if (pos == std::string::npos) {
-        LOG(FATAL) << "Invalid pair value: " << value;
+        THROW_INVALID_ARGUMENT_EXCEPTION(
+            "WriteParams pairs() called on a single value: " +
+            std::string(value));
       }
       return std::make_pair(WriteParams(value.substr(0, pos)),
                             WriteParams(value.substr(pos + 1)));
@@ -171,7 +173,8 @@ class WriteContext {
       } else if (type == PropertyType::kTimestamp) {
         return Any(TimeStamp(std::stoll(std::string(value))));
       } else {
-        LOG(FATAL) << "Unsupported type: " << type;
+        THROW_NOT_SUPPORTED_EXCEPTION("Unsupported type for WriteParams: " +
+                                      type.ToString());
         return Any();
       }
     }
@@ -262,14 +265,16 @@ class WriteContext {
 
   const WriteParamsColumn& get(int alias) const {
     if (alias >= static_cast<int>(vals.size())) {
-      LOG(FATAL) << "Alias " << alias << " not found in WriteContext";
+      THROW_NOT_FOUND_EXCEPTION("Alias " + std::to_string(alias) +
+                                " not found in WriteContext");
     }
     return vals[alias];
   }
 
   WriteParamsColumn& get(int alias) {
     if (alias >= static_cast<int>(vals.size())) {
-      LOG(FATAL) << "Alias " << alias << " not found in WriteContext";
+      THROW_NOT_FOUND_EXCEPTION("Alias " + std::to_string(alias) +
+                                " not found in WriteContext");
     }
     return vals[alias];
   }

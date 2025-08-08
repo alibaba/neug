@@ -82,7 +82,8 @@ YAML::Node property_type_to_yaml(const PropertyType& type) {
     node["temporal"] = config_parsing::TemporalTypeToYAML(type);
     break;
   default:
-    LOG(FATAL) << "Unsupported property type: " << type.type_enum;
+    THROW_INVALID_ARGUMENT_EXCEPTION(
+        "Unrecognized property type for YAML encoding: " + type.ToString());
   }
   return node;
 }
@@ -155,8 +156,8 @@ void convert_yaml_node_to_json(const YAML::Node& node,
       }
       break;
     default:
-      throw exception::RuntimeError("Unsupported YAML node type" +
-                                    std::to_string(node.Type()));
+      THROW_RUNTIME_ERROR("Unsupported YAML node type" +
+                          std::to_string(node.Type()));
       break;
     }
   } catch (const YAML::BadConversion& e) {
@@ -237,8 +238,8 @@ Status write_yaml_node_to_yaml_string(const YAML::Node& node,
       break;
     }
     default:
-      throw exception::RuntimeError("Unsupported YAML node type" +
-                                    std::to_string(node.Type()));
+      THROW_RUNTIME_ERROR("Unsupported YAML node type" +
+                          std::to_string(node.Type()));
       break;
     }
   } catch (const YAML::BadConversion& e) {
@@ -253,7 +254,7 @@ std::string read_yaml_file_to_string(const std::string& file_path) {
   YAML::Emitter emitter;
   auto status = write_yaml_node_to_yaml_string(node, emitter);
   if (!status.ok()) {
-    throw exception::IOException("Failed to read yaml file: " + file_path);
+    THROW_IO_EXCEPTION("Failed to read yaml file: " + file_path);
   }
   return std::string(emitter.c_str());
 }

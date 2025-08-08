@@ -30,10 +30,12 @@ class PyQueryResult {
   static void initialize(pybind11::handle& m);
 
   PyQueryResult(QueryResult&& result)
-      : query_result_(std::move(std::move(result))) {}
+      : status_(Status::OK()), query_result_(std::move(std::move(result))) {}
 
   PyQueryResult(const std::string& result_str)
-      : query_result_(QueryResult::From(result_str)) {}
+      : status_(Status::OK()), query_result_(QueryResult::From(result_str)) {}
+
+  PyQueryResult(const Status& status) : status_(status) {}
 
   ~PyQueryResult() { close(); }
 
@@ -47,8 +49,12 @@ class PyQueryResult {
 
   const std::string& get_result_schema() const;
 
+  int32_t status_code() const;
+
+  const std::string& status_message() const;
+
  private:
-  // const Schema& schema_;
+  Status status_;
   QueryResult query_result_;
 };
 

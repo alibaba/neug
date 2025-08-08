@@ -35,7 +35,7 @@ static auto visit(const common::LogicalType& dataType, Fs... funcs) {
     break;
   }
   // LCOV_EXCL_START
-  throw exception::RuntimeError(common::stringFormat(
+  THROW_RUNTIME_ERROR(common::stringFormat(
       "{} weight type is not supported for weighted shortest path.",
       dataType.toString()));
   // LCOV_EXCL_STOP
@@ -44,7 +44,7 @@ static auto visit(const common::LogicalType& dataType, Fs... funcs) {
 template <typename T>
 static void checkWeight(T weight) {
   if (weight < 0) {
-    [[unlikely]] throw exception::RuntimeError(
+    [[unlikely]] THROW_RUNTIME_ERROR(
         common::stringFormat("Found negative weight {}. This is not supported "
                              "in weighted shortest path.",
                              weight));

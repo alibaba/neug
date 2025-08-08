@@ -88,7 +88,7 @@ void QueryGraphLabelAnalyzer::pruneNode(const QueryGraph& graph,
         for (auto j = 1u; j < candidateNames.size(); ++j) {
           candidateStr += ", " + candidateNames[j];
         }
-        throw exception::BinderException(stringFormat(
+        THROW_BINDER_EXCEPTION(stringFormat(
             "Query node {} violates schema. Expected labels are {}.",
             node.toString(), candidateStr));
       }
@@ -141,7 +141,7 @@ void QueryGraphLabelAnalyzer::pruneRel(RelExpression& rel) const {
   // but skip coverage check. LCOV_EXCL_START
   if (prunedEntries.empty()) {
     if (throwOnViolate) {
-      throw exception::BinderException(
+      THROW_BINDER_EXCEPTION(
           stringFormat("Cannot find a label for relationship {} that "
                        "connects to all of its neighbour nodes.",
                        rel.toString()));

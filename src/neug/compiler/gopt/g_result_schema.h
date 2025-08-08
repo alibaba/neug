@@ -22,7 +22,7 @@ class GResultSchema {
                                  catalog::Catalog* catalog) {
     auto schema = plan.getSchema();
     if (!schema) {
-      throw exception::Exception("Cannot infer schema from logical plan");
+      THROW_EXCEPTION_WITH_FILE_LINE("Cannot infer schema from logical plan");
     }
     YAML::Node result;
     auto exprScope = schema->getExpressionsInScope();

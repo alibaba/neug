@@ -151,78 +151,120 @@ Result<results::CollectiveResults> CypherUpdateApp::execute_drop_edge_schema(
 Result<results::CollectiveResults> CypherUpdateApp::execute_ddl(
     GraphDBSession& graph, const physical::DDLPlan& ddl_plan) {
   auto& graph_ = graph.graph();
-  if (ddl_plan.has_create_vertex_schema()) {
-    auto& create_vertex = ddl_plan.create_vertex_schema();
-    VLOG(10) << "Got create vertex request: " << create_vertex.DebugString();
-    auto vertex_type_name = create_vertex.vertex_type().name();
-    auto tuple_res = property_defs_to_tuple(create_vertex.properties());
-    if (!tuple_res.ok()) {
-      return tuple_res.status();
-    }
-    if (create_vertex.primary_key_size() == 0) {
-      return Status(StatusCode::ERR_INVALID_ARGUMENT,
-                    "Primary key is required for vertex type creation");
-    }
-    if (create_vertex.primary_key_size() > 1) {
-      return Status(StatusCode::ERR_INVALID_ARGUMENT,
-                    "Only one primary key is supported");
-    }
-    std::vector<std::string> pks{create_vertex.primary_key(0)};
-    return graph_.create_vertex_type(vertex_type_name, tuple_res.value(), pks);
-  } else if (ddl_plan.has_create_edge_schema()) {
-    auto& create_edge = ddl_plan.create_edge_schema();
-    VLOG(10) << "Got create edge request: " << create_edge.DebugString();
-    auto edge_type_name = create_edge.edge_type().type_name().name();
-    auto src_vertex_type_name = create_edge.edge_type().src_type_name().name();
-    auto dst_vertex_type_name = create_edge.edge_type().dst_type_name().name();
-    auto tuple_res = property_defs_to_tuple(create_edge.properties());
-    if (!tuple_res.ok()) {
-      return tuple_res.status();
-    }
-    if (create_edge.primary_key_size() != 0) {
-      LOG(ERROR) << "Primary key is not supported for edge type creation";
-      return Status(StatusCode::ERR_INVALID_ARGUMENT,
-                    "Primary key is not supported for edge type creation");
-    }
-    EdgeStrategy oe_stragety, ie_stragety;
-    if (!multiplicity_to_storage_strategy(create_edge.multiplicity(),
-                                          oe_stragety, ie_stragety)) {
-      LOG(ERROR) << "Invalid edge multiplicity: " << create_edge.multiplicity();
-      return Status(StatusCode::ERR_INVALID_ARGUMENT,
-                    "Invalid edge multiplicity: " + create_edge.multiplicity());
-    }
+  try {
+    if (ddl_plan.has_create_vertex_schema()) {
+      auto& create_vertex = ddl_plan.create_vertex_schema();
+      VLOG(10) << "Got create vertex request: " << create_vertex.DebugString();
+      auto vertex_type_name = create_vertex.vertex_type().name();
+      auto tuple_res = property_defs_to_tuple(create_vertex.properties());
+      if (!tuple_res.ok()) {
+        return tuple_res.status();
+      }
+      if (create_vertex.primary_key_size() == 0) {
+        return Status(StatusCode::ERR_INVALID_ARGUMENT,
+                      "Primary key is required for vertex type creation");
+      }
+      if (create_vertex.primary_key_size() > 1) {
+        return Status(StatusCode::ERR_INVALID_ARGUMENT,
+                      "Only one primary key is supported");
+      }
+      std::vector<std::string> pks{create_vertex.primary_key(0)};
+      return graph_.create_vertex_type(vertex_type_name, tuple_res.value(),
+                                       pks);
+    } else if (ddl_plan.has_create_edge_schema()) {
+      auto& create_edge = ddl_plan.create_edge_schema();
+      VLOG(10) << "Got create edge request: " << create_edge.DebugString();
+      auto edge_type_name = create_edge.edge_type().type_name().name();
+      auto src_vertex_type_name =
+          create_edge.edge_type().src_type_name().name();
+      auto dst_vertex_type_name =
+          create_edge.edge_type().dst_type_name().name();
+      auto tuple_res = property_defs_to_tuple(create_edge.properties());
+      if (!tuple_res.ok()) {
+        return tuple_res.status();
+      }
+      if (create_edge.primary_key_size() != 0) {
+        LOG(ERROR) << "Primary key is not supported for edge type creation";
+        return Status(StatusCode::ERR_INVALID_ARGUMENT,
+                      "Primary key is not supported for edge type creation");
+      }
+      EdgeStrategy oe_stragety, ie_stragety;
+      if (!multiplicity_to_storage_strategy(create_edge.multiplicity(),
+                                            oe_stragety, ie_stragety)) {
+        LOG(ERROR) << "Invalid edge multiplicity: "
+                   << create_edge.multiplicity();
+        return Status(
+            StatusCode::ERR_INVALID_ARGUMENT,
+            "Invalid edge multiplicity: " + create_edge.multiplicity());
+      }
 
-    return graph_.create_edge_type(
-        src_vertex_type_name, dst_vertex_type_name, edge_type_name,
-        tuple_res.value(),
-        conflict_action_to_bool(create_edge.conflict_action()), oe_stragety,
-        ie_stragety);
-  } else if (ddl_plan.has_add_vertex_property_schema()) {
-    return execute_add_vertex_property(graph,
-                                       ddl_plan.add_vertex_property_schema());
-  } else if (ddl_plan.has_add_edge_property_schema()) {
-    return execute_add_edge_property(graph,
-                                     ddl_plan.add_edge_property_schema());
-  } else if (ddl_plan.has_drop_vertex_property_schema()) {
-    return execute_drop_vertex_property(graph,
-                                        ddl_plan.drop_vertex_property_schema());
-  } else if (ddl_plan.has_drop_edge_property_schema()) {
-    return execute_drop_edge_property(graph,
-                                      ddl_plan.drop_edge_property_schema());
-  } else if (ddl_plan.has_rename_vertex_property_schema()) {
-    return execute_rename_vertex_property(
-        graph, ddl_plan.rename_vertex_property_schema());
-  } else if (ddl_plan.has_rename_edge_property_schema()) {
-    return execute_rename_edge_property(graph,
-                                        ddl_plan.rename_edge_property_schema());
-  } else if (ddl_plan.has_drop_vertex_schema()) {
-    return execute_drop_vertex_schema(graph, ddl_plan.drop_vertex_schema());
-  } else if (ddl_plan.has_drop_edge_schema()) {
-    return execute_drop_edge_schema(graph, ddl_plan.drop_edge_schema());
-  } else {
-    LOG(ERROR) << "Unknown DDL plan: " << ddl_plan.DebugString();
-    return Status(StatusCode::ERR_INVALID_ARGUMENT,
-                  "Unknown DDL plan: " + ddl_plan.DebugString());
+      return graph_.create_edge_type(
+          src_vertex_type_name, dst_vertex_type_name, edge_type_name,
+          tuple_res.value(),
+          conflict_action_to_bool(create_edge.conflict_action()), oe_stragety,
+          ie_stragety);
+    } else if (ddl_plan.has_add_vertex_property_schema()) {
+      return execute_add_vertex_property(graph,
+                                         ddl_plan.add_vertex_property_schema());
+    } else if (ddl_plan.has_add_edge_property_schema()) {
+      return execute_add_edge_property(graph,
+                                       ddl_plan.add_edge_property_schema());
+    } else if (ddl_plan.has_drop_vertex_property_schema()) {
+      return execute_drop_vertex_property(
+          graph, ddl_plan.drop_vertex_property_schema());
+    } else if (ddl_plan.has_drop_edge_property_schema()) {
+      return execute_drop_edge_property(graph,
+                                        ddl_plan.drop_edge_property_schema());
+    } else if (ddl_plan.has_rename_vertex_property_schema()) {
+      return execute_rename_vertex_property(
+          graph, ddl_plan.rename_vertex_property_schema());
+    } else if (ddl_plan.has_rename_edge_property_schema()) {
+      return execute_rename_edge_property(
+          graph, ddl_plan.rename_edge_property_schema());
+    } else if (ddl_plan.has_drop_vertex_schema()) {
+      return execute_drop_vertex_schema(graph, ddl_plan.drop_vertex_schema());
+    } else if (ddl_plan.has_drop_edge_schema()) {
+      return execute_drop_edge_schema(graph, ddl_plan.drop_edge_schema());
+    } else {
+      LOG(ERROR) << "Unknown DDL plan: " << ddl_plan.DebugString();
+      return Status(StatusCode::ERR_INVALID_ARGUMENT,
+                    "Unknown DDL plan: " + ddl_plan.DebugString());
+    }
+  } catch (const exception::InvalidArgumentException& e) {
+    LOG(ERROR) << "Invalid argument: " << e.what();
+    return Status(StatusCode::ERR_INVALID_ARGUMENT, e.what());
+  } catch (const exception::InternalException& e) {
+    LOG(ERROR) << "Internal error: " << e.what();
+    return Status(StatusCode::ERR_INTERNAL_ERROR, e.what());
+  } catch (const exception::ConnectionException& e) {
+    LOG(ERROR) << "Connection error: " << e.what();
+    return Status(StatusCode::ERR_CONNECTION_ERROR, e.what());
+  } catch (const exception::ConversionException& e) {
+    LOG(ERROR) << "Conversion error: " << e.what();
+    return Status(StatusCode::ERR_TYPE_CONVERSION, e.what());
+  } catch (const exception::RuntimeError& e) {
+    LOG(ERROR) << "Runtime error: " << e.what();
+    return Status(StatusCode::ERR_INTERNAL_ERROR, e.what());
+  } catch (const exception::CopyException& e) {
+    LOG(ERROR) << "Copy error: " << e.what();
+    return Status(StatusCode::ERR_INTERNAL_ERROR, e.what());
+  } catch (const exception::IndexException& e) {
+    LOG(ERROR) << "Index error: " << e.what();
+    return Status(StatusCode::ERR_INDEX_ERROR, e.what());
+  } catch (const exception::ExtensionException& e) {
+    LOG(ERROR) << "Extension error: " << e.what();
+    return Status(StatusCode::ERR_EXTENSION, e.what());
+  } catch (const exception::Exception& e) {
+    LOG(ERROR) << "Exception: " << e.what();
+    return Status(StatusCode::ERR_INTERNAL_ERROR, e.what());
+  } catch (const std::exception& e) {
+    LOG(ERROR) << "Unknown error: " << e.what();
+    return Status(StatusCode::ERR_INTERNAL_ERROR, e.what());
+  } catch (...) {
+    LOG(ERROR) << "Unknown error occurred during DDL execution";
+    return Status(StatusCode::ERR_UNKNOWN,
+                  "Unknown error occurred during DDL "
+                  "execution");
   }
 }
 

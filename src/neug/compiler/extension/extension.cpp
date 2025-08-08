@@ -173,7 +173,7 @@ ExtensionLibLoader::ExtensionLibLoader(const std::string& extensionName,
     : extensionName{extensionName} {
   libHdl = dlopen(path.c_str(), RTLD_NOW | RTLD_LOCAL);
   if (libHdl == nullptr) {
-    throw exception::IOException(
+    THROW_IO_EXCEPTION(
         common::stringFormat("Failed to load library: {} which is needed by "
                              "extension: {}.\nError: {}.",
                              path, extensionName, common::dlErrMessage()));
@@ -199,7 +199,7 @@ ext_install_func_t ExtensionLibLoader::getInstallFunc() {
 void* ExtensionLibLoader::getDynamicLibFunc(const std::string& funcName) {
   auto sym = dlsym(libHdl, funcName.c_str());
   if (sym == nullptr) {
-    throw exception::IOException(common::stringFormat(
+    THROW_IO_EXCEPTION(common::stringFormat(
         "Failed to load {} function in extension {}.\nError: {}", funcName,
         extensionName, common::dlErrMessage()));
   }
@@ -212,12 +212,12 @@ std::wstring utf8ToUnicode(const char* input) {
 
   result = MultiByteToWideChar(CP_UTF8, 0, input, -1, nullptr, 0);
   if (result == 0) {
-    throw exception::IOException("Failure in MultiByteToWideChar");
+    THROW_IO_EXCEPTION("Failure in MultiByteToWideChar");
   }
   auto buffer = std::make_unique<wchar_t[]>(result);
   result = MultiByteToWideChar(CP_UTF8, 0, input, -1, buffer.get(), result);
   if (result == 0) {
-    throw exception::IOException("Failure in MultiByteToWideChar");
+    THROW_IO_EXCEPTION("Failure in MultiByteToWideChar");
   }
   return std::wstring(buffer.get(), result);
 }

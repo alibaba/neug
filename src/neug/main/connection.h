@@ -58,7 +58,7 @@ class Connection {
   const Schema& get_schema() const {
     if (is_closed()) {
       LOG(ERROR) << "Connection is closed, cannot get schema.";
-      throw std::runtime_error("Connection is closed, cannot get schema.");
+      THROW_RUNTIME_ERROR("Connection is closed, cannot get schema.");
     }
     return db_.schema();
   }

@@ -126,8 +126,7 @@ Value ClientContext::getCurrentSetting(const std::string& optionName) const {
   if (defaultOption != nullptr) {
     return defaultOption->defaultValue;
   }
-  throw exception::RuntimeError{"Invalid option name: " + lowerCaseOptionName +
-                                "."};
+  THROW_RUNTIME_ERROR("Invalid option name: " + lowerCaseOptionName + ".");
 }
 
 Transaction* ClientContext::getTransaction() const {
@@ -403,7 +402,7 @@ void ClientContext::bindParametersNoLock(
   auto& parameterMap = preparedStatement->parameterMap;
   for (auto& [name, value] : inputParams) {
     if (!parameterMap.contains(name)) {
-      throw exception::Exception("Parameter " + name + " not found.");
+      THROW_EXCEPTION_WITH_FILE_LINE("Parameter " + name + " not found.");
     }
     auto expectParam = parameterMap.at(name);
     *parameterMap.at(name) = std::move(*value);
@@ -413,7 +412,7 @@ void ClientContext::bindParametersNoLock(
 std::vector<std::shared_ptr<Statement>> ClientContext::parseQuery(
     std::string_view query) {
   if (query.empty()) {
-    throw exception::ConnectionException("Query is empty.");
+    THROW_CONNECTION_EXCEPTION("Query is empty.");
   }
   std::vector<std::shared_ptr<Statement>> statements;
   auto parserTimer = TimeMetric(true /*enable*/);
@@ -522,7 +521,7 @@ std::unique_ptr<PreparedStatement> ClientContext::prepareNoLock(
 
 std::unique_ptr<QueryResult> ClientContext::executeNoLock(
     PreparedStatement* preparedStatement, std::optional<uint64_t> queryID) {
-  throw std::runtime_error(
+  THROW_RUNTIME_ERROR(
       "executeNoLock is not implemented, to remove dependency of processor "
       "module");
 }

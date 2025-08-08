@@ -53,17 +53,15 @@ void put_column_types_option(const std::vector<PropertyType>& column_types,
                              std::vector<std::string>& column_names,
                              arrow::csv::ConvertOptions& convert_options) {
   if (column_types.size() != column_names.size()) {
-    throw gs::exception::RuntimeError(
-        "Column types size does not match column names size: " +
-        std::to_string(column_types.size()) + " vs " +
-        std::to_string(column_names.size()));
+    THROW_RUNTIME_ERROR("Column types size does not match column names size: " +
+                        std::to_string(column_types.size()) + " vs " +
+                        std::to_string(column_names.size()));
   }
   for (size_t i = 0; i < column_types.size(); ++i) {
     const auto& col_name = column_names[i];
     if (convert_options.column_types.find(col_name) !=
         convert_options.column_types.end()) {
-      throw gs::exception::RuntimeError("Duplicate column name found: " +
-                                        col_name);
+      THROW_RUNTIME_ERROR("Duplicate column name found: " + col_name);
     }
     convert_options.column_types.insert(
         {col_name, gs::PropertyTypeToArrowType(column_types[i])});
@@ -385,25 +383,25 @@ create_record_batch_supplier_from_arrow_stream_column(
     auto column = ctx.get(tag_id);
     if (column == nullptr) {
       LOG(ERROR) << "Column not found for tag id: " << tag_id;
-      throw std::runtime_error("Column not found for tag id: " +
-                               std::to_string(tag_id));
+      THROW_RUNTIME_ERROR("Column not found for tag id: " +
+                          std::to_string(tag_id));
     }
     if (column->column_type() != ContextColumnType::kArrowStream) {
       LOG(ERROR) << "Invalid column type for tag id: " << tag_id;
-      throw std::runtime_error("Invalid column type for tag id: " +
-                               std::to_string(tag_id));
+      THROW_RUNTIME_ERROR("Invalid column type for tag id: " +
+                          std::to_string(tag_id));
     }
     auto casted_column =
         std::dynamic_pointer_cast<ArrowStreamContextColumn>(column);
     if (!casted_column) {
       LOG(ERROR) << "Failed to cast column for tag id: " << tag_id;
-      throw std::runtime_error("Failed to cast column for tag id: " +
-                               std::to_string(tag_id));
+      THROW_RUNTIME_ERROR("Failed to cast column for tag id: " +
+                          std::to_string(tag_id));
     }
     return casted_column->GetSuppliers();
   }
   LOG(ERROR) << "No valid column mappings found.";
-  throw std::runtime_error("No valid column mappings found.");
+  THROW_RUNTIME_ERROR("No valid column mappings found.");
 }
 
 std::vector<std::shared_ptr<IRecordBatchSupplier>> create_record_batch_supplier(
@@ -416,15 +414,15 @@ std::vector<std::shared_ptr<IRecordBatchSupplier>> create_record_batch_supplier(
     auto column = ctx.get(tag_id);
     if (column == nullptr) {
       LOG(ERROR) << "Column not found for tag id: " << tag_id;
-      throw std::runtime_error("Column not found for tag id: " +
-                               std::to_string(tag_id));
+      THROW_RUNTIME_ERROR("Column not found for tag id: " +
+                          std::to_string(tag_id));
     }
     if (column_type == ContextColumnType::kNone) {
       column_type = column->column_type();
     } else if (column_type != column->column_type()) {
       LOG(ERROR) << "Column type mismatch for tag id: " << tag_id;
-      throw std::runtime_error("Column type mismatch for tag id: " +
-                               std::to_string(tag_id));
+      THROW_RUNTIME_ERROR("Column type mismatch for tag id: " +
+                          std::to_string(tag_id));
     }
   }
   if (column_type == ContextColumnType::kArrowArray) {
@@ -435,8 +433,8 @@ std::vector<std::shared_ptr<IRecordBatchSupplier>> create_record_batch_supplier(
                                                                  prop_mappings);
   } else {
     LOG(ERROR) << "Unsupported column type: " << static_cast<int>(column_type);
-    throw std::runtime_error("Unsupported column type: " +
-                             std::to_string(static_cast<int>(column_type)));
+    THROW_RUNTIME_ERROR("Unsupported column type: " +
+                        std::to_string(static_cast<int>(column_type)));
   }
 }
 
@@ -502,11 +500,10 @@ void to_arrow_csv_options(
                           parse_options.escaping, parse_options.escape_char,
                           read_options, column_types.size());
   if (read_options.column_names.size() != column_types.size()) {
-    throw gs::exception::RuntimeError(
-        "Schema mismatch: column names size (" +
-        std::to_string(read_options.column_names.size()) +
-        ") does not match column types size (" +
-        std::to_string(column_types.size()) + ")");
+    THROW_RUNTIME_ERROR("Schema mismatch: column names size (" +
+                        std::to_string(read_options.column_names.size()) +
+                        ") does not match column types size (" +
+                        std::to_string(column_types.size()) + ")");
   }
   // Currently we assume the column_types are corresponding to column names
   put_column_types_option(column_types, read_options.column_names,

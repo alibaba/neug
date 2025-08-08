@@ -35,7 +35,7 @@ struct ListAppend {
 static void validateArgumentType(const binder::expression_vector& arguments) {
   if (ListType::getChildType(arguments[0]->dataType) !=
       arguments[1]->getDataType()) {
-    throw exception::BinderException(
+    THROW_BINDER_EXCEPTION(
         ExceptionMessage::listFunctionIncompatibleChildrenType(
             ListAppendFunction::name, arguments[0]->getDataType().toString(),
             arguments[1]->getDataType().toString()));
@@ -46,12 +46,12 @@ static std::unique_ptr<FunctionBindData> bindFunc(
     const ScalarBindFuncInput& input) {
   validateArgumentType(input.arguments);
   auto scalarFunction = input.definition->ptrCast<ScalarFunction>();
-  TypeUtils::visit(
-      input.arguments[1]->getDataType().getPhysicalType(),
-      [&scalarFunction]<typename T>(T) {
-        scalarFunction->execFunc = ScalarFunction::BinaryExecListStructFunction<
-            list_entry_t, T, list_entry_t, ListAppend>;
-      });
+  TypeUtils::visit(input.arguments[1]->getDataType().getPhysicalType(),
+                   [&scalarFunction]<typename T>(T) {
+                     scalarFunction->execFunc =
+                         ScalarFunction::BinaryExecListStructFunction<
+                             list_entry_t, T, list_entry_t, ListAppend>;
+                   });
   return FunctionBindData::getSimpleBindData(input.arguments,
                                              input.arguments[0]->getDataType());
 }

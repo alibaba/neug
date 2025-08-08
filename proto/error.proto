@@ -71,6 +71,8 @@ enum Code {
   ERR_BAD_ENCODING = 1015;
   // Import file not exists.
   ERR_INVALID_FILE = 1016;
+  // Extension error, e.g., an error occurred while loading an extension.
+  ERR_EXTENSION = 1017;
 
   // Network related errors
   ERR_NETWORK = 2001;
@@ -88,6 +90,8 @@ enum Code {
   // Load overflow, e.g., the service is overloaded and cannot handle more
   // requests.
   ERR_LOAD_OVERFLOW = 2006;
+  // Connection error, e.g., an error in connection to the server or database.
+  ERR_CONNECTION_ERROR = 2007;
 
   // Error during query compilation
   ERR_COMPILATION = 3000;
@@ -126,6 +130,8 @@ enum Code {
   ERR_TYPE_CONVERSION = 5003;
   // Error during type overflow, e.g., assign -1 to uint32.
   ERR_TYPE_OVERFLOW = 5004;
+  // Error when indexing, e.g., trying to access an element out of bounds.
+  ERR_INDEX_ERROR = 5005;
 
   // Deployment related errors
   ERR_PLATFORM_ABI = 6001;

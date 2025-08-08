@@ -12,8 +12,7 @@ static AttachInfo bindAttachInfo(const parser::AttachInfo& attachInfo) {
   binder::AttachOption attachOption;
   for (auto& [name, value] : attachInfo.options) {
     if (value->getExpressionType() != common::ExpressionType::LITERAL) {
-      throw exception::BinderException{
-          "Attach option must be a literal expression."};
+      THROW_BINDER_EXCEPTION("Attach option must be a literal expression.");
     }
     auto val =
         value->constPtrCast<parser::ParsedLiteralExpression>()->getValue();
@@ -23,8 +22,8 @@ static AttachInfo bindAttachInfo(const parser::AttachInfo& attachInfo) {
   if (common::StringUtils::getUpper(attachInfo.dbType) ==
           common::ATTACHED_KUZU_DB_TYPE &&
       attachInfo.dbAlias.empty()) {
-    throw exception::BinderException{
-        "Attaching a gs database without an alias is not allowed."};
+    THROW_BINDER_EXCEPTION(
+        "Attaching a gs database without an alias is not allowed.");
   }
   return binder::AttachInfo{attachInfo.dbPath, attachInfo.dbAlias,
                             attachInfo.dbType, std::move(attachOption)};

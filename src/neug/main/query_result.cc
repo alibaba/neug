@@ -27,8 +27,7 @@ QueryResult QueryResult::From(results::CollectiveResults&& result) {
 QueryResult QueryResult::From(const std::string& result_str) {
   results::CollectiveResults result;
   if (!result.ParseFromString(result_str)) {
-    throw exception::RuntimeError(
-        "Failed to parse CollectiveResults from string");
+    THROW_RUNTIME_ERROR("Failed to parse CollectiveResults from string");
   }
   return QueryResult(std::move(result));
 }

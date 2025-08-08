@@ -336,7 +336,7 @@ bl::result<Context> InsertEdgeOpr::eval_impl(
             "Edge property index out of range in edge type from source to ");
       }
       if (edge_properties_ordered[idx].type != PropertyType::Empty()) {
-        throw std::runtime_error(
+        THROW_RUNTIME_ERROR(
             "InsertEdgeOpr::eval_impl: edge property already set at index " +
             std::to_string(idx) + ", property name: " + prop.first);
       }
@@ -378,7 +378,7 @@ bl::result<Context> InsertEdgeOpr::eval_impl(
                           edge_label_id, Any::From(record));
       }
       if (!insert_res) {
-        throw std::runtime_error(
+        THROW_RUNTIME_ERROR(
             "InsertEdgeOpr::eval_impl: failed to add edge from " +
             std::to_string(src_vertex) + " to " + std::to_string(dst_vertex) +
             " with edge label " + std::to_string(edge_label_id));
@@ -402,7 +402,7 @@ std::unique_ptr<IUpdateOperator> InsertEdgeOprBuilder::Build(
     std::vector<std::pair<std::string, Any>> edge_properties;
     for (const auto& prop : edge.property_mappings()) {
       if (prop.data().operators_size() != 1) {
-        throw std::runtime_error(
+        THROW_RUNTIME_ERROR(
             "InsertEdgeOprBuilder::Build: property value must have exactly "
             "one operator");
       }

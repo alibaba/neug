@@ -30,7 +30,7 @@ std::unique_ptr<FunctionBindData> ArrayCrossProductBindFunc(
   auto leftType = interpretLogicalType(input.arguments[0].get());
   auto rightType = interpretLogicalType(input.arguments[1].get());
   if (leftType != rightType) {
-    throw exception::BinderException(stringFormat(
+    THROW_BINDER_EXCEPTION(stringFormat(
         "{} requires both arrays to have the same element type and size of 3",
         ArrayCrossProductFunction::name));
   }
@@ -65,9 +65,9 @@ std::unique_ptr<FunctionBindData> ArrayCrossProductBindFunc(
         list_entry_t, list_entry_t, list_entry_t, ArrayCrossProduct<double>>;
     break;
   default:
-    throw exception::BinderException{stringFormat(
+    THROW_BINDER_EXCEPTION(stringFormat(
         "{} can only be applied on array of floating points or integers",
-        ArrayCrossProductFunction::name)};
+        ArrayCrossProductFunction::name));
   }
   input.definition->ptrCast<ScalarFunction>()->execFunc = execFunc;
   const auto resultType =
@@ -97,7 +97,7 @@ static LogicalType getChildType(const LogicalType& type) {
     return ListType::getChildType(type).copy();
     // LCOV_EXCL_START
   default:
-    throw exception::BinderException(stringFormat(
+    THROW_BINDER_EXCEPTION(stringFormat(
         "Cannot retrieve child type of type {}. LIST or ARRAY is expected.",
         type.toString()));
     // LCOV_EXCL_STOP
@@ -111,7 +111,7 @@ static void validateChildType(const LogicalType& type,
   case LogicalTypeID::FLOAT:
     return;
   default:
-    throw exception::BinderException(stringFormat(
+    THROW_BINDER_EXCEPTION(stringFormat(
         "{} requires argument type to be FLOAT[] or DOUBLE[].", functionName));
   }
 }
@@ -128,7 +128,7 @@ static LogicalType validateArrayFunctionParameters(
   } else if (rightType.getLogicalTypeID() == common::LogicalTypeID::ARRAY) {
     return rightType.copy();
   }
-  throw exception::BinderException(
+  THROW_BINDER_EXCEPTION(
       stringFormat("{} requires at least one argument to be ARRAY but all "
                    "parameters are LIST.",
                    functionName));

@@ -14,7 +14,7 @@ namespace function {
 static std::unique_ptr<FunctionBindData> bindFunc(
     const ScalarBindFuncInput& input) {
   if (input.arguments[1]->expressionType != ExpressionType::LITERAL) {
-    throw exception::BinderException(
+    THROW_BINDER_EXCEPTION(
         stringFormat("Expected literal input as the second argument for {}().",
                      PropertiesFunction::name));
   }
@@ -27,12 +27,11 @@ static std::unique_ptr<FunctionBindData> bindFunc(
       childType.getLogicalTypeID() == LogicalTypeID::REL) {
     fieldIdx = StructType::getFieldIdx(childType, key);
     if (fieldIdx == INVALID_STRUCT_FIELD_IDX) {
-      throw exception::BinderException(
-          stringFormat("Invalid property name: {}.", key));
+      THROW_BINDER_EXCEPTION(stringFormat("Invalid property name: {}.", key));
     }
   } else {
-    throw exception::BinderException(stringFormat(
-        "Cannot extract properties from {}.", listType.toString()));
+    THROW_BINDER_EXCEPTION(stringFormat("Cannot extract properties from {}.",
+                                        listType.toString()));
   }
   const auto& field = StructType::getField(childType, fieldIdx);
   auto returnType = LogicalType::LIST(field.getType().copy());

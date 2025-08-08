@@ -653,6 +653,7 @@ file(GLOB_RECURSE FILES_NEED_LINT
         EXCEPT "*.act.h" "*.actg.h" "*.autogen.h" "*.autogen.cc")
 list(FILTER FILES_NEED_LINT EXCLUDE REGEX ".*\.act.h$|.*\.actg.h$|.*\.autogen.h$|.*\.autogen.cc$")
 list(FILTER FILES_NEED_LINT EXCLUDE REGEX ".*/third_party/.*")
+list(FILTER FILES_NEED_LINT EXCLUDE REGEX ".*\.pb.h$|.*\.pb.cc$")
 
 add_custom_target(neug_clformat
     COMMAND clang-format --style=file -i ${FILES_NEED_LINT}

@@ -17,12 +17,12 @@ void ExtensionInstaller::tryDownloadExtensionFile(
   if (!res || res->status != 200) {
     if (res.error() == httplib::Error::Success) {
       // LCOV_EXCL_START
-      throw exception::IOException(common::stringFormat(
+      THROW_IO_EXCEPTION(common::stringFormat(
           "HTTP Returns: {}, Failed to download extension: \"{}\" from {}.",
           res.value().status, info.name, repoInfo.repoURL));
       // LCOC_EXCL_STOP
     } else {
-      throw exception::IOException(common::stringFormat(
+      THROW_IO_EXCEPTION(common::stringFormat(
           "Failed to download extension: {} at URL {} (ERROR: {})", info.name,
           repoInfo.repoURL, to_string(res.error())));
     }

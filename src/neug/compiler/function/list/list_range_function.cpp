@@ -35,13 +35,13 @@ struct Range {
                         ValueVector& /*inputVector*/,
                         ValueVector& resultVector) {
     if (step == 0) {
-      throw exception::RuntimeError("Step of range cannot be 0.");
+      THROW_RUNTIME_ERROR("Step of range cannot be 0.");
     }
 
     // start, start + step, start + 2step, ..., end
     T number = start;
     auto size = ((end - start) * 1.0 / step);
-    size < 0 ? size = 0 : size = (int64_t)(size + 1);
+    size < 0 ? size = 0 : size = (int64_t) (size + 1);
 
     result = ListVector::addList(&resultVector, (int64_t) size);
     auto resultDataVector = ListVector::getDataVector(&resultVector);

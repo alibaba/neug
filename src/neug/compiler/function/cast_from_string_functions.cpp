@@ -341,7 +341,7 @@ struct SplitStringListOperation {
     skipWhitespace(start, end);
     trimRightWhitespace(start, end);
     CastString::copyStringToVector(
-        resultVector, offset, std::string_view{start, (uint32_t)(end - start)},
+        resultVector, offset, std::string_view{start, (uint32_t) (end - start)},
         option);
     offset++;
   }
@@ -419,8 +419,8 @@ static inline void startListCast(const char* input, uint64_t len, T split,
                                                    split, option)
                        : splitCStringList(input, len, split, option);
   if (!validList) {
-    throw exception::ConversionException(
-        "Cast failed. " + std::string{input, (size_t) len} + " is not in " +
+    THROW_CONVERSION_EXCEPTION(
+        "Cast failed. " + (std::string{input, (size_t) len}) + " is not in " +
         vector->dataType.toString() + " range.");
   }
 }
@@ -431,7 +431,7 @@ static void validateNumElementsInArray(uint64_t numElementsRead,
                                        const LogicalType& type) {
   auto numElementsInArray = ArrayType::getNumElements(type);
   if (numElementsRead != numElementsInArray) {
-    throw exception::ConversionException(
+    THROW_CONVERSION_EXCEPTION(
         stringFormat("Each array should have fixed number of elements. "
                      "Expected: {}, Actual: {}.",
                      numElementsInArray, numElementsRead));
@@ -494,10 +494,10 @@ bool SplitStringMapOperation::handleKey(const char* start, const char* end,
   trimRightWhitespace(start, end);
   auto fieldVector = StructVector::getFieldVector(resultVector, 0).get();
   CastString::copyStringToVector(
-      fieldVector, offset, std::string_view{start, (uint32_t)(end - start)},
+      fieldVector, offset, std::string_view{start, (uint32_t) (end - start)},
       option);
   if (fieldVector->isNull(offset)) {
-    throw exception::ConversionException{"Map does not allow null as key."};
+    THROW_CONVERSION_EXCEPTION("Map does not allow null as key.");
   }
   auto val = common::Value::createDefaultValue(fieldVector->dataType);
   val.copyFromColLayout(
@@ -505,7 +505,7 @@ bool SplitStringMapOperation::handleKey(const char* start, const char* end,
       fieldVector);
   auto uniqueKey = uniqueKeys.insert(val).second;
   if (!uniqueKey) {
-    throw exception::ConversionException{"Map does not allow duplicate keys."};
+    THROW_CONVERSION_EXCEPTION("Map does not allow duplicate keys.");
   }
   return true;
 }
@@ -515,7 +515,7 @@ void SplitStringMapOperation::handleValue(const char* start, const char* end,
   trimRightWhitespace(start, end);
   CastString::copyStringToVector(
       StructVector::getFieldVector(resultVector, 1).get(), offset++,
-      std::string_view{start, (uint32_t)(end - start)}, option);
+      std::string_view{start, (uint32_t) (end - start)}, option);
 }
 
 template <typename T>
@@ -603,8 +603,8 @@ void CastStringHelper::cast(const char* input, uint64_t len,
 
   SplitStringMapOperation split{list_entry.offset, structVector};
   if (!splitCStringMap(input, len, split, option)) {
-    throw exception::ConversionException(
-        "Cast failed. " + std::string{input, (size_t) len} + " is not in " +
+    THROW_CONVERSION_EXCEPTION(
+        "Cast failed. " + (std::string{input, (size_t) len}) + " is not in " +
         vector->dataType.toString() + " range.");
   }
 }
@@ -695,8 +695,8 @@ static bool tryCastStringToStruct(const char* input, uint64_t len,
     auto fieldIdx =
         StructType::getFieldIdx(type, std::string{keyStart, keyEnd});
     if (fieldIdx == INVALID_STRUCT_FIELD_IDX) {
-      throw exception::ParserException{"Invalid struct field name: " +
-                                       std::string{keyStart, keyEnd}};
+      THROW_PARSER_EXCEPTION("Invalid struct field name: " +
+                             (std::string{keyStart, keyEnd}));
     }
 
     skipWhitespace(++input, end);
@@ -714,7 +714,7 @@ static bool tryCastStringToStruct(const char* input, uint64_t len,
     fieldVector->setNull(rowToAdd, false);
     CastString::copyStringToVector(
         fieldVector, rowToAdd,
-        std::string_view{valStart, (uint32_t)(valEnd - valStart)}, option);
+        std::string_view{valStart, (uint32_t) (valEnd - valStart)}, option);
 
     if (closeBracket) {
       return (input == end);
@@ -728,8 +728,8 @@ void CastStringHelper::cast(const char* input, uint64_t len,
                             struct_entry_t& /*result*/, ValueVector* vector,
                             uint64_t rowToAdd, const CSVOption* option) {
   if (!tryCastStringToStruct(input, len, vector, rowToAdd, option)) {
-    throw exception::ConversionException(
-        "Cast failed. " + std::string{input, (size_t) len} + " is not in " +
+    THROW_CONVERSION_EXCEPTION(
+        "Cast failed. " + (std::string{input, (size_t) len}) + " is not in " +
         vector->dataType.toString() + " range.");
   }
 }
@@ -887,7 +887,7 @@ static bool tryCastUnionField(ValueVector* vector, uint64_t rowToAdd,
   } break;
   case LogicalTypeID::STRING: {
     if (!utf8proc::Utf8Proc::isValid(input, len)) {
-      throw exception::ConversionException{"Invalid UTF8-encoded string."};
+      THROW_CONVERSION_EXCEPTION("Invalid UTF8-encoded string.");
     }
     StringVector::addString(vector, rowToAdd, input, len);
     return true;
@@ -926,9 +926,9 @@ void CastStringHelper::cast(const char* input, uint64_t len,
   }
 
   if (selectedFieldIdx == INVALID_STRUCT_FIELD_IDX) {
-    throw exception::ConversionException{
+    THROW_CONVERSION_EXCEPTION(
         stringFormat("Could not convert to union type {}: {}.", type.toString(),
-                     std::string{input, (size_t) len})};
+                     (std::string{input, (size_t) len})));
   }
   StructVector::getFieldVector(vector, UnionType::TAG_FIELD_IDX)
       ->setValue(rowToAdd, selectedFieldIdx);
@@ -1053,7 +1053,7 @@ void CastString::copyStringToVector(ValueVector* vector, uint64_t vectorPos,
   } break;
   case LogicalTypeID::STRING: {
     if (!utf8proc::Utf8Proc::isValid(strVal.data(), strVal.length())) {
-      throw exception::ConversionException{"Invalid UTF8-encoded string."};
+      THROW_CONVERSION_EXCEPTION("Invalid UTF8-encoded string.");
     }
     StringVector::addString(vector, vectorPos, strVal.data(), strVal.length());
   } break;

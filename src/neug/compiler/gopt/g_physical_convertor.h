@@ -57,8 +57,8 @@ class GPhysicalConvertor {
       return physicalPlan;
     }
     default:
-      throw exception::Exception("Unknown physical mode " +
-                                 std::to_string(static_cast<int>(mode)));
+      THROW_EXCEPTION_WITH_FILE_LINE("Unknown physical mode " +
+                                     std::to_string(static_cast<int>(mode)));
     }
   }
 

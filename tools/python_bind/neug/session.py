@@ -163,7 +163,7 @@ class Session:
                 ) from e
             raise Exception(f"Failed to execute query: {query}") from e
         if response.status_code != 200:
-            error_message = f"Failed to execute query: {query}. Status code: {response.status_code}, Response: {response.text}"
+            error_message = f"Failed to execute query: {query}. Http code: {response.status_code}, Response: {response.text}"
             logger.error(error_message)
             raise Exception(error_message)
 

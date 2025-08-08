@@ -103,12 +103,11 @@ std::vector<std::string> read_header(const std::string& file_name,
       }
     } else {
       file.close();
-      throw gs::exception::RuntimeError("Fail to read header line of file: " +
-                                        file_name);
+      THROW_IO_EXCEPTION("Fail to read header line of file: " + file_name);
     }
     file.close();
   } else {
-    throw gs::exception::RuntimeError("Fail to open file: " + file_name);
+    THROW_IO_EXCEPTION("Fail to open file: " + file_name);
   }
   return res_vec;
 }
@@ -171,9 +170,8 @@ CSVStreamRecordBatchSupplier::CSVStreamRecordBatchSupplier(
                                                file, read_options,
                                                parse_options, convert_options);
   if (!res.ok()) {
-    throw gs::exception::RuntimeError(
-        "Failed to create streaming reader for file: " + file_path +
-        " error: " + res.status().message());
+    THROW_IO_EXCEPTION("Failed to create streaming reader for file: " +
+                       file_path + " error: " + res.status().message());
   }
   reader_ = res.ValueOrDie();
   VLOG(10) << "Finish init CSVRecordBatchSupplier for file: " << file_path;

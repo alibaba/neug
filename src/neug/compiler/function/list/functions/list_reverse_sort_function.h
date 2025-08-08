@@ -33,7 +33,7 @@ struct ListReverseSort : BaseListSortOperation {
                                common::list_entry_t& /*result*/,
                                common::ValueVector& /*inputVector*/,
                                common::ValueVector& /*resultVector*/) {
-    throw exception::RuntimeError("Invalid number of arguments");
+    THROW_RUNTIME_ERROR("Invalid number of arguments");
   }
 };
 

@@ -37,7 +37,7 @@ GStorageManager::GStorageManager(const std::string& statsData,
   std::unordered_map<std::string, common::row_idx_t> countMap;
   getCardMap(statsData, countMap);
   if (!database || !database->getCatalog()) {
-    throw exception::Exception("Database or catalog is not initialized");
+    THROW_EXCEPTION_WITH_FILE_LINE("Database or catalog is not initialized");
   }
   loadStats(*database->getCatalog(), countMap);
 }
@@ -98,7 +98,7 @@ Table* GStorageManager::getTable(common::table_id_t tableID) {
   auto& transaction = gs::Constants::DEFAULT_TRANSACTION;
   auto catalog = database->getCatalog();
   if (!catalog) {
-    throw exception::Exception("Catalog is not initialized");
+    THROW_EXCEPTION_WITH_FILE_LINE("Catalog is not initialized");
   }
   KU_ASSERT(catalog->containsTable(&transaction, tableID));
   auto curEntry = catalog->getTableCatalogEntry(&transaction, tableID);
@@ -129,8 +129,8 @@ GStorageManager::GStorageManager(const std::filesystem::path& statsPath,
     : StorageManager(memoryManager), wal(wal), database(database) {
   std::ifstream file(statsPath);
   if (!file.is_open()) {
-    throw exception::Exception("Statistics file " + statsPath.string() +
-                               " not found");
+    THROW_EXCEPTION_WITH_FILE_LINE("Statistics file " + statsPath.string() +
+                                   " not found");
   }
 
   std::stringstream buffer;
@@ -140,7 +140,7 @@ GStorageManager::GStorageManager(const std::filesystem::path& statsPath,
   std::unordered_map<std::string, common::row_idx_t> countMap;
   getCardMap(statsJson, countMap);
   if (!database || !database->getCatalog()) {
-    throw exception::Exception("Database or catalog is not initialized");
+    THROW_EXCEPTION_WITH_FILE_LINE("Database or catalog is not initialized");
   }
   loadStats(*database->getCatalog(), countMap);
 }
@@ -157,8 +157,8 @@ void GStorageManager::getCardMap(
     rapidjson::Document jsonData;
 
     if (jsonData.Parse(json.c_str()).HasParseError()) {
-      throw exception::Exception("Invalid JSON format: " +
-                                 std::to_string(jsonData.GetParseError()));
+      THROW_EXCEPTION_WITH_FILE_LINE("Invalid JSON format: " +
+                                     std::to_string(jsonData.GetParseError()));
     }
     // Process node statistics if valid
     if (jsonData.HasMember("vertex_type_statistics") &&

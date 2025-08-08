@@ -44,7 +44,7 @@ void PyConnection::initialize(pybind11::handle& m) {
 PyConnection::PyConnection(NeugDB& db, std::shared_ptr<Connection> conn)
     : db_(db), conn_(conn) {
   if (!conn_) {
-    throw exception::RuntimeError("Connection is null");
+    THROW_RUNTIME_ERROR("Connection is null");
   }
 }
 
@@ -57,13 +57,9 @@ void PyConnection::close() {
 
 std::unique_ptr<PyQueryResult> PyConnection::execute(
     const std::string& statement) {
-  // TODO: currently we assume all statements are graph queries, we need to
-  // support the DDL, DML later
   auto query_result = conn_->query(statement);
   if (!query_result.ok()) {
-    throw exception::QueryExecutionError(
-        "Failed to execute query: " + query_result.status().ToString() +
-        ", error message: " + query_result.status().error_message());
+    return std::make_unique<PyQueryResult>(query_result.status());
   }
   return std::make_unique<PyQueryResult>(std::move(query_result.move_value()));
 }

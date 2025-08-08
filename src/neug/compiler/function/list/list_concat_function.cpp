@@ -36,7 +36,7 @@ void ListConcat::operation(common::list_entry_t& left,
 std::unique_ptr<FunctionBindData> ListConcatFunction::bindFunc(
     const ScalarBindFuncInput& input) {
   if (input.arguments[0]->getDataType() != input.arguments[1]->getDataType()) {
-    throw exception::BinderException(
+    THROW_BINDER_EXCEPTION(
         ExceptionMessage::listFunctionIncompatibleChildrenType(
             name, input.arguments[0]->getDataType().toString(),
             input.arguments[1]->getDataType().toString()));

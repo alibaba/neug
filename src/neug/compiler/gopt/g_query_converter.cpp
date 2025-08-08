@@ -189,7 +189,7 @@ void GQueryConvertor::convertOperator(const planner::LogicalOperator& op,
   case planner::LogicalOperatorType::ACCUMULATE:
     break;
   default:
-    throw exception::Exception(
+    THROW_EXCEPTION_WITH_FILE_LINE(
         "Unsupported operator type in logical plan: " +
         std::to_string(static_cast<int>(op.getOperatorType())));
   }
@@ -263,8 +263,8 @@ void GQueryConvertor::convertScan(const planner::LogicalScanNodeTable& scan,
   case common::ExtendDirection::BOTH:
     return ::physical::EdgeExpand::BOTH;
   default:
-    throw exception::Exception("Unsupported extend direction: " +
-                               std::to_string(static_cast<int>(direction)));
+    THROW_EXCEPTION_WITH_FILE_LINE("Unsupported extend direction: " +
+                                   std::to_string(static_cast<int>(direction)));
   }
 }
 
@@ -281,8 +281,8 @@ void GQueryConvertor::convertScan(const planner::LogicalScanNodeTable& scan,
   case planner::GetVOpt::ITSELF:
     return ::physical::GetV::ITSELF;
   default:
-    throw exception::Exception("Unsupported getV direction: " +
-                               std::to_string(static_cast<int>(direction)));
+    THROW_EXCEPTION_WITH_FILE_LINE("Unsupported getV direction: " +
+                                   std::to_string(static_cast<int>(direction)));
   }
 }
 
@@ -295,8 +295,8 @@ void GQueryConvertor::convertScan(const planner::LogicalScanNodeTable& scan,
   case planner::ExtendOpt::DEGREE:
     return ::physical::EdgeExpand_ExpandOpt::EdgeExpand_ExpandOpt_DEGREE;
   default:
-    throw exception::Exception("Unsupported extend option: " +
-                               std::to_string(static_cast<int>(opt)));
+    THROW_EXCEPTION_WITH_FILE_LINE("Unsupported extend option: " +
+                                   std::to_string(static_cast<int>(opt)));
   }
 }
 
@@ -368,7 +368,7 @@ GQueryConvertor::convertPathBase(
     return pathBasePB;
   }
   default:
-    throw exception::Exception(
+    THROW_EXCEPTION_WITH_FILE_LINE(
         "Unsupported fusion type for recursive extend: " +
         std::to_string(static_cast<int>(extend.getFusionType())));
   }
@@ -390,8 +390,8 @@ GQueryConvertor::convertPathBase(
   case common::QueryRelType::ALL_SHORTEST:
     return ::physical::PathExpand_PathOpt::PathExpand_PathOpt_ALL_SHORTEST;
   default:
-    throw exception::Exception("Unsupported path option: " +
-                               std::to_string(static_cast<int>(pathOpt)));
+    THROW_EXCEPTION_WITH_FILE_LINE("Unsupported path option: " +
+                                   std::to_string(static_cast<int>(pathOpt)));
   }
 }
 
@@ -418,7 +418,8 @@ std::unique_ptr<::algebra::Range> GQueryConvertor::convertRange(
     std::shared_ptr<binder::Expression> limit) {
   if (skip && skip->expressionType != common::ExpressionType::LITERAL ||
       limit && limit->expressionType != common::ExpressionType::LITERAL) {
-    throw exception::Exception("Skip and limit must be literal expressions.");
+    THROW_EXCEPTION_WITH_FILE_LINE(
+        "Skip and limit must be literal expressions.");
   }
   uint64_t skipValue = 0;
   uint64_t limitValue = gs::Constants::MAX_UPPER_BOUND;
@@ -437,8 +438,9 @@ std::unique_ptr<::algebra::Range> GQueryConvertor::convertRange(
     uint64_t skip, uint64_t limit) {
   auto rangePB = std::make_unique<::algebra::Range>();
   if (skip > gs::Constants::MAX_UPPER_BOUND) {
-    throw exception::Exception("Skip value exceeds maximum allowed value: " +
-                               std::to_string(gs::Constants::MAX_UPPER_BOUND));
+    THROW_EXCEPTION_WITH_FILE_LINE(
+        "Skip value exceeds maximum allowed value: " +
+        std::to_string(gs::Constants::MAX_UPPER_BOUND));
   }
   int32_t upper = 0;
   if (limit > gs::Constants::MAX_UPPER_BOUND - skip) {
@@ -597,11 +599,12 @@ void GQueryConvertor::convertFilter(const planner::LogicalFilter& filter,
                                     ::physical::QueryPlan* plan) {
   // check the queryPlan is empty, if empty, throw exception
   if (plan->plan_size() == 0) {
-    throw exception::Exception("Query plan is empty, cannot convert filter.");
+    THROW_EXCEPTION_WITH_FILE_LINE(
+        "Query plan is empty, cannot convert filter.");
   }
 
   if (filter.getChildren().empty()) {
-    throw exception::Exception(
+    THROW_EXCEPTION_WITH_FILE_LINE(
         "filter operation should have at least one child");
   }
 
@@ -628,12 +631,12 @@ void GQueryConvertor::setMetaData(::physical::PhysicalOpr* physicalOpr,
                                   std::vector<common::alias_id_t>& aliasIds) {
   auto schema = op.getSchema()->getExpressionsInScope();
   if (schema.size() != aliasIds.size()) {
-    throw exception::Exception(
+    THROW_EXCEPTION_WITH_FILE_LINE(
         "Number of schema expressions does not match the number "
         "of alias names.");
   }
   if (aliasIds.size() != exprs.size()) {
-    throw exception::Exception(
+    THROW_EXCEPTION_WITH_FILE_LINE(
         "Number of expressions does not match the number of alias "
         "names.");
   }
@@ -663,7 +666,7 @@ void GQueryConvertor::convertIntersect(
     const planner::LogicalIntersect& intersect, ::physical::QueryPlan* plan) {
   auto children = intersect.getChildren();
   if (children.empty()) {
-    throw exception::Exception("intersect should have at least one child");
+    THROW_EXCEPTION_WITH_FILE_LINE("intersect should have at least one child");
   }
   convertOperator(*children[0], plan);
   if (children.size() < 2)
@@ -673,13 +676,13 @@ void GQueryConvertor::convertIntersect(
   // set intersect key
   auto keyNodeID = intersect.getIntersectNodeID();
   if (keyNodeID->expressionType != common::ExpressionType::PROPERTY) {
-    throw exception::Exception(
+    THROW_EXCEPTION_WITH_FILE_LINE(
         "Node ID expression is not a property expression.");
   }
   auto propertyExpr = keyNodeID->ptrCast<binder::PropertyExpression>();
   auto aliasID = aliasManager->getAliasId(propertyExpr->getVariableName());
   if (aliasID == DEFAULT_ALIAS_ID) {
-    throw exception::Exception("invalid intersect key: " + aliasID);
+    THROW_EXCEPTION_WITH_FILE_LINE("invalid intersect key: " + aliasID);
   }
   intersectPB->set_key(aliasID);
   // set intersect sub plans
@@ -715,17 +718,17 @@ void GQueryConvertor::convertOrder(const planner::LogicalOrderBy& order,
   auto exprVec = order.getExpressionsToOrderBy();
   auto orderVec = order.getIsAscOrders();
   if (exprVec.empty()) {
-    throw exception::Exception(
+    THROW_EXCEPTION_WITH_FILE_LINE(
         "No expressions to order by in order by operator.");
   }
   if (orderVec.size() != exprVec.size()) {
-    throw exception::Exception(
+    THROW_EXCEPTION_WITH_FILE_LINE(
         "Number of expressions to order by does not match "
         "the number of sort orders.");
   }
   auto orderPB = std::make_unique<::algebra::OrderBy>();
   if (order.getChildren().empty()) {
-    throw exception::Exception(
+    THROW_EXCEPTION_WITH_FILE_LINE(
         "Order by operator must have at least one child.");
   }
   auto child = order.getChild(0);
@@ -758,7 +761,7 @@ void GQueryConvertor::convertAggregate(
   size_t exprSize =
       aggregate.getKeys().size() + aggregate.getAggregates().size();
   if (exprSize != aliasIds.size()) {
-    throw exception::Exception(
+    THROW_EXCEPTION_WITH_FILE_LINE(
         "Number of expressions in aggregate does not match "
         "the number of alias names.");
   }
@@ -768,8 +771,8 @@ void GQueryConvertor::convertAggregate(
   for (auto& key : aggregate.getKeys()) {
     auto keyPB = exprConvertor->convert(*key, *child);
     if (!keyPB) {
-      throw exception::Exception("Failed to convert key expression: " +
-                                 key->toString());
+      THROW_EXCEPTION_WITH_FILE_LINE("Failed to convert key expression: " +
+                                     key->toString());
     }
     auto& aliasId = aliasIds[aliasPos++];
     auto aliasPB = std::make_unique<::google::protobuf::Int32Value>();
@@ -784,8 +787,8 @@ void GQueryConvertor::convertAggregate(
     auto aggFunc = value->ptrCast<binder::AggregateFunctionExpression>();
     auto aggFuncPB = exprConvertor->convertAggFunc(*aggFunc, *child);
     if (!aggFuncPB) {
-      throw exception::Exception("Failed to convert aggregate function: " +
-                                 value->toString());
+      THROW_EXCEPTION_WITH_FILE_LINE("Failed to convert aggregate function: " +
+                                     value->toString());
     }
     auto& aliasId = aliasIds[aliasPos++];
     auto aliasPB = std::make_unique<::google::protobuf::Int32Value>();
@@ -826,7 +829,7 @@ void GQueryConvertor::convertProject(const planner::LogicalProjection& project,
   std::vector<common::alias_id_t> aliasIds;
   aliasManager->extractAliasIds(project, aliasIds);
   if (exprs.size() != aliasIds.size()) {
-    throw exception::Exception(
+    THROW_EXCEPTION_WITH_FILE_LINE(
         "Number of expressions to project does not match "
         "the number of schema expressions.");
   }
@@ -836,8 +839,8 @@ void GQueryConvertor::convertProject(const planner::LogicalProjection& project,
     auto& expr = exprs[i];
     auto exprPB = exprConvertor->convert(*expr, *child);
     if (!exprPB) {
-      throw exception::Exception("Failed to convert expression: " +
-                                 expr->toString());
+      THROW_EXCEPTION_WITH_FILE_LINE("Failed to convert expression: " +
+                                     expr->toString());
     }
     auto exprAliasPB = std::make_unique<::physical::Project::ExprAlias>();
     exprAliasPB->set_allocated_expr(exprPB.release());
@@ -858,7 +861,7 @@ void GQueryConvertor::convertProject(const planner::LogicalProjection& project,
   // set meta data
   auto schema = project.getSchema()->getExpressionsInScope();
   if (schema.size() != aliasIds.size()) {
-    throw exception::Exception(
+    THROW_EXCEPTION_WITH_FILE_LINE(
         "Number of schema expressions does not match the number of alias "
         "names.");
   }
@@ -879,8 +882,8 @@ std::unique_ptr<algebra::QueryParams> GQueryConvertor::convertParams(
   if (predicates != nullptr) {
     auto predicatePB = exprConvertor->convert(*predicates, {});
     if (!predicatePB) {
-      throw exception::Exception("Failed to convert predicate: " +
-                                 predicates->toString());
+      THROW_EXCEPTION_WITH_FILE_LINE("Failed to convert predicate: " +
+                                     predicates->toString());
     }
     queryParams->set_allocated_predicate(predicatePB.release());
   }
@@ -892,7 +895,7 @@ std::unique_ptr<::physical::DataSource> GQueryConvertor::convertDataSource(
   // set extension_name from file type info
   auto extensionName = fileInfo.fileTypeInfo.fileTypeStr;
   if (extensionName.empty()) {
-    throw exception::Exception("File type info is not set");
+    THROW_EXCEPTION_WITH_FILE_LINE("File type info is not set");
   }
   auto sourcePB = std::make_unique<::physical::DataSource>();
   sourcePB->set_extension_name(extensionName);
@@ -933,7 +936,7 @@ void GQueryConvertor::convertTableFunc(
   auto bindData = tableFunc.getBindData();
   auto scanBindData = bindData->constPtrCast<function::ScanFileBindData>();
   if (!scanBindData) {
-    throw exception::Exception(
+    THROW_EXCEPTION_WITH_FILE_LINE(
         "Table function bind data is not of type ScanFileBindData.");
   }
   auto dataSource = convertDataSource(scanBindData->fileScanInfo);
@@ -982,7 +985,7 @@ void GQueryConvertor::convertCopyFrom(const planner::LogicalCopyFrom& copyFrom,
     break;
   }
   default: {
-    throw exception::Exception(
+    THROW_EXCEPTION_WITH_FILE_LINE(
         "Unsupported table type for COPY FROM: " +
         std::to_string(static_cast<int>(tableEntry->getTableType())));
   }
@@ -1022,17 +1025,17 @@ void GQueryConvertor::convertInsert(const planner::LogicalInsert& insert,
                                     ::physical::QueryPlan* plan) {
   auto& infos = insert.getInfos();
   if (infos.empty()) {
-    throw exception::Exception("Insert info should not be empty");
+    THROW_EXCEPTION_WITH_FILE_LINE("Insert info should not be empty");
   }
   common::TableType tableType = infos[0].tableType;
   for (auto& info : infos) {
     if (info.tableType != common::TableType::NODE &&
         info.tableType != common::TableType::REL) {
-      throw exception::Exception("Invalid tableType for Insert: " +
-                                 static_cast<uint8_t>(info.tableType));
+      THROW_EXCEPTION_WITH_FILE_LINE("Invalid tableType for Insert: " +
+                                     static_cast<uint8_t>(info.tableType));
     }
     if (info.tableType != tableType) {
-      throw exception::Exception("tableType of Insert is not consistent");
+      THROW_EXCEPTION_WITH_FILE_LINE("tableType of Insert is not consistent");
     }
   }
   if (tableType == common::TableType::NODE) {
@@ -1052,7 +1055,7 @@ void GQueryConvertor::convertInsertVertex(const planner::LogicalInsert& insert,
     GNodeType nodeType(*nodeExpr);
     auto typeIds = nodeType.getLabelIds();
     if (typeIds.size() != 1) {
-      throw exception::Exception(
+      THROW_EXCEPTION_WITH_FILE_LINE(
           "insert vertex with multiple labels is not supported");
     }
     auto labelId = typeIds[0];
@@ -1062,7 +1065,7 @@ void GQueryConvertor::convertInsertVertex(const planner::LogicalInsert& insert,
     entryPB->set_allocated_vertex_type(labelPB.release());
     // set property mappings
     if (info.columnExprs.size() != info.columnDataExprs.size()) {
-      throw exception::Exception(
+      THROW_EXCEPTION_WITH_FILE_LINE(
           "Number of column expressions does not match the number of column "
           "data expressions");
     }
@@ -1111,7 +1114,7 @@ void GQueryConvertor::convertInsertEdge(const planner::LogicalInsert& insert,
     GRelType relType(*relExpr);
     auto& rels = relType.relTables;
     if (rels.size() != 1) {
-      throw exception::Exception(
+      THROW_EXCEPTION_WITH_FILE_LINE(
           "insert edge bound by multiple node labels is not supported");
     }
     EdgeLabelId edgeLabel(rels[0]->getLabelId(), rels[0]->getSrcTableID(),
@@ -1120,7 +1123,7 @@ void GQueryConvertor::convertInsertEdge(const planner::LogicalInsert& insert,
     entryPB->set_allocated_edge_type(convertToEdgeType(edgeLabel).release());
     // set property mappings
     if (info.columnExprs.size() != info.columnDataExprs.size()) {
-      throw exception::Exception(
+      THROW_EXCEPTION_WITH_FILE_LINE(
           "Number of column expressions does not match the number of column "
           "data expressions");
     }
@@ -1147,8 +1150,8 @@ void GQueryConvertor::convertInsertEdge(const planner::LogicalInsert& insert,
       srcAliasPB->set_id(srcAliasId);
       entryPB->set_allocated_source_vertex_binding(srcAliasPB.release());
     } else {
-      throw exception::Exception("Source vertex binding not found: " +
-                                 relExpr->getSrcNodeName());
+      THROW_EXCEPTION_WITH_FILE_LINE("Source vertex binding not found: " +
+                                     relExpr->getSrcNodeName());
     }
     // set destination binding
     auto dstAliasId = aliasManager->getAliasId(relExpr->getDstNodeName());
@@ -1157,8 +1160,8 @@ void GQueryConvertor::convertInsertEdge(const planner::LogicalInsert& insert,
       dstAliasPB->set_id(dstAliasId);
       entryPB->set_allocated_destination_vertex_binding(dstAliasPB.release());
     } else {
-      throw exception::Exception("Destination vertex binding not found: " +
-                                 relExpr->getDstNodeName());
+      THROW_EXCEPTION_WITH_FILE_LINE("Destination vertex binding not found: " +
+                                     relExpr->getDstNodeName());
     }
     // set alias id by RelExpression
     auto aliasId = aliasManager->getAliasId(relExpr->getUniqueName());
@@ -1251,17 +1254,18 @@ void GQueryConvertor::convertSetProperty(const planner::LogicalSetProperty& set,
                                          ::physical::QueryPlan* plan) {
   auto& infos = set.getInfos();
   if (infos.empty()) {
-    throw exception::Exception("SetProperty info should not be empty");
+    THROW_EXCEPTION_WITH_FILE_LINE("SetProperty info should not be empty");
   }
   common::TableType tableType = infos[0].tableType;
   for (auto& info : infos) {
     if (info.tableType != common::TableType::NODE &&
         info.tableType != common::TableType::REL) {
-      throw exception::Exception("Invalid tableType for SetProperty: " +
-                                 static_cast<uint8_t>(info.tableType));
+      THROW_EXCEPTION_WITH_FILE_LINE("Invalid tableType for SetProperty: " +
+                                     static_cast<uint8_t>(info.tableType));
     }
     if (info.tableType != tableType) {
-      throw exception::Exception("tableType of SetProperty is not consistent");
+      THROW_EXCEPTION_WITH_FILE_LINE(
+          "tableType of SetProperty is not consistent");
     }
   }
   if (tableType == common::TableType::NODE) {
@@ -1275,17 +1279,17 @@ void GQueryConvertor::convertDelete(const planner::LogicalDelete& deleteOp,
                                     ::physical::QueryPlan* plan) {
   auto& infos = deleteOp.getInfos();
   if (infos.empty()) {
-    throw exception::Exception("Delete info should not be empty");
+    THROW_EXCEPTION_WITH_FILE_LINE("Delete info should not be empty");
   }
   common::TableType tableType = infos[0].tableType;
   for (auto& info : infos) {
     if (info.tableType != common::TableType::NODE &&
         info.tableType != common::TableType::REL) {
-      throw exception::Exception("Invalid tableType for Delete: " +
-                                 static_cast<uint8_t>(info.tableType));
+      THROW_EXCEPTION_WITH_FILE_LINE("Invalid tableType for Delete: " +
+                                     static_cast<uint8_t>(info.tableType));
     }
     if (info.tableType != tableType) {
-      throw exception::Exception("tableType of Delete is not consistent");
+      THROW_EXCEPTION_WITH_FILE_LINE("tableType of Delete is not consistent");
     }
   }
   if (tableType == common::TableType::NODE) {
@@ -1339,7 +1343,7 @@ common::TableType GQueryConvertor::getTableType(
   auto firstType = infos[0].tableType;
   for (auto& info : infos) {
     if (info.tableType != firstType) {
-      throw exception::Exception("Insert table type is not consistent");
+      THROW_EXCEPTION_WITH_FILE_LINE("Insert table type is not consistent");
     }
   }
   return firstType;
@@ -1380,8 +1384,8 @@ void GQueryConvertor::convertCrossProduct(
   case common::JoinType::LEFT:
     return ::physical::Join::JoinKind::Join_JoinKind_LEFT_OUTER;
   default:
-    throw exception::Exception("Unsupported join type: " +
-                               static_cast<uint8_t>(joinType));
+    THROW_EXCEPTION_WITH_FILE_LINE("Unsupported join type: " +
+                                   static_cast<uint8_t>(joinType));
   }
 }
 
@@ -1417,13 +1421,13 @@ void GQueryConvertor::convertHashJoin(const planner::LogicalHashJoin& join,
   // set join conditions
   auto conditions = join.getJoinConditions();
   if (conditions.empty()) {
-    throw exception::Exception(
+    THROW_EXCEPTION_WITH_FILE_LINE(
         "Hash join should have at least one join condition");
   }
   std::vector<std::shared_ptr<binder::Expression>> leftKeys, rightKeys;
   extractJoinKeys(conditions, leftKeys, rightKeys);
   if (leftKeys.size() != rightKeys.size()) {
-    throw exception::Exception(
+    THROW_EXCEPTION_WITH_FILE_LINE(
         "Number of left keys does not match the number of right keys");
   }
   for (auto leftKey : leftKeys) {
@@ -1448,17 +1452,17 @@ std::shared_ptr<binder::Expression> GQueryConvertor::bindPKExpr(
   auto& transaction = gs::Constants::DEFAULT_TRANSACTION;
   auto table = catalog->getTableCatalogEntry(&transaction, labelId);
   if (!table) {
-    throw exception::Exception("Source vertex table not found: " +
-                               std::to_string(labelId));
+    THROW_EXCEPTION_WITH_FILE_LINE("Source vertex table not found: " +
+                                   std::to_string(labelId));
   }
   auto nodeTable = table->constPtrCast<gs::catalog::NodeTableCatalogEntry>();
   if (!nodeTable) {
-    throw exception::Exception("Source vertex table is not a node table: " +
-                               table->getName());
+    THROW_EXCEPTION_WITH_FILE_LINE("Source vertex table is not a node table: " +
+                                   table->getName());
   }
   std::string pk = nodeTable->getPrimaryKeyName();
   if (pk.empty()) {
-    throw exception::Exception(
+    THROW_EXCEPTION_WITH_FILE_LINE(
         "Source vertex table does not have a primary key: " +
         nodeTable->getName());
   }
@@ -1497,8 +1501,8 @@ std::string GQueryConvertor::getExtensionName(
   if (exportFunc.name == gs::function::ExportCSVFunction::name) {
     return "csv";
   } else {
-    throw exception::Exception("Unsupported export function: " +
-                               exportFunc.name);
+    THROW_EXCEPTION_WITH_FILE_LINE("Unsupported export function: " +
+                                   exportFunc.name);
   }
 }
 
@@ -1516,13 +1520,13 @@ void GQueryConvertor::convertCopyTo(const planner::LogicalCopyTo& copyTo,
   // // todo: consider about column reordering.
   // size_t inputColumnId = 0;
   if (copyTo.getChildren().empty()) {
-    throw exception::Exception(
+    THROW_EXCEPTION_WITH_FILE_LINE(
         "COPY TO operator should have at least one child");
   }
   auto child = copyTo.getChild(0);
   auto outputSchema = child->getSchema()->getExpressionsInScope();
   if (outputSchema.size() != columnNames.size()) {
-    throw exception::Exception(
+    THROW_EXCEPTION_WITH_FILE_LINE(
         "Mismatch between number of output columns (" +
         std::to_string(columnNames.size()) + ") and number of input columns (" +
         std::to_string(outputSchema.size()) + ") in COPY TO operator.");
@@ -1532,8 +1536,8 @@ void GQueryConvertor::convertCopyTo(const planner::LogicalCopyTo& copyTo,
     auto& outputExpr = outputSchema[pos++];
     auto outputAliasId = aliasManager->getAliasId(outputExpr->getUniqueName());
     if (outputAliasId == DEFAULT_ALIAS_ID) {
-      throw exception::Exception("Invalid alias id in output column: " +
-                                 outputExpr->toString());
+      THROW_EXCEPTION_WITH_FILE_LINE("Invalid alias id in output column: " +
+                                     outputExpr->toString());
     }
     auto mappingPB = convertPropMapping(column, outputAliasId);
     exportPB->mutable_property_mappings()->AddAllocated(mappingPB.release());

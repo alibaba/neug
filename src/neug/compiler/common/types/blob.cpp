@@ -38,7 +38,7 @@ uint64_t Blob::getBlobSize(const ku_string_t& blob) {
     } else if (blobStr[i] <= 127) {
       blobSize++;
     } else {
-      throw exception::ConversionException(
+      THROW_CONVERSION_EXCEPTION(
           "Invalid byte encountered in STRING -> BLOB conversion. All "
           "non-ascii characters "
           "must be escaped with hex codes (e.g. \\xAA)");
@@ -91,7 +91,7 @@ std::string Blob::toString(const uint8_t* value, uint64_t len) {
 void Blob::validateHexCode(const uint8_t* blobStr, uint64_t length,
                            uint64_t curPos) {
   if (curPos + HexFormatConstants::LENGTH > length) {
-    throw exception::ConversionException(
+    THROW_CONVERSION_EXCEPTION(
         "Invalid hex escape code encountered in string -> blob conversion: "
         "unterminated escape code at end of string");
   }
@@ -102,7 +102,7 @@ void Blob::validateHexCode(const uint8_t* blobStr, uint64_t length,
           0 ||
       HexFormatConstants::HEX_MAP
               [blobStr[curPos + HexFormatConstants::SECOND_BYTES_POS]] < 0) {
-    throw exception::ConversionException(stringFormat(
+    THROW_CONVERSION_EXCEPTION(stringFormat(
         "Invalid hex escape code encountered in string -> blob conversion: {}",
         std::string((char*) blobStr + curPos, HexFormatConstants::LENGTH)));
   }

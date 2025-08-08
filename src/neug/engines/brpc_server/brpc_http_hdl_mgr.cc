@@ -112,11 +112,11 @@ std::string BrpcHttpHandlerManager::Start() {
   std::string ip_port =
       std::string("0.0.0.0") + ":" + std::to_string(service_config_.query_port);
   if (butil::str2endpoint(ip_port.c_str(), &endpoint) != 0) {
-    throw std::runtime_error("Failed to parse endpoint: " + ip_port);
+    THROW_RUNTIME_ERROR("Failed to parse endpoint: " + ip_port);
   }
   brpc::ServerOptions options = get_server_options();
   if (brpc_server_->Start(endpoint, &options) != 0) {
-    throw std::runtime_error("Failed to start brpc server on " + ip_port);
+    THROW_RUNTIME_ERROR("Failed to start brpc server on " + ip_port);
   }
   LOG(INFO) << "Brpc server started on : " << butil::my_hostname() << ":"
             << service_config_.query_port;

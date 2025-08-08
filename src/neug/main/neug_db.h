@@ -96,19 +96,18 @@ class NeugDB {
                mode == "read-write") {
       mode_ = DBMode::READ_WRITE;
     } else {
-      throw exception::InvalidArgumentException("Invalid mode: " + mode);
+      THROW_INVALID_ARGUMENT_EXCEPTION("Invalid mode: " + mode);
     }
 
     std::string message;
     if (!file_lock_.lock(message, mode_)) {
-      throw exception::IOException("Failed to lock directory: " + db_dir + "," +
-                                   message);
+      THROW_IO_EXCEPTION("Failed to lock directory: " + db_dir + "," + message);
     }
 
     auto res = db_.Open(config_);
     if (!res.ok()) {
-      throw exception::IOException("Failed to open database: " +
-                                   res.status().error_message());
+      THROW_IO_EXCEPTION("Failed to open database: " +
+                         res.status().error_message());
     }
     LOG(INFO) << "Database opened successfully in " << mode << " mode.";
     planner_ = create_planner(planner_kind, planner_config_path);
@@ -173,7 +172,7 @@ class NeugDB {
       // Gopt planner is the default planner, so we don't need to create it.
       return std::make_shared<GOptPlanner>(planner_config_path);
     } else {
-      throw std::invalid_argument("Invalid planner kind: " + planner_kind);
+      THROW_INVALID_ARGUMENT_EXCEPTION("Invalid planner kind: " + planner_kind);
     }
   }
 

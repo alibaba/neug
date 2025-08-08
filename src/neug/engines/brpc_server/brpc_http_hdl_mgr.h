@@ -129,8 +129,8 @@ class HttpServiceImpl : public HttpService {
       LOG(ERROR) << "Failed to convert schema to YAML: "
                  << yaml_node.status().error_message();
       // If schema updating fails, we should not proceed on.
-      throw std::runtime_error("Failed to convert schema to YAML: " +
-                               yaml_node.status().error_message());
+      THROW_RUNTIME_ERROR("Failed to convert schema to YAML: " +
+                          yaml_node.status().error_message());
     }
     if (update_schema) {
       planner_->update_meta(yaml_node.value());

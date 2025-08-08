@@ -248,7 +248,7 @@ void ArrowConverter::setArrowFormat(ArrowSchemaHolder& rootHolder,
     setArrowFormatForUnion(rootHolder, child, dataType);
     break;
   default:
-    throw exception::RuntimeError(
+    THROW_RUNTIME_ERROR(
         stringFormat("{} cannot be exported to arrow.", dataType.toString()));
   }
 }

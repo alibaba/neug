@@ -180,9 +180,8 @@ std::shared_ptr<ColumnBase> CreateColumn(
     } else if (type.type_enum == impl::PropertyTypeImpl::kTimestamp) {
       return std::make_shared<TimeStampEmptyColumn>();
     } else {
-      LOG(FATAL) << "unexpected type to create column, "
-                 << static_cast<int>(type.type_enum);
-      return nullptr;
+      THROW_NOT_SUPPORTED_EXCEPTION("Unsupported type for empty column: " +
+                                    type.ToString());
     }
   } else {
     if (type == PropertyType::kEmpty) {
@@ -226,9 +225,8 @@ std::shared_ptr<ColumnBase> CreateColumn(
     } else if (type.type_enum == impl::PropertyTypeImpl::kTimestamp) {
       return std::make_shared<TimeStampColumn>(strategy);
     } else {
-      LOG(FATAL) << "unexpected type to create column, "
-                 << static_cast<int>(type.type_enum);
-      return nullptr;
+      THROW_NOT_SUPPORTED_EXCEPTION("Unsupported type for column: " +
+                                    type.ToString());
     }
   }
 }
@@ -251,7 +249,9 @@ void TypedColumn<std::string_view>::set_value_safe(
     }
     buffer_.set(idx, offset, value);
   } else {
-    LOG(FATAL) << "Index out of range";
+    THROW_INDEX_EXCEPTION(
+        "Index out of range in set_value_safe: " + std::to_string(idx) +
+        " for size: " + std::to_string(size_));
   }
 }
 
@@ -301,9 +301,8 @@ std::shared_ptr<RefColumnBase> CreateRefColumn(
     return std::make_shared<TypedRefColumn<TimeStamp>>(
         *std::dynamic_pointer_cast<TypedColumn<TimeStamp>>(column));
   } else {
-    LOG(FATAL) << "unexpected type to create column, "
-               << static_cast<int>(type.type_enum);
-    return nullptr;
+    THROW_NOT_SUPPORTED_EXCEPTION("Unsupported type for reference column: " +
+                                  type.ToString());
   }
 }
 

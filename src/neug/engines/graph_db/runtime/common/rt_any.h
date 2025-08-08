@@ -437,7 +437,8 @@ struct EdgeData {
     } else if constexpr (std::is_same_v<T, RecordView>) {
       return value.record_view;
     } else {
-      LOG(FATAL) << "not support for " << typeid(T).name();
+      THROW_NOT_SUPPORTED_EXCEPTION("not support for " +
+                                    std::string(typeid(T).name()));
     }
   }
 
@@ -473,7 +474,8 @@ struct EdgeData {
       type = RTAnyType::kRecordView;
       value.record_view = val;
     } else {
-      LOG(FATAL) << "not support for " << typeid(T).name();
+      THROW_NOT_SUPPORTED_EXCEPTION("not support for " +
+                                    std::string(typeid(T).name()));
     }
   }
 
@@ -673,7 +675,8 @@ class RTAny {
       encoder.put_byte(value_.vertex.label_);
       encoder.put_int(value_.vertex.vid_);
     } else {
-      LOG(FATAL) << "not support for " << static_cast<int>(type_);
+      THROW_NOT_SUPPORTED_EXCEPTION("sink not support for " +
+                                    std::string(typeid(*this).name()));
     }
   }
 

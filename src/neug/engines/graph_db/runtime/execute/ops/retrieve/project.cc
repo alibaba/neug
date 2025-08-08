@@ -242,9 +242,8 @@ std::unique_ptr<ProjectExprBase> create_sl_property_expr(
                                                               collector, alias);
   }
   default:
-    throw std::runtime_error(
-        "create_sl_property_expr: not implemented for type: " +
-        std::to_string(static_cast<int>(type)));
+    THROW_RUNTIME_ERROR("create_sl_property_expr: not implemented for type: " +
+                        std::to_string(static_cast<int>(type)));
   }
   return nullptr;
 }
@@ -312,9 +311,8 @@ std::unique_ptr<ProjectExprBase> create_ml_property_expr(
                                                               collector, alias);
   }
   default:
-    throw std::runtime_error(
-        "create_ml_property_expr: not implemented for type: " +
-        std::to_string(static_cast<int>(type)));
+    THROW_RUNTIME_ERROR("create_ml_property_expr: not implemented for type: " +
+                        std::to_string(static_cast<int>(type)));
   }
   return nullptr;
 }
@@ -1143,7 +1141,7 @@ make_project_expr(const common::Expression& expr,
       return _make_project_expr<Interval>(expr, alias);
     } break;
     default: {
-      throw std::runtime_error("not support type - " + data_type.DebugString());
+      THROW_RUNTIME_ERROR("not support type - " + data_type.DebugString());
       return std::nullopt;
     }
     }

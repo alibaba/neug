@@ -21,10 +21,9 @@ void VectorNullFunction::bindExecFunction(
     return;
   }
   default:
-    throw exception::RuntimeError(
-        "Invalid expression type " +
-        ExpressionTypeUtil::toString(expressionType) +
-        "for VectorNullOperations::bindUnaryExecFunction.");
+    THROW_RUNTIME_ERROR("Invalid expression type " +
+                        ExpressionTypeUtil::toString(expressionType) +
+                        "for VectorNullOperations::bindUnaryExecFunction.");
   }
 }
 
@@ -43,10 +42,9 @@ void VectorNullFunction::bindSelectFunction(
     return;
   }
   default:
-    throw exception::RuntimeError(
-        "Invalid expression type " +
-        ExpressionTypeUtil::toString(expressionType) +
-        "for VectorNullOperations::bindUnarySelectFunction.");
+    THROW_RUNTIME_ERROR("Invalid expression type " +
+                        ExpressionTypeUtil::toString(expressionType) +
+                        "for VectorNullOperations::bindUnarySelectFunction.");
   }
 }
 

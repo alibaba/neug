@@ -23,7 +23,7 @@ std::unique_ptr<BoundStatement> Binder::bindStandaloneCallFunction(
   KU_ASSERT(entry);
   if (entry->getType() !=
       catalog::CatalogEntryType::STANDALONE_TABLE_FUNCTION_ENTRY) {
-    throw exception::BinderException(
+    THROW_BINDER_EXCEPTION(
         "Only standalone table functions can be called without return "
         "statement.");
   }

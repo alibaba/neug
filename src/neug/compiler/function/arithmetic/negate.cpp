@@ -47,36 +47,36 @@ bool NegateInPlace::operation(int64_t& input, int64_t& result) {
 template <>
 void Negate::operation(int8_t& input, int8_t& result) {
   if (!NegateInPlace::operation(input, result)) {
-    throw exception::OverflowException{
+    THROW_OVERFLOW_EXCEPTION(
         common::stringFormat("Value {} cannot be negated within INT8 range.",
-                             common::TypeUtils::toString(input))};
+                             common::TypeUtils::toString(input)));
   }
 }
 
 template <>
 void Negate::operation(int16_t& input, int16_t& result) {
   if (!NegateInPlace::operation(input, result)) {
-    throw exception::OverflowException{
+    THROW_OVERFLOW_EXCEPTION(
         common::stringFormat("Value {} cannot be negated within INT16 range.",
-                             common::TypeUtils::toString(input))};
+                             common::TypeUtils::toString(input)));
   }
 }
 
 template <>
 void Negate::operation(int32_t& input, int32_t& result) {
   if (!NegateInPlace::operation(input, result)) {
-    throw exception::OverflowException{
+    THROW_OVERFLOW_EXCEPTION(
         common::stringFormat("Value {} cannot be negated within INT32 range.",
-                             common::TypeUtils::toString(input))};
+                             common::TypeUtils::toString(input)));
   }
 }
 
 template <>
 void Negate::operation(int64_t& input, int64_t& result) {
   if (!NegateInPlace::operation(input, result)) {
-    throw exception::OverflowException{
+    THROW_OVERFLOW_EXCEPTION(
         common::stringFormat("Value {} cannot be negated within INT64 range.",
-                             common::TypeUtils::toString(input))};
+                             common::TypeUtils::toString(input)));
   }
 }
 

@@ -75,7 +75,7 @@ void ExpressionVisitor::visitSwitch(std::shared_ptr<Expression> expr) {
   } break;
     // LCOV_EXCL_START
   default:
-    throw exception::NotImplementedException("ExpressionVisitor::visitSwitch");
+    THROW_NOT_IMPLEMENTED_EXCEPTION("ExpressionVisitor::visitSwitch");
     // LCOV_EXCL_STOP
   }
 }
@@ -308,8 +308,7 @@ bool ConstantExpressionVisitor::isConstant(const Expression& expr) {
     return visitChildren(expr);
     // LCOV_EXCL_START
   default:
-    throw exception::NotImplementedException(
-        "ConstantExpressionVisitor::isConstant");
+    THROW_NOT_IMPLEMENTED_EXCEPTION("ConstantExpressionVisitor::isConstant");
     // LCOV_EXCL_STOP
   }
 }

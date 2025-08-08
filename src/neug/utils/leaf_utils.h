@@ -17,6 +17,7 @@
 #define RUNTIME_COMMON_LEAF_UTILS_H_
 
 #include <boost/leaf.hpp>
+#include "neug/utils/exception/exception.h"
 #include "neug/utils/result.h"
 
 namespace bl = boost::leaf;
@@ -42,6 +43,97 @@ namespace bl = boost::leaf;
 #define RETURN_CALL_PROCEDURE_ERROR(msg)        \
   return ::boost::leaf::new_error(::gs::Status( \
       ::gs::StatusCode::ERR_QUERY_EXECUTION, PREPEND_LINE_INFO(msg)))
+
+/* Define a macro which generate wrap bl::try_handle_all with exception catching
+    auto ret = bl::try_handle_all(
+        [&]() -> bl::result<Context> {
+          return opr->Eval(graph, params, std::move(ctx), timer);
+        },
+        [&](const gs::Status& err) {
+          status = err;
+          return ctx;
+        },
+        [&](const gs::exception::InvalidArgument& err) {
+          status = gs::Status(gs::StatusCode::ERR_INVALID_ARGUMENT,
+                              "Error: " + std::to_string(err.error().value()) +
+                                  ", Exception: " + err.exception()->what());
+          return ctx;
+        },
+        [&](const gs::exception::InternalError& err) {
+          status = gs::Status(gs::StatusCode::ERR_INTERNAL_ERROR,
+                              "Error: " + std::to_string(err.error().value()) +
+                                  ", Exception: " + err.exception()->what());
+          return ctx;
+        },
+        [&](const bl::error_info& err) {
+          status = gs::Status(gs::StatusCode::ERR_INTERNAL_ERROR,
+                              "Error: " + std::to_string(err.error().value()) +
+                                  ", Exception: " + err.exception()->what());
+          return ctx;
+        },
+        [&]() {
+          status = gs::Status(gs::StatusCode::ERR_UNKNOWN, "Unknown error");
+          return ctx;
+        });
+*/
+#define TRY_HANDLE_ALL_WITH_EXCEPTION_CATCHING(res, func, ret_t,               \
+                                               status_handling, ret_value)     \
+  auto res = bl::try_handle_all(                                               \
+      [&]() -> ret_t { return func(); },                                       \
+      [&](const gs::Status& err) {                                             \
+        status_handling(err);                                                  \
+        return ret_value;                                                      \
+      },                                                                       \
+      [&](const gs::exception::InvalidArgumentException& err) {                \
+        status = gs::Status(gs::StatusCode::ERR_INVALID_ARGUMENT, err.what()); \
+        return ret_value;                                                      \
+      },                                                                       \
+      [&](const gs::exception::InternalException& err) {                       \
+        status = gs::Status(gs::StatusCode::ERR_INTERNAL_ERROR, err.what());   \
+        return ret_value;                                                      \
+      },                                                                       \
+      [&](const gs::exception::ConnectionException& err) {                     \
+        status = gs::Status(gs::StatusCode::ERR_CONNECTION_ERROR, err.what()); \
+        return ret_value;                                                      \
+      },                                                                       \
+      [&](const gs::exception::ConversionException& err) {                     \
+        status = gs::Status(gs::StatusCode::ERR_TYPE_CONVERSION, err.what());  \
+        return ret_value;                                                      \
+      },                                                                       \
+      [&](const gs::exception::QueryExecutionError& err) {                     \
+        status = gs::Status(gs::StatusCode::ERR_QUERY_EXECUTION, err.what());  \
+        return ret_value;                                                      \
+      },                                                                       \
+      [&](const gs::exception::RuntimeError& err) {                            \
+        status = gs::Status(gs::StatusCode::ERR_INTERNAL_ERROR, err.what());   \
+        return ret_value;                                                      \
+      },                                                                       \
+      [&](const gs::exception::CopyException& err) {                           \
+        status = gs::Status(gs::StatusCode::ERR_INTERNAL_ERROR, err.what());   \
+        return ret_value;                                                      \
+      },                                                                       \
+      [&](const gs::exception::IndexException& err) {                          \
+        status = gs::Status(gs::StatusCode::ERR_INDEX_ERROR, err.what());      \
+        return ret_value;                                                      \
+      },                                                                       \
+      [&](const gs::exception::ExtensionException& err) {                      \
+        status = gs::Status(gs::StatusCode::ERR_EXTENSION, err.what());        \
+        return ret_value;                                                      \
+      },                                                                       \
+      [&](const gs::exception::Exception& err) {                               \
+        status = gs::Status(gs::StatusCode::ERR_INTERNAL_ERROR, err.what());   \
+        return ret_value;                                                      \
+      },                                                                       \
+      [&](const bl::error_info& err) {                                         \
+        status = gs::Status(gs::StatusCode::ERR_INTERNAL_ERROR,                \
+                            "Error: " + std::to_string(err.error().value()) +  \
+                                ", Exception: " + err.exception()->what());    \
+        return ret_value;                                                      \
+      },                                                                       \
+      [&]() {                                                                  \
+        status = gs::Status(gs::StatusCode::ERR_UNKNOWN, "Unknown error");     \
+        return ret_value;                                                      \
+      });
 
 inline std::string build_error_message(gs::StatusCode code,
                                        const bl::error_info& e) {

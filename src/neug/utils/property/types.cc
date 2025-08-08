@@ -78,7 +78,8 @@ std::string PrimitivePropertyTypeToString(PropertyType type) {
   } else if (type == PropertyType::kTimestamp) {
     return DT_TIMESTAMP;
   } else {
-    LOG(FATAL) << "Unknown property type: " << type;
+    THROW_INVALID_ARGUMENT_EXCEPTION("Unknown property type: " +
+                                     type.ToString());
   }
 }
 
@@ -128,7 +129,8 @@ YAML::Node TemporalTypeToYAML(PropertyType type) {
   } else if (type == PropertyType::kInterval) {
     node["interval"] = "";
   } else {
-    LOG(FATAL) << "Unsupported property type: " << type.type_enum;
+    THROW_INVALID_ARGUMENT_EXCEPTION(
+        "Unsupported temporal type for YAML encoding: " + type.ToString());
   }
   return node;
 }
@@ -494,7 +496,8 @@ grape::InArchive& operator<<(grape::InArchive& in_archive, const Any& value) {
   } else if (value.type == PropertyType::Label()) {
     in_archive << value.type << value.value.label_key;
   } else if (value.type == PropertyType::RecordView()) {
-    LOG(FATAL) << "Not supported";
+    THROW_NOT_SUPPORTED_EXCEPTION(
+        "RecordView is not supported in deserialization.");
   } else if (value.type == PropertyType::Record()) {
     in_archive << value.type << value.value.record.len;
     for (size_t i = 0; i < value.value.record.len; ++i) {
@@ -507,7 +510,7 @@ grape::InArchive& operator<<(grape::InArchive& in_archive, const Any& value) {
   } else if (value.type == PropertyType::Interval()) {
     in_archive << value.type << value.value.interval.to_mill_seconds();
   } else {
-    LOG(FATAL) << "Not supported";
+    THROW_NOT_SUPPORTED_EXCEPTION("Not supported: " + value.type.ToString());
   }
 
   return in_archive;
@@ -535,7 +538,9 @@ grape::OutArchive& operator>>(grape::OutArchive& out_archive, Any& value) {
   } else if (value.type == PropertyType::Double()) {
     out_archive >> value.value.db;
   } else if (value.type.type_enum == impl::PropertyTypeImpl::kString) {
-    LOG(FATAL) << "Not supported";
+    THROW_NOT_SUPPORTED_EXCEPTION(
+        "Serialization of String type is not supported, use StringView "
+        "instead.");
   } else if (value.type == PropertyType::StringView()) {
     out_archive >> value.value.s;
   } else if (value.type == PropertyType::VertexGlobalId()) {
@@ -543,7 +548,8 @@ grape::OutArchive& operator>>(grape::OutArchive& out_archive, Any& value) {
   } else if (value.type == PropertyType::Label()) {
     out_archive >> value.value.label_key;
   } else if (value.type == PropertyType::RecordView()) {
-    LOG(FATAL) << "Not supported";
+    THROW_NOT_SUPPORTED_EXCEPTION(
+        "RecordView is not supported in serialization.");
   } else if (value.type == PropertyType::Record()) {
     size_t len;
     out_archive >> len;
@@ -566,7 +572,7 @@ grape::OutArchive& operator>>(grape::OutArchive& out_archive, Any& value) {
     out_archive >> interval_val;
     value.value.interval.from_mill_seconds(interval_val);
   } else {
-    LOG(FATAL) << "Not supported";
+    THROW_NOT_SUPPORTED_EXCEPTION("Not supported: " + value.type.ToString());
   }
 
   return out_archive;
@@ -682,7 +688,7 @@ Date::Date(const std::string& date_str) {
   ss >> year >> dash1 >> month >> dash2 >> day;
   if (ss.fail() || dash1 != '-' || dash2 != '-' || month < 1 || month > 12 ||
       day < 1 || day > 31) {
-    throw std::invalid_argument("Invalid date string format");
+    THROW_INVALID_ARGUMENT_EXCEPTION("Invalid date string format");
   }
   value.internal.year = year;
   value.internal.month = month;
@@ -827,10 +833,10 @@ DateTime::DateTime(const std::string& date_time_str) {
       ss.str(date_time_str);  // Reset the string stream
     }
     if (ss.fail()) {
-      throw std::invalid_argument("Invalid date time string format");
+      THROW_INVALID_ARGUMENT_EXCEPTION("Invalid date time string format");
     }
     if (pt.time_of_day().total_milliseconds() < 0 || pt.date().year() < 1970) {
-      throw std::invalid_argument("Date time string is before epoch");
+      THROW_INVALID_ARGUMENT_EXCEPTION("Date time string is before epoch");
     }
     // Convert to milliseconds since epoch
     const boost::posix_time::ptime epoch(boost::gregorian::date(1970, 1, 1));
@@ -841,7 +847,7 @@ DateTime::DateTime(const std::string& date_time_str) {
   } catch (const std::exception& e) {
     LOG(ERROR) << "Failed to parse DateTime from string: " << date_time_str
                << ", error: " << e.what();
-    throw std::invalid_argument("Invalid date time string format");
+    THROW_INVALID_ARGUMENT_EXCEPTION("Invalid date time string format");
   }
 }
 
@@ -892,7 +898,7 @@ Interval::Interval(std::string str) {
                unit == "microseconds") {
       internal.microsecond = num;
     } else {
-      throw std::invalid_argument("Invalid interval unit: " + unit);
+      THROW_INVALID_ARGUMENT_EXCEPTION("Invalid interval unit: " + unit);
     }
     LOG(INFO) << "Parsed interval part: " << num << " " << unit;
     str = match.suffix().str();
@@ -901,8 +907,8 @@ Interval::Interval(std::string str) {
     str.erase(str.find_last_not_of(' ') + 1);
   }
   if (!str.empty()) {
-    throw std::invalid_argument("Invalid interval format: " + str +
-                                ",size: " + std::to_string(str.size()));
+    THROW_INVALID_ARGUMENT_EXCEPTION("Invalid interval format: " + str +
+                                     ",size: " + std::to_string(str.size()));
   }
 }
 
@@ -1188,9 +1194,9 @@ std::string Any::to_string() const {
   } else if (type == PropertyType::kTimestamp) {
     return value.ts.to_string();
   } else {
-    LOG(FATAL) << "Unexpected property type: "
-               << static_cast<int>(type.type_enum);
-    return "";
+    THROW_NOT_SUPPORTED_EXCEPTION(
+        "Unexpected property type: " +
+        std::to_string(static_cast<int>(type.type_enum)));
   }
 }
 
@@ -1304,9 +1310,9 @@ bool Any::operator<(const Any& other) const {
       return false;
     }
   } else {
-    LOG(FATAL) << "Type [" << static_cast<int>(type.type_enum) << "] and ["
-               << static_cast<int>(other.type.type_enum)
-               << "] cannot be compared..";
+    THROW_INVALID_ARGUMENT_EXCEPTION("Type [" + type.ToString() + "] and [" +
+                                     other.type.ToString() +
+                                     "] cannot be compared.");
   }
 }
 
@@ -1333,7 +1339,7 @@ Any ConvertStringToAny(const std::string& value, const gs::PropertyType& type) {
     } else if (lower == "false") {
       return gs::Any(false);
     } else {
-      LOG(FATAL) << "Invalid bool value: " << value;
+      THROW_INVALID_ARGUMENT_EXCEPTION("Invalid boolean value: " + value);
     }
   } else if (type == gs::PropertyType::Float()) {
     return gs::Any(std::stof(value));

@@ -37,7 +37,7 @@ static std::unique_ptr<FunctionBindData> bindFunc(
           LogicalTypeID::ANY &&
       input.arguments[1]->dataType !=
           ListType::getChildType(input.arguments[0]->dataType)) {
-    throw exception::BinderException(
+    THROW_BINDER_EXCEPTION(
         ExceptionMessage::listFunctionIncompatibleChildrenType(
             ListPrependFunction::name,
             input.arguments[0]->getDataType().toString(),
@@ -45,12 +45,12 @@ static std::unique_ptr<FunctionBindData> bindFunc(
   }
   const auto& resultType = input.arguments[0]->getDataType();
   auto scalarFunction = input.definition->ptrCast<ScalarFunction>();
-  TypeUtils::visit(
-      input.arguments[1]->getDataType().getPhysicalType(),
-      [&scalarFunction]<typename T>(T) {
-        scalarFunction->execFunc = ScalarFunction::BinaryExecListStructFunction<
-            list_entry_t, T, list_entry_t, ListPrepend>;
-      });
+  TypeUtils::visit(input.arguments[1]->getDataType().getPhysicalType(),
+                   [&scalarFunction]<typename T>(T) {
+                     scalarFunction->execFunc =
+                         ScalarFunction::BinaryExecListStructFunction<
+                             list_entry_t, T, list_entry_t, ListPrepend>;
+                   });
   return FunctionBindData::getSimpleBindData(input.arguments,
                                              resultType.copy());
 }

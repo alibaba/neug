@@ -102,8 +102,8 @@ static inline void get_edge_data(EdgePropVecBase* prop, size_t idx,
     edge_data.value.u32_val =
         dynamic_cast<EdgePropVec<uint32_t>*>(prop)->get_view(idx);
   } else {
-    throw std::runtime_error("get_edge_data: unsupported property type: " +
-                             prop->type().ToString());
+    THROW_RUNTIME_ERROR("get_edge_data: unsupported property type: " +
+                        prop->type().ToString());
   }
 }
 

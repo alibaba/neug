@@ -38,7 +38,7 @@ void NodeOrRelExpression::addEntries(
 TableCatalogEntry* NodeOrRelExpression::getSingleEntry() const {
   // LCOV_EXCL_START
   if (entries.empty()) {
-    throw exception::RuntimeError(
+    THROW_RUNTIME_ERROR(
         "Trying to access table id in an empty node. This should never happen");
   }
   // LCOV_EXCL_STOP

@@ -103,8 +103,8 @@ scalar_func_exec_t getExecFunc(const binder::expression_vector& expr) {
     auto optionVal =
         binder::ExpressionUtil::getLiteralValue<std::string>(*option);
     if (optionVal != RegexpReplaceFunction::GLOBAL_REPLACE_OPTION) {
-      throw exception::BinderException{
-          "regex_replace can only support global replace option: g."};
+      THROW_BINDER_EXCEPTION(
+          "regex_replace can only support global replace option: g.");
     }
     execFunc =
         ScalarFunction::TernaryRegexExecFunction<ku_string_t, ku_string_t,

@@ -61,7 +61,8 @@ std::shared_ptr<IAccessor> create_context_value_accessor(const Context& ctx,
   case RTAnyType::kInterval:
     return std::make_shared<ContextValueAccessor<Interval>>(ctx, tag);
   default:
-    LOG(FATAL) << "not implemented - " << static_cast<int>(type);
+    THROW_NOT_SUPPORTED_EXCEPTION("Not implemented accessor for type: " +
+                                  std::to_string(static_cast<int>(type)));
   }
   return nullptr;
 }
@@ -112,7 +113,8 @@ std::shared_ptr<IAccessor> create_vertex_property_path_accessor(
         VertexPropertyPathAccessor<GraphInterface, Interval>>(graph, ctx, tag,
                                                               prop_name);
   default:
-    LOG(FATAL) << "not implemented - " << static_cast<int>(type);
+    THROW_NOT_SUPPORTED_EXCEPTION("Not implemented accessor for type: " +
+                                  std::to_string(static_cast<int>(type)));
   }
   return nullptr;
 }
@@ -164,7 +166,8 @@ std::shared_ptr<IAccessor> create_vertex_property_vertex_accessor(
     return std::make_shared<VertexPropertyVertexAccessor<GraphInterface, bool>>(
         graph, prop_name);
   default:
-    LOG(FATAL) << "not implemented - " << static_cast<int>(type);
+    THROW_NOT_SUPPORTED_EXCEPTION("Not implemented accessor for type: " +
+                                  std::to_string(static_cast<int>(type)));
   }
   return nullptr;
 }
@@ -225,7 +228,8 @@ std::shared_ptr<IAccessor> create_edge_property_path_accessor(
           MultiPropsEdgePropertyPathAccessor<GraphInterface, double>>(
           graph, name, ctx, tag);
     default:
-      LOG(FATAL) << "not implemented - " << static_cast<int>(type);
+      THROW_NOT_SUPPORTED_EXCEPTION("Not implemented accessor for type: " +
+                                    std::to_string(static_cast<int>(type)));
     }
   } else {
     switch (type) {
@@ -264,7 +268,8 @@ std::shared_ptr<IAccessor> create_edge_property_path_accessor(
       return std::make_shared<EdgePropertyPathAccessor<GraphInterface, double>>(
           graph, name, ctx, tag);
     default:
-      LOG(FATAL) << "not implemented - " << static_cast<int>(type);
+      THROW_NOT_SUPPORTED_EXCEPTION("Not implemented accessor for type: " +
+                                    std::to_string(static_cast<int>(type)));
     }
   }
   return nullptr;
@@ -364,7 +369,8 @@ std::shared_ptr<IAccessor> create_edge_property_edge_accessor(
           MultiPropsEdgePropertyEdgeAccessor<GraphInterface, double>>(
           graph, prop_name);
     default:
-      LOG(FATAL) << "not implemented - " << static_cast<int>(type);
+      THROW_NOT_SUPPORTED_EXCEPTION("Not implemented accessor for type: " +
+                                    std::to_string(static_cast<int>(type)));
     }
   } else {
     switch (type) {
@@ -399,7 +405,8 @@ std::shared_ptr<IAccessor> create_edge_property_edge_accessor(
       return std::make_shared<EdgePropertyEdgeAccessor<GraphInterface, double>>(
           graph, prop_name);
     default:
-      LOG(FATAL) << "not implemented - " << static_cast<int>(type);
+      THROW_NOT_SUPPORTED_EXCEPTION("Not implemented accessor for type: " +
+                                    std::to_string(static_cast<int>(type)));
     }
   }
   return nullptr;

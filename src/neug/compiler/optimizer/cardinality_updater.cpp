@@ -108,7 +108,7 @@ void CardinalityUpdater::visitIntersect(planner::LogicalOperator* op) {
   visitOperator(intersect.getChild(0).get());
   auto buildCards = intersect.getBuildCards();
   if (buildCards.size() + 1 != intersect.getNumChildren()) {
-    throw exception::Exception(
+    THROW_EXCEPTION_WITH_FILE_LINE(
         "buildCards size is not consistent with buildPlans size in intersect");
   }
   for (size_t i = 1; i < intersect.getNumChildren(); ++i) {

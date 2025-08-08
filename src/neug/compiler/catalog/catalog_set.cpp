@@ -92,12 +92,12 @@ CatalogEntry* CatalogSet::createEntryNoLock(
   if (entries.contains(entry->getName())) {
     const auto existingEntry = entries.at(entry->getName()).get();
     if (checkWWConflict(transaction, existingEntry)) {
-      throw exception::CatalogException(stringFormat(
+      THROW_CATALOG_EXCEPTION(stringFormat(
           "Write-write conflict on creating catalog entry with name {}.",
           entry->getName()));
     }
     if (!existingEntry->isDeleted()) {
-      throw exception::CatalogException(stringFormat(
+      THROW_CATALOG_EXCEPTION(stringFormat(
           "Catalog entry with name {} already exists.", entry->getName()));
     }
   }
@@ -328,7 +328,7 @@ std::unique_ptr<CatalogSet> CatalogSet::deserialize(
 void CatalogSet::validateExistNoLock(const Transaction* transaction,
                                      const std::string& name) const {
   if (!containsEntryNoLock(transaction, name)) {
-    throw exception::CatalogException(
+    THROW_CATALOG_EXCEPTION(
         stringFormat("{} does not exist in catalog.", name));
   }
 }
@@ -336,7 +336,7 @@ void CatalogSet::validateExistNoLock(const Transaction* transaction,
 void CatalogSet::validateNotExistNoLock(const Transaction* transaction,
                                         const std::string& name) const {
   if (containsEntryNoLock(transaction, name)) {
-    throw exception::CatalogException(
+    THROW_CATALOG_EXCEPTION(
         stringFormat("{} already exists in catalog.", name));
   }
 }

@@ -35,7 +35,7 @@ std::unique_ptr<BoundStatement> Binder::bindCopyFromClause(
       auto options = bindParsingOptions(copyStatement.getParsingOptions());
       if (!options.contains(CopyConstants::FROM_OPTION_NAME) ||
           !options.contains(CopyConstants::TO_OPTION_NAME)) {
-        throw exception::BinderException(
+        THROW_BINDER_EXCEPTION(
             stringFormat("The table {} has multiple FROM and TO pairs defined "
                          "in the schema. A specific "
                          "pair of FROM and TO options is expected when copying "
@@ -55,7 +55,7 @@ std::unique_ptr<BoundStatement> Binder::bindCopyFromClause(
                                relEntry->ptrCast<RelTableCatalogEntry>());
       }
     }
-    throw exception::BinderException(
+    THROW_BINDER_EXCEPTION(
         stringFormat("REL GROUP {} does not exist.", tableName));
   } else if (catalog->getTableCatalogEntry(transaction, tableName)) {
     auto tableEntry = catalog->getTableCatalogEntry(transaction, tableName);
@@ -73,8 +73,7 @@ std::unique_ptr<BoundStatement> Binder::bindCopyFromClause(
     }
     }
   }
-  throw exception::BinderException(
-      stringFormat("Table {} does not exist.", tableName));
+  THROW_BINDER_EXCEPTION(stringFormat("Table {} does not exist.", tableName));
 }
 
 static void bindExpectedNodeColumns(const NodeTableCatalogEntry* nodeTableEntry,
@@ -122,7 +121,7 @@ std::unique_ptr<BoundStatement> Binder::bindCopyNodeFrom(
   //   auto bindData = source.info.bindData->constPtrCast<ScanFileBindData>();
   //   if (copyStatement.byColumn() &&
   //       bindData->fileScanInfo.fileTypeInfo.fileType != FileType::NPY) {
-  //     throw exception::BinderException(
+  //     THROW_BINDER_EXCEPTION(
   //         stringFormat("Copy by column with {} file type is not supported.",
   //                      bindData->fileScanInfo.fileTypeInfo.fileTypeStr));
   //   }
@@ -162,7 +161,7 @@ std::unique_ptr<BoundStatement> Binder::bindCopyRelFrom(
     const Statement& statement, RelTableCatalogEntry* relTableEntry) {
   auto& copyStatement = statement.constCast<CopyFrom>();
   if (copyStatement.byColumn()) {
-    throw exception::BinderException(stringFormat(
+    THROW_BINDER_EXCEPTION(stringFormat(
         "Copy by column is not supported for relationship table."));
   }
   // Bind expected columns based on catalog information.
@@ -249,7 +248,7 @@ static void bindExpectedColumns(const TableCatalogEntry* tableEntry,
     std::unordered_set<std::string> inputColumnNamesSet;
     for (auto& columName : info.columnNames) {
       if (inputColumnNamesSet.contains(columName)) {
-        throw exception::BinderException(stringFormat(
+        THROW_BINDER_EXCEPTION(stringFormat(
             "Detect duplicate column name {} during COPY.", columName));
       }
       inputColumnNamesSet.insert(columName);
@@ -257,7 +256,7 @@ static void bindExpectedColumns(const TableCatalogEntry* tableEntry,
     // Search column data type for each input column.
     for (auto& columnName : info.columnNames) {
       if (!tableEntry->containsProperty(columnName)) {
-        throw exception::BinderException(
+        THROW_BINDER_EXCEPTION(
             stringFormat("Table {} does not contain column {}.",
                          tableEntry->getName(), columnName));
       }

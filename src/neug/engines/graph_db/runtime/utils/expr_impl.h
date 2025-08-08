@@ -365,16 +365,16 @@ class ExtractExpr : public ExprBase {
       } else if (extract_.interval() == common::Extract::HOUR) {
         return val.as_date().hour();
       } else if (extract_.interval() == common::Extract::MINUTE) {
-        throw std::runtime_error(
+        THROW_RUNTIME_ERROR(
             "Unsupported extract interval for Date type: MINUTE");
       } else if (extract_.interval() == common::Extract::SECOND) {
-        throw std::runtime_error(
+        THROW_RUNTIME_ERROR(
             "Unsupported extract interval for Date type: SECOND");
       } else if (extract_.interval() == common::Extract::MILLISECOND) {
-        throw std::runtime_error(
+        THROW_RUNTIME_ERROR(
             "Unsupported extract interval for Date type: MILLISECOND");
       } else {
-        throw std::runtime_error("Unsupported extract interval for Date type");
+        THROW_RUNTIME_ERROR("Unsupported extract interval for Date type");
       }
     } else if constexpr (std::is_same_v<T, Interval>) {
       if (extract_.interval() == common::Extract::DAY) {
@@ -392,8 +392,7 @@ class ExtractExpr : public ExprBase {
       } else if (extract_.interval() == common::Extract::MILLISECOND) {
         return val.as_interval().millisecond();
       } else {
-        throw std::runtime_error(
-            "Unsupported extract interval for Interval type");
+        THROW_RUNTIME_ERROR("Unsupported extract interval for Interval type");
       }
     }
     LOG(FATAL) << "not support" << extract_.DebugString();

@@ -836,7 +836,7 @@ const BulkLoadMethod& LoadingConfig::GetMethod() const { return method_; }
 char LoadingConfig::GetEscapeChar() const {
   const auto& escape_char = metadata_.at(reader_options::ESCAPE_CHAR);
   if (escape_char.size() != 1) {
-    throw exception::RuntimeError("Escape char should be a single character");
+    THROW_RUNTIME_ERROR("Escape char should be a single character");
   }
   return escape_char[0];
 }
@@ -849,7 +849,7 @@ bool LoadingConfig::GetIsEscaping() const {
 char LoadingConfig::GetQuotingChar() const {
   const auto& quote_char = metadata_.at(reader_options::QUOTE_CHAR);
   if (quote_char.size() != 1) {
-    throw exception::RuntimeError("Quoting char should be a single character");
+    THROW_RUNTIME_ERROR("Quoting char should be a single character");
   }
   return quote_char[0];
 }

@@ -59,9 +59,9 @@ bool CastArrayHelper::containsListToArray(const LogicalType& srcType,
       auto srcFieldTypes = StructType::getFieldTypes(srcType);
       auto dstFieldTypes = StructType::getFieldTypes(dstType);
       if (srcFieldTypes.size() != dstFieldTypes.size()) {
-        throw exception::ConversionException{
+        THROW_CONVERSION_EXCEPTION(
             stringFormat("Unsupported casting function from {} to {}.",
-                         srcType.toString(), dstType.toString())};
+                         srcType.toString(), dstType.toString()));
       }
 
       for (auto i = 0u; i < srcFieldTypes.size(); i++) {
@@ -90,11 +90,11 @@ void CastArrayHelper::validateListEntry(ValueVector* inputVector,
     if (inputType.getPhysicalType() == PhysicalTypeID::LIST) {
       auto listEntry = inputVector->getValue<list_entry_t>(pos);
       if (listEntry.size != ArrayType::getNumElements(resultType)) {
-        throw exception::ConversionException{stringFormat(
+        THROW_CONVERSION_EXCEPTION(stringFormat(
             "Unsupported casting LIST with incorrect list entry to ARRAY. "
             "Expected: {}, Actual: {}.",
             ArrayType::getNumElements(resultType),
-            inputVector->getValue<list_entry_t>(pos).size)};
+            inputVector->getValue<list_entry_t>(pos).size));
       }
       auto inputChildVector = ListVector::getDataVector(inputVector);
       for (auto i = listEntry.offset; i < listEntry.offset + listEntry.size;
@@ -105,7 +105,7 @@ void CastArrayHelper::validateListEntry(ValueVector* inputVector,
     } else if (inputType.getPhysicalType() == PhysicalTypeID::ARRAY) {
       if (ArrayType::getNumElements(inputType) !=
           ArrayType::getNumElements(resultType)) {
-        throw exception::ConversionException(
+        THROW_CONVERSION_EXCEPTION(
             stringFormat("Unsupported casting function from {} to {}.",
                          inputType.toString(), resultType.toString()));
       }

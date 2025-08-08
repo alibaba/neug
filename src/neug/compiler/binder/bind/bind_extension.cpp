@@ -13,7 +13,7 @@ namespace binder {
 
 static void bindInstallExtension(const ExtensionAuxInfo& auxInfo) {
   if (!ExtensionUtils::isOfficialExtension(auxInfo.path)) {
-    throw exception::BinderException(common::stringFormat(
+    THROW_BINDER_EXCEPTION(common::stringFormat(
         "{} is not an official extension.\nNon-official extensions "
         "can be installed directly by: `LOAD EXTENSION [EXTENSION_PATH]`.",
         auxInfo.path));
@@ -27,7 +27,7 @@ static void bindLoadExtension(const ExtensionAuxInfo& auxInfo) {
   auto localFileSystem = common::LocalFileSystem("");
   if (!localFileSystem.fileOrPathExists(auxInfo.path,
                                         nullptr /* clientContext */)) {
-    throw exception::BinderException(common::stringFormat(
+    THROW_BINDER_EXCEPTION(common::stringFormat(
         "The extension {} is neither an official extension, nor does "
         "the extension path: '{}' exists.",
         auxInfo.path, auxInfo.path));

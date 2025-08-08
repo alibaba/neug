@@ -86,7 +86,7 @@ std::unique_ptr<IUpdateOperator> UJoinUpdateOprBuilder::Build(
   JoinParams p;
   if (opr.left_keys().size() != opr.right_keys().size()) {
     LOG(ERROR) << "join keys size mismatch";
-    throw std::invalid_argument(
+    THROW_INVALID_ARGUMENT_EXCEPTION(
         "join keys size mismatch: left_keys size = " +
         std::to_string(opr.left_keys().size()) +
         ", right_keys size = " + std::to_string(opr.right_keys().size()));
@@ -96,8 +96,8 @@ std::unique_ptr<IUpdateOperator> UJoinUpdateOprBuilder::Build(
   for (int i = 0; i < left_keys.size(); i++) {
     if (!left_keys.Get(i).has_tag()) {
       LOG(ERROR) << "left_keys should have tag";
-      throw std::invalid_argument("left_keys should have tag at index " +
-                                  std::to_string(i));
+      THROW_INVALID_ARGUMENT_EXCEPTION("left_keys should have tag at index " +
+                                       std::to_string(i));
     }
     p.left_columns.push_back(left_keys.Get(i).tag().id());
   }
@@ -105,8 +105,8 @@ std::unique_ptr<IUpdateOperator> UJoinUpdateOprBuilder::Build(
   for (int i = 0; i < right_keys.size(); i++) {
     if (!right_keys.Get(i).has_tag()) {
       LOG(ERROR) << "right_keys should have tag";
-      throw std::invalid_argument("right_keys should have tag at index " +
-                                  std::to_string(i));
+      THROW_INVALID_ARGUMENT_EXCEPTION("right_keys should have tag at index " +
+                                       std::to_string(i));
     }
     p.right_columns.push_back(right_keys.Get(i).tag().id());
   }
@@ -130,19 +130,19 @@ std::unique_ptr<IUpdateOperator> UJoinUpdateOprBuilder::Build(
     break;
   default:
     LOG(ERROR) << "unsupported join kind" << opr.join_kind();
-    throw std::invalid_argument("unsupported join kind: " +
-                                std::to_string(opr.join_kind()));
+    THROW_INVALID_ARGUMENT_EXCEPTION("unsupported join kind: " +
+                                     std::to_string(opr.join_kind()));
   }
 
   auto pair1_res = PlanParser::get().parse_update_pipeline(
       schema, plan.query_plan().plan(op_idx).opr().join().left_plan());
   if (!pair1_res) {
-    throw std::invalid_argument("failed to parse left plan for join: ");
+    THROW_INVALID_ARGUMENT_EXCEPTION("failed to parse left plan for join: ");
   }
   auto pair2_res = PlanParser::get().parse_update_pipeline(
       schema, plan.query_plan().plan(op_idx).opr().join().right_plan());
   if (!pair2_res) {
-    throw std::invalid_argument("failed to parse right plan for join: ");
+    THROW_INVALID_ARGUMENT_EXCEPTION("failed to parse right plan for join: ");
   }
   return std::make_unique<JoinUpdateOpr>(std::move(pair1_res.value()),
                                          std::move(pair2_res.value()), p);

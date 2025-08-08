@@ -67,8 +67,8 @@ std::unique_ptr<::common::IrDataType> GTypeConverter::convertArrayType(
   VLOG(1) << "Converting ARRAY child type: " << type.toString();
   auto childType = convertLogicalType(type, expr);
   if (!childType) {
-    throw exception::Exception("Failed to convert child type for ARRAY type: " +
-                               type.toString());
+    THROW_EXCEPTION_WITH_FILE_LINE(
+        "Failed to convert child type for ARRAY type: " + type.toString());
   }
   if (!childType->has_data_type()) {
     LOG(WARNING) << "Component type of Array should be basic, others are "
@@ -237,8 +237,8 @@ std::unique_ptr<::common::IrDataType> GTypeConverter::convertSimpleLogicalType(
     break;
   }
   default:
-    throw exception::Exception("Unsupported basic type for conversion: " +
-                               type.toString());
+    THROW_EXCEPTION_WITH_FILE_LINE("Unsupported basic type for conversion: " +
+                                   type.toString());
   }
   auto irType = std::make_unique<::common::IrDataType>();
   irType->set_allocated_data_type(result.release());

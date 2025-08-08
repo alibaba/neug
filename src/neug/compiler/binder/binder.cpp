@@ -107,7 +107,7 @@ std::shared_ptr<Expression> Binder::createVariable(
 std::shared_ptr<Expression> Binder::createVariable(
     const std::string& name, const LogicalType& dataType) {
   if (scope.contains(name)) {
-    throw exception::BinderException("Variable " + name + " already exists.");
+    THROW_BINDER_EXCEPTION("Variable " + name + " already exists.");
   }
   auto expression =
       expressionBinder.createVariableExpression(dataType.copy(), name);
@@ -151,7 +151,7 @@ void Binder::validateOrderByFollowedBySkipOrLimitInWithClause(
   auto hasSkipOrLimit =
       boundProjectionBody.hasSkip() || boundProjectionBody.hasLimit();
   if (boundProjectionBody.hasOrderByExpressions() && !hasSkipOrLimit) {
-    throw exception::BinderException(
+    THROW_BINDER_EXCEPTION(
         "In WITH clause, ORDER BY must be followed by SKIP or LIMIT.");
   }
 }

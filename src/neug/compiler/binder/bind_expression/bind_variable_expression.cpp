@@ -25,8 +25,7 @@ std::shared_ptr<Expression> ExpressionBinder::bindVariableExpression(
   if (binder->scope.contains(varName)) {
     return binder->scope.getExpression(varName);
   }
-  throw exception::BinderException(
-      ExceptionMessage::variableNotInScope(varName));
+  THROW_BINDER_EXCEPTION(ExceptionMessage::variableNotInScope(varName));
 }
 
 std::shared_ptr<Expression> ExpressionBinder::createVariableExpression(

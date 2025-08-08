@@ -23,7 +23,7 @@ void set_edge_data(PropertyType col_ele_type, EdgePropVecBase* col, size_t idx,
                    int32_t col_id, const Any& edge_data) {
   if (col_ele_type != PropertyType::kRecordView) {
     if (col_id != 0) {
-      throw std::runtime_error(
+      THROW_RUNTIME_ERROR(
           "set_edge_data: col_id should be 0 for non-record edge property");
     }
     if (edge_data.type == PropertyType::kEmpty) {
@@ -46,22 +46,22 @@ void set_edge_data(PropertyType col_ele_type, EdgePropVecBase* col, size_t idx,
     } else if (edge_data.type == PropertyType::kDate) {
       dynamic_cast<EdgePropVec<Date>*>(col)->set(idx, edge_data.AsDate());
     } else {
-      throw std::runtime_error("set_edge_data: unsupported property type: " +
-                               edge_data.type.ToString());
+      THROW_RUNTIME_ERROR("set_edge_data: unsupported property type: " +
+                          edge_data.type.ToString());
     }
   } else {
     if (col_id == -1 && col_ele_type != edge_data.type) {
-      throw std::runtime_error(
+      THROW_RUNTIME_ERROR(
           "set_edge_data: edge_data type does not match the column type: " +
           edge_data.type.ToString() + " vs " + col_ele_type.ToString());
     }
     auto ptr = dynamic_cast<EdgePropVec<RecordView>*>(col);
     if (ptr == nullptr) {
-      throw std::runtime_error("set_edge_data: cast failed");
+      THROW_RUNTIME_ERROR("set_edge_data: cast failed");
     }
     auto record_view = col->get(idx).as<RecordView>();
     if (col_id >= 0 && col_id >= (int32_t) record_view.size()) {
-      throw std::runtime_error(
+      THROW_RUNTIME_ERROR(
           "set_edge_data: col_id out of range for record view: " +
           std::to_string(col_id) +
           ", size = " + std::to_string(record_view.size()));

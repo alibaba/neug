@@ -49,8 +49,7 @@ std::unique_ptr<::physical::DDLPlan> GDDLConverter::convert(
   case planner::LogicalOperatorType::ALTER:
     return convertAlterTable(static_cast<const planner::LogicalAlter&>(op));
   default:
-    throw std::runtime_error(
-        "Invalid logical operator type for DDL conversion");
+    THROW_RUNTIME_ERROR("Invalid logical operator type for DDL conversion");
   }
 }
 
@@ -58,7 +57,7 @@ std::unique_ptr<::physical::DDLPlan> GDDLConverter::convertCreateTable(
     const planner::LogicalCreateTable& op) {
   const auto* info = op.getInfo();
   if (!info) {
-    throw exception::InvalidArgumentException("Invalid operation info");
+    THROW_INVALID_ARGUMENT_EXCEPTION("Invalid operation info");
   }
 
   switch (info->type) {
@@ -67,7 +66,7 @@ std::unique_ptr<::physical::DDLPlan> GDDLConverter::convertCreateTable(
   case catalog::CatalogEntryType::REL_TABLE_ENTRY:
     return convertToCreateEdgeSchema(op);
   default:
-    throw exception::InvalidArgumentException(
+    THROW_INVALID_ARGUMENT_EXCEPTION(
         "Unsupported catalog entry type for create");
   }
 }
@@ -76,7 +75,7 @@ std::unique_ptr<::physical::DDLPlan> GDDLConverter::convertDropTable(
     const planner::LogicalDrop& op) {
   auto& info = op.getDropInfo();
   if (info.dropType != gs::common::DropType::TABLE) {
-    throw exception::InvalidArgumentException("Expected DROP TABLE type");
+    THROW_INVALID_ARGUMENT_EXCEPTION("Expected DROP TABLE type");
   }
 
   if (checkEntryType(info.name,
@@ -87,7 +86,7 @@ std::unique_ptr<::physical::DDLPlan> GDDLConverter::convertDropTable(
     return convertToDropEdgeSchema(op);
   }
 
-  throw std::runtime_error("Invalid table type for drop table");
+  THROW_RUNTIME_ERROR("Invalid table type for drop table");
 }
 
 std::unique_ptr<::physical::DDLPlan> GDDLConverter::convertAlterTable(
@@ -107,7 +106,7 @@ std::unique_ptr<::physical::DDLPlan> GDDLConverter::convertAlterTable(
     case gs::common::AlterType::RENAME:
       return convertToRenameVertexTypeSchema(op);
     default:
-      throw std::runtime_error("Invalid alter type for vertex schema");
+      THROW_RUNTIME_ERROR("Invalid alter type for vertex schema");
     }
   } else if (checkEntryType(info->tableName,
                             gs::catalog::CatalogEntryType::REL_TABLE_ENTRY)) {
@@ -121,30 +120,29 @@ std::unique_ptr<::physical::DDLPlan> GDDLConverter::convertAlterTable(
     case gs::common::AlterType::RENAME:
       return convertToRenameEdgeTypeSchema(op);
     default:
-      throw std::runtime_error("Invalid alter type for edge schema");
+      THROW_RUNTIME_ERROR("Invalid alter type for edge schema");
     }
   }
 
-  throw exception::InvalidArgumentException(
-      "Invalid table type for alter table");
+  THROW_INVALID_ARGUMENT_EXCEPTION("Invalid table type for alter table");
 }
 
 std::unique_ptr<::physical::DDLPlan> GDDLConverter::convertToCreateVertexSchema(
     const planner::LogicalCreateTable& op) {
   const auto* info = op.getInfo();
   if (!info) {
-    throw std::runtime_error("Invalid operation info");
+    THROW_RUNTIME_ERROR("Invalid operation info");
   }
 
   if (info->type != catalog::CatalogEntryType::NODE_TABLE_ENTRY) {
-    throw exception::InvalidArgumentException(
+    THROW_INVALID_ARGUMENT_EXCEPTION(
         "Expected Create Table Type for vertex schema");
   }
 
   const auto* nodeInfo =
       info->extraInfo->constPtrCast<binder::BoundExtraCreateNodeTableInfo>();
   if (!nodeInfo) {
-    throw exception::InvalidArgumentException("Invalid node table info");
+    THROW_INVALID_ARGUMENT_EXCEPTION("Invalid node table info");
   }
 
   auto ddl_plan = std::make_unique<::physical::DDLPlan>();
@@ -181,17 +179,18 @@ std::unique_ptr<::physical::DDLPlan> GDDLConverter::convertToCreateEdgeSchema(
     const planner::LogicalCreateTable& op) {
   const auto* info = op.getInfo();
   if (!info) {
-    throw std::runtime_error("Invalid operation info");
+    THROW_RUNTIME_ERROR("Invalid operation info");
   }
 
   if (info->type != catalog::CatalogEntryType::REL_TABLE_ENTRY) {
-    throw exception::Exception("Expected Create Table Type for edge schema");
+    THROW_EXCEPTION_WITH_FILE_LINE(
+        "Expected Create Table Type for edge schema");
   }
 
   const auto* relInfo =
       info->extraInfo->constPtrCast<binder::BoundExtraCreateRelTableInfo>();
   if (!relInfo) {
-    throw std::runtime_error("Invalid relation table info");
+    THROW_RUNTIME_ERROR("Invalid relation table info");
   }
 
   auto ddl_plan = std::make_unique<::physical::DDLPlan>();
@@ -241,7 +240,7 @@ std::unique_ptr<::physical::DDLPlan> GDDLConverter::convertToDropVertexSchema(
   if (info.dropType != gs::common::DropType::TABLE ||
       !checkEntryType(info.name,
                       gs::catalog::CatalogEntryType::NODE_TABLE_ENTRY)) {
-    throw std::runtime_error("Expected DROP TABLE type for vertex schema");
+    THROW_RUNTIME_ERROR("Expected DROP TABLE type for vertex schema");
   }
 
   auto ddl_plan = std::make_unique<::physical::DDLPlan>();
@@ -265,7 +264,7 @@ std::unique_ptr<::physical::DDLPlan> GDDLConverter::convertToDropEdgeSchema(
   if (info.dropType != gs::common::DropType::TABLE ||
       !checkEntryType(info.name,
                       gs::catalog::CatalogEntryType::REL_TABLE_ENTRY)) {
-    throw std::runtime_error("Expected DROP TABLE type for edge schema");
+    THROW_RUNTIME_ERROR("Expected DROP TABLE type for edge schema");
   }
   auto ddl_plan = std::make_unique<::physical::DDLPlan>();
   auto* drop_edge = ddl_plan->mutable_drop_edge_schema();
@@ -274,7 +273,7 @@ std::unique_ptr<::physical::DDLPlan> GDDLConverter::convertToDropEdgeSchema(
   std::vector<EdgeLabel> edgeLabels;
   getEdgeLabels(info.name, edgeLabels);
   if (edgeLabels.size() != 1) {
-    throw std::runtime_error("Edge type must have exactly one edge label");
+    THROW_RUNTIME_ERROR("Edge type must have exactly one edge label");
   }
 
   // Set edge type name
@@ -295,8 +294,7 @@ GDDLConverter::convertToAddVertexPropertySchema(
   if (info->alterType != gs::common::AlterType::ADD_PROPERTY ||
       !checkEntryType(info->tableName,
                       gs::catalog::CatalogEntryType::NODE_TABLE_ENTRY)) {
-    throw std::runtime_error(
-        "Expected ADD_PROPERTY alter type for vertex schema");
+    THROW_RUNTIME_ERROR("Expected ADD_PROPERTY alter type for vertex schema");
   }
 
   // Get alter info from operator
@@ -332,8 +330,7 @@ GDDLConverter::convertToAddEdgePropertySchema(const planner::LogicalAlter& op) {
   if (info->alterType != gs::common::AlterType::ADD_PROPERTY ||
       !checkEntryType(info->tableName,
                       gs::catalog::CatalogEntryType::REL_TABLE_ENTRY)) {
-    throw std::runtime_error(
-        "Expected ADD_PROPERTY alter type for edge schema");
+    THROW_RUNTIME_ERROR("Expected ADD_PROPERTY alter type for edge schema");
   }
 
   // Get alter info from operator
@@ -344,7 +341,7 @@ GDDLConverter::convertToAddEdgePropertySchema(const planner::LogicalAlter& op) {
   std::vector<EdgeLabel> edgeLabels;
   getEdgeLabels(info->tableName, edgeLabels);
   if (edgeLabels.size() != 1) {
-    throw std::runtime_error("Edge type must have exactly one edge label");
+    THROW_RUNTIME_ERROR("Edge type must have exactly one edge label");
   }
   auto* edgeType = add_property->mutable_edge_type();
   *edgeType = std::move(*convertToEdgeType(edgeLabels[0]));
@@ -374,8 +371,7 @@ GDDLConverter::convertToDropVertexPropertySchema(
   if (info->alterType != gs::common::AlterType::DROP_PROPERTY ||
       !checkEntryType(info->tableName,
                       gs::catalog::CatalogEntryType::NODE_TABLE_ENTRY)) {
-    throw std::runtime_error(
-        "Expected DROP_PROPERTY alter type for vertex schema");
+    THROW_RUNTIME_ERROR("Expected DROP_PROPERTY alter type for vertex schema");
   }
 
   // Get alter info from operator
@@ -405,8 +401,7 @@ GDDLConverter::convertToDropEdgePropertySchema(
   if (info->alterType != gs::common::AlterType::DROP_PROPERTY ||
       !checkEntryType(info->tableName,
                       gs::catalog::CatalogEntryType::REL_TABLE_ENTRY)) {
-    throw std::runtime_error(
-        "Expected DROP_PROPERTY alter type for edge schema");
+    THROW_RUNTIME_ERROR("Expected DROP_PROPERTY alter type for edge schema");
   }
 
   // Get alter info from operator
@@ -417,7 +412,7 @@ GDDLConverter::convertToDropEdgePropertySchema(
   std::vector<EdgeLabel> edgeLabels;
   getEdgeLabels(info->tableName, edgeLabels);
   if (edgeLabels.size() != 1) {
-    throw std::runtime_error("Edge type must have exactly one edge label");
+    THROW_RUNTIME_ERROR("Edge type must have exactly one edge label");
   }
   auto* edgeType = drop_property->mutable_edge_type();
   *edgeType = std::move(*convertToEdgeType(edgeLabels[0]));
@@ -440,7 +435,7 @@ GDDLConverter::convertToRenameVertexPropertySchema(
   if (info->alterType != gs::common::AlterType::RENAME_PROPERTY ||
       !checkEntryType(info->tableName,
                       gs::catalog::CatalogEntryType::NODE_TABLE_ENTRY)) {
-    throw std::runtime_error(
+    THROW_RUNTIME_ERROR(
         "Expected RENAME_PROPERTY alter type for vertex schema");
   }
 
@@ -471,8 +466,7 @@ GDDLConverter::convertToRenameEdgePropertySchema(
   if (info->alterType != gs::common::AlterType::RENAME_PROPERTY ||
       !checkEntryType(info->tableName,
                       gs::catalog::CatalogEntryType::REL_TABLE_ENTRY)) {
-    throw std::runtime_error(
-        "Expected RENAME_PROPERTY alter type for edge schema");
+    THROW_RUNTIME_ERROR("Expected RENAME_PROPERTY alter type for edge schema");
   }
 
   auto ddl_plan = std::make_unique<::physical::DDLPlan>();
@@ -482,7 +476,7 @@ GDDLConverter::convertToRenameEdgePropertySchema(
   std::vector<EdgeLabel> edgeLabels;
   getEdgeLabels(info->tableName, edgeLabels);
   if (edgeLabels.size() != 1) {
-    throw std::runtime_error("Edge type must have exactly one edge label");
+    THROW_RUNTIME_ERROR("Edge type must have exactly one edge label");
   }
   auto* edgeType = rename_property->mutable_edge_type();
   *edgeType = std::move(*convertToEdgeType(edgeLabels[0]));
@@ -507,8 +501,7 @@ GDDLConverter::convertToRenameVertexTypeSchema(
   if (info->alterType != gs::common::AlterType::RENAME ||
       !checkEntryType(info->tableName,
                       gs::catalog::CatalogEntryType::NODE_TABLE_ENTRY)) {
-    throw std::runtime_error(
-        "Expected RENAME_TABLE alter type for vertex schema");
+    THROW_RUNTIME_ERROR("Expected RENAME_TABLE alter type for vertex schema");
   }
 
   auto ddl_plan = std::make_unique<::physical::DDLPlan>();
@@ -539,8 +532,7 @@ GDDLConverter::convertToRenameEdgeTypeSchema(const planner::LogicalAlter& op) {
   if (info->alterType != gs::common::AlterType::RENAME ||
       !checkEntryType(info->tableName,
                       gs::catalog::CatalogEntryType::REL_TABLE_ENTRY)) {
-    throw std::runtime_error(
-        "Expected RENAME_TABLE alter type for edge schema");
+    THROW_RUNTIME_ERROR("Expected RENAME_TABLE alter type for edge schema");
   }
 
   auto ddl_plan = std::make_unique<::physical::DDLPlan>();
@@ -550,7 +542,7 @@ GDDLConverter::convertToRenameEdgeTypeSchema(const planner::LogicalAlter& op) {
   std::vector<EdgeLabel> edgeLabels;
   getEdgeLabels(info->tableName, edgeLabels);
   if (edgeLabels.size() != 1) {
-    throw std::runtime_error("Edge type must have exactly one edge label");
+    THROW_RUNTIME_ERROR("Edge type must have exactly one edge label");
   }
   auto* oldEdgeType = rename_edge->mutable_old_type();
   *oldEdgeType = std::move(*convertToEdgeType(edgeLabels[0]));
@@ -565,7 +557,7 @@ GDDLConverter::convertToRenameEdgeTypeSchema(const planner::LogicalAlter& op) {
   }
 
   if (newEdgeLabels.size() != 1) {
-    throw std::runtime_error("New edge type must have exactly one edge label");
+    THROW_RUNTIME_ERROR("New edge type must have exactly one edge label");
   }
   auto* newEdgeType = rename_edge->mutable_new_type();
   *newEdgeType = std::move(*convertToEdgeType(newEdgeLabels[0]));
@@ -612,7 +604,7 @@ void GDDLConverter::getEdgeLabels(const std::string& labelName,
       auto* entry = catalog->getTableCatalogEntry(&transaction, tableId);
       if (!entry ||
           entry->getType() != catalog::CatalogEntryType::REL_TABLE_ENTRY) {
-        throw std::runtime_error("Edge Table Entry Not found: " + tableId);
+        THROW_RUNTIME_ERROR("Edge Table Entry Not found: " + tableId);
       }
       auto* edgeTableEntry =
           static_cast<gs::catalog::GRelTableCatalogEntry*>(entry);
@@ -622,7 +614,7 @@ void GDDLConverter::getEdgeLabels(const std::string& labelName,
     auto* entry = catalog->getTableCatalogEntry(&transaction, labelName);
     if (!entry ||
         entry->getType() != catalog::CatalogEntryType::REL_TABLE_ENTRY) {
-      throw std::runtime_error("Edge table entry not found: " + labelName);
+      THROW_RUNTIME_ERROR("Edge table entry not found: " + labelName);
     }
     auto* edgeTableEntry =
         static_cast<gs::catalog::GRelTableCatalogEntry*>(entry);
@@ -646,8 +638,8 @@ std::string GDDLConverter::getVertexLabelName(gs::common::oid_t tableId) {
       &gs::Constants::DEFAULT_TRANSACTION, tableId);
   if (!entry ||
       entry->getType() != catalog::CatalogEntryType::NODE_TABLE_ENTRY) {
-    throw std::runtime_error("Node table entry not found for id: " +
-                             std::to_string(tableId));
+    THROW_RUNTIME_ERROR("Node table entry not found for id: " +
+                        std::to_string(tableId));
   }
   return entry->getName();
 }
@@ -659,7 +651,7 @@ bool GDDLConverter::checkEntryType(const std::string& labelName,
   auto* entry = catalog->getTableCatalogEntry(
       &gs::Constants::DEFAULT_TRANSACTION, labelName);
   if (!entry) {
-    throw std::runtime_error("Catalog entry not found for label: " + labelName);
+    THROW_RUNTIME_ERROR("Catalog entry not found for label: " + labelName);
   }
   return entry->getType() == expectedType;
 }

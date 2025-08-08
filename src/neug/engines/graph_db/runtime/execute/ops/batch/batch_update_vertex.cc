@@ -52,9 +52,8 @@ bl::result<Context> UpdateVertexOpr::eval_impl(
       if (std::get<1>(pks[0]) == prop_name) {
         LOG(ERROR) << "Cannot set primary key property: " << prop_name
                    << " for vertex label: " << static_cast<int>(label_id);
-        throw std::runtime_error(
-            "Cannot set primary key property: " + prop_name +
-            " for vertex label: " + std::to_string(label_id));
+        THROW_RUNTIME_ERROR("Cannot set primary key property: " + prop_name +
+                            " for vertex label: " + std::to_string(label_id));
       }
       if (property_names.empty() ||
           std::find(property_names.begin(), property_names.end(), prop_name) ==
@@ -62,7 +61,7 @@ bl::result<Context> UpdateVertexOpr::eval_impl(
         LOG(ERROR) << "Property " << prop_name
                    << " does not exist for vertex label "
                    << static_cast<int>(label_id);
-        throw std::runtime_error(
+        THROW_RUNTIME_ERROR(
             "Property " + prop_name +
             " does not exist for vertex label: " + std::to_string(label_id));
       }
@@ -75,10 +74,9 @@ bl::result<Context> UpdateVertexOpr::eval_impl(
         LOG(ERROR) << "Property type mismatch for property " << prop_name
                    << ": expected " << property_types[col_id].ToString()
                    << ", got " << value.type.ToString();
-        throw std::runtime_error("Property type mismatch for property " +
-                                 prop_name + ": expected " +
-                                 property_types[col_id].ToString() + ", got " +
-                                 value.type.ToString());
+        THROW_RUNTIME_ERROR("Property type mismatch for property " + prop_name +
+                            ": expected " + property_types[col_id].ToString() +
+                            ", got " + value.type.ToString());
       }
       graph.SetVertexField(vr.label(), vr.vid(), col_id, value);
     }
@@ -101,24 +99,24 @@ std::unique_ptr<IUpdateOperator> UpdateVertexOprBuilder::Build(
     auto& vertex_binding = entry.vertex_binding();
     if (!vertex_binding.has_tag()) {
       LOG(ERROR) << "Vertex binding must have a tag.";
-      throw std::runtime_error("Vertex binding must have a tag.");
+      THROW_RUNTIME_ERROR("Vertex binding must have a tag.");
     }
     CHECK(vertex_binding.tag().item_case() == common::NameOrId::ItemCase::kId)
         << "Vertex binding tag must be an ID.";
     auto tag_id = vertex_binding.tag().id();
     const auto& prop_mapping = entry.property_mapping();
     if (!prop_mapping.property().has_key()) {
-      throw std::runtime_error(
+      THROW_RUNTIME_ERROR(
           "Setting vertex property without key is not supported.");
     }
     if (prop_mapping.data().operators_size() != 1) {
-      throw std::runtime_error(
+      THROW_RUNTIME_ERROR(
           "Setting vertex property with multiple operators is not "
           "supported.");
     }
     if (prop_mapping.data().operators(0).item_case() !=
         common::ExprOpr::ItemCase::kConst) {
-      throw std::runtime_error(
+      THROW_RUNTIME_ERROR(
           "Setting vertex property with non-constant value is not "
           "supported.");
     }

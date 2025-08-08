@@ -620,8 +620,8 @@ class MutableNbrSliceMut<RecordView> {
       if (col_id >= 0) {
         auto col_ptr = table_.get_column_by_id(col_id);
         if (col_ptr == nullptr) {
-          throw std::runtime_error("Column with id " + std::to_string(col_id) +
-                                   " does not exist.");
+          THROW_RUNTIME_ERROR("Column with id " + std::to_string(col_id) +
+                              " does not exist.");
         }
         col_ptr->set_any(ptr_->data, r);
       } else {
@@ -631,8 +631,8 @@ class MutableNbrSliceMut<RecordView> {
         for (size_t i = 0; i < record.size(); ++i) {
           auto col_ptr = table_.get_column_by_id(i);
           if (col_ptr == nullptr) {
-            throw std::runtime_error("Column with id " + std::to_string(i) +
-                                     " does not exist.");
+            THROW_RUNTIME_ERROR("Column with id " + std::to_string(i) +
+                                " does not exist.");
           }
           col_ptr->set_any(ptr_->data, record[i]);
         }

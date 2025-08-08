@@ -18,7 +18,7 @@ void ParserErrorListener::syntaxError(Recognizer* recognizer,
                     ", offset: " + std::to_string(charPositionInLine) + ")\n" +
                     formatUnderLineError(*recognizer, *offendingSymbol, line,
                                          charPositionInLine);
-  throw exception::ParserException(finalError);
+  THROW_PARSER_EXCEPTION(finalError);
 }
 
 std::string ParserErrorListener::formatUnderLineError(

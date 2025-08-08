@@ -208,7 +208,8 @@ class VertexLabelVertexAccessor : public IAccessor {
   }
 
   RTAny eval_path(size_t idx) const override {
-    LOG(FATAL) << "not supposed to reach here...";
+    THROW_INTERNAL_EXCEPTION(
+        "VertexLabelVertexAccessor should not be used to eval path");
     return RTAny();
   }
 
@@ -256,7 +257,8 @@ class VertexIdVertexAccessor : public IAccessor {
   }
 
   RTAny eval_path(size_t idx) const override {
-    LOG(FATAL) << "not supposed to reach here...";
+    THROW_INTERNAL_EXCEPTION(
+        "VertexIdVertexAccessor should not be used to eval path");
     return RTAny();
   }
 
@@ -282,7 +284,8 @@ class VertexGIdVertexAccessor : public IAccessor {
   }
 
   RTAny eval_path(size_t idx) const override {
-    LOG(FATAL) << "not supposed to reach here...";
+    THROW_INTERNAL_EXCEPTION(
+        "VertexGIdVertexAccessor should not be used to eval path");
     return RTAny();
   }
 
@@ -313,7 +316,8 @@ class VertexPropertyVertexAccessor : public IAccessor {
   }
 
   RTAny eval_path(size_t idx) const override {
-    LOG(FATAL) << "not supposed to reach here...";
+    THROW_INTERNAL_EXCEPTION(
+        "VertexPropertyVertexAccessor should not be used to eval path");
     return RTAny();
   }
 
@@ -554,7 +558,8 @@ class EdgePropertyEdgeAccessor : public IAccessor {
   }
 
   RTAny eval_path(size_t idx) const override {
-    LOG(FATAL) << "not supposed to reach here...";
+    THROW_INTERNAL_EXCEPTION(
+        "EdgePropertyEdgeAccessor should not be used to eval path");
     return RTAny();
   }
 
@@ -617,7 +622,8 @@ class MultiPropsEdgePropertyEdgeAccessor : public IAccessor {
   }
 
   RTAny eval_path(size_t idx) const override {
-    LOG(FATAL) << "not supposed to reach here...";
+    THROW_INTERNAL_EXCEPTION(
+        "MultiPropsEdgePropertyEdgeAccessor should not be used to eval path");
     return RTAny();
   }
 

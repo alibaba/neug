@@ -72,7 +72,7 @@ std::unique_ptr<FileInfo> LocalFileSystem::openFile(
     openFlags = O_WRONLY;
   } else {
     // LCOV_EXCL_START
-    throw exception::InternalException(
+    THROW_INTERNAL_EXCEPTION(
         "READ, WRITE or both should be specified when opening a file.");
     // LCOV_EXCL_STOP
   }
@@ -111,7 +111,7 @@ std::unique_ptr<FileInfo> LocalFileSystem::openFile(
       CreateFileA(fullPath.c_str(), dwDesiredAccess, dwShareMode, nullptr,
                   dwCreationDisposition, FILE_ATTRIBUTE_NORMAL, nullptr);
   if (handle == INVALID_HANDLE_VALUE) {
-    throw exception::IOException(stringFormat(
+    THROW_IO_EXCEPTION(stringFormat(
         "Cannot open file. path: {} - Error {}: {}", fullPath, GetLastError(),
         std::system_category().message(GetLastError())));
   }
@@ -124,7 +124,7 @@ std::unique_ptr<FileInfo> LocalFileSystem::openFile(
     BOOL rc = LockFileEx(handle, dwFlags, 0 /*reserved*/, 1 /*numBytesLow*/,
                          0 /*numBytesHigh*/, &overlapped);
     if (!rc) {
-      throw exception::IOException(
+      THROW_IO_EXCEPTION(
           "Could not set lock on file : " + fullPath + "\n" +
           "See the docs: https://docs.kuzudb.com/concurrency for "
           "more information.");
@@ -134,11 +134,11 @@ std::unique_ptr<FileInfo> LocalFileSystem::openFile(
 #else
   int fd = open(fullPath.c_str(), openFlags, 0644);
   if (fd == -1) {
-    throw exception::IOException(
+    THROW_IO_EXCEPTION(
         stringFormat("Cannot open file {}: {}", fullPath, posixErrMessage()));
   }
   if (flags.lockType != FileLockType::NO_LOCK) {
-    struct flock fl {};
+    struct flock fl{};
     memset(&fl, 0, sizeof fl);
     fl.l_type = flags.lockType == FileLockType::READ_LOCK ? F_RDLCK : F_WRLCK;
     fl.l_whence = SEEK_SET;
@@ -146,7 +146,7 @@ std::unique_ptr<FileInfo> LocalFileSystem::openFile(
     fl.l_len = 0;
     int rc = fcntl(fd, F_SETLK, &fl);
     if (rc == -1) {
-      throw exception::IOException(
+      THROW_IO_EXCEPTION(
           "Could not set lock on file : " + fullPath + "\n" +
           "See the docs: https://docs.kuzudb.com/concurrency for "
           "more information.");
@@ -209,7 +209,7 @@ void LocalFileSystem::overwriteFile(const std::string& from,
           from, to, std::filesystem::copy_options::overwrite_existing,
           errorCode)) {
     // LCOV_EXCL_START
-    throw exception::IOException(
+    THROW_IO_EXCEPTION(
         stringFormat("Error copying file {} to {}.  ErrorMessage: {}", from, to,
                      errorCode.message()));
     // LCOV_EXCL_STOP
@@ -223,7 +223,7 @@ void LocalFileSystem::copyFile(const std::string& from, const std::string& to) {
   if (!std::filesystem::copy_file(from, to, std::filesystem::copy_options::none,
                                   errorCode)) {
     // LCOV_EXCL_START
-    throw exception::IOException(
+    THROW_IO_EXCEPTION(
         stringFormat("Error copying file {} to {}.  ErrorMessage: {}", from, to,
                      errorCode.message()));
     // LCOV_EXCL_STOP
@@ -234,8 +234,7 @@ void LocalFileSystem::createDir(const std::string& dir) const {
   try {
     if (std::filesystem::exists(dir)) {
       // LCOV_EXCL_START
-      throw exception::IOException(
-          stringFormat("Directory {} already exists.", dir));
+      THROW_IO_EXCEPTION(stringFormat("Directory {} already exists.", dir));
       // LCOV_EXCL_STOP
     }
     auto directoryToCreate = dir;
@@ -254,22 +253,22 @@ void LocalFileSystem::createDir(const std::string& dir) const {
     std::error_code errCode;
     if (!std::filesystem::create_directories(directoryToCreate, errCode)) {
       // LCOV_EXCL_START
-      throw exception::IOException(stringFormat(
+      THROW_IO_EXCEPTION(stringFormat(
           "Directory {} cannot be created. Check if it exists and remove it.",
           directoryToCreate));
       // LCOV_EXCL_STOP
     }
     if (errCode) {
       // LCOV_EXCL_START
-      throw exception::IOException(
+      THROW_IO_EXCEPTION(
           stringFormat("Failed to create directory: {}, error message: {}.",
                        dir, errCode.message()));
       // LCOV_EXCL_STOP
     }
   } catch (std::exception& e) {
     // LCOV_EXCL_START
-    throw exception::IOException(stringFormat(
-        "Failed to create directory {} due to: {}", dir, e.what()));
+    THROW_IO_EXCEPTION(stringFormat("Failed to create directory {} due to: {}",
+                                    dir, e.what()));
     // LCOV_EXCL_STOP
   }
 }
@@ -299,7 +298,7 @@ void LocalFileSystem::removeFileIfExists(const std::string& path) {
     return;
   }
   if (!isSubdirectory(homeDir, path)) {
-    throw exception::IOException(stringFormat(
+    THROW_IO_EXCEPTION(stringFormat(
         "Error: Path {} is not within the allowed home directory {}", path,
         homeDir));
   }
@@ -312,7 +311,7 @@ void LocalFileSystem::removeFileIfExists(const std::string& path) {
   }
   if (!success) {
     // LCOV_EXCL_START
-    throw exception::IOException(
+    THROW_IO_EXCEPTION(
         stringFormat("Error removing directory or file {}.  Error Message: {}",
                      path, errCode.message()));
     // LCOV_EXCL_STOP
@@ -381,7 +380,7 @@ void LocalFileSystem::readFromFile(FileInfo& fileInfo, void* buffer,
   if (!ReadFile((HANDLE) localFileInfo->handle, buffer, numBytes, &numBytesRead,
                 &overlapped)) {
     auto error = GetLastError();
-    throw exception::IOException(stringFormat(
+    THROW_IO_EXCEPTION(stringFormat(
         "Cannot read from file: {} handle: {} "
         "numBytesRead: {} numBytesToRead: {} position: {}. Error {}: {}",
         fileInfo.path, (intptr_t) localFileInfo->handle, numBytesRead, numBytes,
@@ -389,7 +388,7 @@ void LocalFileSystem::readFromFile(FileInfo& fileInfo, void* buffer,
   }
   if (numBytesRead != numBytes &&
       fileInfo.getFileSize() != position + numBytesRead) {
-    throw exception::IOException(
+    THROW_IO_EXCEPTION(
         stringFormat("Cannot read from file: {} handle: {} "
                      "numBytesRead: {} numBytesToRead: {} position: {}",
                      fileInfo.path, (intptr_t) localFileInfo->handle,
@@ -400,7 +399,7 @@ void LocalFileSystem::readFromFile(FileInfo& fileInfo, void* buffer,
   if ((uint64_t) numBytesRead != numBytes &&
       localFileInfo->getFileSize() != position + numBytesRead) {
     // LCOV_EXCL_START
-    throw exception::IOException(stringFormat(
+    THROW_IO_EXCEPTION(stringFormat(
         "Cannot read from file: {} fileDescriptor: {} "
         "numBytesRead: {} numBytesToRead: {} position: {}",
         fileInfo.path, localFileInfo->fd, numBytesRead, numBytes, position));
@@ -440,7 +439,7 @@ void LocalFileSystem::writeFile(FileInfo& fileInfo, const uint8_t* buffer,
     if (!WriteFile((HANDLE) localFileInfo->handle, buffer + bufferOffset,
                    numBytesToWrite, &numBytesWritten, &overlapped)) {
       auto error = GetLastError();
-      throw exception::IOException(stringFormat(
+      THROW_IO_EXCEPTION(stringFormat(
           "Cannot write to file. path: {} handle: {} offsetToWrite: {} "
           "numBytesToWrite: {} numBytesWritten: {}. Error {}: {}.",
           fileInfo.path, (intptr_t) localFileInfo->handle, offset,
@@ -452,7 +451,7 @@ void LocalFileSystem::writeFile(FileInfo& fileInfo, const uint8_t* buffer,
                                   numBytesToWrite, offset);
     if (numBytesWritten != (int64_t) numBytesToWrite) {
       // LCOV_EXCL_START
-      throw exception::IOException(stringFormat(
+      THROW_IO_EXCEPTION(stringFormat(
           "Cannot write to file. path: {} fileDescriptor: {} offsetToWrite: {} "
           "numBytesToWrite: {} numBytesWritten: {}. Error: {}",
           fileInfo.path, localFileInfo->fd, offset, numBytesToWrite,
@@ -473,14 +472,13 @@ void LocalFileSystem::syncFile(const FileInfo& fileInfo) const {
   // when succeed.
   if (FlushFileBuffers((HANDLE) localFileInfo->handle) == 0) {
     auto error = GetLastError();
-    throw exception::IOException(
-        stringFormat("Failed to sync file {}. Error {}: {}", fileInfo.path,
-                     error, std::system_category().message(error)));
+    THROW_IO_EXCEPTION(stringFormat("Failed to sync file {}. Error {}: {}",
+                                    fileInfo.path, error,
+                                    std::system_category().message(error)));
   }
 #else
   if (fsync(localFileInfo->fd) != 0) {
-    throw exception::IOException(
-        stringFormat("Failed to sync file {}.", fileInfo.path));
+    THROW_IO_EXCEPTION(stringFormat("Failed to sync file {}.", fileInfo.path));
   }
 #endif
 }
@@ -502,14 +500,14 @@ int64_t LocalFileSystem::seek(FileInfo& fileInfo, uint64_t offset,
 void LocalFileSystem::truncate(FileInfo& fileInfo, uint64_t size) const {
   auto localFileInfo = fileInfo.constPtrCast<LocalFileInfo>();
 #if defined(_WIN32)
-  auto offsetHigh = (LONG)(size >> 32);
+  auto offsetHigh = (LONG) (size >> 32);
   LONG* offsetHighPtr = NULL;
   if (offsetHigh > 0)
     offsetHighPtr = &offsetHigh;
   if (SetFilePointer((HANDLE) localFileInfo->handle, size & 0xffffffff,
                      offsetHighPtr, FILE_BEGIN) == INVALID_SET_FILE_POINTER) {
     auto error = GetLastError();
-    throw exception::IOException(
+    THROW_IO_EXCEPTION(
         stringFormat("Cannot set file pointer for file: {} handle: {} "
                      "new position: {}. Error {}: {}",
                      fileInfo.path, (intptr_t) localFileInfo->handle, size,
@@ -517,7 +515,7 @@ void LocalFileSystem::truncate(FileInfo& fileInfo, uint64_t size) const {
   }
   if (!SetEndOfFile((HANDLE) localFileInfo->handle)) {
     auto error = GetLastError();
-    throw exception::IOException(
+    THROW_IO_EXCEPTION(
         stringFormat("Cannot truncate file: {} handle: {} "
                      "size: {}. Error {}: {}",
                      fileInfo.path, (intptr_t) localFileInfo->handle, size,
@@ -526,8 +524,8 @@ void LocalFileSystem::truncate(FileInfo& fileInfo, uint64_t size) const {
 #else
   if (ftruncate(localFileInfo->fd, size) < 0) {
     // LCOV_EXCL_START
-    throw exception::IOException(stringFormat(
-        "Failed to truncate file {}: {}", fileInfo.path, posixErrMessage()));
+    THROW_IO_EXCEPTION(stringFormat("Failed to truncate file {}: {}",
+                                    fileInfo.path, posixErrMessage()));
     // LCOV_EXCL_STOP
   }
 #endif
@@ -539,15 +537,15 @@ uint64_t LocalFileSystem::getFileSize(const FileInfo& fileInfo) const {
   LARGE_INTEGER size;
   if (!GetFileSizeEx((HANDLE) localFileInfo->handle, &size)) {
     auto error = GetLastError();
-    throw exception::IOException(
+    THROW_IO_EXCEPTION(
         stringFormat("Cannot read size of file. path: {} - Error {}: {}",
                      fileInfo.path, error, systemErrMessage(error)));
   }
   return size.QuadPart;
 #else
-  struct stat s {};
+  struct stat s{};
   if (fstat(localFileInfo->fd, &s) == -1) {
-    throw exception::IOException(
+    THROW_IO_EXCEPTION(
         stringFormat("Cannot read size of file. path: {} - Error {}: {}",
                      fileInfo.path, errno, posixErrMessage()));
   }

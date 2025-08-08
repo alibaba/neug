@@ -26,20 +26,20 @@ struct GAliasName {
   GAliasName(const std::string& uniqueName,
              std::optional<std::string> queryName = std::nullopt) {
     if (uniqueName.empty()) {
-      throw exception::Exception("Unique name cannot be empty.");
+      THROW_EXCEPTION_WITH_FILE_LINE("Unique name cannot be empty.");
     }
     if (queryName.has_value() && queryName.value().empty()) {
-      throw exception::Exception("Query name cannot be empty if provided.");
+      THROW_EXCEPTION_WITH_FILE_LINE("Query name cannot be empty if provided.");
     }
     this->uniqueName = std::move(uniqueName);
     this->queryName = std::move(queryName);
   }
   GAliasName(const std::string& uniqueName, const std::string& queryName) {
     if (uniqueName.empty()) {
-      throw exception::Exception("Unique name cannot be empty.");
+      THROW_EXCEPTION_WITH_FILE_LINE("Unique name cannot be empty.");
     }
     if (queryName.empty()) {
-      throw exception::Exception("Query name cannot be empty.");
+      THROW_EXCEPTION_WITH_FILE_LINE("Query name cannot be empty.");
     }
     this->uniqueName = std::move(uniqueName);
     this->queryName = queryName;

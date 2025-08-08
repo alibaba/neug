@@ -180,8 +180,8 @@ inline bool from_json(const rapidjson::Value& j, PropertyType& p) {
         p = PropertyType::Varchar(PropertyType::GetStringDefaultMaxLength());
       }
     } else {
-      throw std::invalid_argument("Unknown string type: " +
-                                  rapidjson_stringify(j));
+      THROW_INVALID_ARGUMENT_EXCEPTION("Unknown string type: " +
+                                       rapidjson_stringify(j));
     }
   } else if (j.HasMember("temporal")) {
     if (j["temporal"].HasMember("timestamp") ||
@@ -194,8 +194,8 @@ inline bool from_json(const rapidjson::Value& j, PropertyType& p) {
     } else if (j["temporal"].HasMember("timestamp")) {
       p = PropertyType::Timestamp();
     } else {
-      throw std::invalid_argument("Unknown temporal type: " +
-                                  rapidjson_stringify(j));
+      THROW_INVALID_ARGUMENT_EXCEPTION("Unknown temporal type: " +
+                                       rapidjson_stringify(j));
     }
   } else {
     LOG(ERROR) << "Unknown property type";

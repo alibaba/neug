@@ -47,7 +47,7 @@ static void validateNodeProjected(table_id_t tableID,
   }
   auto entryName =
       catalog->getTableCatalogEntry(transaction, tableID)->getName();
-  throw exception::BinderException(stringFormat(
+  THROW_BINDER_EXCEPTION(stringFormat(
       "{} is connected to {} but not projected.", entryName, relName));
 }
 
@@ -65,8 +65,7 @@ static void validateRelSrcDstNodeAreProjected(
 GraphEntry GDSFunction::bindGraphEntry(ClientContext& context,
                                        const std::string& name) {
   if (!context.getGraphEntrySetUnsafe().hasGraph(name)) {
-    throw exception::BinderException(
-        stringFormat("Cannot find graph {}.", name));
+    THROW_BINDER_EXCEPTION(stringFormat("Cannot find graph {}.", name));
   }
   return bindGraphEntry(context,
                         context.getGraphEntrySetUnsafe().getEntry(name));
@@ -79,8 +78,7 @@ static BoundGraphEntryTableInfo bindNodeEntry(ClientContext& context,
   auto transaction = context.getTransaction();
   auto nodeEntry = catalog->getTableCatalogEntry(transaction, tableName);
   if (nodeEntry->getType() != CatalogEntryType::NODE_TABLE_ENTRY) {
-    throw exception::BinderException(
-        stringFormat("{} is not a NODE table.", tableName));
+    THROW_BINDER_EXCEPTION(stringFormat("{} is not a NODE table.", tableName));
   }
   if (!predicate.empty()) {
     auto cypher = stringFormat("MATCH (n:`{}`) RETURN n, {}",
@@ -103,7 +101,7 @@ static BoundGraphEntryTableInfo bindRelEntry(ClientContext& context,
   auto transaction = context.getTransaction();
   auto relEntry = catalog->getTableCatalogEntry(transaction, tableName);
   if (relEntry->getType() != CatalogEntryType::REL_TABLE_ENTRY) {
-    throw exception::BinderException(stringFormat(
+    THROW_BINDER_EXCEPTION(stringFormat(
         "{} has catalog entry type. REL entry was expected.", tableName));
   }
   if (!predicate.empty()) {
@@ -154,7 +152,7 @@ GraphEntry GDSFunction::bindGraphEntry(ClientContext& context,
         result.relInfos.push_back(std::move(boundInfo));
       }
     } else {
-      throw exception::BinderException(
+      THROW_BINDER_EXCEPTION(
           stringFormat("{} is not a REL table.", relInfo.tableName));
     }
   }
@@ -177,8 +175,8 @@ std::shared_ptr<Expression> GDSFunction::bindNodeOutput(
 std::string GDSFunction::bindColumnName(
     const parser::YieldVariable& yieldVariable, std::string expressionName) {
   if (yieldVariable.name != expressionName) {
-    throw exception::BinderException{
-        common::stringFormat("Unknown variable name: {}.", yieldVariable.name)};
+    THROW_BINDER_EXCEPTION(
+        common::stringFormat("Unknown variable name: {}.", yieldVariable.name));
   }
   if (yieldVariable.hasAlias()) {
     return yieldVariable.alias;

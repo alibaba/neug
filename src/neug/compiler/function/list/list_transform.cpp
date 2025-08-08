@@ -10,7 +10,7 @@ using namespace common;
 static std::unique_ptr<FunctionBindData> bindFunc(
     const ScalarBindFuncInput& input) {
   if (input.arguments[1]->expressionType != ExpressionType::LAMBDA) {
-    throw exception::BinderException(stringFormat(
+    THROW_BINDER_EXCEPTION(stringFormat(
         "The second argument of LIST_TRANSFORM should be a lambda expression "
         "but got {}.",
         ExpressionTypeUtil::toString(input.arguments[1]->expressionType)));

@@ -15,7 +15,7 @@ void RemoveFactorizationRewriter::rewrite(planner::LogicalPlan* plan) {
   auto collector = LogicalFlattenCollector();
   collector.collect(root.get());
   if (collector.hasOperators()) {
-    throw exception::InternalException("Remove factorization rewriter failed.");
+    THROW_INTERNAL_EXCEPTION("Remove factorization rewriter failed.");
   }
 }
 

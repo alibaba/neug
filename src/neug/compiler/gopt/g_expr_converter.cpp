@@ -108,8 +108,8 @@ std::unique_ptr<::common::Expression> GExprConverter::convert(
                                  schemaAlias);
   }
   default:
-    throw exception::Exception("Unsupported expression type: " +
-                               expr.toString());
+    THROW_EXCEPTION_WITH_FILE_LINE("Unsupported expression type: " +
+                                   expr.toString());
   }
 }
 
@@ -134,7 +134,8 @@ std::unique_ptr<::common::Expression> GExprConverter::convert(
   if (func.name == "AVG") {
     return ::physical::GroupBy_AggFunc::AVG;
   }
-  throw exception::Exception("Unsupported aggregate function: " + func.name);
+  THROW_EXCEPTION_WITH_FILE_LINE("Unsupported aggregate function: " +
+                                 func.name);
 }
 
 std::unique_ptr<::physical::GroupBy_AggFunc> GExprConverter::convertAggFunc(
@@ -163,7 +164,7 @@ std::unique_ptr<::common::Expression> GExprConverter::convertPattern(
   auto variable = std::make_unique<::common::Variable>();
   auto aliasName = expr.getUniqueName();
   if (aliasName.empty()) {
-    throw exception::Exception(
+    THROW_EXCEPTION_WITH_FILE_LINE(
         "Variable name cannot be empty for pattern expression.");
   }
   auto aliasId = aliasManager->getAliasId(aliasName);
@@ -273,8 +274,8 @@ std::unique_ptr<::common::Value> GExprConverter::convertValue(
     return convertToLiteralArray(value, childType);
   }
   default:
-    throw exception::Exception("Unsupported value type " +
-                               value.getDataType().toString());
+    THROW_EXCEPTION_WITH_FILE_LINE("Unsupported value type " +
+                                   value.getDataType().toString());
   }
   return valuePB;
 }
@@ -352,11 +353,12 @@ std::unique_ptr<::common::Expression> GExprConverter::convertLabel(
     const binder::Expression& expr) {
   auto children = expr.getChildren();
   if (children.empty()) {
-    throw exception::Exception("Label function should have at least one child");
+    THROW_EXCEPTION_WITH_FILE_LINE(
+        "Label function should have at least one child");
   }
   auto child = children[0];
   if (child->expressionType != common::ExpressionType::PROPERTY) {
-    throw exception::Exception(
+    THROW_EXCEPTION_WITH_FILE_LINE(
         "The first child of Label function should be NodeId, but is " +
         child->toString());
   }
@@ -385,12 +387,12 @@ std::unique_ptr<::common::Expression> GExprConverter::convertPropertiesFunc(
     const binder::Expression& expr,
     const std::vector<std::string>& schemaAlias) {
   if (expr.expressionType != common::ExpressionType::FUNCTION) {
-    throw exception::Exception(
+    THROW_EXCEPTION_WITH_FILE_LINE(
         "Properties function should be a function expression");
   }
   auto& scalarExpr = expr.constCast<binder::ScalarFunctionExpression>();
   if (expr.getChildren().size() < 2) {
-    throw exception::Exception(
+    THROW_EXCEPTION_WITH_FILE_LINE(
         "Properties function should have at least two children");
   }
   auto pathFuncPB = std::make_unique<::common::PathFunction>();
@@ -403,7 +405,7 @@ std::unique_ptr<::common::Expression> GExprConverter::convertPropertiesFunc(
   // convert path tag
   auto nodeOrRelExpr = expr.getChild(0);
   if (nodeOrRelExpr->getChildren().empty()) {
-    throw exception::Exception(
+    THROW_EXCEPTION_WITH_FILE_LINE(
         "The first child of Properties function should be a list of nodes or "
         "rels, but is " +
         expr.getChild(0)->toString());
@@ -425,7 +427,7 @@ std::unique_ptr<::common::Expression> GExprConverter::convertPropertiesFunc(
     pathFuncPB->set_opt(
         ::common::PathFunction::FuncOpt::PathFunction_FuncOpt_EDGE);
   } else {
-    throw exception::Exception(
+    THROW_EXCEPTION_WITH_FILE_LINE(
         "The first child of Properties function should be a list of nodes or "
         "rels, but is " +
         expr.getChild(0)->toString());
@@ -443,11 +445,11 @@ std::unique_ptr<::common::Expression> GExprConverter::convertPatternExtractFunc(
     const binder::Expression& expr,
     const std::vector<std::string>& schemaAlias) {
   if (expr.expressionType != common::ExpressionType::FUNCTION) {
-    throw exception::Exception(
+    THROW_EXCEPTION_WITH_FILE_LINE(
         "Pattern extract function should be a function expression");
   }
   if (expr.getChildren().empty()) {
-    throw exception::Exception(
+    THROW_EXCEPTION_WITH_FILE_LINE(
         "Pattern extract function should have at least one child");
   }
   auto& scalarExpr = expr.constCast<binder::ScalarFunctionExpression>();
@@ -464,7 +466,7 @@ std::unique_ptr<::common::Expression> GExprConverter::convertPatternExtractFunc(
                      .getValue()
                      .getValue<std::string>();
   } else {
-    throw exception::Exception(
+    THROW_EXCEPTION_WITH_FILE_LINE(
         "cannot evaluate <extract key> from pattern extract function: " +
         expr.toString());
   }
@@ -477,7 +479,8 @@ std::unique_ptr<::common::Expression> GExprConverter::convertPatternExtractFunc(
   } else if (extractKey == common::InternalKeyword::RELS) {
     return convertUDFFunc("gs.function.relationships", expr, 1, schemaAlias);
   }
-  throw exception::Exception("Unsupported struct extract key: " + extractKey);
+  THROW_EXCEPTION_WITH_FILE_LINE("Unsupported struct extract key: " +
+                                 extractKey);
 }
 
 bool isVariable(const binder::Expression& expr) {
@@ -563,7 +566,8 @@ std::unique_ptr<::common::Expression> GExprConverter::convertScalarFunc(
   } else if (scalarType.getType() == TO_ARRAY) {
     return convertToArrayFunc(expr, schemaAlias);
   }
-  throw exception::Exception("Unsupported expression type: " + expr.toString());
+  THROW_EXCEPTION_WITH_FILE_LINE("Unsupported expression type: " +
+                                 expr.toString());
 }
 
 std::unique_ptr<::common::Property> GExprConverter::convertPropertyExpr(
@@ -682,14 +686,14 @@ std::unique_ptr<::common::ExprOpr> GExprConverter::convertOperator(
       result->set_arith(::common::Arithmetic::MOD);
       break;
     default:
-      throw exception::Exception("Unsupported scalar function: " +
-                                 expr.toString() + " in convertOperator");
+      THROW_EXCEPTION_WITH_FILE_LINE("Unsupported scalar function: " +
+                                     expr.toString() + " in convertOperator");
     }
     break;
   }
   default:
-    throw exception::Exception("Unsupported expression: " + expr.toString() +
-                               " in convertOperator");
+    THROW_EXCEPTION_WITH_FILE_LINE(
+        "Unsupported expression: " + expr.toString() + " in convertOperator");
   }
   return result;
 }
@@ -698,12 +702,13 @@ std::unique_ptr<::common::ExprOpr> GExprConverter::convertOperator(
     const binder::Expression& expr,
     const std::vector<std::string>& schemaAlias) {
   if (expr.expressionType != common::ExpressionType::FUNCTION) {
-    throw exception::Exception("CAST function should be a function expression");
+    THROW_EXCEPTION_WITH_FILE_LINE(
+        "CAST function should be a function expression");
   }
   auto& scalarExpr = expr.constCast<binder::ScalarFunctionExpression>();
   auto children = expr.getChildren();
   if (children.empty()) {
-    throw exception::Exception(
+    THROW_EXCEPTION_WITH_FILE_LINE(
         "CAST function should have at least one children");
   }
   auto sourceExpr = children[0];
@@ -739,7 +744,7 @@ std::unique_ptr<::common::ExprOpr> GExprConverter::convertOperator(
 std::unique_ptr<::common::Expression> GExprConverter::convertTemporalFunc(
     const binder::Expression& expr) {
   if (expr.getChildren().size() != 1) {
-    throw exception::Exception(
+    THROW_EXCEPTION_WITH_FILE_LINE(
         "temporal function should have exactly one child");
   }
   auto child = expr.getChild(0);
@@ -765,8 +770,8 @@ std::unique_ptr<::common::Expression> GExprConverter::convertTemporalFunc(
     break;
   }
   default:
-    throw exception::Exception("Unsupported scalar function " +
-                               expr.toString() + " in temporal func");
+    THROW_EXCEPTION_WITH_FILE_LINE("Unsupported scalar function " +
+                                   expr.toString() + " in temporal func");
   }
   auto typePB = typeConverter.convertLogicalType(expr.getDataType(), expr);
   exprPB->mutable_operators(0)->set_allocated_node_type(typePB.release());
@@ -792,19 +797,19 @@ std::unique_ptr<::common::Expression> GExprConverter::convertTemporalFunc(
   } else if (fieldName == "millisecond") {
     return ::common::Extract::MILLISECOND;
   }
-  throw exception::Exception("invalid interval field " + fieldName);
+  THROW_EXCEPTION_WITH_FILE_LINE("invalid interval field " + fieldName);
 }
 
 std::unique_ptr<::common::Expression> GExprConverter::convertExtractFunc(
     const binder::Expression& expr) {
   GScalarType type{expr};
   if (type.getType() != ScalarType::DATE_PART) {
-    throw exception::Exception("Unsupport scalar function " + expr.toString() +
-                               "in extract func");
+    THROW_EXCEPTION_WITH_FILE_LINE("Unsupport scalar function " +
+                                   expr.toString() + "in extract func");
   }
   auto children = expr.getChildren();
   if (children.size() != 2) {
-    throw exception::Exception(
+    THROW_EXCEPTION_WITH_FILE_LINE(
         "extract function should have exactly two children, but is " +
         children.size());
   }
@@ -861,7 +866,7 @@ std::unique_ptr<::common::Expression> GExprConverter::convertChildren(
 std::unique_ptr<::common::Expression> GExprConverter::convertIsNotNull(
     const binder::Expression& expr) {
   if (expr.getNumChildren() != 1) {
-    throw exception::Exception(
+    THROW_EXCEPTION_WITH_FILE_LINE(
         "IS_NOT_NULL expressions must have exactly one child.");
   }
   auto result = std::make_unique<::common::Expression>();

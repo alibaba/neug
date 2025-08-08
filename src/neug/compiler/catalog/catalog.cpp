@@ -79,7 +79,7 @@ TableCatalogEntry* Catalog::getTableCatalogEntry(const Transaction* transaction,
     result = internalTables->getEntryOfOID(transaction, tableID);
   }
   if (result == nullptr) {
-    throw exception::RuntimeError(
+    THROW_RUNTIME_ERROR(
         stringFormat("Cannot find table catalog entry with id {}.",
                      std::to_string(tableID)));
   }
@@ -92,7 +92,7 @@ TableCatalogEntry* Catalog::getTableCatalogEntry(const Transaction* transaction,
   CatalogEntry* result = nullptr;
   if (!tables->containsEntry(transaction, tableName)) {
     if (!useInternal) {
-      throw exception::CatalogException(
+      THROW_CATALOG_EXCEPTION(
           stringFormat("{} does not exist in catalog.", tableName));
     } else {
       result = internalTables->getEntry(transaction, tableName);
@@ -196,8 +196,7 @@ bool Catalog::containsRelGroup(const Transaction* transaction,
 RelGroupCatalogEntry* Catalog::getRelGroupEntry(const Transaction* transaction,
                                                 const std::string& name) const {
   if (!containsRelGroup(transaction, name)) {
-    throw exception::RuntimeError(
-        stringFormat("Cannot find rel group entry {}.", name));
+    THROW_RUNTIME_ERROR(stringFormat("Cannot find rel group entry {}.", name));
   }
   return relGroups->getEntry(transaction, name)
       ->ptrCast<RelGroupCatalogEntry>();
@@ -348,7 +347,7 @@ static std::string getTypeDoesNotExistMessage(std::string_view entryName) {
 LogicalType Catalog::getType(const Transaction* transaction,
                              const std::string& name) const {
   if (!types->containsEntry(transaction, name)) {
-    throw exception::CatalogException{getTypeDoesNotExistMessage(name)};
+    THROW_CATALOG_EXCEPTION(getTypeDoesNotExistMessage(name));
   }
   return types->getEntry(transaction, name)
       ->constCast<TypeCatalogEntry>()
@@ -424,8 +423,7 @@ void Catalog::addFunction(Transaction* transaction, CatalogEntryType entryType,
                           bool isInternal) {
   auto& catalogSet = isInternal ? internalFunctions : functions;
   if (catalogSet->containsEntry(transaction, name)) {
-    throw exception::CatalogException{
-        stringFormat("function {} already exists.", name)};
+    THROW_CATALOG_EXCEPTION(stringFormat("function {} already exists.", name));
   }
   catalogSet->createEntry(
       transaction, std::make_unique<FunctionCatalogEntry>(
@@ -447,8 +445,7 @@ static std::string getFunctionDoesNotExistMessage(std::string_view entryName) {
 
 void Catalog::dropFunction(Transaction* transaction, const std::string& name) {
   if (!containsFunction(transaction, name)) {
-    throw exception::CatalogException{
-        stringFormat("function {} doesn't exist.", name)};
+    THROW_CATALOG_EXCEPTION(stringFormat("function {} doesn't exist.", name));
   }
   auto entry = getFunctionEntry(transaction, name);
   functions->dropEntry(transaction, name, entry->getOID());
@@ -460,7 +457,7 @@ CatalogEntry* Catalog::getFunctionEntry(const Transaction* transaction,
   CatalogEntry* result = nullptr;
   if (!functions->containsEntry(transaction, name)) {
     if (!useInternal) {
-      throw exception::CatalogException(getFunctionDoesNotExistMessage(name));
+      THROW_CATALOG_EXCEPTION(getFunctionDoesNotExistMessage(name));
     }
     result = internalFunctions->getEntry(transaction, name);
   } else {

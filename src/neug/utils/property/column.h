@@ -162,7 +162,7 @@ class TypedColumn : public ColumnBase {
     if (index < size_) {
       buffer_.set(index, val);
     } else {
-      throw exception::RuntimeError("Index out of range");
+      THROW_RUNTIME_ERROR("Index out of range");
     }
   }
 

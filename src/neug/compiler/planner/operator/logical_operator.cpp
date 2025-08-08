@@ -110,7 +110,7 @@ std::string LogicalOperatorUtils::logicalOperatorTypeToString(
   case gs::planner::LogicalOperatorType::GET_V:
     return "GET_V";
   default:
-    throw exception::RuntimeError("Unknown logical operator type.");
+    THROW_RUNTIME_ERROR("Unknown logical operator type.");
   }
 }
 // LCOV_EXCL_STOP

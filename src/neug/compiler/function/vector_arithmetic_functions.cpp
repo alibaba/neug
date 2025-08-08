@@ -559,8 +559,7 @@ struct DecimalAdd {
     auto precision = DecimalType::getPrecision(resultValueVector.dataType);
     if ((right > 0 && pow10s[precision] - right <= left) ||
         (right < 0 && -pow10s[precision] - right >= left)) {
-      throw exception::OverflowException(
-          "Decimal Addition result is out of range");
+      THROW_OVERFLOW_EXCEPTION("Decimal Addition result is out of range");
     }
     result = left + right;
   }
@@ -585,8 +584,7 @@ struct DecimalSubtract {
     auto precision = DecimalType::getPrecision(resultValueVector.dataType);
     if ((right > 0 && -pow10s[precision] + right >= left) ||
         (right < 0 && pow10s[precision] + right <= left)) {
-      throw exception::OverflowException(
-          "Decimal Subtraction result is out of range");
+      THROW_OVERFLOW_EXCEPTION("Decimal Subtraction result is out of range");
     }
     result = left - right;
   }
@@ -612,14 +610,14 @@ struct DecimalMultiply {
     result = (R) left * (R) right;
     // no need to divide by any scale given resultingParams and matchToOutput
     if (result <= -pow10s[precision] || result >= pow10s[precision]) {
-      [[unlikely]] throw exception::OverflowException(
+      [[unlikely]] THROW_OVERFLOW_EXCEPTION(
           "Decimal Multiplication Result is out of range");
     }
   }
 
   static std::pair<int, int> resultingParams(int p1, int p2, int s1, int s2) {
     if (p1 + p2 + 1 > DECIMAL_PRECISION_LIMIT) {
-      throw exception::OverflowException(
+      THROW_OVERFLOW_EXCEPTION(
           "Resulting precision of decimal multiplication greater than 38");
     }
     auto p = p1 + p2 + 1;
@@ -637,11 +635,11 @@ struct DecimalDivide {
     auto precision = DecimalType::getPrecision(resultValueVector.dataType);
     auto scale = DecimalType::getScale(resultValueVector.dataType);
     if (right == 0) {
-      throw exception::RuntimeError("Divide by zero.");
+      THROW_RUNTIME_ERROR("Divide by zero.");
     }
     if (-pow10s[precision - scale] >= left ||
         pow10s[precision - scale] <= left) {
-      throw exception::OverflowException(
+      THROW_OVERFLOW_EXCEPTION(
           "Overflow encountered when attempting to divide decimals");
       // happens too often; let's just drop to double division for now, which is
       // in line with what DuckDB does right now
@@ -662,7 +660,7 @@ struct DecimalModulo {
   static inline void operation(A& left, B& right, R& result,
                                common::ValueVector&) {
     if (right == 0) {
-      throw exception::RuntimeError("Modulo by zero.");
+      THROW_RUNTIME_ERROR("Modulo by zero.");
     }
     result = left % right;
   }
@@ -711,10 +709,10 @@ struct DecimalFloor {
       // round to larger absolute value
       result = (R) input - (input % pow10s[scale] == 0
                                 ? 0
-                                : pow10s[scale] + (R)(input % pow10s[scale]));
+                                : pow10s[scale] + (R) (input % pow10s[scale]));
     } else {
       // round to smaller absolute value
-      result = (R) input - (R)(input % pow10s[scale]);
+      result = (R) input - (R) (input % pow10s[scale]);
     }
     result = result / pow10s[scale];
   }
@@ -732,12 +730,12 @@ struct DecimalCeil {
     auto scale = DecimalType::getScale(inputVector.dataType);
     if (input < 0) {
       // round to larger absolute value
-      result = (R) input - (R)(input % pow10s[scale]);
+      result = (R) input - (R) (input % pow10s[scale]);
     } else {
       // round to smaller absolute value
       result = (R) input + (input % pow10s[scale] == 0
                                 ? 0
-                                : pow10s[scale] - (R)(input % pow10s[scale]));
+                                : pow10s[scale] - (R) (input % pow10s[scale]));
     }
     result = result / pow10s[scale];
   }

@@ -61,7 +61,8 @@ struct murmurhash2_64 {
     } else if (val.type == PropertyType::kUInt32) {
       return hash<uint32_t>(val.AsUInt32(), seed);
     } else {
-      LOG(FATAL) << "Unexpected property type: " << val.type;
+      THROW_NOT_SUPPORTED_EXCEPTION("Unsupported type for murmurhash: " +
+                                    val.type.ToString());
       return hash_type();
     }
   }
@@ -187,7 +188,8 @@ class PTIndexer {
       keys_ = new StringColumn(StorageStrategy::kMem,
                                gs::PropertyType::GetStringDefaultMaxLength());
     } else {
-      LOG(FATAL) << "Not support type [" << type << "] as pk type ..";
+      THROW_NOT_SUPPORTED_EXCEPTION("Unsupported type for PTIndexer: " +
+                                    type.ToString());
     }
   }
 

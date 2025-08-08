@@ -839,7 +839,7 @@ void MutablePropertyFragment::Dump(const std::string& work_dir,
     ss << "Failed to create snapshot directory: " << snapshot_dir_path << ", "
        << errorCode.message();
     LOG(ERROR) << ss.str();
-    throw exception::RuntimeError(ss.str());
+    THROW_RUNTIME_ERROR(ss.str());
   }
   std::vector<size_t> vertex_num(vertex_label_num_, 0);
   for (size_t i = 0; i < vertex_label_num_; ++i) {

@@ -52,8 +52,7 @@ Result<QueryResult> Connection::query(const std::string& query_string) {
     return Result<QueryResult>(
         QueryResult::From(std::move(result.move_value())));
   } else {
-    throw std::runtime_error("Query execution failed: " +
-                             result.status().ToString());
+    return result.status();
   }
 }
 
@@ -93,8 +92,8 @@ Result<results::CollectiveResults> Connection::query_impl(
     if (!yaml.ok()) {
       LOG(ERROR) << "Failed to convert schema to YAML: "
                  << yaml.status().error_message();
-      throw std::runtime_error("Failed to convert schema to YAML: " +
-                               yaml.status().error_message());
+      THROW_RUNTIME_ERROR("Failed to convert schema to YAML: " +
+                          yaml.status().error_message());
     }
     planner_->update_meta(yaml.value());
     planner_->update_statistics(db_.get_statistics_json());

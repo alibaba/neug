@@ -11,7 +11,7 @@ void LogicalFlatten::computeFactorizedSchema() {
 }
 
 void LogicalFlatten::computeFlatSchema() {
-  throw exception::InternalException(
+  THROW_INTERNAL_EXCEPTION(
       "LogicalFlatten::computeFlatSchema() should never be used.");
 }
 

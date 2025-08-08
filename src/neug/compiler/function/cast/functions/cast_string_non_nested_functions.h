@@ -187,7 +187,7 @@ inline bool trySimpleInt128Cast(const char* input, uint64_t len,
 inline void simpleInt128Cast(const char* input, uint64_t len,
                              int128_t& result) {
   if (!trySimpleInt128Cast(input, len, result)) {
-    throw exception::ConversionException(
+    THROW_CONVERSION_EXCEPTION(
         stringFormat("Cast failed. {} is not within INT128 range.",
                      std::string{input, (size_t) len}));
   }
@@ -210,7 +210,7 @@ KUZU_API inline void simpleIntegerCast(
     const char* input, uint64_t len, T& result,
     LogicalTypeID typeID = LogicalTypeID::ANY) {
   if (!trySimpleIntegerCast<T, IS_SIGNED>(input, len, result)) {
-    throw exception::ConversionException(stringFormat(
+    THROW_CONVERSION_EXCEPTION(stringFormat(
         "Cast failed. Could not convert \"{}\" to {}.",
         std::string{input, (size_t) len}, LogicalTypeUtils::toString(typeID)));
   }
@@ -240,7 +240,7 @@ template <class T>
 inline void doubleCast(const char* input, uint64_t len, T& result,
                        LogicalTypeID typeID = LogicalTypeID::ANY) {
   if (!tryDoubleCast<T>(input, len, result)) {
-    throw exception::ConversionException(stringFormat(
+    THROW_CONVERSION_EXCEPTION(stringFormat(
         "Cast failed. {} is not in {} range.", std::string{input, (size_t) len},
         LogicalTypeUtils::toString(typeID)));
   }
@@ -255,9 +255,8 @@ struct TryCastStringToTimestamp {
   static void cast(const char* input, uint64_t len, timestamp_t& result,
                    LogicalTypeID typeID) {
     if (!tryCast<T>(input, len, result)) {
-      throw exception::ConversionException(
-          Timestamp::getTimestampConversionExceptionMsg(
-              input, len, LogicalTypeUtils::toString(typeID)));
+      THROW_CONVERSION_EXCEPTION(Timestamp::getTimestampConversionExceptionMsg(
+          input, len, LogicalTypeUtils::toString(typeID)));
     }
   }
 };
@@ -359,7 +358,7 @@ void decimalCast(const char* input, uint64_t len, T& result,
                  const LogicalType& type) {
   if (!tryDecimalCast(input, len, result, DecimalType::getPrecision(type),
                       DecimalType::getScale(type))) {
-    throw exception::ConversionException(
+    THROW_CONVERSION_EXCEPTION(
         stringFormat("Cast failed. {} is not in {} range.",
                      std::string{input, (size_t) len}, type.toString()));
   }

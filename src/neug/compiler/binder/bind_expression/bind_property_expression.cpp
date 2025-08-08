@@ -36,7 +36,7 @@ expression_vector ExpressionBinder::bindPropertyStarExpression(
   } else if (isStructPattern(*child)) {
     return bindStructPropertyStarExpression(child);
   } else {
-    throw exception::BinderException(
+    THROW_BINDER_EXCEPTION(
         stringFormat("Cannot bind property for expression {} with type {}.",
                      child->toString(),
                      ExpressionTypeUtil::toString(child->expressionType)));
@@ -73,7 +73,7 @@ std::shared_ptr<Expression> ExpressionBinder::bindPropertyExpression(
   auto& propertyExpression =
       parsedExpression.constCast<ParsedPropertyExpression>();
   if (propertyExpression.isStar()) {
-    throw exception::BinderException(
+    THROW_BINDER_EXCEPTION(
         stringFormat("Cannot bind {} as a single property expression.",
                      parsedExpression.toString()));
   }
@@ -92,7 +92,7 @@ std::shared_ptr<Expression> ExpressionBinder::bindPropertyExpression(
       // Note we don't expose direct access to internal properties in case user
       // tries to modify them. However, we can expose indirect read-only access
       // through function e.g. ID().
-      throw exception::BinderException(
+      THROW_BINDER_EXCEPTION(
           propertyName +
           " is reserved for system usage. External access is not allowed.");
     }
@@ -103,7 +103,7 @@ std::shared_ptr<Expression> ExpressionBinder::bindPropertyExpression(
     return createVariableExpression(LogicalType::ANY(),
                                     binder->getUniqueExpressionName(""));
   } else {
-    throw exception::BinderException(
+    THROW_BINDER_EXCEPTION(
         stringFormat("Cannot bind property for expression {} with type {}.",
                      child->toString(),
                      ExpressionTypeUtil::toString(child->expressionType)));
@@ -121,8 +121,8 @@ std::shared_ptr<Expression> ExpressionBinder::bindNodeOrRelPropertyExpression(
     return node.getInternalID();
   }
   if (!nodeOrRel.hasPropertyExpression(propertyName)) {
-    throw exception::BinderException("Cannot find property " + propertyName +
-                                     " for " + child.toString() + ".");
+    THROW_BINDER_EXCEPTION("Cannot find property " + propertyName + " for " +
+                           child.toString() + ".");
   }
   return nodeOrRel.getPropertyExpression(propertyName);
 }

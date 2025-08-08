@@ -227,8 +227,8 @@ static void resizeVector(ArrowVector* vector, const LogicalType& type,
   case LogicalTypeID::INTERNAL_ID:
     return resizeInternalIDVector(vector, type, capacity);
   default: {
-    throw exception::RuntimeError{common::stringFormat(
-        "Unsupported type: {} for arrow conversion.", type.toString())};
+    THROW_RUNTIME_ERROR(common::stringFormat(
+        "Unsupported type: {} for arrow conversion.", type.toString()));
   }
   }
 }

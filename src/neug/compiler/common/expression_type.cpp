@@ -129,7 +129,7 @@ std::string ExpressionTypeUtil::toParsableString(ExpressionType type) {
   case ExpressionType::IS_NOT_NULL:
     return "IS NOT NULL";
   default:
-    throw exception::RuntimeError(stringFormat(
+    THROW_RUNTIME_ERROR(stringFormat(
         "ExpressionTypeUtil::toParsableString not implemented for {}",
         toString(type)));
   }

@@ -386,24 +386,17 @@ bl::result<InsertPipeline> PlanParser::parse_write_pipeline(
 bl::result<UpdatePipeline> PlanParser::parse_update_pipeline(
     const gs::Schema& schema, const physical::PhysicalPlan& plan) {
   Status status = Status::OK();
-  auto write_pipeline = bl::try_handle_all(
+  TRY_HANDLE_ALL_WITH_EXCEPTION_CATCHING(
+      write_pipeline,
       [&]() -> bl::result<InsertPipeline> {
         return parse_write_pipeline(schema, plan);
       },
-      [&status](const gs::Status& err) {
+      bl::result<InsertPipeline>,
+      [&](const gs::Status& err) {
         status = err;
         return InsertPipeline();
       },
-      [&status](const bl::error_info& err) {
-        status = gs::Status(gs::StatusCode::ERR_INTERNAL_ERROR,
-                            "Error: " + std::to_string(err.error().value()) +
-                                ", Exception: " + err.exception()->what());
-        return InsertPipeline();
-      },
-      [&]() {
-        status = gs::Status(gs::StatusCode::ERR_UNKNOWN, "Unknown error");
-        return InsertPipeline();
-      });
+      InsertPipeline());
   // insert pipeline
   if (status.ok()) {
     return UpdatePipeline(std::move(write_pipeline));
@@ -437,29 +430,22 @@ std::pair<runtime::Context, Status> ParseAndExecuteReadPipeline(
     const GraphReadInterface& graph, const physical::PhysicalPlan& plan,
     OprTimer& timer) {
   gs::Status status = gs::Status::OK();
-
-  runtime::Context ctx = bl::try_handle_all(
-      [&graph, &plan, &timer]() -> bl::result<runtime::Context> {
+  TRY_HANDLE_ALL_WITH_EXCEPTION_CATCHING(
+      ctx,
+      [&]() -> bl::result<runtime::Context> {
         return runtime::PlanParser::get()
             .parse_read_pipeline(graph.schema(), gs::runtime::ContextMeta(),
                                  plan)
             .value()
             .Execute(graph, runtime::Context(), {}, timer);
       },
-      [&status](const gs::Status& err) {
+      bl::result<runtime::Context>,
+      [&](const gs::Status& err) {
         status = err;
         return runtime::Context();
       },
-      [&](const bl::error_info& err) {
-        status = gs::Status(gs::StatusCode::ERR_INTERNAL_ERROR,
-                            "Error: " + std::to_string(err.error().value()) +
-                                ", Exception: " + err.exception()->what());
-        return runtime::Context();
-      },
-      [&]() {
-        status = gs::Status(gs::StatusCode::ERR_UNKNOWN, "Unknown error");
-        return runtime::Context();
-      });
+      runtime::Context());
+
   return std::make_pair(std::move(ctx), status);
 }
 
@@ -467,27 +453,20 @@ std::pair<runtime::Context, Status> ParseAndExecuteUpdatePipeline(
     GraphUpdateInterface& graph, const physical::PhysicalPlan& plan,
     OprTimer& timer) {
   gs::Status status = gs::Status::OK();
-  auto ctx = bl::try_handle_all(
-      [&graph, &plan, &timer]() -> bl::result<runtime::Context> {
+  TRY_HANDLE_ALL_WITH_EXCEPTION_CATCHING(
+      ctx,
+      [&]() -> bl::result<runtime::Context> {
         return runtime::PlanParser::get()
             .parse_update_pipeline(graph.schema(), plan)
             .value()
             .Execute(graph, runtime::Context(), {}, timer);
       },
-      [&status](const gs::Status& err) {
+      bl::result<runtime::Context>,
+      [&](const gs::Status& err) {
         status = err;
         return runtime::Context();
       },
-      [&](const bl::error_info& err) {
-        status = gs::Status(gs::StatusCode::ERR_INTERNAL_ERROR,
-                            "Error: " + std::to_string(err.error().value()) +
-                                ", Exception: " + err.exception()->what());
-        return runtime::Context();
-      },
-      [&]() {
-        status = gs::Status(gs::StatusCode::ERR_UNKNOWN, "Unknown error");
-        return runtime::Context();
-      });
+      runtime::Context());
   return std::make_pair(std::move(ctx), status);
 }
 

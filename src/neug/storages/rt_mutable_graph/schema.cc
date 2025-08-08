@@ -1865,7 +1865,7 @@ std::string Schema::get_edge_strategy(label_t src_label, label_t dst_label,
   uint32_t index = generate_edge_label(src_label, dst_label, edge_label);
   if (oe_strategy_.find(index) == oe_strategy_.end() ||
       ie_strategy_.find(index) == ie_strategy_.end()) {
-    throw exception::RuntimeError(
+    THROW_RUNTIME_ERROR(
         "Edge strategy not found for edge label: " + std::to_string(src_label) +
         "-" + std::to_string(edge_label) + "->" + std::to_string(dst_label));
   }
@@ -1877,7 +1877,7 @@ std::string Schema::get_edge_strategy(label_t src_label, label_t dst_label,
     } else if (ie_strategy == EdgeStrategy::kSingle) {
       return "MANY_TO_ONE";
     } else {
-      throw exception::RuntimeError("ie_strategy should not be none");
+      THROW_RUNTIME_ERROR("ie_strategy should not be none");
     }
   } else if (oe_strategy == EdgeStrategy::kSingle) {
     if (ie_strategy == EdgeStrategy::kMultiple) {
@@ -1885,10 +1885,10 @@ std::string Schema::get_edge_strategy(label_t src_label, label_t dst_label,
     } else if (ie_strategy == EdgeStrategy::kSingle) {
       return "ONE_TO_ONE";
     } else {
-      throw exception::RuntimeError("ie_strategy should not be none");
+      THROW_RUNTIME_ERROR("ie_strategy should not be none");
     }
   } else {
-    throw exception::RuntimeError("oe_strategy should not be none");
+    THROW_RUNTIME_ERROR("oe_strategy should not be none");
   }
 }
 

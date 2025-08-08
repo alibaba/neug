@@ -20,8 +20,7 @@ std::unique_ptr<BoundStatement> Binder::bindCreateMacro(
   StringUtils::toUpper(macroName);
   if (clientContext->getCatalog()->containsMacro(
           clientContext->getTransaction(), macroName)) {
-    throw exception::BinderException{
-        stringFormat("Macro {} already exists.", macroName)};
+    THROW_BINDER_EXCEPTION(stringFormat("Macro {} already exists.", macroName));
   }
   parser::default_macro_args defaultArgs;
   for (auto& defaultArg : createMacro.getDefaultArgs()) {

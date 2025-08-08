@@ -55,7 +55,7 @@ inline void stringFormatHelper(std::string& ret, std::string_view format,
                               std::forward<Args>(args)...);
   } else if (format.substr(bracket, 2) == "{}") {
     // Formatted {}.
-    throw exception::InternalException("Not enough values for string_format.");
+    THROW_INTERNAL_EXCEPTION("Not enough values for string_format.");
   }
   // Something else.
   ret.push_back('{');
@@ -68,7 +68,7 @@ inline void stringFormatHelper(std::string& ret, std::string_view format,
                                Arg&& arg, Args&&... args) {
   size_t bracket = format.find('{');
   if (bracket == std::string_view::npos) {
-    throw exception::InternalException("Too many values for string_format.");
+    THROW_INTERNAL_EXCEPTION("Too many values for string_format.");
   }
   ret += format.substr(0, bracket);
   if (format.substr(bracket, 4) == "{{}}") {

@@ -121,7 +121,7 @@ Planner::enumerateQueryGraphCollection(
     // todo: support query like `MATCH (a)-[]->(b) WHERE a.ID = 0 OPTIONAL MATCH
     // (c:person) WHERE c.ID = b.ID + 3`, here the 2nd Match is not connected to
     // the 1st Match, but they have the correlated expression `c.ID = b.ID + 3`.
-    throw exception::Exception(
+    THROW_EXCEPTION_WITH_FILE_LINE(
         "Unconnected correlated query is not supported yet");
     // auto plan = std::make_unique<LogicalPlan>();
     // appendExpressionsScan(corrExprs, *plan);
@@ -706,8 +706,8 @@ planner::GetVOpt getGetVOpt(common::ExtendDirection direction) {
   case common::ExtendDirection::BOTH:
     return planner::GetVOpt::OTHER;
   default:
-    throw std::runtime_error("Unsupported extend direction for GetV: " +
-                             static_cast<u_int8_t>(direction));
+    THROW_RUNTIME_ERROR("Unsupported extend direction for GetV: " +
+                        static_cast<u_int8_t>(direction));
   }
 }
 

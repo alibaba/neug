@@ -55,7 +55,7 @@ static std::vector<std::string> getAsStringVector(const Value& value) {
 static std::string getPredicateStr(Value& val) {
   auto& type = val.getDataType();
   if (type.getLogicalTypeID() != LogicalTypeID::STRUCT) {
-    throw exception::BinderException(
+    THROW_BINDER_EXCEPTION(
         stringFormat("{} has data type {}. STRUCT was expected.",
                      val.toString(), type.toString()));
   }
@@ -66,7 +66,7 @@ static std::string getPredicateStr(Value& val) {
       childVal->validateType(LogicalTypeID::STRING);
       return childVal->getValue<std::string>();
     }
-    throw exception::BinderException(stringFormat(
+    THROW_BINDER_EXCEPTION(stringFormat(
         "Unrecognized configuration {}. Supported configuration is 'filter'.",
         fieldName));
   }
@@ -90,7 +90,7 @@ static std::vector<GraphEntryTableInfo> extractGraphEntryTableInfos(
     }
   } break;
   default:
-    throw exception::BinderException(stringFormat(
+    THROW_BINDER_EXCEPTION(stringFormat(
         "Input argument {} has data type {}. STRUCT or LIST was expected.",
         value.toString(), value.getDataType().toString()));
   }

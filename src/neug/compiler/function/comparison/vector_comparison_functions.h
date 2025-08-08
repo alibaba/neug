@@ -156,11 +156,10 @@ struct ComparisonFunction {
                                        common::struct_entry_t, uint8_t, FUNC>;
     } break;
     default:
-      throw exception::RuntimeError(
-          "Invalid input data types(" +
-          common::PhysicalTypeUtils::toString(leftType) + "," +
-          common::PhysicalTypeUtils::toString(rightType) +
-          ") for getExecFunc.");
+      THROW_RUNTIME_ERROR("Invalid input data types(" +
+                          common::PhysicalTypeUtils::toString(leftType) + "," +
+                          common::PhysicalTypeUtils::toString(rightType) +
+                          ") for getExecFunc.");
     }
   }
 
@@ -229,11 +228,11 @@ struct ComparisonFunction {
                                             common::struct_entry_t, FUNC>;
     } break;
     default:
-      throw exception::RuntimeError(
-          "Invalid input data types(" +
-          common::PhysicalTypeUtils::toString(leftTypeID) + "," +
-          common::PhysicalTypeUtils::toString(rightTypeID) +
-          ") for getSelectFunc.");
+      THROW_RUNTIME_ERROR("Invalid input data types(" +
+                          common::PhysicalTypeUtils::toString(leftTypeID) +
+                          "," +
+                          common::PhysicalTypeUtils::toString(rightTypeID) +
+                          ") for getSelectFunc.");
     }
   }
 };

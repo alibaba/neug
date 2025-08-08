@@ -42,7 +42,7 @@ class Status {
   Status(StatusCode error_code, std::string&& error_msg) noexcept;
   Status(StatusCode error_code, const std::string& error_msg) noexcept;
   bool ok() const;
-  std::string error_message() const;
+  const std::string& error_message() const;
   StatusCode error_code() const;
 
   static Status OK();

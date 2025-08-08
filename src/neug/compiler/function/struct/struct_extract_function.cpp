@@ -16,7 +16,7 @@ std::unique_ptr<FunctionBindData> StructExtractFunctions::bindFunc(
     const ScalarBindFuncInput& input) {
   const auto& structType = input.arguments[0]->getDataType();
   if (input.arguments[1]->expressionType != ExpressionType::LITERAL) {
-    throw exception::BinderException(
+    THROW_BINDER_EXCEPTION(
         "Key name for struct/union extract must be STRING literal.");
   }
   auto key = input.arguments[1]
@@ -25,8 +25,7 @@ std::unique_ptr<FunctionBindData> StructExtractFunctions::bindFunc(
                  .getValue<std::string>();
   auto fieldIdx = StructType::getFieldIdx(structType, key);
   if (fieldIdx == INVALID_STRUCT_FIELD_IDX) {
-    throw exception::BinderException(
-        stringFormat("Invalid struct field name: {}.", key));
+    THROW_BINDER_EXCEPTION(stringFormat("Invalid struct field name: {}.", key));
   }
   auto paramTypes = ExpressionUtil::getDataTypes(input.arguments);
   auto resultType = StructType::getField(structType, fieldIdx).getType().copy();

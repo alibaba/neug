@@ -82,7 +82,7 @@ std::string QueryResult::toString() const {
 
 void QueryResult::validateQuerySucceed() const {
   if (!success) {
-    throw exception::Exception(errMsg);
+    THROW_EXCEPTION_WITH_FILE_LINE(errMsg);
   }
 }
 

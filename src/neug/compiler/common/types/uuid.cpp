@@ -69,7 +69,7 @@ bool UUID::fromString(std::string str, int128_t& result) {
 int128_t UUID::fromString(std::string str) {
   int128_t result = 0;
   if (!fromString(str, result)) {
-    throw exception::ConversionException("Invalid UUID: " + str);
+    THROW_CONVERSION_EXCEPTION("Invalid UUID: " + str);
   }
   return result;
 }

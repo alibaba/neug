@@ -26,7 +26,7 @@ static scalar_func_exec_t getListSortExecFunction(
     func = ScalarFunction::TernaryExecListStructFunction<
         list_entry_t, ku_string_t, ku_string_t, list_entry_t, T>;
   } else {
-    throw exception::RuntimeError("Invalid number of arguments");
+    THROW_RUNTIME_ERROR("Invalid number of arguments");
   }
   return func;
 }
@@ -36,7 +36,7 @@ static std::unique_ptr<FunctionBindData> ListSortBindFunc(
   auto scalarFunction = input.definition->ptrCast<ScalarFunction>();
   if (input.arguments[0]->dataType.getLogicalTypeID() ==
       common::LogicalTypeID::ANY) {
-    throw exception::BinderException(
+    THROW_BINDER_EXCEPTION(
         stringFormat("Cannot resolve recursive data type for expression {}",
                      input.arguments[0]->toString()));
   }

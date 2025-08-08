@@ -76,7 +76,7 @@ class Utils {
     std::ifstream file(input);
 
     if (!file.is_open()) {
-      throw std::runtime_error("file " + input + " is not found");
+      THROW_RUNTIME_ERROR("file " + input + " is not found");
     }
 
     std::stringstream buffer;
@@ -88,7 +88,7 @@ class Utils {
                           const std::string& content) {
     std::ofstream file(output);
     if (!file.is_open()) {
-      throw std::runtime_error("Could not open file: " + output);
+      THROW_RUNTIME_ERROR("Could not open file: " + output);
     }
     file << content;
     file.close();
@@ -98,7 +98,7 @@ class Utils {
                          const std::string& ddlFile) {
     std::ifstream file(ddlFile);
     if (!file.is_open()) {
-      throw std::runtime_error("DDL file " + ddlFile + " not found");
+      THROW_RUNTIME_ERROR("DDL file " + ddlFile + " not found");
     }
 
     std::string line;
@@ -134,7 +134,7 @@ class Utils {
       }
     }
     if (segments.size() < 3) {
-      throw std::runtime_error("Invalid schema update line: " + line);
+      THROW_RUNTIME_ERROR("Invalid schema update line: " + line);
     }
 
     return std::make_pair(segments[1], segments[2]);
@@ -188,7 +188,7 @@ class GOptTest : public ::testing::Test {
     // Prepare the query
     auto statement = ctx->prepare(query);
     if (!statement->success) {
-      throw std::runtime_error("Failed to prepare query: " + statement->errMsg);
+      THROW_RUNTIME_ERROR("Failed to prepare query: " + statement->errMsg);
     }
     return std::move(statement->logicalPlan);
   }

@@ -83,14 +83,14 @@ std::shared_ptr<Connection> NeugDB::connect() {
     std::unique_lock<std::mutex> lock(connection_mutex_);
     if (read_write_connection_) {
       LOG(ERROR) << "There is already a read-write connection constructed.";
-      throw std::runtime_error(
+      THROW_RUNTIME_ERROR(
           "There is already a read-write connection constructed.");
     }
     read_write_connection_ =
         std::make_shared<Connection>(db_, planner_, query_processor_);
     return read_write_connection_;
   } else {
-    throw std::runtime_error("Invalid mode.");
+    THROW_RUNTIME_ERROR("Invalid mode.");
   }
 }
 
@@ -115,7 +115,7 @@ void NeugDB::remove_connection(std::shared_ptr<Connection> conn) {
       LOG(ERROR) << "Connection not found in read-write connection.";
     }
   } else {
-    throw std::runtime_error("Invalid mode.");
+    THROW_RUNTIME_ERROR("Invalid mode.");
   }
   LOG(ERROR) << "Connection not found.";
 }
@@ -130,7 +130,7 @@ std::string NeugDB::serve(int port, const std::string& host) {
   service_config_.host_str = host;
   service_config_.engine_config_path = planner_config_path_;
   if (is_pure_memory_) {
-    throw std::runtime_error(
+    THROW_RUNTIME_ERROR(
         "Cannot serve a pure memory database. Please use a persistent "
         "database.");
   }
@@ -145,7 +145,7 @@ std::string NeugDB::serve(int port, const std::string& host) {
 #else
   LOG(ERROR) << "HTTP server is not built. Please build with HTTP server "
                 "support.";
-  throw std::runtime_error(
+  THROW_RUNTIME_ERROR(
       "HTTP server is not built. Please build with HTTP server support.");
 #endif
 }

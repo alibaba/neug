@@ -100,7 +100,7 @@ class LogicalSemiMasker final : public LogicalOperator {
 
   std::unique_ptr<LogicalOperator> copy() override {
     if (!targetOps.empty()) {
-      throw exception::RuntimeError(
+      THROW_RUNTIME_ERROR(
           "LogicalSemiMasker::copy() should not be called when ops "
           "is not empty. Raw pointers will be point to corrupted object after "
           "copy.");

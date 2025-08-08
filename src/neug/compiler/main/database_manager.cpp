@@ -16,10 +16,10 @@ void DatabaseManager::registerAttachedDatabase(
     defaultDatabase = attachedDatabase->getDBName();
   }
   if (hasAttachedDatabase(attachedDatabase->getDBName())) {
-    throw exception::RuntimeError{
+    THROW_RUNTIME_ERROR(
         stringFormat("Duplicate attached database name: {}. Attached database "
                      "name must be unique.",
-                     attachedDatabase->getDBName())};
+                     attachedDatabase->getDBName()));
   }
   attachedDatabases.push_back(std::move(attachedDatabase));
 }
@@ -44,7 +44,7 @@ AttachedDatabase* DatabaseManager::getAttachedDatabase(
       return attachedDatabase.get();
     }
   }
-  throw exception::RuntimeError{stringFormat("No database named {}.", name)};
+  THROW_RUNTIME_ERROR(stringFormat("No database named {}.", name));
 }
 
 void DatabaseManager::detachDatabase(const std::string& databaseName) {
@@ -58,14 +58,13 @@ void DatabaseManager::detachDatabase(const std::string& databaseName) {
       return;
     }
   }
-  throw exception::RuntimeError{
-      stringFormat("Database: {} doesn't exist.", databaseName)};
+  THROW_RUNTIME_ERROR(
+      stringFormat("Database: {} doesn't exist.", databaseName));
 }
 
 void DatabaseManager::setDefaultDatabase(const std::string& databaseName) {
   if (getAttachedDatabase(databaseName) == nullptr) {
-    throw exception::RuntimeError{
-        stringFormat("No database named {}.", databaseName)};
+    THROW_RUNTIME_ERROR(stringFormat("No database named {}.", databaseName));
   }
   defaultDatabase = databaseName;
 }

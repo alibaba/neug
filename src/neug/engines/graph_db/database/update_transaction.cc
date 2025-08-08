@@ -84,7 +84,10 @@ UpdateTransaction::UpdateTransaction(const GraphDBSession& session,
       added_vertices_.emplace_back(
           std::make_shared<IdIndexer<std::string_view, vid_t>>());
     } else {
-      LOG(FATAL) << "Only int64 and string_view types for pk are supported..";
+      THROW_NOT_SUPPORTED_EXCEPTION(
+          "Only (u)int64/32 and string_view types for pk are supported, but "
+          "got: " +
+          type.ToString());
     }
   }
 
@@ -219,7 +222,7 @@ bool UpdateTransaction::AddEdge(label_t src_label, vid_t src_lid,
   // TODO(lineng): refactor this part after delete vertex is supported.
   if (src_lid >= vertex_nums_[src_label] ||
       dst_lid >= vertex_nums_[dst_label]) {
-    throw std::runtime_error("Source or destination vertex id is out of range");
+    THROW_RUNTIME_ERROR("Source or destination vertex id is out of range");
   }
   // To check whether the src/dst is inserted in this transaction or not.
   if (src_lid <= graph_.vertex_num(src_label)) {
@@ -618,14 +621,14 @@ void UpdateTransaction::set_edge_data_with_offset(
                                     : graph_.schema().get_edge_properties(
                                           neighbor_label, label, edge_label);
   if (col_id >= 0 && static_cast<size_t>(col_id) >= edge_prop_types.size()) {
-    throw std::runtime_error("Column id out of range for edge properties");
+    THROW_RUNTIME_ERROR("Column id out of range for edge properties");
   }
   if (col_id >= 0 && value.type != edge_prop_types[col_id]) {
-    throw std::runtime_error("Edge property type does not match the schema");
+    THROW_RUNTIME_ERROR("Edge property type does not match the schema");
   }
   if (edge_prop_types.size() > 1) {
     if (value.type != PropertyType::kRecord && col_id == -1) {
-      throw std::runtime_error(
+      THROW_RUNTIME_ERROR(
           "Edge property type is not record, but column id is -1");
     }
   }
@@ -658,8 +661,7 @@ void UpdateTransaction::set_edge_data_with_offset(
     iter = graph_.get_incoming_edges_mut(label, v, neighbor_label, edge_label);
   }
   if (!iter) {
-    throw std::runtime_error(
-        "Failed to get edge iterator for updating edge data");
+    THROW_RUNTIME_ERROR("Failed to get edge iterator for updating edge data");
   }
   if (offset != std::numeric_limits<size_t>::max()) {
     auto& edge_iter = *iter;
@@ -725,8 +727,10 @@ void UpdateTransaction::IngestWal(MutablePropertyFragment& graph,
       added_vertices.emplace_back(
           std::make_shared<IdIndexer<std::string_view, vid_t>>());
     } else {
-      LOG(FATAL) << "Only int64, uint64, int32, uint32 and string_view types "
-                    "for pk are supported..";
+      THROW_NOT_SUPPORTED_EXCEPTION(
+          "Only (u)int64/32 and string_view types for pk are supported, but "
+          "got: " +
+          type.ToString());
     }
   }
 
@@ -814,7 +818,7 @@ void UpdateTransaction::IngestWal(MutablePropertyFragment& graph,
           edge_label);
       if (col_id >= 0 &&
           static_cast<size_t>(col_id) >= edge_prop_types.size()) {
-        throw std::runtime_error("Column id out of range for edge properties");
+        THROW_RUNTIME_ERROR("Column id out of range for edge properties");
       }
       Any value;
       if (col_id >= 0) {
@@ -830,7 +834,8 @@ void UpdateTransaction::IngestWal(MutablePropertyFragment& graph,
         edge_iter->next();
       }
     } else {
-      LOG(FATAL) << "unexpected op_type " << static_cast<int>(op_type) << "..";
+      THROW_NOT_SUPPORTED_EXCEPTION("Unexpected op_type: " +
+                                    std::to_string(static_cast<int>(op_type)));
     }
   }
 }

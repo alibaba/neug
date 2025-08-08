@@ -210,7 +210,7 @@ void ExpressionUtil::validateExpressionType(const Expression& expr,
   if (expr.expressionType == expectedType) {
     return;
   }
-  throw exception::BinderException(
+  THROW_BINDER_EXCEPTION(
       stringFormat("{} has type {} but {} was expected.", expr.toString(),
                    ExpressionTypeUtil::toString(expr.expressionType),
                    ExpressionTypeUtil::toString(expectedType)));
@@ -230,7 +230,7 @@ void ExpressionUtil::validateExpressionType(
                           ? ExpressionTypeUtil::toString(type)
                           : "," + ExpressionTypeUtil::toString(type);
                 });
-  throw exception::BinderException(stringFormat(
+  THROW_BINDER_EXCEPTION(stringFormat(
       "{} has type {} but {} was expected.", expr.toString(),
       ExpressionTypeUtil::toString(expr.expressionType), expectedTypesStr));
 }
@@ -240,7 +240,7 @@ void ExpressionUtil::validateDataType(const Expression& expr,
   if (expr.getDataType() == expectedType) {
     return;
   }
-  throw exception::BinderException(
+  THROW_BINDER_EXCEPTION(
       stringFormat("{} has data type {} but {} was expected.", expr.toString(),
                    expr.getDataType().toString(), expectedType.toString()));
 }
@@ -250,7 +250,7 @@ void ExpressionUtil::validateDataType(const Expression& expr,
   if (expr.getDataType().getLogicalTypeID() == expectedTypeID) {
     return;
   }
-  throw exception::BinderException(
+  THROW_BINDER_EXCEPTION(
       stringFormat("{} has data type {} but {} was expected.", expr.toString(),
                    expr.getDataType().toString(),
                    LogicalTypeUtils::toString(expectedTypeID)));
@@ -263,7 +263,7 @@ void ExpressionUtil::validateDataType(
   if (targetsSet.contains(expr.getDataType().getLogicalTypeID())) {
     return;
   }
-  throw exception::BinderException(
+  THROW_BINDER_EXCEPTION(
       stringFormat("{} has data type {} but {} was expected.", expr.toString(),
                    expr.getDataType().toString(),
                    LogicalTypeUtils::toString(expectedTypeIDs)));
@@ -506,13 +506,13 @@ T ExpressionUtil::evaluateLiteral(const Expression& expression,
       errMsg = "The query must be a parameter/literal expression.";
     } break;
     }
-    throw exception::RuntimeError{errMsg};
+    THROW_RUNTIME_ERROR(errMsg);
   }
   auto value = evaluateAsLiteralValue(expression);
   if (value.getDataType() != type) {
-    throw exception::RuntimeError{
+    THROW_RUNTIME_ERROR(
         common::stringFormat("Parameter: {} must be a {} literal.",
-                             expression.getAlias(), type.toString())};
+                             expression.getAlias(), type.toString()));
   }
   T val = value.getValue<T>();
   if (validateParamFunc != nullptr) {

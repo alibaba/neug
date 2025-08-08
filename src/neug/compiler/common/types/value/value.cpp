@@ -841,7 +841,7 @@ void Value::validateType(LogicalTypeID targetTypeID) const {
   if (dataType.getLogicalTypeID() == targetTypeID) {
     return;
   }
-  throw exception::BinderException(stringFormat(
+  THROW_BINDER_EXCEPTION(stringFormat(
       "{} has data type {} but {} was expected.", toString(),
       dataType.toString(), LogicalTypeUtils::toString(targetTypeID)));
 }

@@ -27,6 +27,9 @@ except ImportError as e:
         # re-raise the import error if building documentation
         raise e
 
+from neug.proto.error_pb2 import OK
+from neug.proto.error_pb2 import Code
+
 # This is the C++ binding for the Python interface, which provides the actual connection to the database.
 from neug.query_result import QueryResult
 
@@ -122,4 +125,14 @@ class Connection(object):
             raise RuntimeError(
                 "Connection is closed. Please open the connection before executing queries."
             )
-        return QueryResult(self._py_connection.execute(query))
+        ret = QueryResult(self._py_connection.execute(query))
+        status_code = ret._result.status_code()
+
+        if status_code == OK:
+            return ret
+        else:
+            raise RuntimeError(
+                f"Failed to execute query: {query}. "
+                f"Error code: {status_code}, Error Message: "
+                f"{Code.keys()[Code.values().index(status_code)]}: {ret._result.status_message()}"
+            )

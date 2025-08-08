@@ -69,7 +69,7 @@ static void resolveNestedVector(std::shared_ptr<ValueVector> inputVector,
       // Check if two structs have the same number of fields
       if (StructType::getNumFields(*inputType) !=
           StructType::getNumFields(*resultType)) {
-        throw exception::ConversionException{errorMsg};
+        THROW_CONVERSION_EXCEPTION(errorMsg);
       }
 
       // Check if two structs have the same field names
@@ -78,7 +78,7 @@ static void resolveNestedVector(std::shared_ptr<ValueVector> inputVector,
 
       for (auto i = 0u; i < inputTypeNames.size(); i++) {
         if (inputTypeNames[i] != resultTypeNames[i]) {
-          throw exception::ConversionException{errorMsg};
+          THROW_CONVERSION_EXCEPTION(errorMsg);
         }
       }
 
@@ -418,9 +418,9 @@ static std::unique_ptr<ScalarFunction> bindCastFromStringFunction(
                                                     CastString, EXECUTOR>;
   } break;
   default:
-    throw exception::ConversionException{
+    THROW_CONVERSION_EXCEPTION(
         stringFormat("Unsupported casting function from STRING to {}.",
-                     targetType.toString())};
+                     targetType.toString()));
   }
   return std::make_unique<ScalarFunction>(
       functionName, std::vector<LogicalTypeID>{LogicalTypeID::STRING},
@@ -669,9 +669,9 @@ static std::unique_ptr<ScalarFunction> bindCastToNumericFunction(
     }
   } break;
   default:
-    throw exception::ConversionException{
+    THROW_CONVERSION_EXCEPTION(
         stringFormat("Unsupported casting function from {} to {}.",
-                     sourceType.toString(), targetType.toString())};
+                     sourceType.toString(), targetType.toString()));
   }
   return std::make_unique<ScalarFunction>(
       functionName, std::vector<LogicalTypeID>{sourceType.getLogicalTypeID()},
@@ -698,10 +698,10 @@ static std::unique_ptr<ScalarFunction> bindCastBetweenNested(
     [[fallthrough]];
   }
   default:
-    throw exception::ConversionException{stringFormat(
+    THROW_CONVERSION_EXCEPTION(stringFormat(
         "Unsupported casting function from {} to {}.",
         LogicalTypeUtils::toString(sourceType.getLogicalTypeID()),
-        LogicalTypeUtils::toString(targetType.getLogicalTypeID()))};
+        LogicalTypeUtils::toString(targetType.getLogicalTypeID())));
   }
 }
 
@@ -730,9 +730,9 @@ static std::unique_ptr<ScalarFunction> bindCastToDateFunction(
     break;
   // LCOV_EXCL_START
   default:
-    throw exception::ConversionException{
+    THROW_CONVERSION_EXCEPTION(
         stringFormat("Unsupported casting function from {} to {}.",
-                     sourceType.toString(), dstType.toString())};
+                     sourceType.toString(), dstType.toString()));
     // LCOV_EXCL_END
   }
   return std::make_unique<ScalarFunction>(
@@ -768,9 +768,9 @@ static std::unique_ptr<ScalarFunction> bindCastToTimestampFunction(
                                              CastBetweenTimestamp, EXECUTOR>;
   } break;
   default:
-    throw exception::ConversionException{
+    THROW_CONVERSION_EXCEPTION(
         stringFormat("Unsupported casting function from {} to {}.",
-                     sourceType.toString(), dstType.toString())};
+                     sourceType.toString(), dstType.toString()));
   }
   return std::make_unique<ScalarFunction>(
       functionName, std::vector<LogicalTypeID>{sourceType.getLogicalTypeID()},
@@ -907,7 +907,7 @@ std::unique_ptr<ScalarFunction> CastFunction::bindCastFunction(
     return bindCastBetweenNested(functionName, sourceType, targetType);
   }
   default: {
-    throw exception::ConversionException(
+    THROW_CONVERSION_EXCEPTION(
         stringFormat("Unsupported casting function from {} to {}.",
                      sourceType.toString(), targetType.toString()));
   }
@@ -1111,7 +1111,7 @@ static std::unique_ptr<FunctionBindData> castBindFunc(
   KU_ASSERT(input.arguments.size() == 2);
   // Bind target type.
   if (input.arguments[1]->expressionType != ExpressionType::LITERAL) {
-    throw exception::BinderException(
+    THROW_BINDER_EXCEPTION(
         stringFormat("Second parameter of CAST function must be a literal."));
   }
   auto literalExpr = input.arguments[1]->constPtrCast<LiteralExpression>();

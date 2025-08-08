@@ -10,7 +10,7 @@ namespace function {
 struct Error {
   static void operation(ku_string_t& input, int32_t& result) {
     result = 0;
-    throw exception::RuntimeError(input.getAsString());
+    THROW_RUNTIME_ERROR(input.getAsString());
   }
 };
 

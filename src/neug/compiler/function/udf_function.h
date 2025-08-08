@@ -55,8 +55,8 @@ struct UDF {
   template <typename T>
   static void validateType(const common::LogicalTypeID& type) {
     if (!templateValidateType<T>(type)) {
-      throw exception::CatalogException{
-          "Incompatible udf parameter/return type and templated type."};
+      THROW_CATALOG_EXCEPTION(
+          "Incompatible udf parameter/return type and templated type.");
     }
   }
 
@@ -98,9 +98,9 @@ struct UDF {
       RESULT_TYPE (*udfFunc)(OPERAND_TYPE),
       const std::vector<common::LogicalTypeID>& parameterTypes) {
     if (parameterTypes.size() != 1) {
-      throw exception::CatalogException{
+      THROW_CATALOG_EXCEPTION(
           "Expected exactly one parameter type for unary udf. Got: " +
-          std::to_string(parameterTypes.size()) + "."};
+          std::to_string(parameterTypes.size()) + ".");
     }
     validateType<OPERAND_TYPE>(parameterTypes[0]);
     function::scalar_func_exec_t execFunc =
@@ -131,9 +131,9 @@ struct UDF {
       RESULT_TYPE (*udfFunc)(LEFT_TYPE, RIGHT_TYPE),
       const std::vector<common::LogicalTypeID>& parameterTypes) {
     if (parameterTypes.size() != 2) {
-      throw exception::CatalogException{
+      THROW_CATALOG_EXCEPTION(
           "Expected exactly two parameter types for binary udf. Got: " +
-          std::to_string(parameterTypes.size()) + "."};
+          std::to_string(parameterTypes.size()) + ".");
     }
     validateType<LEFT_TYPE>(parameterTypes[0]);
     validateType<RIGHT_TYPE>(parameterTypes[1]);
@@ -167,9 +167,9 @@ struct UDF {
       RESULT_TYPE (*udfFunc)(A_TYPE, B_TYPE, C_TYPE),
       std::vector<common::LogicalTypeID> parameterTypes) {
     if (parameterTypes.size() != 3) {
-      throw exception::CatalogException{
+      THROW_CATALOG_EXCEPTION(
           "Expected exactly three parameter types for ternary udf. Got: " +
-          std::to_string(parameterTypes.size()) + "."};
+          std::to_string(parameterTypes.size()) + ".");
     }
     validateType<A_TYPE>(parameterTypes[0]);
     validateType<B_TYPE>(parameterTypes[1]);
@@ -211,8 +211,7 @@ struct UDF {
       return createTernaryExecFunc<TR, Args...>(udfFunc,
                                                 std::move(parameterTypes));
     default:
-      throw exception::BinderException(
-          "UDF function only supported until ternary!");
+      THROW_BINDER_EXCEPTION("UDF function only supported until ternary!");
     }
   }
 

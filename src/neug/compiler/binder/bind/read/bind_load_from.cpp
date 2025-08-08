@@ -40,7 +40,7 @@ std::unique_ptr<BoundReadingClause> Binder::bindLoadFrom(
     boundLoadFrom = std::make_unique<BoundLoadFrom>(scanInfo.copy());
   } break;
   default:
-    throw exception::BinderException(
+    THROW_BINDER_EXCEPTION(
         stringFormat("LOAD FROM subquery is not supported."));
   }
   if (!columnTypes.empty()) {

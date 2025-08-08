@@ -429,8 +429,7 @@ void ArrowConverter::fromArrowArray(const ArrowSchema* schema,
       return scanArrowArrayDictionaryEncoded<uint64_t>(
           schema, array, outputVector, mask, srcOffset, dstOffset, count);
     default:
-      throw exception::RuntimeError("Invalid Index Type: " +
-                                    std::string(arrowType));
+      THROW_RUNTIME_ERROR("Invalid Index Type: " + std::string(arrowType));
     }
   }
   switch (arrowType[0]) {

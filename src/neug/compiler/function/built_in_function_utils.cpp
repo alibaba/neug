@@ -482,7 +482,7 @@ void BuiltInFunctionsUtils::validateSpecialCases(
       for (auto& function : set) {
         supportedInputsString += function->signatureToString() + "\n";
       }
-      throw exception::BinderException(
+      THROW_BINDER_EXCEPTION(
           "Cannot match a built-in function for given function " + name +
           LogicalTypeUtils::toString(inputTypes) + ". Supported inputs are\n" +
           supportedInputsString);
@@ -517,7 +517,7 @@ void validateNonEmptyCandidateFunctions(
       }
       supportedInputsString += aggregateFunction->signatureToString() + "\n";
     }
-    throw exception::BinderException(getFunctionMatchFailureMsg(
+    THROW_BINDER_EXCEPTION(getFunctionMatchFailureMsg(
         name, inputTypes, supportedInputsString, isDistinct));
   }
 }
@@ -534,7 +534,7 @@ void validateNonEmptyCandidateFunctions(
       }
       supportedInputsString += function->signatureToString() + "\n";
     }
-    throw exception::BinderException(
+    THROW_BINDER_EXCEPTION(
         getFunctionMatchFailureMsg(name, inputTypes, supportedInputsString));
   }
 }

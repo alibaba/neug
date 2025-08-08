@@ -555,7 +555,7 @@ class MutableCsr : public TypedMutableCsrBase<EDATA_T> {
            << " to " << new_snapshot_dir + "/" + name + ".snbr"
            << ", error code: " << errorCode << " " << errorCode.message();
         LOG(ERROR) << ss.str();
-        throw std::runtime_error(ss.str());
+        THROW_RUNTIME_ERROR(ss.str());
       }
     } else {
       FILE* fout =
@@ -565,7 +565,7 @@ class MutableCsr : public TypedMutableCsrBase<EDATA_T> {
         std::stringstream ss;
         ss << "Failed to open nbr list " << filename << ", " << strerror(errno);
         LOG(ERROR) << ss.str();
-        throw std::runtime_error(ss.str());
+        THROW_RUNTIME_ERROR(ss.str());
       }
 
       for (size_t i = 0; i < vnum; ++i) {
@@ -578,7 +578,7 @@ class MutableCsr : public TypedMutableCsrBase<EDATA_T> {
              << adj_lists_[i].capacity() << ", got " << ret << ", "
              << strerror(errno);
           LOG(ERROR) << ss.str();
-          throw std::runtime_error(ss.str());
+          THROW_RUNTIME_ERROR(ss.str());
         }
       }
       int ret = 0;
@@ -587,14 +587,14 @@ class MutableCsr : public TypedMutableCsrBase<EDATA_T> {
         ss << "Failed to flush nbr list " << filename << ", error code: " << ret
            << " " << strerror(errno);
         LOG(ERROR) << ss.str();
-        throw std::runtime_error(ss.str());
+        THROW_RUNTIME_ERROR(ss.str());
       }
       if ((ret = fclose(fout)) != 0) {
         std::stringstream ss;
         ss << "Failed to close nbr list " << filename << ", error code: " << ret
            << " " << strerror(errno);
         LOG(ERROR) << ss.str();
-        throw std::runtime_error(ss.str());
+        THROW_RUNTIME_ERROR(ss.str());
       }
     }
   }
@@ -987,7 +987,7 @@ class SingleMutableCsr : public TypedMutableCsrBase<EDATA_T> {
            << " to " << new_snapshot_dir + "/" + name + ".snbr"
            << ", error code: " << errorCode << " " << errorCode.message();
         LOG(ERROR) << ss.str();
-        throw std::runtime_error(ss.str());
+        THROW_RUNTIME_ERROR(ss.str());
       }
     } else {
       write_file(new_snapshot_dir + "/" + name + ".snbr", nbr_list_.data(),

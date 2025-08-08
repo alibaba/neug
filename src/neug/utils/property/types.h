@@ -973,7 +973,8 @@ struct Any {
 template <typename T>
 struct ConvertAny {
   static void to(const Any& value, T& out) {
-    LOG(FATAL) << "Unexpected convert type...";
+    THROW_CONVERSION_EXCEPTION("Cannot convert Any " + value.to_string() +
+                               " to type: " + std::string(typeid(T).name()));
   }
 };
 
@@ -1742,8 +1743,8 @@ struct convert<gs::PropertyType> {
       } else if (temporal["timestamp"]) {
         property_type = gs::PropertyType::Timestamp();
       } else {
-        throw gs::exception::RuntimeError("Unrecognized temporal type: " +
-                                          temporal.as<std::string>());
+        THROW_NOT_SUPPORTED_EXCEPTION("Unrecognized temporal type: " +
+                                      temporal.as<std::string>());
       }
     }
     // compatibility with old config files

@@ -29,75 +29,67 @@ class OprTimer;
 bl::result<Context> ReadPipeline::Execute(
     const GraphReadInterface& graph, Context&& ctx,
     const std::map<std::string, std::string>& params, OprTimer& timer) {
-  for (auto& opr : operators_) {
-    gs::Status status = gs::Status::OK();
-    auto ret = bl::try_handle_all(
-        [&]() -> bl::result<Context> {
-          return opr->Eval(graph, params, std::move(ctx), timer);
-        },
-        [&status, &ctx](const gs::Status& err) {
-          status = err;
-          return ctx;
-        },
-        [&](const bl::error_info& err) {
-          status = gs::Status(gs::StatusCode::ERR_INTERNAL_ERROR,
-                              "Error: " + std::to_string(err.error().value()) +
-                                  ", Exception: " + err.exception()->what());
-          return ctx;
-        },
-        [&]() {
-          status = gs::Status(gs::StatusCode::ERR_UNKNOWN, "Unknown error");
-          return ctx;
-        });
+  gs::Status status = gs::Status::OK();
+  size_t cur_ind = 0;
+  TRY_HANDLE_ALL_WITH_EXCEPTION_CATCHING(
+      ret,
+      [&]() -> bl::result<Context> {
+        for (size_t i = 0; i < operators_.size(); ++i) {
+          cur_ind = i;
+          BOOST_LEAF_ASSIGN(
+              ctx, operators_[i]->Eval(graph, params, std::move(ctx), timer));
+          LOG(INFO) << "Got ctx: " << ctx.col_num()
+                    << " columns, row num: " << ctx.row_num();
+        }
+        return ctx;
+      },
+      bl::result<Context>,
+      [&](const gs::Status& err) {
+        status = err;
+        return ctx;
+      },
+      ctx);
 
-    if (!status.ok()) {
-      std::stringstream ss;
-      ss << "[Execute Failed] " << opr->get_operator_name()
-         << " execute failed: " << status.ToString();
-      auto err = gs::Status(gs::StatusCode::ERR_INTERNAL_ERROR, ss.str());
-      return bl::new_error(err);
-    }
-    ctx = std::move(ret);
+  if (!status.ok()) {
+    return bl::new_error(gs::Status(
+        status.error_code(), "Execution failed at operator: [" +
+                                 operators_[cur_ind]->get_operator_name() +
+                                 "], " + status.error_message()));
   }
-  return ctx;
+  return std::move(ret);
 }
 
 template <typename GraphInterface>
 bl::result<WriteContext> InsertPipeline::Execute(
     GraphInterface& graph, WriteContext&& ctx,
     const std::map<std::string, std::string>& params, OprTimer& timer) {
-  for (auto& opr : operators_) {
-    gs::Status status = gs::Status::OK();
-    auto ret = bl::try_handle_all(
-        [&]() -> bl::result<WriteContext> {
-          return opr->Eval(graph, params, std::move(ctx), timer);
-        },
-        [&status](const gs::Status& err) {
-          status = err;
-          return WriteContext();
-        },
-        [&](const bl::error_info& err) {
-          status = gs::Status(gs::StatusCode::ERR_INTERNAL_ERROR,
-                              "Error: " + std::to_string(err.error().value()) +
-                                  ", Exception: " + err.exception()->what());
-          return WriteContext();
-        },
-        [&]() {
-          status = gs::Status(gs::StatusCode::ERR_UNKNOWN, "Unknown error");
-          return WriteContext();
-        });
+  gs::Status status = gs::Status::OK();
+  size_t cur_ind = 0;
 
-    if (!status.ok()) {
-      std::stringstream ss;
-      ss << "[Execute Failed] " << opr->get_operator_name()
-         << " execute failed: " << status.ToString();
-      auto err = gs::Status(gs::StatusCode::ERR_INTERNAL_ERROR, ss.str());
-      return bl::new_error(err);
-    }
+  TRY_HANDLE_ALL_WITH_EXCEPTION_CATCHING(
+      ret,
+      [&]() -> bl::result<WriteContext> {
+        for (size_t i = 0; i < operators_.size(); ++i) {
+          cur_ind = i;
+          BOOST_LEAF_ASSIGN(
+              ctx, operators_[i]->Eval(graph, params, std::move(ctx), timer));
+        }
+        return ctx;
+      },
+      bl::result<WriteContext>,
+      [&](const gs::Status& err) {
+        status = err;
+        return WriteContext();
+      },
+      ctx);
 
-    ctx = std::move(ret);
+  if (!status.ok()) {
+    return bl::new_error(gs::Status(
+        status.error_code(), "Execution failed at operator: [" +
+                                 operators_[cur_ind]->get_operator_name() +
+                                 "], " + status.error_message()));
   }
-  return ctx;
+  return std::move(ret);
 }
 
 template bl::result<WriteContext> InsertPipeline::Execute(
@@ -111,38 +103,32 @@ template bl::result<WriteContext> InsertPipeline::Execute(
 bl::result<Context> UpdatePipeline::Execute(
     GraphUpdateInterface& graph, Context&& ctx,
     const std::map<std::string, std::string>& params, OprTimer& timer) {
-  for (auto& opr : operators_) {
-    gs::Status status = gs::Status::OK();
-    auto ret = bl::try_handle_all(
-        [&]() -> bl::result<Context> {
-          return opr->Eval(graph, params, std::move(ctx), timer);
-        },
-        [&status, &ctx](const gs::Status& err) {
-          status = err;
-          return ctx;
-        },
-        [&](const bl::error_info& err) {
-          status = gs::Status(gs::StatusCode::ERR_INTERNAL_ERROR,
-                              "Error: " + std::to_string(err.error().value()) +
-                                  ", Exception: " + err.exception()->what());
-          return ctx;
-        },
-        [&]() {
-          status = gs::Status(gs::StatusCode::ERR_UNKNOWN, "Unknown error");
-          return ctx;
-        });
+  gs::Status status = gs::Status::OK();
+  size_t cur_ind = 0;
+  TRY_HANDLE_ALL_WITH_EXCEPTION_CATCHING(
+      ret,
+      [&]() -> bl::result<Context> {
+        for (size_t i = 0; i < operators_.size(); ++i) {
+          cur_ind = i;
+          BOOST_LEAF_ASSIGN(
+              ctx, operators_[i]->Eval(graph, params, std::move(ctx), timer));
+        }
+        return ctx;
+      },
+      bl::result<Context>,
+      [&](const gs::Status& err) {
+        status = err;
+        return ctx;
+      },
+      ctx);
 
-    if (!status.ok()) {
-      std::stringstream ss;
-      ss << "[Execute Failed] " << opr->get_operator_name()
-         << " execute failed: " << status.ToString();
-      LOG(ERROR) << ss.str();
-      auto err = gs::Status(gs::StatusCode::ERR_INTERNAL_ERROR, ss.str());
-      return bl::new_error(err);
-    }
-    ctx = std::move(ret);
+  if (!status.ok()) {
+    return bl::new_error(gs::Status(
+        status.error_code(), "Execution failed at operator: [" +
+                                 operators_[cur_ind]->get_operator_name() +
+                                 "], " + status.error_message()));
   }
-  return ctx;
+  return std::move(ret);
 }
 
 bl::result<WriteContext> UpdatePipeline::Execute(

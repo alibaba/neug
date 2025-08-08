@@ -52,7 +52,8 @@ Any get_default_value(const PropertyType& type) {
     default_value.set_double(0.0);
     break;
   default:
-    LOG(FATAL) << "Unknown property type: " << type.ToString();
+    THROW_NOT_SUPPORTED_EXCEPTION(
+        "Unsupported property type for default value: " + type.ToString());
   }
   return default_value;
 }
@@ -320,8 +321,8 @@ Any const_value_to_any(const common::Value& value) {
     return Any::From(value.str());
   }
   default: {
-    throw std::runtime_error("Unsupported constant value type: " +
-                             value.DebugString());
+    THROW_RUNTIME_ERROR("Unsupported constant value type: " +
+                        value.DebugString());
   }
   }
 }
@@ -341,8 +342,8 @@ Any expr_opr_value_to_any(const common::ExprOpr& value) {
     return Any::From(Interval(value.to_interval().interval_str()));
   }
   default: {
-    throw std::runtime_error("Unsupported ExprOpr value type: " +
-                             value.DebugString());
+    THROW_RUNTIME_ERROR("Unsupported ExprOpr value type: " +
+                        value.DebugString());
   }
   }
 }

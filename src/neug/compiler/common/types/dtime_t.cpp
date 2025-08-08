@@ -162,7 +162,7 @@ dtime_t Time::fromCString(const char* buf, uint64_t len) {
   dtime_t result;
   uint64_t pos = 0;
   if (!Time::tryConvertTime(buf, len, pos, result)) {
-    throw exception::ConversionException(
+    THROW_CONVERSION_EXCEPTION(
         stringFormat("Error occurred during parsing time. Given: \"{}\". "
                      "Expected format: (hh:mm:ss[.zzzzzz]).",
                      std::string(buf, len)));
@@ -205,7 +205,7 @@ dtime_t Time::fromTimeInternal(int32_t hour, int32_t minute, int32_t second,
 dtime_t Time::fromTime(int32_t hour, int32_t minute, int32_t second,
                        int32_t microseconds) {
   if (!Time::isValid(hour, minute, second, microseconds)) {
-    throw exception::ConversionException(
+    THROW_CONVERSION_EXCEPTION(
         stringFormat("Time field value out of range: {}:{}:{}[.{}].", hour,
                      minute, second, microseconds));
   }

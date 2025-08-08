@@ -14,5 +14,12 @@ Exception::Exception(std::string msg)
 #endif
 }
 
+Exception::Exception(std::string msg, std::string file_line)
+    : exception(), exception_message_(msg + " at " + file_line) {
+#ifdef NEUG_BACKTRACE
+  cpptrace::generate_trace(1 /*skip this function's frame*/).print();
+#endif
+}
+
 }  // namespace exception
 }  // namespace gs

@@ -58,7 +58,8 @@ std::string EdgeData::to_string() const {
   } else if (type == RTAnyType::kRecordView) {
     return value.record_view.to_string();
   } else {
-    LOG(FATAL) << "Unexpected property type: " << static_cast<int>(type);
+    THROW_NOT_SUPPORTED_EXCEPTION("Unexpected property type: " +
+                                  std::to_string(static_cast<int>(type)));
     return "";
   }
 }
@@ -105,8 +106,9 @@ EdgeData::EdgeData(const Any& any) {
     value.record_view = any.value.record_view;
     break;
   default:
-    LOG(FATAL) << "Unexpected property type: "
-               << static_cast<int>(any.type.type_enum);
+    THROW_NOT_SUPPORTED_EXCEPTION(
+        "Unexpected property type: " +
+        std::to_string(static_cast<int>(any.type.type_enum)));
   }
 }
 
@@ -187,7 +189,8 @@ RTAnyType parse_from_ir_data_type(const ::common::IrDataType& dt) {
       case ::common::PrimitiveType::DT_ANY:
         return RTAnyType::kUnknown;
       default:
-        LOG(FATAL) << "unrecognized primitive type - " << pt;
+        THROW_NOT_SUPPORTED_EXCEPTION("unrecognized primitive type - " +
+                                      std::to_string(pt));
         break;
       }
     }
@@ -205,14 +208,15 @@ RTAnyType parse_from_ir_data_type(const ::common::IrDataType& dt) {
       } else if (ddt.temporal().item_case() == ::common::Temporal::kInterval) {
         return RTAnyType::kInterval;
       } else {
-        LOG(FATAL) << "unrecognized temporal type - "
-                   << ddt.temporal().DebugString();
+        THROW_NOT_SUPPORTED_EXCEPTION("unrecognized temporal type - " +
+                                      ddt.temporal().DebugString());
       }
     }
     case ::common::DataType::kArray:
       return RTAnyType::kList;
     default:
-      LOG(FATAL) << "unrecognized data type - " << ddt.DebugString();
+      THROW_NOT_SUPPORTED_EXCEPTION("unrecognized data type - " +
+                                    ddt.DebugString());
       break;
     }
   } break;
@@ -226,7 +230,8 @@ RTAnyType parse_from_ir_data_type(const ::common::IrDataType& dt) {
         GraphDataType_GraphElementOpt_EDGE:
       return RTAnyType::kEdge;
     default:
-      LOG(FATAL) << "unrecognized graph data type";
+      THROW_NOT_SUPPORTED_EXCEPTION("unrecognized graph data type - " +
+                                    gdt.DebugString());
       break;
     }
   } break;
@@ -273,7 +278,8 @@ PropertyType rt_type_to_property_type(RTAnyType type) {
   case RTAnyType::kDate:
     return PropertyType::kDate;  // FIXME
   default:
-    LOG(FATAL) << "not support for " << static_cast<int>(type);
+    THROW_NOT_SUPPORTED_EXCEPTION("Unexpected property type: " +
+                                  std::to_string(static_cast<int>(type)));
   }
 }
 
@@ -303,7 +309,7 @@ RTAnyType arrow_type_to_rt_type(const std::shared_ptr<arrow::DataType>& type) {
   } else if (type->Equals(arrow::timestamp(arrow::TimeUnit::NANO))) {
     return RTAnyType::kTimestamp;
   } else {
-    LOG(FATAL) << "not support for " << type->ToString();
+    THROW_NOT_SUPPORTED_EXCEPTION("Unexpected arrow type: " + type->ToString());
   }
 }
 
@@ -364,8 +370,10 @@ RTAny::RTAny(const Any& val) {
     type_ = RTAnyType::kTimestamp;
     value_.ts_val = val.AsTimeStamp();
   } else {
-    LOG(FATAL) << "Any value: " << val.to_string()
-               << ", type = " << val.type.type_enum;
+    THROW_NOT_SUPPORTED_EXCEPTION(
+        "Unexpected property type: " +
+        std::to_string(static_cast<int>(val.type.type_enum)) +
+        "value: " + val.to_string());
   }
 }
 
@@ -399,8 +407,9 @@ RTAny::RTAny(const EdgeData& val) {
     type_ = RTAnyType::kDate;
     value_.date_val = val.value.date_val;
   } else {
-    LOG(FATAL) << "Any value: " << val.to_string()
-               << ", type = " << static_cast<int>(val.type);
+    THROW_NOT_SUPPORTED_EXCEPTION("Unexpected edge data type: " +
+                                  std::to_string(static_cast<int>(val.type)) +
+                                  ", value: " + val.to_string());
   }
 }
 
@@ -446,7 +455,8 @@ RTAny::RTAny(const RTAny& rhs) : type_(rhs.type_) {
   } else if (type_ == RTAnyType::kInterval) {
     value_.interval_val = rhs.value_.interval_val;
   } else {
-    LOG(FATAL) << "unexpected type: " << static_cast<int>(type_);
+    THROW_NOT_SUPPORTED_EXCEPTION("Unexpected RTAny type: " +
+                                  std::to_string(static_cast<int>(type_)));
   }
 }
 
@@ -485,7 +495,8 @@ RTAny& RTAny::operator=(const RTAny& rhs) {
   } else if (type_ == RTAnyType::kTimestamp) {
     value_.ts_val = rhs.value_.ts_val;
   } else {
-    LOG(FATAL) << "unexpected type: " << static_cast<int>(type_);
+    THROW_NOT_SUPPORTED_EXCEPTION("Unexpected RTAny type: " +
+                                  std::to_string(static_cast<int>(type_)));
   }
   return *this;
 }
@@ -514,7 +525,8 @@ Any RTAny::to_any() const {
   case RTAnyType::kTimestamp:
     return Any(value_.ts_val);
   default:
-    LOG(FATAL) << "not support for " << static_cast<int>(type_);
+    THROW_NOT_SUPPORTED_EXCEPTION("Unexpected RTAny type: " +
+                                  std::to_string(static_cast<int>(type_)));
   }
 }
 
@@ -730,7 +742,9 @@ std::string_view RTAny::as_string() const {
   } else if (type_ == RTAnyType::kUnknown) {
     return std::string_view();
   } else {
-    LOG(FATAL) << "unexpected type" << static_cast<int>(type_);
+    THROW_NOT_SUPPORTED_EXCEPTION(
+        "Unexpected RTAny type for string conversion: " +
+        std::to_string(static_cast<int>(type_)));
     return std::string_view();
   }
 }
@@ -772,7 +786,8 @@ TupleImpl<RTAny>::~TupleImpl() {}
 
 bool TupleImpl<RTAny>::operator<(const TupleImplBase& p) const {
   // return values < dynamic_cast<const TupleImpl<RTAny>&>(p).values;
-  LOG(FATAL) << "TupleImpl<RTAny> should not be compared directly.";
+  THROW_NOT_SUPPORTED_EXCEPTION(
+      "TupleImpl<RTAny> should not be compared directly.");
   return false;  // This line is unreachable but avoids compiler warning.
 }
 bool TupleImpl<RTAny>::operator==(const TupleImplBase& p) const {
@@ -796,7 +811,7 @@ size_t MapImpl::size() const { return keys.size(); }
 
 bool MapImpl::operator<(const MapImpl& p) const {
   // return std::tie(keys, values) < std::tie(p.keys, p.values);
-  LOG(FATAL) << "MapImpl should not be compared directly.";
+  THROW_NOT_SUPPORTED_EXCEPTION("MapImpl should not be compared directly.");
   return false;  // This line is unreachable but avoids compiler warning.
 }
 bool MapImpl::operator==(const MapImpl& p) const {
@@ -820,7 +835,8 @@ int RTAny::numerical_cmp(const RTAny& other) const {
       return ret > 0 ? 1 : (ret < 0 ? -1 : 0);
     }
     default:
-      LOG(FATAL) << "not support for " << static_cast<int>(other.type_);
+      THROW_NOT_SUPPORTED_EXCEPTION(
+          "not support for " + std::to_string(static_cast<int>(other.type_)));
     }
     break;
   case RTAnyType::kI32Value:
@@ -839,7 +855,8 @@ int RTAny::numerical_cmp(const RTAny& other) const {
     }
 
     default:
-      LOG(FATAL) << "not support for " << static_cast<int>(other.type_);
+      THROW_NOT_SUPPORTED_EXCEPTION(
+          "not support for " + std::to_string(static_cast<int>(other.type_)));
     }
     break;
   case RTAnyType::kF64Value:
@@ -857,7 +874,8 @@ int RTAny::numerical_cmp(const RTAny& other) const {
       return ret > 0 ? 1 : (ret < 0 ? -1 : 0);
     }
     default:
-      LOG(FATAL) << "not support for " << static_cast<int>(type_);
+      THROW_NOT_SUPPORTED_EXCEPTION(
+          "not support for " + std::to_string(static_cast<int>(other.type_)));
     }
     break;
   case RTAnyType::kU32Value:
@@ -879,7 +897,8 @@ int RTAny::numerical_cmp(const RTAny& other) const {
       return ret > 0 ? 1 : (ret < 0 ? -1 : 0);
     }
     default:
-      LOG(FATAL) << "not support for " << static_cast<int>(type_);
+      THROW_NOT_SUPPORTED_EXCEPTION(
+          "not support for " + std::to_string(static_cast<int>(other.type_)));
     }
     break;
   case RTAnyType::kU64Value:
@@ -901,11 +920,13 @@ int RTAny::numerical_cmp(const RTAny& other) const {
       return ret > 0 ? 1 : (ret < 0 ? -1 : 0);
     }
     default:
-      LOG(FATAL) << "not support for " << static_cast<int>(type_);
+      THROW_NOT_SUPPORTED_EXCEPTION(
+          "not support for " + std::to_string(static_cast<int>(other.type_)));
     }
     break;
   default:
-    LOG(FATAL) << "not support for " << static_cast<int>(type_);
+    THROW_NOT_SUPPORTED_EXCEPTION("not support for " +
+                                  std::to_string(static_cast<int>(type_)));
   }
 }
 inline static bool is_numerical_type(const RTAnyType& type) {
@@ -949,7 +970,8 @@ bool RTAny::operator<(const RTAny& other) const {
     return value_.b_val < other.value_.b_val;
   }
 
-  LOG(FATAL) << "not support for " << static_cast<int>(type_);
+  THROW_NOT_SUPPORTED_EXCEPTION("not support for " +
+                                std::to_string(static_cast<int>(type_)));
   return true;
 }
 
@@ -988,7 +1010,8 @@ bool RTAny::operator==(const RTAny& other) const {
     return value_.edge == other.value_.edge;
   }
 
-  LOG(FATAL) << "not support..." << static_cast<int>(type_);
+  THROW_NOT_SUPPORTED_EXCEPTION("not support for " +
+                                std::to_string(static_cast<int>(type_)));
   return true;
 }
 
@@ -1015,19 +1038,22 @@ RTAny RTAny::operator+(const RTAny& other) const {
     if (other.type() == RTAnyType::kInterval) {
       return RTAny::from_date(value_.date_val + other.value_.interval_val);
     } else {
-      LOG(FATAL) << "not support for " << static_cast<int>(other.type_);
+      THROW_NOT_SUPPORTED_EXCEPTION(
+          "not support for " + std::to_string(static_cast<int>(other.type_)));
     }
   } else if (type_ == RTAnyType::kDateTime) {
     if (other.type() == RTAnyType::kInterval) {
       return RTAny::from_datetime(value_.dt_val + other.value_.interval_val);
     } else {
-      LOG(FATAL) << "not support for " << static_cast<int>(other.type_);
+      THROW_NOT_SUPPORTED_EXCEPTION(
+          "not support for " + std::to_string(static_cast<int>(other.type_)));
     }
   } else if (type_ == RTAnyType::kTimestamp) {
     if (other.type() == RTAnyType::kInterval) {
       return RTAny::from_timestamp(value_.ts_val + other.value_.interval_val);
     } else {
-      LOG(FATAL) << "not support for " << static_cast<int>(other.type_);
+      THROW_NOT_SUPPORTED_EXCEPTION(
+          "not support for " + std::to_string(static_cast<int>(other.type_)));
     }
   } else if (type_ == RTAnyType::kInterval) {
     if (other.type() == RTAnyType::kInterval) {
@@ -1040,12 +1066,15 @@ RTAny RTAny::operator+(const RTAny& other) const {
     } else if (other.type() == RTAnyType::kTimestamp) {
       return RTAny::from_timestamp(other.value_.ts_val + value_.interval_val);
     } else {
-      LOG(FATAL) << "not support for " << static_cast<int>(other.type_);
+      THROW_NOT_SUPPORTED_EXCEPTION(
+          "RTAny::operator+ not support for " +
+          std::to_string(static_cast<int>(type_)) + " and " +
+          std::to_string(static_cast<int>(other.type_)));
     }
   } else {
-    throw std::runtime_error("RTAny::operator+ not support for " +
-                             std::to_string(static_cast<int>(type_)) + " and " +
-                             std::to_string(static_cast<int>(other.type_)));
+    THROW_RUNTIME_ERROR("RTAny::operator+ not support for " +
+                        std::to_string(static_cast<int>(type_)) + " and " +
+                        std::to_string(static_cast<int>(other.type_)));
   }
 
   int64_t right_i64 = 0;
@@ -1068,10 +1097,10 @@ RTAny RTAny::operator+(const RTAny& other) const {
     right_f64 = other.value_.f64_val;
     has_f64 = true;
   } else if (other.type_ == RTAnyType::kNull) {
-    throw std::runtime_error("RTAny::operator+ not support for null value");
+    THROW_RUNTIME_ERROR("RTAny::operator+ not support for null value");
   } else {
-    throw std::runtime_error("RTAny::operator+ not support for " +
-                             std::to_string(static_cast<int>(other.type_)));
+    THROW_RUNTIME_ERROR("RTAny::operator+ not support for " +
+                        std::to_string(static_cast<int>(other.type_)));
   }
   if (has_f64) {
     return RTAny::from_double(left_f64 + right_f64);
@@ -1110,10 +1139,9 @@ RTAny RTAny::operator-(const RTAny& other) const {
     } else if (other.type_ == RTAnyType::kInterval) {
       return RTAny::from_date(value_.date_val - other.value_.interval_val);
     } else {
-      throw std::runtime_error("RTAny::operator- not support for " +
-                               std::to_string(static_cast<int>(type_)) +
-                               " and " +
-                               std::to_string(static_cast<int>(other.type_)));
+      THROW_RUNTIME_ERROR("RTAny::operator- not support for " +
+                          std::to_string(static_cast<int>(type_)) + " and " +
+                          std::to_string(static_cast<int>(other.type_)));
     }
   } else if (type_ == RTAnyType::kDateTime) {
     if (other.type_ == RTAnyType::kDateTime) {
@@ -1121,10 +1149,9 @@ RTAny RTAny::operator-(const RTAny& other) const {
     } else if (other.type_ == RTAnyType::kInterval) {
       return RTAny::from_datetime(value_.dt_val - other.value_.interval_val);
     } else {
-      throw std::runtime_error("RTAny::operator- not support for " +
-                               std::to_string(static_cast<int>(type_)) +
-                               " and " +
-                               std::to_string(static_cast<int>(other.type_)));
+      THROW_RUNTIME_ERROR("RTAny::operator- not support for " +
+                          std::to_string(static_cast<int>(type_)) + " and " +
+                          std::to_string(static_cast<int>(other.type_)));
     }
   } else if (type_ == RTAnyType::kTimestamp) {
     if (other.type_ == RTAnyType::kTimestamp) {
@@ -1132,25 +1159,23 @@ RTAny RTAny::operator-(const RTAny& other) const {
     } else if (other.type_ == RTAnyType::kInterval) {
       return RTAny::from_timestamp(value_.ts_val - other.value_.interval_val);
     } else {
-      throw std::runtime_error("RTAny::operator- not support for " +
-                               std::to_string(static_cast<int>(type_)) +
-                               " and " +
-                               std::to_string(static_cast<int>(other.type_)));
+      THROW_RUNTIME_ERROR("RTAny::operator- not support for " +
+                          std::to_string(static_cast<int>(type_)) + " and " +
+                          std::to_string(static_cast<int>(other.type_)));
     }
   } else if (type_ == RTAnyType::kInterval) {
     if (other.type_ == RTAnyType::kInterval) {
       return RTAny::from_interval(value_.interval_val -
                                   other.value_.interval_val);
     } else {
-      throw std::runtime_error("RTAny::operator- not support for " +
-                               std::to_string(static_cast<int>(type_)) +
-                               " and " +
-                               std::to_string(static_cast<int>(other.type_)));
+      THROW_RUNTIME_ERROR("RTAny::operator- not support for " +
+                          std::to_string(static_cast<int>(type_)) + " and " +
+                          std::to_string(static_cast<int>(other.type_)));
     }
   }
-  throw std::runtime_error("RTAny::operator- not support for " +
-                           std::to_string(static_cast<int>(type_)) + " and " +
-                           std::to_string(static_cast<int>(other.type_)));
+  THROW_RUNTIME_ERROR("RTAny::operator- not support for " +
+                      std::to_string(static_cast<int>(type_)) + " and " +
+                      std::to_string(static_cast<int>(other.type_)));
   return RTAny();
 }
 
@@ -1170,7 +1195,8 @@ RTAny RTAny::operator*(const RTAny& other) const {
     left_i64 = value_.i32_val;
     left_f64 = value_.i32_val;
   } else {
-    LOG(FATAL) << "not support" << static_cast<int>(type_);
+    THROW_NOT_SUPPORTED_EXCEPTION("RTAny::operator* not support for " +
+                                  std::to_string(static_cast<int>(type_)));
   }
 
   double right_f64 = 0;
@@ -1192,7 +1218,9 @@ RTAny RTAny::operator*(const RTAny& other) const {
     right_i64 = other.value_.u64_val;
     right_f64 = other.value_.u64_val;
   } else {
-    LOG(FATAL) << "not support" << static_cast<int>(other.type_);
+    THROW_NOT_SUPPORTED_EXCEPTION(
+        "RTAny::operator* not support for " +
+        std::to_string(static_cast<int>(other.type_)));
   }
 
   if (has_f64) {
@@ -1220,7 +1248,8 @@ RTAny RTAny::operator/(const RTAny& other) const {
     left_i64 = value_.i32_val;
     left_f64 = value_.i32_val;
   } else {
-    LOG(FATAL) << "not support" << static_cast<int>(type_);
+    THROW_NOT_SUPPORTED_EXCEPTION("RTAny::operator/ not support for " +
+                                  std::to_string(static_cast<int>(type_)));
   }
 
   double right_f64 = 0;
@@ -1236,7 +1265,9 @@ RTAny RTAny::operator/(const RTAny& other) const {
     right_i64 = other.value_.i32_val;
     right_f64 = other.value_.i32_val;
   } else {
-    LOG(FATAL) << "not support" << static_cast<int>(other.type_);
+    THROW_NOT_SUPPORTED_EXCEPTION(
+        "RTAny::operator/ not support for " +
+        std::to_string(static_cast<int>(other.type_)));
   }
 
   if (has_f64) {
@@ -1257,7 +1288,8 @@ RTAny RTAny::operator%(const RTAny& other) const {
   } else if (type_ == RTAnyType::kI32Value) {
     left_i64 = value_.i32_val;
   } else {
-    LOG(FATAL) << "not support" << static_cast<int>(type_);
+    THROW_NOT_SUPPORTED_EXCEPTION("RTAny::operator% not support for " +
+                                  std::to_string(static_cast<int>(type_)));
   }
 
   int64_t right_i64 = 0;
@@ -1267,7 +1299,9 @@ RTAny RTAny::operator%(const RTAny& other) const {
   } else if (other.type_ == RTAnyType::kI32Value) {
     right_i64 = other.value_.i32_val;
   } else {
-    LOG(FATAL) << "not support" << static_cast<int>(other.type_);
+    THROW_NOT_SUPPORTED_EXCEPTION(
+        "RTAny::operator% not support for " +
+        std::to_string(static_cast<int>(other.type_)));
   }
   if (has_i64) {
     return RTAny::from_int64(left_i64 % right_i64);
@@ -1299,7 +1333,7 @@ void RTAny::sink_impl(common::Value* value) const {
   } else if (type_ == RTAnyType::kF64Value) {
     value->set_f64(value_.f64_val);
   } else if (type_ == RTAnyType::kList) {
-    LOG(FATAL) << "not support list sink";
+    THROW_NOT_SUPPORTED_EXCEPTION("RTAny::sink_impl not support for list type");
   } else if (type_ == RTAnyType::kTuple) {
     auto tup = value_.t;
     for (size_t i = 0; i < tup.size(); ++i) {
@@ -1313,7 +1347,8 @@ void RTAny::sink_impl(common::Value* value) const {
   } else if (type_ == RTAnyType::kNull) {
     value->mutable_none();
   } else {
-    LOG(FATAL) << "not implemented for " << static_cast<int>(type_);
+    THROW_NOT_SUPPORTED_EXCEPTION("RTAny::sink_impl not support for " +
+                                  std::to_string(static_cast<int>(type_)));
   }
 }
 
@@ -1343,8 +1378,9 @@ static void sink_any(const Any& any, common::Value* value) {
     auto interval_str = any.AsInterval().to_string();
     value->set_str(interval_str.data(), interval_str.size());
   } else {
-    LOG(FATAL) << "Any value: " << any.to_string()
-               << ", type = " << any.type.type_enum;
+    THROW_NOT_SUPPORTED_EXCEPTION("sink_any not support for " +
+                                  any.type.ToString() +
+                                  " value: " + any.to_string());
   }
 }
 
@@ -1608,8 +1644,8 @@ void RTAny::encode_sig(RTAnyType type, Encoder& encoder) const {
   } else if (type == RTAnyType::kU64Value) {
     encoder.put_long(this->as_uint64());
   } else {
-    throw std::runtime_error("RTAny::encode_sig not support for " +
-                             std::to_string(static_cast<int>(type)));
+    THROW_RUNTIME_ERROR("RTAny::encode_sig not support for " +
+                        std::to_string(static_cast<int>(type)));
   }
 }
 

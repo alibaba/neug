@@ -55,7 +55,7 @@ std::vector<common::ExtendDirection> RelExpression::getExtendDirections()
     }
   }
   if (ret.empty()) {
-    throw exception::BinderException(stringFormat(
+    THROW_BINDER_EXCEPTION(stringFormat(
         "There are no common storage directions among the rel "
         "tables matched by pattern '{}' (some tables have storage direction "
         "'fwd' "

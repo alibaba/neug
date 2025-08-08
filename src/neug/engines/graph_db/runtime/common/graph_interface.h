@@ -345,7 +345,7 @@ class GraphReadInterface {
     }
     auto casted = dynamic_cast<const MutableCsr<EDATA_T>*>(csr);
     if (!casted && csr) {
-      throw std::runtime_error(
+      THROW_RUNTIME_ERROR(
           "GetOutgoingGraphView: csr is not of type MutableCsr<EDATA_T>: " +
           std::to_string(static_cast<int32_t>(v_label)) + " " +
           std::to_string(static_cast<int32_t>(neighbor_label)) + " " +
@@ -366,7 +366,7 @@ class GraphReadInterface {
     }
     auto casted = dynamic_cast<const MutableCsr<EDATA_T>*>(csr);
     if (!casted && csr) {
-      throw std::runtime_error(
+      THROW_RUNTIME_ERROR(
           "GetIncomingGraphView: csr is not of type MutableCsr<EDATA_T>: " +
           std::to_string(static_cast<int32_t>(v_label)) + " " +
           std::to_string(static_cast<int32_t>(neighbor_label)) + " " +

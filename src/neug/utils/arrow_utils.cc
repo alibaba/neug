@@ -52,8 +52,8 @@ std::shared_ptr<arrow::DataType> PropertyTypeToArrowType(PropertyType type) {
   } else if (type.type_enum == impl::PropertyTypeImpl::kTimestamp) {
     return arrow::timestamp(arrow::TimeUnit::type::MILLI);
   } else {
-    LOG(FATAL) << "Unexpected property type: "
-               << static_cast<int>(type.type_enum);
+    THROW_NOT_SUPPORTED_EXCEPTION("Unexpected property type: " +
+                                  type.ToString());
     return nullptr;
   }
 }

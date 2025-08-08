@@ -10,6 +10,7 @@
 #include <string>
 
 #include "neug/compiler/common/api.h"
+#include "neug/utils/exception/exception.h"
 
 namespace gs {
 namespace common {
@@ -113,7 +114,7 @@ class Int128_t {
   static int128_t castTo(T value) {
     int128_t result{};
     if (!tryCastTo(value, result)) {
-      throw std::overflow_error("INT128 is out of range");
+      THROW_OVERFLOW_EXCEPTION("INT128 is out of range");
     }
     return result;
   }
@@ -121,7 +122,7 @@ class Int128_t {
   // negate
   static void negateInPlace(int128_t& input) {
     if (input.high == INT64_MIN && input.low == 0) {
-      throw std::overflow_error(
+      THROW_OVERFLOW_EXCEPTION(
           "INT128 is out of range: cannot negate INT128_MIN");
     }
     input.low = UINT64_MAX + 1 - input.low;

@@ -33,7 +33,7 @@ struct RegexpExtract : BaseRegexpOperation {
     RE2 regex(parseCypherPattern(pattern));
     auto submatchCount = regex.NumberOfCapturingGroups() + 1;
     if (group >= submatchCount) {
-      throw exception::RuntimeError("Regex match group index is out of range");
+      THROW_RUNTIME_ERROR("Regex match group index is out of range");
     }
 
     std::vector<regex::StringPiece> targetSubMatches;

@@ -48,10 +48,10 @@ std::string Transformer::getPKName(
   }
   if (pkCount == 0) {
     // Raise exception when no PRIMARY KEY is specified.
-    throw exception::ParserException("Can not find primary key.");
+    THROW_PARSER_EXCEPTION("Can not find primary key.");
   } else if (pkCount > 1) {
     // Raise exception when multiple PRIMARY KEY are specified.
-    throw exception::ParserException("Found multiple primary keys.");
+    THROW_PARSER_EXCEPTION("Found multiple primary keys.");
   }
   return pkName;
 }
@@ -173,8 +173,7 @@ std::unique_ptr<Statement> Transformer::transformCreateSequence(
       }
     }
     if (applied.find(type) != applied.end()) {
-      throw exception::ParserException(typeString +
-                                       " should be passed at most once.");
+      THROW_PARSER_EXCEPTION(typeString + " should be passed at most once.");
     }
     applied.insert(type);
 

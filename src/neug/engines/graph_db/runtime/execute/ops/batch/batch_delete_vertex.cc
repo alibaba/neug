@@ -59,7 +59,7 @@ bl::result<Context> BatchDeleteVertexOpr::Eval(
         frag.batch_delete_vertices(vids_pair.first, vids_pair.second);
       }
     } else {
-      throw std::runtime_error(
+      THROW_RUNTIME_ERROR(
           "Unsupported vertex column type for batch delete vertex operation.");
     }
     std::vector<size_t> offsets;

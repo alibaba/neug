@@ -42,7 +42,7 @@ void CorrelatedSubqueryUnnestSolver::visitExpressionsScan(LogicalOperator* op) {
   auto expressionsScan = op->ptrCast<LogicalExpressionsScan>();
   // LCOV_EXCL_START
   if (accumulateOp == nullptr) {
-    throw exception::InternalException(
+    THROW_INTERNAL_EXCEPTION(
         "Failed to execute CorrelatedSubqueryUnnestSolver. This should not "
         "happen.");
   }

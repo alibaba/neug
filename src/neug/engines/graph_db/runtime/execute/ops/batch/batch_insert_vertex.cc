@@ -112,10 +112,10 @@ std::pair<Any, std::vector<Any>> get_pk_and_prop_values(
     const std::vector<std::string>& properties_name,
     const std::vector<PropertyType>& properties_type) {
   if (properties.empty()) {
-    throw std::runtime_error("No properties provided for vertex insertion");
+    THROW_RUNTIME_ERROR("No properties provided for vertex insertion");
   }
   if (properties_name.size() != properties_type.size()) {
-    throw std::runtime_error("Properties name and type size mismatch");
+    THROW_RUNTIME_ERROR("Properties name and type size mismatch");
   }
 
   Any pk_value;
@@ -129,8 +129,8 @@ std::pair<Any, std::vector<Any>> get_pk_and_prop_values(
     if (!pk_found && prop_name == pk_name) {
       pk_found = true;
       if (prop_value.type != pk_type) {
-        throw std::runtime_error("Primary key type mismatch for property " +
-                                 prop_name);
+        THROW_RUNTIME_ERROR("Primary key type mismatch for property " +
+                            prop_name);
       }
       pk_value = prop_value;
     } else {
@@ -145,10 +145,10 @@ std::pair<Any, std::vector<Any>> get_pk_and_prop_values(
             continue;
           }
           if (prop_value.type != properties_type[idx]) {
-            throw std::runtime_error("Property type mismatch for property " +
-                                     prop_name + ": expected " +
-                                     properties_type[idx].ToString() +
-                                     ", got " + prop_value.type.ToString());
+            THROW_RUNTIME_ERROR("Property type mismatch for property " +
+                                prop_name + ": expected " +
+                                properties_type[idx].ToString() + ", got " +
+                                prop_value.type.ToString());
           }
           prop_values.push_back(prop_value);
         } else {
@@ -162,8 +162,8 @@ std::pair<Any, std::vector<Any>> get_pk_and_prop_values(
     }
   }
   if (!pk_found) {
-    throw std::runtime_error("Primary key " + pk_name +
-                             " not found in provided properties");
+    THROW_RUNTIME_ERROR("Primary key " + pk_name +
+                        " not found in provided properties");
   }
   return std::make_pair(
       pk_value, prop_values);  // pk_value is not set here, it will be set later
@@ -183,25 +183,23 @@ bl::result<Context> InsertVertexOpr::eval_impl(
     auto properties_type =
         graph.schema().get_vertex_properties(vertex_label_id);
     if (properties_name.size() != properties_type.size()) {
-      throw std::runtime_error("Vertex label " +
-                               std::to_string(vertex_label_id) +
-                               " has different number of properties: " +
-                               std::to_string(properties_name.size()) + " vs " +
-                               std::to_string(properties_type.size()));
+      THROW_RUNTIME_ERROR("Vertex label " + std::to_string(vertex_label_id) +
+                          " has different number of properties: " +
+                          std::to_string(properties_name.size()) + " vs " +
+                          std::to_string(properties_type.size()));
     }
     const auto& pks = graph.schema().get_vertex_primary_key(vertex_label_id);
     if (pks.size() != 1) {
-      throw std::runtime_error(
-          "Vertex label " + std::to_string(vertex_label_id) +
-          " must have exactly one primary key, but found: " +
-          std::to_string(pks.size()));
+      THROW_RUNTIME_ERROR("Vertex label " + std::to_string(vertex_label_id) +
+                          " must have exactly one primary key, but found: " +
+                          std::to_string(pks.size()));
     }
     const auto& pk = pks[0];
     if (properties.size() != properties_name.size() + 1) {
-      throw std::runtime_error("Provided properties size " +
-                               std::to_string(properties.size()) +
-                               " does not match schema size: " +
-                               std::to_string(properties_name.size() + 1));
+      THROW_RUNTIME_ERROR("Provided properties size " +
+                          std::to_string(properties.size()) +
+                          " does not match schema size: " +
+                          std::to_string(properties_name.size() + 1));
     }
     Any pk_value;
     std::vector<Any> prop_values;
@@ -269,12 +267,11 @@ std::unique_ptr<IUpdateOperator> InsertVertexOprBuilder::Build(
     vertex_prop_vec_t properties;
     for (const auto& prop : entry.property_mappings()) {
       if (!prop.property().has_key()) {
-        throw std::runtime_error("Property must have a key");
+        THROW_RUNTIME_ERROR("Property must have a key");
       }
 
       if (prop.data().operators_size() != 1) {
-        throw std::runtime_error(
-            "Property value must have exactly one operator");
+        THROW_RUNTIME_ERROR("Property value must have exactly one operator");
       }
       properties.emplace_back(prop.property().key().name(),
                               expr_opr_value_to_any(prop.data().operators(0)));

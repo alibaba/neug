@@ -50,7 +50,7 @@ void TransactionContext::validateManualTransaction(
     bool readOnlyStatement) const {
   KU_ASSERT(hasActiveTransaction());
   if (activeTransaction->isReadOnly() && !readOnlyStatement) {
-    throw exception::TransactionManagerException(
+    THROW_TRANSACTION_MANAGER_EXCEPTION(
         "Can not execute a write query inside a read-only transaction.");
   }
 }

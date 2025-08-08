@@ -36,14 +36,14 @@ bl::result<Context> UpdateEdgeOpr::Eval(
     auto col = ctx.get(tag_id);
     if (!col) {
       LOG(ERROR) << "Column " << tag_id << " not found in context.";
-      throw std::runtime_error("Column " + std::to_string(tag_id) +
-                               " not found in context.");
+      THROW_RUNTIME_ERROR("Column " + std::to_string(tag_id) +
+                          " not found in context.");
     }
     auto edge_col = std::dynamic_pointer_cast<IEdgeColumn>(col);
     if (!edge_col) {
       LOG(ERROR) << "Column " << tag_id << " is not an edge column.";
-      throw std::runtime_error("Column " + std::to_string(tag_id) +
-                               " is not an edge column.");
+      THROW_RUNTIME_ERROR("Column " + std::to_string(tag_id) +
+                          " is not an edge column.");
     }
     LOG(INFO) << "edge column info: " << edge_col->column_info();
 
@@ -67,7 +67,7 @@ bl::result<Context> UpdateEdgeOpr::Eval(
         LOG(ERROR) << "Property " << prop_name
                    << " does not exist for edge label "
                    << static_cast<int>(label_id);
-        throw std::runtime_error(
+        THROW_RUNTIME_ERROR(
             "Property " + prop_name +
             " does not exist for edge label: " + std::to_string(label_id));
       }
@@ -75,10 +75,9 @@ bl::result<Context> UpdateEdgeOpr::Eval(
         LOG(ERROR) << "Property type mismatch for property " << prop_name
                    << ": expected " << property_types[col_id].ToString()
                    << ", got " << value.type.ToString();
-        throw std::runtime_error("Property type mismatch for property " +
-                                 prop_name + ": expected " +
-                                 property_types[col_id].ToString() + ", got " +
-                                 value.type.ToString());
+        THROW_RUNTIME_ERROR("Property type mismatch for property " + prop_name +
+                            ": expected " + property_types[col_id].ToString() +
+                            ", got " + value.type.ToString());
       }
       if (er.dir() == Direction::kOut) {
         graph.SetEdgeData(true, src_label, er.src(), dst_label, er.dst(),
@@ -109,24 +108,24 @@ std::unique_ptr<IUpdateOperator> UpdateEdgeOprBuilder::Build(
     auto& edge_binding = entry.edge_binding();
     if (!edge_binding.has_tag()) {
       LOG(ERROR) << "Edge binding must have a tag.";
-      throw std::runtime_error("Edge binding must have a tag.");
+      THROW_RUNTIME_ERROR("Edge binding must have a tag.");
     }
     CHECK(edge_binding.tag().item_case() == common::NameOrId::ItemCase::kId)
         << "Edge binding tag must be an ID.";
     auto tag_id = edge_binding.tag().id();
     const auto& prop_mapping = entry.property_mapping();
     if (!prop_mapping.property().has_key()) {
-      throw std::runtime_error(
+      THROW_RUNTIME_ERROR(
           "Setting edge property without key is not supported.");
     }
     if (prop_mapping.data().operators_size() != 1) {
-      throw std::runtime_error(
+      THROW_RUNTIME_ERROR(
           "Setting edge property with multiple operators is not "
           "supported.");
     }
     if (prop_mapping.data().operators(0).item_case() !=
         common::ExprOpr::ItemCase::kConst) {
-      throw std::runtime_error(
+      THROW_RUNTIME_ERROR(
           "Setting edge property with non-constant value is not "
           "supported.");
     }

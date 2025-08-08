@@ -26,12 +26,12 @@ static void validateHintCompleteness(const BoundJoinHintNode& root,
   collectHintPattern(root, set);
   for (auto& nodeOrRel : queryGraph.getAllPatterns()) {
     if (nodeOrRel->getVariableName().empty()) {
-      throw exception::BinderException(
+      THROW_BINDER_EXCEPTION(
           "Cannot hint join order in a match patter with anonymous node or "
           "relationship.");
     }
     if (!set.contains(nodeOrRel)) {
-      throw exception::BinderException(
+      THROW_BINDER_EXCEPTION(
           stringFormat("Cannot find {} in join hint.", nodeOrRel->toString()));
     }
   }
@@ -62,7 +62,7 @@ std::shared_ptr<BoundJoinHintNode> Binder::bindJoinHint(
     const QueryGraphCollection& queryGraphCollection,
     const JoinHintNode& joinHintNode) {
   if (queryGraphCollection.getNumQueryGraphs() > 1) {
-    throw exception::BinderException(
+    THROW_BINDER_EXCEPTION(
         "Join hint on disconnected match pattern is not supported.");
   }
   auto hint = bindJoinNode(joinHintNode);
@@ -79,7 +79,7 @@ std::shared_ptr<BoundJoinHintNode> Binder::bindJoinNode(
     }
     if (pattern == nullptr ||
         pattern->expressionType != ExpressionType::PATTERN) {
-      throw exception::BinderException(
+      THROW_BINDER_EXCEPTION(
           stringFormat("Cannot bind {} to a node or relationship pattern",
                        joinHintNode.variableName));
     }

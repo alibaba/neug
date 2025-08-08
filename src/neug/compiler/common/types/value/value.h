@@ -209,14 +209,14 @@ class Value {
    */
   template <class T>
   T getValue() const {
-    throw std::runtime_error("Unimplemented template for Value::getValue()");
+    THROW_RUNTIME_ERROR("Unimplemented template for Value::getValue()");
   }
   /**
    * @return a reference to the value of the given type.
    */
   template <class T>
   T& getValueReference() {
-    throw std::runtime_error(
+    THROW_RUNTIME_ERROR(
         "Unimplemented template for Value::getValueReference()");
   }
   /**
@@ -224,7 +224,7 @@ class Value {
    */
   template <class T>
   static Value createValue(T /*value*/) {
-    throw std::runtime_error("Unimplemented template for Value::createValue()");
+    THROW_RUNTIME_ERROR("Unimplemented template for Value::createValue()");
   }
 
   /**

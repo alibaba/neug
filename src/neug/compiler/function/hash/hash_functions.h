@@ -34,8 +34,8 @@ struct Hash {
   template <class T>
   static void operation(const T& /*key*/, common::hash_t& /*result*/) {
     // LCOV_EXCL_START
-    throw exception::RuntimeError(
-        "Hash type: " + std::string(typeid(T).name()) + " is not supported.");
+    THROW_RUNTIME_ERROR("Hash type: " + std::string(typeid(T).name()) +
+                        " is not supported.");
     // LCOV_EXCL_STOP
   }
 

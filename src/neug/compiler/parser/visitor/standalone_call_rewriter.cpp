@@ -29,9 +29,9 @@ void StandaloneCallRewriter::visitStandaloneCallFunction(
         if (!context->getCatalog()->containsFunction(context->getTransaction(),
                                                      funcName) &&
             !singleStatement) {
-          throw exception::ParserException{funcName +
-                                           " must be called in a query which "
-                                           "doesn't have other statements."};
+          THROW_PARSER_EXCEPTION(funcName +
+                                 " must be called in a query which "
+                                 "doesn't have other statements.");
         }
         binder::Binder binder{context};
         const auto boundStatement = binder.bind(standaloneCallFunc);

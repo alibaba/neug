@@ -11,12 +11,12 @@ namespace gs {
 namespace function {
 
 static void duplicateValueHandler(const std::string& key) {
-  throw exception::RuntimeError{
-      common::stringFormat("Found duplicate key: {} in map.", key)};
+  THROW_RUNTIME_ERROR(
+      common::stringFormat("Found duplicate key: {} in map.", key));
 }
 
 static void nullValueHandler() {
-  throw exception::RuntimeError("Null value key is not allowed in map.");
+  THROW_RUNTIME_ERROR("Null value key is not allowed in map.");
 }
 
 static void validateKeys(common::list_entry_t& keyEntry,
@@ -34,7 +34,7 @@ struct MapCreation {
                         common::ValueVector& valueVector,
                         common::ValueVector& resultVector, void* dataPtr) {
     if (keyEntry.size != valueEntry.size) {
-      throw exception::RuntimeError{"Unaligned key list and value list."};
+      THROW_RUNTIME_ERROR("Unaligned key list and value list.");
     }
     if (!reinterpret_cast<FunctionBindData*>(dataPtr)
              ->clientContext->getClientConfig()
