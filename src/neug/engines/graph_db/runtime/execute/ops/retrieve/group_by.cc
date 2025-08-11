@@ -1008,6 +1008,8 @@ std::unique_ptr<ReducerBase> make_reducer(const GraphReadInterface& graph,
     return make_reducer<int32_t>(graph, ctx, std::move(var_), kind, alias);
   } else if (var_.type() == RTAnyType::kI64Value) {
     return make_reducer<int64_t>(graph, ctx, std::move(var_), kind, alias);
+  } else if (var_.type() == RTAnyType::kF32Value) {
+    return make_reducer<float>(graph, ctx, std::move(var_), kind, alias);
   } else if (var_.type() == RTAnyType::kF64Value) {
     return make_reducer<double>(graph, ctx, std::move(var_), kind, alias);
   } else if (var_.type() == RTAnyType::kStringValue) {

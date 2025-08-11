@@ -238,6 +238,9 @@ rapidjson::Value build_edge_object(
     } else if (edge.prop_.type == RTAnyType::kU64Value) {
       add_member(edge_object, allocator, property_names[0],
                  edge.prop_.as<uint64_t>());
+    } else if (edge.prop_.type == RTAnyType::kF32Value) {
+      add_member(edge_object, allocator, property_names[0],
+                 edge.prop_.as<float>());
     } else if (edge.prop_.type == RTAnyType::kF64Value) {
       add_member(edge_object, allocator, property_names[0],
                  edge.prop_.as<double>());

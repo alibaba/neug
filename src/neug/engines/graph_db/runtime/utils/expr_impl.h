@@ -815,6 +815,8 @@ class ToFloatExpr : public ExprBase {
       return static_cast<double>(val.as_int64());
     } else if (val.type() == RTAnyType::kI32Value) {
       return static_cast<double>(val.as_int32());
+    } else if (val.type() == RTAnyType::kF32Value) {
+      return static_cast<double>(val.as_float());
     } else if (val.type() == RTAnyType::kF64Value) {
       return val.as_double();
     } else {

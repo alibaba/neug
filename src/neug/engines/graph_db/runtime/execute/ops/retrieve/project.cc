@@ -163,6 +163,17 @@ std::unique_ptr<ProjectExprBase> create_sl_property_expr(
     const VertexColumn& column, const std::string& property_name,
     RTAnyType type, int alias) {
   switch (type) {
+  case RTAnyType::kBoolValue: {
+    auto expr =
+        SLPropertyExpr<VertexColumn, bool>(graph, column, property_name);
+    if (expr.is_optional()) {
+      return nullptr;
+    }
+    PropertyValueCollector<decltype(expr)> collector(ctx);
+    return std::make_unique<
+        ProjectExpr<SLPropertyExpr<VertexColumn, bool>, decltype(collector)>>(
+        std::move(expr), collector, alias);
+  }
   case RTAnyType::kI32Value: {
     auto expr =
         SLPropertyExpr<VertexColumn, int32_t>(graph, column, property_name);
@@ -171,6 +182,17 @@ std::unique_ptr<ProjectExprBase> create_sl_property_expr(
     }
     PropertyValueCollector<decltype(expr)> collector(ctx);
     return std::make_unique<ProjectExpr<SLPropertyExpr<VertexColumn, int32_t>,
+                                        decltype(collector)>>(std::move(expr),
+                                                              collector, alias);
+  }
+  case RTAnyType::kU32Value: {
+    auto expr =
+        SLPropertyExpr<VertexColumn, uint32_t>(graph, column, property_name);
+    if (expr.is_optional()) {
+      return nullptr;
+    }
+    PropertyValueCollector<decltype(expr)> collector(ctx);
+    return std::make_unique<ProjectExpr<SLPropertyExpr<VertexColumn, uint32_t>,
                                         decltype(collector)>>(std::move(expr),
                                                               collector, alias);
   }
@@ -184,6 +206,28 @@ std::unique_ptr<ProjectExprBase> create_sl_property_expr(
     return std::make_unique<ProjectExpr<SLPropertyExpr<VertexColumn, int64_t>,
                                         decltype(collector)>>(std::move(expr),
                                                               collector, alias);
+  }
+  case RTAnyType::kU64Value: {
+    auto expr =
+        SLPropertyExpr<VertexColumn, uint64_t>(graph, column, property_name);
+    if (expr.is_optional()) {
+      return nullptr;
+    }
+    PropertyValueCollector<decltype(expr)> collector(ctx);
+    return std::make_unique<ProjectExpr<SLPropertyExpr<VertexColumn, uint64_t>,
+                                        decltype(collector)>>(std::move(expr),
+                                                              collector, alias);
+  }
+  case RTAnyType::kF32Value: {
+    auto expr =
+        SLPropertyExpr<VertexColumn, float>(graph, column, property_name);
+    if (expr.is_optional()) {
+      return nullptr;
+    }
+    PropertyValueCollector<decltype(expr)> collector(ctx);
+    return std::make_unique<
+        ProjectExpr<SLPropertyExpr<VertexColumn, float>, decltype(collector)>>(
+        std::move(expr), collector, alias);
   }
   case RTAnyType::kF64Value: {
     auto expr =
@@ -790,7 +834,8 @@ bool is_property_extract(const common::Expression& expr, int& tag,
       // only support pod type
       if (type == RTAnyType::kTimestamp || type == RTAnyType::kDate ||
           type == RTAnyType::kI64Value || type == RTAnyType::kI32Value ||
-          type == RTAnyType::kF64Value || type == RTAnyType::kU32Value) {
+          type == RTAnyType::kF64Value || type == RTAnyType::kU32Value ||
+          type == RTAnyType::kU64Value || type == RTAnyType::kF32Value) {
         return true;
       }
     }
@@ -871,6 +916,12 @@ make_project_expr(const common::Expression& expr, int alias) {
     } break;
     case RTAnyType::kI32Value: {
       return _make_project_expr<int32_t>(std::move(e), alias, ctx);
+    } break;
+    case RTAnyType::kBoolValue: {
+      return _make_project_expr<bool>(std::move(e), alias, ctx);
+    } break;
+    case RTAnyType::kF32Value: {
+      return _make_project_expr<float>(std::move(e), alias, ctx);
     } break;
     case RTAnyType::kF64Value: {
       return _make_project_expr<double>(std::move(e), alias, ctx);
@@ -1110,6 +1161,9 @@ make_project_expr(const common::Expression& expr,
     } break;
     case RTAnyType::kU32Value: {
       return _make_project_expr<uint32_t>(expr, alias);
+    } break;
+    case RTAnyType::kF32Value: {
+      return _make_project_expr<float>(expr, alias);
     } break;
     case RTAnyType::kF64Value: {
       return _make_project_expr<double>(expr, alias);

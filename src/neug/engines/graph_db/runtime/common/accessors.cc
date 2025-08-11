@@ -54,6 +54,8 @@ std::shared_ptr<IAccessor> create_context_value_accessor(const Context& ctx,
 
   case RTAnyType::kRelation:
     return std::make_shared<ContextValueAccessor<Relation>>(ctx, tag);
+  case RTAnyType::kF32Value:
+    return std::make_shared<ContextValueAccessor<float>>(ctx, tag);
   case RTAnyType::kF64Value:
     return std::make_shared<ContextValueAccessor<double>>(ctx, tag);
   case RTAnyType::kSet:
@@ -102,6 +104,9 @@ std::shared_ptr<IAccessor> create_vertex_property_path_accessor(
     return std::make_shared<
         VertexPropertyPathAccessor<GraphInterface, TimeStamp>>(graph, ctx, tag,
                                                                prop_name);
+  case RTAnyType::kF32Value:
+    return std::make_shared<VertexPropertyPathAccessor<GraphInterface, float>>(
+        graph, ctx, tag, prop_name);
   case RTAnyType::kF64Value:
     return std::make_shared<VertexPropertyPathAccessor<GraphInterface, double>>(
         graph, ctx, tag, prop_name);
@@ -159,6 +164,9 @@ std::shared_ptr<IAccessor> create_vertex_property_vertex_accessor(
     return std::make_shared<
         VertexPropertyVertexAccessor<GraphInterface, TimeStamp>>(graph,
                                                                  prop_name);
+  case RTAnyType::kF32Value:
+    return std::make_shared<
+        VertexPropertyVertexAccessor<GraphInterface, float>>(graph, prop_name);
   case RTAnyType::kF64Value:
     return std::make_shared<
         VertexPropertyVertexAccessor<GraphInterface, double>>(graph, prop_name);
@@ -223,6 +231,10 @@ std::shared_ptr<IAccessor> create_edge_property_path_accessor(
       return std::make_shared<
           MultiPropsEdgePropertyPathAccessor<GraphInterface, TimeStamp>>(
           graph, name, ctx, tag);
+    case RTAnyType::kF32Value:
+      return std::make_shared<
+          MultiPropsEdgePropertyPathAccessor<GraphInterface, float>>(
+          graph, name, ctx, tag);
     case RTAnyType::kF64Value:
       return std::make_shared<
           MultiPropsEdgePropertyPathAccessor<GraphInterface, double>>(
@@ -264,6 +276,9 @@ std::shared_ptr<IAccessor> create_edge_property_path_accessor(
       return std::make_shared<
           EdgePropertyPathAccessor<GraphInterface, TimeStamp>>(graph, name, ctx,
                                                                tag);
+    case RTAnyType::kF32Value:
+      return std::make_shared<EdgePropertyPathAccessor<GraphInterface, float>>(
+          graph, name, ctx, tag);
     case RTAnyType::kF64Value:
       return std::make_shared<EdgePropertyPathAccessor<GraphInterface, double>>(
           graph, name, ctx, tag);
@@ -364,6 +379,10 @@ std::shared_ptr<IAccessor> create_edge_property_edge_accessor(
       return std::make_shared<
           MultiPropsEdgePropertyEdgeAccessor<GraphInterface, TimeStamp>>(
           graph, prop_name);
+    case RTAnyType::kF32Value:
+      return std::make_shared<
+          MultiPropsEdgePropertyEdgeAccessor<GraphInterface, float>>(graph,
+                                                                     prop_name);
     case RTAnyType::kF64Value:
       return std::make_shared<
           MultiPropsEdgePropertyEdgeAccessor<GraphInterface, double>>(
@@ -401,6 +420,9 @@ std::shared_ptr<IAccessor> create_edge_property_edge_accessor(
       return std::make_shared<
           EdgePropertyEdgeAccessor<GraphInterface, TimeStamp>>(graph,
                                                                prop_name);
+    case RTAnyType::kF32Value:
+      return std::make_shared<EdgePropertyEdgeAccessor<GraphInterface, float>>(
+          graph, prop_name);
     case RTAnyType::kF64Value:
       return std::make_shared<EdgePropertyEdgeAccessor<GraphInterface, double>>(
           graph, prop_name);

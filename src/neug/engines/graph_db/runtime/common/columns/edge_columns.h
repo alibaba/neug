@@ -64,6 +64,10 @@ static inline void get_edge_data(EdgePropVecBase* prop, size_t idx,
     edge_data.type = RTAnyType::kU64Value;
     edge_data.value.u64_val =
         dynamic_cast<EdgePropVec<uint64_t>*>(prop)->get_view(idx);
+  } else if (prop->type() == PropertyType::kFloat) {
+    edge_data.type = RTAnyType::kF32Value;
+    edge_data.value.f32_val =
+        dynamic_cast<EdgePropVec<float>*>(prop)->get_view(idx);
   } else if (prop->type() == PropertyType::kDouble) {
     edge_data.type = RTAnyType::kF64Value;
     edge_data.value.f64_val =
@@ -115,6 +119,14 @@ static inline void set_edge_data(EdgePropVecBase* col, size_t idx,
     dynamic_cast<EdgePropVec<int64_t>*>(col)->set(idx, edge_data.value.i64_val);
   } else if (edge_data.type == RTAnyType::kI32Value) {
     dynamic_cast<EdgePropVec<int32_t>*>(col)->set(idx, edge_data.value.i32_val);
+  } else if (edge_data.type == RTAnyType::kU32Value) {
+    dynamic_cast<EdgePropVec<uint32_t>*>(col)->set(idx,
+                                                   edge_data.value.u32_val);
+  } else if (edge_data.type == RTAnyType::kU64Value) {
+    dynamic_cast<EdgePropVec<uint64_t>*>(col)->set(idx,
+                                                   edge_data.value.u64_val);
+  } else if (edge_data.type == RTAnyType::kF32Value) {
+    dynamic_cast<EdgePropVec<float>*>(col)->set(idx, edge_data.value.f32_val);
   } else if (edge_data.type == RTAnyType::kF64Value) {
     dynamic_cast<EdgePropVec<double>*>(col)->set(idx, edge_data.value.f64_val);
   } else if (edge_data.type == RTAnyType::kBoolValue) {

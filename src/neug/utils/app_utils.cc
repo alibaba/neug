@@ -105,6 +105,12 @@ void Encoder::put_small_string_view(const std::string_view& v) {
   memcpy(&buf_[size + 1], v.data(), len);
 }
 
+void Encoder::put_float(float v) {
+  size_t size = buf_.size();
+  buf_.resize(size + sizeof(float));
+  memcpy(&buf_[size], &v, sizeof(float));
+}
+
 void Encoder::put_double(double v) {
   size_t size = buf_.size();
   buf_.resize(size + sizeof(double));
@@ -148,6 +154,12 @@ uint32_t Decoder::get_uint() {
 int64_t Decoder::get_long() {
   int64_t ret = char_ptr_to_long(data_);
   data_ += 8;
+  return ret;
+}
+
+float Decoder::get_float() {
+  float ret = *reinterpret_cast<const float*>(data_);
+  data_ += 4;
   return ret;
 }
 

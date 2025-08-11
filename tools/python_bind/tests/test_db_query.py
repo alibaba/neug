@@ -37,32 +37,40 @@ from neug.database import Database
 # DB-003-01
 def test_create_schema_basic_types(tmp_path):
     db_dir = tmp_path / "schema_basic_types"
-    shutil.rmtree(db_dir, ignore_errors=True)
     db_dir.mkdir()
     db = Database(db_path=str(db_dir), mode="w")
     conn = db.connect()
-    conn.execute("CREATE NODE TABLE person(p1 INT32, p2 INT64, PRIMARY KEY (p1));")
+
     conn.execute(
-        "CREATE REL TABLE worksAt(FROM person TO person, weight DOUBLE, since INT64);"
+        "CREATE NODE TABLE PERSON(int32_prop INT32, uint32_prop UINT32, "
+        "int64_prop INT64, uint64_prop UINT64, string_prop STRING, "
+        "bool_prop BOOL, float_prop FLOAT, double_prop DOUBLE, "
+        "PRIMARY KEY(int32_prop));"
     )
-    conn.execute("CREATE (t:person {p1: 1, p2: 1234567890123})")
-    conn.execute("CREATE (t:person {p1: 2, p2: 9876543210987})")
+
     conn.execute(
-        "MATCH(t1:person), (t2:person) WHERE t1.p1 = 1 AND t2.p1 = 2 "
-        "CREATE (t1)-[:worksAt {weight: 1.5, since: 2020}]->(t2);"
+        "CREATE (n:PERSON {int32_prop: 1, uint32_prop: 2, "
+        "int64_prop: 3, uint64_prop: 4, string_prop: 'test', "
+        "bool_prop: true, float_prop: 1.23, double_prop: 2.34});"
     )
+
+    result = conn.execute(
+        "MATCH (n:PERSON) RETURN n.int32_prop, n.uint32_prop, "
+        "n.int64_prop, n.uint64_prop, n.string_prop, "
+        "n.bool_prop, n.float_prop, n.double_prop;"
+    )
+    record = result.__next__()
+    assert record[0] == 1
+    assert record[1] == 2
+    assert record[2] == 3
+    assert record[3] == 4
+    assert record[4] == "test"
+    assert record[5] is True
+    assert (record[6] == 1.23) or (abs(record[6] - 1.23) < 1e-6)  # float comparison
+    assert (record[7] == 2.34) or (abs(record[7] - 2.34) < 1e-6)  # double comparison
+
     conn.close()
     db.close()
-
-    db2 = Database(db_path=str(db_dir), mode="w")
-    conn2 = db2.connect()
-    res = conn2.execute("MATCH (t:person) return count(t);")
-    assert res.__next__()[0] == 2
-
-    res = conn2.execute(
-        "MATCH (t1:person {p1: 1})-[r:worksAt]->(t2:person) return r.weight;"
-    )
-    assert res.__next__()[0] == 1.5
 
 
 @pytest.mark.skip(reason="complex types are not supported yet")

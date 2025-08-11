@@ -62,6 +62,8 @@ class Encoder {
 
   void put_small_string_view(const std::string_view& v);
 
+  void put_float(float v);
+
   void put_double(double v);
 
   void clear();
@@ -88,6 +90,8 @@ class Decoder {
   std::string_view get_small_string();
 
   uint8_t get_byte();
+
+  float get_float();
 
   double get_double();
 

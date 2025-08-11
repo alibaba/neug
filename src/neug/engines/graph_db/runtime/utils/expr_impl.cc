@@ -319,6 +319,10 @@ RTAnyType ArithExpr::type() const {
       rhs_->type() == RTAnyType::kF64Value) {
     return RTAnyType::kF64Value;
   }
+  if (lhs_->type() == RTAnyType::kF32Value ||
+      rhs_->type() == RTAnyType::kF32Value) {
+    return RTAnyType::kF32Value;
+  }
   if (lhs_->type() == RTAnyType::kI64Value ||
       rhs_->type() == RTAnyType::kI64Value) {
     return RTAnyType::kI64Value;
@@ -557,6 +561,9 @@ struct TypedTupleBuilder {
     case RTAnyType::kI64Value:
       return TypedTupleBuilder<N, I - 1, int64_t, Args...>().build_typed_tuple(
           std::move(exprs));
+    case RTAnyType::kF32Value:
+      return TypedTupleBuilder<N, I - 1, float, Args...>().build_typed_tuple(
+          std::move(exprs));
     case RTAnyType::kF64Value:
       return TypedTupleBuilder<N, I - 1, double, Args...>().build_typed_tuple(
           std::move(exprs));
@@ -604,6 +611,18 @@ static RTAny parse_param(const common::DynamicParam& param,
     } else if (type == RTAnyType::kTimestamp) {
       TimeStamp val = TimeStamp(std::stoll(input.at(name)));
       return RTAny::from_timestamp(val);
+    } else if (type == RTAnyType::kU32Value) {
+      uint32_t val = std::stoul(input.at(name));
+      return RTAny::from_uint32(val);
+    } else if (type == RTAnyType::kU64Value) {
+      uint64_t val = std::stoull(input.at(name));
+      return RTAny::from_uint64(val);
+    } else if (type == RTAnyType::kBoolValue) {
+      bool val = input.at(name) == "true" || input.at(name) == "1";
+      return RTAny::from_bool(val);
+    } else if (type == RTAnyType::kF32Value) {
+      float val = std::stof(input.at(name));
+      return RTAny::from_float(val);
     } else if (type == RTAnyType::kF64Value) {
       double val = std::stod(input.at(name));
       return RTAny::from_double(val);

@@ -111,6 +111,9 @@ bl::result<Context> Scan::scan_vertex_with_special_vertex_predicate(
   } else if (pred.data_type() == RTAnyType::kStringValue) {
     return _scan_vertex_with_special_vertex_predicate<std::string_view>(
         std::move(ctx), graph, params, pred);
+  } else if (pred.data_type() == RTAnyType::kF32Value) {
+    return _scan_vertex_with_special_vertex_predicate<float>(
+        std::move(ctx), graph, params, pred);
   } else if (pred.data_type() == RTAnyType::kF64Value) {
     return _scan_vertex_with_special_vertex_predicate<double>(
         std::move(ctx), graph, params, pred);
@@ -174,6 +177,18 @@ bl::result<Context> Scan::filter_gids_with_special_vertex_predicate(
   } else if (predicate.data_type() == RTAnyType::kStringValue) {
     return _filter_gids_with_special_vertex_predicate<std::string_view>(
         std::move(ctx), graph, params, predicate, oids);
+  } else if (predicate.data_type() == RTAnyType::kU64Value) {
+    return _filter_gids_with_special_vertex_predicate<uint64_t>(
+        std::move(ctx), graph, params, predicate, oids);
+  } else if (predicate.data_type() == RTAnyType::kU32Value) {
+    return _filter_gids_with_special_vertex_predicate<uint32_t>(
+        std::move(ctx), graph, params, predicate, oids);
+  } else if (predicate.data_type() == RTAnyType::kBoolValue) {
+    return _filter_gids_with_special_vertex_predicate<bool>(
+        std::move(ctx), graph, params, predicate, oids);
+  } else if (predicate.data_type() == RTAnyType::kF32Value) {
+    return _filter_gids_with_special_vertex_predicate<float>(
+        std::move(ctx), graph, params, predicate, oids);
   } else if (predicate.data_type() == RTAnyType::kF64Value) {
     return _filter_gids_with_special_vertex_predicate<double>(
         std::move(ctx), graph, params, predicate, oids);
@@ -234,11 +249,23 @@ bl::result<Context> Scan::filter_oids_with_special_vertex_predicate(
   } else if (predicate.data_type() == RTAnyType::kI32Value) {
     return _filter_oid_with_special_vertex_predicate<int32_t>(
         std::move(ctx), graph, params, predicate, oids);
-  } else if (predicate.data_type() == RTAnyType::kStringValue) {
-    return _filter_oid_with_special_vertex_predicate<std::string_view>(
+  } else if (predicate.data_type() == RTAnyType::kU64Value) {
+    return _filter_oid_with_special_vertex_predicate<uint64_t>(
+        std::move(ctx), graph, params, predicate, oids);
+  } else if (predicate.data_type() == RTAnyType::kU32Value) {
+    return _filter_oid_with_special_vertex_predicate<uint32_t>(
+        std::move(ctx), graph, params, predicate, oids);
+  } else if (predicate.data_type() == RTAnyType::kBoolValue) {
+    return _filter_oid_with_special_vertex_predicate<bool>(
+        std::move(ctx), graph, params, predicate, oids);
+  } else if (predicate.data_type() == RTAnyType::kF32Value) {
+    return _filter_oid_with_special_vertex_predicate<float>(
         std::move(ctx), graph, params, predicate, oids);
   } else if (predicate.data_type() == RTAnyType::kF64Value) {
     return _filter_oid_with_special_vertex_predicate<double>(
+        std::move(ctx), graph, params, predicate, oids);
+  } else if (predicate.data_type() == RTAnyType::kStringValue) {
+    return _filter_oid_with_special_vertex_predicate<std::string_view>(
         std::move(ctx), graph, params, predicate, oids);
   } else if (predicate.data_type() == RTAnyType::kDate) {
     return _filter_oid_with_special_vertex_predicate<Date>(

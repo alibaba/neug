@@ -655,6 +655,22 @@ parse_special_vertex_predicate(const common::Expression& expr) {
                                                params.at(name));
       };
 
+    } else if (type == RTAnyType::kBoolValue) {
+      return [ptype, property_name, name](
+                 const GraphReadInterface& graph,
+                 const std::map<std::string, std::string>& params)
+                 -> std::unique_ptr<SPVertexPredicate> {
+        return _make_vertex_predicate<bool>(ptype, graph, property_name,
+                                            params.at(name));
+      };
+    } else if (type == RTAnyType::kF32Value) {
+      return [ptype, property_name, name](
+                 const GraphReadInterface& graph,
+                 const std::map<std::string, std::string>& params)
+                 -> std::unique_ptr<SPVertexPredicate> {
+        return _make_vertex_predicate<float>(ptype, graph, property_name,
+                                             params.at(name));
+      };
     } else if (type == RTAnyType::kF64Value) {
       return [ptype, property_name, name](
                  const GraphReadInterface& graph,
@@ -789,6 +805,14 @@ parse_special_vertex_predicate(const common::Expression& expr) {
                  const std::map<std::string, std::string>& params)
                  -> std::unique_ptr<SPVertexPredicate> {
         return std::make_unique<VertexPropertyBetweenPredicateBeta<int32_t>>(
+            graph, property_name, params.at(from_str), params.at(to_str));
+      };
+    } else if (type == RTAnyType::kF32Value) {
+      return [property_name, from_str, to_str](
+                 const GraphReadInterface& graph,
+                 const std::map<std::string, std::string>& params)
+                 -> std::unique_ptr<SPVertexPredicate> {
+        return std::make_unique<VertexPropertyBetweenPredicateBeta<float>>(
             graph, property_name, params.at(from_str), params.at(to_str));
       };
     } else if (type == RTAnyType::kF64Value) {
@@ -1104,6 +1128,11 @@ parse_special_edge_predicate(const common::Expression& expr) {
       return [ptype, name](const GraphReadInterface& graph,
                            const std::map<std::string, std::string>& params) {
         return _make_edge_predicate<int64_t>(ptype, params.at(name));
+      };
+    } else if (type == RTAnyType::kF32Value) {
+      return [ptype, name](const GraphReadInterface& graph,
+                           const std::map<std::string, std::string>& params) {
+        return _make_edge_predicate<float>(ptype, params.at(name));
       };
     } else if (type == RTAnyType::kF64Value) {
       return [ptype, name](const GraphReadInterface& graph,

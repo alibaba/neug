@@ -41,6 +41,8 @@ std::string EdgeData::to_string() const {
     return value.str_val.to_string();
   } else if (type == RTAnyType::kNull) {
     return "NULL";
+  } else if (type == RTAnyType::kF32Value) {
+    return std::to_string(value.f32_val);
   } else if (type == RTAnyType::kF64Value) {
     return std::to_string(value.f64_val);
   } else if (type == RTAnyType::kBoolValue) {
@@ -86,6 +88,10 @@ EdgeData::EdgeData(const Any& any) {
     type = RTAnyType::kStringValue;
     value.str_val = any.value.s;
     break;
+  case impl::PropertyTypeImpl::kFloat:
+    type = RTAnyType::kF32Value;
+    value.f32_val = any.value.f;
+    break;
   case impl::PropertyTypeImpl::kDouble:
     type = RTAnyType::kF64Value;
     value.f64_val = any.value.db;
@@ -121,6 +127,8 @@ bool EdgeData::operator<(const EdgeData& e) const {
     return value.u64_val < e.value.u64_val;
   } else if (type == RTAnyType::kU32Value) {
     return value.u32_val < e.value.u32_val;
+  } else if (type == RTAnyType::kF32Value) {
+    return value.f32_val < e.value.f32_val;
   } else if (type == RTAnyType::kF64Value) {
     return value.f64_val < e.value.f64_val;
   } else if (type == RTAnyType::kBoolValue) {
@@ -144,6 +152,8 @@ bool EdgeData::operator==(const EdgeData& e) const {
     return value.u64_val == e.value.u64_val;
   } else if (type == RTAnyType::kU32Value) {
     return value.u32_val == e.value.u32_val;
+  } else if (type == RTAnyType::kF32Value) {
+    return value.f32_val == e.value.f32_val;
   } else if (type == RTAnyType::kF64Value) {
     return value.f64_val == e.value.f64_val;
   } else if (type == RTAnyType::kBoolValue) {
@@ -182,6 +192,8 @@ RTAnyType parse_from_ir_data_type(const ::common::IrDataType& dt) {
         return RTAnyType::kU64Value;
       case ::common::PrimitiveType::DT_SIGNED_INT64:
         return RTAnyType::kI64Value;
+      case ::common::PrimitiveType::DT_FLOAT:
+        return RTAnyType::kF32Value;
       case ::common::PrimitiveType::DT_DOUBLE:
         return RTAnyType::kF64Value;
       case ::common::PrimitiveType::DT_BOOL:
@@ -265,6 +277,8 @@ PropertyType rt_type_to_property_type(RTAnyType type) {
     return PropertyType::kInt32;
   case RTAnyType::kU32Value:
     return PropertyType::kUInt32;
+  case RTAnyType::kF32Value:
+    return PropertyType::kFloat;
   case RTAnyType::kF64Value:
     return PropertyType::kDouble;
   case RTAnyType::kBoolValue:
@@ -292,6 +306,8 @@ RTAnyType arrow_type_to_rt_type(const std::shared_ptr<arrow::DataType>& type) {
     return RTAnyType::kU32Value;
   } else if (type->Equals(arrow::uint64())) {
     return RTAnyType::kU64Value;
+  } else if (type->Equals(arrow::float32())) {
+    return RTAnyType::kF32Value;
   } else if (type->Equals(arrow::float64())) {
     return RTAnyType::kF64Value;
   } else if (type->Equals(arrow::boolean())) {
@@ -349,6 +365,9 @@ RTAny::RTAny(const Any& val) {
   } else if (val.type == PropertyType::UInt32()) {
     type_ = RTAnyType::kU32Value;
     value_.i32_val = val.AsUInt32();
+  } else if (val.type == PropertyType::Float()) {
+    type_ = RTAnyType::kF32Value;
+    value_.f32_val = val.AsFloat();
   } else if (val.type == PropertyType::kDouble) {
     type_ = RTAnyType::kF64Value;
     value_.f64_val = val.AsDouble();
@@ -391,6 +410,9 @@ RTAny::RTAny(const EdgeData& val) {
   } else if (val.type == RTAnyType::kU32Value) {
     type_ = RTAnyType::kU32Value;
     value_.u32_val = val.value.u32_val;
+  } else if (val.type == RTAnyType::kF32Value) {
+    type_ = RTAnyType::kF32Value;
+    value_.f32_val = val.value.f32_val;
   } else if (val.type == RTAnyType::kF64Value) {
     type_ = RTAnyType::kF64Value;
     value_.f64_val = val.value.f64_val;
@@ -438,6 +460,8 @@ RTAny::RTAny(const RTAny& rhs) : type_(rhs.type_) {
     value_.t = rhs.value_.t;
   } else if (type_ == RTAnyType::kList) {
     value_.list = rhs.value_.list;
+  } else if (type_ == RTAnyType::kF32Value) {
+    value_.f32_val = rhs.value_.f32_val;
   } else if (type_ == RTAnyType::kF64Value) {
     value_.f64_val = rhs.value_.f64_val;
   } else if (type_ == RTAnyType::kMap) {
@@ -478,6 +502,8 @@ RTAny& RTAny::operator=(const RTAny& rhs) {
     value_.t = rhs.value_.t;
   } else if (type_ == RTAnyType::kList) {
     value_.list = rhs.value_.list;
+  } else if (type_ == RTAnyType::kF32Value) {
+    value_.f32_val = rhs.value_.f32_val;
   } else if (type_ == RTAnyType::kF64Value) {
     value_.f64_val = rhs.value_.f64_val;
   } else if (type_ == RTAnyType::kMap) {
@@ -513,6 +539,8 @@ Any RTAny::to_any() const {
     return Any(value_.i32_val);
   case RTAnyType::kU32Value:
     return Any(value_.u32_val);
+  case RTAnyType::kF32Value:
+    return Any(value_.f32_val);
   case RTAnyType::kF64Value:
     return Any(value_.f64_val);
   case RTAnyType::kStringValue:
@@ -636,6 +664,13 @@ RTAny RTAny::from_list(const List& l) {
   return ret;
 }
 
+RTAny RTAny::from_float(float v) {
+  RTAny ret;
+  ret.type_ = RTAnyType::kF32Value;
+  ret.value_.f32_val = v;
+  return ret;
+}
+
 RTAny RTAny::from_double(double v) {
   RTAny ret;
   ret.type_ = RTAnyType::kF64Value;
@@ -714,6 +749,11 @@ TimeStamp RTAny::as_timestamp() const {
 Interval RTAny::as_interval() const {
   assert(type_ == RTAnyType::kInterval);
   return value_.interval_val;
+}
+
+float RTAny::as_float() const {
+  assert(type_ == RTAnyType::kF32Value);
+  return value_.f32_val;
 }
 
 double RTAny::as_double() const {
@@ -830,6 +870,10 @@ int RTAny::numerical_cmp(const RTAny& other) const {
       auto ret = value_.i64_val - other.value_.u32_val;
       return ret > 0 ? 1 : (ret < 0 ? -1 : 0);
     }
+    case RTAnyType::kF32Value: {
+      auto ret = value_.i64_val - other.value_.f32_val;
+      return ret > 0 ? 1 : (ret < 0 ? -1 : 0);
+    }
     case RTAnyType::kF64Value: {
       auto ret = value_.i64_val - other.value_.f64_val;
       return ret > 0 ? 1 : (ret < 0 ? -1 : 0);
@@ -843,6 +887,10 @@ int RTAny::numerical_cmp(const RTAny& other) const {
     switch (other.type_) {
     case RTAnyType::kI64Value: {
       auto ret = value_.i32_val - other.value_.i64_val;
+      return ret > 0 ? 1 : (ret < 0 ? -1 : 0);
+    }
+    case RTAnyType::kF32Value: {
+      auto ret = value_.i32_val - other.value_.f32_val;
       return ret > 0 ? 1 : (ret < 0 ? -1 : 0);
     }
     case RTAnyType::kF64Value: {
@@ -873,6 +921,10 @@ int RTAny::numerical_cmp(const RTAny& other) const {
       auto ret = value_.f64_val - other.value_.u32_val;
       return ret > 0 ? 1 : (ret < 0 ? -1 : 0);
     }
+    case RTAnyType::kF32Value: {
+      auto ret = value_.f64_val - other.value_.f32_val;
+      return ret > 0 ? 1 : (ret < 0 ? -1 : 0);
+    }
     default:
       THROW_NOT_SUPPORTED_EXCEPTION(
           "not support for " + std::to_string(static_cast<int>(other.type_)));
@@ -886,6 +938,10 @@ int RTAny::numerical_cmp(const RTAny& other) const {
     }
     case RTAnyType::kI32Value: {
       auto ret = value_.u32_val - other.value_.i32_val;
+      return ret > 0 ? 1 : (ret < 0 ? -1 : 0);
+    }
+    case RTAnyType::kF32Value: {
+      auto ret = value_.u32_val - other.value_.f32_val;
       return ret > 0 ? 1 : (ret < 0 ? -1 : 0);
     }
     case RTAnyType::kF64Value: {
@@ -911,6 +967,10 @@ int RTAny::numerical_cmp(const RTAny& other) const {
       auto ret = value_.u64_val - other.value_.i32_val;
       return ret > 0 ? 1 : (ret < 0 ? -1 : 0);
     }
+    case RTAnyType::kF32Value: {
+      auto ret = value_.u64_val - other.value_.f32_val;
+      return ret > 0 ? 1 : (ret < 0 ? -1 : 0);
+    }
     case RTAnyType::kF64Value: {
       auto ret = value_.u64_val - other.value_.f64_val;
       return ret > 0 ? 1 : (ret < 0 ? -1 : 0);
@@ -924,15 +984,41 @@ int RTAny::numerical_cmp(const RTAny& other) const {
           "not support for " + std::to_string(static_cast<int>(other.type_)));
     }
     break;
+  case RTAnyType::kF32Value:
+    switch (other.type_) {
+    case RTAnyType::kI64Value: {
+      auto ret = value_.f32_val - other.value_.i64_val;
+      return ret > 0 ? 1 : (ret < 0 ? -1 : 0);
+    }
+    case RTAnyType::kI32Value: {
+      auto ret = value_.f32_val - other.value_.i32_val;
+      return ret > 0 ? 1 : (ret < 0 ? -1 : 0);
+    }
+    case RTAnyType::kU32Value: {
+      auto ret = value_.f32_val - other.value_.u32_val;
+      return ret > 0 ? 1 : (ret < 0 ? -1 : 0);
+    }
+    case RTAnyType::kF64Value: {
+      auto ret = value_.f32_val - other.value_.f64_val;
+      return ret > 0 ? 1 : (ret < 0 ? -1 : 0);
+    }
+    case RTAnyType::kU64Value: {
+      auto ret = value_.f32_val - other.value_.u64_val;
+      return ret > 0 ? 1 : (ret < 0 ? -1 : 0);
+    }
+    default:
+      LOG(FATAL) << "not support for " << static_cast<int>(type_);
+    }
+    break;
   default:
     THROW_NOT_SUPPORTED_EXCEPTION("not support for " +
                                   std::to_string(static_cast<int>(type_)));
   }
-}
+}  // namespace runtime
 inline static bool is_numerical_type(const RTAnyType& type) {
   return type == RTAnyType::kI64Value || type == RTAnyType::kI32Value ||
          type == RTAnyType::kF64Value || type == RTAnyType::kU32Value ||
-         type == RTAnyType::kU64Value;
+         type == RTAnyType::kU64Value || type == RTAnyType::kF32Value;
 }
 
 bool RTAny::operator<(const RTAny& other) const {
@@ -958,6 +1044,8 @@ bool RTAny::operator<(const RTAny& other) const {
     return value_.dt_val < other.value_.dt_val;
   } else if (type_ == RTAnyType::kTimestamp) {
     return value_.ts_val < other.value_.ts_val;
+  } else if (type_ == RTAnyType::kF32Value) {
+    return value_.f32_val < other.value_.f32_val;
   } else if (type_ == RTAnyType::kF64Value) {
     return value_.f64_val < other.value_.f64_val;
   } else if (type_ == RTAnyType::kEdge) {
@@ -992,6 +1080,8 @@ bool RTAny::operator==(const RTAny& other) const {
     return value_.i32_val == other.value_.i32_val;
   } else if (type_ == RTAnyType::kU32Value) {
     return value_.u32_val == other.value_.u32_val;
+  } else if (type_ == RTAnyType::kF32Value) {
+    return value_.f32_val == other.value_.f32_val;
   } else if (type_ == RTAnyType::kF64Value) {
     return value_.f64_val == other.value_.f64_val;
   } else if (type_ == RTAnyType::kBoolValue) {
@@ -1031,6 +1121,9 @@ RTAny RTAny::operator+(const RTAny& other) const {
     left_i64 = value_.i64_val;
     left_f64 = value_.i64_val;
     has_i64 = true;
+  } else if (type_ == RTAnyType::kF32Value) {
+    left_f64 = value_.f32_val;
+    left_i64 = value_.f32_val;
   } else if (type_ == RTAnyType::kF64Value) {
     left_f64 = value_.f64_val;
     has_f64 = true;
@@ -1096,6 +1189,9 @@ RTAny RTAny::operator+(const RTAny& other) const {
   } else if (other.type_ == RTAnyType::kF64Value) {
     right_f64 = other.value_.f64_val;
     has_f64 = true;
+  } else if (other.type_ == RTAnyType::kF32Value) {
+    right_f64 = other.value_.f32_val;
+    right_i64 = other.value_.f32_val;
   } else if (other.type_ == RTAnyType::kNull) {
     THROW_RUNTIME_ERROR("RTAny::operator+ not support for null value");
   } else {
@@ -1121,6 +1217,9 @@ RTAny RTAny::operator-(const RTAny& other) const {
   }
   if (type_ == RTAnyType::kF64Value && other.type_ == RTAnyType::kF64Value) {
     return RTAny::from_double(value_.f64_val - other.value_.f64_val);
+  } else if (type_ == RTAnyType::kF32Value &&
+             other.type_ == RTAnyType::kF32Value) {
+    return RTAny::from_float(value_.f32_val - other.value_.f32_val);
   } else if (type_ == RTAnyType::kI64Value &&
              other.type_ == RTAnyType::kI64Value) {
     return RTAny::from_int64(value_.i64_val - other.value_.i64_val);
@@ -1191,6 +1290,9 @@ RTAny RTAny::operator*(const RTAny& other) const {
   } else if (type_ == RTAnyType::kF64Value) {
     left_f64 = value_.f64_val;
     has_f64 = true;
+  } else if (type_ == RTAnyType::kF32Value) {
+    left_f64 = value_.f32_val;
+    left_i64 = value_.f32_val;
   } else if (type_ == RTAnyType::kI32Value) {
     left_i64 = value_.i32_val;
     left_f64 = value_.i32_val;
@@ -1205,6 +1307,9 @@ RTAny RTAny::operator*(const RTAny& other) const {
     right_i64 = other.value_.i64_val;
     right_f64 = other.value_.i64_val;
     has_i64 = true;
+  } else if (other.type_ == RTAnyType::kF32Value) {
+    right_f64 = other.value_.f32_val;
+    right_i64 = other.value_.f32_val;
   } else if (other.type_ == RTAnyType::kF64Value) {
     right_f64 = other.value_.f64_val;
     has_f64 = true;
@@ -1241,6 +1346,9 @@ RTAny RTAny::operator/(const RTAny& other) const {
     left_i64 = value_.i64_val;
     left_f64 = value_.i64_val;
     has_i64 = true;
+  } else if (type_ == RTAnyType::kF32Value) {
+    left_f64 = value_.f32_val;
+    left_i64 = value_.f32_val;
   } else if (type_ == RTAnyType::kF64Value) {
     left_f64 = value_.f64_val;
     has_f64 = true;
@@ -1258,6 +1366,9 @@ RTAny RTAny::operator/(const RTAny& other) const {
     right_i64 = other.value_.i64_val;
     right_f64 = other.value_.i64_val;
     has_i64 = true;
+  } else if (other.type_ == RTAnyType::kF32Value) {
+    right_f64 = other.value_.f32_val;
+    right_i64 = other.value_.f32_val;
   } else if (other.type_ == RTAnyType::kF64Value) {
     right_f64 = other.value_.f64_val;
     has_f64 = true;
@@ -1330,6 +1441,8 @@ void RTAny::sink_impl(common::Value* value) const {
     value->set_str(interval_str.data(), interval_str.size());
   } else if (type_ == RTAnyType::kBoolValue) {
     value->set_boolean(value_.b_val);
+  } else if (type_ == RTAnyType::kF32Value) {
+    value->set_f32(value_.f32_val);
   } else if (type_ == RTAnyType::kF64Value) {
     value->set_f64(value_.f64_val);
   } else if (type_ == RTAnyType::kList) {
@@ -1393,6 +1506,8 @@ static void sink_edge_data(const EdgeData& any, common::Value* value) {
     value->set_i32(any.value.i32_val);
   } else if (any.type == RTAnyType::kU32Value) {
     value->set_u32(any.value.u32_val);
+  } else if (any.type == RTAnyType::kF32Value) {
+    value->set_f32(any.value.f32_val);
   } else if (any.type == RTAnyType::kF64Value) {
     value->set_f64(any.value.f64_val);
   } else if (any.type == RTAnyType::kBoolValue) {
@@ -1626,6 +1741,8 @@ void RTAny::encode_sig(RTAnyType type, Encoder& encoder) const {
     }
   } else if (type == RTAnyType::kNull) {
     encoder.put_int(-1);
+  } else if (type == RTAnyType::kF32Value) {
+    encoder.put_float(this->as_float());
   } else if (type == RTAnyType::kF64Value) {
     encoder.put_double(this->as_double());
   } else if (type == RTAnyType::kPath) {
@@ -1709,6 +1826,8 @@ std::string RTAny::to_string() const {
     return ret;
   } else if (type_ == RTAnyType::kNull) {
     return "null";
+  } else if (type_ == RTAnyType::kF32Value) {
+    return std::to_string(value_.f32_val);
   } else if (type_ == RTAnyType::kF64Value) {
     return std::to_string(value_.f64_val);
   } else if (type_ == RTAnyType::kMap) {

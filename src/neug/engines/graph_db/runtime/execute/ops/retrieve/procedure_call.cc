@@ -81,6 +81,12 @@ std::shared_ptr<IContextColumn> any_vec_to_column(
       builder.push_back_opt(any.as_uint64());
     }
     return builder.finish(nullptr);
+  } else if (first == RTAnyType::kF32Value) {
+    ValueColumnBuilder<float> builder;
+    for (auto& any : any_vec) {
+      builder.push_back_opt(any.as_float());
+    }
+    return builder.finish(nullptr);
   } else if (first == RTAnyType::kF64Value) {
     ValueColumnBuilder<double> builder;
     for (auto& any : any_vec) {
@@ -303,6 +309,8 @@ bl::result<procedure::Query> fill_in_query(const procedure::Query& query,
         const_value->set_i32(val.as_int32());
       } else if (val.type() == gs::runtime::RTAnyType::kStringValue) {
         const_value->set_str(std::string(val.as_string()));
+      } else if (val.type() == gs::runtime::RTAnyType::kF32Value) {
+        const_value->set_f32(val.as_float());
       } else if (val.type() == gs::runtime::RTAnyType::kF64Value) {
         const_value->set_f64(val.as_double());
       } else if (val.type() == gs::runtime::RTAnyType::kBoolValue) {

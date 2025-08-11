@@ -362,23 +362,24 @@ enum class RTAnyType {
   kU64Value = 3,
   kI32Value = 4,
   kU32Value = 5,
-  kF64Value = 6,
-  kBoolValue = 7,
-  kStringValue = 8,
-  kUnknown = 9,
-  kDate = 10,
-  kDateTime = 11,
-  kTimestamp = 12,
-  kInterval = 13,
-  kPath = 14,
-  kNull = 15,
-  kTuple = 16,
-  kList = 17,
-  kMap = 18,
-  kRelation = 19,
-  kSet = 20,
-  kEmpty = 21,
-  kRecordView = 22,
+  kF32Value = 6,
+  kF64Value = 7,
+  kBoolValue = 8,
+  kStringValue = 9,
+  kUnknown = 10,
+  kDate = 11,
+  kDateTime = 12,
+  kTimestamp = 13,
+  kInterval = 14,
+  kPath = 15,
+  kNull = 16,
+  kTuple = 17,
+  kList = 18,
+  kMap = 19,
+  kRelation = 20,
+  kSet = 21,
+  kEmpty = 22,
+  kRecordView = 23,
 };
 
 PropertyType rt_type_to_property_type(RTAnyType type);
@@ -426,6 +427,8 @@ struct EdgeData {
       return value.u64_val;
     } else if constexpr (std::is_same_v<T, double>) {
       return value.f64_val;
+    } else if constexpr (std::is_same_v<T, float>) {
+      return value.f32_val;
     } else if constexpr (std::is_same_v<T, bool>) {
       return value.b_val;
     } else if constexpr (std::is_same_v<T, std::string_view>) {
@@ -456,6 +459,9 @@ struct EdgeData {
     } else if constexpr (std::is_same_v<T, uint64_t>) {
       type = RTAnyType::kU64Value;
       value.u64_val = val;
+    } else if constexpr (std::is_same_v<T, float>) {
+      type = RTAnyType::kF32Value;
+      value.f32_val = static_cast<float>(val);
     } else if constexpr (std::is_same_v<T, double>) {
       type = RTAnyType::kF64Value;
       value.f64_val = val;
@@ -495,6 +501,7 @@ struct EdgeData {
     uint32_t u32_val;
     int64_t i64_val;
     uint64_t u64_val;
+    float f32_val;
     double f64_val;
     bool b_val;
     pod_string_view str_val;
@@ -541,6 +548,7 @@ union RTAnyValue {
   uint64_t u64_val;
   int i32_val;
   uint32_t u32_val;
+  float f32_val;
   double f64_val;
   // Day day;
   Date date_val;
@@ -595,6 +603,7 @@ class RTAny {
 
   static RTAny from_tuple(const Tuple& tuple);
   static RTAny from_list(const List& list);
+  static RTAny from_float(float v);
   static RTAny from_double(double v);
   static RTAny from_map(const Map& m);
   static RTAny from_set(const Set& s);
@@ -609,6 +618,7 @@ class RTAny {
   DateTime as_datetime() const;
   Interval as_interval() const;
   TimeStamp as_timestamp() const;
+  float as_float() const;
   double as_double() const;
   VertexRecord as_vertex() const;
   const EdgeRecord& as_edge() const;
@@ -658,6 +668,8 @@ class RTAny {
       encoder.put_int(value_.i32_val);
     } else if (type_ == RTAnyType::kU32Value) {
       encoder.put_uint(value_.u32_val);
+    } else if (type_ == RTAnyType::kF32Value) {
+      encoder.put_float(static_cast<float>(value_.f32_val));
     } else if (type_ == RTAnyType::kF64Value) {
       int64_t long_value;
       std::memcpy(&long_value, &value_.f64_val, sizeof(long_value));
@@ -701,6 +713,15 @@ struct TypedConverter<bool> {
   static bool to_typed(const RTAny& val) { return val.as_bool(); }
   static RTAny from_typed(bool val) { return RTAny::from_bool(val); }
   static const std::string name() { return "bool"; }
+  static bool typed_from_string(const std::string& str) {
+    if (str == "true" || str == "1") {
+      return true;
+    } else if (str == "false" || str == "0") {
+      return false;
+    } else {
+      LOG(FATAL) << "Invalid boolean string: " << str;
+    }
+  }
 };
 template <>
 struct TypedConverter<int32_t> {
@@ -764,6 +785,17 @@ struct TypedConverter<int64_t> {
   static const std::string name() { return "int64"; }
   static int64_t typed_from_string(const std::string& str) {
     return std::stoll(str);
+  }
+};
+
+template <>
+struct TypedConverter<float> {
+  static RTAnyType type() { return RTAnyType::kF32Value; }
+  static float to_typed(const RTAny& val) { return val.as_float(); }
+  static RTAny from_typed(float val) { return RTAny::from_float(val); }
+  static const std::string name() { return "float"; }
+  static float typed_from_string(const std::string& str) {
+    return std::stof(str);
   }
 };
 

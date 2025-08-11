@@ -229,6 +229,8 @@ class ListValueColumn : public ListValueColumnBase {
       return {builder.finish(nullptr), offsets};
     } else if (elem_type_ == RTAnyType::kI64Value) {
       return unfold_impl<int64_t>();
+    } else if (elem_type_ == RTAnyType::kI32Value) {
+      return unfold_impl<int32_t>();
     } else if (elem_type_ == RTAnyType::kF64Value) {
       return unfold_impl<double>();
     } else if (elem_type_ == RTAnyType::kI32Value) {

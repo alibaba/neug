@@ -900,6 +900,10 @@ PathExpand::single_source_shortest_path_with_special_vertex_predicate(
   } else if (pred.data_type() == RTAnyType::kTimestamp) {
     return _single_shortest_path<TimeStamp>(graph, std::move(ctx), params,
                                             pred);
+  } else if (pred.data_type() == RTAnyType::kBoolValue) {
+    return _single_shortest_path<bool>(graph, std::move(ctx), params, pred);
+  } else if (pred.data_type() == RTAnyType::kF32Value) {
+    return _single_shortest_path<float>(graph, std::move(ctx), params, pred);
   } else if (pred.data_type() == RTAnyType::kF64Value) {
     return _single_shortest_path<double>(graph, std::move(ctx), params, pred);
   } else if (pred.data_type() == RTAnyType::kI32Value) {

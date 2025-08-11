@@ -668,6 +668,9 @@ bl::result<Context> EdgeExpand::expand_edge_with_special_edge_predicate(
   } else if (pred.data_type() == RTAnyType::kU64Value) {
     return _expand_edge_with_special_edge_predicate<uint64_t>(
         graph, std::move(ctx), params, pred);
+  } else if (pred.data_type() == RTAnyType::kF32Value) {
+    return _expand_edge_with_special_edge_predicate<float>(
+        graph, std::move(ctx), params, pred);
   } else if (pred.data_type() == RTAnyType::kF64Value) {
     return _expand_edge_with_special_edge_predicate<double>(
         graph, std::move(ctx), params, pred);
@@ -676,9 +679,6 @@ bl::result<Context> EdgeExpand::expand_edge_with_special_edge_predicate(
         graph, std::move(ctx), params, pred);
   } else if (pred.data_type() == RTAnyType::kTimestamp) {
     return _expand_edge_with_special_edge_predicate<TimeStamp>(
-        graph, std::move(ctx), params, pred);
-  } else if (pred.data_type() == RTAnyType::kF64Value) {
-    return _expand_edge_with_special_edge_predicate<double>(
         graph, std::move(ctx), params, pred);
   } else {
     LOG(ERROR) << "not support edge property type "
@@ -1074,14 +1074,23 @@ bl::result<Context> EdgeExpand::expand_vertex_with_special_vertex_predicate(
   } else if (pred.data_type() == RTAnyType::kTimestamp) {
     return _expand_vertex_with_special_vertex_predicate<TimeStamp>(
         graph, std::move(ctx), params, pred);
+  } else if (pred.data_type() == RTAnyType::kI32Value) {
+    return _expand_vertex_with_special_vertex_predicate<int32_t>(
+        graph, std::move(ctx), params, pred);
+  } else if (pred.data_type() == RTAnyType::kU32Value) {
+    return _expand_vertex_with_special_vertex_predicate<uint32_t>(
+        graph, std::move(ctx), params, pred);
+  } else if (pred.data_type() == RTAnyType::kU64Value) {
+    return _expand_vertex_with_special_vertex_predicate<uint64_t>(
+        graph, std::move(ctx), params, pred);
+  } else if (pred.data_type() == RTAnyType::kF32Value) {
+    return _expand_vertex_with_special_vertex_predicate<float>(
+        graph, std::move(ctx), params, pred);
   } else if (pred.data_type() == RTAnyType::kF64Value) {
     return _expand_vertex_with_special_vertex_predicate<double>(
         graph, std::move(ctx), params, pred);
   } else if (pred.data_type() == RTAnyType::kStringValue) {
     return _expand_vertex_with_special_vertex_predicate<std::string_view>(
-        graph, std::move(ctx), params, pred);
-  } else if (pred.data_type() == RTAnyType::kI32Value) {
-    return _expand_vertex_with_special_vertex_predicate<int32_t>(
         graph, std::move(ctx), params, pred);
   } else if (pred.data_type() == RTAnyType::kTimestamp) {
     return _expand_vertex_with_special_vertex_predicate<TimeStamp>(

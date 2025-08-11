@@ -352,6 +352,8 @@ class SPOrderByLimitOpr : public IReadOperator {
       ret = _invoke<int32_t>(graph, std::move(ctx), std::move(sp_vertex_pred));
     } else if (sp_vertex_pred->data_type() == RTAnyType::kI64Value) {
       ret = _invoke<int64_t>(graph, std::move(ctx), std::move(sp_vertex_pred));
+    } else if (sp_vertex_pred->data_type() == RTAnyType::kF32Value) {
+      ret = _invoke<float>(graph, std::move(ctx), std::move(sp_vertex_pred));
     } else if (sp_vertex_pred->data_type() == RTAnyType::kF64Value) {
       ret = _invoke<double>(graph, std::move(ctx), std::move(sp_vertex_pred));
     } else if (sp_vertex_pred->data_type() == RTAnyType::kTimestamp) {
