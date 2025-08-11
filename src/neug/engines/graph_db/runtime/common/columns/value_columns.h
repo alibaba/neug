@@ -332,10 +332,7 @@ class OptionalValueColumn : public IValueColumn<T> {
   }
   inline RTAny get_elem(size_t idx) const override {
     if (!valid_[idx]) {
-      if constexpr ((!std::is_same_v<T, std::string_view>) &&(
-                        !std::is_same_v<T, std::string>) ) {
-        return RTAny::Null();
-      }
+      return RTAny::Null();
     }
     return TypedConverter<T>::from_typed(data_[idx]);
   }
