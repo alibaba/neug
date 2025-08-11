@@ -544,6 +544,8 @@ static RTAny parse_const_value(const common::Value& val) {
     return RTAny(RTAnyType::kNull);
   case common::Value::kF64:
     return RTAny::from_double(val.f64());
+  case common::Value::kF32:
+    return RTAny::from_float(val.f32());
   default:
     LOG(FATAL) << "not support for " << val.item_case();
   }

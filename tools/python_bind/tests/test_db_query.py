@@ -73,6 +73,30 @@ def test_create_schema_basic_types(tmp_path):
     db.close()
 
 
+def test_create_schema_float_types(tmp_path):
+    db_dir = tmp_path / "schema_basic_types"
+    db_dir.mkdir()
+    db = Database(db_path=str(db_dir), mode="w")
+    conn = db.connect()
+
+    conn.execute(
+        "CREATE NODE TABLE PERSON(int32_prop INT32, float_prop FLOAT, "
+        "PRIMARY KEY(int32_prop));"
+    )
+
+    conn.execute("CREATE (n:PERSON {int32_prop: 1, float_prop: 2.3});")
+
+    result = conn.execute("MATCH (n:PERSON) RETURN *;")
+    assert result is not None and len(result) == 1
+
+    result = conn.execute(
+        "MATCH (n:PERSON) WHERE n.float_prop > 4.5 RETURN n.float_prop;"
+    )
+
+    conn.close()
+    db.close()
+
+
 @pytest.mark.skip(reason="complex types are not supported yet")
 def test_create_schema_complex_types(tmp_path):
     db_dir = tmp_path / "schema_types"
