@@ -503,10 +503,10 @@ void to_arrow_csv_options(
                           parse_options.escaping, parse_options.escape_char,
                           read_options, column_types.size());
   if (read_options.column_names.size() != column_types.size()) {
-    THROW_RUNTIME_ERROR("Schema mismatch: column names size (" +
-                        std::to_string(read_options.column_names.size()) +
-                        ") does not match column types size (" +
-                        std::to_string(column_types.size()) + ")");
+    THROW_SCHEMA_MISMATCH("Schema mismatch: column names size (" +
+                          std::to_string(read_options.column_names.size()) +
+                          ") does not match column types size (" +
+                          std::to_string(column_types.size()) + ")");
   }
   // Currently we assume the column_types are corresponding to column names
   put_column_types_option(column_types, read_options.column_names,

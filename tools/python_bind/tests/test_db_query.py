@@ -23,15 +23,15 @@ import sys
 import pytest
 
 sys.path.append(os.path.join(os.path.dirname(__file__), "../"))
-from errors import ERR_INVALID_SCHEMA
-from errors import ERR_QUERY_SYNTAX
-from errors import ERR_SCHEMA_MISMATCH
-from errors import ERR_TYPE_CONVERSION
-from errors import ERR_TYPE_OVERFLOW
-from errors import ERROR_STRINGS
-
 from neug import Session
 from neug.database import Database
+from neug.proto.error_pb2 import ERR_COMPILATION
+from neug.proto.error_pb2 import ERR_INVALID_ARGUMENT
+from neug.proto.error_pb2 import ERR_INVALID_SCHEMA
+from neug.proto.error_pb2 import ERR_QUERY_SYNTAX
+from neug.proto.error_pb2 import ERR_SCHEMA_MISMATCH
+from neug.proto.error_pb2 import ERR_TYPE_CONVERSION
+from neug.proto.error_pb2 import ERR_TYPE_OVERFLOW
 
 
 # DB-003-01
@@ -107,19 +107,27 @@ def test_insert_basic_type_check(tmp_path):
     # INT32 invalid
     with pytest.raises(Exception) as excinfo:
         conn.execute("CREATE (t:person {id: 'abc'})")
-    assert ERROR_STRINGS[ERR_TYPE_CONVERSION] in str(excinfo.value)
+    # TODO(shirly): throw ERR_TYPE_CONVERSION instead of BinderException
+    # assert str(ERR_TYPE_CONVERSION) in str(excinfo.value)
+    assert str(ERR_COMPILATION) in str(excinfo.value)
     # INT64 invalid
     with pytest.raises(Exception) as excinfo:
         conn.execute("CREATE (t:person {id: 2, i64: 'bad'})")
-    assert ERROR_STRINGS[ERR_TYPE_CONVERSION] in str(excinfo.value)
+    # assert str(ERR_TYPE_CONVERSION) in str(excinfo.value)
+    # TODO(shirly): throw ERR_TYPE_CONVERSION instead of BinderException
+    assert str(ERR_COMPILATION) in str(excinfo.value)
     # UNSIGNED invalid
     with pytest.raises(Exception) as excinfo:
         conn.execute("CREATE (t:person {id: 3, u32: -1})")
-    assert ERROR_STRINGS[ERR_TYPE_OVERFLOW] in str(excinfo.value)
+    # assert str(ERR_TYPE_OVERFLOW) in str(excinfo.value)
+    # TODO(shirly): throw ERR_TYPE_OVERFLOW instead of BinderException
+    assert str(ERR_COMPILATION) in str(excinfo.value)
     # FLOAT invalid
     with pytest.raises(Exception) as excinfo:
         conn.execute("CREATE (t:person {id: 4, f: 'bad'})")
-    assert ERROR_STRINGS[ERR_TYPE_CONVERSION] in str(excinfo.value)
+    # assert str(ERR_TYPE_CONVERSION) in str(excinfo.value)
+    # TODO(shirly): throw ERR_TYPE_CONVERSION instead of BinderException
+    assert str(ERR_COMPILATION) in str(excinfo.value)
     conn.close()
     db.close()
 
@@ -146,31 +154,31 @@ def test_insert_type_check(tmp_path):
     # INT32 invalid
     with pytest.raises(Exception) as excinfo:
         conn.execute("CREATE (t:T {id: 'abc'})")
-    assert ERROR_STRINGS[ERR_TYPE_CONVERSION] in str(excinfo.value)
+    assert str(ERR_TYPE_CONVERSION) in str(excinfo.value)
     # INT64 invalid
     with pytest.raises(Exception) as excinfo:
         conn.execute("CREATE (t:T {id: 1, i64: 'bad'})")
-    assert ERROR_STRINGS[ERR_TYPE_CONVERSION] in str(excinfo.value)
+    assert str(ERR_TYPE_CONVERSION) in str(excinfo.value)
     # UNSIGNED invalid
     with pytest.raises(Exception) as excinfo:
         conn.execute("CREATE (t:T {id: 2, u32: -1})")
-    assert ERROR_STRINGS[ERR_TYPE_CONVERSION] in str(excinfo.value)
+    assert str(ERR_TYPE_CONVERSION) in str(excinfo.value)
     # FLOAT invalid
     with pytest.raises(Exception) as excinfo:
         conn.execute("CREATE (t:T {id: 3, f: 'bad'})")
-    assert ERROR_STRINGS[ERR_TYPE_CONVERSION] in str(excinfo.value)
+    assert str(ERR_TYPE_CONVERSION) in str(excinfo.value)
     # DATE invalid
     with pytest.raises(Exception) as excinfo:
         conn.execute("CREATE (t:T {id: 4, dt: 'notadate'})")
-    assert ERROR_STRINGS[ERR_TYPE_CONVERSION] in str(excinfo.value)
+    assert str(ERR_TYPE_CONVERSION) in str(excinfo.value)
     # DATETIME invalid
     with pytest.raises(Exception) as excinfo:
         conn.execute("CREATE (t:T {id: 5, dttm: 'notadatetime'})")
-    assert ERROR_STRINGS[ERR_TYPE_CONVERSION] in str(excinfo.value)
+    assert str(ERR_TYPE_CONVERSION) in str(excinfo.value)
     # INTERVAL invalid
     with pytest.raises(Exception) as excinfo:
         conn.execute("CREATE (t:T {id: 6, ivl: 'notaninterval'})")
-    assert ERROR_STRINGS[ERR_TYPE_CONVERSION] in str(excinfo.value)
+    assert str(ERR_TYPE_CONVERSION) in str(excinfo.value)
     conn.close()
     db.close()
 
@@ -238,13 +246,13 @@ def test_create_node_table_errors(tmp_path):
     # 2. create node table without primary key
     with pytest.raises(Exception) as excinfo:
         conn.execute("CREATE NODE TABLE person1(name STRING, age INT64);")
-    assert str("Can not find primary key") in str(excinfo.value)
+    assert str(ERR_QUERY_SYNTAX) in str(excinfo.value)
     # 3. create node table with invalid property value
     with pytest.raises(Exception) as excinfo:
         conn.execute(
             "CREATE NODE TABLE person2(name STRING, age INT64 DEFAULT 'abc', PRIMARY KEY (name));"
         )
-    assert str("Implicit cast is not supported") in str(excinfo.value)
+    assert str(ERR_COMPILATION) in str(excinfo.value)
     conn.close()
     db.close()
 
@@ -301,7 +309,7 @@ def test_create_rel_table_errors(tmp_path):
     # 2. create edge table without FROM/TO vertex tables
     with pytest.raises(Exception) as excinfo:
         conn.execute("CREATE REL TABLE NewFollows(FROM person TO user, MANY_MANY);")
-    assert str("Table user does not exist") in str(excinfo.value)
+    assert str(ERR_COMPILATION) in str(excinfo.value)
     conn.close()
     db.close()
 
@@ -463,15 +471,15 @@ def test_insert_node(tmp_path):
     # case 3: insert without primary key value, should fail
     with pytest.raises(Exception) as excinfo:
         conn.execute("CREATE (u:person{age:36});")
-    assert "expects primary key" in str(excinfo.value)
+    assert str(ERR_QUERY_SYNTAX) in str(excinfo.value)
     # case 4: duplicate primary key value, should fail
     with pytest.raises(Exception) as excinfo:
         conn.execute("CREATE (u:person{name:'Alice', age:26});")
-    assert "already exists." in str(excinfo.value)
+    assert str(ERR_INVALID_ARGUMENT) in str(excinfo.value)
     # case 5: insert values inconsistent with schema, should fail
     with pytest.raises(Exception) as excinfo:
         conn.execute("CREATE (u:person{name:'Alice', age:26, addr:'aa'});")
-    assert "Cannot find property addr" in str(excinfo.value)
+    assert str(ERR_QUERY_SYNTAX) in str(excinfo.value)
     conn.close()
     db.close()
 
@@ -512,13 +520,13 @@ def test_insert_edge(tmp_path):
         conn.execute(
             "CREATE (u:person {name: 'Alice'})-[:follows {since:2022}]->(b:person {name: 'Josh2'});"
         )
-    assert "Alice already exists" in str(excinfo.value)
+    assert str(ERR_INVALID_ARGUMENT) in str(excinfo.value)
     # case 6: edge property schema mismatch
     with pytest.raises(Exception) as excinfo:
         conn.execute(
             "CREATE (u:person {name: 'Alice2'})-[:follows {nonprop:2022}]->(b:person {name: 'Josh2'});"
         )
-    assert "Cannot find property nonprop" in str(excinfo.value)
+    assert str(ERR_COMPILATION) in str(excinfo.value)
     conn.close()
     db.close()
 

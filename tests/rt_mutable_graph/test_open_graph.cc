@@ -167,7 +167,7 @@ bool test_rw_conflict(const std::string& data_path) {
   {
     try {
       auto db2 = gs::NeugDB(data_path, 1, "w", "gopt");
-    } catch (const gs::exception::IOException& e) {
+    } catch (const gs::exception::DatabaseLockedException& e) {
       LOG(INFO) << "Caught expected error: " << e.what();
       return true;  // Expected error, test passes
     } catch (const std::exception& e) {
@@ -184,7 +184,7 @@ bool test_rw_conflict(const std::string& data_path) {
       LOG(ERROR) << "Expected an error when opening in read mode while write "
                     "lock is held, but got success.";
       return false;  // Test fails if no error is thrown
-    } catch (const std::runtime_error& e) {
+    } catch (const gs::exception::DatabaseLockedException& e) {
       LOG(INFO) << "Caught expected error: " << e.what();
       return true;  // Expected error, test passes
     } catch (const std::exception& e) {

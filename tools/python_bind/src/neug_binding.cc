@@ -13,12 +13,14 @@
  * limitations under the License.
  */
 
+#include <pybind11/gil_safe_call_once.h>
 #include <pybind11/pybind11.h>
 #include <iostream>
 #include <string>
 
 #include <glog/logging.h>
 #include "neug/main/file_lock.h"
+#include "neug/utils/exception/exception.h"
 #include "py_connection.h"
 #include "py_database.h"
 #include "py_query_result.h"
@@ -70,6 +72,26 @@ PYBIND11_MODULE(neug_py_bind, m) {
 
   // Setup signal handling, for cleaning up resources on exit.
   gs::setup_signal_handler();
+
+  // Register exception translation for Python.
+  PYBIND11_CONSTINIT static py::gil_safe_call_once_and_store<py::object>
+      exc_storage;
+  exc_storage.call_once_and_store_result([&]() {
+    return py::exception<gs::exception::Exception>(m, "Exception");
+  });
+  pybind11::register_exception_translator([](std::exception_ptr p) {
+    try {
+      if (p) {
+        std::rethrow_exception(p);
+      }
+    } catch (const gs::exception::Exception& e) {
+      pybind11::set_error(PyExc_RuntimeError, e.what());
+    } catch (const std::exception& e) {
+      pybind11::set_error(PyExc_RuntimeError, e.what());
+    } catch (...) {
+      pybind11::set_error(PyExc_RuntimeError, "Unknown exception");
+    }
+  });
 
   gs::setup_logging();
 }

@@ -35,7 +35,9 @@ class PyQueryResult {
   PyQueryResult(const std::string& result_str)
       : status_(Status::OK()), query_result_(QueryResult::From(result_str)) {}
 
-  PyQueryResult(const Status& status) : status_(status) {}
+  PyQueryResult(const Status& status) : status_(status) {
+    LOG(INFO) << "PyQueryResult created with status: " << status.ToString();
+  }
 
   ~PyQueryResult() { close(); }
 

@@ -22,16 +22,17 @@ import sys
 import pytest
 
 sys.path.append(os.path.join(os.path.dirname(__file__), "../"))
-from errors import ERR_BAD_ENCODING
-from errors import ERR_DIRECTORY_NOT_EXIST
-from errors import ERR_INVALID_FILE
-from errors import ERR_PERMISSION
-from errors import ERR_QUERY_SYNTAX
-from errors import ERR_SCHEMA_MISMATCH
-from errors import ERR_TYPE_CONVERSION
-from errors import ERROR_STRINGS
-
 from neug.database import Database
+from neug.proto.error_pb2 import ERR_BAD_ENCODING
+from neug.proto.error_pb2 import ERR_COMPILATION
+from neug.proto.error_pb2 import ERR_DIRECTORY_NOT_EXIST
+from neug.proto.error_pb2 import ERR_INVALID_ARGUMENT
+from neug.proto.error_pb2 import ERR_INVALID_FILE
+from neug.proto.error_pb2 import ERR_IO_ERROR
+from neug.proto.error_pb2 import ERR_PERMISSION
+from neug.proto.error_pb2 import ERR_QUERY_SYNTAX
+from neug.proto.error_pb2 import ERR_SCHEMA_MISMATCH
+from neug.proto.error_pb2 import ERR_TYPE_CONVERSION
 
 
 # DB-005-01
@@ -79,9 +80,9 @@ def test_import_bad_csv(tmp_path):
     with open(csv_path, "wb") as f:
         f.write(b"id\n1\n\xff\n2\n")
 
-    with pytest.raises(Exception):
+    with pytest.raises(Exception) as excinfo:
         conn.execute(f'COPY person FROM "{csv_path}";')
-    # TODO(zhanglei): fix the error code
+    assert str(ERR_IO_ERROR) in str(excinfo.value)
     conn.close()
     db.close()
 
@@ -143,10 +144,9 @@ def test_import_type_conversion_overflow(tmp_path):
     with open(csv_path, "w") as f:
         f.write("id\n12345678901234567890\n")  # INT64 overflow
     # This should raise an error due to type conversion failure
-    with pytest.raises(Exception):
+    with pytest.raises(Exception) as excinfo:
         conn.execute(f'COPY person FROM "{csv_path}";')
-    # TODO(zhanglei): fix the error code
-    # assert ERROR_STRINGS[ERR_TYPE_CONVERSION] in str(excinfo.value)
+    assert str(ERR_IO_ERROR) in str(excinfo.value)
     conn.close()
     db.close()
 
@@ -242,7 +242,7 @@ def test_import_file_not_found(tmp_path):
     conn.execute("CREATE NODE TABLE person(id INT64, PRIMARY KEY(id));")
     with pytest.raises(Exception) as excinfo:
         conn.execute('COPY person FROM "/not/exist.csv";')
-    assert ERROR_STRINGS[ERR_INVALID_FILE] in str(excinfo.value)
+    assert str(ERR_COMPILATION) in str(excinfo.value)
     conn.close()
     db.close()
 
@@ -262,7 +262,7 @@ def test_export_no_permission(tmp_path):
         with pytest.raises(Exception) as excinfo:
             conn.execute(f'COPY (MATCH (v:person) RETURN v) to "{out_path}";')
             print(str(excinfo.value))
-        assert ERROR_STRINGS[ERR_PERMISSION] in str(excinfo.value)
+        assert str(ERR_PERMISSION) in str(excinfo.value)
     finally:
         os.chmod(out_dir, 0o700)
     conn.close()
@@ -281,8 +281,7 @@ def test_import_schema_mismatch(tmp_path):
         f.write("id|name\n1|Alice\n")
     with pytest.raises(Exception) as excinfo:
         conn.execute(f'COPY person FROM "{csv_path}";')
-    # assert ERROR_STRINGS[ERR_SCHEMA_MISMATCH] in str(excinfo.value)
-    assert "Schema mismatch" in str(excinfo.value)  # TODO(zhanglei): fix the error code
+    assert str(ERR_SCHEMA_MISMATCH) in str(excinfo.value)
     conn.close()
     db.close()
 
@@ -297,10 +296,9 @@ def test_import_bad_encoding(tmp_path):
     csv_path = tmp_path / "badenc.csv"
     with open(csv_path, "wb") as f:
         f.write(b"id\n1\n\xff\n")
-    with pytest.raises(Exception):
+    with pytest.raises(Exception) as excinfo:
         conn.execute(f'COPY person FROM "{csv_path}";')
-    # TODO(zhanglei): fix the error code
-    # assert ERROR_STRINGS[ERR_BAD_ENCODING] in str(excinfo.value)
+    assert str(ERR_IO_ERROR) in str(excinfo.value)
     conn.close()
     db.close()
 

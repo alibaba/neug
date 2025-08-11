@@ -22,17 +22,15 @@ import sys
 import pytest
 
 sys.path.append(os.path.join(os.path.dirname(__file__), "../"))
-from errors import ERR_CONFIG_INVALID
-from errors import ERR_CORRUPTION_DETECTED
-from errors import ERR_DATABASE_LOCKED
-from errors import ERR_DISK_SPACE_EXHAUSTED
-from errors import ERR_INVALID_ARGUMENT
-from errors import ERR_INVALID_PATH
-from errors import ERR_PERMISSION
-from errors import ERR_VERSION_MISMATCHED
-from errors import ERROR_STRINGS
-
 from neug.database import Database
+from neug.proto.error_pb2 import ERR_CONFIG_INVALID
+from neug.proto.error_pb2 import ERR_CORRUPTION_DETECTED
+from neug.proto.error_pb2 import ERR_DATABASE_LOCKED
+from neug.proto.error_pb2 import ERR_DISK_SPACE_EXHAUSTED
+from neug.proto.error_pb2 import ERR_INVALID_ARGUMENT
+from neug.proto.error_pb2 import ERR_INVALID_PATH
+from neug.proto.error_pb2 import ERR_PERMISSION
+from neug.proto.error_pb2 import ERR_VERSION_MISMATCHED
 
 
 # DB-001-01 & DB-001-02
@@ -122,7 +120,7 @@ def test_rw_mode_exclusive(tmp_path):
     try:
         with pytest.raises(Exception) as excinfo:
             Database(db_path=str(db_dir), mode="w")
-        assert ERROR_STRINGS[ERR_DATABASE_LOCKED] in str(excinfo.value)
+        assert str(ERR_DATABASE_LOCKED) in str(excinfo.value)
     finally:
         db1.close()
 
@@ -134,7 +132,7 @@ def test_rw_ro_conflict(tmp_path):
     try:
         with pytest.raises(Exception) as excinfo:
             Database(db_path=str(db_dir), mode="r")
-        assert ERROR_STRINGS[ERR_DATABASE_LOCKED] in str(excinfo.value)
+        assert str(ERR_DATABASE_LOCKED) in str(excinfo.value)
     finally:
         db1.close()
 
@@ -148,7 +146,6 @@ def test_readonly_write_operation(tmp_path):
         conn.execute("CREATE NODE TABLE person(id INT32, PRIMARY KEY(id));")
         conn.close()
     db_ro.close()
-    # TODO: error code should be ERR_PERMISSION??
     assert str(ERR_INVALID_ARGUMENT) in str(excinfo.value)
 
 
@@ -156,7 +153,7 @@ def test_readonly_write_operation(tmp_path):
 def test_invalid_path():
     with pytest.raises(Exception) as excinfo:
         Database(db_path="??/illegal", mode="r")
-    assert ERROR_STRINGS[ERR_INVALID_PATH] in str(excinfo.value)
+    assert str(ERR_INVALID_PATH) in str(excinfo.value)
     # remove the invalid path after the test
     if os.path.exists("??/illegal"):
         os.system("rm -rf ??/")
@@ -201,16 +198,13 @@ def test_config_param_exception(tmp_path):
     db_dir = tmp_path / "config_db_exception"
     with pytest.raises(Exception) as excinfo:
         Database(db_path=str(db_dir), mode="rw", max_thread_num=-1)
-        # TODO: error code should be ERR_INVALID_ARGUMENT
-    assert ERROR_STRINGS[ERR_CONFIG_INVALID] in str(excinfo.value)
+    assert str(ERR_CONFIG_INVALID) in str(excinfo.value)
     with pytest.raises(ValueError) as excinfo:
         Database(db_path=str(db_dir), mode="red")
-        # TODO: error code should be ERR_INVALID_ARGUMENT
-        assert "Invalid mode: red" in str(excinfo.value)
+        assert str(ERR_INVALID_ARGUMENT) in str(excinfo.value)
     with pytest.raises(TypeError) as excinfo:
         Database(db_path=str(db_dir), mode="write", planner="gopt123")
-        # TODO: error code should be ERR_INVALID_ARGUMENT
-        assert "unexpected keyword argument" in str(excinfo.value)
+        assert str(ERR_INVALID_ARGUMENT) in str(excinfo.value)
 
 
 def test_config_param_boundary(tmp_path):
@@ -220,7 +214,7 @@ def test_config_param_boundary(tmp_path):
         max_cores = os.cpu_count() or 1
         # max_thread_num should not exceed the number of cores
         Database(str(db_dir), "w", max_thread_num=max_cores + 1)
-    assert ERROR_STRINGS[ERR_INVALID_ARGUMENT] in str(excinfo.value)
+    assert str(ERR_INVALID_ARGUMENT) in str(excinfo.value)
 
 
 # DB-001-12
@@ -234,7 +228,7 @@ def test_open_no_permission(tmp_path):
     try:
         with pytest.raises(Exception) as excinfo:
             Database(db_path=str(db_dir), mode="w")
-        assert ERROR_STRINGS[ERR_PERMISSION] in str(excinfo.value)
+        assert str(ERR_PERMISSION) in str(excinfo.value)
     finally:
         os.chmod(db_dir, 0o700)
 
@@ -256,7 +250,7 @@ def test_open_version_mismatch(tmp_path):
     # Attempt to open the database
     with pytest.raises(Exception) as excinfo:
         Database(db_path=str(db_dir), mode="r")
-    assert ERROR_STRINGS[ERR_VERSION_MISMATCHED] in str(excinfo.value)
+    assert str(ERR_VERSION_MISMATCHED) in str(excinfo.value)
 
 
 # DB-001-14
@@ -270,7 +264,7 @@ def test_open_dir_not_exist(tmp_path):
     try:
         with pytest.raises(Exception) as excinfo:
             Database(db_path=str(db_dir), mode="w")
-        assert ERROR_STRINGS[ERR_PERMISSION] in str(excinfo.value)
+        assert str(ERR_PERMISSION) in str(excinfo.value)
     finally:
         os.chmod(db_dir, 0o700)
 
@@ -289,7 +283,7 @@ def test_disk_space_exhausted(monkeypatch, tmp_path):
     monkeypatch.setattr(os, "open", mock_open)
     with pytest.raises(Exception) as excinfo:
         Database(db_path=str(db_dir), mode="w")
-    assert ERROR_STRINGS[ERR_DISK_SPACE_EXHAUSTED] in str(excinfo.value)
+    assert str(ERR_DISK_SPACE_EXHAUSTED) in str(excinfo.value)
 
 
 # DB-001-16
@@ -307,7 +301,7 @@ def test_file_header_corruption(tmp_path):
     try:
         Database(db_path=str(db_dir), mode="w")
     except Exception as exc:
-        assert ERROR_STRINGS[ERR_CORRUPTION_DETECTED] in str(exc)
+        assert str(ERR_CORRUPTION_DETECTED) in str(exc)
     else:
         pytest.fail("Expected ERR_CORRUPTION_DETECTED but no exception was raised")
 

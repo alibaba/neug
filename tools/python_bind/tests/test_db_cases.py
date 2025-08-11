@@ -23,11 +23,9 @@ import sys
 import pytest
 
 sys.path.append(os.path.join(os.path.dirname(__file__), "../"))
-from errors import ERR_TYPE_CONVERSION
-from errors import ERR_TYPE_OVERFLOW
-from errors import ERROR_STRINGS
-
 from neug.database import Database
+from neug.proto.error_pb2 import ERR_TYPE_CONVERSION
+from neug.proto.error_pb2 import ERR_TYPE_OVERFLOW
 
 
 @pytest.mark.skip(reason="failed")

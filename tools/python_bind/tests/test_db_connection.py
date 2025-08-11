@@ -24,16 +24,14 @@ import time
 import pytest
 
 sys.path.append(os.path.join(os.path.dirname(__file__), "../"))
-from errors import ERR_CONFIG_INVALID
-from errors import ERR_CONNECTION_CLOSED
-from errors import ERR_INVALID_ARGUMENT
-from errors import ERR_LOAD_OVERFLOW
-from errors import ERR_NETWORK
-from errors import ERR_POOL_EXHAUSTED
-from errors import ERR_SESSION_CLOSED
-from errors import ERROR_STRINGS
-
 from neug.database import Database
+from neug.proto.error_pb2 import ERR_CONFIG_INVALID
+from neug.proto.error_pb2 import ERR_CONNECTION_CLOSED
+from neug.proto.error_pb2 import ERR_INVALID_ARGUMENT
+from neug.proto.error_pb2 import ERR_LOAD_OVERFLOW
+from neug.proto.error_pb2 import ERR_NETWORK
+from neug.proto.error_pb2 import ERR_POOL_EXHAUSTED
+from neug.proto.error_pb2 import ERR_SESSION_CLOSED
 
 
 # DB-002-01
@@ -79,8 +77,7 @@ def test_local_connection_invalid_param(tmp_path):
     db_dir = tmp_path / "local_conn_invalid_db"
     with pytest.raises(Exception) as excinfo:
         Database(db_path=str(db_dir), mode="w", max_thread_num=-1)
-    # TODO: error code should be ERR_INVALID_ARGUMENT
-    assert ERROR_STRINGS[ERR_CONFIG_INVALID] in str(excinfo.value)
+    assert str(ERR_CONFIG_INVALID) in str(excinfo.value)
 
 
 @pytest.fixture
@@ -133,10 +130,10 @@ def test_remote_connection_wrong_ip_port(started_server):
 
     with pytest.raises(Exception) as excinfo:
         Session("http://256.256.256.256:10000/")
-    assert ERROR_STRINGS[ERR_NETWORK] in str(excinfo.value)
+    assert str(ERR_NETWORK) in str(excinfo.value)
     with pytest.raises(Exception) as excinfo:
         Session("http://127.0.0.1:65536/")
-    assert ERROR_STRINGS[ERR_NETWORK] in str(excinfo.value)
+    assert str(ERR_NETWORK) in str(excinfo.value)
 
 
 # DB-002-09
@@ -152,7 +149,7 @@ def test_remote_connection_broken(started_server):
         session.execute(
             "CREATE NODE TABLE person(id INT64, name STRING, age INT64, PRIMARY KEY(id));"
         )
-    assert ERROR_STRINGS[ERR_NETWORK] in str(excinfo.value)
+    assert str(ERR_NETWORK) in str(excinfo.value)
     session.close()
 
 
@@ -170,7 +167,7 @@ def test_tx_not_commit_connection_broken(started_server):
     time.sleep(5)
     with pytest.raises(Exception) as excinfo:
         session.commit()
-    assert ERROR_STRINGS[ERR_SESSION_CLOSED] in str(excinfo.value)
+    assert str(ERR_SESSION_CLOSED) in str(excinfo.value)
     # reconnect and check if the transaction is rolled back
     session2 = Session.open(endpoint)
     # TODO: do we support to query schema directly?
@@ -194,7 +191,7 @@ def test_server_load_overflow(started_server):
                 s = Session.open(endpoint)
                 sessions.append(s)
             except Exception as exc:
-                assert ERROR_STRINGS[ERR_LOAD_OVERFLOW] in str(exc)
+                assert str(ERR_LOAD_OVERFLOW) in str(exc)
                 break
         else:
             pytest.fail("Expected ERR_LOAD_OVERFLOW but did not get exception")
@@ -216,7 +213,7 @@ def test_local_connection_after_close(tmp_path):
     conn.close()
     with pytest.raises(Exception) as excinfo:
         conn.execute("MATCH (n) RETURN n")
-    assert ERROR_STRINGS[ERR_CONNECTION_CLOSED] in str(excinfo.value)
+    assert str(ERR_CONNECTION_CLOSED) in str(excinfo.value)
     db.close()
 
 
@@ -233,7 +230,7 @@ def test_remote_connection_after_close(started_server):
         session.execute(
             "CREATE NODE TABLE person(id INT64, name STRING, age INT64, PRIMARY KEY(id));"
         )
-    assert ERROR_STRINGS[ERR_SESSION_CLOSED] in str(excinfo.value)
+    assert str(ERR_SESSION_CLOSED) in str(excinfo.value)
 
 
 # DB-002-13
@@ -256,7 +253,7 @@ def test_server_restart(started_server):
                 "CREATE NODE TABLE person(id INT64, name STRING, age INT64, PRIMARY KEY(id));"
             )
         except Exception as e:
-            assert ERROR_STRINGS[ERR_SESSION_CLOSED] in str(e)
+            assert str(ERR_SESSION_CLOSED) in str(e)
     finally:
         # session.close()
         db.close()
@@ -273,5 +270,5 @@ def test_connection_pool_exhausted(started_server):
     # try to open more connections than the pool limit
     with pytest.raises(Exception) as excinfo:
         Session.open(endpoint)
-    assert ERROR_STRINGS[ERR_POOL_EXHAUSTED] in str(excinfo.value)
+    assert str(ERR_POOL_EXHAUSTED) in str(excinfo.value)
     s1.close()

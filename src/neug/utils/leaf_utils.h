@@ -88,6 +88,26 @@ namespace bl = boost::leaf;
         status = gs::Status(gs::StatusCode::ERR_INVALID_ARGUMENT, err.what()); \
         return ret_value;                                                      \
       },                                                                       \
+      [&](const gs::exception::PermissionDeniedException& err) {               \
+        status = gs::Status(gs::StatusCode::ERR_PERMISSION, err.what());       \
+        return ret_value;                                                      \
+      },                                                                       \
+      [&](const gs::exception::DatabaseLockedException& err) {                 \
+        status = gs::Status(gs::StatusCode::ERR_DATABASE_LOCKED, err.what());  \
+        return ret_value;                                                      \
+      },                                                                       \
+      [&](const gs::exception::BinderException& err) {                         \
+        status = gs::Status(gs::StatusCode::ERR_COMPILATION, err.what());      \
+        return ret_value;                                                      \
+      },                                                                       \
+      [&](const gs::exception::CatalogException& err) {                        \
+        status = gs::Status(gs::StatusCode::ERR_COMPILATION, err.what());      \
+        return ret_value;                                                      \
+      },                                                                       \
+      [&](const gs::exception::CheckpointException& err) {                     \
+        status = gs::Status(gs::StatusCode::ERR_INTERNAL_ERROR, err.what());   \
+        return ret_value;                                                      \
+      },                                                                       \
       [&](const gs::exception::InternalException& err) {                       \
         status = gs::Status(gs::StatusCode::ERR_INTERNAL_ERROR, err.what());   \
         return ret_value;                                                      \
@@ -118,6 +138,50 @@ namespace bl = boost::leaf;
       },                                                                       \
       [&](const gs::exception::ExtensionException& err) {                      \
         status = gs::Status(gs::StatusCode::ERR_EXTENSION, err.what());        \
+        return ret_value;                                                      \
+      },                                                                       \
+      [&](const gs::exception::IOException& err) {                             \
+        status = gs::Status(gs::StatusCode::ERR_IO_ERROR, err.what());         \
+        return ret_value;                                                      \
+      },                                                                       \
+      [&](const gs::exception::NotImplementedException& err) {                 \
+        status = gs::Status(gs::StatusCode::ERR_NOT_IMPLEMENTED, err.what());  \
+        return ret_value;                                                      \
+      },                                                                       \
+      [&](const gs::exception::NotFoundException& err) {                       \
+        status = gs::Status(gs::StatusCode::ERR_NOT_FOUND, err.what());        \
+        return ret_value;                                                      \
+      },                                                                       \
+      [&](const gs::exception::NotSupportedException& err) {                   \
+        status = gs::Status(gs::StatusCode::ERR_NOT_SUPPORTED, err.what());    \
+        return ret_value;                                                      \
+      },                                                                       \
+      [&](const gs::exception::OverflowException& err) {                       \
+        status = gs::Status(gs::StatusCode::ERR_TYPE_OVERFLOW, err.what());    \
+        return ret_value;                                                      \
+      },                                                                       \
+      [&](const gs::exception::ParserException& err) {                         \
+        status = gs::Status(gs::StatusCode::ERR_COMPILATION, err.what());      \
+        return ret_value;                                                      \
+      },                                                                       \
+      [&](const gs::exception::StorageException& err) {                        \
+        status = gs::Status(gs::StatusCode::ERR_INTERNAL_ERROR, err.what());   \
+        return ret_value;                                                      \
+      },                                                                       \
+      [&](const gs::exception::RuntimeError& err) {                            \
+        status = gs::Status(gs::StatusCode::ERR_INTERNAL_ERROR, err.what());   \
+        return ret_value;                                                      \
+      },                                                                       \
+      [&](const gs::exception::TestException& err) {                           \
+        status = gs::Status(gs::StatusCode::ERR_INTERNAL_ERROR, err.what());   \
+        return ret_value;                                                      \
+      },                                                                       \
+      [&](const gs::exception::TransactionManagerException& err) {             \
+        status = gs::Status(gs::StatusCode::ERR_INTERNAL_ERROR, err.what());   \
+        return ret_value;                                                      \
+      },                                                                       \
+      [&](const gs::exception::SchemaMismatchException& err) {                 \
+        status = gs::Status(gs::StatusCode::ERR_SCHEMA_MISMATCH, err.what());  \
         return ret_value;                                                      \
       },                                                                       \
       [&](const gs::exception::Exception& err) {                               \

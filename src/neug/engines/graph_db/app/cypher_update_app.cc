@@ -242,6 +242,9 @@ Result<results::CollectiveResults> CypherUpdateApp::execute_ddl(
   } catch (const exception::ConversionException& e) {
     LOG(ERROR) << "Conversion error: " << e.what();
     return Status(StatusCode::ERR_TYPE_CONVERSION, e.what());
+  } catch (const exception::BinderException& e) {
+    LOG(ERROR) << "Binder error: " << e.what();
+    return Status(StatusCode::ERR_COMPILATION, e.what());
   } catch (const exception::RuntimeError& e) {
     LOG(ERROR) << "Runtime error: " << e.what();
     return Status(StatusCode::ERR_INTERNAL_ERROR, e.what());
@@ -254,6 +257,12 @@ Result<results::CollectiveResults> CypherUpdateApp::execute_ddl(
   } catch (const exception::ExtensionException& e) {
     LOG(ERROR) << "Extension error: " << e.what();
     return Status(StatusCode::ERR_EXTENSION, e.what());
+  } catch (const exception::QueryExecutionError& e) {
+    LOG(ERROR) << "Query execution error: " << e.what();
+    return Status(StatusCode::ERR_QUERY_EXECUTION, e.what());
+  } catch (const exception::SchemaMismatchException& e) {
+    LOG(ERROR) << "Schema mismatch error: " << e.what();
+    return Status(StatusCode::ERR_SCHEMA_MISMATCH, e.what());
   } catch (const exception::Exception& e) {
     LOG(ERROR) << "Exception: " << e.what();
     return Status(StatusCode::ERR_INTERNAL_ERROR, e.what());

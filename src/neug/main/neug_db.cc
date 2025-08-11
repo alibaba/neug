@@ -83,7 +83,7 @@ std::shared_ptr<Connection> NeugDB::connect() {
     std::unique_lock<std::mutex> lock(connection_mutex_);
     if (read_write_connection_) {
       LOG(ERROR) << "There is already a read-write connection constructed.";
-      THROW_RUNTIME_ERROR(
+      THROW_TX_STATE_CONFLICT(
           "There is already a read-write connection constructed.");
     }
     read_write_connection_ =

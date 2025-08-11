@@ -20,6 +20,8 @@
 #include <fstream>
 #include <iostream>
 
+#include "neug/utils/exception/exception.h"
+
 namespace gs {
 
 bool FileLock::lock(std::string& error_msg, DBMode mode) {
@@ -33,9 +35,8 @@ bool FileLock::lock(std::string& error_msg, DBMode mode) {
       // Get the error message if the file cannot be opened
       error_msg = "Failed to open lock file: " + lock_file_path_ +
                   ", error: " + std::string(strerror(errno));
-      VLOG(10) << error_msg;
       LOG(ERROR) << error_msg;
-      return false;
+      THROW_IO_EXCEPTION(error_msg);
     }
     std::string line;
     std::getline(lock_file, line);
@@ -48,7 +49,7 @@ bool FileLock::lock(std::string& error_msg, DBMode mode) {
             ", if you are sure you want to proceed(in case the process "
             "has already died), please remove the lock file manually.";
         LOG(ERROR) << error_msg;
-        return false;
+        THROW_DATABASE_LOCKED_EXCEPTION(error_msg);
       }
       LOG(INFO) << "Database is locked for read access, proceeding in "
                    "read-only mode.";
@@ -58,7 +59,8 @@ bool FileLock::lock(std::string& error_msg, DBMode mode) {
                   ", if you are sure you want to proceed(in case the process "
                   "has already died), please remove the "
                   "lock file manually.";
-      return false;
+      LOG(ERROR) << error_msg;
+      THROW_DATABASE_LOCKED_EXCEPTION(error_msg);
     } else {
       error_msg = "Unknown lock type in lock file: " + line;
       LOG(ERROR) << error_msg;
@@ -69,6 +71,17 @@ bool FileLock::lock(std::string& error_msg, DBMode mode) {
   int32_t fd = ::open(lock_file_path_.c_str(), O_CREAT | O_EXCL | O_RDWR, 0600);
   if (fd < 0) {
     error_msg = "Failed to create lock file: " + std::string(strerror(errno));
+    if (errno == EACCES) {
+      THROW_PERMISSION_DENIED(
+          "Permission denied when trying to create lock file: " +
+          lock_file_path_);
+    } else if (errno == EEXIST) {
+      error_msg = "Lock file already exists: " + lock_file_path_ +
+                  ", if you are sure you want to proceed(in case the process "
+                  "has already died), please remove the lock file manually.";
+    } else {
+      error_msg = "Failed to create lock file: " + std::string(strerror(errno));
+    }
     LOG(ERROR) << error_msg;
     return false;
   }

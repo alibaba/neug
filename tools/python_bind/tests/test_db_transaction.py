@@ -24,15 +24,14 @@ import time
 import pytest
 
 sys.path.append(os.path.join(os.path.dirname(__file__), "../"))
-from errors import ERR_INVALID_SCHEMA
-from errors import ERR_QUERY_SYNTAX
-from errors import ERR_SCHEMA_MISMATCH
-from errors import ERR_TX_STATE_CONFLICT
-from errors import ERR_TX_TIMEOUT
-from errors import ERR_TYPE_CONVERSION
-from errors import ERROR_STRINGS
-
 from neug.database import Database
+from neug.proto.error_pb2 import ERR_COMPILATION
+from neug.proto.error_pb2 import ERR_INVALID_SCHEMA
+from neug.proto.error_pb2 import ERR_QUERY_SYNTAX
+from neug.proto.error_pb2 import ERR_SCHEMA_MISMATCH
+from neug.proto.error_pb2 import ERR_TX_STATE_CONFLICT
+from neug.proto.error_pb2 import ERR_TX_TIMEOUT
+from neug.proto.error_pb2 import ERR_TYPE_CONVERSION
 
 
 # DB-004-01
@@ -56,7 +55,7 @@ def test_ap_write_concurrent(tmp_path):
     with pytest.raises(Exception) as excinfo:
         # in rw mode, only one connection is allowed
         db.connect()
-    assert ERROR_STRINGS[ERR_TX_STATE_CONFLICT] in str(excinfo.value)
+    assert str(ERR_TX_STATE_CONFLICT) in str(excinfo.value)
     conn.close()
     db.close()
 
@@ -69,7 +68,7 @@ def test_ap_read_write_concurrent():
     with pytest.raises(Exception) as excinfo:
         # in rw mode, only one connection is allowed
         db.connect()
-    assert ERROR_STRINGS[ERR_TX_STATE_CONFLICT] in str(excinfo.value)
+    assert str(ERR_TX_STATE_CONFLICT) in str(excinfo.value)
     conn.close()
     db.close()
 
@@ -168,31 +167,32 @@ def test_auto_transaction_management(tmp_path):
     # create with errors, rollback automatically
     with pytest.raises(Exception) as excinfo:
         conn.execute("CREATE (n:T {id: 'bad_type'});")
-    assert ERROR_STRINGS[ERR_TYPE_CONVERSION] in str(excinfo.value)
+    # TODO(xiaoli): Raise ConversionException instead of BinderException
+    assert str(ERR_COMPILATION) in str(excinfo.value)
     r2 = conn.execute("MATCH (n:T) RETURN n;")
     assert len(r2) == 1
 
     with pytest.raises(Exception) as excinfo:
         conn.execute("CREATE NODE TABLE T(id INT32, PRIMARY KEY(id));")
-    assert ERROR_STRINGS[ERR_INVALID_SCHEMA] in str(excinfo.value)
+    assert str(ERR_INVALID_SCHEMA) in str(excinfo.value)
     r3 = conn.execute("MATCH (n:T) RETURN n;")
     assert len(r3) == 1
 
     with pytest.raises(Exception) as excinfo:
         conn.execute("ALTER TABLE T DROP not_exist;")
-    assert ERROR_STRINGS[ERR_INVALID_SCHEMA] in str(excinfo.value)
+    assert str(ERR_INVALID_SCHEMA) in str(excinfo.value)
     r4 = conn.execute("MATCH (n:T) RETURN n;")
     assert len(r4) == 1
 
     with pytest.raises(Exception) as excinfo:
         conn.execute("DROP TABLE not_exist;")
-    assert ERROR_STRINGS[ERR_INVALID_SCHEMA] in str(excinfo.value)
+    assert str(ERR_INVALID_SCHEMA) in str(excinfo.value)
     r5 = conn.execute("MATCH (n:T) RETURN n;")
     assert len(r5) == 1
 
     with pytest.raises(Exception) as excinfo:
         conn.execute("MATCH (n:T) WHERE n.id = 1 SET n.not_exist = 1;")
-    assert ERROR_STRINGS[ERR_QUERY_SYNTAX] in str(excinfo.value)
+    assert str(ERR_QUERY_SYNTAX) in str(excinfo.value)
     r6 = conn.execute("MATCH (n:T) RETURN n;")
     assert len(r6) == 1
 
@@ -226,7 +226,7 @@ def test_manual_transaction_management(tmp_path):
     conn.execute("BEGIN TRANSACTION;")
     with pytest.raises(Exception) as excinfo:
         conn.execute("CREATE NODE TABLE T(id INT32, PRIMARY KEY(id));")  # 已存在
-    assert ERROR_STRINGS[ERR_SCHEMA_MISMATCH] in str(excinfo.value)
+    assert str(ERR_SCHEMA_MISMATCH) in str(excinfo.value)
     conn.execute("ROLLBACK;")
     r3 = conn.execute("MATCH (n:T) RETURN n;")
     assert len(r3) == 1
@@ -235,7 +235,7 @@ def test_manual_transaction_management(tmp_path):
     conn.execute("BEGIN TRANSACTION;")
     with pytest.raises(Exception) as excinfo:
         conn.execute("ALTER TABLE T DROP COLUMN not_exist;")
-    assert ERROR_STRINGS[ERR_SCHEMA_MISMATCH] in str(excinfo.value)
+    assert str(ERR_SCHEMA_MISMATCH) in str(excinfo.value)
     conn.execute("ROLLBACK;")
     r4 = conn.execute("MATCH (n:T) RETURN n;")
     assert len(r4) == 1
@@ -244,7 +244,7 @@ def test_manual_transaction_management(tmp_path):
     conn.execute("BEGIN TRANSACTION;")
     with pytest.raises(Exception) as excinfo:
         conn.execute("DROP TABLE not_exist;")
-    assert ERROR_STRINGS[ERR_SCHEMA_MISMATCH] in str(excinfo.value)
+    assert str(ERR_SCHEMA_MISMATCH) in str(excinfo.value)
     conn.execute("ROLLBACK;")
     r5 = conn.execute("MATCH (n:T) RETURN n;")
     assert len(r5) == 1
@@ -253,7 +253,7 @@ def test_manual_transaction_management(tmp_path):
     conn.execute("BEGIN TRANSACTION;")
     with pytest.raises(Exception) as excinfo:
         conn.execute("MATCH (n:T) WHERE n.id = 1 SET n.not_exist = 1;")
-    assert ERROR_STRINGS[ERR_SCHEMA_MISMATCH] in str(excinfo.value)
+    assert str(ERR_SCHEMA_MISMATCH) in str(excinfo.value)
     conn.execute("ROLLBACK;")
     r6 = conn.execute("MATCH (n:T) RETURN n;")
     assert len(r6) == 1
@@ -272,7 +272,7 @@ def test_readonly_transaction_write(tmp_path):
     conn.execute("BEGIN TRANSACTION READ ONLY;")
     with pytest.raises(Exception) as excinfo:
         conn.execute("CREATE NODE TABLE T(id INT32, PRIMARY KEY(id));")
-    assert ERROR_STRINGS[ERR_TX_STATE_CONFLICT] in str(excinfo.value)
+    assert str(ERR_TX_STATE_CONFLICT) in str(excinfo.value)
     conn.execute("ROLLBACK;")
     conn.close()
     db.close()
@@ -306,7 +306,7 @@ def test_transaction_timeout(tmp_path):
     time.sleep(5)
     with pytest.raises(Exception) as excinfo:
         conn.execute("COMMIT;")
-    assert ERROR_STRINGS[ERR_TX_TIMEOUT] in str(excinfo.value)
+    assert str(ERR_TX_TIMEOUT) in str(excinfo.value)
     conn.close()
     db.close()
 

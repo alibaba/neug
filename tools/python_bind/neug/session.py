@@ -30,6 +30,8 @@ except ImportError as e:
         # re-raise the import error if building documentation
         raise e
 
+from neug.proto.error_pb2 import ERR_NETWORK
+from neug.proto.error_pb2 import ERR_SESSION_CLOSED
 from neug.proto.results_pb2 import CollectiveResults
 from neug.query_result import QueryResult
 
@@ -98,7 +100,7 @@ class Session:
                 f"Failed to connect to the endpoint {self._status_endpoint}: {e}"
             )
             raise ConnectionError(
-                f"Could not connect to the endpoint: {self._status_endpoint}"
+                f"Could not connect to the endpoint: {self._status_endpoint}, Error code: {ERR_NETWORK}"
             ) from e
         logger.info(
             f"Session initialized with endpoint: {endpoint} and timeout: {self.timeout}"
@@ -146,7 +148,9 @@ class Session:
         """
         if self._closed:
             logger.error("Session is closed. Cannot execute query.")
-            raise ConnectionError("Session is closed. Cannot execute query.")
+            raise ConnectionError(
+                f"Session is closed. Cannot execute query, Error code: {ERR_SESSION_CLOSED}"
+            )
         logger.info(
             f"Executing query: {query} on endpoint: {self._query_endpoint} with timeout: {self.timeout}"
         )
@@ -159,7 +163,7 @@ class Session:
             logger.error(f"Request failed: {e}, {e.errno}")
             if "Connection refused" in str(e):
                 raise Exception(
-                    "Could not connect to the server. Is the server running?"
+                    f"Could not connect to the server. Is the server running? Error code {ERR_NETWORK}"
                 ) from e
             raise Exception(f"Failed to execute query: {query}") from e
         if response.status_code != 200:

@@ -30,6 +30,9 @@ except ImportError as e:
 
 from neug.async_connection import AsyncConnection
 from neug.connection import Connection
+from neug.proto.error_pb2 import ERR_CONFIG_INVALID
+from neug.proto.error_pb2 import ERR_INVALID_ARGUMENT
+from neug.proto.error_pb2 import ERR_INVALID_PATH
 from neug.version import __version__
 
 logger = logging.getLogger(__name__)
@@ -127,7 +130,8 @@ class Database(object):
         if isinstance(db_path, str):
             if any(char in db_path for char in self._illegal_chars):
                 raise ValueError(
-                    f"invalid path: database path '{db_path}' contains illegal characters: {self._illegal_chars}."
+                    f"invalid path: database path '{db_path}' contains illegal characters: {self._illegal_chars},"
+                    f"error code: {ERR_INVALID_PATH}."
                 )
         self._db_path = db_path if db_path is not None else ""
         self._mode = mode
@@ -156,12 +160,14 @@ class Database(object):
         if max_thread_num < 0:
             raise ValueError(
                 f"Invalid config: max_thread_num: {max_thread_num}. Must be a non-negative integer."
+                f"Error code: {ERR_CONFIG_INVALID}."
             )
 
         if max_thread_num > os.cpu_count():
             raise ValueError(
                 f"Invalid argument: max_thread_num: {max_thread_num}. "
                 f"Must be less than or equal to the number of CPU cores: {os.cpu_count()}."
+                f" Error code: {ERR_INVALID_ARGUMENT}."
             )
 
         if db_path is None and mode in ["r", "read", "read-only", "read_only"]:

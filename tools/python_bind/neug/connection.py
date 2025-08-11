@@ -18,6 +18,8 @@
 
 """The Neug connection module."""
 
+import logging
+
 try:
     from neug_py_bind import PyConnection
 except ImportError as e:
@@ -27,11 +29,14 @@ except ImportError as e:
         # re-raise the import error if building documentation
         raise e
 
+from neug.proto.error_pb2 import ERR_CONNECTION_CLOSED
 from neug.proto.error_pb2 import OK
 from neug.proto.error_pb2 import Code
 
 # This is the C++ binding for the Python interface, which provides the actual connection to the database.
 from neug.query_result import QueryResult
+
+logger = logging.getLogger(__name__)
 
 
 class Connection(object):
@@ -123,10 +128,15 @@ class Connection(object):
         """
         if not self._is_open:
             raise RuntimeError(
-                "Connection is closed. Please open the connection before executing queries."
+                f"Connection is closed. Please open the connection before executing queries."
+                f"Error code: {ERR_CONNECTION_CLOSED}"
             )
         ret = QueryResult(self._py_connection.execute(query))
         status_code = ret._result.status_code()
+        try:
+            msg = ret._result.status_message()
+        except UnicodeDecodeError:
+            msg = "Failed to decode the error message returned from engine"
 
         if status_code == OK:
             return ret
@@ -134,5 +144,5 @@ class Connection(object):
             raise RuntimeError(
                 f"Failed to execute query: {query}. "
                 f"Error code: {status_code}, Error Message: "
-                f"{Code.keys()[Code.values().index(status_code)]}: {ret._result.status_message()}"
+                f"{Code.keys()[Code.values().index(status_code)]}: {msg}"
             )
