@@ -112,3 +112,12 @@ class TestICBench(unittest.TestCase):
         )
         for record in result:
             assert record[0] == 933, f"Expected value 933, got {record[0]}"
+
+        # test to_tuple function
+        # todo(engine): VariableKeys is deprecated by ToTuple in PB.
+        submit_cypher_query(
+            conn=self.conn,
+            query="Match (n:PERSON {id: 933})"
+            " Return [n.firstName, n.gender, n.birthday] as n2 LIMIT 1;",
+            lambda_func=ensure_result_cnt_gt_zero,
+        )

@@ -677,6 +677,19 @@ static std::unique_ptr<ExprBase> parse_expression_impl(
     const common::Expression& expr, VarType var_type);
 
 template <typename GraphInterface>
+std::unique_ptr<ExprBase> make_var_or_const_expr(
+    const GraphInterface& graph, const Context& ctx,
+    const common::CompositeField& field, VarType var_type) {
+  if (field.has_var()) {
+    return std::make_unique<VariableExpr>(graph, ctx, field.var(), var_type);
+  } else if (field.has_value()) {
+    return std::make_unique<ConstExpr>(parse_const_value(field.value()));
+  } else {
+    LOG(FATAL) << "not support" + field.DebugString();
+  }
+}
+
+template <typename GraphInterface>
 static std::unique_ptr<ExprBase> build_expr(
     const GraphInterface& graph, const Context& ctx,
     const std::map<std::string, std::string>& params,
@@ -825,6 +838,32 @@ static std::unique_ptr<ExprBase> build_expr(
       // Create a ConstExpr with the parsed Interval
       return std::make_unique<ConstExpr>(
           RTAny::from_interval(interval.AsInterval()));
+    }
+
+    case common::ExprOpr::kToTuple: {
+      const auto& compisite_fields = opr.to_tuple().fields();
+      if (compisite_fields.size() == 3) {
+        std::array<std::unique_ptr<ExprBase>, 3> exprs;
+        for (int i = 0; i < compisite_fields.size(); ++i) {
+          exprs[i] = std::move(make_var_or_const_expr(
+              graph, ctx, compisite_fields[i], var_type));
+        }
+        return TypedTupleBuilder<3, 3>().build_typed_tuple(std::move(exprs));
+      } else if (compisite_fields.size() == 2) {
+        std::array<std::unique_ptr<ExprBase>, 2> exprs;
+        for (int i = 0; i < compisite_fields.size(); ++i) {
+          exprs[i] = std::move(make_var_or_const_expr(
+              graph, ctx, compisite_fields[i], var_type));
+        }
+        return TypedTupleBuilder<2, 2>().build_typed_tuple(std::move(exprs));
+      }
+
+      std::vector<std::unique_ptr<ExprBase>> exprs;
+      for (int i = 0; i < compisite_fields.size(); ++i) {
+        exprs.push_back(std::move(
+            make_var_or_const_expr(graph, ctx, compisite_fields[i], var_type)));
+      }
+      return std::make_unique<TupleExpr>(std::move(exprs));
     }
 
     case common::ExprOpr::kVars: {
@@ -988,6 +1027,11 @@ static std::unique_ptr<ExprBase> parse_expression_impl(
     }
 
     case common::ExprOpr::kToDatetime: {
+      opr_stack2.push(*it);
+      break;
+    }
+
+    case common::ExprOpr::kToTuple: {
       opr_stack2.push(*it);
       break;
     }

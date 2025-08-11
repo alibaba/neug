@@ -310,31 +310,6 @@ TEST_F(ExprTest, COUNT_DISTINCT_LABEL) {
       *physical, getExprResource("COUNT_DISTINCT_LABEL_physical"));
 }
 
-TEST_F(ExprTest, ARRAY_FUNC_NUMERIC) {
-  std::string query = "RETURN [3, 2.0, 4]";
-  auto logical = planLogical(query, schemaData, statsData, rules);
-  auto physical = planPhysical(*logical);
-  VerifyFactory::verifyPhysicalByJson(
-      *physical, getExprResource("ARRAY_FUNC_NUMERIC_physical"));
-}
-
-TEST_F(ExprTest, ARRAY_FUNC_STRING) {
-  std::string query = "RETURN [CAST(3, 'STRING'), 'abc']";
-  auto logical = planLogical(query, schemaData, statsData, rules);
-  auto physical = planPhysical(*logical);
-  VerifyFactory::verifyPhysicalByJson(
-      *physical, getExprResource("ARRAY_FUNC_STRING_physical"));
-}
-
-TEST_F(ExprTest, ARRAY_FUNC_VAR) {
-  std::string query =
-      "MATCH (f: person) RETURN [f.fName, CAST(f.gender, 'STRING')]";
-  auto logical = planLogical(query, schemaData, statsData, rules);
-  auto physical = planPhysical(*logical);
-  VerifyFactory::verifyPhysicalByJson(
-      *physical, getExprResource("ARRAY_FUNC_VAR_physical"));
-}
-
 TEST_F(ExprTest, CASE_ELSE) {
   std::string query =
       "MATCH (p: person) RETURN p, CASE WHEN p.registerTime >= "
@@ -346,6 +321,32 @@ TEST_F(ExprTest, CASE_ELSE) {
   auto physical = planPhysical(*logical);
   VerifyFactory::verifyPhysicalByJson(*physical,
                                       getExprResource("CASE_ELSE_physical"));
+}
+
+TEST_F(ExprTest, ARRAY_FUNC_LITERAL) {
+  std::string query = "Match (n:person) RETURN [3, 2.0, 4, 'name']";
+  auto logical = planLogical(query, schemaData, statsData, rules);
+  auto physical = planPhysical(*logical);
+  VerifyFactory::verifyPhysicalByJson(
+      *physical, getExprResource("ARRAY_FUNC_LITERAL_physical"));
+}
+
+TEST_F(ExprTest, ARRAY_FUNC_CAST_LITERAL) {
+  std::string query =
+      "Match (n:person) RETURN [CAST(3, 'uint32'), 2.0, 4, 'name']";
+  auto logical = planLogical(query, schemaData, statsData, rules);
+  auto physical = planPhysical(*logical);
+  VerifyFactory::verifyPhysicalByJson(
+      *physical, getExprResource("ARRAY_FUNC_CAST_LITERAL_physical"));
+}
+
+TEST_F(ExprTest, ARRAY_FUNC_VAR) {
+  std::string query =
+      "Match (n:person) RETURN [n.gender, n.fName, n.registerTime]";
+  auto logical = planLogical(query, schemaData, statsData, rules);
+  auto physical = planPhysical(*logical);
+  VerifyFactory::verifyPhysicalByJson(
+      *physical, getExprResource("ARRAY_FUNC_VAR_physical"));
 }
 
 }  // namespace gopt

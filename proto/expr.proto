@@ -155,8 +155,20 @@ message PathFunction {
   common.IrDataType node_type = 6;
 }
 
+// to be deprecated
 message VariableKeys {
   repeated Variable keys = 1;
+}
+
+message CompositeField {
+  oneof field {
+    common.Value value = 1;
+    Variable var = 2;
+  }
+}
+
+message ToTuple {
+  repeated CompositeField fields = 1;
 }
 
 message VariableKeyValue {
@@ -293,6 +305,7 @@ message ExprOpr {
     ToDate to_date = 19;
     ToDatetime to_datetime = 20;
     ToInterval to_interval = 21;
+    ToTuple to_tuple = 22;
   }
   // The data of type of ExprOpr
   common.IrDataType node_type = 12;

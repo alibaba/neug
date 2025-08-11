@@ -33,10 +33,11 @@ void ListCreationFunction::execFunc(
 static std::unique_ptr<FunctionBindData> bindFunc(
     const ScalarBindFuncInput& input) {
   LogicalType combinedType(LogicalTypeID::ANY);
-  binder::ExpressionUtil::tryCombineDataType(input.arguments, combinedType);
-  if (combinedType.getLogicalTypeID() == LogicalTypeID::ANY) {
-    combinedType = LogicalType::INT64();
-  }
+  // Support `ANY` composite type in array, the following codes are deprecated.
+  // binder::ExpressionUtil::tryCombineDataType(input.arguments, combinedType);
+  // if (combinedType.getLogicalTypeID() == LogicalTypeID::ANY) {
+  //   combinedType = LogicalType::INT64();
+  // }
   auto resultType = LogicalType::LIST(combinedType.copy());
   auto bindData = std::make_unique<FunctionBindData>(std::move(resultType));
   for (auto& _ : input.arguments) {

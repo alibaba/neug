@@ -90,14 +90,17 @@ pybind11::object value_to_pyobject(const ::common::Value& value) {
     LOG(FATAL) << "Time type is not supported:";
   }
   case ::common::Value::kTimestamp: {
-    auto seconds = value.timestamp().item();  // millseconds since epoch
-    auto millseconds = seconds * 1000;
-    auto datetime = PyDateTime_FromTimestamp(PyLong_FromLongLong(millseconds));
-
-    if (datetime == nullptr) {
-      THROW_CONVERSION_EXCEPTION("Failed to convert timestamp to datetime");
-    }
-    return pybind11::cast<pybind11::object>(datetime);
+    auto millseconds = value.timestamp().item();  // millseconds since epoch
+    pybind11::object datetime =
+        pybind11::module_::import("datetime").attr("datetime");
+    pybind11::object fromtimestamp = datetime.attr("fromtimestamp");
+    // Time_point to seconds and milliseconds for Python
+    auto seconds_since_epoch = millseconds / 1000;
+    auto remaining_ms = millseconds % 1000;
+    return pybind11::cast<pybind11::object>(
+        fromtimestamp(seconds_since_epoch)
+            .attr("replace")(pybind11::arg("microsecond") =
+                                 remaining_ms * 1000));
   }
   case ::common::Value::kU32: {
     return pybind11::int_(value.u32());

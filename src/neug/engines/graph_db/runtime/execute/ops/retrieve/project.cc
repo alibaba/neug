@@ -1140,6 +1140,9 @@ make_project_expr(const common::Expression& expr,
     case RTAnyType::kInterval: {
       return _make_project_expr<Interval>(expr, alias);
     } break;
+    case RTAnyType::kList: {
+      return make_project_expr(expr, alias);
+    }
     default: {
       THROW_RUNTIME_ERROR("not support type - " + data_type.DebugString());
       return std::nullopt;

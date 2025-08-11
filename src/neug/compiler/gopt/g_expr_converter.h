@@ -95,7 +95,7 @@ class GExprConverter {
   std::unique_ptr<::common::Expression> convertLabel(
       const binder::Expression& expr);
 
-  std::unique_ptr<::common::Expression> convertToArrayFunc(
+  std::unique_ptr<::common::Expression> convertToTupleFunc(
       const binder::Expression& expr,
       const std::vector<std::string>& schemaAlias);
 

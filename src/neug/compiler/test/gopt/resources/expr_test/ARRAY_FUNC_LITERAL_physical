@@ -52,62 +52,23 @@
            "to_tuple": {
             "fields": [
              {
-              "var": {
-               "tag": {
-                "id": 0
-               },
-               "property": {
-                "key": {
-                 "name": "gender"
-                }
-               },
-               "node_type": {
-                "data_type": {
-                 "primitive_type": "DT_SIGNED_INT32"
-                }
-               }
+              "value": {
+               "i64": "3"
               }
              },
              {
-              "var": {
-               "tag": {
-                "id": 0
-               },
-               "property": {
-                "key": {
-                 "name": "fName"
-                }
-               },
-               "node_type": {
-                "data_type": {
-                 "string": {
-                  "var_char": {
-                   "max_length": 65536
-                  }
-                 }
-                }
-               }
+              "value": {
+               "f64": 2
               }
              },
              {
-              "var": {
-               "tag": {
-                "id": 0
-               },
-               "property": {
-                "key": {
-                 "name": "registerTime"
-                }
-               },
-               "node_type": {
-                "data_type": {
-                 "temporal": {
-                  "date": {
-                   "date_format": "DF_YYYY_MM_DD"
-                  }
-                 }
-                }
-               }
+              "value": {
+               "i64": "4"
+              }
+             },
+             {
+              "value": {
+               "str": "name"
               }
              }
             ]

@@ -258,7 +258,7 @@ std::unique_ptr<::common::Value> GExprConverter::convertValue(
   case common::LogicalTypeID::ARRAY: {
     auto extraInfo = value.getDataType().getExtraTypeInfo();
     if (extraInfo == nullptr) {
-      throw exception::Exception("List type should have extra info");
+      THROW_EXCEPTION_WITH_FILE_LINE("List type should have extra info");
     }
     auto arrayInfo = extraInfo->constPtrCast<common::ArrayTypeInfo>();
     auto& childType = arrayInfo->getChildType();
@@ -267,7 +267,7 @@ std::unique_ptr<::common::Value> GExprConverter::convertValue(
   case common::LogicalTypeID::LIST: {
     auto extraInfo = value.getDataType().getExtraTypeInfo();
     if (extraInfo == nullptr) {
-      throw exception::Exception("List type should have extra info");
+      THROW_EXCEPTION_WITH_FILE_LINE("List type should have extra info");
     }
     auto listInfo = extraInfo->constPtrCast<common::ListTypeInfo>();
     auto& childType = listInfo->getChildType();
@@ -283,7 +283,8 @@ std::unique_ptr<::common::Value> GExprConverter::convertValue(
 std::unique_ptr<::common::Value> GExprConverter::convertToLiteralArray(
     const common::Value& value, const common::LogicalType& childType) {
   if (value.children.empty()) {
-    throw exception::Exception("Array function should have at least one child");
+    THROW_EXCEPTION_WITH_FILE_LINE(
+        "Array function should have at least one child");
   }
   auto valuePB = std::make_unique<::common::Value>();
   switch (childType.getLogicalTypeID()) {
@@ -323,8 +324,8 @@ std::unique_ptr<::common::Value> GExprConverter::convertToLiteralArray(
     break;
   }
   default:
-    throw exception::Exception("Unsupported value type " +
-                               childType.toString());
+    THROW_EXCEPTION_WITH_FILE_LINE("Unsupported value type " +
+                                   childType.toString());
   }
   return valuePB;
 }
@@ -495,12 +496,64 @@ bool isVariable(const binder::Expression& expr) {
          expr.expressionType == common::ExpressionType::PROPERTY;
 }
 
+bool isLiteralOrVariable(const binder::Expression& expr) {
+  if (expr.expressionType == common::ExpressionType::FUNCTION) {
+    auto& funcExpr = expr.constCast<binder::ScalarFunctionExpression>();
+    GScalarType type{funcExpr};
+    if (type.getType() == ScalarType::CAST) {
+      return isLiteralOrVariable(*funcExpr.getChild(0));
+    }
+  }
+  return expr.expressionType == common::ExpressionType::LITERAL ||
+         expr.expressionType == common::ExpressionType::VARIABLE ||
+         expr.expressionType == common::ExpressionType::PROPERTY;
+}
+
+std::unique_ptr<::common::Expression> GExprConverter::convertToTupleFunc(
+    const binder::Expression& expr,
+    const std::vector<std::string>& schemaAlias) {
+  if (expr.getChildren().empty()) {
+    THROW_EXCEPTION_WITH_FILE_LINE(
+        "Array function should have at least one child");
+  }
+  for (auto child : expr.getChildren()) {
+    if (!isLiteralOrVariable(*child)) {
+      THROW_EXCEPTION_WITH_FILE_LINE(
+          "Array Function can only support literal or variable as children, "
+          "but is " +
+          expr.toString());
+    }
+  }
+  auto tuplePB = std::make_unique<::common::ToTuple>();
+  for (auto child : expr.getChildren()) {
+    auto exprPB = convert(*child, schemaAlias);
+    if (exprPB->operators_size() == 0) {
+      THROW_EXCEPTION_WITH_FILE_LINE(
+          "convert child of array function failed, empty expression");
+    }
+    auto oprPB = exprPB->operators(0);
+    auto fieldPB = tuplePB->add_fields();
+    if (oprPB.has_const_()) {
+      fieldPB->set_allocated_value(oprPB.release_const_());
+    } else if (oprPB.has_var()) {
+      fieldPB->set_allocated_var(oprPB.release_var());
+    } else {
+      THROW_EXCEPTION_WITH_FILE_LINE(
+          "convert child of array function failed, invalid expression type " +
+          oprPB.item_case());
+    }
+  }
+  auto exprPB = std::make_unique<::common::Expression>();
+  exprPB->add_operators()->set_allocated_to_tuple(tuplePB.release());
+  return exprPB;
+}
+
 std::unique_ptr<::common::Expression> GExprConverter::convertCaseExpression(
     const binder::CaseExpression& expr,
     const std::vector<std::string>& schemaAlias) {
   size_t caseNum = expr.getNumCaseAlternatives();
   if (caseNum == 0) {
-    throw exception::Exception(
+    THROW_EXCEPTION_WITH_FILE_LINE(
         "Case expression should have at least one case "
         "alternative");
   }
@@ -517,31 +570,6 @@ std::unique_ptr<::common::Expression> GExprConverter::convertCaseExpression(
   casePB->set_allocated_else_result_expression(elseExprPB.release());
   auto exprPB = std::make_unique<::common::Expression>();
   exprPB->add_operators()->set_allocated_case_(casePB.release());
-  return exprPB;
-}
-
-std::unique_ptr<::common::Expression> GExprConverter::convertToArrayFunc(
-    const binder::Expression& expr,
-    const std::vector<std::string>& schemaAlias) {
-  if (expr.getChildren().empty()) {
-    throw exception::Exception("Array function should have at least one child");
-  }
-  for (auto child : expr.getChildren()) {
-    if (!isVariable(*child)) {
-      throw exception::Exception(
-          "Array Function can only support variable as children, but "
-          "is " +
-          expr.toString());
-    }
-  }
-  auto varArray = std::make_unique<::common::VariableKeys>();
-  for (auto child : expr.getChildren()) {
-    auto varPB = varArray->add_keys();
-    auto exprPB = convert(*child, {});
-    *varPB = std::move(*(exprPB->mutable_operators(0)->mutable_var()));
-  }
-  auto exprPB = std::make_unique<::common::Expression>();
-  exprPB->add_operators()->set_allocated_vars(varArray.release());
   return exprPB;
 }
 
@@ -564,7 +592,7 @@ std::unique_ptr<::common::Expression> GExprConverter::convertScalarFunc(
   } else if (scalarType.getType() == PROPERTIES) {
     return convertPropertiesFunc(expr, schemaAlias);
   } else if (scalarType.getType() == TO_ARRAY) {
-    return convertToArrayFunc(expr, schemaAlias);
+    return convertToTupleFunc(expr, schemaAlias);
   }
   THROW_EXCEPTION_WITH_FILE_LINE("Unsupported expression type: " +
                                  expr.toString());

@@ -1,5 +1,6 @@
 #include "neug/compiler/binder/expression_visitor.h"
 
+#include "function/list/vector_list_functions.h"
 #include "neug/compiler/binder/expression/case_expression.h"
 #include "neug/compiler/binder/expression/lambda_expression.h"
 #include "neug/compiler/binder/expression/node_expression.h"
@@ -319,6 +320,9 @@ bool ConstantExpressionVisitor::visitFunction(const Expression& expr) {
     return false;
   }
   if (funcExpr.getFunction().name == function::GenRandomUUIDFunction::name) {
+    return false;
+  }
+  if (funcExpr.getFunction().name == function::ListCreationFunction::name) {
     return false;
   }
 
