@@ -38,8 +38,6 @@ bl::result<Context> ReadPipeline::Execute(
           cur_ind = i;
           BOOST_LEAF_ASSIGN(
               ctx, operators_[i]->Eval(graph, params, std::move(ctx), timer));
-          LOG(INFO) << "Got ctx: " << ctx.col_num()
-                    << " columns, row num: " << ctx.row_num();
         }
         return ctx;
       },

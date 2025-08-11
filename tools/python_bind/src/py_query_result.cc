@@ -262,6 +262,17 @@ void PyQueryResult::initialize(pybind11::handle& m) {
            "Returns:\n"
            "    list: A list of results, where each result is a dictionary "
            "representing a vertex, edge, or graph path.")
+      .def("__getitem__", &PyQueryResult::operator[],
+           "Get the result at the specified index.\n\n"
+           "Args:\n"
+           "    index (int): The index of the result to retrieve.\n\n"
+           "Returns:\n"
+           "    list: A list of results at the specified index, where each "
+           "result is a dictionary representing a vertex, edge, or graph "
+           "path.\n\n"
+           "Raises:\n"
+           "    IndexError: If the index is out of range of the query "
+           "results.\n\n")
       .def("length", &PyQueryResult::length,
            "Get the number of results "
            "in the query result.\n\n"
@@ -313,6 +324,21 @@ pybind11::list PyQueryResult::getNext() {
 
   pybind11::list list;
   for (const auto& entry : result.entries()) {
+    list.append(entry_to_pyobject(entry));
+  }
+  return list;
+}
+
+pybind11::list PyQueryResult::operator[](int32_t index) {
+  if (index < 0) {
+    index += query_result_.length();
+  }
+  if (index < 0 || index >= (int32_t) query_result_.length()) {
+    throw pybind11::index_error("Index out of range");
+  }
+  pybind11::list list;
+  auto record_line = query_result_[index];
+  for (const auto& entry : record_line.entries()) {
     list.append(entry_to_pyobject(entry));
   }
   return list;

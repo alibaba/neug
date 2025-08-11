@@ -1045,3 +1045,14 @@ def test_no_existing_property():
     )
     for record in res:
         print(record)
+
+
+def test_result_getitem():
+    db_dir = "/tmp/modern_graph"
+    db = Database(db_path=str(db_dir), mode="r")
+    conn = db.connect()
+    res = conn.execute("MATCH (n) RETURN count(n);")
+    assert res is not None
+    assert len(res) == 1
+    assert res[0][0] == 6  # Assuming there are 6 nodes
+    assert res[-1][0] == 6  # Testing negative indexing

@@ -92,6 +92,27 @@ class QueryResult(object):
         """
         return f"QueryResult(size {self._result.length()})"
 
+    def __getitem__(self, index):
+        """
+        Get the result at the specified index.
+
+        Parameters
+        ----------
+        index : int
+            The index of the result to retrieve.
+
+        Returns
+        -------
+        list
+            The result at the specified index, which is a list of values.
+
+        Raises
+        ------
+        IndexError
+            If the index is out of range.
+        """
+        return self._result[index]
+
     def __repr__(self):
         """
         Get the string representation of the result.

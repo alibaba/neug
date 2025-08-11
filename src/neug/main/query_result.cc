@@ -38,15 +38,8 @@ bool QueryResult::hasNext() const {
 
 size_t QueryResult::length() const { return result_.results_size(); }
 
-RecordLine QueryResult::next() {
-  if (!hasNext()) {
-    LOG(ERROR) << "No more records to return";
-    return RecordLine();
-  }
-  // We just got the pointers, and don't own them.
+RecordLine record_to_entries_vec(results::Record* result) {
   std::vector<const results::Entry*> entries;
-  size_t cur_ind = cur_index_++;
-  auto result = result_.mutable_results(cur_ind)->mutable_record();
   for (int32_t i = 0; i < result->columns_size(); ++i) {
     // Although we use mutable_columns, we don't mutate the data.
     auto ptr = result->mutable_columns(i)->mutable_entry();
@@ -55,6 +48,25 @@ RecordLine QueryResult::next() {
     entries.emplace_back(entry);
   }
   return RecordLine(entries);
+}
+
+RecordLine QueryResult::next() {
+  if (!hasNext()) {
+    LOG(ERROR) << "No more records to return";
+    return RecordLine();
+  }
+  size_t cur_ind = cur_index_++;
+  // We just got the pointers, and don't own them.
+  auto result = result_.mutable_results(cur_ind)->mutable_record();
+  return record_to_entries_vec(result);
+}
+
+RecordLine QueryResult::operator[](int index) {
+  if (index < 0 || index >= (int) result_.results_size()) {
+    THROW_RUNTIME_ERROR("Index out of range");
+  }
+  return record_to_entries_vec(
+      result_.mutable_results(index)->mutable_record());
 }
 
 const std::string& QueryResult::get_result_schema() const {

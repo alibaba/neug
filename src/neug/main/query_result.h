@@ -74,6 +74,8 @@ class QueryResult {
    */
   RecordLine next();
 
+  RecordLine operator[](int index);
+
   size_t length() const;
 
   const std::string& get_result_schema() const;  // YAML string

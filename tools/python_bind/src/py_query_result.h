@@ -43,6 +43,8 @@ class PyQueryResult {
 
   pybind11::list getNext();
 
+  pybind11::list operator[](int index);
+
   void close();
 
   int32_t length() const;
