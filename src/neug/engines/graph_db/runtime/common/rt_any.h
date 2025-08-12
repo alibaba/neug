@@ -352,6 +352,14 @@ class StringImpl : public CObject {
     new_str->str = str;
     return new_str;
   }
+
+  static std::unique_ptr<StringImpl> make_string_impl(
+      const std::string_view& str) {
+    auto new_str = std::make_unique<StringImpl>();
+    new_str->str = std::string(str);
+    return new_str;
+  }
+
   std::string str;
 };
 

@@ -357,18 +357,33 @@ RTAny DateMinusExpr::eval_edge(const LabelTriplet& label, vid_t src, vid_t dst,
 
 RTAnyType DateMinusExpr::type() const { return RTAnyType::kI64Value; }
 
-ConstExpr::ConstExpr(const RTAny& val) : val_(val) {
-  if (val_.type() == RTAnyType::kStringValue) {
-    s = val_.as_string();
-    val_ = RTAny::from_string(s);
+ConstExpr::ConstExpr(const RTAny& val, bool take_ownship)
+    : val_(val), arena_(nullptr) {
+  if (val_.type() == RTAnyType::kStringValue && take_ownship) {
+    arena_ = std::make_shared<Arena>();
+    auto ptr = StringImpl::make_string_impl(val_.as_string());
+    val_ = RTAny::from_string(ptr->str_view());
+    arena_->emplace_back(std::move(ptr));
   }
 }
-RTAny ConstExpr::eval_path(size_t idx, Arena&) const { return val_; }
-RTAny ConstExpr::eval_vertex(label_t label, vid_t v, size_t idx, Arena&) const {
+RTAny ConstExpr::eval_path(size_t idx, Arena& arena) const {
+  if (arena_) {
+    arena.emplace_back(std::make_unique<ArenaRef>(arena_));
+  }
+  return val_;
+}
+RTAny ConstExpr::eval_vertex(label_t label, vid_t v, size_t idx,
+                             Arena& arena) const {
+  if (arena_) {
+    arena.emplace_back(std::make_unique<ArenaRef>(arena_));
+  }
   return val_;
 }
 RTAny ConstExpr::eval_edge(const LabelTriplet& label, vid_t src, vid_t dst,
-                           const Any& data, size_t idx, Arena&) const {
+                           const Any& data, size_t idx, Arena& arena) const {
+  if (arena_) {
+    arena.emplace_back(std::make_unique<ArenaRef>(arena_));
+  }
   return val_;
 }
 
@@ -704,7 +719,7 @@ std::unique_ptr<ExprBase> make_var_or_const_expr(
   if (field.has_var()) {
     return std::make_unique<VariableExpr>(graph, ctx, field.var(), var_type);
   } else if (field.has_value()) {
-    return std::make_unique<ConstExpr>(parse_const_value(field.value()));
+    return std::make_unique<ConstExpr>(parse_const_value(field.value()), true);
   } else {
     LOG(FATAL) << "not support" + field.DebugString();
   }
@@ -722,7 +737,7 @@ static std::unique_ptr<ExprBase> build_expr(
     case common::ExprOpr::kConst: {
       if (opr.const_().item_case() == common::Value::kStr) {
         const std::string& str = opr.const_().str();
-        return std::make_unique<ConstExpr>(RTAny::from_string(str));
+        return std::make_unique<ConstExpr>(RTAny::from_string(str), true);
       }
       return std::make_unique<ConstExpr>(parse_const_value(opr.const_()));
     }

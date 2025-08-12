@@ -1088,3 +1088,14 @@ def test_result_getitem():
     assert len(res) == 1
     assert res[0][0] == 6  # Assuming there are 6 nodes
     assert res[-1][0] == 6  # Testing negative indexing
+
+
+def test_return_literal():
+    db_dir = "/tmp/tinysnb"
+    db = Database(db_path=str(db_dir), mode="r")
+    conn = db.connect()
+    res = conn.execute("MATCH (a:person) RETURN 1 + 1, label(a) LIMIT 2")
+    assert res is not None
+    assert len(res) == 2
+    assert res[0] == [2, "person"]
+    assert res[1] == [2, "person"]  # Assuming there are at

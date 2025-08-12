@@ -457,7 +457,7 @@ class DateMinusExpr : public ExprBase {
 
 class ConstExpr : public ExprBase {
  public:
-  ConstExpr(const RTAny& val);
+  ConstExpr(const RTAny& val, bool take_ownership = false);
   RTAny eval_path(size_t idx, Arena&) const override;
   RTAny eval_vertex(label_t label, vid_t v, size_t idx, Arena&) const override;
   RTAny eval_edge(const LabelTriplet& label, vid_t src, vid_t dst,
@@ -469,7 +469,7 @@ class ConstExpr : public ExprBase {
 
  private:
   RTAny val_;
-  std::string s;
+  std::shared_ptr<Arena> arena_;
 };
 
 class CaseWhenExpr : public ExprBase {
