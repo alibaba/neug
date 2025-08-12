@@ -3,11 +3,8 @@
    You can adapt this file completely to your liking, but it should at least
    contain the root `toctree` directive.
 
-Neug documentation
+NeuG documentation
 ==================
-
-Neug represents the next generation of graphscope, a graph database excel
-in performance and is designed to be easy to use.
 
 .. Add your content using ``reStructuredText`` syntax. See the
    `reStructuredText <https://www.sphinx-doc.org/en/master/usage/restructuredtext/index.html>`_
@@ -28,29 +25,30 @@ in performance and is designed to be easy to use.
 
 .. toctree::
    :maxdepth: 1
+   :caption: Getting Started
+
+   getting_started/getting_started
+
+.. toctree::
+   :maxdepth: 1
    :caption: Tutorials
 
-   tutorials/getting_started
    tutorials/python_tutorial
 
 .. toctree::
    :maxdepth: 1
-   :caption: User Guide
+   :caption: Import & Export
 
-   user_guide/key_concepts
-   user_guide/create_graph
    user_guide/import_data
    user_guide/export_data
-   user_guide/cypher_query
-   user_guide/data_model
 
 .. toctree::
    :maxdepth: 2
    :caption: API Reference
 
+   reference/cypher_manual
    reference/cpp_api/index
    reference/python_api/python_index
-   reference/cypher_manual
    reference/type_system
 
 .. toctree::

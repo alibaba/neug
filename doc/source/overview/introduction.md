@@ -53,7 +53,7 @@ NeuG's standout feature is its **dual-mode design** that optimizes performance f
 The true power of NeuG lies in the **flexible combination** of both modes:
 
 - **Data Pipeline Integration**: Use embedded mode for initial bulk data loading, then switch to service mode for operational queries
-- **Hybrid Workflows**: Export data from a running TP service to a separate copy for intensive AP analysis
+- **Hybrid Workflows**: Export a checkpointed data from a running TP service to a separate copy for intensive AP analysis
 - **Development to Production**: Develop and test with embedded mode, deploy as service for production
 - **Workload Separation**: Run AP workloads on dedicated embedded instances while maintaining TP services
 
@@ -67,16 +67,10 @@ NeuG is engineered for high-performance graph workloads with:
 - Multi-core parallelism for complex queries
 
 ### Flexibility and Usability
-- **Multi-Language Support**: Native APIs for Python, Java, C++, and CLI tools
 - **Cross-Platform**: Runs on Linux and macOS across x86 and ARM architectures
 - **Easy Integration**: Embedded architecture eliminates server management overhead
 - **Mode Switching**: Seamlessly transition between embedded and service modes
 
-### Data Interoperability
-NeuG is designed to work seamlessly with your existing data ecosystem:
-- Import/export support for CSV, extensible for other formats
-- Apache Arrow-based data processing pipeline
-- Flexible schema management for evolving data models
 
 ### Enterprise-Ready Features
 - **ACID Transactions**: Serializable ACID guarantees for mission-critical applications
@@ -86,26 +80,3 @@ NeuG is designed to work seamlessly with your existing data ecosystem:
 
 NeuG is developed by the [GraphScope](https://graphscope.io) team, a leading research group from Alibaba renowned for its expertise in graph computing and large-scale data processing. The framework integrates advanced methodologies derived from Alibaba’s extensive experience in deploying graph analytics to solve enterprise-scale challenges across domains such as e-commerce, supply chain optimization, and fraud detection.
 
-## Core Architecture
-
-NeuG's architecture is built around several key components:
-
-1. **Database Engine**: C++ core providing storage, indexing, and query execution
-2. **Connection Manager**: Handles both embedded and service-based connections
-3. **Query Processor**: Cypher-compatible query engine with advanced optimization
-4. **Transaction Manager**: MVCC-based concurrency control and ACID compliance (service mode only)
-5. **Storage Layer**: Columnar storage with compression and efficient graph representations
-6. **Client Libraries**: Language bindings for Python, Java, C++, and CLI tools
-
-## Getting Started
-
-Ready to dive in? Here's how to get started with NeuG:
-
-1. **Installation**: Install NeuG using your preferred package manager
-2. **First Steps**: Create your first graph database and run basic queries
-3. **Explore**: Try both embedded and service modes to see which fits your use case
-4. **Scale**: Leverage NeuG's performance features for your production workloads
-
-Whether you're building real-time recommendation systems, fraud detection platforms, or complex network analysis applications, NeuG provides the performance, flexibility, and reliability you need to succeed.
-
-Let's begin your journey with NeuG!

@@ -1,4 +1,4 @@
-# Import data to NeuG
+# Import Data
 
 NeuG supports inserting data into a database from a specified file. The prerequisite for inserting data into a database is that you first create a graph schema, i.e., the structure of your node and relationship tables.
 
