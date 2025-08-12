@@ -1099,3 +1099,41 @@ def test_return_literal():
     assert len(res) == 2
     assert res[0] == [2, "person"]
     assert res[1] == [2, "person"]  # Assuming there are at
+
+
+def test_list_return_basic(tmp_path):
+    """Test basic list return functionality: RETURN [p.name, p.value]"""
+    db_dir = tmp_path / "list_return_basic"
+    shutil.rmtree(db_dir, ignore_errors=True)
+    db_dir.mkdir()
+    db = Database(db_path=str(db_dir), mode="w")
+    conn = db.connect()
+
+    # Create schema with list property
+    conn.execute(
+        "CREATE NODE TABLE Person ("
+        "id INT32 PRIMARY KEY, "
+        "name STRING, "
+        "value FLOAT"
+        ");"
+    )
+
+    # Insert test data
+    conn.execute("CREATE (p:Person {id: 1, name: 'Alice', value: 1.11});")
+    conn.execute("CREATE (p:Person {id: 2, name: 'Bob', value: 2.22});")
+    conn.execute("CREATE (p:Person {id: 3, name: 'Charlie', value: 3.33});")
+
+    # Test basic list return
+    result = conn.execute("MATCH (p:Person) RETURN [p.name, p.value] ORDER BY p.id;")
+
+    records = list(result)
+    assert len(records) == 3
+    assert records[0][0][0] == "Alice"
+    assert records[1][0][0] == "Bob"
+    assert records[2][0][0] == "Charlie"
+    assert abs(records[0][0][1] - 1.11) < 1e-5
+    assert abs(records[1][0][1] - 2.22) < 1e-5
+    assert abs(records[2][0][1] - 3.33) < 1e-5
+
+    conn.close()
+    db.close()

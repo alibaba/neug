@@ -104,3 +104,7 @@ gstest/
 
 # environment files
 .env
+
+
+# qwen-coder file
+QWEN.md
