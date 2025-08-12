@@ -91,8 +91,10 @@ struct ImmutableNbr<grape::EmptyType> {
   const grape::EmptyType& get_data() const { return data; }
   vid_t get_neighbor() const { return neighbor; }
 
-  vid_t neighbor;
-  grape::EmptyType data;
+  union {
+    vid_t neighbor;
+    grape::EmptyType data;
+  };
 };
 
 template <typename EDATA_T>
@@ -307,9 +309,10 @@ struct MutableNbr<grape::EmptyType> {
   vid_t get_neighbor() const { return neighbor; }
   timestamp_t get_timestamp() const { return timestamp.load(); }
   vid_t neighbor;
-  std::atomic<timestamp_t> timestamp;
-  // TODO: illimate the dummy field.
-  grape::EmptyType data;
+  union {
+    std::atomic<timestamp_t> timestamp;
+    grape::EmptyType data;
+  };
 };
 
 template <typename EDATA_T>
@@ -317,7 +320,7 @@ class MutableNbrSlice {
  public:
   using const_nbr_t = const MutableNbr<EDATA_T>;
   using const_nbr_ptr_t = const MutableNbr<EDATA_T>*;
-  MutableNbrSlice() : ptr_(nullptr), size_(0){};
+  MutableNbrSlice() : ptr_(nullptr), size_(0) {}
   MutableNbrSlice(const MutableNbrSlice& rhs)
       : ptr_(rhs.ptr_), size_(rhs.size_) {}
   ~MutableNbrSlice() = default;
@@ -495,7 +498,7 @@ class MutableNbrSliceMut {
  public:
   using nbr_t = MutableNbr<EDATA_T>;
   using nbr_ptr_t = MutableNbr<EDATA_T>*;
-  MutableNbrSliceMut() : ptr_(nullptr), size_(0){};
+  MutableNbrSliceMut() : ptr_(nullptr), size_(0) {}
   ~MutableNbrSliceMut() = default;
 
   void set_size(int size) { size_ = size; }
