@@ -16,6 +16,7 @@
 #include "neug/engines/brpc_server/brpc_http_hdl_mgr.h"
 
 #include "neug/planner/graph_planner.h"
+#include "neug/proto_generated_gie/error.pb.h"
 
 namespace server {
 
