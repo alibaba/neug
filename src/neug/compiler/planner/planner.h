@@ -396,7 +396,7 @@ class KUZU_API Planner {
                         std::shared_ptr<binder::Expression> mark,
                         LogicalPlan& plan);
 
-  void appendDummyScan(LogicalPlan& plan);
+  void appendDummyScan(LogicalPlan& plan, bool updateClause = false);
 
   void appendUnwind(const binder::BoundReadingClause& boundReadingClause,
                     LogicalPlan& plan);

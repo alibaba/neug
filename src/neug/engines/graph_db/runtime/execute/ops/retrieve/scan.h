@@ -46,6 +46,24 @@ class ScanOprBuilder : public IReadOperatorBuilder {
   }
 };
 
+class DummySourceOprBuilder : public IReadOperatorBuilder {
+ public:
+  DummySourceOprBuilder() = default;
+  ~DummySourceOprBuilder() = default;
+
+  bl::result<ReadOpBuildResultT> Build(const gs::Schema& schema,
+                                       const ContextMeta& ctx_meta,
+                                       const physical::PhysicalPlan& plan,
+                                       int op_idx) override;
+
+  std::vector<physical::PhysicalOpr_Operator::OpKindCase> GetOpKinds()
+      const override {
+    return {physical::PhysicalOpr_Operator::OpKindCase::kRoot,
+            physical::PhysicalOpr_Operator::OpKindCase::kProject};
+  }
+  int stepping(int i) override { return i + 1; }
+};
+
 }  // namespace ops
 
 }  // namespace runtime

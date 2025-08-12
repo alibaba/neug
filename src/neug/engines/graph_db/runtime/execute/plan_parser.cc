@@ -68,6 +68,9 @@ namespace runtime {
 void PlanParser::init() {
   register_read_operator_builder(std::make_unique<ops::ScanOprBuilder>());
 
+  register_read_operator_builder(
+      std::make_unique<ops::DummySourceOprBuilder>());
+
   register_read_operator_builder(std::make_unique<ops::TCOprBuilder>());
   register_read_operator_builder(
       std::make_unique<ops::EdgeExpandGetVOprBuilder>());
@@ -272,8 +275,14 @@ PlanParser::parse_read_pipeline_with_meta(const gs::Schema& schema,
       // break;
     }
     if (cur_op_kind == physical::PhysicalOpr_Operator::OpKindCase::kRoot) {
-      ++i;
-      continue;
+      if (i + 1 < opr_num &&
+          plan.query_plan().plan(i + 1).opr().op_kind_case() ==
+              physical::PhysicalOpr_Operator::OpKindCase::kProject) {
+      } else {
+        // skip root only
+        i++;
+        continue;
+      }
     }
     auto& builders = read_op_builders_[cur_op_kind];
     int old_i = i;

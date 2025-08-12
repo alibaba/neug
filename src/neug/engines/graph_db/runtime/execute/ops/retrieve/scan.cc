@@ -665,6 +665,30 @@ bl::result<ReadOpBuildResultT> ScanOprBuilder::Build(
     }
   }
 }
+
+class DummySourceOpr : public IReadOperator {
+ public:
+  DummySourceOpr() {}
+
+  bl::result<gs::runtime::Context> Eval(
+      const gs::runtime::GraphReadInterface& graph,
+      const std::map<std::string, std::string>& params,
+      gs::runtime::Context&& ctx, gs::runtime::OprTimer& timer) override {
+    ctx = Context();
+    ValueColumnBuilder<int32_t> builder;
+    builder.push_back_opt(0);
+    ctx.set(0, builder.finish(nullptr));
+    return ctx;
+  }
+
+  std::string get_operator_name() const override { return "DummySourceOpr"; }
+};
+
+bl::result<ReadOpBuildResultT> DummySourceOprBuilder::Build(
+    const gs::Schema& schema, const ContextMeta& ctx_meta,
+    const physical::PhysicalPlan& plan, int op_idx) {
+  return std::make_pair(std::make_unique<DummySourceOpr>(), ctx_meta);
+}
 }  // namespace ops
 }  // namespace runtime
 }  // namespace gs

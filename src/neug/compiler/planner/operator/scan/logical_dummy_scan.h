@@ -7,8 +7,9 @@ namespace planner {
 
 class LogicalDummyScan final : public LogicalOperator {
  public:
-  explicit LogicalDummyScan()
-      : LogicalOperator{LogicalOperatorType::DUMMY_SCAN} {}
+  explicit LogicalDummyScan(bool updateClause = false)
+      : LogicalOperator{LogicalOperatorType::DUMMY_SCAN},
+        updateClause(updateClause) {}
 
   void computeFactorizedSchema() override;
   void computeFlatSchema() override;
@@ -17,11 +18,16 @@ class LogicalDummyScan final : public LogicalOperator {
     return std::string();
   }
 
+  inline bool isUpdateClause() const { return updateClause; }
+
   static std::shared_ptr<binder::Expression> getDummyExpression();
 
   inline std::unique_ptr<LogicalOperator> copy() override {
     return std::make_unique<LogicalDummyScan>();
   }
+
+ private:
+  bool updateClause;
 };
 
 }  // namespace planner

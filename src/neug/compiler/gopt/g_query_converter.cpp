@@ -181,10 +181,16 @@ void GQueryConvertor::convertOperator(const planner::LogicalOperator& op,
     convertDelete(*deleteOp, plan);
     break;
   }
+  case planner::LogicalOperatorType::DUMMY_SCAN: {
+    auto dummyScan = op.constPtrCast<planner::LogicalDummyScan>();
+    if (!dummyScan->isUpdateClause()) {
+      convertDummyScan(*dummyScan, plan);
+    }
+    break;
+  }
   case planner::LogicalOperatorType::PARTITIONER:
   case planner::LogicalOperatorType::INDEX_LOOK_UP:
   case planner::LogicalOperatorType::MULTIPLICITY_REDUCER:
-  case planner::LogicalOperatorType::DUMMY_SCAN:
   case planner::LogicalOperatorType::FLATTEN:
   case planner::LogicalOperatorType::ACCUMULATE:
     break;
@@ -1504,6 +1510,16 @@ std::string GQueryConvertor::getExtensionName(
     THROW_EXCEPTION_WITH_FILE_LINE("Unsupported export function: " +
                                    exportFunc.name);
   }
+}
+
+void GQueryConvertor::convertDummyScan(
+    const planner::LogicalDummyScan& dummyScan, ::physical::QueryPlan* plan) {
+  auto dummyPB = std::make_unique<::physical::Root>();
+  auto physicalPB = std::make_unique<::physical::PhysicalOpr>();
+  auto oprPB = std::make_unique<::physical::PhysicalOpr_Operator>();
+  oprPB->set_allocated_root(dummyPB.release());
+  physicalPB->set_allocated_opr(oprPB.release());
+  plan->mutable_plan()->AddAllocated(physicalPB.release());
 }
 
 void GQueryConvertor::convertCopyTo(const planner::LogicalCopyTo& copyTo,

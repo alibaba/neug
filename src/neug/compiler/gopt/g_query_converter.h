@@ -49,6 +49,7 @@
 #include "neug/compiler/planner/operator/persistent/logical_delete.h"
 #include "neug/compiler/planner/operator/persistent/logical_insert.h"
 #include "neug/compiler/planner/operator/persistent/logical_set.h"
+#include "neug/compiler/planner/operator/scan/logical_dummy_scan.h"
 #include "neug/compiler/planner/operator/scan/logical_scan_node_table.h"
 #include "neug/proto_generated_gie/algebra.pb.h"
 #include "neug/proto_generated_gie/cypher_dml.pb.h"
@@ -129,6 +130,8 @@ class GQueryConvertor {
                        ::physical::QueryPlan* plan);
   void convertCopyTo(const planner::LogicalCopyTo& copyTo,
                      ::physical::QueryPlan* plan);
+  void convertDummyScan(const planner::LogicalDummyScan& dummyScan,
+                        ::physical::QueryPlan* plan);
 
   // help functions
   ::physical::Join::JoinKind convertJoinKind(common::JoinType joinType);

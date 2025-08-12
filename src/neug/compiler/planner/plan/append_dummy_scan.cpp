@@ -4,9 +4,9 @@
 namespace gs {
 namespace planner {
 
-void Planner::appendDummyScan(LogicalPlan& plan) {
+void Planner::appendDummyScan(LogicalPlan& plan, bool updateClause) {
   KU_ASSERT(plan.isEmpty());
-  auto dummyScan = std::make_shared<LogicalDummyScan>();
+  auto dummyScan = std::make_shared<LogicalDummyScan>(updateClause);
   dummyScan->computeFactorizedSchema();
   plan.setLastOperator(std::move(dummyScan));
 }

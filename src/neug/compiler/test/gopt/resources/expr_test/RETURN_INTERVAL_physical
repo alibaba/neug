@@ -5,6 +5,12 @@
   "plan": [
    {
     "opr": {
+     "root": {}
+    },
+    "meta_data": []
+   },
+   {
+    "opr": {
      "project": {
       "mappings": [
        {

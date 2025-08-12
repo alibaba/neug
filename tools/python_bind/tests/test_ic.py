@@ -121,3 +121,8 @@ class TestICBench(unittest.TestCase):
             " Return [n.firstName, n.gender, n.birthday] as n2 LIMIT 1;",
             lambda_func=ensure_result_cnt_gt_zero,
         )
+
+        # test dummy scan before projection
+        result = self.conn.execute("Return 1002")
+        for record in result:
+            assert record[0] == 1002, f"Expected value 1002, got {record[0]}"
