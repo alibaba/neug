@@ -289,7 +289,9 @@ struct MutableNbr {
 
 template <>
 struct MutableNbr<grape::EmptyType> {
-  MutableNbr() = default;
+  MutableNbr() = delete;  // Default constructor is deleted otherwise clang will
+                          // raise compilation warning. Seems currently ok for
+                          // building and running.
   MutableNbr(const MutableNbr& rhs)
       : neighbor(rhs.neighbor), timestamp(rhs.timestamp.load()) {}
   ~MutableNbr() = default;

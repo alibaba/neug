@@ -469,9 +469,6 @@ if (BUILD_HTTP_SERVER)
 endif()
 
 #find protobuf-------------------------------------------------------------------
-if (APPLE)
-    find_package(absl REQUIRED)
-endif()
 find_package(Protobuf REQUIRED)
 include_directories(${Protobuf_INCLUDE_DIRS})
 message(STATUS "protobuf libraries: ${Protobuf_LIBRARIES}")

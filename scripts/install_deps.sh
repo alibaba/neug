@@ -441,27 +441,6 @@ install_glog() {
   rm -rf "${tempdir:?}/${directory:?}" "${tempdir:?}/${file:?}"
 }
 
-install_abseil() {
-  if [[ -f "${install_prefix}/include/absl/base/config.h" ]]; then
-    return 0
-  fi
-  pushd "${tempdir}" || exit
-  directory="abseil-cpp-20240722.1"
-  file="abseil-cpp-20240722.1.tar.gz"
-  url="https://github.com/abseil/abseil-cpp/releases/download/20240722.1"
-  url=$(set_to_cn_url ${url})
-  download_and_untar "${url}" "${file}" "${directory}"
-  pushd ${directory} || exit
-  mkdir build && pushd build && cmake ..  -DCMAKE_INSTALL_PREFIX="${install_prefix}" \
-       -DCMAKE_PREFIX_PATH="${install_prefix}" -DCMAKE_CXX_STANDARD=17 -DBUILD_SHARED_LIBS=ON 
-  make -j ${nproc}
-  make install
-  popd || exit
-  popd || exit
-  popd || exit
-  rm -rf "${tempdir:?}/${directory:?}" "${tempdir:?}/${file:?}"
-}
-
 install_rapidjson() {
   if [[ -f "${install_prefix}/include/rapidjson/document.h" ]]; then
     return 0
@@ -565,7 +544,6 @@ install_neug_dependencies() {
     brew install ${INTERACTIVE_MACOS[*]}
     install_openssl
     install_rapidjson # We need to install rapidjson from source, since the latest release available has issue https://github.com/Tencent/rapidjson/issues/2277
-    install_abseil
     install_gflags
     install_glog
     install_arrow
