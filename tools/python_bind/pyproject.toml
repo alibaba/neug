@@ -44,7 +44,7 @@ manylinux-aarch64-image = "registry.cn-hongkong.aliyuncs.com/graphscope/graphsco
 [tool.cibuildwheel.linux]
 before-all = ["git submodule update --init"]
 before-build = [". /root/.graphscope_env"]
-environment = {CMAKE_PREFIX_PATH="/opt/graphscope/", OPENSSL_ROOT_DIR="/opt/graphscope"}
+environment = {CMAKE_PREFIX_PATH="/opt/graphscope/", OPENSSL_ROOT_DIR="/opt/graphscope", LIBRARY_PATH="/opt/graphscope/lib:/opt/graphscope/lib64", LD_LIBRARY_PATH="/opt/graphscope/lib:/opt/graphscope/lib64:$LD_LIBRARY_PATH",  DYLD_LIBRARY_PATH="/opt/graphscope/lib:/opt/graphscope/lib64:$DYLD_LIBRARY_PATH"}
 
 [tool.cibuildwheel.macos]
 before-all = ["git submodule update --init"]

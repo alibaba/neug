@@ -1,20 +1,25 @@
 .PHONY: python-dev python-wheel python-clean clean help
 
+# Check for required tools at the start of each target
+
+check-tools:
+	@command -v cmake >/dev/null 2>&1 || { echo >&2 "CMake is required but not found. Please install CMake."; exit 1; }
+
 all: wheel build
 
 .PHONY: python-dev
-python-dev:  ## Install Python development environment
+python-dev: check-tools  ## Install Python development environment
 	@cd tools/python_bind && \
 	make requirements && \
 	make dev
 
 .PHONY: python-wheel
-python-wheel: ## Build the neug python wheel package
+python-wheel: check-tools ## Build the neug python wheel package
 	@cd tools/python_bind && \
 	make wheel
 
 .PHONY: python-clean
-python-clean:  ## Clean up Python build artifacts
+python-clean: check-tools ## Clean up Python build artifacts
 	@cd tools/python_bind && \
 	make clean
 

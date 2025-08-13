@@ -73,7 +73,13 @@ if (BUILD_HTTP_SERVER)
 endif()
 
 if (WITH_MIMALLOC)
-    find_package(mimalloc 2.0 REQUIRED)
+    find_package(mimalloc 2.0)
+    if (NOT mimalloc_FOUND)
+        message(STATUS "mimalloc not found, installing mimalloc from source")
+        set(MI_BUILD_TESTS OFF CACHE BOOL "Build mimalloc tests")
+        add_subdirectory(third_party/mimalloc)
+        include_directories(SYSTEM third_party/mimalloc/include)
+    endif()
     unset(PACKAGE_VERSION) # Unset PACKAGE_VERSION to avoid generate two PACKAGE_VERSION in config.h for libdwarf-lite.
 endif()
 
@@ -261,10 +267,17 @@ find_package(Threads REQUIRED)
 # find glog---------------------------------------------------------------------
 include("cmake/FindGlog.cmake")
 if (NOT GLOG_FOUND)
-    message(FATAL_ERROR "glog not found, please install the glog library")
+    message(STATUS "glog not found, using glog from third_party")
+    set(BUILD_TESTING OFF CACHE BOOL "Build glog tests")
+    add_subdirectory(third_party/glog)
+    include_directories(SYSTEM third_party/glog/src)
+    include_directories(SYSTEM ${CMAKE_CURRENT_BINARY_DIR}/third_party/glog/) # For generated headers
+    set_target_properties(glog PROPERTIES DEBUG_POSTFIX "")
+    set(GLOG_LIBRARIES glog::glog)
 else ()
     include_directories(SYSTEM ${GLOG_INCLUDE_DIRS})
 endif ()
+message(STATUS "glog libraries: ${GLOG_LIBRARIES}")
 
 # if os is macos, 
 if (CMAKE_CXX_COMPILER_ID MATCHES "Clang")
@@ -303,11 +316,12 @@ endif()
 if(POLICY CMP0167)
   cmake_policy(SET CMP0167 NEW)
 endif()
+
 find_package(Boost REQUIRED COMPONENTS system filesystem
-             # required by folly
-             context program_options regex thread date_time)
+               context program_options regex thread date_time)
 add_definitions("-DBOOST_BIND_GLOBAL_PLACEHOLDERS")
 include_directories(SYSTEM ${Boost_INCLUDE_DIRS})
+
 
 if(USE_PTHASH)
     include_directories(${CMAKE_CURRENT_SOURCE_DIR}/third_party/murmurhash)
@@ -419,16 +433,19 @@ else ()
 endif ()
 
 # find yaml-cpp-----------------------------------------------------------------
-find_package(yaml-cpp REQUIRED)
-include_directories(SYSTEM ${yaml-cpp_INCLUDE_DIRS})
+find_package(yaml-cpp)
 if (NOT yaml-cpp_FOUND)
-    message(FATAL_ERROR "yaml-cpp not found, please install the yaml-cpp library")
+    message(STATUS "yaml-cpp not found, installing yaml-cpp from source")
+    set(BUILD_SHARED_LIBS ON CACHE BOOL "Build shared libraries")
+    set(YAML_CPP_INSTALL ON CACHE BOOL "Install yaml-cpp")
+    add_subdirectory(third_party/yaml-cpp)
+    include_directories(SYSTEM third_party/yaml-cpp/include)
+    set(YAML_CPP_LIBRARIES yaml-cpp)
+    set_target_properties(yaml-cpp PROPERTIES DEBUG_POSTFIX "")
+else()
+    include_directories(SYSTEM ${yaml-cpp_INCLUDE_DIRS})
 endif ()
-# In manylinux_2_28, it seems that yaml-cpp cannot be found via YAML_CPP_LIBRARIES, we adhere try to find via the absolute path.
-set(YAML_CPP_LIBRARY_PATH /opt/graphscope/lib64/libyaml-cpp.so)
-if (EXISTS ${YAML_CPP_LIBRARY_PATH})
-        set(YAML_CPP_LIBRARIES ${YAML_CPP_LIBRARY_PATH})
-endif()
+message(STATUS "yaml-cpp libraries: ${YAML_CPP_LIBRARIES}")
 
 
 if (BUILD_HTTP_SERVER)
@@ -455,9 +472,17 @@ if (BUILD_HTTP_SERVER)
 endif()
 
 #find protobuf-------------------------------------------------------------------
-find_package(Protobuf REQUIRED)
-include_directories(${Protobuf_INCLUDE_DIRS})
-message(STATUS "protobuf libraries: ${Protobuf_LIBRARIES}")
+find_package(Protobuf)
+if (NOT Protobuf_FOUND)
+    message(STATUS "protobuf not found, installing protobuf from source")
+    set(BUILD_SHARED_LIBS ON CACHE BOOL "Build shared libraries")
+    set(protobuf_BUILD_TESTS OFF CACHE BOOL "Build protobuf tests")
+    add_subdirectory(third_party/protobuf)
+    include_directories(SYSTEM third_party/protobuf/include)
+else ()
+    include_directories(SYSTEM ${Protobuf_INCLUDE_DIRS})
+    message(STATUS "protobuf libraries: ${Protobuf_LIBRARIES}")
+endif()
 
 #find arrow----------------------------------------------------------------------
 find_package(Arrow REQUIRED)
@@ -500,12 +525,17 @@ if (BUILD_DOC)
     endif(DOXYGEN_FOUND)
 endif()
 
-find_package(RapidJSON REQUIRED)
-if (DEFINED RapidJSON_INCLUDE_DIRS)  # rapidjson > 1.1.0
-    include_directories(${RapidJSON_INCLUDE_DIRS})
-else ()  # rapidjson <= 1.1.0
-    include_directories(${RAPIDJSON_INCLUDE_DIRS})
-endif ()
+find_package(RapidJSON)
+if (NOT RapidJSON_FOUND)
+    message(STATUS "RapidJSON not found, installing RapidJSON from source")
+    include_directories(SYSTEM third_party/rapidjson/include)
+else ()
+    if (DEFINED RapidJSON_INCLUDE_DIRS)  # rapidjson > 1.1.0
+        include_directories(${RapidJSON_INCLUDE_DIRS})
+    else ()  # rapidjson <= 1.1.0
+        include_directories(${RAPIDJSON_INCLUDE_DIRS})
+    endif ()
+endif()
 
 add_definitions(-DRAPIDJSON_HAS_CXX11=1)
 add_definitions(-DRAPIDJSON_HAS_STDSTRING=1)
@@ -701,5 +731,34 @@ install(DIRECTORY ${PROJECT_SOURCE_DIR}/third_party/string_view
             FILES_MATCHING
             PATTERN "*.hpp"
 )
+
+if (NOT yaml-cpp_FOUND)
+    install(DIRECTORY ${PROJECT_SOURCE_DIR}/third_party/yaml-cpp/include/
+            DESTINATION include/
+            FILES_MATCHING
+            PATTERN "*.h"
+            PATTERN "*.hpp"
+    )
+endif()
+
+if (NOT RapidJSON_FOUND)
+    install(DIRECTORY ${PROJECT_SOURCE_DIR}/third_party/rapidjson/include/
+            DESTINATION include/
+            FILES_MATCHING
+            PATTERN "*.h"
+            PATTERN "*.hpp"
+    )
+endif()
+
+if (WITH_MIMALLOC)
+    if (NOT mimalloc_FOUND)
+        install_neug_target(mimalloc)
+    endif()
+endif()
+
+# Remove the debug_postfix for glog and yaml-cpp
+if (NOT GLOG_FOUND)
+    install_neug_target(glog)
+endif()
 
 include(CPack)

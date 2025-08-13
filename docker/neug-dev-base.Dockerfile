@@ -23,8 +23,3 @@ RUN useradd -m neug -u 1001 \
 RUN mkdir -p /opt/neug /opt/vineyard && chown -R neug:neug /opt/neug /opt/vineyard
 USER neug
 WORKDIR /home/neug
-
-COPY --chown=neug:neug scripts/install_deps.sh /home/neug/install_deps.sh
-RUN cd /home/neug/ && \
-    bash install_deps.sh --brpc && \
-    rm -fr install_deps.sh
