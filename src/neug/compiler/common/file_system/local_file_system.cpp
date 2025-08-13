@@ -1,3 +1,25 @@
+/**
+ * Copyright 2020 Alibaba Group Holding Limited.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+/**
+ * This file is originally from the Kùzu project
+ * (https://github.com/kuzudb/kuzu) Licensed under the MIT License. Modified by
+ * Zhou Xiaoli in 2025 to support Neug-specific features.
+ */
+
 #include "neug/compiler/common/file_system/local_file_system.h"
 
 #include "glob/glob.hpp"
@@ -138,7 +160,7 @@ std::unique_ptr<FileInfo> LocalFileSystem::openFile(
         stringFormat("Cannot open file {}: {}", fullPath, posixErrMessage()));
   }
   if (flags.lockType != FileLockType::NO_LOCK) {
-    struct flock fl{};
+    struct flock fl {};
     memset(&fl, 0, sizeof fl);
     fl.l_type = flags.lockType == FileLockType::READ_LOCK ? F_RDLCK : F_WRLCK;
     fl.l_whence = SEEK_SET;
@@ -500,7 +522,7 @@ int64_t LocalFileSystem::seek(FileInfo& fileInfo, uint64_t offset,
 void LocalFileSystem::truncate(FileInfo& fileInfo, uint64_t size) const {
   auto localFileInfo = fileInfo.constPtrCast<LocalFileInfo>();
 #if defined(_WIN32)
-  auto offsetHigh = (LONG) (size >> 32);
+  auto offsetHigh = (LONG)(size >> 32);
   LONG* offsetHighPtr = NULL;
   if (offsetHigh > 0)
     offsetHighPtr = &offsetHigh;
@@ -543,7 +565,7 @@ uint64_t LocalFileSystem::getFileSize(const FileInfo& fileInfo) const {
   }
   return size.QuadPart;
 #else
-  struct stat s{};
+  struct stat s {};
   if (fstat(localFileInfo->fd, &s) == -1) {
     THROW_IO_EXCEPTION(
         stringFormat("Cannot read size of file. path: {} - Error {}: {}",

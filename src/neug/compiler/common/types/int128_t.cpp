@@ -1,3 +1,25 @@
+/**
+ * Copyright 2020 Alibaba Group Holding Limited.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+/**
+ * This file is originally from the Kùzu project
+ * (https://github.com/kuzudb/kuzu) Licensed under the MIT License. Modified by
+ * Zhou Xiaoli in 2025 to support Neug-specific features.
+ */
+
 #include "neug/compiler/common/types/int128_t.h"
 
 #include <cmath>
@@ -388,12 +410,13 @@ int128_t Int128_t::BinaryNot(int128_t val) {
 int128_t Int128_t::LeftShift(int128_t lhs, int amount) {
   // adapted from
   // https://github.com/abseil/abseil-cpp/blob/master/absl/numeric/int128.h
-  return amount >= 64 ? int128_t(0, lhs.low << (amount - 64))
-         : amount == 0
-             ? lhs
-             : int128_t{lhs.low << amount,
-                        (lhs.high << amount) | (numeric_utils::makeValueSigned(
-                                                   lhs.low >> (64 - amount)))};
+  return amount >= 64
+             ? int128_t(0, lhs.low << (amount - 64))
+             : amount == 0 ? lhs
+                           : int128_t{lhs.low << amount,
+                                      (lhs.high << amount) |
+                                          (numeric_utils::makeValueSigned(
+                                              lhs.low >> (64 - amount)))};
 }
 
 int128_t Int128_t::RightShift(int128_t lhs, int amount) {
@@ -598,7 +621,7 @@ bool castFloatingToInt128(REAL_T value, int128_t& result) {
   result.low = (uint64_t) fmod(
       value, REAL_T(function::NumericLimits<uint64_t>::maximum()));
   result.high =
-      (uint64_t) (value / REAL_T(function::NumericLimits<uint64_t>::maximum()));
+      (uint64_t)(value / REAL_T(function::NumericLimits<uint64_t>::maximum()));
   if (negative) {
     Int128_t::negateInPlace(result);
   }

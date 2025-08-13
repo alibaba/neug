@@ -1,3 +1,25 @@
+/**
+ * Copyright 2020 Alibaba Group Holding Limited.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+/**
+ * This file is originally from the Kùzu project
+ * (https://github.com/kuzudb/kuzu) Licensed under the MIT License. Modified by
+ * Zhou Xiaoli in 2025 to support Neug-specific features.
+ */
+
 #include "neug/compiler/function/list/functions/list_extract_function.h"
 
 #include "neug/compiler/function/list/vector_list_functions.h"
@@ -26,11 +48,12 @@ static std::unique_ptr<FunctionBindData> ListExtractBindFunc(
     const ScalarBindFuncInput& input) {
   const auto& resultType = ListType::getChildType(input.arguments[0]->dataType);
   auto scalarFunction = input.definition->ptrCast<ScalarFunction>();
-  TypeUtils::visit(resultType.getPhysicalType(), [&scalarFunction]<typename T>(
-                                                     T) {
-    scalarFunction->execFunc =
-        BinaryExecListExtractFunction<list_entry_t, int64_t, T, ListExtract>;
-  });
+  TypeUtils::visit(
+      resultType.getPhysicalType(), [&scalarFunction]<typename T>(T) {
+        scalarFunction->execFunc =
+            BinaryExecListExtractFunction<list_entry_t, int64_t, T,
+                                          ListExtract>;
+      });
   std::vector<LogicalType> paramTypes;
   paramTypes.push_back(input.arguments[0]->getDataType().copy());
   paramTypes.push_back(LogicalType(input.definition->parameterTypeIDs[1]));
