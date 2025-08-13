@@ -562,7 +562,6 @@ install_neug_dependencies() {
     if [[ "${install_brpc}" == true ]]; then
       install_brpc
     fi
-    # hiactor is only supported on ubuntu
     install_mimalloc
     ${SUDO} sh -c 'echo "fs.aio-max-nr = 1048576" >> /etc/sysctl.conf'
     ${SUDO} sysctl -p /etc/sysctl.conf

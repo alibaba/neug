@@ -104,8 +104,6 @@ class CMakeBuild(build_ext):
         build_http_server = (
             "ON" if os.environ.get("BUILD_HTTP_SERVER", "ON") == "ON" else "OFF"
         )
-        if build_http_server == "ON":
-            http_server_type = os.environ.get("HTTP_SERVER_TYPE", "brpc")
         build_compiler = (
             "ON" if os.environ.get("BUILD_COMPILER", "ON") == "ON" else "OFF"
         )
@@ -144,10 +142,6 @@ class CMakeBuild(build_ext):
             f"-DBUILD_ALL_IN_ONE={build_all_in_one}",
             f"-DWITH_MIMALLOC={with_mimalloc}",
         ]
-        if build_http_server == "ON":
-            cmake_args += [
-                f"-DHTTP_SERVER_TYPE={http_server_type}",
-            ]
         if cmake_install_prefix:
             cmake_args += [
                 f"-DCMAKE_INSTALL_PREFIX={cmake_install_prefix}",

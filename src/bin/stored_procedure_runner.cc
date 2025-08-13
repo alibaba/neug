@@ -14,7 +14,6 @@
  */
 
 #include "neug/engines/graph_db/database/graph_db.h"
-#include "neug/engines/http_server/options.h"
 
 #include <boost/program_options.hpp>
 #include <fstream>

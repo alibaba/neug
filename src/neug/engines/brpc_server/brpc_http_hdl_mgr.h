@@ -13,8 +13,8 @@
  * limitations under the License.
  */
 
-#ifndef ENGINES_BRPC_SERVER_HIACTOR_HTTP_HDL_MGR_H_
-#define ENGINES_BRPC_SERVER_HIACTOR_HTTP_HDL_MGR_H_
+#ifndef ENGINES_BRPC_SERVER_BRPC_HTTP_HDL_MGR_H_
+#define ENGINES_BRPC_SERVER_BRPC_HTTP_HDL_MGR_H_
 
 #include <brpc/server.h>
 #include <json2pb/pb_to_json.h>
@@ -228,4 +228,4 @@ class BrpcHttpHandlerManager : public IHttpHandlerManager {
 };
 }  // namespace server
 
-#endif  // ENGINES_BRPC_SERVER_HIACTOR_HTTP_HDL_MGR_H_
+#endif  // ENGINES_BRPC_SERVER_BRPC_HTTP_HDL_MGR_H_

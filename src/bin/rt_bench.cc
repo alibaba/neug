@@ -21,9 +21,6 @@
 #include <vector>
 #include "neug/engines//graph_db_service.h"
 #include "neug/engines/graph_db/database/graph_db.h"
-#include "neug/engines/http_server/executor_group.actg.h"
-#include "neug/engines/http_server/generated/actor/executor_ref.act.autogen.h"
-#include "neug/engines/http_server/types.h"
 
 namespace bpo = boost::program_options;
 using namespace std::chrono_literals;

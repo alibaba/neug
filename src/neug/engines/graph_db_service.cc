@@ -13,19 +13,11 @@
  * limitations under the License.
  */
 #include "neug/engines/graph_db_service.h"
-#include "neug/engines/http_server/options.h"
 
-#ifdef HTTP_SERVER_TYPE_HIACTOR
-#include "neug/engines/http_server/hiactor_http_hdl_mgr.h"
-#elif defined(HTTP_SERVER_TYPE_BRPC)
 #include "neug/engines/brpc_server/brpc_http_hdl_mgr.h"
-#else
-#error "HTTP_SERVER_TYPE must be defined as either HIACTOR or BRPC"
-#endif
 
 #define STRINGIFY(x) #x
 #define TOSTRING(x) STRINGIFY(x)
-#define HTTP_SERVER_TYPE_VAL HTTP_SERVER_TYPE
 
 namespace server {
 
@@ -58,31 +50,7 @@ void GraphDBService::init(const ServiceConfig& config) {
   planner_->update_meta(db_.schema().to_yaml().value());
   planner_->update_statistics(db_.get_statistics_json());
 
-  if (strcmp(HTTP_SERVER_TYPE_VAL, "hiactor") == 0) {
-#ifdef HTTP_SERVER_TYPE_HIACTOR
-    hdl_mgr_ = std::make_unique<HiactorHttpHandlerManager>();
-#else
-    LOG(ERROR) << "HTTP server type is not set to HIACTOR, but the code is "
-                  "compiled with HIACTOR support.";
-    THROW_NOT_SUPPORTED_EXCEPTION(
-        "HTTP server type is not set to HIACTOR, but the code is compiled with "
-        "HIACTOR support.");
-#endif
-  } else if (strcmp(HTTP_SERVER_TYPE_VAL, "brpc") == 0) {
-#ifdef HTTP_SERVER_TYPE_BRPC
-    hdl_mgr_ = std::make_unique<BrpcHttpHandlerManager>(db_, planner_);
-#else
-    LOG(ERROR) << "HTTP server type is not set to BRPC, but the code is "
-                  "compiled with BRPC support.";
-    THROW_NOT_SUPPORTED_EXCEPTION(
-        "HTTP server type is not set to BRPC, but the code is compiled with "
-        "BRPC support.");
-#endif
-  } else {
-    LOG(ERROR) << "Unsupported HTTP server type: " << HTTP_SERVER_TYPE_VAL;
-    THROW_NOT_SUPPORTED_EXCEPTION("Unsupported HTTP server type: " +
-                                  std::string(HTTP_SERVER_TYPE_VAL));
-  }
+  hdl_mgr_ = std::make_unique<BrpcHttpHandlerManager>(db_, planner_);
   hdl_mgr_->Init(config);
 
   initialized_.store(true);

@@ -199,8 +199,8 @@ struct convert<server::ServiceConfig> {
       auto engine_type = engine_node["type"];
       if (engine_type) {
         auto engine_type_str = engine_type.as<std::string>();
-        if (engine_type_str != "hiactor" && engine_type_str != "Hiactor") {
-          LOG(ERROR) << "compute_engine type should be hiactor, found: "
+        if (engine_type_str != "brpc" && engine_type_str != "Brpc") {
+          LOG(ERROR) << "compute_engine type should be brpc, found: "
                      << engine_type_str;
           return false;
         }

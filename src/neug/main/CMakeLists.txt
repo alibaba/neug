@@ -15,9 +15,6 @@ else()
     install_without_export_neug_target(neug_main)
 endif()
 
-if (BUILD_HTTP_SERVER AND HTTP_SERVER_TYPE STREQUAL "brpc")
-    target_compile_definitions(neug_main PUBLIC HTTP_SERVER_TYPE="${HTTP_SERVER_TYPE}")
-endif()
 
 install(FILES ${CMAKE_CURRENT_SOURCE_DIR}/neug_db.h
         ${CMAKE_CURRENT_SOURCE_DIR}/connection.h

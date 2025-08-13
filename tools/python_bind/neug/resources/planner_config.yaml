@@ -1,7 +1,7 @@
 log_level: INFO
 default_graph: modern_graph
 compute_engine:
-  type: hiactor
+  type: brpc
   workers:
     - localhost:10000
   thread_num_per_worker: 4

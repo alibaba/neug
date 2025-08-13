@@ -70,7 +70,6 @@ jobs:
         export CMAKE_BUILD_PARALLEL_LEVEL=$(nproc)
         export BUILD_EXECUTABLES=ON
         export BUILD_HTTP_SERVER=ON
-        export HTTP_SERVER_TYPE=brpc
         export BUILD_TEST=OFF
         export USE_NINJA=OFF
         # export CC="ccache gcc"

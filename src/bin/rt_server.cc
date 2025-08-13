@@ -15,7 +15,6 @@
 
 #include "neug/engines//graph_db_service.h"
 #include "neug/engines/graph_db/database/graph_db.h"
-#include "neug/engines/http_server/options.h"
 #include "neug/utils/service_utils.h"
 
 #include <glog/logging.h>

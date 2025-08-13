@@ -34,7 +34,6 @@ jobs:
   build-neug:
     runs-on: ubuntu-22.04
     container:
-      # Need hiactor
       image: registry.cn-hongkong.aliyuncs.com/graphscope/graphscope-dev:neug
     steps:
     - uses: actions/checkout@v4
