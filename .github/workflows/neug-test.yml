@@ -210,11 +210,12 @@ jobs:
         # 1. tests running on modern_graph
         ./scripts/run_embed_test.sh modern_graph /tmp/modern_graph basic_test
         # 2. tests running on tinysnb
-        # TODO: Currently, we only include a few basic tests for cypher queries on tinysnb.
-        # We will add more tests for each cypher operator in e2e/queries directory when they are ready.
-        ./scripts/run_embed_test.sh tinysnb /tmp/tinysnb basic_test,projection,filter,order_by,expr,acc,agg,match,cyclic,arithmetic
-        ./scripts/run_embed_test.sh tinysnb /tmp/tinysnb batch_delete_vertices true
-        ./scripts/run_embed_test.sh tinysnb /tmp/tinysnb batch_delete_edges true
+        # all tinysnb cypher queries is included except some marked issues (TODO: shaoyu)
+        # ./scripts/run_embed_test.sh tinysnb /tmp/tinysnb basic_test,projection,filter,order_by,expr,acc,agg,match,cyclic,arithmetic
+        # ./scripts/run_embed_test.sh tinysnb /tmp/tinysnb batch_delete_vertices true
+        # ./scripts/run_embed_test.sh tinysnb /tmp/tinysnb batch_delete_edges true
+        # in convenience, we use "read-write" model to run all test cases together
+        ./scripts/run_embed_test.sh tinysnb /tmp/tinysnb "" true
 
     - name: Run E2E LSQB Test
       run: |

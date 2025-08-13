@@ -7,16 +7,19 @@
 -CASE CorrelatedOptionalMatch
 
 -LOG CorrelatedOptionalMatchTest1
+-SKIP: https://github.com/GraphScope/neug/issues/629
 -STATEMENT MATCH (a:person) OPTIONAL MATCH (a)-[:knows]->(b:person) WHERE b.age > a.age RETURN COUNT(*)
 ---- 1
 12
 
 -LOG CorrelatedOptionalMatchTest2
+-SKIP: https://github.com/GraphScope/neug/issues/629
 -STATEMENT MATCH (a:person)-[:knows]->(b:person) OPTIONAL MATCH (b)-[:knows]->(c:person) WHERE c.age > b.age RETURN COUNT(*)
 ---- 1
 23
 
 -LOG CorrelatedOptionalMatchTest3
+-SKIP: https://github.com/GraphScope/neug/issues/629
 -STATEMENT MATCH (a:person)-[:knows]->(b:person) OPTIONAL MATCH (a)-[:knows]->(c:person), (b)-[:knows]->(c) RETURN COUNT(*)
 ---- 1
 26

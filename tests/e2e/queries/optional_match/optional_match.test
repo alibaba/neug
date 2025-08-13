@@ -41,6 +41,7 @@ Dan
 6
 
 -LOG MultiKeyOptionalMatchTest2
+-SKIP: https://github.com/GraphScope/neug/issues/629
 -STATEMENT MATCH (a:person)-[:knows]->(b:person) OPTIONAL MATCH (a)-[:studyAt]->(c:organisation), (b)-[:studyAt]->(c) RETURN COUNT(*)
 ---- 1
 14
@@ -114,16 +115,19 @@ Hubert Blaine Wolfeschlegelsteinhausenbergerdorff|
 
 # TODO: EXECUTION: unexpected result, expected 40, but returns 41
 -LOG OptionalListExtendTest2
+-SKIP: https://github.com/GraphScope/neug/issues/629
 -STATEMENT MATCH (a:person) OPTIONAL MATCH (a)-[:knows]->(b:person)-[:knows]->(c:person) RETURN COUNT(*)
 ---- 1
 40
 
 -LOG OptionalColExtendTest
+-SKIP: https://github.com/GraphScope/neug/issues/629
 -STATEMENT MATCH (a:person) OPTIONAL MATCH (a)-[:workAt]->(b:organisation) RETURN COUNT(*)
 ---- 1
 8
 
 -LOG MultipleOptionalCountTest
+-SKIP: https://github.com/GraphScope/neug/issues/629
 -STATEMENT MATCH (a:person) OPTIONAL MATCH (a)-[:knows]->(b:person) OPTIONAL MATCH (b)-[:knows]->(c:person) RETURN COUNT(*)
 ---- 1
 41

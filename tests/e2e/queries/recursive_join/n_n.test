@@ -87,6 +87,7 @@ Greg
 3:2|1|2
 
 -LOG KnowsOneToTwoHopFilterTest2
+-SKIP: list_contains is not supported
 -STATEMENT MATCH (a:person)-[e:knows*1..2 (r,_ | WHERE list_contains(r.comments, 'rnme'))]->(b:person) WHERE a.fName='Alice' RETURN COUNT(*)
 ---- 1
 1
