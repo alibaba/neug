@@ -197,6 +197,12 @@ jobs:
         # import/export tests
         python3 -m pytest -sv tests/test_db_import_export.py
 
+    - name: Run List Test
+      run: |
+        cd ${GITHUB_WORKSPACE}/tools/python_bind/
+        # list tests
+        python3 -m pytest -sv tests/test_db_list.py
+
     - name: Run IC Test
       run: |
         cd ${GITHUB_WORKSPACE}/tools/python_bind/
