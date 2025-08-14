@@ -158,14 +158,11 @@ class Session:
             response = self._http_session.post(
                 self._query_endpoint, data=query, timeout=self.timeout
             )
-            response.raise_for_status()
         except requests.exceptions.RequestException as e:
-            logger.error(f"Request failed: {e}, {e.errno}")
-            if "Connection refused" in str(e):
-                raise Exception(
-                    f"Could not connect to the server. Is the server running? Error code {ERR_NETWORK}"
-                ) from e
-            raise Exception(f"Failed to execute query: {query}") from e
+            logger.error(f"Failed to execute query: {query}. Error: {e}")
+            raise ConnectionError(
+                f"Could not execute query: {query}, Error code: {ERR_NETWORK}"
+            ) from e
         if response.status_code != 200:
             error_message = f"Failed to execute query: {query}. Http code: {response.status_code}, Response: {response.text}"
             logger.error(error_message)

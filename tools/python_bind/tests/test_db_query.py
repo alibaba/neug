@@ -73,6 +73,46 @@ def test_create_schema_basic_types(tmp_path):
     db.close()
 
 
+def test_session_create_schema_basic_types(tmp_path):
+    db_dir = tmp_path / "schema_basic_types"
+    db_dir.mkdir()
+    db = Database(db_path=str(db_dir), mode="w")
+    endpoint = db.serve(host="localhost", port=10000)
+    sess = Session.open(endpoint=endpoint, timeout="30s", num_threads=5)
+
+    sess.execute(
+        "CREATE NODE TABLE PERSON(int32_prop INT32, uint32_prop UINT32, "
+        "int64_prop INT64, uint64_prop UINT64, string_prop STRING, "
+        "bool_prop BOOL, float_prop FLOAT, double_prop DOUBLE, "
+        "PRIMARY KEY(int32_prop));"
+    )
+
+    sess.execute(
+        "CREATE (n:PERSON {int32_prop: 1, uint32_prop: 2, "
+        "int64_prop: 3, uint64_prop: 4, string_prop: 'test', "
+        "bool_prop: true, float_prop: 1.23, double_prop: 2.34});"
+    )
+
+    result = sess.execute(
+        "MATCH (n:PERSON) RETURN n.int32_prop, n.uint32_prop, "
+        "n.int64_prop, n.uint64_prop, n.string_prop, "
+        "n.bool_prop, n.float_prop, n.double_prop;"
+    )
+    record = result.__next__()
+    assert record[0] == 1
+    assert record[1] == 2
+    assert record[2] == 3
+    assert record[3] == 4
+    assert record[4] == "test"
+    assert record[5] is True
+    assert (record[6] == 1.23) or (abs(record[6] - 1.23) < 1e-6)  # float comparison
+    assert (record[7] == 2.34) or (abs(record[7] - 2.34) < 1e-6)  # double comparison
+
+    sess.close()
+    db.stop_serving()
+    db.close()
+
+
 def test_create_schema_float_types(tmp_path):
     db_dir = tmp_path / "schema_basic_types"
     db_dir.mkdir()
@@ -384,6 +424,39 @@ def test_alter_vertex_table(tmp_path):
         conn.execute("ALTER TABLE person DROP age1;")
     assert str(ERR_INVALID_SCHEMA) in str(excinfo.value)
     conn.close()
+    db.close()
+
+
+def test_session_alter_vertex_table(tmp_path):
+    db_dir = tmp_path / "alter_table"
+    shutil.rmtree(db_dir, ignore_errors=True)
+    db_dir.mkdir()
+    db = Database(db_path=str(db_dir), mode="w")
+    endpoint = db.serve(host="localhost", port=10000)
+    sess = Session.open(endpoint=endpoint, timeout="30s", num_threads=5)
+    sess.execute("CREATE NODE TABLE person(name STRING, age INT64, PRIMARY KEY(name));")
+    # 1. add property
+    # correctly add a new property
+    sess.execute("ALTER TABLE person ADD grade INT64;")
+    # incorrectly add a property that already exists
+    with pytest.raises(Exception) as excinfo:
+        sess.execute("ALTER TABLE person ADD age INT64;")
+    assert str(ERR_INVALID_SCHEMA) in str(excinfo.value)
+    # 2. rename property
+    # correctly rename a property
+    sess.execute("ALTER TABLE person RENAME age TO newAge;")
+    # incorrectly rename a property that does not exist
+    with pytest.raises(Exception) as excinfo:
+        sess.execute("ALTER TABLE person RENAME age1 TO newAge1;")
+    assert str(ERR_INVALID_SCHEMA) in str(excinfo.value)
+    # 3. drop property
+    # correctly drop a property
+    sess.execute("ALTER TABLE person DROP newAge;")
+    # incorrectly drop a property that does not exist
+    with pytest.raises(Exception) as excinfo:
+        sess.execute("ALTER TABLE person DROP age1;")
+    assert str(ERR_INVALID_SCHEMA) in str(excinfo.value)
+    sess.close()
     db.close()
 
 

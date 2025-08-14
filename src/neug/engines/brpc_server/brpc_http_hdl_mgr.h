@@ -74,12 +74,13 @@ class HttpServiceImpl : public HttpService {
     auto req = cntl->request_attachment().to_string();
     if (req.empty()) {
       LOG(ERROR) << "Eval request is empty";
-      cntl->SetFailed(brpc::HTTP_STATUS_BAD_REQUEST, "Eval request is empty");
+      cntl->SetFailed(brpc::HTTP_STATUS_BAD_REQUEST, "%s",
+                      "Eval request is empty");
       return;
     }
     if (!planner_) {
       LOG(ERROR) << "Planner is not set";
-      cntl->SetFailed(brpc::HTTP_STATUS_INTERNAL_SERVER_ERROR,
+      cntl->SetFailed(brpc::HTTP_STATUS_INTERNAL_SERVER_ERROR, "%s",
                       "Planner is not set");
       return;
     }
@@ -89,9 +90,10 @@ class HttpServiceImpl : public HttpService {
     if (!plan_res.ok()) {
       LOG(ERROR) << "Plan compilation failed: "
                  << plan_res.status().error_message();
-      cntl->SetFailed(plan_res.status().ToString());
-      cntl->http_response().set_status_code(
-          status_code_to_http_code(plan_res.status().error_code()));
+      const char* error_msg = plan_res.status().error_message().c_str();
+      cntl->SetFailed(status_code_to_http_code(plan_res.status().error_code()),
+                      "%s", error_msg);
+      cntl->response_attachment().append(plan_res.status().error_message());
       return;
     }
     const auto& physical_plan = plan_res.value().first;
@@ -103,8 +105,8 @@ class HttpServiceImpl : public HttpService {
     if (!append_plugin_id(physical_plan, plan_proto_str, update_schema,
                           update_statistics)) {
       cntl->SetFailed(
+          status_code_to_http_code(gs::StatusCode::ERR_NOT_SUPPORTED), "%s",
           "Unsupported plan type, only query and DDL plans are supported");
-      cntl->http_response().set_status_code(brpc::HTTP_STATUS_BAD_REQUEST);
       return;
     }
 
@@ -114,11 +116,10 @@ class HttpServiceImpl : public HttpService {
     gs::Decoder decoder(result_buffer.data(), result_buffer.size());
     if (!result.ok()) {
       LOG(ERROR) << "Eval failed: " << result.status().error_message();
-      cntl->SetFailed(result.status().error_message() + ", " +
-                      std::string(decoder.get_string()));
-      // When query fails, the error message is put in string format
-      cntl->http_response().set_status_code(
-          brpc::HTTP_STATUS_INTERNAL_SERVER_ERROR);
+      const char* error_msg = result.status().error_message().c_str();
+      cntl->SetFailed(status_code_to_http_code(result.status().error_code()),
+                      "%s", error_msg);
+      cntl->response_attachment().append(result.status().error_message());
       return;
     }
 
@@ -180,7 +181,7 @@ class HttpServiceImpl : public HttpService {
     if (!yaml.ok()) {
       LOG(ERROR) << "Failed to convert schema to YAML: "
                  << yaml.status().error_message();
-      cntl->SetFailed(brpc::HTTP_STATUS_INTERNAL_SERVER_ERROR,
+      cntl->SetFailed(brpc::HTTP_STATUS_INTERNAL_SERVER_ERROR, "%s",
                       "Failed to convert schema to YAML");
       return;
     }
@@ -188,8 +189,9 @@ class HttpServiceImpl : public HttpService {
     if (!schema_str_res.ok()) {
       LOG(ERROR) << "Failed to convert schema YAML to JSON: "
                  << schema_str_res.status().error_message();
-      cntl->SetFailed(brpc::HTTP_STATUS_INTERNAL_SERVER_ERROR,
-                      "Failed to convert schema YAML to JSON");
+      cntl->SetFailed(
+          status_code_to_http_code(schema_str_res.status().error_code()), "%s",
+          "Failed to convert schema YAML to JSON");
       return;
     }
     // Append schema string to response attachment
