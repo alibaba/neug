@@ -14,13 +14,13 @@
 #include <unordered_map>
 #include <utility>
 
-#include "logging.h"
-#include "pod_array.h"
-#include "prog.h"
-#include "re2.h"
-#include "regexp.h"
-#include "utf.h"
-#include "walker-inl.h"
+#include "re2/include/logging.h"
+#include "re2/include/pod_array.h"
+#include "re2/include/prog.h"
+#include "re2/include/re2.h"
+#include "re2/include/regexp.h"
+#include "re2/include/utf.h"
+#include "re2/include/walker-inl.h"
 
 namespace gs {
 namespace regex {

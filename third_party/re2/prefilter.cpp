@@ -2,7 +2,7 @@
 // Use of this source code is governed by a BSD-style
 // license that can be found in the LICENSE file.
 
-#include "prefilter.h"
+#include "re2/include/prefilter.h"
 
 #include <stddef.h>
 #include <stdint.h>
@@ -11,13 +11,13 @@
 #include <utility>
 #include <vector>
 
-#include "logging.h"
-#include "re2.h"
-#include "strutil.h"
-#include "unicode_casefold.h"
-#include "utf.h"
-#include "util.h"
-#include "walker-inl.h"
+#include "re2/include/logging.h"
+#include "re2/include/re2.h"
+#include "re2/include/strutil.h"
+#include "re2/include/unicode_casefold.h"
+#include "re2/include/utf.h"
+#include "re2/include/util.h"
+#include "re2/include/walker-inl.h"
 
 namespace gs {
 namespace regex {

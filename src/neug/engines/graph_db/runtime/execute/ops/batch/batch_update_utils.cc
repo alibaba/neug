@@ -23,7 +23,6 @@
 #include <rapidjson/stringbuffer.h>
 #include <rapidjson/writer.h>
 #include <stddef.h>
-#include <boost/algorithm/string.hpp>
 #include <cstdint>
 #include <ostream>
 #include <stdexcept>
@@ -38,6 +37,7 @@
 #include "neug/storages/rt_mutable_graph/loader/loader_utils.h"
 #include "neug/storages/rt_mutable_graph/schema.h"
 #include "neug/utils/arrow_utils.h"
+#include "neug/utils/string_utils.h"
 
 namespace arrow {
 class Array;
@@ -487,7 +487,7 @@ void to_arrow_csv_options(
   bool header_row = true;
   if (csv_options.find(CSV_HEADER_KEY) != csv_options.end()) {
     // check lower-case
-    auto val = boost::algorithm::to_lower_copy(csv_options.at(CSV_HEADER_KEY));
+    auto val = to_lower_copy(csv_options.at(CSV_HEADER_KEY));
     if (val == "false" || val == "0") {
       header_row = false;
     } else if (val != "true" && val != "1") {
@@ -548,8 +548,7 @@ std::vector<std::shared_ptr<IRecordBatchSupplier>> create_csv_record_suppliers(
   bool stream_reader = true;
   if (csv_options.find(CSV_STREAM_READER) != csv_options.end()) {
     // check lower-case
-    auto val =
-        boost::algorithm::to_lower_copy(csv_options.at(CSV_STREAM_READER));
+    auto val = to_lower_copy(csv_options.at(CSV_STREAM_READER));
     if (val == "false" || val == "0") {
       stream_reader = false;
     } else if (val != "true" && val != "1") {

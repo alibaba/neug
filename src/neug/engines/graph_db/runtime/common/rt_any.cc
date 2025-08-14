@@ -1490,7 +1490,7 @@ static void sink_any(const Any& any, common::Value* value) {
   } else if (any.type == PropertyType::Interval()) {
     auto interval_str = any.AsInterval().to_string();
     value->set_str(interval_str.data(), interval_str.size());
-  } else if (any.type == PropertyType::Float()){
+  } else if (any.type == PropertyType::Float()) {
     value->set_f32(any.AsFloat());
   } else {
     THROW_NOT_SUPPORTED_EXCEPTION("sink_any not support for " +

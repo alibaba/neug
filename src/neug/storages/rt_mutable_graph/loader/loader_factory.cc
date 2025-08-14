@@ -14,19 +14,16 @@
  */
 
 #include "neug/storages/rt_mutable_graph/loader/loader_factory.h"
-#include <dlfcn.h>                                           // for dlerror
-#include <glog/logging.h>                                    // for LOG, Log...
-#include <stdlib.h>                                          // for getenv
-#include <boost/algorithm/string/classification.hpp>         // for is_any_of
-#include <boost/algorithm/string/detail/classification.hpp>  // for is_any_ofF
-#include <boost/algorithm/string/split.hpp>                  // for split
-#include <boost/iterator/iterator_facade.hpp>                // for operator!=
-#include <boost/iterator/iterator_traits.hpp>                // for iterator...
-#include <boost/type_index/type_index_facade.hpp>            // for operator==
-#include <memory>                                            // for allocator
-#include <ostream>                                           // for operator<<
-#include <utility>                                           // for pair
-#include <vector>                                            // for vector
+
+#include <dlfcn.h>         // for dlerror
+#include <glog/logging.h>  // for LOG, Log...
+#include <stdlib.h>        // for getenv
+#include <memory>          // for allocator
+#include <ostream>         // for operator<<
+#include <utility>         // for pair
+#include <vector>          // for vector
+
+#include "neug/utils/string_utils.h"
 namespace gs {
 class IFragmentLoader;
 }
@@ -40,9 +37,8 @@ void LoaderFactory::Init() {
   // get env FLEX_OTHER_LOADERS
   if (getenv("FLEX_OTHER_LOADERS")) {
     auto other_loaders = getenv("FLEX_OTHER_LOADERS");
-    std::vector<std::string> adaptors;
-    ::boost::split(adaptors, other_loaders,
-                   ::boost::is_any_of(std::string(1, ':')));
+    std::vector<std::string> adaptors =
+        split_string_into_vec(other_loaders, ":");
     for (auto const& adaptor : adaptors) {
       if (!adaptor.empty()) {
         if (dlopen(adaptor.c_str(), RTLD_GLOBAL | RTLD_NOW) == nullptr) {

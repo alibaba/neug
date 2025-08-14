@@ -7,7 +7,7 @@
 // Originally the PCRE C++ wrapper, but adapted to use
 // the new automata-based regular expression engines.
 
-#include "re2.h"
+#include "re2/include/re2.h"
 
 #include <assert.h>
 #include <ctype.h>
@@ -27,13 +27,13 @@
 #include <utility>
 #include <vector>
 
-#include "logging.h"
-#include "prog.h"
-#include "regexp.h"
-#include "sparse_array.h"
-#include "strutil.h"
-#include "utf.h"
-#include "util.h"
+#include "re2/include/logging.h"
+#include "re2/include/prog.h"
+#include "re2/include/regexp.h"
+#include "re2/include/sparse_array.h"
+#include "re2/include/strutil.h"
+#include "re2/include/utf.h"
+#include "re2/include/util.h"
 
 namespace gs {
 namespace regex {

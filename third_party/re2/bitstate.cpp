@@ -24,10 +24,10 @@
 #include <limits>
 #include <utility>
 
-#include "logging.h"
-#include "pod_array.h"
-#include "prog.h"
-#include "regexp.h"
+#include "re2/include/logging.h"
+#include "re2/include/pod_array.h"
+#include "re2/include/prog.h"
+#include "re2/include/regexp.h"
 
 namespace gs {
 namespace regex {

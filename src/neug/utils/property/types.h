@@ -22,20 +22,6 @@ limitations under the License.
 #include <yaml-cpp/node/impl.h>
 #include <yaml-cpp/node/node.h>
 #include <yaml-cpp/yaml.h>
-#include <boost/cstdint.hpp>
-#include <boost/date_time/date.hpp>
-#include <boost/date_time/gregorian/greg_date.hpp>
-#include <boost/date_time/gregorian_calendar.hpp>
-#include <boost/date_time/posix_time/posix_time.hpp>
-#include <boost/date_time/posix_time/posix_time_config.hpp>
-#include <boost/date_time/posix_time/posix_time_duration.hpp>
-#include <boost/date_time/posix_time/posix_time_io.hpp>
-#include <boost/date_time/posix_time/ptime.hpp>
-#include <boost/date_time/time.hpp>
-#include <boost/date_time/time_system_counted.hpp>
-#include <boost/exception/exception.hpp>
-#include <boost/iterator/iterator_facade.hpp>
-#include <boost/lexical_cast/bad_lexical_cast.hpp>
 #include <chrono>
 #include <compare>
 #include <cstdint>
@@ -1621,19 +1607,6 @@ static const DateTime DEFAULT_DATE_TIME_VALUE = DateTime(0);
 static const TimeStamp DEFAULT_TIME_STAMP_VALUE = TimeStamp(0);
 
 }  // namespace gs
-
-namespace boost {
-// override boost hash function for EmptyType
-inline std::size_t hash_value(const grape::EmptyType& value) { return 0; }
-inline std::size_t hash_value(const gs::GlobalId& value) {
-  return std::hash<uint64_t>()(value.global_id);
-}
-// overload hash_value for LabelKey
-inline std::size_t hash_value(const gs::LabelKey& key) {
-  return std::hash<int32_t>()(key.label_id);
-}
-
-}  // namespace boost
 
 namespace std {
 

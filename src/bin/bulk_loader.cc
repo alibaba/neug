@@ -16,15 +16,7 @@
 #include <glog/logging.h>
 #include <stdlib.h>
 #include <time.h>
-#include <boost/cstdint.hpp>
-#include <boost/lexical_cast/bad_lexical_cast.hpp>
-#include <boost/program_options.hpp>  // IWYU pragma: keep
-#include <boost/program_options/errors.hpp>
-#include <boost/program_options/options_description.hpp>
-#include <boost/program_options/parsers.hpp>
-#include <boost/program_options/value_semantic.hpp>
-#include <boost/program_options/variables_map.hpp>
-#include <boost/type_index/type_index_facade.hpp>
+
 #include <csignal>
 #include <cstdint>
 #include <filesystem>
@@ -33,6 +25,7 @@
 #include <string>
 #include <system_error>
 
+#include "cxxopts/cxxopts.hpp"
 #include "libgrape-lite/grape/util.h"
 #include "neug/storages/rt_mutable_graph/loader/i_fragment_loader.h"
 #include "neug/storages/rt_mutable_graph/loader/loader_factory.h"
@@ -40,14 +33,6 @@
 #include "neug/storages/rt_mutable_graph/mutable_property_fragment.h"
 #include "neug/storages/rt_mutable_graph/schema.h"
 #include "neug/utils/result.h"
-
-#ifdef BUILD_WITH_OSS
-#include <boost/process.hpp>
-
-#include "neug/utils/remote/oss_storage.h"
-#endif
-
-namespace bpo = boost::program_options;
 
 static std::string work_dir;
 
@@ -67,75 +52,7 @@ void signal_handler(int signal) {
   }
 }
 
-#ifdef BUILD_WITH_OSS
-
-void check_oss_object_not_exist(std::string& data_path,
-                                std::string& object_path,
-                                gs::OSSConf& oss_conf) {
-  auto pos = data_path.find("/", 6);
-  if (pos == std::string::npos) {
-    LOG(FATAL) << "Invalid data path: " << data_path;
-  }
-  oss_conf.bucket_name_ = data_path.substr(6, pos - 6);
-  object_path = data_path.substr(pos + 1);
-  oss_conf.load_conf_from_env();
-  // check whether the object exists
-  auto oss_reader = std::make_shared<gs::OSSRemoteStorageDownloader>(oss_conf);
-  if (!oss_reader || !oss_reader->Open().ok()) {
-    LOG(FATAL) << "Failed to open oss reader";
-  }
-  std::vector<std::string> path_list;
-  auto status = oss_reader->List(object_path, path_list);
-  if (status.ok() && path_list.size() > 0) {
-    LOG(FATAL) << "Object already exists: " << object_path
-               << ", list size: " << path_list.size()
-               << ", please remove the object and try again.";
-  }
-  // use a random directory
-  data_path = "/tmp/" + std::to_string(time(nullptr));
-}
-
-int32_t upload_data_dir_to_oss(const std::filesystem::path& data_dir_path,
-                               const std::string& object_path,
-                               const gs::OSSConf& oss_conf) {
-  // zip the data directory
-  std::string zip_file = data_dir_path.string() + ".zip";
-  std::string zip_cmd = "zip -r " + zip_file + " " + data_dir_path.string();
-  boost::process::child zip_process(zip_cmd);
-  zip_process.wait();
-
-  int res = zip_process.exit_code();
-  if (res != 0) {
-    LOG(ERROR) << "Failed to zip data directory: " << zip_cmd
-               << ", code: " << res;
-    return -1;
-  }
-
-  auto oss_writer = std::make_shared<gs::OSSRemoteStorageUploader>(oss_conf);
-  if (!oss_writer || !oss_writer->Open().ok()) {
-    LOG(ERROR) << "Failed to open oss writer";
-    return -1;
-  }
-  auto status = oss_writer->Put(zip_file, object_path, false);
-  if (!status.ok()) {
-    LOG(ERROR) << "Failed to upload data to oss: " << status.ToString();
-    return -1;
-  }
-  status = oss_writer->Close();
-  if (!status.ok()) {
-    LOG(ERROR) << "Failed to close oss writer: " << status.ToString();
-    return -1;
-  }
-  LOG(INFO) << "Successfully uploaded data to oss: " << object_path
-            << ", it is in zip format";
-  std::filesystem::remove(zip_file);
-  std::filesystem::remove_all(data_dir_path);
-  return 0;
-}
-#endif
-
 int main(int argc, char** argv) {
-  bpo::options_description desc("Usage:");
   /**
    * When loading the edges of a graph, there are two stages involved.
    *
@@ -153,24 +70,29 @@ int main(int argc, char** argv) {
    * avoid extensive disk random read and write operations
    *
    */
-  desc.add_options()("help", "Display help message")(
-      "version,v", "Display version")("parallelism,p", bpo::value<uint32_t>(),
-                                      "parallelism of bulk loader")(
-      "data-path,d", bpo::value<std::string>(), "data directory path")(
-      "graph-config,g", bpo::value<std::string>(), "graph schema config file")(
-      "bulk-load,l", bpo::value<std::string>(), "bulk-load config file")(
-      "build-csr-in-mem,m", bpo::value<bool>(), "build csr in memory")(
-      "use-mmap-vector", bpo::value<bool>(), "use mmap vector");
+
+  cxxopts::Options options("bulk_loader",
+                           "Bulk loader for NeuG graph database");
+  options.add_options()("h,help", "Display help message")("v,version",
+                                                          "Display version")(
+      "p,parallelism", "Parallelism of bulk loader",
+      cxxopts::value<uint32_t>()->default_value("1"))(
+      "d,data-path", "Data directory path", cxxopts::value<std::string>())(
+      "g,graph-config", "Graph schema config file",
+      cxxopts::value<std::string>())("l,bulk-load", "Bulk-load config file",
+                                     cxxopts::value<std::string>())(
+      "build-csr-in-mem", "Build CSR in memory",
+      cxxopts::value<bool>()->default_value("false"))(
+      "use-mmap-vector", "Use mmap vector",
+      cxxopts::value<bool>()->default_value("false"));
 
   google::InitGoogleLogging(argv[0]);
   FLAGS_logtostderr = true;
 
-  bpo::variables_map vm;
-  bpo::store(bpo::command_line_parser(argc, argv).options(desc).run(), vm);
-  bpo::notify(vm);
+  cxxopts::ParseResult vm = options.parse(argc, argv);
 
   if (vm.count("help")) {
-    std::cout << desc << std::endl;
+    std::cout << options.help() << std::endl;
     return 0;
   }
 
@@ -186,11 +108,6 @@ int main(int argc, char** argv) {
    * performance, bulk_loader will zip the data directory before uploading.
    * The data path should be in the format of oss://bucket_name/object_path
    */
-#ifdef BUILD_WITH_OSS
-  bool upload_to_oss = false;
-  std::string object_path = "";
-  auto oss_conf = gs::OSSConf();
-#endif
   std::string bulk_load_config_path = "";
   std::string graph_schema_path = "";
 
@@ -315,12 +232,6 @@ int main(int argc, char** argv) {
   if (ec) {
     LOG(ERROR) << "Failed to copy graph schema file: " << ec.message();
   }
-
-#ifdef BUILD_WITH_OSS
-  if (upload_to_oss) {
-    return upload_data_dir_to_oss(data_dir_path, object_path, oss_conf);
-  }
-#endif
 
   return 0;
 }

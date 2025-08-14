@@ -22,10 +22,10 @@
 //
 // Regexp::MimicsPCRE checks for any of these conditions.
 
-#include "logging.h"
-#include "regexp.h"
-#include "util.h"
-#include "walker-inl.h"
+#include "re2/include/logging.h"
+#include "re2/include/regexp.h"
+#include "re2/include/util.h"
+#include "re2/include/walker-inl.h"
 
 namespace gs {
 namespace regex {

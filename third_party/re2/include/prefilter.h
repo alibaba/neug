@@ -13,8 +13,8 @@
 #include <string>
 #include <vector>
 
-#include "logging.h"
-#include "util.h"
+#include "re2/include/logging.h"
+#include "re2/include/util.h"
 
 namespace gs {
 namespace regex {

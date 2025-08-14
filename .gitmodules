@@ -22,3 +22,18 @@
 [submodule "third_party/rapidjson"]
 	path = third_party/rapidjson
 	url = https://github.com/Tencent/rapidjson.git
+[submodule "third_party/brpc"]
+	path = third_party/brpc
+	url = https://github.com/apache/brpc.git
+[submodule "third_party/boost/leaf"]
+	path = third_party/boost/leaf
+	url = https://github.com/boostorg/leaf.git
+[submodule "third_party/HowardHinnant/date"]
+	path = third_party/HowardHinnant/date
+	url = https://github.com/HowardHinnant/date.git
+[submodule "third_party/leveldb"]
+	path = third_party/leveldb
+	url = https://github.com/google/leveldb.git
+[submodule "third_party/gflags"]
+	path = third_party/gflags
+	url = https://github.com/gflags/gflags.git

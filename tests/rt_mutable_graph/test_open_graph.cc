@@ -4,6 +4,8 @@
 #include "neug/storages/rt_mutable_graph/file_names.h"
 #include "neug/storages/rt_mutable_graph/schema.h"
 
+#include <glog/logging.h>
+
 void test_open_close() {
   std::string dir = "/tmp/test_open_close";
   // remove the directory if it exists
@@ -275,6 +277,39 @@ bool test_update_record_view() {
   }
 }
 
+void test_temporal() {
+  gs::Date date("2023-10-01");
+  CHECK(date.to_timestamp() == 1696118400000);
+  gs::Date date2;
+  date2.from_timestamp(1696118400000);
+  CHECK(date2.to_string() == "2023-10-01");
+
+  gs::DateTime datetime("2023-10-01 12:34:56");
+  LOG(INFO) << "DateTime: " << datetime.to_string();
+  CHECK(datetime.to_string() == "2023-10-01 12:34:56.000");
+}
+
+void test_split_string_into_vec() {
+  std::string str = "a,b,c,d";
+  std::string delimeter = ",";
+  auto vec = gs::split_string_into_vec(str, delimeter);
+  CHECK(vec.size() == 4) << "Expected 4 elements, got " << vec.size();
+  CHECK(vec[0] == "a");
+  CHECK(vec[1] == "b");
+  CHECK(vec[2] == "c");
+  CHECK(vec[3] == "d");
+
+  str = "a,,c,,e";
+  std::string delimeter2 = ",";
+  vec = gs::split_string_into_vec(str, delimeter2);
+  CHECK(vec.size() == 5);
+  CHECK(vec[0] == "a");
+  CHECK(vec[1] == "");
+  CHECK(vec[2] == "c");
+  CHECK(vec[3] == "");
+  CHECK(vec[4] == "e");
+}
+
 int main(int argc, char** argv) {
   // Expect 2 args, data path, and csv directory
   if (argc != 3) {
@@ -283,6 +318,9 @@ int main(int argc, char** argv) {
   }
 
   gs::setup_signal_handler();
+
+  test_temporal();
+  test_split_string_into_vec();
 
   test_open_close();
   LOG(INFO) << "------------------------------------";

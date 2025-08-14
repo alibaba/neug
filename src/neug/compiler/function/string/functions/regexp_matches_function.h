@@ -24,7 +24,7 @@
 
 #include "neug/compiler/common/types/ku_string.h"
 #include "neug/compiler/function/string/functions/base_regexp_function.h"
-#include "re2.h"
+#include "re2/include/re2.h"
 
 namespace gs {
 namespace function {

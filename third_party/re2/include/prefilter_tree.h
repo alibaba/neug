@@ -20,9 +20,9 @@
 #include <string>
 #include <vector>
 
-#include "prefilter.h"
-#include "sparse_array.h"
-#include "util.h"
+#include "re2/include/prefilter.h"
+#include "re2/include/sparse_array.h"
+#include "re2/include/util.h"
 
 namespace gs {
 namespace regex {

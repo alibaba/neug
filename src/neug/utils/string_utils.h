@@ -25,6 +25,11 @@
 
 namespace gs {
 
+std::string to_lower_copy(const std::string& str);
+
+std::vector<std::string> split_string_into_vec(const std::string& str,
+                                               const std::string& delimiter);
+
 template <typename T>
 struct to_string_impl {
   static std::string to_string(const T& t) { return t.to_string(); }

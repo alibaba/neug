@@ -18,7 +18,6 @@
 
 #include <stddef.h>                                 // for size_t
 #include <stdint.h>                                 // for int32_t
-#include <boost/container_hash/extensions.hpp>      // for hash
 #include <iostream>                                 // for operator<<, ostream
 #include <string>                                   // for string, allocator
 #include <tuple>                                    // for tuple
@@ -85,6 +84,72 @@ Status parse_bulk_load_config_yaml(const YAML::Node& yaml_node,
                                    LoadingConfig& load_config);
 }  // namespace config_parsing
 
+namespace hash_tuple {
+
+template <typename T, typename Enable = void>
+struct hash_combine;
+
+// Helper function to combine hashes
+template <typename T>
+struct is_tuple : std::false_type {};
+
+template <typename... Args>
+struct is_tuple<std::tuple<Args...>> : std::true_type {};
+
+template <typename T>
+struct hash_combine<T, std::enable_if_t<!is_tuple<T>::value>> {
+  hash_combine(const T& val) : value(val) {}
+  T value;
+  void operator()(std::size_t& seed) const {
+    seed ^= std::hash<T>{}(value) + 0x9e3779b9 + (seed << 6) + (seed >> 2);
+  }
+};
+
+template <typename T>
+struct hash_combine<T, std::enable_if_t<is_tuple<T>::value>> {
+  hash_combine(const T& val) : value(val) {}
+  T value;
+  void operator()(std::size_t& seed) const {
+    std::apply(
+        [&seed](const auto&... args) {
+          ((seed ^= std::hash<std::decay_t<decltype(args)>>{}(args) +
+                    0x9e3779b9 + (seed << 6) + (seed >> 2)),
+           ...);
+        },
+        value);
+  }
+};
+
+// Hash struct for tuples
+template <typename Tuple, std::size_t Index = std::tuple_size<Tuple>::value - 1>
+struct TupleHash {
+  static void apply(std::size_t& seed, const Tuple& tuple) {
+    TupleHash<Tuple, Index - 1>::apply(seed, tuple);
+    hash_combine<typename std::tuple_element_t<Index, Tuple>>(
+        std::get<Index>(tuple))(seed);
+  }
+};
+
+template <typename Tuple>
+struct TupleHash<Tuple, 0> {
+  static void apply(std::size_t& seed, const Tuple& tuple) {
+    hash_combine<typename std::tuple_element_t<0, Tuple>> combiner(
+        std::get<0>(tuple));
+    combiner(seed);
+  }
+};
+
+template <typename... Args>
+struct hash {
+  std::size_t operator()(const std::tuple<Args...>& tuple) const {
+    std::size_t seed = 0;
+    TupleHash<std::tuple<Args...>>::apply(seed, tuple);
+    return seed;
+  }
+};
+
+}  // namespace hash_tuple
+
 enum class BulkLoadMethod { kInit = 0, kOverwrite = 1 };
 
 // Provide meta info about bulk loading.
@@ -141,7 +206,7 @@ class LoadingConfig {
   const std::unordered_map<schema_label_type, std::vector<std::string>>&
   GetVertexLoadingMeta() const;
   const std::unordered_map<edge_triplet_type, std::vector<std::string>,
-                           boost::hash<edge_triplet_type>>&
+                           hash_tuple::hash<edge_triplet_type>>&
   GetEdgeLoadingMeta() const;
 
   // Get vertex column mappings. Each element in the vector is a pair of
@@ -198,14 +263,14 @@ class LoadingConfig {
                                 // col_name can be empty
 
   std::unordered_map<edge_triplet_type, std::vector<std::string>,
-                     boost::hash<edge_triplet_type>>
+                     hash_tuple::hash<edge_triplet_type>>
       edge_loading_meta_;  // key: <src_label, dst_label, edge_label>
                            // value:
                            // <file_path>
   // All Edge Files share the same File schema.
   std::unordered_map<edge_triplet_type,
                      std::vector<std::tuple<size_t, std::string, std::string>>,
-                     boost::hash<edge_triplet_type>>
+                     hash_tuple::hash<edge_triplet_type>>
       edge_column_mappings_;  // match which column in file to which property in
                               // schema, {col_ind, col_name, schema_prop_name}
                               // col_name can be empty
@@ -218,7 +283,7 @@ class LoadingConfig {
   std::unordered_map<edge_triplet_type,
                      std::pair<std::vector<std::pair<std::string, size_t>>,
                                std::vector<std::pair<std::string, size_t>>>,
-                     boost::hash<edge_triplet_type>>
+                     hash_tuple::hash<edge_triplet_type>>
       edge_src_dst_col_;
 
   friend Status config_parsing::parse_bulk_load_config_file(

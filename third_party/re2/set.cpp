@@ -2,20 +2,20 @@
 // Use of this source code is governed by a BSD-style
 // license that can be found in the LICENSE file.
 
-#include "set.h"
+#include "re2/include/set.h"
 
 #include <stddef.h>
 
 #include <algorithm>
 #include <memory>
 
-#include "logging.h"
-#include "pod_array.h"
-#include "prog.h"
-#include "re2.h"
-#include "regexp.h"
-#include "stringpiece.h"
-#include "util.h"
+#include "re2/include/logging.h"
+#include "re2/include/pod_array.h"
+#include "re2/include/prog.h"
+#include "re2/include/re2.h"
+#include "re2/include/regexp.h"
+#include "re2/include/stringpiece.h"
+#include "re2/include/util.h"
 
 namespace gs {
 namespace regex {

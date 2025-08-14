@@ -18,8 +18,6 @@
 #include <fcntl.h>
 #include <rapidjson/encodings.h>
 #include <stdint.h>
-#include <boost/filesystem/operations.hpp>
-#include <boost/filesystem/path.hpp>
 
 // Disable class-memaccess warning to facilitate compilation with gcc>7
 // https://github.com/Tencent/rapidjson/issues/1700
@@ -70,7 +68,6 @@
 #include <rapidjson/prettywriter.h>
 #include <rapidjson/stringbuffer.h>
 #include <rapidjson/writer.h>
-#include <boost/filesystem.hpp>
 
 namespace gs {
 
@@ -210,10 +207,6 @@ inline PropertyType from_json(const rapidjson::Value& j) {
     LOG(ERROR) << "Failed to convert json to PropertyType";
   }
   return p;
-}
-
-inline boost::filesystem::path get_current_binary_directory() {
-  return boost::filesystem::canonical("/proc/self/exe").parent_path();
 }
 
 inline std::string jsonToString(const rapidjson::Value& json) {

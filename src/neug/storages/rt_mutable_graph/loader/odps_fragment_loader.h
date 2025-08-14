@@ -22,8 +22,6 @@
 #include <arrow/io/api.h>
 #include <arrow/util/uri.h>
 
-#include <boost/convert.hpp>
-#include <boost/convert/strtol.hpp>
 #include <charconv>
 
 #include "arrow/util/value_parsing.h"

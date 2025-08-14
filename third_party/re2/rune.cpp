@@ -15,7 +15,7 @@
 #include <stdarg.h>
 #include <string.h>
 
-#include "utf.h"
+#include "re2/include/utf.h"
 
 namespace gs {
 namespace regex {

@@ -24,7 +24,7 @@
 #include <string>
 #include <vector>
 
-#include "re2.h"
+#include "re2/include/re2.h"
 
 namespace gs {
 namespace regex {

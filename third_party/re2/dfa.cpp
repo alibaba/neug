@@ -37,15 +37,15 @@
 #include <utility>
 #include <vector>
 
-#include "logging.h"
-#include "mix.h"
-#include "mutex.h"
-#include "pod_array.h"
-#include "prog.h"
-#include "re2.h"
-#include "sparse_set.h"
-#include "stringpiece.h"
-#include "strutil.h"
+#include "re2/include/logging.h"
+#include "re2/include/mix.h"
+#include "re2/include/mutex.h"
+#include "re2/include/pod_array.h"
+#include "re2/include/prog.h"
+#include "re2/include/re2.h"
+#include "re2/include/sparse_set.h"
+#include "re2/include/stringpiece.h"
+#include "re2/include/strutil.h"
 
 // Silence "zero-sized array in struct/union" warning for DFA::State::next_.
 #ifdef _MSC_VER
@@ -1566,7 +1566,7 @@ bool DFA::SearchTTT(SearchParams* params) {
 bool DFA::FastSearchLoop(SearchParams* params) {
   // Because the methods are private, the Searches array
   // cannot be declared at top level.
-  static bool (DFA::* Searches[])(SearchParams*) = {
+  static bool (DFA::*Searches[])(SearchParams*) = {
       &DFA::SearchFFF, &DFA::SearchFFT, &DFA::SearchFTF, &DFA::SearchFTT,
       &DFA::SearchTFF, &DFA::SearchTFT, &DFA::SearchTTF, &DFA::SearchTTT,
   };

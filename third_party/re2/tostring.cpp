@@ -9,12 +9,12 @@
 
 #include <string>
 
-#include "logging.h"
-#include "regexp.h"
-#include "strutil.h"
-#include "utf.h"
-#include "util.h"
-#include "walker-inl.h"
+#include "re2/include/logging.h"
+#include "re2/include/regexp.h"
+#include "re2/include/strutil.h"
+#include "re2/include/utf.h"
+#include "re2/include/util.h"
+#include "re2/include/walker-inl.h"
 
 namespace gs {
 namespace regex {

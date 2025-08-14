@@ -14,7 +14,7 @@
 #include <ostream>
 #include <sstream>
 
-#include "util.h"
+#include "re2/include/util.h"
 
 // Debug-only checking.
 #define DCHECK(condition) assert(condition)

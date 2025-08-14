@@ -28,7 +28,7 @@
 #include "neug/compiler/common/types/timestamp_t.h"
 #include "neug/compiler/common/types/uuid.h"
 #include "neug/compiler/function/cast/functions/numeric_limits.h"
-#include "re2.h"
+#include "re2/include/re2.h"
 
 namespace gs {
 namespace function {

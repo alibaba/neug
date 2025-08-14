@@ -2,7 +2,7 @@
 // Use of this source code is governed by a BSD-style
 // license that can be found in the LICENSE file.
 
-#include "prefilter_tree.h"
+#include "re2/include/prefilter_tree.h"
 
 #include <stddef.h>
 
@@ -14,11 +14,11 @@
 #include <utility>
 #include <vector>
 
-#include "logging.h"
-#include "prefilter.h"
-#include "re2.h"
-#include "strutil.h"
-#include "util.h"
+#include "re2/include/logging.h"
+#include "re2/include/prefilter.h"
+#include "re2/include/re2.h"
+#include "re2/include/strutil.h"
+#include "re2/include/util.h"
 
 namespace gs {
 namespace regex {

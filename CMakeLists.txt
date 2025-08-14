@@ -68,8 +68,29 @@ add_definitions(-DNEUG_CMAKE_VERSION="${CMAKE_PROJECT_VERSION}")
 add_definitions(-DNEUG_EXTENSION_VERSION="0.9.0")
 include(CheckCXXCompilerFlag)
 
+macro(install_neug_target target)
+    install(TARGETS ${target}
+            EXPORT neug-targets
+            RUNTIME DESTINATION bin
+            LIBRARY DESTINATION lib
+            ARCHIVE DESTINATION lib
+    )
+endmacro()
+
 if (BUILD_HTTP_SERVER)
     add_compile_definitions(BUILD_HTTP_SERVER)
+endif()
+
+if(NOT EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/third_party/boost/leaf/include/boost/leaf.hpp")
+    message(STATUS "boost/leaf not found, running git submodule update --init")
+    execute_process(
+        COMMAND git submodule update --init
+        WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
+        RESULT_VARIABLE result
+    )
+    if(result)
+        message(FATAL_ERROR "Failed to update git submodule: ${result}")
+    endif()
 endif()
 
 if (WITH_MIMALLOC)
@@ -264,6 +285,20 @@ endif()
 
 find_package(Threads REQUIRED)
 
+# find gflags-------------------------------------------------------------------
+find_package(gflags)
+if (NOT gflags_FOUND)
+    if (BUILD_HTTP_SERVER)
+        message(STATUS "gflags not found, build gflags from source") 
+        # We need gflags for brpc, so we build it as a third party library
+        include(cmake/BuildGflagsAsThirdParty.cmake)
+        build_gflags_as_third_party()
+    else()
+        message(STATUS "gflags not found, build without gflags")
+    endif()
+endif()
+include_directories(SYSTEM ${GFLAGS_INCLUDE_DIRS})
+
 # find glog---------------------------------------------------------------------
 include("cmake/FindGlog.cmake")
 if (NOT GLOG_FOUND)
@@ -274,6 +309,8 @@ if (NOT GLOG_FOUND)
     include_directories(SYSTEM ${CMAKE_CURRENT_BINARY_DIR}/third_party/glog/) # For generated headers
     set_target_properties(glog PROPERTIES DEBUG_POSTFIX "")
     set(GLOG_LIBRARIES glog::glog)
+    set(GLOG_LIB glog::glog)
+    set(GLOG_INCLUDE_PATH ${CMAKE_CURRENT_SOURCE_DIR}/third_party/glog/src)
 else ()
     include_directories(SYSTEM ${GLOG_INCLUDE_DIRS})
 endif ()
@@ -295,17 +332,6 @@ endif()
 
 if (BUILD_PYTHON)
     message("Build python embedded")
-    if(NOT EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/third_party/pybind11/CMakeLists.txt")
-    message(STAUTS "pybind11 not found, running git submodule update --init")
-    execute_process(
-        COMMAND git submodule update --init
-        WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
-        RESULT_VARIABLE result
-    )
-    if(result)
-        message(FATAL_ERROR "Failed to update git submodule: ${result}")
-    endif()
-endif()
     # To build wheel in manylinux docker, we should not link to a specific python library.
     set(PYBIND11_FINDPYTHON OFF)
     add_subdirectory(third_party/pybind11)
@@ -317,10 +343,11 @@ if(POLICY CMP0167)
   cmake_policy(SET CMP0167 NEW)
 endif()
 
-find_package(Boost REQUIRED COMPONENTS system filesystem
-               context program_options regex thread date_time)
-add_definitions("-DBOOST_BIND_GLOBAL_PLACEHOLDERS")
-include_directories(SYSTEM ${Boost_INCLUDE_DIRS})
+include_directories(SYSTEM third_party/boost/date_time/include)
+include_directories(SYSTEM third_party/boost/container_hash/include)
+include_directories(SYSTEM third_party/boost/algorithm/include)
+include_directories(SYSTEM third_party/HowardHinnant/date/include)
+include_directories(SYSTEM third_party/boost/leaf/include)
 
 
 if(USE_PTHASH)
@@ -423,21 +450,14 @@ endif()
 set(CMAKE_THREAD_PREFER_PTHREAD ON)
 find_package(Threads REQUIRED)
 
-# find gflags-------------------------------------------------------------------
-include("cmake/FindGFlags.cmake")
-if (NOT GFLAGS_FOUND)
-    message(STATUS "gflags not found, build without gflags")
-    message(STATUS "gflags library ${GFLAGS_LIBRARIES}")
-else ()
-    include_directories(SYSTEM ${GFLAGS_INCLUDE_DIRS})
-endif ()
-
 # find yaml-cpp-----------------------------------------------------------------
 find_package(yaml-cpp)
+message(STATUS "yaml-cpp found: ${yaml-cpp_FOUND}, ${yaml-cpp_INCLUDE_DIRS}")
 if (NOT yaml-cpp_FOUND)
     message(STATUS "yaml-cpp not found, installing yaml-cpp from source")
     set(BUILD_SHARED_LIBS ON CACHE BOOL "Build shared libraries")
     set(YAML_CPP_INSTALL ON CACHE BOOL "Install yaml-cpp")
+    set(YAML_CPP_BUILD_TOOLS OFF CACHE BOOL "Build yaml-cpp tools")
     add_subdirectory(third_party/yaml-cpp)
     include_directories(SYSTEM third_party/yaml-cpp/include)
     set(YAML_CPP_LIBRARIES yaml-cpp)
@@ -449,18 +469,37 @@ message(STATUS "yaml-cpp libraries: ${YAML_CPP_LIBRARIES}")
 
 
 if (BUILD_HTTP_SERVER)
-    find_library(BRPC_LIB NAMES brpc)
-    find_path(BRPC_INCLUDE_PATH NAMES brpc/server.h)
-    if((NOT BRPC_INCLUDE_PATH) OR (NOT BRPC_LIB))
-            message(FATAL_ERROR "Fail to find brpc")
-    endif()
-    find_package(OpenSSL REQUIRED)
     find_path(LEVELDB_INCLUDE_PATH NAMES leveldb/db.h)
     find_library(LEVELDB_LIB NAMES leveldb)
     if ((NOT LEVELDB_INCLUDE_PATH) OR (NOT LEVELDB_LIB))
-            message(FATAL_ERROR "Fail to find leveldb")
+        message(STATUS "Fail to find leveldb, try build from source")
+        set(LEVELDB_BUILD_TESTS OFF CACHE BOOL "Build leveldb tests")
+        set(LEVELDB_BUILD_BENCHMARKS OFF CACHE BOOL "Build leveldb benchmarks")
+        add_subdirectory(third_party/leveldb)
+        target_compile_definitions(leveldb PRIVATE NDEBUG=1)
+        set(LEVELDB_INCLUDE_PATH ${CMAKE_CURRENT_SOURCE_DIR}/third_party/leveldb/include)
+        set(LEVELDB_LIB leveldb)
+        set(INSTALL_LEVELDB ON CACHE BOOL "Install leveldb")
     endif()
     include_directories(${LEVELDB_INCLUDE_PATH})
+
+    find_library(BRPC_LIB NAMES brpc)
+    find_path(BRPC_INCLUDE_PATH NAMES brpc/server.h)
+    if((NOT BRPC_INCLUDE_PATH) OR (NOT BRPC_LIB))
+            # Requires gflags, leveldb-dev to be installed.
+            set(BUILD_BRPC_AS_THIRD_PARTY TRUE CACHE BOOL "Build brpc as third party")
+            message(STATUS "Fail to find brpc, try build from source")
+            set(WITH_DEBUG_SYMBOLS OFF CACHE BOOL "Build brpc with debug symbols")
+            set(BUILD_BRPC_TOOLS OFF CACHE BOOL "Build brpc tools")
+            set(BUILD_SHARED_LIBS OFF CACHE BOOL "Build brpc as static library")
+            set(WITH_GLOG ON CACHE BOOL "Build brpc with glog")
+            add_subdirectory(third_party/brpc)
+            set(BRPC_INCLUDE_PATH ${CMAKE_CURRENT_SOURCE_DIR}/third_party/brpc/include)
+            set(BRPC_LIB brpc-static)
+            include_directories(SYSTEM ${CMAKE_CURRENT_BINARY_DIR}/third_party/brpc/output/include)
+    endif()
+    include_directories(SYSTEM ${BRPC_INCLUDE_PATH})
+    find_package(OpenSSL REQUIRED)
     find_library(PROTOC_LIB NAMES protoc)
     if(NOT PROTOC_LIB)
         message(FATAL_ERROR "Fail to find protoc lib")
@@ -485,9 +524,11 @@ else ()
 endif()
 
 #find arrow----------------------------------------------------------------------
-find_package(Arrow REQUIRED)
+find_package(Arrow)
 if (NOT Arrow_FOUND)
-    message(FATAL_ERROR "arrow not found, please install the arrow library")
+    include(cmake/BuildArrowAsThirdParty.cmake)
+    build_arrow_as_third_party()
+    install_neug_target(${ARROW_LIB})
 else ()
     include_directories(SYSTEM ${ARROW_INCLUDE_DIR})
     if (USE_STATIC_ARROW)
@@ -547,15 +588,6 @@ if (BUILD_ODPS_FRAGMENT_LOADER)
 endif()
 include_directories(SYSTEM ${CMAKE_SOURCE_DIR}/third_party/flat_hash_map)
 include_directories(SYSTEM ${CMAKE_SOURCE_DIR}/third_party/parallel-hashmap)
-
-macro(install_neug_target target)
-    install(TARGETS ${target}
-            EXPORT neug-targets
-            RUNTIME DESTINATION bin
-            LIBRARY DESTINATION lib
-            ARCHIVE DESTINATION lib
-    )
-endmacro()
 
 macro(install_without_export_neug_target target)
     install(TARGETS ${target}
@@ -618,7 +650,6 @@ endif()
 add_subdirectory(third_party/libgrape-lite)
 include_directories(SYSTEM ${CMAKE_SOURCE_DIR}/third_party/libgrape-lite)
 
-include_directories(SYSTEM ${CMAKE_SOURCE_DIR}/third_party/re2/include)
 include_directories(SYSTEM ${CMAKE_SOURCE_DIR}/third_party/antlr4_cypher/include)
 
 
@@ -750,15 +781,39 @@ if (NOT RapidJSON_FOUND)
     )
 endif()
 
+install(DIRECTORY ${PROJECT_SOURCE_DIR}/third_party/boost/leaf/include/
+            DESTINATION include
+            FILES_MATCHING
+            PATTERN "*.h"
+            PATTERN "*.hpp"
+)
+
 if (WITH_MIMALLOC)
     if (NOT mimalloc_FOUND)
         install_neug_target(mimalloc)
     endif()
 endif()
 
+if (BUILD_BRPC_AS_THIRD_PARTY)
+    install_neug_target(brpc-static)
+endif()
+
 # Remove the debug_postfix for glog and yaml-cpp
 if (NOT GLOG_FOUND)
     install_neug_target(glog)
+endif()
+
+if (NOT yaml-cpp_FOUND)
+    install_neug_target(yaml-cpp)
+endif()
+
+if (BUILD_HTTP_SERVER)
+    if (INSTALL_LEVELDB)
+        install_neug_target(${LEVELDB_LIB})
+    endif()
+    if (GFLAGS_IS_SUBPROJECT)
+        install_neug_target(gflags_nothreads_shared)
+    endif()
 endif()
 
 include(CPack)

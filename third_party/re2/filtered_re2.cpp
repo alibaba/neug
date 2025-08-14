@@ -8,10 +8,10 @@
 
 #include <string>
 
-#include "logging.h"
-#include "prefilter.h"
-#include "prefilter_tree.h"
-#include "util.h"
+#include "re2/include/logging.h"
+#include "re2/include/prefilter.h"
+#include "re2/include/prefilter_tree.h"
+#include "re2/include/util.h"
 
 namespace gs {
 namespace regex {

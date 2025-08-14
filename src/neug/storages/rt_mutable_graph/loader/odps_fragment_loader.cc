@@ -21,8 +21,6 @@
 
 #include "arrow/ipc/api.h"
 #include "arrow/status.h"
-#include "boost/algorithm/algorithm.hpp"
-#include "boost/algorithm/string.hpp"
 #include "storage_api.hpp"
 
 namespace gs {
@@ -387,15 +385,14 @@ void ODPSFragmentLoader::parseLocation(
     std::vector<std::string>& selected_partitions) {
   LOG(INFO) << "Parse real path: " << odps_table_path;
 
-  std::vector<std::string> splits;
-  boost::split(splits, odps_table_path, boost::is_any_of("/"));
+  std::vector<std::string> splits = split_string_into_vec(odps_table_path, "/");
   // the first one is empty
   CHECK(splits.size() >= 2) << "Invalid odps table path: " << odps_table_path;
   table_identifier.project_ = splits[0];
   table_identifier.table_ = splits[1];
 
   if (splits.size() == 3) {
-    boost::split(selected_partitions, splits[2], boost::is_any_of(","));
+    selected_partitions = split_string_into_vec(splits[2], ",");
     std::vector<std::string> partitions;
     for (size_t i = 0; i < selected_partitions.size(); ++i) {
       partitions.emplace_back(selected_partitions[i].substr(

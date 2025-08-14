@@ -15,8 +15,6 @@
 
 #include "neug/compiler/gopt/g_expr_converter.h"
 
-#include <boost/algorithm/string.hpp>
-#include <boost/algorithm/string/case_conv.hpp>
 #include <cstdint>
 #include <ios>
 #include <memory>

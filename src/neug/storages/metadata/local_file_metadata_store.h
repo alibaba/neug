@@ -24,8 +24,6 @@
 #include "neug/storages/metadata/i_meta_store.h"
 #include "neug/utils/service_utils.h"
 
-#include <boost/format.hpp>
-
 namespace gs {
 
 /**

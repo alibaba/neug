@@ -93,10 +93,10 @@
 #include <set>
 #include <string>
 
-#include "logging.h"
-#include "stringpiece.h"
-#include "utf.h"
-#include "util.h"
+#include "re2/include/logging.h"
+#include "re2/include/stringpiece.h"
+#include "re2/include/utf.h"
+#include "re2/include/util.h"
 
 namespace gs {
 namespace regex {

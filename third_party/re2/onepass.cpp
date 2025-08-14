@@ -58,14 +58,14 @@
 #include <string>
 #include <vector>
 
-#include "logging.h"
-#include "pod_array.h"
-#include "prog.h"
-#include "sparse_set.h"
-#include "stringpiece.h"
-#include "strutil.h"
-#include "utf.h"
-#include "util.h"
+#include "re2/include/logging.h"
+#include "re2/include/pod_array.h"
+#include "re2/include/prog.h"
+#include "re2/include/sparse_set.h"
+#include "re2/include/stringpiece.h"
+#include "re2/include/strutil.h"
+#include "re2/include/utf.h"
+#include "re2/include/util.h"
 
 // Silence "zero-sized array in struct/union" warning for OneState::action.
 #ifdef _MSC_VER

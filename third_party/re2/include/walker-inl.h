@@ -15,8 +15,8 @@
 
 #include <stack>
 
-#include "logging.h"
-#include "regexp.h"
+#include "re2/include/logging.h"
+#include "re2/include/regexp.h"
 
 namespace gs {
 namespace regex {

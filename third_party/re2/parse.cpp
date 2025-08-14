@@ -26,16 +26,16 @@
 #include <string>
 #include <vector>
 
-#include "logging.h"
-#include "pod_array.h"
-#include "regexp.h"
-#include "stringpiece.h"
-#include "strutil.h"
-#include "unicode_casefold.h"
-#include "unicode_groups.h"
-#include "utf.h"
-#include "util.h"
-#include "walker-inl.h"
+#include "re2/include/logging.h"
+#include "re2/include/pod_array.h"
+#include "re2/include/regexp.h"
+#include "re2/include/stringpiece.h"
+#include "re2/include/strutil.h"
+#include "re2/include/unicode_casefold.h"
+#include "re2/include/unicode_groups.h"
+#include "re2/include/utf.h"
+#include "re2/include/util.h"
+#include "re2/include/walker-inl.h"
 
 #if defined(RE2_USE_ICU)
 #include "unicode/uniset.h"

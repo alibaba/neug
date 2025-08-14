@@ -5,7 +5,7 @@
 // Compiled regular expression representation.
 // Tested by compile_test.cc
 
-#include "prog.h"
+#include "re2/include/prog.h"
 
 #if defined(__AVX2__)
 #include <immintrin.h>
@@ -20,11 +20,11 @@
 #include <memory>
 #include <utility>
 
-#include "bitmap256.h"
-#include "logging.h"
-#include "stringpiece.h"
-#include "strutil.h"
-#include "util.h"
+#include "re2/include/bitmap256.h"
+#include "re2/include/logging.h"
+#include "re2/include/stringpiece.h"
+#include "re2/include/strutil.h"
+#include "re2/include/util.h"
 
 namespace gs {
 namespace regex {

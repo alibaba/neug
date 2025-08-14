@@ -20,8 +20,8 @@
 
 #include <stdint.h>
 
-#include "utf.h"
-#include "util.h"
+#include "re2/include/utf.h"
+#include "re2/include/util.h"
 
 namespace gs {
 namespace regex {

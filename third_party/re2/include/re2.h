@@ -216,7 +216,7 @@
 #include <TargetConditionals.h>
 #endif
 
-#include "stringpiece.h"
+#include "re2/include/stringpiece.h"
 
 namespace gs {
 namespace regex {
@@ -846,9 +846,8 @@ class RE2::Arg {
 #if !defined(_MSC_VER)
   template <typename T>
   using CanParseFrom = typename std::enable_if<
-      std::is_member_function_pointer<
-          decltype(static_cast<bool (T::*)(const char*, size_t)>(
-              &T::ParseFrom))>::value,
+      std::is_member_function_pointer<decltype(
+          static_cast<bool (T::*)(const char*, size_t)>(&T::ParseFrom))>::value,
       int>::type;
 #endif
 

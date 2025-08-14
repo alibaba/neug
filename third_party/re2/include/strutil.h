@@ -7,8 +7,8 @@
 
 #include <string>
 
-#include "stringpiece.h"
-#include "util.h"
+#include "re2/include/stringpiece.h"
+#include "re2/include/util.h"
 
 namespace gs {
 namespace regex {

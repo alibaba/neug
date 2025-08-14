@@ -13,13 +13,9 @@ set(NEUG_LIBRARIES @NEUG_LIBRARIES@)
 set(NEUG_INCLUDE_DIR "${NEUG_HOME}/include")
 set(NEUG_INCLUDE_DIRS "${NEUG_INCLUDE_DIR}")
 
-find_package(Boost REQUIRED COMPONENTS system filesystem
-             # required by folly
-             context program_options regex thread date_time)
-add_definitions("-DBOOST_BIND_GLOBAL_PLACEHOLDERS")
-include_directories(SYSTEM ${Boost_INCLUDE_DIRS})
-
+find_package(Threads REQUIRED)
 find_package(Arrow REQUIRED)
+find_package(gflags REQUIRED)
 
 if (@WITH_MIMALLOC@)
     find_package(mimalloc 2.0 REQUIRED)

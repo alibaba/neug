@@ -31,7 +31,7 @@
 #include "neug/compiler/function/cast/functions/cast_from_string_functions.h"
 #include "neug/compiler/function/cast/functions/cast_functions.h"
 #include "neug/utils/exception/exception.h"
-#include "re2.h"
+#include "re2/include/re2.h"
 
 namespace gs {
 namespace common {

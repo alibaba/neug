@@ -18,13 +18,13 @@
 #include <filesystem>
 
 #include <yaml-cpp/node/node.h>
-#include <boost/algorithm/string.hpp>
 #include <string>
 #include "neug/compiler/common/constants.h"
 #include "neug/compiler/common/string_format.h"
 #include "neug/compiler/gopt/g_constants.h"
 #include "neug/compiler/transaction/transaction.h"
 #include "neug/utils/exception/exception.h"
+#include "neug/utils/string_utils.h"
 
 namespace gs {
 namespace catalog {
@@ -200,19 +200,20 @@ std::unique_ptr<GRelTableCatalogEntry> GCatalog::createRelTableEntry(
   }
   auto srcID = srcEntry->getTableID();
   auto dstID = dstEntry->getTableID();
-  auto multiplicity = relation["relation"].as<std::string>();
+  auto multiplicity = gs::to_lower_copy(relation["relation"].as<std::string>());
   common::RelMultiplicity srcMultiplicity = common::RelMultiplicity::MANY;
   common::RelMultiplicity dstMultiplicity = common::RelMultiplicity::MANY;
-  if (boost::iequals(multiplicity, "ONE_TO_ONE")) {
+  if (multiplicity == "one_to_one") {
     srcMultiplicity = common::RelMultiplicity::ONE;
     dstMultiplicity = common::RelMultiplicity::ONE;
-  } else if (boost::iequals(multiplicity, "MANY_TO_ONE")) {
+  } else if (multiplicity == "many_to_one") {
     srcMultiplicity = common::RelMultiplicity::MANY;
     dstMultiplicity = common::RelMultiplicity::ONE;
-  } else if (boost::iequals(multiplicity, "ONE_TO_MANY")) {
+  } else if (multiplicity == "one_to_many") {
     srcMultiplicity = common::RelMultiplicity::ONE;
     dstMultiplicity = common::RelMultiplicity::MANY;
   }
+
   auto result = std::make_unique<GRelTableCatalogEntry>(
       labelName, srcMultiplicity, dstMultiplicity, tableId, labelId, srcID,
       dstID, common::ExtendDirection::BOTH);

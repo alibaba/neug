@@ -17,12 +17,12 @@
 #include <type_traits>
 #include <vector>
 
-#include "logging.h"
-#include "pod_array.h"
-#include "re2.h"
-#include "sparse_array.h"
-#include "sparse_set.h"
-#include "util.h"
+#include "re2/include/logging.h"
+#include "re2/include/pod_array.h"
+#include "re2/include/re2.h"
+#include "re2/include/sparse_array.h"
+#include "re2/include/sparse_set.h"
+#include "re2/include/util.h"
 
 namespace gs {
 namespace regex {

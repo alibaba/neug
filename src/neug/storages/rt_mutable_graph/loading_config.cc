@@ -334,15 +334,17 @@ static Status parse_edge_files(
     const std::string& data_location,
     std::unordered_map<
         std::tuple<label_t, label_t, label_t>, std::vector<std::string>,
-        boost::hash<std::tuple<label_t, label_t, label_t>>>& files,
+        hash_tuple::hash<std::tuple<label_t, label_t, label_t>>>& files,
     std::unordered_map<
         typename LoadingConfig::edge_triplet_type,
         std::vector<std::tuple<size_t, std::string, std::string>>,
-        boost::hash<typename LoadingConfig::edge_triplet_type>>& edge_mapping,
-    std::unordered_map<typename LoadingConfig::edge_triplet_type,
-                       std::pair<std::vector<std::pair<std::string, size_t>>,
-                                 std::vector<std::pair<std::string, size_t>>>,
-                       boost::hash<typename LoadingConfig::edge_triplet_type>>&
+        hash_tuple::hash<typename LoadingConfig::edge_triplet_type>>&
+        edge_mapping,
+    std::unordered_map<
+        typename LoadingConfig::edge_triplet_type,
+        std::pair<std::vector<std::pair<std::string, size_t>>,
+                  std::vector<std::pair<std::string, size_t>>>,
+        hash_tuple::hash<typename LoadingConfig::edge_triplet_type>>&
         edge_src_dst_col) {
   if (!node["type_triplet"]) {
     LOG(ERROR) << "edge [type_triplet] is not set properly";
@@ -513,15 +515,16 @@ static Status parse_edges_files_schema(
     const std::string& data_location,
     std::unordered_map<
         std::tuple<label_t, label_t, label_t>, std::vector<std::string>,
-        boost::hash<std::tuple<label_t, label_t, label_t>>>& files,
+        hash_tuple::hash<std::tuple<label_t, label_t, label_t>>>& files,
     std::unordered_map<
         typename LoadingConfig::edge_triplet_type,
         std::vector<std::tuple<size_t, std::string, std::string>>,
-        boost::hash<typename LoadingConfig::edge_triplet_type>>& edge_mapping,
+        hash_tuple::hash<typename LoadingConfig::edge_triplet_type>>&
+        edge_mapping,
     std::unordered_map<std::tuple<label_t, label_t, label_t>,
                        std::pair<std::vector<std::pair<std::string, size_t>>,
                                  std::vector<std::pair<std::string, size_t>>>,
-                       boost::hash<typename LoadingConfig::edge_triplet_type>>&
+                       hash_tuple::hash<std::tuple<label_t, label_t, label_t>>>&
         edge_src_dst_col) {
   if (!node.IsSequence()) {
     LOG(ERROR) << "Field [edge_mappings] should be a list";
@@ -899,7 +902,7 @@ LoadingConfig::GetVertexLoadingMeta() const {
 
 const std::unordered_map<LoadingConfig::edge_triplet_type,
                          std::vector<std::string>,
-                         boost::hash<LoadingConfig::edge_triplet_type>>&
+                         hash_tuple::hash<LoadingConfig::edge_triplet_type>>&
 LoadingConfig::GetEdgeLoadingMeta() const {
   return edge_loading_meta_;
 }

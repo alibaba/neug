@@ -24,7 +24,7 @@
 
 #include "base_regexp_function.h"
 #include "neug/compiler/common/vector/value_vector.h"
-#include "re2.h"
+#include "re2/include/re2.h"
 
 namespace gs {
 namespace function {

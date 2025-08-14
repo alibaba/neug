@@ -33,13 +33,13 @@
 #include <utility>
 #include <vector>
 
-#include "logging.h"
-#include "pod_array.h"
-#include "prog.h"
-#include "regexp.h"
-#include "sparse_array.h"
-#include "sparse_set.h"
-#include "strutil.h"
+#include "re2/include/logging.h"
+#include "re2/include/pod_array.h"
+#include "re2/include/prog.h"
+#include "re2/include/regexp.h"
+#include "re2/include/sparse_array.h"
+#include "re2/include/sparse_set.h"
+#include "re2/include/strutil.h"
 
 namespace gs {
 namespace regex {

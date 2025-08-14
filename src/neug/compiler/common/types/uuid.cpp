@@ -24,7 +24,7 @@
 
 #include "neug/compiler/common/random_engine.h"
 #include "neug/utils/exception/exception.h"
-#include "re2.h"
+#include "re2/include/re2.h"
 
 namespace gs {
 namespace common {

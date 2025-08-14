@@ -18,13 +18,15 @@
 
 #include <algorithm>
 #include <cctype>
+#include <chrono>
 #include <cstdlib>
 #include <iomanip>
 #include <istream>
 #include <memory>
 #include <ostream>
+#include <sstream>
 
-#include <boost/date_time.hpp>
+#include "date/date.h"
 
 #include "libgrape-lite/grape/serialization/in_archive.h"
 #include "libgrape-lite/grape/serialization/out_archive.h"
@@ -702,31 +704,30 @@ Date::Date(const std::string& date_str) {
 }
 
 int64_t Date::to_timestamp() const {
-  const boost::posix_time::ptime epoch(boost::gregorian::date(1970, 1, 1));
+  date::year_month_day ymd = date::year_month_day(
+      date::year(year()), date::month(month()), date::day(day()));
+  date::sys_days time_point_days = date::sys_days(ymd);
+  std::chrono::system_clock::time_point date_time =
+      time_point_days + std::chrono::hours(hour());
+  // Calculate the difference in seconds from epoch
+  auto timestamp = std::chrono::duration_cast<std::chrono::seconds>(
+                       date_time.time_since_epoch())
+                       .count();
 
-  boost::gregorian::date new_date(year(), month(), day());
-  boost::posix_time::ptime new_time_point(
-      new_date, boost::posix_time::time_duration(hour(), 0, 0));
-  boost::posix_time::time_duration diff = new_time_point - epoch;
-  uint64_t new_timestamp_sec = diff.total_seconds();
-
-  return new_timestamp_sec * 1000;
+  // Convert seconds to milliseconds
+  int64_t timestamp_millis = timestamp * 1000;
+  return timestamp_millis;
 }
 
 void Date::from_timestamp(int64_t ts) {
-  const boost::posix_time::ptime epoch(boost::gregorian::date(1970, 1, 1));
-  int64_t ts_sec = ts / 1000;
-  boost::posix_time::ptime time_point =
-      epoch + boost::posix_time::seconds(ts_sec);
-  boost::posix_time::ptime::date_type date = time_point.date();
-  boost::posix_time::time_duration td = time_point.time_of_day();
-  this->value.internal.year = date.year();
-  this->value.internal.month = date.month().as_number();
-  this->value.internal.day = date.day();
-  this->value.internal.hour = td.hours();
-  // We could not assert here because we may lose precision when converting
-  //  from timestamp to date.
-  //  assert(ts == to_timestamp());
+  auto time_point = std::chrono::system_clock::from_time_t(ts / 1000);
+  auto ymd = date::year_month_day{floor<std::chrono::days>(time_point)};
+  auto time_of_day = time_point - date::sys_days(ymd);
+  this->value.internal.year = static_cast<int>(ymd.year());
+  this->value.internal.month = static_cast<unsigned>(ymd.month());
+  this->value.internal.day = static_cast<unsigned>(ymd.day());
+  this->value.internal.hour = static_cast<unsigned>(
+      std::chrono::duration_cast<std::chrono::hours>(time_of_day).count());
 }
 
 bool Date::operator<(const Date& rhs) const {
@@ -808,63 +809,55 @@ Interval Date::operator-=(const Date& interval) const {
 DateTime::DateTime(const std::string& date_time_str) {
   // For input string like "YYYY-MM-DD HH:MM:SS.zzz". the .zzz part is
   // optional.
-  boost::posix_time::ptime pt;
-  static const std::locale formats[] = {
-      std::locale(std::locale::classic(),
-                  new boost::posix_time::time_input_facet("%Y-%m-%d %H:%M:%S")),
-      std::locale(
-          std::locale::classic(),
-          new boost::posix_time::time_input_facet("%Y-%m-%d %H:%M:%S.%f")),
-      std::locale(
-          std::locale::classic(),
-          new boost::posix_time::time_input_facet("%Y-%m-%dT%H:%M:%S.%f%z"))};
-  static const size_t formats_n = sizeof(formats) / sizeof(formats[0]);
-
   std::istringstream ss(date_time_str);
+  date::sys_time<std::chrono::milliseconds> sys_time;
+  // Try multiple formats
   try {
-    for (size_t i = 0; i < formats_n; ++i) {
-      ss.imbue(formats[i]);
-      LOG(INFO) << "Trying to parse DateTime with format: " << i;
-      ss >> pt;
-      if (!ss.fail()) {
-        break;  // Successfully parsed
-      }
-      ss.clear();             // Clear the fail state
-      ss.str(date_time_str);  // Reset the string stream
-    }
+    date::from_stream(ss, "%Y-%m-%d %H:%M:%S", sys_time);
     if (ss.fail()) {
-      THROW_INVALID_ARGUMENT_EXCEPTION("Invalid date time string format");
+      // If it fails, try with milliseconds
+      ss.clear();
+      ss.str(date_time_str);  // Reset the stream
+      date::from_stream(ss, "%Y-%m-%d %H:%M:%S.%f", sys_time);
+      if (ss.fail()) {
+        THROW_INVALID_ARGUMENT_EXCEPTION("Invalid date time string format");
+      }
     }
-    if (pt.time_of_day().total_milliseconds() < 0 || pt.date().year() < 1970) {
-      THROW_INVALID_ARGUMENT_EXCEPTION("Date time string is before epoch");
-    }
-    // Convert to milliseconds since epoch
-    const boost::posix_time::ptime epoch(boost::gregorian::date(1970, 1, 1));
-    boost::posix_time::time_duration diff = pt - epoch;
-    milli_second = diff.total_milliseconds();
-    LOG(INFO) << "Set DateTime from string: " << date_time_str
-              << ", milliseconds since epoch: " << milli_second;
   } catch (const std::exception& e) {
-    LOG(ERROR) << "Failed to parse DateTime from string: " << date_time_str
-               << ", error: " << e.what();
-    THROW_INVALID_ARGUMENT_EXCEPTION("Invalid date time string format");
+    THROW_INVALID_ARGUMENT_EXCEPTION("Invalid date time string format: " +
+                                     std::string(e.what()));
   }
+
+  milli_second = std::chrono::duration_cast<std::chrono::milliseconds>(
+                     sys_time.time_since_epoch())
+                     .count();
 }
 
 std::string DateTime::to_string() const {
-  // Convert to a string representation, YYYY-MM-DD HH:MM:SS.zzz
-  boost::posix_time::ptime epoch(boost::gregorian::date(1970, 1, 1));
-  boost::posix_time::ptime time_point =
-      epoch + boost::posix_time::milliseconds(milli_second);
-  boost::posix_time::time_duration td = time_point.time_of_day();
-  boost::gregorian::date date = time_point.date();
+  // Convert to a string representation, YYYY-MM-DD HH:MM:SS.zzz, using date.h
   std::ostringstream oss;
-  oss << date.year() << "-" << std::setw(2) << std::setfill('0')
-      << date.month().as_number() << "-" << std::setw(2) << std::setfill('0')
-      << date.day() << " " << std::setw(2) << std::setfill('0') << td.hours()
-      << ":" << std::setw(2) << std::setfill('0') << td.minutes() << ":"
-      << std::setw(2) << std::setfill('0') << td.seconds() << "."
-      << std::setw(3) << std::setfill('0') << milli_second % 1000;
+  auto time_point = std::chrono::system_clock::from_time_t(
+      milli_second / 1000);  // Convert milliseconds to seconds
+  auto ymd = std::chrono::floor<std::chrono::days>(time_point);
+  auto time_of_day = time_point - std::chrono::system_clock::time_point(
+                                      ymd);  // Get the time of day part
+  auto hours = std::chrono::duration_cast<std::chrono::hours>(time_of_day);
+  auto minutes =
+      std::chrono::duration_cast<std::chrono::minutes>(time_of_day - hours);
+  auto seconds = std::chrono::duration_cast<std::chrono::seconds>(
+      time_of_day - hours - minutes);
+  auto milliseconds = std::chrono::duration_cast<std::chrono::milliseconds>(
+      time_of_day - hours - minutes - seconds);
+  oss << int(date::year_month_day(ymd).year()) << "-" << std::setw(2)
+      << std::setfill('0')
+      << static_cast<unsigned>(date::year_month_day(ymd).month()) << "-"
+      << std::setw(2) << std::setfill('0')
+      << static_cast<unsigned>(date::year_month_day(ymd).day()) << " "
+      << std::setw(2) << std::setfill('0') << hours.count() << ":"
+      << std::setw(2) << std::setfill('0') << minutes.count() << ":"
+      << std::setw(2) << std::setfill('0') << seconds.count() << "."
+      << std::setw(3) << std::setfill('0')
+      << milliseconds.count() % 1000;  // Milliseconds
   return oss.str();
 }
 

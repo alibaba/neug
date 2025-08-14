@@ -13,44 +13,46 @@
  * limitations under the License.
  */
 
+#include "cxxopts/cxxopts.hpp"
 #include "neug/engines//graph_db_service.h"
 #include "neug/engines/graph_db/database/graph_db.h"
 #include "neug/utils/service_utils.h"
 
 #include <glog/logging.h>
-#include <boost/program_options.hpp>
 
 using namespace server;
-namespace bpo = boost::program_options;
 
 int main(int argc, char** argv) {
   gs::blockSignal(SIGINT);
   gs::blockSignal(SIGTERM);
 
-  bpo::options_description desc("Usage:");
-  desc.add_options()("help", "Display help message")(
-      "version,v", "Display version")("shard-num,s",
-                                      bpo::value<uint32_t>()->default_value(1),
-                                      "shard number of actor system")(
-      "http-port,p", bpo::value<uint16_t>()->default_value(10000),
-      "http port of query handler")("data-path,d", bpo::value<std::string>(),
-                                    "data directory path")(
-      "warmup,w", bpo::value<bool>()->default_value(false),
-      "warmup graph data")("memory-level,m",
-                           bpo::value<int>()->default_value(1))(
-      "compiler-path,c", bpo::value<std::string>()->default_value(""))(
-      "sharding-mode", bpo::value<std::string>()->default_value("cooperative"))(
-      "wal-uri",
-      bpo::value<std::string>()->default_value("file://{GRAPH_DATA_DIR}/wal"));
+  cxxopts::Options options("rt_server", "Real-time graph server for NeuG");
+  options.add_options()("h,help", "Display help message")("v,version",
+                                                          "Display version")(
+      "s,shard-num", "Shard number of actor system",
+      cxxopts::value<uint32_t>()->default_value("1"))(
+      "p,http-port", "HTTP port of query handler",
+      cxxopts::value<uint16_t>()->default_value("10000"))(
+      "d,data-path", "Data directory path", cxxopts::value<std::string>())(
+      "w,warmup", "Warmup graph data",
+      cxxopts::value<bool>()->default_value("false"))(
+      "m,memory-level", "Memory level for graph data",
+      cxxopts::value<int>()->default_value("1"))(
+      "c,compiler-path", "Path to the compiler",
+      cxxopts::value<std::string>()->default_value(""))(
+      "sharding-mode", "Sharding mode (exclusive or cooperative)",
+      cxxopts::value<std::string>()->default_value("cooperative"))(
+      "wal-uri", "URI for Write-Ahead Logging storage",
+      cxxopts::value<std::string>()->default_value(
+          "file://{GRAPH_DATA_DIR}/wal"));
+
   google::InitGoogleLogging(argv[0]);
   FLAGS_logtostderr = true;
 
-  bpo::variables_map vm;
-  bpo::store(bpo::command_line_parser(argc, argv).options(desc).run(), vm);
-  bpo::notify(vm);
+  cxxopts::ParseResult vm = options.parse(argc, argv);
 
   if (vm.count("help")) {
-    std::cout << desc << std::endl;
+    std::cout << options.help() << std::endl;
     return 0;
   }
   if (vm.count("version")) {
