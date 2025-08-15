@@ -23,7 +23,7 @@ if(CMAKE_VERSION VERSION_GREATER_EQUAL 3.28)
     list(APPEND FC_DECLARE_COMMON_OPTIONS EXCLUDE_FROM_ALL TRUE)
 endif()
 
-set(ARROW_VERSION "17.0.0")
+set(ARROW_VERSION "18.0.0")
 set(ARROW_SOURCE_URL "https://github.com/apache/arrow/archive/apache-arrow-${ARROW_VERSION}.tar.gz")
 
 function(build_arrow_as_third_party)

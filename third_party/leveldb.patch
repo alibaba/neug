@@ -1,0 +1,24 @@
+diff --git a/util/cache.cc b/util/cache.cc
+index ad1e9a2..b282e2b 100644
+--- a/util/cache.cc
++++ b/util/cache.cc
+@@ -127,7 +127,9 @@ class HandleTable {
+     }
+     LRUHandle** new_list = new LRUHandle*[new_length];
+     memset(new_list, 0, sizeof(new_list[0]) * new_length);
++#if !defined(NDEBUG)
+     uint32_t count = 0;
++#endif
+     for (uint32_t i = 0; i < length_; i++) {
+       LRUHandle* h = list_[i];
+       while (h != nullptr) {
+@@ -137,7 +139,9 @@ class HandleTable {
+         h->next_hash = *ptr;
+         *ptr = h;
+         h = next;
++#if !defined(NDEBUG)
+         count++;
++#endif
+       }
+     }
+     assert(elems_ == count);

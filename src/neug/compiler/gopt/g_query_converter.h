@@ -60,6 +60,9 @@ namespace gopt {
 const static common::alias_id_t INVALID_ALIAS_ID = -1;
 typedef ::google::protobuf::Map<std::string, std::string> Options;
 struct EdgeLabelId {
+  EdgeLabelId(common::table_id_t eid, common::table_id_t sid,
+              common::table_id_t did)
+      : edgeId(eid), srcId(sid), dstId(did) {}
   common::table_id_t edgeId;
   common::table_id_t srcId;
   common::table_id_t dstId;

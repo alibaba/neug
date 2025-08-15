@@ -141,6 +141,7 @@ class CMakeBuild(build_ext):
             f"-DBUILD_HTTP_SERVER={build_http_server}",
             f"-DBUILD_ALL_IN_ONE={build_all_in_one}",
             f"-DWITH_MIMALLOC={with_mimalloc}",
+            "-DCMAKE_POLICY_VERSION_MINIMUM=3.5",
         ]
         if cmake_install_prefix:
             cmake_args += [

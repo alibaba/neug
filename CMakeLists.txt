@@ -41,6 +41,7 @@ if(NOT KUZU_VECTOR_CAPACITY_LOG2)
     set(KUZU_VECTOR_CAPACITY_LOG2 11)
 endif()
 message(STATUS "KUZU_VECTOR_CAPACITY_LOG2: ${KUZU_VECTOR_CAPACITY_LOG2}")
+set(CMAKE_POLICY_VERSION_MINIMUM "3.5" CACHE STRING "Minimum CMake version to let third-party libraries use")
 
 # 64 * 2048 nodes per group
 option(KUZU_NODE_GROUP_SIZE_LOG2 "Log2 of the vector capacity." 17)
@@ -76,6 +77,11 @@ macro(install_neug_target target)
             ARCHIVE DESTINATION lib
     )
 endmacro()
+
+function(add_third_party_project_without_werror proj_dir)
+    set(CMAKE_COMPILE_WARNING_AS_ERROR NO)
+    add_subdirectory(${proj_dir})
+endfunction()
 
 if (BUILD_HTTP_SERVER)
     add_compile_definitions(BUILD_HTTP_SERVER)
@@ -467,6 +473,17 @@ else()
 endif ()
 message(STATUS "yaml-cpp libraries: ${YAML_CPP_LIBRARIES}")
 
+#find protobuf-------------------------------------------------------------------
+find_package(Protobuf)
+if (NOT Protobuf_FOUND)
+    set(BUILD_SHARED_LIBS ON CACHE BOOL "Build shared libraries")
+    set(protobuf_BUILD_TESTS OFF CACHE BOOL "Build protobuf tests")
+    add_subdirectory(third_party/protobuf)
+    include_directories(SYSTEM third_party/protobuf/include)
+endif()
+include_directories(SYSTEM ${Protobuf_INCLUDE_DIRS})
+message(STATUS "protobuf libraries: ${Protobuf_LIBRARIES}")
+
 
 if (BUILD_HTTP_SERVER)
     find_path(LEVELDB_INCLUDE_PATH NAMES leveldb/db.h)
@@ -475,6 +492,15 @@ if (BUILD_HTTP_SERVER)
         message(STATUS "Fail to find leveldb, try build from source")
         set(LEVELDB_BUILD_TESTS OFF CACHE BOOL "Build leveldb tests")
         set(LEVELDB_BUILD_BENCHMARKS OFF CACHE BOOL "Build leveldb benchmarks")
+        # Apply third_party/leveldb.patch to leveldb to fix compilation issue for wunused-variable
+        if (NOT EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/third_party/leveldb.patch")
+            message(FATAL_ERROR "leveldb.patch not found in third_party")
+        endif()
+        execute_process(COMMAND git apply ${CMAKE_CURRENT_SOURCE_DIR}/third_party/leveldb.patch
+                        WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/third_party/leveldb
+                        RESULT_VARIABLE result
+                        OUTPUT_VARIABLE output
+                        ERROR_VARIABLE error_output)
         add_subdirectory(third_party/leveldb)
         target_compile_definitions(leveldb PRIVATE NDEBUG=1)
         set(LEVELDB_INCLUDE_PATH ${CMAKE_CURRENT_SOURCE_DIR}/third_party/leveldb/include)
@@ -482,6 +508,15 @@ if (BUILD_HTTP_SERVER)
         set(INSTALL_LEVELDB ON CACHE BOOL "Install leveldb")
     endif()
     include_directories(${LEVELDB_INCLUDE_PATH})
+
+    find_package(OpenSSL)
+    if (NOT OpenSSL_FOUND)
+        message(FATAL_ERROR "Fail to find OpenSSL, try to install openssl development package. On macos: brew install openssl@3; on ubuntu: apt-get install libssl-dev")
+    endif()
+    find_library(CRYPTO_LIB NAMES crypto)
+    if (NOT CRYPTO_LIB)
+        message(FATAL_ERROR "Fail to find crypto lib")
+    endif()
 
     find_library(BRPC_LIB NAMES brpc)
     find_path(BRPC_INCLUDE_PATH NAMES brpc/server.h)
@@ -499,28 +534,10 @@ if (BUILD_HTTP_SERVER)
             include_directories(SYSTEM ${CMAKE_CURRENT_BINARY_DIR}/third_party/brpc/output/include)
     endif()
     include_directories(SYSTEM ${BRPC_INCLUDE_PATH})
-    find_package(OpenSSL REQUIRED)
     find_library(PROTOC_LIB NAMES protoc)
     if(NOT PROTOC_LIB)
         message(FATAL_ERROR "Fail to find protoc lib")
     endif()
-    find_library(CRYPTO_LIB NAMES crypto)
-    if (NOT CRYPTO_LIB)
-        message(FATAL_ERROR "Fail to find crypto lib")
-    endif()
-endif()
-
-#find protobuf-------------------------------------------------------------------
-find_package(Protobuf)
-if (NOT Protobuf_FOUND)
-    message(STATUS "protobuf not found, installing protobuf from source")
-    set(BUILD_SHARED_LIBS ON CACHE BOOL "Build shared libraries")
-    set(protobuf_BUILD_TESTS OFF CACHE BOOL "Build protobuf tests")
-    add_subdirectory(third_party/protobuf)
-    include_directories(SYSTEM third_party/protobuf/include)
-else ()
-    include_directories(SYSTEM ${Protobuf_INCLUDE_DIRS})
-    message(STATUS "protobuf libraries: ${Protobuf_LIBRARIES}")
 endif()
 
 #find arrow----------------------------------------------------------------------
