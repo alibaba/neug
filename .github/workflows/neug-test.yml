@@ -220,6 +220,10 @@ jobs:
         # ./scripts/run_embed_test.sh tinysnb /tmp/tinysnb basic_test,projection,filter,order_by,expr,acc,agg,match,cyclic,arithmetic
         # ./scripts/run_embed_test.sh tinysnb /tmp/tinysnb batch_delete_vertices true
         # ./scripts/run_embed_test.sh tinysnb /tmp/tinysnb batch_delete_edges true
+
+    - name: Run E2E tinysnb Test
+      run: |
+        cd ${GITHUB_WORKSPACE}/tests/e2e
         # in convenience, we use "read-write" model to run all test cases together
         ./scripts/run_embed_test.sh tinysnb /tmp/tinysnb "" true
 
@@ -227,6 +231,11 @@ jobs:
       run: |
         cd ${GITHUB_WORKSPACE}/tests/e2e
         ./scripts/run_embed_test.sh lsqb /tmp/lsqb lsqb
+    
+    - name: Run E2E LDBC Test
+      run: |
+        cd ${GITHUB_WORKSPACE}/tests/e2e
+        ./scripts/run_embed_test.sh ldbc /tmp/ldbc agg,match
 
     - name: Test installation c++ sdk
       run: |
