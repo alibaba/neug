@@ -48,7 +48,7 @@ jobs:
   test-py-neug:
     runs-on: [self-hosted]
     container:
-      image: registry.cn-hongkong.aliyuncs.com/graphscope/graphscope-dev:neug
+      image: registry.cn-hongkong.aliyuncs.com/graphscope/graphscope-dev:neug-dev
       # options: --user root
     steps:
     - name: checkout
@@ -86,7 +86,7 @@ jobs:
 
     - name: Build Interactive
       run: |
-        . /home/graphscope/.graphscope_env
+        . /home/neug/.neug_env
         cd ${GITHUB_WORKSPACE}/
         export BUILD_TYPE=DEBUG
         export CMAKE_BUILD_PARALLEL_LEVEL=$(nproc)
@@ -95,9 +95,9 @@ jobs:
         export BUILD_TEST=ON
         export USE_NINJA=OFF
         export WITH_MIMALLOC=ON
-        export CMAKE_INSTALL_PREFIX=/opt/neug/
-        sudo mkdir -p /opt/neug
-        sudo chown -R $USER:$USER /opt/neug
+        export CMAKE_INSTALL_PREFIX=/opt/neug-install/
+        sudo mkdir -p /opt/neug-install
+        sudo chown -R $USER:$USER /opt/neug-install/
         # export CC="ccache gcc"
         # export CXX="ccache g++"
         cd tools/python_bind
@@ -241,11 +241,11 @@ jobs:
       run: |
         cd ${GITHUB_WORKSPACE}/tools/python_bind/build/neug_py_bind
         sudo make install
-        ldd /opt/neug/lib/libneug_libraries.so
+        ldd /opt/neug-install/lib/libneug_libraries.so
         printenv
         cd  ${GITHUB_WORKSPACE}/tests/test_cpp_installation
         mkdir build && cd build
-        export CMAKE_PREFIX_PATH=/opt/neug/:/opt/graphscope/
+        export CMAKE_PREFIX_PATH=/opt/neug/:/opt/neug-install/
         cmake .. && make -j1
         ./test
 

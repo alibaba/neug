@@ -23,9 +23,9 @@ image_name=$1
 # 0.1.0
 version=$2
 # beijing or hongkong
-region=$2
+region=$3
 # update or create
-operation=$3
+operation=$4
 
 
 if [[ "${operation}" == "create" ]]; then

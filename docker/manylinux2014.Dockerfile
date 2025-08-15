@@ -15,12 +15,12 @@ ENV TZ=Asia/Shanghai
 RUN ln -snf /usr/share/zoneinfo/$TZ /etc/localtime && \
     echo '$TZ' > /etc/timezone
 
-RUN useradd -m graphscope -u 1001 \
-    && echo 'graphscope ALL=(ALL) NOPASSWD:ALL' >> /etc/sudoers
+RUN useradd -m neug -u 1001 \
+    && echo 'neug ALL=(ALL) NOPASSWD:ALL' >> /etc/sudoers
 
-RUN mkdir /opt/graphscope /opt/vineyard && chown -R graphscope:graphscope /opt/graphscope /opt/vineyard
+RUN mkdir /opt/neug /opt/vineyard && chown -R neug:neug /opt/neug /opt/vineyard
 # For output logs
-RUN mkdir -p /var/log/graphscope && chown -R graphscope:graphscope /var/log/graphscope
+RUN mkdir -p /var/log/neug && chown -R neug:neug /var/log/neug
 
 COPY scripts/install_deps.sh /root/install_deps.sh
 RUN cd /root/ && bash install_deps.sh
@@ -28,7 +28,7 @@ RUN cd /root/ && bash install_deps.sh
 # change bash as default
 SHELL ["/bin/bash", "-c"]
 
-RUN echo ". ~/.graphscope_env" >> /root/.bashrc
+RUN echo ". ~/.neug_env" >> /root/.bashrc
 
 # Setup environment
 ENV JAVA_HOME=/usr/lib/jvm/java-11-openjdk

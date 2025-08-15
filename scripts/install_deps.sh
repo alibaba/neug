@@ -91,7 +91,7 @@ readonly OS=$(get_os_version)
 readonly OS_PLATFORM=${OS%-*}
 readonly OS_VERSION=${OS#*-}
 readonly ARCH=$(uname -m)
-readonly OUTPUT_ENV_FILE="${HOME}/.graphscope_env"
+readonly OUTPUT_ENV_FILE="${HOME}/.neug_env"
 if [[ "${OS_PLATFORM}" == *"Darwin"* ]]; then
   readonly HOMEBREW_PREFIX=$(brew --prefix)
 fi
@@ -101,7 +101,7 @@ readonly ARROW_VERSION="17.0.0"
 readonly tempdir="/tmp/gs-local-deps"
 cn_flag=false
 debug_flag=false
-install_prefix="/opt/graphscope"
+install_prefix="/opt/neug"
 install_brpc=false
 
 # parse args
@@ -590,8 +590,8 @@ write_env_config() {
   echo "" > ${OUTPUT_ENV_FILE}
   # common
   {
-    echo "export GRAPHSCOPE_HOME=${install_prefix}"
-    echo "export CMAKE_PREFIX_PATH=/opt/graphscope/"
+    echo "export NEUG_HOME=${install_prefix}"
+    echo "export CMAKE_PREFIX_PATH=/opt/neug/"
     echo "export PATH=${install_prefix}/bin:\$HOME/.local/bin:\$HOME/.cargo/bin:\$PATH"
     echo "export LD_LIBRARY_PATH=${LD_LIBRARY_PATH}:\${LD_LIBRARY_PATH}"
     echo "export LIBRARY_PATH=${install_prefix}/lib:${install_prefix}/lib64:\${LIBRARY_PATH}"

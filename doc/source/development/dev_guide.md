@@ -9,10 +9,10 @@ To compile NeuG from source, certain dependencies and tools must be installed.
 We provide Docker images for x86_64 and arm64 platforms, with all necessary dependencies for building NeuG from source.
 
 ```bash
-docker pull registry.cn-hongkong.aliyuncs.com/graphscope/graphscope-dev:neug
-docker run --it --name neug-dev registry.cn-hongkong.aliyuncs.com/graphscope/graphscope-dev:neug bash
+docker pull registry.cn-hongkong.aliyuncs.com/graphscope/graphscope-dev:neug-dev
+docker run --it --name neug-dev registry.cn-hongkong.aliyuncs.com/graphscope/graphscope-dev:neug-dev bash
 # Inside the container, set up the environment variables.
-source ~/.graphscope_env
+source ~/.neug_env
 ```
 
 #### Building Locally
@@ -20,13 +20,13 @@ source ~/.graphscope_env
 You can also set up all required dependencies in your local environment using the provided script:
 
 ```bash
-bash scripts/install_deps.sh --brpc --install-prefix /opt/graphscope
+bash scripts/install_deps.sh --brpc --install-prefix /opt/neug
 ```
 
 After installation is complete, set up the environment variables:
 
 ```bash
-source ~/.graphscope_env
+source ~/.neug_env
 ```
 
 ### Building NeuG
@@ -131,5 +131,5 @@ To fix this issue, install the rpath manually
 
 ```bash
 cd tools/python_bind/
-install_name_tool -add_rpath /opt/graphscope/lib ./build/lib.macosx-15.0-arm64-cpython-313/neug_py_bind.cpython-313-darwin.so
+install_name_tool -add_rpath /opt/neug/lib ./build/lib.macosx-15.0-arm64-cpython-313/neug_py_bind.cpython-313-darwin.so
 ```

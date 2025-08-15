@@ -249,8 +249,8 @@ class BuildProto(Command):
         # find protoc executable
         protoc_executable = shutil.which("protoc")
         if protoc_executable is None:
-            # trying /opt/graphscope/bin/protoc
-            protoc_executable = "/opt/graphscope/bin/protoc"
+            # trying /opt/neug/bin/protoc
+            protoc_executable = "/opt/neug/bin/protoc"
         for proto_file in proto_files:
             if not os.path.exists(proto_file):
                 proto_file = os.path.join(proto_path, proto_file)

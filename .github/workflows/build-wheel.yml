@@ -183,12 +183,12 @@ jobs:
         run: |
           echo "MACOSX_DEPLOYMENT_TARGET=11.0" >> $GITHUB_ENV
           echo "MACOSX_DEPLOYMENT_TARGET={{ env.MACOSX_DEPLOYMENT_TARGET }}"
-          source ~/.graphscope_env
+          source ~/.neug_env
           echo "CMAKE_BUILD_PARALLEL_LEVEL=$(sysctl -n hw.ncpu)" >> $GITHUB_ENV
 
       - name: Build wheels
         run: |
-          source ~/.graphscope_env
+          source ~/.neug_env
           export CMAKE_BUILD_PARALLEL_LEVEL=$(nproc)
           export BUILD_TYPE=RELEASE
           python3 -m cibuildwheel ./tools/python_bind --output-dir wheelhouse
@@ -251,12 +251,12 @@ jobs:
         run: |
           echo "MACOSX_DEPLOYMENT_TARGET=11.0" >> $GITHUB_ENV
           echo "MACOSX_DEPLOYMENT_TARGET={{ env.MACOSX_DEPLOYMENT_TARGET }}"
-          source ~/.graphscope_env
+          source ~/.neug_env
           echo "CMAKE_BUILD_PARALLEL_LEVEL=$(sysctl -n hw.ncpu)" >> $GITHUB_ENV
 
       - name: Build wheels
         run: |
-          source ~/.graphscope_env
+          source ~/.neug_env
           export CMAKE_BUILD_PARALLEL_LEVEL=$(nproc)
           export BUILD_TYPE=RELEASE
           python3 -m cibuildwheel ./tools/python_bind --output-dir wheelhouse

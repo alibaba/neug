@@ -10,8 +10,8 @@ docker pull registry.cn-hongkong.aliyuncs.com/graphscope/graphscope-dev:neug-man
 docker pull registry.cn-hongkong.aliyuncs.com/graphscope/graphscope-dev:neug-manylinux-brpc-arm64
 
 # Development images
-docker pull registry.cn-hongkong.aliyuncs.com/graphscope/graphscope-dev:neug-x86_64
-docker pull registry.cn-hongkong.aliyuncs.com/graphscope/graphscope-dev:neug-arm64
+docker pull registry.cn-hongkong.aliyuncs.com/graphscope/graphscope-dev:neug-dev-x86_64
+docker pull registry.cn-hongkong.aliyuncs.com/graphscope/graphscope-dev:neug-dev-arm64
 ```
 
 ## Building Manylinux Images

@@ -34,7 +34,7 @@ jobs:
   build-neug:
     runs-on: ubuntu-22.04
     container:
-      image: registry.cn-hongkong.aliyuncs.com/graphscope/graphscope-dev:neug
+      image: registry.cn-hongkong.aliyuncs.com/graphscope/graphscope-dev:neug-dev
     steps:
     - uses: actions/checkout@v4
       with:
@@ -42,11 +42,11 @@ jobs:
 
     - name: Build NeuG
       run: |
-        . /home/graphscope/.graphscope_env
+        . /home/neug/.neug_env
         cd ${GITHUB_WORKSPACE}/
         cd ${GITHUB_WORKSPACE}
         mkdir build && cd build
-        cmake .. -DCMAKE_INSTALL_PREFIX=/opt/graphscope -DCMAKE_BUILD_TYPE=DEBUG \
+        cmake .. -DCMAKE_INSTALL_PREFIX=/opt/neug -DCMAKE_BUILD_TYPE=DEBUG \
              -DBUILD_EXECUTABLES=ON -DBUILD_HTTP_SERVER=ON -DBUILD_PYTHON=OFF
         make -j$(nproc)
     

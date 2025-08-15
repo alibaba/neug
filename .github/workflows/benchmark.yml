@@ -26,7 +26,7 @@ jobs:
   test-py-neug:
     runs-on: [self-hosted, x64]
     container:
-      image: registry.cn-hongkong.aliyuncs.com/graphscope/graphscope-dev:neug
+      image: registry.cn-hongkong.aliyuncs.com/graphscope/graphscope-dev:neug-dev
       # options: --user root
     steps:
     - name: checkout
@@ -64,7 +64,7 @@ jobs:
 
     - name: Build Interactive
       run: |
-        . /home/graphscope/.graphscope_env
+        . /home/neug/.neug_env
         cd ${GITHUB_WORKSPACE}/
         export BUILD_TYPE=RELEASE
         export CMAKE_BUILD_PARALLEL_LEVEL=$(nproc)

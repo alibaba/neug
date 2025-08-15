@@ -7,7 +7,7 @@
 To build a wheel for the local environment, run:
 
 ```bash
-source ~/.graphscope_env
+source ~/.neug_env
 cd tools/python_bind
 export DEBUG=1
 pip3 install -r requirements.txt
