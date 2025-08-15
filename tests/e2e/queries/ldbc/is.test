@@ -1,0 +1,130 @@
+-DATASET CSV ldbc
+
+-CASE LDBCTest
+
+-LOG IS1
+-SKIP
+-STATEMENT MATCH (n:PERSON {id: 26388279068220})-[:ISLOCATEDIN]->(p:PLACE)
+RETURN
+    n.firstName AS firstName,
+    n.lastName AS lastName,
+    n.birthday AS birthday,
+    n.locationIP AS locationIp,
+    n.browserUsed AS browserUsed,
+    p.id AS cityId,
+    n.gender AS gender,
+    n.creationDate AS creationDate
+---- 1
+Jun|Wang|575424000000|1.12.242.179|Opera|507|female|1331161432355
+
+
+-LOG IS2
+# do not support [:REPLYOF*0..*], use [:REPLYOF*0..10] instead
+-SKIP
+-STATEMENT MATCH (p :PERSON {id: 26388279068220})<-[:HASCREATOR]-(message: POST : COMMENT)
+WITH
+ message,
+ message.id AS messageId,
+ message.creationDate AS messageCreationDate
+ORDER BY messageCreationDate DESC, messageId ASC
+LIMIT 10
+MATCH (message: POST : COMMENT)-[:REPLYOF*0..10]->(post:POST)-[:HASCREATOR]->(person:PERSON)
+RETURN
+ messageId,
+ CASE WHEN message.content = "" THEN message.imageFile 
+ ELSE message.content END as messageContent,
+ messageCreationDate,
+ post.id AS originalPostId,
+ person.id AS originalPostAuthorId,
+ person.firstName AS originalPostAuthorFirstName,
+ person.lastName AS originalPostAuthorLastName
+ORDER BY messageCreationDate DESC, messageId ASC
+---- 10
+1099511997854|no way!|1347491709211|1099511997849|26388279067625|Anh|Pham
+1099511997848|thx|1347487322306|1099511997838|26388279067625|Anh|Pham
+1099511998003|no|1347468653864|1099511997996|26388279067625|Anh|Pham
+1099511997915|no|1347418980954|1099511997906|26388279067625|Anh|Pham
+1030792521004|About Dolly Parton, rk in country music. As a songwriter, she has composed over 3|1345762243480|1030792520995|26388279067625|Anh|Pham
+1030792353983|roflol|1345155499405|1030792353970|4398046512162|Abdul Baseer|Khan
+1030792353981|good|1345135170984|1030792353970|4398046512162|Abdul Baseer|Khan
+1030792309810|good|1345122171754|1030792309799|4398046512194|Jesus|Mendez
+1030792495534|LOL|1343166910447|1030792495530|21990232556891|Jim|Smith
+962072833052|About Mahathir Mohamad, nal Security Act to detain activists, non-mainstream reAbout Get Back, the Beatles' |1339835693878|962072833036|4398046512194|Jesus|Mendez
+
+
+-LOG IS3
+-SKIP
+-STATEMENT MATCH (n:PERSON {id: 19791209300143 })-[r:KNOWS]-(friend:PERSON)
+RETURN
+    friend.id AS personId,
+    friend.firstName AS firstName,
+    friend.lastName AS lastName,
+    r.creationDate AS friendshipCreationDate
+ORDER BY
+    friendshipCreationDate DESC,
+    personId ASC
+---- 8
+30786325578747|Zhang|Huang|1339581665762
+26388279066936|Chen|Zhang|1331069267421
+24189255811566|The|Kunda|1323839118471
+13194139533618|Yang|Zhang|1317135003853
+10995116278184|Arjun|Kumar|1316930133404
+4398046511596|Ge|Wei|1316373131406
+13194139533535|Shweta|Singh|1315772324838
+8796093023000|Peng|Zhang|1315244181901
+
+
+-LOG IS4
+-SKIP
+-STATEMENT MATCH (m:POST:COMMENT {id: 1030792332314})
+RETURN
+    CASE WHEN m.content = "" THEN m.imageFile
+    ELSE m.content END as messageContent,
+    m.creationDate as messageCreationDate
+---- 1
+photo1030792332314.jpg|1343010302068
+
+
+-LOG IS5
+-SKIP
+-STATEMENT MATCH (m:POST : COMMENT {id: 1030792332314  })-[:HASCREATOR]->(p:PERSON)
+RETURN
+    p.id AS personId,
+    p.firstName AS firstName,
+    p.lastName AS lastName
+---- 1
+26388279066868|Patricia|Alvarez
+
+
+-LOG IS6
+-SKIP
+# do not support [:REPLYOF*0..*], use [:REPLYOF*0..10] instead
+-STATEMENT MATCH (m:POST : COMMENT {id:  1030792332314 })-[:REPLYOF*0..10]->(p:POST)<-[:CONTAINEROF]-(f:FORUM)-[:HASMODERATOR]->(mod:PERSON)
+RETURN
+    f.id AS forumId,
+    f.title AS forumTitle,
+    mod.id AS moderatorId,
+    mod.firstName AS moderatorFirstName,
+    mod.lastName AS moderatorLastName
+---- 1
+1030792158392|Album 5 of Patricia Alvarez|26388279066868|Patricia|Alvarez
+
+
+-LOG IS7
+-STATEMENT MATCH (a)<-[:HASCREATOR]-(m:POST:COMMENT {id: 1030792257093 })<-[:REPLYOF]-(c:COMMENT)-[:HASCREATOR]->(p:PERSON)
+    OPTIONAL MATCH (a)-[r:KNOWS]-(p)
+    RETURN c.id AS commentId,
+        c.content AS commentContent,
+        c.creationDate AS commentCreationDate,
+        p.id AS replyAuthorId,
+        p.firstName AS replyAuthorFirstName,
+        p.lastName AS replyAuthorLastName,
+        CASE 
+            WHEN r is null THEN false
+            ELSE true
+        END AS isReplyAuthorKnowsOriginalMessageAuthor
+    ORDER BY commentCreationDate DESC, replyAuthorId
+---- 3
+1030792257101|no way!|1344407671623|15393162789228|Ashley|Carr|False
+1030792257094|About Nicolas Cage, ding Raising Arizona (1987), The Rock About Soviet Uni|1344354753119|15393162790275|Sergio|Machado|False
+1030792257097|thx|1344354234344|15393162789569|Bechir|Cardinale|False
