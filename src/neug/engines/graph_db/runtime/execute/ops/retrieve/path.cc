@@ -350,10 +350,22 @@ class SPOrderByLimitOpr : public IReadOperator {
                                       std::move(sp_vertex_pred));
     } else if (sp_vertex_pred->data_type() == RTAnyType::kI32Value) {
       ret = _invoke<int32_t>(graph, std::move(ctx), std::move(sp_vertex_pred));
+    } else if (sp_vertex_pred->data_type() == RTAnyType::kU32Value) {
+      ret = _invoke<uint32_t>(graph, std::move(ctx), std::move(sp_vertex_pred));
+    } else if (sp_vertex_pred->data_type() == RTAnyType::kU64Value) {
+      ret = _invoke<uint64_t>(graph, std::move(ctx), std::move(sp_vertex_pred));
     } else if (sp_vertex_pred->data_type() == RTAnyType::kI64Value) {
       ret = _invoke<int64_t>(graph, std::move(ctx), std::move(sp_vertex_pred));
     } else if (sp_vertex_pred->data_type() == RTAnyType::kF32Value) {
       ret = _invoke<float>(graph, std::move(ctx), std::move(sp_vertex_pred));
+    } else if (sp_vertex_pred->data_type() == RTAnyType::kBoolValue) {
+      ret = _invoke<bool>(graph, std::move(ctx), std::move(sp_vertex_pred));
+    } else if (sp_vertex_pred->data_type() == RTAnyType::kDate) {
+      ret = _invoke<Date>(graph, std::move(ctx), std::move(sp_vertex_pred));
+    } else if (sp_vertex_pred->data_type() == RTAnyType::kDateTime) {
+      ret = _invoke<DateTime>(graph, std::move(ctx), std::move(sp_vertex_pred));
+    } else if (sp_vertex_pred->data_type() == RTAnyType::kInterval) {
+      ret = _invoke<Interval>(graph, std::move(ctx), std::move(sp_vertex_pred));
     } else if (sp_vertex_pred->data_type() == RTAnyType::kF64Value) {
       ret = _invoke<double>(graph, std::move(ctx), std::move(sp_vertex_pred));
     } else if (sp_vertex_pred->data_type() == RTAnyType::kTimestamp) {

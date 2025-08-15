@@ -193,9 +193,10 @@ Result<results::CollectiveResults> CypherUpdateApp::execute_ddl(
                                             oe_stragety, ie_stragety)) {
         LOG(ERROR) << "Invalid edge multiplicity: "
                    << create_edge.multiplicity();
-        return Status(
-            StatusCode::ERR_INVALID_ARGUMENT,
-            "Invalid edge multiplicity: " + create_edge.multiplicity());
+        return Status(StatusCode::ERR_INVALID_ARGUMENT,
+                      "Invalid edge multiplicity: " +
+                          physical::CreateEdgeSchema_Multiplicity_Name(
+                              create_edge.multiplicity()));
       }
 
       return graph_.create_edge_type(

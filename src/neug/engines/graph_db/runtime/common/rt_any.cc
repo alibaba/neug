@@ -107,6 +107,18 @@ EdgeData::EdgeData(const Any& any) {
     type = RTAnyType::kTimestamp;
     value.ts_val = any.value.ts.milli_second;
     break;
+  case impl::PropertyTypeImpl::kDate:
+    type = RTAnyType::kDate;
+    value.date_val = any.value.d;
+    break;
+  case impl::PropertyTypeImpl::kDateTime:
+    type = RTAnyType::kDateTime;
+    value.dt_val = any.value.dt;
+    break;
+  case impl::PropertyTypeImpl::kInterval:
+    type = RTAnyType::kInterval;
+    value.interval_val = any.value.interval;
+    break;
   case impl::PropertyTypeImpl::kRecordView:
     type = RTAnyType::kRecordView;
     value.record_view = any.value.record_view;
@@ -138,8 +150,15 @@ bool EdgeData::operator<(const EdgeData& e) const {
            std::string_view(e.value.str_val.data(), e.value.str_val.size());
   } else if (type == RTAnyType::kTimestamp) {
     return value.ts_val < e.value.ts_val;
+  } else if (type == RTAnyType::kDate) {
+    return value.date_val < e.value.date_val;
+  } else if (type == RTAnyType::kDateTime) {
+    return value.dt_val < e.value.dt_val;
+  } else if (type == RTAnyType::kInterval) {
+    return value.interval_val < e.value.interval_val;
   } else {
-    return false;
+    THROW_NOT_SUPPORTED_EXCEPTION("Unexpected property type: " +
+                                  std::to_string(static_cast<int>(type)));
   }
 }
 
@@ -172,7 +191,8 @@ bool EdgeData::operator==(const EdgeData& e) const {
   } else if (type == RTAnyType::kRecordView) {
     return value.record_view == e.value.record_view;
   } else {
-    return false;
+    THROW_NOT_SUPPORTED_EXCEPTION("Unexpected property type: " +
+                                  std::to_string(static_cast<int>(type)));
   }
 }
 
@@ -291,6 +311,8 @@ PropertyType rt_type_to_property_type(RTAnyType type) {
     return PropertyType::kTimestamp;
   case RTAnyType::kDate:
     return PropertyType::kDate;  // FIXME
+  case RTAnyType::kInterval:
+    return PropertyType::kInterval;
   default:
     THROW_NOT_SUPPORTED_EXCEPTION("Unexpected property type: " +
                                   std::to_string(static_cast<int>(type)));
@@ -347,38 +369,35 @@ RTAny::RTAny() : type_(RTAnyType::kUnknown) {}
 RTAny::RTAny(RTAnyType type) : type_(type) {}
 
 RTAny::RTAny(const Any& val) {
-  if (val.type == PropertyType::Int64()) {
+  if (val.type == PropertyType::Bool()) {
+    type_ = RTAnyType::kBoolValue;
+    value_.b_val = val.AsBool();
+  } else if (val.type == PropertyType::Int64()) {
     type_ = RTAnyType::kI64Value;
     value_.i64_val = val.AsInt64();
-  } else if (val.type == PropertyType::String()) {
-    type_ = RTAnyType::kStringValue;
-    value_.str_val = val.AsStringView();
-  } else if (val.type == PropertyType::Date()) {
-    type_ = RTAnyType::kDate;
-    value_.date_val = val.AsDate();
-  } else if (val.type == PropertyType::DateTime()) {
-    type_ = RTAnyType::kDateTime;
-    value_.dt_val = val.AsDateTime();
   } else if (val.type == PropertyType::Int32()) {
     type_ = RTAnyType::kI32Value;
     value_.i32_val = val.AsInt32();
   } else if (val.type == PropertyType::UInt32()) {
     type_ = RTAnyType::kU32Value;
     value_.i32_val = val.AsUInt32();
+  } else if (val.type == PropertyType::UInt64()) {
+    type_ = RTAnyType::kU64Value;
+    value_.u64_val = val.AsUInt64();
   } else if (val.type == PropertyType::Float()) {
     type_ = RTAnyType::kF32Value;
     value_.f32_val = val.AsFloat();
   } else if (val.type == PropertyType::kDouble) {
     type_ = RTAnyType::kF64Value;
     value_.f64_val = val.AsDouble();
-  } else if (val.type == PropertyType::Bool()) {
-    type_ = RTAnyType::kBoolValue;
-    value_.b_val = val.AsBool();
+  } else if (val.type == PropertyType::String()) {
+    type_ = RTAnyType::kStringValue;
+    value_.str_val = val.AsStringView();
   } else if (val.type == PropertyType::Empty()) {
     type_ = RTAnyType::kNull;
-  } else if (val.type == PropertyType::UInt64()) {
-    type_ = RTAnyType::kU64Value;
-    value_.u64_val = val.AsUInt64();
+  } else if (val.type == PropertyType::Date()) {
+    type_ = RTAnyType::kDate;
+    value_.date_val = val.AsDate();
   } else if (val.type == PropertyType::Interval()) {
     type_ = RTAnyType::kInterval;
     value_.interval_val = val.AsInterval();
@@ -428,6 +447,11 @@ RTAny::RTAny(const EdgeData& val) {
   } else if (val.type == RTAnyType::kDate) {
     type_ = RTAnyType::kDate;
     value_.date_val = val.value.date_val;
+  } else if (val.type == RTAnyType::kInterval) {
+    type_ = RTAnyType::kInterval;
+    value_.interval_val = val.value.interval_val;
+  } else if (val.type == RTAnyType::kNull) {
+    type_ = RTAnyType::kNull;
   } else {
     THROW_NOT_SUPPORTED_EXCEPTION("Unexpected edge data type: " +
                                   std::to_string(static_cast<int>(val.type)) +
@@ -452,6 +476,8 @@ RTAny::RTAny(const RTAny& rhs) : type_(rhs.type_) {
     value_.u32_val = rhs.value_.u32_val;
   } else if (type_ == RTAnyType::kVertex) {
     value_.vertex = rhs.value_.vertex;
+  } else if (type_ == RTAnyType::kEdge) {
+    value_.edge = rhs.value_.edge;
   } else if (type_ == RTAnyType::kStringValue) {
     value_.str_val = rhs.value_.str_val;
   } else if (type_ == RTAnyType::kNull) {
@@ -474,8 +500,6 @@ RTAny::RTAny(const RTAny& rhs) : type_(rhs.type_) {
     value_.dt_val = rhs.value_.dt_val;
   } else if (type_ == RTAnyType::kTimestamp) {
     value_.ts_val = rhs.value_.ts_val;
-  } else if (type_ == RTAnyType::kEdge) {
-    value_.edge = rhs.value_.edge;
   } else if (type_ == RTAnyType::kInterval) {
     value_.interval_val = rhs.value_.interval_val;
   } else {
@@ -496,6 +520,8 @@ RTAny& RTAny::operator=(const RTAny& rhs) {
     value_.u32_val = rhs.value_.u32_val;
   } else if (type_ == RTAnyType::kVertex) {
     value_.vertex = rhs.value_.vertex;
+  } else if (type_ == RTAnyType::kEdge) {
+    value_.edge = rhs.value_.edge;
   } else if (type_ == RTAnyType::kStringValue) {
     value_.str_val = rhs.value_.str_val;
   } else if (type_ == RTAnyType::kTuple) {
@@ -508,8 +534,6 @@ RTAny& RTAny::operator=(const RTAny& rhs) {
     value_.f64_val = rhs.value_.f64_val;
   } else if (type_ == RTAnyType::kMap) {
     value_.map = rhs.value_.map;
-  } else if (type_ == RTAnyType::kEdge) {
-    value_.edge = rhs.value_.edge;
   } else if (type_ == RTAnyType::kRelation) {
     value_.relation = rhs.value_.relation;
   } else if (type_ == RTAnyType::kPath) {
@@ -552,6 +576,8 @@ Any RTAny::to_any() const {
     return Any(value_.dt_val);
   case RTAnyType::kTimestamp:
     return Any(value_.ts_val);
+  case RTAnyType::kInterval:
+    return Any(value_.interval_val);
   default:
     THROW_NOT_SUPPORTED_EXCEPTION("Unexpected RTAny type: " +
                                   std::to_string(static_cast<int>(type_)));
@@ -1044,6 +1070,8 @@ bool RTAny::operator<(const RTAny& other) const {
     return value_.dt_val < other.value_.dt_val;
   } else if (type_ == RTAnyType::kTimestamp) {
     return value_.ts_val < other.value_.ts_val;
+  } else if (type_ == RTAnyType::kInterval) {
+    return value_.interval_val < other.value_.interval_val;
   } else if (type_ == RTAnyType::kF32Value) {
     return value_.f32_val < other.value_.f32_val;
   } else if (type_ == RTAnyType::kF64Value) {
@@ -1090,14 +1118,16 @@ bool RTAny::operator==(const RTAny& other) const {
     return value_.str_val == other.value_.str_val;
   } else if (type_ == RTAnyType::kVertex) {
     return value_.vertex == other.value_.vertex;
+  } else if (type_ == RTAnyType::kEdge) {
+    return value_.edge == other.value_.edge;
   } else if (type_ == RTAnyType::kDate) {
     return value_.date_val == other.value_.date_val;
   } else if (type_ == RTAnyType::kDateTime) {
     return value_.dt_val == other.value_.dt_val;
   } else if (type_ == RTAnyType::kTimestamp) {
     return value_.ts_val == other.value_.ts_val;
-  } else if (type_ == RTAnyType::kEdge) {
-    return value_.edge == other.value_.edge;
+  } else if (type_ == RTAnyType::kInterval) {
+    return value_.interval_val == other.value_.interval_val;
   }
 
   THROW_NOT_SUPPORTED_EXCEPTION("not support for " +
@@ -1422,7 +1452,9 @@ RTAny RTAny::operator%(const RTAny& other) const {
 }
 
 void RTAny::sink_impl(common::Value* value) const {
-  if (type_ == RTAnyType::kI64Value) {
+  if (type_ == RTAnyType::kBoolValue) {
+    value->set_boolean(value_.b_val);
+  } else if (type_ == RTAnyType::kI64Value) {
     value->set_i64(value_.i64_val);
   } else if (type_ == RTAnyType::kStringValue) {
     value->set_str(value_.str_val.data(), value_.str_val.size());
@@ -1483,6 +1515,8 @@ static void sink_any(const Any& any, common::Value* value) {
     value->set_boolean(any.AsBool());
   } else if (any.type == PropertyType::Empty()) {
     value->mutable_none();
+  } else if (any.type == PropertyType::Date()) {
+    value->mutable_date()->set_item(any.AsDate().to_num_days());
   } else if (any.type == PropertyType::DateTime()) {
     value->mutable_timestamp()->set_item(any.AsDateTime().milli_second);
   } else if (any.type == PropertyType::UInt64()) {
@@ -1500,26 +1534,31 @@ static void sink_any(const Any& any, common::Value* value) {
 }
 
 static void sink_edge_data(const EdgeData& any, common::Value* value) {
-  if (any.type == RTAnyType::kI64Value) {
+  if (any.type == RTAnyType::kBoolValue) {
+    value->set_boolean(any.value.b_val);
+  } else if (any.type == RTAnyType::kI64Value) {
     value->set_i64(any.value.i64_val);
-  } else if (any.type == RTAnyType::kStringValue) {
-    value->set_str(any.value.str_val.data(), any.value.str_val.size());
   } else if (any.type == RTAnyType::kI32Value) {
     value->set_i32(any.value.i32_val);
   } else if (any.type == RTAnyType::kU32Value) {
     value->set_u32(any.value.u32_val);
+  } else if (any.type == RTAnyType::kU64Value) {
+    value->set_u64(any.value.u64_val);
   } else if (any.type == RTAnyType::kF32Value) {
     value->set_f32(any.value.f32_val);
   } else if (any.type == RTAnyType::kF64Value) {
     value->set_f64(any.value.f64_val);
-  } else if (any.type == RTAnyType::kBoolValue) {
-    value->set_boolean(any.value.b_val);
+  } else if (any.type == RTAnyType::kStringValue) {
+    value->set_str(any.value.str_val.data(), any.value.str_val.size());
   } else if (any.type == RTAnyType::kDateTime) {
     value->set_i64(any.value.dt_val.milli_second);
   } else if (any.type == RTAnyType::kDate) {
     value->mutable_date()->set_item(any.value.date_val.to_num_days());
   } else if (any.type == RTAnyType::kTimestamp) {
     value->mutable_timestamp()->set_item(any.value.ts_val.milli_second);
+  } else if (any.type == RTAnyType::kInterval) {
+    auto interval_str = any.value.interval_val.to_string();
+    value->set_str(interval_str.data(), interval_str.size());
   } else if (any.type == RTAnyType::kRecordView) {
     assert(any.value.record_view.size() == 1);
     sink_any(any.value.record_view[0], value);
@@ -1713,6 +1752,8 @@ void RTAny::encode_sig(RTAnyType type, Encoder& encoder) const {
     encoder.put_int(this->as_int32());
   } else if (type == RTAnyType::kU32Value) {
     encoder.put_int(this->as_uint32());
+  } else if (type == RTAnyType::kU64Value) {
+    encoder.put_long(this->as_uint64());
   } else if (type == RTAnyType::kVertex) {
     const auto& v = this->value_.vertex;
     encoder.put_byte(v.label_);
@@ -1760,8 +1801,6 @@ void RTAny::encode_sig(RTAnyType type, Encoder& encoder) const {
     encoder.put_byte(r.label);
     encoder.put_int(r.src);
     encoder.put_int(r.dst);
-  } else if (type == RTAnyType::kU64Value) {
-    encoder.put_long(this->as_uint64());
   } else {
     THROW_RUNTIME_ERROR("RTAny::encode_sig not support for " +
                         std::to_string(static_cast<int>(type)));
@@ -1769,20 +1808,14 @@ void RTAny::encode_sig(RTAnyType type, Encoder& encoder) const {
 }
 
 std::string RTAny::to_string() const {
-  if (type_ == RTAnyType::kI64Value) {
+  if (type_ == RTAnyType::kBoolValue) {
+    return value_.b_val ? "true" : "false";
+  } else if (type_ == RTAnyType::kI64Value) {
     return std::to_string(value_.i64_val);
-  } else if (type_ == RTAnyType::kStringValue) {
-    return std::string(value_.str_val);
   } else if (type_ == RTAnyType::kI32Value) {
     return std::to_string(value_.i32_val);
   } else if (type_ == RTAnyType::kU32Value) {
     return std::to_string(value_.u32_val);
-  } else if (type_ == RTAnyType::kDateTime) {
-    return value_.dt_val.to_string();
-  } else if (type_ == RTAnyType::kDate) {
-    return value_.date_val.to_string();
-  } else if (type_ == RTAnyType::kTimestamp) {
-    return value_.ts_val.to_string();
   } else if (type_ == RTAnyType::kVertex) {
 #if 0
       return std::string("v") +
@@ -1804,8 +1837,8 @@ std::string RTAny::to_string() const {
     return std::to_string(src) + " -> " + std::to_string(dst);
   } else if (type_ == RTAnyType::kPath) {
     return value_.p.to_string();
-  } else if (type_ == RTAnyType::kBoolValue) {
-    return value_.b_val ? "true" : "false";
+  } else if (type_ == RTAnyType::kStringValue) {
+    return std::string(value_.str_val);
   } else if (type_ == RTAnyType::kList) {
     std::string ret = "[";
     for (size_t i = 0; i < value_.list.size(); ++i) {
@@ -1850,6 +1883,12 @@ std::string RTAny::to_string() const {
     }
     ret += "}";
     return ret;
+  } else if (type_ == RTAnyType::kDateTime) {
+    return value_.dt_val.to_string();
+  } else if (type_ == RTAnyType::kDate) {
+    return value_.date_val.to_string();
+  } else if (type_ == RTAnyType::kTimestamp) {
+    return value_.ts_val.to_string();
   } else if (type_ == RTAnyType::kInterval) {
     return value_.interval_val.to_string();
   } else {
@@ -1860,24 +1899,34 @@ std::string RTAny::to_string() const {
 
 std::shared_ptr<EdgePropVecBase> EdgePropVecBase::make_edge_prop_vec(
     PropertyType type) {
-  if (type == PropertyType::Int64()) {
+  if (type == PropertyType::Bool()) {
+    return std::make_shared<EdgePropVec<bool>>();
+  } else if (type == PropertyType::Int64()) {
     return std::make_shared<EdgePropVec<int64_t>>();
-  } else if (type == PropertyType::StringView()) {
-    return std::make_shared<EdgePropVec<std::string_view>>();
-  } else if (type == PropertyType::Date()) {
-    return std::make_shared<EdgePropVec<Date>>();
   } else if (type == PropertyType::Int32()) {
     return std::make_shared<EdgePropVec<int32_t>>();
+  } else if (type == PropertyType::UInt64()) {
+    return std::make_shared<EdgePropVec<uint64_t>>();
+  } else if (type == PropertyType::UInt32()) {
+    return std::make_shared<EdgePropVec<uint32_t>>();
+  } else if (type == PropertyType::StringView()) {
+    return std::make_shared<EdgePropVec<std::string_view>>();
   } else if (type == PropertyType::Double()) {
     return std::make_shared<EdgePropVec<double>>();
-  } else if (type == PropertyType::Bool()) {
-    return std::make_shared<EdgePropVec<bool>>();
   } else if (type == PropertyType::Empty()) {
     return std::make_shared<EdgePropVec<grape::EmptyType>>();
   } else if (type == PropertyType::RecordView()) {
     return std::make_shared<EdgePropVec<RecordView>>();
+  } else if (type == PropertyType::Date()) {
+    return std::make_shared<EdgePropVec<Date>>();
   } else if (type == PropertyType::Timestamp()) {
     return std::make_shared<EdgePropVec<TimeStamp>>();
+  } else if (type == PropertyType::DateTime()) {
+    return std::make_shared<EdgePropVec<DateTime>>();
+  } else if (type == PropertyType::Interval()) {
+    return std::make_shared<EdgePropVec<Interval>>();
+  } else if (type == PropertyType::Float()) {
+    return std::make_shared<EdgePropVec<float>>();
   } else {
     LOG(FATAL) << "not support for " << type;
     return nullptr;

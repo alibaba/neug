@@ -250,6 +250,20 @@ rapidjson::Value build_edge_object(
     } else if (edge.prop_.type == RTAnyType::kDate) {
       add_member(edge_object, allocator, property_names[0],
                  edge.prop_.as<Date>());
+    } else if (edge.prop_.type == RTAnyType::kDateTime) {
+      add_member(edge_object, allocator, property_names[0],
+                 edge.prop_.as<DateTime>());
+    } else if (edge.prop_.type == RTAnyType::kTimestamp) {
+      add_member(edge_object, allocator, property_names[0],
+                 edge.prop_.as<TimeStamp>());
+    } else if (edge.prop_.type == RTAnyType::kInterval) {
+      add_member(edge_object, allocator, property_names[0],
+                 edge.prop_.as<Interval>());
+    } else {
+      LOG(ERROR) << "not support edge property type "
+                 << static_cast<int>(edge.prop_.type);
+      THROW_RUNTIME_ERROR("not support edge property type " +
+                          std::to_string(static_cast<int>(edge.prop_.type)));
     }
   } else if (property_names.size() > 1) {
     assert(edge.prop_.type == RTAnyType::kRecordView);

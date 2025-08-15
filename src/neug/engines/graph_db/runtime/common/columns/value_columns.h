@@ -214,25 +214,10 @@ class ListValueColumn : public ListValueColumnBase {
 
   std::pair<std::shared_ptr<IContextColumn>, std::vector<size_t>> unfold()
       const override {
-    if (elem_type_ == RTAnyType::kVertex) {
-      std::vector<size_t> offsets;
-      auto builder = MLVertexColumnBuilder::builder();
-      size_t i = 0;
-      for (const auto& list : data_) {
-        for (size_t j = 0; j < list.size(); ++j) {
-          auto elem = list.get(j);
-          builder.push_back_elem(elem);
-          offsets.push_back(i);
-        }
-        ++i;
-      }
-      return {builder.finish(nullptr), offsets};
+    if (elem_type_ == RTAnyType::kBoolValue) {
+      return unfold_impl<bool>();
     } else if (elem_type_ == RTAnyType::kI64Value) {
       return unfold_impl<int64_t>();
-    } else if (elem_type_ == RTAnyType::kI32Value) {
-      return unfold_impl<int32_t>();
-    } else if (elem_type_ == RTAnyType::kF64Value) {
-      return unfold_impl<double>();
     } else if (elem_type_ == RTAnyType::kI32Value) {
       return unfold_impl<int32_t>();
     } else if (elem_type_ == RTAnyType::kU32Value) {
@@ -245,6 +230,12 @@ class ListValueColumn : public ListValueColumnBase {
       return unfold_impl<DateTime>();
     } else if (elem_type_ == RTAnyType::kTimestamp) {
       return unfold_impl<TimeStamp>();
+    } else if (elem_type_ == RTAnyType::kInterval) {
+      return unfold_impl<Interval>();
+    } else if (elem_type_ == RTAnyType::kF32Value) {
+      return unfold_impl<float>();
+    } else if (elem_type_ == RTAnyType::kF64Value) {
+      return unfold_impl<double>();
     } else if (elem_type_ == RTAnyType::kStringValue) {
       return unfold_impl<std::string_view>();
     } else if (elem_type_ == RTAnyType::kTuple) {
@@ -253,6 +244,19 @@ class ListValueColumn : public ListValueColumnBase {
       return unfold_impl<Relation>();
     } else if (elem_type_ == RTAnyType::kMap) {
       return unfold_impl<Map>();
+    } else if (elem_type_ == RTAnyType::kVertex) {
+      std::vector<size_t> offsets;
+      auto builder = MLVertexColumnBuilder::builder();
+      size_t i = 0;
+      for (const auto& list : data_) {
+        for (size_t j = 0; j < list.size(); ++j) {
+          auto elem = list.get(j);
+          builder.push_back_elem(elem);
+          offsets.push_back(i);
+        }
+        ++i;
+      }
+      return {builder.finish(nullptr), offsets};
     } else {
       LOG(FATAL) << "not implemented for " << this->column_info() << " "
                  << static_cast<int>(elem_type_);

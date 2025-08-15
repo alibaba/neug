@@ -93,14 +93,14 @@ static inline void get_edge_data(EdgePropVecBase* prop, size_t idx,
     edge_data.type = RTAnyType::kRecordView;
     edge_data.value.record_view =
         dynamic_cast<EdgePropVec<RecordView>*>(prop)->get_view(idx);
-  } else if (prop->type() == PropertyType::kUInt64) {
-    edge_data.type = RTAnyType::kU64Value;
-    edge_data.value.u64_val =
-        dynamic_cast<EdgePropVec<uint64_t>*>(prop)->get_view(idx);
   } else if (prop->type() == PropertyType::kTimestamp) {
     edge_data.type = RTAnyType::kTimestamp;
     edge_data.value.ts_val =
         dynamic_cast<EdgePropVec<TimeStamp>*>(prop)->get_view(idx);
+  } else if (prop->type() == PropertyType::kInterval) {
+    edge_data.type = RTAnyType::kInterval;
+    edge_data.value.interval_val =
+        dynamic_cast<EdgePropVec<Interval>*>(prop)->get_view(idx);
   } else if (prop->type() == PropertyType::kUInt32) {
     edge_data.type = RTAnyType::kU32Value;
     edge_data.value.u32_val =
@@ -146,6 +146,9 @@ static inline void set_edge_data(EdgePropVecBase* col, size_t idx,
   } else if (edge_data.type == RTAnyType::kTimestamp) {
     dynamic_cast<EdgePropVec<TimeStamp>*>(col)->set(idx,
                                                     edge_data.value.ts_val);
+  } else if (edge_data.type == RTAnyType::kInterval) {
+    dynamic_cast<EdgePropVec<Interval>*>(col)->set(
+        idx, edge_data.value.interval_val);
   } else {
     LOG(FATAL) << "not support for " << static_cast<int32_t>(edge_data.type);
   }

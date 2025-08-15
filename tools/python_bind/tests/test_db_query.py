@@ -77,7 +77,7 @@ def test_session_create_schema_basic_types(tmp_path):
     db_dir = tmp_path / "schema_basic_types"
     db_dir.mkdir()
     db = Database(db_path=str(db_dir), mode="w")
-    endpoint = db.serve(host="localhost", port=10000)
+    endpoint = db.serve(host="127.0.0.1", port=10001)
     sess = Session.open(endpoint=endpoint, timeout="30s", num_threads=5)
 
     sess.execute(

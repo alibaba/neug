@@ -1006,8 +1006,12 @@ std::unique_ptr<ReducerBase> make_reducer(const GraphReadInterface& graph,
   Var var_(graph, ctx, var, VarType::kPathVar);
   if (var_.type() == RTAnyType::kI32Value) {
     return make_reducer<int32_t>(graph, ctx, std::move(var_), kind, alias);
+  } else if (var_.type() == RTAnyType::kU32Value) {
+    return make_reducer<uint32_t>(graph, ctx, std::move(var_), kind, alias);
   } else if (var_.type() == RTAnyType::kI64Value) {
     return make_reducer<int64_t>(graph, ctx, std::move(var_), kind, alias);
+  } else if (var_.type() == RTAnyType::kU64Value) {
+    return make_reducer<uint64_t>(graph, ctx, std::move(var_), kind, alias);
   } else if (var_.type() == RTAnyType::kF32Value) {
     return make_reducer<float>(graph, ctx, std::move(var_), kind, alias);
   } else if (var_.type() == RTAnyType::kF64Value) {
@@ -1015,18 +1019,16 @@ std::unique_ptr<ReducerBase> make_reducer(const GraphReadInterface& graph,
   } else if (var_.type() == RTAnyType::kStringValue) {
     return make_reducer<std::string_view>(graph, ctx, std::move(var_), kind,
                                           alias);
-  } else if (var_.type() == RTAnyType::kDate) {
-    return make_reducer<Date>(graph, ctx, std::move(var_), kind, alias);
   } else if (var_.type() == RTAnyType::kVertex) {
     return make_reducer<VertexRecord>(graph, ctx, std::move(var_), kind, alias);
   } else if (var_.type() == RTAnyType::kTuple) {
     return make_reducer<Tuple>(graph, ctx, std::move(var_), kind, alias);
-  } else if (var_.type() == RTAnyType::kU64Value) {
-    return make_reducer<uint64_t>(graph, ctx, std::move(var_), kind, alias);
   } else if (var_.type() == RTAnyType::kBoolValue) {
     return make_reducer<bool>(graph, ctx, std::move(var_), kind, alias);
-  } else if (var_.type() == RTAnyType::kU32Value) {
-    return make_reducer<uint32_t>(graph, ctx, std::move(var_), kind, alias);
+  } else if (var_.type() == RTAnyType::kDate) {
+    return make_reducer<Date>(graph, ctx, std::move(var_), kind, alias);
+  } else if (var_.type() == RTAnyType::kDateTime) {
+    return make_reducer<DateTime>(graph, ctx, std::move(var_), kind, alias);
   } else if (var_.type() == RTAnyType::kInterval) {
     return make_reducer<Interval>(graph, ctx, std::move(var_), kind, alias);
   } else if (var_.type() == RTAnyType::kTimestamp) {
@@ -1119,8 +1121,66 @@ bl::result<ReadOpBuildResultT> GroupByOprBuilder::Build(
               std::make_unique<
                   ProjectExpr<decltype(wrapper), decltype(collector)>>(
                   std::move(wrapper), std::move(collector), alias));
+        } else if (var_.type() == RTAnyType::kU64Value) {
+          TypedKeyCollector<uint64_t>::TypedKeyWrapper wrapper(std::move(var_));
+          TypedKeyCollector<uint64_t> collector;
+          exprs.emplace_back(
+              std::make_unique<
+                  ProjectExpr<decltype(wrapper), decltype(collector)>>(
+                  std::move(wrapper), std::move(collector), alias));
+        } else if (var_.type() == RTAnyType::kU32Value) {
+          TypedKeyCollector<uint32_t>::TypedKeyWrapper wrapper(std::move(var_));
+          TypedKeyCollector<uint32_t> collector;
+          exprs.emplace_back(
+              std::make_unique<
+                  ProjectExpr<decltype(wrapper), decltype(collector)>>(
+                  std::move(wrapper), std::move(collector), alias));
+        } else if (var_.type() == RTAnyType::kF32Value) {
+          TypedKeyCollector<float>::TypedKeyWrapper wrapper(std::move(var_));
+          TypedKeyCollector<float> collector;
+          exprs.emplace_back(
+              std::make_unique<
+                  ProjectExpr<decltype(wrapper), decltype(collector)>>(
+                  std::move(wrapper), std::move(collector), alias));
+        } else if (var_.type() == RTAnyType::kF64Value) {
+          TypedKeyCollector<double>::TypedKeyWrapper wrapper(std::move(var_));
+          TypedKeyCollector<double> collector;
+          exprs.emplace_back(
+              std::make_unique<
+                  ProjectExpr<decltype(wrapper), decltype(collector)>>(
+                  std::move(wrapper), std::move(collector), alias));
+        } else if (var_.type() == RTAnyType::kBoolValue) {
+          TypedKeyCollector<bool>::TypedKeyWrapper wrapper(std::move(var_));
+          TypedKeyCollector<bool> collector;
+          exprs.emplace_back(
+              std::make_unique<
+                  ProjectExpr<decltype(wrapper), decltype(collector)>>(
+                  std::move(wrapper), std::move(collector), alias));
+        } else if (var_.type() == RTAnyType::kDate) {
+          TypedKeyCollector<Date>::TypedKeyWrapper wrapper(std::move(var_));
+          TypedKeyCollector<Date> collector;
+          exprs.emplace_back(
+              std::make_unique<
+                  ProjectExpr<decltype(wrapper), decltype(collector)>>(
+                  std::move(wrapper), std::move(collector), alias));
+        } else if (var_.type() == RTAnyType::kDateTime) {
+          TypedKeyCollector<DateTime>::TypedKeyWrapper wrapper(std::move(var_));
+          TypedKeyCollector<DateTime> collector;
+          exprs.emplace_back(
+              std::make_unique<
+                  ProjectExpr<decltype(wrapper), decltype(collector)>>(
+                  std::move(wrapper), std::move(collector), alias));
+        } else if (var_.type() == RTAnyType::kInterval) {
+          TypedKeyCollector<Interval>::TypedKeyWrapper wrapper(std::move(var_));
+          TypedKeyCollector<Interval> collector;
+          exprs.emplace_back(
+              std::make_unique<
+                  ProjectExpr<decltype(wrapper), decltype(collector)>>(
+                  std::move(wrapper), std::move(collector), alias));
         } else {
-          LOG(FATAL) << "unsupport" << static_cast<int>(var_.type());
+          THROW_NOT_SUPPORTED_EXCEPTION(
+              "not support property type " +
+              std::to_string(static_cast<int>(var_.type())));
         }
       }
       return exprs;

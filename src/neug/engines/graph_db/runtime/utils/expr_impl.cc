@@ -625,9 +625,15 @@ static RTAny parse_param(const common::DynamicParam& param,
     } else if (type == RTAnyType::kI64Value) {
       int64_t val = std::stoll(input.at(name));
       return RTAny::from_int64(val);
+    } else if (type == RTAnyType::kDateTime) {
+      DateTime val = DateTime(std::stoll(input.at(name)));
+      return RTAny::from_datetime(val);
     } else if (type == RTAnyType::kTimestamp) {
       TimeStamp val = TimeStamp(std::stoll(input.at(name)));
       return RTAny::from_timestamp(val);
+    } else if (type == RTAnyType::kInterval) {
+      Interval val = Interval(input.at(name));
+      return RTAny::from_interval(val);
     } else if (type == RTAnyType::kU32Value) {
       uint32_t val = std::stoul(input.at(name));
       return RTAny::from_uint32(val);

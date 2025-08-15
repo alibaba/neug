@@ -892,26 +892,32 @@ bl::result<Context>
 PathExpand::single_source_shortest_path_with_special_vertex_predicate(
     const GraphReadInterface& graph, Context&& ctx,
     const ShortestPathParams& params, const SPVertexPredicate& pred) {
-  if (pred.data_type() == RTAnyType::kI64Value) {
-    return _single_shortest_path<int64_t>(graph, std::move(ctx), params, pred);
-  } else if (pred.data_type() == RTAnyType::kStringValue) {
-    return _single_shortest_path<std::string_view>(graph, std::move(ctx),
-                                                   params, pred);
-  } else if (pred.data_type() == RTAnyType::kTimestamp) {
-    return _single_shortest_path<TimeStamp>(graph, std::move(ctx), params,
-                                            pred);
-  } else if (pred.data_type() == RTAnyType::kBoolValue) {
+  if (pred.data_type() == RTAnyType::kBoolValue) {
     return _single_shortest_path<bool>(graph, std::move(ctx), params, pred);
-  } else if (pred.data_type() == RTAnyType::kF32Value) {
-    return _single_shortest_path<float>(graph, std::move(ctx), params, pred);
-  } else if (pred.data_type() == RTAnyType::kF64Value) {
-    return _single_shortest_path<double>(graph, std::move(ctx), params, pred);
+  } else if (pred.data_type() == RTAnyType::kI64Value) {
+    return _single_shortest_path<int64_t>(graph, std::move(ctx), params, pred);
   } else if (pred.data_type() == RTAnyType::kI32Value) {
     return _single_shortest_path<int>(graph, std::move(ctx), params, pred);
   } else if (pred.data_type() == RTAnyType::kU32Value) {
     return _single_shortest_path<uint32_t>(graph, std::move(ctx), params, pred);
   } else if (pred.data_type() == RTAnyType::kU64Value) {
     return _single_shortest_path<uint64_t>(graph, std::move(ctx), params, pred);
+  } else if (pred.data_type() == RTAnyType::kStringValue) {
+    return _single_shortest_path<std::string_view>(graph, std::move(ctx),
+                                                   params, pred);
+  } else if (pred.data_type() == RTAnyType::kTimestamp) {
+    return _single_shortest_path<TimeStamp>(graph, std::move(ctx), params,
+                                            pred);
+  } else if (pred.data_type() == RTAnyType::kF32Value) {
+    return _single_shortest_path<float>(graph, std::move(ctx), params, pred);
+  } else if (pred.data_type() == RTAnyType::kF64Value) {
+    return _single_shortest_path<double>(graph, std::move(ctx), params, pred);
+  } else if (pred.data_type() == RTAnyType::kDate) {
+    return _single_shortest_path<Date>(graph, std::move(ctx), params, pred);
+  } else if (pred.data_type() == RTAnyType::kDateTime) {
+    return _single_shortest_path<DateTime>(graph, std::move(ctx), params, pred);
+  } else if (pred.data_type() == RTAnyType::kInterval) {
+    return _single_shortest_path<Interval>(graph, std::move(ctx), params, pred);
   } else if (pred.data_type() == RTAnyType::kTimestamp) {
     return _single_shortest_path<TimeStamp>(graph, std::move(ctx), params,
                                             pred);

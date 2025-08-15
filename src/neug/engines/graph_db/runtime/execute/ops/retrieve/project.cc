@@ -285,6 +285,17 @@ std::unique_ptr<ProjectExprBase> create_sl_property_expr(
                                         decltype(collector)>>(std::move(expr),
                                                               collector, alias);
   }
+  case RTAnyType::kInterval: {
+    auto expr =
+        SLPropertyExpr<VertexColumn, Interval>(graph, column, property_name);
+    PropertyValueCollector<decltype(expr)> collector(ctx);
+    if (expr.is_optional()) {
+      return nullptr;
+    }
+    return std::make_unique<ProjectExpr<SLPropertyExpr<VertexColumn, Interval>,
+                                        decltype(collector)>>(std::move(expr),
+                                                              collector, alias);
+  }
   default:
     THROW_RUNTIME_ERROR("create_sl_property_expr: not implemented for type: " +
                         std::to_string(static_cast<int>(type)));
@@ -298,6 +309,17 @@ std::unique_ptr<ProjectExprBase> create_ml_property_expr(
     const VertexColumn& column, const std::string& property_name,
     RTAnyType type, int alias) {
   switch (type) {
+  case RTAnyType::kBoolValue: {
+    auto expr =
+        MLPropertyExpr<VertexColumn, bool>(graph, column, property_name);
+    if (expr.is_optional()) {
+      return nullptr;
+    }
+    PropertyValueCollector<decltype(expr)> collector(ctx);
+    return std::make_unique<
+        ProjectExpr<MLPropertyExpr<VertexColumn, bool>, decltype(collector)>>(
+        std::move(expr), collector, alias);
+  }
   case RTAnyType::kI32Value: {
     auto expr =
         MLPropertyExpr<VertexColumn, int32_t>(graph, column, property_name);
@@ -306,6 +328,17 @@ std::unique_ptr<ProjectExprBase> create_ml_property_expr(
     }
     PropertyValueCollector<decltype(expr)> collector(ctx);
     return std::make_unique<ProjectExpr<MLPropertyExpr<VertexColumn, int32_t>,
+                                        decltype(collector)>>(std::move(expr),
+                                                              collector, alias);
+  }
+  case RTAnyType::kU32Value: {
+    auto expr =
+        MLPropertyExpr<VertexColumn, uint32_t>(graph, column, property_name);
+    if (expr.is_optional()) {
+      return nullptr;
+    }
+    PropertyValueCollector<decltype(expr)> collector(ctx);
+    return std::make_unique<ProjectExpr<MLPropertyExpr<VertexColumn, uint32_t>,
                                         decltype(collector)>>(std::move(expr),
                                                               collector, alias);
   }
@@ -319,6 +352,50 @@ std::unique_ptr<ProjectExprBase> create_ml_property_expr(
     return std::make_unique<ProjectExpr<MLPropertyExpr<VertexColumn, int64_t>,
                                         decltype(collector)>>(std::move(expr),
                                                               collector, alias);
+  }
+  case RTAnyType::kU64Value: {
+    auto expr =
+        MLPropertyExpr<VertexColumn, uint64_t>(graph, column, property_name);
+    if (expr.is_optional()) {
+      return nullptr;
+    }
+    PropertyValueCollector<decltype(expr)> collector(ctx);
+    return std::make_unique<ProjectExpr<MLPropertyExpr<VertexColumn, uint64_t>,
+                                        decltype(collector)>>(std::move(expr),
+                                                              collector, alias);
+  }
+  case RTAnyType::kF32Value: {
+    auto expr =
+        MLPropertyExpr<VertexColumn, float>(graph, column, property_name);
+    if (expr.is_optional()) {
+      return nullptr;
+    }
+    PropertyValueCollector<decltype(expr)> collector(ctx);
+    return std::make_unique<
+        ProjectExpr<MLPropertyExpr<VertexColumn, float>, decltype(collector)>>(
+        std::move(expr), collector, alias);
+  }
+  case RTAnyType::kF64Value: {
+    auto expr =
+        MLPropertyExpr<VertexColumn, double>(graph, column, property_name);
+    if (expr.is_optional()) {
+      return nullptr;
+    }
+    PropertyValueCollector<decltype(expr)> collector(ctx);
+    return std::make_unique<
+        ProjectExpr<MLPropertyExpr<VertexColumn, double>, decltype(collector)>>(
+        std::move(expr), collector, alias);
+  }
+  case RTAnyType::kStringValue: {
+    auto expr = MLPropertyExpr<VertexColumn, std::string_view>(graph, column,
+                                                               property_name);
+    PropertyValueCollector<decltype(expr)> collector(ctx);
+    if (expr.is_optional()) {
+      return nullptr;
+    }
+    return std::make_unique<ProjectExpr<
+        MLPropertyExpr<VertexColumn, std::string_view>, decltype(collector)>>(
+        std::move(expr), collector, alias);
   }
 
   case RTAnyType::kDate: {
@@ -351,6 +428,17 @@ std::unique_ptr<ProjectExprBase> create_ml_property_expr(
       return nullptr;
     }
     return std::make_unique<ProjectExpr<MLPropertyExpr<VertexColumn, TimeStamp>,
+                                        decltype(collector)>>(std::move(expr),
+                                                              collector, alias);
+  }
+  case RTAnyType::kInterval: {
+    auto expr =
+        MLPropertyExpr<VertexColumn, Interval>(graph, column, property_name);
+    PropertyValueCollector<decltype(expr)> collector(ctx);
+    if (expr.is_optional()) {
+      return nullptr;
+    }
+    return std::make_unique<ProjectExpr<MLPropertyExpr<VertexColumn, Interval>,
                                         decltype(collector)>>(std::move(expr),
                                                               collector, alias);
   }
@@ -895,6 +983,15 @@ make_project_expr(const common::Expression& expr, int alias) {
     case RTAnyType::kI64Value: {
       return _make_project_expr<int64_t>(std::move(e), alias, ctx);
     } break;
+    case RTAnyType::kI32Value: {
+      return _make_project_expr<int32_t>(std::move(e), alias, ctx);
+    } break;
+    case RTAnyType::kU64Value: {
+      return _make_project_expr<uint64_t>(std::move(e), alias, ctx);
+    } break;
+    case RTAnyType::kU32Value: {
+      return _make_project_expr<uint32_t>(std::move(e), alias, ctx);
+    } break;
     case RTAnyType::kStringValue: {
       return _make_project_expr<std::string_view>(std::move(e), alias, ctx);
     } break;
@@ -907,6 +1004,9 @@ make_project_expr(const common::Expression& expr, int alias) {
     case RTAnyType::kTimestamp: {
       return _make_project_expr<TimeStamp>(std::move(e), alias, ctx);
     } break;
+    case RTAnyType::kInterval: {
+      return _make_project_expr<Interval>(std::move(e), alias, ctx);
+    } break;
     case RTAnyType::kVertex: {
       MLVertexCollector collector;
       collector.builder.reserve(ctx.row_num());
@@ -914,9 +1014,7 @@ make_project_expr(const common::Expression& expr, int alias) {
           ProjectExpr<typename MLVertexCollector::EXPR, MLVertexCollector>>(
           std::move(e), collector, alias);
     } break;
-    case RTAnyType::kI32Value: {
-      return _make_project_expr<int32_t>(std::move(e), alias, ctx);
-    } break;
+
     case RTAnyType::kBoolValue: {
       return _make_project_expr<bool>(std::move(e), alias, ctx);
     } break;
@@ -944,15 +1042,6 @@ make_project_expr(const common::Expression& expr, int alias) {
     } break;
     case RTAnyType::kMap: {
       return _make_project_expr<Map>(std::move(e), alias, ctx);
-    } break;
-    case RTAnyType::kU64Value: {
-      return _make_project_expr<uint64_t>(std::move(e), alias, ctx);
-    } break;
-    case RTAnyType::kU32Value: {
-      return _make_project_expr<uint32_t>(std::move(e), alias, ctx);
-    } break;
-    case RTAnyType::kInterval: {
-      return _make_project_expr<Interval>(std::move(e), alias, ctx);
     } break;
     default:
       LOG(FATAL) << "not support - " << static_cast<int>(e.type());
@@ -1183,6 +1272,9 @@ make_project_expr(const common::Expression& expr,
     case RTAnyType::kDate: {
       return _make_project_expr<Date>(expr, alias);
     } break;
+    case RTAnyType::kInterval: {
+      return _make_project_expr<Interval>(expr, alias);
+    } break;
 
     // compiler bug here
     case RTAnyType::kUnknown: {
@@ -1190,9 +1282,6 @@ make_project_expr(const common::Expression& expr,
     } break;
     case RTAnyType::kU64Value: {
       return _make_project_expr<uint64_t>(expr, alias);
-    } break;
-    case RTAnyType::kInterval: {
-      return _make_project_expr<Interval>(expr, alias);
     } break;
     case RTAnyType::kList: {
       return make_project_expr(expr, alias);
