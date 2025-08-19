@@ -20,7 +20,6 @@
 
 #include "neug/engines/graph_db/database/graph_db_session.h"
 #include "neug/engines/graph_db/database/read_transaction.h"
-#include "neug/proto_generated_gie/common.pb.h"
 #include "neug/storages/rt_mutable_graph/schema.h"
 
 namespace gs {

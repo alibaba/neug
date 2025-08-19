@@ -31,10 +31,17 @@
 #include "neug/compiler/gopt/g_alias_manager.h"
 #include "neug/compiler/gopt/g_precedence.h"
 #include "neug/compiler/gopt/g_type_converter.h"
-#include "neug/proto_generated_gie/algebra.pb.h"
-#include "neug/proto_generated_gie/common.pb.h"
-#include "neug/proto_generated_gie/expr.pb.h"
-#include "neug/proto_generated_gie/physical.pb.h"
+#ifdef USE_SYSTEM_PROTOBUF
+#include "neug/generated/proto/plan/algebra.pb.h"
+#include "neug/generated/proto/plan/common.pb.h"
+#include "neug/generated/proto/plan/expr.pb.h"
+#include "neug/generated/proto/plan/physical.pb.h"
+#else
+#include "neug/utils/proto/plan/algebra.pb.h"
+#include "neug/utils/proto/plan/common.pb.h"
+#include "neug/utils/proto/plan/expr.pb.h"
+#include "neug/utils/proto/plan/physical.pb.h"
+#endif
 
 namespace gs {
 namespace gopt {

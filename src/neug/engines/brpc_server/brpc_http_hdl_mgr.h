@@ -23,14 +23,20 @@
 #include "neug/engines/graph_db/database/graph_db.h"
 #include "neug/engines/graph_db/database/graph_db_session.h"
 #include "neug/engines/graph_db_service.h"
-#include "neug/http_service/http_svc.pb.h"
 #include "neug/planner/graph_planner.h"
-#include "neug/proto_generated_gie/results.pb.h"
 #include "neug/storages/metadata/graph_meta_store.h"
 #include "neug/storages/rt_mutable_graph/schema.h"
 #include "neug/utils/http_handler_manager.h"
 #include "neug/utils/leaf_utils.h"
 #include "neug/utils/pb_utils.h"
+#ifdef USE_SYSTEM_PROTOBUF
+#include "neug/generated/proto/http_service/http_svc.pb.h"
+#include "neug/generated/proto/plan/results.pb.h"
+#else
+#include "neug/utils/proto/http_service/http_svc.pb.h"
+#include "neug/utils/proto/plan/results.pb.h"
+#endif
+
 #include "neug/utils/yaml_utils.h"
 
 namespace server {

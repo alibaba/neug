@@ -20,7 +20,11 @@
 #include "neug/compiler/gopt/g_physical_analyzer.h"
 #include "neug/compiler/gopt/g_query_converter.h"
 #include "neug/compiler/planner/operator/logical_plan.h"
-#include "neug/proto_generated_gie/physical.pb.h"
+#ifdef USE_SYSTEM_PROTOBUF
+#include "neug/generated/proto/plan/physical.pb.h"
+#else
+#include "neug/utils/proto/plan/physical.pb.h"
+#endif
 
 namespace gs {
 namespace gopt {

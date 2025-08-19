@@ -21,7 +21,11 @@
 #include <string_view>
 #include <unordered_map>
 
-#include "neug/proto_generated_gie/physical.pb.h"
+#ifdef USE_SYSTEM_PROTOBUF
+#include "neug/generated/proto/plan/physical.pb.h"
+#else
+#include "neug/utils/proto/plan/physical.pb.h"
+#endif
 
 namespace physical {
 class PhysicalPlan;

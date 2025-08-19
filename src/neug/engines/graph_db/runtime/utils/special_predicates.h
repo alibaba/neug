@@ -19,8 +19,12 @@
 
 #include "neug/engines/graph_db/runtime/common/graph_interface.h"
 #include "neug/engines/graph_db/runtime/common/rt_any.h"
-#include "neug/proto_generated_gie/expr.pb.h"
 #include "neug/storages/rt_mutable_graph/types.h"
+#ifdef USE_SYSTEM_PROTOBUF
+#include "neug/generated/proto/plan/expr.pb.h"
+#else
+#include "neug/utils/proto/plan/expr.pb.h"
+#endif
 
 namespace gs {
 

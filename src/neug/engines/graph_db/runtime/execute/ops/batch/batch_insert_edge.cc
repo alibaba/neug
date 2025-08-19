@@ -24,9 +24,6 @@
 #include "neug/engines/graph_db/runtime/common/context.h"
 #include "neug/engines/graph_db/runtime/common/graph_interface.h"
 #include "neug/engines/graph_db/runtime/execute/ops/batch/batch_insert_edge.h"
-#include "neug/proto_generated_gie/common.pb.h"
-#include "neug/proto_generated_gie/cypher_ddl.pb.h"
-#include "neug/proto_generated_gie/cypher_dml.pb.h"
 #include "neug/storages/rt_mutable_graph/schema.h"
 #include "neug/utils/pb_utils.h"
 

@@ -28,9 +28,6 @@
 #include "neug/engines/graph_db/runtime/common/operators/retrieve/dedup.h"
 #include "neug/engines/graph_db/runtime/common/rt_any.h"
 #include "neug/engines/graph_db/runtime/utils/var.h"
-#include "neug/proto_generated_gie/algebra.pb.h"
-#include "neug/proto_generated_gie/common.pb.h"
-#include "neug/proto_generated_gie/expr.pb.h"
 
 namespace gs {
 class Schema;

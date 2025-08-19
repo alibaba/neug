@@ -22,8 +22,6 @@
 #include "neug/engines/graph_db/runtime/common/accessors.h"
 #include "neug/engines/graph_db/runtime/common/columns/i_context_column.h"
 #include "neug/engines/graph_db/runtime/common/context.h"
-#include "neug/proto_generated_gie/common.pb.h"
-#include "neug/proto_generated_gie/expr.pb.h"
 
 namespace gs {
 

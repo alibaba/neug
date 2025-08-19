@@ -31,8 +31,6 @@
 #include "neug/engines/graph_db/runtime/common/types.h"
 #include "neug/engines/graph_db/runtime/execute/pipeline.h"
 #include "neug/engines/graph_db/runtime/execute/plan_parser.h"
-#include "neug/proto_generated_gie/common.pb.h"
-#include "neug/proto_generated_gie/expr.pb.h"
 
 namespace gs {
 class Schema;

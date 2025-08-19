@@ -29,7 +29,6 @@
 #include "neug/engines/graph_db/runtime/common/types.h"
 #include "neug/engines/graph_db/runtime/utils/params.h"
 #include "neug/engines/graph_db/runtime/utils/utils.h"
-#include "neug/proto_generated_gie/algebra.pb.h"
 
 namespace gs {
 class Schema;

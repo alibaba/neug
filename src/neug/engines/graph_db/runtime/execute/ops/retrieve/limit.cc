@@ -26,7 +26,6 @@
 #include "neug/engines/graph_db/runtime/common/context.h"
 #include "neug/engines/graph_db/runtime/common/graph_interface.h"
 #include "neug/engines/graph_db/runtime/common/operators/retrieve/limit.h"
-#include "neug/proto_generated_gie/algebra.pb.h"
 
 namespace gs {
 class Schema;

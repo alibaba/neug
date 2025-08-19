@@ -30,9 +30,9 @@ CMakeFiles/
 dist/
 
 # Protobuf GRPC
-*.pb.*
-*_pb2.py
-*_pb2.pyi
+# *.pb.* Currently comments to allow adding generated .pb.h and .pb.cc files. Should be uncommented when we discard proto.
+# *_pb2.py
+# *_pb2.pyi
 *_pb2_grpc.py
 *_pb2_grpc.pyi
 

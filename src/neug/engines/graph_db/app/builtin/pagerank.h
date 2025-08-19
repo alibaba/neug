@@ -23,7 +23,11 @@
 #include "neug/engines/graph_db/app/app_base.h"
 #include "neug/engines/graph_db/app/cypher_proc_app_base.h"
 #include "neug/engines/graph_db/database/graph_db_session.h"
-#include "neug/proto_generated_gie/results.pb.h"
+#ifdef USE_SYSTEM_PROTOBUF
+#include "neug/generated/proto/plan/results.pb.h"
+#else
+#include "neug/utils/proto/plan/results.pb.h"
+#endif
 
 namespace gs {
 class GraphDB;

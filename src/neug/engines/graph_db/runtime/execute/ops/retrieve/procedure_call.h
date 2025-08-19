@@ -17,7 +17,13 @@
 #include <vector>
 
 #include "neug/engines/graph_db/runtime/execute/operator.h"
-#include "neug/proto_generated_gie/physical.pb.h"
+#ifdef USE_SYSTEM_PROTOBUF
+#include "neug/generated/proto/plan/physical.pb.h"
+#include "neug/generated/proto/plan/stored_procedure.pb.h"
+#else
+#include "neug/utils/proto/plan/physical.pb.h"
+#include "neug/utils/proto/plan/stored_procedure.pb.h"
+#endif
 
 namespace gs {
 class Schema;

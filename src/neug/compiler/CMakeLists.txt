@@ -12,7 +12,6 @@ include_directories(SYSTEM ${CMAKE_SOURCE_DIR}/third_party/antlr_cypher)
 
 configure_file(${CMAKE_CURRENT_SOURCE_DIR}/../../../cmake/templates/system_config.h.in ${CMAKE_CURRENT_BINARY_DIR}/neug/compiler/common/system_config.h @ONLY)
 include_directories(${CMAKE_CURRENT_BINARY_DIR})
-include_directories(${CMAKE_CURRENT_BINARY_DIR}/../utils)
 
 
 include_directories(${CMAKE_CURRENT_SOURCE_DIR})
@@ -53,7 +52,7 @@ if (NOT BUILD_ALL_IN_ONE)
         set_target_properties(neug_compiler_shared PROPERTIES OUTPUT_NAME neug_compiler_shared)
         target_link_libraries(neug_compiler_shared PUBLIC neug_utils)
         if (BUILD_HTTP_SERVER)
-                target_link_libraries(neug_compiler_shared PUBLIC neug_graph_db_service neug_brpc_proto ${BRPC_LIB} ${LEVELDB_LIB} ${OPENSSL_LIBRARIES} ${GFLAGS_LIBRARIES} ${GLOG_LIBRARIES} ${Protobuf_LIBRARIES} ${PROTOC_LIB} ${Boost_LIBRARIES})
+                target_link_libraries(neug_compiler_shared PUBLIC neug_graph_db_service neug_brpc_proto ${BRPC_LIB} ${LEVELDB_LIB} ${OPENSSL_LIBRARIES} ${GFLAGS_LIBRARIES} ${GLOG_LIBRARIES} ${Protobuf_LIBRARIES} ${Boost_LIBRARIES}) #${PROTOC_LIB}
         endif()
         if (APPLE)    
                 target_link_libraries(neug_compiler_shared PUBLIC ${MACOS_DYLIBS})

@@ -34,7 +34,7 @@ using gs::vid_t;
 template <typename PROP_T>
 class VertexColumn {
  public:
-  VertexColumn(const std::shared_ptr<TypedRefColumn<PROP_T>>& column) {
+  VertexColumn(std::shared_ptr<TypedRefColumn<PROP_T>> column) {
     if (column == nullptr) {
       column_ = nullptr;
     } else {

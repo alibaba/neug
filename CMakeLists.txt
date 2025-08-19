@@ -476,12 +476,15 @@ message(STATUS "yaml-cpp libraries: ${YAML_CPP_LIBRARIES}")
 #find protobuf-------------------------------------------------------------------
 find_package(Protobuf)
 if (NOT Protobuf_FOUND)
-    set(BUILD_SHARED_LIBS ON CACHE BOOL "Build shared libraries")
-    set(protobuf_BUILD_TESTS OFF CACHE BOOL "Build protobuf tests")
-    add_subdirectory(third_party/protobuf)
-    include_directories(SYSTEM third_party/protobuf/include)
+    include(cmake/BuildProtobufThirdParty.cmake)
+    build_protobuf_as_third_party()
+    set(USE_SYSTEM_PROTOBUF OFF CACHE BOOL "Use system protobuf")
+else()
+    set(USE_SYSTEM_PROTOBUF ON CACHE BOOL "Use system protobuf")
+    add_compile_definitions(USE_SYSTEM_PROTOBUF)
 endif()
 include_directories(SYSTEM ${Protobuf_INCLUDE_DIRS})
+message(STATUS "protobuf include dir: ${Protobuf_INCLUDE_DIR}, ${Protobuf_INCLUDE_DIRS}")
 message(STATUS "protobuf libraries: ${Protobuf_LIBRARIES}")
 
 
@@ -534,10 +537,6 @@ if (BUILD_HTTP_SERVER)
             include_directories(SYSTEM ${CMAKE_CURRENT_BINARY_DIR}/third_party/brpc/output/include)
     endif()
     include_directories(SYSTEM ${BRPC_INCLUDE_PATH})
-    find_library(PROTOC_LIB NAMES protoc)
-    if(NOT PROTOC_LIB)
-        message(FATAL_ERROR "Fail to find protoc lib")
-    endif()
 endif()
 
 #find arrow----------------------------------------------------------------------
@@ -811,8 +810,10 @@ if (WITH_MIMALLOC)
     endif()
 endif()
 
-if (BUILD_BRPC_AS_THIRD_PARTY)
-    install_neug_target(brpc-static)
+if (BUILD_HTTP_SERVER)
+    if (BUILD_BRPC_AS_THIRD_PARTY)
+        install_neug_target(brpc-static)
+    endif()
 endif()
 
 # Remove the debug_postfix for glog and yaml-cpp

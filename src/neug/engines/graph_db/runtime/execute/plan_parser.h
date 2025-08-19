@@ -24,7 +24,7 @@
 
 #include "neug/engines/graph_db/runtime/execute/operator.h"
 #include "neug/engines/graph_db/runtime/execute/pipeline.h"
-#include "neug/proto_generated_gie/physical.pb.h"
+#include "neug/utils/proto/plan/physical.pb.h"
 
 namespace gs {
 class Schema;

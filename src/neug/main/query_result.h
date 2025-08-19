@@ -17,7 +17,11 @@
 #define SRC_MAIN_QUERY_RESULT_H_
 
 #include <memory>
-#include "neug/proto_generated_gie/results.pb.h"
+#ifdef USE_SYSTEM_PROTOBUF
+#include "neug/generated/proto/plan/results.pb.h"
+#else
+#include "neug/utils/proto/plan/results.pb.h"
+#endif
 #include "neug/utils/result.h"
 
 namespace gs {

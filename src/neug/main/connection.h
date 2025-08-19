@@ -26,8 +26,13 @@
 #include "neug/main/query_processor.h"
 #include "neug/main/query_result.h"
 #include "neug/planner/graph_planner.h"
-#include "neug/proto_generated_gie/physical.pb.h"
-#include "neug/proto_generated_gie/results.pb.h"
+#ifdef USE_SYSTEM_PROTOBUF
+#include "neug/generated/proto/plan/physical.pb.h"
+#include "neug/generated/proto/plan/results.pb.h"
+#else
+#include "neug/utils/proto/plan/physical.pb.h"
+#include "neug/utils/proto/plan/results.pb.h"
+#endif
 #include "neug/utils/result.h"
 
 namespace gs {

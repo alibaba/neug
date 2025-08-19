@@ -1,0 +1,27 @@
+diff --git a/src/google/protobuf/generated_message_tctable_impl.h b/src/google/protobuf/generated_message_tctable_impl.h
+index 21fa5332d..715e585a7 100644
+--- a/src/google/protobuf/generated_message_tctable_impl.h
++++ b/src/google/protobuf/generated_message_tctable_impl.h
+@@ -32,6 +32,7 @@
+ #define GOOGLE_PROTOBUF_GENERATED_MESSAGE_TCTABLE_IMPL_H__
+ 
+ #include <cstdint>
++#include <cstdlib>
+ #include <type_traits>
+ 
+ #include <google/protobuf/port.h>
+@@ -248,11 +249,11 @@ enum FieldType : uint16_t {
+ 
+ #ifndef NDEBUG
+ template <size_t align>
+-#ifndef _MSC_VER
+-[[noreturn]]
+-#endif
+ void AlignFail(uintptr_t address) {
+   GOOGLE_LOG(FATAL) << "Unaligned (" << align << ") access at " << address;
++
++  // Explicit abort to let compilers know this function does not return
++  abort();
+ }
+ 
+ extern template void AlignFail<4>(uintptr_t);

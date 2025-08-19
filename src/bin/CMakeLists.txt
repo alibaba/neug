@@ -1,4 +1,3 @@
-include_directories(${CMAKE_CURRENT_BINARY_DIR}/../utils)
 include_directories(${Boost_INCLUDE_DIRS})
 add_executable(bulk_loader bulk_loader.cc)
 
@@ -8,7 +7,7 @@ if (BUILD_HTTP_SERVER)
         if (APPLE)
                 target_link_libraries(rt_server PUBLIC ${MACOS_DYLIBS})
         endif() 
-        target_link_libraries(rt_server PUBLIC ${BRPC_LIB} ${LEVELDB_LIB} ${OPENSSL_LIBRARIES} ${GFLAGS_LIBRARIES} ${GLOG_LIBRARIES} ${Protobuf_LIBRARIES} ${PROTOC_LIB} ${Boost_LIBRARIES})
+        target_link_libraries(rt_server PUBLIC ${BRPC_LIB} ${LEVELDB_LIB} ${OPENSSL_LIBRARIES} ${GFLAGS_LIBRARIES} ${GLOG_LIBRARIES} ${Protobuf_LIBRARIES}  ${Boost_LIBRARIES}) #${PROTOC_LIB}
         if (BUILD_ALL_IN_ONE)
                 target_link_libraries(rt_server PUBLIC neug_libraries)
         else()

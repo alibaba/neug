@@ -39,12 +39,18 @@
 #include "libgrape-lite/grape/types.h"
 #include "neug/engines/graph_db/runtime/common/graph_interface.h"
 #include "neug/engines/graph_db/runtime/common/types.h"
-#include "neug/proto_generated_gie/basic_type.pb.h"
-#include "neug/proto_generated_gie/results.pb.h"
-#include "neug/proto_generated_gie/type.pb.h"
 #include "neug/storages/rt_mutable_graph/types.h"
 #include "neug/utils/app_utils.h"
 #include "neug/utils/property/types.h"
+#ifdef USE_SYSTEM_PROTOBUF
+#include "neug/generated/proto/plan/basic_type.pb.h"
+#include "neug/generated/proto/plan/results.pb.h"
+#include "neug/generated/proto/plan/type.pb.h"
+#else
+#include "neug/utils/proto/plan/basic_type.pb.h"
+#include "neug/utils/proto/plan/results.pb.h"
+#include "neug/utils/proto/plan/type.pb.h"
+#endif
 
 namespace arrow {
 class DataType;

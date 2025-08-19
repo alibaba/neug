@@ -18,8 +18,6 @@
 #include <arrow/type.h>
 #include <stdexcept>
 
-#include "neug/proto_generated_gie/common.pb.h"
-#include "neug/proto_generated_gie/results.pb.h"
 #include "neug/storages/rt_mutable_graph/schema.h"
 #include "neug/utils/app_utils.h"
 

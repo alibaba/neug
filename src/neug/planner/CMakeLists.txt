@@ -1,4 +1,4 @@
-include_directories(${CMAKE_CURRENT_BINARY_DIR}/../utils)
+
 include_directories(${CMAKE_CURRENT_BINARY_DIR}/../compiler/)
 file(GLOB_RECURSE PLANNER_SOURCE_FILES "${CMAKE_CURRENT_SOURCE_DIR}/*.cc")
 

@@ -24,7 +24,13 @@
 
 #include "neug/engines/graph_db/runtime/execute/operator.h"
 #include "neug/engines/graph_db/runtime/execute/ops/batch/batch_update_utils.h"
-#include "neug/proto_generated_gie/physical.pb.h"
+#ifdef USE_SYSTEM_PROTOBUF
+#include "neug/generated/proto/plan/cypher_dml.pb.h"
+#include "neug/generated/proto/plan/physical.pb.h"
+#else
+#include "neug/utils/proto/plan/cypher_dml.pb.h"
+#include "neug/utils/proto/plan/physical.pb.h"
+#endif
 
 namespace gs {
 class IRecordBatchSupplier;

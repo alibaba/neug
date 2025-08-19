@@ -21,8 +21,6 @@
 #include <sstream>
 #include <stack>
 
-#include "neug/proto_generated_gie/type.pb.h"
-
 namespace gs {
 
 namespace runtime {

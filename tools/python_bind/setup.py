@@ -244,28 +244,48 @@ class BuildProto(Command):
         pass
 
     def generate_proto(self, proto_path, output_dir, proto_files=None):
-        if proto_files is None:
-            proto_files = glob.glob(os.path.join(proto_path, "*.proto"))
-        os.makedirs(output_dir, exist_ok=True)
-        # find protoc executable
-        protoc_executable = shutil.which("protoc")
-        if protoc_executable is None:
-            # trying /opt/neug/bin/protoc
-            protoc_executable = "/opt/neug/bin/protoc"
-        for proto_file in proto_files:
-            if not os.path.exists(proto_file):
-                proto_file = os.path.join(proto_path, proto_file)
-            cmd = [
-                protoc_executable,
-                f"--proto_path={proto_path}",
-                f"--python_out={output_dir}",
-                proto_file,
-            ]
-            print(f"Running command: {' '.join(cmd)}")
-            subprocess.check_call(
-                cmd,
-                stderr=subprocess.STDOUT,
-            )
+        """
+        Generate Python code from protobuf files.
+
+        Args:
+            proto_path (str): Directory containing .proto files.
+            output_dir (str): Directory to place generated Python files.
+            proto_files (list, optional): Specific .proto files to generate.
+                If None, all .proto files in `proto_path` are used.
+
+        Raises:
+            RuntimeError: If `proto_path` does not exist.
+
+        Note:
+            This function is currently a placeholder and does not generate files, as the code is commented out.
+            Generated protobuf files are checked into the repository. In the future,
+            if proto is no longer used for the physical plan protocol, this code may be removed.
+
+            We avoid requiring protoc in the user's environment to simplify installation.
+        """
+        pass
+        # if proto_files is None:
+        #     proto_files = glob.glob(os.path.join(proto_path, "*.proto"))
+        # os.makedirs(output_dir, exist_ok=True)
+        # # find protoc executable
+        # protoc_executable = shutil.which("protoc")
+        # if protoc_executable is None:
+        #     # trying /opt/neug/bin/protoc
+        #     protoc_executable = "/opt/neug/bin/protoc"
+        # for proto_file in proto_files:
+        #     if not os.path.exists(proto_file):
+        #         proto_file = os.path.join(proto_path, proto_file)
+        #     cmd = [
+        #         protoc_executable,
+        #         f"--proto_path={proto_path}",
+        #         f"--python_out={output_dir}",
+        #         proto_file,
+        #     ]
+        #     print(f"Running command: {' '.join(cmd)}")
+        #     subprocess.check_call(
+        #         cmd,
+        #         stderr=subprocess.STDOUT,
+        #     )
 
     def run(self):
         proto_path = os.path.join(repo_root, "proto")

@@ -430,7 +430,7 @@ class ReadTransaction {
    * @param col_name The name of the column.
    */
   template <typename T>
-  const std::shared_ptr<TypedRefColumn<T>> get_vertex_ref_property_column(
+  std::shared_ptr<TypedRefColumn<T>> get_vertex_ref_property_column(
       uint8_t label, const std::string& col_name) const {
     if (label >= graph_.schema().vertex_label_num()) {
       LOG(WARNING) << "Invalid label: " << (int32_t) label;

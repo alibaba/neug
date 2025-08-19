@@ -1,6 +1,5 @@
 file(GLOB_RECURSE neug_MAIN_SRC_FILES "${CMAKE_CURRENT_SOURCE_DIR}/*.cc")
 
-include_directories(${CMAKE_CURRENT_BINARY_DIR}/../utils)
 include_directories(${CMAKE_CURRENT_BINARY_DIR}/../compiler)
 if (BUILD_ALL_IN_ONE)
     add_library(neug_main OBJECT ${neug_MAIN_SRC_FILES})

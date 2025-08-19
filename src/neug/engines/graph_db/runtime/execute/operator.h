@@ -21,8 +21,12 @@
 #include "neug/engines/graph_db/runtime/common/context.h"
 #include "neug/engines/graph_db/runtime/common/graph_interface.h"
 #include "neug/engines/graph_db/runtime/utils/opr_timer.h"
-#include "neug/proto_generated_gie/physical.pb.h"
 #include "neug/utils/leaf_utils.h"
+#ifdef USE_SYSTEM_PROTOBUF
+#include "neug/generated/proto/plan/physical.pb.h"
+#else
+#include "neug/utils/proto/plan/physical.pb.h"
+#endif
 
 namespace gs {
 

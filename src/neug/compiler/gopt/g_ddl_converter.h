@@ -19,14 +19,18 @@
 #include <string>
 #include "neug/compiler/catalog/catalog_entry/catalog_entry_type.h"
 #include "neug/compiler/gopt/g_catalog.h"
+#include "neug/compiler/gopt/g_type_converter.h"
 #include "neug/compiler/planner/operator/ddl/logical_alter.h"
 #include "neug/compiler/planner/operator/ddl/logical_create_table.h"
 #include "neug/compiler/planner/operator/ddl/logical_drop.h"
 #include "neug/compiler/planner/operator/logical_plan.h"
-// #include "neug/proto_generated_gie/common.pb.h"
-#include "neug/compiler/gopt/g_type_converter.h"
-#include "neug/proto_generated_gie/common.pb.h"
-#include "neug/proto_generated_gie/cypher_ddl.pb.h"
+#ifdef USE_SYSTEM_PROTOBUF
+#include "neug/generated/proto/plan/common.pb.h"
+#include "neug/generated/proto/plan/cypher_ddl.pb.h"
+#else
+#include "neug/utils/proto/plan/common.pb.h"
+#include "neug/utils/proto/plan/cypher_ddl.pb.h"
+#endif
 
 namespace gs {
 namespace gopt {

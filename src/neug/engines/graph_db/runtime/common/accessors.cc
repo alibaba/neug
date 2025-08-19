@@ -324,8 +324,8 @@ VertexPropertyPathAccessor<GraphInterface, T>::VertexPropertyPathAccessor(
     const std::string& prop_name)
     : is_optional_(false),
       vertex_col_(*std::dynamic_pointer_cast<IVertexColumn>(ctx.get(tag))) {
-  int label_num = graph.schema().vertex_label_num();
-  property_columns_.resize(label_num);
+  int max_label_num = std::numeric_limits<label_t>::max() + 1;
+  property_columns_.resize(max_label_num);
   const auto& labels = vertex_col_.get_labels_set();
   if (vertex_col_.is_optional()) {
     is_optional_ = true;

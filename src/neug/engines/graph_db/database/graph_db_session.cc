@@ -23,14 +23,19 @@
 #include "neug/engines/graph_db/database/graph_db.h"
 #include "neug/engines/graph_db/database/graph_db_session.h"
 #include "neug/engines/graph_db/database/version_manager.h"
-#include "neug/proto_generated_gie/common.pb.h"
-#include "neug/proto_generated_gie/stored_procedure.pb.h"
 #include "neug/storages/rt_mutable_graph/mutable_property_fragment.h"
 #include "neug/storages/rt_mutable_graph/schema.h"
 #include "neug/storages/rt_mutable_graph/types.h"
 #include "neug/utils/app_utils.h"
 #include "neug/utils/property/column.h"
 #include "neug/utils/property/types.h"
+#ifdef USE_SYSTEM_PROTOBUF
+#include "neug/generated/proto/plan/common.pb.h"
+#include "neug/generated/proto/plan/stored_procedure.pb.h"
+#else
+#include "neug/utils/proto/plan/common.pb.h"
+#include "neug/utils/proto/plan/stored_procedure.pb.h"
+#endif
 #include "neug/utils/result.h"
 #include "neug/utils/service_utils.h"
 

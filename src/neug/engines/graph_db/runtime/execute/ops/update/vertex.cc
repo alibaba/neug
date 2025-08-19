@@ -36,10 +36,15 @@
 #include "neug/engines/graph_db/runtime/utils/predicates.h"
 #include "neug/engines/graph_db/runtime/utils/utils.h"
 #include "neug/engines/graph_db/runtime/utils/var.h"
-#include "neug/proto_generated_gie/algebra.pb.h"
-#include "neug/proto_generated_gie/expr.pb.h"
 #include "neug/storages/rt_mutable_graph/types.h"
 #include "neug/utils/leaf_utils.h"
+#ifdef USE_SYSTEM_PROTOBUF
+#include "neug/generated/proto/plan/algebra.pb.h"
+#include "neug/generated/proto/plan/expr.pb.h"
+#else
+#include "neug/utils/proto/plan/algebra.pb.h"
+#include "neug/utils/proto/plan/expr.pb.h"
+#endif
 
 namespace gs {
 class Schema;

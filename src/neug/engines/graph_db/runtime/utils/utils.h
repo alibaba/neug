@@ -26,10 +26,18 @@
 #include "neug/engines/graph_db/runtime/common/rt_any.h"
 #include "neug/engines/graph_db/runtime/common/types.h"
 #include "neug/engines/graph_db/runtime/utils/expr.h"
-#include "neug/proto_generated_gie/algebra.pb.h"
-#include "neug/proto_generated_gie/physical.pb.h"
-#include "neug/proto_generated_gie/type.pb.h"
 #include "neug/storages/rt_mutable_graph/types.h"
+#ifdef USE_SYSTEM_PROTOBUF
+#include "neug/generated/proto/plan/algebra.pb.h"
+#include "neug/generated/proto/plan/common.pb.h"
+#include "neug/generated/proto/plan/physical.pb.h"
+#include "neug/generated/proto/plan/type.pb.h"
+#else
+#include "neug/utils/proto/plan/algebra.pb.h"
+#include "neug/utils/proto/plan/common.pb.h"
+#include "neug/utils/proto/plan/physical.pb.h"
+#include "neug/utils/proto/plan/type.pb.h"
+#endif
 
 namespace algebra {
 class QueryParams;

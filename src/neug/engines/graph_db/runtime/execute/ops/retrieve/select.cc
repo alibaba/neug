@@ -32,9 +32,6 @@
 #include "neug/engines/graph_db/runtime/utils/expr.h"
 #include "neug/engines/graph_db/runtime/utils/special_predicates.h"
 #include "neug/engines/graph_db/runtime/utils/var.h"
-#include "neug/proto_generated_gie/algebra.pb.h"
-#include "neug/proto_generated_gie/common.pb.h"
-#include "neug/proto_generated_gie/expr.pb.h"
 #include "neug/storages/rt_mutable_graph/schema.h"
 #include "neug/storages/rt_mutable_graph/types.h"
 

@@ -24,7 +24,11 @@
 #include <type_traits>
 #include <utility>
 
-#include "neug/proto_generated_gie/error.pb.h"
+#ifdef USE_SYSTEM_PROTOBUF
+#include "neug/generated/proto/plan/error.pb.h"
+#else
+#include "neug/utils/proto/plan/error.pb.h"
+#endif
 
 namespace gs {
 

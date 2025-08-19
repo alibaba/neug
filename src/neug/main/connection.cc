@@ -15,7 +15,6 @@
 
 #include "neug/main/connection.h"
 
-#include "neug/proto_generated_gie/results.pb.h"
 #include "neug/utils/pb_utils.h"
 #include "neug/utils/yaml_utils.h"
 

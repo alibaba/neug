@@ -19,8 +19,13 @@
 #include <memory>
 #include "neug/compiler/catalog/catalog_entry/node_table_catalog_entry.h"
 #include "neug/compiler/gopt/g_graph_type.h"
-#include "neug/proto_generated_gie/basic_type.pb.h"
-#include "neug/proto_generated_gie/type.pb.h"
+#ifdef USE_SYSTEM_PROTOBUF
+#include "neug/generated/proto/plan/common.pb.h"
+#include "neug/generated/proto/plan/type.pb.h"
+#else
+#include "neug/utils/proto/plan/basic_type.pb.h"
+#include "neug/utils/proto/plan/type.pb.h"
+#endif
 
 namespace gs {
 namespace gopt {

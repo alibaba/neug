@@ -26,8 +26,6 @@
 #include <thread>
 #include <vector>
 
-#include "neug/proto_generated_gie/physical.pb.h"
-
 namespace gs {
 
 std::string generate_compiler_config(const std::string& schema,

@@ -5,14 +5,23 @@ set(HTTP_SERVICE_PROTO_FILES
 file(MAKE_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/neug/http_service)
 
 # proto gen for http service proto
-protobuf_generate(APPEND_PATH
-        TARGET ${LOCAL_EXE_NAME}
-        LANGUAGE cpp
-        OUT_VAR HTTP_SERVICE_PROTO_SRCS
-        PROTOS ${HTTP_SERVICE_PROTO_FILES}
-        IMPORT_DIRS ${HTTP_SERVICE_PROTO_DIR}
-        PROTOC_OUT_DIR ${CMAKE_CURRENT_BINARY_DIR}/neug/http_service
-)
+# NOTICE: Currently, the auto generation of http service proto files is disabled to avoid introducing dependencies for protobuf-compiler.
+# We generate the proto files in advance and use them as source files.
+if (USE_SYSTEM_PROTOBUF)
+        message(STATUS "Using system protobuf for http service proto generation")
+        file(MAKE_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/neug/generated/proto/http_service)
+        protobuf_generate(APPEND_PATH
+                TARGET ${LOCAL_EXE_NAME}
+                LANGUAGE cpp
+                OUT_VAR HTTP_SERVICE_PROTO_SRCS
+                PROTOS ${HTTP_SERVICE_PROTO_FILES}
+                IMPORT_DIRS ${HTTP_SERVICE_PROTO_DIR}
+                PROTOC_OUT_DIR ${CMAKE_CURRENT_BINARY_DIR}/neug/generated/proto/http_service
+        )
+else()
+        file(GLOB HTTP_SERVICE_PROTO_SRCS "${CMAKE_CURRENT_SOURCE_DIR}/proto/http_service/*.pb.cc")
+endif()
+
 
 add_custom_target(generate_http_proto ALL
         DEPENDS ${HTTP_SERVICE_PROTO_SRCS}
@@ -41,24 +50,23 @@ set(CODE_GEN_PROTOBUF_FILES
         ${GIE_COMPILER_WRITE_PROTO_DIR}/error.proto
 )
 
-#create directory first
-file(MAKE_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/neug/proto_generated_gie)
-set(PROTO_GENERATED_DIR ${CMAKE_CURRENT_BINARY_DIR}/neug/proto_generated_gie/proto)
+# Remove the comments when you want to generate the proto files automatically.
+if (USE_SYSTEM_PROTOBUF)
+        file(MAKE_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/neug/generated/proto/plan)
+        file(GLOB CODE_GEN_PROTOBUF_FILES "${CMAKE_CURRENT_SOURCE_DIR}/../../../proto/*.proto")
+        list(FILTER CODE_GEN_PROTOBUF_FILES EXCLUDE REGEX ".*http_svc\\.proto$")
 
-foreach(file ${CODE_GEN_PROTOBUF_FILES})
-        file(COPY ${file} DESTINATION ${PROTO_GENERATED_DIR})
-endforeach()
-file(GLOB CODE_GEN_PROTOBUF_FILES "${PROTO_GENERATED_DIR}/*.proto")
-
-# proto gen for gie proto
-protobuf_generate(APPEND_PATH
-        TARGET ${LOCAL_EXE_NAME}
-        LANGUAGE cpp
-        OUT_VAR PROTO_SRCS_GIE
-        PROTOS ${CODE_GEN_PROTOBUF_FILES}
-        IMPORT_DIRS ${PROTO_GENERATED_DIR}
-        PROTOC_OUT_DIR ${CMAKE_CURRENT_BINARY_DIR}/neug/proto_generated_gie
-)
+        protobuf_generate(APPEND_PATH
+                TARGET ${LOCAL_EXE_NAME}
+                LANGUAGE cpp
+                OUT_VAR PROTO_SRCS_GIE
+                PROTOS ${CODE_GEN_PROTOBUF_FILES}
+                IMPORT_DIRS ${CMAKE_CURRENT_SOURCE_DIR}/../../../proto
+                PROTOC_OUT_DIR ${CMAKE_CURRENT_BINARY_DIR}/neug/generated/proto/plan
+        )
+else()
+        file(GLOB PROTO_SRCS_GIE "${CMAKE_CURRENT_SOURCE_DIR}/proto/plan/*.pb.cc")
+endif()
 if (BUILD_ALL_IN_ONE)
         add_library(neug_plan_proto OBJECT ${PROTO_SRCS_GIE})
 else()
@@ -73,15 +81,26 @@ else()
         install_neug_target(neug_plan_proto)
 endif()
 
-#install proto_generated_files
-install(DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/neug
-        DESTINATION include
-        FILES_MATCHING
-        PATTERN "*.h"
-)
+if (USE_SYSTEM_PROTOBUF)        
+        install(DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/neug
+                DESTINATION include
+                FILES_MATCHING
+                PATTERN "*.h"
+        )
+else()
+        install(DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/proto
+                DESTINATION include/neug/proto
+                FILES_MATCHING
+                PATTERN "*.h"
+        )
+endif()
 
 ############################################ Build Utils Library ############################################
 file(GLOB_RECURSE UTILS_SRC_FILES "${CMAKE_CURRENT_SOURCE_DIR}/*.cc")
+# exclude files end with .pb.cc
+list(FILTER UTILS_SRC_FILES EXCLUDE REGEX ".*\\.pb\\.cc$")
+# Remove the files in proto directory
+message(STATUS "Utils source files: ${UTILS_SRC_FILES}")
 
 if (NOT BUILD_WITH_OSS)
         list(REMOVE_ITEM UTILS_SRC_FILES "${CMAKE_CURRENT_SOURCE_DIR}/remote/oss_storage.cc")

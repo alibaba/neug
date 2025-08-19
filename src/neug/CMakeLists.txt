@@ -18,7 +18,7 @@ if (BUILD_ALL_IN_ONE)
         target_link_libraries(neug_libraries PUBLIC ${COMPILER_LIBRARIES} ${GFLAGS_LIBRARIES} ${GLOG_LIBRARIES} ${Boost_LIBRARIES} ${Protobuf_LIBRARIES} ${YAML_CPP_LIBRARIES} ${ARROW_LIB} neug_grape_lite)
         if (BUILD_HTTP_SERVER)
             target_link_libraries(neug_libraries PUBLIC neug_graph_db_service ${GFLAGS_LIBRARIES} ${GLOG_LIBRARIES} ${Protobuf_LIBRARIES}  ${Boost_LIBRARIES})
-            target_link_libraries(neug_libraries PUBLIC ${OPENSSL_LIBRARIES} ${CRYPTO_LIB} ${BRPC_LIB} ${LEVELDB_LIB} ${PROTOC_LIB})
+            target_link_libraries(neug_libraries PUBLIC ${OPENSSL_LIBRARIES} ${CRYPTO_LIB} ${BRPC_LIB} ${LEVELDB_LIB}) #${PROTOC_LIB}
         endif()
         if (APPLE)
             target_link_libraries(neug_libraries PUBLIC ${MACOS_DYLIBS})

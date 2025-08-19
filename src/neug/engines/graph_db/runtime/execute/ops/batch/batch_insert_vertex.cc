@@ -21,8 +21,6 @@
 #include "neug/engines/graph_db/runtime/common/graph_interface.h"
 #include "neug/engines/graph_db/runtime/execute/ops/batch/batch_insert_vertex.h"
 #include "neug/engines/graph_db/runtime/execute/ops/batch/batch_update_utils.h"
-#include "neug/proto_generated_gie/common.pb.h"
-#include "neug/proto_generated_gie/cypher_dml.pb.h"
 #include "neug/storages/rt_mutable_graph/mutable_property_fragment.h"
 #include "neug/storages/rt_mutable_graph/schema.h"
 #include "neug/utils/pb_utils.h"

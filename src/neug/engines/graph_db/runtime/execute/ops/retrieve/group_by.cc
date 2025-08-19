@@ -44,8 +44,6 @@
 #include "neug/engines/graph_db/runtime/common/operators/retrieve/project.h"
 #include "neug/engines/graph_db/runtime/common/rt_any.h"
 #include "neug/engines/graph_db/runtime/utils/var.h"
-#include "neug/proto_generated_gie/common.pb.h"
-#include "neug/proto_generated_gie/expr.pb.h"
 #include "neug/storages/rt_mutable_graph/types.h"
 #include "neug/utils/property/types.h"
 

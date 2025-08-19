@@ -25,9 +25,9 @@
 #include "neug/compiler/gopt/g_constants.h"
 #include "neug/compiler/gopt/g_graph_type.h"
 #include "neug/compiler/gopt/g_rel_table_entry.h"
-#include "neug/proto_generated_gie/basic_type.pb.h"
-#include "neug/proto_generated_gie/common.pb.h"
-#include "neug/proto_generated_gie/type.pb.h"
+#include "neug/utils/proto/plan/basic_type.pb.h"
+#include "neug/utils/proto/plan/common.pb.h"
+#include "neug/utils/proto/plan/type.pb.h"
 #include "neug/utils/exception/exception.h"
 
 namespace gs {

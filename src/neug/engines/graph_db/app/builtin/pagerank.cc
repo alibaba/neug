@@ -27,7 +27,6 @@
 #include "neug/engines/graph_db/database/read_transaction.h"
 #include "neug/engines/graph_db/runtime/common/graph_interface.h"
 #include "neug/engines/graph_db/runtime/common/rt_any.h"
-#include "neug/proto_generated_gie/common.pb.h"
 #include "neug/storages/rt_mutable_graph/schema.h"
 #include "neug/storages/rt_mutable_graph/types.h"
 

@@ -17,7 +17,11 @@
 #define SRC_ENGINES_GRAPH_DB_RUNTIME_EXECUTE_OPS_BATCH_BATCH_UPDATE_EDGE_H_
 
 #include "neug/engines/graph_db/runtime/execute/operator.h"
-#include "neug/proto_generated_gie/physical.pb.h"
+#ifdef USE_SYSTEM_PROTOBUF
+#include "neug/generated/proto/plan/physical.pb.h"
+#else
+#include "neug/utils/proto/plan/physical.pb.h"
+#endif
 
 namespace gs {
 namespace runtime {

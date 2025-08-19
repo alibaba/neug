@@ -36,9 +36,6 @@
 #include "neug/engines/graph_db/database/single_vertex_insert_transaction.h"
 #include "neug/engines/graph_db/database/update_transaction.h"
 #include "neug/engines/graph_db/database/version_manager.h"
-#include "neug/proto_generated_gie/cypher_ddl.pb.h"
-#include "neug/proto_generated_gie/cypher_dml.pb.h"
-#include "neug/proto_generated_gie/physical.pb.h"
 #include "neug/storages/rt_mutable_graph/loader/loader_factory.h"
 #include "neug/storages/rt_mutable_graph/loading_config.h"
 #include "neug/storages/rt_mutable_graph/mutable_property_fragment.h"
@@ -46,6 +43,15 @@
 #include "neug/storages/rt_mutable_graph/types.h"
 #include "neug/utils/mmap_array.h"
 #include "neug/utils/property/table.h"
+#ifdef USE_SYSTEM_PROTOBUF
+#include "neug/generated/proto/plan/cypher_ddl.pb.h"
+#include "neug/generated/proto/plan/cypher_dml.pb.h"
+#include "neug/generated/proto/plan/physical.pb.h"
+#else
+#include "neug/utils/proto/plan/cypher_ddl.pb.h"
+#include "neug/utils/proto/plan/cypher_dml.pb.h"
+#include "neug/utils/proto/plan/physical.pb.h"
+#endif
 #include "neug/utils/result.h"
 
 namespace gs {

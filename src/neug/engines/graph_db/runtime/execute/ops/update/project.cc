@@ -33,8 +33,6 @@
 #include "neug/engines/graph_db/runtime/common/operators/update/project.h"
 #include "neug/engines/graph_db/runtime/common/rt_any.h"
 #include "neug/engines/graph_db/runtime/utils/var.h"
-#include "neug/proto_generated_gie/common.pb.h"
-#include "neug/proto_generated_gie/expr.pb.h"
 #include "neug/utils/leaf_utils.h"
 
 namespace gs {

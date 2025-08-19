@@ -19,8 +19,12 @@
 #include "pybind11/include/pybind11/pybind11.h"
 
 #include "neug/main/query_result.h"
-#include "neug/proto_generated_gie/results.pb.h"
 #include "neug/storages/rt_mutable_graph/schema.h"
+#ifdef USE_SYSTEM_PROTOBUF
+#include "neug/generated/proto/plan/results.pb.h"
+#else
+#include "neug/utils/proto/plan/results.pb.h"
+#endif
 #include "neug/utils/result.h"
 
 namespace gs {

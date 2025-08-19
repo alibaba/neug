@@ -234,19 +234,19 @@ install_boost() {
 
 # arrow for ubuntu and centos
 install_arrow() {
-  if [[ "${OS_PLATFORM}" == *"Ubuntu"* ]]; then
-    if ! dpkg -s libarrow-dev &>/dev/null; then
-      ${SUDO} apt-get install -y lsb-release
-      # shellcheck disable=SC2046,SC2019,SC2018
-      wget -c https://apache.jfrog.io/artifactory/arrow/"$(lsb_release --id --short | tr 'A-Z' 'a-z')"/apache-arrow-apt-source-latest-$(lsb_release --codename --short).deb -P /tmp/
-      ${SUDO} apt-get install -y -V /tmp/apache-arrow-apt-source-latest-"$(lsb_release --codename --short)".deb
-      ${SUDO} apt-get update -y
-      ${SUDO} apt-get install -y libarrow-dev=${ARROW_VERSION}-1 libarrow-dataset-dev=${ARROW_VERSION}-1 libarrow-acero-dev=${ARROW_VERSION}-1 libparquet-dev=${ARROW_VERSION}-1
-      rm /tmp/apache-arrow-apt-source-latest-*.deb
-    fi
-  else
-    install_arrow_from_source
-  fi
+  # if [[ "${OS_PLATFORM}" == *"Ubuntu"* ]]; then
+  #   if ! dpkg -s libarrow-dev &>/dev/null; then
+  #     ${SUDO} apt-get install -y lsb-release
+  #     # shellcheck disable=SC2046,SC2019,SC2018
+  #     wget -c https://apache.jfrog.io/artifactory/arrow/"$(lsb_release --id --short | tr 'A-Z' 'a-z')"/apache-arrow-apt-source-latest-$(lsb_release --codename --short).deb -P /tmp/
+  #     ${SUDO} apt-get install -y -V /tmp/apache-arrow-apt-source-latest-"$(lsb_release --codename --short)".deb
+  #     ${SUDO} apt-get update -y
+  #     ${SUDO} apt-get install -y libarrow-dev=${ARROW_VERSION}-1 libarrow-dataset-dev=${ARROW_VERSION}-1 libarrow-acero-dev=${ARROW_VERSION}-1 libparquet-dev=${ARROW_VERSION}-1
+  #     rm /tmp/apache-arrow-apt-source-latest-*.deb
+  #   fi
+  # else
+  install_arrow_from_source
+  # fi
 }
 
 # arrow for centos
@@ -557,6 +557,7 @@ install_neug_dependencies() {
     install_mimalloc
   elif [[ "${OS_PLATFORM}" == *"Ubuntu"* ]]; then
     DEBIAN_FRONTEND=noninteractive TZ=Etc/UTC ${SUDO} apt-get install -y ${INTERACTIVE_UBUNTU[*]}
+    install_protobuf
     install_arrow
     install_boost
     if [[ "${install_brpc}" == true ]]; then

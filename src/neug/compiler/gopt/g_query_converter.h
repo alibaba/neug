@@ -51,9 +51,9 @@
 #include "neug/compiler/planner/operator/persistent/logical_set.h"
 #include "neug/compiler/planner/operator/scan/logical_dummy_scan.h"
 #include "neug/compiler/planner/operator/scan/logical_scan_node_table.h"
-#include "neug/proto_generated_gie/algebra.pb.h"
-#include "neug/proto_generated_gie/cypher_dml.pb.h"
-#include "neug/proto_generated_gie/physical.pb.h"
+#include "neug/utils/proto/plan/algebra.pb.h"
+#include "neug/utils/proto/plan/cypher_dml.pb.h"
+#include "neug/utils/proto/plan/physical.pb.h"
 
 namespace gs {
 namespace gopt {
