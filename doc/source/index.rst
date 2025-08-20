@@ -46,7 +46,7 @@ NeuG documentation
    :maxdepth: 2
    :caption: API Reference
 
-   reference/cypher_manual
+   cypher_manual/cypher_manual.rst
    reference/cpp_api/index
    reference/python_api/python_index
    reference/type_system

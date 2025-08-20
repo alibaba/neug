@@ -1,1 +1,0 @@
-# Cypher Manual
