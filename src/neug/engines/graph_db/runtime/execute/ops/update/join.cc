@@ -56,13 +56,14 @@ class JoinUpdateOpr : public IUpdateOperator {
       gs::runtime::GraphUpdateInterface& graph,
       const std::map<std::string, std::string>& params, Context&& ctx,
       OprTimer& timer) override {
+    gs::runtime::Context ret_dup(ctx);
     auto left_ctx =
         left_pipeline_.Execute(graph, std::move(ctx), params, timer);
     if (!left_ctx) {
       return left_ctx;
     }
-    auto right_ctx = right_pipeline_.Execute(graph, std::move(left_ctx.value()),
-                                             params, timer);
+    auto right_ctx =
+        right_pipeline_.Execute(graph, std::move(ret_dup), params, timer);
     if (!right_ctx) {
       return right_ctx;
     }

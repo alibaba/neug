@@ -313,7 +313,9 @@ static Context default_times_join(Context&& ctx, Context&& ctx2,
     ret.set(i, ctx.get(i));
   }
   for (size_t i = 0; i < ctx2.col_num(); i++) {
-    ret.set(i + ctx.col_num(), ctx2.get(i));
+    if (ctx2.get(i) != nullptr) {
+      ret.set(i, ctx2.get(i));
+    }
   }
   LOG(INFO) << "times join: left size = " << left_size
             << ", right size = " << right_size

@@ -336,7 +336,7 @@ class OptionalValueColumn : public IValueColumn<T> {
   }
   inline RTAny get_elem(size_t idx) const override {
     if (!valid_[idx]) {
-      return RTAny::Null();
+      return RTAny(RTAnyType::kNull);
     }
     return TypedConverter<T>::from_typed(data_[idx]);
   }

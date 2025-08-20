@@ -114,8 +114,6 @@ std::shared_ptr<IContextColumn> Context::get(int alias) {
   if (alias == -1) {
     return head;
   }
-  CHECK(static_cast<size_t>(alias) < columns.size())
-      << "alias: " << alias << ", columns.size(): " << columns.size();
   return columns[alias];
 }
 
@@ -124,8 +122,6 @@ const std::shared_ptr<IContextColumn> Context::get(int alias) const {
     assert(head != nullptr);
     return head;
   }
-  CHECK(static_cast<size_t>(alias) < columns.size())
-      << "alias: " << alias << ", columns.size(): " << columns.size();
   // return nullptr if the column is not set
   return columns[alias];
 }
