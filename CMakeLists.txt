@@ -119,6 +119,12 @@ if (BUILD_TEST)
         add_library(neug::GTest INTERFACE IMPORTED)
         target_link_libraries(neug::GTest INTERFACE GTest::gtest_main)
         target_link_libraries(neug::GTest INTERFACE GTest::gmock_main)
+    else()
+        add_subdirectory(third_party/gtest EXCLUDE_FROM_ALL)
+
+        add_library(neug::GTest INTERFACE IMPORTED)
+        target_link_libraries(neug::GTest INTERFACE gtest_main)
+        target_link_libraries(neug::GTest INTERFACE gmock_main)
     endif()
 endif()
 
@@ -228,11 +234,6 @@ endif()
 function(add_compiler_test TEST_NAME)
     set(SRCS ${ARGN})
     add_executable(${TEST_NAME} ${SRCS})
-    #target_link_libraries(${TEST_NAME} PRIVATE test_helper test_runner graph_test)
-    #if (ENABLE_BACKTRACES)
-    #    target_link_libraries(${TEST_NAME} PRIVATE register_backtrace_signal_handler)
-    #endif()
-    #target_include_directories(${TEST_NAME} PRIVATE ${PROJECT_SOURCE_DIR}/test/include)
     if (BUILD_ALL_IN_ONE)
         target_link_libraries(${TEST_NAME} PUBLIC neug::GTest neug_libraries)
     else()
@@ -241,22 +242,21 @@ function(add_compiler_test TEST_NAME)
 
     include(GoogleTest)
 
-    if (TEST_NAME STREQUAL "e2e_test")
-        gtest_discover_tests(${TEST_NAME}
-            DISCOVERY_TIMEOUT 600
-            # DISCOVERY_MODE PRE_TEST
-            DISCOVERY_MODE POST_BUILD
-            TEST_PREFIX e2e_test_
-        )
-    else()
-	    #    gtest_discover_tests(${TEST_NAME}
-            #    gtesDISCOVERY_TIMEOUT 600
-            #    gtes# DISCOVERY_MODE PRE_TEST
-            #    gtesDISCOVERY_MODE POST_BUILD
-	    #)
 	add_test(NAME ${TEST_NAME} COMMAND ${TEST_NAME})
 	gtest_add_tests(TARGET ${TEST_NAME} TEST_LIST ${TEST_NAME}_tests)
+endfunction()
+
+function(add_storage_test TEST_NAME)
+    set(SRCS ${ARGN})
+    add_executable(${TEST_NAME} ${SRCS})
+    if (BUILD_ALL_IN_ONE)
+        target_link_libraries(${TEST_NAME} PUBLIC neug::GTest neug_libraries)
+    else()
+        target_link_libraries(${TEST_NAME} PUBLIC neug::GTest neug_rt_mutable_graph)
     endif()
+    include(GoogleTest)
+    add_test(NAME ${TEST_NAME} COMMAND ${TEST_NAME})
+    gtest_add_tests(TARGET ${TEST_NAME} TEST_LIST ${TEST_NAME}_tests)
 endfunction()
 
 if(USE_PTHASH)

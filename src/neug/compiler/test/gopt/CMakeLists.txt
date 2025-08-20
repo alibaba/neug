@@ -14,6 +14,7 @@ add_compiler_test(
 	cyclic_test.cpp
 	lsqb_test.cpp
 	join_test.cpp)
+message(STATUS "Adding gopt tests")
 
 target_link_libraries(gopt_test
     PRIVATE

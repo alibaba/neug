@@ -124,14 +124,8 @@ jobs:
     - name: Run C++ Test
       run: |
         cd ${GITHUB_WORKSPACE}/tools/python_bind/
-        export FLEX_DATA_DIR=${GITHUB_WORKSPACE}/example_dataset/modern_graph
-        rm -rf /tmp/test_open_graph
-        rm -rf /tmp/test_open_close
-        GLOG_v=10 ./build/neug_py_bind/tests/rt_mutable_graph/test_open_graph /tmp/test_open_graph ${FLEX_DATA_DIR}
-        build/neug_py_bind/tests/rt_mutable_graph/test_ddl
-        build/neug_py_bind/tests/rt_mutable_graph/test_export
-        diff person.csv ../../example_dataset/modern_graph/person_export.csv
-        diff person_knows_person.csv ../../example_dataset/modern_graph/person_knows_person_export.csv
+        export MODERN_GRAPH_DATA_DIR=${GITHUB_WORKSPACE}/example_dataset/modern_graph
+        ctest -R storage_test -V
 
     - name: Run Python Test
       run: |
@@ -156,16 +150,10 @@ jobs:
         export LSQB_DATA_DIR=/tmp/lsqb
         python3 -m pytest -sv tests/test_lsqb.py
 
-    - name: Run Gopt_planner_test
-      run: |
-        cd ${GITHUB_WORKSPACE}/tools/python_bind/
-        export FLEX_DATA_DIR=${GITHUB_WORKSPACE}/example_dataset/modern_graph
-        GLOG_v=10 ./build/neug_py_bind/tests/rt_mutable_graph/test_gopt_planner /tmp/test_gopt_planner
-
     - name: Run TinySNB Test
       run: |
         cd ${GITHUB_WORKSPACE}/tools/python_bind/
-        GLOG_v=10 ./build/neug_py_bind/tests/rt_mutable_graph/test_run_query /tmp/tinysnb "MATCH (a:person)-[e1:knows]->(b:person) WHERE a.age > 35 RETURN b.fName"
+        GLOG_v=10 ./build/neug_py_bind/tests/unittest/test_run_query /tmp/tinysnb "MATCH (a:person)-[e1:knows]->(b:person) WHERE a.age > 35 RETURN b.fName"
 
     - name: Run DB Init Test
       run: |

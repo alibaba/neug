@@ -14,9 +14,9 @@
  */
 #include <arrow/csv/options.h>
 #include <glog/logging.h>
+#include <gtest/gtest.h>
 #include <stddef.h>
 #include <stdint.h>
-
 #include <iostream>
 #include <memory>
 #include <string>
@@ -38,21 +38,6 @@ class DataType;
 }  // namespace arrow
 
 namespace gs {
-
-void testCreateVertexType(
-    MutablePropertyFragment& graph, std::string& vertex_type_name,
-    std::vector<std::tuple<PropertyType, std::string, Any>>& properties,
-    std::vector<std::string>& primary_keys) {
-  graph.create_vertex_type(vertex_type_name, properties, primary_keys);
-}
-
-void testCreateEdgeType(
-    MutablePropertyFragment& graph, std::string& src_vertex_label,
-    std::string& dst_vertex_label, std::string& edge_type_name,
-    std::vector<std::tuple<PropertyType, std::string, Any>>& properties) {
-  graph.create_edge_type(src_vertex_label, dst_vertex_label, edge_type_name,
-                         properties);
-}
 
 void testLoadVertexBatch(MutablePropertyFragment& graph,
                          std::string vertex_type_name, std::string& v_file,
@@ -112,7 +97,7 @@ void testLoadVertexBatch(MutablePropertyFragment& graph,
   {
     auto property_types = graph.schema().get_vertex_properties(v_label);
     auto property_names = graph.schema().get_vertex_property_names(v_label);
-    CHECK(property_types.size() == property_names.size());
+    EXPECT_TRUE(property_types.size() == property_names.size());
 
     for (size_t i = 0; i < property_types.size(); ++i) {
       // for each schema' property name, get the index of the column in
@@ -231,7 +216,7 @@ void testLoadEdgeBatch(MutablePropertyFragment& graph,
         src_label_id, dst_label_id, e_label_id);
     auto property_names = graph.schema().get_edge_property_names(
         src_label_id, dst_label_id, e_label_id);
-    CHECK(property_types.size() == property_names.size());
+    EXPECT_TRUE(property_types.size() == property_names.size());
 
     for (size_t i = 0; i < property_types.size(); ++i) {
       // for each schema' property name, get the index of the column in
@@ -259,7 +244,7 @@ void testLoadEdgeBatch(MutablePropertyFragment& graph,
       {
         auto src_primary_keys =
             graph.schema().get_vertex_primary_key(src_label_id);
-        CHECK(src_primary_keys.size() == 1);
+        EXPECT_TRUE(src_primary_keys.size() == 1);
         src_col_type = std::get<0>(src_primary_keys[0]);
         arrow_types.insert({read_options.column_names[0],
                             PropertyTypeToArrowType(src_col_type)});
@@ -267,7 +252,7 @@ void testLoadEdgeBatch(MutablePropertyFragment& graph,
       {
         auto dst_primary_keys =
             graph.schema().get_vertex_primary_key(dst_label_id);
-        CHECK(dst_primary_keys.size() == 1);
+        EXPECT_TRUE(dst_primary_keys.size() == 1);
         dst_col_type = std::get<0>(dst_primary_keys[0]);
         arrow_types.insert({read_options.column_names[1],
                             PropertyTypeToArrowType(dst_col_type)});
@@ -306,7 +291,10 @@ void testOpenEmptyGraph(const std::string& graph_dir,
     properties.emplace_back(
         std::make_tuple<PropertyType, std::string, std::string>(
             PropertyType::Int32(), std::string("age"), std::string("")));
-    testCreateVertexType(graph, vertex_label_name, properties, primary_keys);
+    // testCreateVertexType(graph, vertex_label_name, properties, primary_keys);
+    auto status =
+        graph.create_vertex_type(vertex_label_name, properties, primary_keys);
+    EXPECT_TRUE(status.ok());
     std::cout << "Get vertex label num: "
               << static_cast<size_t>(graph.schema().vertex_label_num()) << "\n";
   }
@@ -321,8 +309,11 @@ void testOpenEmptyGraph(const std::string& graph_dir,
     edge_properties.emplace_back(
         std::make_tuple<PropertyType, std::string, std::string>(
             PropertyType::Float(), std::string("weight"), std::string("")));
-    testCreateEdgeType(graph, src_vertex_label, dst_vertex_label,
-                       edge_label_name, edge_properties);
+    // testCreateEdgeType(graph, src_vertex_label, dst_vertex_label,
+    //                    edge_label_name, edge_properties);
+    auto status = graph.create_edge_type(src_vertex_label, dst_vertex_label,
+                                         edge_label_name, edge_properties);
+    EXPECT_TRUE(status.ok());
     auto edge_label_num = graph.schema().edge_label_num();
     std::cout << "Get edge label num: " << static_cast<size_t>(edge_label_num)
               << "\n";
@@ -396,14 +387,18 @@ void testOpenEmptyGraph(const std::string& graph_dir,
 
 }  // namespace gs
 
-int main(int argc, char** argv) {
-  if (argc != 3) {
-    std::cerr << "Usage: alter_property_test <graph_dir> <data_dir>"
-              << std::endl;
-    return -1;
+TEST(DatabaseTest, TestAlterProperty) {
+  std::string data_path = "/tmp/alter_property_test";
+  if (std::filesystem::exists(data_path)) {
+    std::filesystem::remove_all(data_path);
   }
-  std::string work_dir = argv[1];
-  std::string data_dir = argv[2];
-  gs::testOpenEmptyGraph(work_dir, data_dir);
-  return 0;
+  // create the directory
+  std::filesystem::create_directories(data_path);
+  const char* data_dir = std::getenv("MODERN_GRAPH_DATA_DIR");
+  if (data_dir == nullptr) {
+    throw std::runtime_error(
+        "MODERN_GRAPH_DATA_DIR environment variable is not set");
+  }
+  LOG(INFO) << "Data directory: " << data_dir;
+  gs::testOpenEmptyGraph(data_path, data_dir);
 }

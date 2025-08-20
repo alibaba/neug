@@ -1,1 +1,0 @@
-MATCH (tom:Person) WHERE tom.name = "Tom Hanks" RETURN tom.born AS bornYear,tom.name AS personName;
