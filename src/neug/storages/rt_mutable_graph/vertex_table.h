@@ -137,6 +137,21 @@ class VertexTable {
     vertex_capacity_ = cap;
   }
 
+  void BatchAddVertices(std::vector<Any>&& ids, std::unique_ptr<Table> table) {
+    size_t new_row_num = table->row_num() + ids.size();
+    Reserve(new_row_num);
+    vid_t vid;
+    size_t cur_idx = 0;
+    for (const auto& id : ids) {
+      if (indexer_.get_index(id, vid)) {
+        cur_idx++;
+        continue;
+      }
+      vid = add_vertex(id);
+      table_->insert(vid, table->get_row(cur_idx++));
+    }
+  }
+
   void BatchDeleteVertices(const std::vector<vid_t>& vids);
 
   void AddProperties(
@@ -150,6 +165,8 @@ class VertexTable {
 
   void RenameProperties(const std::vector<std::string>& old_names,
                         const std::vector<std::string>& new_names);
+
+  std::string work_dir() const { return work_dir_; }
 
  private:
   size_t vertex_capacity_ = 0;

@@ -304,39 +304,6 @@ class MutableCsr : public TypedMutableCsrBase<EDATA_T> {
     return edge_num;
   }
 
-  void batch_resize(const std::vector<int>& degree,
-                    double reserve_ratio) override {
-    reserve_ratio = std::max(reserve_ratio, 1.0);
-    size_t vnum = degree.size();
-
-    size_t former_index = nbr_list_.size();
-    size_t edge_num = 0;
-    for (auto d : degree) {
-      edge_num += (std::ceil(d * reserve_ratio));
-    }
-    nbr_list_.resize(edge_num);
-    size_t new_index = edge_num;
-
-    for (vid_t i = 0; i < vnum; ++i) {
-      int32_t former_degree = adj_lists_[vnum - 1 - i].size();
-      former_index -= adj_lists_[vnum - 1 - i].capacity();
-      new_index -= (std::ceil(degree[vnum - 1 - i] * reserve_ratio));
-      for (auto j = 0; j < former_degree; j++) {
-        nbr_list_[new_index + j] = nbr_list_[former_index + j];
-      }
-    }
-
-    nbr_t* ptr = nbr_list_.data();
-    for (vid_t i = 0; i < vnum; ++i) {
-      int deg = degree[i];
-      int cap = std::ceil(deg * reserve_ratio);
-      adj_lists_[i].init(ptr, cap, 0);
-      ptr += cap;
-    }
-
-    unsorted_since_ = 0;
-  }
-
   void batch_put_edge(vid_t src, vid_t dst, const EDATA_T& data,
                       timestamp_t ts) override {
     adj_lists_[src].batch_put_edge(dst, data, ts);
@@ -646,24 +613,6 @@ class MutableCsr : public TypedMutableCsrBase<EDATA_T> {
     return adj_lists_[i].get_edges_mut();
   }
 
-  std::vector<int> get_degree() const override {
-    std::vector<int> degree;
-    size_t vertex_num = adj_lists_.size();
-    for (size_t i = 0; i < vertex_num; i++) {
-      degree.emplace_back(adj_lists_[i].size());
-    }
-    return degree;
-  }
-
-  std::vector<int> get_capacity() const override {
-    std::vector<int> capacity;
-    size_t vertex_num = adj_lists_.size();
-    for (size_t i = 0; i < vertex_num; i++) {
-      capacity.emplace_back(adj_lists_[i].capacity());
-    }
-    return capacity;
-  }
-
   void close() override {
     if (locks_ != nullptr) {
       delete[] locks_;
@@ -783,10 +732,6 @@ class MutableCsr<std::string_view>
     return mut_slice_t(csr_.get_edges_mut(i), column);
   }
 
-  std::vector<int> get_degree() const override { return csr_.get_degree(); }
-
-  std::vector<int> get_capacity() const override { return csr_.get_capacity(); }
-
   void close() override { csr_.close(); }
 
  private:
@@ -880,10 +825,6 @@ class MutableCsr<RecordView> : public TypedMutableCsrBase<RecordView> {
   inline mut_slice_t get_edges_mut(vid_t i) {
     return mut_slice_t(csr_.get_edges_mut(i), table_);
   }
-
-  std::vector<int> get_degree() const override { return csr_.get_degree(); }
-
-  std::vector<int> get_capacity() const override { return csr_.get_capacity(); }
 
   void close() override { csr_.close(); }
 

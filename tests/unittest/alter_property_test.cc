@@ -26,6 +26,7 @@
 
 #include "arrow/util/value_parsing.h"
 #include "neug/storages/rt_mutable_graph/csr/csr_base.h"
+#include "neug/storages/rt_mutable_graph/loader/abstract_arrow_fragment_loader.h"
 #include "neug/storages/rt_mutable_graph/loader/loader_utils.h"
 #include "neug/storages/rt_mutable_graph/mutable_property_fragment.h"
 #include "neug/storages/rt_mutable_graph/schema.h"
@@ -153,7 +154,7 @@ void testLoadVertexBatch(MutablePropertyFragment& graph,
   std::vector<std::shared_ptr<IRecordBatchSupplier>> suppliers;
   suppliers.emplace_back(
       std::dynamic_pointer_cast<IRecordBatchSupplier>(supplier));
-  graph.batch_load_vertices<int32_t>(v_label, suppliers);
+  AbstractArrowFragmentLoader::batch_load_vertices(graph, v_label, suppliers);
 }
 
 void testLoadEdgeBatch(MutablePropertyFragment& graph,
@@ -265,9 +266,8 @@ void testLoadEdgeBatch(MutablePropertyFragment& graph,
   std::vector<std::shared_ptr<IRecordBatchSupplier>> suppliers;
   suppliers.emplace_back(
       std::dynamic_pointer_cast<IRecordBatchSupplier>(supplier));
-  graph.batch_load_edges<int32_t, int32_t, float,
-                         std::vector<std::tuple<vid_t, vid_t, float>>>(
-      src_label_id, dst_label_id, e_label_id, suppliers);
+  AbstractArrowFragmentLoader::batch_load_edges(
+      graph, src_label_id, dst_label_id, e_label_id, suppliers);
 }
 
 void testOpenEmptyGraph(const std::string& graph_dir,

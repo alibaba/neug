@@ -16,27 +16,16 @@ limitations under the License.
 #ifndef UTILS_INDEXERS_H_
 #define UTILS_INDEXERS_H_
 
-#ifndef USE_PTHASH
 #include "neug/utils/id_indexer.h"
-#else
-#include "neug/utils/pt_indexer.h"
-#endif
 
 #include "neug/storages/rt_mutable_graph/types.h"
 
 namespace gs {
 
-#ifndef USE_PTHASH
 using IndexerType = LFIndexer<vid_t>;
 
 template <typename KEY_T>
 using IndexerBuilderType = IdIndexer<KEY_T, vid_t>;
-#else
-using IndexerType = PTIndexer<vid_t>;
-
-template <typename KEY_T>
-using IndexerBuilderType = PTIndexerBuilder<KEY_T, vid_t>;
-#endif
 
 }  // namespace gs
 

@@ -19,7 +19,8 @@ namespace gs {
 DualCsrBase* EdgeTable::create_dual_csr(
     EdgeStrategy oes, EdgeStrategy ies,
     const std::vector<PropertyType>& properties, bool oe_mutable,
-    bool ie_mutable, const std::vector<std::string>& prop_names, Table& table) {
+    bool ie_mutable, const std::vector<std::string>& prop_names, Table& table,
+    std::atomic<size_t>& offset) {
   if (properties.empty()) {
     return new DualCsr<grape::EmptyType>(oes, ies, oe_mutable, ie_mutable);
   } else if (properties.size() == 1) {
@@ -40,17 +41,18 @@ DualCsrBase* EdgeTable::create_dual_csr(
     } else if (properties[0] == PropertyType::kFloat) {
       return new DualCsr<float>(oes, ies, oe_mutable, ie_mutable);
     } else if (properties[0].type_enum == impl::PropertyTypeImpl::kVarChar) {
-      return new DualCsr<std::string_view>(oes, ies, table, oe_mutable,
+      return new DualCsr<std::string_view>(oes, ies, table, offset, oe_mutable,
                                            ie_mutable);
     } else if (properties[0] == PropertyType::kStringView) {
-      return new DualCsr<std::string_view>(oes, ies, table, oe_mutable,
+      return new DualCsr<std::string_view>(oes, ies, table, offset, oe_mutable,
                                            ie_mutable);
     } else if (properties[0] == PropertyType::kTimestamp) {
       return new DualCsr<TimeStamp>(oes, ies, oe_mutable, ie_mutable);
     }
   } else {
     // TODO: fix me, storage strategy not set
-    return new DualCsr<RecordView>(oes, ies, table, oe_mutable, ie_mutable);
+    return new DualCsr<RecordView>(oes, ies, table, offset, oe_mutable,
+                                   ie_mutable);
   }
   LOG(FATAL) << "not support edge strategy or edge data type";
   return nullptr;
@@ -73,8 +75,9 @@ EdgeTable::EdgeTable(const std::string& src_label_name,
       prop_names_(prop_names),
       prop_types_(prop_types) {
   table_ = std::make_unique<Table>();
+  offset_ = std::make_unique<std::atomic<size_t>>(0);
   dual_csr_ = create_dual_csr(oe_strategy, ie_strategy, prop_types, oe_mutable,
-                              ie_mutable, prop_names, *table_);
+                              ie_mutable, prop_names, *table_, *offset_);
 }
 
 EdgeTable::EdgeTable(EdgeTable&& edge_table)
@@ -87,6 +90,7 @@ EdgeTable::EdgeTable(EdgeTable&& edge_table)
       ie_mutable_(edge_table.ie_mutable_),
       dual_csr_(edge_table.dual_csr_),
       table_(std::move(edge_table.table_)),
+      offset_(std::move(edge_table.offset_)),
       prop_names_(std::move(edge_table.prop_names_)),
       prop_types_(std::move(edge_table.prop_types_)) {
   edge_table.dual_csr_ = nullptr;
@@ -207,16 +211,12 @@ template <typename T>
 void AppendEdgesUtils(DualCsrBase* dual_csr,
                       const std::vector<std::vector<vid_t>>& edges) {
   auto casted_dual_csr = dynamic_cast<DualCsr<T>*>(dual_csr);
-  if constexpr (std::is_same_v<T, RecordView>) {
-    auto in_csr =
-        dynamic_cast<TypedCsrBase<RecordView>*>(casted_dual_csr->GetInCsr());
-    auto out_csr =
-        dynamic_cast<TypedCsrBase<RecordView>*>(casted_dual_csr->GetOutCsr());
+  if constexpr (std::is_same_v<T, RecordView> ||
+                std::is_same_v<T, std::string_view>) {
     size_t row_id = 0;
     for (vid_t i = 0; i < edges.size(); ++i) {
       for (vid_t j : edges[i]) {
-        in_csr->batch_put_edge_with_index(j, i, row_id);
-        out_csr->batch_put_edge_with_index(i, j, row_id);
+        casted_dual_csr->BatchPutEdge(i, j, row_id);
         ++row_id;
       }
     }
@@ -368,8 +368,12 @@ void AppendEdgesExtractPropertyFromRecordView(
     for (vid_t j : edges[i]) {
       Any val = prop_values[row_id++];
       size_t offset = val.AsRecordView().offset;
-      T value = casted_column.get_view(offset);
-      casted_csr->BatchPutEdge(i, j, value);
+      if constexpr (std::is_same_v<T, std::string_view>) {
+        casted_csr->BatchPutEdge(i, j, offset);
+      } else {
+        T value = casted_column.get_view(offset);
+        casted_csr->BatchPutEdge(i, j, value);
+      }
     }
   }
 }
@@ -451,14 +455,99 @@ void EdgeTable::DeleteProperties(const std::vector<std::string>& col_names) {
   // Remove columns from the table
 }
 
+void EdgeTable::BatchAddEdges(
+    std::vector<std::tuple<vid_t, vid_t, size_t>>&& edges,
+    std::unique_ptr<Table>&& table) {
+  std::vector<std::vector<vid_t>> parsed_edges_vec;
+  std::vector<int> out_degs, in_degs;
+  std::vector<Any> prop_values;
+  collectEdgesWithProperty(dual_csr_, parsed_edges_vec, out_degs, in_degs,
+                           prop_values, dual_csr_->GetOutCsr()->size(),
+                           dual_csr_->GetInCsr()->size());
+  for (const auto& [v0, v1, prop] : edges) {
+    if (v0 >= out_degs.size()) {
+      out_degs.resize(v0 + 1, 0);
+    }
+    out_degs[v0]++;
+    if (v1 >= in_degs.size()) {
+      in_degs.resize(v1 + 1, 0);
+    }
+    in_degs[v1]++;
+  }
+  size_t prev_size = offset_->load();
+  BatchInit(work_dir_, out_degs, in_degs);
+  if (!has_complex_property()) {
+    if (prop_types_.size() == 0) {
+      BatchPutEdgeUtil<grape::EmptyType>(parsed_edges_vec, prop_values,
+                                         std::move(edges), std::move(table),
+                                         prev_size);
+    } else if (prop_types_.size() == 1) {
+      if (prop_types_[0] == PropertyType::kBool) {
+        BatchPutEdgeUtil<bool>(parsed_edges_vec, prop_values, std::move(edges),
+                               std::move(table), prev_size);
+      } else if (prop_types_[0] == PropertyType::kInt32) {
+        BatchPutEdgeUtil<int32_t>(parsed_edges_vec, prop_values,
+                                  std::move(edges), std::move(table),
+                                  prev_size);
+      } else if (prop_types_[0] == PropertyType::kUInt32) {
+        BatchPutEdgeUtil<uint32_t>(parsed_edges_vec, prop_values,
+                                   std::move(edges), std::move(table),
+                                   prev_size);
+      } else if (prop_types_[0] == PropertyType::kDate) {
+        BatchPutEdgeUtil<Date>(parsed_edges_vec, prop_values, std::move(edges),
+                               std::move(table), prev_size);
+      } else if (prop_types_[0] == PropertyType::kInt64) {
+        BatchPutEdgeUtil<int64_t>(parsed_edges_vec, prop_values,
+                                  std::move(edges), std::move(table),
+                                  prev_size);
+      } else if (prop_types_[0] == PropertyType::kUInt64) {
+        BatchPutEdgeUtil<uint64_t>(parsed_edges_vec, prop_values,
+                                   std::move(edges), std::move(table),
+                                   prev_size);
+      } else if (prop_types_[0] == PropertyType::kDouble) {
+        BatchPutEdgeUtil<double>(parsed_edges_vec, prop_values,
+                                 std::move(edges), std::move(table), prev_size);
+      } else if (prop_types_[0] == PropertyType::kFloat) {
+        BatchPutEdgeUtil<float>(parsed_edges_vec, prop_values, std::move(edges),
+                                std::move(table), prev_size);
+      } else if (prop_types_[0] == PropertyType::kTimestamp) {
+        BatchPutEdgeUtil<TimeStamp>(parsed_edges_vec, prop_values,
+                                    std::move(edges), std::move(table),
+                                    prev_size);
+      } else if (prop_types_[0] == PropertyType::kDateTime) {
+        BatchPutEdgeUtil<DateTime>(parsed_edges_vec, prop_values,
+                                   std::move(edges), std::move(table),
+                                   prev_size);
+      } else {
+        LOG(FATAL) << "Unsupported property type: "
+                   << prop_types_[0].ToString();
+      }
+    } else if (prop_types_.size() == 1 &&
+               (prop_types_[0].type_enum ==
+                    impl::PropertyTypeImpl::kStringView ||
+                prop_types_[0].type_enum == impl::PropertyTypeImpl::kVarChar)) {
+      BatchPutEdgeUtil<std::string_view>(parsed_edges_vec, prop_values,
+                                         std::move(edges), std::move(table),
+                                         prev_size);
+    } else {
+      CHECK(prop_types_.size() > 1);
+
+      BatchPutEdgeUtil<RecordView>(parsed_edges_vec, prop_values,
+                                   std::move(edges), std::move(table),
+                                   prev_size);
+    }
+  }
+}
+
 void EdgeTable::drop_and_create_dual_csr() {
   if (dual_csr_) {
     dual_csr_->Drop();
     delete dual_csr_;
     dual_csr_ = nullptr;
   }
-  dual_csr_ = create_dual_csr(oe_strategy_, ie_strategy_, prop_types_,
-                              oe_mutable_, ie_mutable_, prop_names_, *table_);
+  dual_csr_ =
+      create_dual_csr(oe_strategy_, ie_strategy_, prop_types_, oe_mutable_,
+                      ie_mutable_, prop_names_, *table_, *offset_);
 }
 
 }  // namespace gs

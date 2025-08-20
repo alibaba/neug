@@ -259,10 +259,6 @@ function(add_storage_test TEST_NAME)
     gtest_add_tests(TARGET ${TEST_NAME} TEST_LIST ${TEST_NAME}_tests)
 endfunction()
 
-if(USE_PTHASH)
-    message("Use PTHash")
-    add_definitions(-DUSE_PTHASH)
-endif()
 
 set(TEST_PROGRAM "
 #define _GNU_SOURCE

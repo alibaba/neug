@@ -65,9 +65,6 @@ class Table {
 
   void dump(const std::string& name, const std::string& snapshot_dir);
 
-  void dump_without_close(const std::string& name,
-                          const std::string& snapshot_dir);
-
   void reset_header(const std::vector<std::string>& col_name);
 
   void add_column(const std::string& col_name, const PropertyType& col_types,

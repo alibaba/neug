@@ -494,14 +494,6 @@ class LFIndexer {
     close();
   }
 
-  void dump_without_close(const std::string& name,
-                          const std::string& snapshot_dir) {
-    keys_->resize(num_elements_.load());
-    keys_->dump_without_close(snapshot_dir + "/" + name + ".keys");
-    indices_.dump_without_close(snapshot_dir + "/" + name + ".indices");
-    dump_meta(snapshot_dir + "/" + name + ".meta");
-  }
-
   void close() {
     keys_->close();
     indices_.reset();

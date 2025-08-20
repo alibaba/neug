@@ -21,6 +21,8 @@
 #include "neug/storages/rt_mutable_graph/csr/nbr.h"
 #include "neug/storages/rt_mutable_graph/loader/abstract_arrow_fragment_loader.h"
 
+#include "neug/storages/rt_mutable_graph/mutable_property_fragment.h"
+
 namespace gs {
 
 void printDiskRemaining(const std::string& path) {
@@ -400,6 +402,297 @@ void AbstractArrowFragmentLoader::AddEdgesRecordBatch(
           src_label_i, dst_label_i, edge_label_i, filenames, supplier_creator);
     }
   }
+}
+
+template <typename PK_T>
+static void collectVertices(std::vector<Any>& ids, std::vector<size_t>& vids,
+                            std::shared_ptr<arrow::Array> primary_key_column,
+                            size_t local_offset) {
+  size_t row_num = primary_key_column->length();
+  if constexpr (!std::is_same<std::string_view, PK_T>::value &&
+                !std::is_same<std::string, PK_T>::value) {
+    auto expected_type = gs::TypeConverter<PK_T>::ArrowTypeValue();
+    using arrow_array_t = typename gs::TypeConverter<PK_T>::ArrowArrayType;
+    if (!primary_key_column->type()->Equals(expected_type)) {
+      LOG(FATAL) << "Inconsistent data type, expect "
+                 << expected_type->ToString() << ", but got "
+                 << primary_key_column->type()->ToString();
+    }
+    auto casted_array =
+        std::static_pointer_cast<arrow_array_t>(primary_key_column);
+
+    for (size_t j = 0; j < row_num; ++j) {
+      vid_t vid = local_offset + j;
+      vids.emplace_back(vid);
+      ids[vid] = Any(static_cast<PK_T>(casted_array->Value(j)));
+    }
+  } else {
+    if (primary_key_column->type()->Equals(arrow::utf8())) {
+      auto casted_array =
+          std::static_pointer_cast<arrow::StringArray>(primary_key_column);
+      for (size_t j = 0; j < row_num; ++j) {
+        vid_t vid = local_offset + j;
+        vids.emplace_back(vid);
+        auto str = casted_array->GetView(j);
+        ids[vid] = Any(std::string(str));
+      }
+    } else if (primary_key_column->type()->Equals(arrow::large_utf8())) {
+      auto casted_array =
+          std::static_pointer_cast<arrow::LargeStringArray>(primary_key_column);
+      for (size_t j = 0; j < row_num; ++j) {
+        vid_t vid = local_offset + j;
+        vids.emplace_back(vid);
+        auto str = casted_array->GetView(j);
+        ids[vid] = Any(std::string(str));
+      }
+    } else {
+      LOG(FATAL) << "Not support type: "
+                 << primary_key_column->type()->ToString();
+    }
+  }
+}
+
+Status AbstractArrowFragmentLoader::batch_load_vertices(
+    MutablePropertyFragment& graph, const label_t& v_label_id,
+    std::vector<std::shared_ptr<IRecordBatchSupplier>>&
+        record_batch_supplier_vec) {
+  auto& vertex_table = graph.vertex_tables_.at(v_label_id);
+  auto& schema = graph.schema_;
+  std::string vertex_type_name = schema.get_vertex_label_name(v_label_id);
+  auto schema_column_names = schema.get_vertex_property_names(v_label_id);
+  auto primary_key = schema.get_vertex_primary_key(v_label_id)[0];
+  auto primary_key_name = std::get<1>(primary_key);
+  auto primary_key_type = std::get<0>(primary_key);
+  size_t primary_key_ind = std::get<2>(primary_key);
+  std::unique_ptr<Table> table = std::make_unique<Table>();
+  std::vector<Any> ids;
+  std::string work_dir =
+      (vertex_table.work_dir() == "" ? "." : vertex_table.work_dir()) +
+      "/vertex_" + vertex_type_name + "/";
+  LOG(INFO) << "Work directory for vertex table: " << work_dir;
+  if (!std::filesystem::exists(work_dir)) {
+    std::filesystem::create_directories(work_dir);
+  }
+
+  table->init(vertex_type_name, work_dir, schema_column_names,
+              schema.get_vertex_properties(v_label_id),
+              schema.get_vertex_storage_strategies(vertex_type_name));
+  std::shared_mutex rw_mutex;
+  std::atomic<size_t> offset(0);
+
+  auto supplier_creator =
+      [&record_batch_supplier_vec](const std::string& file) {
+        return record_batch_supplier_vec;
+      };
+
+  auto func = [&](const arrow::ArrayVector& columns, size_t) {
+    auto primary_key_column = columns[primary_key_ind];
+    auto other_columns_array = columns;
+    other_columns_array.erase(other_columns_array.begin() + primary_key_ind);
+
+    auto local_offset = offset.fetch_add(primary_key_column->length());
+    size_t cur_row_num = std::max(table->row_num(), 1ul);
+    while (cur_row_num < local_offset + primary_key_column->length()) {
+      cur_row_num *= 2;
+    }
+    if (cur_row_num >= table->row_num() || ids.size() < offset.load()) {
+      std::unique_lock<std::shared_mutex> lock(rw_mutex);
+      if (ids.size() < offset.load()) {
+        ids.resize(offset.load());
+      }
+      if (cur_row_num >= table->row_num()) {
+        table->resize(cur_row_num);
+      }
+    }
+
+    size_t row_num = primary_key_column->length();
+    auto col_num = other_columns_array.size();
+    for (size_t j = 0; j < col_num; ++j) {
+      CHECK_EQ(other_columns_array[j]->length(), row_num);
+    }
+    std::vector<size_t> vids;
+    vids.reserve(row_num);
+
+    {
+      std::shared_lock<std::shared_mutex> lock(rw_mutex);
+      if (primary_key_type == PropertyType::kInt64) {
+        collectVertices<int64_t>(ids, vids, primary_key_column, local_offset);
+      } else if (primary_key_type == PropertyType::kInt32) {
+        collectVertices<int32_t>(ids, vids, primary_key_column, local_offset);
+      } else if (primary_key_type == PropertyType::kUInt32) {
+        collectVertices<uint32_t>(ids, vids, primary_key_column, local_offset);
+      } else if (primary_key_type == PropertyType::kUInt64) {
+        collectVertices<uint64_t>(ids, vids, primary_key_column, local_offset);
+      } else if (primary_key_type.type_enum ==
+                     impl::PropertyTypeImpl::kVarChar ||
+                 primary_key_type.type_enum ==
+                     impl::PropertyTypeImpl::kStringView) {
+        collectVertices<std::string_view>(ids, vids, primary_key_column,
+                                          local_offset);
+      } else {
+        LOG(FATAL) << "Unsupported primary key type: "
+                   << primary_key_type.ToString();
+      }
+    }
+
+    LOG(INFO) << "Start to set property column";
+    // Set other columns
+    {
+      std::shared_lock<std::shared_mutex> lock(rw_mutex);
+      for (size_t j = 0; j < other_columns_array.size(); j++) {
+        auto chunked_array =
+            std::make_shared<arrow::ChunkedArray>(other_columns_array[j]);
+        auto& column = table->column_ptrs()[j];
+        set_properties_column(column, chunked_array, vids);
+      }
+    }
+  };
+  std::vector<std::string> files{""};
+  AbstractArrowFragmentLoader::BatchConsumer(
+      files, schema_column_names.size() + 1, supplier_creator, std::move(func));
+
+  graph.batch_add_vertices(v_label_id, std::move(ids), std::move(table));
+  {
+    if (std::filesystem::exists(work_dir)) {
+      std::filesystem::remove_all(work_dir);
+    }
+  }
+  return gs::Status::OK();
+}
+
+Status AbstractArrowFragmentLoader::batch_load_edges(
+    MutablePropertyFragment& graph, const label_t& src_v_label,
+    const label_t& dst_v_label, const label_t& edge_label,
+    std::vector<std::shared_ptr<IRecordBatchSupplier>>&
+        record_batch_supplier_vec) {
+  auto& schema = graph.schema_;
+  std::string src_label_name = schema.get_vertex_label_name(src_v_label);
+  std::string dst_label_name = schema.get_vertex_label_name(dst_v_label);
+  std::string edge_type_name = schema.get_edge_label_name(edge_label);
+  size_t index =
+      schema.generate_edge_label(src_v_label, dst_v_label, edge_label);
+
+  auto& edge_table = graph.edge_tables_.at(index);
+
+  std::vector<std::vector<std::tuple<vid_t, vid_t, size_t>>> parsed_edges_vec(
+      std::thread::hardware_concurrency());
+  std::unique_ptr<Table> table = std::make_unique<Table>();
+  std::string work_dir = edge_table.work_dir();
+  if (work_dir == "") {
+    work_dir = ".";
+  }
+  work_dir +=
+      "/" + edata_prefix(src_label_name, dst_label_name, edge_type_name) + "/";
+  if (!std::filesystem::exists(work_dir)) {
+    std::filesystem::create_directories(work_dir);
+  }
+
+  table->init(
+      edata_prefix(src_label_name, dst_label_name, edge_type_name), work_dir,
+      schema.get_edge_property_names(src_v_label, dst_v_label, edge_label),
+      schema.get_edge_properties(src_v_label, dst_v_label, edge_label), {});
+
+  const auto& src_indexer = graph.vertex_tables_[src_v_label].get_indexer();
+  const auto& dst_indexer = graph.vertex_tables_[dst_v_label].get_indexer();
+  std::atomic<size_t> offset(0);
+  std::shared_mutex rw_mutex;
+
+  std::vector<std::atomic<int32_t>> ie_degree(dst_indexer.size()),
+      oe_degree(src_indexer.size());
+  for (size_t idx = 0; idx < ie_degree.size(); ++idx) {
+    ie_degree[idx].store(0);
+  }
+  for (size_t idx = 0; idx < oe_degree.size(); ++idx) {
+    oe_degree[idx].store(0);
+  }
+
+  auto func = [&](const arrow::ArrayVector& columns, size_t idx) {
+    // We assume the src_col and dst_col will always be put
+    // at front.
+    auto& parsed_edges = parsed_edges_vec[idx];
+    CHECK(columns.size() >= 2);
+    auto src_col = columns[0];
+    auto dst_col = columns[1];
+    auto src_col_type = src_col->type();
+    auto dst_col_type = dst_col->type();
+    CHECK(check_primary_key_type(src_col_type))
+        << "unsupported src_col type: " << src_col_type->ToString();
+    CHECK(check_primary_key_type(dst_col_type))
+        << "unsupported dst_col type: " << dst_col_type->ToString();
+    std::vector<std::shared_ptr<arrow::Array>> property_cols;
+    for (size_t i = 2; i < columns.size(); ++i) {
+      property_cols.emplace_back(columns[i]);
+    }
+    size_t offset_i = 0;
+    {
+      CHECK(table->col_num() == property_cols.size());
+      offset_i = offset.fetch_add(src_col->length());
+      std::vector<size_t> offsets;
+      for (size_t _i = 0; _i < static_cast<size_t>(src_col->length()); ++_i) {
+        offsets.emplace_back(offset_i + _i);
+      }
+      size_t row_num = std::max(table->row_num(), 1ul);
+
+      while (row_num < offset_i + src_col->length()) {
+        row_num *= 2;
+      }
+      if (row_num > table->row_num()) {
+        std::unique_lock<std::shared_mutex> lock(rw_mutex);
+        if (row_num > table->row_num()) {
+          table->resize(row_num);
+        }
+      }
+
+      {
+        std::shared_lock<std::shared_mutex> lock(rw_mutex);
+        for (size_t i = 0; i < table->col_num(); ++i) {
+          auto col = table->get_column_by_id(i);
+          auto chunked_array =
+              std::make_shared<arrow::ChunkedArray>(property_cols[i]);
+          set_properties_column(col.get(), chunked_array, offsets);
+        }
+      }
+    }
+
+    AbstractArrowFragmentLoader::append_edges_utils<
+        RecordView, std::vector<std::tuple<vid_t, vid_t, size_t>>>(
+        src_col, dst_col, src_indexer, dst_indexer, property_cols[0],
+        parsed_edges, ie_degree, oe_degree, offset_i);
+  };
+
+  auto supplier_creator =
+      [&record_batch_supplier_vec](const std::string& file) {
+        return record_batch_supplier_vec;
+      };
+
+  std::vector<std::string> files{""};
+  AbstractArrowFragmentLoader::BatchConsumer(
+      files,
+      schema.get_edge_property_names(src_v_label, dst_v_label, edge_label)
+              .size() +
+          2,
+      supplier_creator, std::move(func));
+
+  // Merge all parsed edges
+  std::vector<std::tuple<vid_t, vid_t, size_t>> parsed_edges;
+  parsed_edges.reserve(offset.load());
+  for (auto& edges : parsed_edges_vec) {
+    parsed_edges.insert(parsed_edges.end(), edges.begin(), edges.end());
+  }
+  if (parsed_edges.size() != offset.load()) {
+    LOG(FATAL) << "Parsed edges size does not match offset: "
+               << parsed_edges.size() << " vs " << offset.load();
+  }
+  graph.batch_add_edges(src_v_label, dst_v_label, edge_label,
+                        std::move(parsed_edges), std::move(table));
+
+  {
+    if (std::filesystem::exists(work_dir)) {
+      std::filesystem::remove_all(work_dir);
+    }
+  }
+
+  return gs::Status::OK();
 }
 
 }  // namespace gs

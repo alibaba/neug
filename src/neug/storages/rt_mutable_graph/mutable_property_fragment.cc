@@ -174,6 +174,30 @@ Status MutablePropertyFragment::create_vertex_type(
   return gs::Status::OK();
 }
 
+Status MutablePropertyFragment::batch_add_vertices(
+    label_t label_id, std::vector<Any>&& vertices,
+    std::unique_ptr<Table>&& table) {
+  if (vertices.size() == 0) {
+    return gs::Status::OK();
+  }
+  vertex_tables_[label_id].BatchAddVertices(std::move(vertices),
+                                            std::move(table));
+  return gs::Status::OK();
+}
+
+Status MutablePropertyFragment::batch_add_edges(
+    label_t src_label_id, label_t dst_label_id, label_t edge_label_id,
+    std::vector<std::tuple<vid_t, vid_t, size_t>>&& edges_vec,
+    std::unique_ptr<Table>&& table) {
+  if (edges_vec.size() == 0) {
+    return gs::Status::OK();
+  }
+  int index =
+      schema_.generate_edge_label(src_label_id, dst_label_id, edge_label_id);
+  edge_tables_.at(index).BatchAddEdges(std::move(edges_vec), std::move(table));
+  return gs::Status::OK();
+}
+
 Status MutablePropertyFragment::create_edge_type(
     const std::string& src_vertex_type, const std::string& dst_vertex_type,
     const std::string& edge_type_name,
@@ -249,8 +273,6 @@ Status MutablePropertyFragment::create_edge_type(
                               src_v_capacity, dst_v_capacity);
 
   edge_tables_.at(index).Reserve(src_v_capacity, dst_v_capacity);
-  init_state_.emplace(index, false);
-
   DumpSchema(schema_path(work_dir_));
 
   return gs::Status::OK();

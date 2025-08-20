@@ -68,7 +68,6 @@ class BasicFragmentLoader {
 
   void LoadFragment();
 
-#ifndef USE_PTHASH
   template <typename KEY_T>
   void FinishAddingVertex(label_t v_label,
                           const IdIndexer<KEY_T, vid_t>& indexer) {
@@ -90,24 +89,6 @@ class BasicFragmentLoader {
     v_data.dump(vertex_table_prefix(label_name), snapshot_dir(work_dir_, 0));
     append_vertex_loading_progress(label_name, LoadingStatus::kCommited);
   }
-#else
-  template <typename KEY_T>
-  void FinishAddingVertex(label_t v_label,
-                          PTIndexerBuilder<KEY_T, vid_t>& indexer_builder) {
-    CHECK(v_label < vertex_label_num_);
-    std::string filename =
-        vertex_map_prefix(schema_.get_vertex_label_name(v_label));
-    indexer_builder.finish(PTIndexer<vid_t>::prefix() + "_" + filename,
-                           snapshot_dir(work_dir_, 0), lf_indexers_[v_label]);
-    append_vertex_loading_progress(schema_.get_vertex_label_name(v_label),
-                                   LoadingStatus::kLoaded);
-    auto& v_data = vertex_data_[v_label];
-    auto label_name = schema_.get_vertex_label_name(v_label);
-    v_data.resize(lf_indexers_[v_label].size());
-    v_data.dump(vertex_table_prefix(label_name), snapshot_dir(work_dir_, 0));
-    append_vertex_loading_progress(label_name, LoadingStatus::kCommited);
-  }
-#endif
 
   template <typename EDATA_T>
   void AddNoPropEdgeBatch(label_t src_label_id, label_t dst_label_id,
@@ -196,6 +177,12 @@ class BasicFragmentLoader {
     return vertex_tables_[ind].get_properties_table();
   }
 
+  Table& GetEdgePropertiesTable(label_t src_label_id, label_t dst_label_id,
+                                label_t edge_label_id) {
+    size_t index = src_label_id * vertex_label_num_ * edge_label_num_ +
+                   dst_label_id * edge_label_num_ + edge_label_id;
+    return edge_tables_.at(index).get_properties_table();
+  }
   // get lf_indexer
   const IndexerType& GetLFIndexer(label_t v_label) const;
   IndexerType& GetLFIndexer(label_t v_label);

@@ -316,8 +316,11 @@ template <>
 class DualCsr<std::string_view> : public DualCsrBase {
  public:
   DualCsr(EdgeStrategy oe_strategy, EdgeStrategy ie_strategy, Table& table,
-          bool oe_mutable, bool ie_mutable)
-      : in_csr_(nullptr), out_csr_(nullptr), column_idx_(0), table_(table) {
+          std::atomic<size_t>& column_idx, bool oe_mutable, bool ie_mutable)
+      : in_csr_(nullptr),
+        out_csr_(nullptr),
+        column_idx_(column_idx),
+        table_(table) {
     if (ie_strategy == EdgeStrategy::kNone) {
       in_csr_ = new EmptyCsr<std::string_view>(table_);
     } else if (ie_strategy == EdgeStrategy::kMultiple) {
@@ -349,6 +352,7 @@ class DualCsr<std::string_view> : public DualCsrBase {
       }
     }
   }
+
   ~DualCsr() {
     if (in_csr_ != nullptr) {
       delete in_csr_;
@@ -357,6 +361,7 @@ class DualCsr<std::string_view> : public DualCsrBase {
       delete out_csr_;
     }
   }
+
   void BatchInit(const std::string& oe_name, const std::string& ie_name,
                  const std::string& edata_name, const std::string& work_dir,
                  const std::vector<int>& oe_degree,
@@ -479,21 +484,9 @@ class DualCsr<std::string_view> : public DualCsrBase {
     }
   }
 
-  void BatchPutEdge(vid_t src, vid_t dst, const std::string_view& data) {
-    size_t row_id = column_idx_.fetch_add(1);
-    dynamic_cast<StringColumn&>(*table_.get_column_by_id(0))
-        .set_value(row_id, data);
-    in_csr_->batch_put_edge_with_index(dst, src, row_id);
-    out_csr_->batch_put_edge_with_index(src, dst, row_id);
-  }
-
-  void BatchPutEdge(vid_t src, vid_t dst, const std::string& data) {
-    size_t row_id = column_idx_.fetch_add(1);
-    dynamic_cast<StringColumn&>(*table_.get_column_by_id(0))
-        .set_value(row_id, data);
-
-    in_csr_->batch_put_edge_with_index(dst, src, row_id);
-    out_csr_->batch_put_edge_with_index(src, dst, row_id);
+  void BatchPutEdge(vid_t src, vid_t dst, size_t index) {
+    in_csr_->batch_put_edge_with_index(dst, src, index);
+    out_csr_->batch_put_edge_with_index(src, dst, index);
   }
 
   void BatchDeleteVertices(bool is_src,
@@ -546,7 +539,7 @@ class DualCsr<std::string_view> : public DualCsrBase {
  private:
   TypedCsrBase<std::string_view>* in_csr_;
   TypedCsrBase<std::string_view>* out_csr_;
-  std::atomic<size_t> column_idx_;
+  std::atomic<size_t>& column_idx_;
   Table& table_;
 };
 
@@ -554,8 +547,11 @@ template <>
 class DualCsr<RecordView> : public DualCsrBase {
  public:
   DualCsr(EdgeStrategy oe_strategy, EdgeStrategy ie_strategy, Table& table,
-          bool oe_mutable, bool ie_mutable)
-      : in_csr_(nullptr), out_csr_(nullptr), table_(table) {
+          std::atomic<size_t>& table_idx, bool oe_mutable, bool ie_mutable)
+      : in_csr_(nullptr),
+        out_csr_(nullptr),
+        table_idx_(table_idx),
+        table_(table) {
     if (ie_strategy == EdgeStrategy::kNone) {
       in_csr_ = new EmptyCsr<RecordView>(table_);
     } else if (ie_strategy == EdgeStrategy::kMultiple) {
@@ -604,7 +600,6 @@ class DualCsr<RecordView> : public DualCsrBase {
     size_t ie_num = in_csr_->batch_init(ie_name, work_dir, ie_degree);
     size_t oe_num = out_csr_->batch_init(oe_name, work_dir, oe_degree);
     table_.resize(std::max(ie_num, oe_num));
-
     table_idx_.store(std::max(ie_num, oe_num));
   }
 
@@ -785,7 +780,7 @@ class DualCsr<RecordView> : public DualCsrBase {
  private:
   TypedCsrBase<RecordView>* in_csr_;
   TypedCsrBase<RecordView>* out_csr_;
-  std::atomic<size_t> table_idx_;
+  std::atomic<size_t>& table_idx_;
   Table& table_;
 };
 

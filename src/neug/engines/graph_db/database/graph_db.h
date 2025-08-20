@@ -181,16 +181,6 @@ class GraphDB {
 
   inline const Schema& schema() const { return graph_.schema(); }
 
-  inline std::shared_ptr<ColumnBase> get_vertex_property_column(
-      uint8_t label, const std::string& col_name) const {
-    return graph_.get_vertex_table(label).get_column(col_name);
-  }
-
-  inline std::shared_ptr<RefColumnBase> get_vertex_id_column(
-      uint8_t label) const {
-    return graph_.get_vertex_id_column(label);
-  }
-
   AppWrapper CreateApp(uint8_t app_type, int thread_id);
 
   void GetAppInfo(Encoder& result);

@@ -88,16 +88,6 @@ MutablePropertyFragment& GraphDBSession::graph() { return db_.graph(); }
 
 const Schema& GraphDBSession::schema() const { return db_.schema(); }
 
-std::shared_ptr<ColumnBase> GraphDBSession::get_vertex_property_column(
-    uint8_t label, const std::string& col_name) const {
-  return db_.get_vertex_property_column(label, col_name);
-}
-
-std::shared_ptr<RefColumnBase> GraphDBSession::get_vertex_id_column(
-    uint8_t label) const {
-  return db_.get_vertex_id_column(label);
-}
-
 Result<std::vector<char>> GraphDBSession::Eval(const std::string& input) {
   const auto start = std::chrono::high_resolution_clock::now();
 

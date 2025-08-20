@@ -21,6 +21,7 @@
 #include "neug/engines/graph_db/runtime/common/graph_interface.h"
 #include "neug/engines/graph_db/runtime/execute/ops/batch/batch_insert_vertex.h"
 #include "neug/engines/graph_db/runtime/execute/ops/batch/batch_update_utils.h"
+#include "neug/storages/rt_mutable_graph/loader/abstract_arrow_fragment_loader.h"
 #include "neug/storages/rt_mutable_graph/mutable_property_fragment.h"
 #include "neug/storages/rt_mutable_graph/schema.h"
 #include "neug/utils/pb_utils.h"
@@ -38,34 +39,8 @@ bl::result<Context> BatchInsertVertexOpr::Eval(
   auto& frag = graph.GetTransaction().GetGraph();
 
   auto suppliers = create_record_batch_supplier(ctx, prop_mappings_);
-  Status status = Status::OK();
-  if (pk_type_ == PropertyType::kInt64) {
-    status =
-        frag.template batch_load_vertices<int64_t>(vertex_label_id_, suppliers);
-  } else if (pk_type_ == PropertyType::kInt32) {
-    status =
-        frag.template batch_load_vertices<int32_t>(vertex_label_id_, suppliers);
-  } else if (pk_type_ == PropertyType::kString) {
-    status = frag.template batch_load_vertices<std::string>(vertex_label_id_,
-                                                            suppliers);
-  } else if (pk_type_ == PropertyType::kUInt64) {
-    status = frag.template batch_load_vertices<uint64_t>(vertex_label_id_,
-                                                         suppliers);
-  } else if (pk_type_ == PropertyType::kUInt32) {
-    status = frag.template batch_load_vertices<uint32_t>(vertex_label_id_,
-                                                         suppliers);
-  } else if (pk_type_ == PropertyType::kFloat) {
-    status =
-        frag.template batch_load_vertices<float>(vertex_label_id_, suppliers);
-  } else if (pk_type_ == PropertyType::kDouble) {
-    status =
-        frag.template batch_load_vertices<double>(vertex_label_id_, suppliers);
-  } else {
-    RETURN_FLEX_LEAF_ERROR(
-        StatusCode::ERR_INVALID_ARGUMENT,
-        "Unsupported primary key type for batch insert vertex: " +
-            pk_type_.ToString());
-  }
+  Status status = AbstractArrowFragmentLoader::batch_load_vertices(
+      frag, vertex_label_id_, suppliers);
   if (!status.ok()) {
     RETURN_FLEX_LEAF_ERROR(status.error_code(), status.error_message());
   }

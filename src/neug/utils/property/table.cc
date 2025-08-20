@@ -134,15 +134,6 @@ void Table::dump(const std::string& name, const std::string& snapshot_dir) {
   column_ptrs_.clear();
 }
 
-void Table::dump_without_close(const std::string& name,
-                               const std::string& snapshot_dir) {
-  int i = 0;
-  for (auto col : columns_) {
-    col->dump_without_close(snapshot_dir + "/" + name + ".col_" +
-                            std::to_string(i++));
-  }
-}
-
 void Table::reset_header(const std::vector<std::string>& col_name) {
   std::unordered_map<std::string, int> new_col_id_map;
   size_t col_num = col_name.size();

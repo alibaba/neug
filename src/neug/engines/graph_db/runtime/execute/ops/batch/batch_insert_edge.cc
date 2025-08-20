@@ -24,6 +24,7 @@
 #include "neug/engines/graph_db/runtime/common/context.h"
 #include "neug/engines/graph_db/runtime/common/graph_interface.h"
 #include "neug/engines/graph_db/runtime/execute/ops/batch/batch_insert_edge.h"
+#include "neug/storages/rt_mutable_graph/loader/abstract_arrow_fragment_loader.h"
 #include "neug/storages/rt_mutable_graph/schema.h"
 #include "neug/utils/pb_utils.h"
 
@@ -35,77 +36,6 @@ namespace runtime {
 class OprTimer;
 
 namespace ops {
-
-template <typename SRC_PK_T, typename DST_PK_T>
-void batch_load_edges_helper(
-    MutablePropertyFragment& frag, label_t src_label_id, label_t edge_label_id,
-    label_t dst_label_id, PropertyType edge_prop_type,
-    std::vector<std::shared_ptr<IRecordBatchSupplier>>& suppliers) {
-  if (edge_prop_type == PropertyType::Int64()) {
-    frag.batch_load_edges<SRC_PK_T, DST_PK_T, int64_t,
-                          std::vector<std::tuple<vid_t, vid_t, int64_t>>>(
-        src_label_id, dst_label_id, edge_label_id, suppliers);
-  } else if (edge_prop_type == PropertyType::UInt64()) {
-    frag.batch_load_edges<SRC_PK_T, DST_PK_T, uint64_t,
-                          std::vector<std::tuple<vid_t, vid_t, uint64_t>>>(
-        src_label_id, dst_label_id, edge_label_id, suppliers);
-  } else if (edge_prop_type == PropertyType::Int32()) {
-    frag.batch_load_edges<SRC_PK_T, DST_PK_T, int32_t,
-                          std::vector<std::tuple<vid_t, vid_t, int32_t>>>(
-        src_label_id, dst_label_id, edge_label_id, suppliers);
-  } else if (edge_prop_type == PropertyType::UInt32()) {
-    frag.batch_load_edges<SRC_PK_T, DST_PK_T, uint32_t,
-                          std::vector<std::tuple<vid_t, vid_t, uint32_t>>>(
-        src_label_id, dst_label_id, edge_label_id, suppliers);
-  } else if (edge_prop_type == PropertyType::StringView()) {
-    frag.batch_load_edges<
-        SRC_PK_T, DST_PK_T, std::string_view,
-        std::vector<std::tuple<vid_t, vid_t, std::string_view>>>(
-        src_label_id, dst_label_id, edge_label_id, suppliers);
-  } else if (edge_prop_type == PropertyType::RecordView()) {
-    frag.batch_load_edges<SRC_PK_T, DST_PK_T, RecordView,
-                          std::vector<std::tuple<vid_t, vid_t, size_t>>>(
-        src_label_id, dst_label_id, edge_label_id, suppliers);
-  } else if (edge_prop_type == PropertyType::Double()) {
-    frag.batch_load_edges<SRC_PK_T, DST_PK_T, double,
-                          std::vector<std::tuple<vid_t, vid_t, double>>>(
-        src_label_id, dst_label_id, edge_label_id, suppliers);
-  } else {
-    LOG(FATAL) << "BatchInsertEdgeOpr::Eval: unsupported edge prop type: "
-               << edge_prop_type.ToString();
-  }
-}
-
-template <typename SRC_PK_T>
-void batch_load_edges_helper(
-    MutablePropertyFragment& frag, label_t src_label_id, label_t edge_label_id,
-    label_t dst_label_id, PropertyType dst_pk_prop, PropertyType edge_prop_type,
-    std::vector<std::shared_ptr<IRecordBatchSupplier>>& suppliers) {
-  if (dst_pk_prop == PropertyType::Int64()) {
-    batch_load_edges_helper<SRC_PK_T, int64_t>(frag, src_label_id,
-                                               edge_label_id, dst_label_id,
-                                               edge_prop_type, suppliers);
-  } else if (dst_pk_prop == PropertyType::UInt64()) {
-    batch_load_edges_helper<SRC_PK_T, uint64_t>(frag, src_label_id,
-                                                edge_label_id, dst_label_id,
-                                                edge_prop_type, suppliers);
-  } else if (dst_pk_prop == PropertyType::Int32()) {
-    batch_load_edges_helper<SRC_PK_T, int32_t>(frag, src_label_id,
-                                               edge_label_id, dst_label_id,
-                                               edge_prop_type, suppliers);
-  } else if (dst_pk_prop == PropertyType::UInt32()) {
-    batch_load_edges_helper<SRC_PK_T, uint32_t>(frag, src_label_id,
-                                                edge_label_id, dst_label_id,
-                                                edge_prop_type, suppliers);
-  } else if (dst_pk_prop == PropertyType::StringView()) {
-    batch_load_edges_helper<SRC_PK_T, std::string_view>(
-        frag, src_label_id, edge_label_id, dst_label_id, edge_prop_type,
-        suppliers);
-  } else {
-    LOG(FATAL) << "BatchInsertEdgeOpr::Eval: unsupported dst pk type: "
-               << dst_pk_prop.ToString();
-  }
-}
 
 bl::result<Context> BatchInsertEdgeOpr::Eval(
     GraphUpdateInterface& graph,
@@ -124,30 +54,10 @@ bl::result<Context> BatchInsertEdgeOpr::Eval(
     total_mappings.emplace_back(mapping);
   }
   auto suppliers = create_record_batch_supplier(ctx, total_mappings);
-  if (src_pk_prop_ == PropertyType::Int64()) {
-    batch_load_edges_helper<int64_t>(frag, src_label_id_, edge_label_id_,
-                                     dst_label_id_, dst_pk_prop_, e_prop_,
-                                     suppliers);
-  } else if (src_pk_prop_ == PropertyType::UInt64()) {
-    batch_load_edges_helper<uint64_t>(frag, src_label_id_, edge_label_id_,
-                                      dst_label_id_, dst_pk_prop_, e_prop_,
-                                      suppliers);
-  } else if (src_pk_prop_ == PropertyType::Int32()) {
-    batch_load_edges_helper<int32_t>(frag, src_label_id_, edge_label_id_,
-                                     dst_label_id_, dst_pk_prop_, e_prop_,
-                                     suppliers);
-  } else if (src_pk_prop_ == PropertyType::UInt32()) {
-    batch_load_edges_helper<uint32_t>(frag, src_label_id_, edge_label_id_,
-                                      dst_label_id_, dst_pk_prop_, e_prop_,
-                                      suppliers);
-  } else if (src_pk_prop_ == PropertyType::StringView()) {
-    batch_load_edges_helper<std::string_view>(frag, src_label_id_,
-                                              edge_label_id_, dst_label_id_,
-                                              dst_pk_prop_, e_prop_, suppliers);
-  } else {
-    LOG(FATAL) << "BatchInsertEdgeOpr::Eval: unsupported src pk type: "
-               << src_pk_prop_.ToString();
-  }
+
+  AbstractArrowFragmentLoader::batch_load_edges(
+      frag, src_label_id_, dst_label_id_, edge_label_id_, suppliers);
+
   return bl::result<Context>(std::move(ctx));
 }
 

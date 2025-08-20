@@ -136,19 +136,6 @@ class TypedMutableCsrBase : public TypedCsrBase<EDATA_T> {
   using slice_t = MutableNbrSlice<EDATA_T>;
 
   virtual slice_t get_edges(vid_t v) const = 0;
-
-  virtual std::vector<int> get_degree() const {
-    std::vector<int> degree;
-    return degree;
-  }
-
-  virtual std::vector<int> get_capacity() const {
-    std::vector<int> capacity;
-    return capacity;
-  }
-
-  virtual void batch_resize(const std::vector<int>& degree,
-                            double reserve_ratio = 1.2) {}
 };
 
 template <>
