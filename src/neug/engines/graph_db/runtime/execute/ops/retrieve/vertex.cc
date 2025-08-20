@@ -246,11 +246,16 @@ bl::result<ReadOpBuildResultT> VertexOprBuilder::Build(
           std::make_unique<GetVFromVerticesWithPredicateOpr>(
               plan.query_plan().plan(op_idx).opr().vertex(), p),
           ctx_meta);
-    } else if (opt == VOpt::kEnd || opt == VOpt::kStart) {
+    } else if (opt == VOpt::kEnd || opt == VOpt::kStart ||
+               opt == VOpt::kOther) {
       return std::make_pair(
           std::make_unique<GetVFromEdgesWithPredicateOpr>(
               plan.query_plan().plan(op_idx).opr().vertex(), p),
           ctx_meta);
+    } else {
+      THROW_NOT_IMPLEMENTED_EXCEPTION(std::string("GetV with opt") +
+                                      std::to_string(static_cast<int>(opt)) +
+                                      " is not supported yet");
     }
   } else {
     if (opt == VOpt::kEnd || opt == VOpt::kStart || opt == VOpt::kOther) {
@@ -258,6 +263,10 @@ bl::result<ReadOpBuildResultT> VertexOprBuilder::Build(
           std::make_unique<GetVFromEdgesWithPredicateOpr>(
               plan.query_plan().plan(op_idx).opr().vertex(), p),
           ctx_meta);
+    } else {
+      THROW_NOT_IMPLEMENTED_EXCEPTION(std::string("GetV with opt") +
+                                      std::to_string(static_cast<int>(opt)) +
+                                      " is not supported yet");
     }
   }
 

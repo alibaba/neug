@@ -1,6 +1,6 @@
 pybind11>=2.9.2
 cibuildwheel>=2.0.0
 packaging>=24.2
-protobuf<=3.20
+protobuf==4.25
 setuptools
 requests

@@ -1210,3 +1210,24 @@ def test_list_return_basic(tmp_path):
 
     conn.close()
     db.close()
+
+
+def test_create_edge_with_prop_on_both_end():
+    db_dir = "/tmp/test_create_edge_with_prop_on_both_end"
+    shutil.rmtree(db_dir, ignore_errors=True)
+    db = Database(db_path=db_dir, mode="w")
+    conn = db.connect()
+    conn.execute("CREATE NODE TABLE Person(id INT64, PRIMARY KEY(id));")
+    conn.execute("CREATE REL TABLE Knows(FROM Person TO Person, id INT64);")
+    conn.execute("CREATE (p: Person {id: 111});")
+    conn.execute("CREATE (p: Person {id: 222});")
+    conn.execute(
+        "MATCH (p1: Person {id: 111}), (p2: Person {id: 222}) CREATE (p1)-[k:Knows {id: 333}]->(p2);"
+    )
+
+    conn.execute(
+        """
+        MATCH (p1: Person {id: 111})-[k: Knows]-(p2:Person {id: 222})
+        RETURN k.id
+        """
+    )
