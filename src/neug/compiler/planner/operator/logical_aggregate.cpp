@@ -71,6 +71,7 @@ std::string LogicalAggregate::getExpressionsForPrinting() const {
     result += expression->toString() + ", ";
   }
   result += "]";
+  // result += ", Cardinality: " + std::to_string(cardinality);
   return result;
 }
 

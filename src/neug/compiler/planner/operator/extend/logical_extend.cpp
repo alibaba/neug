@@ -40,6 +40,7 @@ std::unique_ptr<LogicalOperator> LogicalExtend::copy() {
   extend->scanNbrID = scanNbrID;
   extend->setPredicates(getPredicates());
   extend->setExtendOpt(opt);
+  extend->setOptional(optional);
   return extend;
 }
 

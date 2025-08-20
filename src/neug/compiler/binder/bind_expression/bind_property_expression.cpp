@@ -105,10 +105,13 @@ std::shared_ptr<Expression> ExpressionBinder::bindPropertyExpression(
       *child,
       std::vector<LogicalTypeID>{LogicalTypeID::NODE, LogicalTypeID::REL,
                                  LogicalTypeID::STRUCT, LogicalTypeID::ANY});
-  if (config.bindOrderByAfterAggregate) {
-    // See the declaration of this field for more information.
-    return bindStructPropertyExpression(child, propertyName);
-  }
+  // Neug can support node or rel pattern as order key directly, we don't
+  // need to convert it to struct property expression.
+
+  // if (config.bindOrderByAfterAggregate) {
+  //   // See the declaration of this field for more information.
+  //   return bindStructPropertyExpression(child, propertyName);
+  // }
   if (isNodeOrRelPattern(*child)) {
     if (Binder::reservedInPropertyLookup(propertyName)) {
       // Note we don't expose direct access to internal properties in case user

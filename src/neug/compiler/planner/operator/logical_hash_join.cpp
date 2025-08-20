@@ -136,11 +136,15 @@ std::string LogicalHashJoin::getExpressionsForPrinting() const {
       ", SIP: " + maskToStr.at(getSIPInfo().position) +
       ", Join Type: " + joinToStr.at(joinType) +
       ", Join Conditions: " + binder::ExpressionUtil::toString(joinConditions);
+  std::string result;
   if (isNodeIDOnlyJoin(joinConditions)) {
-    return binder::ExpressionUtil::toStringOrdered(getJoinNodeIDs())
-        .append(extra);
+    result =
+        binder::ExpressionUtil::toStringOrdered(getJoinNodeIDs()).append(extra);
+  } else {
+    result = binder::ExpressionUtil::toString(joinConditions).append(extra);
   }
-  return binder::ExpressionUtil::toString(joinConditions).append(extra);
+  // result += ", Cardinality: " + std::to_string(cardinality);
+  return result;
 }
 
 binder::expression_vector LogicalHashJoin::getExpressionsToMaterialize() const {

@@ -10,6 +10,7 @@ enum class TreeNodeType : uint8_t {
   REL_SCAN = 1,
   BINARY_JOIN = 5,
   MULTIWAY_JOIN = 6,
+  GET_V = 8,
 };
 
 struct TreeNodeTypeUtils {
@@ -64,11 +65,13 @@ struct ExtraScanTreeNodeInfo : ExtraTreeNodeInfo {
   std::unique_ptr<NodeRelScanInfo> nodeInfo;
   std::vector<NodeRelScanInfo> relInfos;
   binder::expression_vector predicates;
+  std::vector<std::shared_ptr<binder::NodeExpression>> joinNodes;
 
   ExtraScanTreeNodeInfo() = default;
   ExtraScanTreeNodeInfo(const ExtraScanTreeNodeInfo& other)
       : nodeInfo{std::make_unique<NodeRelScanInfo>(*other.nodeInfo)},
-        relInfos{other.relInfos} {}
+        relInfos{other.relInfos},
+        joinNodes{other.joinNodes} {}
 
   void merge(const ExtraScanTreeNodeInfo& other);
 

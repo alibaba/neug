@@ -450,11 +450,25 @@ oC_Query
 oC_RegularQuery
     : oC_SingleQuery ( SP? oC_Union )*
         | (oC_Return SP? )+ oC_SingleQuery { notifyReturnNotAtEnd($ctx->start); }
+        | oC_CallUnionQuery
         ;
 
 oC_Union
      :  ( UNION SP ALL SP? oC_SingleQuery )
          | ( UNION SP? oC_SingleQuery ) ;
+
+oC_CallUnionQuery
+   : (kU_QueryPart SP?)* oC_CallUnion (SP oC_SingleQuery)?
+   ;
+
+oC_CallUnion
+    : oC_CallUnionScope SP? '{' SP? oC_SingleQuery ( SP? oC_Union )* SP? '}'
+    ;
+
+oC_CallUnionScope
+    : CALL SP? '(' SP? oC_Expression ( SP? ',' SP? oC_Expression )* SP? ')'
+    | CALL '( SP? )'
+    ;
 
 oC_SingleQuery
     : oC_SinglePartQuery

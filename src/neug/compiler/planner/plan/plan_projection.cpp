@@ -1,6 +1,7 @@
 #include "neug/compiler/binder/expression_visitor.h"
 #include "neug/compiler/binder/query/return_with_clause/bound_projection_body.h"
 #include "neug/compiler/planner/planner.h"
+#include "planner/operator/scan/logical_dummy_scan.h"
 
 using namespace gs::binder;
 
@@ -22,7 +23,10 @@ void Planner::planProjectionBody(const BoundProjectionBody* projectionBody,
     return;
   }
   if (plan.isEmpty()) {  // e.g. RETURN 1, COUNT(2)
-    appendDummyScan(plan);
+    // if the pre query is not null, we set updateClause as true to skip the
+    // dummy scan in physical plan convertor
+    bool updateClause = (this->preQueryPlan) ? true : false;
+    appendDummyScan(plan, updateClause);
   }
   auto expressionsToAggregate = projectionBody->getAggregateExpressions();
   auto expressionsToGroupBy = projectionBody->getGroupByExpressions();

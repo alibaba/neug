@@ -1,6 +1,17 @@
+#include <iostream>
+#include <memory>
+#include <vector>
+#include "binder/expression/expression.h"
+#include "binder/expression/property_expression.h"
+#include "binder/visitor/property_collector.h"
+#include "common/assert.h"
 #include "neug/compiler/binder/query/bound_regular_query.h"
 #include "neug/compiler/planner/operator/logical_union.h"
 #include "neug/compiler/planner/planner.h"
+#include "neug/utils/exception/exception.h"
+#include "planner/operator/logical_alias_map.h"
+#include "planner/operator/logical_operator.h"
+#include "planner/operator/logical_plan.h"
 
 using namespace gs::binder;
 using namespace gs::common;
@@ -45,16 +56,60 @@ std::vector<std::unique_ptr<LogicalPlan>> Planner::planQuery(
   if (regularQuery.getNumSingleQueries() == 1) {
     resultPlans = planSingleQuery(regularQuery.getSingleQuery(0));
   } else {
+    auto preQueryPlans = getInitialEmptyPlans();
+    for (auto& part : regularQuery.getPreQueryPart()) {
+      preQueryPlans = planQueryPart(&part, std::move(preQueryPlans));
+    }
+
+    if (!preQueryPlans.empty()) {
+      this->preQueryPlan = std::move(preQueryPlans.at(0)->shallowCopy());
+    }
+
     std::vector<std::vector<std::unique_ptr<LogicalPlan>>> childrenLogicalPlans(
         regularQuery.getNumSingleQueries());
     for (auto i = 0u; i < regularQuery.getNumSingleQueries(); i++) {
       childrenLogicalPlans[i] = planSingleQuery(regularQuery.getSingleQuery(i));
     }
+
+    this->preQueryPlan = nullptr;
+
     auto childrenPlans =
         cartesianProductChildrenPlans(std::move(childrenLogicalPlans));
     for (auto& childrenPlan : childrenPlans) {
       resultPlans.push_back(
           createUnionPlan(childrenPlan, regularQuery.getIsUnionAll(0)));
+    }
+    if (!preQueryPlans.empty()) {
+      std::vector<std::unique_ptr<LogicalPlan>> cartesianProductPrePlans;
+      for (auto& preQueryPlan : preQueryPlans) {
+        for (auto& resultPlan : resultPlans) {
+          if (resultPlan->getLastOperator() &&
+              resultPlan->getLastOperator()->getOperatorType() ==
+                  LogicalOperatorType::UNION_ALL) {
+            auto unionOp =
+                resultPlan->getLastOperator()->ptrCast<LogicalUnion>();
+            auto unionCopy = std::make_unique<LogicalUnion>(
+                unionOp->getExpressionsToUnion(), unionOp->getChildren());
+            unionCopy->computeFactorizedSchema();
+            unionCopy->insertChild(0, preQueryPlan->getLastOperator());
+            unionCopy->setPreQuery(true);
+            auto unionPlan = std::make_unique<LogicalPlan>();
+            unionPlan->setLastOperator(std::move(unionCopy));
+            unionPlan->setCost(resultPlan->getCost());
+            cartesianProductPrePlans.push_back(std::move(unionPlan));
+          } else {
+            THROW_EXCEPTION_WITH_FILE_LINE("result plan should be union");
+          }
+        }
+      }
+      resultPlans = std::move(cartesianProductPrePlans);
+    }
+    if (regularQuery.getPostSingleQuery()) {
+      auto postQuery = regularQuery.getPostSingleQuery();
+      for (auto pos = 0u; pos < postQuery->getNumQueryParts(); pos++) {
+        resultPlans =
+            planQueryPart(postQuery->getQueryPart(pos), std::move(resultPlans));
+      }
     }
   }
   return resultPlans;

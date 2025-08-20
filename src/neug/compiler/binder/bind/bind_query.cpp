@@ -20,12 +20,19 @@
  * Zhou Xiaoli in 2025 to support Neug-specific features.
  */
 
+#include <optional>
+#include <vector>
+#include "binder/expression/expression.h"
+#include "binder/expression/variable_expression.h"
+#include "binder/query/normalized_query_part.h"
+#include "common/enums/expression_type.h"
 #include "neug/compiler/binder/binder.h"
 #include "neug/compiler/binder/expression/expression_util.h"
 #include "neug/compiler/binder/query/return_with_clause/bound_return_clause.h"
 #include "neug/compiler/binder/query/return_with_clause/bound_with_clause.h"
 #include "neug/compiler/parser/query/regular_query.h"
 #include "neug/utils/exception/exception.h"
+#include "parser/query/reading_clause/yield_variable.h"
 
 using namespace gs::common;
 using namespace gs::parser;
@@ -69,23 +76,90 @@ void validateIsAllUnionOrUnionAll(const BoundRegularQuery& regularQuery) {
 std::unique_ptr<BoundRegularQuery> Binder::bindQuery(
     const Statement& statement) {
   auto& regularQuery = statement.constCast<RegularQuery>();
+
+  // bind pre query before the union
+  std::vector<NormalizedQueryPart> preQueryPart;
+  for (auto& part : regularQuery.getPreQueryPart()) {
+    preQueryPart.emplace_back(std::move(bindQueryPart(part)));
+  }
+
+  // bind common expressions in pre query
+  binder::expression_vector preQueryExprs;
+  if (!preQueryPart.empty() && !regularQuery.getPreQueryExprs().empty()) {
+    for (const auto& expr : regularQuery.getPreQueryExprs()) {
+      preQueryExprs.emplace_back(expressionBinder.bindExpression(*expr));
+    }
+  }
+
+  // record the common expressions in scope, each subquery in union need to bind
+  // them later.
+  auto commonExprMap = scope.getNameToExprMap();
+
   std::vector<NormalizedSingleQuery> normalizedSingleQueries;
   for (auto i = 0u; i < regularQuery.getNumSingleQueries(); i++) {
+    scope.clear();
+    if (!preQueryPart.empty() && !preQueryExprs.empty()) {
+      // each subquery in union need to bind the common expressions from scope.
+      for (auto pair : commonExprMap) {
+        auto expr = pair.second;
+        if (expr->expressionType == ExpressionType::PATTERN) {
+          addToScope(pair.first, expr);
+        } else {
+          // if the expression is not a pattern, convert it to a variable
+          // expression
+          auto exprVar = std::make_shared<VariableExpression>(
+              expr->getDataType().copy(), expr->getUniqueName(),
+              expr->getAlias());
+          exprVar->setAlias(expr->getAlias());
+          addToScope(pair.first, exprVar);
+        }
+      }
+    }
     // Don't clear scope within bindSingleQuery() yet because it is also used
     // for subquery binding.
-    scope.clear();
-    normalizedSingleQueries.push_back(
-        bindSingleQuery(*regularQuery.getSingleQuery(i)));
+    auto singleQuery = bindSingleQuery(*regularQuery.getSingleQuery(i));
+    normalizedSingleQueries.push_back(std::move(singleQuery));
   }
   validateUnionColumnsOfTheSameType(normalizedSingleQueries);
   KU_ASSERT(!normalizedSingleQueries.empty());
   auto boundRegularQuery = std::make_unique<BoundRegularQuery>(
       regularQuery.getIsUnionAll(),
       normalizedSingleQueries[0].getStatementResult()->copy());
+  if (!preQueryPart.empty()) {
+    boundRegularQuery->setPreQueryPart(std::move(preQueryPart));
+  }
+  if (!preQueryExprs.empty()) {
+    boundRegularQuery->setPreQueryExprs(std::move(preQueryExprs));
+  }
   for (auto& normalizedSingleQuery : normalizedSingleQueries) {
     boundRegularQuery->addSingleQuery(std::move(normalizedSingleQuery));
   }
   validateIsAllUnionOrUnionAll(*boundRegularQuery);
+
+  if (regularQuery.getPostSingleQuery()) {
+    scope.clear();
+    if (boundRegularQuery->getNumSingleQueries() > 0) {
+      // since all subqueries have the same schema, we can get output columns of
+      // union from the first subquery directly.
+      auto subQuery = boundRegularQuery->getSingleQueryUnsafe(0);
+      auto statementResult = subQuery->getStatementResult();
+      for (size_t pos = 0; pos < statementResult->getColumns().size(); pos++) {
+        auto column = statementResult->getColumns()[pos];
+        auto columnName = statementResult->getColumnNames()[pos];
+        if (column->expressionType == ExpressionType::PATTERN) {
+          addToScope(columnName, column);
+        } else {
+          auto exprVar = std::make_shared<VariableExpression>(
+              column->getDataType().copy(), column->getUniqueName(),
+              column->getAlias());
+          exprVar->setAlias(column->getAlias());
+          addToScope(columnName, exprVar);
+        }
+      }
+    }
+    boundRegularQuery->setPostSingleQuery(
+        bindSingleQuery(*regularQuery.getPostSingleQuery()));
+  }
   return boundRegularQuery;
 }
 

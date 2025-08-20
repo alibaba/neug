@@ -36,6 +36,11 @@ class NormalizedSingleQuery {
   void appendQueryPart(NormalizedQueryPart queryPart) {
     queryParts.push_back(std::move(queryPart));
   }
+
+  void insertQueryPart(common::idx_t idx, NormalizedQueryPart queryPart) {
+    queryParts.insert(queryParts.begin() + idx, std::move(queryPart));
+  }
+
   common::idx_t getNumQueryParts() const { return queryParts.size(); }
   NormalizedQueryPart* getQueryPartUnsafe(common::idx_t idx) {
     return &queryParts[idx];

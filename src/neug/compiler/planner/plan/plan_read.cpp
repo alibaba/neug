@@ -41,8 +41,22 @@ void Planner::planMatchClause(
   case MatchClauseType::MATCH: {
     if (plans.size() == 1 && plans[0]->isEmpty()) {
       auto info = QueryGraphPlanningInfo();
-      info.predicates = predicates;
-      info.hint = boundMatchClause.getHint();
+      if (this->preQueryPlan) {
+        // set query plan info for each subquery in union, the info contains the
+        // common expressions in pre query and the cardinality of the pre query
+        // plan
+        KU_ASSERT(this->preQueryPlan->getSchema());
+        auto correlatedExprs = getCorrelatedExprs(
+            *queryGraphCollection, {}, this->preQueryPlan->getSchema());
+        auto joinNodeIDs = ExpressionUtil::getExpressionsWithDataType(
+            correlatedExprs, LogicalTypeID::INTERNAL_ID);
+        info.corrExprs = joinNodeIDs;
+        info.subqueryType = SubqueryPlanningType::COMMON_PAT_REUSE;
+        info.corrExprsCard = this->preQueryPlan->getCardinality();
+      } else {
+        info.predicates = predicates;
+        info.hint = boundMatchClause.getHint();
+      }
       plans = enumerateQueryGraphCollection(*queryGraphCollection, info);
     } else {
       for (auto& plan : plans) {

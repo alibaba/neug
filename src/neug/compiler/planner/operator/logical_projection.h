@@ -18,7 +18,9 @@ class LogicalProjection : public LogicalOperator {
   void computeFlatSchema() override;
 
   inline std::string getExpressionsForPrinting() const override {
-    return binder::ExpressionUtil::toString(expressions);
+    auto result = binder::ExpressionUtil::toString(expressions);
+    // result += ", Cardinality: " + std::to_string(cardinality);
+    return result;
   }
 
   inline binder::expression_vector getExpressionsToProject() const {

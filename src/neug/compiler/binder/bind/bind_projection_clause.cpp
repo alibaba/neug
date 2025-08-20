@@ -242,13 +242,16 @@ BoundProjectionBody Binder::bindProjectionBody(
       // sufficient including edge case and bug before release.
       expression_vector augmentedGroupByExpressions = groupByExprs;
       for (auto& expression : groupByExprs) {
-        if (ExpressionUtil::isNodePattern(*expression)) {
-          auto& node = expression->constCast<NodeExpression>();
-          augmentedGroupByExpressions.push_back(node.getInternalID());
-        } else if (ExpressionUtil::isRelPattern(*expression)) {
-          auto& rel = expression->constCast<RelExpression>();
-          augmentedGroupByExpressions.push_back(rel.getInternalIDProperty());
-        }
+        // Neug can support node or rel pattern as group key directly, the
+        // following codes are unnecessary.
+
+        // if (ExpressionUtil::isNodePattern(*expression)) {
+        //   auto& node = expression->constCast<NodeExpression>();
+        //   augmentedGroupByExpressions.push_back(node.getInternalID());
+        // } else if (ExpressionUtil::isRelPattern(*expression)) {
+        //   auto& rel = expression->constCast<RelExpression>();
+        //   augmentedGroupByExpressions.push_back(rel.getInternalIDProperty());
+        // }
       }
       boundProjectionBody.setGroupByExpressions(
           std::move(augmentedGroupByExpressions));

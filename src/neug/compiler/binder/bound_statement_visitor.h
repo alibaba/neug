@@ -39,6 +39,7 @@ class BoundStatementVisitor {
   void visitUnsafe(BoundStatement& statement);
 
   virtual void visitSingleQuery(const NormalizedSingleQuery& singleQuery);
+  virtual void visitQueryPart(const NormalizedQueryPart& queryPart);
 
  protected:
   virtual void visitCreateSequence(const BoundStatement&) {}
@@ -59,7 +60,6 @@ class BoundStatementVisitor {
   virtual void visitRegularQuery(const BoundStatement& statement);
   virtual void visitRegularQueryUnsafe(BoundStatement& statement);
   virtual void visitSingleQueryUnsafe(NormalizedSingleQuery& singleQuery);
-  virtual void visitQueryPart(const NormalizedQueryPart& queryPart);
   virtual void visitQueryPartUnsafe(NormalizedQueryPart& queryPart);
   void visitReadingClause(const BoundReadingClause& readingClause);
   void visitReadingClauseUnsafe(BoundReadingClause& readingClause);

@@ -41,6 +41,8 @@
 #include "neug/compiler/optimizer/schema_populator.h"
 #include "neug/compiler/optimizer/top_k_optimizer.h"
 #include "neug/compiler/planner/operator/logical_explain.h"
+#include "optimizer/flat_join_to_expand_optimizer.h"
+#include "optimizer/union_alias_map_optimizer.h"
 
 namespace gs {
 namespace optimizer {
@@ -95,6 +97,12 @@ void Optimizer::optimize(
 
     auto expandGetVFusion = ExpandGetVFusion(context->getCatalog());
     expandGetVFusion.rewrite(plan);
+
+    auto flatJoinToExpandOptimizer = FlatJoinToExpandOptimizer();
+    flatJoinToExpandOptimizer.rewrite(plan);
+
+    auto unionAliasMapOptimizer = UnionAliasMapOptimizer();
+    unionAliasMapOptimizer.rewrite(plan);
 
     auto cardinalityUpdater =
         CardinalityUpdater(cardinalityEstimator, context->getTransaction());

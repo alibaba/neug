@@ -33,6 +33,7 @@
 #include "neug/compiler/planner/operator/extend/logical_extend.h"
 #include "neug/compiler/planner/operator/extend/logical_recursive_extend.h"
 #include "neug/compiler/planner/operator/logical_aggregate.h"
+#include "neug/compiler/planner/operator/logical_alias_map.h"
 #include "neug/compiler/planner/operator/logical_cross_product.h"
 #include "neug/compiler/planner/operator/logical_filter.h"
 #include "neug/compiler/planner/operator/logical_get_v.h"
@@ -44,12 +45,14 @@
 #include "neug/compiler/planner/operator/logical_plan.h"
 #include "neug/compiler/planner/operator/logical_projection.h"
 #include "neug/compiler/planner/operator/logical_table_function_call.h"
+#include "neug/compiler/planner/operator/logical_union.h"
 #include "neug/compiler/planner/operator/persistent/logical_copy_from.h"
 #include "neug/compiler/planner/operator/persistent/logical_copy_to.h"
 #include "neug/compiler/planner/operator/persistent/logical_delete.h"
 #include "neug/compiler/planner/operator/persistent/logical_insert.h"
 #include "neug/compiler/planner/operator/persistent/logical_set.h"
 #include "neug/compiler/planner/operator/scan/logical_dummy_scan.h"
+#include "neug/compiler/planner/operator/scan/logical_expressions_scan.h"
 #include "neug/compiler/planner/operator/scan/logical_scan_node_table.h"
 #include "neug/utils/proto/plan/algebra.pb.h"
 #include "neug/utils/proto/plan/cypher_dml.pb.h"
@@ -135,6 +138,16 @@ class GQueryConvertor {
                      ::physical::QueryPlan* plan);
   void convertDummyScan(const planner::LogicalDummyScan& dummyScan,
                         ::physical::QueryPlan* plan);
+
+  void convertUnion(const planner::LogicalUnion& unionOp,
+                    ::physical::QueryPlan* plan);
+
+  void convertAliasMap(const planner::LogicalAliasMap& aliasMap,
+                       ::physical::QueryPlan* plan);
+
+  void convertExpressionScan(
+      const planner::LogicalExpressionsScan& expressionScan,
+      ::physical::QueryPlan* plan);
 
   // help functions
   ::physical::Join::JoinKind convertJoinKind(common::JoinType joinType);

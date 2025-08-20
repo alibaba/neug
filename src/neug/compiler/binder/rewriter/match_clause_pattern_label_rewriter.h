@@ -24,6 +24,7 @@
 
 #include "neug/compiler/binder/bound_statement_visitor.h"
 #include "neug/compiler/binder/query/query_graph_label_analyzer.h"
+#include "neug/compiler/binder/query/reading_clause/bound_match_clause.h"
 
 namespace gs {
 namespace binder {
@@ -35,6 +36,8 @@ class MatchClausePatternLabelRewriter final : public BoundStatementVisitor {
       : analyzer{clientContext, false /* throwOnViolate */} {}
 
   void visitMatchUnsafe(BoundReadingClause& readingClause) override;
+
+  void visitRegularQueryUnsafe(BoundStatement& statement) override;
 
  private:
   QueryGraphLabelAnalyzer analyzer;

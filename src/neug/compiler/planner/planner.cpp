@@ -72,13 +72,6 @@ std::unique_ptr<LogicalPlan> Planner::getBestPlan(
   switch (statement.getStatementType()) {
   case StatementType::QUERY: {
     plan = getBestPlan(planQuery(statement));
-    // std::ofstream outfile("test.plan", std::ios::app);
-    // if (!outfile.is_open()) {
-    //     std::cerr << "file cannot be opened" << std::endl;
-    // }
-    // outfile << "After Best Plan: \n" << plan->toString() << std::endl <<
-    // std::endl << std::endl; outfile.close(); std::cout << "best plan is \n" +
-    // planner::LogicalPlanUtil::encodeJoin(*plan) << std::endl;
   } break;
   case StatementType::CREATE_TABLE: {
     appendCreateTable(statement, *plan);

@@ -30,6 +30,8 @@ namespace binder {
 struct BoundJoinHintNode {
   std::shared_ptr<Expression> nodeOrRel;
   std::vector<std::shared_ptr<BoundJoinHintNode>> children;
+  bool expandE = false;
+  bool getV = false;
 
   BoundJoinHintNode() = default;
   explicit BoundJoinHintNode(std::shared_ptr<Expression> nodeOrRel)
@@ -42,6 +44,9 @@ struct BoundJoinHintNode {
   bool isLeaf() const { return children.empty(); }
   bool isBinary() const { return children.size() == 2; }
   bool isMultiWay() const { return children.size() > 2; }
+
+  bool isExpandE() const { return expandE; };
+  bool isGetV() const { return getV; };
 };
 
 }  // namespace binder

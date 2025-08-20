@@ -99,6 +99,7 @@ Planner::enumerateQueryGraphCollection(
     auto newInfo = info;
     newInfo.predicates = predicatesToEvaluate;
     switch (info.subqueryType) {
+    case SubqueryPlanningType::COMMON_PAT_REUSE:
     case SubqueryPlanningType::NONE:
     case SubqueryPlanningType::UNNEST_CORRELATED: {
       plans = enumerateQueryGraph(*queryGraph, newInfo);
@@ -220,6 +221,19 @@ void Planner::planBaseTableScans(const QueryGraphPlanningInfo& info) {
       }
     }
   } break;
+  case SubqueryPlanningType::COMMON_PAT_REUSE: {
+    // append expression scan (scan from common expressions in pre query) and
+    // scan node table (scan from the whole table) the optimizer will compare
+    // the cardinality of the two scan(s) and choose the best automatically
+    for (auto nodePos = 0u; nodePos < queryGraph->getNumQueryNodes();
+         ++nodePos) {
+      auto queryNode = queryGraph->getQueryNode(nodePos);
+      if (info.containsCorrExpr(*queryNode->getInternalID())) {
+        planCorrelatedExpressionsScan(info);
+      }
+      planNodeScan(nodePos);
+    }
+  } break;
   case SubqueryPlanningType::CORRELATED: {
     for (auto nodePos = 0u; nodePos < queryGraph->getNumQueryNodes();
          ++nodePos) {
@@ -266,7 +280,7 @@ void Planner::planCorrelatedExpressionsScan(
       getNewlyMatchedExprs(context.getEmptySubqueryGraph(), newSubgraph,
                            context.getWhereExpressions());
   appendFilters(predicates, *plan);
-  appendDistinct(corrExprs, *plan);
+  // appendDistinct(corrExprs, *plan);
   context.addPlan(newSubgraph, std::move(plan));
 }
 
@@ -853,7 +867,8 @@ std::shared_ptr<planner::LogicalOperator> Planner::extractExtend(
       top->getOperatorType() == LogicalOperatorType::RECURSIVE_EXTEND) {
     return top;
   }
-  if (top->getOperatorType() == LogicalOperatorType::FILTER) {
+  if (top->getOperatorType() == LogicalOperatorType::FILTER ||
+      top->getOperatorType() == LogicalOperatorType::NODE_LABEL_FILTER) {
     return extractExtend(top->getChild(0));
   }
   return nullptr;

@@ -29,6 +29,8 @@
 #include "neug/compiler/planner/operator/persistent/logical_insert.h"
 #include "neug/compiler/planner/operator/scan/logical_scan_node_table.h"
 #include "neug/utils/exception/exception.h"
+#include "planner/operator/logical_projection.h"
+#include "planner/operator/logical_union.h"
 
 namespace gs {
 namespace gopt {
@@ -51,16 +53,25 @@ void GAliasManager::extractGAliasNames(
   case planner::LogicalOperatorType::EXTEND: {
     auto& extendOp = op.constCast<planner::LogicalExtend>();
     aliasNames.emplace_back(extendOp.getGAliasName());
+    if (extendOp.getNumChildren() > 0) {
+      extractGAliasNames(*extendOp.getChild(0), aliasNames);
+    }
     break;
   }
   case planner::LogicalOperatorType::RECURSIVE_EXTEND: {
     auto& extendOp = op.constCast<planner::LogicalRecursiveExtend>();
     aliasNames.emplace_back(extendOp.getGAliasName());
+    if (extendOp.getNumChildren() > 0) {
+      extractGAliasNames(*extendOp.getChild(0), aliasNames);
+    }
     break;
   }
   case planner::LogicalOperatorType::GET_V: {
     auto& getVOp = op.constCast<planner::LogicalGetV>();
     aliasNames.emplace_back(getVOp.getGAliasName());
+    if (getVOp.getNumChildren() > 0) {
+      extractGAliasNames(*getVOp.getChild(0), aliasNames);
+    }
     break;
   }
   case planner::LogicalOperatorType::INSERT: {
@@ -106,6 +117,9 @@ void GAliasManager::extractGAliasNames(
   case planner::LogicalOperatorType::FLATTEN:
   case planner::LogicalOperatorType::ACCUMULATE:
   case planner::LogicalOperatorType::HASH_JOIN:
+  case planner::LogicalOperatorType::EXPRESSIONS_SCAN:
+  case planner::LogicalOperatorType::UNION_ALL:
+  case planner::LogicalOperatorType::ALIAS_MAP:
     // do nothing
     break;
   default: {

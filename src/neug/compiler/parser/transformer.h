@@ -25,7 +25,7 @@
 // ANTLR4 generates code with unused parameters.
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wunused-parameter"
-#include "cypher_parser.h"
+#include "antlr4_cypher/include/cypher_parser.h"
 #pragma GCC diagnostic pop
 
 #include "neug/compiler/parser/ddl/parsed_property_definition.h"
@@ -71,6 +71,9 @@ class Transformer {
   std::string transformSchemaName(CypherParser::OC_SchemaNameContext& ctx);
   std::string transformSymbolicName(CypherParser::OC_SymbolicNameContext& ctx);
   std::string transformStringLiteral(antlr4::tree::TerminalNode& stringLiteral);
+
+  std::unique_ptr<Statement> transformCallUnionQuery(
+      CypherParser::OC_CallUnionQueryContext& ctx);
 
   // Transform copy statement.
   std::unique_ptr<Statement> transformCopyTo(
@@ -311,6 +314,9 @@ class Transformer {
       CypherParser::KU_DetachDatabaseContext& ctx);
   std::unique_ptr<Statement> transformUseDatabase(
       CypherParser::KU_UseDatabaseContext& ctx);
+
+  std::vector<std::unique_ptr<ParsedExpression>> transformCallScope(
+      CypherParser::OC_CallUnionScopeContext& scope);
 
  private:
   CypherParser::Ku_StatementsContext& root;

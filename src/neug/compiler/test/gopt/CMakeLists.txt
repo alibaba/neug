@@ -1,8 +1,10 @@
 add_compiler_test(
 	gopt_test
+	join_test.cpp
 	ddl_test.cpp
 	dml_test.cpp
 	pattern_test.cpp
+	ldbc_test.cpp
 	rbo_rule_test.cpp
 	agg_test.cpp
 	metadata_test.cpp
@@ -12,9 +14,7 @@ add_compiler_test(
 	project_test.cpp
 	result_test.cpp
 	cyclic_test.cpp
-	lsqb_test.cpp
-	join_test.cpp)
-message(STATUS "Adding gopt tests")
+	lsqb_test.cpp)
 
 target_link_libraries(gopt_test
     PRIVATE

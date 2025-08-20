@@ -22,8 +22,14 @@
 
 #pragma once
 
+#include <memory>
+#include <optional>
+#include <vector>
+#include "binder/expression/expression.h"
 #include "neug/compiler/common/types/types.h"
 #include "neug/compiler/parser/statement.h"
+#include "parser/expression/parsed_expression.h"
+#include "parser/query/query_part.h"
 #include "single_query.h"
 
 namespace gs {
@@ -50,9 +56,38 @@ class RegularQuery : public Statement {
 
   std::vector<bool> getIsUnionAll() const { return isUnionAll; }
 
+  void setPreQueryPart(std::vector<QueryPart> preQueryPart) {
+    this->preQueryPart = std::move(preQueryPart);
+  }
+  void setPostSingleQuery(SingleQuery postSingleQuery) {
+    this->postSingleQuery = std::move(postSingleQuery);
+  }
+
+  void setPreQueryExpressions(
+      std::vector<std::unique_ptr<ParsedExpression>> preQueryExprs) {
+    this->preQueryExprs = std::move(preQueryExprs);
+  }
+
+  const std::vector<QueryPart>& getPreQueryPart() const {
+    return this->preQueryPart;
+  }
+
+  const SingleQuery* getPostSingleQuery() const {
+    return postSingleQuery ? &*postSingleQuery : nullptr;
+  }
+
+  const std::vector<std::unique_ptr<ParsedExpression>>& getPreQueryExprs()
+      const {
+    return preQueryExprs;
+  }
+
  private:
   std::vector<SingleQuery> singleQueries;
   std::vector<bool> isUnionAll;
+
+  std::vector<std::unique_ptr<ParsedExpression>> preQueryExprs;
+  std::vector<QueryPart> preQueryPart;
+  std::optional<SingleQuery> postSingleQuery;
 };
 
 }  // namespace parser

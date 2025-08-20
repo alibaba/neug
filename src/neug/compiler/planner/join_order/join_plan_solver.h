@@ -19,6 +19,7 @@ class JoinPlanSolver {
   LogicalPlan solveNodeScanTreeNode(const JoinTreeNode& treeNode);
   LogicalPlan solveRelScanTreeNode(const JoinTreeNode& treeNode,
                                    const JoinTreeNode& parent);
+  LogicalPlan solveGetVTreeNode(const JoinTreeNode& treeNode);
   LogicalPlan solveBinaryJoinTreeNode(const JoinTreeNode& treeNode);
   LogicalPlan solveMultiwayJoinTreeNode(const JoinTreeNode& treeNode);
 

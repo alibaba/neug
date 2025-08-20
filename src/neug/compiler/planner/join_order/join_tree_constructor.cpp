@@ -1,9 +1,12 @@
 #include "neug/compiler/planner/join_order/join_tree_constructor.h"
+#include <glog/logging.h>
 
+#include "common/assert.h"
 #include "neug/compiler/binder/expression/expression_util.h"
 #include "neug/compiler/binder/query/reading_clause/bound_join_hint.h"
 #include "neug/compiler/planner/planner.h"
 #include "neug/utils/exception/exception.h"
+#include "planner/join_order/join_tree.h"
 
 using namespace gs::binder;
 using namespace gs::common;
@@ -69,6 +72,31 @@ JoinTreeConstructor::IntermediateResult JoinTreeConstructor::constructTreeNode(
                 ExpressionUtil::isRecursiveRelPattern(*hintNode->nodeOrRel));
       return constructRelScan(hintNode->nodeOrRel);
     }
+  }
+  if (hintNode->isExpandE()) {
+    auto child = constructTreeNode(hintNode->children[0]);
+    auto relScan = constructRelScan(hintNode->nodeOrRel);
+    CHECK(relScan.treeNode != nullptr) << "relScan treeNode is nullptr";
+    relScan.treeNode->addChild(child.treeNode);
+    return relScan;
+  }
+  if (hintNode->isGetV()) {
+    auto child = constructTreeNode(hintNode->children[0]);
+    auto nodeScan = constructNodeScan(hintNode->nodeOrRel);
+    auto joinNodes = getJoinNodes(child.subqueryGraph, nodeScan.subqueryGraph);
+    if (joinNodes.empty()) {
+      THROW_EXCEPTION_WITH_FILE_LINE(
+          "join nodes between expandE and getV should not be empty");
+    }
+    CHECK(nodeScan.treeNode != nullptr) << "nodeScan treeNode is nullptr";
+    auto& extraInfo = nodeScan.treeNode->extraInfo;
+    auto nodeScanExtraInfo =
+        dynamic_cast<ExtraScanTreeNodeInfo*>(extraInfo.get());
+    CHECK(nodeScanExtraInfo != nullptr) << "nodeScanExtraInfo is nullptr";
+    nodeScanExtraInfo->joinNodes = std::move(joinNodes);
+    nodeScan.treeNode->type = TreeNodeType::GET_V;
+    nodeScan.treeNode->addChild(child.treeNode);
+    return nodeScan;
   }
   // Construct binary join.
   if (hintNode->isBinary()) {

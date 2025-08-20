@@ -60,7 +60,8 @@ enum class LogicalOperatorType : uint8_t {
   UNION_ALL,
   UNWIND,
   USE_DATABASE,
-  GET_V
+  GET_V,
+  ALIAS_MAP
 };
 
 class LogicalOperator;
@@ -94,6 +95,11 @@ class KUZU_API LogicalOperator {
   std::vector<std::shared_ptr<LogicalOperator>> getChildren() const {
     return children;
   }
+
+  void insertChild(uint64_t idx, std::shared_ptr<LogicalOperator> child) {
+    children.insert(children.begin() + idx, std::move(child));
+  }
+
   void setChild(uint64_t idx, std::shared_ptr<LogicalOperator> child) {
     children[idx] = std::move(child);
   }

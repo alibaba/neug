@@ -43,6 +43,20 @@ std::unique_ptr<LogicalOperator> LogicalUnion::copy() {
                                    std::move(copiedChildren));
 }
 
+std::unique_ptr<LogicalOperator> LogicalUnion::copyWithSchema() {
+  std::vector<std::shared_ptr<LogicalOperator>> copiedChildren;
+  copiedChildren.reserve(getNumChildren());
+  for (auto i = 0u; i < getNumChildren(); ++i) {
+    auto childCopy = getChild(i)->copy();
+    childCopy->computeFactorizedSchema();
+    copiedChildren.push_back(std::move(childCopy));
+  }
+  auto unionCopy =
+      make_unique<LogicalUnion>(expressionsToUnion, std::move(copiedChildren));
+  unionCopy->computeFactorizedSchema();
+  return unionCopy;
+}
+
 bool LogicalUnion::requireFlatExpression(uint32_t expressionIdx) {
   for (auto& child : children) {
     auto childSchema = child->getSchema();

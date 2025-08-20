@@ -31,7 +31,8 @@ class LogicalExtend final : public BaseLogicalExtend {
                           std::move(child)},
         scanNbrID{true},
         properties{std::move(properties)},
-        opt{planner::ExtendOpt::EDGE} {
+        opt{planner::ExtendOpt::EDGE},
+        optional{false} {
     this->cardinality = cardinality;
   }
 
@@ -78,6 +79,9 @@ class LogicalExtend final : public BaseLogicalExtend {
 
   planner::ExtendOpt getExtendOpt() const { return opt; }
 
+  void setOptional(bool optional_) { optional = optional_; }
+  bool isOptional() const { return optional; }
+
   std::string getExpressionsForPrinting() const override {
     auto base = BaseLogicalExtend::getExpressionsForPrinting();
     base += " Cardinality: " + std::to_string(cardinality);
@@ -93,6 +97,7 @@ class LogicalExtend final : public BaseLogicalExtend {
   std::vector<storage::ColumnPredicateSet> propertyPredicates;
   std::shared_ptr<binder::Expression> predicates;
   planner::ExtendOpt opt;
+  bool optional;
 };
 
 }  // namespace planner

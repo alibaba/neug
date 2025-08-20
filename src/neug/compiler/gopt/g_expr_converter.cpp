@@ -133,7 +133,8 @@ std::unique_ptr<::common::Expression> GExprConverter::convert(
     return ::physical::GroupBy_AggFunc::SUM;
   }
   if (func.name == "COLLECT") {
-    return ::physical::GroupBy_AggFunc::TO_LIST;
+    return func.isDistinct ? ::physical::GroupBy_AggFunc::TO_SET
+                           : ::physical::GroupBy_AggFunc::TO_LIST;
   }
   if (func.name == "AVG") {
     return ::physical::GroupBy_AggFunc::AVG;

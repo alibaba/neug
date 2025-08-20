@@ -1,5 +1,6 @@
 #pragma once
 
+#include <memory>
 #include "logical_operator.h"
 
 namespace gs {
@@ -31,6 +32,12 @@ class LogicalUnion : public LogicalOperator {
 
   std::unique_ptr<LogicalOperator> copy() override;
 
+  std::unique_ptr<LogicalOperator> copyWithSchema();
+
+  void setPreQuery(bool preQuery) { this->preQuery = preQuery; }
+
+  bool getPreQuery() const { return preQuery; }
+
  private:
   // If an expression to union has different flat/unflat state in different
   // child, we need to flatten that expression in all the single queries.
@@ -38,6 +45,7 @@ class LogicalUnion : public LogicalOperator {
 
  private:
   binder::expression_vector expressionsToUnion;
+  bool preQuery;
 };
 
 }  // namespace planner

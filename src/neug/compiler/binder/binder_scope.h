@@ -22,6 +22,11 @@
 
 #pragma once
 
+#include <algorithm>
+#include <map>
+#include <string>
+#include <unordered_map>
+#include <vector>
 #include "neug/compiler/binder/expression/expression.h"
 #include "neug/compiler/binder/expression/node_expression.h"
 #include "neug/compiler/common/case_insensitive_map.h"
@@ -71,6 +76,16 @@ class BinderScope {
       const std::string& name) const {
     KU_ASSERT(hasNodeReplacement(name));
     return nodeReplacement.at(name);
+  }
+
+  std::unordered_map<std::string, std::shared_ptr<Expression>>
+  getNameToExprMap() const {
+    std::unordered_map<std::string, std::shared_ptr<Expression>> nameToExprMap;
+    for (const auto& pair : nameToExprIdx) {
+      KU_ASSERT(pair.second < expressions.size());
+      nameToExprMap[pair.first] = expressions[pair.second];
+    }
+    return nameToExprMap;
   }
 
   void clear();

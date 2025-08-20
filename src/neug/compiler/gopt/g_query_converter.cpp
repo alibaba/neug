@@ -65,6 +65,7 @@
 #include "neug/utils/exception/exception.h"
 #include "planner/operator/extend/logical_recursive_extend.h"
 #include "planner/operator/logical_hash_join.h"
+#include "planner/operator/scan/logical_dummy_scan.h"
 
 namespace gs {
 namespace gopt {
@@ -107,6 +108,10 @@ void GQueryConvertor::convertOperator(const planner::LogicalOperator& op,
   } else if (op.getOperatorType() == planner::LogicalOperatorType::HASH_JOIN) {
     auto hashJoin = op.constPtrCast<planner::LogicalHashJoin>();
     convertHashJoin(*hashJoin, plan);
+    return;
+  } else if (op.getOperatorType() == planner::LogicalOperatorType::UNION_ALL) {
+    auto unionOp = op.constPtrCast<planner::LogicalUnion>();
+    convertUnion(*unionOp, plan);
     return;
   }
   for (auto child : op.getChildren()) {
@@ -195,6 +200,16 @@ void GQueryConvertor::convertOperator(const planner::LogicalOperator& op,
     if (!dummyScan->isUpdateClause()) {
       convertDummyScan(*dummyScan, plan);
     }
+    break;
+  }
+  case planner::LogicalOperatorType::EXPRESSIONS_SCAN: {
+    auto expressionScan = op.constPtrCast<planner::LogicalExpressionsScan>();
+    convertExpressionScan(*expressionScan, plan);
+    break;
+  }
+  case planner::LogicalOperatorType::ALIAS_MAP: {
+    auto aliasMap = op.constPtrCast<planner::LogicalAliasMap>();
+    convertAliasMap(*aliasMap, plan);
     break;
   }
   case planner::LogicalOperatorType::PARTITIONER:
@@ -530,6 +545,10 @@ void GQueryConvertor::convertExtend(const planner::LogicalExtend& extend,
   extendPB->set_expand_opt(convertExpandOpt(extend.getExtendOpt()));
   // set direction
   extendPB->set_direction(convertDirection(extend.getDirection()));
+
+  if (extend.isOptional()) {
+    extendPB->set_is_optional(true);
+  }
 
   // set v tag
   auto startAlias = aliasManager->getAliasId(extend.getStartAliasName());
@@ -1527,6 +1546,83 @@ void GQueryConvertor::convertDummyScan(
   auto physicalPB = std::make_unique<::physical::PhysicalOpr>();
   auto oprPB = std::make_unique<::physical::PhysicalOpr_Operator>();
   oprPB->set_allocated_root(dummyPB.release());
+  physicalPB->set_allocated_opr(oprPB.release());
+  plan->mutable_plan()->AddAllocated(physicalPB.release());
+}
+
+void GQueryConvertor::convertExpressionScan(
+    const planner::LogicalExpressionsScan& expressionScan,
+    ::physical::QueryPlan* plan) {
+  // todo: convert expression scan to projection
+}
+
+void GQueryConvertor::convertAliasMap(const planner::LogicalAliasMap& aliasMap,
+                                      ::physical::QueryPlan* plan) {
+  auto srcExprs = aliasMap.getSrcExprs();
+  auto dstExprs = aliasMap.getDstExprs();
+  if (srcExprs.size() != dstExprs.size()) {
+    THROW_EXCEPTION_WITH_FILE_LINE(
+        "Number of source expressions does not match the number of destination "
+        "expressions in alias map");
+  }
+  if (srcExprs.empty()) {
+    return;
+  }
+  if (aliasMap.getChildren().empty()) {
+    THROW_EXCEPTION_WITH_FILE_LINE("Alias map should have at least one child");
+  }
+  auto child = aliasMap.getChild(0);
+  auto projectPB = std::make_unique<::physical::Project>();
+  for (auto i = 0u; i < srcExprs.size(); ++i) {
+    // convert srcExpr
+    auto srcExprPB = exprConvertor->convert(*srcExprs[i], *child);
+    // the dstAliasId should have existed in aliasManager
+    auto dstAliasId = aliasManager->getAliasId(dstExprs[i]->getUniqueName());
+    if (dstAliasId == DEFAULT_ALIAS_ID) {
+      THROW_EXCEPTION_WITH_FILE_LINE("Invalid dst alias id in alias map");
+    }
+    auto exprAliasPB = std::make_unique<::physical::Project::ExprAlias>();
+    exprAliasPB->set_allocated_expr(srcExprPB.release());
+    auto aliasPB = std::make_unique<::google::protobuf::Int32Value>();
+    aliasPB->set_value(dstAliasId);
+    exprAliasPB->set_allocated_alias(aliasPB.release());
+    projectPB->mutable_mappings()->AddAllocated(exprAliasPB.release());
+  }
+  auto physicalPB = std::make_unique<::physical::PhysicalOpr>();
+  auto oprPB = std::make_unique<::physical::PhysicalOpr_Operator>();
+  oprPB->set_allocated_project(projectPB.release());
+  physicalPB->set_allocated_opr(oprPB.release());
+  plan->mutable_plan()->AddAllocated(physicalPB.release());
+}
+
+void GQueryConvertor::convertUnion(const planner::LogicalUnion& unionOp,
+                                   ::physical::QueryPlan* plan) {
+  if (unionOp.getNumChildren() == 0) {
+    THROW_EXCEPTION_WITH_FILE_LINE(
+        "Union operator should have at least one sub query");
+  }
+  size_t subQueryOffset = 0;
+  if (unionOp.getPreQuery()) {
+    if (unionOp.getNumChildren() == 1) {
+      THROW_EXCEPTION_WITH_FILE_LINE(
+          "Union operator should have at least one sub query");
+    }
+    auto preQuery = unionOp.getChild(0);
+    convertOperator(*preQuery, plan);
+    ++subQueryOffset;
+  }
+  auto unionPB = std::make_unique<::physical::Union>();
+  for (auto pos = subQueryOffset; pos < unionOp.getNumChildren(); ++pos) {
+    auto subquery = unionOp.getChild(pos);
+    auto subQueryPlan = std::make_unique<::physical::QueryPlan>();
+    convertOperator(*subquery, subQueryPlan.get());
+    auto subPhysicalPlan = std::make_unique<::physical::PhysicalPlan>();
+    subPhysicalPlan->set_allocated_query_plan(subQueryPlan.release());
+    unionPB->mutable_sub_plans()->AddAllocated(subPhysicalPlan.release());
+  }
+  auto physicalPB = std::make_unique<::physical::PhysicalOpr>();
+  auto oprPB = std::make_unique<::physical::PhysicalOpr_Operator>();
+  oprPB->set_allocated_union_(unionPB.release());
   physicalPB->set_allocated_opr(oprPB.release());
   plan->mutable_plan()->AddAllocated(physicalPB.release());
 }

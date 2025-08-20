@@ -1,6 +1,10 @@
 #include "neug/compiler/planner/join_order/join_plan_solver.h"
+#include <memory>
 
+#include "binder/expression/expression.h"
 #include "neug/compiler/common/enums/extend_direction.h"
+#include "planner/join_order/join_tree.h"
+#include "planner/operator/logical_plan.h"
 
 using namespace gs::binder;
 using namespace gs::common;
@@ -27,6 +31,9 @@ LogicalPlan JoinPlanSolver::solveTreeNode(const JoinTreeNode& current,
   }
   case TreeNodeType::MULTIWAY_JOIN: {
     return solveMultiwayJoinTreeNode(current);
+  }
+  case TreeNodeType::GET_V: {
+    return solveGetVTreeNode(current);
   }
   default:
     KU_UNREACHABLE;
@@ -76,6 +83,27 @@ LogicalPlan JoinPlanSolver::solveNodeScanTreeNode(
   return plan;
 }
 
+LogicalPlan JoinPlanSolver::solveGetVTreeNode(const JoinTreeNode& treeNode) {
+  auto leftExpand = solveTreeNode(*treeNode.children[0], &treeNode);
+  auto extraInfo = treeNode.extraInfo->constCast<ExtraScanTreeNodeInfo>();
+  auto joinNodes = extraInfo.joinNodes;
+  if (joinNodes.empty()) {
+    THROW_EXCEPTION_WITH_FILE_LINE(
+        "join nodes between expandE and getV should not be empty");
+  }
+  auto rightGetV = solveNodeScanTreeNode(treeNode);
+  expression_vector joinNodeIDs;
+  for (auto& joinNode : joinNodes) {
+    joinNodeIDs.push_back(joinNode->getInternalID());
+  }
+  auto getVPlan = planner->planGetV(leftExpand.shallowCopy(),
+                                    rightGetV.shallowCopy(), joinNodeIDs);
+  LogicalPlan resultPlan;
+  resultPlan.setLastOperator(getVPlan->getLastOperator());
+  resultPlan.setCost(getVPlan->getCost());
+  return resultPlan;
+}
+
 LogicalPlan JoinPlanSolver::solveRelScanTreeNode(const JoinTreeNode& treeNode,
                                                  const JoinTreeNode& parent) {
   auto& extraInfo = treeNode.extraInfo->constCast<ExtraScanTreeNodeInfo>();
@@ -97,6 +125,12 @@ LogicalPlan JoinPlanSolver::solveRelScanTreeNode(const JoinTreeNode& treeNode,
     auto& joinExtraInfo = parent.extraInfo->constCast<ExtraJoinTreeNodeInfo>();
     KU_ASSERT(joinExtraInfo.joinNodes.size() == 1);
     nbrNode = joinExtraInfo.joinNodes[0];
+    boundNode = getOtherNode(*rel, *nbrNode);
+  } break;
+  case TreeNodeType::GET_V: {
+    auto& getVExtraInfo = parent.extraInfo->constCast<ExtraScanTreeNodeInfo>();
+    KU_ASSERT(getVExtraInfo.joinNodes.size() == 1);
+    nbrNode = getVExtraInfo.joinNodes[0];
     boundNode = getOtherNode(*rel, *nbrNode);
   } break;
   default:

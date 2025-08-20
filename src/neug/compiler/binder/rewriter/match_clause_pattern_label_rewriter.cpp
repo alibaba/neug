@@ -22,7 +22,7 @@
 
 #include "neug/compiler/binder/rewriter/match_clause_pattern_label_rewriter.h"
 
-#include "neug/compiler/binder/query/reading_clause/bound_match_clause.h"
+#include "binder/query/bound_regular_query.h"
 
 using namespace gs::common;
 
@@ -38,6 +38,22 @@ void MatchClausePatternLabelRewriter::visitMatchUnsafe(
   auto collection = matchClause.getQueryGraphCollectionUnsafe();
   for (auto i = 0u; i < collection->getNumQueryGraphs(); ++i) {
     analyzer.pruneLabel(*collection->getQueryGraphUnsafe(i));
+  }
+}
+
+void MatchClausePatternLabelRewriter::visitRegularQueryUnsafe(
+    BoundStatement& statement) {
+  auto& regularQuery = common::ku_dynamic_cast<BoundRegularQuery&>(statement);
+  auto preQueryPart = regularQuery.getPreQueryPartUnsafe();
+  for (auto part : preQueryPart) {
+    visitQueryPartUnsafe(*part);
+  }
+  for (auto i = 0u; i < regularQuery.getNumSingleQueries(); ++i) {
+    visitSingleQueryUnsafe(*regularQuery.getSingleQueryUnsafe(i));
+  }
+  auto postSingleQuery = regularQuery.getPostSingleQueryUnsafe();
+  if (postSingleQuery) {
+    visitSingleQueryUnsafe(*postSingleQuery);
   }
 }
 

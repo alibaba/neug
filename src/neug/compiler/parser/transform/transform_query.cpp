@@ -20,8 +20,15 @@
  * Zhou Xiaoli in 2025 to support Neug-specific features.
  */
 
+#include <cypher_parser.h>
+#include <memory>
+#include <vector>
+#include "antlr4_cypher/include/cypher_parser.h"
+#include "common/assert.h"
+#include "neug/compiler/parser/expression/parsed_expression.h"
 #include "neug/compiler/parser/query/regular_query.h"
 #include "neug/compiler/parser/transformer.h"
+#include "parser/query/query_part.h"
 
 namespace gs {
 namespace parser {
@@ -31,8 +38,52 @@ std::unique_ptr<Statement> Transformer::transformQuery(
   return transformRegularQuery(*ctx.oC_RegularQuery());
 }
 
+std::vector<std::unique_ptr<ParsedExpression>> Transformer::transformCallScope(
+    CypherParser::OC_CallUnionScopeContext& scope) {
+  std::vector<std::unique_ptr<ParsedExpression>> preQueryExprs;
+  for (auto expr : scope.oC_Expression()) {
+    preQueryExprs.emplace_back(std::move(transformExpression(*expr)));
+  }
+  return std::move(preQueryExprs);
+}
+
+std::unique_ptr<Statement> Transformer::transformCallUnionQuery(
+    CypherParser::OC_CallUnionQueryContext& ctx) {
+  KU_ASSERT(ctx.oC_CallUnion());
+  auto oC_CallUnion = ctx.oC_CallUnion();
+  auto regularQuery = std::make_unique<RegularQuery>(
+      transformSingleQuery(*oC_CallUnion->oC_SingleQuery()));
+  for (auto unionClause : oC_CallUnion->oC_Union()) {
+    regularQuery->addSingleQuery(
+        transformSingleQuery(*unionClause->oC_SingleQuery()),
+        unionClause->ALL());
+  }
+  std::vector<QueryPart> preQueryParts;
+  for (auto part : ctx.kU_QueryPart()) {
+    preQueryParts.emplace_back(std::move(transformQueryPart(*part)));
+  }
+  if (!preQueryParts.empty()) {
+    regularQuery->setPreQueryPart(std::move(preQueryParts));
+  }
+  if (oC_CallUnion->oC_CallUnionScope()) {
+    std::vector<std::unique_ptr<ParsedExpression>> preQueryExprs =
+        std::move(transformCallScope(*oC_CallUnion->oC_CallUnionScope()));
+    if (!preQueryExprs.empty()) {
+      regularQuery->setPreQueryExpressions(std::move(preQueryExprs));
+    }
+  }
+  if (ctx.oC_SingleQuery()) {
+    regularQuery->setPostSingleQuery(
+        transformSingleQuery(*ctx.oC_SingleQuery()));
+  }
+  return regularQuery;
+}
+
 std::unique_ptr<Statement> Transformer::transformRegularQuery(
     CypherParser::OC_RegularQueryContext& ctx) {
+  if (ctx.oC_CallUnionQuery()) {
+    return transformCallUnionQuery(*ctx.oC_CallUnionQuery());
+  }
   auto regularQuery = std::make_unique<RegularQuery>(
       transformSingleQuery(*ctx.oC_SingleQuery()));
   for (auto unionClause : ctx.oC_Union()) {

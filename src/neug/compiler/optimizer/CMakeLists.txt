@@ -16,7 +16,9 @@ add_library(neug_optimizer
         top_k_optimizer.cpp
         limit_push_down_optimizer.cpp
 	expand_getv_fusion.cpp
-	filter_push_down_pattern.cpp)
+	filter_push_down_pattern.cpp
+        flat_join_to_expand_optimizer.cpp
+        union_alias_map_optimizer.cpp)
 
 set(ALL_OBJECT_FILES
         ${ALL_OBJECT_FILES} $<TARGET_OBJECTS:neug_optimizer>

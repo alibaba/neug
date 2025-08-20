@@ -365,5 +365,15 @@ TEST_F(ExprTest, ARRAY_FUNC_VAR) {
       *physical, getExprResource("ARRAY_FUNC_VAR_physical"));
 }
 
+TEST_F(ExprTest, ORDER_BY_A) {
+  std::string query =
+      "MATCH (a:person)-[:knows]->(b:person) return a.age, COUNT(b) as c ORDER "
+      "BY a.age";
+  auto logical = planLogical(query, schemaData, statsData, rules);
+  auto physical = planPhysical(*logical);
+  VerifyFactory::verifyPhysicalByJson(*physical,
+                                      getExprResource("ORDER_BY_A_physical"));
+}
+
 }  // namespace gopt
 }  // namespace gs

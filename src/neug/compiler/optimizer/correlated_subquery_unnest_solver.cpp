@@ -62,14 +62,16 @@ void CorrelatedSubqueryUnnestSolver::solveAccHashJoin(
 
 void CorrelatedSubqueryUnnestSolver::visitExpressionsScan(LogicalOperator* op) {
   auto expressionsScan = op->ptrCast<LogicalExpressionsScan>();
-  // LCOV_EXCL_START
-  if (accumulateOp == nullptr) {
-    THROW_INTERNAL_EXCEPTION(
-        "Failed to execute CorrelatedSubqueryUnnestSolver. This should not "
-        "happen.");
+  // // LCOV_EXCL_START
+  // if (accumulateOp == nullptr) {
+  //   THROW_INTERNAL_EXCEPTION(
+  //       "Failed to execute CorrelatedSubqueryUnnestSolver. This should not "
+  //       "happen.");
+  // }
+  // // LCOV_EXCL_STOP
+  if (accumulateOp) {
+    expressionsScan->setOuterAccumulate(accumulateOp);
   }
-  // LCOV_EXCL_STOP
-  expressionsScan->setOuterAccumulate(accumulateOp);
 }
 
 }  // namespace optimizer

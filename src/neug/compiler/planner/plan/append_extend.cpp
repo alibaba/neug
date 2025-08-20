@@ -97,11 +97,6 @@ void Planner::appendNonRecursiveExtend(
   auto group = extend->getSchema()->getGroup(nbrNode->getInternalID());
   group->setMultiplier(extensionRate);
   plan.setLastOperator(std::move(extend));
-  auto nbrNodeTableIDSet = getNbrNodeTableIDSet(*rel, direction);
-  if (nbrNodeTableIDSet.size() > nbrNode->getNumEntries()) {
-    appendNodeLabelFilter(nbrNode->getInternalID(), nbrNode->getTableIDsSet(),
-                          plan);
-  }
 }
 
 void Planner::appendRecursiveExtend(

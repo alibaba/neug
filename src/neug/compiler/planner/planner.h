@@ -33,6 +33,7 @@ enum class SubqueryPlanningType : uint8_t {
   NONE = 0,
   UNNEST_CORRELATED = 1,
   CORRELATED = 2,
+  COMMON_PAT_REUSE = 3,
 };
 
 struct QueryGraphPlanningInfo {
@@ -455,7 +456,7 @@ class KUZU_API Planner {
       const binder::SubqueryGraph& rightPrev, const binder::SubqueryGraph& new_,
       const binder::expression_vector& exprs);
 
- private:
+ public:
   void planGetV(
       const binder::SubqueryGraph& subgraph,
       const binder::SubqueryGraph& otherSubgraph,
@@ -464,6 +465,8 @@ class KUZU_API Planner {
       std::unique_ptr<LogicalPlan> leftPlan,
       std::unique_ptr<LogicalPlan> rightPlan,
       const binder::expression_vector& joinNodeIDs);
+
+ private:
   std::shared_ptr<planner::LogicalOperator> extractExtend(
       std::shared_ptr<LogicalOperator> top);
   std::shared_ptr<planner::LogicalOperator> extractGetV(
@@ -483,6 +486,7 @@ class KUZU_API Planner {
   PropertyExprCollection propertyExprCollection;
   CardinalityEstimator cardinalityEstimator;
   JoinOrderEnumeratorContext context;
+  std::unique_ptr<LogicalPlan> preQueryPlan;
 };
 
 }  // namespace planner

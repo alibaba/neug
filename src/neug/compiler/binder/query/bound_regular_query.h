@@ -22,6 +22,11 @@
 
 #pragma once
 
+#include <optional>
+#include <utility>
+#include <vector>
+#include "binder/expression/expression.h"
+#include "binder/query/normalized_query_part.h"
 #include "neug/compiler/binder/bound_statement.h"
 #include "normalized_single_query.h"
 
@@ -49,9 +54,50 @@ class BoundRegularQuery final : public BoundStatement {
 
   bool getIsUnionAll(common::idx_t idx) const { return isUnionAll[idx]; }
 
+  void setPreQueryPart(std::vector<NormalizedQueryPart> preQueryParts) {
+    this->preQueryPart = std::move(preQueryParts);
+  }
+  void setPostSingleQuery(NormalizedSingleQuery postSingleQuery) {
+    this->postSingleQuery = std::move(postSingleQuery);
+  }
+
+  void setPreQueryExprs(binder::expression_vector preQueryExprs) {
+    this->preQueryExprs = std::move(preQueryExprs);
+  }
+
+  const binder::expression_vector& getPreQueryExprs() const {
+    return this->preQueryExprs;
+  }
+
+  const std::vector<NormalizedQueryPart>& getPreQueryPart() const {
+    return this->preQueryPart;
+  }
+
+  std::vector<NormalizedQueryPart*> getPreQueryPartUnsafe() {
+    std::vector<NormalizedQueryPart*> queries;
+    for (auto& part : this->preQueryPart) {
+      queries.push_back(&part);
+    }
+    return queries;
+  }
+
+  const NormalizedSingleQuery* getPostSingleQuery() const {
+    return postSingleQuery ? &*postSingleQuery : nullptr;
+  }
+
+  NormalizedSingleQuery* getPostSingleQueryUnsafe() {
+    return postSingleQuery ? &*postSingleQuery : nullptr;
+  }
+
+  void setCommonPatReuse(bool commonPatResuse) {}
+
  private:
   std::vector<NormalizedSingleQuery> singleQueries;
   std::vector<bool> isUnionAll;
+
+  binder::expression_vector preQueryExprs;
+  std::vector<NormalizedQueryPart> preQueryPart;
+  std::optional<NormalizedSingleQuery> postSingleQuery;
 };
 
 }  // namespace binder

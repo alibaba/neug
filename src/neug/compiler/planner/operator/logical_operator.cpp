@@ -109,6 +109,8 @@ std::string LogicalOperatorUtils::logicalOperatorTypeToString(
     return "CREATE_TYPE";
   case gs::planner::LogicalOperatorType::GET_V:
     return "GET_V";
+  case gs::planner::LogicalOperatorType::ALIAS_MAP:
+    return "ALIAS_MAP";
   default:
     THROW_RUNTIME_ERROR("Unknown logical operator type.");
   }
