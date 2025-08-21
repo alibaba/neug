@@ -1231,3 +1231,37 @@ def test_create_edge_with_prop_on_both_end():
         RETURN k.id
         """
     )
+
+
+def test_copy_from():
+    db_dir = "/tmp/test_copy_from"
+    shutil.rmtree(db_dir, ignore_errors=True)
+    db = Database(db_path=db_dir, mode="w")
+    conn = db.connect()
+    # prepare file
+    file = db_dir + "/test_data.csv"
+    with open(file, "w") as f:
+        f.write('"id","entity","entity_type"\n')
+        f.write('1,"-1-10000","属性"\n')
+        f.write('2,"-180°-180°","场景"\n')
+        f.write('3,"-180°-180°","属性"\n')
+        f.write('4,"0","属性"\n')
+        f.write('5,"0-1","场景"\n')
+        f.write('6,"0-1","属性"\n')
+        f.write('7,"0-10","属性"\n')
+        f.write('8,"0-100","属性"\n')
+        f.write('9,"0-1000","属性"\n')
+        f.write('10,"0-1000000","属性"\n')
+        f.close()
+
+    conn.execute(
+        """
+        CREATE NODE TABLE Entity(
+            id STRING,
+            entity STRING,
+            entity_type STRING,
+            PRIMARY KEY(id)
+        )
+    """
+    )
+    conn.execute(f"COPY Entity FROM '{file}' (HEADER TRUE, DELIMITER=',')")
