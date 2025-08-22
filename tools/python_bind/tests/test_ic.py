@@ -73,12 +73,11 @@ class TestICBench(unittest.TestCase):
         # )
 
         # test LENGTH
-        # todo(engine): Incorrect result, it seems the engine returns a random int64 value.
-        # result = self.conn.execute(
-        #     "Match (n:PERSON {id: 933})-[k:KNOWS*1..3]->(m) Return LENGTH(k) as len Order by len Limit 1"
-        # )
-        # for record in result:
-        #     assert record[0] == 1, f"Expected value 1, got {record[0]}"
+        result = self.conn.execute(
+            "Match (n:PERSON {id: 933})-[k:KNOWS*1..3]->(m) Return LENGTH(k) as len Order by len Limit 1"
+        )
+        for record in result:
+            assert record[0] == 1, f"Expected value 1, got {record[0]}"
 
         # test undirected and unweighted shortest path
         # todo(engine): Error thrown

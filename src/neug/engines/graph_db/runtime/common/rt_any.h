@@ -182,7 +182,7 @@ class Path {
 
   std::string to_string() const { return impl_->to_string(); }
 
-  int32_t len() const { return impl_->path_.size(); }
+  int64_t len() const { return impl_->path_.size(); }
   VertexRecord get_end() const { return impl_->get_end(); }
 
   std::vector<Relation> relationships() const {

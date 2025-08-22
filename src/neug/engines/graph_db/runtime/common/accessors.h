@@ -691,7 +691,7 @@ class PathIdPathAccessor : public IAccessor {
 
 class PathLenPathAccessor : public IAccessor {
  public:
-  using elem_t = int32_t;
+  using elem_t = int64_t;
   PathLenPathAccessor(const Context& ctx, int tag)
       : path_col_(*std::dynamic_pointer_cast<IPathColumn>(ctx.get(tag))) {}
 
@@ -700,7 +700,7 @@ class PathLenPathAccessor : public IAccessor {
   }
 
   RTAny eval_path(size_t idx) const override {
-    return RTAny(static_cast<int32_t>(typed_eval_path(idx)));
+    return RTAny(static_cast<int64_t>(typed_eval_path(idx)));
   }
 
  private:
