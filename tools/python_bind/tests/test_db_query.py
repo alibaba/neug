@@ -1265,3 +1265,17 @@ def test_copy_from():
     """
     )
     conn.execute(f"COPY Entity FROM '{file}' (HEADER TRUE, DELIMITER=',')")
+
+
+def test_tinysnb_path_expand():
+    db_dir = "/tmp/tinysnb"
+    db = Database(db_path=db_dir, mode="r")
+    conn = db.connect()
+    result = conn.execute(
+        """
+        MATCH (n:Person)-[:Meets*1..2]->(m:Person) return count(*);
+        """
+    )
+    records = list(result)
+    assert len(records) == 1
+    assert records[0][0] == 13
