@@ -60,8 +60,9 @@ std::vector<std::unique_ptr<LogicalPlan>> Planner::planQuery(
     for (auto& part : regularQuery.getPreQueryPart()) {
       preQueryPlans = planQueryPart(&part, std::move(preQueryPlans));
     }
+    bool preQueryPart = !regularQuery.getPreQueryPart().empty();
 
-    if (!preQueryPlans.empty()) {
+    if (preQueryPart) {
       this->preQueryPlan = std::move(preQueryPlans.at(0)->shallowCopy());
     }
 
@@ -79,7 +80,7 @@ std::vector<std::unique_ptr<LogicalPlan>> Planner::planQuery(
       resultPlans.push_back(
           createUnionPlan(childrenPlan, regularQuery.getIsUnionAll(0)));
     }
-    if (!preQueryPlans.empty()) {
+    if (preQueryPart) {
       std::vector<std::unique_ptr<LogicalPlan>> cartesianProductPrePlans;
       for (auto& preQueryPlan : preQueryPlans) {
         for (auto& resultPlan : resultPlans) {

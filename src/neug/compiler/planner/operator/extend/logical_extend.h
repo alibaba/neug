@@ -86,7 +86,10 @@ class LogicalExtend final : public BaseLogicalExtend {
     auto base = BaseLogicalExtend::getExpressionsForPrinting();
     base += " Cardinality: " + std::to_string(cardinality);
     if (predicates) {
-      return base + " WHERE " + predicates->toString();
+      base += " WHERE " + predicates->toString();
+    }
+    if (optional) {
+      base += " OPTIONAL";
     }
     return base;
   }

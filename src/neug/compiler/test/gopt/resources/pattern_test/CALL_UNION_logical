@@ -1,0 +1,16 @@
+PROJECTION[friend.id,friend.name]
+UNION_ALL[]
+CHILD:
+    PROJECTION[person]
+    SCAN_NODE_TABLE[person._ID  PK_SCAN(123)Type: INTERNAL_ID Cardinality: 1]
+CHILD:
+    PROJECTION[friend]
+    GET_V[GET_V() Cardinality: 1]
+    EXTEND[person-kknows,->friend Cardinality: 1 WHERE GREATER_THAN(k.weight,1.000000)]
+    EXPRESSIONS_SCAN[person._ID]
+CHILD:
+    ALIAS_MAP[]
+    PROJECTION[friend]
+    GET_V[GET_V() Cardinality: 1]
+    EXTEND[person-kknows,->friend Cardinality: 1 WHERE LESS_THAN(k.weight,1.000000)]
+    EXPRESSIONS_SCAN[person._ID]

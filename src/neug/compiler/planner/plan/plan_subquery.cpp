@@ -39,22 +39,6 @@ expression_vector Planner::getCorrelatedExprs(
     if (outerSchema->isExpressionInScope(*node->getInternalID())) {
       result.push_back(node->getInternalID());
     }
-    // for query `MATCH (a:person) WHERE a.gender = 1 WITH a AS k MATCH
-    // (k)-[e:knows]->(b:person)`, `with a` will project a pattern expression of
-    // the query node, but its schema does not contain the internal ID. the
-    // following code is to handle this case and identify the join node by
-    // comparing internal ID directly.
-    for (auto& exprScope : outerSchema->getExpressionsInScope()) {
-      if (exprScope->expressionType == common::ExpressionType::PATTERN &&
-          exprScope->getDataType().getLogicalTypeID() ==
-              common::LogicalTypeID::NODE) {
-        auto nodeScope = exprScope->ptrCast<NodeExpression>();
-        if (nodeScope->getInternalID()->getUniqueName() ==
-            node->getInternalID()->getUniqueName()) {
-          result.push_back(node->getInternalID());
-        }
-      }
-    }
   }
   return ExpressionUtil::removeDuplication(result);
 }

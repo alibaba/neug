@@ -276,10 +276,10 @@ void Planner::planCorrelatedExpressionsScan(
   auto plan = std::make_unique<LogicalPlan>();
   appendExpressionsScan(corrExprs, *plan);
   plan->getLastOperator()->setCardinality(info.corrExprsCard);
-  auto predicates =
-      getNewlyMatchedExprs(context.getEmptySubqueryGraph(), newSubgraph,
-                           context.getWhereExpressions());
-  appendFilters(predicates, *plan);
+  // auto predicates =
+  //     getNewlyMatchedExprs(context.getEmptySubqueryGraph(), newSubgraph,
+  //                          context.getWhereExpressions());
+  // appendFilters(predicates, *plan);
   // appendDistinct(corrExprs, *plan);
   context.addPlan(newSubgraph, std::move(plan));
 }

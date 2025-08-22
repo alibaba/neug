@@ -53,10 +53,9 @@ void Planner::planMatchClause(
         info.corrExprs = joinNodeIDs;
         info.subqueryType = SubqueryPlanningType::COMMON_PAT_REUSE;
         info.corrExprsCard = this->preQueryPlan->getCardinality();
-      } else {
-        info.predicates = predicates;
-        info.hint = boundMatchClause.getHint();
       }
+      info.predicates = predicates;
+      info.hint = boundMatchClause.getHint();
       plans = enumerateQueryGraphCollection(*queryGraphCollection, info);
     } else {
       for (auto& plan : plans) {

@@ -1,5 +1,8 @@
 #include "neug/compiler/planner/operator/schema.h"
 
+#include "binder/expression/node_expression.h"
+#include "common/enums/expression_type.h"
+#include "common/types/types.h"
 #include "neug/compiler/binder/expression_visitor.h"
 #include "neug/utils/exception/exception.h"
 
@@ -68,6 +71,22 @@ bool Schema::isExpressionInScope(const Expression& expression) const {
   for (auto& expressionInScope : expressionsInScope) {
     if (expressionInScope->getUniqueName() == expression.getUniqueName()) {
       return true;
+    }
+    // for query `MATCH (a:person) WHERE a.gender = 1 WITH a AS k MATCH
+    // (k)-[e:knows]->(b:person)`, `with a` will project a pattern expression of
+    // the query node, but its schema does not contain the internal ID. the
+    // following code is to handle this case and identify the join node by
+    // comparing internal ID directly.
+    if (expressionInScope->expressionType == common::ExpressionType::PATTERN &&
+        expressionInScope->getDataType().getLogicalTypeID() ==
+            common::LogicalTypeID::NODE &&
+        expression.getDataType().getLogicalTypeID() ==
+            common::LogicalTypeID::INTERNAL_ID) {
+      auto nodeScope = expressionInScope->constPtrCast<NodeExpression>();
+      if (nodeScope->getInternalID()->getUniqueName() ==
+          expression.getUniqueName()) {
+        return true;
+      }
     }
   }
   return false;

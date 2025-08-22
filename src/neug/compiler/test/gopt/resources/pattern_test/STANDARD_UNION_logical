@@ -1,0 +1,8 @@
+UNION_ALL[]
+CHILD:
+    PROJECTION[n.age]
+    SCAN_NODE_TABLE[n._ID n.age,n.nameType: INTERNAL_ID Predicates: EQUALS(n.name,marko) Cardinality: 6]
+CHILD:
+    ALIAS_MAP[]
+    PROJECTION[n.age]
+    SCAN_NODE_TABLE[n._ID n.age,n.nameType: INTERNAL_ID Predicates: EQUALS(n.name,josh) Cardinality: 6]

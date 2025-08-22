@@ -1,0 +1,4 @@
+PROJECTION[f]
+EXTEND[n-knows,->f Cardinality: 2 OPTIONAL]
+PROJECTION[n]
+SCAN_NODE_TABLE[n._ID n.age,n._LABEL,n.id,n.nameType: INTERNAL_ID Predicates: EQUALS(n.name,marko) Cardinality: 3]
