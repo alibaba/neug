@@ -4,3 +4,4 @@ packaging>=24.2
 protobuf==4.25
 setuptools
 requests
+tqdm

@@ -58,6 +58,21 @@ class Connection(object):
         self._py_connection = py_connection
         self._is_open = True
 
+    def __enter__(self):
+        """
+        Enter the connection context. This method is called when the connection is used in a `with` statement.
+        It returns self, so that the connection can be used in the `with` statement.
+        """
+        return self
+
+    def __exit__(self, exc_type, exc_value, traceback):
+        """
+        Exit the connection context. This method is called when the `with` statement is exited.
+        It closes the connection if it is still open.
+        """
+        if self._is_open:
+            self.close()
+
     @property
     def is_open(self) -> bool:
         """

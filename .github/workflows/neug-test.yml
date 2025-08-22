@@ -172,6 +172,7 @@ jobs:
         cd ${GITHUB_WORKSPACE}/tools/python_bind/
         # ddl & dml & query tests
         python3 -m pytest -sv tests/test_db_query.py
+        python3 -m pytest -sv tests/test_dataset.py
 
     - name: Run Transaction Test
       run: |

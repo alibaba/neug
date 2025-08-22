@@ -488,7 +488,9 @@ void to_arrow_csv_options(
   if (csv_options.find(CSV_QUOTE_KEY) != csv_options.end()) {
     if (csv_options.at(CSV_QUOTE_KEY).size() == 1) {
       parse_options.quoting = true;
+      parse_options.double_quote = false;
       parse_options.quote_char = csv_options.at(CSV_QUOTE_KEY)[0];
+      VLOG(10) << "Using CSV quote char: " << csv_options.at(CSV_QUOTE_KEY)[0];
     } else {
       LOG(ERROR) << "Invalid quote char: " << csv_options.at(CSV_QUOTE_KEY);
       parse_options.quoting = false;

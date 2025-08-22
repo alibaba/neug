@@ -370,3 +370,64 @@ class Database(object):
         logger.info(f"Using planner config file: {config_path}")
         # convert to string
         return str(config_path)
+
+    def load_builtin_dataset(self, dataset_name: str) -> None:
+        """
+        Load a builtin dataset into this database. If the database is in read-only mode, this method will raise an error.
+        If the schema of the dataset conflicts with the existing schema of the database, this method will raise an error.
+
+        Parameters
+        ----------
+        dataset_name : str
+            Name of the builtin dataset to load
+
+        Raises
+        ------
+        RuntimeError
+            If the database is closed or in read-only mode
+        ValueError
+            If the dataset doesn't exist
+        """
+        if not self._database:
+            raise RuntimeError("Database is closed.")
+
+        if self.mode in ["r", "read", "read-only", "read_only"]:
+            raise RuntimeError("Cannot load dataset into read-only database.")
+
+        from neug.datasets.loader import DatasetLoader
+
+        logger.info(f"Loading builtin dataset '{dataset_name}' into database")
+
+        loader = DatasetLoader()
+        conn = self.connect()
+        try:
+            loader._load_dataset_into_connection(dataset_name, conn)
+            logger.info(f"Successfully loaded dataset '{dataset_name}'")
+        finally:
+            conn.close()
+
+    @staticmethod
+    def from_builtin_dataset(
+        dataset_name: str, database_path: str = None, mode: str = "read-write"
+    ):
+        """
+        Create a Database instance from a builtin dataset.
+
+        Parameters
+        ----------
+        dataset_name : str
+            The name of the builtin dataset to use.
+        database_path : str
+            The path to the database file. If None, the database will be opened in memory mode.
+        mode : str
+            The mode to open the database, could be 'r', 'read', 'w', 'rw', 'write', 'readwrite'.
+            Default is 'read-write'.
+
+        Returns
+        -------
+        Database
+            A Database instance with the builtin dataset loaded.
+        """
+        from neug.datasets.loader import load_dataset
+
+        return load_dataset(dataset_name, database_path, mode)

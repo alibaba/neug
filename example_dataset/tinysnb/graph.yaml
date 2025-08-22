@@ -12,7 +12,7 @@ schema:
         - property_id: 0
           property_name: ID
           property_type:
-            primitive_type: DT_SIGNED_INT64
+            primitive_type: DT_SIGNED_INT32
         - property_id: 1
           property_name: fName
           property_type:
@@ -33,7 +33,7 @@ schema:
         - property_id: 5
           property_name: age
           property_type:
-            primitive_type: DT_SIGNED_INT64
+            primitive_type: DT_SIGNED_INT32
         - property_id: 6
           property_name: eyeSight
           property_type:
@@ -97,7 +97,7 @@ schema:
         - property_id: 0
           property_name: ID
           property_type:
-            primitive_type: DT_SIGNED_INT64
+            primitive_type: DT_SIGNED_INT32
         - property_id: 1
           property_name: name
           property_type:
@@ -106,7 +106,7 @@ schema:
         - property_id: 2
           property_name: orgCode
           property_type:
-            primitive_type: DT_SIGNED_INT64
+            primitive_type: DT_SIGNED_INT32
         - property_id: 3
           property_name: mark
           property_type:
@@ -114,7 +114,7 @@ schema:
         - property_id: 4
           property_name: score
           property_type:
-            primitive_type: DT_SIGNED_INT64
+            primitive_type: DT_SIGNED_INT32
         - property_id: 5
           property_name: history
           property_type:
@@ -123,8 +123,8 @@ schema:
         - property_id: 6
           property_name: licenseValidInterval
           property_type:
-            string:
-              long_text:
+            temporal:
+              interval: 
         - property_id: 7
           property_name: rating
           property_type:
@@ -240,7 +240,7 @@ schema:
         - property_id: 0
           property_name: year
           property_type:
-            primitive_type: DT_SIGNED_INT64
+            primitive_type: DT_SIGNED_INT32
         - property_id: 1
           property_name: places
           property_type:
@@ -286,7 +286,7 @@ schema:
         - property_id: 0
           property_name: year
           property_type:
-            primitive_type: DT_SIGNED_INT64
+            primitive_type: DT_SIGNED_INT32
         - property_id: 1
           property_name: grading
           property_type:

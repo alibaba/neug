@@ -1174,6 +1174,16 @@ def test_return_literal():
     assert res[1] == [2, "person"]  # Assuming there are at
 
 
+def test_count():
+    db_dir = "/tmp/tinysnb"
+    db = Database(db_path=str(db_dir), mode="r")
+    conn = db.connect()
+    res = conn.execute("MATCH (n) RETURN count(n)")
+    assert res is not None
+    assert len(res) == 1
+    assert res[0][0] == 14
+
+
 def test_list_return_basic(tmp_path):
     """Test basic list return functionality: RETURN [p.name, p.value]"""
     db_dir = tmp_path / "list_return_basic"

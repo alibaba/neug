@@ -172,6 +172,9 @@ bool temporal_type_to_property_type(const common::Temporal& temporal_type,
     // TODO: Parse format
     out_type = PropertyType::Date();
     break;
+  case common::Temporal::kInterval:
+    out_type = PropertyType::Interval();
+    break;
   default:
     LOG(ERROR) << "Unknown temporal type: " << temporal_type.DebugString();
     return false;

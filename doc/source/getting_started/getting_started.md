@@ -224,6 +224,73 @@ db.close()
 ```
 
 
+### Using builtin dataset
+
+NeuG provides several builtin datasets that you can use to quickly get started with graph analysis, learning, or testing. These datasets are ready-to-use and require no setup.
+
+#### Available Datasets
+
+You can list all available builtin datasets:
+
+```python
+from neug.datasets import get_available_datasets
+
+# List all available datasets
+datasets = get_available_datasets()
+for dataset in datasets:
+    print(f"{dataset.name}: {dataset.description}")
+```
+
+Current available builtin datasets are
+- modern_graph
+
+#### Loading Builtin Datasets
+
+There are several ways to work with builtin datasets:
+
+**Method 1: Create a new database from a dataset**
+
+```python
+from neug import Database
+
+# Create a database directly from a builtin dataset
+db = Database.from_builtin_dataset(dataset_name="modern_graph")
+conn = db.connect()
+
+# Explore the loaded dataset
+result = conn.execute("MATCH (n) RETURN count(n) as node_count")
+print(f"Total nodes: {result.__next__()[0]}") # should be 6
+```
+
+**Method 2: Load dataset into an existing database**
+
+```python
+import neug
+
+# Create an empty database
+db = neug.Database("./my_analysis.db")
+
+# Load a builtin dataset into it
+db.load_builtin_dataset(dataset_name="modern_graph")
+```
+
+Note that when import a builtin dataset to an existing database, make sure there are no schema conflict, i.e. there are no vertices with label name `person` and `software`, no edges with label name `knows` and `created`.
+
+**Method 3: Using the convenience function**
+
+```python
+from neug.datasets.loader import load_dataset
+
+# Or load into a specific path
+db = load_dataset("modern_graph", "/tmp/modern_graph.db")
+
+conn = db.connect()
+# ... work with your dataset
+conn.close()
+db.close()
+```
+
+
 ## Next Steps
 
 Congratulations! You've learned the basics of NeuG. Here's what you can explore next:
