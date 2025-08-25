@@ -314,7 +314,7 @@ install_mimalloc() {
   pushd "${tempdir}" || exit
   git clone https://github.com/microsoft/mimalloc -b v2.0.6 --single-branch
   cd mimalloc
-  mkdir -p build && cd build
+  rm -rf build && mkdir build && cd build
   cmake .. -DCMAKE_BUILD_TYPE=Release \
     -DCMAKE_INSTALL_PREFIX="${install_prefix}" \
     -DCMAKE_POLICY_VERSION_MINIMUM=3.5
@@ -331,7 +331,7 @@ install_yaml_cpp() {
   pushd "${tempdir}" || exit
   git clone https://github.com/jbeder/yaml-cpp.git -b 0.8.0
   cd yaml-cpp
-  mkdir -p build && cd build
+  rm -rf build && mkdir build && cd build
   cmake .. -DYAML_BUILD_SHARED_LIBS=ON  -DCMAKE_INSTALL_PREFIX="${install_prefix}" -DCMAKE_POLICY_VERSION_MINIMUM=3.5
   make -j$(nproc)
   make install
@@ -449,7 +449,7 @@ install_rapidjson() {
   git clone https://github.com/Tencent/rapidjson.git -b master --single-branch
   pushd rapidjson || exit
   git checkout 24b5e7a8b27f42fa16b96fc70aade9106cf7102f
-  mkdir -p build && cd build
+  rm -rf build && mkdir build && cd build
   git submodule update --init
   cmake .. -DRAPIDJSON_BUILD_TESTS=OFF -DRAPIDJSON_BUILD_DOC=OFF -DRAPIDJSON_BUILD_EXAMPLES=OFF \
           -DCMAKE_INSTALL_PREFIX="${install_prefix}" -DCMAKE_BUILD_TYPE=Release \
@@ -469,7 +469,7 @@ install_leveldb() {
   git clone https://github.com/google/leveldb.git -b 1.23 --single-branch
   pushd leveldb || exit
   git submodule update --init
-  mkdir -p build && cd build
+  rm -rf build && mkdir build && cd build
   cmake .. -DCMAKE_INSTALL_PREFIX="${install_prefix}" \
           -DCMAKE_BUILD_TYPE=Release -DLEVELDB_BUILD_TESTS=OFF \
 	  -DLEVELDB_BUILD_BENCHMARKS=OFF -DCMAKE_CXX_FLAGS="-fPIC"
@@ -526,7 +526,7 @@ install_brpc() {
   # see https://github.com/apache/brpc/pull/2727
   sed -i '36i add_definitions(-DNO_PTHREAD_MUTEX_HOOK)' CMakeLists.txt
 
-  mkdir build && cd build && cmake .. -DWITH_DEBUG_SYMBOLS=OFF -DWITH_GLOG=ON -DCMAKE_INSTALL_PREFIX="${install_prefix}" -DBUILD_SHARED_LIBS=OFF -DCMAKE_POLICY_VERSION_MINIMUM=3.5 -DOPENSSL_ROOT_DIR="{install_prefix}"
+  rm -rf build && mkdir build && cd build && cmake .. -DWITH_DEBUG_SYMBOLS=OFF -DWITH_GLOG=ON -DCMAKE_INSTALL_PREFIX="${install_prefix}" -DBUILD_SHARED_LIBS=OFF -DCMAKE_POLICY_VERSION_MINIMUM=3.5 -DOPENSSL_ROOT_DIR="{install_prefix}"
   make -j$(nproc)
   info "building brpc complete"
   make install
@@ -535,8 +535,8 @@ install_brpc() {
   rm -rf "${tempdir:?}/${directory:?}" "${tempdir:?}/${file:?}"
 }
 
-INTERACTIVE_MACOS=("rapidjson" "xsimd")
-INTERACTIVE_UBUNTU=("rapidjson-dev" "libgoogle-glog-dev" "libgflags-dev" "libyaml-cpp-dev" "libprotobuf-dev" "libssl-dev" "libprotoc-dev" "libgflags-dev" "libleveldb-dev") # levedb for brpc
+INTERACTIVE_MACOS=("rapidjson" "xsimd", "cmake")
+INTERACTIVE_UBUNTU=("cmake" "rapidjson-dev" "libgoogle-glog-dev" "libgflags-dev" "libyaml-cpp-dev" "libprotobuf-dev" "libssl-dev" "libprotoc-dev" "libgflags-dev" "libleveldb-dev") # levedb for brpc
 
 install_neug_dependencies() {
   # dependencies package
