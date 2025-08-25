@@ -36,8 +36,14 @@ class ReadPipeline;
 class UpdatePipeline;
 
 class PlanParser {
- public:
+ private:
   PlanParser() { read_op_builders_.resize(64); }
+
+ public:
+  PlanParser(const PlanParser&) = delete;
+  PlanParser(PlanParser&&) = delete;
+  PlanParser& operator=(const PlanParser&) = delete;
+  PlanParser& operator=(PlanParser&&) = delete;
   ~PlanParser() = default;
 
   void init();

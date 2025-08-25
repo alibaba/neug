@@ -125,6 +125,7 @@ jobs:
       run: |
         cd ${GITHUB_WORKSPACE}/tools/python_bind/
         export MODERN_GRAPH_DATA_DIR=${GITHUB_WORKSPACE}/example_dataset/modern_graph
+        cd build/neug_py_bind
         ctest -R storage_test -V
 
     - name: Run Python Test

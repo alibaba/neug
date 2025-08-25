@@ -443,8 +443,7 @@ void GraphDB::initApps(
   app_factories_[Schema::BUILTIN_TVSP_PLUGIN_ID] =
       std::make_shared<ShortestPathAmongThreeFactory>();
 
-  auto& parser = gs::runtime::PlanParser::get();
-  parser.init();
+  gs::runtime::PlanParser::get().init();
   app_factories_[Schema::ADHOC_READ_PLUGIN_ID] =
       std::make_shared<CypherReadAppFactory>();
   app_factories_[Schema::ADHOC_UPDATE_PLUGIN_ID] =

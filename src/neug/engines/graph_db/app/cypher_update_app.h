@@ -36,7 +36,7 @@ class GraphDBSession;
 
 class CypherUpdateApp : public WriteAppBase {
  public:
-  CypherUpdateApp(const GraphDB& db) : db_(db) {}
+  CypherUpdateApp(const GraphDB& db) {}
 
   AppType type() const override { return AppType::kCypherAdhoc; }
 
@@ -81,7 +81,6 @@ class CypherUpdateApp : public WriteAppBase {
       GraphDBSession& graph, const physical::DropEdgeSchema& drop_edge_schema);
 
  private:
-  const GraphDB& db_;
   std::unordered_map<std::string, physical::PhysicalPlan> plan_cache_;
   std::unordered_map<std::string, runtime::InsertPipeline> pipeline_cache_;
   runtime::OprTimer timer_;

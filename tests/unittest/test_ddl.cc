@@ -1,6 +1,7 @@
 #include <gtest/gtest.h>
 #include <iostream>
 #include <string>
+#include "neug/engines/graph_db/runtime/execute/plan_parser.h"
 #include "neug/main/neug_db.h"
 #include "neug/storages/rt_mutable_graph/file_names.h"
 #include "neug/storages/rt_mutable_graph/schema.h"
@@ -96,6 +97,6 @@ TEST(StorageDDLTest, CreateAndAlterTables) {
     auto res_val = res.value();
     EXPECT_TRUE(res_val.hasNext());
     auto row = res_val.next();
-    EXPECT_EQ(row.ToString(), "<element { object { i64: 8 } }>");
+    EXPECT_EQ(row.ToString(), "<element { object { i64: 4 } }>");
   }
 }

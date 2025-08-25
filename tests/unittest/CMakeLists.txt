@@ -18,6 +18,7 @@ target_link_libraries(storage_test
     PRIVATE
     neug_rt_mutable_graph
     neug_graph_db
+    neug_main
     neug::GTest
     ${Protobuf_LIBRARIES}
 )
