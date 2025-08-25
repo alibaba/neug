@@ -1567,15 +1567,53 @@ static void sink_edge_data(const EdgeData& any, common::Value* value) {
 }
 
 template <typename GraphInterface>
-void sink_vertex(const GraphInterface& graph, const VertexRecord& vertex,
-                 results::Element* ele) {
+bool sink_edge(const GraphInterface& graph, const EdgeRecord& edge,
+               results::Edge* e) {
+  auto [label, src, dst, prop, dir] = edge;
+  if (src == std::numeric_limits<vid_t>::max() ||
+      dst == std::numeric_limits<vid_t>::max()) {
+    return false;
+  }
+  e->mutable_src_label()->set_name(
+      graph.schema().get_vertex_label_name(label.src_label));
+  e->mutable_dst_label()->set_name(
+      graph.schema().get_vertex_label_name(label.dst_label));
+  auto edge_label = generate_edge_label_id(label.src_label, label.dst_label,
+                                           label.edge_label);
+  e->mutable_label()->set_name(
+      graph.schema().get_edge_label_name(label.edge_label));
+  e->set_src_id(encode_unique_vertex_id(label.src_label, src));
+  e->set_dst_id(encode_unique_vertex_id(label.dst_label, dst));
+  e->set_id(encode_unique_edge_id(edge_label, src, dst));
+  auto& prop_names = graph.schema().get_edge_property_names(
+      label.src_label, label.dst_label, label.edge_label);
+  if (prop_names.size() == 1) {
+    auto props = e->add_properties();
+    props->mutable_key()->set_name(prop_names[0]);
+    sink_edge_data(prop, e->mutable_properties(0)->mutable_value());
+  } else if (prop_names.size() > 1) {
+    auto rv = prop.as<RecordView>();
+    if (rv.size() != prop_names.size()) {
+      LOG(FATAL) << "record view size not match with prop names" << rv.size()
+                 << " vs " << prop_names.size();
+    }
+    for (size_t i = 0; i < prop_names.size(); ++i) {
+      auto props = e->add_properties();
+      props->mutable_key()->set_name(prop_names[i]);
+      sink_any(rv[i], props->mutable_value());
+    }
+  }
+  return true;
+}
+
+template <typename GraphInterface>
+bool sink_vertex(const GraphInterface& graph, const VertexRecord& vertex,
+                 results::Vertex* v) {
   if (vertex.label_ >= graph.schema().vertex_label_num() ||
       vertex.vid_ == std::numeric_limits<vid_t>::max()) {
-    ele->mutable_object()->mutable_none();
-    return;
+    return false;
   }
-  auto v = ele->mutable_vertex();
-  // v->mutable_label()->set_id(vertex.label_);
+
   v->mutable_label()->set_name(
       graph.schema().get_vertex_label_name(vertex.label_));
   v->set_id(encode_unique_vertex_id(vertex.label_, vertex.vid_));
@@ -1598,6 +1636,7 @@ void sink_vertex(const GraphInterface& graph, const VertexRecord& vertex,
     sink_any(graph.GetVertexProperty(vertex.label_, vertex.vid_, i),
              prop->mutable_value());
   }
+  return true;
 }
 
 template void RTAny::sink(const GraphReadInterface& graph,
@@ -1612,9 +1651,37 @@ void RTAny::sink(const GraphInterface& graph, int id,
   col->mutable_name_or_id()->set_id(id);
   if (type_ == RTAnyType::kList) {
     auto collection = col->mutable_entry()->mutable_collection();
-    for (size_t i = 0; i < value_.list.size(); ++i) {
-      value_.list.get(i).sink_impl(
-          collection->add_collection()->mutable_object());
+    if (value_.list.elem_type() == RTAnyType::kVertex) {
+      auto ele = collection->add_collection()->mutable_vertex();
+      for (size_t i = 0; i < value_.list.size(); ++i) {
+        auto val = value_.list.get(i);
+        sink_vertex(graph, val.as_vertex(), ele);
+      }
+    } else if (value_.list.elem_type() == RTAnyType::kRelation) {
+      auto ele = collection->add_collection()->mutable_edge();
+      for (size_t i = 0; i < value_.list.size(); ++i) {
+        auto val = value_.list.get(i).as_relation();
+        auto label = val.label;
+        auto src = val.src;
+        auto dst = val.dst;
+        ele->mutable_src_label()->set_name(
+            graph.schema().get_vertex_label_name(label.src_label));
+        ele->mutable_dst_label()->set_name(
+            graph.schema().get_vertex_label_name(label.dst_label));
+        auto edge_label = generate_edge_label_id(
+            label.src_label, label.dst_label, label.edge_label);
+        ele->mutable_label()->set_name(
+            graph.schema().get_edge_label_name(label.edge_label));
+        ele->set_src_id(encode_unique_vertex_id(label.src_label, src));
+        ele->set_dst_id(encode_unique_vertex_id(label.dst_label, dst));
+        ele->set_id(encode_unique_edge_id(edge_label, src, dst));
+      }
+
+    } else {
+      for (size_t i = 0; i < value_.list.size(); ++i) {
+        value_.list.get(i).sink_impl(
+            collection->add_collection()->mutable_object());
+      }
     }
   } else if (type_ == RTAnyType::kSet) {
     auto collection = col->mutable_entry()->mutable_collection();
@@ -1628,7 +1695,9 @@ void RTAny::sink(const GraphInterface& graph, int id,
     }
   } else if (type_ == RTAnyType::kVertex) {
     auto ele = col->mutable_entry()->mutable_element();
-    sink_vertex(graph, value_.vertex, ele);
+    if (!sink_vertex(graph, value_.vertex, ele->mutable_vertex())) {
+      ele->mutable_object()->mutable_none();
+    }
 
   } else if (type_ == RTAnyType::kMap) {
     auto mp = col->mutable_entry()->mutable_map();
@@ -1643,7 +1712,9 @@ void RTAny::sink(const GraphInterface& graph, int id,
       keys[i].sink_impl(ret->mutable_key());
       if (vals[i].type_ == RTAnyType::kVertex) {
         auto ele = ret->mutable_value()->mutable_element();
-        sink_vertex(graph, vals[i].as_vertex(), ele);
+        if (!sink_vertex(graph, vals[i].as_vertex(), ele->mutable_vertex())) {
+          ele->mutable_object()->mutable_none();
+        }
       } else {
         vals[i].sink_impl(
             ret->mutable_value()->mutable_element()->mutable_object());
@@ -1651,39 +1722,8 @@ void RTAny::sink(const GraphInterface& graph, int id,
     }
 
   } else if (type_ == RTAnyType::kEdge) {
-    auto e = col->mutable_entry()->mutable_element()->mutable_edge();
-    auto [label, src, dst, prop, dir] = this->as_edge();
-    // e->mutable_src_label()->set_id(label.src_label);
-    // e->mutable_dst_label()->set_id(label.dst_label);
-    e->mutable_src_label()->set_name(
-        graph.schema().get_vertex_label_name(label.src_label));
-    e->mutable_dst_label()->set_name(
-        graph.schema().get_vertex_label_name(label.dst_label));
-    auto edge_label = generate_edge_label_id(label.src_label, label.dst_label,
-                                             label.edge_label);
-    e->mutable_label()->set_name(
-        graph.schema().get_edge_label_name(label.edge_label));
-    e->set_src_id(encode_unique_vertex_id(label.src_label, src));
-    e->set_dst_id(encode_unique_vertex_id(label.dst_label, dst));
-    e->set_id(encode_unique_edge_id(edge_label, src, dst));
-    auto& prop_names = graph.schema().get_edge_property_names(
-        label.src_label, label.dst_label, label.edge_label);
-    if (prop_names.size() == 1) {
-      auto props = e->add_properties();
-      props->mutable_key()->set_name(prop_names[0]);
-      sink_edge_data(prop, e->mutable_properties(0)->mutable_value());
-    } else if (prop_names.size() > 1) {
-      auto rv = prop.as<RecordView>();
-      if (rv.size() != prop_names.size()) {
-        LOG(FATAL) << "record view size not match with prop names" << rv.size()
-                   << " vs " << prop_names.size();
-      }
-      for (size_t i = 0; i < prop_names.size(); ++i) {
-        auto props = e->add_properties();
-        props->mutable_key()->set_name(prop_names[i]);
-        sink_any(rv[i], props->mutable_value());
-      }
-    }
+    sink_edge(graph, value_.edge,
+              col->mutable_entry()->mutable_element()->mutable_edge());
   } else if (type_ == RTAnyType::kPath) {
     auto mutable_path =
         col->mutable_entry()->mutable_element()->mutable_graph_path();
@@ -1796,7 +1836,7 @@ void RTAny::encode_sig(RTAnyType type, Encoder& encoder) const {
     }
   } else if (type == RTAnyType::kRelation) {
     Relation r = this->as_relation();
-    encoder.put_byte(r.label);
+    encoder.put_byte(r.label.src_label);
     encoder.put_int(r.src);
     encoder.put_int(r.dst);
   } else {

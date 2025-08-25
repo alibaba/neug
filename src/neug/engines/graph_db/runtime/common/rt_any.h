@@ -109,7 +109,7 @@ struct VertexRecordHash {
   }
 };
 struct Relation {
-  label_t label;
+  LabelTriplet label;
   vid_t src;
   vid_t dst;
   bool operator<(const Relation& r) const {
@@ -118,8 +118,8 @@ struct Relation {
   bool operator==(const Relation& r) const {
     return std::tie(label, src, dst) == std::tie(r.label, r.src, r.dst);
   }
-  VertexRecord start_node() const { return {label, src}; }
-  VertexRecord end_node() const { return {label, dst}; }
+  VertexRecord start_node() const { return {label.src_label, src}; }
+  VertexRecord end_node() const { return {label.dst_label, dst}; }
 };
 
 class PathImpl : public CObject {
@@ -189,7 +189,8 @@ class Path {
     std::vector<Relation> relations;
     for (size_t i = 0; i < impl_->path_.size() - 1; ++i) {
       Relation r;
-      r.label = impl_->path_[i].label_;
+      r.label = {impl_->path_[i].label_, impl_->path_[i + 1].label_,
+                 impl_->edge_labels_[i]};
       r.src = impl_->path_[i].vid_;
       r.dst = impl_->path_[i + 1].vid_;
       relations.push_back(r);

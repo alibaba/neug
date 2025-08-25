@@ -89,12 +89,12 @@ class TestICBench(unittest.TestCase):
 
         # test nodes and rels
         # todo(engine): Error thrown
-        # submit_cypher_query(
-        #     conn=self.conn,
-        #     query="Match (n:PERSON {id: 933})-[k:KNOWS*1..3]-(m:PERSON {id: 2199023256668})"
-        #     " Return nodes(k) as n1, rels(k) as n2 LIMIT 1;",
-        #     lambda_func=ensure_result_cnt_gt_zero,
-        # )
+        submit_cypher_query(
+            conn=self.conn,
+            query="Match (n:PERSON {id: 933})-[k:KNOWS*1..3]-(m:PERSON {id: 2199023256668})"
+            " Return nodes(k) as n1, rels(k) as n2 LIMIT 1;",
+            lambda_func=ensure_result_cnt_gt_zero,
+        )
 
         # test properties
         # todo(engine): Error thrown

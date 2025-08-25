@@ -664,7 +664,6 @@ class RelationshipsExpr : public ListExprBase {
  public:
   RelationshipsExpr(std::unique_ptr<ExprBase>&& args) : args(std::move(args)) {}
   RTAny eval_path(size_t idx, Arena& arena) const override {
-    assert(args->type() == RTAnyType::kPath);
     auto path = args->eval_path(idx, arena).as_path();
     auto rels = path.relationships();
     auto ptr = ListImpl<Relation>::make_list_impl(std::move(rels));
@@ -704,7 +703,6 @@ class NodesExpr : public ListExprBase {
  public:
   NodesExpr(std::unique_ptr<ExprBase>&& args) : args(std::move(args)) {}
   RTAny eval_path(size_t idx, Arena& arena) const override {
-    assert(args->type() == RTAnyType::kPath);
     auto path = args->eval_path(idx, arena).as_path();
     auto nodes = path.nodes();
     auto ptr = ListImpl<VertexRecord>::make_list_impl(std::move(nodes));
