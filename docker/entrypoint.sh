@@ -16,8 +16,8 @@
 set -e
 
 DEFAULT_GRAPH_NAME=gs_interactive_default_graph
-BULK_LOADER_BINARY_PATH=/opt/src/bin/bulk_loader
-INTERACTIVE_SERVER_BIN=/opt/src/bin/interactive_server
+BULK_LOADER_BINARY_PATH=/opt/neug/bin/bulk_loader
+INTERACTIVE_SERVER_BIN=/opt/neug/bin/interactive_server
 DEFAULT_INTERACTIVE_CONFIG_FILE=/opt/src/share/interactive_config.yaml
 
 function usage() {

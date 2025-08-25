@@ -650,6 +650,9 @@ set(MACOS_DYLIBS
 )
 
 add_subdirectory(src)
+if (BUILD_EXECUTABLES)
+    add_subdirectory(bin)
+endif()
 
 if (BUILD_TEST)
   if (BUILD_ENGINE)

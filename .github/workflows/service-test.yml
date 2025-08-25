@@ -56,7 +56,7 @@ jobs:
         mkdir -p /tmp/test_data
         cd ${GITHUB_WORKSPACE}/build
         export FLEX_DATA_DIR=${GITHUB_WORKSPACE}/example_dataset/tinysnb
-        ./src/bin/bulk_loader -g ../example_dataset/tinysnb/graph.yaml -l ../example_dataset/tinysnb/bulk.yaml -d /tmp/csr-data
+        ./bin/bulk_loader -g ../example_dataset/tinysnb/graph.yaml -l ../example_dataset/tinysnb/bulk.yaml -d /tmp/csr-data
 
     - name: Test NeuG Service
       run: |
