@@ -683,6 +683,10 @@ parse_special_vertex_predicate(const common::Expression& expr) {
         return _make_vertex_predicate<double>(ptype, graph, property_name,
                                               params.at(name));
       };
+    } else {
+      VLOG(10) << "Unsupported type: " << static_cast<int>(type)
+               << ", for property name: " + property_name;
+      return std::nullopt;
     }
   } else if (expr.operators_size() == 7) {
     // between

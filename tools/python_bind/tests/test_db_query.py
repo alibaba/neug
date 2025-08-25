@@ -19,6 +19,7 @@
 import os
 import shutil
 import sys
+from unittest import result
 
 import pytest
 
@@ -1289,3 +1290,49 @@ def test_tinysnb_path_expand():
     records = list(result)
     assert len(records) == 1
     assert records[0][0] == 13
+
+
+def test_path_expand_with_filter():
+    db_dir = "/tmp/tinysnb"
+    db = Database(db_path=db_dir, mode="r")
+    conn = db.connect()
+    result = conn.execute(
+        "MATCH (a:person)-[e:meets|:marries|:studyAt*2..2]->(b) WHERE (a.ID = 0) RETURN a.ID, b.ID"
+    )
+    records = list(result)
+    assert records == [[0, 1], [0, 5], [0, 1], [0, 5]]
+
+    result = conn.execute(
+        "MATCH (a:person)-[e:meets|:marries|:studyAt*2..2]->(b) WHERE ((b.ID < 5)) AND (a.ID = 0) RETURN a.ID, b.ID"
+    )
+    records = list(result)
+    assert records == [[0, 1], [0, 1]]
+
+    result = conn.execute(
+        "MATCH (a:person)-[e:meets|:marries|:studyAt*2..2]->(b) WHERE (b.ID < 5) RETURN a.ID, b.ID"
+    )
+    records = list(result)
+    assert records == [[3, 3], [7, 3], [0, 1], [10, 1], [0, 1], [7, 1]]
+
+
+def test_edge_expand_with_filter():
+    db_dir = "/tmp/tinysnb"
+    db = Database(db_path=db_dir, mode="r")
+    conn = db.connect()
+    result = conn.execute(
+        "MATCH (a:person)-[e:meets|:marries|:studyAt]->(b) WHERE (a.ID = 0) RETURN a.ID, b.ID,label(e)"
+    )
+    records = list(result)
+    assert records == [[0, 1, "studyAt"], [0, 2, "meets"], [0, 2, "marries"]]
+
+    result = conn.execute(
+        "MATCH (a:person)-[e:meets|:marries|:studyAt]->(b) WHERE ((b.ID > 1)) AND (a.ID = 0) RETURN a.ID, b.ID,label(e);"
+    )
+    records = list(result)
+    assert records == [[0, 2, "meets"], [0, 2, "marries"]]
+
+    result = conn.execute(
+        "MATCH (a:person)-[e:meets|:marries|:studyAt]->(b) WHERE (b.ID > 5) RETURN a.ID, b.ID"
+    )
+    records = list(result)
+    assert records == [[3, 7], [7, 8]]

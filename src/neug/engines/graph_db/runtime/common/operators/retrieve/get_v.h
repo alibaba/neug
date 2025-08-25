@@ -151,8 +151,10 @@ class GetV {
       auto builder = MLVertexColumnBuilder::builder();
       input_path_list.foreach_path([&](size_t index, const Path& path) {
         auto [label, vid] = path.get_end();
-        builder.push_back_vertex({label, vid});
-        shuffle_offset.push_back(index);
+        if (pred(label, vid, index)) {
+          builder.push_back_vertex({label, vid});
+          shuffle_offset.push_back(index);
+        }
       });
       ctx.set_with_reshuffle(params.alias, builder.finish(nullptr),
                              shuffle_offset);
@@ -255,8 +257,10 @@ class GetV {
                   const EdgeData& edata, Direction dir) {
                 if (std::find(labels.begin(), labels.end(), label.src_label) !=
                     labels.end()) {
-                  builder.push_back_vertex({label.src_label, src});
-                  shuffle_offset.push_back(index);
+                  if (pred(label.src_label, src, index)) {
+                    builder.push_back_vertex({label.src_label, src});
+                    shuffle_offset.push_back(index);
+                  }
                 }
               });
         } else if (opt == VOpt::kEnd) {
@@ -265,8 +269,10 @@ class GetV {
                   const EdgeData& edata, Direction dir) {
                 if (std::find(labels.begin(), labels.end(), label.dst_label) !=
                     labels.end()) {
-                  builder.push_back_vertex({label.dst_label, dst});
-                  shuffle_offset.push_back(index);
+                  if (pred(label.dst_label, dst, index)) {
+                    builder.push_back_vertex({label.dst_label, dst});
+                    shuffle_offset.push_back(index);
+                  }
                 }
               });
         }
@@ -292,11 +298,16 @@ class GetV {
               [&](size_t index, const LabelTriplet& label, vid_t src, vid_t dst,
                   const EdgeData& edata, Direction dir) {
                 if (dir == Direction::kOut) {
-                  builder.push_back_vertex({label.dst_label, dst});
+                  if (pred(label.dst_label, dst, index)) {
+                    builder.push_back_vertex({label.dst_label, dst});
+                    shuffle_offset.push_back(index);
+                  }
                 } else {
-                  builder.push_back_vertex({label.src_label, src});
+                  if (pred(label.src_label, src, index)) {
+                    builder.push_back_vertex({label.src_label, src});
+                    shuffle_offset.push_back(index);
+                  }
                 }
-                shuffle_offset.push_back(index);
               });
           ctx.set_with_reshuffle(params.alias, builder.finish(nullptr),
                                  shuffle_offset);
@@ -307,11 +318,15 @@ class GetV {
               [&](size_t index, const LabelTriplet& label, vid_t src, vid_t dst,
                   const EdgeData& edata, Direction dir) {
                 if (dir == Direction::kOut) {
-                  builder.push_back_opt(dst);
-                  shuffle_offset.push_back(index);
+                  if (pred(label.dst_label, dst, index)) {
+                    builder.push_back_opt(dst);
+                    shuffle_offset.push_back(index);
+                  }
                 } else {
-                  builder.push_back_opt(src);
-                  shuffle_offset.push_back(index);
+                  if (pred(label.src_label, src, index)) {
+                    builder.push_back_opt(src);
+                    shuffle_offset.push_back(index);
+                  }
                 }
               });
           ctx.set_with_reshuffle(params.alias, builder.finish(nullptr),
@@ -333,13 +348,17 @@ class GetV {
                   const EdgeData& edata, Direction dir) {
                 if (dir == Direction::kOut) {
                   if (label.dst_label == labels[0]) {
-                    builder.push_back_opt(dst);
-                    shuffle_offset.push_back(index);
+                    if (pred(label.dst_label, dst, index)) {
+                      builder.push_back_opt(dst);
+                      shuffle_offset.push_back(index);
+                    }
                   }
                 } else {
                   if (label.src_label == labels[0]) {
-                    builder.push_back_opt(src);
-                    shuffle_offset.push_back(index);
+                    if (pred(label.src_label, src, index)) {
+                      builder.push_back_opt(src);
+                      shuffle_offset.push_back(index);
+                    }
                   }
                 }
               });
@@ -354,14 +373,18 @@ class GetV {
                 if (dir == Direction::kOut) {
                   if (std::find(labels.begin(), labels.end(),
                                 label.dst_label) != labels.end()) {
-                    builder.push_back_vertex({label.dst_label, dst});
-                    shuffle_offset.push_back(index);
+                    if (pred(label.dst_label, dst, index)) {
+                      builder.push_back_vertex({label.dst_label, dst});
+                      shuffle_offset.push_back(index);
+                    }
                   }
                 } else {
                   if (std::find(labels.begin(), labels.end(),
                                 label.src_label) != labels.end()) {
-                    builder.push_back_vertex({label.src_label, src});
-                    shuffle_offset.push_back(index);
+                    if (pred(label.src_label, src, index)) {
+                      builder.push_back_vertex({label.src_label, src});
+                      shuffle_offset.push_back(index);
+                    }
                   }
                 }
               });
@@ -385,11 +408,17 @@ class GetV {
             [&](size_t index, const LabelTriplet& label, vid_t src, vid_t dst,
                 const EdgeData& edata, Direction dir) {
               if (dir == Direction::kOut) {
+                if (pred(label.dst_label, dst, index)) {
+                  builder.push_back_vertex({label.dst_label, dst});
+                  shuffle_offset.push_back(index);
+                }
                 builder.push_back_vertex({label.dst_label, dst});
               } else {
-                builder.push_back_vertex({label.src_label, src});
+                if (pred(label.src_label, src, index)) {
+                  builder.push_back_vertex({label.src_label, src});
+                  shuffle_offset.push_back(index);
+                }
               }
-              shuffle_offset.push_back(index);
             });
 
         ctx.set_with_reshuffle(params.alias, builder.finish(nullptr),
@@ -404,13 +433,17 @@ class GetV {
                   const EdgeData& edata, Direction dir) {
                 if (dir == Direction::kOut) {
                   if (label.dst_label == vlabel) {
-                    builder.push_back_opt(dst);
-                    shuffle_offset.push_back(index);
+                    if (pred(label.dst_label, dst, index)) {
+                      builder.push_back_opt(dst);
+                      shuffle_offset.push_back(index);
+                    }
                   }
                 } else {
                   if (label.src_label == vlabel) {
-                    builder.push_back_opt(src);
-                    shuffle_offset.push_back(index);
+                    if (pred(label.src_label, src, index)) {
+                      builder.push_back_opt(src);
+                      shuffle_offset.push_back(index);
+                    }
                   }
                 }
               });
@@ -428,13 +461,17 @@ class GetV {
                   const EdgeData& edata, Direction dir) {
                 if (dir == Direction::kOut) {
                   if (labels[label.dst_label]) {
-                    builder.push_back_vertex({label.dst_label, dst});
-                    shuffle_offset.push_back(index);
+                    if (pred(label.dst_label, dst, index)) {
+                      builder.push_back_vertex({label.dst_label, dst});
+                      shuffle_offset.push_back(index);
+                    }
                   }
                 } else {
                   if (labels[label.src_label]) {
-                    builder.push_back_vertex({label.src_label, src});
-                    shuffle_offset.push_back(index);
+                    if (pred(label.src_label, src, index)) {
+                      builder.push_back_vertex({label.src_label, src});
+                      shuffle_offset.push_back(index);
+                    }
                   }
                 }
               });
