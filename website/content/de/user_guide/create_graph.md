@@ -1,0 +1,1 @@
+# Vertex/Edge-Typ in Neug erstellen
