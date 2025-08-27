@@ -1,0 +1,322 @@
+-DATASET CSV ldbc
+
+-CASE LDBCTest
+
+-LOG IC2
+-STATEMENT MATCH (p :PERSON {id: 32985348834326})-[:KNOWS]-(friend:PERSON)<-[:HASCREATOR]-(message : POST : COMMENT) 
+WHERE 
+    message.creationDate <= 1334102400000
+WITH 
+    friend, 
+    message 
+ORDER BY 
+    message.creationDate DESC, 
+    message.id ASC LIMIT 20 
+return 
+    friend.id AS personId,
+    friend.firstName AS personFirstName,
+    friend.lastName AS personLastName, 
+    message.id AS messageId,
+    CASE WHEN message.content = "" THEN message.imageFile
+    ELSE message.content END as messageContent,
+    message.creationDate AS messageCreationDate;
+---- 20
+2199023256668|Rodrigo|Costa|893353290227|yes|1333997105842
+28587302322870|Andrei|Condariuc|893353491998|photo893353491998.jpg|1333959022068
+28587302322870|Andrei|Condariuc|893353491997|photo893353491997.jpg|1333959021068
+28587302322870|Andrei|Condariuc|893353491996|photo893353491996.jpg|1333959020068
+28587302322870|Andrei|Condariuc|893353491995|photo893353491995.jpg|1333959019068
+28587302322870|Andrei|Condariuc|893353491994|photo893353491994.jpg|1333959018068
+28587302322870|Andrei|Condariuc|893353491993|photo893353491993.jpg|1333959017068
+28587302322870|Andrei|Condariuc|893353491992|photo893353491992.jpg|1333959016068
+28587302322870|Andrei|Condariuc|893353491991|photo893353491991.jpg|1333959015068
+28587302322870|Andrei|Condariuc|893353491990|photo893353491990.jpg|1333959014068
+28587302322870|Andrei|Condariuc|893353491989|photo893353491989.jpg|1333959013068
+28587302322870|Andrei|Condariuc|893353491988|photo893353491988.jpg|1333959012068
+28587302322870|Andrei|Condariuc|893353491987|photo893353491987.jpg|1333959011068
+28587302322870|Andrei|Condariuc|893353491986|photo893353491986.jpg|1333959010068
+28587302322870|Andrei|Condariuc|893353491985|photo893353491985.jpg|1333959009068
+28587302322870|Andrei|Condariuc|893353491984|photo893353491984.jpg|1333959008068
+28587302322870|Andrei|Condariuc|893353491983|photo893353491983.jpg|1333959007068
+987|Ali|Diori|893353290215|good|1333935999596
+987|Ali|Diori|893353263206|photo893353263206.jpg|1333885473009
+987|Ali|Diori|893353263205|photo893353263205.jpg|1333885472009
+
+
+-LOG IC3
+# `WITH distinct otherP` is not supported
+# use `WITH otherP, COUNT(otherP) as cnt` instead
+-STATEMENT MATCH 
+    (p:PERSON {id: 15393162790207})-[:KNOWS*1..3]-(otherP:PERSON)
+WITH otherP, COUNT(otherP) as cnt
+WHERE otherP.id <> 15393162790207
+MATCH (country:PLACE)<-[:ISLOCATEDIN]-(message : POST : COMMENT)-[:HASCREATOR]->(otherP:PERSON)-[ISLOCATEDIN]->(city:PLACE)-[:ISPARTOF]-> (country2:PLACE)
+WHERE 
+     (country.name = "Puerto_Rico" OR country.name = "Republic_of_Macedonia")
+      AND message.creationDate >= 1291161600000
+      AND message.creationDate < 1293753600000
+WITH 
+
+     message,
+    otherP, 
+    country,country2
+WHERE (country2.name <> "Puerto_Rico" AND country2.name <> "Republic_of_Macedonia")
+    
+WITH otherP,
+     CASE WHEN country.name="Puerto_Rico" THEN 1 ELSE 0 END AS messageX,
+     CASE WHEN country.name="Republic_of_Macedonia" THEN 1 ELSE 0 END AS messageY
+WITH otherP, sum(messageX) AS xCount, sum(messageY) AS yCount
+WHERE xCount > 0 AND yCount > 0
+RETURN
+    otherP.id as id,
+    otherP.firstName as firstName,
+    otherP.lastName as lastName,
+    xCount,
+    yCount,
+    xCount + yCount as total 
+ORDER BY total DESC, id ASC LIMIT 20;
+---- 0
+
+
+-LOG IC4
+-STATEMENT MATCH (person:PERSON {id: 10995116278874})-[:KNOWS]-(friend:PERSON)<-[:HASCREATOR]-(post:POST)-[:HASTAG]->(tag: TAG)
+WITH tag,
+     CASE
+       WHEN  post.creationDate >= 1338508800000 AND post.creationDate < 1340928000000 THEN 1
+       ELSE 0
+     END AS valid,
+     CASE
+       WHEN post.creationDate < 1338508800000  THEN 1
+       ELSE 0
+     END AS inValid
+WITH tag, sum(valid) AS postCount, sum(inValid) AS inValidPostCount
+WHERE postCount>0 AND inValidPostCount=0
+
+RETURN tag.name AS tagName, postCount
+ORDER BY postCount DESC, tagName ASC
+LIMIT 10;
+---- 3
+Norodom_Sihanouk|3
+George_Clooney|1
+Louis_Philippe_I|1
+
+
+-LOG IC5
+-SKIP: UNION has some bugs
+-STATEMENT MATCH (person:PERSON { id: 4398046511592 })-[:KNOWS*1..2]-(friend)
+WITH friend, COUNT(friend) as cnt
+WHERE friend.id <> 4398046511592
+CALL (friend) {
+  WITH friend
+  MATCH (friend)<-[membership:HASMEMBER]-(forum)
+  WHERE membership.joinDate > 1346544000000
+  WITH forum, COUNT(forum) as cnt
+  ORDER BY forum.id ASC
+  LIMIT 20
+  RETURN forum, 0 AS postCount
+
+UNION ALL
+
+  WITH friend
+  MATCH (friend)<-[membership:HASMEMBER]-(forum)
+  WHERE membership.joinDate > 1346544000000
+  MATCH (friend)<-[:HASCREATOR]-(post)<-[:CONTAINEROF]-(forum)
+  WITH forum, count(post) AS postCount
+  RETURN forum, postCount
+  ORDER BY postCount DESC, forum.id ASC
+  LIMIT 20
+}
+WITH forum, max(postCount) AS postCount
+ORDER BY postCount DESC, forum.id ASC
+LIMIT 20
+
+RETURN forum.title as forumTitle, postCount;
+---- 20
+Group for Mahathir_Mohamad in Pedro_Escobedo|1
+Group for Paul_Keres in Antananarivo|1
+Group for Heinz_Guderian in Dire_Dawa|1
+Album 29 of Mehmet Ayhan|0
+Album 18 of Gregorio Manalo|0
+Wall of Danijel Ali|0
+Album 22 of Danijel Ali|0
+Album 21 of Hans Johansson|0
+Album 29 of Hans Johansson|0
+Album 31 of Peter Taylor|0
+Album 24 of Ali Brar|0
+Album 14 of John Wilson|0
+Wall of Maria Alkaios|0
+Album 10 of Maria Alkaios|0
+Album 31 of Maria Alkaios|0
+Wall of Ashley Coetzee|0
+Wall of Abdul Razzak Jahani|0
+Album 21 of Ayesha Baloch|0
+Wall of David Herzigová|0
+Album 16 of Mee Vongvichit|0
+
+
+-LOG IC6
+# Note: 1..2
+-STATEMENT MATCH (p_:PERSON {id: 19791209300317})-[:KNOWS*1..2]-(other:PERSON)
+WITH other, COUNT(other) as cnt
+WHERE  other.id <> 19791209300317
+
+MATCH (other)<-[:HASCREATOR]-(p:POST)-[:HASTAG]->(t:TAG {name: "Nat_King_Cole"})
+MATCH    (p:POST)-[:HASTAG]->(otherTag:TAG)
+
+WITH otherTag, t, p, COUNT(p) as cnt
+WITH otherTag, t, count(p) as postCount
+WHERE 
+    otherTag <> t 
+RETURN
+    otherTag.name as tagName,
+    postCount
+ORDER BY 
+    postCount desc, 
+    tagName asc 
+LIMIT 10;
+---- 10
+Achtung_Baby|1
+Alexander_Downer|1
+American_Samoa|1
+Arantxa_Sánchez_Vicario|1
+Arthur_Wellesley,_1st_Duke_of_Wellington|1
+Backwoods_Barbie|1
+D._H._Lawrence|1
+Danish_West_Indies|1
+Everybody_Hurts|1
+Hassan_II_of_Morocco|1
+
+# IC7: `HEAD` is not supported
+
+-LOG IC8
+-STATEMENT MATCH(p:PERSON {id: 4398046512194}) <-[:HASCREATOR] -(msg : POST : COMMENT) <- [:REPLYOF] - (cmt: COMMENT) - [:HASCREATOR] -> (author : PERSON)
+WITH
+    p, msg, cmt, author 
+ORDER BY 
+    cmt.creationDate DESC, 
+    cmt.id ASC 
+LIMIT 20 
+RETURN
+    author.id as personId, 
+    author.firstName as personFirstName, 
+    author.lastName as personLastName, 
+    cmt.creationDate as commentCreationDate, 
+    cmt.id as commentId, 
+    cmt.content as commentContent;
+---- 20
+4398046511700|Mahmoud|Ali|1347522464849|1099511787228|no way!
+15393162790406|A.|Sharma|1347517898869|1099511787214|yes
+15393162789174|Sergio|Herrera|1347506506139|1099511787212|I see
+21990232555850|Bolat|Bajt|1347482478588|1099511787215|great
+19791209300852|Ge|Wang|1347482337384|1099511787213|About Rubber Soul, as recorded during a specific period, the sessions not dashed off in
+32985348834961|Carlos|Parra|1347482075881|1099511787224|thanks
+10995116278264|Amit|Sharma|1347482074716|1099511787229|duh
+13194139533834|Abhishek|Singh|1345888911611|1030792240862|ok
+28587302322974|Zhang|Li|1345602283380|1030792332571|good
+24189255812755|Paulo|Santos|1345188308775|1030792483325|About Gerald Ford, y, Ford served nearly 25 years as the Representative from Michigan
+24189255812580|Jorge|Escobar|1345090946311|1030792309802|LOL
+30786325578747|Zhang|Huang|1345071326348|1030792309814|right
+19791209300961|Ning|Zhang|1345029123007|1030792309803|right
+30786325577859|Kenji|Matsudaira|1345025871154|1030792309801|About Georg Wilhelm Friedrich Hegel, el influenced writers of widely varying posit
+1219|Prince|Margaritoglou|1345008066063|1030792309805|no way!
+4398046511736|Hao|Liu|1345008040235|1030792309806|thanks
+10995116278033|Kamel|Belaid|1345005567568|1030792309816|About The Long Road,  copies worldwide and in 2003 only the album sold 2 milli
+15393162789951|Kamal|Chedid|1345005488087|1030792309800|good
+24189255811940|Arjun|Khan|1344870865023|1030792183204|About Camille Saint-Saëns, es-Camille Saint-Saëns (9 October 1835 – 16 December 1921) was
+19791209300852|Ge|Wang|1344365260534|1030792310119|great
+
+
+-LOG IC9
+-STATEMENT MATCH (p:PERSON {id: 19791209300317})-[:KNOWS*1..2]-(friend:PERSON)
+where friend.id <>  19791209300317
+WITH friend, COUNT(friend) as cnt
+MATCH  (message:POST:COMMENT)-[e:HASCREATOR]->(friend)
+where e.creationDate < 1352160000000
+WITH friend, message
+
+RETURN 
+    friend.id AS personId, 
+    friend.firstName AS personFirstName, 
+    friend.lastName AS personLastName, 
+    message.id AS messageId, 
+    CASE WHEN message.content = "" THEN message.imageFile
+    ELSE message.content END as messageContent,
+    message.creationDate AS messageCreationDate
+ORDER BY 
+   messageCreationDate DESC, 
+    messageId ASC 
+LIMIT 20
+---- 20
+19791209300020|Akira|Yamamoto|1099511899884|fine|1347528281121
+15393162790472|Jose|Fernandez|1099511875188|no|1347527910176
+24189255811566|The|Kunda|1099511875186|About Zine El Abidine Ben Ali, rSchool of Applied ArtillerySenior Intelligence School in Maryland Sch|1347527502710
+4398046512267|Chris|Michie|1099511997885|yes|1347526955921
+2199023256881|Ammar|David|1099511763943|no way!|1347525137213
+454|Fritz|Richter|1099511909190|About Highwayman 2, wayman 2 is an album by American country supergroup The Hig|1347524790462
+4398046512194|Jesus|Mendez|1099511747114|thx|1347524319392
+6597069767836|Joao|Morais|1099511909185|LOL|1347524153583
+17592186045813|Lin|Zhang|1099511997847|fine|1347523809985
+32985348834053|James|Wilson|1099511747465|LOL|1347522885138
+24189255811663|Chris|Hall|1099511717508|About Barbie Girl, an dance-pop group Aqua. It was released in May 1997 as their t|1347522569771
+6597069767067|Conor|Campbell|1099511997840|About Napoleon, is the most cAbout Edgar Allan Poe, ars working fAbout Bet|1347522419732
+32985348833533|Fritz|Muller|1099511909184|right|1347521520799
+941|Aryo|Tobing|1099511909182|About Muhammad, tribes of Arabia into a single religious polity under Islam. He is beli|1347521485882
+30786325578932|Alexander|Hleb|1099511997876|right|1347521106539
+6597069766961|Daouda Malam|Diori|1099511909178|fine|1347520713753
+6597069767067|Conor|Campbell|1099511997962|no|1347520516146
+2199023257135|Karim|Ambane|1099511733793|maybe|1347520235096
+13194139534520|Rafael|Santos|1099511918810|About Western Sahara, ng of desert flatlands. The population is estimated at just over 5|1347518861609
+26388279067479|Kenji|Abe|1099511918802|thx|1347518758985
+
+
+# IC10: longDate to timeDate is not supported
+
+-LOG IC11
+-STATEMENT MATCH (p:PERSON {id: 24189255811707})-[:KNOWS*1..2]-(friend:PERSON)
+WHERE 
+    friend.id <> 24189255811707
+WITH friend, COUNT(friend) as cnt
+
+MATCH (friend:PERSON)-[wa:WORKAT]->(com:ORGANISATION)-[:ISLOCATEDIN]->(:PLACE {name: "Switzerland"}) 
+WHERE wa.workFrom < 2006
+WITH
+    friend as friend, 
+    com AS com, 
+    wa.workFrom as organizationWorkFromYear 
+ORDER BY 
+    organizationWorkFromYear ASC, 
+    friend.id ASC, com.name DESC 
+LIMIT 10 
+return 
+    friend.id AS personId, 
+    friend.firstName AS personFirstName, 
+    friend.lastName AS personLastName, 
+    com.name as organizationName, 
+    organizationWorkFromYear as organizationWorkFromYear;
+---- 1
+19791209300839|Akira|Inoue|PrivatAir|2003
+
+
+-LOG IC12
+-STATEMENT MATCH 
+    (unused:PERSON {id: 10995116278647 })-[:KNOWS]-(friend:PERSON)<-[:HASCREATOR]-(comments:COMMENT)-[:REPLYOF]->(:POST)-[:HASTAG]->(tags:TAG)
+WITH friend, tags, comments
+MATCH (tags:TAG)-[:HASTYPE]->(:TAGCLASS {name: "Chancellor"})-[:ISSUBCLASSOF*0..20]->(baseTagClass:TAGCLASS {name: "Chancellor"})
+WITH 
+    friend AS friend, 
+    collect(DISTINCT tags.name) AS tagNames, 
+    count(DISTINCT comments) AS replyCount 
+ORDER BY 
+    replyCount DESC, 
+    friend.id ASC 
+LIMIT 20 
+RETURN 
+    friend.id AS personId, 
+    friend.firstName AS personFirstName, 
+    friend.lastName AS personLastName, 
+    tagNames, 
+    replyCount
+---- 2
+1274|Roberto|Fernandez|['Joseph_Goebbels']|1
+1490|John|Wilson|['Joseph_Goebbels']|1
+

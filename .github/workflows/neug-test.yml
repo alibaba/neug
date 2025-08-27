@@ -221,11 +221,6 @@ jobs:
       run: |
         cd ${GITHUB_WORKSPACE}/tests/e2e
         ./scripts/run_embed_test.sh lsqb /tmp/lsqb lsqb
-    
-    - name: Run E2E LDBC Test
-      run: |
-        cd ${GITHUB_WORKSPACE}/tests/e2e
-        ./scripts/run_embed_test.sh ldbc /tmp/ldbc agg,match
 
     - name: Run E2E LDBC Test
       run: |

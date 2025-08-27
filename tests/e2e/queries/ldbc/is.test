@@ -3,7 +3,6 @@
 -CASE LDBCTest
 
 -LOG IS1
--SKIP
 -STATEMENT MATCH (n:PERSON {id: 26388279068220})-[:ISLOCATEDIN]->(p:PLACE)
 RETURN
     n.firstName AS firstName,
@@ -20,7 +19,6 @@ Jun|Wang|575424000000|1.12.242.179|Opera|507|female|1331161432355
 
 -LOG IS2
 # do not support [:REPLYOF*0..*], use [:REPLYOF*0..10] instead
--SKIP
 -STATEMENT MATCH (p :PERSON {id: 26388279068220})<-[:HASCREATOR]-(message: POST : COMMENT)
 WITH
  message,
@@ -53,7 +51,6 @@ ORDER BY messageCreationDate DESC, messageId ASC
 
 
 -LOG IS3
--SKIP
 -STATEMENT MATCH (n:PERSON {id: 19791209300143 })-[r:KNOWS]-(friend:PERSON)
 RETURN
     friend.id AS personId,
@@ -75,7 +72,6 @@ ORDER BY
 
 
 -LOG IS4
--SKIP
 -STATEMENT MATCH (m:POST:COMMENT {id: 1030792332314})
 RETURN
     CASE WHEN m.content = "" THEN m.imageFile
@@ -86,7 +82,6 @@ photo1030792332314.jpg|1343010302068
 
 
 -LOG IS5
--SKIP
 -STATEMENT MATCH (m:POST : COMMENT {id: 1030792332314  })-[:HASCREATOR]->(p:PERSON)
 RETURN
     p.id AS personId,
@@ -97,7 +92,6 @@ RETURN
 
 
 -LOG IS6
--SKIP
 # do not support [:REPLYOF*0..*], use [:REPLYOF*0..10] instead
 -STATEMENT MATCH (m:POST : COMMENT {id:  1030792332314 })-[:REPLYOF*0..10]->(p:POST)<-[:CONTAINEROF]-(f:FORUM)-[:HASMODERATOR]->(mod:PERSON)
 RETURN
