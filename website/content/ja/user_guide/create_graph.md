@@ -1,1 +1,0 @@
-# Neug で Vertex/Edge タイプを作成する

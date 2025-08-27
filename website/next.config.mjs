@@ -31,8 +31,8 @@ export default withNextra({
   },
   redirects: async () => {
     return locales.map((lang) => ({
-      source: `/${lang}`,
-      destination: `/${lang}/overview/introduction`,
+      source: `${assetPrefix}/${lang}`,
+      destination: `${assetPrefix}/${lang}/overview/introduction`,
       statusCode: 302,
     }));
   },

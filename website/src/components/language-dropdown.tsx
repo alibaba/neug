@@ -3,9 +3,10 @@
 import React, { useState, useRef, useEffect } from "react";
 import { useRouter, usePathname } from "next/navigation";
 import { ChevronDownIcon, GlobeIcon } from "lucide-react";
+import { locales } from "../../asset-prefix.mjs";
 
 // 语言配置
-const languages = [
+const languages_maps = [
   { locale: "en", name: "English", flag: "🇺🇸" },
   { locale: "zh", name: "中文", flag: "🇨🇳" },
   { locale: "de", name: "Deutsch", flag: "🇩🇪" },
@@ -13,6 +14,10 @@ const languages = [
   { locale: "ru", name: "Русский", flag: "🇷🇺" },
   { locale: "ja", name: "日本語", flag: "🇯🇵" },
 ];
+
+const languages = languages_maps.filter((lang) => {
+  return locales.includes(lang.locale);
+});
 
 interface LanguageDropdownProps {
   currentLang: string;

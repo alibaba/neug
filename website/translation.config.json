@@ -3,12 +3,6 @@
   "sourceRepo": "https://github.com/GraphScope/neug.git",
   "docsPath": "doc/source",
   "sourceLanguage": "en",
-  "targetLanguages": [
-    "zh",
-    "de",
-    "fr",
-    "ru",
-    "ja"
-  ],
+  "targetLanguages": ["zh"],
   "outputDir": "content"
 }

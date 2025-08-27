@@ -1,1 +1,0 @@
-# Graph aus neug exportieren

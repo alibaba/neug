@@ -1,17 +1,15 @@
 import { generateStaticParamsFor, importPage } from "nextra/pages";
 import { useMDXComponents as getMDXComponents } from "../../../mdx-components";
+import { locales } from "../../../asset-prefix.mjs";
 
 export const generateStaticParams = async () => {
   const originalGenerateParams = generateStaticParamsFor("mdxPath");
   const params = await originalGenerateParams();
 
-  // 支持的语言列表
-  const supportedLanguages = ["en", "zh", "de", "fr", "ru", "ja"];
-
   // 为每个语言生成参数
   const allParams = [];
 
-  for (const lang of supportedLanguages) {
+  for (const lang of locales) {
     // 过滤掉图片文件路径
     const filteredParams = params.filter((param) => {
       const path = Array.isArray(param.mdxPath)

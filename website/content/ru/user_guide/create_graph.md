@@ -1,1 +1,0 @@
-# Создание типа Vertex/Edge в Neug

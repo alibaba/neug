@@ -5,6 +5,19 @@ import { Layout, Link, Navbar } from "nextra-theme-docs";
 import { getPageMap } from "nextra/page-map";
 import { LanguageDropdown } from "../../src/components/language-dropdown";
 import type { FC, ReactNode } from "react";
+import { locales } from "../../asset-prefix.mjs";
+const i18n_maps = [
+  { locale: "en", name: "English" },
+  { locale: "zh", name: "中文" },
+  { locale: "de", name: "Deutsch" },
+  { locale: "fr", name: "Français" },
+  { locale: "ru", name: "Русский" },
+  { locale: "ja", name: "日本語" },
+];
+
+const i18n = i18n_maps.filter((lang) => {
+  return locales.includes(lang.locale);
+});
 
 type LayoutProps = Readonly<{
   children: ReactNode;
@@ -18,13 +31,6 @@ const LanguageLayout: FC<LayoutProps> = async ({ children, params }) => {
   console.log("Language Layout - lang:", lang);
 
   let sourcePageMap = await getPageMap(`/${lang}`);
-
-  //@ts-ignore
-  const { children: pageMap } = sourcePageMap.find((page) => {
-    //@ts-ignore
-    return page.name === lang;
-  });
-  console.log("pageMap:", pageMap);
 
   const navbar = (
     <Navbar
@@ -60,19 +66,12 @@ const LanguageLayout: FC<LayoutProps> = async ({ children, params }) => {
       navbar={navbar}
       footer={null}
       docsRepositoryBase='https://github.com/GraphScope/neug/blob/main/doc'
-      i18n={[
-        { locale: "en", name: "English" },
-        { locale: "zh", name: "中文" },
-        { locale: "de", name: "Deutsch" },
-        { locale: "fr", name: "Français" },
-        { locale: "ru", name: "Русский" },
-        { locale: "ja", name: "日本語" },
-      ]}
+      i18n={i18n}
       sidebar={{
         defaultMenuCollapseLevel: 1,
         autoCollapse: true,
       }}
-      pageMap={pageMap}
+      pageMap={sourcePageMap}
       nextThemes={{ defaultTheme: "light" }}
     >
       {children}
@@ -82,9 +81,8 @@ const LanguageLayout: FC<LayoutProps> = async ({ children, params }) => {
 
 export const generateStaticParams = async () => {
   // 支持的语言列表
-  const supportedLanguages = ["en", "zh", "de", "fr", "ru", "ja"];
 
-  return supportedLanguages.map((lang) => ({
+  return locales.map((lang) => ({
     lang: lang,
   }));
 };
