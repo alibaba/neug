@@ -21,11 +21,6 @@ else()
     install_neug_target(neug_planner)
 endif()
 
-install(DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
-        DESTINATION include/neug
-        FILES_MATCHING
-        PATTERN "*.h"
-)
 
 
 

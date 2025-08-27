@@ -14,9 +14,3 @@ else()
         add_dependencies(neug_rt_mutable_graph neug_utils)
 install_neug_target(neug_rt_mutable_graph)
 endif()
-
-install(DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
-        DESTINATION include/neug/storages
-        FILES_MATCHING
-        PATTERN "*.h"
-)

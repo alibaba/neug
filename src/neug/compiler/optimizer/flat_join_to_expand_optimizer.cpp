@@ -1,11 +1,11 @@
-#include "flat_join_to_expand_optimizer.h"
+#include "neug/compiler/optimizer/flat_join_to_expand_optimizer.h"
 #include <iostream>
 #include <memory>
-#include "common/enums/join_type.h"
-#include "planner/operator/extend/logical_extend.h"
-#include "planner/operator/logical_hash_join.h"
-#include "planner/operator/logical_operator.h"
-#include "planner/operator/scan/logical_scan_node_table.h"
+#include "neug/compiler/common/enums/join_type.h"
+#include "neug/compiler/planner/operator/extend/logical_extend.h"
+#include "neug/compiler/planner/operator/logical_hash_join.h"
+#include "neug/compiler/planner/operator/logical_operator.h"
+#include "neug/compiler/planner/operator/scan/logical_scan_node_table.h"
 
 namespace gs {
 namespace optimizer {

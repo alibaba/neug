@@ -13,9 +13,6 @@ include_directories(SYSTEM ${CMAKE_SOURCE_DIR}/third_party/antlr_cypher)
 configure_file(${CMAKE_CURRENT_SOURCE_DIR}/../../../cmake/templates/system_config.h.in ${CMAKE_CURRENT_BINARY_DIR}/neug/compiler/common/system_config.h @ONLY)
 include_directories(${CMAKE_CURRENT_BINARY_DIR})
 
-
-include_directories(${CMAKE_CURRENT_SOURCE_DIR})
-
 add_compile_definitions(KUZU_EXPORTS)
 add_compile_definitions(ANTLR4CPP_STATIC)
 include_directories(${CMAKE_CURRENT_BINARY_DIR})
@@ -61,17 +58,7 @@ if (NOT BUILD_ALL_IN_ONE)
         install_neug_target(neug_compiler_shared)
 endif()
 
-# install(FILES ${CMAKE_CURRENT_SOURCE_DIR}/include/c_api/kuzu.h TYPE INCLUDE)
 
-# if(${BUILD_SINGLE_FILE_HEADER})
-        # install(FILES ${CMAKE_CURRENT_BINARY_DIR}/kuzu.hpp  TYPE INCLUDE)
-# endif()
-
-install(DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
-        DESTINATION include/neug
-        FILES_MATCHING
-        PATTERN "*.h"
-)
 install(FILES ${CMAKE_CURRENT_BINARY_DIR}/neug/compiler/common/system_config.h
         DESTINATION include/neug/compiler/common
 )

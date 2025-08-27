@@ -16,15 +16,15 @@
 
 #pragma once
 
-#include "function/list/vector_list_functions.h"
-#include "function/path/vector_path_functions.h"
-#include "function/struct/vector_struct_functions.h"
 #include "neug/compiler/binder/expression/expression.h"
 #include "neug/compiler/binder/expression/scalar_function_expression.h"
 #include "neug/compiler/function/arithmetic/vector_arithmetic_functions.h"
 #include "neug/compiler/function/cast/vector_cast_functions.h"
 #include "neug/compiler/function/date/vector_date_functions.h"
+#include "neug/compiler/function/list/vector_list_functions.h"
+#include "neug/compiler/function/path/vector_path_functions.h"
 #include "neug/compiler/function/schema/vector_node_rel_functions.h"
+#include "neug/compiler/function/struct/vector_struct_functions.h"
 
 namespace gs {
 namespace gopt {

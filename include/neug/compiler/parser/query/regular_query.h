@@ -25,11 +25,11 @@
 #include <memory>
 #include <optional>
 #include <vector>
-#include "binder/expression/expression.h"
+#include "neug/compiler/binder/expression/expression.h"
 #include "neug/compiler/common/types/types.h"
+#include "neug/compiler/parser/expression/parsed_expression.h"
+#include "neug/compiler/parser/query/query_part.h"
 #include "neug/compiler/parser/statement.h"
-#include "parser/expression/parsed_expression.h"
-#include "parser/query/query_part.h"
 #include "single_query.h"
 
 namespace gs {

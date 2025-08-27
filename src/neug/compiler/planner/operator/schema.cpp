@@ -1,9 +1,9 @@
 #include "neug/compiler/planner/operator/schema.h"
 
-#include "binder/expression/node_expression.h"
-#include "common/enums/expression_type.h"
-#include "common/types/types.h"
+#include "neug/compiler/binder/expression/node_expression.h"
 #include "neug/compiler/binder/expression_visitor.h"
+#include "neug/compiler/common/enums/expression_type.h"
+#include "neug/compiler/common/types/types.h"
 #include "neug/utils/exception/exception.h"
 
 using namespace gs::binder;

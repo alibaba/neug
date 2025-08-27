@@ -24,11 +24,11 @@
 #include <memory>
 #include <vector>
 #include "antlr4_cypher/include/cypher_parser.h"
-#include "common/assert.h"
+#include "neug/compiler/common/assert.h"
 #include "neug/compiler/parser/expression/parsed_expression.h"
+#include "neug/compiler/parser/query/query_part.h"
 #include "neug/compiler/parser/query/regular_query.h"
 #include "neug/compiler/parser/transformer.h"
-#include "parser/query/query_part.h"
 
 namespace gs {
 namespace parser {

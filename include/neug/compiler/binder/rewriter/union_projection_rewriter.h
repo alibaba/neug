@@ -1,6 +1,6 @@
 #pragma once
-#include "binder/query/reading_clause/bound_match_clause.h"
 #include "neug/compiler/binder/bound_statement_visitor.h"
+#include "neug/compiler/binder/query/reading_clause/bound_match_clause.h"
 
 namespace gs {
 namespace binder {

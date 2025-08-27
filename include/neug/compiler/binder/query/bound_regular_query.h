@@ -25,9 +25,9 @@
 #include <optional>
 #include <utility>
 #include <vector>
-#include "binder/expression/expression.h"
-#include "binder/query/normalized_query_part.h"
 #include "neug/compiler/binder/bound_statement.h"
+#include "neug/compiler/binder/expression/expression.h"
+#include "neug/compiler/binder/query/normalized_query_part.h"
 #include "normalized_single_query.h"
 
 namespace gs {

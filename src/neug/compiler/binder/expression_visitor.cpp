@@ -22,7 +22,6 @@
 
 #include "neug/compiler/binder/expression_visitor.h"
 
-#include "function/list/vector_list_functions.h"
 #include "neug/compiler/binder/expression/case_expression.h"
 #include "neug/compiler/binder/expression/lambda_expression.h"
 #include "neug/compiler/binder/expression/node_expression.h"
@@ -32,6 +31,7 @@
 #include "neug/compiler/binder/expression/subquery_expression.h"
 #include "neug/compiler/function/cast/vector_cast_functions.h"
 #include "neug/compiler/function/date/vector_date_functions.h"
+#include "neug/compiler/function/list/vector_list_functions.h"
 #include "neug/compiler/function/sequence/sequence_functions.h"
 #include "neug/compiler/function/uuid/vector_uuid_functions.h"
 #include "neug/utils/exception/exception.h"

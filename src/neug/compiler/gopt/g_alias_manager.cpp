@@ -26,11 +26,11 @@
 #include "neug/compiler/planner/operator/logical_get_v.h"
 #include "neug/compiler/planner/operator/logical_operator.h"
 #include "neug/compiler/planner/operator/logical_plan.h"
+#include "neug/compiler/planner/operator/logical_projection.h"
+#include "neug/compiler/planner/operator/logical_union.h"
 #include "neug/compiler/planner/operator/persistent/logical_insert.h"
 #include "neug/compiler/planner/operator/scan/logical_scan_node_table.h"
 #include "neug/utils/exception/exception.h"
-#include "planner/operator/logical_projection.h"
-#include "planner/operator/logical_union.h"
 
 namespace gs {
 namespace gopt {

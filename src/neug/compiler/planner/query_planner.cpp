@@ -1,17 +1,17 @@
 #include <iostream>
 #include <memory>
 #include <vector>
-#include "binder/expression/expression.h"
-#include "binder/expression/property_expression.h"
-#include "binder/visitor/property_collector.h"
-#include "common/assert.h"
+#include "neug/compiler/binder/expression/expression.h"
+#include "neug/compiler/binder/expression/property_expression.h"
 #include "neug/compiler/binder/query/bound_regular_query.h"
+#include "neug/compiler/binder/visitor/property_collector.h"
+#include "neug/compiler/common/assert.h"
+#include "neug/compiler/planner/operator/logical_alias_map.h"
+#include "neug/compiler/planner/operator/logical_operator.h"
+#include "neug/compiler/planner/operator/logical_plan.h"
 #include "neug/compiler/planner/operator/logical_union.h"
 #include "neug/compiler/planner/planner.h"
 #include "neug/utils/exception/exception.h"
-#include "planner/operator/logical_alias_map.h"
-#include "planner/operator/logical_operator.h"
-#include "planner/operator/logical_plan.h"
 
 using namespace gs::binder;
 using namespace gs::common;

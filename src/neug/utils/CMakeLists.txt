@@ -137,9 +137,3 @@ else()
         install_neug_target(neug_utils)
 endif()
 add_dependencies(neug_utils neug_plan_proto generate_http_proto)
-
-install(DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
-        DESTINATION include/neug/
-        FILES_MATCHING
-        PATTERN "*.h"
-)

@@ -14,11 +14,3 @@ else()
     endif()
     install_without_export_neug_target(neug_main)
 endif()
-
-
-install(FILES ${CMAKE_CURRENT_SOURCE_DIR}/neug_db.h
-        ${CMAKE_CURRENT_SOURCE_DIR}/connection.h
-        ${CMAKE_CURRENT_SOURCE_DIR}/file_lock.h
-        ${CMAKE_CURRENT_SOURCE_DIR}/query_processor.h
-        ${CMAKE_CURRENT_SOURCE_DIR}/query_result.h
-        DESTINATION include/neug/main)

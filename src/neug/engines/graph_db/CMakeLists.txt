@@ -17,13 +17,6 @@ else()
 endif()
 target_include_directories(neug_graph_db PUBLIC $<BUILD_INTERFACE:${CMAKE_CURRENT_BINARY_DIR}>)
 
-install(DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
-        DESTINATION include/neug/engines
-        FILES_MATCHING
-        PATTERN "*.h"
-)
-
-
 
 
 

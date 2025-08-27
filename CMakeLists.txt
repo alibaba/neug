@@ -195,7 +195,7 @@ include(CheckLibraryExists)
 include(GNUInstallDirs)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 include(CheckCXXSourceCompiles)
-include_directories(${CMAKE_CURRENT_SOURCE_DIR}/src/)
+include_directories(${CMAKE_CURRENT_SOURCE_DIR}/include/)
 # pb files generated under src/utils
 include_directories(${CMAKE_CURRENT_BINARY_DIR}/src/neug/utils)
 # system_config.h generated under src/compiler
@@ -527,6 +527,7 @@ if (BUILD_HTTP_SERVER)
             set(BUILD_BRPC_TOOLS OFF CACHE BOOL "Build brpc tools")
             set(BUILD_SHARED_LIBS OFF CACHE BOOL "Build brpc as static library")
             set(WITH_GLOG ON CACHE BOOL "Build brpc with glog")
+            set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wno-sign-compare -Wno-deprecated-declarations -Wno-attributes")
             add_subdirectory(third_party/brpc)
             set(BRPC_INCLUDE_PATH ${CMAKE_CURRENT_SOURCE_DIR}/third_party/brpc/include)
             set(BRPC_LIB brpc-static)
@@ -834,3 +835,10 @@ if (BUILD_HTTP_SERVER)
 endif()
 
 include(CPack)
+
+# install all headers under include/neug/
+install(DIRECTORY ${PROJECT_SOURCE_DIR}/include/
+            DESTINATION include
+            FILES_MATCHING
+            PATTERN "*.h"
+)

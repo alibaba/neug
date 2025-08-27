@@ -34,15 +34,15 @@
 #include "neug/compiler/optimizer/factorization_rewriter.h"
 #include "neug/compiler/optimizer/filter_push_down_optimizer.h"
 #include "neug/compiler/optimizer/filter_push_down_pattern.h"
+#include "neug/compiler/optimizer/flat_join_to_expand_optimizer.h"
 #include "neug/compiler/optimizer/limit_push_down_optimizer.h"
 #include "neug/compiler/optimizer/projection_push_down_optimizer.h"
 #include "neug/compiler/optimizer/remove_factorization_rewriter.h"
 #include "neug/compiler/optimizer/remove_unnecessary_join_optimizer.h"
 #include "neug/compiler/optimizer/schema_populator.h"
 #include "neug/compiler/optimizer/top_k_optimizer.h"
+#include "neug/compiler/optimizer/union_alias_map_optimizer.h"
 #include "neug/compiler/planner/operator/logical_explain.h"
-#include "optimizer/flat_join_to_expand_optimizer.h"
-#include "optimizer/union_alias_map_optimizer.h"
 
 namespace gs {
 namespace optimizer {

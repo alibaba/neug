@@ -22,17 +22,17 @@
 
 #include <optional>
 #include <vector>
-#include "binder/expression/expression.h"
-#include "binder/expression/variable_expression.h"
-#include "binder/query/normalized_query_part.h"
-#include "common/enums/expression_type.h"
 #include "neug/compiler/binder/binder.h"
+#include "neug/compiler/binder/expression/expression.h"
 #include "neug/compiler/binder/expression/expression_util.h"
+#include "neug/compiler/binder/expression/variable_expression.h"
+#include "neug/compiler/binder/query/normalized_query_part.h"
 #include "neug/compiler/binder/query/return_with_clause/bound_return_clause.h"
 #include "neug/compiler/binder/query/return_with_clause/bound_with_clause.h"
+#include "neug/compiler/common/enums/expression_type.h"
+#include "neug/compiler/parser/query/reading_clause/yield_variable.h"
 #include "neug/compiler/parser/query/regular_query.h"
 #include "neug/utils/exception/exception.h"
-#include "parser/query/reading_clause/yield_variable.h"
 
 using namespace gs::common;
 using namespace gs::parser;

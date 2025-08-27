@@ -21,17 +21,17 @@
 #include <memory>
 #include <string>
 #include <vector>
-#include "common/enums/accumulate_type.h"
-#include "common/enums/join_type.h"
-#include "common/enums/path_semantic.h"
-#include "common/enums/query_rel_type.h"
 #include "neug/compiler/binder/expression/expression.h"
 #include "neug/compiler/binder/expression/property_expression.h"
 #include "neug/compiler/binder/expression/rel_expression.h"
 #include "neug/compiler/catalog/catalog.h"
 #include "neug/compiler/catalog/catalog_entry/node_table_catalog_entry.h"
 #include "neug/compiler/common/constants.h"
+#include "neug/compiler/common/enums/accumulate_type.h"
 #include "neug/compiler/common/enums/expression_type.h"
+#include "neug/compiler/common/enums/join_type.h"
+#include "neug/compiler/common/enums/path_semantic.h"
+#include "neug/compiler/common/enums/query_rel_type.h"
 #include "neug/compiler/common/enums/table_type.h"
 #include "neug/compiler/common/types/types.h"
 #include "neug/compiler/function/export/export_function.h"
@@ -62,10 +62,10 @@
 #include "neug/utils/proto/plan/expr.pb.h"
 #include "neug/utils/proto/plan/physical.pb.h"
 #endif
+#include "neug/compiler/planner/operator/extend/logical_recursive_extend.h"
+#include "neug/compiler/planner/operator/logical_hash_join.h"
+#include "neug/compiler/planner/operator/scan/logical_dummy_scan.h"
 #include "neug/utils/exception/exception.h"
-#include "planner/operator/extend/logical_recursive_extend.h"
-#include "planner/operator/logical_hash_join.h"
-#include "planner/operator/scan/logical_dummy_scan.h"
 
 namespace gs {
 namespace gopt {

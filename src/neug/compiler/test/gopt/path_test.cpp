@@ -15,7 +15,7 @@
  */
 
 #include "gopt_test.h"
-#include "planner/operator/logical_projection.h"
+#include "neug/compiler/planner/operator/logical_projection.h"
 
 namespace gs {
 namespace gopt {

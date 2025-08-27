@@ -22,7 +22,7 @@
 
 #include "neug/compiler/binder/rewriter/match_clause_pattern_label_rewriter.h"
 
-#include "binder/query/bound_regular_query.h"
+#include "neug/compiler/binder/query/bound_regular_query.h"
 
 using namespace gs::common;
 

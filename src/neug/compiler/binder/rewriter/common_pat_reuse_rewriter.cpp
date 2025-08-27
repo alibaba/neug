@@ -1,12 +1,12 @@
 #include "neug/compiler/binder/rewriter/common_pat_reuse_rewriter.h"
 #include <memory>
 #include <unordered_set>
-#include "binder/expression/expression.h"
-#include "binder/expression/node_expression.h"
-#include "binder/query/reading_clause/bound_match_clause.h"
-#include "binder/rewriter/adj_query_graph.h"
-#include "common/enums/clause_type.h"
+#include "neug/compiler/binder/expression/expression.h"
+#include "neug/compiler/binder/expression/node_expression.h"
 #include "neug/compiler/binder/query/bound_regular_query.h"
+#include "neug/compiler/binder/query/reading_clause/bound_match_clause.h"
+#include "neug/compiler/binder/rewriter/adj_query_graph.h"
+#include "neug/compiler/common/enums/clause_type.h"
 #include "neug/utils/exception/exception.h"
 
 namespace gs {

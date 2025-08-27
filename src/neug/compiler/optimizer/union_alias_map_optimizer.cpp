@@ -1,8 +1,8 @@
 #pragma once
 #include "neug/compiler/optimizer/union_alias_map_optimizer.h"
-#include "planner/operator/logical_alias_map.h"
-#include "planner/operator/logical_union.h"
-#include "planner/operator/schema.h"
+#include "neug/compiler/planner/operator/logical_alias_map.h"
+#include "neug/compiler/planner/operator/logical_union.h"
+#include "neug/compiler/planner/operator/schema.h"
 namespace gs {
 namespace optimizer {
 void UnionAliasMapOptimizer::rewrite(planner::LogicalPlan* plan) {

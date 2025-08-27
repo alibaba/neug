@@ -115,5 +115,6 @@ function(build_arrow_as_third_party)
         # list(APPEND ICEBERG_SYSTEM_DEPENDENCIES Arrow)
         message(FATAL_ERROR "Arrow source directory not found. Please check the Arrow version and source URL.")
     endif()
+    install_neug_target(ARROW_LIB)
 
 endfunction()

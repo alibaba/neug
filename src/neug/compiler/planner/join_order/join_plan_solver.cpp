@@ -1,10 +1,10 @@
 #include "neug/compiler/planner/join_order/join_plan_solver.h"
 #include <memory>
 
-#include "binder/expression/expression.h"
+#include "neug/compiler/binder/expression/expression.h"
 #include "neug/compiler/common/enums/extend_direction.h"
-#include "planner/join_order/join_tree.h"
-#include "planner/operator/logical_plan.h"
+#include "neug/compiler/planner/join_order/join_tree.h"
+#include "neug/compiler/planner/operator/logical_plan.h"
 
 using namespace gs::binder;
 using namespace gs::common;

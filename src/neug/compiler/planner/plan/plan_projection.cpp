@@ -1,7 +1,7 @@
 #include "neug/compiler/binder/expression_visitor.h"
 #include "neug/compiler/binder/query/return_with_clause/bound_projection_body.h"
+#include "neug/compiler/planner/operator/scan/logical_dummy_scan.h"
 #include "neug/compiler/planner/planner.h"
-#include "planner/operator/scan/logical_dummy_scan.h"
 
 using namespace gs::binder;
 

@@ -20,7 +20,6 @@
 #include <memory>
 #include <string>
 #include <vector>
-#include "gopt/g_alias_manager.h"
 #include "neug/compiler/binder/expression/expression.h"
 #include "neug/compiler/binder/expression/literal_expression.h"
 #include "neug/compiler/binder/expression/property_expression.h"
@@ -34,6 +33,7 @@
 #include "neug/compiler/common/types/value/value.h"
 #include "neug/compiler/function/arithmetic/vector_arithmetic_functions.h"
 #include "neug/compiler/function/struct/vector_struct_functions.h"
+#include "neug/compiler/gopt/g_alias_manager.h"
 #include "neug/compiler/gopt/g_alias_name.h"
 #include "neug/compiler/gopt/g_scalar_type.h"
 #ifdef USE_SYSTEM_PROTOBUF

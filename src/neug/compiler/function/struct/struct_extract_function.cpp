@@ -20,10 +20,10 @@
  * Zhou Xiaoli in 2025 to support Neug-specific features.
  */
 
-#include "common/constants.h"
-#include "common/types/types.h"
 #include "neug/compiler/binder/expression/expression_util.h"
 #include "neug/compiler/binder/expression/literal_expression.h"
+#include "neug/compiler/common/constants.h"
+#include "neug/compiler/common/types/types.h"
 #include "neug/compiler/function/scalar_function.h"
 #include "neug/compiler/function/struct/vector_struct_functions.h"
 #include "neug/utils/exception/exception.h"

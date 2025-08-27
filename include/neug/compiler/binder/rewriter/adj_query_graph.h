@@ -2,10 +2,10 @@
 
 #include <memory>
 #include <vector>
-#include "binder/expression/expression.h"
-#include "binder/expression/node_expression.h"
-#include "binder/expression/rel_expression.h"
-#include "binder/query/query_graph.h"
+#include "neug/compiler/binder/expression/expression.h"
+#include "neug/compiler/binder/expression/node_expression.h"
+#include "neug/compiler/binder/expression/rel_expression.h"
+#include "neug/compiler/binder/query/query_graph.h"
 namespace gs {
 namespace binder {
 
