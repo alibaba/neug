@@ -119,16 +119,13 @@ cmake .. -DCMAKE_PREFIX_PATH=/opt/neug
 
 ## Command Line Interface (CLI)
 
-The NeuG CLI tool provides an interactive shell for database operations.
+The NeuG CLI tool is provided along with NeuG.
 
 ### Installation
 
 ```bash
 # Install via pip (includes CLI tool)
 pip install neug
-
-# Or install CLI only
-pip install neug-cli
 ```
 
 ### Usage

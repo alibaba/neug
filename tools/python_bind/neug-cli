@@ -1,0 +1,17 @@
+#!/usr/bin/env python3
+"""
+Simple wrapper script to run neug-cli during development
+"""
+
+import os
+import sys
+
+# Add the current directory to the Python path so we can import neug
+current_dir = os.path.dirname(os.path.abspath(__file__))
+sys.path.insert(0, current_dir)
+
+# Import and run the CLI
+from neug.neug_cli import cli
+
+if __name__ == "__main__":
+    cli()

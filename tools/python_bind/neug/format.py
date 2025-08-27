@@ -17,8 +17,9 @@
 #
 
 import yaml
-from neug.query_result import QueryResult
 from tabulate import tabulate
+
+from neug.query_result import QueryResult
 
 
 def parse_header(result_schema: str):

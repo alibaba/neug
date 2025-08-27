@@ -16,10 +16,14 @@
 # limitations under the License.
 #
 
+import os
+import sys
+
 import pytest
 from click.testing import CliRunner
 
-from ngcli import neug_cli
+sys.path.append(os.path.join(os.path.dirname(__file__), "../"))
+from neug import neug_cli
 
 
 @pytest.fixture

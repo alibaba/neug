@@ -20,17 +20,26 @@ import atexit
 import cmd
 import logging
 import os
-import readline
-
-import click
-from neug.connection import Connection
-from neug.database import Database
-
-from ngcli.format import parse_and_format_results
+import sys
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
+logger = logging.getLogger("neug")
+
+if sys.platform == "darwin":
+    try:
+        import gnureadline as readline  # https://ipython.org/ipython-doc/2/install/install.html#readline
+    except ImportError:
+        logger.warning("gnureadline not available, falling back to standard readline")
+        import readline
+else:
+    import readline
+
+import click
+
+from neug.connection import Connection
+from neug.database import Database
+from neug.format import parse_and_format_results
 
 # Build-in commands
 COMMAND_HELP = ":help"
@@ -63,6 +72,13 @@ class NeugShell(cmd.Cmd):
         atexit.register(readline.write_history_file, histfile)
 
         logger.info("Connection established.")
+
+    def _save_history(self, histfile):
+        """Save command history with error handling"""
+        try:
+            readline.write_history_file(histfile)
+        except (PermissionError, OSError) as e:
+            logger.warning(f"Could not save history to {histfile}: {e}")
 
     def do_quit(self, arg):
         """Exit the shell: quit"""

@@ -353,6 +353,11 @@ setup(
     package_data={"neug": ["VERSION", "resources/*"]},
     zip_safe=True,
     include_package_data=True,
+    entry_points={
+        "console_scripts": [
+            "neug-cli=neug.neug_cli:cli",
+        ],
+    },
     cmdclass={
         "build_py": BuildExtFirst,
         "build_ext": CMakeBuild,

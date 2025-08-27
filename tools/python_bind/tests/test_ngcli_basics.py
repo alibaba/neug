@@ -16,10 +16,15 @@
 # limitations under the License.
 #
 
-import pytest
-from neug.database import Database
+import os
+import sys
 
-from ngcli import neug_cli
+import pytest
+
+sys.path.append(os.path.join(os.path.dirname(__file__), "../"))
+
+from neug import neug_cli
+from neug.database import Database
 
 
 def test_shell_do_help(capsys, tmp_path):

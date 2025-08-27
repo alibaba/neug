@@ -246,14 +246,9 @@ jobs:
     #     # run lsqb benchmark
     #     python3 -m pytest -m neug_benchmark --db_dir=/tmp/lsqb/ --query_dir=./queries/lsqb/ --dataset lsqb --iterations 1 --rounds 1 --read_only --benchmark-save=benchmark-lsqb
 
-    - name: Build CLI tool
-      run: |
-        cd ${GITHUB_WORKSPACE}/tools/shell/
-        pip3 install .
-
     - name: Test CLI tool
       run: |
-        cd ${GITHUB_WORKSPACE}/tools/shell/tests/
+        cd ${GITHUB_WORKSPACE}/tools/python_bind/tests/
         # test ngcli commands
         python3 -m pytest -sv test_ngcli_commands.py
         # test ngcli shell
