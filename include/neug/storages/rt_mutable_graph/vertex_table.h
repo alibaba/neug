@@ -68,6 +68,8 @@ class VertexTable {
     vertex_tomb_->clear();
   }
 
+  bool is_dropped() const { return table_ == nullptr; }
+
   bool get_index(const Any& oid, vid_t& lid) const;
 
   Any get_oid(vid_t lid) const;

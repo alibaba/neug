@@ -111,6 +111,15 @@ void VertexTable::AddProperties(
 void VertexTable::Drop() {
   indexer_.drop();
   table_->drop();
+  vertex_tomb_->clear();
+  vertex_capacity_ = 0;
+  dumped_num_ = 0;
+  table_.reset();
+  // TODO(zhanglei): reset the indexer.
+  // indexer_ = IndexerType();
+  property_names.clear();
+  property_types.clear();
+  storage_strategies.clear();
 }
 
 void VertexTable::RenameProperties(const std::vector<std::string>& old_names,

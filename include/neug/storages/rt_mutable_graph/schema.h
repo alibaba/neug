@@ -129,6 +129,8 @@ class Schema {
 
   bool contains_vertex_label(const std::string& label) const;
 
+  bool vertex_label_valid(label_t label_id) const;
+
   label_t get_vertex_label_id(const std::string& label) const;
 
   std::vector<label_t> get_vertex_label_ids() const;
@@ -249,6 +251,8 @@ class Schema {
                               const std::string& label) const;
 
   bool contains_edge_label(const std::string& label) const;
+
+  bool edge_label_valid(label_t label_id) const;
 
   label_t get_edge_label_id(const std::string& label) const;
 

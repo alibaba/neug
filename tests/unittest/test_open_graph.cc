@@ -247,3 +247,33 @@ TEST(DatabaseTest, TestSplitStringIntoVec) {
   EXPECT_EQ(vec[3], "");
   EXPECT_EQ(vec[4], "e");
 }
+
+TEST(DatabaseTest, TestPersist) {
+  std::string db_dir = "/tmp/test_persist";
+  {
+    if (std::filesystem::exists(db_dir)) {
+      std::filesystem::remove_all(db_dir);
+    }
+    gs::NeugDB db(db_dir, 1, "w", "gopt");
+    auto conn = db.connect();
+    std::string flex_data_dir = std::getenv("FLEX_DATA_DIR");
+    EXPECT_FALSE(flex_data_dir.empty());
+    EXPECT_TRUE(
+        conn->query(
+                "CREATE NODE TABLE person(id INT64, name STRING, age INT64, "
+                "PRIMARY KEY(id));")
+            .ok());
+    EXPECT_TRUE(
+        conn->query("COPY person from \"" + flex_data_dir + "/person.csv\";")
+            .ok());
+    db.close();
+  }
+  {
+    gs::NeugDB db2(db_dir, 1, "r", "gopt");
+    auto conn = db2.connect();
+    auto res = conn->query("MATCH (n: person) return n.id, n.name, n.age;");
+    EXPECT_TRUE(res.ok());
+    conn->close();
+    db2.close();
+  }
+}

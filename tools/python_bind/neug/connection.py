@@ -73,6 +73,10 @@ class Connection(object):
         if self._is_open:
             self.close()
 
+    def __del__(self):
+        if self._is_open:
+            self.close()
+
     @property
     def is_open(self) -> bool:
         """

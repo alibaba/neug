@@ -283,6 +283,17 @@ void GraphDB::Close() {
     compact_thread_.join();
   }
   //-----------Clear graph_db----------------
+  if (config_.dump_on_close) {
+    // TODO(zhanlei,lineng): Currently we dump the graph to a new directory with
+    // the mark of the last_compaction_ts_. We should invoke compact and
+    // checkpoint after checkpoint is implemented.
+    auto latest_ts = get_snapshot_version(work_dir_);
+    VLOG(10)
+        << "Dumping graph to " << snapshot_dir(work_dir_, latest_ts + 1)
+        << ", this is the temporally workaround for data persistence, will "
+           "be deleted in the future";
+    graph_.Dump(work_dir_, latest_ts + 1);
+  }
   graph_.Clear();
   version_manager_.clear();
   if (contexts_ != nullptr) {
@@ -294,6 +305,20 @@ void GraphDB::Close() {
   }
   std::fill(app_paths_.begin(), app_paths_.end(), "");
   std::fill(app_factories_.begin(), app_factories_.end(), nullptr);
+  // TODO(zhanglei,lineng): Remove this adhoc resolution when checkpoint is
+  // ready.
+  if (config_.dump_on_close) {
+    auto latest_ts = get_snapshot_version(work_dir_);
+    if (latest_ts > 0) {
+      VLOG(10) << "Remove previous checkpoint at: "
+               << snapshot_dir(work_dir_, latest_ts - 1)
+               << ", current latest snapshot is at: "
+               << snapshot_dir(work_dir_, latest_ts)
+               << ", this behaviour is not elegant and will be replaced with "
+                  "checkpoint in the near future";
+      std::filesystem::remove_all(snapshot_dir(work_dir_, latest_ts - 1));
+    }
+  }
 }
 
 ReadTransaction GraphDB::GetReadTransaction(int thread_id) {

@@ -199,6 +199,9 @@ class Database(object):
     def __enter__(self):
         return self
 
+    def __del__(self):
+        self.close()
+
     @property
     def version(self):
         """

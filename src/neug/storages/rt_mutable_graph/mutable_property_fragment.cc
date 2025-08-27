@@ -39,7 +39,7 @@
 namespace gs {
 
 MutablePropertyFragment::MutablePropertyFragment()
-    : vertex_label_num_(0), edge_label_num_(0) {}
+    : vertex_label_num_(0), edge_label_num_(0), memory_level_(1) {}
 
 MutablePropertyFragment::~MutablePropertyFragment() {
   std::vector<size_t> degree_list(vertex_label_num_, 0);
@@ -157,8 +157,8 @@ Status MutablePropertyFragment::create_vertex_type(
       property_names, property_types, strategies);
 
   // TODO: use memory level.
-  vertex_tables_.back().Open(snapshot_dir(work_dir_, 0), tmp_dir(work_dir_), 0,
-                             true);
+  vertex_tables_.back().Open(snapshot_dir(work_dir_, 0), tmp_dir(work_dir_),
+                             memory_level_, true);
   vertex_tables_.back().Reserve(4096);
   // Dump schema
   DumpSchema(schema_path(work_dir_));
@@ -269,8 +269,8 @@ Status MutablePropertyFragment::create_edge_type(
       vertex_tables_[src_label_i].get_indexer().capacity(), (size_t) 4096);
   auto dst_v_capacity = std::max(
       vertex_tables_[dst_label_i].get_indexer().capacity(), (size_t) 4096);
-  edge_tables_.at(index).Open(snapshot_dir(work_dir_, 0), tmp_dir(work_dir_), 0,
-                              src_v_capacity, dst_v_capacity);
+  edge_tables_.at(index).Open(snapshot_dir(work_dir_, 0), tmp_dir(work_dir_),
+                              memory_level_, src_v_capacity, dst_v_capacity);
 
   edge_tables_.at(index).Reserve(src_v_capacity, dst_v_capacity);
   DumpSchema(schema_path(work_dir_));
@@ -709,6 +709,7 @@ void MutablePropertyFragment::DumpSchema(const std::string& schema_path) {
 void MutablePropertyFragment::Open(const std::string& work_dir,
                                    int memory_level) {
   // copy work_dir to work_dir_
+  memory_level_ = memory_level;
   work_dir_.assign(work_dir);
   std::string schema_file = schema_path(work_dir_);
   std::string snap_shot_dir{};
@@ -865,19 +866,30 @@ void MutablePropertyFragment::Dump(const std::string& work_dir,
   }
   std::vector<size_t> vertex_num(vertex_label_num_, 0);
   for (size_t i = 0; i < vertex_label_num_; ++i) {
-    vertex_num[i] = vertex_tables_[i].lid_num();
-    vertex_tables_[i].Dump(snapshot_dir_path);
+    if (!vertex_tables_[i].is_dropped()) {
+      vertex_num[i] = vertex_tables_[i].lid_num();
+      vertex_tables_[i].Dump(snapshot_dir_path);
+    }
   }
 
   for (size_t src_label_i = 0; src_label_i != vertex_label_num_;
        ++src_label_i) {
+    if (!schema_.vertex_label_valid(src_label_i)) {
+      continue;
+    }
     std::string src_label =
         schema_.get_vertex_label_name(static_cast<label_t>(src_label_i));
     for (size_t dst_label_i = 0; dst_label_i != vertex_label_num_;
          ++dst_label_i) {
+      if (!schema_.vertex_label_valid(dst_label_i)) {
+        continue;
+      }
       std::string dst_label =
           schema_.get_vertex_label_name(static_cast<label_t>(dst_label_i));
       for (size_t e_label_i = 0; e_label_i != edge_label_num_; ++e_label_i) {
+        if (!schema_.edge_label_valid(e_label_i)) {
+          continue;
+        }
         std::string edge_label =
             schema_.get_edge_label_name(static_cast<label_t>(e_label_i));
         if (!schema_.exist(src_label, dst_label, edge_label)) {

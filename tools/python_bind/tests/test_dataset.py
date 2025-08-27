@@ -80,3 +80,22 @@ def test_load_tinysnb_dataset():
     conn = db.connect()
     res = conn.execute("MATCH (n) RETURN count(n)")
     assert res.__next__()[0] == 14, "Expected 6 nodes in modern_graph dataset"
+
+
+def test_load_builtin_dataset():
+    db_dir = "/tmp/test_load_builtin_dataset"
+    shutil.rmtree(db_dir, ignore_errors=True)
+    db = Database(db_dir)
+    db.load_builtin_dataset(dataset_name="tinysnb")
+
+    conn = db.connect()
+    res = conn.execute("MATCH(n) return count(n);")
+    assert res.__next__()[0] == 14
+
+    conn.close()
+    db.close()
+
+    db2 = Database(db_dir, mode="r")
+    conn2 = db2.connect()
+    res2 = conn2.execute("MATCH(n) return count(n);")
+    assert res2.__next__()[0] == 14

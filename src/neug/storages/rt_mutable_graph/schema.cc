@@ -143,6 +143,10 @@ bool Schema::contains_vertex_label(const std::string& label) const {
   return vlabel_indexer_.get_index(label, ret) && !vlabel_tomb_.get(ret);
 }
 
+bool Schema::vertex_label_valid(label_t label_id) const {
+  return label_id < vlabel_indexer_.size() && !vlabel_tomb_.get(label_id);
+}
+
 label_t Schema::get_vertex_label_id(const std::string& label) const {
   label_t ret;
   LOG_FATAL_IF(!vlabel_indexer_.get_index(label, ret),
@@ -406,10 +410,18 @@ bool Schema::contains_edge_label(const std::string& label) const {
   return elabel_indexer_.get_index(label, ret) && !elabel_tomb_.get(ret);
 }
 
+bool Schema::edge_label_valid(label_t label_id) const {
+  return label_id < elabel_indexer_.size() && !elabel_tomb_.get(label_id);
+}
+
 const std::string& Schema::get_vertex_label_name(label_t index) const {
   std::string ret;
-  LOG_FATAL_IF(vlabel_tomb_.get(index),
-               "Label id: " + std::to_string(index) + " was deleted");
+  // LOG_FATAL_IF(vlabel_tomb_.get(index),
+  //              "Label id: " + std::to_string(index) + " was deleted");
+  if (vlabel_tomb_.get(index)) {
+    THROW_INTERNAL_EXCEPTION("Label id: " + std::to_string(index) +
+                             " was deleted");
+  }
   return vlabel_indexer_.get_key(index);
 }
 

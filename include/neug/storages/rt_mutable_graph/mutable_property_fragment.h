@@ -307,6 +307,7 @@ class MutablePropertyFragment {
   std::unordered_map<uint32_t, EdgeTable> edge_tables_;
 
   size_t vertex_label_num_, edge_label_num_;
+  bool memory_level_;
 };
 
 }  // namespace gs

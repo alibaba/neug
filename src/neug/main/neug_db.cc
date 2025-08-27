@@ -53,6 +53,9 @@ void setup_signal_handler() {
 }
 
 void NeugDB::close() {
+  if (closed_) {
+    return;
+  }
   LOG(INFO) << "Closing NeugDB.";
   if (mode_ == DBMode::READ_WRITE) {
     file_lock_.unlock();
@@ -72,9 +75,13 @@ void NeugDB::close() {
     std::filesystem::remove_all(config_.data_dir);
   }
   VLOG(10) << "Close all connections.";
+  closed_ = true;
 }
 
 std::shared_ptr<Connection> NeugDB::connect() {
+  if (closed_) {
+    THROW_INTERNAL_EXCEPTION("NeugDB is closed.");
+  }
   if (mode_ == DBMode::READ_ONLY) {
     auto conn = std::make_shared<Connection>(db_, planner_, query_processor_);
     read_only_connections_.push_back(conn);
@@ -121,6 +128,9 @@ void NeugDB::remove_connection(std::shared_ptr<Connection> conn) {
 }
 
 std::string NeugDB::serve(int port, const std::string& host) {
+  if (closed_) {
+    THROW_INTERNAL_EXCEPTION("NeugDB is closed.");
+  }
 #ifdef BUILD_HTTP_SERVER
   if (hdl_mgr_) {
     LOG(WARNING) << "HTTP service is already started.";
@@ -151,6 +161,9 @@ std::string NeugDB::serve(int port, const std::string& host) {
 }
 
 void NeugDB::stop_serving() {
+  if (closed_) {
+    THROW_INTERNAL_EXCEPTION("NeugDB is closed.");
+  }
 #ifdef BUILD_HTTP_SERVER
   if (hdl_mgr_) {
     LOG(INFO) << "Stopping HTTP service.";

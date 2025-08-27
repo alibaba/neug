@@ -82,7 +82,8 @@ struct GraphDBConfig {
         enable_monitoring(false),
         enable_auto_compaction(false),
         memory_level(1),
-        wal_uri("") {}
+        wal_uri(""),
+        dump_on_close(false) {}
 
   // Create without schema
   GraphDBConfig(const std::string& data_dir_,
@@ -94,7 +95,8 @@ struct GraphDBConfig {
         enable_monitoring(false),
         enable_auto_compaction(false),
         memory_level(1),
-        wal_uri("") {}
+        wal_uri(""),
+        dump_on_close(false) {}
 
   Schema schema;
   std::string data_dir;
@@ -112,8 +114,10 @@ struct GraphDBConfig {
   */
   int memory_level;
   std::string wal_uri;  // Indicate the where shall we store the wal files.
-                        // could be file://{GRAPH_DATA_DIR}/wal or other scheme
-                        // that interactive supports
+  // could be file://{GRAPH_DATA_DIR}/wal or other scheme
+  // that interactive supports
+  bool dump_on_close;  // whether dump the graph when
+                       // closing the graph db.
 };
 
 class GraphDB {

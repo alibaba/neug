@@ -287,6 +287,7 @@ class mmap_array {
         LOG(ERROR) << ss.str();
         THROW_RUNTIME_ERROR(ss.str());
       }
+
       if (fwrite(data_, sizeof(T), size_, fout) != size_) {
         std::stringstream ss;
         ss << "Failed to fwrite file [ " << filename << " ], "

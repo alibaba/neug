@@ -519,7 +519,7 @@ class MutableCsr : public TypedMutableCsrBase<EDATA_T> {
       if (errorCode) {
         std::stringstream ss;
         ss << "Failed to create hard link from " << nbr_list_.filename()
-           << " to " << new_snapshot_dir + "/" + name + ".snbr"
+           << " to " << new_snapshot_dir + "/" + name + ".nbr"
            << ", error code: " << errorCode << " " << errorCode.message();
         LOG(ERROR) << ss.str();
         THROW_RUNTIME_ERROR(ss.str());

@@ -52,10 +52,7 @@ class TestBachLoading(unittest.TestCase):
     def test_batch_loading_modern_graph(self):
         # create a tmp directory for the graph
         db_dir = "/tmp/test_batch_loading"
-        if os.path.exists(db_dir):
-            os.system("rm -rf %s" % db_dir)
-        os.makedirs(db_dir)
-
+        shutil.rmtree(db_dir, ignore_errors=True)
         # get env : FLEX_DATA_DIR
         flex_data_dir = os.environ.get("FLEX_DATA_DIR")
         if not flex_data_dir:
@@ -87,36 +84,35 @@ class TestBachLoading(unittest.TestCase):
         )
 
         # Then run a query
-        res = conn.execute("MATCH (n) return n.id;")
-        for record in res:
-            print(record)
+        res = list(conn.execute("MATCH (n) return n.id;"))
+        assert res == [[1], [2], [4], [6]]
 
-        res = conn.execute("MATCH (n) return count(*);")
-        for record in res:
-            print(record)
+        res = list(conn.execute("MATCH (n) return count(*);"))
+        assert res[0] == [4]
 
         conn.close()
         db.close()
+        del db
+        del conn
 
         db2 = Database(db_dir, "r")
         conn2 = db2.connect()
 
         res = conn2.execute("MATCH (n) return count(n);")
-        for record in res:
-            print(record)
+        res_data = list(res)
+        assert res_data[0] == [4]
 
         # get the schema
         result_schema = res.get_result_schema()
         logger.info(f"result schema: {result_schema}")
 
-        res = conn2.execute("MATCH (n)-[e:knows]->(m) return e;")
-        for record in res:
-            print(record)
-            logger.info(f"record: {record}")
+        res = conn2.execute("MATCH (n)-[e:knows]->(m) return count(e);")
+        assert list(res)[0] == [2]
 
         # get the schema
         result_schema = res.get_result_schema()
         logger.info(f"result schema: {result_schema}")
+        db2.close()
 
     def test_open_close(self):
         tmp_path = os.environ.get("TMPDIR", "/tmp")
@@ -161,9 +157,6 @@ class TestBachLoading(unittest.TestCase):
         res = conn.execute("MATCH (n) return n.name, n.age;")
         for record in res:
             print(record)
-
-        # rm the file
-        shutil.rmtree(db_dir)
 
         res = conn.execute("MATCH (n: person) WHERE n.age > 34 return n.name;")
         assert res.__next__()[0] == "Charlie"

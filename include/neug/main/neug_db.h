@@ -52,7 +52,9 @@ class NeugDB {
          const std::string& mode = "read_write",
          const std::string& planner_kind = "gopt",
          const std::string& planner_config_path = "")
-      : file_lock_(data_dir), planner_config_path_(planner_config_path) {
+      : file_lock_(data_dir),
+        planner_config_path_(planner_config_path),
+        closed_(false) {
     if (max_num_threads == 0) {
       max_num_threads = std::thread::hardware_concurrency();
     }
@@ -86,6 +88,7 @@ class NeugDB {
     config_.data_dir = db_dir;
     config_.thread_num = max_num_threads;
     config_.memory_level = 1;
+    config_.dump_on_close = is_pure_memory_ ? false : true;
     ensure_directory_exists(db_dir);
 
     if (mode == "read" || mode == "r" || mode == "read-only" ||
@@ -194,6 +197,8 @@ class NeugDB {
   // For serving the database
   server::ServiceConfig service_config_;
   std::unique_ptr<server::IHttpHandlerManager> hdl_mgr_;
+
+  bool closed_;
 };
 }  // namespace gs
 
