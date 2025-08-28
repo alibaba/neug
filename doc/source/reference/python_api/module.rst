@@ -1,7 +1,7 @@
 .. _neug_module:
 
 
-Neug Module
+NeuG Module
 =================================
 
 .. automodule:: neug

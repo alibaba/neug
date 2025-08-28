@@ -1,4 +1,4 @@
-# Neug Documentation
+# NeuG Documentation
 
 ```bash
 make dependencies

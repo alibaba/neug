@@ -9,7 +9,7 @@ bash scripts/install_deps.sh
 source ~/.neug_env
 ```
 
-## Build Neug
+## Build NeuG
 
 ```bash
 cd tools/python_bind

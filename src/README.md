@@ -1,3 +1,3 @@
-# Neug core src code
+# NeuG core src code
 
 The core c++ code of neug.

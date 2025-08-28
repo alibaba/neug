@@ -4,7 +4,7 @@ The CAST function is primarily used for converting between different data types.
 
 ## Cast Literal
 
-Neug currently allows the following type conversions:
+NeuG currently allows the following type conversions:
 - Mutual conversion between Numeric types. Numeric types include: INT32, UINT32, INT64, UINT64, FLOAT, DOUBLE. Any two Numeric types can be converted. If overflow occurs, an exception will be thrown. The table below shows the possible exceptions that may be encountered.
 - Conversion between String and Numeric types. String can be converted to and from any Numeric type. If the specific value cannot be converted, an exception will be thrown.
 

@@ -1,8 +1,8 @@
-# Neug Images Overview
+# NeuG Images Overview
 
 ## Image Retrieval from Registry
 
-To access Neug images, you can pull them from the specified registry using the commands below:
+To access NeuG images, you can pull them from the specified registry using the commands below:
 
 ```bash
 # Pulling images for different architectures
@@ -16,10 +16,10 @@ docker pull registry.cn-hongkong.aliyuncs.com/graphscope/graphscope-dev:neug-dev
 
 ## Building Manylinux Images
 
-To create wheel packages compatible with various Linux distributions, we utilize the manylinux approach. Use the following commands to build images equipped with the necessary environments for Neug:
+To create wheel packages compatible with various Linux distributions, we utilize the manylinux approach. Use the following commands to build images equipped with the necessary environments for NeuG:
 
 ```bash
-make neug-manylinux          # Builds an image with all dependencies, excluding brpc, suitable if you don't require the Neug server
+make neug-manylinux          # Builds an image with all dependencies, excluding brpc, suitable if you don't require the NeuG server
 make neug-manylinux-brpc     # Builds an image that includes brpc, requiring 'make neug-manylinux' first as it serves as a base
 ```
 

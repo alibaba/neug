@@ -76,12 +76,12 @@ make install
 
 ### Verify Installation
 
-In your cmake project, find and link Neug libraries with the following command:
+In your cmake project, find and link NeuG libraries with the following command:
 
 ```cmake
 cmake_minimum_required (VERSION 3.10)
 project (
-  NeugTest
+  NeuGTest
   VERSION 0.1
   LANGUAGES C CXX)
 

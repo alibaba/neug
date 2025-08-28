@@ -1,6 +1,6 @@
 # Match Clause
 
-The `MATCH` clause is used to search for patterns in the graph database. It allows you to find nodes, relationships, and paths that match specific criteria.
+The `MATCH` clause is used to search for patterns in the graph database. It allows you to find nodes, edges, and paths that match specific criteria.
 
 ## Match Nodes
 
@@ -31,7 +31,7 @@ output:
 
 Find nodes with any of the specified labels. This query returns all nodes labeled as either `person` or `software`.
 
-**Note**: Unlike Neo4j, Neug does not support multi-label nodes. In Neo4j, `(p:person:software)` represents nodes that have both `person` and `software` labels simultaneously. In Neug, this syntax represents a union of nodes with either `person` or `software` labels.
+**Note**: Unlike Neo4j, NeuG does not support multi-label nodes. In Neo4j, `(p:person:software)` represents nodes that have both `person` and `software` labels simultaneously. In NeuG, this syntax represents a union of nodes with either `person` or `software` labels.
 
 ```cypher
 MATCH (p:person:software) RETURN p;
@@ -58,7 +58,7 @@ output:
 
 ### Match Nodes with Any Label
 
-Match nodes without specifying a label. Neug supports queries without explicit labels and infers unknown labels automatically during compilation based on defined schema constraints.
+Match nodes without specifying a label. NeuG supports queries without explicit labels and infers unknown labels automatically during compilation based on defined schema constraints.
 
 ```cypher
 MATCH (p) RETURN p;
@@ -100,9 +100,9 @@ output:
 +-------------------------------------------------------+
 ```
 
-## Match Relationships
+## Match Edges
 
-### Match Relationships with Single Label
+### Match Edges with Single Label
 
 ```cypher
 MATCH (p:person)-[k:knows]->(f:person) RETURN k;
@@ -119,7 +119,7 @@ output:
 +------------------------------------------------------------------------------------------------------+
 ```
 
-### Match Relationships with Multiple Labels
+### Match Edges with Multiple Labels
 
 ```cypher
 MATCH (p:person)-[k:knows|created]->(f) RETURN k;
@@ -144,7 +144,7 @@ output:
 +--------------------------------------------------------------------------------------------------------------------------------------+
 ```
 
-### Match Relationships with Any Label
+### Match Edges with Any Label
 
 ```cypher
 MATCH (p:person)-[k]->(f) RETURN k;
@@ -169,9 +169,9 @@ output:
 +--------------------------------------------------------------------------------------------------------------------------------------+
 ```
 
-## Match Relationships with Conditions
+## Match Edges with Conditions
 
-Filter relationships based on their properties.
+Filter edges based on their properties.
 
 ```cypher
 MATCH (p:person)-[k:knows {weight: 1.0}]->(f:person) RETURN k;
@@ -188,11 +188,11 @@ output:
 
 ## Match Repeated Paths
 
-Neug supports variable-length repeated path exploration, which is a common feature in graph queries.
+NeuG supports variable-length repeated path exploration, which is a common feature in graph queries.
 
 ### Match Repeated Path with Variable Length
 
-Find paths with a variable number of hops. This query returns all paths consisting of 1 or 2 relationships.
+Find paths with a variable number of hops. This query returns all paths consisting of 1 or 2 edges.
 
 ```cypher
 MATCH (p:person)-[k*1..2]->(f) RETURN k;
@@ -229,7 +229,7 @@ output:
 
 ### Match Repeated Paths with Edge Conditions
 
-Reference [Kuzu's specification](https://docs.kuzudb.com/cypher/query-clauses/match/#filter-recursive-relationships), Neug also supports property filtering on each edge during the path.
+Reference [Kuzu's specification](https://docs.kuzudb.com/cypher/query-clauses/match/#filter-recursive-relationships), NeuG also supports property filtering on each edge during the path.
 
 This query requires each edge in the path to satisfy the constraint `r.weight < 1.0`.
 
@@ -269,7 +269,7 @@ RETURN k;
 
 ## Match Patterns
 
-The `MATCH` clause supports complex pattern matching that combines nodes, relationships, and conditions in various ways to express sophisticated graph queries.
+The `MATCH` clause supports complex pattern matching that combines nodes, edges, and conditions in various ways to express sophisticated graph queries.
 
 Below are some classic graph query patterns that are widely used in various graph query benchmarks:
 - Triangle Pattern

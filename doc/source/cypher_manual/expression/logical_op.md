@@ -1,6 +1,6 @@
 # Logical Operators
 
-Neug currently supports three Logical Operators: AND, OR, NOT; and handles NULL values specially according to SQL's "three-valued logic". The specific truth tables are shown below.
+NeuG currently supports three Logical Operators: AND, OR, NOT; and handles NULL values specially according to SQL's "three-valued logic". The specific truth tables are shown below.
 
 ## AND Truth Table
 

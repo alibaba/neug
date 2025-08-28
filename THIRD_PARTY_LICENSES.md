@@ -19,11 +19,11 @@ The reused modules include:
 
 These modules have been **partially modified** to suit the needs of this project. Major categories of changes include:
 
-- Removing most code related to the execution layer's `processor` and `storage` modules (only retaining interfaces reused by other modules), since Neug is fully based on a self-developed Hiactor execution engine.  
+- Removing most code related to the execution layer's `processor` and `storage` modules (only retaining interfaces reused by other modules), since NeuG is fully based on a self-developed Hiactor execution engine.  
 - Adjusting the `antlr4` grammar to be more compatible with the standard OpenCypher specification, while also supporting additional syntactic sugar.  
-- Modifying interfaces in the `catalog` module to adapt to Neug's own metadata system.  
+- Modifying interfaces in the `catalog` module to adapt to NeuG's own metadata system.  
 - Updating interfaces and implementations in the `planner` module to enhance pattern-based CBO (Cost-Based Optimization), introduce subgraph isomorphism algorithms, and further improve CBO efficiency.  
-- Adding Neug-specific RBO (Rule-Based Optimization) rules in the `optimizer` module, such as `FilterPushDownPattern` and `ExpandGetVFusion`.  
+- Adding NeuG-specific RBO (Rule-Based Optimization) rules in the `optimizer` module, such as `FilterPushDownPattern` and `ExpandGetVFusion`.  
 
 
 ## Kùzu License

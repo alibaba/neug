@@ -1,5 +1,5 @@
 # Query Clauses
-In this chapter, we mainly introduce Neug query-related Clauses operations. The following table summarizes the types and general purposes of these operations:
+In this chapter, we mainly introduce NeuG query-related Clauses operations. The following table summarizes the types and general purposes of these operations:
 
 Clause | Description
 -------|------------
