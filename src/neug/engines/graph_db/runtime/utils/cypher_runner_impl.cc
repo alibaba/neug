@@ -97,18 +97,18 @@ std::string CypherRunnerImpl::run(
     std::string error = "    Parse plan failed: " + cypher;
     return "";
   }
-  OprTimer timer;
+  std::unique_ptr<OprTimer> timer = nullptr;
   auto pipeline = std::move(res.value());
   GraphUpdateInterface graph(tx);
   if (pipeline.is_insert()) {
-    auto ctx = pipeline.Execute(graph, WriteContext(), params, timer);
+    auto ctx = pipeline.Execute(graph, WriteContext(), params, timer.get());
     if (!ctx) {
       LOG(ERROR) << "Execute pipeline failed for query: " << cypher;
       std::string error = "    Execute pipeline failed: " + cypher;
       return "";
     }
   } else {
-    auto ctx = pipeline.Execute(graph, Context(), params, timer);
+    auto ctx = pipeline.Execute(graph, Context(), params, timer.get());
     if (!ctx) {
       LOG(ERROR) << "Execute pipeline failed for query: " << cypher;
       std::string error = "    Execute pipeline failed: " + cypher;
@@ -144,11 +144,11 @@ std::string CypherRunnerImpl::run(
     std::string error = "    Parse plan failed: " + cypher;
     return "";
   }
-  OprTimer timer;
+  std::unique_ptr<OprTimer> timer = nullptr;
   auto pipeline = std::move(res.value());
   GraphReadInterface graph(tx);
 
-  auto ctx = pipeline.Execute(graph, Context(), params, timer);
+  auto ctx = pipeline.Execute(graph, Context(), params, timer.get());
   if (!ctx) {
     LOG(ERROR) << "Execute pipeline failed for query: " << cypher;
     std::string error = "    Execute pipeline failed: " + cypher;
@@ -180,10 +180,10 @@ std::string CypherRunnerImpl::run(
     std::string error = "    Parse plan failed: " + cypher;
     return "";
   }
-  OprTimer timer;
+  std::unique_ptr<OprTimer> timer = nullptr;
   auto pipeline = std::move(res.value());
   GraphInsertInterface graph(tx);
-  auto ctx = pipeline.Execute(graph, WriteContext(), params, timer);
+  auto ctx = pipeline.Execute(graph, WriteContext(), params, timer.get());
   if (!ctx) {
     LOG(ERROR) << "Execute pipeline failed for query: " << cypher;
     std::string error = "    Execute pipeline failed: " + cypher;

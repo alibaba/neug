@@ -66,7 +66,7 @@ class UGetVFromEdgeWithPredOpr : public IUpdateOperator {
 
   bl::result<Context> Eval(GraphUpdateInterface& graph,
                            const std::map<std::string, std::string>& params,
-                           Context&& ctx, OprTimer& timer) override {
+                           Context&& ctx, OprTimer* timer) override {
     LOG(INFO) << opr_.DebugString();
     if (opr_.params().has_predicate()) {
       GeneralVertexPredicate pred(graph, ctx, params,
@@ -98,7 +98,7 @@ class UGetVFromVerticesWithPredOpr : public IUpdateOperator {
 
   bl::result<Context> Eval(GraphUpdateInterface& graph,
                            const std::map<std::string, std::string>& params,
-                           Context&& ctx, OprTimer& timer) override {
+                           Context&& ctx, OprTimer* timer) override {
     auto expr = parse_expression<GraphUpdateInterface>(
         graph, ctx, params, expr_, VarType::kPathVar);
     if (expr->is_optional()) {

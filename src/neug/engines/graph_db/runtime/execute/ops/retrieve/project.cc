@@ -1361,7 +1361,7 @@ class ProjectOpr : public IReadOperator {
   bl::result<gs::runtime::Context> Eval(
       const gs::runtime::GraphReadInterface& graph,
       const std::map<std::string, std::string>& params,
-      gs::runtime::Context&& ctx, gs::runtime::OprTimer& timer) override {
+      gs::runtime::Context&& ctx, gs::runtime::OprTimer* timer) override {
     std::vector<std::unique_ptr<ProjectExprBase>> exprs;
     std::vector<std::shared_ptr<Arena>> arenas;
     if (!dependencies_.empty()) {
@@ -1564,7 +1564,7 @@ class ProjectOrderByOprBeta : public IReadOperator {
   bl::result<gs::runtime::Context> Eval(
       const gs::runtime::GraphReadInterface& graph,
       const std::map<std::string, std::string>& params,
-      gs::runtime::Context&& ctx, gs::runtime::OprTimer& timer) override {
+      gs::runtime::Context&& ctx, gs::runtime::OprTimer* timer) override {
     std::vector<std::shared_ptr<Arena>> arenas;
     if (!dependencies_.empty()) {
       arenas.resize(ctx.col_num(), nullptr);

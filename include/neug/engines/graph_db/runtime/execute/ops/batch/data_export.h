@@ -43,7 +43,7 @@ class DataExportOpr : public IReadOperator {
   bl::result<gs::runtime::Context> Eval(
       const gs::runtime::GraphReadInterface& graph,
       const std::map<std::string, std::string>& params,
-      gs::runtime::Context&& ctx, gs::runtime::OprTimer& timer) override;
+      gs::runtime::Context&& ctx, gs::runtime::OprTimer* timer) override;
 
   std::shared_ptr<IExportWriter> writer_;
   std::string extension_name_;

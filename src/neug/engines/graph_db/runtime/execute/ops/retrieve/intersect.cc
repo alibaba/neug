@@ -69,14 +69,14 @@ class IntersectOprMultip : public IReadOperator {
       const std::map<std::string, std::string>& params,
       gs::runtime::Context&& ctx,
       const std::vector<std::function<bool(label_t, vid_t, size_t)>>& preds,
-      gs::runtime::OprTimer& timer) {
+      gs::runtime::OprTimer* timer) {
     return Intersect::Multiple_Intersect(graph, params, std::move(ctx), preds,
                                          eeps_, alias_);
   }
   bl::result<gs::runtime::Context> Eval(
       const gs::runtime::GraphReadInterface& graph,
       const std::map<std::string, std::string>& params,
-      gs::runtime::Context&& ctx, gs::runtime::OprTimer& timer) override {
+      gs::runtime::Context&& ctx, gs::runtime::OprTimer* timer) override {
     std::vector<std::function<bool(label_t, vid_t, size_t)>> preds;
     std::vector<std::unique_ptr<GeneralVertexPredWrapper>> pred_wrappers;
     for (const auto& pred : preds_) {
@@ -117,7 +117,7 @@ class IntersectOprBeta : public IReadOperator {
   bl::result<gs::runtime::Context> Eval(
       const gs::runtime::GraphReadInterface& graph,
       const std::map<std::string, std::string>& params,
-      gs::runtime::Context&& ctx, gs::runtime::OprTimer& timer) override {
+      gs::runtime::Context&& ctx, gs::runtime::OprTimer* timer) override {
     auto lambda = [](label_t label, vid_t v, size_t idx) {
       return true;  // Dummy predicate that always returns true
     };

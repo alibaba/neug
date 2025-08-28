@@ -25,82 +25,79 @@ namespace runtime {
 
 class TimerUnit {
  public:
-  TimerUnit() = default;
+  TimerUnit() : start_(0.0) {}
   ~TimerUnit() = default;
 
-  void start() {
-#ifdef RT_PROFILE
-    start_ = -grape::GetCurrentTime();
-#endif
-  }
+  void start() { start_ = -grape::GetCurrentTime(); }
 
-  double elapsed() const {
-#ifdef RT_PROFILE
-    return start_ + grape::GetCurrentTime();
-#else
-    return 0;
-#endif
-  }
+  double elapsed() const { return start_ + grape::GetCurrentTime(); }
 
  private:
-#ifdef RT_PROFILE
   double start_;
-#endif
 };
 
 class OprTimer {
  public:
-  OprTimer() = default;
+  OprTimer()
+      : children_(), next_(nullptr), name_(""), time_(0.0), numTuples_(0) {
+    id_ = reinterpret_cast<int64_t>(this) & 0xFFFFFFFF;
+  }
+
+  void set_name(const std::string& name) { name_ = name; }
+
+  const std::string& name() const { return name_; }
+
+  int64_t id() const { return id_; }
+
+  void add_child(std::unique_ptr<OprTimer>&& child) {
+    children_.emplace_back(std::move(child));
+  }
+
+  void set_next(std::unique_ptr<OprTimer>&& next) { next_ = std::move(next); }
+
+  void record(const TimerUnit& tu) { time_ += tu.elapsed(); }
+
+  void add_num_tuples(uint64_t num) { numTuples_ += num; }
+
   ~OprTimer() = default;
 
-  void add_total(double time) {
-#ifdef RT_PROFILE
-    total_time_ += time;
-#endif
+  void output(const std::string& path) const {}
+
+  OprTimer* next() { return next_.get(); }
+
+  void output(const std::string& prefix, std::ostream& os) const {
+    os << prefix << name_ << " elapsed: " << time_ << " ms, " << numTuples_
+       << " tuples" << std::endl;
+    int idx = 0;
+    std::string child_prefix = prefix + "         ";
+    for (const auto& child : children_) {
+      os << child_prefix << "child " << idx++ << ":" << std::endl;
+      child->output(child_prefix, os);
+    }
+    if (next_) {
+      next_->output(prefix, os);
+    }
   }
-
-  void record_opr(const std::string& opr, double time) {
-#ifdef RT_PROFILE
-    opr_timers_[opr] += time;
-#endif
-  }
-
-  void record_routine(const std::string& routine, double time) {
-#ifdef RT_PROFILE
-    routine_timers_[routine] += time;
-#endif
-  }
-
-  void add_total(const TimerUnit& tu) {
-#ifdef RT_PROFILE
-    total_time_ += tu.elapsed();
-#endif
-  }
-
-  void record_opr(const std::string& opr, const TimerUnit& tu) {
-#ifdef RT_PROFILE
-    opr_timers_[opr] += tu.elapsed();
-#endif
-  }
-
-  void record_routine(const std::string& routine, const TimerUnit& tu) {
-#ifdef RT_PROFILE
-    routine_timers_[routine] += tu.elapsed();
-#endif
-  }
-
-  void output(const std::string& path) const;
-
-  void clear();
 
   OprTimer& operator+=(const OprTimer& other);
 
+  double elapsed() const {
+    double time = time_;
+    auto next = next_.get();
+    while (next) {
+      time += next->time_;
+      next = next->next_.get();
+    }
+    return time;
+  }
+
  private:
-#ifdef RT_PROFILE
-  std::map<std::string, double> opr_timers_;
-  std::map<std::string, double> routine_timers_;
-  double total_time_ = 0;
-#endif
+  std::vector<std::unique_ptr<OprTimer>> children_;
+  std::unique_ptr<OprTimer> next_;
+  std::string name_;
+  double time_ = 0.0;
+  int64_t id_;
+  uint64_t numTuples_;
 };
 
 }  // namespace runtime

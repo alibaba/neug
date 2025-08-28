@@ -437,7 +437,7 @@ bl::result<UpdatePipeline> PlanParser::parse_update_pipeline(
 
 std::pair<runtime::Context, Status> ParseAndExecuteReadPipeline(
     const GraphReadInterface& graph, const physical::PhysicalPlan& plan,
-    OprTimer& timer) {
+    OprTimer* timer) {
   gs::Status status = gs::Status::OK();
   TRY_HANDLE_ALL_WITH_EXCEPTION_CATCHING(
       ctx,
@@ -460,7 +460,7 @@ std::pair<runtime::Context, Status> ParseAndExecuteReadPipeline(
 
 std::pair<runtime::Context, Status> ParseAndExecuteUpdatePipeline(
     GraphUpdateInterface& graph, const physical::PhysicalPlan& plan,
-    OprTimer& timer) {
+    OprTimer* timer) {
   gs::Status status = gs::Status::OK();
   TRY_HANDLE_ALL_WITH_EXCEPTION_CATCHING(
       ctx,

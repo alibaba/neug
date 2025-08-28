@@ -222,13 +222,13 @@ static bl::result<Context> expand_edge_without_predicate_optional_impl(
 
 bl::result<Context> EdgeExpand::expand_edge_without_predicate(
     const GraphReadInterface& graph, Context&& ctx,
-    const EdgeExpandParams& params, OprTimer& timer) {
+    const EdgeExpandParams& params, OprTimer* timer) {
   if (params.is_optional) {
-    TimerUnit tx;
-    tx.start();
+    // TimerUnit tx;
+    // tx.start();
     auto ret = expand_edge_without_predicate_optional_impl(
         graph, std::move(ctx), params);
-    timer.record_routine("#### expand_edge_without_predicate_optional", tx);
+    // timer.record_routine("#### expand_edge_without_predicate_optional", tx);
     return ret;
   }
   std::vector<size_t> shuffle_offset;

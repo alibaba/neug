@@ -24,7 +24,7 @@ namespace ops {
 template <typename GraphInterface>
 bl::result<Context> UpdateVertexOpr::eval_impl(
     GraphInterface& graph, const std::map<std::string, std::string>& params,
-    Context&& ctx, OprTimer& timer) {
+    Context&& ctx, OprTimer* timer) {
   for (const auto& entry : vertex_data_) {
     auto tag_id = std::get<0>(entry);
     const auto& prop_name = std::get<1>(entry);
@@ -87,7 +87,7 @@ bl::result<Context> UpdateVertexOpr::eval_impl(
 bl::result<Context> UpdateVertexOpr::Eval(
     GraphUpdateInterface& graph,
     const std::map<std::string, std::string>& params, Context&& ctx,
-    OprTimer& timer) {
+    OprTimer* timer) {
   return eval_impl(graph, params, std::move(ctx), timer);
 }
 

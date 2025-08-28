@@ -19,101 +19,17 @@ namespace gs {
 
 namespace runtime {
 
-void OprTimer::output(const std::string& path) const {
-#ifdef RT_PROFILE
-  std::ofstream fout(path);
-  fout << "Total time: " << total_time_ << std::endl;
-  fout << "============= operators =============" << std::endl;
-  double opr_total = 0;
-  for (const auto& pair : opr_timers_) {
-    opr_total += pair.second;
-    fout << pair.first << ": " << pair.second << " ("
-         << pair.second / total_time_ * 100.0 << "%)" << std::endl;
-  }
-  fout << "remaining: " << total_time_ - opr_total << " ("
-       << (total_time_ - opr_total) / total_time_ * 100.0 << "%)" << std::endl;
-  fout << "============= routines  =============" << std::endl;
-  for (const auto& pair : routine_timers_) {
-    fout << pair.first << ": " << pair.second << " ("
-         << pair.second / total_time_ * 100.0 << "%)" << std::endl;
-  }
-  fout << "=====================================" << std::endl;
-#endif
-}
-
-void OprTimer::clear() {
-#ifdef RT_PROFILE
-  opr_timers_.clear();
-  routine_timers_.clear();
-  total_time_ = 0;
-#endif
-}
-
 OprTimer& OprTimer::operator+=(const OprTimer& other) {
-#ifdef RT_PROFILE
-  total_time_ += other.total_time_;
-  for (const auto& pair : other.opr_timers_) {
-    opr_timers_[pair.first] += pair.second;
+  this->time_ += other.time_;
+  this->numTuples_ += other.numTuples_;
+  for (size_t i = 0; i < children_.size(); ++i) {
+    *children_[i] += *other.children_[i];
   }
-  for (const auto& pair : other.routine_timers_) {
-    routine_timers_[pair.first] += pair.second;
+  if (other.next_) {
+    *(this->next_) += *(other.next_);
   }
-#endif
   return *this;
 }
-/**
-static std::string get_opr_name(const physical::PhysicalOpr& opr) {
-  switch (opr.opr().op_kind_case()) {
-  case physical::PhysicalOpr_Operator::OpKindCase::kScan: {
-    return "scan";
-  }
-  case physical::PhysicalOpr_Operator::OpKindCase::kEdge: {
-    return "edge_expand";
-  }
-  case physical::PhysicalOpr_Operator::OpKindCase::kVertex: {
-    return "get_v";
-  }
-  case physical::PhysicalOpr_Operator::OpKindCase::kOrderBy: {
-    return "order_by";
-  }
-  case physical::PhysicalOpr_Operator::OpKindCase::kProject: {
-    return "project";
-  }
-  case physical::PhysicalOpr_Operator::OpKindCase::kSink: {
-    return "sink";
-  }
-  case physical::PhysicalOpr_Operator::OpKindCase::kDedup: {
-    return "dedup";
-  }
-  case physical::PhysicalOpr_Operator::OpKindCase::kGroupBy: {
-    return "group_by";
-  }
-  case physical::PhysicalOpr_Operator::OpKindCase::kSelect: {
-    return "select";
-  }
-  case physical::PhysicalOpr_Operator::OpKindCase::kPath: {
-    return "path";
-  }
-  case physical::PhysicalOpr_Operator::OpKindCase::kJoin: {
-    return "join";
-  }
-  case physical::PhysicalOpr_Operator::OpKindCase::kRoot: {
-    return "root";
-  }
-  case physical::PhysicalOpr_Operator::OpKindCase::kIntersect: {
-    return "intersect";
-  }
-  case physical::PhysicalOpr_Operator::OpKindCase::kUnion: {
-    return "union";
-  }
-  case physical::PhysicalOpr_Operator::OpKindCase::kUnfold: {
-    return "unfold";
-  }
-  default:
-    return "unknown - " +
-           std::to_string(static_cast<int>(opr.opr().op_kind_case()));
-  }
-}*/
 
 }  // namespace runtime
 

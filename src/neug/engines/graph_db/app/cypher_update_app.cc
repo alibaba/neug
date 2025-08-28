@@ -280,15 +280,14 @@ Result<results::CollectiveResults> CypherUpdateApp::execute_ddl(
 
 Result<results::CollectiveResults> CypherUpdateApp::execute_update_query(
     GraphDBSession& graph, const physical::PhysicalPlan& plan,
-    runtime::OprTimer& timer_, bool insert_with_resize) {
+    runtime::OprTimer* timer, bool insert_with_resize) {
   auto txn = graph.GetUpdateTransaction();
   txn.set_insert_vertex_with_resize(insert_with_resize);
   runtime::GraphUpdateInterface gii(txn);
   runtime::Context ctx;
   gs::Status status;
-
   std::tie(ctx, status) =
-      runtime::ParseAndExecuteUpdatePipeline(gii, plan, timer_);
+      runtime::ParseAndExecuteUpdatePipeline(gii, plan, timer);
 
   if (!status.ok()) {
     LOG(ERROR) << "Error: " << status.ToString();
@@ -334,7 +333,9 @@ bool CypherUpdateApp::Query(GraphDBSession& graph, Decoder& input,
     // TODO(lexiao,zhanglei): Currently we resize the vertex property column is
     // space is not enough.
     //  This may infect the performance of the update query.
-    auto res = execute_update_query(graph, plan, timer_, true);
+    std::unique_ptr<runtime::OprTimer> timer =
+        std::make_unique<runtime::OprTimer>();
+    auto res = execute_update_query(graph, plan, timer.get(), true);
 
     if (!res.ok()) {
       LOG(ERROR) << "Execute update query failed: " << res.status().ToString();

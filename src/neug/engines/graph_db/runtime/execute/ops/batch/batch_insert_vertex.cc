@@ -35,7 +35,7 @@ namespace ops {
 bl::result<Context> BatchInsertVertexOpr::Eval(
     GraphUpdateInterface& graph,
     const std::map<std::string, std::string>& params, Context&& ctx,
-    OprTimer& timer) {
+    OprTimer* timer) {
   auto& frag = graph.GetTransaction().GetGraph();
 
   auto suppliers = create_record_batch_supplier(ctx, prop_mappings_);
@@ -145,7 +145,7 @@ std::pair<Any, std::vector<Any>> get_pk_and_prop_values(
 template <typename GraphInterface>
 bl::result<Context> InsertVertexOpr::eval_impl(
     GraphInterface& graph, const std::map<std::string, std::string>& params,
-    Context&& ctx, OprTimer& timer) {
+    Context&& ctx, OprTimer* timer) {
   for (auto& entry : vertex_data_) {
     label_t vertex_label_id = std::get<0>(entry);
     auto& properties = std::get<1>(entry);
@@ -213,7 +213,7 @@ bl::result<Context> InsertVertexOpr::eval_impl(
 bl::result<Context> InsertVertexOpr::Eval(
     GraphUpdateInterface& graph,
     const std::map<std::string, std::string>& params, Context&& ctx,
-    OprTimer& timer) {
+    OprTimer* timer) {
   return eval_impl(graph, params, std::move(ctx), timer);
 }
 

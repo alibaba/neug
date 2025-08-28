@@ -48,7 +48,7 @@ class UEdgeExpandVWithoutPredOpr : public IUpdateOperator {
 
   bl::result<Context> Eval(GraphUpdateInterface& graph,
                            const std::map<std::string, std::string>& params,
-                           Context&& ctx, OprTimer& timer) override {
+                           Context&& ctx, OprTimer* timer) override {
     return UEdgeExpand::edge_expand_v_without_pred(graph, std::move(ctx),
                                                    params_);
   }
@@ -66,7 +66,7 @@ class UEdgeExpandEWithoutPredOpr : public IUpdateOperator {
 
   bl::result<Context> Eval(GraphUpdateInterface& graph,
                            const std::map<std::string, std::string>& params,
-                           Context&& ctx, OprTimer& timer) override {
+                           Context&& ctx, OprTimer* timer) override {
     return UEdgeExpand::edge_expand_e_without_pred(graph, std::move(ctx),
                                                    params_);
   }

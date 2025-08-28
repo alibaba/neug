@@ -38,7 +38,7 @@ class SinkOpr : public IReadOperator {
 
   bl::result<Context> Eval(const GraphReadInterface& graph,
                            const std::map<std::string, std::string>& params,
-                           Context&& ctx, OprTimer& timer) override {
+                           Context&& ctx, OprTimer* timer) override {
     ctx.tag_ids = tag_ids_;
     return ctx;
   }

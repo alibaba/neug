@@ -43,7 +43,7 @@ class ReadPipeline {
 
   bl::result<Context> Execute(const GraphReadInterface& graph, Context&& ctx,
                               const std::map<std::string, std::string>& params,
-                              OprTimer& timer);
+                              OprTimer* timer);
 
  private:
   std::vector<std::unique_ptr<IReadOperator>> operators_;
@@ -61,7 +61,7 @@ class InsertPipeline {
   template <typename GraphInterface>
   bl::result<WriteContext> Execute(
       GraphInterface& graph, WriteContext&& ctx,
-      const std::map<std::string, std::string>& params, OprTimer& timer);
+      const std::map<std::string, std::string>& params, OprTimer* timer);
 
  private:
   std::vector<std::unique_ptr<IInsertOperator>> operators_;
@@ -83,10 +83,10 @@ class UpdatePipeline {
 
   bl::result<Context> Execute(GraphUpdateInterface& graph, Context&& ctx,
                               const std::map<std::string, std::string>& params,
-                              OprTimer& timer);
+                              OprTimer* timer);
   bl::result<WriteContext> Execute(
       GraphUpdateInterface& graph, WriteContext&& ctx,
-      const std::map<std::string, std::string>& params, OprTimer& timer);
+      const std::map<std::string, std::string>& params, OprTimer* timer);
 
   bool is_insert() const { return is_insert_; }
 

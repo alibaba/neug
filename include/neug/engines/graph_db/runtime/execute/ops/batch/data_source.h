@@ -60,7 +60,7 @@ class CSVDataSourceOpr : public IUpdateOperator {
 
   bl::result<Context> Eval(GraphUpdateInterface& graph,
                            const std::map<std::string, std::string>& params,
-                           Context&& ctx, OprTimer& timer) override;
+                           Context&& ctx, OprTimer* timer) override;
 
  private:
   bl::result<Context> eval_table_reader(Context&& ctx);

@@ -46,7 +46,7 @@ namespace ops {
 bl::result<Context> CSVDataSourceOpr::Eval(
     GraphUpdateInterface& graph,
     const std::map<std::string, std::string>& params, Context&& ctx,
-    OprTimer& timer) {
+    OprTimer* timer) {
   if (ctx.row_num() != 0) {
     LOG(ERROR) << "Expect a empty context, but got " << ctx.row_num();
     return bl::new_error(gs::StatusCode::ERR_INVALID_ARGUMENT,

@@ -43,14 +43,10 @@ class CypherReadApp : public ReadAppBase {
   bool Query(const GraphDBSession& graph, Decoder& input,
              Encoder& output) override;
 
-  const runtime::OprTimer& timer() const { return timer_; }
-  runtime::OprTimer& timer() { return timer_; }
-
  private:
   const GraphDB& db_;
   std::unordered_map<std::string, physical::PhysicalPlan> plan_cache_;
   std::unordered_map<std::string, runtime::ReadPipeline> pipeline_cache_;
-  runtime::OprTimer timer_;
 };
 
 class CypherReadAppFactory : public AppFactoryBase {

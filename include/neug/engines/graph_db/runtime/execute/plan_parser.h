@@ -91,11 +91,11 @@ class PlanParser {
 
 std::pair<runtime::Context, Status> ParseAndExecuteReadPipeline(
     const GraphReadInterface& graph, const physical::PhysicalPlan& plan,
-    OprTimer& timer);
+    OprTimer* timer);
 
 std::pair<runtime::Context, Status> ParseAndExecuteUpdatePipeline(
     GraphUpdateInterface& graph, const physical::PhysicalPlan& plan,
-    OprTimer& timer);
+    OprTimer* timer);
 
 }  // namespace runtime
 

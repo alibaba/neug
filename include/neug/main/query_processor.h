@@ -59,7 +59,6 @@ class QueryProcessor {
 
   GraphDB& db_;
   int32_t max_num_threads_;
-  runtime::OprTimer timer_;
   bool is_read_only_ = false;
 };
 

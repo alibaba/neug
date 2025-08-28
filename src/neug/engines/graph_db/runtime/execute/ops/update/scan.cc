@@ -56,7 +56,7 @@ class UScanOpr : public IUpdateOperator {
   bl::result<gs::runtime::Context> Eval(
       gs::runtime::GraphUpdateInterface& graph,
       const std::map<std::string, std::string>& params,
-      gs::runtime::Context&& ctx, gs::runtime::OprTimer& timer) override {
+      gs::runtime::Context&& ctx, gs::runtime::OprTimer* timer) override {
     std::vector<Any> oids_vec;
     for (auto& oid : oids) {
       auto oids = oid(params);

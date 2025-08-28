@@ -363,7 +363,7 @@ class EdgeExpand {
 
   static bl::result<Context> expand_edge_without_predicate(
       const GraphReadInterface& graph, Context&& ctx,
-      const EdgeExpandParams& params, OprTimer& timer);
+      const EdgeExpandParams& params, OprTimer* timer);
 
   template <typename PRED_T>
   static bl::result<Context> expand_vertex(const GraphReadInterface& graph,

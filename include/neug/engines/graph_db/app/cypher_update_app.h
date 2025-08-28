@@ -42,15 +42,12 @@ class CypherUpdateApp : public WriteAppBase {
 
   bool Query(GraphDBSession& graph, Decoder& input, Encoder& output) override;
 
-  const runtime::OprTimer& timer() const { return timer_; }
-  runtime::OprTimer& timer() { return timer_; }
-
   static Result<results::CollectiveResults> execute_ddl(
       GraphDBSession& graph, const physical::DDLPlan& ddl_plan);
 
   static Result<results::CollectiveResults> execute_update_query(
       GraphDBSession& graph, const physical::PhysicalPlan& plan,
-      runtime::OprTimer& timer_, bool insert_with_resize = false);
+      runtime::OprTimer* timer_, bool insert_with_resize = false);
 
   static Result<results::CollectiveResults> execute_add_vertex_property(
       GraphDBSession& graph,
@@ -83,7 +80,6 @@ class CypherUpdateApp : public WriteAppBase {
  private:
   std::unordered_map<std::string, physical::PhysicalPlan> plan_cache_;
   std::unordered_map<std::string, runtime::InsertPipeline> pipeline_cache_;
-  runtime::OprTimer timer_;
 };
 
 class CypherUpdateAppFactory : public AppFactoryBase {

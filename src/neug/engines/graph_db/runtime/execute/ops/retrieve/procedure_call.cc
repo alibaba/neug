@@ -431,7 +431,7 @@ class ProcedureCallOpr : public IReadOperator {
 
   bl::result<Context> Eval(const GraphReadInterface& txn,
                            const std::map<std::string, std::string>&,
-                           Context&& ctx, OprTimer&) override {
+                           Context&& ctx, OprTimer*) override {
     auto ret = eval_procedure_call(aliases_, opr_, txn, std::move(ctx));
     return ret;
   }

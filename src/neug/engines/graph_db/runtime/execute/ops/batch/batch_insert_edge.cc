@@ -40,7 +40,7 @@ namespace ops {
 bl::result<Context> BatchInsertEdgeOpr::Eval(
     GraphUpdateInterface& graph,
     const std::map<std::string, std::string>& params, Context&& ctx,
-    OprTimer& timer) {
+    OprTimer* timer) {
   auto& frag = graph.GetTransaction().GetGraph();
   std::vector<std::pair<int32_t, std::string>>
       total_mappings;  // include prop_mappings and src/dst vertex bindings
@@ -150,7 +150,7 @@ std::unique_ptr<IUpdateOperator> BatchInsertEdgeOprBuilder::Build(
 template <typename GraphInterface>
 bl::result<Context> InsertEdgeOpr::eval_impl(
     GraphInterface& graph, const std::map<std::string, std::string>& params,
-    Context&& ctx, gs::runtime::OprTimer& timer) {
+    Context&& ctx, gs::runtime::OprTimer* timer) {
   for (auto& entry : edge_data_) {
     auto& [edge_triplet, src_vertex_mapping, dst_vertex_mapping,
            edge_properties] = entry;

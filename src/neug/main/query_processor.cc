@@ -91,8 +91,9 @@ Result<results::CollectiveResults> QueryProcessor::execute_read_only(
 
   runtime::Context ctx;
   Status status;
+  std::unique_ptr<runtime::OprTimer> timer = nullptr;
   std::tie(ctx, status) =
-      runtime::ParseAndExecuteReadPipeline(gri, plan, timer_);
+      runtime::ParseAndExecuteReadPipeline(gri, plan, timer.get());
 
   if (!status.ok()) {
     LOG(ERROR) << "Error: " << status.ToString();
@@ -106,8 +107,9 @@ Result<results::CollectiveResults> QueryProcessor::execute_read_only(
 
 Result<results::CollectiveResults> QueryProcessor::execute_read_write(
     const physical::PhysicalPlan& plan, int32_t num_threads) {
-  return CypherUpdateApp::execute_update_query(db_.GetSession(0), plan, timer_,
-                                               true);
+  std::unique_ptr<runtime::OprTimer> timer = nullptr;
+  return CypherUpdateApp::execute_update_query(db_.GetSession(0), plan,
+                                               timer.get(), true);
 }
 
 Result<results::CollectiveResults> QueryProcessor::execute_ddl(

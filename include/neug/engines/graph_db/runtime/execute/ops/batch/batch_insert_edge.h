@@ -72,7 +72,7 @@ class BatchInsertEdgeOpr : public IUpdateOperator {
 
   bl::result<Context> Eval(GraphUpdateInterface& graph,
                            const std::map<std::string, std::string>& params,
-                           Context&& ctx, OprTimer& timer) override;
+                           Context&& ctx, OprTimer* timer) override;
 
  private:
   label_t edge_label_id_, src_label_id_, dst_label_id_;
@@ -111,12 +111,12 @@ class InsertEdgeOpr : public IUpdateOperator {
   template <typename GraphInterface>
   bl::result<Context> eval_impl(
       GraphInterface& graph, const std::map<std::string, std::string>& params,
-      Context&& ctx, gs::runtime::OprTimer& timer);
+      Context&& ctx, gs::runtime::OprTimer* timer);
 
   bl::result<Context> Eval(gs::runtime::GraphUpdateInterface& graph,
                            const std::map<std::string, std::string>& params,
                            Context&& ctx,
-                           gs::runtime::OprTimer& timer) override {
+                           gs::runtime::OprTimer* timer) override {
     return eval_impl(graph, params, std::move(ctx), timer);
   }
 

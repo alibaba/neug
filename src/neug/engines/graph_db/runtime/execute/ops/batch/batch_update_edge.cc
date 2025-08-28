@@ -25,7 +25,7 @@ namespace ops {
 bl::result<Context> UpdateEdgeOpr::Eval(
     GraphUpdateInterface& graph,
     const std::map<std::string, std::string>& params, Context&& ctx,
-    OprTimer& timer) {
+    OprTimer* timer) {
   VLOG(10) << "Executing UpdateEdgeOpr with " << edge_data_.size()
            << " entries.";
   for (const auto& entry : edge_data_) {

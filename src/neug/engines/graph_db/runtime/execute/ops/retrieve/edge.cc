@@ -197,7 +197,7 @@ class EdgeExpandVWithoutPredOpr : public IReadOperator {
   bl::result<gs::runtime::Context> Eval(
       const gs::runtime::GraphReadInterface& graph,
       const std::map<std::string, std::string>& params,
-      gs::runtime::Context&& ctx, gs::runtime::OprTimer& timer) override {
+      gs::runtime::Context&& ctx, gs::runtime::OprTimer* timer) override {
     return EdgeExpand::expand_vertex_without_predicate(graph, std::move(ctx),
                                                        eep_);
   }
@@ -223,7 +223,7 @@ class EdgeExpandVWithEPGTOpr : public IReadOperator {
   bl::result<gs::runtime::Context> Eval(
       const gs::runtime::GraphReadInterface& graph,
       const std::map<std::string, std::string>& params,
-      gs::runtime::Context&& ctx, gs::runtime::OprTimer& timer) override {
+      gs::runtime::Context&& ctx, gs::runtime::OprTimer* timer) override {
     std::string param_value = params.at(param_);
     auto ret = EdgeExpand::expand_vertex_ep_gt(graph, std::move(ctx), eep_,
                                                param_value);
@@ -255,7 +255,7 @@ class EdgeExpandVWithEPLTOpr : public IReadOperator {
   bl::result<gs::runtime::Context> Eval(
       const gs::runtime::GraphReadInterface& graph,
       const std::map<std::string, std::string>& params,
-      gs::runtime::Context&& ctx, gs::runtime::OprTimer& timer) override {
+      gs::runtime::Context&& ctx, gs::runtime::OprTimer* timer) override {
     std::string param_value = params.at(param_);
     auto ret = EdgeExpand::expand_vertex_ep_lt(graph, std::move(ctx), eep_,
                                                param_value);
@@ -287,7 +287,7 @@ class EdgeExpandVWithEdgePredOpr : public IReadOperator {
   bl::result<gs::runtime::Context> Eval(
       const gs::runtime::GraphReadInterface& graph,
       const std::map<std::string, std::string>& params,
-      gs::runtime::Context&& ctx, gs::runtime::OprTimer& timer) override {
+      gs::runtime::Context&& ctx, gs::runtime::OprTimer* timer) override {
     GeneralEdgePredicate pred(graph, ctx, params, pred_);
     GeneralEdgePredicateWrapper wpred(pred);
     return EdgeExpand::expand_vertex<GeneralEdgePredicateWrapper>(
@@ -310,7 +310,7 @@ class EdgeExpandEWithoutPredicateOpr : public IReadOperator {
   bl::result<gs::runtime::Context> Eval(
       const gs::runtime::GraphReadInterface& graph,
       const std::map<std::string, std::string>& params,
-      gs::runtime::Context&& ctx, gs::runtime::OprTimer& timer) override {
+      gs::runtime::Context&& ctx, gs::runtime::OprTimer* timer) override {
     return EdgeExpand::expand_edge_without_predicate(graph, std::move(ctx),
                                                      eep_, timer);
   }
@@ -336,7 +336,7 @@ class EdgeExpandEWithSPredOpr : public IReadOperator {
   bl::result<gs::runtime::Context> Eval(
       const gs::runtime::GraphReadInterface& graph,
       const std::map<std::string, std::string>& params,
-      gs::runtime::Context&& ctx, gs::runtime::OprTimer& timer) override {
+      gs::runtime::Context&& ctx, gs::runtime::OprTimer* timer) override {
     auto pred = sp_edge_pred_(graph, params);
     if (pred) {
       auto ret = EdgeExpand::expand_edge_with_special_edge_predicate(
@@ -372,7 +372,7 @@ class EdgeExpandEWithGPredOpr : public IReadOperator {
   bl::result<gs::runtime::Context> Eval(
       const gs::runtime::GraphReadInterface& graph,
       const std::map<std::string, std::string>& params,
-      gs::runtime::Context&& ctx, gs::runtime::OprTimer& timer) override {
+      gs::runtime::Context&& ctx, gs::runtime::OprTimer* timer) override {
     GeneralEdgePredicate pred(graph, ctx, params, pred_);
     GeneralEdgePredicateWrapper wpred(pred);
     return EdgeExpand::expand_edge<GeneralEdgePredicateWrapper>(
@@ -398,7 +398,7 @@ class EdgeExpandVWithExactVertexOpr : public IReadOperator {
   bl::result<gs::runtime::Context> Eval(
       const gs::runtime::GraphReadInterface& graph,
       const std::map<std::string, std::string>& params,
-      gs::runtime::Context&& ctx, gs::runtime::OprTimer& timer) override {
+      gs::runtime::Context&& ctx, gs::runtime::OprTimer* timer) override {
     std::string param_value = params.at(pk_);
     int64_t oid = std::stoll(param_value);
     vid_t vid = std::numeric_limits<vid_t>::max();
@@ -444,7 +444,7 @@ class EdgeExpandVWithVertexEdgePredOpr : public IReadOperator {
   bl::result<gs::runtime::Context> Eval(
       const gs::runtime::GraphReadInterface& graph,
       const std::map<std::string, std::string>& params,
-      gs::runtime::Context&& ctx, gs::runtime::OprTimer& timer) override {
+      gs::runtime::Context&& ctx, gs::runtime::OprTimer* timer) override {
     GeneralVertexPredicate v_pred(graph, ctx, params, v_pred_);
     GeneralEdgePredicate e_pred(graph, ctx, params, e_pred_);
     VertexEdgePredicateWrapper ve_pred(v_pred, e_pred);
@@ -476,7 +476,7 @@ class EdgeExpandVWithSPVertexPredOpr : public IReadOperator {
   bl::result<gs::runtime::Context> Eval(
       const gs::runtime::GraphReadInterface& graph,
       const std::map<std::string, std::string>& params,
-      gs::runtime::Context&& ctx, gs::runtime::OprTimer& timer) override {
+      gs::runtime::Context&& ctx, gs::runtime::OprTimer* timer) override {
     auto pred = sp_vertex_pred_(graph, params);
     if (pred) {
       auto ret = EdgeExpand::expand_vertex_with_special_vertex_predicate(
@@ -511,7 +511,7 @@ class EdgeExpandVWithGPVertexPredOpr : public IReadOperator {
   bl::result<gs::runtime::Context> Eval(
       const gs::runtime::GraphReadInterface& graph,
       const std::map<std::string, std::string>& params,
-      gs::runtime::Context&& ctx, gs::runtime::OprTimer& timer) override {
+      gs::runtime::Context&& ctx, gs::runtime::OprTimer* timer) override {
     GeneralVertexPredicate v_pred(graph, ctx, params, pred_);
     VertexPredicateWrapper vpred(v_pred);
     return EdgeExpand::expand_vertex<VertexPredicateWrapper>(

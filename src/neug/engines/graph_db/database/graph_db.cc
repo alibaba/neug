@@ -561,24 +561,24 @@ size_t GraphDB::getExecutedQueryNum() const {
 }
 
 void GraphDB::OutputCypherProfiles(const std::string& prefix) {
-  runtime::OprTimer read_timer, write_timer;
+  //  runtime::OprTimer read_timer, write_timer;
   int session_num = SessionNum();
   for (int i = 0; i < session_num; ++i) {
     auto read_app_ptr = GetSession(i).GetApp(Schema::CYPHER_READ_PLUGIN_ID);
     auto casted_read_app = dynamic_cast<CypherReadApp*>(read_app_ptr);
     if (casted_read_app) {
-      read_timer += casted_read_app->timer();
+      // read_timer += casted_read_app->timer();
     }
 
     auto write_app_ptr = GetSession(i).GetApp(Schema::CYPHER_WRITE_PLUGIN_ID);
     auto casted_write_app = dynamic_cast<CypherWriteApp*>(write_app_ptr);
     if (casted_write_app) {
-      write_timer += casted_write_app->timer();
+      // write_timer += casted_write_app->timer();
     }
   }
 
-  read_timer.output(prefix + "read_profile.log");
-  write_timer.output(prefix + "write_profile.log");
+  // read_timer.output(prefix + "read_profile.log");
+  // write_timer.output(prefix + "write_profile.log");
 }
 
 }  // namespace gs

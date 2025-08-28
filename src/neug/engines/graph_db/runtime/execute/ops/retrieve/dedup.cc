@@ -44,7 +44,7 @@ class DedupOpr : public IReadOperator {
   bl::result<gs::runtime::Context> Eval(
       const gs::runtime::GraphReadInterface& graph,
       const std::map<std::string, std::string>& params,
-      gs::runtime::Context&& ctx, gs::runtime::OprTimer& timer) override {
+      gs::runtime::Context&& ctx, gs::runtime::OprTimer* timer) override {
     return Dedup::dedup(std::move(ctx), tag_ids_);
   }
 
@@ -60,7 +60,7 @@ class DedupWithPropertyOpr : public IReadOperator {
   bl::result<gs::runtime::Context> Eval(
       const gs::runtime::GraphReadInterface& graph,
       const std::map<std::string, std::string>& params,
-      gs::runtime::Context&& ctx, gs::runtime::OprTimer& timer) override {
+      gs::runtime::Context&& ctx, gs::runtime::OprTimer* timer) override {
     int keys_num = opr_.keys_size();
     std::vector<std::function<RTAny(size_t)>> keys;
     for (int k_i = 0; k_i < keys_num; ++k_i) {

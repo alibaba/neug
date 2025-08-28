@@ -49,7 +49,7 @@ Direction get_dir(std::shared_ptr<IEdgeColumn> column) {
 bl::result<Context> BatchDeleteEdgeOpr::Eval(
     GraphUpdateInterface& graph,
     const std::map<std::string, std::string>& params, Context&& ctx,
-    OprTimer& timer) {
+    OprTimer* timer) {
   auto& frag = graph.GetTransaction().GetGraph();
   size_t binding_size = edge_bindings_.size();
   for (size_t i = 0; i < binding_size; i++) {

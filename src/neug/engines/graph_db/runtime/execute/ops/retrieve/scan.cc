@@ -59,7 +59,7 @@ class FilterOidsWithoutPredOpr : public IReadOperator {
 
   bl::result<gs::runtime::Context> Eval(
       const gs::runtime::GraphReadInterface& graph, ParamsType params,
-      gs::runtime::Context&& ctx, gs::runtime::OprTimer& timer) override {
+      gs::runtime::Context&& ctx, gs::runtime::OprTimer* timer) override {
     ctx = Context();
     std::vector<Any> oids = oids_(params);
     if (params_.tables.size() == 1 && oids.size() == 1) {
@@ -87,7 +87,7 @@ class FilterMultiTypeOidsWithoutPredOpr : public IReadOperator {
 
   bl::result<gs::runtime::Context> Eval(
       const gs::runtime::GraphReadInterface& graph, ParamsType params,
-      gs::runtime::Context&& ctx, gs::runtime::OprTimer& timer) override {
+      gs::runtime::Context&& ctx, gs::runtime::OprTimer* timer) override {
     ctx = Context();
     std::vector<Any> oids;
     for (auto& _oid : oids_) {
@@ -117,7 +117,7 @@ class FilterGidsWithoutPredOpr : public IReadOperator {
 
   bl::result<gs::runtime::Context> Eval(
       const gs::runtime::GraphReadInterface& graph, ParamsType params,
-      gs::runtime::Context&& ctx, gs::runtime::OprTimer& timer) override {
+      gs::runtime::Context&& ctx, gs::runtime::OprTimer* timer) override {
     ctx = Context();
     auto ids = oids_(params);
     std::vector<int64_t> gids;
@@ -151,7 +151,7 @@ class FilterOidsSPredOpr : public IReadOperator {
 
   bl::result<gs::runtime::Context> Eval(
       const gs::runtime::GraphReadInterface& graph, ParamsType params,
-      gs::runtime::Context&& ctx, gs::runtime::OprTimer& timer) override {
+      gs::runtime::Context&& ctx, gs::runtime::OprTimer* timer) override {
     ctx = Context();
     auto ids = oids_(params);
     auto pred = pred_(graph, params);
@@ -181,7 +181,7 @@ class FilterOidsGPredOpr : public IReadOperator {
 
   bl::result<gs::runtime::Context> Eval(
       const gs::runtime::GraphReadInterface& graph, ParamsType params,
-      gs::runtime::Context&& ctx, gs::runtime::OprTimer& timer) override {
+      gs::runtime::Context&& ctx, gs::runtime::OprTimer* timer) override {
     ctx = Context();
     auto ids = oids_(params);
     Arena arena;
@@ -226,7 +226,7 @@ class FilterOidsMultiTypeSPredOpr : public IReadOperator {
 
   bl::result<gs::runtime::Context> Eval(
       const gs::runtime::GraphReadInterface& graph, ParamsType params,
-      gs::runtime::Context&& ctx, gs::runtime::OprTimer& timer) override {
+      gs::runtime::Context&& ctx, gs::runtime::OprTimer* timer) override {
     ctx = Context();
     std::vector<Any> all_ids;
     for (auto& _oid : oids_) {
@@ -267,7 +267,7 @@ class FilterOidsMultiTypeGPredOpr : public IReadOperator {
 
   bl::result<gs::runtime::Context> Eval(
       const gs::runtime::GraphReadInterface& graph, ParamsType params,
-      gs::runtime::Context&& ctx, gs::runtime::OprTimer& timer) override {
+      gs::runtime::Context&& ctx, gs::runtime::OprTimer* timer) override {
     ctx = Context();
     std::vector<Any> all_ids;
     for (auto& _oid : oids_) {
@@ -317,7 +317,7 @@ class FilterGidsSPredOpr : public IReadOperator {
 
   bl::result<gs::runtime::Context> Eval(
       const gs::runtime::GraphReadInterface& graph, ParamsType params,
-      gs::runtime::Context&& ctx, gs::runtime::OprTimer& timer) override {
+      gs::runtime::Context&& ctx, gs::runtime::OprTimer* timer) override {
     ctx = Context();
     auto ids = oids_(params);
     std::vector<int64_t> gids;
@@ -351,7 +351,7 @@ class FilterGidsGPredOpr : public IReadOperator {
 
   bl::result<gs::runtime::Context> Eval(
       const gs::runtime::GraphReadInterface& graph, ParamsType params,
-      gs::runtime::Context&& ctx, gs::runtime::OprTimer& timer) override {
+      gs::runtime::Context&& ctx, gs::runtime::OprTimer* timer) override {
     ctx = Context();
     auto ids = oids_(params);
     std::vector<int64_t> gids;
@@ -400,7 +400,7 @@ class ScanWithSPredOpr : public IReadOperator {
   bl::result<gs::runtime::Context> Eval(
       const gs::runtime::GraphReadInterface& graph,
       const std::map<std::string, std::string>& params,
-      gs::runtime::Context&& ctx, gs::runtime::OprTimer& timer) override {
+      gs::runtime::Context&& ctx, gs::runtime::OprTimer* timer) override {
     ctx = Context();
     auto pred = pred_(graph, params);
     return Scan::scan_vertex_with_special_vertex_predicate(
@@ -424,7 +424,7 @@ class ScanWithGPredOpr : public IReadOperator {
   bl::result<gs::runtime::Context> Eval(
       const gs::runtime::GraphReadInterface& graph,
       const std::map<std::string, std::string>& params,
-      gs::runtime::Context&& ctx, gs::runtime::OprTimer& timer) override {
+      gs::runtime::Context&& ctx, gs::runtime::OprTimer* timer) override {
     ctx = Context();
     Arena arena;
     auto expr =
@@ -476,7 +476,7 @@ class ScanWithoutPredOpr : public IReadOperator {
   bl::result<gs::runtime::Context> Eval(
       const gs::runtime::GraphReadInterface& graph,
       const std::map<std::string, std::string>& params,
-      gs::runtime::Context&& ctx, gs::runtime::OprTimer& timer) override {
+      gs::runtime::Context&& ctx, gs::runtime::OprTimer* timer) override {
     ctx = Context();
     if (scan_params_.limit == std::numeric_limits<int32_t>::max()) {
       return Scan::scan_vertex(std::move(ctx), graph, scan_params_,
@@ -670,7 +670,7 @@ class DummySourceOpr : public IReadOperator {
   bl::result<gs::runtime::Context> Eval(
       const gs::runtime::GraphReadInterface& graph,
       const std::map<std::string, std::string>& params,
-      gs::runtime::Context&& ctx, gs::runtime::OprTimer& timer) override {
+      gs::runtime::Context&& ctx, gs::runtime::OprTimer* timer) override {
     ctx = Context();
     ValueColumnBuilder<int32_t> builder;
     builder.push_back_opt(0);

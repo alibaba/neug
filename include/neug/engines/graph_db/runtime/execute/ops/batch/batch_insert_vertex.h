@@ -62,7 +62,7 @@ class BatchInsertVertexOpr : public IUpdateOperator {
 
   bl::result<Context> Eval(GraphUpdateInterface& graph,
                            const std::map<std::string, std::string>& params,
-                           Context&& ctx, OprTimer& timer) override;
+                           Context&& ctx, OprTimer* timer) override;
 
  private:
   label_t vertex_label_id_;
@@ -96,11 +96,11 @@ class InsertVertexOpr : public IUpdateOperator {
   template <typename GraphInterface>
   bl::result<Context> eval_impl(
       GraphInterface& graph, const std::map<std::string, std::string>& params,
-      Context&& ctx, OprTimer& timer);
+      Context&& ctx, OprTimer* timer);
 
   bl::result<Context> Eval(GraphUpdateInterface& graph,
                            const std::map<std::string, std::string>& params,
-                           Context&& ctx, OprTimer& timer) override;
+                           Context&& ctx, OprTimer* timer) override;
 
  private:
   std::vector<std::tuple<label_t, vertex_prop_vec_t, int32_t>> vertex_data_;

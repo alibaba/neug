@@ -71,7 +71,7 @@ class SelectIdNeOpr : public IReadOperator {
   bl::result<gs::runtime::Context> Eval(
       const gs::runtime::GraphReadInterface& graph,
       const std::map<std::string, std::string>& params,
-      gs::runtime::Context&& ctx, gs::runtime::OprTimer& timer) override {
+      gs::runtime::Context&& ctx, gs::runtime::OprTimer* timer) override {
     auto tag = expr_.operators(0).var().tag().id();
     auto col = ctx.get(tag);
     const auto& name = expr_.operators(0).var().property().key().name();
@@ -128,7 +128,7 @@ class SelectOpr : public IReadOperator {
   bl::result<gs::runtime::Context> Eval(
       const gs::runtime::GraphReadInterface& graph,
       const std::map<std::string, std::string>& params,
-      gs::runtime::Context&& ctx, gs::runtime::OprTimer& timer) override {
+      gs::runtime::Context&& ctx, gs::runtime::OprTimer* timer) override {
     Expr expr(graph, ctx, params, expr_, VarType::kPathVar);
     Arena arena;
     if (!expr.is_optional()) {

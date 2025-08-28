@@ -43,11 +43,17 @@ class UnionOpr : public IReadOperator {
   bl::result<gs::runtime::Context> Eval(
       const gs::runtime::GraphReadInterface& graph,
       const std::map<std::string, std::string>& params,
-      gs::runtime::Context&& ctx, gs::runtime::OprTimer& timer) override {
+      gs::runtime::Context&& ctx, gs::runtime::OprTimer* timer) override {
     std::vector<gs::runtime::Context> ctxs;
     for (auto& plan : sub_plans_) {
       gs::runtime::Context n_ctx = ctx;
-      auto ret = plan.Execute(graph, std::move(n_ctx), params, timer);
+      std::unique_ptr<gs::runtime::OprTimer> sub_timer =
+          (timer != nullptr) ? std::make_unique<gs::runtime::OprTimer>()
+                             : nullptr;
+      auto ret = plan.Execute(graph, std::move(n_ctx), params, sub_timer.get());
+      if (timer != nullptr) [[unlikely]] {
+        timer->add_child(std::move(sub_timer));
+      }
       if (!ret) {
         return ret;
       }

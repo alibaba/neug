@@ -33,7 +33,7 @@ class BatchDeleteVertexOpr : public IUpdateOperator {
 
   bl::result<Context> Eval(GraphUpdateInterface& graph,
                            const std::map<std::string, std::string>& params,
-                           Context&& ctx, OprTimer& timer) override;
+                           Context&& ctx, OprTimer* timer) override;
 
  private:
   std::vector<std::vector<label_t>> vertex_labels_;

@@ -36,7 +36,7 @@ class BatchDeleteEdgeOpr : public IUpdateOperator {
 
   bl::result<Context> Eval(GraphUpdateInterface& graph,
                            const std::map<std::string, std::string>& params,
-                           Context&& ctx, OprTimer& timer) override;
+                           Context&& ctx, OprTimer* timer) override;
 
  private:
   std::vector<std::vector<std::tuple<label_t, label_t, label_t>>>

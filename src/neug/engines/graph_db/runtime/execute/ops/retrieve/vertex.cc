@@ -62,7 +62,7 @@ class GetVFromVerticesWithLabelWithInOpr : public IReadOperator {
   bl::result<gs::runtime::Context> Eval(
       const gs::runtime::GraphReadInterface& graph,
       const std::map<std::string, std::string>& params,
-      gs::runtime::Context&& ctx, gs::runtime::OprTimer& timer) override {
+      gs::runtime::Context&& ctx, gs::runtime::OprTimer* timer) override {
     auto input_vertex_list_ptr =
         std::dynamic_pointer_cast<IVertexColumn>(ctx.get(v_params_.tag));
     CHECK(input_vertex_list_ptr) << ctx.get(v_params_.tag)->column_info();
@@ -111,7 +111,7 @@ class GetVFromVerticesWithPKExactOpr : public IReadOperator {
   bl::result<gs::runtime::Context> Eval(
       const gs::runtime::GraphReadInterface& graph,
       const std::map<std::string, std::string>& params,
-      gs::runtime::Context&& ctx, gs::runtime::OprTimer& timer) override {
+      gs::runtime::Context&& ctx, gs::runtime::OprTimer* timer) override {
     int64_t pk = std::stoll(params.at(exact_pk_));
     vid_t index = std::numeric_limits<vid_t>::max();
     graph.GetVertexIndex(exact_pk_label_, pk, index);
@@ -140,7 +140,7 @@ class GetVFromVerticesWithPredicateOpr : public IReadOperator {
   bl::result<gs::runtime::Context> Eval(
       const gs::runtime::GraphReadInterface& graph,
       const std::map<std::string, std::string>& params,
-      gs::runtime::Context&& ctx, gs::runtime::OprTimer& timer) override {
+      gs::runtime::Context&& ctx, gs::runtime::OprTimer* timer) override {
     GeneralVertexPredicate pred(graph, ctx, params, opr_.params().predicate());
     Arena arena;
     return GetV::get_vertex_from_vertices(
@@ -167,7 +167,7 @@ class GetVFromEdgesWithPredicateOpr : public IReadOperator {
   bl::result<gs::runtime::Context> Eval(
       const gs::runtime::GraphReadInterface& graph,
       const std::map<std::string, std::string>& params,
-      gs::runtime::Context&& ctx, gs::runtime::OprTimer& timer) override {
+      gs::runtime::Context&& ctx, gs::runtime::OprTimer* timer) override {
     if (opr_.params().has_predicate()) {
       GeneralVertexPredicate pred(graph, ctx, params,
                                   opr_.params().predicate());

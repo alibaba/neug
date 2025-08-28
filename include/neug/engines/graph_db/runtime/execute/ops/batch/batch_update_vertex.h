@@ -42,11 +42,11 @@ class UpdateVertexOpr : public IUpdateOperator {
   template <typename GraphInterface>
   bl::result<Context> eval_impl(
       GraphInterface& graph, const std::map<std::string, std::string>& params,
-      Context&& ctx, OprTimer& timer);
+      Context&& ctx, OprTimer* timer);
 
   bl::result<Context> Eval(GraphUpdateInterface& graph,
                            const std::map<std::string, std::string>& params,
-                           Context&& ctx, OprTimer& timer) override;
+                           Context&& ctx, OprTimer* timer) override;
 
  private:
   // No alias is produced in this operator.

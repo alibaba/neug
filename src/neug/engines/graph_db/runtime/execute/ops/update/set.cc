@@ -146,7 +146,7 @@ class SetOpr : public IUpdateOperator {
 
   bl::result<Context> Eval(GraphUpdateInterface& graph,
                            const std::map<std::string, std::string>& params,
-                           Context&& ctx, OprTimer& timer) override {
+                           Context&& ctx, OprTimer* timer) override {
     Arena arena;
     for (size_t i = 0; i < keys_.size(); ++i) {
       auto& key = keys_[i];

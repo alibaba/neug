@@ -40,7 +40,7 @@ class IUpdateOperator {
   virtual bl::result<Context> Eval(
       GraphUpdateInterface& graph,
       const std::map<std::string, std::string>& params, Context&& ctx,
-      OprTimer& timer) = 0;
+      OprTimer* timer) = 0;
 };
 class IReadOperator {
  public:
@@ -51,7 +51,7 @@ class IReadOperator {
   virtual bl::result<Context> Eval(
       const GraphReadInterface& graph,
       const std::map<std::string, std::string>& params, Context&& ctx,
-      OprTimer& timer) = 0;
+      OprTimer* timer) = 0;
 };
 
 using ReadOpBuildResultT =
@@ -78,12 +78,12 @@ class IInsertOperator {
   virtual bl::result<WriteContext> Eval(
       GraphInsertInterface& graph,
       const std::map<std::string, std::string>& params, WriteContext&& ctx,
-      OprTimer& timer) = 0;
+      OprTimer* timer) = 0;
 
   virtual bl::result<WriteContext> Eval(
       GraphUpdateInterface& graph,
       const std::map<std::string, std::string>& params, WriteContext&& ctx,
-      OprTimer& timer) = 0;
+      OprTimer* timer) = 0;
 };
 
 class IInsertOperatorBuilder {

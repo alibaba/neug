@@ -54,18 +54,28 @@ class JoinOpr : public IReadOperator {
   bl::result<gs::runtime::Context> Eval(
       const gs::runtime::GraphReadInterface& graph,
       const std::map<std::string, std::string>& params,
-      gs::runtime::Context&& ctx, gs::runtime::OprTimer& timer) override {
+      gs::runtime::Context&& ctx, gs::runtime::OprTimer* timer) override {
     gs::runtime::Context ret_dup(ctx);
 
+    std::unique_ptr<gs::runtime::OprTimer> left_timer =
+        (timer != nullptr) ? std::make_unique<gs::runtime::OprTimer>()
+                           : nullptr;
     auto left_ctx =
-        left_pipeline_.Execute(graph, std::move(ctx), params, timer);
+        left_pipeline_.Execute(graph, std::move(ctx), params, left_timer.get());
     if (!left_ctx) {
       return left_ctx;
     }
-    auto right_ctx =
-        right_pipeline_.Execute(graph, std::move(ret_dup), params, timer);
+    std::unique_ptr<gs::runtime::OprTimer> right_timer =
+        (timer != nullptr) ? std::make_unique<gs::runtime::OprTimer>()
+                           : nullptr;
+    auto right_ctx = right_pipeline_.Execute(graph, std::move(ret_dup), params,
+                                             right_timer.get());
     if (!right_ctx) {
       return right_ctx;
+    }
+    if (timer != nullptr) [[unlikely]] {
+      timer->add_child(std::move(left_timer));
+      timer->add_child(std::move(right_timer));
     }
     return Join::join(std::move(left_ctx.value()), std::move(right_ctx.value()),
                       params_);

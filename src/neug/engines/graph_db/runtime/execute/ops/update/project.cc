@@ -55,7 +55,7 @@ class ProjectInsertOpr : public IInsertOperator {
   template <typename GraphInterface>
   bl::result<gs::runtime::WriteContext> eval_impl(
       GraphInterface& graph, const std::map<std::string, std::string>& params,
-      gs::runtime::WriteContext&& ctx, gs::runtime::OprTimer& timer) {
+      gs::runtime::WriteContext&& ctx, gs::runtime::OprTimer* timer) {
     std::vector<std::unique_ptr<WriteProjectExprBase>> exprs;
     for (auto& expr : exprs_) {
       exprs.push_back(expr(params));
@@ -66,7 +66,7 @@ class ProjectInsertOpr : public IInsertOperator {
   bl::result<gs::runtime::WriteContext> Eval(
       gs::runtime::GraphInsertInterface& graph,
       const std::map<std::string, std::string>& params,
-      gs::runtime::WriteContext&& ctx, gs::runtime::OprTimer& timer) override {
+      gs::runtime::WriteContext&& ctx, gs::runtime::OprTimer* timer) override {
     std::vector<std::unique_ptr<WriteProjectExprBase>> exprs;
     return eval_impl(graph, params, std::move(ctx), timer);
   }
@@ -74,7 +74,7 @@ class ProjectInsertOpr : public IInsertOperator {
   bl::result<gs::runtime::WriteContext> Eval(
       gs::runtime::GraphUpdateInterface& graph,
       const std::map<std::string, std::string>& params,
-      gs::runtime::WriteContext&& ctx, gs::runtime::OprTimer& timer) override {
+      gs::runtime::WriteContext&& ctx, gs::runtime::OprTimer* timer) override {
     std::vector<std::unique_ptr<WriteProjectExprBase>> exprs;
     return eval_impl(graph, params, std::move(ctx), timer);
   }
@@ -270,7 +270,7 @@ class ProjectUpdateOpr : public IUpdateOperator {
   bl::result<gs::runtime::Context> Eval(
       gs::runtime::GraphUpdateInterface& graph,
       const std::map<std::string, std::string>& params,
-      gs::runtime::Context&& ctx, gs::runtime::OprTimer& timer) override {
+      gs::runtime::Context&& ctx, gs::runtime::OprTimer* timer) override {
     std::vector<std::unique_ptr<UProjectExprBase>> exprs;
     for (auto& [map, alias] : mappings_) {
       if (map.operators_size() == 1 &&

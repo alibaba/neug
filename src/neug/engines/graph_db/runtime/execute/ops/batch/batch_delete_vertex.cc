@@ -24,7 +24,7 @@ namespace ops {
 bl::result<Context> BatchDeleteVertexOpr::Eval(
     GraphUpdateInterface& graph,
     const std::map<std::string, std::string>& params, Context&& ctx,
-    OprTimer& timer) {
+    OprTimer* timer) {
   auto& frag = graph.GetTransaction().GetGraph();
   size_t binding_size = vertex_bindings_.size();
   for (size_t i = 0; i < binding_size; i++) {

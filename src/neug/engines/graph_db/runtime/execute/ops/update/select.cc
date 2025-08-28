@@ -39,7 +39,7 @@ class USelectOpr : public IUpdateOperator {
   USelectOpr(const common::Expression& predicate) : predicate_(predicate) {}
   bl::result<Context> Eval(GraphUpdateInterface& graph,
                            const std::map<std::string, std::string>& params,
-                           Context&& ctx, OprTimer& timer) override {
+                           Context&& ctx, OprTimer* timer) override {
     Expr expr(graph, ctx, params, predicate_, VarType::kPathVar);
     Arena arena;
     if (expr.is_optional()) {

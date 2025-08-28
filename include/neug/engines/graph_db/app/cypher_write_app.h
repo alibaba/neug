@@ -42,14 +42,10 @@ class CypherWriteApp : public WriteAppBase {
 
   bool Query(GraphDBSession& graph, Decoder& input, Encoder& output) override;
 
-  const runtime::OprTimer& timer() const { return timer_; }
-  runtime::OprTimer& timer() { return timer_; }
-
  private:
   const GraphDB& db_;
   std::unordered_map<std::string, physical::PhysicalPlan> plan_cache_;
   std::unordered_map<std::string, runtime::InsertPipeline> pipeline_cache_;
-  runtime::OprTimer timer_;
 };
 
 class CypherWriteAppFactory : public AppFactoryBase {

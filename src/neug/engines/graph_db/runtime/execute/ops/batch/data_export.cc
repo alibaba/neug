@@ -22,7 +22,7 @@ namespace ops {
 bl::result<gs::runtime::Context> DataExportOpr::Eval(
     const gs::runtime::GraphReadInterface& graph,
     const std::map<std::string, std::string>& params,
-    gs::runtime::Context&& ctx, gs::runtime::OprTimer& timer) {
+    gs::runtime::Context&& ctx, gs::runtime::OprTimer* timer) {
   writer_ = gs::runtime::ExportWriterFactory::CreateExportWriter(
       extension_name_, file_path_, headers_, options_);
   std::vector<std::shared_ptr<IContextColumn>> columns;

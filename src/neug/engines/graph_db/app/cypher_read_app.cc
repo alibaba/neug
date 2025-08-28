@@ -44,8 +44,9 @@ bool CypherReadApp::Query(const GraphDBSession& graph, Decoder& input,
 
     gs::runtime::Context ctx;
     gs::Status status = gs::Status::OK();
+    std::unique_ptr<runtime::OprTimer> timer = nullptr;
     std::tie(ctx, status) =
-        runtime::ParseAndExecuteReadPipeline(gri, plan, timer_);
+        runtime::ParseAndExecuteReadPipeline(gri, plan, timer.get());
 
     if (!status.ok()) {
       LOG(ERROR) << "Error: " << status.ToString();
@@ -93,10 +94,10 @@ bool CypherReadApp::Query(const GraphDBSession& graph, Decoder& input,
                      .value());
     }
     auto txn = graph.GetReadTransaction();
-
+    std::unique_ptr<runtime::OprTimer> timer = nullptr;
     gs::runtime::GraphReadInterface gri(txn);
     auto ctx = pipeline_cache_.at(query).Execute(gri, runtime::Context(),
-                                                 params, timer_);
+                                                 params, timer.get());
     if (type == Schema::CYPHER_READ_PLUGIN_ID) {
       runtime::Sink::sink_encoder(ctx.value(), gri, output);
     } else {
