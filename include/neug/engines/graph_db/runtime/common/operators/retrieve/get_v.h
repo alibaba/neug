@@ -138,6 +138,33 @@ class GetV {
   }
 
   template <typename GraphInterface, typename PRED_T>
+  static bl::result<Context> _get_vertex_from_path(const GraphInterface& graph,
+                                                   Context&& ctx,
+                                                   const GetVParams& params,
+                                                   const PRED_T& pred) {
+    std::vector<bool> required_label(graph.schema().vertex_label_num(), false);
+    std::vector<size_t> shuffle_offset;
+    auto col = ctx.get(params.tag);
+    for (auto label : params.tables) {
+      required_label[label] = true;
+    }
+    auto& input_path_list = *std::dynamic_pointer_cast<GeneralPathColumn>(col);
+
+    auto builder = MLVertexColumnBuilder::builder();
+    input_path_list.foreach_path([&](size_t index, const Path& path) {
+      auto [label, vid] = path.get_end();
+
+      if (required_label[label] && pred(label, vid, index)) {
+        builder.push_back_vertex({label, vid});
+        shuffle_offset.push_back(index);
+      }
+    });
+    ctx.set_with_reshuffle(params.alias, builder.finish(nullptr),
+                           shuffle_offset);
+    return ctx;
+  }
+
+  template <typename GraphInterface, typename PRED_T>
   static bl::result<Context> get_vertex_from_edges(const GraphInterface& graph,
                                                    Context&& ctx,
                                                    const GetVParams& params,
@@ -145,20 +172,7 @@ class GetV {
     std::vector<size_t> shuffle_offset;
     auto col = ctx.get(params.tag);
     if (col->column_type() == ContextColumnType::kPath) {
-      auto& input_path_list =
-          *std::dynamic_pointer_cast<GeneralPathColumn>(col);
-
-      auto builder = MLVertexColumnBuilder::builder();
-      input_path_list.foreach_path([&](size_t index, const Path& path) {
-        auto [label, vid] = path.get_end();
-        if (pred(label, vid, index)) {
-          builder.push_back_vertex({label, vid});
-          shuffle_offset.push_back(index);
-        }
-      });
-      ctx.set_with_reshuffle(params.alias, builder.finish(nullptr),
-                             shuffle_offset);
-      return ctx;
+      return _get_vertex_from_path(graph, std::move(ctx), params, pred);
     }
     auto column = std::dynamic_pointer_cast<IEdgeColumn>(ctx.get(params.tag));
     if (!column) {
