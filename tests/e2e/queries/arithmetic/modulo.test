@@ -41,37 +41,31 @@ Runtime exception: Modulo by zero.
 Runtime exception: Modulo by zero.
 
 -LOG ModuloUINT32
--SKIP: issue-493
 -STATEMENT RETURN CAST(70000, "UINT32") % CAST(7, "UINT32")
 ---- 1
 0
 
 -LOG ModuloUINT32
--SKIP: issue-493
 -STATEMENT RETURN CAST(7555, "UINT32") % CAST(7, "UINT32")
 ---- 1
 2
 
 -LOG ModuloUINT32
--SKIP: issue-493
 -STATEMENT RETURN CAST(4294967100, "UINT32") % CAST(0, "UINT32")
 ---- error
 Runtime exception: Modulo by zero.
 
 -LOG ModuloUINT64
--SKIP: issue-493
 -STATEMENT RETURN CAST(102474672468, "UINT64") % CAST(2, "UINT64")
 ---- 1
 0
 
 -LOG ModuloUINT64
--SKIP: issue-493
 -STATEMENT RETURN CAST(102474672468, "UINT64") % CAST(1246, "UINT64")
 ---- 1
 378
 
 -LOG ModuloUINT64
--SKIP: issue-493
 -STATEMENT RETURN CAST(70000000001, "UINT64") % CAST(0, "UINT64")
 ---- error
 Runtime exception: Modulo by zero.
@@ -161,85 +155,71 @@ Overflow exception: Value -32768 % -1 is not within INT16 range.
 Runtime exception: Modulo by zero.
 
 -LOG ModuloINT32
--SKIP: issue-493
 -STATEMENT RETURN CAST(70000, "INT32") % CAST(127, "INT32")
 ---- 1
 23
 
 -LOG ModuloINT32
--SKIP: issue-493
 -STATEMENT RETURN CAST(70000, "INT32") % CAST(-127, "INT32")
 ---- 1
 23
 
 -LOG ModuloINT32
--SKIP: issue-493
 -STATEMENT RETURN CAST(-70000, "INT32") % CAST(-127, "INT32")
 ---- 1
 -23
 
 -LOG ModuloINT32
--SKIP: issue-493
 -STATEMENT RETURN CAST(-70000, "INT32") % CAST(127, "INT32")
 ---- 1
 -23
 
 -LOG ModuloINT32
--SKIP: issue-493
 -STATEMENT RETURN CAST(70000, "INT32") % CAST(14, "INT32")
 ---- 1
 0
 
 -LOG ModuloINT32
--SKIP: issue-493
 -STATEMENT RETURN CAST(-2147483648, "INT32") % CAST(-1, "INT32")
 ---- error
 Overflow exception: Value -2147483648 % -1 is not within INT32 range.
 
 -LOG ModuloINT32
--SKIP: issue-493
 -STATEMENT RETURN CAST(-2147483547, "INT32") % CAST(0, "INT32")
 ---- error
 Runtime exception: Modulo by zero.
 
 -LOG ModuloINT64
--SKIP: issue-493
 -STATEMENT RETURN CAST(202474672000 , "INT64") % CAST(123, "INT64")
 ---- 1
 88
 
 -LOG ModuloINT64
--SKIP: issue-493
 -STATEMENT RETURN CAST(202474672000 , "INT64") % CAST(-123, "INT64")
 ---- 1
 88
 
 -LOG ModuloINT64
--SKIP: issue-493
 -STATEMENT RETURN CAST(-202474672000 , "INT64") % CAST(-123, "INT64")
 ---- 1
 -88
 
 -LOG ModuloINT64
--SKIP: issue-493
 -STATEMENT RETURN CAST(-202474672000 , "INT64") % CAST(123, "INT64")
 ---- 1
 -88
 
 -LOG ModuloINT64
--SKIP: issue-493
 -STATEMENT RETURN CAST(-202474672000 , "INT64") % CAST(50, "INT64")
 ---- 1
 0
 
 -LOG ModuloINT64
--SKIP: issue-493
 -STATEMENT RETURN CAST(-9223372036854775808, "INT64") % CAST(-1, "INT64")
 ---- error
 Overflow exception: Value -9223372036854775808 % -1 is not within INT64 range.
 
 -LOG ModuloINT64
--SKIP: issue-493
 -STATEMENT RETURN CAST(-92233036854775807, "INT64") % CAST(0, "INT64")
 ---- error
 Runtime exception: Modulo by zero.

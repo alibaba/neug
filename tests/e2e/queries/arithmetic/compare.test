@@ -1,0 +1,193 @@
+-DATASET CSV tinysnb
+
+--
+
+-CASE CompareTest
+
+-LOG EqualTo
+-STATEMENT RETURN (1 = 1)
+---- 1
+True
+
+-LOG EqualTo
+-STATEMENT RETURN (1 = 2)
+---- 1
+False
+
+-LOG NotEqualTo
+-STATEMENT RETURN (1 <> 2)
+---- 1
+True
+
+-LOG NotEqualTo
+-STATEMENT RETURN (1 <> 1)
+---- 1
+False
+
+-LOG LessThan
+-STATEMENT RETURN (1 < 2)
+---- 1
+True
+
+-LOG LessThan
+-STATEMENT RETURN (1 < 1)
+---- 1
+False
+
+-LOG LessThan
+-STATEMENT RETURN (1 < 0)
+---- 1
+False
+
+-LOG LessThanOrEqualTo
+-STATEMENT RETURN (1 <= 2)
+---- 1
+True
+
+-LOG LessThanOrEqualTo
+-STATEMENT RETURN (1 <= 1)
+---- 1
+True
+
+-LOG LessThanOrEqualTo
+-STATEMENT RETURN (1 <= 0)
+---- 1
+False
+
+-LOG GreaterThan
+-STATEMENT RETURN (2 > 1)
+---- 1
+True
+
+-LOG GreaterThan
+-STATEMENT RETURN (1 > 1)
+---- 1
+False
+
+-LOG GreaterThan
+-STATEMENT RETURN (0 > 1)
+---- 1
+False
+
+-LOG GreaterThanOrEqualTo
+-STATEMENT RETURN (2 >= 1)
+---- 1
+True
+
+-LOG GreaterThanOrEqualTo
+-STATEMENT RETURN (1 >= 1)
+---- 1
+True
+
+-LOG GreaterThanOrEqualTo
+-STATEMENT RETURN (0 >= 1)
+---- 1
+False
+
+-LOG EqualToNull
+-SKIP: return empty, expected `NULL`
+-STATEMENT RETURN (NULL = NULL)
+---- 1
+NULL
+
+-LOG EqualToNull
+-SKIP: return empty, expected NULL
+-STATEMENT RETURN (NULL = 1)
+---- 1
+NULL
+
+-LOG EqualToNull
+-SKIP: return empty, expected NULL
+-STATEMENT RETURN (1 = NULL)
+---- 1
+NULL
+
+-LOG NotEqualToNull
+-SKIP: return empty, expected `NULL`
+-STATEMENT RETURN (NULL <> NULL)
+---- 1
+NULL
+
+-LOG NotEqualToNull
+-SKIP: return empty, expected NULL
+-STATEMENT RETURN (NULL <> 1)
+---- 1
+NULL
+
+-LOG NotEqualToNull
+-SKIP: return empty, expected NULL
+-STATEMENT RETURN (1 <> NULL)
+---- 1
+NULL
+
+-LOG LessThanNull
+-SKIP: return empty, expected `NULL`
+-STATEMENT RETURN (NULL < NULL)
+---- 1
+NULL
+
+-LOG LessThanNull
+-SKIP: return empty, expected NULL
+-STATEMENT RETURN (NULL < 1)
+---- 1
+NULL
+
+-LOG LessThanNull
+-SKIP: return empty, expected NULL
+-STATEMENT RETURN (1 < NULL)
+---- 1
+NULL
+
+-LOG LessThanOrEqualToNull
+-SKIP: return empty, expected `NULL`
+-STATEMENT RETURN (NULL <= NULL)
+---- 1
+NULL
+
+-LOG LessThanOrEqualToNull
+-SKIP: return empty, expected NULL
+-STATEMENT RETURN (NULL <= 1)
+---- 1
+NULL
+
+-LOG LessThanOrEqualToNull
+-SKIP: return empty, expected NULL
+-STATEMENT RETURN (1 <= NULL)
+---- 1
+NULL
+
+-LOG GreaterThanNull
+-SKIP: return empty, expected `NULL`
+-STATEMENT RETURN (NULL > NULL)
+---- 1
+NULL
+
+-LOG GreaterThanNull
+-SKIP: return empty, expected NULL
+-STATEMENT RETURN (NULL > 1)
+---- 1
+NULL
+
+-LOG GreaterThanNull
+-SKIP: return empty, expected NULL
+-STATEMENT RETURN (1 > NULL)
+---- 1
+NULL
+
+-LOG GreaterThanOrEqualToNull
+-SKIP: return empty, expected `NULL`
+-STATEMENT RETURN (NULL >= NULL)
+---- 1
+NULL
+
+-LOG GreaterThanOrEqualToNull
+-SKIP: return empty, expected NULL
+-STATEMENT RETURN (NULL >= 1)
+---- 1
+NULL
+
+-LOG GreaterThanOrEqualToNull
+-SKIP: return empty, expected NULL
+-STATEMENT RETURN (1 >= NULL)
+---- 1
+NULL

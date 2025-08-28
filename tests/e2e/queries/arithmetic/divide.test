@@ -41,37 +41,31 @@ Runtime exception: Divide by zero.
 Runtime exception: Divide by zero.
 
 -LOG DivideUINT32
--SKIP: issue-493
 -STATEMENT RETURN CAST(70000, "UINT32") / CAST(7, "UINT32")
 ---- 1
 10000
 
 -LOG DivideUINT32_1
--SKIP: issue-493
 -STATEMENT RETURN CAST(70000, "UINT32") / CAST(6, "UINT32")
 ---- 1
 11666
 
 -LOG DivideUINT32_2
--SKIP: issue-493
 -STATEMENT RETURN CAST(4294967100, "UINT32") / CAST(0, "UINT32")
 ---- error
 Runtime exception: Divide by zero.
 
 -LOG DivideUINT64
--SKIP: issue-493
 -STATEMENT RETURN CAST(102474672468, "UINT64") / CAST(2, "UINT64")
 ---- 1
 51237336234
 
 -LOG DivideUINT64_2
--SKIP: issue-493
 -STATEMENT RETURN CAST(102474672468, "UINT64") / CAST(5, "UINT64")
 ---- 1
 20494934493
 
 -LOG DivideUINT64_3
--SKIP: issue-493
 -STATEMENT RETURN CAST(70000000001, "UINT64") / CAST(0, "UINT64")
 ---- error
 Runtime exception: Divide by zero.
@@ -162,85 +156,71 @@ Overflow exception: Value -32768 / -1 is not within INT16 range.
 Runtime exception: Divide by zero.
 
 -LOG DivideINT32
--SKIP: issue-493
 -STATEMENT RETURN CAST(70000, "INT32") / CAST(14, "INT32")
 ---- 1
 5000
 
 -LOG DivideINT32_2
--SKIP: issue-493
 -STATEMENT RETURN CAST(70000, "INT32") / CAST(-14, "INT32")
 ---- 1
 -5000
 
 -LOG DivideINT32_3
--SKIP: issue-493
 -STATEMENT RETURN CAST(-70000, "INT32") / CAST(-14, "INT32")
 ---- 1
 5000
 
 -LOG DivideINT32_4
--SKIP: issue-493
 -STATEMENT RETURN CAST(-70000, "INT32") / CAST(14, "INT32")
 ---- 1
 -5000
 
 -LOG DivideINT32_5
--SKIP: issue-493
 -STATEMENT RETURN CAST(70000, "INT32") / CAST(13, "INT32")
 ---- 1
 5384
 
 -LOG DivideINT32_6 
--SKIP: issue-493
 -STATEMENT RETURN CAST(-2147483648, "INT32") / CAST(-1, "INT32")
 ---- error
 Overflow exception: Value -2147483648 / -1 is not within INT32 range.
 
 -LOG DivideINT32_7
--SKIP: issue-493
 -STATEMENT RETURN CAST(-2147483547, "INT32") / CAST(0, "INT32")
 ---- error
 Runtime exception: Divide by zero.
 
 -LOG DivideINT64
--SKIP: issue-493
 -STATEMENT RETURN CAST(202474672000 , "INT64") / CAST(500, "INT64")
 ---- 1
 404949344
 
 -LOG DivideINT64_2
--SKIP: issue-493
 -STATEMENT RETURN CAST(202474672000 , "INT64") / CAST(-500, "INT64")
 ---- 1
 -404949344
 
 -LOG DivideINT64_3
--SKIP: issue-493
 -STATEMENT RETURN CAST(-202474672000 , "INT64") / CAST(-500, "INT64")
 ---- 1
 404949344
 
 -LOG DivideINT64_4
--SKIP: issue-493
 -STATEMENT RETURN CAST(-202474672000 , "INT64") / CAST(500, "INT64")
 ---- 1
 -404949344
 
 -LOG DivideINT64_5
--SKIP: issue-493
 -STATEMENT RETURN CAST(-202474672000 , "INT64") / CAST(501, "INT64")
 ---- 1
 -404141061
 
 -LOG DivideINT64_6
--SKIP: issue-493
 -STATEMENT RETURN CAST(-9223372036854775808, "INT64") / CAST(-1, "INT64")
 ---- error
 Overflow exception: Value -9223372036854775808 / -1 is not within INT64 range.
 
 -LOG DivideINT64_7
--SKIP: issue-493
 -STATEMENT RETURN CAST(-92233036854775807, "INT64") / CAST(0, "INT64")
 ---- error
 Runtime exception: Divide by zero.

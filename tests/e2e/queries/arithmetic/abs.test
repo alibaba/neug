@@ -17,13 +17,11 @@
 256
 
 -LOG AbsUINT32
--SKIP: issue-493
 -STATEMENT RETURN Abs(CAST(70000 as UINT32))
 ---- 1
 70000
 
 -LOG AbsUINT64
--SKIP: issue-493
 -STATEMENT RETURN Abs(CAST(202474672468 as UINT64))
 ---- 1
 202474672468
@@ -65,37 +63,31 @@ Overflow exception: Cannot take the absolute value of -128 within INT8 range.
 Overflow exception: Cannot take the absolute value of -32768 within INT16 range.
 
 -LOG AbsINT32
--SKIP: issue-493
 -STATEMENT RETURN Abs(CAST(70000, "INT32"))
 ---- 1
 70000
 
 -LOG AbsINT32_2
--SKIP: issue-493
 -STATEMENT RETURN Abs(CAST(-88888, "INT32"))
 ---- 1
 88888
 
 -LOG AbsINT32_3
--SKIP: issue-493
 -STATEMENT RETURN Abs(CAST(-2147483648 as INT32))
 ---- error
 Overflow exception: Cannot take the absolute value of -2147483648 within INT32 range.
 
 -LOG AbsINT64
--SKIP: issue-493
 -STATEMENT RETURN Abs(CAST(202474672468, "INT64"))
 ---- 1
 202474672468
 
 -LOG AbsINT64_2
--SKIP: issue-493
 -STATEMENT RETURN Abs(CAST(-2012374672468, "INT64"))
 ---- 1
 2012374672468
 
 -LOG AbsINT64_3
--SKIP: issue-493
 -STATEMENT RETURN Abs(CAST(-9223372036854775808, "INT64"))
 ---- error
 Overflow exception: Cannot take the absolute value of -9223372036854775808 within INT64 range.

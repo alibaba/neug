@@ -23,31 +23,27 @@ Overflow exception: Value 255 + 5 is not within UINT8 range.
 656
 
 -LOG AddUINT16_2
--SKIP: issue-493
+-SKIP: uint16 not supported
 -STATEMENT RETURN CAST(65530, "UINT16") + CAST(10, "UINT16")
 ---- error
 Overflow exception: Value 65530 + 10 is not within UINT16 range.
 
 -LOG AddUINT32
--SKIP: issue-493
 -STATEMENT RETURN CAST(70000, "UINT32") + CAST(12000, "UINT32")
 ---- 1
 82000
 
 -LOG AddUINT32_2
--SKIP: issue-493
 -STATEMENT RETURN CAST(4294967100, "UINT32") + CAST(20000, "UINT32")
 ---- error
 Overflow exception: Value 4294967100 + 20000 is not within UINT32 range.
 
 -LOG AddUINT64
--SKIP: issue-493
 -STATEMENT RETURN CAST(102474672468, "UINT64") + CAST(202474672468, "UINT64")
 ---- 1
 304949344936
 
 -LOG AddUINT64_2
--SKIP: issue-493
 -STATEMENT RETURN CAST(17446744073709551615, "UINT64") + CAST(7000000000000000000, "UINT64")
 ---- error
 Overflow exception: Value 17446744073709551615 + 7000000000000000000 is not within UINT64 range.
@@ -125,73 +121,61 @@ Overflow exception: Value 32767 + 10 is not within INT16 range.
 Overflow exception: Value -32767 + -12 is not within INT16 range.
 
 -LOG AddINT32
--SKIP: issue-493
 -STATEMENT RETURN CAST(70000, "INT32") + CAST(12000, "INT32")
 ---- 1
 82000
 
 -LOG AddINT32_2
--SKIP: issue-493
 -STATEMENT RETURN CAST(70000, "INT32") + CAST(-12000, "INT32")
 ---- 1
 58000
 
 -LOG AddINT32_3
--SKIP: issue-493
 -STATEMENT RETURN CAST(-70000, "INT32") + CAST(-12000, "INT32")
 ---- 1
 -82000
 
 -LOG AddINT32_3
--SKIP: issue-493
 -STATEMENT RETURN CAST(-70000, "INT32") + CAST(12000, "INT32")
 ---- 1
 -58000
 
 -LOG AddINT32_4
--SKIP: issue-493
 -STATEMENT RETURN CAST(2147483547, "INT32") + CAST(20000, "INT32")
 ---- error
 Overflow exception: Value 2147483547 + 20000 is not within INT32 range.
 
 -LOG AddINT32_5
--SKIP: issue-493
 -STATEMENT RETURN CAST(-2147483547, "INT32") + CAST(-20050, "INT32")
 ---- error
 Overflow exception: Value -2147483547 + -20050 is not within INT32 range.
 
 -LOG AddINT64
--SKIP: issue-493
 -STATEMENT RETURN CAST(202474672468, "INT64") + CAST(102474672468, "INT64")
 ---- 1
 304949344936
 
 -LOG AddINT64_2
--SKIP: issue-493
 -STATEMENT RETURN CAST(202474672468, "INT64") + CAST(-102474672468, "INT64")
 ---- 1
 100000000000
 
 -LOG AddINT64_3
--SKIP: issue-493
 -STATEMENT RETURN CAST(-202474672468, "INT64") + CAST(-102474672468, "INT64")
 ---- 1
 -304949344936
 
 -LOG AddINT64_4
--SKIP: issue-493
 -STATEMENT RETURN CAST(-202474672468, "INT64") + CAST(102474672468, "INT64")
 ---- 1
 -100000000000
 
 -LOG AddINT64_5
--SKIP: issue-493
 -STATEMENT RETURN CAST(9223372036854775807, "INT64") + CAST(7000000000000000000, "INT64")
 ---- error
 Overflow exception: Value 9223372036854775807 + 7000000000000000000 is not within INT64 range.
 
 -LOG AddINT64_6
--SKIP: issue-493
 -STATEMENT RETURN CAST(-9223372036854775807, "INT64") + CAST(-6000000000000000000, "INT64")
 ---- error
 Overflow exception: Value -9223372036854775807 + -6000000000000000000 is not within INT64 range.
@@ -305,7 +289,6 @@ Overflow exception: Value -120 + -32767 is not within INT16 range.
 Overflow exception: Value 255 + 32767 is not within INT16 range.
 
 -LOG AddDECIMAL
--SKIP: unwind not supported
 -STATEMENT UNWIND [0.6, 1.2, -100.0] as A UNWIND [-0.2, 1.2, 100.5] AS B RETURN CAST(CAST(A, 'DECIMAL') + CAST(B, 'DECIMAL'), 'DECIMAL(18, 3)');
 ---- 9
 0.400
@@ -319,7 +302,6 @@ Overflow exception: Value 255 + 32767 is not within INT16 range.
 0.500
 
 -LOG AddDECIMAL_2
--SKIP: unwind not supported
 -STATEMENT UNWIND [0.6, 1.2, -100.0] as A UNWIND [-0.2, 1.2, 100.5] AS B RETURN CAST(A, 'DECIMAL(18, 1)') + CAST(B, 'DECIMAL(5, 2)');
 ---- 9
 0.400
@@ -333,31 +315,26 @@ Overflow exception: Value 255 + 32767 is not within INT16 range.
 0.500
 
 -LOG AddDECIMAL_3
--SKIP: unwind not supported
 -STATEMENT UNWIND [500.0] AS A UNWIND [499.9] AS B RETURN CAST(A, 'DECIMAL(4, 1)') + CAST(B, 'DECIMAL(4, 1)');
 ---- 1
 999.90
 
 -LOG AddDECIMAL_4
--SKIP: unwind not supported
 -STATEMENT UNWIND [500.0] AS A UNWIND [500.0] AS B RETURN CAST(A, 'DECIMAL(4, 1)') + CAST(B, 'DECIMAL(4, 1)');
 ---- error
 Overflow exception: Decimal Addition result is out of range
 
 -LOG AddDECIMAL_5
--SKIP: unwind not supported
 -STATEMENT UNWIND ['9.9999999999999999999999999999999999999'] AS A UNWIND ['0.0000000000000000000000000000000000001'] AS B RETURN CAST(A, 'DECIMAL(38, 37)') + CAST(B, 'DECIMAL(38, 37)');
 ---- error
 Overflow exception: Decimal Addition result is out of range
 
 -LOG AddDECIMAL_6
--SKIP: unwind not supported
 -STATEMENT UNWIND ['10.0000000000000000000000000000000000000'] AS A UNWIND ['0.0000000000000000000000000000000000000'] AS B RETURN CAST(A, 'DECIMAL(38, 37)') + CAST(B, 'DECIMAL(38, 37)');
 ---- error
 Conversion exception: Cast failed. 10.0000000000000000000000000000000000000 is not in DECIMAL(38, 37) range.
 
 -LOG AddDECIMAL_7
--SKIP: unwind not supported
 -STATEMENT UNWIND [0.2, 0.4, 0.5, 0.6, 0.8] as A UNWIND [-10, -1, 0, 1, 10] AS B WITH CAST(A, 'decimal') AS X, CAST(B, 'decimal') AS Y RETURN FLOOR(X+Y), CEIL(X+Y), FLOOR(Y-X), CEIL(Y-X);
 ---- 25
 -10|-9|-11|-10
