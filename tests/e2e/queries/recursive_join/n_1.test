@@ -12,16 +12,12 @@
 
 -CASE VarLengthExtendN1Tests
 
-# TODO: EXECUTION: unexpected result, the engine returns 0
 -LOG meetsOneToTwoHopTest
--SKIP: https://github.com/GraphScope/neug/issues/633
 -STATEMENT MATCH (a:person)-[:meets*1..2]->(b:person) RETURN COUNT(*)
 ---- 1
 13
 
-# TODO: EXECUTION: unexpected result, the engine returns 0
 -LOG meetsThreeHopMinLenEqualsMaxLen
--SKIP: https://github.com/GraphScope/neug/issues/633
 -STATEMENT MATCH (a:person)-[:meets*3..3]->(b:person) RETURN COUNT(*)
 ---- 1
 4
@@ -37,16 +33,13 @@
 ---- 1
 13
 
-# TODO: EXECUTION: unexpected result, the engine returns 0
 -LOG meetsLongPathTest
--SKIP: https://github.com/GraphScope/neug/issues/633
 -STATEMENT MATCH (a:person)-[:meets*8..11]->(b:person) RETURN COUNT(*)
 ---- 1
 16
 
 # TODO: EXECUTION: unexpected result
 -LOG meetsOneToTwoHopWithFilterTest
--SKIP: https://github.com/GraphScope/neug/issues/633
 -STATEMENT MATCH (a:person)-[:meets*1..2]->(b:person) WHERE a.ID = 3 RETURN b.fName
 ---- 2
 Carol

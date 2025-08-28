@@ -10,7 +10,6 @@
 50
 
 -LOG NodeUndirectedTest
--SKIP: filtering for unlabeled nodes is not supported
 -STATEMENT MATCH (a)-[e:knows*1..2]-(b) WHERE a.fName = 'Alice' AND b.fName = 'Bob' RETURN COUNT(*)
 ---- 1
 10
@@ -46,13 +45,11 @@
 5|[7:0,6:1]|[Bob]
 
 -LOG MultiLabelTest2
--SKIP: https://github.com/GraphScope/neug/issues/634
 -STATEMENT MATCH (a:person)-[e:meets|:marries|:studyAt*2..2]->(b) WHERE a.fName = 'Alice' AND b.ID < 5 RETURN COUNT(*)
 ---- 1
 2
 
 -LOG MultiLabelTest3
--SKIP: https://github.com/GraphScope/neug/issues/634
 -STATEMENT MATCH (a:person)-[e*2..2]->(b:organisation) WHERE a.fName = 'Alice' RETURN COUNT(*)
 ---- 1
 5

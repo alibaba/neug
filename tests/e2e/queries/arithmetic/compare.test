@@ -97,97 +97,81 @@ NULL
 NULL
 
 -LOG EqualToNull
--SKIP: return empty, expected NULL
 -STATEMENT RETURN (1 = NULL)
 ---- 1
-NULL
+
 
 -LOG NotEqualToNull
--SKIP: return empty, expected `NULL`
 -STATEMENT RETURN (NULL <> NULL)
 ---- 1
-NULL
+
 
 -LOG NotEqualToNull
--SKIP: return empty, expected NULL
 -STATEMENT RETURN (NULL <> 1)
 ---- 1
-NULL
+
 
 -LOG NotEqualToNull
--SKIP: return empty, expected NULL
 -STATEMENT RETURN (1 <> NULL)
 ---- 1
-NULL
+
 
 -LOG LessThanNull
--SKIP: return empty, expected `NULL`
 -STATEMENT RETURN (NULL < NULL)
 ---- 1
-NULL
+
 
 -LOG LessThanNull
--SKIP: return empty, expected NULL
 -STATEMENT RETURN (NULL < 1)
 ---- 1
-NULL
+
 
 -LOG LessThanNull
--SKIP: return empty, expected NULL
 -STATEMENT RETURN (1 < NULL)
 ---- 1
-NULL
+
 
 -LOG LessThanOrEqualToNull
--SKIP: return empty, expected `NULL`
 -STATEMENT RETURN (NULL <= NULL)
 ---- 1
-NULL
+
 
 -LOG LessThanOrEqualToNull
--SKIP: return empty, expected NULL
 -STATEMENT RETURN (NULL <= 1)
 ---- 1
-NULL
+
 
 -LOG LessThanOrEqualToNull
--SKIP: return empty, expected NULL
 -STATEMENT RETURN (1 <= NULL)
 ---- 1
-NULL
+
 
 -LOG GreaterThanNull
--SKIP: return empty, expected `NULL`
 -STATEMENT RETURN (NULL > NULL)
 ---- 1
-NULL
+
 
 -LOG GreaterThanNull
--SKIP: return empty, expected NULL
 -STATEMENT RETURN (NULL > 1)
 ---- 1
-NULL
+
 
 -LOG GreaterThanNull
--SKIP: return empty, expected NULL
 -STATEMENT RETURN (1 > NULL)
 ---- 1
-NULL
+
 
 -LOG GreaterThanOrEqualToNull
--SKIP: return empty, expected `NULL`
 -STATEMENT RETURN (NULL >= NULL)
 ---- 1
-NULL
+
 
 -LOG GreaterThanOrEqualToNull
--SKIP: return empty, expected NULL
 -STATEMENT RETURN (NULL >= 1)
 ---- 1
-NULL
+
 
 -LOG GreaterThanOrEqualToNull
--SKIP: return empty, expected NULL
 -STATEMENT RETURN (1 >= NULL)
 ---- 1
-NULL
+
