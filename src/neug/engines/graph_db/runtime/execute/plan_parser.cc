@@ -58,6 +58,7 @@
 #include "neug/engines/graph_db/runtime/execute/ops/update/unfold.h"
 #include "neug/engines/graph_db/runtime/execute/ops/update/vertex.h"
 #include "neug/engines/graph_db/runtime/execute/pipeline.h"
+#include "neug/utils/leaf_utils.h"
 #include "neug/utils/result.h"
 
 namespace gs {
@@ -261,7 +262,7 @@ static std::string get_opr_name(
 }
 #endif
 
-bl::result<std::pair<ReadPipeline, ContextMeta>>
+gs::result<std::pair<ReadPipeline, ContextMeta>>
 PlanParser::parse_read_pipeline_with_meta(const gs::Schema& schema,
                                           const ContextMeta& ctx_meta,
                                           const physical::PhysicalPlan& plan) {
@@ -300,44 +301,34 @@ PlanParser::parse_read_pipeline_with_meta(const gs::Schema& schema,
         }
       }
       if (match) {
-        bl::result<ReadOpBuildResultT> res_pair_status = bl::try_handle_some(
-            [&builder, &schema, &cur_ctx_meta, &plan,
-             &i]() -> bl::result<ReadOpBuildResultT> {
-              return builder->Build(schema, cur_ctx_meta, plan, i);
+        TRY_HANDLE_ALL_WITH_EXCEPTION(
+            gs::result<ReadOpBuildResultT>,
+            [&]() { return builder->Build(schema, cur_ctx_meta, plan, i); },
+            [&](const auto& _status) {
+              status = gs::Status(
+                  gs::StatusCode::ERR_INTERNAL_ERROR,
+                  "Failed to build operator at index " + std::to_string(i) +
+                      ", op_kind: " + get_opr_name(cur_op_kind) +
+                      ", error: " + _status.ToString());
             },
-            [&status](const gs::Status& err) {
-              status = err;
-              return ReadOpBuildResultT(nullptr, ContextMeta());
-            },
-            [&](const bl::error_info& err) {
-              status =
-                  gs::Status(gs::StatusCode::ERR_INTERNAL_ERROR,
-                             "Error: " + std::to_string(err.error().value()) +
-                                 ", Exception: " + err.exception()->what());
-              return ReadOpBuildResultT(nullptr, ContextMeta());
-            },
-            [&]() {
-              status = gs::Status(gs::StatusCode::ERR_UNKNOWN, "Unknown error");
-              return ReadOpBuildResultT(nullptr, ContextMeta());
+            [&](gs::result<ReadOpBuildResultT>&& res_pair_status) {
+              if (res_pair_status.value().first) {
+                operators.emplace_back(
+                    std::move(res_pair_status.value().first));
+                cur_ctx_meta = res_pair_status.value().second;
+                i = builder->stepping(i);
+                // Reset status to OK after a successful match.
+                status = gs::Status::OK();
+              } else {
+                status = gs::Status(
+                    gs::StatusCode::ERR_INTERNAL_ERROR,
+                    "Failed to build operator at index " + std::to_string(i) +
+                        ", op_kind: " + get_opr_name(cur_op_kind) +
+                        ", error: No operator returned");
+              }
             });
-        if (res_pair_status) {
-          auto& opr = res_pair_status.value().first;
-          auto& new_ctx_meta = res_pair_status.value().second;
-          if (opr) {
-            operators.emplace_back(std::move(opr));
-            cur_ctx_meta = new_ctx_meta;
-            i = builder->stepping(i);
-            // Reset status to OK after a successful match.
-            status = gs::Status::OK();
-            break;
-          } else {
-            // If the operator is null, it means the builder has failed, we
-            // need to stage the error.
-            status = gs::Status(gs::StatusCode::ERR_INTERNAL_ERROR,
-                                "Failed to build operator at index " +
-                                    std::to_string(i) +
-                                    ", op_kind: " + get_opr_name(cur_op_kind));
-          }
+        if (status.ok()) {
+          break;
         }
       }
     }
@@ -349,23 +340,23 @@ PlanParser::parse_read_pipeline_with_meta(const gs::Schema& schema,
          << ", last match error: " << status.ToString();
       auto err = gs::Status(gs::StatusCode::ERR_INTERNAL_ERROR, ss.str());
       LOG(ERROR) << err.ToString();
-      return bl::new_error(err);
+      RETURN_ERROR(err);
     }
   }
   return std::make_pair(ReadPipeline(std::move(operators)), cur_ctx_meta);
 }
 
-bl::result<ReadPipeline> PlanParser::parse_read_pipeline(
+gs::result<ReadPipeline> PlanParser::parse_read_pipeline(
     const gs::Schema& schema, const ContextMeta& ctx_meta,
     const physical::PhysicalPlan& plan) {
   auto ret = parse_read_pipeline_with_meta(schema, ctx_meta, plan);
   if (!ret) {
-    return ret.error();
+    RETURN_ERROR(ret.error());
   }
   return std::move(ret.value().first);
 }
 
-bl::result<InsertPipeline> PlanParser::parse_write_pipeline(
+gs::result<InsertPipeline> PlanParser::parse_write_pipeline(
     const gs::Schema& schema, const physical::PhysicalPlan& plan) {
   std::vector<std::unique_ptr<IInsertOperator>> operators;
   for (int i = 0; i < plan.query_plan().plan_size(); ++i) {
@@ -374,9 +365,7 @@ bl::result<InsertPipeline> PlanParser::parse_write_pipeline(
       std::stringstream ss;
       ss << "[Write Pipeline Parse Failed] " << get_opr_name(op_kind)
          << " failed to parse plan at index " << i;
-      auto err = gs::Status(gs::StatusCode::ERR_INTERNAL_ERROR, ss.str());
-      //      LOG(ERROR) << err.ToString();
-      return bl::new_error(err);
+      RETURN_ERROR(gs::Status(gs::StatusCode::ERR_INTERNAL_ERROR, ss.str()));
     }
     auto op = write_op_builders_.at(op_kind)->Build(schema, plan, i);
     if (!op) {
@@ -385,30 +374,19 @@ bl::result<InsertPipeline> PlanParser::parse_write_pipeline(
          << " failed to parse plan at index " << i;
       auto err = gs::Status(gs::StatusCode::ERR_INTERNAL_ERROR, ss.str());
       LOG(ERROR) << err.ToString();
-      return bl::new_error(err);
+      RETURN_ERROR(err);
     }
     operators.emplace_back(std::move(op));
   }
   return InsertPipeline(std::move(operators));
 }
 
-bl::result<UpdatePipeline> PlanParser::parse_update_pipeline(
+gs::result<UpdatePipeline> PlanParser::parse_update_pipeline(
     const gs::Schema& schema, const physical::PhysicalPlan& plan) {
   Status status = Status::OK();
-  TRY_HANDLE_ALL_WITH_EXCEPTION_CATCHING(
-      write_pipeline,
-      [&]() -> bl::result<InsertPipeline> {
-        return parse_write_pipeline(schema, plan);
-      },
-      bl::result<InsertPipeline>,
-      [&](const gs::Status& err) {
-        status = err;
-        return InsertPipeline();
-      },
-      InsertPipeline());
-  // insert pipeline
-  if (status.ok()) {
-    return UpdatePipeline(std::move(write_pipeline));
+  auto res = parse_write_pipeline(schema, plan);
+  if (res) {
+    return UpdatePipeline(std::move(res.value()));
   }
   std::vector<std::unique_ptr<IUpdateOperator>> operators;
   for (int i = 0; i < plan.query_plan().plan_size(); ++i) {
@@ -419,64 +397,86 @@ bl::result<UpdatePipeline> PlanParser::parse_update_pipeline(
          << " failed to parse plan at index " << i;
       auto err = gs::Status(gs::StatusCode::ERR_INTERNAL_ERROR, ss.str());
       LOG(ERROR) << err.ToString();
-      return bl::new_error(err);
+      RETURN_ERROR(err);
     }
-    auto op = update_op_builders_.at(op_kind)->Build(schema, plan, i);
-    if (!op) {
+    TRY_HANDLE_ALL_WITH_EXCEPTION(
+        gs::result<std::unique_ptr<IUpdateOperator>>,
+        [&]() {
+          return gs::result<std::unique_ptr<IUpdateOperator>>(
+              update_op_builders_.at(op_kind)->Build(schema, plan, i));
+        },
+        [&](const auto& _status) { status = _status; },
+        [&](gs::result<std::unique_ptr<IUpdateOperator>>&& res) {
+          if (res.value()) {
+            operators.emplace_back(std::move(res.value()));
+          } else {
+            status = gs::Status(gs::StatusCode::ERR_INTERNAL_ERROR,
+                                "Failed to build operator at index " +
+                                    std::to_string(i) +
+                                    ", op_kind: " + get_opr_name(op_kind) +
+                                    ", error: No operator returned");
+          }
+        });
+
+    if (!status.ok()) {
       std::stringstream ss;
       ss << "[Update Pipeline Parse Failed] " << get_opr_name(op_kind)
-         << ", op_kind " << op_kind << " failed to Build plan at index " << i;
-      auto err = gs::Status(gs::StatusCode::ERR_INTERNAL_ERROR, ss.str());
+         << ", op_kind " << op_kind << " failed to Build plan at index " << i
+         << ", error message: " << status.ToString();
+      auto err = gs::Status(status.error_code(), ss.str());
       LOG(ERROR) << err.ToString();
-      return bl::new_error(err);
+      RETURN_ERROR(err);
     }
-    operators.emplace_back(std::move(op));
   }
   return UpdatePipeline(std::move(operators));
 }
 
-std::pair<runtime::Context, Status> ParseAndExecuteReadPipeline(
+gs::result<runtime::Context> ParseAndExecuteReadPipeline(
     const GraphReadInterface& graph, const physical::PhysicalPlan& plan,
     OprTimer* timer) {
-  gs::Status status = gs::Status::OK();
-  TRY_HANDLE_ALL_WITH_EXCEPTION_CATCHING(
-      ctx,
-      [&]() -> bl::result<runtime::Context> {
+  runtime::Context ctx;
+  gs::Status status = Status::OK();
+  TRY_HANDLE_ALL_WITH_EXCEPTION(
+      gs::result<runtime::Context>,
+      [&]() {
         return runtime::PlanParser::get()
-            .parse_read_pipeline(graph.schema(), gs::runtime::ContextMeta(),
-                                 plan)
-            .value()
-            .Execute(graph, runtime::Context(), {}, timer);
+            .parse_read_pipeline(graph.schema(), ContextMeta(), plan)
+            .and_then([&](ReadPipeline&& rp) {
+              return rp.Execute(graph, runtime::Context(), {}, timer);
+            });
       },
-      bl::result<runtime::Context>,
-      [&](const gs::Status& err) {
-        status = err;
-        return runtime::Context();
-      },
-      runtime::Context());
-
-  return std::make_pair(std::move(ctx), status);
+      [&](const auto& _status) { status = _status; },
+      [&](gs::result<runtime::Context>&& res) {
+        ctx = std::move(res.value());
+      });
+  if (!status.ok()) {
+    RETURN_ERROR(status);
+  }
+  return std::move(ctx);
 }
 
-std::pair<runtime::Context, Status> ParseAndExecuteUpdatePipeline(
+gs::result<runtime::Context> ParseAndExecuteUpdatePipeline(
     GraphUpdateInterface& graph, const physical::PhysicalPlan& plan,
     OprTimer* timer) {
-  gs::Status status = gs::Status::OK();
-  TRY_HANDLE_ALL_WITH_EXCEPTION_CATCHING(
-      ctx,
-      [&]() -> bl::result<runtime::Context> {
+  runtime::Context ctx;
+  gs::Status status = Status::OK();
+  TRY_HANDLE_ALL_WITH_EXCEPTION(
+      gs::result<runtime::Context>,
+      [&]() {
         return runtime::PlanParser::get()
             .parse_update_pipeline(graph.schema(), plan)
-            .value()
-            .Execute(graph, runtime::Context(), {}, timer);
+            .and_then([&](UpdatePipeline&& up) {
+              return up.Execute(graph, runtime::Context(), {}, timer);
+            });
       },
-      bl::result<runtime::Context>,
-      [&](const gs::Status& err) {
-        status = err;
-        return runtime::Context();
-      },
-      runtime::Context());
-  return std::make_pair(std::move(ctx), status);
+      [&](const auto& _status) { status = _status; },
+      [&](gs::result<runtime::Context>&& res) {
+        ctx = std::move(res.value());
+      });
+  if (!status.ok()) {
+    RETURN_ERROR(status);
+  }
+  return std::move(ctx);
 }
 
 }  // namespace runtime

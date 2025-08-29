@@ -14,7 +14,7 @@
  */
 #include <google/protobuf/wrappers.pb.h>
 #include <array>
-#include <boost/leaf.hpp>
+
 #include <cstdint>
 #include <map>
 #include <memory>
@@ -98,7 +98,7 @@ class TCOpr : public IReadOperator {
 
   std::string get_operator_name() const override { return "TCOpr"; }
 
-  bl::result<gs::runtime::Context> Eval(
+  gs::result<gs::runtime::Context> Eval(
       const gs::runtime::GraphReadInterface& graph,
       const std::map<std::string, std::string>& params,
       gs::runtime::Context&& ctx, gs::runtime::OprTimer* timer) override {
@@ -295,7 +295,7 @@ std::unique_ptr<IReadOperator> make_tc_opr(
   }
   return nullptr;
 }
-bl::result<ReadOpBuildResultT> TCOprBuilder::Build(
+gs::result<ReadOpBuildResultT> TCOprBuilder::Build(
     const gs::Schema& schema, const ContextMeta& ctx_meta,
     const physical::PhysicalPlan& plan, int op_idx) {
   if (tc_fusable(plan.query_plan().plan(op_idx).opr().edge(),

@@ -25,7 +25,7 @@ namespace gs {
 
 namespace runtime {
 
-bl::result<Context> Union::union_op(std::vector<Context>&& ctxs) {
+gs::result<Context> Union::union_op(std::vector<Context>&& ctxs) {
   if (ctxs.size() != 2) {
     LOG(ERROR) << "Union: only support two context";
     RETURN_UNSUPPORTED_ERROR("Union: only support two context");

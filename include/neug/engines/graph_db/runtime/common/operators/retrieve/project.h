@@ -103,7 +103,7 @@ struct ProjectExpr : public ProjectExprBase {
 
 class Project {
  public:
-  static bl::result<Context> project(
+  static gs::result<Context> project(
       Context&& ctx, const std::vector<std::unique_ptr<ProjectExprBase>>& exprs,
       bool is_append = false) {
     Context ret;
@@ -117,7 +117,7 @@ class Project {
   }
 
   template <typename Comparer>
-  static bl::result<Context> project_order_by_fuse(
+  static gs::result<Context> project_order_by_fuse(
       const GraphReadInterface& graph,
       const std::map<std::string, std::string>& params, Context&& ctx,
       const std::vector<std::function<std::unique_ptr<ProjectExprBase>(

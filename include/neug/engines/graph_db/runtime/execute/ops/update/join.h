@@ -16,7 +16,6 @@
 #ifndef RUNTIME_EXECUTE_RETRIEVE_OPS_UPDATE_JOIN_H_
 #define RUNTIME_EXECUTE_RETRIEVE_OPS_UPDATE_JOIN_H_
 
-#include <boost/leaf.hpp>
 #include <vector>
 
 #include "neug/engines/graph_db/runtime/execute/operator.h"

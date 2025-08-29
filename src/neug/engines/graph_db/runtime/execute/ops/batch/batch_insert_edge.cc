@@ -37,7 +37,7 @@ class OprTimer;
 
 namespace ops {
 
-bl::result<Context> BatchInsertEdgeOpr::Eval(
+gs::result<Context> BatchInsertEdgeOpr::Eval(
     GraphUpdateInterface& graph,
     const std::map<std::string, std::string>& params, Context&& ctx,
     OprTimer* timer) {
@@ -58,7 +58,7 @@ bl::result<Context> BatchInsertEdgeOpr::Eval(
   AbstractArrowFragmentLoader::batch_load_edges(
       frag, src_label_id_, dst_label_id_, edge_label_id_, suppliers);
 
-  return bl::result<Context>(std::move(ctx));
+  return gs::result<Context>(std::move(ctx));
 }
 
 bool get_edge_triplet_label_ids(const Schema& schema,
@@ -148,7 +148,7 @@ std::unique_ptr<IUpdateOperator> BatchInsertEdgeOprBuilder::Build(
 }
 
 template <typename GraphInterface>
-bl::result<Context> InsertEdgeOpr::eval_impl(
+gs::result<Context> InsertEdgeOpr::eval_impl(
     GraphInterface& graph, const std::map<std::string, std::string>& params,
     Context&& ctx, gs::runtime::OprTimer* timer) {
   for (auto& entry : edge_data_) {
@@ -166,8 +166,8 @@ bl::result<Context> InsertEdgeOpr::eval_impl(
     if (!src_col || !dst_col) {
       LOG(ERROR)
           << "InsertEdgeOpr::eval_impl: source or destination column is null";
-      RETURN_FLEX_LEAF_ERROR(gs::StatusCode::ERR_INTERNAL_ERROR,
-                             "Source or destination column is null");
+      RETURN_STATUS_ERROR(gs::StatusCode::ERR_INTERNAL_ERROR,
+                          "Source or destination column is null");
     }
     auto src_size = src_col->size();
     auto dst_size = dst_col->size();
@@ -175,24 +175,23 @@ bl::result<Context> InsertEdgeOpr::eval_impl(
     if (src_size != dst_size) {
       LOG(ERROR) << "InsertEdgeOpr::eval_impl: source and destination column "
                     "size mismatch";
-      RETURN_FLEX_LEAF_ERROR(gs::StatusCode::ERR_INTERNAL_ERROR,
-                             "Source and destination column size mismatch");
+      RETURN_STATUS_ERROR(gs::StatusCode::ERR_INTERNAL_ERROR,
+                          "Source and destination column size mismatch");
     }
     // We also expect both columns are of vertex type.
     if (src_col->column_type() != ContextColumnType::kVertex ||
         dst_col->column_type() != ContextColumnType::kVertex) {
       LOG(ERROR) << "InsertEdgeOpr::eval_impl: source or destination column is "
                     "not of vertex type";
-      RETURN_FLEX_LEAF_ERROR(
-          gs::StatusCode::ERR_INTERNAL_ERROR,
-          "Source or destination column is not of vertex type");
+      RETURN_STATUS_ERROR(gs::StatusCode::ERR_INTERNAL_ERROR,
+                          "Source or destination column is not of vertex type");
     }
     auto src_v_column = std::dynamic_pointer_cast<IVertexColumn>(src_col);
     auto dst_v_column = std::dynamic_pointer_cast<IVertexColumn>(dst_col);
     if (!src_v_column || !dst_v_column) {
       LOG(ERROR) << "InsertEdgeOpr::eval_impl: source or destination column is "
                     "not of vertex column type";
-      RETURN_FLEX_LEAF_ERROR(
+      RETURN_STATUS_ERROR(
           gs::StatusCode::ERR_INTERNAL_ERROR,
           "Source or destination column is not of vertex column type");
     }
@@ -206,15 +205,15 @@ bl::result<Context> InsertEdgeOpr::eval_impl(
                  << (int32_t) src_label_id << ", got "
                  << src_v_column->column_info()
                  << ", src label set: " << src_label_set.size();
-      return bl::result<Context>(std::move(ctx));
+      return gs::result<Context>(std::move(ctx));
     }
     if (dst_label_set.find(dst_label_id) == dst_label_set.end()) {
       LOG(ERROR) << "InsertEdgeOpr::eval_impl: destination vertex label "
                     "mismatch, expected "
                  << (int32_t) dst_label_id << ", got "
                  << dst_v_column->column_info();
-      RETURN_FLEX_LEAF_ERROR(gs::StatusCode::ERR_INTERNAL_ERROR,
-                             "dst label not found");
+      RETURN_STATUS_ERROR(gs::StatusCode::ERR_INTERNAL_ERROR,
+                          "dst label not found");
     }
 
     auto edge_properties_name = graph.schema().get_edge_property_names(
@@ -228,7 +227,7 @@ bl::result<Context> InsertEdgeOpr::eval_impl(
         LOG(ERROR) << "InsertEdgeOpr::eval_impl: edge property " << prop.first
                    << " not found in edge type " << edge_label_id << " from "
                    << src_label_id << " to " << dst_label_id;
-        RETURN_FLEX_LEAF_ERROR(
+        RETURN_STATUS_ERROR(
             gs::StatusCode::ERR_INTERNAL_ERROR,
             "Edge property not found in edge type from source to destination");
       }
@@ -238,7 +237,7 @@ bl::result<Context> InsertEdgeOpr::eval_impl(
                       "range: "
                    << idx << ", edge properties size: "
                    << edge_properties_ordered.size();
-        RETURN_FLEX_LEAF_ERROR(
+        RETURN_STATUS_ERROR(
             gs::StatusCode::ERR_INTERNAL_ERROR,
             "Edge property index out of range in edge type from source to ");
       }
@@ -261,8 +260,8 @@ bl::result<Context> InsertEdgeOpr::eval_impl(
                    << (int32_t) dst_label_id << ", got "
                    << src_vertex_record.label() << " and "
                    << dst_vertex_record.label();
-        RETURN_FLEX_LEAF_ERROR(gs::StatusCode::ERR_INTERNAL_ERROR,
-                               "Vertex label mismatch");
+        RETURN_STATUS_ERROR(gs::StatusCode::ERR_INTERNAL_ERROR,
+                            "Vertex label mismatch");
       }
       auto src_vertex = src_vertex_record.vid();
       auto dst_vertex = dst_vertex_record.vid();
@@ -292,7 +291,7 @@ bl::result<Context> InsertEdgeOpr::eval_impl(
       }
     }
   }
-  return bl::result<Context>(std::move(ctx));
+  return gs::result<Context>(std::move(ctx));
 }
 
 std::unique_ptr<IUpdateOperator> InsertEdgeOprBuilder::Build(

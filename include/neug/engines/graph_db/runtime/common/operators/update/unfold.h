@@ -16,8 +16,6 @@
 #ifndef RUNTIME_COMMON_OPERATORS_UPDATE_UNFOLD_H_
 #define RUNTIME_COMMON_OPERATORS_UPDATE_UNFOLD_H_
 
-#include <boost/leaf.hpp>
-
 #include "neug/engines/graph_db/runtime/common/context.h"
 #include "neug/utils/leaf_utils.h"
 
@@ -28,7 +26,7 @@ class WriteContext;
 
 class Unfold {
  public:
-  static bl::result<WriteContext> unfold(WriteContext&& ctxs, int key,
+  static gs::result<WriteContext> unfold(WriteContext&& ctxs, int key,
                                          int alias);
 };
 

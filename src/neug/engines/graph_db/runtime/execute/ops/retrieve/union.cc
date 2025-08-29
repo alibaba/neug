@@ -40,7 +40,7 @@ class UnionOpr : public IReadOperator {
 
   std::string get_operator_name() const override { return "UnionOpr"; }
 
-  bl::result<gs::runtime::Context> Eval(
+  gs::result<gs::runtime::Context> Eval(
       const gs::runtime::GraphReadInterface& graph,
       const std::map<std::string, std::string>& params,
       gs::runtime::Context&& ctx, gs::runtime::OprTimer* timer) override {
@@ -65,7 +65,7 @@ class UnionOpr : public IReadOperator {
  private:
   std::vector<ReadPipeline> sub_plans_;
 };
-bl::result<ReadOpBuildResultT> UnionOprBuilder::Build(
+gs::result<ReadOpBuildResultT> UnionOprBuilder::Build(
     const gs::Schema& schema, const ContextMeta& ctx_meta,
     const physical::PhysicalPlan& plan, int op_idx) {
   std::vector<ReadPipeline> sub_plans;

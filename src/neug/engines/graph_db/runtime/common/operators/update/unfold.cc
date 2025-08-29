@@ -23,7 +23,7 @@ namespace gs {
 
 namespace runtime {
 
-bl::result<WriteContext> Unfold::unfold(WriteContext&& ctx, int key,
+gs::result<WriteContext> Unfold::unfold(WriteContext&& ctx, int key,
                                         int alias) {
   auto col = ctx.get(key);
   auto [new_col, offset] = col.unfold();

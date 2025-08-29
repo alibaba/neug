@@ -22,7 +22,7 @@ namespace gs {
 namespace runtime {
 namespace ops {
 
-bl::result<Context> UpdateEdgeOpr::Eval(
+gs::result<Context> UpdateEdgeOpr::Eval(
     GraphUpdateInterface& graph,
     const std::map<std::string, std::string>& params, Context&& ctx,
     OprTimer* timer) {
@@ -97,7 +97,7 @@ bl::result<Context> UpdateEdgeOpr::Eval(
       LOG(INFO) << "After insert " << value.to_string();
     }
   }
-  return bl::result<Context>(std::move(ctx));
+  return gs::result<Context>(std::move(ctx));
 }
 
 std::unique_ptr<IUpdateOperator> UpdateEdgeOprBuilder::Build(

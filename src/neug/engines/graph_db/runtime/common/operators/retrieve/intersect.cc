@@ -35,7 +35,7 @@
 namespace gs {
 
 namespace runtime {
-bl::result<gs::runtime::Context> Intersect::Multiple_Intersect(
+gs::result<gs::runtime::Context> Intersect::Multiple_Intersect(
     const gs::runtime::GraphReadInterface& graph,
     const std::map<std::string, std::string>& params,
     gs::runtime::Context&& ctx,

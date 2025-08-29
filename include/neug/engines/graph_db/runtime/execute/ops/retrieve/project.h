@@ -16,7 +16,6 @@
 #ifndef RUNTIME_EXECUTE_RETRIEVE_OPS_PROJECT_H_
 #define RUNTIME_EXECUTE_RETRIEVE_OPS_PROJECT_H_
 
-#include <boost/leaf.hpp>
 #include <vector>
 
 #include "neug/engines/graph_db/runtime/execute/operator.h"
@@ -39,7 +38,7 @@ class ProjectOprBuilder : public IReadOperatorBuilder {
   ProjectOprBuilder() = default;
   ~ProjectOprBuilder() = default;
 
-  bl::result<ReadOpBuildResultT> Build(const gs::Schema& schema,
+  gs::result<ReadOpBuildResultT> Build(const gs::Schema& schema,
                                        const ContextMeta& ctx_meta,
                                        const physical::PhysicalPlan& plan,
                                        int op_idx) override;
@@ -55,7 +54,7 @@ class ProjectOrderByOprBuilder : public IReadOperatorBuilder {
   ProjectOrderByOprBuilder() = default;
   ~ProjectOrderByOprBuilder() = default;
 
-  bl::result<ReadOpBuildResultT> Build(const gs::Schema& schema,
+  gs::result<ReadOpBuildResultT> Build(const gs::Schema& schema,
                                        const ContextMeta& ctx_meta,
                                        const physical::PhysicalPlan& plan,
                                        int op_idx) override;

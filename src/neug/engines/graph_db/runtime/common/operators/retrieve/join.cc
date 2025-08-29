@@ -538,7 +538,7 @@ static Context default_left_outer_join(Context&& ctx, Context&& ctx2,
   return ctx;
 }
 
-bl::result<Context> Join::join(Context&& ctx, Context&& ctx2,
+gs::result<Context> Join::join(Context&& ctx, Context&& ctx2,
                                const JoinParams& params) {
   if (params.left_columns.size() != params.right_columns.size()) {
     LOG(ERROR) << "Join columns size mismatch";

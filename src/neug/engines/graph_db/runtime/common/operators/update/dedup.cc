@@ -28,7 +28,7 @@ namespace gs {
 
 namespace runtime {
 
-bl::result<WriteContext> Dedup::dedup(WriteContext&& ctx,
+gs::result<WriteContext> Dedup::dedup(WriteContext&& ctx,
                                       const std::vector<size_t>& keys) {
   int row_num = ctx.row_num();
   if (row_num == 0) {

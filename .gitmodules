@@ -25,9 +25,6 @@
 [submodule "third_party/brpc"]
 	path = third_party/brpc
 	url = https://github.com/apache/brpc.git
-[submodule "third_party/boost/leaf"]
-	path = third_party/boost/leaf
-	url = https://github.com/boostorg/leaf.git
 [submodule "third_party/HowardHinnant/date"]
 	path = third_party/HowardHinnant/date
 	url = https://github.com/HowardHinnant/date.git

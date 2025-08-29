@@ -19,7 +19,6 @@
 #include <string>
 
 #include <glog/logging.h>
-#include <boost/leaf.hpp>
 #include "neug/engines/graph_db/database/graph_db.h"
 #include "neug/engines/graph_db/runtime/common/graph_interface.h"
 #include "neug/engines/graph_db/runtime/utils/opr_timer.h"

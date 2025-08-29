@@ -89,20 +89,17 @@ Result<results::CollectiveResults> QueryProcessor::execute_read_only(
   auto txn = db_.GetReadTransaction();
   runtime::GraphReadInterface gri(txn);
 
-  runtime::Context ctx;
-  Status status;
   std::unique_ptr<runtime::OprTimer> timer = nullptr;
-  std::tie(ctx, status) =
-      runtime::ParseAndExecuteReadPipeline(gri, plan, timer.get());
+  auto ctx = runtime::ParseAndExecuteReadPipeline(gri, plan, timer.get());
 
-  if (!status.ok()) {
-    LOG(ERROR) << "Error: " << status.ToString();
+  if (!ctx) {
+    LOG(ERROR) << "Error: " << ctx.error().ToString();
     // We encode the error message to the output, so that the client can
     // get the error message.
-    return Result<results::CollectiveResults>(status);
+    return Result<results::CollectiveResults>(ctx.error());
   }
-  return Result<results::CollectiveResults>(Status::OK(),
-                                            runtime::Sink::sink(ctx, gri));
+  return Result<results::CollectiveResults>(
+      Status::OK(), runtime::Sink::sink(ctx.value(), gri));
 }
 
 Result<results::CollectiveResults> QueryProcessor::execute_read_write(

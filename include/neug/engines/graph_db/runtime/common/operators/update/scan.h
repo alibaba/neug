@@ -25,7 +25,7 @@ namespace runtime {
 class UScan {
  public:
   template <typename PRED_T>
-  static bl::result<Context> scan(const GraphUpdateInterface& graph,
+  static gs::result<Context> scan(const GraphUpdateInterface& graph,
                                   Context&& ctx, const ScanParams& params,
                                   const PRED_T& pred) {
     auto builder = MLVertexColumnBuilder::builder();

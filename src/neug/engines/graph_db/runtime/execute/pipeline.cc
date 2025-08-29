@@ -26,162 +26,96 @@ namespace gs {
 namespace runtime {
 class OprTimer;
 
-bl::result<Context> ReadPipeline::Execute(
+gs::result<Context> ReadPipeline::Execute(
     const GraphReadInterface& graph, Context&& ctx,
     const std::map<std::string, std::string>& params, OprTimer* timer) {
-  gs::Status status = gs::Status::OK();
-  size_t cur_ind = 0;
-
-  TRY_HANDLE_ALL_WITH_EXCEPTION_CATCHING(
-      ret,
-      [&]() -> bl::result<Context> {
-        TimerUnit tu;
-        OprTimer* cur_timer = timer;
-        std::unique_ptr<OprTimer> next_timer = nullptr;
-        for (size_t i = 0; i < operators_.size(); ++i) {
-          cur_ind = i;
-          auto& opr = operators_[i];
-          if (timer != nullptr) [[unlikely]] {
-            tu.start();
-          }
-          BOOST_LEAF_ASSIGN(
-              ctx, opr->Eval(graph, params, std::move(ctx), cur_timer));
-          if (timer != nullptr) [[unlikely]] {
-            cur_timer->set_name(opr->get_operator_name());
-            cur_timer->add_num_tuples(ctx.row_num());
-            cur_timer->record(tu);
-            if (i + 1 < operators_.size()) {
-              next_timer = std::make_unique<OprTimer>();
-              cur_timer->set_next(std::move(next_timer));
-              cur_timer = cur_timer->next();
-            }
-          }
-        }
-        return ctx;
-      },
-      bl::result<Context>,
-      [&](const gs::Status& err) {
-        status = err;
-        return ctx;
-      },
-      ctx);
-
-  if (!status.ok()) {
-    return bl::new_error(gs::Status(
-        status.error_code(), "Execution failed at operator: [" +
-                                 operators_[cur_ind]->get_operator_name() +
-                                 "], " + status.error_message()));
+  gs::Status status = Status::OK();
+  for (size_t i = 0; i < operators_.size(); ++i) {
+    TRY_HANDLE_ALL_WITH_EXCEPTION(
+        gs::result<Context>,
+        [&]() -> gs::result<Context> {
+          return operators_[i]->Eval(graph, params, std::move(ctx), timer);
+        },
+        [&](const gs::Status& err) {
+          status = gs::Status(err.error_code(),
+                              "Execution failed at operator: [" +
+                                  operators_[i]->get_operator_name() + "], " +
+                                  err.error_message());
+        },
+        [&ctx](gs::result<Context>&& res) { ctx = std::move(res.value()); });
+    if (!status.ok()) {
+      RETURN_ERROR(status);
+    }
   }
-  return std::move(ret);
+  return ctx;
 }
 
 template <typename GraphInterface>
-bl::result<WriteContext> InsertPipeline::Execute(
+gs::result<WriteContext> InsertPipeline::Execute(
     GraphInterface& graph, WriteContext&& ctx,
     const std::map<std::string, std::string>& params, OprTimer* timer) {
-  gs::Status status = gs::Status::OK();
-  size_t cur_ind = 0;
-
-  TRY_HANDLE_ALL_WITH_EXCEPTION_CATCHING(
-      ret,
-      [&]() -> bl::result<WriteContext> {
-        OprTimer* cur_timer = timer;
-        std::unique_ptr<OprTimer> next_timer = nullptr;
-        TimerUnit tu;
-        for (size_t i = 0; i < operators_.size(); ++i) {
-          cur_ind = i;
-          if (timer != nullptr) [[unlikely]] {
-            tu.start();
-          }
-          auto& opr = operators_[i];
-          BOOST_LEAF_ASSIGN(
-              ctx, opr->Eval(graph, params, std::move(ctx), cur_timer));
-          if (timer != nullptr) [[unlikely]] {
-            cur_timer->set_name(opr->get_operator_name());
-            cur_timer->add_num_tuples(ctx.row_num());
-            cur_timer->record(tu);
-            if (i + 1 < operators_.size()) {
-              next_timer = std::make_unique<OprTimer>();
-              cur_timer->set_next(std::move(next_timer));
-              cur_timer = cur_timer->next();
-            }
-          }
-        }
-        return ctx;
-      },
-      bl::result<WriteContext>,
-      [&](const gs::Status& err) {
-        status = err;
-        return WriteContext();
-      },
-      ctx);
-
-  if (!status.ok()) {
-    return bl::new_error(gs::Status(
-        status.error_code(), "Execution failed at operator: [" +
-                                 operators_[cur_ind]->get_operator_name() +
-                                 "], " + status.error_message()));
+  gs::Status status = Status::OK();
+  for (size_t i = 0; i < operators_.size(); ++i) {
+    TRY_HANDLE_ALL_WITH_EXCEPTION(
+        gs::result<Context>,
+        [&]() -> gs::result<WriteContext> {
+          return operators_[i]->Eval(graph, params, std::move(ctx), timer);
+        },
+        [&](const gs::Status& err) {
+          status = gs::Status(err.error_code(),
+                              "Execution failed at operator: [" +
+                                  operators_[0]->get_operator_name() + "], " +
+                                  err.error_message());
+        },
+        [&ctx](gs::result<WriteContext>&& res) {
+          ctx = std::move(res.value());
+        });
+    if (!status.ok()) {
+      RETURN_ERROR(status);
+    }
   }
-  return std::move(ret);
+  return ctx;
 }
 
-template bl::result<WriteContext> InsertPipeline::Execute(
+template gs::result<WriteContext> InsertPipeline::Execute(
     GraphInsertInterface& graph, WriteContext&& ctx,
     const std::map<std::string, std::string>& params, OprTimer* timer);
 
-template bl::result<WriteContext> InsertPipeline::Execute(
+template gs::result<WriteContext> InsertPipeline::Execute(
     GraphUpdateInterface& graph, WriteContext&& ctx,
     const std::map<std::string, std::string>& params, OprTimer* timer);
 
-bl::result<Context> UpdatePipeline::Execute(
+gs::result<Context> UpdatePipeline::Execute(
     GraphUpdateInterface& graph, Context&& ctx,
     const std::map<std::string, std::string>& params, OprTimer* timer) {
-  gs::Status status = gs::Status::OK();
-  size_t cur_ind = 0;
-  TRY_HANDLE_ALL_WITH_EXCEPTION_CATCHING(
-      ret,
-      [&]() -> bl::result<Context> {
-        TimerUnit tu;
-        OprTimer* cur_timer = timer;
-        std::unique_ptr<OprTimer> next_timer = nullptr;
-        for (size_t i = 0; i < operators_.size(); ++i) {
-          cur_ind = i;
-          auto& opr = operators_[i];
-          if (timer != nullptr) [[unlikely]] {
-            tu.start();
+  gs::Status status = Status::OK();
+  for (size_t i = 0; i < operators_.size(); ++i) {
+    TRY_HANDLE_ALL_WITH_EXCEPTION(
+        gs::result<Context>,
+        [&]() -> gs::result<Context> {
+          auto res = operators_[i]->Eval(graph, params, std::move(ctx), timer);
+          if (!res) {
+            LOG(ERROR) << res.error().ToString();
           }
-          BOOST_LEAF_ASSIGN(
-              ctx, opr->Eval(graph, params, std::move(ctx), cur_timer));
-          if (timer != nullptr) [[unlikely]] {
-            cur_timer->set_name(opr->get_operator_name());
-            cur_timer->add_num_tuples(ctx.row_num());
-            cur_timer->record(tu);
-            if (i + 1 < operators_.size()) {
-              next_timer = std::make_unique<OprTimer>();
-              cur_timer->set_next(std::move(next_timer));
-              cur_timer = cur_timer->next();
-            }
-          }
-        }
-        return ctx;
-      },
-      bl::result<Context>,
-      [&](const gs::Status& err) {
-        status = err;
-        return ctx;
-      },
-      ctx);
-
-  if (!status.ok()) {
-    return bl::new_error(gs::Status(
-        status.error_code(), "Execution failed at operator: [" +
-                                 operators_[cur_ind]->get_operator_name() +
-                                 "], " + status.error_message()));
+          return res;
+        },
+        [&](const gs::Status& err) {
+          LOG(INFO) << "Failed at operator index " << i;
+          status = gs::Status(err.error_code(),
+                              "Execution failed at operator: [" +
+                                  operators_[i]->get_operator_name() + "], " +
+                                  err.error_message());
+        },
+        [&ctx](gs::result<Context>&& res) { ctx = std::move(res.value()); });
+    if (!status.ok()) {
+      RETURN_ERROR(status);
+    }
   }
-  return std::move(ret);
+
+  return ctx;
 }
 
-bl::result<WriteContext> UpdatePipeline::Execute(
+gs::result<WriteContext> UpdatePipeline::Execute(
     GraphUpdateInterface& graph, WriteContext&& ctx,
     const std::map<std::string, std::string>& params, OprTimer* timer) {
   return inserts_->Execute(graph, std::move(ctx), params, timer);

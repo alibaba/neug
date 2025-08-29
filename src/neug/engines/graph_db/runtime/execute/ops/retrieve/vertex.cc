@@ -59,7 +59,7 @@ class GetVFromVerticesWithLabelWithInOpr : public IReadOperator {
     return "GetVFromVerticesWithLabelWithInOpr";
   }
 
-  bl::result<gs::runtime::Context> Eval(
+  gs::result<gs::runtime::Context> Eval(
       const gs::runtime::GraphReadInterface& graph,
       const std::map<std::string, std::string>& params,
       gs::runtime::Context&& ctx, gs::runtime::OprTimer* timer) override {
@@ -108,7 +108,7 @@ class GetVFromVerticesWithPKExactOpr : public IReadOperator {
     return "GetVFromVerticesWithPKExact";
   }
 
-  bl::result<gs::runtime::Context> Eval(
+  gs::result<gs::runtime::Context> Eval(
       const gs::runtime::GraphReadInterface& graph,
       const std::map<std::string, std::string>& params,
       gs::runtime::Context&& ctx, gs::runtime::OprTimer* timer) override {
@@ -137,7 +137,7 @@ class GetVFromVerticesWithPredicateOpr : public IReadOperator {
     return "GetVFromVerticesWithPredicate";
   }
 
-  bl::result<gs::runtime::Context> Eval(
+  gs::result<gs::runtime::Context> Eval(
       const gs::runtime::GraphReadInterface& graph,
       const std::map<std::string, std::string>& params,
       gs::runtime::Context&& ctx, gs::runtime::OprTimer* timer) override {
@@ -164,7 +164,7 @@ class GetVFromEdgesWithPredicateOpr : public IReadOperator {
     return "GetVFromEdgesWithPredicate";
   }
 
-  bl::result<gs::runtime::Context> Eval(
+  gs::result<gs::runtime::Context> Eval(
       const gs::runtime::GraphReadInterface& graph,
       const std::map<std::string, std::string>& params,
       gs::runtime::Context&& ctx, gs::runtime::OprTimer* timer) override {
@@ -185,7 +185,7 @@ class GetVFromEdgesWithPredicateOpr : public IReadOperator {
   GetVParams v_params_;
 };
 
-bl::result<ReadOpBuildResultT> VertexOprBuilder::Build(
+gs::result<ReadOpBuildResultT> VertexOprBuilder::Build(
     const gs::Schema& schema, const ContextMeta& ctx_meta,
     const physical::PhysicalPlan& plan, int op_idx) {
   const auto& vertex = plan.query_plan().plan(op_idx).opr().vertex();

@@ -190,7 +190,7 @@ struct Reducer : public ReducerBase {
 
 class GroupBy {
  public:
-  static bl::result<Context> group_by(
+  static gs::result<Context> group_by(
       Context&& ctx, std::unique_ptr<KeyBase>&& key,
       std::vector<std::unique_ptr<ReducerBase>>&& aggrs) {
     auto [offsets, groups] = key->group(ctx);

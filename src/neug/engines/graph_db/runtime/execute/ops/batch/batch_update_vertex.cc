@@ -22,7 +22,7 @@ namespace runtime {
 namespace ops {
 
 template <typename GraphInterface>
-bl::result<Context> UpdateVertexOpr::eval_impl(
+gs::result<Context> UpdateVertexOpr::eval_impl(
     GraphInterface& graph, const std::map<std::string, std::string>& params,
     Context&& ctx, OprTimer* timer) {
   for (const auto& entry : vertex_data_) {
@@ -81,10 +81,10 @@ bl::result<Context> UpdateVertexOpr::eval_impl(
       graph.SetVertexField(vr.label(), vr.vid(), col_id, value);
     }
   }
-  return bl::result<Context>(std::move(ctx));
+  return gs::result<Context>(std::move(ctx));
 }
 
-bl::result<Context> UpdateVertexOpr::Eval(
+gs::result<Context> UpdateVertexOpr::Eval(
     GraphUpdateInterface& graph,
     const std::map<std::string, std::string>& params, Context&& ctx,
     OprTimer* timer) {

@@ -17,7 +17,7 @@
 #define RUNTIME_COMMON_OPERATORS_UPDATE_DEDUP_H_
 
 #include <stddef.h>
-#include <boost/leaf.hpp>
+
 #include <vector>
 
 #include "neug/engines/graph_db/runtime/common/context.h"
@@ -30,7 +30,7 @@ class WriteContext;
 
 class Dedup {
  public:
-  static bl::result<WriteContext> dedup(WriteContext&& ctx,
+  static gs::result<WriteContext> dedup(WriteContext&& ctx,
                                         const std::vector<size_t>& cols);
 };
 

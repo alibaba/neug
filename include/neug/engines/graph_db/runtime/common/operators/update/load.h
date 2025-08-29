@@ -26,7 +26,7 @@ namespace runtime {
 class Load {
  public:
   template <typename InsertInterface>
-  static bl::result<WriteContext> load_single_edge(
+  static gs::result<WriteContext> load_single_edge(
       InsertInterface& graph, WriteContext&& ctxs, label_t src_label_id,
       label_t dst_label_id, label_t edge_label_id, PropertyType& src_pk_type,
       PropertyType& dst_pk_type, PropertyType& edge_prop_type, int src_index,
@@ -54,7 +54,7 @@ class Load {
   }
 
   template <typename InsertInterface>
-  static bl::result<WriteContext> load_single_vertex(
+  static gs::result<WriteContext> load_single_vertex(
       InsertInterface& graph, WriteContext&& ctxs, label_t label,
       PropertyType& pk_type, int id_col, const std::vector<int>& properties,
       const std::vector<std::tuple<label_t, label_t, label_t, PropertyType,
@@ -81,16 +81,17 @@ class Load {
       std::tie(src_label_id, dst_label_id, edge_label_id, src_pk_type,
                dst_pk_type, edge_prop_type, src_index, dst_index, prop_index) =
           edge;
-      BOOST_LEAF_CHECK(
-          load_single_edge(graph, std::move(ctxs), src_label_id, dst_label_id,
-                           edge_label_id, src_pk_type, dst_pk_type,
-                           edge_prop_type, src_index, dst_index, prop_index));
+
+      GS_RESULT_CHECK(load_single_edge(graph, std::move(ctxs), src_label_id,
+                                       dst_label_id, edge_label_id, src_pk_type,
+                                       dst_pk_type, edge_prop_type, src_index,
+                                       dst_index, prop_index));
     }
     return ctxs;
   }
 
   template <typename InsertInterface>
-  static bl::result<WriteContext> load(
+  static gs::result<WriteContext> load(
       InsertInterface& graph, WriteContext&& ctxs,
       const std::vector<std::tuple<label_t, int, PropertyType,
                                    std::vector<int>>>& vertex_mappings,
@@ -119,10 +120,11 @@ class Load {
       std::tie(src_label_id, dst_label_id, edge_label_id, src_pk_type,
                dst_pk_type, edge_prop_type, src_index, dst_index, prop_index) =
           edge_mapping;
-      BOOST_LEAF_CHECK(
-          load_single_edge(graph, std::move(ctxs), src_label_id, dst_label_id,
-                           edge_label_id, src_pk_type, dst_pk_type,
-                           edge_prop_type, src_index, dst_index, prop_index));
+
+      GS_RESULT_CHECK(load_single_edge(graph, std::move(ctxs), src_label_id,
+                                       dst_label_id, edge_label_id, src_pk_type,
+                                       dst_pk_type, edge_prop_type, src_index,
+                                       dst_index, prop_index));
     }
     return ctxs;
   }

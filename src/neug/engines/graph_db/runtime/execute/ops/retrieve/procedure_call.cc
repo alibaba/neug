@@ -278,7 +278,7 @@ collective_result_vec_to_column(
   return std::make_pair(columns, offsets);
 }
 
-bl::result<procedure::Query> fill_in_query(const procedure::Query& query,
+gs::result<procedure::Query> fill_in_query(const procedure::Query& query,
                                            const Context& ctx, size_t idx) {
   procedure::Query real_query;
   real_query.mutable_query_name()->CopyFrom(query.query_name());
@@ -334,11 +334,11 @@ bl::result<procedure::Query> fill_in_query(const procedure::Query& query,
  * @param txn The read transaction.
  * @param ctx The input context.
  *
- * @return bl::result<Context> The output context.
+ * @return gs::result<Context> The output context.
  *
  *
  */
-bl::result<Context> eval_procedure_call(const std::vector<int32_t>& aliases,
+gs::result<Context> eval_procedure_call(const std::vector<int32_t>& aliases,
                                         const physical::ProcedureCall& opr,
                                         const GraphReadInterface& txn,
                                         Context&& ctx) {
@@ -370,10 +370,14 @@ bl::result<Context> eval_procedure_call(const std::vector<int32_t>& aliases,
       // Call the procedure.
       // Use real values from the context to replace the placeholders in the
       // query.
-      BOOST_LEAF_AUTO(real_query, fill_in_query(query, ctx, i));
+      // BOOST_LEAF_AUTO(real_query, fill_in_query(query, ctx, i));
+      auto real_query_res = fill_in_query(query, ctx, i);
+      if (!real_query_res) {
+        RETURN_ERROR(real_query_res.error());
+      }
       // We need to serialize the protobuf-based arguments to the input format
       // that a cypher procedure can accept.
-      auto query_str = real_query.SerializeAsString();
+      auto query_str = (*real_query_res).SerializeAsString();
       // append CYPHER_PROTO as the last byte as input_format
       query_str.push_back(static_cast<char>(
           GraphDBSession::InputFormat::kCypherProtoProcedure));
@@ -429,7 +433,7 @@ class ProcedureCallOpr : public IReadOperator {
 
   std::string get_operator_name() const override { return "ProcedureCallOpr"; }
 
-  bl::result<Context> Eval(const GraphReadInterface& txn,
+  gs::result<Context> Eval(const GraphReadInterface& txn,
                            const std::map<std::string, std::string>&,
                            Context&& ctx, OprTimer*) override {
     auto ret = eval_procedure_call(aliases_, opr_, txn, std::move(ctx));
@@ -441,7 +445,7 @@ class ProcedureCallOpr : public IReadOperator {
   physical::ProcedureCall opr_;
 };
 
-bl::result<ReadOpBuildResultT> ProcedureCallOprBuilder::Build(
+gs::result<ReadOpBuildResultT> ProcedureCallOprBuilder::Build(
     const gs::Schema& schema, const ContextMeta& ctx_meta,
     const physical::PhysicalPlan& plan, int op_idx) {
   auto& opr = plan.query_plan().plan(op_idx);

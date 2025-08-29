@@ -17,7 +17,6 @@
 #include <glog/logging.h>
 #include <stddef.h>
 #include <stdint.h>
-#include <boost/leaf.hpp>
 
 #include <map>
 #include <ostream>
@@ -144,7 +143,7 @@ class SetOpr : public IUpdateOperator {
     return true;
   }
 
-  bl::result<Context> Eval(GraphUpdateInterface& graph,
+  gs::result<Context> Eval(GraphUpdateInterface& graph,
                            const std::map<std::string, std::string>& params,
                            Context&& ctx, OprTimer* timer) override {
     Arena arena;

@@ -59,7 +59,7 @@ static std::vector<LabelTriplet> get_expand_label_set(
   return label_triplets;
 }
 
-static bl::result<Context> expand_edge_without_predicate_optional_impl(
+static gs::result<Context> expand_edge_without_predicate_optional_impl(
     const GraphReadInterface& graph, Context&& ctx,
     const EdgeExpandParams& params) {
   std::vector<size_t> shuffle_offset;
@@ -220,7 +220,7 @@ static bl::result<Context> expand_edge_without_predicate_optional_impl(
                            std::to_string((int) params.dir));
 }
 
-bl::result<Context> EdgeExpand::expand_edge_without_predicate(
+gs::result<Context> EdgeExpand::expand_edge_without_predicate(
     const GraphReadInterface& graph, Context&& ctx,
     const EdgeExpandParams& params, OprTimer* timer) {
   if (params.is_optional) {
@@ -544,7 +544,7 @@ bl::result<Context> EdgeExpand::expand_edge_without_predicate(
                            std::to_string((int) params.dir));
 }
 
-bl::result<Context> EdgeExpand::expand_vertex_without_predicate(
+gs::result<Context> EdgeExpand::expand_vertex_without_predicate(
     const GraphReadInterface& graph, Context&& ctx,
     const EdgeExpandParams& params) {
   std::shared_ptr<IVertexColumn> input_vertex_list =
@@ -614,7 +614,7 @@ bl::result<Context> EdgeExpand::expand_vertex_without_predicate(
 }
 
 template <typename T>
-static bl::result<Context> _expand_edge_with_special_edge_predicate(
+static gs::result<Context> _expand_edge_with_special_edge_predicate(
     const GraphReadInterface& graph, Context&& ctx,
     const EdgeExpandParams& params, const SPEdgePredicate& pred) {
   if (pred.type() == SPPredicateType::kPropertyGT) {
@@ -649,7 +649,7 @@ static bl::result<Context> _expand_edge_with_special_edge_predicate(
                            std::to_string(static_cast<int>(pred.type())));
 }
 
-bl::result<Context> EdgeExpand::expand_edge_with_special_edge_predicate(
+gs::result<Context> EdgeExpand::expand_edge_with_special_edge_predicate(
     const GraphReadInterface& graph, Context&& ctx,
     const EdgeExpandParams& params, const SPEdgePredicate& pred) {
   if (params.is_optional) {
@@ -743,7 +743,7 @@ Context expand_vertex_ep_lt_ml_impl(
   ctx.set_with_reshuffle(alias, col, offsets);
   return ctx;
 }
-bl::result<Context> EdgeExpand::expand_vertex_ep_lt(
+gs::result<Context> EdgeExpand::expand_vertex_ep_lt(
     const GraphReadInterface& graph, Context&& ctx,
     const EdgeExpandParams& params, const std::string& ep_val) {
   if (params.is_optional) {
@@ -917,7 +917,7 @@ Context expand_vertex_ep_gt_ml_impl(
   return ctx;
 }
 
-bl::result<Context> EdgeExpand::expand_vertex_ep_gt(
+gs::result<Context> EdgeExpand::expand_vertex_ep_gt(
     const GraphReadInterface& graph, Context&& ctx,
     const EdgeExpandParams& params, const std::string& ep_val) {
   if (params.is_optional) {
@@ -1025,7 +1025,7 @@ bl::result<Context> EdgeExpand::expand_vertex_ep_gt(
 }
 
 template <typename T>
-static bl::result<Context> _expand_vertex_with_special_vertex_predicate(
+static gs::result<Context> _expand_vertex_with_special_vertex_predicate(
     const GraphReadInterface& graph, Context&& ctx,
     const EdgeExpandParams& params, const SPVertexPredicate& pred) {
   if (pred.type() == SPPredicateType::kPropertyEQ) {
@@ -1072,7 +1072,7 @@ static bl::result<Context> _expand_vertex_with_special_vertex_predicate(
   }
 }
 
-bl::result<Context> EdgeExpand::expand_vertex_with_special_vertex_predicate(
+gs::result<Context> EdgeExpand::expand_vertex_with_special_vertex_predicate(
     const GraphReadInterface& graph, Context&& ctx,
     const EdgeExpandParams& params, const SPVertexPredicate& pred) {
   if (params.is_optional) {

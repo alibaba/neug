@@ -56,7 +56,7 @@ class OrderByOprBeta : public IReadOperator {
 
   std::string get_operator_name() const override { return "OrderByOpr"; }
 
-  bl::result<gs::runtime::Context> Eval(
+  gs::result<gs::runtime::Context> Eval(
       const gs::runtime::GraphReadInterface& graph,
       const std::map<std::string, std::string>& params,
       gs::runtime::Context&& ctx, gs::runtime::OprTimer* timer) override {
@@ -86,7 +86,7 @@ class OrderByOprBeta : public IReadOperator {
       func_;
 };
 
-bl::result<ReadOpBuildResultT> OrderByOprBuilder::Build(
+gs::result<ReadOpBuildResultT> OrderByOprBuilder::Build(
     const gs::Schema& schema, const ContextMeta& ctx_meta,
     const physical::PhysicalPlan& plan, int op_idx) {
   const auto opr = plan.query_plan().plan(op_idx).opr().order_by();

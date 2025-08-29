@@ -209,29 +209,6 @@ function git_clone() {
   fi
 }
 
-
-# boost with leaf for centos and ubuntu
-install_boost() {
-  if [[ -f "${install_prefix}/include/boost/version.hpp" ]]; then
-    return 0
-  fi
-  pushd "${tempdir}" || exit
-  directory="boost_1_88_0"
-  file="${directory}.tar.gz"
-  url="https://archives.boost.io/release/1.88.0/source"
-  url=$(set_to_cn_url ${url})
-  download_and_untar "${url}" "${file}" "${directory}"
-  pushd ${directory} || exit
-  # seastar needs filesystem program_options thread unit_test_framework
-  # interactive needs context regex date_time
-  ./bootstrap.sh --prefix="${install_prefix}" \
-    --with-libraries=system,filesystem,context,program_options,regex,thread,random,chrono,atomic,date_time
-  ./b2 install link=shared runtime-link=shared variant=release threading=multi
-  popd || exit
-  popd || exit
-  rm -rf "${tempdir:?}/${directory:?}" "${tempdir:?}/${file:?}"
-}
-
 # arrow for ubuntu and centos
 install_arrow() {
   # if [[ "${OS_PLATFORM}" == *"Ubuntu"* ]]; then

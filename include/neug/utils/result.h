@@ -169,9 +169,6 @@ struct is_gs_status_type<Status> : std::true_type {};
 
 // Return boost::leaf::error object with error code and error message,
 
-#define RETURN_FLEX_LEAF_ERROR(code, msg) \
-  return ::boost::leaf::new_error(gs::Status(code, msg))
-
 }  // namespace gs
 
 namespace std {

@@ -19,7 +19,7 @@ namespace gs {
 namespace runtime {
 namespace ops {
 
-bl::result<gs::runtime::Context> DataExportOpr::Eval(
+gs::result<gs::runtime::Context> DataExportOpr::Eval(
     const gs::runtime::GraphReadInterface& graph,
     const std::map<std::string, std::string>& params,
     gs::runtime::Context&& ctx, gs::runtime::OprTimer* timer) {
@@ -31,15 +31,15 @@ bl::result<gs::runtime::Context> DataExportOpr::Eval(
   }
   Status status = writer_->Write(columns, graph);
   if (!status.ok()) {
-    RETURN_FLEX_LEAF_ERROR(status.error_code(), status.error_message());
+    RETURN_ERROR(status);
   }
   for (size_t i = 0; i < headers_.size(); i++) {
     ctx.remove(headers_[i].first);
   }
-  return bl::result<Context>(std::move(ctx));
+  return gs::result<Context>(std::move(ctx));
 }
 
-bl::result<ReadOpBuildResultT> DataExportOprBuilder::Build(
+gs::result<ReadOpBuildResultT> DataExportOprBuilder::Build(
     const gs::Schema& schema, const ContextMeta& ctx_meta,
     const physical::PhysicalPlan& plan, int op_idx) {
   const auto& data_export_opr =

@@ -17,7 +17,7 @@
 #define RUNTIME_COMMON_OPERATORS_RETRIEVE_SCAN_H_
 
 #include <stdint.h>
-#include <boost/leaf.hpp>
+
 #include <compare>
 #include <memory>
 #include <string_view>
@@ -41,7 +41,7 @@ class SPVertexPredicate;
 class Scan {
  public:
   template <typename PRED_T>
-  static bl::result<Context> scan_vertex(Context&& ctx,
+  static gs::result<Context> scan_vertex(Context&& ctx,
                                          const GraphReadInterface& graph,
                                          const ScanParams& params,
                                          const PRED_T& predicate) {
@@ -73,7 +73,7 @@ class Scan {
   }
 
   template <typename PRED_T>
-  static bl::result<Context> scan_vertex_with_limit(
+  static gs::result<Context> scan_vertex_with_limit(
       Context&& ctx, const GraphReadInterface& graph, const ScanParams& params,
       const PRED_T& predicate) {
     int32_t cur_limit = params.limit;
@@ -115,12 +115,12 @@ class Scan {
     return ctx;
   }
 
-  static bl::result<Context> scan_vertex_with_special_vertex_predicate(
+  static gs::result<Context> scan_vertex_with_special_vertex_predicate(
       Context&& ctx, const GraphReadInterface& graph, const ScanParams& params,
       const SPVertexPredicate& pred);
 
   template <typename PRED_T>
-  static bl::result<Context> filter_gids(Context&& ctx,
+  static gs::result<Context> filter_gids(Context&& ctx,
                                          const GraphReadInterface& graph,
                                          const ScanParams& params,
                                          const PRED_T& predicate,
@@ -163,12 +163,12 @@ class Scan {
     return ctx;
   }
 
-  static bl::result<Context> filter_gids_with_special_vertex_predicate(
+  static gs::result<Context> filter_gids_with_special_vertex_predicate(
       Context&& ctx, const GraphReadInterface& graph, const ScanParams& params,
       const SPVertexPredicate& predicate, const std::vector<int64_t>& oids);
 
   template <typename PRED_T>
-  static bl::result<Context> filter_oids(Context&& ctx,
+  static gs::result<Context> filter_oids(Context&& ctx,
                                          const GraphReadInterface& graph,
                                          const ScanParams& params,
                                          const PRED_T& predicate,
@@ -225,15 +225,15 @@ class Scan {
     return ctx;
   }
 
-  static bl::result<Context> filter_oids_with_special_vertex_predicate(
+  static gs::result<Context> filter_oids_with_special_vertex_predicate(
       Context&& ctx, const GraphReadInterface& graph, const ScanParams& params,
       const SPVertexPredicate& predicate, const std::vector<Any>& oids);
 
-  static bl::result<Context> find_vertex_with_oid(
+  static gs::result<Context> find_vertex_with_oid(
       Context&& ctx, const GraphReadInterface& graph, label_t label,
       const Any& pk, int32_t alias);
 
-  static bl::result<Context> find_vertex_with_gid(
+  static gs::result<Context> find_vertex_with_gid(
       Context&& ctx, const GraphReadInterface& graph, label_t label, int64_t pk,
       int32_t alias);
 };

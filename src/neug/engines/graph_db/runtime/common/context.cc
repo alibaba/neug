@@ -114,6 +114,10 @@ std::shared_ptr<IContextColumn> Context::get(int alias) {
   if (alias == -1) {
     return head;
   }
+  if (alias >= static_cast<int>(columns.size())) {
+    THROW_INTERNAL_EXCEPTION("alias out of range: " + std::to_string(alias) +
+                             " >= " + std::to_string(columns.size()));
+  }
   return columns[alias];
 }
 
@@ -121,6 +125,10 @@ const std::shared_ptr<IContextColumn> Context::get(int alias) const {
   if (alias == -1) {
     assert(head != nullptr);
     return head;
+  }
+  if (alias >= static_cast<int>(columns.size())) {
+    THROW_INTERNAL_EXCEPTION("alias out of range: " + std::to_string(alias) +
+                             " >= " + std::to_string(columns.size()));
   }
   // return nullptr if the column is not set
   return columns[alias];

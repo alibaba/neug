@@ -36,7 +36,7 @@ class SinkOpr : public IReadOperator {
  public:
   SinkOpr(const std::vector<int>& tag_ids) : tag_ids_(tag_ids) {}
 
-  bl::result<Context> Eval(const GraphReadInterface& graph,
+  gs::result<Context> Eval(const GraphReadInterface& graph,
                            const std::map<std::string, std::string>& params,
                            Context&& ctx, OprTimer* timer) override {
     ctx.tag_ids = tag_ids_;
@@ -49,7 +49,7 @@ class SinkOpr : public IReadOperator {
   std::vector<int> tag_ids_;
 };
 
-bl::result<ReadOpBuildResultT> SinkOprBuilder::Build(
+gs::result<ReadOpBuildResultT> SinkOprBuilder::Build(
     const gs::Schema& schema, const ContextMeta& ctx_meta,
     const physical::PhysicalPlan& plan, int op_idx) {
   auto& opr = plan.query_plan().plan(op_idx).opr().sink();

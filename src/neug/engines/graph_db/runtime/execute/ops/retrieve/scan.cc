@@ -57,7 +57,7 @@ class FilterOidsWithoutPredOpr : public IReadOperator {
       const std::function<std::vector<Any>(ParamsType)>& oids)
       : params_(params), oids_(std::move(oids)) {}
 
-  bl::result<gs::runtime::Context> Eval(
+  gs::result<gs::runtime::Context> Eval(
       const gs::runtime::GraphReadInterface& graph, ParamsType params,
       gs::runtime::Context&& ctx, gs::runtime::OprTimer* timer) override {
     ctx = Context();
@@ -85,7 +85,7 @@ class FilterMultiTypeOidsWithoutPredOpr : public IReadOperator {
       const std::vector<std::function<std::vector<Any>(ParamsType)>>& oids)
       : params_(params), oids_(oids) {}
 
-  bl::result<gs::runtime::Context> Eval(
+  gs::result<gs::runtime::Context> Eval(
       const gs::runtime::GraphReadInterface& graph, ParamsType params,
       gs::runtime::Context&& ctx, gs::runtime::OprTimer* timer) override {
     ctx = Context();
@@ -115,7 +115,7 @@ class FilterGidsWithoutPredOpr : public IReadOperator {
       const std::function<std::vector<Any>(ParamsType)>& oids)
       : params_(params), oids_(std::move(oids)) {}
 
-  bl::result<gs::runtime::Context> Eval(
+  gs::result<gs::runtime::Context> Eval(
       const gs::runtime::GraphReadInterface& graph, ParamsType params,
       gs::runtime::Context&& ctx, gs::runtime::OprTimer* timer) override {
     ctx = Context();
@@ -149,7 +149,7 @@ class FilterOidsSPredOpr : public IReadOperator {
                          const std::map<std::string, std::string>&)>& pred)
       : params_(params), oids_(std::move(oids)), pred_(pred) {}
 
-  bl::result<gs::runtime::Context> Eval(
+  gs::result<gs::runtime::Context> Eval(
       const gs::runtime::GraphReadInterface& graph, ParamsType params,
       gs::runtime::Context&& ctx, gs::runtime::OprTimer* timer) override {
     ctx = Context();
@@ -179,7 +179,7 @@ class FilterOidsGPredOpr : public IReadOperator {
                      const common::Expression& pred)
       : params_(params), oids_(std::move(oids)), pred_(pred) {}
 
-  bl::result<gs::runtime::Context> Eval(
+  gs::result<gs::runtime::Context> Eval(
       const gs::runtime::GraphReadInterface& graph, ParamsType params,
       gs::runtime::Context&& ctx, gs::runtime::OprTimer* timer) override {
     ctx = Context();
@@ -224,7 +224,7 @@ class FilterOidsMultiTypeSPredOpr : public IReadOperator {
           const std::map<std::string, std::string>&)>& pred)
       : params_(params), oids_(oids), pred_(pred) {}
 
-  bl::result<gs::runtime::Context> Eval(
+  gs::result<gs::runtime::Context> Eval(
       const gs::runtime::GraphReadInterface& graph, ParamsType params,
       gs::runtime::Context&& ctx, gs::runtime::OprTimer* timer) override {
     ctx = Context();
@@ -265,7 +265,7 @@ class FilterOidsMultiTypeGPredOpr : public IReadOperator {
     return "FilterOidsMultiTypeGPredOpr";
   }
 
-  bl::result<gs::runtime::Context> Eval(
+  gs::result<gs::runtime::Context> Eval(
       const gs::runtime::GraphReadInterface& graph, ParamsType params,
       gs::runtime::Context&& ctx, gs::runtime::OprTimer* timer) override {
     ctx = Context();
@@ -315,7 +315,7 @@ class FilterGidsSPredOpr : public IReadOperator {
     return "FilterGidsSPredOpr";
   }
 
-  bl::result<gs::runtime::Context> Eval(
+  gs::result<gs::runtime::Context> Eval(
       const gs::runtime::GraphReadInterface& graph, ParamsType params,
       gs::runtime::Context&& ctx, gs::runtime::OprTimer* timer) override {
     ctx = Context();
@@ -349,7 +349,7 @@ class FilterGidsGPredOpr : public IReadOperator {
     return "FilterGidsGPredOpr";
   }
 
-  bl::result<gs::runtime::Context> Eval(
+  gs::result<gs::runtime::Context> Eval(
       const gs::runtime::GraphReadInterface& graph, ParamsType params,
       gs::runtime::Context&& ctx, gs::runtime::OprTimer* timer) override {
     ctx = Context();
@@ -397,7 +397,7 @@ class ScanWithSPredOpr : public IReadOperator {
 
   std::string get_operator_name() const override { return "ScanWithSPredOpr"; }
 
-  bl::result<gs::runtime::Context> Eval(
+  gs::result<gs::runtime::Context> Eval(
       const gs::runtime::GraphReadInterface& graph,
       const std::map<std::string, std::string>& params,
       gs::runtime::Context&& ctx, gs::runtime::OprTimer* timer) override {
@@ -421,7 +421,7 @@ class ScanWithGPredOpr : public IReadOperator {
                    const common::Expression& pred)
       : scan_params_(scan_params), pred_(pred) {}
 
-  bl::result<gs::runtime::Context> Eval(
+  gs::result<gs::runtime::Context> Eval(
       const gs::runtime::GraphReadInterface& graph,
       const std::map<std::string, std::string>& params,
       gs::runtime::Context&& ctx, gs::runtime::OprTimer* timer) override {
@@ -473,7 +473,7 @@ class ScanWithoutPredOpr : public IReadOperator {
   ScanWithoutPredOpr(const ScanParams& scan_params)
       : scan_params_(scan_params) {}
 
-  bl::result<gs::runtime::Context> Eval(
+  gs::result<gs::runtime::Context> Eval(
       const gs::runtime::GraphReadInterface& graph,
       const std::map<std::string, std::string>& params,
       gs::runtime::Context&& ctx, gs::runtime::OprTimer* timer) override {
@@ -495,7 +495,7 @@ class ScanWithoutPredOpr : public IReadOperator {
   ScanParams scan_params_;
 };
 
-bl::result<ReadOpBuildResultT> ScanOprBuilder::Build(
+gs::result<ReadOpBuildResultT> ScanOprBuilder::Build(
     const gs::Schema& schema, const ContextMeta& ctx_meta,
     const physical::PhysicalPlan& plan, int op_idx) {
   ContextMeta ret_meta;
@@ -667,7 +667,7 @@ class DummySourceOpr : public IReadOperator {
  public:
   DummySourceOpr() {}
 
-  bl::result<gs::runtime::Context> Eval(
+  gs::result<gs::runtime::Context> Eval(
       const gs::runtime::GraphReadInterface& graph,
       const std::map<std::string, std::string>& params,
       gs::runtime::Context&& ctx, gs::runtime::OprTimer* timer) override {
@@ -681,7 +681,7 @@ class DummySourceOpr : public IReadOperator {
   std::string get_operator_name() const override { return "DummySourceOpr"; }
 };
 
-bl::result<ReadOpBuildResultT> DummySourceOprBuilder::Build(
+gs::result<ReadOpBuildResultT> DummySourceOprBuilder::Build(
     const gs::Schema& schema, const ContextMeta& ctx_meta,
     const physical::PhysicalPlan& plan, int op_idx) {
   return std::make_pair(std::make_unique<DummySourceOpr>(), ctx_meta);

@@ -262,7 +262,7 @@ def test_export_no_permission(tmp_path):
         with pytest.raises(Exception) as excinfo:
             conn.execute(f'COPY (MATCH (v:person) RETURN v) to "{out_path}";')
             print(str(excinfo.value))
-        assert str(ERR_PERMISSION) in str(excinfo.value)
+            assert str(ERR_PERMISSION) in str(excinfo.value)
     finally:
         os.chmod(out_dir, 0o700)
     conn.close()

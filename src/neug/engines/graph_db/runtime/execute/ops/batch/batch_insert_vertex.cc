@@ -32,7 +32,7 @@ class OprTimer;
 
 namespace ops {
 
-bl::result<Context> BatchInsertVertexOpr::Eval(
+gs::result<Context> BatchInsertVertexOpr::Eval(
     GraphUpdateInterface& graph,
     const std::map<std::string, std::string>& params, Context&& ctx,
     OprTimer* timer) {
@@ -42,9 +42,9 @@ bl::result<Context> BatchInsertVertexOpr::Eval(
   Status status = AbstractArrowFragmentLoader::batch_load_vertices(
       frag, vertex_label_id_, suppliers);
   if (!status.ok()) {
-    RETURN_FLEX_LEAF_ERROR(status.error_code(), status.error_message());
+    RETURN_ERROR(status);
   }
-  return bl::result<Context>(std::move(ctx));
+  return gs::result<Context>(std::move(ctx));
 }
 
 std::unique_ptr<IUpdateOperator> BatchInsertVertexOprBuilder::Build(
@@ -143,7 +143,7 @@ std::pair<Any, std::vector<Any>> get_pk_and_prop_values(
 }
 
 template <typename GraphInterface>
-bl::result<Context> InsertVertexOpr::eval_impl(
+gs::result<Context> InsertVertexOpr::eval_impl(
     GraphInterface& graph, const std::map<std::string, std::string>& params,
     Context&& ctx, OprTimer* timer) {
   for (auto& entry : vertex_data_) {
@@ -185,7 +185,7 @@ bl::result<Context> InsertVertexOpr::eval_impl(
       LOG(ERROR) << "Vertex with label " << (int32_t) vertex_label_id
                  << " and primary key " << pk_value.to_string()
                  << " already exists.";
-      RETURN_FLEX_LEAF_ERROR(
+      RETURN_STATUS_ERROR(
           gs::StatusCode::ERR_INVALID_ARGUMENT,
           "Vertex with label " + std::to_string(vertex_label_id) +
               " and primary key " + pk_value.to_string() + " already exists.");
@@ -195,10 +195,10 @@ bl::result<Context> InsertVertexOpr::eval_impl(
       LOG(ERROR) << "Failed to add vertex with label "
                  << (int32_t) vertex_label_id << " and primary key "
                  << pk_value.to_string();
-      RETURN_FLEX_LEAF_ERROR(gs::StatusCode::ERR_INTERNAL_ERROR,
-                             "Failed to add vertex with label " +
-                                 std::to_string(vertex_label_id) +
-                                 " and primary key " + pk_value.to_string());
+      RETURN_STATUS_ERROR(gs::StatusCode::ERR_INTERNAL_ERROR,
+                          "Failed to add vertex with label " +
+                              std::to_string(vertex_label_id) +
+                              " and primary key " + pk_value.to_string());
     }
     auto builder = SLVertexColumnBuilder::builder(vertex_label_id);
     builder.push_back_opt(vid);
@@ -207,10 +207,10 @@ bl::result<Context> InsertVertexOpr::eval_impl(
   }
   VLOG(10) << "Inserted " << vertex_data_.size()
            << " vertices successfully, col num: " << ctx.col_num();
-  return bl::result<Context>(std::move(ctx));
+  return gs::result<Context>(std::move(ctx));
 }
 
-bl::result<Context> InsertVertexOpr::Eval(
+gs::result<Context> InsertVertexOpr::Eval(
     GraphUpdateInterface& graph,
     const std::map<std::string, std::string>& params, Context&& ctx,
     OprTimer* timer) {

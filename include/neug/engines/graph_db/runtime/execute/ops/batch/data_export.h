@@ -40,7 +40,7 @@ class DataExportOpr : public IReadOperator {
 
   std::string get_operator_name() const override { return "DataExportOpr"; }
 
-  bl::result<gs::runtime::Context> Eval(
+  gs::result<gs::runtime::Context> Eval(
       const gs::runtime::GraphReadInterface& graph,
       const std::map<std::string, std::string>& params,
       gs::runtime::Context&& ctx, gs::runtime::OprTimer* timer) override;
@@ -57,7 +57,7 @@ class DataExportOprBuilder : public IReadOperatorBuilder {
   DataExportOprBuilder() = default;
   ~DataExportOprBuilder() = default;
 
-  bl::result<ReadOpBuildResultT> Build(const gs::Schema& schema,
+  gs::result<ReadOpBuildResultT> Build(const gs::Schema& schema,
                                        const ContextMeta& ctx_meta,
                                        const physical::PhysicalPlan& plan,
                                        int op_idx) override;

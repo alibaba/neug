@@ -17,7 +17,7 @@
 
 #include <glog/logging.h>
 #include <google/protobuf/wrappers.pb.h>
-#include <boost/leaf.hpp>
+
 #include <functional>
 #include <map>
 #include <optional>
@@ -53,7 +53,7 @@ class UScanOpr : public IUpdateOperator {
            const std::optional<common::Expression>& pred)
       : scan_params(params), oids(oids), pred(pred) {}
 
-  bl::result<gs::runtime::Context> Eval(
+  gs::result<gs::runtime::Context> Eval(
       gs::runtime::GraphUpdateInterface& graph,
       const std::map<std::string, std::string>& params,
       gs::runtime::Context&& ctx, gs::runtime::OprTimer* timer) override {

@@ -16,7 +16,7 @@
 
 namespace gs {
 namespace runtime {
-bl::result<WriteContext> Project::project(
+gs::result<WriteContext> Project::project(
     WriteContext&& ctx,
     const std::vector<std::unique_ptr<WriteProjectExprBase>>& exprs) {
   WriteContext ret;
@@ -26,7 +26,7 @@ bl::result<WriteContext> Project::project(
   return ret;
 }
 
-bl::result<Context> UProject::project(
+gs::result<Context> UProject::project(
     Context&& ctx, const std::vector<std::unique_ptr<UProjectExprBase>>& exprs,
     bool is_append) {
   Context ret;

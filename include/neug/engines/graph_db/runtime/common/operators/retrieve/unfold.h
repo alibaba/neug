@@ -16,8 +16,6 @@
 #ifndef RUNTIME_COMMON_OPERATORS_RETRIEVE_UNFOLD_H_
 #define RUNTIME_COMMON_OPERATORS_RETRIEVE_UNFOLD_H_
 
-#include <boost/leaf.hpp>
-
 #include "neug/engines/graph_db/runtime/common/context.h"
 #include "neug/utils/leaf_utils.h"
 
@@ -28,7 +26,7 @@ class Context;
 
 class Unfold {
  public:
-  static bl::result<Context> unfold(Context&& ctxs, int key, int alias);
+  static gs::result<Context> unfold(Context&& ctxs, int key, int alias);
 };
 
 }  // namespace runtime

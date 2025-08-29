@@ -15,7 +15,7 @@
 #include "neug/engines/graph_db/runtime/execute/ops/update/select.h"
 
 #include <stddef.h>
-#include <boost/leaf.hpp>
+
 #include <map>
 #include <string>
 #include <utility>
@@ -37,7 +37,7 @@ namespace ops {
 class USelectOpr : public IUpdateOperator {
  public:
   USelectOpr(const common::Expression& predicate) : predicate_(predicate) {}
-  bl::result<Context> Eval(GraphUpdateInterface& graph,
+  gs::result<Context> Eval(GraphUpdateInterface& graph,
                            const std::map<std::string, std::string>& params,
                            Context&& ctx, OprTimer* timer) override {
     Expr expr(graph, ctx, params, predicate_, VarType::kPathVar);

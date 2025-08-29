@@ -16,7 +16,6 @@
 #ifndef RUNTIME_EXECUTE_RETRIEVE_OPS_SCAN_H_
 #define RUNTIME_EXECUTE_RETRIEVE_OPS_SCAN_H_
 
-#include <boost/leaf.hpp>
 #include <vector>
 
 #include "neug/engines/graph_db/runtime/execute/operator.h"
@@ -39,7 +38,7 @@ class ScanOprBuilder : public IReadOperatorBuilder {
   ScanOprBuilder() = default;
   ~ScanOprBuilder() = default;
 
-  bl::result<ReadOpBuildResultT> Build(const gs::Schema& schema,
+  gs::result<ReadOpBuildResultT> Build(const gs::Schema& schema,
                                        const ContextMeta& ctx_meta,
                                        const physical::PhysicalPlan& plan,
                                        int op_idx) override;
@@ -55,7 +54,7 @@ class DummySourceOprBuilder : public IReadOperatorBuilder {
   DummySourceOprBuilder() = default;
   ~DummySourceOprBuilder() = default;
 
-  bl::result<ReadOpBuildResultT> Build(const gs::Schema& schema,
+  gs::result<ReadOpBuildResultT> Build(const gs::Schema& schema,
                                        const ContextMeta& ctx_meta,
                                        const physical::PhysicalPlan& plan,
                                        int op_idx) override;

@@ -17,7 +17,6 @@
 #define RUNTIME_COMMON_OPERATORS_RETRIEVE_LIMIT_H_
 
 #include <stddef.h>
-#include <boost/leaf.hpp>
 
 #include "neug/engines/graph_db/runtime/common/context.h"
 #include "neug/utils/leaf_utils.h"
@@ -29,7 +28,7 @@ class Context;
 
 class Limit {
  public:
-  static bl::result<Context> limit(Context&& ctxs, size_t lower, size_t upper);
+  static gs::result<Context> limit(Context&& ctxs, size_t lower, size_t upper);
 };
 
 }  // namespace runtime

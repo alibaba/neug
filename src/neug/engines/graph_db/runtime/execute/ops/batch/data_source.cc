@@ -43,14 +43,14 @@ namespace ops {
 // CSVDataSourceOpr read from csv file and load the arrow table into memory.
 //  Insert the columns to the context.
 
-bl::result<Context> CSVDataSourceOpr::Eval(
+gs::result<Context> CSVDataSourceOpr::Eval(
     GraphUpdateInterface& graph,
     const std::map<std::string, std::string>& params, Context&& ctx,
     OprTimer* timer) {
   if (ctx.row_num() != 0) {
     LOG(ERROR) << "Expect a empty context, but got " << ctx.row_num();
-    return bl::new_error(gs::StatusCode::ERR_INVALID_ARGUMENT,
-                         "Expect a empty context");
+    RETURN_ERROR(gs::Status(gs::StatusCode::ERR_INVALID_ARGUMENT,
+                            "Expect a empty context"));
   }
 
   if (batch_reader_) {
@@ -62,11 +62,11 @@ bl::result<Context> CSVDataSourceOpr::Eval(
   }
 }
 
-bl::result<Context> CSVDataSourceOpr::eval_batch_reader(Context&& ctx) {
+gs::result<Context> CSVDataSourceOpr::eval_batch_reader(Context&& ctx) {
   if (ctx.col_num() != 0) {
     LOG(ERROR) << "Expect a empty context, but got " << ctx.col_num();
-    return bl::new_error(gs::StatusCode::ERR_INVALID_ARGUMENT,
-                         "Expect a empty context");
+    RETURN_ERROR(gs::Status(gs::StatusCode::ERR_INVALID_ARGUMENT,
+                            "Expect a empty context"));
   }
   // Try to get the first batch from the suppliers.
   std::shared_ptr<arrow::RecordBatch> first_batch;
@@ -76,8 +76,8 @@ bl::result<Context> CSVDataSourceOpr::eval_batch_reader(Context&& ctx) {
     // get the first batch without consuming the supplier.
     if (!supplier) {
       LOG(ERROR) << "Supplier is null";
-      return bl::new_error(gs::StatusCode::ERR_INVALID_ARGUMENT,
-                           "Supplier is null");
+      RETURN_ERROR(
+          gs::Status(gs::StatusCode::ERR_INVALID_ARGUMENT, "Supplier is null"));
     }
     first_batch = supplier->GetNextBatch();
     if (first_batch) {
@@ -88,8 +88,8 @@ bl::result<Context> CSVDataSourceOpr::eval_batch_reader(Context&& ctx) {
   }
   if (!first_batch) {
     LOG(ERROR) << "No batch found from the suppliers";
-    return bl::new_error(gs::StatusCode::ERR_INVALID_ARGUMENT,
-                         "No batch found from the suppliers");
+    RETURN_ERROR(gs::Status(gs::StatusCode::ERR_INVALID_ARGUMENT,
+                            "No batch found from the suppliers"));
   }
   auto num_columns = first_batch->num_columns();
   LOG(INFO) << "Got first batch with " << num_columns << " columns";
@@ -99,10 +99,10 @@ bl::result<Context> CSVDataSourceOpr::eval_batch_reader(Context&& ctx) {
     ArrowStreamContextColumnBuilder column_builder({supplier_with_first_batch});
     ctx.set(i, column_builder.finish(nullptr));
   }
-  return bl::result<Context>(std::move(ctx));
+  return gs::result<Context>(std::move(ctx));
 }
 
-bl::result<Context> CSVDataSourceOpr::eval_table_reader(Context&& ctx) {
+gs::result<Context> CSVDataSourceOpr::eval_table_reader(Context&& ctx) {
   // M X N, where M is the number of batches and N is the number of columns.
   std::vector<std::vector<std::shared_ptr<arrow::Array>>> arrow_columns;
   int32_t num_batch = 0, num_columns = 0;
@@ -117,8 +117,8 @@ bl::result<Context> CSVDataSourceOpr::eval_table_reader(Context&& ctx) {
     } else if (num_columns != batch->num_columns()) {
       LOG(ERROR) << "Expect the same number of columns, but got " << num_columns
                  << " and " << batch->num_columns();
-      return bl::new_error(gs::StatusCode::ERR_INVALID_ARGUMENT,
-                           "Expect the same number of columns");
+      RETURN_ERROR(gs::Status(gs::StatusCode::ERR_INVALID_ARGUMENT,
+                              "Expect the same number of columns"));
     }
     arrow_columns.push_back(batch->columns());
   }
@@ -127,8 +127,8 @@ bl::result<Context> CSVDataSourceOpr::eval_table_reader(Context&& ctx) {
   // Expect there are no aliases in the context.
   if (ctx.col_num() != 0) {
     LOG(ERROR) << "Expect a empty context, but got " << ctx.col_num();
-    return bl::new_error(gs::StatusCode::ERR_INVALID_ARGUMENT,
-                         "Expect a empty context");
+    RETURN_ERROR(gs::Status(gs::StatusCode::ERR_INVALID_ARGUMENT,
+                            "Expect a empty context"));
   }
   for (int i = 0; i < num_columns; i++) {
     ArrowArrayContextColumnBuilder column_builder;
@@ -137,7 +137,7 @@ bl::result<Context> CSVDataSourceOpr::eval_table_reader(Context&& ctx) {
     }
     ctx.set(i, column_builder.finish(nullptr));
   }
-  return bl::result<Context>(std::move(ctx));
+  return gs::result<Context>(std::move(ctx));
 }
 
 std::unique_ptr<IUpdateOperator> DataSourceOprBuilder::Build(

@@ -2,7 +2,7 @@
 
 #include <glog/logging.h>
 #include <stddef.h>
-#include <boost/leaf.hpp>
+
 #include <map>
 #include <ostream>
 #include <string_view>
@@ -284,19 +284,16 @@ Result<results::CollectiveResults> CypherUpdateApp::execute_update_query(
   auto txn = graph.GetUpdateTransaction();
   txn.set_insert_vertex_with_resize(insert_with_resize);
   runtime::GraphUpdateInterface gii(txn);
-  runtime::Context ctx;
-  gs::Status status;
-  std::tie(ctx, status) =
-      runtime::ParseAndExecuteUpdatePipeline(gii, plan, timer);
+  auto ctx = runtime::ParseAndExecuteUpdatePipeline(gii, plan, timer);
 
-  if (!status.ok()) {
-    LOG(ERROR) << "Error: " << status.ToString();
+  if (!ctx) {
+    LOG(ERROR) << "Error: " << ctx.error().ToString();
     txn.Abort();
     // We encode the error message to the output, so that the client can
     // get the error message.
-    return Result<results::CollectiveResults>(status);
+    return Result<results::CollectiveResults>(ctx.error());
   }
-  auto res = runtime::Sink::sink(ctx, gii);
+  auto res = runtime::Sink::sink(ctx.value(), gii);
   if (!txn.Commit()) {
     LOG(ERROR) << "Commit failed";
     // If commit fails, we return an error.

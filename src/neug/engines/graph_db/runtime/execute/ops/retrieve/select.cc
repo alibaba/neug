@@ -68,7 +68,7 @@ class SelectIdNeOpr : public IReadOperator {
 
   std::string get_operator_name() const override { return "SelectIdNeOpr"; }
 
-  bl::result<gs::runtime::Context> Eval(
+  gs::result<gs::runtime::Context> Eval(
       const gs::runtime::GraphReadInterface& graph,
       const std::map<std::string, std::string>& params,
       gs::runtime::Context&& ctx, gs::runtime::OprTimer* timer) override {
@@ -125,7 +125,7 @@ class SelectOpr : public IReadOperator {
 
   std::string get_operator_name() const override { return "SelectOpr"; }
 
-  bl::result<gs::runtime::Context> Eval(
+  gs::result<gs::runtime::Context> Eval(
       const gs::runtime::GraphReadInterface& graph,
       const std::map<std::string, std::string>& params,
       gs::runtime::Context&& ctx, gs::runtime::OprTimer* timer) override {
@@ -148,7 +148,7 @@ class SelectOpr : public IReadOperator {
   common::Expression expr_;
 };
 
-bl::result<ReadOpBuildResultT> SelectOprBuilder::Build(
+gs::result<ReadOpBuildResultT> SelectOprBuilder::Build(
     const gs::Schema& schema, const ContextMeta& ctx_meta,
     const physical::PhysicalPlan& plan, int op_idx) {
   auto opr = plan.query_plan().plan(op_idx).opr().select();

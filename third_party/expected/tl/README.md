@@ -1,0 +1,1 @@
+This file is originally from https://github.com/TartanLlama/expected/blob/master/include/tl/expected.hpp, under CC0 1.0 Universal license.

@@ -64,7 +64,7 @@ class IntersectOprMultip : public IReadOperator {
     return "IntersectOprMultip";
   }
 
-  bl::result<gs::runtime::Context> Eval_Impl(
+  gs::result<gs::runtime::Context> Eval_Impl(
       const gs::runtime::GraphReadInterface& graph,
       const std::map<std::string, std::string>& params,
       gs::runtime::Context&& ctx,
@@ -73,7 +73,7 @@ class IntersectOprMultip : public IReadOperator {
     return Intersect::Multiple_Intersect(graph, params, std::move(ctx), preds,
                                          eeps_, alias_);
   }
-  bl::result<gs::runtime::Context> Eval(
+  gs::result<gs::runtime::Context> Eval(
       const gs::runtime::GraphReadInterface& graph,
       const std::map<std::string, std::string>& params,
       gs::runtime::Context&& ctx, gs::runtime::OprTimer* timer) override {
@@ -114,7 +114,7 @@ class IntersectOprBeta : public IReadOperator {
 
   std::string get_operator_name() const override { return "IntersectOprBeta"; }
 
-  bl::result<gs::runtime::Context> Eval(
+  gs::result<gs::runtime::Context> Eval(
       const gs::runtime::GraphReadInterface& graph,
       const std::map<std::string, std::string>& params,
       gs::runtime::Context&& ctx, gs::runtime::OprTimer* timer) override {
@@ -195,7 +195,7 @@ void parse(const physical::PhysicalPlan& plan, EdgeExpandParams& params,
     pred = std::nullopt;  // No predicate if no vertex operator is present
   }
 }
-bl::result<ReadOpBuildResultT> IntersectOprBuilder::Build(
+gs::result<ReadOpBuildResultT> IntersectOprBuilder::Build(
     const Schema& schema, const ContextMeta& ctx_meta,
     const physical::PhysicalPlan& plan, int op_idx) {
   const auto& intersect_opr = plan.query_plan().plan(op_idx).opr().intersect();

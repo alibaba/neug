@@ -25,7 +25,7 @@ namespace runtime {
 class UGetV {
  public:
   template <typename PRED_T>
-  static bl::result<Context> get_vertex_from_vertices(
+  static gs::result<Context> get_vertex_from_vertices(
       const GraphUpdateInterface& graph, Context&& ctx,
       const GetVParams& params, const PRED_T& pred) {
     auto col = ctx.get(params.tag);

@@ -16,7 +16,6 @@
 #ifndef RUNTIME_COMMON_OPERATORS_RETRIEVE_INTERSECT_H_
 #define RUNTIME_COMMON_OPERATORS_RETRIEVE_INTERSECT_H_
 
-#include <boost/leaf.hpp>
 #include <tuple>
 #include <vector>
 
@@ -33,7 +32,7 @@ class Context;
 class Intersect {
  public:
   template <typename PRED_LEFT, typename PRED_RIGHT>
-  static bl::result<gs::runtime::Context> Binary_Intersect_SL_Impl(
+  static gs::result<gs::runtime::Context> Binary_Intersect_SL_Impl(
       const gs::runtime::GraphReadInterface& graph,
       const std::map<std::string, std::string>& params,
       gs::runtime::Context&& ctx, const PRED_LEFT& left_pred,
@@ -115,7 +114,7 @@ class Intersect {
   }
 
   template <typename PRED_LEFT, typename PRED_RIGHT>
-  static bl::result<gs::runtime::Context> Binary_Intersect_ML_Impl(
+  static gs::result<gs::runtime::Context> Binary_Intersect_ML_Impl(
       const gs::runtime::GraphReadInterface& graph,
       const std::map<std::string, std::string>& params,
       gs::runtime::Context&& ctx, const PRED_LEFT& left_pred,
@@ -218,7 +217,7 @@ class Intersect {
   }
 
   template <typename PRED_LEFT, typename PRED_RIGHT>
-  static bl::result<gs::runtime::Context> Binary_Intersect(
+  static gs::result<gs::runtime::Context> Binary_Intersect(
       const gs::runtime::GraphReadInterface& graph,
       const std::map<std::string, std::string>& params,
       gs::runtime::Context&& ctx, const PRED_LEFT& left_pred,
@@ -233,7 +232,7 @@ class Intersect {
     }
   }
 
-  static bl::result<gs::runtime::Context> Multiple_Intersect(
+  static gs::result<gs::runtime::Context> Multiple_Intersect(
       const gs::runtime::GraphReadInterface& graph,
       const std::map<std::string, std::string>& params,
       gs::runtime::Context&& ctx,

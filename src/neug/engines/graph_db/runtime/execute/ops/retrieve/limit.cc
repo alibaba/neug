@@ -47,7 +47,7 @@ class LimitOpr : public IReadOperator {
 
   std::string get_operator_name() const override { return "LimitOpr"; }
 
-  bl::result<gs::runtime::Context> Eval(
+  gs::result<gs::runtime::Context> Eval(
       const gs::runtime::GraphReadInterface& graph,
       const std::map<std::string, std::string>& params,
       gs::runtime::Context&& ctx, gs::runtime::OprTimer* timer) override {
@@ -59,7 +59,7 @@ class LimitOpr : public IReadOperator {
   size_t upper_;
 };
 
-bl::result<ReadOpBuildResultT> LimitOprBuilder::Build(
+gs::result<ReadOpBuildResultT> LimitOprBuilder::Build(
     const gs::Schema& schema, const ContextMeta& ctx_meta,
     const physical::PhysicalPlan& plan, int op_idx) {
   return std::make_pair(

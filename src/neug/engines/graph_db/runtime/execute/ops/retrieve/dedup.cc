@@ -41,7 +41,7 @@ class DedupOpr : public IReadOperator {
   DedupOpr(const std::vector<size_t>& tag_ids) : tag_ids_(tag_ids) {}
   std::string get_operator_name() const override { return "DedupOpr"; }
 
-  bl::result<gs::runtime::Context> Eval(
+  gs::result<gs::runtime::Context> Eval(
       const gs::runtime::GraphReadInterface& graph,
       const std::map<std::string, std::string>& params,
       gs::runtime::Context&& ctx, gs::runtime::OprTimer* timer) override {
@@ -57,7 +57,7 @@ class DedupWithPropertyOpr : public IReadOperator {
 
   std::string get_operator_name() const override { return "DedupWithProperty"; }
 
-  bl::result<gs::runtime::Context> Eval(
+  gs::result<gs::runtime::Context> Eval(
       const gs::runtime::GraphReadInterface& graph,
       const std::map<std::string, std::string>& params,
       gs::runtime::Context&& ctx, gs::runtime::OprTimer* timer) override {
@@ -79,7 +79,7 @@ class DedupWithPropertyOpr : public IReadOperator {
 
   algebra::Dedup opr_;
 };
-bl::result<ReadOpBuildResultT> DedupOprBuilder::Build(
+gs::result<ReadOpBuildResultT> DedupOprBuilder::Build(
     const gs::Schema& schema, const ContextMeta& ctx_meta,
     const physical::PhysicalPlan& plan, int op_idx) {
   const auto& dedup_opr = plan.query_plan().plan(op_idx).opr().dedup();

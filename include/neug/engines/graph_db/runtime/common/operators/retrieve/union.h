@@ -16,7 +16,6 @@
 #ifndef RUNTIME_COMMON_OPERATORS_RETRIEVE_UNION_H_
 #define RUNTIME_COMMON_OPERATORS_RETRIEVE_UNION_H_
 
-#include <boost/leaf.hpp>
 #include <vector>
 
 #include "neug/engines/graph_db/runtime/common/context.h"
@@ -29,7 +28,7 @@ class Context;
 
 class Union {
  public:
-  static bl::result<Context> union_op(std::vector<Context>&& ctxs);
+  static gs::result<Context> union_op(std::vector<Context>&& ctxs);
 };
 
 }  // namespace runtime

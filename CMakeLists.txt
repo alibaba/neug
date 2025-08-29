@@ -87,8 +87,7 @@ if (BUILD_HTTP_SERVER)
     add_compile_definitions(BUILD_HTTP_SERVER)
 endif()
 
-if(NOT EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/third_party/boost/leaf/include/boost/leaf.hpp")
-    message(STATUS "boost/leaf not found, running git submodule update --init")
+if (NOT EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/third_party/yaml-cpp/CMakeLists.txt")
     execute_process(
         COMMAND git submodule update --init
         WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
@@ -349,7 +348,6 @@ include_directories(SYSTEM third_party/boost/date_time/include)
 include_directories(SYSTEM third_party/boost/container_hash/include)
 include_directories(SYSTEM third_party/boost/algorithm/include)
 include_directories(SYSTEM third_party/HowardHinnant/date/include)
-include_directories(SYSTEM third_party/boost/leaf/include)
 
 
 if(USE_PTHASH)
@@ -411,6 +409,7 @@ set(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE} -O3")
 if (CMAKE_CXX_COMPILER_ID MATCHES "GNU")
     set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wno-class-memaccess")
 endif()
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wno-nonnull -Wno-maybe-uninitialized") # brought by arrow
 
 
 #------------------------Brought by compiler------------------------------------
@@ -650,6 +649,7 @@ set(MACOS_DYLIBS
 "-Wl,-U,_objc_opt_isKindOfClass"
 )
 
+include_directories(SYSTEM third_party/expected)
 add_subdirectory(src)
 if (BUILD_EXECUTABLES)
     add_subdirectory(bin)
@@ -704,16 +704,17 @@ install(EXPORT neug-targets
         DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/neug)
 
 file(GLOB_RECURSE FILES_NEED_LINT
+        "include/**/*.h"
         "src/**/*.h"
         "src/**/*.cc"
         "tests/**/*.h"
         "tests/**/*.cc"
         "tools/**/*.h"
-        "tools/**/*.cc"
-        EXCEPT "*.act.h" "*.actg.h" "*.autogen.h" "*.autogen.cc")
+        "tools/**/*.cc")
 list(FILTER FILES_NEED_LINT EXCLUDE REGEX ".*\.act.h$|.*\.actg.h$|.*\.autogen.h$|.*\.autogen.cc$")
 list(FILTER FILES_NEED_LINT EXCLUDE REGEX ".*/third_party/.*")
 list(FILTER FILES_NEED_LINT EXCLUDE REGEX ".*\.pb.h$|.*\.pb.cc$")
+list(FILTER FILES_NEED_LINT EXCLUDE REGEX ".*\.clang-format$")
 
 add_custom_target(neug_clformat
     COMMAND clang-format --style=file -i ${FILES_NEED_LINT}
@@ -797,13 +798,6 @@ if (NOT RapidJSON_FOUND)
     )
 endif()
 
-install(DIRECTORY ${PROJECT_SOURCE_DIR}/third_party/boost/leaf/include/
-            DESTINATION include
-            FILES_MATCHING
-            PATTERN "*.h"
-            PATTERN "*.hpp"
-)
-
 if (WITH_MIMALLOC)
     if (NOT mimalloc_FOUND)
         install_neug_target(mimalloc)
@@ -841,4 +835,10 @@ install(DIRECTORY ${PROJECT_SOURCE_DIR}/include/
             DESTINATION include
             FILES_MATCHING
             PATTERN "*.h"
+)
+
+install(DIRECTORY ${PROJECT_SOURCE_DIR}/third_party/expected/
+            DESTINATION include
+            FILES_MATCHING
+            PATTERN "*.hpp"
 )

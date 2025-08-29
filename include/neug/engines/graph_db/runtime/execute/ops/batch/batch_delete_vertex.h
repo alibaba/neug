@@ -31,7 +31,7 @@ class BatchDeleteVertexOpr : public IUpdateOperator {
     return "BatchDeleteVertexOpr";
   }
 
-  bl::result<Context> Eval(GraphUpdateInterface& graph,
+  gs::result<Context> Eval(GraphUpdateInterface& graph,
                            const std::map<std::string, std::string>& params,
                            Context&& ctx, OprTimer* timer) override;
 

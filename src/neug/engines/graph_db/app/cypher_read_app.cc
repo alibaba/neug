@@ -3,7 +3,7 @@
 #include <glog/logging.h>
 #include <stddef.h>
 #include <stdint.h>
-#include <boost/leaf.hpp>
+
 #include <exception>
 #include <map>
 #include <ostream>
@@ -42,20 +42,18 @@ bool CypherReadApp::Query(const GraphDBSession& graph, Decoder& input,
 
     gs::runtime::GraphReadInterface gri(txn);
 
-    gs::runtime::Context ctx;
-    gs::Status status = gs::Status::OK();
     std::unique_ptr<runtime::OprTimer> timer = nullptr;
-    std::tie(ctx, status) =
+    gs::result<gs::runtime::Context> ctx =
         runtime::ParseAndExecuteReadPipeline(gri, plan, timer.get());
 
-    if (!status.ok()) {
-      LOG(ERROR) << "Error: " << status.ToString();
+    if (!ctx) {
+      LOG(ERROR) << "Error: " << ctx.error().ToString();
       // We encode the error message to the output, so that the client can
       // get the error message.
-      output.put_string(status.ToString());
+      output.put_string(ctx.error().ToString());
       return false;
     }
-    runtime::Sink::sink(ctx, gri, output);
+    runtime::Sink::sink(ctx.value(), gri, output);
     return true;
   } else {
     size_t sep = bytes.find_first_of("&?");

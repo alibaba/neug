@@ -52,7 +52,7 @@ inline std::vector<label_t> extract_labels(
 class GetV {
  public:
   template <typename GraphInterface, typename PRED_T>
-  static bl::result<Context> get_vertex_from_edges_optional_impl(
+  static gs::result<Context> get_vertex_from_edges_optional_impl(
       const GraphInterface& graph, Context&& ctx, const GetVParams& params,
       const PRED_T& pred) {
     auto column = std::dynamic_pointer_cast<IEdgeColumn>(ctx.get(params.tag));
@@ -138,7 +138,7 @@ class GetV {
   }
 
   template <typename GraphInterface, typename PRED_T>
-  static bl::result<Context> _get_vertex_from_path(const GraphInterface& graph,
+  static gs::result<Context> _get_vertex_from_path(const GraphInterface& graph,
                                                    Context&& ctx,
                                                    const GetVParams& params,
                                                    const PRED_T& pred) {
@@ -165,7 +165,7 @@ class GetV {
   }
 
   template <typename GraphInterface, typename PRED_T>
-  static bl::result<Context> get_vertex_from_edges(const GraphInterface& graph,
+  static gs::result<Context> get_vertex_from_edges(const GraphInterface& graph,
                                                    Context&& ctx,
                                                    const GetVParams& params,
                                                    const PRED_T& pred) {
@@ -504,7 +504,7 @@ class GetV {
   }
 
   template <typename PRED_T>
-  static bl::result<Context> get_vertex_from_vertices(
+  static gs::result<Context> get_vertex_from_vertices(
       const GraphReadInterface& graph, Context&& ctx, const GetVParams& params,
       const PRED_T& pred) {
     std::shared_ptr<IVertexColumn> input_vertex_list_ptr =

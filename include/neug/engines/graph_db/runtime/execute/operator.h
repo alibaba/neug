@@ -37,7 +37,7 @@ class IUpdateOperator {
 
   virtual std::string get_operator_name() const = 0;
 
-  virtual bl::result<Context> Eval(
+  virtual gs::result<Context> Eval(
       GraphUpdateInterface& graph,
       const std::map<std::string, std::string>& params, Context&& ctx,
       OprTimer* timer) = 0;
@@ -48,7 +48,7 @@ class IReadOperator {
 
   virtual std::string get_operator_name() const = 0;
 
-  virtual bl::result<Context> Eval(
+  virtual gs::result<Context> Eval(
       const GraphReadInterface& graph,
       const std::map<std::string, std::string>& params, Context&& ctx,
       OprTimer* timer) = 0;
@@ -60,7 +60,7 @@ using ReadOpBuildResultT =
 class IReadOperatorBuilder {
  public:
   virtual ~IReadOperatorBuilder() = default;
-  virtual bl::result<ReadOpBuildResultT> Build(
+  virtual gs::result<ReadOpBuildResultT> Build(
       const gs::Schema& schema, const ContextMeta& ctx_meta,
       const physical::PhysicalPlan& plan, int op_idx) = 0;
   virtual int stepping(int i) { return i + GetOpKinds().size(); }
@@ -75,12 +75,12 @@ class IInsertOperator {
 
   virtual std::string get_operator_name() const = 0;
 
-  virtual bl::result<WriteContext> Eval(
+  virtual gs::result<WriteContext> Eval(
       GraphInsertInterface& graph,
       const std::map<std::string, std::string>& params, WriteContext&& ctx,
       OprTimer* timer) = 0;
 
-  virtual bl::result<WriteContext> Eval(
+  virtual gs::result<WriteContext> Eval(
       GraphUpdateInterface& graph,
       const std::map<std::string, std::string>& params, WriteContext&& ctx,
       OprTimer* timer) = 0;

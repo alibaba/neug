@@ -34,7 +34,7 @@ class BatchDeleteEdgeOpr : public IUpdateOperator {
     return "BatchDeleteEdgeOpr";
   }
 
-  bl::result<Context> Eval(GraphUpdateInterface& graph,
+  gs::result<Context> Eval(GraphUpdateInterface& graph,
                            const std::map<std::string, std::string>& params,
                            Context&& ctx, OprTimer* timer) override;
 

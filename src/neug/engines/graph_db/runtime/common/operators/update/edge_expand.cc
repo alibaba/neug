@@ -37,7 +37,7 @@
 
 namespace gs {
 namespace runtime {
-bl::result<Context> UEdgeExpand::edge_expand_v_without_pred(
+gs::result<Context> UEdgeExpand::edge_expand_v_without_pred(
     const GraphUpdateInterface& graph, Context&& ctx,
     const EdgeExpandParams& params) {
   const auto& input_vertex_list =
@@ -81,7 +81,7 @@ bl::result<Context> UEdgeExpand::edge_expand_v_without_pred(
   return ctx;
 }
 
-bl::result<Context> UEdgeExpand::edge_expand_e_without_pred(
+gs::result<Context> UEdgeExpand::edge_expand_e_without_pred(
     const GraphUpdateInterface& graph, Context&& ctx,
     const EdgeExpandParams& params) {
   const auto& input_vertex_list =

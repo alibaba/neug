@@ -13,7 +13,6 @@
  * limitations under the License.
  */
 
-#include <boost/leaf.hpp>
 #include <vector>
 
 #include "neug/engines/graph_db/runtime/execute/operator.h"
@@ -37,7 +36,7 @@ class ProcedureCallOprBuilder : public IReadOperatorBuilder {
   ProcedureCallOprBuilder() = default;
   ~ProcedureCallOprBuilder() = default;
 
-  bl::result<ReadOpBuildResultT> Build(const gs::Schema& schema,
+  gs::result<ReadOpBuildResultT> Build(const gs::Schema& schema,
                                        const ContextMeta& ctx_meta,
                                        const physical::PhysicalPlan& plan,
                                        int op_idx) override;

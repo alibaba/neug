@@ -16,7 +16,6 @@
 #ifndef RUNTIME_EXECUTE_OPS_BATCH_BATCH_INSERT_EDGE_H_
 #define RUNTIME_EXECUTE_OPS_BATCH_BATCH_INSERT_EDGE_H_
 
-#include <boost/leaf.hpp>
 #include <cstdint>
 #include <map>
 #include <memory>
@@ -70,7 +69,7 @@ class BatchInsertEdgeOpr : public IUpdateOperator {
     return "BatchInsertEdgeOpr";
   }
 
-  bl::result<Context> Eval(GraphUpdateInterface& graph,
+  gs::result<Context> Eval(GraphUpdateInterface& graph,
                            const std::map<std::string, std::string>& params,
                            Context&& ctx, OprTimer* timer) override;
 
@@ -109,11 +108,11 @@ class InsertEdgeOpr : public IUpdateOperator {
   std::string get_operator_name() const override { return "InsertEdgeOpr"; }
 
   template <typename GraphInterface>
-  bl::result<Context> eval_impl(
+  gs::result<Context> eval_impl(
       GraphInterface& graph, const std::map<std::string, std::string>& params,
       Context&& ctx, gs::runtime::OprTimer* timer);
 
-  bl::result<Context> Eval(gs::runtime::GraphUpdateInterface& graph,
+  gs::result<Context> Eval(gs::runtime::GraphUpdateInterface& graph,
                            const std::map<std::string, std::string>& params,
                            Context&& ctx,
                            gs::runtime::OprTimer* timer) override {

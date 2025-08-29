@@ -16,7 +16,6 @@
 #ifndef RUNTIME_COMMON_OPERATORS_RETRIEVE_JOIN_H_
 #define RUNTIME_COMMON_OPERATORS_RETRIEVE_JOIN_H_
 
-#include <boost/leaf.hpp>
 #include <vector>
 
 #include "neug/engines/graph_db/runtime/common/context.h"
@@ -35,7 +34,7 @@ struct JoinParams {
 
 class Join {
  public:
-  static bl::result<Context> join(Context&& ctx, Context&& ctx2,
+  static gs::result<Context> join(Context&& ctx, Context&& ctx2,
                                   const JoinParams& params);
 };
 }  // namespace runtime

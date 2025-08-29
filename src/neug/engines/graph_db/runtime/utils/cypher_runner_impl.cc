@@ -16,7 +16,7 @@
 #include "neug/engines/graph_db/runtime/utils/cypher_runner_impl.h"
 
 #include <glog/logging.h>
-#include <boost/leaf.hpp>
+
 #include <memory>
 #include <ostream>
 #include <utility>

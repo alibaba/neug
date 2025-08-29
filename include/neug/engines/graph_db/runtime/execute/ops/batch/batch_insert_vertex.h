@@ -16,7 +16,6 @@
 #ifndef RUNTIME_EXECUTE_OPS_BATCH_BATCH_INSERT_VERTEX_H_
 #define RUNTIME_EXECUTE_OPS_BATCH_BATCH_INSERT_VERTEX_H_
 
-#include <boost/leaf.hpp>
 #include <cstdint>
 #include <map>
 #include <memory>
@@ -60,7 +59,7 @@ class BatchInsertVertexOpr : public IUpdateOperator {
     return "BatchInsertVertexOpr";
   }
 
-  bl::result<Context> Eval(GraphUpdateInterface& graph,
+  gs::result<Context> Eval(GraphUpdateInterface& graph,
                            const std::map<std::string, std::string>& params,
                            Context&& ctx, OprTimer* timer) override;
 
@@ -94,11 +93,11 @@ class InsertVertexOpr : public IUpdateOperator {
   std::string get_operator_name() const override { return "InsertVertexOpr"; }
 
   template <typename GraphInterface>
-  bl::result<Context> eval_impl(
+  gs::result<Context> eval_impl(
       GraphInterface& graph, const std::map<std::string, std::string>& params,
       Context&& ctx, OprTimer* timer);
 
-  bl::result<Context> Eval(GraphUpdateInterface& graph,
+  gs::result<Context> Eval(GraphUpdateInterface& graph,
                            const std::map<std::string, std::string>& params,
                            Context&& ctx, OprTimer* timer) override;
 

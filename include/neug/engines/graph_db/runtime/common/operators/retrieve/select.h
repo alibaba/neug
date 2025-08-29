@@ -26,7 +26,7 @@ namespace runtime {
 class Select {
  public:
   template <typename PRED_T>
-  static bl::result<Context> select(Context&& ctx, const PRED_T& pred) {
+  static gs::result<Context> select(Context&& ctx, const PRED_T& pred) {
     size_t row_num = ctx.row_num();
     std::vector<size_t> offsets;
     for (size_t k = 0; k < row_num; ++k) {

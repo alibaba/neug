@@ -70,6 +70,10 @@ function(build_arrow_as_third_party)
     set(ARROW_DEPENDENCY_SOURCE "BUNDLED" CACHE STRING "" FORCE)
     set(ARROW_WITH_ZLIB OFF CACHE BOOL "" FORCE)
 
+    # Save original flags and set flags to suppress warnings for Arrow build
+    # set(ORIGINAL_CXX_FLAGS "${CMAKE_CXX_FLAGS}" CACHE STRING "" FORCE)
+    # set(CMAKE_CXX_FLAGS "${ORIGINAL_CXX_FLAGS} " CACHE STRING "" FORCE)
+
     fetchcontent_declare(Arrow
         ${FC_DECLARE_COMMON_OPTIONS}
         URL ${ARROW_SOURCE_URL}
@@ -81,16 +85,15 @@ function(build_arrow_as_third_party)
         CONFIG)
 
     fetchcontent_makeavailable(Arrow)
+    
 
     if(arrow_SOURCE_DIR)
         if(TARGET Arrow::arrow_static)
             message(STATUS "Arrow::arrow_static found")
-            set(ARROW_LIB Arrow::arrow_static
-                PARENT_SCOPE)
+            set(ARROW_LIB Arrow::arrow_static PARENT_SCOPE)
         elseif(TARGET arrow_static)
             message(STATUS "arrow_static found")
-            set(ARROW_LIB arrow_static
-                PARENT_SCOPE)
+            set(ARROW_LIB arrow_static PARENT_SCOPE)
         else()
             message(FATAL_ERROR "Arrow::arrow_static or arrow_static target not found.")
         endif()
@@ -115,6 +118,5 @@ function(build_arrow_as_third_party)
         # list(APPEND ICEBERG_SYSTEM_DEPENDENCIES Arrow)
         message(FATAL_ERROR "Arrow source directory not found. Please check the Arrow version and source URL.")
     endif()
-    install_neug_target(ARROW_LIB)
 
 endfunction()

@@ -17,7 +17,7 @@
 #define RUNTIME_COMMON_OPERATORS_RETRIEVE_DEDUP_H_
 
 #include <stddef.h>
-#include <boost/leaf.hpp>
+
 #include <functional>
 #include <set>
 #include <unordered_set>
@@ -35,9 +35,9 @@ class RTAny;
 
 class Dedup {
  public:
-  static bl::result<Context> dedup(Context&& ctx,
+  static gs::result<Context> dedup(Context&& ctx,
                                    const std::vector<size_t>& cols);
-  static bl::result<Context> dedup(
+  static gs::result<Context> dedup(
       Context&& ctx, const std::vector<std::function<RTAny(size_t)>>& vars);
 };
 

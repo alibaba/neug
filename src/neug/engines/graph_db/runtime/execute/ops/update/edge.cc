@@ -17,7 +17,7 @@
 
 #include <glog/logging.h>
 #include <google/protobuf/wrappers.pb.h>
-#include <boost/leaf.hpp>
+
 #include <map>
 #include <ostream>
 #include <string>
@@ -46,7 +46,7 @@ class UEdgeExpandVWithoutPredOpr : public IUpdateOperator {
 
   std::string get_operator_name() const override { return "UEdgeExpandVOpr"; }
 
-  bl::result<Context> Eval(GraphUpdateInterface& graph,
+  gs::result<Context> Eval(GraphUpdateInterface& graph,
                            const std::map<std::string, std::string>& params,
                            Context&& ctx, OprTimer* timer) override {
     return UEdgeExpand::edge_expand_v_without_pred(graph, std::move(ctx),
@@ -64,7 +64,7 @@ class UEdgeExpandEWithoutPredOpr : public IUpdateOperator {
 
   std::string get_operator_name() const override { return "UEdgeExpandEOpr"; }
 
-  bl::result<Context> Eval(GraphUpdateInterface& graph,
+  gs::result<Context> Eval(GraphUpdateInterface& graph,
                            const std::map<std::string, std::string>& params,
                            Context&& ctx, OprTimer* timer) override {
     return UEdgeExpand::edge_expand_e_without_pred(graph, std::move(ctx),

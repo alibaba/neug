@@ -51,7 +51,7 @@ class JoinOpr : public IReadOperator {
 
   std::string get_operator_name() const override { return "JoinOpr"; }
 
-  bl::result<gs::runtime::Context> Eval(
+  gs::result<gs::runtime::Context> Eval(
       const gs::runtime::GraphReadInterface& graph,
       const std::map<std::string, std::string>& params,
       gs::runtime::Context&& ctx, gs::runtime::OprTimer* timer) override {
@@ -88,7 +88,7 @@ class JoinOpr : public IReadOperator {
   JoinParams params_;
 };
 
-bl::result<ReadOpBuildResultT> JoinOprBuilder::Build(
+gs::result<ReadOpBuildResultT> JoinOprBuilder::Build(
     const Schema& schema, const ContextMeta& ctx_meta,
     const physical::PhysicalPlan& plan, int op_idx) {
   ContextMeta ret_meta;

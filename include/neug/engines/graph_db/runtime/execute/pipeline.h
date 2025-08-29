@@ -16,7 +16,6 @@
 #ifndef RUNTIME_EXECUTE_PIPELINE_H_
 #define RUNTIME_EXECUTE_PIPELINE_H_
 
-#include <boost/leaf.hpp>
 #include <map>
 #include <memory>
 #include <string>
@@ -41,7 +40,7 @@ class ReadPipeline {
       : operators_(std::move(operators)) {}
   ~ReadPipeline() = default;
 
-  bl::result<Context> Execute(const GraphReadInterface& graph, Context&& ctx,
+  gs::result<Context> Execute(const GraphReadInterface& graph, Context&& ctx,
                               const std::map<std::string, std::string>& params,
                               OprTimer* timer);
 
@@ -59,7 +58,7 @@ class InsertPipeline {
   ~InsertPipeline() = default;
 
   template <typename GraphInterface>
-  bl::result<WriteContext> Execute(
+  gs::result<WriteContext> Execute(
       GraphInterface& graph, WriteContext&& ctx,
       const std::map<std::string, std::string>& params, OprTimer* timer);
 
@@ -81,10 +80,10 @@ class UpdatePipeline {
             std::make_unique<InsertPipeline>(std::move(std::move(insert)))) {}
   ~UpdatePipeline() = default;
 
-  bl::result<Context> Execute(GraphUpdateInterface& graph, Context&& ctx,
+  gs::result<Context> Execute(GraphUpdateInterface& graph, Context&& ctx,
                               const std::map<std::string, std::string>& params,
                               OprTimer* timer);
-  bl::result<WriteContext> Execute(
+  gs::result<WriteContext> Execute(
       GraphUpdateInterface& graph, WriteContext&& ctx,
       const std::map<std::string, std::string>& params, OprTimer* timer);
 

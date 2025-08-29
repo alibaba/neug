@@ -40,11 +40,11 @@ class UpdateVertexOpr : public IUpdateOperator {
   std::string get_operator_name() const override { return "UpdateVertexOpr"; }
 
   template <typename GraphInterface>
-  bl::result<Context> eval_impl(
+  gs::result<Context> eval_impl(
       GraphInterface& graph, const std::map<std::string, std::string>& params,
       Context&& ctx, OprTimer* timer);
 
-  bl::result<Context> Eval(GraphUpdateInterface& graph,
+  gs::result<Context> Eval(GraphUpdateInterface& graph,
                            const std::map<std::string, std::string>& params,
                            Context&& ctx, OprTimer* timer) override;
 

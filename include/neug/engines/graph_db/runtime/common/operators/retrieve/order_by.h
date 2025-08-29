@@ -28,7 +28,7 @@ namespace runtime {
 class OrderBy {
  public:
   template <typename Comparer>
-  static bl::result<Context> order_by_with_limit(
+  static gs::result<Context> order_by_with_limit(
       const GraphReadInterface& graph, Context&& ctx, const Comparer& cmp,
       size_t low, size_t high) {
     if (low == 0 && high >= ctx.row_num()) {
@@ -64,7 +64,7 @@ class OrderBy {
   }
 
   template <typename Comparer>
-  static bl::result<Context> staged_order_by_with_limit(
+  static gs::result<Context> staged_order_by_with_limit(
       const GraphReadInterface& graph, Context&& ctx, const Comparer& cmp,
       size_t low, size_t high, const std::vector<size_t>& indices) {
     std::priority_queue<size_t, std::vector<size_t>, Comparer> queue(cmp);
@@ -91,7 +91,7 @@ class OrderBy {
   }
 
   template <typename Comparer>
-  static bl::result<Context> order_by_with_limit_with_indices(
+  static gs::result<Context> order_by_with_limit_with_indices(
       const GraphReadInterface& graph, Context&& ctx,
       std::function<std::optional<std::vector<size_t>>(
           const GraphReadInterface&, const Context& ctx)>

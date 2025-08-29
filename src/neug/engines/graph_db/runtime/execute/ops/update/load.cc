@@ -16,7 +16,7 @@
 
 #include <glog/logging.h>
 #include <stddef.h>
-#include <boost/leaf.hpp>
+
 #include <map>
 #include <ostream>
 #include <string>
@@ -62,7 +62,7 @@ class LoadSingleEdgeOpr : public IInsertOperator {
   std::string get_operator_name() const override { return "LoadSingleEdgeOpr"; }
 
   template <typename GraphInterface>
-  bl::result<gs::runtime::WriteContext> eval_impl(
+  gs::result<gs::runtime::WriteContext> eval_impl(
       GraphInterface& graph, const std::map<std::string, std::string>& params,
       gs::runtime::WriteContext&& ctx, gs::runtime::OprTimer* timer) {
     return Load::load_single_edge(graph, std::move(ctx), src_label_id,
@@ -71,14 +71,14 @@ class LoadSingleEdgeOpr : public IInsertOperator {
                                   dst_index, prop_index);
   }
 
-  bl::result<gs::runtime::WriteContext> Eval(
+  gs::result<gs::runtime::WriteContext> Eval(
       gs::runtime::GraphInsertInterface& graph,
       const std::map<std::string, std::string>& params,
       gs::runtime::WriteContext&& ctx, gs::runtime::OprTimer* timer) override {
     return eval_impl(graph, params, std::move(ctx), timer);
   }
 
-  bl::result<gs::runtime::WriteContext> Eval(
+  gs::result<gs::runtime::WriteContext> Eval(
       gs::runtime::GraphUpdateInterface& graph,
       const std::map<std::string, std::string>& params,
       gs::runtime::WriteContext&& ctx, gs::runtime::OprTimer* timer) override {
@@ -110,21 +110,21 @@ class LoadSingleVertexOpr : public IInsertOperator {
   }
 
   template <typename GraphInterface>
-  bl::result<gs::runtime::WriteContext> eval_impl(
+  gs::result<gs::runtime::WriteContext> eval_impl(
       GraphInterface& graph, const std::map<std::string, std::string>& params,
       gs::runtime::WriteContext&& ctx, gs::runtime::OprTimer* timer) {
     return Load::load_single_vertex(graph, std::move(ctx), vertex_label_id,
                                     pk_type, id_col, properties, edges);
   }
 
-  bl::result<gs::runtime::WriteContext> Eval(
+  gs::result<gs::runtime::WriteContext> Eval(
       gs::runtime::GraphInsertInterface& graph,
       const std::map<std::string, std::string>& params,
       gs::runtime::WriteContext&& ctx, gs::runtime::OprTimer* timer) override {
     return eval_impl(graph, params, std::move(ctx), timer);
   }
 
-  bl::result<gs::runtime::WriteContext> Eval(
+  gs::result<gs::runtime::WriteContext> Eval(
       gs::runtime::GraphUpdateInterface& graph,
       const std::map<std::string, std::string>& params,
       gs::runtime::WriteContext&& ctx, gs::runtime::OprTimer* timer) override {
@@ -152,20 +152,20 @@ class LoadOpr : public IInsertOperator {
   std::string get_operator_name() const override { return "LoadOpr"; }
 
   template <typename GraphInterface>
-  bl::result<gs::runtime::WriteContext> eval_impl(
+  gs::result<gs::runtime::WriteContext> eval_impl(
       GraphInterface& graph, const std::map<std::string, std::string>& params,
       gs::runtime::WriteContext&& ctx, gs::runtime::OprTimer* timer) {
     return Load::load(graph, std::move(ctx), vertex_mappings_, edge_mappings_);
   }
 
-  bl::result<gs::runtime::WriteContext> Eval(
+  gs::result<gs::runtime::WriteContext> Eval(
       gs::runtime::GraphInsertInterface& graph,
       const std::map<std::string, std::string>& params,
       gs::runtime::WriteContext&& ctx, gs::runtime::OprTimer* timer) override {
     return eval_impl(graph, params, std::move(ctx), timer);
   }
 
-  bl::result<gs::runtime::WriteContext> Eval(
+  gs::result<gs::runtime::WriteContext> Eval(
       gs::runtime::GraphUpdateInterface& graph,
       const std::map<std::string, std::string>& params,
       gs::runtime::WriteContext&& ctx, gs::runtime::OprTimer* timer) override {

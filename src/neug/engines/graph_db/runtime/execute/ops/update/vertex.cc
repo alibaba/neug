@@ -18,7 +18,7 @@
 #include <glog/logging.h>
 #include <google/protobuf/wrappers.pb.h>
 #include <stddef.h>
-#include <boost/leaf.hpp>
+
 #include <map>
 #include <ostream>
 #include <string>
@@ -64,7 +64,7 @@ class UGetVFromEdgeWithPredOpr : public IUpdateOperator {
     return "UGetVFromEdgeWithPredOpr";
   }
 
-  bl::result<Context> Eval(GraphUpdateInterface& graph,
+  gs::result<Context> Eval(GraphUpdateInterface& graph,
                            const std::map<std::string, std::string>& params,
                            Context&& ctx, OprTimer* timer) override {
     LOG(INFO) << opr_.DebugString();
@@ -96,7 +96,7 @@ class UGetVFromVerticesWithPredOpr : public IUpdateOperator {
     return "UGetVFromVerticesWithPredOpr";
   }
 
-  bl::result<Context> Eval(GraphUpdateInterface& graph,
+  gs::result<Context> Eval(GraphUpdateInterface& graph,
                            const std::map<std::string, std::string>& params,
                            Context&& ctx, OprTimer* timer) override {
     auto expr = parse_expression<GraphUpdateInterface>(

@@ -19,7 +19,7 @@
 #include <assert.h>
 #include <stddef.h>
 #include <array>
-#include <boost/leaf.hpp>
+
 #include <compare>
 #include <memory>
 #include <ostream>
@@ -56,7 +56,7 @@ class SPVertexPredicate;
 class EdgeExpand {
  public:
   template <typename PRED_T>
-  static bl::result<Context> expand_edge(const GraphReadInterface& graph,
+  static gs::result<Context> expand_edge(const GraphReadInterface& graph,
                                          Context&& ctx,
                                          const EdgeExpandParams& params,
                                          const PRED_T& pred) {
@@ -357,16 +357,16 @@ class EdgeExpand {
     RETURN_UNSUPPORTED_ERROR("expand edge not support");
   }
 
-  static bl::result<Context> expand_edge_with_special_edge_predicate(
+  static gs::result<Context> expand_edge_with_special_edge_predicate(
       const GraphReadInterface& graph, Context&& ctx,
       const EdgeExpandParams& params, const SPEdgePredicate& pred);
 
-  static bl::result<Context> expand_edge_without_predicate(
+  static gs::result<Context> expand_edge_without_predicate(
       const GraphReadInterface& graph, Context&& ctx,
       const EdgeExpandParams& params, OprTimer* timer);
 
   template <typename PRED_T>
-  static bl::result<Context> expand_vertex(const GraphReadInterface& graph,
+  static gs::result<Context> expand_vertex(const GraphReadInterface& graph,
                                            Context&& ctx,
                                            const EdgeExpandParams& params,
                                            const PRED_T& pred) {
@@ -409,10 +409,10 @@ class EdgeExpand {
     }
   }
 
-  static bl::result<Context> expand_vertex_ep_lt(
+  static gs::result<Context> expand_vertex_ep_lt(
       const GraphReadInterface& graph, Context&& ctx,
       const EdgeExpandParams& params, const std::string& ep_val);
-  static bl::result<Context> expand_vertex_ep_gt(
+  static gs::result<Context> expand_vertex_ep_gt(
       const GraphReadInterface& graph, Context&& ctx,
       const EdgeExpandParams& params, const std::string& ep_val);
   template <typename PRED_T>
@@ -432,16 +432,16 @@ class EdgeExpand {
     const PRED_T& pred_;
   };
 
-  static bl::result<Context> expand_vertex_with_special_vertex_predicate(
+  static gs::result<Context> expand_vertex_with_special_vertex_predicate(
       const GraphReadInterface& graph, Context&& ctx,
       const EdgeExpandParams& params, const SPVertexPredicate& pred);
 
-  static bl::result<Context> expand_vertex_without_predicate(
+  static gs::result<Context> expand_vertex_without_predicate(
       const GraphReadInterface& graph, Context&& ctx,
       const EdgeExpandParams& params);
 
   template <typename T1, typename T2, typename T3>
-  static bl::result<Context> tc(
+  static gs::result<Context> tc(
       const GraphReadInterface& graph, Context&& ctx,
       const std::array<std::tuple<label_t, label_t, label_t, Direction>, 3>&
           labels,

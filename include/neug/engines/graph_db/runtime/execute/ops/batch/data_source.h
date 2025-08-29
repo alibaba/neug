@@ -16,7 +16,6 @@
 #ifndef RUNTIME_EXECUTE_OPS_BATCH_DATA_SOURCE_H_
 #define RUNTIME_EXECUTE_OPS_BATCH_DATA_SOURCE_H_
 
-#include <boost/leaf.hpp>
 #include <map>
 #include <memory>
 #include <string>
@@ -58,13 +57,13 @@ class CSVDataSourceOpr : public IUpdateOperator {
 
   std::string get_operator_name() const override { return "CSVDataSourceOpr"; }
 
-  bl::result<Context> Eval(GraphUpdateInterface& graph,
+  gs::result<Context> Eval(GraphUpdateInterface& graph,
                            const std::map<std::string, std::string>& params,
                            Context&& ctx, OprTimer* timer) override;
 
  private:
-  bl::result<Context> eval_table_reader(Context&& ctx);
-  bl::result<Context> eval_batch_reader(Context&& ctx);
+  gs::result<Context> eval_table_reader(Context&& ctx);
+  gs::result<Context> eval_batch_reader(Context&& ctx);
 
   std::vector<std::shared_ptr<IRecordBatchSupplier>> suppliers_;
   bool batch_reader_;  // With batch reader, we will read the file in batches.

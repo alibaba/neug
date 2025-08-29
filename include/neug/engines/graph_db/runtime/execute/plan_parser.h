@@ -16,7 +16,6 @@
 #ifndef RUNTIME_EXECUTE_PLAN_PARSER_H_
 #define RUNTIME_EXECUTE_PLAN_PARSER_H_
 
-#include <boost/leaf.hpp>
 #include <map>
 #include <memory>
 #include <utility>
@@ -59,19 +58,19 @@ class PlanParser {
   void register_update_operator_builder(
       std::unique_ptr<IUpdateOperatorBuilder>&& builder);
 
-  bl::result<std::pair<ReadPipeline, ContextMeta>>
+  gs::result<std::pair<ReadPipeline, ContextMeta>>
   parse_read_pipeline_with_meta(const gs::Schema& schema,
                                 const ContextMeta& ctx_meta,
                                 const physical::PhysicalPlan& plan);
 
-  bl::result<ReadPipeline> parse_read_pipeline(
+  gs::result<ReadPipeline> parse_read_pipeline(
       const gs::Schema& schema, const ContextMeta& ctx_meta,
       const physical::PhysicalPlan& plan);
 
-  bl::result<InsertPipeline> parse_write_pipeline(
+  gs::result<InsertPipeline> parse_write_pipeline(
       const gs::Schema& schema, const physical::PhysicalPlan& plan);
 
-  bl::result<UpdatePipeline> parse_update_pipeline(
+  gs::result<UpdatePipeline> parse_update_pipeline(
       const gs::Schema& schema, const physical::PhysicalPlan& plan);
 
  private:
@@ -89,11 +88,11 @@ class PlanParser {
       update_op_builders_;
 };
 
-std::pair<runtime::Context, Status> ParseAndExecuteReadPipeline(
+gs::result<runtime::Context> ParseAndExecuteReadPipeline(
     const GraphReadInterface& graph, const physical::PhysicalPlan& plan,
     OprTimer* timer);
 
-std::pair<runtime::Context, Status> ParseAndExecuteUpdatePipeline(
+gs::result<runtime::Context> ParseAndExecuteUpdatePipeline(
     GraphUpdateInterface& graph, const physical::PhysicalPlan& plan,
     OprTimer* timer);
 

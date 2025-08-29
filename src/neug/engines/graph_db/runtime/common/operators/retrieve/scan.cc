@@ -26,7 +26,7 @@
 namespace gs {
 namespace runtime {
 
-bl::result<Context> Scan::find_vertex_with_oid(Context&& ctx,
+gs::result<Context> Scan::find_vertex_with_oid(Context&& ctx,
                                                const GraphReadInterface& graph,
                                                label_t label, const Any& oid,
                                                int32_t alias) {
@@ -39,7 +39,7 @@ bl::result<Context> Scan::find_vertex_with_oid(Context&& ctx,
   return ctx;
 }
 
-bl::result<Context> Scan::find_vertex_with_gid(Context&& ctx,
+gs::result<Context> Scan::find_vertex_with_gid(Context&& ctx,
                                                const GraphReadInterface& graph,
                                                label_t label, int64_t gid,
                                                int32_t alias) {
@@ -56,7 +56,7 @@ bl::result<Context> Scan::find_vertex_with_gid(Context&& ctx,
 }
 
 template <typename T>
-static bl::result<Context> _scan_vertex_with_special_vertex_predicate(
+static gs::result<Context> _scan_vertex_with_special_vertex_predicate(
     Context&& ctx, const GraphReadInterface& graph, const ScanParams& params,
     const SPVertexPredicate& pred) {
   if (pred.type() == SPPredicateType::kPropertyEQ) {
@@ -90,7 +90,7 @@ static bl::result<Context> _scan_vertex_with_special_vertex_predicate(
   }
 }
 
-bl::result<Context> Scan::scan_vertex_with_special_vertex_predicate(
+gs::result<Context> Scan::scan_vertex_with_special_vertex_predicate(
     Context&& ctx, const GraphReadInterface& graph, const ScanParams& params,
     const SPVertexPredicate& pred) {
   if (pred.data_type() == RTAnyType::kI64Value) {
@@ -137,7 +137,7 @@ bl::result<Context> Scan::scan_vertex_with_special_vertex_predicate(
 }
 
 template <typename T>
-static bl::result<Context> _filter_gids_with_special_vertex_predicate(
+static gs::result<Context> _filter_gids_with_special_vertex_predicate(
     Context&& ctx, const GraphReadInterface& graph, const ScanParams& params,
     const SPVertexPredicate& pred, const std::vector<int64_t>& gids) {
   if (pred.type() == SPPredicateType::kPropertyEQ) {
@@ -171,7 +171,7 @@ static bl::result<Context> _filter_gids_with_special_vertex_predicate(
   }
 }
 
-bl::result<Context> Scan::filter_gids_with_special_vertex_predicate(
+gs::result<Context> Scan::filter_gids_with_special_vertex_predicate(
     Context&& ctx, const GraphReadInterface& graph, const ScanParams& params,
     const SPVertexPredicate& predicate, const std::vector<int64_t>& oids) {
   if (predicate.data_type() == RTAnyType::kI64Value) {
@@ -218,7 +218,7 @@ bl::result<Context> Scan::filter_gids_with_special_vertex_predicate(
 }
 
 template <typename T>
-static bl::result<Context> _filter_oid_with_special_vertex_predicate(
+static gs::result<Context> _filter_oid_with_special_vertex_predicate(
     Context&& ctx, const GraphReadInterface& graph, const ScanParams& params,
     const SPVertexPredicate& pred, const std::vector<Any>& oids) {
   if (pred.type() == SPPredicateType::kPropertyEQ) {
@@ -252,7 +252,7 @@ static bl::result<Context> _filter_oid_with_special_vertex_predicate(
   }
 }
 
-bl::result<Context> Scan::filter_oids_with_special_vertex_predicate(
+gs::result<Context> Scan::filter_oids_with_special_vertex_predicate(
     Context&& ctx, const GraphReadInterface& graph, const ScanParams& params,
     const SPVertexPredicate& predicate, const std::vector<Any>& oids) {
   if (predicate.data_type() == RTAnyType::kI64Value) {

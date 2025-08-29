@@ -49,6 +49,7 @@
 #include "neug/engines/graph_db/runtime/utils/var.h"
 #include "neug/storages/rt_mutable_graph/schema.h"
 #include "neug/storages/rt_mutable_graph/types.h"
+#include "neug/utils/leaf_utils.h"
 #include "neug/utils/property/types.h"
 
 namespace gs {
@@ -1358,7 +1359,7 @@ class ProjectOpr : public IReadOperator {
              bool is_append)
       : exprs_(exprs), dependencies_(dependencies), is_append_(is_append) {}
 
-  bl::result<gs::runtime::Context> Eval(
+  gs::result<gs::runtime::Context> Eval(
       const gs::runtime::GraphReadInterface& graph,
       const std::map<std::string, std::string>& params,
       gs::runtime::Context&& ctx, gs::runtime::OprTimer* timer) override {
@@ -1376,7 +1377,7 @@ class ProjectOpr : public IReadOperator {
       auto expr = exprs_[i](graph, params, ctx);
       if (!expr) {
         LOG(ERROR) << "Failed to create project expr for " << i;
-        RETURN_FLEX_LEAF_ERROR(
+        RETURN_STATUS_ERROR(
             gs::StatusCode::ERR_INTERNAL_ERROR,
             "Failed to create project expr for " + std::to_string(i));
       }
@@ -1475,7 +1476,7 @@ void parse_potential_dependencies(const common::Expression& expr,
   }
 }
 
-bl::result<ReadOpBuildResultT> ProjectOprBuilder::Build(
+gs::result<ReadOpBuildResultT> ProjectOprBuilder::Build(
     const gs::Schema& schema, const ContextMeta& ctx_meta,
     const physical::PhysicalPlan& plan, int op_idx) {
   std::vector<common::IrDataType> data_types;
@@ -1561,7 +1562,7 @@ class ProjectOrderByOprBeta : public IReadOperator {
     return "ProjectOrderByOprBeta";
   }
 
-  bl::result<gs::runtime::Context> Eval(
+  gs::result<gs::runtime::Context> Eval(
       const gs::runtime::GraphReadInterface& graph,
       const std::map<std::string, std::string>& params,
       gs::runtime::Context&& ctx, gs::runtime::OprTimer* timer) override {
@@ -1674,7 +1675,7 @@ static bool project_order_by_fusable_beta(
   return true;
 }
 
-bl::result<ReadOpBuildResultT> ProjectOrderByOprBuilder::Build(
+gs::result<ReadOpBuildResultT> ProjectOrderByOprBuilder::Build(
     const gs::Schema& schema, const ContextMeta& ctx_meta,
     const physical::PhysicalPlan& plan, int op_idx) {
   std::vector<common::IrDataType> data_types;

@@ -32,7 +32,7 @@ namespace gs {
 
 namespace runtime {
 
-bl::result<Context> PathExpand::edge_expand_v(const GraphReadInterface& graph,
+gs::result<Context> PathExpand::edge_expand_v(const GraphReadInterface& graph,
                                               Context&& ctx,
                                               const PathExpandParams& params) {
   std::vector<size_t> shuffle_offset;
@@ -239,7 +239,7 @@ bl::result<Context> PathExpand::edge_expand_v(const GraphReadInterface& graph,
   RETURN_UNSUPPORTED_ERROR("not support path expand options");
 }
 
-bl::result<Context> PathExpand::edge_expand_p(const GraphReadInterface& graph,
+gs::result<Context> PathExpand::edge_expand_p(const GraphReadInterface& graph,
                                               Context&& ctx,
                                               const PathExpandParams& params) {
   std::vector<size_t> shuffle_offset;
@@ -549,7 +549,7 @@ static bool single_source_single_dest_shortest_path_impl(
   return false;
 }
 
-bl::result<Context> PathExpand::single_source_single_dest_shortest_path(
+gs::result<Context> PathExpand::single_source_single_dest_shortest_path(
     const GraphReadInterface& graph, Context&& ctx,
     const ShortestPathParams& params, std::pair<label_t, vid_t>& dest) {
   std::vector<size_t> shuffle_offset;
@@ -793,7 +793,7 @@ static void all_shortest_path_with_given_source_and_dest_impl(
   dfs(graph, src, dst, visited, dist_from_src, params, paths, cur_path);
 }
 
-bl::result<Context> PathExpand::all_shortest_paths_with_given_source_and_dest(
+gs::result<Context> PathExpand::all_shortest_paths_with_given_source_and_dest(
     const GraphReadInterface& graph, Context&& ctx,
     const ShortestPathParams& params, const std::pair<label_t, vid_t>& dest) {
   auto& input_vertex_list =
@@ -843,7 +843,7 @@ bl::result<Context> PathExpand::all_shortest_paths_with_given_source_and_dest(
 }
 
 template <typename T>
-static bl::result<Context> _single_shortest_path(
+static gs::result<Context> _single_shortest_path(
     const GraphReadInterface& graph, Context&& ctx,
     const ShortestPathParams& params, const SPVertexPredicate& pred) {
   if (pred.type() == SPPredicateType::kPropertyLT) {
@@ -888,7 +888,7 @@ static bl::result<Context> _single_shortest_path(
   }
 }
 
-bl::result<Context>
+gs::result<Context>
 PathExpand::single_source_shortest_path_with_special_vertex_predicate(
     const GraphReadInterface& graph, Context&& ctx,
     const ShortestPathParams& params, const SPVertexPredicate& pred) {

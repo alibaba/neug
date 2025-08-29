@@ -93,7 +93,7 @@ class GroupByOpr : public IReadOperator {
 
   std::string get_operator_name() const override { return "GroupByOpr"; }
 
-  bl::result<gs::runtime::Context> Eval(
+  gs::result<gs::runtime::Context> Eval(
       const gs::runtime::GraphReadInterface& graph,
       const std::map<std::string, std::string>& params,
       gs::runtime::Context&& ctx, gs::runtime::OprTimer* timer) override {
@@ -157,7 +157,7 @@ class GroupByOprBeta : public IReadOperator {
 
   std::string get_operator_name() const override { return "GroupByOpr"; }
 
-  bl::result<gs::runtime::Context> Eval(
+  gs::result<gs::runtime::Context> Eval(
       const gs::runtime::GraphReadInterface& graph,
       const std::map<std::string, std::string>& params,
       gs::runtime::Context&& ctx, gs::runtime::OprTimer* timer) override {
@@ -1035,7 +1035,7 @@ std::unique_ptr<ReducerBase> make_reducer(const GraphReadInterface& graph,
     return make_general_reducer(graph, ctx, std::move(var_), kind, alias);
   }
 }
-bl::result<ReadOpBuildResultT> GroupByOprBuilder::Build(
+gs::result<ReadOpBuildResultT> GroupByOprBuilder::Build(
     const gs::Schema& schema, const ContextMeta& ctx_meta,
     const physical::PhysicalPlan& plan, int op_idx) {
   int mappings_num =

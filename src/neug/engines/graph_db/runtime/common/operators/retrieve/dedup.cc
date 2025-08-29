@@ -30,7 +30,7 @@ namespace gs {
 
 namespace runtime {
 
-bl::result<Context> Dedup::dedup(Context&& ctx,
+gs::result<Context> Dedup::dedup(Context&& ctx,
                                  const std::vector<size_t>& cols) {
   size_t row_num = ctx.row_num();
   std::vector<size_t> offsets;
@@ -96,7 +96,7 @@ bl::result<Context> Dedup::dedup(Context&& ctx,
   return ctx;
 }
 
-bl::result<Context> Dedup::dedup(
+gs::result<Context> Dedup::dedup(
     Context&& ctx, const std::vector<std::function<RTAny(size_t)>>& vars) {
   std::set<std::string> set;
   size_t row_num = ctx.row_num();

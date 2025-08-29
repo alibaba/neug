@@ -17,7 +17,7 @@
 #define RUNTIME_COMMON_OPERATORS_UPDATE_PROJECT_H_
 
 #include <stddef.h>
-#include <boost/leaf.hpp>
+
 #include <memory>
 #include <string>
 #include <string_view>
@@ -99,7 +99,7 @@ struct PairsSndGetter : public WriteProjectExprBase {
 
 class Project {
  public:
-  static bl::result<WriteContext> project(
+  static gs::result<WriteContext> project(
       WriteContext&& ctx,
       const std::vector<std::unique_ptr<WriteProjectExprBase>>& exprs);
 };
@@ -141,7 +141,7 @@ struct UProjectExpr : public UProjectExprBase {
 
 class UProject {
  public:
-  static bl::result<Context> project(
+  static gs::result<Context> project(
       Context&& ctx,
       const std::vector<std::unique_ptr<UProjectExprBase>>& exprs,
       bool is_append = false);

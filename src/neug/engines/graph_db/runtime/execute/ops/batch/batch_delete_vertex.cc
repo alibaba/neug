@@ -21,7 +21,7 @@
 namespace gs {
 namespace runtime {
 namespace ops {
-bl::result<Context> BatchDeleteVertexOpr::Eval(
+gs::result<Context> BatchDeleteVertexOpr::Eval(
     GraphUpdateInterface& graph,
     const std::map<std::string, std::string>& params, Context&& ctx,
     OprTimer* timer) {
@@ -67,7 +67,7 @@ bl::result<Context> BatchDeleteVertexOpr::Eval(
                              // remove all data.
   }
 
-  return bl::result<Context>(std::move(ctx));
+  return gs::result<Context>(std::move(ctx));
 }
 
 std::unique_ptr<IUpdateOperator> BatchDeleteVertexOprBuilder::Build(

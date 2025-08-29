@@ -16,7 +16,6 @@
 #ifndef RUNTIME_EXECUTE_RETRIEVE_OPS_PATH_H_
 #define RUNTIME_EXECUTE_RETRIEVE_OPS_PATH_H_
 
-#include <boost/leaf.hpp>
 #include <vector>
 
 #include "neug/engines/graph_db/runtime/execute/operator.h"
@@ -39,7 +38,7 @@ class SPOrderByLimitOprBuilder : public IReadOperatorBuilder {
   SPOrderByLimitOprBuilder() = default;
   ~SPOrderByLimitOprBuilder() = default;
 
-  bl::result<ReadOpBuildResultT> Build(const gs::Schema& schema,
+  gs::result<ReadOpBuildResultT> Build(const gs::Schema& schema,
                                        const ContextMeta& ctx_meta,
                                        const physical::PhysicalPlan& plan,
                                        int op_idx) override;
@@ -64,7 +63,7 @@ class SPOprBuilder : public IReadOperatorBuilder {
   SPOprBuilder() = default;
   ~SPOprBuilder() = default;
 
-  bl::result<ReadOpBuildResultT> Build(const gs::Schema& schema,
+  gs::result<ReadOpBuildResultT> Build(const gs::Schema& schema,
                                        const ContextMeta& ctx_meta,
                                        const physical::PhysicalPlan& plan,
                                        int op_idx) override;
@@ -84,7 +83,7 @@ class PathExpandVOprBuilder : public IReadOperatorBuilder {
   PathExpandVOprBuilder() = default;
   ~PathExpandVOprBuilder() = default;
 
-  bl::result<ReadOpBuildResultT> Build(const gs::Schema& schema,
+  gs::result<ReadOpBuildResultT> Build(const gs::Schema& schema,
                                        const ContextMeta& ctx_meta,
                                        const physical::PhysicalPlan& plan,
                                        int op_idx) override;
@@ -103,7 +102,7 @@ class PathExpandOprBuilder : public IReadOperatorBuilder {
   PathExpandOprBuilder() = default;
   ~PathExpandOprBuilder() = default;
 
-  bl::result<ReadOpBuildResultT> Build(const gs::Schema& schema,
+  gs::result<ReadOpBuildResultT> Build(const gs::Schema& schema,
                                        const ContextMeta& ctx_meta,
                                        const physical::PhysicalPlan& plan,
                                        int op_idx) override;

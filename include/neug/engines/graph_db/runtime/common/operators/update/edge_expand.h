@@ -15,7 +15,6 @@
 
 #ifndef RUNTIME_COMMON_OPERATORS_UPDATE_EDGE_H_
 #define RUNTIME_COMMON_OPERATORS_UPDATE_EDGE_H_
-#include <boost/leaf.hpp>
 
 #include "neug/engines/graph_db/runtime/common/columns/edge_columns.h"
 #include "neug/engines/graph_db/runtime/common/columns/vertex_columns.h"
@@ -31,11 +30,11 @@ struct EdgeExpandParams;
 
 class UEdgeExpand {
  public:
-  static bl::result<Context> edge_expand_v_without_pred(
+  static gs::result<Context> edge_expand_v_without_pred(
       const GraphUpdateInterface& graph, Context&& ctx,
       const EdgeExpandParams& params);
 
-  static bl::result<Context> edge_expand_e_without_pred(
+  static gs::result<Context> edge_expand_e_without_pred(
       const GraphUpdateInterface& graph, Context&& ctx,
       const EdgeExpandParams& params);
 };

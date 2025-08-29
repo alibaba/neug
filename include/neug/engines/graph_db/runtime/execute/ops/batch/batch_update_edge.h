@@ -41,7 +41,7 @@ class UpdateEdgeOpr : public IUpdateOperator {
 
   std::string get_operator_name() const override { return "UpdateEdgeOpr"; }
 
-  bl::result<Context> Eval(GraphUpdateInterface& graph,
+  gs::result<Context> Eval(GraphUpdateInterface& graph,
                            const std::map<std::string, std::string>& params,
                            Context&& ctx, OprTimer* timer) override;
 

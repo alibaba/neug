@@ -46,7 +46,7 @@ Direction get_dir(std::shared_ptr<IEdgeColumn> column) {
   }
 }
 
-bl::result<Context> BatchDeleteEdgeOpr::Eval(
+gs::result<Context> BatchDeleteEdgeOpr::Eval(
     GraphUpdateInterface& graph,
     const std::map<std::string, std::string>& params, Context&& ctx,
     OprTimer* timer) {
@@ -174,7 +174,7 @@ bl::result<Context> BatchDeleteEdgeOpr::Eval(
                              // remove all data.
   }
 
-  return bl::result<Context>(std::move(ctx));
+  return gs::result<Context>(std::move(ctx));
 }
 
 std::unique_ptr<IUpdateOperator> BatchDeleteEdgeOprBuilder::Build(
