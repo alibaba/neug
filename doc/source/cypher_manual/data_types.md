@@ -1,4 +1,4 @@
-# NeuG Data Types
+# Data Types
 
 This document provides a comprehensive overview of all data types supported by NeuG.
 

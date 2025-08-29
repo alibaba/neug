@@ -12,7 +12,7 @@ NeuG documentation
 
 
 .. toctree::
-   :maxdepth: 2
+   :maxdepth: 1
    :caption: Overview
    
    overview/introduction
@@ -39,20 +39,30 @@ NeuG documentation
    :maxdepth: 1
    :caption: Import & Export
 
-   user_guide/import_data
-   user_guide/export_data
+   import_export/import_data
+   import_export/export_data
 
 .. toctree::
-   :maxdepth: 2
+   :maxdepth: 1
+   :caption: Cypher Manual
+
+   cypher_manual/index
+   cypher_manual/data_types
+   cypher_manual/ddl_clause
+   cypher_manual/dml_clause
+   cypher_manual/expression/index
+   cypher_manual/query_clauses/index
+
+.. toctree::
+   :maxdepth: 1
    :caption: API Reference
 
-   cypher_manual/cypher_manual.rst
    reference/cpp_api/index
    reference/python_api/python_index
    reference/type_system
 
 .. toctree::
-   :maxdepth: 2
+   :maxdepth: 1
    :caption: Developer Guide
 
    development/dev_guide
