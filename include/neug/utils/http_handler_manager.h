@@ -23,20 +23,13 @@
 
 #include "neug/utils/service_utils.h"
 
-namespace gs {
-enum class MetadataStoreType {
-  kLocalFile,
-};
-}
+namespace gs {}
 namespace server {
 
 struct ServiceConfig {
   enum class ShardingMode { EXCLUSIVE, COOPERATIVE };
   static constexpr const uint32_t DEFAULT_SHARD_NUM = 1;
   static constexpr const uint32_t DEFAULT_QUERY_PORT = 10000;
-  static constexpr const uint32_t DEFAULT_ADMIN_PORT = 7777;
-  static constexpr const uint32_t DEFAULT_BOLT_PORT = 7687;
-  static constexpr const uint32_t DEFAULT_GREMLIN_PORT = 8182;
   static constexpr const uint32_t DEFAULT_VERBOSE_LEVEL = 0;
   static constexpr const uint32_t DEFAULT_LOG_LEVEL =
       0;  // 0 = INFO, 1 = WARNING, 2 = ERROR, 3 = FATAL
@@ -51,9 +44,6 @@ struct ServiceConfig {
                                // the actual graph data directory.
 
   // Those has default value
-  uint32_t bolt_port;
-  uint32_t gremlin_port;
-  uint32_t admin_port;
   uint32_t query_port;
   uint32_t shard_num;
   uint32_t memory_level;
@@ -61,12 +51,6 @@ struct ServiceConfig {
   bool dpdk_mode;
   bool enable_thread_resource_pool;
   unsigned external_thread_num;
-  bool start_admin_service;  // Whether to start the admin service or only
-                             // start the query service.
-  bool start_compiler;
-  bool enable_gremlin;
-  bool enable_bolt;
-  gs::MetadataStoreType metadata_store_type_;
   // verbose log level. should be a int
   // could also be set from command line: GLOG_v={}.
   // If we found GLOG_v in the environment, we will at the first place.
@@ -81,30 +65,20 @@ struct ServiceConfig {
                                // the sharding mode must be cooperative.
 
   // Those has not default value
-  std::string default_graph;
-  std::string engine_config_path;       // used for codegen.
-  size_t admin_svc_max_content_length;  // max content length for admin service.
-  std::string wal_uri;                  // The uri of the wal storage.
+  std::string engine_config_path;  // used for codegen.
+  std::string wal_uri;             // The uri of the wal storage.
   std::string host_str;
 
   ServiceConfig()
-      : bolt_port(DEFAULT_BOLT_PORT),
-        admin_port(DEFAULT_ADMIN_PORT),
-        query_port(DEFAULT_QUERY_PORT),
+      : query_port(DEFAULT_QUERY_PORT),
         shard_num(DEFAULT_SHARD_NUM),
         enable_adhoc_handler(false),
         dpdk_mode(false),
         enable_thread_resource_pool(true),
         external_thread_num(2),
-        start_admin_service(false),
-        start_compiler(false),
-        enable_gremlin(false),
-        enable_bolt(false),
-        metadata_store_type_(gs::MetadataStoreType::kLocalFile),
         log_level(DEFAULT_LOG_LEVEL),
         verbose_level(DEFAULT_VERBOSE_LEVEL),
         sharding_mode(DEFAULT_SHARDING_MODE),
-        admin_svc_max_content_length(DEFAULT_MAX_CONTENT_LENGTH),
         wal_uri(DEFAULT_WAL_URI) {}
 
   void set_sharding_mode(const std::string& mode) {
@@ -116,20 +90,6 @@ struct ServiceConfig {
     } else {
       LOG(FATAL) << "Invalid sharding mode: " << mode;
     }
-  }
-
-  void set_admin_svc_max_content_length(size_t max_content_length) {
-    this->admin_svc_max_content_length = max_content_length;
-  }
-
-  void set_admin_svc_max_content_length(const std::string& max_content_length) {
-    auto val = gs::human_readable_to_bytes(max_content_length);
-    if (val == 0) {
-      LOG(ERROR) << "Invalid max_content_length: " << max_content_length << ", "
-                 << "use default value: " << DEFAULT_MAX_CONTENT_LENGTH;
-      val = DEFAULT_MAX_CONTENT_LENGTH;
-    }
-    set_admin_svc_max_content_length(val);
   }
 
   int32_t get_exclusive_shard_id() const {
@@ -213,21 +173,6 @@ struct convert<server::ServiceConfig> {
                   << service_config.shard_num;
       }
 
-      auto metadata_store_node = engine_node["metadata_store"];
-      if (metadata_store_node) {
-        auto metadata_store_type = metadata_store_node["type"];
-        if (metadata_store_type) {
-          auto metadata_store_type_str = metadata_store_type.as<std::string>();
-          if (metadata_store_type_str == "file") {
-            service_config.metadata_store_type_ =
-                gs::MetadataStoreType::kLocalFile;
-          } else {
-            LOG(ERROR) << "Unsupported metadata store type: "
-                       << metadata_store_type_str;
-            return false;
-          }
-        }
-      }
       if (engine_node["wal_uri"]) {
         service_config.wal_uri = engine_node["wal_uri"].as<std::string>();
       }
@@ -244,13 +189,7 @@ struct convert<server::ServiceConfig> {
         LOG(INFO) << "query_port not found, use default value "
                   << service_config.query_port;
       }
-      auto admin_port_node = http_service_node["admin_port"];
-      if (admin_port_node) {
-        service_config.admin_port = admin_port_node.as<uint32_t>();
-      } else {
-        LOG(INFO) << "admin_port not found, use default value "
-                  << service_config.admin_port;
-      }
+
       if (http_service_node["sharding_mode"]) {
         auto sharding_mode =
             http_service_node["sharding_mode"].as<std::string>();
@@ -265,54 +204,11 @@ struct convert<server::ServiceConfig> {
         service_config.set_sharding_mode(sharding_mode);
         VLOG(1) << "sharding_mode: " << sharding_mode;
       }
-      if (http_service_node["max_content_length"]) {
-        service_config.set_admin_svc_max_content_length(
-            http_service_node["max_content_length"].as<std::string>());
-        LOG(INFO) << "max_content_length: "
-                  << service_config.admin_svc_max_content_length;
-      }
     } else {
       LOG(ERROR) << "Fail to find http_service configuration";
       return false;
     }
 
-    auto compiler_node = config["compiler"];
-    if (compiler_node) {
-      auto endpoint_node = compiler_node["endpoint"];
-      if (endpoint_node) {
-        auto bolt_node = endpoint_node["bolt_connector"];
-        if (bolt_node && bolt_node["disabled"]) {
-          service_config.enable_bolt = !bolt_node["disabled"].as<bool>();
-        } else {
-          service_config.enable_bolt = true;
-        }
-        if (bolt_node && bolt_node["port"]) {
-          service_config.bolt_port = bolt_node["port"].as<uint32_t>();
-        } else {
-          LOG(INFO) << "bolt_port not found, or disabled";
-        }
-        auto gremlin_node = endpoint_node["gremlin_connector"];
-        if (gremlin_node && gremlin_node["disabled"]) {
-          service_config.enable_gremlin = !gremlin_node["disabled"].as<bool>();
-        } else {
-          service_config.enable_gremlin = true;
-        }
-        if (gremlin_node && gremlin_node["port"]) {
-          service_config.gremlin_port = gremlin_node["port"].as<uint32_t>();
-        } else {
-          LOG(INFO) << "gremlin_port not found, use default value "
-                    << service_config.gremlin_port;
-        }
-      }
-    }
-
-    auto default_graph_node = config["default_graph"];
-    std::string default_graph;
-    if (default_graph_node) {
-      service_config.default_graph = default_graph_node.as<std::string>();
-    } else {
-      LOG(WARNING) << "Fail to find default_graph configuration";
-    }
     return true;
   }
 };

@@ -21,19 +21,9 @@
 
 namespace server {
 
-const std::string GraphDBService::DEFAULT_GRAPH_NAME = "modern_graph";
-const std::string GraphDBService::DEFAULT_INTERACTIVE_HOME = "/opt/src/";
-const std::string GraphDBService::COMPILER_SERVER_CLASS_NAME =
-    "com.alibaba.graphscope.GraphServer";
-
 GraphDBService& GraphDBService::get() {
   static GraphDBService instance;
   return instance;
-}
-
-std::shared_ptr<gs::IGraphMetaStore> GraphDBService::get_metadata_store()
-    const {
-  return metadata_store_;
 }
 
 void GraphDBService::init(const ServiceConfig& config) {

@@ -1,5 +1,4 @@
 log_level: INFO
-default_graph: modern_graph
 compute_engine:
   type: brpc
   workers:
@@ -49,5 +48,4 @@ compiler:
   gremlin_script_language_name: antlr_gremlin_calcite
 http_service:
   default_listen_address: localhost
-  admin_port: 7777
   query_port: 10000

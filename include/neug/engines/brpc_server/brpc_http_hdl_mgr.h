@@ -24,7 +24,6 @@
 #include "neug/engines/graph_db/database/graph_db_session.h"
 #include "neug/engines/graph_db_service.h"
 #include "neug/planner/graph_planner.h"
-#include "neug/storages/metadata/graph_meta_store.h"
 #include "neug/storages/rt_mutable_graph/schema.h"
 #include "neug/utils/http_handler_manager.h"
 #include "neug/utils/leaf_utils.h"
@@ -232,7 +231,6 @@ class BrpcHttpHandlerManager : public IHttpHandlerManager {
   ServiceConfig service_config_;
   HttpServiceImpl svc_;
   std::unique_ptr<brpc::Server> brpc_server_;
-  std::shared_ptr<gs::IGraphMetaStore> metadata_store_;
 };
 }  // namespace server
 

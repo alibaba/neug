@@ -1,11 +1,6 @@
 
 add_subdirectory(rt_mutable_graph)
 set(NEUG_STORAGES_OBJFILES $<TARGET_OBJECTS:neug_rt_mutable_graph>)
-if (BUILD_HTTP_SERVER)
-    add_subdirectory(metadata)
-    set(NEUG_STORAGES_OBJFILES ${NEUG_STORAGES_OBJFILES}
-        $<TARGET_OBJECTS:neug_metadata_store>)
-endif()
 
 if (BUILD_ALL_IN_ONE)
     set(ALL_OBJECT_FILES ${ALL_OBJECT_FILES} ${NEUG_STORAGES_OBJFILES} PARENT_SCOPE)

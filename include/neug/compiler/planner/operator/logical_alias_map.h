@@ -16,12 +16,12 @@ class LogicalAliasMap : public LogicalOperator {
         srcExprs{srcExprs},
         dstExprs{dstExprs} {}
 
-  void computeFactorizedSchema() {
+  void computeFactorizedSchema() override {
     copyChildSchema(0);
     schema->clearExpressionsInScope();
   }
 
-  void computeFlatSchema() {
+  void computeFlatSchema() override {
     copyChildSchema(0);
     schema->clearExpressionsInScope();
   }
