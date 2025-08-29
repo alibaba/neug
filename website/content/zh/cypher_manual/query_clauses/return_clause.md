@@ -1,6 +1,6 @@
 # Return 子句
 
-Return 和 With 提供了类似的功能，都用于对数据进行进一步的聚合或投影。区别在于 Return 需要返回并显示处理后的结果。这里我们不会过多讨论 Return 本身的功能，你可以参考 [With 子句](with_clause.md) 中的用法。我们主要关注结果输出和一些常见的 Return 使用模式。
+Return 和 With 提供了类似的功能，都用于对数据进行进一步的聚合或投影。区别在于 Return 需要返回并显示处理后的结果。这里我们不会过多介绍 Return 本身的功能，你可以参考 [With 子句](with_clause.md) 中的用法。我们主要关注结果输出和一些常见的 Return 使用模式。
 
 ## 返回节点
 
@@ -74,9 +74,9 @@ Return k;
 +--------------------------------------------------------------------------------------------------------------------------------------+
 ```
 
-## 返回路径
+## Return Paths
 
-### 返回重复路径
+### Return Repeated Paths
 
 ```
 Match (a:person)-[k*1..2]->(c)
@@ -85,7 +85,7 @@ Return k;
 
 <!-- todo: add output here. -->
 
-### 返回路径中的所有节点/关系
+### Return All Nodes/Rels in Paths
 
 ```
 Match (a:person)-[k*1..2]->(c)
@@ -94,7 +94,7 @@ Return nodes(k) as nodes, rels(k) as rels;
 
 <!-- todo: nodes or rels are unsupported yet -->
 
-### 返回路径中节点/关系的属性
+### Return Properties of Node/Rels in Paths
 ```
 Match (a:person)-[k*1..2]->(c)
 Return properties(nodes(k), 'name') as names, properties(rels(k), 'weight') as weights;
@@ -102,9 +102,9 @@ Return properties(nodes(k), 'name') as names, properties(rels(k), 'weight') as w
 
 <!-- todo: properties is unsupported yet -->
 
-## 使用 TopK 返回
+## Return with TopK
 
-Return、OrderBy、Limit 组合用于输出 TopK 查询结果
+通过 Return, OrderBy, Limit 组合来输出 TopK 查询结果
 ```
 Match (a:person)-[:knows]->(b:person)
 Return a.name, b.name
@@ -112,7 +112,7 @@ Order By a.name ASC, b.name ASC
 Limit 2;
 ```
 
-输出:
+output:
 ```
 +-------------+-------------+
 | _0_a.name   | _2_b.name   |

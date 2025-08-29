@@ -76,12 +76,12 @@ make install
 
 ### Verify Installation
 
-In your cmake project, find and link Neug libraries with the following command:
+In your cmake project, find and link NeuG libraries with the following command:
 
 ```cmake
 cmake_minimum_required (VERSION 3.10)
 project (
-  NeugTest
+  NeuGTest
   VERSION 0.1
   LANGUAGES C CXX)
 
@@ -119,16 +119,13 @@ cmake .. -DCMAKE_PREFIX_PATH=/opt/neug
 
 ## Command Line Interface (CLI)
 
-The NeuG CLI tool provides an interactive shell for database operations.
+The NeuG CLI tool is provided along with NeuG.
 
 ### Installation
 
 ```bash
 # Install via pip (includes CLI tool)
 pip install neug
-
-# Or install CLI only
-pip install neug-cli
 ```
 
 ### Usage

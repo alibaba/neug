@@ -101,7 +101,7 @@ For more Scalar Function operations, see the [Function Section](../expression.md
 
 ## Order with Limit
 
-Additionally, in BI (Business Intelligence) query scenarios, TopK is one of the most common operations, truncating and outputting only the most significant results. Neug also supports such queries.
+Additionally, in BI (Business Intelligence) query scenarios, TopK is one of the most common operations, truncating and outputting only the most significant results. NeuG also supports such queries.
 
 ```
 Match (a)-[b]->(c)

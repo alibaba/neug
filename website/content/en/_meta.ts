@@ -1,10 +1,10 @@
 export default {
   overview: "Overview",
-  getting_started: "Getting Started",
   installation: "Installation",
-  user_guide: "User Guide",
-  cypher_manual: "Cypher Manual ",
+  getting_started: "Getting Started",
   tutorials: "Tutorials",
-  reference: "Reference",
-  development: "Development",
+  import_export: "Import & Export",
+  cypher_manual: "Cypher Manual ",
+  reference: "API Reference",
+  development: "Development Guide",
 };

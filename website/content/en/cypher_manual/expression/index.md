@@ -1,7 +1,5 @@
 # Expression
 
-## Overview
-
 Expressions are fundamental components in Cypher that allow you to compute values, perform calculations, and manipulate data within queries. Unlike traditional SQL which focuses on relational data operations, Cypher expressions are designed specifically for graph data structures and provide powerful capabilities for traversing edges, pattern matching, and graph-specific computations.
 
 Cypher expressions serve several key purposes:
@@ -29,11 +27,11 @@ Operators in NeuG are symbols or keywords that perform operations on operands. T
 
 | Type | Description |
 |------|-------------|
-| [Comparison](./expression/comparison_op.md) | Operators for comparing values (e.g., `=`, `<>`, `<`, `>`, `<=`, `>=`) |
-| [Logical](./expression/logical_op.md) | Boolean operators for combining conditions (e.g., `AND`, `OR`, `NOT`) |
-| [Arithmetic](./expression/arithmetic_op.md) | Mathematical operations (e.g., `+`, `-`, `*`, `/`, `%`) |
-| [Null](./expression/null_op.md) | Operations for handling null values (e.g., `IS NULL`, `IS NOT NULL`) |
-| [List](./expression/list_op.md) | Operations for working with list data structures (e.g., `IN`) |
+| [Comparison](comparison_op) | Operators for comparing values (e.g., `=`, `<>`, `<`, `>`, `<=`, `>=`) |
+| [Logical](logical_op) | Boolean operators for combining conditions (e.g., `AND`, `OR`, `NOT`) |
+| [Arithmetic](arithmetic_op) | Mathematical operations (e.g., `+`, `-`, `*`, `/`, `%`) |
+| [Null](null_op) | Operations for handling null values (e.g., `IS NULL`, `IS NOT NULL`) |
+| [List](list_op) | Operations for working with list data structures (e.g., `IN`) |
 <!-- | Bit | Bitwise operations (e.g., `&`, `|`, `^`, `<<`, `>>`) | -->
 <!-- | Case When | Conditional expressions using `CASE WHEN` syntax | -->
 
@@ -45,9 +43,9 @@ Functions in NeuG are predefined operations that take input parameters and retur
 
 | Category | Description |
 |----------|-------------|
-| [Aggregate](./expression/agg_func.md) | Functions that operate on collections of values and return a single result (e.g., `COUNT`, `SUM`, `AVG`, `MAX`, `MIN`) |
-| [Cast](./expression/cast_func.md) | Functions for converting data types between different formats |
-| [Temporal](./expression/temporal_func.md) | Functions for working with date and time data |
-| [Graph Pattern](./expression/graph_func.md) | Functions specifically designed for nodes, edges or path |
+| [Aggregate](agg_func) | Functions that operate on collections of values and return a single result (e.g., `COUNT`, `SUM`, `AVG`, `MAX`, `MIN`) |
+| [Cast](cast_func) | Functions for converting data types between different formats |
+| [Temporal](temporal_func) | Functions for working with date and time data |
+| [Graph Pattern](graph_func) | Functions specifically designed for nodes, edges or path |
 <!-- | Text | String manipulation and text processing functions |
 | Numeric | Mathematical and numerical computation functions | -->

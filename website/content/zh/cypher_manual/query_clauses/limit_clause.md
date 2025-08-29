@@ -1,6 +1,6 @@
 # Limit 子句
 
-Limit 用于控制输出结果的数量。除了单独使用外，还可以与 Order BY 结合使用进行 TopK 操作。Neug 目前在 Limit 中支持两种类型的表达式：1. 单个 Integer 常量。2. 只包含常量参数的算术表达式。
+Limit 用于控制输出结果的数量。除了单独使用外，还可以与 Order BY 一起使用进行 TopK 操作。NeuG 目前在 Limit 中支持两种类型的表达式：1. 单个 Integer 常量。2. 只包含常量参数的算术表达式。
 
 ## 使用整数值的 Limit
 

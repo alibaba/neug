@@ -1,5 +1,58 @@
 [
   {
+    "timestamp": "2025-08-29T11:08:29.445Z",
+    "commit": "a41414f1add930605bbfe4a7f1b6a2c7978fc858",
+    "sourceLanguage": "en",
+    "translatedFiles": {
+      "zh": {
+        "success": [
+          "cypher_manual/data_types.md",
+          "cypher_manual/ddl_clause.md",
+          "cypher_manual/dml_clause.md",
+          "cypher_manual/expression/agg_func.md",
+          "cypher_manual/expression/arithmetic_op.md",
+          "cypher_manual/expression/cast_func.md",
+          "cypher_manual/expression/comparison_op.md",
+          "cypher_manual/expression/graph_func.md",
+          "cypher_manual/expression/index.md",
+          "cypher_manual/expression/list_op.md",
+          "cypher_manual/expression/logical_op.md",
+          "cypher_manual/expression/null_op.md",
+          "cypher_manual/expression/temporal_func.md",
+          "cypher_manual/expression.md",
+          "cypher_manual/index.md",
+          "cypher_manual/overview.md",
+          "cypher_manual/query_clauses/index.md",
+          "cypher_manual/query_clauses/limit_clause.md",
+          "cypher_manual/query_clauses/match_clause.md",
+          "cypher_manual/query_clauses/order_clause.md",
+          "cypher_manual/query_clauses/return_clause.md",
+          "cypher_manual/query_clauses/union_clause.md",
+          "cypher_manual/query_clauses/where_clause.md",
+          "cypher_manual/query_clauses/with_clause.md",
+          "cypher_manual/query_clauses.md",
+          "development/code_style_guide.md",
+          "development/dev_guide.md",
+          "getting_started/getting_started.md",
+          "import_export/export_data.md",
+          "import_export/import_data.md",
+          "installation/installation.md",
+          "overview/introduction.md",
+          "reference/cpp_api/index.md",
+          "tutorials/python_tutorial.md",
+          "user_guide/key_concepts.md"
+        ],
+        "failed": []
+      }
+    },
+    "stats": {
+      "totalFiles": 35,
+      "languages": 1,
+      "successCount": 35,
+      "failedCount": 0
+    }
+  },
+  {
     "timestamp": "2025-08-26T06:31:39.588Z",
     "commit": "c5bf4a8106cb3a8f0ed904a37acd97ec50c6cd7e",
     "sourceLanguage": "en",

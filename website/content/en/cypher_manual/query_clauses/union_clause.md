@@ -1,7 +1,7 @@
 # Union Clause
-The Union operator in Neug is used to combine the results of multiple subqueries into a single result set. All participating subqueries must produce a consistent output schema—i.e., the same number of columns with matching names and data types.
+The Union operator in NeuG is used to combine the results of multiple subqueries into a single result set. All participating subqueries must produce a consistent output schema—i.e., the same number of columns with matching names and data types.
 
-Currently, Neug supports the `UNION ALL` variant, which concatenates results without performing deduplication. Two syntactic forms are available:
+Currently, NeuG supports the `UNION ALL` variant, which concatenates results without performing deduplication. Two syntactic forms are available:
 - **Standard Union**: Similar to the standard syntax in [Kùzu](https://docs.kuzudb.com/cypher/query-clauses/union/).
 - **Call Union**: An extended form inspired by [Neo4j](https://neo4j.com/docs/cypher-manual/current/subqueries/call-subquery/#call-post-union), enabling more flexible query composition.
 
@@ -17,7 +17,7 @@ MATCH (n {name: 'josh'}) RETURN n.age;
 
 ## Call Union
 
-Inspired by [Neo4j](https://neo4j.com/docs/cypher-manual/current/subqueries/call-subquery/#call-post-union), Neug extends union semantics through a `CALL {}` block with parameterized input, enabling more expressive and modular query composition. This construct allows:
+Inspired by [Neo4j](https://neo4j.com/docs/cypher-manual/current/subqueries/call-subquery/#call-post-union), NeuG extends union semantics through a `CALL {}` block with parameterized input, enabling more expressive and modular query composition. This construct allows:
 - Executing additional logic after the union.
 - Sharing precomputed context (e.g., bound variables) across union branches.
 

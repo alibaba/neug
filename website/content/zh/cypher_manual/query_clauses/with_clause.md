@@ -4,7 +4,7 @@ WITH 主要用于对当前数据进行进一步的投影或聚合操作。接下
 
 ## 聚合操作
 
-聚合操作类似于 SQL 中的 GROUP BY 操作，它根据属性对当前数据进行分组，并对每组数据执行相应的聚合函数操作。Neug 目前支持主流的聚合函数，包括：
+聚合操作类似于 SQL 中的 GROUP BY 操作，它根据属性对当前数据进行分组，并对每组数据执行相应的聚合函数操作。NeuG 目前支持主流的聚合函数，包括：
 - COUNT
 - COUNT_STAR
 - COLLECT
@@ -44,7 +44,7 @@ Match (a:person) With label(a) as label, count(a.name) as cnt Where cnt > 2 Retu
 
 WITH 的另一个常见用法是通过列进行进一步投影当前结果，这相当于 SQL 中的 Column Pruning，只输出后续查询所需的列。
 
-## 投影顶点数据
+## 投影节点数据
 
 ```
 Match (a:person {name: 'marko'})-[:knows]->(b:person)
@@ -55,7 +55,7 @@ Return c.name;
 
 <!-- todo: 当前包中未包含 multiple match -->
 
-## 投影顶点/边数据
+## 投影节点/边数据
 
 ```
 Match (a:person {name: 'marko'})-[k:knows]->(b:person)
@@ -65,7 +65,6 @@ Return k.weight, c.name;
 ```
 
 ## 项目属性
-
 ```
 Match (a:person {name: 'marko'})-[:knows]->(b:person)
 With a, b.age as b_age

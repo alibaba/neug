@@ -1,6 +1,6 @@
 # Aggregate Function
 
-Aggregate Functions are primarily used to group current data and perform aggregation operations on elements within each group, ultimately producing only a single value for each group. The Aggregate Functions supported by Neug are as follows:
+Aggregate Functions are primarily used to group current data and perform aggregation operations on elements within each group, ultimately producing only a single value for each group. The Aggregate Functions supported by NeuG are as follows:
 
 Function | Description | Can be used with DISTINCT | Example
 ---------|-------------|---------------------------|--------

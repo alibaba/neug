@@ -95,13 +95,13 @@ Return a.name, c.name
 Order BY label(a);
 ```
 
-<!-- todo: 当前 pip 包中不包含 label 函数 -->
+<!-- todo: 当前的 pip 包中不包含 label 函数 -->
 
 更多标量函数操作，请参见 [函数部分](../expression.md)。
 
-## 限制返回结果的排序查询
+## 限制结果数量的排序
 
-此外，在 BI（商业智能）查询场景中，TopK 是最常见的操作之一，它只截取并输出最重要的结果。Neug 也支持此类查询。
+此外，在 BI (Business Intelligence) 查询场景中，TopK 是最常见的操作之一，只截取并输出最重要的结果。NeuG 也支持此类查询。
 
 ```
 Match (a)-[b]->(c)
@@ -110,7 +110,7 @@ ORDER BY a.age + 10 ASC, c.name ASC
 Limit 2;
 ``` 
 
-输出结果：
+输出:
 ```
 +------------+-------------+
 |   _0_a.age | _2_c.name   |

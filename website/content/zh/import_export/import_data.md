@@ -61,30 +61,30 @@ COPY knows from "person_knows_person.csv" (from="person", to="person", header=tr
 
 **注意**
 - 当导入到关系表时，NeuG 假设文件中的前两列分别是 `FROM` 和 `TO` 节点的主键；其余列对应关系属性。
-- CSV 配置中必须包含 `FROM` 和 `TO` 参数，用于指定 `FROM` 和 `TO` 节点的 labels。
+- CSV 配置中必须包含 `FROM` 和 `TO` 参数，用于指定 `FROM` 和 `TO` 节点的标签。
 
 ### CSV 配置参数
 
 支持以下配置参数：
 
 | 参数 | 描述 | 默认值 |
-| --- | --- | --- |
-| `HEADER` | CSV 文件的第一行是否为表头。可选值为 true 或 false。 | `false` |
+|------|------|--------|
+| `HEADER` | CSV 文件的第一行是否为 header。可选值为 true 或 false。 | `false` |
 | `DELIM` 或 `DELIMITER` | 用于分隔行内不同列的字符。 | `\|` |
-| `QUOTE` | 字符串引用开始的字符。 | `"` |
-| `ESCAPE` | 在字符串引用中用于转义 `QUOTE` 和其他字符（例如换行符）的字符。 | `\` |
-| `SKIP` | 跳过输入文件中的前几行数据。 | `0` |
+| `QUOTE` | 字符串引号开始字符。 | `"` |
+| `ESCAPE` | 在字符串引号中用于转义 QUOTE 和其他字符（例如换行符）的字符。 | `\` |
+| `SKIP` | 从输入文件中跳过的行数。 | `0` |
 | `PARALLEL` | 是否并行读取 CSV 文件。 | `true` |
-| `IGNORE_ERRORS` | 如果设置为 true，则跳过 CSV 文件中格式错误的行。 | `false` |
-| `NULL_STRINGS` | 应该被当作 null 处理的字符串列表。 | `""`（空字符串） |
-| `FROM` | 源顶点标签名称，仅在导入边时使用。 | `-` |
-| `TO` | 目标顶点标签名称，仅在导入边时使用。 | `-` |
+| `IGNORE_ERRORS` | 如果设置为 true，则跳过 CSV 文件中的格式错误行。 | `false` |
+| `NULL_STRINGS` | 应该在 CSV 文件中被当作 null 处理的字符串。 | `""`（空字符串） |
+| `FROM` | 源 vertex label 名称，仅在导入 edge 时使用 | `-` |
+| `TO` | 目标 vertex label 名称，仅在导入 edge 时使用 | `-` |
 
 **注意事项**
 - 参数应以逗号分隔的键值对形式指定，例如：`param1=value1, param2=value2, ...`
 - 参数不区分大小写，即 `Header`、`HEADER` 和 `header` 都是有效的，并且都会被正确识别。
-- 对于布尔类型的参数（如 `header`）：
+- 对于布尔类型的参数（例如 `header`）：
   1. 使用 `True`、`true` 或 `1` 表示启用。
   2. 使用 `False`、`false` 或 `0` 表示禁用。
   3. 如果值为 `true`，可以省略值部分，例如 `header=true` 可简写为 `header`。
-- `FROM` 和 `TO` 是一组特殊的参数，仅在从 CSV 文件导入边时有效。当一条边的源顶点和目标顶点存在多种标签组合时（例如 Comment-replyOf->Post、Comment-replyOf->Comment），必须指定 `FROM` 和 `TO`。在其他场景下使用这些参数会抛出异常。
+- `FROM` 和 `TO` 是一组特殊的参数。仅在从 CSV 文件导入 edge 时有效。当 edge 的源 vertex 和目标 vertex 存在多个 label 组合时（例如 Comment-replyOf->Post、Comment-replyOf->Comment），必须指定 `FROM` 和 `TO`。在其他场景中使用这些参数会抛出异常。

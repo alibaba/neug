@@ -1,6 +1,6 @@
 # DDL Clause
 
-DDL (Data Definition Language) is a set of operations specifically designed for schema management. Neug supports operations for adding, deleting, and modifying schema nodes, edges, and properties. Please refer to the following usage examples.
+DDL (Data Definition Language) is a set of operations specifically designed for schema management. NeuG supports operations for adding, deleting, and modifying schema nodes, edges, and properties. Please refer to the following usage examples.
 
 ## Create Node Type
 
@@ -24,7 +24,7 @@ CREATE NODE TABLE IF NOT EXISTS person (
 );
 ```
 
-## Create Rel Type
+## Create Edge Type
 
 Create an edge of type "knows" from person to person, specifying the property names and types for knows. Currently, edges do not support specifying primary keys.
 
@@ -43,17 +43,17 @@ Delete a specified Node type. Use IF EXISTS to avoid errors when the type doesn'
 DROP TABLE IF EXISTS person;
 ```
 
-## Drop Rel Type
+## Drop Edge Type
 
-Delete a specified Relationship type. Use IF EXISTS to avoid errors when the type doesn't exist.
+Delete a specified Edge type. Use IF EXISTS to avoid errors when the type doesn't exist.
 
 ```
 DROP TABLE IF EXISTS knows;
 ```
 
-## Rename Node or Rel Type
+## Rename Node or Edge Type
 
-Rename a node or relationship type by `RENAME TO`.
+Rename a node or edge type by `RENAME TO`.
 
 ```
 ALTER TABLE person RENAME TO person2;
@@ -62,7 +62,7 @@ ALTER TABLE knows RENAME TO knows2;
 
 ## Add Property
 
-Add properties to a node or relationship type.
+Add properties to a node or edge type.
 
 ```
 ALTER TABLE person ADD IF NOT EXISTS gender INT32;
@@ -71,7 +71,7 @@ ALTER TABLE knows ADD IF NOT EXISTS info STRING;
 
 ## Drop Property
 
-Remove properties from a node or relationship type.
+Remove properties from a node or edge type.
 
 ```
 ALTER TABLE person DROP IF EXISTS gender;
@@ -80,7 +80,7 @@ ALTER TABLE knows DROP IF EXISTS info;
 
 ## Rename Property
 
-Rename properties of a node or relationship type.
+Rename properties of a node or edge type.
 
 ```
 ALTER TABLE person RENAME age TO age2;

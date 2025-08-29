@@ -1,6 +1,6 @@
 # Match 子句
 
-`MATCH` 子句用于在图数据库中搜索模式。它允许你查找符合特定条件的节点、关系和路径。
+`MATCH` 子句用于在图数据库中搜索模式。它允许你查找符合特定条件的节点、边和路径。
 
 ## 匹配节点
 
@@ -29,9 +29,9 @@ MATCH (p:person) RETURN p;
 
 ### 匹配多个标签的节点
 
-查找具有指定标签中任意一个标签的节点。该查询会返回所有标记为 `person` 或 `software` 的节点。
+查找具有指定标签中任意一个标签的节点。此查询返回所有标记为 `person` 或 `software` 的节点。
 
-**注意**：与 Neo4j 不同，Neug 不支持多标签节点。在 Neo4j 中，`(p:person:software)` 表示同时具有 `person` 和 `software` 标签的节点。而在 Neug 中，这种语法表示具有 `person` 或 `software` 标签的节点的并集。
+**注意**：与 Neo4j 不同，NeuG 不支持多标签节点。在 Neo4j 中，`(p:person:software)` 表示同时具有 `person` 和 `software` 标签的节点。而在 NeuG 中，这种语法表示具有 `person` 或 `software` 标签的节点的并集。
 
 ```cypher
 MATCH (p:person:software) RETURN p;
@@ -58,7 +58,7 @@ MATCH (p:person:software) RETURN p;
 
 ### 匹配任意标签的节点
 
-匹配节点时无需指定标签。Neug 支持不显式声明标签的查询，并在编译期间根据定义的 schema 约束自动推断未知标签。
+匹配节点时无需指定标签。NeuG 支持不显式声明标签的查询，并在编译期间根据定义的 schema 约束自动推断未知标签。
 
 ```cypher
 MATCH (p) RETURN p;
@@ -100,9 +100,9 @@ MATCH (p:person {name: 'marko'}) RETURN p;
 +-------------------------------------------------------+
 ```
 
-## 匹配关系
+## 匹配边
 
-### 匹配单标签关系
+### 匹配单个标签的边
 
 ```cypher
 MATCH (p:person)-[k:knows]->(f:person) RETURN k;
@@ -119,7 +119,7 @@ MATCH (p:person)-[k:knows]->(f:person) RETURN k;
 +------------------------------------------------------------------------------------------------------+
 ```
 
-### 匹配多个标签的关系
+### 匹配多个 Label 的边
 
 ```cypher
 MATCH (p:person)-[k:knows|created]->(f) RETURN k;
@@ -144,7 +144,7 @@ MATCH (p:person)-[k:knows|created]->(f) RETURN k;
 +--------------------------------------------------------------------------------------------------------------------------------------+
 ```
 
-### 匹配任意标签的关系
+### 匹配任意标签的边
 
 ```cypher
 MATCH (p:person)-[k]->(f) RETURN k;
@@ -169,9 +169,9 @@ MATCH (p:person)-[k]->(f) RETURN k;
 +--------------------------------------------------------------------------------------------------------------------------------------+
 ```
 
-## 使用条件过滤关系
+## 带条件匹配边
 
-根据关系的属性来过滤关系。
+根据边的属性过滤边。
 
 ```cypher
 MATCH (p:person)-[k:knows {weight: 1.0}]->(f:person) RETURN k;
@@ -188,11 +188,11 @@ MATCH (p:person)-[k:knows {weight: 1.0}]->(f:person) RETURN k;
 
 ## 匹配重复路径
 
-Neug 支持可变长度的重复路径探索，这是图查询中的常见功能。
+NeuG 支持变长重复路径探索，这是图查询中的常见功能。
 
 ### 匹配可变长度的重复路径
 
-查找具有可变跳数的路径。此查询返回所有由 1 个或 2 个关系组成的路径。
+查找具有可变跳数的路径。此查询返回所有由 1 或 2 条边组成的路径。
 
 ```cypher
 MATCH (p:person)-[k*1..2]->(f) RETURN k;
@@ -200,13 +200,15 @@ MATCH (p:person)-[k*1..2]->(f) RETURN k;
 
 <!-- todo: output is incorrect -->
 
-### 基于起始节点条件匹配重复路径
+### 基于源节点条件匹配重复路径
 
-根据起始节点的属性指定过滤条件。此查询查找从 name 为 'marko' 的节点开始的 1 跳或 2 跳路径。
+根据源节点的属性指定过滤条件。此查询查找从 name 为 'marko' 的节点开始的 1 跳或 2 跳路径。
 
 ```cypher
 MATCH (p:person {name: 'marko'})-[k*1..2]->(f) RETURN k;
 ```
+
+<!-- todo: output is incorrect -->
 
 ### 根据目标条件匹配重复路径
 
@@ -227,7 +229,7 @@ MATCH (p:person {name: 'marko'})-[k*1..2]->(f {name: 'josh'}) RETURN k;
 
 ### 匹配带边界条件的重复路径
 
-参考 [Kuzu 的规范](https://docs.kuzudb.com/cypher/query-clauses/match/#filter-recursive-relationships)，Neug 也支持在路径中的每条边上进行属性过滤。
+参考 [Kuzu 的规范](https://docs.kuzudb.com/cypher/query-clauses/match/#filter-recursive-relationships)，NeuG 也支持在路径中的每条边上进行属性过滤。
 
 此查询要求路径中的每条边都满足约束条件 `r.weight < 1.0`。
 
@@ -240,7 +242,7 @@ Return k;
 
 ### 匹配 Trail 路径
 
-使用 `TRAIL` 选项，你可以进一步限制重复路径，确保没有边被重复访问，从而保证路径扩展迭代能够终止而不会陷入无限循环。
+使用 `TRAIL` 选项，你可以进一步限制重复路径，确保没有边被重复访问，从而保证路径扩展迭代能够终止，避免无限循环。
 
 ```cypher
 MATCH (p:person {name: 'marko'})-[k:knows* TRAIL 1..2]->(f:person)
@@ -267,7 +269,7 @@ RETURN k;
 
 ## Match Patterns
 
-`MATCH` 子句支持复杂的模式匹配，可以将节点、关系和条件以各种方式组合，从而表达复杂的图查询。
+`MATCH` 子句支持复杂的模式匹配，可以将节点、边和条件以各种方式组合，用于表达复杂的图查询。
 
 以下是一些经典的图查询模式，这些模式在各种图查询基准测试中被广泛使用：
 
@@ -326,10 +328,10 @@ OPTIONAL MATCH (b:person)-[:created]->(c:software)
 RETURN a.name, b.name, c.name
 ```
 
-<!-- todo: 当前 pip 包中未包含此功能 -->
+<!-- todo: 此功能尚未包含在当前的 pip 包中 -->
 
-在上述输出结果中，对于每一对 (a, b)：
-- 如果 b 有连接的节点 c，则返回所有 (a, b, c) 三元组。例如，对于 ('marko', 'josh')，对应的三元组为 {('marko', 'josh', 'lop'), ('marko', 'josh', 'ripple')}。
-- 如果 b 没有连接的节点 c，则为当前 (a,b) 对保留一行 c=null 的记录。例如，对于 ('marko', 'vadas')，输出的三元组为 {('marko', 'vadas', null)}。
+在上述输出结果中，对于每个 (a, b) 对：
+- 如果 b 有连接的节点 c，则返回所有 (a, b, c) 三元组。例如，对于 ('marko', 'josh')，对应的三元组是 {('marko', 'josh', 'lop'), ('marko', 'josh', 'ripple')}。
+- 如果 b 没有连接的节点 c，则为当前 (a,b) 对保留一行 c=null 的记录。例如，对于 ('marko', 'vadas')，输出的三元组是 {('marko', 'vadas', null)}。
 
 这就是 OPTIONAL MATCH 子句的主要用途——即使可选模式不匹配，也要保留主 MATCH 中的行。

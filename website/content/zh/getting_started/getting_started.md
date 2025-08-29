@@ -17,22 +17,22 @@ NeuG 有两个独立工作的架构概念：
 
 ### 连接模式
 访问数据库的方式：
-- **Embedded Mode**：直接进程内访问（分析、单用户）
-- **Service Mode**：基于网络的访问（多用户、并发）
+- **Embedded Mode（嵌入式模式）**：直接进程内访问（适用于分析、单用户场景）
+- **Service Mode（服务模式）**：基于网络的访问（适用于多用户、并发场景）
 
-这些模式是独立的——你可以根据使用场景自由组合：
+这些模式彼此独立——你可以根据具体使用场景自由组合：
 
 **常见组合：**
-- **Persistent + Embedded**：大规模数据集的数据科学分析、ETL 处理、图研究
-- **Persistent + Service**：生产级 Web 应用、多用户系统、微服务架构
-- **In-Memory + Embedded**：单元测试、原型开发、临时计算、算法开发
-- **In-Memory + Service**：高速缓存层、基于会话的分析、临时多用户负载
+- **Persistent + Embedded（持久化 + 嵌入式）**：大规模数据集的数据科学分析、ETL 处理、图数据研究
+- **Persistent + Service（持久化 + 服务式）**：生产环境的 Web 应用、多用户系统、微服务架构
+- **In-Memory + Embedded（内存 + 嵌入式）**：单元测试、原型开发、临时计算、算法开发
+- **In-Memory + Service（内存 + 服务式）**：高速缓存层、基于会话的分析、临时多用户负载
 
 ## 数据库存储模式
 
 ### 持久化数据库
-- **使用场景**：生产应用、数据分析、长期存储
-- **持久性**：数据在应用重启后仍然保留
+- **适用场景**：生产应用、数据分析、长期存储
+- **持久性**：数据在应用程序重启后依然保留
 
 ```python
 
@@ -67,7 +67,7 @@ NeuG 提供两种模式来访问你的数据库：
 import neug
 
 # 创建数据库并直接连接
-db = neug.Database(db_path="./neug/db")  # 或者 db_path="" 用于内存模式
+db = neug.Database(db_path="./neug/db")  # 或者 db_path="" 使用内存模式
 conn = db.connect()
 
 print("Connect to NeuG in embedded mode")
@@ -89,7 +89,7 @@ service = db.serve(host="localhost", port=10000)
 print("NeuG service started on localhost:10000")
 ```
 
-**客户端连接:**
+**从客户端连接:**
 ```python
 from neug import Session
 
@@ -101,7 +101,7 @@ session.close()
 
 ## 基本操作
 
-以下操作无论你选择哪种数据库模式（in-memory 或 persistent）和连接模式（embedded 或 service）都是一样的。我们假设这个例子中使用的是 persistent 数据库的 embedded 模式。
+无论你选择哪种数据库模式（内存模式或持久化模式）和连接模式（嵌入式或服务模式），以下操作的工作方式都是相同的。在这个例子中，我们假设使用的是嵌入式模式的持久化数据库。
 
 ```python
 import neug
@@ -113,7 +113,7 @@ conn = db.connect()
 
 ### 创建节点和边
 
-在插入数据之前，你需要先定义图谱 schema，包括节点和边的类型：
+在插入数据之前，你需要先定义图结构的 schema，包括节点类型和边类型：
 
 ```python
 
@@ -268,7 +268,7 @@ result = conn.execute("MATCH (n) RETURN count(n) as node_count")
 print(f"Total nodes: {result.__next__()[0]}") # 应该是 6
 ```
 
-**方法 2: 将数据集加载到现有数据库中**
+**方法 2：将数据集加载到现有数据库中**
 
 ```python
 import neug
@@ -282,7 +282,7 @@ db.load_builtin_dataset(dataset_name="modern_graph")
 
 注意，当将内置数据集导入到现有数据库时，请确保没有 schema 冲突，即不能有标签名为 `person` 和 `software` 的顶点，也不能有标签名为 `knows` 和 `created` 的边。
 
-**方法 3: 使用便捷函数**
+**方法 3：使用便捷函数**
 
 ```python
 from neug.datasets.loader import load_dataset

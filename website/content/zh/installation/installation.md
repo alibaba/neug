@@ -37,7 +37,7 @@ source neug-env/bin/activate
 # 安装最新版本
 pip install neug
 
-# 使用特定 index 安装（如需要）
+# 使用特定索引安装（如需要）
 pip install neug -i https://pypi.org/simple
 
 # 从阿里云镜像安装 (中国用户)
@@ -55,7 +55,7 @@ print(neug.__version__)
 # 创建一个简单的内存数据库
 db = neug.Database(db_path="")
 conn = db.connect()
-print("NeuG 安装成功!")
+print("NeuG installation successful!")
 ```
 
 ## C++ 安装
@@ -76,12 +76,12 @@ make install
 
 ### 验证安装
 
-在你的 cmake 项目中，使用以下命令查找并链接 Neug 库：
+在你的 cmake 项目中，使用以下命令查找并链接 NeuG 库：
 
 ```cmake
 cmake_minimum_required (VERSION 3.10)
 project (
-  NeugTest
+  NeuGTest
   VERSION 0.1
   LANGUAGES C CXX)
 
@@ -95,7 +95,7 @@ include_directories(${NEUG_INCLUDE_DIRS})
 target_link_libraries(test ${NEUG_LIBRARIES})
 ```
 
-一个示例 test.cc 文件如下：
+示例 test.cc 文件内容如下：
 
 ```cpp
 #include <neug/main/neug_db.h>
@@ -119,7 +119,7 @@ cmake .. -DCMAKE_PREFIX_PATH=/opt/neug
 
 ## 命令行界面 (CLI)
 
-NeuG CLI 工具提供了一个用于数据库操作的交互式 shell。
+NeuG CLI 工具随 NeuG 一起提供。
 
 ### 安装
 
@@ -127,17 +127,14 @@ NeuG CLI 工具提供了一个用于数据库操作的交互式 shell。
 
 # 通过 pip 安装（包含 CLI 工具）
 pip install neug
-
-```markdown
-# 或者只安装 CLI
-pip install neug-cli
 ```
 
-### 使用方法
+### 使用
 
 ```bash
 
-# 启动交互式 shell，使用内存数据库
+```markdown
+# 启动交互式 shell 并使用内存数据库
 neug-cli
 
 # 连接到嵌入式本地数据库
@@ -185,9 +182,9 @@ pip install --user neug
 #### 缺少依赖项
 ```bash
 
-```bash
 # Linux: 安装 build essentials
 sudo apt-get install build-essential
+```
 
 # macOS: 安装 Xcode command line tools
 xcode-select --install
@@ -195,6 +192,7 @@ xcode-select --install
 
 #### 版本冲突
 ```bash
+
 # 检查已安装版本
 pip show neug
 

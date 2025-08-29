@@ -1,4 +1,4 @@
-# Syntax Overview
+# Overview
 
 ## What is Cypher?
 
@@ -13,9 +13,9 @@ While SQL is designed for relational databases with tables and rows, Cypher is o
 - **Traversal**: SQL requires complex joins for multi-hop queries; Cypher naturally supports path traversal
 - **Readability**: Cypher's ASCII art syntax makes graph patterns visually intuitive
 
-## What Can You Do with Cypher in Neug?
+## What Can You Do with Cypher in NeuG?
 
-In Neug, we refer to a Cypher query as a **Statement**. A Statement consists of multiple **Clauses**. For example, in the following query:
+In NeuG, we refer to a Cypher query as a **Statement**. A Statement consists of multiple **Clauses**. For example, in the following query:
 
 ```cypher
 MATCH (p:person)
@@ -25,11 +25,11 @@ RETURN p.name as name;
 
 The `MATCH`, `WHERE`, and `RETURN` components are called Clauses, which are the fundamental logical units for graph database operations.
 
-Based on OpenCypher, we have defined a series of Statement syntax for managing Neug's graph database, including:
+Based on OpenCypher, we have defined a series of Statement syntax for managing NeuG's graph database, including:
 
 ### Schema Management (DDL)
 
-Neug primarily targets Schema-Strict graph data scenarios, where every piece of data must conform to predefined schema specifications. This is similar to traditional SQL; however, graph data involves more complex node and relationship structures that must also comply with predefined schema requirements.
+NeuG primarily targets Schema-Strict graph data scenarios, where every piece of data must conform to predefined schema specifications. This is similar to traditional SQL; however, graph data involves more complex node and relationship structures that must also comply with predefined schema requirements.
 
 For example, consider the following schema graph:
 
@@ -79,7 +79,7 @@ MATCH (p:person)-[:follows]->(m:person)
 RETURN p.name;
 ```
 
-We define a set of syntax for creating schema graphs as shown above, which we call DDL (Data Definition Language). All subsequent data updating and query operations must conform to the schema specifications defined by the current DDL. We will introduce this in detail in the [DDL section](ddl_clause.md).
+We define a set of syntax for creating schema graphs as shown above, which we call DDL (Data Definition Language). All subsequent data updating and query operations must conform to the schema specifications defined by the current DDL. We will introduce this in detail in the [DDL section](ddl_clause).
 
 ### Data Query (DQL)
 
@@ -95,13 +95,13 @@ WHERE a.name < c.name
 RETURN a.name, b.name, c.name;
 ```
 
-We refer to each `MATCH`, `WHERE`, and `RETURN` as a Clause, which are the basic units of graph data operations. Here, the `MATCH` operation primarily matches all data that constitutes triangle patterns, `WHERE` further filters the pattern data to guarantee deduplication, and `RETURN` operations perform projection of names and output the final results. The `MATCH` operation mainly completes graph pattern matching, while `WHERE`/`RETURN` operations primarily perform relational operations similar to SQL. These clauses will be introduced in detail in [DQL section](query_clauses.md).
+We refer to each `MATCH`, `WHERE`, and `RETURN` as a Clause, which are the basic units of graph data operations. Here, the `MATCH` operation primarily matches all data that constitutes triangle patterns, `WHERE` further filters the pattern data to guarantee deduplication, and `RETURN` operations perform projection of names and output the final results. The `MATCH` operation mainly completes graph pattern matching, while `WHERE`/`RETURN` operations primarily perform relational operations similar to SQL. These clauses will be introduced in detail in [DQL section](query_clauses).
 
-To further ensure the legality of Clause operations on data, we have defined the data type boundaries that Neug supports, as well as expression operations based on these data types. These will be introduced in detail in the [Data Types](data_types.md) and [Expressions sections](expression.md).
+To further ensure the legality of Clause operations on data, we have defined the data type boundaries that NeuG supports, as well as expression operations based on these data types. These will be introduced in detail in the [Data Types](data_types) and [Expressions sections](expression).
 
 ### Data Management (DML)
 
-In addition to DQL and DDL, Neug also supports data update functionality, which we refer to as DML (Data Manipulation Language). DML operations can be performed through bulk loadings or incremental updates.
+In addition to DQL and DDL, NeuG also supports data update functionality, which we refer to as DML (Data Manipulation Language). DML operations can be performed through bulk loadings or incremental updates.
 
 **Bulk import example:**
 ```cypher
@@ -132,4 +132,4 @@ MATCH (p:person {name: 'Bob'})
 DELETE p;
 ```
 
-We will introduce these DML operations in detail in the [DML section](dml_clause.md).
+We will introduce these DML operations in detail in the [DML section](dml_clause).

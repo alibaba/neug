@@ -4,7 +4,7 @@ WITH is primarily used for further projection or aggregation of current data. Ne
 
 ## Aggregation
 
-Aggregation is similar to the GROUP BY operation in SQL, which groups current data by properties and performs corresponding operations of aggregate functions on each group's data. Neug currently supports mainstream aggregation functions, including:
+Aggregation is similar to the GROUP BY operation in SQL, which groups current data by properties and performs corresponding operations of aggregate functions on each group's data. NeuG currently supports mainstream aggregation functions, including:
 - COUNT
 - COUNT_STAR
 - COLLECT
@@ -44,7 +44,7 @@ Match (a:person) With label(a) as label, count(a.name) as cnt Where cnt > 2 Retu
 
 Another common usage of WITH is to further project current results by columns, which is equivalent to Column Pruning in SQL, outputting only the columns needed for subsequent queries.
 
-## Project Vertex Data
+## Project Node Data
 
 ```
 Match (a:person {name: 'marko'})-[:knows]->(b:person)
@@ -55,7 +55,7 @@ Return c.name;
 
 <!-- todo: multiple match is not included in current package -->
 
-## Project Vertex/Edge Data
+## Project Node/Edge Data
 
 ```
 Match (a:person {name: 'marko'})-[k:knows]->(b:person)

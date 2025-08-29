@@ -1,12 +1,12 @@
-# Neug 数据类型
+# 数据类型
 
-本文档提供了 Neug 支持的所有数据类型的全面概述。
+本文档提供了 NeuG 支持的所有数据类型的全面概述。
 
 ## 数据类型汇总表
 
-下表展示了 Neug 支持的所有数据类型及其与 Neo4j 的差异。
+下表展示了 NeuG 支持的所有数据类型及其与 Neo4j 的差异。
 
-| 类别 | 类型 | Neug 示例 | Neo4j 示例 |
+| 类别 | 类型 | NeuG 示例 | Neo4j 示例 |
 |----------|------|--------------|---------------|
 | Primitive | INT32 | `Return CAST(42, 'INT32')` | `Return 42` |
 | Primitive | UINT32 | `Return CAST(42, 'UINT32')` | 不支持 |
@@ -27,31 +27,31 @@
 
 ## 详细介绍
 
-### 原始类型
+### 基本类型
 
 #### INT32
 - **描述**: 32 位有符号整数类型
-- **范围**: [2,147,483,648, 2,147,483,647]
+- **取值范围**: [2,147,483,648, 2,147,483,647]
 - **查询示例**: `Return CAST(42, 'INT32') as int32_value;`
 
 #### UINT32
 - **描述**: 32 位无符号整数类型
-- **范围**: [0, 4,294,967,295]
+- **取值范围**: [0, 4,294,967,295]
 - **查询示例**: `RETURN CAST(42, 'UINT32') AS uint32_value;`
 
 #### INT64
 - **描述**: 64 位有符号整数类型，整数值的默认类型
-- **范围**: [-9,223,372,036,854,775,808, 9,223,372,036,854,775,807]
+- **取值范围**: [-9,223,372,036,854,775,808, 9,223,372,036,854,775,807]
 - **查询示例**: `RETURN 9223372036854775807 AS int64_value;`
 
 #### UINT64
 - **描述**: 64 位无符号整数类型
-- **范围**: [0, 18,446,744,073,709,551,615]
+- **取值范围**: [0, 18,446,744,073,709,551,615]
 - **查询示例**: `RETURN CAST(18446744073709551615, 'UINT64') AS uint64_value;`
 
 #### FLOAT
 - **描述**: 单精度浮点数
-- **精度**: ~7 位十进制数字
+- **精度**: 约 7 位十进制数字
 - **查询示例**: `RETURN CAST(3.14, 'FLOAT') AS float_value;`
 
 #### DOUBLE
@@ -97,58 +97,58 @@
 - **Description**: 有序的异构类型值集合
 - **Query Example**: `RETURN [1, 2, 3] AS list_value;`
 
-下表展示了 LIST 支持的所有组件类型：
+下表展示了 LIST 所支持的所有组件类型：
 
-| 类别 | 类型 | 示例 |
+| 分类 | 类型 | 示例 |
 |----------|------|---------|
 | 数值型 | INT32, INT64, UINT32, UINT64, DOUBLE, FLOAT | `RETURN [1, 2, 3.0];` |
-| 字符串型 | VARCHAR | `RETURN ['marko', 'josh'];` |
-| 日期型 | DATE, DATETIME | `RETURN [date('2011-01-25'), timestamp('2011-01-25 11:20:33')];` |
+| 字符串 | VARCHAR | `RETURN ['marko', 'josh'];` |
+| 日期时间 | DATE, DATETIME | `RETURN [date('2011-01-25'), timestamp('2011-01-25 11:20:33')];` |
 | 布尔型 | BOOL | `RETURN [true, false];` |
 | 复合型 | LIST | `RETURN [[1, 2], [4, 5]];` |
 
-**LIST 组件类型重要说明**：
+**关于 LIST 组件类型的重要说明**：
 
-Neug 通过 tuple 数据类型支持 list，这意味着复合类型可以是异构的。以下是一些示例：
+NeuG 通过 tuple 数据类型来支持 list，这意味着复合类型可以是异构的。以下是一些示例：
 
-在单个 list 中混合不同的 primitive 类型：
+在单个 list 中混合不同的基本类型：
 ```cypher
 RETURN ['marko', 2];
 ```
 
-将节点中不同属性类型组合到 list 中：
+将节点的不同属性类型组合到一个 list 中：
 ```cypher
 MATCH (n:person) RETURN [n.name, n.age];
 ```
 
-支持嵌套 list 结构：
+支持嵌套的 list 结构：
 ```cypher
 MATCH (n:person) RETURN [["name", n.name], ["age", n.age]];
 ```
 
 **关键技术细节**：
-- Neug 中的 list 可以包含不同数据类型的元素（异构 list）
+- NeuG 中的 list 可以包含不同数据类型的元素（异构 list）
 - 这是通过内部 tuple 数据类型支持实现的
-- 在可能的情况下，系统会自动处理类型转换
-- 完全支持嵌套 list 以构建复杂数据结构
-- 系统在允许 list 组成灵活性的同时保持类型安全性
+- 系统会在可能的情况下自动处理类型转换
+- 完全支持嵌套 list 以构建复杂的数据结构
+- 系统在允许灵活组合 list 的同时保持类型安全性
 
-### Pattern Types
+### 图类型
 
 #### NODE
-- **Description**: 表示图中的一个顶点
-- **Internal Structure**: 包含 `_ID` (内部标识符)、`_LABEL` (节点标签) 和属性字段
-- **Query Example**: `MATCH (n:person) RETURN n AS node_value;`
-- **Neug Format**: `{_ID: 0, _LABEL: person, id: 1, name: marko, age: 29}`
+- **描述**: 表示图中的一个节点
+- **内部结构**（顺序无关）: `_ID`（内部标识符）、`_LABEL`（节点类型的标识）以及属性字段
+- **查询示例**: `MATCH (n:person) RETURN n AS node_value;`
+- **NeuG 格式**: `{_ID: 0, _LABEL: person, id: 1, name: marko, age: 29}`
 
-#### REL (Relationship)
-- **Description**: 表示图中的一条边
-- **Internal Structure**: 包含 `_SRC` (源节点 ID 和 LABEL)、`_DST` (目标节点 ID 和 LABEL)、`_ID` (关系内部标识符)、`_LABEL` (关系类型) 和属性字段
-- **Query Example**: `MATCH ()-[r:knows]->() RETURN r AS rel_value;`
-- **Neug Format**: `{_ID: 2, _LABEL: knows, _SRC_LABEL: person, _DST_LABEL: person, _SRC_ID: 0, _DST_ID: 2, weight: 1.0}`
+#### REL (Edge)
+- **描述**: 表示图中的一条边
+- **内部结构**（顺序无关）: `_ID`（边的内部标识符）、`_LABEL`（边类型的标识）、`_SRC_ID`（源节点的内部标识符）、`_SRC_LABEL`（源节点的标签）、`_DST_ID`（目标节点的内部标识符）、`_DST_LABEL`（目标节点的标签）以及属性字段
+- **查询示例**: `MATCH ()-[r:knows]->() RETURN r AS rel_value;`
+- **NeuG 格式**: `{_ID: 2, _LABEL: knows, _SRC_ID: 0, _SRC_LABEL: person, _DST_ID: 2, _DST_LABEL: person, weight: 1.0}`
 
-#### 重复路径 (REPEATED PATH)
-- **描述**: 表示图中由重复边组成的路径
-- **内部结构**: 包含路径中的每个节点和关系，包括起始节点和目标节点
-- **查询示例**: `MATCH (a:person)-[p*1..2]->(c) RETURN p AS path_value;`
-- **Neug 格式**: `{_ID: 0, _LABEL: person}, {_ID: 4294967298, _LABEL: created, _SRC_LABEL: person, _DST_LABEL: person, _SRC_ID: 0, _DST_ID: 2}, {_ID: 2, _LABEL: person}, {_ID: 4297064449, _LABEL: created, _SRC_LABEL: person, _DST_LABEL: software, _SRC_ID: 2, _DST_ID: 72057594037927937}, {_ID: 72057594037927937, _LABEL: software}`
+#### PATH
+- **Description**: 表示由节点和边交替组成的图路径。
+- **Internal Structure**: 路径上的节点和边的**有序序列**，包括起始节点和终止节点。
+- **Query Example**: `MATCH (a:person)-[p*1..2]->(c) RETURN p AS path_value;`
+- **NeuG Format**: `{_ID: 0, _LABEL: person}, {_ID: 4294967298, _LABEL: created, _SRC_LABEL: person, _DST_LABEL: person, _SRC_ID: 0, _DST_ID: 2}, {_ID: 2, _LABEL: person}, {_ID: 4297064449, _LABEL: created, _SRC_LABEL: person, _DST_LABEL: software, _SRC_ID: 2, _DST_ID: 72057594037927937}, {_ID: 72057594037927937, _LABEL: software}`

@@ -1,6 +1,6 @@
 # Null Operator
 
-Neug supports `IS NULL` and `IS NOT NULL` to filter NULL values generated during computation.
+NeuG supports `IS NULL` and `IS NOT NULL` to filter NULL values generated during computation.
 
 Operator | Description
 ---------|------------

@@ -17,7 +17,7 @@ db = Database(db_path="")
 NeuG 数据库支持两种访问模式：`read_write` 和 `read_only`。
 
 - **read_write**：以 **read_write** 模式打开目录时，会通过锁定该目录来授予当前进程独占访问权限，从而防止其他进程并发访问。
-- **read_only**：当以 **read_only** 模式打开时，多个进程可以同时以 **read_only** 模式访问该目录。
+- **read_only**：以 **read_only** 模式打开时，多个进程可以同时以 **read_only** 模式访问该目录。
 
 需要注意的是，内存数据库无法以 `read_only` 模式打开。
 

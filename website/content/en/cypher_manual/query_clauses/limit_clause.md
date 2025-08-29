@@ -1,6 +1,6 @@
 # Limit Clause
 
-Limit is used to control the number of output results. In addition to being used alone, it can also be used together with Order BY for TopK operations. Neug currently supports two types of expressions in Limit: 1. A single Integer constant. 2. Arithmetic expressions with only constant parameters.
+Limit is used to control the number of output results. In addition to being used alone, it can also be used together with Order BY for TopK operations. NeuG currently supports two types of expressions in Limit: 1. A single Integer constant. 2. Arithmetic expressions with only constant parameters.
 
 ## Limit with Integer Value
 

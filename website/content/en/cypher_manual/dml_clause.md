@@ -1,14 +1,15 @@
 # DML Clause
 
-DML (Data Manipulation Language) provides operations for data insertion, deletion, and modification in graph databases. Neug supports both bulk data operations (such as COPY FROM) and individual data operations (such as CREATE, SET, and DELETE). This document provides examples and explanations for each operation type.
+DML (Data Manipulation Language) provides operations for data insertion, deletion, and modification in graph databases. NeuG supports both bulk data operations (such as COPY FROM) and individual data operations (such as CREATE, SET, and DELETE). This document provides examples and explanations for each operation type.
 
 ## COPY FROM
 
-The COPY FROM command allows you to bulk load data from external data sources and construct vertices and edges in the graph storage. Currently supported data sources include CSV formats.
+The COPY FROM command allows you to bulk load data from external data sources and construct nodes and edges in the graph storage. 
+Refer to [Import Data](../user_guide/import_data.md) for more details.
 
-### Loading Vertex Data
+### Loading Node Data
 
-Load person vertex data from a CSV file. Each row in the CSV maps to a vertex, with columns corresponding to the vertex properties defined in the person schema.
+Load person node data from a CSV file. Each row in the CSV maps to a node, with columns corresponding to the node properties defined in the person schema.
 
 **person.csv:**
 ```
@@ -26,7 +27,7 @@ COPY person FROM "person.csv"
 
 ### Loading Edge Data
 
-Load knows edge data from a CSV file. The first two columns specify the primary keys of source and target vertex, while additional columns define edge properties.
+Load knows edge data from a CSV file. The first two columns specify the primary keys of source and target node, while additional columns define edge properties.
 
 **knows.csv:**
 ```
@@ -43,27 +44,27 @@ COPY knows FROM "knows.csv"
 
 ## CREATE
 
-The CREATE clause is used to insert new vertices and relationships into the graph.
+The CREATE clause is used to insert new nodes and edges into the graph.
 
-### Creating Vertices
+### Creating Nodes
 
-Create new vertices with specified properties. If a vertex with the same primary key already exists, an error will be reported.
+Create new nodes with specified properties. If a node with the same primary key already exists, an error will be reported.
 
 ```cypher
 CREATE (a:person {name: 'taylor', age: 25}), (b:person {name: 'julie', age: 30})
 ```
 
-### Creating Vertices and Relationships
+### Creating Nodes and Edges
 
-Create vertices and relationships in a single statement. This is useful when you need to create both the vertices and the relationship between them.
+Create nodes and edges in a single statement. This is useful when you need to create both the nodes and the edge between them.
 
 ```cypher
 CREATE (a:person {name: 'mars', age: 28})-[:knows {weight: 16.0}]->(b:person {name: 'jennie', age: 26})
 ```
 
-### Creating Relationships Between Existing Vertices
+### Creating Edges Between Existing Nodes
 
-First match existing vertices, then create a relationship between them.
+First match existing nodes, then create an edge between them.
 
 ```cypher
 MATCH (a:person {name: 'taylor'}), (b:person {name: 'julie'})
@@ -72,11 +73,11 @@ CREATE (a)-[:knows {weight: 20.0}]->(b)
 
 ## SET
 
-The SET clause is used to update properties of existing vertices and relationships.
+The SET clause is used to update properties of existing nodes and edges.
 
-### Updating Vertex Properties
+### Updating Node Properties
 
-Update properties of a specific vertex.
+Update properties of a specific node.
 
 ```cypher
 MATCH (a:person)
@@ -85,9 +86,9 @@ SET a.age = 37, a.city = 'New York'
 RETURN a.*
 ```
 
-### Updating Relationship Properties
+### Updating Edge Properties
 
-Update properties of a specific relationship.
+Update properties of a specific edge.
 
 ```cypher
 MATCH (a:person)-[k:knows]->(b:person)
@@ -98,11 +99,11 @@ RETURN k.*
 
 ## DELETE
 
-The DELETE clause is used to remove vertices and relationships from the graph.
+The DELETE clause is used to remove nodes and edges from the graph.
 
-### Deleting Vertices
+### Deleting Nodes
 
-Delete a vertex from the graph. By default, you can only delete vertices that have no relationships to avoid creating dangling edges.
+Delete a node from the graph. By default, you can only delete nodes that have no edge to avoid creating dangling edges.
 
 ```cypher
 MATCH (a:person)
@@ -110,9 +111,9 @@ WHERE a.name = 'marko'
 DELETE a
 ```
 
-### Deleting Vertices with Relationships (DETACH DELETE)
+### Deleting Nodes with Edges (DETACH DELETE)
 
-Use DETACH DELETE to forcibly delete a vertex and all its relationships. This prevents errors when trying to delete vertices that have existing relationships.
+Use DETACH DELETE to forcibly delete a node and all its attached edges. This prevents errors when trying to delete nodes that have existing edges.
 
 ```cypher
 MATCH (a:person)
@@ -120,9 +121,9 @@ WHERE a.name = 'marko'
 DETACH DELETE a
 ```
 
-### Deleting Relationships
+### Deleting Edges
 
-Delete specific relationships between vertices while keeping the vertices intact.
+Delete specific edges between nodes while keeping the nodes.
 
 ```cypher
 MATCH (a:person)-[k:knows]->(b:person)

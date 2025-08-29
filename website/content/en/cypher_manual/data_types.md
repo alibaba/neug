@@ -1,12 +1,12 @@
-# Neug Data Types
+# Data Types
 
-This document provides a comprehensive overview of all data types supported by Neug.
+This document provides a comprehensive overview of all data types supported by NeuG.
 
 ## Data Types Summary Table
 
-The following table showcases all data types supported by Neug and their differences with Neo4j.
+The following table showcases all data types supported by NeuG and their differences with Neo4j.
 
-| Category | Type | Neug Example | Neo4j Example |
+| Category | Type | NeuG Example | Neo4j Example |
 |----------|------|--------------|---------------|
 | Primitive | INT32 | `Return CAST(42, 'INT32')` | `Return 42` |
 | Primitive | UINT32 | `Return CAST(42, 'UINT32')` | unsupported |
@@ -109,7 +109,7 @@ The following table shows all Component Types that LIST can support:
 
 **Important Note on LIST Component Types**: 
 
-Neug supports lists through tuple data types, meaning composite types can be heterogeneous. Here are some examples:
+NeuG supports lists through tuple data types, meaning composite types can be heterogeneous. Here are some examples:
 
 Mixing different primitive types in a single list:
 ```cypher
@@ -127,28 +127,28 @@ MATCH (n:person) RETURN [["name", n.name], ["age", n.age]];
 ```
 
 **Key Technical Details:**
-- Lists in Neug can contain elements of different data types (heterogeneous lists)
+- Lists in NeuG can contain elements of different data types (heterogeneous lists)
 - This is achieved through internal tuple data type support
 - Type conversion is handled automatically when possible
 - Nested lists are fully supported for complex data structures
 - The system maintains type safety while allowing flexibility in list composition
 
-### Pattern Types
+### Graph Types
 
 #### NODE
-- **Description**: Represents a vertex in the graph
-- **Internal Structure**: Contains `_ID` (internal identifier), `_LABEL` (node label) and property fields
+- **Description**: Represents a node in the graph
+- **Internal Structure** (order is insignificant): `_ID` (internal identifier), `_LABEL` (indication of node type) and property fields
 - **Query Example**: `MATCH (n:person) RETURN n AS node_value;`
-- **Neug Format**: `{_ID: 0, _LABEL: person, id: 1, name: marko, age: 29}`
+- **NeuG Format**: `{_ID: 0, _LABEL: person, id: 1, name: marko, age: 29}`
 
-#### REL (Relationship)
+#### REL (Edge)
 - **Description**: Represents an edge in the graph
-- **Internal Structure**: Contains `_SRC` (source node ID and LABEL), `_DST` (destination node ID and LABEL), `_ID` (relationship internal identifier), `_LABEL` (relationship type) and properties fields
+- **Internal Structure** (order is insignificant): `_ID` (edge internal identifier),  `_LABEL` (indication of edge type), `_SRC_ID` (internal identifier of source node), `_SRC_LABEL` (label of source node), `_DST_ID` (internal identifier of destination node), `_DST_LABEL` (label of destination node), and property fields
 - **Query Example**: `MATCH ()-[r:knows]->() RETURN r AS rel_value;`
-- **Neug Format**: `{_ID: 2, _LABEL: knows, _SRC_LABEL: person, _DST_LABEL: person, _SRC_ID: 0, _DST_ID: 2, weight: 1.0}`
+- **NeuG Format**: `{_ID: 2, _LABEL: knows, _SRC_ID: 0, _SRC_LABEL: person, _DST_ID: 2, _DST_LABEL: person, weight: 1.0}`
 
-#### REPEATED PATH
-- **Description**: Represents a path composed of repeated edges in the graph
-- **Internal Structure**: Contains each node and relationship alongside the path, including the start and destination nodes
+#### PATH
+- **Description**:  Represents a graph path formed by alternating nodes and edges.
+- **Internal Structure**: An **ordered sequence** of nodes and edges along the path, including the starting and ending nodes.
 - **Query Example**: `MATCH (a:person)-[p*1..2]->(c) RETURN p AS path_value;`
-- **Neug Format**: `{_ID: 0, _LABEL: person}, {_ID: 4294967298, _LABEL: created, _SRC_LABEL: person, _DST_LABEL: person, _SRC_ID: 0, _DST_ID: 2}, {_ID: 2, _LABEL: person}, {_ID: 4297064449, _LABEL: created, _SRC_LABEL: person, _DST_LABEL: software, _SRC_ID: 2, _DST_ID: 72057594037927937}, {_ID: 72057594037927937, _LABEL: software}`
+- **NeuG Format**: `{_ID: 0, _LABEL: person}, {_ID: 4294967298, _LABEL: created, _SRC_LABEL: person, _DST_LABEL: person, _SRC_ID: 0, _DST_ID: 2}, {_ID: 2, _LABEL: person}, {_ID: 4297064449, _LABEL: created, _SRC_LABEL: person, _DST_LABEL: software, _SRC_ID: 2, _DST_ID: 72057594037927937}, {_ID: 72057594037927937, _LABEL: software}`
