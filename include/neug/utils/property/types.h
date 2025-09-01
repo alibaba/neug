@@ -62,6 +62,10 @@ inline bool operator<(const EmptyType& lhs, const EmptyType& rhs) {
 
 namespace gs {
 
+using timestamp_t = uint32_t;
+using vid_t = uint32_t;
+using label_t = uint8_t;
+
 // primitive types
 static constexpr const char* DT_UNSIGNED_INT8 = "DT_UNSIGNED_INT8";
 static constexpr const char* DT_UNSIGNED_INT16 = "DT_UNSIGNED_INT16";
@@ -89,6 +93,12 @@ enum class StorageStrategy {
   kNone,
   kMem,
   kDisk,
+};
+
+enum class EdgeStrategy {
+  kNone,
+  kSingle,
+  kMultiple,
 };
 
 namespace impl {
@@ -1610,6 +1620,23 @@ static const TimeStamp DEFAULT_TIME_STAMP_VALUE = TimeStamp(0);
 
 namespace std {
 
+inline ostream& operator<<(ostream& os, const gs::EdgeStrategy& strategy) {
+  switch (strategy) {
+  case gs::EdgeStrategy::kNone:
+    os << "None";
+    break;
+  case gs::EdgeStrategy::kSingle:
+    os << "Single";
+    break;
+  case gs::EdgeStrategy::kMultiple:
+    os << "Multiple";
+    break;
+  default:
+    os << "Unknown";
+    break;
+  }
+  return os;
+}
 inline ostream& operator<<(ostream& os, const gs::Date& dt) {
   os << dt.to_string();
   return os;

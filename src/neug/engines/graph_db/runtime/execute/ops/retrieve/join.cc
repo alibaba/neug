@@ -73,11 +73,10 @@ class JoinOpr : public IReadOperator {
     if (!right_ctx) {
       return right_ctx;
     }
-    if (timer != nullptr)
-      [[unlikely]] {
-        timer->add_child(std::move(left_timer));
-        timer->add_child(std::move(right_timer));
-      }
+    if (timer != nullptr) [[unlikely]] {
+      timer->add_child(std::move(left_timer));
+      timer->add_child(std::move(right_timer));
+    }
     return Join::join(std::move(left_ctx.value()), std::move(right_ctx.value()),
                       params_);
   }

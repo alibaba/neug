@@ -20,7 +20,7 @@
 
 #include "neug/engines/graph_db/database/graph_db_session.h"
 #include "neug/engines/graph_db/database/read_transaction.h"
-#include "neug/storages/rt_mutable_graph/schema.h"
+#include "neug/storages/graph/schema.h"
 
 namespace gs {
 class GraphDB;

@@ -17,7 +17,6 @@
 #include <tuple>  // for tuple
 #include <vector>
 
-#include "neug/storages/rt_mutable_graph/types.h"
 #include "neug/utils/property/types.h"
 #ifdef USE_SYSTEM_PROTOBUF
 #include "neug/generated/proto/plan/basic_type.pb.h"

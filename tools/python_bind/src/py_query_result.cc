@@ -15,7 +15,7 @@
 
 #include "py_query_result.h"
 #include <datetime.h>
-#include "neug/storages/rt_mutable_graph/schema.h"
+#include "neug/storages/graph/schema.h"
 #include "neug/utils/exception/exception.h"
 #include "neug/utils/property/types.h"
 

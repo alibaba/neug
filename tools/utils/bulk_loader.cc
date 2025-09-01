@@ -27,11 +27,11 @@
 
 #include "cxxopts/cxxopts.hpp"
 #include "libgrape-lite/grape/util.h"
-#include "neug/storages/rt_mutable_graph/loader/i_fragment_loader.h"
-#include "neug/storages/rt_mutable_graph/loader/loader_factory.h"
-#include "neug/storages/rt_mutable_graph/loading_config.h"
-#include "neug/storages/rt_mutable_graph/mutable_property_fragment.h"
-#include "neug/storages/rt_mutable_graph/schema.h"
+#include "neug/storages/graph/property_graph.h"
+#include "neug/storages/graph/schema.h"
+#include "neug/storages/loader/i_fragment_loader.h"
+#include "neug/storages/loader/loader_factory.h"
+#include "neug/storages/loader/loading_config.h"
 #include "neug/utils/result.h"
 
 static std::string work_dir;

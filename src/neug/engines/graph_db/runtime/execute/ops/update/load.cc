@@ -27,8 +27,7 @@
 #include "neug/engines/graph_db/runtime/common/context.h"
 #include "neug/engines/graph_db/runtime/common/graph_interface.h"
 #include "neug/engines/graph_db/runtime/common/operators/update/load.h"
-#include "neug/storages/rt_mutable_graph/schema.h"
-#include "neug/storages/rt_mutable_graph/types.h"
+#include "neug/storages/graph/schema.h"
 #include "neug/utils/property/types.h"
 
 namespace gs {

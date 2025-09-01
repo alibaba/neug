@@ -35,7 +35,7 @@
 #include "libgrape-lite/grape/serialization/out_archive.h"
 #include "libgrape-lite/grape/types.h"
 #include "libgrape-lite/grape/utils/concurrent_queue.h"
-#include "neug/storages/rt_mutable_graph/file_names.h"
+#include "neug/storages/file_names.h"
 #include "neug/utils/mmap_array.h"
 #include "neug/utils/property/types.h"
 

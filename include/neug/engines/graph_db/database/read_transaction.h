@@ -32,12 +32,11 @@
 #include <vector>
 
 #include "neug/engines/graph_db/database/transaction_utils.h"
-#include "neug/storages/rt_mutable_graph/csr/immutable_csr.h"
-#include "neug/storages/rt_mutable_graph/csr/mutable_csr.h"
-#include "neug/storages/rt_mutable_graph/csr/nbr.h"
-#include "neug/storages/rt_mutable_graph/mutable_property_fragment.h"
-#include "neug/storages/rt_mutable_graph/schema.h"
-#include "neug/storages/rt_mutable_graph/types.h"
+#include "neug/storages/csr/immutable_csr.h"
+#include "neug/storages/csr/mutable_csr.h"
+#include "neug/storages/csr/nbr.h"
+#include "neug/storages/graph/property_graph.h"
+#include "neug/storages/graph/schema.h"
 #include "neug/utils/property/column.h"
 #include "neug/utils/property/table.h"
 #include "neug/utils/property/types.h"

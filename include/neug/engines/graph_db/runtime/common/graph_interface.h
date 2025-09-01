@@ -19,7 +19,7 @@
 #include "neug/engines/graph_db/database/insert_transaction.h"
 #include "neug/engines/graph_db/database/read_transaction.h"
 #include "neug/engines/graph_db/database/update_transaction.h"
-#include "neug/storages/rt_mutable_graph/types.h"
+#include "neug/utils/property/types.h"
 
 namespace gs {
 

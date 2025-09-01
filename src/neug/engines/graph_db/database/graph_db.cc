@@ -44,7 +44,7 @@
 #include "neug/engines/graph_db/runtime/execute/plan_parser.h"
 #include "neug/engines/graph_db/runtime/utils/cypher_runner_impl.h"
 #include "neug/engines/graph_db/runtime/utils/opr_timer.h"
-#include "neug/storages/rt_mutable_graph/file_names.h"
+#include "neug/storages/file_names.h"
 #include "neug/utils/allocators.h"
 #include "neug/utils/app_utils.h"
 

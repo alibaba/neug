@@ -1,6 +1,7 @@
-
-add_subdirectory(rt_mutable_graph)
-set(NEUG_STORAGES_OBJFILES $<TARGET_OBJECTS:neug_rt_mutable_graph>)
+add_subdirectory(graph)
+add_subdirectory(csr)
+add_subdirectory(loader)
+set(NEUG_STORAGES_OBJFILES $<TARGET_OBJECTS:neug_rt_mutable_graph> $<TARGET_OBJECTS:neug_storages_csr> $<TARGET_OBJECTS:neug_storages_loader>)
 
 if (BUILD_ALL_IN_ONE)
     set(ALL_OBJECT_FILES ${ALL_OBJECT_FILES} ${NEUG_STORAGES_OBJFILES} PARENT_SCOPE)

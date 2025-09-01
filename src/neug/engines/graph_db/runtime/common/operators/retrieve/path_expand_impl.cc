@@ -15,7 +15,7 @@
 
 #include "neug/engines/graph_db/runtime/common/operators/retrieve/path_expand_impl.h"
 
-#include "neug/storages/rt_mutable_graph/csr/mutable_csr.h"
+#include "neug/storages/csr/mutable_csr.h"
 #include "neug/utils/property/types.h"
 
 namespace grape {

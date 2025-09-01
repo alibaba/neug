@@ -20,7 +20,7 @@
 #include "libgrape-lite/grape/serialization/in_archive.h"
 #include "libgrape-lite/grape/serialization/out_archive.h"
 #include "neug/engines/graph_db/database/wal/wal.h"
-#include "neug/storages/rt_mutable_graph/mutable_property_fragment.h"
+#include "neug/storages/graph/property_graph.h"
 #include "neug/utils/property/types.h"
 
 namespace gs {

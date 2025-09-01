@@ -17,8 +17,8 @@
 #define ENGINES_GRAPH_DB_DATABASE_SINGLE_EDGE_INSERT_TRANSACTION_H_
 
 #include "libgrape-lite/grape/serialization/in_archive.h"
-#include "neug/storages/rt_mutable_graph/types.h"
 #include "neug/utils/allocators.h"
+#include "neug/utils/property/types.h"
 
 namespace gs {
 

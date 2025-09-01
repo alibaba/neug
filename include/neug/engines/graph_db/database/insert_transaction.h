@@ -26,8 +26,7 @@
 #include <vector>
 
 #include "libgrape-lite/grape/serialization/in_archive.h"
-#include "neug/storages/rt_mutable_graph/schema.h"
-#include "neug/storages/rt_mutable_graph/types.h"
+#include "neug/storages/graph/schema.h"
 #include "neug/utils/allocators.h"
 #include "neug/utils/property/types.h"
 

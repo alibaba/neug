@@ -22,7 +22,6 @@
 #include <tuple>
 #include <utility>
 
-#include "neug/storages/rt_mutable_graph/types.h"
 #include "neug/utils/property/types.h"
 
 namespace gs {

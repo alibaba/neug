@@ -25,12 +25,11 @@
 #include <vector>
 
 #include "arrow/util/value_parsing.h"
-#include "neug/storages/rt_mutable_graph/csr/csr_base.h"
-#include "neug/storages/rt_mutable_graph/loader/abstract_arrow_fragment_loader.h"
-#include "neug/storages/rt_mutable_graph/loader/loader_utils.h"
-#include "neug/storages/rt_mutable_graph/mutable_property_fragment.h"
-#include "neug/storages/rt_mutable_graph/schema.h"
-#include "neug/storages/rt_mutable_graph/types.h"
+#include "neug/storages/csr/csr_base.h"
+#include "neug/storages/graph/property_graph.h"
+#include "neug/storages/graph/schema.h"
+#include "neug/storages/loader/abstract_arrow_fragment_loader.h"
+#include "neug/storages/loader/loader_utils.h"
 #include "neug/utils/arrow_utils.h"
 #include "neug/utils/property/types.h"
 

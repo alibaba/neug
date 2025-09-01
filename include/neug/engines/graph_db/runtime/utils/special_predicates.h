@@ -19,7 +19,7 @@
 
 #include "neug/engines/graph_db/runtime/common/graph_interface.h"
 #include "neug/engines/graph_db/runtime/common/rt_any.h"
-#include "neug/storages/rt_mutable_graph/types.h"
+#include "neug/utils/property/types.h"
 #ifdef USE_SYSTEM_PROTOBUF
 #include "neug/generated/proto/plan/expr.pb.h"
 #else

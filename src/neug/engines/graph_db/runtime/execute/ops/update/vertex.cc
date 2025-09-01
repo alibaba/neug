@@ -36,8 +36,8 @@
 #include "neug/engines/graph_db/runtime/utils/predicates.h"
 #include "neug/engines/graph_db/runtime/utils/utils.h"
 #include "neug/engines/graph_db/runtime/utils/var.h"
-#include "neug/storages/rt_mutable_graph/types.h"
 #include "neug/utils/leaf_utils.h"
+#include "neug/utils/property/types.h"
 #ifdef USE_SYSTEM_PROTOBUF
 #include "neug/generated/proto/plan/algebra.pb.h"
 #include "neug/generated/proto/plan/expr.pb.h"

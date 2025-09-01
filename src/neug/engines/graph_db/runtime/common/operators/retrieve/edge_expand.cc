@@ -25,7 +25,7 @@
 #include "neug/engines/graph_db/runtime/common/operators/retrieve/edge_expand_impl.h"
 #include "neug/engines/graph_db/runtime/utils/opr_timer.h"
 #include "neug/engines/graph_db/runtime/utils/special_predicates.h"
-#include "neug/storages/rt_mutable_graph/csr/mutable_csr.h"
+#include "neug/storages/csr/mutable_csr.h"
 
 namespace gs {
 

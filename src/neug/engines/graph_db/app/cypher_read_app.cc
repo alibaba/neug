@@ -19,7 +19,7 @@
 #include "neug/engines/graph_db/runtime/common/operators/retrieve/sink.h"
 #include "neug/engines/graph_db/runtime/execute/plan_parser.h"
 #include "neug/engines/graph_db/runtime/utils/cypher_runner_impl.h"
-#include "neug/storages/rt_mutable_graph/schema.h"
+#include "neug/storages/graph/schema.h"
 #include "neug/utils/app_utils.h"
 #include "neug/utils/result.h"
 

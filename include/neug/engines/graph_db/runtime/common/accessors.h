@@ -38,7 +38,6 @@
 #include "neug/engines/graph_db/runtime/common/graph_interface.h"
 #include "neug/engines/graph_db/runtime/common/rt_any.h"
 #include "neug/engines/graph_db/runtime/common/types.h"
-#include "neug/storages/rt_mutable_graph/types.h"
 #include "neug/utils/property/types.h"
 
 namespace gs {

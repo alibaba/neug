@@ -36,7 +36,7 @@
 #include "neug/engines/graph_db/database/single_vertex_insert_transaction.h"
 #include "neug/engines/graph_db/database/transaction_utils.h"
 #include "neug/engines/graph_db/database/update_transaction.h"
-#include "neug/storages/rt_mutable_graph/mutable_property_fragment.h"
+#include "neug/storages/graph/property_graph.h"
 #include "neug/utils/allocators.h"
 #include "neug/utils/property/column.h"
 #include "neug/utils/result.h"

@@ -19,8 +19,8 @@
 
 #include "neug/engines/graph_db/database/version_manager.h"
 #include "neug/engines/graph_db/runtime/utils/cypher_runner_impl.h"
-#include "neug/storages/rt_mutable_graph/csr/csr_base.h"
-#include "neug/storages/rt_mutable_graph/mutable_property_fragment.h"
+#include "neug/storages/csr/csr_base.h"
+#include "neug/storages/graph/property_graph.h"
 
 namespace gs {
 

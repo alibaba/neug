@@ -36,7 +36,7 @@
 #include "neug/engines/graph_db/runtime/execute/ops/retrieve/order_by_utils.h"
 #include "neug/engines/graph_db/runtime/utils/utils.h"
 #include "neug/engines/graph_db/runtime/utils/var.h"
-#include "neug/storages/rt_mutable_graph/schema.h"
+#include "neug/storages/graph/schema.h"
 
 namespace gs {
 namespace runtime {

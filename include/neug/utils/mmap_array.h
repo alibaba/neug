@@ -26,7 +26,7 @@
 
 #include "glog/logging.h"
 #include "libgrape-lite/grape/util.h"
-#include "neug/storages/rt_mutable_graph/file_names.h"
+#include "neug/storages/file_names.h"
 #include "neug/utils/exception/exception.h"
 
 #ifdef __ia64__

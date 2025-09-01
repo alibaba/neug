@@ -18,7 +18,7 @@ limitations under the License.
 
 #include "neug/utils/id_indexer.h"
 
-#include "neug/storages/rt_mutable_graph/types.h"
+#include "neug/utils/property/types.h"
 
 namespace gs {
 

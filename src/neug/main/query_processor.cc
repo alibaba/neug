@@ -18,7 +18,7 @@
 #include "neug/engines/graph_db/runtime/common/context.h"
 #include "neug/engines/graph_db/runtime/common/operators/retrieve/sink.h"
 #include "neug/engines/graph_db/runtime/execute/plan_parser.h"
-#include "neug/storages/rt_mutable_graph/mutable_property_fragment.h"
+#include "neug/storages/graph/property_graph.h"
 #include "neug/utils/pb_utils.h"
 
 namespace gs {

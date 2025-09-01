@@ -23,6 +23,8 @@
 #include <compare>
 #include <cstddef>
 
+#include <algorithm>
+#include <cctype>
 #include <functional>
 #include <map>
 #include <memory>
@@ -36,7 +38,6 @@
 
 #include "neug/engines/graph_db/runtime/common/rt_any.h"
 #include "neug/engines/graph_db/runtime/utils/var.h"
-#include "neug/storages/rt_mutable_graph/types.h"
 #include "neug/utils/property/types.h"
 #ifdef USE_SYSTEM_PROTOBUF
 #include "neug/generated/proto/plan/common.pb.h"

@@ -31,9 +31,9 @@
 #include "neug/engines/graph_db/runtime/common/columns/vertex_columns.h"
 #include "neug/engines/graph_db/runtime/common/context.h"
 #include "neug/engines/graph_db/runtime/common/rt_any.h"
-#include "neug/storages/rt_mutable_graph/types.h"
 #include "neug/utils/app_utils.h"
 #include "neug/utils/leaf_utils.h"
+#include "neug/utils/property/types.h"
 #include "parallel_hashmap/phmap.h"
 
 // #define DEBUG_JOIN

@@ -24,7 +24,7 @@
 #include <tuple>
 
 #include "neug/engines/graph_db/runtime/common/columns/vertex_columns.h"
-#include "neug/storages/rt_mutable_graph/schema.h"
+#include "neug/storages/graph/schema.h"
 #include "neug/utils/property/types.h"
 #include "neug/utils/top_n_generator.h"
 

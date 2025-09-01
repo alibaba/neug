@@ -3,8 +3,8 @@
 #include <string>
 #include "neug/engines/graph_db/runtime/execute/plan_parser.h"
 #include "neug/main/database.h"
-#include "neug/storages/rt_mutable_graph/file_names.h"
-#include "neug/storages/rt_mutable_graph/schema.h"
+#include "neug/storages/file_names.h"
+#include "neug/storages/graph/schema.h"
 
 TEST(StorageDDLTest, CreateAndAlterTables) {
   std::string data_path = "/tmp/test_batch_loading";

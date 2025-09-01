@@ -23,7 +23,7 @@
 #include "neug/engines/graph_db/runtime/common/columns/arrow_context_column.h"
 #include "neug/engines/graph_db/runtime/common/context.h"
 #include "neug/engines/graph_db/runtime/execute/ops/batch/data_source.h"
-#include "neug/storages/rt_mutable_graph/loader/loader_utils.h"
+#include "neug/storages/loader/loader_utils.h"
 #include "neug/utils/pb_utils.h"
 #include "neug/utils/result.h"
 

@@ -21,9 +21,9 @@
 #include "neug/engines/graph_db/runtime/common/graph_interface.h"
 #include "neug/engines/graph_db/runtime/execute/ops/batch/batch_insert_vertex.h"
 #include "neug/engines/graph_db/runtime/execute/ops/batch/batch_update_utils.h"
-#include "neug/storages/rt_mutable_graph/loader/abstract_arrow_fragment_loader.h"
-#include "neug/storages/rt_mutable_graph/mutable_property_fragment.h"
-#include "neug/storages/rt_mutable_graph/schema.h"
+#include "neug/storages/graph/property_graph.h"
+#include "neug/storages/graph/schema.h"
+#include "neug/storages/loader/abstract_arrow_fragment_loader.h"
 #include "neug/utils/pb_utils.h"
 
 namespace gs {

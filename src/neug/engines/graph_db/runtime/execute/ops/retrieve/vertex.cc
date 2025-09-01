@@ -38,7 +38,7 @@
 #include "neug/engines/graph_db/runtime/utils/predicates.h"
 #include "neug/engines/graph_db/runtime/utils/special_predicates.h"
 #include "neug/engines/graph_db/runtime/utils/utils.h"
-#include "neug/storages/rt_mutable_graph/types.h"
+#include "neug/utils/property/types.h"
 
 namespace gs {
 class Schema;

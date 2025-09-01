@@ -18,7 +18,7 @@
 #include <arrow/type.h>
 #include <stdexcept>
 
-#include "neug/storages/rt_mutable_graph/schema.h"
+#include "neug/storages/graph/schema.h"
 #include "neug/utils/app_utils.h"
 
 namespace gs {

@@ -25,8 +25,7 @@
 #include <vector>
 
 #include "neug/engines/graph_db/runtime/common/context.h"
-#include "neug/storages/rt_mutable_graph/loader/abstract_arrow_fragment_loader.h"
-#include "neug/storages/rt_mutable_graph/types.h"
+#include "neug/storages/loader/abstract_arrow_fragment_loader.h"
 #include "neug/utils/property/types.h"
 #ifdef USE_SYSTEM_PROTOBUF
 #include "neug/generated/proto/plan/common.pb.h"

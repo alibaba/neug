@@ -24,8 +24,8 @@
 #include "neug/engines/graph_db/runtime/common/context.h"
 #include "neug/engines/graph_db/runtime/common/graph_interface.h"
 #include "neug/engines/graph_db/runtime/execute/ops/batch/batch_insert_edge.h"
-#include "neug/storages/rt_mutable_graph/loader/abstract_arrow_fragment_loader.h"
-#include "neug/storages/rt_mutable_graph/schema.h"
+#include "neug/storages/graph/schema.h"
+#include "neug/storages/loader/abstract_arrow_fragment_loader.h"
 #include "neug/utils/pb_utils.h"
 
 namespace gs {
