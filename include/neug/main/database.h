@@ -34,7 +34,7 @@
 #include "neug/utils/file_utils.h"
 #include "neug/utils/http_handler_manager.h"
 #ifdef BUILD_HTTP_SERVER
-#include "neug/engines/brpc_server/brpc_http_hdl_mgr.h"
+#include "neug/server/brpc_http_hdl_mgr.h"
 #endif  // BUILD_HTTP_SERVER
 #include "neug/version.h"
 

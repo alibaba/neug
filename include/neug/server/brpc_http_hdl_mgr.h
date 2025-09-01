@@ -22,8 +22,8 @@
 #include <string_view>
 #include "neug/engines/graph_db/database/graph_db.h"
 #include "neug/engines/graph_db/database/graph_db_session.h"
-#include "neug/engines/graph_db_service.h"
 #include "neug/planner/graph_planner.h"
+#include "neug/server/graph_db_service.h"
 #include "neug/storages/rt_mutable_graph/schema.h"
 #include "neug/utils/http_handler_manager.h"
 #include "neug/utils/leaf_utils.h"
@@ -228,7 +228,6 @@ class BrpcHttpHandlerManager : public IHttpHandlerManager {
  private:
   brpc::ServerOptions get_server_options() const;
 
-  gs::GraphDB& graph_db_;
   ServiceConfig service_config_;
   HttpServiceImpl svc_;
   std::unique_ptr<brpc::Server> brpc_server_;

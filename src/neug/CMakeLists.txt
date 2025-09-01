@@ -11,6 +11,7 @@ if (BUILD_COMPILER)
       add_subdirectory(main)
     endif()
 endif()
+add_subdirectory(server)
 
 if (BUILD_ALL_IN_ONE)
         message(STATUS "Compiler libraries: ${COMPILER_LIBRARIES}")

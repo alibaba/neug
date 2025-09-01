@@ -13,7 +13,7 @@
  * limitations under the License.
  */
 
-#include "neug/engines/brpc_server/brpc_http_hdl_mgr.h"
+#include "neug/server/brpc_http_hdl_mgr.h"
 
 #include "neug/planner/graph_planner.h"
 #ifdef USE_SYSTEM_PROTOBUF
@@ -93,7 +93,7 @@ int32_t status_code_to_http_code(gs::StatusCode code) {
 
 BrpcHttpHandlerManager::BrpcHttpHandlerManager(
     gs::GraphDB& graph_db, std::shared_ptr<gs::IGraphPlanner> planner)
-    : graph_db_(graph_db), svc_(graph_db, planner) {
+    : svc_(graph_db, planner) {
   brpc_server_ = std::make_unique<brpc::Server>();
 }
 

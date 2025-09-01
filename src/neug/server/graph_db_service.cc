@@ -12,9 +12,9 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-#include "neug/engines/graph_db_service.h"
+#include "neug/server/graph_db_service.h"
 
-#include "neug/engines/brpc_server/brpc_http_hdl_mgr.h"
+#include "neug/server/brpc_http_hdl_mgr.h"
 
 #define STRINGIFY(x) #x
 #define TOSTRING(x) STRINGIFY(x)
