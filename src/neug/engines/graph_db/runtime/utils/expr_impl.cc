@@ -906,6 +906,30 @@ static std::unique_ptr<ExprBase> build_expr(
       return std::make_unique<TupleExpr>(std::move(exprs));
     }
 
+    case common::ExprOpr::kToUpper: {
+      auto op = opr.to_upper();
+
+      auto input_expr = make_var_or_const_expr(graph, ctx, op.input_item(), var_type);
+
+      return std::make_unique<UpperExpr>(std::move(input_expr));
+    }
+
+    case common::ExprOpr::kToLower: {
+      auto op = opr.to_lower();
+
+      auto input_expr = make_var_or_const_expr(graph, ctx, op.input_item(), var_type);
+
+      return std::make_unique<LowerExpr>(std::move(input_expr));
+    }
+
+    case common::ExprOpr::kReverse: {
+      auto op = opr.reverse();
+
+      auto input_expr = make_var_or_const_expr(graph, ctx, op.input_item(), var_type);
+
+      return std::make_unique<ReverseExpr>(std::move(input_expr));
+    }
+
     case common::ExprOpr::kVars: {
       auto op = opr.vars();
 
@@ -1072,6 +1096,21 @@ static std::unique_ptr<ExprBase> parse_expression_impl(
     }
 
     case common::ExprOpr::kToTuple: {
+      opr_stack2.push(*it);
+      break;
+    }
+
+    case common::ExprOpr::kToUpper: {
+      opr_stack2.push(*it);
+      break;
+    }
+
+    case common::ExprOpr::kToLower: {
+      opr_stack2.push(*it);
+      break;
+    }
+
+    case common::ExprOpr::kReverse: {
       opr_stack2.push(*it);
       break;
     }

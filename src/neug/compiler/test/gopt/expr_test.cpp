@@ -375,5 +375,16 @@ TEST_F(ExprTest, ORDER_BY_A) {
                                       getExprResource("ORDER_BY_A_physical"));
 }
 
+TEST_F(ExprTest, STARTS_WITH) {
+  std::string modernSchema = getGOptResource("schema/modern_schema.yaml");
+  std::string modernStats = getGOptResource("stats/modern_stats.json");
+  std::string query = "Match (n) Where n.name starts with 'marko' Return n.name";
+  auto logical = planLogical(query, schemaData, statsData, rules);
+  std::cout << logical->toString() << std::endl;
+  // todo: implement conversion from logical to physical plan
+  // auto physical = planPhysical(*logical);
+  // std::cout << physical->DebugString() << std::endl;
+}
+
 }  // namespace gopt
 }  // namespace gs

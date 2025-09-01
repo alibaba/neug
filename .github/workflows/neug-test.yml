@@ -205,6 +205,12 @@ jobs:
         export LDBC_DATA_DIR=/tmp/ldbc
         python3 -m pytest -sv tests/test_ic.py
 
+    - name: Run Modern Test
+      run: |
+        cd ${GITHUB_WORKSPACE}/tools/python_bind/
+        export MODERN_DATA_DIR=/tmp/modern_graph
+        python3 -m pytest -sv tests/test_modern.py
+
     - name: Run E2E Cypher Test
       run: |
         cd ${GITHUB_WORKSPACE}/tests/e2e

@@ -25,6 +25,7 @@
 #include "neug/compiler/function/path/vector_path_functions.h"
 #include "neug/compiler/function/schema/vector_node_rel_functions.h"
 #include "neug/compiler/function/struct/vector_struct_functions.h"
+#include "neug/compiler/function/string/vector_string_functions.h"
 
 namespace gs {
 namespace gopt {
@@ -45,7 +46,10 @@ enum ScalarType {
   LABEL,
   PATTERN_EXTRACT,  // startNode, endNode, nodes, rels
   PROPERTIES,       // properties(nodes(), 'name')
-  TO_ARRAY
+  TO_ARRAY,
+  UPPER,
+  LOWER,
+  REVERSE,
 };
 
 class GScalarType {
@@ -63,6 +67,11 @@ class GScalarType {
   bool isTemporal() const {
     return type == ScalarType::TO_DATE || type == ScalarType::TO_DATETIME ||
            type == ScalarType::TO_INTERVAL;
+  }
+
+  bool isString() const {
+    return type == ScalarType::UPPER || type == ScalarType::LOWER || 
+           type == ScalarType::REVERSE;
   }
 
  private:
@@ -106,6 +115,12 @@ class GScalarType {
       return ScalarType::PROPERTIES;
     } else if (func.name == function::ListCreationFunction::name) {
       return ScalarType::TO_ARRAY;
+    } else if (func.name == function::UpperFunction::name) {
+      return ScalarType::UPPER;
+    } else if (func.name == function::LowerFunction::name) {
+      return ScalarType::LOWER;
+    } else if (func.name == function::ReverseFunction::name) {
+      return ScalarType::REVERSE;
     }
 
     // todo: support more scalar functions
