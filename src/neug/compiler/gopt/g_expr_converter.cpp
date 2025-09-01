@@ -514,111 +514,6 @@ bool isLiteralOrVariable(const binder::Expression& expr) {
          expr.expressionType == common::ExpressionType::PROPERTY;
 }
 
-std::unique_ptr<::common::Expression> GExprConverter::convertStringFunc(const binder::Expression& expr, const std::vector<std::string>& schemaAlias) {
-  if (expr.getChildren().size() != 1) {
-    THROW_EXCEPTION_WITH_FILE_LINE(
-        "string function should have exactly one child");
-  }
-  auto child = expr.getChild(0);
-
-  GScalarType type{expr};
-  auto exprPB = std::make_unique<::common::Expression>();
-
-  switch (type.getType()) {
-  case ScalarType::UPPER: {
-    auto upper = std::make_unique<::common::ToUpper>();
-
-    auto compositeField = std::make_unique<::common::CompositeField>();
-
-    auto childExprPB = convert(*child, schemaAlias);
-    if (childExprPB->operators_size() == 0) {
-      THROW_EXCEPTION_WITH_FILE_LINE(
-          "convert child of string function failed, empty expression");
-    }
-    auto childOprPB = childExprPB->operators(0);
-
-    if (childOprPB.has_const_()) {
-      compositeField->set_allocated_value(childOprPB.release_const_());
-    } else if (childOprPB.has_var()) {
-      compositeField->set_allocated_var(childOprPB.release_var());
-    } else {
-      THROW_EXCEPTION_WITH_FILE_LINE(
-          "convert child of string function failed, invalid expression type: " +
-          std::to_string(childOprPB.item_case()));
-    }
-
-    upper->set_allocated_input_item(compositeField.release());
-    exprPB->add_operators()->set_allocated_to_upper(upper.release());
-    
-    break;
-  }
-
-  case ScalarType::LOWER: {
-    auto lower = std::make_unique<::common::ToLower>();
-
-    auto compositeField = std::make_unique<::common::CompositeField>();
-
-    auto childExprPB = convert(*child, schemaAlias);
-    if (childExprPB->operators_size() == 0) {
-      THROW_EXCEPTION_WITH_FILE_LINE(
-          "convert child of string function failed, empty expression");
-    }
-    auto childOprPB = childExprPB->operators(0);
-
-    if (childOprPB.has_const_()) {
-      compositeField->set_allocated_value(childOprPB.release_const_());
-    } else if (childOprPB.has_var()) {
-      compositeField->set_allocated_var(childOprPB.release_var());
-    } else {
-      THROW_EXCEPTION_WITH_FILE_LINE(
-          "convert child of string function failed, invalid expression type: " +
-          std::to_string(childOprPB.item_case()));
-    }
-
-    lower->set_allocated_input_item(compositeField.release());
-    exprPB->add_operators()->set_allocated_to_lower(lower.release());
-    
-    break;
-  }
-
-  case ScalarType::REVERSE: {
-    auto reverse = std::make_unique<::common::Reverse>();
-
-    auto compositeField = std::make_unique<::common::CompositeField>();
-
-    auto childExprPB = convert(*child, schemaAlias);
-    if (childExprPB->operators_size() == 0) {
-      THROW_EXCEPTION_WITH_FILE_LINE(
-          "convert child of string function failed, empty expression");
-    }
-    auto childOprPB = childExprPB->operators(0);
-
-    if (childOprPB.has_const_()) {
-      compositeField->set_allocated_value(childOprPB.release_const_());
-    } else if (childOprPB.has_var()) {
-      compositeField->set_allocated_var(childOprPB.release_var());
-    } else {
-      THROW_EXCEPTION_WITH_FILE_LINE(
-          "convert child of string function failed, invalid expression type: " +
-          std::to_string(childOprPB.item_case()));
-    }
-
-    reverse->set_allocated_input_item(compositeField.release());
-    exprPB->add_operators()->set_allocated_reverse(reverse.release());
-    
-    break;
-  }
-
-  default:
-    THROW_EXCEPTION_WITH_FILE_LINE("Unsupported string function " +
-                                   expr.toString());
-  }
-
-  auto typePB = typeConverter.convertLogicalType(expr.getDataType(), expr);
-  exprPB->mutable_operators(0)->set_allocated_node_type(typePB.release());
-  return exprPB;
-}
-
 std::unique_ptr<::common::Expression> GExprConverter::convertToTupleFunc(
     const binder::Expression& expr,
     const std::vector<std::string>& schemaAlias) {
@@ -703,8 +598,6 @@ std::unique_ptr<::common::Expression> GExprConverter::convertScalarFunc(
     return convertPropertiesFunc(expr, schemaAlias);
   } else if (scalarType.getType() == TO_ARRAY) {
     return convertToTupleFunc(expr, schemaAlias);
-  } else if (scalarType.isString()) {
-    return convertStringFunc(expr, schemaAlias);
   }
   THROW_EXCEPTION_WITH_FILE_LINE("Unsupported expression type: " +
                                  expr.toString());
