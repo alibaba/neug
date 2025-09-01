@@ -1184,6 +1184,17 @@ def test_count():
     assert len(res) == 1
     assert res[0][0] == 14
 
+    # test count edges
+    res = conn.execute("MATCH ()-[e]->() RETURN count(e)")
+    assert res is not None
+    assert len(res) == 1
+    assert res[0][0] == 30
+
+    res = conn.execute("MATCH ()-[e]-() RETURN count(e)")
+    assert res is not None
+    assert len(res) == 1
+    assert res[0][0] == 60
+
 
 def test_list_return_basic(tmp_path):
     """Test basic list return functionality: RETURN [p.name, p.value]"""

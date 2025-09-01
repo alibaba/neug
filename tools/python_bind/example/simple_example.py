@@ -36,6 +36,16 @@ if __name__ == "__main__":
         f'COPY knows from "{person_knows_person_csv}" (from="person", to="person")'
     )
 
-    res = conn.execute("MATCH (n) return count(*);")
+    res = conn.execute("MATCH (n)-[e]-(m) return count(e);")
     for record in res:
         print(record)
+
+    db.close()
+    db2 = Database("")
+    db2.load_builtin_dataset(dataset_name="tinysnb")
+    conn2 = db2.connect()
+    res2 = conn2.execute("MATCH(n) return count(n);")
+    print(res2.__next__()[0])
+
+    conn2.close()
+    db2.close()

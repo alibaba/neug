@@ -452,7 +452,7 @@ class AbstractArrowFragmentLoader : public IFragmentLoader {
       VLOG(10) << "Finish parsing file:" << file;
     }
 
-    VLOG(10) << "Finish parsing vertex file:" << files.size();
+    VLOG(10) << "Finish parsing file:" << files.size();
   }
 
   template <typename EDATA_T, typename VECTOR_T>

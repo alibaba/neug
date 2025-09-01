@@ -99,3 +99,9 @@ def test_load_builtin_dataset():
     conn2 = db2.connect()
     res2 = conn2.execute("MATCH(n) return count(n);")
     assert res2.__next__()[0] == 14
+
+    res3 = conn2.execute("MATCH(n)-[e]-(m) return count(e);")
+    assert res3.__next__()[0] == 60
+
+    res4 = conn2.execute("MATCH(n)-[e]->(m) return count(e);")
+    assert res4.__next__()[0] == 30

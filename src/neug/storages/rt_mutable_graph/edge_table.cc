@@ -522,10 +522,14 @@ void EdgeTable::BatchAddEdges(
         LOG(FATAL) << "Unsupported property type: "
                    << prop_types_[0].ToString();
       }
-    } else if (prop_types_.size() == 1 &&
-               (prop_types_[0].type_enum ==
-                    impl::PropertyTypeImpl::kStringView ||
-                prop_types_[0].type_enum == impl::PropertyTypeImpl::kVarChar)) {
+    } else {
+      THROW_INTERNAL_EXCEPTION("Got invalid property size: " +
+                               std::to_string(prop_types_.size()));
+    }
+  } else {
+    if (prop_types_.size() == 1 &&
+        (prop_types_[0].type_enum == impl::PropertyTypeImpl::kStringView ||
+         prop_types_[0].type_enum == impl::PropertyTypeImpl::kVarChar)) {
       BatchPutEdgeUtil<std::string_view>(parsed_edges_vec, prop_values,
                                          std::move(edges), std::move(table),
                                          prev_size);
