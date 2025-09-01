@@ -191,5 +191,42 @@ def connect(uri, user, password, timeout):
     shell.cmdloop()
 
 
+@cli.command()
+@click.option(
+    "--db-dir", default=None, help="Database directory to connect to (optional)."
+)
+@click.option(
+    "--host",
+    default="127.0.0.1",
+    show_default=True,
+    help="Host address to bind the web server.",
+)
+@click.option(
+    "--port",
+    default=5000,
+    show_default=True,
+    help="Port number to bind the web server.",
+)
+@click.option("--debug", is_flag=True, help="Run the web server in debug mode.")
+def ui(db_dir, host, port, debug):
+    """Start the Neug Web UI."""
+    try:
+        from neug.web_ui import start_web_ui
+
+        if db_dir:
+            click.echo(f"Starting Neug Web UI with database: {db_dir}")
+        else:
+            click.echo("Starting Neug Web UI with in-memory database")
+
+        click.echo(f"Web server will be available at: http://{host}:{port}")
+        start_web_ui(db_dir=db_dir, host=host, port=port, debug=debug)
+
+    except ImportError as e:
+        click.echo(f"Error: Flask dependencies not installed. {e}")
+        click.echo("Please install with: pip install flask flask-cors")
+    except Exception as e:
+        click.echo(f"Error starting web UI: {e}")
+
+
 if __name__ == "__main__":
     cli()

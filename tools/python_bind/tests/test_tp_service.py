@@ -73,9 +73,9 @@ def test_batch_loading(setup_database):
         f'COPY knows from "{person_knows_person_csv_part2}" (from="person", to="person")'
     )
 
-    res = sess.execute("MATCH (n) return n.id;")
-    for record in res:
-        print(record)
+    res = sess.execute("MATCH (n) WHERE n.id = 1 RETURN n.name;")
+    assert len(res) == 1
+    assert res[0][0] == "marko"
 
     # get service status
     status = sess.service_status()

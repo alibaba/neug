@@ -9,3 +9,6 @@ tabulate
 click>=8.0.0
 PyYAML>=6.0.2
 gnureadline>=8.0.0
+# required by ui
+Flask
+Flask-Cors

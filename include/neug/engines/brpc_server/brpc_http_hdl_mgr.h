@@ -103,7 +103,8 @@ class HttpServiceImpl : public HttpService {
     }
     const auto& physical_plan = plan_res.value().first;
 
-    VLOG(10) << "got plan: " << physical_plan.DebugString();
+    VLOG(10) << "got plan, size" << physical_plan.ByteSizeLong() << ", "
+             << physical_plan.DebugString();
     std::string plan_proto_str;
     physical_plan.SerializeToString(&plan_proto_str);
     bool update_schema = false, update_statistics = false;

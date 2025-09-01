@@ -81,6 +81,7 @@ class Session:
         self._endpoint = endpoint
         self._query_endpoint = endpoint + "/cypher"
         self._status_endpoint = endpoint + "/service_status"
+        self._schema_endpoint = endpoint + "/schema"
         self._timeout = timeout
         if isinstance(self._timeout, int):
             self._timeout = f"{self._timeout}s"
@@ -186,6 +187,24 @@ class Session:
             logger.error(f"Failed to fetch service status: {e}")
             raise ConnectionError("Could not fetch service status") from e
 
+        # Json string
+        return response.json()
+
+    def get_schema(self):
+        """
+        Get the schema of the NeuG database.
+
+        :return: The schema of the NeuG database.
+        """
+        logger.info(f"Fetching schema from endpoint: {self._schema_endpoint}")
+        try:
+            response = self._http_session.get(
+                self._schema_endpoint, timeout=self.timeout
+            )
+            response.raise_for_status()
+        except requests.exceptions.RequestException as e:
+            logger.error(f"Failed to fetch schema: {e}")
+            raise ConnectionError("Could not fetch schema") from e
         # Json string
         return response.json()
 

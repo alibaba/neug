@@ -46,6 +46,7 @@ Options:
 Commands:
   connect  Connect to a remote database.
   open     Open a local database.
+  ui       Start the Neug Web UI.
 """
     assert expected_output.strip() == result.output.strip()
 
