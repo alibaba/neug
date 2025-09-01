@@ -51,9 +51,8 @@ class UnionOpr : public IReadOperator {
           (timer != nullptr) ? std::make_unique<gs::runtime::OprTimer>()
                              : nullptr;
       auto ret = plan.Execute(graph, std::move(n_ctx), params, sub_timer.get());
-      if (timer != nullptr) [[unlikely]] {
-        timer->add_child(std::move(sub_timer));
-      }
+      if (timer != nullptr)
+        [[unlikely]] { timer->add_child(std::move(sub_timer)); }
       if (!ret) {
         return ret;
       }

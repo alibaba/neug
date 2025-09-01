@@ -13,13 +13,10 @@
  * limitations under the License.
  */
 
-#include <neug/neug.h>
-#include <iostream>
+#ifndef INCLUDE_NEUG_NEUG_H_
+#define INCLUDE_NEUG_NEUG_H_
 
-int main() {
-  gs::NeugDB db("test_db");
-  auto conn = db.connect();
-  std::cout << "NeuG C++ client installation successful!" << std::endl;
-  std::cout << "NeuG version: " << db.version() << std::endl;
-  return 0;
-}
+#include "neug/config.h"
+#include "neug/main/database.h"
+
+#endif  // INCLUDE_NEUG_NEUG_H_

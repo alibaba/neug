@@ -19,7 +19,7 @@
 #include "pybind11/include/pybind11/pybind11.h"
 #include "pybind11/include/pybind11/stl.h"
 
-#include "neug/main/neug_db.h"
+#include "neug/main/database.h"
 #include "py_connection.h"
 
 namespace gs {

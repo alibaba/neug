@@ -36,6 +36,7 @@
 #ifdef BUILD_HTTP_SERVER
 #include "neug/engines/brpc_server/brpc_http_hdl_mgr.h"
 #endif  // BUILD_HTTP_SERVER
+#include "neug/version.h"
 
 #define STRINGIFY(x) #x
 #define TOSTRING(x) STRINGIFY(x)
@@ -165,6 +166,8 @@ class NeugDB {
   void stop_serving();
 
   inline GraphDB& db() { return db_; }
+
+  const char* version() const { return TOSTRING(NEUG_VERSION_NUMBER); }
 
  private:
   std::shared_ptr<IGraphPlanner> create_planner(

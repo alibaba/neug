@@ -98,7 +98,7 @@ target_link_libraries(test ${NEUG_LIBRARIES})
 A sample test.cc looks like: 
 
 ```cpp
-#include <neug/main/neug_db.h>
+#include <neug/neug.h>
 #include <iostream>
 
 int main() {

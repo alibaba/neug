@@ -5,3 +5,5 @@ if (BUILD_PYTHON)
         message(WARNING "neug_main or neug_planner not found, skipping python bindings")
     endif()
 endif()
+
+add_subdirectory(utils)

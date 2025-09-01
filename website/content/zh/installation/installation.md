@@ -98,7 +98,7 @@ target_link_libraries(test ${NEUG_LIBRARIES})
 示例 test.cc 文件内容如下：
 
 ```cpp
-#include <neug/main/neug_db.h>
+#include <neug/neug.h>
 #include <iostream>
 
 int main() {

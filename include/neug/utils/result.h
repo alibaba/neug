@@ -24,6 +24,8 @@
 #include <type_traits>
 #include <utility>
 
+#include "neug/config.h"  // For build-time configuration macros
+
 #ifdef USE_SYSTEM_PROTOBUF
 #include "neug/generated/proto/plan/error.pb.h"
 #else

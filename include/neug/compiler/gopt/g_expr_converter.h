@@ -31,6 +31,7 @@
 #include "neug/compiler/gopt/g_alias_manager.h"
 #include "neug/compiler/gopt/g_precedence.h"
 #include "neug/compiler/gopt/g_type_converter.h"
+#include "neug/config.h"
 #ifdef USE_SYSTEM_PROTOBUF
 #include "neug/generated/proto/plan/algebra.pb.h"
 #include "neug/generated/proto/plan/common.pb.h"

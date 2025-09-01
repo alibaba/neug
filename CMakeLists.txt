@@ -4,6 +4,24 @@ file(READ ${CMAKE_CURRENT_SOURCE_DIR}/NEUG_VERSION NEUG_VERSION)
 # Strip trailing newline
 string(REGEX REPLACE "\n$" "" NEUG_VERSION "${NEUG_VERSION}")
 
+# Parse version components
+string(REGEX MATCH "^([0-9]+)\\.([0-9]+)\\.([0-9]+)" _ ${NEUG_VERSION})
+set(NEUG_VERSION_MAJOR ${CMAKE_MATCH_1})
+set(NEUG_VERSION_MINOR ${CMAKE_MATCH_2})
+set(NEUG_VERSION_PATCH ${CMAKE_MATCH_3})
+
+message(STATUS "NeuG Version: ${NEUG_VERSION} (${NEUG_VERSION_MAJOR}.${NEUG_VERSION_MINOR}.${NEUG_VERSION_PATCH})")
+
+# Generate version header
+configure_file(
+  ${CMAKE_CURRENT_SOURCE_DIR}/include/neug/version.h.in
+  ${CMAKE_CURRENT_BINARY_DIR}/include/neug/version.h
+  @ONLY
+)
+
+# Add the generated header to include directories
+include_directories(${CMAKE_CURRENT_BINARY_DIR}/include)
+
 project (
   NeuG
   VERSION ${NEUG_VERSION}
@@ -61,6 +79,7 @@ option(BUILD_SINGLE_FILE_HEADER "Build single file header. Requires Python >= 3.
 option(BUILD_TEST "Build C++ tests." TRUE)
 option(BUILD_EXTENSION_TESTS "Build C++ extension tests." FALSE)
 option(ENABLE_BACKTRACES "Enable backtrace printing for exceptions and segfaults" FALSE)
+option(BUILD_EXAMPLES "Build examples." ON)
 
 set (Seastar_SCHEDULING_GROUPS_COUNT "16" CACHE STRING "A positive number to set Seastar's reactor number of allowed different scheduling groups.")
 
@@ -484,6 +503,13 @@ include_directories(SYSTEM ${Protobuf_INCLUDE_DIRS})
 message(STATUS "protobuf include dir: ${Protobuf_INCLUDE_DIR}, ${Protobuf_INCLUDE_DIRS}")
 message(STATUS "protobuf libraries: ${Protobuf_LIBRARIES}")
 
+# Generate config header. Need to placed after protobuf find_package, for macro USE_SYSTEM_PROTOBUF
+configure_file(
+  ${CMAKE_CURRENT_SOURCE_DIR}/include/neug/config.h.in
+  ${CMAKE_CURRENT_BINARY_DIR}/include/neug/config.h
+  @ONLY
+)
+
 
 if (BUILD_HTTP_SERVER)
     find_path(LEVELDB_INCLUDE_PATH NAMES leveldb/db.h)
@@ -666,6 +692,9 @@ if (BUILD_ENGINE)
  add_subdirectory(tools)
 endif()
 add_subdirectory(third_party/libgrape-lite)
+if (BUILD_EXAMPLES)
+    add_subdirectory(examples)
+endif()
 include_directories(SYSTEM ${CMAKE_SOURCE_DIR}/third_party/libgrape-lite)
 
 include_directories(SYSTEM ${CMAKE_SOURCE_DIR}/third_party/antlr4_cypher/include)
@@ -716,6 +745,9 @@ file(GLOB_RECURSE FILES_NEED_LINT
 list(FILTER FILES_NEED_LINT EXCLUDE REGEX ".*\.act.h$|.*\.actg.h$|.*\.autogen.h$|.*\.autogen.cc$")
 list(FILTER FILES_NEED_LINT EXCLUDE REGEX ".*/third_party/.*")
 list(FILTER FILES_NEED_LINT EXCLUDE REGEX ".*\.pb.h$|.*\.pb.cc$")
+list(FILTER FILES_NEED_LINT EXCLUDE REGEX ".*/arrow-src/.*")
+list(FILTER FILES_NEED_LINT EXCLUDE REGEX ".*/deps/.*")
+list(FILTER FILES_NEED_LINT EXCLUDE REGEX ".*/build/.*")
 list(FILTER FILES_NEED_LINT EXCLUDE REGEX ".*\.clang-format$")
 
 add_custom_target(neug_clformat
@@ -833,10 +865,30 @@ endif()
 include(CPack)
 
 # install all headers under include/neug/
-install(DIRECTORY ${PROJECT_SOURCE_DIR}/include/
+if (USE_SYSTEM_PROTOBUF)
+    #filter out all pb.h files
+    install(DIRECTORY ${PROJECT_SOURCE_DIR}/include/
             DESTINATION include
             FILES_MATCHING
             PATTERN "*.h"
+            PATTERN "*.pb.h" EXCLUDE
+    )
+else()
+    install(DIRECTORY ${PROJECT_SOURCE_DIR}/include/
+            DESTINATION include
+            FILES_MATCHING
+            PATTERN "*.h"
+    )
+endif()
+
+# Install the generated version header
+install(FILES ${CMAKE_CURRENT_BINARY_DIR}/include/neug/version.h
+        DESTINATION include/neug
+)
+
+# Install the generated config header  
+install(FILES ${CMAKE_CURRENT_BINARY_DIR}/include/neug/config.h
+        DESTINATION include/neug
 )
 
 install(DIRECTORY ${PROJECT_SOURCE_DIR}/third_party/expected/
@@ -844,3 +896,9 @@ install(DIRECTORY ${PROJECT_SOURCE_DIR}/third_party/expected/
             FILES_MATCHING
             PATTERN "*.hpp"
 )
+
+if (NOT USE_SYSTEM_PROTOBUF)
+    install_neug_target(libprotobuf)
+    install_neug_target(libprotobuf-lite)
+    install_neug_target(libprotoc)
+endif()

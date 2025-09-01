@@ -13,13 +13,21 @@
  * limitations under the License.
  */
 
-#include <neug/neug.h>
-#include <iostream>
+#ifndef NEUG_CONFIG_H_
+#define NEUG_CONFIG_H_
 
-int main() {
-  gs::NeugDB db("test_db");
-  auto conn = db.connect();
-  std::cout << "NeuG C++ client installation successful!" << std::endl;
-  std::cout << "NeuG version: " << db.version() << std::endl;
-  return 0;
-}
+/**
+ * @file config.h
+ * @brief Build-time configuration macros for NeuG
+ */
+
+// Protobuf configuration
+#ifndef USE_SYSTEM_PROTOBUF  // Add a guard to avoid conflict with
+                             // target_add_definition in CMakeList
+#cmakedefine USE_SYSTEM_PROTOBUF
+#endif
+
+// Other build configuration options can be added here
+#cmakedefine BUILD_WITH_OSS
+
+#endif  // NEUG_CONFIG_H_

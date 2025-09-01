@@ -1,5 +1,4 @@
 include_directories(${Boost_INCLUDE_DIRS})
-add_executable(bulk_loader bulk_loader.cc)
 
 if (BUILD_HTTP_SERVER)
         add_executable(rt_server rt_server.cc)
@@ -14,16 +13,4 @@ if (BUILD_HTTP_SERVER)
                 target_link_libraries(rt_server PUBLIC neug_graph_db_service neug_graph_db neug_compiler_shared neug_brpc_proto neug_rt_mutable_graph neug_utils neug_planner)
         endif()
         install_without_export_neug_target(rt_server)
-endif()
-
-if (BUILD_ALL_IN_ONE)
-        target_link_libraries(bulk_loader neug_libraries ${GLOG_LIBRARIES} ${Boost_LIBRARIES} ${GFLAGS_LIBRARIES})
-else()
-        target_link_libraries(bulk_loader neug_rt_mutable_graph ${GLOG_LIBRARIES} ${Boost_LIBRARIES} ${GFLAGS_LIBRARIES})
-endif()  
-
-if (BUILD_WITH_OSS)
-        target_link_libraries(bulk_loader cpp-sdk)
-endif()
-
-install_without_export_neug_target(bulk_loader)
+endif() 

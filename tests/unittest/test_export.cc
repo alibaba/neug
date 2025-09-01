@@ -1,7 +1,7 @@
 #include <gtest/gtest.h>
 #include <iostream>
 #include <string>
-#include "neug/main/neug_db.h"
+#include "neug/main/database.h"
 #include "neug/storages/rt_mutable_graph/file_names.h"
 #include "neug/storages/rt_mutable_graph/schema.h"
 

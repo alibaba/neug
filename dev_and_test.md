@@ -39,7 +39,7 @@ First load the graph
 ```bash
 mkdir build && cd build
 cmake .. -DCMAKE_BUILD_TYPE=DEBUG -DCMAKE_INSTALL_PREFIX=/opt/neug -DBUILD_EXECUTABLES=OFF -DBUILD_TEST=ON -DBUILD_EXECUTABLES=ON
-./bin/bulk_loader -g ../example_dataset/modern_graph/graph.yaml -l ../example_dataset/modern_graph/import.yaml -d /tmp/csr-data
+./tools/utils/bulk_loader -g ../example_dataset/modern_graph/graph.yaml -l ../example_dataset/modern_graph/import.yaml -d /tmp/csr-data
 ```
 
 Then run the test.
@@ -58,7 +58,7 @@ A comprehensive set of end-to-end Cypher tests is available in the `neug/tests/e
 
 ```bash
 export FLEX_DATA_DIR="../example_dataset/tinysnb"
-./bin/bulk_loader -g ../example_dataset/tinysnb/graph.yaml -l ../example_dataset/tinysnb/import.yaml -d /tmp/tinysnb
+./tools/utils/bulk_loader -g ../example_dataset/tinysnb/graph.yaml -l ../example_dataset/tinysnb/import.yaml -d /tmp/tinysnb
 ```
 
 #### 2. Run the Tests
@@ -143,7 +143,7 @@ In addition to E2E Cypher tests, this framework also supports benchmarking. The 
 
 ```bash
 export FLEX_DATA_DIR="../example_dataset/lsqb"
-./bin/bulk_loader -g ../example_dataset/lsqb/graph.yaml -l ../example_dataset/lsqb/import.yaml -d /tmp/lsqb
+./tools/utils/bulk_loader -g ../example_dataset/lsqb/graph.yaml -l ../example_dataset/lsqb/import.yaml -d /tmp/lsqb
 ```
 
 #### 2. Run the Benchmarks

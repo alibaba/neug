@@ -13,7 +13,7 @@
  * limitations under the License.
  */
 
-#include "neug/main/neug_db.h"
+#include "neug/main/database.h"
 #ifdef NEUG_BACKTRACE
 #include <cpptrace/cpptrace.hpp>
 #endif
