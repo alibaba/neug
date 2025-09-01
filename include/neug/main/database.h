@@ -28,7 +28,6 @@
 #include "neug/main/connection.h"
 #include "neug/main/file_lock.h"
 #include "neug/main/query_processor.h"
-#include "neug/planner/dummy_graph_planner.h"
 #include "neug/planner/gopt_planner.h"
 #include "neug/planner/graph_planner.h"
 #include "neug/utils/file_utils.h"
@@ -172,9 +171,7 @@ class NeugDB {
  private:
   std::shared_ptr<IGraphPlanner> create_planner(
       const std::string& planner_kind, const std::string& planner_config_path) {
-    if (planner_kind == "dummy") {
-      return std::make_shared<DummyGraphPlanner>();
-    } else if (planner_kind == "gopt") {
+    if (planner_kind == "gopt") {
       // Gopt planner is the default planner, so we don't need to create it.
       return std::make_shared<GOptPlanner>(planner_config_path);
     } else {
