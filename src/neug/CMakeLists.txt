@@ -2,7 +2,6 @@ add_subdirectory(utils)
 if (BUILD_ENGINE)
   add_subdirectory(storages)
   add_subdirectory(engines)
-  add_subdirectory(planner)
 endif()
 
 if (BUILD_COMPILER)

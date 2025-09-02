@@ -19,9 +19,9 @@
 #include <memory>
 #include <string>
 
+#include "neug/compiler/planner/gopt_planner.h"
+#include "neug/compiler/planner/graph_planner.h"
 #include "neug/engines/graph_db/database/graph_db.h"
-#include "neug/planner/gopt_planner.h"
-#include "neug/planner/graph_planner.h"
 #include "neug/utils/http_handler_manager.h"
 #include "neug/utils/result.h"
 #include "neug/utils/service_utils.h"

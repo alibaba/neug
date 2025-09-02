@@ -13,7 +13,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-#include "neug/planner/gopt_planner.h"
+#include "neug/compiler/planner/gopt_planner.h"
 #include <yaml-cpp/node/emit.h>
 #include "neug/compiler/gopt/g_result_schema.h"
 #include "neug/utils/exception/exception.h"

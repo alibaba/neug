@@ -7,7 +7,9 @@ add_library(neug_compiler_planner
         join_order_enumerator_context.cpp
         planner.cpp
         query_planner.cpp
-        subplans_table.cpp)
+        subplans_table.cpp
+        gopt_planner.cc
+        )
 
 set(ALL_OBJECT_FILES
         ${ALL_OBJECT_FILES} $<TARGET_OBJECTS:neug_compiler_planner>

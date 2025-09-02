@@ -7,7 +7,7 @@ include_directories(${CMAKE_CURRENT_BINARY_DIR}/../../src/neug/compiler)
 if (BUILD_ALL_IN_ONE)
         set(NEUG_LIBRARIES neug_libraries)
 else()
-        set(NEUG_LIBRARIES neug_planner neug_graph_db neug_main neug_brpc_proto)
+        set(NEUG_LIBRARIES neug_compiler_shared neug_graph_db neug_main neug_brpc_proto)
 endif()
 
 add_executable(test_run_query test_run_query.cc)

@@ -13,7 +13,7 @@
 #include "neug/compiler/gopt/g_physical_convertor.h"
 #include "neug/compiler/main/client_context.h"
 #include "neug/compiler/main/database.h"
-#include "neug/planner/graph_planner.h"
+#include "neug/compiler/planner/graph_planner.h"
 
 namespace gs {
 

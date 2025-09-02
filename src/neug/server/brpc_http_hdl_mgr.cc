@@ -15,7 +15,7 @@
 
 #include "neug/server/brpc_http_hdl_mgr.h"
 
-#include "neug/planner/graph_planner.h"
+#include "neug/compiler/planner/graph_planner.h"
 #ifdef USE_SYSTEM_PROTOBUF
 #include "neug/generated/proto/plan/error.pb.h"
 #else

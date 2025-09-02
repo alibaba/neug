@@ -8,7 +8,7 @@ if (BUILD_ALL_IN_ONE)
         
 else()
     add_library(neug_main SHARED ${neug_MAIN_SRC_FILES})
-    target_link_libraries(neug_main neug_utils neug_graph_db neug_planner)
+    target_link_libraries(neug_main neug_utils neug_graph_db)
     if (BUILD_COMPILER)
         target_link_libraries(neug_main neug_compiler_shared)
     endif()

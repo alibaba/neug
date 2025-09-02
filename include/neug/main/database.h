@@ -24,12 +24,12 @@
 #include <string>
 #include <vector>
 
+#include "neug/compiler/planner/gopt_planner.h"
+#include "neug/compiler/planner/graph_planner.h"
 #include "neug/engines/graph_db/database/graph_db.h"
 #include "neug/main/connection.h"
 #include "neug/main/file_lock.h"
 #include "neug/main/query_processor.h"
-#include "neug/planner/gopt_planner.h"
-#include "neug/planner/graph_planner.h"
 #include "neug/utils/file_utils.h"
 #include "neug/utils/http_handler_manager.h"
 #ifdef BUILD_HTTP_SERVER

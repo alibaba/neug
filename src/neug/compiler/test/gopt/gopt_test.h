@@ -43,11 +43,11 @@
 #include "neug/compiler/main/database.h"
 #include "neug/compiler/optimizer/expand_getv_fusion.h"
 #include "neug/compiler/optimizer/filter_push_down_pattern.h"
+#include "neug/compiler/planner/gopt_planner.h"
 #include "neug/compiler/planner/operator/logical_plan_util.h"
 #include "neug/compiler/storage/buffer_manager/memory_manager.h"
 #include "neug/compiler/storage/wal/wal.h"
 #include "neug/compiler/transaction/transaction.h"
-#include "neug/planner/gopt_planner.h"
 
 namespace gs {
 namespace gopt {
