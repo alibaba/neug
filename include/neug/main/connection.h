@@ -23,9 +23,9 @@
 #include <glog/logging.h>
 
 #include "neug/compiler/planner/graph_planner.h"
-#include "neug/engines/graph_db/database/graph_db.h"
 #include "neug/main/query_processor.h"
 #include "neug/main/query_result.h"
+#include "neug/transaction/graph_db.h"
 #ifdef USE_SYSTEM_PROTOBUF
 #include "neug/generated/proto/plan/physical.pb.h"
 #include "neug/generated/proto/plan/results.pb.h"

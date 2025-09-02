@@ -19,10 +19,10 @@
 #include <string>
 
 #include <glog/logging.h>
-#include "neug/engines/graph_db/database/graph_db.h"
-#include "neug/engines/graph_db/runtime/common/graph_interface.h"
-#include "neug/engines/graph_db/runtime/utils/opr_timer.h"
+#include "neug/execution/runtime/common/graph_interface.h"
+#include "neug/execution/runtime/utils/opr_timer.h"
 #include "neug/main/query_result.h"
+#include "neug/transaction/graph_db.h"
 #include "neug/utils/leaf_utils.h"
 #ifdef USE_SYSTEM_PROTOBUF
 #include "neug/generated/proto/plan/physical.pb.h"

@@ -24,8 +24,8 @@
 #include "neug/compiler/function/list/vector_list_functions.h"
 #include "neug/compiler/function/path/vector_path_functions.h"
 #include "neug/compiler/function/schema/vector_node_rel_functions.h"
-#include "neug/compiler/function/struct/vector_struct_functions.h"
 #include "neug/compiler/function/string/vector_string_functions.h"
+#include "neug/compiler/function/struct/vector_struct_functions.h"
 
 namespace gs {
 namespace gopt {
@@ -70,7 +70,7 @@ class GScalarType {
   }
 
   bool isString() const {
-    return type == ScalarType::UPPER || type == ScalarType::LOWER || 
+    return type == ScalarType::UPPER || type == ScalarType::LOWER ||
            type == ScalarType::REVERSE;
   }
 

@@ -21,10 +21,10 @@
 #include <memory>
 #include <string_view>
 #include "neug/compiler/planner/graph_planner.h"
-#include "neug/engines/graph_db/database/graph_db.h"
-#include "neug/engines/graph_db/database/graph_db_session.h"
 #include "neug/server/graph_db_service.h"
 #include "neug/storages/graph/schema.h"
+#include "neug/transaction/graph_db.h"
+#include "neug/transaction/graph_db_session.h"
 #include "neug/utils/http_handler_manager.h"
 #include "neug/utils/leaf_utils.h"
 #include "neug/utils/pb_utils.h"

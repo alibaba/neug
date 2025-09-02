@@ -14,8 +14,8 @@
  */
 
 #include "cxxopts/cxxopts.hpp"
-#include "neug/engines/graph_db/database/graph_db.h"
 #include "neug/server/graph_db_service.h"
+#include "neug/transaction/graph_db.h"
 #include "neug/utils/service_utils.h"
 
 #include <glog/logging.h>

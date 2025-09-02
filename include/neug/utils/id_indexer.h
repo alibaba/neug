@@ -32,7 +32,7 @@ limitations under the License.
 #include "libgrape-lite/grape/io/local_io_adaptor.h"
 #include "libgrape-lite/grape/serialization/in_archive.h"
 #include "libgrape-lite/grape/serialization/out_archive.h"
-#include "neug/engines/graph_db/runtime/common/utils/bitset.h"
+#include "neug/execution/runtime/common/utils/bitset.h"
 #include "neug/utils/mmap_array.h"
 #include "neug/utils/property/column.h"
 #include "neug/utils/property/types.h"

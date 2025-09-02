@@ -14,10 +14,10 @@
  */
 
 #include "neug/main/query_processor.h"
-#include "neug/engines/graph_db/app/cypher_update_app.h"
-#include "neug/engines/graph_db/runtime/common/context.h"
-#include "neug/engines/graph_db/runtime/common/operators/retrieve/sink.h"
-#include "neug/engines/graph_db/runtime/execute/plan_parser.h"
+#include "neug/execution/app/cypher_update_app.h"
+#include "neug/execution/runtime/common/context.h"
+#include "neug/execution/runtime/common/operators/retrieve/sink.h"
+#include "neug/execution/runtime/execute/plan_parser.h"
 #include "neug/storages/graph/property_graph.h"
 #include "neug/utils/pb_utils.h"
 

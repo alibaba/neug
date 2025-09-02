@@ -7,7 +7,7 @@ add_dependencies(neug_py_bind neug_plan_proto)
 if (BUILD_ALL_IN_ONE)
     set(NEUG_LIBRARIES neug_libraries)
 else()
-    set(NEUG_LIBRARIES neug_graph_db neug_main neug_utils)
+    set(NEUG_LIBRARIES neug_execution neug_main neug_utils)
 endif()
 if (BUILD_HTTP_SERVER)
     set(NEUG_LIBRARIES ${NEUG_LIBRARIES} ${BRPC_LIB} ${LEVELDB_LIB} ${OPENSSL_LIBRARIES} ${GLOG_LIBRARIES} ${Protobuf_LIBRARIES} ${Boost_LIBRARIES})#${PROTOC_LIB}
