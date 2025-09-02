@@ -290,7 +290,6 @@ conn.close()
 db.close()
 ```
 
-
 ## Next Steps
 
 Congratulations! You've learned the basics of NeuG. Here's what you can explore next:

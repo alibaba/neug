@@ -55,6 +55,13 @@ NeuG documentation
 
 .. toctree::
    :maxdepth: 1
+   :caption: User Guide
+
+   user_guide/data_persistence_transaction
+   user_guide/key_concepts
+
+.. toctree::
+   :maxdepth: 1
    :caption: API Reference
 
    reference/cpp_api/index
