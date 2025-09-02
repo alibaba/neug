@@ -906,6 +906,45 @@ static std::unique_ptr<ExprBase> build_expr(
       return std::make_unique<TupleExpr>(std::move(exprs));
     }
 
+    case common::ExprOpr::kToUpper: {
+        auto op = opr.to_upper();
+        std::unique_ptr<ExprBase> input_expr;
+        if (op.has_value()) {
+            input_expr = std::make_unique<ConstExpr>(parse_const_value(op.value()), true);
+        } else if (op.has_var()) {
+            input_expr = std::make_unique<VariableExpr>(graph, ctx, op.var(), var_type);
+        } else {
+            LOG(FATAL) << "ToUpper: input_item neither value nor var: " << op.DebugString();
+        }
+        return std::make_unique<UpperExpr>(std::move(input_expr));
+    }
+
+    case common::ExprOpr::kToLower: {
+        auto op = opr.to_lower();
+        std::unique_ptr<ExprBase> input_expr;
+        if (op.has_value()) {
+            input_expr = std::make_unique<ConstExpr>(parse_const_value(op.value()), true);
+        } else if (op.has_var()) {
+            input_expr = std::make_unique<VariableExpr>(graph, ctx, op.var(), var_type);
+        } else {
+            LOG(FATAL) << "ToLower: input_item neither value nor var: " << op.DebugString();
+        }
+        return std::make_unique<LowerExpr>(std::move(input_expr));
+    }
+
+    case common::ExprOpr::kReverse: {
+        auto op = opr.reverse();
+        std::unique_ptr<ExprBase> input_expr;
+        if (op.has_value()) {
+            input_expr = std::make_unique<ConstExpr>(parse_const_value(op.value()), true);
+        } else if (op.has_var()) {
+            input_expr = std::make_unique<VariableExpr>(graph, ctx, op.var(), var_type);
+        } else {
+            LOG(FATAL) << "Reverse: input_item neither value nor var: " << op.DebugString();
+        }
+        return std::make_unique<ReverseExpr>(std::move(input_expr));
+    }
+
     case common::ExprOpr::kVars: {
       auto op = opr.vars();
 
@@ -1072,6 +1111,21 @@ static std::unique_ptr<ExprBase> parse_expression_impl(
     }
 
     case common::ExprOpr::kToTuple: {
+      opr_stack2.push(*it);
+      break;
+    }
+
+    case common::ExprOpr::kToUpper: {
+      opr_stack2.push(*it);
+      break;
+    }
+
+    case common::ExprOpr::kToLower: {
+      opr_stack2.push(*it);
+      break;
+    }
+
+    case common::ExprOpr::kReverse: {
       opr_stack2.push(*it);
       break;
     }

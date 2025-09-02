@@ -35,6 +35,8 @@
 #include <tuple>
 #include <utility>
 #include <vector>
+#include <algorithm>
+#include <cctype>
 
 #include "neug/engines/graph_db/runtime/common/rt_any.h"
 #include "neug/engines/graph_db/runtime/utils/var.h"
@@ -505,6 +507,123 @@ class CaseWhenExpr : public ExprBase {
   std::vector<std::pair<std::unique_ptr<ExprBase>, std::unique_ptr<ExprBase>>>
       when_then_exprs_;
   std::unique_ptr<ExprBase> else_expr_;
+};
+
+class UpperExpr : public ExprBase {
+ public:
+  explicit UpperExpr(std::unique_ptr<ExprBase>&& input) 
+    : input_(std::move(input)) {}
+
+  RTAnyType type() const override { return RTAnyType::kStringValue; }
+
+  RTAny eval_path(size_t idx, Arena& arena) const override {
+    auto val = input_->eval_path(idx, arena);
+    return eval_upper(val, arena);
+  }
+
+  RTAny eval_vertex(label_t label, vid_t v, size_t idx, Arena& arena) const override {
+    auto val = input_->eval_vertex(label, v, idx, arena);
+    return eval_upper(val, arena);
+  }
+
+  RTAny eval_edge(const LabelTriplet& label, vid_t src, vid_t dst,
+                  const Any& data, size_t idx, Arena& arena) const override {
+    auto val = input_->eval_edge(label, src, dst, data, idx, arena);
+    return eval_upper(val, arena);
+  }
+
+ private:
+  RTAny eval_upper(const RTAny& val, Arena& arena) const {
+    if (val.type() != RTAnyType::kStringValue) {
+      THROW_RUNTIME_ERROR("UPPER: input value is not a string");
+    }
+    std::string str(val.as_string());
+    std::transform(str.begin(), str.end(), str.begin(), ::toupper);
+    auto ptr = StringImpl::make_string_impl(str);
+    auto str_view = ptr->str_view();
+    arena.emplace_back(std::move(ptr));
+    return RTAny::from_string(str_view);
+  }
+
+  std::unique_ptr<ExprBase> input_;
+};
+
+class LowerExpr : public ExprBase {
+ public:
+  explicit LowerExpr(std::unique_ptr<ExprBase>&& input) 
+    : input_(std::move(input)) {}
+
+  RTAnyType type() const override { return RTAnyType::kStringValue; }
+
+  RTAny eval_path(size_t idx, Arena& arena) const override {
+    auto val = input_->eval_path(idx, arena);
+    return eval_lower(val, arena);
+  }
+
+  RTAny eval_vertex(label_t label, vid_t v, size_t idx, Arena& arena) const override {
+    auto val = input_->eval_vertex(label, v, idx, arena);
+    return eval_lower(val, arena);
+  }
+
+  RTAny eval_edge(const LabelTriplet& label, vid_t src, vid_t dst,
+                  const Any& data, size_t idx, Arena& arena) const override {
+    auto val = input_->eval_edge(label, src, dst, data, idx, arena);
+    return eval_lower(val, arena);
+  }
+
+ private:
+  RTAny eval_lower(const RTAny& val, Arena& arena) const {
+    if (val.type() != RTAnyType::kStringValue) {
+      THROW_RUNTIME_ERROR("LOWER: input value is not a string");
+    }
+    std::string str(val.as_string());
+    std::transform(str.begin(), str.end(), str.begin(), ::tolower);
+    auto ptr = StringImpl::make_string_impl(str);
+    auto str_view = ptr->str_view();
+    arena.emplace_back(std::move(ptr));
+    return RTAny::from_string(str_view);
+  }
+
+  std::unique_ptr<ExprBase> input_;
+};
+
+class ReverseExpr : public ExprBase {
+ public:
+  explicit ReverseExpr(std::unique_ptr<ExprBase>&& input) 
+    : input_(std::move(input)) {}
+
+  RTAnyType type() const override { return RTAnyType::kStringValue; }
+
+  RTAny eval_path(size_t idx, Arena& arena) const override {
+    auto val = input_->eval_path(idx, arena);
+    return eval_reverse(val, arena);
+  }
+
+  RTAny eval_vertex(label_t label, vid_t v, size_t idx, Arena& arena) const override {
+    auto val = input_->eval_vertex(label, v, idx, arena);
+    return eval_reverse(val, arena);
+  }
+
+  RTAny eval_edge(const LabelTriplet& label, vid_t src, vid_t dst,
+                  const Any& data, size_t idx, Arena& arena) const override {
+    auto val = input_->eval_edge(label, src, dst, data, idx, arena);
+    return eval_reverse(val, arena);
+  }
+
+ private:
+  RTAny eval_reverse(const RTAny& val, Arena& arena) const {
+    if (val.type() != RTAnyType::kStringValue) {
+      THROW_RUNTIME_ERROR("REVERSE: input value is not a string");
+    }
+    std::string str(val.as_string());
+    std::reverse(str.begin(), str.end());
+    auto ptr = StringImpl::make_string_impl(str);
+    auto str_view = ptr->str_view();
+    arena.emplace_back(std::move(ptr));
+    return RTAny::from_string(str_view);
+  }
+
+  std::unique_ptr<ExprBase> input_;
 };
 
 class TupleExpr : public ExprBase {

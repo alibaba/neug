@@ -1347,3 +1347,52 @@ def test_edge_expand_with_filter():
     )
     records = list(result)
     assert records == [[3, 7], [7, 8]]
+
+
+def test_upper():
+    db_dir = "/tmp/modern_graph"
+    db = Database(db_path=db_dir, mode="r")
+    conn = db.connect()
+    result = conn.execute("MATCH (n:person) RETURN UPPER(n.name)")
+    expected = {"MARKO", "VADAS", "JOSH", "PETER"}
+    actual = {record[0] for record in result}
+    assert actual == expected, f"Expected {expected}, got {actual}"
+    conn.close()
+    db.close()
+
+
+def test_lower():
+    """Test the LOWER() function on constant strings."""
+    db_dir = "/tmp/modern_graph"
+    db = Database(db_path=db_dir, mode="r")
+    conn = db.connect()
+    result = conn.execute(
+        "RETURN LOWER('MARKO'), LOWER('VaDaS'), LOWER('Josh'), LOWER('PETER')"
+    )
+    row = next(iter(result))
+    expected = ("marko", "vadas", "josh", "peter")
+    assert tuple(row) == expected, f"Expected {expected}, got {row}"
+    conn.close()
+    db.close()
+
+
+def test_reverse():
+    """Test the REVERSE() function on Person names using /tmp/modern_graph."""
+    db_dir = "/tmp/modern_graph"
+    db = Database(db_path=db_dir, mode="r")
+    conn = db.connect()
+    result = conn.execute("MATCH (n:person) RETURN n.name, REVERSE(n.name)")
+    expected_map = {
+        "marko": "okram",
+        "vadas": "sadav",
+        "josh": "hsoj",
+        "peter": "retep",
+    }
+    for record in result:
+        original, reversed_str = record
+        expected = expected_map[original]
+        assert (
+            reversed_str == expected
+        ), f"Expected {expected} for {original}, got {reversed_str}"
+    conn.close()
+    db.close()

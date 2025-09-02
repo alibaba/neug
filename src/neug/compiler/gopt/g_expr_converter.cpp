@@ -514,6 +514,97 @@ bool isLiteralOrVariable(const binder::Expression& expr) {
          expr.expressionType == common::ExpressionType::PROPERTY;
 }
 
+std::unique_ptr<::common::Expression> GExprConverter::convertStringFunc(const binder::Expression& expr, const std::vector<std::string>& schemaAlias) {
+  if (expr.getChildren().size() != 1) {
+    THROW_INTERNAL_EXCEPTION("string function should have exactly one child");
+  }
+  auto child = expr.getChild(0);
+
+  GScalarType type{expr};
+  auto exprPB = std::make_unique<::common::Expression>();
+
+  switch (type.getType()) {
+  case ScalarType::UPPER: {
+    auto upper = std::make_unique<::common::ToUpper>();
+
+    auto childExprPB = convert(*child, schemaAlias);
+    if (childExprPB->operators_size() == 0) {
+      THROW_INTERNAL_EXCEPTION("string function should have exactly one child");
+    }
+    auto childOprPB = childExprPB->operators(0);
+
+    if (childOprPB.has_const_()) {
+      upper->set_allocated_value(childOprPB.release_const_());
+    } else if (childOprPB.has_var()) {
+      upper->set_allocated_var(childOprPB.release_var());
+    } else {
+      THROW_INTERNAL_EXCEPTION(
+          "convert child of string function failed, invalid expression type: " +
+          std::to_string(childOprPB.item_case()));
+    }
+
+    exprPB->add_operators()->set_allocated_to_upper(upper.release());
+    break;
+  }
+
+  case ScalarType::LOWER: {
+    auto lower = std::make_unique<::common::ToLower>();
+
+    auto childExprPB = convert(*child, schemaAlias);
+    if (childExprPB->operators_size() == 0) {
+      THROW_INTERNAL_EXCEPTION(
+          "convert child of string function failed, empty expression");
+    }
+    auto childOprPB = childExprPB->operators(0);
+
+    if (childOprPB.has_const_()) {
+      lower->set_allocated_value(childOprPB.release_const_());
+    } else if (childOprPB.has_var()) {
+      lower->set_allocated_var(childOprPB.release_var());
+    } else {
+      THROW_INTERNAL_EXCEPTION(
+          "convert child of string function failed, invalid expression type: " +
+          std::to_string(childOprPB.item_case()));
+    }
+
+    exprPB->add_operators()->set_allocated_to_lower(lower.release());
+    break;
+  }
+
+  case ScalarType::REVERSE: {
+    auto reverse = std::make_unique<::common::Reverse>();
+
+    auto childExprPB = convert(*child, schemaAlias);
+    if (childExprPB->operators_size() == 0) {
+      THROW_INTERNAL_EXCEPTION(
+          "convert child of string function failed, empty expression");
+    }
+    auto childOprPB = childExprPB->operators(0);
+
+    if (childOprPB.has_const_()) {
+      reverse->set_allocated_value(childOprPB.release_const_());
+    } else if (childOprPB.has_var()) {
+      reverse->set_allocated_var(childOprPB.release_var());
+    } else {
+      THROW_INTERNAL_EXCEPTION(
+          "convert child of string function failed, invalid expression type: " +
+          std::to_string(childOprPB.item_case()));
+    }
+
+    exprPB->add_operators()->set_allocated_reverse(reverse.release());
+    break;
+  }
+
+  default:
+    THROW_INTERNAL_EXCEPTION("Unsupported string function " +
+                                   expr.toString());
+  }
+
+  auto typePB = typeConverter.convertLogicalType(expr.getDataType(), expr);
+  exprPB->mutable_operators(0)->set_allocated_node_type(typePB.release());
+  return exprPB;
+}
+
 std::unique_ptr<::common::Expression> GExprConverter::convertToTupleFunc(
     const binder::Expression& expr,
     const std::vector<std::string>& schemaAlias) {
@@ -598,6 +689,8 @@ std::unique_ptr<::common::Expression> GExprConverter::convertScalarFunc(
     return convertPropertiesFunc(expr, schemaAlias);
   } else if (scalarType.getType() == TO_ARRAY) {
     return convertToTupleFunc(expr, schemaAlias);
+  } else if (scalarType.isString()) {
+    return convertStringFunc(expr, schemaAlias);
   }
   THROW_EXCEPTION_WITH_FILE_LINE("Unsupported expression type: " +
                                  expr.toString());

@@ -92,6 +92,9 @@ class GExprConverter {
   std::unique_ptr<::common::Expression> convertTemporalFunc(
       const binder::Expression& expr);
 
+  std::unique_ptr<::common::Expression> convertStringFunc(
+      const binder::Expression& expr, const std::vector<std::string>& schemaAlias);
+
   std::unique_ptr<::common::Expression> convertExtractFunc(
       const binder::Expression& expr);
 
