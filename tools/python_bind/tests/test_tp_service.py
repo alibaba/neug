@@ -81,3 +81,28 @@ def test_batch_loading(setup_database):
     status = sess.service_status()
     logger.info(f"Service status: {status}")
     assert status["status"] == "OK"
+
+
+def test_start_service_on_pure_memory_db():
+    db = Database("", "w")
+    conn = db.connect()
+    conn.execute(
+        "CREATE NODE TABLE person(id INT64, name STRING, age INT64, PRIMARY KEY(id));"
+    )
+    conn.execute("CREATE REL TABLE knows(FROM person TO person, weight DOUBLE);")
+    conn.execute("CREATE (p:person {id: 1, name: 'marko', age: 29});")
+    conn.execute("CREATE (p:person {id: 2, name: 'vadas', age: 27});")
+    conn.execute(
+        "MATCH (a:person), (b:person) WHERE a.id = 1 AND b.id = 2 CREATE (a)-[:knows {weight: 0.5}]->(b);"
+    )
+    conn.close()
+    uri = db.serve(10001, "localhost")
+    time.sleep(1)
+
+    session = Session(uri, timeout="10s")
+    res = session.execute("MATCH (n) WHERE n.id = 1 RETURN n.name;")
+    assert len(res) == 1
+    assert res[0][0] == "marko"
+
+    db.stop_serving()
+    db.close()

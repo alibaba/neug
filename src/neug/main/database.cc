@@ -139,11 +139,6 @@ std::string NeugDB::serve(int port, const std::string& host) {
   service_config_.query_port = port;
   service_config_.host_str = host;
   service_config_.engine_config_path = planner_config_path_;
-  if (is_pure_memory_) {
-    THROW_RUNTIME_ERROR(
-        "Cannot serve a pure memory database. Please use a persistent "
-        "database.");
-  }
   std::shared_ptr<IGraphPlanner> planner =
       std::make_shared<GOptPlanner>(planner_config_path_);
   planner->update_meta(db_.schema().to_yaml().value());
