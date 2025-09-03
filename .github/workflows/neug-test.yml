@@ -193,6 +193,12 @@ jobs:
         # import/export tests
         python3 -m pytest -sv tests/test_db_import_export.py
 
+    - name: Run Complex Query Test
+      run: |
+        cd ${GITHUB_WORKSPACE}/tools/python_bind/
+        # complex query tests
+        python3 -m pytest -sv tests/test_db_cases.py
+
     - name: Run List Test
       run: |
         cd ${GITHUB_WORKSPACE}/tools/python_bind/
