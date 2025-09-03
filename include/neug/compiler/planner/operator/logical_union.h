@@ -11,7 +11,8 @@ class LogicalUnion : public LogicalOperator {
   LogicalUnion(binder::expression_vector expressions,
                const std::vector<std::shared_ptr<LogicalOperator>>& children)
       : LogicalOperator{LogicalOperatorType::UNION_ALL, children},
-        expressionsToUnion{std::move(expressions)} {}
+        expressionsToUnion{std::move(expressions)},
+        preQuery(false) {}
 
   f_group_pos_set getGroupsPosToFlatten(uint32_t childIdx);
 

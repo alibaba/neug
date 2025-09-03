@@ -63,7 +63,7 @@ schema:
           property_name: creationDate
           property_type:
             temporal:
-              timestamp:
+              datetime:
         - property_id: 6
           property_name: locationIP
           property_type:
@@ -101,7 +101,7 @@ schema:
           property_name: creationDate
           property_type:
             temporal:
-              timestamp:
+              datetime:
         - property_id: 2
           property_name: locationIP
           property_type:
@@ -143,7 +143,7 @@ schema:
           property_name: creationDate
           property_type:
             temporal:
-              timestamp:
+              datetime:
         - property_id: 3
           property_name: locationIP
           property_type:
@@ -191,7 +191,7 @@ schema:
           property_name: creationDate
           property_type:
             temporal:
-              timestamp:
+              datetime:
       primary_keys:
         - id
     - type_id: 5
@@ -282,7 +282,7 @@ schema:
           property_name: creationDate
           property_type:
             temporal:
-              timestamp:
+              datetime:
     - type_id: 1
       type_name: HASTAG
       vertex_type_pair_relations:
@@ -323,7 +323,7 @@ schema:
           property_name: joinDate
           property_type:
             temporal:
-              timestamp:
+              datetime:
     - type_id: 5
       type_name: HASMODERATOR
       vertex_type_pair_relations:
@@ -362,7 +362,7 @@ schema:
           property_name: creationDate
           property_type:
             temporal:
-              timestamp:
+              datetime:
     - type_id: 9
       type_name: LIKES
       vertex_type_pair_relations:
@@ -377,7 +377,7 @@ schema:
           property_name: creationDate
           property_type:
             temporal:
-              timestamp:
+              datetime:
     - type_id: 10
       type_name: WORKAT
       vertex_type_pair_relations:

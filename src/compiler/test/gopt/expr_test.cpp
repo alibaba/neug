@@ -375,5 +375,15 @@ TEST_F(ExprTest, ORDER_BY_A) {
                                       getExprResource("ORDER_BY_A_physical"));
 }
 
+TEST_F(ExprTest, COUNT_AVG_GENDER) {
+  std::string query =
+      "MATCH (n:person) RETURN n.fName, COUNT(n.gender), AVG(n.gender) ORDER "
+      "BY n.fName;";
+  auto logical = planLogical(query, schemaData, statsData, rules);
+  auto physical = planPhysical(*logical);
+  VerifyFactory::verifyPhysicalByJson(
+      *physical, getExprResource("COUNT_AVG_GENDER_physical"));
+}
+
 }  // namespace gopt
 }  // namespace gs

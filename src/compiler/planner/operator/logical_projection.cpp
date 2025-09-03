@@ -40,9 +40,10 @@ void LogicalProjection::computeFactorizedSchema() {
 // to each expression to fix this.
 void LogicalProjection::resetExprUniqueNames() {
   std::unordered_set<std::string> uniqueNames;
-  for (auto& expr : expressions) {
-    if (uniqueNames.contains(expr->getUniqueName()) && expr->hasAlias()) {
-      std::string newUnique = expr->getUniqueName() + "_" + expr->getAlias();
+  for (auto pos = 0; pos < expressions.size(); ++pos) {
+    auto expr = expressions[pos];
+    if (uniqueNames.contains(expr->getUniqueName())) {
+      std::string newUnique = expr->getUniqueName() + "_" + std::to_string(pos);
       expr->setUniqueName(newUnique);
       continue;
     }

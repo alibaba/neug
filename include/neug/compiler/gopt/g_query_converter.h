@@ -169,8 +169,7 @@ class GQueryConvertor {
 
   void setMetaData(::physical::PhysicalOpr* physicalOpr,
                    const planner::LogicalOperator& op,
-                   std::vector<std::shared_ptr<binder::Expression>> exprs,
-                   std::vector<common::alias_id_t>& aliasIds);
+                   std::vector<std::shared_ptr<binder::Expression>> exprs);
   std::unique_ptr<::algebra::QueryParams> convertParams(
       const std::vector<common::table_id_t>& labelIds,
       std::shared_ptr<binder::Expression> predicates);

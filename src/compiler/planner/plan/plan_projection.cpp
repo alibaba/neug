@@ -1,3 +1,4 @@
+#include "neug/compiler/binder/expression/expression_util.h"
 #include "neug/compiler/binder/expression_visitor.h"
 #include "neug/compiler/binder/query/return_with_clause/bound_projection_body.h"
 #include "neug/compiler/planner/operator/scan/logical_dummy_scan.h"
@@ -76,8 +77,15 @@ void Planner::planAggregate(const expression_vector& expressionsToAggregate,
   for (auto& expressionToGroupBy : expressionsToGroupBy) {
     expressionsToProject.push_back(expressionToGroupBy);
   }
-  appendProjection(expressionsToProject, plan);
-  appendAggregate(expressionsToGroupBy, expressionsToAggregate, plan);
+  // remove duplication in pre projection before aggregate
+  appendProjection(ExpressionUtil::removeDuplication(expressionsToProject),
+                   plan);
+  // guarantee the deduplication of each group key or value to avoid unnecessary
+  // computation, and a projection will be added after aggregate to guarantee
+  // the ouput schema
+  appendAggregate(ExpressionUtil::removeDuplication(expressionsToGroupBy),
+                  ExpressionUtil::removeDuplication(expressionsToAggregate),
+                  plan);
 }
 
 void Planner::planOrderBy(const binder::expression_vector& expressionsToProject,
@@ -92,7 +100,10 @@ void Planner::planOrderBy(const binder::expression_vector& expressionsToProject,
       expressionsToProjectBeforeOrderBy.push_back(expression);
     }
   }
-  appendProjection(expressionsToProjectBeforeOrderBy, plan);
+  // remove duplication in pre projection before orderby
+  appendProjection(
+      ExpressionUtil::removeDuplication(expressionsToProjectBeforeOrderBy),
+      plan);
   appendOrderBy(expressionsToOrderBy, isAscOrders, plan);
 }
 
