@@ -89,8 +89,8 @@ expand_vertex_without_predicate_impl(const GraphReadInterface& graph,
     }
   }
   if (ed_types.empty()) {
-    auto builder = MLVertexColumnBuilder::builder();
-    return std::make_pair(builder.finish(nullptr), std::vector<size_t>());
+    MLVertexColumnBuilder builder;
+    return std::make_pair(builder.finish(), std::vector<size_t>());
   }
   if (sp && (!check_exist_special_edge(graph, labels, dir))) {
     auto ed_type = ed_types[0];
@@ -149,7 +149,7 @@ expand_vertex_without_predicate_impl(const GraphReadInterface& graph,
 
 std::pair<std::shared_ptr<IContextColumn>, std::vector<size_t>>
 expand_vertex_without_predicate_optional_impl(
-    const GraphReadInterface& graph, const SLVertexColumnBase& input,
+    const GraphReadInterface& graph, const SLVertexColumn& input,
     const std::vector<LabelTriplet>& labels, Direction dir) {
   label_t input_label = *input.get_labels_set().begin();
   std::vector<std::tuple<label_t, label_t, Direction>> label_dirs;
@@ -192,8 +192,8 @@ expand_vertex_without_predicate_optional_impl(
   bool se = (label_dirs.size() == 1);
   bool sp = true;
   if (label_dirs.size() == 0) {
-    auto builder = MLVertexColumnBuilder::builder();
-    return std::make_pair(builder.finish(nullptr), std::vector<size_t>());
+    MLVertexColumnBuilder builder;
+    return std::make_pair(builder.finish(), std::vector<size_t>());
   }
   if (sp && (!check_exist_special_edge(graph, labels, dir))) {
     const PropertyType& ed_type = ed_types[0];
@@ -286,8 +286,8 @@ expand_vertex_without_predicate_impl(const GraphReadInterface& graph,
   }
   bool sp = true;
   if (ed_types.size() == 0) {
-    auto builder = MLVertexColumnBuilder::builder();
-    return std::make_pair(builder.finish(nullptr), std::vector<size_t>());
+    MLVertexColumnBuilder builder;
+    return std::make_pair(builder.finish(), std::vector<size_t>());
   }
   for (size_t k = 1; k < ed_types.size(); ++k) {
     if (ed_types[k] != ed_types[0]) {
@@ -295,10 +295,7 @@ expand_vertex_without_predicate_impl(const GraphReadInterface& graph,
       break;
     }
   }
-  if (ed_types.empty()) {
-    auto builder = MLVertexColumnBuilder::builder();
-    return std::make_pair(builder.finish(nullptr), std::vector<size_t>());
-  }
+
   if (sp && (!check_exist_special_edge(graph, labels, dir))) {
     const PropertyType& ed_type = ed_types[0];
     if (ed_type == PropertyType::Empty()) {
@@ -348,7 +345,7 @@ expand_vertex_without_predicate_impl(const GraphReadInterface& graph,
 
 std::pair<std::shared_ptr<IContextColumn>, std::vector<size_t>>
 expand_vertex_without_predicate_optional_impl(
-    const GraphReadInterface& graph, const MLVertexColumnBase& input,
+    const GraphReadInterface& graph, const MLVertexColumn& input,
     const std::vector<LabelTriplet>& labels, Direction dir) {
   const std::set<label_t>& input_labels = input.get_labels_set();
   int label_num = graph.schema().vertex_label_num();
@@ -398,18 +395,14 @@ expand_vertex_without_predicate_optional_impl(
   }
   bool sp = true;
   if (ed_types.size() == 0) {
-    auto builder = MLVertexColumnBuilder::builder();
-    return std::make_pair(builder.finish(nullptr), std::vector<size_t>());
+    MLVertexColumnBuilder builder;
+    return std::make_pair(builder.finish(), std::vector<size_t>());
   }
   for (size_t k = 1; k < ed_types.size(); ++k) {
     if (ed_types[k] != ed_types[0]) {
       sp = false;
       break;
     }
-  }
-  if (ed_types.size() == 0) {
-    auto builder = MLVertexColumnBuilder::builder();
-    return std::make_pair(builder.finish(nullptr), std::vector<size_t>());
   }
   if (sp && (!check_exist_special_edge(graph, labels, dir))) {
     const PropertyType& ed_type = ed_types[0];
@@ -497,8 +490,8 @@ expand_vertex_without_predicate_impl(const GraphReadInterface& graph,
     }
   }
   if (ed_types.size() == 0) {
-    auto builder = MLVertexColumnBuilder::builder();
-    return std::make_pair(builder.finish(nullptr), std::vector<size_t>());
+    MLVertexColumnBuilder builder;
+    return std::make_pair(builder.finish(), std::vector<size_t>());
   }
   if (sp && (!check_exist_special_edge(graph, labels, dir))) {
     const PropertyType& ed_type = ed_types[0];

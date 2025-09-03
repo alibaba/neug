@@ -20,8 +20,7 @@
 namespace gs {
 namespace runtime {
 
-std::shared_ptr<IContextColumn> ArrowArrayContextColumnBuilder::finish(
-    const std::shared_ptr<Arena>& arena) {
+std::shared_ptr<IContextColumn> ArrowArrayContextColumnBuilder::finish() {
   return std::make_shared<ArrowArrayContextColumn>(columns_);
 }
 

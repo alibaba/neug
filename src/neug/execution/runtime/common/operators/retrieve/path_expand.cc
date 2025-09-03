@@ -59,7 +59,7 @@ gs::result<Context> PathExpand::edge_expand_v(const GraphReadInterface& graph,
         out_labels_map[label.src_label].emplace_back(label);
       }
 
-      auto builder = MLVertexColumnBuilder::builder(labels);
+      MLVertexColumnBuilder builder(labels);
       std::vector<std::tuple<label_t, vid_t, size_t>> input;
       std::vector<std::tuple<label_t, vid_t, size_t>> output;
       foreach_vertex(input_vertex_list,
@@ -99,8 +99,7 @@ gs::result<Context> PathExpand::edge_expand_v(const GraphReadInterface& graph,
         }
         ++depth;
       }
-      ctx.set_with_reshuffle(params.alias, builder.finish(nullptr),
-                             shuffle_offset);
+      ctx.set_with_reshuffle(params.alias, builder.finish(), shuffle_offset);
       return ctx;
     } else if (params.dir == Direction::kIn) {
       auto& input_vertex_list =
@@ -113,7 +112,7 @@ gs::result<Context> PathExpand::edge_expand_v(const GraphReadInterface& graph,
         in_labels_map[label.dst_label].emplace_back(label);
       }
 
-      auto builder = MLVertexColumnBuilder::builder(labels);
+      MLVertexColumnBuilder builder(labels);
       std::vector<std::tuple<label_t, vid_t, size_t>> input;
       std::vector<std::tuple<label_t, vid_t, size_t>> output;
       foreach_vertex(input_vertex_list,
@@ -153,8 +152,7 @@ gs::result<Context> PathExpand::edge_expand_v(const GraphReadInterface& graph,
         }
         ++depth;
       }
-      ctx.set_with_reshuffle(params.alias, builder.finish(nullptr),
-                             shuffle_offset);
+      ctx.set_with_reshuffle(params.alias, builder.finish(), shuffle_offset);
       return ctx;
     } else if (params.dir == Direction::kBoth) {
       std::set<label_t> labels;
@@ -167,7 +165,7 @@ gs::result<Context> PathExpand::edge_expand_v(const GraphReadInterface& graph,
         out_labels_map[label.src_label].emplace_back(label);
       }
 
-      auto builder = MLVertexColumnBuilder::builder(labels);
+      MLVertexColumnBuilder builder(labels);
       std::vector<std::tuple<label_t, vid_t, size_t>> input;
       std::vector<std::tuple<label_t, vid_t, size_t>> output;
       auto input_vertex_list =
@@ -230,8 +228,7 @@ gs::result<Context> PathExpand::edge_expand_v(const GraphReadInterface& graph,
         }
         depth++;
       }
-      ctx.set_with_reshuffle(params.alias, builder.finish(nullptr),
-                             shuffle_offset);
+      ctx.set_with_reshuffle(params.alias, builder.finish(), shuffle_offset);
       return ctx;
     }
   }
@@ -302,7 +299,8 @@ gs::result<Context> PathExpand::edge_expand_p(const GraphReadInterface& graph,
       std::swap(input, output);
       ++depth;
     }
-    ctx.set_with_reshuffle(params.alias, builder.finish(arena), shuffle_offset);
+    builder.set_arena(arena);
+    ctx.set_with_reshuffle(params.alias, builder.finish(), shuffle_offset);
 
     return ctx;
   } else if (dir == Direction::kIn) {
@@ -348,7 +346,8 @@ gs::result<Context> PathExpand::edge_expand_p(const GraphReadInterface& graph,
       std::swap(input, output);
       ++depth;
     }
-    ctx.set_with_reshuffle(params.alias, builder.finish(arena), shuffle_offset);
+    builder.set_arena(arena);
+    ctx.set_with_reshuffle(params.alias, builder.finish(), shuffle_offset);
 
     return ctx;
 
@@ -407,7 +406,8 @@ gs::result<Context> PathExpand::edge_expand_p(const GraphReadInterface& graph,
       std::swap(input, output);
       ++depth;
     }
-    ctx.set_with_reshuffle(params.alias, builder.finish(arena), shuffle_offset);
+    builder.set_arena(arena);
+    ctx.set_with_reshuffle(params.alias, builder.finish(), shuffle_offset);
     return ctx;
   }
   LOG(ERROR) << "not support path expand options";
@@ -569,7 +569,7 @@ gs::result<Context> PathExpand::single_source_single_dest_shortest_path(
         "only support same src and dst label and both "
         "direction");
   }
-  auto builder = SLVertexColumnBuilder::builder(label_triplet.dst_label);
+  MSVertexColumnBuilder builder(label_triplet.dst_label);
   GeneralPathColumnBuilder path_builder;
   std::shared_ptr<Arena> arena = std::make_shared<Arena>();
   foreach_vertex(input_vertex_list, [&](size_t index, label_t label, vid_t v) {
@@ -585,9 +585,9 @@ gs::result<Context> PathExpand::single_source_single_dest_shortest_path(
     }
   });
 
-  ctx.set_with_reshuffle(params.v_alias, builder.finish(nullptr),
-                         shuffle_offset);
-  ctx.set(params.alias, path_builder.finish(arena));
+  ctx.set_with_reshuffle(params.v_alias, builder.finish(), shuffle_offset);
+  path_builder.set_arena(arena);
+  ctx.set(params.alias, path_builder.finish());
   return ctx;
 }
 
@@ -819,7 +819,7 @@ gs::result<Context> PathExpand::all_shortest_paths_with_given_source_and_dest(
     LOG(ERROR) << "only support same src and dst label";
     RETURN_UNSUPPORTED_ERROR("only support same src and dst label");
   }
-  auto builder = SLVertexColumnBuilder::builder(label_triplet.dst_label);
+  MSVertexColumnBuilder builder(label_triplet.dst_label);
   GeneralPathColumnBuilder path_builder;
   std::vector<size_t> shuffle_offset;
   std::shared_ptr<Arena> arena = std::make_shared<Arena>();
@@ -836,9 +836,9 @@ gs::result<Context> PathExpand::all_shortest_paths_with_given_source_and_dest(
       shuffle_offset.push_back(index);
     }
   });
-  ctx.set_with_reshuffle(params.v_alias, builder.finish(nullptr),
-                         shuffle_offset);
-  ctx.set(params.alias, path_builder.finish(arena));
+  ctx.set_with_reshuffle(params.v_alias, builder.finish(), shuffle_offset);
+  path_builder.set_arena(arena);
+  ctx.set(params.alias, path_builder.finish());
   return ctx;
 }
 

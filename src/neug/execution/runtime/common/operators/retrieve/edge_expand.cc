@@ -116,8 +116,7 @@ static gs::result<Context> expand_edge_without_predicate_optional_impl(
           shuffle_offset.push_back(index);
         }
       });
-      ctx.set_with_reshuffle(params.alias, builder.finish(nullptr),
-                             shuffle_offset);
+      ctx.set_with_reshuffle(params.alias, builder.finish(), shuffle_offset);
       return ctx;
     } else if (params.dir == Direction::kOut) {
       auto& input_vertex_list =
@@ -162,8 +161,7 @@ static gs::result<Context> expand_edge_without_predicate_optional_impl(
                        }
                      });
 
-      ctx.set_with_reshuffle(params.alias, builder.finish(nullptr),
-                             shuffle_offset);
+      ctx.set_with_reshuffle(params.alias, builder.finish(), shuffle_offset);
       return ctx;
     } else if (params.dir == Direction::kIn) {
       auto& input_vertex_list =
@@ -208,8 +206,7 @@ static gs::result<Context> expand_edge_without_predicate_optional_impl(
                        }
                      });
 
-      ctx.set_with_reshuffle(params.alias, builder.finish(nullptr),
-                             shuffle_offset);
+      ctx.set_with_reshuffle(params.alias, builder.finish(), shuffle_offset);
       return ctx;
     }
   }
@@ -271,8 +268,7 @@ gs::result<Context> EdgeExpand::expand_edge_without_predicate(
                        }
                      });
 
-      ctx.set_with_reshuffle(params.alias, builder.finish(nullptr),
-                             shuffle_offset);
+      ctx.set_with_reshuffle(params.alias, builder.finish(), shuffle_offset);
       return ctx;
     } else if (params.dir == Direction::kOut) {
       auto& input_vertex_list =
@@ -312,8 +308,7 @@ gs::result<Context> EdgeExpand::expand_edge_without_predicate(
                        }
                      });
 
-      ctx.set_with_reshuffle(params.alias, builder.finish(nullptr),
-                             shuffle_offset);
+      ctx.set_with_reshuffle(params.alias, builder.finish(), shuffle_offset);
       return ctx;
     } else {
       auto& input_vertex_list =
@@ -355,8 +350,7 @@ gs::result<Context> EdgeExpand::expand_edge_without_predicate(
           }
         }
       });
-      ctx.set_with_reshuffle(params.alias, builder.finish(nullptr),
-                             shuffle_offset);
+      ctx.set_with_reshuffle(params.alias, builder.finish(), shuffle_offset);
       return ctx;
     }
   } else {
@@ -406,7 +400,7 @@ gs::result<Context> EdgeExpand::expand_edge_without_predicate(
                   }
                 }
               });
-          ctx.set_with_reshuffle(params.alias, builder.finish(nullptr),
+          ctx.set_with_reshuffle(params.alias, builder.finish(),
                                  shuffle_offset);
           return ctx;
         } else if (params.dir == Direction::kIn) {
@@ -426,7 +420,7 @@ gs::result<Context> EdgeExpand::expand_edge_without_predicate(
                   }
                 }
               });
-          ctx.set_with_reshuffle(params.alias, builder.finish(nullptr),
+          ctx.set_with_reshuffle(params.alias, builder.finish(),
                                  shuffle_offset);
           return ctx;
         }
@@ -465,8 +459,7 @@ gs::result<Context> EdgeExpand::expand_edge_without_predicate(
               });
         }
 
-        ctx.set_with_reshuffle(params.alias, builder.finish(nullptr),
-                               shuffle_offset);
+        ctx.set_with_reshuffle(params.alias, builder.finish(), shuffle_offset);
         return ctx;
       }
     } else if (params.dir == Direction::kBoth) {
@@ -498,8 +491,7 @@ gs::result<Context> EdgeExpand::expand_edge_without_predicate(
             }
           }
         });
-        ctx.set_with_reshuffle(params.alias, builder.finish(nullptr),
-                               shuffle_offset);
+        ctx.set_with_reshuffle(params.alias, builder.finish(), shuffle_offset);
         return ctx;
       } else {
         auto builder = BDMLEdgeColumnBuilder::builder(label_props);
@@ -530,8 +522,7 @@ gs::result<Context> EdgeExpand::expand_edge_without_predicate(
                 }
               }
             });
-        ctx.set_with_reshuffle(params.alias, builder.finish(nullptr),
-                               shuffle_offset);
+        ctx.set_with_reshuffle(params.alias, builder.finish(), shuffle_offset);
         return ctx;
       }
     }
@@ -552,20 +543,16 @@ gs::result<Context> EdgeExpand::expand_vertex_without_predicate(
   VertexColumnType input_vertex_list_type =
       input_vertex_list->vertex_column_type();
   if (input_vertex_list_type == VertexColumnType::kSingle) {
+    auto casted_input_vertex_list =
+        std::dynamic_pointer_cast<SLVertexColumn>(input_vertex_list);
     if (input_vertex_list->is_optional()) {
-      auto casted_input_vertex_list =
-          std::dynamic_pointer_cast<SLVertexColumnBase>(input_vertex_list);
       auto pair = expand_vertex_without_predicate_optional_impl(
           graph, *casted_input_vertex_list, params.labels, params.dir);
       ctx.set_with_reshuffle(params.alias, pair.first, pair.second);
       return ctx;
     } else {
-      auto casted_input_vertex_list =
-          std::dynamic_pointer_cast<SLVertexColumn>(input_vertex_list);
       // optional edge expand
       if (params.is_optional) {
-        auto casted_input_vertex_list =
-            std::dynamic_pointer_cast<SLVertexColumnBase>(input_vertex_list);
         auto pair = expand_vertex_without_predicate_optional_impl(
             graph, *casted_input_vertex_list, params.labels, params.dir);
         ctx.set_with_reshuffle(params.alias, pair.first, pair.second);
@@ -578,16 +565,15 @@ gs::result<Context> EdgeExpand::expand_vertex_without_predicate(
       }
     }
   } else if (input_vertex_list_type == VertexColumnType::kMultiple) {
+    auto casted_input_vertex_list =
+        std::dynamic_pointer_cast<MLVertexColumn>(input_vertex_list);
+
     if (input_vertex_list->is_optional() || params.is_optional) {
-      auto casted_input_vertex_list =
-          std::dynamic_pointer_cast<MLVertexColumnBase>(input_vertex_list);
       auto pair = expand_vertex_without_predicate_optional_impl(
           graph, *casted_input_vertex_list, params.labels, params.dir);
       ctx.set_with_reshuffle(params.alias, pair.first, pair.second);
       return ctx;
     }
-    auto casted_input_vertex_list =
-        std::dynamic_pointer_cast<MLVertexColumn>(input_vertex_list);
     auto pair = expand_vertex_without_predicate_impl(
         graph, *casted_input_vertex_list, params.labels, params.dir);
     ctx.set_with_reshuffle(params.alias, pair.first, pair.second);
@@ -723,7 +709,7 @@ Context expand_vertex_ep_lt_ml_impl(
           graph.GetIncomingGraphView<T>(input_label, nbr_label, edge_label));
     }
   }
-  auto builder = MSVertexColumnBuilder::builder();
+  MSVertexColumnBuilder builder;
   size_t csr_idx = 0;
   std::vector<size_t> offsets;
   for (auto& csr : views) {
@@ -739,7 +725,7 @@ Context expand_vertex_ep_lt_ml_impl(
     }
     ++csr_idx;
   }
-  std::shared_ptr<IContextColumn> col = builder.finish(nullptr);
+  std::shared_ptr<IContextColumn> col = builder.finish();
   ctx.set_with_reshuffle(alias, col, offsets);
   return ctx;
 }
@@ -856,7 +842,7 @@ Context expand_vertex_ep_gt_sl_impl(
           graph.GetIncomingGraphView<T>(input_label, nbr_label, edge_label));
     }
   }
-  auto builder = SLVertexColumnBuilder::builder(std::get<0>(label_dirs[0]));
+  MSVertexColumnBuilder builder(std::get<0>(label_dirs[0]));
   std::vector<size_t> offsets;
   for (auto& csr : views) {
     size_t idx = 0;
@@ -868,7 +854,7 @@ Context expand_vertex_ep_gt_sl_impl(
       ++idx;
     }
   }
-  std::shared_ptr<IContextColumn> col = builder.finish(nullptr);
+  std::shared_ptr<IContextColumn> col = builder.finish();
   ctx.set_with_reshuffle(alias, col, offsets);
   return ctx;
 }
@@ -895,14 +881,13 @@ Context expand_vertex_ep_gt_ml_impl(
           graph.GetIncomingGraphView<T>(input_label, nbr_label, edge_label));
     }
   }
-  auto builder = MSVertexColumnBuilder::builder();
+  MSVertexColumnBuilder builder;
   size_t csr_idx = 0;
   std::vector<size_t> offsets;
   for (auto& csr : views) {
     label_t nbr_label = std::get<0>(label_dirs[csr_idx]);
     size_t idx = 0;
     builder.start_label(nbr_label);
-    LOG(INFO) << "start label: " << static_cast<int>(nbr_label);
     for (auto v : casted_input_vertex_list->vertices()) {
       csr.foreach_edges_gt(v, max_value, [&](vid_t nbr, const T& val) {
         builder.push_back_opt(nbr);
@@ -912,7 +897,7 @@ Context expand_vertex_ep_gt_ml_impl(
     }
     ++csr_idx;
   }
-  std::shared_ptr<IContextColumn> col = builder.finish(nullptr);
+  std::shared_ptr<IContextColumn> col = builder.finish();
   ctx.set_with_reshuffle(alias, col, offsets);
   return ctx;
 }

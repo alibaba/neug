@@ -56,37 +56,37 @@ std::shared_ptr<IContextColumn> any_vec_to_column(
     for (auto& any : any_vec) {
       builder.push_back_opt(any.as_bool());
     }
-    return builder.finish(nullptr);
+    return builder.finish();
   } else if (first == RTAnyType::kI32Value) {
     ValueColumnBuilder<int32_t> builder;
     for (auto& any : any_vec) {
       builder.push_back_opt(any.as_int32());
     }
-    return builder.finish(nullptr);
+    return builder.finish();
   } else if (first == RTAnyType::kI64Value) {
     ValueColumnBuilder<int64_t> builder;
     for (auto& any : any_vec) {
       builder.push_back_opt(any.as_int64());
     }
-    return builder.finish(nullptr);
+    return builder.finish();
   } else if (first == RTAnyType::kU64Value) {
     ValueColumnBuilder<uint64_t> builder;
     for (auto& any : any_vec) {
       builder.push_back_opt(any.as_uint64());
     }
-    return builder.finish(nullptr);
+    return builder.finish();
   } else if (first == RTAnyType::kF32Value) {
     ValueColumnBuilder<float> builder;
     for (auto& any : any_vec) {
       builder.push_back_opt(any.as_float());
     }
-    return builder.finish(nullptr);
+    return builder.finish();
   } else if (first == RTAnyType::kF64Value) {
     ValueColumnBuilder<double> builder;
     for (auto& any : any_vec) {
       builder.push_back_opt(any.as_double());
     }
-    return builder.finish(nullptr);
+    return builder.finish();
   } else if (first == RTAnyType::kStringValue) {
     ValueColumnBuilder<std::string_view> builder;
     std::shared_ptr<Arena> arena = std::make_shared<Arena>();
@@ -96,19 +96,20 @@ std::shared_ptr<IContextColumn> any_vec_to_column(
       arena->emplace_back(std::move(ptr));
       builder.push_back_opt(sv);
     }
-    return builder.finish(arena);
+    builder.set_arena(arena);
+    return builder.finish();
   } else if (first == RTAnyType::kDateTime) {
     ValueColumnBuilder<DateTime> builder;
     for (auto& any : any_vec) {
       builder.push_back_opt(any.as_datetime());
     }
-    return builder.finish(nullptr);
+    return builder.finish();
   } else if (first == RTAnyType::kTimestamp) {
     ValueColumnBuilder<TimeStamp> builder;
     for (auto& any : any_vec) {
       builder.push_back_opt(any.as_timestamp());
     }
-    return builder.finish(nullptr);
+    return builder.finish();
   } else {
     LOG(FATAL) << "Unsupported RTAny type: " << static_cast<int>(first);
   }

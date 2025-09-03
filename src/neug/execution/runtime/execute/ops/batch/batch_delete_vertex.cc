@@ -32,17 +32,11 @@ gs::result<Context> BatchDeleteVertexOpr::Eval(
     auto vertex_column =
         std::dynamic_pointer_cast<IVertexColumn>(ctx.get(alias));
     if (vertex_column->vertex_column_type() == VertexColumnType::kSingle) {
-      if (vertex_column->is_optional()) {
-        auto sl_vertex_column =
-            std::dynamic_pointer_cast<OptionalSLVertexColumn>(vertex_column);
-        frag.batch_delete_vertices(sl_vertex_column->label(),
-                                   sl_vertex_column->vertices());
-      } else {
-        auto sl_vertex_column =
-            std::dynamic_pointer_cast<SLVertexColumn>(vertex_column);
-        frag.batch_delete_vertices(sl_vertex_column->label(),
-                                   sl_vertex_column->vertices());
-      }
+      auto sl_vertex_column =
+          std::dynamic_pointer_cast<SLVertexColumn>(vertex_column);
+      frag.batch_delete_vertices(sl_vertex_column->label(),
+                                 sl_vertex_column->vertices());
+
     } else if (vertex_column->vertex_column_type() ==
                VertexColumnType::kMultiple) {
       std::unordered_map<label_t, std::vector<vid_t>> vids_map;

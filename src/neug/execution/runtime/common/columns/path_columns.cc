@@ -27,7 +27,8 @@ std::shared_ptr<IContextColumn> GeneralPathColumn::shuffle(
   for (auto& offset : offsets) {
     builder.push_back_opt(data_[offset]);
   }
-  return builder.finish(this->get_arena());
+  builder.set_arena(this->get_arena());
+  return builder.finish();
 }
 
 std::shared_ptr<IContextColumn> GeneralPathColumn::optional_shuffle(
@@ -41,7 +42,8 @@ std::shared_ptr<IContextColumn> GeneralPathColumn::optional_shuffle(
       builder.push_back_opt(data_[offset], true);
     }
   }
-  return builder.finish(this->get_arena());
+  builder.set_arena(this->get_arena());
+  return builder.finish();
 }
 
 std::shared_ptr<IContextColumn> OptionalGeneralPathColumn::shuffle(
@@ -51,7 +53,8 @@ std::shared_ptr<IContextColumn> OptionalGeneralPathColumn::shuffle(
   for (auto& offset : offsets) {
     builder.push_back_opt(data_[offset], valids_[offset]);
   }
-  return builder.finish(this->get_arena());
+  builder.set_arena(this->get_arena());
+  return builder.finish();
 }
 
 }  // namespace runtime

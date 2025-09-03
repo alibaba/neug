@@ -42,7 +42,7 @@ gs::result<Context> UEdgeExpand::edge_expand_v_without_pred(
   const auto& input_vertex_list =
       dynamic_cast<const IVertexColumn&>(*ctx.get(params.v_tag).get());
   std::vector<size_t> shuffle_offset;
-  auto builder = MLVertexColumnBuilder::builder();
+  MLVertexColumnBuilder builder;
   if (params.dir == Direction::kIn || params.dir == Direction::kBoth) {
     foreach_vertex(
         input_vertex_list, [&](size_t index, label_t label, vid_t v) {
@@ -76,7 +76,7 @@ gs::result<Context> UEdgeExpand::edge_expand_v_without_pred(
           }
         });
   }
-  ctx.set_with_reshuffle(params.alias, builder.finish(nullptr), shuffle_offset);
+  ctx.set_with_reshuffle(params.alias, builder.finish(), shuffle_offset);
   return ctx;
 }
 
@@ -147,8 +147,7 @@ gs::result<Context> UEdgeExpand::edge_expand_e_without_pred(
             }
           }
         });
-    ctx.set_with_reshuffle(params.alias, builder.finish(nullptr),
-                           shuffle_offset);
+    ctx.set_with_reshuffle(params.alias, builder.finish(), shuffle_offset);
     return ctx;
   } else if (params.dir == Direction::kIn) {
     foreach_vertex(
@@ -165,8 +164,7 @@ gs::result<Context> UEdgeExpand::edge_expand_e_without_pred(
             }
           }
         });
-    ctx.set_with_reshuffle(params.alias, builder.finish(nullptr),
-                           shuffle_offset);
+    ctx.set_with_reshuffle(params.alias, builder.finish(), shuffle_offset);
     return ctx;
   } else if (params.dir == Direction::kOut) {
     foreach_vertex(
@@ -183,8 +181,7 @@ gs::result<Context> UEdgeExpand::edge_expand_e_without_pred(
             }
           }
         });
-    ctx.set_with_reshuffle(params.alias, builder.finish(nullptr),
-                           shuffle_offset);
+    ctx.set_with_reshuffle(params.alias, builder.finish(), shuffle_offset);
     return ctx;
   }
   LOG(ERROR) << "should not reach here: " << static_cast<int>(params.dir);

@@ -46,16 +46,16 @@ class Scan {
                                          const PRED_T& predicate) {
     if (params.tables.size() == 1) {
       label_t label = params.tables[0];
-      auto builder = SLVertexColumnBuilder::builder(label);
+      MSVertexColumnBuilder builder(label);
       auto vertices = graph.GetVertexSet(label);
       for (auto vid : vertices) {
         if (predicate(label, vid)) {
           builder.push_back_opt(vid);
         }
       }
-      ctx.set(params.alias, builder.finish(nullptr));
+      ctx.set(params.alias, builder.finish());
     } else if (params.tables.size() > 1) {
-      auto builder = MSVertexColumnBuilder::builder();
+      MSVertexColumnBuilder builder;
 
       for (auto label : params.tables) {
         auto vertices = graph.GetVertexSet(label);
@@ -66,7 +66,7 @@ class Scan {
           }
         }
       }
-      ctx.set(params.alias, builder.finish(nullptr));
+      ctx.set(params.alias, builder.finish());
     }
     return ctx;
   }
@@ -78,7 +78,7 @@ class Scan {
     int32_t cur_limit = params.limit;
     if (params.tables.size() == 1) {
       label_t label = params.tables[0];
-      auto builder = SLVertexColumnBuilder::builder(label);
+      MSVertexColumnBuilder builder(label);
       auto vertices = graph.GetVertexSet(label);
       for (auto vid : vertices) {
         if (cur_limit <= 0) {
@@ -89,10 +89,9 @@ class Scan {
           cur_limit--;
         }
       }
-      ctx.set(params.alias, builder.finish(nullptr));
+      ctx.set(params.alias, builder.finish());
     } else if (params.tables.size() > 1) {
-      auto builder = MSVertexColumnBuilder::builder();
-
+      MSVertexColumnBuilder builder;
       for (auto label : params.tables) {
         if (cur_limit <= 0) {
           break;
@@ -109,7 +108,7 @@ class Scan {
           }
         }
       }
-      ctx.set(params.alias, builder.finish(nullptr));
+      ctx.set(params.alias, builder.finish());
     }
     return ctx;
   }
@@ -127,7 +126,7 @@ class Scan {
     int32_t cur_limit = params.limit;
     if (params.tables.size() == 1) {
       label_t label = params.tables[0];
-      auto builder = SLVertexColumnBuilder::builder(label);
+      MSVertexColumnBuilder builder(label);
       for (auto gid : gids) {
         if (cur_limit <= 0) {
           break;
@@ -138,9 +137,9 @@ class Scan {
           cur_limit--;
         }
       }
-      ctx.set(params.alias, builder.finish(nullptr));
+      ctx.set(params.alias, builder.finish());
     } else if (params.tables.size() > 1) {
-      auto builder = MLVertexColumnBuilder::builder();
+      MLVertexColumnBuilder builder;
 
       for (auto label : params.tables) {
         if (cur_limit <= 0) {
@@ -157,7 +156,7 @@ class Scan {
           }
         }
       }
-      ctx.set(params.alias, builder.finish(nullptr));
+      ctx.set(params.alias, builder.finish());
     }
     return ctx;
   }
@@ -175,7 +174,7 @@ class Scan {
     auto limit = params.limit;
     if (params.tables.size() == 1) {
       label_t label = params.tables[0];
-      auto builder = SLVertexColumnBuilder::builder(label);
+      MSVertexColumnBuilder builder(label);
       for (auto oid : oids) {
         if (limit <= 0) {
           break;
@@ -188,7 +187,7 @@ class Scan {
           }
         }
       }
-      ctx.set(params.alias, builder.finish(nullptr));
+      ctx.set(params.alias, builder.finish());
     } else if (params.tables.size() > 1) {
       std::vector<std::pair<label_t, vid_t>> vids;
 
@@ -210,15 +209,15 @@ class Scan {
         }
       }
       if (vids.size() == 1) {
-        auto builder = SLVertexColumnBuilder::builder(vids[0].first);
+        MSVertexColumnBuilder builder(vids[0].first);
         builder.push_back_opt(vids[0].second);
-        ctx.set(params.alias, builder.finish(nullptr));
+        ctx.set(params.alias, builder.finish());
       } else {
-        auto builder = MLVertexColumnBuilder::builder();
+        MLVertexColumnBuilder builder;
         for (auto& pair : vids) {
           builder.push_back_vertex({pair.first, pair.second});
         }
-        ctx.set(params.alias, builder.finish(nullptr));
+        ctx.set(params.alias, builder.finish());
       }
     }
     return ctx;

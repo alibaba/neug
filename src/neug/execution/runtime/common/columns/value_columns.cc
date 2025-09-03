@@ -26,7 +26,8 @@ std::shared_ptr<IContextColumn> ListValueColumn::shuffle(
   for (auto offset : offsets) {
     builder.push_back_opt(data_[offset]);
   }
-  return builder.finish(this->get_arena());
+  builder.set_arena(this->get_arena());
+  return builder.finish();
 }
 
 }  // namespace runtime

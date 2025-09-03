@@ -94,7 +94,7 @@ std::shared_ptr<IContextColumn> SDSLEdgeColumn::shuffle(
     }
   }
 
-  return builder.finish(this->get_arena());
+  return builder.finish();
 }
 
 std::shared_ptr<IContextColumn> SDSLEdgeColumn::optional_shuffle(
@@ -129,18 +129,16 @@ std::shared_ptr<IContextColumn> SDSLEdgeColumn::optional_shuffle(
     }
   }
 
-  return builder.finish(this->get_arena());
+  return builder.finish();
 }
 
-std::shared_ptr<IContextColumn> SDSLEdgeColumnBuilder::finish(
-    const std::shared_ptr<Arena>& arena) {
+std::shared_ptr<IContextColumn> SDSLEdgeColumnBuilder::finish() {
   if (!is_optional_) {
     auto ret = std::make_shared<SDSLEdgeColumn>(dir_, label_, prop_type_);
     ret->edges_.swap(edges_);
     // shrink to fit
     prop_col_->resize(ret->edges_.size());
     ret->prop_col_ = prop_col_;
-    ret->set_arena(arena);
     return ret;
   } else {
     auto ret =
@@ -148,7 +146,6 @@ std::shared_ptr<IContextColumn> SDSLEdgeColumnBuilder::finish(
     ret->column_.edges_.swap(edges_);
     prop_col_->resize(ret->column_.edges_.size());
     ret->column_.prop_col_ = prop_col_;
-    ret->set_arena(arena);
     return ret;
   }
 }
@@ -168,7 +165,7 @@ std::shared_ptr<IContextColumn> BDSLEdgeColumn::shuffle(
     ret_props.set_any(idx, prop_col_.get(), off);
   }
 
-  return builder.finish(this->get_arena());
+  return builder.finish();
 }
 
 std::shared_ptr<IContextColumn> BDSLEdgeColumn::optional_shuffle(
@@ -191,21 +188,18 @@ std::shared_ptr<IContextColumn> BDSLEdgeColumn::optional_shuffle(
     }
   }
 
-  return builder.finish(this->get_arena());
+  return builder.finish();
 }
 
-std::shared_ptr<IContextColumn> BDSLEdgeColumnBuilder::finish(
-    const std::shared_ptr<Arena>& arena) {
+std::shared_ptr<IContextColumn> BDSLEdgeColumnBuilder::finish() {
   if (!is_optional_) {
     auto ret = std::make_shared<BDSLEdgeColumn>(label_, prop_type_);
-    ret->set_arena(arena);
     prop_col_->resize(edges_.size());
     ret->edges_.swap(edges_);
     ret->prop_col_ = prop_col_;
     return ret;
   } else {
     auto ret = std::make_shared<OptionalBDSLEdgeColumn>(label_, prop_type_);
-    ret->set_arena(arena);
     prop_col_->resize(edges_.size());
     ret->column_.edges_.swap(edges_);
     ret->column_.prop_col_ = prop_col_;
@@ -226,7 +220,7 @@ std::shared_ptr<IContextColumn> SDMLEdgeColumn::shuffle(
     builder.push_back_opt(index, std::get<1>(e), std::get<2>(e),
                           prop_cols_[index]->get(offset));
   }
-  return builder.finish(this->get_arena());
+  return builder.finish();
 }
 
 std::shared_ptr<IContextColumn> SDMLEdgeColumn::optional_shuffle(
@@ -246,7 +240,7 @@ std::shared_ptr<IContextColumn> SDMLEdgeColumn::optional_shuffle(
                             prop_cols_[index]->get(offset));
     }
   }
-  return builder.finish(this->get_arena());
+  return builder.finish();
 }
 
 std::shared_ptr<IContextColumn> OptionalSDMLEdgeColumn::shuffle(
@@ -263,20 +257,17 @@ std::shared_ptr<IContextColumn> OptionalSDMLEdgeColumn::shuffle(
     builder.push_back_opt(index, std::get<1>(e), std::get<2>(e),
                           column_.prop_cols_[index]->get(offset));
   }
-  return builder.finish(this->get_arena());
+  return builder.finish();
 }
 
-std::shared_ptr<IContextColumn> SDMLEdgeColumnBuilder::finish(
-    const std::shared_ptr<Arena>& arena) {
+std::shared_ptr<IContextColumn> SDMLEdgeColumnBuilder::finish() {
   if (!is_optional_) {
     auto ret = std::make_shared<SDMLEdgeColumn>(dir_, edge_labels_);
-    ret->set_arena(arena);
     ret->edges_.swap(edges_);
     ret->prop_cols_.swap(prop_cols_);
     return ret;
   } else {
     auto ret = std::make_shared<OptionalSDMLEdgeColumn>(dir_, edge_labels_);
-    ret->set_arena(arena);
     ret->column_.edges_.swap(edges_);
     ret->column_.prop_cols_.swap(prop_cols_);
     return ret;
@@ -297,7 +288,7 @@ std::shared_ptr<IContextColumn> BDMLEdgeColumn::shuffle(
     builder.push_back_opt(index, std::get<1>(e), std::get<2>(e),
                           prop_cols_[index]->get(offset), dir);
   }
-  return builder.finish(this->get_arena());
+  return builder.finish();
 }
 
 std::shared_ptr<IContextColumn> OptionalBDMLEdgeColumn::shuffle(
@@ -314,20 +305,17 @@ std::shared_ptr<IContextColumn> OptionalBDMLEdgeColumn::shuffle(
     builder.push_back_opt(index, std::get<1>(e), std::get<2>(e),
                           column_.prop_cols_[index]->get(offset), dir);
   }
-  return builder.finish(this->get_arena());
+  return builder.finish();
 }
 
-std::shared_ptr<IContextColumn> BDMLEdgeColumnBuilder::finish(
-    const std::shared_ptr<Arena>& arena) {
+std::shared_ptr<IContextColumn> BDMLEdgeColumnBuilder::finish() {
   if (!is_optional_) {
     auto ret = std::make_shared<BDMLEdgeColumn>(labels_);
-    ret->set_arena(arena);
     ret->edges_.swap(edges_);
     ret->prop_cols_.swap(prop_cols_);
     return ret;
   } else {
     auto ret = std::make_shared<OptionalBDMLEdgeColumn>(labels_);
-    ret->set_arena(arena);
     ret->column_.edges_.swap(edges_);
     ret->column_.prop_cols_.swap(prop_cols_);
     return ret;
@@ -345,7 +333,7 @@ std::shared_ptr<IContextColumn> OptionalBDSLEdgeColumn::shuffle(
     const auto& e = get_edge(off);
     builder.push_back_opt(e.src_, e.dst_, e.prop_, e.dir_);
   }
-  return builder.finish(this->get_arena());
+  return builder.finish();
 }
 
 std::shared_ptr<IContextColumn> OptionalBDSLEdgeColumn::optional_shuffle(
@@ -363,7 +351,7 @@ std::shared_ptr<IContextColumn> OptionalBDSLEdgeColumn::optional_shuffle(
     const auto& e = get_edge(off);
     builder.push_back_opt(e.src_, e.dst_, e.prop_, e.dir_);
   }
-  return builder.finish(this->get_arena());
+  return builder.finish();
 }
 
 std::shared_ptr<IContextColumn> OptionalSDSLEdgeColumn::shuffle(
@@ -377,7 +365,7 @@ std::shared_ptr<IContextColumn> OptionalSDSLEdgeColumn::shuffle(
     const auto& e = get_edge(off);
     builder.push_back_opt(e.src_, e.dst_, e.prop_);
   }
-  return builder.finish(this->get_arena());
+  return builder.finish();
 }
 
 std::shared_ptr<IContextColumn> BDMLEdgeColumn::optional_shuffle(
@@ -398,7 +386,7 @@ std::shared_ptr<IContextColumn> BDMLEdgeColumn::optional_shuffle(
     builder.push_back_opt(index, std::get<1>(e), std::get<2>(e),
                           prop_cols_[index]->get(offset), dir);
   }
-  return builder.finish(this->get_arena());
+  return builder.finish();
 }
 
 }  // namespace runtime

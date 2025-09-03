@@ -28,7 +28,7 @@ class UScan {
   static gs::result<Context> scan(const GraphUpdateInterface& graph,
                                   Context&& ctx, const ScanParams& params,
                                   const PRED_T& pred) {
-    auto builder = MLVertexColumnBuilder::builder();
+    MLVertexColumnBuilder builder;
     for (auto& label : params.tables) {
       auto vit = graph.GetVertexIterator(label);
       for (; vit.IsValid(); vit.Next()) {
@@ -37,7 +37,7 @@ class UScan {
         }
       }
     }
-    ctx.set(params.alias, builder.finish(nullptr));
+    ctx.set(params.alias, builder.finish());
     return ctx;
   }
 };

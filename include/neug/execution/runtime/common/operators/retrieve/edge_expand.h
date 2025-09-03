@@ -116,8 +116,7 @@ class EdgeExpand {
                          }
                        });
 
-        ctx.set_with_reshuffle(params.alias, builder.finish(nullptr),
-                               shuffle_offset);
+        ctx.set_with_reshuffle(params.alias, builder.finish(), shuffle_offset);
         return ctx;
       } else if (params.dir == Direction::kOut) {
         auto& input_vertex_list =
@@ -159,8 +158,7 @@ class EdgeExpand {
                          }
                        });
 
-        ctx.set_with_reshuffle(params.alias, builder.finish(nullptr),
-                               shuffle_offset);
+        ctx.set_with_reshuffle(params.alias, builder.finish(), shuffle_offset);
         return ctx;
       } else {
         auto& input_vertex_list = *input_vertex_list_ptr;
@@ -212,8 +210,7 @@ class EdgeExpand {
                 }
               }
             });
-        ctx.set_with_reshuffle(params.alias, builder.finish(nullptr),
-                               shuffle_offset);
+        ctx.set_with_reshuffle(params.alias, builder.finish(), shuffle_offset);
         return ctx;
       }
     } else {
@@ -269,8 +266,7 @@ class EdgeExpand {
                 }
               }
             });
-        ctx.set_with_reshuffle(params.alias, builder.finish(nullptr),
-                               shuffle_offset);
+        ctx.set_with_reshuffle(params.alias, builder.finish(), shuffle_offset);
         return ctx;
       } else if (params.dir == Direction::kOut) {
         auto& input_vertex_list =
@@ -308,8 +304,7 @@ class EdgeExpand {
                 }
               }
             });
-        ctx.set_with_reshuffle(params.alias, builder.finish(nullptr),
-                               shuffle_offset);
+        ctx.set_with_reshuffle(params.alias, builder.finish(), shuffle_offset);
         return ctx;
       } else if (params.dir == Direction::kIn) {
         auto& input_vertex_list =
@@ -347,8 +342,7 @@ class EdgeExpand {
                 }
               }
             });
-        ctx.set_with_reshuffle(params.alias, builder.finish(nullptr),
-                               shuffle_offset);
+        ctx.set_with_reshuffle(params.alias, builder.finish(), shuffle_offset);
         return ctx;
       }
     }
@@ -481,8 +475,8 @@ class EdgeExpand {
 
     T1 param = TypedConverter<T1>::typed_from_string(val);
 
-    auto builder1 = SLVertexColumnBuilder::builder(d1_nbr_label);
-    auto builder2 = SLVertexColumnBuilder::builder(d2_nbr_label);
+    MSVertexColumnBuilder builder1(d1_nbr_label);
+    MSVertexColumnBuilder builder2(d2_nbr_label);
     std::vector<size_t> offsets;
 
     size_t idx = 0;
@@ -520,8 +514,8 @@ class EdgeExpand {
       ++idx;
     }
 
-    std::shared_ptr<IContextColumn> col1 = builder1.finish(nullptr);
-    std::shared_ptr<IContextColumn> col2 = builder2.finish(nullptr);
+    std::shared_ptr<IContextColumn> col1 = builder1.finish();
+    std::shared_ptr<IContextColumn> col2 = builder2.finish();
     ctx.set_with_reshuffle(alias1, col1, offsets);
     ctx.set(alias2, col2);
     return ctx;

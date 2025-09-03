@@ -200,9 +200,9 @@ gs::result<Context> InsertVertexOpr::eval_impl(
                               std::to_string(vertex_label_id) +
                               " and primary key " + pk_value.to_string());
     }
-    auto builder = SLVertexColumnBuilder::builder(vertex_label_id);
+    MSVertexColumnBuilder builder(vertex_label_id);
     builder.push_back_opt(vid);
-    auto col = builder.finish(nullptr);
+    auto col = builder.finish();
     ctx.set(res_alias, std::move(col));
   }
   VLOG(10) << "Inserted " << vertex_data_.size()

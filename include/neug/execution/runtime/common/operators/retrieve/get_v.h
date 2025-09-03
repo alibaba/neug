@@ -63,8 +63,7 @@ class GetV {
 
     std::vector<size_t> shuffle_offset;
     if (column->edge_column_type() == EdgeColumnType::kBDSL) {
-      auto builder = SLVertexColumnBuilder::optional_builder(
-          column->get_labels()[0].src_label);
+      MSVertexColumnBuilder builder(column->get_labels()[0].src_label);
       auto& input_edge_list =
           *std::dynamic_pointer_cast<OptionalBDSLEdgeColumn>(column);
       input_edge_list.foreach_edge([&](size_t index, const LabelTriplet& label,
@@ -72,7 +71,7 @@ class GetV {
                                        const EdgeData& edata, Direction dir) {
         if (!input_edge_list.has_value(index)) {
           if (pred(label.src_label, src, index, 0)) {
-            builder.push_back_opt(src);
+            builder.push_back_null();
             shuffle_offset.push_back(index);
           }
         } else {
@@ -93,8 +92,7 @@ class GetV {
           }
         }
       });
-      ctx.set_with_reshuffle(params.alias, builder.finish(nullptr),
-                             shuffle_offset);
+      ctx.set_with_reshuffle(params.alias, builder.finish(), shuffle_offset);
       return ctx;
     } else if (column->edge_column_type() == EdgeColumnType::kSDSL) {
       label_t output_vertex_label{0};
@@ -103,8 +101,7 @@ class GetV {
       } else {
         output_vertex_label = column->get_labels()[0].src_label;
       }
-      auto builder =
-          SLVertexColumnBuilder::optional_builder(output_vertex_label);
+      MSVertexColumnBuilder builder(output_vertex_label);
       auto& input_edge_list =
           *std::dynamic_pointer_cast<OptionalSDSLEdgeColumn>(column);
       if (params.opt == VOpt::kEnd) {
@@ -113,7 +110,7 @@ class GetV {
                 const EdgeData& edata, Direction dir) {
               if (!input_edge_list.has_value(index)) {
                 if (pred(label.src_label, src, index, 0)) {
-                  builder.push_back_opt(src);
+                  builder.push_back_null();
                   shuffle_offset.push_back(index);
                 }
               } else {
@@ -126,8 +123,7 @@ class GetV {
               }
             });
       }
-      ctx.set_with_reshuffle(params.alias, builder.finish(nullptr),
-                             shuffle_offset);
+      ctx.set_with_reshuffle(params.alias, builder.finish(), shuffle_offset);
       return ctx;
     }
     LOG(ERROR) << "Unsupported edge column type: "
@@ -150,7 +146,7 @@ class GetV {
     }
     auto& input_path_list = *std::dynamic_pointer_cast<GeneralPathColumn>(col);
 
-    auto builder = MLVertexColumnBuilder::builder();
+    MLVertexColumnBuilder builder;
     input_path_list.foreach_path([&](size_t index, const Path& path) {
       auto [label, vid] = path.get_end();
 
@@ -159,8 +155,7 @@ class GetV {
         shuffle_offset.push_back(index);
       }
     });
-    ctx.set_with_reshuffle(params.alias, builder.finish(nullptr),
-                           shuffle_offset);
+    ctx.set_with_reshuffle(params.alias, builder.finish(), shuffle_offset);
     return ctx;
   }
 
@@ -221,7 +216,8 @@ class GetV {
               "output_vertex_label != params.tables[0]");
         }
       }
-      auto builder = SLVertexColumnBuilder::builder(output_vertex_label);
+
+      MSVertexColumnBuilder builder(output_vertex_label);
       if (opt == VOpt::kStart) {
         input_edge_list.foreach_edge(
             [&](size_t index, const LabelTriplet& label, vid_t src, vid_t dst,
@@ -241,8 +237,7 @@ class GetV {
               }
             });
       }
-      ctx.set_with_reshuffle(params.alias, builder.finish(nullptr),
-                             shuffle_offset);
+      ctx.set_with_reshuffle(params.alias, builder.finish(), shuffle_offset);
       return ctx;
     } else if (column->edge_column_type() == EdgeColumnType::kSDML) {
       auto& input_edge_list =
@@ -259,12 +254,12 @@ class GetV {
       auto labels =
           extract_labels(input_edge_list.get_labels(), params.tables, opt);
       if (labels.size() == 0) {
-        auto builder = MLVertexColumnBuilder::builder();
-        ctx.set_with_reshuffle(params.alias, builder.finish(nullptr), {});
+        MLVertexColumnBuilder builder;
+        ctx.set_with_reshuffle(params.alias, builder.finish(), {});
         return ctx;
       }
       if (labels.size() > 1) {
-        auto builder = MLVertexColumnBuilder::builder();
+        MLVertexColumnBuilder builder;
         if (opt == VOpt::kStart) {
           input_edge_list.foreach_edge(
               [&](size_t index, const LabelTriplet& label, vid_t src, vid_t dst,
@@ -290,8 +285,7 @@ class GetV {
                 }
               });
         }
-        ctx.set_with_reshuffle(params.alias, builder.finish(nullptr),
-                               shuffle_offset);
+        ctx.set_with_reshuffle(params.alias, builder.finish(), shuffle_offset);
         return ctx;
       }
     } else if (column->edge_column_type() == EdgeColumnType::kBDSL) {
@@ -300,7 +294,7 @@ class GetV {
       if (params.tables.size() == 0) {
         auto type = input_edge_list.get_labels()[0];
         if (type.src_label != type.dst_label) {
-          auto builder = MLVertexColumnBuilder::builder();
+          MLVertexColumnBuilder builder;
           if (params.opt != VOpt::kOther) {
             LOG(ERROR) << "not support GetV opt "
                        << static_cast<int>(params.opt);
@@ -323,11 +317,11 @@ class GetV {
                   }
                 }
               });
-          ctx.set_with_reshuffle(params.alias, builder.finish(nullptr),
+          ctx.set_with_reshuffle(params.alias, builder.finish(),
                                  shuffle_offset);
           return ctx;
         } else {
-          auto builder = SLVertexColumnBuilder::builder(type.src_label);
+          MSVertexColumnBuilder builder(type.src_label);
           input_edge_list.foreach_edge(
               [&](size_t index, const LabelTriplet& label, vid_t src, vid_t dst,
                   const EdgeData& edata, Direction dir) {
@@ -343,7 +337,7 @@ class GetV {
                   }
                 }
               });
-          ctx.set_with_reshuffle(params.alias, builder.finish(nullptr),
+          ctx.set_with_reshuffle(params.alias, builder.finish(),
                                  shuffle_offset);
           return ctx;
         }
@@ -356,7 +350,7 @@ class GetV {
           }
         }
         if (labels.size() == 1) {
-          auto builder = SLVertexColumnBuilder::builder(labels[0]);
+          MSVertexColumnBuilder builder(labels[0]);
           input_edge_list.foreach_edge(
               [&](size_t index, const LabelTriplet& label, vid_t src, vid_t dst,
                   const EdgeData& edata, Direction dir) {
@@ -376,11 +370,11 @@ class GetV {
                   }
                 }
               });
-          ctx.set_with_reshuffle(params.alias, builder.finish(nullptr),
+          ctx.set_with_reshuffle(params.alias, builder.finish(),
                                  shuffle_offset);
           return ctx;
         } else {
-          auto builder = MLVertexColumnBuilder::builder();
+          MLVertexColumnBuilder builder;
           input_edge_list.foreach_edge(
               [&](size_t index, const LabelTriplet& label, vid_t src, vid_t dst,
                   const EdgeData& edata, Direction dir) {
@@ -402,7 +396,7 @@ class GetV {
                   }
                 }
               });
-          ctx.set_with_reshuffle(params.alias, builder.finish(nullptr),
+          ctx.set_with_reshuffle(params.alias, builder.finish(),
                                  shuffle_offset);
           return ctx;
         }
@@ -411,7 +405,7 @@ class GetV {
       auto& input_edge_list =
           *std::dynamic_pointer_cast<BDMLEdgeColumn>(column);
       if (params.tables.size() == 0) {
-        auto builder = MLVertexColumnBuilder::builder();
+        MLVertexColumnBuilder builder;
         if (params.opt != VOpt::kOther) {
           LOG(ERROR) << "not support GetV opt " << static_cast<int>(params.opt);
           RETURN_UNSUPPORTED_ERROR(
@@ -435,13 +429,12 @@ class GetV {
               }
             });
 
-        ctx.set_with_reshuffle(params.alias, builder.finish(nullptr),
-                               shuffle_offset);
+        ctx.set_with_reshuffle(params.alias, builder.finish(), shuffle_offset);
         return ctx;
       } else {
         if (params.tables.size() == 1) {
           auto vlabel = params.tables[0];
-          auto builder = SLVertexColumnBuilder::builder(vlabel);
+          MSVertexColumnBuilder builder(vlabel);
           input_edge_list.foreach_edge(
               [&](size_t index, const LabelTriplet& label, vid_t src, vid_t dst,
                   const EdgeData& edata, Direction dir) {
@@ -461,7 +454,7 @@ class GetV {
                   }
                 }
               });
-          ctx.set_with_reshuffle(params.alias, builder.finish(nullptr),
+          ctx.set_with_reshuffle(params.alias, builder.finish(),
                                  shuffle_offset);
 
         } else {
@@ -469,7 +462,7 @@ class GetV {
           for (auto& label : params.tables) {
             labels[label] = true;
           }
-          auto builder = MLVertexColumnBuilder::builder();
+          MLVertexColumnBuilder builder;
           input_edge_list.foreach_edge(
               [&](size_t index, const LabelTriplet& label, vid_t src, vid_t dst,
                   const EdgeData& edata, Direction dir) {
@@ -489,7 +482,7 @@ class GetV {
                   }
                 }
               });
-          ctx.set_with_reshuffle(params.alias, builder.finish(nullptr),
+          ctx.set_with_reshuffle(params.alias, builder.finish(),
                                  shuffle_offset);
         }
         return ctx;
@@ -523,7 +516,7 @@ class GetV {
     } else {
       const std::set<label_t>& label_set = input_vertex_list.get_labels_set();
       if (label_set.size() == 1) {
-        auto builder = SLVertexColumnBuilder::builder(*label_set.begin());
+        MSVertexColumnBuilder builder(*label_set.begin());
         foreach_vertex(input_vertex_list,
                        [&](size_t idx, label_t label, vid_t v) {
                          if (pred(label, v, idx)) {
@@ -531,10 +524,10 @@ class GetV {
                            offset.push_back(idx);
                          }
                        });
-        ctx.set_with_reshuffle(params.alias, builder.finish(nullptr), offset);
+        ctx.set_with_reshuffle(params.alias, builder.finish(), offset);
 
       } else {
-        auto builder = MLVertexColumnBuilder::builder();
+        MLVertexColumnBuilder builder;
         foreach_vertex(input_vertex_list,
                        [&](size_t idx, label_t label, vid_t v) {
                          if (pred(label, v, idx)) {
@@ -542,7 +535,7 @@ class GetV {
                            offset.push_back(idx);
                          }
                        });
-        ctx.set_with_reshuffle(params.alias, builder.finish(nullptr), offset);
+        ctx.set_with_reshuffle(params.alias, builder.finish(), offset);
       }
     }
     return ctx;

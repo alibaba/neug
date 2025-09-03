@@ -36,7 +36,7 @@ class UGetV {
     }
     const auto input_vertex_list =
         dynamic_cast<const IVertexColumn*>(col.get());
-    auto builder = MLVertexColumnBuilder::builder();
+    MLVertexColumnBuilder builder;
     foreach_vertex(*input_vertex_list,
                    [&](size_t index, label_t label, vid_t v) {
                      if (pred(label, v, index)) {
@@ -44,8 +44,7 @@ class UGetV {
                        shuffle_offsets.push_back(index);
                      }
                    });
-    ctx.set_with_reshuffle(params.alias, builder.finish(nullptr),
-                           shuffle_offsets);
+    ctx.set_with_reshuffle(params.alias, builder.finish(), shuffle_offsets);
     return ctx;
   }
 };

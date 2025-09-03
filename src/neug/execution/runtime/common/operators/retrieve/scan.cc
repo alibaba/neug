@@ -30,12 +30,12 @@ gs::result<Context> Scan::find_vertex_with_oid(Context&& ctx,
                                                const GraphReadInterface& graph,
                                                label_t label, const Any& oid,
                                                int32_t alias) {
-  auto builder = SLVertexColumnBuilder::builder(label);
+  MSVertexColumnBuilder builder(label);
   vid_t vid;
   if (graph.GetVertexIndex(label, oid, vid)) {
     builder.push_back_opt(vid);
   }
-  ctx.set(alias, builder.finish(nullptr));
+  ctx.set(alias, builder.finish());
   return ctx;
 }
 
@@ -43,7 +43,7 @@ gs::result<Context> Scan::find_vertex_with_gid(Context&& ctx,
                                                const GraphReadInterface& graph,
                                                label_t label, int64_t gid,
                                                int32_t alias) {
-  auto builder = SLVertexColumnBuilder::builder(label);
+  MSVertexColumnBuilder builder(label);
   if (GlobalId::get_label_id(gid) == label &&
       graph.IsValidIndex(label, GlobalId::get_vid(gid))) {
     builder.push_back_opt(GlobalId::get_vid(gid));
@@ -51,7 +51,7 @@ gs::result<Context> Scan::find_vertex_with_gid(Context&& ctx,
     LOG(ERROR) << "Invalid label id: "
                << static_cast<int>(GlobalId::get_label_id(gid));
   }
-  ctx.set(alias, builder.finish(nullptr));
+  ctx.set(alias, builder.finish());
   return ctx;
 }
 

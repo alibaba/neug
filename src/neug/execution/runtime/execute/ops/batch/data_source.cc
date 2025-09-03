@@ -97,7 +97,7 @@ gs::result<Context> CSVDataSourceOpr::eval_batch_reader(Context&& ctx) {
       std::make_shared<SupplierWrapperWithFirstBatch>(suppliers_, first_batch);
   for (int i = 0; i < num_columns; i++) {
     ArrowStreamContextColumnBuilder column_builder({supplier_with_first_batch});
-    ctx.set(i, column_builder.finish(nullptr));
+    ctx.set(i, column_builder.finish());
   }
   return gs::result<Context>(std::move(ctx));
 }
@@ -135,7 +135,7 @@ gs::result<Context> CSVDataSourceOpr::eval_table_reader(Context&& ctx) {
     for (int j = 0; j < num_batch; j++) {
       column_builder.push_back(arrow_columns[j][i]);
     }
-    ctx.set(i, column_builder.finish(nullptr));
+    ctx.set(i, column_builder.finish());
   }
   return gs::result<Context>(std::move(ctx));
 }

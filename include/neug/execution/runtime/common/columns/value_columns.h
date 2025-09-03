@@ -133,16 +133,20 @@ class ValueColumnBuilder : public IContextColumnBuilder {
 
   inline void push_back_opt(const T& val) { data_.push_back(val); }
 
-  std::shared_ptr<IContextColumn> finish(
-      const std::shared_ptr<Arena>& arena) override {
+  std::shared_ptr<IContextColumn> finish() override {
     auto ret = std::make_shared<ValueColumn<T>>();
-    ret->set_arena(arena);
+    ret->set_arena(arena_);
     ret->data_.swap(data_);
     return ret;
   }
 
+  void set_arena(const std::shared_ptr<Arena>& arena) override {
+    arena_ = arena;
+  }
+
  private:
   std::vector<T> data_;
+  std::shared_ptr<Arena> arena_;
 };
 
 class ListValueColumnBuilder;
@@ -206,9 +210,10 @@ class ListValueColumn : public ListValueColumnBase {
     if constexpr (gs::runtime::is_view_type<T>::value) {
       // TODO: we shouldn't use the same arena as the original column.
       // The ownership of list elements should be released.
-      return {builder->finish(this->get_arena()), offsets};
+      builder->set_arena(this->get_arena());
+      return {builder->finish(), offsets};
     } else {
-      return {builder->finish(nullptr), offsets};
+      return {builder->finish(), offsets};
     }
   }
 
@@ -246,7 +251,7 @@ class ListValueColumn : public ListValueColumnBase {
       return unfold_impl<Map>();
     } else if (elem_type_ == RTAnyType::kVertex) {
       std::vector<size_t> offsets;
-      auto builder = MLVertexColumnBuilder::builder();
+      MLVertexColumnBuilder builder;
       size_t i = 0;
       for (const auto& list : data_) {
         for (size_t j = 0; j < list.size(); ++j) {
@@ -256,7 +261,7 @@ class ListValueColumn : public ListValueColumnBase {
         }
         ++i;
       }
-      return {builder.finish(nullptr), offsets};
+      return {builder.finish(), offsets};
     } else {
       LOG(FATAL) << "not implemented for " << this->column_info() << " "
                  << static_cast<int>(elem_type_);
@@ -291,17 +296,19 @@ class ListValueColumnBuilder : public IContextColumnBuilder {
 
   void push_back_opt(const List& val) { data_.emplace_back(val); }
 
-  std::shared_ptr<IContextColumn> finish(
-      const std::shared_ptr<Arena>& ptr) override {
+  void set_arena(const std::shared_ptr<Arena>& ptr) { arena_ = ptr; }
+
+  std::shared_ptr<IContextColumn> finish() override {
     auto ret = std::make_shared<ListValueColumn>(type_);
     ret->data_.swap(data_);
-    ret->set_arena(ptr);
+    ret->set_arena(arena_);
     return ret;
   }
 
  private:
   RTAnyType type_;
   std::vector<List> data_;
+  std::shared_ptr<Arena> arena_;
 };
 
 template <typename T>
@@ -327,7 +334,8 @@ class OptionalValueColumn : public IValueColumn<T> {
     for (auto offset : offsets) {
       builder.push_back_opt(data_[offset], valid_[offset]);
     }
-    return builder.finish(this->get_arena());
+    builder.set_arena(this->get_arena());
+    return builder.finish();
   }
 
   inline RTAnyType elem_type() const override {
@@ -402,18 +410,19 @@ class OptionalValueColumnBuilder : public IOptionalContextColumnBuilder {
     valid_.push_back(false);
   }
 
-  std::shared_ptr<IContextColumn> finish(
-      const std::shared_ptr<Arena>& arena) override {
+  void set_arena(const std::shared_ptr<Arena>& arena) { arena_ = arena; }
+  std::shared_ptr<IContextColumn> finish() override {
     auto ret = std::make_shared<OptionalValueColumn<T>>();
     ret->data_.swap(data_);
     ret->valid_.swap(valid_);
-    ret->set_arena(arena);
+    ret->set_arena(arena_);
     return std::dynamic_pointer_cast<IContextColumn>(ret);
   }
 
  private:
   std::vector<T> data_;
   std::vector<bool> valid_;
+  std::shared_ptr<Arena> arena_;
 };
 
 template <typename T>
@@ -424,7 +433,8 @@ std::shared_ptr<IContextColumn> ValueColumn<T>::shuffle(
   for (auto offset : offsets) {
     builder.push_back_opt(data_[offset]);
   }
-  return builder.finish(this->get_arena());
+  builder.set_arena(this->get_arena());
+  return builder.finish();
 }
 
 template <typename T>
@@ -439,7 +449,8 @@ std::shared_ptr<IContextColumn> ValueColumn<T>::optional_shuffle(
       builder.push_back_opt(data_[offset], true);
     }
   }
-  return builder.finish(this->get_arena());
+  builder.set_arena(this->get_arena());
+  return builder.finish();
 }
 
 template <typename T>
@@ -462,7 +473,8 @@ std::shared_ptr<IContextColumn> ValueColumn<T>::union_col(
   if (arena2 != nullptr) {
     arena->emplace_back(std::make_unique<ArenaRef>(arena2));
   }
-  return builder.finish(arena);
+  builder.set_arena(arena);
+  return builder.finish();
 }
 
 template <typename T>

@@ -824,8 +824,7 @@ class SDSLEdgeColumnBuilder : public IContextColumnBuilder {
                         std::numeric_limits<vid_t>::max());
   }
 
-  std::shared_ptr<IContextColumn> finish(
-      const std::shared_ptr<Arena>&) override;
+  std::shared_ptr<IContextColumn> finish() override;
 
  private:
   SDSLEdgeColumnBuilder(Direction dir, const LabelTriplet& label,
@@ -868,8 +867,7 @@ class SDSLEdgeColumnBuilderBeta : public IContextColumnBuilder {
     prop_col_ptr_->set(len, data);
   }
 
-  std::shared_ptr<IContextColumn> finish(
-      const std::shared_ptr<Arena>&) override {
+  std::shared_ptr<IContextColumn> finish() override {
     auto ret = std::make_shared<SDSLEdgeColumn>(dir_, label_, prop_type_,
                                                 std::vector<PropertyType>());
     ret->edges_.swap(edges_);
@@ -927,8 +925,7 @@ class BDSLEdgeColumnBuilder : public IContextColumnBuilder {
                         std::numeric_limits<vid_t>::max(), false);
   }
 
-  std::shared_ptr<IContextColumn> finish(
-      const std::shared_ptr<Arena>&) override;
+  std::shared_ptr<IContextColumn> finish() override;
 
  private:
   friend class BDSLEdgeColumn;
@@ -996,8 +993,7 @@ class SDMLEdgeColumnBuilder : public IContextColumnBuilder {
     LOG(FATAL) << "Not implemented";
   }
 
-  std::shared_ptr<IContextColumn> finish(
-      const std::shared_ptr<Arena>&) override;
+  std::shared_ptr<IContextColumn> finish() override;
 
  private:
   SDMLEdgeColumnBuilder(
@@ -1110,8 +1106,7 @@ class BDMLEdgeColumnBuilder : public IContextColumnBuilder {
     prop_cols_[0]->resize(prop_cols_[0]->size() + 1);
   }
 
-  std::shared_ptr<IContextColumn> finish(
-      const std::shared_ptr<Arena>&) override;
+  std::shared_ptr<IContextColumn> finish() override;
 
  private:
   BDMLEdgeColumnBuilder() : index_(), labels_(), is_optional_(false) {}

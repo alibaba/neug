@@ -50,7 +50,7 @@ class Intersect {
 
     auto label = (eep0.dir == Direction::kOut ? eep0.labels[0].dst_label
                                               : eep0.labels[0].src_label);
-    auto builder = SLVertexColumnBuilder::builder(label);
+    MSVertexColumnBuilder builder(label);
     std::vector<size_t> offsets;
     for (size_t i = 0; i < row_num; ++i) {
       phmap::flat_hash_set<vid_t> vertex_set;
@@ -108,7 +108,7 @@ class Intersect {
       }
     }
     ctx.reshuffle(offsets);
-    auto col = builder.finish(nullptr);
+    auto col = builder.finish();
     ctx.set(alias, std::move(col));
     return std::move(ctx);
   }
@@ -129,7 +129,7 @@ class Intersect {
         << "IntersectOprBeta does not support optional edge expand";
     size_t row_num = ctx.row_num();
 
-    auto builder = MLVertexColumnBuilder::builder();
+    MLVertexColumnBuilder builder;
     std::vector<size_t> offsets;
     for (size_t i = 0; i < row_num; ++i) {
       phmap::flat_hash_set<VertexRecord, VertexRecordHash> vertex_set;
@@ -211,7 +211,7 @@ class Intersect {
       }
     }
     ctx.reshuffle(offsets);
-    auto col = builder.finish(nullptr);
+    auto col = builder.finish();
     ctx.set(alias, std::move(col));
     return std::move(ctx);
   }

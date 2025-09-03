@@ -102,8 +102,7 @@ class ArrowArrayContextColumnBuilder : public IContextColumnBuilder {
     LOG(FATAL) << "not implemented for arrow column";
   }
 
-  std::shared_ptr<IContextColumn> finish(
-      const std::shared_ptr<Arena>& arena) override;
+  std::shared_ptr<IContextColumn> finish() override;
 
   void push_back(const std::shared_ptr<arrow::Array>& column);
 
@@ -165,8 +164,7 @@ class ArrowStreamContextColumnBuilder : public IContextColumnBuilder {
     LOG(FATAL) << "not implemented for arrow stream column";
   }
 
-  std::shared_ptr<IContextColumn> finish(
-      const std::shared_ptr<Arena>& arena) override {
+  std::shared_ptr<IContextColumn> finish() override {
     return std::make_shared<ArrowStreamContextColumn>(suppliers_);
   }
 

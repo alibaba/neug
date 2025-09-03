@@ -237,7 +237,7 @@ struct TypedKeyCollector {
   void collect(const TypedKeyWrapper& expr, size_t idx) {
     builder.push_back_opt(expr(idx));
   }
-  auto get() { return builder.finish(nullptr); }
+  auto get() { return builder.finish(); }
 
   ValueColumnBuilder<T> builder;
 };
@@ -744,7 +744,10 @@ struct SetCollector {
     arena->emplace_back(std::move(set));
     builder.push_back_opt(st);
   }
-  auto get() { return builder.finish(arena); }
+  auto get() {
+    builder.set_arena(arena);
+    return builder.finish();
+  }
   std::shared_ptr<Arena> arena;
   ValueColumnBuilder<Set> builder;
 };
@@ -755,15 +758,15 @@ struct SingleValueCollector {
   void init(size_t size) { builder.reserve(size); }
 
   void collect(T&& val) { builder.push_back_opt(std::move(val)); }
-  auto get() { return builder.finish(nullptr); }
+  auto get() { return builder.finish(); }
   ValueColumnBuilder<T> builder;
 };
 
 struct VertexCollector {
-  VertexCollector() : builder(MLVertexColumnBuilder::builder()) {}
+  VertexCollector() : builder() {}
   void init(size_t size) { builder.reserve(size); }
   void collect(VertexRecord&& val) { builder.push_back_vertex(std::move(val)); }
-  auto get() { return builder.finish(nullptr); }
+  auto get() { return builder.finish(); }
   MLVertexColumnBuilder builder;
 };
 
@@ -781,7 +784,10 @@ struct ListCollector {
     builder->push_back_opt(list);
   }
 
-  auto get() { return builder->finish(arena); }
+  auto get() {
+    builder->set_arena(arena);
+    return builder->finish();
+  }
 
   std::shared_ptr<Arena> arena;
 

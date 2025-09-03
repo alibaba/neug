@@ -83,9 +83,10 @@ struct ValueCollector {
   }
   auto get() {
     if constexpr (gs::runtime::is_view_type<T>::value) {
-      return builder.finish(arena_);
+      builder.set_arena(arena_);
+      return builder.finish();
     } else {
-      return builder.finish(nullptr);
+      return builder.finish();
     }
   }
 
@@ -148,7 +149,7 @@ struct PropertyValueCollector {
   void collect(const EXPR& expr, size_t idx) {
     builder.push_back_opt(expr(idx));
   }
-  auto get() { return builder.finish(nullptr); }
+  auto get() { return builder.finish(); }
 
   ValueColumnBuilder<typename EXPR::V> builder;
 };
@@ -476,7 +477,10 @@ struct OptionalValueCollector {
       builder.push_back_opt(*val, true);
     }
   }
-  auto get() { return builder.finish(arena_); }
+  auto get() {
+    builder.set_arena(arena_);
+    return builder.finish();
+  }
 
   std::shared_ptr<Arena> arena_;
   OptionalValueColumnBuilder<T> builder;
@@ -496,24 +500,23 @@ struct VertexExprWrapper {
 };
 struct SLVertexCollector {
   using EXPR = VertexExprWrapper;
-  SLVertexCollector(label_t v_label)
-      : builder(SLVertexColumnBuilder::builder(v_label)) {}
+  SLVertexCollector(label_t v_label) : builder(v_label) {}
   void collect(const EXPR& expr, size_t idx) {
     auto v = expr(idx);
     builder.push_back_opt(v.vid_);
   }
-  auto get() { return builder.finish(nullptr); }
-  SLVertexColumnBuilder builder;
+  auto get() { return builder.finish(); }
+  MSVertexColumnBuilder builder;
 };
 
 struct MLVertexCollector {
   using EXPR = VertexExprWrapper;
-  MLVertexCollector() : builder(MLVertexColumnBuilder::builder()) {}
+  MLVertexCollector() : builder() {}
   void collect(const EXPR& expr, size_t idx) {
     auto v = expr(idx);
     builder.push_back_vertex(v);
   }
-  auto get() { return builder.finish(nullptr); }
+  auto get() { return builder.finish(); }
   MLVertexColumnBuilder builder;
 };
 
@@ -535,7 +538,7 @@ struct EdgeCollector {
     auto e = expr(idx);
     builder.push_back_opt(e);
   }
-  auto get() { return builder.finish(nullptr); }
+  auto get() { return builder.finish(); }
   BDMLEdgeColumnBuilder builder;
 };
 
@@ -560,7 +563,10 @@ struct ListCollector {
   void collect(const EXPR& expr, size_t idx) {
     builder_->push_back_opt(expr(idx));
   }
-  auto get() { return builder_->finish(arena_); }
+  auto get() {
+    builder_->set_arena(arena_);
+    return builder_->finish();
+  }
 
   std::shared_ptr<ListValueColumnBuilder> builder_;
   std::shared_ptr<Arena> arena_;
@@ -574,7 +580,7 @@ struct CaseWhenCollector {
   void collect(const EXPR& expr, size_t idx) {
     builder.push_back_opt(expr(idx));
   }
-  auto get() { return builder.finish(nullptr); }
+  auto get() { return builder.finish(); }
   const Context& ctx_;
   ValueColumnBuilder<RESULT_T> builder;
 };
@@ -1138,38 +1144,6 @@ parse_special_expr(const common::Expression& expr, int alias) {
           return std::make_unique<
               ProjectExpr<decltype(sp), decltype(collector)>>(std::move(sp),
                                                               collector, alias);
-
-        } else if (type_ == RTAnyType::kI64Value) {
-          SPOpr sp(vertex_col,
-                   VertexPropertyBetweenPredicateBeta<int64_t>(
-                       graph, name, params.at(lower), params.at(upper)),
-                   then_value.i32(), else_value.i32());
-          CaseWhenCollector<decltype(sp), int32_t> collector(ctx);
-          return std::make_unique<
-              ProjectExpr<decltype(sp), decltype(collector)>>(std::move(sp),
-                                                              collector, alias);
-        } else if (type_ == RTAnyType::kTimestamp) {
-          if (vertex_col->vertex_column_type() == VertexColumnType::kSingle) {
-            auto typed_vertex_col =
-                std::dynamic_pointer_cast<SLVertexColumn>(vertex_col);
-            SPOpr sp(typed_vertex_col,
-                     VertexPropertyBetweenPredicateBeta<TimeStamp>(
-                         graph, name, params.at(lower), params.at(upper)),
-                     then_value.i32(), else_value.i32());
-            CaseWhenCollector<decltype(sp), int32_t> collector(ctx);
-            return std::make_unique<
-                ProjectExpr<decltype(sp), decltype(collector)>>(
-                std::move(sp), collector, alias);
-          } else {
-            SPOpr sp(vertex_col,
-                     VertexPropertyBetweenPredicateBeta<TimeStamp>(
-                         graph, name, params.at(lower), params.at(upper)),
-                     then_value.i32(), else_value.i32());
-            CaseWhenCollector<decltype(sp), int32_t> collector(ctx);
-            return std::make_unique<
-                ProjectExpr<decltype(sp), decltype(collector)>>(
-                std::move(sp), collector, alias);
-          }
         }
       }
       return make_project_expr(expr, alias)(graph, params, ctx);

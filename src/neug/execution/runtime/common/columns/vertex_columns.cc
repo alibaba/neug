@@ -24,50 +24,38 @@ namespace runtime {
 
 std::shared_ptr<IContextColumn> SLVertexColumn::shuffle(
     const std::vector<size_t>& offsets) const {
-  auto builder = SLVertexColumnBuilder::builder(label_);
+  MSVertexColumnBuilder builder(label_);
   builder.reserve(offsets.size());
-  for (auto offset : offsets) {
-    builder.push_back_opt(vertices_[offset]);
+  if (is_optional_) {
+    for (auto offset : offsets) {
+      if (vertices_[offset] == std::numeric_limits<vid_t>::max()) {
+        builder.push_back_null();
+      } else {
+        builder.push_back_opt(vertices_[offset]);
+      }
+    }
+  } else {
+    for (auto offset : offsets) {
+      builder.push_back_opt(vertices_[offset]);
+    }
   }
-  return builder.finish(this->get_arena());
+  return builder.finish();
 }
 
 std::shared_ptr<IContextColumn> SLVertexColumn::optional_shuffle(
     const std::vector<size_t>& offsets) const {
-  auto builder = SLVertexColumnBuilder::optional_builder(label_);
+  MSVertexColumnBuilder builder(label_);
   builder.reserve(offsets.size());
   for (auto offset : offsets) {
     if (offset == std::numeric_limits<size_t>::max()) {
+      builder.push_back_null();
+    } else if (vertices_[offset] == std::numeric_limits<vid_t>::max()) {
       builder.push_back_null();
     } else {
       builder.push_back_opt(vertices_[offset]);
     }
   }
-  return builder.finish(this->get_arena());
-}
-
-std::shared_ptr<IContextColumn> MLVertexColumn::optional_shuffle(
-    const std::vector<size_t>& offsets) const {
-  auto builder = MLVertexColumnBuilder::optional_builder();
-  builder.reserve(offsets.size());
-  for (auto offset : offsets) {
-    if (offset == std::numeric_limits<size_t>::max()) {
-      builder.push_back_null();
-    } else {
-      builder.push_back_opt(vertices_[offset]);
-    }
-  }
-  return builder.finish(this->get_arena());
-}
-
-std::shared_ptr<IContextColumn> OptionalMLVertexColumn::shuffle(
-    const std::vector<size_t>& offsets) const {
-  auto builder = MLVertexColumnBuilder::optional_builder();
-  builder.reserve(offsets.size());
-  for (auto offset : offsets) {
-    builder.push_back_vertex(vertices_[offset]);
-  }
-  return builder.finish(this->get_arena());
+  return builder.finish();
 }
 
 void SLVertexColumn::generate_dedup_offset(std::vector<size_t>& offsets) const {
@@ -76,26 +64,39 @@ void SLVertexColumn::generate_dedup_offset(std::vector<size_t>& offsets) const {
   std::vector<bool> bitset;
   size_t vnum = vertices_.size();
   bitset.resize(vnum);
+
+  bool flag = false;
+  size_t idx = 0;
   for (size_t i = 0; i < vnum; ++i) {
     vid_t v = vertices_[i];
-    if (bitset.size() <= v) {
-      bitset.resize(v + 1);
-      bitset[v] = true;
-
-      offsets.push_back(i);
+    if (v == std::numeric_limits<vid_t>::max()) {
+      if (!flag) {
+        flag = true;
+        idx = i;
+      }
     } else {
-      if (!bitset[v]) {
-        offsets.push_back(i);
+      if (bitset.size() <= v) {
+        bitset.resize(v + 1);
         bitset[v] = true;
+
+        offsets.push_back(i);
+      } else {
+        if (!bitset[v]) {
+          offsets.push_back(i);
+          bitset[v] = true;
+        }
       }
     }
+  }
+  if (flag) {
+    offsets.push_back(idx);
   }
 }
 
 std::pair<std::shared_ptr<IContextColumn>, std::vector<std::vector<size_t>>>
 SLVertexColumn::generate_aggregate_offset() const {
   std::vector<std::vector<size_t>> offsets;
-  auto builder = SLVertexColumnBuilder::builder(label());
+  MSVertexColumnBuilder builder(label_);
   phmap::flat_hash_map<vid_t, size_t> vertex_to_offset;
   size_t idx = 0;
   for (auto v : vertices_) {
@@ -112,7 +113,7 @@ SLVertexColumn::generate_aggregate_offset() const {
     ++idx;
   }
 
-  return std::make_pair(builder.finish(this->get_arena()), std::move(offsets));
+  return std::make_pair(builder.finish(), std::move(offsets));
 }
 
 std::shared_ptr<IContextColumn> SLVertexColumn::union_col(
@@ -124,17 +125,17 @@ std::shared_ptr<IContextColumn> SLVertexColumn::union_col(
     const SLVertexColumn& col =
         dynamic_cast<const SLVertexColumn&>(vertex_column);
     if (label() == col.label()) {
-      auto builder = SLVertexColumnBuilder::builder(label());
+      MSVertexColumnBuilder builder(label());
       for (auto v : vertices_) {
         builder.push_back_opt(v);
       }
       for (auto v : col.vertices_) {
         builder.push_back_opt(v);
       }
-      return builder.finish(nullptr);
+      return builder.finish();
     }
   }
-  auto builder = MLVertexColumnBuilder::builder();
+  MLVertexColumnBuilder builder;
   for (auto v : vertices_) {
     builder.push_back_vertex({label_, v});
   }
@@ -142,32 +143,41 @@ std::shared_ptr<IContextColumn> SLVertexColumn::union_col(
   for (size_t i = 0; i < col->size(); ++i) {
     builder.push_back_vertex(col->get_vertex(i));
   }
-  return builder.finish(nullptr);
-}
-
-std::shared_ptr<IContextColumn> SLVertexColumnBuilder::finish(
-    const std::shared_ptr<Arena>& arena) {
-  if (!is_optional_) {
-    auto ret = std::make_shared<SLVertexColumn>(label_);
-    ret->set_arena(arena);
-    ret->vertices_.swap(vertices_);
-    return ret;
-  } else {
-    auto ret = std::make_shared<OptionalSLVertexColumn>(label_);
-    ret->set_arena(arena);
-    ret->vertices_.swap(vertices_);
-    return ret;
-  }
+  return builder.finish();
 }
 
 std::shared_ptr<IContextColumn> MSVertexColumn::shuffle(
     const std::vector<size_t>& offsets) const {
-  auto builder = MLVertexColumnBuilder::builder();
+  MLVertexColumnBuilder builder;
   builder.reserve(offsets.size());
   for (auto offset : offsets) {
-    builder.push_back_vertex(get_vertex(offset));
+    auto v = get_vertex(offset);
+    if (v.vid_ != std::numeric_limits<vid_t>::max()) {
+      builder.push_back_vertex(v);
+    } else {
+      builder.push_back_null();
+    }
   }
-  return builder.finish(this->get_arena());
+  return builder.finish();
+}
+
+std::shared_ptr<IContextColumn> MSVertexColumn::optional_shuffle(
+    const std::vector<size_t>& offsets) const {
+  MLVertexColumnBuilder builder;
+  builder.reserve(offsets.size());
+  for (auto offset : offsets) {
+    if (offset == std::numeric_limits<size_t>::max()) {
+      builder.push_back_null();
+    } else {
+      auto v = get_vertex(offset);
+      if (v.vid_ != std::numeric_limits<vid_t>::max()) {
+        builder.push_back_vertex(v);
+      } else {
+        builder.push_back_null();
+      }
+    }
+  }
+  return builder.finish();
 }
 
 ISigColumn* SLVertexColumn::generate_signature() const {
@@ -179,30 +189,63 @@ ISigColumn* MSVertexColumn::generate_signature() const {
   return nullptr;
 }
 
-std::shared_ptr<IContextColumn> MSVertexColumnBuilder::finish(
-    const std::shared_ptr<Arena>& arena) {
+std::shared_ptr<IContextColumn> MSVertexColumnBuilder::finish() {
   if (!cur_list_.empty()) {
     vertices_.emplace_back(cur_label_, std::move(cur_list_));
     cur_list_.clear();
   }
-  auto ret = std::make_shared<MSVertexColumn>();
-  auto& label_set = ret->labels_;
-  for (auto& pair : vertices_) {
-    label_set.insert(pair.first);
+  if (vertices_.empty()) {
+    auto ret = std::make_shared<SLVertexColumn>(cur_label_);
+    return ret;
+  } else if (vertices_.size() == 1) {
+    auto ret = std::make_shared<SLVertexColumn>(vertices_[0].first);
+    ret->vertices_.swap(vertices_[0].second);
+    ret->is_optional_ = is_optional_;
+    return ret;
+  } else {
+    auto ret = std::make_shared<MSVertexColumn>();
+    auto& label_set = ret->labels_;
+    for (auto& pair : vertices_) {
+      label_set.insert(pair.first);
+    }
+    ret->vertices_.swap(vertices_);
+    ret->is_optional_ = is_optional_;
+    return ret;
   }
-  ret->vertices_.swap(vertices_);
-  ret->set_arena(arena);
-  return ret;
 }
 
 std::shared_ptr<IContextColumn> MLVertexColumn::shuffle(
     const std::vector<size_t>& offsets) const {
-  auto builder = MLVertexColumnBuilder::builder(labels_);
+  MLVertexColumnBuilder builder;
   builder.reserve(offsets.size());
   for (auto offset : offsets) {
-    builder.push_back_vertex(vertices_[offset]);
+    auto& v = vertices_[offset];
+    if (v.vid_ != std::numeric_limits<vid_t>::max()) {
+      builder.push_back_vertex(v);
+    } else {
+      builder.push_back_null();
+    }
   }
-  return builder.finish(this->get_arena());
+  return builder.finish();
+}
+
+std::shared_ptr<IContextColumn> MLVertexColumn::optional_shuffle(
+    const std::vector<size_t>& offsets) const {
+  MLVertexColumnBuilder builder;
+  builder.reserve(offsets.size());
+  for (auto offset : offsets) {
+    if (offset == std::numeric_limits<size_t>::max()) {
+      builder.push_back_null();
+    } else {
+      auto& v = vertices_[offset];
+      if (v.vid_ != std::numeric_limits<vid_t>::max()) {
+        builder.push_back_vertex(v);
+      } else {
+        builder.push_back_null();
+      }
+    }
+  }
+  return builder.finish();
 }
 
 ISigColumn* MLVertexColumn::generate_signature() const {
@@ -222,96 +265,12 @@ void MLVertexColumn::generate_dedup_offset(std::vector<size_t>& offsets) const {
   }
 }
 
-std::shared_ptr<IContextColumn> MLVertexColumnBuilder::finish(
-    const std::shared_ptr<Arena>& arena) {
-  if (!is_optional_) {
-    auto ret = std::make_shared<MLVertexColumn>();
-    ret->vertices_.swap(vertices_);
-    ret->labels_.swap(labels_);
-    ret->set_arena(arena);
-    return ret;
-  } else {
-    auto ret = std::make_shared<OptionalMLVertexColumn>();
-    ret->vertices_.swap(vertices_);
-    ret->labels_.swap(labels_);
-    ret->set_arena(arena);
-    return ret;
-  }
-}
-
-void OptionalSLVertexColumn::generate_dedup_offset(
-    std::vector<size_t>& offsets) const {
-  offsets.clear();
-  std::vector<bool> bitset;
-  size_t vnum = vertices_.size();
-  bitset.resize(vnum);
-  bool flag = false;
-  size_t idx = 0;
-  for (size_t i = 0; i < vnum; ++i) {
-    vid_t v = vertices_[i];
-    if (v == std::numeric_limits<vid_t>::max()) {
-      if (!flag) {
-        flag = true;
-        idx = i;
-        continue;
-      }
-    }
-    if (bitset.size() <= v) {
-      bitset.resize(v + 1);
-      bitset[v] = true;
-      offsets.push_back(i);
-    } else {
-      if (!bitset[v]) {
-        offsets.push_back(i);
-        bitset[v] = true;
-      }
-    }
-  }
-  if (flag) {
-    offsets.push_back(idx);
-  }
-}
-
-std::shared_ptr<IContextColumn> OptionalSLVertexColumn::shuffle(
-    const std::vector<size_t>& offsets) const {
-  auto builder = SLVertexColumnBuilder::optional_builder(label_);
-  builder.reserve(offsets.size());
-  for (auto offset : offsets) {
-    builder.push_back_opt(vertices_[offset]);
-  }
-  return builder.finish(this->get_arena());
-}
-
-std::shared_ptr<IContextColumn> OptionalSLVertexColumn::optional_shuffle(
-    const std::vector<size_t>& offsets) const {
-  auto builder = SLVertexColumnBuilder::optional_builder(label_);
-  builder.reserve(offsets.size());
-  for (auto offset : offsets) {
-    if (offset == std::numeric_limits<size_t>::max()) {
-      builder.push_back_null();
-    } else {
-      builder.push_back_opt(vertices_[offset]);
-    }
-  }
-  return builder.finish(this->get_arena());
-}
-
-std::shared_ptr<IContextColumn> OptionalMLVertexColumn::optional_shuffle(
-    const std::vector<size_t>& offsets) const {
-  auto builder = MLVertexColumnBuilder::optional_builder();
-  builder.reserve(offsets.size());
-  for (auto offset : offsets) {
-    if (offset == std::numeric_limits<size_t>::max()) {
-      builder.push_back_null();
-    } else {
-      builder.push_back_opt(vertices_[offset]);
-    }
-  }
-  return builder.finish(this->get_arena());
-}
-
-ISigColumn* OptionalSLVertexColumn::generate_signature() const {
-  return new SigColumn<vid_t>(vertices_);
+std::shared_ptr<IContextColumn> MLVertexColumnBuilder::finish() {
+  auto ret = std::make_shared<MLVertexColumn>();
+  ret->vertices_.swap(vertices_);
+  ret->labels_.swap(labels_);
+  ret->is_optional_ = is_optional_;
+  return ret;
 }
 
 }  // namespace runtime

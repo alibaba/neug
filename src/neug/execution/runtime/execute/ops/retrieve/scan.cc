@@ -673,7 +673,7 @@ class DummySourceOpr : public IReadOperator {
     ctx = Context();
     ValueColumnBuilder<int32_t> builder;
     builder.push_back_opt(0);
-    ctx.set(0, builder.finish(nullptr));
+    ctx.set(0, builder.finish());
     return ctx;
   }
 

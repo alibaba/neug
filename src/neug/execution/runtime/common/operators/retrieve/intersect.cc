@@ -47,7 +47,7 @@ gs::result<gs::runtime::Context> Intersect::Multiple_Intersect(
     vertex_cols.push_back(dynamic_cast<IVertexColumn*>(col.get()));
   }
   size_t row_num = ctx.row_num();
-  auto builder = MLVertexColumnBuilder::builder();
+  MLVertexColumnBuilder builder;
   std::vector<size_t> offsets;
 
   for (size_t i = 0; i < row_num; ++i) {
@@ -142,7 +142,7 @@ gs::result<gs::runtime::Context> Intersect::Multiple_Intersect(
     }
   }
   ctx.reshuffle(offsets);
-  auto col = builder.finish(nullptr);
+  auto col = builder.finish();
   ctx.set(alias, std::move(col));
   return std::move(ctx);
 }

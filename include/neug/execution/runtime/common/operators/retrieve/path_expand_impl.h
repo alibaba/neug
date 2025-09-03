@@ -52,10 +52,10 @@ iterative_expand_vertex_on_graph_view(
     const GraphReadInterface::graph_view_t<EDATA_T>& view,
     const SLVertexColumn& input, int lower, int upper) {
   int input_label = input.label();
-  auto builder = SLVertexColumnBuilder::builder(input_label);
+  MSVertexColumnBuilder builder(input_label);
   std::vector<size_t> offsets;
   if (upper == lower) {
-    return std::make_pair(builder.finish(nullptr), std::move(offsets));
+    return std::make_pair(builder.finish(), std::move(offsets));
   }
   if (upper == 1) {
     CHECK_EQ(lower, 0);
@@ -64,7 +64,7 @@ iterative_expand_vertex_on_graph_view(
       builder.push_back_opt(v);
       offsets.push_back(idx++);
     }
-    return std::make_pair(builder.finish(nullptr), std::move(offsets));
+    return std::make_pair(builder.finish(), std::move(offsets));
   }
   // upper >= 2
   std::vector<std::pair<vid_t, vid_t>> input_list;
@@ -116,7 +116,7 @@ iterative_expand_vertex_on_graph_view(
     ++depth;
   }
 
-  return std::make_pair(builder.finish(nullptr), std::move(offsets));
+  return std::make_pair(builder.finish(), std::move(offsets));
 }
 
 template <typename EDATA_T>
@@ -126,10 +126,10 @@ iterative_expand_vertex_on_dual_graph_view(
     const GraphReadInterface::graph_view_t<EDATA_T>& oview,
     const SLVertexColumn& input, int lower, int upper) {
   int input_label = input.label();
-  auto builder = SLVertexColumnBuilder::builder(input_label);
+  MSVertexColumnBuilder builder(input_label);
   std::vector<size_t> offsets;
   if (upper == lower) {
-    return std::make_pair(builder.finish(nullptr), std::move(offsets));
+    return std::make_pair(builder.finish(), std::move(offsets));
   }
   if (upper == 1) {
     CHECK_EQ(lower, 0);
@@ -138,7 +138,7 @@ iterative_expand_vertex_on_dual_graph_view(
       builder.push_back_opt(v);
       offsets.push_back(idx++);
     }
-    return std::make_pair(builder.finish(nullptr), std::move(offsets));
+    return std::make_pair(builder.finish(), std::move(offsets));
   }
   // upper >= 2
   std::vector<std::pair<vid_t, vid_t>> input_list;
@@ -190,7 +190,7 @@ iterative_expand_vertex_on_dual_graph_view(
     ++depth;
   }
 
-  return std::make_pair(builder.finish(nullptr), std::move(offsets));
+  return std::make_pair(builder.finish(), std::move(offsets));
 }
 
 std::pair<std::shared_ptr<IContextColumn>, std::vector<size_t>>
@@ -203,7 +203,7 @@ template <typename EDATA_T, typename PRED_T>
 void sssp_dir(const GraphReadInterface::graph_view_t<EDATA_T>& view,
               label_t v_label, vid_t v, label_t e_label,
               const GraphReadInterface::vertex_set_t& vertices, size_t idx,
-              int lower, int upper, SLVertexColumnBuilder& dest_col_builder,
+              int lower, int upper, MSVertexColumnBuilder& dest_col_builder,
               GeneralPathColumnBuilder& path_col_builder, Arena& path_impls,
               std::vector<size_t>& offsets, const PRED_T& pred) {
   std::vector<vid_t> cur;
@@ -280,7 +280,7 @@ void sssp_both_dir(const GraphReadInterface::graph_view_t<EDATA_T>& view0,
                    label_t v_label, vid_t v, label_t e_label,
                    const GraphReadInterface::vertex_set_t& vertices, size_t idx,
                    int lower, int upper,
-                   SLVertexColumnBuilder& dest_col_builder,
+                   MSVertexColumnBuilder& dest_col_builder,
                    GeneralPathColumnBuilder& path_col_builder,
                    Arena& path_impls, std::vector<size_t>& offsets,
                    const PRED_T& pred) {
@@ -371,7 +371,7 @@ void sssp_both_dir_with_order_by_length_limit(
     const GraphReadInterface::graph_view_t<EDATA_T>& view0,
     const GraphReadInterface::graph_view_t<EDATA_T>& view1, label_t v_label,
     vid_t v, const GraphReadInterface::vertex_set_t& vertices, size_t idx,
-    int lower, int upper, SLVertexColumnBuilder& dest_col_builder,
+    int lower, int upper, MSVertexColumnBuilder& dest_col_builder,
     ValueColumnBuilder<int>& path_len_builder, std::vector<size_t>& offsets,
     const PRED_T& pred, int limit_upper) {
   std::vector<vid_t> cur;
@@ -451,7 +451,7 @@ single_source_shortest_path_with_order_by_length_limit_impl(
     int limit_upper) {
   label_t v_label = *input.get_labels_set().begin();
   auto vertices = graph.GetVertexSet(v_label);
-  auto dest_col_builder = SLVertexColumnBuilder::builder(v_label);
+  MSVertexColumnBuilder dest_col_builder(v_label);
   ValueColumnBuilder<int32_t> path_len_builder;
 
   std::vector<size_t> offsets;
@@ -468,8 +468,8 @@ single_source_shortest_path_with_order_by_length_limit_impl(
     });
   }
 
-  return std::make_tuple(dest_col_builder.finish(nullptr),
-                         path_len_builder.finish(nullptr), std::move(offsets));
+  return std::make_tuple(dest_col_builder.finish(), path_len_builder.finish(),
+                         std::move(offsets));
 }
 
 template <typename EDATA_T, typename PRED_T>
@@ -482,7 +482,7 @@ single_source_shortest_path_impl(const GraphReadInterface& graph,
   std::shared_ptr<Arena> path_impls = std::make_shared<Arena>();
   label_t v_label = *input.get_labels_set().begin();
   auto vertices = graph.GetVertexSet(v_label);
-  auto dest_col_builder = SLVertexColumnBuilder::builder(v_label);
+  MSVertexColumnBuilder dest_col_builder(v_label);
   GeneralPathColumnBuilder path_col_builder;
   std::vector<size_t> offsets;
   if (dir == Direction::kIn || dir == Direction::kOut) {
@@ -506,8 +506,8 @@ single_source_shortest_path_impl(const GraphReadInterface& graph,
                     offsets, pred);
     });
   }
-  return std::make_tuple(dest_col_builder.finish(nullptr),
-                         path_col_builder.finish(path_impls),
+  path_col_builder.set_arena(path_impls);
+  return std::make_tuple(dest_col_builder.finish(), path_col_builder.finish(),
                          std::move(offsets));
 }
 
@@ -549,8 +549,7 @@ default_single_source_shortest_path_impl(
 
   std::shared_ptr<IContextColumn> dest_col(nullptr);
   if (dest_labels.size() == 1) {
-    auto dest_col_builder =
-        SLVertexColumnBuilder::builder(*dest_labels.begin());
+    MSVertexColumnBuilder dest_col_builder(*dest_labels.begin());
 
     foreach_vertex(input, [&](size_t idx, label_t label, vid_t v) {
       std::vector<std::tuple<label_t, label_t, vid_t>> cur;
@@ -615,9 +614,9 @@ default_single_source_shortest_path_impl(
       }
     });
 
-    dest_col = dest_col_builder.finish(nullptr);
+    dest_col = dest_col_builder.finish();
   } else {
-    auto dest_col_builder = MLVertexColumnBuilder::builder();
+    MLVertexColumnBuilder dest_col_builder;
 
     foreach_vertex(input, [&](size_t idx, label_t label, vid_t v) {
       std::vector<std::tuple<label_t, label_t, vid_t>> cur;
@@ -681,9 +680,10 @@ default_single_source_shortest_path_impl(
       }
     });
 
-    dest_col = dest_col_builder.finish(nullptr);
+    dest_col = dest_col_builder.finish();
   }
-  return std::make_tuple(dest_col, path_col_builder.finish(path_impls),
+  path_col_builder.set_arena(path_impls);
+  return std::make_tuple(dest_col, path_col_builder.finish(),
                          std::move(offsets));
 }
 

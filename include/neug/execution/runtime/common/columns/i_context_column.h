@@ -232,8 +232,9 @@ class IContextColumnBuilder {
   virtual void reserve(size_t size) = 0;
   virtual void push_back_elem(const RTAny& val) = 0;
 
-  virtual std::shared_ptr<IContextColumn> finish(
-      const std::shared_ptr<Arena>& ptr) = 0;
+  virtual std::shared_ptr<IContextColumn> finish() = 0;
+
+  virtual void set_arena(const std::shared_ptr<Arena>& arena) {}
 };
 
 class IOptionalContextColumnBuilder : public IContextColumnBuilder {
