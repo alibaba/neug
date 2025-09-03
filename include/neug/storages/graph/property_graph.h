@@ -39,7 +39,7 @@
 #include <vector>
 
 #include "libgrape-lite/grape/utils/concurrent_queue.h"
-#include "neug/execution/runtime/common/utils/bitset.h"
+#include "neug/execution/common/utils/bitset.h"
 #include "neug/storages/csr/dual_csr.h"
 #include "neug/storages/csr/mutable_csr.h"
 #include "neug/storages/file_names.h"

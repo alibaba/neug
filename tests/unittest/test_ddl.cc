@@ -1,7 +1,7 @@
 #include <gtest/gtest.h>
 #include <iostream>
 #include <string>
-#include "neug/execution/runtime/execute/plan_parser.h"
+#include "neug/execution/execute/plan_parser.h"
 #include "neug/main/neug_db.h"
 #include "neug/storages/file_names.h"
 #include "neug/storages/graph/schema.h"

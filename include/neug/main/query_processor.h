@@ -19,8 +19,8 @@
 #include <string>
 
 #include <glog/logging.h>
-#include "neug/execution/runtime/common/graph_interface.h"
-#include "neug/execution/runtime/utils/opr_timer.h"
+#include "neug/execution/common/graph_interface.h"
+#include "neug/execution/utils/opr_timer.h"
 #include "neug/main/query_result.h"
 #include "neug/utils/leaf_utils.h"
 #ifdef USE_SYSTEM_PROTOBUF

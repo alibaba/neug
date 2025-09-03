@@ -23,8 +23,8 @@
 #include <ostream>
 #include <vector>
 
-#include "neug/execution/runtime/common/graph_interface.h"
-#include "neug/execution/runtime/common/rt_any.h"
+#include "neug/execution/common/graph_interface.h"
+#include "neug/execution/common/rt_any.h"
 #include "neug/main/neug_db_session.h"
 #include "neug/storages/graph/schema.h"
 #include "neug/transaction/read_transaction.h"

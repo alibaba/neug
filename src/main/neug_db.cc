@@ -30,8 +30,8 @@
 #include <sstream>
 #include <vector>
 
-#include "neug/execution/runtime/execute/plan_parser.h"
-#include "neug/execution/runtime/utils/opr_timer.h"
+#include "neug/execution/execute/plan_parser.h"
+#include "neug/execution/utils/opr_timer.h"
 #include "neug/main/app/builtin/count_vertices.h"
 #include "neug/main/app/builtin/k_hop_neighbors.h"
 #include "neug/main/app/builtin/pagerank.h"

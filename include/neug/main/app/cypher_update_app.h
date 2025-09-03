@@ -18,8 +18,8 @@
 #include <string>
 #include <unordered_map>
 
-#include "neug/execution/runtime/execute/pipeline.h"
-#include "neug/execution/runtime/utils/opr_timer.h"
+#include "neug/execution/execute/pipeline.h"
+#include "neug/execution/utils/opr_timer.h"
 #include "neug/main/app/app_base.h"
 #include "neug/main/neug_db_session.h"
 #ifdef USE_SYSTEM_PROTOBUF

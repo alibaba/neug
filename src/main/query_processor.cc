@@ -14,9 +14,9 @@
  */
 
 #include "neug/main/query_processor.h"
-#include "neug/execution/runtime/common/context.h"
-#include "neug/execution/runtime/common/operators/retrieve/sink.h"
-#include "neug/execution/runtime/execute/plan_parser.h"
+#include "neug/execution/common/context.h"
+#include "neug/execution/common/operators/retrieve/sink.h"
+#include "neug/execution/execute/plan_parser.h"
 #include "neug/main/app/cypher_update_app.h"
 #include "neug/main/neug_db.h"
 #include "neug/storages/graph/property_graph.h"

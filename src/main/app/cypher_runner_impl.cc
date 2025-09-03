@@ -22,12 +22,12 @@
 #include <utility>
 #include <vector>
 
-#include "neug/execution/runtime/common/context.h"
-#include "neug/execution/runtime/common/graph_interface.h"
-#include "neug/execution/runtime/common/operators/retrieve/sink.h"
-#include "neug/execution/runtime/execute/pipeline.h"
-#include "neug/execution/runtime/execute/plan_parser.h"
-#include "neug/execution/runtime/utils/opr_timer.h"
+#include "neug/execution/common/context.h"
+#include "neug/execution/common/graph_interface.h"
+#include "neug/execution/common/operators/retrieve/sink.h"
+#include "neug/execution/execute/pipeline.h"
+#include "neug/execution/execute/plan_parser.h"
+#include "neug/execution/utils/opr_timer.h"
 #include "neug/main/app/cypher_app_utils.h"
 #include "neug/main/neug_db.h"
 #include "neug/main/neug_db_session.h"
