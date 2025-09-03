@@ -55,9 +55,14 @@ NeuG documentation
 
 .. toctree::
    :maxdepth: 1
+   :caption: Transaction
+
+   transaction/transaction.md
+
+.. toctree::
+   :maxdepth: 1
    :caption: User Guide
 
-   user_guide/data_persistence_transaction
    user_guide/key_concepts
 
 .. toctree::
