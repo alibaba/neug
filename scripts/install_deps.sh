@@ -524,7 +524,6 @@ install_neug_dependencies() {
     install_gflags
     install_glog
     install_arrow
-    install_boost
     install_yaml_cpp
     install_protobuf
     if [[ "${install_brpc}" == true ]]; then
@@ -536,7 +535,6 @@ install_neug_dependencies() {
     DEBIAN_FRONTEND=noninteractive TZ=Etc/UTC ${SUDO} apt-get install -y ${INTERACTIVE_UBUNTU[*]}
     install_protobuf
     install_arrow
-    install_boost
     if [[ "${install_brpc}" == true ]]; then
       install_brpc
     fi
@@ -553,7 +551,6 @@ install_neug_dependencies() {
     install_openssl
     install_gflags
     install_glog
-    install_boost
     install_arrow
     install_mimalloc
     install_yaml_cpp
