@@ -1,7 +1,7 @@
 
 file(GLOB GS_TEST_FILES RELATIVE "${CMAKE_CURRENT_SOURCE_DIR}" "${CMAKE_CURRENT_SOURCE_DIR}/*.cc")
 
-include_directories(${CMAKE_CURRENT_BINARY_DIR}/../../src/neug/compiler)
+include_directories(${CMAKE_CURRENT_BINARY_DIR}/../../src/compiler)
 
 
 if (BUILD_ALL_IN_ONE)

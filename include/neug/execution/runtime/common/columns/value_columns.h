@@ -296,7 +296,7 @@ class ListValueColumnBuilder : public IContextColumnBuilder {
 
   void push_back_opt(const List& val) { data_.emplace_back(val); }
 
-  void set_arena(const std::shared_ptr<Arena>& ptr) { arena_ = ptr; }
+  void set_arena(const std::shared_ptr<Arena>& ptr) override { arena_ = ptr; }
 
   std::shared_ptr<IContextColumn> finish() override {
     auto ret = std::make_shared<ListValueColumn>(type_);
@@ -410,7 +410,9 @@ class OptionalValueColumnBuilder : public IOptionalContextColumnBuilder {
     valid_.push_back(false);
   }
 
-  void set_arena(const std::shared_ptr<Arena>& arena) { arena_ = arena; }
+  void set_arena(const std::shared_ptr<Arena>& arena) override {
+    arena_ = arena;
+  }
   std::shared_ptr<IContextColumn> finish() override {
     auto ret = std::make_shared<OptionalValueColumn<T>>();
     ret->data_.swap(data_);

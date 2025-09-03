@@ -90,9 +90,9 @@ core.*
 **/dependency-reduced-pom.xml
 
 # compiler
-src/neug/compiler/.devcontainer
+src/compiler/.devcontainer
 
-src/neug/compiler/test/gopt/resources/queries/*.out
+src/compiler/test/gopt/resources/queries/*.out
 
 
 # tests

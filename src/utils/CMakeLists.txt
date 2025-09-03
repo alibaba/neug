@@ -1,5 +1,5 @@
 ############################################ Generate Http service Proto ############################################
-set(HTTP_SERVICE_PROTO_DIR ${CMAKE_CURRENT_SOURCE_DIR}/../../../proto)
+set(HTTP_SERVICE_PROTO_DIR ${CMAKE_CURRENT_SOURCE_DIR}/../../proto)
 set(HTTP_SERVICE_PROTO_FILES
         ${HTTP_SERVICE_PROTO_DIR}/http_svc.proto)
 file(MAKE_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/neug/http_service)
@@ -20,7 +20,7 @@ if (USE_SYSTEM_PROTOBUF)
         )
 else()
         file(GLOB HTTP_SERVICE_PROTO_SRCS "${CMAKE_CURRENT_SOURCE_DIR}/proto/http_service/*.pb.cc")
-        include_directories(SYSTEM ${CMAKE_CURRENT_SOURCE_DIR}/../../../include/neug/utils/proto/http_service/)
+        include_directories(SYSTEM ${CMAKE_CURRENT_SOURCE_DIR}/../../include/neug/utils/proto/http_service/)
 endif()
 
 
@@ -32,8 +32,8 @@ add_custom_target(generate_http_proto ALL
 
 
 ############################################ Generate Physical Plan Proto ############################################
-set(GIE_COMPILER_PROTO_DIR ${CMAKE_CURRENT_SOURCE_DIR}/../../../proto/)
-set(GIE_COMPILER_WRITE_PROTO_DIR  ${CMAKE_CURRENT_SOURCE_DIR}/../../../proto/)
+set(GIE_COMPILER_PROTO_DIR ${CMAKE_CURRENT_SOURCE_DIR}/../../proto/)
+set(GIE_COMPILER_WRITE_PROTO_DIR  ${CMAKE_CURRENT_SOURCE_DIR}/../../proto/)
 # proto files of gie compiler
 set(CODE_GEN_PROTOBUF_FILES
         ${GIE_COMPILER_PROTO_DIR}/algebra.proto
@@ -54,7 +54,7 @@ set(CODE_GEN_PROTOBUF_FILES
 # Remove the comments when you want to generate the proto files automatically.
 if (USE_SYSTEM_PROTOBUF)
         file(MAKE_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/neug/generated/proto/plan)
-        file(GLOB CODE_GEN_PROTOBUF_FILES "${CMAKE_CURRENT_SOURCE_DIR}/../../../proto/*.proto")
+        file(GLOB CODE_GEN_PROTOBUF_FILES "${CMAKE_CURRENT_SOURCE_DIR}/../../proto/*.proto")
         list(FILTER CODE_GEN_PROTOBUF_FILES EXCLUDE REGEX ".*http_svc\\.proto$")
 
         protobuf_generate(APPEND_PATH
@@ -62,12 +62,12 @@ if (USE_SYSTEM_PROTOBUF)
                 LANGUAGE cpp
                 OUT_VAR PROTO_SRCS_GIE
                 PROTOS ${CODE_GEN_PROTOBUF_FILES}
-                IMPORT_DIRS ${CMAKE_CURRENT_SOURCE_DIR}/../../../proto
+                IMPORT_DIRS ${CMAKE_CURRENT_SOURCE_DIR}/../../proto
                 PROTOC_OUT_DIR ${CMAKE_CURRENT_BINARY_DIR}/neug/generated/proto/plan
         )
 else()
         file(GLOB PROTO_SRCS_GIE "${CMAKE_CURRENT_SOURCE_DIR}/proto/plan/*.pb.cc")
-        include_directories(SYSTEM ${CMAKE_CURRENT_SOURCE_DIR}/../../../include/neug/utils/proto/plan/)
+        include_directories(SYSTEM ${CMAKE_CURRENT_SOURCE_DIR}/../../include/neug/utils/proto/plan/)
 endif()
 if (BUILD_ALL_IN_ONE)
         add_library(neug_plan_proto OBJECT ${PROTO_SRCS_GIE})

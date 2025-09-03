@@ -214,9 +214,9 @@ set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 include(CheckCXXSourceCompiles)
 include_directories(${CMAKE_CURRENT_SOURCE_DIR}/include/)
 # pb files generated under src/utils
-include_directories(${CMAKE_CURRENT_BINARY_DIR}/src/neug/utils)
+include_directories(${CMAKE_CURRENT_BINARY_DIR}/src/utils)
 # system_config.h generated under src/compiler
-include_directories(${CMAKE_CURRENT_BINARY_DIR}/src/neug/compiler)
+include_directories(${CMAKE_CURRENT_BINARY_DIR}/src/compiler)
 
 # Print cc and cxx compiler
 message(STATUS "CMAKE_C_COMPILER: ${CMAKE_C_COMPILER}")

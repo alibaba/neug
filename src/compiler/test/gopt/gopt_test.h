@@ -73,8 +73,8 @@ class Utils {
 
   static std::filesystem::path getTestResourcePath(
       const std::string& relativePath) {
-    auto parentPath = getEnvVarOrDefault("TEST_RESOURCE",
-                                         "/workspaces/neug/src/neug/compiler");
+    auto parentPath =
+        getEnvVarOrDefault("TEST_RESOURCE", "/workspaces/neug/src/compiler");
     return std::filesystem::path(parentPath) / relativePath;
   }
 

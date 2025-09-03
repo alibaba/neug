@@ -3,11 +3,11 @@ PROJECT_NUMBER = "0.0.1"
 OUTPUT_DIRECTORY = "build/html/reference"
 HTML_OUTPUT = "cpp_api"
 
-INPUT = ../src/neug/engines \
-        ../src/neug/main \
-        ../src/neug/planner \
-        ../src/neug/storages \
-        ../src/neug/utils
+INPUT = ../src/engines \
+        ../src/main \
+        ../src/planner \
+        ../src/storages \
+        ../src/utils
 
 FILE_PATTERNS = *.h *.cc
 RECURSIVE = YES

@@ -107,7 +107,9 @@ class GeneralPathColumnBuilder : public IContextColumnBuilder {
   }
   void reserve(size_t size) override { data_.reserve(size); }
 
-  void set_arena(const std::shared_ptr<Arena>& arena) { arena_ = arena; }
+  void set_arena(const std::shared_ptr<Arena>& arena) override {
+    arena_ = arena;
+  }
   std::shared_ptr<IContextColumn> finish() override {
     auto col = std::make_shared<GeneralPathColumn>();
     col->data_.swap(data_);
@@ -194,7 +196,9 @@ class OptionalGeneralPathColumnBuilder : public IContextColumnBuilder {
     valids_.reserve(size);
   }
 
-  void set_arena(const std::shared_ptr<Arena>& arena) { arena_ = arena; }
+  void set_arena(const std::shared_ptr<Arena>& arena) override {
+    arena_ = arena;
+  }
   std::shared_ptr<IContextColumn> finish() override {
     auto col = std::make_shared<OptionalGeneralPathColumn>();
     col->data_.swap(data_);

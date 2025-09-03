@@ -1,0 +1,124 @@
+{
+    "plan_id": 0,
+    "query_plan": {
+        "mode": "READ_WRITE",
+        "plan": [
+            {
+                "opr": {
+                    "source": {
+                        "extension_name": "csv",
+                        "file_path": "/workspaces/neug/src/compiler/test/gopt/resources/dml_test/person.csv",
+                        "options": {
+                            "DELIM": " | ",
+                            "HEADER": "True"
+                        }
+                    }
+                },
+                "meta_data": [
+                    {
+                        "type": {
+                            "data_type": {
+                                "primitive_type": "DT_SIGNED_INT64"
+                            }
+                        },
+                        "alias": 0
+                    },
+                    {
+                        "type": {
+                            "data_type": {
+                                "string": {
+                                    "var_char": {
+                                        "max_length": 65536
+                                    }
+                                }
+                            }
+                        },
+                        "alias": 1
+                    },
+                    {
+                        "type": {
+                            "data_type": {
+                                "primitive_type": "DT_SIGNED_INT64"
+                            }
+                        },
+                        "alias": 2
+                    }
+                ]
+            },
+            {
+                "opr": {
+                    "load_vertex": {
+                        "vertex_type": {
+                            "id": 0
+                        },
+                        "property_mappings": [
+                            {
+                                "property": {
+                                    "key": {
+                                        "name": "id"
+                                    }
+                                },
+                                "data": {
+                                    "operators": [
+                                        {
+                                            "var": {
+                                                "tag": {
+                                                    "id": 0
+                                                }
+                                            }
+                                        }
+                                    ]
+                                }
+                            },
+                            {
+                                "property": {
+                                    "key": {
+                                        "name": "name"
+                                    }
+                                },
+                                "data": {
+                                    "operators": [
+                                        {
+                                            "var": {
+                                                "tag": {
+                                                    "id": 1
+                                                }
+                                            }
+                                        }
+                                    ]
+                                }
+                            },
+                            {
+                                "property": {
+                                    "key": {
+                                        "name": "age"
+                                    }
+                                },
+                                "data": {
+                                    "operators": [
+                                        {
+                                            "var": {
+                                                "tag": {
+                                                    "id": 2
+                                                }
+                                            }
+                                        }
+                                    ]
+                                }
+                            }
+                        ]
+                    }
+                },
+                "meta_data": []
+            },
+            {
+                "opr": {
+                    "sink": {
+                        "tags": []
+                    }
+                },
+                "meta_data": []
+            }
+        ]
+    }
+}
