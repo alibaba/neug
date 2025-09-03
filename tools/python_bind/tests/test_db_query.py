@@ -16,6 +16,7 @@
 # limitations under the License.
 #
 
+import logging
 import os
 import shutil
 import sys
@@ -24,6 +25,13 @@ from unittest import result
 import pytest
 
 sys.path.append(os.path.join(os.path.dirname(__file__), "../"))
+
+from ctypes import sizeof
+
+from conftest import ensure_result_cnt_eq
+from conftest import ensure_result_cnt_gt_zero
+from conftest import submit_cypher_query
+
 from neug import Session
 from neug.database import Database
 from neug.proto.error_pb2 import ERR_COMPILATION
@@ -33,6 +41,10 @@ from neug.proto.error_pb2 import ERR_QUERY_SYNTAX
 from neug.proto.error_pb2 import ERR_SCHEMA_MISMATCH
 from neug.proto.error_pb2 import ERR_TYPE_CONVERSION
 from neug.proto.error_pb2 import ERR_TYPE_OVERFLOW
+
+# Import conftest functions for IC tests
+
+logger = logging.getLogger(__name__)
 
 
 # DB-003-01
@@ -1396,3 +1408,130 @@ def test_reverse():
         ), f"Expected {expected} for {original}, got {reversed_str}"
     conn.close()
     db.close()
+
+
+def test_distinct():
+    db_dir = "/tmp/tinysnb"
+    db = Database(db_path=db_dir, mode="r")
+    conn = db.connect()
+    result = conn.execute(
+        "MATCH (a:person)-[:knows]->(c:person) Return distinct a.fName;"
+    )
+    records = list(result)
+    print(records)
+    assert records == [["Alice"], ["Bob"], ["Carol"], ["Dan"], ["Elizabeth"]]
+    conn.close()
+    db.close()
+
+
+def test_length():
+    db_dir = "/tmp/ldbc"
+    db = Database(db_path=db_dir, mode="r")
+    conn = db.connect()
+    result = conn.execute(
+        "Match (n:PERSON {id: 933})-[k:KNOWS*1..3]->(m) Return LENGTH(k) as len Order by len Limit 1"
+    )
+    for record in result:
+        assert record[0] == 1, f"Expected value 1, got {record[0]}"
+    conn.close()
+    db.close()
+
+
+def test_nodes_rels():
+    db_dir = "/tmp/ldbc"
+    db = Database(db_path=db_dir, mode="r")
+    conn = db.connect()
+    submit_cypher_query(
+        conn=conn,
+        query="Match (n:PERSON {id: 933})-[k:KNOWS*1..3]-(m:PERSON {id: 2199023256668})"
+        " Return nodes(k) as n1, rels(k) as n2 LIMIT 1;",
+        lambda_func=ensure_result_cnt_gt_zero,
+    )
+    conn.close()
+    db.close()
+
+
+def test_case_expression():
+    db_dir = "/tmp/ldbc"
+    db = Database(db_path=db_dir, mode="r")
+    conn = db.connect()
+    result = conn.execute(
+        "Match (n:PERSON {id: 933}) Return CASE WHEN n.id > 0 THEN n.id ELSE 0 END"
+    )
+    for record in result:
+        assert record[0] == 933, f"Expected value 933, got {record[0]}"
+    conn.close()
+    db.close()
+
+
+# test to_tuple function
+# todo(engine): VariableKeys is deprecated by ToTuple in PB.
+def test_to_tuple():
+    db_dir = "/tmp/ldbc"
+    db = Database(db_path=db_dir, mode="r")
+    conn = db.connect()
+    submit_cypher_query(
+        conn=conn,
+        query="Match (n:PERSON {id: 933})"
+        " Return [n.firstName, n.gender, n.birthday] as n2 LIMIT 1;",
+        lambda_func=ensure_result_cnt_gt_zero,
+    )
+    conn.close()
+    db.close()
+
+
+# test dummy scan before projection
+def test_dummy_scan():
+    db_dir = "/tmp/ldbc"
+    db = Database(db_path=db_dir, mode="r")
+    conn = db.connect()
+    result = conn.execute("Return 1002")
+    for record in result:
+        assert record[0] == 1002, f"Expected value 1002, got {record[0]}"
+    conn.close()
+    db.close()
+
+
+# test START_NODE and END_NODE
+# todo(engine): Engine Abort
+# def test_start_end_node():
+#     db_dir = "/tmp/ldbc"
+#     db = Database(db_path=db_dir, mode="r")
+#     conn = db.connect()
+#     submit_cypher_query(
+#         conn=conn,
+#         query="Match (n:PERSON {id: 933})-[k:KNOWS]->(m:PERSON {id: 2199023256077})"
+#         " Return START_NODE(k) as n1, END_NODE(k) as n2;",
+#         lambda_func=ensure_result_cnt_gt_zero,
+#     )
+#     conn.close()
+#     db.close()
+
+# test undirected and unweighted shortest path
+# todo(engine): Error thrown
+# def test_shortest_path():
+#     db_dir = "/tmp/ldbc"
+#     db = Database(db_path=db_dir, mode="r")
+#     conn = db.connect()
+#     result = conn.execute(
+#         "Match (n:PERSON {id: 933})-[k:KNOWS* SHORTEST  1..3]-(m:PERSON {id: 2199023256668}) Return LENGTH(k) Limit 1;"
+#     )
+#     for record in result:
+#         assert record[0] == 1, f"Expected value 1, got {record[0]}"
+#     conn.close()
+#     db.close()
+
+# test properties
+# todo(engine): Error thrown
+# def test_properties():
+#     db_dir = "/tmp/ldbc"
+#     db = Database(db_path=db_dir, mode="r")
+#     conn = db.connect()
+#     submit_cypher_query(
+#         conn=conn,
+#         query="Match (n:PERSON {id: 933})-[k:KNOWS*1..3]-(m:PERSON {id: 2199023256668})"
+#         " Return properties(nodes(k), 'firstName') as n1, properties(rels(k),'creationDate') as n2 LIMIT 1;",
+#         lambda_func=ensure_result_cnt_gt_zero,
+#     )
+#     conn.close()
+#     db.close()

@@ -81,7 +81,8 @@ void GAliasManager::extractGAliasNames(
     break;
   }
   case planner::LogicalOperatorType::PROJECTION:
-  case planner::LogicalOperatorType::AGGREGATE: {
+  case planner::LogicalOperatorType::AGGREGATE:
+  case planner::LogicalOperatorType::DISTINCT: {
     auto schema = op.getSchema();
     if (schema != nullptr) {
       auto exprs = schema->getExpressionsInScope();

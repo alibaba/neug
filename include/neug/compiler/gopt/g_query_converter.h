@@ -35,6 +35,7 @@
 #include "neug/compiler/planner/operator/logical_aggregate.h"
 #include "neug/compiler/planner/operator/logical_alias_map.h"
 #include "neug/compiler/planner/operator/logical_cross_product.h"
+#include "neug/compiler/planner/operator/logical_distinct.h"
 #include "neug/compiler/planner/operator/logical_filter.h"
 #include "neug/compiler/planner/operator/logical_get_v.h"
 #include "neug/compiler/planner/operator/logical_hash_join.h"
@@ -154,6 +155,9 @@ class GQueryConvertor {
   void convertExpressionScan(
       const planner::LogicalExpressionsScan& expressionScan,
       ::physical::QueryPlan* plan);
+
+  void convertDistinct(const planner::LogicalDistinct& distinct,
+                       ::physical::QueryPlan* plan);
 
   // help functions
   ::physical::Join::JoinKind convertJoinKind(common::JoinType joinType);

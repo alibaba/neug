@@ -150,6 +150,11 @@ void GQueryConvertor::convertOperator(const planner::LogicalOperator& op,
     convertAggregate(*aggregate, plan);
     break;
   }
+  case planner::LogicalOperatorType::DISTINCT: {
+    auto distinct = op.constPtrCast<planner::LogicalDistinct>();
+    convertDistinct(*distinct, plan);
+    break;
+  }
   case planner::LogicalOperatorType::FILTER: {
     auto filter = op.constPtrCast<planner::LogicalFilter>();
     convertFilter(*filter, plan);
@@ -659,6 +664,32 @@ void GQueryConvertor::convertFilter(const planner::LogicalFilter& filter,
   plan->mutable_plan()->AddAllocated(physicalPB.release());
 }
 
+void GQueryConvertor::convertDistinct(const planner::LogicalDistinct& distinct,
+                                      ::physical::QueryPlan* plan) {
+  size_t exprSize = distinct.getKeys().size();
+
+  auto dedupPB = std::make_unique<::algebra::Dedup>();
+  size_t aliasPos = 0;
+  auto child = distinct.getChild(0);
+  for (auto& key : distinct.getKeys()) {
+    auto keyPB = exprConvertor->convert(*key, *child);
+    if (!keyPB) {
+      THROW_EXCEPTION_WITH_FILE_LINE("Failed to convert key expression: " +
+                                     key->toString());
+    }
+    auto var = std::make_unique<::common::Variable>();
+    *var = std::move(*keyPB->mutable_operators(0)->mutable_var());
+    dedupPB->mutable_keys()->AddAllocated(var.release());
+  }
+
+  auto physicalPB = std::make_unique<::physical::PhysicalOpr>();
+  auto oprPB = std::make_unique<::physical::PhysicalOpr_Operator>();
+  oprPB->set_allocated_dedup(dedupPB.release());
+  physicalPB->set_allocated_opr(oprPB.release());
+
+  plan->mutable_plan()->AddAllocated(physicalPB.release());
+}
+
 void GQueryConvertor::setMetaData(::physical::PhysicalOpr* physicalOpr,
                                   const planner::LogicalOperator& op,
                                   binder::expression_vector exprs,
@@ -716,7 +747,8 @@ void GQueryConvertor::convertIntersect(
   auto propertyExpr = keyNodeID->ptrCast<binder::PropertyExpression>();
   auto aliasID = aliasManager->getAliasId(propertyExpr->getVariableName());
   if (aliasID == DEFAULT_ALIAS_ID) {
-    THROW_EXCEPTION_WITH_FILE_LINE("invalid intersect key: " + aliasID);
+    THROW_EXCEPTION_WITH_FILE_LINE("invalid intersect key: " +
+                                   std::to_string(aliasID));
   }
   intersectPB->set_key(aliasID);
   // set intersect sub plans
@@ -1418,8 +1450,9 @@ void GQueryConvertor::convertCrossProduct(
   case common::JoinType::LEFT:
     return ::physical::Join::JoinKind::Join_JoinKind_LEFT_OUTER;
   default:
-    THROW_EXCEPTION_WITH_FILE_LINE("Unsupported join type: " +
-                                   static_cast<uint8_t>(joinType));
+    THROW_EXCEPTION_WITH_FILE_LINE(
+        "Unsupported join type: " +
+        std::to_string(static_cast<uint8_t>(joinType)));
   }
 }
 
