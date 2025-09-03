@@ -37,10 +37,10 @@
 
 namespace gs {
 
-MutablePropertyFragment::MutablePropertyFragment()
+PropertyGraph::PropertyGraph()
     : vertex_label_num_(0), edge_label_num_(0), memory_level_(1) {}
 
-MutablePropertyFragment::~MutablePropertyFragment() {
+PropertyGraph::~PropertyGraph() {
   std::vector<size_t> degree_list(vertex_label_num_, 0);
   for (size_t i = 0; i < vertex_label_num_; ++i) {
     degree_list[i] = vertex_tables_[i].lid_num();
@@ -61,14 +61,14 @@ MutablePropertyFragment::~MutablePropertyFragment() {
   }
 }
 
-void MutablePropertyFragment::loadSchema(const std::string& schema_path) {
+void PropertyGraph::loadSchema(const std::string& schema_path) {
   auto io_adaptor = std::unique_ptr<grape::LocalIOAdaptor>(
       new grape::LocalIOAdaptor(schema_path));
   io_adaptor->Open();
   schema_.Deserialize(io_adaptor);
 }
 
-void MutablePropertyFragment::Clear() {
+void PropertyGraph::Clear() {
   vertex_tables_.clear();
   edge_tables_.clear();
   vertex_label_num_ = 0;
@@ -76,7 +76,7 @@ void MutablePropertyFragment::Clear() {
   schema_.Clear();
 }
 
-Status MutablePropertyFragment::create_vertex_type(
+Status PropertyGraph::create_vertex_type(
     const std::string& vertex_type_name,
     const std::vector<std::tuple<PropertyType, std::string, Any>>& properties,
     const std::vector<std::string>& primary_key_names, bool error_on_conflict) {
@@ -173,9 +173,9 @@ Status MutablePropertyFragment::create_vertex_type(
   return gs::Status::OK();
 }
 
-Status MutablePropertyFragment::batch_add_vertices(
-    label_t label_id, std::vector<Any>&& vertices,
-    std::unique_ptr<Table>&& table) {
+Status PropertyGraph::batch_add_vertices(label_t label_id,
+                                         std::vector<Any>&& vertices,
+                                         std::unique_ptr<Table>&& table) {
   if (vertices.size() == 0) {
     return gs::Status::OK();
   }
@@ -184,7 +184,7 @@ Status MutablePropertyFragment::batch_add_vertices(
   return gs::Status::OK();
 }
 
-Status MutablePropertyFragment::batch_add_edges(
+Status PropertyGraph::batch_add_edges(
     label_t src_label_id, label_t dst_label_id, label_t edge_label_id,
     std::vector<std::tuple<vid_t, vid_t, size_t>>&& edges_vec,
     std::unique_ptr<Table>&& table) {
@@ -197,7 +197,7 @@ Status MutablePropertyFragment::batch_add_edges(
   return gs::Status::OK();
 }
 
-Status MutablePropertyFragment::create_edge_type(
+Status PropertyGraph::create_edge_type(
     const std::string& src_vertex_type, const std::string& dst_vertex_type,
     const std::string& edge_type_name,
     const std::vector<std::tuple<PropertyType, std::string, Any>>& properties,
@@ -277,7 +277,7 @@ Status MutablePropertyFragment::create_edge_type(
   return gs::Status::OK();
 }
 
-Status MutablePropertyFragment::add_vertex_properties(
+Status PropertyGraph::add_vertex_properties(
     const std::string& vertex_type_name,
     const std::vector<std::tuple<PropertyType, std::string, Any>>&
         add_properties,
@@ -324,7 +324,7 @@ Status MutablePropertyFragment::add_vertex_properties(
   return gs::Status::OK();
 }
 
-Status MutablePropertyFragment::add_edge_properties(
+Status PropertyGraph::add_edge_properties(
     const std::string& src_type_name, const std::string& dst_type_name,
     const std::string& edge_type_name,
     const std::vector<std::tuple<PropertyType, std::string, Any>>&
@@ -392,7 +392,7 @@ Status MutablePropertyFragment::add_edge_properties(
   return gs::Status::OK();
 }
 
-Status MutablePropertyFragment::rename_vertex_properties(
+Status PropertyGraph::rename_vertex_properties(
     const std::string& vertex_type_name,
     const std::vector<std::tuple<std::string, std::string>>& update_properties,
     bool error_on_conflict) {
@@ -435,7 +435,7 @@ Status MutablePropertyFragment::rename_vertex_properties(
   return gs::Status::OK();
 }
 
-Status MutablePropertyFragment::rename_edge_properties(
+Status PropertyGraph::rename_edge_properties(
     const std::string& src_type_name, const std::string& dst_type_name,
     const std::string& edge_type_name,
     const std::vector<std::tuple<std::string, std::string>>& update_properties,
@@ -493,7 +493,7 @@ Status MutablePropertyFragment::rename_edge_properties(
   return gs::Status::OK();
 }
 
-Status MutablePropertyFragment::delete_vertex_properties(
+Status PropertyGraph::delete_vertex_properties(
     const std::string& vertex_type_name,
     const std::vector<std::string>& delete_properties, bool error_on_conflict) {
   if (!schema_.contains_vertex_label(vertex_type_name)) {
@@ -532,7 +532,7 @@ Status MutablePropertyFragment::delete_vertex_properties(
   return gs::Status::OK();
 }
 
-Status MutablePropertyFragment::delete_edge_properties(
+Status PropertyGraph::delete_edge_properties(
     const std::string& src_type_name, const std::string& dst_type_name,
     const std::string& edge_type_name,
     const std::vector<std::string>& delete_properties, bool error_on_conflict) {
@@ -585,9 +585,9 @@ Status MutablePropertyFragment::delete_edge_properties(
   return gs::Status::OK();
 }
 
-Status MutablePropertyFragment::delete_vertex_type(
-    const std::string& vertex_type_name, bool is_detach,
-    bool error_on_conflict) {
+Status PropertyGraph::delete_vertex_type(const std::string& vertex_type_name,
+                                         bool is_detach,
+                                         bool error_on_conflict) {
   if (!schema_.contains_vertex_label(vertex_type_name)) {
     if (error_on_conflict) {
       LOG(ERROR) << "Vertex label[" << vertex_type_name << "] does not exists.";
@@ -632,9 +632,10 @@ Status MutablePropertyFragment::delete_vertex_type(
   return gs::Status::OK();
 }
 
-Status MutablePropertyFragment::delete_edge_type(
-    const std::string& src_vertex_type, const std::string& dst_vertex_type,
-    const std::string& edge_type, bool error_on_conflict) {
+Status PropertyGraph::delete_edge_type(const std::string& src_vertex_type,
+                                       const std::string& dst_vertex_type,
+                                       const std::string& edge_type,
+                                       bool error_on_conflict) {
   if (!schema_.has_edge_label(src_vertex_type, dst_vertex_type, edge_type)) {
     if (error_on_conflict) {
       LOG(ERROR) << "Edge [" << edge_type << "] from [" << src_vertex_type
@@ -664,8 +665,8 @@ Status MutablePropertyFragment::delete_edge_type(
   return gs::Status::OK();
 }
 
-Status MutablePropertyFragment::batch_delete_vertices(
-    const label_t& v_label_id, const std::vector<vid_t>& vids) {
+Status PropertyGraph::batch_delete_vertices(const label_t& v_label_id,
+                                            const std::vector<vid_t>& vids) {
   vertex_tables_.at(v_label_id).BatchDeleteVertices(vids);
 
   for (label_t i = 0; i < vertex_label_num_; i++) {
@@ -684,7 +685,7 @@ Status MutablePropertyFragment::batch_delete_vertices(
   return Status::OK();
 }
 
-Status MutablePropertyFragment::batch_delete_edges(
+Status PropertyGraph::batch_delete_edges(
     const label_t& src_v_label, const label_t& dst_v_label,
     const label_t& edge_label,
     std::vector<std::tuple<vid_t, vid_t>>& edges_vec) {
@@ -697,7 +698,7 @@ Status MutablePropertyFragment::batch_delete_edges(
   return Status::OK();
 }
 
-void MutablePropertyFragment::DumpSchema(const std::string& schema_path) {
+void PropertyGraph::DumpSchema(const std::string& schema_path) {
   auto io_adaptor = std::unique_ptr<grape::LocalIOAdaptor>(
       new grape::LocalIOAdaptor(schema_path));
   io_adaptor->Open("wb");
@@ -705,8 +706,7 @@ void MutablePropertyFragment::DumpSchema(const std::string& schema_path) {
   io_adaptor->Close();
 }
 
-void MutablePropertyFragment::Open(const std::string& work_dir,
-                                   int memory_level) {
+void PropertyGraph::Open(const std::string& work_dir, int memory_level) {
   // copy work_dir to work_dir_
   memory_level_ = memory_level;
   work_dir_.assign(work_dir);
@@ -822,7 +822,7 @@ void MutablePropertyFragment::Open(const std::string& work_dir,
   }
 }
 
-void MutablePropertyFragment::Compact(uint32_t version) {
+void PropertyGraph::Compact(uint32_t version) {
   for (size_t src_label_i = 0; src_label_i != vertex_label_num_;
        ++src_label_i) {
     std::string src_label =
@@ -851,8 +851,7 @@ void MutablePropertyFragment::Compact(uint32_t version) {
   }
 }
 
-void MutablePropertyFragment::Dump(const std::string& work_dir,
-                                   uint32_t version) {
+void PropertyGraph::Dump(const std::string& work_dir, uint32_t version) {
   std::string snapshot_dir_path = snapshot_dir(work_dir, version);
   std::error_code errorCode;
   std::filesystem::create_directories(snapshot_dir_path, errorCode);
@@ -912,41 +911,39 @@ void MutablePropertyFragment::Dump(const std::string& work_dir,
   set_snapshot_version(work_dir, version);
 }
 
-void MutablePropertyFragment::IngestEdge(label_t src_label, vid_t src_lid,
-                                         label_t dst_label, vid_t dst_lid,
-                                         label_t edge_label, timestamp_t ts,
-                                         grape::OutArchive& arc,
-                                         Allocator& alloc) {
+void PropertyGraph::IngestEdge(label_t src_label, vid_t src_lid,
+                               label_t dst_label, vid_t dst_lid,
+                               label_t edge_label, timestamp_t ts,
+                               grape::OutArchive& arc, Allocator& alloc) {
   size_t index = schema_.generate_edge_label(src_label, dst_label, edge_label);
   edge_tables_.at(index).IngestEdge(src_lid, dst_lid, arc, ts, alloc);
 }
 
-void MutablePropertyFragment::UpdateEdge(label_t src_label, vid_t src_lid,
-                                         label_t dst_label, vid_t dst_lid,
-                                         label_t edge_label, timestamp_t ts,
-                                         const Any& arc, Allocator& alloc) {
+void PropertyGraph::UpdateEdge(label_t src_label, vid_t src_lid,
+                               label_t dst_label, vid_t dst_lid,
+                               label_t edge_label, timestamp_t ts,
+                               const Any& arc, Allocator& alloc) {
   size_t index = schema_.generate_edge_label(src_label, dst_label, edge_label);
   edge_tables_.at(index).UpdateEdge(src_lid, dst_lid, arc, ts, alloc);
 }
-const Schema& MutablePropertyFragment::schema() const { return schema_; }
+const Schema& PropertyGraph::schema() const { return schema_; }
 
-Schema& MutablePropertyFragment::mutable_schema() { return schema_; }
+Schema& PropertyGraph::mutable_schema() { return schema_; }
 
-vid_t MutablePropertyFragment::lid_num(label_t vertex_label) const {
+vid_t PropertyGraph::lid_num(label_t vertex_label) const {
   return vertex_tables_[vertex_label].lid_num();
 }
 
-vid_t MutablePropertyFragment::vertex_num(label_t vertex_label) const {
+vid_t PropertyGraph::vertex_num(label_t vertex_label) const {
   return vertex_tables_[vertex_label].vertex_num();
 }
 
-bool MutablePropertyFragment::is_valid_lid(label_t vertex_label,
-                                           vid_t lid) const {
+bool PropertyGraph::is_valid_lid(label_t vertex_label, vid_t lid) const {
   return vertex_tables_[vertex_label].is_valid_lid(lid);
 }
 
-size_t MutablePropertyFragment::edge_num(label_t src_label, label_t edge_label,
-                                         label_t dst_label) const {
+size_t PropertyGraph::edge_num(label_t src_label, label_t edge_label,
+                               label_t dst_label) const {
   size_t index = schema_.generate_edge_label(src_label, dst_label, edge_label);
   auto edge_table = edge_tables_.find(index);
   if (edge_table != edge_tables_.end()) {
@@ -956,52 +953,43 @@ size_t MutablePropertyFragment::edge_num(label_t src_label, label_t edge_label,
   }
 }
 
-bool MutablePropertyFragment::get_lid(label_t label, const Any& oid,
-                                      vid_t& lid) const {
+bool PropertyGraph::get_lid(label_t label, const Any& oid, vid_t& lid) const {
   return vertex_tables_[label].get_index(oid, lid);
 }
 
-Any MutablePropertyFragment::get_oid(label_t label, vid_t lid) const {
+Any PropertyGraph::get_oid(label_t label, vid_t lid) const {
   return vertex_tables_[label].get_oid(lid);
 }
 
-vid_t MutablePropertyFragment::add_vertex(label_t label, const Any& id) {
+vid_t PropertyGraph::add_vertex(label_t label, const Any& id) {
   return vertex_tables_[label].add_vertex(id);
 }
 
-vid_t MutablePropertyFragment::add_vertex_safe(label_t label, const Any& id) {
+vid_t PropertyGraph::add_vertex_safe(label_t label, const Any& id) {
   return vertex_tables_[label].add_vertex_safe(id);
 }
 
-std::shared_ptr<CsrConstEdgeIterBase>
-MutablePropertyFragment::get_outgoing_edges(label_t label, vid_t u,
-                                            label_t neighbor_label,
-                                            label_t edge_label) const {
+std::shared_ptr<CsrConstEdgeIterBase> PropertyGraph::get_outgoing_edges(
+    label_t label, vid_t u, label_t neighbor_label, label_t edge_label) const {
   return get_oe_csr(label, neighbor_label, edge_label)->edge_iter(u);
 }
 
-std::shared_ptr<CsrConstEdgeIterBase>
-MutablePropertyFragment::get_incoming_edges(label_t label, vid_t u,
-                                            label_t neighbor_label,
-                                            label_t edge_label) const {
+std::shared_ptr<CsrConstEdgeIterBase> PropertyGraph::get_incoming_edges(
+    label_t label, vid_t u, label_t neighbor_label, label_t edge_label) const {
   return get_ie_csr(label, neighbor_label, edge_label)->edge_iter(u);
 }
 
-std::shared_ptr<CsrEdgeIterBase>
-MutablePropertyFragment::get_outgoing_edges_mut(label_t label, vid_t u,
-                                                label_t neighbor_label,
-                                                label_t edge_label) {
+std::shared_ptr<CsrEdgeIterBase> PropertyGraph::get_outgoing_edges_mut(
+    label_t label, vid_t u, label_t neighbor_label, label_t edge_label) {
   return get_oe_csr(label, neighbor_label, edge_label)->edge_iter_mut(u);
 }
 
-std::shared_ptr<CsrEdgeIterBase>
-MutablePropertyFragment::get_incoming_edges_mut(label_t label, vid_t u,
-                                                label_t neighbor_label,
-                                                label_t edge_label) {
+std::shared_ptr<CsrEdgeIterBase> PropertyGraph::get_incoming_edges_mut(
+    label_t label, vid_t u, label_t neighbor_label, label_t edge_label) {
   return get_ie_csr(label, neighbor_label, edge_label)->edge_iter_mut(u);
 }
 
-std::string MutablePropertyFragment::get_statistics_json() const {
+std::string PropertyGraph::get_statistics_json() const {
   size_t vertex_count = 0;
   std::string ss = "\"vertex_type_statistics\": [\n";
   size_t vertex_label_num = schema_.vertex_label_num();
@@ -1079,7 +1067,7 @@ std::string MutablePropertyFragment::get_statistics_json() const {
   return final_ss;
 }
 
-void MutablePropertyFragment::generateStatistics() const {
+void PropertyGraph::generateStatistics() const {
   std::string filename = statisticsFilePath();
 
   {
@@ -1093,7 +1081,7 @@ void MutablePropertyFragment::generateStatistics() const {
   }
 }
 
-void MutablePropertyFragment::dumpSchema() const {
+void PropertyGraph::dumpSchema() const {
   LOG(INFO) << "Dump schema to file: " << get_schema_yaml_path();
   std::string filename = get_schema_yaml_path();
   auto schema_res = schema_.to_yaml();

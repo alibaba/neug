@@ -20,11 +20,12 @@
 #include <fstream>
 #include <set>
 #include <string>
+#include "neug/utils/property/types.h"
 
 #include <glog/logging.h>
 
 namespace gs {
-enum class DBMode { READ_ONLY = 0, READ_WRITE = 1 };
+
 /*
 A simple file lock mechanism to ensure that only one instance of the
 NeugDB can run at a time. This is useful for preventing multiple processes

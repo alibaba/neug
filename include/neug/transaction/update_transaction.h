@@ -37,7 +37,7 @@
 
 namespace gs {
 
-class MutablePropertyFragment;
+class PropertyGraph;
 class IWalWriter;
 class VersionManager;
 class GraphDBSession;
@@ -49,10 +49,10 @@ class IdIndexerBase;
 
 class UpdateTransaction {
  public:
-  UpdateTransaction(const GraphDBSession& session,
-                    MutablePropertyFragment& graph, Allocator& alloc,
-                    const std::string& work_dir, IWalWriter& logger,
-                    VersionManager& vm, timestamp_t timestamp);
+  UpdateTransaction(const GraphDBSession& session, PropertyGraph& graph,
+                    Allocator& alloc, const std::string& work_dir,
+                    IWalWriter& logger, VersionManager& vm,
+                    timestamp_t timestamp);
 
   ~UpdateTransaction();
 
@@ -169,14 +169,14 @@ class UpdateTransaction {
                           label_t neighbor_label, vid_t nbr, label_t edge_label,
                           Any& ret) const;
 
-  static void IngestWal(MutablePropertyFragment& graph,
-                        const std::string& work_dir, uint32_t timestamp,
-                        char* data, size_t length, Allocator& alloc);
+  static void IngestWal(PropertyGraph& graph, const std::string& work_dir,
+                        uint32_t timestamp, char* data, size_t length,
+                        Allocator& alloc);
   Any GetVertexId(label_t label, vid_t lid) const;
 
   const GraphDBSession& GetSession() const;
 
-  MutablePropertyFragment& GetGraph() const { return graph_; }
+  PropertyGraph& GetGraph() const { return graph_; }
 
   /**
    * @brief Check if the vertex with the given label and oid exists.
@@ -215,7 +215,7 @@ class UpdateTransaction {
 
   bool insert_vertex_with_resize_;
 
-  MutablePropertyFragment& graph_;
+  PropertyGraph& graph_;
   Allocator& alloc_;
   IWalWriter& logger_;
   VersionManager& vm_;

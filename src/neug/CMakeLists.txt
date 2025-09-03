@@ -12,10 +12,9 @@ add_subdirectory(execution)
 if (BUILD_ALL_IN_ONE)
         message(STATUS "Compiler libraries: ${COMPILER_LIBRARIES}")
         add_library(neug_libraries SHARED ${ALL_OBJECT_FILES})
-        target_link_libraries(neug_libraries PUBLIC ${COMPILER_LIBRARIES} ${GLOG_LIBRARIES} ${Boost_LIBRARIES} ${Protobuf_LIBRARIES} ${YAML_CPP_LIBRARIES} ${ARROW_LIB} neug_grape_lite)
+        target_link_libraries(neug_libraries PUBLIC ${Protobuf_LIBRARIES} ${COMPILER_LIBRARIES} ${GLOG_LIBRARIES} ${YAML_CPP_LIBRARIES} ${ARROW_LIB} neug_grape_lite)
         if (BUILD_HTTP_SERVER)
-            target_link_libraries(neug_libraries PUBLIC neug_execution_service ${GFLAGS_LIBRARIES} ${GLOG_LIBRARIES} ${Protobuf_LIBRARIES}  ${Boost_LIBRARIES})
-            target_link_libraries(neug_libraries PUBLIC ${OPENSSL_LIBRARIES} ${CRYPTO_LIB} ${BRPC_LIB} ${LEVELDB_LIB}) #${PROTOC_LIB}
+            target_link_libraries(neug_libraries PUBLIC neug_execution_service ${GFLAGS_LIBRARIES} ${OPENSSL_LIBRARIES} ${CRYPTO_LIB} ${BRPC_LIB} ${LEVELDB_LIB}) #${PROTOC_LIB}
         endif()
         if (APPLE)
             target_link_libraries(neug_libraries PUBLIC ${MACOS_DYLIBS})

@@ -22,14 +22,14 @@
 
 namespace gs {
 
-class MutablePropertyFragment;
+class PropertyGraph;
 class IWalWriter;
 class VersionManager;
 struct Any;
 
 class SingleEdgeInsertTransaction {
  public:
-  SingleEdgeInsertTransaction(MutablePropertyFragment& graph, Allocator& alloc,
+  SingleEdgeInsertTransaction(PropertyGraph& graph, Allocator& alloc,
                               IWalWriter& logger, VersionManager& vm,
                               timestamp_t timestamp);
   ~SingleEdgeInsertTransaction();
@@ -54,7 +54,7 @@ class SingleEdgeInsertTransaction {
 
   grape::InArchive arc_;
 
-  MutablePropertyFragment& graph_;
+  PropertyGraph& graph_;
 
   Allocator& alloc_;
   IWalWriter& logger_;

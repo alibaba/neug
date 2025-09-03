@@ -17,15 +17,16 @@
 #include "neug/neug.h"
 
 int main(int argc, char** argv) {
-  gs::NeugDB db("");  // In-memory database
+  gs::NeugDB db;  // In-memory database
+  db.Open("");
   auto conn = db.connect();
-  CHECK(conn->query("CREATE NODE TABLE person(id INT64, name STRING, age "
+  CHECK(conn->Query("CREATE NODE TABLE person(id INT64, name STRING, age "
                     "INT64, PRIMARY KEY(id));")
             .ok());
   CHECK(
-      conn->query("CREATE (a: person {id: 1, name: 'Alice', age: 30});").ok());
-  CHECK(conn->query("CREATE (b: person {id: 2, name: 'Bob', age: 25});").ok());
-  auto result = conn->query("MATCH (n: person) WHERE n.age > 26 RETURN n.name");
+      conn->Query("CREATE (a: person {id: 1, name: 'Alice', age: 30});").ok());
+  CHECK(conn->Query("CREATE (b: person {id: 2, name: 'Bob', age: 25});").ok());
+  auto result = conn->Query("MATCH (n: person) WHERE n.age > 26 RETURN n.name");
   CHECK(result.ok());
   CHECK(result.value().hasNext());
   auto record = result.value().next();

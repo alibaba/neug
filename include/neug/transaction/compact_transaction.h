@@ -21,13 +21,13 @@
 
 namespace gs {
 
-class MutablePropertyFragment;
+class PropertyGraph;
 class IWalWriter;
 class VersionManager;
 
 class CompactTransaction {
  public:
-  CompactTransaction(MutablePropertyFragment& graph, IWalWriter& logger,
+  CompactTransaction(PropertyGraph& graph, IWalWriter& logger,
                      VersionManager& vm, timestamp_t timestamp);
   ~CompactTransaction();
 
@@ -38,7 +38,7 @@ class CompactTransaction {
   void Abort();
 
  private:
-  MutablePropertyFragment& graph_;
+  PropertyGraph& graph_;
   IWalWriter& logger_;
   VersionManager& vm_;
   timestamp_t timestamp_;

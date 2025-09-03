@@ -15,6 +15,7 @@
 
 #include "neug/main/connection.h"
 
+#include "neug/main/neug_db.h"
 #include "neug/utils/pb_utils.h"
 #include "neug/utils/yaml_utils.h"
 
@@ -39,9 +40,27 @@ physical::PhysicalPlan load_plan_from_resource(
   return plan;
 }
 
-Result<QueryResult> Connection::query(const std::string& query_string) {
+const Schema& Connection::GetSchema() const {
+  if (IsClosed()) {
+    LOG(ERROR) << "Connection is closed, cannot get schema.";
+    THROW_RUNTIME_ERROR("Connection is closed, cannot get schema.");
+  }
+  return db_.schema();
+}
+
+void Connection::Close() {
+  if (is_closed_.load(std::memory_order_relaxed)) {
+    LOG(WARNING) << "Connection is already closed.";
+    return;
+  }
+  LOG(INFO) << "Closing connection.";
+  is_closed_.store(true);
+  // Any necessary cleanup can be done here.
+}
+
+Result<QueryResult> Connection::Query(const std::string& query_string) {
   LOG(INFO) << "Query: " << query_string;
-  if (is_closed()) {
+  if (IsClosed()) {
     LOG(ERROR) << "Connection is closed, cannot execute query.";
     return Result<QueryResult>(
         Status(StatusCode::ERR_CONNECTION_CLOSED, "Connection is closed."));
@@ -95,12 +114,12 @@ Result<results::CollectiveResults> Connection::query_impl(
                           yaml.status().error_message());
     }
     planner_->update_meta(yaml.value());
-    planner_->update_statistics(db_.get_statistics_json());
+    planner_->update_statistics(db_.graph().get_statistics_json());
   } else if (physical_plan.query_plan().mode() ==
                  physical::QueryPlan::Mode::QueryPlan_Mode_READ_WRITE ||
              physical_plan.query_plan().mode() ==
                  physical::QueryPlan::Mode::QueryPlan_Mode_WRITE_ONLY) {
-    planner_->update_statistics(db_.get_statistics_json());
+    planner_->update_statistics(db_.graph().get_statistics_json());
   }
 
   return Result(std::move(result.move_value()));

@@ -92,7 +92,7 @@ int32_t status_code_to_http_code(gs::StatusCode code) {
 }
 
 BrpcHttpHandlerManager::BrpcHttpHandlerManager(
-    gs::GraphDB& graph_db, std::shared_ptr<gs::IGraphPlanner> planner)
+    gs::NeugDB& graph_db, std::shared_ptr<gs::IGraphPlanner> planner)
     : svc_(graph_db, planner) {
   brpc_server_ = std::make_unique<brpc::Server>();
 }

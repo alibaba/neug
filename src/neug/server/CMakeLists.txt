@@ -1,7 +1,7 @@
 if (BUILD_HTTP_SERVER)
-    add_library(neug_execution_service STATIC
-            ${CMAKE_CURRENT_SOURCE_DIR}/graph_db_service.cc
-            ${CMAKE_CURRENT_SOURCE_DIR}/brpc_http_hdl_mgr.cc)
+    file(GLOB_RECURSE NEUG_SERVER_FILES "${CMAKE_CURRENT_SOURCE_DIR}/*.cc")
+    add_library(neug_execution_service STATIC ${NEUG_SERVER_FILES})
+    target_link_libraries(neug_execution_service PUBLIC ${Protobuf_LIBRARIES} ${BRPC_LIB} ${LEVELDB_LIB} ${OPENSSL_LIBRARIES} ${GFLAGS_LIBRARIES})
     install_neug_target(neug_execution_service)
     add_dependencies(neug_execution_service neug_plan_proto)
 endif()

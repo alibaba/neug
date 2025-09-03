@@ -15,7 +15,7 @@
     - Each edge has a label that describes the type of interaction, and a set of properties that describe its characteristics.
     - Edges with same label-triplet(source vertex label, edge label, destination vertex label) share property schema.
 
-In `rt_mutable_graph`, schema is defined [here](./schema.h). To initialize an `MutablePropertyFragment`, an `Schema` object should be provided. There are 2 ways to setup the `Schema` object:
+In `rt_mutable_graph`, schema is defined [here](./schema.h). To initialize an `PropertyGraph`, an `Schema` object should be provided. There are 2 ways to setup the `Schema` object:
 
 - Invoking the member functions of `Schema`, such as `add_vertex_label`, `add_edge_label`, etc.
 - Parsing an `Schema` object from a YAML configuration file, using `Schema::LoadFromYaml`.

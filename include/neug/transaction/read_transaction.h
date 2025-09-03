@@ -43,7 +43,7 @@
 
 namespace gs {
 
-class MutablePropertyFragment;
+class PropertyGraph;
 class GraphDBSession;
 class VersionManager;
 class CsrConstEdgeIterBase;
@@ -396,9 +396,8 @@ class SingleImmutableGraphView<std::string_view> {
 
 class ReadTransaction {
  public:
-  ReadTransaction(const GraphDBSession& session,
-                  const MutablePropertyFragment& graph, VersionManager& vm,
-                  timestamp_t timestamp);
+  ReadTransaction(const GraphDBSession& session, const PropertyGraph& graph,
+                  VersionManager& vm, timestamp_t timestamp);
   ~ReadTransaction();
 
   timestamp_t timestamp() const;
@@ -407,7 +406,7 @@ class ReadTransaction {
 
   void Abort();
 
-  const MutablePropertyFragment& graph() const;
+  const PropertyGraph& graph() const;
 
   /*
    * @brief Get the handle of the vertex property column, only for non-primary
@@ -451,7 +450,7 @@ class ReadTransaction {
   class vertex_iterator {
    public:
     vertex_iterator(label_t label, vid_t cur, vid_t num,
-                    const MutablePropertyFragment& graph);
+                    const PropertyGraph& graph);
     ~vertex_iterator();
 
     bool IsValid() const;
@@ -469,7 +468,7 @@ class ReadTransaction {
     vid_t cur_;
     vid_t num_;
     bool is_deleted_;
-    const MutablePropertyFragment& graph_;
+    const PropertyGraph& graph_;
   };
 
   class edge_iterator {
@@ -614,7 +613,7 @@ class ReadTransaction {
  private:
   void release();
   const GraphDBSession& session_;
-  const MutablePropertyFragment& graph_;
+  const PropertyGraph& graph_;
   VersionManager& vm_;
   timestamp_t timestamp_;
 };

@@ -39,9 +39,9 @@ class DataType;
 
 namespace gs {
 
-void testLoadVertexBatch(MutablePropertyFragment& graph,
-                         std::string vertex_type_name, std::string& v_file,
-                         char delimiter, bool skip_head, int32_t batch_size,
+void testLoadVertexBatch(PropertyGraph& graph, std::string vertex_type_name,
+                         std::string& v_file, char delimiter, bool skip_head,
+                         int32_t batch_size,
                          std::vector<std::string>& null_values) {
   label_t v_label = graph.schema().get_vertex_label_id(vertex_type_name);
   arrow::csv::ConvertOptions convert_options;
@@ -156,10 +156,10 @@ void testLoadVertexBatch(MutablePropertyFragment& graph,
   AbstractArrowFragmentLoader::batch_load_vertices(graph, v_label, suppliers);
 }
 
-void testLoadEdgeBatch(MutablePropertyFragment& graph,
-                       std::string src_vertex_type, std::string dst_vertex_type,
-                       std::string edge_type, std::string& e_file,
-                       char delimiter, bool skip_head, int32_t batch_size,
+void testLoadEdgeBatch(PropertyGraph& graph, std::string src_vertex_type,
+                       std::string dst_vertex_type, std::string edge_type,
+                       std::string& e_file, char delimiter, bool skip_head,
+                       int32_t batch_size,
                        std::vector<std::string>& null_values) {
   label_t src_label_id = graph.schema().get_vertex_label_id(src_vertex_type);
   label_t dst_label_id = graph.schema().get_vertex_label_id(dst_vertex_type);
@@ -271,7 +271,7 @@ void testLoadEdgeBatch(MutablePropertyFragment& graph,
 
 void testOpenEmptyGraph(const std::string& graph_dir,
                         const std::string& data_dir) {
-  MutablePropertyFragment graph;
+  PropertyGraph graph;
   graph.Open(graph_dir, 0);
 
   // Create vertex type PERSON

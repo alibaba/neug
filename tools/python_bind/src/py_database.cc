@@ -35,12 +35,8 @@ void PyDatabase::initialize(pybind11::handle& m) {
         std::string planner = kwargs.contains("planner")
                                   ? kwargs["planner"].cast<std::string>()
                                   : "gopt";
-        std::string planner_config_path =
-            kwargs.contains("planner_config_path")
-                ? kwargs["planner_config_path"].cast<std::string>()
-                : "";
         return std::make_shared<PyDatabase>(database_path, max_thread_num, mode,
-                                            planner, planner_config_path);
+                                            planner);
       }))  // "Creating a PyDatabase. Holds a shared pointer to the C++ "
            // "NeugDB object.\n"
       .def("connect", &PyDatabase::connect,
@@ -75,20 +71,38 @@ std::string PyDatabase::serve(int port, const std::string& host) {
   if (!database) {
     THROW_RUNTIME_ERROR("Database is not initialized.");
   }
-  return database->serve(port, host);
+  if (service_) {
+    THROW_RUNTIME_ERROR("Server is already running.");
+  }
+  service_ = std::make_unique<server::GraphDBService>(*database);
+  server::ServiceConfig config;
+  config.query_port = port;
+  config.host_str = host;
+  service_->init(config);
+  return service_->Start();
 }
 
 void PyDatabase::stop_serving() {
   if (!database) {
     THROW_RUNTIME_ERROR("Database is not initialized.");
   }
-  database->stop_serving();
+  if (!service_) {
+    THROW_RUNTIME_ERROR("Server is not running.");
+  }
+  if (service_) {
+    service_->Stop();
+    service_.reset();
+  }
 }
 
 void PyDatabase::close() {
   if (database) {
-    database->close();
+    database->Close();
     database.reset();
+  }
+  if (service_) {
+    service_->Stop();
+    service_.reset();
   }
 }
 

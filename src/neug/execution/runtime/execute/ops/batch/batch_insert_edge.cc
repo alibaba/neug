@@ -30,7 +30,7 @@
 
 namespace gs {
 class IRecordBatchSupplier;
-class MutablePropertyFragment;
+class PropertyGraph;
 
 namespace runtime {
 class OprTimer;

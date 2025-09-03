@@ -70,11 +70,11 @@ class CsrConstEdgeIterBase;
 class CsrEdgeIterBase;
 template <typename EDATA_T>
 class TypedMutableCsrBase;
-class MutablePropertyFragment {
+class PropertyGraph {
  public:
-  MutablePropertyFragment();
+  PropertyGraph();
 
-  ~MutablePropertyFragment();
+  ~PropertyGraph();
 
   void IngestEdge(label_t src_label, vid_t src_lid, label_t dst_label,
                   vid_t dst_lid, label_t edge_label, timestamp_t ts,

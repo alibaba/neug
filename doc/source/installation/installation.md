@@ -98,11 +98,12 @@ target_link_libraries(test ${NEUG_LIBRARIES})
 A sample test.cc looks like: 
 
 ```cpp
-#include <neug/main/database.h>
+#include <neug/main/neug_db.h>
 #include <iostream>
 
 int main() {
-  gs::NeugDB db("test_db");
+  gs::NeugDB db;
+  db.Open("test_db");
   auto conn = db.connect();
   std::cout << "NeuG C++ client installation successful!" << std::endl;
   return 0;

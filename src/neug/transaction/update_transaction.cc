@@ -25,7 +25,7 @@
 
 #include "libgrape-lite/grape/serialization/in_archive.h"
 #include "libgrape-lite/grape/serialization/out_archive.h"
-#include "neug/execution/runtime/utils/cypher_runner_impl.h"
+#include "neug/main/app/cypher_runner_impl.h"
 #include "neug/storages/csr/csr_base.h"
 #include "neug/storages/file_names.h"
 #include "neug/storages/graph/property_graph.h"
@@ -43,8 +43,7 @@
 namespace gs {
 
 UpdateTransaction::UpdateTransaction(const GraphDBSession& session,
-                                     MutablePropertyFragment& graph,
-                                     Allocator& alloc,
+                                     PropertyGraph& graph, Allocator& alloc,
                                      const std::string& work_dir,
                                      IWalWriter& logger, VersionManager& vm,
                                      timestamp_t timestamp)
@@ -686,7 +685,7 @@ bool UpdateTransaction::GetUpdatedEdgeData(bool dir, label_t label, vid_t v,
   }
 }
 
-void UpdateTransaction::IngestWal(MutablePropertyFragment& graph,
+void UpdateTransaction::IngestWal(PropertyGraph& graph,
                                   const std::string& work_dir,
                                   uint32_t timestamp, char* data, size_t length,
                                   Allocator& alloc) {

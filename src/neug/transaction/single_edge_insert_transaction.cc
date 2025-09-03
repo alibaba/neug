@@ -34,9 +34,11 @@
 
 namespace gs {
 
-SingleEdgeInsertTransaction::SingleEdgeInsertTransaction(
-    MutablePropertyFragment& graph, Allocator& alloc, IWalWriter& logger,
-    VersionManager& vm, timestamp_t timestamp)
+SingleEdgeInsertTransaction::SingleEdgeInsertTransaction(PropertyGraph& graph,
+                                                         Allocator& alloc,
+                                                         IWalWriter& logger,
+                                                         VersionManager& vm,
+                                                         timestamp_t timestamp)
     : graph_(graph),
       alloc_(alloc),
       logger_(logger),

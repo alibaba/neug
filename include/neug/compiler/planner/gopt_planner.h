@@ -19,8 +19,7 @@ namespace gs {
 
 class GOptPlanner : public gs::IGraphPlanner {
  public:
-  GOptPlanner(const std::string& compiler_config_path)
-      : IGraphPlanner(compiler_config_path) {
+  GOptPlanner() : IGraphPlanner() {
     gs::main::SystemConfig sysConfig;
     sysConfig.readOnly = false;
     database = std::make_unique<gs::main::GDatabase>(sysConfig);

@@ -20,6 +20,7 @@
 #include <string>
 
 #include "neug/main/connection.h"
+#include "neug/main/neug_db.h"
 #include "py_query_result.h"
 #include "pybind11/include/pybind11/pybind11.h"
 

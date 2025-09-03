@@ -1,7 +1,7 @@
 #include <gtest/gtest.h>
 #include <iostream>
 #include <string>
-#include "neug/main/database.h"
+#include "neug/main/neug_db.h"
 #include "neug/storages/file_names.h"
 #include "neug/storages/graph/schema.h"
 
@@ -17,32 +17,38 @@ TEST(DatabaseTest, OpenClose) {
   std::filesystem::create_directories(dir);
   // Get the path of current source file
 
-  gs::NeugDB db(dir, 1, "rw", "gopt");
+  gs::NeugDB db;
+  db.Open(dir);
   auto conn = db.connect();
   LOG(INFO) << "Before close db1";
-  db.close();
+  db.Close();
   LOG(INFO) << "After close db1";
-  gs::NeugDB db2(dir, 1, "r", "gopt");
+  gs::NeugDB db2;
+  db2.Open(dir, 1, gs::DBMode::READ_ONLY);
 
   LOG(INFO) << "After open db2 in read-only mode";
-  gs::NeugDB db3(dir, 1, "r", "gopt");
+  gs::NeugDB db3;
+  db3.Open(dir, 1, gs::DBMode::READ_ONLY);
   LOG(INFO) << "After open db3 in read-only mode";
 
-  db2.close();
+  db2.Close();
   LOG(INFO) << "After close db2";
-  db3.close();
+  db3.Close();
   LOG(INFO) << "After close db3";
 
   {
-    gs::NeugDB db4("", 1, "w", "gopt");
-    gs::NeugDB db5("", 1, "r", "gopt");
-    gs::NeugDB db6("", 1, "rw", "gopt");
+    gs::NeugDB db4;
+    db4.Open("", 1, gs::DBMode::READ_WRITE);
+    gs::NeugDB db5;
+    db5.Open("", 1, gs::DBMode::READ_ONLY);
+    gs::NeugDB db6;
+    db6.Open("", 1, gs::DBMode::READ_WRITE, "gopt");
 
-    db6.close();
+    db6.Close();
     LOG(INFO) << "After close db6";
-    db5.close();
+    db5.Close();
     LOG(INFO) << "After close db5";
-    db4.close();
+    db4.Close();
     LOG(INFO) << "After close db4";
   }
 }
@@ -62,26 +68,27 @@ TEST(DatabaseTest, TestDangling) {
   // create the directory
   std::filesystem::create_directories(data_path);
 
-  gs::NeugDB db(data_path, 1, "w", "gopt");
+  gs::NeugDB db;
+  db.Open(data_path, 1, gs::DBMode::READ_WRITE);
   auto conn = db.connect();
-  EXPECT_TRUE(conn->query("CREATE NODE TABLE person(id INT64, name STRING, age "
+  EXPECT_TRUE(conn->Query("CREATE NODE TABLE person(id INT64, name STRING, age "
                           "INT64, PRIMARY "
                           "KEY(id));")
                   .ok());
-  EXPECT_TRUE(conn->query("CREATE REL TABLE knows(FROM person TO person, "
+  EXPECT_TRUE(conn->Query("CREATE REL TABLE knows(FROM person TO person, "
                           "weight DOUBLE);")
                   .ok());
   auto person_csv_path = csv_dir + "/person.csv";
   auto person_knows_person_csv_path = csv_dir + "/person_knows_person.csv";
   EXPECT_TRUE(
-      conn->query("COPY person from \"" + person_csv_path + "\";").ok());
+      conn->Query("COPY person from \"" + person_csv_path + "\";").ok());
   EXPECT_TRUE(
-      conn->query("COPY knows from \"" + person_knows_person_csv_path + "\";")
+      conn->Query("COPY knows from \"" + person_knows_person_csv_path + "\";")
           .ok());
   // close database, and connection should be dangling
-  db.close();
+  db.Close();
   LOG(INFO) << "Database closed, connection should be dangling now.";
-  auto res = conn->query("MATCH (v) RETURN v;");
+  auto res = conn->Query("MATCH (v) RETURN v;");
   // The query should fail because the connection is dangling
   EXPECT_FALSE(res.ok());
   EXPECT_EQ(res.status().error_code(), gs::StatusCode::ERR_CONNECTION_CLOSED)
@@ -98,11 +105,13 @@ TEST(DatabaseTest, TestReadWriteConflict) {
   // create the directory
   std::filesystem::create_directories(data_path);
 
-  gs::NeugDB db(data_path, 1, "w", "gopt");
+  gs::NeugDB db;
+  db.Open(data_path);
   bool res = false;
   {
     try {
-      auto db2 = gs::NeugDB(data_path, 1, "w", "gopt");
+      auto db2 = gs::NeugDB();
+      db2.Open(data_path);
     } catch (const gs::exception::DatabaseLockedException& e) {
       LOG(INFO) << "Caught expected error: " << e.what();
       res = true;  // Expected error, test passes
@@ -120,7 +129,8 @@ TEST(DatabaseTest, TestReadWriteConflict) {
   {
     res = false;
     try {
-      auto db2 = gs::NeugDB(data_path, 1, "r", "gopt");
+      auto db2 = gs::NeugDB();
+      db2.Open(data_path, 1, gs::DBMode::READ_ONLY);
       LOG(ERROR) << "Expected an error when opening in read mode while write "
                     "lock is held, but got success.";
     } catch (const gs::exception::DatabaseLockedException& e) {
@@ -149,42 +159,42 @@ TEST(DatabaseTest, TestUpdateRecordView) {
   }
 
   {
-    gs::NeugDB db(data_path, 1, "w", "gopt");
+    gs::NeugDB db;
+    db.Open(data_path);
     auto conn = db.connect();
 
     EXPECT_TRUE(
-        conn->query("CREATE NODE TABLE person(id INT64, name STRING, age "
+        conn->Query("CREATE NODE TABLE person(id INT64, name STRING, age "
                     "INT64, PRIMARY "
                     "KEY(id));")
             .ok());
     EXPECT_TRUE(
-        conn->query("CREATE REL TABLE knows(FROM person TO person, weight "
+        conn->Query("CREATE REL TABLE knows(FROM person TO person, weight "
                     "DOUBLE, since "
                     "INT64);")
             .ok());
     EXPECT_TRUE(
-        conn->query("CREATE (t: person {id: 1, name: 'Alice', age: 30});")
+        conn->Query("CREATE (t: person {id: 1, name: 'Alice', age: 30});")
             .ok());
     EXPECT_TRUE(
-        conn->query("CREATE (t: person {id: 2, name: 'Bob', age: 25});").ok());
+        conn->Query("CREATE (t: person {id: 2, name: 'Bob', age: 25});").ok());
     EXPECT_TRUE(
-        conn->query("CREATE (t: person {id: 3, name: 'Charlie', age: 35});")
+        conn->Query("CREATE (t: person {id: 3, name: 'Charlie', age: 35});")
             .ok());
     EXPECT_TRUE(
-        conn->query(
+        conn->Query(
                 "MATCH(u1: person), (u2: person) WHERE u1.id = 1 AND u2.id = "
                 "2 CREATE (u1)-[:knows {weight: 0.5, since: 2020}]->(u2);")
             .ok());
 
-    auto& graph_db = db.db();
-    auto txn = graph_db.GetUpdateTransaction(0);
+    auto txn = db.GetUpdateTransaction(0);
     std::vector<gs::Any> props = {gs::Any::From<double>(0.8),
                                   gs::Any::From<int64_t>(2021)};
     gs::Record record(props);
     CHECK(txn.AddEdge(0, 0, 0, 2, 0, record));
     CHECK(txn.Commit());
 
-    auto res = conn->query(
+    auto res = conn->Query(
         "MATCH (u1: person)-[r:knows]->(u2: person) "
         "RETURN r.weight;");
     EXPECT_TRUE(res.ok());
@@ -198,11 +208,11 @@ TEST(DatabaseTest, TestUpdateRecordView) {
     // Now update the property with whole new record
     props = {gs::Any::From<double>(0.9), gs::Any::From<int64_t>(2022)};
     record = gs::Record(props);
-    auto txn2 = graph_db.GetUpdateTransaction(0);
+    auto txn2 = db.GetUpdateTransaction(0);
     txn2.SetEdgeData(true, 0, 0, 0, 2, 0, record, -1);
     CHECK(txn2.Commit());
 
-    res = conn->query(
+    res = conn->Query(
         "MATCH (u1: person)-[r:knows]->(u2: person) "
         "RETURN r.weight;");
     EXPECT_TRUE(res.ok());
@@ -254,26 +264,28 @@ TEST(DatabaseTest, TestPersist) {
     if (std::filesystem::exists(db_dir)) {
       std::filesystem::remove_all(db_dir);
     }
-    gs::NeugDB db(db_dir, 1, "w", "gopt");
+    gs::NeugDB db;
+    db.Open(db_dir, 1, gs::DBMode::READ_WRITE);
     auto conn = db.connect();
     std::string flex_data_dir = std::getenv("FLEX_DATA_DIR");
     EXPECT_FALSE(flex_data_dir.empty());
     EXPECT_TRUE(
-        conn->query(
+        conn->Query(
                 "CREATE NODE TABLE person(id INT64, name STRING, age INT64, "
                 "PRIMARY KEY(id));")
             .ok());
     EXPECT_TRUE(
-        conn->query("COPY person from \"" + flex_data_dir + "/person.csv\";")
+        conn->Query("COPY person from \"" + flex_data_dir + "/person.csv\";")
             .ok());
-    db.close();
+    db.Close();
   }
   {
-    gs::NeugDB db2(db_dir, 1, "r", "gopt");
+    gs::NeugDB db2;
+    db2.Open(db_dir, 1, gs::DBMode::READ_ONLY);
     auto conn = db2.connect();
-    auto res = conn->query("MATCH (n: person) return n.id, n.name, n.age;");
+    auto res = conn->Query("MATCH (n: person) return n.id, n.name, n.age;");
     EXPECT_TRUE(res.ok());
-    conn->close();
-    db2.close();
+    conn->Close();
+    db2.Close();
   }
 }

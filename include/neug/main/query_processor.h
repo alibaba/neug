@@ -22,7 +22,6 @@
 #include "neug/execution/runtime/common/graph_interface.h"
 #include "neug/execution/runtime/utils/opr_timer.h"
 #include "neug/main/query_result.h"
-#include "neug/transaction/graph_db.h"
 #include "neug/utils/leaf_utils.h"
 #ifdef USE_SYSTEM_PROTOBUF
 #include "neug/generated/proto/plan/physical.pb.h"
@@ -35,10 +34,11 @@
 
 namespace gs {
 
+class NeugDB;
+
 class QueryProcessor {
  public:
-  QueryProcessor(GraphDB& db, int32_t max_num_threads,
-                 bool is_read_only = false)
+  QueryProcessor(NeugDB& db, int32_t max_num_threads, bool is_read_only = false)
       : db_(db),
         max_num_threads_(max_num_threads),
         is_read_only_(is_read_only) {}
@@ -56,7 +56,7 @@ class QueryProcessor {
   Result<results::CollectiveResults> execute_ddl(
       const physical::DDLPlan& ddl_plan, int32_t num_threads);
 
-  GraphDB& db_;
+  NeugDB& db_;
   int32_t max_num_threads_;
   bool is_read_only_ = false;
 };

@@ -13,12 +13,12 @@
  * limitations under the License.
  */
 
-#include "cxxopts/cxxopts.hpp"
-#include "neug/server/graph_db_service.h"
-#include "neug/transaction/graph_db.h"
+#include "neug/main/neug_db.h"
+#include "neug/server/neug_db_service.h"
 #include "neug/utils/service_utils.h"
 
 #include <glog/logging.h>
+#include "cxxopts/cxxopts.hpp"
 
 using namespace server;
 
@@ -79,13 +79,13 @@ int main(int argc, char** argv) {
   tzset();
 
   double t0 = -grape::GetCurrentTime();
-  gs::GraphDB& db = server::GraphDBService::get().graph_db();
+  gs::NeugDB db;
   std::string graph_schema_path = data_path + "/graph.yaml";
   auto schema = gs::Schema::LoadFromYaml(graph_schema_path);
   if (!schema.ok()) {
     LOG(FATAL) << "Failed to load schema: " << schema.status().error_message();
   }
-  gs::GraphDBConfig config(schema.value(), data_path, compiler_path, shard_num);
+  gs::NeugDBConfig config(schema.value(), data_path, compiler_path, shard_num);
   config.memory_level = memory_level;
   config.wal_uri = vm["wal-uri"].as<std::string>();
   config.warmup = warmup;
@@ -106,9 +106,10 @@ int main(int argc, char** argv) {
   service_config.dpdk_mode = enable_dpdk;
   service_config.query_port = http_port;
   service_config.set_sharding_mode(vm["sharding-mode"].as<std::string>());
-  server::GraphDBService::get().init(service_config);
+  server::GraphDBService service(db);
+  service.init(service_config);
 
-  server::GraphDBService::get().run_and_wait_for_exit();
+  service.run_and_wait_for_exit();
 
   return 0;
 }

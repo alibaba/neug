@@ -17,7 +17,7 @@
 
 #include <utility>
 
-#include "neug/execution/runtime/utils/cypher_runner_impl.h"
+#include "neug/main/app/cypher_runner_impl.h"
 #include "neug/storages/csr/csr_base.h"
 #include "neug/storages/graph/property_graph.h"
 #include "neug/transaction/version_manager.h"
@@ -25,8 +25,8 @@
 namespace gs {
 
 ReadTransaction::ReadTransaction(const GraphDBSession& session,
-                                 const MutablePropertyFragment& graph,
-                                 VersionManager& vm, timestamp_t timestamp)
+                                 const PropertyGraph& graph, VersionManager& vm,
+                                 timestamp_t timestamp)
     : session_(session), graph_(graph), vm_(vm), timestamp_(timestamp) {}
 ReadTransaction::~ReadTransaction() { release(); }
 
@@ -39,10 +39,11 @@ bool ReadTransaction::Commit() {
 
 void ReadTransaction::Abort() { release(); }
 
-const MutablePropertyFragment& ReadTransaction::graph() const { return graph_; }
+const PropertyGraph& ReadTransaction::graph() const { return graph_; }
 
-ReadTransaction::vertex_iterator::vertex_iterator(
-    label_t label, vid_t cur, vid_t num, const MutablePropertyFragment& graph)
+ReadTransaction::vertex_iterator::vertex_iterator(label_t label, vid_t cur,
+                                                  vid_t num,
+                                                  const PropertyGraph& graph)
     : label_(label), cur_(cur), num_(num), graph_(graph) {
   is_deleted_ = graph.is_deleted(label);
 }

@@ -24,7 +24,7 @@
 
 #include "libgrape-lite/grape/serialization/in_archive.h"
 #include "libgrape-lite/grape/serialization/out_archive.h"
-#include "neug/execution/runtime/utils/cypher_runner_impl.h"
+#include "neug/main/app/cypher_runner_impl.h"
 #include "neug/storages/graph/property_graph.h"
 #include "neug/storages/graph/schema.h"
 #include "neug/transaction/transaction_utils.h"
@@ -37,9 +37,9 @@
 namespace gs {
 
 InsertTransaction::InsertTransaction(const GraphDBSession& session,
-                                     MutablePropertyFragment& graph,
-                                     Allocator& alloc, IWalWriter& logger,
-                                     VersionManager& vm, timestamp_t timestamp)
+                                     PropertyGraph& graph, Allocator& alloc,
+                                     IWalWriter& logger, VersionManager& vm,
+                                     timestamp_t timestamp)
 
     : session_(session),
       graph_(graph),
@@ -188,9 +188,8 @@ void InsertTransaction::Abort() {
 
 timestamp_t InsertTransaction::timestamp() const { return timestamp_; }
 
-void InsertTransaction::IngestWal(MutablePropertyFragment& graph,
-                                  uint32_t timestamp, char* data, size_t length,
-                                  Allocator& alloc) {
+void InsertTransaction::IngestWal(PropertyGraph& graph, uint32_t timestamp,
+                                  char* data, size_t length, Allocator& alloc) {
   grape::OutArchive arc;
   arc.SetSlice(data, length);
   while (!arc.Empty()) {
@@ -235,7 +234,7 @@ const GraphDBSession& InsertTransaction::GetSession() const { return session_; }
 
 #define likely(x) __builtin_expect(!!(x), 1)
 
-bool InsertTransaction::get_vertex_with_retries(MutablePropertyFragment& graph,
+bool InsertTransaction::get_vertex_with_retries(PropertyGraph& graph,
                                                 label_t label, const Any& oid,
                                                 vid_t& lid) {
   if (likely(graph.get_lid(label, oid, lid))) {

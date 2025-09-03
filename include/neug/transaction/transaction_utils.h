@@ -168,7 +168,7 @@ inline void deserialize_field(grape::OutArchive& arc, Any& prop) {
   }
 }
 
-inline label_t deserialize_oid(const MutablePropertyFragment& graph,
+inline label_t deserialize_oid(const PropertyGraph& graph,
                                grape::OutArchive& arc, Any& oid) {
   label_t label;
   arc >> label;

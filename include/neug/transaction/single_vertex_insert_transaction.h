@@ -24,15 +24,15 @@
 
 namespace gs {
 
-class MutablePropertyFragment;
+class PropertyGraph;
 class IWalWriter;
 class VersionManager;
 
 class SingleVertexInsertTransaction {
  public:
-  SingleVertexInsertTransaction(MutablePropertyFragment& graph,
-                                Allocator& alloc, IWalWriter& logger,
-                                VersionManager& vm, timestamp_t timestamp);
+  SingleVertexInsertTransaction(PropertyGraph& graph, Allocator& alloc,
+                                IWalWriter& logger, VersionManager& vm,
+                                timestamp_t timestamp);
   ~SingleVertexInsertTransaction();
 
   bool AddVertex(label_t label, const Any& id, const std::vector<Any>& props);
@@ -58,7 +58,7 @@ class SingleVertexInsertTransaction {
   vid_t added_vertex_vid_;
   std::vector<vid_t> parsed_endpoints_;
 
-  MutablePropertyFragment& graph_;
+  PropertyGraph& graph_;
 
   Allocator& alloc_;
 

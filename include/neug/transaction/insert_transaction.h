@@ -32,7 +32,7 @@
 
 namespace gs {
 
-class MutablePropertyFragment;
+class PropertyGraph;
 class IWalWriter;
 class VersionManager;
 class GraphDBSession;
@@ -40,9 +40,8 @@ class Schema;
 
 class InsertTransaction {
  public:
-  InsertTransaction(const GraphDBSession& session,
-                    MutablePropertyFragment& graph, Allocator& alloc,
-                    IWalWriter& logger, VersionManager& vm,
+  InsertTransaction(const GraphDBSession& session, PropertyGraph& graph,
+                    Allocator& alloc, IWalWriter& logger, VersionManager& vm,
                     timestamp_t timestamp);
 
   ~InsertTransaction();
@@ -58,8 +57,8 @@ class InsertTransaction {
 
   timestamp_t timestamp() const;
 
-  static void IngestWal(MutablePropertyFragment& graph, uint32_t timestamp,
-                        char* data, size_t length, Allocator& alloc);
+  static void IngestWal(PropertyGraph& graph, uint32_t timestamp, char* data,
+                        size_t length, Allocator& alloc);
 
   const Schema& schema() const;
 
@@ -68,16 +67,15 @@ class InsertTransaction {
  private:
   void clear();
 
-  static bool get_vertex_with_retries(MutablePropertyFragment& graph,
-                                      label_t label, const Any& oid,
-                                      vid_t& lid);
+  static bool get_vertex_with_retries(PropertyGraph& graph, label_t label,
+                                      const Any& oid, vid_t& lid);
   const GraphDBSession& session_;
 
   grape::InArchive arc_;
 
   std::set<std::pair<label_t, Any>> added_vertices_;
 
-  MutablePropertyFragment& graph_;
+  PropertyGraph& graph_;
 
   Allocator& alloc_;
   IWalWriter& logger_;

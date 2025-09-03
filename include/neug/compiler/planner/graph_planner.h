@@ -36,8 +36,7 @@ namespace gs {
  */
 class IGraphPlanner {
  public:
-  IGraphPlanner(const std::string& compiler_config_path)
-      : compiler_config_path_(compiler_config_path) {}
+  IGraphPlanner() {}
 
   virtual std::string type() const = 0;
 
@@ -63,9 +62,6 @@ class IGraphPlanner {
    * @param graph_statistic_json The JSON string of the graph statistics.
    */
   virtual void update_statistics(const std::string& graph_statistic_json) = 0;
-
- protected:
-  std::string compiler_config_path_;
 };
 
 }  // namespace gs

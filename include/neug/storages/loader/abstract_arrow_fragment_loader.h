@@ -66,7 +66,7 @@ namespace gs {
 template <typename T>
 class mmap_vector;
 
-class MutablePropertyFragment;
+class PropertyGraph;
 
 void printDiskRemaining(const std::string& path);
 // The interface providing visitor pattern for RecordBatch.
@@ -490,11 +490,11 @@ class AbstractArrowFragmentLoader : public IFragmentLoader {
   }
 
   static Status batch_load_vertices(
-      MutablePropertyFragment& graph, const label_t& v_label_id,
+      PropertyGraph& graph, const label_t& v_label_id,
       std::vector<std::shared_ptr<IRecordBatchSupplier>>&
           record_batch_supplier_vec);
   static Status batch_load_edges(
-      MutablePropertyFragment& graph, const label_t& src_v_label,
+      PropertyGraph& graph, const label_t& src_v_label,
       const label_t& dst_v_label, const label_t& edge_label,
       std::vector<std::shared_ptr<IRecordBatchSupplier>>&
           record_batch_supplier_vec);

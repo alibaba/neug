@@ -1,16 +1,14 @@
-include_directories(${Boost_INCLUDE_DIRS})
-
 if (BUILD_HTTP_SERVER)
         add_executable(rt_server rt_server.cc)
         message(STATUS "openssl library: ${OPENSSL_LIBRARIES}")
         if (APPLE)
                 target_link_libraries(rt_server PUBLIC ${MACOS_DYLIBS})
         endif() 
-        target_link_libraries(rt_server PUBLIC ${BRPC_LIB} ${LEVELDB_LIB} ${OPENSSL_LIBRARIES} ${GFLAGS_LIBRARIES} ${GLOG_LIBRARIES} ${Protobuf_LIBRARIES}  ${Boost_LIBRARIES}) #${PROTOC_LIB}
+        target_link_libraries(rt_server PUBLIC ${Protobuf_LIBRARIES} ${BRPC_LIB} ${LEVELDB_LIB} ${OPENSSL_LIBRARIES} ${GFLAGS_LIBRARIES} ${GLOG_LIBRARIES} ${CMAKE_THREAD_LIBS_INIT})
         if (BUILD_ALL_IN_ONE)
                 target_link_libraries(rt_server PUBLIC neug_libraries)
         else()
-                target_link_libraries(rt_server PUBLIC neug_execution_service neug_execution neug_compiler_shared neug_brpc_proto neug_storages neug_utils)
+                target_link_libraries(rt_server PUBLIC neug_execution_service neug_main neug_execution neug_compiler_shared neug_brpc_proto neug_storages neug_utils)
         endif()
         install_without_export_neug_target(rt_server)
 endif() 

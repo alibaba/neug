@@ -1,7 +1,6 @@
 # There seems to be a circle dependency between graph_db, runtime_common and runtime_execute
 # So currently we just add all the source files to the graph_db library
 file(GLOB_RECURSE GRAPH_DB_SRC_FILES "${CMAKE_CURRENT_SOURCE_DIR}/*.cc"
-                                     "${CMAKE_CURRENT_SOURCE_DIR}/app/*.cc"
                                      "${CMAKE_CURRENT_SOURCE_DIR}/runtime/common/*.cc"
                                      "${CMAKE_CURRENT_SOURCE_DIR}/runtime/execute/*.cc"
                                      "${CMAKE_CURRENT_SOURCE_DIR}/runtime/utils/*.cc")

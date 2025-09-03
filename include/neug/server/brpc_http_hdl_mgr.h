@@ -21,10 +21,10 @@
 #include <memory>
 #include <string_view>
 #include "neug/compiler/planner/graph_planner.h"
-#include "neug/server/graph_db_service.h"
+#include "neug/main/neug_db.h"
+#include "neug/main/neug_db_session.h"
+#include "neug/server/neug_db_service.h"
 #include "neug/storages/graph/schema.h"
-#include "neug/transaction/graph_db.h"
-#include "neug/transaction/graph_db_session.h"
 #include "neug/utils/http_handler_manager.h"
 #include "neug/utils/leaf_utils.h"
 #include "neug/utils/pb_utils.h"
@@ -50,7 +50,7 @@ int32_t status_code_to_http_code(gs::StatusCode code);
 
 class HttpServiceImpl : public HttpService {
  public:
-  HttpServiceImpl(gs::GraphDB& graph_db,
+  HttpServiceImpl(gs::NeugDB& graph_db,
                   std::shared_ptr<gs::IGraphPlanner> planner)
       : graph_db_(graph_db), planner_(planner) {
     pthread_key_create(&thread_id_key, cleanup);
@@ -143,7 +143,7 @@ class HttpServiceImpl : public HttpService {
       planner_->update_meta(yaml_node.value());
     }
     if (update_statistics) {
-      planner_->update_statistics(graph_db_.get_statistics_json());
+      planner_->update_statistics(graph_db_.graph().get_statistics_json());
     }
 
     std::string_view actual_res = decoder.get_bytes();
@@ -207,7 +207,7 @@ class HttpServiceImpl : public HttpService {
   }
 
  private:
-  gs::GraphDB& graph_db_;
+  gs::NeugDB& graph_db_;
   std::shared_ptr<gs::IGraphPlanner> planner_;
   pthread_key_t thread_id_key;
   std::atomic<int> thread_id_key_count{0};
@@ -215,7 +215,7 @@ class HttpServiceImpl : public HttpService {
 
 class BrpcHttpHandlerManager : public IHttpHandlerManager {
  public:
-  BrpcHttpHandlerManager(gs::GraphDB& graph_db,
+  BrpcHttpHandlerManager(gs::NeugDB& graph_db,
                          std::shared_ptr<gs::IGraphPlanner> planner);
 
   ~BrpcHttpHandlerManager();

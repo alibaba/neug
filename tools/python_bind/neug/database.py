@@ -95,7 +95,6 @@ class Database(object):
         db_path: str = None,
         mode: str = "read-write",
         max_thread_num: int = 0,
-        planner_config_path=None,
     ):
         """
         Open a database.
@@ -110,9 +109,6 @@ class Database(object):
             Mode to open the database, could be 'r', 'read', 'readwrite', 'w', 'rw', 'write'. Default is 'r' for read-only.
         max_thread_num : int
             Maximum number of threads to use. Default is 0, which means no limit.
-        planner_config_path : str
-            Path to the planner config file for the planner to use. Default is None.
-            If none, the default config path will be used.
 
         Raises
         ------
@@ -154,8 +150,6 @@ class Database(object):
         # In 'r' mode, the default connection will be a read-only connection.
         # In 'w' mode, the default connection will be a read-write connection.
         # And we won't allow to create any new connections.
-        if planner_config_path is None:
-            planner_config_path = self._get_default_planner_config_path()
 
         if max_thread_num < 0:
             raise ValueError(
@@ -182,19 +176,14 @@ class Database(object):
             max_thread_num=max_thread_num,
             mode=readable(mode),
             planner="gopt",
-            planner_config_path=planner_config_path,
         )
         self._serving = False
         if self._db_path is None or self._db_path.strip() == "":
             # In memory mode, the database will not be persisted to disk, and all data will be lost when the program exits.
             # So we don't need to log the db_path.
-            logger.info(
-                f"Open in-memory database in {readable(mode)} mode, config: {planner_config_path}"
-            )
+            logger.info(f"Open in-memory database in {readable(mode)} mode")
         else:
-            logger.info(
-                f"Open database {self._db_path} in {mode} mode, config: {planner_config_path}"
-            )
+            logger.info(f"Open database {self._db_path} in {mode} mode")
 
     def __enter__(self):
         return self
@@ -362,17 +351,6 @@ class Database(object):
             self._database.close()
             self._database = None
         # Don't clear the connections list, because the connections may be held by the user.
-
-    def _get_default_planner_config_path(self):
-        """
-        Get the default planner config path.
-        """
-        config_path = os.path.join(resource_dir, "planner_config.yaml")
-        if not os.path.exists(config_path):
-            raise RuntimeError(f"Planner config file not found: {config_path}")
-        logger.info(f"Using planner config file: {config_path}")
-        # convert to string
-        return str(config_path)
 
     def load_builtin_dataset(self, dataset_name: str) -> None:
         """

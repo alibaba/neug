@@ -62,6 +62,7 @@ inline bool operator<(const EmptyType& lhs, const EmptyType& rhs) {
 
 namespace gs {
 
+enum class DBMode { READ_ONLY = 0, READ_WRITE = 1 };
 using timestamp_t = uint32_t;
 using vid_t = uint32_t;
 using label_t = uint8_t;
@@ -1687,6 +1688,21 @@ inline ostream& operator<<(ostream& os, gs::PropertyType pt) {
     os << "timestamp";
   } else {
     os << "unknown";
+  }
+  return os;
+}
+
+inline ostream& operator<<(ostream& os, const gs::DBMode& mode) {
+  switch (mode) {
+  case gs::DBMode::READ_ONLY:
+    os << "READ_ONLY";
+    break;
+  case gs::DBMode::READ_WRITE:
+    os << "READ_WRITE";
+    break;
+  default:
+    os << "UNKNOWN";
+    break;
   }
   return os;
 }

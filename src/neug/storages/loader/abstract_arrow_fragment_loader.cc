@@ -453,7 +453,7 @@ static void collectVertices(std::vector<Any>& ids, std::vector<size_t>& vids,
 }
 
 Status AbstractArrowFragmentLoader::batch_load_vertices(
-    MutablePropertyFragment& graph, const label_t& v_label_id,
+    PropertyGraph& graph, const label_t& v_label_id,
     std::vector<std::shared_ptr<IRecordBatchSupplier>>&
         record_batch_supplier_vec) {
   auto& vertex_table = graph.vertex_tables_.at(v_label_id);
@@ -561,7 +561,7 @@ Status AbstractArrowFragmentLoader::batch_load_vertices(
 }
 
 Status AbstractArrowFragmentLoader::batch_load_edges(
-    MutablePropertyFragment& graph, const label_t& src_v_label,
+    PropertyGraph& graph, const label_t& src_v_label,
     const label_t& dst_v_label, const label_t& edge_label,
     std::vector<std::shared_ptr<IRecordBatchSupplier>>&
         record_batch_supplier_vec) {

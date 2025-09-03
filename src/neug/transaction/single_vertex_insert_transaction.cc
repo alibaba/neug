@@ -36,7 +36,7 @@
 namespace gs {
 
 SingleVertexInsertTransaction::SingleVertexInsertTransaction(
-    MutablePropertyFragment& graph, Allocator& alloc, IWalWriter& logger,
+    PropertyGraph& graph, Allocator& alloc, IWalWriter& logger,
     VersionManager& vm, timestamp_t timestamp)
     : graph_(graph),
       alloc_(alloc),

@@ -26,8 +26,8 @@
 
 namespace gs {
 
-CompactTransaction::CompactTransaction(MutablePropertyFragment& graph,
-                                       IWalWriter& logger, VersionManager& vm,
+CompactTransaction::CompactTransaction(PropertyGraph& graph, IWalWriter& logger,
+                                       VersionManager& vm,
                                        timestamp_t timestamp)
     : graph_(graph), logger_(logger), vm_(vm), timestamp_(timestamp) {
   arc_.Resize(sizeof(WalHeader));

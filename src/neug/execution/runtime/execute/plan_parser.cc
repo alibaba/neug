@@ -38,7 +38,6 @@
 #include "neug/execution/runtime/execute/ops/retrieve/limit.h"
 #include "neug/execution/runtime/execute/ops/retrieve/order_by.h"
 #include "neug/execution/runtime/execute/ops/retrieve/path.h"
-#include "neug/execution/runtime/execute/ops/retrieve/procedure_call.h"
 #include "neug/execution/runtime/execute/ops/retrieve/project.h"
 #include "neug/execution/runtime/execute/ops/retrieve/scan.h"
 #include "neug/execution/runtime/execute/ops/retrieve/select.h"
@@ -110,8 +109,6 @@ void PlanParser::init() {
 
   register_read_operator_builder(std::make_unique<ops::SinkOprBuilder>());
   register_read_operator_builder(std::make_unique<ops::DataExportOprBuilder>());
-  register_read_operator_builder(
-      std::make_unique<ops::ProcedureCallOprBuilder>());
 
   //////////////////////////////Write
   /// operators////////////////////////////////

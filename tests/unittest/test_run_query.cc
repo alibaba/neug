@@ -1,6 +1,6 @@
 #include <iostream>
 #include <string>
-#include "neug/main/database.h"
+#include "neug/main/neug_db.h"
 #include "neug/storages/file_names.h"
 #include "neug/storages/graph/schema.h"
 
@@ -16,11 +16,12 @@ int main(int argc, char** argv) {
   std::string data_path = argv[1];
   std::string query_string = argv[2];
 
-  gs::NeugDB db(data_path, 1, "r", "gopt", "");
+  gs::NeugDB db;
+  db.Open(data_path);
   auto conn = db.connect();
   LOG(INFO) << "Running query: " << query_string;
 
-  auto res = conn->query(query_string);
+  auto res = conn->Query(query_string);
   if (!res.ok()) {
     LOG(ERROR) << "Query failed: " << res.status().ToString();
     return 1;

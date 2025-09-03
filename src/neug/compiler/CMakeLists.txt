@@ -49,7 +49,7 @@ if (NOT BUILD_ALL_IN_ONE)
         set_target_properties(neug_compiler_shared PROPERTIES OUTPUT_NAME neug_compiler_shared)
         target_link_libraries(neug_compiler_shared PUBLIC neug_utils)
         if (BUILD_HTTP_SERVER)
-                target_link_libraries(neug_compiler_shared PUBLIC neug_execution_service neug_brpc_proto ${GFLAGS_LIBRARIES} ${BRPC_LIB} ${LEVELDB_LIB} ${OPENSSL_LIBRARIES} ${GLOG_LIBRARIES} ${Protobuf_LIBRARIES} ${Boost_LIBRARIES}) #${PROTOC_LIB}
+                target_link_libraries(neug_compiler_shared PUBLIC ${Protobuf_LIBRARIES} neug_brpc_proto ${GFLAGS_LIBRARIES} ${BRPC_LIB} ${LEVELDB_LIB} ${OPENSSL_LIBRARIES} ${GLOG_LIBRARIES})
         endif()
         if (APPLE)    
                 target_link_libraries(neug_compiler_shared PUBLIC ${MACOS_DYLIBS})

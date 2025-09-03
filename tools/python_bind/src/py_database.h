@@ -19,7 +19,8 @@
 #include "pybind11/include/pybind11/pybind11.h"
 #include "pybind11/include/pybind11/stl.h"
 
-#include "neug/main/database.h"
+#include "neug/main/neug_db.h"
+#include "neug/server/neug_db_service.h"
 #include "py_connection.h"
 
 namespace gs {
@@ -28,12 +29,26 @@ class PyDatabase : public std::enable_shared_from_this<PyDatabase> {
  public:
   static void initialize(pybind11::handle& m);
 
-  explicit PyDatabase(const std::string& databasePath, int32_t max_thread_num,
-                      const std::string& mode, const std::string& planner,
-                      const std::string& planner_config_path)
-      : planner_config_path_(planner_config_path) {
-    database = std::make_unique<NeugDB>(databasePath, max_thread_num, mode,
-                                        planner, planner_config_path);
+  explicit PyDatabase(const std::string& data_dir, int32_t max_thread_num,
+                      const std::string& mode, const std::string& planner) {
+    db_dir_ = data_dir;
+    gs::DBMode mode_;
+    if (mode == "read" || mode == "r" || mode == "read-only" ||
+        mode == "read_only") {
+      mode_ = DBMode::READ_ONLY;
+    } else if (mode == "read_write" || mode == "rw" || mode == "w" ||
+               mode == "wr" || mode == "write" || mode == "readwrite" ||
+               mode == "read-write") {
+      mode_ = DBMode::READ_WRITE;
+    } else {
+      THROW_INVALID_ARGUMENT_EXCEPTION("Invalid mode: " + mode);
+    }
+    database = std::make_unique<NeugDB>();
+    NeugDBConfig config(db_dir_, "", max_thread_num);
+    config.mode = mode_;
+    config.planner_kind = planner;
+    config.dump_on_close = true;
+    database->Open(config);
   }
 
   ~PyDatabase() { close(); }
@@ -58,8 +73,9 @@ class PyDatabase : public std::enable_shared_from_this<PyDatabase> {
   void close();
 
  private:
-  std::string planner_config_path_;
+  std::string db_dir_;
   std::unique_ptr<NeugDB> database;
+  std::unique_ptr<server::GraphDBService> service_;
 };
 
 }  // namespace gs

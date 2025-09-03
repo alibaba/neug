@@ -25,7 +25,6 @@
 #include "neug/compiler/planner/graph_planner.h"
 #include "neug/main/query_processor.h"
 #include "neug/main/query_result.h"
-#include "neug/transaction/graph_db.h"
 #ifdef USE_SYSTEM_PROTOBUF
 #include "neug/generated/proto/plan/physical.pb.h"
 #include "neug/generated/proto/plan/results.pb.h"
@@ -46,39 +45,25 @@ class NeugDB;
  */
 class Connection {
  public:
-  Connection(GraphDB& db, std::shared_ptr<IGraphPlanner> planner,
+  Connection(NeugDB& db, std::shared_ptr<IGraphPlanner> planner,
              std::shared_ptr<QueryProcessor> query_processor)
       : db_(db),
         planner_(planner),
         query_processor_(query_processor),
         is_closed_(false) {}
-  ~Connection() { close(); }
+  ~Connection() { Close(); }
 
   /**
    * @brief call query_impl and convert results::CollectiveResults to
    * QueryResult.
    */
-  Result<QueryResult> query(const std::string& query_string);
+  Result<QueryResult> Query(const std::string& query_string);
 
-  const Schema& get_schema() const {
-    if (is_closed()) {
-      LOG(ERROR) << "Connection is closed, cannot get schema.";
-      THROW_RUNTIME_ERROR("Connection is closed, cannot get schema.");
-    }
-    return db_.schema();
-  }
+  const Schema& GetSchema() const;
 
-  void close() {
-    if (is_closed_.load(std::memory_order_relaxed)) {
-      LOG(WARNING) << "Connection is already closed.";
-      return;
-    }
-    LOG(INFO) << "Closing connection.";
-    is_closed_.store(true);
-    // Any necessary cleanup can be done here.
-  }
+  void Close();
 
-  bool is_closed() const { return is_closed_.load(); }
+  bool IsClosed() const { return is_closed_.load(); }
 
  private:
   /**
@@ -90,7 +75,7 @@ class Connection {
   Result<results::CollectiveResults> query_impl(
       const std::string& query_string);
 
-  GraphDB& db_;
+  NeugDB& db_;
 
   std::shared_ptr<IGraphPlanner> planner_;
   std::shared_ptr<QueryProcessor> query_processor_;

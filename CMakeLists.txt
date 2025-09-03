@@ -678,7 +678,7 @@ set(MACOS_DYLIBS
 
 include_directories(SYSTEM third_party/expected)
 add_subdirectory(src)
- add_subdirectory(tools)
+add_subdirectory(tools)
 if (BUILD_EXECUTABLES)
     add_subdirectory(bin)
 endif()

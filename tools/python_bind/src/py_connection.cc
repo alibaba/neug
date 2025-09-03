@@ -16,7 +16,7 @@
 #include "py_connection.h"
 #include <datetime.h>
 #include <memory>
-#include "neug/main/database.h"
+#include "neug/main/neug_db.h"
 
 namespace gs {
 
@@ -57,7 +57,7 @@ void PyConnection::close() {
 
 std::unique_ptr<PyQueryResult> PyConnection::execute(
     const std::string& statement) {
-  auto query_result = conn_->query(statement);
+  auto query_result = conn_->Query(statement);
   if (!query_result.ok()) {
     return std::make_unique<PyQueryResult>(query_result.status());
   }
