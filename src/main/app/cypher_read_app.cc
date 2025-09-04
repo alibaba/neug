@@ -25,7 +25,7 @@
 
 namespace gs {
 
-bool CypherReadApp::Query(const GraphDBSession& graph, Decoder& input,
+bool CypherReadApp::Query(const NeugDBSession& graph, Decoder& input,
                           Encoder& output) {
   std::string_view r_bytes = input.get_bytes();
   uint8_t type = static_cast<uint8_t>(r_bytes.back());

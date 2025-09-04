@@ -42,7 +42,7 @@
 
 namespace gs {
 
-UpdateTransaction::UpdateTransaction(const GraphDBSession& session,
+UpdateTransaction::UpdateTransaction(const NeugDBSession& session,
                                      PropertyGraph& graph, Allocator& alloc,
                                      const std::string& work_dir,
                                      IWalWriter& logger, VersionManager& vm,
@@ -1023,6 +1023,6 @@ void UpdateTransaction::applyEdgesUpdates() {
   updated_edge_data_.clear();
 }
 
-const GraphDBSession& UpdateTransaction::GetSession() const { return session_; }
+const NeugDBSession& UpdateTransaction::GetSession() const { return session_; }
 
 }  // namespace gs

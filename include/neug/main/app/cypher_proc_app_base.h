@@ -118,7 +118,7 @@ inline bool parse_input_argument_from_proto(std::tuple<ARGS...>& tuple,
       tuple, args);
 }
 
-class GraphDBSession;
+class NeugDBSession;
 
 template <size_t I, typename TUPLE_T>
 bool deserialize_impl(TUPLE_T& tuple, const rapidjson::Value& json) {
@@ -205,11 +205,11 @@ bool deserialize(std::tuple<ARGS...>& tuple, std::string_view sv) {
   auto input_format = static_cast<uint8_t>(sv.back());
   std::string_view payload(sv.data(), sv.size() - 1);
   if (input_format ==
-      static_cast<uint8_t>(GraphDBSession::InputFormat::kCypherJson)) {
+      static_cast<uint8_t>(NeugDBSession::InputFormat::kCypherJson)) {
     return parse_input_argument_from_json(tuple, payload);
   } else if (input_format ==
              static_cast<uint8_t>(
-                 GraphDBSession::InputFormat::kCypherProtoProcedure)) {
+                 NeugDBSession::InputFormat::kCypherProtoProcedure)) {
     return parse_input_argument_from_proto(tuple, payload);
   } else {
     LOG(ERROR) << "Invalid input format: " << input_format;
@@ -222,10 +222,10 @@ class CypherReadProcAppBase : public ReadAppBase {
  public:
   AppType type() const override { return AppType::kCypherProcedure; }
 
-  virtual results::CollectiveResults Query(const GraphDBSession& db,
+  virtual results::CollectiveResults Query(const NeugDBSession& db,
                                            ARGS... args) = 0;
 
-  bool Query(const GraphDBSession& db, Decoder& input,
+  bool Query(const NeugDBSession& db, Decoder& input,
              Encoder& output) override {
     std::string_view sv(input.data(), input.size());
 
@@ -245,7 +245,7 @@ class CypherReadProcAppBase : public ReadAppBase {
     return true;
   }
 
-  results::CollectiveResults unpackedAndInvoke(const GraphDBSession& db,
+  results::CollectiveResults unpackedAndInvoke(const NeugDBSession& db,
                                                std::tuple<ARGS...>& tuple) {
     return std::apply(
         [this, &db](ARGS... args) { return this->Query(db, args...); }, tuple);
@@ -257,10 +257,9 @@ class CypherWriteProcAppBase : public WriteAppBase {
  public:
   AppType type() const override { return AppType::kCypherProcedure; }
 
-  virtual results::CollectiveResults Query(GraphDBSession& db,
-                                           ARGS... args) = 0;
+  virtual results::CollectiveResults Query(NeugDBSession& db, ARGS... args) = 0;
 
-  bool Query(GraphDBSession& db, Decoder& input, Encoder& output) override {
+  bool Query(NeugDBSession& db, Decoder& input, Encoder& output) override {
     std::string_view sv(input.data(), input.size());
 
     std::tuple<ARGS...> tuple;
@@ -279,7 +278,7 @@ class CypherWriteProcAppBase : public WriteAppBase {
     return true;
   }
 
-  results::CollectiveResults unpackedAndInvoke(GraphDBSession& db,
+  results::CollectiveResults unpackedAndInvoke(NeugDBSession& db,
                                                std::tuple<ARGS...>& tuple) {
     return std::apply([this, &db](ARGS... args) { this->Query(db, args...); },
                       tuple);

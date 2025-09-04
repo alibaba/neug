@@ -31,7 +31,7 @@
 namespace gs {
 class NeugDB;
 
-results::CollectiveResults KNeighbors::Query(const GraphDBSession& sess,
+results::CollectiveResults KNeighbors::Query(const NeugDBSession& sess,
                                              std::string label_name,
                                              int64_t vertex_id, int32_t k) {
   auto txn = sess.GetReadTransaction();

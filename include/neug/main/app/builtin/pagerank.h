@@ -31,14 +31,14 @@
 
 namespace gs {
 class NeugDB;
-class GraphDBSession;
+class NeugDBSession;
 
 class PageRank
     : public CypherReadProcAppBase<std::string, std::string, std::string,
                                    double, int32_t, double, int32_t> {
  public:
   PageRank() {}
-  results::CollectiveResults Query(const GraphDBSession& sess,
+  results::CollectiveResults Query(const NeugDBSession& sess,
                                    std::string src_vertex_label,
                                    std::string dst_vertex_label,
                                    std::string edge_label,

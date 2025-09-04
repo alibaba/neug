@@ -68,7 +68,7 @@
 namespace gs {
 
 class NeugDB;
-class GraphDBSession;
+class NeugDBSession;
 struct SessionLocalContext;
 class ColumnBase;
 class Encoder;
@@ -238,8 +238,8 @@ class NeugDB {
 
   void GetAppInfo(Encoder& result);
 
-  GraphDBSession& GetSession(int thread_id);
-  const GraphDBSession& GetSession(int thread_id) const;
+  NeugDBSession& GetSession(int thread_id);
+  const NeugDBSession& GetSession(int thread_id) const;
 
   int SessionNum() const;
 
@@ -277,7 +277,7 @@ class NeugDB {
 
   size_t getExecutedQueryNum() const;
 
-  friend class GraphDBSession;
+  friend class NeugDBSession;
 
   // Configuration and settings
   std::atomic<bool> closed_;

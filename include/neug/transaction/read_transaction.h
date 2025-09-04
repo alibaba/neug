@@ -44,7 +44,7 @@
 namespace gs {
 
 class PropertyGraph;
-class GraphDBSession;
+class NeugDBSession;
 class VersionManager;
 class CsrConstEdgeIterBase;
 template <typename EDATA_T>
@@ -396,7 +396,7 @@ class SingleImmutableGraphView<std::string_view> {
 
 class ReadTransaction {
  public:
-  ReadTransaction(const GraphDBSession& session, const PropertyGraph& graph,
+  ReadTransaction(const NeugDBSession& session, const PropertyGraph& graph,
                   VersionManager& vm, timestamp_t timestamp);
   ~ReadTransaction();
 
@@ -608,11 +608,11 @@ class ReadTransaction {
     return ImmutableGraphView<EDATA_T>(*csr);
   }
 
-  const GraphDBSession& GetSession() const;
+  const NeugDBSession& GetSession() const;
 
  private:
   void release();
-  const GraphDBSession& session_;
+  const NeugDBSession& session_;
   const PropertyGraph& graph_;
   VersionManager& vm_;
   timestamp_t timestamp_;

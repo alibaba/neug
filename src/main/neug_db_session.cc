@@ -41,51 +41,51 @@
 namespace gs {
 class UpdateBatch;
 
-ReadTransaction GraphDBSession::GetReadTransaction() const {
+ReadTransaction NeugDBSession::GetReadTransaction() const {
   uint32_t ts = db_.version_manager_.acquire_read_timestamp();
   return ReadTransaction(*this, db_.graph_, db_.version_manager_, ts);
 }
 
-InsertTransaction GraphDBSession::GetInsertTransaction() {
+InsertTransaction NeugDBSession::GetInsertTransaction() {
   uint32_t ts = db_.version_manager_.acquire_insert_timestamp();
   return InsertTransaction(*this, db_.graph_, alloc_, logger_,
                            db_.version_manager_, ts);
 }
 
 SingleVertexInsertTransaction
-GraphDBSession::GetSingleVertexInsertTransaction() {
+NeugDBSession::GetSingleVertexInsertTransaction() {
   uint32_t ts = db_.version_manager_.acquire_insert_timestamp();
   return SingleVertexInsertTransaction(db_.graph_, alloc_, logger_,
                                        db_.version_manager_, ts);
 }
 
-SingleEdgeInsertTransaction GraphDBSession::GetSingleEdgeInsertTransaction() {
+SingleEdgeInsertTransaction NeugDBSession::GetSingleEdgeInsertTransaction() {
   uint32_t ts = db_.version_manager_.acquire_insert_timestamp();
   return SingleEdgeInsertTransaction(db_.graph_, alloc_, logger_,
                                      db_.version_manager_, ts);
 }
 
-UpdateTransaction GraphDBSession::GetUpdateTransaction() {
+UpdateTransaction NeugDBSession::GetUpdateTransaction() {
   uint32_t ts = db_.version_manager_.acquire_update_timestamp();
   return UpdateTransaction(*this, db_.graph_, alloc_, work_dir_, logger_,
                            db_.version_manager_, ts);
 }
 
-bool GraphDBSession::BatchUpdate(UpdateBatch& batch) {
+bool NeugDBSession::BatchUpdate(UpdateBatch& batch) {
   return GetUpdateTransaction().batch_commit(batch);
 }
 
-const PropertyGraph& GraphDBSession::graph() const { return db_.graph(); }
+const PropertyGraph& NeugDBSession::graph() const { return db_.graph(); }
 
-const NeugDB& GraphDBSession::db() const { return db_; }
+const NeugDB& NeugDBSession::db() const { return db_; }
 
-NeugDB& GraphDBSession::db() { return db_; }
+NeugDB& NeugDBSession::db() { return db_; }
 
-PropertyGraph& GraphDBSession::graph() { return db_.graph(); }
+PropertyGraph& NeugDBSession::graph() { return db_.graph(); }
 
-const Schema& GraphDBSession::schema() const { return db_.schema(); }
+const Schema& NeugDBSession::schema() const { return db_.schema(); }
 
-Result<std::vector<char>> GraphDBSession::Eval(const std::string& input) {
+Result<std::vector<char>> NeugDBSession::Eval(const std::string& input) {
   const auto start = std::chrono::high_resolution_clock::now();
 
   if (input.size() < 2) {
@@ -164,16 +164,16 @@ Result<std::vector<char>> GraphDBSession::Eval(const std::string& input) {
   }
 }
 
-void GraphDBSession::GetAppInfo(Encoder& result) { db_.GetAppInfo(result); }
+void NeugDBSession::GetAppInfo(Encoder& result) { db_.GetAppInfo(result); }
 
-int GraphDBSession::SessionId() const { return thread_id_; }
+int NeugDBSession::SessionId() const { return thread_id_; }
 
-CompactTransaction GraphDBSession::GetCompactTransaction() {
+CompactTransaction NeugDBSession::GetCompactTransaction() {
   timestamp_t ts = db_.version_manager_.acquire_update_timestamp();
   return CompactTransaction(db_.graph_, logger_, db_.version_manager_, ts);
 }
 
-bool GraphDBSession::Compact() {
+bool NeugDBSession::Compact() {
   auto txn = GetCompactTransaction();
   if (txn.timestamp() > db_.GetLastCompactionTimestamp() + 100000) {
     db_.UpdateCompactionTimestamp(txn.timestamp());
@@ -185,13 +185,13 @@ bool GraphDBSession::Compact() {
   }
 }
 
-double GraphDBSession::eval_duration() const {
+double NeugDBSession::eval_duration() const {
   return static_cast<double>(eval_duration_.load()) / 1000000.0;
 }
 
-int64_t GraphDBSession::query_num() const { return query_num_.load(); }
+int64_t NeugDBSession::query_num() const { return query_num_.load(); }
 
-AppBase* GraphDBSession::GetApp(const std::string& app_name) {
+AppBase* NeugDBSession::GetApp(const std::string& app_name) {
   auto& app_name_to_path_index = db_.schema().GetPlugins();
   if (app_name_to_path_index.count(app_name) <= 0) {
     LOG(ERROR) << "Query name is not registered: " << app_name;
@@ -202,11 +202,11 @@ AppBase* GraphDBSession::GetApp(const std::string& app_name) {
 
 #define likely(x) __builtin_expect(!!(x), 1)
 
-AppBase* GraphDBSession::GetApp(int type) {
+AppBase* NeugDBSession::GetApp(int type) {
   // create if not exist
-  if (type >= GraphDBSession::MAX_PLUGIN_NUM) {
+  if (type >= NeugDBSession::MAX_PLUGIN_NUM) {
     LOG(ERROR) << "Query type is out of range: " << type << " > "
-               << GraphDBSession::MAX_PLUGIN_NUM;
+               << NeugDBSession::MAX_PLUGIN_NUM;
     return nullptr;
   }
   AppBase* app = nullptr;
@@ -229,7 +229,7 @@ AppBase* GraphDBSession::GetApp(int type) {
 #undef likely  // likely
 
 Result<std::pair<uint8_t, std::string_view>>
-GraphDBSession::parse_query_type_from_cypher_json(
+NeugDBSession::parse_query_type_from_cypher_json(
     const std::string_view& str_view) {
   VLOG(10) << "string view: " << str_view;
   rapidjson::Document j;
@@ -258,7 +258,7 @@ GraphDBSession::parse_query_type_from_cypher_json(
 }
 
 Result<std::pair<uint8_t, std::string_view>>
-GraphDBSession::parse_query_type_from_cypher_internal(
+NeugDBSession::parse_query_type_from_cypher_internal(
     const std::string_view& str_view) {
   procedure::Query cur_query;
   if (!cur_query.ParseFromArray(str_view.data(), str_view.size() - 1)) {
@@ -292,7 +292,7 @@ GraphDBSession::parse_query_type_from_cypher_internal(
   return std::make_pair(app_name_to_path_index.at(query_name).second, str_view);
 }
 
-const AppMetric& GraphDBSession::GetAppMetric(int idx) const {
+const AppMetric& NeugDBSession::GetAppMetric(int idx) const {
   return app_metrics_[idx];
 }
 

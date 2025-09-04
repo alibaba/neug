@@ -20,7 +20,7 @@
 
 namespace gs {
 
-bool CypherWriteApp::Query(GraphDBSession& graph, Decoder& input,
+bool CypherWriteApp::Query(NeugDBSession& graph, Decoder& input,
                            Encoder& output) {
   auto txn = graph.GetInsertTransaction();
   std::string_view r_bytes = input.get_bytes();

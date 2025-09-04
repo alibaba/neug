@@ -30,12 +30,12 @@
 
 namespace gs {
 class NeugDB;
-class GraphDBSession;
+class NeugDBSession;
 
 class KNeighbors : public CypherReadProcAppBase<std::string, int64_t, int32_t> {
  public:
   KNeighbors() {}
-  results::CollectiveResults Query(const GraphDBSession& sess,
+  results::CollectiveResults Query(const NeugDBSession& sess,
                                    std::string label_name, int64_t vertex_id,
                                    int32_t hop_range) override;
 };

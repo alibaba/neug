@@ -74,7 +74,7 @@ std::string PyDatabase::serve(int port, const std::string& host) {
   if (service_) {
     THROW_RUNTIME_ERROR("Server is already running.");
   }
-  service_ = std::make_unique<server::GraphDBService>(*database);
+  service_ = std::make_unique<server::NeugDBService>(*database);
   server::ServiceConfig config;
   config.query_port = port;
   config.host_str = host;

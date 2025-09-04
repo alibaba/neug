@@ -100,7 +100,7 @@ void generate_label_tuples(
 
 AppBase::AppType ServerApp::type() const { return AppType::kBuiltIn; }
 
-bool ServerApp::Query(GraphDBSession& graph, Decoder& input, Encoder& output) {
+bool ServerApp::Query(NeugDBSession& graph, Decoder& input, Encoder& output) {
   std::string op = std::string(input.get_string());
   for (auto& c : op) {
     c = toupper(c);

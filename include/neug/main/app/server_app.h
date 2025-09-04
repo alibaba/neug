@@ -26,13 +26,13 @@ namespace gs {
 class Decoder;
 class Encoder;
 class NeugDB;
-class GraphDBSession;
+class NeugDBSession;
 
 class ServerApp : public WriteAppBase {
  public:
   ServerApp() {}
   AppBase::AppType type() const override;
-  bool Query(GraphDBSession& graph, Decoder& input, Encoder& output) override;
+  bool Query(NeugDBSession& graph, Decoder& input, Encoder& output) override;
 
  private:
   struct vertex_range {

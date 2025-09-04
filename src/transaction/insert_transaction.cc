@@ -36,7 +36,7 @@
 
 namespace gs {
 
-InsertTransaction::InsertTransaction(const GraphDBSession& session,
+InsertTransaction::InsertTransaction(const NeugDBSession& session,
                                      PropertyGraph& graph, Allocator& alloc,
                                      IWalWriter& logger, VersionManager& vm,
                                      timestamp_t timestamp)
@@ -230,7 +230,7 @@ void InsertTransaction::clear() {
 
 const Schema& InsertTransaction::schema() const { return graph_.schema(); }
 
-const GraphDBSession& InsertTransaction::GetSession() const { return session_; }
+const NeugDBSession& InsertTransaction::GetSession() const { return session_; }
 
 #define likely(x) __builtin_expect(!!(x), 1)
 

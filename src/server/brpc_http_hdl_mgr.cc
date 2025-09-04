@@ -40,18 +40,18 @@ bool append_plugin_id(const physical::PhysicalPlan& physical_plan,
         physical::QueryPlan::Mode::QueryPlan_Mode_READ_ONLY) {
       plan_proto_str.append(1, *gs::Schema::ADHOC_READ_PLUGIN_ID_STR);
       plan_proto_str.append(
-          1, static_cast<char>(gs::GraphDBSession::InputFormat::kCypherString));
+          1, static_cast<char>(gs::NeugDBSession::InputFormat::kCypherString));
     } else {
       plan_proto_str.append(1, *gs::Schema::ADHOC_UPDATE_PLUGIN_ID_STR);
       plan_proto_str.append(
-          1, static_cast<char>(gs::GraphDBSession::InputFormat::kCypherString));
+          1, static_cast<char>(gs::NeugDBSession::InputFormat::kCypherString));
       update_statistics = true;
     }
     return true;
   } else if (physical_plan.has_ddl_plan()) {
     plan_proto_str.append(1, *gs::Schema::ADHOC_UPDATE_PLUGIN_ID_STR);
     plan_proto_str.append(
-        1, static_cast<char>(gs::GraphDBSession::InputFormat::kCypherString));
+        1, static_cast<char>(gs::NeugDBSession::InputFormat::kCypherString));
     update_schema = true;
     update_statistics = true;
     return true;

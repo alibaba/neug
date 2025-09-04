@@ -75,7 +75,7 @@ class PyDatabase : public std::enable_shared_from_this<PyDatabase> {
  private:
   std::string db_dir_;
   std::unique_ptr<NeugDB> database;
-  std::unique_ptr<server::GraphDBService> service_;
+  std::unique_ptr<server::NeugDBService> service_;
 };
 
 }  // namespace gs

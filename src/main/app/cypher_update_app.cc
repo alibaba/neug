@@ -23,7 +23,7 @@
 namespace gs {
 
 Result<results::CollectiveResults> CypherUpdateApp::execute_add_vertex_property(
-    GraphDBSession& graph,
+    NeugDBSession& graph,
     const physical::AddVertexPropertySchema& add_vertex_property_schema) {
   auto& graph_ = graph.graph();
   auto vertex_type_name = add_vertex_property_schema.vertex_type().name();
@@ -38,7 +38,7 @@ Result<results::CollectiveResults> CypherUpdateApp::execute_add_vertex_property(
 }
 
 Result<results::CollectiveResults> CypherUpdateApp::execute_add_edge_property(
-    GraphDBSession& graph,
+    NeugDBSession& graph,
     const physical::AddEdgePropertySchema& add_edge_property_schema) {
   auto& graph_ = graph.graph();
   auto edge_type_name = add_edge_property_schema.edge_type().type_name().name();
@@ -59,7 +59,7 @@ Result<results::CollectiveResults> CypherUpdateApp::execute_add_edge_property(
 
 Result<results::CollectiveResults>
 CypherUpdateApp::execute_drop_vertex_property(
-    GraphDBSession& graph,
+    NeugDBSession& graph,
     const physical::DropVertexPropertySchema& drop_vertex_property_schema) {
   auto& graph_ = graph.graph();
   auto vertex_type_name = drop_vertex_property_schema.vertex_type().name();
@@ -73,7 +73,7 @@ CypherUpdateApp::execute_drop_vertex_property(
 }
 
 Result<results::CollectiveResults> CypherUpdateApp::execute_drop_edge_property(
-    GraphDBSession& graph,
+    NeugDBSession& graph,
     const physical::DropEdgePropertySchema& drop_edge_property_schema) {
   auto& graph_ = graph.graph();
   auto edge_type_name =
@@ -93,7 +93,7 @@ Result<results::CollectiveResults> CypherUpdateApp::execute_drop_edge_property(
 
 Result<results::CollectiveResults>
 CypherUpdateApp::execute_rename_vertex_property(
-    GraphDBSession& graph,
+    NeugDBSession& graph,
     const physical::RenameVertexPropertySchema& rename_vertex_property_schema) {
   auto& graph_ = graph.graph();
   auto vertex_type_name = rename_vertex_property_schema.vertex_type().name();
@@ -108,7 +108,7 @@ CypherUpdateApp::execute_rename_vertex_property(
 
 Result<results::CollectiveResults>
 CypherUpdateApp::execute_rename_edge_property(
-    GraphDBSession& graph,
+    NeugDBSession& graph,
     const physical::RenameEdgePropertySchema& rename_edge_property_schema) {
   auto& graph_ = graph.graph();
   auto edge_type_name =
@@ -127,7 +127,7 @@ CypherUpdateApp::execute_rename_edge_property(
 }
 
 Result<results::CollectiveResults> CypherUpdateApp::execute_drop_vertex_schema(
-    GraphDBSession& graph,
+    NeugDBSession& graph,
     const physical::DropVertexSchema& drop_vertex_schema) {
   auto& graph_ = graph.graph();
   auto vertex_type_name = drop_vertex_schema.vertex_type().name();
@@ -138,7 +138,7 @@ Result<results::CollectiveResults> CypherUpdateApp::execute_drop_vertex_schema(
 }
 
 Result<results::CollectiveResults> CypherUpdateApp::execute_drop_edge_schema(
-    GraphDBSession& graph, const physical::DropEdgeSchema& drop_edge_schema) {
+    NeugDBSession& graph, const physical::DropEdgeSchema& drop_edge_schema) {
   auto& graph_ = graph.graph();
   auto edge_type_name = drop_edge_schema.edge_type().type_name().name();
   auto src_type_name = drop_edge_schema.edge_type().src_type_name().name();
@@ -149,7 +149,7 @@ Result<results::CollectiveResults> CypherUpdateApp::execute_drop_edge_schema(
 }
 
 Result<results::CollectiveResults> CypherUpdateApp::execute_ddl(
-    GraphDBSession& graph, const physical::DDLPlan& ddl_plan) {
+    NeugDBSession& graph, const physical::DDLPlan& ddl_plan) {
   auto& graph_ = graph.graph();
   try {
     if (ddl_plan.has_create_vertex_schema()) {
@@ -279,7 +279,7 @@ Result<results::CollectiveResults> CypherUpdateApp::execute_ddl(
 }
 
 Result<results::CollectiveResults> CypherUpdateApp::execute_update_query(
-    GraphDBSession& graph, const physical::PhysicalPlan& plan,
+    NeugDBSession& graph, const physical::PhysicalPlan& plan,
     runtime::OprTimer* timer, bool insert_with_resize) {
   auto txn = graph.GetUpdateTransaction();
   txn.set_insert_vertex_with_resize(insert_with_resize);
@@ -303,7 +303,7 @@ Result<results::CollectiveResults> CypherUpdateApp::execute_update_query(
   return Result<results::CollectiveResults>(std::move(res));
 }
 
-bool CypherUpdateApp::Query(GraphDBSession& graph, Decoder& input,
+bool CypherUpdateApp::Query(NeugDBSession& graph, Decoder& input,
                             Encoder& output) {
   std::string_view r_bytes = input.get_bytes();
   uint8_t type = static_cast<uint8_t>(r_bytes.back());

@@ -52,7 +52,7 @@ class RefColumnBase;
 class Schema;
 class UpdateBatch;
 
-class GraphDBSession {
+class NeugDBSession {
  public:
   enum class InputFormat : uint8_t {
     kCppEncoder = 0,
@@ -68,8 +68,8 @@ class GraphDBSession {
   static constexpr const char* kCypherJsonStr = "\x01";
   static constexpr const char* kCypherProtoAdhocStr = "\x02";
   static constexpr const char* kCypherProtoProcedureStr = "\x03";
-  GraphDBSession(NeugDB& db, Allocator& alloc, IWalWriter& logger,
-                 const std::string& work_dir, int thread_id)
+  NeugDBSession(NeugDB& db, Allocator& alloc, IWalWriter& logger,
+                const std::string& work_dir, int thread_id)
       : db_(db),
         alloc_(alloc),
         logger_(logger),
@@ -81,7 +81,7 @@ class GraphDBSession {
       app = nullptr;
     }
   }
-  ~GraphDBSession() {}
+  ~NeugDBSession() {}
 
   ReadTransaction GetReadTransaction() const;
 

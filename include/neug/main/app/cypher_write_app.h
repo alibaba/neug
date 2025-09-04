@@ -32,7 +32,7 @@ namespace gs {
 class Decoder;
 class Encoder;
 class NeugDB;
-class GraphDBSession;
+class NeugDBSession;
 
 class CypherWriteApp : public WriteAppBase {
  public:
@@ -40,7 +40,7 @@ class CypherWriteApp : public WriteAppBase {
 
   AppType type() const override { return AppType::kCypherAdhoc; }
 
-  bool Query(GraphDBSession& graph, Decoder& input, Encoder& output) override;
+  bool Query(NeugDBSession& graph, Decoder& input, Encoder& output) override;
 
  private:
   const NeugDB& db_;

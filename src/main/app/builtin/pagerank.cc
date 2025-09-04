@@ -62,7 +62,7 @@ void write_result(
 }
 
 results::CollectiveResults PageRank::Query(
-    const GraphDBSession& sess, std::string src_vertex_label,
+    const NeugDBSession& sess, std::string src_vertex_label,
     std::string dst_vertex_label, std::string edge_label, double damping_factor,
     int32_t max_iterations, double epsilon, int32_t result_limit) {
   auto txn = sess.GetReadTransaction();

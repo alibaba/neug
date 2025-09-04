@@ -30,7 +30,7 @@
 
 namespace gs {
 
-class GraphDBSession;
+class NeugDBSession;
 class NeugDB;
 class Decoder;
 class Encoder;
@@ -51,7 +51,7 @@ class AppBase {
 
   virtual AppType type() const = 0;
   virtual AppMode mode() const = 0;
-  virtual bool run(GraphDBSession& db, Decoder& input, Encoder& output) = 0;
+  virtual bool run(NeugDBSession& db, Decoder& input, Encoder& output) = 0;
   virtual ~AppBase() {}
 };
 
@@ -61,9 +61,9 @@ class ReadAppBase : public AppBase {
 
   AppType type() const override;
 
-  bool run(GraphDBSession& db, Decoder& input, Encoder& output) override;
+  bool run(NeugDBSession& db, Decoder& input, Encoder& output) override;
 
-  virtual bool Query(const GraphDBSession& db, Decoder& input,
+  virtual bool Query(const NeugDBSession& db, Decoder& input,
                      Encoder& output) = 0;
 };
 
@@ -73,9 +73,9 @@ class WriteAppBase : public AppBase {
 
   AppType type() const override;
 
-  bool run(GraphDBSession& db, Decoder& input, Encoder& output) override;
+  bool run(NeugDBSession& db, Decoder& input, Encoder& output) override;
 
-  virtual bool Query(GraphDBSession& db, Decoder& input, Encoder& output) = 0;
+  virtual bool Query(NeugDBSession& db, Decoder& input, Encoder& output) = 0;
 };
 
 class AppWrapper {
@@ -113,7 +113,7 @@ class AppWrapper {
   void (*func_deletor_)(void*);
 };
 
-class GraphDBSession;
+class NeugDBSession;
 
 class AppFactoryBase {
  public:

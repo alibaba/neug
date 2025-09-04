@@ -24,7 +24,7 @@
 
 namespace gs {
 
-ReadTransaction::ReadTransaction(const GraphDBSession& session,
+ReadTransaction::ReadTransaction(const NeugDBSession& session,
                                  const PropertyGraph& graph, VersionManager& vm,
                                  timestamp_t timestamp)
     : session_(session), graph_(graph), vm_(vm), timestamp_(timestamp) {}
@@ -169,6 +169,6 @@ void ReadTransaction::release() {
   }
 }
 
-const GraphDBSession& ReadTransaction::GetSession() const { return session_; }
+const NeugDBSession& ReadTransaction::GetSession() const { return session_; }
 
 }  // namespace gs

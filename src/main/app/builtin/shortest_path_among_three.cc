@@ -32,7 +32,7 @@ namespace gs {
 class NeugDB;
 
 results::CollectiveResults ShortestPathAmongThree::Query(
-    const GraphDBSession& sess, std::string label_name1, std::string oid1_str,
+    const NeugDBSession& sess, std::string label_name1, std::string oid1_str,
     std::string label_name2, std::string oid2_str, std::string label_name3,
     std::string oid3_str) {
   ReadTransaction txn = sess.GetReadTransaction();

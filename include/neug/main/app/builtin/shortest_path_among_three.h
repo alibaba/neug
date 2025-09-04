@@ -32,7 +32,7 @@
 
 namespace gs {
 class NeugDB;
-class GraphDBSession;
+class NeugDBSession;
 class ReadTransaction;
 
 class ShortestPathAmongThree
@@ -40,7 +40,7 @@ class ShortestPathAmongThree
                                    std::string, std::string, std::string> {
  public:
   ShortestPathAmongThree() {}
-  results::CollectiveResults Query(const GraphDBSession& sess,
+  results::CollectiveResults Query(const NeugDBSession& sess,
                                    std::string label_name1, std::string oid1,
                                    std::string label_name2, std::string oid2,
                                    std::string label_name3, std::string oid3);

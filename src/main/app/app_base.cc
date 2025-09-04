@@ -25,7 +25,7 @@ AppBase::AppMode ReadAppBase::mode() const { return AppMode::kRead; }
 
 AppBase::AppType ReadAppBase::type() const { return AppType::kCppProcedure; }
 
-bool ReadAppBase::run(GraphDBSession& db, Decoder& input, Encoder& output) {
+bool ReadAppBase::run(NeugDBSession& db, Decoder& input, Encoder& output) {
   return this->Query(db, input, output);
 }
 
@@ -33,7 +33,7 @@ AppBase::AppMode WriteAppBase::mode() const { return AppMode::kWrite; }
 
 AppBase::AppType WriteAppBase::type() const { return AppType::kCppProcedure; }
 
-bool WriteAppBase::run(GraphDBSession& db, Decoder& input, Encoder& output) {
+bool WriteAppBase::run(NeugDBSession& db, Decoder& input, Encoder& output) {
   return this->Query(db, input, output);
 }
 

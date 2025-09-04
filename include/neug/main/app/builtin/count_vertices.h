@@ -29,13 +29,13 @@
 
 namespace gs {
 class NeugDB;
-class GraphDBSession;
+class NeugDBSession;
 
 // A simple app to count the number of vertices of a given label.
 class CountVertices : public CypherReadProcAppBase<std::string> {
  public:
   CountVertices() {}
-  results::CollectiveResults Query(const GraphDBSession& sess,
+  results::CollectiveResults Query(const NeugDBSession& sess,
                                    std::string param) override;
 };
 

@@ -35,12 +35,12 @@ namespace gs {
 class PropertyGraph;
 class IWalWriter;
 class VersionManager;
-class GraphDBSession;
+class NeugDBSession;
 class Schema;
 
 class InsertTransaction {
  public:
-  InsertTransaction(const GraphDBSession& session, PropertyGraph& graph,
+  InsertTransaction(const NeugDBSession& session, PropertyGraph& graph,
                     Allocator& alloc, IWalWriter& logger, VersionManager& vm,
                     timestamp_t timestamp);
 
@@ -62,14 +62,14 @@ class InsertTransaction {
 
   const Schema& schema() const;
 
-  const GraphDBSession& GetSession() const;
+  const NeugDBSession& GetSession() const;
 
  private:
   void clear();
 
   static bool get_vertex_with_retries(PropertyGraph& graph, label_t label,
                                       const Any& oid, vid_t& lid);
-  const GraphDBSession& session_;
+  const NeugDBSession& session_;
 
   grape::InArchive arc_;
 

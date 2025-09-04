@@ -40,7 +40,7 @@ namespace gs {
 class PropertyGraph;
 class IWalWriter;
 class VersionManager;
-class GraphDBSession;
+class NeugDBSession;
 class CsrConstEdgeIterBase;
 class Schema;
 class UpdateBatch;
@@ -49,7 +49,7 @@ class IdIndexerBase;
 
 class UpdateTransaction {
  public:
-  UpdateTransaction(const GraphDBSession& session, PropertyGraph& graph,
+  UpdateTransaction(const NeugDBSession& session, PropertyGraph& graph,
                     Allocator& alloc, const std::string& work_dir,
                     IWalWriter& logger, VersionManager& vm,
                     timestamp_t timestamp);
@@ -174,7 +174,7 @@ class UpdateTransaction {
                         Allocator& alloc);
   Any GetVertexId(label_t label, vid_t lid) const;
 
-  const GraphDBSession& GetSession() const;
+  const NeugDBSession& GetSession() const;
 
   PropertyGraph& GetGraph() const { return graph_; }
 
@@ -187,7 +187,7 @@ class UpdateTransaction {
   bool HasVertex(label_t label, const Any& oid) const;
 
  private:
-  friend class GraphDBSession;
+  friend class NeugDBSession;
   bool batch_commit(UpdateBatch& batch);
 
   void set_edge_data_with_offset(bool dir, label_t label, vid_t v,
@@ -211,7 +211,7 @@ class UpdateTransaction {
 
   void applyEdgesUpdates();
 
-  const GraphDBSession& session_;
+  const NeugDBSession& session_;
 
   bool insert_vertex_with_resize_;
 

@@ -32,11 +32,11 @@ namespace server {
 /* Stored service configuration, read from interactive_config.yaml
  */
 
-class GraphDBService {
+class NeugDBService {
  public:
-  GraphDBService(gs::NeugDB& db) : db_(db), planner_(db.GetPlanner()) {}
+  NeugDBService(gs::NeugDB& db) : db_(db), planner_(db.GetPlanner()) {}
   gs::NeugDB& graph_db() { return db_; }
-  ~GraphDBService();
+  ~NeugDBService();
 
   void init(const ServiceConfig& config);
 
@@ -55,7 +55,7 @@ class GraphDBService {
   void run_and_wait_for_exit();
 
  private:
-  GraphDBService() = delete;
+  NeugDBService() = delete;
 
  private:
   gs::NeugDB& db_;

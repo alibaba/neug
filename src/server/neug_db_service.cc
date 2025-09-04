@@ -21,7 +21,7 @@
 
 namespace server {
 
-void GraphDBService::init(const ServiceConfig& config) {
+void NeugDBService::init(const ServiceConfig& config) {
   if (initialized_.load(std::memory_order_relaxed)) {
     std::cerr << "NeugDB service has been already initialized!" << std::endl;
     return;
@@ -39,26 +39,26 @@ void GraphDBService::init(const ServiceConfig& config) {
   service_config_ = config;
 }
 
-GraphDBService::~GraphDBService() {
+NeugDBService::~NeugDBService() {
   if (hdl_mgr_) {
     hdl_mgr_->Stop();
     hdl_mgr_.reset();
   }
 }
 
-const ServiceConfig& GraphDBService::GetServiceConfig() const {
+const ServiceConfig& NeugDBService::GetServiceConfig() const {
   return service_config_;
 }
 
-bool GraphDBService::IsInitialized() const {
+bool NeugDBService::IsInitialized() const {
   return initialized_.load(std::memory_order_relaxed);
 }
 
-bool GraphDBService::IsRunning() const {
+bool NeugDBService::IsRunning() const {
   return running_.load(std::memory_order_relaxed);
 }
 
-gs::Result<std::string> GraphDBService::service_status() {
+gs::Result<std::string> NeugDBService::service_status() {
   if (!IsInitialized()) {
     return gs::Result<std::string>(gs::StatusCode::OK,
                                    "NeugDB service has not been inited!", "");
@@ -70,7 +70,7 @@ gs::Result<std::string> GraphDBService::service_status() {
   return gs::Result<std::string>(std::string("NeugDB service is running ..."));
 }
 
-void GraphDBService::run_and_wait_for_exit() {
+void NeugDBService::run_and_wait_for_exit() {
   if (!IsInitialized()) {
     THROW_RUNTIME_ERROR("NeugDB service has not been inited!");
   }
@@ -85,7 +85,7 @@ void GraphDBService::run_and_wait_for_exit() {
   return;
 }
 
-void GraphDBService::Stop() {
+void NeugDBService::Stop() {
   if (!IsInitialized()) {
     std::cerr << "NeugDB service has not been inited!" << std::endl;
     return;
@@ -103,7 +103,7 @@ void GraphDBService::Stop() {
   }
 }
 
-std::string GraphDBService::Start() {
+std::string NeugDBService::Start() {
   if (!IsInitialized()) {
     THROW_RUNTIME_ERROR("NeugDB service has not been inited!");
   }

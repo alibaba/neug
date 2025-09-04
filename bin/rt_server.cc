@@ -106,7 +106,7 @@ int main(int argc, char** argv) {
   service_config.dpdk_mode = enable_dpdk;
   service_config.query_port = http_port;
   service_config.set_sharding_mode(vm["sharding-mode"].as<std::string>());
-  server::GraphDBService service(db);
+  server::NeugDBService service(db);
   service.init(service_config);
 
   service.run_and_wait_for_exit();

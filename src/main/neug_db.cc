@@ -70,8 +70,8 @@ struct SessionLocalContext {
   std::unique_ptr<IWalWriter> logger;
   char _padding1[4096 - sizeof(std::unique_ptr<IWalWriter>) -
                  sizeof(Allocator) - sizeof(_padding0)];
-  GraphDBSession session;
-  char _padding2[4096 - sizeof(GraphDBSession) % 4096];
+  NeugDBSession session;
+  char _padding2[4096 - sizeof(NeugDBSession) % 4096];
 };
 
 NeugDB::NeugDB()
@@ -286,11 +286,11 @@ UpdateTransaction NeugDB::GetUpdateTransaction(int thread_id) {
   return contexts_[thread_id].session.GetUpdateTransaction();
 }
 
-GraphDBSession& NeugDB::GetSession(int thread_id) {
+NeugDBSession& NeugDB::GetSession(int thread_id) {
   return contexts_[thread_id].session;
 }
 
-const GraphDBSession& NeugDB::GetSession(int thread_id) const {
+const NeugDBSession& NeugDB::GetSession(int thread_id) const {
   return contexts_[thread_id].session;
 }
 

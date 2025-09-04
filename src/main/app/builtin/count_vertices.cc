@@ -25,7 +25,7 @@
 namespace gs {
 class NeugDB;
 
-results::CollectiveResults CountVertices::Query(const GraphDBSession& sess,
+results::CollectiveResults CountVertices::Query(const NeugDBSession& sess,
                                                 std::string label_name) {
   // First get the read transaction.
   auto txn = sess.GetReadTransaction();
