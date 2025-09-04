@@ -159,8 +159,6 @@ Status PropertyGraph::create_vertex_type(
   vertex_tables_.back().Open(snapshot_dir(work_dir_, 0), tmp_dir(work_dir_),
                              memory_level_, true);
   vertex_tables_.back().Reserve(4096);
-  // Dump schema
-  DumpSchema(schema_path(work_dir_));
   vertex_label_num_ = schema_.vertex_label_num();
   while (v_mutex_.size() < vertex_label_num_) {
     v_mutex_.emplace_back(std::make_shared<std::mutex>());
@@ -272,7 +270,6 @@ Status PropertyGraph::create_edge_type(
                               memory_level_, src_v_capacity, dst_v_capacity);
 
   edge_tables_.at(index).Reserve(src_v_capacity, dst_v_capacity);
-  DumpSchema(schema_path(work_dir_));
 
   return gs::Status::OK();
 }
@@ -320,7 +317,6 @@ Status PropertyGraph::add_vertex_properties(
                                 add_default_property_values);
   label_t v_label = schema_.get_vertex_label_id(vertex_type_name);
   vertex_tables_[v_label].AddProperties(add_property_names, add_property_types);
-  DumpSchema(schema_path(work_dir_));
   return gs::Status::OK();
 }
 
@@ -387,7 +383,6 @@ Status PropertyGraph::add_edge_properties(
 
   auto& edge_table = edge_tables_.at(index);
   edge_table.AddProperties(add_property_names, add_property_types);
-  DumpSchema(schema_path(work_dir_));
 
   return gs::Status::OK();
 }
@@ -429,8 +424,6 @@ Status PropertyGraph::rename_vertex_properties(
   label_t v_label = schema_.get_vertex_label_id(vertex_type_name);
   vertex_tables_.at(v_label).RenameProperties(update_property_names,
                                               update_property_renames);
-
-  DumpSchema(schema_path(work_dir_));
 
   return gs::Status::OK();
 }
@@ -489,7 +482,6 @@ Status PropertyGraph::rename_edge_properties(
   auto& edge_table = edge_tables_.at(index);
 
   edge_table.RenameProperties(update_property_names, update_property_renames);
-  DumpSchema(schema_path(work_dir_));
   return gs::Status::OK();
 }
 
@@ -528,7 +520,6 @@ Status PropertyGraph::delete_vertex_properties(
   label_t v_label = schema_.get_vertex_label_id(vertex_type_name);
 
   vertex_tables_[v_label].DeleteProperties(delete_property_names);
-  DumpSchema(schema_path(work_dir_));
   return gs::Status::OK();
 }
 
@@ -581,7 +572,6 @@ Status PropertyGraph::delete_edge_properties(
                       "] does not exist, cannot delete properties.");
   }
   edge_tables_.at(index).DeleteProperties(delete_property_names);
-  DumpSchema(schema_path(work_dir_));
   return gs::Status::OK();
 }
 
@@ -852,6 +842,7 @@ void PropertyGraph::Compact(uint32_t version) {
 }
 
 void PropertyGraph::Dump(const std::string& work_dir, uint32_t version) {
+  DumpSchema(schema_path(work_dir_));
   std::string snapshot_dir_path = snapshot_dir(work_dir, version);
   std::error_code errorCode;
   std::filesystem::create_directories(snapshot_dir_path, errorCode);

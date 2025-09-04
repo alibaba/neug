@@ -32,8 +32,9 @@ namespace ops {
  */
 class UpdateEdgeOpr : public IUpdateOperator {
  public:
-  using edge_data_t = std::tuple<int32_t, std::string,
-                                 gs::Any>;  // tag_id, property_name, value
+  using edge_data_t =
+      std::tuple<int32_t, std::string,
+                 common::Expression>;  // tag_id, property_name, value
   using edge_data_vec_t = std::vector<edge_data_t>;
 
   UpdateEdgeOpr(edge_data_vec_t&& edge_data)

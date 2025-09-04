@@ -33,7 +33,8 @@ namespace ops {
  */
 class UpdateVertexOpr : public IUpdateOperator {
  public:
-  using vertex_prop_vec_t = std::vector<std::tuple<int32_t, std::string, Any>>;
+  using vertex_prop_vec_t =
+      std::vector<std::tuple<int32_t, std::string, common::Expression>>;
   UpdateVertexOpr(vertex_prop_vec_t&& vertex_data)
       : vertex_data_(std::move(vertex_data)) {}
 

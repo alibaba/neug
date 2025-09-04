@@ -1,3 +1,18 @@
+/** Copyright 2020 Alibaba Group Holding Limited.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ * 	http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
 #include <gtest/gtest.h>
 #include <iostream>
 #include <string>
@@ -265,7 +280,7 @@ TEST(DatabaseTest, TestPersist) {
       std::filesystem::remove_all(db_dir);
     }
     gs::NeugDB db;
-    db.Open(db_dir, 1, gs::DBMode::READ_WRITE);
+    db.Open(db_dir, 1, gs::DBMode::READ_WRITE, "gopt", false, false, true);
     auto conn = db.connect();
     std::string flex_data_dir = std::getenv("FLEX_DATA_DIR");
     EXPECT_FALSE(flex_data_dir.empty());

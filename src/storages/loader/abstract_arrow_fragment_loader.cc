@@ -374,6 +374,16 @@ void AbstractArrowFragmentLoader::AddEdgesRecordBatch(
                                            supplier_creator);
       }
 
+    } else if (property_types[0] == PropertyType::kDateTime) {
+      if (filenames.empty()) {
+        basic_fragment_loader_.AddNoPropEdgeBatch<DateTime>(
+            src_label_i, dst_label_i, edge_label_i);
+      } else {
+        addEdgesRecordBatchImpl<DateTime>(src_label_i, dst_label_i,
+                                          edge_label_i, filenames,
+                                          supplier_creator);
+      }
+
     } else if (property_types[0].type_enum ==
                    impl::PropertyTypeImpl::kVarChar ||
                property_types[0].type_enum ==

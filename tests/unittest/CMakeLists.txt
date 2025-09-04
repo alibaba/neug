@@ -13,7 +13,7 @@ endif()
 add_executable(test_run_query test_run_query.cc)
 target_link_libraries(test_run_query PRIVATE ${NEUG_LIBRARIES})
 
-add_storage_test(storage_test test_ddl.cc test_export.cc test_open_graph.cc alter_property_test.cc)
+add_storage_test(storage_test test_ddl.cc test_export.cc test_open_graph.cc alter_property_test.cc test_set_property.cc)
 target_link_libraries(storage_test
     PRIVATE
     neug_execution

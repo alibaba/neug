@@ -15,6 +15,7 @@
 
 #include "neug/execution/execute/ops/batch/batch_update_edge.h"
 #include "neug/execution/common/columns/edge_columns.h"
+#include "neug/execution/utils/expr.h"
 #include "neug/utils/pb_utils.h"
 
 namespace gs {
@@ -28,10 +29,11 @@ gs::result<Context> UpdateEdgeOpr::Eval(
     OprTimer* timer) {
   VLOG(10) << "Executing UpdateEdgeOpr with " << edge_data_.size()
            << " entries.";
+  Arena arena;
   for (const auto& entry : edge_data_) {
     auto tag_id = std::get<0>(entry);
     const auto& prop_name = std::get<1>(entry);
-    const auto& value = std::get<2>(entry);
+    const auto& expression = std::get<2>(entry);
 
     auto col = ctx.get(tag_id);
     if (!col) {
@@ -45,9 +47,10 @@ gs::result<Context> UpdateEdgeOpr::Eval(
       THROW_RUNTIME_ERROR("Column " + std::to_string(tag_id) +
                           " is not an edge column.");
     }
-    LOG(INFO) << "edge column info: " << edge_col->column_info();
 
+    Expr expr(graph, ctx, params, expression, VarType::kPathVar);
     for (size_t ind = 0; ind < edge_col->size(); ++ind) {
+      auto value = expr.eval_path(ind, arena).to_any();
       auto er = edge_col->get_edge(ind);
       auto label_id = er.label_triplet().edge_label;
       auto src_label = er.label_triplet().src_label;
@@ -118,20 +121,8 @@ std::unique_ptr<IUpdateOperator> UpdateEdgeOprBuilder::Build(
       THROW_RUNTIME_ERROR(
           "Setting edge property without key is not supported.");
     }
-    if (prop_mapping.data().operators_size() != 1) {
-      THROW_RUNTIME_ERROR(
-          "Setting edge property with multiple operators is not "
-          "supported.");
-    }
-    if (prop_mapping.data().operators(0).item_case() !=
-        common::ExprOpr::ItemCase::kConst) {
-      THROW_RUNTIME_ERROR(
-          "Setting edge property with non-constant value is not "
-          "supported.");
-    }
-    edge_data_vec.emplace_back(
-        tag_id, prop_mapping.property().key().name(),
-        expr_opr_value_to_any(prop_mapping.data().operators(0)));
+    edge_data_vec.emplace_back(tag_id, prop_mapping.property().key().name(),
+                               prop_mapping.data());
   }
   return std::make_unique<UpdateEdgeOpr>(std::move(edge_data_vec));
 }

@@ -15,6 +15,7 @@
 
 #include "neug/execution/execute/ops/batch/batch_update_vertex.h"
 
+#include "neug/execution/utils/expr.h"
 #include "neug/utils/pb_utils.h"
 
 namespace gs {
@@ -25,11 +26,11 @@ template <typename GraphInterface>
 gs::result<Context> UpdateVertexOpr::eval_impl(
     GraphInterface& graph, const std::map<std::string, std::string>& params,
     Context&& ctx, OprTimer* timer) {
+  Arena arena;
   for (const auto& entry : vertex_data_) {
     auto tag_id = std::get<0>(entry);
     const auto& prop_name = std::get<1>(entry);
-    const auto& value = std::get<2>(entry);
-
+    const auto& expression = std::get<2>(entry);
     auto col = ctx.get(tag_id);
     if (!col) {
       LOG(ERROR) << "Column " << tag_id << " not found in context.";
@@ -37,9 +38,13 @@ gs::result<Context> UpdateVertexOpr::eval_impl(
     auto vertex_col = std::dynamic_pointer_cast<IVertexColumn>(col);
     if (!vertex_col) {
       LOG(ERROR) << "Column " << tag_id << " is not a vertex column.";
+      THROW_RUNTIME_ERROR("Column " + std::to_string(tag_id) +
+                          " is not a vertex column");
     }
 
+    Expr expr(graph, ctx, params, expression, VarType::kPathVar);
     for (size_t ind = 0; ind < vertex_col->size(); ++ind) {
+      auto value = expr.eval_path(ind, arena).to_any();
       auto vr = vertex_col->get_vertex(ind);
       auto label_id = vr.label();
       // Restricts: 0. Could not set primary key; 1. Could not set empty
@@ -109,20 +114,8 @@ std::unique_ptr<IUpdateOperator> UpdateVertexOprBuilder::Build(
       THROW_RUNTIME_ERROR(
           "Setting vertex property without key is not supported.");
     }
-    if (prop_mapping.data().operators_size() != 1) {
-      THROW_RUNTIME_ERROR(
-          "Setting vertex property with multiple operators is not "
-          "supported.");
-    }
-    if (prop_mapping.data().operators(0).item_case() !=
-        common::ExprOpr::ItemCase::kConst) {
-      THROW_RUNTIME_ERROR(
-          "Setting vertex property with non-constant value is not "
-          "supported.");
-    }
-    vertex_data.emplace_back(
-        tag_id, prop_mapping.property().key().name(),
-        expr_opr_value_to_any(prop_mapping.data().operators(0)));
+    vertex_data.emplace_back(tag_id, prop_mapping.property().key().name(),
+                             prop_mapping.data());
   }
   return std::make_unique<UpdateVertexOpr>(std::move(vertex_data));
 }
