@@ -1126,7 +1126,7 @@ void GQueryConvertor::convertInsertVertex(const planner::LogicalInsert& insert,
       }
       auto data = info.columnDataExprs[i];
       entryPB->mutable_property_mappings()->AddAllocated(
-          convertPropMapping(columnName, *data).release());
+          convertPropMapping(columnName, *data, insert).release());
     }
     // set alias id by NodeExpression
     auto aliasId = aliasManager->getAliasId(nodeExpr->getUniqueName());
@@ -1184,7 +1184,7 @@ void GQueryConvertor::convertInsertEdge(const planner::LogicalInsert& insert,
       }
       auto data = info.columnDataExprs[i];
       entryPB->mutable_property_mappings()->AddAllocated(
-          convertPropMapping(columnName, *data).release());
+          convertPropMapping(columnName, *data, insert).release());
     }
     // set source binding
     auto srcAliasId = aliasManager->getAliasId(relExpr->getSrcNodeName());
@@ -1229,6 +1229,11 @@ void GQueryConvertor::convertSetVertexProperty(
     const planner::LogicalSetProperty& set, ::physical::QueryPlan* plan) {
   auto& infos = set.getInfos();
   auto setPB = std::make_unique<::physical::SetVertexProperty>();
+  if (set.getNumChildren() == 0) {
+    THROW_EXCEPTION_WITH_FILE_LINE(
+        "SetVertexProperty should have at least one child");
+  }
+  auto child0 = set.getChild(0);
   for (const auto& info : infos) {
     // set vertex binding
     auto vertexExpr = exprConvertor->convert(*info.pattern, {});
@@ -1249,7 +1254,7 @@ void GQueryConvertor::convertSetVertexProperty(
     }
     auto data = info.columnData;
     entryPB->set_allocated_property_mapping(
-        convertPropMapping(columnName, *data).release());
+        convertPropMapping(columnName, *data, set).release());
     setPB->mutable_entries()->AddAllocated(entryPB.release());
   }
   auto physicalPB = std::make_unique<::physical::PhysicalOpr>();
@@ -1283,7 +1288,7 @@ void GQueryConvertor::convertSetEdgeProperty(
     }
     auto data = info.columnData;
     entryPB->set_allocated_property_mapping(
-        convertPropMapping(columnName, *data).release());
+        convertPropMapping(columnName, *data, set).release());
     setPB->mutable_entries()->AddAllocated(entryPB.release());
   }
   auto physicalPB = std::make_unique<::physical::PhysicalOpr>();
@@ -1711,14 +1716,23 @@ GQueryConvertor::convertPropMapping(const std::string& propertyName,
 
 std::unique_ptr<::physical::PropertyMapping>
 GQueryConvertor::convertPropMapping(const std::string& propertyName,
-                                    const binder::Expression& data) {
+                                    const binder::Expression& data,
+                                    const planner::LogicalOperator& op) {
+  std::vector<std::string> schemaAlias;
+  if (op.getNumChildren() > 0) {
+    std::vector<gopt::GAliasName> gAliasNames;
+    aliasManager->extractGAliasNames(*op.getChild(0), gAliasNames);
+    for (auto& expr : gAliasNames) {
+      schemaAlias.emplace_back(expr.uniqueName);
+    }
+  }
   auto namePB = std::make_unique<::common::NameOrId>();
   namePB->set_name(propertyName);
   auto propertyPB = std::make_unique<::common::Property>();
   propertyPB->set_allocated_key(namePB.release());
   auto mappingPB = std::make_unique<::physical::PropertyMapping>();
   mappingPB->set_allocated_property(propertyPB.release());
-  auto dataPB = exprConvertor->convert(data, {});
+  auto dataPB = exprConvertor->convert(data, schemaAlias);
   mappingPB->set_allocated_data(dataPB.release());
   return mappingPB;
 }

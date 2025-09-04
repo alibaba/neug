@@ -179,7 +179,8 @@ class GQueryConvertor {
   std::unique_ptr<::physical::PropertyMapping> convertPropMapping(
       const std::string& columnName, common::alias_id_t columnId);
   std::unique_ptr<::physical::PropertyMapping> convertPropMapping(
-      const std::string& propertyName, const binder::Expression& data);
+      const std::string& propertyName, const binder::Expression& data,
+      const planner::LogicalOperator& op);
   std::unique_ptr<::physical::DataSource> convertDataSource(
       const common::FileScanInfo& fileInfo);
   std::unique_ptr<Options> convertDataSourceOptions(

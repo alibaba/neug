@@ -186,5 +186,16 @@ TEST_F(DMLTest, SET_VER_EDGE_PROP) {
       *physical, getDMLResource("SET_VER_EDGE_PROP_physical"));
 }
 
+TEST_F(DMLTest, SET_MAX_COUNT) {
+  std::string query =
+      "Match (n:person)-[:knows]->(m:person)-[:knows]->(c:person) WITH n, m, "
+      "count(c) as c_cnt WITH n, max(c_cnt) as max_cnt SET n.age = max_cnt";
+  auto logical = planLogical(query, schemaData, statsData, rules);
+  auto aliasManager = std::make_shared<GAliasManager>(*logical);
+  auto physical = planPhysical(*logical, aliasManager);
+  VerifyFactory::verifyPhysicalByJson(*physical,
+                                      getDMLResource("SET_MAX_COUNT_physical"));
+}
+
 }  // namespace gopt
 }  // namespace gs
