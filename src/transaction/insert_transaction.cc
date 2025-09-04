@@ -200,6 +200,7 @@ void InsertTransaction::IngestWal(PropertyGraph& graph, uint32_t timestamp,
       Any id;
       label = deserialize_oid(graph, arc, id);
       vid_t lid = graph.add_vertex(label, id);
+      // Ignore the cases that the vertex already exists.
       graph.get_vertex_table(label).ingest(lid, arc);
     } else if (op_type == 1) {
       label_t src_label, dst_label, edge_label;

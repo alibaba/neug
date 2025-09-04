@@ -762,6 +762,7 @@ void UpdateTransaction::IngestWal(PropertyGraph& graph,
       if (!graph.get_lid(label, oid, vid)) {
         vid = graph.add_vertex_safe(label, oid);
       }
+      // Ignore the cases that the vertex already exists.
       graph.get_vertex_table(label).ingest(vid, arc);
     } else if (op_type == 1) {
       label_t src_label, dst_label, edge_label;

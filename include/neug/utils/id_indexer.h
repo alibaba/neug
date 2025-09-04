@@ -42,6 +42,8 @@ namespace gs {
 
 namespace id_indexer_impl {
 
+#define likely(x) __builtin_expect(!!(x), 1)
+
 static constexpr int8_t min_lookups = 4;
 static constexpr double max_load_factor = 0.5f;
 
@@ -325,6 +327,11 @@ class LFIndexer {
   INDEX_T insert(const Any& oid) {
     assert(oid.type == get_type());
     INDEX_T ind = static_cast<INDEX_T>(num_elements_.fetch_add(1));
+    if (!likely(ind >= 0 && ind < capacity())) {
+      THROW_INTERNAL_EXCEPTION(
+          "Reserved size is not enough: " + std::to_string(capacity()) +
+          " vs " + std::to_string(ind));
+    }
     keys_->set_any(ind, oid);
     size_t index =
         hash_policy_.index_for_hash(hasher_(oid), num_slots_minus_one_);
