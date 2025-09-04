@@ -37,7 +37,6 @@ Carol
 Dan
 
 -LOG UndirKnows2
--SKIP: Engine error: last match error: {"code": 05-1012, "message": "Failed to build operator at index 2, op_kind: get_v"}
 -STATEMENT MATCH (a:person)-[:knows]-(b:person)-[:knows]-(c:person) WHERE a.gender = 1 AND b.gender = 2 AND c.fName = "Bob" RETURN a.fName, b.fName;
 ---- 8
 Alice|Dan
@@ -60,7 +59,6 @@ Carol|Dan
 17
 
 -LOG UndirMultiLabel3
--SKIP: Engine error: last match error: {"code": 05-1012, "message": "Failed to build operator at index 3, op_kind: get_v"}
 -STATEMENT MATCH (a:person)-[:meets|:marries|:knows]-(b:person)-[:knows|:meets]-(c:person) WHERE c.fName = "Farooq" AND a.fName <> "Farooq" RETURN a.fName, b.fName;
 ---- 13
 Carol|Elizabeth

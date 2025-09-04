@@ -5,14 +5,11 @@
 -CASE OptionalMatchMultiLabel
 
 -LOG MultiLabelTest1
--SKIP: https://github.com/GraphScope/neug/issues/629
 -STATEMENT MATCH (a:organisation) OPTIONAL MATCH (a)<-[:knows|:studyAt]-(b:person) RETURN COUNT(*)
 ---- 1
 5
 
-# TODO: EXECUTION: "func: expand_vertex_without_predicate, not support optional vertex column as input currently"
 -LOG MultiLabelTest2
--SKIP: https://github.com/GraphScope/neug/issues/629
 -STATEMENT MATCH (a:organisation:person) OPTIONAL MATCH (a)-[:studyAt|:workAt]->(b:person:organisation) RETURN COUNT(*)
 ---- 1
 11

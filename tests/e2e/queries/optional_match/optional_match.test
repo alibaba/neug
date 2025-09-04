@@ -41,7 +41,6 @@ Dan
 6
 
 -LOG MultiKeyOptionalMatchTest2
--SKIP: https://github.com/GraphScope/neug/issues/629
 -STATEMENT MATCH (a:person)-[:knows]->(b:person) OPTIONAL MATCH (a)-[:studyAt]->(c:organisation), (b)-[:studyAt]->(c) RETURN COUNT(*)
 ---- 1
 14
@@ -51,7 +50,6 @@ Dan
 ---- 1
 36
 
-# TODO: EXECUTION: unexpected result, expected 7, but returns 17
 -LOG MixedMatchTest2
 -STATEMENT MATCH (a:person) OPTIONAL MATCH (a)-[:knows]->(b:person) MATCH (b)-[:studyAt]->(c:organisation) RETURN COUNT(*)
 ---- 1
@@ -67,7 +65,6 @@ Dan
 ---- 1
 24
 
-# TODO: EXECUTION: unexpected result, expected 324, but returns 326
 -LOG MixedMatchHashJoinTest
 -STATEMENT MATCH (a:person)-[:knows]->(b:person) OPTIONAL MATCH (b)-[:knows]->(c:person) MATCH (c)-[:knows]->(d:person)-[:knows]->(e:person) RETURN COUNT(*)
 ---- 1
@@ -87,7 +84,6 @@ Hubert Blaine Wolfeschlegelsteinhausenbergerdorff|
 
 325
 
-# TODO: EXECUTION: unexpected result, expected 8 results, but returns 1
 -LOG OptionalReturnTest2
 -STATEMENT MATCH (a:person) OPTIONAL MATCH (a)-[:knows]->(b:person) WHERE b.fName='Farooq' RETURN a.fName, b.fName
 ---- 8
@@ -100,7 +96,6 @@ Farooq|
 Greg|
 Hubert Blaine Wolfeschlegelsteinhausenbergerdorff|
 
-# TODO: EXECUTION: core dump
 # -LOG OptionalListExtendCountTest
 # -STATEMENT MATCH (a:person) OPTIONAL MATCH (a)-[:studyAt]->(b:organisation) RETURN a.fName, b.name
 # ---- 8
@@ -121,13 +116,11 @@ Hubert Blaine Wolfeschlegelsteinhausenbergerdorff|
 40
 
 -LOG OptionalColExtendTest
--SKIP: https://github.com/GraphScope/neug/issues/629
 -STATEMENT MATCH (a:person) OPTIONAL MATCH (a)-[:workAt]->(b:organisation) RETURN COUNT(*)
 ---- 1
 8
 
 -LOG MultipleOptionalCountTest
--SKIP: https://github.com/GraphScope/neug/issues/629
 -STATEMENT MATCH (a:person) OPTIONAL MATCH (a)-[:knows]->(b:person) OPTIONAL MATCH (b)-[:knows]->(c:person) RETURN COUNT(*)
 ---- 1
 41

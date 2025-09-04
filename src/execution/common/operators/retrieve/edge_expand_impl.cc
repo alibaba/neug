@@ -432,6 +432,38 @@ expand_vertex_without_predicate_optional_impl(
 }
 
 std::pair<std::shared_ptr<IContextColumn>, std::vector<size_t>>
+expand_vertex_without_predicate_optional_impl(
+    const GraphReadInterface& graph, const MSVertexColumn& input,
+    const std::vector<LabelTriplet>& labels, Direction dir) {
+  const std::set<label_t>& input_labels = input.get_labels_set();
+  int label_num = graph.schema().vertex_label_num();
+  std::vector<std::vector<std::tuple<label_t, label_t, Direction>>> label_dirs(
+      label_num);
+  std::vector<PropertyType> ed_types;
+  for (auto& triplet : labels) {
+    if (!graph.schema().exist(triplet.src_label, triplet.dst_label,
+                              triplet.edge_label)) {
+      continue;
+    }
+    if ((input_labels.find(triplet.src_label) != input_labels.end()) &&
+        ((dir == Direction::kOut) || (dir == Direction::kBoth))) {
+      label_dirs[triplet.src_label].emplace_back(
+          triplet.dst_label, triplet.edge_label, Direction::kOut);
+    }
+    if ((input_labels.find(triplet.dst_label) != input_labels.end()) &&
+        ((dir == Direction::kIn) || (dir == Direction::kBoth))) {
+      label_dirs[triplet.dst_label].emplace_back(
+          triplet.src_label, triplet.edge_label, Direction::kIn);
+    }
+  }
+  for (auto& vec : label_dirs) {
+    grape::DistinctSort(vec);
+  }
+  return expand_vertex_optional_impl<DummyPredicate<Any>>(
+      graph, input, label_dirs, DummyPredicate<Any>());
+}
+
+std::pair<std::shared_ptr<IContextColumn>, std::vector<size_t>>
 expand_vertex_without_predicate_impl(const GraphReadInterface& graph,
                                      const MSVertexColumn& input,
                                      const std::vector<LabelTriplet>& labels,

@@ -22,7 +22,7 @@
 
 namespace gs {
 namespace runtime {
-uint64_t encode_unique_vertex_id(label_t label_id, vid_t vid) {
+int64_t encode_unique_vertex_id(label_t label_id, vid_t vid) {
   // encode label_id and vid to a unique vid
   GlobalId global_id(label_id, vid);
   return global_id.global_id;

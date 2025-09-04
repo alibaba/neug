@@ -425,14 +425,15 @@ template <typename T>
 struct OptionalTypedVarWrapper {
   using V = T;
   std::optional<T> operator()(size_t idx) const {
-    auto v = vars.get(idx, 0);
+    auto v = vars_.get(idx, 0);
     if (v.is_null()) {
       return std::nullopt;
     }
+
     return TypedConverter<T>::to_typed(v);
   }
-  OptionalTypedVarWrapper(Var&& vars) : vars(std::move(vars)) {}
-  Var vars;
+  OptionalTypedVarWrapper(Var&& vars) : vars_(std::move(vars)) {}
+  Var vars_;
 };
 
 template <typename EXPR, bool IS_OPTIONAL, typename Enable = void>
@@ -552,8 +553,24 @@ struct CountReducer {
   }
 };
 
+// To deal with special case count(*)
+struct CountStartReducer {
+  CountStartReducer() {}
+  using V = int64_t;
+  bool operator()(const std::vector<size_t>& group, V& val) const {
+    // We will count all rows in the group
+    val = group.size();
+    return true;
+  }
+};
+
 template <typename EXPR, bool is_optional>
 struct IsCountReducer<CountReducer<EXPR, is_optional>> {
+  static constexpr bool value = true;
+};
+
+template <>
+struct IsCountReducer<CountStartReducer> {
   static constexpr bool value = true;
 };
 
@@ -1216,7 +1233,21 @@ gs::result<ReadOpBuildResultT> GroupByOprBuilder::Build(
     auto& func = opr.functions(i);
     auto aggr_kind = parse_aggregate(func.aggregate());
     int alias = func.has_alias() ? func.alias().value() : -1;
-    if (func.vars_size() == 2) {
+    if (func.vars_size() == 0) {
+      if (aggr_kind == AggrKind::kCount) {
+        reduces.emplace_back([alias](const GraphReadInterface& graph,
+                                     const Context& ctx)
+                                 -> std::unique_ptr<ReducerBase> {
+          using count_res_t = typename CountStartReducer::V;
+          return std::make_unique<
+              Reducer<CountStartReducer, SingleValueCollector<count_res_t>>>(
+              CountStartReducer(), SingleValueCollector<count_res_t>(), alias);
+        });
+      } else {
+        THROW_NOT_SUPPORTED_EXCEPTION(
+            "not support reduce with no var except count");
+      }
+    } else if (func.vars_size() == 2) {
       auto& fst = func.vars(0);
       auto& snd = func.vars(1);
       reduces.emplace_back(
@@ -1229,23 +1260,26 @@ gs::result<ReadOpBuildResultT> GroupByOprBuilder::Build(
                                      std::move(snd_var), aggr_kind, alias);
           });
       continue;
-    }
-    auto& var = func.vars(0);
-    if (aggr_kind == AggrKind::kToList || aggr_kind == AggrKind::kToSet ||
-        aggr_kind == AggrKind::kFirst || aggr_kind == AggrKind::kMin ||
-        aggr_kind == AggrKind::kMax) {
-      if (!var.has_property()) {
-        int tag = var.has_tag() ? var.tag().id() : -1;
-        dependencies.emplace_back(alias, tag);
+    } else if (func.vars_size() == 1) {
+      auto& var = func.vars(0);
+      if (aggr_kind == AggrKind::kToList || aggr_kind == AggrKind::kToSet ||
+          aggr_kind == AggrKind::kFirst || aggr_kind == AggrKind::kMin ||
+          aggr_kind == AggrKind::kMax) {
+        if (!var.has_property()) {
+          int tag = var.has_tag() ? var.tag().id() : -1;
+          dependencies.emplace_back(alias, tag);
+        }
       }
-    }
 
-    reduces.emplace_back(
-        [alias, aggr_kind, var](
-            const GraphReadInterface& graph,
-            const Context& ctx) -> std::unique_ptr<ReducerBase> {
-          return make_reducer(graph, ctx, var, aggr_kind, alias);
-        });
+      reduces.emplace_back(
+          [alias, aggr_kind, var](
+              const GraphReadInterface& graph,
+              const Context& ctx) -> std::unique_ptr<ReducerBase> {
+            return make_reducer(graph, ctx, var, aggr_kind, alias);
+          });
+    } else {
+      THROW_NOT_SUPPORTED_EXCEPTION("not support reduce with more than 2 vars");
+    }
   }
   if (!has_property) {
     return std::make_pair(

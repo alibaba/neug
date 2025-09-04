@@ -1246,6 +1246,56 @@ def test_list_return_basic(tmp_path):
     db.close()
 
 
+def test_optional_match():
+    db_dir = "/tmp/optional_match"
+    shutil.rmtree(db_dir, ignore_errors=True)
+    db = Database(db_path=str(db_dir), mode="w")
+    conn = db.connect()
+
+    conn.execute("CREATE NODE TABLE Person(id INT32, PRIMARY KEY(id));")
+    conn.execute("CREATE (p: Person {id: 1});")
+    conn.execute("CREATE (p: Person {id: 2});")
+    conn.execute("CREATE NODE TABLE Company(id INT32, PRIMARY KEY(id));")
+    conn.execute("CREATE (c: Company {id: 1001});")
+    conn.execute("CREATE REL TABLE WorkAt(FROM Person TO Company);")
+    conn.execute(
+        "MATCH (p:Person) WHERE p.id = 1"
+        "MATCH (c:Company) WHERE c.id = 1001"
+        "CREATE (p)-[:WorkAt]->(c);"
+    )
+
+    # ok
+    res = conn.execute(
+        "MATCH (p:Person) OPTIONAL MATCH (p)-[:WorkAt]->(c:Company) RETURN p.id, c.id;"
+    )
+    res = list(res)
+    assert len(res) == 2
+    assert res[0] == [1, 1001]
+    assert res[1] == [2, None]
+
+    # return 1
+    res = conn.execute(
+        "MATCH (p:Person) OPTIONAL MATCH (p)-[:WorkAt]->(c:Company) RETURN COUNT(c);"
+    )
+    res = list(res)
+    assert res[0] == [1]
+
+    res = conn.execute(
+        "MATCH (p:Person) OPTIONAL MATCH (p)-[:WorkAt]->(c:Company) RETURN COUNT(*);"
+    )
+    res = list(res)
+    assert res[0] == [2]
+
+    res = conn.execute(
+        "MATCH (p:Person) OPTIONAL MATCH (p)-[:WorkAt]->(c:Company) RETURN COUNT(p);"
+    )
+    res = list(res)
+    assert res[0] == [2]
+
+    conn.close()
+    db.close()
+
+
 def test_create_edge_with_prop_on_both_end():
     db_dir = "/tmp/test_create_edge_with_prop_on_both_end"
     shutil.rmtree(db_dir, ignore_errors=True)

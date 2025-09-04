@@ -89,6 +89,10 @@ class VertexRecord {
   bool operator==(const VertexRecord& v) const {
     return label_ == v.label_ && vid_ == v.vid_;
   }
+  std::string to_string() const {
+    return "(" + std::to_string(static_cast<int>(label_)) + ", " +
+           std::to_string(vid_) + ")";
+  }
 
   label_t label() const { return label_; }
   vid_t vid() const { return vid_; }
@@ -235,6 +239,7 @@ class List {
   size_t size() const { return impl_->size(); }
   RTAny get(size_t idx) const;
   RTAnyType elem_type() const;
+  std::string to_string() const;
   ListImplBase* impl_;
 };
 
@@ -262,6 +267,7 @@ class Set {
   bool operator==(const Set& p) const;
   bool exists(const RTAny& val) const;
   std::vector<RTAny> values() const;
+  std::string to_string() const;
 
   RTAnyType elem_type() const;
   size_t size() const;
@@ -275,6 +281,7 @@ class TupleImplBase : public CObject {
   virtual bool operator==(const TupleImplBase& p) const = 0;
   virtual size_t size() const = 0;
   virtual RTAny get(size_t idx) const = 0;
+  virtual std::string to_string() const = 0;
 };
 
 template <typename... Args>
@@ -296,6 +303,18 @@ class TupleImpl : public TupleImplBase {
   size_t size() const override {
     return std::tuple_size_v<std::tuple<Args...>>;
   }
+  std::string to_string() const {
+    std::stringstream ss;
+    ss << "(";
+    for (size_t i = 0; i < size(); i++) {
+      if (i != 0) {
+        ss << ", ";
+      }
+      ss << get(i).to_string();
+    }
+    ss << ")";
+    return ss.str();
+  }
   std::tuple<Args...> values;
 };
 
@@ -309,6 +328,7 @@ class TupleImpl<RTAny> : public TupleImplBase {
   bool operator==(const TupleImplBase& p) const override;
   size_t size() const override;
   RTAny get(size_t idx) const override;
+  std::string to_string() const override;
 
   std::vector<RTAny> values;
 };
@@ -331,6 +351,7 @@ class Tuple {
   bool operator==(const Tuple& p) const { return *impl_ == *(p.impl_); }
   size_t size() const { return impl_->size(); }
   RTAny get(size_t idx) const;
+  std::string to_string() const;
   TupleImplBase* impl_;
 };
 
@@ -407,6 +428,9 @@ class Map {
       const;
   bool operator<(const Map& p) const;
   bool operator==(const Map& p) const;
+
+  size_t size() const;
+  std::string to_string() const;
 
   MapImpl* map_;
 };
@@ -552,6 +576,13 @@ class EdgeRecord {
   LabelTriplet label_triplet() const { return label_triplet_; }
   EdgeData prop() const { return prop_; }
   Direction dir() const { return dir_; }
+  std::string to_string() const {
+    return "(" + std::to_string(static_cast<int>(label_triplet_.src_label)) +
+           "," + std::to_string(src_) + ")-[" +
+           std::to_string(static_cast<int>(label_triplet_.edge_label)) +
+           "]->(" + std::to_string(static_cast<int>(label_triplet_.dst_label)) +
+           "," + std::to_string(dst_) + ")";
+  }
 
   LabelTriplet label_triplet_;
   vid_t src_, dst_;
@@ -1162,5 +1193,53 @@ using is_view_type =
 }  // namespace runtime
 
 }  // namespace gs
+
+namespace std {
+
+inline ostream& operator<<(ostream& os, const gs::runtime::RTAny& any) {
+  os << any.to_string();
+  return os;
+}
+
+inline ostream& operator<<(ostream& os, const gs::runtime::EdgeData& data) {
+  os << data.to_string();
+  return os;
+}
+inline ostream& operator<<(ostream& os, const gs::runtime::Tuple& tuple) {
+  os << tuple.to_string();
+  return os;
+}
+
+inline ostream& operator<<(ostream& os, const gs::runtime::List& list) {
+  os << list.to_string();
+  return os;
+}
+
+inline ostream& operator<<(ostream& os, const gs::runtime::Map& map) {
+  os << map.to_string();
+  return os;
+}
+
+inline ostream& operator<<(ostream& os, const gs::runtime::Set& set) {
+  os << set.to_string();
+  return os;
+}
+
+inline ostream& operator<<(ostream& os, const gs::runtime::Path& path) {
+  os << path.to_string();
+  return os;
+}
+
+inline ostream& operator<<(ostream& os, const gs::runtime::VertexRecord& v) {
+  os << v.to_string();
+  return os;
+}
+
+inline ostream& operator<<(ostream& os, const gs::runtime::EdgeRecord& e) {
+  os << e.to_string();
+  return os;
+}
+
+}  // namespace std
 
 #endif  // RUNTIME_COMMON_RT_ANY_H_

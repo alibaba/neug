@@ -281,10 +281,47 @@ bool Set::operator==(const Set& p) const { return *(impl_) == *(p.impl_); }
 bool Set::exists(const RTAny& val) const { return impl_->exists(val); }
 std::vector<RTAny> Set::values() const { return impl_->values(); }
 size_t Set::size() const { return impl_->size(); }
+std::string Set::to_string() const {
+  auto vals = impl_->values();
+  std::stringstream ss;
+  ss << "{";
+  for (size_t i = 0; i < vals.size(); i++) {
+    if (i != 0) {
+      ss << ", ";
+    }
+    ss << vals[i].to_string();
+  }
+  ss << "}";
+  return ss.str();
+}
 
 RTAnyType List::elem_type() const { return impl_->type(); }
+std::string List::to_string() const {
+  std::stringstream ss;
+  ss << "[";
+  for (size_t i = 0; i < size(); i++) {
+    if (i != 0) {
+      ss << ", ";
+    }
+    ss << get(i).to_string();
+  }
+  ss << "]";
+  return ss.str();
+}
 
 RTAny Tuple::get(size_t idx) const { return impl_->get(idx); }
+std::string Tuple::to_string() const {
+  std::stringstream ss;
+  ss << "(";
+  for (size_t i = 0; i < size(); i++) {
+    if (i != 0) {
+      ss << ", ";
+    }
+    ss << get(i).to_string();
+  }
+  ss << ")";
+  return ss.str();
+}
 PropertyType rt_type_to_property_type(RTAnyType type) {
   switch (type) {
   case RTAnyType::kEmpty:
@@ -362,6 +399,19 @@ std::pair<const std::vector<RTAny>, const std::vector<RTAny>> Map::key_vals()
 
 bool Map::operator<(const Map& p) const { return *map_ < *(p.map_); }
 bool Map::operator==(const Map& p) const { return *map_ == *(p.map_); }
+size_t Map::size() const { return map_->keys.size(); }
+std::string Map::to_string() const {
+  std::stringstream ss;
+  ss << "{";
+  for (size_t i = 0; i < map_->keys.size(); i++) {
+    if (i != 0) {
+      ss << ", ";
+    }
+    ss << map_->keys[i].to_string() << ": " << map_->values[i].to_string();
+  }
+  ss << "}";
+  return ss.str();
+}
 
 RTAny::RTAny() : type_(RTAnyType::kUnknown) {}
 RTAny::RTAny(RTAnyType type) : type_(type) {}
@@ -858,6 +908,19 @@ bool TupleImpl<RTAny>::operator==(const TupleImplBase& p) const {
   return values == dynamic_cast<const TupleImpl<RTAny>&>(p).values;
 }
 size_t TupleImpl<RTAny>::size() const { return values.size(); }
+
+std::string TupleImpl<RTAny>::to_string() const {
+  std::stringstream ss;
+  ss << "(";
+  for (size_t i = 0; i < size(); i++) {
+    if (i != 0) {
+      ss << ", ";
+    }
+    ss << get(i).to_string();
+  }
+  ss << ")";
+  return ss.str();
+}
 
 MapImpl::MapImpl() {}
 

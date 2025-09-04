@@ -124,6 +124,13 @@ class VertexGIdPathAccessor : public IAccessor {
     return RTAny::from_int64(typed_eval_path(idx));
   }
 
+  RTAny eval_path(size_t idx, int) const override {
+    if (!vertex_col_.has_value(idx)) {
+      return RTAny(RTAnyType::kNull);
+    }
+    return RTAny::from_int64(typed_eval_path(idx));
+  }
+
  private:
   const IVertexColumn& vertex_col_;
 };
@@ -289,7 +296,12 @@ class VertexGIdVertexAccessor : public IAccessor {
   }
 
   RTAny eval_vertex(label_t label, vid_t v, size_t idx) const override {
-    return RTAny::from_int64(typed_eval_vertex(label, v, idx));
+    if (label == std::numeric_limits<label_t>::max() ||
+        v == std::numeric_limits<vid_t>::max()) {
+      return RTAny(RTAnyType::kNull);
+    }
+    auto ret = typed_eval_vertex(label, v, idx);
+    return RTAny::from_int64(ret);
   }
 };
 

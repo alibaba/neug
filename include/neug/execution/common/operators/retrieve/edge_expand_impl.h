@@ -1384,6 +1384,11 @@ expand_vertex_without_predicate_impl(const GraphReadInterface& graph,
                                      const std::vector<LabelTriplet>& labels,
                                      Direction dir);
 
+std::pair<std::shared_ptr<IContextColumn>, std::vector<size_t>>
+expand_vertex_without_predicate_optional_impl(
+    const GraphReadInterface& graph, const MSVertexColumn& input,
+    const std::vector<LabelTriplet>& labels, Direction dir);
+
 template <typename EDATA_T, typename PRED_T>
 inline std::pair<std::shared_ptr<IContextColumn>, std::vector<size_t>>
 expand_edge_ep_se(const GraphReadInterface& graph, const SLVertexColumn& input,

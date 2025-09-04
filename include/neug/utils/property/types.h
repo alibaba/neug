@@ -1643,6 +1643,21 @@ inline ostream& operator<<(ostream& os, const gs::Date& dt) {
   return os;
 }
 
+inline ostream& operator<<(ostream& os, const gs::DateTime& dt) {
+  os << dt.to_string();
+  return os;
+}
+
+inline ostream& operator<<(ostream& os, const gs::Interval& interval) {
+  os << interval.to_string();
+  return os;
+}
+
+inline ostream& operator<<(ostream& os, const gs::TimeStamp& ts) {
+  os << ts.to_string();
+  return os;
+}
+
 inline ostream& operator<<(ostream& os, gs::PropertyType pt) {
   if (pt == gs::PropertyType::Bool()) {
     os << "bool";

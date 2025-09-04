@@ -543,53 +543,104 @@ gs::result<Context> EdgeExpand::expand_vertex_without_predicate(
   VertexColumnType input_vertex_list_type =
       input_vertex_list->vertex_column_type();
   if (input_vertex_list_type == VertexColumnType::kSingle) {
-    auto casted_input_vertex_list =
-        std::dynamic_pointer_cast<SLVertexColumn>(input_vertex_list);
-    if (input_vertex_list->is_optional()) {
+    // optional edge expand
+    if (params.is_optional) {
+      auto casted_input_vertex_list =
+          std::dynamic_pointer_cast<SLVertexColumn>(input_vertex_list);
       auto pair = expand_vertex_without_predicate_optional_impl(
           graph, *casted_input_vertex_list, params.labels, params.dir);
       ctx.set_with_reshuffle(params.alias, pair.first, pair.second);
       return ctx;
     } else {
-      // optional edge expand
-      if (params.is_optional) {
-        auto pair = expand_vertex_without_predicate_optional_impl(
-            graph, *casted_input_vertex_list, params.labels, params.dir);
-        ctx.set_with_reshuffle(params.alias, pair.first, pair.second);
-        return ctx;
-      } else {
-        auto pair = expand_vertex_without_predicate_impl(
-            graph, *casted_input_vertex_list, params.labels, params.dir);
-        ctx.set_with_reshuffle(params.alias, pair.first, pair.second);
-        return ctx;
+      if (input_vertex_list->is_optional()) {
+        MSVertexColumnBuilder builder(
+            *input_vertex_list->get_labels_set().begin());
+        std::vector<size_t> shuffle_offset;
+        for (size_t i = 0; i < input_vertex_list->size(); i++) {
+          if (!input_vertex_list->has_value(i)) {
+            continue;
+          }
+          builder.push_back_vertex(input_vertex_list->get_vertex(i));
+          shuffle_offset.push_back(i);
+        }
+        ctx.remove(params.v_tag);
+        ctx.reshuffle(shuffle_offset);
+        ctx.set(params.v_tag, builder.finish());
+        input_vertex_list =
+            std::dynamic_pointer_cast<IVertexColumn>(ctx.get(params.v_tag));
       }
-    }
-  } else if (input_vertex_list_type == VertexColumnType::kMultiple) {
-    auto casted_input_vertex_list =
-        std::dynamic_pointer_cast<MLVertexColumn>(input_vertex_list);
-
-    if (input_vertex_list->is_optional() || params.is_optional) {
-      auto pair = expand_vertex_without_predicate_optional_impl(
+      auto casted_input_vertex_list =
+          std::dynamic_pointer_cast<SLVertexColumn>(input_vertex_list);
+      auto pair = expand_vertex_without_predicate_impl(
           graph, *casted_input_vertex_list, params.labels, params.dir);
       ctx.set_with_reshuffle(params.alias, pair.first, pair.second);
       return ctx;
     }
-    auto pair = expand_vertex_without_predicate_impl(
-        graph, *casted_input_vertex_list, params.labels, params.dir);
-    ctx.set_with_reshuffle(params.alias, pair.first, pair.second);
-    return ctx;
-  } else if (input_vertex_list_type == VertexColumnType::kMultiSegment) {
-    if (input_vertex_list->is_optional() || params.is_optional) {
-      LOG(ERROR) << "not support optional vertex column as input currently";
-      RETURN_UNSUPPORTED_ERROR(
-          "not support optional vertex column as input currently");
+  } else if (input_vertex_list_type == VertexColumnType::kMultiple) {
+    if (params.is_optional) {
+      auto casted_input_vertex_list =
+          std::dynamic_pointer_cast<MLVertexColumn>(input_vertex_list);
+      auto pair = expand_vertex_without_predicate_optional_impl(
+          graph, *casted_input_vertex_list, params.labels, params.dir);
+      ctx.set_with_reshuffle(params.alias, pair.first, pair.second);
+      return ctx;
+    } else {
+      if (input_vertex_list->is_optional()) {
+        MLVertexColumnBuilder builder(input_vertex_list->get_labels_set());
+        std::vector<size_t> shuffle_offset;
+        for (size_t i = 0; i < input_vertex_list->size(); i++) {
+          if (!input_vertex_list->has_value(i)) {
+            continue;
+          }
+          builder.push_back_vertex(input_vertex_list->get_vertex(i));
+          shuffle_offset.push_back(i);
+        }
+        ctx.remove(params.v_tag);
+        ctx.reshuffle(shuffle_offset);
+        ctx.set(params.v_tag, builder.finish());
+        input_vertex_list =
+            std::dynamic_pointer_cast<IVertexColumn>(ctx.get(params.v_tag));
+      }
+
+      auto casted_input_vertex_list =
+          std::dynamic_pointer_cast<MLVertexColumn>(input_vertex_list);
+      auto pair = expand_vertex_without_predicate_impl(
+          graph, *casted_input_vertex_list, params.labels, params.dir);
+      ctx.set_with_reshuffle(params.alias, pair.first, pair.second);
+      return ctx;
     }
-    auto casted_input_vertex_list =
-        std::dynamic_pointer_cast<MSVertexColumn>(input_vertex_list);
-    auto pair = expand_vertex_without_predicate_impl(
-        graph, *casted_input_vertex_list, params.labels, params.dir);
-    ctx.set_with_reshuffle(params.alias, pair.first, pair.second);
-    return ctx;
+  } else if (input_vertex_list_type == VertexColumnType::kMultiSegment) {
+    if (params.is_optional) {
+      auto casted_input_vertex_list =
+          std::dynamic_pointer_cast<MSVertexColumn>(input_vertex_list);
+      auto pair = expand_vertex_without_predicate_optional_impl(
+          graph, *casted_input_vertex_list, params.labels, params.dir);
+      ctx.set_with_reshuffle(params.alias, pair.first, pair.second);
+      return ctx;
+    } else {
+      if (input_vertex_list->is_optional()) {
+        MSVertexColumnBuilder builder;
+        std::vector<size_t> shuffle_offset;
+        for (size_t i = 0; i < input_vertex_list->size(); i++) {
+          if (!input_vertex_list->has_value(i)) {
+            continue;
+          }
+          builder.push_back_vertex(input_vertex_list->get_vertex(i));
+          shuffle_offset.push_back(i);
+        }
+        ctx.remove(params.v_tag);
+        ctx.reshuffle(shuffle_offset);
+        ctx.set(params.v_tag, builder.finish());
+        input_vertex_list =
+            std::dynamic_pointer_cast<IVertexColumn>(ctx.get(params.v_tag));
+      }
+      auto casted_input_vertex_list =
+          std::dynamic_pointer_cast<MSVertexColumn>(input_vertex_list);
+      auto pair = expand_vertex_without_predicate_impl(
+          graph, *casted_input_vertex_list, params.labels, params.dir);
+      ctx.set_with_reshuffle(params.alias, pair.first, pair.second);
+      return ctx;
+    }
   } else {
     LOG(ERROR) << "not support vertex column type "
                << static_cast<int>(input_vertex_list_type);

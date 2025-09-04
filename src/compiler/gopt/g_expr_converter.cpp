@@ -148,10 +148,7 @@ std::unique_ptr<::physical::GroupBy_AggFunc> GExprConverter::convertAggFunc(
     const planner::LogicalOperator& child) {
   auto aggFuncPB = std::make_unique<::physical::GroupBy_AggFunc>();
   auto exprVec = expr.getChildren();
-  if (exprVec.empty()) {
-    aggFuncPB->mutable_vars()->AddAllocated(
-        convertDefaultVar().release());  // default variable for COUNT(*)
-  } else {
+  if (!exprVec.empty()) {
     // todo: set agg function name
     // set vars in agg func
     for (auto expr : exprVec) {
@@ -160,6 +157,7 @@ std::unique_ptr<::physical::GroupBy_AggFunc> GExprConverter::convertAggFunc(
       *varPB = std::move(*(exprPB->mutable_operators(0)->mutable_var()));
     }
   }
+  // For count(*), we use empty vars to represent '*'
   aggFuncPB->set_aggregate(convertAggregate(expr.getFunction()));
   return aggFuncPB;
 }
