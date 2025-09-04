@@ -150,7 +150,7 @@ def test_create_schema_float_types(tmp_path):
     db.close()
 
 
-@pytest.mark.skip(reason="complex types are not supported yet")
+# `List` and `Map` are not supported yet
 def test_create_schema_complex_types(tmp_path):
     db_dir = tmp_path / "schema_types"
     shutil.rmtree(db_dir, ignore_errors=True)
@@ -158,8 +158,8 @@ def test_create_schema_complex_types(tmp_path):
     db = Database(db_path=str(db_dir), mode="w")
     conn = db.connect()
     conn.execute(
-        "CREATE NODE TABLE Type (p1 INT32, p8 Date, p9 DateTime, p10 Interval, "
-        "p11 List, p12 Map, PRIMARY KEY (p1));"
+        "CREATE NODE TABLE Type (p1 INT32, p8 Date, p9 Timestamp, p10 Interval, "
+        "PRIMARY KEY (p1));"
     )
     conn.close()
     db.close()
@@ -209,7 +209,7 @@ def test_insert_basic_type_check(tmp_path):
     db.close()
 
 
-@pytest.mark.skip(reason="not all types supported yet")
+@pytest.mark.skip(reason="https://github.com/GraphScope/neug/issues/792")
 def test_insert_type_check(tmp_path):
     db_dir = tmp_path / "insert_type"
     shutil.rmtree(db_dir, ignore_errors=True)
@@ -217,16 +217,16 @@ def test_insert_type_check(tmp_path):
     db = Database(db_path=str(db_dir), mode="w")
     conn = db.connect()
     conn.execute(
-        "CREATE NODE TABLE T("
+        "CREATE NODE TABLE T ("
         "id INT32, i64 INT64, u32 UINT32, u64 UINT64, "
-        "f FLOAT, d DOUBLE, s STRING, dt Date, dttm DateTime, ivl Interval, "
-        "l List, m Map, PRIMARY KEY(id));"
+        "f FLOAT, d DOUBLE, s STRING, dt Date, tms Timestamp, ivl Interval, "
+        "PRIMARY KEY(id));"
     )
     # data insert
     conn.execute(
         "CREATE (t:T {id: 1, i64: 1234567890123, u32: 123, u64: 456, f: 1.23, d: 4.56, "
-        "s: 'abc', dt: date('2023-01-01'), dttm: datetime('2023-01-01T12:00:00'), "
-        "ivl: interval('1 year'), l: [1,2], m: {'k':1}});"
+        "s: 'abc', dt: date('2023-01-01'), tms: Timestamp('2023-01-01 12:00:00'), "
+        "ivl: interval('1 year')});"
     )
     # INT32 invalid
     with pytest.raises(Exception) as excinfo:
@@ -350,7 +350,7 @@ def test_create_rel_table(tmp_path):
     db.close()
 
 
-@pytest.mark.skip(reason="not supported yet")
+@pytest.mark.skip(reason="https://github.com/GraphScope/neug/issues/790")
 def test_create_rel_table_with_multiple_relationships(tmp_path):
     db_dir = tmp_path / "create_rel_multiple"
     shutil.rmtree(db_dir, ignore_errors=True)

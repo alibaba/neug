@@ -234,7 +234,7 @@ def test_open_no_permission(tmp_path):
 
 
 # DB-001-13
-@pytest.mark.skip(reason="To mock the version mismatch correctly")
+@pytest.mark.skip(reason="https://github.com/GraphScope/neug/issues/788")
 def test_open_version_mismatch(tmp_path):
     db_dir = tmp_path / "ver_db"
     db_dir.mkdir()
@@ -270,7 +270,7 @@ def test_open_dir_not_exist(tmp_path):
 
 
 # DB-001-15
-@pytest.mark.skip(reason="TODO: mock disk space exhausted correctly")
+@pytest.mark.skip(reason="planned in stress test issues #524")
 def test_disk_space_exhausted(monkeypatch, tmp_path):
     db_dir = tmp_path / "no_space_db"
     db_dir.mkdir()
@@ -287,7 +287,7 @@ def test_disk_space_exhausted(monkeypatch, tmp_path):
 
 
 # DB-001-16
-@pytest.mark.skip(reason="Core dump. No file corruption check implemented yet")
+@pytest.mark.skip(reason="https://github.com/GraphScope/neug/issues/794")
 def test_file_header_corruption(tmp_path):
     db_dir = tmp_path / "corrupt_db"
     db_dir.mkdir()

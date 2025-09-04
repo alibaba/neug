@@ -154,7 +154,7 @@ def test_remote_connection_broken(started_server):
 
 
 # DB-002-10
-@pytest.mark.skip(reason="commit is not supported")
+@pytest.mark.skip(reason="Not Planned Yet")
 def test_tx_not_commit_connection_broken(started_server):
     db, endpoint = started_server
     from neug.session import Session
@@ -179,7 +179,7 @@ def test_tx_not_commit_connection_broken(started_server):
 
 
 # DB-002-11
-@pytest.mark.skip(reason="Not supported in current version")
+@pytest.mark.skip(reason="planned in stress test issues #524")
 def test_server_load_overflow(started_server):
     db, endpoint = started_server
     from neug.session import Session
@@ -260,7 +260,7 @@ def test_server_restart(started_server):
 
 
 # DB-002-14
-@pytest.mark.skip(reason="num_threads is not supported")
+@pytest.mark.skip(reason="planned in stress test issues #524")
 def test_connection_pool_exhausted(started_server):
     db, endpoint = started_server
     from neug.session import Session

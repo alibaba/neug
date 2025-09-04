@@ -91,7 +91,6 @@ def started_server(tmp_path, unused_tcp_port):
 
 
 # DB-004-04
-# @pytest.mark.skip(reason="Session not supported yet")
 def test_tp_read_concurrent(started_server):
     db, endpoint = started_server
     from neug.session import Session
@@ -112,7 +111,6 @@ def test_tp_read_concurrent(started_server):
 
 
 # DB-004-05
-# @pytest.mark.skip(reason="Session not supported yet")
 def test_tp_write_concurrent(started_server):
     db, endpoint = started_server
     from neug.session import Session
@@ -133,7 +131,6 @@ def test_tp_write_concurrent(started_server):
 
 
 # DB-004-06
-# @pytest.mark.skip(reason="Session not supported yet")
 def test_tp_read_write_concurrent(started_server):
     db, endpoint = started_server
     from neug.session import Session
@@ -153,7 +150,6 @@ def test_tp_read_write_concurrent(started_server):
 
 
 # DB-004-07
-# @pytest.mark.skip(reason="not supported yet")
 def test_auto_transaction_management(tmp_path):
     db_dir = tmp_path / "auto_tx_mgmt"
     db = Database(db_path=str(db_dir), mode="w")
@@ -201,7 +197,7 @@ def test_auto_transaction_management(tmp_path):
 
 
 # DB-004-08
-@pytest.mark.skip(reason="not supported yet")
+@pytest.mark.skip(reason="BEGIN TRANSACTION is not planned yet")
 def test_manual_transaction_management(tmp_path):
     db_dir = tmp_path / "manual_tx_mgmt"
     db_dir.mkdir()
@@ -263,7 +259,7 @@ def test_manual_transaction_management(tmp_path):
 
 
 # DB-004-09
-@pytest.mark.skip(reason="not supported yet")
+@pytest.mark.skip(reason="BEGIN TRANSACTION is not planned yet")
 def test_readonly_transaction_write(tmp_path):
     db_dir = tmp_path / "readonly_tx_write"
     db_dir.mkdir()
@@ -279,7 +275,7 @@ def test_readonly_transaction_write(tmp_path):
 
 
 # DB-004-11
-@pytest.mark.skip(reason="not supported yet")
+@pytest.mark.skip(reason="BEGIN TRANSACTION is not planned yet")
 def test_nested_transaction(tmp_path):
     db_dir = tmp_path / "nested_tx"
     db_dir.mkdir()
@@ -294,7 +290,7 @@ def test_nested_transaction(tmp_path):
 
 
 # DB-004-12
-@pytest.mark.skip(reason="not supported yet")
+@pytest.mark.skip(reason="BEGIN TRANSACTION is not planned yet")
 def test_transaction_timeout(tmp_path):
     db_dir = tmp_path / "tx_timeout"
     db_dir.mkdir()
@@ -312,7 +308,7 @@ def test_transaction_timeout(tmp_path):
 
 
 # DB-004-13
-@pytest.mark.skip(reason="not supported yet")
+@pytest.mark.skip(reason="BEGIN TRANSACTION is not planned yet")
 def test_commit_after_rollback(tmp_path):
     db_dir = tmp_path / "commit_after_rollback"
     db_dir.mkdir()
@@ -327,7 +323,7 @@ def test_commit_after_rollback(tmp_path):
 
 
 # DB-004-14
-@pytest.mark.skip(reason="not supported yet")
+@pytest.mark.skip(reason="BEGIN TRANSACTION is not planned yet")
 def test_crash_recovery(tmp_path):
     db_dir = tmp_path / "crash_recovery"
     db_dir.mkdir()
