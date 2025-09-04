@@ -1542,6 +1542,35 @@ def test_dummy_scan():
     db.close()
 
 
+def test_nested_tuple():
+    db_dir = "/tmp/modern_graph"
+    db = Database(db_path=db_dir, mode="r")
+    conn = db.connect()
+    result = conn.execute("Match (n {name: 'marko'}) Return [[n.name, n.age], n.id]")
+    for record in result:
+        assert record[0] == [
+            ["marko", 29],
+            1,
+        ], f"Expected value '[['marko', 29], 1]', got {record[0]}"
+    conn.close()
+    db.close()
+
+
+def test_null_value_tuple():
+    db_dir = "/tmp/modern_graph"
+    db = Database(db_path=db_dir, mode="r")
+    conn = db.connect()
+    # todo: property value of `age` is null, engine will fail if the tuple contains null value
+    result = conn.execute("Match (n {name: 'lop'}) Return [n.name, n.age]")
+    for record in result:
+        assert record[0] == [
+            "lop",
+            None,
+        ], f"Expected value '['lop', None]', got {record[0]}"
+    conn.close()
+    db.close()
+
+
 # test START_NODE and END_NODE
 # todo(engine): Engine Abort
 # def test_start_end_node():

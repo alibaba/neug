@@ -512,7 +512,9 @@ bool isLiteralOrVariable(const binder::Expression& expr) {
          expr.expressionType == common::ExpressionType::PROPERTY;
 }
 
-std::unique_ptr<::common::Expression> GExprConverter::convertStringFunc(const binder::Expression& expr, const std::vector<std::string>& schemaAlias) {
+std::unique_ptr<::common::Expression> GExprConverter::convertStringFunc(
+    const binder::Expression& expr,
+    const std::vector<std::string>& schemaAlias) {
   if (expr.getChildren().size() != 1) {
     THROW_INTERNAL_EXCEPTION("string function should have exactly one child");
   }
@@ -594,8 +596,7 @@ std::unique_ptr<::common::Expression> GExprConverter::convertStringFunc(const bi
   }
 
   default:
-    THROW_INTERNAL_EXCEPTION("Unsupported string function " +
-                                   expr.toString());
+    THROW_INTERNAL_EXCEPTION("Unsupported string function " + expr.toString());
   }
 
   auto typePB = typeConverter.convertLogicalType(expr.getDataType(), expr);
@@ -610,14 +611,6 @@ std::unique_ptr<::common::Expression> GExprConverter::convertToTupleFunc(
     THROW_EXCEPTION_WITH_FILE_LINE(
         "Array function should have at least one child");
   }
-  for (auto child : expr.getChildren()) {
-    if (!isLiteralOrVariable(*child)) {
-      THROW_EXCEPTION_WITH_FILE_LINE(
-          "Array Function can only support literal or variable as children, "
-          "but is " +
-          expr.toString());
-    }
-  }
   auto tuplePB = std::make_unique<::common::ToTuple>();
   for (auto child : expr.getChildren()) {
     auto exprPB = convert(*child, schemaAlias);
@@ -625,17 +618,8 @@ std::unique_ptr<::common::Expression> GExprConverter::convertToTupleFunc(
       THROW_EXCEPTION_WITH_FILE_LINE(
           "convert child of array function failed, empty expression");
     }
-    auto oprPB = exprPB->operators(0);
     auto fieldPB = tuplePB->add_fields();
-    if (oprPB.has_const_()) {
-      fieldPB->set_allocated_value(oprPB.release_const_());
-    } else if (oprPB.has_var()) {
-      fieldPB->set_allocated_var(oprPB.release_var());
-    } else {
-      THROW_EXCEPTION_WITH_FILE_LINE(
-          "convert child of array function failed, invalid expression type " +
-          oprPB.item_case());
-    }
+    *fieldPB = std::move(*exprPB);
   }
   auto exprPB = std::make_unique<::common::Expression>();
   exprPB->add_operators()->set_allocated_to_tuple(tuplePB.release());

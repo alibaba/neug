@@ -160,15 +160,8 @@ message VariableKeys {
   repeated Variable keys = 1;
 }
 
-message CompositeField {
-  oneof field {
-    common.Value value = 1;
-    Variable var = 2;
-  }
-}
-
 message ToTuple {
-  repeated CompositeField fields = 1;
+  repeated Expression fields = 1;
 }
 
 message VariableKeyValue {

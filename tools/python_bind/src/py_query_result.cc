@@ -194,15 +194,15 @@ pybind11::object element_to_pyobject(const results::Element& element) {
   }
 }
 
+pybind11::object entry_to_pyobject(const results::Entry* entry);
+
 pybind11::object collection_to_pyobject(const results::Collection& collection) {
   pybind11::list list;
-  for (const auto& element : collection.collection()) {
-    list.append(element_to_pyobject(element));
+  for (const auto& entry : collection.collection()) {
+    list.append(entry_to_pyobject(&entry));
   }
   return list;
 }
-
-pybind11::object entry_to_pyobject(const results::Entry* entry);
 
 pybind11::object map_to_pyobject(const results::KeyValues& map) {
   pybind11::dict dict;

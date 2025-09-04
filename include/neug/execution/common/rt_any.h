@@ -692,6 +692,14 @@ class RTAny {
   template <typename GraphInterface>
   void sink(const GraphInterface& graph, int id, results::Column* column) const;
 
+  // convert RTAny value to element PB value
+  template <typename GraphInterface>
+  bool sink_element(const GraphInterface& graph, results::Element* element);
+
+  // convert RTAny value to entry PB value
+  template <typename GraphInterface>
+  void sink_entry(const GraphInterface& graph, results::Entry* entry) const;
+
   template <typename GraphInterface>
   void sink(const GraphInterface& graph, Encoder& encoder) const {
     if (type_ == RTAnyType::kList) {

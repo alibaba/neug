@@ -62,7 +62,8 @@ message Element {
 }
 
 message Collection {
-  repeated Element collection = 1;
+  // the composite field can be element, collection or map
+  repeated Entry collection = 1;
 }
 
 message KeyValues {

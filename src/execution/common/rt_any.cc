@@ -16,8 +16,12 @@
 #include "neug/execution/common/rt_any.h"
 
 #include <arrow/type.h>
+#include <glog/logging.h>
+#include <cstdint>
 #include <stdexcept>
+#include <string>
 
+#include "neug/generated/proto/plan/results.pb.h"
 #include "neug/storages/graph/schema.h"
 #include "neug/utils/app_utils.h"
 
@@ -1709,61 +1713,34 @@ template void RTAny::sink(const GraphUpdateInterface& graph,
                           Encoder& encoder) const;
 
 template <typename GraphInterface>
-void RTAny::sink(const GraphInterface& graph, int id,
-                 results::Column* col) const {
-  col->mutable_name_or_id()->set_id(id);
+void RTAny::sink_entry(const GraphInterface& graph,
+                       results::Entry* entry) const {
   if (type_ == RTAnyType::kList) {
-    auto collection = col->mutable_entry()->mutable_collection();
-    if (value_.list.elem_type() == RTAnyType::kVertex) {
-      auto ele = collection->add_collection()->mutable_vertex();
-      for (size_t i = 0; i < value_.list.size(); ++i) {
-        auto val = value_.list.get(i);
-        sink_vertex(graph, val.as_vertex(), ele);
-      }
-    } else if (value_.list.elem_type() == RTAnyType::kRelation) {
-      auto ele = collection->add_collection()->mutable_edge();
-      for (size_t i = 0; i < value_.list.size(); ++i) {
-        auto val = value_.list.get(i).as_relation();
-        auto label = val.label;
-        auto src = val.src;
-        auto dst = val.dst;
-        ele->mutable_src_label()->set_name(
-            graph.schema().get_vertex_label_name(label.src_label));
-        ele->mutable_dst_label()->set_name(
-            graph.schema().get_vertex_label_name(label.dst_label));
-        auto edge_label = generate_edge_label_id(
-            label.src_label, label.dst_label, label.edge_label);
-        ele->mutable_label()->set_name(
-            graph.schema().get_edge_label_name(label.edge_label));
-        ele->set_src_id(encode_unique_vertex_id(label.src_label, src));
-        ele->set_dst_id(encode_unique_vertex_id(label.dst_label, dst));
-        ele->set_id(encode_unique_edge_id(edge_label, src, dst));
-      }
-
-    } else {
-      for (size_t i = 0; i < value_.list.size(); ++i) {
-        value_.list.get(i).sink_impl(
-            collection->add_collection()->mutable_object());
-      }
-    }
-  } else if (type_ == RTAnyType::kSet) {
-    auto collection = col->mutable_entry()->mutable_collection();
-    for (auto& val : value_.set.values()) {
-      val.sink_impl(collection->add_collection()->mutable_object());
+    auto collection = entry->mutable_collection();
+    for (size_t i = 0; i < value_.list.size(); ++i) {
+      auto val = value_.list.get(i);
+      // convert each element in the list to the target entry by recursive
+      // invocation
+      val.sink_entry(graph, collection->add_collection());
     }
   } else if (type_ == RTAnyType::kTuple) {
-    auto collection = col->mutable_entry()->mutable_collection();
+    auto collection = entry->mutable_collection();
     for (size_t i = 0; i < value_.t.size(); ++i) {
-      value_.t.get(i).sink_impl(collection->add_collection()->mutable_object());
+      auto val = value_.t.get(i);
+      val.sink_entry(graph, collection->add_collection());
+    }
+  } else if (type_ == RTAnyType::kSet) {
+    auto collection = entry->mutable_collection();
+    for (auto& val : value_.set.values()) {
+      val.sink_entry(graph, collection->add_collection());
     }
   } else if (type_ == RTAnyType::kVertex) {
-    auto ele = col->mutable_entry()->mutable_element();
+    auto ele = entry->mutable_element();
     if (!sink_vertex(graph, value_.vertex, ele->mutable_vertex())) {
       ele->mutable_object()->mutable_none();
     }
-
   } else if (type_ == RTAnyType::kMap) {
-    auto mp = col->mutable_entry()->mutable_map();
+    auto mp = entry->mutable_map();
     auto [keys_ptr, vals_ptr] = value_.map.key_vals();
     auto& keys = keys_ptr;
     auto& vals = vals_ptr;
@@ -1783,13 +1760,29 @@ void RTAny::sink(const GraphInterface& graph, int id,
             ret->mutable_value()->mutable_element()->mutable_object());
       }
     }
+  } else if (type_ == RTAnyType::kRelation) {
+    auto ele = entry->mutable_element()->mutable_edge();
+
+    auto val = value_.relation;
+    auto label = val.label;
+    auto src = val.src;
+    auto dst = val.dst;
+    ele->mutable_src_label()->set_name(
+        graph.schema().get_vertex_label_name(label.src_label));
+    ele->mutable_dst_label()->set_name(
+        graph.schema().get_vertex_label_name(label.dst_label));
+    auto edge_label = generate_edge_label_id(label.src_label, label.dst_label,
+                                             label.edge_label);
+    ele->mutable_label()->set_name(
+        graph.schema().get_edge_label_name(label.edge_label));
+    ele->set_src_id(encode_unique_vertex_id(label.src_label, src));
+    ele->set_dst_id(encode_unique_vertex_id(label.dst_label, dst));
+    ele->set_id(encode_unique_edge_id(edge_label, src, dst));
 
   } else if (type_ == RTAnyType::kEdge) {
-    sink_edge(graph, value_.edge,
-              col->mutable_entry()->mutable_element()->mutable_edge());
+    sink_edge(graph, value_.edge, entry->mutable_element()->mutable_edge());
   } else if (type_ == RTAnyType::kPath) {
-    auto mutable_path =
-        col->mutable_entry()->mutable_element()->mutable_graph_path();
+    auto mutable_path = entry->mutable_element()->mutable_graph_path();
     auto path_nodes = this->as_path().nodes();
     auto edge_labels = this->as_path().edge_labels();
     // same label for all edges
@@ -1833,8 +1826,15 @@ void RTAny::sink(const GraphInterface& graph, int id,
     node->set_id(encode_unique_vertex_id(path_nodes[len - 1].label(),
                                          path_nodes[len - 1].vid()));
   } else {
-    sink_impl(col->mutable_entry()->mutable_element()->mutable_object());
+    sink_impl(entry->mutable_element()->mutable_object());
   }
+}
+
+template <typename GraphInterface>
+void RTAny::sink(const GraphInterface& graph, int id,
+                 results::Column* col) const {
+  col->mutable_name_or_id()->set_id(id);
+  sink_entry(graph, col->mutable_entry());
 }
 
 template void RTAny::sink(const GraphReadInterface& graph, int id,

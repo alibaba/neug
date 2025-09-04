@@ -653,6 +653,9 @@ class TypedTupleExpr : public ExprBase {
   template <std::size_t... Is>
   std::tuple<Args...> eval_path_impl(std::index_sequence<Is...>, size_t idx,
                                      Arena& arena) const {
+    // TODO: The `to_typed` function will fail if the evaluated value of any
+    // input is null. For example, `TypedConverter<int32_t>::to_typed`
+    // requires its input value to be non-null.
     return std::make_tuple(
         TypedConverter<Args>::to_typed(exprs_[Is]->eval_path(idx, arena))...);
   }
