@@ -52,24 +52,40 @@
            "to_tuple": {
             "fields": [
              {
-              "value": {
-               "u32": 3
-              }
+              "operators": [
+               {
+                "const": {
+                 "u32": 3
+                }
+               }
+              ]
              },
              {
-              "value": {
-               "f64": 2
-              }
+              "operators": [
+               {
+                "const": {
+                 "f64": 2
+                }
+               }
+              ]
              },
              {
-              "value": {
-               "i64": "4"
-              }
+              "operators": [
+               {
+                "const": {
+                 "i64": "4"
+                }
+               }
+              ]
              },
              {
-              "value": {
-               "str": "name"
-              }
+              "operators": [
+               {
+                "const": {
+                 "str": "name"
+                }
+               }
+              ]
              }
             ]
            }

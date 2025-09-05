@@ -52,63 +52,98 @@
            "to_tuple": {
             "fields": [
              {
-              "var": {
-               "tag": {
-                "id": 0
-               },
-               "property": {
-                "key": {
-                 "name": "gender"
-                }
-               },
-               "node_type": {
-                "data_type": {
-                 "primitive_type": "DT_SIGNED_INT32"
+              "operators": [
+               {
+                "var": {
+                 "tag": {
+                  "id": 0
+                 },
+                 "property": {
+                  "key": {
+                   "name": "gender"
+                  }
+                 },
+                 "node_type": {
+                  "data_type": {
+                   "primitive_type": "DT_SIGNED_INT32"
+                  }
+                 }
+                },
+                "node_type": {
+                 "data_type": {
+                  "primitive_type": "DT_SIGNED_INT32"
+                 }
                 }
                }
-              }
+              ]
              },
              {
-              "var": {
-               "tag": {
-                "id": 0
-               },
-               "property": {
-                "key": {
-                 "name": "fName"
-                }
-               },
-               "node_type": {
-                "data_type": {
-                 "string": {
-                  "var_char": {
-                   "max_length": 65536
+              "operators": [
+               {
+                "var": {
+                 "tag": {
+                  "id": 0
+                 },
+                 "property": {
+                  "key": {
+                   "name": "fName"
+                  }
+                 },
+                 "node_type": {
+                  "data_type": {
+                   "string": {
+                    "var_char": {
+                     "max_length": 65536
+                    }
+                   }
+                  }
+                 }
+                },
+                "node_type": {
+                 "data_type": {
+                  "string": {
+                   "var_char": {
+                    "max_length": 65536
+                   }
                   }
                  }
                 }
                }
-              }
+              ]
              },
              {
-              "var": {
-               "tag": {
-                "id": 0
-               },
-               "property": {
-                "key": {
-                 "name": "registerTime"
-                }
-               },
-               "node_type": {
-                "data_type": {
-                 "temporal": {
-                  "date": {
-                   "date_format": "DF_YYYY_MM_DD"
+              "operators": [
+               {
+                "var": {
+                 "tag": {
+                  "id": 0
+                 },
+                 "property": {
+                  "key": {
+                   "name": "registerTime"
+                  }
+                 },
+                 "node_type": {
+                  "data_type": {
+                   "temporal": {
+                    "date": {
+                     "date_format": "DF_YYYY_MM_DD"
+                    }
+                   }
+                  }
+                 }
+                },
+                "node_type": {
+                 "data_type": {
+                  "temporal": {
+                   "date": {
+                    "date_format": "DF_YYYY_MM_DD"
+                   }
                   }
                  }
                 }
                }
-              }
+              ]
              }
             ]
            }

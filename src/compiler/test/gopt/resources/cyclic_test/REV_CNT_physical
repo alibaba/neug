@@ -241,9 +241,7 @@
       "mappings": [],
       "functions": [
        {
-        "vars": [
-         {}
-        ],
+        "vars": [],
         "aggregate": "COUNT",
         "alias": 4
        }

@@ -22,3 +22,6 @@ Return TIMESTAMP('2022-11-12 13:22:17') - INTERVAL('4 minutes 3 hours 2 days'); 
 Return INTERVAL('79 DAYS 32 YEARS') + INTERVAL('20 MILLISECONDS 30 HOURS 20 DAYS') # INTERVAL_PLUS_INTERVAL
 Return TIMESTAMP('2022-11-22 15:12:22') - TIMESTAMP('2011-10-09 13:00:21'); # TIMESTAMP_DIFFER
 Return date('2011-02-01') - date('2011-01-01'); # DATE_DIFFER
+Match (n:person) RETURN [3, 2.0, 4, 'name']; # ARRAY_FUNC_LITERAL
+Match (n:person) RETURN [CAST(3, 'uint32'), 2.0, 4, 'name']; # ARRAY_FUNC_CAST_LITERAL
+Match (n:person) RETURN [n.gender, n.fName, n.registerTime]; # ARRAY_FUNC_VAR
