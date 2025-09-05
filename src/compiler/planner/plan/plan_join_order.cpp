@@ -549,7 +549,7 @@ void Planner::planWCOJoin(
     auto relPos = context.getQueryGraph()->getQueryRelIdx(rel->getUniqueName());
     auto prevSubgraph = context.getEmptySubqueryGraph();
     prevSubgraph.addQueryRel(relPos);
-    prevSubgraphs.push_back(subgraph);
+    prevSubgraphs.push_back(prevSubgraph);
     newSubgraph.addQueryRel(relPos);
     auto relSubgraph = context.getEmptySubqueryGraph();
     relSubgraph.addQueryRel(relPos);

@@ -1571,6 +1571,42 @@ def test_null_value_tuple():
     db.close()
 
 
+def test_starts_with():
+    db_dir = "/tmp/modern_graph"
+    db = Database(db_path=db_dir, mode="r")
+    conn = db.connect()
+    # todo: property value of `age` is null, engine will fail if the tuple contains null value
+    result = conn.execute("Match (n) Where n.name starts with 'mar' Return n.name")
+    for record in result:
+        assert record[0] == "marko", f"Expected value 'marko', got {record[0]}"
+    conn.close()
+    db.close()
+
+
+def test_ends_with():
+    db_dir = "/tmp/modern_graph"
+    db = Database(db_path=db_dir, mode="r")
+    conn = db.connect()
+    # todo: property value of `age` is null, engine will fail if the tuple contains null value
+    result = conn.execute("Match (n) Where n.name ends with 'rko' Return n.name")
+    for record in result:
+        assert record[0] == "marko", f"Expected value 'marko', got {record[0]}"
+    conn.close()
+    db.close()
+
+
+def test_contains():
+    db_dir = "/tmp/modern_graph"
+    db = Database(db_path=db_dir, mode="r")
+    conn = db.connect()
+    # todo: property value of `age` is null, engine will fail if the tuple contains null value
+    result = conn.execute("Match (n) Where n.name contains 'ark' Return n.name")
+    for record in result:
+        assert record[0] == "marko", f"Expected value 'marko', got {record[0]}"
+    conn.close()
+    db.close()
+
+
 # test START_NODE and END_NODE
 # todo(engine): Engine Abort
 # def test_start_end_node():

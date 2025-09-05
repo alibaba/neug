@@ -283,6 +283,40 @@ std::unique_ptr<::common::Value> GExprConverter::convertValue(
   return valuePB;
 }
 
+std::string GExprConverter::convertRegexValue(const std::string& regex,
+                                              const GScalarType& scalarType) {
+  std::string updateRegex;
+  switch (scalarType.getType()) {
+  case ScalarType::STARTS_WITH:
+    return "^" + regex + ".*";
+  case ScalarType::ENDS_WITH:
+    return ".*" + regex + "$";
+  case ScalarType::CONTAINS:
+    return ".*" + regex + ".*";
+  default:
+    THROW_EXCEPTION_WITH_FILE_LINE("Unsupported regex type " +
+                                   scalarType.getType());
+  }
+}
+
+std::unique_ptr<::common::Expression> GExprConverter::convertRegexFunc(
+    const binder::Expression& expr, const GScalarType& scalarType,
+    const std::vector<std::string>& schemaAlias) {
+  if (expr.getNumChildren() != 2) {
+    THROW_EXCEPTION_WITH_FILE_LINE("Regex function should have two children");
+  }
+  auto right = expr.getChild(1);
+  if (right->expressionType != common::ExpressionType::LITERAL) {
+    THROW_EXCEPTION_WITH_FILE_LINE(
+        "Right child of regex function should be a literal");
+  }
+  auto regexValue =
+      right->constPtrCast<binder::LiteralExpression>()->getValue();
+  auto valueRef = regexValue.getValueReference<std::string>();
+  valueRef = convertRegexValue(valueRef, scalarType);
+  return convertChildren(expr, schemaAlias);
+}
+
 std::unique_ptr<::common::Value> GExprConverter::convertToLiteralArray(
     const common::Value& value, const common::LogicalType& childType) {
   if (value.children.empty()) {
@@ -673,6 +707,10 @@ std::unique_ptr<::common::Expression> GExprConverter::convertScalarFunc(
     return convertToTupleFunc(expr, schemaAlias);
   } else if (scalarType.isString()) {
     return convertStringFunc(expr, schemaAlias);
+  } else if (scalarType.getType() == STARTS_WITH ||
+             scalarType.getType() == ENDS_WITH ||
+             scalarType.getType() == CONTAINS) {
+    return convertRegexFunc(expr, scalarType, schemaAlias);
   }
   THROW_EXCEPTION_WITH_FILE_LINE("Unsupported expression type: " +
                                  expr.toString());
@@ -792,6 +830,11 @@ std::unique_ptr<::common::ExprOpr> GExprConverter::convertOperator(
       break;
     case ScalarType::MODULO:
       result->set_arith(::common::Arithmetic::MOD);
+      break;
+    case ScalarType::STARTS_WITH:
+    case ScalarType::ENDS_WITH:
+    case ScalarType::CONTAINS:
+      result->set_logical(::common::Logical::REGEX);
       break;
     default:
       THROW_EXCEPTION_WITH_FILE_LINE("Unsupported scalar function: " +

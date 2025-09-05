@@ -30,6 +30,7 @@
 #include "neug/compiler/common/types/value/value.h"
 #include "neug/compiler/gopt/g_alias_manager.h"
 #include "neug/compiler/gopt/g_precedence.h"
+#include "neug/compiler/gopt/g_scalar_type.h"
 #include "neug/compiler/gopt/g_type_converter.h"
 #include "neug/config.h"
 #ifdef USE_SYSTEM_PROTOBUF
@@ -142,6 +143,11 @@ class GExprConverter {
       size_t paramNum, const std::vector<std::string>& schemaAlias);
   std::unique_ptr<::common::Value> convertToLiteralArray(
       const common::Value& value, const common::LogicalType& childType);
+  std::unique_ptr<::common::Expression> convertRegexFunc(
+      const binder::Expression& expr, const GScalarType& scalarType,
+      const std::vector<std::string>& schemaAlias);
+  std::string convertRegexValue(const std::string& regex,
+                                const GScalarType& scalarType);
 
  private:
   const std::shared_ptr<gopt::GAliasManager> aliasManager;

@@ -50,6 +50,9 @@ enum ScalarType {
   UPPER,
   LOWER,
   REVERSE,
+  STARTS_WITH,
+  ENDS_WITH,
+  CONTAINS,
 };
 
 class GScalarType {
@@ -121,6 +124,12 @@ class GScalarType {
       return ScalarType::LOWER;
     } else if (func.name == function::ReverseFunction::name) {
       return ScalarType::REVERSE;
+    } else if (func.name == function::StartsWithFunction::name) {
+      return ScalarType::STARTS_WITH;
+    } else if (func.name == function::EndsWithFunction::name) {
+      return ScalarType::ENDS_WITH;
+    } else if (func.name == function::ContainsFunction::name) {
+      return ScalarType::CONTAINS;
     }
 
     // todo: support more scalar functions
