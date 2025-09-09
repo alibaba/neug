@@ -114,19 +114,17 @@ void BrpcHttpHandlerManager::Init(const ServiceConfig& config) {
 std::string BrpcHttpHandlerManager::Start() {
   LOG(INFO) << "Starting brpc server";
   butil::EndPoint endpoint;
-  std::string ip_port =
-      std::string("0.0.0.0") + ":" + std::to_string(service_config_.query_port);
-  if (butil::str2endpoint(ip_port.c_str(), &endpoint) != 0) {
-    THROW_RUNTIME_ERROR("Failed to parse endpoint: " + ip_port);
-  }
+  std::string ip_port = service_config_.host_str + ":" +
+                        std::to_string(service_config_.query_port);
   brpc::ServerOptions options = get_server_options();
-  if (brpc_server_->Start(endpoint, &options) != 0) {
+  if (brpc_server_->Start(ip_port.c_str(), &options) != 0) {
     THROW_RUNTIME_ERROR("Failed to start brpc server on " + ip_port);
   }
-  LOG(INFO) << "Brpc server started on : " << butil::my_hostname() << ":"
+  LOG(INFO) << "Brpc server started on : " << service_config_.host_str << ":"
             << service_config_.query_port;
   std::stringstream ss;
-  ss << "http://" << butil::my_hostname() << ":" << service_config_.query_port;
+  ss << "http://" << service_config_.host_str << ":"
+     << service_config_.query_port;
   return ss.str();
 }
 

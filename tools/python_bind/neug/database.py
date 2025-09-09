@@ -163,6 +163,7 @@ class Database(object):
                 f"Must be less than or equal to the number of CPU cores: {os.cpu_count()}."
                 f" Error code: {ERR_INVALID_ARGUMENT}."
             )
+        self._max_thread_num = max_thread_num
 
         if db_path is None and mode in ["r", "read", "read-only", "read_only"]:
             raise ValueError(
@@ -285,7 +286,7 @@ class Database(object):
             return
         self._serving = True
         logger.info(f"Starting database server on {host}:{port}.")
-        return self._database.serve(port, host)
+        return self._database.serve(port, host, self._max_thread_num)
 
     def stop_serving(self):
         """

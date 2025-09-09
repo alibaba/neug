@@ -25,6 +25,9 @@
 #include "py_connection.h"
 #include "py_database.h"
 #include "py_query_result.h"
+#ifdef NEUG_BACKTRACE
+#include <cpptrace/cpptrace.hpp>
+#endif
 
 #define STRINGIFY(x) #x
 #define MACRO_STRINGIFY(x) STRINGIFY(x)

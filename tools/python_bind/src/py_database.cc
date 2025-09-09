@@ -52,6 +52,8 @@ void PyDatabase::initialize(pybind11::handle& m) {
            "Args:\n"
            "    port (int): The port to listen on, default is 10000.\n"
            "    host (str): The host to bind to, default is 'localhost'.\n"
+           "    num_thread (int): The number of threads to use, default is 0, "
+           "which means use all hardware threads.\n"
            "Returns:\n"
            "    uri (str): A string containing the URL of the server.\n")
       .def("stop_serving", &PyDatabase::stop_serving,
@@ -67,7 +69,8 @@ PyConnection PyDatabase::connect() {
   return PyConnection(*database, database->connect());
 }
 
-std::string PyDatabase::serve(int port, const std::string& host) {
+std::string PyDatabase::serve(int port, const std::string& host,
+                              int32_t num_thread) {
   if (!database) {
     THROW_RUNTIME_ERROR("Database is not initialized.");
   }
@@ -78,6 +81,13 @@ std::string PyDatabase::serve(int port, const std::string& host) {
   server::ServiceConfig config;
   config.query_port = port;
   config.host_str = host;
+  config.shard_num = (num_thread == 0) ? std::thread::hardware_concurrency() : num_thread;
+#ifdef __APPLE__
+  if (host == "localhost") {
+    config.host_str = "127.0.0.1";
+  }
+#endif
+
   service_->init(config);
   return service_->Start();
 }
