@@ -50,6 +50,8 @@ DualCsrBase* EdgeTable::create_dual_csr(
       return new DualCsr<DateTime>(oes, ies, oe_mutable, ie_mutable);
     } else if (properties[0] == PropertyType::kTimestamp) {
       return new DualCsr<TimeStamp>(oes, ies, oe_mutable, ie_mutable);
+    } else if (properties[0] == PropertyType::kDateTime) {
+      return new DualCsr<DateTime>(oes, ies, oe_mutable, ie_mutable);
     }
   } else {
     // TODO: fix me, storage strategy not set

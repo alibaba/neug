@@ -1591,6 +1591,8 @@ static void sink_any(const Any& any, common::Value* value) {
     value->set_str(interval_str.data(), interval_str.size());
   } else if (any.type == PropertyType::Float()) {
     value->set_f32(any.AsFloat());
+  } else if (any.type == PropertyType::Timestamp()) {
+    value->mutable_timestamp()->set_item(any.AsTimeStamp().milli_second);
   } else {
     THROW_NOT_SUPPORTED_EXCEPTION("sink_any not support for " +
                                   any.type.ToString() +

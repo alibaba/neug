@@ -1607,6 +1607,27 @@ def test_contains():
     db.close()
 
 
+def test_date_time_to_string():
+    db_dir = "/tmp/ldbc"
+    db = Database(db_path=db_dir, mode="r")
+    conn = db.connect()
+    result = conn.execute(
+        """
+    MATCH (m:POST:COMMENT {id: 1030792332314})
+    RETURN
+        CASE
+            WHEN m.content = ""
+                THEN m.imageFile
+            ELSE m.content END as messageContent,
+        m.creationDate as messageCreationDate
+    """
+    )
+    result = list(result)
+    assert result == [["photo1030792332314.jpg", "2012-07-23 02:25:02.068"]]
+    conn.close()
+    db.close()
+
+
 # test START_NODE and END_NODE
 # todo(engine): Engine Abort
 # def test_start_end_node():

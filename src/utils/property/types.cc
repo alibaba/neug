@@ -813,12 +813,12 @@ DateTime::DateTime(const std::string& date_time_str) {
   date::sys_time<std::chrono::milliseconds> sys_time;
   // Try multiple formats
   try {
-    date::from_stream(ss, "%Y-%m-%d %H:%M:%S", sys_time);
+    date::from_stream(ss, "%Y-%m-%d %H:%M:%S.%f", sys_time);
     if (ss.fail()) {
       // If it fails, try with milliseconds
       ss.clear();
       ss.str(date_time_str);  // Reset the stream
-      date::from_stream(ss, "%Y-%m-%d %H:%M:%S.%f", sys_time);
+      date::from_stream(ss, "%Y-%m-%d %H:%M:%S", sys_time);
       if (ss.fail()) {
         THROW_INVALID_ARGUMENT_EXCEPTION("Invalid date time string format");
       }
@@ -846,8 +846,7 @@ std::string DateTime::to_string() const {
       std::chrono::duration_cast<std::chrono::minutes>(time_of_day - hours);
   auto seconds = std::chrono::duration_cast<std::chrono::seconds>(
       time_of_day - hours - minutes);
-  auto milliseconds = std::chrono::duration_cast<std::chrono::milliseconds>(
-      time_of_day - hours - minutes - seconds);
+  auto milliseconds = std::chrono::milliseconds(milli_second % 1000);
   oss << int(date::year_month_day(ymd).year()) << "-" << std::setw(2)
       << std::setfill('0')
       << static_cast<unsigned>(date::year_month_day(ymd).month()) << "-"
