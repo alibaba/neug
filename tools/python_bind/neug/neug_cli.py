@@ -192,9 +192,7 @@ def connect(uri, user, password, timeout):
 
 
 @cli.command()
-@click.option(
-    "--db-dir", default=None, help="Database directory to connect to (optional)."
-)
+@click.option("--db", default=None, help="Database directory to connect to (optional).")
 @click.option(
     "--host",
     default="127.0.0.1",
@@ -208,18 +206,18 @@ def connect(uri, user, password, timeout):
     help="Port number to bind the web server.",
 )
 @click.option("--debug", is_flag=True, help="Run the web server in debug mode.")
-def ui(db_dir, host, port, debug):
+def ui(db, host, port, debug):
     """Start the Neug Web UI."""
     try:
         from neug.web_ui import start_web_ui
 
-        if db_dir:
-            click.echo(f"Starting Neug Web UI with database: {db_dir}")
+        if db:
+            click.echo(f"Starting Neug Web UI with database: {db}")
         else:
             click.echo("Starting Neug Web UI with in-memory database")
 
         click.echo(f"Web server will be available at: http://{host}:{port}")
-        start_web_ui(db_dir=db_dir, host=host, port=port, debug=debug)
+        start_web_ui(db=db, host=host, port=port, debug=debug)
 
     except ImportError as e:
         click.echo(f"Error: Flask dependencies not installed. {e}")

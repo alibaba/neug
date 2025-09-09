@@ -19,6 +19,7 @@
 import json
 import logging
 import os
+import re
 from pathlib import Path
 
 from flask import Flask
@@ -35,11 +36,11 @@ logger = logging.getLogger("neug")
 
 
 class NeugWebUI:
-    def __init__(self, db_dir=None, host="127.0.0.1", port=5000):
+    def __init__(self, db=None, host="127.0.0.1", port=5000):
         self.app = Flask(__name__)
         CORS(self.app)  # Enable CORS for all routes
 
-        self.db_dir = db_dir
+        self.db = db
         self.host = host
         self.port = port
         self.database = None
@@ -48,7 +49,7 @@ class NeugWebUI:
         # Setup routes
         self._setup_routes()
 
-        # Initialize database connection if db_dir is provided
+        # Initialize database connection if db is provided
         self._init_database()
 
     def _setup_routes(self):
@@ -64,27 +65,45 @@ class NeugWebUI:
         def get_schema():
             return self.session.get_schema()
 
-        # post cypherv2 with string
-        @self.app.route("/cypherv2", methods=["POST"])
+        @self.app.route(
+            "/cypherv2", methods=["POST"]
+        )  # TODO(zhanglei): change cypherv2 to cypher
         def execute_query():
             # Get raw string from request body
             query = request.get_data(as_text=True)
             logger.info(f"Received query: {query}")
-            result = self.session.execute(query)
-            return jsonify({"result": result.to_dict()})
+            try:
+                return self.session.execute(query, "json")
+            except Exception as e:
+                logger.error(f"Error executing query: {e}")
+                return str(e), 500
 
     def _init_database(self):
         """Initialize database connection"""
-        self.database = Database(db_path=self.db_dir, mode="w")
-        endpoint = self.database.serve(port=self.port + 1, host=self.host)
-        logger.info(f"Database server started at {endpoint}")
+        pattern_http = re.compile(r"^http://([a-zA-Z0-9.-_]+):(\d+)$")
+        pattern_plain = re.compile(r"^([a-zA-Z0-9.-_]+):(\d+)$")
+
+        if self.db is None:
+            match_http = match_plain = False
+        else:
+            match_http = pattern_http.fullmatch(self.db)
+            match_plain = pattern_plain.fullmatch(self.db)
+
+        if match_http:
+            endpoint = f"http://{match_http.group(1)}:{match_http.group(2)}/"
+        elif match_plain:
+            endpoint = f"http://{match_plain.group(1)}:{match_plain.group(2)}/"
+        else:
+            self.database = Database(db_path=self.db, mode="w")
+            endpoint = self.database.serve(port=self.port + 1, host=self.host)
+            logger.info(f"Database server started at {endpoint}")
         self.session = Session(endpoint=endpoint)
 
     def run(self, debug=False):
         """Start the Flask development server"""
         logger.info(f"Starting Neug Web UI on http://{self.host}:{self.port}")
-        if self.db_dir:
-            logger.info(f"Connected to database: {self.db_dir}")
+        if self.db:
+            logger.info(f"Connected to database: {self.db}")
         else:
             logger.info(
                 "No database connected. Use the web interface to connect to a database."
@@ -93,9 +112,9 @@ class NeugWebUI:
         self.app.run(host=self.host, port=self.port, debug=debug)
 
 
-def start_web_ui(db_dir=None, host="127.0.0.1", port=5000, debug=False):
+def start_web_ui(db=None, host="127.0.0.1", port=5000, debug=False):
     """Start the Neug Web UI"""
-    web_ui = NeugWebUI(db_dir=db_dir, host=host, port=port)
+    web_ui = NeugWebUI(db=db, host=host, port=port)
     web_ui.run(debug=debug)
 
 

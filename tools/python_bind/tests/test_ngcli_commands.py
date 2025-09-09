@@ -16,15 +16,21 @@
 # limitations under the License.
 #
 
+import ctypes
 import os
 import shutil
 import sys
+import threading
+import time
 
 import pytest
+import requests
 from click.testing import CliRunner
 
 sys.path.append(os.path.join(os.path.dirname(__file__), "../"))
 from neug import neug_cli
+from neug import web_ui
+from neug.database import Database
 
 
 @pytest.fixture
@@ -158,3 +164,55 @@ def test_connect_remote_database_fails_without_uri(runner):
     result = runner.invoke(neug_cli.cli, ["connect"])
     assert result.exit_code != 0
     assert "Error: Missing argument 'URI'." in result.output
+
+
+def test_start_remote_database_neug_ui(runner):
+    db_endpoint = "127.0.0.1:10001"
+    db_path = "/tmp/modern_graph"
+    db = Database(db_path=db_path, mode="w")
+    db.serve(host="127.0.0.1", port=10001)
+    time.sleep(1)
+    thread = threading.Thread(
+        target=runner.invoke, args=(neug_cli.cli, ["ui", "--db", db_endpoint])
+    )
+    thread.start()
+    time.sleep(1)
+    url = "http://127.0.0.1:5000/cypherv2"
+    headers = {"Content-Type": "text/plain"}
+    data = "MATCH (n) RETURN count(n)"
+    response = requests.post(url, headers=headers, data=data)
+    db.stop_serving()
+    db.close()
+
+    if thread.is_alive():
+        tid = thread.ident
+        ctypes.pythonapi.PyThreadState_SetAsyncExc(
+            ctypes.c_long(tid), ctypes.py_object(SystemExit)
+        )
+    thread.join()
+    expected_output = """"_fieldLookup":{"COUNT(_0_n._ID)":0},"_fields":[6],"keys":["COUNT(_0_n._ID)"]"""
+    assert response.status_code == 200
+    assert expected_output in response.text
+
+
+def test_start_local_database_neug_ui(runner):
+    db_path = "/tmp/modern_graph"
+    thread = threading.Thread(
+        target=runner.invoke, args=(neug_cli.cli, ["ui", "--db", db_path])
+    )
+    thread.start()
+    time.sleep(1)
+    url = "http://127.0.0.1:5000/cypherv2"
+    headers = {"Content-Type": "text/plain"}
+    data = "MATCH (n) RETURN count(n)"
+    response = requests.post(url, headers=headers, data=data)
+
+    if thread.is_alive():
+        tid = thread.ident
+        ctypes.pythonapi.PyThreadState_SetAsyncExc(
+            ctypes.c_long(tid), ctypes.py_object(SystemExit)
+        )
+    thread.join()
+    expected_output = """"_fieldLookup":{"COUNT(_0_n._ID)":0},"_fields":[6],"keys":["COUNT(_0_n._ID)"]"""
+    assert response.status_code == 200
+    assert expected_output in response.text

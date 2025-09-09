@@ -13,8 +13,15 @@
  * limitations under the License.
  */
 
+#include <google/protobuf/util/json_util.h>
+#include <rapidjson/document.h>
+#include <rapidjson/prettywriter.h>
+#include <rapidjson/stringbuffer.h>
+#include <rapidjson/writer.h>
 #include <string>
-#include <tuple>  // for tuple
+#include <tuple>
+#include <unordered_map>
+#include <unordered_set>
 #include <vector>
 
 #include "neug/utils/property/types.h"
@@ -22,10 +29,12 @@
 #include "neug/generated/proto/plan/basic_type.pb.h"
 #include "neug/generated/proto/plan/cypher_ddl.pb.h"
 #include "neug/generated/proto/plan/physical.pb.h"
+#include "neug/generated/proto/plan/results.pb.h"
 #else
 #include "neug/utils/proto/plan/basic_type.pb.h"  // for DataType (ptr only)
 #include "neug/utils/proto/plan/cypher_ddl.pb.h"
 #include "neug/utils/proto/plan/physical.pb.h"
+#include "neug/utils/proto/plan/results.pb.h"
 #endif
 #include "neug/utils/result.h"
 
@@ -35,8 +44,22 @@ class Value;
 
 namespace gs {
 
-// Utility functions for parsing and converting Protocol Buffers (protobuf)
-// messages
+std::string proto_to_bolt_response(const results::CollectiveResults& result);
+
+template <typename T>
+std::string proto_to_string(const T& proto) {
+  std::string json_str;
+  google::protobuf::util::JsonPrintOptions options;
+  options.add_whitespace = true;
+  options.always_print_primitive_fields = true;
+  auto status =
+      google::protobuf::util::MessageToJsonString(proto, &json_str, options);
+  if (!status.ok()) {
+    THROW_RUNTIME_ERROR("Failed to convert proto to string: " +
+                        status.ToString());
+  }
+  return json_str;
+}
 
 Any get_default_value(const PropertyType& type);
 

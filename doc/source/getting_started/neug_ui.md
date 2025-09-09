@@ -36,7 +36,16 @@ This will start the web server on `http://127.0.0.1:5000` with an in-memory data
 To connect to an existing database directory:
 
 ```bash
-neug-cli ui --db-dir /path/to/your/database
+neug-cli ui --db /path/to/your/database
+```
+
+### Opening a remote database
+
+To connect to a remote database endpoint
+
+```bash
+neug-cli ui --db http://127.0.0.1:10001
+neug-cli ui --db 127.0.0.1:10001
 ```
 
 ### Custom host and port
@@ -109,10 +118,13 @@ Returns the database schema in JSON format.
 
 #### Query Execution Endpoint
 ```http
-POST /cypherv2
+POST /cypher
 Content-Type: text/plain
 
-MATCH (n) RETURN n LIMIT 10
+{
+    "query": "MATCH (n) RETURN n LIMIT 10",
+    "format": "json"
+}
 ```
 Executes a Cypher query and returns results in JSON format.
 

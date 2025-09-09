@@ -14,15 +14,602 @@
  */
 
 #include "neug/utils/pb_utils.h"
-#include <glog/logging.h>               // for LOG, LogMessage, COMP...
-#include <stdint.h>                     // for uint16_t
-#include <limits>                       // for numeric_limits
-#include <ostream>                      // for operator<<, basic_ost...
+#include <glog/logging.h>
+#include <stdint.h>
+#include <yaml-cpp/yaml.h>
+#include <limits>
+#include <ostream>
+#include <sstream>
 #include <utility>                      // for move, __tuple_element_t
 #include "neug/utils/property/types.h"  // for PropertyType, Any
 #include "neug/utils/result.h"          // for Result, Status, Statu...
 
 namespace gs {
+
+rapidjson::Value convert_properties_to_json(
+    const google::protobuf::RepeatedPtrField<results::Property>& props,
+    rapidjson::Document::AllocatorType& allocator) {
+  rapidjson::Value prop_obj(rapidjson::kObjectType);
+
+  for (const auto& prop : props) {
+    std::string key;
+    if (prop.key().has_name()) {
+      key = prop.key().name();
+    } else {
+      key = std::to_string(prop.key().id());
+    }
+
+    rapidjson::Value key_val(key.c_str(), allocator);
+    rapidjson::Value value_val;
+
+    // Convert common::Value to rapidjson::Value
+    if (prop.value().has_i32()) {
+      value_val.SetInt(prop.value().i32());
+    } else if (prop.value().has_i64()) {
+      value_val.SetInt64(prop.value().i64());
+    } else if (prop.value().has_f64()) {
+      value_val.SetDouble(prop.value().f64());
+    } else if (prop.value().has_str()) {
+      value_val.SetString(prop.value().str().c_str(), allocator);
+    } else if (prop.value().has_boolean()) {
+      value_val.SetBool(prop.value().boolean());
+    } else if (prop.value().has_str_array()) {
+      value_val.SetArray();
+      for (const auto& s : prop.value().str_array().item()) {
+        rapidjson::Value str_val(s.c_str(), allocator);
+        value_val.PushBack(str_val, allocator);
+      }
+    } else if (prop.value().has_i32_array()) {
+      value_val.SetArray();
+      for (const auto& i : prop.value().i32_array().item()) {
+        value_val.PushBack(rapidjson::Value(i), allocator);
+      }
+    } else if (prop.value().has_i64_array()) {
+      value_val.SetArray();
+      for (const auto& i : prop.value().i64_array().item()) {
+        value_val.PushBack(rapidjson::Value(i), allocator);
+      }
+    } else if (prop.value().has_f64_array()) {
+      value_val.SetArray();
+      for (const auto& f : prop.value().f64_array().item()) {
+        value_val.PushBack(rapidjson::Value(f), allocator);
+      }
+    } else {
+      // Default to null for unknown types
+      value_val.SetNull();
+    }
+
+    prop_obj.AddMember(key_val, value_val, allocator);
+  }
+  return prop_obj;
+}
+
+// Helper function to convert vertex to node and add to collections
+void convert_vertex_to_node(const results::Vertex& vertex,
+                            rapidjson::Value& nodes,
+                            std::unordered_set<int64_t>& node_ids,
+                            rapidjson::Document::AllocatorType& allocator) {
+  if (node_ids.find(vertex.id()) == node_ids.end()) {
+    rapidjson::Value node(rapidjson::kObjectType);
+
+    std::string id_str = std::to_string(vertex.id());
+    node.AddMember("id", rapidjson::Value(id_str.c_str(), allocator),
+                   allocator);
+
+    // Convert label
+    std::string label_str;
+    if (vertex.label().has_name()) {
+      label_str = vertex.label().name();
+    } else {
+      label_str = std::to_string(vertex.label().id());
+    }
+    node.AddMember("label", rapidjson::Value(label_str.c_str(), allocator),
+                   allocator);
+
+    rapidjson::Value properties =
+        convert_properties_to_json(vertex.properties(), allocator);
+    node.AddMember("properties", properties, allocator);
+
+    nodes.PushBack(node, allocator);
+    node_ids.insert(vertex.id());
+  }
+}
+
+// Helper function to convert edge and add to collections
+void convert_edge_to_relationship(
+    const results::Edge& edge, rapidjson::Value& edges,
+    std::unordered_set<int64_t>& edge_ids,
+    rapidjson::Document::AllocatorType& allocator) {
+  if (edge_ids.find(edge.id()) == edge_ids.end()) {
+    rapidjson::Value edge_obj(rapidjson::kObjectType);
+
+    std::string id_str = std::to_string(edge.id());
+    edge_obj.AddMember("id", rapidjson::Value(id_str.c_str(), allocator),
+                       allocator);
+
+    // Convert label
+    std::string label_str;
+    if (edge.label().has_name()) {
+      label_str = edge.label().name();
+    } else {
+      label_str = std::to_string(edge.label().id());
+    }
+    edge_obj.AddMember("label", rapidjson::Value(label_str.c_str(), allocator),
+                       allocator);
+
+    std::string src_str = std::to_string(edge.src_id());
+    std::string dst_str = std::to_string(edge.dst_id());
+    edge_obj.AddMember("source", rapidjson::Value(src_str.c_str(), allocator),
+                       allocator);
+    edge_obj.AddMember("target", rapidjson::Value(dst_str.c_str(), allocator),
+                       allocator);
+
+    rapidjson::Value properties =
+        convert_properties_to_json(edge.properties(), allocator);
+    edge_obj.AddMember("properties", properties, allocator);
+
+    edges.PushBack(edge_obj, allocator);
+    edge_ids.insert(edge.id());
+  }
+}
+
+// Helper function to create Neo4j-style vertex record field
+rapidjson::Value create_vertex_record_field(
+    const results::Vertex& vertex,
+    rapidjson::Document::AllocatorType& allocator) {
+  rapidjson::Value field(rapidjson::kObjectType);
+
+  // Identity object
+  rapidjson::Value identity(rapidjson::kObjectType);
+  identity.AddMember("low", rapidjson::Value(static_cast<int64_t>(vertex.id())),
+                     allocator);
+  identity.AddMember("high", rapidjson::Value(0), allocator);
+  field.AddMember("identity", identity, allocator);
+
+  // Labels array
+  rapidjson::Value labels(rapidjson::kArrayType);
+  std::string label_str;
+  if (vertex.label().has_name()) {
+    label_str = vertex.label().name();
+  } else {
+    label_str = std::to_string(vertex.label().id());
+  }
+  labels.PushBack(rapidjson::Value(label_str.c_str(), allocator), allocator);
+  field.AddMember("labels", labels, allocator);
+
+  rapidjson::Value properties =
+      convert_properties_to_json(vertex.properties(), allocator);
+  field.AddMember("properties", properties, allocator);
+
+  std::string element_id = std::to_string(vertex.id());
+  field.AddMember("elementId", rapidjson::Value(element_id.c_str(), allocator),
+                  allocator);
+
+  return field;
+}
+
+// Helper function to create Neo4j-style edge record field
+rapidjson::Value create_edge_record_field(
+    const results::Edge& edge, rapidjson::Document::AllocatorType& allocator) {
+  rapidjson::Value field(rapidjson::kObjectType);
+
+  // Identity object
+  rapidjson::Value identity(rapidjson::kObjectType);
+  identity.AddMember("low", rapidjson::Value(static_cast<int64_t>(edge.id())),
+                     allocator);
+  identity.AddMember("high", rapidjson::Value(0), allocator);
+  field.AddMember("identity", identity, allocator);
+
+  // Type
+  std::string type_str = edge.label().has_name()
+                             ? edge.label().name()
+                             : std::to_string(edge.label().id());
+  field.AddMember("type", rapidjson::Value(type_str.c_str(), allocator),
+                  allocator);
+
+  // Start and end objects
+  rapidjson::Value start(rapidjson::kObjectType);
+  start.AddMember("low", rapidjson::Value(static_cast<int64_t>(edge.src_id())),
+                  allocator);
+  start.AddMember("high", rapidjson::Value(0), allocator);
+  field.AddMember("start", start, allocator);
+
+  rapidjson::Value end(rapidjson::kObjectType);
+  end.AddMember("low", rapidjson::Value(static_cast<int64_t>(edge.dst_id())),
+                allocator);
+  end.AddMember("high", rapidjson::Value(0), allocator);
+  field.AddMember("end", end, allocator);
+
+  rapidjson::Value properties =
+      convert_properties_to_json(edge.properties(), allocator);
+  field.AddMember("properties", properties, allocator);
+
+  std::string element_id = std::to_string(edge.id());
+  field.AddMember("elementId", rapidjson::Value(element_id.c_str(), allocator),
+                  allocator);
+
+  return field;
+}
+
+// Helper function to create Neo4j-style path record field
+rapidjson::Value create_path_record_field(
+    const results::GraphPath& graph_path, rapidjson::Value& nodes,
+    rapidjson::Value& edges, std::unordered_set<int64_t>& node_ids,
+    std::unordered_set<int64_t>& edge_ids,
+    rapidjson::Document::AllocatorType& allocator) {
+  rapidjson::Value path_segments(rapidjson::kArrayType);
+  rapidjson::Value start_node(rapidjson::kNullType);
+  rapidjson::Value end_node(rapidjson::kNullType);
+
+  for (const auto& path_element : graph_path.path()) {
+    if (path_element.has_vertex()) {
+      convert_vertex_to_node(path_element.vertex(), nodes, node_ids, allocator);
+      rapidjson::Value vertex_field =
+          create_vertex_record_field(path_element.vertex(), allocator);
+      path_segments.PushBack(vertex_field, allocator);
+
+      if (start_node.IsNull()) {
+        start_node.CopyFrom(vertex_field, allocator);
+      }
+      end_node.CopyFrom(vertex_field, allocator);
+    } else if (path_element.has_edge()) {
+      convert_edge_to_relationship(path_element.edge(), edges, edge_ids,
+                                   allocator);
+      rapidjson::Value edge_field =
+          create_edge_record_field(path_element.edge(), allocator);
+      path_segments.PushBack(edge_field, allocator);
+    }
+  }
+
+  rapidjson::Value path_field(rapidjson::kObjectType);
+  path_field.AddMember("start", start_node, allocator);
+  path_field.AddMember("end", end_node, allocator);
+  path_field.AddMember("segments", path_segments, allocator);
+  path_field.AddMember("length", rapidjson::Value(graph_path.path_size()),
+                       allocator);
+
+  return path_field;
+}
+
+// Enhanced function to handle property access and primitive values
+rapidjson::Value convert_primitive_value(
+    const ::common::Value& value,
+    rapidjson::Document::AllocatorType& allocator) {
+  rapidjson::Value result;
+
+  if (value.has_i32()) {
+    result.SetInt(value.i32());
+  } else if (value.has_i64()) {
+    result.SetInt64(value.i64());
+  } else if (value.has_f64()) {
+    result.SetDouble(value.f64());
+  } else if (value.has_str()) {
+    result.SetString(value.str().c_str(), allocator);
+  } else if (value.has_boolean()) {
+    result.SetBool(value.boolean());
+  } else if (value.has_str_array()) {
+    result.SetArray();
+    for (const auto& s : value.str_array().item()) {
+      result.PushBack(rapidjson::Value(s.c_str(), allocator), allocator);
+    }
+  } else if (value.has_i32_array()) {
+    result.SetArray();
+    for (const auto& i : value.i32_array().item()) {
+      result.PushBack(rapidjson::Value(i), allocator);
+    }
+  } else if (value.has_i64_array()) {
+    result.SetArray();
+    for (const auto& i : value.i64_array().item()) {
+      result.PushBack(rapidjson::Value(i), allocator);
+    }
+  } else if (value.has_f64_array()) {
+    result.SetArray();
+    for (const auto& f : value.f64_array().item()) {
+      result.PushBack(rapidjson::Value(f), allocator);
+    }
+  } else if (value.has_none()) {
+    result.SetNull();
+  } else {
+    result.SetNull();
+  }
+
+  return result;
+}
+
+// Forward declaration for recursive processing
+rapidjson::Value process_entry_recursive(
+    const results::Entry& entry, rapidjson::Value& nodes,
+    rapidjson::Value& edges, std::unordered_set<int64_t>& node_ids,
+    std::unordered_set<int64_t>& edge_ids,
+    rapidjson::Document::AllocatorType& allocator);
+
+// Helper function to process collections
+rapidjson::Value process_collection(
+    const results::Collection& collection, rapidjson::Value& nodes,
+    rapidjson::Value& edges, std::unordered_set<int64_t>& node_ids,
+    std::unordered_set<int64_t>& edge_ids,
+    rapidjson::Document::AllocatorType& allocator) {
+  rapidjson::Value collection_json(rapidjson::kArrayType);
+  for (const auto& item : collection.collection()) {
+    results::Entry item_entry;
+    item_entry.mutable_element()->CopyFrom(item);
+    rapidjson::Value processed_item = process_entry_recursive(
+        item_entry, nodes, edges, node_ids, edge_ids, allocator);
+    collection_json.PushBack(processed_item, allocator);
+  }
+  return collection_json;
+}
+
+// Helper function to process key-value maps
+rapidjson::Value process_key_values(
+    const results::KeyValues& key_values, rapidjson::Value& nodes,
+    rapidjson::Value& edges, std::unordered_set<int64_t>& node_ids,
+    std::unordered_set<int64_t>& edge_ids,
+    rapidjson::Document::AllocatorType& allocator) {
+  rapidjson::Value map_obj(rapidjson::kObjectType);
+  for (const auto& kv : key_values.key_values()) {
+    std::string key;
+    if (kv.key().has_str()) {
+      key = kv.key().str();
+    } else if (kv.key().has_i64()) {
+      key = std::to_string(kv.key().i64());
+    } else if (kv.key().has_i32()) {
+      key = std::to_string(kv.key().i32());
+    }
+
+    rapidjson::Value key_val(key.c_str(), allocator);
+    rapidjson::Value value_val = process_entry_recursive(
+        kv.value(), nodes, edges, node_ids, edge_ids, allocator);
+    map_obj.AddMember(key_val, value_val, allocator);
+  }
+  return map_obj;
+}
+
+// Enhanced entry processing to better handle property access
+rapidjson::Value process_entry_recursive(
+    const results::Entry& entry, rapidjson::Value& nodes,
+    rapidjson::Value& edges, std::unordered_set<int64_t>& node_ids,
+    std::unordered_set<int64_t>& edge_ids,
+    rapidjson::Document::AllocatorType& allocator) {
+  if (entry.has_element()) {
+    const auto& element = entry.element();
+    if (element.has_vertex()) {
+      // For full vertex returns (like RETURN n), add to nodes collection
+      convert_vertex_to_node(element.vertex(), nodes, node_ids, allocator);
+      return create_vertex_record_field(element.vertex(), allocator);
+    } else if (element.has_edge()) {
+      // For full edge returns (like RETURN r), add to edges collection
+      convert_edge_to_relationship(element.edge(), edges, edge_ids, allocator);
+      return create_edge_record_field(element.edge(), allocator);
+    } else if (element.has_graph_path()) {
+      return create_path_record_field(element.graph_path(), nodes, edges,
+                                      node_ids, edge_ids, allocator);
+    } else if (element.has_object()) {
+      // This handles property access like n.id, n.name - these are primitive
+      // values
+      return convert_primitive_value(element.object(), allocator);
+    }
+  } else if (entry.has_collection()) {
+    return process_collection(entry.collection(), nodes, edges, node_ids,
+                              edge_ids, allocator);
+  } else if (entry.has_map()) {
+    return process_key_values(entry.map(), nodes, edges, node_ids, edge_ids,
+                              allocator);
+  }
+
+  rapidjson::Value null_val;
+  null_val.SetNull();
+  return null_val;
+}
+
+// Helper function to create Neo4j-style summary
+rapidjson::Value create_bolt_summary(
+    const std::string& query_text,
+    rapidjson::Document::AllocatorType& allocator) {
+  rapidjson::Value summary(rapidjson::kObjectType);
+
+  // Query object
+  rapidjson::Value query(rapidjson::kObjectType);
+  query.AddMember("text", rapidjson::Value(query_text.c_str(), allocator),
+                  allocator);
+  query.AddMember("parameters", rapidjson::Value(rapidjson::kObjectType),
+                  allocator);
+  summary.AddMember("query", query, allocator);
+
+  summary.AddMember("queryType", rapidjson::Value("r", allocator), allocator);
+
+  // Add counters (all zeros for read queries)
+  rapidjson::Value counters(rapidjson::kObjectType);
+  rapidjson::Value stats(rapidjson::kObjectType);
+  stats.AddMember("nodesCreated", rapidjson::Value(0), allocator);
+  stats.AddMember("nodesDeleted", rapidjson::Value(0), allocator);
+  stats.AddMember("relationshipsCreated", rapidjson::Value(0), allocator);
+  stats.AddMember("relationshipsDeleted", rapidjson::Value(0), allocator);
+  stats.AddMember("propertiesSet", rapidjson::Value(0), allocator);
+  stats.AddMember("labelsAdded", rapidjson::Value(0), allocator);
+  stats.AddMember("labelsRemoved", rapidjson::Value(0), allocator);
+  stats.AddMember("indexesAdded", rapidjson::Value(0), allocator);
+  stats.AddMember("indexesRemoved", rapidjson::Value(0), allocator);
+  stats.AddMember("constraintsAdded", rapidjson::Value(0), allocator);
+  stats.AddMember("constraintsRemoved", rapidjson::Value(0), allocator);
+  counters.AddMember("_stats", stats, allocator);
+  counters.AddMember("_systemUpdates", rapidjson::Value(0), allocator);
+
+  summary.AddMember("counters", counters, allocator);
+  summary.AddMember("updateStatistics", rapidjson::Value(counters, allocator),
+                    allocator);
+  summary.AddMember("plan", rapidjson::Value(false), allocator);
+  summary.AddMember("profile", rapidjson::Value(false), allocator);
+  summary.AddMember("notifications", rapidjson::Value(rapidjson::kArrayType),
+                    allocator);
+
+  // Add status information
+  rapidjson::Value status(rapidjson::kObjectType);
+  status.AddMember("gqlStatus", rapidjson::Value("00000", allocator),
+                   allocator);
+  status.AddMember("statusDescription",
+                   rapidjson::Value("note: successful completion", allocator),
+                   allocator);
+
+  rapidjson::Value diagnostic(rapidjson::kObjectType);
+  diagnostic.AddMember("OPERATION", rapidjson::Value("", allocator), allocator);
+  diagnostic.AddMember("OPERATION_CODE", rapidjson::Value("0", allocator),
+                       allocator);
+  diagnostic.AddMember("CURRENT_SCHEMA", rapidjson::Value("/", allocator),
+                       allocator);
+  status.AddMember("diagnosticRecord", diagnostic, allocator);
+
+  status.AddMember("severity", rapidjson::Value("UNKNOWN", allocator),
+                   allocator);
+  status.AddMember("classification", rapidjson::Value("UNKNOWN", allocator),
+                   allocator);
+  status.AddMember("isNotification", rapidjson::Value(false), allocator);
+
+  rapidjson::Value gql_status_objects(rapidjson::kArrayType);
+  gql_status_objects.PushBack(status, allocator);
+  summary.AddMember("gqlStatusObjects", gql_status_objects, allocator);
+
+  // Add server info
+  rapidjson::Value server(rapidjson::kObjectType);
+  server.AddMember("address", rapidjson::Value("127.0.0.1:7687", allocator),
+                   allocator);
+  server.AddMember("agent", rapidjson::Value("GraphScope/1.0.0", allocator),
+                   allocator);
+  server.AddMember("protocolVersion", rapidjson::Value(4.4), allocator);
+  summary.AddMember("server", server, allocator);
+
+  // Add timing info
+  rapidjson::Value result_consumed(rapidjson::kObjectType);
+  result_consumed.AddMember("low", rapidjson::Value(27), allocator);
+  result_consumed.AddMember("high", rapidjson::Value(0), allocator);
+  summary.AddMember("resultConsumedAfter", result_consumed, allocator);
+
+  rapidjson::Value result_available(rapidjson::kObjectType);
+  result_available.AddMember("low", rapidjson::Value(70), allocator);
+  result_available.AddMember("high", rapidjson::Value(0), allocator);
+  summary.AddMember("resultAvailableAfter", result_available, allocator);
+
+  // Add database info
+  rapidjson::Value database(rapidjson::kObjectType);
+  database.AddMember("name", rapidjson::Value("graphscope", allocator),
+                     allocator);
+  summary.AddMember("database", database, allocator);
+
+  return summary;
+}
+
+// Helper function to parse result schema and extract column names
+std::vector<std::string> parse_result_schema_column_names(
+    const std::string& result_schema) {
+  std::vector<std::string> column_names;
+
+  if (result_schema.empty()) {
+    return column_names;
+  }
+
+  try {
+    YAML::Node schema = YAML::Load(result_schema);
+
+    if (schema["returns"] && schema["returns"].IsSequence()) {
+      for (const auto& return_item : schema["returns"]) {
+        if (return_item["name"] && return_item["name"].IsScalar()) {
+          column_names.push_back(return_item["name"].as<std::string>());
+        }
+      }
+    }
+  } catch (const YAML::Exception& e) {
+    LOG(WARNING) << "Failed to parse result schema YAML: " << e.what()
+                 << ", falling back to default column names";
+    // Return empty vector to indicate parsing failure
+    column_names.clear();
+  }
+
+  return column_names;
+}
+
+std::string proto_to_bolt_response(const results::CollectiveResults& result) {
+  rapidjson::Document response;
+  response.SetObject();
+  auto& allocator = response.GetAllocator();
+
+  rapidjson::Value nodes(rapidjson::kArrayType);
+  rapidjson::Value edges(rapidjson::kArrayType);
+  rapidjson::Value records(rapidjson::kArrayType);
+
+  // Track unique nodes and edges to avoid duplicates
+  std::unordered_set<int64_t> node_ids;
+  std::unordered_set<int64_t> edge_ids;
+
+  // Parse column names from result schema
+  std::vector<std::string> schema_column_names =
+      parse_result_schema_column_names(result.result_schema());
+
+  // Process all results and build records
+  for (const auto& res : result.results()) {
+    if (res.has_record()) {
+      rapidjson::Value record(rapidjson::kObjectType);
+      rapidjson::Value keys(rapidjson::kArrayType);
+      rapidjson::Value fields(rapidjson::kArrayType);
+      rapidjson::Value field_lookup(rapidjson::kObjectType);
+
+      uint64_t field_index = 0;
+      for (const auto& column : res.record().columns()) {
+        std::string column_name;
+
+        // Use schema column name if available, otherwise fall back to column
+        // name/id
+        if (field_index < schema_column_names.size() &&
+            !schema_column_names[field_index].empty()) {
+          column_name = schema_column_names[field_index];
+        } else {
+          // Fallback to original logic
+          if (column.name_or_id().has_name()) {
+            column_name = column.name_or_id().name();
+          } else {
+            column_name = std::to_string(column.name_or_id().id());
+          }
+        }
+
+        keys.PushBack(rapidjson::Value(column_name.c_str(), allocator),
+                      allocator);
+        rapidjson::Value field_value = process_entry_recursive(
+            column.entry(), nodes, edges, node_ids, edge_ids, allocator);
+        fields.PushBack(field_value, allocator);
+        field_lookup.AddMember(rapidjson::Value(column_name.c_str(), allocator),
+                               rapidjson::Value(field_index++), allocator);
+      }
+
+      record.AddMember("keys", keys, allocator);
+      record.AddMember("length",
+                       rapidjson::Value(static_cast<int>(fields.Size())),
+                       allocator);
+      record.AddMember("_fields", fields, allocator);
+      record.AddMember("_fieldLookup", field_lookup, allocator);
+
+      records.PushBack(record, allocator);
+    }
+  }
+
+  // Build the complete response
+  response.AddMember("nodes", nodes, allocator);
+  response.AddMember("edges", edges, allocator);
+
+  // Build raw section (Neo4j Bolt format)
+  rapidjson::Value raw(rapidjson::kObjectType);
+  raw.AddMember("records", records, allocator);
+  raw.AddMember("summary", create_bolt_summary("", allocator), allocator);
+
+  response.AddMember("raw", raw, allocator);
+  response.AddMember("table", rapidjson::Value(rapidjson::kArrayType),
+                     allocator);
+
+  // Convert to string with pretty formatting
+  rapidjson::StringBuffer buffer;
+  rapidjson::PrettyWriter<rapidjson::StringBuffer> writer(buffer);
+  response.Accept(writer);
+
+  return buffer.GetString();
+}
 
 Any get_default_value(const PropertyType& type) {
   Any default_value;

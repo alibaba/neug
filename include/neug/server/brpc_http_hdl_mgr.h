@@ -18,6 +18,7 @@
 
 #include <brpc/server.h>
 #include <json2pb/pb_to_json.h>
+#include <rapidjson/document.h>
 #include <memory>
 #include <string_view>
 #include "neug/compiler/planner/graph_planner.h"
@@ -62,104 +63,16 @@ class HttpServiceImpl : public HttpService {
     brpc::ClosureGuard done_guard(done);
     brpc::Controller* cntl = static_cast<brpc::Controller*>(cntl_base);
 
-    int* id_ptr = (int*) pthread_getspecific(thread_id_key);
-#ifdef __GLIBC__
-    if (__glibc_unlikely(!id_ptr)) {
-#else
-    if (!id_ptr) {
-#endif
-      id_ptr = new int;
-      *id_ptr = thread_id_key_count.fetch_add(1);
-      pthread_setspecific(thread_id_key, id_ptr);
-    }
-    int id = *id_ptr;
-
-    cntl->http_response().set_content_type("text/plain");
-    cntl->http_response().set_status_code(brpc::HTTP_STATUS_OK);
-    auto req = cntl->request_attachment().to_string();
-    if (req.empty()) {
-      LOG(ERROR) << "Eval request is empty";
-      cntl->SetFailed(brpc::HTTP_STATUS_BAD_REQUEST, "%s",
-                      "Eval request is empty");
+    std::string final_res_str;
+    if (!do_cypher_query(cntl, request, final_res_str)) {
       return;
     }
-    if (!planner_) {
-      LOG(ERROR) << "Planner is not set";
-      cntl->SetFailed(brpc::HTTP_STATUS_INTERNAL_SERVER_ERROR, "%s",
-                      "Planner is not set");
-      return;
-    }
-    gs::Status status;
-    auto plan_res = planner_->compilePlan(req);
-
-    if (!plan_res.ok()) {
-      LOG(ERROR) << "Plan compilation failed: "
-                 << plan_res.status().error_message();
-      const char* error_msg = plan_res.status().error_message().c_str();
-      cntl->SetFailed(status_code_to_http_code(plan_res.status().error_code()),
-                      "%s", error_msg);
-      cntl->response_attachment().append(plan_res.status().error_message());
-      return;
-    }
-    const auto& physical_plan = plan_res.value().first;
-
-    VLOG(10) << "got plan, size" << physical_plan.ByteSizeLong() << ", "
-             << physical_plan.DebugString();
-    std::string plan_proto_str;
-    physical_plan.SerializeToString(&plan_proto_str);
-    bool update_schema = false, update_statistics = false;
-    if (!append_plugin_id(physical_plan, plan_proto_str, update_schema,
-                          update_statistics)) {
-      cntl->SetFailed(
-          status_code_to_http_code(gs::StatusCode::ERR_NOT_SUPPORTED), "%s",
-          "Unsupported plan type, only query and DDL plans are supported");
-      return;
-    }
-
-    auto result = graph_db_.GetSession(id).Eval(plan_proto_str);
-    const auto& result_buffer = result.value();
-    // TODO(zhanglei): Remove encoder/decoder in de/serialization.
-    gs::Decoder decoder(result_buffer.data(), result_buffer.size());
-    if (!result.ok()) {
-      LOG(ERROR) << "Eval failed: " << result.status().error_message();
-      const char* error_msg = result.status().error_message().c_str();
-      cntl->SetFailed(status_code_to_http_code(result.status().error_code()),
-                      "%s", error_msg);
-      cntl->response_attachment().append(result.status().error_message());
-      return;
-    }
-
-    VLOG(10) << "Query executed successfully, updating planner's schema and "
-                "statistics";
-    auto yaml_node = graph_db_.schema().to_yaml();
-    if (!yaml_node.ok()) {
-      LOG(ERROR) << "Failed to convert schema to YAML: "
-                 << yaml_node.status().error_message();
-      // If schema updating fails, we should not proceed on.
-      THROW_RUNTIME_ERROR("Failed to convert schema to YAML: " +
-                          yaml_node.status().error_message());
-    }
-    if (update_schema) {
-      planner_->update_meta(yaml_node.value());
-    }
-    if (update_statistics) {
-      planner_->update_statistics(graph_db_.graph().get_statistics_json());
-    }
-
-    std::string_view actual_res = decoder.get_bytes();
-    LOG(INFO) << "Actual response size: " << actual_res.size();
-    {
-      // TODO(zhanglei): Currently we append the result_schema to the parsed
-      // collectiveResults. This introduces additional cost. We need to avoid
-      // unnecessary serialization and deserialization
-      results::CollectiveResults final_res;
-      final_res.ParseFromArray(actual_res.data(), actual_res.size());
-      final_res.set_result_schema(plan_res.value().second);
-      auto final_res_str = final_res.SerializeAsString();
-      cntl->response_attachment().append(final_res_str.data(),
-                                         final_res_str.size());
-      LOG(INFO) << "Eval success: " << final_res_str.size() << " bytes";
-    }
+    // TODO(zhanglei): Currently we append the result_schema to the parsed
+    // collectiveResults. This introduces additional cost. We need to avoid
+    // unnecessary serialization and deserialization
+    cntl->response_attachment().append(final_res_str.data(),
+                                       final_res_str.size());
+    LOG(INFO) << "Eval success: " << final_res_str.size() << " bytes";
   }
 
   void ServiceStatus(google::protobuf::RpcController* cntl_base,
@@ -207,6 +120,123 @@ class HttpServiceImpl : public HttpService {
   }
 
  private:
+  bool do_cypher_query(brpc::Controller* cntl, const HttpRequest* request,
+                       std::string& final_res_str) {
+    int* id_ptr = (int*) pthread_getspecific(thread_id_key);
+#ifdef __GLIBC__
+    if (__glibc_unlikely(!id_ptr)) {
+#else
+    if (!id_ptr) {
+#endif
+      id_ptr = new int;
+      *id_ptr = thread_id_key_count.fetch_add(1);
+      pthread_setspecific(thread_id_key, id_ptr);
+    }
+    int id = *id_ptr;
+    results::CollectiveResults final_res;
+
+    cntl->http_response().set_content_type("text/plain");
+    cntl->http_response().set_status_code(brpc::HTTP_STATUS_OK);
+    auto req = cntl->request_attachment().to_string();
+    if (req.empty()) {
+      LOG(ERROR) << "Eval request is empty";
+      cntl->SetFailed(brpc::HTTP_STATUS_BAD_REQUEST, "%s",
+                      "Eval request is empty");
+      return false;
+    }
+    if (!planner_) {
+      LOG(ERROR) << "Planner is not set";
+      cntl->SetFailed(brpc::HTTP_STATUS_INTERNAL_SERVER_ERROR, "%s",
+                      "Planner is not set");
+      return false;
+    }
+    rapidjson::Document document;
+    document.Parse(req.c_str(), req.size());
+    if (document.HasParseError()) {
+      LOG(ERROR) << "The format of eval request is incorrect.";
+      return false;
+    }
+    std::string query;
+    std::string format = "proto";
+    if (document.HasMember("query") && document["query"].IsString()) {
+      query = document["query"].GetString();
+    }
+
+    if (document.HasMember("format") && document["format"].IsString()) {
+      format = document["format"].GetString();
+    }
+
+    gs::Status status;
+    auto plan_res = planner_->compilePlan(query);
+
+    if (!plan_res.ok()) {
+      LOG(ERROR) << "Plan compilation failed: "
+                 << plan_res.status().error_message();
+      const char* error_msg = plan_res.status().error_message().c_str();
+      cntl->SetFailed(status_code_to_http_code(plan_res.status().error_code()),
+                      "%s", error_msg);
+      cntl->response_attachment().append(plan_res.status().error_message());
+      return false;
+    }
+    const auto& physical_plan = plan_res.value().first;
+
+    VLOG(10) << "got plan: " << physical_plan.DebugString();
+    std::string plan_proto_str;
+    physical_plan.SerializeToString(&plan_proto_str);
+    bool update_schema = false, update_statistics = false;
+    if (!append_plugin_id(physical_plan, plan_proto_str, update_schema,
+                          update_statistics)) {
+      cntl->SetFailed(
+          status_code_to_http_code(gs::StatusCode::ERR_NOT_SUPPORTED), "%s",
+          "Unsupported plan type, only query and DDL plans are supported");
+      return false;
+    }
+
+    auto result = graph_db_.GetSession(id).Eval(plan_proto_str);
+    const auto& result_buffer = result.value();
+    // TODO(zhanglei): Remove encoder/decoder in de/serialization.
+    gs::Decoder decoder(result_buffer.data(), result_buffer.size());
+    if (!result.ok()) {
+      LOG(ERROR) << "Eval failed: " << result.status().error_message();
+      const char* error_msg = result.status().error_message().c_str();
+      cntl->SetFailed(status_code_to_http_code(result.status().error_code()),
+                      "%s", error_msg);
+      cntl->response_attachment().append(result.status().error_message());
+      return false;
+    }
+
+    VLOG(10) << "Query executed successfully, updating planner's schema and "
+                "statistics";
+    auto yaml_node = graph_db_.schema().to_yaml();
+    if (!yaml_node.ok()) {
+      LOG(ERROR) << "Failed to convert schema to YAML: "
+                 << yaml_node.status().error_message();
+      // If schema updating fails, we should not proceed on.
+      THROW_RUNTIME_ERROR("Failed to convert schema to YAML: " +
+                          yaml_node.status().error_message());
+    }
+    if (update_schema) {
+      planner_->update_meta(yaml_node.value());
+    }
+    if (update_statistics) {
+      planner_->update_statistics(graph_db_.graph().get_statistics_json());
+    }
+
+    std::string_view actual_res = decoder.get_bytes();
+    LOG(INFO) << "Actual response size: " << actual_res.size();
+    final_res.ParseFromArray(actual_res.data(), actual_res.size());
+    final_res.set_result_schema(plan_res.value().second);
+    if (format == "proto") {
+      final_res_str = final_res.SerializeAsString();
+    } else if (format == "json") {
+      final_res_str = gs::proto_to_bolt_response(final_res);
+    } else {
+      LOG(ERROR) << "Unknown output format: " << format;
+      return false;
+    }
+    return true;
+  }
+
   gs::NeugDB& graph_db_;
   std::shared_ptr<gs::IGraphPlanner> planner_;
   pthread_key_t thread_id_key;

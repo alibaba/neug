@@ -6,7 +6,7 @@ NeuG is a HTAP graph database designed for high-performance graph analytics and 
 
 ### Supported Operating Systems
 - **Linux**: Ubuntu 13.10+, Debian 8+, Fedora 19+, RHEL 7+
-- **macOS**: macOS 11.0+ (Big Sur and later)
+- **macOS**: macOS 10.15+ (Catalina and later)
 
 ### Supported Architectures
 - **x86_64** (Intel/AMD 64-bit)
