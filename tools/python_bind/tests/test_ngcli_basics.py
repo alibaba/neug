@@ -17,6 +17,7 @@
 #
 
 import os
+import shutil
 import sys
 
 import pytest
@@ -29,6 +30,7 @@ from neug.database import Database
 
 def test_shell_do_help(capsys, tmp_path):
     db_path = tmp_path / "test_shell_help_db"
+    shutil.rmtree(db_path, ignore_errors=True)
     database = Database(db_path=str(db_path), mode="r")
     connection = database.connect()
     shell = neug_cli.NeugShell(connection)
@@ -48,6 +50,7 @@ def test_shell_do_help(capsys, tmp_path):
 
 def test_shell_do_quit(capsys, tmp_path):
     db_path = tmp_path / "test_shell_quit_db"
+    shutil.rmtree(db_path, ignore_errors=True)
     database = Database(db_path=str(db_path), mode="r")
     connection = database.connect()
     shell = neug_cli.NeugShell(connection)
@@ -81,6 +84,8 @@ def test_shell_do_max_rows(capsys):
 | {_ID: 72057594037927937, _LABEL: software, id: 5, name: ripple, lang: java} |
 +-----------------------------------------------------------------------------+
     """
+    print("OKKKKKKKKKKk")
+    print(captured.out.strip())
     assert expected_output.strip() in captured.out.strip()
     # Set max_rows to 1
     shell.default(":max_rows 1")
@@ -98,10 +103,12 @@ def test_shell_do_max_rows(capsys):
 +-------------------------------------------------------+
     """
     connection.close()
+    database.close()
 
 
 def test_shell_do_max_rows_invalid(capsys, tmp_path):
     db_path = tmp_path / "test_shell_max_rows_invalid_db"
+    shutil.rmtree(db_path, ignore_errors=True)
     database = Database(db_path=str(db_path), mode="r")
     connection = database.connect()
     shell = neug_cli.NeugShell(connection)
@@ -172,6 +179,7 @@ def test_shell_do_query_multiline(capsys):
 
 def test_shell_do_query_in_write_mode(capsys, tmp_path):
     db_path = tmp_path / "test_shell_query_write_db"
+    shutil.rmtree(db_path, ignore_errors=True)
     database = Database(db_path=str(db_path), mode="rw")
     connection = database.connect()
     shell = neug_cli.NeugShell(connection)

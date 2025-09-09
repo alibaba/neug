@@ -17,6 +17,7 @@
 #
 
 import os
+import shutil
 import sys
 
 import pytest
@@ -70,6 +71,7 @@ Options:
 
 def test_open_local_database(monkeypatch, runner, tmp_path):
     db_path = tmp_path / "test_open_local_db"
+    shutil.rmtree(db_path, ignore_errors=True)
     # mock cmdloop to avoid entering the shell loop
     monkeypatch.setattr(neug_cli.NeugShell, "cmdloop", lambda self: None)
     result = runner.invoke(neug_cli.cli, ["open", str(db_path)])
@@ -79,6 +81,7 @@ def test_open_local_database(monkeypatch, runner, tmp_path):
 
 def test_open_local_database_readonly(monkeypatch, runner, tmp_path):
     db_path = tmp_path / "test_open_local_db_readonly"
+    shutil.rmtree(db_path, ignore_errors=True)
     # mock cmdloop to avoid entering the shell loop
     monkeypatch.setattr(neug_cli.NeugShell, "cmdloop", lambda self: None)
     result1 = runner.invoke(neug_cli.cli, ["open", str(db_path), "--readonly"])
