@@ -31,6 +31,9 @@ RTAny Expr::eval_vertex(label_t label, vid_t v, size_t idx,
 }
 RTAny Expr::eval_edge(const LabelTriplet& label, vid_t src, vid_t dst,
                       const Any& data, size_t idx, Arena& arena) const {
+  if (!expr_) {
+    THROW_RUNTIME_ERROR("Expr is null");
+  }
   return expr_->eval_edge(label, src, dst, data, idx, arena);
 }
 

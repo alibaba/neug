@@ -19,6 +19,7 @@
 #include <tuple>
 #include <vector>
 
+#include "neug/execution/common/columns/edge_columns.h"
 #include "neug/execution/common/context.h"
 #include "neug/execution/utils/params.h"
 #include "neug/utils/leaf_utils.h"
@@ -29,15 +30,22 @@ namespace gs {
 namespace runtime {
 class Context;
 
+void get_labels(
+    const EdgeExpandParams& eep, const GraphReadInterface& graph,
+    std::vector<std::vector<std::pair<LabelTriplet, PropertyType>>>& labels);
+
 class Intersect {
  public:
-  template <typename PRED_LEFT, typename PRED_RIGHT>
+  template <typename PRED_LEFT, typename PRED_RIGHT, typename PRED_E_LEFT,
+            typename PRED_E_RIGHT>
   static gs::result<gs::runtime::Context> Binary_Intersect_SL_Impl(
       const gs::runtime::GraphReadInterface& graph,
       const std::map<std::string, std::string>& params,
       gs::runtime::Context&& ctx, const PRED_LEFT& left_pred,
-      const PRED_RIGHT& right_pred, const EdgeExpandParams& eep0,
-      const EdgeExpandParams& eep1, int alias) {
+      const PRED_RIGHT& right_pred, const PRED_E_LEFT& left_e_pred,
+      const PRED_E_RIGHT& right_e_pred, const EdgeExpandParams& eep0,
+      const EdgeExpandParams& eep1, int alias,
+      const std::vector<int>& edge_alias) {
     const auto& vertex_col0 =
         dynamic_cast<const IVertexColumn*>(ctx.get(eep0.v_tag).get());
     const auto& vertex_col1 =
@@ -52,8 +60,27 @@ class Intersect {
                                               : eep0.labels[0].src_label);
     MSVertexColumnBuilder builder(label);
     std::vector<size_t> offsets;
+
+    bool keep_edges = !edge_alias.empty();
+    std::vector<std::vector<std::pair<LabelTriplet, PropertyType>>> labels;
+    std::vector<BDSLEdgeColumnBuilder> edge_builders;
+
+    if (keep_edges) {
+      labels.reserve(2);
+      edge_builders.reserve(2);
+      get_labels(eep0, graph, labels);
+      CHECK(labels.back().size() == 1) << "Expect only one label triplet";
+      edge_builders.emplace_back(BDSLEdgeColumnBuilder::builder(
+          labels.back()[0].first, labels.back()[0].second));
+      get_labels(eep1, graph, labels);
+      CHECK(labels.back().size() == 1) << "Expect only one label triplet";
+      edge_builders.emplace_back(BDSLEdgeColumnBuilder::builder(
+          labels.back()[0].first, labels.back()[0].second));
+    }
+
     for (size_t i = 0; i < row_num; ++i) {
-      phmap::flat_hash_set<vid_t> vertex_set;
+      using value_t = std::tuple<vid_t, vid_t, Any, Direction>;
+      phmap::flat_hash_map<vid_t, std::vector<value_t>> vertex_set;
 
       auto v0 = vertex_col0->get_vertex(i);
       if (eep0.dir == Direction::kOut || eep0.dir == Direction::kBoth) {
@@ -61,8 +88,17 @@ class Intersect {
                                              eep0.labels[0].dst_label,
                                              eep0.labels[0].edge_label);
         while (iter.IsValid()) {
-          if (left_pred(iter.GetNeighborLabel(), iter.GetNeighbor(), i)) {
-            vertex_set.emplace(iter.GetNeighbor());
+          label_t label = iter.GetNeighborLabel();
+          vid_t vid = iter.GetNeighbor();
+          if (left_e_pred(eep0.labels[0], v0.vid_, vid, iter.GetData(),
+                          Direction::kOut, i)) {
+            if (left_pred(label, vid, i)) {
+              if (vertex_set.find(vid) == vertex_set.end()) {
+                vertex_set.emplace(vid, std::vector<value_t>());
+              }
+              vertex_set[vid].emplace_back(v0.vid_, vid, iter.GetData(),
+                                           Direction::kOut);
+            }
           }
           iter.Next();
         }
@@ -72,8 +108,17 @@ class Intersect {
                                             eep0.labels[0].src_label,
                                             eep0.labels[0].edge_label);
         while (iter.IsValid()) {
-          if (left_pred(iter.GetNeighborLabel(), iter.GetNeighbor(), i)) {
-            vertex_set.emplace(iter.GetNeighbor());
+          label_t label = iter.GetNeighborLabel();
+          vid_t vid = iter.GetNeighbor();
+          if (left_e_pred(eep0.labels[0], vid, v0.vid_, iter.GetData(),
+                          Direction::kIn, i)) {
+            if (left_pred(label, vid, i)) {
+              if (vertex_set.find(vid) == vertex_set.end()) {
+                vertex_set.emplace(vid, std::vector<value_t>());
+              }
+              vertex_set[vid].emplace_back(vid, v0.vid_, iter.GetData(),
+                                           Direction::kIn);
+            }
           }
           iter.Next();
         }
@@ -85,10 +130,27 @@ class Intersect {
                                              eep1.labels[0].dst_label,
                                              eep1.labels[0].edge_label);
         while (iter.IsValid()) {
-          if (vertex_set.find(iter.GetNeighbor()) != vertex_set.end() &&
-              right_pred(iter.GetNeighborLabel(), iter.GetNeighbor(), i)) {
-            builder.push_back_opt(iter.GetNeighbor());
-            offsets.emplace_back(i);
+          label_t label = iter.GetNeighborLabel();
+          vid_t vid = iter.GetNeighbor();
+          if (left_e_pred(eep1.labels[0], v1.vid_, vid, iter.GetData(),
+                          Direction::kOut, i)) {
+            if (vertex_set.find(vid) != vertex_set.end() &&
+                right_pred(label, vid, i)) {
+              const auto& edges = vertex_set[vid];
+              for (const auto& edge : edges) {
+                builder.push_back_opt(vid);
+                if (keep_edges) {
+                  std::apply(
+                      [&](const auto&... args) {
+                        edge_builders[0].push_back_opt(args...);
+                      },
+                      edge);
+                  edge_builders[1].push_back_opt(v1.vid_, vid, iter.GetData(),
+                                                 Direction::kOut);
+                }
+                offsets.emplace_back(i);
+              }
+            }
           }
           iter.Next();
         }
@@ -98,10 +160,27 @@ class Intersect {
                                             eep1.labels[0].src_label,
                                             eep1.labels[0].edge_label);
         while (iter.IsValid()) {
-          if (vertex_set.find(iter.GetNeighbor()) != vertex_set.end() &&
-              right_pred(iter.GetNeighborLabel(), iter.GetNeighbor(), i)) {
-            builder.push_back_opt(iter.GetNeighbor());
-            offsets.emplace_back(i);
+          label_t label = iter.GetNeighborLabel();
+          vid_t vid = iter.GetNeighbor();
+          if (right_e_pred(eep1.labels[0], vid, v1.vid_, iter.GetData(),
+                           Direction::kIn, i)) {
+            if (vertex_set.find(vid) != vertex_set.end() &&
+                right_pred(label, vid, i)) {
+              const auto& edges = vertex_set[vid];
+              for (const auto& edge : edges) {
+                builder.push_back_opt(vid);
+                if (keep_edges) {
+                  std::apply(
+                      [&](const auto&... args) {
+                        edge_builders[0].push_back_opt(args...);
+                      },
+                      edge);
+                  edge_builders[1].push_back_opt(vid, v1.vid_, iter.GetData(),
+                                                 Direction::kIn);
+                }
+                offsets.emplace_back(i);
+              }
+            }
           }
           iter.Next();
         }
@@ -110,16 +189,25 @@ class Intersect {
     ctx.reshuffle(offsets);
     auto col = builder.finish();
     ctx.set(alias, std::move(col));
+    if (keep_edges) {
+      auto left_e_col = edge_builders[0].finish();
+      ctx.set(edge_alias[0], std::move(left_e_col));
+      auto right_e_col = edge_builders[1].finish();
+      ctx.set(edge_alias[1], std::move(right_e_col));
+    }
     return std::move(ctx);
   }
 
-  template <typename PRED_LEFT, typename PRED_RIGHT>
+  template <typename PRED_LEFT, typename PRED_RIGHT, typename E_PRED_LEFT,
+            typename E_PRED_RIGHT>
   static gs::result<gs::runtime::Context> Binary_Intersect_ML_Impl(
       const gs::runtime::GraphReadInterface& graph,
       const std::map<std::string, std::string>& params,
       gs::runtime::Context&& ctx, const PRED_LEFT& left_pred,
-      const PRED_RIGHT& right_pred, const EdgeExpandParams& eep0,
-      const EdgeExpandParams& eep1, int alias) {
+      const PRED_RIGHT& right_pred, const E_PRED_LEFT& left_e_pred,
+      const E_PRED_RIGHT& right_e_pred, const EdgeExpandParams& eep0,
+      const EdgeExpandParams& eep1, int alias,
+      const std::vector<int>& edge_alias) {
     const auto& vertex_col0 =
         dynamic_cast<const IVertexColumn*>(ctx.get(eep0.v_tag).get());
     const auto& vertex_col1 =
@@ -131,8 +219,24 @@ class Intersect {
 
     MLVertexColumnBuilder builder;
     std::vector<size_t> offsets;
+
+    std::vector<std::vector<std::pair<LabelTriplet, PropertyType>>> labels;
+    std::vector<BDMLEdgeColumnBuilder> edge_builders;
+
+    bool keep_edges = !edge_alias.empty();
+    if (keep_edges) {
+      labels.reserve(2);
+      edge_builders.reserve(2);
+      get_labels(eep0, graph, labels);
+      edge_builders.emplace_back(BDMLEdgeColumnBuilder::builder(labels.back()));
+      get_labels(eep1, graph, labels);
+      edge_builders.emplace_back(BDMLEdgeColumnBuilder::builder(labels.back()));
+    }
+
     for (size_t i = 0; i < row_num; ++i) {
-      phmap::flat_hash_set<VertexRecord, VertexRecordHash> vertex_set;
+      using value_t = std::tuple<LabelTriplet, vid_t, vid_t, Any, Direction>;
+      phmap::flat_hash_map<VertexRecord, std::vector<value_t>, VertexRecordHash>
+          vertex_set;
 
       auto v0 = vertex_col0->get_vertex(i);
       if (eep0.dir == Direction::kOut || eep0.dir == Direction::kBoth) {
@@ -144,9 +248,17 @@ class Intersect {
                                                label_triplet.dst_label,
                                                label_triplet.edge_label);
           while (iter.IsValid()) {
-            if (left_pred(iter.GetNeighborLabel(), iter.GetNeighbor(), i)) {
-              vertex_set.emplace(
-                  VertexRecord{iter.GetNeighborLabel(), iter.GetNeighbor()});
+            label_t label = iter.GetNeighborLabel();
+            vid_t vid = iter.GetNeighbor();
+            if (left_e_pred(label_triplet, v0.vid_, vid, iter.GetData(),
+                            Direction::kOut, i) &&
+                left_pred(label, vid, i)) {
+              auto rcd = VertexRecord{label, vid};
+              if (vertex_set.find(rcd) == vertex_set.end()) {
+                vertex_set.emplace(rcd, std::vector<value_t>());
+              }
+              vertex_set[rcd].emplace_back(label_triplet, v0.vid_, vid,
+                                           iter.GetData(), Direction::kOut);
             }
             iter.Next();
           }
@@ -161,9 +273,17 @@ class Intersect {
                                               label_triplet.src_label,
                                               label_triplet.edge_label);
           while (iter.IsValid()) {
-            if (left_pred(iter.GetNeighborLabel(), iter.GetNeighbor(), i)) {
-              vertex_set.emplace(
-                  VertexRecord{iter.GetNeighborLabel(), iter.GetNeighbor()});
+            label_t label = iter.GetNeighborLabel();
+            vid_t vid = iter.GetNeighbor();
+            if (left_e_pred(label_triplet, vid, v0.vid_, iter.GetData(),
+                            Direction::kIn, i) &&
+                left_pred(label, vid, i)) {
+              auto rcd = VertexRecord{label, vid};
+              if (vertex_set.find(rcd) == vertex_set.end()) {
+                vertex_set.emplace(rcd, std::vector<value_t>());
+              }
+              vertex_set[rcd].emplace_back(label_triplet, vid, v0.vid_,
+                                           iter.GetData(), Direction::kIn);
             }
             iter.Next();
           }
@@ -180,11 +300,29 @@ class Intersect {
                                                label_triplet.dst_label,
                                                label_triplet.edge_label);
           while (iter.IsValid()) {
-            VertexRecord v_record{iter.GetNeighborLabel(), iter.GetNeighbor()};
-            if (vertex_set.find(v_record) != vertex_set.end() &&
-                right_pred(v_record.label_, v_record.vid_, i)) {
-              builder.push_back_opt(v_record);
-              offsets.emplace_back(i);
+            label_t label = iter.GetNeighborLabel();
+            vid_t vid = iter.GetNeighbor();
+            VertexRecord v_record{label, vid};
+            if (right_e_pred(label_triplet, vid, v1.vid_, iter.GetData(),
+                             Direction::kOut, i) &&
+                right_pred(label, vid, i)) {
+              if (vertex_set.find(v_record) != vertex_set.end()) {
+                const auto& values = vertex_set[v_record];
+                for (const auto& value : values) {
+                  builder.push_back_opt(v_record);
+                  if (keep_edges) {
+                    std::apply(
+                        [&](const auto&... args) {
+                          edge_builders[0].push_back_opt(args...);
+                        },
+                        value);
+                    edge_builders[1].push_back_opt(label_triplet, v1.vid_, vid,
+                                                   iter.GetData(),
+                                                   Direction::kOut);
+                  }
+                  offsets.emplace_back(i);
+                }
+              }
             }
             iter.Next();
           }
@@ -199,11 +337,28 @@ class Intersect {
                                               label_triplet.src_label,
                                               label_triplet.edge_label);
           while (iter.IsValid()) {
-            VertexRecord v_record{iter.GetNeighborLabel(), iter.GetNeighbor()};
-            if (vertex_set.find(v_record) != vertex_set.end() &&
-                right_pred(v_record.label_, v_record.vid_, i)) {
-              builder.push_back_opt(v_record);
-              offsets.emplace_back(i);
+            label_t label = iter.GetNeighborLabel();
+            vid_t vid = iter.GetNeighbor();
+            VertexRecord v_record{label, vid};
+            if (right_e_pred(label_triplet, vid, v1.vid_, iter.GetData(),
+                             Direction::kIn, i) &&
+                vertex_set.find(v_record) != vertex_set.end() &&
+                right_pred(v_record.label_, vid, i)) {
+              const auto& values = vertex_set[v_record];
+              for (const auto& value : values) {
+                builder.push_back_opt(v_record);
+                if (keep_edges) {
+                  std::apply(
+                      [&](const auto&... args) {
+                        edge_builders[0].push_back_opt(args...);
+                      },
+                      value);
+                  edge_builders[1].push_back_opt(label_triplet, vid, v1.vid_,
+                                                 iter.GetData(),
+                                                 Direction::kIn);
+                }
+                offsets.emplace_back(i);
+              }
             }
             iter.Next();
           }
@@ -213,22 +368,33 @@ class Intersect {
     ctx.reshuffle(offsets);
     auto col = builder.finish();
     ctx.set(alias, std::move(col));
+    if (keep_edges) {
+      auto left_e_col = edge_builders[0].finish();
+      ctx.set(edge_alias[0], std::move(left_e_col));
+      auto right_e_col = edge_builders[1].finish();
+      ctx.set(edge_alias[1], std::move(right_e_col));
+    }
     return std::move(ctx);
   }
 
-  template <typename PRED_LEFT, typename PRED_RIGHT>
+  template <typename PRED_V_LEFT, typename PRED_V_RIGHT, typename PRED_E_LEFT,
+            typename PRED_E_RIGHT>
   static gs::result<gs::runtime::Context> Binary_Intersect(
       const gs::runtime::GraphReadInterface& graph,
       const std::map<std::string, std::string>& params,
-      gs::runtime::Context&& ctx, const PRED_LEFT& left_pred,
-      const PRED_RIGHT& right_pred, const EdgeExpandParams& eep0,
-      const EdgeExpandParams& eep1, int alias) {
+      gs::runtime::Context&& ctx, const PRED_V_LEFT& left_v_pred,
+      const PRED_V_RIGHT& right_v_pred, const PRED_E_LEFT& left_e_pred,
+      const PRED_E_RIGHT& right_e_pred, const EdgeExpandParams& eep0,
+      const EdgeExpandParams& eep1, int alias,
+      const std::vector<int>& edge_alias) {
     if (eep0.labels.size() == 1 && eep1.labels.size() == 1) {
-      return Binary_Intersect_SL_Impl(graph, params, std::move(ctx), left_pred,
-                                      right_pred, eep0, eep1, alias);
+      return Binary_Intersect_SL_Impl(
+          graph, params, std::move(ctx), left_v_pred, right_v_pred, left_e_pred,
+          right_e_pred, eep0, eep1, alias, edge_alias);
     } else {
-      return Binary_Intersect_ML_Impl(graph, params, std::move(ctx), left_pred,
-                                      right_pred, eep0, eep1, alias);
+      return Binary_Intersect_ML_Impl(
+          graph, params, std::move(ctx), left_v_pred, right_v_pred, left_e_pred,
+          right_e_pred, eep0, eep1, alias, edge_alias);
     }
   }
 
@@ -237,7 +403,11 @@ class Intersect {
       const std::map<std::string, std::string>& params,
       gs::runtime::Context&& ctx,
       const std::vector<std::function<bool(label_t, vid_t, size_t)>>& preds,
-      const std::vector<EdgeExpandParams>& eeps, int alias);
+      const std::vector<std::function<bool(const LabelTriplet&, vid_t, vid_t,
+                                           const Any&, Direction, size_t)>>&
+          e_preds,
+      const std::vector<EdgeExpandParams>& eeps, int vertex_alias,
+      std::vector<int> edge_aliases);
 };
 
 }  // namespace runtime

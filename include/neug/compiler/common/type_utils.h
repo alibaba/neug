@@ -34,6 +34,8 @@
 #include "neug/compiler/common/types/types.h"
 #include "neug/compiler/common/types/uuid.h"
 
+#include <glog/logging.h>
+
 namespace gs {
 namespace common {
 
@@ -306,6 +308,8 @@ class TypeUtils {
     case PhysicalTypeID::ALP_EXCEPTION_DOUBLE:
     case PhysicalTypeID::ALP_EXCEPTION_FLOAT:
       // Unsupported type
+      THROW_NOT_SUPPORTED_EXCEPTION("Unsupported physical type " +
+                                    std::to_string(static_cast<int>(dataType)));
       KU_UNREACHABLE;
       // Needed for return type deduction to work
       return func(uint8_t());

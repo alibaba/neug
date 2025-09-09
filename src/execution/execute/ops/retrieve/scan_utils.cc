@@ -127,6 +127,10 @@ ScanUtils::parse_ids_with_type(PropertyType type,
   case impl::PropertyTypeImpl::kStringView: {
     parse_ids_from_idx_predicate(triplet, ids);
   } break;
+  case impl::PropertyTypeImpl::kVarChar: {
+    parse_ids_from_idx_predicate(triplet, ids);
+    break;
+  }
   default:
     LOG(FATAL) << "unsupported type" << static_cast<int>(type.type_enum);
     break;

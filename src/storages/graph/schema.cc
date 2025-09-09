@@ -255,6 +255,11 @@ const std::vector<PropertyType>& Schema::get_edge_properties(
   label_t dst = get_vertex_label_id(dst_label);
   label_t edge = get_edge_label_id(label);
   uint32_t index = generate_edge_label(src, dst, edge);
+  if (eproperties_.find(index) == eproperties_.end()) {
+    THROW_INVALID_ARGUMENT_EXCEPTION(
+        "Edge properties not found for label triplet: " + std::to_string(src) +
+        ", " + std::to_string(dst) + ", " + std::to_string(edge));
+  }
   return eproperties_.at(index);
 }
 
@@ -267,6 +272,12 @@ const std::vector<PropertyType>& Schema::get_edge_properties(
   LOG_FATAL_IF(label >= elabel_indexer_.size(),
                "edge label " + std::to_string(label) + " not found");
   uint32_t index = generate_edge_label(src_label, dst_label, label);
+  if (eproperties_.find(index) == eproperties_.end()) {
+    THROW_INVALID_ARGUMENT_EXCEPTION(
+        "Edge properties not found for label triplet: " +
+        std::to_string(src_label) + ", " + std::to_string(dst_label) + ", " +
+        std::to_string(label));
+  }
   return eproperties_.at(index);
 }
 

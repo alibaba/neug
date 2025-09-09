@@ -138,6 +138,11 @@ std::shared_ptr<Expression> ExpressionBinder::bindScalarFunctionExpression(
       bindData = std::make_unique<FunctionBindData>(
           LogicalType(function->returnTypeID));
     }
+    if (bindData == nullptr) {
+      THROW_BINDER_EXCEPTION("Failed to bind function " + functionName +
+                             ". Invalid input types: {}." +
+                             common::LogicalTypeUtils::toString(childrenTypes));
+    }
     if (!bindData->paramTypes.empty()) {
       for (auto i = 0u; i < children.size(); ++i) {
         childrenAfterCast.push_back(

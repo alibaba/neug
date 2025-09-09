@@ -1185,6 +1185,8 @@ std::string Any::to_string() const {
     return value.interval.to_string();
   } else if (type == PropertyType::kTimestamp) {
     return value.ts.to_string();
+  } else if (type == PropertyType::kRecordView) {
+    return value.record_view.to_string();
   } else {
     THROW_NOT_SUPPORTED_EXCEPTION(
         "Unexpected property type: " +

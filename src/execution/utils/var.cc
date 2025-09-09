@@ -56,7 +56,11 @@ Var::Var(const GraphInterface& graph, const Context& ctx,
   }
 
   if (pb.has_tag() || var_type == VarType::kPathVar) {
-    assert(ctx.get(tag) != nullptr);
+    if (ctx.get(tag) == nullptr) {
+      THROW_INTERNAL_EXCEPTION(
+          "Variable tag " + std::to_string(tag) +
+          " not found in context: " + std::to_string(ctx.tag_ids.size()));
+    }
     if (ctx.get(tag)->column_type() == ContextColumnType::kVertex) {
       if (pb.has_property()) {
         auto& pt = pb.property();

@@ -303,7 +303,7 @@ class TupleImpl : public TupleImplBase {
   size_t size() const override {
     return std::tuple_size_v<std::tuple<Args...>>;
   }
-  std::string to_string() const {
+  std::string to_string() const override {
     std::stringstream ss;
     ss << "(";
     for (size_t i = 0; i < size(); i++) {

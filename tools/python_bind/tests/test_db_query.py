@@ -1628,6 +1628,74 @@ def test_date_time_to_string():
     db.close()
 
 
+def test_intersect_predicate():
+    db_dir = "/tmp/test_intersect_predicate"
+    shutil.rmtree(db_dir, ignore_errors=True)
+    db = Database(db_path=db_dir, mode="w")
+    conn = db.connect()
+    conn.execute("CREATE NODE TABLE address(id INT32, name STRING, PRIMARY KEY(id))")
+    conn.execute("CREATE REL TABLE structure(FROM address TO address, weight DOUBLE)")
+    conn.execute("CREATE REL TABLE belong(FROM address TO address, weight DOUBLE)")
+
+    conn.execute("CREATE (u: address {id: 1, name: 'address1' } )")
+    conn.execute("CREATE (v: address {id: 2, name: 'address2' } )")
+    conn.execute("CREATE (w: address {id: 3, name: 'address3' } )")
+    conn.execute("CREATE (x: address {id: 4, name: 'address4' } )")
+    conn.execute("CREATE (y: address {id: 5, name: 'address5' } )")
+    conn.execute("CREATE (z: address {id: 6, name: 'address6' } )")
+
+    conn.execute(
+        "MATCH (a: address), (b: address) WHERE a.id = 1 AND b.id = 2 CREATE (a)-[:structure {weight: 1.0}]->(b)"
+    )
+    conn.execute(
+        "MATCH (a: address), (b: address) WHERE a.id = 1 AND b.id = 3 CREATE (a)-[:structure {weight: 2.2}]->(b)"
+    )
+    conn.execute(
+        "MATCH (a: address), (b: address) WHERE a.id = 1 AND b.id = 6 CREATE (a)-[:structure {weight: 2.3}]->(b)"
+    )
+    conn.execute(
+        "MATCH (a: address), (b: address) WHERE a.id = 2 AND b.id = 4 CREATE (a)-[:structure {weight: 1.3}]->(b)"
+    )
+    conn.execute(
+        "MATCH (a: address), (b: address) WHERE a.id = 2 AND b.id = 5 CREATE (a)-[:structure {weight: 1.4}]->(b)"
+    )
+    conn.execute(
+        "MATCH (a: address), (b: address) WHERE a.id = 3 AND b.id = 6 CREATE (a)-[:structure {weight: 1.5}]->(b)"
+    )
+
+    conn.execute(
+        "MATCH (a: address), (b: address) WHERE a.id = 3 AND b.id = 6 CREATE (a)-[:belong {weight: 2.0}]->(b)"
+    )
+    conn.execute(
+        "MATCH (a: address), (b: address) WHERE a.id = 4 AND b.id = 5 CREATE (a)-[:belong {weight: 2.1}]->(b)"
+    )
+
+    res = conn.execute(
+        """
+        MATCH(n1: address)-[e1: structure]->(m1: address),
+              (n1: address)-[e2: structure]->(m2: address),
+              (m1)-[e3: belong]->(m2)
+        WHERE n1.id = 1 AND e1.weight > 2.0 AND e2.weight > 2.0 AND e3.weight > 1.9
+        RETURN e1.weight, e2.weight, e3.weight
+    """
+    )
+    assert res.__next__() == [2.2, 2.3, 2.0]
+
+
+def test_intersect_predicate_ml():
+    db_dir = "/tmp/tinysnb"
+    db = Database(db_path=db_dir)
+    conn = db.connect()
+    res = conn.execute(
+        """
+            MATCH(p1)<-[e1:studyAt]-(t2), (p1)<-[e2:studyAt]-(t1),  (t1)-[e3]-(t2)
+            WHERE e1.year > 2020
+            RETURN e1.year,e2.year
+                       """
+    )
+    assert list(res) == [[2021, 2020], [2021, 2020], [2021, 2020], [2021, 2020]]
+
+
 # test START_NODE and END_NODE
 # todo(engine): Engine Abort
 # def test_start_end_node():

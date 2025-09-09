@@ -40,7 +40,9 @@ void Context::set(int alias, std::shared_ptr<IContextColumn> col) {
     if (columns.size() <= static_cast<size_t>(alias)) {
       columns.resize(alias + 1, nullptr);
     }
-    assert(columns[alias] == nullptr);
+    if (columns[alias] != nullptr) {
+      THROW_RUNTIME_ERROR("column already set: " + std::to_string(alias));
+    }
     columns[alias] = col;
   }
 }
