@@ -26,7 +26,7 @@
 #include "neug/compiler/binder/expression_visitor.h"
 #include "neug/compiler/common/cast.h"
 #include "neug/compiler/main/client_context.h"
-#include "neug/compiler/main/db_config.h"
+#include "neug/compiler/main/option_config.h"
 #include "neug/compiler/parser/standalone_call.h"
 #include "neug/utils/exception/exception.h"
 
@@ -39,8 +39,7 @@ std::unique_ptr<BoundStatement> Binder::bindStandaloneCall(
     const parser::Statement& statement) {
   auto& callStatement =
       ku_dynamic_cast<const parser::StandaloneCall&>(statement);
-  const main::Option* option =
-      main::DBConfig::getOptionByName(callStatement.getOptionName());
+  const main::Option* option = nullptr;
   if (option == nullptr) {
     option = clientContext->getExtensionOption(callStatement.getOptionName());
   }

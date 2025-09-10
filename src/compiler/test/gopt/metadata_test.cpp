@@ -15,8 +15,8 @@
  */
 
 #include "gopt_test.h"
-#include "neug/compiler/gopt/g_database.h"
-#include "neug/compiler/main/db_config.h"
+#include "neug/compiler/main/option_config.h"
+#include "neug/compiler/storage/stats_manager.h"
 
 namespace gs {
 namespace gopt {
@@ -29,10 +29,10 @@ class MetaDataTest : public GOptTest {
   common::cardinality_t getTableCard(main::ClientContext* ctx,
                                      const std::string& tableName) {
     auto catalog = ctx->getCatalog();
-    auto storageManager = ctx->getStorageManager();
+    auto storageManager = ctx->getStatsManager();
     auto& transaction = gs::Constants::DEFAULT_TRANSACTION;
     auto tableEntry = catalog->getTableCatalogEntry(&transaction, tableName);
-    auto table = ctx->getStorageManager()->getTable(tableEntry->getTableID());
+    auto table = ctx->getStatsManager()->getTable(tableEntry->getTableID());
     return table->getNumTotalRows(&transaction);
   }
 };
@@ -69,14 +69,12 @@ TEST_F(MetaDataTest, GCataLog) {
 }
 
 TEST_F(MetaDataTest, GStorageManager) {
-  main::SystemConfig sysConfig;
-  sysConfig.readOnly = true;
-  auto database = std::make_unique<main::GDatabase>(sysConfig);
+  auto database = std::make_unique<main::MetadataManager>();
   auto ctx = std::make_unique<main::ClientContext>(database.get());
   database->updateSchema(schemaData);
   database->updateStats(statsData);
   auto& catalog = *ctx->getCatalog();
-  auto& storageManager = *ctx->getStorageManager();
+  auto& storageManager = *ctx->getStatsManager();
   auto& transaction = gs::Constants::DEFAULT_TRANSACTION;
   auto entry = catalog.getTableCatalogEntry(&transaction, "KNOWS");
   auto knowsTable = storageManager.getTable(entry->getTableID());
@@ -102,9 +100,7 @@ TEST_F(MetaDataTest, CheckStats) {
   std::string beforeStats = getGOptResource("stats/modern_stats.json");
   std::string afterSchema = getGOptResource("schema/modern_schema_v2.yaml");
   std::string afterStats = getGOptResource("stats/modern_stats_v2.json");
-  main::SystemConfig sysConfig;
-  sysConfig.readOnly = true;
-  auto database = std::make_unique<main::GDatabase>(sysConfig);
+  auto database = std::make_unique<main::MetadataManager>();
   auto ctx = std::make_unique<main::ClientContext>(database.get());
   database->updateSchema(beforeSchema);
   database->updateStats(beforeStats);

@@ -1,8 +1,6 @@
 add_library(neug_gopt
     OBJECT
     g_catalog.cpp
-    g_storage_manager.cpp
-    g_transaction_manager.cpp
     g_ddl_converter.cpp
     g_expr_converter.cpp
     g_alias_manager.cpp

@@ -39,7 +39,7 @@
 #include "neug/compiler/common/string_format.h"
 #include "neug/compiler/extension/extension_manager.h"
 #include "neug/compiler/function/function_collection.h"
-#include "neug/compiler/main/db_config.h"
+#include "neug/compiler/main/option_config.h"
 #include "neug/compiler/transaction/transaction.h"
 #include "neug/utils/exception/exception.h"
 

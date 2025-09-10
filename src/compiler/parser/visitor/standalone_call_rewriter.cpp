@@ -42,33 +42,26 @@ std::string StandaloneCallRewriter::getRewriteQuery(
 void StandaloneCallRewriter::visitStandaloneCallFunction(
     const Statement& statement) {
   auto& standaloneCallFunc = statement.constCast<StandaloneCallFunction>();
-  main::ClientContext::TransactionHelper::runFuncInTransaction(
-      *context->getTransactionContext(),
-      [&]() -> void {
-        auto funcName = standaloneCallFunc.getFunctionExpression()
-                            ->constPtrCast<parser::ParsedFunctionExpression>()
-                            ->getFunctionName();
-        if (!context->getCatalog()->containsFunction(context->getTransaction(),
-                                                     funcName) &&
-            !singleStatement) {
-          THROW_PARSER_EXCEPTION(funcName +
-                                 " must be called in a query which "
-                                 "doesn't have other statements.");
-        }
-        binder::Binder binder{context};
-        const auto boundStatement = binder.bind(standaloneCallFunc);
-        auto& boundStandaloneCall =
-            boundStatement->constCast<binder::BoundStandaloneCallFunction>();
-        const auto func = boundStandaloneCall.getTableFunction()
-                              .constPtrCast<function::TableFunction>();
-        if (func->rewriteFunc) {
-          rewriteQuery =
-              func->rewriteFunc(*context, *boundStandaloneCall.getBindData());
-        }
-      },
-      true /*readOnlyStatement*/, false /*isTransactionStatement*/,
-      main::ClientContext::TransactionHelper::TransactionCommitAction::
-          COMMIT_IF_NEW);
+  auto funcName = standaloneCallFunc.getFunctionExpression()
+                      ->constPtrCast<parser::ParsedFunctionExpression>()
+                      ->getFunctionName();
+  if (!context->getCatalog()->containsFunction(context->getTransaction(),
+                                               funcName) &&
+      !singleStatement) {
+    THROW_PARSER_EXCEPTION(funcName +
+                           " must be called in a query which "
+                           "doesn't have other statements.");
+  }
+  binder::Binder binder{context};
+  const auto boundStatement = binder.bind(standaloneCallFunc);
+  auto& boundStandaloneCall =
+      boundStatement->constCast<binder::BoundStandaloneCallFunction>();
+  const auto func = boundStandaloneCall.getTableFunction()
+                        .constPtrCast<function::TableFunction>();
+  if (func->rewriteFunc) {
+    rewriteQuery =
+        func->rewriteFunc(*context, *boundStandaloneCall.getBindData());
+  }
 }
 
 }  // namespace parser

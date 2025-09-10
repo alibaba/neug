@@ -35,17 +35,17 @@ class MemoryManager;
 class Table;
 
 class LocalTable;
-class StorageManager;
+class StatsManager;
 class KUZU_API Table {
  public:
   Table(const catalog::TableCatalogEntry* tableEntry,
-        const StorageManager* storageManager)
+        const StatsManager* storageManager)
       : tableType{tableEntry->getTableType()},
         tableID{tableEntry->getTableID()},
         tableName{tableEntry->getName()} {}
 
   Table(const catalog::TableCatalogEntry* tableEntry,
-        const StorageManager* storageManager, MemoryManager* memoryManager);
+        const StatsManager* storageManager, MemoryManager* memoryManager);
   virtual ~Table() = default;
 
   common::TableType getTableType() const { return tableType; }

@@ -29,7 +29,6 @@
 #include "neug/compiler/common/string_utils.h"
 #include "neug/compiler/extension/extension_manager.h"
 #include "neug/compiler/function/table/bind_input.h"
-#include "neug/compiler/main/database_manager.h"
 #include "neug/compiler/parser/expression/parsed_function_expression.h"
 #include "neug/compiler/parser/scan_source.h"
 #include "neug/utils/exception/exception.h"
@@ -71,36 +70,6 @@ FileTypeInfo Binder::bindFileTypeInfo(
 
 std::vector<std::string> Binder::bindFilePaths(
     const std::vector<std::string>& filePaths) const {
-  // std::vector<std::string> boundFilePaths;
-  // for (auto& filePath : filePaths) {
-  //   // This is a temporary workaround because we use duckdb to read from
-  //   // iceberg/delta. When we read delta/iceberg tables from s3/httpfs, we
-  //   don't
-  //   // have the httpfs extension loaded meaning that we cannot handle remote
-  //   // paths. So we pass the file path to duckdb for validation when we
-  //   // bindFileScanSource.
-  //   const auto& loadedExtensions =
-  //       clientContext->getExtensionManager()->getLoadedExtensions();
-  //   const bool httpfsExtensionLoaded =
-  //       std::any_of(loadedExtensions.begin(), loadedExtensions.end(),
-  //                   [](const auto& extension) {
-  //                     return extension.getExtensionName() == "HTTPFS";
-  //                   });
-  //   if (!httpfsExtensionLoaded && !LocalFileSystem::isLocalPath(filePath)) {
-  //     boundFilePaths.push_back(filePath);
-  //     continue;
-  //   }
-  //   auto globbedFilePaths =
-  //       clientContext->getVFSUnsafe()->glob(clientContext, filePath);
-  //   if (globbedFilePaths.empty()) {
-  //     THROW_BINDER_EXCEPTION{stringFormat(
-  //         "No file found that matches the pattern: {}.", filePath)};
-  //   }
-  //   for (auto& globbedPath : globbedFilePaths) {
-  //     boundFilePaths.push_back(globbedPath);
-  //   }
-  // }
-  // return boundFilePaths;
   return filePaths;
 }
 
@@ -212,13 +181,7 @@ std::unique_ptr<BoundBaseScanSource> Binder::bindQueryScanSource(
 static TableFunction getObjectScanFunc(
     const std::string& dbName, const std::string& tableName,
     const main::ClientContext* clientContext) {
-  // Bind external database table
-  auto attachedDB =
-      clientContext->getDatabaseManager()->getAttachedDatabase(dbName);
-  auto attachedCatalog = attachedDB->getCatalog();
-  auto entry = attachedCatalog->getTableCatalogEntry(
-      clientContext->getTransaction(), tableName);
-  return entry->ptrCast<TableCatalogEntry>()->getScanFunction();
+  THROW_EXCEPTION_WITH_FILE_LINE("get object scan func not implemented");
 }
 
 BoundTableScanInfo bindTableScanSourceInfo(
@@ -267,11 +230,6 @@ std::unique_ptr<BoundBaseScanSource> Binder::bindObjectScanSource(
       replacementData->bindInput.extraInput = std::move(replaceExtraInput);
       replacementData->bindInput.binder = this;
       bindData = func.bindFunc(clientContext, &replacementData->bindInput);
-    } else if (clientContext->getDatabaseManager()->hasDefaultDatabase()) {
-      auto dbName = clientContext->getDatabaseManager()->getDefaultDatabase();
-      func = getObjectScanFunc(dbName, objectSource->objectNames[0],
-                               clientContext);
-      bindData = func.bindFunc(clientContext, &bindInput);
     } else {
       THROW_BINDER_EXCEPTION(ExceptionMessage::variableNotInScope(objectName));
     }

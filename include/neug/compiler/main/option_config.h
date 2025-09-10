@@ -81,23 +81,5 @@ struct ExtensionOption final : Option {
         defaultValue{std::move(defaultValue)} {}
 };
 
-struct DBConfig {
-  uint64_t bufferPoolSize;
-  uint64_t maxNumThreads;
-  bool enableCompression;
-  bool readOnly;
-  uint64_t maxDBSize;
-  bool enableMultiWrites;
-  bool autoCheckpoint;
-  uint64_t checkpointThreshold;
-  bool forceCheckpointOnClose;
-  bool enableSpillingToDisk;
-
-  explicit DBConfig(const SystemConfig& systemConfig);
-
-  static ConfigurationOption* getOptionByName(const std::string& optionName);
-  KUZU_API static bool isDBPathInMemory(const std::string& dbPath);
-};
-
 }  // namespace main
 }  // namespace gs

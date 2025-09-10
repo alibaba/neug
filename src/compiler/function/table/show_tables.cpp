@@ -28,7 +28,6 @@
 #include "neug/compiler/function/table/bind_data.h"
 #include "neug/compiler/function/table/simple_table_function.h"
 #include "neug/compiler/main/client_context.h"
-#include "neug/compiler/main/database_manager.h"
 
 using namespace gs::common;
 using namespace gs::catalog;
@@ -117,20 +116,6 @@ static std::unique_ptr<TableFuncBindData> bindFunc(
     }
   }
 
-  auto databaseManager = context->getDatabaseManager();
-  for (auto attachedDatabase : databaseManager->getAttachedDatabases()) {
-    auto databaseName = attachedDatabase->getDBName();
-    auto databaseType = attachedDatabase->getDBType();
-    for (auto& entry : attachedDatabase->getCatalog()->getTableEntries(
-             context->getTransaction(), context->useInternalCatalogEntry())) {
-      auto tableInfo =
-          TableInfo{entry->getName(), entry->getTableID(),
-                    TableTypeUtils::toString(entry->getTableType()),
-                    stringFormat("{}({})", databaseName, databaseType),
-                    entry->getComment()};
-      tableInfos.push_back(std::move(tableInfo));
-    }
-  }
   columnNames =
       TableFunction::extractYieldVariables(columnNames, input->yieldVariables);
   auto columns = input->binder->createVariables(columnNames, columnTypes);

@@ -1,6 +1,6 @@
 #pragma once
 
-#include "neug/compiler/main/db_config.h"
+#include "neug/compiler/main/option_config.h"
 #include "neug/compiler/planner/operator/logical_operator.h"
 
 namespace gs {

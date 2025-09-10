@@ -34,13 +34,11 @@
 #include "neug/compiler/gopt/g_alias_manager.h"
 #include "neug/compiler/gopt/g_catalog.h"
 #include "neug/compiler/gopt/g_constants.h"
-#include "neug/compiler/gopt/g_database.h"
 #include "neug/compiler/gopt/g_node_table.h"
 #include "neug/compiler/gopt/g_physical_convertor.h"
 #include "neug/compiler/gopt/g_result_schema.h"
-#include "neug/compiler/gopt/g_storage_manager.h"
 #include "neug/compiler/main/client_context.h"
-#include "neug/compiler/main/database.h"
+#include "neug/compiler/main/metadata_manager.h"
 #include "neug/compiler/optimizer/expand_getv_fusion.h"
 #include "neug/compiler/optimizer/filter_push_down_pattern.h"
 #include "neug/compiler/planner/gopt_planner.h"
@@ -156,7 +154,8 @@ class Utils {
     return std::make_pair(segments[1], segments[2]);
   }
 
-  static void updateSchema(const std::string& line, main::GDatabase* database) {
+  static void updateSchema(const std::string& line,
+                           main::MetadataManager* database) {
     // Split line into segments
     auto segments = splitSchemaQuery(line);
     database->updateSchema(getTestResourcePath(segments.first));
@@ -168,8 +167,7 @@ class Utils {
 class GOptTest : public ::testing::Test {
  protected:
   void SetUp() override {
-    sysConfig.readOnly = false;
-    database = std::make_unique<main::GDatabase>(sysConfig);
+    database = std::make_unique<main::MetadataManager>();
     ctx = std::make_unique<main::ClientContext>(database.get());
   }
 
@@ -366,8 +364,7 @@ class GOptTest : public ::testing::Test {
   }
 
  private:
-  main::SystemConfig sysConfig;
-  std::unique_ptr<main::GDatabase> database;
+  std::unique_ptr<main::MetadataManager> database;
   std::unique_ptr<main::ClientContext> ctx;
 };
 

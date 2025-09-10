@@ -31,7 +31,6 @@
 #include "neug/compiler/function/table/bind_input.h"
 #include "neug/compiler/function/table/simple_table_function.h"
 #include "neug/compiler/main/client_context.h"
-#include "neug/compiler/main/database_manager.h"
 #include "neug/utils/exception/exception.h"
 
 using namespace gs::catalog;
@@ -242,12 +241,8 @@ static std::unique_ptr<TableFuncBindData> bindFunc(
           stringFormat("{} does not exist in catalog.", tableName));
     }
   } else {
-    auto dbName = name[0];
-    auto tableName = name[1];
-    auto db = context->getDatabaseManager()->getAttachedDatabase(dbName);
-    auto entry = db->getCatalog()->getTableCatalogEntry(transaction, tableName);
-    infos = getForeignPropertyInfos(entry);
-    type = CatalogEntryType::FOREIGN_TABLE_ENTRY;
+    THROW_EXCEPTION_WITH_FILE_LINE(
+        "get foreign property infos not implemented");
   }
   columnNames =
       TableFunction::extractYieldVariables(columnNames, input->yieldVariables);

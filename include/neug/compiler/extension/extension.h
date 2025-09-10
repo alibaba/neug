@@ -28,7 +28,7 @@
 #include "neug/compiler/catalog/catalog_entry/catalog_entry_type.h"
 #include "neug/compiler/common/api.h"
 #include "neug/compiler/function/function.h"
-#include "neug/compiler/main/database.h"
+#include "neug/compiler/main/metadata_manager.h"
 #include "neug/compiler/transaction/transaction.h"
 
 #define ADD_EXTENSION_OPTION(OPTION) \
@@ -43,7 +43,7 @@ namespace function {
 struct TableFunction;
 }  // namespace function
 namespace main {
-class Database;
+class MetadataManager;
 }  // namespace main
 
 namespace extension {
@@ -73,7 +73,7 @@ struct ExtensionSourceUtils {
 };
 
 template <typename T>
-void addFunc(main::Database& database, std::string name,
+void addFunc(main::MetadataManager& database, std::string name,
              catalog::CatalogEntryType functionType, bool isInternal = false) {
   auto catalog = database.getCatalog();
   if (catalog->containsFunction(&transaction::DUMMY_TRANSACTION, name,
@@ -140,32 +140,32 @@ struct KUZU_API ExtensionUtils {
   static bool isOfficialExtension(const std::string& extension);
 
   template <typename T>
-  static void addTableFunc(main::Database& database) {
+  static void addTableFunc(main::MetadataManager& database) {
     addFunc<T>(database, T::name,
                catalog::CatalogEntryType::TABLE_FUNCTION_ENTRY);
   }
 
   template <typename T>
-  static void addStandaloneTableFunc(main::Database& database) {
+  static void addStandaloneTableFunc(main::MetadataManager& database) {
     addFunc<T>(database, T::name,
                catalog::CatalogEntryType::STANDALONE_TABLE_FUNCTION_ENTRY,
                false /* isInternal */);
   }
   template <typename T>
-  static void addInternalStandaloneTableFunc(main::Database& database) {
+  static void addInternalStandaloneTableFunc(main::MetadataManager& database) {
     addFunc<T>(database, T::name,
                catalog::CatalogEntryType::STANDALONE_TABLE_FUNCTION_ENTRY,
                true /* isInternal */);
   }
 
   template <typename T>
-  static void addScalarFunc(main::Database& database) {
+  static void addScalarFunc(main::MetadataManager& database) {
     addFunc<T>(database, T::name,
                catalog::CatalogEntryType::SCALAR_FUNCTION_ENTRY);
   }
 
   template <typename T>
-  static void addScalarFuncAlias(main::Database& database) {
+  static void addScalarFuncAlias(main::MetadataManager& database) {
     addFunc<typename T::alias>(
         database, T::name, catalog::CatalogEntryType::SCALAR_FUNCTION_ENTRY);
   }

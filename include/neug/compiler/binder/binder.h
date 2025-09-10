@@ -55,7 +55,7 @@ class Catalog;
 
 namespace main {
 class ClientContext;
-class Database;
+class MetadataManager;
 }  // namespace main
 
 namespace function {

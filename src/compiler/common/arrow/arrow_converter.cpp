@@ -308,16 +308,5 @@ std::unique_ptr<ArrowSchema> ArrowConverter::toArrowSchema(
   return outSchema;
 }
 
-void ArrowConverter::toArrowArray(main::QueryResult& queryResult,
-                                  ArrowArray* outArray,
-                                  std::int64_t chunkSize) {
-  std::vector<LogicalType> types;
-  for (const auto& type : queryResult.getColumnDataTypes()) {
-    types.push_back(type.copy());
-  }
-  auto rowBatch = make_unique<ArrowRowBatch>(std::move(types), chunkSize);
-  *outArray = rowBatch->append(queryResult, chunkSize);
-}
-
 }  // namespace common
 }  // namespace gs

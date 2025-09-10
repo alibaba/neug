@@ -22,10 +22,9 @@
 
 #pragma once
 
-#include "neug/compiler/common/task_system/progress_bar.h"
 #include "neug/compiler/common/types/value/value.h"
 #include "neug/compiler/main/client_context.h"
-#include "neug/compiler/main/db_config.h"
+#include "neug/compiler/main/option_config.h"
 
 namespace gs {
 namespace main {
@@ -76,13 +75,7 @@ struct ProgressBarSetting {
   static constexpr auto name = "progress_bar";
   static constexpr auto inputType = common::LogicalTypeID::BOOL;
   static void setContext(ClientContext* context,
-                         const common::Value& parameter) {
-    parameter.validateType(inputType);
-    context->getClientConfigUnsafe()->enableProgressBar =
-        parameter.getValue<bool>();
-    context->getProgressBar()->toggleProgressBarPrinting(
-        parameter.getValue<bool>());
-  }
+                         const common::Value& parameter) {}
   static common::Value getSetting(const ClientContext* context) {
     return common::Value(context->getClientConfig()->enableProgressBar);
   }
@@ -224,16 +217,9 @@ struct EnableMVCCSetting {
   static constexpr auto name = "debug_enable_multi_writes";
   static constexpr auto inputType = common::LogicalTypeID::BOOL;
   static void setContext(ClientContext* context,
-                         const common::Value& parameter) {
-    KU_ASSERT(parameter.getDataType().getLogicalTypeID() ==
-              common::LogicalTypeID::BOOL);
-    // TODO: This is a temporary solution to make tests of multiple write
-    // transactions easier.
-    context->getDBConfigUnsafe()->enableMultiWrites =
-        parameter.getValue<bool>();
-  }
+                         const common::Value& parameter) {}
   static common::Value getSetting(const ClientContext* context) {
-    return common::Value(context->getDBConfig()->enableMultiWrites);
+    return common::Value(false);
   }
 };
 
@@ -241,13 +227,9 @@ struct CheckpointThresholdSetting {
   static constexpr auto name = "checkpoint_threshold";
   static constexpr auto inputType = common::LogicalTypeID::INT64;
   static void setContext(ClientContext* context,
-                         const common::Value& parameter) {
-    parameter.validateType(inputType);
-    context->getDBConfigUnsafe()->checkpointThreshold =
-        parameter.getValue<int64_t>();
-  }
+                         const common::Value& parameter) {}
   static common::Value getSetting(const ClientContext* context) {
-    return common::Value(context->getDBConfig()->checkpointThreshold);
+    return common::Value(0);
   }
 };
 
@@ -255,12 +237,9 @@ struct AutoCheckpointSetting {
   static constexpr auto name = "auto_checkpoint";
   static constexpr auto inputType = common::LogicalTypeID::BOOL;
   static void setContext(ClientContext* context,
-                         const common::Value& parameter) {
-    parameter.validateType(inputType);
-    context->getDBConfigUnsafe()->autoCheckpoint = parameter.getValue<bool>();
-  }
+                         const common::Value& parameter) {}
   static common::Value getSetting(const ClientContext* context) {
-    return common::Value(context->getDBConfig()->autoCheckpoint);
+    return common::Value(false);
   }
 };
 
@@ -268,13 +247,9 @@ struct ForceCheckpointClosingDBSetting {
   static constexpr auto name = "force_checkpoint_on_close";
   static constexpr auto inputType = common::LogicalTypeID::BOOL;
   static void setContext(ClientContext* context,
-                         const common::Value& parameter) {
-    parameter.validateType(inputType);
-    context->getDBConfigUnsafe()->forceCheckpointOnClose =
-        parameter.getValue<bool>();
-  }
+                         const common::Value& parameter) {}
   static common::Value getSetting(const ClientContext* context) {
-    return common::Value(context->getDBConfig()->forceCheckpointOnClose);
+    return common::Value(false);
   }
 };
 
@@ -284,8 +259,7 @@ struct SpillToDiskSetting {
   static void setContext(ClientContext* context,
                          const common::Value& parameter);
   static common::Value getSetting(const ClientContext* context) {
-    return common::Value::createValue(
-        context->getDBConfig()->enableSpillingToDisk);
+    return common::Value(false);
   }
 };
 

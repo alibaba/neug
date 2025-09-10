@@ -28,7 +28,7 @@ class GRelTable : public RelTable {
  public:
   GRelTable(common::row_idx_t numRows,
             catalog::RelTableCatalogEntry* tableEntry,
-            StorageManager* storageManager)
+            StatsManager* storageManager)
       : RelTable{tableEntry, storageManager},
         numRows{numRows},
         srcTableId{tableEntry->getSrcTableID()},

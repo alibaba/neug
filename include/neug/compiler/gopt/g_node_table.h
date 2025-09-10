@@ -31,7 +31,7 @@ class GNodeTable : public NodeTable {
 
  public:
   GNodeTable(const catalog::NodeTableCatalogEntry* tableEntry,
-             StorageManager* storageManager, MemoryManager* memoryManager,
+             StatsManager* storageManager, MemoryManager* memoryManager,
              common::row_idx_t numRows)
       : NodeTable{storageManager, tableEntry}, numRows{numRows} {}
 

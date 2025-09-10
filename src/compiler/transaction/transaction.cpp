@@ -3,7 +3,7 @@
 #include "neug/compiler/catalog/catalog_entry/node_table_catalog_entry.h"
 #include "neug/compiler/catalog/catalog_entry/rel_group_catalog_entry.h"
 #include "neug/compiler/main/client_context.h"
-#include "neug/compiler/main/db_config.h"
+#include "neug/compiler/main/option_config.h"
 #include "neug/compiler/storage/wal/wal.h"
 #include "neug/utils/exception/exception.h"
 
@@ -55,16 +55,6 @@ Transaction::Transaction(TransactionType transactionType,
       forceCheckpoint{false},
       hasCatalogChanges{false} {
   currentTS = common::Timestamp::getCurrentTimestamp().value;
-}
-
-bool Transaction::shouldLogToWAL() const {
-  return !isRecovery() &&
-         !main::DBConfig::isDBPathInMemory(clientContext->getDatabasePath());
-}
-
-bool Transaction::shouldForceCheckpoint() const {
-  return !main::DBConfig::isDBPathInMemory(clientContext->getDatabasePath()) &&
-         forceCheckpoint;
 }
 
 void Transaction::commit(storage::WAL* wal) {}

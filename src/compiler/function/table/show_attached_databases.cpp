@@ -24,7 +24,7 @@
 #include "neug/compiler/function/table/bind_data.h"
 #include "neug/compiler/function/table/simple_table_function.h"
 #include "neug/compiler/main/client_context.h"
-#include "neug/compiler/main/database_manager.h"
+#include "neug/utils/exception/exception.h"
 
 using namespace gs::common;
 using namespace gs::catalog;
@@ -32,51 +32,15 @@ using namespace gs::catalog;
 namespace gs {
 namespace function {
 
-struct ShowAttachedDatabasesBindData final : TableFuncBindData {
-  std::vector<main::AttachedDatabase*> attachedDatabases;
-
-  ShowAttachedDatabasesBindData(
-      std::vector<main::AttachedDatabase*> attachedDatabases,
-      binder::expression_vector columns, offset_t maxOffset)
-      : TableFuncBindData{std::move(columns), maxOffset},
-        attachedDatabases{std::move(attachedDatabases)} {}
-
-  std::unique_ptr<TableFuncBindData> copy() const override {
-    return std::make_unique<ShowAttachedDatabasesBindData>(attachedDatabases,
-                                                           columns, numRows);
-  }
-};
-
 static offset_t internalTableFunc(const TableFuncMorsel& morsel,
                                   const TableFuncInput& input,
                                   DataChunk& output) {
-  auto& attachedDatabases =
-      input.bindData->constPtrCast<ShowAttachedDatabasesBindData>()
-          ->attachedDatabases;
-  auto numDatabasesToOutput = morsel.getMorselSize();
-  for (auto i = 0u; i < numDatabasesToOutput; i++) {
-    const auto attachedDatabase = attachedDatabases[morsel.startOffset + i];
-    output.getValueVectorMutable(0).setValue(i, attachedDatabase->getDBName());
-    output.getValueVectorMutable(1).setValue(i, attachedDatabase->getDBType());
-  }
-  return numDatabasesToOutput;
+  return 0;
 }
 
 static std::unique_ptr<TableFuncBindData> bindFunc(
     const main::ClientContext* context, const TableFuncBindInput* input) {
-  std::vector<std::string> columnNames;
-  std::vector<LogicalType> columnTypes;
-  columnNames.emplace_back("name");
-  columnTypes.emplace_back(LogicalType::STRING());
-  columnNames.emplace_back("database type");
-  columnTypes.emplace_back(LogicalType::STRING());
-  auto attachedDatabases =
-      context->getDatabaseManager()->getAttachedDatabases();
-  columnNames =
-      TableFunction::extractYieldVariables(columnNames, input->yieldVariables);
-  auto columns = input->binder->createVariables(columnNames, columnTypes);
-  return std::make_unique<ShowAttachedDatabasesBindData>(
-      attachedDatabases, columns, attachedDatabases.size());
+  THROW_EXCEPTION_WITH_FILE_LINE("show attached databases not implemented");
 }
 
 function_set ShowAttachedDatabasesFunction::getFunctionSet() {

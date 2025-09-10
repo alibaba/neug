@@ -6,7 +6,7 @@
 #include "neug/compiler/planner/operator/logical_aggregate.h"
 #include "neug/compiler/planner/operator/logical_hash_join.h"
 #include "neug/compiler/planner/operator/scan/logical_scan_node_table.h"
-#include "neug/compiler/storage/storage_manager.h"
+#include "neug/compiler/storage/stats_manager.h"
 #include "neug/compiler/storage/store/node_table.h"
 #include "neug/compiler/storage/store/rel_table.h"
 
@@ -43,7 +43,7 @@ void CardinalityEstimator::addNodeIDDomAndStats(
   auto key = nodeID.getUniqueName();
   cardinality_t numNodes = 0u;
   for (auto tableID : tableIDs) {
-    auto stats = context->getStorageManager()
+    auto stats = context->getStatsManager()
                      ->getTable(tableID)
                      ->cast<storage::NodeTable>()
                      .getStats(transaction);
@@ -232,7 +232,7 @@ uint64_t CardinalityEstimator::getNumRels(
     const std::vector<table_id_t>& tableIDs) const {
   cardinality_t numRels = 0u;
   for (auto tableID : tableIDs) {
-    numRels += context->getStorageManager()->getTable(tableID)->getNumTotalRows(
+    numRels += context->getStatsManager()->getTable(tableID)->getNumTotalRows(
         transaction);
   }
   return atLeastOne(numRels);

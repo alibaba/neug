@@ -24,7 +24,7 @@
 #include "neug/compiler/function/table/bind_data.h"
 #include "neug/compiler/function/table/simple_table_function.h"
 #include "neug/compiler/main/client_context.h"
-#include "neug/compiler/main/database.h"
+#include "neug/compiler/main/metadata_manager.h"
 #include "neug/compiler/storage/buffer_manager/memory_manager.h"
 
 namespace gs {

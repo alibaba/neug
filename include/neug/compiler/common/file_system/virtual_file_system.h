@@ -31,7 +31,7 @@
 
 namespace gs {
 namespace main {
-class Database;
+class MetadataManager;
 }
 
 namespace storage {

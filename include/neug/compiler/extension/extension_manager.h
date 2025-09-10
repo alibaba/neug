@@ -24,7 +24,7 @@
 
 #include "loaded_extension.h"
 #include "neug/compiler/main/client_context.h"
-#include "neug/compiler/main/db_config.h"
+#include "neug/compiler/main/option_config.h"
 
 namespace gs {
 namespace extension {

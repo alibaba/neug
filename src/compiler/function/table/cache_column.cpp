@@ -25,7 +25,7 @@
 #include "neug/compiler/catalog/catalog_entry/table_catalog_entry.h"
 #include "neug/compiler/function/table/bind_data.h"
 #include "neug/compiler/function/table/simple_table_function.h"
-#include "neug/compiler/storage/storage_manager.h"
+#include "neug/compiler/storage/stats_manager.h"
 #include "neug/compiler/storage/store/node_table.h"
 #include "neug/compiler/storage/store/table.h"
 #include "neug/compiler/transaction/transaction.h"

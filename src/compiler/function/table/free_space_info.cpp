@@ -23,7 +23,7 @@
 #include "neug/compiler/binder/binder.h"
 #include "neug/compiler/function/table/bind_data.h"
 #include "neug/compiler/function/table/simple_table_function.h"
-#include "neug/compiler/storage/storage_manager.h"
+#include "neug/compiler/storage/stats_manager.h"
 #include "neug/compiler/storage/store/node_table.h"
 
 namespace gs {

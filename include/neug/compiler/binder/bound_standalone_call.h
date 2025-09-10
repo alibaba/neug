@@ -24,7 +24,7 @@
 
 #include "neug/compiler/binder/bound_statement.h"
 #include "neug/compiler/binder/expression/expression.h"
-#include "neug/compiler/main/db_config.h"
+#include "neug/compiler/main/option_config.h"
 
 namespace gs {
 namespace binder {

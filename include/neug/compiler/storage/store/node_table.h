@@ -46,15 +46,15 @@ class Transaction;
 namespace storage {
 class NodeTable;
 
-class StorageManager;
+class StatsManager;
 
 class KUZU_API NodeTable : public Table {
  public:
   NodeTable() = default;
-  NodeTable(const StorageManager* storageManager,
+  NodeTable(const StatsManager* storageManager,
             const catalog::NodeTableCatalogEntry* nodeTableEntry)
       : Table(nodeTableEntry, storageManager) {}
-  NodeTable(const StorageManager* storageManager,
+  NodeTable(const StatsManager* storageManager,
             const catalog::NodeTableCatalogEntry* nodeTableEntry,
             MemoryManager* memoryManager, common::VirtualFileSystem* vfs,
             main::ClientContext* context, common::Deserializer* deSer = nullptr)

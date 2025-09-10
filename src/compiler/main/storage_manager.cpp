@@ -1,21 +1,6 @@
-/** Copyright 2020 Alibaba Group Holding Limited.
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- * 	http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
-#include "neug/compiler/gopt/g_storage_manager.h"
 #include <fstream>
 #include <sstream>
+#include "neug/compiler/storage/stats_manager.h"
 
 #include "neug/compiler/catalog/catalog_entry/rel_group_catalog_entry.h"
 #include "neug/compiler/catalog/catalog_entry/rel_table_catalog_entry.h"
@@ -24,16 +9,16 @@
 #include "neug/compiler/gopt/g_constants.h"
 #include "neug/compiler/gopt/g_node_table.h"
 #include "neug/compiler/gopt/g_rel_table.h"
-#include "neug/compiler/main/database.h"
+#include "neug/compiler/main/metadata_manager.h"
 #include "neug/utils/exception/exception.h"
 
 namespace gs {
 namespace storage {
-GStorageManager::GStorageManager(const std::string& statsData,
-                                 main::Database* database,
-                                 MemoryManager& memoryManager,
-                                 gs::storage::WAL& wal)
-    : StorageManager(memoryManager), wal(wal), database(database) {
+
+StatsManager::StatsManager(const std::string& statsData,
+                           main::MetadataManager* database,
+                           MemoryManager& memoryManager)
+    : memoryManager(memoryManager), database(database) {
   std::unordered_map<std::string, common::row_idx_t> countMap;
   getCardMap(statsData, countMap);
   if (!database || !database->getCatalog()) {
@@ -42,15 +27,15 @@ GStorageManager::GStorageManager(const std::string& statsData,
   loadStats(*database->getCatalog(), countMap);
 }
 
-bool GStorageManager::checkTableConsistency(
-    Table* oldTable, catalog::TableCatalogEntry* curEntry) {
+bool StatsManager::checkTableConsistency(Table* oldTable,
+                                         catalog::TableCatalogEntry* curEntry) {
   if (oldTable->getTableType() != curEntry->getTableType() ||
       oldTable->getTableName() != curEntry->getName()) {
     return false;
   }
   if (oldTable->getTableType() == common::TableType::REL) {
     auto catalog = database->getCatalog();
-    auto& transaction = gs::Constants::DEFAULT_TRANSACTION;
+    auto& transaction = gs::Constants ::DEFAULT_TRANSACTION;
     // check if the src and dst table ids are consistent
     auto oldRelTable = oldTable->ptrCast<GRelTable>();
     if (!catalog->containsTable(&transaction, oldRelTable->getSrcTableId()) ||
@@ -78,8 +63,8 @@ bool GStorageManager::checkTableConsistency(
 
 // check if cached table data is consistent with the schema, return false if
 // not, otherwise return true
-Table* GStorageManager::getTableByName(common::table_id_t tableID,
-                                       catalog::TableCatalogEntry* curEntry) {
+Table* StatsManager::getTableByName(common::table_id_t tableID,
+                                    catalog::TableCatalogEntry* curEntry) {
   if (tables.contains(tableID)) {
     auto oldTable = tables.at(tableID).get();
     if (checkTableConsistency(oldTable, curEntry)) {
@@ -94,7 +79,7 @@ Table* GStorageManager::getTableByName(common::table_id_t tableID,
   return nullptr;
 }
 
-Table* GStorageManager::getTable(common::table_id_t tableID) {
+Table* StatsManager::getTable(common::table_id_t tableID) {
   auto& transaction = gs::Constants::DEFAULT_TRANSACTION;
   auto catalog = database->getCatalog();
   if (!catalog) {
@@ -122,11 +107,10 @@ Table* GStorageManager::getTable(common::table_id_t tableID) {
   }
 }
 
-GStorageManager::GStorageManager(const std::filesystem::path& statsPath,
-                                 main::Database* database,
-                                 MemoryManager& memoryManager,
-                                 gs::storage::WAL& wal)
-    : StorageManager(memoryManager), wal(wal), database(database) {
+StatsManager::StatsManager(const std::filesystem::path& statsPath,
+                           main::MetadataManager* database,
+                           MemoryManager& memoryManager)
+    : memoryManager(memoryManager), database(database) {
   std::ifstream file(statsPath);
   if (!file.is_open()) {
     THROW_EXCEPTION_WITH_FILE_LINE("Statistics file " + statsPath.string() +
@@ -145,7 +129,7 @@ GStorageManager::GStorageManager(const std::filesystem::path& statsPath,
   loadStats(*database->getCatalog(), countMap);
 }
 
-void GStorageManager::getCardMap(
+void StatsManager::getCardMap(
     const std::string& json,
     std::unordered_map<std::string, common::row_idx_t>& countMap) {
   try {
@@ -211,7 +195,7 @@ void GStorageManager::getCardMap(
   }
 }
 
-void GStorageManager::loadStats(
+void StatsManager::loadStats(
     const catalog::Catalog& catalog,
     const std::unordered_map<std::string, common::row_idx_t>& countMap) {
   auto& transaction = gs::Constants::DEFAULT_TRANSACTION;
@@ -236,5 +220,6 @@ void GStorageManager::loadStats(
     }
   }
 }
+
 }  // namespace storage
 }  // namespace gs

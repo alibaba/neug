@@ -36,7 +36,7 @@
 #include "neug/compiler/main/client_context.h"
 #include "neug/compiler/planner/operator/schema.h"
 #include "neug/compiler/processor/result/result_set.h"
-#include "neug/compiler/storage/storage_manager.h"
+#include "neug/compiler/storage/stats_manager.h"
 
 using namespace gs::catalog;
 using namespace gs::storage;
@@ -191,7 +191,7 @@ OnDiskGraphVertexScanState::OnDiskGraphVertexScanState(
     const std::vector<std::string>& propertyNames)
     : context{context},
       nodeTable{ku_dynamic_cast<const NodeTable&>(
-          *context.getStorageManager()->getTable(tableEntry->getTableID()))},
+          *context.getStatsManager()->getTable(tableEntry->getTableID()))},
       numNodesScanned{0},
       currentOffset{0},
       endOffsetExclusive{0} {}

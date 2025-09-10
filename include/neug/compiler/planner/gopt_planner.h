@@ -9,10 +9,9 @@
 
 #include <yaml-cpp/yaml.h>
 #include "neug/compiler/gopt/g_alias_manager.h"
-#include "neug/compiler/gopt/g_database.h"
 #include "neug/compiler/gopt/g_physical_convertor.h"
 #include "neug/compiler/main/client_context.h"
-#include "neug/compiler/main/database.h"
+#include "neug/compiler/main/metadata_manager.h"
 #include "neug/compiler/planner/graph_planner.h"
 
 namespace gs {
@@ -20,9 +19,7 @@ namespace gs {
 class GOptPlanner : public gs::IGraphPlanner {
  public:
   GOptPlanner() : IGraphPlanner() {
-    gs::main::SystemConfig sysConfig;
-    sysConfig.readOnly = false;
-    database = std::make_unique<gs::main::GDatabase>(sysConfig);
+    database = std::make_unique<gs::main::MetadataManager>();
     ctx = std::make_unique<gs::main::ClientContext>(database.get());
   }
 
@@ -36,7 +33,7 @@ class GOptPlanner : public gs::IGraphPlanner {
   void update_statistics(const std::string& graph_statistic_json) override;
 
  private:
-  std::unique_ptr<gs::main::GDatabase> database;
+  std::unique_ptr<gs::main::MetadataManager> database;
   std::unique_ptr<gs::main::ClientContext> ctx;
   std::shared_mutex planner_mutex;  // Protects access to the planner
 };

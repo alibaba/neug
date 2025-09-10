@@ -40,14 +40,14 @@ struct LocalRelTableScanState;
 class KUZU_API RelTable : public Table {
  public:
   RelTable(catalog::RelTableCatalogEntry* relTableEntry,
-           const StorageManager* storageManager)
+           const StatsManager* storageManager)
       : Table{relTableEntry, storageManager},
         fromNodeTableID{relTableEntry->getSrcTableID()},
         toNodeTableID{relTableEntry->getDstTableID()},
         nextRelOffset{0} {}
 
   RelTable(catalog::RelTableCatalogEntry* relTableEntry,
-           const StorageManager* storageManager, MemoryManager* memoryManager,
+           const StatsManager* storageManager, MemoryManager* memoryManager,
            common::Deserializer* deSer = nullptr)
       : Table{relTableEntry, storageManager, memoryManager},
         fromNodeTableID{relTableEntry->getSrcTableID()},

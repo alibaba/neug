@@ -31,19 +31,17 @@
 #include "neug/compiler/common/task_system/task.h"
 #include "neug/compiler/extension/extension.h"
 #include "neug/compiler/extension/extension_manager.h"
+#include "neug/compiler/gopt/g_constants.h"
 #include "neug/compiler/graph/graph_entry.h"
-#include "neug/compiler/main/attached_database.h"
-#include "neug/compiler/main/database.h"
-#include "neug/compiler/main/database_manager.h"
-#include "neug/compiler/main/db_config.h"
+#include "neug/compiler/main/metadata_manager.h"
+#include "neug/compiler/main/option_config.h"
 #include "neug/compiler/main/plan_printer.h"
 #include "neug/compiler/optimizer/optimizer.h"
 #include "neug/compiler/parser/parser.h"
 #include "neug/compiler/parser/visitor/standalone_call_rewriter.h"
 #include "neug/compiler/parser/visitor/statement_read_write_analyzer.h"
 #include "neug/compiler/planner/planner.h"
-#include "neug/compiler/storage/storage_manager.h"
-#include "neug/compiler/transaction/transaction_context.h"
+#include "neug/compiler/storage/stats_manager.h"
 #include "neug/utils/exception/exception.h"
 
 #if defined(_WIN32)
@@ -67,13 +65,8 @@ void ActiveQuery::reset() {
   timer = Timer();
 }
 
-ClientContext::ClientContext(Database* database)
-    : dbConfig{database->dbConfig},
-      localDatabase{database},
-      warningContext(&clientConfig) {
-  transactionContext = std::make_unique<TransactionContext>(*this);
-  randomEngine = std::make_unique<RandomEngine>();
-  remoteDatabase = nullptr;
+ClientContext::ClientContext(MetadataManager* database)
+    : localDatabase{database}, warningContext(&clientConfig) {
   graphEntrySet = std::make_unique<graph::GraphEntrySet>();
 #if defined(_WIN32)
   clientConfig.homeDirectory = getEnvVariable("USERPROFILE");
@@ -83,7 +76,7 @@ ClientContext::ClientContext(Database* database)
   clientConfig.fileSearchPath = "";
   clientConfig.enableSemiMask = ClientConfigDefault::ENABLE_SEMI_MASK;
   clientConfig.enableZoneMap = ClientConfigDefault::ENABLE_ZONE_MAP;
-  clientConfig.numThreads = database->dbConfig.maxNumThreads;
+  // clientConfig.numThreads = database->dbConfig.maxNumThreads;
   clientConfig.timeoutInMS = ClientConfigDefault::TIMEOUT_IN_MS;
   clientConfig.varLengthMaxDepth = ClientConfigDefault::VAR_LENGTH_MAX_DEPTH;
   clientConfig.enableProgressBar = ClientConfigDefault::ENABLE_PROGRESS_BAR;
@@ -94,50 +87,14 @@ ClientContext::ClientContext(Database* database)
       ClientConfigDefault::RECURSIVE_PATTERN_FACTOR;
   clientConfig.disableMapKeyCheck = ClientConfigDefault::DISABLE_MAP_KEY_CHECK;
   clientConfig.warningLimit = ClientConfigDefault::WARNING_LIMIT;
-  progressBar = std::make_unique<ProgressBar>(clientConfig.enableProgressBar);
 }
 
 ClientContext::~ClientContext() = default;
 
-uint64_t ClientContext::getTimeoutRemainingInMS() const {
-  KU_ASSERT(hasTimeout());
-  const auto elapsed = activeQuery.timer.getElapsedTimeInMS();
-  return elapsed >= clientConfig.timeoutInMS
-             ? 0
-             : clientConfig.timeoutInMS - elapsed;
-}
-
-void ClientContext::startTimer() {
-  if (hasTimeout()) {
-    activeQuery.timer.start();
-  }
-}
-
-void ClientContext::setQueryTimeOut(uint64_t timeoutInMS) {
-  lock_t lck{mtx};
-  clientConfig.timeoutInMS = timeoutInMS;
-}
-
-uint64_t ClientContext::getQueryTimeOut() const {
-  return clientConfig.timeoutInMS;
-}
-
-void ClientContext::setMaxNumThreadForExec(uint64_t numThreads) {
-  lock_t lck{mtx};
-  if (numThreads == 0) {
-    numThreads = localDatabase->dbConfig.maxNumThreads;
-  }
-  clientConfig.numThreads = numThreads;
-}
-
-uint64_t ClientContext::getMaxNumThreadForExec() const {
-  return clientConfig.numThreads;
-}
-
 Value ClientContext::getCurrentSetting(const std::string& optionName) const {
   auto lowerCaseOptionName = optionName;
   StringUtils::toLower(lowerCaseOptionName);
-  const auto option = DBConfig::getOptionByName(lowerCaseOptionName);
+  const ConfigurationOption* option = nullptr;
   if (option != nullptr) {
     return option->getSetting(this);
   }
@@ -152,17 +109,7 @@ Value ClientContext::getCurrentSetting(const std::string& optionName) const {
 }
 
 Transaction* ClientContext::getTransaction() const {
-  return transactionContext->getActiveTransaction();
-}
-
-TransactionContext* ClientContext::getTransactionContext() const {
-  return transactionContext.get();
-}
-
-ProgressBar* ClientContext::getProgressBar() const { return progressBar.get(); }
-
-void ClientContext::addScanReplace(function::ScanReplacement scanReplacement) {
-  scanReplacements.push_back(std::move(scanReplacement));
+  return &gs::Constants::DEFAULT_TRANSACTION;
 }
 
 std::unique_ptr<function::ScanReplacementData> ClientContext::tryReplace(
@@ -192,22 +139,8 @@ std::string ClientContext::getExtensionDir() const {
                       NEUG_EXTENSION_VERSION, extension::getPlatform());
 }
 
-std::string ClientContext::getDatabasePath() const {
-  return localDatabase->databasePath;
-}
-
-TaskScheduler* ClientContext::getTaskScheduler() const { return nullptr; }
-
-DatabaseManager* ClientContext::getDatabaseManager() const {
-  return localDatabase->databaseManager.get();
-}
-
-storage::StorageManager* ClientContext::getStorageManager() const {
-  if (remoteDatabase == nullptr) {
-    return localDatabase->storageManager.get();
-  } else {
-    return remoteDatabase->getStorageManager();
-  }
+storage::StatsManager* ClientContext::getStatsManager() const {
+  return localDatabase->storageManager.get();
 }
 
 storage::MemoryManager* ClientContext::getMemoryManager() const {
@@ -218,33 +151,12 @@ extension::ExtensionManager* ClientContext::getExtensionManager() const {
   return localDatabase->extensionManager.get();
 }
 
-storage::WAL* ClientContext::getWAL() const {
-  KU_ASSERT(localDatabase && localDatabase->storageManager);
-  return &localDatabase->storageManager->getWAL();
-}
-
 Catalog* ClientContext::getCatalog() const {
-  if (remoteDatabase == nullptr) {
-    return localDatabase->catalog.get();
-  } else {
-    return remoteDatabase->getCatalog();
-  }
-}
-
-TransactionManager* ClientContext::getTransactionManagerUnsafe() const {
-  if (remoteDatabase == nullptr) {
-    return localDatabase->transactionManager.get();
-  } else {
-    return remoteDatabase->getTransactionManager();
-  }
+  return localDatabase->catalog.get();
 }
 
 VirtualFileSystem* ClientContext::getVFSUnsafe() const {
   return localDatabase->vfs.get();
-}
-
-RandomEngine* ClientContext::getRandomEngine() const {
-  return randomEngine.get();
 }
 
 std::string ClientContext::getEnvVariable(const std::string& name) {
@@ -264,42 +176,7 @@ std::string ClientContext::getEnvVariable(const std::string& name) {
 #endif
 }
 
-void ClientContext::setDefaultDatabase(AttachedKuzuDatabase* defaultDatabase_) {
-  remoteDatabase = defaultDatabase_;
-}
-
-bool ClientContext::hasDefaultDatabase() const {
-  return remoteDatabase != nullptr;
-}
-
-void ClientContext::addScalarFunction(std::string name,
-                                      function::function_set definitions) {
-  TransactionHelper::runFuncInTransaction(
-      *transactionContext,
-      [&]() {
-        localDatabase->catalog->addFunction(
-            getTransaction(), CatalogEntryType::SCALAR_FUNCTION_ENTRY,
-            std::move(name), std::move(definitions));
-      },
-      false /*readOnlyStatement*/, false /*isTransactionStatement*/,
-      TransactionHelper::TransactionCommitAction::COMMIT_IF_NEW);
-}
-
-void ClientContext::removeScalarFunction(const std::string& name) {
-  TransactionHelper::runFuncInTransaction(
-      *transactionContext,
-      [&]() { localDatabase->catalog->dropFunction(getTransaction(), name); },
-      false /*readOnlyStatement*/, false /*isTransactionStatement*/,
-      TransactionHelper::TransactionCommitAction::COMMIT_IF_NEW);
-}
-
-gs::processor::WarningContext& ClientContext::getWarningContextUnsafe() {
-  return warningContext;
-}
-
-const gs::processor::WarningContext& ClientContext::getWarningContext() const {
-  return warningContext;
-}
+bool ClientContext::hasDefaultDatabase() const { return false; }
 
 graph::GraphEntrySet& ClientContext::getGraphEntrySetUnsafe() {
   return *graphEntrySet;
@@ -330,105 +207,12 @@ std::unique_ptr<PreparedStatement> ClientContext::prepare(
   return result;
 }
 
-std::unique_ptr<QueryResult> ClientContext::executeWithParams(
-    PreparedStatement* preparedStatement,
-    std::unordered_map<std::string, std::unique_ptr<Value>> inputParams,
-    std::optional<uint64_t> queryID) {
-  lock_t lck{mtx};
-  if (!preparedStatement->isSuccess()) {
-    return queryResultWithError(preparedStatement->errMsg);
-  }
-  try {
-    bindParametersNoLock(preparedStatement, inputParams);
-  } catch (std::exception& e) { return queryResultWithError(e.what()); }
-  KU_ASSERT(preparedStatement->parsedStatement != nullptr);
-  const auto rebindPreparedStatement = prepareNoLock(
-      preparedStatement->parsedStatement, false /*shouldCommitNewTransaction*/,
-      preparedStatement->parameterMap);
-  useInternalCatalogEntry_ = false;
-  return executeNoLock(rebindPreparedStatement.get(), queryID);
-}
-
-std::unique_ptr<QueryResult> ClientContext::query(
-    std::string_view queryStatement, std::optional<uint64_t> queryID) {
-  lock_t lck{mtx};
-  return queryNoLock(queryStatement, queryID);
-}
-
-std::unique_ptr<QueryResult> ClientContext::queryNoLock(
-    std::string_view query, std::optional<uint64_t> queryID) {
-  auto parsedStatements = std::vector<std::shared_ptr<Statement>>();
-  try {
-    parsedStatements = parseQuery(query);
-  } catch (std::exception& exception) {
-    return queryResultWithError(exception.what());
-  }
-  std::unique_ptr<QueryResult> queryResult;
-  QueryResult* lastResult = nullptr;
-  double internalCompilingTime = 0.0, internalExecutionTime = 0.0;
-  for (const auto& statement : parsedStatements) {
-    auto preparedStatement =
-        prepareNoLock(statement, false /*shouldCommitNewTransaction*/);
-    auto currentQueryResult = executeNoLock(preparedStatement.get(), queryID);
-    if (!currentQueryResult->isSuccess()) {
-      if (!lastResult) {
-        queryResult = std::move(currentQueryResult);
-      } else {
-        queryResult->nextQueryResult = std::move(currentQueryResult);
-      }
-      break;
-    }
-    auto currentQuerySummary = currentQueryResult->getQuerySummary();
-    if (statement->isInternal()) {
-      internalCompilingTime += currentQuerySummary->getCompilingTime();
-      internalExecutionTime += currentQuerySummary->getExecutionTime();
-      continue;
-    }
-    currentQuerySummary->incrementCompilingTime(internalCompilingTime);
-    currentQuerySummary->incrementExecutionTime(internalExecutionTime);
-    if (!lastResult) {
-      queryResult = std::move(currentQueryResult);
-      lastResult = queryResult.get();
-    } else {
-      lastResult->nextQueryResult = std::move(currentQueryResult);
-      lastResult = lastResult->nextQueryResult.get();
-    }
-  }
-  useInternalCatalogEntry_ = false;
-  return queryResult;
-}
-
-std::unique_ptr<QueryResult> ClientContext::queryResultWithError(
-    std::string_view errMsg) {
-  auto queryResult = std::make_unique<QueryResult>();
-  queryResult->success = false;
-  queryResult->errMsg = errMsg;
-  queryResult->nextQueryResult = nullptr;
-  queryResult->queryResultIterator =
-      QueryResult::QueryResultIterator{queryResult.get()};
-  return queryResult;
-}
-
 std::unique_ptr<PreparedStatement> ClientContext::preparedStatementWithError(
     std::string_view errMsg) {
   auto preparedStatement = std::make_unique<PreparedStatement>();
   preparedStatement->success = false;
   preparedStatement->errMsg = errMsg;
   return preparedStatement;
-}
-
-void ClientContext::bindParametersNoLock(
-    const PreparedStatement* preparedStatement,
-    const std::unordered_map<std::string, std::unique_ptr<Value>>&
-        inputParams) {
-  auto& parameterMap = preparedStatement->parameterMap;
-  for (auto& [name, value] : inputParams) {
-    if (!parameterMap.contains(name)) {
-      THROW_EXCEPTION_WITH_FILE_LINE("Parameter " + name + " not found.");
-    }
-    auto expectParam = parameterMap.at(name);
-    *parameterMap.at(name) = std::move(*value);
-  }
 }
 
 std::vector<std::shared_ptr<Statement>> ClientContext::parseQuery(
@@ -473,19 +257,6 @@ std::vector<std::shared_ptr<Statement>> ClientContext::parseQuery(
   return statements;
 }
 
-void ClientContext::validateTransaction(
-    const PreparedStatement& preparedStatement) const {
-  // if (!canExecuteWriteQuery() && !preparedStatement.isReadOnly()) {
-  //   throw ConnectionException(
-  //       "Cannot execute write operations in a read-only database!");
-  // }
-  // if (preparedStatement.parsedStatement->requireTransaction() &&
-  //     transactionContext->hasActiveTransaction()) {
-  //   KU_ASSERT(!transactionContext->isAutoTransaction());
-  //   transactionContext->validateManualTransaction(preparedStatement.readOnly);
-  // }
-}
-
 std::unique_ptr<PreparedStatement> ClientContext::prepareNoLock(
     std::shared_ptr<Statement> parsedStatement, bool shouldCommitNewTransaction,
     std::optional<std::unordered_map<std::string, std::shared_ptr<Value>>>
@@ -497,38 +268,27 @@ std::unique_ptr<PreparedStatement> ClientContext::prepareNoLock(
     preparedStatement->preparedSummary.statementType =
         parsedStatement->getStatementType();
     auto readWriteAnalyzer = StatementReadWriteAnalyzer(this);
-    TransactionHelper::runFuncInTransaction(
-        *transactionContext,
-        [&]() -> void { readWriteAnalyzer.visit(*parsedStatement); },
-        true /* readOnly */, false /* */,
-        TransactionHelper::TransactionCommitAction::COMMIT_IF_NEW);
+
+    readWriteAnalyzer.visit(*parsedStatement);
+
     preparedStatement->readOnly = readWriteAnalyzer.isReadOnly();
     preparedStatement->parsedStatement = std::move(parsedStatement);
-    validateTransaction(*preparedStatement);
 
-    TransactionHelper::runFuncInTransaction(
-        *transactionContext,
-        [&]() -> void {
-          auto binder = Binder(this);
-          if (inputParams) {
-            binder.setInputParameters(*inputParams);
-          }
-          const auto boundStatement =
-              binder.bind(*preparedStatement->parsedStatement);
-          preparedStatement->parameterMap = binder.getParameterMap();
-          preparedStatement->statementResult =
-              std::make_unique<BoundStatementResult>(
-                  boundStatement->getStatementResult()->copy());
-          auto planner = Planner(this);
-          auto bestPlan = planner.getBestPlan(*boundStatement);
-          optimizer::Optimizer::optimize(bestPlan.get(), this,
-                                         planner.getCardinalityEstimator());
-          preparedStatement->logicalPlan = std::move(bestPlan);
-        },
-        preparedStatement->isReadOnly(),
-        preparedStatement->isTransactionStatement(),
-        TransactionHelper::getAction(shouldCommitNewTransaction,
-                                     false /*shouldCommitAutoTransaction*/));
+    auto binder = Binder(this);
+    if (inputParams) {
+      binder.setInputParameters(*inputParams);
+    }
+    const auto boundStatement =
+        binder.bind(*preparedStatement->parsedStatement);
+    preparedStatement->parameterMap = binder.getParameterMap();
+    preparedStatement->statementResult = std::make_unique<BoundStatementResult>(
+        boundStatement->getStatementResult()->copy());
+    auto planner = Planner(this);
+    auto bestPlan = planner.getBestPlan(*boundStatement);
+    optimizer::Optimizer::optimize(bestPlan.get(), this,
+                                   planner.getCardinalityEstimator());
+    preparedStatement->logicalPlan = std::move(bestPlan);
+
   } catch (std::exception& exception) {
     preparedStatement->success = false;
     preparedStatement->errMsg = exception.what();
@@ -539,72 +299,6 @@ std::unique_ptr<PreparedStatement> ClientContext::prepareNoLock(
       preparedStatement->parsedStatement->getParsingTime() +
       prepareTimer.getElapsedTimeMS();
   return preparedStatement;
-}
-
-std::unique_ptr<QueryResult> ClientContext::executeNoLock(
-    PreparedStatement* preparedStatement, std::optional<uint64_t> queryID) {
-  THROW_RUNTIME_ERROR(
-      "executeNoLock is not implemented, to remove dependency of processor "
-      "module");
-}
-
-std::unique_ptr<QueryResult> ClientContext::handleFailedExecution(
-    std::optional<uint64_t> queryID, const std::exception& e) const {
-  return nullptr;
-}
-
-ClientContext::TransactionHelper::TransactionCommitAction
-ClientContext::TransactionHelper::getAction(bool commitIfNew,
-                                            bool commitIfAuto) {
-  if (commitIfNew && commitIfAuto) {
-    return TransactionCommitAction::COMMIT_NEW_OR_AUTO;
-  }
-  if (commitIfNew) {
-    return TransactionCommitAction::COMMIT_IF_NEW;
-  }
-  if (commitIfAuto) {
-    return TransactionCommitAction::COMMIT_IF_AUTO;
-  }
-  return TransactionCommitAction::NOT_COMMIT;
-}
-
-void ClientContext::TransactionHelper::runFuncInTransaction(
-    TransactionContext& context, const std::function<void()>& fun,
-    bool readOnlyStatement, bool isTransactionStatement,
-    TransactionCommitAction action) {
-  KU_ASSERT(context.isAutoTransaction() || context.hasActiveTransaction());
-  const bool requireNewTransaction = context.isAutoTransaction() &&
-                                     !context.hasActiveTransaction() &&
-                                     !isTransactionStatement;
-  if (requireNewTransaction) {
-    context.beginAutoTransaction(readOnlyStatement);
-  }
-  try {
-    fun();
-    if ((requireNewTransaction && commitIfNew(action)) ||
-        (context.isAutoTransaction() && commitIfAuto(action))) {
-      context.commit();
-    }
-  } catch (exception::CheckpointException&) {
-    context.clearTransaction();
-    throw;
-  } catch (std::exception&) {
-    context.rollback();
-    throw;
-  }
-}
-
-bool ClientContext::canExecuteWriteQuery() const {
-  if (dbConfig.readOnly) {
-    return false;
-  }
-  const auto dbManager = localDatabase->databaseManager.get();
-  for (const auto& attachedDB : dbManager->getAttachedDatabases()) {
-    if (attachedDB->getDBType() == common::ATTACHED_KUZU_DB_TYPE) {
-      return false;
-    }
-  }
-  return true;
 }
 
 }  // namespace main
