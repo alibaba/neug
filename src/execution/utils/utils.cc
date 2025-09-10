@@ -84,7 +84,7 @@ std::vector<LabelTriplet> parse_label_triplets(
                                   GraphDataType_GraphElementOpt_PATH) {
         int label_num = gt.graph_data_type_size();
         for (int label_i = 0; label_i < label_num; ++label_i) {
-          const ::common::GraphDataType_GraphElementLabel& gdt =
+          const common::GraphDataType_GraphElementLabel& gdt =
               gt.graph_data_type(label_i).label();
           labels.emplace_back(static_cast<label_t>(gdt.src_label().value()),
                               static_cast<label_t>(gdt.dst_label().value()),

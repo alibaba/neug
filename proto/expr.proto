@@ -258,11 +258,6 @@ message UserDefinedFunction {
   repeated Expression parameters = 2;
 }
 
-message ScalarFunction {
-  string unique_name = 1;
-  repeated Expression parameters = 2;
-}
-
 message ToDate {
   string date_str = 1;
 }
@@ -273,6 +268,27 @@ message ToDatetime {
 
 message ToInterval {
   string interval_str = 1;
+}
+
+message ToUpper {
+  oneof input_item {
+    common.Value value = 1;
+    Variable var = 2;
+  }
+}
+
+message ToLower {
+  oneof input_item {
+    common.Value value = 1;
+    Variable var = 2;
+  }
+}
+
+message Reverse {
+  oneof input_item {
+    common.Value value = 1;
+    Variable var = 2;
+  }
 }
 
 // An operator of expression is one of Logical, Arithmetic, Const and Variable.
@@ -304,7 +320,9 @@ message ExprOpr {
     ToDatetime to_datetime = 20;
     ToInterval to_interval = 21;
     ToTuple to_tuple = 22;
-    ScalarFunction scalar_func = 23;
+    ToUpper to_upper = 23;
+    ToLower to_lower = 24;
+    Reverse reverse = 25;
   }
   // The data of type of ExprOpr
   common.IrDataType node_type = 12;

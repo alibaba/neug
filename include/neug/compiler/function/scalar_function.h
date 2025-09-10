@@ -25,7 +25,7 @@
 #include "binary_function_executor.h"
 #include "const_function_executor.h"
 #include "neug/compiler/function/function.h"
-#include "neug/utils/neug_function_type.h"
+#include "neug/execution/common/rt_any.h"
 #include "pointer_function_executor.h"
 #include "ternary_function_executor.h"
 #include "unary_function_executor.h"
@@ -52,17 +52,6 @@ struct KUZU_API ScalarFunction : public ScalarOrAggregateFunction {
   scalar_func_exec_t execFunc = nullptr;
   scalar_func_select_t selectFunc = nullptr;
   scalar_func_compile_exec_t compileFunc = nullptr;
-  
-  runtime::neug_func_exec_t neugExecFunc = nullptr;
-
-  ScalarFunction(std::string name,
-                std::vector<common::LogicalTypeID> parameterTypeIDs,
-                common::LogicalTypeID returnTypeID,
-                scalar_func_exec_t execFunc,
-                runtime::neug_func_exec_t neugExecFunc)
-      : ScalarOrAggregateFunction{std::move(name), std::move(parameterTypeIDs), returnTypeID},
-        execFunc{std::move(execFunc)},
-        neugExecFunc{std::move(neugExecFunc)} {}  
 
   ScalarFunction() = default;
   ScalarFunction(std::string name,

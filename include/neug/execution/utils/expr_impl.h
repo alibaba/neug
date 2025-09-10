@@ -36,7 +36,6 @@
 #include <utility>
 #include <vector>
 
-#include "neug/utils/neug_function_type.h"
 #include "neug/execution/common/rt_any.h"
 #include "neug/execution/utils/var.h"
 #include "neug/utils/property/types.h"
@@ -47,61 +46,6 @@
 #include "neug/utils/proto/plan/common.pb.h"
 #include "neug/utils/proto/plan/expr.pb.h"
 #endif
-
-namespace gs {
-namespace common {
-
-// messages
-using ::common::Value;
-using ::common::Expression;
-using ::common::ExprOpr;
-using ::common::Variable;
-using ::common::DynamicParam;
-using ::common::Case;
-using ::common::Case_WhenThen;
-using ::common::Extract;
-using ::common::TimeInterval;
-using ::common::DateTimeMinus;
-using ::common::PathConcat;
-using ::common::PathConcat_ConcatPathInfo;
-using ::common::PathFunction;
-using ::common::UserDefinedFunction;
-using ::common::ToDate;
-using ::common::ToDatetime;
-using ::common::ToInterval;
-using ::common::ToTuple;
-using ::common::VariableKeys;
-using ::common::VariableKeyValue;
-using ::common::VariableKeyValues;
-using ::common::IrDataType;
-using ::common::NameOrId;
-using ::common::PrimitiveType;
-using ::common::GraphDataType;
-using ::common::GraphDataType_GraphElementOpt;
-
-// enums (类型)
-using ::common::Logical;
-using ::common::Arithmetic;
-using ::common::ExprOpr_Brace;
-using ::common::Extract_Interval;
-using ::common::PathFunction_FuncOpt;
-using ::common::PathConcat_Endpoint;
-
-// 枚举值（需要时引入，否则可以不加；当前代码里使用 common::EQ/NE/...）
-using ::common::EQ;
-using ::common::NE;
-using ::common::LT;
-using ::common::LE;
-using ::common::GT;
-using ::common::GE;
-using ::common::AND;
-using ::common::OR;
-using ::common::NOT;
-using ::common::REGEX;
-using ::common::WITHIN;
-using ::common::WITHOUT;
-} // namespace common
-} // namespace gs
 
 namespace gs {
 
@@ -563,60 +507,124 @@ class CaseWhenExpr : public ExprBase {
   std::unique_ptr<ExprBase> else_expr_;
 };
 
-class ScalarFunctionExpr : public ExprBase {
-  public:
-    ScalarFunctionExpr(std::string signature, neug_func_exec_t fn,
-                      RTAnyType ret_type,
-                      std::vector<std::unique_ptr<ExprBase>>&& children)
-        : signature_(std::move(signature)),
-          func_(fn),
-          ret_type_(ret_type),
-          children_(std::move(children)) {}
+class UpperExpr : public ExprBase {
+ public:
+  explicit UpperExpr(std::unique_ptr<ExprBase>&& input)
+      : input_(std::move(input)) {}
 
-    RTAny eval_path(size_t idx, Arena& arena) const override {
-      std::vector<RTAny> params;
-      params.reserve(children_.size());
-      for (auto& ch : children_) {
-        params.emplace_back(ch->eval_path(idx, arena));
-      }
-      return func_(idx, arena, params);
+  RTAnyType type() const override { return RTAnyType::kStringValue; }
+
+  RTAny eval_path(size_t idx, Arena& arena) const override {
+    auto val = input_->eval_path(idx, arena);
+    return eval_upper(val, arena);
+  }
+
+  RTAny eval_vertex(label_t label, vid_t v, size_t idx,
+                    Arena& arena) const override {
+    auto val = input_->eval_vertex(label, v, idx, arena);
+    return eval_upper(val, arena);
+  }
+
+  RTAny eval_edge(const LabelTriplet& label, vid_t src, vid_t dst,
+                  const Any& data, size_t idx, Arena& arena) const override {
+    auto val = input_->eval_edge(label, src, dst, data, idx, arena);
+    return eval_upper(val, arena);
+  }
+
+ private:
+  RTAny eval_upper(const RTAny& val, Arena& arena) const {
+    if (val.type() != RTAnyType::kStringValue) {
+      THROW_RUNTIME_ERROR("UPPER: input value is not a string");
     }
+    std::string str(val.as_string());
+    std::transform(str.begin(), str.end(), str.begin(), ::toupper);
+    auto ptr = StringImpl::make_string_impl(str);
+    auto str_view = ptr->str_view();
+    arena.emplace_back(std::move(ptr));
+    return RTAny::from_string(str_view);
+  }
 
-    RTAny eval_vertex(label_t label, vid_t v, size_t idx,
-                      Arena& arena) const override {
-      std::vector<RTAny> params;
-      params.reserve(children_.size());
-      for (auto& ch : children_) {
-        params.emplace_back(ch->eval_vertex(label, v, idx, arena));
-      }
-      return func_(idx, arena, params);
+  std::unique_ptr<ExprBase> input_;
+};
+
+class LowerExpr : public ExprBase {
+ public:
+  explicit LowerExpr(std::unique_ptr<ExprBase>&& input)
+      : input_(std::move(input)) {}
+
+  RTAnyType type() const override { return RTAnyType::kStringValue; }
+
+  RTAny eval_path(size_t idx, Arena& arena) const override {
+    auto val = input_->eval_path(idx, arena);
+    return eval_lower(val, arena);
+  }
+
+  RTAny eval_vertex(label_t label, vid_t v, size_t idx,
+                    Arena& arena) const override {
+    auto val = input_->eval_vertex(label, v, idx, arena);
+    return eval_lower(val, arena);
+  }
+
+  RTAny eval_edge(const LabelTriplet& label, vid_t src, vid_t dst,
+                  const Any& data, size_t idx, Arena& arena) const override {
+    auto val = input_->eval_edge(label, src, dst, data, idx, arena);
+    return eval_lower(val, arena);
+  }
+
+ private:
+  RTAny eval_lower(const RTAny& val, Arena& arena) const {
+    if (val.type() != RTAnyType::kStringValue) {
+      THROW_RUNTIME_ERROR("LOWER: input value is not a string");
     }
+    std::string str(val.as_string());
+    std::transform(str.begin(), str.end(), str.begin(), ::tolower);
+    auto ptr = StringImpl::make_string_impl(str);
+    auto str_view = ptr->str_view();
+    arena.emplace_back(std::move(ptr));
+    return RTAny::from_string(str_view);
+  }
 
-    RTAny eval_edge(const LabelTriplet& label, vid_t src, vid_t dst,
-                    const Any& data, size_t idx, Arena& arena) const override {
-      std::vector<RTAny> params;
-      params.reserve(children_.size());
-      for (auto& ch : children_) {
-        params.emplace_back(
-            ch->eval_edge(label, src, dst, data, idx, arena));
-      }
-      return func_(idx, arena, params);
+  std::unique_ptr<ExprBase> input_;
+};
+
+class ReverseExpr : public ExprBase {
+ public:
+  explicit ReverseExpr(std::unique_ptr<ExprBase>&& input)
+      : input_(std::move(input)) {}
+
+  RTAnyType type() const override { return RTAnyType::kStringValue; }
+
+  RTAny eval_path(size_t idx, Arena& arena) const override {
+    auto val = input_->eval_path(idx, arena);
+    return eval_reverse(val, arena);
+  }
+
+  RTAny eval_vertex(label_t label, vid_t v, size_t idx,
+                    Arena& arena) const override {
+    auto val = input_->eval_vertex(label, v, idx, arena);
+    return eval_reverse(val, arena);
+  }
+
+  RTAny eval_edge(const LabelTriplet& label, vid_t src, vid_t dst,
+                  const Any& data, size_t idx, Arena& arena) const override {
+    auto val = input_->eval_edge(label, src, dst, data, idx, arena);
+    return eval_reverse(val, arena);
+  }
+
+ private:
+  RTAny eval_reverse(const RTAny& val, Arena& arena) const {
+    if (val.type() != RTAnyType::kStringValue) {
+      THROW_RUNTIME_ERROR("REVERSE: input value is not a string");
     }
+    std::string str(val.as_string());
+    std::reverse(str.begin(), str.end());
+    auto ptr = StringImpl::make_string_impl(str);
+    auto str_view = ptr->str_view();
+    arena.emplace_back(std::move(ptr));
+    return RTAny::from_string(str_view);
+  }
 
-    RTAnyType type() const override { return ret_type_; }
-
-    bool is_optional() const override {
-      for (auto& ch : children_) {
-        if (ch->is_optional()) return true;
-      }
-      return false;
-    }
-
-  private:
-    std::string signature_;
-    neug_func_exec_t func_;
-    RTAnyType ret_type_;
-    std::vector<std::unique_ptr<ExprBase>> children_;
+  std::unique_ptr<ExprBase> input_;
 };
 
 class TupleExpr : public ExprBase {

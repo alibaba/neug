@@ -14,7 +14,6 @@
  */
 
 #include "neug/execution/utils/expr_impl.h"
-#include "neug/compiler/catalog/function_signature_registry.h"
 
 #include <time.h>
 #include <iterator>
@@ -898,25 +897,52 @@ static std::unique_ptr<ExprBase> build_expr(
       return std::make_unique<TupleExpr>(std::move(exprs_vec));
     }
 
-    case common::ExprOpr::kScalarFunc: {
-      auto op = opr.scalar_func();
-      const std::string& signature = op.unique_name();
-      auto fn = function::FunctionSignatureRegistry::lookup(signature);
-      if (!fn) {
-        LOG(FATAL) << "ScalarFunctionExec not found for signature: " << signature;
+    case common::ExprOpr::kToUpper: {
+      auto op = opr.to_upper();
+      std::unique_ptr<ExprBase> input_expr;
+      if (op.has_value()) {
+        input_expr =
+            std::make_unique<ConstExpr>(parse_const_value(op.value()), true);
+      } else if (op.has_var()) {
+        input_expr =
+            std::make_unique<VariableExpr>(graph, ctx, op.var(), var_type);
+      } else {
+        LOG(FATAL) << "ToUpper: input_item neither value nor var: "
+                   << op.DebugString();
       }
-      // 解析返回类型（node_type 在 ExprOpr 顶层）
-      RTAnyType ret_type = RTAnyType::kUnknown;
-      if (opr.has_node_type()) {
-        ret_type = parse_from_ir_data_type(opr.node_type());
+      return std::make_unique<UpperExpr>(std::move(input_expr));
+    }
+
+    case common::ExprOpr::kToLower: {
+      auto op = opr.to_lower();
+      std::unique_ptr<ExprBase> input_expr;
+      if (op.has_value()) {
+        input_expr =
+            std::make_unique<ConstExpr>(parse_const_value(op.value()), true);
+      } else if (op.has_var()) {
+        input_expr =
+            std::make_unique<VariableExpr>(graph, ctx, op.var(), var_type);
+      } else {
+        LOG(FATAL) << "ToLower: input_item neither value nor var: "
+                   << op.DebugString();
       }
-      std::vector<std::unique_ptr<ExprBase>> children;
-      children.reserve(op.parameters_size());
-      for (int i = 0; i < op.parameters_size(); ++i) {
-        children.emplace_back(parse_expression_impl(
-            graph, ctx, params, op.parameters(i), var_type));
+      return std::make_unique<LowerExpr>(std::move(input_expr));
+    }
+
+    case common::ExprOpr::kReverse: {
+      auto op = opr.reverse();
+      std::unique_ptr<ExprBase> input_expr;
+      if (op.has_value()) {
+        input_expr =
+            std::make_unique<ConstExpr>(parse_const_value(op.value()), true);
+      } else if (op.has_var()) {
+        input_expr =
+            std::make_unique<VariableExpr>(graph, ctx, op.var(), var_type);
+      } else {
+        LOG(FATAL) << "Reverse: input_item neither value nor var: "
+                   << op.DebugString();
       }
-      return std::make_unique<ScalarFunctionExpr>(signature, fn, ret_type, std::move(children));
+      return std::make_unique<ReverseExpr>(std::move(input_expr));
     }
 
     case common::ExprOpr::kVars: {
@@ -1089,7 +1115,17 @@ static std::unique_ptr<ExprBase> parse_expression_impl(
       break;
     }
 
-    case common::ExprOpr::kScalarFunc: {
+    case common::ExprOpr::kToUpper: {
+      opr_stack2.push(*it);
+      break;
+    }
+
+    case common::ExprOpr::kToLower: {
+      opr_stack2.push(*it);
+      break;
+    }
+
+    case common::ExprOpr::kReverse: {
       opr_stack2.push(*it);
       break;
     }

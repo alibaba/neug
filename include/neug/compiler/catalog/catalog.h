@@ -243,8 +243,6 @@ class KUZU_API Catalog {
   void dropFunction(transaction::Transaction* transaction,
                     const std::string& name);
 
-  void registerFunctionSignatures(FunctionCatalogEntry* entry);
-
   // ----------------------------- Macro ----------------------------
 
   // Check if macro entry exists.
