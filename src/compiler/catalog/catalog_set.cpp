@@ -22,8 +22,6 @@
 
 #include "neug/compiler/catalog/catalog_set.h"
 
-#include <mutex>
-
 #include "neug/compiler/binder/ddl/bound_alter_info.h"
 #include "neug/compiler/catalog/catalog_entry/dummy_catalog_entry.h"
 #include "neug/compiler/catalog/catalog_entry/rel_group_catalog_entry.h"
@@ -98,6 +96,19 @@ oid_t CatalogSet::createEntry(Transaction* transaction,
     entry->setOID(oid);
     entryPtr = createEntryNoLock(transaction, std::move(entry));
   }
+  KU_ASSERT(entryPtr);
+  if (transaction->shouldAppendToUndoBuffer()) {
+    transaction->pushCreateDropCatalogEntry(*this, *entryPtr, isInternal());
+  }
+  return oid;
+}
+
+oid_t CatalogSet::createEntryUnlocked(Transaction* transaction,
+                              std::unique_ptr<CatalogEntry> entry) {
+  CatalogEntry* entryPtr = nullptr;
+  oid_t oid = nextOID++;
+  entry->setOID(oid);
+  entryPtr = createEntryNoLock(transaction, std::move(entry));
   KU_ASSERT(entryPtr);
   if (transaction->shouldAppendToUndoBuffer()) {
     transaction->pushCreateDropCatalogEntry(*this, *entryPtr, isInternal());
