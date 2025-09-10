@@ -350,6 +350,20 @@ def test_create_rel_table(tmp_path):
     db.close()
 
 
+def test_create_rel_table_with_multiple_src_dst(tmp_path):
+    db_dir = tmp_path / "create_rel_multi_src_dst"
+    shutil.rmtree(db_dir, ignore_errors=True)
+    db_dir.mkdir()
+    db = Database(db_path=str(db_dir), mode="w")
+    conn = db.connect()
+    conn.execute("CREATE NODE TABLE person(name STRING, PRIMARY KEY(name));")
+    conn.execute("CREATE NODE TABLE comment(id INT64, PRIMARY KEY(id));")
+    conn.execute("CREATE NODE TABLE post(id INT64, PRIMARY KEY(id));")
+    # create edge table with multiple src/dst vertex tables
+    conn.execute("CREATE REL TABLE likes(FROM person TO comment, FROM person TO post);")
+    conn.close()
+
+
 @pytest.mark.skip(reason="https://github.com/GraphScope/neug/issues/790")
 def test_create_rel_table_with_multiple_relationships(tmp_path):
     db_dir = tmp_path / "create_rel_multiple"
@@ -382,7 +396,7 @@ def test_create_rel_table_errors(tmp_path):
         conn.execute(
             "CREATE REL TABLE follows(FROM person TO person, weight DOUBLE, MANY_MANY);"
         )
-    assert str(ERR_INVALID_SCHEMA) in str(excinfo.value)
+    assert str(ERR_INVALID_ARGUMENT) in str(excinfo.value)
     # 2. create edge table without FROM/TO vertex tables
     with pytest.raises(Exception) as excinfo:
         conn.execute("CREATE REL TABLE NewFollows(FROM person TO user, MANY_MANY);")

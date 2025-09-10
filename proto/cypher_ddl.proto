@@ -22,15 +22,15 @@ import "basic_type.proto";
 
 // The create/drop/alter operations for edges are all based on the triplet type <src_type, edge_type, dst_type>.
 message EdgeType {
-common.NameOrId type_name = 1;
-common.NameOrId src_type_name = 2;
-common.NameOrId dst_type_name = 3;
+    common.NameOrId type_name = 1;
+    common.NameOrId src_type_name = 2;
+    common.NameOrId dst_type_name = 3;
 }
 
 message PropertyDef {
-string name = 1;
-common.DataType type = 2;
-common.Value default_value = 3;
+    string name = 1;
+    common.DataType type = 2;
+    common.Value default_value = 3;
 }
 
 // When the operation does not meet the data requirements, an exception is thrown by default; 
@@ -60,47 +60,52 @@ message CreateEdgeSchema {
         MANY_TO_MANY = 3;
     }
 
-    EdgeType edge_type = 1;
+    message TypeInfo {
+        EdgeType edge_type = 1;
+        Multiplicity multiplicity = 2;
+    }
+
+    // todo: support create edge type with multiple src/dst pairs
+    repeated TypeInfo type_info = 1;
     repeated PropertyDef properties = 2;
     repeated string primary_key = 3;
-    Multiplicity multiplicity = 4;
-    ConflictAction conflict_action = 5;
+    ConflictAction conflict_action = 4;
 }
 
 // Example:
 // DROP TABLE IF EXISTS User;
 message DropVertexSchema {
-common.NameOrId vertex_type = 1;
-ConflictAction conflict_action = 2;
+    common.NameOrId vertex_type = 1;
+    ConflictAction conflict_action = 2;
 }
 
 // Example:
 // DROP TABLE IF EXISTS Follows;
 message DropEdgeSchema {
-EdgeType edge_type = 1;
-ConflictAction conflict_action = 2;
+    EdgeType edge_type = 1;
+    ConflictAction conflict_action = 2;
 }
 
 // Example:
 // ALTER TABLE User ADD IF NOT EXISTS age INT64;
 message AddVertexPropertySchema {
-common.NameOrId vertex_type = 1;
-repeated PropertyDef properties = 2;
-ConflictAction conflict_action = 3;
+    common.NameOrId vertex_type = 1;
+    repeated PropertyDef properties = 2;
+    ConflictAction conflict_action = 3;
 }
 
 message AddEdgePropertySchema {
-EdgeType edge_type = 1;
-repeated PropertyDef properties = 2;
-ConflictAction conflict_action = 3;
+    EdgeType edge_type = 1;
+    repeated PropertyDef properties = 2;
+    ConflictAction conflict_action = 3;
 }
 
 // Example:
 // ALTER TABLE User DROP IF EXISTS age;
 message DropVertexPropertySchema {
-common.NameOrId vertex_type = 1;
-repeated string properties = 2;
-ConflictAction conflict_action = 3;
+    common.NameOrId vertex_type = 1;
+    repeated string properties = 2;
+    ConflictAction conflict_action = 3;
 }
 
 message DropEdgePropertySchema {
@@ -111,24 +116,24 @@ message DropEdgePropertySchema {
 
 // ALTER TABLE User RENAME age TO grade;
 message RenameVertexPropertySchema {
-common.NameOrId vertex_type = 1;
-// map from old property name to new property name
-map<string, string> mappings = 2;
-ConflictAction conflict_action = 3;
+    common.NameOrId vertex_type = 1;
+    // map from old property name to new property name
+    map<string, string> mappings = 2;
+    ConflictAction conflict_action = 3;
 }
 
 message RenameEdgePropertySchema {
-EdgeType edge_type = 1;
-// map from old property name to new property name
-map<string, string> mappings = 2;
-ConflictAction conflict_action = 3;
+    EdgeType edge_type = 1;
+    // map from old property name to new property name
+    map<string, string> mappings = 2;
+    ConflictAction conflict_action = 3;
 }
 
 // ALTER TABLE User RENAME TO Student;
 message RenameVertexTypeSchema {
-common.NameOrId old_type = 1;
-common.NameOrId new_type = 2;
-ConflictAction conflict_action = 3;
+    common.NameOrId old_type = 1;
+    common.NameOrId new_type = 2;
+    ConflictAction conflict_action = 3;
 }
 
 message RenameEdgeTypeSchema {

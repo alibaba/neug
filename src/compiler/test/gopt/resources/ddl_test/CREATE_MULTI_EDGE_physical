@@ -9,10 +9,24 @@
        "name": "Follows"
       },
       "src_type_name": {
-       "name": "User"
+       "name": "person"
       },
       "dst_type_name": {
-       "name": "User"
+       "name": "person"
+      }
+     },
+     "multiplicity": "MANY_TO_MANY"
+    },
+    {
+     "edge_type": {
+      "type_name": {
+       "name": "Follows"
+      },
+      "src_type_name": {
+       "name": "person"
+      },
+      "dst_type_name": {
+       "name": "software"
       }
      },
      "multiplicity": "MANY_TO_MANY"

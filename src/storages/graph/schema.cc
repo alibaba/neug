@@ -235,6 +235,10 @@ Schema::get_vprop_name_to_type_and_index(label_t label) const {
 
 bool Schema::exist(const std::string& src_label, const std::string& dst_label,
                    const std::string& edge_label) const {
+  if (!contains_vertex_label(src_label) || !contains_vertex_label(dst_label) ||
+      !contains_edge_label(edge_label)) {
+    return false;
+  }
   label_t src = get_vertex_label_id(src_label);
   label_t dst = get_vertex_label_id(dst_label);
   label_t edge = get_edge_label_id(edge_label);

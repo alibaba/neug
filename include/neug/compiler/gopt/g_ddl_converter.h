@@ -80,6 +80,8 @@ class GDDLConverter {
       const planner::LogicalCreateTable& op);
   std::unique_ptr<::physical::DDLPlan> convertToCreateEdgeSchema(
       const planner::LogicalCreateTable& op);
+  std::unique_ptr<::physical::DDLPlan> convertToCreateEdgeGroupSchema(
+      const planner::LogicalCreateTable& op);
   std::unique_ptr<::physical::DDLPlan> convertToDropVertexSchema(
       const planner::LogicalDrop& op);
   std::unique_ptr<::physical::DDLPlan> convertToDropEdgeSchema(
@@ -108,6 +110,8 @@ class GDDLConverter {
                       catalog::CatalogEntryType expectedType);
   std::unique_ptr<::physical::EdgeType> convertToEdgeType(
       const EdgeLabel& label);
+  std::unique_ptr<::physical::CreateEdgeSchema::TypeInfo> convertToEdgeTypeInfo(
+      const binder::BoundCreateTableInfo& info, const std::string& edgeName);
 
  private:
   gs::gopt::GTypeConverter typeConverter;

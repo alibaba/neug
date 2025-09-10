@@ -140,5 +140,16 @@ TEST_F(DDLTest, DROP_FOLLOWS) {
                                       getDDLResource("DROP_FOLLOWS_physical"));
 }
 
+TEST_F(DDLTest, CREATE_MULTI_EDGE) {
+  std::string schemaData = getGOptResource("schema/modern_schema.yaml");
+  std::string query =
+      "CREATE REL TABLE Follows(FROM person TO person, FROM person TO "
+      "software, since INT64);";
+  auto logical = planLogical(query, schemaData, "", rules);
+  auto physical = planPhysical(*logical);
+  VerifyFactory::verifyPhysicalByJson(
+      *physical, getDDLResource("CREATE_MULTI_EDGE_physical"));
+}
+
 }  // namespace gopt
 }  // namespace gs

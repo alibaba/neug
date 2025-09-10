@@ -172,38 +172,86 @@ Result<results::CollectiveResults> CypherUpdateApp::execute_ddl(
       return graph_.create_vertex_type(vertex_type_name, tuple_res.value(),
                                        pks);
     } else if (ddl_plan.has_create_edge_schema()) {
-      auto& create_edge = ddl_plan.create_edge_schema();
-      VLOG(10) << "Got create edge request: " << create_edge.DebugString();
-      auto edge_type_name = create_edge.edge_type().type_name().name();
-      auto src_vertex_type_name =
-          create_edge.edge_type().src_type_name().name();
-      auto dst_vertex_type_name =
-          create_edge.edge_type().dst_type_name().name();
-      auto tuple_res = property_defs_to_tuple(create_edge.properties());
+      auto& create_edges = ddl_plan.create_edge_schema();
+      auto tuple_res = property_defs_to_tuple(create_edges.properties());
       if (!tuple_res.ok()) {
         return tuple_res.status();
       }
-      if (create_edge.primary_key_size() != 0) {
+      if (create_edges.primary_key_size() != 0) {
         LOG(ERROR) << "Primary key is not supported for edge type creation";
         return Status(StatusCode::ERR_INVALID_ARGUMENT,
                       "Primary key is not supported for edge type creation");
       }
-      EdgeStrategy oe_stragety, ie_stragety;
-      if (!multiplicity_to_storage_strategy(create_edge.multiplicity(),
-                                            oe_stragety, ie_stragety)) {
-        LOG(ERROR) << "Invalid edge multiplicity: "
-                   << create_edge.multiplicity();
-        return Status(StatusCode::ERR_INVALID_ARGUMENT,
-                      "Invalid edge multiplicity: " +
-                          physical::CreateEdgeSchema_Multiplicity_Name(
-                              create_edge.multiplicity()));
+      bool conflict_action =
+          conflict_action_to_bool(create_edges.conflict_action());
+      using property_def_t =
+          std::vector<std::tuple<PropertyType, std::string, Any>>;
+      using create_edge_value_t =
+          std::tuple<std::string, std::string, std::string, property_def_t,
+                     bool, EdgeStrategy, EdgeStrategy>;
+      std::vector<create_edge_value_t> create_edge_defs;
+      for (int32_t i = 0; i < create_edges.type_info_size(); ++i) {
+        const auto& create_edge = create_edges.type_info(i);
+        auto multiplicity = create_edges.type_info(i).multiplicity();
+        auto edge_type_name = create_edge.edge_type().type_name().name();
+        auto src_vertex_type_name =
+            create_edge.edge_type().src_type_name().name();
+        auto dst_vertex_type_name =
+            create_edge.edge_type().dst_type_name().name();
+        EdgeStrategy oe_stragety, ie_stragety;
+        if (!multiplicity_to_storage_strategy(multiplicity, oe_stragety,
+                                              ie_stragety)) {
+          LOG(ERROR) << "Invalid edge multiplicity: " << multiplicity;
+          return Status(
+              StatusCode::ERR_INVALID_ARGUMENT,
+              "Invalid edge multiplicity: " +
+                  physical::CreateEdgeSchema_Multiplicity_Name(multiplicity));
+        }
+        if (graph_.schema().exist(src_vertex_type_name, dst_vertex_type_name,
+                                  edge_type_name)) {
+          return Status(StatusCode::ERR_INVALID_ARGUMENT,
+                        "Edge triplet already exists: " + src_vertex_type_name +
+                            ", " + dst_vertex_type_name + ", " +
+                            edge_type_name);
+        }
+        create_edge_defs.emplace_back(
+            src_vertex_type_name, dst_vertex_type_name, edge_type_name,
+            tuple_res.value(), conflict_action, oe_stragety, ie_stragety);
       }
+      int32_t succeed_index = 0;
+      int32_t defs_size = create_edge_defs.size();
+      while (succeed_index < defs_size) {
+        const auto& create_edge_def = create_edge_defs[succeed_index];
+        auto status = graph_.create_edge_type(
+            std::get<0>(create_edge_def), std::get<1>(create_edge_def),
+            std::get<2>(create_edge_def), std::get<3>(create_edge_def),
+            std::get<4>(create_edge_def), std::get<5>(create_edge_def),
+            std::get<6>(create_edge_def));
+        if (!status.ok()) {
+          LOG(ERROR) << "Fail to insert edge triplet: "
+                     << std::get<0>(create_edge_def) << ", "
+                     << std::get<1>(create_edge_def) << ", "
+                     << std::get<2>(create_edge_def)
+                     << ", reason: " << status.ToString();
+          break;
+        }
+        succeed_index += 1;
+      }
+      while (succeed_index >= 0 && succeed_index < defs_size) {
+        const auto& create_edge_def = create_edge_defs[succeed_index];
+        // Drop the created edge types.
+        if (!graph_
+                 .delete_edge_type(std::get<0>(create_edge_def),
+                                   std::get<1>(create_edge_def),
+                                   std::get<2>(create_edge_def), false)
+                 .ok()) {
+          LOG(ERROR) << "Fail to revert created edge type in CreateEdgeSchema "
+                        "request";
+        }
+        succeed_index -= 1;
+      }
+      return Status::OK();
 
-      return graph_.create_edge_type(
-          src_vertex_type_name, dst_vertex_type_name, edge_type_name,
-          tuple_res.value(),
-          conflict_action_to_bool(create_edge.conflict_action()), oe_stragety,
-          ie_stragety);
     } else if (ddl_plan.has_add_vertex_property_schema()) {
       return execute_add_vertex_property(graph,
                                          ddl_plan.add_vertex_property_schema());

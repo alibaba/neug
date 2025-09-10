@@ -70,6 +70,8 @@ std::unique_ptr<::physical::DDLPlan> GDDLConverter::convertCreateTable(
     return convertToCreateVertexSchema(op);
   case catalog::CatalogEntryType::REL_TABLE_ENTRY:
     return convertToCreateEdgeSchema(op);
+  case catalog::CatalogEntryType::REL_GROUP_ENTRY:
+    return convertToCreateEdgeGroupSchema(op);
   default:
     THROW_INVALID_ARGUMENT_EXCEPTION(
         "Unsupported catalog entry type for create");
@@ -180,6 +182,93 @@ std::unique_ptr<::physical::DDLPlan> GDDLConverter::convertToCreateVertexSchema(
   return ddl_plan;
 }
 
+std::unique_ptr<::physical::CreateEdgeSchema::TypeInfo>
+GDDLConverter::convertToEdgeTypeInfo(const binder::BoundCreateTableInfo& info,
+                                     const std::string& edgeName) {
+  if (info.type != catalog::CatalogEntryType::REL_TABLE_ENTRY) {
+    THROW_EXCEPTION_WITH_FILE_LINE(
+        "Expected Create Table Type for edge schema");
+  }
+  const auto* relInfo =
+      info.extraInfo->constPtrCast<binder::BoundExtraCreateRelTableInfo>();
+  if (!relInfo) {
+    THROW_RUNTIME_ERROR("Invalid relation table info");
+  }
+  EdgeLabel edgeLabel(edgeName, getVertexLabelName(relInfo->srcTableID),
+                      getVertexLabelName(relInfo->dstTableID));
+  auto edgeType = convertToEdgeType(edgeLabel);
+  auto typeInfoPB = std::make_unique<::physical::CreateEdgeSchema::TypeInfo>();
+  typeInfoPB->set_allocated_edge_type(edgeType.release());
+  // Set multiplicity
+  if (relInfo->srcMultiplicity == common::RelMultiplicity::ONE &&
+      relInfo->dstMultiplicity == common::RelMultiplicity::ONE) {
+    typeInfoPB->set_multiplicity(::physical::CreateEdgeSchema::ONE_TO_ONE);
+  } else if (relInfo->srcMultiplicity == common::RelMultiplicity::ONE &&
+             relInfo->dstMultiplicity == common::RelMultiplicity::MANY) {
+    typeInfoPB->set_multiplicity(::physical::CreateEdgeSchema::ONE_TO_MANY);
+  } else if (relInfo->srcMultiplicity == common::RelMultiplicity::MANY &&
+             relInfo->dstMultiplicity == common::RelMultiplicity::ONE) {
+    typeInfoPB->set_multiplicity(::physical::CreateEdgeSchema::MANY_TO_ONE);
+  } else {
+    typeInfoPB->set_multiplicity(::physical::CreateEdgeSchema::MANY_TO_MANY);
+  }
+  return typeInfoPB;
+}
+
+std::unique_ptr<::physical::DDLPlan>
+GDDLConverter::convertToCreateEdgeGroupSchema(
+    const planner::LogicalCreateTable& op) {
+  const auto* info = op.getInfo();
+  if (!info) {
+    THROW_RUNTIME_ERROR("Invalid operation info");
+  }
+
+  if (info->type != catalog::CatalogEntryType::REL_GROUP_ENTRY) {
+    THROW_EXCEPTION_WITH_FILE_LINE(
+        "Expected Create Table Type for edge group schema");
+  }
+  const auto* relGroupInfo =
+      info->extraInfo
+          ->constPtrCast<binder::BoundExtraCreateRelTableGroupInfo>();
+  if (!relGroupInfo) {
+    THROW_RUNTIME_ERROR("Invalid relation group table info");
+  }
+
+  if (relGroupInfo->infos.empty()) {
+    THROW_RUNTIME_ERROR("Relation group table info should not be empty");
+  }
+
+  auto ddl_plan = std::make_unique<::physical::DDLPlan>();
+  auto create_edge = ddl_plan->mutable_create_edge_schema();
+
+  // set edge type with multiplicity
+  for (auto& relInfo : relGroupInfo->infos) {
+    *create_edge->add_type_info() =
+        std::move(*convertToEdgeTypeInfo(relInfo, info->tableName));
+  }
+
+  auto firstRelInfo =
+      relGroupInfo->infos[0]
+          .extraInfo->constPtrCast<binder::BoundExtraCreateRelTableInfo>();
+
+  // Set properties
+  for (const auto& prop : firstRelInfo->propertyDefinitions) {
+    if (gopt::GQueryConvertor::skipColumn(prop.getName())) {
+      continue;  // Skip internal properties
+    }
+    auto* propertyDef = create_edge->add_properties();
+    propertyDef->set_name(prop.getName());
+    auto irType = typeConverter.convertSimpleLogicalType(prop.getType());
+    *propertyDef->mutable_type() = std::move(*irType->mutable_data_type());
+  }
+
+  // Set conflict action
+  create_edge->set_conflict_action(
+      static_cast<::physical::ConflictAction>(info->onConflict));
+
+  return ddl_plan;
+}
+
 std::unique_ptr<::physical::DDLPlan> GDDLConverter::convertToCreateEdgeSchema(
     const planner::LogicalCreateTable& op) {
   const auto* info = op.getInfo();
@@ -199,13 +288,10 @@ std::unique_ptr<::physical::DDLPlan> GDDLConverter::convertToCreateEdgeSchema(
   }
 
   auto ddl_plan = std::make_unique<::physical::DDLPlan>();
-  auto* create_edge = ddl_plan->mutable_create_edge_schema();
-
-  // Construct EdgeLabel and convert to EdgeType
-  EdgeLabel edgeLabel(info->tableName, getVertexLabelName(relInfo->srcTableID),
-                      getVertexLabelName(relInfo->dstTableID));
-  auto edgeType = convertToEdgeType(edgeLabel);
-  create_edge->set_allocated_edge_type(edgeType.release());
+  auto create_edge = ddl_plan->mutable_create_edge_schema();
+  // set edge type with multiplicity
+  *create_edge->add_type_info() =
+      std::move(*convertToEdgeTypeInfo(*info, info->tableName));
 
   // Set properties
   for (const auto& prop : relInfo->propertyDefinitions) {
@@ -221,20 +307,6 @@ std::unique_ptr<::physical::DDLPlan> GDDLConverter::convertToCreateEdgeSchema(
   // Set conflict action
   create_edge->set_conflict_action(
       static_cast<::physical::ConflictAction>(info->onConflict));
-
-  // Set multiplicity
-  if (relInfo->srcMultiplicity == common::RelMultiplicity::ONE &&
-      relInfo->dstMultiplicity == common::RelMultiplicity::ONE) {
-    create_edge->set_multiplicity(::physical::CreateEdgeSchema::ONE_TO_ONE);
-  } else if (relInfo->srcMultiplicity == common::RelMultiplicity::ONE &&
-             relInfo->dstMultiplicity == common::RelMultiplicity::MANY) {
-    create_edge->set_multiplicity(::physical::CreateEdgeSchema::ONE_TO_MANY);
-  } else if (relInfo->srcMultiplicity == common::RelMultiplicity::MANY &&
-             relInfo->dstMultiplicity == common::RelMultiplicity::ONE) {
-    create_edge->set_multiplicity(::physical::CreateEdgeSchema::MANY_TO_ONE);
-  } else {
-    create_edge->set_multiplicity(::physical::CreateEdgeSchema::MANY_TO_MANY);
-  }
 
   return ddl_plan;
 }
