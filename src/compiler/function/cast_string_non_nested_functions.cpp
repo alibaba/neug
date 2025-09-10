@@ -84,9 +84,8 @@ void castStringToBool(const char* input, uint64_t len, bool& result) {
 }
 
 template <>
-bool TryCastStringToTimestamp::tryCast<timestamp_ns_t>(const char* input,
-                                                       uint64_t len,
-                                                       timestamp_t& result) {
+bool TryCastStringToTimestamp::tryCast<timestamp_ns_t>(
+    const char* input, uint64_t len, gs::common::timestamp_t& result) {
   if (!Timestamp::tryConvertTimestamp(input, len, result)) {
     return false;
   }
@@ -95,9 +94,8 @@ bool TryCastStringToTimestamp::tryCast<timestamp_ns_t>(const char* input,
 }
 
 template <>
-bool TryCastStringToTimestamp::tryCast<timestamp_ms_t>(const char* input,
-                                                       uint64_t len,
-                                                       timestamp_t& result) {
+bool TryCastStringToTimestamp::tryCast<timestamp_ms_t>(
+    const char* input, uint64_t len, gs::common::timestamp_t& result) {
   if (!Timestamp::tryConvertTimestamp(input, len, result)) {
     return false;
   }
@@ -106,9 +104,8 @@ bool TryCastStringToTimestamp::tryCast<timestamp_ms_t>(const char* input,
 }
 
 template <>
-bool TryCastStringToTimestamp::tryCast<timestamp_sec_t>(const char* input,
-                                                        uint64_t len,
-                                                        timestamp_t& result) {
+bool TryCastStringToTimestamp::tryCast<timestamp_sec_t>(
+    const char* input, uint64_t len, gs::common::timestamp_t& result) {
   if (!Timestamp::tryConvertTimestamp(input, len, result)) {
     return false;
   }
@@ -259,7 +256,7 @@ LogicalType inferMinimalTypeFromString(std::string_view str) {
     return LogicalType::DATE();
   }
   // It might just be quicker to try cast to timestamp.
-  timestamp_t tmp;
+  gs::common::timestamp_t tmp;
   if (common::Timestamp::tryConvertTimestamp(cpy.data(), cpy.length(), tmp)) {
     return LogicalType::TIMESTAMP();
   }

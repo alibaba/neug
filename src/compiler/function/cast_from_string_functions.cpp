@@ -171,17 +171,18 @@ inline void CastStringHelper::cast(const char* input, uint64_t len,
 
 template <>
 inline void CastStringHelper::cast(const char* input, uint64_t len,
-                                   timestamp_tz_t& result,
+                                   gs::common::timestamp_tz_t& result,
                                    ValueVector* /*vector*/,
                                    uint64_t /*rowToAdd*/,
                                    const CSVOption* /*option*/) {
-  TryCastStringToTimestamp::cast<timestamp_tz_t>(input, len, result,
-                                                 LogicalTypeID::TIMESTAMP_TZ);
+  TryCastStringToTimestamp::cast<gs::common::timestamp_tz_t>(
+      input, len, result, LogicalTypeID::TIMESTAMP_TZ);
 }
 
 template <>
 inline void CastStringHelper::cast(const char* input, uint64_t len,
-                                   timestamp_t& result, ValueVector* /*vector*/,
+                                   gs::common::timestamp_t& result,
+                                   ValueVector* /*vector*/,
                                    uint64_t /*rowToAdd*/,
                                    const CSVOption* /*option*/) {
   result = Timestamp::fromCString(input, len);
@@ -192,7 +193,7 @@ inline void CastStringHelper::cast(const char* input, uint64_t len,
                                    interval_t& result, ValueVector* /*vector*/,
                                    uint64_t /*rowToAdd*/,
                                    const CSVOption* /*option*/) {
-  result = Interval::fromCString(input, len);
+  result = gs::common::Interval::fromCString(input, len);
 }
 
 // ---------------------- cast String to Blob ------------------------------ //
@@ -897,13 +898,13 @@ static bool tryCastUnionField(ValueVector* vector, uint64_t rowToAdd,
     testAndSetValue(vector, rowToAdd, result, success);
   } break;
   case LogicalTypeID::TIMESTAMP_TZ: {
-    timestamp_tz_t result;
-    success =
-        TryCastStringToTimestamp::tryCast<timestamp_tz_t>(input, len, result);
+    gs::common::timestamp_tz_t result;
+    success = TryCastStringToTimestamp::tryCast<gs::common::timestamp_tz_t>(
+        input, len, result);
     testAndSetValue(vector, rowToAdd, result, success);
   } break;
   case LogicalTypeID::TIMESTAMP: {
-    timestamp_t result;
+    gs::common::timestamp_t result;
     success = Timestamp::tryConvertTimestamp(input, len, result);
     testAndSetValue(vector, rowToAdd, result, success);
   } break;
@@ -1100,12 +1101,12 @@ void CastString::copyStringToVector(ValueVector* vector, uint64_t vectorPos,
     vector->setValue(vectorPos, val);
   } break;
   case LogicalTypeID::TIMESTAMP_TZ: {
-    timestamp_tz_t val;
+    gs::common::timestamp_tz_t val;
     CastStringHelper::cast(strVal.data(), strVal.length(), val);
     vector->setValue(vectorPos, val);
   } break;
   case LogicalTypeID::TIMESTAMP: {
-    timestamp_t val;
+    gs::common::timestamp_t val;
     CastStringHelper::cast(strVal.data(), strVal.length(), val);
     vector->setValue(vectorPos, val);
   } break;

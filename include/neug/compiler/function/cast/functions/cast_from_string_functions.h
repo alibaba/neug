@@ -156,11 +156,13 @@ inline void CastString::operation(const ku_string_t& input, date_t& result,
                                   ValueVector* /*resultVector*/,
                                   uint64_t /*rowToAdd*/,
                                   const CSVOption* /*option*/) {
-  result = Date::fromCString((const char*) input.getData(), input.len);
+  result =
+      gs::common::Date::fromCString((const char*) input.getData(), input.len);
 }
 
 template <>
-inline void CastString::operation(const ku_string_t& input, timestamp_t& result,
+inline void CastString::operation(const ku_string_t& input,
+                                  gs::common::timestamp_t& result,
                                   ValueVector* /*resultVector*/,
                                   uint64_t /*rowToAdd*/,
                                   const CSVOption* /*option*/) {
@@ -202,13 +204,13 @@ inline void CastString::operation(const ku_string_t& input,
 
 template <>
 inline void CastString::operation(const ku_string_t& input,
-                                  timestamp_tz_t& result,
+                                  gs::common::timestamp_tz_t& result,
                                   ValueVector* /*resultVector*/,
                                   uint64_t /*rowToAdd*/,
                                   const CSVOption* /*option*/) {
-  TryCastStringToTimestamp::cast<timestamp_tz_t>((const char*) input.getData(),
-                                                 input.len, result,
-                                                 LogicalTypeID::TIMESTAMP_TZ);
+  TryCastStringToTimestamp::cast<gs::common::timestamp_tz_t>(
+      (const char*) input.getData(), input.len, result,
+      LogicalTypeID::TIMESTAMP_TZ);
 }
 
 template <>
@@ -216,7 +218,8 @@ inline void CastString::operation(const ku_string_t& input, interval_t& result,
                                   ValueVector* /*resultVector*/,
                                   uint64_t /*rowToAdd*/,
                                   const CSVOption* /*option*/) {
-  result = Interval::fromCString((const char*) input.getData(), input.len);
+  result = gs::common::Interval::fromCString((const char*) input.getData(),
+                                             input.len);
 }
 
 template <>

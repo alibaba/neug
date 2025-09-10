@@ -35,7 +35,8 @@ function_set CenturyFunction::getFunctionSet() {
   result.push_back(make_unique<ScalarFunction>(
       name, std::vector<LogicalTypeID>{LogicalTypeID::TIMESTAMP},
       LogicalTypeID::INT64,
-      ScalarFunction::UnaryExecFunction<timestamp_t, int64_t, Century>));
+      ScalarFunction::UnaryExecFunction<gs::common::timestamp_t, int64_t,
+                                        Century>));
   return result;
 }
 
@@ -44,7 +45,8 @@ function_set EpochMsFunction::getFunctionSet() {
   result.push_back(make_unique<ScalarFunction>(
       name, std::vector<LogicalTypeID>{LogicalTypeID::INT64},
       LogicalTypeID::TIMESTAMP,
-      ScalarFunction::UnaryExecFunction<int64_t, timestamp_t, EpochMs>));
+      ScalarFunction::UnaryExecFunction<int64_t, gs::common::timestamp_t,
+                                        EpochMs>));
   return result;
 }
 
@@ -53,7 +55,8 @@ function_set ToTimestampFunction::getFunctionSet() {
   result.push_back(make_unique<ScalarFunction>(
       name, std::vector<LogicalTypeID>{LogicalTypeID::DOUBLE},
       LogicalTypeID::TIMESTAMP,
-      ScalarFunction::UnaryExecFunction<double, timestamp_t, ToTimestamp>));
+      ScalarFunction::UnaryExecFunction<double, gs::common::timestamp_t,
+                                        ToTimestamp>));
   return result;
 }
 

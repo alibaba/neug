@@ -30,8 +30,9 @@ namespace function {
 using namespace gs::common;
 
 struct ToEpochMs {
-  static void operation(common::timestamp_t& input, int64_t& result) {
-    function::Divide::operation(input.value, Interval::MICROS_PER_MSEC, result);
+  static void operation(gs::common::timestamp_t& input, int64_t& result) {
+    function::Divide::operation(input.value,
+                                gs::common::Interval::MICROS_PER_MSEC, result);
   }
 };
 
@@ -40,7 +41,8 @@ function_set ToEpochMsFunction::getFunctionSet() {
   auto function = std::make_unique<ScalarFunction>(
       name, std::vector<LogicalTypeID>{LogicalTypeID::TIMESTAMP},
       LogicalTypeID::INT64,
-      ScalarFunction::UnaryExecFunction<timestamp_t, int64_t, ToEpochMs>);
+      ScalarFunction::UnaryExecFunction<gs::common::timestamp_t, int64_t,
+                                        ToEpochMs>);
   functionSet.emplace_back(std::move(function));
   return functionSet;
 }

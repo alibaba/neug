@@ -191,16 +191,16 @@ function_set AddFunction::getFunctionSet() {
       std::vector<LogicalTypeID>{LogicalTypeID::TIMESTAMP,
                                  LogicalTypeID::INTERVAL},
       LogicalTypeID::TIMESTAMP,
-      ScalarFunction::BinaryExecFunction<timestamp_t, interval_t, timestamp_t,
-                                         Add>));
+      ScalarFunction::BinaryExecFunction<gs::common::timestamp_t, interval_t,
+                                         gs::common::timestamp_t, Add>));
   // interval + timestamp → timestamp
   result.push_back(make_unique<ScalarFunction>(
       name,
       std::vector<LogicalTypeID>{LogicalTypeID::INTERVAL,
                                  LogicalTypeID::TIMESTAMP},
       LogicalTypeID::TIMESTAMP,
-      ScalarFunction::BinaryExecFunction<interval_t, timestamp_t, timestamp_t,
-                                         Add>));
+      ScalarFunction::BinaryExecFunction<interval_t, gs::common::timestamp_t,
+                                         gs::common::timestamp_t, Add>));
   return result;
 }
 
@@ -234,16 +234,17 @@ function_set SubtractFunction::getFunctionSet() {
       ScalarFunction::BinaryExecFunction<date_t, interval_t, date_t,
                                          Subtract>));
   // timestamp - timestamp → interval
-  result.push_back(getBinaryFunction<Subtract, timestamp_t, interval_t>(
-      name, LogicalTypeID::TIMESTAMP, LogicalTypeID::INTERVAL));
+  result.push_back(
+      getBinaryFunction<Subtract, gs::common::timestamp_t, interval_t>(
+          name, LogicalTypeID::TIMESTAMP, LogicalTypeID::INTERVAL));
   // timestamp - interval → timestamp
   result.push_back(make_unique<ScalarFunction>(
       name,
       std::vector<LogicalTypeID>{LogicalTypeID::TIMESTAMP,
                                  LogicalTypeID::INTERVAL},
       LogicalTypeID::TIMESTAMP,
-      ScalarFunction::BinaryExecFunction<timestamp_t, interval_t, timestamp_t,
-                                         Subtract>));
+      ScalarFunction::BinaryExecFunction<gs::common::timestamp_t, interval_t,
+                                         gs::common::timestamp_t, Subtract>));
   // interval - interval → interval
   result.push_back(getBinaryFunction<Subtract, interval_t, interval_t>(
       name, LogicalTypeID::INTERVAL, LogicalTypeID::INTERVAL));

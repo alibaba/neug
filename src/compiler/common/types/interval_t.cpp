@@ -183,7 +183,7 @@ void intervalTryAddition(T& target, int64_t input, int64_t multiplier,
   }
 }
 
-interval_t Interval::fromCString(const char* str, uint64_t len) {
+interval_t gs::common::Interval::fromCString(const char* str, uint64_t len) {
   interval_t result;
   uint64_t pos = 0;
   uint64_t startPos = 0;

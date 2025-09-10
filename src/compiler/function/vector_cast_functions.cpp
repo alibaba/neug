@@ -303,14 +303,12 @@ static std::unique_ptr<ScalarFunction> bindCastFromStringFunction(
                                                     CastString, EXECUTOR>;
   } break;
   case LogicalTypeID::TIMESTAMP_TZ: {
-    execFunc =
-        ScalarFunction::UnaryCastStringExecFunction<ku_string_t, timestamp_tz_t,
-                                                    CastString, EXECUTOR>;
+    execFunc = ScalarFunction::UnaryCastStringExecFunction<
+        ku_string_t, gs::common::timestamp_tz_t, CastString, EXECUTOR>;
   } break;
   case LogicalTypeID::TIMESTAMP: {
-    execFunc =
-        ScalarFunction::UnaryCastStringExecFunction<ku_string_t, timestamp_t,
-                                                    CastString, EXECUTOR>;
+    execFunc = ScalarFunction::UnaryCastStringExecFunction<
+        ku_string_t, gs::common::timestamp_t, CastString, EXECUTOR>;
   } break;
   case LogicalTypeID::INTERVAL: {
     execFunc =
@@ -542,12 +540,12 @@ static std::unique_ptr<ScalarFunction> bindCastToStringFunction(
                                                  CastToString, EXECUTOR>;
   } break;
   case LogicalTypeID::TIMESTAMP_TZ: {
-    func = ScalarFunction::UnaryCastExecFunction<timestamp_tz_t, ku_string_t,
-                                                 CastToString, EXECUTOR>;
+    func = ScalarFunction::UnaryCastExecFunction<
+        gs::common::timestamp_tz_t, ku_string_t, CastToString, EXECUTOR>;
   } break;
   case LogicalTypeID::TIMESTAMP: {
-    func = ScalarFunction::UnaryCastExecFunction<timestamp_t, ku_string_t,
-                                                 CastToString, EXECUTOR>;
+    func = ScalarFunction::UnaryCastExecFunction<
+        gs::common::timestamp_t, ku_string_t, CastToString, EXECUTOR>;
   } break;
   case LogicalTypeID::INTERVAL: {
     func = ScalarFunction::UnaryCastExecFunction<interval_t, ku_string_t,
@@ -747,8 +745,8 @@ static std::unique_ptr<ScalarFunction> bindCastToDateFunction(
     break;
   case LogicalTypeID::TIMESTAMP_TZ:
   case LogicalTypeID::TIMESTAMP:
-    func = ScalarFunction::UnaryExecFunction<timestamp_t, DST_TYPE, CastToDate,
-                                             EXECUTOR>;
+    func = ScalarFunction::UnaryExecFunction<gs::common::timestamp_t, DST_TYPE,
+                                             CastToDate, EXECUTOR>;
     break;
   // LCOV_EXCL_START
   default:
@@ -786,7 +784,7 @@ static std::unique_ptr<ScalarFunction> bindCastToTimestampFunction(
   } break;
   case LogicalTypeID::TIMESTAMP_TZ:
   case LogicalTypeID::TIMESTAMP: {
-    func = ScalarFunction::UnaryExecFunction<timestamp_t, DST_TYPE,
+    func = ScalarFunction::UnaryExecFunction<gs::common::timestamp_t, DST_TYPE,
                                              CastBetweenTimestamp, EXECUTOR>;
   } break;
   default:
@@ -918,7 +916,7 @@ std::unique_ptr<ScalarFunction> CastFunction::bindCastFunction(
   }
   case LogicalTypeID::TIMESTAMP_TZ:
   case LogicalTypeID::TIMESTAMP: {
-    return bindCastToTimestampFunction<EXECUTOR, timestamp_t>(
+    return bindCastToTimestampFunction<EXECUTOR, gs::common::timestamp_t>(
         functionName, sourceType, targetType);
   }
   case LogicalTypeID::LIST:

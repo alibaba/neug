@@ -43,8 +43,8 @@ function_set DatePartFunction::getFunctionSet() {
       std::vector<LogicalTypeID>{LogicalTypeID::STRING,
                                  LogicalTypeID::TIMESTAMP},
       LogicalTypeID::INT64,
-      ScalarFunction::BinaryExecFunction<ku_string_t, timestamp_t, int64_t,
-                                         DatePart>));
+      ScalarFunction::BinaryExecFunction<ku_string_t, gs::common::timestamp_t,
+                                         int64_t, DatePart>));
   result.push_back(make_unique<ScalarFunction>(
       name,
       std::vector<LogicalTypeID>{LogicalTypeID::STRING,
@@ -81,8 +81,8 @@ function_set DateTruncFunction::getFunctionSet() {
       std::vector<LogicalTypeID>{LogicalTypeID::STRING,
                                  LogicalTypeID::TIMESTAMP},
       LogicalTypeID::TIMESTAMP,
-      ScalarFunction::BinaryExecFunction<ku_string_t, timestamp_t, timestamp_t,
-                                         DateTrunc>));
+      ScalarFunction::BinaryExecFunction<ku_string_t, gs::common::timestamp_t,
+                                         gs::common::timestamp_t, DateTrunc>));
   return result;
 }
 
@@ -95,7 +95,8 @@ function_set DayNameFunction::getFunctionSet() {
   result.push_back(make_unique<ScalarFunction>(
       name, std::vector<LogicalTypeID>{LogicalTypeID::TIMESTAMP},
       LogicalTypeID::STRING,
-      ScalarFunction::UnaryExecFunction<timestamp_t, ku_string_t, DayName>));
+      ScalarFunction::UnaryExecFunction<gs::common::timestamp_t, ku_string_t,
+                                        DayName>));
   return result;
 }
 
@@ -111,8 +112,9 @@ function_set GreatestFunction::getFunctionSet() {
       std::vector<LogicalTypeID>{LogicalTypeID::TIMESTAMP,
                                  LogicalTypeID::TIMESTAMP},
       LogicalTypeID::TIMESTAMP,
-      ScalarFunction::BinaryExecFunction<timestamp_t, timestamp_t, timestamp_t,
-                                         Greatest>));
+      ScalarFunction::BinaryExecFunction<gs::common::timestamp_t,
+                                         gs::common::timestamp_t,
+                                         gs::common::timestamp_t, Greatest>));
   return result;
 }
 
@@ -125,7 +127,8 @@ function_set LastDayFunction::getFunctionSet() {
   result.push_back(make_unique<ScalarFunction>(
       name, std::vector<LogicalTypeID>{LogicalTypeID::TIMESTAMP},
       LogicalTypeID::DATE,
-      ScalarFunction::UnaryExecFunction<timestamp_t, date_t, LastDay>));
+      ScalarFunction::UnaryExecFunction<gs::common::timestamp_t, date_t,
+                                        LastDay>));
   return result;
 }
 
@@ -141,8 +144,9 @@ function_set LeastFunction::getFunctionSet() {
       std::vector<LogicalTypeID>{LogicalTypeID::TIMESTAMP,
                                  LogicalTypeID::TIMESTAMP},
       LogicalTypeID::TIMESTAMP,
-      ScalarFunction::BinaryExecFunction<timestamp_t, timestamp_t, timestamp_t,
-                                         Least>));
+      ScalarFunction::BinaryExecFunction<gs::common::timestamp_t,
+                                         gs::common::timestamp_t,
+                                         gs::common::timestamp_t, Least>));
   return result;
 }
 
@@ -167,7 +171,8 @@ function_set MonthNameFunction::getFunctionSet() {
   result.push_back(make_unique<ScalarFunction>(
       name, std::vector<LogicalTypeID>{LogicalTypeID::TIMESTAMP},
       LogicalTypeID::STRING,
-      ScalarFunction::UnaryExecFunction<timestamp_t, ku_string_t, MonthName>));
+      ScalarFunction::UnaryExecFunction<gs::common::timestamp_t, ku_string_t,
+                                        MonthName>));
   return result;
 }
 
@@ -183,7 +188,7 @@ function_set CurrentTimestampFunction::getFunctionSet() {
   function_set result;
   result.push_back(make_unique<ScalarFunction>(
       name, std::vector<LogicalTypeID>{}, LogicalTypeID::TIMESTAMP,
-      ScalarFunction::NullaryAuxilaryExecFunction<timestamp_tz_t,
+      ScalarFunction::NullaryAuxilaryExecFunction<gs::common::timestamp_tz_t,
                                                   CurrentTimestamp>));
   return result;
 }

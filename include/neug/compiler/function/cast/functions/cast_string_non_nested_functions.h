@@ -271,11 +271,12 @@ inline void doubleCast(const char* input, uint64_t len, T& result,
 // ---------------------- try cast String to Timestamp -------------------- //
 struct TryCastStringToTimestamp {
   template <typename T>
-  static bool tryCast(const char* input, uint64_t len, timestamp_t& result);
+  static bool tryCast(const char* input, uint64_t len,
+                      gs::common::timestamp_t& result);
 
   template <typename T>
-  static void cast(const char* input, uint64_t len, timestamp_t& result,
-                   LogicalTypeID typeID) {
+  static void cast(const char* input, uint64_t len,
+                   gs::common::timestamp_t& result, LogicalTypeID typeID) {
     if (!tryCast<T>(input, len, result)) {
       THROW_CONVERSION_EXCEPTION(Timestamp::getTimestampConversionExceptionMsg(
           input, len, LogicalTypeUtils::toString(typeID)));
@@ -284,23 +285,20 @@ struct TryCastStringToTimestamp {
 };
 
 template <>
-bool TryCastStringToTimestamp::tryCast<timestamp_ns_t>(const char* input,
-                                                       uint64_t len,
-                                                       timestamp_t& result);
+bool TryCastStringToTimestamp::tryCast<timestamp_ns_t>(
+    const char* input, uint64_t len, gs::common::timestamp_t& result);
 
 template <>
-bool TryCastStringToTimestamp::tryCast<timestamp_ms_t>(const char* input,
-                                                       uint64_t len,
-                                                       timestamp_t& result);
+bool TryCastStringToTimestamp::tryCast<timestamp_ms_t>(
+    const char* input, uint64_t len, gs::common::timestamp_t& result);
 
 template <>
-bool TryCastStringToTimestamp::tryCast<timestamp_sec_t>(const char* input,
-                                                        uint64_t len,
-                                                        timestamp_t& result);
+bool TryCastStringToTimestamp::tryCast<timestamp_sec_t>(
+    const char* input, uint64_t len, gs::common::timestamp_t& result);
 
 template <>
-bool inline TryCastStringToTimestamp::tryCast<timestamp_tz_t>(
-    const char* input, uint64_t len, timestamp_t& result) {
+bool inline TryCastStringToTimestamp::tryCast<gs::common::timestamp_tz_t>(
+    const char* input, uint64_t len, gs::common::timestamp_t& result) {
   return Timestamp::tryConvertTimestamp(input, len, result);
 }
 
