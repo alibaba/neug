@@ -33,43 +33,50 @@ rapidjson::Value convert_properties_to_json(
 
   for (const auto& prop : props) {
     std::string key;
-    if (prop.key().has_name()) {
+    switch (prop.key().item_case()) {
+    case common::NameOrId::ItemCase::kName: {
       key = prop.key().name();
-    } else {
-      key = std::to_string(prop.key().id());
+      break;
     }
-
+    case common::NameOrId::ItemCase::kId: {
+      key = std::to_string(prop.key().id());
+      break;
+    }
+    default: {
+      THROW_INTERNAL_EXCEPTION("Unknown property key type");
+    }
+    }
     rapidjson::Value key_val(key.c_str(), allocator);
     rapidjson::Value value_val;
 
     // Convert common::Value to rapidjson::Value
-    if (prop.value().has_i32()) {
+    if (prop.value().item_case() == common::Value::ItemCase::kI32) {
       value_val.SetInt(prop.value().i32());
-    } else if (prop.value().has_i64()) {
+    } else if (prop.value().item_case() == common::Value::ItemCase::kI64) {
       value_val.SetInt64(prop.value().i64());
-    } else if (prop.value().has_f64()) {
+    } else if (prop.value().item_case() == common::Value::ItemCase::kF64) {
       value_val.SetDouble(prop.value().f64());
-    } else if (prop.value().has_str()) {
+    } else if (prop.value().item_case() == common::Value::ItemCase::kStr) {
       value_val.SetString(prop.value().str().c_str(), allocator);
-    } else if (prop.value().has_boolean()) {
+    } else if (prop.value().item_case() == common::Value::ItemCase::kBoolean) {
       value_val.SetBool(prop.value().boolean());
-    } else if (prop.value().has_str_array()) {
+    } else if (prop.value().item_case() == common::Value::ItemCase::kStrArray) {
       value_val.SetArray();
       for (const auto& s : prop.value().str_array().item()) {
         rapidjson::Value str_val(s.c_str(), allocator);
         value_val.PushBack(str_val, allocator);
       }
-    } else if (prop.value().has_i32_array()) {
+    } else if (prop.value().item_case() == common::Value::ItemCase::kI32Array) {
       value_val.SetArray();
       for (const auto& i : prop.value().i32_array().item()) {
         value_val.PushBack(rapidjson::Value(i), allocator);
       }
-    } else if (prop.value().has_i64_array()) {
+    } else if (prop.value().item_case() == common::Value::ItemCase::kI64Array) {
       value_val.SetArray();
       for (const auto& i : prop.value().i64_array().item()) {
         value_val.PushBack(rapidjson::Value(i), allocator);
       }
-    } else if (prop.value().has_f64_array()) {
+    } else if (prop.value().item_case() == common::Value::ItemCase::kF64Array) {
       value_val.SetArray();
       for (const auto& f : prop.value().f64_array().item()) {
         value_val.PushBack(rapidjson::Value(f), allocator);
@@ -98,11 +105,20 @@ void convert_vertex_to_node(const results::Vertex& vertex,
 
     // Convert label
     std::string label_str;
-    if (vertex.label().has_name()) {
+    switch (vertex.label().item_case()) {
+    case common::NameOrId::ItemCase::kName: {
       label_str = vertex.label().name();
-    } else {
-      label_str = std::to_string(vertex.label().id());
+      break;
     }
+    case common::NameOrId::ItemCase::kId: {
+      label_str = std::to_string(vertex.label().id());
+      break;
+    }
+    default: {
+      THROW_INTERNAL_EXCEPTION("Unknown vertex label type");
+    }
+    }
+
     node.AddMember("label", rapidjson::Value(label_str.c_str(), allocator),
                    allocator);
 
@@ -129,10 +145,18 @@ void convert_edge_to_relationship(
 
     // Convert label
     std::string label_str;
-    if (edge.label().has_name()) {
+    switch (edge.label().item_case()) {
+    case common::NameOrId::ItemCase::kName: {
       label_str = edge.label().name();
-    } else {
+      break;
+    }
+    case common::NameOrId::ItemCase::kId: {
       label_str = std::to_string(edge.label().id());
+      break;
+    }
+    default: {
+      THROW_INTERNAL_EXCEPTION("Unknown edge label type");
+    }
     }
     edge_obj.AddMember("label", rapidjson::Value(label_str.c_str(), allocator),
                        allocator);
@@ -169,10 +193,18 @@ rapidjson::Value create_vertex_record_field(
   // Labels array
   rapidjson::Value labels(rapidjson::kArrayType);
   std::string label_str;
-  if (vertex.label().has_name()) {
+  switch (vertex.label().item_case()) {
+  case common::NameOrId::ItemCase::kName: {
     label_str = vertex.label().name();
-  } else {
+    break;
+  }
+  case common::NameOrId::ItemCase::kId: {
     label_str = std::to_string(vertex.label().id());
+    break;
+  }
+  default: {
+    THROW_INTERNAL_EXCEPTION("Unknown vertex label type");
+  }
   }
   labels.PushBack(rapidjson::Value(label_str.c_str(), allocator), allocator);
   field.AddMember("labels", labels, allocator);
@@ -200,10 +232,20 @@ rapidjson::Value create_edge_record_field(
   identity.AddMember("high", rapidjson::Value(0), allocator);
   field.AddMember("identity", identity, allocator);
 
-  // Type
-  std::string type_str = edge.label().has_name()
-                             ? edge.label().name()
-                             : std::to_string(edge.label().id());
+  std::string type_str;
+  switch (edge.label().item_case()) {
+  case common::NameOrId::ItemCase::kName: {
+    type_str = edge.label().name();
+    break;
+  }
+  case common::NameOrId::ItemCase::kId: {
+    type_str = std::to_string(edge.label().id());
+    break;
+  }
+  default: {
+    THROW_INTERNAL_EXCEPTION("Unknown edge label type");
+  }
+  }
   field.AddMember("type", rapidjson::Value(type_str.c_str(), allocator),
                   allocator);
 
@@ -277,37 +319,37 @@ rapidjson::Value convert_primitive_value(
     rapidjson::Document::AllocatorType& allocator) {
   rapidjson::Value result;
 
-  if (value.has_i32()) {
+  if (value.item_case() == common::Value::ItemCase::kI32) {
     result.SetInt(value.i32());
-  } else if (value.has_i64()) {
+  } else if (value.item_case() == common::Value::ItemCase::kI64) {
     result.SetInt64(value.i64());
-  } else if (value.has_f64()) {
+  } else if (value.item_case() == common::Value::ItemCase::kF64) {
     result.SetDouble(value.f64());
-  } else if (value.has_str()) {
+  } else if (value.item_case() == common::Value::ItemCase::kStr) {
     result.SetString(value.str().c_str(), allocator);
-  } else if (value.has_boolean()) {
+  } else if (value.item_case() == common::Value::ItemCase::kBoolean) {
     result.SetBool(value.boolean());
-  } else if (value.has_str_array()) {
+  } else if (value.item_case() == common::Value::ItemCase::kStrArray) {
     result.SetArray();
     for (const auto& s : value.str_array().item()) {
       result.PushBack(rapidjson::Value(s.c_str(), allocator), allocator);
     }
-  } else if (value.has_i32_array()) {
+  } else if (value.item_case() == common::Value::ItemCase::kI32Array) {
     result.SetArray();
     for (const auto& i : value.i32_array().item()) {
       result.PushBack(rapidjson::Value(i), allocator);
     }
-  } else if (value.has_i64_array()) {
+  } else if (value.item_case() == common::Value::ItemCase::kI64Array) {
     result.SetArray();
     for (const auto& i : value.i64_array().item()) {
       result.PushBack(rapidjson::Value(i), allocator);
     }
-  } else if (value.has_f64_array()) {
+  } else if (value.item_case() == common::Value::ItemCase::kF64Array) {
     result.SetArray();
     for (const auto& f : value.f64_array().item()) {
       result.PushBack(rapidjson::Value(f), allocator);
     }
-  } else if (value.has_none()) {
+  } else if (value.item_case() == common::Value::ItemCase::kNone) {
     result.SetNull();
   } else {
     result.SetNull();
@@ -349,12 +391,15 @@ rapidjson::Value process_key_values(
   rapidjson::Value map_obj(rapidjson::kObjectType);
   for (const auto& kv : key_values.key_values()) {
     std::string key;
-    if (kv.key().has_str()) {
+    if (kv.key().item_case() == common::Value::ItemCase::kStr) {
       key = kv.key().str();
-    } else if (kv.key().has_i64()) {
+    } else if (kv.key().item_case() == common::Value::ItemCase::kI64) {
       key = std::to_string(kv.key().i64());
-    } else if (kv.key().has_i32()) {
+    } else if (kv.key().item_case() == common::Value::ItemCase::kI32) {
       key = std::to_string(kv.key().i32());
+    } else {
+      THROW_NOT_SUPPORTED_EXCEPTION(
+          "Only string and integer keys are supported in maps");
     }
 
     rapidjson::Value key_val(key.c_str(), allocator);
@@ -563,10 +608,14 @@ std::string proto_to_bolt_response(const results::CollectiveResults& result) {
           column_name = schema_column_names[field_index];
         } else {
           // Fallback to original logic
-          if (column.name_or_id().has_name()) {
+          if (column.name_or_id().item_case() ==
+              common::NameOrId::ItemCase::kName) {
             column_name = column.name_or_id().name();
-          } else {
+          } else if (column.name_or_id().item_case() ==
+                     common::NameOrId::ItemCase::kId) {
             column_name = std::to_string(column.name_or_id().id());
+          } else {
+            THROW_INTERNAL_EXCEPTION("Unknown column name/id type");
           }
         }
 

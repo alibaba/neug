@@ -9,3 +9,5 @@ else()
     target_link_libraries(neug_transaction neug_storages neug_utils ${CMAKE_THREAD_LIBS_INIT} ${GLOG_LIBRARIES})
     install_neug_target(neug_transaction)
 endif()
+
+add_dependencies(neug_transaction neug_plan_proto)

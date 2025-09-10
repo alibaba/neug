@@ -68,9 +68,9 @@ void put_column_types_option(const std::vector<PropertyType>& column_types,
 bool check_csv_import_options(
     const std::unordered_map<std::string, std::string>& options) {
   std::unordered_set<std::string> valid_keys = {
-      CSV_DELIMITER_KEY,     CSV_DELIM_KEY,   CSV_HEADER_KEY,
-      CSV_QUOTE_KEY,         CSV_ESCAPE_KEY,  CSV_SKIP_KEY,
-      CSV_IGNORE_ERRORS_KEY, CSV_PARALLEL_KEY};
+      CSV_DELIMITER_KEY, CSV_DELIM_KEY,         CSV_HEADER_KEY,
+      CSV_QUOTE_KEY,     CSV_DOUBLE_QUOTE_KEY,  CSV_ESCAPE_KEY,
+      CSV_SKIP_KEY,      CSV_IGNORE_ERRORS_KEY, CSV_PARALLEL_KEY};
   int32_t delim_count = 0;
   for (const auto& [key, value] : options) {
     if (valid_keys.find(key) == valid_keys.end()) {
@@ -89,9 +89,9 @@ bool check_csv_import_options(
 
 bool check_csv_export_options(
     const std::unordered_map<std::string, std::string>& options) {
-  std::unordered_set<std::string> valid_keys = {CSV_DELIMITER_KEY,
-                                                CSV_DELIM_KEY, CSV_HEADER_KEY,
-                                                CSV_QUOTE_KEY, CSV_ESCAPE_KEY};
+  std::unordered_set<std::string> valid_keys = {
+      CSV_DELIMITER_KEY, CSV_DELIM_KEY,        CSV_HEADER_KEY,
+      CSV_QUOTE_KEY,     CSV_DOUBLE_QUOTE_KEY, CSV_ESCAPE_KEY};
   int32_t delim_count = 0;
   for (const auto& [key, value] : options) {
     if (valid_keys.find(key) == valid_keys.end()) {
@@ -494,6 +494,21 @@ void to_arrow_csv_options(
     } else {
       LOG(ERROR) << "Invalid quote char: " << csv_options.at(CSV_QUOTE_KEY);
       parse_options.quoting = false;
+    }
+  }
+
+  if (csv_options.find(CSV_DOUBLE_QUOTE_KEY) != csv_options.end()) {
+    if (!parse_options.quoting) {
+      THROW_INVALID_ARGUMENT_EXCEPTION(
+          "CSV quoting must be enabled for double quotes");
+    }
+    auto value = csv_options.at(CSV_DOUBLE_QUOTE_KEY);
+    if (value == "true" || value == "1" || value == "TRUE") {
+      parse_options.double_quote = true;
+      VLOG(10) << "using double quote";
+    } else {
+      LOG(ERROR) << "Invalid double quote config: " << value;
+      parse_options.double_quote = false;
     }
   }
 

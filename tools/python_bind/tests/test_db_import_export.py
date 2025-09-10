@@ -69,6 +69,27 @@ def test_import_config(tmp_path):
     db.close()
 
 
+def test_double_quote(tmp_path):
+    db_dir = tmp_path / "double_quote"
+    db_dir.mkdir()
+    db = Database(db_path=str(db_dir), mode="w")
+    conn = db.connect()
+    conn.execute("CREATE NODE TABLE person(id INT64, name STRING, PRIMARY KEY(id));")
+    csv_path = tmp_path / "person.csv"
+    # create a csv where the name contains quotes, using double quote when copy from
+    with open(csv_path, "w") as f:
+        f.write('"1","["Alice"]"\n"2","["Bob"]"\n"3","["Charlie"]"\n')
+    conn.execute(
+        f'COPY person FROM "{csv_path}" (HEADER FALSE, DELIMITER=",", DOUBLE_QUOTE=true);'
+    )
+    res = conn.execute("MATCH (n:person) RETURN n;")
+    assert len(res) == 3
+    conn.close()
+    db.close()
+    # remove csv_path
+    csv_path.unlink()
+
+
 # DB-005-02
 def test_import_bad_csv(tmp_path):
     db_dir = tmp_path / "bad_csv"
