@@ -529,7 +529,7 @@ void GQueryConvertor::convertRecursiveExtend(
   gopt::GRelType relType(*extend.getRel());
   // Set meta data type
   metaData->set_allocated_type(
-      typeConverter->convertRelType(relType).release());
+      typeConverter->convertPathType(relType).release());
   // Set meta data alias
   metaData->set_alias(aliasId);
 

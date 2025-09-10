@@ -174,21 +174,7 @@ std::unique_ptr<::common::Expression> GExprConverter::convertPattern(
   if (aliasId != DEFAULT_ALIAS_ID) {
     variable->set_allocated_tag(convertAlias(aliasId).release());
   }
-  std::unique_ptr<::common::IrDataType> varType;
-  switch (expr.getDataType().getLogicalTypeID()) {
-  case common::LogicalTypeID::NODE: {
-    auto& nodeExpr = expr.constCast<binder::NodeExpression>();
-    varType = typeConverter.convertNodeType(gopt::GNodeType(nodeExpr));
-    break;
-  }
-  case common::LogicalTypeID::REL:
-  case common::LogicalTypeID::RECURSIVE_REL:
-  default: {
-    auto& relExpr = expr.constCast<binder::RelExpression>();
-    varType = typeConverter.convertRelType(gopt::GRelType(relExpr));
-    break;
-  }
-  }
+  auto varType = typeConverter.convertLogicalType(expr.getDataType(), expr);
   auto exprType = std::make_unique<::common::IrDataType>();
   exprType->CopyFrom(*varType);
   variable->set_allocated_node_type(varType.release());

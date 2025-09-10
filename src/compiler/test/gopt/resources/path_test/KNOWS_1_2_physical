@@ -95,7 +95,7 @@
      {
       "type": {
        "graph_type": {
-        "element_opt": "EDGE",
+        "element_opt": "PATH",
         "graph_data_type": [
          {
           "label": {

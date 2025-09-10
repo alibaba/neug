@@ -25,10 +25,10 @@
 #include "neug/compiler/gopt/g_constants.h"
 #include "neug/compiler/gopt/g_graph_type.h"
 #include "neug/compiler/gopt/g_rel_table_entry.h"
+#include "neug/utils/exception/exception.h"
 #include "neug/utils/proto/plan/basic_type.pb.h"
 #include "neug/utils/proto/plan/common.pb.h"
 #include "neug/utils/proto/plan/type.pb.h"
-#include "neug/utils/exception/exception.h"
 
 namespace gs {
 namespace gopt {
@@ -43,6 +43,20 @@ std::unique_ptr<::common::IrDataType> GTypeConverter::convertNodeType(
   }
   graphType->set_element_opt(::common::GraphDataType::GraphElementOpt::
                                  GraphDataType_GraphElementOpt_VERTEX);
+  result->set_allocated_graph_type(graphType.release());
+  return result;
+}
+
+std::unique_ptr<::common::IrDataType> GTypeConverter::convertPathType(
+    const GRelType& relType) {
+  auto result = std::make_unique<::common::IrDataType>();
+  auto graphType = std::make_unique<::common::GraphDataType>();
+  for (auto relTable : relType.relTables) {
+    auto elementType = convertRelTable(relTable);
+    graphType->mutable_graph_data_type()->AddAllocated(elementType.release());
+  }
+  graphType->set_element_opt(::common::GraphDataType_GraphElementOpt::
+                                 GraphDataType_GraphElementOpt_PATH);
   result->set_allocated_graph_type(graphType.release());
   return result;
 }
@@ -100,8 +114,7 @@ std::unique_ptr<::common::IrDataType> GTypeConverter::convertLogicalType(
     }
     break;
   }
-  case common::LogicalTypeID::REL:
-  case common::LogicalTypeID::RECURSIVE_REL: {
+  case common::LogicalTypeID::REL: {
     auto relExpr = dynamic_cast<const binder::RelExpression*>(&expr);
     if (relExpr) {
       return convertRelType(gopt::GRelType(*relExpr));
@@ -110,6 +123,18 @@ std::unique_ptr<::common::IrDataType> GTypeConverter::convertLogicalType(
                    << "but got: " << expr.toString()
                    << " , return REL type with empty label";
       return convertRelType(gopt::GRelType({}));
+    }
+    break;
+  }
+  case common::LogicalTypeID::RECURSIVE_REL: {
+    auto relExpr = dynamic_cast<const binder::RelExpression*>(&expr);
+    if (relExpr) {
+      return convertPathType(gopt::GRelType(*relExpr));
+    } else {
+      LOG(WARNING) << "Expected RelExpression for REL type, "
+                   << "but got: " << expr.toString()
+                   << " , return REL type with empty label";
+      return convertPathType(gopt::GRelType({}));
     }
     break;
   }

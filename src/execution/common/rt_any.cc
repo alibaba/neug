@@ -263,6 +263,9 @@ RTAnyType parse_from_ir_data_type(const ::common::IrDataType& dt) {
     case ::common::GraphDataType_GraphElementOpt::
         GraphDataType_GraphElementOpt_EDGE:
       return RTAnyType::kEdge;
+    case ::common::GraphDataType_GraphElementOpt::
+        GraphDataType_GraphElementOpt_PATH:
+      return RTAnyType::kPath;
     default:
       THROW_NOT_SUPPORTED_EXCEPTION("unrecognized graph data type - " +
                                     gdt.DebugString());

@@ -40,6 +40,8 @@ class GTypeConverter {
   std::unique_ptr<::common::IrDataType> convertNodeType(
       const GNodeType& nodeType);
   std::unique_ptr<::common::IrDataType> convertRelType(const GRelType& relType);
+  std::unique_ptr<::common::IrDataType> convertPathType(
+      const GRelType& relType);
   std::unique_ptr<::common::IrDataType> convertArrayType(
       const common::LogicalType& type, const binder::Expression& expr);
   std::unique_ptr<::common::IrDataType> convertLogicalType(

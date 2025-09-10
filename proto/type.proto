@@ -29,6 +29,7 @@ message GraphDataType {
   enum GraphElementOpt {
     VERTEX = 0;
     EDGE = 1;
+    PATH = 2;
   }
   // The label of the graph element. i.e., the label of vertex or edge.
   // Specifically, for an edge, the labels of its src and dst vertices can be further specified.

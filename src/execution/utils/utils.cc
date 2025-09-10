@@ -79,7 +79,9 @@ std::vector<LabelTriplet> parse_label_triplets(
     if (t.has_graph_type()) {
       const common::GraphDataType& gt = t.graph_type();
       if (gt.element_opt() == common::GraphDataType_GraphElementOpt::
-                                  GraphDataType_GraphElementOpt_EDGE) {
+                                  GraphDataType_GraphElementOpt_EDGE ||
+          gt.element_opt() == common::GraphDataType_GraphElementOpt::
+                                  GraphDataType_GraphElementOpt_PATH) {
         int label_num = gt.graph_data_type_size();
         for (int label_i = 0; label_i < label_num; ++label_i) {
           const common::GraphDataType_GraphElementLabel& gdt =
