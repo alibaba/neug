@@ -38,7 +38,7 @@ TEST(StorageDDLTest, CreateAndAlterTables) {
         "MODERN_GRAPH_DATA_DIR environment variable is not set");
   }
   std::string flex_data_dir = flex_data_dir_ptr;
-  auto conn = db.connect();
+  auto conn = db.Connect();
   EXPECT_TRUE(conn->Query("CREATE NODE TABLE person(id INT64, name STRING, age "
                           "INT64, PRIMARY "
                           "KEY(id));")

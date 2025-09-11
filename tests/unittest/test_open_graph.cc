@@ -34,7 +34,7 @@ TEST(DatabaseTest, OpenClose) {
 
   gs::NeugDB db;
   db.Open(dir);
-  auto conn = db.connect();
+  auto conn = db.Connect();
   LOG(INFO) << "Before close db1";
   db.Close();
   LOG(INFO) << "After close db1";
@@ -85,7 +85,7 @@ TEST(DatabaseTest, TestDangling) {
 
   gs::NeugDB db;
   db.Open(data_path, 1, gs::DBMode::READ_WRITE);
-  auto conn = db.connect();
+  auto conn = db.Connect();
   EXPECT_TRUE(conn->Query("CREATE NODE TABLE person(id INT64, name STRING, age "
                           "INT64, PRIMARY "
                           "KEY(id));")
@@ -176,7 +176,7 @@ TEST(DatabaseTest, TestUpdateRecordView) {
   {
     gs::NeugDB db;
     db.Open(data_path);
-    auto conn = db.connect();
+    auto conn = db.Connect();
 
     EXPECT_TRUE(
         conn->Query("CREATE NODE TABLE person(id INT64, name STRING, age "
@@ -281,7 +281,7 @@ TEST(DatabaseTest, TestPersist) {
     }
     gs::NeugDB db;
     db.Open(db_dir, 1, gs::DBMode::READ_WRITE, "gopt", false, false, true);
-    auto conn = db.connect();
+    auto conn = db.Connect();
     std::string flex_data_dir = std::getenv("FLEX_DATA_DIR");
     EXPECT_FALSE(flex_data_dir.empty());
     EXPECT_TRUE(
@@ -297,7 +297,7 @@ TEST(DatabaseTest, TestPersist) {
   {
     gs::NeugDB db2;
     db2.Open(db_dir, 1, gs::DBMode::READ_ONLY);
-    auto conn = db2.connect();
+    auto conn = db2.Connect();
     auto res = conn->Query("MATCH (n: person) return n.id, n.name, n.age;");
     EXPECT_TRUE(res.ok());
     conn->Close();

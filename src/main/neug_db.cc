@@ -203,7 +203,7 @@ void NeugDB::Close() {
   }
 }
 
-std::shared_ptr<Connection> NeugDB::connect() {
+std::shared_ptr<Connection> NeugDB::Connect() {
   if (closed_) {
     THROW_INTERNAL_EXCEPTION("NeugDB is closed.");
   }
@@ -226,7 +226,7 @@ std::shared_ptr<Connection> NeugDB::connect() {
   }
 }
 
-void NeugDB::remove_connection(std::shared_ptr<Connection> conn) {
+void NeugDB::RemoveConnection(std::shared_ptr<Connection> conn) {
   if (config_.mode == DBMode::READ_ONLY) {
     for (auto it = read_only_connections_.begin();
          it != read_only_connections_.end(); ++it) {

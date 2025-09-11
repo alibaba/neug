@@ -19,7 +19,7 @@
 int main(int argc, char** argv) {
   gs::NeugDB db;  // In-memory database
   db.Open("");
-  auto conn = db.connect();
+  auto conn = db.Connect();
   CHECK(conn->Query("CREATE NODE TABLE person(id INT64, name STRING, age "
                     "INT64, PRIMARY KEY(id));")
             .ok());

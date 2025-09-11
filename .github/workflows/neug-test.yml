@@ -78,6 +78,10 @@ jobs:
         restore-keys: |
           ${{ runner.os }}-ccache-${{ github.run_id }}-
           ${{ runner.os }}-ccache-
+    
+    - name: Increase the maximum number of opened files
+      run: |
+        ulimit -n 65535
 
     - name: Setup Python
       uses: actions/setup-python@v5

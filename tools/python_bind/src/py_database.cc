@@ -66,7 +66,7 @@ PyConnection PyDatabase::connect() {
   if (!database) {
     THROW_RUNTIME_ERROR("Database is not initialized.");
   }
-  return PyConnection(*database, database->connect());
+  return PyConnection(*database, database->Connect());
 }
 
 std::string PyDatabase::serve(int port, const std::string& host,
@@ -81,7 +81,8 @@ std::string PyDatabase::serve(int port, const std::string& host,
   server::ServiceConfig config;
   config.query_port = port;
   config.host_str = host;
-  config.shard_num = (num_thread == 0) ? std::thread::hardware_concurrency() : num_thread;
+  config.shard_num =
+      (num_thread == 0) ? std::thread::hardware_concurrency() : num_thread;
 #ifdef __APPLE__
   if (host == "localhost") {
     config.host_str = "127.0.0.1";

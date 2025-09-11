@@ -33,7 +33,7 @@ int main(int argc, char** argv) {
 
   gs::NeugDB db;
   db.Open(data_path);
-  auto conn = db.connect();
+  auto conn = db.Connect();
   LOG(INFO) << "Running query: " << query_string;
 
   auto res = conn->Query(query_string);

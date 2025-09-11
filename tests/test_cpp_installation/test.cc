@@ -19,7 +19,7 @@
 int main() {
   gs::NeugDB db;
   db.Open("test_db");
-  auto conn = db.connect();
+  auto conn = db.Connect();
   std::cout << "NeuG C++ client installation successful!" << std::endl;
   std::cout << "NeuG version: " << db.Version() << std::endl;
   return 0;

@@ -122,7 +122,7 @@ class NeugDB {
    * @note Each connection will hold a shared pointer, which means it will share
    * the planner with other connections in the same database.
    */
-  std::shared_ptr<Connection> connect();
+  std::shared_ptr<Connection> Connect();
 
   /**
    * @brief Remove a connection from the database.
@@ -132,7 +132,7 @@ class NeugDB {
    * @note This method is not thread-safe, so it should be called only when the
    * connection is closed. And should be only called internally.
    */
-  void remove_connection(std::shared_ptr<Connection> conn);
+  void RemoveConnection(std::shared_ptr<Connection> conn);
 
   /** @brief Create a transaction to read vertices and edges.
    *

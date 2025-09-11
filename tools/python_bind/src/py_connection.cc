@@ -50,7 +50,7 @@ PyConnection::PyConnection(NeugDB& db, std::shared_ptr<Connection> conn)
 
 void PyConnection::close() {
   if (conn_) {
-    db_.remove_connection(conn_);
+    db_.RemoveConnection(conn_);
     conn_.reset();
   }
 }
