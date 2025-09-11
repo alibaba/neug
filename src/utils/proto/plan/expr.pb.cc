@@ -177,20 +177,6 @@ struct VariableKeysDefaultTypeInternal {
   };
 };
 PROTOBUF_ATTRIBUTE_NO_DESTROY PROTOBUF_CONSTINIT PROTOBUF_ATTRIBUTE_INIT_PRIORITY1 VariableKeysDefaultTypeInternal _VariableKeys_default_instance_;
-PROTOBUF_CONSTEXPR CompositeField::CompositeField(
-    ::_pbi::ConstantInitialized): _impl_{
-    /*decltype(_impl_.field_)*/{}
-  , /*decltype(_impl_._cached_size_)*/{}
-  , /*decltype(_impl_._oneof_case_)*/{}} {}
-struct CompositeFieldDefaultTypeInternal {
-  PROTOBUF_CONSTEXPR CompositeFieldDefaultTypeInternal()
-      : _instance(::_pbi::ConstantInitialized{}) {}
-  ~CompositeFieldDefaultTypeInternal() {}
-  union {
-    CompositeField _instance;
-  };
-};
-PROTOBUF_ATTRIBUTE_NO_DESTROY PROTOBUF_CONSTINIT PROTOBUF_ATTRIBUTE_INIT_PRIORITY1 CompositeFieldDefaultTypeInternal _CompositeField_default_instance_;
 PROTOBUF_CONSTEXPR ToTuple::ToTuple(
     ::_pbi::ConstantInitialized): _impl_{
     /*decltype(_impl_.fields_)*/{}
@@ -397,6 +383,48 @@ struct ToIntervalDefaultTypeInternal {
   };
 };
 PROTOBUF_ATTRIBUTE_NO_DESTROY PROTOBUF_CONSTINIT PROTOBUF_ATTRIBUTE_INIT_PRIORITY1 ToIntervalDefaultTypeInternal _ToInterval_default_instance_;
+PROTOBUF_CONSTEXPR ToUpper::ToUpper(
+    ::_pbi::ConstantInitialized): _impl_{
+    /*decltype(_impl_.input_item_)*/{}
+  , /*decltype(_impl_._cached_size_)*/{}
+  , /*decltype(_impl_._oneof_case_)*/{}} {}
+struct ToUpperDefaultTypeInternal {
+  PROTOBUF_CONSTEXPR ToUpperDefaultTypeInternal()
+      : _instance(::_pbi::ConstantInitialized{}) {}
+  ~ToUpperDefaultTypeInternal() {}
+  union {
+    ToUpper _instance;
+  };
+};
+PROTOBUF_ATTRIBUTE_NO_DESTROY PROTOBUF_CONSTINIT PROTOBUF_ATTRIBUTE_INIT_PRIORITY1 ToUpperDefaultTypeInternal _ToUpper_default_instance_;
+PROTOBUF_CONSTEXPR ToLower::ToLower(
+    ::_pbi::ConstantInitialized): _impl_{
+    /*decltype(_impl_.input_item_)*/{}
+  , /*decltype(_impl_._cached_size_)*/{}
+  , /*decltype(_impl_._oneof_case_)*/{}} {}
+struct ToLowerDefaultTypeInternal {
+  PROTOBUF_CONSTEXPR ToLowerDefaultTypeInternal()
+      : _instance(::_pbi::ConstantInitialized{}) {}
+  ~ToLowerDefaultTypeInternal() {}
+  union {
+    ToLower _instance;
+  };
+};
+PROTOBUF_ATTRIBUTE_NO_DESTROY PROTOBUF_CONSTINIT PROTOBUF_ATTRIBUTE_INIT_PRIORITY1 ToLowerDefaultTypeInternal _ToLower_default_instance_;
+PROTOBUF_CONSTEXPR Reverse::Reverse(
+    ::_pbi::ConstantInitialized): _impl_{
+    /*decltype(_impl_.input_item_)*/{}
+  , /*decltype(_impl_._cached_size_)*/{}
+  , /*decltype(_impl_._oneof_case_)*/{}} {}
+struct ReverseDefaultTypeInternal {
+  PROTOBUF_CONSTEXPR ReverseDefaultTypeInternal()
+      : _instance(::_pbi::ConstantInitialized{}) {}
+  ~ReverseDefaultTypeInternal() {}
+  union {
+    Reverse _instance;
+  };
+};
+PROTOBUF_ATTRIBUTE_NO_DESTROY PROTOBUF_CONSTINIT PROTOBUF_ATTRIBUTE_INIT_PRIORITY1 ReverseDefaultTypeInternal _Reverse_default_instance_;
 PROTOBUF_CONSTEXPR ExprOpr::ExprOpr(
     ::_pbi::ConstantInitialized): _impl_{
     /*decltype(_impl_.node_type_)*/nullptr
@@ -426,7 +454,7 @@ struct ExpressionDefaultTypeInternal {
 };
 PROTOBUF_ATTRIBUTE_NO_DESTROY PROTOBUF_CONSTINIT PROTOBUF_ATTRIBUTE_INIT_PRIORITY1 ExpressionDefaultTypeInternal _Expression_default_instance_;
 }  // namespace common
-static ::_pb::Metadata file_level_metadata_expr_2eproto[30];
+static ::_pb::Metadata file_level_metadata_expr_2eproto[32];
 static const ::_pb::EnumDescriptor* file_level_enum_descriptors_expr_2eproto[6];
 static constexpr ::_pb::ServiceDescriptor const** file_level_service_descriptors_expr_2eproto = nullptr;
 
@@ -525,15 +553,6 @@ const uint32_t TableStruct_expr_2eproto::offsets[] PROTOBUF_SECTION_VARIABLE(pro
   ~0u,  // no _weak_field_map_
   ~0u,  // no _inlined_string_donated_
   PROTOBUF_FIELD_OFFSET(::common::VariableKeys, _impl_.keys_),
-  ~0u,  // no _has_bits_
-  PROTOBUF_FIELD_OFFSET(::common::CompositeField, _internal_metadata_),
-  ~0u,  // no _extensions_
-  PROTOBUF_FIELD_OFFSET(::common::CompositeField, _impl_._oneof_case_[0]),
-  ~0u,  // no _weak_field_map_
-  ~0u,  // no _inlined_string_donated_
-  ::_pbi::kInvalidFieldOffsetTag,
-  ::_pbi::kInvalidFieldOffsetTag,
-  PROTOBUF_FIELD_OFFSET(::common::CompositeField, _impl_.field_),
   ~0u,  // no _has_bits_
   PROTOBUF_FIELD_OFFSET(::common::ToTuple, _internal_metadata_),
   ~0u,  // no _extensions_
@@ -654,11 +673,41 @@ const uint32_t TableStruct_expr_2eproto::offsets[] PROTOBUF_SECTION_VARIABLE(pro
   ~0u,  // no _inlined_string_donated_
   PROTOBUF_FIELD_OFFSET(::common::ToInterval, _impl_.interval_str_),
   ~0u,  // no _has_bits_
+  PROTOBUF_FIELD_OFFSET(::common::ToUpper, _internal_metadata_),
+  ~0u,  // no _extensions_
+  PROTOBUF_FIELD_OFFSET(::common::ToUpper, _impl_._oneof_case_[0]),
+  ~0u,  // no _weak_field_map_
+  ~0u,  // no _inlined_string_donated_
+  ::_pbi::kInvalidFieldOffsetTag,
+  ::_pbi::kInvalidFieldOffsetTag,
+  PROTOBUF_FIELD_OFFSET(::common::ToUpper, _impl_.input_item_),
+  ~0u,  // no _has_bits_
+  PROTOBUF_FIELD_OFFSET(::common::ToLower, _internal_metadata_),
+  ~0u,  // no _extensions_
+  PROTOBUF_FIELD_OFFSET(::common::ToLower, _impl_._oneof_case_[0]),
+  ~0u,  // no _weak_field_map_
+  ~0u,  // no _inlined_string_donated_
+  ::_pbi::kInvalidFieldOffsetTag,
+  ::_pbi::kInvalidFieldOffsetTag,
+  PROTOBUF_FIELD_OFFSET(::common::ToLower, _impl_.input_item_),
+  ~0u,  // no _has_bits_
+  PROTOBUF_FIELD_OFFSET(::common::Reverse, _internal_metadata_),
+  ~0u,  // no _extensions_
+  PROTOBUF_FIELD_OFFSET(::common::Reverse, _impl_._oneof_case_[0]),
+  ~0u,  // no _weak_field_map_
+  ~0u,  // no _inlined_string_donated_
+  ::_pbi::kInvalidFieldOffsetTag,
+  ::_pbi::kInvalidFieldOffsetTag,
+  PROTOBUF_FIELD_OFFSET(::common::Reverse, _impl_.input_item_),
+  ~0u,  // no _has_bits_
   PROTOBUF_FIELD_OFFSET(::common::ExprOpr, _internal_metadata_),
   ~0u,  // no _extensions_
   PROTOBUF_FIELD_OFFSET(::common::ExprOpr, _impl_._oneof_case_[0]),
   ~0u,  // no _weak_field_map_
   ~0u,  // no _inlined_string_donated_
+  ::_pbi::kInvalidFieldOffsetTag,
+  ::_pbi::kInvalidFieldOffsetTag,
+  ::_pbi::kInvalidFieldOffsetTag,
   ::_pbi::kInvalidFieldOffsetTag,
   ::_pbi::kInvalidFieldOffsetTag,
   ::_pbi::kInvalidFieldOffsetTag,
@@ -702,24 +751,26 @@ static const ::_pbi::MigrationSchema schemas[] PROTOBUF_SECTION_VARIABLE(protode
   { 67, -1, -1, sizeof(::common::PathFunction_PathElementKeyValues)},
   { 74, -1, -1, sizeof(::common::PathFunction)},
   { 87, -1, -1, sizeof(::common::VariableKeys)},
-  { 94, -1, -1, sizeof(::common::CompositeField)},
-  { 103, -1, -1, sizeof(::common::ToTuple)},
-  { 110, -1, -1, sizeof(::common::VariableKeyValue)},
-  { 121, -1, -1, sizeof(::common::VariableKeyValues)},
-  { 128, -1, -1, sizeof(::common::DynamicParam)},
-  { 137, -1, -1, sizeof(::common::Case_WhenThen)},
-  { 145, -1, -1, sizeof(::common::Case)},
-  { 153, -1, -1, sizeof(::common::Extract)},
-  { 160, -1, -1, sizeof(::common::TimeInterval)},
-  { 170, -1, -1, sizeof(::common::DateTimeMinus)},
-  { 177, -1, -1, sizeof(::common::PathConcat_ConcatPathInfo)},
-  { 185, -1, -1, sizeof(::common::PathConcat)},
-  { 193, -1, -1, sizeof(::common::UserDefinedFunction)},
-  { 201, -1, -1, sizeof(::common::ToDate)},
-  { 208, -1, -1, sizeof(::common::ToDatetime)},
-  { 215, -1, -1, sizeof(::common::ToInterval)},
-  { 222, -1, -1, sizeof(::common::ExprOpr)},
-  { 250, -1, -1, sizeof(::common::Expression)},
+  { 94, -1, -1, sizeof(::common::ToTuple)},
+  { 101, -1, -1, sizeof(::common::VariableKeyValue)},
+  { 112, -1, -1, sizeof(::common::VariableKeyValues)},
+  { 119, -1, -1, sizeof(::common::DynamicParam)},
+  { 128, -1, -1, sizeof(::common::Case_WhenThen)},
+  { 136, -1, -1, sizeof(::common::Case)},
+  { 144, -1, -1, sizeof(::common::Extract)},
+  { 151, -1, -1, sizeof(::common::TimeInterval)},
+  { 161, -1, -1, sizeof(::common::DateTimeMinus)},
+  { 168, -1, -1, sizeof(::common::PathConcat_ConcatPathInfo)},
+  { 176, -1, -1, sizeof(::common::PathConcat)},
+  { 184, -1, -1, sizeof(::common::UserDefinedFunction)},
+  { 192, -1, -1, sizeof(::common::ToDate)},
+  { 199, -1, -1, sizeof(::common::ToDatetime)},
+  { 206, -1, -1, sizeof(::common::ToInterval)},
+  { 213, -1, -1, sizeof(::common::ToUpper)},
+  { 222, -1, -1, sizeof(::common::ToLower)},
+  { 231, -1, -1, sizeof(::common::Reverse)},
+  { 240, -1, -1, sizeof(::common::ExprOpr)},
+  { 271, -1, -1, sizeof(::common::Expression)},
 };
 
 static const ::_pb::Message* const file_default_instances[] = {
@@ -735,7 +786,6 @@ static const ::_pb::Message* const file_default_instances[] = {
   &::common::_PathFunction_PathElementKeyValues_default_instance_._instance,
   &::common::_PathFunction_default_instance_._instance,
   &::common::_VariableKeys_default_instance_._instance,
-  &::common::_CompositeField_default_instance_._instance,
   &::common::_ToTuple_default_instance_._instance,
   &::common::_VariableKeyValue_default_instance_._instance,
   &::common::_VariableKeyValues_default_instance_._instance,
@@ -751,6 +801,9 @@ static const ::_pb::Message* const file_default_instances[] = {
   &::common::_ToDate_default_instance_._instance,
   &::common::_ToDatetime_default_instance_._instance,
   &::common::_ToInterval_default_instance_._instance,
+  &::common::_ToUpper_default_instance_._instance,
+  &::common::_ToLower_default_instance_._instance,
+  &::common::_Reverse_default_instance_._instance,
   &::common::_ExprOpr_default_instance_._instance,
   &::common::_Expression_default_instance_._instance,
 };
@@ -782,77 +835,84 @@ const char descriptor_table_protodef_expr_2eproto[] PROTOBUF_SECTION_VARIABLE(pr
   "Value\022\035\n\003val\030\002 \001(\0132\020.common.Property\"0\n\007"
   "FuncOpt\022\n\n\006VERTEX\020\000\022\010\n\004EDGE\020\001\022\017\n\013VERTEX_"
   "EDGE\020\002B\n\n\010path_key\".\n\014VariableKeys\022\036\n\004ke"
-  "ys\030\001 \003(\0132\020.common.Variable\"Z\n\016CompositeF"
-  "ield\022\036\n\005value\030\001 \001(\0132\r.common.ValueH\000\022\037\n\003"
-  "var\030\002 \001(\0132\020.common.VariableH\000B\007\n\005field\"1"
-  "\n\007ToTuple\022&\n\006fields\030\001 \003(\0132\026.common.Compo"
-  "siteField\"\260\001\n\020VariableKeyValue\022\032\n\003key\030\001 "
-  "\001(\0132\r.common.Value\022\037\n\003val\030\002 \001(\0132\020.common"
-  ".VariableH\000\022)\n\tpath_func\030\003 \001(\0132\024.common."
-  "PathFunctionH\000\022+\n\006nested\030\004 \001(\0132\031.common."
-  "VariableKeyValuesH\000B\007\n\005value\"\?\n\021Variable"
-  "KeyValues\022*\n\010key_vals\030\001 \003(\0132\030.common.Var"
-  "iableKeyValue\"R\n\014DynamicParam\022\014\n\004name\030\001 "
-  "\001(\t\022\r\n\005index\030\002 \001(\005\022%\n\tdata_type\030\003 \001(\0132\022."
-  "common.IrDataType\"\335\001\n\004Case\0224\n\025when_then_"
-  "expressions\030\001 \003(\0132\025.common.Case.WhenThen"
-  "\0222\n\026else_result_expression\030\002 \001(\0132\022.commo"
-  "n.Expression\032k\n\010WhenThen\022+\n\017when_express"
-  "ion\030\001 \001(\0132\022.common.Expression\0222\n\026then_re"
-  "sult_expression\030\002 \001(\0132\022.common.Expressio"
-  "n\"\222\001\n\007Extract\022*\n\010interval\030\001 \001(\0162\030.common"
-  ".Extract.Interval\"[\n\010Interval\022\010\n\004YEAR\020\000\022"
-  "\t\n\005MONTH\020\001\022\007\n\003DAY\020\002\022\010\n\004HOUR\020\003\022\n\n\006MINUTE\020"
-  "\004\022\n\n\006SECOND\020\005\022\017\n\013MILLISECOND\020\006\"\212\001\n\014TimeI"
-  "nterval\022*\n\010interval\030\001 \001(\0162\030.common.Extra"
-  "ct.Interval\022\036\n\005const\030\002 \001(\0132\r.common.Valu"
-  "eH\000\022%\n\005param\030\003 \001(\0132\024.common.DynamicParam"
-  "H\000B\007\n\005value\";\n\rDateTimeMinus\022*\n\010interval"
-  "\030\001 \001(\0162\030.common.Extract.Interval\"\364\001\n\nPat"
-  "hConcat\022/\n\004left\030\001 \001(\0132!.common.PathConca"
-  "t.ConcatPathInfo\0220\n\005right\030\002 \001(\0132!.common"
-  ".PathConcat.ConcatPathInfo\032c\n\016ConcatPath"
-  "Info\022\"\n\010path_tag\030\001 \001(\0132\020.common.Variable"
-  "\022-\n\010endpoint\030\002 \001(\0162\033.common.PathConcat.E"
-  "ndpoint\"\036\n\010Endpoint\022\t\n\005START\020\000\022\007\n\003END\020\001\""
-  "K\n\023UserDefinedFunction\022\014\n\004name\030\001 \001(\t\022&\n\n"
-  "parameters\030\002 \003(\0132\022.common.Expression\"\032\n\006"
-  "ToDate\022\020\n\010date_str\030\001 \001(\t\"\"\n\nToDatetime\022\024"
-  "\n\014datetime_str\030\001 \001(\t\"\"\n\nToInterval\022\024\n\014in"
-  "terval_str\030\001 \001(\t\"\374\006\n\007ExprOpr\022\"\n\007logical\030"
-  "\002 \001(\0162\017.common.LogicalH\000\022#\n\005arith\030\003 \001(\0162"
-  "\022.common.ArithmeticH\000\022\036\n\005const\030\004 \001(\0132\r.c"
-  "ommon.ValueH\000\022\037\n\003var\030\005 \001(\0132\020.common.Vari"
-  "ableH\000\022&\n\005brace\030\006 \001(\0162\025.common.ExprOpr.B"
-  "raceH\000\022$\n\004vars\030\007 \001(\0132\024.common.VariableKe"
-  "ysH\000\022\'\n\007var_map\030\010 \001(\0132\024.common.VariableK"
-  "eysH\000\022%\n\005param\030\t \001(\0132\024.common.DynamicPar"
-  "amH\000\022\034\n\004case\030\n \001(\0132\014.common.CaseH\000\022\"\n\007ex"
-  "tract\030\013 \001(\0132\017.common.ExtractH\000\022(\n\003map\030\r "
-  "\001(\0132\031.common.VariableKeyValuesH\000\022-\n\rtime"
-  "_interval\030\016 \001(\0132\024.common.TimeIntervalH\000\022"
-  "0\n\017date_time_minus\030\017 \001(\0132\025.common.DateTi"
-  "meMinusH\000\022)\n\013path_concat\030\020 \001(\0132\022.common."
-  "PathConcatH\000\022)\n\tpath_func\030\021 \001(\0132\024.common"
-  ".PathFunctionH\000\022/\n\010udf_func\030\022 \001(\0132\033.comm"
-  "on.UserDefinedFunctionH\000\022!\n\007to_date\030\023 \001("
-  "\0132\016.common.ToDateH\000\022)\n\013to_datetime\030\024 \001(\013"
-  "2\022.common.ToDatetimeH\000\022)\n\013to_interval\030\025 "
-  "\001(\0132\022.common.ToIntervalH\000\022#\n\010to_tuple\030\026 "
-  "\001(\0132\017.common.ToTupleH\000\022%\n\tnode_type\030\014 \001("
-  "\0132\022.common.IrDataType\"(\n\005Brace\022\016\n\nLEFT_B"
-  "RACE\020\000\022\017\n\013RIGHT_BRACE\020\001B\006\n\004item\"0\n\nExpre"
-  "ssion\022\"\n\toperators\030\001 \003(\0132\017.common.ExprOp"
-  "r*\241\001\n\007Logical\022\006\n\002EQ\020\000\022\006\n\002NE\020\001\022\006\n\002LT\020\002\022\006\n"
-  "\002LE\020\003\022\006\n\002GT\020\004\022\006\n\002GE\020\005\022\n\n\006WITHIN\020\006\022\013\n\007WIT"
-  "HOUT\020\007\022\016\n\nSTARTSWITH\020\010\022\014\n\010ENDSWITH\020\t\022\007\n\003"
-  "AND\020\n\022\006\n\002OR\020\013\022\007\n\003NOT\020\014\022\n\n\006ISNULL\020\r\022\t\n\005RE"
-  "GEX\020\016*\203\001\n\nArithmetic\022\007\n\003ADD\020\000\022\007\n\003SUB\020\001\022\007"
-  "\n\003MUL\020\002\022\007\n\003DIV\020\003\022\007\n\003MOD\020\004\022\007\n\003EXP\020\005\022\n\n\006BI"
-  "TAND\020\006\022\t\n\005BITOR\020\007\022\n\n\006BITXOR\020\010\022\r\n\tBITLSHI"
-  "FT\020\t\022\r\n\tBITRSHIFT\020\nB4\n!com.alibaba.graph"
-  "scope.gaia.protoB\017OuterExpressionb\006proto"
-  "3"
+  "ys\030\001 \003(\0132\020.common.Variable\"-\n\007ToTuple\022\"\n"
+  "\006fields\030\001 \003(\0132\022.common.Expression\"\260\001\n\020Va"
+  "riableKeyValue\022\032\n\003key\030\001 \001(\0132\r.common.Val"
+  "ue\022\037\n\003val\030\002 \001(\0132\020.common.VariableH\000\022)\n\tp"
+  "ath_func\030\003 \001(\0132\024.common.PathFunctionH\000\022+"
+  "\n\006nested\030\004 \001(\0132\031.common.VariableKeyValue"
+  "sH\000B\007\n\005value\"\?\n\021VariableKeyValues\022*\n\010key"
+  "_vals\030\001 \003(\0132\030.common.VariableKeyValue\"R\n"
+  "\014DynamicParam\022\014\n\004name\030\001 \001(\t\022\r\n\005index\030\002 \001"
+  "(\005\022%\n\tdata_type\030\003 \001(\0132\022.common.IrDataTyp"
+  "e\"\335\001\n\004Case\0224\n\025when_then_expressions\030\001 \003("
+  "\0132\025.common.Case.WhenThen\0222\n\026else_result_"
+  "expression\030\002 \001(\0132\022.common.Expression\032k\n\010"
+  "WhenThen\022+\n\017when_expression\030\001 \001(\0132\022.comm"
+  "on.Expression\0222\n\026then_result_expression\030"
+  "\002 \001(\0132\022.common.Expression\"\222\001\n\007Extract\022*\n"
+  "\010interval\030\001 \001(\0162\030.common.Extract.Interva"
+  "l\"[\n\010Interval\022\010\n\004YEAR\020\000\022\t\n\005MONTH\020\001\022\007\n\003DA"
+  "Y\020\002\022\010\n\004HOUR\020\003\022\n\n\006MINUTE\020\004\022\n\n\006SECOND\020\005\022\017\n"
+  "\013MILLISECOND\020\006\"\212\001\n\014TimeInterval\022*\n\010inter"
+  "val\030\001 \001(\0162\030.common.Extract.Interval\022\036\n\005c"
+  "onst\030\002 \001(\0132\r.common.ValueH\000\022%\n\005param\030\003 \001"
+  "(\0132\024.common.DynamicParamH\000B\007\n\005value\";\n\rD"
+  "ateTimeMinus\022*\n\010interval\030\001 \001(\0162\030.common."
+  "Extract.Interval\"\364\001\n\nPathConcat\022/\n\004left\030"
+  "\001 \001(\0132!.common.PathConcat.ConcatPathInfo"
+  "\0220\n\005right\030\002 \001(\0132!.common.PathConcat.Conc"
+  "atPathInfo\032c\n\016ConcatPathInfo\022\"\n\010path_tag"
+  "\030\001 \001(\0132\020.common.Variable\022-\n\010endpoint\030\002 \001"
+  "(\0162\033.common.PathConcat.Endpoint\"\036\n\010Endpo"
+  "int\022\t\n\005START\020\000\022\007\n\003END\020\001\"K\n\023UserDefinedFu"
+  "nction\022\014\n\004name\030\001 \001(\t\022&\n\nparameters\030\002 \003(\013"
+  "2\022.common.Expression\"\032\n\006ToDate\022\020\n\010date_s"
+  "tr\030\001 \001(\t\"\"\n\nToDatetime\022\024\n\014datetime_str\030\001"
+  " \001(\t\"\"\n\nToInterval\022\024\n\014interval_str\030\001 \001(\t"
+  "\"X\n\007ToUpper\022\036\n\005value\030\001 \001(\0132\r.common.Valu"
+  "eH\000\022\037\n\003var\030\002 \001(\0132\020.common.VariableH\000B\014\n\n"
+  "input_item\"X\n\007ToLower\022\036\n\005value\030\001 \001(\0132\r.c"
+  "ommon.ValueH\000\022\037\n\003var\030\002 \001(\0132\020.common.Vari"
+  "ableH\000B\014\n\ninput_item\"X\n\007Reverse\022\036\n\005value"
+  "\030\001 \001(\0132\r.common.ValueH\000\022\037\n\003var\030\002 \001(\0132\020.c"
+  "ommon.VariableH\000B\014\n\ninput_item\"\352\007\n\007ExprO"
+  "pr\022\"\n\007logical\030\002 \001(\0162\017.common.LogicalH\000\022#"
+  "\n\005arith\030\003 \001(\0162\022.common.ArithmeticH\000\022\036\n\005c"
+  "onst\030\004 \001(\0132\r.common.ValueH\000\022\037\n\003var\030\005 \001(\013"
+  "2\020.common.VariableH\000\022&\n\005brace\030\006 \001(\0162\025.co"
+  "mmon.ExprOpr.BraceH\000\022$\n\004vars\030\007 \001(\0132\024.com"
+  "mon.VariableKeysH\000\022\'\n\007var_map\030\010 \001(\0132\024.co"
+  "mmon.VariableKeysH\000\022%\n\005param\030\t \001(\0132\024.com"
+  "mon.DynamicParamH\000\022\034\n\004case\030\n \001(\0132\014.commo"
+  "n.CaseH\000\022\"\n\007extract\030\013 \001(\0132\017.common.Extra"
+  "ctH\000\022(\n\003map\030\r \001(\0132\031.common.VariableKeyVa"
+  "luesH\000\022-\n\rtime_interval\030\016 \001(\0132\024.common.T"
+  "imeIntervalH\000\0220\n\017date_time_minus\030\017 \001(\0132\025"
+  ".common.DateTimeMinusH\000\022)\n\013path_concat\030\020"
+  " \001(\0132\022.common.PathConcatH\000\022)\n\tpath_func\030"
+  "\021 \001(\0132\024.common.PathFunctionH\000\022/\n\010udf_fun"
+  "c\030\022 \001(\0132\033.common.UserDefinedFunctionH\000\022!"
+  "\n\007to_date\030\023 \001(\0132\016.common.ToDateH\000\022)\n\013to_"
+  "datetime\030\024 \001(\0132\022.common.ToDatetimeH\000\022)\n\013"
+  "to_interval\030\025 \001(\0132\022.common.ToIntervalH\000\022"
+  "#\n\010to_tuple\030\026 \001(\0132\017.common.ToTupleH\000\022#\n\010"
+  "to_upper\030\027 \001(\0132\017.common.ToUpperH\000\022#\n\010to_"
+  "lower\030\030 \001(\0132\017.common.ToLowerH\000\022\"\n\007revers"
+  "e\030\031 \001(\0132\017.common.ReverseH\000\022%\n\tnode_type\030"
+  "\014 \001(\0132\022.common.IrDataType\"(\n\005Brace\022\016\n\nLE"
+  "FT_BRACE\020\000\022\017\n\013RIGHT_BRACE\020\001B\006\n\004item\"0\n\nE"
+  "xpression\022\"\n\toperators\030\001 \003(\0132\017.common.Ex"
+  "prOpr*\241\001\n\007Logical\022\006\n\002EQ\020\000\022\006\n\002NE\020\001\022\006\n\002LT\020"
+  "\002\022\006\n\002LE\020\003\022\006\n\002GT\020\004\022\006\n\002GE\020\005\022\n\n\006WITHIN\020\006\022\013\n"
+  "\007WITHOUT\020\007\022\016\n\nSTARTSWITH\020\010\022\014\n\010ENDSWITH\020\t"
+  "\022\007\n\003AND\020\n\022\006\n\002OR\020\013\022\007\n\003NOT\020\014\022\n\n\006ISNULL\020\r\022\t"
+  "\n\005REGEX\020\016*\203\001\n\nArithmetic\022\007\n\003ADD\020\000\022\007\n\003SUB"
+  "\020\001\022\007\n\003MUL\020\002\022\007\n\003DIV\020\003\022\007\n\003MOD\020\004\022\007\n\003EXP\020\005\022\n"
+  "\n\006BITAND\020\006\022\t\n\005BITOR\020\007\022\n\n\006BITXOR\020\010\022\r\n\tBIT"
+  "LSHIFT\020\t\022\r\n\tBITRSHIFT\020\nB4\n!com.alibaba.g"
+  "raphscope.gaia.protoB\017OuterExpressionb\006p"
+  "roto3"
   ;
 static const ::_pbi::DescriptorTable* const descriptor_table_expr_2eproto_deps[2] = {
   &::descriptor_table_common_2eproto,
@@ -860,9 +920,9 @@ static const ::_pbi::DescriptorTable* const descriptor_table_expr_2eproto_deps[2
 };
 static ::_pbi::once_flag descriptor_table_expr_2eproto_once;
 const ::_pbi::DescriptorTable descriptor_table_expr_2eproto = {
-    false, false, 3841, descriptor_table_protodef_expr_2eproto,
+    false, false, 4125, descriptor_table_protodef_expr_2eproto,
     "expr.proto",
-    &descriptor_table_expr_2eproto_once, descriptor_table_expr_2eproto_deps, 2, 30,
+    &descriptor_table_expr_2eproto_once, descriptor_table_expr_2eproto_deps, 2, 32,
     schemas, file_default_instances, TableStruct_expr_2eproto::offsets,
     file_level_metadata_expr_2eproto, file_level_enum_descriptors_expr_2eproto,
     file_level_service_descriptors_expr_2eproto,
@@ -3454,320 +3514,6 @@ void VariableKeys::InternalSwap(VariableKeys* other) {
 
 // ===================================================================
 
-class CompositeField::_Internal {
- public:
-  static const ::common::Value& value(const CompositeField* msg);
-  static const ::common::Variable& var(const CompositeField* msg);
-};
-
-const ::common::Value&
-CompositeField::_Internal::value(const CompositeField* msg) {
-  return *msg->_impl_.field_.value_;
-}
-const ::common::Variable&
-CompositeField::_Internal::var(const CompositeField* msg) {
-  return *msg->_impl_.field_.var_;
-}
-void CompositeField::set_allocated_value(::common::Value* value) {
-  ::PROTOBUF_NAMESPACE_ID::Arena* message_arena = GetArenaForAllocation();
-  clear_field();
-  if (value) {
-    ::PROTOBUF_NAMESPACE_ID::Arena* submessage_arena =
-        ::PROTOBUF_NAMESPACE_ID::Arena::InternalGetOwningArena(
-                reinterpret_cast<::PROTOBUF_NAMESPACE_ID::MessageLite*>(value));
-    if (message_arena != submessage_arena) {
-      value = ::PROTOBUF_NAMESPACE_ID::internal::GetOwnedMessage(
-          message_arena, value, submessage_arena);
-    }
-    set_has_value();
-    _impl_.field_.value_ = value;
-  }
-  // @@protoc_insertion_point(field_set_allocated:common.CompositeField.value)
-}
-void CompositeField::clear_value() {
-  if (_internal_has_value()) {
-    if (GetArenaForAllocation() == nullptr) {
-      delete _impl_.field_.value_;
-    }
-    clear_has_field();
-  }
-}
-void CompositeField::set_allocated_var(::common::Variable* var) {
-  ::PROTOBUF_NAMESPACE_ID::Arena* message_arena = GetArenaForAllocation();
-  clear_field();
-  if (var) {
-    ::PROTOBUF_NAMESPACE_ID::Arena* submessage_arena =
-      ::PROTOBUF_NAMESPACE_ID::Arena::InternalGetOwningArena(var);
-    if (message_arena != submessage_arena) {
-      var = ::PROTOBUF_NAMESPACE_ID::internal::GetOwnedMessage(
-          message_arena, var, submessage_arena);
-    }
-    set_has_var();
-    _impl_.field_.var_ = var;
-  }
-  // @@protoc_insertion_point(field_set_allocated:common.CompositeField.var)
-}
-CompositeField::CompositeField(::PROTOBUF_NAMESPACE_ID::Arena* arena,
-                         bool is_message_owned)
-  : ::PROTOBUF_NAMESPACE_ID::Message(arena, is_message_owned) {
-  SharedCtor(arena, is_message_owned);
-  // @@protoc_insertion_point(arena_constructor:common.CompositeField)
-}
-CompositeField::CompositeField(const CompositeField& from)
-  : ::PROTOBUF_NAMESPACE_ID::Message() {
-  CompositeField* const _this = this; (void)_this;
-  new (&_impl_) Impl_{
-      decltype(_impl_.field_){}
-    , /*decltype(_impl_._cached_size_)*/{}
-    , /*decltype(_impl_._oneof_case_)*/{}};
-
-  _internal_metadata_.MergeFrom<::PROTOBUF_NAMESPACE_ID::UnknownFieldSet>(from._internal_metadata_);
-  clear_has_field();
-  switch (from.field_case()) {
-    case kValue: {
-      _this->_internal_mutable_value()->::common::Value::MergeFrom(
-          from._internal_value());
-      break;
-    }
-    case kVar: {
-      _this->_internal_mutable_var()->::common::Variable::MergeFrom(
-          from._internal_var());
-      break;
-    }
-    case FIELD_NOT_SET: {
-      break;
-    }
-  }
-  // @@protoc_insertion_point(copy_constructor:common.CompositeField)
-}
-
-inline void CompositeField::SharedCtor(
-    ::_pb::Arena* arena, bool is_message_owned) {
-  (void)arena;
-  (void)is_message_owned;
-  new (&_impl_) Impl_{
-      decltype(_impl_.field_){}
-    , /*decltype(_impl_._cached_size_)*/{}
-    , /*decltype(_impl_._oneof_case_)*/{}
-  };
-  clear_has_field();
-}
-
-CompositeField::~CompositeField() {
-  // @@protoc_insertion_point(destructor:common.CompositeField)
-  if (auto *arena = _internal_metadata_.DeleteReturnArena<::PROTOBUF_NAMESPACE_ID::UnknownFieldSet>()) {
-  (void)arena;
-    return;
-  }
-  SharedDtor();
-}
-
-inline void CompositeField::SharedDtor() {
-  GOOGLE_DCHECK(GetArenaForAllocation() == nullptr);
-  if (has_field()) {
-    clear_field();
-  }
-}
-
-void CompositeField::SetCachedSize(int size) const {
-  _impl_._cached_size_.Set(size);
-}
-
-void CompositeField::clear_field() {
-// @@protoc_insertion_point(one_of_clear_start:common.CompositeField)
-  switch (field_case()) {
-    case kValue: {
-      if (GetArenaForAllocation() == nullptr) {
-        delete _impl_.field_.value_;
-      }
-      break;
-    }
-    case kVar: {
-      if (GetArenaForAllocation() == nullptr) {
-        delete _impl_.field_.var_;
-      }
-      break;
-    }
-    case FIELD_NOT_SET: {
-      break;
-    }
-  }
-  _impl_._oneof_case_[0] = FIELD_NOT_SET;
-}
-
-
-void CompositeField::Clear() {
-// @@protoc_insertion_point(message_clear_start:common.CompositeField)
-  uint32_t cached_has_bits = 0;
-  // Prevent compiler warnings about cached_has_bits being unused
-  (void) cached_has_bits;
-
-  clear_field();
-  _internal_metadata_.Clear<::PROTOBUF_NAMESPACE_ID::UnknownFieldSet>();
-}
-
-const char* CompositeField::_InternalParse(const char* ptr, ::_pbi::ParseContext* ctx) {
-#define CHK_(x) if (PROTOBUF_PREDICT_FALSE(!(x))) goto failure
-  while (!ctx->Done(&ptr)) {
-    uint32_t tag;
-    ptr = ::_pbi::ReadTag(ptr, &tag);
-    switch (tag >> 3) {
-      // .common.Value value = 1;
-      case 1:
-        if (PROTOBUF_PREDICT_TRUE(static_cast<uint8_t>(tag) == 10)) {
-          ptr = ctx->ParseMessage(_internal_mutable_value(), ptr);
-          CHK_(ptr);
-        } else
-          goto handle_unusual;
-        continue;
-      // .common.Variable var = 2;
-      case 2:
-        if (PROTOBUF_PREDICT_TRUE(static_cast<uint8_t>(tag) == 18)) {
-          ptr = ctx->ParseMessage(_internal_mutable_var(), ptr);
-          CHK_(ptr);
-        } else
-          goto handle_unusual;
-        continue;
-      default:
-        goto handle_unusual;
-    }  // switch
-  handle_unusual:
-    if ((tag == 0) || ((tag & 7) == 4)) {
-      CHK_(ptr);
-      ctx->SetLastTag(tag);
-      goto message_done;
-    }
-    ptr = UnknownFieldParse(
-        tag,
-        _internal_metadata_.mutable_unknown_fields<::PROTOBUF_NAMESPACE_ID::UnknownFieldSet>(),
-        ptr, ctx);
-    CHK_(ptr != nullptr);
-  }  // while
-message_done:
-  return ptr;
-failure:
-  ptr = nullptr;
-  goto message_done;
-#undef CHK_
-}
-
-uint8_t* CompositeField::_InternalSerialize(
-    uint8_t* target, ::PROTOBUF_NAMESPACE_ID::io::EpsCopyOutputStream* stream) const {
-  // @@protoc_insertion_point(serialize_to_array_start:common.CompositeField)
-  uint32_t cached_has_bits = 0;
-  (void) cached_has_bits;
-
-  // .common.Value value = 1;
-  if (_internal_has_value()) {
-    target = ::PROTOBUF_NAMESPACE_ID::internal::WireFormatLite::
-      InternalWriteMessage(1, _Internal::value(this),
-        _Internal::value(this).GetCachedSize(), target, stream);
-  }
-
-  // .common.Variable var = 2;
-  if (_internal_has_var()) {
-    target = ::PROTOBUF_NAMESPACE_ID::internal::WireFormatLite::
-      InternalWriteMessage(2, _Internal::var(this),
-        _Internal::var(this).GetCachedSize(), target, stream);
-  }
-
-  if (PROTOBUF_PREDICT_FALSE(_internal_metadata_.have_unknown_fields())) {
-    target = ::_pbi::WireFormat::InternalSerializeUnknownFieldsToArray(
-        _internal_metadata_.unknown_fields<::PROTOBUF_NAMESPACE_ID::UnknownFieldSet>(::PROTOBUF_NAMESPACE_ID::UnknownFieldSet::default_instance), target, stream);
-  }
-  // @@protoc_insertion_point(serialize_to_array_end:common.CompositeField)
-  return target;
-}
-
-size_t CompositeField::ByteSizeLong() const {
-// @@protoc_insertion_point(message_byte_size_start:common.CompositeField)
-  size_t total_size = 0;
-
-  uint32_t cached_has_bits = 0;
-  // Prevent compiler warnings about cached_has_bits being unused
-  (void) cached_has_bits;
-
-  switch (field_case()) {
-    // .common.Value value = 1;
-    case kValue: {
-      total_size += 1 +
-        ::PROTOBUF_NAMESPACE_ID::internal::WireFormatLite::MessageSize(
-          *_impl_.field_.value_);
-      break;
-    }
-    // .common.Variable var = 2;
-    case kVar: {
-      total_size += 1 +
-        ::PROTOBUF_NAMESPACE_ID::internal::WireFormatLite::MessageSize(
-          *_impl_.field_.var_);
-      break;
-    }
-    case FIELD_NOT_SET: {
-      break;
-    }
-  }
-  return MaybeComputeUnknownFieldsSize(total_size, &_impl_._cached_size_);
-}
-
-const ::PROTOBUF_NAMESPACE_ID::Message::ClassData CompositeField::_class_data_ = {
-    ::PROTOBUF_NAMESPACE_ID::Message::CopyWithSourceCheck,
-    CompositeField::MergeImpl
-};
-const ::PROTOBUF_NAMESPACE_ID::Message::ClassData*CompositeField::GetClassData() const { return &_class_data_; }
-
-
-void CompositeField::MergeImpl(::PROTOBUF_NAMESPACE_ID::Message& to_msg, const ::PROTOBUF_NAMESPACE_ID::Message& from_msg) {
-  auto* const _this = static_cast<CompositeField*>(&to_msg);
-  auto& from = static_cast<const CompositeField&>(from_msg);
-  // @@protoc_insertion_point(class_specific_merge_from_start:common.CompositeField)
-  GOOGLE_DCHECK_NE(&from, _this);
-  uint32_t cached_has_bits = 0;
-  (void) cached_has_bits;
-
-  switch (from.field_case()) {
-    case kValue: {
-      _this->_internal_mutable_value()->::common::Value::MergeFrom(
-          from._internal_value());
-      break;
-    }
-    case kVar: {
-      _this->_internal_mutable_var()->::common::Variable::MergeFrom(
-          from._internal_var());
-      break;
-    }
-    case FIELD_NOT_SET: {
-      break;
-    }
-  }
-  _this->_internal_metadata_.MergeFrom<::PROTOBUF_NAMESPACE_ID::UnknownFieldSet>(from._internal_metadata_);
-}
-
-void CompositeField::CopyFrom(const CompositeField& from) {
-// @@protoc_insertion_point(class_specific_copy_from_start:common.CompositeField)
-  if (&from == this) return;
-  Clear();
-  MergeFrom(from);
-}
-
-bool CompositeField::IsInitialized() const {
-  return true;
-}
-
-void CompositeField::InternalSwap(CompositeField* other) {
-  using std::swap;
-  _internal_metadata_.InternalSwap(&other->_internal_metadata_);
-  swap(_impl_.field_, other->_impl_.field_);
-  swap(_impl_._oneof_case_[0], other->_impl_._oneof_case_[0]);
-}
-
-::PROTOBUF_NAMESPACE_ID::Metadata CompositeField::GetMetadata() const {
-  return ::_pbi::AssignDescriptors(
-      &descriptor_table_expr_2eproto_getter, &descriptor_table_expr_2eproto_once,
-      file_level_metadata_expr_2eproto[12]);
-}
-
-// ===================================================================
-
 class ToTuple::_Internal {
  public:
 };
@@ -3833,7 +3579,7 @@ const char* ToTuple::_InternalParse(const char* ptr, ::_pbi::ParseContext* ctx) 
     uint32_t tag;
     ptr = ::_pbi::ReadTag(ptr, &tag);
     switch (tag >> 3) {
-      // repeated .common.CompositeField fields = 1;
+      // repeated .common.Expression fields = 1;
       case 1:
         if (PROTOBUF_PREDICT_TRUE(static_cast<uint8_t>(tag) == 10)) {
           ptr -= 1;
@@ -3875,7 +3621,7 @@ uint8_t* ToTuple::_InternalSerialize(
   uint32_t cached_has_bits = 0;
   (void) cached_has_bits;
 
-  // repeated .common.CompositeField fields = 1;
+  // repeated .common.Expression fields = 1;
   for (unsigned i = 0,
       n = static_cast<unsigned>(this->_internal_fields_size()); i < n; i++) {
     const auto& repfield = this->_internal_fields(i);
@@ -3899,7 +3645,7 @@ size_t ToTuple::ByteSizeLong() const {
   // Prevent compiler warnings about cached_has_bits being unused
   (void) cached_has_bits;
 
-  // repeated .common.CompositeField fields = 1;
+  // repeated .common.Expression fields = 1;
   total_size += 1UL * this->_internal_fields_size();
   for (const auto& msg : this->_impl_.fields_) {
     total_size +=
@@ -3948,7 +3694,7 @@ void ToTuple::InternalSwap(ToTuple* other) {
 ::PROTOBUF_NAMESPACE_ID::Metadata ToTuple::GetMetadata() const {
   return ::_pbi::AssignDescriptors(
       &descriptor_table_expr_2eproto_getter, &descriptor_table_expr_2eproto_once,
-      file_level_metadata_expr_2eproto[13]);
+      file_level_metadata_expr_2eproto[12]);
 }
 
 // ===================================================================
@@ -4359,7 +4105,7 @@ void VariableKeyValue::InternalSwap(VariableKeyValue* other) {
 ::PROTOBUF_NAMESPACE_ID::Metadata VariableKeyValue::GetMetadata() const {
   return ::_pbi::AssignDescriptors(
       &descriptor_table_expr_2eproto_getter, &descriptor_table_expr_2eproto_once,
-      file_level_metadata_expr_2eproto[14]);
+      file_level_metadata_expr_2eproto[13]);
 }
 
 // ===================================================================
@@ -4544,7 +4290,7 @@ void VariableKeyValues::InternalSwap(VariableKeyValues* other) {
 ::PROTOBUF_NAMESPACE_ID::Metadata VariableKeyValues::GetMetadata() const {
   return ::_pbi::AssignDescriptors(
       &descriptor_table_expr_2eproto_getter, &descriptor_table_expr_2eproto_once,
-      file_level_metadata_expr_2eproto[15]);
+      file_level_metadata_expr_2eproto[14]);
 }
 
 // ===================================================================
@@ -4826,7 +4572,7 @@ void DynamicParam::InternalSwap(DynamicParam* other) {
 ::PROTOBUF_NAMESPACE_ID::Metadata DynamicParam::GetMetadata() const {
   return ::_pbi::AssignDescriptors(
       &descriptor_table_expr_2eproto_getter, &descriptor_table_expr_2eproto_once,
-      file_level_metadata_expr_2eproto[16]);
+      file_level_metadata_expr_2eproto[15]);
 }
 
 // ===================================================================
@@ -5065,7 +4811,7 @@ void Case_WhenThen::InternalSwap(Case_WhenThen* other) {
 ::PROTOBUF_NAMESPACE_ID::Metadata Case_WhenThen::GetMetadata() const {
   return ::_pbi::AssignDescriptors(
       &descriptor_table_expr_2eproto_getter, &descriptor_table_expr_2eproto_once,
-      file_level_metadata_expr_2eproto[17]);
+      file_level_metadata_expr_2eproto[16]);
 }
 
 // ===================================================================
@@ -5292,7 +5038,7 @@ void Case::InternalSwap(Case* other) {
 ::PROTOBUF_NAMESPACE_ID::Metadata Case::GetMetadata() const {
   return ::_pbi::AssignDescriptors(
       &descriptor_table_expr_2eproto_getter, &descriptor_table_expr_2eproto_once,
-      file_level_metadata_expr_2eproto[18]);
+      file_level_metadata_expr_2eproto[17]);
 }
 
 // ===================================================================
@@ -5473,7 +5219,7 @@ void Extract::InternalSwap(Extract* other) {
 ::PROTOBUF_NAMESPACE_ID::Metadata Extract::GetMetadata() const {
   return ::_pbi::AssignDescriptors(
       &descriptor_table_expr_2eproto_getter, &descriptor_table_expr_2eproto_once,
-      file_level_metadata_expr_2eproto[19]);
+      file_level_metadata_expr_2eproto[18]);
 }
 
 // ===================================================================
@@ -5817,7 +5563,7 @@ void TimeInterval::InternalSwap(TimeInterval* other) {
 ::PROTOBUF_NAMESPACE_ID::Metadata TimeInterval::GetMetadata() const {
   return ::_pbi::AssignDescriptors(
       &descriptor_table_expr_2eproto_getter, &descriptor_table_expr_2eproto_once,
-      file_level_metadata_expr_2eproto[20]);
+      file_level_metadata_expr_2eproto[19]);
 }
 
 // ===================================================================
@@ -5998,7 +5744,7 @@ void DateTimeMinus::InternalSwap(DateTimeMinus* other) {
 ::PROTOBUF_NAMESPACE_ID::Metadata DateTimeMinus::GetMetadata() const {
   return ::_pbi::AssignDescriptors(
       &descriptor_table_expr_2eproto_getter, &descriptor_table_expr_2eproto_once,
-      file_level_metadata_expr_2eproto[21]);
+      file_level_metadata_expr_2eproto[20]);
 }
 
 // ===================================================================
@@ -6225,7 +5971,7 @@ void PathConcat_ConcatPathInfo::InternalSwap(PathConcat_ConcatPathInfo* other) {
 ::PROTOBUF_NAMESPACE_ID::Metadata PathConcat_ConcatPathInfo::GetMetadata() const {
   return ::_pbi::AssignDescriptors(
       &descriptor_table_expr_2eproto_getter, &descriptor_table_expr_2eproto_once,
-      file_level_metadata_expr_2eproto[22]);
+      file_level_metadata_expr_2eproto[21]);
 }
 
 // ===================================================================
@@ -6464,7 +6210,7 @@ void PathConcat::InternalSwap(PathConcat* other) {
 ::PROTOBUF_NAMESPACE_ID::Metadata PathConcat::GetMetadata() const {
   return ::_pbi::AssignDescriptors(
       &descriptor_table_expr_2eproto_getter, &descriptor_table_expr_2eproto_once,
-      file_level_metadata_expr_2eproto[23]);
+      file_level_metadata_expr_2eproto[22]);
 }
 
 // ===================================================================
@@ -6701,7 +6447,7 @@ void UserDefinedFunction::InternalSwap(UserDefinedFunction* other) {
 ::PROTOBUF_NAMESPACE_ID::Metadata UserDefinedFunction::GetMetadata() const {
   return ::_pbi::AssignDescriptors(
       &descriptor_table_expr_2eproto_getter, &descriptor_table_expr_2eproto_once,
-      file_level_metadata_expr_2eproto[24]);
+      file_level_metadata_expr_2eproto[23]);
 }
 
 // ===================================================================
@@ -6904,7 +6650,7 @@ void ToDate::InternalSwap(ToDate* other) {
 ::PROTOBUF_NAMESPACE_ID::Metadata ToDate::GetMetadata() const {
   return ::_pbi::AssignDescriptors(
       &descriptor_table_expr_2eproto_getter, &descriptor_table_expr_2eproto_once,
-      file_level_metadata_expr_2eproto[25]);
+      file_level_metadata_expr_2eproto[24]);
 }
 
 // ===================================================================
@@ -7107,7 +6853,7 @@ void ToDatetime::InternalSwap(ToDatetime* other) {
 ::PROTOBUF_NAMESPACE_ID::Metadata ToDatetime::GetMetadata() const {
   return ::_pbi::AssignDescriptors(
       &descriptor_table_expr_2eproto_getter, &descriptor_table_expr_2eproto_once,
-      file_level_metadata_expr_2eproto[26]);
+      file_level_metadata_expr_2eproto[25]);
 }
 
 // ===================================================================
@@ -7310,7 +7056,949 @@ void ToInterval::InternalSwap(ToInterval* other) {
 ::PROTOBUF_NAMESPACE_ID::Metadata ToInterval::GetMetadata() const {
   return ::_pbi::AssignDescriptors(
       &descriptor_table_expr_2eproto_getter, &descriptor_table_expr_2eproto_once,
+      file_level_metadata_expr_2eproto[26]);
+}
+
+// ===================================================================
+
+class ToUpper::_Internal {
+ public:
+  static const ::common::Value& value(const ToUpper* msg);
+  static const ::common::Variable& var(const ToUpper* msg);
+};
+
+const ::common::Value&
+ToUpper::_Internal::value(const ToUpper* msg) {
+  return *msg->_impl_.input_item_.value_;
+}
+const ::common::Variable&
+ToUpper::_Internal::var(const ToUpper* msg) {
+  return *msg->_impl_.input_item_.var_;
+}
+void ToUpper::set_allocated_value(::common::Value* value) {
+  ::PROTOBUF_NAMESPACE_ID::Arena* message_arena = GetArenaForAllocation();
+  clear_input_item();
+  if (value) {
+    ::PROTOBUF_NAMESPACE_ID::Arena* submessage_arena =
+        ::PROTOBUF_NAMESPACE_ID::Arena::InternalGetOwningArena(
+                reinterpret_cast<::PROTOBUF_NAMESPACE_ID::MessageLite*>(value));
+    if (message_arena != submessage_arena) {
+      value = ::PROTOBUF_NAMESPACE_ID::internal::GetOwnedMessage(
+          message_arena, value, submessage_arena);
+    }
+    set_has_value();
+    _impl_.input_item_.value_ = value;
+  }
+  // @@protoc_insertion_point(field_set_allocated:common.ToUpper.value)
+}
+void ToUpper::clear_value() {
+  if (_internal_has_value()) {
+    if (GetArenaForAllocation() == nullptr) {
+      delete _impl_.input_item_.value_;
+    }
+    clear_has_input_item();
+  }
+}
+void ToUpper::set_allocated_var(::common::Variable* var) {
+  ::PROTOBUF_NAMESPACE_ID::Arena* message_arena = GetArenaForAllocation();
+  clear_input_item();
+  if (var) {
+    ::PROTOBUF_NAMESPACE_ID::Arena* submessage_arena =
+      ::PROTOBUF_NAMESPACE_ID::Arena::InternalGetOwningArena(var);
+    if (message_arena != submessage_arena) {
+      var = ::PROTOBUF_NAMESPACE_ID::internal::GetOwnedMessage(
+          message_arena, var, submessage_arena);
+    }
+    set_has_var();
+    _impl_.input_item_.var_ = var;
+  }
+  // @@protoc_insertion_point(field_set_allocated:common.ToUpper.var)
+}
+ToUpper::ToUpper(::PROTOBUF_NAMESPACE_ID::Arena* arena,
+                         bool is_message_owned)
+  : ::PROTOBUF_NAMESPACE_ID::Message(arena, is_message_owned) {
+  SharedCtor(arena, is_message_owned);
+  // @@protoc_insertion_point(arena_constructor:common.ToUpper)
+}
+ToUpper::ToUpper(const ToUpper& from)
+  : ::PROTOBUF_NAMESPACE_ID::Message() {
+  ToUpper* const _this = this; (void)_this;
+  new (&_impl_) Impl_{
+      decltype(_impl_.input_item_){}
+    , /*decltype(_impl_._cached_size_)*/{}
+    , /*decltype(_impl_._oneof_case_)*/{}};
+
+  _internal_metadata_.MergeFrom<::PROTOBUF_NAMESPACE_ID::UnknownFieldSet>(from._internal_metadata_);
+  clear_has_input_item();
+  switch (from.input_item_case()) {
+    case kValue: {
+      _this->_internal_mutable_value()->::common::Value::MergeFrom(
+          from._internal_value());
+      break;
+    }
+    case kVar: {
+      _this->_internal_mutable_var()->::common::Variable::MergeFrom(
+          from._internal_var());
+      break;
+    }
+    case INPUT_ITEM_NOT_SET: {
+      break;
+    }
+  }
+  // @@protoc_insertion_point(copy_constructor:common.ToUpper)
+}
+
+inline void ToUpper::SharedCtor(
+    ::_pb::Arena* arena, bool is_message_owned) {
+  (void)arena;
+  (void)is_message_owned;
+  new (&_impl_) Impl_{
+      decltype(_impl_.input_item_){}
+    , /*decltype(_impl_._cached_size_)*/{}
+    , /*decltype(_impl_._oneof_case_)*/{}
+  };
+  clear_has_input_item();
+}
+
+ToUpper::~ToUpper() {
+  // @@protoc_insertion_point(destructor:common.ToUpper)
+  if (auto *arena = _internal_metadata_.DeleteReturnArena<::PROTOBUF_NAMESPACE_ID::UnknownFieldSet>()) {
+  (void)arena;
+    return;
+  }
+  SharedDtor();
+}
+
+inline void ToUpper::SharedDtor() {
+  GOOGLE_DCHECK(GetArenaForAllocation() == nullptr);
+  if (has_input_item()) {
+    clear_input_item();
+  }
+}
+
+void ToUpper::SetCachedSize(int size) const {
+  _impl_._cached_size_.Set(size);
+}
+
+void ToUpper::clear_input_item() {
+// @@protoc_insertion_point(one_of_clear_start:common.ToUpper)
+  switch (input_item_case()) {
+    case kValue: {
+      if (GetArenaForAllocation() == nullptr) {
+        delete _impl_.input_item_.value_;
+      }
+      break;
+    }
+    case kVar: {
+      if (GetArenaForAllocation() == nullptr) {
+        delete _impl_.input_item_.var_;
+      }
+      break;
+    }
+    case INPUT_ITEM_NOT_SET: {
+      break;
+    }
+  }
+  _impl_._oneof_case_[0] = INPUT_ITEM_NOT_SET;
+}
+
+
+void ToUpper::Clear() {
+// @@protoc_insertion_point(message_clear_start:common.ToUpper)
+  uint32_t cached_has_bits = 0;
+  // Prevent compiler warnings about cached_has_bits being unused
+  (void) cached_has_bits;
+
+  clear_input_item();
+  _internal_metadata_.Clear<::PROTOBUF_NAMESPACE_ID::UnknownFieldSet>();
+}
+
+const char* ToUpper::_InternalParse(const char* ptr, ::_pbi::ParseContext* ctx) {
+#define CHK_(x) if (PROTOBUF_PREDICT_FALSE(!(x))) goto failure
+  while (!ctx->Done(&ptr)) {
+    uint32_t tag;
+    ptr = ::_pbi::ReadTag(ptr, &tag);
+    switch (tag >> 3) {
+      // .common.Value value = 1;
+      case 1:
+        if (PROTOBUF_PREDICT_TRUE(static_cast<uint8_t>(tag) == 10)) {
+          ptr = ctx->ParseMessage(_internal_mutable_value(), ptr);
+          CHK_(ptr);
+        } else
+          goto handle_unusual;
+        continue;
+      // .common.Variable var = 2;
+      case 2:
+        if (PROTOBUF_PREDICT_TRUE(static_cast<uint8_t>(tag) == 18)) {
+          ptr = ctx->ParseMessage(_internal_mutable_var(), ptr);
+          CHK_(ptr);
+        } else
+          goto handle_unusual;
+        continue;
+      default:
+        goto handle_unusual;
+    }  // switch
+  handle_unusual:
+    if ((tag == 0) || ((tag & 7) == 4)) {
+      CHK_(ptr);
+      ctx->SetLastTag(tag);
+      goto message_done;
+    }
+    ptr = UnknownFieldParse(
+        tag,
+        _internal_metadata_.mutable_unknown_fields<::PROTOBUF_NAMESPACE_ID::UnknownFieldSet>(),
+        ptr, ctx);
+    CHK_(ptr != nullptr);
+  }  // while
+message_done:
+  return ptr;
+failure:
+  ptr = nullptr;
+  goto message_done;
+#undef CHK_
+}
+
+uint8_t* ToUpper::_InternalSerialize(
+    uint8_t* target, ::PROTOBUF_NAMESPACE_ID::io::EpsCopyOutputStream* stream) const {
+  // @@protoc_insertion_point(serialize_to_array_start:common.ToUpper)
+  uint32_t cached_has_bits = 0;
+  (void) cached_has_bits;
+
+  // .common.Value value = 1;
+  if (_internal_has_value()) {
+    target = ::PROTOBUF_NAMESPACE_ID::internal::WireFormatLite::
+      InternalWriteMessage(1, _Internal::value(this),
+        _Internal::value(this).GetCachedSize(), target, stream);
+  }
+
+  // .common.Variable var = 2;
+  if (_internal_has_var()) {
+    target = ::PROTOBUF_NAMESPACE_ID::internal::WireFormatLite::
+      InternalWriteMessage(2, _Internal::var(this),
+        _Internal::var(this).GetCachedSize(), target, stream);
+  }
+
+  if (PROTOBUF_PREDICT_FALSE(_internal_metadata_.have_unknown_fields())) {
+    target = ::_pbi::WireFormat::InternalSerializeUnknownFieldsToArray(
+        _internal_metadata_.unknown_fields<::PROTOBUF_NAMESPACE_ID::UnknownFieldSet>(::PROTOBUF_NAMESPACE_ID::UnknownFieldSet::default_instance), target, stream);
+  }
+  // @@protoc_insertion_point(serialize_to_array_end:common.ToUpper)
+  return target;
+}
+
+size_t ToUpper::ByteSizeLong() const {
+// @@protoc_insertion_point(message_byte_size_start:common.ToUpper)
+  size_t total_size = 0;
+
+  uint32_t cached_has_bits = 0;
+  // Prevent compiler warnings about cached_has_bits being unused
+  (void) cached_has_bits;
+
+  switch (input_item_case()) {
+    // .common.Value value = 1;
+    case kValue: {
+      total_size += 1 +
+        ::PROTOBUF_NAMESPACE_ID::internal::WireFormatLite::MessageSize(
+          *_impl_.input_item_.value_);
+      break;
+    }
+    // .common.Variable var = 2;
+    case kVar: {
+      total_size += 1 +
+        ::PROTOBUF_NAMESPACE_ID::internal::WireFormatLite::MessageSize(
+          *_impl_.input_item_.var_);
+      break;
+    }
+    case INPUT_ITEM_NOT_SET: {
+      break;
+    }
+  }
+  return MaybeComputeUnknownFieldsSize(total_size, &_impl_._cached_size_);
+}
+
+const ::PROTOBUF_NAMESPACE_ID::Message::ClassData ToUpper::_class_data_ = {
+    ::PROTOBUF_NAMESPACE_ID::Message::CopyWithSourceCheck,
+    ToUpper::MergeImpl
+};
+const ::PROTOBUF_NAMESPACE_ID::Message::ClassData*ToUpper::GetClassData() const { return &_class_data_; }
+
+
+void ToUpper::MergeImpl(::PROTOBUF_NAMESPACE_ID::Message& to_msg, const ::PROTOBUF_NAMESPACE_ID::Message& from_msg) {
+  auto* const _this = static_cast<ToUpper*>(&to_msg);
+  auto& from = static_cast<const ToUpper&>(from_msg);
+  // @@protoc_insertion_point(class_specific_merge_from_start:common.ToUpper)
+  GOOGLE_DCHECK_NE(&from, _this);
+  uint32_t cached_has_bits = 0;
+  (void) cached_has_bits;
+
+  switch (from.input_item_case()) {
+    case kValue: {
+      _this->_internal_mutable_value()->::common::Value::MergeFrom(
+          from._internal_value());
+      break;
+    }
+    case kVar: {
+      _this->_internal_mutable_var()->::common::Variable::MergeFrom(
+          from._internal_var());
+      break;
+    }
+    case INPUT_ITEM_NOT_SET: {
+      break;
+    }
+  }
+  _this->_internal_metadata_.MergeFrom<::PROTOBUF_NAMESPACE_ID::UnknownFieldSet>(from._internal_metadata_);
+}
+
+void ToUpper::CopyFrom(const ToUpper& from) {
+// @@protoc_insertion_point(class_specific_copy_from_start:common.ToUpper)
+  if (&from == this) return;
+  Clear();
+  MergeFrom(from);
+}
+
+bool ToUpper::IsInitialized() const {
+  return true;
+}
+
+void ToUpper::InternalSwap(ToUpper* other) {
+  using std::swap;
+  _internal_metadata_.InternalSwap(&other->_internal_metadata_);
+  swap(_impl_.input_item_, other->_impl_.input_item_);
+  swap(_impl_._oneof_case_[0], other->_impl_._oneof_case_[0]);
+}
+
+::PROTOBUF_NAMESPACE_ID::Metadata ToUpper::GetMetadata() const {
+  return ::_pbi::AssignDescriptors(
+      &descriptor_table_expr_2eproto_getter, &descriptor_table_expr_2eproto_once,
       file_level_metadata_expr_2eproto[27]);
+}
+
+// ===================================================================
+
+class ToLower::_Internal {
+ public:
+  static const ::common::Value& value(const ToLower* msg);
+  static const ::common::Variable& var(const ToLower* msg);
+};
+
+const ::common::Value&
+ToLower::_Internal::value(const ToLower* msg) {
+  return *msg->_impl_.input_item_.value_;
+}
+const ::common::Variable&
+ToLower::_Internal::var(const ToLower* msg) {
+  return *msg->_impl_.input_item_.var_;
+}
+void ToLower::set_allocated_value(::common::Value* value) {
+  ::PROTOBUF_NAMESPACE_ID::Arena* message_arena = GetArenaForAllocation();
+  clear_input_item();
+  if (value) {
+    ::PROTOBUF_NAMESPACE_ID::Arena* submessage_arena =
+        ::PROTOBUF_NAMESPACE_ID::Arena::InternalGetOwningArena(
+                reinterpret_cast<::PROTOBUF_NAMESPACE_ID::MessageLite*>(value));
+    if (message_arena != submessage_arena) {
+      value = ::PROTOBUF_NAMESPACE_ID::internal::GetOwnedMessage(
+          message_arena, value, submessage_arena);
+    }
+    set_has_value();
+    _impl_.input_item_.value_ = value;
+  }
+  // @@protoc_insertion_point(field_set_allocated:common.ToLower.value)
+}
+void ToLower::clear_value() {
+  if (_internal_has_value()) {
+    if (GetArenaForAllocation() == nullptr) {
+      delete _impl_.input_item_.value_;
+    }
+    clear_has_input_item();
+  }
+}
+void ToLower::set_allocated_var(::common::Variable* var) {
+  ::PROTOBUF_NAMESPACE_ID::Arena* message_arena = GetArenaForAllocation();
+  clear_input_item();
+  if (var) {
+    ::PROTOBUF_NAMESPACE_ID::Arena* submessage_arena =
+      ::PROTOBUF_NAMESPACE_ID::Arena::InternalGetOwningArena(var);
+    if (message_arena != submessage_arena) {
+      var = ::PROTOBUF_NAMESPACE_ID::internal::GetOwnedMessage(
+          message_arena, var, submessage_arena);
+    }
+    set_has_var();
+    _impl_.input_item_.var_ = var;
+  }
+  // @@protoc_insertion_point(field_set_allocated:common.ToLower.var)
+}
+ToLower::ToLower(::PROTOBUF_NAMESPACE_ID::Arena* arena,
+                         bool is_message_owned)
+  : ::PROTOBUF_NAMESPACE_ID::Message(arena, is_message_owned) {
+  SharedCtor(arena, is_message_owned);
+  // @@protoc_insertion_point(arena_constructor:common.ToLower)
+}
+ToLower::ToLower(const ToLower& from)
+  : ::PROTOBUF_NAMESPACE_ID::Message() {
+  ToLower* const _this = this; (void)_this;
+  new (&_impl_) Impl_{
+      decltype(_impl_.input_item_){}
+    , /*decltype(_impl_._cached_size_)*/{}
+    , /*decltype(_impl_._oneof_case_)*/{}};
+
+  _internal_metadata_.MergeFrom<::PROTOBUF_NAMESPACE_ID::UnknownFieldSet>(from._internal_metadata_);
+  clear_has_input_item();
+  switch (from.input_item_case()) {
+    case kValue: {
+      _this->_internal_mutable_value()->::common::Value::MergeFrom(
+          from._internal_value());
+      break;
+    }
+    case kVar: {
+      _this->_internal_mutable_var()->::common::Variable::MergeFrom(
+          from._internal_var());
+      break;
+    }
+    case INPUT_ITEM_NOT_SET: {
+      break;
+    }
+  }
+  // @@protoc_insertion_point(copy_constructor:common.ToLower)
+}
+
+inline void ToLower::SharedCtor(
+    ::_pb::Arena* arena, bool is_message_owned) {
+  (void)arena;
+  (void)is_message_owned;
+  new (&_impl_) Impl_{
+      decltype(_impl_.input_item_){}
+    , /*decltype(_impl_._cached_size_)*/{}
+    , /*decltype(_impl_._oneof_case_)*/{}
+  };
+  clear_has_input_item();
+}
+
+ToLower::~ToLower() {
+  // @@protoc_insertion_point(destructor:common.ToLower)
+  if (auto *arena = _internal_metadata_.DeleteReturnArena<::PROTOBUF_NAMESPACE_ID::UnknownFieldSet>()) {
+  (void)arena;
+    return;
+  }
+  SharedDtor();
+}
+
+inline void ToLower::SharedDtor() {
+  GOOGLE_DCHECK(GetArenaForAllocation() == nullptr);
+  if (has_input_item()) {
+    clear_input_item();
+  }
+}
+
+void ToLower::SetCachedSize(int size) const {
+  _impl_._cached_size_.Set(size);
+}
+
+void ToLower::clear_input_item() {
+// @@protoc_insertion_point(one_of_clear_start:common.ToLower)
+  switch (input_item_case()) {
+    case kValue: {
+      if (GetArenaForAllocation() == nullptr) {
+        delete _impl_.input_item_.value_;
+      }
+      break;
+    }
+    case kVar: {
+      if (GetArenaForAllocation() == nullptr) {
+        delete _impl_.input_item_.var_;
+      }
+      break;
+    }
+    case INPUT_ITEM_NOT_SET: {
+      break;
+    }
+  }
+  _impl_._oneof_case_[0] = INPUT_ITEM_NOT_SET;
+}
+
+
+void ToLower::Clear() {
+// @@protoc_insertion_point(message_clear_start:common.ToLower)
+  uint32_t cached_has_bits = 0;
+  // Prevent compiler warnings about cached_has_bits being unused
+  (void) cached_has_bits;
+
+  clear_input_item();
+  _internal_metadata_.Clear<::PROTOBUF_NAMESPACE_ID::UnknownFieldSet>();
+}
+
+const char* ToLower::_InternalParse(const char* ptr, ::_pbi::ParseContext* ctx) {
+#define CHK_(x) if (PROTOBUF_PREDICT_FALSE(!(x))) goto failure
+  while (!ctx->Done(&ptr)) {
+    uint32_t tag;
+    ptr = ::_pbi::ReadTag(ptr, &tag);
+    switch (tag >> 3) {
+      // .common.Value value = 1;
+      case 1:
+        if (PROTOBUF_PREDICT_TRUE(static_cast<uint8_t>(tag) == 10)) {
+          ptr = ctx->ParseMessage(_internal_mutable_value(), ptr);
+          CHK_(ptr);
+        } else
+          goto handle_unusual;
+        continue;
+      // .common.Variable var = 2;
+      case 2:
+        if (PROTOBUF_PREDICT_TRUE(static_cast<uint8_t>(tag) == 18)) {
+          ptr = ctx->ParseMessage(_internal_mutable_var(), ptr);
+          CHK_(ptr);
+        } else
+          goto handle_unusual;
+        continue;
+      default:
+        goto handle_unusual;
+    }  // switch
+  handle_unusual:
+    if ((tag == 0) || ((tag & 7) == 4)) {
+      CHK_(ptr);
+      ctx->SetLastTag(tag);
+      goto message_done;
+    }
+    ptr = UnknownFieldParse(
+        tag,
+        _internal_metadata_.mutable_unknown_fields<::PROTOBUF_NAMESPACE_ID::UnknownFieldSet>(),
+        ptr, ctx);
+    CHK_(ptr != nullptr);
+  }  // while
+message_done:
+  return ptr;
+failure:
+  ptr = nullptr;
+  goto message_done;
+#undef CHK_
+}
+
+uint8_t* ToLower::_InternalSerialize(
+    uint8_t* target, ::PROTOBUF_NAMESPACE_ID::io::EpsCopyOutputStream* stream) const {
+  // @@protoc_insertion_point(serialize_to_array_start:common.ToLower)
+  uint32_t cached_has_bits = 0;
+  (void) cached_has_bits;
+
+  // .common.Value value = 1;
+  if (_internal_has_value()) {
+    target = ::PROTOBUF_NAMESPACE_ID::internal::WireFormatLite::
+      InternalWriteMessage(1, _Internal::value(this),
+        _Internal::value(this).GetCachedSize(), target, stream);
+  }
+
+  // .common.Variable var = 2;
+  if (_internal_has_var()) {
+    target = ::PROTOBUF_NAMESPACE_ID::internal::WireFormatLite::
+      InternalWriteMessage(2, _Internal::var(this),
+        _Internal::var(this).GetCachedSize(), target, stream);
+  }
+
+  if (PROTOBUF_PREDICT_FALSE(_internal_metadata_.have_unknown_fields())) {
+    target = ::_pbi::WireFormat::InternalSerializeUnknownFieldsToArray(
+        _internal_metadata_.unknown_fields<::PROTOBUF_NAMESPACE_ID::UnknownFieldSet>(::PROTOBUF_NAMESPACE_ID::UnknownFieldSet::default_instance), target, stream);
+  }
+  // @@protoc_insertion_point(serialize_to_array_end:common.ToLower)
+  return target;
+}
+
+size_t ToLower::ByteSizeLong() const {
+// @@protoc_insertion_point(message_byte_size_start:common.ToLower)
+  size_t total_size = 0;
+
+  uint32_t cached_has_bits = 0;
+  // Prevent compiler warnings about cached_has_bits being unused
+  (void) cached_has_bits;
+
+  switch (input_item_case()) {
+    // .common.Value value = 1;
+    case kValue: {
+      total_size += 1 +
+        ::PROTOBUF_NAMESPACE_ID::internal::WireFormatLite::MessageSize(
+          *_impl_.input_item_.value_);
+      break;
+    }
+    // .common.Variable var = 2;
+    case kVar: {
+      total_size += 1 +
+        ::PROTOBUF_NAMESPACE_ID::internal::WireFormatLite::MessageSize(
+          *_impl_.input_item_.var_);
+      break;
+    }
+    case INPUT_ITEM_NOT_SET: {
+      break;
+    }
+  }
+  return MaybeComputeUnknownFieldsSize(total_size, &_impl_._cached_size_);
+}
+
+const ::PROTOBUF_NAMESPACE_ID::Message::ClassData ToLower::_class_data_ = {
+    ::PROTOBUF_NAMESPACE_ID::Message::CopyWithSourceCheck,
+    ToLower::MergeImpl
+};
+const ::PROTOBUF_NAMESPACE_ID::Message::ClassData*ToLower::GetClassData() const { return &_class_data_; }
+
+
+void ToLower::MergeImpl(::PROTOBUF_NAMESPACE_ID::Message& to_msg, const ::PROTOBUF_NAMESPACE_ID::Message& from_msg) {
+  auto* const _this = static_cast<ToLower*>(&to_msg);
+  auto& from = static_cast<const ToLower&>(from_msg);
+  // @@protoc_insertion_point(class_specific_merge_from_start:common.ToLower)
+  GOOGLE_DCHECK_NE(&from, _this);
+  uint32_t cached_has_bits = 0;
+  (void) cached_has_bits;
+
+  switch (from.input_item_case()) {
+    case kValue: {
+      _this->_internal_mutable_value()->::common::Value::MergeFrom(
+          from._internal_value());
+      break;
+    }
+    case kVar: {
+      _this->_internal_mutable_var()->::common::Variable::MergeFrom(
+          from._internal_var());
+      break;
+    }
+    case INPUT_ITEM_NOT_SET: {
+      break;
+    }
+  }
+  _this->_internal_metadata_.MergeFrom<::PROTOBUF_NAMESPACE_ID::UnknownFieldSet>(from._internal_metadata_);
+}
+
+void ToLower::CopyFrom(const ToLower& from) {
+// @@protoc_insertion_point(class_specific_copy_from_start:common.ToLower)
+  if (&from == this) return;
+  Clear();
+  MergeFrom(from);
+}
+
+bool ToLower::IsInitialized() const {
+  return true;
+}
+
+void ToLower::InternalSwap(ToLower* other) {
+  using std::swap;
+  _internal_metadata_.InternalSwap(&other->_internal_metadata_);
+  swap(_impl_.input_item_, other->_impl_.input_item_);
+  swap(_impl_._oneof_case_[0], other->_impl_._oneof_case_[0]);
+}
+
+::PROTOBUF_NAMESPACE_ID::Metadata ToLower::GetMetadata() const {
+  return ::_pbi::AssignDescriptors(
+      &descriptor_table_expr_2eproto_getter, &descriptor_table_expr_2eproto_once,
+      file_level_metadata_expr_2eproto[28]);
+}
+
+// ===================================================================
+
+class Reverse::_Internal {
+ public:
+  static const ::common::Value& value(const Reverse* msg);
+  static const ::common::Variable& var(const Reverse* msg);
+};
+
+const ::common::Value&
+Reverse::_Internal::value(const Reverse* msg) {
+  return *msg->_impl_.input_item_.value_;
+}
+const ::common::Variable&
+Reverse::_Internal::var(const Reverse* msg) {
+  return *msg->_impl_.input_item_.var_;
+}
+void Reverse::set_allocated_value(::common::Value* value) {
+  ::PROTOBUF_NAMESPACE_ID::Arena* message_arena = GetArenaForAllocation();
+  clear_input_item();
+  if (value) {
+    ::PROTOBUF_NAMESPACE_ID::Arena* submessage_arena =
+        ::PROTOBUF_NAMESPACE_ID::Arena::InternalGetOwningArena(
+                reinterpret_cast<::PROTOBUF_NAMESPACE_ID::MessageLite*>(value));
+    if (message_arena != submessage_arena) {
+      value = ::PROTOBUF_NAMESPACE_ID::internal::GetOwnedMessage(
+          message_arena, value, submessage_arena);
+    }
+    set_has_value();
+    _impl_.input_item_.value_ = value;
+  }
+  // @@protoc_insertion_point(field_set_allocated:common.Reverse.value)
+}
+void Reverse::clear_value() {
+  if (_internal_has_value()) {
+    if (GetArenaForAllocation() == nullptr) {
+      delete _impl_.input_item_.value_;
+    }
+    clear_has_input_item();
+  }
+}
+void Reverse::set_allocated_var(::common::Variable* var) {
+  ::PROTOBUF_NAMESPACE_ID::Arena* message_arena = GetArenaForAllocation();
+  clear_input_item();
+  if (var) {
+    ::PROTOBUF_NAMESPACE_ID::Arena* submessage_arena =
+      ::PROTOBUF_NAMESPACE_ID::Arena::InternalGetOwningArena(var);
+    if (message_arena != submessage_arena) {
+      var = ::PROTOBUF_NAMESPACE_ID::internal::GetOwnedMessage(
+          message_arena, var, submessage_arena);
+    }
+    set_has_var();
+    _impl_.input_item_.var_ = var;
+  }
+  // @@protoc_insertion_point(field_set_allocated:common.Reverse.var)
+}
+Reverse::Reverse(::PROTOBUF_NAMESPACE_ID::Arena* arena,
+                         bool is_message_owned)
+  : ::PROTOBUF_NAMESPACE_ID::Message(arena, is_message_owned) {
+  SharedCtor(arena, is_message_owned);
+  // @@protoc_insertion_point(arena_constructor:common.Reverse)
+}
+Reverse::Reverse(const Reverse& from)
+  : ::PROTOBUF_NAMESPACE_ID::Message() {
+  Reverse* const _this = this; (void)_this;
+  new (&_impl_) Impl_{
+      decltype(_impl_.input_item_){}
+    , /*decltype(_impl_._cached_size_)*/{}
+    , /*decltype(_impl_._oneof_case_)*/{}};
+
+  _internal_metadata_.MergeFrom<::PROTOBUF_NAMESPACE_ID::UnknownFieldSet>(from._internal_metadata_);
+  clear_has_input_item();
+  switch (from.input_item_case()) {
+    case kValue: {
+      _this->_internal_mutable_value()->::common::Value::MergeFrom(
+          from._internal_value());
+      break;
+    }
+    case kVar: {
+      _this->_internal_mutable_var()->::common::Variable::MergeFrom(
+          from._internal_var());
+      break;
+    }
+    case INPUT_ITEM_NOT_SET: {
+      break;
+    }
+  }
+  // @@protoc_insertion_point(copy_constructor:common.Reverse)
+}
+
+inline void Reverse::SharedCtor(
+    ::_pb::Arena* arena, bool is_message_owned) {
+  (void)arena;
+  (void)is_message_owned;
+  new (&_impl_) Impl_{
+      decltype(_impl_.input_item_){}
+    , /*decltype(_impl_._cached_size_)*/{}
+    , /*decltype(_impl_._oneof_case_)*/{}
+  };
+  clear_has_input_item();
+}
+
+Reverse::~Reverse() {
+  // @@protoc_insertion_point(destructor:common.Reverse)
+  if (auto *arena = _internal_metadata_.DeleteReturnArena<::PROTOBUF_NAMESPACE_ID::UnknownFieldSet>()) {
+  (void)arena;
+    return;
+  }
+  SharedDtor();
+}
+
+inline void Reverse::SharedDtor() {
+  GOOGLE_DCHECK(GetArenaForAllocation() == nullptr);
+  if (has_input_item()) {
+    clear_input_item();
+  }
+}
+
+void Reverse::SetCachedSize(int size) const {
+  _impl_._cached_size_.Set(size);
+}
+
+void Reverse::clear_input_item() {
+// @@protoc_insertion_point(one_of_clear_start:common.Reverse)
+  switch (input_item_case()) {
+    case kValue: {
+      if (GetArenaForAllocation() == nullptr) {
+        delete _impl_.input_item_.value_;
+      }
+      break;
+    }
+    case kVar: {
+      if (GetArenaForAllocation() == nullptr) {
+        delete _impl_.input_item_.var_;
+      }
+      break;
+    }
+    case INPUT_ITEM_NOT_SET: {
+      break;
+    }
+  }
+  _impl_._oneof_case_[0] = INPUT_ITEM_NOT_SET;
+}
+
+
+void Reverse::Clear() {
+// @@protoc_insertion_point(message_clear_start:common.Reverse)
+  uint32_t cached_has_bits = 0;
+  // Prevent compiler warnings about cached_has_bits being unused
+  (void) cached_has_bits;
+
+  clear_input_item();
+  _internal_metadata_.Clear<::PROTOBUF_NAMESPACE_ID::UnknownFieldSet>();
+}
+
+const char* Reverse::_InternalParse(const char* ptr, ::_pbi::ParseContext* ctx) {
+#define CHK_(x) if (PROTOBUF_PREDICT_FALSE(!(x))) goto failure
+  while (!ctx->Done(&ptr)) {
+    uint32_t tag;
+    ptr = ::_pbi::ReadTag(ptr, &tag);
+    switch (tag >> 3) {
+      // .common.Value value = 1;
+      case 1:
+        if (PROTOBUF_PREDICT_TRUE(static_cast<uint8_t>(tag) == 10)) {
+          ptr = ctx->ParseMessage(_internal_mutable_value(), ptr);
+          CHK_(ptr);
+        } else
+          goto handle_unusual;
+        continue;
+      // .common.Variable var = 2;
+      case 2:
+        if (PROTOBUF_PREDICT_TRUE(static_cast<uint8_t>(tag) == 18)) {
+          ptr = ctx->ParseMessage(_internal_mutable_var(), ptr);
+          CHK_(ptr);
+        } else
+          goto handle_unusual;
+        continue;
+      default:
+        goto handle_unusual;
+    }  // switch
+  handle_unusual:
+    if ((tag == 0) || ((tag & 7) == 4)) {
+      CHK_(ptr);
+      ctx->SetLastTag(tag);
+      goto message_done;
+    }
+    ptr = UnknownFieldParse(
+        tag,
+        _internal_metadata_.mutable_unknown_fields<::PROTOBUF_NAMESPACE_ID::UnknownFieldSet>(),
+        ptr, ctx);
+    CHK_(ptr != nullptr);
+  }  // while
+message_done:
+  return ptr;
+failure:
+  ptr = nullptr;
+  goto message_done;
+#undef CHK_
+}
+
+uint8_t* Reverse::_InternalSerialize(
+    uint8_t* target, ::PROTOBUF_NAMESPACE_ID::io::EpsCopyOutputStream* stream) const {
+  // @@protoc_insertion_point(serialize_to_array_start:common.Reverse)
+  uint32_t cached_has_bits = 0;
+  (void) cached_has_bits;
+
+  // .common.Value value = 1;
+  if (_internal_has_value()) {
+    target = ::PROTOBUF_NAMESPACE_ID::internal::WireFormatLite::
+      InternalWriteMessage(1, _Internal::value(this),
+        _Internal::value(this).GetCachedSize(), target, stream);
+  }
+
+  // .common.Variable var = 2;
+  if (_internal_has_var()) {
+    target = ::PROTOBUF_NAMESPACE_ID::internal::WireFormatLite::
+      InternalWriteMessage(2, _Internal::var(this),
+        _Internal::var(this).GetCachedSize(), target, stream);
+  }
+
+  if (PROTOBUF_PREDICT_FALSE(_internal_metadata_.have_unknown_fields())) {
+    target = ::_pbi::WireFormat::InternalSerializeUnknownFieldsToArray(
+        _internal_metadata_.unknown_fields<::PROTOBUF_NAMESPACE_ID::UnknownFieldSet>(::PROTOBUF_NAMESPACE_ID::UnknownFieldSet::default_instance), target, stream);
+  }
+  // @@protoc_insertion_point(serialize_to_array_end:common.Reverse)
+  return target;
+}
+
+size_t Reverse::ByteSizeLong() const {
+// @@protoc_insertion_point(message_byte_size_start:common.Reverse)
+  size_t total_size = 0;
+
+  uint32_t cached_has_bits = 0;
+  // Prevent compiler warnings about cached_has_bits being unused
+  (void) cached_has_bits;
+
+  switch (input_item_case()) {
+    // .common.Value value = 1;
+    case kValue: {
+      total_size += 1 +
+        ::PROTOBUF_NAMESPACE_ID::internal::WireFormatLite::MessageSize(
+          *_impl_.input_item_.value_);
+      break;
+    }
+    // .common.Variable var = 2;
+    case kVar: {
+      total_size += 1 +
+        ::PROTOBUF_NAMESPACE_ID::internal::WireFormatLite::MessageSize(
+          *_impl_.input_item_.var_);
+      break;
+    }
+    case INPUT_ITEM_NOT_SET: {
+      break;
+    }
+  }
+  return MaybeComputeUnknownFieldsSize(total_size, &_impl_._cached_size_);
+}
+
+const ::PROTOBUF_NAMESPACE_ID::Message::ClassData Reverse::_class_data_ = {
+    ::PROTOBUF_NAMESPACE_ID::Message::CopyWithSourceCheck,
+    Reverse::MergeImpl
+};
+const ::PROTOBUF_NAMESPACE_ID::Message::ClassData*Reverse::GetClassData() const { return &_class_data_; }
+
+
+void Reverse::MergeImpl(::PROTOBUF_NAMESPACE_ID::Message& to_msg, const ::PROTOBUF_NAMESPACE_ID::Message& from_msg) {
+  auto* const _this = static_cast<Reverse*>(&to_msg);
+  auto& from = static_cast<const Reverse&>(from_msg);
+  // @@protoc_insertion_point(class_specific_merge_from_start:common.Reverse)
+  GOOGLE_DCHECK_NE(&from, _this);
+  uint32_t cached_has_bits = 0;
+  (void) cached_has_bits;
+
+  switch (from.input_item_case()) {
+    case kValue: {
+      _this->_internal_mutable_value()->::common::Value::MergeFrom(
+          from._internal_value());
+      break;
+    }
+    case kVar: {
+      _this->_internal_mutable_var()->::common::Variable::MergeFrom(
+          from._internal_var());
+      break;
+    }
+    case INPUT_ITEM_NOT_SET: {
+      break;
+    }
+  }
+  _this->_internal_metadata_.MergeFrom<::PROTOBUF_NAMESPACE_ID::UnknownFieldSet>(from._internal_metadata_);
+}
+
+void Reverse::CopyFrom(const Reverse& from) {
+// @@protoc_insertion_point(class_specific_copy_from_start:common.Reverse)
+  if (&from == this) return;
+  Clear();
+  MergeFrom(from);
+}
+
+bool Reverse::IsInitialized() const {
+  return true;
+}
+
+void Reverse::InternalSwap(Reverse* other) {
+  using std::swap;
+  _internal_metadata_.InternalSwap(&other->_internal_metadata_);
+  swap(_impl_.input_item_, other->_impl_.input_item_);
+  swap(_impl_._oneof_case_[0], other->_impl_._oneof_case_[0]);
+}
+
+::PROTOBUF_NAMESPACE_ID::Metadata Reverse::GetMetadata() const {
+  return ::_pbi::AssignDescriptors(
+      &descriptor_table_expr_2eproto_getter, &descriptor_table_expr_2eproto_once,
+      file_level_metadata_expr_2eproto[29]);
 }
 
 // ===================================================================
@@ -7334,6 +8022,9 @@ class ExprOpr::_Internal {
   static const ::common::ToDatetime& to_datetime(const ExprOpr* msg);
   static const ::common::ToInterval& to_interval(const ExprOpr* msg);
   static const ::common::ToTuple& to_tuple(const ExprOpr* msg);
+  static const ::common::ToUpper& to_upper(const ExprOpr* msg);
+  static const ::common::ToLower& to_lower(const ExprOpr* msg);
+  static const ::common::Reverse& reverse(const ExprOpr* msg);
   static const ::common::IrDataType& node_type(const ExprOpr* msg);
 };
 
@@ -7404,6 +8095,18 @@ ExprOpr::_Internal::to_interval(const ExprOpr* msg) {
 const ::common::ToTuple&
 ExprOpr::_Internal::to_tuple(const ExprOpr* msg) {
   return *msg->_impl_.item_.to_tuple_;
+}
+const ::common::ToUpper&
+ExprOpr::_Internal::to_upper(const ExprOpr* msg) {
+  return *msg->_impl_.item_.to_upper_;
+}
+const ::common::ToLower&
+ExprOpr::_Internal::to_lower(const ExprOpr* msg) {
+  return *msg->_impl_.item_.to_lower_;
+}
+const ::common::Reverse&
+ExprOpr::_Internal::reverse(const ExprOpr* msg) {
+  return *msg->_impl_.item_.reverse_;
 }
 const ::common::IrDataType&
 ExprOpr::_Internal::node_type(const ExprOpr* msg) {
@@ -7673,6 +8376,51 @@ void ExprOpr::set_allocated_to_tuple(::common::ToTuple* to_tuple) {
   }
   // @@protoc_insertion_point(field_set_allocated:common.ExprOpr.to_tuple)
 }
+void ExprOpr::set_allocated_to_upper(::common::ToUpper* to_upper) {
+  ::PROTOBUF_NAMESPACE_ID::Arena* message_arena = GetArenaForAllocation();
+  clear_item();
+  if (to_upper) {
+    ::PROTOBUF_NAMESPACE_ID::Arena* submessage_arena =
+      ::PROTOBUF_NAMESPACE_ID::Arena::InternalGetOwningArena(to_upper);
+    if (message_arena != submessage_arena) {
+      to_upper = ::PROTOBUF_NAMESPACE_ID::internal::GetOwnedMessage(
+          message_arena, to_upper, submessage_arena);
+    }
+    set_has_to_upper();
+    _impl_.item_.to_upper_ = to_upper;
+  }
+  // @@protoc_insertion_point(field_set_allocated:common.ExprOpr.to_upper)
+}
+void ExprOpr::set_allocated_to_lower(::common::ToLower* to_lower) {
+  ::PROTOBUF_NAMESPACE_ID::Arena* message_arena = GetArenaForAllocation();
+  clear_item();
+  if (to_lower) {
+    ::PROTOBUF_NAMESPACE_ID::Arena* submessage_arena =
+      ::PROTOBUF_NAMESPACE_ID::Arena::InternalGetOwningArena(to_lower);
+    if (message_arena != submessage_arena) {
+      to_lower = ::PROTOBUF_NAMESPACE_ID::internal::GetOwnedMessage(
+          message_arena, to_lower, submessage_arena);
+    }
+    set_has_to_lower();
+    _impl_.item_.to_lower_ = to_lower;
+  }
+  // @@protoc_insertion_point(field_set_allocated:common.ExprOpr.to_lower)
+}
+void ExprOpr::set_allocated_reverse(::common::Reverse* reverse) {
+  ::PROTOBUF_NAMESPACE_ID::Arena* message_arena = GetArenaForAllocation();
+  clear_item();
+  if (reverse) {
+    ::PROTOBUF_NAMESPACE_ID::Arena* submessage_arena =
+      ::PROTOBUF_NAMESPACE_ID::Arena::InternalGetOwningArena(reverse);
+    if (message_arena != submessage_arena) {
+      reverse = ::PROTOBUF_NAMESPACE_ID::internal::GetOwnedMessage(
+          message_arena, reverse, submessage_arena);
+    }
+    set_has_reverse();
+    _impl_.item_.reverse_ = reverse;
+  }
+  // @@protoc_insertion_point(field_set_allocated:common.ExprOpr.reverse)
+}
 void ExprOpr::clear_node_type() {
   if (GetArenaForAllocation() == nullptr && _impl_.node_type_ != nullptr) {
     delete _impl_.node_type_;
@@ -7795,6 +8543,21 @@ ExprOpr::ExprOpr(const ExprOpr& from)
     case kToTuple: {
       _this->_internal_mutable_to_tuple()->::common::ToTuple::MergeFrom(
           from._internal_to_tuple());
+      break;
+    }
+    case kToUpper: {
+      _this->_internal_mutable_to_upper()->::common::ToUpper::MergeFrom(
+          from._internal_to_upper());
+      break;
+    }
+    case kToLower: {
+      _this->_internal_mutable_to_lower()->::common::ToLower::MergeFrom(
+          from._internal_to_lower());
+      break;
+    }
+    case kReverse: {
+      _this->_internal_mutable_reverse()->::common::Reverse::MergeFrom(
+          from._internal_reverse());
       break;
     }
     case ITEM_NOT_SET: {
@@ -7952,6 +8715,24 @@ void ExprOpr::clear_item() {
     case kToTuple: {
       if (GetArenaForAllocation() == nullptr) {
         delete _impl_.item_.to_tuple_;
+      }
+      break;
+    }
+    case kToUpper: {
+      if (GetArenaForAllocation() == nullptr) {
+        delete _impl_.item_.to_upper_;
+      }
+      break;
+    }
+    case kToLower: {
+      if (GetArenaForAllocation() == nullptr) {
+        delete _impl_.item_.to_lower_;
+      }
+      break;
+    }
+    case kReverse: {
+      if (GetArenaForAllocation() == nullptr) {
+        delete _impl_.item_.reverse_;
       }
       break;
     }
@@ -8154,6 +8935,30 @@ const char* ExprOpr::_InternalParse(const char* ptr, ::_pbi::ParseContext* ctx) 
         } else
           goto handle_unusual;
         continue;
+      // .common.ToUpper to_upper = 23;
+      case 23:
+        if (PROTOBUF_PREDICT_TRUE(static_cast<uint8_t>(tag) == 186)) {
+          ptr = ctx->ParseMessage(_internal_mutable_to_upper(), ptr);
+          CHK_(ptr);
+        } else
+          goto handle_unusual;
+        continue;
+      // .common.ToLower to_lower = 24;
+      case 24:
+        if (PROTOBUF_PREDICT_TRUE(static_cast<uint8_t>(tag) == 194)) {
+          ptr = ctx->ParseMessage(_internal_mutable_to_lower(), ptr);
+          CHK_(ptr);
+        } else
+          goto handle_unusual;
+        continue;
+      // .common.Reverse reverse = 25;
+      case 25:
+        if (PROTOBUF_PREDICT_TRUE(static_cast<uint8_t>(tag) == 202)) {
+          ptr = ctx->ParseMessage(_internal_mutable_reverse(), ptr);
+          CHK_(ptr);
+        } else
+          goto handle_unusual;
+        continue;
       default:
         goto handle_unusual;
     }  // switch
@@ -8330,6 +9135,27 @@ uint8_t* ExprOpr::_InternalSerialize(
         _Internal::to_tuple(this).GetCachedSize(), target, stream);
   }
 
+  // .common.ToUpper to_upper = 23;
+  if (_internal_has_to_upper()) {
+    target = ::PROTOBUF_NAMESPACE_ID::internal::WireFormatLite::
+      InternalWriteMessage(23, _Internal::to_upper(this),
+        _Internal::to_upper(this).GetCachedSize(), target, stream);
+  }
+
+  // .common.ToLower to_lower = 24;
+  if (_internal_has_to_lower()) {
+    target = ::PROTOBUF_NAMESPACE_ID::internal::WireFormatLite::
+      InternalWriteMessage(24, _Internal::to_lower(this),
+        _Internal::to_lower(this).GetCachedSize(), target, stream);
+  }
+
+  // .common.Reverse reverse = 25;
+  if (_internal_has_reverse()) {
+    target = ::PROTOBUF_NAMESPACE_ID::internal::WireFormatLite::
+      InternalWriteMessage(25, _Internal::reverse(this),
+        _Internal::reverse(this).GetCachedSize(), target, stream);
+  }
+
   if (PROTOBUF_PREDICT_FALSE(_internal_metadata_.have_unknown_fields())) {
     target = ::_pbi::WireFormat::InternalSerializeUnknownFieldsToArray(
         _internal_metadata_.unknown_fields<::PROTOBUF_NAMESPACE_ID::UnknownFieldSet>(::PROTOBUF_NAMESPACE_ID::UnknownFieldSet::default_instance), target, stream);
@@ -8491,6 +9317,27 @@ size_t ExprOpr::ByteSizeLong() const {
           *_impl_.item_.to_tuple_);
       break;
     }
+    // .common.ToUpper to_upper = 23;
+    case kToUpper: {
+      total_size += 2 +
+        ::PROTOBUF_NAMESPACE_ID::internal::WireFormatLite::MessageSize(
+          *_impl_.item_.to_upper_);
+      break;
+    }
+    // .common.ToLower to_lower = 24;
+    case kToLower: {
+      total_size += 2 +
+        ::PROTOBUF_NAMESPACE_ID::internal::WireFormatLite::MessageSize(
+          *_impl_.item_.to_lower_);
+      break;
+    }
+    // .common.Reverse reverse = 25;
+    case kReverse: {
+      total_size += 2 +
+        ::PROTOBUF_NAMESPACE_ID::internal::WireFormatLite::MessageSize(
+          *_impl_.item_.reverse_);
+      break;
+    }
     case ITEM_NOT_SET: {
       break;
     }
@@ -8615,6 +9462,21 @@ void ExprOpr::MergeImpl(::PROTOBUF_NAMESPACE_ID::Message& to_msg, const ::PROTOB
           from._internal_to_tuple());
       break;
     }
+    case kToUpper: {
+      _this->_internal_mutable_to_upper()->::common::ToUpper::MergeFrom(
+          from._internal_to_upper());
+      break;
+    }
+    case kToLower: {
+      _this->_internal_mutable_to_lower()->::common::ToLower::MergeFrom(
+          from._internal_to_lower());
+      break;
+    }
+    case kReverse: {
+      _this->_internal_mutable_reverse()->::common::Reverse::MergeFrom(
+          from._internal_reverse());
+      break;
+    }
     case ITEM_NOT_SET: {
       break;
     }
@@ -8644,7 +9506,7 @@ void ExprOpr::InternalSwap(ExprOpr* other) {
 ::PROTOBUF_NAMESPACE_ID::Metadata ExprOpr::GetMetadata() const {
   return ::_pbi::AssignDescriptors(
       &descriptor_table_expr_2eproto_getter, &descriptor_table_expr_2eproto_once,
-      file_level_metadata_expr_2eproto[28]);
+      file_level_metadata_expr_2eproto[30]);
 }
 
 // ===================================================================
@@ -8829,7 +9691,7 @@ void Expression::InternalSwap(Expression* other) {
 ::PROTOBUF_NAMESPACE_ID::Metadata Expression::GetMetadata() const {
   return ::_pbi::AssignDescriptors(
       &descriptor_table_expr_2eproto_getter, &descriptor_table_expr_2eproto_once,
-      file_level_metadata_expr_2eproto[29]);
+      file_level_metadata_expr_2eproto[31]);
 }
 
 // @@protoc_insertion_point(namespace_scope)
@@ -8882,10 +9744,6 @@ Arena::CreateMaybeMessage< ::common::PathFunction >(Arena* arena) {
 template<> PROTOBUF_NOINLINE ::common::VariableKeys*
 Arena::CreateMaybeMessage< ::common::VariableKeys >(Arena* arena) {
   return Arena::CreateMessageInternal< ::common::VariableKeys >(arena);
-}
-template<> PROTOBUF_NOINLINE ::common::CompositeField*
-Arena::CreateMaybeMessage< ::common::CompositeField >(Arena* arena) {
-  return Arena::CreateMessageInternal< ::common::CompositeField >(arena);
 }
 template<> PROTOBUF_NOINLINE ::common::ToTuple*
 Arena::CreateMaybeMessage< ::common::ToTuple >(Arena* arena) {
@@ -8946,6 +9804,18 @@ Arena::CreateMaybeMessage< ::common::ToDatetime >(Arena* arena) {
 template<> PROTOBUF_NOINLINE ::common::ToInterval*
 Arena::CreateMaybeMessage< ::common::ToInterval >(Arena* arena) {
   return Arena::CreateMessageInternal< ::common::ToInterval >(arena);
+}
+template<> PROTOBUF_NOINLINE ::common::ToUpper*
+Arena::CreateMaybeMessage< ::common::ToUpper >(Arena* arena) {
+  return Arena::CreateMessageInternal< ::common::ToUpper >(arena);
+}
+template<> PROTOBUF_NOINLINE ::common::ToLower*
+Arena::CreateMaybeMessage< ::common::ToLower >(Arena* arena) {
+  return Arena::CreateMessageInternal< ::common::ToLower >(arena);
+}
+template<> PROTOBUF_NOINLINE ::common::Reverse*
+Arena::CreateMaybeMessage< ::common::Reverse >(Arena* arena) {
+  return Arena::CreateMessageInternal< ::common::Reverse >(arena);
 }
 template<> PROTOBUF_NOINLINE ::common::ExprOpr*
 Arena::CreateMaybeMessage< ::common::ExprOpr >(Arena* arena) {

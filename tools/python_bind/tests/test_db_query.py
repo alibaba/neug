@@ -1638,6 +1638,15 @@ def test_date_time_to_string():
     )
     result = list(result)
     assert result == [["photo1030792332314.jpg", "2012-07-23 02:25:02.068"]]
+
+
+def test_create_interval():
+    db_dir = "/tmp/modern_graph"
+    db = Database(db_path=db_dir, mode="r")
+    conn = db.connect()
+    res = conn.execute("RETURN INTERVAL('5 DAY')")
+    for record in res:
+        assert record[0] == "5 days", f"Expected value '5 days', got {record[0]}"
     conn.close()
     db.close()
 

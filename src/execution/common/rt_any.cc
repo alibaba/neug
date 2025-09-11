@@ -21,7 +21,11 @@
 #include <stdexcept>
 #include <string>
 
+#ifdef USE_SYSTEM_PROTOBUF
 #include "neug/generated/proto/plan/results.pb.h"
+#else
+#include "neug/utils/proto/plan/results.pb.h"
+#endif
 #include "neug/storages/graph/schema.h"
 #include "neug/utils/app_utils.h"
 

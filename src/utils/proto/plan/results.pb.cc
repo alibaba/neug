@@ -399,23 +399,22 @@ const char descriptor_table_protodef_results_2eproto[] PROTOBUF_SECTION_VARIABLE
   "esults.VertexH\000\022\035\n\004edge\030\002 \001(\0132\r.results."
   "EdgeH\000\022(\n\ngraph_path\030\003 \001(\0132\022.results.Gra"
   "phPathH\000\022\037\n\006object\030\004 \001(\0132\r.common.ValueH"
-  "\000B\007\n\005inner\"2\n\nCollection\022$\n\ncollection\030\001"
-  " \003(\0132\020.results.Element\"\203\001\n\tKeyValues\022/\n\n"
-  "key_values\030\001 \003(\0132\033.results.KeyValues.Key"
-  "Value\032E\n\010KeyValue\022\032\n\003key\030\001 \001(\0132\r.common."
-  "Value\022\035\n\005value\030\002 \001(\0132\016.results.Entry\"\203\001\n"
-  "\005Entry\022#\n\007element\030\001 \001(\0132\020.results.Elemen"
-  "tH\000\022)\n\ncollection\030\002 \001(\0132\023.results.Collec"
-  "tionH\000\022!\n\003map\030\003 \001(\0132\022.results.KeyValuesH"
-  "\000B\007\n\005inner\"M\n\006Column\022$\n\nname_or_id\030\001 \001(\013"
-  "2\020.common.NameOrId\022\035\n\005entry\030\002 \001(\0132\016.resu"
-  "lts.Entry\"*\n\006Record\022 \n\007columns\030\001 \003(\0132\017.r"
-  "esults.Column\"5\n\007Results\022!\n\006record\030\001 \001(\013"
-  "2\017.results.RecordH\000B\007\n\005inner\"M\n\021Collecti"
-  "veResults\022!\n\007results\030\001 \003(\0132\020.results.Res"
-  "ults\022\025\n\rresult_schema\030\002 \001(\tB-\n!com.aliba"
-  "ba.graphscope.gaia.protoB\010IrResultb\006prot"
-  "o3"
+  "\000B\007\n\005inner\"0\n\nCollection\022\"\n\ncollection\030\001"
+  " \003(\0132\016.results.Entry\"\203\001\n\tKeyValues\022/\n\nke"
+  "y_values\030\001 \003(\0132\033.results.KeyValues.KeyVa"
+  "lue\032E\n\010KeyValue\022\032\n\003key\030\001 \001(\0132\r.common.Va"
+  "lue\022\035\n\005value\030\002 \001(\0132\016.results.Entry\"\203\001\n\005E"
+  "ntry\022#\n\007element\030\001 \001(\0132\020.results.ElementH"
+  "\000\022)\n\ncollection\030\002 \001(\0132\023.results.Collecti"
+  "onH\000\022!\n\003map\030\003 \001(\0132\022.results.KeyValuesH\000B"
+  "\007\n\005inner\"M\n\006Column\022$\n\nname_or_id\030\001 \001(\0132\020"
+  ".common.NameOrId\022\035\n\005entry\030\002 \001(\0132\016.result"
+  "s.Entry\"*\n\006Record\022 \n\007columns\030\001 \003(\0132\017.res"
+  "ults.Column\"5\n\007Results\022!\n\006record\030\001 \001(\0132\017"
+  ".results.RecordH\000B\007\n\005inner\"M\n\021Collective"
+  "Results\022!\n\007results\030\001 \003(\0132\020.results.Resul"
+  "ts\022\025\n\rresult_schema\030\002 \001(\tB-\n!com.alibaba"
+  ".graphscope.gaia.protoB\010IrResultb\006proto3"
   ;
 static const ::_pbi::DescriptorTable* const descriptor_table_results_2eproto_deps[2] = {
   &::descriptor_table_common_2eproto,
@@ -423,7 +422,7 @@ static const ::_pbi::DescriptorTable* const descriptor_table_results_2eproto_dep
 };
 static ::_pbi::once_flag descriptor_table_results_2eproto_once;
 const ::_pbi::DescriptorTable descriptor_table_results_2eproto = {
-    false, false, 1362, descriptor_table_protodef_results_2eproto,
+    false, false, 1360, descriptor_table_protodef_results_2eproto,
     "results.proto",
     &descriptor_table_results_2eproto_once, descriptor_table_results_2eproto_deps, 2, 14,
     schemas, file_default_instances, TableStruct_results_2eproto::offsets,
@@ -2350,7 +2349,7 @@ const char* Collection::_InternalParse(const char* ptr, ::_pbi::ParseContext* ct
     uint32_t tag;
     ptr = ::_pbi::ReadTag(ptr, &tag);
     switch (tag >> 3) {
-      // repeated .results.Element collection = 1;
+      // repeated .results.Entry collection = 1;
       case 1:
         if (PROTOBUF_PREDICT_TRUE(static_cast<uint8_t>(tag) == 10)) {
           ptr -= 1;
@@ -2392,7 +2391,7 @@ uint8_t* Collection::_InternalSerialize(
   uint32_t cached_has_bits = 0;
   (void) cached_has_bits;
 
-  // repeated .results.Element collection = 1;
+  // repeated .results.Entry collection = 1;
   for (unsigned i = 0,
       n = static_cast<unsigned>(this->_internal_collection_size()); i < n; i++) {
     const auto& repfield = this->_internal_collection(i);
@@ -2416,7 +2415,7 @@ size_t Collection::ByteSizeLong() const {
   // Prevent compiler warnings about cached_has_bits being unused
   (void) cached_has_bits;
 
-  // repeated .results.Element collection = 1;
+  // repeated .results.Entry collection = 1;
   total_size += 1UL * this->_internal_collection_size();
   for (const auto& msg : this->_impl_.collection_) {
     total_size +=

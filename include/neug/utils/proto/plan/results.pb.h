@@ -1443,22 +1443,22 @@ class Collection final :
   enum : int {
     kCollectionFieldNumber = 1,
   };
-  // repeated .results.Element collection = 1;
+  // repeated .results.Entry collection = 1;
   int collection_size() const;
   private:
   int _internal_collection_size() const;
   public:
   void clear_collection();
-  ::results::Element* mutable_collection(int index);
-  ::PROTOBUF_NAMESPACE_ID::RepeatedPtrField< ::results::Element >*
+  ::results::Entry* mutable_collection(int index);
+  ::PROTOBUF_NAMESPACE_ID::RepeatedPtrField< ::results::Entry >*
       mutable_collection();
   private:
-  const ::results::Element& _internal_collection(int index) const;
-  ::results::Element* _internal_add_collection();
+  const ::results::Entry& _internal_collection(int index) const;
+  ::results::Entry* _internal_add_collection();
   public:
-  const ::results::Element& collection(int index) const;
-  ::results::Element* add_collection();
-  const ::PROTOBUF_NAMESPACE_ID::RepeatedPtrField< ::results::Element >&
+  const ::results::Entry& collection(int index) const;
+  ::results::Entry* add_collection();
+  const ::PROTOBUF_NAMESPACE_ID::RepeatedPtrField< ::results::Entry >&
       collection() const;
 
   // @@protoc_insertion_point(class_scope:results.Collection)
@@ -1469,7 +1469,7 @@ class Collection final :
   typedef void InternalArenaConstructable_;
   typedef void DestructorSkippable_;
   struct Impl_ {
-    ::PROTOBUF_NAMESPACE_ID::RepeatedPtrField< ::results::Element > collection_;
+    ::PROTOBUF_NAMESPACE_ID::RepeatedPtrField< ::results::Entry > collection_;
     mutable ::PROTOBUF_NAMESPACE_ID::internal::CachedSize _cached_size_;
   };
   union { Impl_ _impl_; };
@@ -3909,7 +3909,7 @@ inline Element::InnerCase Element::inner_case() const {
 
 // Collection
 
-// repeated .results.Element collection = 1;
+// repeated .results.Entry collection = 1;
 inline int Collection::_internal_collection_size() const {
   return _impl_.collection_.size();
 }
@@ -3919,31 +3919,31 @@ inline int Collection::collection_size() const {
 inline void Collection::clear_collection() {
   _impl_.collection_.Clear();
 }
-inline ::results::Element* Collection::mutable_collection(int index) {
+inline ::results::Entry* Collection::mutable_collection(int index) {
   // @@protoc_insertion_point(field_mutable:results.Collection.collection)
   return _impl_.collection_.Mutable(index);
 }
-inline ::PROTOBUF_NAMESPACE_ID::RepeatedPtrField< ::results::Element >*
+inline ::PROTOBUF_NAMESPACE_ID::RepeatedPtrField< ::results::Entry >*
 Collection::mutable_collection() {
   // @@protoc_insertion_point(field_mutable_list:results.Collection.collection)
   return &_impl_.collection_;
 }
-inline const ::results::Element& Collection::_internal_collection(int index) const {
+inline const ::results::Entry& Collection::_internal_collection(int index) const {
   return _impl_.collection_.Get(index);
 }
-inline const ::results::Element& Collection::collection(int index) const {
+inline const ::results::Entry& Collection::collection(int index) const {
   // @@protoc_insertion_point(field_get:results.Collection.collection)
   return _internal_collection(index);
 }
-inline ::results::Element* Collection::_internal_add_collection() {
+inline ::results::Entry* Collection::_internal_add_collection() {
   return _impl_.collection_.Add();
 }
-inline ::results::Element* Collection::add_collection() {
-  ::results::Element* _add = _internal_add_collection();
+inline ::results::Entry* Collection::add_collection() {
+  ::results::Entry* _add = _internal_add_collection();
   // @@protoc_insertion_point(field_add:results.Collection.collection)
   return _add;
 }
-inline const ::PROTOBUF_NAMESPACE_ID::RepeatedPtrField< ::results::Element >&
+inline const ::PROTOBUF_NAMESPACE_ID::RepeatedPtrField< ::results::Entry >&
 Collection::collection() const {
   // @@protoc_insertion_point(field_list:results.Collection.collection)
   return _impl_.collection_;

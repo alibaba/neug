@@ -862,8 +862,11 @@ std::string DateTime::to_string() const {
 
 // Interval
 Interval::Interval(std::string str) {
+  for (size_t i = 0; i < str.length(); ++i) {
+    str[i] = std::tolower(str[i]);
+  }
   static const std::regex interval_regex(
-      R"((\d+)\s*(years?|days?|hours?|minutes?|seconds?|milliseconds?|us?))");
+      R"((\d+)\s*(years?|year?|days?|day?|hours?|hour?|minutes?|minute?|seconds?|second?|milliseconds?|millisecond?|us?|microsecond?|microseconds?))");
   std::smatch match;
   negative = false;
   internal.year = internal.month = internal.day = internal.hour =

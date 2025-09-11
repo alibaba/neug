@@ -206,7 +206,7 @@ void NeugDB::Close() {
       std::filesystem::remove_all(snapshot_dir(work_dir_, latest_ts - 1));
     }
   }
-  if (config_.mode == DBMode::READ_WRITE) {
+  if (file_lock_) {
     file_lock_->unlock();
   }
   if (is_pure_memory_) {
