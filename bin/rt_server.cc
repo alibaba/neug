@@ -38,8 +38,6 @@ int main(int argc, char** argv) {
       cxxopts::value<bool>()->default_value("false"))(
       "m,memory-level", "Memory level for graph data",
       cxxopts::value<int>()->default_value("1"))(
-      "c,compiler-path", "Path to the compiler",
-      cxxopts::value<std::string>()->default_value(""))(
       "sharding-mode", "Sharding mode (exclusive or cooperative)",
       cxxopts::value<std::string>()->default_value("cooperative"))(
       "wal-uri", "URI for Write-Ahead Logging storage",
@@ -85,14 +83,14 @@ int main(int argc, char** argv) {
   if (!schema.ok()) {
     LOG(FATAL) << "Failed to load schema: " << schema.status().error_message();
   }
-  gs::NeugDBConfig config(schema.value(), data_path, compiler_path, shard_num);
+  gs::NeugDBConfig config(data_path, shard_num);
   config.memory_level = memory_level;
   config.wal_uri = vm["wal-uri"].as<std::string>();
   config.warmup = warmup;
   if (config.memory_level >= 2) {
     config.enable_auto_compaction = true;
   }
-  db.Open(config);
+  db.Open(schema.value(), config);
 
   t0 += grape::GetCurrentTime();
 

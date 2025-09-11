@@ -31,6 +31,7 @@
 
 #include "neug/compiler/planner/gopt_planner.h"
 #include "neug/compiler/planner/graph_planner.h"
+#include "neug/config.h"
 #include "neug/main/app/app_base.h"
 #include "neug/main/connection.h"
 #include "neug/main/file_lock.h"
@@ -42,8 +43,6 @@
 #include "neug/storages/loader/loading_config.h"
 #include "neug/transaction/insert_transaction.h"
 #include "neug/transaction/read_transaction.h"
-#include "neug/transaction/single_edge_insert_transaction.h"
-#include "neug/transaction/single_vertex_insert_transaction.h"
 #include "neug/transaction/update_transaction.h"
 #include "neug/transaction/version_manager.h"
 #include "neug/utils/exception/exception.h"
@@ -75,67 +74,6 @@ class Encoder;
 class IWalParser;
 class RefColumnBase;
 
-struct NeugDBConfig {
-  NeugDBConfig()
-      : mode(DBMode::READ_WRITE),
-        thread_num(1),
-        warmup(false),
-        enable_monitoring(false),
-        enable_auto_compaction(false),
-        memory_level(1),
-        wal_uri("") {}
-  NeugDBConfig(const Schema& schema_, const std::string& data_dir_,
-               const std::string& compiler_path_ = "", int thread_num_ = 1)
-      : mode(DBMode::READ_WRITE),
-        schema(schema_),
-        data_dir(data_dir_),
-        compiler_path(compiler_path_),
-        thread_num(thread_num_),
-        warmup(false),
-        enable_monitoring(false),
-        enable_auto_compaction(false),
-        memory_level(1),
-        wal_uri(""),
-        dump_on_close(false) {}
-
-  // Create without schema
-  NeugDBConfig(const std::string& data_dir_,
-               const std::string& compiler_path_ = "", int thread_num_ = 1)
-      : mode(DBMode::READ_WRITE),
-        data_dir(data_dir_),
-        compiler_path(compiler_path_),
-        thread_num(thread_num_),
-        warmup(false),
-        enable_monitoring(false),
-        enable_auto_compaction(false),
-        memory_level(1),
-        wal_uri(""),
-        dump_on_close(false) {}
-
-  DBMode mode;
-  Schema schema;
-  std::string data_dir;
-  std::string compiler_path;
-  std::string planner_kind;  // currently only gopt
-  int thread_num;
-  bool warmup;
-  bool enable_monitoring;
-  bool enable_auto_compaction;
-
-  /*
-    0 - sync with disk;
-    1 - mmap virtual memory;
-    2 - preferring hugepages;
-    3 - force hugepages;
-  */
-  int memory_level;
-  std::string wal_uri;  // Indicate the where shall we store the wal files.
-  // could be file://{GRAPH_DATA_DIR}/wal or other scheme
-  // that interactive supports
-  bool dump_on_close;  // whether dump the graph when
-                       // closing the graph db.
-};
-
 class NeugDB {
  public:
   NeugDB();
@@ -144,8 +82,6 @@ class NeugDB {
   /**
    * @brief Load the graph from data directory.
    * @param data_dir The directory of graph data.
-   * @param schema The schema of the graph. Could be empty if the graph
-   * already exists in data_dir.
    * @param max_num_threads The maximum number of threads for graph db
    * concurrency. If it is 0, it will be set to the number of hardware cores.
    * @param mode The mode of opening graph db, could be "read_only" or
@@ -155,17 +91,21 @@ class NeugDB {
    *
    * @note This function is mainly for python binding.
    */
-  bool Open(const std::string& data_dir, const Schema& schema,
-            int32_t max_num_threads = 0, const DBMode mode = DBMode::READ_WRITE,
-            const std::string& planner_kind = "gopt", bool warmup = false,
-            bool enable_auto_compaction = false, bool dump_on_close = false);
-
   bool Open(const std::string& data_dir, int32_t max_num_threads = 0,
             const DBMode mode = DBMode::READ_WRITE,
             const std::string& planner_kind = "gopt", bool warmup = false,
             bool enable_auto_compaction = false, bool dump_on_close = false);
 
   bool Open(const NeugDBConfig& config);
+
+  /**
+   * @brief Load the graph from data directory with a given schema.
+   * @param schema The schema of the graph. Could be empty if the graph
+   * already exists in data_dir.
+   * @param config The configuration for opening the graph db.
+   * @return true if successed.
+   */
+  bool Open(const Schema& schema, const NeugDBConfig& config);
 
   /**
    * @brief Close the current opened graph.
@@ -206,21 +146,6 @@ class NeugDB {
    * @return InsertTransaction
    */
   InsertTransaction GetInsertTransaction(int thread_id = 0);
-
-  /** @brief Create a transaction to insert a single vertex.
-   *
-   * @param alloc Allocator to allocate memory for graph.
-   * @return SingleVertexInsertTransaction
-   */
-  SingleVertexInsertTransaction GetSingleVertexInsertTransaction(
-      int thread_id = 0);
-
-  /** @brief Create a transaction to insert a single edge.
-   *
-   * @param alloc Allocator to allocate memory for graph.
-   * @return
-   */
-  SingleEdgeInsertTransaction GetSingleEdgeInsertTransaction(int thread_id = 0);
 
   /** @brief Create a transaction to update vertices and edges.
    *

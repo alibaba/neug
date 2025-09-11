@@ -13,7 +13,6 @@
 #include "neug/execution/common/operators/retrieve/sink.h"
 #include "neug/execution/execute/plan_parser.h"
 #include "neug/main/app/cypher_app_utils.h"
-#include "neug/main/app/cypher_runner_impl.h"
 #include "neug/main/neug_db.h"
 #include "neug/main/neug_db_session.h"
 #include "neug/transaction/update_transaction.h"

@@ -52,19 +52,6 @@ InsertTransaction NeugDBSession::GetInsertTransaction() {
                            db_.version_manager_, ts);
 }
 
-SingleVertexInsertTransaction
-NeugDBSession::GetSingleVertexInsertTransaction() {
-  uint32_t ts = db_.version_manager_.acquire_insert_timestamp();
-  return SingleVertexInsertTransaction(db_.graph_, alloc_, logger_,
-                                       db_.version_manager_, ts);
-}
-
-SingleEdgeInsertTransaction NeugDBSession::GetSingleEdgeInsertTransaction() {
-  uint32_t ts = db_.version_manager_.acquire_insert_timestamp();
-  return SingleEdgeInsertTransaction(db_.graph_, alloc_, logger_,
-                                     db_.version_manager_, ts);
-}
-
 UpdateTransaction NeugDBSession::GetUpdateTransaction() {
   uint32_t ts = db_.version_manager_.acquire_update_timestamp();
   return UpdateTransaction(*this, db_.graph_, alloc_, work_dir_, logger_,

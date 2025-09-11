@@ -50,7 +50,6 @@ class Schema {
   static constexpr uint8_t ADHOC_READ_PLUGIN_ID = 253;
   static constexpr uint8_t ADHOC_UPDATE_PLUGIN_ID = 252;
   static constexpr uint8_t CYPHER_READ_PLUGIN_ID = 248;
-  static constexpr uint8_t CYPHER_WRITE_PLUGIN_ID = 247;
   static constexpr uint8_t CYPHER_READ_DEBUG_PLUGIN_ID = 246;
 
   static constexpr const char* DDL_PLUGIN_ID_STR = "\xFE";
@@ -173,8 +172,6 @@ class Schema {
                                                        label_t label) const;
 
   const std::string& get_compiler_path() const;
-
-  void set_compiler_path(const std::string& compiler_path);
 
   std::string get_edge_description(const std::string& src_label,
                                    const std::string& dst_label,

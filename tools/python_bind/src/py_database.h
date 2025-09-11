@@ -44,7 +44,7 @@ class PyDatabase : public std::enable_shared_from_this<PyDatabase> {
       THROW_INVALID_ARGUMENT_EXCEPTION("Invalid mode: " + mode);
     }
     database = std::make_unique<NeugDB>();
-    NeugDBConfig config(db_dir_, "", max_thread_num);
+    NeugDBConfig config(db_dir_, max_thread_num);
     config.mode = mode_;
     config.planner_kind = planner;
     config.dump_on_close = true;

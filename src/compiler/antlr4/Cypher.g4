@@ -547,8 +547,8 @@ oC_Literal
         ;
 
 oC_BooleanLiteral
-    : TRUE
-        | FALSE
+    : _TRUE
+        | _FALSE
         ;
 
 oC_ListLiteral

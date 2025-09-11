@@ -37,10 +37,7 @@
 #include "neug/main/app/builtin/pagerank.h"
 #include "neug/main/app/builtin/shortest_path_among_three.h"
 #include "neug/main/app/cypher_read_app.h"
-#include "neug/main/app/cypher_runner_impl.h"
 #include "neug/main/app/cypher_update_app.h"
-#include "neug/main/app/cypher_write_app.h"
-#include "neug/main/app/server_app.h"
 #include "neug/main/neug_db_session.h"
 #include "neug/storages/file_names.h"
 #include "neug/transaction/compact_transaction.h"
@@ -92,16 +89,8 @@ NeugDB::~NeugDB() {
   WalParserFactory::Finalize();
 }
 
-bool NeugDB::Open(const std::string& data_dir, const Schema& schema,
-                  int32_t max_num_threads, const DBMode mode,
-                  const std::string& planner_kind, bool warmup,
-                  bool enable_auto_compaction, bool dump_on_close) {
-  NeugDBConfig config(schema, data_dir, "", max_num_threads);
-  config.mode = mode;
-  config.warmup = warmup;
-  config.planner_kind = planner_kind;
-  config.enable_auto_compaction = enable_auto_compaction;
-  config.dump_on_close = dump_on_close;
+bool NeugDB::Open(const Schema& schema, const NeugDBConfig& config) {
+  graph_.mutable_schema() = schema;
   return Open(config);
 }
 
@@ -109,7 +98,7 @@ bool NeugDB::Open(const std::string& data_dir, int32_t max_num_threads,
                   const DBMode mode, const std::string& planner_kind,
                   bool warmup, bool enable_auto_compaction,
                   bool dump_on_close) {
-  NeugDBConfig config(data_dir, "", max_num_threads);
+  NeugDBConfig config(data_dir, max_num_threads);
   config.mode = mode;
   config.warmup = warmup;
   config.planner_kind = planner_kind;
@@ -139,7 +128,6 @@ bool NeugDB::Open(const NeugDBConfig& config) {
   initPlannerAndQueryProcessor();
 
   LOG(INFO) << "NeugDB opened successfully";
-  runtime::CypherRunnerImpl::get().clear_cache();
   closed_.store(false);
   return true;
 }
@@ -272,16 +260,6 @@ InsertTransaction NeugDB::GetInsertTransaction(int thread_id) {
   return contexts_[thread_id].session.GetInsertTransaction();
 }
 
-SingleVertexInsertTransaction NeugDB::GetSingleVertexInsertTransaction(
-    int thread_id) {
-  return contexts_[thread_id].session.GetSingleVertexInsertTransaction();
-}
-
-SingleEdgeInsertTransaction NeugDB::GetSingleEdgeInsertTransaction(
-    int thread_id) {
-  return contexts_[thread_id].session.GetSingleEdgeInsertTransaction();
-}
-
 UpdateTransaction NeugDB::GetUpdateTransaction(int thread_id) {
   return contexts_[thread_id].session.GetUpdateTransaction();
 }
@@ -400,7 +378,6 @@ void NeugDB::initApps(
     app_factories_[i] = nullptr;
   }
   // Builtin apps
-  app_factories_[0] = std::make_shared<ServerAppFactory>();
   app_factories_[Schema::BUILTIN_COUNT_VERTICES_PLUGIN_ID] =
       std::make_shared<CountVerticesFactory>();
   app_factories_[Schema::BUILTIN_PAGERANK_PLUGIN_ID] =
@@ -420,8 +397,6 @@ void NeugDB::initApps(
 
   app_factories_[Schema::CYPHER_READ_PLUGIN_ID] =
       std::make_shared<CypherReadAppFactory>();
-  app_factories_[Schema::CYPHER_WRITE_PLUGIN_ID] =
-      std::make_shared<CypherWriteAppFactory>();
 
   size_t valid_plugins = 0;
   for (auto& path_and_index : plugins) {
@@ -546,7 +521,7 @@ void NeugDB::openGraphAndSchema() {
 
   // The schema provided by NeugDBConfig could be empty, and if it is empty,
   // we skip using it.
-  const Schema& schema = config_.schema;
+  const Schema& schema = graph_.mutable_schema();
   bool create_empty_graph = false;
   std::string schema_file = schema_path(work_dir_);
   if (!std::filesystem::exists(schema_file) && !schema.Empty()) {
@@ -571,7 +546,6 @@ void NeugDB::openGraphAndSchema() {
   // is not serialized and deserialized.
   auto& mutable_schema = graph_.mutable_schema();
   mutable_schema.SetPluginDir(schema.GetPluginDir());
-  mutable_schema.set_compiler_path(config_.compiler_path);
   std::vector<std::pair<std::string, std::string>> plugin_name_paths;
   const auto& plugins = schema.GetPlugins();
   for (auto plugin_pair : plugins) {
@@ -705,12 +679,6 @@ void NeugDB::outputCypherProfiles(const std::string& prefix) {
     auto casted_read_app = dynamic_cast<CypherReadApp*>(read_app_ptr);
     if (casted_read_app) {
       // read_timer += casted_read_app->timer();
-    }
-
-    auto write_app_ptr = GetSession(i).GetApp(Schema::CYPHER_WRITE_PLUGIN_ID);
-    auto casted_write_app = dynamic_cast<CypherWriteApp*>(write_app_ptr);
-    if (casted_write_app) {
-      // write_timer += casted_write_app->timer();
     }
   }
 

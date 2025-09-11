@@ -39,6 +39,7 @@ limitations under the License.
 #include <string_view>
 #include <utility>
 #include <vector>
+#include "neug/config.h"
 #include "neug/utils/exception/exception.h"
 
 #include "libgrape-lite/grape/serialization/in_archive.h"
@@ -62,10 +63,17 @@ inline bool operator<(const EmptyType& lhs, const EmptyType& rhs) {
 
 namespace gs {
 
-enum class DBMode { READ_ONLY = 0, READ_WRITE = 1 };
 using timestamp_t = uint32_t;
 using vid_t = uint32_t;
 using label_t = uint8_t;
+
+enum class InputFormat : uint8_t {
+  kCppEncoder = 0,
+  kCypherJson = 1,            // Json format for cypher query
+  kCypherProtoAdhoc = 2,      // Protobuf format for adhoc query
+  kCypherProtoProcedure = 3,  // Protobuf format for procedure query
+  kCypherString = 4,
+};
 
 // primitive types
 static constexpr const char* DT_UNSIGNED_INT8 = "DT_UNSIGNED_INT8";

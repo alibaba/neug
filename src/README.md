@@ -62,8 +62,6 @@ Implements both embedded (global lock) and service (MVCC) transaction models.
   - `insert_transaction.cc` - Data insertion transaction handling
   - `update_transaction.cc` - Data modification transaction logic
   - `compact_transaction.cc` - Background compaction operations
-  - `single_vertex_insert_transaction.cc` - Optimized single vertex operations
-  - `single_edge_insert_transaction.cc` - Optimized single edge operations
 - **`version_manager.cc`** - MVCC timestamp and version management
 - **`wal/`** - Write-Ahead Logging implementation
   - WAL record management

@@ -25,7 +25,6 @@
 
 #include "libgrape-lite/grape/serialization/in_archive.h"
 #include "libgrape-lite/grape/serialization/out_archive.h"
-#include "neug/main/app/cypher_runner_impl.h"
 #include "neug/storages/csr/csr_base.h"
 #include "neug/storages/file_names.h"
 #include "neug/storages/graph/property_graph.h"

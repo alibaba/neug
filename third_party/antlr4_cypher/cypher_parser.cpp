@@ -10424,7 +10424,7 @@ CypherParser::OC_ProjectionItemsContext* CypherParser::oC_ProjectionItems() {
       case CypherParser::EXPLAIN:
       case CypherParser::EXPORT:
       case CypherParser::EXTENSION:
-      case CypherParser::FALSE:
+      case CypherParser::_FALSE:
       case CypherParser::FROM:
       case CypherParser::GRAPH:
       case CypherParser::IMPORT:
@@ -10455,7 +10455,7 @@ CypherParser::OC_ProjectionItemsContext* CypherParser::oC_ProjectionItems() {
       case CypherParser::START:
       case CypherParser::TO:
       case CypherParser::TRANSACTION:
-      case CypherParser::TRUE:
+      case CypherParser::_TRUE:
       case CypherParser::TYPE:
       case CypherParser::USE:
       case CypherParser::WRITE:
@@ -15642,8 +15642,8 @@ CypherParser::OC_LiteralContext* CypherParser::oC_Literal() {
         break;
       }
 
-      case CypherParser::FALSE:
-      case CypherParser::TRUE: {
+      case CypherParser::_FALSE:
+      case CypherParser::_TRUE: {
         enterOuterAlt(_localctx, 3);
         setState(2497);
         oC_BooleanLiteral();
@@ -15691,12 +15691,12 @@ CypherParser::OC_BooleanLiteralContext::OC_BooleanLiteralContext(ParserRuleConte
   : ParserRuleContext(parent, invokingState) {
 }
 
-tree::TerminalNode* CypherParser::OC_BooleanLiteralContext::TRUE() {
-  return getToken(CypherParser::TRUE, 0);
+tree::TerminalNode* CypherParser::OC_BooleanLiteralContext::_TRUE() {
+  return getToken(CypherParser::_TRUE, 0);
 }
 
-tree::TerminalNode* CypherParser::OC_BooleanLiteralContext::FALSE() {
-  return getToken(CypherParser::FALSE, 0);
+tree::TerminalNode* CypherParser::OC_BooleanLiteralContext::_FALSE() {
+  return getToken(CypherParser::_FALSE, 0);
 }
 
 
@@ -15721,9 +15721,9 @@ CypherParser::OC_BooleanLiteralContext* CypherParser::oC_BooleanLiteral() {
     enterOuterAlt(_localctx, 1);
     setState(2503);
     _la = _input->LA(1);
-    if (!(_la == CypherParser::FALSE
+    if (!(_la == CypherParser::_FALSE
 
-    || _la == CypherParser::TRUE)) {
+    || _la == CypherParser::_TRUE)) {
     _errHandler->recoverInline(this);
     }
     else {

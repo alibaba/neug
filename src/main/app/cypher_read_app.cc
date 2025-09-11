@@ -16,7 +16,6 @@
 #include "neug/execution/common/operators/retrieve/sink.h"
 #include "neug/execution/execute/plan_parser.h"
 #include "neug/main/app/cypher_app_utils.h"
-#include "neug/main/app/cypher_runner_impl.h"
 #include "neug/main/neug_db.h"
 #include "neug/main/neug_db_session.h"
 #include "neug/storages/graph/schema.h"
@@ -56,51 +55,7 @@ bool CypherReadApp::Query(const NeugDBSession& graph, Decoder& input,
     runtime::Sink::sink(ctx.value(), gri, output);
     return true;
   } else {
-    size_t sep = bytes.find_first_of("&?");
-    auto query_str = bytes.substr(0, sep);
-    auto params_str = bytes.substr(sep + 2);
-    std::map<std::string, std::string> params;
-    parse_params(params_str, params);
-    auto query = std::string(query_str.data(), query_str.size());
-    if (!pipeline_cache_.count(query)) {
-      if (plan_cache_.count(query)) {
-      } else {
-        physical::PhysicalPlan plan;
-        std::string plan_str;
-
-        if (!gs::runtime::CypherRunnerImpl::get().gen_plan(db_, query,
-                                                           plan_str)) {
-          LOG(ERROR) << "Generate plan failed for query: " << query;
-          std::string error =
-              "    Compiler failed to generate physical plan: " + query;
-          output.put_bytes(error.data(), error.size());
-
-          return false;
-        } else {
-          if (!plan.ParseFromString(plan_str)) {
-            LOG(ERROR) << "Parse plan failed for query: " << query;
-            return false;
-          }
-          plan_cache_[query] = std::move(plan);
-        }
-      }
-      const auto& plan = plan_cache_[query];
-      pipeline_cache_.emplace(
-          query, runtime::PlanParser::get()
-                     .parse_read_pipeline(db_.schema(),
-                                          gs::runtime::ContextMeta(), plan)
-                     .value());
-    }
-    auto txn = graph.GetReadTransaction();
-    std::unique_ptr<runtime::OprTimer> timer = nullptr;
-    gs::runtime::GraphReadInterface gri(txn);
-    auto ctx = pipeline_cache_.at(query).Execute(gri, runtime::Context(),
-                                                 params, timer.get());
-    if (type == Schema::CYPHER_READ_PLUGIN_ID) {
-      runtime::Sink::sink_encoder(ctx.value(), gri, output);
-    } else {
-      runtime::Sink::sink_beta(ctx.value(), gri, output);
-    }
+    THROW_RUNTIME_ERROR("Unsupported plugin type: " + std::to_string(type));
   }
   return true;
 }

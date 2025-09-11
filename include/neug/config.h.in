@@ -16,10 +16,61 @@
 #ifndef NEUG_CONFIG_H_
 #define NEUG_CONFIG_H_
 
+#include <string>
+
 /**
  * @file config.h
  * @brief Build-time configuration macros for NeuG
  */
+
+namespace gs {
+
+enum class DBMode { READ_ONLY = 0, READ_WRITE = 1 };
+
+struct NeugDBConfig {
+  NeugDBConfig()
+      : mode(DBMode::READ_WRITE),
+        thread_num(1),
+        warmup(false),
+        enable_monitoring(false),
+        enable_auto_compaction(false),
+        memory_level(1),
+        wal_uri("") {}
+  NeugDBConfig(const std::string& data_dir_, int thread_num_ = 1)
+      : mode(DBMode::READ_WRITE),
+        data_dir(data_dir_),
+        thread_num(thread_num_),
+        warmup(false),
+        enable_monitoring(false),
+        enable_auto_compaction(false),
+        memory_level(1),
+        wal_uri(""),
+        dump_on_close(false) {}
+
+  DBMode mode;
+  std::string data_dir;
+  std::string compiler_path;
+  std::string planner_kind;  // currently only gopt
+  int thread_num;
+  bool warmup;
+  bool enable_monitoring;
+  bool enable_auto_compaction;
+
+  /*
+    0 - sync with disk;
+    1 - mmap virtual memory;
+    2 - preferring hugepages;
+    3 - force hugepages;
+  */
+  int memory_level;
+  std::string wal_uri;  // Indicate the where shall we store the wal files.
+  // could be file://{GRAPH_DATA_DIR}/wal or other scheme
+  // that interactive supports
+  bool dump_on_close;  // whether dump the graph when
+                       // closing the graph db.
+};
+
+}  // namespace gs
 
 // Protobuf configuration
 #ifndef USE_SYSTEM_PROTOBUF  // Add a guard to avoid conflict with

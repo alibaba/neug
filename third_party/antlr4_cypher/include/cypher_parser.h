@@ -26,7 +26,7 @@ public:
     CONTAINS = 67, COPY = 68, COUNT = 69, CREATE = 70, CYCLE = 71, DATABASE = 72, 
     DBTYPE = 73, DEFAULT = 74, DELETE = 75, DESC = 76, DESCENDING = 77, 
     DETACH = 78, DISTINCT = 79, DROP = 80, ELSE = 81, END = 82, ENDS = 83, 
-    EXISTS = 84, EXPLAIN = 85, EXPORT = 86, EXTENSION = 87, FALSE = 88, 
+    EXISTS = 84, EXPLAIN = 85, EXPORT = 86, EXTENSION = 87, _FALSE = 88, 
     FROM = 89, GLOB = 90, GRAPH = 91, GROUP = 92, HEADERS = 93, HINT = 94, 
     IMPORT = 95, IF = 96, IN = 97, INCREMENT = 98, INSTALL = 99, IS = 100, 
     JOIN = 101, KEY = 102, LIMIT = 103, LOAD = 104, LOGICAL = 105, MACRO = 106, 
@@ -36,7 +36,7 @@ public:
     PROJECT = 124, READ = 125, REL = 126, RENAME = 127, RETURN = 128, ROLLBACK = 129, 
     ROLLBACK_SKIP_CHECKPOINT = 130, SEQUENCE = 131, SET = 132, SHORTEST = 133, 
     START = 134, STARTS = 135, TABLE = 136, THEN = 137, TO = 138, TRAIL = 139, 
-    TRANSACTION = 140, TRUE = 141, TYPE = 142, UNION = 143, UNWIND = 144, 
+    TRANSACTION = 140, _TRUE = 141, TYPE = 142, UNION = 143, UNWIND = 144, 
     USE = 145, WHEN = 146, WHERE = 147, WITH = 148, WRITE = 149, WSHORTEST = 150, 
     XOR = 151, SINGLE = 152, YIELD = 153, DECIMAL = 154, STAR = 155, L_SKIP = 156, 
     INVALID_NOT_EQUAL = 157, MINUS = 158, FACTORIAL = 159, COLON = 160, 
@@ -2469,8 +2469,8 @@ public:
   public:
     OC_BooleanLiteralContext(antlr4::ParserRuleContext *parent, size_t invokingState);
     virtual size_t getRuleIndex() const override;
-    antlr4::tree::TerminalNode *TRUE();
-    antlr4::tree::TerminalNode *FALSE();
+    antlr4::tree::TerminalNode *_TRUE();
+    antlr4::tree::TerminalNode *_FALSE();
 
    
   };

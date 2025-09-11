@@ -204,12 +204,10 @@ bool deserialize(std::tuple<ARGS...>& tuple, std::string_view sv) {
   }
   auto input_format = static_cast<uint8_t>(sv.back());
   std::string_view payload(sv.data(), sv.size() - 1);
-  if (input_format ==
-      static_cast<uint8_t>(NeugDBSession::InputFormat::kCypherJson)) {
+  if (input_format == static_cast<uint8_t>(gs::InputFormat::kCypherJson)) {
     return parse_input_argument_from_json(tuple, payload);
   } else if (input_format ==
-             static_cast<uint8_t>(
-                 NeugDBSession::InputFormat::kCypherProtoProcedure)) {
+             static_cast<uint8_t>(gs::InputFormat::kCypherProtoProcedure)) {
     return parse_input_argument_from_proto(tuple, payload);
   } else {
     LOG(ERROR) << "Invalid input format: " << input_format;

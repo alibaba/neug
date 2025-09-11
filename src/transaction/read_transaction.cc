@@ -17,7 +17,6 @@
 
 #include <utility>
 
-#include "neug/main/app/cypher_runner_impl.h"
 #include "neug/storages/csr/csr_base.h"
 #include "neug/storages/graph/property_graph.h"
 #include "neug/transaction/version_manager.h"
