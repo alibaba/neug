@@ -26,6 +26,144 @@
 
 namespace gs {
 
+std::string convert_object_to_string(const ::common::Value& value) {
+  if (value.item_case() == common::Value::ItemCase::kI32) {
+    return std::to_string(value.i32());
+  } else if (value.item_case() == common::Value::ItemCase::kI64) {
+    return std::to_string(value.i64());
+  } else if (value.item_case() == common::Value::ItemCase::kF64) {
+    return std::to_string(value.f64());
+  } else if (value.item_case() == common::Value::ItemCase::kStr) {
+    return value.str();
+  } else if (value.item_case() == common::Value::ItemCase::kBoolean) {
+    return value.boolean() ? "True" : "False";
+  } else if (value.item_case() == common::Value::ItemCase::kStrArray) {
+    std::vector<std::string> str_array;
+    for (const auto& s : value.str_array().item()) {
+      str_array.emplace_back(s);
+    }
+    std::ostringstream oss;
+    oss << "[";
+    for (size_t i = 0; i < str_array.size(); ++i) {
+      oss << "\"" << str_array[i] << "\"";
+      if (i != str_array.size() - 1) {
+        oss << ", ";
+      }
+    }
+    oss << "]";
+    return oss.str();
+  } else if (value.item_case() == common::Value::ItemCase::kI32Array) {
+    std::vector<int32_t> i32_array;
+    for (const auto& i : value.i32_array().item()) {
+      i32_array.emplace_back(i);
+    }
+    std::ostringstream oss;
+    oss << "[";
+    for (size_t i = 0; i < i32_array.size(); ++i) {
+      oss << i32_array[i];
+      if (i != i32_array.size() - 1) {
+        oss << ", ";
+      }
+    }
+    oss << "]";
+    return oss.str();
+  } else if (value.item_case() == common::Value::ItemCase::kI64Array) {
+    std::vector<int64_t> i64_array;
+    for (const auto& i : value.i64_array().item()) {
+      i64_array.emplace_back(i);
+    }
+    std::ostringstream oss;
+    oss << "[";
+    for (size_t i = 0; i < i64_array.size(); ++i) {
+      oss << i64_array[i];
+      if (i != i64_array.size() - 1) {
+        oss << ", ";
+      }
+    }
+    oss << "]";
+    return oss.str();
+  } else if (value.item_case() == common::Value::ItemCase::kF64Array) {
+    std::vector<double> f64_array;
+    for (const auto& i : value.f64_array().item()) {
+      f64_array.emplace_back(i);
+    }
+    std::ostringstream oss;
+    oss << "[";
+    for (size_t i = 0; i < f64_array.size(); ++i) {
+      oss << f64_array[i];
+      if (i != f64_array.size() - 1) {
+        oss << ", ";
+      }
+    }
+    oss << "]";
+    return oss.str();
+  } else if (value.item_case() == common::Value::ItemCase::kNone) {
+    return "None";
+  } else {
+    return "";
+  }
+}
+
+void add_entry_value_to_table(rapidjson::Value& table, size_t index,
+                              std::string& field_name,
+                              const results::Entry& entry,
+                              rapidjson::Document::AllocatorType& allocator) {
+  std::string value;
+  if (entry.has_element()) {
+    const auto& element = entry.element();
+    if (element.has_vertex()) {
+      google::protobuf::util::MessageToJsonString(element.vertex(), &value);
+    } else if (element.has_edge()) {
+      google::protobuf::util::MessageToJsonString(element.edge(), &value);
+    } else if (element.has_graph_path()) {
+      google::protobuf::util::MessageToJsonString(element.graph_path(), &value);
+    } else if (element.has_object()) {
+      value = convert_object_to_string(element.object());
+    }
+  } else if (entry.has_collection()) {
+    std::vector<std::string> v_collection;
+    for (const auto& e : entry.collection().collection()) {
+      auto item = e.element();
+      if (item.has_vertex()) {
+        std::string v;
+        google::protobuf::util::MessageToJsonString(item.vertex(), &v);
+        v_collection.emplace_back(v);
+      } else if (item.has_edge()) {
+        std::string v;
+        google::protobuf::util::MessageToJsonString(item.edge(), &v);
+        v_collection.emplace_back(v);
+      } else if (item.has_graph_path()) {
+        std::string v;
+        google::protobuf::util::MessageToJsonString(item.graph_path(), &v);
+        v_collection.emplace_back(v);
+      } else if (item.has_object()) {
+        v_collection.emplace_back(convert_object_to_string(item.object()));
+      }
+      std::ostringstream oss;
+      oss << "[";
+      for (size_t i = 0; i < v_collection.size(); ++i) {
+        oss << v_collection[i];
+        if (i != v_collection.size() - 1) {
+          oss << ", ";
+        }
+      }
+      oss << "]";
+      value = oss.str();
+    }
+  } else if (entry.has_map()) {
+  }
+
+  rapidjson::Value key(field_name.c_str(), allocator);
+  if (index < table.Size()) {
+    rapidjson::Value& target_object = table[index];
+    target_object.AddMember(key, value, allocator);
+  } else {
+    rapidjson::Value row(rapidjson::kObjectType);
+    row.AddMember(key, value, allocator);
+    table.PushBack(row, allocator);
+  }
+}
+
 rapidjson::Value convert_properties_to_json(
     const google::protobuf::RepeatedPtrField<results::Property>& props,
     rapidjson::Document::AllocatorType& allocator) {
@@ -580,6 +718,7 @@ std::string proto_to_bolt_response(const results::CollectiveResults& result) {
   rapidjson::Value nodes(rapidjson::kArrayType);
   rapidjson::Value edges(rapidjson::kArrayType);
   rapidjson::Value records(rapidjson::kArrayType);
+  rapidjson::Value table(rapidjson::kArrayType);
 
   // Track unique nodes and edges to avoid duplicates
   std::unordered_set<int64_t> node_ids;
@@ -590,6 +729,7 @@ std::string proto_to_bolt_response(const results::CollectiveResults& result) {
       parse_result_schema_column_names(result.result_schema());
 
   // Process all results and build records
+  size_t index = 0;
   for (const auto& res : result.results()) {
     if (res.has_record()) {
       rapidjson::Value record(rapidjson::kObjectType);
@@ -623,6 +763,8 @@ std::string proto_to_bolt_response(const results::CollectiveResults& result) {
                       allocator);
         rapidjson::Value field_value = process_entry_recursive(
             column.entry(), nodes, edges, node_ids, edge_ids, allocator);
+        add_entry_value_to_table(table, index, column_name, column.entry(),
+                                 allocator);
         fields.PushBack(field_value, allocator);
         field_lookup.AddMember(rapidjson::Value(column_name.c_str(), allocator),
                                rapidjson::Value(field_index++), allocator);
@@ -637,6 +779,7 @@ std::string proto_to_bolt_response(const results::CollectiveResults& result) {
 
       records.PushBack(record, allocator);
     }
+    index++;
   }
 
   // Build the complete response
@@ -649,8 +792,7 @@ std::string proto_to_bolt_response(const results::CollectiveResults& result) {
   raw.AddMember("summary", create_bolt_summary("", allocator), allocator);
 
   response.AddMember("raw", raw, allocator);
-  response.AddMember("table", rapidjson::Value(rapidjson::kArrayType),
-                     allocator);
+  response.AddMember("table", table, allocator);
 
   // Convert to string with pretty formatting
   rapidjson::StringBuffer buffer;

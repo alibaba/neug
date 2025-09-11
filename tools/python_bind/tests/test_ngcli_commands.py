@@ -190,7 +190,7 @@ def test_start_remote_database_neug_ui(runner):
             ctypes.c_long(tid), ctypes.py_object(SystemExit)
         )
     thread.join()
-    expected_output = """"_fieldLookup":{"COUNT(_0_n._ID)":0},"_fields":[6],"keys":["COUNT(_0_n._ID)"]"""
+    expected_output = """"table":[{"COUNT(_0_n._ID)":"6"}]"""
     assert response.status_code == 200
     assert expected_output in response.text
 
@@ -213,6 +213,6 @@ def test_start_local_database_neug_ui(runner):
             ctypes.c_long(tid), ctypes.py_object(SystemExit)
         )
     thread.join()
-    expected_output = """"_fieldLookup":{"COUNT(_0_n._ID)":0},"_fields":[6],"keys":["COUNT(_0_n._ID)"]"""
+    expected_output = """"table":[{"COUNT(_0_n._ID)":"6"}]"""
     assert response.status_code == 200
     assert expected_output in response.text

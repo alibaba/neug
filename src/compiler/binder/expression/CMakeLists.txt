@@ -14,6 +14,8 @@ add_library(
         scalar_function_expression.cpp
         variable_expression.cpp)
 
+add_dependencies(neug_binder_expression neug_plan_proto)
+
 set(ALL_OBJECT_FILES
         ${ALL_OBJECT_FILES} $<TARGET_OBJECTS:neug_binder_expression>
         PARENT_SCOPE)
