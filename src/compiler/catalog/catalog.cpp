@@ -42,6 +42,8 @@
 #include "neug/compiler/main/option_config.h"
 #include "neug/compiler/transaction/transaction.h"
 #include "neug/utils/exception/exception.h"
+#include "neug/compiler/catalog/function_signature_registry.h"
+#include "neug/compiler/function/scalar_function.h"
 
 using namespace gs::binder;
 using namespace gs::common;
@@ -543,13 +545,35 @@ void Catalog::readFromFile(const std::string& directory, VirtualFileSystem* fs,
 
 void Catalog::registerBuiltInFunctions() {
   auto functionCollection = function::FunctionCollection::getFunctions();
+
+  auto lock = functions->acquireExclusiveLock();
+  
   for (auto i = 0u; functionCollection[i].name != nullptr; ++i) {
     auto& f = functionCollection[i];
     auto functionSet = f.getFunctionSetFunc();
-    functions->createEntry(
-        &DUMMY_TRANSACTION,
-        std::make_unique<FunctionCatalogEntry>(f.catalogEntryType, f.name,
-                                               std::move(functionSet)));
+    auto entry = std::make_unique<FunctionCatalogEntry>(
+        f.catalogEntryType, f.name, std::move(functionSet));
+    auto* rawPtr = entry.get();
+    functions->createEntryUnlocked(&DUMMY_TRANSACTION, std::move(entry));
+
+    // register signature for scalar function
+    if (f.catalogEntryType == CatalogEntryType::SCALAR_FUNCTION_ENTRY) {
+      registerFunctionSignatures(rawPtr);
+    }
+  }
+}
+
+void Catalog::registerFunctionSignatures(FunctionCatalogEntry* entry) {
+  auto& functionSet = entry->getFunctionSet();
+  for (auto& fnPtr : functionSet) {
+    if (auto* scalarFn = dynamic_cast<function::ScalarFunction*>(fnPtr.get())) {
+      auto signature = function::buildScalarSignature(
+        scalarFn->name, scalarFn->parameterTypeIDs);
+
+      if (scalarFn->neugExecFunc != nullptr) {
+        function::FunctionSignatureRegistry::registerScalar(signature, scalarFn->neugExecFunc);
+      }
+    }
   }
 }
 

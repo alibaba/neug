@@ -92,9 +92,9 @@ struct LeftFunction : public VectorStringFunction {
 struct LowerFunction : public VectorStringFunction {
   static constexpr const char* name = "LOWER";
 
-  static function_set getFunctionSet() {
-    return getUnaryStrFunction<Lower>(name);
-  }
+  static function_set getFunctionSet();
+
+  static gs::runtime::RTAny Exec(size_t idx, gs::runtime::Arena& arena, const std::vector<gs::runtime::RTAny>& args);
 };
 
 struct ToLowerFunction : public VectorStringFunction {
@@ -132,9 +132,9 @@ struct RepeatFunction : public VectorStringFunction {
 struct ReverseFunction : public VectorStringFunction {
   static constexpr const char* name = "REVERSE";
 
-  static inline function_set getFunctionSet() {
-    return getUnaryStrFunction<Reverse>(name);
-  }
+  static function_set getFunctionSet();
+
+  static gs::runtime::RTAny Exec(size_t idx, gs::runtime::Arena& arena, const std::vector<gs::runtime::RTAny>& args);
 };
 
 struct RightFunction : public VectorStringFunction {
@@ -192,9 +192,9 @@ struct TrimFunction : public VectorStringFunction {
 struct UpperFunction : public VectorStringFunction {
   static constexpr const char* name = "UPPER";
 
-  static function_set getFunctionSet() {
-    return getUnaryStrFunction<Upper>(name);
-  }
+  static function_set getFunctionSet();
+
+  static gs::runtime::RTAny Exec(size_t idx, gs::runtime::Arena& arena, const std::vector<gs::runtime::RTAny>& args);
 };
 
 struct ToUpperFunction : public VectorStringFunction {

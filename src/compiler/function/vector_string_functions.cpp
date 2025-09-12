@@ -363,5 +363,96 @@ function_set RegexpSplitToArrayFunction::getFunctionSet() {
   return functionSet;
 }
 
+function_set UpperFunction::getFunctionSet() {
+  function_set functionSet;
+  functionSet.emplace_back(std::make_unique<ScalarFunction>(
+    name,
+    std::vector<LogicalTypeID>{LogicalTypeID::STRING},
+    LogicalTypeID::STRING,
+    ScalarFunction::UnaryStringExecFunction<ku_string_t, ku_string_t, Upper>,
+    UpperFunction::Exec
+  ));
+  return functionSet;
+}
+
+runtime::RTAny UpperFunction::Exec(size_t idx,
+                          runtime::Arena& arena,
+                          const std::vector<runtime::RTAny>& args) {
+  if (args.size() != 1) {
+    THROW_RUNTIME_ERROR("UPPER: expect exactly 1 argument, got " + std::to_string(args.size()));
+  }
+  const auto& val = args[0];
+  if (val.type() != runtime::RTAnyType::kStringValue) {
+    THROW_RUNTIME_ERROR("UPPER: input value is not a string");
+  }
+  std::string str(val.as_string());
+  std::transform(str.begin(), str.end(), str.begin(), ::toupper);
+  auto ptr = runtime::StringImpl::make_string_impl(str);
+  auto str_view = ptr->str_view();
+  arena.emplace_back(std::move(ptr));
+  return runtime::RTAny::from_string(str_view);
+}
+
+function_set LowerFunction::getFunctionSet() {
+  function_set functionSet;
+  functionSet.emplace_back(std::make_unique<ScalarFunction>(
+    name,
+    std::vector<LogicalTypeID>{LogicalTypeID::STRING},
+    LogicalTypeID::STRING,
+    ScalarFunction::UnaryStringExecFunction<ku_string_t, ku_string_t, Lower>,
+    LowerFunction::Exec
+  ));
+  return functionSet;
+}
+
+runtime::RTAny LowerFunction::Exec(size_t idx,
+                          runtime::Arena& arena,
+                          const std::vector<runtime::RTAny>& args) {
+  if (args.size() != 1) {
+    THROW_RUNTIME_ERROR("LOWER: expect exactly 1 argument, got " + std::to_string(args.size()));
+  }
+  const auto& val = args[0];
+  if (val.type() != runtime::RTAnyType::kStringValue) {
+    THROW_RUNTIME_ERROR("LOWER: input value is not a string");
+  }
+  std::string str(val.as_string());
+  std::transform(str.begin(), str.end(), str.begin(), ::tolower);
+  auto ptr = runtime::StringImpl::make_string_impl(str);
+  auto str_view = ptr->str_view();
+  arena.emplace_back(std::move(ptr));
+  return runtime::RTAny::from_string(str_view);
+}
+
+function_set ReverseFunction::getFunctionSet() {
+  function_set functionSet;
+  functionSet.emplace_back(std::make_unique<ScalarFunction>(
+    name,
+    std::vector<LogicalTypeID>{LogicalTypeID::STRING},
+    LogicalTypeID::STRING,
+    ScalarFunction::UnaryStringExecFunction<ku_string_t, ku_string_t, Reverse>,
+    ReverseFunction::Exec
+  ));
+  return functionSet;
+}
+
+runtime::RTAny ReverseFunction::Exec(size_t idx,
+                          runtime::Arena& arena,
+                          const std::vector<runtime::RTAny>& args) {
+  if (args.size() != 1) {
+    THROW_RUNTIME_ERROR("REVERSE: expect exactly 1 argument, got " + std::to_string(args.size()));
+  }
+  const auto& val = args[0];
+  if (val.type() != runtime::RTAnyType::kStringValue) {
+    THROW_RUNTIME_ERROR("REVERSE: input value is not a string");
+  }
+  std::string str(val.as_string());
+  std::reverse(str.begin(), str.end());
+  auto ptr = runtime::StringImpl::make_string_impl(str);
+  auto str_view = ptr->str_view();
+  arena.emplace_back(std::move(ptr));
+  return runtime::RTAny::from_string(str_view);
+}
+
+
 }  // namespace function
 }  // namespace gs

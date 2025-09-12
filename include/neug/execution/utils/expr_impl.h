@@ -36,6 +36,7 @@
 #include <utility>
 #include <vector>
 
+#include "neug/utils/function_type.h"
 #include "neug/execution/common/rt_any.h"
 #include "neug/execution/utils/var.h"
 #include "neug/utils/property/types.h"
@@ -131,12 +132,12 @@ template <typename T>
 class WithInExpr : public ExprBase {
  public:
   WithInExpr(const Context& ctx, std::unique_ptr<ExprBase>&& key,
-             const common::Value& array)
+             const ::common::Value& array)
       : key_(std::move(key)) {
     if constexpr (std::is_same_v<T, int64_t>) {
-      if (array.item_case() == common::Value::kI64Array) {
+      if (array.item_case() == ::common::Value::kI64Array) {
         PARSER_COMMON_VALUE_ARRAY_TO_VECTOR(container_, array.i64_array());
-      } else if (array.item_case() == common::Value::kI32Array) {
+      } else if (array.item_case() == ::common::Value::kI32Array) {
         PARSER_COMMON_VALUE_ARRAY_TO_VECTOR(container_, array.i32_array());
       } else {
         // TODO(zhanglei,lexiao): We should support more types here, and if type
@@ -145,16 +146,16 @@ class WithInExpr : public ExprBase {
                   << " to int64_t array";
       }
     } else if constexpr (std::is_same_v<T, uint64_t>) {
-      if (array.item_case() == common::Value::kI64Array) {
+      if (array.item_case() == ::common::Value::kI64Array) {
         PARSER_COMMON_VALUE_ARRAY_TO_VECTOR(container_, array.i64_array());
-      } else if (array.item_case() == common::Value::kI32Array) {
+      } else if (array.item_case() == ::common::Value::kI32Array) {
         PARSER_COMMON_VALUE_ARRAY_TO_VECTOR(container_, array.i32_array());
       } else {
         LOG(INFO) << "Could not convert array with type " << array.item_case()
                   << " to int64_t array";
       }
     } else if constexpr (std::is_same_v<T, int32_t>) {
-      if (array.item_case() == common::Value::kI32Array) {
+      if (array.item_case() == ::common::Value::kI32Array) {
         PARSER_COMMON_VALUE_ARRAY_TO_VECTOR(container_, array.i32_array());
       } else if constexpr (std::is_same_v<T, int64_t>) {
         PARSER_COMMON_VALUE_ARRAY_TO_VECTOR(container_, array.i64_array());
@@ -163,7 +164,7 @@ class WithInExpr : public ExprBase {
                   << " to int32_t array";
       }
     } else if constexpr (std::is_same_v<T, std::string>) {
-      assert(array.item_case() == common::Value::kStrArray);
+      assert(array.item_case() == ::common::Value::kStrArray);
       PARSER_COMMON_VALUE_ARRAY_TO_VECTOR(container_, array.str_array());
     } else {
       LOG(FATAL) << "not implemented";
@@ -240,7 +241,7 @@ class VariableExpr : public ExprBase {
  public:
   template <typename GraphInterface>
   VariableExpr(const GraphInterface& graph, const Context& ctx,
-               const common::Variable& pb, VarType var_type)
+               const ::common::Variable& pb, VarType var_type)
       : var_(graph, ctx, pb, var_type) {}
 
   RTAny eval_path(size_t idx, Arena&) const override;
@@ -263,7 +264,7 @@ class VariableExpr : public ExprBase {
 
 class UnaryLogicalExpr : public ExprBase {
  public:
-  UnaryLogicalExpr(std::unique_ptr<ExprBase>&& expr, common::Logical logic);
+  UnaryLogicalExpr(std::unique_ptr<ExprBase>&& expr, ::common::Logical logic);
 
   RTAny eval_path(size_t idx, Arena&) const override;
   RTAny eval_vertex(label_t label, vid_t v, size_t idx, Arena&) const override;
@@ -277,12 +278,12 @@ class UnaryLogicalExpr : public ExprBase {
 
  private:
   std::unique_ptr<ExprBase> expr_;
-  common::Logical logic_;
+  ::common::Logical logic_;
 };
 class LogicalExpr : public ExprBase {
  public:
   LogicalExpr(std::unique_ptr<ExprBase>&& lhs, std::unique_ptr<ExprBase>&& rhs,
-              common::Logical logic);
+              ::common::Logical logic);
 
   RTAny eval_path(size_t idx, Arena&) const override;
   RTAny eval_vertex(label_t label, vid_t v, size_t idx, Arena&) const override;
@@ -290,7 +291,7 @@ class LogicalExpr : public ExprBase {
                   const Any& data, size_t idx, Arena&) const override;
 
   RTAny eval_path(size_t idx, Arena& arena, int) const override {
-    if (logic_ == common::Logical::OR) {
+    if (logic_ == ::common::Logical::OR) {
       bool flag = false;
       if (!lhs_->eval_path(idx, arena, 0).is_null()) {
         flag |= lhs_->eval_path(idx, arena, 0).as_bool();
@@ -309,7 +310,7 @@ class LogicalExpr : public ExprBase {
   }
   RTAny eval_vertex(label_t label, vid_t v, size_t idx, Arena& arena,
                     int) const override {
-    if (logic_ == common::Logical::OR) {
+    if (logic_ == ::common::Logical::OR) {
       bool flag = false;
       if (!lhs_->eval_vertex(label, v, idx, arena, 0).is_null()) {
         flag |= lhs_->eval_vertex(label, v, idx, arena, 0).as_bool();
@@ -341,15 +342,15 @@ class LogicalExpr : public ExprBase {
   std::unique_ptr<ExprBase> lhs_;
   std::unique_ptr<ExprBase> rhs_;
   std::function<bool(RTAny, RTAny)> op_;
-  common::Logical logic_;
+  ::common::Logical logic_;
 };
 
-int32_t extract_time_from_milli_second(int64_t ms, common::Extract extract);
+int32_t extract_time_from_milli_second(int64_t ms, ::common::Extract extract);
 
 template <typename T>
 class ExtractExpr : public ExprBase {
  public:
-  ExtractExpr(std::unique_ptr<ExprBase>&& expr, const common::Extract& extract)
+  ExtractExpr(std::unique_ptr<ExprBase>&& expr, const ::common::Extract& extract)
       : expr_(std::move(expr)), extract_(extract) {}
   int64_t eval_impl(const RTAny& val) const {
     if constexpr (std::is_same_v<T, int64_t>) {
@@ -362,40 +363,40 @@ class ExtractExpr : public ExprBase {
       return extract_time_from_milli_second(val.as_timestamp().milli_second,
                                             extract_);
     } else if constexpr (std::is_same_v<T, Date>) {
-      if (extract_.interval() == common::Extract::DAY) {
+      if (extract_.interval() == ::common::Extract::DAY) {
         return val.as_date().day();
-      } else if (extract_.interval() == common::Extract::MONTH) {
+      } else if (extract_.interval() == ::common::Extract::MONTH) {
         return val.as_date().month();
-      } else if (extract_.interval() == common::Extract::YEAR) {
+      } else if (extract_.interval() == ::common::Extract::YEAR) {
         return val.as_date().year();
-      } else if (extract_.interval() == common::Extract::HOUR) {
+      } else if (extract_.interval() == ::common::Extract::HOUR) {
         return val.as_date().hour();
-      } else if (extract_.interval() == common::Extract::MINUTE) {
+      } else if (extract_.interval() == ::common::Extract::MINUTE) {
         THROW_RUNTIME_ERROR(
             "Unsupported extract interval for Date type: MINUTE");
-      } else if (extract_.interval() == common::Extract::SECOND) {
+      } else if (extract_.interval() == ::common::Extract::SECOND) {
         THROW_RUNTIME_ERROR(
             "Unsupported extract interval for Date type: SECOND");
-      } else if (extract_.interval() == common::Extract::MILLISECOND) {
+      } else if (extract_.interval() == ::common::Extract::MILLISECOND) {
         THROW_RUNTIME_ERROR(
             "Unsupported extract interval for Date type: MILLISECOND");
       } else {
         THROW_RUNTIME_ERROR("Unsupported extract interval for Date type");
       }
     } else if constexpr (std::is_same_v<T, Interval>) {
-      if (extract_.interval() == common::Extract::DAY) {
+      if (extract_.interval() == ::common::Extract::DAY) {
         return val.as_interval().day();
-      } else if (extract_.interval() == common::Extract::MONTH) {
+      } else if (extract_.interval() == ::common::Extract::MONTH) {
         return val.as_interval().month();
-      } else if (extract_.interval() == common::Extract::YEAR) {
+      } else if (extract_.interval() == ::common::Extract::YEAR) {
         return val.as_interval().year();
-      } else if (extract_.interval() == common::Extract::HOUR) {
+      } else if (extract_.interval() == ::common::Extract::HOUR) {
         return val.as_interval().hour();
-      } else if (extract_.interval() == common::Extract::MINUTE) {
+      } else if (extract_.interval() == ::common::Extract::MINUTE) {
         return val.as_interval().minute();
-      } else if (extract_.interval() == common::Extract::SECOND) {
+      } else if (extract_.interval() == ::common::Extract::SECOND) {
         return val.as_interval().second();
-      } else if (extract_.interval() == common::Extract::MILLISECOND) {
+      } else if (extract_.interval() == ::common::Extract::MILLISECOND) {
         return val.as_interval().millisecond();
       } else {
         THROW_RUNTIME_ERROR("Unsupported extract interval for Interval type");
@@ -423,12 +424,12 @@ class ExtractExpr : public ExprBase {
 
  private:
   std::unique_ptr<ExprBase> expr_;
-  const common::Extract extract_;
+  const ::common::Extract extract_;
 };
 class ArithExpr : public ExprBase {
  public:
   ArithExpr(std::unique_ptr<ExprBase>&& lhs, std::unique_ptr<ExprBase>&& rhs,
-            common::Arithmetic arith);
+            ::common::Arithmetic arith);
 
   RTAny eval_path(size_t idx, Arena&) const override;
   RTAny eval_vertex(label_t label, vid_t v, size_t idx, Arena&) const override;
@@ -441,7 +442,7 @@ class ArithExpr : public ExprBase {
   std::unique_ptr<ExprBase> lhs_;
   std::unique_ptr<ExprBase> rhs_;
   std::function<RTAny(RTAny, RTAny)> op_;
-  common::Arithmetic arith_;
+  ::common::Arithmetic arith_;
 };
 
 class DateMinusExpr : public ExprBase {
@@ -507,124 +508,58 @@ class CaseWhenExpr : public ExprBase {
   std::unique_ptr<ExprBase> else_expr_;
 };
 
-class UpperExpr : public ExprBase {
- public:
-  explicit UpperExpr(std::unique_ptr<ExprBase>&& input)
-      : input_(std::move(input)) {}
+class ScalarFunctionExpr : public ExprBase {
+  public:
+    ScalarFunctionExpr(neug_func_exec_t fn,
+                      RTAnyType ret_type,
+                      std::vector<std::unique_ptr<ExprBase>>&& children)
+        : func_(fn),
+          ret_type_(ret_type),
+          children_(std::move(children)) {}
 
-  RTAnyType type() const override { return RTAnyType::kStringValue; }
-
-  RTAny eval_path(size_t idx, Arena& arena) const override {
-    auto val = input_->eval_path(idx, arena);
-    return eval_upper(val, arena);
-  }
-
-  RTAny eval_vertex(label_t label, vid_t v, size_t idx,
-                    Arena& arena) const override {
-    auto val = input_->eval_vertex(label, v, idx, arena);
-    return eval_upper(val, arena);
-  }
-
-  RTAny eval_edge(const LabelTriplet& label, vid_t src, vid_t dst,
-                  const Any& data, size_t idx, Arena& arena) const override {
-    auto val = input_->eval_edge(label, src, dst, data, idx, arena);
-    return eval_upper(val, arena);
-  }
-
- private:
-  RTAny eval_upper(const RTAny& val, Arena& arena) const {
-    if (val.type() != RTAnyType::kStringValue) {
-      THROW_RUNTIME_ERROR("UPPER: input value is not a string");
+    RTAny eval_path(size_t idx, Arena& arena) const override {
+      std::vector<RTAny> params;
+      params.reserve(children_.size());
+      for (auto& ch : children_) {
+        params.emplace_back(ch->eval_path(idx, arena));
+      }
+      return func_(idx, arena, params);
     }
-    std::string str(val.as_string());
-    std::transform(str.begin(), str.end(), str.begin(), ::toupper);
-    auto ptr = StringImpl::make_string_impl(str);
-    auto str_view = ptr->str_view();
-    arena.emplace_back(std::move(ptr));
-    return RTAny::from_string(str_view);
-  }
 
-  std::unique_ptr<ExprBase> input_;
-};
-
-class LowerExpr : public ExprBase {
- public:
-  explicit LowerExpr(std::unique_ptr<ExprBase>&& input)
-      : input_(std::move(input)) {}
-
-  RTAnyType type() const override { return RTAnyType::kStringValue; }
-
-  RTAny eval_path(size_t idx, Arena& arena) const override {
-    auto val = input_->eval_path(idx, arena);
-    return eval_lower(val, arena);
-  }
-
-  RTAny eval_vertex(label_t label, vid_t v, size_t idx,
-                    Arena& arena) const override {
-    auto val = input_->eval_vertex(label, v, idx, arena);
-    return eval_lower(val, arena);
-  }
-
-  RTAny eval_edge(const LabelTriplet& label, vid_t src, vid_t dst,
-                  const Any& data, size_t idx, Arena& arena) const override {
-    auto val = input_->eval_edge(label, src, dst, data, idx, arena);
-    return eval_lower(val, arena);
-  }
-
- private:
-  RTAny eval_lower(const RTAny& val, Arena& arena) const {
-    if (val.type() != RTAnyType::kStringValue) {
-      THROW_RUNTIME_ERROR("LOWER: input value is not a string");
+    RTAny eval_vertex(label_t label, vid_t v, size_t idx,
+                      Arena& arena) const override {
+      std::vector<RTAny> params;
+      params.reserve(children_.size());
+      for (auto& ch : children_) {
+        params.emplace_back(ch->eval_vertex(label, v, idx, arena));
+      }
+      return func_(idx, arena, params);
     }
-    std::string str(val.as_string());
-    std::transform(str.begin(), str.end(), str.begin(), ::tolower);
-    auto ptr = StringImpl::make_string_impl(str);
-    auto str_view = ptr->str_view();
-    arena.emplace_back(std::move(ptr));
-    return RTAny::from_string(str_view);
-  }
 
-  std::unique_ptr<ExprBase> input_;
-};
-
-class ReverseExpr : public ExprBase {
- public:
-  explicit ReverseExpr(std::unique_ptr<ExprBase>&& input)
-      : input_(std::move(input)) {}
-
-  RTAnyType type() const override { return RTAnyType::kStringValue; }
-
-  RTAny eval_path(size_t idx, Arena& arena) const override {
-    auto val = input_->eval_path(idx, arena);
-    return eval_reverse(val, arena);
-  }
-
-  RTAny eval_vertex(label_t label, vid_t v, size_t idx,
-                    Arena& arena) const override {
-    auto val = input_->eval_vertex(label, v, idx, arena);
-    return eval_reverse(val, arena);
-  }
-
-  RTAny eval_edge(const LabelTriplet& label, vid_t src, vid_t dst,
-                  const Any& data, size_t idx, Arena& arena) const override {
-    auto val = input_->eval_edge(label, src, dst, data, idx, arena);
-    return eval_reverse(val, arena);
-  }
-
- private:
-  RTAny eval_reverse(const RTAny& val, Arena& arena) const {
-    if (val.type() != RTAnyType::kStringValue) {
-      THROW_RUNTIME_ERROR("REVERSE: input value is not a string");
+    RTAny eval_edge(const LabelTriplet& label, vid_t src, vid_t dst,
+                    const Any& data, size_t idx, Arena& arena) const override {
+      std::vector<RTAny> params;
+      params.reserve(children_.size());
+      for (auto& ch : children_) {
+        params.emplace_back(
+            ch->eval_edge(label, src, dst, data, idx, arena));
+      }
+      return func_(idx, arena, params);
     }
-    std::string str(val.as_string());
-    std::reverse(str.begin(), str.end());
-    auto ptr = StringImpl::make_string_impl(str);
-    auto str_view = ptr->str_view();
-    arena.emplace_back(std::move(ptr));
-    return RTAny::from_string(str_view);
-  }
 
-  std::unique_ptr<ExprBase> input_;
+    RTAnyType type() const override { return ret_type_; }
+
+    bool is_optional() const override {
+      for (auto& ch : children_) {
+        if (ch->is_optional()) return true;
+      }
+      return false;
+    }
+
+  private:
+    neug_func_exec_t func_;
+    RTAnyType ret_type_;
+    std::vector<std::unique_ptr<ExprBase>> children_;
 };
 
 class TupleExpr : public ExprBase {
@@ -1098,7 +1033,7 @@ template <typename GraphInterface>
 std::unique_ptr<ExprBase> parse_expression(
     const GraphInterface& graph, const Context& ctx,
     const std::map<std::string, std::string>& params,
-    const common::Expression& expr, VarType var_type);
+    const ::common::Expression& expr, VarType var_type);
 
 }  // namespace runtime
 

@@ -22,6 +22,7 @@
 
 #pragma once
 
+#include <mutex>
 #include <shared_mutex>
 
 #include "neug/compiler/catalog/catalog_entry/catalog_entry.h"
@@ -55,6 +56,14 @@ class KUZU_API CatalogSet {
                          const std::string& name);
   common::oid_t createEntry(transaction::Transaction* transaction,
                             std::unique_ptr<CatalogEntry> entry);
+
+  common::oid_t createEntryUnlocked(transaction::Transaction* transaction,
+                            std::unique_ptr<CatalogEntry> entry);
+
+  std::unique_lock<std::shared_mutex> acquireExclusiveLock() {
+    return std::unique_lock<std::shared_mutex>(mtx);
+  }
+
   void dropEntry(transaction::Transaction* transaction, const std::string& name,
                  common::oid_t oid);
 

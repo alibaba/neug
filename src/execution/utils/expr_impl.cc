@@ -14,6 +14,7 @@
  */
 
 #include "neug/execution/utils/expr_impl.h"
+#include "neug/compiler/catalog/function_signature_registry.h"
 
 #include <time.h>
 #include <iterator>
@@ -134,46 +135,46 @@ RTAny VariableExpr::eval_edge(const LabelTriplet& label, vid_t src, vid_t dst,
 RTAnyType VariableExpr::type() const { return var_.type(); }
 
 LogicalExpr::LogicalExpr(std::unique_ptr<ExprBase>&& lhs,
-                         std::unique_ptr<ExprBase>&& rhs, common::Logical logic)
+                         std::unique_ptr<ExprBase>&& rhs, ::common::Logical logic)
     : lhs_(std::move(lhs)), rhs_(std::move(rhs)), logic_(logic) {
   switch (logic) {
-  case common::Logical::LT: {
+  case ::common::Logical::LT: {
     op_ = [](const RTAny& lhs, const RTAny& rhs) { return lhs < rhs; };
     break;
   }
-  case common::Logical::GT: {
+  case ::common::Logical::GT: {
     op_ = [](const RTAny& lhs, const RTAny& rhs) { return rhs < lhs; };
     break;
   }
-  case common::Logical::GE: {
+  case ::common::Logical::GE: {
     op_ = [](const RTAny& lhs, const RTAny& rhs) { return !(lhs < rhs); };
     break;
   }
-  case common::Logical::LE: {
+  case ::common::Logical::LE: {
     op_ = [](const RTAny& lhs, const RTAny& rhs) { return !(rhs < lhs); };
     break;
   }
-  case common::Logical::EQ: {
+  case ::common::Logical::EQ: {
     op_ = [](const RTAny& lhs, const RTAny& rhs) { return lhs == rhs; };
     break;
   }
-  case common::Logical::NE: {
+  case ::common::Logical::NE: {
     op_ = [](const RTAny& lhs, const RTAny& rhs) { return !(lhs == rhs); };
     break;
   }
-  case common::Logical::AND: {
+  case ::common::Logical::AND: {
     op_ = [](const RTAny& lhs, const RTAny& rhs) {
       return lhs.as_bool() && rhs.as_bool();
     };
     break;
   }
-  case common::Logical::OR: {
+  case ::common::Logical::OR: {
     op_ = [](const RTAny& lhs, const RTAny& rhs) {
       return lhs.as_bool() || rhs.as_bool();
     };
     break;
   }
-  case common::Logical::REGEX: {
+  case ::common::Logical::REGEX: {
     op_ = [](const RTAny& lhs, const RTAny& rhs) {
       auto lhs_str = std::string(lhs.as_string());
       auto rhs_str = std::string(rhs.as_string());
@@ -209,13 +210,13 @@ RTAny LogicalExpr::eval_edge(const LabelTriplet& label, vid_t src, vid_t dst,
 RTAnyType LogicalExpr::type() const { return RTAnyType::kBoolValue; }
 
 UnaryLogicalExpr::UnaryLogicalExpr(std::unique_ptr<ExprBase>&& expr,
-                                   common::Logical logic)
+                                   ::common::Logical logic)
     : expr_(std::move(expr)), logic_(logic) {}
 
 RTAny UnaryLogicalExpr::eval_path(size_t idx, Arena& arena) const {
-  if (logic_ == common::Logical::NOT) {
+  if (logic_ == ::common::Logical::NOT) {
     return RTAny::from_bool(!expr_->eval_path(idx, arena).as_bool());
-  } else if (logic_ == common::Logical::ISNULL) {
+  } else if (logic_ == ::common::Logical::ISNULL) {
     return RTAny::from_bool(expr_->eval_path(idx, arena, 0).type() ==
                             RTAnyType::kNull);
   }
@@ -224,9 +225,9 @@ RTAny UnaryLogicalExpr::eval_path(size_t idx, Arena& arena) const {
 }
 
 RTAny UnaryLogicalExpr::eval_path(size_t idx, Arena& arena, int) const {
-  if (logic_ == common::Logical::NOT) {
+  if (logic_ == ::common::Logical::NOT) {
     return RTAny::from_bool(!expr_->eval_path(idx, arena, 0).as_bool());
-  } else if (logic_ == common::Logical::ISNULL) {
+  } else if (logic_ == ::common::Logical::ISNULL) {
     return RTAny::from_bool(expr_->eval_path(idx, arena, 0).type() ==
                             RTAnyType::kNull);
   }
@@ -236,10 +237,10 @@ RTAny UnaryLogicalExpr::eval_path(size_t idx, Arena& arena, int) const {
 
 RTAny UnaryLogicalExpr::eval_vertex(label_t label, vid_t v, size_t idx,
                                     Arena& arena) const {
-  if (logic_ == common::Logical::NOT) {
+  if (logic_ == ::common::Logical::NOT) {
     return RTAny::from_bool(
         !expr_->eval_vertex(label, v, idx, arena).as_bool());
-  } else if (logic_ == common::Logical::ISNULL) {
+  } else if (logic_ == ::common::Logical::ISNULL) {
     return RTAny::from_bool(
         expr_->eval_vertex(label, v, idx, arena, 0).is_null());
   }
@@ -250,10 +251,10 @@ RTAny UnaryLogicalExpr::eval_vertex(label_t label, vid_t v, size_t idx,
 RTAny UnaryLogicalExpr::eval_edge(const LabelTriplet& label, vid_t src,
                                   vid_t dst, const Any& data, size_t idx,
                                   Arena& arena) const {
-  if (logic_ == common::Logical::NOT) {
+  if (logic_ == ::common::Logical::NOT) {
     return RTAny::from_bool(
         !expr_->eval_edge(label, src, dst, data, idx, arena).as_bool());
-  } else if (logic_ == common::Logical::ISNULL) {
+  } else if (logic_ == ::common::Logical::ISNULL) {
     return RTAny::from_bool(
         expr_->eval_edge(label, src, dst, data, idx, arena, 0).is_null());
   }
@@ -264,27 +265,27 @@ RTAny UnaryLogicalExpr::eval_edge(const LabelTriplet& label, vid_t src,
 RTAnyType UnaryLogicalExpr::type() const { return RTAnyType::kBoolValue; }
 
 ArithExpr::ArithExpr(std::unique_ptr<ExprBase>&& lhs,
-                     std::unique_ptr<ExprBase>&& rhs, common::Arithmetic arith)
+                     std::unique_ptr<ExprBase>&& rhs, ::common::Arithmetic arith)
     : lhs_(std::move(lhs)), rhs_(std::move(rhs)), arith_(arith) {
   switch (arith_) {
-  case common::Arithmetic::ADD: {
+  case ::common::Arithmetic::ADD: {
     op_ = [](const RTAny& lhs, const RTAny& rhs) { return lhs + rhs; };
     break;
   }
-  case common::Arithmetic::SUB: {
+  case ::common::Arithmetic::SUB: {
     op_ = [](const RTAny& lhs, const RTAny& rhs) { return lhs - rhs; };
     break;
   }
-  case common::Arithmetic::DIV: {
+  case ::common::Arithmetic::DIV: {
     op_ = [](const RTAny& lhs, const RTAny& rhs) { return lhs / rhs; };
     break;
   }
-  case common::Arithmetic::MOD: {
+  case ::common::Arithmetic::MOD: {
     op_ = [](const RTAny& lhs, const RTAny& rhs) { return lhs % rhs; };
     break;
   }
 
-  case common::Arithmetic::MUL: {
+  case ::common::Arithmetic::MUL: {
     op_ = [](const RTAny& lhs, const RTAny& rhs) { return lhs * rhs; };
     break;
   }
@@ -429,20 +430,20 @@ static int32_t extract_minute(int64_t ms) {
   return tm.tm_min;
 }
 
-int32_t extract_time_from_milli_second(int64_t ms, common::Extract extract) {
-  if (extract.interval() == common::Extract::YEAR) {
+int32_t extract_time_from_milli_second(int64_t ms, ::common::Extract extract) {
+  if (extract.interval() == ::common::Extract::YEAR) {
     return extract_year(ms);
-  } else if (extract.interval() == common::Extract::MONTH) {
+  } else if (extract.interval() == ::common::Extract::MONTH) {
     return extract_month(ms);
-  } else if (extract.interval() == common::Extract::DAY) {
+  } else if (extract.interval() == ::common::Extract::DAY) {
     return extract_day(ms);
-  } else if (extract.interval() == common::Extract::SECOND) {
+  } else if (extract.interval() == ::common::Extract::SECOND) {
     return extract_second(ms);
-  } else if (extract.interval() == common::Extract::HOUR) {
+  } else if (extract.interval() == ::common::Extract::HOUR) {
     return extract_hour(ms);
-  } else if (extract.interval() == common::Extract::MINUTE) {
+  } else if (extract.interval() == ::common::Extract::MINUTE) {
     return extract_minute(ms);
-  } else if (extract.interval() == common::Extract::MILLISECOND) {
+  } else if (extract.interval() == ::common::Extract::MILLISECOND) {
     return ms % 1000;
   } else {
     LOG(FATAL) << "not support: " << extract.DebugString();
@@ -539,25 +540,25 @@ RTAny TupleExpr::eval_edge(const LabelTriplet& label, vid_t src, vid_t dst,
 
 RTAnyType TupleExpr::type() const { return RTAnyType::kTuple; }
 
-static RTAny parse_const_value(const common::Value& val) {
+static RTAny parse_const_value(const ::common::Value& val) {
   switch (val.item_case()) {
-  case common::Value::kI32:
+  case ::common::Value::kI32:
     return RTAny::from_int32(val.i32());
-  case common::Value::kU32:
+  case ::common::Value::kU32:
     return RTAny::from_uint32(val.u32());
-  case common::Value::kStr:
+  case ::common::Value::kStr:
     return RTAny::from_string(val.str());
-  case common::Value::kI64:
+  case ::common::Value::kI64:
     return RTAny::from_int64(val.i64());
-  case common::Value::kU64:
+  case ::common::Value::kU64:
     return RTAny::from_uint64(val.u64());
-  case common::Value::kBoolean:
+  case ::common::Value::kBoolean:
     return RTAny::from_bool(val.boolean());
-  case common::Value::kNone:
+  case ::common::Value::kNone:
     return RTAny(RTAnyType::kNull);
-  case common::Value::kF64:
+  case ::common::Value::kF64:
     return RTAny::from_double(val.f64());
-  case common::Value::kF32:
+  case ::common::Value::kF32:
     return RTAny::from_float(val.f32());
   default:
     LOG(FATAL) << "not support for " << val.item_case();
@@ -604,10 +605,10 @@ struct TypedTupleBuilder<N, 0, Args...> {
   }
 };
 
-static RTAny parse_param(const common::DynamicParam& param,
+static RTAny parse_param(const ::common::DynamicParam& param,
                          const std::map<std::string, std::string>& input) {
   if (param.data_type().type_case() ==
-      common::IrDataType::TypeCase::kDataType) {
+      ::common::IrDataType::TypeCase::kDataType) {
     auto type = parse_from_ir_data_type(param.data_type());
 
     const std::string& name = param.name();
@@ -655,54 +656,54 @@ static RTAny parse_param(const common::DynamicParam& param,
   return RTAny();
 }
 
-static inline int get_proiority(const common::ExprOpr& opr) {
+static inline int get_proiority(const ::common::ExprOpr& opr) {
   switch (opr.item_case()) {
-  case common::ExprOpr::kBrace: {
+  case ::common::ExprOpr::kBrace: {
     return 17;
   }
-  case common::ExprOpr::kExtract: {
+  case ::common::ExprOpr::kExtract: {
     return 2;
   }
-  case common::ExprOpr::kToDate: {
+  case ::common::ExprOpr::kToDate: {
     return 2;
   }
-  case common::ExprOpr::kLogical: {
+  case ::common::ExprOpr::kLogical: {
     switch (opr.logical()) {
-    case common::Logical::AND:
+    case ::common::Logical::AND:
       return 11;
-    case common::Logical::OR:
+    case ::common::Logical::OR:
       return 12;
-    case common::Logical::NOT:
-    case common::Logical::WITHIN:
-    case common::Logical::WITHOUT:
-    case common::Logical::REGEX:
+    case ::common::Logical::NOT:
+    case ::common::Logical::WITHIN:
+    case ::common::Logical::WITHOUT:
+    case ::common::Logical::REGEX:
       return 2;
-    case common::Logical::EQ:
-    case common::Logical::NE:
+    case ::common::Logical::EQ:
+    case ::common::Logical::NE:
       return 7;
-    case common::Logical::GE:
-    case common::Logical::GT:
-    case common::Logical::LT:
-    case common::Logical::LE:
+    case ::common::Logical::GE:
+    case ::common::Logical::GT:
+    case ::common::Logical::LT:
+    case ::common::Logical::LE:
       return 6;
     default:
       return 16;
     }
   }
-  case common::ExprOpr::kArith: {
+  case ::common::ExprOpr::kArith: {
     switch (opr.arith()) {
-    case common::Arithmetic::ADD:
-    case common::Arithmetic::SUB:
+    case ::common::Arithmetic::ADD:
+    case ::common::Arithmetic::SUB:
       return 4;
-    case common::Arithmetic::MUL:
-    case common::Arithmetic::DIV:
-    case common::Arithmetic::MOD:
+    case ::common::Arithmetic::MUL:
+    case ::common::Arithmetic::DIV:
+    case ::common::Arithmetic::MOD:
       return 3;
     default:
       return 16;
     }
   }
-  case common::ExprOpr::kDateTimeMinus:
+  case ::common::ExprOpr::kDateTimeMinus:
     return 4;
   default:
     return 16;
@@ -714,32 +715,32 @@ template <typename GraphInterface>
 static std::unique_ptr<ExprBase> parse_expression_impl(
     const GraphInterface& graph, const Context& ctx,
     const std::map<std::string, std::string>& params,
-    const common::Expression& expr, VarType var_type);
+    const ::common::Expression& expr, VarType var_type);
 
 template <typename GraphInterface>
 static std::unique_ptr<ExprBase> build_expr(
     const GraphInterface& graph, const Context& ctx,
     const std::map<std::string, std::string>& params,
-    std::stack<common::ExprOpr>& opr_stack, VarType var_type) {
+    std::stack<::common::ExprOpr>& opr_stack, VarType var_type) {
   while (!opr_stack.empty()) {
     auto opr = opr_stack.top();
     opr_stack.pop();
     switch (opr.item_case()) {
-    case common::ExprOpr::kConst: {
-      if (opr.const_().item_case() == common::Value::kStr) {
+    case ::common::ExprOpr::kConst: {
+      if (opr.const_().item_case() == ::common::Value::kStr) {
         const std::string& str = opr.const_().str();
         return std::make_unique<ConstExpr>(RTAny::from_string(str), true);
       }
       return std::make_unique<ConstExpr>(parse_const_value(opr.const_()));
     }
-    case common::ExprOpr::kParam: {
+    case ::common::ExprOpr::kParam: {
       return std::make_unique<ConstExpr>(parse_param(opr.param(), params));
     }
-    case common::ExprOpr::kVar: {
+    case ::common::ExprOpr::kVar: {
       return std::make_unique<VariableExpr>(graph, ctx, opr.var(), var_type);
     }
-    case common::ExprOpr::kLogical: {
-      if (opr.logical() == common::Logical::WITHIN) {
+    case ::common::ExprOpr::kLogical: {
+      if (opr.logical() == ::common::Logical::WITHIN) {
         auto lhs = opr_stack.top();
         opr_stack.pop();
         auto rhs = opr_stack.top();
@@ -783,8 +784,8 @@ static std::unique_ptr<ExprBase> build_expr(
         } else {
           LOG(FATAL) << "not support" << rhs.DebugString();
         }
-      } else if (opr.logical() == common::Logical::NOT ||
-                 opr.logical() == common::Logical::ISNULL) {
+      } else if (opr.logical() == ::common::Logical::NOT ||
+                 opr.logical() == ::common::Logical::ISNULL) {
         auto lhs = build_expr(graph, ctx, params, opr_stack, var_type);
         return std::make_unique<UnaryLogicalExpr>(std::move(lhs),
                                                   opr.logical());
@@ -796,13 +797,13 @@ static std::unique_ptr<ExprBase> build_expr(
       }
       break;
     }
-    case common::ExprOpr::kArith: {
+    case ::common::ExprOpr::kArith: {
       auto lhs = build_expr(graph, ctx, params, opr_stack, var_type);
       auto rhs = build_expr(graph, ctx, params, opr_stack, var_type);
       return std::make_unique<ArithExpr>(std::move(lhs), std::move(rhs),
                                          opr.arith());
     }
-    case common::ExprOpr::kCase: {
+    case ::common::ExprOpr::kCase: {
       auto op = opr.case_();
       size_t len = op.when_then_expressions_size();
       std::vector<
@@ -820,7 +821,7 @@ static std::unique_ptr<ExprBase> build_expr(
       return std::make_unique<CaseWhenExpr>(std::move(when_then_exprs),
                                             std::move(else_expr));
     }
-    case common::ExprOpr::kExtract: {
+    case ::common::ExprOpr::kExtract: {
       auto hs = build_expr(graph, ctx, params, opr_stack, var_type);
       if (hs->type() == RTAnyType::kI64Value) {
         return std::make_unique<ExtractExpr<int64_t>>(std::move(hs),
@@ -842,7 +843,7 @@ static std::unique_ptr<ExprBase> build_expr(
       }
     }
 
-    case common::ExprOpr::kToDate: {
+    case ::common::ExprOpr::kToDate: {
       auto date_str = opr.to_date().date_str();
       // Parse the date string into Date
       auto date = Date(date_str);
@@ -850,7 +851,7 @@ static std::unique_ptr<ExprBase> build_expr(
       return std::make_unique<ConstExpr>(RTAny::from_date(date));
     }
 
-    case common::ExprOpr::kToDatetime: {
+    case ::common::ExprOpr::kToDatetime: {
       auto date_time_str = opr.to_datetime().datetime_str();
       // Parse the date time string into DateTime
       auto date_time = DateTime(date_time_str);
@@ -858,7 +859,7 @@ static std::unique_ptr<ExprBase> build_expr(
       return std::make_unique<ConstExpr>(RTAny::from_datetime(date_time));
     }
 
-    case common::ExprOpr::kToInterval: {
+    case ::common::ExprOpr::kToInterval: {
       auto interval_str = opr.to_interval().interval_str();
       // Parse the interval string into Interval
       auto interval = AnyConverter<Interval>::to_any(interval_str);
@@ -867,7 +868,7 @@ static std::unique_ptr<ExprBase> build_expr(
           RTAny::from_interval(interval.AsInterval()));
     }
 
-    case common::ExprOpr::kToTuple: {
+    case ::common::ExprOpr::kToTuple: {
       const auto& compisite_fields = opr.to_tuple().fields();
 
       std::vector<std::unique_ptr<ExprBase>> exprs_vec;
@@ -897,55 +898,32 @@ static std::unique_ptr<ExprBase> build_expr(
       return std::make_unique<TupleExpr>(std::move(exprs_vec));
     }
 
-    case common::ExprOpr::kToUpper: {
-      auto op = opr.to_upper();
-      std::unique_ptr<ExprBase> input_expr;
-      if (op.has_value()) {
-        input_expr =
-            std::make_unique<ConstExpr>(parse_const_value(op.value()), true);
-      } else if (op.has_var()) {
-        input_expr =
-            std::make_unique<VariableExpr>(graph, ctx, op.var(), var_type);
-      } else {
-        LOG(FATAL) << "ToUpper: input_item neither value nor var: "
-                   << op.DebugString();
+    case ::common::ExprOpr::kScalarFunc: {
+      auto op = opr.scalar_func();
+      const std::string& signature = op.unique_name();
+      gs::runtime::neug_func_exec_t fn = nullptr;
+      try {
+          fn = function::FunctionSignatureRegistry::lookup(signature);
+      } catch (const std::exception& e) {
+          throw std::runtime_error(
+              "ScalarFunctionExec not found for signature: " + signature +
+              ", error: " + e.what());
       }
-      return std::make_unique<UpperExpr>(std::move(input_expr));
+
+      RTAnyType ret_type = RTAnyType::kUnknown;
+      if (opr.has_node_type()) {
+        ret_type = parse_from_ir_data_type(opr.node_type());
+      }
+      std::vector<std::unique_ptr<ExprBase>> children;
+      children.reserve(op.parameters_size());
+      for (int i = 0; i < op.parameters_size(); ++i) {
+        children.emplace_back(parse_expression_impl(
+            graph, ctx, params, op.parameters(i), var_type));
+      }
+      return std::make_unique<ScalarFunctionExpr>(fn, ret_type, std::move(children));
     }
 
-    case common::ExprOpr::kToLower: {
-      auto op = opr.to_lower();
-      std::unique_ptr<ExprBase> input_expr;
-      if (op.has_value()) {
-        input_expr =
-            std::make_unique<ConstExpr>(parse_const_value(op.value()), true);
-      } else if (op.has_var()) {
-        input_expr =
-            std::make_unique<VariableExpr>(graph, ctx, op.var(), var_type);
-      } else {
-        LOG(FATAL) << "ToLower: input_item neither value nor var: "
-                   << op.DebugString();
-      }
-      return std::make_unique<LowerExpr>(std::move(input_expr));
-    }
-
-    case common::ExprOpr::kReverse: {
-      auto op = opr.reverse();
-      std::unique_ptr<ExprBase> input_expr;
-      if (op.has_value()) {
-        input_expr =
-            std::make_unique<ConstExpr>(parse_const_value(op.value()), true);
-      } else if (op.has_var()) {
-        input_expr =
-            std::make_unique<VariableExpr>(graph, ctx, op.var(), var_type);
-      } else {
-        LOG(FATAL) << "Reverse: input_item neither value nor var: "
-                   << op.DebugString();
-      }
-      return std::make_unique<ReverseExpr>(std::move(input_expr));
-    }
-
-    case common::ExprOpr::kVars: {
+    case ::common::ExprOpr::kVars: {
       auto op = opr.vars();
 
       if (op.keys_size() == 3) {
@@ -971,7 +949,7 @@ static std::unique_ptr<ExprBase> build_expr(
       }
       return std::make_unique<TupleExpr>(std::move(exprs));
     }
-    case common::ExprOpr::kMap: {
+    case ::common::ExprOpr::kMap: {
       auto op = opr.map();
       std::vector<RTAny> keys_vec;
       std::vector<std::unique_ptr<ExprBase>> exprs;
@@ -989,7 +967,7 @@ static std::unique_ptr<ExprBase> build_expr(
       }
       LOG(FATAL) << "not support" << opr.DebugString();
     }
-    case common::ExprOpr::kUdfFunc: {
+    case ::common::ExprOpr::kUdfFunc: {
       auto op = opr.udf_func();
       std::string name = op.name();
       auto expr =
@@ -1015,7 +993,7 @@ static std::unique_ptr<ExprBase> build_expr(
         LOG(FATAL) << "not support udf" << opr.DebugString();
       }
     }
-    case common::ExprOpr::kDateTimeMinus: {
+    case ::common::ExprOpr::kDateTimeMinus: {
       auto lhs = build_expr(graph, ctx, params, opr_stack, var_type);
       auto rhs = build_expr(graph, ctx, params, opr_stack, var_type);
       return std::make_unique<DateMinusExpr>(std::move(lhs), std::move(rhs));
@@ -1032,40 +1010,40 @@ template <typename GraphInterface>
 static std::unique_ptr<ExprBase> parse_expression_impl(
     const GraphInterface& graph, const Context& ctx,
     const std::map<std::string, std::string>& params,
-    const common::Expression& expr, VarType var_type) {
-  std::stack<common::ExprOpr> opr_stack;
-  std::stack<common::ExprOpr> opr_stack2;
+    const ::common::Expression& expr, VarType var_type) {
+  std::stack<::common::ExprOpr> opr_stack;
+  std::stack<::common::ExprOpr> opr_stack2;
   const auto& oprs = expr.operators();
   for (auto it = oprs.rbegin(); it != oprs.rend(); ++it) {
     switch ((*it).item_case()) {
-    case common::ExprOpr::kBrace: {
+    case ::common::ExprOpr::kBrace: {
       auto brace = (*it).brace();
-      if (brace == common::ExprOpr::Brace::ExprOpr_Brace_LEFT_BRACE) {
+      if (brace == ::common::ExprOpr::Brace::ExprOpr_Brace_LEFT_BRACE) {
         while (!opr_stack.empty() &&
-               opr_stack.top().item_case() != common::ExprOpr::kBrace) {
+               opr_stack.top().item_case() != ::common::ExprOpr::kBrace) {
           opr_stack2.push(opr_stack.top());
           opr_stack.pop();
         }
         assert(!opr_stack.empty());
         opr_stack.pop();
-      } else if (brace == common::ExprOpr::Brace::ExprOpr_Brace_RIGHT_BRACE) {
+      } else if (brace == ::common::ExprOpr::Brace::ExprOpr_Brace_RIGHT_BRACE) {
         opr_stack.emplace(*it);
       }
       break;
     }
-    case common::ExprOpr::kConst:
-    case common::ExprOpr::kVar:
-    case common::ExprOpr::kParam:
-    case common::ExprOpr::kVars: {
+    case ::common::ExprOpr::kConst:
+    case ::common::ExprOpr::kVar:
+    case ::common::ExprOpr::kParam:
+    case ::common::ExprOpr::kVars: {
       opr_stack2.push(*it);
       break;
     }
-    case common::ExprOpr::kArith:
-    case common::ExprOpr::kLogical:
-    case common::ExprOpr::kDateTimeMinus: {
+    case ::common::ExprOpr::kArith:
+    case ::common::ExprOpr::kLogical:
+    case ::common::ExprOpr::kDateTimeMinus: {
       // unary operator
-      if ((*it).logical() == common::Logical::NOT ||
-          (*it).logical() == common::Logical::ISNULL) {
+      if ((*it).logical() == ::common::Logical::NOT ||
+          (*it).logical() == ::common::Logical::ISNULL) {
         opr_stack2.push(*it);
         break;
       }
@@ -1078,54 +1056,44 @@ static std::unique_ptr<ExprBase> parse_expression_impl(
       opr_stack.push(*it);
       break;
     }
-    case common::ExprOpr::kExtract: {
+    case ::common::ExprOpr::kExtract: {
       opr_stack2.push(*it);
       break;
     }
-    case common::ExprOpr::kCase: {
+    case ::common::ExprOpr::kCase: {
       opr_stack2.push(*it);
       break;
     }
-    case common::ExprOpr::kMap: {
+    case ::common::ExprOpr::kMap: {
       opr_stack2.push(*it);
       break;
     }
-    case common::ExprOpr::kUdfFunc: {
-      opr_stack2.push(*it);
-      break;
-    }
-
-    case common::ExprOpr::kToInterval: {
+    case ::common::ExprOpr::kUdfFunc: {
       opr_stack2.push(*it);
       break;
     }
 
-    case common::ExprOpr::kToDate: {
+    case ::common::ExprOpr::kToInterval: {
       opr_stack2.push(*it);
       break;
     }
 
-    case common::ExprOpr::kToDatetime: {
+    case ::common::ExprOpr::kToDate: {
       opr_stack2.push(*it);
       break;
     }
 
-    case common::ExprOpr::kToTuple: {
+    case ::common::ExprOpr::kToDatetime: {
       opr_stack2.push(*it);
       break;
     }
 
-    case common::ExprOpr::kToUpper: {
+    case ::common::ExprOpr::kToTuple: {
       opr_stack2.push(*it);
       break;
     }
 
-    case common::ExprOpr::kToLower: {
-      opr_stack2.push(*it);
-      break;
-    }
-
-    case common::ExprOpr::kReverse: {
+    case ::common::ExprOpr::kScalarFunc: {
       opr_stack2.push(*it);
       break;
     }
@@ -1147,17 +1115,17 @@ template <typename GraphInterface>
 std::unique_ptr<ExprBase> parse_expression(
     const GraphInterface& graph, const Context& ctx,
     const std::map<std::string, std::string>& params,
-    const common::Expression& expr, VarType var_type) {
+    const ::common::Expression& expr, VarType var_type) {
   return parse_expression_impl(graph, ctx, params, expr, var_type);
 }
 
 template std::unique_ptr<ExprBase> parse_expression<GraphReadInterface>(
     const GraphReadInterface&, const Context&,
-    const std::map<std::string, std::string>&, const common::Expression&,
+    const std::map<std::string, std::string>&, const ::common::Expression&,
     VarType);
 template std::unique_ptr<ExprBase> parse_expression<GraphUpdateInterface>(
     const GraphUpdateInterface&, const Context&,
-    const std::map<std::string, std::string>&, const common::Expression&,
+    const std::map<std::string, std::string>&, const ::common::Expression&,
     VarType);
 
 }  // namespace runtime
