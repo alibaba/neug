@@ -297,5 +297,25 @@ TEST_F(JoinTest, A_OPTIONAL_AB_OPTIONAL_BC_34) {
       *physical, getPathResource("A_OPTIONAL_AB_OPTIONAL_BC_34_physical"));
 }
 
+TEST_F(JoinTest, WHERE_SUBQUERY) {
+  std::string query =
+      "Match (a:person)-[:knows*2..3]->(c:person) Where NOT (a)-[:knows]->(c) "
+      "Return count(a)";
+  auto logical = planLogical(query, schemaData, statsData, rules);
+  auto physical = planPhysical(*logical);
+  VerifyFactory::verifyPhysicalByJson(
+      *physical, getPathResource("WHERE_SUBQUERY_physical"));
+}
+
+TEST_F(JoinTest, WHERE_NOT_SUBQUERY) {
+  std::string query =
+      "Match (a:person)-[:knows*2..3]->(c:person) Where (a)-[:knows]->(c) "
+      "Return count(a)";
+  auto logical = planLogical(query, schemaData, statsData, rules);
+  auto physical = planPhysical(*logical);
+  VerifyFactory::verifyPhysicalByJson(
+      *physical, getPathResource("WHERE_NOT_SUBQUERY_physical"));
+}
+
 }  // namespace gopt
 }  // namespace gs

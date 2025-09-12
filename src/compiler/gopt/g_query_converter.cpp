@@ -1431,6 +1431,10 @@ void GQueryConvertor::convertCrossProduct(
     return ::physical::Join::JoinKind::Join_JoinKind_INNER;
   case common::JoinType::LEFT:
     return ::physical::Join::JoinKind::Join_JoinKind_LEFT_OUTER;
+  case common::JoinType::SEMI:
+    return ::physical::Join::JoinKind::Join_JoinKind_SEMI;
+  case common::JoinType::ANTI:
+    return ::physical::Join::JoinKind::Join_JoinKind_ANTI;
   default:
     THROW_EXCEPTION_WITH_FILE_LINE(
         "Unsupported join type: " +

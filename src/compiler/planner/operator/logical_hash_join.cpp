@@ -126,11 +126,9 @@ std::string LogicalHashJoin::getExpressionsForPrinting() const {
   };
 
   std::unordered_map<JoinType, std::string> joinToStr = {
-      {JoinType::INNER, "INNER"},
-      {JoinType::LEFT, "LEFT"},
-      {JoinType::COUNT, "COUNT"},
-      {JoinType::MARK, "MARK"},
-  };
+      {JoinType::INNER, "INNER"}, {JoinType::LEFT, "LEFT"},
+      {JoinType::COUNT, "COUNT"}, {JoinType::MARK, "MARK"},
+      {JoinType::ANTI, "ANTI"},   {JoinType::SEMI, "SEMI"}};
 
   auto extra =
       ", SIP: " + maskToStr.at(getSIPInfo().position) +

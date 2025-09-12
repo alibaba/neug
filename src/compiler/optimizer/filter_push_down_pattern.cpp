@@ -14,12 +14,6 @@
  * limitations under the License.
  */
 
-/**
- * This file is originally from the Kùzu project
- * (https://github.com/kuzudb/kuzu) Licensed under the MIT License. Modified by
- * Zhou Xiaoli in 2025 to support Neug-specific features.
- */
-
 #include "neug/compiler/optimizer/filter_push_down_pattern.h"
 #include "neug/compiler/gopt/g_alias_manager.h"
 

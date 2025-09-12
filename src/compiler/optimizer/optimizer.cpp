@@ -38,6 +38,7 @@
 #include "neug/compiler/optimizer/limit_push_down_optimizer.h"
 #include "neug/compiler/optimizer/projection_push_down_optimizer.h"
 #include "neug/compiler/optimizer/remove_factorization_rewriter.h"
+#include "neug/compiler/optimizer/remove_subquery_as_join.h"
 #include "neug/compiler/optimizer/remove_unnecessary_join_optimizer.h"
 #include "neug/compiler/optimizer/schema_populator.h"
 #include "neug/compiler/optimizer/top_k_optimizer.h"
@@ -103,6 +104,9 @@ void Optimizer::optimize(
 
     auto unionAliasMapOptimizer = UnionAliasMapOptimizer();
     unionAliasMapOptimizer.rewrite(plan);
+
+    auto removeSubqueryAsJoin = RemoveSubqueryAsJoin();
+    removeSubqueryAsJoin.rewrite(plan);
 
     auto cardinalityUpdater =
         CardinalityUpdater(cardinalityEstimator, context->getTransaction());

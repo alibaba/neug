@@ -1,3 +1,4 @@
+#include <iostream>
 #include "neug/compiler/binder/expression_visitor.h"
 #include "neug/compiler/binder/query/reading_clause/bound_load_from.h"
 #include "neug/compiler/binder/query/reading_clause/bound_match_clause.h"

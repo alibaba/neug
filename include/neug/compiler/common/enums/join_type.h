@@ -32,6 +32,8 @@ enum class JoinType : uint8_t {
   LEFT = 1,
   MARK = 2,
   COUNT = 3,
+  ANTI = 4,  // support where not exist subquery
+  SEMI = 5,  // support where exist subquery
 };
 
 }  // namespace common

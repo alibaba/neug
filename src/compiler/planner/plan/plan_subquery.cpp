@@ -1,3 +1,5 @@
+#include <iostream>
+#include <memory>
 #include "neug/compiler/binder/expression/expression_util.h"
 #include "neug/compiler/binder/expression/node_expression.h"
 #include "neug/compiler/binder/expression/node_rel_expression.h"
@@ -6,6 +8,9 @@
 #include "neug/compiler/common/enums/expression_type.h"
 #include "neug/compiler/common/types/types.h"
 #include "neug/compiler/planner/operator/factorization/flatten_resolver.h"
+#include "neug/compiler/planner/operator/logical_operator.h"
+#include "neug/compiler/planner/operator/logical_plan.h"
+#include "neug/compiler/planner/operator/schema.h"
 #include "neug/compiler/planner/planner.h"
 
 using namespace gs::binder;
@@ -248,6 +253,32 @@ void Planner::planRegularMatch(const QueryGraphCollection& queryGraphCollection,
   }
 }
 
+// combine schema of all graph operators in the outer plan
+std::unique_ptr<Schema> Planner::combineSchema(LogicalPlan& outerPlan) {
+  auto combinedSchema = std::make_unique<Schema>();
+  auto op = outerPlan.getLastOperator();
+  while (op) {
+    if (op->getOperatorType() == LogicalOperatorType::GET_V ||
+        op->getOperatorType() == LogicalOperatorType::EXTEND ||
+        op->getOperatorType() == LogicalOperatorType::RECURSIVE_EXTEND ||
+        op->getOperatorType() == LogicalOperatorType::SCAN_NODE_TABLE) {
+      auto opSchema = op->getSchema();
+      if (opSchema) {
+        for (auto& expr : opSchema->getExpressionsInScope()) {
+          if (expr->getDataType().getLogicalTypeID() ==
+              LogicalTypeID::INTERNAL_ID) {
+            combinedSchema->insertToScopeMayRepeat(expr, 0);
+          }
+        }
+      }
+    }
+    if (op->getNumChildren() == 0)
+      break;
+    op = op->getChild(0);
+  }
+  return combinedSchema;
+}
+
 void Planner::planSubquery(const std::shared_ptr<Expression>& expression,
                            LogicalPlan& outerPlan) {
   KU_ASSERT(expression->expressionType == ExpressionType::SUBQUERY);
@@ -282,8 +313,9 @@ void Planner::planSubquery(const std::shared_ptr<Expression>& expression,
   }
   // Plan correlated subquery
   info.corrExprsCard = outerPlan.getCardinality();
+  auto combinedSchema = combineSchema(outerPlan);
   auto analyzer = SubqueryPredicatePullUpAnalyzer(
-      *outerPlan.getSchema(), *subquery->getQueryGraphCollection());
+      *combinedSchema, *subquery->getQueryGraphCollection());
   std::vector<expression_pair> joinConditions;
   if (analyzer.analyze(predicates)) {
     // Unnest as inner join

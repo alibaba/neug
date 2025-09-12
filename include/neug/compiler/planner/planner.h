@@ -480,6 +480,7 @@ class KUZU_API Planner {
   std::vector<std::shared_ptr<binder::RelExpression>> sortRels(
       const std::vector<std::shared_ptr<binder::RelExpression>>& rels,
       const std::shared_ptr<binder::NodeExpression>& intersectNode);
+  std::unique_ptr<Schema> combineSchema(LogicalPlan& outerPlan);
 
  private:
   main::ClientContext* clientContext;

@@ -46,6 +46,9 @@ class KUZU_API LogicalHashJoin final : public LogicalOperator {
     return joinConditions;
   }
   common::JoinType getJoinType() const { return joinType; }
+
+  void setJoinType(common::JoinType joinType) { this->joinType = joinType; }
+
   bool hasMark() const { return mark != nullptr; }
   std::shared_ptr<binder::Expression> getMark() const { return mark; }
 

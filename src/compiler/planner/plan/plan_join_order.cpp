@@ -215,6 +215,10 @@ void Planner::planBaseTableScans(const QueryGraphPlanningInfo& info) {
          ++nodePos) {
       auto queryNode = queryGraph->getQueryNode(nodePos);
       if (info.containsCorrExpr(*queryNode->getInternalID())) {
+        // todo: if the subquery has filtering, i.e. where not
+        // (a:person)-[:knows]->(b:person {id: 1}), the filtering `{id: 1}` is
+        // omitted here, then the right branch of the anti join need to scan
+        // from all persons without any filtering optimization
         planNodeIDScan(nodePos, info);
       } else {
         planNodeScan(nodePos);

@@ -1719,6 +1719,36 @@ def test_intersect_predicate_ml():
     assert list(res) == [[2021, 2020], [2021, 2020], [2021, 2020], [2021, 2020]]
 
 
+def test_where_not_subquery():
+    db_dir = "/tmp/modern_graph"
+    db = Database(db_path=db_dir)
+    conn = db.connect()
+    res = conn.execute(
+        """
+        Match (a:person)-[:created]->(b)<-[:created]-(c:person)
+        Where NOT (a)-[:knows]->(c) AND a <> c
+        Return count(a);
+    """
+    )
+    records = list(res)
+    assert records == [[5]]
+
+
+def test_where_subquery():
+    db_dir = "/tmp/modern_graph"
+    db = Database(db_path=db_dir)
+    conn = db.connect()
+    res = conn.execute(
+        """
+        Match (a:person)-[:created]->(b)<-[:created]-(c:person)
+        Where (a)-[:knows]->(c) AND a <> c
+        Return count(a);
+    """
+    )
+    records = list(res)
+    assert records == [[1]]
+
+
 # test START_NODE and END_NODE
 # todo(engine): Engine Abort
 # def test_start_end_node():
