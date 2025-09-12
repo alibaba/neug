@@ -10,7 +10,6 @@
 17184063493|2|1905-12-12
 
 -LOG MultiLabelAggTest2
--SKIP: (engine): project null to string?
 -STATEMENT MATCH (a:person)-[e1:marries|studyAt]->(b:person) RETURN NULL, COUNT(*)
 ---- 1
 |3

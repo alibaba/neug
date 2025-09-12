@@ -22,7 +22,6 @@ Internet Explorer|[]|[,]|32861
 Chrome|[]|[,]|30514
 Safari|[]|[,]|5410
 Opera|[]|[,]|3938
--SKIP: `LIST` and `COUNT` have conflict
 -STATEMENT MATCH (p:Post) WHERE p.language is NULL XOR p.imageFile is NULL RETURN p.browserUsed, [p.language, p.imageFile], COUNT(p) as n ORDER BY n DESC LIMIT 5;
 -CHECK_ORDER
 ---- 5

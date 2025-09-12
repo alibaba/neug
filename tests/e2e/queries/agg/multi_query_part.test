@@ -5,13 +5,11 @@
 -CASE AggMultiQueryPart
 
 -LOG SimpleAvgWithFilterMultiQueryTest
--SKIP: (compiler): type of avgAge changed to double in group opr(int64 -> double)
 -STATEMENT MATCH (a:person) WHERE a.birthdate = date('1980-10-26') WITH AVG(a.age) AS avgAge, AVG(a.eyeSight) AS avgEyeSight RETURN avgAge > avgEyeSight
 ---- 1
 True
 
 -LOG SimpleCountMultiQueryTest2
--SKIP: (compiler) Unsupported operator type for alias management: 10
 -STATEMENT MATCH (p:person) WITH p AS f RETURN COUNT(f);
 ---- 1
 8
@@ -58,7 +56,6 @@ True
 7|20|2
 
 -LOG GroupByMultiQueryTest4
--SKIP: (compiler): Unsupported operator type for alias management:
 -STATEMENT  MATCH (a:person)-[r:knows]->(b:person) WHERE a.ID = 0 WITH a, r, COUNT(*) AS s MATCH (a)-[:knows]->(c:person) WHERE c.ID = s + 1 RETURN r.date, c.ID, s
 ---- 3
 2021-06-30|2|1
@@ -66,7 +63,7 @@ True
 2021-06-30|2|1
 
 -LOG GroupByMultiQueryTest5
--SKIP: (compiler): Unsupported operator type for alias management:
+-SKIP: refer to https://github.com/GraphScope/neug/issues/845
 -STATEMENT  MATCH (a:person)-[r1:knows]->(b:person)-[r2:knows]->(c:person)
             WITH count(r1) AS numFollowers, b, r2
             WHERE b.ID <= 10 AND numFollowers > 2
@@ -81,7 +78,7 @@ True
 
 
 -LOG GroupByMultiQueryTest6
--SKIP: (compiler): Unsupported operator type for alias management:
+-SKIP: refer to https://github.com/GraphScope/neug/issues/845
 -STATEMENT   MATCH (a:person)-[r1:knows]->(b:person)-[r2:knows]->(c:person)
              WITH count(r1) AS numFollowers, c, b, r2
              WHERE b.age >= 0 AND b.age <= 30 AND numFollowers > 0
@@ -95,7 +92,6 @@ True
 5|Dan|1
 
 -LOG GroupByMultiQueryTest7
--SKIP: (compiler): Unsupported operator type for alias management:
 -STATEMENT   MATCH (a:person)-[r1:knows]->(b:person)-[r2:knows]->(c:person)
              WITH count(r1) AS numFollowers, c, b, r2
              WHERE b.age >= 0 AND b.age <= 30 AND numFollowers > 0

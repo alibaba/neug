@@ -67,7 +67,6 @@ False
 28.333333|4.700000
 
 -LOG SimpleMinMaxTest
--SKIP: (compiler):  Number of expressions to project does not match the number of schema expressions
 -STATEMENT MATCH (a:person) RETURN MIN(a.age), MAX(a.age), MIN(a.isStudent), MAX(a.isStudent), MIN(a.eyeSight), MAX(a.eyeSight), MIN(a.birthdate), MAX(a.birthdate)
 ---- 1
 20|83|False|True|4.500000|5.100000|1900-01-01|1990-11-27

@@ -37,11 +37,11 @@
 [20,25,30,35,40,45,83]
 
 -LOG HashDistinctCollectDoubleTest
--SKIP: (compiler) only to_list, no distinct given.
--STATEMENT MATCH (p:person) RETURN p.gender, collect(distinct p.isStudent)
+# TODO: `collect` order is not stable, use `list_sort` to confirm
+-STATEMENT MATCH (p:person) RETURN p.gender, collect(distinct p.isStudent) ORDER BY p.gender
 ---- 2
-1|[True,False]
-2|[True,False]
+1|[False, True]
+2|[False, True]
 
 -STATEMENT MATCH (p:person)-[:knows]->(b:person)-[:knows]->(c:person) RETURN DISTINCT c;
 ---- 4

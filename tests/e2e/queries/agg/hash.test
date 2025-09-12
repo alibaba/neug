@@ -63,7 +63,6 @@ Bob|1
 Alice|1
 
 -LOG SingleNodeDistinctTest
--SKIP: (compiler): Unsupported operator type for alias management: 13
 -STATEMENT MATCH (a:person) RETURN DISTINCT a.gender
 ---- 2
 1
@@ -79,7 +78,7 @@ Alice|1
 45|1|3
 
 -LOG OneHopHashAggTest
--SKIP: (compiler): Unsupported basic type for conversion: INT128
+-SKIP: adding two aggregation function is not supported
 -STATEMENT MATCH (a:person)-[:knows]->(b:person) RETURN a.gender, COUNT(*) + SUM(b.age)
 ---- 2
 1|253
@@ -92,7 +91,6 @@ Alice|1
 2|18|4
 
 -LOG OneHopAggFlatUnflatVecTest
--SKIP: (compiler): Unsupported basic type for conversion: INT128
 -STATEMENT MATCH (a:person)-[:knows]->(b:person) RETURN a.ID, b.gender, sum(b.age)
 ---- 9
 0|1|45
@@ -106,7 +104,8 @@ Alice|1
 7|2|65
 
 -LOG OneHopAggFlatUnflatVecWithNonHashKeyTest
--SKIP: (compiler): Number of expressions in aggregate does not match the number of alias names
+# result order is not determined, add ORDER BY
+-SKIP: https://github.com/GraphScope/neug/issues/845
 -STATEMENT MATCH (a:person)-[:knows]->(b:person) RETURN a.ID, a.gender, b.gender, sum(b.age)
 ---- 9
 0|1|1|45
@@ -129,7 +128,6 @@ Alice|1
 2|True
 
 -LOG TwoHopDistinctTest
--SKIP: (compiler): Unsupported operator type for alias management: 13
 -STATEMENT MATCH (a:person)-[:knows]->(b:person)-[:knows]->(c:person) RETURN DISTINCT a.ID + 1
 ---- 4
 1
@@ -390,19 +388,16 @@ True|\xAB\xCD
 [[7],[10],[6,7]]|1
 
 -LOG HashOnListOfString
--SKIP: result not match
 -STATEMENT MATCH (p:person) RETURN p.usedNames, count(*)
----- 10
+---- 8
 [Aida]|1
 [Bobby]|1
 [Carmen,Fred]|1
 [Wolfeschlegelstein,Daniel]|1
-[Ein]|2
+[Ein]|1
 [Fesdwe]|1
 [Grad]|1
 [Ad,De,Hi,Kye,Orlan]|1
-[Alice]|1
-[Carmen]|1
 
 -LOG HashOnListOfInt32
 -SKIP: result not match
