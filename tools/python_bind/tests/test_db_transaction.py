@@ -347,3 +347,247 @@ def test_crash_recovery(tmp_path):
     assert len(r2) == 0
     conn2.close()
     db2.close()
+
+
+# DB-004-15
+def test_auto_enable_checkpoint(tmp_path):
+    db_dir = tmp_path / "test_checkpoint"
+    shutil.rmtree(db_dir, ignore_errors=True)
+    db_dir.mkdir()
+
+    # 1. open database and create some data
+    db = Database(db_path=str(db_dir), mode="w")
+    conn = db.connect()
+    conn.execute(
+        "CREATE NODE TABLE person(id INT64, name STRING, age INT32, PRIMARY KEY(id));"
+    )
+    conn.execute("CREATE (p:person {id: 1, name: 'Alice', age: 30});")
+    conn.execute("CREATE (p:person {id: 2, name: 'Bob', age: 25});")
+    conn.close()
+    db.close()
+
+    # 2. reopen database with checkpoint
+    db = Database(db_path=str(db_dir), mode="w")
+    conn = db.connect()
+    result = conn.execute("MATCH (p:person) RETURN p.id, p.name, p.age ORDER BY p.id;")
+    rows = list(result)
+    assert rows == [[1, "Alice", 30], [2, "Bob", 25]]
+    conn.close()
+    db.close()
+
+
+# DB-004-16
+@pytest.mark.skip(reason="dump_on_close parameter is not supported")
+def test_manual_enable_checkpoint(tmp_path):
+    db_dir = tmp_path / "test_checkpoint"
+    shutil.rmtree(db_dir, ignore_errors=True)
+    db_dir.mkdir()
+
+    # 1. open database with dump_on_close=True
+    db = Database(db_path=str(db_dir), mode="w", dump_on_close=True)
+    conn = db.connect()
+    conn.execute(
+        "CREATE NODE TABLE person(id INT64, name STRING, age INT32, PRIMARY KEY(id));"
+    )
+    conn.execute("CREATE (p:person {id: 1, name: 'Alice', age: 30});")
+    conn.execute("CREATE (p:person {id: 2, name: 'Bob', age: 25});")
+    conn.close()
+    db.close()
+
+    # 2. reopen database with checkpoint
+    db = Database(db_path=str(db_dir), mode="w")
+    conn = db.connect()
+    result = conn.execute("MATCH (p:person) RETURN p.id, p.name, p.age ORDER BY p.id;")
+    rows = list(result)
+    assert rows == [[1, "Alice", 30], [2, "Bob", 25]]
+    conn.close()
+    db.close()
+
+
+# DB-004-17
+@pytest.mark.skip(reason="dump_on_close parameter is not supported")
+def test_manual_disable_checkpoint(tmp_path):
+    db_dir = tmp_path / "test_checkpoint"
+    shutil.rmtree(db_dir, ignore_errors=True)
+    db_dir.mkdir()
+
+    # 1. open database with dump_on_close=False
+    db = Database(db_path=str(db_dir), mode="w", dump_on_close=False)
+    conn = db.connect()
+    conn.execute(
+        "CREATE NODE TABLE person(id INT64, name STRING, age INT32, PRIMARY KEY(id));"
+    )
+    conn.execute("CREATE (p:person {id: 1, name: 'Alice', age: 30});")
+    conn.execute("CREATE (p:person {id: 2, name: 'Bob', age: 25});")
+    conn.close()
+    db.close()
+
+    # 2. reopen database with no checkpoint
+    db = Database(db_path=str(db_dir), mode="w")
+    conn = db.connect()
+    result = conn.execute("MATCH (p) RETURN p;")
+    rows = list(result)
+    assert rows == []
+    conn.close()
+    db.close()
+
+
+# DB-004-18
+def test_pure_memory_without_parameter(tmp_path):
+    # 1. open database with pure_memory model
+    db = Database(db_path="", mode="w")
+    conn = db.connect()
+    conn.execute(
+        "CREATE NODE TABLE person(id INT64, name STRING, age INT32, PRIMARY KEY(id));"
+    )
+    conn.execute("CREATE (p:person {id: 1, name: 'Alice', age: 30});")
+    conn.execute("CREATE (p:person {id: 2, name: 'Bob', age: 25});")
+    conn.close()
+
+    # 2. reopen database with pure_memory model, data is lost
+    db = Database(db_path="", mode="w")
+    conn = db.connect()
+    result = conn.execute("MATCH (p) RETURN p;")
+    rows = list(result)
+    assert rows == []
+    conn.close()
+
+
+@pytest.mark.skip(reason="dump_on_close parameter is not supported")
+def test_pure_memory_with_true_parameter(tmp_path):
+    # 1. open database with pure_memory model
+    db = Database(db_path="", mode="w", dump_on_close=True)
+    conn = db.connect()
+    conn.execute(
+        "CREATE NODE TABLE person(id INT64, name STRING, age INT32, PRIMARY KEY(id));"
+    )
+    conn.execute("CREATE (p:person {id: 1, name: 'Alice', age: 30});")
+    conn.execute("CREATE (p:person {id: 2, name: 'Bob', age: 25});")
+    conn.close()
+
+    # 2. reopen database with pure_memory model, data is lost
+    db = Database(db_path="", mode="w")
+    conn = db.connect()
+    result = conn.execute("MATCH (p) RETURN p;")
+    rows = list(result)
+    assert rows == []
+    conn.close()
+
+
+@pytest.mark.skip(reason="dump_on_close parameter is not supported")
+def test_pure_memory_with_false_parameter(tmp_path):
+    # 1. open database with pure_memory model
+    db = Database(db_path="", mode="w", dump_on_close=False)
+    conn = db.connect()
+    conn.execute(
+        "CREATE NODE TABLE person(id INT64, name STRING, age INT32, PRIMARY KEY(id));"
+    )
+    conn.execute("CREATE (p:person {id: 1, name: 'Alice', age: 30});")
+    conn.execute("CREATE (p:person {id: 2, name: 'Bob', age: 25});")
+    conn.close()
+
+    # 2. reopen database with pure_memory model, data is lost
+    db = Database(db_path="", mode="w")
+    conn = db.connect()
+    result = conn.execute("MATCH (p) RETURN p;")
+    rows = list(result)
+    assert rows == []
+    conn.close()
+
+
+# DB-004-19
+def test_database_concurrent_read(tmp_path):
+    db_dir = tmp_path / "test_checkpoint"
+    shutil.rmtree(db_dir, ignore_errors=True)
+    db_dir.mkdir()
+
+    # 1. open database and create some data
+    db = Database(db_path=str(db_dir), mode="w")
+    conn = db.connect()
+    conn.execute(
+        "CREATE NODE TABLE person(id INT64, name STRING, age INT32, PRIMARY KEY(id));"
+    )
+    conn.execute("CREATE (p:person {id: 1, name: 'Alice', age: 30});")
+    conn.execute("CREATE (p:person {id: 2, name: 'Bob', age: 25});")
+    conn.close()
+    db.close()
+
+    # 2. read data concurrently
+    db1 = Database(db_path=str(db_dir), mode="r")
+    conn1 = db1.connect()
+    result1 = conn1.execute(
+        "MATCH (p:person) RETURN p.id, p.name, p.age ORDER BY p.id;"
+    )
+    rows1 = list(result1)
+
+    db2 = Database(db_path=str(db_dir), mode="r")
+    conn2 = db2.connect()
+    result2 = conn2.execute(
+        "MATCH (p:person) RETURN p.id, p.name, p.age ORDER BY p.id;"
+    )
+    rows2 = list(result2)
+
+    assert rows1 == [[1, "Alice", 30], [2, "Bob", 25]]
+    assert rows1 == rows2
+    conn1.close()
+    db1.close()
+    conn2.close()
+    db2.close()
+
+
+# DB-004-20
+def test_database_concurrent_lock(tmp_path):
+    db_dir = tmp_path / "test_checkpoint"
+    shutil.rmtree(db_dir, ignore_errors=True)
+    db_dir.mkdir()
+
+    # 1. open database and create some data
+    db = Database(db_path=str(db_dir), mode="w")
+    conn = db.connect()
+    conn.execute(
+        "CREATE NODE TABLE person(id INT64, name STRING, age INT32, PRIMARY KEY(id));"
+    )
+    conn.execute("CREATE (p:person {id: 1, name: 'Alice', age: 30});")
+    conn.execute("CREATE (p:person {id: 2, name: 'Bob', age: 25});")
+    conn.close()
+    db.close()
+
+    # 2. read-lock
+    db1 = Database(db_path=str(db_dir), mode="r")
+    conn1 = db1.connect()
+    conn1.execute("MATCH (p:person) RETURN p.id, p.name, p.age ORDER BY p.id;")
+
+    with pytest.raises(Exception) as excinfo:
+        db2 = Database(db_path=str(db_dir), mode="w")
+        conn2 = db2.connect()
+        conn2.execute("MATCH (p:person) RETURN p.id, p.name, p.age ORDER BY p.id;")
+        conn2.close()
+        db2.close()
+    assert "locked for read-only access" in str(excinfo.value)
+
+    conn1.close()
+    db1.close()
+
+    # 3. write-lock
+    db1 = Database(db_path=str(db_dir), mode="w")
+    conn1 = db1.connect()
+    conn1.execute("MATCH (p:person) RETURN p.id, p.name, p.age ORDER BY p.id;")
+
+    with pytest.raises(Exception) as excinfo:
+        db2 = Database(db_path=str(db_dir), mode="r")
+        conn2 = db2.connect()
+        conn2.execute("MATCH (p:person) RETURN p.id, p.name, p.age ORDER BY p.id;")
+        conn2.close()
+        db2.close()
+    assert "locked for write access" in str(excinfo.value)
+
+    with pytest.raises(Exception) as excinfo:
+        db3 = Database(db_path=str(db_dir), mode="w")
+        conn3 = db3.connect()
+        conn3.execute("MATCH (p:person) RETURN p.id, p.name, p.age ORDER BY p.id;")
+        conn3.close()
+        db3.close()
+    assert "locked for write access" in str(excinfo.value)
+
+    conn1.close()
+    db1.close()
