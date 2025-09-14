@@ -809,12 +809,11 @@ void GQueryConvertor::convertOrder(const planner::LogicalOrderBy& order,
 void GQueryConvertor::convertAggregate(
     const planner::LogicalAggregate& aggregate, ::physical::QueryPlan* plan) {
   std::vector<common::alias_id_t> aliasIds;
-  size_t exprSize =
-      aggregate.getKeys().size() + aggregate.getAggregates().size();
   auto groupPB = std::make_unique<::physical::GroupBy>();
-  size_t aliasPos = 0;
   auto child = aggregate.getChild(0);
-  for (auto& key : aggregate.getKeys()) {
+
+  // combine keys and dependent keys into a single key list
+  for (auto& key : aggregate.getAllKeys()) {
     auto keyPB = exprConvertor->convert(*key, *child);
     if (!keyPB) {
       THROW_EXCEPTION_WITH_FILE_LINE("Failed to convert key expression: " +
@@ -854,10 +853,11 @@ void GQueryConvertor::convertAggregate(
   oprPB->set_allocated_group_by(groupPB.release());
   physicalPB->set_allocated_opr(oprPB.release());
 
-  auto schema = aggregate.getSchema()->getExpressionsInScope();
   auto aggregateExprs = binder::expression_vector();
+  size_t exprSize =
+      aggregate.getAllKeys().size() + aggregate.getAggregates().size();
   aggregateExprs.reserve(exprSize);
-  for (auto& expr : aggregate.getKeys()) {
+  for (auto& expr : aggregate.getAllKeys()) {
     aggregateExprs.emplace_back(expr);
   }
   for (auto& expr : aggregate.getAggregates()) {

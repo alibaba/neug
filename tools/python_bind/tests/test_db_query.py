@@ -1749,6 +1749,51 @@ def test_where_subquery():
     assert records == [[1]]
 
 
+def aggregate_dependent_key_1():
+    db_dir = "/tmp/tinysnb"
+    db = Database(db_path=str(db_dir), mode="w")
+    conn = db.connect()
+
+    result = conn.execute(
+        """
+        MATCH (a:person)-[:knows]->(b:person)
+        RETURN a.ID, a.gender, b.gender, sum(b.age)
+        ORDER BY a.ID, a.gender, b.gender
+    """
+    )
+
+    records = list(result)
+    assert records == [
+        [0, 1, 1, 45],
+        [0, 1, 2, 50],
+        [2, 2, 1, 80],
+        [2, 2, 2, 20],
+        [3, 1, 1, 35],
+        [3, 1, 2, 50],
+        [5, 2, 1, 80],
+        [5, 2, 2, 30],
+        [7, 1, 2, 65],
+    ]
+
+
+def aggregate_dependent_key_2():
+    db_dir = "/tmp/tinysnb"
+    db = Database(db_path=str(db_dir), mode="w")
+    conn = db.connect()
+
+    result = conn.execute(
+        """
+        MATCH (a:person)
+        WHERE a.ID > 4 WITH a, a.age AS foo
+        MATCH (a)-[:knows]->(b:person)
+        RETURN a.ID, foo, COUNT(*)
+    """
+    )
+
+    records = list(result)
+    assert records == [[5, 20, 3], [7, 20, 2]]
+
+
 # test START_NODE and END_NODE
 # todo(engine): Engine Abort
 # def test_start_end_node():

@@ -82,5 +82,17 @@ TEST_F(AggTest, COUNT_STAR) {
                                       getAggResource("COUNT_STAR_physical"));
 }
 
+TEST_F(AggTest, AGGREGATE_AND_ORDER_BY) {
+  std::string schemaData = getGOptResource("schema/tinysnb_schema.yaml");
+  std::string statsData = getGOptResource("stats/tinysnb_stats.json");
+  std::string query =
+      "MATCH (a:person)-[:knows]->(b:person) RETURN a.ID, a.gender, "
+      "b.gender, sum(b.age) ORDER BY a.ID, a.gender, b.gender ";
+  auto logical = planLogical(query, schemaData, statsData, rules);
+  auto physical = planPhysical(*logical);
+  VerifyFactory::verifyPhysicalByJson(
+      *physical, getAggResource("AGGREGATE_AND_ORDER_BY_physical"));
+}
+
 }  // namespace gopt
 }  // namespace gs
