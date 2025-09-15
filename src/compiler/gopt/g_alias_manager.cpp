@@ -95,12 +95,16 @@ void GAliasManager::extractGAliasNames(
     }
     break;
   }
+  case planner::LogicalOperatorType::CROSS_PRODUCT:
+  case planner::LogicalOperatorType::HASH_JOIN:
   case planner::LogicalOperatorType::FILTER:
   case planner::LogicalOperatorType::ORDER_BY:
   case planner::LogicalOperatorType::LIMIT:
   case planner::LogicalOperatorType::SET_PROPERTY:
   case planner::LogicalOperatorType::DELETE: {
-    extractGAliasNames(*op.getChild(0), aliasNames);
+    for (auto& child : op.getChildren()) {
+      extractGAliasNames(*child, aliasNames);
+    }
     break;
   }
   case planner::LogicalOperatorType::COPY_FROM:
@@ -114,10 +118,8 @@ void GAliasManager::extractGAliasNames(
   case planner::LogicalOperatorType::MULTIPLICITY_REDUCER:
   case planner::LogicalOperatorType::DUMMY_SCAN:
   case planner::LogicalOperatorType::INTERSECT:
-  case planner::LogicalOperatorType::CROSS_PRODUCT:
   case planner::LogicalOperatorType::FLATTEN:
   case planner::LogicalOperatorType::ACCUMULATE:
-  case planner::LogicalOperatorType::HASH_JOIN:
   case planner::LogicalOperatorType::EXPRESSIONS_SCAN:
   case planner::LogicalOperatorType::UNION_ALL:
   case planner::LogicalOperatorType::ALIAS_MAP:

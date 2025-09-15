@@ -133,7 +133,7 @@ std::unique_ptr<IUpdateOperator> UJoinUpdateOprBuilder::Build(
     p.join_type = JoinKind::kLeftOuterJoin;
     break;
   case physical::Join_JoinKind::Join_JoinKind_TIMES:
-    p.join_type = JoinKind::kTimes;
+    p.join_type = JoinKind::kTimesJoin;
     break;
   default:
     LOG(ERROR) << "unsupported join kind" << opr.join_kind();

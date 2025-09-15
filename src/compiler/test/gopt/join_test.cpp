@@ -317,5 +317,15 @@ TEST_F(JoinTest, WHERE_NOT_SUBQUERY) {
       *physical, getPathResource("WHERE_NOT_SUBQUERY_physical"));
 }
 
+TEST_F(JoinTest, FILTER_AFTER_JOIN) {
+  std::string query =
+      "MATCH (a:person) WITH COUNT(*) AS s MATCH (c:person) WHERE c.ID > s "
+      "RETURN c.ID";
+  auto logical = planLogical(query, schemaData, statsData, rules);
+  auto physical = planPhysical(*logical);
+  VerifyFactory::verifyPhysicalByJson(
+      *physical, getPathResource("FILTER_AFTER_JOIN_physical"));
+}
+
 }  // namespace gopt
 }  // namespace gs

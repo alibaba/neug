@@ -130,6 +130,9 @@ gs::result<ReadOpBuildResultT> JoinOprBuilder::Build(
   case physical::Join_JoinKind::Join_JoinKind_LEFT_OUTER:
     p.join_type = JoinKind::kLeftOuterJoin;
     break;
+  case physical::Join_JoinKind::Join_JoinKind_TIMES:
+    p.join_type = JoinKind::kTimesJoin;
+    break;
   default:
     LOG(ERROR) << "unsupported join kind" << opr.join_kind();
     return std::make_pair(nullptr, ContextMeta());
@@ -156,6 +159,11 @@ gs::result<ReadOpBuildResultT> JoinOprBuilder::Build(
       join_kind == physical::Join_JoinKind::Join_JoinKind_ANTI) {
     ret_meta = ctx_meta1;
   } else if (join_kind == physical::Join_JoinKind::Join_JoinKind_INNER) {
+    ret_meta = ctx_meta1;
+    for (auto k : ctx_meta2.columns()) {
+      ret_meta.set(k);
+    }
+  } else if (join_kind == physical::Join_JoinKind::Join_JoinKind_TIMES) {
     ret_meta = ctx_meta1;
     for (auto k : ctx_meta2.columns()) {
       ret_meta.set(k);

@@ -15,7 +15,6 @@ True
 8
 
 -LOG SimpleCountMultiQueryTest3
--SKIP: (compiler) Unsupported operator type for alias management: 10
 -STATEMENT MATCH (a:person) WITH COUNT(*) AS s MATCH (c:person) WHERE c.ID > s RETURN c.ID
 ---- 2
 10

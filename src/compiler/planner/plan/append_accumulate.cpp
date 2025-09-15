@@ -35,12 +35,8 @@ void Planner::appendAccumulate(AccumulateType accumulateType,
                                const expression_vector& flatExprs,
                                std::shared_ptr<Expression> mark,
                                LogicalPlan& plan) {
-  auto op = make_shared<LogicalAccumulate>(accumulateType, flatExprs, mark,
-                                           plan.getLastOperator());
-  appendFlattens(op->getGroupPositionsToFlatten(), plan);
-  op->setChild(0, plan.getLastOperator());
-  op->computeFactorizedSchema();
-  plan.setLastOperator(std::move(op));
+  // do nothing, accumulate operator is unnecessary for neug execution, here we
+  // skip to generate the operator
 }
 
 }  // namespace planner
