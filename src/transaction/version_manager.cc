@@ -30,24 +30,105 @@ namespace gs {
 constexpr static uint32_t ring_buf_size = 1024 * 1024;
 constexpr static uint32_t ring_index_mask = ring_buf_size - 1;
 
-VersionManager::VersionManager() { buf_.init(ring_buf_size); }
+APVersionManager::APVersionManager()
+    : active_reads_inserts_(0), update_in_progress_(false), init_ts_(0) {}
 
-VersionManager::~VersionManager() {}
+APVersionManager::~APVersionManager() {}
 
-void VersionManager::init_ts(uint32_t ts, int thread_num) {
+void APVersionManager::init_ts(uint32_t ts, int thread_num) {
+  init_ts_ = ts;
+  clear();
+}
+
+void APVersionManager::clear() {
+  std::lock_guard<std::mutex> update_lock(update_mutex_);
+
+  active_reads_inserts_.store(0);
+  update_in_progress_.store(false);
+}
+
+uint32_t APVersionManager::acquire_read_timestamp() {
+  std::unique_lock<std::mutex> update_lock(update_mutex_);
+  update_cv_.wait(update_lock, [this] { return !update_in_progress_.load(); });
+
+  active_reads_inserts_.fetch_add(1);
+  return init_ts_;
+}
+
+void APVersionManager::release_read_timestamp() {
+  // Decrement active reads counter
+  if (active_reads_inserts_.load() <= 0) {
+    LOG(ERROR) << "release_read_timestamp called without matching acquire";
+    return;
+  }
+  active_reads_inserts_.fetch_sub(1);
+  update_cv_.notify_all();  // Notify waiting update operations
+}
+
+uint32_t APVersionManager::acquire_insert_timestamp() {
+  std::unique_lock<std::mutex> update_lock(update_mutex_);
+  update_cv_.wait(update_lock, [this] { return !update_in_progress_.load(); });
+
+  active_reads_inserts_.fetch_add(1);
+  return init_ts_;
+}
+
+void APVersionManager::release_insert_timestamp(uint32_t ts) {
+  active_reads_inserts_.fetch_sub(1);
+  update_cv_.notify_all();
+}
+
+uint32_t APVersionManager::acquire_update_timestamp() {
+  std::unique_lock<std::mutex> update_lock(update_mutex_);
+
+  update_cv_.wait(update_lock, [this] {
+    return active_reads_inserts_.load() == 0 && !update_in_progress_.load();
+  });
+  update_in_progress_.store(true);
+  return init_ts_;
+}
+
+void APVersionManager::release_update_timestamp(uint32_t ts) {
+  if (!update_in_progress_.load()) {
+    LOG(ERROR) << "release_update_timestamp called without matching acquire";
+    return;
+  }
+  update_in_progress_.store(false);
+  update_cv_.notify_all();
+}
+
+bool APVersionManager::revert_update_timestamp(uint32_t ts) {
+  std::lock_guard<std::mutex> update_lock(update_mutex_);
+
+  if (update_in_progress_.load()) {
+    update_in_progress_.store(false);
+    update_cv_.notify_all();
+    return true;
+  }
+
+  return false;
+}
+
+// TPVersionManager implementation
+
+TPVersionManager::TPVersionManager() { buf_.init(ring_buf_size); }
+
+TPVersionManager::~TPVersionManager() {}
+
+void TPVersionManager::init_ts(uint32_t ts, int thread_num) {
   write_ts_.store(ts + 1);
   read_ts_.store(ts);
   thread_num_ = thread_num;
 }
 
-void VersionManager::clear() {
+void TPVersionManager::clear() {
   write_ts_.store(1);
   read_ts_.store(0);
   pending_reqs_.store(0);
   buf_.clear();
 }
 
-uint32_t VersionManager::acquire_read_timestamp() {
+uint32_t TPVersionManager::acquire_read_timestamp() {
   int pr = pending_reqs_.fetch_add(1);
   if (likely(pr >= 0)) {
     return read_ts_.load();
@@ -67,9 +148,9 @@ uint32_t VersionManager::acquire_read_timestamp() {
   }
 }
 
-void VersionManager::release_read_timestamp() { pending_reqs_.fetch_sub(1); }
+void TPVersionManager::release_read_timestamp() { pending_reqs_.fetch_sub(1); }
 
-uint32_t VersionManager::acquire_insert_timestamp() {
+uint32_t TPVersionManager::acquire_insert_timestamp() {
   int pr = pending_reqs_.fetch_add(1);
   if (likely(pr >= 0)) {
     return write_ts_.fetch_add(1);
@@ -89,7 +170,7 @@ uint32_t VersionManager::acquire_insert_timestamp() {
   }
 }
 
-void VersionManager::release_insert_timestamp(uint32_t ts) {
+void TPVersionManager::release_insert_timestamp(uint32_t ts) {
   lock_.lock();
   if (ts == read_ts_.load() + 1) {
     while (buf_.reset_bit_with_ret((ts + 1) & ring_index_mask)) {
@@ -104,7 +185,7 @@ void VersionManager::release_insert_timestamp(uint32_t ts) {
   pending_reqs_.fetch_sub(1);
 }
 
-uint32_t VersionManager::acquire_update_timestamp() {
+uint32_t TPVersionManager::acquire_update_timestamp() {
   int expected_update_reqs = 0;
   while (
       !pending_update_reqs_.compare_exchange_strong(expected_update_reqs, 1)) {
@@ -121,7 +202,7 @@ uint32_t VersionManager::acquire_update_timestamp() {
 
   return write_ts_.fetch_add(1);
 }
-void VersionManager::release_update_timestamp(uint32_t ts) {
+void TPVersionManager::release_update_timestamp(uint32_t ts) {
   lock_.lock();
   if (ts == read_ts_.load() + 1) {
     read_ts_.store(ts);
@@ -136,7 +217,7 @@ void VersionManager::release_update_timestamp(uint32_t ts) {
   pending_update_reqs_.store(0);
 }
 
-bool VersionManager::revert_update_timestamp(uint32_t ts) {
+bool TPVersionManager::revert_update_timestamp(uint32_t ts) {
   uint32_t expected_ts = ts + 1;
   if (write_ts_.compare_exchange_strong(expected_ts, ts)) {
     pending_reqs_ += thread_num_;

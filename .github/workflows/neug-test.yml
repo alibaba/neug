@@ -141,6 +141,7 @@ jobs:
         ctest -R storage_test -V
         export TEST_RESOURCE=${GITHUB_WORKSPACE}/src/compiler
         ctest -R gopt_test -V
+        ctest -R version_manager_test -V
 
     - name: Run Python Test
       run: |

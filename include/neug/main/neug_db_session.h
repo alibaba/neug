@@ -49,18 +49,17 @@ class PropertyGraph;
 class RefColumnBase;
 class Schema;
 class UpdateBatch;
+class AppManager;
 
 class NeugDBSession {
  public:
   static constexpr int32_t MAX_RETRY = 3;
-  static constexpr int32_t MAX_PLUGIN_NUM = 256;  // 2^(sizeof(uint8_t)*8)
-  static constexpr const char* kCppEncoderStr = "\x00";
-  static constexpr const char* kCypherJsonStr = "\x01";
-  static constexpr const char* kCypherProtoAdhocStr = "\x02";
-  static constexpr const char* kCypherProtoProcedureStr = "\x03";
-  NeugDBSession(NeugDB& db, Allocator& alloc, IWalWriter& logger,
-                const std::string& work_dir, int thread_id)
-      : db_(db),
+  NeugDBSession(PropertyGraph& graph, AppManager& app_manager,
+                std::shared_ptr<IVersionManager> vm, Allocator& alloc,
+                IWalWriter& logger, const std::string& work_dir, int thread_id)
+      : graph_(graph),
+        app_manager_(app_manager),
+        version_manager_(vm),
         alloc_(alloc),
         logger_(logger),
         work_dir_(work_dir),
@@ -85,8 +84,6 @@ class NeugDBSession {
 
   const PropertyGraph& graph() const;
   PropertyGraph& graph();
-  const NeugDB& db() const;
-  NeugDB& db();
 
   const Schema& schema() const;
 
@@ -98,11 +95,7 @@ class NeugDBSession {
 
   Result<std::vector<char>> Eval(const std::string& input);
 
-  void GetAppInfo(Encoder& result);
-
   int SessionId() const;
-
-  bool Compact();
 
   double eval_duration() const;
 
@@ -113,6 +106,12 @@ class NeugDBSession {
   AppBase* GetApp(int idx);
 
   AppBase* GetApp(const std::string& name);
+
+  inline const std::string& work_dir() const { return work_dir_; }
+
+  inline void SetVersionManager(std::shared_ptr<IVersionManager> vm) {
+    version_manager_ = vm;
+  }
 
  private:
   Result<std::pair<uint8_t, std::string_view>>
@@ -189,7 +188,9 @@ class NeugDBSession {
                      "Invalid input tag: " + std::to_string(input_tag)));
     }
   }
-  NeugDB& db_;
+  PropertyGraph& graph_;
+  AppManager& app_manager_;
+  std::shared_ptr<IVersionManager> version_manager_;
   Allocator& alloc_;
   IWalWriter& logger_;
   std::string work_dir_;

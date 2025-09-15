@@ -51,9 +51,8 @@ int32_t status_code_to_http_code(gs::StatusCode code);
 
 class HttpServiceImpl : public HttpService {
  public:
-  HttpServiceImpl(gs::NeugDB& graph_db,
-                  std::shared_ptr<gs::IGraphPlanner> planner)
-      : graph_db_(graph_db), planner_(planner) {
+  HttpServiceImpl(gs::NeugDB& graph_db) : graph_db_(graph_db) {
+    planner_ = graph_db_.GetPlanner();
     pthread_key_create(&thread_id_key, cleanup);
   }
   virtual ~HttpServiceImpl() {}
@@ -245,8 +244,7 @@ class HttpServiceImpl : public HttpService {
 
 class BrpcHttpHandlerManager : public IHttpHandlerManager {
  public:
-  BrpcHttpHandlerManager(gs::NeugDB& graph_db,
-                         std::shared_ptr<gs::IGraphPlanner> planner);
+  BrpcHttpHandlerManager(gs::NeugDB& graph_db);
 
   ~BrpcHttpHandlerManager();
   void Init(const ServiceConfig& config) override;

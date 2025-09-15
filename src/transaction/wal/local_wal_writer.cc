@@ -27,18 +27,19 @@
 
 namespace gs {
 
-std::unique_ptr<IWalWriter> LocalWalWriter::Make() {
-  return std::unique_ptr<IWalWriter>(new LocalWalWriter());
+std::unique_ptr<IWalWriter> LocalWalWriter::Make(const std::string& wal_uri,
+                                                 int thread_id) {
+  return std::unique_ptr<IWalWriter>(new LocalWalWriter(wal_uri, thread_id));
 }
 
-void LocalWalWriter::open(const std::string& wal_uri, int thread_id) {
-  auto prefix = get_wal_uri_path(wal_uri);
+void LocalWalWriter::open() {
+  auto prefix = get_wal_uri_path(wal_uri_);
   if (!std::filesystem::exists(prefix)) {
     std::filesystem::create_directories(prefix);
   }
   const int max_version = 65536;
   for (int version = 0; version != max_version; ++version) {
-    std::string path = prefix + "/thread_" + std::to_string(thread_id) + "_" +
+    std::string path = prefix + "/thread_" + std::to_string(thread_id_) + "_" +
                        std::to_string(version) + ".wal";
     if (std::filesystem::exists(path)) {
       continue;

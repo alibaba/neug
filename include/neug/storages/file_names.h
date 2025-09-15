@@ -266,6 +266,12 @@ inline std::string thread_local_allocator_prefix(const std::string& work_dir,
          "_";
 }
 
+inline std::string wal_ingest_allocator_prefix(const std::string& work_dir,
+                                               int thread_id) {
+  return allocator_dir(work_dir) + "allocator_wal_ingest_" +
+         std::to_string(thread_id) + "_";
+}
+
 }  // namespace gs
 
 #endif  // STORAGES_RT_MUTABLE_GRAPH_FILE_NAMES_H_

@@ -45,7 +45,7 @@ namespace gs {
 
 class PropertyGraph;
 class NeugDBSession;
-class VersionManager;
+class IVersionManager;
 class CsrConstEdgeIterBase;
 template <typename EDATA_T>
 class TypedMutableCsrBase;
@@ -397,7 +397,7 @@ class SingleImmutableGraphView<std::string_view> {
 class ReadTransaction {
  public:
   ReadTransaction(const NeugDBSession& session, const PropertyGraph& graph,
-                  VersionManager& vm, timestamp_t timestamp);
+                  IVersionManager& vm, timestamp_t timestamp);
   ~ReadTransaction();
 
   timestamp_t timestamp() const;
@@ -614,7 +614,7 @@ class ReadTransaction {
   void release();
   const NeugDBSession& session_;
   const PropertyGraph& graph_;
-  VersionManager& vm_;
+  IVersionManager& vm_;
   timestamp_t timestamp_;
 };
 

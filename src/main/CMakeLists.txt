@@ -8,6 +8,6 @@ if (BUILD_ALL_IN_ONE)
         
 else()
     add_library(neug_main SHARED ${NEUG_MAIN_SRC_FILES})
-    target_link_libraries(neug_main PUBLIC neug_utils neug_execution neug_compiler_shared)
+    target_link_libraries(neug_main PUBLIC neug_utils neug_transaction neug_execution neug_compiler_shared)
     install_without_export_neug_target(neug_main)
 endif()

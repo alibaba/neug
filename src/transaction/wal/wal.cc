@@ -18,9 +18,26 @@
 #include <glog/logging.h>
 #include <memory>
 #include <ostream>
+#include <regex>
 #include <utility>
 
+#include "neug/storages/file_names.h"
+#include "neug/transaction/wal/dummy_wal_writer.h"
+
 namespace gs {
+
+std::string parse_wal_uri(std::string wal_uri, const std::string& work_dir) {
+  if (wal_uri.empty()) {
+    VLOG(1) << "wal_uri is not set, use default wal_uri";
+    wal_uri = wal_dir(work_dir);
+  } else if (wal_uri.find("{GRAPH_DATA_DIR}") != std::string::npos) {
+    VLOG(1) << "Template {GRAPH_DATA_DIR} found in wal_uri, replace it with "
+               "data_dir";
+    wal_uri = std::regex_replace(wal_uri, std::regex("\\{GRAPH_DATA_DIR\\}"),
+                                 work_dir);
+  }
+  return wal_uri;
+}
 
 std::string get_wal_uri_scheme(const std::string& uri) {
   std::string scheme;
@@ -52,15 +69,19 @@ void WalWriterFactory::Init() {}
 void WalWriterFactory::Finalize() {}
 
 std::unique_ptr<IWalWriter> WalWriterFactory::CreateWalWriter(
-    const std::string& wal_uri) {
+    const std::string& wal_uri, int32_t thread_id) {
   auto& known_writers_ = getKnownWalWriters();
   auto scheme = get_wal_uri_scheme(wal_uri);
   auto iter = known_writers_.find(scheme);
   if (iter != known_writers_.end()) {
-    return iter->second();
+    return iter->second(wal_uri, thread_id);
   } else {
     LOG(FATAL) << "Unknown wal writer: " << scheme << " for uri: " << wal_uri;
   }
+}
+
+std::unique_ptr<IWalWriter> WalWriterFactory::CreateDummyWalWriter() {
+  return std::make_unique<DummyWalWriter>();
 }
 
 bool WalWriterFactory::RegisterWalWriter(

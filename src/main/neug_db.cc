@@ -32,61 +32,64 @@
 
 #include "neug/execution/execute/plan_parser.h"
 #include "neug/execution/utils/opr_timer.h"
-#include "neug/main/app/builtin/count_vertices.h"
-#include "neug/main/app/builtin/k_hop_neighbors.h"
-#include "neug/main/app/builtin/pagerank.h"
-#include "neug/main/app/builtin/shortest_path_among_three.h"
-#include "neug/main/app/cypher_read_app.h"
-#include "neug/main/app/cypher_update_app.h"
+#include "neug/main/app_manager.h"
 #include "neug/main/neug_db_session.h"
 #include "neug/storages/file_names.h"
 #include "neug/transaction/compact_transaction.h"
-#include "neug/transaction/wal/wal.h"
 #include "neug/utils/allocators.h"
 #include "neug/utils/app_utils.h"
 
 namespace gs {
 
-struct SessionLocalContext {
-  SessionLocalContext(NeugDB& db, const std::string& work_dir, int thread_id,
-                      MemoryStrategy allocator_strategy,
-                      std::unique_ptr<IWalWriter> in_logger)
-      : allocator(allocator_strategy,
-                  (allocator_strategy != MemoryStrategy::kSyncToFile
-                       ? ""
-                       : thread_local_allocator_prefix(work_dir, thread_id))),
-        logger(std::move(in_logger)),
-        session(db, allocator, *logger, work_dir, thread_id) {}
-  ~SessionLocalContext() {
-    if (logger) {
-      logger->close();
-    }
+static void IngestWalRange(PropertyGraph& graph, const IWalParser& parser,
+                           uint32_t from, uint32_t to,
+                           std::vector<Allocator>& allocators,
+                           const std::string& work_dir, int thread_num) {
+  std::atomic<uint32_t> cur_ts(from);
+  std::vector<std::thread> threads(thread_num);
+  for (int i = 0; i < thread_num; ++i) {
+    threads[i] = std::thread(
+        [&](int tid) {
+          while (true) {
+            uint32_t got_ts = cur_ts.fetch_add(1);
+            if (got_ts >= to) {
+              break;
+            }
+            const auto& unit = parser.get_insert_wal(got_ts);
+            InsertTransaction::IngestWal(graph, got_ts, unit.ptr, unit.size,
+                                         allocators[tid]);
+            if (got_ts % 1000000 == 0) {
+              LOG(INFO) << "Ingested " << got_ts << " WALs";
+            }
+          }
+        },
+        i);
   }
-  Allocator allocator;
-  char _padding0[128 - sizeof(Allocator) % 128];
-  std::unique_ptr<IWalWriter> logger;
-  char _padding1[4096 - sizeof(std::unique_ptr<IWalWriter>) -
-                 sizeof(Allocator) - sizeof(_padding0)];
-  NeugDBSession session;
-  char _padding2[4096 - sizeof(NeugDBSession) % 4096];
-};
+  for (auto& thrd : threads) {
+    thrd.join();
+  }
+}
 
 NeugDB::NeugDB()
-    : closed_(true),
+    : last_compaction_ts_(0),
+      closed_(true),
       is_pure_memory_(false),
       thread_num_(1),
-      last_compaction_ts_(0),
-      contexts_(nullptr),
       monitor_thread_running_(false),
-      compact_thread_running_(false) {
-  app_paths_.fill("");
-  app_factories_.fill(nullptr);
-}
+      compact_thread_running_(false) {}
 
 NeugDB::~NeugDB() {
   Close();
   WalWriterFactory::Finalize();
   WalParserFactory::Finalize();
+  // We put the removal of temp dir here to avoid the situation that
+  //  starting tp service with database opened in memory mode. In this case,
+  //  pydatabase will call close and then reopen, so we need to keep the temp
+  //  dir until the db is destructed.
+  if (is_pure_memory_) {
+    VLOG(10) << "Removing temp NeugDB at: " << work_dir_;
+    std::filesystem::remove_all(work_dir_);
+  }
 }
 
 bool NeugDB::Open(const Schema& schema, const NeugDBConfig& config) {
@@ -111,8 +114,8 @@ bool NeugDB::Open(const NeugDBConfig& config) {
   config_ = config;
   preprocessConfig();
 
-  last_compaction_ts_ = 0;
   work_dir_ = config_.data_dir;
+  VLOG(1) << "Opening NeuGDB at " << work_dir_;
   if (!std::filesystem::exists(work_dir_)) {
     std::filesystem::create_directories(work_dir_);
   }
@@ -121,8 +124,12 @@ bool NeugDB::Open(const NeugDBConfig& config) {
   if (!file_lock_->lock(work_dir_, config.mode)) {
     THROW_IO_EXCEPTION("Failed to lock data directory: " + work_dir_);
   }
+  gs::runtime::PlanParser::get().init();
   openGraphAndSchema();
-  openWalAndCreateContexts();
+  initVersionManager();  // must before initTransactionManager
+  ingestWals();
+  initAppManager();  // must before initTransactionManager
+  initTransactionManager();
   startMonitorIfNeeded();
   startCompactThreadIfNeeded();
   initPlannerAndQueryProcessor();
@@ -146,43 +153,43 @@ void NeugDB::Close() {
     compact_thread_running_ = false;
     compact_thread_.join();
   }
-  // ----------Close all connections----------------
-  for (auto& conn : read_only_connections_) {
-    if (conn) {
-      LOG(INFO) << "Closing read-only connection.";
-      conn->Close();
-    }
+  if (connection_manager_) {
+    connection_manager_->Close();
+    connection_manager_.reset();
   }
-  VLOG(10) << "Close all read-only connections.";
-  if (read_write_connection_) {
-    read_write_connection_->Close();
+  if (app_manager_) {
+    app_manager_.reset();
+  }
+  if (planner_) {
+    planner_.reset();
+  }
+  if (query_processor_) {
+    query_processor_.reset();
   }
   //-----------Clear graph_db----------------
-  if (!is_pure_memory_ && config_.dump_on_close) {
-    // TODO(zhanlei,lineng): Currently we dump the graph to a new directory
-    // with the mark of the last_compaction_ts_. We should invoke compact and
-    // checkpoint after checkpoint is implemented.
+  if (config_.dump_on_close) {
+    // TODO(zhanlei,lineng): Currently we dump the graph to a new directory,
+    // we should invoke compact and checkpoint after checkpoint is
+    // implemented.
     auto latest_ts = get_snapshot_version(work_dir_);
-    VLOG(10)
-        << "Dumping graph to " << snapshot_dir(work_dir_, latest_ts + 1)
-        << ", this is the temporally workaround for data persistence, will "
-           "be deleted in the future";
+    VLOG(1) << "Dumping graph to " << snapshot_dir(work_dir_, latest_ts + 1)
+            << ", this is the temporally workaround for data persistence, will "
+               "be deleted in the future";
     graph_.Dump(work_dir_, latest_ts + 1);
   }
   graph_.Clear();
-  version_manager_.clear();
-  if (contexts_ != nullptr) {
-    for (int i = 0; i < thread_num_; ++i) {
-      contexts_[i].~SessionLocalContext();
-    }
-    free(contexts_);
-    contexts_ = nullptr;
+  if (version_manager_) {
+    version_manager_->clear();
+    version_manager_.reset();
   }
-  std::fill(app_paths_.begin(), app_paths_.end(), "");
-  std::fill(app_factories_.begin(), app_factories_.end(), nullptr);
+  if (txn_manager_) {
+    txn_manager_->Clear();
+    txn_manager_.reset();
+  }
+
   // TODO(zhanglei,lineng): Remove this adhoc resolution when checkpoint is
   // ready.
-  if (!is_pure_memory_ && config_.dump_on_close) {
+  if (config_.dump_on_close) {
     auto latest_ts = get_snapshot_version(work_dir_);
     if (latest_ts > 0) {
       VLOG(10) << "Remove previous checkpoint at: "
@@ -197,288 +204,118 @@ void NeugDB::Close() {
   if (file_lock_) {
     file_lock_->unlock();
   }
-  if (is_pure_memory_) {
-    VLOG(10) << "Removing temp NeugDB at: " << work_dir_;
-    std::filesystem::remove_all(work_dir_);
-  }
 }
 
 std::shared_ptr<Connection> NeugDB::Connect() {
-  if (closed_) {
-    THROW_INTERNAL_EXCEPTION("NeugDB is closed.");
-  }
-  if (config_.mode == DBMode::READ_ONLY) {
-    auto conn = std::make_shared<Connection>(*this, planner_, query_processor_);
-    read_only_connections_.push_back(conn);
-    return conn;
-  } else if (config_.mode == DBMode::READ_WRITE) {
-    std::unique_lock<std::mutex> lock(connection_mutex_);
-    if (read_write_connection_) {
-      LOG(ERROR) << "There is already a read-write connection constructed.";
-      THROW_TX_STATE_CONFLICT(
-          "There is already a read-write connection constructed.");
-    }
-    read_write_connection_ =
-        std::make_shared<Connection>(*this, planner_, query_processor_);
-    return read_write_connection_;
-  } else {
-    THROW_RUNTIME_ERROR("Invalid mode.");
-  }
+  return connection_manager_->CreateConnection();
 }
 
 void NeugDB::RemoveConnection(std::shared_ptr<Connection> conn) {
-  if (config_.mode == DBMode::READ_ONLY) {
-    for (auto it = read_only_connections_.begin();
-         it != read_only_connections_.end(); ++it) {
-      if (*it == conn) {
-        read_only_connections_.erase(it);
-        VLOG(10) << "Removed a read-only connection.";
-        return;
-      }
-    }
-    LOG(ERROR) << "Connection not found in read-only connections.";
-  } else if (config_.mode == DBMode::READ_WRITE) {
-    std::unique_lock<std::mutex> lock(connection_mutex_);
-    if (read_write_connection_ == conn) {
-      read_write_connection_.reset();
-      VLOG(10) << "Removed the read-write connection.";
-      return;
-    } else {
-      LOG(ERROR) << "Connection not found in read-write connection.";
-    }
-  } else {
-    THROW_RUNTIME_ERROR("Invalid mode.");
-  }
-  LOG(ERROR) << "Connection not found.";
+  connection_manager_->RemoveConnection(conn);
 }
 
 ReadTransaction NeugDB::GetReadTransaction(int thread_id) {
-  return contexts_[thread_id].session.GetReadTransaction();
+  return txn_manager_->GetReadTransaction(thread_id);
 }
 
 InsertTransaction NeugDB::GetInsertTransaction(int thread_id) {
-  return contexts_[thread_id].session.GetInsertTransaction();
+  return txn_manager_->GetInsertTransaction(thread_id);
 }
 
 UpdateTransaction NeugDB::GetUpdateTransaction(int thread_id) {
-  return contexts_[thread_id].session.GetUpdateTransaction();
+  return txn_manager_->GetUpdateTransaction(thread_id);
+}
+
+CompactTransaction NeugDB::GetCompactTransaction(int thread_id) {
+  return txn_manager_->GetCompactTransaction(thread_id);
 }
 
 NeugDBSession& NeugDB::GetSession(int thread_id) {
-  return contexts_[thread_id].session;
+  return txn_manager_->GetSession(thread_id);
 }
 
 const NeugDBSession& NeugDB::GetSession(int thread_id) const {
-  return contexts_[thread_id].session;
+  return txn_manager_->GetSession(thread_id);
 }
 
 int NeugDB::SessionNum() const { return thread_num_; }
 
-void NeugDB::UpdateCompactionTimestamp(timestamp_t ts) {
-  last_compaction_ts_ = ts;
-}
-timestamp_t NeugDB::GetLastCompactionTimestamp() const {
-  return last_compaction_ts_;
-}
-
-AppWrapper NeugDB::CreateApp(uint8_t app_type, int thread_id) {
-  if (app_factories_[app_type] == nullptr) {
-    LOG(ERROR) << "Stored procedure " << static_cast<int>(app_type)
-               << " is not registered.";
-    return AppWrapper(NULL, NULL);
-  } else {
-    return app_factories_[app_type]->CreateApp(*this);
+void NeugDB::SwitchToTPMode() {
+  if (closed_) {
+    THROW_INTERNAL_EXCEPTION("Cannot switch to TP mode on closed db");
   }
-}
-
-bool NeugDB::registerApp(const std::string& plugin_path, uint8_t index) {
-  // this function will only be called when initializing the graph db
-  VLOG(10) << "Registering stored procedure at:" << std::to_string(index)
-           << ", path:" << plugin_path;
-  if (!app_factories_[index] && app_paths_[index].empty()) {
-    app_paths_[index] = plugin_path;
-    app_factories_[index] =
-        std::make_shared<SharedLibraryAppFactory>(plugin_path);
-    return true;
-  } else {
-    LOG(ERROR) << "Stored procedure has already been registered at:"
-               << std::to_string(index) << ", path:" << app_paths_[index];
-    return false;
+  if (connection_manager_ && connection_manager_->ConnectionNum() > 0) {
+    THROW_NOT_SUPPORTED_EXCEPTION(
+        "Cannot switch to TP mode when there are active connections");
   }
+  std::unique_lock<std::mutex> lock(mutex_);
+  if (dynamic_cast<TPVersionManager*>(version_manager_.get()) != nullptr) {
+    LOG(WARNING) << "The version manager is already a TPVersionManager, no "
+                    "need to switch.";
+    return;
+  }
+
+  auto new_vm = std::make_shared<TPVersionManager>();
+  new_vm->init_ts(version_manager_->acquire_read_timestamp(), thread_num_);
+  version_manager_ = new_vm;
+  txn_manager_->SetVersionManager(version_manager_);
+  txn_manager_->SwitchToTPMode(thread_num_);
 }
 
-void NeugDB::GetAppInfo(Encoder& output) {
-  std::string ret;
-  for (size_t i = 1; i != 256; ++i) {
-    if (!app_paths_.empty()) {
-      output.put_string(app_paths_[i]);
-    }
+void NeugDB::SwitchToAPMode() {
+  if (closed_) {
+    THROW_INTERNAL_EXCEPTION("Cannot switch to AP mode on closed db");
   }
+  if (connection_manager_ && connection_manager_->ConnectionNum() > 0) {
+    THROW_NOT_SUPPORTED_EXCEPTION(
+        "Cannot switch to AP mode when there are active connections");
+  }
+  std::unique_lock<std::mutex> lock(mutex_);
+  if (dynamic_cast<APVersionManager*>(version_manager_.get()) != nullptr) {
+    LOG(WARNING) << "The version manager is already an APVersionManager, no "
+                    "need to switch.";
+    return;
+  }
+  auto new_vm = std::make_shared<APVersionManager>();
+  new_vm->init_ts(version_manager_->acquire_read_timestamp(), thread_num_);
+  version_manager_ = new_vm;
+  txn_manager_->SetVersionManager(version_manager_);
+  thread_num_ = 1;  // APVersionManager only support single thread
+  txn_manager_->SwitchToAPMode(thread_num_);
 }
 
-static void IngestWalRange(SessionLocalContext* contexts, PropertyGraph& graph,
-                           const IWalParser& parser, uint32_t from, uint32_t to,
-                           int thread_num) {
-  std::atomic<uint32_t> cur_ts(from);
-  std::vector<std::thread> threads(thread_num);
-  for (int i = 0; i < thread_num; ++i) {
-    threads[i] = std::thread(
-        [&](int tid) {
-          auto& alloc = contexts[tid].allocator;
-          while (true) {
-            uint32_t got_ts = cur_ts.fetch_add(1);
-            if (got_ts >= to) {
-              break;
-            }
-            const auto& unit = parser.get_insert_wal(got_ts);
-            InsertTransaction::IngestWal(graph, got_ts, unit.ptr, unit.size,
-                                         alloc);
-            if (got_ts % 1000000 == 0) {
-              LOG(INFO) << "Ingested " << got_ts << " WALs";
-            }
-          }
-        },
-        i);
+void NeugDB::initVersionManager() {
+  if (version_manager_) {
+    THROW_INTERNAL_EXCEPTION("Version manager has already been initialized");
   }
-  for (auto& thrd : threads) {
-    thrd.join();
-  }
+  // By default we use APVersionManager, when starting serving, we switch to
+  // TPVersionManager.
+  version_manager_ = std::make_shared<APVersionManager>();
 }
 
-void NeugDB::ingestWals(IWalParser& parser, const std::string& work_dir,
-                        int thread_num) {
-  uint32_t from_ts = 1;
-  for (auto& update_wal : parser.get_update_wals()) {
-    uint32_t to_ts = update_wal.timestamp;
-    if (from_ts < to_ts) {
-      IngestWalRange(contexts_, graph_, parser, from_ts, to_ts, thread_num);
-    }
-    if (update_wal.size == 0) {
-      graph_.Compact(update_wal.timestamp);
-      last_compaction_ts_ = update_wal.timestamp;
-    } else {
-      UpdateTransaction::IngestWal(graph_, work_dir, to_ts, update_wal.ptr,
-                                   update_wal.size, contexts_[0].allocator);
-    }
-    from_ts = to_ts + 1;
+void NeugDB::initTransactionManager() {
+  if (txn_manager_) {
+    THROW_INTERNAL_EXCEPTION(
+        "Transaction manager has already been initialized");
   }
-  if (from_ts <= parser.last_ts()) {
-    IngestWalRange(contexts_, graph_, parser, from_ts, parser.last_ts() + 1,
-                   thread_num);
-  }
-  version_manager_.init_ts(parser.last_ts(), thread_num);
+
+  txn_manager_ = std::make_unique<TransactionManager>(
+      app_manager_, version_manager_, graph_, config_, work_dir_);
+
+  VLOG(1) << "Successfully Created TransactionManager with " << thread_num_
+          << " threads";
 }
 
-void NeugDB::initApps(
-    const std::unordered_map<std::string, std::pair<std::string, uint8_t>>&
-        plugins) {
-  VLOG(1) << "Initializing stored procedures, size: " << plugins.size()
-          << " ...";
-  for (size_t i = 0; i < 256; ++i) {
-    app_factories_[i] = nullptr;
+void NeugDB::initAppManager() {
+  if (app_manager_) {
+    THROW_INTERNAL_EXCEPTION("App manager has already been initialized");
   }
-  // Builtin apps
-  app_factories_[Schema::BUILTIN_COUNT_VERTICES_PLUGIN_ID] =
-      std::make_shared<CountVerticesFactory>();
-  app_factories_[Schema::BUILTIN_PAGERANK_PLUGIN_ID] =
-      std::make_shared<PageRankFactory>();
-  app_factories_[Schema::BUILTIN_K_DEGREE_NEIGHBORS_PLUGIN_ID] =
-      std::make_shared<KNeighborsFactory>();
-  app_factories_[Schema::BUILTIN_TVSP_PLUGIN_ID] =
-      std::make_shared<ShortestPathAmongThreeFactory>();
-
-  gs::runtime::PlanParser::get().init();
-  app_factories_[Schema::ADHOC_READ_PLUGIN_ID] =
-      std::make_shared<CypherReadAppFactory>();
-  app_factories_[Schema::ADHOC_UPDATE_PLUGIN_ID] =
-      std::make_shared<CypherUpdateAppFactory>();
-  app_factories_[Schema::CYPHER_READ_DEBUG_PLUGIN_ID] =
-      std::make_shared<CypherReadAppFactory>();
-
-  app_factories_[Schema::CYPHER_READ_PLUGIN_ID] =
-      std::make_shared<CypherReadAppFactory>();
-
-  size_t valid_plugins = 0;
-  for (auto& path_and_index : plugins) {
-    auto path = path_and_index.second.first;
-    auto name = path_and_index.first;
-    auto index = path_and_index.second.second;
-    if (!Schema::IsBuiltinPlugin(name)) {
-      if (registerApp(path, index)) {
-        ++valid_plugins;
-      }
-    } else {
-      valid_plugins++;
-    }
-  }
-  LOG(INFO) << "Successfully registered stored procedures : " << valid_plugins
-            << ", from " << plugins.size();
-}
-
-void NeugDB::openWalAndCreateContexts() {
-  MemoryStrategy allocator_strategy = MemoryStrategy::kMemoryOnly;
-  if (config_.memory_level == 0) {
-    allocator_strategy = MemoryStrategy::kSyncToFile;
-  } else if (config_.memory_level >= 2) {
-    allocator_strategy = MemoryStrategy::kHugepagePrefered;
-  }
-  WalWriterFactory::Init();
-  WalParserFactory::Init();
-  contexts_ = static_cast<SessionLocalContext*>(
-      aligned_alloc(4096, sizeof(SessionLocalContext) * thread_num_));
-  std::filesystem::create_directories(allocator_dir(work_dir_));
-
-  // Open the wal writer.
-  std::string wal_uri = config_.wal_uri;
-  if (wal_uri.empty()) {
-    LOG(INFO) << "wal_uri is not set, use default wal_uri";
-    wal_uri = wal_dir(work_dir_);
-  } else if (wal_uri.find("{GRAPH_DATA_DIR}") != std::string::npos) {
-    LOG(INFO) << "Template {GRAPH_DATA_DIR} found in wal_uri, replace it with "
-                 "data_dir";
-    wal_uri = std::regex_replace(wal_uri, std::regex("\\{GRAPH_DATA_DIR\\}"),
-                                 work_dir_);
-  }
-  VLOG(1) << "Using wal uri: " << wal_uri;
-  for (int i = 0; i < thread_num_; ++i) {
-    new (&contexts_[i])
-        SessionLocalContext(*this, work_dir_, i, allocator_strategy,
-                            WalWriterFactory::CreateWalWriter(wal_uri));
-  }
-  auto wal_parser = WalParserFactory::CreateWalParser(wal_uri);
-  ingestWals(*wal_parser, work_dir_, thread_num_);
-  for (int i = 0; i < thread_num_; ++i) {
-    contexts_[i].logger->open(wal_uri, i);
-  }
-  initApps(graph_.schema().GetPlugins());
-  VLOG(1) << "Successfully restore load plugins";
-}
-
-void NeugDB::showAppMetrics() const {
-  int session_num = SessionNum();
-  for (int i = 0; i < 256; ++i) {
-    AppMetric summary;
-    for (int k = 0; k < session_num; ++k) {
-      summary += GetSession(k).GetAppMetric(i);
-    }
-    if (!summary.empty()) {
-      std::string query_name = "UNKNOWN";
-      if (i == 0) {
-        query_name = "ServerApp";
-      } else {
-        query_name = "Query-" + std::to_string(i);
-      }
-      summary.output(query_name);
-    }
-  }
+  app_manager_ = std::make_shared<AppManager>(*this);
+  app_manager_->initApps(graph_.schema().GetPlugins());
 }
 
 size_t NeugDB::getExecutedQueryNum() const {
-  size_t ret = 0;
-  for (int i = 0; i < thread_num_; ++i) {
-    ret += contexts_[i].session.query_num();
-  }
-  return ret;
+  return txn_manager_->getExecutedQueryNum();
 }
 
 void NeugDB::preprocessConfig() {
@@ -521,12 +358,11 @@ void NeugDB::openGraphAndSchema() {
 
   // The schema provided by NeugDBConfig could be empty, and if it is empty,
   // we skip using it.
-  const Schema& schema = graph_.mutable_schema();
   bool create_empty_graph = false;
   std::string schema_file = schema_path(work_dir_);
+  auto schema = graph_.mutable_schema();
   if (!std::filesystem::exists(schema_file) && !schema.Empty()) {
     create_empty_graph = true;
-    graph_.mutable_schema() = schema;
   }
 
   thread_num_ = config_.thread_num;
@@ -561,6 +397,50 @@ void NeugDB::openGraphAndSchema() {
   mutable_schema.EmplacePlugins(plugin_name_paths);
 }
 
+void NeugDB::ingestWals() {
+  MemoryStrategy allocator_strategy = MemoryStrategy::kMemoryOnly;
+  if (config_.memory_level == 0) {
+    allocator_strategy = MemoryStrategy::kSyncToFile;
+  } else if (config_.memory_level >= 2) {
+    allocator_strategy = MemoryStrategy::kHugepagePrefered;
+  }
+  auto wal_uri = parse_wal_uri(config_.wal_uri, work_dir_);
+  auto wal_parser = WalParserFactory::CreateWalParser(wal_uri);
+  ingestWals(*wal_parser, work_dir_, allocator_strategy, thread_num_);
+  version_manager_->init_ts(wal_parser->last_ts(), thread_num_);
+}
+
+void NeugDB::ingestWals(IWalParser& parser, const std::string& work_dir,
+                        MemoryStrategy allocator_strategy, int thread_num) {
+  uint32_t from_ts = 1;
+  std::vector<Allocator> allocators;
+  for (int i = 0; i < thread_num; ++i) {
+    allocators.emplace_back(allocator_strategy,
+                            allocator_strategy != MemoryStrategy::kSyncToFile
+                                ? ""
+                                : wal_ingest_allocator_prefix(work_dir, i));
+  }
+  for (auto& update_wal : parser.get_update_wals()) {
+    uint32_t to_ts = update_wal.timestamp;
+    if (from_ts < to_ts) {
+      IngestWalRange(graph_, parser, from_ts, to_ts, allocators, work_dir,
+                     thread_num);
+    }
+    if (update_wal.size == 0) {
+      graph_.Compact(update_wal.timestamp);
+      last_compaction_ts_ = update_wal.timestamp;
+    } else {
+      UpdateTransaction::IngestWal(graph_, work_dir, to_ts, update_wal.ptr,
+                                   update_wal.size, allocators[0]);
+    }
+    from_ts = to_ts + 1;
+  }
+  if (from_ts <= parser.last_ts()) {
+    IngestWalRange(graph_, parser, from_ts, parser.last_ts() + 1, allocators,
+                   work_dir, thread_num);
+  }
+  version_manager_->init_ts(parser.last_ts(), thread_num);
+}
 void NeugDB::startMonitorIfNeeded() {
   if (config_.enable_monitoring) {
     if (monitor_thread_running_) {
@@ -582,11 +462,11 @@ void NeugDB::startMonitorIfNeeded() {
         int64_t max_query_num = 0;
 
         for (int i = 0; i < thread_num_; ++i) {
-          curr_allocated_size += contexts_[i].allocator.allocated_memory();
+          curr_allocated_size += txn_manager_->GetAlloctedMemorySize(i);
           if (last_eval_durations[i] == 0) {
-            last_eval_durations[i] = contexts_[i].session.eval_duration();
+            last_eval_durations[i] = txn_manager_->GetEvalDuration(i);
           } else {
-            double curr = contexts_[i].session.eval_duration();
+            double curr = txn_manager_->GetEvalDuration(i);
             double eval_duration = curr;
             total_eval_durations += eval_duration;
             min_eval_duration = std::min(min_eval_duration, eval_duration);
@@ -595,9 +475,9 @@ void NeugDB::startMonitorIfNeeded() {
             last_eval_durations[i] = curr;
           }
           if (last_query_nums[i] == 0) {
-            last_query_nums[i] = contexts_[i].session.query_num();
+            last_query_nums[i] = txn_manager_->GetQueryNum(i);
           } else {
-            int64_t curr = contexts_[i].session.query_num();
+            int64_t curr = txn_manager_->GetQueryNum(i);
             total_query_num += curr;
             min_query_num = std::min(min_query_num, curr);
             max_query_num = std::max(max_query_num, curr);
@@ -643,11 +523,7 @@ void NeugDB::startCompactThreadIfNeeded() {
             (query_num_after > (last_compaction_at + 100000))) {
           VLOG(10) << "Trigger auto compaction";
           last_compaction_at = query_num_after;
-          timestamp_t ts = this->version_manager_.acquire_update_timestamp();
-          auto txn =
-              CompactTransaction(this->graph_, *this->contexts_[0].logger,
-                                 this->version_manager_, ts);
-          outputCypherProfiles("./" + std::to_string(ts) + "_");
+          auto txn = txn_manager_->GetCompactTransaction(0);
           txn.Commit();
           VLOG(10) << "Finish compaction";
         }
@@ -669,21 +545,9 @@ void NeugDB::initPlannerAndQueryProcessor() {
 
   query_processor_ = std::make_shared<QueryProcessor>(
       *this, thread_num_, config_.mode == DBMode::READ_ONLY);
-}
 
-void NeugDB::outputCypherProfiles(const std::string& prefix) {
-  //  runtime::OprTimer read_timer, write_timer;
-  int session_num = SessionNum();
-  for (int i = 0; i < session_num; ++i) {
-    auto read_app_ptr = GetSession(i).GetApp(Schema::CYPHER_READ_PLUGIN_ID);
-    auto casted_read_app = dynamic_cast<CypherReadApp*>(read_app_ptr);
-    if (casted_read_app) {
-      // read_timer += casted_read_app->timer();
-    }
-  }
-
-  // read_timer.output(prefix + "read_profile.log");
-  // write_timer.output(prefix + "write_profile.log");
+  connection_manager_ = std::make_unique<ConnectionManager>(
+      graph_, planner_, query_processor_, config_);
 }
 
 }  // namespace gs

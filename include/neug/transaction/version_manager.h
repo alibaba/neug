@@ -23,6 +23,9 @@
 #include <array>
 #include <atomic>
 #include <bitset>
+#include <condition_variable>
+#include <mutex>
+#include <shared_mutex>
 #include <thread>
 
 #include "glog/logging.h"
@@ -31,27 +34,82 @@
 
 namespace gs {
 
-class VersionManager {
+class IVersionManager {
  public:
-  VersionManager();
-  ~VersionManager();
+  virtual void init_ts(uint32_t ts, int thread_num) = 0;
+  virtual uint32_t acquire_read_timestamp() = 0;
+  virtual void release_read_timestamp() = 0;
+  virtual uint32_t acquire_insert_timestamp() = 0;
+  virtual void release_insert_timestamp(uint32_t ts) = 0;
+  virtual uint32_t acquire_update_timestamp() = 0;
+  virtual void release_update_timestamp(uint32_t ts) = 0;
+  virtual bool revert_update_timestamp(uint32_t ts) = 0;
+  virtual void clear() = 0;
+  virtual ~IVersionManager() {}
+};
 
-  void init_ts(uint32_t ts, int thread_num);
+/**
+ * @brief APVersionManager implements the version manager for Analytical
+ * Processing (AP) workloads. It allows multiple concurrent read and insert
+ * transactions, but only one update transaction at a time. Update transactions
+ * will wait for all ongoing read and insert transactions to complete before
+ * proceeding. Read and insert transactions will wait if an update transaction
+ * is in progress.
+ *
+ * It will always return the same initial timestamp for all transactions.
+ */
+class APVersionManager : public IVersionManager {
+ public:
+  APVersionManager();
+  ~APVersionManager();
 
-  void clear();
-
-  uint32_t acquire_read_timestamp();
-
-  void release_read_timestamp();
-
-  uint32_t acquire_insert_timestamp();
-  void release_insert_timestamp(uint32_t ts);
-
-  uint32_t acquire_update_timestamp();
-  void release_update_timestamp(uint32_t ts);
-  bool revert_update_timestamp(uint32_t ts);
+  void init_ts(uint32_t ts, int thread_num) override;
+  void clear() override;
+  uint32_t acquire_read_timestamp() override;
+  void release_read_timestamp() override;
+  uint32_t acquire_insert_timestamp() override;
+  void release_insert_timestamp(uint32_t ts) override;
+  uint32_t acquire_update_timestamp() override;
+  void release_update_timestamp(uint32_t ts) override;
+  bool revert_update_timestamp(uint32_t ts) override;
 
  private:
+  std::shared_mutex rw_mutex_;
+  std::mutex update_mutex_;
+  std::condition_variable_any update_cv_;
+
+  std::atomic<int> active_reads_inserts_{0};
+  std::atomic<bool> update_in_progress_{false};
+
+  uint32_t init_ts_;  // Initial timestamp
+};
+
+/**
+ * @brief TPVersionManager implements the version manager for Transactional
+ * Processing (TP) workloads. It supports multiple concurrent read and insert
+ * transactions, each receiving the same initial timestamp. Update transactions
+ * are exclusive and will wait for all ongoing read and insert transactions to
+ * complete before proceeding. The version manager uses a ring buffer to track
+ * released timestamps, allowing efficient reuse of timestamps.
+ */
+class TPVersionManager : public IVersionManager {
+ public:
+  TPVersionManager();
+  ~TPVersionManager();
+
+  void init_ts(uint32_t ts, int thread_num) override;
+
+  void clear() override;
+  uint32_t acquire_read_timestamp() override;
+  void release_read_timestamp() override;
+  uint32_t acquire_insert_timestamp() override;
+  void release_insert_timestamp(uint32_t ts) override;
+  uint32_t acquire_update_timestamp() override;
+  void release_update_timestamp(uint32_t ts) override;
+  bool revert_update_timestamp(uint32_t ts) override;
+
+ private:
+  int thread_num_;
   std::atomic<uint32_t> write_ts_{1};
   std::atomic<uint32_t> read_ts_{0};
 
@@ -60,8 +118,6 @@ class VersionManager {
 
   grape::Bitset buf_;
   grape::SpinLock lock_;
-
-  int thread_num_;
 };
 
 }  // namespace gs

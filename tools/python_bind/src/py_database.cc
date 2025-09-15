@@ -77,6 +77,29 @@ std::string PyDatabase::serve(int port, const std::string& host,
   if (service_) {
     THROW_RUNTIME_ERROR("Server is already running.");
   }
+  /**
+   * Attention here: We utilize the NeugDBService to start the server, based on
+   * database. But we need to make some changes to the NeugDB to make it works
+   * well for service mode, where concurrent queries will be processesd. The are
+   * mainly three changes:
+   *
+   * 1. Create multiple contexts in transaction manager, each for one thread,
+   * such that multiple queries can be processed concurrently. In contrast, in
+   * embedded mode, we only have one context.
+   * 2. Use TPVersionManager as the version manager, which is more suitable for
+   * transactional processing workloads. In contrast, in embedded mode, we use
+   * APVersionManager, which is more suitable for analytical processing
+   *
+   * But before all, we need to close the database, dump the data to disk, and
+   * then reload the database with TPVersionManager and multiple contexts. By
+   * doing this, we make sure all changes made during AP mode is persisted.
+   */
+
+  std::lock_guard<std::recursive_mutex> lock(mtx_);
+
+  database->Close();
+  database->Open(database->config());
+  database->SwitchToTPMode();
   service_ = std::make_unique<server::NeugDBService>(*database);
   server::ServiceConfig config;
   config.query_port = port;
@@ -94,26 +117,28 @@ std::string PyDatabase::serve(int port, const std::string& host,
 }
 
 void PyDatabase::stop_serving() {
-  if (!database) {
-    THROW_RUNTIME_ERROR("Database is not initialized.");
-  }
+  std::lock_guard<std::recursive_mutex> lock(mtx_);
+  VLOG(1) << "Stopping server if running.";
   if (!service_) {
-    THROW_RUNTIME_ERROR("Server is not running.");
+    return;
   }
   if (service_) {
     service_->Stop();
     service_.reset();
+  }
+  // Switch back to APVersionManager for embedded mode.
+  if (database) {
+    database->SwitchToAPMode();
   }
 }
 
 void PyDatabase::close() {
+  std::lock_guard<std::recursive_mutex> lock(mtx_);
+  stop_serving();
   if (database) {
+    VLOG(1) << "Closing database.";
     database->Close();
     database.reset();
-  }
-  if (service_) {
-    service_->Stop();
-    service_.reset();
   }
 }
 

@@ -32,8 +32,8 @@
 #include "neug/compiler/planner/gopt_planner.h"
 #include "neug/compiler/planner/graph_planner.h"
 #include "neug/config.h"
-#include "neug/main/app/app_base.h"
-#include "neug/main/connection.h"
+
+#include "neug/main/connection_manager.h"
 #include "neug/main/file_lock.h"
 #include "neug/main/neug_db.h"
 #include "neug/main/query_processor.h"
@@ -43,6 +43,7 @@
 #include "neug/storages/loader/loading_config.h"
 #include "neug/transaction/insert_transaction.h"
 #include "neug/transaction/read_transaction.h"
+#include "neug/transaction/transaction_manager.h"
 #include "neug/transaction/update_transaction.h"
 #include "neug/transaction/version_manager.h"
 #include "neug/utils/exception/exception.h"
@@ -86,7 +87,8 @@ class NeugDB {
    * concurrency. If it is 0, it will be set to the number of hardware cores.
    * @param mode The mode of opening graph db, could be "read_only" or
    * "read_write".
-   * @param planner_kind The kind of graph planner, could be "gopt" or "greedy"
+   * @param planner_kind The kind of graph planner, could be "gopt" or
+   * "greedy"
    * @return true if successed.
    *
    * @note This function is mainly for python binding.
@@ -96,6 +98,11 @@ class NeugDB {
             const std::string& planner_kind = "gopt", bool warmup = false,
             bool enable_auto_compaction = false, bool dump_on_close = false);
 
+  /**
+   * @brief Load the graph from data directory.
+   * @return true if successed.
+   *
+   */
   bool Open(const NeugDBConfig& config);
 
   /**
@@ -115,10 +122,8 @@ class NeugDB {
   /**
    * @brief Open a connection to the database.
    * @return A Connection object that can be used to interact with the database.
-   *
    * @note We the mode is read-only, this method could be called multiple times.
    * But if the mode is read-write, this method should be called only once.
-   *
    * @note Each connection will hold a shared pointer, which means it will share
    * the planner with other connections in the same database.
    */
@@ -129,8 +134,8 @@ class NeugDB {
    * @param conn The connection to be removed.
    * @note This method is used to remove a connection when it is closed, to
    * remove the handle from the database.
-   * @note This method is not thread-safe, so it should be called only when the
-   * connection is closed. And should be only called internally.
+   * @note This method is not thread-safe, so it should be called only when
+   * the connection is closed. And should be only called internally.
    */
   void RemoveConnection(std::shared_ptr<Connection> conn);
 
@@ -154,22 +159,21 @@ class NeugDB {
    */
   UpdateTransaction GetUpdateTransaction(int thread_id = 0);
 
+  /** @brief Create a transaction to compact the graph.
+   *
+   * @return CompactTransaction
+   */
+  CompactTransaction GetCompactTransaction(int thread_id = 0);
+
   inline const PropertyGraph& graph() const { return graph_; }
   inline PropertyGraph& graph() { return graph_; }
 
   inline const Schema& schema() const { return graph_.schema(); }
 
-  AppWrapper CreateApp(uint8_t app_type, int thread_id);
-
-  void GetAppInfo(Encoder& result);
-
   NeugDBSession& GetSession(int thread_id);
   const NeugDBSession& GetSession(int thread_id) const;
 
   int SessionNum() const;
-
-  void UpdateCompactionTimestamp(timestamp_t ts);
-  timestamp_t GetLastCompactionTimestamp() const;
 
   std::string work_dir() const { return work_dir_; }
 
@@ -179,57 +183,64 @@ class NeugDB {
 
   inline const char* Version() const { return TOSTRING(NEUG_VERSION_STRING); }
 
+  /**
+   * @brief Switch the graph db to TP mode.
+   * This method should be called before starting the server to ensure that
+   * the version manager is appropriate for transactional processing workloads.
+   */
+  void SwitchToTPMode();
+
+  /**
+   * @brief Switch the graph db to AP mode.
+   * This method should be called before starting the server to ensure that
+   * the version manager is appropriate for analytical processing workloads.
+   */
+  void SwitchToAPMode();
+
  private:
   void preprocessConfig();
   void openGraphAndSchema();
+  void ingestWals();
+  void ingestWals(IWalParser& parser, const std::string& work_dir,
+                  MemoryStrategy allocator_strategy, int thread_num);
   void startMonitorIfNeeded();
   void startAutoCompactionIfNeeded();
   void startCompactThreadIfNeeded();
-  void openWalAndCreateContexts();
+  void initVersionManager();
+  void initTransactionManager();
   void initPlannerAndQueryProcessor();
-  void outputCypherProfiles(const std::string& prefix);
+  void initAppManager();
 
   bool registerApp(const std::string& path, uint8_t index = 0);
-
-  void ingestWals(IWalParser& parser, const std::string& work_dir,
-                  int thread_num);
-
-  void initApps(
-      const std::unordered_map<std::string, std::pair<std::string, uint8_t>>&
-          plugins);
-
-  void showAppMetrics() const;
 
   size_t getExecutedQueryNum() const;
 
   friend class NeugDBSession;
 
+  timestamp_t last_compaction_ts_;
   // Configuration and settings
   std::atomic<bool> closed_;
   bool is_pure_memory_;
   int thread_num_;
   NeugDBConfig config_;
   std::string work_dir_;
-  timestamp_t last_compaction_ts_;
+  std::unique_ptr<FileLock> file_lock_;
 
   // The property graph and transaction controls
   PropertyGraph graph_;
-  SessionLocalContext* contexts_;
-  VersionManager version_manager_;
-  std::unique_ptr<FileLock> file_lock_;
+  std::shared_ptr<AppManager> app_manager_;
+  std::shared_ptr<IVersionManager> version_manager_;
+  std::unique_ptr<TransactionManager> txn_manager_;
   std::shared_ptr<IGraphPlanner> planner_;
   std::shared_ptr<QueryProcessor> query_processor_;
-  std::shared_ptr<Connection> read_write_connection_;
-  std::vector<std::shared_ptr<Connection>> read_only_connections_;
-  std::mutex connection_mutex_;
-
-  std::array<std::string, 256> app_paths_;
-  std::array<std::shared_ptr<AppFactoryBase>, 256> app_factories_;
+  std::unique_ptr<ConnectionManager> connection_manager_;
 
   std::thread monitor_thread_;
   std::thread compact_thread_;
   bool monitor_thread_running_ = false;
   bool compact_thread_running_ = false;
+
+  std::mutex mutex_;
 };
 
 }  // namespace gs

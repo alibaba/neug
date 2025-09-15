@@ -45,9 +45,9 @@ class NeugDB;
  */
 class Connection {
  public:
-  Connection(NeugDB& db, std::shared_ptr<IGraphPlanner> planner,
+  Connection(PropertyGraph& graph, std::shared_ptr<IGraphPlanner> planner,
              std::shared_ptr<QueryProcessor> query_processor)
-      : db_(db),
+      : graph_(graph),
         planner_(planner),
         query_processor_(query_processor),
         is_closed_(false) {}
@@ -75,7 +75,7 @@ class Connection {
   Result<results::CollectiveResults> query_impl(
       const std::string& query_string);
 
-  NeugDB& db_;
+  PropertyGraph& graph_;
 
   std::shared_ptr<IGraphPlanner> planner_;
   std::shared_ptr<QueryProcessor> query_processor_;

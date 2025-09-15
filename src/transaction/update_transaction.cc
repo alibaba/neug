@@ -44,7 +44,7 @@ namespace gs {
 UpdateTransaction::UpdateTransaction(const NeugDBSession& session,
                                      PropertyGraph& graph, Allocator& alloc,
                                      const std::string& work_dir,
-                                     IWalWriter& logger, VersionManager& vm,
+                                     IWalWriter& logger, IVersionManager& vm,
                                      timestamp_t timestamp)
     : session_(session),
       insert_vertex_with_resize_(false),

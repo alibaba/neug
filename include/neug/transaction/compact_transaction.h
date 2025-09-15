@@ -23,12 +23,12 @@ namespace gs {
 
 class PropertyGraph;
 class IWalWriter;
-class VersionManager;
+class IVersionManager;
 
 class CompactTransaction {
  public:
   CompactTransaction(PropertyGraph& graph, IWalWriter& logger,
-                     VersionManager& vm, timestamp_t timestamp);
+                     IVersionManager& vm, timestamp_t timestamp);
   ~CompactTransaction();
 
   timestamp_t timestamp() const;
@@ -40,7 +40,7 @@ class CompactTransaction {
  private:
   PropertyGraph& graph_;
   IWalWriter& logger_;
-  VersionManager& vm_;
+  IVersionManager& vm_;
   timestamp_t timestamp_;
 
   grape::InArchive arc_;

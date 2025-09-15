@@ -32,7 +32,7 @@ void NeugDBService::init(const ServiceConfig& config) {
     return;
   }
 
-  hdl_mgr_ = std::make_unique<BrpcHttpHandlerManager>(db_, planner_);
+  hdl_mgr_ = std::make_unique<BrpcHttpHandlerManager>(db_);
   hdl_mgr_->Init(config);
 
   initialized_.store(true);

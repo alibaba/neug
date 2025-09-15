@@ -396,7 +396,6 @@ class Schema {
   std::string plugin_dir_;
   std::string description_;
   std::string version_;
-  std::string compiler_path_;
   std::string remote_path_;  // The path to the data on the remote storage
   bool has_multi_props_edge_;
 

@@ -16,8 +16,20 @@ target_link_libraries(test_run_query PRIVATE ${NEUG_LIBRARIES})
 add_storage_test(storage_test test_ddl.cc test_export.cc test_open_graph.cc alter_property_test.cc test_set_property.cc)
 target_link_libraries(storage_test
     PRIVATE
-    neug_execution
-    neug_main
+    ${NEUG_LIBRARIES}
     neug::GTest
     ${Protobuf_LIBRARIES}
 )
+
+# Add version manager test
+add_executable(version_manager_test test_version_manager.cc)
+target_link_libraries(version_manager_test 
+    PRIVATE
+    ${NEUG_LIBRARIES}
+    neug::GTest
+    ${Protobuf_LIBRARIES}
+)
+
+# Register the test with CTest
+add_test(NAME version_manager_test COMMAND version_manager_test)
+set_tests_properties(version_manager_test PROPERTIES TIMEOUT 60)

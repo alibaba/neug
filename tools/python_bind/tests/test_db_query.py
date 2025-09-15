@@ -978,6 +978,7 @@ def test_complex_example(tmp_path):
     session.close()
 
     db.stop_serving()
+    db.close()
 
 
 # DB-003-24

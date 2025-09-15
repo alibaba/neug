@@ -39,7 +39,7 @@ namespace gs {
 
 class PropertyGraph;
 class IWalWriter;
-class VersionManager;
+class IVersionManager;
 class NeugDBSession;
 class CsrConstEdgeIterBase;
 class Schema;
@@ -51,7 +51,7 @@ class UpdateTransaction {
  public:
   UpdateTransaction(const NeugDBSession& session, PropertyGraph& graph,
                     Allocator& alloc, const std::string& work_dir,
-                    IWalWriter& logger, VersionManager& vm,
+                    IWalWriter& logger, IVersionManager& vm,
                     timestamp_t timestamp);
 
   ~UpdateTransaction();
@@ -218,7 +218,7 @@ class UpdateTransaction {
   PropertyGraph& graph_;
   Allocator& alloc_;
   IWalWriter& logger_;
-  VersionManager& vm_;
+  IVersionManager& vm_;
   timestamp_t timestamp_;
 
   grape::InArchive arc_;

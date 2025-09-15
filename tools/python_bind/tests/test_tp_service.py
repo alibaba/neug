@@ -18,6 +18,7 @@
 
 import logging
 import os
+import shutil
 import sys
 import time
 
@@ -106,3 +107,79 @@ def test_start_service_on_pure_memory_db():
 
     db.stop_serving()
     db.close()
+
+
+def test_start_serving_and_dump():
+    db_dir = "/tmp/test_start_serving_and_dump"
+    shutil.rmtree(db_dir, ignore_errors=True)
+    os.makedirs(db_dir, exist_ok=True)
+    db = Database(db_dir, "w")
+    conn = db.connect()
+    conn.execute(
+        "CREATE NODE TABLE person(id INT64, name STRING, age INT64, PRIMARY KEY(id));"
+    )
+    conn.execute("CREATE REL TABLE knows(FROM person TO person, weight DOUBLE);")
+    conn.execute("CREATE (p:person {id: 1, name: 'marko', age: 29});")
+    conn.execute("CREATE (p:person {id: 2, name: 'vadas', age: 27});")
+    conn.execute(
+        "MATCH (a:person), (b:person) WHERE a.id = 1 AND b.id = 2 CREATE (a)-[:knows {weight: 0.5}]->(b);"
+    )
+    conn.close()
+    db.close()
+
+    db2 = Database(db_dir, "r")
+    uri = db2.serve(10002, "localhost")
+    time.sleep(1)
+
+    session = Session(uri, timeout="10s")
+    res = session.execute("MATCH (n) WHERE n.id = 1 RETURN n.name;")
+    assert len(res) == 1
+    assert res[0][0] == "marko"
+    db2.stop_serving()
+    db2.close()
+
+
+# @pytest.mark.skip(reason="https://github.com/GraphScope/neug/issues/846")
+def test_start_service_and_stop():
+    db_dir = "/tmp/test_start_service_and_stop"
+    shutil.rmtree(db_dir, ignore_errors=True)
+    os.makedirs(db_dir, exist_ok=True)
+    db = Database(db_dir, "w")
+    conn = db.connect()
+    conn.execute(
+        "CREATE NODE TABLE person(id INT64, name STRING, age INT64, PRIMARY KEY(id));"
+    )
+    conn.execute("CREATE REL TABLE knows(FROM person TO person, weight DOUBLE);")
+    conn.execute("CREATE (p:person {id: 1, name: 'marko', age: 29});")
+    conn.execute("CREATE (p:person {id: 2, name: 'vadas', age: 27});")
+    conn.execute(
+        "MATCH (a:person), (b:person) WHERE a.id = 1 AND b.id = 2 CREATE (a)-[:knows {weight: 0.5}]->(b);"
+    )
+    conn.close()
+    uri = db.serve(10002, "localhost")
+    time.sleep(1)
+
+    session = Session(uri, timeout="10s")
+    res = session.execute("MATCH (n) WHERE n.id = 1 RETURN n.name;")
+    assert len(res) == 1
+    assert res[0][0] == "marko"
+    db.stop_serving()
+
+    # Now do something with new connection
+    conn = db.connect()
+    res = conn.execute("CREATE (p:person {id: 3, name: 'josh', age: 32});")
+    res = conn.execute("MATCH (n) WHERE n.id = 3 RETURN n.name;")
+    assert len(res) == 1
+    assert res[0][0] == "josh"
+    conn.close()
+
+    db.serve(10002, "localhost")
+    time.sleep(1)
+    db.stop_serving()
+    db.close()
+    # session = Session(uri, timeout="10s")
+    # res = session.execute("MATCH (n) WHERE n.id = 3 RETURN n.name;")
+    # assert len(res) == 1
+    # assert res[0][0] == "josh"
+    # db.stop_serving()
+    # db.close()

@@ -45,7 +45,7 @@ const Schema& Connection::GetSchema() const {
     LOG(ERROR) << "Connection is closed, cannot get schema.";
     THROW_RUNTIME_ERROR("Connection is closed, cannot get schema.");
   }
-  return db_.schema();
+  return graph_.schema();
 }
 
 void Connection::Close() {
@@ -106,7 +106,7 @@ Result<results::CollectiveResults> Connection::query_impl(
   // If the query contains operator that may mutable the graph schema or data,
   // we should update the schema and statistics for the planner.
   if (physical_plan.has_ddl_plan()) {
-    auto yaml = db_.schema().to_yaml();
+    auto yaml = graph_.schema().to_yaml();
     if (!yaml.ok()) {
       LOG(ERROR) << "Failed to convert schema to YAML: "
                  << yaml.status().error_message();
@@ -114,12 +114,12 @@ Result<results::CollectiveResults> Connection::query_impl(
                           yaml.status().error_message());
     }
     planner_->update_meta(yaml.value());
-    planner_->update_statistics(db_.graph().get_statistics_json());
+    planner_->update_statistics(graph_.get_statistics_json());
   } else if (physical_plan.query_plan().mode() ==
                  physical::QueryPlan::Mode::QueryPlan_Mode_READ_WRITE ||
              physical_plan.query_plan().mode() ==
                  physical::QueryPlan::Mode::QueryPlan_Mode_WRITE_ONLY) {
-    planner_->update_statistics(db_.graph().get_statistics_json());
+    planner_->update_statistics(graph_.get_statistics_json());
   }
 
   return Result(std::move(result.move_value()));

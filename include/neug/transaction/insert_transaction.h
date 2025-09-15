@@ -34,14 +34,14 @@ namespace gs {
 
 class PropertyGraph;
 class IWalWriter;
-class VersionManager;
+class IVersionManager;
 class NeugDBSession;
 class Schema;
 
 class InsertTransaction {
  public:
   InsertTransaction(const NeugDBSession& session, PropertyGraph& graph,
-                    Allocator& alloc, IWalWriter& logger, VersionManager& vm,
+                    Allocator& alloc, IWalWriter& logger, IVersionManager& vm,
                     timestamp_t timestamp);
 
   ~InsertTransaction();
@@ -79,7 +79,7 @@ class InsertTransaction {
 
   Allocator& alloc_;
   IWalWriter& logger_;
-  VersionManager& vm_;
+  IVersionManager& vm_;
   timestamp_t timestamp_;
 };
 

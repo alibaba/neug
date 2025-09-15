@@ -20,7 +20,7 @@
 #include <unordered_map>
 
 #include "neug/main/app/app_base.h"
-#include "neug/main/neug_db.h"
+#include "neug/main/app_manager.h"
 #include "neug/main/neug_db_session.h"
 #include "neug/storages/graph/property_graph.h"
 #include "neug/storages/graph/schema.h"
@@ -42,35 +42,31 @@ namespace gs {
 class UpdateBatch;
 
 ReadTransaction NeugDBSession::GetReadTransaction() const {
-  uint32_t ts = db_.version_manager_.acquire_read_timestamp();
-  return ReadTransaction(*this, db_.graph_, db_.version_manager_, ts);
+  uint32_t ts = version_manager_->acquire_read_timestamp();
+  return ReadTransaction(*this, graph_, *version_manager_, ts);
 }
 
 InsertTransaction NeugDBSession::GetInsertTransaction() {
-  uint32_t ts = db_.version_manager_.acquire_insert_timestamp();
-  return InsertTransaction(*this, db_.graph_, alloc_, logger_,
-                           db_.version_manager_, ts);
+  uint32_t ts = version_manager_->acquire_insert_timestamp();
+  return InsertTransaction(*this, graph_, alloc_, logger_, *version_manager_,
+                           ts);
 }
 
 UpdateTransaction NeugDBSession::GetUpdateTransaction() {
-  uint32_t ts = db_.version_manager_.acquire_update_timestamp();
-  return UpdateTransaction(*this, db_.graph_, alloc_, work_dir_, logger_,
-                           db_.version_manager_, ts);
+  uint32_t ts = version_manager_->acquire_update_timestamp();
+  return UpdateTransaction(*this, graph_, alloc_, work_dir_, logger_,
+                           *version_manager_, ts);
 }
 
 bool NeugDBSession::BatchUpdate(UpdateBatch& batch) {
   return GetUpdateTransaction().batch_commit(batch);
 }
 
-const PropertyGraph& NeugDBSession::graph() const { return db_.graph(); }
+const PropertyGraph& NeugDBSession::graph() const { return graph_; }
 
-const NeugDB& NeugDBSession::db() const { return db_; }
+PropertyGraph& NeugDBSession::graph() { return graph_; }
 
-NeugDB& NeugDBSession::db() { return db_; }
-
-PropertyGraph& NeugDBSession::graph() { return db_.graph(); }
-
-const Schema& NeugDBSession::schema() const { return db_.schema(); }
+const Schema& NeugDBSession::schema() const { return graph_.schema(); }
 
 Result<std::vector<char>> NeugDBSession::Eval(const std::string& input) {
   const auto start = std::chrono::high_resolution_clock::now();
@@ -151,25 +147,11 @@ Result<std::vector<char>> NeugDBSession::Eval(const std::string& input) {
   }
 }
 
-void NeugDBSession::GetAppInfo(Encoder& result) { db_.GetAppInfo(result); }
-
 int NeugDBSession::SessionId() const { return thread_id_; }
 
 CompactTransaction NeugDBSession::GetCompactTransaction() {
-  timestamp_t ts = db_.version_manager_.acquire_update_timestamp();
-  return CompactTransaction(db_.graph_, logger_, db_.version_manager_, ts);
-}
-
-bool NeugDBSession::Compact() {
-  auto txn = GetCompactTransaction();
-  if (txn.timestamp() > db_.GetLastCompactionTimestamp() + 100000) {
-    db_.UpdateCompactionTimestamp(txn.timestamp());
-    txn.Commit();
-    return true;
-  } else {
-    txn.Abort();
-    return false;
-  }
+  timestamp_t ts = version_manager_->acquire_update_timestamp();
+  return CompactTransaction(graph_, logger_, *version_manager_, ts);
 }
 
 double NeugDBSession::eval_duration() const {
@@ -179,7 +161,7 @@ double NeugDBSession::eval_duration() const {
 int64_t NeugDBSession::query_num() const { return query_num_.load(); }
 
 AppBase* NeugDBSession::GetApp(const std::string& app_name) {
-  auto& app_name_to_path_index = db_.schema().GetPlugins();
+  auto& app_name_to_path_index = graph_.schema().GetPlugins();
   if (app_name_to_path_index.count(app_name) <= 0) {
     LOG(ERROR) << "Query name is not registered: " << app_name;
     return nullptr;
@@ -191,16 +173,16 @@ AppBase* NeugDBSession::GetApp(const std::string& app_name) {
 
 AppBase* NeugDBSession::GetApp(int type) {
   // create if not exist
-  if (type >= NeugDBSession::MAX_PLUGIN_NUM) {
+  if (type >= MAX_PLUGIN_NUM) {
     LOG(ERROR) << "Query type is out of range: " << type << " > "
-               << NeugDBSession::MAX_PLUGIN_NUM;
+               << MAX_PLUGIN_NUM;
     return nullptr;
   }
   AppBase* app = nullptr;
   if (likely(apps_[type] != nullptr)) {
     app = apps_[type];
   } else {
-    app_wrappers_[type] = db_.CreateApp(type, thread_id_);
+    app_wrappers_[type] = app_manager_.CreateApp(type, thread_id_);
     if (app_wrappers_[type].app() == NULL) {
       LOG(ERROR) << "[Query-" + std::to_string((int) type)
                  << "] is not registered...";

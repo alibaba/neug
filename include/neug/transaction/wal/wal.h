@@ -51,6 +51,7 @@ struct UpdateWalUnit {
   size_t size{0};
 };
 
+std::string parse_wal_uri(std::string uri, const std::string& work_dir);
 std::string get_wal_uri_scheme(const std::string& uri);
 std::string get_wal_uri_path(const std::string& uri);
 
@@ -66,7 +67,7 @@ class IWalWriter {
    * Open a wal file. In our design, each thread has its own wal file.
    * The uri could be a file_path or a remote connection string.
    */
-  virtual void open(const std::string& uri, int thread_id) = 0;
+  virtual void open() = 0;
 
   /**
    * Close the wal writer. If a remote connection is hold by the wal writer,
@@ -109,14 +110,17 @@ class IWalParser {
 
 class WalWriterFactory {
  public:
-  using wal_writer_initializer_t = std::unique_ptr<IWalWriter> (*)();
+  using wal_writer_initializer_t = std::unique_ptr<IWalWriter> (*)(
+      const std::string& wal_uri, int32_t thread_id);
 
   static void Init();
 
   static void Finalize();
 
-  static std::unique_ptr<IWalWriter> CreateWalWriter(
-      const std::string& wal_uri);
+  static std::unique_ptr<IWalWriter> CreateDummyWalWriter();
+
+  static std::unique_ptr<IWalWriter> CreateWalWriter(const std::string& wal_uri,
+                                                     int32_t thread_id);
 
   static bool RegisterWalWriter(const std::string& wal_writer_type,
                                 wal_writer_initializer_t initializer);

@@ -71,7 +71,6 @@ int main(int argc, char** argv) {
     return -1;
   }
   data_path = vm["data-path"].as<std::string>();
-  std::string compiler_path = vm["compiler-path"].as<std::string>();
 
   setenv("TZ", "Asia/Shanghai", 1);
   tzset();

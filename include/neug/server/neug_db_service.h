@@ -34,7 +34,7 @@ namespace server {
 
 class NeugDBService {
  public:
-  NeugDBService(gs::NeugDB& db) : db_(db), planner_(db.GetPlanner()) {}
+  NeugDBService(gs::NeugDB& db) : db_(db) {}
   gs::NeugDB& graph_db() { return db_; }
   ~NeugDBService();
 
@@ -59,7 +59,6 @@ class NeugDBService {
 
  private:
   gs::NeugDB& db_;
-  std::shared_ptr<gs::IGraphPlanner> planner_;
   std::unique_ptr<IHttpHandlerManager> hdl_mgr_;
   std::atomic<bool> running_{false};
   std::atomic<bool> initialized_{false};

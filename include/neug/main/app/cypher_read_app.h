@@ -36,7 +36,7 @@ class NeugDBSession;
 
 class CypherReadApp : public ReadAppBase {
  public:
-  CypherReadApp(const NeugDB& db) : db_(db) {}
+  CypherReadApp(const NeugDB& db) {}
 
   AppType type() const override { return AppType::kCypherAdhoc; }
 
@@ -44,7 +44,6 @@ class CypherReadApp : public ReadAppBase {
              Encoder& output) override;
 
  private:
-  const NeugDB& db_;
   std::unordered_map<std::string, physical::PhysicalPlan> plan_cache_;
   std::unordered_map<std::string, runtime::ReadPipeline> pipeline_cache_;
 };

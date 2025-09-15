@@ -27,18 +27,26 @@ namespace gs {
 
 class LocalWalWriter : public IWalWriter {
  public:
-  static std::unique_ptr<IWalWriter> Make();
+  static std::unique_ptr<IWalWriter> Make(const std::string& wal_uri,
+                                          int thread_id);
 
   static constexpr size_t TRUNC_SIZE = 1ul << 30;
-  LocalWalWriter() = default;
+  LocalWalWriter(const std::string& wal_uri, int thread_id)
+      : wal_uri_(wal_uri),
+        thread_id_(thread_id),
+        fd_(-1),
+        file_size_(0),
+        file_used_(0) {}
   ~LocalWalWriter() { close(); }
 
-  void open(const std::string& wal_uri, int thread_id) override;
+  void open() override;
   void close() override;
   bool append(const char* data, size_t length) override;
   std::string type() const override { return "file"; }
 
  private:
+  std::string wal_uri_;
+  int thread_id_;
   int fd_;
   size_t file_size_;
   size_t file_used_;

@@ -37,7 +37,7 @@ namespace gs {
 
 InsertTransaction::InsertTransaction(const NeugDBSession& session,
                                      PropertyGraph& graph, Allocator& alloc,
-                                     IWalWriter& logger, VersionManager& vm,
+                                     IWalWriter& logger, IVersionManager& vm,
                                      timestamp_t timestamp)
 
     : session_(session),

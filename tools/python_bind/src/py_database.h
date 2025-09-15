@@ -19,6 +19,10 @@
 #include "pybind11/include/pybind11/pybind11.h"
 #include "pybind11/include/pybind11/stl.h"
 
+#include <memory>
+#include <mutex>
+#include <string>
+
 #include "neug/main/neug_db.h"
 #include "neug/server/neug_db_service.h"
 #include "py_connection.h"
@@ -76,6 +80,7 @@ class PyDatabase : public std::enable_shared_from_this<PyDatabase> {
   void close();
 
  private:
+  std::recursive_mutex mtx_;
   std::string db_dir_;
   std::unique_ptr<NeugDB> database;
   std::unique_ptr<server::NeugDBService> service_;

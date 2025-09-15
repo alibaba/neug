@@ -35,7 +35,8 @@ struct NeugDBConfig {
         enable_monitoring(false),
         enable_auto_compaction(false),
         memory_level(1),
-        wal_uri("") {}
+        wal_uri("{GRAPH_DATA_DIR}/wal"),
+        dump_on_close(false) {}
   NeugDBConfig(const std::string& data_dir_, int thread_num_ = 1)
       : mode(DBMode::READ_WRITE),
         data_dir(data_dir_),
@@ -44,7 +45,7 @@ struct NeugDBConfig {
         enable_monitoring(false),
         enable_auto_compaction(false),
         memory_level(1),
-        wal_uri(""),
+        wal_uri("{GRAPH_DATA_DIR}/wal"),
         dump_on_close(false) {}
 
   DBMode mode;
