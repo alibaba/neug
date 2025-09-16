@@ -547,9 +547,13 @@ oC_Literal
         ;
 
 oC_BooleanLiteral
-    : _TRUE
-        | _FALSE
+    : BTRUE
+        | BFALSE
         ;
+
+BTRUE : ( 'T' | 't' ) ( 'R' | 'r' ) ( 'U' | 'u' ) ( 'E' | 'e' ) ;
+
+BFALSE : ( 'F' | 'f' ) ( 'A' | 'a' ) ( 'L' | 'l' ) ( 'S' | 's' ) ( 'E' | 'e' ) ;
 
 oC_ListLiteral
     :  '[' SP? ( oC_Expression SP? ( kU_ListEntry SP? )* )? ']' ;

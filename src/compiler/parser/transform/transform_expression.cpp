@@ -471,10 +471,10 @@ std::unique_ptr<ParsedExpression> Transformer::transformLiteral(
 
 std::unique_ptr<ParsedExpression> Transformer::transformBooleanLiteral(
     CypherParser::OC_BooleanLiteralContext& ctx) {
-  if (ctx._TRUE()) {
+  if (ctx.BTRUE()) {
     return std::make_unique<ParsedLiteralExpression>(Value(true),
                                                      ctx.getText());
-  } else if (ctx._FALSE()) {
+  } else if (ctx.BFALSE()) {
     return std::make_unique<ParsedLiteralExpression>(Value(false),
                                                      ctx.getText());
   }
