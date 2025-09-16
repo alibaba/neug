@@ -121,7 +121,6 @@ Bob|Dan
 2021-06-30|Dan
 
 -LOG DistinctRecursiveRel
--SKIP: (compiler): Unsupported operator type for alias management: 10
 -STATEMENT MATCH (:person), (a:person)-[t:knows*2..2]->(b:person) RETURN count(DISTINCT t);
 ---- 1
 36

@@ -561,6 +561,8 @@ RTAny::RTAny(const RTAny& rhs) : type_(rhs.type_) {
     value_.ts_val = rhs.value_.ts_val;
   } else if (type_ == RTAnyType::kInterval) {
     value_.interval_val = rhs.value_.interval_val;
+  } else if (type_ == RTAnyType::kPath) {
+    value_.p = rhs.value_.p;
   } else {
     THROW_NOT_SUPPORTED_EXCEPTION("Unexpected RTAny type: " +
                                   std::to_string(static_cast<int>(type_)));
@@ -1156,6 +1158,8 @@ bool RTAny::operator<(const RTAny& other) const {
     return value_.u64_val < other.value_.u64_val;
   } else if (type_ == RTAnyType::kBoolValue) {
     return value_.b_val < other.value_.b_val;
+  } else if (type_ == RTAnyType::kPath) {
+    return value_.p < other.value_.p;
   }
 
   THROW_NOT_SUPPORTED_EXCEPTION("not support for " +
