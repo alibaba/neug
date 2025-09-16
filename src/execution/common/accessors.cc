@@ -200,14 +200,13 @@ std::shared_ptr<IAccessor> create_edge_property_path_accessor(
   auto col = std::dynamic_pointer_cast<IEdgeColumn>(ctx.get(tag));
   const auto& labels = col->get_labels();
   bool multip_properties = false;
-  if (graph.schema().has_multi_props_edge()) {
-    for (auto label : labels) {
-      auto& properties = graph.schema().get_edge_properties(
-          label.src_label, label.dst_label, label.edge_label);
-      if (properties.size() > 1) {
-        multip_properties = true;
-        break;
-      }
+
+  for (auto label : labels) {
+    auto& properties = graph.schema().get_edge_properties(
+        label.src_label, label.dst_label, label.edge_label);
+    if (properties.size() > 1) {
+      multip_properties = true;
+      break;
     }
   }
   if (multip_properties) {

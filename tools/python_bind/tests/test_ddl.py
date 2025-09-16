@@ -18,9 +18,11 @@
 
 import logging
 import os
+import shutil
 import sys
-import time
 import unittest
+
+import pytest
 
 sys.path.append(os.path.join(os.path.dirname(__file__), "../"))
 
@@ -29,74 +31,157 @@ from neug.database import Database
 logger = logging.getLogger(__name__)
 
 
-class TestDDL(unittest.TestCase):
-    """
-    Test running query on a graph that is already created and loaded
-    """
+def test_batch_loading_modern_graph():
+    # create a tmp directory for the graph
+    db_dir = "/tmp/test_batch_loading"
+    shutil.rmtree(db_dir, ignore_errors=True)
 
-    @classmethod
-    def setUpClass(cls):
-        pass
+    db = Database(db_dir, "w")
+    conn = db.connect()
+    # First create the graph schema
+    conn.execute(
+        "CREATE NODE TABLE person(id INT64, name STRING, age INT64, PRIMARY KEY(id));"
+    )
+    conn.execute("CREATE REL TABLE knows(FROM person TO person, weight DOUBLE);")
 
-    @classmethod
-    def tearDownClass(cls):
-        pass
+    # Test Adding Column
+    conn.execute("ALTER TABLE person ADD birthday DATE;")
 
-    def setUp(self):
-        pass
+    # Test adding column if not exists
+    conn.execute("ALTER TABLE person ADD IF NOT EXISTS birthday DATE;")
 
-    def tearDown(self):
-        pass
+    # Add name STRING, expect exception since name already exists
+    with pytest.raises(Exception):
+        conn.execute("ALTER TABLE person ADD name STRING;")
 
-    def test_batch_loading_modern_graph(self):
-        # create a tmp directory for the graph
-        db_dir = "/tmp/test_batch_loading"
-        if os.path.exists(db_dir):
-            os.system("rm -rf %s" % db_dir)
-        os.makedirs(db_dir)
+    # Drop the only edge property
+    conn.execute("ALTER TABLE knows DROP weight;")
 
-        db = Database(db_dir, "w")
-        conn = db.connect()
-        # First create the graph schema
-        conn.execute(
-            "CREATE NODE TABLE person(id INT64, name STRING, age INT64, PRIMARY KEY(id));"
-        )
-        conn.execute("CREATE REL TABLE knows(FROM person TO person, weight DOUBLE);")
+    # Add a edge property
+    conn.execute("ALTER TABLE knows ADD registion DATE;")
 
-        # Test Adding Column
-        conn.execute("ALTER TABLE person ADD birthday DATE;")
+    # Drop an non-existing column
+    with pytest.raises(Exception):
+        conn.execute("ALTER TABLE person DROP non_existing_column;")
 
-        # Test adding column if not exists
-        conn.execute("ALTER TABLE person ADD IF NOT EXISTS birthday DATE;")
+    # Drop a column if not exists
+    conn.execute("ALTER TABLE person DROP birthday;")
 
-        # Add name STRING, expect exception since name already exists
-        with self.assertRaises(Exception):
-            conn.execute("ALTER TABLE person ADD name STRING;")
+    # Drop an existing column
+    conn.execute("ALTER TABLE person DROP IF EXISTS birthday;")
 
-        # Drop the only edge property
-        conn.execute("ALTER TABLE knows DROP weight;")
+    # Rename a column
+    conn.execute("ALTER TABLE person RENAME name TO username;")
 
-        # Add a edge property
-        conn.execute("ALTER TABLE knows ADD registion DATE;")
+    # Batch delete vertices in table
+    conn.execute("MATCH (v:person) DELETE v;")
 
-        # Drop an non-existing column
-        with self.assertRaises(Exception):
-            conn.execute("ALTER TABLE person DROP non_existing_column;")
+    # Delete a edge type
+    conn.execute("DROP TABLE knows;")
 
-        # Drop a column if not exists
-        conn.execute("ALTER TABLE person DROP birthday;")
+    # Delete a vertex type
+    conn.execute("DROP TABLE person;")
 
-        # Drop an existing column
-        conn.execute("ALTER TABLE person DROP IF EXISTS birthday;")
 
-        # Rename a column
-        conn.execute("ALTER TABLE person RENAME name TO username;")
+def test_add_multiple_edge_properties():
+    db_dir = "/tmp/test_add_multiple_edge_triplet"
+    shutil.rmtree(db_dir, ignore_errors=True)
 
-        # Batch delete vertices in table
-        conn.execute("MATCH (v:person) DELETE v;")
+    db = Database(db_dir, "w")
+    conn = db.connect()
+    # First create the graph schema
+    conn.execute(
+        "CREATE NODE TABLE person(id INT64, name STRING, age INT64, PRIMARY KEY(id));"
+    )
+    conn.execute("CREATE REL TABLE knows(FROM person TO person, weight DOUBLE);")
+    conn.execute("CREATE REL TABLE likes(FROM person TO person, weight DOUBLE);")
 
-        # Delete a edge type
-        conn.execute("DROP TABLE knows;")
+    # insert some vertices and edges
+    conn.execute("CREATE (:person {id: 1, name: 'Alice', age: 30});")
+    conn.execute("CREATE (:person {id: 2, name: 'Bob', age: 32});")
+    conn.execute("CREATE (:person {id: 3, name: 'Charlie', age: 25});")
+    conn.execute(
+        "MATCH (a:person {id: 1}), (b:person {id: 2}) CREATE (a)-[:knows {weight: 0.5}]->(b);"
+    )
+    conn.execute(
+        "MATCH (a:person {id: 1}), (c:person {id: 3}) CREATE (a)-[:likes {weight: 0.8}]->(c);"
+    )
 
-        # Delete a vertex type
-        conn.execute("DROP TABLE person;")
+    res = conn.execute("MATCH (a:person)-[e]->(b:person) RETURN e.weight;")
+    assert list(res) == [[0.5], [0.8]]
+
+    conn.execute("ALTER TABLE knows ADD since DATE;")
+    conn.execute("ALTER TABLE likes ADD since DATE;")
+    conn.execute("ALTER TABLE knows ADD strength INT64;")
+    conn.execute("ALTER TABLE likes ADD strength INT64;")
+
+    res = conn.execute(
+        "MATCH (a:person)-[e]->(b:person) RETURN e.weight, e.since, e.strength;"
+    )
+    assert list(res) == [[0.5, "0-00-00", 0], [0.8, "0-00-00", 0]]
+
+    # Then open from the directory, expect the schema and data are correct
+    conn.close()
+    db.close()
+
+    db2 = Database(db_dir, "r")
+    conn2 = db2.connect()
+    res2 = conn2.execute(
+        "MATCH (a:person)-[e]->(b:person) RETURN e.weight, e.since, e.strength;"
+    )
+    assert list(res2) == [[0.5, "0-00-00", 0], [0.8, "0-00-00", 0]]
+    conn2.close()
+    db2.close()
+
+
+def test_add_multiple_edge_properties2():
+    db_dir = "/tmp/test_add_multiple_edge_triplet"
+    shutil.rmtree(db_dir, ignore_errors=True)
+
+    db = Database(db_dir, "w")
+    conn = db.connect()
+    # First create the graph schema
+    conn.execute(
+        "CREATE NODE TABLE person(id INT64, name STRING, age INT64, PRIMARY KEY(id));"
+    )
+    conn.execute("CREATE REL TABLE knows(FROM person TO person);")
+    conn.execute("CREATE REL TABLE likes(FROM person TO person);")
+
+    # insert some vertices and edges
+    conn.execute("CREATE (:person {id: 1, name: 'Alice', age: 30});")
+    conn.execute("CREATE (:person {id: 2, name: 'Bob', age: 32});")
+    conn.execute("CREATE (:person {id: 3, name: 'Charlie', age: 25});")
+    conn.execute("ALTER TABLE knows ADD weight DOUBLE;")
+    conn.execute("ALTER TABLE likes ADD weight DOUBLE;")
+    conn.execute(
+        "MATCH (a:person {id: 1}), (b:person {id: 2}) CREATE (a)-[:knows {weight: 0.5}]->(b);"
+    )
+    conn.execute(
+        "MATCH (a:person {id: 1}), (c:person {id: 3}) CREATE (a)-[:likes {weight: 0.8}]->(c);"
+    )
+
+    res = conn.execute("MATCH (a:person)-[e]->(b:person) RETURN e.weight;")
+    assert list(res) == [[0.5], [0.8]]
+
+    conn.execute("ALTER TABLE knows ADD since DATE;")
+    conn.execute("ALTER TABLE likes ADD since DATE;")
+    conn.execute("ALTER TABLE knows ADD strength INT64;")
+    conn.execute("ALTER TABLE likes ADD strength INT64;")
+
+    res = conn.execute(
+        "MATCH (a:person)-[e]->(b:person) RETURN e.weight, e.since, e.strength;"
+    )
+    assert list(res) == [[0.5, "0-00-00", 0], [0.8, "0-00-00", 0]]
+
+    # Then open from the directory, expect the schema and data are correct
+    conn.close()
+    db.close()
+
+    db2 = Database(db_dir, "r")
+    conn2 = db2.connect()
+    res2 = conn2.execute(
+        "MATCH (a:person)-[e]->(b:person) RETURN e.weight, e.since, e.strength;"
+    )
+    assert list(res2) == [[0.5, "0-00-00", 0], [0.8, "0-00-00", 0]]
+    conn2.close()
+    db2.close()
