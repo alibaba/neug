@@ -215,6 +215,12 @@ jobs:
         # list tests
         python3 -m pytest -sv tests/test_db_list.py
 
+    - name: Run Concurrency Test
+      run: |
+        cd ${GITHUB_WORKSPACE}/tools/python_bind/
+        # concurrency tests
+        python3 -m pytest -sv tests/test_db_concurrent.py
+
     - name: Run E2E Cypher Test
       run: |
         cd ${GITHUB_WORKSPACE}/tests/e2e
