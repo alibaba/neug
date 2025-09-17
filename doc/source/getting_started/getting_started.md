@@ -6,28 +6,6 @@ This guide will walk you through creating your first graph database, performing 
 
 Before you begin, make sure you have NeuG installed. If you haven't installed it yet, please follow the [installation guide](../installation/installation.md).
 
-## Understanding NeuG Architecture
-
-NeuG has two distinct architectural concepts that work independently:
-
-### Database Storage Modes
-How your data is stored:
-- **In-Memory Database**: Data stored in RAM only (fastest, temporary)
-- **Persistent Database**: Data stored on disk (durable, survives restarts)
-
-### Connection Modes
-How you access the database:
-- **Embedded Mode**: Direct in-process access (analytics, single-user)
-- **Service Mode**: Network-based access (multi-user, concurrent)
-
-These modes are independent - you can have any combination depending on your use case:
-
-**Common Combinations:**
-- **Persistent + Embedded**: Data science analysis on large datasets, ETL processing, graph research
-- **Persistent + Service**: Production web applications, multi-user systems, microservices architectures
-- **In-Memory + Embedded**: Unit testing, prototyping, temporary computations, algorithm development
-- **In-Memory + Service**: High-speed caching layer, session-based analytics, temporary multi-user workloads
-
 ## Database Storage Modes
 
 ### Persistent Database
@@ -241,60 +219,27 @@ for dataset in datasets:
     print(f"{dataset.name}: {dataset.description}")
 ```
 
-Current available builtin datasets are
-- modern_graph
-
 #### Loading Builtin Datasets
-
-There are several ways to work with builtin datasets:
-
-**Method 1: Create a new database from a dataset**
-
-```python
-from neug import Database
-
-# Create a database directly from a builtin dataset
-db = Database.from_builtin_dataset(dataset_name="modern_graph")
-conn = db.connect()
-
-# Explore the loaded dataset
-result = conn.execute("MATCH (n) RETURN count(n) as node_count")
-print(f"Total nodes: {result.__next__()[0]}") # should be 6
-```
-
-**Method 2: Load dataset into an existing database**
 
 ```python
 import neug
 
-# Create an empty database
+# Open/create a database
 db = neug.Database("./my_analysis.db")
 
 # Load a builtin dataset into it
 db.load_builtin_dataset(dataset_name="modern_graph")
 ```
 
-Note that when import a builtin dataset to an existing database, make sure there are no schema conflict, i.e. there are no vertices with label name `person` and `software`, no edges with label name `knows` and `created`.
-
-**Method 3: Using the convenience function**
-
-```python
-from neug.datasets.loader import load_dataset
-
-# Or load into a specific path
-db = load_dataset("modern_graph", "/tmp/modern_graph.db")
-
-conn = db.connect()
-# ... work with your dataset
-conn.close()
-db.close()
+```{note}
+Loading a builtin dataset into an existing database will fail if there are schema conflicts (e.g., existing node/edge types with the same names).
 ```
+
 
 ## Next Steps
 
 Congratulations! You've learned the basics of NeuG. Here's what you can explore next:
 
-1. **[Data Import/Export](import_graph.md)**: Learn how to import large datasets
-2. **[Advanced Cypher Queries](cypher_query.md)**: Master complex graph patterns
-3. **[Data Modeling](data_model.md)**: Design efficient graph schemas
-4. **[Performance Optimization](../performance/index.md)**: Tune your database for maximum performance
+1. **[Data Import/Export](import_export/import_graph.md)**: Learn how to import large datasets
+2. **[Advanced Cypher Queries](cypher_manual)**: Master complex graph patterns
+3. **[Tutorials](tutorials)**: Try these interesting tutorials of NeuG

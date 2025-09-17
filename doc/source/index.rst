@@ -33,7 +33,7 @@ NeuG documentation
    :maxdepth: 1
    :caption: Tutorials
 
-   tutorials/python_tutorial
+   tutorials/tinysnb_tutorial
 
 .. toctree::
    :maxdepth: 1
