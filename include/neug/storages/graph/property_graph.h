@@ -297,7 +297,6 @@ class PropertyGraph {
   }
 
   void generateStatistics() const;
-  void dumpSchema() const;
 
  public:
   std::string work_dir_;

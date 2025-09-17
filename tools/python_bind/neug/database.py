@@ -95,6 +95,7 @@ class Database(object):
         db_path: str = None,
         mode: str = "read-write",
         max_thread_num: int = 0,
+        checkpoint_on_close: bool = True,
     ):
         """
         Open a database.
@@ -109,6 +110,9 @@ class Database(object):
             Mode to open the database, could be 'r', 'read', 'readwrite', 'w', 'rw', 'write'. Default is 'r' for read-only.
         max_thread_num : int
             Maximum number of threads to use. Default is 0, which means no limit.
+        checkpoint_on_close : bool
+            Whether to automatically create a checkpoint when the database is closed. Default is True.
+            If False, no checkpoint is created automatically when close the database.
 
         Raises
         ------
@@ -177,6 +181,7 @@ class Database(object):
             max_thread_num=max_thread_num,
             mode=readable(mode),
             planner="gopt",
+            checkpoint_on_close=checkpoint_on_close,
         )
         self._serving = False
         if self._db_path is None or self._db_path.strip() == "":

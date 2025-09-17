@@ -160,7 +160,6 @@ jobs:
         python3 -m pytest -sv tests/test_query.py
         python3 -m pytest -sv tests/test_tp_service.py
 
-
     - name: Run lsqb test
       run: |
         cd ${GITHUB_WORKSPACE}/tools/python_bind/

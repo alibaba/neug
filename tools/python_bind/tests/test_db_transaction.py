@@ -377,14 +377,14 @@ def test_auto_enable_checkpoint(tmp_path):
 
 
 # DB-004-16
-@pytest.mark.skip(reason="dump_on_close parameter is not supported")
+@pytest.mark.skip(reason="checkpoint_on_close parameter is not supported")
 def test_manual_enable_checkpoint(tmp_path):
     db_dir = tmp_path / "test_checkpoint"
     shutil.rmtree(db_dir, ignore_errors=True)
     db_dir.mkdir()
 
-    # 1. open database with dump_on_close=True
-    db = Database(db_path=str(db_dir), mode="w", dump_on_close=True)
+    # 1. open database with checkpoint_on_close=True
+    db = Database(db_path=str(db_dir), mode="w", checkpoint_on_close=True)
     conn = db.connect()
     conn.execute(
         "CREATE NODE TABLE person(id INT64, name STRING, age INT32, PRIMARY KEY(id));"
@@ -405,14 +405,14 @@ def test_manual_enable_checkpoint(tmp_path):
 
 
 # DB-004-17
-@pytest.mark.skip(reason="dump_on_close parameter is not supported")
+@pytest.mark.skip(reason="checkpoint_on_close parameter is not supported")
 def test_manual_disable_checkpoint(tmp_path):
     db_dir = tmp_path / "test_checkpoint"
     shutil.rmtree(db_dir, ignore_errors=True)
     db_dir.mkdir()
 
-    # 1. open database with dump_on_close=False
-    db = Database(db_path=str(db_dir), mode="w", dump_on_close=False)
+    # 1. open database with checkpoint_on_close=False
+    db = Database(db_path=str(db_dir), mode="w", checkpoint_on_close=False)
     conn = db.connect()
     conn.execute(
         "CREATE NODE TABLE person(id INT64, name STRING, age INT32, PRIMARY KEY(id));"
@@ -453,10 +453,10 @@ def test_pure_memory_without_parameter(tmp_path):
     conn.close()
 
 
-@pytest.mark.skip(reason="dump_on_close parameter is not supported")
+@pytest.mark.skip(reason="checkpoint_on_close parameter is not supported")
 def test_pure_memory_with_true_parameter(tmp_path):
     # 1. open database with pure_memory model
-    db = Database(db_path="", mode="w", dump_on_close=True)
+    db = Database(db_path="", mode="w", checkpoint_on_close=True)
     conn = db.connect()
     conn.execute(
         "CREATE NODE TABLE person(id INT64, name STRING, age INT32, PRIMARY KEY(id));"
@@ -474,10 +474,10 @@ def test_pure_memory_with_true_parameter(tmp_path):
     conn.close()
 
 
-@pytest.mark.skip(reason="dump_on_close parameter is not supported")
+@pytest.mark.skip(reason="checkpoint_on_close parameter is not supported")
 def test_pure_memory_with_false_parameter(tmp_path):
     # 1. open database with pure_memory model
-    db = Database(db_path="", mode="w", dump_on_close=False)
+    db = Database(db_path="", mode="w", checkpoint_on_close=False)
     conn = db.connect()
     conn.execute(
         "CREATE NODE TABLE person(id INT64, name STRING, age INT32, PRIMARY KEY(id));"

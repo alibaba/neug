@@ -96,7 +96,8 @@ class NeugDB {
   bool Open(const std::string& data_dir, int32_t max_num_threads = 0,
             const DBMode mode = DBMode::READ_WRITE,
             const std::string& planner_kind = "gopt", bool warmup = false,
-            bool enable_auto_compaction = false, bool dump_on_close = false);
+            bool enable_auto_compaction = false,
+            bool checkpoint_on_close = false);
 
   /**
    * @brief Load the graph from data directory.

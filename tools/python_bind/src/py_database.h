@@ -34,7 +34,8 @@ class PyDatabase : public std::enable_shared_from_this<PyDatabase> {
   static void initialize(pybind11::handle& m);
 
   explicit PyDatabase(const std::string& data_dir, int32_t max_thread_num,
-                      const std::string& mode, const std::string& planner) {
+                      const std::string& mode, const std::string& planner,
+                      bool checkpoint_on_close = true) {
     db_dir_ = data_dir;
     gs::DBMode mode_;
     if (mode == "read" || mode == "r" || mode == "read-only" ||
@@ -51,7 +52,7 @@ class PyDatabase : public std::enable_shared_from_this<PyDatabase> {
     NeugDBConfig config(db_dir_, max_thread_num);
     config.mode = mode_;
     config.planner_kind = planner;
-    config.dump_on_close = true;
+    config.checkpoint_on_close = checkpoint_on_close;
     database->Open(config);
   }
 

@@ -695,6 +695,16 @@ void PropertyGraph::DumpSchema(const std::string& schema_path) {
   io_adaptor->Open("wb");
   schema_.Serialize(io_adaptor);
   io_adaptor->Close();
+
+  LOG(INFO) << "Dump schema to file: " << get_schema_yaml_path();
+  std::string filename = get_schema_yaml_path();
+  auto schema_res = schema_.to_yaml();
+  if (!schema_res.ok()) {
+    LOG(ERROR) << "Failed to dump schema to yaml: "
+               << schema_res.status().error_message();
+    return;
+  }
+  write_yaml_file(schema_res.value(), filename);
 }
 
 void PropertyGraph::Open(const std::string& work_dir, int memory_level) {
@@ -882,7 +892,8 @@ void PropertyGraph::Dump(const std::string& work_dir, uint32_t version) {
         }
         std::string edge_label =
             schema_.get_edge_label_name(static_cast<label_t>(e_label_i));
-        if (!schema_.exist(src_label, dst_label, edge_label)) {
+        if (!schema_.exist(src_label, dst_label, edge_label) ||
+            !schema_.edge_triplet_valid(src_label_i, dst_label_i, e_label_i)) {
           continue;
         }
         size_t index =
@@ -1074,18 +1085,6 @@ void PropertyGraph::generateStatistics() const {
     out << get_statistics_json();
     out.close();
   }
-}
-
-void PropertyGraph::dumpSchema() const {
-  LOG(INFO) << "Dump schema to file: " << get_schema_yaml_path();
-  std::string filename = get_schema_yaml_path();
-  auto schema_res = schema_.to_yaml();
-  if (!schema_res.ok()) {
-    LOG(ERROR) << "Failed to dump schema to yaml: "
-               << schema_res.status().error_message();
-    return;
-  }
-  write_yaml_file(schema_res.value(), filename);
 }
 
 }  // namespace gs

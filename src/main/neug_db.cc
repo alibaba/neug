@@ -100,13 +100,13 @@ bool NeugDB::Open(const Schema& schema, const NeugDBConfig& config) {
 bool NeugDB::Open(const std::string& data_dir, int32_t max_num_threads,
                   const DBMode mode, const std::string& planner_kind,
                   bool warmup, bool enable_auto_compaction,
-                  bool dump_on_close) {
+                  bool checkpoint_on_close) {
   NeugDBConfig config(data_dir, max_num_threads);
   config.mode = mode;
   config.warmup = warmup;
   config.planner_kind = planner_kind;
   config.enable_auto_compaction = enable_auto_compaction;
-  config.dump_on_close = dump_on_close;
+  config.checkpoint_on_close = checkpoint_on_close;
   return Open(config);
 }
 
@@ -167,7 +167,7 @@ void NeugDB::Close() {
     query_processor_.reset();
   }
   //-----------Clear graph_db----------------
-  if (config_.dump_on_close) {
+  if (config_.checkpoint_on_close) {
     // TODO(zhanlei,lineng): Currently we dump the graph to a new directory,
     // we should invoke compact and checkpoint after checkpoint is
     // implemented.
@@ -189,7 +189,7 @@ void NeugDB::Close() {
 
   // TODO(zhanglei,lineng): Remove this adhoc resolution when checkpoint is
   // ready.
-  if (config_.dump_on_close) {
+  if (config_.checkpoint_on_close) {
     auto latest_ts = get_snapshot_version(work_dir_);
     if (latest_ts > 0) {
       VLOG(10) << "Remove previous checkpoint at: "

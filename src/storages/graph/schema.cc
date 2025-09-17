@@ -73,6 +73,7 @@ void Schema::Clear() {
   has_multi_props_edge_ = false;
   vlabel_tomb_.clear();
   elabel_tomb_.clear();
+  elabel_triplet_tomb_.clear();
 }
 
 void Schema::add_vertex_label(
@@ -122,6 +123,9 @@ void Schema::add_edge_label(const std::string& src_label,
   eprop_names_[label_id] = prop_names;
   sort_on_compactions_[label_id] = sort_on_compaction;
   e_descriptions_[label_id] = description;
+  if (label_id >= elabel_triplet_tomb_.size()) {
+    elabel_triplet_tomb_.resize(label_id + 1);
+  }
 }
 
 label_t Schema::vertex_label_num() const {
@@ -388,19 +392,47 @@ bool Schema::get_sort_on_compaction(const std::string& src_label,
   label_t src = get_vertex_label_id(src_label);
   label_t dst = get_vertex_label_id(dst_label);
   label_t edge = get_edge_label_id(label);
-  uint32_t index = generate_edge_label(src, dst, edge);
-  LOG_FATAL_IF(sort_on_compactions_.find(index) == sort_on_compactions_.end(),
-               "Fail to get sort on compaction: " + std::to_string(index) +
-                   ", out of range of sort_on_compactions_ " +
-                   std::to_string(sort_on_compactions_.size()));
+  return get_sort_on_compaction(src, dst, edge);
+}
+
+bool Schema::get_sort_on_compaction(label_t src_label, label_t dst_label,
+                                    label_t label) const {
+  if (!vertex_label_valid(src_label)) {
+    THROW_INVALID_ARGUMENT_EXCEPTION("vertex label " +
+                                     std::to_string(src_label) + " not found");
+  }
+  if (!vertex_label_valid(dst_label)) {
+    THROW_INVALID_ARGUMENT_EXCEPTION("vertex label " +
+                                     std::to_string(dst_label) + " not found");
+  }
+  if (!edge_label_valid(label)) {
+    THROW_INVALID_ARGUMENT_EXCEPTION("edge label " + std::to_string(label) +
+                                     " not found");
+  }
+  if (!edge_triplet_valid(src_label, dst_label, label)) {
+    THROW_INVALID_ARGUMENT_EXCEPTION("edge triplet (" +
+                                     std::to_string(src_label) + ", " +
+                                     std::to_string(dst_label) + ", " +
+                                     std::to_string(label) + ") not found");
+  }
+  uint32_t index = generate_edge_label(src_label, dst_label, label);
+  if (sort_on_compactions_.find(index) == sort_on_compactions_.end()) {
+    THROW_INVALID_ARGUMENT_EXCEPTION(
+        "Fail to get sort on compaction: " + std::to_string(index) +
+        ", out of range of sort_on_compactions_ " +
+        std::to_string(sort_on_compactions_.size()));
+  }
   return sort_on_compactions_.at(index);
 }
 
 label_t Schema::get_edge_label_id(const std::string& label) const {
   label_t ret;
-  LOG_FATAL_IF(!elabel_indexer_.get_index(label, ret),
-               "Edge label " + label + " not found");
-  LOG_FATAL_IF(elabel_tomb_.get(ret), "Edge label " + label + " was deleted");
+  if (!elabel_indexer_.get_index(label, ret)) {
+    THROW_INVALID_ARGUMENT_EXCEPTION("Edge label " + label + " not found");
+  }
+  if (elabel_tomb_.get(ret)) {
+    THROW_INVALID_ARGUMENT_EXCEPTION("Edge label " + label + " was deleted");
+  }
   return ret;
 }
 
@@ -421,6 +453,15 @@ bool Schema::contains_edge_label(const std::string& label) const {
 
 bool Schema::edge_label_valid(label_t label_id) const {
   return label_id < elabel_indexer_.size() && !elabel_tomb_.get(label_id);
+}
+
+bool Schema::edge_triplet_valid(label_t src, label_t dst, label_t edge) const {
+  if (vertex_label_valid(src) && vertex_label_valid(dst) &&
+      edge_label_valid(edge) && exist(src, dst, edge)) {
+    uint32_t index = generate_edge_label(src, dst, edge);
+    return !elabel_triplet_tomb_.get(index);
+  }
+  return false;
 }
 
 const std::string& Schema::get_vertex_label_name(label_t index) const {
@@ -472,6 +513,7 @@ void Schema::Serialize(std::unique_ptr<grape::LocalIOAdaptor>& writer) const {
   CHECK(writer->WriteArchive(arc));
   vlabel_tomb_.Serialize(writer);
   elabel_tomb_.Serialize(writer);
+  elabel_triplet_tomb_.Serialize(writer);
 }
 
 // Note that plugin_dir_ and plugin_name_to_path_and_id_ are not deserialized.
@@ -502,6 +544,7 @@ void Schema::Deserialize(std::unique_ptr<grape::LocalIOAdaptor>& reader) {
   }
   vlabel_tomb_.Deserialize(reader);
   elabel_tomb_.Deserialize(reader);
+  elabel_triplet_tomb_.Deserialize(reader);
 }
 
 label_t Schema::vertex_label_to_index(const std::string& label) {
@@ -1799,6 +1842,7 @@ void Schema::delete_edge_label(const std::string& label) {
         ie_strategy_.erase(index);
         oe_mutability_.erase(index);
         ie_mutability_.erase(index);
+        elabel_triplet_tomb_.set(index);
         sort_on_compactions_.erase(index);
       }
     }
@@ -1826,6 +1870,7 @@ void Schema::delete_edge_label(const label_t& src, const label_t& dst,
   ie_strategy_.erase(index);
   oe_mutability_.erase(index);
   ie_mutability_.erase(index);
+  elabel_triplet_tomb_.set(index);
   sort_on_compactions_.erase(index);
 }
 

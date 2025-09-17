@@ -246,9 +246,14 @@ class Schema {
                               const std::string& dst_label,
                               const std::string& label) const;
 
+  bool get_sort_on_compaction(label_t src_label, label_t dst_label,
+                              label_t label) const;
+
   bool contains_edge_label(const std::string& label) const;
 
   bool edge_label_valid(label_t label_id) const;
+
+  bool edge_triplet_valid(label_t src, label_t dst, label_t edge) const;
 
   label_t get_edge_label_id(const std::string& label) const;
 
@@ -400,7 +405,8 @@ class Schema {
   bool has_multi_props_edge_;
 
   Bitset vlabel_tomb_;
-  Bitset elabel_tomb_;
+  Bitset elabel_tomb_;          // tombstone for edge label
+  Bitset elabel_triplet_tomb_;  // tombstone for edge label triplet
 };
 
 }  // namespace gs

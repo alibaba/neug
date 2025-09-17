@@ -35,8 +35,12 @@ void PyDatabase::initialize(pybind11::handle& m) {
         std::string planner = kwargs.contains("planner")
                                   ? kwargs["planner"].cast<std::string>()
                                   : "gopt";
+        bool checkpoint_on_close =
+            kwargs.contains("checkpoint_on_close")
+                ? kwargs["checkpoint_on_close"].cast<bool>()
+                : true;
         return std::make_shared<PyDatabase>(database_path, max_thread_num, mode,
-                                            planner);
+                                            planner, checkpoint_on_close);
       }))  // "Creating a PyDatabase. Holds a shared pointer to the C++ "
            // "NeugDB object.\n"
       .def("connect", &PyDatabase::connect,
