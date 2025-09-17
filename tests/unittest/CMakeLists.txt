@@ -33,3 +33,16 @@ target_link_libraries(version_manager_test
 # Register the test with CTest
 add_test(NAME version_manager_test COMMAND version_manager_test)
 set_tests_properties(version_manager_test PROPERTIES TIMEOUT 60)
+
+# Add vertex table benchmark
+add_executable(vertex_table_benchmark vertex_table_benchmark.cc)
+target_link_libraries(vertex_table_benchmark 
+    PRIVATE
+    ${NEUG_LIBRARIES}
+    neug::GTest
+    ${Protobuf_LIBRARIES}
+)
+
+# Register the benchmark with CTest
+add_test(NAME vertex_table_benchmark COMMAND vertex_table_benchmark)
+set_tests_properties(vertex_table_benchmark PROPERTIES TIMEOUT 300)
