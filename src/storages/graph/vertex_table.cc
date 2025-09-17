@@ -22,7 +22,8 @@ void VertexTable::Open(const std::string& snapshot_dir,
                        bool build_empty_graph) {
   memory_level_ = memory_level;
   work_dir_ = tmp_dir_path;
-  vertex_tomb_ = std::make_shared<Bitset>();
+  std::string vertex_ts_filename =
+      work_dir_ + "/" + vertex_timestamp_file(v_label_name_);
   if (memory_level_ == 0) {
     indexer_.open(
         IndexerType::prefix() + "_" + vertex_map_prefix(v_label_name_),
@@ -33,11 +34,13 @@ void VertexTable::Open(const std::string& snapshot_dir,
       table_->copy_to_tmp(vertex_table_prefix(v_label_name_), snapshot_dir,
                           tmp_dir_path);
     }
+    vertex_ts_.open(vertex_ts_filename, true);
   } else if (memory_level_ == 1) {
     indexer_.open_in_memory(snapshot_dir + "/" + IndexerType::prefix() + "_" +
                             vertex_map_prefix(v_label_name_));
     table_->open_in_memory(vertex_table_prefix(v_label_name_), snapshot_dir,
                            property_names, property_types, storage_strategies);
+    vertex_ts_.open(vertex_ts_filename, false);
   } else if (memory_level_ >= 2) {
     indexer_.open_with_hugepages(snapshot_dir + "/" + IndexerType::prefix() +
                                      "_" + vertex_map_prefix(v_label_name_),
@@ -45,38 +48,140 @@ void VertexTable::Open(const std::string& snapshot_dir,
     table_->open_with_hugepages(vertex_table_prefix(v_label_name_),
                                 snapshot_dir, property_names, property_types,
                                 storage_strategies, (memory_level_ > 2));
+    vertex_ts_.open_with_hugepages(vertex_ts_filename);
+  } else {
+    THROW_INTERNAL_EXCEPTION("Invalid memory level: " +
+                             std::to_string(memory_level_));
   }
-  vertex_tomb_->resize(indexer_.capacity());
 }
-size_t VertexTable::vertex_num() const {
-  return indexer_.size() - vertex_tomb_->count();
+
+void VertexTable::Dump(const std::string& snapshot_dir_path) {
+  auto dumped_num = indexer_.size();
+  indexer_.dump(IndexerType::prefix() + "_" + vertex_map_prefix(v_label_name_),
+                snapshot_dir_path);
+  table_->resize(dumped_num);
+  table_->dump(vertex_table_prefix(v_label_name_), snapshot_dir_path);
+  vertex_ts_.resize(dumped_num);
+  vertex_ts_.dump(snapshot_dir_path + "/" +
+                  vertex_timestamp_file(v_label_name_));
+  VLOG(1) << "Dump vertex table " << v_label_name_ << " done, size "
+          << dumped_num;
+}
+
+void VertexTable::Close() {
+  indexer_.close();
+  table_->close();
+  vertex_ts_.reset();
+}
+
+bool VertexTable::get_index(const Any& oid, vid_t& lid, timestamp_t ts) const {
+  auto res = indexer_.get_index(oid, lid);
+  if (res && is_vertex_table_modified_) [[unlikely]] {
+    if (!is_valid_lid(lid, ts)) {
+      LOG(WARNING) << "Lid " << lid << " has been deleted.";
+      return false;
+    }
+  }
+  return res;
+}
+
+size_t VertexTable::vertex_num(timestamp_t ts) const {
+  if (!is_vertex_table_modified_) {
+    return indexer_.size();
+  } else {
+    size_t count = 0;
+    for (vid_t lid = 0; lid < indexer_.size(); ++lid) {
+      if (vertex_ts_.get(lid) <= ts) {
+        count++;
+      }
+    }
+    return count;
+  }
 }
 
 size_t VertexTable::lid_num() const { return indexer_.size(); }
 
-vid_t VertexTable::add_vertex(const Any& id) { return indexer_.insert(id); }
-
-vid_t VertexTable::add_vertex_safe(const Any& id) {
-  return indexer_.insert_safe(id);
+vid_t VertexTable::add_vertex(const Any& id, timestamp_t ts) {
+  vid_t vid = indexer_.insert(id);
+  vertex_ts_.set(vid, ts);
+  if (ts > 0) {  // Only mark update ops when ts > 0
+    is_vertex_table_modified_ = true;
+  }
+  return vid;
 }
 
-bool VertexTable::get_index(const Any& oid, vid_t& lid) const {
-  return indexer_.get_index(oid, lid);
+vid_t VertexTable::add_vertex_safe(const Any& id, timestamp_t ts) {
+  auto lid = indexer_.insert_safe(id);
+  if (lid >= vertex_ts_.size()) {
+    vertex_ts_.resize(vertex_ts_.size() + (vertex_ts_.size() >> 2));
+  }
+  vertex_ts_.set(lid, ts);
+  if (ts > 0) {  // Only mark update ops when ts > 0
+    is_vertex_table_modified_ = true;
+  }
+  return lid;
 }
 
-Any VertexTable::get_oid(vid_t lid) const { return indexer_.get_key(lid); }
+Any VertexTable::get_oid(vid_t lid, timestamp_t ts) const {
+  if (is_vertex_table_modified_) [[unlikely]] {
+    if (!is_valid_lid(lid, ts)) {
+      THROW_INVALID_ARGUMENT_EXCEPTION("Lid " + std::to_string(lid) +
+                                       " has been deleted.");
+    }
+  }
+  return indexer_.get_key(lid);
+}
 
-bool VertexTable::is_valid_lid(vid_t lid) const {
-  return !vertex_tomb_->get(lid);
+bool VertexTable::is_valid_lid(vid_t lid, timestamp_t ts) const {
+  // We use numeric_limits<timestamp_t>::max() to denote a deleted vertex.
+  // But we ts is passed as a timestamp limit, we take it as a normal timestamp.
+  if (!is_vertex_table_modified_) [[likely]] {
+    return lid < indexer_.size();
+  }
+  return lid < indexer_.size() && vertex_ts_.get(lid) <= ts;
+}
+
+void VertexTable::Reserve(size_t cap) {
+  if (cap > indexer_.capacity()) {
+    indexer_.reserve(cap);
+  }
+  table_->resize(cap);
+  vertex_ts_.resize(cap);
+}
+
+void VertexTable::BatchAddVertices(std::vector<Any>&& ids,
+                                   std::unique_ptr<Table> table,
+                                   timestamp_t ts) {
+  size_t new_row_num = table->row_num() + ids.size();
+  Reserve(new_row_num);
+  vid_t vid;
+  size_t cur_idx = 0;
+  for (const auto& id : ids) {
+    if (indexer_.get_index(id, vid)) {
+      cur_idx++;
+      continue;
+    }
+    vid = add_vertex(id, ts);
+    table_->insert(vid, table->get_row(cur_idx++));
+    vertex_ts_.set(vid, ts);
+    if (ts > 0) {  // Only mark update ops when ts > 0
+      is_vertex_table_modified_ = true;
+    }
+  }
 }
 
 void VertexTable::BatchDeleteVertices(const std::vector<vid_t>& vids) {
+  size_t delete_cnt = 0;
   for (auto v : vids) {
-    if (v < indexer_.size() && !vertex_tomb_->get(v)) {
+    if (v < indexer_.size() && vertex_ts_.get(v) != INVALID_TIMESTAMP) {
       auto oid = indexer_.get_key(v);
       indexer_.remove(oid);
-      vertex_tomb_->set(v);
+      vertex_ts_.set(v, INVALID_TIMESTAMP);
+      delete_cnt++;
     }
+  }
+  if (delete_cnt > 0) {
+    is_vertex_table_modified_ = true;
   }
 }
 
@@ -111,9 +216,7 @@ void VertexTable::AddProperties(
 void VertexTable::Drop() {
   indexer_.drop();
   table_->drop();
-  vertex_tomb_->clear();
-  vertex_capacity_ = 0;
-  dumped_num_ = 0;
+  vertex_ts_.reset();
   table_.reset();
   // TODO(zhanglei): reset the indexer.
   // indexer_ = IndexerType();

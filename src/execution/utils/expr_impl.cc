@@ -135,7 +135,8 @@ RTAny VariableExpr::eval_edge(const LabelTriplet& label, vid_t src, vid_t dst,
 RTAnyType VariableExpr::type() const { return var_.type(); }
 
 LogicalExpr::LogicalExpr(std::unique_ptr<ExprBase>&& lhs,
-                         std::unique_ptr<ExprBase>&& rhs, ::common::Logical logic)
+                         std::unique_ptr<ExprBase>&& rhs,
+                         ::common::Logical logic)
     : lhs_(std::move(lhs)), rhs_(std::move(rhs)), logic_(logic) {
   switch (logic) {
   case ::common::Logical::LT: {
@@ -265,7 +266,8 @@ RTAny UnaryLogicalExpr::eval_edge(const LabelTriplet& label, vid_t src,
 RTAnyType UnaryLogicalExpr::type() const { return RTAnyType::kBoolValue; }
 
 ArithExpr::ArithExpr(std::unique_ptr<ExprBase>&& lhs,
-                     std::unique_ptr<ExprBase>&& rhs, ::common::Arithmetic arith)
+                     std::unique_ptr<ExprBase>&& rhs,
+                     ::common::Arithmetic arith)
     : lhs_(std::move(lhs)), rhs_(std::move(rhs)), arith_(arith) {
   switch (arith_) {
   case ::common::Arithmetic::ADD: {
@@ -903,11 +905,11 @@ static std::unique_ptr<ExprBase> build_expr(
       const std::string& signature = op.unique_name();
       gs::runtime::neug_func_exec_t fn = nullptr;
       try {
-          fn = function::FunctionSignatureRegistry::lookup(signature);
+        fn = function::FunctionSignatureRegistry::lookup(signature);
       } catch (const std::exception& e) {
-          throw std::runtime_error(
-              "ScalarFunctionExec not found for signature: " + signature +
-              ", error: " + e.what());
+        throw std::runtime_error(
+            "ScalarFunctionExec not found for signature: " + signature +
+            ", error: " + e.what());
       }
 
       RTAnyType ret_type = RTAnyType::kUnknown;
@@ -920,7 +922,8 @@ static std::unique_ptr<ExprBase> build_expr(
         children.emplace_back(parse_expression_impl(
             graph, ctx, params, op.parameters(i), var_type));
       }
-      return std::make_unique<ScalarFunctionExpr>(fn, ret_type, std::move(children));
+      return std::make_unique<ScalarFunctionExpr>(fn, ret_type,
+                                                  std::move(children));
     }
 
     case ::common::ExprOpr::kVars: {

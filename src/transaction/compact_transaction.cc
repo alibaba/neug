@@ -38,7 +38,7 @@ CompactTransaction::~CompactTransaction() { Abort(); }
 timestamp_t CompactTransaction::timestamp() const { return timestamp_; }
 
 bool CompactTransaction::Commit() {
-  if (timestamp_ != std::numeric_limits<timestamp_t>::max()) {
+  if (timestamp_ != INVALID_TIMESTAMP) {
     auto* header = reinterpret_cast<WalHeader*>(arc_.GetBuffer());
     header->length = 0;
     header->timestamp = timestamp_;
@@ -56,16 +56,16 @@ bool CompactTransaction::Commit() {
     LOG(INFO) << "after compact - " << timestamp_;
 
     vm_.release_update_timestamp(timestamp_);
-    timestamp_ = std::numeric_limits<timestamp_t>::max();
+    timestamp_ = INVALID_TIMESTAMP;
   }
   return true;
 }
 
 void CompactTransaction::Abort() {
-  if (timestamp_ != std::numeric_limits<timestamp_t>::max()) {
+  if (timestamp_ != INVALID_TIMESTAMP) {
     arc_.Clear();
     vm_.revert_update_timestamp(timestamp_);
-    timestamp_ = std::numeric_limits<timestamp_t>::max();
+    timestamp_ = INVALID_TIMESTAMP;
   }
 }
 

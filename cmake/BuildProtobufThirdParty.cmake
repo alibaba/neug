@@ -22,7 +22,7 @@ function (build_protobuf_as_third_party)
     set(protobuf_PROTOC_EXE OFF CACHE BOOL "Disable protoc executable")
     set(protobuf_BUILD_PROTOC_BINARIES OFF CACHE BOOL "Disable protoc binaries")
     set(protobuf_BUILD_LIBPROTOC ON CACHE BOOL "Disable libprotoc")
-    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wno-sign-compare -Wno-deprecated-declarations -Wno-attributes")
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wno-sign-compare -Wno-deprecated-declarations -Wno-attributes -Werror=stringop-overflow")
     # Apply third_party/protobuf.patch if it exists
     if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/third_party/protobuf.patch")
         execute_process(

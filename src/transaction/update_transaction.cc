@@ -120,7 +120,7 @@ void UpdateTransaction::set_insert_vertex_with_resize(
 }
 
 bool UpdateTransaction::Commit() {
-  if (timestamp_ == std::numeric_limits<timestamp_t>::max()) {
+  if (timestamp_ == INVALID_TIMESTAMP) {
     return true;
   }
   if (op_num_ == 0) {
@@ -217,12 +217,16 @@ bool UpdateTransaction::AddEdge(label_t src_label, vid_t src_lid,
     THROW_RUNTIME_ERROR("Source or destination vertex id is out of range");
   }
   // To check whether the src/dst is inserted in this transaction or not.
-  if (src_lid <= graph_.vertex_num(src_label)) {
+  auto src_v_num = graph_.lid_num(src_label);
+  if (src_lid <= src_v_num &&
+      graph_.is_valid_lid(src_label, src_lid, timestamp_)) {
     const auto& oe =
         graph_.get_outgoing_edges(src_label, src_lid, dst_label, edge_label);
     offset_out = get_offset(oe, dst_lid);
   }
-  if (dst_lid <= graph_.vertex_num(dst_label)) {
+  auto dst_v_num = graph_.lid_num(dst_label);
+  if (dst_lid <= dst_v_num &&
+      graph_.is_valid_lid(dst_label, dst_lid, timestamp_)) {
     const auto& ie =
         graph_.get_incoming_edges(dst_label, dst_lid, src_label, edge_label);
     offset_in = get_offset(ie, src_lid);
@@ -291,8 +295,8 @@ bool UpdateTransaction::AddEdge(label_t src_label, const Any& src,
   vid_t src_lid, dst_lid;
   static constexpr size_t sentinel = std::numeric_limits<size_t>::max();
   size_t offset_out = sentinel, offset_in = sentinel;
-  if (graph_.get_lid(src_label, src, src_lid) &&
-      graph_.get_lid(dst_label, dst, dst_lid)) {
+  if (graph_.get_lid(src_label, src, src_lid, timestamp_) &&
+      graph_.get_lid(dst_label, dst, dst_lid, timestamp_)) {
     const auto& oe =
         graph_.get_outgoing_edges(src_label, src_lid, dst_label, edge_label);
     offset_out = get_offset(oe, dst_lid);
@@ -364,13 +368,29 @@ bool UpdateTransaction::AddEdge(label_t src_label, const Any& src,
 }
 
 UpdateTransaction::vertex_iterator::vertex_iterator(label_t label, vid_t cur,
-                                                    vid_t& num,
+                                                    vid_t& num, timestamp_t ts,
+                                                    bool vertex_table_modified,
                                                     UpdateTransaction* txn)
-    : label_(label), cur_(cur), num_(num), txn_(txn) {}
+    : label_(label),
+      cur_(cur),
+      num_(num),
+      vertex_table_modifed_(vertex_table_modified),
+      txn_(txn) {}
 UpdateTransaction::vertex_iterator::~vertex_iterator() = default;
 bool UpdateTransaction::vertex_iterator::IsValid() const { return cur_ < num_; }
-void UpdateTransaction::vertex_iterator::Next() { ++cur_; }
+void UpdateTransaction::vertex_iterator::Next() {
+  if (vertex_table_modifed_) [[unlikely]] {
+    while (++cur_ < num_ && !txn_->is_valid_lid(label_, cur_)) {}
+  } else {
+    ++cur_;
+  }
+}
 void UpdateTransaction::vertex_iterator::Goto(vid_t target) {
+  if (vertex_table_modifed_) [[unlikely]] {
+    if (std::min(target, num_) < num_ && !txn_->is_valid_lid(label_, target)) {
+      THROW_INVALID_ARGUMENT_EXCEPTION("Target vertex is deleted");
+    }
+  }
   cur_ = std::min(target, num_);
 }
 
@@ -486,7 +506,12 @@ label_t UpdateTransaction::edge_iterator::GetEdgeLabel() const {
 
 UpdateTransaction::vertex_iterator UpdateTransaction::GetVertexIterator(
     label_t label) {
-  return {label, 0, vertex_nums_[label], this};
+  return {label,
+          0,
+          vertex_nums_[label],
+          timestamp_,
+          graph_.vertex_table_modified(label),
+          this};
 }
 
 UpdateTransaction::edge_iterator UpdateTransaction::GetOutEdgeIterator(
@@ -758,8 +783,8 @@ void UpdateTransaction::IngestWal(PropertyGraph& graph,
       Any oid;
       label = deserialize_oid(graph, arc, oid);
       vid_t vid;
-      if (!graph.get_lid(label, oid, vid)) {
-        vid = graph.add_vertex_safe(label, oid);
+      if (!graph.get_lid(label, oid, vid, timestamp)) {
+        vid = graph.add_vertex_safe(label, oid, timestamp);
       }
       // Ignore the cases that the vertex already exists.
       graph.get_vertex_table(label).ingest(vid, arc);
@@ -770,8 +795,8 @@ void UpdateTransaction::IngestWal(PropertyGraph& graph,
       src_label = deserialize_oid(graph, arc, src);
       dst_label = deserialize_oid(graph, arc, dst);
       arc >> edge_label;
-      CHECK(graph.get_lid(src_label, src, src_vid));
-      CHECK(graph.get_lid(dst_label, dst, dst_vid));
+      CHECK(graph.get_lid(src_label, src, src_vid, timestamp));
+      CHECK(graph.get_lid(dst_label, dst, dst_vid, timestamp));
       graph.IngestEdge(src_label, src_vid, dst_label, dst_vid, edge_label,
                        timestamp, arc, alloc);
     } else if (op_type == 2) {
@@ -781,7 +806,7 @@ void UpdateTransaction::IngestWal(PropertyGraph& graph,
       label = deserialize_oid(graph, arc, oid);
       arc >> col_id;
       vid_t vid;
-      CHECK(graph.get_lid(label, oid, vid));
+      CHECK(graph.get_lid(label, oid, vid, timestamp));
       graph.get_vertex_table(label).get_column_by_id(col_id)->ingest(vid, arc);
     } else if (op_type == 3) {
       uint8_t dir;
@@ -794,8 +819,8 @@ void UpdateTransaction::IngestWal(PropertyGraph& graph,
       neighbor_label = deserialize_oid(graph, arc, nbr);
       arc >> edge_label;
       arc >> col_id;
-      CHECK(graph.get_lid(label, v, v_lid));
-      CHECK(graph.get_lid(neighbor_label, nbr, nbr_lid));
+      CHECK(graph.get_lid(label, v, v_lid, timestamp));
+      CHECK(graph.get_lid(neighbor_label, nbr, nbr_lid, timestamp));
 
       std::shared_ptr<CsrEdgeIterBase> edge_iter(nullptr);
       if (dir == 0) {
@@ -849,7 +874,7 @@ size_t UpdateTransaction::get_out_csr_index(label_t src_label,
 
 bool UpdateTransaction::oid_to_lid(label_t label, const Any& oid,
                                    vid_t& lid) const {
-  if (graph_.get_lid(label, oid, lid)) {
+  if (graph_.get_lid(label, oid, lid, timestamp_)) {
     return true;
   } else {
     if (added_vertices_[label]->get_index(oid, lid)) {
@@ -862,7 +887,7 @@ bool UpdateTransaction::oid_to_lid(label_t label, const Any& oid,
 
 bool UpdateTransaction::HasVertex(label_t label, const Any& oid) const {
   vid_t lid;
-  if (graph_.get_lid(label, oid, lid)) {
+  if (graph_.get_lid(label, oid, lid, timestamp_)) {
     return true;
   } else {
     return added_vertices_[label]->get_index(oid, lid);
@@ -871,7 +896,7 @@ bool UpdateTransaction::HasVertex(label_t label, const Any& oid) const {
 
 Any UpdateTransaction::lid_to_oid(label_t label, vid_t lid) const {
   if (graph_.lid_num(label) > lid) {
-    return graph_.get_oid(label, lid);
+    return graph_.get_oid(label, lid, timestamp_);
   } else {
     Any ret;
     CHECK(added_vertices_[label]->get_key(lid - added_vertices_base_[label],
@@ -880,11 +905,19 @@ Any UpdateTransaction::lid_to_oid(label_t label, vid_t lid) const {
   }
 }
 
+bool UpdateTransaction::is_valid_lid(label_t label, vid_t lid) const {
+  if (graph_.lid_num(label) > lid) {
+    return graph_.is_valid_lid(label, lid, timestamp_);
+  } else {
+    return lid - added_vertices_base_[label] < added_vertices_[label]->size();
+  }
+}
+
 void UpdateTransaction::release() {
-  if (timestamp_ != std::numeric_limits<timestamp_t>::max()) {
+  if (timestamp_ != INVALID_TIMESTAMP) {
     arc_.Clear();
     vm_.release_update_timestamp(timestamp_);
-    timestamp_ = std::numeric_limits<timestamp_t>::max();
+    timestamp_ = INVALID_TIMESTAMP;
 
     op_num_ = 0;
 
@@ -898,17 +931,17 @@ void UpdateTransaction::release() {
 }
 
 bool UpdateTransaction::batch_commit(UpdateBatch& batch) {
-  if (timestamp_ == std::numeric_limits<timestamp_t>::max()) {
+  if (timestamp_ == INVALID_TIMESTAMP) {
     return true;
   }
   const auto& updateVertices = batch.GetUpdateVertices();
   for (auto& [label, oid, props] : updateVertices) {
     vid_t lid;
 
-    if (graph_.get_lid(label, oid, lid)) {
+    if (graph_.get_lid(label, oid, lid, timestamp_)) {
       graph_.get_vertex_table(label).insert(lid, props);
     } else {
-      lid = graph_.add_vertex_safe(label, oid);
+      lid = graph_.add_vertex_safe(label, oid, timestamp_);
       graph_.get_vertex_table(label).insert(lid, props);
     }
   }
@@ -916,8 +949,8 @@ bool UpdateTransaction::batch_commit(UpdateBatch& batch) {
 
   for (auto& [src_label, src, dst_label, dst, edge_label, prop] : updateEdges) {
     vid_t src_lid, dst_lid;
-    bool src_flag = graph_.get_lid(src_label, src, src_lid);
-    bool dst_flag = graph_.get_lid(dst_label, dst, dst_lid);
+    bool src_flag = graph_.get_lid(src_label, src, src_lid, timestamp_);
+    bool dst_flag = graph_.get_lid(dst_label, dst, dst_lid, timestamp_);
 
     if (src_flag && dst_flag) {
       graph_.UpdateEdge(src_label, src_lid, dst_label, dst_lid, edge_label,
@@ -961,7 +994,7 @@ void UpdateTransaction::applyVerticesUpdates() {
     auto& vertex_offset = vertex_offsets_[label];
     for (auto& pair : added_vertices) {
       vid_t offset = vertex_offset.at(pair.first);
-      vid_t lid = graph_.add_vertex_safe(label, pair.second);
+      vid_t lid = graph_.add_vertex_safe(label, pair.second, timestamp_);
       if (insert_vertex_with_resize_) {
         graph_.get_vertex_table(label).insert_with_resize(
             lid, table.get_row(offset));

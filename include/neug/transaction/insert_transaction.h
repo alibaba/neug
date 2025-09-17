@@ -68,7 +68,8 @@ class InsertTransaction {
   void clear();
 
   static bool get_vertex_with_retries(PropertyGraph& graph, label_t label,
-                                      const Any& oid, vid_t& lid);
+                                      const Any& oid, vid_t& lid,
+                                      timestamp_t timestamp);
   const NeugDBSession& session_;
 
   grape::InArchive arc_;

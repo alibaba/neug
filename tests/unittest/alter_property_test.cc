@@ -345,7 +345,7 @@ void testOpenEmptyGraph(const std::string& graph_dir,
   // Traverse edge PERSON-KNOWS->PERSON
   {
     LOG(INFO) << "Start to traverse edge 1";
-    auto person_num = graph.vertex_num(0);
+    auto person_num = graph.vertex_num(0, MAX_TIMESTAMP);
     for (vid_t i = 0; i < person_num; i++) {
       auto adj_list = graph.get_outgoing_edges(0, i, 0, 0);
       while (adj_list->is_valid()) {

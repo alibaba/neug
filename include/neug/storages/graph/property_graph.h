@@ -161,7 +161,7 @@ class PropertyGraph {
                           const std::string& edge_type, bool error_on_conflict);
 
   Status batch_add_vertices(label_t v_label_id, std::vector<Any>&& ids,
-                            std::unique_ptr<Table>&& table);
+                            std::unique_ptr<Table>&& table, timestamp_t ts);
 
   Status batch_add_edges(
       label_t src_label_id, label_t dst_label_id, label_t edge_label_id,
@@ -186,20 +186,20 @@ class PropertyGraph {
 
   vid_t lid_num(label_t vertex_label) const;
 
-  vid_t vertex_num(label_t vertex_label) const;
+  vid_t vertex_num(label_t vertex_label, timestamp_t ts = MAX_TIMESTAMP) const;
 
-  bool is_valid_lid(label_t vertex_label, vid_t lid) const;
+  bool is_valid_lid(label_t vertex_label, vid_t lid, timestamp_t ts) const;
 
   size_t edge_num(label_t src_label, label_t edge_label,
                   label_t dst_label) const;
 
-  bool get_lid(label_t label, const Any& oid, vid_t& lid) const;
+  bool get_lid(label_t label, const Any& oid, vid_t& lid, timestamp_t ts) const;
 
-  Any get_oid(label_t label, vid_t lid) const;
+  Any get_oid(label_t label, vid_t lid, timestamp_t ts) const;
 
-  vid_t add_vertex(label_t label, const Any& id);
+  vid_t add_vertex(label_t label, const Any& id, timestamp_t ts);
 
-  vid_t add_vertex_safe(label_t label, const Any& id);
+  vid_t add_vertex_safe(label_t label, const Any& id, timestamp_t ts);
 
   std::shared_ptr<CsrConstEdgeIterBase> get_outgoing_edges(
       label_t label, vid_t u, label_t neighbor_label, label_t edge_label) const;
@@ -265,15 +265,16 @@ class PropertyGraph {
     return edge_tables_.at(index).GetInCsr();
   }
 
-  inline bool is_deleted(label_t label) const {
-    return vertex_tables_[label].is_deleted();
-  }
-
-  inline std::shared_ptr<Bitset> get_vertex_tomb(label_t label) const {
-    return vertex_tables_[label].get_vertex_tomb();
+  inline bool vertex_table_modified(label_t label) const {
+    return vertex_tables_[label].vertex_table_modified();
   }
 
   void loadSchema(const std::string& filename);
+
+  inline const mmap_array<timestamp_t>& get_vertex_timestamps(
+      label_t label) const {
+    return vertex_tables_[label].get_vertex_timestamps();
+  }
 
   inline std::shared_ptr<ColumnBase> get_vertex_property_column(
       uint8_t label, const std::string& prop) const {

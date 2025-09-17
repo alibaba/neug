@@ -142,6 +142,7 @@ jobs:
         export TEST_RESOURCE=${GITHUB_WORKSPACE}/src/compiler
         ctest -R gopt_test -V
         ctest -R version_manager_test -V
+        ctest -R test_vertex_table -V
 
     - name: Run Python Test
       run: |

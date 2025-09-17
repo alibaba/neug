@@ -94,7 +94,8 @@ struct LowerFunction : public VectorStringFunction {
 
   static function_set getFunctionSet();
 
-  static gs::runtime::RTAny Exec(size_t idx, gs::runtime::Arena& arena, const std::vector<gs::runtime::RTAny>& args);
+  static gs::runtime::RTAny Exec(size_t idx, gs::runtime::Arena& arena,
+                                 const std::vector<gs::runtime::RTAny>& args);
 };
 
 struct ToLowerFunction : public VectorStringFunction {
@@ -134,7 +135,8 @@ struct ReverseFunction : public VectorStringFunction {
 
   static function_set getFunctionSet();
 
-  static gs::runtime::RTAny Exec(size_t idx, gs::runtime::Arena& arena, const std::vector<gs::runtime::RTAny>& args);
+  static gs::runtime::RTAny Exec(size_t idx, gs::runtime::Arena& arena,
+                                 const std::vector<gs::runtime::RTAny>& args);
 };
 
 struct RightFunction : public VectorStringFunction {
@@ -194,7 +196,8 @@ struct UpperFunction : public VectorStringFunction {
 
   static function_set getFunctionSet();
 
-  static gs::runtime::RTAny Exec(size_t idx, gs::runtime::Arena& arena, const std::vector<gs::runtime::RTAny>& args);
+  static gs::runtime::RTAny Exec(size_t idx, gs::runtime::Arena& arena,
+                                 const std::vector<gs::runtime::RTAny>& args);
 };
 
 struct ToUpperFunction : public VectorStringFunction {

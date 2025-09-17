@@ -561,7 +561,7 @@ Status AbstractArrowFragmentLoader::batch_load_vertices(
   AbstractArrowFragmentLoader::BatchConsumer(
       files, schema_column_names.size() + 1, supplier_creator, std::move(func));
 
-  graph.batch_add_vertices(v_label_id, std::move(ids), std::move(table));
+  graph.batch_add_vertices(v_label_id, std::move(ids), std::move(table), 0);
   {
     if (std::filesystem::exists(work_dir)) {
       std::filesystem::remove_all(work_dir);

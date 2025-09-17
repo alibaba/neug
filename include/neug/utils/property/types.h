@@ -67,6 +67,8 @@ using timestamp_t = uint32_t;
 using vid_t = uint32_t;
 using label_t = uint8_t;
 static constexpr int32_t MAX_PLUGIN_NUM = 256;  // 2^(sizeof(uint8_t)*8)
+static constexpr const timestamp_t MAX_TIMESTAMP = 0xFFFFFFFE;
+static constexpr const timestamp_t INVALID_TIMESTAMP = 0xFFFFFFFF;
 
 enum class InputFormat : uint8_t {
   kCppEncoder = 0,

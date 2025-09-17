@@ -525,9 +525,7 @@ class SingleImmutableCsr : public TypedImmutableCsrBase<EDATA_T> {
 
   void batch_sort_by_edge_data(timestamp_t ts) override {}
 
-  timestamp_t unsorted_since() const override {
-    return std::numeric_limits<timestamp_t>::max();
-  }
+  timestamp_t unsorted_since() const override { return INVALID_TIMESTAMP; }
 
   void open(const std::string& name, const std::string& snapshot_dir,
             const std::string& work_dir) override {
@@ -664,9 +662,7 @@ class SingleImmutableCsr<std::string_view>
 
   void batch_sort_by_edge_data(timestamp_t ts) override {}
 
-  timestamp_t unsorted_since() const override {
-    return std::numeric_limits<timestamp_t>::max();
-  }
+  timestamp_t unsorted_since() const override { return INVALID_TIMESTAMP; }
 
   void open(const std::string& name, const std::string& snapshot_dir,
             const std::string& work_dir) override {
@@ -758,9 +754,7 @@ class SingleImmutableCsr<RecordView>
 
   void batch_sort_by_edge_data(timestamp_t ts) override {}
 
-  timestamp_t unsorted_since() const override {
-    return std::numeric_limits<timestamp_t>::max();
-  }
+  timestamp_t unsorted_since() const override { return INVALID_TIMESTAMP; }
 
   void open(const std::string& name, const std::string& snapshot_dir,
             const std::string& work_dir) override {

@@ -308,8 +308,8 @@ class GraphReadInterface {
     return txn_.GetVertexIndex(label, id, index);
   }
 
-  inline bool IsValidIndex(label_t label, vid_t index) const {
-    return txn_.graph().is_valid_lid(label, index);
+  inline bool IsValidVertex(label_t label, vid_t index) const {
+    return txn_.IsValidVertex(label, index);
   }
 
   inline Any GetVertexId(label_t label, vid_t index) const {

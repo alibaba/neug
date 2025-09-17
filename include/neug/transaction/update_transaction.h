@@ -84,8 +84,8 @@ class UpdateTransaction {
 
   class vertex_iterator {
    public:
-    vertex_iterator(label_t label, vid_t cur, vid_t& num,
-                    UpdateTransaction* txn);
+    vertex_iterator(label_t label, vid_t cur, vid_t& num, timestamp_t ts,
+                    bool vertex_table_modified, UpdateTransaction* txn);
     ~vertex_iterator();
     bool IsValid() const;
     void Next();
@@ -104,6 +104,7 @@ class UpdateTransaction {
     vid_t cur_;
 
     vid_t& num_;
+    bool vertex_table_modifed_;
     UpdateTransaction* txn_;
   };
 
@@ -204,6 +205,8 @@ class UpdateTransaction {
   bool oid_to_lid(label_t label, const Any& oid, vid_t& lid) const;
 
   Any lid_to_oid(label_t label, vid_t lid) const;
+
+  bool is_valid_lid(label_t label, vid_t lid) const;
 
   void release();
 

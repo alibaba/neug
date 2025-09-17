@@ -758,7 +758,7 @@ class RTAny {
   RTAnyType type() const;
 
  private:
-  void sink_impl(common::Value* collection) const;
+  void sink_impl(::common::Value* collection) const;
   RTAnyType type_;
   RTAnyValue value_;
 };

@@ -58,7 +58,7 @@ class KUZU_API CatalogSet {
                             std::unique_ptr<CatalogEntry> entry);
 
   common::oid_t createEntryUnlocked(transaction::Transaction* transaction,
-                            std::unique_ptr<CatalogEntry> entry);
+                                    std::unique_ptr<CatalogEntry> entry);
 
   std::unique_lock<std::shared_mutex> acquireExclusiveLock() {
     return std::unique_lock<std::shared_mutex>(mtx);

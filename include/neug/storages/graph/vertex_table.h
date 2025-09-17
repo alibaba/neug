@@ -15,8 +15,11 @@
 
 #ifndef STORAGES_RT_MUTABLE_GRAPH_VERTEX_TABLE_H_
 #define STORAGES_RT_MUTABLE_GRAPH_VERTEX_TABLE_H_
+
 #include "neug/utils/indexers.h"
+#include "neug/utils/mmap_array.h"
 #include "neug/utils/property/table.h"
+
 namespace gs {
 class VertexTable {
  public:
@@ -24,9 +27,7 @@ class VertexTable {
               const std::vector<std::string>& property_names,
               const std::vector<PropertyType>& property_types,
               const std::vector<StorageStrategy>& storage_strategies)
-      : vertex_capacity_(0),
-        dumped_num_(0),
-        table_(std::make_unique<Table>()),
+      : table_(std::make_unique<Table>()),
         v_label_name_(v_label_name),
         pk_type_(pk_type),
         property_names(property_names),
@@ -36,53 +37,43 @@ class VertexTable {
   }
 
   VertexTable(VertexTable&& other)
-      : vertex_capacity_(other.vertex_capacity_),
-        dumped_num_(other.dumped_num_),
-        indexer_(std::move(other.indexer_)),
+      : indexer_(std::move(other.indexer_)),
         table_(std::move(other.table_)),
         v_label_name_(std::move(other.v_label_name_)),
         pk_type_(other.pk_type_),
         property_names(std::move(other.property_names)),
         property_types(std::move(other.property_types)),
         storage_strategies(std::move(other.storage_strategies)),
-        vertex_tomb_(std::move(other.vertex_tomb_)) {}
+        vertex_ts_(std::move(other.vertex_ts_)) {}
 
   VertexTable(const VertexTable&) = delete;
 
   void Open(const std::string& snapshot_dir, const std::string& tmp_dir_path,
             int memory_level, bool build_empty_graph = false);
 
-  void Dump(const std::string& snapshot_dir_path) {
-    dumped_num_ = indexer_.size();
-    indexer_.dump(
-        IndexerType::prefix() + "_" + vertex_map_prefix(v_label_name_),
-        snapshot_dir_path);
-    table_->resize(dumped_num_);
-    table_->dump(vertex_table_prefix(v_label_name_), snapshot_dir_path);
-    vertex_tomb_->clear();
-  }
+  void Dump(const std::string& snapshot_dir_path);
 
-  void Close() {
-    indexer_.close();
-    table_->close();
-    vertex_tomb_->clear();
-  }
+  void Close();
+
+  void Reserve(size_t cap);
 
   bool is_dropped() const { return table_ == nullptr; }
 
-  bool get_index(const Any& oid, vid_t& lid) const;
+  bool get_index(const Any& oid, vid_t& lid,
+                 timestamp_t ts = MAX_TIMESTAMP) const;
 
-  Any get_oid(vid_t lid) const;
+  Any get_oid(vid_t lid, timestamp_t ts = MAX_TIMESTAMP) const;
 
-  vid_t add_vertex(const Any& id);
+  vid_t add_vertex(const Any& id, timestamp_t ts = MAX_TIMESTAMP);
 
-  vid_t add_vertex_safe(const Any& id);
+  vid_t add_vertex_safe(const Any& id, timestamp_t ts = MAX_TIMESTAMP);
 
-  size_t vertex_num() const;
+  size_t vertex_num(timestamp_t ts = MAX_TIMESTAMP) const;
 
-  size_t lid_num() const;
+  size_t lid_num() const;  // We don't need a timestamp here since lid_num is
+                           // the size of the indexer
 
-  bool is_valid_lid(vid_t lid) const;
+  bool is_valid_lid(vid_t lid, timestamp_t ts = MAX_TIMESTAMP) const;
 
   inline Table& get_properties_table() { return *table_; }
 
@@ -90,11 +81,6 @@ class VertexTable {
 
   IndexerType& get_indexer() { return indexer_; }
   const IndexerType& get_indexer() const { return indexer_; }
-
-  size_t get_vertex_capacity() const { return vertex_capacity_; }
-
-  // only called after Dump
-  size_t get_dumped_num() const { return dumped_num_; }
 
   inline std::shared_ptr<RefColumnBase> get_vertex_id_column() const {
     if (indexer_.get_type() == PropertyType::kInt64) {
@@ -114,7 +100,10 @@ class VertexTable {
           dynamic_cast<const TypedColumn<std::string_view>&>(
               indexer_.get_keys()));
     } else {
-      LOG(ERROR) << "Unsupported vertex id type: " << indexer_.get_type();
+      THROW_NOT_SUPPORTED_EXCEPTION(
+          "Only (u)int64/32 and string_view types for pk are supported, but "
+          "got: " +
+          indexer_.get_type().ToString());
       return nullptr;
     }
   }
@@ -124,35 +113,21 @@ class VertexTable {
     return table_->get_column(prop);
   }
 
-  inline std::shared_ptr<Bitset> get_vertex_tomb() const {
-    return vertex_tomb_;
+  inline const mmap_array<timestamp_t>& get_vertex_timestamps() const {
+    return vertex_ts_;
   }
 
-  inline bool is_deleted() const { return vertex_tomb_->count() != 0; }
-
-  void Reserve(size_t cap) {
-    if (cap > indexer_.capacity()) {
-      indexer_.reserve(cap);
-    }
-    table_->resize(cap);
-    vertex_tomb_->resize(cap);
-    vertex_capacity_ = cap;
+  /**
+   * @brief Check if there are any update operations (add/delete vertex) made
+   * on this vertex table since it was opened.
+   * @return true if there are update operations made, false otherwise.
+   */
+  inline bool vertex_table_modified() const {
+    return is_vertex_table_modified_;
   }
 
-  void BatchAddVertices(std::vector<Any>&& ids, std::unique_ptr<Table> table) {
-    size_t new_row_num = table->row_num() + ids.size();
-    Reserve(new_row_num);
-    vid_t vid;
-    size_t cur_idx = 0;
-    for (const auto& id : ids) {
-      if (indexer_.get_index(id, vid)) {
-        cur_idx++;
-        continue;
-      }
-      vid = add_vertex(id);
-      table_->insert(vid, table->get_row(cur_idx++));
-    }
-  }
+  void BatchAddVertices(std::vector<Any>&& ids, std::unique_ptr<Table> table,
+                        timestamp_t ts);
 
   void BatchDeleteVertices(const std::vector<vid_t>& vids);
 
@@ -171,8 +146,6 @@ class VertexTable {
   std::string work_dir() const { return work_dir_; }
 
  private:
-  size_t vertex_capacity_ = 0;
-  size_t dumped_num_;
   IndexerType indexer_;
   std::unique_ptr<Table> table_;
   std::string v_label_name_;
@@ -180,10 +153,13 @@ class VertexTable {
   std::vector<std::string> property_names;
   std::vector<PropertyType> property_types;
   std::vector<StorageStrategy> storage_strategies;
-  std::shared_ptr<Bitset> vertex_tomb_;
+  mmap_array<timestamp_t> vertex_ts_;  // maintains the timestamp of each vertex
 
   int memory_level_;
   std::string work_dir_;
+  bool is_vertex_table_modified_;  // No lock or atomic need,
+                                   // synchronized with version manager
+                                   // by UpdateTransaction.
 };
 }  // namespace gs
 

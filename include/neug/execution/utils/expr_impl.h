@@ -36,9 +36,9 @@
 #include <utility>
 #include <vector>
 
-#include "neug/utils/function_type.h"
 #include "neug/execution/common/rt_any.h"
 #include "neug/execution/utils/var.h"
+#include "neug/utils/function_type.h"
 #include "neug/utils/property/types.h"
 #ifdef USE_SYSTEM_PROTOBUF
 #include "neug/generated/proto/plan/common.pb.h"
@@ -350,7 +350,8 @@ int32_t extract_time_from_milli_second(int64_t ms, ::common::Extract extract);
 template <typename T>
 class ExtractExpr : public ExprBase {
  public:
-  ExtractExpr(std::unique_ptr<ExprBase>&& expr, const ::common::Extract& extract)
+  ExtractExpr(std::unique_ptr<ExprBase>&& expr,
+              const ::common::Extract& extract)
       : expr_(std::move(expr)), extract_(extract) {}
   int64_t eval_impl(const RTAny& val) const {
     if constexpr (std::is_same_v<T, int64_t>) {
@@ -509,57 +510,54 @@ class CaseWhenExpr : public ExprBase {
 };
 
 class ScalarFunctionExpr : public ExprBase {
-  public:
-    ScalarFunctionExpr(neug_func_exec_t fn,
-                      RTAnyType ret_type,
-                      std::vector<std::unique_ptr<ExprBase>>&& children)
-        : func_(fn),
-          ret_type_(ret_type),
-          children_(std::move(children)) {}
+ public:
+  ScalarFunctionExpr(neug_func_exec_t fn, RTAnyType ret_type,
+                     std::vector<std::unique_ptr<ExprBase>>&& children)
+      : func_(fn), ret_type_(ret_type), children_(std::move(children)) {}
 
-    RTAny eval_path(size_t idx, Arena& arena) const override {
-      std::vector<RTAny> params;
-      params.reserve(children_.size());
-      for (auto& ch : children_) {
-        params.emplace_back(ch->eval_path(idx, arena));
-      }
-      return func_(idx, arena, params);
+  RTAny eval_path(size_t idx, Arena& arena) const override {
+    std::vector<RTAny> params;
+    params.reserve(children_.size());
+    for (auto& ch : children_) {
+      params.emplace_back(ch->eval_path(idx, arena));
     }
+    return func_(idx, arena, params);
+  }
 
-    RTAny eval_vertex(label_t label, vid_t v, size_t idx,
-                      Arena& arena) const override {
-      std::vector<RTAny> params;
-      params.reserve(children_.size());
-      for (auto& ch : children_) {
-        params.emplace_back(ch->eval_vertex(label, v, idx, arena));
-      }
-      return func_(idx, arena, params);
+  RTAny eval_vertex(label_t label, vid_t v, size_t idx,
+                    Arena& arena) const override {
+    std::vector<RTAny> params;
+    params.reserve(children_.size());
+    for (auto& ch : children_) {
+      params.emplace_back(ch->eval_vertex(label, v, idx, arena));
     }
+    return func_(idx, arena, params);
+  }
 
-    RTAny eval_edge(const LabelTriplet& label, vid_t src, vid_t dst,
-                    const Any& data, size_t idx, Arena& arena) const override {
-      std::vector<RTAny> params;
-      params.reserve(children_.size());
-      for (auto& ch : children_) {
-        params.emplace_back(
-            ch->eval_edge(label, src, dst, data, idx, arena));
-      }
-      return func_(idx, arena, params);
+  RTAny eval_edge(const LabelTriplet& label, vid_t src, vid_t dst,
+                  const Any& data, size_t idx, Arena& arena) const override {
+    std::vector<RTAny> params;
+    params.reserve(children_.size());
+    for (auto& ch : children_) {
+      params.emplace_back(ch->eval_edge(label, src, dst, data, idx, arena));
     }
+    return func_(idx, arena, params);
+  }
 
-    RTAnyType type() const override { return ret_type_; }
+  RTAnyType type() const override { return ret_type_; }
 
-    bool is_optional() const override {
-      for (auto& ch : children_) {
-        if (ch->is_optional()) return true;
-      }
-      return false;
+  bool is_optional() const override {
+    for (auto& ch : children_) {
+      if (ch->is_optional())
+        return true;
     }
+    return false;
+  }
 
-  private:
-    neug_func_exec_t func_;
-    RTAnyType ret_type_;
-    std::vector<std::unique_ptr<ExprBase>> children_;
+ private:
+  neug_func_exec_t func_;
+  RTAnyType ret_type_;
+  std::vector<std::unique_ptr<ExprBase>> children_;
 };
 
 class TupleExpr : public ExprBase {

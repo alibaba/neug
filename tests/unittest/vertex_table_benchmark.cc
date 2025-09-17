@@ -74,7 +74,8 @@ class VertexTableBenchmark : public ::testing::Test {
       gs::Any vertex_id;
       vertex_id.set_i64(static_cast<int64_t>(i));
 
-      gs::vid_t vid = table.add_vertex(vertex_id);
+      gs::vid_t vid = table.add_vertex(vertex_id, i);
+      EXPECT_EQ(vid, i);
 
       // Set properties
       auto& props_table = table.get_properties_table();
@@ -109,7 +110,7 @@ class VertexTableBenchmark : public ::testing::Test {
 
     while (unique_vids.size() < delete_count) {
       gs::vid_t vid = vid_dist(generator_);
-      if (table.is_valid_lid(vid)) {
+      if (table.is_valid_lid(vid, gs::MAX_TIMESTAMP)) {
         unique_vids.insert(vid);
       }
     }
@@ -118,25 +119,37 @@ class VertexTableBenchmark : public ::testing::Test {
     table.BatchDeleteVertices(vids_to_delete);
   }
 
-  std::vector<gs::vid_t> GenerateRandomVertexIds(size_t count, size_t max_id) {
+  std::vector<gs::vid_t> GenerateRandomVertexIds(
+      const gs::VertexTable& vertex_table, size_t count, size_t max_id) {
     std::vector<gs::vid_t> ids;
     std::uniform_int_distribution<gs::vid_t> id_dist(0, max_id - 1);
 
-    for (size_t i = 0; i < count; ++i) {
-      ids.push_back(id_dist(generator_));
+    while (ids.size() < count) {
+      auto vid = id_dist(generator_);
+      if (vertex_table.is_valid_lid(vid)) {
+        ids.push_back(vid);
+      }
     }
-
     return ids;
   }
 
-  std::vector<gs::Any> GenerateRandomOids(size_t count, size_t max_id) {
+  std::vector<gs::Any> GenerateRandomOids(const gs::VertexTable& vertex_table,
+                                          size_t count, size_t max_id) {
     std::vector<gs::Any> oids;
     std::uniform_int_distribution<int64_t> oid_dist(0, max_id - 1);
 
-    for (size_t i = 0; i < count; ++i) {
+    gs::vid_t lid;
+    while (oids.size() < count) {
       gs::Any oid;
-      oid.set_i64(oid_dist(generator_));
-      oids.push_back(oid);
+      auto oid_value = oid_dist(generator_);
+      oid.set_i64(oid_value);
+      if (vertex_table.get_index(oid, lid)) {
+        oids.push_back(oid);
+        (void) lid;  // Avoid unused variable warning
+      }
+      if (oids.size() % (count / 10) == 0) {
+        LOG(INFO) << "Generated " << oids.size() << " OIDs so far...";
+      }
     }
 
     return oids;
@@ -194,11 +207,11 @@ TEST_F(VertexTableBenchmark, GetOidPerformance) {
   AddVerticesWithProperties(table, vertex_count);
 
   // Generate random vertex IDs for lookup
-  auto random_vids = GenerateRandomVertexIds(lookup_count, vertex_count);
+  auto random_vids = GenerateRandomVertexIds(table, lookup_count, vertex_count);
 
   // Warm up
   for (auto vid : random_vids) {
-    gs::Any oid = table.get_oid(vid);
+    gs::Any oid = table.get_oid(vid, gs::MAX_TIMESTAMP);
     (void) oid;  // Avoid unused variable warning
   }
 
@@ -217,9 +230,12 @@ TEST_F(VertexTableBenchmark, GetOidPerformance) {
   // Delete vertices
   BatchDeleteVertices(table, 25000);
   LOG(INFO) << "Deleted 25 thousand vertices";
+  auto random_vids_after_delete =
+      GenerateRandomVertexIds(table, lookup_count, vertex_count);
+
   auto start2 = std::chrono::high_resolution_clock::now();
 
-  for (auto vid : random_vids) {
+  for (auto vid : random_vids_after_delete) {
     gs::Any oid = table.get_oid(vid);
     (void) oid;  // Avoid unused variable warning
   }
@@ -251,15 +267,17 @@ TEST_F(VertexTableBenchmark, GetIndexPerformance) {
   AddVerticesWithProperties(table, vertex_count);
 
   // Generate random OIDs for lookup
-  auto random_oids = GenerateRandomOids(lookup_count, vertex_count);
+  auto random_oids = GenerateRandomOids(table, lookup_count, vertex_count);
+  LOG(INFO) << "Generated " << random_oids.size() << " random OIDs";
 
   // Warm up
   for (const auto& oid : random_oids) {
     gs::vid_t lid;
-    bool found = table.get_index(oid, lid);
+    bool found = table.get_index(oid, lid, gs::MAX_TIMESTAMP);
     (void) found;  // Avoid unused variable warning
     (void) lid;    // Avoid unused variable warning
   }
+  LOG(INFO) << "Warm-up completed";
 
   auto start = std::chrono::high_resolution_clock::now();
 
@@ -316,7 +334,9 @@ TEST_F(VertexTableBenchmark, VertexSetPerformance) {
   AddVerticesWithProperties(table, vertex_count);
 
   {
-    auto vertex_set = gs::VertexSet(table.lid_num(), table.get_vertex_tomb());
+    auto vertex_set =
+        gs::VertexSet(table.lid_num(), table.get_vertex_timestamps(),
+                      gs::MAX_TIMESTAMP, table.vertex_table_modified());
 
     auto start = std::chrono::high_resolution_clock::now();
 
@@ -335,7 +355,9 @@ TEST_F(VertexTableBenchmark, VertexSetPerformance) {
   }
   BatchDeleteVertices(table, 25000);
   {
-    auto vertex_set = gs::VertexSet(table.lid_num(), table.get_vertex_tomb());
+    auto vertex_set =
+        gs::VertexSet(table.lid_num(), table.get_vertex_timestamps(),
+                      gs::MAX_TIMESTAMP, table.vertex_table_modified());
 
     auto start = std::chrono::high_resolution_clock::now();
 
@@ -368,8 +390,9 @@ TEST_F(VertexTableBenchmark, MixedOperationsPerformance) {
   AddVerticesWithProperties(table, vertex_count);
 
   // Generate random data for mixed operations
-  auto random_vids = GenerateRandomVertexIds(operation_count, vertex_count);
-  auto random_oids = GenerateRandomOids(operation_count, vertex_count);
+  auto random_vids =
+      GenerateRandomVertexIds(table, operation_count, vertex_count);
+  auto random_oids = GenerateRandomOids(table, operation_count, vertex_count);
 
   auto start = std::chrono::high_resolution_clock::now();
 
@@ -389,7 +412,7 @@ TEST_F(VertexTableBenchmark, MixedOperationsPerformance) {
     case 1: {
       // get_index operation
       gs::vid_t lid;
-      bool found = table.get_index(random_oids[i], lid);
+      bool found = table.get_index(random_oids[i], lid, gs::MAX_TIMESTAMP);
       (void) found;
       (void) lid;
       break;

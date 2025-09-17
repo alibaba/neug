@@ -41,27 +41,37 @@ void ReadTransaction::Abort() { release(); }
 const PropertyGraph& ReadTransaction::graph() const { return graph_; }
 
 ReadTransaction::vertex_iterator::vertex_iterator(label_t label, vid_t cur,
-                                                  vid_t num,
+                                                  vid_t num, timestamp_t ts,
+                                                  bool vertex_table_modified,
                                                   const PropertyGraph& graph)
-    : label_(label), cur_(cur), num_(num), graph_(graph) {
-  is_deleted_ = graph.is_deleted(label);
-}
+    : label_(label),
+      cur_(cur),
+      num_(num),
+      ts_(ts),
+      vertex_table_modifed_(vertex_table_modified),
+      graph_(graph) {}
 ReadTransaction::vertex_iterator::~vertex_iterator() = default;
 
 bool ReadTransaction::vertex_iterator::IsValid() const { return cur_ < num_; }
 void ReadTransaction::vertex_iterator::Next() {
-  if (is_deleted_) {
-    while (++cur_ < num_ && !graph_.is_valid_lid(label_, cur_)) {}
+  if (vertex_table_modifed_) [[unlikely]] {
+    while (++cur_ < num_ && !graph_.is_valid_lid(label_, cur_, ts_)) {}
   } else {
     ++cur_;
   }
 }
 void ReadTransaction::vertex_iterator::Goto(vid_t target) {
+  if (vertex_table_modifed_) [[unlikely]] {
+    if (std::min(target, num_) < num_ &&
+        !graph_.is_valid_lid(label_, target, ts_)) {
+      THROW_INVALID_ARGUMENT_EXCEPTION("Target vertex is deleted");
+    }
+  }
   cur_ = std::min(target, num_);
 }
 
 Any ReadTransaction::vertex_iterator::GetId() const {
-  return graph_.get_oid(label_, cur_);
+  return graph_.get_oid(label_, cur_, ts_);
 }
 vid_t ReadTransaction::vertex_iterator::GetIndex() const { return cur_; }
 
@@ -105,34 +115,55 @@ label_t ReadTransaction::edge_iterator::GetEdgeLabel() const {
 
 ReadTransaction::vertex_iterator ReadTransaction::GetVertexIterator(
     label_t label) const {
-  return {label, 0, graph_.lid_num(label), graph_};
+  return {label,
+          0,
+          graph_.lid_num(label),
+          timestamp_,
+          graph_.vertex_table_modified(label),
+          graph_};
 }
 
 ReadTransaction::vertex_iterator ReadTransaction::FindVertex(
     label_t label, const Any& id) const {
   vid_t lid;
-  if (graph_.get_lid(label, id, lid)) {
-    return {label, lid, graph_.lid_num(label), graph_};
+  if (graph_.get_lid(label, id, lid, timestamp_)) {
+    return {label,
+            lid,
+            graph_.lid_num(label),
+            timestamp_,
+            graph_.vertex_table_modified(label),
+            graph_};
   } else {
-    return {label, graph_.lid_num(label), graph_.lid_num(label), graph_};
+    return {label,
+            graph_.lid_num(label),
+            graph_.lid_num(label),
+            timestamp_,
+            graph_.vertex_table_modified(label),
+            graph_};
   }
 }
 
 bool ReadTransaction::GetVertexIndex(label_t label, const Any& id,
                                      vid_t& index) const {
-  return graph_.get_lid(label, id, index);
+  return graph_.get_lid(label, id, index, timestamp_);
 }
 
 vid_t ReadTransaction::GetVertexNum(label_t label) const {
-  return graph_.vertex_num(label);
+  return graph_.vertex_num(label, timestamp_);
 }
 
 VertexSet ReadTransaction::GetVertexSet(label_t label) const {
-  return VertexSet(graph_.lid_num(label), graph_.get_vertex_tomb(label));
+  return VertexSet(graph_.lid_num(label), graph_.get_vertex_timestamps(label),
+                   timestamp_, graph_.vertex_table_modified(label));
+}
+
+bool ReadTransaction::IsValidVertex(label_t label, vid_t index) const {
+  return index < graph_.lid_num(label) &&
+         graph_.is_valid_lid(label, index, timestamp_);
 }
 
 Any ReadTransaction::GetVertexId(label_t label, vid_t index) const {
-  return graph_.get_oid(label, index);
+  return graph_.get_oid(label, index, timestamp_);
 }
 
 ReadTransaction::edge_iterator ReadTransaction::GetOutEdgeIterator(
@@ -162,9 +193,9 @@ size_t ReadTransaction::GetInDegree(label_t label, vid_t u,
 }
 
 void ReadTransaction::release() {
-  if (timestamp_ != std::numeric_limits<timestamp_t>::max()) {
+  if (timestamp_ != INVALID_TIMESTAMP) {
     vm_.release_read_timestamp();
-    timestamp_ = std::numeric_limits<timestamp_t>::max();
+    timestamp_ = INVALID_TIMESTAMP;
   }
 }
 

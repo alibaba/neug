@@ -449,8 +449,8 @@ class ReadTransaction {
 
   class vertex_iterator {
    public:
-    vertex_iterator(label_t label, vid_t cur, vid_t num,
-                    const PropertyGraph& graph);
+    vertex_iterator(label_t label, vid_t cur, vid_t num, timestamp_t ts,
+                    bool vertex_table_modified, const PropertyGraph& graph);
     ~vertex_iterator();
 
     bool IsValid() const;
@@ -467,7 +467,8 @@ class ReadTransaction {
     label_t label_;
     vid_t cur_;
     vid_t num_;
-    bool is_deleted_;
+    timestamp_t ts_;
+    bool vertex_table_modifed_;
     const PropertyGraph& graph_;
   };
 
@@ -505,6 +506,8 @@ class ReadTransaction {
   vid_t GetVertexNum(label_t label) const;
 
   VertexSet GetVertexSet(label_t label) const;
+
+  bool IsValidVertex(label_t label, vid_t index) const;
 
   Any GetVertexId(label_t label, vid_t index) const;
 

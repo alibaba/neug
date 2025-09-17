@@ -27,27 +27,25 @@ namespace gs {
 
 class VertexSet {
  public:
-  VertexSet(vid_t size, std::shared_ptr<Bitset> vertex_tomb)
-      : size_(size), vertex_tomb_(vertex_tomb) {
-    if (vertex_tomb_->count() == 0) {
-      is_deleted_ = false;
-    } else {
-      is_deleted_ = true;
-    }
-  }
+  VertexSet(vid_t size, const mmap_array<timestamp_t>& vertex_ts,
+            timestamp_t ts, bool vertex_table_modified)
+      : size_(size),
+        vertex_ts_(vertex_ts),
+        ts_(ts),
+        vertex_table_modifed_(vertex_table_modified) {}
   ~VertexSet() {}
 
   class iterator {
    public:
-    iterator(vid_t v, std::shared_ptr<Bitset> vertex_tomb)
-        : v_(v), vertex_tomb_(vertex_tomb) {
-      is_deleted_ = vertex_tomb_->count() == 0 ? false : true;
-      if (is_deleted_) {
-        while (v_ < vertex_tomb_->size()) {
-          if (!vertex_tomb_->get(v_)) {
-            break;
-          }
-          v_++;
+    iterator(vid_t v, const mmap_array<timestamp_t>& vertex_ts, timestamp_t ts,
+             bool vertex_table_modified)
+        : v_(v),
+          vertex_ts_(vertex_ts),
+          ts_(ts),
+          vertex_table_modifed_(vertex_table_modified) {
+      if (vertex_table_modifed_) [[unlikely]] {
+        while (v_ < vertex_ts_.size() && vertex_ts_.get(v_) > ts_) {
+          ++v_;
         }
       }
     }
@@ -56,8 +54,10 @@ class VertexSet {
     inline vid_t operator*() const { return v_; }
 
     inline iterator& operator++() {
-      if (is_deleted_) {
-        while (++v_ < vertex_tomb_->size() && vertex_tomb_->get(v_)) {}
+      if (vertex_table_modifed_) [[unlikely]] {
+        do {
+          ++v_;
+        } while (v_ < vertex_ts_.size() && vertex_ts_.get(v_) > ts_);
       } else {
         ++v_;
       }
@@ -70,18 +70,24 @@ class VertexSet {
 
    private:
     vid_t v_;
-    std::shared_ptr<Bitset> vertex_tomb_;
-    bool is_deleted_;
+    const mmap_array<timestamp_t>& vertex_ts_;
+    timestamp_t ts_;
+    bool vertex_table_modifed_;
   };
 
-  inline iterator begin() const { return iterator(0, vertex_tomb_); }
-  inline iterator end() const { return iterator(size_, vertex_tomb_); }
+  inline iterator begin() const {
+    return iterator(0, vertex_ts_, ts_, vertex_table_modifed_);
+  }
+  inline iterator end() const {
+    return iterator(size_, vertex_ts_, ts_, vertex_table_modifed_);
+  }
   inline size_t size() const { return size_; }
 
  private:
   vid_t size_;
-  std::shared_ptr<Bitset> vertex_tomb_;
-  bool is_deleted_;
+  const mmap_array<timestamp_t>& vertex_ts_;
+  timestamp_t ts_;
+  bool vertex_table_modifed_;
 };
 
 inline void serialize_field(grape::InArchive& arc, const Any& prop) {

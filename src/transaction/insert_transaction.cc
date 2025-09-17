@@ -91,7 +91,7 @@ bool InsertTransaction::AddEdge(label_t src_label, const Any& src,
                                 label_t dst_label, const Any& dst,
                                 label_t edge_label, const Any& prop) {
   vid_t lid;
-  if (!graph_.get_lid(src_label, src, lid)) {
+  if (!graph_.get_lid(src_label, src, lid, timestamp_)) {
     if (added_vertices_.find(std::make_pair(src_label, src)) ==
         added_vertices_.end()) {
       std::string label_name = graph_.schema().get_vertex_label_name(src_label);
@@ -100,7 +100,7 @@ bool InsertTransaction::AddEdge(label_t src_label, const Any& src,
       return false;
     }
   }
-  if (!graph_.get_lid(dst_label, dst, lid)) {
+  if (!graph_.get_lid(dst_label, dst, lid, timestamp_)) {
     if (added_vertices_.find(std::make_pair(dst_label, dst)) ==
         added_vertices_.end()) {
       std::string label_name = graph_.schema().get_vertex_label_name(dst_label);
@@ -151,7 +151,7 @@ bool InsertTransaction::AddEdge(label_t src_label, const Any& src,
 }
 
 bool InsertTransaction::Commit() {
-  if (timestamp_ == std::numeric_limits<timestamp_t>::max()) {
+  if (timestamp_ == INVALID_TIMESTAMP) {
     return true;
   }
   if (arc_.GetSize() == sizeof(WalHeader)) {
@@ -178,7 +178,7 @@ bool InsertTransaction::Commit() {
 }
 
 void InsertTransaction::Abort() {
-  if (timestamp_ != std::numeric_limits<timestamp_t>::max()) {
+  if (timestamp_ != INVALID_TIMESTAMP) {
     LOG(ERROR) << "aborting " << timestamp_ << "-th transaction (insert)";
     vm_.release_insert_timestamp(timestamp_);
     clear();
@@ -198,7 +198,7 @@ void InsertTransaction::IngestWal(PropertyGraph& graph, uint32_t timestamp,
       label_t label;
       Any id;
       label = deserialize_oid(graph, arc, id);
-      vid_t lid = graph.add_vertex(label, id);
+      vid_t lid = graph.add_vertex(label, id, timestamp);
       // Ignore the cases that the vertex already exists.
       graph.get_vertex_table(label).ingest(lid, arc);
     } else if (op_type == 1) {
@@ -209,8 +209,8 @@ void InsertTransaction::IngestWal(PropertyGraph& graph, uint32_t timestamp,
       dst_label = deserialize_oid(graph, arc, dst);
       arc >> edge_label;
 
-      CHECK(get_vertex_with_retries(graph, src_label, src, src_lid));
-      CHECK(get_vertex_with_retries(graph, dst_label, dst, dst_lid));
+      CHECK(get_vertex_with_retries(graph, src_label, src, src_lid, timestamp));
+      CHECK(get_vertex_with_retries(graph, dst_label, dst, dst_lid, timestamp));
 
       graph.IngestEdge(src_label, src_lid, dst_label, dst_lid, edge_label,
                        timestamp, arc, alloc);
@@ -225,7 +225,7 @@ void InsertTransaction::clear() {
   arc_.Resize(sizeof(WalHeader));
   added_vertices_.clear();
 
-  timestamp_ = std::numeric_limits<timestamp_t>::max();
+  timestamp_ = INVALID_TIMESTAMP;
 }
 
 const Schema& InsertTransaction::schema() const { return graph_.schema(); }
@@ -236,13 +236,14 @@ const NeugDBSession& InsertTransaction::GetSession() const { return session_; }
 
 bool InsertTransaction::get_vertex_with_retries(PropertyGraph& graph,
                                                 label_t label, const Any& oid,
-                                                vid_t& lid) {
-  if (likely(graph.get_lid(label, oid, lid))) {
+                                                vid_t& lid,
+                                                timestamp_t timestamp) {
+  if (likely(graph.get_lid(label, oid, lid, timestamp))) {
     return true;
   }
   for (int i = 0; i < 10; ++i) {
     std::this_thread::sleep_for(std::chrono::microseconds(1000000));
-    if (likely(graph.get_lid(label, oid, lid))) {
+    if (likely(graph.get_lid(label, oid, lid, timestamp))) {
       return true;
     }
   }

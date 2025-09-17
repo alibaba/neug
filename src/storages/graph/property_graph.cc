@@ -173,12 +173,13 @@ Status PropertyGraph::create_vertex_type(
 
 Status PropertyGraph::batch_add_vertices(label_t label_id,
                                          std::vector<Any>&& vertices,
-                                         std::unique_ptr<Table>&& table) {
+                                         std::unique_ptr<Table>&& table,
+                                         timestamp_t ts) {
   if (vertices.size() == 0) {
     return gs::Status::OK();
   }
   vertex_tables_[label_id].BatchAddVertices(std::move(vertices),
-                                            std::move(table));
+                                            std::move(table), ts);
   return gs::Status::OK();
 }
 
@@ -925,12 +926,13 @@ vid_t PropertyGraph::lid_num(label_t vertex_label) const {
   return vertex_tables_[vertex_label].lid_num();
 }
 
-vid_t PropertyGraph::vertex_num(label_t vertex_label) const {
-  return vertex_tables_[vertex_label].vertex_num();
+vid_t PropertyGraph::vertex_num(label_t vertex_label, timestamp_t ts) const {
+  return vertex_tables_[vertex_label].vertex_num(ts);
 }
 
-bool PropertyGraph::is_valid_lid(label_t vertex_label, vid_t lid) const {
-  return vertex_tables_[vertex_label].is_valid_lid(lid);
+bool PropertyGraph::is_valid_lid(label_t vertex_label, vid_t lid,
+                                 timestamp_t ts) const {
+  return vertex_tables_[vertex_label].is_valid_lid(lid, ts);
 }
 
 size_t PropertyGraph::edge_num(label_t src_label, label_t edge_label,
@@ -944,20 +946,22 @@ size_t PropertyGraph::edge_num(label_t src_label, label_t edge_label,
   }
 }
 
-bool PropertyGraph::get_lid(label_t label, const Any& oid, vid_t& lid) const {
-  return vertex_tables_[label].get_index(oid, lid);
+bool PropertyGraph::get_lid(label_t label, const Any& oid, vid_t& lid,
+                            timestamp_t ts) const {
+  return vertex_tables_[label].get_index(oid, lid, ts);
 }
 
-Any PropertyGraph::get_oid(label_t label, vid_t lid) const {
-  return vertex_tables_[label].get_oid(lid);
+Any PropertyGraph::get_oid(label_t label, vid_t lid, timestamp_t ts) const {
+  return vertex_tables_[label].get_oid(lid, ts);
 }
 
-vid_t PropertyGraph::add_vertex(label_t label, const Any& id) {
-  return vertex_tables_[label].add_vertex(id);
+vid_t PropertyGraph::add_vertex(label_t label, const Any& id, timestamp_t ts) {
+  return vertex_tables_[label].add_vertex(id, ts);
 }
 
-vid_t PropertyGraph::add_vertex_safe(label_t label, const Any& id) {
-  return vertex_tables_[label].add_vertex_safe(id);
+vid_t PropertyGraph::add_vertex_safe(label_t label, const Any& id,
+                                     timestamp_t ts) {
+  return vertex_tables_[label].add_vertex_safe(id, ts);
 }
 
 std::shared_ptr<CsrConstEdgeIterBase> PropertyGraph::get_outgoing_edges(
@@ -987,7 +991,7 @@ std::string PropertyGraph::get_statistics_json() const {
   for (size_t idx = 0; idx < vertex_label_num; ++idx) {
     ss += "{\n\"type_id\": " + std::to_string(idx) + ", \n";
     ss += "\"type_name\": \"" + schema_.get_vertex_label_name(idx) + "\", \n";
-    size_t count = vertex_num(idx);
+    size_t count = vertex_num(idx, MAX_TIMESTAMP);
     ss += "\"count\": " + std::to_string(count) + "\n}";
     vertex_count += count;
     if (idx != vertex_label_num - 1) {

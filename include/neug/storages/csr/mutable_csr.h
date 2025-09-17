@@ -849,7 +849,7 @@ class SingleMutableCsr : public TypedMutableCsrBase<EDATA_T> {
     nbr_list_.open(work_dir + "/" + name + ".snbr", true);
     nbr_list_.resize(vnum);
     for (size_t k = 0; k != vnum; ++k) {
-      nbr_list_[k].timestamp.store(std::numeric_limits<timestamp_t>::max());
+      nbr_list_[k].timestamp.store(INVALID_TIMESTAMP);
     }
     return vnum;
   }
@@ -860,7 +860,7 @@ class SingleMutableCsr : public TypedMutableCsrBase<EDATA_T> {
     nbr_list_.open("", false);
     nbr_list_.resize(vnum);
     for (size_t k = 0; k != vnum; ++k) {
-      nbr_list_[k].timestamp.store(std::numeric_limits<timestamp_t>::max());
+      nbr_list_[k].timestamp.store(INVALID_TIMESTAMP);
     }
     return vnum;
   }
@@ -869,16 +869,13 @@ class SingleMutableCsr : public TypedMutableCsrBase<EDATA_T> {
                       timestamp_t ts = 0) override {
     nbr_list_[src].neighbor = dst;
     nbr_list_[src].data = data;
-    CHECK_EQ(nbr_list_[src].timestamp.load(),
-             std::numeric_limits<timestamp_t>::max());
+    CHECK_EQ(nbr_list_[src].timestamp.load(), INVALID_TIMESTAMP);
     nbr_list_[src].timestamp.store(ts);
   }
 
   void batch_sort_by_edge_data(timestamp_t ts) override {}
 
-  timestamp_t unsorted_since() const override {
-    return std::numeric_limits<timestamp_t>::max();
-  }
+  timestamp_t unsorted_since() const override { return INVALID_TIMESTAMP; }
 
   void open(const std::string& name, const std::string& snapshot_dir,
             const std::string& work_dir) override {
@@ -897,7 +894,7 @@ class SingleMutableCsr : public TypedMutableCsrBase<EDATA_T> {
       nbr_list_.resize(v_cap);
       read_file(prefix + ".snbr", nbr_list_.data(), sizeof(nbr_t), old_size);
       for (size_t k = old_size; k != v_cap; ++k) {
-        nbr_list_[k].timestamp.store(std::numeric_limits<timestamp_t>::max());
+        nbr_list_[k].timestamp.store(INVALID_TIMESTAMP);
       }
     }
   }
@@ -908,7 +905,7 @@ class SingleMutableCsr : public TypedMutableCsrBase<EDATA_T> {
     if (old_size < v_cap) {
       nbr_list_.resize(v_cap);
       for (size_t k = old_size; k != v_cap; ++k) {
-        nbr_list_[k].timestamp.store(std::numeric_limits<timestamp_t>::max());
+        nbr_list_[k].timestamp.store(INVALID_TIMESTAMP);
       }
     }
   }
@@ -940,7 +937,7 @@ class SingleMutableCsr : public TypedMutableCsrBase<EDATA_T> {
       size_t old_size = nbr_list_.size();
       nbr_list_.resize(vnum);
       for (size_t k = old_size; k != vnum; ++k) {
-        nbr_list_[k].timestamp.store(std::numeric_limits<timestamp_t>::max());
+        nbr_list_[k].timestamp.store(INVALID_TIMESTAMP);
       }
     } else {
       nbr_list_.resize(vnum);
@@ -952,8 +949,7 @@ class SingleMutableCsr : public TypedMutableCsrBase<EDATA_T> {
   size_t edge_num() const override {
     size_t cnt = 0;
     for (size_t k = 0; k != nbr_list_.size(); ++k) {
-      if (nbr_list_[k].timestamp.load() !=
-          std::numeric_limits<timestamp_t>::max()) {
+      if (nbr_list_[k].timestamp.load() != INVALID_TIMESTAMP) {
         ++cnt;
       }
     }
@@ -973,16 +969,13 @@ class SingleMutableCsr : public TypedMutableCsrBase<EDATA_T> {
     CHECK_LT(src, nbr_list_.size());
     nbr_list_[src].neighbor = dst;
     nbr_list_[src].data = data;
-    CHECK_EQ(nbr_list_[src].timestamp, std::numeric_limits<timestamp_t>::max());
+    CHECK_EQ(nbr_list_[src].timestamp, INVALID_TIMESTAMP);
     nbr_list_[src].timestamp.store(ts);
   }
 
   inline slice_t get_edges(vid_t v) const override {
     slice_t ret;
-    ret.set_size(nbr_list_[v].timestamp.load() ==
-                         std::numeric_limits<timestamp_t>::max()
-                     ? 0
-                     : 1);
+    ret.set_size(nbr_list_[v].timestamp.load() == INVALID_TIMESTAMP ? 0 : 1);
     if (ret.size() != 0) {
       ret.set_begin(&nbr_list_[v]);
     }
@@ -991,10 +984,7 @@ class SingleMutableCsr : public TypedMutableCsrBase<EDATA_T> {
 
   inline mut_slice_t get_edges_mut(vid_t i) {
     mut_slice_t ret;
-    ret.set_size(nbr_list_[i].timestamp.load() ==
-                         std::numeric_limits<timestamp_t>::max()
-                     ? 0
-                     : 1);
+    ret.set_size(nbr_list_[i].timestamp.load() == INVALID_TIMESTAMP ? 0 : 1);
     if (ret.size() != 0) {
       ret.set_begin(&nbr_list_[i]);
     }
@@ -1038,9 +1028,7 @@ class SingleMutableCsr<std::string_view>
 
   void batch_sort_by_edge_data(timestamp_t ts) override {}
 
-  timestamp_t unsorted_since() const override {
-    return std::numeric_limits<timestamp_t>::max();
-  }
+  timestamp_t unsorted_since() const override { return INVALID_TIMESTAMP; }
 
   void open(const std::string& name, const std::string& snapshot_dir,
             const std::string& work_dir) override {
@@ -1144,9 +1132,7 @@ class SingleMutableCsr<RecordView> : public TypedMutableCsrBase<RecordView> {
 
   void batch_sort_by_edge_data(timestamp_t ts) override {}
 
-  timestamp_t unsorted_since() const override {
-    return std::numeric_limits<timestamp_t>::max();
-  }
+  timestamp_t unsorted_since() const override { return INVALID_TIMESTAMP; }
 
   void open(const std::string& name, const std::string& snapshot_dir,
             const std::string& work_dir) override {
@@ -1271,9 +1257,7 @@ class EmptyCsr : public TypedMutableCsrBase<EDATA_T> {
 
   void batch_sort_by_edge_data(timestamp_t ts) override {}
 
-  timestamp_t unsorted_since() const override {
-    return std::numeric_limits<timestamp_t>::max();
-  }
+  timestamp_t unsorted_since() const override { return INVALID_TIMESTAMP; }
 
   inline slice_t get_edges(vid_t v) const override { return slice_t::empty(); }
 

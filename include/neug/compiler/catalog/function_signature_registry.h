@@ -16,32 +16,33 @@
 
 #pragma once
 
-#include <string>
-#include <unordered_map>
+#include <iostream>
 #include <mutex>
 #include <shared_mutex>
-#include "neug/utils/function_type.h"
+#include <string>
+#include <unordered_map>
 #include "neug/compiler/common/types/types.h"
-#include <iostream>
+#include "neug/utils/function_type.h"
 
 namespace gs {
 namespace function {
 
 class FunctionSignatureRegistry {
-public:
-    static void registerScalar(const std::string& signature, const runtime::neug_func_exec_t& func);
-    static runtime::neug_func_exec_t lookup(const std::string& signature);
-    static void printAllSignatures();
+ public:
+  static void registerScalar(const std::string& signature,
+                             const runtime::neug_func_exec_t& func);
+  static runtime::neug_func_exec_t lookup(const std::string& signature);
+  static void printAllSignatures();
 
-private:
-    static FunctionSignatureRegistry& instance();
-    std::unordered_map<std::string, runtime::neug_func_exec_t> sig_2_scalar_func_;
-    std::shared_mutex mutex_;
+ private:
+  static FunctionSignatureRegistry& instance();
+  std::unordered_map<std::string, runtime::neug_func_exec_t> sig_2_scalar_func_;
+  std::shared_mutex mutex_;
 };
 
 // generate function signature
-std::string buildScalarSignature(const std::string& name,
-                                 const std::vector<common::LogicalTypeID>& params);
+std::string buildScalarSignature(
+    const std::string& name, const std::vector<common::LogicalTypeID>& params);
 
-}
-}
+}  // namespace function
+}  // namespace gs
