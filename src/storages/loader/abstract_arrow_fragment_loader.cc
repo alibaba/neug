@@ -686,12 +686,14 @@ Status AbstractArrowFragmentLoader::batch_load_edges(
   // Merge all parsed edges
   std::vector<std::tuple<vid_t, vid_t, size_t>> parsed_edges;
   parsed_edges.reserve(offset.load());
-  for (auto& edges : parsed_edges_vec) {
-    parsed_edges.insert(parsed_edges.end(), edges.begin(), edges.end());
-  }
-  if (parsed_edges.size() != offset.load()) {
-    LOG(FATAL) << "Parsed edges size does not match offset: "
-               << parsed_edges.size() << " vs " << offset.load();
+  for (auto& edges_vec : parsed_edges_vec) {
+    for (auto edges : edges_vec) {
+      if (std::get<0>(edges) == std::numeric_limits<vid_t>::max() ||
+          std::get<1>(edges) == std::numeric_limits<vid_t>::max()) {
+        continue;
+      }
+      parsed_edges.push_back(edges);
+    }
   }
   graph.batch_add_edges(src_v_label, dst_v_label, edge_label,
                         std::move(parsed_edges), std::move(table));

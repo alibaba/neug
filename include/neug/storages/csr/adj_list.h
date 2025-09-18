@@ -49,7 +49,10 @@ class MutableAdjlist {
   }
 
   void batch_put_edge(vid_t neighbor, const EDATA_T& data, timestamp_t ts = 0) {
-    CHECK_LT(size_, capacity_);
+    if (size_ >= capacity_) {
+      THROW_INTERNAL_EXCEPTION("Adjlist capacity exceeded: " +
+                               std::to_string(capacity_));
+    }
     auto& nbr = buffer_[size_++];
     nbr.neighbor = neighbor;
     nbr.data = data;

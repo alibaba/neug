@@ -86,6 +86,7 @@ class Schema {
   // An array containing all compatible versions of schema.
   static const std::vector<std::string> COMPATIBLE_VERSIONS;
   static constexpr const char* DEFAULT_SCHEMA_VERSION = "v0.0";
+  static constexpr const size_t MAX_VNUM = static_cast<size_t>(1) << 32;
 
   static bool IsBuiltinPlugin(const std::string& plugin_name);
 

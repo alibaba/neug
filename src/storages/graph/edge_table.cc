@@ -502,6 +502,10 @@ void EdgeTable::BatchAddEdges(
                            prop_values, dual_csr_->GetOutCsr()->size(),
                            dual_csr_->GetInCsr()->size());
   for (const auto& [v0, v1, prop] : edges) {
+    if (v0 == std::numeric_limits<vid_t>::max() ||
+        v1 == std::numeric_limits<vid_t>::max()) {
+      continue;
+    }
     if (v0 >= out_degs.size()) {
       out_degs.resize(v0 + 1, 0);
     }

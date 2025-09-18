@@ -25,6 +25,7 @@ add_library(neug_common
         type_utils.cpp
         utils.cpp
         windows_utils.cpp)
+add_dependencies(neug_common neug_plan_proto)
 
 add_dependencies(neug_common neug_plan_proto)
 

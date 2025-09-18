@@ -160,3 +160,108 @@ class TestBachLoading(unittest.TestCase):
 
         res = conn.execute("MATCH (n: person) WHERE n.age > 34 return n.name;")
         assert res.__next__()[0] == "Charlie"
+
+    def test_loading_with_invalid_vertices(self):
+        db_dir = "/tmp/test_loading_with_invalid_vertices"
+        shutil.rmtree(db_dir, ignore_errors=True)
+        db = Database(db_dir, "w")
+        conn = db.connect()
+        # First create the graph schema
+        conn.execute(
+            "CREATE NODE TABLE person(id INT64, name STRING, age INT64, PRIMARY KEY(id));"
+        )
+        conn.execute(
+            "CREATE NODE TABLE software(id INT64, name STRING, lang STRING, PRIMARY KEY(id));"
+        )
+        conn.execute("CREATE REL TABLE knows(FROM person TO person, weight DOUBLE);")
+        conn.execute(
+            "CREATE REL TABLE created(FROM person TO software, weight DOUBLE);"
+        )
+        # Then load data.
+        # write to file person.csv
+        person_csv = os.path.join(db_dir, "person.csv")
+        with open(person_csv, "w") as f:
+            f.write("id|name|age\n")
+            f.write("1|Alice|30\n")
+            f.write("2|Bob|25\n")
+            f.write("3|Charlie|35\n")
+            f.write("4|David|40\n")
+        conn.execute(f'COPY person from "{person_csv}"')
+        # write to file software.csv
+        software_csv = os.path.join(db_dir, "software.csv")
+        with open(software_csv, "w") as f:
+            f.write("id|name|lang\n")
+            f.write("101|GraphX|Scala\n")
+            f.write("102|Neo4j|Java\n")
+        conn.execute(f'COPY software from "{software_csv}"')
+        # write to file person_knows_person.csv
+        person_knows_person_csv = os.path.join(db_dir, "person_knows_person.csv")
+        with open(person_knows_person_csv, "w") as f:
+            f.write("from|to|weight\n")
+            f.write("1|2|0.5\n")  # valid
+            f.write("2|3|0.6\n")  # valid
+            f.write("3|4|0.7\n")  # valid
+            f.write("4|1|0.8\n")  # valid
+            f.write("5|1|0.9\n")  # invalid src
+            f.write("1|6|0.4\n")  # invalid dst
+            f.write("7|8|0.3\n")  # invalid src and dst
+            f.write("2|4|0.2\n")  # valid
+            f.write("3|1|0.1\n")  # valid
+            f.write("4|2|0.05\n")  # valid
+        conn.execute(
+            f'COPY knows from "{person_knows_person_csv}" (from="person", to="person")'
+        )
+        # write to file person_created_software.csv
+        person_created_software_csv = os.path.join(
+            db_dir, "person_created_software.csv"
+        )
+        with open(person_created_software_csv, "w") as f:
+            f.write("from|to|weight\n")
+            f.write("1|101|0.9\n")  # valid
+            f.write("2|102|0.8\n")  # valid
+            f.write("3|103|0.7\n")  # invalid dst
+            f.write("5|101|0.6\n")  # invalid src
+            f.write("4|102|0.5\n")  # valid
+        conn.execute(
+            f'COPY created from "{person_created_software_csv}" (from="person", to="software")'
+        )
+        # Then run a query
+        res = list(conn.execute("MATCH (n: person) return count(n);"))
+        assert res[0] == [4]
+        res = list(conn.execute("MATCH (n: software) return count(n);"))
+        assert res[0] == [2]
+        res = list(
+            conn.execute("MATCH (n: person)-[e: knows]->(m: person) return count(e);")
+        )
+        assert res[0] == [7]
+        res = list(
+            conn.execute(
+                "MATCH (n: person)-[e: created]->(m: software) return count(e);"
+            )
+        )
+        assert res[0] == [3]
+        conn.close()
+        db.close()
+        del db
+        del conn
+        db2 = Database(db_dir, "r")
+        conn2 = db2.connect()
+        res = conn2.execute("MATCH (n: person) return count(n);")
+        res_data = list(res)
+        assert res_data[0] == [4]
+        res = conn2.execute("MATCH (n: software) return count(n);")
+        res_data = list(res)
+        assert res_data[0] == [2]
+        res = conn2.execute(
+            "MATCH (n: person)-[e: knows]->(m: person) return count(e);"
+        )
+        res_data = list(res)
+        assert res_data[0] == [7]
+        res = conn2.execute(
+            "MATCH (n: person)-[e: created]->(m: software) return count(e);"
+        )
+        res_data = list(res)
+        assert res_data[0] == [3]
+        db2.close()
+        del db2
+        del conn2

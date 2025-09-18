@@ -165,7 +165,7 @@ class EdgeTable {
       size_t row_id = prev_size;
       for (size_t i = 0; i < append_vec.size(); ++i) {
         const auto& [v0, v1, index] = append_vec[i];
-        table_->insert(row_id, table->get_row(index));
+        table_->insert_with_resize(row_id, table->get_row(index));
         std::get<2>(append_vec[i]) = row_id++;
       }
       row_id = 0;

@@ -145,9 +145,9 @@ Status PropertyGraph::create_vertex_type(
   std::vector<StorageStrategy> strategies(property_types.size(),
                                           StorageStrategy::kMem);
   std::string description;
-  size_t max_num = ((size_t) 1) << 8;
   schema_.add_vertex_label(vertex_type_name, property_types, property_names,
-                           primary_keys, strategies, max_num, description);
+                           primary_keys, strategies, Schema::MAX_VNUM,
+                           description);
   label_t vertex_label_id = schema_.get_vertex_label_id(vertex_type_name);
   vertex_tables_.emplace_back(
       vertex_type_name,
