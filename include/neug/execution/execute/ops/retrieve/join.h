@@ -13,8 +13,8 @@
  * limitations under the License.
  */
 
-#ifndef RUNTIME_EXECUTE_RETRIEVE_OPS_JOIN_H_
-#define RUNTIME_EXECUTE_RETRIEVE_OPS_JOIN_H_
+#ifndef EXECUTION_EXECUTE_RETRIEVE_OPS_JOIN_H_
+#define EXECUTION_EXECUTE_RETRIEVE_OPS_JOIN_H_
 
 #include <vector>
 
@@ -55,4 +55,4 @@ class JoinOprBuilder : public IReadOperatorBuilder {
 
 }  // namespace gs
 
-#endif  // RUNTIME_EXECUTE_RETRIEVE_OPS_JOIN_H_
+#endif  // EXECUTION_EXECUTE_RETRIEVE_OPS_JOIN_H_

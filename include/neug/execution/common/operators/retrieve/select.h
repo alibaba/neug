@@ -13,8 +13,8 @@
  * limitations under the License.
  */
 
-#ifndef RUNTIME_COMMON_OPERATORS_RETRIEVE_SELECT_H_
-#define RUNTIME_COMMON_OPERATORS_RETRIEVE_SELECT_H_
+#ifndef EXECUTION_COMMON_OPERATORS_RETRIEVE_SELECT_H_
+#define EXECUTION_COMMON_OPERATORS_RETRIEVE_SELECT_H_
 
 #include "neug/execution/common/context.h"
 #include "neug/utils/leaf_utils.h"
@@ -44,4 +44,4 @@ class Select {
 
 }  // namespace gs
 
-#endif  // RUNTIME_COMMON_OPERATORS_RETRIEVE_SELECT_H_
+#endif  // EXECUTION_COMMON_OPERATORS_RETRIEVE_SELECT_H_

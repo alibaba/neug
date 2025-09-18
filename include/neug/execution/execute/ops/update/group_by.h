@@ -13,36 +13,33 @@
  * limitations under the License.
  */
 
-#ifndef EXECUTION_EXECUTE_UPDATE_OPS_SELECT_H_
-#define EXECUTION_EXECUTE_UPDATE_OPS_SELECT_H_
-#include <memory>
-
+#ifndef EXECUTION_EXECUTE_OPS_UPDATE_GROUP_BY_H_
+#define EXECUTION_EXECUTE_OPS_UPDATE_GROUP_BY_H_
 #include "neug/execution/execute/operator.h"
 #ifdef USE_SYSTEM_PROTOBUF
 #include "neug/generated/proto/plan/physical.pb.h"
 #else
 #include "neug/utils/proto/plan/physical.pb.h"
 #endif
-
 namespace gs {
-class Schema;
-
 namespace runtime {
 namespace ops {
-class USelectOprBuilder : public IUpdateOperatorBuilder {
+
+class UGroupByOprBuilder : public IUpdateOperatorBuilder {
  public:
-  USelectOprBuilder() = default;
-  ~USelectOprBuilder() = default;
+  UGroupByOprBuilder() = default;
+  ~UGroupByOprBuilder() = default;
 
   std::unique_ptr<IUpdateOperator> Build(const Schema& schema,
                                          const physical::PhysicalPlan& plan,
                                          int op_idx) override;
+
   physical::PhysicalOpr_Operator::OpKindCase GetOpKind() const override {
-    return physical::PhysicalOpr_Operator::OpKindCase::kSelect;
+    return physical::PhysicalOpr_Operator::OpKindCase::kGroupBy;
   }
 };
+
 }  // namespace ops
 }  // namespace runtime
 }  // namespace gs
-
-#endif  // EXECUTION_EXECUTE_UPDATE_OPS_SELECT_H_
+#endif  // EXECUTION_EXECUTE_OPS_UPDATE_GROUP_BY_H_

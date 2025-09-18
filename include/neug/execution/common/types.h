@@ -13,8 +13,8 @@
  * limitations under the License.
  */
 
-#ifndef RUNTIME_COMMON_TYPES_H_
-#define RUNTIME_COMMON_TYPES_H_
+#ifndef EXECUTION_COMMON_TYPES_H_
+#define EXECUTION_COMMON_TYPES_H_
 
 #include <stdint.h>
 #include <ostream>
@@ -112,4 +112,4 @@ inline ostream& operator<<(ostream& os, gs::runtime::JoinKind k) {
 
 }  // namespace std
 
-#endif  // RUNTIME_COMMON_TYPES_H_
+#endif  // EXECUTION_COMMON_TYPES_H_

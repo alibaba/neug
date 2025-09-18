@@ -13,8 +13,8 @@
  * limitations under the License.
  */
 
-#ifndef RUNTIME_EXECUTE_UPDATE_OPS_DEDUP_H_
-#define RUNTIME_EXECUTE_UPDATE_OPS_DEDUP_H_
+#ifndef EXECUTION_EXECUTE_UPDATE_OPS_DEDUP_H_
+#define EXECUTION_EXECUTE_UPDATE_OPS_DEDUP_H_
 
 #include <memory>
 
@@ -51,4 +51,4 @@ class DedupInsertOprBuilder : public IInsertOperatorBuilder {
 
 }  // namespace gs
 
-#endif  // RUNTIME_EXECUTE_UPDATE_OPS_DEDUP_H_
+#endif  // EXECUTION_EXECUTE_UPDATE_OPS_DEDUP_H_

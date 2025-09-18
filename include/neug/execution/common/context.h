@@ -13,8 +13,8 @@
  * limitations under the License.
  */
 
-#ifndef RUNTIME_COMMON_CONTEXT_H_
-#define RUNTIME_COMMON_CONTEXT_H_
+#ifndef EXECUTION_COMMON_CONTEXT_H_
+#define EXECUTION_COMMON_CONTEXT_H_
 
 #include <glog/logging.h>
 #include <stddef.h>
@@ -301,4 +301,4 @@ class WriteContext {
 
 }  // namespace gs
 
-#endif  // RUNTIME_COMMON_CONTEXT_H_
+#endif  // EXECUTION_COMMON_CONTEXT_H_

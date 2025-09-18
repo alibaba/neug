@@ -16,23 +16,10 @@
 
 namespace gs {
 namespace runtime {
-gs::result<WriteContext> Project::project(
+gs::result<WriteContext> IProject::project(
     WriteContext&& ctx,
     const std::vector<std::unique_ptr<WriteProjectExprBase>>& exprs) {
   WriteContext ret;
-  for (auto& expr : exprs) {
-    ret = expr->evaluate(ctx, std::move(ret));
-  }
-  return ret;
-}
-
-gs::result<Context> UProject::project(
-    Context&& ctx, const std::vector<std::unique_ptr<UProjectExprBase>>& exprs,
-    bool is_append) {
-  Context ret;
-  if (is_append) {
-    ret = ctx;
-  }
   for (auto& expr : exprs) {
     ret = expr->evaluate(ctx, std::move(ret));
   }

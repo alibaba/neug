@@ -12,8 +12,8 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-#ifndef RUNTIME_COMMON_COLUMNS_COLUMNS_UTILS_H_
-#define RUNTIME_COMMON_COLUMNS_COLUMNS_UTILS_H_
+#ifndef EXECUTION_COMMON_COLUMNS_COLUMNS_UTILS_H_
+#define EXECUTION_COMMON_COLUMNS_COLUMNS_UTILS_H_
 
 #include <algorithm>
 #include <numeric>
@@ -47,4 +47,4 @@ class ColumnsUtils {
   }
 };
 }  // namespace gs
-#endif  // RUNTIME_COMMON_COLUMNS_COLUMNS_UTILS_H_
+#endif  // EXECUTION_COMMON_COLUMNS_COLUMNS_UTILS_H_

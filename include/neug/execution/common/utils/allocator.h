@@ -13,8 +13,8 @@
  * limitations under the License.
  */
 
-#ifndef RUNTIME_COMMON_UTILS_ALLOCATOR_H_
-#define RUNTIME_COMMON_UTILS_ALLOCATOR_H_
+#ifndef EXECUTION_COMMON_UTILS_ALLOCATOR_H_
+#define EXECUTION_COMMON_UTILS_ALLOCATOR_H_
 
 #include <stdlib.h>
 #include <sys/mman.h>
@@ -130,4 +130,4 @@ template <typename T>
 using SPAllocator = std::allocator<T>;
 #endif
 
-#endif  // RUNTIME_COMMON_UTILS_ALLOCATOR_H_
+#endif  // EXECUTION_COMMON_UTILS_ALLOCATOR_H_

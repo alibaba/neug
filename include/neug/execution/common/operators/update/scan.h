@@ -13,8 +13,8 @@
  * limitations under the License.
  */
 
-#ifndef RUNTIME_COMMON_OPERATORS_UPDATE_SCAN_H_
-#define RUNTIME_COMMON_OPERATORS_UPDATE_SCAN_H_
+#ifndef EXECUTION_COMMON_OPERATORS_UPDATE_SCAN_H_
+#define EXECUTION_COMMON_OPERATORS_UPDATE_SCAN_H_
 #include "neug/execution/common/columns/vertex_columns.h"
 #include "neug/execution/common/context.h"
 #include "neug/execution/utils/params.h"
@@ -44,4 +44,4 @@ class UScan {
 
 }  // namespace runtime
 }  // namespace gs
-#endif
+#endif  // EXECUTION_COMMON_OPERATORS_UPDATE_SCAN_H_

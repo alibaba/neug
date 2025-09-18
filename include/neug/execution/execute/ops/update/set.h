@@ -13,8 +13,8 @@
  * limitations under the License.
  */
 
-#ifndef RUNTIME_EXECUTE_UPDATE_OPS_SET_H_
-#define RUNTIME_EXECUTE_UPDATE_OPS_SET_H_
+#ifndef EXECUTION_EXECUTE_UPDATE_OPS_SET_H_
+#define EXECUTION_EXECUTE_UPDATE_OPS_SET_H_
 #include <memory>
 
 #include "neug/execution/execute/operator.h"
@@ -50,4 +50,4 @@ class USetOprBuilder : public IUpdateOperatorBuilder {
 
 }  // namespace gs
 
-#endif  // RUNTIME_EXECUTE_UPDATE_OPS_SINK_H_
+#endif  // EXECUTION_EXECUTE_UPDATE_OPS_SINK_H_

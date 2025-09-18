@@ -13,8 +13,8 @@
  * limitations under the License.
  */
 
-#ifndef RUNTIME_COMMON_UTILS_BITSET_H_
-#define RUNTIME_COMMON_UTILS_BITSET_H_
+#ifndef EXECUTION_COMMON_UTILS_BITSET_H_
+#define EXECUTION_COMMON_UTILS_BITSET_H_
 
 #include <utility>
 
@@ -223,4 +223,4 @@ class Bitset : public SPAllocator<uint64_t> {
 #undef ROUND_UP
 #undef ROUND_DOWN
 
-#endif  // RUNTIME_COMMON_UTILS_BITSET_H_
+#endif  // EXECUTION_COMMON_UTILS_BITSET_H_

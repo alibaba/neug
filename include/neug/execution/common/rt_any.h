@@ -13,8 +13,8 @@
  * limitations under the License.
  */
 
-#ifndef RUNTIME_COMMON_RT_ANY_H_
-#define RUNTIME_COMMON_RT_ANY_H_
+#ifndef EXECUTION_COMMON_RT_ANY_H_
+#define EXECUTION_COMMON_RT_ANY_H_
 
 #include <arrow/type.h>
 #include <assert.h>
@@ -1250,4 +1250,4 @@ inline ostream& operator<<(ostream& os, const gs::runtime::EdgeRecord& e) {
 
 }  // namespace std
 
-#endif  // RUNTIME_COMMON_RT_ANY_H_
+#endif  // EXECUTION_COMMON_RT_ANY_H_

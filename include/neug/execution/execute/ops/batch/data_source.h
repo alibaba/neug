@@ -13,8 +13,8 @@
  * limitations under the License.
  */
 
-#ifndef RUNTIME_EXECUTE_OPS_BATCH_DATA_SOURCE_H_
-#define RUNTIME_EXECUTE_OPS_BATCH_DATA_SOURCE_H_
+#ifndef EXECUTION_EXECUTE_OPS_BATCH_DATA_SOURCE_H_
+#define EXECUTION_EXECUTE_OPS_BATCH_DATA_SOURCE_H_
 
 #include <map>
 #include <memory>
@@ -87,4 +87,4 @@ class DataSourceOprBuilder : public IUpdateOperatorBuilder {
 }  // namespace runtime
 }  // namespace gs
 
-#endif  // RUNTIME_EXECUTE_OPS_BATCH_DATA_SOURCE_H_
+#endif  // EXECUTION_EXECUTE_OPS_BATCH_DATA_SOURCE_H_

@@ -13,8 +13,8 @@
  * limitations under the License.
  */
 
-#ifndef SRC_ENGINES_GRAPH_DB_RUNTIME_EXECUTE_OPS_BATCH_BATCH_UPDATE_VERTEX_H_
-#define SRC_ENGINES_GRAPH_DB_RUNTIME_EXECUTE_OPS_BATCH_BATCH_UPDATE_VERTEX_H_
+#ifndef EXECUTION_EXECUTE_OPS_BATCH_BATCH_UPDATE_VERTEX_H_
+#define EXECUTION_EXECUTE_OPS_BATCH_BATCH_UPDATE_VERTEX_H_
 
 #include "neug/execution/execute/operator.h"
 #ifdef USE_SYSTEM_PROTOBUF
@@ -72,4 +72,4 @@ class UpdateVertexOprBuilder : public IUpdateOperatorBuilder {
 }  // namespace runtime
 }  // namespace gs
 
-#endif  // SRC_ENGINES_GRAPH_DB_RUNTIME_EXECUTE_OPS_BATCH_BATCH_UPDATE_VERTEX_H_
+#endif  // EXECUTION_EXECUTE_OPS_BATCH_BATCH_UPDATE_VERTEX_H_

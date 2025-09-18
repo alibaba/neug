@@ -12,8 +12,8 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-#ifndef RUNTIME_EXECUTE_OPS_BATCH_BATCH_DELETE_VERTEX_H_
-#define RUNTIME_EXECUTE_OPS_BATCH_BATCH_DELETE_VERTEX_H_
+#ifndef EXECUTION_EXECUTE_OPS_BATCH_BATCH_DELETE_VERTEX_H_
+#define EXECUTION_EXECUTE_OPS_BATCH_BATCH_DELETE_VERTEX_H_
 
 #include "neug/execution/execute/operator.h"
 #include "neug/execution/execute/ops/batch/batch_update_utils.h"
@@ -57,4 +57,4 @@ class BatchDeleteVertexOprBuilder : public IUpdateOperatorBuilder {
 }  // namespace runtime
 }  // namespace gs
 
-#endif  // RUNTIME_EXECUTE_OPS_BATCH_BATCH_DELETE_VERTEX_H_
+#endif  // EXECUTION_EXECUTE_OPS_BATCH_BATCH_DELETE_VERTEX_H_

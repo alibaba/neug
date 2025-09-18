@@ -13,8 +13,8 @@
  * limitations under the License.
  */
 
-#ifndef RUNTIME_EXECUTE_RETRIEVE_OPS_SCAN_UTILS_H_
-#define RUNTIME_EXECUTE_RETRIEVE_OPS_SCAN_UTILS_H_
+#ifndef EXECUTION_EXECUTE_RETRIEVE_OPS_SCAN_UTILS_H_
+#define EXECUTION_EXECUTE_RETRIEVE_OPS_SCAN_UTILS_H_
 #include <functional>
 #include <map>
 #include <string>
@@ -48,4 +48,4 @@ class ScanUtils {
 }  // namespace ops
 }  // namespace runtime
 }  // namespace gs
-#endif  // RUNTIME_EXECUTE_RETRIEVE_OPS_SCAN_UTILS_H_
+#endif  // EXECUTION_EXECUTE_RETRIEVE_OPS_SCAN_UTILS_H_

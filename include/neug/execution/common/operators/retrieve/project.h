@@ -13,8 +13,8 @@
  * limitations under the License.
  */
 
-#ifndef RUNTIME_COMMON_OPERATORS_RETRIEVE_PROJECT_H_
-#define RUNTIME_COMMON_OPERATORS_RETRIEVE_PROJECT_H_
+#ifndef EXECUTION_COMMON_OPERATORS_RETRIEVE_PROJECT_H_
+#define EXECUTION_COMMON_OPERATORS_RETRIEVE_PROJECT_H_
 
 #include <tuple>
 #include <type_traits>
@@ -187,4 +187,4 @@ class Project {
 
 }  // namespace gs
 
-#endif  // RUNTIME_COMMON_OPERATORS_RETRIEVE_PROJECT_H_
+#endif  // EXECUTION_COMMON_OPERATORS_RETRIEVE_PROJECT_H_

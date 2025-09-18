@@ -13,8 +13,8 @@
  * limitations under the License.
  */
 
-#ifndef RUNTIME_COMMON_OPERATORS_RETRIEVE_LIMIT_H_
-#define RUNTIME_COMMON_OPERATORS_RETRIEVE_LIMIT_H_
+#ifndef EXECUTION_COMMON_OPERATORS_RETRIEVE_LIMIT_H_
+#define EXECUTION_COMMON_OPERATORS_RETRIEVE_LIMIT_H_
 
 #include <stddef.h>
 
@@ -35,4 +35,4 @@ class Limit {
 
 }  // namespace gs
 
-#endif  // RUNTIME_COMMON_OPERATORS_LIMIT_H_
+#endif  // EXECUTION_COMMON_OPERATORS_LIMIT_H_

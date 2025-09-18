@@ -86,7 +86,7 @@ class JoinUpdateOpr : public IUpdateOperator {
   JoinParams params_;
 };
 
-std::unique_ptr<IUpdateOperator> UJoinUpdateOprBuilder::Build(
+std::unique_ptr<IUpdateOperator> UJoinOprBuilder::Build(
     const Schema& schema, const physical::PhysicalPlan& plan, int op_idx) {
   std::vector<int> right_columns;
   auto& opr = plan.query_plan().plan(op_idx).opr().join();

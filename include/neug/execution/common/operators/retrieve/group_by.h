@@ -13,8 +13,8 @@
  * limitations under the License.
  */
 
-#ifndef RUNTIME_COMMON_OPERATORS_RETRIEVE_GROUP_BY_H_
-#define RUNTIME_COMMON_OPERATORS_RETRIEVE_GROUP_BY_H_
+#ifndef EXECUTION_COMMON_OPERATORS_RETRIEVE_GROUP_BY_H_
+#define EXECUTION_COMMON_OPERATORS_RETRIEVE_GROUP_BY_H_
 
 #include <map>
 #include <unordered_map>
@@ -223,4 +223,4 @@ class GroupBy {
 
 }  // namespace gs
 
-#endif  // RUNTIME_COMMON_OPERATORS_RETRIEVE_GROUP_BY_H_
+#endif  // EXECUTION_COMMON_OPERATORS_RETRIEVE_GROUP_BY_H_

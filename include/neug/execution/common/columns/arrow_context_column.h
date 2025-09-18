@@ -13,8 +13,8 @@
  * limitations under the License.
  */
 
-#ifndef RUNTIME_COMMON_COLUMNS_ARROW_COLUMN_H_
-#define RUNTIME_COMMON_COLUMNS_ARROW_COLUMN_H_
+#ifndef EXECUTION_COMMON_COLUMNS_ARROW_COLUMN_H_
+#define EXECUTION_COMMON_COLUMNS_ARROW_COLUMN_H_
 
 #include <arrow/array/array_base.h>
 #include <arrow/type_fwd.h>
@@ -175,4 +175,4 @@ class ArrowStreamContextColumnBuilder : public IContextColumnBuilder {
 }  // namespace runtime
 }  // namespace gs
 
-#endif  // RUNTIME_COMMON_COLUMNS_ARROW_COLUMN_H_
+#endif  // EXECUTION_COMMON_COLUMNS_ARROW_COLUMN_H_

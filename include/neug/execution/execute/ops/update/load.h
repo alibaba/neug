@@ -13,8 +13,8 @@
  * limitations under the License.
  */
 
-#ifndef RUNTIME_EXECUTE_UPDATE_OPS_LOAD_H_
-#define RUNTIME_EXECUTE_UPDATE_OPS_LOAD_H_
+#ifndef EXECUTION_EXECUTE_UPDATE_OPS_LOAD_H_
+#define EXECUTION_EXECUTE_UPDATE_OPS_LOAD_H_
 
 #include <memory>
 #include <utility>
@@ -56,4 +56,4 @@ std::pair<std::unique_ptr<IInsertOperator>, int> create_load_operator(
 
 }  // namespace gs
 
-#endif  // RUNTIME_EXECUTE_UPDATE_OPS_LOAD_H_
+#endif  // EXECUTION_EXECUTE_UPDATE_OPS_LOAD_H_

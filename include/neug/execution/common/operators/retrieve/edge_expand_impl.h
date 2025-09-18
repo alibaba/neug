@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 
-#ifndef RUNTIME_COMMON_OPERATORS_RETRIEVE_EDGE_EXPAND_IMPL_H_
-#define RUNTIME_COMMON_OPERATORS_RETRIEVE_EDGE_EXPAND_IMPL_H_
+#ifndef EXECUTION_COMMON_OPERATORS_RETRIEVE_EDGE_EXPAND_IMPL_H_
+#define EXECUTION_COMMON_OPERATORS_RETRIEVE_EDGE_EXPAND_IMPL_H_
 
 #include <glog/logging.h>
 #include <stddef.h>
@@ -1504,4 +1504,4 @@ expand_edge_impl(const GraphReadInterface& graph, const SLVertexColumn& input,
 }  // namespace runtime
 }  // namespace gs
 
-#endif  // RUNTIME_COMMON_OPERATORS_RETRIEVE_EDGE_EXPAND_H_
+#endif  // EXECUTION_COMMON_OPERATORS_RETRIEVE_EDGE_EXPAND_H_

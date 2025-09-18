@@ -13,8 +13,8 @@
  * limitations under the License.
  */
 
-#ifndef RUNTIME_COMMON_OPERATORS_UPDATE_PROJECT_H_
-#define RUNTIME_COMMON_OPERATORS_UPDATE_PROJECT_H_
+#ifndef EXECUTION_COMMON_OPERATORS_UPDATE_PROJECT_H_
+#define EXECUTION_COMMON_OPERATORS_UPDATE_PROJECT_H_
 
 #include <stddef.h>
 
@@ -97,57 +97,14 @@ struct PairsSndGetter : public WriteProjectExprBase {
   int to_;
 };
 
-class Project {
+class IProject {
  public:
   static gs::result<WriteContext> project(
       WriteContext&& ctx,
       const std::vector<std::unique_ptr<WriteProjectExprBase>>& exprs);
 };
 
-struct UProjectExprBase {
-  virtual ~UProjectExprBase() = default;
-  virtual Context evaluate(const Context& ctx, Context&& ret) = 0;
-};
-
-struct UDummyGetter : public UProjectExprBase {
-  UDummyGetter(int from, int to) : from_(from), to_(to) {}
-  Context evaluate(const Context& ctx, Context&& ret) override {
-    ret.set(to_, ctx.get(from_));
-    return ret;
-  }
-
-  int from_;
-  int to_;
-};
-
-template <typename EXPR, typename COLLECTOR_T>
-struct UProjectExpr : public UProjectExprBase {
-  EXPR expr_;
-  COLLECTOR_T collector_;
-  int alias_;
-
-  UProjectExpr(EXPR&& expr, const COLLECTOR_T& collector, int alias)
-      : expr_(std::move(expr)), collector_(collector), alias_(alias) {}
-
-  Context evaluate(const Context& ctx, Context&& ret) override {
-    size_t row_num = ctx.row_num();
-    for (size_t i = 0; i < row_num; ++i) {
-      collector_.collect(expr_, i);
-    }
-    ret.set(alias_, collector_.get());
-    return ret;
-  }
-};
-
-class UProject {
- public:
-  static gs::result<Context> project(
-      Context&& ctx,
-      const std::vector<std::unique_ptr<UProjectExprBase>>& exprs,
-      bool is_append = false);
-};
-
 }  // namespace runtime
 }  // namespace gs
 
-#endif  // RUNTIME_COMMON_OPERATORS_UPDATE_PROJECT_H_
+#endif  // EXECUTION_COMMON_OPERATORS_UPDATE_PROJECT_H_

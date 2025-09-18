@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 
-#ifndef RUNTIME_COMMON_OPERATORS_RETRIEVE_PATH_EXPAND_IMPL_H_
-#define RUNTIME_COMMON_OPERATORS_RETRIEVE_PATH_EXPAND_IMPL_H_
+#ifndef EXECUTION_COMMON_OPERATORS_RETRIEVE_PATH_EXPAND_IMPL_H_
+#define EXECUTION_COMMON_OPERATORS_RETRIEVE_PATH_EXPAND_IMPL_H_
 
 #include <glog/logging.h>
 #include <stddef.h>
@@ -691,4 +691,4 @@ default_single_source_shortest_path_impl(
 
 }  // namespace gs
 
-#endif  // RUNTIME_COMMON_OPERATORS_RETRIEVE_PATH_EXPAND_H_
+#endif  // EXECUTION_COMMON_OPERATORS_RETRIEVE_PATH_EXPAND_H_

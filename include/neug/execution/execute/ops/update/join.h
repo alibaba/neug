@@ -13,8 +13,8 @@
  * limitations under the License.
  */
 
-#ifndef RUNTIME_EXECUTE_RETRIEVE_OPS_UPDATE_JOIN_H_
-#define RUNTIME_EXECUTE_RETRIEVE_OPS_UPDATE_JOIN_H_
+#ifndef EXECUTION_EXECUTE_RETRIEVE_OPS_UPDATE_JOIN_H_
+#define EXECUTION_EXECUTE_RETRIEVE_OPS_UPDATE_JOIN_H_
 
 #include <vector>
 
@@ -33,10 +33,10 @@ class ContextMeta;
 
 namespace ops {
 
-class UJoinUpdateOprBuilder : public IUpdateOperatorBuilder {
+class UJoinOprBuilder : public IUpdateOperatorBuilder {
  public:
-  UJoinUpdateOprBuilder() = default;
-  ~UJoinUpdateOprBuilder() = default;
+  UJoinOprBuilder() = default;
+  ~UJoinOprBuilder() = default;
 
   std::unique_ptr<IUpdateOperator> Build(const Schema& schema,
                                          const physical::PhysicalPlan& plan,
@@ -53,4 +53,4 @@ class UJoinUpdateOprBuilder : public IUpdateOperatorBuilder {
 
 }  // namespace gs
 
-#endif  // RUNTIME_EXECUTE_RETRIEVE_OPS_JOIN_H_
+#endif  // EXECUTION_EXECUTE_RETRIEVE_OPS_JOIN_H_

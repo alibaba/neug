@@ -12,8 +12,8 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-#ifndef RUNTIME_COMMON_OPERATORS_RETRIEVE_ORDER_BY_H_
-#define RUNTIME_COMMON_OPERATORS_RETRIEVE_ORDER_BY_H_
+#ifndef EXECUTION_COMMON_OPERATORS_RETRIEVE_ORDER_BY_H_
+#define EXECUTION_COMMON_OPERATORS_RETRIEVE_ORDER_BY_H_
 
 #include "neug/execution/common/context.h"
 #include "neug/execution/common/graph_interface.h"
@@ -114,4 +114,4 @@ class OrderBy {
 
 }  // namespace gs
 
-#endif  // RUNTIME_COMMON_OPERATORS_RETRIEVE_ORDER_BY_H_
+#endif  // EXECUTION_COMMON_OPERATORS_RETRIEVE_ORDER_BY_H_

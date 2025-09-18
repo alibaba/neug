@@ -13,8 +13,8 @@
  * limitations under the License.
  */
 
-#ifndef RUNTIME_COMMON_GRAPH_INTERFACE_H_
-#define RUNTIME_COMMON_GRAPH_INTERFACE_H_
+#ifndef EXECUTION_COMMON_GRAPH_INTERFACE_H_
+#define EXECUTION_COMMON_GRAPH_INTERFACE_H_
 
 #include "neug/transaction/insert_transaction.h"
 #include "neug/transaction/read_transaction.h"
@@ -531,4 +531,4 @@ class GraphUpdateInterface {
 
 }  // namespace gs
 
-#endif  // RUNTIME_COMMON_GRAPH_INTERFACE_H_
+#endif  // EXECUTION_COMMON_GRAPH_INTERFACE_H_

@@ -13,8 +13,8 @@
  * limitations under the License.
  */
 
-#ifndef RUNTIME_EXECUTE_UPDATE_OPS_UNFOLD_H_
-#define RUNTIME_EXECUTE_UPDATE_OPS_UNFOLD_H_
+#ifndef EXECUTION_EXECUTE_UPDATE_OPS_UNFOLD_H_
+#define EXECUTION_EXECUTE_UPDATE_OPS_UNFOLD_H_
 
 #include <memory>
 
@@ -52,4 +52,4 @@ class UnfoldInsertOprBuilder : public IInsertOperatorBuilder {
 
 }  // namespace gs
 
-#endif  // RUNTIME_EXECUTE_UPDATE_OPS_UNFOLD_H_
+#endif  // EXECUTION_EXECUTE_UPDATE_OPS_UNFOLD_H_

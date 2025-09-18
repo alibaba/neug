@@ -13,8 +13,8 @@
  * limitations under the License.
  */
 
-#ifndef RUNTIME_EXECUTE_RETRIEVE_OPS_EDGE_H_
-#define RUNTIME_EXECUTE_RETRIEVE_OPS_EDGE_H_
+#ifndef EXECUTION_EXECUTE_RETRIEVE_OPS_EDGE_H_
+#define EXECUTION_EXECUTE_RETRIEVE_OPS_EDGE_H_
 
 #include <vector>
 
@@ -95,4 +95,4 @@ class TCOprBuilder : public IReadOperatorBuilder {
 
 }  // namespace gs
 
-#endif  // RUNTIME_EXECUTE_RETRIEVE_OPS_EDGE_H_
+#endif  // EXECUTION_EXECUTE_RETRIEVE_OPS_EDGE_H_

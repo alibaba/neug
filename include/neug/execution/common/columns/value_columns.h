@@ -13,8 +13,8 @@
  * limitations under the License.
  */
 
-#ifndef RUNTIME_COMMON_COLUMNS_VALUE_COLUMNS_H_
-#define RUNTIME_COMMON_COLUMNS_VALUE_COLUMNS_H_
+#ifndef EXECUTION_COMMON_COLUMNS_VALUE_COLUMNS_H_
+#define EXECUTION_COMMON_COLUMNS_VALUE_COLUMNS_H_
 
 #include <assert.h>
 #include <glog/logging.h>
@@ -506,4 +506,4 @@ bool ValueColumn<T>::order_by_limit(bool asc, size_t limit,
 
 }  // namespace gs
 
-#endif  // RUNTIME_COMMON_COLUMNS_VALUE_COLUMNS_H_
+#endif  // EXECUTION_COMMON_COLUMNS_VALUE_COLUMNS_H_

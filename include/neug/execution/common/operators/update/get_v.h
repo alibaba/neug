@@ -13,8 +13,8 @@
  * limitations under the License.
  */
 
-#ifndef RUNTIME_COMMON_OPERATORS_UPDATE_GET_V_H_
-#define RUNTIME_COMMON_OPERATORS_UPDATE_GET_V_H_
+#ifndef EXECUTION_COMMON_OPERATORS_UPDATE_GET_V_H_
+#define EXECUTION_COMMON_OPERATORS_UPDATE_GET_V_H_
 #include "neug/execution/common/columns/edge_columns.h"
 #include "neug/execution/common/context.h"
 #include "neug/execution/utils/params.h"
@@ -50,4 +50,4 @@ class UGetV {
 };
 }  // namespace runtime
 }  // namespace gs
-#endif  // RUNTIME_COMMON_OPERATORS_UPDATE_GET_V_H_
+#endif  // EXECUTION_COMMON_OPERATORS_UPDATE_GET_V_H_

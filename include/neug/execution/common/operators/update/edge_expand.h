@@ -13,8 +13,8 @@
  * limitations under the License.
  */
 
-#ifndef RUNTIME_COMMON_OPERATORS_UPDATE_EDGE_H_
-#define RUNTIME_COMMON_OPERATORS_UPDATE_EDGE_H_
+#ifndef EXECUTION_COMMON_OPERATORS_UPDATE_EDGE_H_
+#define EXECUTION_COMMON_OPERATORS_UPDATE_EDGE_H_
 
 #include "neug/execution/common/columns/edge_columns.h"
 #include "neug/execution/common/columns/vertex_columns.h"
@@ -40,4 +40,4 @@ class UEdgeExpand {
 };
 }  // namespace runtime
 }  // namespace gs
-#endif  // RUNTIME_COMMON_OPERATORS_UPDATE_EDGE_H_
+#endif  // EXECUTION_COMMON_OPERATORS_UPDATE_EDGE_H_

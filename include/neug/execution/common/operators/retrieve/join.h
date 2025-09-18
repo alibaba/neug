@@ -13,8 +13,8 @@
  * limitations under the License.
  */
 
-#ifndef RUNTIME_COMMON_OPERATORS_RETRIEVE_JOIN_H_
-#define RUNTIME_COMMON_OPERATORS_RETRIEVE_JOIN_H_
+#ifndef EXECUTION_COMMON_OPERATORS_RETRIEVE_JOIN_H_
+#define EXECUTION_COMMON_OPERATORS_RETRIEVE_JOIN_H_
 
 #include <vector>
 
@@ -40,4 +40,4 @@ class Join {
 }  // namespace runtime
 }  // namespace gs
 
-#endif  // COMMON_OPERATORS_RETRIEVE_JOIN_H_
+#endif  // EXECUTION_COMMON_OPERATORS_RETRIEVE_JOIN_H_

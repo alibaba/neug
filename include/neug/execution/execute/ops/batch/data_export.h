@@ -13,8 +13,8 @@
  * limitations under the License.
  */
 
-#ifndef RUNTIME_EXECUTE_RETRIEVE_OPS_BATCH_DATA_EXPORT_H_
-#define RUNTIME_EXECUTE_RETRIEVE_OPS_BATCH_DATA_EXPORT_H_
+#ifndef EXECUTION_EXECUTE_RETRIEVE_OPS_BATCH_DATA_EXPORT_H_
+#define EXECUTION_EXECUTE_RETRIEVE_OPS_BATCH_DATA_EXPORT_H_
 
 #include "neug/execution/execute/operator.h"
 #include "neug/execution/execute/writer/export_writer_factory.h"
@@ -71,4 +71,4 @@ class DataExportOprBuilder : public IReadOperatorBuilder {
 }  // namespace runtime
 }  // namespace gs
 
-#endif  // RUNTIME_EXECUTE_RETRIEVE_OPS_BATCH_DATA_EXPORT_H_
+#endif  // EXECUTION_EXECUTE_RETRIEVE_OPS_BATCH_DATA_EXPORT_H_

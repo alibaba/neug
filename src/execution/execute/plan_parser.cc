@@ -45,8 +45,10 @@
 #include "neug/execution/execute/ops/retrieve/unfold.h"
 #include "neug/execution/execute/ops/retrieve/union.h"
 #include "neug/execution/execute/ops/retrieve/vertex.h"
+
 #include "neug/execution/execute/ops/update/dedup.h"
 #include "neug/execution/execute/ops/update/edge.h"
+#include "neug/execution/execute/ops/update/group_by.h"
 #include "neug/execution/execute/ops/update/join.h"
 #include "neug/execution/execute/ops/update/load.h"
 #include "neug/execution/execute/ops/update/project.h"
@@ -132,8 +134,8 @@ void PlanParser::init() {
   register_update_operator_builder(std::make_unique<ops::USinkOprBuilder>());
   register_update_operator_builder(std::make_unique<ops::UProjectOprBuilder>());
   register_update_operator_builder(std::make_unique<ops::USelectOprBuilder>());
-  register_update_operator_builder(
-      std::make_unique<ops::UJoinUpdateOprBuilder>());
+  register_update_operator_builder(std::make_unique<ops::UJoinOprBuilder>());
+  register_update_operator_builder(std::make_unique<ops::UGroupByOprBuilder>());
   register_update_operator_builder(
       std::make_unique<ops::DataSourceOprBuilder>());
   register_update_operator_builder(

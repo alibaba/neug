@@ -13,8 +13,8 @@
  * limitations under the License.
  */
 
-#ifndef RUNTIME_COMMON_OPERATORS_RETRIEVE_SINK_H_
-#define RUNTIME_COMMON_OPERATORS_RETRIEVE_SINK_H_
+#ifndef EXECUTION_COMMON_OPERATORS_RETRIEVE_SINK_H_
+#define EXECUTION_COMMON_OPERATORS_RETRIEVE_SINK_H_
 
 #include "neug/execution/common/context.h"
 #include "neug/utils/app_utils.h"
@@ -99,4 +99,4 @@ class Sink {
 }  // namespace runtime
 }  // namespace gs
 
-#endif  // RUNTIME_COMMON_OPERATORS_RETRIEVE_SINK_H_
+#endif  // EXECUTION_COMMON_OPERATORS_RETRIEVE_SINK_H_

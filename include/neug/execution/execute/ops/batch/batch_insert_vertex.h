@@ -13,8 +13,8 @@
  * limitations under the License.
  */
 
-#ifndef RUNTIME_EXECUTE_OPS_BATCH_BATCH_INSERT_VERTEX_H_
-#define RUNTIME_EXECUTE_OPS_BATCH_BATCH_INSERT_VERTEX_H_
+#ifndef EXECUTION_EXECUTE_OPS_BATCH_BATCH_INSERT_VERTEX_H_
+#define EXECUTION_EXECUTE_OPS_BATCH_BATCH_INSERT_VERTEX_H_
 
 #include <cstdint>
 #include <map>
@@ -124,4 +124,4 @@ class InsertVertexOprBuilder : public IUpdateOperatorBuilder {
 
 }  // namespace gs
 
-#endif  // RUNTIME_EXECUTE_OPS_BATCH_BATCH_INSERT_VERTEX_H_
+#endif  // EXECUTION_EXECUTE_OPS_BATCH_BATCH_INSERT_VERTEX_H_

@@ -14,63 +14,29 @@
  */
 
 #include "neug/execution/execute/ops/retrieve/group_by.h"
-
-#include <glog/logging.h>
-#include <google/protobuf/wrappers.pb.h>
-#include <stddef.h>
-#include <algorithm>
-#include <cstdint>
-
-#include <functional>
-#include <map>
-#include <memory>
-#include <optional>
-#include <ostream>
-#include <set>
-#include <string>
-#include <string_view>
-#include <tuple>
-#include <type_traits>
-#include <typeindex>
-#include <unordered_set>
-#include <utility>
-
-#include "neug/execution/common/columns/i_context_column.h"
-#include "neug/execution/common/columns/value_columns.h"
-#include "neug/execution/common/columns/vertex_columns.h"
-#include "neug/execution/common/context.h"
-#include "neug/execution/common/graph_interface.h"
-#include "neug/execution/common/operators/retrieve/group_by.h"
-#include "neug/execution/common/operators/retrieve/project.h"
-#include "neug/execution/common/rt_any.h"
+#include "neug/execution/common/types.h"
+#include "neug/execution/execute/ops/update/group_by.h"
 #include "neug/execution/execute/ops/utils/group_by_utils.h"
-#include "neug/execution/utils/var.h"
-#include "neug/utils/property/types.h"
-
 namespace gs {
-class Schema;
-
 namespace runtime {
-class OprTimer;
-
 namespace ops {
 
-class GroupByOpr : public IReadOperator {
+class UGroupByOpr : public IUpdateOperator {
  public:
-  GroupByOpr(std::vector<common::Variable>&& vars,
-             std::vector<std::pair<int, int>>&& mappings,
-             std::vector<physical::GroupBy_AggFunc>&& aggrs,
+  UGroupByOpr(std::vector<common::Variable>&& vars,
+              std::vector<std::pair<int, int>>&& mappings,
+              std::vector<physical::GroupBy_AggFunc>&& aggrs,
 
-             const std::vector<std::pair<int, int>>& dependencies)
+              const std::vector<std::pair<int, int>>& dependencies)
       : vars_(std::move(vars)),
         mappings_(std::move(mappings)),
         aggrs_(std::move(aggrs)),
         dependencies_(dependencies) {}
 
-  std::string get_operator_name() const override { return "GroupByOpr"; }
+  std::string get_operator_name() const override { return "UGroupByOpr"; }
 
   gs::result<gs::runtime::Context> Eval(
-      const gs::runtime::GraphReadInterface& graph,
+      gs::runtime::GraphUpdateInterface& graph,
       const std::map<std::string, std::string>& params,
       gs::runtime::Context&& ctx, gs::runtime::OprTimer* timer) override {
     return GroupByEvalImpl(graph, params, std::move(ctx), vars_, mappings_,
@@ -84,9 +50,9 @@ class GroupByOpr : public IReadOperator {
   std::vector<std::pair<int, int>> dependencies_;
 };
 
-class GroupByOprBeta : public IReadOperator {
+class UGroupByOprBeta : public IUpdateOperator {
  public:
-  GroupByOprBeta(
+  UGroupByOprBeta(
       std::vector<std::pair<common::Variable, int>>&& project_var_alias,
       std::vector<common::Variable>&& vars,
       std::vector<std::pair<int, int>>&& mappings,
@@ -98,10 +64,10 @@ class GroupByOprBeta : public IReadOperator {
         aggrs_(std::move(aggrs)),
         dependencies_(dependencies) {}
 
-  std::string get_operator_name() const override { return "GroupByOpr"; }
+  std::string get_operator_name() const override { return "UGroupByOprBeta"; }
 
   gs::result<gs::runtime::Context> Eval(
-      const gs::runtime::GraphReadInterface& graph,
+      gs::runtime::GraphUpdateInterface& graph,
       const std::map<std::string, std::string>& params,
       gs::runtime::Context&& ctx, gs::runtime::OprTimer* timer) override {
     return GroupByBetaEvalImpl(graph, params, std::move(ctx),
@@ -117,59 +83,28 @@ class GroupByOprBeta : public IReadOperator {
   std::vector<std::pair<int, int>> dependencies_;
 };
 
-gs::result<ReadOpBuildResultT> GroupByOprBuilder::Build(
-    const gs::Schema& schema, const ContextMeta& ctx_meta,
-    const physical::PhysicalPlan& plan, int op_idx) {
-  int mappings_num =
-      plan.query_plan().plan(op_idx).opr().group_by().mappings_size();
-  int func_num =
-      plan.query_plan().plan(op_idx).opr().group_by().functions_size();
-  ContextMeta meta;
-  for (int i = 0; i < mappings_num; ++i) {
-    auto& key = plan.query_plan().plan(op_idx).opr().group_by().mappings(i);
-    if (key.has_alias()) {
-      meta.set(key.alias().value());
-    } else {
-      meta.set(-1);
-    }
-  }
-  for (int i = 0; i < func_num; ++i) {
-    auto& func = plan.query_plan().plan(op_idx).opr().group_by().functions(i);
-    if (func.has_alias()) {
-      meta.set(func.alias().value());
-    } else {
-      meta.set(-1);
-    }
-  }
-
+std::unique_ptr<IUpdateOperator> UGroupByOprBuilder::Build(
+    const Schema& schema, const physical::PhysicalPlan& plan, int op_idx) {
   auto opr = plan.query_plan().plan(op_idx).opr().group_by();
   std::vector<std::pair<int, int>> mappings;
   std::vector<common::Variable> vars;
   std::vector<std::pair<common::Variable, int>> project_var_alias;
   std::vector<physical::GroupBy_AggFunc> reduce_funcs;
   std::vector<std::pair<int, int>> dependencies;
-
   if (!BuildGroupByUtils(opr, project_var_alias, vars, mappings, reduce_funcs,
                          dependencies)) {
-    return std::make_pair(nullptr, ContextMeta());
+    return nullptr;
   }
   if (project_var_alias.empty()) {
-    return std::make_pair(
-        std::make_unique<GroupByOpr>(std::move(vars), std::move(mappings),
-
-                                     std::move(reduce_funcs), dependencies),
-
-        meta);
+    return std::make_unique<UGroupByOpr>(std::move(vars), std::move(mappings),
+                                         std::move(reduce_funcs),
+                                         std::move(dependencies));
   } else {
-    return std::make_pair(
-        std::make_unique<GroupByOprBeta>(std::move(project_var_alias),
-                                         std::move(vars), std::move(mappings),
-                                         std::move(reduce_funcs), dependencies),
-
-        meta);
+    return std::make_unique<UGroupByOprBeta>(
+        std::move(project_var_alias), std::move(vars), std::move(mappings),
+        std::move(reduce_funcs), std::move(dependencies));
   }
 }
-
 }  // namespace ops
 }  // namespace runtime
 }  // namespace gs

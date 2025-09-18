@@ -13,8 +13,8 @@
  * limitations under the License.
  */
 
-#ifndef RUNTIME_EXECUTE_RETRIEVE_OPS_PROJECT_H_
-#define RUNTIME_EXECUTE_RETRIEVE_OPS_PROJECT_H_
+#ifndef EXECUTION_EXECUTE_RETRIEVE_OPS_PROJECT_H_
+#define EXECUTION_EXECUTE_RETRIEVE_OPS_PROJECT_H_
 
 #include <vector>
 
@@ -72,4 +72,4 @@ class ProjectOrderByOprBuilder : public IReadOperatorBuilder {
 
 }  // namespace gs
 
-#endif  // RUNTIME_EXECUTE_RETRIEVE_OPS_VERTEX_H_
+#endif  // EXECUTION_EXECUTE_RETRIEVE_OPS_VERTEX_H_

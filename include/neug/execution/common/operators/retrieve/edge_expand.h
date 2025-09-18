@@ -13,8 +13,8 @@
  * limitations under the License.
  */
 
-#ifndef RUNTIME_COMMON_OPERATORS_RETRIEVE_EDGE_EXPAND_H_
-#define RUNTIME_COMMON_OPERATORS_RETRIEVE_EDGE_EXPAND_H_
+#ifndef EXECUTION_COMMON_OPERATORS_RETRIEVE_EDGE_EXPAND_H_
+#define EXECUTION_COMMON_OPERATORS_RETRIEVE_EDGE_EXPAND_H_
 
 #include <assert.h>
 #include <stddef.h>
@@ -525,4 +525,4 @@ class EdgeExpand {
 }  // namespace runtime
 }  // namespace gs
 
-#endif  // RUNTIME_COMMON_OPERATORS_RETRIEVE_EDGE_EXPAND_H_
+#endif  // EXECUTION_COMMON_OPERATORS_RETRIEVE_EDGE_EXPAND_H_

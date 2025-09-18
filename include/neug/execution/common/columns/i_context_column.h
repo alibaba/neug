@@ -13,8 +13,8 @@
  * limitations under the License.
  */
 
-#ifndef RUNTIME_COMMON_COLUMNS_I_CONTEXT_COLUMNS_H_
-#define RUNTIME_COMMON_COLUMNS_I_CONTEXT_COLUMNS_H_
+#ifndef EXECUTION_COMMON_COLUMNS_I_CONTEXT_COLUMNS_H_
+#define EXECUTION_COMMON_COLUMNS_I_CONTEXT_COLUMNS_H_
 
 #include <memory>
 #include <string>
@@ -249,4 +249,4 @@ class IOptionalContextColumnBuilder : public IContextColumnBuilder {
 
 }  // namespace gs
 
-#endif  // RUNTIME_COMMON_COLUMNS_I_CONTEXT_COLUMNS_H_
+#endif  // EXECUTION_COMMON_COLUMNS_I_CONTEXT_COLUMNS_H_

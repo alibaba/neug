@@ -13,8 +13,8 @@
  * limitations under the License.
  */
 
-#ifndef RUNTIME_COMMON_ACCESSORS_H_
-#define RUNTIME_COMMON_ACCESSORS_H_
+#ifndef EXECUTION_COMMON_ACCESSORS_H_
+#define EXECUTION_COMMON_ACCESSORS_H_
 
 #include <assert.h>
 #include <glog/logging.h>
@@ -781,4 +781,4 @@ std::shared_ptr<IAccessor> create_edge_property_edge_accessor(
 
 }  // namespace gs
 
-#endif  // RUNTIME_COMMON_ACCESSORS_H_
+#endif  // EXECUTION_COMMON_ACCESSORS_H_

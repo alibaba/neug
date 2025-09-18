@@ -13,8 +13,8 @@
  * limitations under the License.
  */
 
-#ifndef RUNTIME_EXECUTE_RETRIEVE_OPS_PATH_H_
-#define RUNTIME_EXECUTE_RETRIEVE_OPS_PATH_H_
+#ifndef EXECUTION_EXECUTE_RETRIEVE_OPS_PATH_H_
+#define EXECUTION_EXECUTE_RETRIEVE_OPS_PATH_H_
 
 #include <vector>
 
@@ -118,4 +118,4 @@ class PathExpandOprBuilder : public IReadOperatorBuilder {
 
 }  // namespace gs
 
-#endif  // RUNTIME_EXECUTE_RETRIEVE_OPS_PATH_H_
+#endif  // EXECUTION_EXECUTE_RETRIEVE_OPS_PATH_H_

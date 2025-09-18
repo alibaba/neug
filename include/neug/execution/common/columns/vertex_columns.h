@@ -13,8 +13,8 @@
  * limitations under the License.
  */
 
-#ifndef RUNTIME_COMMON_COLUMNS_VERTEX_COLUMNS_H_
-#define RUNTIME_COMMON_COLUMNS_VERTEX_COLUMNS_H_
+#ifndef EXECUTION_COMMON_COLUMNS_VERTEX_COLUMNS_H_
+#define EXECUTION_COMMON_COLUMNS_VERTEX_COLUMNS_H_
 
 #include <assert.h>
 #include <glog/logging.h>

@@ -13,8 +13,8 @@
  * limitations under the License.
  */
 
-#ifndef RUNTIME_EXECUTE_OPS_UPDATE_SCAN_H_
-#define RUNTIME_EXECUTE_OPS_UPDATE_SCAN_H_
+#ifndef EXECUTION_EXECUTE_OPS_UPDATE_SCAN_H_
+#define EXECUTION_EXECUTE_OPS_UPDATE_SCAN_H_
 
 #include <memory>
 
@@ -45,4 +45,4 @@ class UScanOprBuilder : public IUpdateOperatorBuilder {
 }  // namespace ops
 }  // namespace runtime
 }  // namespace gs
-#endif  // RUNTIME_EXECUTE_OPS_UPDATE_SCAN_H_
+#endif  // EXECUTION_EXECUTE_OPS_UPDATE_SCAN_H_

@@ -13,8 +13,8 @@
  * limitations under the License.
  */
 
-#ifndef RUNTIME_EXECUTE_OPS_BATCH_BATCH_INSERT_UTILS_H_
-#define RUNTIME_EXECUTE_OPS_BATCH_BATCH_INSERT_UTILS_H_
+#ifndef EXECUTION_EXECUTE_OPS_BATCH_BATCH_INSERT_UTILS_H_
+#define EXECUTION_EXECUTE_OPS_BATCH_BATCH_INSERT_UTILS_H_
 
 #include <glog/logging.h>
 #include <stdint.h>
@@ -118,4 +118,4 @@ void parse_property_mappings(
 
 }  // namespace gs
 
-#endif  // RUNTIME_EXECUTE_OPS_BATCH_BATCH_INSERT_UTILS_H_
+#endif  // EXECUTION_EXECUTE_OPS_BATCH_BATCH_INSERT_UTILS_H_

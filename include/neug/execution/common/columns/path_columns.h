@@ -13,8 +13,8 @@
  * limitations under the License.
  */
 
-#ifndef RUNTIME_COMMON_COLUMNS_PATH_COLUMNS_H_
-#define RUNTIME_COMMON_COLUMNS_PATH_COLUMNS_H_
+#ifndef EXECUTION_COMMON_COLUMNS_PATH_COLUMNS_H_
+#define EXECUTION_COMMON_COLUMNS_PATH_COLUMNS_H_
 #include <glog/logging.h>
 #include <stddef.h>
 #include <memory>
@@ -216,4 +216,4 @@ class OptionalGeneralPathColumnBuilder : public IContextColumnBuilder {
 }  // namespace runtime
 }  // namespace gs
 
-#endif  // RUNTIME_COMMON_COLUMNS_PATH_COLUMNS_H_
+#endif  // EXECUTION_COMMON_COLUMNS_PATH_COLUMNS_H_
