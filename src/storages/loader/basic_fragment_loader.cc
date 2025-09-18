@@ -60,7 +60,7 @@ BasicFragmentLoader::BasicFragmentLoader(const Schema& schema,
       vertex_label_num_(schema_.vertex_label_num()),
       edge_label_num_(schema_.edge_label_num()) {
   std::filesystem::create_directories(runtime_dir(prefix));
-  std::filesystem::create_directories(snapshot_dir(prefix, 0));
+  std::filesystem::create_directories(checkpoint_dir(prefix));
   std::filesystem::create_directories(wal_dir(prefix));
   std::filesystem::create_directories(tmp_dir(prefix));
   for (label_t v_label = 0; v_label < vertex_label_num_; v_label++) {
@@ -71,8 +71,7 @@ BasicFragmentLoader::BasicFragmentLoader(const Schema& schema,
         schema_.get_vertex_property_names(v_label),
         schema_.get_vertex_properties(v_label),
         schema_.get_vertex_storage_strategies(v_label_name));
-    vertex_tables_.back().Open(snapshot_dir(work_dir_, 0), tmp_dir(work_dir_),
-                               0, true);
+    vertex_tables_.back().Open(work_dir_, 0, true);
   }
   for (label_t src_label = 0; src_label < vertex_label_num_; src_label++) {
     for (label_t dst_label = 0; dst_label < vertex_label_num_; dst_label++) {
@@ -99,8 +98,7 @@ BasicFragmentLoader::BasicFragmentLoader(const Schema& schema,
           size_t index = src_label * vertex_label_num_ * edge_label_num_ +
                          dst_label * edge_label_num_ + edge_label;
           edge_tables_.emplace(index, std::move(edge_table));
-          edge_tables_.at(index).Open(snapshot_dir(work_dir_, 0),
-                                      tmp_dir(work_dir_), 0);
+          edge_tables_.at(index).Open(work_dir_, 0);
         }
       }
     }
@@ -168,8 +166,6 @@ void BasicFragmentLoader::LoadFragment() {
   io_adaptor->Open("wb");
   schema_.Serialize(io_adaptor);
   io_adaptor->Close();
-
-  set_snapshot_version(work_dir_, 0);
   clear_tmp(work_dir_);
 }
 

@@ -170,19 +170,7 @@ void NeugDB::Close() {
   }
   //-----------Clear graph_db----------------
   if (config_.checkpoint_on_close) {
-    // TODO(zhanlei,lineng): Currently we dump the graph to a new directory,
-    // we should invoke compact and checkpoint after checkpoint is
-    // implemented.
-    auto latest_ts = get_snapshot_version(work_dir_);
-    VLOG(1) << "Dumping graph to " << snapshot_dir(work_dir_, latest_ts + 1)
-            << ", this is the temporally workaround for data persistence, will "
-               "be deleted in the future";
-    if (config_.compact_on_close) {
-      graph_.Compact(config_.reset_timestamp_before_checkpoint,
-                     config_.compact_csr, config_.csr_reserve_ratio,
-                     MAX_TIMESTAMP);
-    }
-    graph_.Dump(work_dir_, latest_ts + 1);
+    createCheckpoint();
   }
   graph_.Clear();
   if (version_manager_) {
@@ -194,20 +182,6 @@ void NeugDB::Close() {
     txn_manager_.reset();
   }
 
-  // TODO(zhanglei,lineng): Remove this adhoc resolution when checkpoint is
-  // ready.
-  if (config_.checkpoint_on_close) {
-    auto latest_ts = get_snapshot_version(work_dir_);
-    if (latest_ts > 0) {
-      VLOG(10) << "Remove previous checkpoint at: "
-               << snapshot_dir(work_dir_, latest_ts - 1)
-               << ", current latest snapshot is at: "
-               << snapshot_dir(work_dir_, latest_ts)
-               << ", this behaviour is not elegant and will be replaced with "
-                  "checkpoint in the near future";
-      std::filesystem::remove_all(snapshot_dir(work_dir_, latest_ts - 1));
-    }
-  }
   if (file_lock_) {
     file_lock_->unlock();
   }
@@ -559,4 +533,14 @@ void NeugDB::initPlannerAndQueryProcessor() {
       graph_, planner_, query_processor_, config_);
 }
 
+void NeugDB::createCheckpoint() {
+  std::unique_lock<std::mutex> lock(mutex_);
+  if (config_.compact_on_close) {
+    graph_.Compact(config_.reset_timestamp_before_checkpoint,
+                   config_.compact_csr, config_.csr_reserve_ratio,
+                   MAX_TIMESTAMP);
+  }
+  graph_.Dump();
+  VLOG(1) << "Finish checkpoint";
+}
 }  // namespace gs

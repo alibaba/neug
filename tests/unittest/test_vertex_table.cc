@@ -34,7 +34,6 @@ class VertexTableTest : public ::testing::Test {
  protected:
   void SetUp() override {
     dir_ = "/tmp/test_vertex_table";
-    tmp_dir_ = dir_ + "/tmp";
     memory_level_ = 1;
     // remove the directory if it exists
     if (std::filesystem::exists(dir_)) {
@@ -59,7 +58,7 @@ class VertexTableTest : public ::testing::Test {
     }
   }
 
-  std::string dir_, tmp_dir_;
+  std::string dir_;
   int32_t memory_level_;
   std::string v_label_name_;
   gs::PropertyType pk_type_;
@@ -74,7 +73,7 @@ class VertexTableTest : public ::testing::Test {
 TEST_F(VertexTableTest, VertexTableBasicOps) {
   gs::VertexTable table(v_label_name_, pk_type_, property_names_,
                         property_types_, storage_strategies_);
-  table.Open(dir_, tmp_dir_, memory_level_, true);
+  table.Open(dir_, memory_level_, true);
   table.Reserve(vertex_count_);
 
   gs::vid_t lid1, lid2, lid3;
@@ -85,6 +84,10 @@ TEST_F(VertexTableTest, VertexTableBasicOps) {
   lid1 = table.add_vertex(oid1, 1);
   lid2 = table.add_vertex(oid2, 2);
   lid3 = table.add_vertex(oid3, 3);
+  LOG(INFO) << "Added vertices with lids: " << lid1 << ", " << lid2 << ", "
+            << lid3;
+  LOG(INFO) << "and oids: " << oid1.AsInt64() << ", " << oid2.AsInt64() << ", "
+            << oid3.AsInt64();
 
   EXPECT_EQ(table.vertex_num(), 3);
   EXPECT_EQ(table.lid_num(), 3);
@@ -110,4 +113,43 @@ TEST_F(VertexTableTest, VertexTableBasicOps) {
   gs::vid_t tmp_vid;
   EXPECT_FALSE(table.get_index(oid1, tmp_vid, 0));
   EXPECT_TRUE(table.get_index(oid1, tmp_vid, 1));
+}
+
+TEST_F(VertexTableTest, VertexTableDumpAndReload) {
+  std::string dump_dir = "/tmp/test_vertex_table_dump";
+  if (std::filesystem::exists(dump_dir)) {
+    std::filesystem::remove_all(dump_dir);
+  }
+  std::filesystem::create_directories(dump_dir);
+  std::filesystem::create_directories(gs::checkpoint_dir(dump_dir));
+  {
+    gs::VertexTable table(v_label_name_, pk_type_, property_names_,
+                          property_types_, storage_strategies_);
+    table.Open(dump_dir, memory_level_, true);
+    table.Reserve(vertex_count_);
+
+    gs::vid_t lid1, lid2, lid3;
+    gs::Any oid1, oid2, oid3;
+    oid1.set_i64(1);
+    oid2.set_i64(2);
+    oid3.set_i64(3);
+    lid1 = table.add_vertex(oid1, 1);
+    lid2 = table.add_vertex(oid2, 2);
+    lid3 = table.add_vertex(oid3, 3);
+    LOG(INFO) << "Added vertices with lids: " << lid1 << ", " << lid2 << ", "
+              << lid3;
+
+    table.Dump(gs::checkpoint_dir(dump_dir));
+  }
+
+  {
+    gs::VertexTable new_table(v_label_name_, pk_type_, property_names_,
+                              property_types_, storage_strategies_);
+    new_table.Open(dump_dir, memory_level_);
+    EXPECT_EQ(new_table.vertex_num(), 3);
+    EXPECT_EQ(new_table.lid_num(), 3);
+    EXPECT_EQ(new_table.vertex_num(2), 2);
+    EXPECT_EQ(new_table.vertex_num(1), 1);
+    EXPECT_TRUE(new_table.vertex_table_modified());
+  }
 }

@@ -295,7 +295,9 @@ class ImmutableCsr : public TypedImmutableCsrBase<EDATA_T> {
   }
 
   void reset_timestamp() override {}
-  void compact_nbr(const std::string& work_dir, float reserve_ratio) {}
+  void compact_nbr(const std::string& work_dir, float reserve_ratio) override {}
+
+  void ensure_writable(const std::string& work_dir) override {}
 
  private:
   void load_meta(const std::string& prefix) {
@@ -401,6 +403,7 @@ class ImmutableCsr<std::string_view>
 
   void reset_timestamp() override {}
   void compact_nbr(const std::string& work_dir, float reserve_ratio) override {}
+  void ensure_writable(const std::string& work_dir) override {}
 
  private:
   Table& table_;
@@ -487,6 +490,7 @@ class ImmutableCsr<RecordView> : public TypedImmutableCsrBase<RecordView> {
 
   void reset_timestamp() override {}
   void compact_nbr(const std::string& work_dir, float reserve_ratio) override {}
+  void ensure_writable(const std::string& work_dir) override {}
 
  private:
   Table& table_;
@@ -641,6 +645,7 @@ class SingleImmutableCsr : public TypedImmutableCsrBase<EDATA_T> {
 
   void reset_timestamp() override {}
   void compact_nbr(const std::string& work_dir, float reserve_ratio) override {}
+  void ensure_writable(const std::string& work_dir) override {}
 
  private:
   mmap_array<nbr_t> nbr_list_;
@@ -731,6 +736,7 @@ class SingleImmutableCsr<std::string_view>
 
   void reset_timestamp() override { csr_.reset_timestamp(); }
   void compact_nbr(const std::string& work_dir, float reserve_ratio) override {}
+  void ensure_writable(const std::string& work_dir) override {}
 
  private:
   Table& table_;
@@ -824,6 +830,7 @@ class SingleImmutableCsr<RecordView>
 
   void reset_timestamp() override { csr_.reset_timestamp(); }
   void compact_nbr(const std::string& work_dir, float reserve_ratio) override {}
+  void ensure_writable(const std::string& work_dir) override {}
 
  private:
   Table& table_;

@@ -15,6 +15,8 @@
 
 #include "neug/utils/file_utils.h"
 
+#include "neug/utils/exception/exception.h"
+
 #include <glog/logging.h>
 #include <filesystem>
 #include <fstream>
@@ -58,6 +60,37 @@ bool write_string_to_file(const std::string& content,
   }
   outputFile << content;
   return true;
+}
+
+void copy_directory(const std::string& src, const std::string& dst,
+                    bool overwrite, bool recursive) {
+  if (!std::filesystem::exists(src)) {
+    LOG(ERROR) << "Source file does not exist: " << src << std::endl;
+    return;
+  }
+  if (overwrite && std::filesystem::exists(dst)) {
+    std::filesystem::remove_all(dst);
+  }
+  std::filesystem::create_directory(dst);
+
+  for (const auto& entry : std::filesystem::directory_iterator(src)) {
+    const auto& path = entry.path();
+    auto dest = std::filesystem::path(dst) / path.filename();
+    if (std::filesystem::is_directory(path)) {
+      if (recursive) {
+        copy_directory(path.string(), dest.string(), overwrite, recursive);
+      }
+    } else if (std::filesystem::is_regular_file(path)) {
+      std::error_code errorCode;
+      std::filesystem::create_hard_link(path, dest, errorCode);
+      if (errorCode) {
+        LOG(ERROR) << "Failed to create hard link from " << path << " to "
+                   << dest << " " << errorCode.message() << std::endl;
+        THROW_IO_EXCEPTION("Failed to create hard link from " + path.string() +
+                           " to " + dest.string() + " " + errorCode.message());
+      }
+    }
+  }
 }
 
 }  // namespace gs

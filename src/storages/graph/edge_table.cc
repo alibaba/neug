@@ -96,44 +96,53 @@ EdgeTable::EdgeTable(EdgeTable&& edge_table)
       table_(std::move(edge_table.table_)),
       offset_(std::move(edge_table.offset_)),
       prop_names_(std::move(edge_table.prop_names_)),
-      prop_types_(std::move(edge_table.prop_types_)) {
+      prop_types_(std::move(edge_table.prop_types_)),
+      memory_level_(edge_table.memory_level_),
+      work_dir_(edge_table.work_dir_) {
   edge_table.dual_csr_ = nullptr;
 }
 
-void EdgeTable::Open(const std::string& snapshot_dir,
-                     const std::string& work_dir, int memory_level,
+void EdgeTable::Open(const std::string& work_dir, int memory_level,
                      size_t src_vertex_cap, size_t dst_vertex_cap) {
   memory_level_ = memory_level;
   work_dir_ = work_dir;
+  table_->set_work_dir(work_dir_);
+  // Here we only set the name and work_dir of the table, the real open
+  // operation is not needed before we got csr that needs at least two
+  // properties
+  table_->set_name(
+      edata_prefix(src_label_name_, dst_label_name_, edge_label_name_));
+  std::string checkpoint_dir_path = checkpoint_dir(work_dir_);
   if (memory_level_ == 0) {
     dual_csr_->Open(
         oe_prefix(src_label_name_, dst_label_name_, edge_label_name_),
         ie_prefix(src_label_name_, dst_label_name_, edge_label_name_),
         edata_prefix(src_label_name_, dst_label_name_, edge_label_name_),
-        snapshot_dir, work_dir, prop_names_, prop_types_);
+        checkpoint_dir_path, work_dir, prop_names_, prop_types_);
   } else if (memory_level_ >= 2) {
     dual_csr_->OpenWithHugepages(
         oe_prefix(src_label_name_, dst_label_name_, edge_label_name_),
         ie_prefix(src_label_name_, dst_label_name_, edge_label_name_),
         edata_prefix(src_label_name_, dst_label_name_, edge_label_name_),
-        snapshot_dir, prop_names_, prop_types_, src_vertex_cap, dst_vertex_cap);
+        checkpoint_dir_path, prop_names_, prop_types_, src_vertex_cap,
+        dst_vertex_cap);
   } else {
     dual_csr_->OpenInMemory(
         oe_prefix(src_label_name_, dst_label_name_, edge_label_name_),
         ie_prefix(src_label_name_, dst_label_name_, edge_label_name_),
         edata_prefix(src_label_name_, dst_label_name_, edge_label_name_),
-        snapshot_dir, prop_names_, prop_types_, src_vertex_cap, dst_vertex_cap);
+        work_dir, prop_names_, prop_types_, src_vertex_cap, dst_vertex_cap);
   }
 }
 
-void EdgeTable::Dump(const std::string& new_snapshot_dir) {
+void EdgeTable::Dump(const std::string& checkpoint_dir_path) {
   dual_csr_->Dump(
       oe_prefix(src_label_name_, dst_label_name_, edge_label_name_),
       ie_prefix(src_label_name_, dst_label_name_, edge_label_name_),
       edata_prefix(src_label_name_, dst_label_name_, edge_label_name_),
-      new_snapshot_dir);
+      checkpoint_dir_path);
   table_->dump(edata_prefix(src_label_name_, dst_label_name_, edge_label_name_),
-               new_snapshot_dir);
+               checkpoint_dir_path);
 }
 
 void EdgeTable::SortByEdgeData(timestamp_t ts) {
@@ -260,7 +269,11 @@ void EdgeTable::AddProperties(const std::vector<std::string>& prop_names,
                                src_vertex_size, dst_vertex_size);
     // TODO: delete the files related to the old properties
     drop_and_create_dual_csr();
-    BatchInit(work_dir_, out_degs, in_degs, false);
+    if (memory_level_ == 0) {
+      BatchInit(work_dir_, out_degs, in_degs, false);
+    } else {
+      BatchInit(work_dir_, out_degs, in_degs, true);
+    }
     if (prop_types_[0].type_enum == impl::PropertyTypeImpl::kStringView ||
         prop_types_[0].type_enum == impl::PropertyTypeImpl::kVarChar) {
       AppendEdgesUtils<std::string_view>(dual_csr_, edges);
@@ -285,15 +298,19 @@ void EdgeTable::AddProperties(const std::vector<std::string>& prop_names,
       collectEdgesWithNoProperty(dual_csr_, edges, out_degs, in_degs,
                                  src_vertex_size, dst_vertex_size);
       drop_and_create_dual_csr();
-      BatchInit(work_dir_, out_degs, in_degs, false);
+      if (memory_level_ == 0) {
+        BatchInit(work_dir_, out_degs, in_degs, false);
+      } else {
+        BatchInit(work_dir_, out_degs, in_degs, true);
+      }
       AppendEdgesUtils<RecordView>(dual_csr_, edges);
-      table_->add_columns(prop_names, prop_types);
+      table_->add_columns(prop_names, prop_types, memory_level_);
       table_->resize(EdgeNum());
     } else if (old_prop_types.size() == 1) {
       if ((old_prop_types[0].type_enum !=
            impl::PropertyTypeImpl::kStringView) &&
           (old_prop_types[0].type_enum != impl::PropertyTypeImpl::kVarChar)) {
-        table_->add_columns(prop_names_, prop_types_);
+        table_->add_columns(prop_names_, prop_types_, memory_level_);
         table_->resize(EdgeNum());
         std::vector<Any> prop_values;
         collectEdgesWithProperty(dual_csr_, edges, out_degs, in_degs,
@@ -303,18 +320,26 @@ void EdgeTable::AddProperties(const std::vector<std::string>& prop_names,
           col->set_any(i, prop_values[i]);
         }
         drop_and_create_dual_csr();
-        BatchInit(work_dir_, out_degs, in_degs, false);
+        if (memory_level_ == 0) {
+          BatchInit(work_dir_, out_degs, in_degs, false);
+        } else {
+          BatchInit(work_dir_, out_degs, in_degs, true);
+        }
         AppendEdgesUtils<RecordView>(dual_csr_, edges);
       } else {
         collectEdgesWithNoProperty(dual_csr_, edges, out_degs, in_degs,
                                    src_vertex_size, dst_vertex_size);
         drop_and_create_dual_csr();
-        table_->add_columns(prop_names, prop_types);
-        BatchInit(work_dir_, out_degs, in_degs, false);
+        table_->add_columns(prop_names, prop_types, memory_level_);
+        if (memory_level_ == 0) {
+          BatchInit(work_dir_, out_degs, in_degs, false);
+        } else {
+          BatchInit(work_dir_, out_degs, in_degs, true);
+        }
         AppendEdgesUtils<RecordView>(dual_csr_, edges);
       }
     } else {
-      table_->add_columns(prop_names, prop_types);
+      table_->add_columns(prop_names, prop_types, memory_level_);
     }
   }
 }
@@ -418,7 +443,11 @@ void EdgeTable::DeleteProperties(const std::vector<std::string>& col_names) {
     collectEdgesWithNoProperty(dual_csr_, edges, out_degs, in_degs,
                                src_vertex_size, dst_vertex_size);
     drop_and_create_dual_csr();
-    BatchInit(work_dir_, out_degs, in_degs, false);
+    if (memory_level_ == 0) {
+      BatchInit(work_dir_, out_degs, in_degs, false);
+    } else {
+      BatchInit(work_dir_, out_degs, in_degs, true);
+    }
     AppendEdgesUtils<grape::EmptyType>(dual_csr_, edges);
 
   } else if (prop_names_.size() == 1) {
@@ -426,7 +455,11 @@ void EdgeTable::DeleteProperties(const std::vector<std::string>& col_names) {
     collectEdgesWithProperty(dual_csr_, edges, out_degs, in_degs, prop_values,
                              src_vertex_size, dst_vertex_size);
     drop_and_create_dual_csr();
-    BatchInit(work_dir_, out_degs, in_degs, false);
+    if (memory_level_ == 0) {
+      BatchInit(work_dir_, out_degs, in_degs, false);
+    } else {
+      BatchInit(work_dir_, out_degs, in_degs, true);
+    }
     if (prop_types_[0].type_enum == impl::PropertyTypeImpl::kStringView ||
         prop_types_[0].type_enum == impl::PropertyTypeImpl::kVarChar) {
       AppendEdgesExtractPropertyFromRecordView<std::string_view>(
@@ -479,7 +512,11 @@ void EdgeTable::BatchAddEdges(
     in_degs[v1]++;
   }
   size_t prev_size = offset_->load();
-  BatchInit(work_dir_, out_degs, in_degs);
+  if (memory_level_ == 0) {
+    BatchInit(work_dir_, out_degs, in_degs, false);
+  } else {
+    BatchInit(work_dir_, out_degs, in_degs, true);
+  }
   if (!has_complex_property()) {
     if (prop_types_.size() == 0) {
       BatchPutEdgeUtil<grape::EmptyType>(parsed_edges_vec, prop_values,

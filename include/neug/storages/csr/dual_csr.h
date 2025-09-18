@@ -51,7 +51,7 @@ class DualCsrBase {
   virtual void OpenInMemory(const std::string& oe_name,
                             const std::string& ie_name,
                             const std::string& edata_name,
-                            const std::string& snapshot_dir,
+                            const std::string& work_dir,
                             const std::vector<std::string>& col_names,
                             const std::vector<PropertyType>& property_types,
                             size_t src_vertex_cap, size_t dst_vertex_cap) = 0;
@@ -162,8 +162,10 @@ class DualCsr : public DualCsrBase {
                  const std::string& edata_name, const std::string& work_dir,
                  const std::vector<int>& oe_degree,
                  const std::vector<int>& ie_degree) override {
-    in_csr_->batch_init(ie_name, work_dir, ie_degree);
-    out_csr_->batch_init(oe_name, work_dir, oe_degree);
+    in_csr_->ensure_writable(work_dir);
+    in_csr_->batch_init(ie_name, tmp_dir(work_dir), ie_degree);
+    out_csr_->ensure_writable(work_dir);
+    out_csr_->batch_init(oe_name, tmp_dir(work_dir), oe_degree);
   }
 
   void BatchInitInMemory(const std::string& edata_name,
@@ -184,13 +186,14 @@ class DualCsr : public DualCsrBase {
   }
 
   void OpenInMemory(const std::string& oe_name, const std::string& ie_name,
-                    const std::string& edata_name,
-                    const std::string& snapshot_dir,
+                    const std::string& edata_name, const std::string& work_dir,
                     const std::vector<std::string>& col_names,
                     const std::vector<PropertyType>& property_types,
                     size_t src_vertex_cap, size_t dst_vertex_cap) override {
-    in_csr_->open_in_memory(snapshot_dir + "/" + ie_name, dst_vertex_cap);
-    out_csr_->open_in_memory(snapshot_dir + "/" + oe_name, src_vertex_cap);
+    in_csr_->open_in_memory(checkpoint_dir(work_dir) + "/" + ie_name,
+                            dst_vertex_cap);
+    out_csr_->open_in_memory(checkpoint_dir(work_dir) + "/" + oe_name,
+                             src_vertex_cap);
   }
 
   void OpenWithHugepages(const std::string& oe_name, const std::string& ie_name,
@@ -379,8 +382,10 @@ class DualCsr<std::string_view> : public DualCsrBase {
                  const std::string& edata_name, const std::string& work_dir,
                  const std::vector<int>& oe_degree,
                  const std::vector<int>& ie_degree) override {
-    size_t ie_num = in_csr_->batch_init(ie_name, work_dir, ie_degree);
-    size_t oe_num = out_csr_->batch_init(oe_name, work_dir, oe_degree);
+    in_csr_->ensure_writable(work_dir);
+    size_t ie_num = in_csr_->batch_init(ie_name, tmp_dir(work_dir), ie_degree);
+    out_csr_->ensure_writable(work_dir);
+    size_t oe_num = out_csr_->batch_init(oe_name, tmp_dir(work_dir), oe_degree);
     table_.resize(std::max(ie_num, oe_num));
     column_idx_.store(std::max(ie_num, oe_num));
   }
@@ -410,14 +415,15 @@ class DualCsr<std::string_view> : public DualCsrBase {
   }
 
   void OpenInMemory(const std::string& oe_name, const std::string& ie_name,
-                    const std::string& edata_name,
-                    const std::string& snapshot_dir,
+                    const std::string& edata_name, const std::string& work_dir,
                     const std::vector<std::string>& col_names,
                     const std::vector<PropertyType>& property_types,
                     size_t src_vertex_cap, size_t dst_vertex_cap) override {
-    in_csr_->open_in_memory(snapshot_dir + "/" + ie_name, dst_vertex_cap);
-    out_csr_->open_in_memory(snapshot_dir + "/" + oe_name, src_vertex_cap);
-    table_.open_in_memory(edata_name, snapshot_dir, {col_names[0]},
+    in_csr_->open_in_memory(checkpoint_dir(work_dir) + "/" + ie_name,
+                            dst_vertex_cap);
+    out_csr_->open_in_memory(checkpoint_dir(work_dir) + "/" + oe_name,
+                             src_vertex_cap);
+    table_.open_in_memory(edata_name, work_dir, {col_names[0]},
                           {PropertyType::StringView()}, {});
     column_idx_.store(table_.row_num());
     table_.resize(
@@ -620,8 +626,10 @@ class DualCsr<RecordView> : public DualCsrBase {
                  const std::string& edata_name, const std::string& work_dir,
                  const std::vector<int>& oe_degree,
                  const std::vector<int>& ie_degree) override {
-    size_t ie_num = in_csr_->batch_init(ie_name, work_dir, ie_degree);
-    size_t oe_num = out_csr_->batch_init(oe_name, work_dir, oe_degree);
+    in_csr_->ensure_writable(work_dir);
+    size_t ie_num = in_csr_->batch_init(ie_name, tmp_dir(work_dir), ie_degree);
+    out_csr_->ensure_writable(work_dir);
+    size_t oe_num = out_csr_->batch_init(oe_name, tmp_dir(work_dir), oe_degree);
     table_.resize(std::max(ie_num, oe_num));
     table_idx_.store(std::max(ie_num, oe_num));
   }
@@ -653,16 +661,16 @@ class DualCsr<RecordView> : public DualCsrBase {
   }
 
   void OpenInMemory(const std::string& oe_name, const std::string& ie_name,
-                    const std::string& edata_name,
-                    const std::string& snapshot_dir,
+                    const std::string& edata_name, const std::string& work_dir,
                     const std::vector<std::string>& col_names,
                     const std::vector<PropertyType>& property_types,
                     size_t src_vertex_cap, size_t dst_vertex_cap) override {
-    in_csr_->open_in_memory(snapshot_dir + "/" + ie_name, dst_vertex_cap);
-    out_csr_->open_in_memory(snapshot_dir + "/" + oe_name, src_vertex_cap);
+    in_csr_->open_in_memory(checkpoint_dir(work_dir) + "/" + ie_name,
+                            dst_vertex_cap);
+    out_csr_->open_in_memory(checkpoint_dir(work_dir) + "/" + oe_name,
+                             src_vertex_cap);
     // fix me: storage_strategies_ is not used
-    table_.open_in_memory(edata_name, snapshot_dir, col_names, property_types,
-                          {});
+    table_.open_in_memory(edata_name, work_dir, col_names, property_types, {});
     table_idx_.store(table_.row_num());
     table_.resize(
         std::max(table_.row_num() + (table_.row_num() + 4) / 5, 4096ul));

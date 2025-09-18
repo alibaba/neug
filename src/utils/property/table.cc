@@ -77,22 +77,22 @@ void Table::open(const std::string& name, const std::string& snapshot_dir,
   initColumns(col_name, property_types, strategies_);
   for (size_t i = 0; i < columns_.size(); ++i) {
     columns_[i]->open(name + ".col_" + std::to_string(i), snapshot_dir,
-                      work_dir);
+                      tmp_dir(work_dir));
   }
   touched_ = false;
   buildColumnPtrs();
 }
 
-void Table::open_in_memory(const std::string& name,
-                           const std::string& snapshot_dir,
+void Table::open_in_memory(const std::string& name, const std::string& work_dir,
                            const std::vector<std::string>& col_name,
                            const std::vector<PropertyType>& property_types,
                            const std::vector<StorageStrategy>& strategies_) {
   name_ = name;
-  snapshot_dir_ = snapshot_dir;
+  work_dir_ = work_dir;
+  snapshot_dir_ = checkpoint_dir(work_dir_);
   initColumns(col_name, property_types, strategies_);
   for (size_t i = 0; i < columns_.size(); ++i) {
-    columns_[i]->open_in_memory(snapshot_dir + "/" + name + ".col_" +
+    columns_[i]->open_in_memory(snapshot_dir_ + "/" + name + ".col_" +
                                 std::to_string(i));
   }
   touched_ = true;
@@ -158,7 +158,8 @@ void Table::add_column(const std::string& col_name,
 }
 
 void Table::add_columns(const std::vector<std::string>& col_names,
-                        const std::vector<PropertyType>& col_types) {
+                        const std::vector<PropertyType>& col_types,
+                        int memory_level) {
   // When add_columns are called, the table is already initialized and col_files
   // are opened.
   size_t old_size = columns_.size();
@@ -171,8 +172,15 @@ void Table::add_columns(const std::vector<std::string>& col_names,
     columns_[col_id] = CreateColumn(col_types[i], StorageStrategy::kMem);
   }
   for (size_t i = old_size; i < columns_.size(); ++i) {
-    columns_[i]->open_in_memory(snapshot_dir_ + "/" + name_ + ".col_" +
-                                std::to_string(i));
+    if (memory_level == 0) {
+      columns_[i]->open(name_ + ".col_" + std::to_string(i), "",
+                        tmp_dir(work_dir_));
+    } else if (memory_level == 1) {
+      columns_[i]->open_in_memory(tmp_dir(work_dir_) + "/" + name_ + ".col_" +
+                                  std::to_string(i));
+    } else {
+      THROW_NOT_IMPLEMENTED_EXCEPTION("Unsupported memory level");
+    }
     columns_[i]->resize(row_num());
   }
   buildColumnPtrs();
@@ -333,6 +341,7 @@ void Table::insert(size_t index, const std::vector<Any>& values,
 
 void Table::resize(size_t row_num) {
   for (auto col : columns_) {
+    col->ensure_writable(work_dir_);
     col->resize(row_num);
   }
 }
@@ -368,5 +377,9 @@ void Table::drop() {
   close();
   // TODO: delete files in work_dir
 }
+
+void Table::set_name(const std::string& name) { name_ = name; }
+
+void Table::set_work_dir(const std::string& work_dir) { work_dir_ = work_dir; }
 
 }  // namespace gs

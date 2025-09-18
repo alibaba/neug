@@ -94,7 +94,8 @@ class NeugDB {
    * @param compact_csr Whether to compact the csr when doing auto compaction.
    * @param compact_on_close Whether to compact the graph when closing the graph
    * db.
-   * @param dump_on_close Whether to dump the graph when closing the graph db.
+   * @param checkpoint_on_close Whether to dump the graph when closing the graph
+   * db.
    * @return true if successed.
    *
    * @note This function is mainly for python binding.
@@ -217,6 +218,7 @@ class NeugDB {
   void initTransactionManager();
   void initPlannerAndQueryProcessor();
   void initAppManager();
+  void createCheckpoint();
 
   bool registerApp(const std::string& path, uint8_t index = 0);
 

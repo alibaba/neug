@@ -54,6 +54,7 @@ struct NeugDBConfig {
         enable_auto_compaction(false),
         memory_level(1),
         wal_uri("{GRAPH_DATA_DIR}/wal"),
+        compact_csr(true),
         compact_on_close(false),
         checkpoint_on_close(false) {}
 

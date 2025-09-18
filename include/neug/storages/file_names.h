@@ -155,45 +155,8 @@ inline std::string schema_path(const std::string& work_dir) {
   return work_dir + "/schema";
 }
 
-inline std::string snapshots_dir(const std::string& work_dir) {
-  return work_dir + "/snapshots/";
-}
-
-inline std::string snapshot_version_path(const std::string& work_dir) {
-  return snapshots_dir(work_dir) + "/VERSION";
-}
-
-inline std::string get_latest_snapshot(const std::string& work_dir) {
-  std::string snapshots_dir = work_dir + "/snapshots";
-  uint32_t version;
-  {
-    FILE* fin = fopen((snapshots_dir + "/VERSION").c_str(), "r");
-    CHECK_EQ(fread(&version, sizeof(uint32_t), 1, fin), 1);
-    fclose(fin);
-  }
-  return snapshots_dir + "/" + std::to_string(version);
-}
-
-inline uint32_t get_snapshot_version(const std::string& work_dir) {
-  std::string version_path = snapshot_version_path(work_dir);
-  FILE* version_file = fopen(version_path.c_str(), "rb");
-  uint32_t version = 0;
-  CHECK_EQ(fread(&version, sizeof(uint32_t), 1, version_file), 1);
-  fclose(version_file);
-  return version;
-}
-
-inline void set_snapshot_version(const std::string& work_dir,
-                                 uint32_t version) {
-  std::string version_path = snapshot_version_path(work_dir);
-  FILE* version_file = fopen(version_path.c_str(), "wb");
-  CHECK_EQ(fwrite(&version, sizeof(uint32_t), 1, version_file), 1);
-  fflush(version_file);
-  fclose(version_file);
-}
-
-inline std::string snapshot_dir(const std::string& work_dir, uint32_t version) {
-  return snapshots_dir(work_dir) + std::to_string(version) + "/";
+inline std::string checkpoint_dir(const std::string& work_dir) {
+  return work_dir + "/checkpoint/";
 }
 
 inline std::string wal_dir(const std::string& work_dir) {
@@ -219,6 +182,10 @@ inline std::string allocator_dir(const std::string& work_dir) {
 
 inline std::string tmp_dir(const std::string& work_dir) {
   return runtime_dir(work_dir) + "tmp/";
+}
+
+inline std::string temp_checkpoint_dir(const std::string& work_dir) {
+  return runtime_dir(work_dir) + "/temp_checkpoint_dir/";
 }
 
 inline std::string compact_dir(const std::string& work_dir) {

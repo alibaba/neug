@@ -445,17 +445,34 @@ class LFIndexer {
     copy_file(cur_path + ".indices", tmp_path + ".indices");
   }
 
-  void open(const std::string& name, const std::string& snapshot_dir,
-            const std::string& work_dir) {
-    if (std::filesystem::exists(snapshot_dir + "/" + name + ".meta")) {
-      copy_to_tmp(snapshot_dir + "/" + name, work_dir + "/" + name);
-    } else {
-      build_empty_LFIndexer(name, "", work_dir);
+  void open(const std::string& name, const std::string& data_dir) {
+    if (!std::filesystem::exists(data_dir + "/" + name + ".meta")) {
+      build_empty_LFIndexer(name, "", data_dir);
     }
 
-    load_meta(work_dir + "/" + name + ".meta");
-    keys_->open(name + ".keys", "", work_dir);
-    indices_.open(work_dir + "/" + name + ".indices", true);
+    load_meta(data_dir + "/" + name + ".meta");
+    keys_->open(name + ".keys", "", data_dir);
+    indices_.open(data_dir + "/" + name + ".indices", false);
+    size_t num_elements = num_elements_.load();
+    keys_->resize(num_elements + (num_elements >> 2));
+
+    indices_size_ = indices_.size();
+  }
+
+  void open(const std::string& name, const std::string& checkpoint_dir,
+            const std::string& work_dir) {
+    if (std::filesystem::exists(checkpoint_dir + "/" + name + ".meta")) {
+      copy_to_tmp(checkpoint_dir + "/" + name, tmp_dir(work_dir) + "/" + name);
+    } else {
+      build_empty_LFIndexer(name, "", tmp_dir(work_dir));
+    }
+
+    load_meta(tmp_dir(work_dir) + "/" + name + ".meta");
+    keys_->open(name + ".keys", "", tmp_dir(work_dir));
+    keys_->ensure_writable(work_dir);
+    LOG(INFO) << "Open indices file in "
+              << tmp_dir(work_dir) + "/" + name + ".indices";
+    indices_.open(tmp_dir(work_dir) + "/" + name + ".indices", true);
     size_t num_elements = num_elements_.load();
 
     keys_->resize(num_elements + (num_elements >> 2));
@@ -544,6 +561,11 @@ class LFIndexer {
 
   // get keys
   const ColumnBase& get_keys() const { return *keys_; }
+
+  void ensure_writable(const std::string& work_dir) {
+    indices_.ensure_writable(work_dir);
+    keys_->ensure_writable(work_dir);
+  }
 
  private:
   mmap_array<INDEX_T>

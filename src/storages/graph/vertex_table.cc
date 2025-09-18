@@ -17,63 +17,61 @@
 
 namespace gs {
 
-void VertexTable::Open(const std::string& snapshot_dir,
-                       const std::string& tmp_dir_path, int memory_level,
+void VertexTable::Open(const std::string& work_dir, int memory_level,
                        bool build_empty_graph) {
   memory_level_ = memory_level;
-  work_dir_ = tmp_dir_path;
+  work_dir_ = work_dir;
+  std::string tmp_dir_path = tmp_dir(work_dir_);
+  std::string checkpoint_dir_path = checkpoint_dir(work_dir_);
+
   std::string vertex_ts_filename =
-      snapshot_dir + "/" + vertex_timestamp_file(v_label_name_);
+      checkpoint_dir_path + "/" + vertex_timestamp_file(v_label_name_);
+
   if (memory_level_ == 0) {
     indexer_.open(
         IndexerType::prefix() + "_" + vertex_map_prefix(v_label_name_),
-        snapshot_dir, tmp_dir_path);
-    table_->open(vertex_table_prefix(v_label_name_), snapshot_dir, tmp_dir_path,
-                 property_names, property_types, storage_strategies);
-    if (!build_empty_graph) {
-      table_->copy_to_tmp(vertex_table_prefix(v_label_name_), snapshot_dir,
-                          tmp_dir_path);
-    }
+        checkpoint_dir_path, work_dir_);
+    table_->open(vertex_table_prefix(v_label_name_), checkpoint_dir_path,
+                 work_dir_, property_names, property_types, storage_strategies);
     vertex_ts_.open(vertex_ts_filename, true);
   } else if (memory_level_ == 1) {
-    indexer_.open_in_memory(snapshot_dir + "/" + IndexerType::prefix() + "_" +
-                            vertex_map_prefix(v_label_name_));
-    table_->open_in_memory(vertex_table_prefix(v_label_name_), snapshot_dir,
+    indexer_.open_in_memory(checkpoint_dir_path + "/" + IndexerType::prefix() +
+                            "_" + vertex_map_prefix(v_label_name_));
+    table_->open_in_memory(vertex_table_prefix(v_label_name_), work_dir_,
                            property_names, property_types, storage_strategies);
     vertex_ts_.open(vertex_ts_filename, false);
   } else if (memory_level_ >= 2) {
-    indexer_.open_with_hugepages(snapshot_dir + "/" + IndexerType::prefix() +
-                                     "_" + vertex_map_prefix(v_label_name_),
+    indexer_.open_with_hugepages(checkpoint_dir_path + "/" +
+                                     IndexerType::prefix() + "_" +
+                                     vertex_map_prefix(v_label_name_),
                                  (memory_level_ > 2));
-    table_->open_with_hugepages(vertex_table_prefix(v_label_name_),
-                                snapshot_dir, property_names, property_types,
+    table_->open_with_hugepages(vertex_table_prefix(v_label_name_), work_dir_,
+                                property_names, property_types,
                                 storage_strategies, (memory_level_ > 2));
     vertex_ts_.open_with_hugepages(vertex_ts_filename);
   } else {
     THROW_INTERNAL_EXCEPTION("Invalid memory level: " +
                              std::to_string(memory_level_));
   }
+  // TODO(zhanglei): We need to a better way to shrink the vertex_ts_ with
+  // checkpoint.
   for (size_t i = 0; i < vertex_ts_.size(); ++i) {
     if (vertex_ts_.get(i) != 0) {
-      VLOG(10) << "Found vertex with lid " << i
-               << " has timestamp: " << vertex_ts_.get(i);
       is_vertex_table_modified_ = true;
       break;
     }
   }
 }
 
-void VertexTable::Dump(const std::string& snapshot_dir_path) {
-  auto dumped_num = indexer_.size();
+void VertexTable::Dump(const std::string& target_dir) {
   indexer_.dump(IndexerType::prefix() + "_" + vertex_map_prefix(v_label_name_),
-                snapshot_dir_path);
-  table_->resize(dumped_num);
-  table_->dump(vertex_table_prefix(v_label_name_), snapshot_dir_path);
-  vertex_ts_.resize(dumped_num);
-  vertex_ts_.dump(snapshot_dir_path + "/" +
-                  vertex_timestamp_file(v_label_name_));
+                target_dir);
+  table_->resize(indexer_.size());
+  table_->dump(vertex_table_prefix(v_label_name_), target_dir);
+  vertex_ts_.resize(indexer_.size());
+  vertex_ts_.dump(target_dir + "/" + vertex_timestamp_file(v_label_name_));
   VLOG(1) << "Dump vertex table " << v_label_name_ << " done, size "
-          << dumped_num;
+          << indexer_.size();
 }
 
 void VertexTable::Close() {
@@ -84,13 +82,12 @@ void VertexTable::Close() {
 
 bool VertexTable::get_index(const Any& oid, vid_t& lid, timestamp_t ts) const {
   auto res = indexer_.get_index(oid, lid);
-  if (res && is_vertex_table_modified_)
-    [[unlikely]] {
-      if (!is_valid_lid(lid, ts)) {
-        LOG(WARNING) << "Lid " << lid << " has been deleted.";
-        return false;
-      }
+  if (res && is_vertex_table_modified_) [[unlikely]] {
+    if (!is_valid_lid(lid, ts)) {
+      LOG(WARNING) << "Lid " << lid << " has been deleted.";
+      return false;
     }
+  }
   return res;
 }
 
@@ -111,9 +108,10 @@ size_t VertexTable::vertex_num(timestamp_t ts) const {
 size_t VertexTable::lid_num() const { return indexer_.size(); }
 
 vid_t VertexTable::add_vertex(const Any& id, timestamp_t ts) {
+  indexer_.ensure_writable(work_dir_);
   vid_t vid = indexer_.insert(id);
   vertex_ts_.set(vid, ts);
-  if (ts > 0) {  // Only mark update ops when ts > 0
+  if (ts > 0) {
     is_vertex_table_modified_ = true;
   }
   return vid;
@@ -132,21 +130,21 @@ vid_t VertexTable::add_vertex_safe(const Any& id, timestamp_t ts) {
 }
 
 Any VertexTable::get_oid(vid_t lid, timestamp_t ts) const {
-  if (is_vertex_table_modified_)
-    [[unlikely]] {
-      if (!is_valid_lid(lid, ts)) {
-        THROW_INVALID_ARGUMENT_EXCEPTION("Lid " + std::to_string(lid) +
-                                         " has been deleted.");
-      }
+  if (is_vertex_table_modified_) [[unlikely]] {
+    if (!is_valid_lid(lid, ts)) {
+      THROW_INVALID_ARGUMENT_EXCEPTION("Lid " + std::to_string(lid) +
+                                       " has been deleted.");
     }
+  }
   return indexer_.get_key(lid);
 }
 
 bool VertexTable::is_valid_lid(vid_t lid, timestamp_t ts) const {
   // We use numeric_limits<timestamp_t>::max() to denote a deleted vertex.
   // But we ts is passed as a timestamp limit, we take it as a normal timestamp.
-  if (!is_vertex_table_modified_)
-    [[likely]] { return lid < indexer_.size(); }
+  if (!is_vertex_table_modified_) [[likely]] {
+    return lid < indexer_.size();
+  }
   return lid < indexer_.size() && vertex_ts_.get(lid) <= ts;
 }
 
@@ -180,6 +178,7 @@ void VertexTable::BatchAddVertices(std::vector<Any>&& ids,
 }
 
 void VertexTable::BatchDeleteVertices(const std::vector<vid_t>& vids) {
+  indexer_.ensure_writable(work_dir_);
   size_t delete_cnt = 0;
   for (auto v : vids) {
     if (v < indexer_.size() && vertex_ts_.get(v) != INVALID_TIMESTAMP) {
@@ -210,7 +209,7 @@ void VertexTable::AddProperties(
     const std::vector<std::string>& properties,
     const std::vector<PropertyType>& types,
     const std::vector<StorageStrategy>& strategies) {
-  table_->add_columns(properties, types);
+  table_->add_columns(properties, types, memory_level_);
   for (size_t i = 0; i < properties.size(); ++i) {
     property_names.push_back(properties[i]);
     property_types.push_back(types[i]);
@@ -266,4 +265,5 @@ void VertexTable::Compact(bool reset_timestamp, timestamp_t ts) {
   }
   // TODO(zhanglei): Support compact unused lid in indexer_ and table
 }
+
 }  // namespace gs

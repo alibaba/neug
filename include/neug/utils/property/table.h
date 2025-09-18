@@ -71,7 +71,8 @@ class Table {
                   std::shared_ptr<ColumnBase> column);
 
   void add_columns(const std::vector<std::string>& col_names,
-                   const std::vector<PropertyType>& col_types);
+                   const std::vector<PropertyType>& col_types,
+                   int memory_level = 0);
 
   const std::vector<std::string>& column_names() const;
 
@@ -133,6 +134,12 @@ class Table {
   void close();
 
   void drop();
+
+  void ensure_writable(size_t col_id);
+
+  void set_name(const std::string& name);
+
+  void set_work_dir(const std::string& work_dir);
 
  private:
   void buildColumnPtrs();

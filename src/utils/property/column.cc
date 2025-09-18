@@ -86,6 +86,8 @@ class TypedEmptyColumn : public ColumnBase {
   StorageStrategy storage_strategy() const override {
     return StorageStrategy::kNone;
   }
+
+  void ensure_writable(const std::string& work_dir) override {}
 };
 
 template <>
@@ -126,6 +128,8 @@ class TypedEmptyColumn<std::string_view> : public ColumnBase {
   StorageStrategy storage_strategy() const override {
     return StorageStrategy::kNone;
   }
+
+  void ensure_writable(const std::string& work_dir) override {}
 };
 
 using IntEmptyColumn = TypedEmptyColumn<int32_t>;

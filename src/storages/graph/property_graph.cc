@@ -30,6 +30,7 @@
 #include "neug/storages/csr/mutable_csr.h"
 #include "neug/storages/csr/nbr.h"
 #include "neug/storages/file_names.h"
+#include "neug/utils/file_utils.h"
 #include "neug/utils/indexers.h"
 #include "neug/utils/property/table.h"
 #include "neug/utils/property/types.h"
@@ -152,10 +153,7 @@ Status PropertyGraph::create_vertex_type(
       vertex_type_name,
       std::get<0>(schema_.get_vertex_primary_key(vertex_label_id)[0]),
       property_names, property_types, strategies);
-
-  // TODO: use memory level.
-  vertex_tables_.back().Open(snapshot_dir(work_dir_, 0), tmp_dir(work_dir_),
-                             memory_level_, true);
+  vertex_tables_.back().Open(work_dir_, memory_level_, true);
   vertex_tables_.back().Reserve(4096);
   vertex_label_num_ = schema_.vertex_label_num();
   while (v_mutex_.size() < vertex_label_num_) {
@@ -265,8 +263,8 @@ Status PropertyGraph::create_edge_type(
       vertex_tables_[src_label_i].get_indexer().capacity(), (size_t) 4096);
   auto dst_v_capacity = std::max(
       vertex_tables_[dst_label_i].get_indexer().capacity(), (size_t) 4096);
-  edge_tables_.at(index).Open(snapshot_dir(work_dir_, 0), tmp_dir(work_dir_),
-                              memory_level_, src_v_capacity, dst_v_capacity);
+  edge_tables_.at(index).Open(work_dir_, memory_level_, src_v_capacity,
+                              dst_v_capacity);
 
   edge_tables_.at(index).Reserve(src_v_capacity, dst_v_capacity);
 
@@ -693,7 +691,6 @@ void PropertyGraph::DumpSchema(const std::string& schema_path) {
   io_adaptor->Open("wb");
   schema_.Serialize(io_adaptor);
   io_adaptor->Close();
-
   LOG(INFO) << "Dump schema to file: " << get_schema_yaml_path();
   std::string filename = get_schema_yaml_path();
   auto schema_res = schema_.to_yaml();
@@ -710,7 +707,7 @@ void PropertyGraph::Open(const std::string& work_dir, int memory_level) {
   memory_level_ = memory_level;
   work_dir_.assign(work_dir);
   std::string schema_file = schema_path(work_dir_);
-  std::string snap_shot_dir{};
+  std::string checkpoint_dir_path{};
   bool build_empty_graph = false;
   if (std::filesystem::exists(schema_file)) {
     loadSchema(schema_file);
@@ -726,7 +723,7 @@ void PropertyGraph::Open(const std::string& work_dir, int memory_level) {
           v_label_name, std::get<0>(schema_.get_vertex_primary_key(i)[0]),
           property_names, properties, property_strategies);
     }
-    snap_shot_dir = get_latest_snapshot(work_dir_);
+    checkpoint_dir_path = checkpoint_dir(work_dir_);
   } else {
     vertex_label_num_ = schema_.vertex_label_num();
     edge_label_num_ = schema_.edge_label_num();
@@ -743,10 +740,8 @@ void PropertyGraph::Open(const std::string& work_dir, int memory_level) {
     build_empty_graph = true;
     LOG(INFO) << "Schema file not found, build empty graph";
 
-    // create snapshot dir
-    std::string snap_shot_dir = snapshot_dir(work_dir_, 0);
-    std::filesystem::create_directories(snap_shot_dir);
-    set_snapshot_version(work_dir_, 0);
+    checkpoint_dir_path = checkpoint_dir(work_dir_);
+    std::filesystem::create_directories(checkpoint_dir_path);
   }
 
   std::string tmp_dir_path = tmp_dir(work_dir_);
@@ -761,8 +756,7 @@ void PropertyGraph::Open(const std::string& work_dir, int memory_level) {
   for (size_t i = 0; i < vertex_label_num_; ++i) {
     std::string v_label_name = schema_.get_vertex_label_name(i);
 
-    vertex_tables_[i].Open(snap_shot_dir, tmp_dir_path, memory_level,
-                           build_empty_graph);
+    vertex_tables_[i].Open(work_dir_, memory_level, build_empty_graph);
 
     // We will reserve the at least 4096 slots for each vertex label
     size_t vertex_capacity =
@@ -806,8 +800,7 @@ void PropertyGraph::Open(const std::string& work_dir, int memory_level) {
                              ie_strategy, prop_names, properties, oe_mutable,
                              ie_mutable);
 
-        edge_table.Open(snap_shot_dir, tmp_dir_path, memory_level,
-                        vertex_capacities[src_label_i],
+        edge_table.Open(work_dir_, memory_level, vertex_capacities[src_label_i],
                         vertex_capacities[dst_label_i]);
         edge_table.Reserve(vertex_capacities[src_label_i],
                            vertex_capacities[dst_label_i]);
@@ -853,14 +846,20 @@ void PropertyGraph::Compact(bool reset_timestamp, bool compact_csr,
   }
 }
 
-void PropertyGraph::Dump(const std::string& work_dir, uint32_t version) {
-  DumpSchema(schema_path(work_dir_));
-  std::string snapshot_dir_path = snapshot_dir(work_dir, version);
+void PropertyGraph::Dump() {
+  // First dump to the  temp dir, then move to the checkpoint dir
+  std::string target_dir = temp_checkpoint_dir(work_dir_);
+  if (std::filesystem::exists(target_dir)) {
+    std::filesystem::remove_all(target_dir);
+  } else {
+    std::filesystem::create_directories(target_dir);
+  }
+
   std::error_code errorCode;
-  std::filesystem::create_directories(snapshot_dir_path, errorCode);
+  std::filesystem::create_directories(target_dir, errorCode);
   if (errorCode) {
     std::stringstream ss;
-    ss << "Failed to create snapshot directory: " << snapshot_dir_path << ", "
+    ss << "Failed to create snapshot directory: " << target_dir << ", "
        << errorCode.message();
     LOG(ERROR) << ss.str();
     THROW_RUNTIME_ERROR(ss.str());
@@ -869,7 +868,7 @@ void PropertyGraph::Dump(const std::string& work_dir, uint32_t version) {
   for (size_t i = 0; i < vertex_label_num_; ++i) {
     if (!vertex_tables_[i].is_dropped()) {
       vertex_num[i] = vertex_tables_[i].lid_num();
-      vertex_tables_[i].Dump(snapshot_dir_path);
+      vertex_tables_[i].Dump(target_dir);
     }
   }
 
@@ -903,16 +902,19 @@ void PropertyGraph::Dump(const std::string& work_dir, uint32_t version) {
         if (edge_table != edge_tables_.end()) {
           edge_table->second.Reserve(vertex_num[src_label_i],
                                      vertex_num[dst_label_i]);
-          if (schema_.get_sort_on_compaction(src_label, dst_label,
-                                             edge_label)) {
-            edge_table->second.SortByEdgeData(version + 1);
-          }
-          edge_table->second.Dump(snapshot_dir_path);
+          edge_table->second.Dump(target_dir);
         }
       }
     }
   }
-  set_snapshot_version(work_dir, version);
+  DumpSchema(schema_path(work_dir_));
+  copy_directory(target_dir, checkpoint_dir(work_dir_), true, true);
+  std::filesystem::remove_all(target_dir);
+  std::filesystem::remove_all(tmp_dir(work_dir_));
+  std::filesystem::remove_all(wal_dir(work_dir_));
+  LOG(INFO) << "Dump graph to " << checkpoint_dir(work_dir_);
+  Clear();
+  Open(work_dir_, memory_level_);
 }
 
 void PropertyGraph::IngestEdge(label_t src_label, vid_t src_lid,

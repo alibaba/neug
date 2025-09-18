@@ -136,10 +136,12 @@ class mmap_array {
     hugepage_prefered_ = (val && !sync_to_file_);
   }
 
-  void open(const std::string& filename, bool sync_to_file = false) {
+  void open(const std::string& filename, bool sync_to_file = false,
+            bool is_writable = true) {
     reset();
     filename_ = filename;
     sync_to_file_ = sync_to_file;
+    is_writable_ = is_writable;
     hugepage_prefered_ = false;
     if (sync_to_file_) {
       bool creat = !std::filesystem::exists(filename_);
@@ -173,8 +175,13 @@ class mmap_array {
       if (mmap_size_ == 0) {
         data_ = NULL;
       } else {
-        data_ = reinterpret_cast<T*>(
-            mmap(NULL, mmap_size_, PROT_READ | PROT_WRITE, MAP_SHARED, fd_, 0));
+        if (is_writable_) {
+          data_ = reinterpret_cast<T*>(mmap(
+              NULL, mmap_size_, PROT_READ | PROT_WRITE, MAP_SHARED, fd_, 0));
+        } else {
+          data_ = reinterpret_cast<T*>(mmap(
+              NULL, mmap_size_, PROT_READ | PROT_WRITE, MAP_PRIVATE, fd_, 0));
+        }
         if (data_ == MAP_FAILED) {
           std::stringstream ss;
           ss << "Failed to mmap file [" << filename_ << "], "
@@ -224,6 +231,7 @@ class mmap_array {
   void open_with_hugepages(const std::string& filename, size_t capacity = 0) {
     reset();
     hugepage_prefered_ = true;
+    is_writable_ = true;
     if (!filename.empty() && std::filesystem::exists(filename)) {
       size_t file_size = std::filesystem::file_size(filename);
       size_ = file_size / sizeof(T);
@@ -457,8 +465,10 @@ class mmap_array {
                  reinterpret_cast<void*>(data_), copy_size * sizeof(T));
         }
 
+        std::string old_filename = filename_;
         reset();
 
+        filename_ = old_filename;
         data_ = new_data;
         size_ = size;
         mmap_size_ = new_mmap_size;
@@ -495,6 +505,19 @@ class mmap_array {
 
   const std::string& filename() const { return filename_; }
 
+  void set_writable(bool is_writable) { is_writable_ = is_writable; }
+
+  void ensure_writable(const std::string& work_dir) {
+    if (is_writable_) {
+      return;
+    }
+    std::string filename = std::filesystem::path(filename_).filename().string();
+    std::string target_path = tmp_dir(work_dir) + "/" + filename;
+    copy_file(filename_, target_path);
+    reset();
+    open(target_path, true, true);
+  }
+
  private:
   std::string filename_;
   int fd_;
@@ -505,6 +528,7 @@ class mmap_array {
 
   bool sync_to_file_;
   bool hugepage_prefered_;
+  bool is_writable_ = true;
 };
 
 struct string_item {
@@ -529,9 +553,11 @@ class mmap_array<std::string_view> {
     data_.set_hugepage_prefered(val);
   }
 
-  void open(const std::string& filename, bool sync_to_file) {
-    items_.open(filename + ".items", sync_to_file);
-    data_.open(filename + ".data", sync_to_file);
+  void open(const std::string& filename, bool sync_to_file = false,
+            bool is_writable = true) {
+    is_writable_ = is_writable;
+    items_.open(filename + ".items", sync_to_file, is_writable);
+    data_.open(filename + ".data", sync_to_file, is_writable);
   }
 
   void open_with_hugepages(const std::string& filename) {
@@ -582,9 +608,25 @@ class mmap_array<std::string_view> {
     data_.unlink();
   }
 
+  void set_writable(bool is_writable) {
+    items_.set_writable(is_writable);
+    data_.set_writable(is_writable);
+    is_writable_ = is_writable;
+  }
+
+  void ensure_writable(const std::string& work_dir) {
+    if (is_writable_) {
+      return;
+    }
+    items_.ensure_writable(work_dir);
+    data_.ensure_writable(work_dir);
+    is_writable_ = true;
+  }
+
  private:
   mmap_array<string_item> items_;
   mmap_array<char> data_;
+  bool is_writable_ = true;
 };
 
 }  // namespace gs

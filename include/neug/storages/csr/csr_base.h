@@ -103,6 +103,7 @@ class CsrBase {
   virtual void reset_timestamp() = 0;
   virtual void compact_nbr(const std::string& work_dir,
                            float reserve_ratio) = 0;
+  virtual void ensure_writable(const std::string& work_dir) = 0;
 
   virtual std::shared_ptr<CsrConstEdgeIterBase> edge_iter(vid_t v) const = 0;
   virtual std::shared_ptr<CsrEdgeIterBase> edge_iter_mut(vid_t v) = 0;

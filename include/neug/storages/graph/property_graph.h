@@ -91,7 +91,7 @@ class PropertyGraph {
   void Compact(bool reset_timestamp, bool compact_csr, float reserve_ratio,
                timestamp_t ts);
 
-  void Dump(const std::string& work_dir, uint32_t version);
+  void Dump();
 
   void DumpSchema(const std::string& filename);
 

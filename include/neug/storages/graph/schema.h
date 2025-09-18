@@ -381,8 +381,8 @@ class Schema {
   std::vector<std::vector<Any>> vprop_default_values_;
   std::vector<std::string> v_descriptions_;
   std::vector<std::vector<std::tuple<PropertyType, std::string, size_t>>>
-      v_primary_keys_;  // the third element is the index of the property in the
-                        // vertex property list
+      v_primary_keys_;  // the third element is the index of the property in
+                        // the vertex property list
   std::vector<std::vector<StorageStrategy>> vprop_storage_;
   std::map<uint32_t, std::vector<PropertyType>> eproperties_;
   std::map<uint32_t, std::vector<std::string>> eprop_names_;
@@ -396,8 +396,8 @@ class Schema {
       vprop_name_to_type_and_index_;
   std::vector<size_t> max_vnum_;
   std::unordered_map<std::string, std::pair<std::string, uint8_t>>
-      plugin_name_to_path_and_id_;  // key is plugin_name, value is plugin_path
-                                    // and plugin_id
+      plugin_name_to_path_and_id_;  // key is plugin_name, value is
+                                    // plugin_path and plugin_id
   std::string plugin_dir_;
   std::string description_;
   std::string version_;

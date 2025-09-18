@@ -376,22 +376,25 @@ class MutableCsr : public TypedMutableCsrBase<EDATA_T> {
 
   timestamp_t unsorted_since() const override { return unsorted_since_; }
 
-  void open(const std::string& name, const std::string& snapshot_dir,
+  void open(const std::string& name, const std::string& checkpoint_dir,
             const std::string& work_dir) override {
     memory_level_ = 0;
     mmap_array<int> degree_list;
     mmap_array<int>* cap_list = &degree_list;
-    if (snapshot_dir != "") {
-      degree_list.open(snapshot_dir + "/" + name + ".deg", false);
-      if (std::filesystem::exists(snapshot_dir + "/" + name + ".cap")) {
+    if (checkpoint_dir != "") {
+      degree_list.open(checkpoint_dir + "/" + name + ".deg", false, false);
+      if (std::filesystem::exists(checkpoint_dir + "/" + name + ".cap")) {
         cap_list = new mmap_array<int>();
-        cap_list->open(snapshot_dir + "/" + name + ".cap", false);
+        cap_list->open(checkpoint_dir + "/" + name + ".cap", false, false);
       }
-      nbr_list_.open(snapshot_dir + "/" + name + ".nbr", false);
-      load_meta(snapshot_dir + "/" + name);
+      if (std::filesystem::exists(checkpoint_dir + "/" + name + ".nbr")) {
+        nbr_list_.open(checkpoint_dir + "/" + name + ".nbr", false, false);
+      } else {
+        nbr_list_.open(tmp_dir(work_dir) + "/" + name + ".nbr", false, true);
+      }
+      load_meta(checkpoint_dir + "/" + name);
     }
-    nbr_list_.touch(work_dir + "/" + name + ".nbr");
-    adj_lists_.open(work_dir + "/" + name + ".adj", true);
+    adj_lists_.open(tmp_dir(work_dir) + "/" + name + ".adj", true);
 
     adj_lists_.resize(degree_list.size());
     locks_ = new grape::SpinLock[degree_list.size()];
@@ -691,6 +694,11 @@ class MutableCsr : public TypedMutableCsrBase<EDATA_T> {
     }
   }
 
+  void ensure_writable(const std::string& work_dir) override {
+    nbr_list_.ensure_writable(work_dir);
+    adj_lists_.ensure_writable(work_dir);
+  }
+
  private:
   void load_meta(const std::string& prefix) {
     std::string meta_file_path = prefix + ".meta";
@@ -809,6 +817,9 @@ class MutableCsr<std::string_view>
   void compact_nbr(const std::string& work_dir, float reserve_ratio) override {
     csr_.compact_nbr(work_dir, reserve_ratio);
   }
+  void ensure_writable(const std::string& work_dir) override {
+    csr_.ensure_writable(work_dir);
+  }
 
  private:
   Table& table_;
@@ -908,6 +919,9 @@ class MutableCsr<RecordView> : public TypedMutableCsrBase<RecordView> {
 
   void compact_nbr(const std::string& work_dir, float reserve_ratio) override {
     csr_.compact_nbr(work_dir, reserve_ratio);
+  }
+  void ensure_writable(const std::string& work_dir) override {
+    csr_.ensure_writable(work_dir);
   }
 
  private:
@@ -1085,6 +1099,9 @@ class SingleMutableCsr : public TypedMutableCsrBase<EDATA_T> {
   }
 
   void compact_nbr(const std::string& work_dir, float reserve_ratio) override {}
+  void ensure_writable(const std::string& work_dir) override {
+    nbr_list_.ensure_writable(work_dir);
+  }
 
  private:
   mmap_array<nbr_t> nbr_list_;
@@ -1188,6 +1205,9 @@ class SingleMutableCsr<std::string_view>
   void reset_timestamp() override { csr_.reset_timestamp(); }
 
   void compact_nbr(const std::string& work_dir, float reserve_ratio) override {}
+  void ensure_writable(const std::string& work_dir) override {
+    csr_.ensure_writable(work_dir);
+  }
 
  private:
   Table& table_;
@@ -1297,6 +1317,9 @@ class SingleMutableCsr<RecordView> : public TypedMutableCsrBase<RecordView> {
 
   void reset_timestamp() override { csr_.reset_timestamp(); }
   void compact_nbr(const std::string& work_dir, float reserve_ratio) override {}
+  void ensure_writable(const std::string& work_dir) override {
+    csr_.ensure_writable(work_dir);
+  }
 
  private:
   Table& table_;
@@ -1363,6 +1386,7 @@ class EmptyCsr : public TypedMutableCsrBase<EDATA_T> {
 
   void reset_timestamp() override {}
   void compact_nbr(const std::string& work_dir, float reserve_ratio) override {}
+  void ensure_writable(const std::string& work_dir) override {}
 };
 
 template <>
@@ -1424,6 +1448,7 @@ class EmptyCsr<std::string_view>
 
   void reset_timestamp() override {}
   void compact_nbr(const std::string& work_dir, float reserve_ratio) override {}
+  void ensure_writable(const std::string& work_dir) override {}
 
  private:
   Table& table_;
@@ -1486,6 +1511,7 @@ class EmptyCsr<RecordView> : public TypedMutableCsrBase<RecordView> {
 
   void reset_timestamp() override {}
   void compact_nbr(const std::string& work_dir, float reserve_ratio) override {}
+  void ensure_writable(const std::string& work_dir) override {}
 
  private:
   Table& table_;

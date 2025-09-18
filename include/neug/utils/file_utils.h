@@ -27,6 +27,16 @@ bool read_string_from_file(const std::string& file_path, std::string& content);
 bool write_string_to_file(const std::string& content,
                           const std::string& file_path);
 
+/**
+ * Copy file from src to dst.
+ * @param src source file path
+ * @param dst destination file path
+ * @param overwrite whether to clean up the dst file if it already exists
+ * @param recursive whether to copy directories recursively
+ */
+void copy_directory(const std::string& src, const std::string& dst,
+                    bool overwrite = false, bool recursive = true);
+
 }  // namespace gs
 
 #endif  // UTILS_FILE_UTILS_H_

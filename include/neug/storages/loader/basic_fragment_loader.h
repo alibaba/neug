@@ -79,14 +79,14 @@ class BasicFragmentLoader {
 
     build_lf_indexer<KEY_T, vid_t>(
         indexer, LFIndexer<vid_t>::prefix() + "_" + filename,
-        vertex_tables_[v_label].get_indexer(), snapshot_dir(work_dir_, 0),
+        vertex_tables_[v_label].get_indexer(), checkpoint_dir(work_dir_),
         tmp_dir(work_dir_), type);
     append_vertex_loading_progress(schema_.get_vertex_label_name(v_label),
                                    LoadingStatus::kLoaded);
     auto label_name = schema_.get_vertex_label_name(v_label);
     auto& v_data = vertex_tables_[v_label].get_properties_table();
     v_data.resize(vertex_tables_[v_label].get_indexer().size());
-    v_data.dump(vertex_table_prefix(label_name), snapshot_dir(work_dir_, 0));
+    v_data.dump(vertex_table_prefix(label_name), checkpoint_dir(work_dir_));
     append_vertex_loading_progress(label_name, LoadingStatus::kCommited);
   }
 
@@ -99,7 +99,7 @@ class BasicFragmentLoader {
     auto src_label_name = schema_.get_vertex_label_name(src_label_id);
     auto dst_label_name = schema_.get_vertex_label_name(dst_label_id);
     auto edge_label_name = schema_.get_edge_label_name(edge_label_id);
-    edge_tables_.at(index).BatchInit(tmp_dir(work_dir_), {}, {}, false);
+    edge_tables_.at(index).BatchInit(work_dir_, {}, {}, false);
   }
 
   template <typename EDATA_T>
@@ -135,7 +135,7 @@ class BasicFragmentLoader {
     CHECK(ie_degree.size() == dst_indexer.size());
     CHECK(oe_degree.size() == src_indexer.size());
 
-    edge_tables_.at(index).BatchInit(tmp_dir(work_dir_), oe_degree, ie_degree,
+    edge_tables_.at(index).BatchInit(work_dir_, oe_degree, ie_degree,
                                      build_csr_in_mem);
 
     std::vector<std::thread> work_threads;
@@ -166,7 +166,7 @@ class BasicFragmentLoader {
       edge_tables_.at(index).SortByEdgeData(1);
     }
 
-    edge_tables_.at(index).Dump(snapshot_dir(work_dir_, 0));
+    edge_tables_.at(index).Dump(checkpoint_dir(work_dir_));
     append_edge_loading_progress(src_label_name, dst_label_name,
                                  edge_label_name, LoadingStatus::kCommited);
     VLOG(10) << "Finish adding edge batch of size: " << edge_count.load();

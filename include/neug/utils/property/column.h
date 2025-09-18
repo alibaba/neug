@@ -76,6 +76,8 @@ class ColumnBase {
   virtual void ingest(uint32_t index, grape::OutArchive& arc) = 0;
 
   virtual StorageStrategy storage_strategy() const = 0;
+
+  virtual void ensure_writable(const std::string& work_dir) = 0;
 };
 
 template <typename T>
@@ -88,7 +90,7 @@ class TypedColumn : public ColumnBase {
             const std::string& work_dir) override {
     std::string basic_path = snapshot_dir + "/" + name;
     if (std::filesystem::exists(basic_path)) {
-      buffer_.open(basic_path, false);
+      buffer_.open(basic_path, false, false);
       size_ = buffer_.size();
     } else {
       if (work_dir == "") {
@@ -196,6 +198,10 @@ class TypedColumn : public ColumnBase {
   const mmap_array<T>& buffer() const { return buffer_; }
   size_t buffer_size() const { return size_; }
 
+  void ensure_writable(const std::string& work_dir) override {
+    buffer_.ensure_writable(work_dir);
+  }
+
  private:
   mmap_array<T> buffer_;
   size_t size_;
@@ -262,6 +268,8 @@ class TypedColumn<RecordView> : public ColumnBase {
 
   std::vector<PropertyType> sub_types() const { return types_; }
 
+  void ensure_writable(const std::string& work_dir) override {}
+
  private:
   std::vector<PropertyType> types_;
   std::shared_ptr<Table> table_;
@@ -316,6 +324,8 @@ class TypedColumn<grape::EmptyType> : public ColumnBase {
 
   StorageStrategy storage_strategy() const override { return strategy_; }
 
+  void ensure_writable(const std::string& work_dir) override {}
+
  private:
   StorageStrategy strategy_;
 };
@@ -349,7 +359,7 @@ class TypedColumn<std::string_view> : public ColumnBase {
             const std::string& work_dir) override {
     std::string basic_path = snapshot_dir + "/" + name;
     if (std::filesystem::exists(basic_path + ".items")) {
-      buffer_.open(basic_path, false);
+      buffer_.open(basic_path, false, false);
       size_ = buffer_.size();
       pos_ = buffer_.data_size();
     } else {
@@ -489,6 +499,10 @@ class TypedColumn<std::string_view> : public ColumnBase {
 
   size_t buffer_size() const { return size_; }
 
+  void ensure_writable(const std::string& work_dir) override {
+    buffer_.ensure_writable(work_dir);
+  }
+
  private:
   mmap_array<std::string_view> buffer_;
   size_t size_;
@@ -574,6 +588,11 @@ class StringMapColumn : public ColumnBase {
 
   const TypedColumn<INDEX_T>& get_index_col() const { return index_col_; }
   const LFIndexer<INDEX_T>& get_meta_map() const { return *meta_map_; }
+
+  void ensure_writable(const std::string& work_dir) override {
+    index_col_.ensure_writable(work_dir);
+    meta_map_->ensure_writable(work_dir);
+  }
 
  private:
   TypedColumn<INDEX_T> index_col_;

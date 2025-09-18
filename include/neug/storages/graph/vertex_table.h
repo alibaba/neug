@@ -54,10 +54,10 @@ class VertexTable {
 
   VertexTable(const VertexTable&) = delete;
 
-  void Open(const std::string& snapshot_dir, const std::string& tmp_dir_path,
-            int memory_level, bool build_empty_graph = false);
+  void Open(const std::string& work_dir, int memory_level,
+            bool build_empty_graph = false);
 
-  void Dump(const std::string& snapshot_dir_path);
+  void Dump(const std::string& target_dir);
 
   void Close();
 
@@ -152,6 +152,8 @@ class VertexTable {
   std::string work_dir() const { return work_dir_; }
 
   void Compact(bool reset_timestamp, timestamp_t ts);
+
+  inline std::string& work_dir() { return work_dir_; }
 
  private:
   IndexerType indexer_;

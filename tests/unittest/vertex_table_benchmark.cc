@@ -30,7 +30,6 @@ class VertexTableBenchmark : public ::testing::Test {
  protected:
   void SetUp() override {
     test_dir_ = "/tmp/vertex_table_benchmark_test";
-    tmp_dir_ = test_dir_ + "/tmp";
 
     // Clean up and create test directory
     if (std::filesystem::exists(test_dir_)) {
@@ -61,7 +60,7 @@ class VertexTableBenchmark : public ::testing::Test {
 
   void CreateAndOpenVertexTable(gs::VertexTable& table) {
     // Open the vertex table
-    table.Open(test_dir_, tmp_dir_, 1, true);  // memory_level=1 for in-memory
+    table.Open(test_dir_, 1, true);  // memory_level=1 for in-memory
   }
 
   void AddVerticesWithProperties(gs::VertexTable& table, size_t count) {
@@ -156,7 +155,7 @@ class VertexTableBenchmark : public ::testing::Test {
   }
 
  protected:
-  std::string test_dir_, tmp_dir_;
+  std::string test_dir_;
   std::string v_label_name_;
   gs::PropertyType pk_type_;
   std::vector<std::string> property_names_;
