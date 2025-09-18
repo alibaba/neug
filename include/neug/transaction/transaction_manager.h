@@ -30,14 +30,15 @@ struct SessionLocalContext {
                       std::shared_ptr<IVersionManager> version_manager,
                       const std::string& work_dir, int thread_id,
                       MemoryStrategy allocator_strategy,
-                      std::unique_ptr<IWalWriter> in_logger)
+                      std::unique_ptr<IWalWriter> in_logger,
+                      const NeugDBConfig& config_)
       : allocator(allocator_strategy,
                   (allocator_strategy != MemoryStrategy::kSyncToFile
                        ? ""
                        : thread_local_allocator_prefix(work_dir, thread_id))),
         logger(std::move(in_logger)),
         session(graph_, app_manager, version_manager, allocator, *logger,
-                work_dir, thread_id) {
+                config_, work_dir, thread_id) {
     logger->open();
   }
   ~SessionLocalContext() {

@@ -32,7 +32,10 @@ class VertexTable {
         pk_type_(pk_type),
         property_names(property_names),
         property_types(property_types),
-        storage_strategies(storage_strategies) {
+        storage_strategies(storage_strategies),
+        memory_level_(1),
+        work_dir_(""),
+        is_vertex_table_modified_(false) {
     indexer_.init(pk_type);
   }
 
@@ -44,7 +47,10 @@ class VertexTable {
         property_names(std::move(other.property_names)),
         property_types(std::move(other.property_types)),
         storage_strategies(std::move(other.storage_strategies)),
-        vertex_ts_(std::move(other.vertex_ts_)) {}
+        vertex_ts_(std::move(other.vertex_ts_)),
+        memory_level_(other.memory_level_),
+        work_dir_(other.work_dir_),
+        is_vertex_table_modified_(false) {}
 
   VertexTable(const VertexTable&) = delete;
 
@@ -144,6 +150,8 @@ class VertexTable {
                         const std::vector<std::string>& new_names);
 
   std::string work_dir() const { return work_dir_; }
+
+  void Compact(bool reset_timestamp, timestamp_t ts);
 
  private:
   IndexerType indexer_;

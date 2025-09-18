@@ -219,13 +219,14 @@ class MutableCsr : public TypedMutableCsrBase<EDATA_T> {
   using slice_t = MutableNbrSlice<EDATA_T>;
   using mut_slice_t = MutableNbrSliceMut<EDATA_T>;
 
-  MutableCsr() : locks_(nullptr) {}
+  MutableCsr() : locks_(nullptr), memory_level_(1) {}
   MutableCsr(MutableCsr<EDATA_T>&& rhs) {
     locks_ = rhs.locks_;
     rhs.locks_ = nullptr;
     adj_lists_.swap(rhs.adj_lists_);
     nbr_list_.swap(rhs.nbr_list_);
     unsorted_since_ = rhs.unsorted_since_;
+    memory_level_ = rhs.memory_level_;
   }
   ~MutableCsr() {
     if (locks_ != nullptr) {
@@ -242,6 +243,7 @@ class MutableCsr : public TypedMutableCsrBase<EDATA_T> {
       adj_lists_.swap(other.adj_lists_);
       nbr_list_.swap(other.nbr_list_);
       unsorted_since_ = other.unsorted_since_;
+      memory_level_ = other.memory_level_;
     }
     return *this;
   }
@@ -376,6 +378,7 @@ class MutableCsr : public TypedMutableCsrBase<EDATA_T> {
 
   void open(const std::string& name, const std::string& snapshot_dir,
             const std::string& work_dir) override {
+    memory_level_ = 0;
     mmap_array<int> degree_list;
     mmap_array<int>* cap_list = &degree_list;
     if (snapshot_dir != "") {
@@ -406,6 +409,7 @@ class MutableCsr : public TypedMutableCsrBase<EDATA_T> {
   }
 
   void open_in_memory(const std::string& prefix, size_t v_cap) override {
+    memory_level_ = 1;
     mmap_array<int> degree_list;
     degree_list.open(prefix + ".deg", false);
     load_meta(prefix);
@@ -439,6 +443,7 @@ class MutableCsr : public TypedMutableCsrBase<EDATA_T> {
   }
 
   void open_with_hugepages(const std::string& prefix, size_t v_cap) override {
+    memory_level_ = 2;
     mmap_array<int> degree_list;
     degree_list.open(prefix + ".deg", false);
     load_meta(prefix);
@@ -621,6 +626,71 @@ class MutableCsr : public TypedMutableCsrBase<EDATA_T> {
     nbr_list_.reset();
   }
 
+  void reset_timestamp() override {
+    for (size_t i = 0; i < adj_lists_.size(); i++) {
+      for (auto nbr : adj_lists_[i].get_edges()) {
+        nbr.timestamp = 0;
+      }
+    }
+  }
+
+  void compact_nbr(const std::string& work_dir, float reserve_ratio) override {
+    size_t nbr_count = 0;
+    for (size_t i = 0; i < adj_lists_.size(); i++) {
+      nbr_count += (std::ceil(adj_lists_[i].size() * reserve_ratio));
+    }
+    if (memory_level_ == 0) {
+      std::filesystem::path original_path = nbr_list_.filename();
+      std::string filename = original_path.filename().string();
+      std::string nbr_filename = tmp_dir(work_dir) + "/" + filename;
+      if (!std::filesystem::exists(compact_dir(work_dir))) {
+        std::filesystem::create_directories(compact_dir(work_dir));
+      }
+      std::string tmp_nbr_filename =
+          compact_dir(work_dir) + "/" + filename + ".tmp";
+      mmap_array<nbr_t> new_nbr_list;
+      new_nbr_list.open(tmp_nbr_filename, true);
+      new_nbr_list.resize(nbr_count);
+      {
+        nbr_t* ptr = new_nbr_list.data();
+        for (size_t i = 0; i < adj_lists_.size(); i++) {
+          memcpy(ptr, adj_lists_[i].data(),
+                 adj_lists_[i].size() * sizeof(nbr_t));
+          int cap = std::ceil(adj_lists_[i].size() * reserve_ratio);
+          ptr += cap;
+        }
+      }
+      nbr_list_.reset();
+      new_nbr_list.reset();
+      if (std::filesystem::exists(nbr_filename)) {
+        std::filesystem::remove(nbr_filename);
+      }
+      std::filesystem::copy(tmp_nbr_filename, nbr_filename);
+      nbr_list_.open(nbr_filename, true);
+    } else {
+      mmap_array<nbr_t> new_nbr_list;
+      new_nbr_list.open("", false);
+      new_nbr_list.resize(nbr_count);
+      {
+        nbr_t* ptr = new_nbr_list.data();
+        for (size_t i = 0; i < adj_lists_.size(); i++) {
+          memcpy(ptr, adj_lists_[i].data(),
+                 adj_lists_[i].size() * sizeof(nbr_t));
+          int cap = std::ceil(adj_lists_[i].size() * reserve_ratio);
+          ptr += cap;
+        }
+      }
+      nbr_list_.swap(new_nbr_list);
+    }
+    nbr_t* ptr = nbr_list_.data();
+    for (size_t i = 0; i < adj_lists_.size(); i++) {
+      int deg = adj_lists_[i].size();
+      int cap = std::ceil(deg * reserve_ratio);
+      adj_lists_[i].init(ptr, cap, deg);
+      ptr += cap;
+    }
+  }
+
  private:
   void load_meta(const std::string& prefix) {
     std::string meta_file_path = prefix + ".meta";
@@ -641,6 +711,7 @@ class MutableCsr : public TypedMutableCsrBase<EDATA_T> {
   mmap_array<adjlist_t> adj_lists_;
   mmap_array<nbr_t> nbr_list_;
   timestamp_t unsorted_since_;
+  int memory_level_;
 };
 
 template <>
@@ -732,6 +803,12 @@ class MutableCsr<std::string_view>
   }
 
   void close() override { csr_.close(); }
+
+  void reset_timestamp() override { csr_.reset_timestamp(); }
+
+  void compact_nbr(const std::string& work_dir, float reserve_ratio) override {
+    csr_.compact_nbr(work_dir, reserve_ratio);
+  }
 
  private:
   Table& table_;
@@ -826,6 +903,12 @@ class MutableCsr<RecordView> : public TypedMutableCsrBase<RecordView> {
   }
 
   void close() override { csr_.close(); }
+
+  void reset_timestamp() override { csr_.reset_timestamp(); }
+
+  void compact_nbr(const std::string& work_dir, float reserve_ratio) override {
+    csr_.compact_nbr(work_dir, reserve_ratio);
+  }
 
  private:
   Table& table_;
@@ -995,6 +1078,14 @@ class SingleMutableCsr : public TypedMutableCsrBase<EDATA_T> {
 
   void close() override { nbr_list_.reset(); }
 
+  void reset_timestamp() override {
+    for (size_t k = 0; k != nbr_list_.size(); ++k) {
+      nbr_list_[k].timestamp.store(INVALID_TIMESTAMP);
+    }
+  }
+
+  void compact_nbr(const std::string& work_dir, float reserve_ratio) override {}
+
  private:
   mmap_array<nbr_t> nbr_list_;
 };
@@ -1093,6 +1184,10 @@ class SingleMutableCsr<std::string_view>
   }
 
   void close() override { csr_.close(); }
+
+  void reset_timestamp() override { csr_.reset_timestamp(); }
+
+  void compact_nbr(const std::string& work_dir, float reserve_ratio) override {}
 
  private:
   Table& table_;
@@ -1200,6 +1295,9 @@ class SingleMutableCsr<RecordView> : public TypedMutableCsrBase<RecordView> {
 
   void close() override { csr_.close(); }
 
+  void reset_timestamp() override { csr_.reset_timestamp(); }
+  void compact_nbr(const std::string& work_dir, float reserve_ratio) override {}
+
  private:
   Table& table_;
   SingleMutableCsr<size_t> csr_;
@@ -1262,6 +1360,9 @@ class EmptyCsr : public TypedMutableCsrBase<EDATA_T> {
   inline slice_t get_edges(vid_t v) const override { return slice_t::empty(); }
 
   void close() override {}
+
+  void reset_timestamp() override {}
+  void compact_nbr(const std::string& work_dir, float reserve_ratio) override {}
 };
 
 template <>
@@ -1321,6 +1422,10 @@ class EmptyCsr<std::string_view>
 
   void close() override {}
 
+  void reset_timestamp() override {}
+  void compact_nbr(const std::string& work_dir, float reserve_ratio) override {}
+
+ private:
   Table& table_;
 };
 
@@ -1378,6 +1483,9 @@ class EmptyCsr<RecordView> : public TypedMutableCsrBase<RecordView> {
   }
 
   void close() override {}
+
+  void reset_timestamp() override {}
+  void compact_nbr(const std::string& work_dir, float reserve_ratio) override {}
 
  private:
   Table& table_;

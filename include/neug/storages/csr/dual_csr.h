@@ -104,6 +104,9 @@ class DualCsrBase {
   virtual const CsrBase* GetOutCsr() const = 0;
   virtual void Close() = 0;
 
+  virtual void ResetTimestamp() = 0;
+  virtual void CompactNbr(const std::string& work_dir, float reserve_ratio) = 0;
+
   virtual void Drop() {
     // TODO: Implement drop logic.
     LOG(ERROR) << "Drop is not supported for DualCsrBase.";
@@ -295,6 +298,16 @@ class DualCsr : public DualCsrBase {
     if (casted_out_csr) {
       casted_out_csr->batch_delete_edges(true, parsed_edges_vec);
     }
+  }
+
+  void ResetTimestamp() override {
+    in_csr_->reset_timestamp();
+    out_csr_->reset_timestamp();
+  }
+
+  void CompactNbr(const std::string& work_dir, float reserve_ratio) override {
+    in_csr_->compact_nbr(work_dir, reserve_ratio);
+    out_csr_->compact_nbr(work_dir, reserve_ratio);
   }
 
   void Drop() override {
@@ -524,6 +537,16 @@ class DualCsr<std::string_view> : public DualCsrBase {
     if (casted_out_csr) {
       casted_out_csr->batch_delete_edges(true, parsed_edges_vec);
     }
+  }
+
+  void ResetTimestamp() override {
+    in_csr_->reset_timestamp();
+    out_csr_->reset_timestamp();
+  }
+
+  void CompactNbr(const std::string& work_dir, float reserve_ratio) override {
+    in_csr_->compact_nbr(work_dir, reserve_ratio);
+    out_csr_->compact_nbr(work_dir, reserve_ratio);
   }
 
   void Drop() override {
@@ -765,6 +788,16 @@ class DualCsr<RecordView> : public DualCsrBase {
     if (casted_out_csr) {
       casted_out_csr->batch_delete_edges(true, parsed_edges_vec);
     }
+  }
+
+  void ResetTimestamp() override {
+    in_csr_->reset_timestamp();
+    out_csr_->reset_timestamp();
+  }
+
+  void CompactNbr(const std::string& work_dir, float reserve_ratio) override {
+    in_csr_->compact_nbr(work_dir, reserve_ratio);
+    out_csr_->compact_nbr(work_dir, reserve_ratio);
   }
 
   void Drop() override {

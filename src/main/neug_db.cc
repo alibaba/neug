@@ -99,13 +99,15 @@ bool NeugDB::Open(const Schema& schema, const NeugDBConfig& config) {
 
 bool NeugDB::Open(const std::string& data_dir, int32_t max_num_threads,
                   const DBMode mode, const std::string& planner_kind,
-                  bool warmup, bool enable_auto_compaction,
-                  bool checkpoint_on_close) {
+                  bool warmup, bool enable_auto_compaction, bool compact_csr,
+                  bool compact_on_close, bool checkpoint_on_close) {
   NeugDBConfig config(data_dir, max_num_threads);
   config.mode = mode;
   config.warmup = warmup;
   config.planner_kind = planner_kind;
   config.enable_auto_compaction = enable_auto_compaction;
+  config.compact_csr = compact_csr;
+  config.compact_on_close = compact_on_close;
   config.checkpoint_on_close = checkpoint_on_close;
   return Open(config);
 }
@@ -175,6 +177,11 @@ void NeugDB::Close() {
     VLOG(1) << "Dumping graph to " << snapshot_dir(work_dir_, latest_ts + 1)
             << ", this is the temporally workaround for data persistence, will "
                "be deleted in the future";
+    if (config_.compact_on_close) {
+      graph_.Compact(config_.reset_timestamp_before_checkpoint,
+                     config_.compact_csr, config_.csr_reserve_ratio,
+                     MAX_TIMESTAMP);
+    }
     graph_.Dump(work_dir_, latest_ts + 1);
   }
   graph_.Clear();
@@ -427,7 +434,9 @@ void NeugDB::ingestWals(IWalParser& parser, const std::string& work_dir,
                      thread_num);
     }
     if (update_wal.size == 0) {
-      graph_.Compact(update_wal.timestamp);
+      graph_.Compact(config_.reset_timestamp_before_checkpoint,
+                     config_.compact_csr, config_.csr_reserve_ratio,
+                     update_wal.timestamp);
       last_compaction_ts_ = update_wal.timestamp;
     } else {
       UpdateTransaction::IngestWal(graph_, work_dir, to_ts, update_wal.ptr,

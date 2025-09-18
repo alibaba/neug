@@ -558,4 +558,19 @@ void EdgeTable::drop_and_create_dual_csr() {
                       ie_mutable_, prop_names_, *table_, *offset_);
 }
 
+void EdgeTable::Compact(bool reset_timestamp, bool compact_csr,
+                        bool sort_on_compaction, float reserve_ratio,
+                        timestamp_t ts) {
+  if (reset_timestamp) {
+    dual_csr_->ResetTimestamp();
+  }
+  if (compact_csr) {
+    dual_csr_->CompactNbr(work_dir_, reserve_ratio);
+  }
+  if (sort_on_compaction) {
+    dual_csr_->SortByEdgeData(ts);
+  }
+  // TODO(zhanglei): Support updating nbr lids which are deleted.
+}
+
 }  // namespace gs

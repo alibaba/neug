@@ -28,7 +28,9 @@ class IVersionManager;
 class CompactTransaction {
  public:
   CompactTransaction(PropertyGraph& graph, IWalWriter& logger,
-                     IVersionManager& vm, timestamp_t timestamp);
+                     IVersionManager& vm, bool reset_timestamp,
+                     bool compact_csr, float reserve_ratio,
+                     timestamp_t timestamp);
   ~CompactTransaction();
 
   timestamp_t timestamp() const;
@@ -41,6 +43,9 @@ class CompactTransaction {
   PropertyGraph& graph_;
   IWalWriter& logger_;
   IVersionManager& vm_;
+  bool reset_timestamp_;
+  bool compact_csr_;
+  float reserve_ratio_;
   timestamp_t timestamp_;
 
   grape::InArchive arc_;

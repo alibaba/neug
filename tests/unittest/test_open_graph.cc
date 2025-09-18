@@ -304,3 +304,65 @@ TEST(DatabaseTest, TestPersist) {
     db2.Close();
   }
 }
+
+TEST(DatabaseTest, TestCompaction) {
+  std::string db_dir = "/tmp/test_compaction";
+  {
+    if (std::filesystem::exists(db_dir)) {
+      std::filesystem::remove_all(db_dir);
+    }
+    gs::NeugDB db;
+    db.Open(db_dir, 1, gs::DBMode::READ_WRITE, "gopt", false, false, true,
+            true);
+    auto conn = db.Connect();
+    std::string flex_data_dir = std::getenv("FLEX_DATA_DIR");
+    EXPECT_FALSE(flex_data_dir.empty());
+    EXPECT_TRUE(
+        conn->Query(
+                "CREATE NODE TABLE person(id INT64, name STRING, age INT64, "
+                "PRIMARY KEY(id));")
+            .ok());
+    EXPECT_TRUE(
+        conn->Query(
+                "CREATE REL TABLE knows(FROM person TO person, weight DOUBLE);")
+            .ok());
+    EXPECT_TRUE(
+        conn->Query("COPY person from \"" + flex_data_dir + "/person.csv\";")
+            .ok());
+    EXPECT_TRUE(conn->Query("COPY knows from \"" + flex_data_dir +
+                            "/person_knows_person.csv\";")
+                    .ok());
+    // Delete some edges
+    EXPECT_TRUE(conn->Query("MATCH (a: person)-[r: knows]->(b: person) "
+                            "WHERE a.id = 1 AND b.id = 2 DELETE r;")
+                    .ok());
+    EXPECT_TRUE(conn->Query("MATCH (a: person) WHERE a.id = 1 DELETE a;").ok());
+    auto res = conn->Query("MATCH (n: person) return COUNT(n);");
+    EXPECT_TRUE(res.ok());
+    EXPECT_EQ(res.value().next().ToString(), "<element { object { i64: 3 } }>");
+    conn->Close();
+    db.Close();
+    // Should do the compaction.
+  }
+  {
+    gs::NeugDB db2;
+    db2.Open(db_dir, 1, gs::DBMode::READ_ONLY);
+    auto conn = db2.Connect();
+    auto res = conn->Query("MATCH (n: person) return COUNT(n);");
+    EXPECT_TRUE(res.ok());
+    EXPECT_EQ(res.value().next().ToString(), "<element { object { i64: 3 } }>");
+    res = conn->Query(
+        "MATCH (a: person)-[r: knows]->(b: person) return COUNT(r);");
+    EXPECT_TRUE(res.ok());
+    EXPECT_EQ(res.value().next().ToString(), "<element { object { i64: 0 } }>");
+    conn->Close();
+    db2.Close();
+  }
+
+  {
+    gs::NeugDB db3;
+    db3.Open(db_dir, 1, gs::DBMode::READ_WRITE, "gopt", false, false, true,
+             true);
+    EXPECT_TRUE(db3.graph().vertex_table_modified(0));
+  }
+}

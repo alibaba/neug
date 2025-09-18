@@ -379,18 +379,22 @@ UpdateTransaction::vertex_iterator::vertex_iterator(label_t label, vid_t cur,
 UpdateTransaction::vertex_iterator::~vertex_iterator() = default;
 bool UpdateTransaction::vertex_iterator::IsValid() const { return cur_ < num_; }
 void UpdateTransaction::vertex_iterator::Next() {
-  if (vertex_table_modifed_) [[unlikely]] {
-    while (++cur_ < num_ && !txn_->is_valid_lid(label_, cur_)) {}
-  } else {
+  if (vertex_table_modifed_)
+    [[unlikely]] {
+      while (++cur_ < num_ && !txn_->is_valid_lid(label_, cur_)) {}
+    }
+  else {
     ++cur_;
   }
 }
 void UpdateTransaction::vertex_iterator::Goto(vid_t target) {
-  if (vertex_table_modifed_) [[unlikely]] {
-    if (std::min(target, num_) < num_ && !txn_->is_valid_lid(label_, target)) {
-      THROW_INVALID_ARGUMENT_EXCEPTION("Target vertex is deleted");
+  if (vertex_table_modifed_)
+    [[unlikely]] {
+      if (std::min(target, num_) < num_ &&
+          !txn_->is_valid_lid(label_, target)) {
+        THROW_INVALID_ARGUMENT_EXCEPTION("Target vertex is deleted");
+      }
     }
-  }
   cur_ = std::min(target, num_);
 }
 

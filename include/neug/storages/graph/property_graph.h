@@ -70,8 +70,10 @@ class CsrConstEdgeIterBase;
 class CsrEdgeIterBase;
 template <typename EDATA_T>
 class TypedMutableCsrBase;
+
 class PropertyGraph {
  public:
+  static constexpr const float DEFAULT_RESERVE_RATIO = 1.2;
   PropertyGraph();
 
   ~PropertyGraph();
@@ -86,7 +88,8 @@ class PropertyGraph {
 
   void Open(const std::string& work_dir, int memory_level);
 
-  void Compact(uint32_t version);
+  void Compact(bool reset_timestamp, bool compact_csr, float reserve_ratio,
+               timestamp_t ts);
 
   void Dump(const std::string& work_dir, uint32_t version);
 
@@ -306,7 +309,7 @@ class PropertyGraph {
   std::unordered_map<uint32_t, EdgeTable> edge_tables_;
 
   size_t vertex_label_num_, edge_label_num_;
-  bool memory_level_;
+  int memory_level_;
 };
 
 }  // namespace gs

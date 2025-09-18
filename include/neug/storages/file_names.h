@@ -221,6 +221,10 @@ inline std::string tmp_dir(const std::string& work_dir) {
   return runtime_dir(work_dir) + "tmp/";
 }
 
+inline std::string compact_dir(const std::string& work_dir) {
+  return runtime_dir(work_dir) + "compact_dir/";
+}
+
 inline std::string bulk_load_progress_file(const std::string& work_dir) {
   return tmp_dir(work_dir) + "bulk_load_progress.log";
 }

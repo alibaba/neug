@@ -56,12 +56,14 @@ class NeugDBSession {
   static constexpr int32_t MAX_RETRY = 3;
   NeugDBSession(PropertyGraph& graph, AppManager& app_manager,
                 std::shared_ptr<IVersionManager> vm, Allocator& alloc,
-                IWalWriter& logger, const std::string& work_dir, int thread_id)
+                IWalWriter& logger, const NeugDBConfig& config_,
+                const std::string& work_dir, int thread_id)
       : graph_(graph),
         app_manager_(app_manager),
         version_manager_(vm),
         alloc_(alloc),
         logger_(logger),
+        db_config_(config_),
         work_dir_(work_dir),
         thread_id_(thread_id),
         eval_duration_(0),
@@ -193,6 +195,7 @@ class NeugDBSession {
   std::shared_ptr<IVersionManager> version_manager_;
   Allocator& alloc_;
   IWalWriter& logger_;
+  const NeugDBConfig& db_config_;
   std::string work_dir_;
   int thread_id_;
 

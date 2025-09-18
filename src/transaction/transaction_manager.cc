@@ -51,7 +51,7 @@ TransactionManager::TransactionManager(
   for (int i = 0; i < thread_num_; ++i) {
     new (&contexts_[i]) SessionLocalContext(
         graph_, *app_manager_, version_manager_, work_dir, i,
-        allocator_strategy_, WalWriterFactory::CreateDummyWalWriter());
+        allocator_strategy_, WalWriterFactory::CreateDummyWalWriter(), config_);
   }
 }
 
@@ -115,8 +115,10 @@ UpdateTransaction TransactionManager::GetUpdateTransaction(int thread_id) {
 
 CompactTransaction TransactionManager::GetCompactTransaction(int thread_id) {
   uint32_t ts = version_manager_->acquire_update_timestamp();
-  return CompactTransaction(graph_, *(contexts_[thread_id].logger),
-                            *version_manager_, ts);
+  return CompactTransaction(
+      graph_, *(contexts_[thread_id].logger), *version_manager_,
+      config_.reset_timestamp_before_checkpoint, config_.enable_auto_compaction,
+      config_.csr_reserve_ratio, ts);
 }
 
 NeugDBSession& TransactionManager::GetSession(int thread_id) {
@@ -148,11 +150,11 @@ void TransactionManager::SwitchToTPMode(int32_t thread_num) {
       aligned_alloc(4096, sizeof(SessionLocalContext) * thread_num_));
 
   for (int i = 0; i < thread_num_; ++i) {
-    new (&contexts_[i])
-        SessionLocalContext(graph_, *app_manager_, version_manager_, work_dir_,
-                            i, allocator_strategy_,
-                            // Create wal writer with real wal uri.
-                            WalWriterFactory::CreateWalWriter(wal_uri_, i));
+    new (&contexts_[i]) SessionLocalContext(
+        graph_, *app_manager_, version_manager_, work_dir_, i,
+        allocator_strategy_,
+        // Create wal writer with real wal uri.
+        WalWriterFactory::CreateWalWriter(wal_uri_, i), config_);
   }
 }
 
@@ -168,7 +170,7 @@ void TransactionManager::SwitchToAPMode(int32_t thread_num) {
   for (int i = 0; i < thread_num_; ++i) {
     new (&contexts_[i]) SessionLocalContext(
         graph_, *app_manager_, version_manager_, work_dir_, i,
-        allocator_strategy_, WalWriterFactory::CreateDummyWalWriter());
+        allocator_strategy_, WalWriterFactory::CreateDummyWalWriter(), config_);
   }
 }
 

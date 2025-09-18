@@ -145,10 +145,8 @@ Status PropertyGraph::create_vertex_type(
                                           StorageStrategy::kMem);
   std::string description;
   size_t max_num = ((size_t) 1) << 8;
-  schema_.add_vertex_label(vertex_type_name,
-
-                           property_types, property_names, primary_keys,
-                           strategies, max_num, description);
+  schema_.add_vertex_label(vertex_type_name, property_types, property_names,
+                           primary_keys, strategies, max_num, description);
   label_t vertex_label_id = schema_.get_vertex_label_id(vertex_type_name);
   vertex_tables_.emplace_back(
       vertex_type_name,
@@ -823,28 +821,31 @@ void PropertyGraph::Open(const std::string& work_dir, int memory_level) {
   }
 }
 
-void PropertyGraph::Compact(uint32_t version) {
+void PropertyGraph::Compact(bool reset_timestamp, bool compact_csr,
+                            float reserve_ratio, timestamp_t ts) {
   for (size_t src_label_i = 0; src_label_i != vertex_label_num_;
        ++src_label_i) {
-    std::string src_label =
-        schema_.get_vertex_label_name(static_cast<label_t>(src_label_i));
+    if (schema_.vertex_label_valid(src_label_i)) {
+      vertex_tables_[src_label_i].Compact(reset_timestamp, ts);
+    } else {
+      continue;
+    }
     for (size_t dst_label_i = 0; dst_label_i != vertex_label_num_;
          ++dst_label_i) {
-      std::string dst_label =
-          schema_.get_vertex_label_name(static_cast<label_t>(dst_label_i));
+      if (!schema_.vertex_label_valid(dst_label_i)) {
+        continue;
+      }
       for (size_t e_label_i = 0; e_label_i != edge_label_num_; ++e_label_i) {
-        std::string edge_label =
-            schema_.get_edge_label_name(static_cast<label_t>(e_label_i));
-        if (!schema_.exist(src_label, dst_label, edge_label)) {
-          continue;
-        }
-        size_t index =
-            schema_.generate_edge_label(src_label_i, dst_label_i, e_label_i);
-        auto edge_table = edge_tables_.find(index);
-        if (edge_table != edge_tables_.end()) {
-          if (schema_.get_sort_on_compaction(src_label, dst_label,
-                                             edge_label)) {
-            edge_table->second.SortByEdgeData(version);
+        if (schema_.edge_label_valid(e_label_i) &&
+            schema_.edge_triplet_valid(src_label_i, dst_label_i, e_label_i)) {
+          size_t index =
+              schema_.generate_edge_label(src_label_i, dst_label_i, e_label_i);
+          bool sort_on_compaction = schema_.get_sort_on_compaction(
+              src_label_i, dst_label_i, e_label_i);
+          auto edge_table = edge_tables_.find(index);
+          if (edge_table != edge_tables_.end()) {
+            edge_table->second.Compact(reset_timestamp, compact_csr,
+                                       sort_on_compaction, reserve_ratio, ts);
           }
         }
       }

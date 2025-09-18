@@ -28,8 +28,16 @@ namespace gs {
 
 CompactTransaction::CompactTransaction(PropertyGraph& graph, IWalWriter& logger,
                                        IVersionManager& vm,
+                                       bool reset_timestamp, bool compact_csr,
+                                       float reserve_ratio,
                                        timestamp_t timestamp)
-    : graph_(graph), logger_(logger), vm_(vm), timestamp_(timestamp) {
+    : graph_(graph),
+      logger_(logger),
+      vm_(vm),
+      reset_timestamp_(reset_timestamp),
+      compact_csr_(compact_csr),
+      reserve_ratio_(reserve_ratio),
+      timestamp_(timestamp) {
   arc_.Resize(sizeof(WalHeader));
 }
 
@@ -52,10 +60,16 @@ bool CompactTransaction::Commit() {
     arc_.Clear();
 
     LOG(INFO) << "before compact - " << timestamp_;
-    graph_.Compact(timestamp_);
+    graph_.Compact(reset_timestamp_, compact_csr_, reserve_ratio_, timestamp_);
     LOG(INFO) << "after compact - " << timestamp_;
 
     vm_.release_update_timestamp(timestamp_);
+    // if reset_timestamp_, we need to clear the status of version manager, and
+    // restart from timestamp 0
+    if (reset_timestamp_) {
+      // It is OK to clear here, because no other transactions are running
+      vm_.clear();
+    }
     timestamp_ = INVALID_TIMESTAMP;
   }
   return true;
