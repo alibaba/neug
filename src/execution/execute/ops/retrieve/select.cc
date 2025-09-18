@@ -55,7 +55,7 @@ struct OptionalExprWrapper {
   OptionalExprWrapper(Expr&& expr) : expr_(std::move(expr)) {}
 
   bool operator()(size_t idx, Arena& arena) const {
-    auto val = expr_.eval_path(idx, arena, 0);
+    auto val = expr_.eval_path(idx, arena);
     return (!val.is_null()) && val.as_bool();
   }
 

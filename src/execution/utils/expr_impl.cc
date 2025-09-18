@@ -118,20 +118,6 @@ RTAny VariableExpr::eval_edge(const LabelTriplet& label, vid_t src, vid_t dst,
   return var_.get_edge(label, src, dst, data, idx);
 }
 
-RTAny VariableExpr::eval_path(size_t idx, Arena&, int) const {
-  return var_.get(idx, 0);
-}
-
-RTAny VariableExpr::eval_vertex(label_t label, vid_t v, size_t idx, Arena&,
-                                int) const {
-  return var_.get_vertex(label, v, idx, 0);
-}
-
-RTAny VariableExpr::eval_edge(const LabelTriplet& label, vid_t src, vid_t dst,
-                              const Any& data, size_t idx, Arena&, int) const {
-  return var_.get_edge(label, src, dst, data, idx, 0);
-}
-
 RTAnyType VariableExpr::type() const { return var_.type(); }
 
 LogicalExpr::LogicalExpr(std::unique_ptr<ExprBase>&& lhs,
@@ -190,22 +176,37 @@ LogicalExpr::LogicalExpr(std::unique_ptr<ExprBase>&& lhs,
   }
 }
 
+RTAny LogicalExpr::eval_impl(const RTAny& lhs_val, const RTAny& rhs_val) const {
+  if (logic_ == ::common::Logical::OR) {
+    bool flag = false;
+    if (!lhs_val.is_null()) {
+      flag |= lhs_val.as_bool();
+    }
+    if (!rhs_val.is_null()) {
+      flag |= rhs_val.as_bool();
+    }
+    return RTAny::from_bool(flag);
+  }
+  if (lhs_val.is_null() || rhs_val.is_null()) {
+    return RTAny(RTAnyType::kNull);
+  }
+  return RTAny::from_bool(op_(lhs_val, rhs_val));
+}
+
 RTAny LogicalExpr::eval_path(size_t idx, Arena& arena) const {
-  return RTAny::from_bool(
-      op_(lhs_->eval_path(idx, arena), rhs_->eval_path(idx, arena)));
+  return eval_impl(lhs_->eval_path(idx, arena), rhs_->eval_path(idx, arena));
 }
 
 RTAny LogicalExpr::eval_vertex(label_t label, vid_t v, size_t idx,
                                Arena& arena) const {
-  return RTAny::from_bool(op_(lhs_->eval_vertex(label, v, idx, arena),
-                              rhs_->eval_vertex(label, v, idx, arena)));
+  return eval_impl(lhs_->eval_vertex(label, v, idx, arena),
+                   rhs_->eval_vertex(label, v, idx, arena));
 }
 
 RTAny LogicalExpr::eval_edge(const LabelTriplet& label, vid_t src, vid_t dst,
                              const Any& data, size_t idx, Arena& arena) const {
-  return RTAny::from_bool(
-      op_(lhs_->eval_edge(label, src, dst, data, idx, arena),
-          rhs_->eval_edge(label, src, dst, data, idx, arena)));
+  return eval_impl(lhs_->eval_edge(label, src, dst, data, idx, arena),
+                   rhs_->eval_edge(label, src, dst, data, idx, arena));
 }
 
 RTAnyType LogicalExpr::type() const { return RTAnyType::kBoolValue; }
@@ -215,22 +216,14 @@ UnaryLogicalExpr::UnaryLogicalExpr(std::unique_ptr<ExprBase>&& expr,
     : expr_(std::move(expr)), logic_(logic) {}
 
 RTAny UnaryLogicalExpr::eval_path(size_t idx, Arena& arena) const {
+  auto any_val = expr_->eval_path(idx, arena);
   if (logic_ == ::common::Logical::NOT) {
-    return RTAny::from_bool(!expr_->eval_path(idx, arena).as_bool());
+    if (any_val.is_null()) {
+      return RTAny(RTAnyType::kNull);
+    }
+    return RTAny::from_bool(!any_val.as_bool());
   } else if (logic_ == ::common::Logical::ISNULL) {
-    return RTAny::from_bool(expr_->eval_path(idx, arena, 0).type() ==
-                            RTAnyType::kNull);
-  }
-  LOG(FATAL) << "not support" << static_cast<int>(logic_);
-  return RTAny::from_bool(false);
-}
-
-RTAny UnaryLogicalExpr::eval_path(size_t idx, Arena& arena, int) const {
-  if (logic_ == ::common::Logical::NOT) {
-    return RTAny::from_bool(!expr_->eval_path(idx, arena, 0).as_bool());
-  } else if (logic_ == ::common::Logical::ISNULL) {
-    return RTAny::from_bool(expr_->eval_path(idx, arena, 0).type() ==
-                            RTAnyType::kNull);
+    return RTAny::from_bool(any_val.type() == RTAnyType::kNull);
   }
   LOG(FATAL) << "not support" << static_cast<int>(logic_);
   return RTAny::from_bool(false);
@@ -238,12 +231,11 @@ RTAny UnaryLogicalExpr::eval_path(size_t idx, Arena& arena, int) const {
 
 RTAny UnaryLogicalExpr::eval_vertex(label_t label, vid_t v, size_t idx,
                                     Arena& arena) const {
+  auto any_val = expr_->eval_vertex(label, v, idx, arena);
   if (logic_ == ::common::Logical::NOT) {
-    return RTAny::from_bool(
-        !expr_->eval_vertex(label, v, idx, arena).as_bool());
+    return RTAny::from_bool(!any_val.as_bool());
   } else if (logic_ == ::common::Logical::ISNULL) {
-    return RTAny::from_bool(
-        expr_->eval_vertex(label, v, idx, arena, 0).is_null());
+    return RTAny::from_bool(any_val.is_null());
   }
   LOG(FATAL) << "not support" << static_cast<int>(logic_);
   return RTAny::from_bool(false);
@@ -252,12 +244,11 @@ RTAny UnaryLogicalExpr::eval_vertex(label_t label, vid_t v, size_t idx,
 RTAny UnaryLogicalExpr::eval_edge(const LabelTriplet& label, vid_t src,
                                   vid_t dst, const Any& data, size_t idx,
                                   Arena& arena) const {
+  auto any_val = expr_->eval_edge(label, src, dst, data, idx, arena);
   if (logic_ == ::common::Logical::NOT) {
-    return RTAny::from_bool(
-        !expr_->eval_edge(label, src, dst, data, idx, arena).as_bool());
+    return RTAny::from_bool(!any_val.as_bool());
   } else if (logic_ == ::common::Logical::ISNULL) {
-    return RTAny::from_bool(
-        expr_->eval_edge(label, src, dst, data, idx, arena, 0).is_null());
+    return RTAny::from_bool(any_val.is_null());
   }
   LOG(FATAL) << "not support" << static_cast<int>(logic_);
   return RTAny::from_bool(false);
@@ -578,9 +569,6 @@ struct TypedTupleBuilder {
           std::move(exprs));
     case RTAnyType::kI64Value:
       return TypedTupleBuilder<N, I - 1, int64_t, Args...>().build_typed_tuple(
-          std::move(exprs));
-    case RTAnyType::kF32Value:
-      return TypedTupleBuilder<N, I - 1, float, Args...>().build_typed_tuple(
           std::move(exprs));
     case RTAnyType::kF64Value:
       return TypedTupleBuilder<N, I - 1, double, Args...>().build_typed_tuple(
@@ -1059,43 +1047,16 @@ static std::unique_ptr<ExprBase> parse_expression_impl(
       opr_stack.push(*it);
       break;
     }
-    case ::common::ExprOpr::kExtract: {
-      opr_stack2.push(*it);
-      break;
-    }
-    case ::common::ExprOpr::kCase: {
-      opr_stack2.push(*it);
-      break;
-    }
-    case ::common::ExprOpr::kMap: {
-      opr_stack2.push(*it);
-      break;
-    }
-    case ::common::ExprOpr::kUdfFunc: {
-      opr_stack2.push(*it);
-      break;
-    }
+    case ::common::ExprOpr::kExtract:
+    case ::common::ExprOpr::kCase:
+    case ::common::ExprOpr::kMap:
+    case ::common::ExprOpr::kUdfFunc:
 
-    case ::common::ExprOpr::kToInterval: {
-      opr_stack2.push(*it);
-      break;
-    }
+    case ::common::ExprOpr::kToInterval:
 
-    case ::common::ExprOpr::kToDate: {
-      opr_stack2.push(*it);
-      break;
-    }
-
-    case ::common::ExprOpr::kToDatetime: {
-      opr_stack2.push(*it);
-      break;
-    }
-
-    case ::common::ExprOpr::kToTuple: {
-      opr_stack2.push(*it);
-      break;
-    }
-
+    case ::common::ExprOpr::kToDate:
+    case ::common::ExprOpr::kToDatetime:
+    case ::common::ExprOpr::kToTuple:
     case ::common::ExprOpr::kScalarFunc: {
       opr_stack2.push(*it);
       break;

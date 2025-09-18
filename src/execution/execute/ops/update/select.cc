@@ -42,15 +42,9 @@ class USelectOpr : public IUpdateOperator {
                            Context&& ctx, OprTimer* timer) override {
     Expr expr(graph, ctx, params, predicate_, VarType::kPathVar);
     Arena arena;
-    if (expr.is_optional()) {
-      return Select::select(std::move(ctx), [&](size_t idx) {
-        return expr.eval_path(idx, arena, 0).as_bool();
-      });
-    } else {
-      return Select::select(std::move(ctx), [&](size_t idx) {
-        return expr.eval_path(idx, arena).as_bool();
-      });
-    }
+    return Select::select(std::move(ctx), [&](size_t idx) {
+      return expr.eval_path(idx, arena).as_bool();
+    });
   }
 
   std::string get_operator_name() const override { return "USelectOpr"; }

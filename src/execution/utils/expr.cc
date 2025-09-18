@@ -21,8 +21,7 @@ namespace runtime {
 struct LabelTriplet;
 
 RTAny Expr::eval_path(size_t idx, Arena& arena) const {
-  RTAny ret = expr_->eval_path(idx, arena);
-  return ret;
+  return expr_->eval_path(idx, arena);
 }
 
 RTAny Expr::eval_vertex(label_t label, vid_t v, size_t idx,
@@ -35,20 +34,6 @@ RTAny Expr::eval_edge(const LabelTriplet& label, vid_t src, vid_t dst,
     THROW_RUNTIME_ERROR("Expr is null");
   }
   return expr_->eval_edge(label, src, dst, data, idx, arena);
-}
-
-RTAny Expr::eval_path(size_t idx, Arena& arena, int) const {
-  return expr_->eval_path(idx, arena, 0);
-}
-
-RTAny Expr::eval_vertex(label_t label, vid_t v, size_t idx, Arena& arena,
-                        int) const {
-  return expr_->eval_vertex(label, v, idx, arena, 0);
-}
-
-RTAny Expr::eval_edge(const LabelTriplet& label, vid_t src, vid_t dst,
-                      const Any& data, size_t idx, Arena& arena, int) const {
-  return expr_->eval_edge(label, src, dst, data, idx, arena, 0);
 }
 
 RTAnyType Expr::type() const { return expr_->type(); }

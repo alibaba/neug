@@ -59,17 +59,6 @@ class IAccessor {
     return this->eval_path(idx);
   }
 
-  virtual RTAny eval_path(size_t idx, int) const {
-    return this->eval_path(idx);
-  }
-  virtual RTAny eval_vertex(label_t label, vid_t v, size_t idx, int) const {
-    return this->eval_vertex(label, v, idx);
-  }
-  virtual RTAny eval_edge(const LabelTriplet& label, vid_t src, vid_t dst,
-                          const Any& data, size_t idx, int) const {
-    return this->eval_edge(label, src, dst, data, idx);
-  }
-
   virtual bool is_optional() const { return false; }
 
   virtual std::string name() const { return "unknown"; }
@@ -93,10 +82,6 @@ class VertexPathAccessor : public IAccessor {
   }
 
   RTAny eval_path(size_t idx) const override {
-    return RTAny::from_vertex(typed_eval_path(idx));
-  }
-
-  RTAny eval_path(size_t idx, int) const override {
     if (!vertex_col_.has_value(idx)) {
       return RTAny(RTAnyType::kNull);
     }
@@ -121,10 +106,6 @@ class VertexGIdPathAccessor : public IAccessor {
   }
 
   RTAny eval_path(size_t idx) const override {
-    return RTAny::from_int64(typed_eval_path(idx));
-  }
-
-  RTAny eval_path(size_t idx, int) const override {
     if (!vertex_col_.has_value(idx)) {
       return RTAny(RTAnyType::kNull);
     }
@@ -155,19 +136,6 @@ class VertexPropertyPathAccessor : public IAccessor {
   }
 
   RTAny eval_path(size_t idx) const override {
-    if (!vertex_col_.has_value(idx)) {
-      return RTAny(RTAnyType::kNull);
-    }
-    const auto& v = vertex_col_.get_vertex(idx);
-    auto& col = property_columns_[v.label_];
-    if (!col.is_null()) {
-      return TypedConverter<T>::from_typed(col.get_view(v.vid_));
-    } else {
-      return RTAny(RTAnyType::kNull);
-    }
-  }
-
-  RTAny eval_path(size_t idx, int) const override {
     if (!vertex_col_.has_value(idx)) {
       return RTAny(RTAnyType::kNull);
     }
@@ -238,16 +206,14 @@ class ContextValueAccessor : public IAccessor {
 
   elem_t typed_eval_path(size_t idx) const { return col_.get_value(idx); }
 
-  RTAny eval_path(size_t idx) const override { return col_.get_elem(idx); }
-
-  bool is_optional() const override { return col_.is_optional(); }
-
-  RTAny eval_path(size_t idx, int) const override {
+  RTAny eval_path(size_t idx) const override {
     if (!col_.has_value(idx)) {
       return RTAny(RTAnyType::kNull);
     }
-    return eval_path(idx);
+    return col_.get_elem(idx);
   }
+
+  bool is_optional() const override { return col_.is_optional(); }
 
  private:
   const IValueColumn<elem_t>& col_;
@@ -269,10 +235,6 @@ class VertexIdVertexAccessor : public IAccessor {
   }
 
   RTAny eval_vertex(label_t label, vid_t v, size_t idx) const override {
-    return RTAny::from_vertex(typed_eval_vertex(label, v, idx));
-  }
-
-  RTAny eval_vertex(label_t label, vid_t v, size_t idx, int) const override {
     if (v == std::numeric_limits<vid_t>::max()) {
       return RTAny(RTAnyType::kNull);
     }
@@ -334,13 +296,6 @@ class VertexPropertyVertexAccessor : public IAccessor {
 
   RTAny eval_vertex(label_t label, vid_t v, size_t idx) const override {
     if (property_columns_[label].is_null()) {
-      return RTAny();
-    }
-    return TypedConverter<T>::from_typed(property_columns_[label].get_view(v));
-  }
-
-  RTAny eval_vertex(label_t label, vid_t v, size_t idx, int) const override {
-    if (property_columns_[label].is_null()) {
       return RTAny(RTAnyType::kNull);
     }
     return TypedConverter<T>::from_typed(property_columns_[label].get_view(v));
@@ -370,17 +325,13 @@ class EdgeIdPathAccessor : public IAccessor {
   elem_t typed_eval_path(size_t idx) const { return edge_col_.get_edge(idx); }
 
   RTAny eval_path(size_t idx) const override {
-    return RTAny::from_edge(typed_eval_path(idx));
-  }
-
-  bool is_optional() const override { return edge_col_.is_optional(); }
-
-  RTAny eval_path(size_t idx, int) const override {
     if (!edge_col_.has_value(idx)) {
       return RTAny(RTAnyType::kNull);
     }
     return RTAny::from_edge(typed_eval_path(idx));
   }
+
+  bool is_optional() const override { return edge_col_.is_optional(); }
 
  private:
   const IEdgeColumn& edge_col_;
@@ -403,17 +354,13 @@ class EdgeGIdPathAccessor : public IAccessor {
   }
 
   RTAny eval_path(size_t idx) const override {
-    return RTAny::from_int64(typed_eval_path(idx));
-  }
-
-  bool is_optional() const override { return edge_col_.is_optional(); }
-
-  RTAny eval_path(size_t idx, int) const override {
     if (!edge_col_.has_value(idx)) {
       return RTAny(RTAnyType::kNull);
     }
     return RTAny::from_int64(typed_eval_path(idx));
   }
+
+  bool is_optional() const override { return edge_col_.is_optional(); }
 
  private:
   const IEdgeColumn& edge_col_;
@@ -429,6 +376,9 @@ class EdgePropertyPathAccessor : public IAccessor {
       : col_(*std::dynamic_pointer_cast<IEdgeColumn>(ctx.get(tag))) {}
 
   RTAny eval_path(size_t idx) const override {
+    if (!col_.has_value(idx)) {
+      return RTAny(RTAnyType::kNull);
+    }
     const auto& e = col_.get_edge(idx);
     return RTAny(e.prop_);
   }
@@ -440,13 +390,6 @@ class EdgePropertyPathAccessor : public IAccessor {
   }
 
   bool is_optional() const override { return col_.is_optional(); }
-
-  RTAny eval_path(size_t idx, int) const override {
-    if (!col_.has_value(idx)) {
-      return RTAny(RTAnyType::kNull);
-    }
-    return eval_path(idx);
-  }
 
  private:
   const IEdgeColumn& col_;
@@ -482,6 +425,9 @@ class MultiPropsEdgePropertyPathAccessor : public IAccessor {
   }
 
   RTAny eval_path(size_t idx) const override {
+    if (!col_.has_value(idx)) {
+      return RTAny(RTAnyType::kNull);
+    }
     const auto& e = col_.get_edge(idx);
     auto val = e.prop_;
     auto id = get_index(e.label_triplet_);
@@ -522,13 +468,6 @@ class MultiPropsEdgePropertyPathAccessor : public IAccessor {
     size_t idx = label.src_label * vertex_label_num_ * edge_label_num_ +
                  label.dst_label * edge_label_num_ + label.edge_label;
     return prop_index_[idx];
-  }
-
-  RTAny eval_path(size_t idx, int) const override {
-    if (!col_.has_value(idx)) {
-      return RTAny(RTAnyType::kNull);
-    }
-    return eval_path(idx);
   }
 
  private:

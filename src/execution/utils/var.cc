@@ -160,26 +160,13 @@ Var::~Var() {}
 
 RTAny Var::get(size_t path_idx) const { return getter_->eval_path(path_idx); }
 
-RTAny Var::get(size_t path_idx, int) const {
-  return getter_->eval_path(path_idx, 0);
-}
-
 RTAny Var::get_vertex(label_t label, vid_t v, size_t idx) const {
   return getter_->eval_vertex(label, v, idx);
-}
-
-RTAny Var::get_vertex(label_t label, vid_t v, size_t idx, int) const {
-  return getter_->eval_vertex(label, v, idx, 0);
 }
 
 RTAny Var::get_edge(const LabelTriplet& label, vid_t src, vid_t dst,
                     const Any& data, size_t idx) const {
   return getter_->eval_edge(label, src, dst, data, idx);
-}
-
-RTAny Var::get_edge(const LabelTriplet& label, vid_t src, vid_t dst,
-                    const Any& data, size_t idx, int) const {
-  return getter_->eval_edge(label, src, dst, data, idx, 0);
 }
 
 RTAnyType Var::type() const { return type_; }

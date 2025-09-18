@@ -85,7 +85,7 @@ struct OptionalValueCollector {
     OptionalExprWrapper(Expr&& expr)
         : arena(std::make_shared<Arena>()), expr(std::move(expr)) {}
     inline std::optional<T> operator()(size_t idx) const {
-      auto val = expr.eval_path(idx, *arena, 0);
+      auto val = expr.eval_path(idx, *arena);
       if (val.is_null()) {
         return std::nullopt;
       }

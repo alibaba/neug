@@ -70,7 +70,7 @@ class GetV {
                                        vid_t src, vid_t dst,
                                        const EdgeData& edata, Direction dir) {
         if (!input_edge_list.has_value(index)) {
-          if (pred(label.src_label, src, index, 0)) {
+          if (pred(label.src_label, src, index)) {
             builder.push_back_null();
             shuffle_offset.push_back(index);
           }
@@ -109,7 +109,7 @@ class GetV {
             [&](size_t index, const LabelTriplet& label, vid_t src, vid_t dst,
                 const EdgeData& edata, Direction dir) {
               if (!input_edge_list.has_value(index)) {
-                if (pred(label.src_label, src, index, 0)) {
+                if (pred(label.src_label, src, index)) {
                   builder.push_back_null();
                   shuffle_offset.push_back(index);
                 }
@@ -545,10 +545,6 @@ class GetV {
 struct GeneralVertexPredicateWrapper {
   GeneralVertexPredicateWrapper(const GeneralVertexPredicate& pred)
       : pred_(pred) {}
-
-  inline bool operator()(label_t label, vid_t v, size_t path_idx, int) const {
-    return pred_(label, v, path_idx, arena_, 0);
-  }
 
   inline bool operator()(label_t label, vid_t v, size_t path_idx) const {
     return pred_(label, v, path_idx, arena_);

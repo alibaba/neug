@@ -195,7 +195,7 @@ struct KeyBuilder {
 struct OptionalVarWrapper {
   using V = RTAny;
   std::optional<RTAny> operator()(size_t idx) const {
-    auto v = vars.get(idx, 0);
+    auto v = vars.get(idx);
     if (v.is_null()) {
       return std::nullopt;
     } else {
@@ -238,7 +238,7 @@ template <typename T>
 struct OptionalTypedVarWrapper {
   using V = T;
   std::optional<T> operator()(size_t idx) const {
-    auto v = vars_.get(idx, 0);
+    auto v = vars_.get(idx);
     if (v.is_null()) {
       return std::nullopt;
     }

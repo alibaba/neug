@@ -65,45 +65,23 @@ class UScanOpr : public IUpdateOperator {
     if (pred.has_value()) {
       auto expr = parse_expression<GraphUpdateInterface>(
           graph, ctx, params, pred.value(), VarType::kVertexVar);
-      if (expr->is_optional()) {
-        if (oids.empty()) {
-          return UScan::scan(
-              graph, std::move(ctx), scan_params,
-              [&](label_t label, vid_t vid) {
-                return expr->eval_vertex(label, vid, 0, arena, 0).as_bool();
-              });
-        } else {
-          return UScan::scan(
-              graph, std::move(ctx), scan_params,
-              [&](label_t label, vid_t vid) {
-                for (auto& oid : oids_vec) {
-                  if (graph.GetVertexId(label, vid) == oid) {
-                    return expr->eval_vertex(label, vid, 0, arena, 0).as_bool();
-                  }
-                }
-                return false;
-              });
-        }
+      if (oids.empty()) {
+        return UScan::scan(
+            graph, std::move(ctx), scan_params, [&](label_t label, vid_t vid) {
+              return expr->eval_vertex(label, vid, 0, arena).as_bool();
+            });
       } else {
-        if (oids.empty()) {
-          return UScan::scan(
-              graph, std::move(ctx), scan_params,
-              [&](label_t label, vid_t vid) {
-                return expr->eval_vertex(label, vid, 0, arena).as_bool();
-              });
-        } else {
-          return UScan::scan(
-              graph, std::move(ctx), scan_params,
-              [&](label_t label, vid_t vid) {
-                for (auto& oid : oids_vec) {
-                  if (graph.GetVertexId(label, vid) == oid) {
-                    return expr->eval_vertex(label, vid, 0, arena).as_bool();
-                  }
+        return UScan::scan(
+            graph, std::move(ctx), scan_params, [&](label_t label, vid_t vid) {
+              for (auto& oid : oids_vec) {
+                if (graph.GetVertexId(label, vid) == oid) {
+                  return expr->eval_vertex(label, vid, 0, arena).as_bool();
                 }
-                return false;
-              });
-        }
+              }
+              return false;
+            });
       }
+
     } else {
       if (oids.empty()) {
         return UScan::scan(graph, std::move(ctx), scan_params,

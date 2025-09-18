@@ -41,7 +41,7 @@ class Expr {
   template <typename GraphInterface>
   Expr(const GraphInterface& graph, const Context& ctx,
        const std::map<std::string, std::string>& params,
-       const common::Expression& expr, VarType var_type) {
+       const ::common::Expression& expr, VarType var_type) {
     expr_ = parse_expression(graph, ctx, params, expr, var_type);
     if (!expr_) {
       THROW_RUNTIME_ERROR(
@@ -54,10 +54,6 @@ class Expr {
   RTAny eval_vertex(label_t label, vid_t v, size_t idx, Arena&) const;
   RTAny eval_edge(const LabelTriplet& label, vid_t src, vid_t dst,
                   const Any& data, size_t idx, Arena&) const;
-  RTAny eval_path(size_t idx, Arena&, int) const;
-  RTAny eval_vertex(label_t label, vid_t v, size_t idx, Arena&, int) const;
-  RTAny eval_edge(const LabelTriplet& label, vid_t src, vid_t dst,
-                  const Any& data, size_t idx, Arena&, int) const;
 
   RTAnyType type() const;
 

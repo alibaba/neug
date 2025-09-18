@@ -43,10 +43,6 @@ struct GeneralVertexPredWrapper {
   GeneralVertexPredWrapper(GeneralVertexPredicate&& pred)
       : pred_(std::move(pred)) {}
 
-  inline bool operator()(label_t label, vid_t v, size_t path_idx, int) const {
-    return pred_(label, v, path_idx, arena_, 0);
-  }
-
   inline bool operator()(label_t label, vid_t v, size_t path_idx) const {
     return pred_(label, v, path_idx, arena_);
   }
@@ -58,11 +54,6 @@ struct GeneralVertexPredWrapper {
 struct GeneralEdgePredWrapper {
   GeneralEdgePredWrapper(GeneralEdgePredicate&& pred)
       : pred_(std::move(pred)) {}
-  inline bool operator()(const LabelTriplet& label, vid_t src, vid_t dst,
-                         const Any& edata, Direction dir, size_t path_idx,
-                         int) const {
-    return pred_(label, src, dst, edata, dir, path_idx, arena_);
-  }
 
   inline bool operator()(const LabelTriplet& label, vid_t src, vid_t dst,
                          const Any& edata, Direction dir,

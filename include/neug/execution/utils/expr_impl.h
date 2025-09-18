@@ -62,18 +62,6 @@ class ExprBase {
   virtual RTAny eval_edge(const LabelTriplet& label, vid_t src, vid_t dst,
                           const Any& data, size_t idx, Arena&) const = 0;
   virtual RTAnyType type() const = 0;
-  virtual RTAny eval_path(size_t idx, Arena& arena, int) const {
-    return eval_path(idx, arena);
-  }
-  virtual RTAny eval_vertex(label_t label, vid_t v, size_t idx, Arena& arena,
-                            int) const {
-    return eval_vertex(label, v, idx, arena);
-  }
-  virtual RTAny eval_edge(const LabelTriplet& label, vid_t src, vid_t dst,
-                          const Any& data, size_t idx, Arena& arena,
-                          int) const {
-    return eval_edge(label, src, dst, data, idx, arena);
-  }
 
   virtual bool is_optional() const { return false; }
 
@@ -171,63 +159,36 @@ class WithInExpr : public ExprBase {
     }
   }
 
-  RTAny eval_path(size_t idx, Arena& arena) const override {
+  RTAny eval_impl(const RTAny& val) const {
+    if (val.is_null()) {
+      return RTAny::from_bool(false);
+    }
     if constexpr (std::is_same_v<T, std::string>) {
-      auto val = std::string(key_->eval_path(idx, arena).as_string());
+      auto str_val = std::string(val.as_string());
       return RTAny::from_bool(std::find(container_.begin(), container_.end(),
-                                        val) != container_.end());
+                                        str_val) != container_.end());
     } else {
-      auto val = TypedConverter<T>::to_typed(key_->eval_path(idx, arena));
+      auto typed_val = TypedConverter<T>::to_typed(val);
       return RTAny::from_bool(std::find(container_.begin(), container_.end(),
-                                        val) != container_.end());
+                                        typed_val) != container_.end());
     }
   }
 
-  RTAny eval_path(size_t idx, Arena& arena, int) const override {
-    auto any_val = key_->eval_path(idx, arena, 0);
-    if (any_val.is_null()) {
-      return RTAny::from_bool(false);
-    }
-    return eval_path(idx, arena);
+  RTAny eval_path(size_t idx, Arena& arena) const override {
+    auto any_val = key_->eval_path(idx, arena);
+    return eval_impl(any_val);
   }
+
   RTAny eval_vertex(label_t label, vid_t v, size_t idx,
                     Arena& arena) const override {
-    if constexpr (std::is_same_v<T, std::string>) {
-      auto val =
-          std::string(key_->eval_vertex(label, v, idx, arena).as_string());
-      return RTAny::from_bool(std::find(container_.begin(), container_.end(),
-                                        val) != container_.end());
-    } else {
-      auto val =
-          TypedConverter<T>::to_typed(key_->eval_vertex(label, v, idx, arena));
-      return RTAny::from_bool(std::find(container_.begin(), container_.end(),
-                                        val) != container_.end());
-    }
-  }
-
-  RTAny eval_vertex(label_t label, vid_t v, size_t idx, Arena& arena,
-                    int) const override {
-    auto any_val = key_->eval_vertex(label, v, idx, arena, 0);
-    if (any_val.is_null()) {
-      return RTAny::from_bool(false);
-    }
-    return eval_vertex(label, v, idx, arena);
+    auto any_val = key_->eval_vertex(label, v, idx, arena);
+    return eval_impl(any_val);
   }
 
   RTAny eval_edge(const LabelTriplet& label, vid_t src, vid_t dst,
                   const Any& data, size_t idx, Arena& arena) const override {
-    if constexpr (std::is_same_v<T, std::string>) {
-      auto val = std::string(
-          key_->eval_edge(label, src, dst, data, idx, arena).as_string());
-      return RTAny::from_bool(std::find(container_.begin(), container_.end(),
-                                        val) != container_.end());
-    } else {
-      auto val = TypedConverter<T>::to_typed(
-          key_->eval_edge(label, src, dst, data, idx, arena));
-      return RTAny::from_bool(std::find(container_.begin(), container_.end(),
-                                        val) != container_.end());
-    }
-    return RTAny::from_bool(false);
+    auto any_val = key_->eval_edge(label, src, dst, data, idx, arena);
+    return eval_impl(any_val);
   }
   RTAnyType type() const override { return RTAnyType::kBoolValue; }
   bool is_optional() const override { return key_->is_optional(); }
@@ -250,12 +211,6 @@ class VariableExpr : public ExprBase {
                   const Any& data, size_t idx, Arena&) const override;
   RTAnyType type() const override;
 
-  RTAny eval_path(size_t idx, Arena&, int) const override;
-  RTAny eval_vertex(label_t label, vid_t v, size_t idx, Arena&,
-                    int) const override;
-  RTAny eval_edge(const LabelTriplet& label, vid_t src, vid_t dst,
-                  const Any& data, size_t idx, Arena&, int) const override;
-
   bool is_optional() const override { return var_.is_optional(); }
 
  private:
@@ -271,7 +226,6 @@ class UnaryLogicalExpr : public ExprBase {
   RTAny eval_edge(const LabelTriplet& label, vid_t src, vid_t dst,
                   const Any& data, size_t idx, Arena&) const override;
 
-  RTAny eval_path(size_t idx, Arena&, int) const override;
   RTAnyType type() const override;
 
   bool is_optional() const override { return expr_->is_optional(); }
@@ -290,47 +244,7 @@ class LogicalExpr : public ExprBase {
   RTAny eval_edge(const LabelTriplet& label, vid_t src, vid_t dst,
                   const Any& data, size_t idx, Arena&) const override;
 
-  RTAny eval_path(size_t idx, Arena& arena, int) const override {
-    if (logic_ == ::common::Logical::OR) {
-      bool flag = false;
-      if (!lhs_->eval_path(idx, arena, 0).is_null()) {
-        flag |= lhs_->eval_path(idx, arena, 0).as_bool();
-      }
-      if (!rhs_->eval_path(idx, arena, 0).is_null()) {
-        flag |= rhs_->eval_path(idx, arena, 0).as_bool();
-      }
-      return RTAny::from_bool(flag);
-    }
-
-    if (lhs_->eval_path(idx, arena, 0).is_null() ||
-        rhs_->eval_path(idx, arena, 0).is_null()) {
-      return RTAny::from_bool(false);
-    }
-    return eval_path(idx, arena);
-  }
-  RTAny eval_vertex(label_t label, vid_t v, size_t idx, Arena& arena,
-                    int) const override {
-    if (logic_ == ::common::Logical::OR) {
-      bool flag = false;
-      if (!lhs_->eval_vertex(label, v, idx, arena, 0).is_null()) {
-        flag |= lhs_->eval_vertex(label, v, idx, arena, 0).as_bool();
-      }
-      if (!rhs_->eval_vertex(label, v, idx, arena, 0).is_null()) {
-        flag |= rhs_->eval_vertex(label, v, idx, arena, 0).as_bool();
-      }
-      return RTAny::from_bool(flag);
-    }
-    if (lhs_->eval_vertex(label, v, idx, arena, 0).is_null() ||
-        rhs_->eval_vertex(label, v, idx, arena, 0).is_null()) {
-      return RTAny::from_bool(false);
-    }
-    return eval_vertex(label, v, idx, arena);
-  }
-  RTAny eval_edge(const LabelTriplet& label, vid_t src, vid_t dst,
-                  const Any& data, size_t idx, Arena&, int) const override {
-    LOG(FATAL) << "not implemented";
-    return RTAny();
-  }
+  RTAny eval_impl(const RTAny& lhs_val, const RTAny& rhs_val) const;
 
   RTAnyType type() const override;
 
@@ -408,17 +322,27 @@ class ExtractExpr : public ExprBase {
   }
 
   RTAny eval_path(size_t idx, Arena& arena) const override {
-    return RTAny::from_int64(eval_impl(expr_->eval_path(idx, arena)));
+    auto any_val = expr_->eval_path(idx, arena);
+    if (any_val.is_null()) {
+      return RTAny(RTAnyType::kNull);
+    }
+    return RTAny::from_int64(eval_impl(any_val));
   }
   RTAny eval_vertex(label_t label, vid_t v, size_t idx,
                     Arena& arena) const override {
-    return RTAny::from_int64(
-        eval_impl(expr_->eval_vertex(label, v, idx, arena)));
+    auto any_val = expr_->eval_vertex(label, v, idx, arena);
+    if (any_val.is_null()) {
+      return RTAny(RTAnyType::kNull);
+    }
+    return RTAny::from_int64(eval_impl(any_val));
   }
   RTAny eval_edge(const LabelTriplet& label, vid_t src, vid_t dst,
                   const Any& data, size_t idx, Arena& arena) const override {
-    return RTAny::from_int64(
-        eval_impl(expr_->eval_edge(label, src, dst, data, idx, arena)));
+    auto any_val = expr_->eval_edge(label, src, dst, data, idx, arena);
+    if (any_val.is_null()) {
+      return RTAny(RTAnyType::kNull);
+    }
+    return RTAny::from_int64(eval_impl(any_val));
   }
 
   RTAnyType type() const override { return RTAnyType::kI32Value; }
@@ -586,9 +510,6 @@ class TypedTupleExpr : public ExprBase {
   template <std::size_t... Is>
   std::tuple<Args...> eval_path_impl(std::index_sequence<Is...>, size_t idx,
                                      Arena& arena) const {
-    // TODO: The `to_typed` function will fail if the evaluated value of any
-    // input is null. For example, `TypedConverter<int32_t>::to_typed`
-    // requires its input value to be non-null.
     return std::make_tuple(
         TypedConverter<Args>::to_typed(exprs_[Is]->eval_path(idx, arena))...);
   }
@@ -673,17 +594,6 @@ class MapExpr : public ExprBase {
     return RTAny::from_map(map);
   }
 
-  RTAny eval_path(size_t idx, Arena& arena, int) const override {
-    std::vector<RTAny> ret;
-    for (size_t i = 0; i < keys_.size(); i++) {
-      ret.push_back(value_exprs[i]->eval_path(idx, arena, 0));
-    }
-    auto map_impl = MapImpl::make_map_impl(keys_, ret);
-    auto map = Map::make_map(map_impl.get());
-    arena.emplace_back(std::move(map_impl));
-    return RTAny::from_map(map);
-  }
-
   RTAny eval_vertex(label_t label, vid_t v, size_t idx, Arena&) const override {
     LOG(FATAL) << "not implemented";
     return RTAny();
@@ -721,20 +631,17 @@ class RelationshipsExpr : public ListExprBase {
  public:
   RelationshipsExpr(std::unique_ptr<ExprBase>&& args) : args(std::move(args)) {}
   RTAny eval_path(size_t idx, Arena& arena) const override {
-    auto path = args->eval_path(idx, arena).as_path();
+    assert(args->type() == RTAnyType::kPath);
+    auto path_any = args->eval_path(idx, arena);
+    if (path_any.is_null()) {
+      return RTAny(RTAnyType::kNull);
+    }
+    auto path = path_any.as_path();
     auto rels = path.relationships();
     auto ptr = ListImpl<Relation>::make_list_impl(std::move(rels));
     List rel_list(ptr.get());
     arena.emplace_back(std::move(ptr));
     return RTAny::from_list(rel_list);
-  }
-
-  RTAny eval_path(size_t idx, Arena& arena, int) const override {
-    auto path = args->eval_path(idx, arena, 0);
-    if (path.is_null()) {
-      return RTAny(RTAnyType::kNull);
-    }
-    return eval_path(idx, arena);
   }
 
   RTAny eval_vertex(label_t label, vid_t v, size_t idx, Arena&) const override {
@@ -760,20 +667,17 @@ class NodesExpr : public ListExprBase {
  public:
   NodesExpr(std::unique_ptr<ExprBase>&& args) : args(std::move(args)) {}
   RTAny eval_path(size_t idx, Arena& arena) const override {
-    auto path = args->eval_path(idx, arena).as_path();
+    assert(args->type() == RTAnyType::kPath);
+    auto path_any = args->eval_path(idx, arena);
+    if (path_any.is_null()) {
+      return RTAny(RTAnyType::kNull);
+    }
+    auto path = path_any.as_path();
     auto nodes = path.nodes();
     auto ptr = ListImpl<VertexRecord>::make_list_impl(std::move(nodes));
     List node_list(ptr.get());
     arena.emplace_back(std::move(ptr));
     return RTAny::from_list(node_list);
-  }
-
-  RTAny eval_path(size_t idx, Arena& arena, int) const override {
-    auto path = args->eval_path(idx, arena, 0);
-    if (path.is_null()) {
-      return RTAny(RTAnyType::kNull);
-    }
-    return eval_path(idx, arena);
   }
 
   RTAny eval_vertex(label_t label, vid_t v, size_t idx, Arena&) const override {
@@ -800,17 +704,13 @@ class StartNodeExpr : public ExprBase {
   StartNodeExpr(std::unique_ptr<ExprBase>&& args) : args(std::move(args)) {}
   RTAny eval_path(size_t idx, Arena& arena) const override {
     assert(args->type() == RTAnyType::kRelation);
-    auto path = args->eval_path(idx, arena).as_relation();
-    auto node = path.start_node();
-    return RTAny::from_vertex(node);
-  }
-
-  RTAny eval_path(size_t idx, Arena& arena, int) const override {
-    auto path = args->eval_path(idx, arena, 0);
-    if (path.is_null()) {
+    auto path_any = args->eval_path(idx, arena);
+    if (path_any.is_null()) {
       return RTAny(RTAnyType::kNull);
     }
-    return eval_path(idx, arena);
+    auto path = path_any.as_relation();
+    auto node = path.start_node();
+    return RTAny::from_vertex(node);
   }
 
   RTAny eval_vertex(label_t label, vid_t v, size_t idx, Arena&) const override {
@@ -837,17 +737,13 @@ class EndNodeExpr : public ExprBase {
   EndNodeExpr(std::unique_ptr<ExprBase>&& args) : args(std::move(args)) {}
   RTAny eval_path(size_t idx, Arena& arena) const override {
     assert(args->type() == RTAnyType::kRelation);
-    auto path = args->eval_path(idx, arena).as_relation();
-    auto node = path.end_node();
-    return RTAny::from_vertex(node);
-  }
-
-  RTAny eval_path(size_t idx, Arena& arena, int) const override {
-    auto path = args->eval_path(idx, arena, 0);
-    if (path.is_null()) {
+    auto path_any = args->eval_path(idx, arena);
+    if (path_any.is_null()) {
       return RTAny(RTAnyType::kNull);
     }
-    return eval_path(idx, arena);
+    auto path = path_any.as_relation();
+    auto node = path.end_node();
+    return RTAny::from_vertex(node);
   }
 
   RTAny eval_vertex(label_t label, vid_t v, size_t idx, Arena&) const override {
@@ -875,8 +771,6 @@ class ToFloatExpr : public ExprBase {
       return static_cast<double>(val.as_int64());
     } else if (val.type() == RTAnyType::kI32Value) {
       return static_cast<double>(val.as_int32());
-    } else if (val.type() == RTAnyType::kF32Value) {
-      return static_cast<double>(val.as_float());
     } else if (val.type() == RTAnyType::kF64Value) {
       return val.as_double();
     } else {
@@ -887,26 +781,27 @@ class ToFloatExpr : public ExprBase {
   ToFloatExpr(std::unique_ptr<ExprBase>&& args) : args(std::move(args)) {}
   RTAny eval_path(size_t idx, Arena& arena) const override {
     auto val = args->eval_path(idx, arena);
-    return RTAny::from_double(to_double(val));
-  }
-
-  RTAny eval_path(size_t idx, Arena& arena, int) const override {
-    auto val = args->eval_path(idx, arena, 0);
     if (val.is_null()) {
       return RTAny(RTAnyType::kNull);
     }
-    return eval_path(idx, arena);
+    return RTAny::from_double(to_double(val));
   }
 
   RTAny eval_vertex(label_t label, vid_t v, size_t idx,
                     Arena& arena) const override {
     auto val = args->eval_vertex(label, v, idx, arena);
+    if (val.is_null()) {
+      return RTAny(RTAnyType::kNull);
+    }
     return RTAny::from_double(to_double(val));
   }
 
   RTAny eval_edge(const LabelTriplet& label, vid_t src, vid_t dst,
                   const Any& data, size_t idx, Arena& arena) const override {
     auto val = args->eval_edge(label, src, dst, data, idx, arena);
+    if (val.is_null()) {
+      return RTAny(RTAnyType::kNull);
+    }
     return RTAny::from_double(to_double(val));
   }
 
@@ -923,8 +818,13 @@ class StrConcatExpr : public ExprBase {
                 std::unique_ptr<ExprBase>&& rhs)
       : lhs(std::move(lhs)), rhs(std::move(rhs)) {}
   RTAny eval_path(size_t idx, Arena& arena) const override {
-    std::string ret = std::string(lhs->eval_path(idx, arena).as_string()) +
-                      ";" + std::string(rhs->eval_path(idx, arena).as_string());
+    auto lhs_val = lhs->eval_path(idx, arena);
+    auto rhs_val = rhs->eval_path(idx, arena);
+    if (lhs_val.is_null() || rhs_val.is_null()) {
+      return RTAny(RTAnyType::kNull);
+    }
+    std::string ret = std::string(lhs_val.as_string()) + ";" +
+                      std::string(rhs_val.as_string());
     auto ptr = StringImpl::make_string_impl(ret);
     auto sv = ptr->str_view();
     arena.emplace_back(std::move(ptr));
@@ -932,19 +832,15 @@ class StrConcatExpr : public ExprBase {
     return RTAny::from_string(sv);
   }
 
-  RTAny eval_path(size_t idx, Arena& arena, int) const override {
-    if (lhs->eval_path(idx, arena, 0).is_null() ||
-        rhs->eval_path(idx, arena, 0).is_null()) {
-      return RTAny(RTAnyType::kNull);
-    }
-    return eval_path(idx, arena);
-  }
-
   RTAny eval_vertex(label_t label, vid_t v, size_t idx,
                     Arena& arena) const override {
-    std::string ret =
-        std::string(lhs->eval_vertex(label, v, idx, arena).as_string()) + ";" +
-        std::string(rhs->eval_vertex(label, v, idx, arena).as_string());
+    auto lhs_val = lhs->eval_vertex(label, v, idx, arena);
+    auto rhs_val = rhs->eval_vertex(label, v, idx, arena);
+    if (lhs_val.is_null() || rhs_val.is_null()) {
+      return RTAny(RTAnyType::kNull);
+    }
+    std::string ret = std::string(lhs_val.as_string()) + ";" +
+                      std::string(rhs_val.as_string());
     auto ptr = StringImpl::make_string_impl(ret);
     auto sv = ptr->str_view();
     arena.emplace_back(std::move(ptr));
@@ -954,12 +850,13 @@ class StrConcatExpr : public ExprBase {
 
   RTAny eval_edge(const LabelTriplet& label, vid_t src, vid_t dst,
                   const Any& data, size_t idx, Arena& arena) const override {
-    std::string ret =
-        std::string(
-            lhs->eval_edge(label, src, dst, data, idx, arena).as_string()) +
-        ";" +
-        std::string(
-            rhs->eval_edge(label, src, dst, data, idx, arena).as_string());
+    auto lhs_val = lhs->eval_edge(label, src, dst, data, idx, arena);
+    auto rhs_val = rhs->eval_edge(label, src, dst, data, idx, arena);
+    if (lhs_val.is_null() || rhs_val.is_null()) {
+      return RTAny(RTAnyType::kNull);
+    }
+    std::string ret = std::string(lhs_val.as_string()) + ";" +
+                      std::string(rhs_val.as_string());
     auto ptr = StringImpl::make_string_impl(ret);
     auto sv = ptr->str_view();
     arena.emplace_back(std::move(ptr));
@@ -983,29 +880,29 @@ class StrListSizeExpr : public ExprBase {
 
   RTAny eval_path(size_t idx, Arena& arena) const override {
     CHECK(args->type() == RTAnyType::kStringValue);
-    auto str_list = args->eval_path(idx, arena).as_string();
-    return RTAny::from_int32(_size(str_list));
-  }
-
-  RTAny eval_path(size_t idx, Arena& arena, int) const override {
-    auto list = args->eval_path(idx, arena, 0);
+    auto list = args->eval_path(idx, arena);
     if (list.is_null()) {
       return RTAny(RTAnyType::kNull);
     }
-    return eval_path(idx, arena);
+    return RTAny::from_int32(_size(list.as_string()));
   }
 
   RTAny eval_vertex(label_t label, vid_t v, size_t idx,
                     Arena& arena) const override {
-    auto str_list = args->eval_vertex(label, v, idx, arena).as_string();
-    return RTAny::from_int32(_size(str_list));
+    auto str_list = args->eval_vertex(label, v, idx, arena);
+    if (str_list.is_null()) {
+      return RTAny(RTAnyType::kNull);
+    }
+    return RTAny::from_int32(_size(str_list.as_string()));
   }
 
   RTAny eval_edge(const LabelTriplet& label, vid_t src, vid_t dst,
                   const Any& data, size_t idx, Arena& arena) const override {
-    auto str_list =
-        args->eval_edge(label, src, dst, data, idx, arena).as_string();
-    return RTAny::from_int32(_size(str_list));
+    auto str_list = args->eval_edge(label, src, dst, data, idx, arena);
+    if (str_list.is_null()) {
+      return RTAny(RTAnyType::kNull);
+    }
+    return RTAny::from_int32(_size(str_list.as_string()));
   }
 
   RTAnyType type() const override { return RTAnyType::kI32Value; }
