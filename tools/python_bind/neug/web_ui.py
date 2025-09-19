@@ -28,6 +28,7 @@ from flask import request
 from flask import send_from_directory
 from flask_cors import CORS
 
+from neug.connection import Connection
 from neug.database import Database
 from neug.format import parse_and_format_results
 from neug.session import Session
@@ -36,7 +37,7 @@ logger = logging.getLogger("neug")
 
 
 class NeugWebUI:
-    def __init__(self, db=None, host="127.0.0.1", port=5000):
+    def __init__(self, db=None, connection=None, host="127.0.0.1", port=5000):
         self.app = Flask(__name__)
         CORS(self.app)  # Enable CORS for all routes
 
@@ -44,13 +45,14 @@ class NeugWebUI:
         self.host = host
         self.port = port
         self.database = None
-        self.session = None
+        self.session = connection
 
         # Setup routes
         self._setup_routes()
 
         # Initialize database connection if db is provided
-        self._init_database()
+        if self.db is not None:
+            self._init_database()
 
     def _setup_routes(self):
         """Setup Flask routes"""
@@ -104,10 +106,6 @@ class NeugWebUI:
         logger.info(f"Starting Neug Web UI on http://{self.host}:{self.port}")
         if self.db:
             logger.info(f"Connected to database: {self.db}")
-        else:
-            logger.info(
-                "No database connected. Use the web interface to connect to a database."
-            )
 
         self.app.run(host=self.host, port=self.port, debug=debug)
 

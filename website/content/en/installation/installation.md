@@ -132,15 +132,15 @@ pip install neug
 
 ```bash
 # Start interactive shell with in-memory database
-neug-cli
+neug-cli open
 
 # Connect to an embedded local database
 # Will run in embedded mode.
-neug-cli /path/to/database
+neug-cli open /path/to/database
 
 # Connect to a remote database service
 # Must start the service first
-neug-cli neug://localhost:8080
+neug-cli connect neug://localhost:8080
 
 # Execute a query directly
 neug-cli -c "MATCH (n) RETURN count(n)" /path/to/database

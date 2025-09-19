@@ -23,74 +23,36 @@ pip install neug
 
 ### Starting the Web UI
 
-The simplest way to start the web UI:
+The simplest way to start the web UI after start neug-cli:
 
 ```bash
-neug-cli ui
+neug > :ui
 ```
 
-This will start the web server on `http://127.0.0.1:5000` with an in-memory database.
-
-### Opening a specific database
-
-To connect to an existing database directory:
-
-```bash
-neug-cli ui --db /path/to/your/database
-```
-
-### Opening a remote database
-
-To connect to a remote database endpoint
-
-```bash
-neug-cli ui --db http://127.0.0.1:10001
-neug-cli ui --db 127.0.0.1:10001
-```
+This will start the web server of the opening database on `http://127.0.0.1:5000`.
 
 ### Custom host and port
 
 To run on a different host or port:
 
 ```bash
-neug-cli ui --host 0.0.0.0 --port 8080
+neug > :ui 127.0.0.1:8080
 ```
-
-### Debug mode
-
-For development purposes, you can enable debug mode:
-
-```bash
-neug-cli ui --debug
-```
-
-## Command Options
-
-| Option | Default | Description |
-|--------|---------|-------------|
-| `--db-dir` | None | Database directory to connect to (optional) |
-| `--host` | 127.0.0.1 | Host address to bind the web server |
-| `--port` | 5000 | Port number to bind the web server |
-| `--debug` | False | Run the web server in debug mode |
 
 ## Examples
 
 ### Example 1: Start with local database
 ```bash
 # Start UI with a specific database
-neug-cli ui --db-dir ./my_graph_db
+neug-cli open ./my_graph_db
+neug > :ui
 ```
 
 ### Example 2: Public access
 ```bash
 # Allow access from any IP address
-neug-cli ui --host 0.0.0.0 --port 8080 --db-dir ./my_graph_db
-```
-
-### Example 3: Development mode
-```bash
-# Start in debug mode for development
-neug-cli ui --debug --db-dir ./test_db
+neug-cli open ./my_graph_db
+neug > :ui 0.0.0.0:8080
 ```
 
 ## Web Interface Features

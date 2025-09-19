@@ -31,6 +31,7 @@ sys.path.append(os.path.join(os.path.dirname(__file__), "../"))
 from neug import neug_cli
 from neug import web_ui
 from neug.database import Database
+from neug.session import Session
 
 
 @pytest.fixture
@@ -53,24 +54,6 @@ Options:
 Commands:
   connect  Connect to a remote database.
   open     Open a local database.
-  ui       Start the Neug Web UI.
-"""
-    assert expected_output.strip() == result.output.strip()
-
-
-def test_open_help_option(monkeypatch, runner):
-    # mock cmdloop to avoid entering the shell loop
-    monkeypatch.setattr(neug_cli.NeugShell, "cmdloop", lambda self: None)
-    result = runner.invoke(neug_cli.cli, ["open", "--help"])
-    assert result.exit_code == 0
-    expected_output = """\
-Usage: neug-cli open [OPTIONS] PATH
-
-  Open a local database.
-
-Options:
-  -r, --readonly  Open database in read-only mode.
-  --help          Show this message and exit.
 """
     assert expected_output.strip() == result.output.strip()
 
@@ -82,7 +65,7 @@ def test_open_local_database(monkeypatch, runner, tmp_path):
     monkeypatch.setattr(neug_cli.NeugShell, "cmdloop", lambda self: None)
     result = runner.invoke(neug_cli.cli, ["open", str(db_path)])
     assert result.exit_code == 0
-    assert f"Opened database at {db_path} in rw mode" in result.output
+    assert f"Opened database at {db_path} in read-write mode" in result.output
 
 
 def test_open_local_database_readonly(monkeypatch, runner, tmp_path):
@@ -90,18 +73,20 @@ def test_open_local_database_readonly(monkeypatch, runner, tmp_path):
     shutil.rmtree(db_path, ignore_errors=True)
     # mock cmdloop to avoid entering the shell loop
     monkeypatch.setattr(neug_cli.NeugShell, "cmdloop", lambda self: None)
-    result1 = runner.invoke(neug_cli.cli, ["open", str(db_path), "--readonly"])
+    result1 = runner.invoke(neug_cli.cli, ["open", str(db_path), "-m", "read-only"])
     assert result1.exit_code == 0
-    assert f"Opened database at {db_path} in r mode" in result1.output
-    result2 = runner.invoke(neug_cli.cli, ["open", str(db_path), "-r"])
+    assert f"Opened database at {db_path} in read-only mode" in result1.output
+    result2 = runner.invoke(neug_cli.cli, ["open", str(db_path), "-m", "r"])
     assert result2.exit_code == 0
     assert f"Opened database at {db_path} in r mode" in result2.output
 
 
-def test_open_local_database_fails_without_path(runner):
+def test_open_pure_memory_database(monkeypatch, runner):
+    # mock cmdloop to avoid entering the shell loop
+    monkeypatch.setattr(neug_cli.NeugShell, "cmdloop", lambda self: None)
     result = runner.invoke(neug_cli.cli, ["open"])
-    assert result.exit_code != 0
-    assert "Error: Missing argument 'PATH'." in result.output
+    assert result.exit_code == 0
+    assert "Opened in-memory database in read-write mode" in result.output
 
 
 def test_connect_help_option(monkeypatch, runner):
@@ -110,15 +95,13 @@ def test_connect_help_option(monkeypatch, runner):
     result = runner.invoke(neug_cli.cli, ["connect", "--help"])
     assert result.exit_code == 0
     excepted_output = """\
-Usage: neug-cli connect [OPTIONS] URI
+Usage: neug-cli connect [OPTIONS] DB_URI
 
   Connect to a remote database.
 
 Options:
-  -u, --user TEXT      Username for authentication.
-  -p, --password TEXT  Password for authentication.
-  --timeout INTEGER    Connection timeout in seconds.  [default: 300]
-  --help               Show this message and exit.
+  --timeout INTEGER  Connection timeout in seconds.  [default: 300]
+  --help             Show this message and exit.
 """
     assert excepted_output.strip() == result.output.strip()
 
@@ -163,17 +146,21 @@ def test_connect_remote_database_with_timeout(monkeypatch, runner):
 def test_connect_remote_database_fails_without_uri(runner):
     result = runner.invoke(neug_cli.cli, ["connect"])
     assert result.exit_code != 0
-    assert "Error: Missing argument 'URI'." in result.output
+    assert "Error: Missing argument 'DB_URI'." in result.output
 
 
 def test_start_remote_database_neug_ui(runner):
-    db_endpoint = "127.0.0.1:10001"
+    db_endpoint = "http://127.0.0.1:10001"
     db_path = "/tmp/modern_graph"
     db = Database(db_path=db_path, mode="w")
     db.serve(host="127.0.0.1", port=10001)
+
     time.sleep(1)
+    session = Session(endpoint=db_endpoint)
+    shell = neug_cli.NeugShell(session)
     thread = threading.Thread(
-        target=runner.invoke, args=(neug_cli.cli, ["ui", "--db", db_endpoint])
+        target=shell.default,
+        args=(":ui",),
     )
     thread.start()
     time.sleep(1)
@@ -197,8 +184,12 @@ def test_start_remote_database_neug_ui(runner):
 
 def test_start_local_database_neug_ui(runner):
     db_path = "/tmp/modern_graph"
+    db = Database(db_path=db_path, mode="w")
+    connection = db.connect()
+    shell = neug_cli.NeugShell(connection)
     thread = threading.Thread(
-        target=runner.invoke, args=(neug_cli.cli, ["ui", "--db", db_path])
+        target=shell.default,
+        args=(":ui",),
     )
     thread.start()
     time.sleep(1)
@@ -206,13 +197,13 @@ def test_start_local_database_neug_ui(runner):
     headers = {"Content-Type": "text/plain"}
     data = "MATCH (n) RETURN count(n)"
     response = requests.post(url, headers=headers, data=data)
-
+    db.close()
     if thread.is_alive():
         tid = thread.ident
         ctypes.pythonapi.PyThreadState_SetAsyncExc(
             ctypes.c_long(tid), ctypes.py_object(SystemExit)
         )
     thread.join()
-    expected_output = """"table":[{"COUNT(_0_n._ID)":"6"}]"""
+    expected_output = """"COUNT(_0_n._ID)": "6"\n"""
     assert response.status_code == 200
     assert expected_output in response.text

@@ -82,15 +82,15 @@ This displays:
 ```
 Usage: neug-cli [OPTIONS] COMMAND [ARGS]...
 
-    Neug CLI Tool.
+  Neug CLI Tool.
 
 Options:
-    --version  Show the version and exit.
-    --help     Show this message and exit.
+  --version  Show the version and exit.
+  --help     Show this message and exit.
 
 Commands:
-    connect  Connect to a remote database.
-    open     Open a local database.
+  connect  Connect to a remote database.
+  open     Open a local database.
 ```
 
 #### Start the Shell by Opening a Local Database
@@ -100,21 +100,19 @@ To open a local Neug database, specify the database path when starting the CLI. 
 To open the database in read-only mode, use the `--readonly` or `-r` option.
 
 ```bash
-neug-cli open <path-to-db> [--readonly | -r]
+neug-cli open <path-to-db> -m [read-only|read-write]
 ```
 
-- `--readonly`, `-r`: Open the database in read-only mode.
+- `--mode`, `-m`: Specify mode of database.
 
 #### Start the Shell by Connecting to a Remote Database
 
 To connect to a remote Neug server, specify the server URI when starting the CLI. You can optionally provide a username, password, and query timeout. Note that remote connection support is under development.
 
 ```bash
-neug-cli connect <host:port> [--user <username> | -u <username>] [--password <password> | -p <password>] [--timeout <seconds>]
+neug-cli connect <host:port> [--timeout <seconds>]
 ```
 
-- `--user`, `-u`: Username for authentication.
-- `--password`, `-p`: Password for authentication.
 - `--timeout`: Connection timeout in seconds (default: 300).
 
 #### Interactive Shell Commands
@@ -125,6 +123,7 @@ Once you start the shell, you can execute Cypher queries and use various interac
 - Use `:help` to display this help message.
 - Use `:quit` or press Ctrl+C to leave the shell.
 - Use `:max_rows <number>` to set the maximum number of rows to display for query results.
+- Use `:ui <endpoint>` to start a web ui service.
 - Multi-line commands are supported. Use ';' at the end to execute.
 - Command history is supported; use the up/down arrow keys to navigate previous commands.
 

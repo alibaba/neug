@@ -42,7 +42,10 @@ class PyConnection : public std::enable_shared_from_this<PyConnection> {
    * 1. parse the query string and generate the execution plan.
    * 2. Execute the execution plan using runtime engine.
    */
-  std::unique_ptr<PyQueryResult> execute(const std::string& query_string);
+  std::unique_ptr<PyQueryResult> execute(const std::string& query_string,
+                                         const std::string& format = "proto");
+
+  std::string get_schema() const;
 
  private:
   NeugDB& db_;

@@ -96,7 +96,7 @@ class Connection(object):
             self._py_connection.close()
             self._is_open = False
 
-    def execute(self, query: str) -> QueryResult:
+    def execute(self, query: str, format: str = "proto") -> QueryResult:
         """
         Execute a cypher query on the database. User could specify multiple queries in a single string,
         separated by semicolons. The query will be executed in the order they are specified.
@@ -150,7 +150,7 @@ class Connection(object):
                 f"Connection is closed. Please open the connection before executing queries."
                 f"Error code: {ERR_CONNECTION_CLOSED}"
             )
-        ret = QueryResult(self._py_connection.execute(query))
+        ret = QueryResult(self._py_connection.execute(query, format))
         status_code = ret._result.status_code()
         try:
             msg = ret._result.status_message()
@@ -158,10 +158,25 @@ class Connection(object):
             msg = "Failed to decode the error message returned from engine"
 
         if status_code == OK:
-            return ret
+            if format == "proto":
+                return ret
+            elif format == "json":
+                return ret._result.get_json_result()
+            else:
+                raise RuntimeError(
+                    f"Failed to execute query: {query}. " f"Unknown result format."
+                )
         else:
             raise RuntimeError(
                 f"Failed to execute query: {query}. "
                 f"Error code: {status_code}, Error Message: "
                 f"{Code.keys()[Code.values().index(status_code)]}: {msg}"
             )
+
+    def get_schema(self):
+        """
+        Get the schema of the NeuG database.
+
+        :return: The schema of the NeuG database.
+        """
+        return self._py_connection.get_schema()

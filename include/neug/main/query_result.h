@@ -84,6 +84,10 @@ class QueryResult {
 
   const std::string& get_result_schema() const;  // YAML string
 
+  inline const results::CollectiveResults& get_result() const {
+    return result_;
+  }
+
  private:
   size_t cur_index_;
   results::CollectiveResults result_;

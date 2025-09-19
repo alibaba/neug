@@ -20,6 +20,7 @@ import atexit
 import cmd
 import logging
 import os
+import re
 import sys
 
 # Configure logging
@@ -45,6 +46,7 @@ from neug.format import parse_and_format_results
 COMMAND_HELP = ":help"
 COMMAND_QUIT = ":quit"
 COMMAND_MAX_ROWS = ":max_rows"
+COMMAND_UI = ":ui"
 
 # Default prompt
 PROMPT = "neug > "
@@ -55,7 +57,7 @@ class NeugShell(cmd.Cmd):
     intro = "Welcome to the Neug shell. Type :help for usage hints.\n"
     prompt = PROMPT
 
-    def __init__(self, connection: Connection):
+    def __init__(self, connection):
         super().__init__()
         self.connection = connection
         self.buffer = []
@@ -99,6 +101,9 @@ class NeugShell(cmd.Cmd):
             # Handle max_rows command
             arg = stripped_line[len(COMMAND_MAX_ROWS) :].strip()
             self.do_max_rows(arg)
+        elif stripped_line.startswith(COMMAND_UI):
+            arg = stripped_line[len(COMMAND_UI) :].strip()
+            self.do_ui(arg)
         elif stripped_line:
             self.buffer.append(stripped_line)
             self.multi_line_mode = not stripped_line.endswith(";")
@@ -136,6 +141,36 @@ class NeugShell(cmd.Cmd):
         except Exception:
             print("Usage: :max_rows <number>")
 
+    def do_ui(self, arg):
+        host = "127.0.0.1"
+        port = 5000
+        try:
+            value = arg.strip()
+            if len(value) > 0:
+                pattern_plain = re.compile(r"^([a-zA-Z0-9.-_]+):(\d+)$")
+                match_plain = pattern_plain.fullmatch(value)
+                if match_plain:
+                    host = match_plain.group(1)
+                    port = match_plain.group(2)
+                else:
+                    print(f"Invalid endpoint: {value}")
+                    return
+        except Exception:
+            print("Usage: :ui <host:port>")
+            return
+        try:
+            from neug.web_ui import NeugWebUI
+
+            web_ui = NeugWebUI(connection=self.connection, host=host, port=port)
+            web_ui.run()
+
+        except ImportError as e:
+            click.echo(f"Error: Flask dependencies not installed. {e}")
+            click.echo("Please install with: pip install flask flask-cors")
+        except Exception as e:
+            click.echo(f"Error starting web UI: {e}")
+        return
+
     def do_help(self, arg):
         """Provide usage hints."""
         print(
@@ -158,72 +193,58 @@ def cli():
 
 
 @cli.command()
-@click.argument("path", required=True)
-@click.option("-r", "--readonly", is_flag=True, help="Open database in read-only mode.")
-def open(path, readonly):
+@click.argument("db_uri", default="", required=False)
+@click.option(
+    "-m",
+    "--mode",
+    default="read-write",
+    help="Database mode: read-only or read-write (default: read-write).",
+)
+def open(db_uri, mode):
     """Open a local database."""
-    mode = "r" if readonly else "rw"
-    click.echo(f"Opened database at {path} in {mode} mode")
-    database = Database(db_path=str(path), mode=mode)
+    if len(db_uri) > 0:
+        click.echo(f"Opened database at {db_uri} in {mode} mode")
+    else:
+        click.echo("Opened in-memory database in read-write mode")
+    database = Database(db_path=str(db_uri), mode=mode)
     connection = database.connect()
     shell = NeugShell(connection)
     shell.cmdloop()
 
 
 @cli.command()
-@click.argument("uri", required=True)
-@click.option("-u", "--user", default=None, help="Username for authentication.")
-@click.option("-p", "--password", default=None, help="Password for authentication.")
+@click.argument("db_uri", required=True)
 @click.option(
     "--timeout", default=300, show_default=True, help="Connection timeout in seconds."
 )
-def connect(uri, user, password, timeout):
+def connect(db_uri, timeout):
     """Connect to a remote database."""
-    host, port = uri.split(":")
+    click.echo(f"{db_uri}")
+    pattern_http = re.compile(r"^http://([a-zA-Z0-9.-_]+):(\d+)$")
+    pattern_plain = re.compile(r"^([a-zA-Z0-9.-_]+):(\d+)$")
+
+    if db_uri is None:
+        match_http = match_plain = False
+    else:
+        match_http = pattern_http.fullmatch(db_uri)
+        match_plain = pattern_plain.fullmatch(db_uri)
+
+    if match_http:
+        host = match_http.group(1)
+        port = match_http.group(2)
+    elif match_plain:
+        host = match_plain.group(1)
+        port = match_plain.group(2)
+    else:
+        click.echo(f"Invalid db_uri: {db_uri}")
     click.echo(f"Connecting to {host}:{port}")
 
-    auth = (user, password) if user and password else None
     # TODO: connect to neug in TP mode
     from neug.session import Session
 
-    session = Session.open(f"neug://{auth}@{host}:{port}/", timeout=timeout)
+    session = Session.open(f"http://{host}:{port}/", timeout=timeout)
     shell = NeugShell(session)
     shell.cmdloop()
-
-
-@cli.command()
-@click.option("--db", default=None, help="Database directory to connect to (optional).")
-@click.option(
-    "--host",
-    default="127.0.0.1",
-    show_default=True,
-    help="Host address to bind the web server.",
-)
-@click.option(
-    "--port",
-    default=5000,
-    show_default=True,
-    help="Port number to bind the web server.",
-)
-@click.option("--debug", is_flag=True, help="Run the web server in debug mode.")
-def ui(db, host, port, debug):
-    """Start the Neug Web UI."""
-    try:
-        from neug.web_ui import start_web_ui
-
-        if db:
-            click.echo(f"Starting Neug Web UI with database: {db}")
-        else:
-            click.echo("Starting Neug Web UI with in-memory database")
-
-        click.echo(f"Web server will be available at: http://{host}:{port}")
-        start_web_ui(db=db, host=host, port=port, debug=debug)
-
-    except ImportError as e:
-        click.echo(f"Error: Flask dependencies not installed. {e}")
-        click.echo("Please install with: pip install flask flask-cors")
-    except Exception as e:
-        click.echo(f"Error starting web UI: {e}")
 
 
 if __name__ == "__main__":

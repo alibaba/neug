@@ -17,6 +17,8 @@
 #include <datetime.h>
 #include <memory>
 #include "neug/main/neug_db.h"
+#include "neug/utils/pb_utils.h"
+#include "neug/utils/yaml_utils.h"
 
 namespace gs {
 
@@ -31,13 +33,18 @@ void PyConnection::initialize(pybind11::handle& m) {
            "Connection object.\n")
       .def("close", &PyConnection::close,
            "Close the connection to the database.\n")
-      .def("execute", &PyConnection::execute, pybind11::arg("statement"),
-           "Execute a statement on the database. Which is passed to the query "
+      .def("execute", &PyConnection::execute, pybind11::arg("query_string"),
+           pybind11::arg("format") = "proto",
+           "Execute a query_string on the database. Which is passed to the "
+           "query "
            "processor.\n\n"
            "Args:\n"
-           "    statement (str): The query string to execute.\n\n"
+           "    query_string (str): The query string to execute.\n"
+           "    format (str): Output format of query result.\n\n"
            "Returns:\n"
-           "    PyQueryResult: The result of the query execution.\n");
+           "    PyQueryResult: The result of the query execution.\n")
+      .def("get_schema", &PyConnection::get_schema,
+           "Get graph schema of database.\n");
   PyDateTime_IMPORT;
 }
 
@@ -56,12 +63,25 @@ void PyConnection::close() {
 }
 
 std::unique_ptr<PyQueryResult> PyConnection::execute(
-    const std::string& statement) {
-  auto query_result = conn_->Query(statement);
+    const std::string& query_string, const std::string& format) {
+  auto query_result = conn_->Query(query_string);
   if (!query_result.ok()) {
     return std::make_unique<PyQueryResult>(query_result.status());
   }
-  return std::make_unique<PyQueryResult>(std::move(query_result.move_value()));
+  if (format == "json") {
+    QueryResult result(query_result.move_value());
+    std::string result_res = proto_to_bolt_response(result.get_result());
+    return std::make_unique<PyQueryResult>(result_res, "json");
+  } else {
+    return std::make_unique<PyQueryResult>(
+        std::move(query_result.move_value()));
+  }
+}
+
+std::string PyConnection::get_schema() const {
+  const auto& schema = db_.schema();
+  auto yaml = schema.to_yaml();
+  return gs::get_json_string_from_yaml(yaml.value()).value();
 }
 
 }  // namespace gs
