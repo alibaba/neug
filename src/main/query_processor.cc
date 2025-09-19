@@ -39,7 +39,7 @@ Result<results::CollectiveResults> QueryProcessor::execute(
         gs::Status(gs::StatusCode::ERR_INVALID_ARGUMENT,
                    "Number of threads must be greater than 0"));
   }
-  VLOG(10) << "Executing plan: " << plan.DebugString();
+  VLOG(20) << "Executing plan: " << plan.DebugString();
   // TODO: Currently we get the read transaction with the thread id 0. Ideally,
   // we should be able to run queries with multiple threads.
   if (plan.has_ddl_plan()) {

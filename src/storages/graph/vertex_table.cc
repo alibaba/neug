@@ -82,12 +82,13 @@ void VertexTable::Close() {
 
 bool VertexTable::get_index(const Any& oid, vid_t& lid, timestamp_t ts) const {
   auto res = indexer_.get_index(oid, lid);
-  if (res && is_vertex_table_modified_) [[unlikely]] {
-    if (!is_valid_lid(lid, ts)) {
-      LOG(WARNING) << "Lid " << lid << " has been deleted.";
-      return false;
+  if (res && is_vertex_table_modified_)
+    [[unlikely]] {
+      if (!is_valid_lid(lid, ts)) {
+        LOG(WARNING) << "Lid " << lid << " has been deleted.";
+        return false;
+      }
     }
-  }
   return res;
 }
 
@@ -130,21 +131,21 @@ vid_t VertexTable::add_vertex_safe(const Any& id, timestamp_t ts) {
 }
 
 Any VertexTable::get_oid(vid_t lid, timestamp_t ts) const {
-  if (is_vertex_table_modified_) [[unlikely]] {
-    if (!is_valid_lid(lid, ts)) {
-      THROW_INVALID_ARGUMENT_EXCEPTION("Lid " + std::to_string(lid) +
-                                       " has been deleted.");
+  if (is_vertex_table_modified_)
+    [[unlikely]] {
+      if (!is_valid_lid(lid, ts)) {
+        THROW_INVALID_ARGUMENT_EXCEPTION("Lid " + std::to_string(lid) +
+                                         " has been deleted.");
+      }
     }
-  }
   return indexer_.get_key(lid);
 }
 
 bool VertexTable::is_valid_lid(vid_t lid, timestamp_t ts) const {
   // We use numeric_limits<timestamp_t>::max() to denote a deleted vertex.
   // But we ts is passed as a timestamp limit, we take it as a normal timestamp.
-  if (!is_vertex_table_modified_) [[likely]] {
-    return lid < indexer_.size();
-  }
+  if (!is_vertex_table_modified_)
+    [[likely]] { return lid < indexer_.size(); }
   return lid < indexer_.size() && vertex_ts_.get(lid) <= ts;
 }
 
@@ -159,7 +160,7 @@ void VertexTable::Reserve(size_t cap) {
 void VertexTable::BatchAddVertices(std::vector<Any>&& ids,
                                    std::unique_ptr<Table> table,
                                    timestamp_t ts) {
-  size_t new_row_num = table->row_num() + ids.size();
+  size_t new_row_num = table_->row_num() + ids.size();
   Reserve(new_row_num);
   vid_t vid;
   size_t cur_idx = 0;

@@ -188,7 +188,10 @@ Status PropertyGraph::batch_add_edges(
   }
   int index =
       schema_.generate_edge_label(src_label_id, dst_label_id, edge_label_id);
-  edge_tables_.at(index).BatchAddEdges(std::move(edges_vec), std::move(table));
+  auto src_v_cap = vertex_tables_[src_label_id].get_indexer().size();
+  auto dst_v_cap = vertex_tables_[dst_label_id].get_indexer().size();
+  edge_tables_.at(index).BatchAddEdges(std::move(edges_vec), std::move(table),
+                                       src_v_cap, dst_v_cap);
   return gs::Status::OK();
 }
 

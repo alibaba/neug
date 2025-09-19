@@ -24,13 +24,10 @@
 namespace gs {
 class EdgeTable {
  public:
-  EdgeTable(const std::string& src_label_name,
-            const std::string& dst_label_name,
-            const std::string& edge_label_name, EdgeStrategy oe_strategy,
-            EdgeStrategy ie_strategy,
-            const std::vector<std::string>& prop_names,
-            const std::vector<PropertyType>& prop_types, bool oe_mutable,
-            bool ie_mutable);
+  EdgeTable(const std::string& src_label_name, const std::string& dst_label_name,
+            const std::string& edge_label_name, EdgeStrategy oe_strategy, EdgeStrategy ie_strategy,
+            const std::vector<std::string>& prop_names, const std::vector<PropertyType>& prop_types,
+            bool oe_mutable, bool ie_mutable);
 
   EdgeTable(EdgeTable&& edge_table);
 
@@ -39,11 +36,11 @@ class EdgeTable {
   void BatchInit(const std::string& work_dir, const std::vector<int>& oe_degree,
                  const std::vector<int>& ie_degree, bool in_memory = false);
 
-  void Open(const std::string& work_dir, int memory_level,
-            size_t src_vertex_cap = 0, size_t dst_vertex_cap = 0);
+  void Open(const std::string& work_dir, int memory_level, size_t src_vertex_cap = 0,
+            size_t dst_vertex_cap = 0);
 
   void BatchAddEdges(std::vector<std::tuple<vid_t, vid_t, size_t>>&& edges,
-                     std::unique_ptr<Table>&& table);
+                     std::unique_ptr<Table>&& table, size_t src_v_cap, size_t dst_v_cap);
 
   void Dump(const std::string& checkpoint_dir_path);
 
@@ -52,18 +49,15 @@ class EdgeTable {
   const CsrBase* GetInCsr() const { return dual_csr_->GetInCsr(); }
   const CsrBase* GetOutCsr() const { return dual_csr_->GetOutCsr(); }
 
-  void IngestEdge(vid_t src, vid_t dst, grape::OutArchive& oarc, timestamp_t ts,
-                  Allocator& alloc);
+  void IngestEdge(vid_t src, vid_t dst, grape::OutArchive& oarc, timestamp_t ts, Allocator& alloc);
 
   void SortByEdgeData(timestamp_t ts);
 
-  void UpdateEdge(vid_t src, vid_t dst, const Any& data, timestamp_t ts,
-                  Allocator& alloc);
+  void UpdateEdge(vid_t src, vid_t dst, const Any& data, timestamp_t ts, Allocator& alloc);
 
   void BatchDeleteVertices(bool is_src, const std::vector<vid_t>& vids);
 
-  void BatchDeleteEdge(
-      const std::vector<std::tuple<vid_t, vid_t>>& parsed_edges_vec);
+  void BatchDeleteEdge(const std::vector<std::tuple<vid_t, vid_t>>& parsed_edges_vec);
 
   void Close() {
     dual_csr_->Close();
@@ -100,8 +94,7 @@ class EdgeTable {
   void RenameProperties(const std::vector<std::string>& old_names,
                         const std::vector<std::string>& new_names);
 
-  void AddProperties(const std::vector<std::string>&,
-                     const std::vector<PropertyType>&);
+  void AddProperties(const std::vector<std::string>&, const std::vector<PropertyType>&);
 
   void DeleteProperties(const std::vector<std::string>& col_names);
 
@@ -110,15 +103,14 @@ class EdgeTable {
 
   std::string work_dir() const { return work_dir_; }
 
-  void Compact(bool reset_timestamp, bool compact_csr, bool sort_on_compaction,
-               float reserve_ratio, timestamp_t ts);
+  void Compact(bool reset_timestamp, bool compact_csr, bool sort_on_compaction, float reserve_ratio,
+               timestamp_t ts);
 
  private:
-  static DualCsrBase* create_dual_csr(
-      EdgeStrategy oes, EdgeStrategy ies,
-      const std::vector<PropertyType>& properties, bool oe_mutable,
-      bool ie_mutable, const std::vector<std::string>& prop_names, Table& table,
-      std::atomic<size_t>& offset);
+  static DualCsrBase* create_dual_csr(EdgeStrategy oes, EdgeStrategy ies,
+                                      const std::vector<PropertyType>& properties, bool oe_mutable,
+                                      bool ie_mutable, const std::vector<std::string>& prop_names,
+                                      Table& table, std::atomic<size_t>& offset);
 
   inline bool has_complex_property() const {
     if (prop_names_.empty()) {
@@ -132,14 +124,12 @@ class EdgeTable {
   void drop_and_create_dual_csr();
 
   template <typename EDATA_T>
-  void BatchPutEdgeUtil(
-      const std::vector<std::vector<vid_t>>& parsed_edges_vec,
-      const std::vector<Any>& prop_values,
-      std::vector<std::tuple<vid_t, vid_t, size_t>>&& append_vec,
-      std::unique_ptr<Table>&& table, size_t prev_size) {
+  void BatchPutEdgeUtil(const std::vector<std::vector<vid_t>>& parsed_edges_vec,
+                        const std::vector<Any>& prop_values,
+                        std::vector<std::tuple<vid_t, vid_t, size_t>>&& append_vec,
+                        std::unique_ptr<Table>&& table, size_t prev_size) {
     if constexpr (std::is_same_v<EDATA_T, std::string_view>) {
-      auto casted_dual_csr =
-          dynamic_cast<DualCsr<std::string_view>*>(dual_csr_);
+      auto casted_dual_csr = dynamic_cast<DualCsr<std::string_view>*>(dual_csr_);
 
       std::vector<std::string> str_values;
       for (const auto& prop : prop_values) {
@@ -147,8 +137,7 @@ class EdgeTable {
       }
 
       size_t row_id = 0;
-      auto typed_column =
-          dynamic_cast<StringColumn*>(table->get_column_by_id(0).get());
+      auto typed_column = dynamic_cast<StringColumn*>(table->get_column_by_id(0).get());
       for (size_t i = 0; i < parsed_edges_vec.size(); ++i) {
         for (vid_t dst : parsed_edges_vec[i]) {
           typed_column->set_value_with_resize(row_id, str_values[row_id]);
@@ -180,8 +169,7 @@ class EdgeTable {
         casted_dual_csr->BatchPutEdge(v0, v1, prop);
       }
     } else if constexpr (std::is_same_v<EDATA_T, grape::EmptyType>) {
-      auto casted_dual_csr =
-          dynamic_cast<DualCsr<grape::EmptyType>*>(dual_csr_);
+      auto casted_dual_csr = dynamic_cast<DualCsr<grape::EmptyType>*>(dual_csr_);
       for (size_t i = 0; i < parsed_edges_vec.size(); ++i) {
         for (vid_t dst : parsed_edges_vec[i]) {
           casted_dual_csr->BatchPutEdge(i, dst, grape::EmptyType());

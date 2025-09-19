@@ -171,10 +171,10 @@ void EdgeTable::Reserve(vid_t src_vertex_num, vid_t dst_vertex_num) {
 static void collectEdgesWithNoProperty(DualCsrBase* dual_csr,
                                        std::vector<std::vector<vid_t>>& edges,
                                        std::vector<int>& out_degs,
-                                       std::vector<int>& in_degs,
-                                       size_t src_vertex_cap,
-                                       size_t dst_vertex_cap) {
+                                       std::vector<int>& in_degs) {
   auto csr = dual_csr->GetOutCsr();
+  auto src_vertex_cap = dual_csr->GetOutCsr()->size();
+  auto dst_vertex_cap = dual_csr->GetInCsr()->size();
   edges.clear();
   edges.resize(src_vertex_cap);
   out_degs.clear();
@@ -197,11 +197,11 @@ static void collectEdgesWithProperty(DualCsrBase* dual_csr,
                                      std::vector<std::vector<vid_t>>& edges,
                                      std::vector<int>& out_degs,
                                      std::vector<int>& in_degs,
-                                     std::vector<Any>& prop_values,
-                                     size_t src_vertex_cap,
-                                     size_t dst_vertex_cap) {
+                                     std::vector<Any>& prop_values) {
   auto csr = dual_csr->GetOutCsr();
   edges.clear();
+  auto src_vertex_cap = dual_csr->GetOutCsr()->size();
+  auto dst_vertex_cap = dual_csr->GetInCsr()->size();
   edges.resize(src_vertex_cap);
   out_degs.clear();
   out_degs.resize(src_vertex_cap, 0);
@@ -262,11 +262,8 @@ void EdgeTable::AddProperties(const std::vector<std::string>& prop_names,
   }
   std::vector<std::vector<vid_t>> edges;
   std::vector<int> out_degs, in_degs;
-  size_t src_vertex_size = dual_csr_->GetOutCsr()->size();
-  size_t dst_vertex_size = dual_csr_->GetInCsr()->size();
   if (old_prop_types.size() == 0 && prop_names_.size() == 1) {
-    collectEdgesWithNoProperty(dual_csr_, edges, out_degs, in_degs,
-                               src_vertex_size, dst_vertex_size);
+    collectEdgesWithNoProperty(dual_csr_, edges, out_degs, in_degs);
     // TODO: delete the files related to the old properties
     drop_and_create_dual_csr();
     if (memory_level_ == 0) {
@@ -295,8 +292,7 @@ void EdgeTable::AddProperties(const std::vector<std::string>& prop_names,
   } else {
     // Add properties from empty edge
     if (old_prop_types.size() == 0) {
-      collectEdgesWithNoProperty(dual_csr_, edges, out_degs, in_degs,
-                                 src_vertex_size, dst_vertex_size);
+      collectEdgesWithNoProperty(dual_csr_, edges, out_degs, in_degs);
       drop_and_create_dual_csr();
       if (memory_level_ == 0) {
         BatchInit(work_dir_, out_degs, in_degs, false);
@@ -314,7 +310,7 @@ void EdgeTable::AddProperties(const std::vector<std::string>& prop_names,
         table_->resize(EdgeNum());
         std::vector<Any> prop_values;
         collectEdgesWithProperty(dual_csr_, edges, out_degs, in_degs,
-                                 prop_values, src_vertex_size, dst_vertex_size);
+                                 prop_values);
         auto col = table_->get_column_by_id(0);
         for (size_t i = 0; i < prop_values.size(); ++i) {
           col->set_any(i, prop_values[i]);
@@ -327,8 +323,7 @@ void EdgeTable::AddProperties(const std::vector<std::string>& prop_names,
         }
         AppendEdgesUtils<RecordView>(dual_csr_, edges);
       } else {
-        collectEdgesWithNoProperty(dual_csr_, edges, out_degs, in_degs,
-                                   src_vertex_size, dst_vertex_size);
+        collectEdgesWithNoProperty(dual_csr_, edges, out_degs, in_degs);
         drop_and_create_dual_csr();
         table_->add_columns(prop_names, prop_types, memory_level_);
         if (memory_level_ == 0) {
@@ -437,11 +432,8 @@ void EdgeTable::DeleteProperties(const std::vector<std::string>& col_names) {
       table_->delete_column(col);
     }
   }
-  size_t src_vertex_size = dual_csr_->GetOutCsr()->size();
-  size_t dst_vertex_size = dual_csr_->GetInCsr()->size();
   if (prop_names_.empty()) {
-    collectEdgesWithNoProperty(dual_csr_, edges, out_degs, in_degs,
-                               src_vertex_size, dst_vertex_size);
+    collectEdgesWithNoProperty(dual_csr_, edges, out_degs, in_degs);
     drop_and_create_dual_csr();
     if (memory_level_ == 0) {
       BatchInit(work_dir_, out_degs, in_degs, false);
@@ -452,8 +444,7 @@ void EdgeTable::DeleteProperties(const std::vector<std::string>& col_names) {
 
   } else if (prop_names_.size() == 1) {
     std::vector<Any> prop_values;
-    collectEdgesWithProperty(dual_csr_, edges, out_degs, in_degs, prop_values,
-                             src_vertex_size, dst_vertex_size);
+    collectEdgesWithProperty(dual_csr_, edges, out_degs, in_degs, prop_values);
     drop_and_create_dual_csr();
     if (memory_level_ == 0) {
       BatchInit(work_dir_, out_degs, in_degs, false);
@@ -494,25 +485,31 @@ void EdgeTable::DeleteProperties(const std::vector<std::string>& col_names) {
 
 void EdgeTable::BatchAddEdges(
     std::vector<std::tuple<vid_t, vid_t, size_t>>&& edges,
-    std::unique_ptr<Table>&& table) {
+    std::unique_ptr<Table>&& table, size_t src_v_cap, size_t dst_v_cap) {
   std::vector<std::vector<vid_t>> parsed_edges_vec;
   std::vector<int> out_degs, in_degs;
   std::vector<Any> prop_values;
   collectEdgesWithProperty(dual_csr_, parsed_edges_vec, out_degs, in_degs,
-                           prop_values, dual_csr_->GetOutCsr()->size(),
-                           dual_csr_->GetInCsr()->size());
+                           prop_values);
+  dual_csr_->Resize(src_v_cap, dst_v_cap);
+  out_degs.resize(src_v_cap, 0);
+  in_degs.resize(dst_v_cap, 0);
   for (const auto& [v0, v1, prop] : edges) {
     if (v0 == std::numeric_limits<vid_t>::max() ||
         v1 == std::numeric_limits<vid_t>::max()) {
       continue;
     }
     if (v0 >= out_degs.size()) {
-      out_degs.resize(v0 + 1, 0);
+      THROW_INTERNAL_EXCEPTION("src vid " + std::to_string(v0) +
+                               " exceeds src vid cap " +
+                               std::to_string(out_degs.size()));
+    }
+    if (v1 >= in_degs.size()) {
+      THROW_INTERNAL_EXCEPTION("dst vid " + std::to_string(v1) +
+                               " exceeds dst vid cap " +
+                               std::to_string(in_degs.size()));
     }
     out_degs[v0]++;
-    if (v1 >= in_degs.size()) {
-      in_degs.resize(v1 + 1, 0);
-    }
     in_degs[v1]++;
   }
   size_t prev_size = offset_->load();

@@ -545,7 +545,6 @@ Status AbstractArrowFragmentLoader::batch_load_vertices(
       }
     }
 
-    LOG(INFO) << "Start to set property column";
     // Set other columns
     {
       std::shared_lock<std::shared_mutex> lock(rw_mutex);

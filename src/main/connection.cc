@@ -89,7 +89,7 @@ Result<results::CollectiveResults> Connection::query_impl(
   const auto& physical_plan = plan_res.value().first;
   const auto& result_schema = plan_res.value().second;
 
-  VLOG(10) << "Physical plan: " << physical_plan.DebugString();
+  VLOG(20) << "Physical plan: " << physical_plan.DebugString();
   LOG(INFO) << "Got physical plan, " << physical_plan.query_plan().plan_size()
             << " operators.";
 

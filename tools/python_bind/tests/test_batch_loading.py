@@ -265,3 +265,115 @@ class TestBachLoading(unittest.TestCase):
         db2.close()
         del db2
         del conn2
+
+    def test_loading_with_large_dataset(self):
+        """
+        Iteratively load a large dataset to test the performance and stability of the system.
+        1. Create a simple graph with vertex label person, software and edge label knows, created.
+        2. Iteratively load data to the graph, each time load 100000 vertices and 200000 edges.
+        """
+        db_dir = "/tmp/test_loading_with_large_dataset"
+        shutil.rmtree(db_dir, ignore_errors=True)
+        db = Database(db_dir, "w", checkpoint_on_close=True)
+        conn = db.connect()
+        # First create the graph schema
+        conn.execute(
+            "CREATE NODE TABLE person(id INT64, name STRING, age INT64, PRIMARY KEY(id));"
+        )
+        conn.execute(
+            "CREATE NODE TABLE software(id INT64, name STRING, lang STRING, PRIMARY KEY(id));"
+        )
+        conn.execute("CREATE REL TABLE knows(FROM person TO person, weight DOUBLE);")
+        conn.execute(
+            "CREATE REL TABLE created(FROM person TO software, weight DOUBLE);"
+        )
+
+        num_iterations = 2
+        num_persons_per_iter = 100000
+        num_softwares_per_iter = 10000
+        num_knows_per_iter = 2000000
+        num_created_per_iter = 5000000
+
+        for i in range(num_iterations):
+            iter_start_time = time.time()
+            # write to file person.csv
+            person_csv = os.path.join(db_dir, f"person_{i}.csv")
+            with open(person_csv, "w") as f:
+                f.write("id|name|age\n")
+                for j in range(num_persons_per_iter):
+                    person_id = i * num_persons_per_iter + j + 1
+                    f.write(f"{person_id}|Person{person_id}|{20 + (person_id % 30)}\n")
+            conn.execute(f'COPY person from "{person_csv}"')
+            # write to file software.csv
+            software_csv = os.path.join(db_dir, f"software_{i}.csv")
+            with open(software_csv, "w") as f:
+                f.write("id|name|lang\n")
+                for j in range(num_softwares_per_iter):
+                    software_id = i * num_softwares_per_iter + j + 1
+                    f.write(
+                        f"{software_id}|Software{software_id}|Lang{software_id % 5}\n"
+                    )
+            conn.execute(f'COPY software from "{software_csv}"')
+            # write to file person_knows_person.csv
+            person_knows_person_csv = os.path.join(
+                db_dir, f"person_knows_person_{i}.csv"
+            )
+            with open(person_knows_person_csv, "w") as f:
+                f.write("from|to|weight\n")
+                for j in range(num_knows_per_iter):
+                    from_id = i * num_persons_per_iter + (j % num_persons_per_iter) + 1
+                    to_id = (
+                        i * num_persons_per_iter + ((j + 1) % num_persons_per_iter) + 1
+                    )
+                    weight = round((j % 100) / 100.0, 2)
+                    f.write(f"{from_id}|{to_id}|{weight}\n")
+            conn.execute(
+                f'COPY knows from "{person_knows_person_csv}" (from="person", to="person")'
+            )
+            # write to file person_created_software.csv
+            person_created_software_csv = os.path.join(
+                db_dir, f"person_created_software_{i}.csv"
+            )
+            with open(person_created_software_csv, "w") as f:
+                f.write("from|to|weight\n")
+                for j in range(num_created_per_iter):
+                    from_id = i * num_persons_per_iter + (j % num_persons_per_iter) + 1
+                    to_id = (
+                        i * num_softwares_per_iter + (j % num_softwares_per_iter) + 1
+                    )
+                    weight = round((j % 100) / 100.0, 2)
+                    f.write(f"{from_id}|{to_id}|{weight}\n")
+            conn.execute(
+                f'COPY created from "{person_created_software_csv}" (from="person", to="software")'
+            )
+            iter_end_time = time.time()
+            logger.info(
+                f"Iteration {i+1}/{num_iterations} completed in {iter_end_time - iter_start_time:.2f} seconds."
+            )
+            shutil.rmtree(person_csv, ignore_errors=True)
+            shutil.rmtree(software_csv, ignore_errors=True)
+            shutil.rmtree(person_knows_person_csv, ignore_errors=True)
+            shutil.rmtree(person_created_software_csv, ignore_errors=True)
+        logger.info(
+            f"Total time for loading {num_iterations * num_persons_per_iter} "
+            f"persons and {num_iterations * num_softwares_per_iter}"
+        )
+        # Then run a query
+        res = list(conn.execute("MATCH (n: person) return count(n);"))
+        assert res[0] == [num_iterations * num_persons_per_iter]
+        res = list(conn.execute("MATCH (n: software) return count(n);"))
+        assert res[0] == [num_iterations * num_softwares_per_iter]
+        res = list(
+            conn.execute("MATCH (n: person)-[e: knows]->(m: person) return count(e);")
+        )
+        assert res[0] == [num_iterations * num_knows_per_iter]
+        res = list(
+            conn.execute(
+                "MATCH (n: person)-[e: created]->(m: software) return count(e);"
+            )
+        )
+        assert res[0] == [num_iterations * num_created_per_iter]
+        conn.close()
+        db.close()
+        del db
+        del conn
