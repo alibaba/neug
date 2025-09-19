@@ -42,6 +42,7 @@ def test_shell_do_help(capsys, tmp_path):
             - Use :help to display this help message.
             - Use :quit to leave the shell.
             - Use :max_rows <number> to set the maximum number of rows to display for query results.
+            - Use :ui <endpoint> to start a web ui service on endpoint.
             - Multi-line commands are supported. Use ';' at the end to execute.
         """
     assert expected_output.strip() in captured.out.strip()

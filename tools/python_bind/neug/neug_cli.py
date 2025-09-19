@@ -180,6 +180,7 @@ class NeugShell(cmd.Cmd):
             - Use :help to display this help message.
             - Use :quit to leave the shell.
             - Use :max_rows <number> to set the maximum number of rows to display for query results.
+            - Use :ui <endpoint> to start a web ui service on endpoint.
             - Multi-line commands are supported. Use ';' at the end to execute.
             - Command history is supported; use the up/down arrow keys to navigate previous commands.
             """

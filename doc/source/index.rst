@@ -61,6 +61,12 @@ NeuG documentation
 
 .. toctree::
    :maxdepth: 1
+   :caption: User Clients
+
+   user_clients/cli.md
+
+.. toctree::
+   :maxdepth: 1
    :caption: User Guide
 
    user_guide/key_concepts
