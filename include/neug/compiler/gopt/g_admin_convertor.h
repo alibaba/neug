@@ -17,6 +17,7 @@
 
 #include "neug/compiler/planner/operator/logical_operator.h"
 #include "neug/compiler/planner/operator/logical_plan.h"
+#include "neug/compiler/planner/operator/simple/logical_extension.h"
 #include "neug/generated/proto/plan/physical.pb.h"
 
 namespace gs {
@@ -31,6 +32,9 @@ class GAdminConvertor {
                        const planner::LogicalOperator& op);
 
   std::unique_ptr<::physical::AdminPlan::Operator> convertCheckpoint(
+      const planner::LogicalOperator& op);
+
+  std::unique_ptr<::physical::AdminPlan::Operator> convertExtension(
       const planner::LogicalOperator& op);
 };
 }  // namespace gopt

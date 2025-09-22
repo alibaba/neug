@@ -16,7 +16,26 @@ class LogicalExtension final : public LogicalSimple {
                       std::move(outputExpression)},
         auxInfo{std::move(auxInfo)} {}
 
-  std::string getExpressionsForPrinting() const override { return path; }
+  std::string getActionForPrinting() const {
+    switch (auxInfo->action) {
+    case ExtensionAction::INSTALL: {
+      return "INSTALL";
+    }
+    case ExtensionAction::LOAD: {
+      return "LOAD";
+    }
+    case ExtensionAction::UNINSTALL: {
+      return "UNINSTALL";
+    }
+    default: {
+      KU_UNREACHABLE;
+    }
+    }
+  }
+
+  std::string getExpressionsForPrinting() const override {
+    return getActionForPrinting() + ", " + auxInfo->path;
+  }
 
   const ExtensionAuxInfo& getAuxInfo() const { return *auxInfo; }
 
@@ -27,7 +46,6 @@ class LogicalExtension final : public LogicalSimple {
 
  private:
   std::unique_ptr<ExtensionAuxInfo> auxInfo;
-  std::string path;
 };
 
 }  // namespace planner

@@ -290,6 +290,18 @@ message ProcedureCall {
   procedure.Query query = 1; 
 }
 
+message ExtensionInstall {
+  string extension_name = 1;
+}
+
+message ExtensionLoad {
+  string extension_name = 1;
+}
+
+message ExtensionUninstall {
+  string extension_name = 1;
+}
+
 message Checkpoint {
 }
 
@@ -361,6 +373,9 @@ message AdminPlan {
   message Operator {
     oneof kind {
       Checkpoint checkpoint = 1;
+      ExtensionInstall ext_install = 2;
+      ExtensionLoad ext_load = 3;
+      ExtensionUninstall ext_uninstall = 4;
     }
   }
 

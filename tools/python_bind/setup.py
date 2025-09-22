@@ -114,6 +114,7 @@ class CMakeBuild(build_ext):
             "ON" if os.environ.get("BUILD_ALL_IN_ONE", "ON") == "ON" else "OFF"
         )
         with_mimalloc = "ON" if os.environ.get("WITH_MIMALLOC", "ON") == "ON" else "OFF"
+        build_extensions = os.environ.get("BUILD_EXTENSIONS", "")
         cmake_install_prefix = os.environ.get("CMAKE_INSTALL_PREFIX", None)
         use_ninja = os.environ.get("USE_NINJA", "OFF") == "ON"
         build_test = "OFF"
@@ -143,6 +144,8 @@ class CMakeBuild(build_ext):
             f"-DWITH_MIMALLOC={with_mimalloc}",
             "-DCMAKE_POLICY_VERSION_MINIMUM=3.5",
         ]
+        if build_extensions:
+            cmake_args.append(f"-DBUILD_EXTENSIONS={build_extensions}")
         if cmake_install_prefix:
             cmake_args += [
                 f"-DCMAKE_INSTALL_PREFIX={cmake_install_prefix}",

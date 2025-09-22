@@ -26,6 +26,7 @@
 
 #include "extension.h"
 #include "neug/compiler/common/api.h"
+#include "neug/utils/result.h"
 
 namespace gs {
 namespace main {

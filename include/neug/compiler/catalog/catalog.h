@@ -58,6 +58,10 @@ namespace transaction {
 class Transaction;
 }  // namespace transaction
 
+namespace extension {
+class ExtensionAPI;
+}
+
 namespace catalog {
 class TableCatalogEntry;
 class NodeTableCatalogEntry;
@@ -69,6 +73,7 @@ class IndexCatalogEntry;
 
 class KUZU_API Catalog {
   friend class main::AttachedKuzuDatabase;
+  friend class gs::extension::ExtensionAPI;
 
  public:
   // This is extended by DuckCatalog and PostgresCatalog.
@@ -239,6 +244,11 @@ class KUZU_API Catalog {
   void addFunction(transaction::Transaction* transaction,
                    CatalogEntryType entryType, std::string name,
                    function::function_set functionSet, bool isInternal = false);
+
+  void addFunctionUnlocked(transaction::Transaction* transaction,
+                   CatalogEntryType entryType, std::string name,
+                   function::function_set functionSet, bool isInternal = false);
+                   
   // Drop function with name.
   void dropFunction(transaction::Transaction* transaction,
                     const std::string& name);

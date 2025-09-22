@@ -533,7 +533,7 @@ bool isLiteralOrVariable(const binder::Expression& expr) {
          expr.expressionType == common::ExpressionType::PROPERTY;
 }
 
-std::unique_ptr<::common::Expression> GExprConverter::convertScalarFunction(
+std::unique_ptr<::common::Expression> GExprConverter::convertExtensionScalarFunction(
     const binder::ScalarFunctionExpression& expr,
     const std::vector<std::string>& schemaAlias) {
       
@@ -627,11 +627,23 @@ std::unique_ptr<::common::Expression> GExprConverter::convertScalarFunc(
   } else if (scalarType.getType() == TO_ARRAY) {
     return convertToTupleFunc(expr, schemaAlias);
   } else if (scalarType.isString()) {
-    return convertScalarFunction(expr.constCast<binder::ScalarFunctionExpression>(), schemaAlias);
+    return convertExtensionScalarFunction(expr.constCast<binder::ScalarFunctionExpression>(), schemaAlias);
   } else if (scalarType.getType() == STARTS_WITH ||
              scalarType.getType() == ENDS_WITH ||
              scalarType.getType() == CONTAINS) {
     return convertRegexFunc(expr, scalarType, schemaAlias);
+  }
+  if (expr.expressionType == common::ExpressionType::FUNCTION) {
+    auto& sfExpr = expr.constCast<binder::ScalarFunctionExpression>();
+    const auto& fn = sfExpr.getFunction();
+    auto signature = function::buildScalarSignature(fn.name, fn.parameterTypeIDs);
+    try {
+      (void)function::FunctionSignatureRegistry::lookup(signature);
+      return convertExtensionScalarFunction(sfExpr, schemaAlias);
+    } catch (...) {
+      THROW_EXCEPTION_WITH_FILE_LINE("Unsupported expression type: " +
+                                 expr.toString());
+    }
   }
   THROW_EXCEPTION_WITH_FILE_LINE("Unsupported expression type: " +
                                  expr.toString());

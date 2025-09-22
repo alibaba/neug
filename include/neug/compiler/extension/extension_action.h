@@ -31,6 +31,7 @@ namespace extension {
 enum class ExtensionAction : uint8_t {
   INSTALL = 0,
   LOAD = 1,
+  UNINSTALL = 2,
 };
 
 struct ExtensionAuxInfo {

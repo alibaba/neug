@@ -67,6 +67,8 @@ std::unique_ptr<BoundStatement> Binder::bindExtension(
   case ExtensionAction::LOAD:
     bindLoadExtension(*auxInfo);
     break;
+  case ExtensionAction::UNINSTALL:
+    break;
   default:
     KU_UNREACHABLE;
   }

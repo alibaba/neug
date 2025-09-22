@@ -50,7 +50,7 @@ std::string LogicalOperatorUtils::logicalOperatorTypeToString(
   case LogicalOperatorType::EXPRESSIONS_SCAN:
     return "EXPRESSIONS_SCAN";
   case LogicalOperatorType::EXTENSION:
-    return "LOAD";
+    return "EXTENSION";
   case LogicalOperatorType::EXPORT_DATABASE:
     return "EXPORT_DATABASE";
   case LogicalOperatorType::EXTEND:

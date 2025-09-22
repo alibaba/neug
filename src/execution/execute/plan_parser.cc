@@ -22,6 +22,7 @@
 #include <string>
 
 #include "neug/execution/common/context.h"
+#include "neug/execution/execute/ops/admin/extension.h"
 #include "neug/execution/execute/ops/admin/checkpoint.h"
 #include "neug/execution/execute/ops/batch/batch_delete_edge.h"
 #include "neug/execution/execute/ops/batch/batch_delete_vertex.h"
@@ -158,6 +159,12 @@ void PlanParser::init() {
   //////////////////////////////Admin Operators////////////////////////////////
   register_admin_operator_builder(
       std::make_unique<ops::CheckpointOprBuilder>());
+  register_admin_operator_builder(
+      std::make_unique<ops::ExtensionInstallOprBuilder>());
+  register_admin_operator_builder(
+      std::make_unique<ops::ExtensionLoadOprBuilder>());
+  register_admin_operator_builder(
+      std::make_unique<ops::ExtensionUninstallOprBuilder>());
 }
 
 PlanParser& PlanParser::get() {
@@ -275,6 +282,15 @@ static std::string get_opr_name(
   switch (op_kind) {
   case physical::AdminPlan_Operator::KindCase::kCheckpoint: {
     return "checkpoint";
+  }
+  case physical::AdminPlan_Operator::KindCase::kExtInstall: {
+    return "extension_install";
+  }
+  case physical::AdminPlan_Operator::KindCase::kExtLoad: {
+    return "extension_load";
+  }
+  case physical::AdminPlan_Operator::KindCase::kExtUninstall: {
+    return "extension_uninstall";
   }
   default:
     return "unknown";

@@ -44,6 +44,7 @@
 #include "neug/utils/exception/exception.h"
 #include "neug/compiler/catalog/function_signature_registry.h"
 #include "neug/compiler/function/scalar_function.h"
+#include "neug/compiler/extension/extension_api.h"
 
 using namespace gs::binder;
 using namespace gs::common;
@@ -56,6 +57,7 @@ namespace catalog {
 Catalog::Catalog() : version{0} {
   initCatalogSets();
   registerBuiltInFunctions();
+  gs::extension::ExtensionAPI::setCatalog(this);
 }
 
 Catalog::Catalog(const std::string& directory, VirtualFileSystem* vfs)
@@ -450,6 +452,18 @@ void Catalog::addFunction(Transaction* transaction, CatalogEntryType entryType,
     THROW_CATALOG_EXCEPTION(stringFormat("function {} already exists.", name));
   }
   catalogSet->createEntry(
+      transaction, std::make_unique<FunctionCatalogEntry>(
+                       entryType, std::move(name), std::move(functionSet)));
+}
+
+void Catalog::addFunctionUnlocked(Transaction* transaction, CatalogEntryType entryType,
+                          std::string name, function::function_set functionSet,
+                          bool isInternal) {
+  auto& catalogSet = isInternal ? internalFunctions : functions;
+  if (catalogSet->containsEntry(transaction, name)) {
+    THROW_CATALOG_EXCEPTION(stringFormat("function {} already exists.", name));
+  }
+  catalogSet->createEntryUnlocked(
       transaction, std::make_unique<FunctionCatalogEntry>(
                        entryType, std::move(name), std::move(functionSet)));
 }

@@ -90,6 +90,8 @@ class GPhysicalAnalyzer {
       auto action = transaction->getTransactionAction();
       return action == transaction::TransactionAction::CHECKPOINT;
     }
+    case planner::LogicalOperatorType::EXTENSION:
+      return true;
     default:
       return false;
     }

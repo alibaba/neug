@@ -67,13 +67,31 @@ std::string getArch() {
 
 std::string getPlatform() { return getOS() + "_" + getArch(); }
 
+static bool startsWith(const std::string& str, const std::string& prefix) {
+  return str.size() >= prefix.size() &&
+    str.compare(0, prefix.size(), prefix) == 0;
+}
+
+
 static ExtensionRepoInfo getExtensionRepoInfo(std::string& extensionURL) {
-  common::StringUtils::replaceAll(extensionURL, "http://", "");
-  auto hostNamePos = extensionURL.find('/');
-  auto hostName = extensionURL.substr(0, hostNamePos);
-  auto hostURL = "http://" + hostName;
-  auto hostPath = extensionURL.substr(hostNamePos);
-  return {hostPath, hostURL, extensionURL};
+  std::string scheme;
+  if (startsWith(extensionURL, "https://")) {
+    scheme = "https";
+    extensionURL = extensionURL.substr(8);
+  } else if (startsWith(extensionURL, "http://")) {
+    scheme = "http";
+    extensionURL = extensionURL.substr(7);
+  } else {
+    scheme = "https";
+  }
+  auto pos = extensionURL.find('/');
+  std::string host = (pos == std::string::npos) ? extensionURL
+                                                : extensionURL.substr(0, pos);
+  std::string path = (pos == std::string::npos) ? "/" : extensionURL.substr(pos);
+  if (path.empty() || path[0] != '/') {
+    path = "/" + path;
+  }
+  return {path, host, scheme + "://" + host + path};
 }
 
 std::string ExtensionSourceUtils::toString(ExtensionSource source) {

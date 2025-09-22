@@ -42,16 +42,26 @@ std::unique_ptr<Statement> Transformer::transformExtension(
         transformVariable(*ctx.kU_InstallExtension()->oC_Variable()));
     return std::make_unique<ExtensionStatement>(
         std::move(installExtensionAuxInfo));
-  } else {
+  } else if (ctx.kU_LoadExtension()) {
     auto path =
         ctx.kU_LoadExtension()->StringLiteral()
             ? transformStringLiteral(*ctx.kU_LoadExtension()->StringLiteral())
             : transformVariable(*ctx.kU_LoadExtension()->oC_Variable());
-    auto installExtensionAuxInfo = std::make_unique<ExtensionAuxInfo>(
+    auto auxInfo = std::make_unique<ExtensionAuxInfo>(
         ExtensionAction::LOAD, std::move(path));
-    return std::make_unique<ExtensionStatement>(
-        std::move(installExtensionAuxInfo));
+    return std::make_unique<ExtensionStatement>(std::move(auxInfo));
+  } 
+  else if (ctx.kU_UninstallExtension()) {
+    auto name =
+        ctx.kU_UninstallExtension()->StringLiteral()
+            ? transformStringLiteral(
+                  *ctx.kU_UninstallExtension()->StringLiteral())
+            : transformVariable(*ctx.kU_UninstallExtension()->oC_Variable());
+    auto auxInfo = std::make_unique<ExtensionAuxInfo>(
+        ExtensionAction::UNINSTALL, std::move(name));
+    return std::make_unique<ExtensionStatement>(std::move(auxInfo));
   }
+  THROW_PARSER_EXCEPTION("Unsupported EXTENSION statement");
 }
 
 }  // namespace parser

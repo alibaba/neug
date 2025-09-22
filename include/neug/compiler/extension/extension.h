@@ -86,17 +86,17 @@ void addFunc(main::MetadataManager& database, std::string name,
 
 struct KUZU_API ExtensionUtils {
   static constexpr const char* OFFICIAL_EXTENSION_REPO =
-      "http://extension.kuzudb.com/";
+      "https://graphscope.oss-cn-beijing.aliyuncs.com/neug/extensions/";
 
   static constexpr const char* EXTENSION_FILE_REPO_PATH = "v{}/{}/{}/{}";
 
   static constexpr const char* SHARED_LIB_REPO = "v{}/{}/common/{}";
 
-  static constexpr const char* EXTENSION_FILE_NAME = "lib{}.kuzu_extension";
+  static constexpr const char* EXTENSION_FILE_NAME = "lib{}.neug_extension";
 
   static constexpr const char* OFFICIAL_EXTENSION[] = {
-      "HTTPFS", "POSTGRES", "DUCKDB",        "JSON",   "SQLITE", "FTS",
-      "DELTA",  "ICEBERG",  "UNITY_CATALOG", "VECTOR", "GDS"};
+      "JSON",
+    };
 
   static constexpr const char* EXTENSION_LOADER_SUFFIX = "_loader";
 

@@ -2,7 +2,8 @@
 # So currently we just add all the source files to the graph_db library
 file(GLOB_RECURSE EXECUTION_SRC_FILES "${CMAKE_CURRENT_SOURCE_DIR}/common/*.cc"
                                      "${CMAKE_CURRENT_SOURCE_DIR}/execute/*.cc"
-                                     "${CMAKE_CURRENT_SOURCE_DIR}/utils/*.cc")
+                                     "${CMAKE_CURRENT_SOURCE_DIR}/utils/*.cc"
+                                     "${CMAKE_CURRENT_SOURCE_DIR}/extension/*.cc")
 if (BUILD_ALL_IN_ONE)
         add_library(neug_execution OBJECT ${EXECUTION_SRC_FILES})
         add_dependencies(neug_execution neug_plan_proto)

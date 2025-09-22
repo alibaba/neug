@@ -93,7 +93,7 @@ class GExprConverter {
   std::unique_ptr<::common::Expression> convertTemporalFunc(
       const binder::Expression& expr);
 
-  std::unique_ptr<::common::Expression> convertScalarFunction(
+  std::unique_ptr<::common::Expression> convertExtensionScalarFunction(
       const binder::ScalarFunctionExpression& expr,
       const std::vector<std::string>& schemaAlias);
 
