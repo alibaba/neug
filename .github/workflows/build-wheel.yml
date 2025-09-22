@@ -81,6 +81,10 @@ jobs:
           verbose: true
           skip_existing: true # Skip existing wheels to avoid errors if the same wheel is already published, to update the wheel for a specific version, add -{number} to the filename and
           # update it manually
+
+      - name: Clean all installed python packages
+        run: |
+          python3 -m pip freeze | xargs python3 -m pip uninstall -y || true
     
       - name: Run simple test
         env:
@@ -146,6 +150,10 @@ jobs:
           verbose: true
           skip_existing: true # Skip existing wheels to avoid errors if the same wheel is already published, to update the wheel for a specific version, add -{number} to the filename and
           # update it manually
+
+      - name: Clean all installed python packages
+        run: |
+          python3 -m pip freeze | xargs python3 -m pip uninstall -y || true
     
       - name: Run simple test
         env:
@@ -219,6 +227,10 @@ jobs:
           verbose: true
           skip_existing: true # Skip existing wheels to avoid errors if the same wheel is already published, to update the wheel for a specific version, add -{number} to the filename and
           # update it manually
+
+      - name: Clean all installed python packages
+        run: |
+          python3 -m pip freeze | xargs python3 -m pip uninstall -y || true
     
       - name: Run simple test
         env:
@@ -292,7 +304,11 @@ jobs:
           verbose: true
           skip_existing: true # Skip existing wheels to avoid errors if the same wheel is already published, to update the wheel for a specific version, add -{number} to the filename and
           # update it manually
-    
+
+      - name: Clean all installed python packages
+        run: |
+          python3 -m pip freeze | xargs python3 -m pip uninstall -y || true
+
       - name: Run simple test
         env:
           TMP_DIR: ${{ github.workspace }}/${{ github.run_id }}
