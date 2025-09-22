@@ -228,7 +228,7 @@ jobs:
         ./scripts/run_embed_test.sh modern_graph /tmp/modern_graph basic_test
         # 2. tests running on tinysnb
         # all tinysnb cypher queries is included except some marked issues (TODO: shaoyu)
-        # ./scripts/run_embed_test.sh tinysnb /tmp/tinysnb basic_test,projection,filter,order_by,expr,acc,agg,match,cyclic,arithmetic
+        # ./scripts/run_embed_test.sh tinysnb /tmp/tinysnb basic_test,projection,filter,order_by,expr,acc,agg,match,cyclic,arithmetic,generic_hash_join,optional_match
         # ./scripts/run_embed_test.sh tinysnb /tmp/tinysnb batch_delete_vertices true
         # ./scripts/run_embed_test.sh tinysnb /tmp/tinysnb batch_delete_edges true
 
