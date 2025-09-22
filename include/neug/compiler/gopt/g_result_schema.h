@@ -23,6 +23,7 @@
 #include "neug/compiler/gopt/g_alias_manager.h"
 #include "neug/compiler/gopt/g_graph_type.h"
 #include "neug/compiler/gopt/g_physical_analyzer.h"
+#include "neug/compiler/gopt/g_type_converter.h"
 #include "neug/compiler/gopt/g_type_utils.h"
 #include "neug/compiler/planner/operator/logical_operator.h"
 #include "neug/compiler/planner/operator/logical_plan.h"
@@ -68,13 +69,23 @@ class GResultSchema {
                                        catalog::Catalog* catalog) {
     auto& type = expr.getDataType();
     if (type.getLogicalTypeID() == common::LogicalTypeID::NODE) {
-      auto& nodeExpr = expr.constCast<binder::NodeExpression>();
-      GNodeType nodeType{nodeExpr};
-      return nodeType.toYAML();
+      auto nodeExpr = dynamic_cast<const binder::NodeExpression*>(&expr);
+      if (nodeExpr) {
+        GNodeType nodeType{*nodeExpr};
+        return nodeType.toYAML();
+      } else {
+        GNodeType emptyNode({});
+        return emptyNode.toYAML();
+      }
     } else if (type.getLogicalTypeID() == common::LogicalTypeID::REL) {
-      auto& relExpr = expr.constCast<binder::RelExpression>();
-      GRelType relType{relExpr};
-      return relType.toYAML(catalog);
+      auto relExpr = dynamic_cast<const binder::RelExpression*>(&expr);
+      if (relExpr) {
+        GRelType relType{*relExpr};
+        return relType.toYAML(catalog);
+      } else {
+        GRelType emptyRel({});
+        return emptyRel.toYAML(catalog);
+      }
     } else {
       return GTypeUtils::toYAML(type);
     }

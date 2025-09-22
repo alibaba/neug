@@ -897,8 +897,12 @@ Map RTAny::as_map() const {
 }
 
 Relation RTAny::as_relation() const {
-  assert(type_ == RTAnyType::kRelation);
-  return value_.relation;
+  assert(type_ == RTAnyType::kRelation || type_ == RTAnyType::kEdge);
+  if (type_ == RTAnyType::kRelation) {
+    return value_.relation;
+  } else {
+    return value_.edge.as_relation();
+  }
 }
 
 RTAny TupleImpl<RTAny>::get(size_t idx) const {

@@ -14,7 +14,10 @@
  * limitations under the License.
  */
 
+#include <yaml-cpp/emitter.h>
+#include <memory>
 #include "gopt_test.h"
+#include "neug/compiler/gopt/g_alias_manager.h"
 #include "neug/compiler/planner/operator/logical_projection.h"
 
 namespace gs {
@@ -119,9 +122,13 @@ TEST_F(PathTest, START_NODE) {
       "Match (a:person)-[b:knows]-(c:person) Return START_NODE(b) as n1, "
       "END_NODE(b) as n2;";
   auto logical = planLogical(query, schemaData, statsData, rules);
-  auto physical = planPhysical(*logical);
+  auto aliasManager = std::make_shared<GAliasManager>(*logical);
+  auto physical = planPhysical(*logical, aliasManager);
   VerifyFactory::verifyPhysicalByJson(*physical,
                                       getPathResource("START_NODE_physical"));
+  auto schema = GResultSchema::infer(*logical, aliasManager, getCatalog());
+  VerifyFactory::verifyResultByYaml(schema,
+                                    getPathResource("START_NODE_result"));
 }
 
 TEST_F(PathTest, Length) {

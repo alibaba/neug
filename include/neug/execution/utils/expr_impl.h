@@ -703,7 +703,8 @@ class StartNodeExpr : public ExprBase {
  public:
   StartNodeExpr(std::unique_ptr<ExprBase>&& args) : args(std::move(args)) {}
   RTAny eval_path(size_t idx, Arena& arena) const override {
-    assert(args->type() == RTAnyType::kRelation);
+    assert(args->type() == RTAnyType::kRelation ||
+           args->type() == RTAnyType::kEdge);
     auto path_any = args->eval_path(idx, arena);
     if (path_any.is_null()) {
       return RTAny(RTAnyType::kNull);
@@ -736,7 +737,8 @@ class EndNodeExpr : public ExprBase {
  public:
   EndNodeExpr(std::unique_ptr<ExprBase>&& args) : args(std::move(args)) {}
   RTAny eval_path(size_t idx, Arena& arena) const override {
-    assert(args->type() == RTAnyType::kRelation);
+    assert(args->type() == RTAnyType::kRelation ||
+           args->type() == RTAnyType::kEdge);
     auto path_any = args->eval_path(idx, arena);
     if (path_any.is_null()) {
       return RTAny(RTAnyType::kNull);

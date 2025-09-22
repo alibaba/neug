@@ -1859,18 +1859,18 @@ def test_checkpoint():
 
 # test START_NODE and END_NODE
 # todo(engine): Engine Abort
-# def test_start_end_node():
-#     db_dir = "/tmp/ldbc"
-#     db = Database(db_path=db_dir, mode="r")
-#     conn = db.connect()
-#     submit_cypher_query(
-#         conn=conn,
-#         query="Match (n:PERSON {id: 933})-[k:KNOWS]->(m:PERSON {id: 2199023256077})"
-#         " Return START_NODE(k) as n1, END_NODE(k) as n2;",
-#         lambda_func=ensure_result_cnt_gt_zero,
-#     )
-#     conn.close()
-#     db.close()
+def test_start_end_node():
+    db_dir = "/tmp/ldbc"
+    db = Database(db_path=db_dir, mode="r")
+    conn = db.connect()
+    submit_cypher_query(
+        conn=conn,
+        query="Match (n:PERSON {id: 933})-[k:KNOWS]->(m:PERSON {id: 2199023256077})"
+        " Return START_NODE(k) as n1, END_NODE(k) as n2;",
+        lambda_func=ensure_result_cnt_gt_zero,
+    )
+    conn.close()
+    db.close()
 
 
 # test undirected and unweighted shortest path

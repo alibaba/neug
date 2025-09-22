@@ -1,0 +1,13 @@
+returns:
+  - name: n1
+    type:
+      graph_type:
+        element_opt: VERTEX
+        graph_data_type:
+          []
+  - name: n2
+    type:
+      graph_type:
+        element_opt: VERTEX
+        graph_data_type:
+          []

@@ -584,6 +584,14 @@ class EdgeRecord {
            "," + std::to_string(dst_) + ")";
   }
 
+  Relation as_relation() const {
+    if (dir_ == Direction::kOut) {
+      return Relation{label_triplet_, src_, dst_};
+    } else {
+      return Relation{label_triplet_, dst_, src_};
+    }
+  }
+
   LabelTriplet label_triplet_;
   vid_t src_, dst_;
   EdgeData prop_;
