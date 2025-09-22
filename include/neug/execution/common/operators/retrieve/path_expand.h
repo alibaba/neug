@@ -55,6 +55,7 @@ struct PathExpandParams {
   Direction dir;
   int hop_lower;
   int hop_upper;
+  PathOpt opt;
 };
 
 struct ShortestPathParams {
@@ -249,6 +250,11 @@ class PathExpand {
   static gs::result<Context> edge_expand_p_with_pred(
       const GraphReadInterface& graph, Context&& ctx,
       const PathExpandParams& params, const PRED_T& pred) {
+    if (params.opt != PathOpt::kArbitrary) {
+      LOG(ERROR) << "only support arbitrary path expand with predicate";
+      RETURN_UNSUPPORTED_ERROR(
+          "only support arbitrary path expand with predicate");
+    }
     std::vector<size_t> shuffle_offset;
     auto& input_vertex_list =
         *std::dynamic_pointer_cast<IVertexColumn>(ctx.get(params.start_tag));

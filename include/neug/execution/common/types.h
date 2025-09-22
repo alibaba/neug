@@ -58,6 +58,14 @@ enum class JoinKind {
   kTimesJoin,
 };
 
+enum class PathOpt {
+  kArbitrary,
+  kAnyShortest,
+  kAllShortest,
+  kTrail,
+  kSimple,
+};
+
 struct LabelTriplet {
   LabelTriplet() = default;
   LabelTriplet(label_t src, label_t dst, label_t edge)

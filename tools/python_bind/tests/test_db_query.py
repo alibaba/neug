@@ -1872,19 +1872,20 @@ def test_checkpoint():
 #     conn.close()
 #     db.close()
 
+
 # test undirected and unweighted shortest path
-# todo(engine): Error thrown
-# def test_shortest_path():
-#     db_dir = "/tmp/ldbc"
-#     db = Database(db_path=db_dir, mode="r")
-#     conn = db.connect()
-#     result = conn.execute(
-#         "Match (n:PERSON {id: 933})-[k:KNOWS* SHORTEST  1..3]-(m:PERSON {id: 2199023256668}) Return LENGTH(k) Limit 1;"
-#     )
-#     for record in result:
-#         assert record[0] == 1, f"Expected value 1, got {record[0]}"
-#     conn.close()
-#     db.close()
+def test_shortest_path():
+    db_dir = "/tmp/ldbc"
+    db = Database(db_path=db_dir, mode="r")
+    conn = db.connect()
+    result = conn.execute(
+        "Match (n:PERSON {id: 933})-[k:KNOWS* SHORTEST  1..3]-(m:PERSON {id: 2199023256668}) Return LENGTH(k) Limit 1;"
+    )
+    for record in result:
+        assert record[0] == 3, f"Expected value 3, got {record[0]}"
+    conn.close()
+    db.close()
+
 
 # test properties
 # todo(engine): Error thrown

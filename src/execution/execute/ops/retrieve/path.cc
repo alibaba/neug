@@ -913,11 +913,6 @@ gs::result<ReadOpBuildResultT> PathExpandOprBuilder::Build(
     return std::make_pair(nullptr, ContextMeta());
   }
   int start_tag = opr.start_tag().value();
-  if (opr.path_opt() !=
-      physical::PathExpand_PathOpt::PathExpand_PathOpt_ARBITRARY) {
-    LOG(ERROR) << "Currently only support arbitrary path expand";
-    return std::make_pair(nullptr, ContextMeta());
-  }
 
   if (opr.is_optional()) {
     LOG(ERROR) << "Currently only support non-optional path expand without "
@@ -940,6 +935,8 @@ gs::result<ReadOpBuildResultT> PathExpandOprBuilder::Build(
   pep.start_tag = start_tag;
   pep.labels =
       parse_label_triplets(plan.query_plan().plan(op_idx).meta_data(0));
+  pep.opt = parse_path_opt(opr.path_opt());
+
   if (query_params.has_predicate()) {
     return std::make_pair(
         std::make_unique<PathExpandOprWithPred>(pep, query_params.predicate()),

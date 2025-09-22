@@ -96,6 +96,28 @@ std::vector<LabelTriplet> parse_label_triplets(
   return labels;
 }
 
+PathOpt parse_path_opt(const physical::PathExpand_PathOpt& path_opt_pb) {
+  if (path_opt_pb ==
+      physical::PathExpand_PathOpt::PathExpand_PathOpt_ARBITRARY) {
+    return PathOpt::kArbitrary;
+  } else if (path_opt_pb ==
+             physical::PathExpand_PathOpt::PathExpand_PathOpt_ANY_SHORTEST) {
+    return PathOpt::kAnyShortest;
+  } else if (path_opt_pb ==
+             physical::PathExpand_PathOpt::PathExpand_PathOpt_TRAIL) {
+    return PathOpt::kTrail;
+  } else if (path_opt_pb ==
+             physical::PathExpand_PathOpt::PathExpand_PathOpt_SIMPLE) {
+    return PathOpt::kSimple;
+  } else if (path_opt_pb ==
+             physical::PathExpand_PathOpt::PathExpand_PathOpt_ALL_SHORTEST) {
+    return PathOpt::kAllShortest;
+  } else {
+    LOG(FATAL) << "unexpected PathOpt";
+    return PathOpt::kArbitrary;
+  }
+}
+
 template <typename T>
 bool vertex_property_topN_impl(bool asc, size_t limit,
                                const std::shared_ptr<IVertexColumn>& col,
