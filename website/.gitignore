@@ -1,8 +1,0 @@
-
-node_modules
-# Translation tool generated files
-.temp-source-repo/
-.source-docs/
-last-sync.json
-node_modules
-.next

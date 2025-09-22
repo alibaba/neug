@@ -1,0 +1,19 @@
+loaders:
+  - type: python
+    search_path: 
+      - ../tools/python_bind 
+    modules:
+      - neug.database
+      - neug.connection  
+      - neug.session
+      - neug.query_result
+
+processors:
+  - type: filter
+    expression: "not name.startswith('_')"
+
+renderer:
+  type: markdown
+  output_directory: source/reference/python_api
+  render_module_header: true
+  filename: "all_modules.md"

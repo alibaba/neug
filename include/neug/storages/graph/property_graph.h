@@ -70,22 +70,111 @@ class CsrConstEdgeIterBase;
 class CsrEdgeIterBase;
 template <typename EDATA_T>
 class TypedMutableCsrBase;
-
+/**
+ * @brief Core property graph storage engine managing vertices, edges, and schema.
+ * 
+ * PropertyGraph provides the fundamental storage layer for graph data in NeuG.
+ * It manages vertex and edge tables, schema information, and provides persistence
+ * through file-based storage with memory management optimizations.
+ * 
+ * **Key Components:**
+ * - Vertex tables for storing vertex data and properties
+ * - Edge tables using various CSR (Compressed Sparse Row) formats
+ * - Schema management for vertex/edge types and properties
+ * - Memory management with configurable memory levels
+ * - Persistence with snapshot and compaction support
+ * 
+ * **Implementation Details:**
+ * - vertex_tables_ stores vertex data indexed by label
+ * - edge_tables_ stores edge data in CSR format
+ * - schema_ manages type definitions and property schemas
+ * - work_dir_ stores the working directory for persistence
+ * - memory_level_ controls memory usage vs performance tradeoff
+ * 
+ * @since v0.1.0
+ */
 class PropertyGraph {
  public:
   static constexpr const float DEFAULT_RESERVE_RATIO = 1.2;
+  /**
+   * @brief Construct PropertyGraph with default settings.
+   * 
+   * Implementation: Initializes vertex_label_num_=0, edge_label_num_=0, memory_level_=1.
+   * 
+   * @since v0.1.0
+   */
   PropertyGraph();
 
+  /**
+   * @brief Destructor that reserves space and cleans up resources.
+   * 
+   * Implementation: Calculates degree lists for vertices, reserves space in vertex 
+   * and edge tables to optimize memory layout before destruction.
+   * 
+   * @since v0.1.0
+   */
   ~PropertyGraph();
 
+  /**
+   * @brief Ingest a new edge into the graph with serialized property data.
+   * 
+   * This method adds a new edge to the graph by delegating to the appropriate
+   * edge table based on the edge label combination. The edge properties are
+   * provided as a serialized archive.
+   * 
+   * @param src_label Source vertex label
+   * @param src_lid Source vertex local ID
+   * @param dst_label Destination vertex label  
+   * @param dst_lid Destination vertex local ID
+   * @param edge_label Edge label/type
+   * @param ts Timestamp for the edge
+   * @param arc Serialized archive containing edge property data
+   * @param alloc Memory allocator for edge storage
+   * 
+   * Implementation: Generates edge table index from labels, then calls
+   * EdgeTable::IngestEdge() on the corresponding edge table.
+   * 
+   * @since v0.1.0
+   */
   void IngestEdge(label_t src_label, vid_t src_lid, label_t dst_label,
                   vid_t dst_lid, label_t edge_label, timestamp_t ts,
                   grape::OutArchive& arc, Allocator& alloc);
 
+  /**
+   * @brief Update an existing edge's property data.
+   * 
+   * This method updates the properties of an existing edge in the graph.
+   * The edge is identified by its source/destination vertices and edge label.
+   * 
+   * @param src_label Source vertex label
+   * @param src_lid Source vertex local ID  
+   * @param dst_label Destination vertex label
+   * @param dst_lid Destination vertex local ID
+   * @param edge_label Edge label/type
+   * @param ts Timestamp for the update
+   * @param arc New property data for the edge
+   * @param alloc Memory allocator for update operations
+   * 
+   * Implementation: Generates edge table index from labels, then calls
+   * EdgeTable::UpdateEdge() on the corresponding edge table.
+   * 
+   * @since v0.1.0
+   */
   void UpdateEdge(label_t src_label, vid_t src_lid, label_t dst_label,
                   vid_t dst_lid, label_t edge_label, timestamp_t ts,
                   const Any& arc, Allocator& alloc);
 
+  /**
+   * @brief Open the property graph from persistent storage.
+   * 
+   * @param work_dir Working directory containing graph data files
+   * @param memory_level Memory usage level (controls performance vs memory tradeoff)
+   * 
+   * Implementation: Sets work_dir_ and memory_level_, loads schema from work_dir,
+   * then loads vertex and edge data from snapshot files.
+   * 
+   * @since v0.1.0
+   */
   void Open(const std::string& work_dir, int memory_level);
 
   void Compact(bool reset_timestamp, bool compact_csr, float reserve_ratio,
@@ -93,12 +182,41 @@ class PropertyGraph {
 
   void Dump();
 
+  /**
+   * @brief Dump schema information to a file.
+   * 
+   * @param filename Target file for schema dump
+   * 
+   * @since v0.1.0
+   */
   void DumpSchema(const std::string& filename);
 
+  /**
+   * @brief Get read-only access to the schema.
+   * 
+   * @return const Schema& Reference to the graph schema
+   * 
+   * @since v0.1.0
+   */
   const Schema& schema() const;
 
+  /**
+   * @brief Get mutable access to the schema.
+   * 
+   * @return Schema& Mutable reference to the graph schema
+   * 
+   * @since v0.1.0
+   */
   Schema& mutable_schema();
 
+  /**
+   * @brief Clear all graph data and reset to empty state.
+   * 
+   * Implementation: Clears vertex_tables_, edge_tables_, resets label counts to 0,
+   * and calls schema_.Clear().
+   * 
+   * @since v0.1.0
+   */
   void Clear();
 
   // When error_on_conflict is true, it will return an error if the

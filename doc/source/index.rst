@@ -66,18 +66,11 @@ NeuG documentation
    user_clients/cli.md
 
 .. toctree::
-   :maxdepth: 1
-   :caption: User Guide
-
-   user_guide/key_concepts
-
-.. toctree::
-   :maxdepth: 1
+   :maxdepth: 2
    :caption: API Reference
 
-   reference/cpp_api/index
-   reference/python_api/python_index
-   reference/type_system
+   Python API <reference/python_api/index>
+   C++ API <reference/cpp_api/index>
 
 .. toctree::
    :maxdepth: 1

@@ -79,6 +79,19 @@ Chart.lock
 **/Cargo.lock
 package.lock
 
+# Node.js / npm
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.npm
+.yarn-integrity
+.pnpm-debug.log*
+
+# Next.js
+.next/
+out/
+
 # Core dump
 core.*
 *.core

@@ -394,10 +394,47 @@ class SingleImmutableGraphView<std::string_view> {
   const SingleImmutableCsr<std::string_view>& csr_;
 };
 
+/**
+ * @brief Read-only transaction for consistent snapshot access to graph data.
+ * 
+ * ReadTransaction provides read access to graph data at a specific timestamp,
+ * implementing snapshot isolation. It stores references to the session, graph,
+ * version manager, and the snapshot timestamp.
+ * 
+ * **Implementation Details:**
+ * - Stores const reference to PropertyGraph for read-only access
+ * - Maintains timestamp for consistent snapshot view
+ * - Calls release() in destructor for cleanup
+ * - Commit() simply calls release() and returns true
+ * 
+ * **Thread Safety:** Read operations are safe for concurrent access.
+ * 
+ * @since v0.1.0
+ */
 class ReadTransaction {
  public:
+  /**
+   * @brief Construct a ReadTransaction.
+   * 
+   * @param session Reference to the database session
+   * @param graph Const reference to the property graph
+   * @param vm Reference to version manager
+   * @param timestamp Snapshot timestamp for this transaction
+   * 
+   * Implementation: Stores all parameters as member references/values.
+   * 
+   * @since v0.1.0
+   */
   ReadTransaction(const NeugDBSession& session, const PropertyGraph& graph,
                   IVersionManager& vm, timestamp_t timestamp);
+  
+  /**
+   * @brief Destructor that calls release().
+   * 
+   * Implementation: Calls release() to clean up resources.
+   * 
+   * @since v0.1.0
+   */
   ~ReadTransaction();
 
   timestamp_t timestamp() const;

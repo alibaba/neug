@@ -47,24 +47,93 @@ class UpdateBatch;
 template <typename INDEX_T>
 class IdIndexerBase;
 
+/**
+ * @brief Transaction for updating existing graph elements (vertices and edges).
+ * 
+ * UpdateTransaction handles modifications to existing graph data with ACID guarantees.
+ * It supports updating vertex properties, edge properties, and provides options for
+ * vertex column resizing during updates.
+ * 
+ * **Key Features:**
+ * - Update vertex and edge properties  
+ * - Configurable vertex column resizing behavior
+ * - Write-Ahead Logging for durability
+ * - MVCC support with timestamp management
+ * - Commit/abort transaction semantics
+ * 
+ * **Implementation Details:**
+ * - insert_vertex_with_resize_ controls whether to resize vertex columns
+ * - Uses work_dir for temporary storage during updates
+ * - Destructor calls release() for cleanup
+ * - Integrates with version manager for timestamp coordination
+ * 
+ * @since v0.1.0
+ */
 class UpdateTransaction {
  public:
+  /**
+   * @brief Construct an UpdateTransaction.
+   * 
+   * @param session Reference to the database session
+   * @param graph Reference to the property graph (mutable for updates)
+   * @param alloc Reference to memory allocator
+   * @param work_dir Working directory for temporary files
+   * @param logger Reference to WAL writer
+   * @param vm Reference to version manager
+   * @param timestamp Transaction timestamp
+   * 
+   * Implementation: Stores references and initializes insert_vertex_with_resize_=false.
+   * 
+   * @since v0.1.0
+   */
   UpdateTransaction(const NeugDBSession& session, PropertyGraph& graph,
                     Allocator& alloc, const std::string& work_dir,
                     IWalWriter& logger, IVersionManager& vm,
                     timestamp_t timestamp);
 
+  /**
+   * @brief Destructor that calls release().
+   * 
+   * Implementation: Calls release() to clean up resources and release timestamp.
+   * 
+   * @since v0.1.0
+   */
   ~UpdateTransaction();
 
   /**
-   * @brief By default update transaction will not resize the vertex column
-   * When inserting properties for a vertex. By setting this to true, it will
-   * resize the vertex column.
+   * @brief Configure whether to resize vertex columns during property updates.
+   * 
+   * By default, update transactions will not resize vertex columns when updating
+   * properties. Setting this to true enables column resizing if needed.
+   * 
+   * @param insert_vertex_with_resize true to enable column resizing, false to disable
+   * 
+   * Implementation: Sets insert_vertex_with_resize_ member variable.
+   * 
+   * @since v0.1.0
    */
   void set_insert_vertex_with_resize(bool insert_vertex_with_resize);
 
+  /**
+   * @brief Get the transaction timestamp.
+   * 
+   * @return timestamp_t The timestamp for this transaction
+   * 
+   * Implementation: Returns timestamp_ member variable.
+   * 
+   * @since v0.1.0
+   */
   timestamp_t timestamp() const;
 
+  /**
+   * @brief Get read-only access to the graph schema.
+   * 
+   * @return const Schema& Reference to the graph schema
+   * 
+   * Implementation: Returns graph_.schema().
+   * 
+   * @since v0.1.0
+   */
   const Schema& schema() const { return graph_.schema(); }
 
   bool Commit();

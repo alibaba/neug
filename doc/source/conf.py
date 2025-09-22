@@ -49,14 +49,22 @@ extensions = [
 suppress_warnings = ['autosectionlabel.*']
 
 breathe_projects = {
-    'GraphScope': os.path.abspath('./_build/doxygen/xml'),
+    'neug': os.path.abspath('../build/html/reference/cpp_api_doxygen/xml'),
 }
-breathe_default_project = 'GraphScope'
-breathe_debug_trace_directives = True
-breathe_debug_trace_doxygen_ids = True
-breathe_debug_trace_qualification = True
+breathe_default_project = 'neug'
+breathe_debug_trace_directives = False
+breathe_debug_trace_doxygen_ids = False
+breathe_debug_trace_qualification = False
 
+# Autodoc configuration for Python API
 autodoc_mock_imports = ["graphlearn"]
+autodoc_default_options = {
+    'members': True,
+    'member-order': 'bysource',
+    'special-members': '__init__',
+    'undoc-members': True,
+    'exclude-members': '__weakref__'
+}
 
 # enable figure for myst
 myst_enable_extensions = [
@@ -76,8 +84,15 @@ myst_enable_extensions = [
     "tasklist",
 ]
 
-# Add any paths that contain templates here, relative to this directory.
+# Source file suffixes
+source_suffix = ['.rst', '.md']
+
+# API documentation settings
+# Templates for API documentation
 templates_path = ['_templates']
+
+# Directory for generated API docs  
+api_docs_output_dir = 'reference'
 
 # List of patterns, relative to source directory, that match files and
 # directories to ignore when looking for source files.

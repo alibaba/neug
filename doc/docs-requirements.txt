@@ -7,3 +7,4 @@ sphinx-panels
 sphinxemoji
 sphinxext-opengraph
 breathe
+pydoc-markdown  # for Python API documentation generation

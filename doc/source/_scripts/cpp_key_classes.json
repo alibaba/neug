@@ -1,0 +1,20 @@
+{
+  "target_namespaces": [
+    "gs", 
+    "neug", 
+    "results", 
+    "server"
+  ],
+  "key_classes": [
+    "gs::NeugDB",
+    "gs::Connection",
+    "gs::QueryResult",
+    "gs::PropertyGraph",
+    "gs::ReadTransaction",
+    "gs::InsertTransaction",
+    "gs::UpdateTransaction"
+  ],
+  "description": "Configuration for C++ API documentation generation",
+  "priority_display": true,
+  "full_documentation": true
+}

@@ -55,34 +55,146 @@ class RecordLine {
   std::vector<const results::Entry*> entries_;
 };
 
+/**
+ * @brief Container for query execution results with iterator-based access.
+ * 
+ * QueryResult wraps a CollectiveResults protobuf message and provides convenient
+ * C++ iterator-style access to the result records. It maintains an internal cursor
+ * for sequential access via hasNext()/next() pattern.
+ * 
+ * **Internal Structure:** 
+ * - Wraps results::CollectiveResults protobuf message
+ * - Maintains cur_index_ for iteration state
+ * - Provides both sequential and random access to records
+ * 
+ * **Memory Model:** Returns pointers to internal data without copying.
+ * 
+ * @since v0.1.0
+ */
 class QueryResult {
  public:
+  /**
+   * @brief Create QueryResult from CollectiveResults (move semantics).
+   * 
+   * Factory method that creates a QueryResult by moving a CollectiveResults.
+   * 
+   * @param result CollectiveResults to be moved into the QueryResult
+   * @return QueryResult containing the moved results
+   * 
+   * Implementation: Simply calls QueryResult constructor with std::move.
+   * 
+   * @since v0.1.0
+   */
   static QueryResult From(results::CollectiveResults&& result);
 
-  static QueryResult From(
-      const std::string& result_str);  // deserialize from string
+  /**
+   * @brief Create QueryResult by deserializing from a string.
+   * 
+   * Deserializes a CollectiveResults protobuf from string format.
+   * 
+   * @param result_str Serialized CollectiveResults string
+   * @return QueryResult containing the deserialized results
+   * 
+   * @throws std::runtime_error if parsing fails
+   * 
+   * Implementation: Calls CollectiveResults::ParseFromString() then moves result.
+   * 
+   * @since v0.1.0
+   */
+  static QueryResult From(const std::string& result_str);
 
+  /**
+   * @brief Default constructor creating empty result.
+   * 
+   * @since v0.1.0
+   */
   QueryResult() = default;
 
+  /**
+   * @brief Construct QueryResult from CollectiveResults.
+   * 
+   * @param res CollectiveResults to be moved and stored
+   * 
+   * Implementation: Initializes cur_index_ to 0 and moves res to result_.
+   * 
+   * @since v0.1.0
+   */
   QueryResult(results::CollectiveResults&& res)
       : cur_index_(0), result_(std::move(res)) {}
+  
+  /**
+   * @brief Destructor.
+   * 
+   * @since v0.1.0
+   */
   ~QueryResult() {}
 
+  /**
+   * @brief Check if there are more records to iterate.
+   * 
+   * @return true if cur_index_ < result_.results_size(), false otherwise
+   * 
+   * Implementation: Compares cur_index_ with result_.results_size().
+   * 
+   * @since v0.1.0
+   */
   bool hasNext() const;
 
   /**
-   * @brief Get the next result.
-   * @note The result is a shared pointer, so the user should not delete it. We
-   * return the value that is stored in the result_, don't allocate new memory.
-   * @return std::vector<std::shared_ptr<results::Entry>>
+   * @brief Get the next result record and advance iterator.
+   * 
+   * Returns a RecordLine containing pointers to Entry objects from the current record.
+   * Advances cur_index_ after retrieving the record.
+   * 
+   * @return RecordLine containing const Entry* pointers to record columns
+   * 
+   * @note Returns pointers to internal data - no memory allocation or copying
+   * @note Returns empty RecordLine if no more records (logs error)
+   * @note Caller should check hasNext() before calling this method
+   * 
+   * Implementation: Gets mutable_results(cur_index_++), extracts Entry pointers
+   * via record_to_entries_vec helper function.
+   * 
+   * @since v0.1.0
    */
   RecordLine next();
 
+  /**
+   * @brief Get a record by index (random access).
+   * 
+   * @param index Zero-based index of the record to retrieve
+   * @return RecordLine containing const Entry* pointers to record columns
+   * 
+   * @note Does not affect iterator state (cur_index_)
+   * @note Returns pointers to internal data - no copying
+   * 
+   * Implementation: Gets mutable_results(index), extracts Entry pointers.
+   * 
+   * @since v0.1.0
+   */
   RecordLine operator[](int index);
 
+  /**
+   * @brief Get total number of records in the result set.
+   * 
+   * @return Total number of result records
+   * 
+   * Implementation: Returns result_.results_size().
+   * 
+   * @since v0.1.0
+   */
   size_t length() const;
 
-  const std::string& get_result_schema() const;  // YAML string
+  /**
+   * @brief Get the result schema as a string.
+   * 
+   * @return const std::string& Reference to the schema string from CollectiveResults
+   * 
+   * Implementation: Returns result_.result_schema().
+   * 
+   * @since v0.1.0
+   */
+  const std::string& get_result_schema() const;
 
   inline const results::CollectiveResults& get_result() const {
     return result_;

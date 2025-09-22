@@ -51,6 +51,39 @@ class Schema;
 class UpdateBatch;
 class AppManager;
 
+/**
+ * @brief Database session for executing queries and managing transactions.
+ * 
+ * NeugDBSession provides a session-based interface for interacting with the
+ * NeuG database. Each session maintains its own transaction context and
+ * application state, enabling concurrent access while ensuring data consistency.
+ * 
+ * **Core Capabilities:**
+ * - Transaction management (Read, Insert, Update, Compact)
+ * - Query execution with various data sources
+ * - Batch operations for performance optimization
+ * - Application-specific query processing
+ * 
+ * **Transaction Types:**
+ * - ReadTransaction: Read-only snapshot access
+ * - InsertTransaction: Add new vertices and edges
+ * - UpdateTransaction: Modify existing graph elements
+ * - CompactTransaction: Background compaction operations
+ * 
+ * **Thread Safety:** Each session is tied to a specific thread and should
+ * not be shared across threads. Sessions are lightweight and can be created
+ * per-thread as needed.
+ * 
+ * **Lifecycle:**
+ * - Created through NeugDB::CreateSession()
+ * - Automatically manages transaction lifecycle
+ * - Provides retry mechanisms for failed operations
+ * 
+ * @note This is the primary interface for query execution and transaction
+ *       management. Use NeugDB for database lifecycle operations.
+ * 
+ * @since v0.1.0
+ */
 class NeugDBSession {
  public:
   static constexpr int32_t MAX_RETRY = 3;
