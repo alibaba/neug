@@ -22,6 +22,7 @@
 #include <string>
 
 #include "neug/execution/common/context.h"
+#include "neug/execution/execute/ops/admin/checkpoint.h"
 #include "neug/execution/execute/ops/batch/batch_delete_edge.h"
 #include "neug/execution/execute/ops/batch/batch_delete_vertex.h"
 #include "neug/execution/execute/ops/batch/batch_insert_edge.h"
@@ -45,7 +46,6 @@
 #include "neug/execution/execute/ops/retrieve/unfold.h"
 #include "neug/execution/execute/ops/retrieve/union.h"
 #include "neug/execution/execute/ops/retrieve/vertex.h"
-
 #include "neug/execution/execute/ops/update/dedup.h"
 #include "neug/execution/execute/ops/update/edge.h"
 #include "neug/execution/execute/ops/update/group_by.h"
@@ -154,6 +154,10 @@ void PlanParser::init() {
       std::make_unique<ops::UpdateVertexOprBuilder>());
   register_update_operator_builder(
       std::make_unique<ops::UpdateEdgeOprBuilder>());
+
+  //////////////////////////////Admin Operators////////////////////////////////
+  register_admin_operator_builder(
+      std::make_unique<ops::CheckpointOprBuilder>());
 }
 
 PlanParser& PlanParser::get() {
@@ -177,6 +181,12 @@ void PlanParser::register_update_operator_builder(
     std::unique_ptr<IUpdateOperatorBuilder>&& builder) {
   auto op = builder->GetOpKind();
   update_op_builders_[op] = std::move(builder);
+}
+
+void PlanParser::register_admin_operator_builder(
+    std::unique_ptr<IAdminOperatorBuilder>&& builder) {
+  auto op = builder->GetOpKind();
+  admin_op_builders_[op] = std::move(builder);
 }
 
 #if 1
@@ -259,6 +269,18 @@ static std::string get_opr_name(
     return "unknown";
   }
 }
+
+static std::string get_opr_name(
+    physical::AdminPlan_Operator::KindCase op_kind) {
+  switch (op_kind) {
+  case physical::AdminPlan_Operator::KindCase::kCheckpoint: {
+    return "checkpoint";
+  }
+  default:
+    return "unknown";
+  }
+}
+
 #endif
 
 gs::result<std::pair<ReadPipeline, ContextMeta>>
@@ -430,6 +452,31 @@ gs::result<UpdatePipeline> PlanParser::parse_update_pipeline(
   return UpdatePipeline(std::move(operators));
 }
 
+gs::result<AdminPipeline> PlanParser::parse_admin_pipeline(
+    const gs::Schema& schema, const physical::AdminPlan& admin_plan) {
+  std::vector<std::unique_ptr<IAdminOperator>> operators;
+  for (int i = 0; i < admin_plan.plan_size(); ++i) {
+    auto op_kind = admin_plan.plan(i).kind_case();
+    if (admin_op_builders_.find(op_kind) == admin_op_builders_.end()) {
+      std::stringstream ss;
+      ss << "[Admin Pipeline Parse Failed] " << get_opr_name(op_kind)
+         << " failed to parse admin plan at index " << i;
+      RETURN_ERROR(gs::Status(gs::StatusCode::ERR_INTERNAL_ERROR, ss.str()));
+    }
+    auto op = admin_op_builders_.at(op_kind)->Build(schema, admin_plan, i);
+    if (!op) {
+      std::stringstream ss;
+      ss << "[Admin Pipeline Parse Failed] " << get_opr_name(op_kind)
+         << " failed to parse admin plan at index " << i;
+      auto err = gs::Status(gs::StatusCode::ERR_INTERNAL_ERROR, ss.str());
+      LOG(ERROR) << err.ToString();
+      RETURN_ERROR(err);
+    }
+    operators.emplace_back(std::move(op));
+  }
+  return AdminPipeline(std::move(operators));
+}
+
 gs::result<runtime::Context> ParseAndExecuteReadPipeline(
     const GraphReadInterface& graph, const physical::PhysicalPlan& plan,
     OprTimer* timer) {
@@ -466,6 +513,30 @@ gs::result<runtime::Context> ParseAndExecuteUpdatePipeline(
             .parse_update_pipeline(graph.schema(), plan)
             .and_then([&](UpdatePipeline&& up) {
               return up.Execute(graph, runtime::Context(), {}, timer);
+            });
+      },
+      [&](const auto& _status) { status = _status; },
+      [&](gs::result<runtime::Context>&& res) {
+        ctx = std::move(res.value());
+      });
+  if (!status.ok()) {
+    RETURN_ERROR(status);
+  }
+  return std::move(ctx);
+}
+
+gs::result<runtime::Context> ParseAndExecuteAdminPipeline(
+    GraphUpdateInterface& graph, const physical::AdminPlan& admin_plan,
+    OprTimer* timer) {
+  runtime::Context ctx;
+  gs::Status status = Status::OK();
+  TRY_HANDLE_ALL_WITH_EXCEPTION(
+      gs::result<runtime::Context>,
+      [&]() {
+        return runtime::PlanParser::get()
+            .parse_admin_pipeline(graph.schema(), admin_plan)
+            .and_then([&](AdminPipeline&& ap) {
+              return ap.Execute(graph, runtime::Context(), {}, timer);
             });
       },
       [&](const auto& _status) { status = _status; },

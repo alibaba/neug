@@ -16,6 +16,7 @@
 #pragma once
 
 #include <memory>
+#include "neug/compiler/gopt/g_admin_convertor.h"
 #include "neug/compiler/gopt/g_ddl_converter.h"
 #include "neug/compiler/gopt/g_physical_analyzer.h"
 #include "neug/compiler/gopt/g_query_converter.h"
@@ -60,6 +61,12 @@ class GPhysicalConvertor {
       physicalPlan->set_allocated_query_plan(queryPlan.release());
       return physicalPlan;
     }
+    case PhysicalMode::ADMIN: {
+      auto adminPlan = convertAdmin(plan);
+      auto physicalPlan = std::make_unique<::physical::PhysicalPlan>();
+      physicalPlan->set_allocated_admin_plan(adminPlan.release());
+      return physicalPlan;
+    }
     default:
       THROW_EXCEPTION_WITH_FILE_LINE("Unknown physical mode " +
                                      std::to_string(static_cast<int>(mode)));
@@ -77,6 +84,12 @@ class GPhysicalConvertor {
       const planner::LogicalPlan& plan, bool skipSink) {
     auto converter = std::make_unique<GQueryConvertor>(aliasManager, catalog);
     return converter->convert(plan, skipSink);
+  }
+
+  std::unique_ptr<::physical::AdminPlan> convertAdmin(
+      const planner::LogicalPlan& plan) {
+    auto converter = std::make_unique<GAdminConvertor>();
+    return converter->convert(plan);
   }
 
  private:

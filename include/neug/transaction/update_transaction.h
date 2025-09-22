@@ -187,6 +187,8 @@ class UpdateTransaction {
    */
   bool HasVertex(label_t label, const Any& oid) const;
 
+  void CreateCheckpoint();
+
  private:
   friend class NeugDBSession;
   bool batch_commit(UpdateBatch& batch);

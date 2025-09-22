@@ -900,6 +900,17 @@ bool UpdateTransaction::HasVertex(label_t label, const Any& oid) const {
   }
 }
 
+void UpdateTransaction::CreateCheckpoint() {
+  // Create a checkpoint for the current graph. Expect no changes are made to
+  // this transaction
+  if (op_num_ != 0) {
+    THROW_INTERNAL_EXCEPTION(
+        "Checkpoint should be created in a update "
+        "transaction without any updates");
+  }
+  graph_.Dump();
+}
+
 Any UpdateTransaction::lid_to_oid(label_t label, vid_t lid) const {
   if (graph_.lid_num(label) > lid) {
     return graph_.get_oid(label, lid, timestamp_);

@@ -51,6 +51,10 @@ Result<results::CollectiveResults> QueryProcessor::execute(
     return execute_ddl(plan.ddl_plan(), num_threads);
   }
 
+  if (plan.has_admin_plan()) {
+    return execute_admin(plan.admin_plan(), num_threads);
+  }
+
   if (!plan.has_query_plan()) {
     LOG(ERROR) << "No query plan found";
     return Result<results::CollectiveResults>(
@@ -85,6 +89,31 @@ Result<results::CollectiveResults> QueryProcessor::execute(
   return res;
 }
 
+Result<results::CollectiveResults> QueryProcessor::execute_admin(
+    const physical::AdminPlan& admin_plan, int32_t num_threads) {
+  // For admin plan, we always use update transaction.
+  auto txn = db_.GetUpdateTransaction();
+  runtime::GraphUpdateInterface gui(txn);
+
+  std::unique_ptr<runtime::OprTimer> timer = nullptr;
+  auto ctx =
+      runtime::ParseAndExecuteAdminPipeline(gui, admin_plan, timer.get());
+
+  if (!ctx) {
+    LOG(ERROR) << "Error: " << ctx.error().ToString();
+    txn.Abort();
+    return Result<results::CollectiveResults>(ctx.error());
+  }
+  if (!txn.Commit()) {
+    LOG(ERROR) << "Commit failed";
+    // If commit fails, we return an error.
+    return Result<results::CollectiveResults>(
+        Status(StatusCode::ERR_INTERNAL_ERROR, "Commit failed"));
+  }
+  return Result<results::CollectiveResults>(
+      Status::OK(), runtime::Sink::sink(ctx.value(), gui));
+}
+
 Result<results::CollectiveResults> QueryProcessor::execute_read_only(
     const physical::PhysicalPlan& plan, int32_t num_threads) {
   auto txn = db_.GetReadTransaction();
@@ -95,9 +124,16 @@ Result<results::CollectiveResults> QueryProcessor::execute_read_only(
 
   if (!ctx) {
     LOG(ERROR) << "Error: " << ctx.error().ToString();
+    txn.Abort();
     // We encode the error message to the output, so that the client can
     // get the error message.
     return Result<results::CollectiveResults>(ctx.error());
+  }
+  if (!txn.Commit()) {
+    LOG(ERROR) << "Commit failed";
+    // If commit fails, we return an error.
+    return Result<results::CollectiveResults>(
+        Status(StatusCode::ERR_INTERNAL_ERROR, "Commit failed"));
   }
   return Result<results::CollectiveResults>(
       Status::OK(), runtime::Sink::sink(ctx.value(), gri));

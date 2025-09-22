@@ -123,6 +123,7 @@ void GAliasManager::extractGAliasNames(
   case planner::LogicalOperatorType::EXPRESSIONS_SCAN:
   case planner::LogicalOperatorType::UNION_ALL:
   case planner::LogicalOperatorType::ALIAS_MAP:
+  case planner::LogicalOperatorType::TRANSACTION:
     // do nothing
     break;
   default: {

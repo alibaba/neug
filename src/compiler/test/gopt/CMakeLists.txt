@@ -15,7 +15,8 @@ add_compiler_test(
 	result_test.cpp
 	cyclic_test.cpp
 	lsqb_test.cpp
-	bi_test.cpp)
+	bi_test.cpp
+	admin_test.cpp)
 
 target_link_libraries(gopt_test
     PRIVATE

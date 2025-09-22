@@ -58,6 +58,9 @@ class PlanParser {
   void register_update_operator_builder(
       std::unique_ptr<IUpdateOperatorBuilder>&& builder);
 
+  void register_admin_operator_builder(
+      std::unique_ptr<IAdminOperatorBuilder>&& builder);
+
   gs::result<std::pair<ReadPipeline, ContextMeta>>
   parse_read_pipeline_with_meta(const gs::Schema& schema,
                                 const ContextMeta& ctx_meta,
@@ -73,6 +76,9 @@ class PlanParser {
   gs::result<UpdatePipeline> parse_update_pipeline(
       const gs::Schema& schema, const physical::PhysicalPlan& plan);
 
+  gs::result<AdminPipeline> parse_admin_pipeline(
+      const gs::Schema& schema, const physical::AdminPlan& admin_plan);
+
  private:
   std::vector<std::vector<
       std::pair<std::vector<physical::PhysicalOpr_Operator::OpKindCase>,
@@ -86,6 +92,10 @@ class PlanParser {
   std::map<physical::PhysicalOpr_Operator::OpKindCase,
            std::unique_ptr<IUpdateOperatorBuilder>>
       update_op_builders_;
+
+  std::map<physical::AdminPlan_Operator::KindCase,
+           std::unique_ptr<IAdminOperatorBuilder>>
+      admin_op_builders_;
 };
 
 gs::result<runtime::Context> ParseAndExecuteReadPipeline(
@@ -94,6 +104,10 @@ gs::result<runtime::Context> ParseAndExecuteReadPipeline(
 
 gs::result<runtime::Context> ParseAndExecuteUpdatePipeline(
     GraphUpdateInterface& graph, const physical::PhysicalPlan& plan,
+    OprTimer* timer);
+
+gs::result<runtime::Context> ParseAndExecuteAdminPipeline(
+    GraphUpdateInterface& graph, const physical::AdminPlan& admin_plan,
     OprTimer* timer);
 
 }  // namespace runtime

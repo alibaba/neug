@@ -83,7 +83,7 @@ class GResultSchema {
   static inline bool inferFromExpr(const planner::LogicalPlan& plan) {
     GPhysicalAnalyzer analyzer;
     auto mode = analyzer.analyze(plan);
-    if (mode == PhysicalMode::DDL) {
+    if (mode == PhysicalMode::DDL || mode == PhysicalMode::ADMIN) {
       return false;
     } else if (mode == PhysicalMode::READ_WRITE) {
       auto opType = plan.getLastOperator()->getOperatorType();

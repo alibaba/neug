@@ -17,18 +17,20 @@
 
 #include "neug/compiler/planner/operator/logical_operator.h"
 #include "neug/compiler/planner/operator/logical_plan.h"
+#include "neug/compiler/planner/operator/logical_transaction.h"
+#include "neug/utils/exception/exception.h"
 
 namespace gs {
 namespace gopt {
 
-enum class PhysicalMode { READ_ONLY, READ_WRITE, DDL };
+enum class PhysicalMode { UNRECOGNIZED, READ_ONLY, READ_WRITE, DDL, ADMIN };
 
 class GPhysicalAnalyzer {
  public:
-  GPhysicalAnalyzer() : mode(PhysicalMode::READ_ONLY) {}
+  GPhysicalAnalyzer() : mode(PhysicalMode::UNRECOGNIZED) {}
 
   PhysicalMode analyze(const planner::LogicalPlan& plan) {
-    mode = PhysicalMode::READ_ONLY;  // Default mode is READ_ONLY
+    mode = PhysicalMode::UNRECOGNIZED;  // Default mode is UNRECOGNIZED
     analyzeOperator(*plan.getLastOperator());
     return mode;
   }
@@ -40,30 +42,56 @@ class GPhysicalAnalyzer {
       analyzeOperator(*child);
     }
 
+    if (isAdminOperator(op)) {
+      if (mode != PhysicalMode::UNRECOGNIZED && mode != PhysicalMode::ADMIN) {
+        THROW_EXCEPTION_WITH_FILE_LINE(
+            "Cannot mix ADMIN with other operations in the same plan.");
+      }
+      mode = PhysicalMode::ADMIN;
+      return;
+    }
+
     // Check operator type
     switch (op.getOperatorType()) {
     case planner::LogicalOperatorType::CREATE_TABLE:
     case planner::LogicalOperatorType::ALTER:
-    case planner::LogicalOperatorType::DROP:
+    case planner::LogicalOperatorType::DROP: {
       if (mode == PhysicalMode::READ_WRITE) {
         THROW_EXCEPTION_WITH_FILE_LINE(
             "Cannot mix DDL and READ_WRITE operations in the same plan.");
       }
       mode = PhysicalMode::DDL;
       break;
+    }
     case planner::LogicalOperatorType::COPY_FROM:
     case planner::LogicalOperatorType::INSERT:
     case planner::LogicalOperatorType::SET_PROPERTY:
-    case planner::LogicalOperatorType::DELETE:
+    case planner::LogicalOperatorType::DELETE: {
       if (mode == PhysicalMode::DDL) {
         THROW_EXCEPTION_WITH_FILE_LINE(
             "Cannot mix READ_WRITE with DDL operations in the same plan.");
       }
       mode = PhysicalMode::READ_WRITE;
       break;
+    }
     default:
+      if (mode == PhysicalMode::UNRECOGNIZED) {
+        mode = PhysicalMode::READ_ONLY;
+      }
       // Keep existing mode (QUERY by default)
       break;
+    }
+  }
+
+  bool isAdminOperator(const planner::LogicalOperator& op) {
+    switch (op.getOperatorType()) {
+    case planner::LogicalOperatorType::TRANSACTION: {
+      auto transaction = op.constPtrCast<planner::LogicalTransaction>();
+      auto action = transaction->getTransactionAction();
+      return action == transaction::TransactionAction::CHECKPOINT;
+    }
+    default:
+      return false;
     }
   }
 

@@ -47,6 +47,9 @@ class QueryProcessor {
                                              int32_t num_threads = 0);
 
  private:
+  Result<results::CollectiveResults> execute_admin(
+      const physical::AdminPlan& admin_plan, int32_t num_threads);
+
   Result<results::CollectiveResults> execute_read_only(
       const physical::PhysicalPlan& plan, int32_t num_threads);
 

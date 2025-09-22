@@ -290,6 +290,9 @@ message ProcedureCall {
   procedure.Query query = 1; 
 }
 
+message Checkpoint {
+}
+
 message PhysicalOpr {
   message Operator {
     oneof op_kind {
@@ -354,12 +357,23 @@ message QueryPlan {
   repeated PhysicalOpr plan = 2;
 }
 
+message AdminPlan {
+  message Operator {
+    oneof kind {
+      Checkpoint checkpoint = 1;
+    }
+  }
+
+  repeated Operator plan = 1;
+}
+
 // A single Cypher query ending with a semicolon (;)
 message PhysicalPlan {
   int32 plan_id = 1;
   oneof plan {
     DDLPlan ddl_plan = 2;
     QueryPlan query_plan = 3;
+    AdminPlan admin_plan = 4;
   }
 }
 

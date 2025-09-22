@@ -54,6 +54,18 @@ class IReadOperator {
       OprTimer* timer) = 0;
 };
 
+class IAdminOperator {
+ public:
+  virtual ~IAdminOperator() = default;
+
+  virtual std::string get_operator_name() const = 0;
+
+  virtual gs::result<Context> Eval(
+      GraphUpdateInterface& graph,
+      const std::map<std::string, std::string>& params, Context&& ctx,
+      OprTimer* timer) = 0;
+};
+
 using ReadOpBuildResultT =
     std::pair<std::unique_ptr<IReadOperator>, ContextMeta>;
 
@@ -105,6 +117,18 @@ class IUpdateOperatorBuilder {
       const Schema& schema, const physical::PhysicalPlan& plan, int op_id) = 0;
   virtual physical::PhysicalOpr_Operator::OpKindCase GetOpKind() const = 0;
 };
+
+class IAdminOperatorBuilder {
+ public:
+  virtual ~IAdminOperatorBuilder() = default;
+  virtual int stepping(int i) { return i + 1; }
+
+  virtual std::unique_ptr<IAdminOperator> Build(const Schema& schema,
+                                                const physical::AdminPlan& plan,
+                                                int op_id) = 0;
+  virtual physical::AdminPlan_Operator::KindCase GetOpKind() const = 0;
+};
+
 }  // namespace runtime
 
 }  // namespace gs

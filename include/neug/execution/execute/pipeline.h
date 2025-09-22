@@ -32,6 +32,22 @@ class Context;
 class OprTimer;
 class WriteContext;
 
+class AdminPipeline {
+ public:
+  AdminPipeline() {}
+  AdminPipeline(AdminPipeline&& rhs) : operators_(std::move(rhs.operators_)) {}
+  AdminPipeline(std::vector<std::unique_ptr<IAdminOperator>>&& operators)
+      : operators_(std::move(operators)) {}
+  ~AdminPipeline() = default;
+
+  gs::result<Context> Execute(GraphUpdateInterface& graph, Context&& ctx,
+                              const std::map<std::string, std::string>& params,
+                              OprTimer* timer);
+
+ private:
+  std::vector<std::unique_ptr<IAdminOperator>> operators_;
+};
+
 class ReadPipeline {
  public:
   ReadPipeline() {}

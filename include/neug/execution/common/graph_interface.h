@@ -521,6 +521,8 @@ class GraphUpdateInterface {
     return txn_.GetInEdgeIterator(label, src, neighbor_label, edge_label);
   }
 
+  inline void CreateCheckpoint() { txn_.CreateCheckpoint(); }
+
   gs::UpdateTransaction& GetTransaction() { return txn_; }
 
  private:

@@ -1834,6 +1834,29 @@ def aggregate_dependent_key_2():
     assert records == [[5, 20, 3], [7, 20, 2]]
 
 
+def test_checkpoint():
+    db_dir = "/tmp/test_checkpoint"
+    shutil.rmtree(db_dir, ignore_errors=True)
+    db = Database(db_path=db_dir, mode="w")
+    conn = db.connect()
+    conn.execute("CREATE NODE TABLE Person(id INT32, name STRING, PRIMARY KEY(id))")
+    conn.execute("CREATE (p:Person {id: 1, name: 'Alice'});")
+    conn.execute("CREATE (p:Person {id: 2, name: 'Bob'});")
+    conn.execute("CREATE REL TABLE Knows(FROM Person TO Person)")
+    conn.execute(
+        "MATCH (p1:Person), (p2:Person)  WHERE p1.id = 1 AND p2.id = 2 CREATE (p1)-[:Knows]->(p2);"
+    )
+    conn.execute("CHECKPOINT;")
+    res = conn.execute("MATCH (p:Person) RETURN p.id, p.name;")
+    records = list(res)
+    assert records == [[1, "Alice"], [2, "Bob"]]
+    res = conn.execute("MATCH (p1:Person)-[k:Knows]->(p2:Person) RETURN p1.id, p2.id;")
+    records = list(res)
+    assert records == [[1, 2]]
+    conn.close()
+    db.close()
+
+
 # test START_NODE and END_NODE
 # todo(engine): Engine Abort
 # def test_start_end_node():
