@@ -1153,6 +1153,45 @@ def test_path_expand():
             record[0] == expected_result[i][0]
         ), f"Record {i} does not match expected result"
 
+    result = conn.execute(
+        """MATCH (p:person {name: 'marko'})-[k:knows*1..2 (r, _ | WHERE r.weight <= 1.0)]->(f:person) Return k;"""
+    )
+    assert result is not None
+    expected_result = [
+        [
+            [
+                {"_ID": 0, "_LABEL": "person"},
+                {
+                    "_ID": 1,
+                    "_LABEL": "knows",
+                    "_SRC_LABEL": "person",
+                    "_DST_LABEL": "person",
+                    "_SRC_ID": 0,
+                    "_DST_ID": 1,
+                },
+                {"_ID": 1, "_LABEL": "person"},
+            ]
+        ],
+        [
+            [
+                {"_ID": 0, "_LABEL": "person"},
+                {
+                    "_ID": 2,
+                    "_LABEL": "knows",
+                    "_SRC_LABEL": "person",
+                    "_DST_LABEL": "person",
+                    "_SRC_ID": 0,
+                    "_DST_ID": 2,
+                },
+                {"_ID": 2, "_LABEL": "person"},
+            ]
+        ],
+    ]
+    for i, record in enumerate(result):
+        assert (
+            record[0] == expected_result[i][0]
+        ), f"Record {i} does not match expected result"
+
 
 def test_query_cyclic():
     db_dir = "/tmp/modern_graph"

@@ -35,6 +35,7 @@
 #include "neug/execution/common/rt_any.h"
 #include "neug/execution/common/types.h"
 #include "neug/execution/utils/expr_impl.h"
+#include "neug/execution/utils/predicates.h"
 #include "neug/execution/utils/special_predicates.h"
 #include "neug/execution/utils/utils.h"
 #include "neug/execution/utils/var.h"
@@ -866,6 +867,36 @@ class PathExpandOpr : public IReadOperator {
   PathExpandParams pep_;
 };
 
+class PathExpandOprWithPred : public IReadOperator {
+ public:
+  PathExpandOprWithPred(PathExpandParams pep, const common::Expression& pred)
+      : pep_(pep), pred_(pred) {}
+
+  std::string get_operator_name() const override {
+    return "PathExpandOprWithPred";
+  }
+
+  gs::result<gs::runtime::Context> Eval(
+      const gs::runtime::GraphReadInterface& graph,
+      const std::map<std::string, std::string>& params,
+      gs::runtime::Context&& ctx, gs::runtime::OprTimer* timer) override {
+    GeneralEdgePredicate pred(graph, ctx, params, pred_);
+    Arena arena;
+    auto edge_pred = [&pred, &arena](const LabelTriplet& label, vid_t src,
+                                     vid_t dst, const Any& edata, Direction dir,
+                                     size_t path_idx) {
+      return pred(label, src, dst, edata, dir, path_idx, arena);
+    };
+
+    return PathExpand::edge_expand_p_with_pred(graph, std::move(ctx), pep_,
+                                               edge_pred);
+  }
+
+ private:
+  PathExpandParams pep_;
+  common::Expression pred_;
+};
+
 gs::result<ReadOpBuildResultT> PathExpandOprBuilder::Build(
     const gs::Schema& schema, const ContextMeta& ctx_meta,
     const physical::PhysicalPlan& plan, int op_idx) {
@@ -910,9 +941,9 @@ gs::result<ReadOpBuildResultT> PathExpandOprBuilder::Build(
   pep.labels =
       parse_label_triplets(plan.query_plan().plan(op_idx).meta_data(0));
   if (query_params.has_predicate()) {
-    LOG(ERROR) << "Currently only support non-optional path expand without "
-                  "predicate";
-    return std::make_pair(nullptr, ContextMeta());
+    return std::make_pair(
+        std::make_unique<PathExpandOprWithPred>(pep, query_params.predicate()),
+        ret_meta);
   }
   return std::make_pair(std::make_unique<PathExpandOpr>(pep), ret_meta);
 }
