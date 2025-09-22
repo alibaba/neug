@@ -72,10 +72,7 @@ static constexpr const timestamp_t INVALID_TIMESTAMP = 0xFFFFFFFF;
 
 enum class InputFormat : uint8_t {
   kCppEncoder = 0,
-  kCypherJson = 1,            // Json format for cypher query
-  kCypherProtoAdhoc = 2,      // Protobuf format for adhoc query
-  kCypherProtoProcedure = 3,  // Protobuf format for procedure query
-  kCypherString = 4,
+  kCypherString = 1,
 };
 
 // primitive types

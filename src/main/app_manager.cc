@@ -17,49 +17,18 @@
 
 namespace gs {
 
-void AppManager::initApps(
-    const std::unordered_map<std::string, std::pair<std::string, uint8_t>>&
-        plugins) {
-  VLOG(1) << "Initializing stored procedures, size: " << plugins.size()
-          << " ...";
+void AppManager::initApps() {  // Currently we only have builtin apps
   for (size_t i = 0; i < 256; ++i) {
     app_factories_[i] = nullptr;
   }
-  // Builtin apps
-  app_factories_[Schema::BUILTIN_COUNT_VERTICES_PLUGIN_ID] =
-      std::make_shared<CountVerticesFactory>();
-  app_factories_[Schema::BUILTIN_PAGERANK_PLUGIN_ID] =
-      std::make_shared<PageRankFactory>();
-  app_factories_[Schema::BUILTIN_K_DEGREE_NEIGHBORS_PLUGIN_ID] =
-      std::make_shared<KNeighborsFactory>();
-  app_factories_[Schema::BUILTIN_TVSP_PLUGIN_ID] =
-      std::make_shared<ShortestPathAmongThreeFactory>();
-
   app_factories_[Schema::ADHOC_READ_PLUGIN_ID] =
       std::make_shared<CypherReadAppFactory>();
   app_factories_[Schema::ADHOC_UPDATE_PLUGIN_ID] =
       std::make_shared<CypherUpdateAppFactory>();
   app_factories_[Schema::CYPHER_READ_DEBUG_PLUGIN_ID] =
       std::make_shared<CypherReadAppFactory>();
-
   app_factories_[Schema::CYPHER_READ_PLUGIN_ID] =
       std::make_shared<CypherReadAppFactory>();
-
-  size_t valid_plugins = 0;
-  for (auto& path_and_index : plugins) {
-    auto path = path_and_index.second.first;
-    auto name = path_and_index.first;
-    auto index = path_and_index.second.second;
-    if (!Schema::IsBuiltinPlugin(name)) {
-      if (registerApp(path, index)) {
-        ++valid_plugins;
-      }
-    } else {
-      valid_plugins++;
-    }
-  }
-  LOG(INFO) << "Successfully registered stored procedures : " << valid_plugins
-            << ", from " << plugins.size();
 }
 
 AppWrapper AppManager::CreateApp(uint8_t app_type, int thread_id) {

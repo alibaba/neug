@@ -92,11 +92,6 @@ NeugDB::~NeugDB() {
   }
 }
 
-bool NeugDB::Open(const Schema& schema, const NeugDBConfig& config) {
-  graph_.mutable_schema() = schema;
-  return Open(config);
-}
-
 bool NeugDB::Open(const std::string& data_dir, int32_t max_num_threads,
                   const DBMode mode, const std::string& planner_kind,
                   bool warmup, bool enable_auto_compaction, bool compact_csr,
@@ -292,7 +287,7 @@ void NeugDB::initAppManager() {
     THROW_INTERNAL_EXCEPTION("App manager has already been initialized");
   }
   app_manager_ = std::make_shared<AppManager>(*this);
-  app_manager_->initApps(graph_.schema().GetPlugins());
+  app_manager_->initApps();
 }
 
 size_t NeugDB::getExecutedQueryNum() const {
@@ -337,15 +332,6 @@ void NeugDB::openGraphAndSchema() {
     std::filesystem::create_directories(work_dir_);
   }
 
-  // The schema provided by NeugDBConfig could be empty, and if it is empty,
-  // we skip using it.
-  bool create_empty_graph = false;
-  std::string schema_file = schema_path(work_dir_);
-  auto schema = graph_.mutable_schema();
-  if (!std::filesystem::exists(schema_file) && !schema.Empty()) {
-    create_empty_graph = true;
-  }
-
   thread_num_ = config_.thread_num;
   try {
     graph_.Open(work_dir_, config_.memory_level);
@@ -353,29 +339,6 @@ void NeugDB::openGraphAndSchema() {
     LOG(ERROR) << "Exception: " << e.what();
     THROW_INTERNAL_EXCEPTION(e.what());
   }
-
-  if (!schema.Empty() && (!create_empty_graph) &&
-      (!graph_.schema().Equals(schema))) {
-    LOG(ERROR) << "Schema inconsistent..\n";
-    THROW_INTERNAL_EXCEPTION("Schema inconsistent");
-  }
-  // Set the plugin info from schema to graph_.schema(), since the plugin info
-  // is not serialized and deserialized.
-  auto& mutable_schema = graph_.mutable_schema();
-  mutable_schema.SetPluginDir(schema.GetPluginDir());
-  std::vector<std::pair<std::string, std::string>> plugin_name_paths;
-  const auto& plugins = schema.GetPlugins();
-  for (auto plugin_pair : plugins) {
-    plugin_name_paths.emplace_back(
-        std::make_pair(plugin_pair.first, plugin_pair.second.first));
-  }
-
-  std::sort(plugin_name_paths.begin(), plugin_name_paths.end(),
-            [&](const std::pair<std::string, std::string>& a,
-                const std::pair<std::string, std::string>& b) {
-              return plugins.at(a.first).second < plugins.at(b.first).second;
-            });
-  mutable_schema.EmplacePlugins(plugin_name_paths);
 }
 
 void NeugDB::ingestWals() {

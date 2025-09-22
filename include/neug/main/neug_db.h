@@ -114,15 +114,6 @@ class NeugDB {
   bool Open(const NeugDBConfig& config);
 
   /**
-   * @brief Load the graph from data directory with a given schema.
-   * @param schema The schema of the graph. Could be empty if the graph
-   * already exists in data_dir.
-   * @param config The configuration for opening the graph db.
-   * @return true if successed.
-   */
-  bool Open(const Schema& schema, const NeugDBConfig& config);
-
-  /**
    * @brief Close the current opened graph.
    */
   void Close();

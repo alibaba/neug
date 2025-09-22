@@ -22,10 +22,6 @@
 #include <unordered_map>
 
 #include "neug/main/app/app_base.h"
-#include "neug/main/app/builtin/count_vertices.h"
-#include "neug/main/app/builtin/k_hop_neighbors.h"
-#include "neug/main/app/builtin/pagerank.h"
-#include "neug/main/app/builtin/shortest_path_among_three.h"
 #include "neug/main/app/cypher_read_app.h"
 #include "neug/main/app/cypher_update_app.h"
 #include "neug/storages/graph/schema.h"
@@ -46,9 +42,7 @@ class AppManager {
 
   AppWrapper CreateApp(uint8_t app_type, int thread_id);
 
-  void initApps(
-      const std::unordered_map<std::string, std::pair<std::string, uint8_t>>&
-          plugins);
+  void initApps();
 
   bool registerApp(const std::string& plugin_path, uint8_t index);
 

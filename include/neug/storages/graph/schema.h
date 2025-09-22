@@ -62,33 +62,10 @@ class Schema {
   static constexpr const char* VARCHAR_KEY = "varchar";
   static constexpr const char* MAX_LENGTH_KEY = "max_length";
 
-  // The builtin plugins are reserved for the system.
-  static constexpr uint8_t BUILTIN_PLUGIN_NUM = 4;
-
-  static constexpr uint8_t BUILTIN_COUNT_VERTICES_PLUGIN_ID = 252;
-  static constexpr const char* BUILTIN_COUNT_VERTICES_PLUGIN_NAME =
-      "count_vertices";
-  static constexpr uint8_t BUILTIN_PAGERANK_PLUGIN_ID = 251;
-  static constexpr const char* BUILTIN_PAGERANK_PLUGIN_NAME = "pagerank";
-  static constexpr uint8_t BUILTIN_K_DEGREE_NEIGHBORS_PLUGIN_ID = 250;
-  static constexpr const char* BUILTIN_K_DEGREE_NEIGHBORS_PLUGIN_NAME =
-      "k_neighbors";
-  static constexpr uint8_t BUILTIN_TVSP_PLUGIN_ID = 249;
-  static constexpr const char* BUILTIN_TVSP_PLUGIN_NAME =
-      "shortest_path_among_three";
-  static constexpr const char* BUILTIN_PLUGIN_NAMES[BUILTIN_PLUGIN_NUM] = {
-      BUILTIN_COUNT_VERTICES_PLUGIN_NAME, BUILTIN_PAGERANK_PLUGIN_NAME,
-      BUILTIN_K_DEGREE_NEIGHBORS_PLUGIN_NAME, BUILTIN_TVSP_PLUGIN_NAME};
-  static constexpr uint8_t BUILTIN_PLUGIN_IDS[BUILTIN_PLUGIN_NUM] = {
-      BUILTIN_COUNT_VERTICES_PLUGIN_ID, BUILTIN_PAGERANK_PLUGIN_ID,
-      BUILTIN_K_DEGREE_NEIGHBORS_PLUGIN_ID, BUILTIN_TVSP_PLUGIN_ID};
-
   // An array containing all compatible versions of schema.
   static const std::vector<std::string> COMPATIBLE_VERSIONS;
   static constexpr const char* DEFAULT_SCHEMA_VERSION = "v0.0";
   static constexpr const size_t MAX_VNUM = static_cast<size_t>(1) << 32;
-
-  static bool IsBuiltinPlugin(const std::string& plugin_name);
 
   using label_type = label_t;
   Schema();
@@ -283,19 +260,6 @@ class Schema {
 
   Result<YAML::Node> to_yaml() const;
 
-  // Return the map from plugin name to plugin id
-  const std::unordered_map<std::string, std::pair<std::string, uint8_t>>&
-  GetPlugins() const;
-
-  bool EmplacePlugins(
-      const std::vector<std::pair<std::string, std::string>>& plugins);
-
-  void SetPluginDir(const std::string& plugin_dir);
-
-  void RemovePlugin(const std::string& plugin_name);
-
-  std::string GetPluginDir() const;
-
   inline void SetGraphName(const std::string& name) { name_ = name; }
 
   inline void SetGraphId(const std::string& id) { id_ = id; }
@@ -396,10 +360,6 @@ class Schema {
   std::vector<std::unordered_map<std::string, std::pair<PropertyType, uint8_t>>>
       vprop_name_to_type_and_index_;
   std::vector<size_t> max_vnum_;
-  std::unordered_map<std::string, std::pair<std::string, uint8_t>>
-      plugin_name_to_path_and_id_;  // key is plugin_name, value is
-                                    // plugin_path and plugin_id
-  std::string plugin_dir_;
   std::string description_;
   std::string version_;
   std::string remote_path_;  // The path to the data on the remote storage

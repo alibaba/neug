@@ -163,15 +163,6 @@ double NeugDBSession::eval_duration() const {
 
 int64_t NeugDBSession::query_num() const { return query_num_.load(); }
 
-AppBase* NeugDBSession::GetApp(const std::string& app_name) {
-  auto& app_name_to_path_index = graph_.schema().GetPlugins();
-  if (app_name_to_path_index.count(app_name) <= 0) {
-    LOG(ERROR) << "Query name is not registered: " << app_name;
-    return nullptr;
-  }
-  return GetApp(app_name_to_path_index.at(app_name).second);
-}
-
 #define likely(x) __builtin_expect(!!(x), 1)
 
 AppBase* NeugDBSession::GetApp(int type) {
@@ -199,70 +190,6 @@ AppBase* NeugDBSession::GetApp(int type) {
 }
 
 #undef likely  // likely
-
-Result<std::pair<uint8_t, std::string_view>>
-NeugDBSession::parse_query_type_from_cypher_json(
-    const std::string_view& str_view) {
-  VLOG(10) << "string view: " << str_view;
-  rapidjson::Document j;
-  if (j.Parse(std::string(str_view.data(), str_view.size() - 1))
-          .HasParseError()) {
-    LOG(ERROR) << "Fail to parse json from input content";
-    return Result<std::pair<uint8_t, std::string_view>>(
-        gs::Status(StatusCode::ERR_INTERNAL_ERROR,
-                   "Fail to parse json from input content"));
-  }
-  std::string query_name = j["query_name"].GetString();
-  const auto& app_name_to_path_index = schema().GetPlugins();
-  if (app_name_to_path_index.count(query_name) <= 0) {
-    LOG(ERROR) << "Query name is not registered: " << query_name;
-    return Result<std::pair<uint8_t, std::string_view>>(
-        gs::Status(StatusCode::ERR_NOT_FOUND,
-                   "Query name is not registered: " + query_name));
-  }
-  if (j.HasMember("arguments")) {
-    for (auto& arg : j["arguments"].GetArray()) {
-      VLOG(10) << "arg: " << jsonToString(arg);
-    }
-  }
-  VLOG(10) << "Query name: " << query_name;
-  return std::make_pair(app_name_to_path_index.at(query_name).second, str_view);
-}
-
-Result<std::pair<uint8_t, std::string_view>>
-NeugDBSession::parse_query_type_from_cypher_internal(
-    const std::string_view& str_view) {
-  procedure::Query cur_query;
-  if (!cur_query.ParseFromArray(str_view.data(), str_view.size() - 1)) {
-    LOG(ERROR) << "Fail to parse query from input content";
-    return Result<std::pair<uint8_t, std::string_view>>(
-        gs::Status(StatusCode::ERR_INTERNAL_ERROR,
-                   "Fail to parse query from input content"));
-  }
-  auto query_name = cur_query.query_name().name();
-  if (query_name.empty()) {
-    LOG(ERROR) << "Query name is empty";
-    return Result<std::pair<uint8_t, std::string_view>>(
-        gs::Status(StatusCode::ERR_NOT_FOUND, "Query name is empty"));
-  }
-  const auto& app_name_to_path_index = schema().GetPlugins();
-
-  // First check whether the query name is builtin query
-  for (int i = 0; i < Schema::BUILTIN_PLUGIN_NUM; ++i) {
-    std::string builtin_query_name = Schema::BUILTIN_PLUGIN_NAMES[i];
-    if (query_name == builtin_query_name) {
-      return std::make_pair(Schema::BUILTIN_PLUGIN_IDS[i], str_view);
-    }
-  }
-
-  if (app_name_to_path_index.count(query_name) <= 0) {
-    LOG(ERROR) << "Query name is not registered: " << query_name;
-    return Result<std::pair<uint8_t, std::string_view>>(
-        gs::Status(StatusCode::ERR_NOT_FOUND,
-                   "Query name is not registered: " + query_name));
-  }
-  return std::make_pair(app_name_to_path_index.at(query_name).second, str_view);
-}
 
 const AppMetric& NeugDBSession::GetAppMetric(int idx) const {
   return app_metrics_[idx];

@@ -41,15 +41,6 @@
 
 namespace gs {
 
-bool Schema::IsBuiltinPlugin(const std::string& plugin_name) {
-  for (uint8_t i = 0; i < BUILTIN_PLUGIN_NUM; i++) {
-    if (plugin_name == BUILTIN_PLUGIN_NAMES[i]) {
-      return true;
-    }
-  }
-  return false;
-}
-
 Schema::Schema() : has_multi_props_edge_(false) {}
 Schema::~Schema() = default;
 
@@ -68,8 +59,6 @@ void Schema::Clear() {
   oe_mutability_.clear();
   sort_on_compactions_.clear();
   max_vnum_.clear();
-  plugin_name_to_path_and_id_.clear();
-  plugin_dir_.clear();
   has_multi_props_edge_ = false;
   vlabel_tomb_.clear();
   elabel_tomb_.clear();
@@ -500,7 +489,6 @@ const std::string& Schema::get_vertex_primary_key_name(label_t index) const {
   return std::get<1>(v_primary_keys_[index][0]);
 }
 
-// Note that plugin_dir_ and plugin_name_to_path_and_id_ are not serialized.
 void Schema::Serialize(std::unique_ptr<grape::LocalIOAdaptor>& writer) const {
   vlabel_indexer_.Serialize(writer);
   elabel_indexer_.Serialize(writer);
@@ -516,7 +504,6 @@ void Schema::Serialize(std::unique_ptr<grape::LocalIOAdaptor>& writer) const {
   elabel_triplet_tomb_.Serialize(writer);
 }
 
-// Note that plugin_dir_ and plugin_name_to_path_and_id_ are not deserialized.
 void Schema::Deserialize(std::unique_ptr<grape::LocalIOAdaptor>& reader) {
   vlabel_indexer_.Deserialize(reader);
   elabel_indexer_.Deserialize(reader);
@@ -1200,107 +1187,6 @@ static Status parse_edges_schema(YAML::Node node, Schema& schema) {
   return Status::OK();
 }
 
-static Status parse_stored_procedures_v00(
-    const YAML::Node& stored_procedure_node, const std::string& parent_dir,
-    Schema& schema) {
-  std::string directory = "plugins";  // default plugin directory
-  if (stored_procedure_node["directory"]) {
-    directory = stored_procedure_node["directory"].as<std::string>();
-  }
-  // check is directory
-  LOG(INFO) << "Parse directory: " << directory;
-  if (!std::filesystem::exists(directory)) {
-    LOG(ERROR) << "plugin directory - " << directory
-               << " not found, try with parent dir:" << parent_dir;
-    directory = parent_dir + "/" + directory;
-    if (!std::filesystem::exists(directory)) {
-      LOG(ERROR) << "plugin directory - " << directory << " not found...";
-    }
-  }
-  schema.SetPluginDir(directory);
-  std::vector<std::pair<std::string, std::string>> plugin_name_or_paths;
-  {
-    std::vector<std::string> plugin_names;
-    if (!get_sequence(stored_procedure_node, "enable_lists", plugin_names)) {
-      LOG(ERROR) << "stored_procedures is not set properly";
-    }
-    size_t plugin_cnt = 0;
-    for (auto& plugin_name_or_path : plugin_names) {
-      // The plugins names specified in enable_lists can be either the name of
-      // the plugin or the path to the plugin.
-      auto real_path = directory + "/" + plugin_name_or_path;
-      if (std::filesystem::exists(real_path)) {
-        plugin_name_or_paths.emplace_back(
-            std::string("plugin_") + std::to_string(plugin_cnt++), real_path);
-      } else if (std::filesystem::exists(plugin_name_or_path)) {
-        plugin_name_or_paths.emplace_back(
-            std::string("plugin_") + std::to_string(plugin_cnt++),
-            plugin_name_or_path);
-      } else {
-        LOG(WARNING) << "plugin " << plugin_name_or_path << " not found";
-      }
-    }
-  }
-
-  // plugin_name_or_path contains the plugin name or path.
-  // for path, we just use it as the plugin name, and emplace into the map,
-  // for name, we try to find the plugin in the directory
-  if (!schema.EmplacePlugins(plugin_name_or_paths)) {
-    LOG(ERROR) << "Fail to emplace all plugins";
-    return Status(StatusCode::ERR_INVALID_SCHEMA,
-                  "Fail to emplace all plugins");
-  }
-  return Status::OK();
-}
-
-static Status parse_stored_procedures_v01(
-    const YAML::Node& stored_procedure_node, Schema& schema) {
-  if (!stored_procedure_node.IsSequence()) {
-    LOG(ERROR) << "stored_procedures is not set properly";
-    return Status(StatusCode::ERR_INVALID_SCHEMA,
-                  "stored_procedures is not set properly");
-  }
-  std::vector<std::pair<std::string, std::string>> plugin_name_and_path;
-  for (auto& cur_node : stored_procedure_node) {
-    if (cur_node["name"] && cur_node["library"]) {
-      VLOG(10) << "Parse stored procedure: "
-               << cur_node["name"].as<std::string>()
-               << " with library: " << cur_node["library"].as<std::string>();
-      plugin_name_and_path.push_back(
-          std::make_pair(cur_node["name"].as<std::string>(),
-                         cur_node["library"].as<std::string>()));
-    } else {
-      LOG(WARNING) << "Library or name set properly for stored procedure";
-      return Status(StatusCode::ERR_INVALID_SCHEMA,
-                    "Library or name set properly for stored procedure");
-    }
-  }
-  // emplace all the plugins
-  if (!schema.EmplacePlugins(plugin_name_and_path)) {
-    LOG(ERROR) << "Fail to emplace all plugins";
-    return Status(StatusCode::ERR_INVALID_SCHEMA,
-                  "Fail to emplace all plugins");
-  }
-  return Status::OK();
-}
-
-static Status parse_stored_procedures(const YAML::Node& stored_procedure_node,
-                                      const std::string& parent_dir,
-                                      Schema& schema) {
-  auto version = schema.GetVersion();
-  if (version == "v0.0") {
-    return parse_stored_procedures_v00(stored_procedure_node, parent_dir,
-                                       schema);
-  } else if (version == "v0.1") {
-    return parse_stored_procedures_v01(stored_procedure_node, schema);
-  } else {
-    LOG(ERROR) << "Unrecognized version: " << version;
-    return Status(
-        StatusCode::ERR_INVALID_SCHEMA,
-        "Unsupported version when parsing stored procedures: " + version);
-  }
-}
-
 static Status parse_schema_from_yaml_node(const YAML::Node& graph_node,
                                           Schema& schema,
                                           const std::string& parent_dir = "") {
@@ -1362,12 +1248,6 @@ static Status parse_schema_from_yaml_node(const YAML::Node& graph_node,
 
   if (schema_node["edge_types"]) {
     RETURN_IF_NOT_OK(parse_edges_schema(schema_node["edge_types"], schema));
-  }
-  LOG(INFO) << "Parse stored_procedures";
-
-  if (graph_node["stored_procedures"]) {
-    RETURN_IF_NOT_OK(parse_stored_procedures(graph_node["stored_procedures"],
-                                             parent_dir, schema));
   }
   return Status::OK();
 }
@@ -1465,138 +1345,7 @@ bool dump_edges_schema(const Schema& schema, YAML::Node& node) {
   return true;
 }
 
-bool dump_stored_procedures(const Schema& schema, YAML::Node& node) {
-  VLOG(10) << "Not implemented yet";
-  return true;
-}
 }  // namespace config_parsing
-
-const std::unordered_map<std::string, std::pair<std::string, uint8_t>>&
-Schema::GetPlugins() const {
-  return plugin_name_to_path_and_id_;
-}
-
-// For the input procedures, try to load each of them.
-// Only keep the procedures that are successfully loaded.
-bool Schema::EmplacePlugins(
-    const std::vector<std::pair<std::string, std::string>>&
-        plugin_name_and_paths) {
-  std::vector<std::string> all_procedure_yamls;
-  if (!plugin_dir_.empty()) {
-    all_procedure_yamls = get_yaml_files(plugin_dir_);
-  }
-
-  std::vector<std::string> all_procedure_names;
-
-  uint8_t cur_plugin_id = RESERVED_PLUGIN_NUM;
-  std::unordered_set<std::string> plugin_names;
-  for (auto& name_path : plugin_name_and_paths) {
-    if (cur_plugin_id > MAX_PLUGIN_ID) {
-      LOG(ERROR) << "Too many plugins, max plugin id is " << MAX_PLUGIN_ID;
-      return false;
-    }
-    if (Schema::IsBuiltinPlugin(name_path.first)) {
-      LOG(WARNING) << "Plugin name " << name_path.first
-                   << " is a built-in plugin, skipped";
-      continue;
-    }
-    if (name_path.second.empty()) {
-      // if the path is empty, try to find from plugin_dir.
-      plugin_names.insert(name_path.first);
-      continue;
-    }
-    if (std::filesystem::exists(name_path.second)) {
-      plugin_name_to_path_and_id_.emplace(
-          name_path.first, std::make_pair(name_path.second, cur_plugin_id++));
-    } else {
-      auto real_file = plugin_dir_ + "/" + name_path.second;
-      if (!std::filesystem::exists(real_file)) {
-        LOG(ERROR) << "plugin - " << real_file
-                   << " file not found, try to "
-                      "find the plugin in the directory...";
-        // it seems that f is not the filename, but the plugin name, try to
-        // find the plugin in the directory
-        LOG(ERROR) << "plugin - " << name_path.first << " not found...";
-      } else {
-        plugin_name_to_path_and_id_.emplace(
-            name_path.first, std::make_pair(real_file, cur_plugin_id++));
-      }
-    }
-  }
-  // if there exists any plugins specified by name, add them
-  // Iterator over the map, and add the plugin path and name to the vector
-  for (auto cur_yaml : all_procedure_yamls) {
-    if (cur_plugin_id > MAX_PLUGIN_ID) {
-      LOG(ERROR) << "Too many plugins, max plugin id is " << MAX_PLUGIN_ID;
-      return false;
-    }
-    YAML::Node root;
-    try {
-      root = YAML::LoadFile(cur_yaml);
-    } catch (std::exception& e) {
-      LOG(ERROR) << "Exception when loading from yaml: " << cur_yaml << ":"
-                 << e.what();
-      continue;
-    }
-    if (root["name"] && root["library"]) {
-      std::string name = root["name"].as<std::string>();
-      if (Schema::IsBuiltinPlugin(name)) {
-        LOG(WARNING) << "Plugin name " << name
-                     << " is a built-in plugin, skipped";
-        continue;
-      }
-      std::string path = root["library"].as<std::string>();
-      if (plugin_names.find(name) != plugin_names.end()) {
-        if (plugin_name_to_path_and_id_.find(name) !=
-            plugin_name_to_path_and_id_.end()) {
-          LOG(ERROR) << "Plugin " << name << " already exists, skip";
-        } else if (!std::filesystem::exists(path)) {
-          path = plugin_dir_ + "/" + path;
-          if (!std::filesystem::exists(path)) {
-            LOG(ERROR) << "plugin - " << name << "not found from " << path;
-          } else {
-            plugin_name_to_path_and_id_.emplace(
-                name, std::make_pair(path, cur_plugin_id++));
-          }
-        } else {
-          plugin_name_to_path_and_id_.emplace(
-              name, std::make_pair(path, cur_plugin_id++));
-        }
-      } else {
-        VLOG(10)
-            << "Skip load plugin " << name << ", found in " << cur_yaml
-            << ", but not specified in the enable_lists in graph schema yaml";
-      }
-    } else {
-      LOG(ERROR) << "Invalid yaml file: " << cur_yaml
-                 << ", name or library not found.";
-    }
-  }
-  // Emplace the built-in plugins
-  plugin_name_to_path_and_id_.emplace(
-      Schema::BUILTIN_COUNT_VERTICES_PLUGIN_NAME,
-      std::make_pair("", Schema::BUILTIN_COUNT_VERTICES_PLUGIN_ID));
-  plugin_name_to_path_and_id_.emplace(
-      Schema::BUILTIN_PAGERANK_PLUGIN_NAME,
-      std::make_pair("", Schema::BUILTIN_PAGERANK_PLUGIN_ID));
-  plugin_name_to_path_and_id_.emplace(
-      Schema::BUILTIN_K_DEGREE_NEIGHBORS_PLUGIN_NAME,
-      std::make_pair("", Schema::BUILTIN_K_DEGREE_NEIGHBORS_PLUGIN_ID));
-  plugin_name_to_path_and_id_.emplace(
-      Schema::BUILTIN_TVSP_PLUGIN_NAME,
-      std::make_pair("", Schema::BUILTIN_TVSP_PLUGIN_ID));
-
-  LOG(INFO) << "Load " << plugin_name_to_path_and_id_.size() << " plugins";
-  return true;
-}
-
-void Schema::SetPluginDir(const std::string& dir) { plugin_dir_ = dir; }
-
-void Schema::RemovePlugin(const std::string& name) {
-  plugin_name_to_path_and_id_.erase(name);
-}
-
-std::string Schema::GetPluginDir() const { return plugin_dir_; }
 
 std::string Schema::GetDescription() const { return description_; }
 
@@ -1722,10 +1471,6 @@ Result<YAML::Node> Schema::DumpToYaml(const Schema& schema) {
   YAML::Node edge_types(YAML::NodeType::Sequence);
   config_parsing::dump_edges_schema(schema, edge_types);
   graph_node["schema"]["edge_types"] = edge_types;
-
-  YAML::Node stored_procedures(YAML::NodeType::Sequence);
-  config_parsing::dump_stored_procedures(schema, stored_procedures);
-  graph_node["stored_procedures"] = stored_procedures;
 
   return graph_node;
 }

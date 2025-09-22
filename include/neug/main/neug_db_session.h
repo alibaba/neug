@@ -116,32 +116,11 @@ class NeugDBSession {
   }
 
  private:
-  Result<std::pair<uint8_t, std::string_view>>
-  parse_query_type_from_cypher_json(const std::string_view& input);
-  Result<std::pair<uint8_t, std::string_view>>
-  parse_query_type_from_cypher_internal(const std::string_view& input);
   /**
    * @brief Parse the input format of the query.
    *        There are four formats:
    *       0. CppEncoder: This format will be used by interactive-sdk to submit
    * c++ stored prcoedure queries. The second last byte is the query id.
-   *       1. CypherJson: This format will be sended by interactive-sdk, the
-   *        input is a json string + '\x01'
-   *         {
-   *            "query_name": "example",
-   *            "arguments": {
-   *               "value": 1,
-   *               "type": {
-   *                "primitive_type": "DT_SIGNED_INT32"
-   *                }
-   *            }
-   *          }
-   *       2. CypherInternalAdhoc: This format will be used by compiler to
-   *        submit adhoc query, the input is a string + '\x02', the string is
-   *        the path to the dynamic library.
-   *       3. CypherInternalProcedure: This format will be used by compiler to
-   *        submit procedure query, the input is a proto-encoded string +
-   *        '\x03', the string is the path to the dynamic library.
    * @param input The input query.
    * @return The id of the query and a string_view which contains the real input
    * of the query, discard the input format and query type.
@@ -158,28 +137,6 @@ class NeugDBSession {
       // user-defined payload,
       return std::make_pair((uint8_t) input[len - 2],
                             std::string_view(str_data, len - 2));
-    } else if (input_tag ==
-               static_cast<uint8_t>(gs::InputFormat::kCypherProtoAdhoc)) {
-      // For cypher internal adhoc, the query id is the
-      // second last byte,which is fixed to 255, and other bytes are a string
-      // representing the path to generated dynamic lib.
-      return std::make_pair((uint8_t) input[len - 2],
-                            std::string_view(str_data, len - 1));
-    } else if (input_tag ==
-               static_cast<uint8_t>(gs::InputFormat::kCypherJson)) {
-      // For cypherJson there is no query-id provided. The query name is
-      // provided in the json string.
-      // We don't discard the last byte, since we need it to determine the input
-      // format when deserializing the input arguments in deserialize() function
-      std::string_view str_view(input.data(), len);
-      return parse_query_type_from_cypher_json(str_view);
-    } else if (input_tag ==
-               static_cast<uint8_t>(gs::InputFormat::kCypherProtoProcedure)) {
-      // For cypher internal procedure, the query_name is
-      // provided in the protobuf message.
-      // Same as cypherJson, we don't discard the last byte.
-      std::string_view str_view(input.data(), len);
-      return parse_query_type_from_cypher_internal(str_view);
     } else if (input_tag ==
                static_cast<uint8_t>(gs::InputFormat::kCypherString)) {
       return std::make_pair((uint8_t) input[len - 2],

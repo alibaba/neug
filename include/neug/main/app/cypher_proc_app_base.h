@@ -120,100 +120,17 @@ inline bool parse_input_argument_from_proto(std::tuple<ARGS...>& tuple,
 
 class NeugDBSession;
 
-template <size_t I, typename TUPLE_T>
-bool deserialize_impl(TUPLE_T& tuple, const rapidjson::Value& json) {
-  return true;
-}
-
-template <size_t I, typename TUPLE_T, typename T, typename... ARGS>
-bool deserialize_impl(TUPLE_T& tuple, const rapidjson::Value& json) {
-  if (I == json.Size()) {
-    LOG(ERROR) << "Arguments size mismatch: " << I << " vs " << json.Size()
-               << ", reach end of json: " << rapidjson_stringify(json);
-    return false;
-  }
-  auto& type_json = json[I]["type"];
-  PropertyType type;
-  from_json(type_json, type);
-  if (type == PropertyType::Empty()) {
-    LOG(ERROR) << "Fail to parse type from input content";
-    return false;
-  }
-
-  auto expected_type = AnyConverter<T>::type();
-  if (type != expected_type) {
-    LOG(ERROR) << "Type mismatch: " << type << " vs " << expected_type;
-    return false;
-  }
-
-  if (json[I].HasMember("value")) {
-    if constexpr (std::is_same<T, gs::Date>::value) {
-      std::get<I>(tuple).d = json[I]["value"].GetUint();
-    } else {
-      std::get<I>(tuple) = json[I]["value"].Get<T>();
-    }
-  } else {
-    LOG(ERROR) << "No value found in input";
-    return false;
-  }
-  return deserialize_impl<I + 1, TUPLE_T, ARGS...>(tuple, json);
-}
-
-template <typename... ARGS>
-bool parse_input_argument_from_json(std::tuple<ARGS...>& tuple,
-                                    std::string_view sv) {
-  rapidjson::Document j;
-  VLOG(10) << "parsing string: " << sv << ",size" << sv.size();
-  if (sv.empty()) {
-    LOG(INFO) << "No arguments found in input";
-    return sizeof...(ARGS) == 0;
-  }
-  if (j.Parse(std::string(sv)).HasParseError()) {
-    LOG(ERROR) << "Fail to parse json from input content";
-    return false;
-  }
-  if (!j.HasMember("arguments")) {
-    LOG(INFO) << "No arguments found in input";
-    return sizeof...(ARGS) == 0;
-  }
-  auto& arguments_list = j["arguments"];
-  if (arguments_list.IsArray()) {
-    if (arguments_list.Size() != sizeof...(ARGS)) {
-      LOG(ERROR) << "Arguments size mismatch: " << arguments_list.Size()
-                 << " vs " << sizeof...(ARGS);
-      return false;
-    }
-    if (arguments_list.Size() == 0) {
-      VLOG(10) << "No arguments found in input";
-      return true;
-    }
-    return deserialize_impl<0, std::tuple<ARGS...>, ARGS...>(tuple,
-                                                             arguments_list);
-  } else {
-    LOG(ERROR) << "Arguments should be an array";
-    return false;
-  }
-}
-
 template <typename... ARGS>
 bool deserialize(std::tuple<ARGS...>& tuple, std::string_view sv) {
-  // Deserialize input argument from the payload. The last byte is the input
-  // format, could only be kCypherJson or kCypherProtoProcedure.
   if (sv.empty()) {
     return sizeof...(ARGS) == 0;
   }
   auto input_format = static_cast<uint8_t>(sv.back());
   std::string_view payload(sv.data(), sv.size() - 1);
-  if (input_format == static_cast<uint8_t>(gs::InputFormat::kCypherJson)) {
-    return parse_input_argument_from_json(tuple, payload);
-  } else if (input_format ==
-             static_cast<uint8_t>(gs::InputFormat::kCypherProtoProcedure)) {
-    return parse_input_argument_from_proto(tuple, payload);
-  } else {
-    LOG(ERROR) << "Invalid input format: " << input_format;
-    return false;
-  }
+
+  return parse_input_argument_from_proto(tuple, payload);
 }
+
 // for cypher procedure
 template <typename... ARGS>
 class CypherReadProcAppBase : public ReadAppBase {
