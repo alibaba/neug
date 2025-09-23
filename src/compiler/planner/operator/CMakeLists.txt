@@ -31,6 +31,7 @@ add_library(neug_planner_operator
         logical_unwind.cpp
         schema.cpp
 	logical_get_v.cpp)
+add_dependencies(neug_planner_operator neug_plan_proto)
 
 set(ALL_OBJECT_FILES
         ${ALL_OBJECT_FILES} $<TARGET_OBJECTS:neug_planner_operator>

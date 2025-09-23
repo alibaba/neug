@@ -25,6 +25,7 @@ add_library(
         bind_use_database.cpp
         bind_standalone_call_function.cpp
         bind_table_function.cpp)
+add_dependencies(neug_binder_bind neug_plan_proto)
 
 set(ALL_OBJECT_FILES
         ${ALL_OBJECT_FILES} $<TARGET_OBJECTS:neug_binder_bind>

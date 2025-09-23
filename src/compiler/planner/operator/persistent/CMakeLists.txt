@@ -7,6 +7,7 @@ add_library(neug_planner_persistent
         logical_merge.cpp
         logical_set.cpp
 )
+add_dependencies(neug_planner_persistent neug_plan_proto)
 
 set(ALL_OBJECT_FILES
         ${ALL_OBJECT_FILES} $<TARGET_OBJECTS:neug_planner_persistent>

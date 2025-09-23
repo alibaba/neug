@@ -44,6 +44,18 @@ class Value;
 
 namespace gs {
 
+// Helper function to set up JsonPrintOptions with compatibility across protobuf
+// versions
+inline void configure_json_print_options_for_all_fields(
+    google::protobuf::util::JsonPrintOptions& options) {
+#if PROTOBUF_VERSION < \
+    4026000  // Before v26.0 where always_print_primitive_fields was removed
+  options.always_print_primitive_fields = true;
+#else
+  options.always_print_fields_with_no_presence = true;  // Replacement field
+#endif
+}
+
 std::string proto_to_bolt_response(const results::CollectiveResults& result);
 
 template <typename T>
@@ -51,7 +63,7 @@ std::string proto_to_string(const T& proto) {
   std::string json_str;
   google::protobuf::util::JsonPrintOptions options;
   options.add_whitespace = true;
-  options.always_print_primitive_fields = true;
+  configure_json_print_options_for_all_fields(options);
   auto status =
       google::protobuf::util::MessageToJsonString(proto, &json_str, options);
   if (!status.ok()) {

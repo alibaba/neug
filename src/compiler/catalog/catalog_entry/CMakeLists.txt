@@ -11,6 +11,7 @@ add_library(neug_catalog_entry
         type_catalog_entry.cpp
         sequence_catalog_entry.cpp
         index_catalog_entry.cpp)
+add_dependencies(neug_catalog_entry neug_plan_proto)
 
 set(ALL_OBJECT_FILES
         ${ALL_OBJECT_FILES} $<TARGET_OBJECTS:neug_catalog_entry>

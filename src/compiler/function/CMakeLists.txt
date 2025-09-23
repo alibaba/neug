@@ -41,6 +41,7 @@ add_library(neug_function
         vector_blob_functions.cpp
         vector_uuid_functions.cpp
         export_csv_function.cpp)
+add_dependencies(neug_function neug_plan_proto)
 
 set(ALL_OBJECT_FILES
         ${ALL_OBJECT_FILES} $<TARGET_OBJECTS:neug_function>

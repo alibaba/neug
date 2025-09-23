@@ -138,3 +138,6 @@ else()
         install_neug_target(neug_utils)
 endif()
 add_dependencies(neug_utils neug_plan_proto generate_http_proto)
+
+# Make all future targets depend on neug_plan_proto
+set_property(GLOBAL APPEND PROPERTY GLOBAL_DEPENDS_DEBUG_MODE neug_plan_proto)

@@ -54,8 +54,20 @@ class Utils {
   static std::string getPhysicalJson(const ::physical::PhysicalPlan& plan) {
     google::protobuf::util::JsonPrintOptions options;
     options.add_whitespace = true;  // Enables pretty-printing
+
+    // Protobuf version compatibility:
+    // - always_print_primitive_fields was removed in v26.0 (commit 06e7caba5,
+    // Feb 2024)
+    // - always_print_fields_with_no_presence is the replacement with consistent
+    // behavior
+#if PROTOBUF_VERSION < 4026000  // Before v26.0
     options.always_print_primitive_fields =
-        true;  // Optional: print even if field is default
+        true;  // Print fields even if default values
+#else
+    options.always_print_fields_with_no_presence =
+        true;  // Replacement for v26.0+
+#endif
+
     options.preserve_proto_field_names =
         true;  // Optional: use proto field names instead of camelCase
     std::string json;

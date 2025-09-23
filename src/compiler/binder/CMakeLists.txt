@@ -21,6 +21,7 @@ add_library(neug_binder
         expression_mapper.cpp
         function_evaluator.cpp
         literal_evaluator.cpp)
+add_dependencies(neug_binder neug_plan_proto)
 
 set(ALL_OBJECT_FILES
         ${ALL_OBJECT_FILES} $<TARGET_OBJECTS:neug_binder>

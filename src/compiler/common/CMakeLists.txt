@@ -27,8 +27,6 @@ add_library(neug_common
         windows_utils.cpp)
 add_dependencies(neug_common neug_plan_proto)
 
-add_dependencies(neug_common neug_plan_proto)
-
 set(ALL_OBJECT_FILES
         ${ALL_OBJECT_FILES} $<TARGET_OBJECTS:neug_common>
         PARENT_SCOPE)
