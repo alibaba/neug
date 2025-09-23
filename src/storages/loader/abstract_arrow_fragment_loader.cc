@@ -462,12 +462,12 @@ static void collectVertices(std::vector<Any>& ids, std::vector<size_t>& vids,
   }
 }
 
-Status AbstractArrowFragmentLoader::batch_load_vertices(
-    PropertyGraph& graph, const label_t& v_label_id,
+gs::result<std::pair<std::vector<Any>, std::unique_ptr<Table>>>
+AbstractArrowFragmentLoader::batch_load_vertices(
+    const Schema& schema, const std::string& work_dir,
+    const label_t& v_label_id,
     std::vector<std::shared_ptr<IRecordBatchSupplier>>&
         record_batch_supplier_vec) {
-  auto& vertex_table = graph.vertex_tables_.at(v_label_id);
-  auto& schema = graph.schema_;
   std::string vertex_type_name = schema.get_vertex_label_name(v_label_id);
   auto schema_column_names = schema.get_vertex_property_names(v_label_id);
   auto primary_key = schema.get_vertex_primary_key(v_label_id)[0];
@@ -476,9 +476,6 @@ Status AbstractArrowFragmentLoader::batch_load_vertices(
   size_t primary_key_ind = std::get<2>(primary_key);
   std::unique_ptr<Table> table = std::make_unique<Table>();
   std::vector<Any> ids;
-  std::string work_dir =
-      (vertex_table.work_dir() == "" ? "." : vertex_table.work_dir()) +
-      "/vertex_" + vertex_type_name + "/";
   LOG(INFO) << "Work directory for vertex table: " << work_dir;
   if (!std::filesystem::exists(work_dir)) {
     std::filesystem::create_directories(work_dir);
@@ -560,38 +557,34 @@ Status AbstractArrowFragmentLoader::batch_load_vertices(
   AbstractArrowFragmentLoader::BatchConsumer(
       files, schema_column_names.size() + 1, supplier_creator, std::move(func));
 
-  graph.batch_add_vertices(v_label_id, std::move(ids), std::move(table), 0);
-  {
-    if (std::filesystem::exists(work_dir)) {
-      std::filesystem::remove_all(work_dir);
-    }
-  }
-  return gs::Status::OK();
+  return std::make_pair(std::move(ids), std::move(table));
 }
 
-Status AbstractArrowFragmentLoader::batch_load_edges(
-    PropertyGraph& graph, const label_t& src_v_label,
-    const label_t& dst_v_label, const label_t& edge_label,
+gs::result<std::pair<std::vector<std::tuple<vid_t, vid_t, size_t>>,
+                     std::unique_ptr<Table>>>
+AbstractArrowFragmentLoader::batch_load_edges(
+    const Schema& schema, const std::string& work_dir,
+    const label_t& src_v_label, const label_t& dst_v_label,
+    const label_t& edge_label, std::function<vid_t(const Any&)> src_indexer,
+    std::function<vid_t(const Any&)> dst_indexer, size_t src_v_num,
+    size_t dst_v_num,
     std::vector<std::shared_ptr<IRecordBatchSupplier>>&
         record_batch_supplier_vec) {
-  auto& schema = graph.schema_;
   std::string src_label_name = schema.get_vertex_label_name(src_v_label);
   std::string dst_label_name = schema.get_vertex_label_name(dst_v_label);
   std::string edge_type_name = schema.get_edge_label_name(edge_label);
-  size_t index =
-      schema.generate_edge_label(src_v_label, dst_v_label, edge_label);
-
-  auto& edge_table = graph.edge_tables_.at(index);
+  auto src_pks = schema.get_vertex_primary_key(src_v_label);
+  auto dst_pks = schema.get_vertex_primary_key(dst_v_label);
+  if (src_pks.size() != 1 || dst_pks.size() != 1) {
+    THROW_INTERNAL_EXCEPTION(
+        "Only support one primary key for src or dst vertex.");
+  }
+  auto src_pk_property_type = std::get<0>(src_pks[0]);
+  auto dst_pk_property_type = std::get<0>(dst_pks[0]);
 
   std::vector<std::vector<std::tuple<vid_t, vid_t, size_t>>> parsed_edges_vec(
       std::thread::hardware_concurrency());
   std::unique_ptr<Table> table = std::make_unique<Table>();
-  std::string work_dir = edge_table.work_dir();
-  if (work_dir == "") {
-    work_dir = ".";
-  }
-  work_dir +=
-      "/" + edata_prefix(src_label_name, dst_label_name, edge_type_name) + "/";
   if (!std::filesystem::exists(work_dir)) {
     std::filesystem::create_directories(work_dir);
   }
@@ -601,13 +594,10 @@ Status AbstractArrowFragmentLoader::batch_load_edges(
       schema.get_edge_property_names(src_v_label, dst_v_label, edge_label),
       schema.get_edge_properties(src_v_label, dst_v_label, edge_label), {});
 
-  const auto& src_indexer = graph.vertex_tables_[src_v_label].get_indexer();
-  const auto& dst_indexer = graph.vertex_tables_[dst_v_label].get_indexer();
   std::atomic<size_t> offset(0);
   std::shared_mutex rw_mutex;
 
-  std::vector<std::atomic<int32_t>> ie_degree(dst_indexer.size()),
-      oe_degree(src_indexer.size());
+  std::vector<std::atomic<int32_t>> ie_degree(dst_v_num), oe_degree(src_v_num);
   for (size_t idx = 0; idx < ie_degree.size(); ++idx) {
     ie_degree[idx].store(0);
   }
@@ -665,8 +655,9 @@ Status AbstractArrowFragmentLoader::batch_load_edges(
 
     AbstractArrowFragmentLoader::append_edges_utils<
         RecordView, std::vector<std::tuple<vid_t, vid_t, size_t>>>(
-        src_col, dst_col, src_indexer, dst_indexer, property_cols[0],
-        parsed_edges, ie_degree, oe_degree, offset_i);
+        src_col, dst_col, src_indexer, src_pk_property_type, dst_indexer,
+        dst_pk_property_type, property_cols[0], parsed_edges, ie_degree,
+        oe_degree, offset_i);
   };
 
   auto supplier_creator =
@@ -694,16 +685,7 @@ Status AbstractArrowFragmentLoader::batch_load_edges(
       parsed_edges.push_back(edges);
     }
   }
-  graph.batch_add_edges(src_v_label, dst_v_label, edge_label,
-                        std::move(parsed_edges), std::move(table));
-
-  {
-    if (std::filesystem::exists(work_dir)) {
-      std::filesystem::remove_all(work_dir);
-    }
-  }
-
-  return gs::Status::OK();
+  return std::make_pair(std::move(parsed_edges), std::move(table));
 }
 
 }  // namespace gs

@@ -56,18 +56,19 @@ struct IntegerCastOperation {
   template <class T, bool NEGATIVE>
   static bool handleDigit(T& state, uint8_t digit) {
     using result_t = typename T::Result;
+    auto& res_ = state.result;  // Use a alias reference to avoid some compiler
+                                // issues, related to gs::result, which the
+                                // issue itself is quite strage
     if constexpr (NEGATIVE) {
-      if (state.result <
-          ((std::numeric_limits<result_t>::min() + digit) / 10)) {
+      if (res_ < ((std::numeric_limits<result_t>::min() + digit) / 10)) {
         return false;
       }
-      state.result = state.result * 10 - digit;
+      res_ = res_ * 10 - digit;
     } else {
-      if (state.result >
-          ((std::numeric_limits<result_t>::max() - digit) / 10)) {
+      if (res_ > ((std::numeric_limits<result_t>::max() - digit) / 10)) {
         return false;
       }
-      state.result = state.result * 10 + digit;
+      res_ = res_ * 10 + digit;
     }
     return true;
   }

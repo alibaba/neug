@@ -25,7 +25,6 @@ gs::result<Context> BatchDeleteVertexOpr::Eval(
     GraphUpdateInterface& graph,
     const std::map<std::string, std::string>& params, Context&& ctx,
     OprTimer* timer) {
-  auto& frag = graph.GetTransaction().GetGraph();
   size_t binding_size = vertex_bindings_.size();
   for (size_t i = 0; i < binding_size; i++) {
     int32_t alias = vertex_bindings_[i];
@@ -34,9 +33,8 @@ gs::result<Context> BatchDeleteVertexOpr::Eval(
     if (vertex_column->vertex_column_type() == VertexColumnType::kSingle) {
       auto sl_vertex_column =
           std::dynamic_pointer_cast<SLVertexColumn>(vertex_column);
-      frag.batch_delete_vertices(sl_vertex_column->label(),
-                                 sl_vertex_column->vertices());
-
+      graph.batch_delete_vertices(sl_vertex_column->label(),
+                                  sl_vertex_column->vertices());
     } else if (vertex_column->vertex_column_type() ==
                VertexColumnType::kMultiple) {
       std::unordered_map<label_t, std::vector<vid_t>> vids_map;
@@ -50,7 +48,7 @@ gs::result<Context> BatchDeleteVertexOpr::Eval(
         vids_map.at(vertex.label_).emplace_back(vertex.vid_);
       }
       for (auto& vids_pair : vids_map) {
-        frag.batch_delete_vertices(vids_pair.first, vids_pair.second);
+        graph.batch_delete_vertices(vids_pair.first, vids_pair.second);
       }
     } else {
       THROW_RUNTIME_ERROR(

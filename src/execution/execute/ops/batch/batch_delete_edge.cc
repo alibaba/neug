@@ -50,7 +50,6 @@ gs::result<Context> BatchDeleteEdgeOpr::Eval(
     GraphUpdateInterface& graph,
     const std::map<std::string, std::string>& params, Context&& ctx,
     OprTimer* timer) {
-  auto& frag = graph.GetTransaction().GetGraph();
   size_t binding_size = edge_bindings_.size();
   for (size_t i = 0; i < binding_size; i++) {
     int32_t alias = edge_bindings_[i];
@@ -110,7 +109,7 @@ gs::result<Context> BatchDeleteEdgeOpr::Eval(
       } else {
         LOG(FATAL) << "Unknown edge column type.";
       }
-      frag.batch_delete_edges(src_v_label, dst_v_label, edge_label, edges);
+      graph.batch_delete_edges(src_v_label, dst_v_label, edge_label, edges);
     } else {
       std::unordered_map<uint32_t, std::vector<std::tuple<vid_t, vid_t>>>
           edges_map;
@@ -119,7 +118,7 @@ gs::result<Context> BatchDeleteEdgeOpr::Eval(
         label_t dst_v_label = std::get<1>(edge_triplet);
         label_t edge_label = std::get<2>(edge_triplet);
         std::vector<std::tuple<vid_t, vid_t>> edges;
-        uint32_t index = frag.schema().generate_edge_label(
+        uint32_t index = graph.schema().generate_edge_label(
             src_v_label, dst_v_label, edge_label);
         edges_map.insert({index, edges});
       }
@@ -130,7 +129,7 @@ gs::result<Context> BatchDeleteEdgeOpr::Eval(
             label_t src_v_label = edge.label_triplet_.src_label;
             label_t dst_v_label = edge.label_triplet_.dst_label;
             label_t edge_label = edge.label_triplet_.edge_label;
-            uint32_t index = frag.schema().generate_edge_label(
+            uint32_t index = graph.schema().generate_edge_label(
                 src_v_label, dst_v_label, edge_label);
             edges_map.at(index).emplace_back(
                 std::make_tuple(edge.src_, edge.dst_));
@@ -141,7 +140,7 @@ gs::result<Context> BatchDeleteEdgeOpr::Eval(
             label_t src_v_label = edge.label_triplet_.src_label;
             label_t dst_v_label = edge.label_triplet_.dst_label;
             label_t edge_label = edge.label_triplet_.edge_label;
-            uint32_t index = frag.schema().generate_edge_label(
+            uint32_t index = graph.schema().generate_edge_label(
                 src_v_label, dst_v_label, edge_label);
             edges_map.at(index).emplace_back(
                 std::make_tuple(edge.dst_, edge.src_));
@@ -154,7 +153,7 @@ gs::result<Context> BatchDeleteEdgeOpr::Eval(
           label_t src_v_label = edge.label_triplet_.src_label;
           label_t dst_v_label = edge.label_triplet_.dst_label;
           label_t edge_label = edge.label_triplet_.edge_label;
-          uint32_t index = frag.schema().generate_edge_label(
+          uint32_t index = graph.schema().generate_edge_label(
               src_v_label, dst_v_label, edge_label);
           if (edge.dir_ == Direction::kOut) {
             edges_map.at(index).emplace_back(

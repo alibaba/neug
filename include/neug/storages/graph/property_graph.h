@@ -292,10 +292,10 @@ class PropertyGraph {
   Status batch_delete_vertices(const label_t& v_label_id,
                                const std::vector<vid_t>& vids);
 
-  Status batch_delete_edges(const label_t& src_v_label,
-                            const label_t& dst_v_label,
-                            const label_t& edge_label,
-                            std::vector<std::tuple<vid_t, vid_t>>& edges_vec);
+  Status batch_delete_edges(
+      const label_t& src_v_label, const label_t& dst_v_label,
+      const label_t& edge_label,
+      const std::vector<std::tuple<vid_t, vid_t>>& edges_vec);
 
   inline Table& get_vertex_table(label_t vertex_label) {
     return vertex_tables_[vertex_label].get_properties_table();
@@ -416,6 +416,8 @@ class PropertyGraph {
   inline std::string get_schema_yaml_path() const {
     return work_dir_ + "/graph.yaml";
   }
+
+  inline std::string work_dir() const { return work_dir_; }
 
   void generateStatistics() const;
 

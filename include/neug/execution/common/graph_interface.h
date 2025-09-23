@@ -474,6 +474,10 @@ class GraphUpdateInterface {
     return txn_.AddVertex(label, id, props);
   }
 
+  inline bool GetVertexIndex(label_t label, const Any& id, vid_t& index) const {
+    return txn_.GetVertexIndex(label, id, index);
+  }
+
   inline bool AddVertex(label_t label, const Any& id,
                         const std::vector<Any>& props, vid_t& vid) {
     LOG(INFO) << "AddVertex called with label: " << static_cast<int>(label)
@@ -501,6 +505,10 @@ class GraphUpdateInterface {
     return txn_.GetVertexId(label, index);
   }
 
+  inline vid_t GetVertexNum(label_t label) const {
+    return txn_.GetVertexNum(label);
+  }
+
   inline bool HasVertex(label_t label, const Any& oid) const {
     return txn_.HasVertex(label, oid);
   }
@@ -524,6 +532,34 @@ class GraphUpdateInterface {
   inline void CreateCheckpoint() { txn_.CreateCheckpoint(); }
 
   gs::UpdateTransaction& GetTransaction() { return txn_; }
+
+  inline std::string work_dir() const { return txn_.GetGraph().work_dir(); }
+
+  inline Status batch_add_vertices(label_t v_label_id, std::vector<Any>&& ids,
+                                   std::unique_ptr<Table>&& table) {
+    return txn_.batch_add_vertices(v_label_id, std::move(ids),
+                                   std::move(table));
+  }
+
+  inline Status batch_add_edges(
+      label_t src_label_id, label_t dst_label_id, label_t edge_label_id,
+      std::vector<std::tuple<vid_t, vid_t, size_t>>&& edges_vec,
+      std::unique_ptr<Table>&& table) {
+    return txn_.batch_add_edges(src_label_id, dst_label_id, edge_label_id,
+                                std::move(edges_vec), std::move(table));
+  }
+
+  inline Status batch_delete_vertices(label_t v_label_id,
+                                      const std::vector<vid_t>& vids) {
+    return txn_.batch_delete_vertices(v_label_id, vids);
+  }
+
+  inline Status batch_delete_edges(
+      label_t src_v_label_id, label_t dst_v_label_id, label_t edge_label_id,
+      const std::vector<std::tuple<vid_t, vid_t>>& edges) {
+    return txn_.batch_delete_edges(src_v_label_id, dst_v_label_id,
+                                   edge_label_id, edges);
+  }
 
  private:
   gs::UpdateTransaction& txn_;

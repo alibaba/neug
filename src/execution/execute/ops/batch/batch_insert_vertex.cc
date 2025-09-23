@@ -24,6 +24,7 @@
 #include "neug/storages/graph/schema.h"
 #include "neug/storages/loader/abstract_arrow_fragment_loader.h"
 #include "neug/transaction/update_transaction.h"
+#include "neug/utils/exception/exception.h"
 #include "neug/utils/pb_utils.h"
 
 namespace gs {
@@ -36,13 +37,27 @@ gs::result<Context> BatchInsertVertexOpr::Eval(
     GraphUpdateInterface& graph,
     const std::map<std::string, std::string>& params, Context&& ctx,
     OprTimer* timer) {
-  auto& frag = graph.GetTransaction().GetGraph();
-
   auto suppliers = create_record_batch_supplier(ctx, prop_mappings_);
-  Status status = AbstractArrowFragmentLoader::batch_load_vertices(
-      frag, vertex_label_id_, suppliers);
-  if (!status.ok()) {
-    RETURN_ERROR(status);
+  std::string work_dir =
+      (graph.work_dir() == "" ? "." : graph.work_dir()) + "/vertex_" +
+      graph.schema().get_vertex_label_name(vertex_label_id_) + "/";
+  if (std::filesystem::exists(work_dir)) {
+    std::filesystem::remove_all(work_dir);
+  }
+  auto res = AbstractArrowFragmentLoader::batch_load_vertices(
+      graph.schema(), work_dir, vertex_label_id_, suppliers);
+  if (!res) {
+    RETURN_ERROR(res.error());
+  }
+  auto [ids, table] = std::move(res.value());
+  if (!graph
+           .batch_add_vertices(vertex_label_id_, std::move(ids),
+                               std::move(table))
+           .ok()) {
+    THROW_INTERNAL_EXCEPTION("Failed to add vertices");
+  }
+  if (std::filesystem::exists(work_dir)) {
+    std::filesystem::remove_all(work_dir);
   }
   return gs::result<Context>(std::move(ctx));
 }

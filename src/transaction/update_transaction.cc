@@ -376,27 +376,32 @@ UpdateTransaction::vertex_iterator::vertex_iterator(label_t label, vid_t cur,
       num_(num),
       vertex_table_modifed_(vertex_table_modified),
       txn_(txn) {
-  if (vertex_table_modifed_) [[unlikely]] {
-    while (cur_ < num_ && !txn_->is_valid_lid(label_, cur_)) {
-      ++cur_;
+  if (vertex_table_modifed_)
+    [[unlikely]] {
+      while (cur_ < num_ && !txn_->is_valid_lid(label_, cur_)) {
+        ++cur_;
+      }
     }
-  }
 }
 UpdateTransaction::vertex_iterator::~vertex_iterator() = default;
 bool UpdateTransaction::vertex_iterator::IsValid() const { return cur_ < num_; }
 void UpdateTransaction::vertex_iterator::Next() {
-  if (vertex_table_modifed_) [[unlikely]] {
-    while (++cur_ < num_ && !txn_->is_valid_lid(label_, cur_)) {}
-  } else {
+  if (vertex_table_modifed_)
+    [[unlikely]] {
+      while (++cur_ < num_ && !txn_->is_valid_lid(label_, cur_)) {}
+    }
+  else {
     ++cur_;
   }
 }
 void UpdateTransaction::vertex_iterator::Goto(vid_t target) {
-  if (vertex_table_modifed_) [[unlikely]] {
-    if (std::min(target, num_) < num_ && !txn_->is_valid_lid(label_, target)) {
-      THROW_INVALID_ARGUMENT_EXCEPTION("Target vertex is deleted");
+  if (vertex_table_modifed_)
+    [[unlikely]] {
+      if (std::min(target, num_) < num_ &&
+          !txn_->is_valid_lid(label_, target)) {
+        THROW_INVALID_ARGUMENT_EXCEPTION("Target vertex is deleted");
+      }
     }
-  }
   cur_ = std::min(target, num_);
 }
 
@@ -520,6 +525,10 @@ UpdateTransaction::vertex_iterator UpdateTransaction::GetVertexIterator(
           this};
 }
 
+vid_t UpdateTransaction::GetVertexNum(label_t label) const {
+  return vertex_nums_[label];
+}
+
 UpdateTransaction::edge_iterator UpdateTransaction::GetOutEdgeIterator(
     label_t label, vid_t u, label_t neighbor_label, label_t edge_label) {
   size_t csr_index = get_out_csr_index(label, neighbor_label, edge_label);
@@ -576,6 +585,11 @@ Any UpdateTransaction::GetVertexField(label_t label, vid_t lid,
 
 Any UpdateTransaction::GetVertexId(label_t label, vid_t lid) const {
   return lid_to_oid(label, lid);
+}
+
+bool UpdateTransaction::GetVertexIndex(label_t label, const Any& id,
+                                       vid_t& index) const {
+  return oid_to_lid(label, id, index);
 }
 
 bool UpdateTransaction::SetVertexField(label_t label, vid_t lid, int col_id,

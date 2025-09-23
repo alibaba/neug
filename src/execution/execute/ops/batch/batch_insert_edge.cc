@@ -41,7 +41,6 @@ gs::result<Context> BatchInsertEdgeOpr::Eval(
     GraphUpdateInterface& graph,
     const std::map<std::string, std::string>& params, Context&& ctx,
     OprTimer* timer) {
-  auto& frag = graph.GetTransaction().GetGraph();
   std::vector<std::pair<int32_t, std::string>>
       total_mappings;  // include prop_mappings and src/dst vertex bindings
   for (const auto& mapping : src_vertex_bindings_) {
@@ -55,9 +54,49 @@ gs::result<Context> BatchInsertEdgeOpr::Eval(
   }
   auto suppliers = create_record_batch_supplier(ctx, total_mappings);
 
-  AbstractArrowFragmentLoader::batch_load_edges(
-      frag, src_label_id_, dst_label_id_, edge_label_id_, suppliers);
+  std::string work_dir = (graph.work_dir() == "" ? "." : graph.work_dir());
+  auto src_label_name = graph.schema().get_vertex_label_name(src_label_id_);
+  auto dst_label_name = graph.schema().get_vertex_label_name(dst_label_id_);
+  auto edge_type_name = graph.schema().get_edge_label_name(edge_label_id_);
+  // const auto& src_indexer = graph.GetVertexIndexer(src_label_id_);
+  // const auto& dst_indexer = graph.GetVertexIndexer(dst_label_id_);
+  work_dir +=
+      "/" + edata_prefix(src_label_name, dst_label_name, edge_type_name) + "/";
+  if (std::filesystem::exists(work_dir)) {
+    std::filesystem::remove_all(work_dir);
+  }
+  auto src_indexer = [&](const Any& pk) {
+    vid_t lid;
+    if (!graph.GetVertexIndex(src_label_id_, pk, lid)) {
+      return std::numeric_limits<vid_t>::max();
+    }
+    return lid;
+  };
+  auto dst_indexer = [&](const Any& pk) {
+    vid_t lid;
+    if (!graph.GetVertexIndex(dst_label_id_, pk, lid)) {
+      return std::numeric_limits<vid_t>::max();
+    }
+    return lid;
+  };
+  auto res = AbstractArrowFragmentLoader::batch_load_edges(
+      graph.schema(), work_dir, src_label_id_, dst_label_id_, edge_label_id_,
+      src_indexer, dst_indexer, graph.GetVertexNum(src_label_id_),
+      graph.GetVertexNum(dst_label_id_), suppliers);
 
+  if (!res) {
+    RETURN_ERROR(res.error());
+  }
+  auto [parsed_edges, table] = std::move(res.value());
+  if (!graph
+           .batch_add_edges(src_label_id_, dst_label_id_, edge_label_id_,
+                            std::move(parsed_edges), std::move(table))
+           .ok()) {
+    THROW_INTERNAL_EXCEPTION("Failed to add edges");
+  }
+  if (std::filesystem::exists(work_dir)) {
+    std::filesystem::remove_all(work_dir);
+  }
   return gs::result<Context>(std::move(ctx));
 }
 

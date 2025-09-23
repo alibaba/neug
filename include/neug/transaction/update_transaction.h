@@ -220,6 +220,8 @@ class UpdateTransaction {
 
   vertex_iterator GetVertexIterator(label_t label);
 
+  vid_t GetVertexNum(label_t label) const;
+
   edge_iterator GetOutEdgeIterator(label_t label, vid_t u,
                                    label_t neighbor_label, label_t edge_label);
 
@@ -244,6 +246,8 @@ class UpdateTransaction {
                         Allocator& alloc);
   Any GetVertexId(label_t label, vid_t lid) const;
 
+  bool GetVertexIndex(label_t label, const Any& id, vid_t& index) const;
+
   const NeugDBSession& GetSession() const;
 
   PropertyGraph& GetGraph() const { return graph_; }
@@ -257,6 +261,46 @@ class UpdateTransaction {
   bool HasVertex(label_t label, const Any& oid) const;
 
   void CreateCheckpoint();
+
+  /**
+   * Batch add vertices with given label, ids and property table.
+   * We will not generate wal log for this operation. Assume the ids and
+   * table are valid.
+   * @param v_label_id The label id of the vertices to be added.
+   * @param ids The ids of the vertices to be added.
+   * @param table The property table of the vertices to be added.
+   * @return Status
+   */
+  inline Status batch_add_vertices(label_t v_label_id, std::vector<Any>&& ids,
+                                   std::unique_ptr<Table>&& table) {
+    return graph_.batch_add_vertices(v_label_id, std::move(ids),
+                                     std::move(table), timestamp_);
+  }
+
+  // Also executed in batch mode
+  inline Status batch_add_edges(
+      label_t src_label_id, label_t dst_label_id, label_t edge_label_id,
+      std::vector<std::tuple<vid_t, vid_t, size_t>>&& edges_vec,
+      std::unique_ptr<Table>&& table) {
+    return graph_.batch_add_edges(src_label_id, dst_label_id, edge_label_id,
+                                  std::move(edges_vec), std::move(table));
+  }
+
+  // Also executed in batch mode
+  inline Status batch_delete_vertices(label_t v_label_id,
+                                      const std::vector<vid_t>& vids) {
+    return graph_.batch_delete_vertices(v_label_id, vids);
+  }
+
+  // Also executed in batch mode
+  inline Status batch_delete_edges(
+      label_t src_v_label_id, label_t dst_v_label_id, label_t edge_label_id,
+      const std::vector<std::tuple<vid_t, vid_t>>& edges) {
+    return graph_.batch_delete_edges(src_v_label_id, dst_v_label_id,
+                                     edge_label_id, edges);
+  }
+
+  inline std::string work_dir() const { return graph_.work_dir(); }
 
  private:
   friend class NeugDBSession;

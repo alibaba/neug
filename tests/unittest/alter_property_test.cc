@@ -153,7 +153,12 @@ void testLoadVertexBatch(PropertyGraph& graph, std::string vertex_type_name,
   std::vector<std::shared_ptr<IRecordBatchSupplier>> suppliers;
   suppliers.emplace_back(
       std::dynamic_pointer_cast<IRecordBatchSupplier>(supplier));
-  AbstractArrowFragmentLoader::batch_load_vertices(graph, v_label, suppliers);
+  auto res = AbstractArrowFragmentLoader::batch_load_vertices(
+      graph.schema(), graph.work_dir(), v_label, suppliers);
+  CHECK(res);
+  auto [ids, table] = std::move(res.value());
+  CHECK(graph.batch_add_vertices(v_label, std::move(ids), std::move(table), 0)
+            .ok());
 }
 
 void testLoadEdgeBatch(PropertyGraph& graph, std::string src_vertex_type,
@@ -265,8 +270,25 @@ void testLoadEdgeBatch(PropertyGraph& graph, std::string src_vertex_type,
   std::vector<std::shared_ptr<IRecordBatchSupplier>> suppliers;
   suppliers.emplace_back(
       std::dynamic_pointer_cast<IRecordBatchSupplier>(supplier));
-  AbstractArrowFragmentLoader::batch_load_edges(
-      graph, src_label_id, dst_label_id, e_label_id, suppliers);
+  const auto& src_indexer = graph.vertex_tables_[src_label_id].get_indexer();
+  const auto& dst_indexer = graph.vertex_tables_[dst_label_id].get_indexer();
+  auto src_indexer_func = [&](const Any& id) {
+    return src_indexer.get_index(id);
+  };
+  auto dst_indexer_func = [&](const Any& id) {
+    return dst_indexer.get_index(id);
+  };
+
+  auto res = AbstractArrowFragmentLoader::batch_load_edges(
+      graph.schema(), graph.work_dir(), src_label_id, dst_label_id, e_label_id,
+      src_indexer_func, dst_indexer_func, graph.vertex_num(src_label_id),
+      graph.vertex_num(dst_label_id), suppliers);
+  CHECK(res);
+  auto [parsed_edges, table] = std::move(res.value());
+  CHECK(graph
+            .batch_add_edges(src_label_id, dst_label_id, e_label_id,
+                             std::move(parsed_edges), std::move(table))
+            .ok());
 }
 
 void testOpenEmptyGraph(const std::string& graph_dir,

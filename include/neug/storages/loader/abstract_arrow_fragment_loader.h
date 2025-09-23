@@ -52,6 +52,7 @@
 #include "neug/utils/arrow_utils.h"
 #include "neug/utils/id_indexer.h"
 #include "neug/utils/indexers.h"
+#include "neug/utils/leaf_utils.h"
 #include "neug/utils/mmap_vector.h"
 #include "neug/utils/property/column.h"
 #include "neug/utils/property/table.h"
@@ -211,7 +212,8 @@ struct _add_vertex {
 
 template <typename PK_T, typename EDATA_T, typename VECTOR_T>
 void _append(bool is_dst, size_t cur_ind, std::shared_ptr<arrow::Array> col,
-             const IndexerType& indexer, VECTOR_T& parsed_edges,
+             std::function<vid_t(const Any& pk)> indexer,
+             VECTOR_T& parsed_edges,
              std::vector<std::atomic<int32_t>>& degree) {
   static constexpr auto invalid_vid = std::numeric_limits<vid_t>::max();
   if constexpr (std::is_same_v<PK_T, std::string_view>) {
@@ -220,7 +222,7 @@ void _append(bool is_dst, size_t cur_ind, std::shared_ptr<arrow::Array> col,
       for (auto j = 0; j < casted->length(); ++j) {
         auto str = casted->GetView(j);
         std::string_view str_view(str.data(), str.size());
-        auto vid = indexer.get_index(Any::From(str_view));
+        auto vid = indexer(Any::From(str_view));
         if (is_dst) {
           std::get<1>(parsed_edges[cur_ind++]) = vid;
         } else {
@@ -236,7 +238,7 @@ void _append(bool is_dst, size_t cur_ind, std::shared_ptr<arrow::Array> col,
       for (auto j = 0; j < casted->length(); ++j) {
         auto str = casted->GetView(j);
         std::string_view str_view(str.data(), str.size());
-        auto vid = indexer.get_index(Any::From(str_view));
+        auto vid = indexer(Any::From(str_view));
         if (is_dst) {
           std::get<1>(parsed_edges[cur_ind++]) = vid;
         } else {
@@ -251,7 +253,7 @@ void _append(bool is_dst, size_t cur_ind, std::shared_ptr<arrow::Array> col,
     using arrow_array_type = typename gs::TypeConverter<PK_T>::ArrowArrayType;
     auto casted = std::static_pointer_cast<arrow_array_type>(col);
     for (auto j = 0; j < casted->length(); ++j) {
-      auto vid = indexer.get_index(Any::From(casted->Value(j)));
+      auto vid = indexer(Any::From(casted->Value(j)));
       if (is_dst) {
         std::get<1>(parsed_edges[cur_ind++]) = vid;
       } else {
@@ -266,31 +268,17 @@ void _append(bool is_dst, size_t cur_ind, std::shared_ptr<arrow::Array> col,
 
 template <typename SRC_PK_T, typename DST_PK_T, typename EDATA_T,
           typename VECTOR_T>
-static void append_edges(
-    std::shared_ptr<arrow::Array> src_col,
-    std::shared_ptr<arrow::Array> dst_col, const IndexerType& src_indexer,
-    const IndexerType& dst_indexer, std::shared_ptr<arrow::Array>& edata_cols,
-    VECTOR_T& parsed_edges, std::vector<std::atomic<int32_t>>& ie_degree,
-    std::vector<std::atomic<int32_t>>& oe_degree, size_t offset = 0) {
+static void append_edges(std::shared_ptr<arrow::Array> src_col,
+                         std::shared_ptr<arrow::Array> dst_col,
+                         std::function<vid_t(const Any&)> src_indexer,
+                         std::function<vid_t(const Any&)> dst_indexer,
+                         std::shared_ptr<arrow::Array>& edata_cols,
+                         VECTOR_T& parsed_edges,
+                         std::vector<std::atomic<int32_t>>& ie_degree,
+                         std::vector<std::atomic<int32_t>>& oe_degree,
+                         size_t offset = 0) {
   CHECK(src_col->length() == dst_col->length());
-  auto indexer_check_lambda = [](const IndexerType& cur_indexer,
-                                 const std::shared_ptr<arrow::Array>& cur_col) {
-    if (cur_indexer.get_type() == PropertyType::kInt64) {
-      CHECK(cur_col->type()->Equals(arrow::int64()));
-    } else if (cur_indexer.get_type() == PropertyType::kStringView) {
-      CHECK(cur_col->type()->Equals(arrow::utf8()) ||
-            cur_col->type()->Equals(arrow::large_utf8()));
-    } else if (cur_indexer.get_type() == PropertyType::kInt32) {
-      CHECK(cur_col->type()->Equals(arrow::int32()));
-    } else if (cur_indexer.get_type() == PropertyType::kUInt32) {
-      CHECK(cur_col->type()->Equals(arrow::uint32()));
-    } else if (cur_indexer.get_type() == PropertyType::kUInt64) {
-      CHECK(cur_col->type()->Equals(arrow::uint64()));
-    }
-  };
 
-  indexer_check_lambda(src_indexer, src_col);
-  indexer_check_lambda(dst_indexer, dst_col);
   auto old_size = parsed_edges.size();
   parsed_edges.resize(old_size + src_col->length());
   VLOG(10) << "resize parsed_edges from" << old_size << " to "
@@ -457,14 +445,33 @@ class AbstractArrowFragmentLoader : public IFragmentLoader {
   template <typename EDATA_T, typename VECTOR_T>
   static void append_edges_utils(std::shared_ptr<arrow::Array> src_col,
                                  std::shared_ptr<arrow::Array> dst_col,
-                                 const IndexerType& src_indexer,
-                                 const IndexerType& dst_indexer,
+                                 std::function<vid_t(const Any&)> src_indexer,
+                                 PropertyType src_pk_property,
+                                 std::function<vid_t(const Any&)> dst_indexer,
+                                 PropertyType dst_pk_property,
                                  std::shared_ptr<arrow::Array>& property_cols,
                                  VECTOR_T& parsed_edges,
                                  std::vector<std::atomic<int32_t>>& ie_degree,
                                  std::vector<std::atomic<int32_t>>& oe_degree,
                                  size_t offset) {
     auto src_col_type = src_col->type();
+    auto indexer_check_lambda =
+        [](PropertyType pk_type, const std::shared_ptr<arrow::Array>& cur_col) {
+          if (pk_type == PropertyType::kInt64) {
+            CHECK(cur_col->type()->Equals(arrow::int64()));
+          } else if (pk_type == PropertyType::kStringView) {
+            CHECK(cur_col->type()->Equals(arrow::utf8()) ||
+                  cur_col->type()->Equals(arrow::large_utf8()));
+          } else if (pk_type == PropertyType::kInt32) {
+            CHECK(cur_col->type()->Equals(arrow::int32()));
+          } else if (pk_type == PropertyType::kUInt32) {
+            CHECK(cur_col->type()->Equals(arrow::uint32()));
+          } else if (pk_type == PropertyType::kUInt64) {
+            CHECK(cur_col->type()->Equals(arrow::uint64()));
+          }
+        };
+    indexer_check_lambda(src_pk_property, src_col);
+    indexer_check_lambda(dst_pk_property, dst_col);
     if (src_col_type->Equals(arrow::int64())) {
       _append_edges_utils<int64_t, EDATA_T, VECTOR_T>(
           src_col, dst_col, src_indexer, dst_indexer, property_cols,
@@ -489,15 +496,22 @@ class AbstractArrowFragmentLoader : public IFragmentLoader {
     }
   }
 
-  static Status batch_load_vertices(
-      PropertyGraph& graph, const label_t& v_label_id,
-      std::vector<std::shared_ptr<IRecordBatchSupplier>>&
-          record_batch_supplier_vec);
-  static Status batch_load_edges(
-      PropertyGraph& graph, const label_t& src_v_label,
-      const label_t& dst_v_label, const label_t& edge_label,
-      std::vector<std::shared_ptr<IRecordBatchSupplier>>&
-          record_batch_supplier_vec);
+  static gs::result<std::pair<std::vector<Any>, std::unique_ptr<Table>>>
+  batch_load_vertices(const Schema& schema, const std::string& work_dir,
+                      const label_t& v_label_id,
+                      std::vector<std::shared_ptr<IRecordBatchSupplier>>&
+                          record_batch_supplier_vec);
+
+  static gs::result<std::pair<std::vector<std::tuple<vid_t, vid_t, size_t>>,
+                              std::unique_ptr<Table>>>
+  batch_load_edges(const Schema& schema, const std::string& work_dir,
+                   const label_t& src_v_label, const label_t& dst_v_label,
+                   const label_t& edge_label,
+                   std::function<vid_t(const Any&)> src_indexer,
+                   std::function<vid_t(const Any&)> dst_indexer,
+                   size_t src_v_num, size_t dst_v_num,
+                   std::vector<std::shared_ptr<IRecordBatchSupplier>>&
+                       record_batch_supplier_vec);
 
  protected:
   template <typename KEY_T>
@@ -587,8 +601,8 @@ class AbstractArrowFragmentLoader : public IFragmentLoader {
   template <typename SRC_PK_T, typename EDATA_T, typename VECTOR_T>
   static void _append_edges_utils(std::shared_ptr<arrow::Array> src_col,
                                   std::shared_ptr<arrow::Array> dst_col,
-                                  const IndexerType& src_indexer,
-                                  const IndexerType& dst_indexer,
+                                  std::function<vid_t(const Any&)> src_indexer,
+                                  std::function<vid_t(const Any&)> dst_indexer,
                                   std::shared_ptr<arrow::Array>& property_cols,
                                   VECTOR_T& parsed_edges,
                                   std::vector<std::atomic<int32_t>>& ie_degree,
@@ -766,8 +780,15 @@ class AbstractArrowFragmentLoader : public IFragmentLoader {
       }
       // add edges to vector
       CHECK(src_col->length() == dst_col->length());
+      auto src_indexer_func = [&](const Any& pk) {
+        return src_indexer.get_index(pk);
+      };
+      auto dst_indexer_func = [&](const Any& pk) {
+        return dst_indexer.get_index(pk);
+      };
       append_edges_utils<EDATA_T, VECTOR_T>(
-          src_col, dst_col, src_indexer, dst_indexer, property_cols[0],
+          src_col, dst_col, src_indexer_func, src_indexer.get_type(),
+          dst_indexer_func, dst_indexer.get_type(), property_cols[0],
           parsed_edges, ie_degree, oe_degree, offset_i);
     };
 

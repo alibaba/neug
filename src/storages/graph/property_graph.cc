@@ -686,7 +686,7 @@ Status PropertyGraph::batch_delete_vertices(const label_t& v_label_id,
 Status PropertyGraph::batch_delete_edges(
     const label_t& src_v_label, const label_t& dst_v_label,
     const label_t& edge_label,
-    std::vector<std::tuple<vid_t, vid_t>>& edges_vec) {
+    const std::vector<std::tuple<vid_t, vid_t>>& edges_vec) {
   std::string src_vertex_type = schema_.get_vertex_label_name(src_v_label);
   std::string dst_vertex_type = schema_.get_vertex_label_name(dst_v_label);
   std::string edge_type_name = schema_.get_edge_label_name(edge_label);
