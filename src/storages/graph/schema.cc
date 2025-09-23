@@ -1488,6 +1488,7 @@ const std::vector<std::string> Schema::COMPATIBLE_VERSIONS = {
 void Schema::add_vertex_properties(
     const std::string& label, std::vector<std::string>& properties_names,
     std::vector<PropertyType>& properties_types,
+    std::vector<StorageStrategy>& storage_strategies,
     std::vector<Any>& properties_default_values) {
   auto v_label_id = get_vertex_label_id(label);
   LOG_FATAL_IF(v_label_id >= vprop_names_.size(),
@@ -1495,6 +1496,7 @@ void Schema::add_vertex_properties(
   for (size_t i = 0; i < properties_names.size(); i++) {
     vprop_names_[v_label_id].emplace_back(properties_names[i]);
     vproperties_[v_label_id].emplace_back(properties_types[i]);
+    vprop_storage_[v_label_id].emplace_back(storage_strategies[i]);
     vprop_name_to_type_and_index_[v_label_id].insert(
         {properties_names[i],
          std::make_pair(properties_types[i],
@@ -1536,6 +1538,8 @@ void Schema::delete_vertex_properties(
       if (vprop_names_[v_label_id][j] == properties_names[i]) {
         vprop_names_[v_label_id].erase(vprop_names_[v_label_id].begin() + j);
         vproperties_[v_label_id].erase(vproperties_[v_label_id].begin() + j);
+        vprop_storage_[v_label_id].erase(vprop_storage_[v_label_id].begin() +
+                                         j);
         auto it =
             vprop_name_to_type_and_index_[v_label_id].find(properties_names[i]);
         if (it != vprop_name_to_type_and_index_[v_label_id].end()) {

@@ -50,6 +50,12 @@ def test_batch_loading_modern_graph():
     # Test adding column if not exists
     conn.execute("ALTER TABLE person ADD IF NOT EXISTS birthday DATE;")
 
+    # Close and reopen database
+    conn.close()
+    db.close()
+    db = Database(db_dir, "w")
+    conn = db.connect()
+
     # Add name STRING, expect exception since name already exists
     with pytest.raises(Exception):
         conn.execute("ALTER TABLE person ADD name STRING;")

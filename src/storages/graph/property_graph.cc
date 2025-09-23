@@ -291,6 +291,7 @@ Status PropertyGraph::add_vertex_properties(
   }
   std::vector<std::string> add_property_names;
   std::vector<PropertyType> add_property_types;
+  std::vector<StorageStrategy> add_property_storages;
   std::vector<Any> add_default_property_values;
   for (size_t i = 0; i < add_properties.size(); i++) {
     auto [property_type, property_name, default_value] = add_properties[i];
@@ -310,10 +311,17 @@ Status PropertyGraph::add_vertex_properties(
     }
     add_property_names.emplace_back(property_name);
     add_property_types.emplace_back(property_type);
+    if (memory_level_ == 0) {
+      add_property_storages.emplace_back(StorageStrategy::kDisk);
+    } else if (memory_level_ >= 1) {
+      add_property_storages.emplace_back(StorageStrategy::kMem);
+    } else {
+      add_property_storages.emplace_back(StorageStrategy::kNone);
+    }
     add_default_property_values.emplace_back(default_value);
   }
   schema_.add_vertex_properties(vertex_type_name, add_property_names,
-                                add_property_types,
+                                add_property_types, add_property_storages,
                                 add_default_property_values);
   label_t v_label = schema_.get_vertex_label_id(vertex_type_name);
   vertex_tables_[v_label].AddProperties(add_property_names, add_property_types);

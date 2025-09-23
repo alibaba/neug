@@ -288,6 +288,7 @@ class Schema {
   void add_vertex_properties(const std::string& label,
                              std::vector<std::string>& properties_names,
                              std::vector<PropertyType>& properties_types,
+                             std::vector<StorageStrategy>& storage_strategies,
                              std::vector<Any>& properties_default_values);
 
   void update_vertex_properties(const std::string& label,
