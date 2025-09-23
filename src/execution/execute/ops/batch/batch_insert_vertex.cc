@@ -33,6 +33,51 @@ class OprTimer;
 
 namespace ops {
 
+class BatchInsertVertexOpr : public IUpdateOperator {
+ public:
+  BatchInsertVertexOpr(
+      const label_t& vertex_label_id, const PropertyType& pk_type,
+      const std::vector<std::pair<int32_t, std::string>>& prop_mappings)
+      : vertex_label_id_(vertex_label_id),
+        pk_type_(pk_type),
+        prop_mappings_(prop_mappings) {}
+
+  std::string get_operator_name() const override {
+    return "BatchInsertVertexOpr";
+  }
+
+  gs::result<Context> Eval(GraphUpdateInterface& graph,
+                           const std::map<std::string, std::string>& params,
+                           Context&& ctx, OprTimer* timer) override;
+
+ private:
+  label_t vertex_label_id_;
+  PropertyType pk_type_;
+  std::vector<std::pair<int32_t, std::string>> prop_mappings_;
+};
+
+class InsertVertexOpr : public IUpdateOperator {
+ public:
+  using vertex_prop_vec_t = std::vector<std::pair<std::string, Any>>;
+  InsertVertexOpr(std::vector<std::tuple<label_t, vertex_prop_vec_t, int32_t>>&&
+                      vertex_data)
+      : vertex_data_(std::move(vertex_data)) {}
+
+  std::string get_operator_name() const override { return "InsertVertexOpr"; }
+
+  gs::result<Context> eval_impl(
+      GraphUpdateInterface& graph,
+      const std::map<std::string, std::string>& params, Context&& ctx,
+      OprTimer* timer);
+
+  gs::result<Context> Eval(GraphUpdateInterface& graph,
+                           const std::map<std::string, std::string>& params,
+                           Context&& ctx, OprTimer* timer) override;
+
+ private:
+  std::vector<std::tuple<label_t, vertex_prop_vec_t, int32_t>> vertex_data_;
+};
+
 gs::result<Context> BatchInsertVertexOpr::Eval(
     GraphUpdateInterface& graph,
     const std::map<std::string, std::string>& params, Context&& ctx,
@@ -157,10 +202,10 @@ std::pair<Any, std::vector<Any>> get_pk_and_prop_values(
       pk_value, prop_values);  // pk_value is not set here, it will be set later
 }
 
-template <typename GraphInterface>
 gs::result<Context> InsertVertexOpr::eval_impl(
-    GraphInterface& graph, const std::map<std::string, std::string>& params,
-    Context&& ctx, OprTimer* timer) {
+    GraphUpdateInterface& graph,
+    const std::map<std::string, std::string>& params, Context&& ctx,
+    OprTimer* timer) {
   for (auto& entry : vertex_data_) {
     label_t vertex_label_id = std::get<0>(entry);
     auto& properties = std::get<1>(entry);

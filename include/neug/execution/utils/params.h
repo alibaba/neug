@@ -44,6 +44,26 @@ struct EdgeExpandParams {
   bool is_optional;
 };
 
+struct PathExpandParams {
+  int start_tag;
+  std::vector<LabelTriplet> labels;
+  int alias;
+  Direction dir;
+  int hop_lower;
+  int hop_upper;
+  PathOpt opt;
+};
+
+struct ShortestPathParams {
+  int start_tag;
+  std::vector<LabelTriplet> labels;
+  int alias;
+  int v_alias;
+  Direction dir;
+  int hop_lower;
+  int hop_upper;
+};
+
 }  // namespace runtime
 }  // namespace gs
 #endif  // RUNTIME_UTILS_PARAMS_H_

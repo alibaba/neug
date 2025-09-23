@@ -28,6 +28,7 @@
 #include "neug/execution/common/operators/update/edge_expand.h"
 #include "neug/execution/common/types.h"
 #include "neug/execution/utils/params.h"
+#include "neug/execution/utils/predicates.h"
 #include "neug/execution/utils/utils.h"
 
 namespace gs {
@@ -75,6 +76,40 @@ class UEdgeExpandEWithoutPredOpr : public IUpdateOperator {
   EdgeExpandParams params_;
 };
 
+struct GeneralEdgePredicateWrapper {
+  GeneralEdgePredicateWrapper(GeneralEdgePredicate& pred) : pred_(pred) {}
+
+  inline bool operator()(const LabelTriplet& label, vid_t src, vid_t dst,
+                         const Any& edata, Direction dir,
+                         size_t path_idx) const {
+    return pred_(label, src, dst, edata, dir, path_idx, arena_);
+  }
+
+  mutable Arena arena_;
+  const GeneralEdgePredicate& pred_;
+};
+class UEdgeExpandEOpr : public IUpdateOperator {
+ public:
+  UEdgeExpandEOpr(const EdgeExpandParams& params,
+                  const common::Expression& expr)
+      : params_(params), pred_(expr) {}
+  ~UEdgeExpandEOpr() = default;
+
+  std::string get_operator_name() const override { return "UEdgeExpandEOpr"; }
+
+  gs::result<Context> Eval(GraphUpdateInterface& graph,
+                           const std::map<std::string, std::string>& params,
+                           Context&& ctx, OprTimer* timer) override {
+    GeneralEdgePredicate pred(graph, ctx, params, pred_);
+    GeneralEdgePredicateWrapper wpred(pred);
+    return UEdgeExpand::edge_expand_e(graph, std::move(ctx), params_, wpred);
+  }
+
+ private:
+  EdgeExpandParams params_;
+  common::Expression pred_;
+};
+
 std::unique_ptr<IUpdateOperator> UEdgeExpandOprBuilder::Build(
     const Schema& schema, const physical::PhysicalPlan& plan, int op_idx) {
   auto& edge = plan.query_plan().plan(op_idx).opr().edge();
@@ -103,8 +138,7 @@ std::unique_ptr<IUpdateOperator> UEdgeExpandOprBuilder::Build(
     }
   } else {
     if (query_params.has_predicate()) {
-      LOG(ERROR) << "Edge expand with predicate is not supported yet";
-      return nullptr;
+      return std::make_unique<UEdgeExpandEOpr>(eep, query_params.predicate());
     } else {
       return std::make_unique<UEdgeExpandEWithoutPredOpr>(eep);
     }

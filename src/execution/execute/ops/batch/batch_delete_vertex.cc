@@ -21,6 +21,26 @@
 namespace gs {
 namespace runtime {
 namespace ops {
+
+class BatchDeleteVertexOpr : public IUpdateOperator {
+ public:
+  BatchDeleteVertexOpr(const std::vector<std::vector<label_t>>& vertex_labels,
+                       const std::vector<int32_t> vertex_bindings)
+      : vertex_labels_(vertex_labels), vertex_bindings_(vertex_bindings) {}
+
+  std::string get_operator_name() const override {
+    return "BatchDeleteVertexOpr";
+  }
+
+  gs::result<Context> Eval(GraphUpdateInterface& graph,
+                           const std::map<std::string, std::string>& params,
+                           Context&& ctx, OprTimer* timer) override;
+
+ private:
+  std::vector<std::vector<label_t>> vertex_labels_;
+  std::vector<int32_t> vertex_bindings_;
+};
+
 gs::result<Context> BatchDeleteVertexOpr::Eval(
     GraphUpdateInterface& graph,
     const std::map<std::string, std::string>& params, Context&& ctx,

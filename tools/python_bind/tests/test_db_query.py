@@ -1901,3 +1901,30 @@ def test_shortest_path():
 #     )
 #     conn.close()
 #     db.close()
+
+
+def test_delete_edges():
+    db_dir = "/tmp/test_delete_edges"
+    shutil.rmtree(db_dir, ignore_errors=True)
+    db = Database(db_path=db_dir, mode="w")
+    conn = db.connect()
+    conn.execute("CREATE NODE TABLE Person(id INT64, PRIMARY KEY(id));")
+    conn.execute("CREATE REL TABLE Knows(FROM Person TO Person, id INT64);")
+    conn.execute("CREATE (p: Person {id: 111});")
+    conn.execute("CREATE (p: Person {id: 222});")
+    conn.execute("CREATE (p: Person {id: 333});")
+    conn.execute(
+        "MATCH (p1: Person {id: 111}), (p2: Person {id: 222}) CREATE (p1)-[k:Knows {id: 333}]->(p2);"
+    )
+    conn.execute(
+        "MATCH (p1: Person {id: 111}), (p2: Person {id: 333}) CREATE (p1)-[k:Knows {id: 444}]->(p2);"
+    )
+
+    conn.execute(
+        """
+        MATCH (p1: Person)-[k: Knows]->(p2:Person) WHERE k.id = 333 DELETE k
+        """
+    )
+    res = conn.execute("MATCH (p1: Person)-[k: Knows]->(p2:Person) RETURN count(k)")
+    records = list(res)
+    assert records == [[1]]

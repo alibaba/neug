@@ -18,11 +18,6 @@
 #include <memory>
 
 #include "neug/execution/execute/operator.h"
-#ifdef USE_SYSTEM_PROTOBUF
-#include "neug/generated/proto/plan/physical.pb.h"
-#else
-#include "neug/utils/proto/plan/physical.pb.h"
-#endif
 
 namespace gs {
 class Schema;
@@ -37,8 +32,9 @@ class UVertexOprBuilder : public IUpdateOperatorBuilder {
   std::unique_ptr<IUpdateOperator> Build(const Schema& schema,
                                          const physical::PhysicalPlan& plan,
                                          int op_idx) override;
-  physical::PhysicalOpr_Operator::OpKindCase GetOpKind() const override {
-    return physical::PhysicalOpr_Operator::OpKindCase::kVertex;
+  std::vector<physical::PhysicalOpr_Operator::OpKindCase> GetOpKinds()
+      const override {
+    return {physical::PhysicalOpr_Operator::OpKindCase::kVertex};
   }
 };
 }  // namespace ops

@@ -28,32 +28,6 @@ namespace gs {
 namespace runtime {
 namespace ops {
 
-/**
- * @brief UpdateVertexOpr is used to update vertex properties in batch.
- */
-class UpdateVertexOpr : public IUpdateOperator {
- public:
-  using vertex_prop_vec_t =
-      std::vector<std::tuple<int32_t, std::string, ::common::Expression>>;
-  UpdateVertexOpr(vertex_prop_vec_t&& vertex_data)
-      : vertex_data_(std::move(vertex_data)) {}
-
-  std::string get_operator_name() const override { return "UpdateVertexOpr"; }
-
-  template <typename GraphInterface>
-  gs::result<Context> eval_impl(
-      GraphInterface& graph, const std::map<std::string, std::string>& params,
-      Context&& ctx, OprTimer* timer);
-
-  gs::result<Context> Eval(GraphUpdateInterface& graph,
-                           const std::map<std::string, std::string>& params,
-                           Context&& ctx, OprTimer* timer) override;
-
- private:
-  // No alias is produced in this operator.
-  vertex_prop_vec_t vertex_data_;
-};
-
 class UpdateVertexOprBuilder : public IUpdateOperatorBuilder {
  public:
   UpdateVertexOprBuilder() = default;
@@ -63,8 +37,9 @@ class UpdateVertexOprBuilder : public IUpdateOperatorBuilder {
                                          const physical::PhysicalPlan& plan,
                                          int op_idx) override;
 
-  physical::PhysicalOpr_Operator::OpKindCase GetOpKind() const override {
-    return physical::PhysicalOpr_Operator::OpKindCase::kSetVertex;
+  std::vector<physical::PhysicalOpr_Operator::OpKindCase> GetOpKinds()
+      const override {
+    return {physical::PhysicalOpr_Operator::OpKindCase::kSetVertex};
   }
 };
 

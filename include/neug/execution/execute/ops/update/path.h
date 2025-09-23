@@ -13,42 +13,19 @@
  * limitations under the License.
  */
 
-#ifndef EXECUTION_EXECUTE_OPS_BATCH_BATCH_INSERT_EDGE_H_
-#define EXECUTION_EXECUTE_OPS_BATCH_BATCH_INSERT_EDGE_H_
-
-#include <cstdint>
-#include <map>
-#include <memory>
-#include <string>
-#include <utility>
-#include <vector>
+#ifndef EXECUTION_EXECUTE_UPDATE_OPS_PATH_H_
+#define EXECUTION_EXECUTE_UPDATE_OPS_PATH_H_
 
 #include "neug/execution/execute/operator.h"
-#include "neug/execution/execute/ops/batch/batch_update_utils.h"
-#include "neug/utils/property/types.h"
-#ifdef USE_SYSTEM_PROTOBUF
-#include "neug/generated/proto/plan/cypher_ddl.pb.h"
-#include "neug/generated/proto/plan/cypher_dml.pb.h"
-#include "neug/generated/proto/plan/physical.pb.h"
-#else
-#include "neug/utils/proto/plan/cypher_ddl.pb.h"
-#include "neug/utils/proto/plan/cypher_dml.pb.h"
-#include "neug/utils/proto/plan/physical.pb.h"
-#endif
+
 namespace gs {
-class Schema;
-
 namespace runtime {
-class Context;
-class GraphUpdateInterface;
-class OprTimer;
-
 namespace ops {
 
-class BatchInsertEdgeOprBuilder : public IUpdateOperatorBuilder {
+class UPathExpandVOprBuilder : public IUpdateOperatorBuilder {
  public:
-  BatchInsertEdgeOprBuilder() = default;
-  ~BatchInsertEdgeOprBuilder() = default;
+  UPathExpandVOprBuilder() = default;
+  ~UPathExpandVOprBuilder() = default;
 
   std::unique_ptr<IUpdateOperator> Build(const Schema& schema,
                                          const physical::PhysicalPlan& plan,
@@ -56,14 +33,17 @@ class BatchInsertEdgeOprBuilder : public IUpdateOperatorBuilder {
 
   std::vector<physical::PhysicalOpr_Operator::OpKindCase> GetOpKinds()
       const override {
-    return {physical::PhysicalOpr_Operator::OpKindCase::kLoadEdge};
+    return {
+        physical::PhysicalOpr_Operator::OpKindCase::kPath,
+        physical::PhysicalOpr_Operator::OpKindCase::kVertex,
+    };
   }
 };
 
-class InsertEdgeOprBuilder : public IUpdateOperatorBuilder {
+class UPathExpandOprBuilder : public IUpdateOperatorBuilder {
  public:
-  InsertEdgeOprBuilder() = default;
-  ~InsertEdgeOprBuilder() = default;
+  UPathExpandOprBuilder() = default;
+  ~UPathExpandOprBuilder() = default;
 
   std::unique_ptr<IUpdateOperator> Build(const Schema& schema,
                                          const physical::PhysicalPlan& plan,
@@ -71,12 +51,11 @@ class InsertEdgeOprBuilder : public IUpdateOperatorBuilder {
 
   std::vector<physical::PhysicalOpr_Operator::OpKindCase> GetOpKinds()
       const override {
-    return {physical::PhysicalOpr_Operator::OpKindCase::kCreateEdge};
+    return {physical::PhysicalOpr_Operator::OpKindCase::kPath};
   }
 };
-
 }  // namespace ops
 }  // namespace runtime
 }  // namespace gs
 
-#endif  // EXECUTION_EXECUTE_OPS_BATCH_BATCH_INSERT_EDGE_H_
+#endif  // EXECUTION_EXECUTE_UPDATE_OPS_PATH_H_

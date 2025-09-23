@@ -43,6 +43,33 @@ namespace ops {
 // CSVDataSourceOpr read from csv file and load the arrow table into memory.
 //  Insert the columns to the context.
 
+/**
+ * @brief DataSourceOpr is used to load data from a CSV file.
+ */
+class CSVDataSourceOpr : public IUpdateOperator {
+ public:
+  static constexpr bool batch_reader_default = true;
+  CSVDataSourceOpr(
+      const std::vector<std::shared_ptr<IRecordBatchSupplier>>& suppliers,
+      bool batch_reader)
+      : suppliers_(suppliers), batch_reader_(batch_reader) {}
+
+  ~CSVDataSourceOpr() = default;
+
+  std::string get_operator_name() const override { return "CSVDataSourceOpr"; }
+
+  gs::result<Context> Eval(GraphUpdateInterface& graph,
+                           const std::map<std::string, std::string>& params,
+                           Context&& ctx, OprTimer* timer) override;
+
+ private:
+  gs::result<Context> eval_table_reader(Context&& ctx);
+  gs::result<Context> eval_batch_reader(Context&& ctx);
+
+  std::vector<std::shared_ptr<IRecordBatchSupplier>> suppliers_;
+  bool batch_reader_;  // With batch reader, we will read the file in batches.
+};
+
 gs::result<Context> CSVDataSourceOpr::Eval(
     GraphUpdateInterface& graph,
     const std::map<std::string, std::string>& params, Context&& ctx,

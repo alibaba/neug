@@ -45,29 +45,6 @@ class OprTimer;
 
 namespace ops {
 
-class BatchInsertVertexOpr : public IUpdateOperator {
- public:
-  BatchInsertVertexOpr(
-      const label_t& vertex_label_id, const PropertyType& pk_type,
-      const std::vector<std::pair<int32_t, std::string>>& prop_mappings)
-      : vertex_label_id_(vertex_label_id),
-        pk_type_(pk_type),
-        prop_mappings_(prop_mappings) {}
-
-  std::string get_operator_name() const override {
-    return "BatchInsertVertexOpr";
-  }
-
-  gs::result<Context> Eval(GraphUpdateInterface& graph,
-                           const std::map<std::string, std::string>& params,
-                           Context&& ctx, OprTimer* timer) override;
-
- private:
-  label_t vertex_label_id_;
-  PropertyType pk_type_;
-  std::vector<std::pair<int32_t, std::string>> prop_mappings_;
-};
-
 class BatchInsertVertexOprBuilder : public IUpdateOperatorBuilder {
  public:
   BatchInsertVertexOprBuilder() = default;
@@ -77,31 +54,10 @@ class BatchInsertVertexOprBuilder : public IUpdateOperatorBuilder {
                                          const physical::PhysicalPlan& plan,
                                          int op_idx) override;
 
-  physical::PhysicalOpr_Operator::OpKindCase GetOpKind() const override {
-    return physical::PhysicalOpr_Operator::OpKindCase::kLoadVertex;
+  std::vector<physical::PhysicalOpr_Operator::OpKindCase> GetOpKinds()
+      const override {
+    return {physical::PhysicalOpr_Operator::OpKindCase::kLoadVertex};
   }
-};
-
-class InsertVertexOpr : public IUpdateOperator {
- public:
-  using vertex_prop_vec_t = std::vector<std::pair<std::string, Any>>;
-  InsertVertexOpr(std::vector<std::tuple<label_t, vertex_prop_vec_t, int32_t>>&&
-                      vertex_data)
-      : vertex_data_(std::move(vertex_data)) {}
-
-  std::string get_operator_name() const override { return "InsertVertexOpr"; }
-
-  template <typename GraphInterface>
-  gs::result<Context> eval_impl(
-      GraphInterface& graph, const std::map<std::string, std::string>& params,
-      Context&& ctx, OprTimer* timer);
-
-  gs::result<Context> Eval(GraphUpdateInterface& graph,
-                           const std::map<std::string, std::string>& params,
-                           Context&& ctx, OprTimer* timer) override;
-
- private:
-  std::vector<std::tuple<label_t, vertex_prop_vec_t, int32_t>> vertex_data_;
 };
 
 class InsertVertexOprBuilder : public IUpdateOperatorBuilder {
@@ -112,9 +68,9 @@ class InsertVertexOprBuilder : public IUpdateOperatorBuilder {
   std::unique_ptr<IUpdateOperator> Build(const Schema& schema,
                                          const physical::PhysicalPlan& plan,
                                          int op_idx) override;
-
-  physical::PhysicalOpr_Operator::OpKindCase GetOpKind() const override {
-    return physical::PhysicalOpr_Operator::OpKindCase::kCreateVertex;
+  std::vector<physical::PhysicalOpr_Operator::OpKindCase> GetOpKinds()
+      const override {
+    return {physical::PhysicalOpr_Operator::OpKindCase::kCreateVertex};
   }
 };
 

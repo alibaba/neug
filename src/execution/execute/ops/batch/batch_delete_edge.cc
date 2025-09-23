@@ -21,6 +21,27 @@
 namespace gs {
 namespace runtime {
 namespace ops {
+class BatchDeleteEdgeOpr : public IUpdateOperator {
+ public:
+  BatchDeleteEdgeOpr(
+      const std::vector<std::vector<std::tuple<label_t, label_t, label_t>>>&
+          edge_triplets,
+      const std::vector<int32_t> edge_bindings)
+      : edge_triplets_(edge_triplets), edge_bindings_(edge_bindings) {}
+
+  std::string get_operator_name() const override {
+    return "BatchDeleteEdgeOpr";
+  }
+
+  gs::result<Context> Eval(GraphUpdateInterface& graph,
+                           const std::map<std::string, std::string>& params,
+                           Context&& ctx, OprTimer* timer) override;
+
+ private:
+  std::vector<std::vector<std::tuple<label_t, label_t, label_t>>>
+      edge_triplets_;
+  std::vector<int32_t> edge_bindings_;
+};
 
 Direction get_dir(std::shared_ptr<IEdgeColumn> column) {
   if (column->edge_column_type() == EdgeColumnType::kSDSL) {

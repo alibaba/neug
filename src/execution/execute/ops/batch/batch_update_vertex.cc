@@ -22,10 +22,36 @@ namespace gs {
 namespace runtime {
 namespace ops {
 
-template <typename GraphInterface>
+/**
+ * @brief UpdateVertexOpr is used to update vertex properties in batch.
+ */
+class UpdateVertexOpr : public IUpdateOperator {
+ public:
+  using vertex_prop_vec_t =
+      std::vector<std::tuple<int32_t, std::string, common::Expression>>;
+  UpdateVertexOpr(vertex_prop_vec_t&& vertex_data)
+      : vertex_data_(std::move(vertex_data)) {}
+
+  std::string get_operator_name() const override { return "UpdateVertexOpr"; }
+
+  gs::result<Context> eval_impl(
+      GraphUpdateInterface& graph,
+      const std::map<std::string, std::string>& params, Context&& ctx,
+      OprTimer* timer);
+
+  gs::result<Context> Eval(GraphUpdateInterface& graph,
+                           const std::map<std::string, std::string>& params,
+                           Context&& ctx, OprTimer* timer) override;
+
+ private:
+  // No alias is produced in this operator.
+  vertex_prop_vec_t vertex_data_;
+};
+
 gs::result<Context> UpdateVertexOpr::eval_impl(
-    GraphInterface& graph, const std::map<std::string, std::string>& params,
-    Context&& ctx, OprTimer* timer) {
+    GraphUpdateInterface& graph,
+    const std::map<std::string, std::string>& params, Context&& ctx,
+    OprTimer* timer) {
   Arena arena;
   for (const auto& entry : vertex_data_) {
     auto tag_id = std::get<0>(entry);

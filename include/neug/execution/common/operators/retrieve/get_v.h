@@ -258,7 +258,7 @@ class GetV {
         ctx.set_with_reshuffle(params.alias, builder.finish(), {});
         return ctx;
       }
-      if (labels.size() > 1) {
+      if (labels.size() >= 1) {
         MLVertexColumnBuilder builder;
         if (opt == VOpt::kStart) {
           input_edge_list.foreach_edge(

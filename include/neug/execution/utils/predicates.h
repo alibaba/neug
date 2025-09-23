@@ -71,7 +71,8 @@ struct ExactVertexPredicate {
 };
 
 struct GeneralEdgePredicate {
-  GeneralEdgePredicate(const GraphReadInterface& graph, const Context& ctx,
+  template <typename GraphInterface>
+  GeneralEdgePredicate(const GraphInterface& graph, const Context& ctx,
                        const std::map<std::string, std::string>& params,
                        const common::Expression& expr)
       : expr_(graph, ctx, params, expr, VarType::kEdgeVar) {}

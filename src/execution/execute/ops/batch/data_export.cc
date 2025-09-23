@@ -19,6 +19,30 @@ namespace gs {
 namespace runtime {
 namespace ops {
 
+class DataExportOpr : public IReadOperator {
+ public:
+  DataExportOpr(const std::string& extension_name, const std::string& file_path,
+                const std::unordered_map<std::string, std::string>& options,
+                const std::vector<std::pair<int, std::string>>& headers)
+      : extension_name_(extension_name),
+        file_path_(file_path),
+        options_(options),
+        headers_(headers) {}
+
+  std::string get_operator_name() const override { return "DataExportOpr"; }
+
+  gs::result<gs::runtime::Context> Eval(
+      const gs::runtime::GraphReadInterface& graph,
+      const std::map<std::string, std::string>& params,
+      gs::runtime::Context&& ctx, gs::runtime::OprTimer* timer) override;
+
+  std::shared_ptr<IExportWriter> writer_;
+  std::string extension_name_;
+  std::string file_path_;
+  std::unordered_map<std::string, std::string> options_;
+  std::vector<std::pair<int, std::string>> headers_;
+};
+
 gs::result<gs::runtime::Context> DataExportOpr::Eval(
     const gs::runtime::GraphReadInterface& graph,
     const std::map<std::string, std::string>& params,

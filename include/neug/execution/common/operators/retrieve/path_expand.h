@@ -34,6 +34,7 @@
 #include "neug/execution/common/graph_interface.h"
 #include "neug/execution/common/operators/retrieve/path_expand_impl.h"
 #include "neug/execution/common/types.h"
+#include "neug/execution/utils/params.h"
 #include "neug/execution/utils/special_predicates.h"
 #include "neug/storages/graph/schema.h"
 #include "neug/utils/property/types.h"
@@ -47,26 +48,6 @@ namespace gs {
 
 namespace runtime {
 class SPVertexPredicate;
-
-struct PathExpandParams {
-  int start_tag;
-  std::vector<LabelTriplet> labels;
-  int alias;
-  Direction dir;
-  int hop_lower;
-  int hop_upper;
-  PathOpt opt;
-};
-
-struct ShortestPathParams {
-  int start_tag;
-  std::vector<LabelTriplet> labels;
-  int alias;
-  int v_alias;
-  Direction dir;
-  int hop_lower;
-  int hop_upper;
-};
 
 class PathExpand {
  public:

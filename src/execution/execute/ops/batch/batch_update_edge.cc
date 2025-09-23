@@ -23,6 +23,29 @@ namespace gs {
 namespace runtime {
 namespace ops {
 
+/**
+ * @brief UpdateEdgeOpr is used to update edge properties in batch.
+ */
+class UpdateEdgeOpr : public IUpdateOperator {
+ public:
+  using edge_data_t =
+      std::tuple<int32_t, std::string,
+                 common::Expression>;  // tag_id, property_name, value
+  using edge_data_vec_t = std::vector<edge_data_t>;
+
+  UpdateEdgeOpr(edge_data_vec_t&& edge_data)
+      : edge_data_(std::move(edge_data)) {}
+
+  std::string get_operator_name() const override { return "UpdateEdgeOpr"; }
+
+  gs::result<Context> Eval(GraphUpdateInterface& graph,
+                           const std::map<std::string, std::string>& params,
+                           Context&& ctx, OprTimer* timer) override;
+
+ private:
+  edge_data_vec_t edge_data_;
+};
+
 gs::result<Context> UpdateEdgeOpr::Eval(
     GraphUpdateInterface& graph,
     const std::map<std::string, std::string>& params, Context&& ctx,

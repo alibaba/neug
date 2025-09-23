@@ -111,11 +111,12 @@ class IInsertOperatorBuilder {
 class IUpdateOperatorBuilder {
  public:
   virtual ~IUpdateOperatorBuilder() = default;
-  virtual int stepping(int i) { return i + 1; }
+  virtual int stepping(int i) { return i + GetOpKinds().size(); }
 
   virtual std::unique_ptr<IUpdateOperator> Build(
       const Schema& schema, const physical::PhysicalPlan& plan, int op_id) = 0;
-  virtual physical::PhysicalOpr_Operator::OpKindCase GetOpKind() const = 0;
+  virtual std::vector<physical::PhysicalOpr_Operator::OpKindCase> GetOpKinds()
+      const = 0;
 };
 
 class IAdminOperatorBuilder {

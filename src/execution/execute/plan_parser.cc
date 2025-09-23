@@ -52,6 +52,7 @@
 #include "neug/execution/execute/ops/update/group_by.h"
 #include "neug/execution/execute/ops/update/join.h"
 #include "neug/execution/execute/ops/update/load.h"
+#include "neug/execution/execute/ops/update/path.h"
 #include "neug/execution/execute/ops/update/project.h"
 #include "neug/execution/execute/ops/update/scan.h"
 #include "neug/execution/execute/ops/update/select.h"
@@ -137,6 +138,8 @@ void PlanParser::init() {
   register_update_operator_builder(std::make_unique<ops::UJoinOprBuilder>());
   register_update_operator_builder(std::make_unique<ops::UGroupByOprBuilder>());
   register_update_operator_builder(
+      std::make_unique<ops::UPathExpandVOprBuilder>());
+  register_update_operator_builder(
       std::make_unique<ops::DataSourceOprBuilder>());
   register_update_operator_builder(
       std::make_unique<ops::BatchInsertVertexOprBuilder>());
@@ -185,8 +188,8 @@ void PlanParser::register_write_operator_builder(
 
 void PlanParser::register_update_operator_builder(
     std::unique_ptr<IUpdateOperatorBuilder>&& builder) {
-  auto op = builder->GetOpKind();
-  update_op_builders_[op] = std::move(builder);
+  auto ops = builder->GetOpKinds();
+  update_op_builders_[*ops.begin()].emplace_back(ops, std::move(builder));
 }
 
 void PlanParser::register_admin_operator_builder(
@@ -425,36 +428,54 @@ gs::result<UpdatePipeline> PlanParser::parse_update_pipeline(
     return UpdatePipeline(std::move(res.value()));
   }
   std::vector<std::unique_ptr<IUpdateOperator>> operators;
-  for (int i = 0; i < plan.query_plan().plan_size(); ++i) {
+  int opr_num = plan.query_plan().plan_size();
+  for (int i = 0; i < opr_num;) {
     auto op_kind = plan.query_plan().plan(i).opr().op_kind_case();
-    if (update_op_builders_.find(op_kind) == update_op_builders_.end()) {
-      std::stringstream ss;
-      ss << "[Update Pipeline Parse Failed] " << get_opr_name(op_kind)
-         << " failed to parse plan at index " << i;
-      auto err = gs::Status(gs::StatusCode::ERR_INTERNAL_ERROR, ss.str());
-      LOG(ERROR) << err.ToString();
-      RETURN_ERROR(err);
-    }
-    TRY_HANDLE_ALL_WITH_EXCEPTION(
-        gs::result<std::unique_ptr<IUpdateOperator>>,
-        [&]() {
-          return gs::result<std::unique_ptr<IUpdateOperator>>(
-              update_op_builders_.at(op_kind)->Build(schema, plan, i));
-        },
-        [&](const auto& _status) { status = _status; },
-        [&](gs::result<std::unique_ptr<IUpdateOperator>>&& res) {
-          if (res.value()) {
-            operators.emplace_back(std::move(res.value()));
-          } else {
-            status = gs::Status(gs::StatusCode::ERR_INTERNAL_ERROR,
-                                "Failed to build operator at index " +
-                                    std::to_string(i) +
-                                    ", op_kind: " + get_opr_name(op_kind) +
-                                    ", error: No operator returned");
-          }
-        });
 
-    if (!status.ok()) {
+    auto& builders = update_op_builders_[op_kind];
+    int old_i = i;
+    gs::Status status = gs::Status::OK();
+    for (auto& pair : builders) {
+      auto pattern = pair.first;
+      auto& builder = pair.second;
+      if (pattern.size() > static_cast<size_t>(opr_num - i)) {
+        continue;
+      }
+      bool match = true;
+      for (size_t j = 1; j < pattern.size(); ++j) {
+        if (plan.query_plan().plan(i + j).opr().op_kind_case() != pattern[j]) {
+          match = false;
+        }
+      }
+      if (match) {
+        TRY_HANDLE_ALL_WITH_EXCEPTION(
+            gs::result<std::unique_ptr<IUpdateOperator>>,
+            [&]() {
+              return gs::result<std::unique_ptr<IUpdateOperator>>(
+                  builder->Build(schema, plan, i));
+            },
+            [&](const auto& _status) { status = _status; },
+            [&](gs::result<std::unique_ptr<IUpdateOperator>>&& res) {
+              if (res.value()) {
+                operators.emplace_back(std::move(res.value()));
+              } else {
+                status = gs::Status(gs::StatusCode::ERR_INTERNAL_ERROR,
+                                    "Failed to build operator at index " +
+                                        std::to_string(i) +
+                                        ", op_kind: " + get_opr_name(op_kind) +
+                                        ", error: No operator returned");
+              }
+            });
+        if (status.ok()) {
+          i = builder->stepping(i);
+          // Reset status to OK after a successful match.
+          status = gs::Status::OK();
+          break;
+        }
+      }
+    }
+
+    if (i == old_i) {
       std::stringstream ss;
       ss << "[Update Pipeline Parse Failed] " << get_opr_name(op_kind)
          << ", op_kind " << op_kind << " failed to Build plan at index " << i

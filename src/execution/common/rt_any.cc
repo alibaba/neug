@@ -359,6 +359,8 @@ PropertyType rt_type_to_property_type(RTAnyType type) {
     return PropertyType::kDate;  // FIXME
   case RTAnyType::kInterval:
     return PropertyType::kInterval;
+  case RTAnyType::kRecordView:
+    return PropertyType::kRecordView;
   default:
     THROW_NOT_SUPPORTED_EXCEPTION("Unexpected property type: " +
                                   std::to_string(static_cast<int>(type)));

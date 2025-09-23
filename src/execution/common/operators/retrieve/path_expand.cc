@@ -161,6 +161,7 @@ gs::result<Context> PathExpand::edge_expand_v(const GraphReadInterface& graph,
           out_labels_map(graph.schema().vertex_label_num());
       for (const auto& label : params.labels) {
         labels.emplace(label.dst_label);
+        labels.emplace(label.src_label);
         in_labels_map[label.dst_label].emplace_back(label);
         out_labels_map[label.src_label].emplace_back(label);
       }

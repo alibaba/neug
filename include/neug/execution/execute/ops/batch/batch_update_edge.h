@@ -27,29 +27,6 @@ namespace gs {
 namespace runtime {
 namespace ops {
 
-/**
- * @brief UpdateEdgeOpr is used to update edge properties in batch.
- */
-class UpdateEdgeOpr : public IUpdateOperator {
- public:
-  using edge_data_t =
-      std::tuple<int32_t, std::string,
-                 ::common::Expression>;  // tag_id, property_name, value
-  using edge_data_vec_t = std::vector<edge_data_t>;
-
-  UpdateEdgeOpr(edge_data_vec_t&& edge_data)
-      : edge_data_(std::move(edge_data)) {}
-
-  std::string get_operator_name() const override { return "UpdateEdgeOpr"; }
-
-  gs::result<Context> Eval(GraphUpdateInterface& graph,
-                           const std::map<std::string, std::string>& params,
-                           Context&& ctx, OprTimer* timer) override;
-
- private:
-  edge_data_vec_t edge_data_;
-};
-
 class UpdateEdgeOprBuilder : public IUpdateOperatorBuilder {
  public:
   UpdateEdgeOprBuilder() = default;
@@ -59,8 +36,9 @@ class UpdateEdgeOprBuilder : public IUpdateOperatorBuilder {
                                          const physical::PhysicalPlan& plan,
                                          int op_idx) override;
 
-  physical::PhysicalOpr_Operator::OpKindCase GetOpKind() const override {
-    return physical::PhysicalOpr_Operator::OpKindCase::kSetEdge;
+  std::vector<physical::PhysicalOpr_Operator::OpKindCase> GetOpKinds()
+      const override {
+    return {physical::PhysicalOpr_Operator::OpKindCase::kSetEdge};
   }
 };
 

@@ -21,24 +21,6 @@
 namespace gs {
 namespace runtime {
 namespace ops {
-class BatchDeleteVertexOpr : public IUpdateOperator {
- public:
-  BatchDeleteVertexOpr(const std::vector<std::vector<label_t>>& vertex_labels,
-                       const std::vector<int32_t> vertex_bindings)
-      : vertex_labels_(vertex_labels), vertex_bindings_(vertex_bindings) {}
-
-  std::string get_operator_name() const override {
-    return "BatchDeleteVertexOpr";
-  }
-
-  gs::result<Context> Eval(GraphUpdateInterface& graph,
-                           const std::map<std::string, std::string>& params,
-                           Context&& ctx, OprTimer* timer) override;
-
- private:
-  std::vector<std::vector<label_t>> vertex_labels_;
-  std::vector<int32_t> vertex_bindings_;
-};
 
 class BatchDeleteVertexOprBuilder : public IUpdateOperatorBuilder {
  public:
@@ -49,8 +31,9 @@ class BatchDeleteVertexOprBuilder : public IUpdateOperatorBuilder {
                                          const physical::PhysicalPlan& plan,
                                          int op_idx) override;
 
-  physical::PhysicalOpr_Operator::OpKindCase GetOpKind() const override {
-    return physical::PhysicalOpr_Operator::OpKindCase::kDeleteVertex;
+  std::vector<physical::PhysicalOpr_Operator::OpKindCase> GetOpKinds()
+      const override {
+    return {physical::PhysicalOpr_Operator::OpKindCase::kDeleteVertex};
   }
 };
 }  // namespace ops

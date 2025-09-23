@@ -36,7 +36,10 @@ class UpdatePipeline;
 
 class PlanParser {
  private:
-  PlanParser() { read_op_builders_.resize(64); }
+  PlanParser() {
+    read_op_builders_.resize(64);
+    update_op_builders_.resize(64);
+  }
 
  public:
   PlanParser(const PlanParser&) = delete;
@@ -89,8 +92,9 @@ class PlanParser {
            std::unique_ptr<IInsertOperatorBuilder>>
       write_op_builders_;
 
-  std::map<physical::PhysicalOpr_Operator::OpKindCase,
-           std::unique_ptr<IUpdateOperatorBuilder>>
+  std::vector<std::vector<
+      std::pair<std::vector<physical::PhysicalOpr_Operator::OpKindCase>,
+                std::unique_ptr<IUpdateOperatorBuilder>>>>
       update_op_builders_;
 
   std::map<physical::AdminPlan_Operator::KindCase,
