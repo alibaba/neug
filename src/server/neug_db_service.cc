@@ -58,16 +58,14 @@ bool NeugDBService::IsRunning() const {
   return running_.load(std::memory_order_relaxed);
 }
 
-gs::Result<std::string> NeugDBService::service_status() {
+gs::result<std::string> NeugDBService::service_status() {
   if (!IsInitialized()) {
-    return gs::Result<std::string>(gs::StatusCode::OK,
-                                   "NeugDB service has not been inited!", "");
+    return gs::result<std::string>("NeugDB service has not been inited!");
   }
   if (!IsRunning()) {
-    return gs::Result<std::string>(gs::StatusCode::OK,
-                                   "NeugDB service has not been started!", "");
+    return gs::result<std::string>("NeugDB service has not been started!");
   }
-  return gs::Result<std::string>(std::string("NeugDB service is running ..."));
+  return gs::result<std::string>("NeugDB service is running ...");
 }
 
 void NeugDBService::run_and_wait_for_exit() {

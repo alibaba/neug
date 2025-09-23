@@ -14,9 +14,9 @@
  */
 
 #include <dlfcn.h>
-#include <fstream>
-#include <filesystem>
 #include <glog/logging.h>
+#include <filesystem>
+#include <fstream>
 
 #ifdef __GNUC__
 #pragma GCC diagnostic push
@@ -27,71 +27,72 @@
 #pragma GCC diagnostic pop
 #endif
 
-#include "neug/storages/graph/schema.h"
-#include "neug/execution/extension/extension.h"
 #include "neug/compiler/catalog/function_signature_registry.h"
+#include "neug/execution/extension/extension.h"
+#include "neug/storages/graph/schema.h"
 
 namespace gs {
 namespace extension {
 
 Status install_extension(const std::string& extension_name) {
-    LOG(INFO) << "[Admin] INSTALL extension: " << extension_name;
+  LOG(INFO) << "[Admin] INSTALL extension: " << extension_name;
 
-    const std::string& repo = gs::extension::ExtensionUtils::OFFICIAL_EXTENSION_REPO;
-    auto repoInfo = gs::extension::ExtensionUtils::getExtensionLibRepoInfo(extension_name, repo);
+  const std::string& repo =
+      gs::extension::ExtensionUtils::OFFICIAL_EXTENSION_REPO;
+  auto repoInfo = gs::extension::ExtensionUtils::getExtensionLibRepoInfo(
+      extension_name, repo);
 
-    LOG(INFO) << "[Admin] Download URL host=" << repoInfo.hostURL
-              << " path=" << repoInfo.hostPath
-              << " full=" << repoInfo.repoURL;
+  LOG(INFO) << "[Admin] Download URL host=" << repoInfo.hostURL
+            << " path=" << repoInfo.hostPath << " full=" << repoInfo.repoURL;
 
-    std::string baseExtDir = "lib";
-    std::string extDir = baseExtDir + "/" + extension_name;
-    std::error_code ec;
-    std::filesystem::create_directories(extDir, ec);
-    if (ec) {
-        return Status(StatusCode::ERR_IO_ERROR,
-                      "Failed to create extension directory: " + extDir +
-                          " ec=" + ec.message());
+  std::string baseExtDir = "lib";
+  std::string extDir = baseExtDir + "/" + extension_name;
+  std::error_code ec;
+  std::filesystem::create_directories(extDir, ec);
+  if (ec) {
+    return Status(StatusCode::ERR_IO_ERROR,
+                  "Failed to create extension directory: " + extDir +
+                      " ec=" + ec.message());
+  }
+
+  auto fileName =
+      gs::extension::ExtensionUtils::getExtensionFileName(extension_name);
+  auto localPath = extDir + "/" + fileName;
+
+  if (!std::filesystem::exists(localPath)) {
+    auto st = downloadExtensionFile(repoInfo, localPath);
+    if (!st.ok()) {
+      return Status(StatusCode::ERR_IO_ERROR, "Failed to download extension " +
+                                                  extension_name + " : " +
+                                                  st.error_message());
     }
+    LOG(INFO) << "[Admin] Extension " << extension_name << " downloaded to "
+              << localPath;
+  } else {
+    LOG(INFO) << "[Admin] Extension file already exists: " << localPath;
+  }
 
-    auto fileName = gs::extension::ExtensionUtils::getExtensionFileName(extension_name);
-    auto localPath = extDir + "/" + fileName;
+  bool checksumChecked = false;
+  auto verifySt = verifyExtensionChecksum(repoInfo, localPath, checksumChecked);
+  if (!verifySt.ok()) {
+    std::filesystem::remove(localPath);
+    return Status(
+        StatusCode::ERR_IO_ERROR,
+        "Extension integrity check failed: " + verifySt.error_message());
+  }
+  if (checksumChecked) {
+    LOG(INFO) << "[Admin] Extension integrity verified for " << extension_name;
+  }
 
-    if (!std::filesystem::exists(localPath)) {
-        auto st = downloadExtensionFile(repoInfo, localPath);
-        if (!st.ok()) {
-            return Status(StatusCode::ERR_IO_ERROR,
-                          "Failed to download extension " + extension_name +
-                              " : " + st.error_message());
-        }
-        LOG(INFO) << "[Admin] Extension " << extension_name
-                  << " downloaded to " << localPath;
-    } else {
-        LOG(INFO) << "[Admin] Extension file already exists: " << localPath;
-    }
-
-    bool checksumChecked = false;
-    auto verifySt = verifyExtensionChecksum(
-        repoInfo, localPath, checksumChecked);
-    if (!verifySt.ok()) {
-        std::filesystem::remove(localPath);
-        return Status(StatusCode::ERR_IO_ERROR,
-                      "Extension integrity check failed: " +
-                          verifySt.error_message());
-    }
-    if (checksumChecked) {
-        LOG(INFO) << "[Admin] Extension integrity verified for "
-                  << extension_name;
-    }
-
-    return Status::OK();
+  return Status::OK();
 }
 
 Status downloadExtensionFile(const ExtensionRepoInfo& repoInfo,
                              const std::string& localFilePath) {
 #ifndef CPPHTTPLIB_OPENSSL_SUPPORT
-  return Status(StatusCode::ERR_IO_ERROR,
-                "HTTPS not supported (rebuild with CPPHTTPLIB_OPENSSL_SUPPORT)");
+  return Status(
+      StatusCode::ERR_IO_ERROR,
+      "HTTPS not supported (rebuild with CPPHTTPLIB_OPENSSL_SUPPORT)");
 #else
   httplib::SSLClient cli(repoInfo.hostURL.c_str());
   cli.set_connection_timeout(10, 0);
@@ -122,20 +123,22 @@ Status downloadExtensionFile(const ExtensionRepoInfo& repoInfo,
 #endif
 }
 
-Result<std::string> computeFileSHA256(const std::string& path) {
+result<std::string> computeFileSHA256(const std::string& path) {
   std::ifstream file(path, std::ios::binary);
   if (!file.is_open()) {
-    return Status(StatusCode::ERR_IO_ERROR, "Cannot open file: " + path);
+    RETURN_ERROR(Status(StatusCode::ERR_IO_ERROR, "Cannot open file: " + path));
   }
 
   EVP_MD_CTX* mdctx = EVP_MD_CTX_new();
   if (mdctx == nullptr) {
-    return Status(StatusCode::ERR_INTERNAL_ERROR, "Failed to create EVP_MD_CTX");
+    RETURN_ERROR(
+        Status(StatusCode::ERR_INTERNAL_ERROR, "Failed to create EVP_MD_CTX"));
   }
 
   if (EVP_DigestInit_ex(mdctx, EVP_sha256(), nullptr) != 1) {
     EVP_MD_CTX_free(mdctx);
-    return Status(StatusCode::ERR_INTERNAL_ERROR, "Failed to initialize SHA256 digest");
+    RETURN_ERROR(Status(StatusCode::ERR_INTERNAL_ERROR,
+                        "Failed to initialize SHA256 digest"));
   }
 
   constexpr size_t bufferSize = 8192;
@@ -143,7 +146,8 @@ Result<std::string> computeFileSHA256(const std::string& path) {
   while (file.read(buffer, bufferSize) || file.gcount() > 0) {
     if (EVP_DigestUpdate(mdctx, buffer, file.gcount()) != 1) {
       EVP_MD_CTX_free(mdctx);
-      return Status(StatusCode::ERR_INTERNAL_ERROR, "Failed to update SHA256 digest");
+      RETURN_ERROR(Status(StatusCode::ERR_INTERNAL_ERROR,
+                          "Failed to update SHA256 digest"));
     }
   }
 
@@ -151,14 +155,16 @@ Result<std::string> computeFileSHA256(const std::string& path) {
   unsigned int hash_len = 0;
   if (EVP_DigestFinal_ex(mdctx, hash, &hash_len) != 1) {
     EVP_MD_CTX_free(mdctx);
-    return Status(StatusCode::ERR_INTERNAL_ERROR, "Failed to finalize SHA256 digest");
+    RETURN_ERROR(Status(StatusCode::ERR_INTERNAL_ERROR,
+                        "Failed to finalize SHA256 digest"));
   }
 
   EVP_MD_CTX_free(mdctx);
 
   std::ostringstream ss;
   for (unsigned int i = 0; i < hash_len; i++) {
-    ss << std::hex << std::setw(2) << std::setfill('0') << static_cast<int>(hash[i]);
+    ss << std::hex << std::setw(2) << std::setfill('0')
+       << static_cast<int>(hash[i]);
   }
 
   return ss.str();
@@ -183,7 +189,7 @@ Status verifyExtensionChecksum(const ExtensionRepoInfo& libRepoInfo,
 
   auto res = cli.Get(checksumPath.c_str(), headers);
   if (!res || res->status != 200) {
-    LOG(WARNING) << "[Admin] No checksum file found at " << checksumURL 
+    LOG(WARNING) << "[Admin] No checksum file found at " << checksumURL
                  << ", skipping integrity check";
     return Status::OK();
   }
@@ -195,28 +201,30 @@ Status verifyExtensionChecksum(const ExtensionRepoInfo& libRepoInfo,
     expectedChecksum = expectedChecksum.substr(0, spacePos);
   }
 
-  expectedChecksum.erase(std::remove(expectedChecksum.begin(), expectedChecksum.end(), '\n'), 
-                         expectedChecksum.end());
-  expectedChecksum.erase(std::remove(expectedChecksum.begin(), expectedChecksum.end(), '\r'), 
-                         expectedChecksum.end());
+  expectedChecksum.erase(
+      std::remove(expectedChecksum.begin(), expectedChecksum.end(), '\n'),
+      expectedChecksum.end());
+  expectedChecksum.erase(
+      std::remove(expectedChecksum.begin(), expectedChecksum.end(), '\r'),
+      expectedChecksum.end());
 
   auto computedResult = computeFileSHA256(localLibPath);
-  if (!computedResult.ok()) {
-    return computedResult.status();
+  if (!computedResult) {
+    return computedResult.error();
   }
 
   std::string computedChecksum = computedResult.value();
 
-  std::transform(expectedChecksum.begin(), expectedChecksum.end(), 
+  std::transform(expectedChecksum.begin(), expectedChecksum.end(),
                  expectedChecksum.begin(), ::tolower);
-  std::transform(computedChecksum.begin(), computedChecksum.end(), 
+  std::transform(computedChecksum.begin(), computedChecksum.end(),
                  computedChecksum.begin(), ::tolower);
 
   if (expectedChecksum != computedChecksum) {
     return Status(StatusCode::ERR_IO_ERROR,
-                  "Checksum verification failed for " + localLibPath + 
-                  ". Expected: " + expectedChecksum + 
-                  ", Got: " + computedChecksum);
+                  "Checksum verification failed for " + localLibPath +
+                      ". Expected: " + expectedChecksum +
+                      ", Got: " + computedChecksum);
   }
 
   checksumChecked = true;
@@ -229,75 +237,81 @@ Status verifyExtensionChecksum(const ExtensionRepoInfo& libRepoInfo,
 }
 
 Status load_extension(const std::string& extension_name) {
-    LOG(INFO) << "[Admin] LOAD extension: " << extension_name;
-    
-    std::string baseExtDir = "lib";
-    std::string extDir = baseExtDir + "/" + extension_name;
-    auto fileName = gs::extension::ExtensionUtils::getExtensionFileName(extension_name);
-    auto localPath = extDir + "/" + fileName;
-    if (!std::filesystem::exists(localPath)) {
-        return Status(StatusCode::ERR_IO_ERROR,
-                      "Extension not found: " + extension_name + 
-                      ". Please install it first using INSTALL " + extension_name);
-    }
-    void* handle = dlopen(localPath.c_str(), RTLD_LAZY | RTLD_LOCAL);
-    if (!handle) {
-        return Status(StatusCode::ERR_IO_ERROR,
-                      "Failed to load extension library: " + localPath + 
+  LOG(INFO) << "[Admin] LOAD extension: " << extension_name;
+
+  std::string baseExtDir = "lib";
+  std::string extDir = baseExtDir + "/" + extension_name;
+  auto fileName =
+      gs::extension::ExtensionUtils::getExtensionFileName(extension_name);
+  auto localPath = extDir + "/" + fileName;
+  if (!std::filesystem::exists(localPath)) {
+    return Status(StatusCode::ERR_IO_ERROR,
+                  "Extension not found: " + extension_name +
+                      ". Please install it first using INSTALL " +
+                      extension_name);
+  }
+  void* handle = dlopen(localPath.c_str(), RTLD_LAZY | RTLD_LOCAL);
+  if (!handle) {
+    return Status(StatusCode::ERR_IO_ERROR,
+                  "Failed to load extension library: " + localPath +
                       ". Error: " + std::string(dlerror()));
-    }
-    dlerror();
+  }
+  dlerror();
 
-    typedef void (*init_func_t)();
-    init_func_t init_func = (init_func_t) dlsym(handle, "init");
+  typedef void (*init_func_t)();
+  init_func_t init_func = (init_func_t) dlsym(handle, "init");
 
-    const char* dlsym_error = dlerror();
-    if (dlsym_error) {
-        dlclose(handle);
-        return Status(StatusCode::ERR_IO_ERROR,
-                      "Failed to find 'init' function in extension: " + extension_name + 
-                      ". Error: " + std::string(dlsym_error));
-    }
+  const char* dlsym_error = dlerror();
+  if (dlsym_error) {
+    dlclose(handle);
+    return Status(StatusCode::ERR_IO_ERROR,
+                  "Failed to find 'init' function in extension: " +
+                      extension_name + ". Error: " + std::string(dlsym_error));
+  }
 
-    try {
-        (*init_func)();
-        LOG(INFO) << "[Admin] Extension " << extension_name << " loaded and initialized successfully";
-    } catch (const std::exception& e) {
-        dlclose(handle);
-        return Status(StatusCode::ERR_IO_ERROR,
-                      "Extension initialization failed: " + extension_name + 
+  try {
+    (*init_func)();
+    LOG(INFO) << "[Admin] Extension " << extension_name
+              << " loaded and initialized successfully";
+  } catch (const std::exception& e) {
+    dlclose(handle);
+    return Status(StatusCode::ERR_IO_ERROR,
+                  "Extension initialization failed: " + extension_name +
                       ". Error: " + std::string(e.what()));
-    } catch (...) {
-        dlclose(handle);
-        return Status(StatusCode::ERR_IO_ERROR,
-                      "Extension initialization failed with unknown error: " + extension_name);
-    }
+  } catch (...) {
+    dlclose(handle);
+    return Status(StatusCode::ERR_IO_ERROR,
+                  "Extension initialization failed with unknown error: " +
+                      extension_name);
+  }
 
-    LOG(INFO) << "[Admin] Extension " << extension_name << " is now available";
-    gs::function::FunctionSignatureRegistry::printAllSignatures();
-    return Status::OK();
+  LOG(INFO) << "[Admin] Extension " << extension_name << " is now available";
+  gs::function::FunctionSignatureRegistry::printAllSignatures();
+  return Status::OK();
 }
 
 Status uninstall_extension(const std::string& extension_name) {
-    LOG(INFO) << "[Admin] UNINSTALL extension: " << extension_name;
-    std::string baseExtDir = "lib";
-    std::string extDir = baseExtDir + "/" + extension_name;
-    auto fileName = gs::extension::ExtensionUtils::getExtensionFileName(extension_name);
-    auto localLibPath = extDir + "/" + fileName;
-    if (!std::filesystem::exists(localLibPath)) {
-        return Status(StatusCode::ERR_IO_ERROR,
-                      "Cannot uninstall extension: " + extension_name + 
+  LOG(INFO) << "[Admin] UNINSTALL extension: " << extension_name;
+  std::string baseExtDir = "lib";
+  std::string extDir = baseExtDir + "/" + extension_name;
+  auto fileName =
+      gs::extension::ExtensionUtils::getExtensionFileName(extension_name);
+  auto localLibPath = extDir + "/" + fileName;
+  if (!std::filesystem::exists(localLibPath)) {
+    return Status(StatusCode::ERR_IO_ERROR,
+                  "Cannot uninstall extension: " + extension_name +
                       " since it has not been installed.");
-    }
-    std::error_code ec;
-    if (!std::filesystem::remove_all(extDir, ec)) {
-        return Status(StatusCode::ERR_IO_ERROR,
-                      "An error occurred while uninstalling extension: " + 
+  }
+  std::error_code ec;
+  if (!std::filesystem::remove_all(extDir, ec)) {
+    return Status(StatusCode::ERR_IO_ERROR,
+                  "An error occurred while uninstalling extension: " +
                       extension_name + ". Error: " + ec.message());
-    }
-    LOG(INFO) << "[Admin] Extension: " << extension_name << " has been uninstalled";
-    return Status::OK();
+  }
+  LOG(INFO) << "[Admin] Extension: " << extension_name
+            << " has been uninstalled";
+  return Status::OK();
 }
 
-} // namespace extension
-} // namespace gs
+}  // namespace extension
+}  // namespace gs

@@ -24,7 +24,7 @@
 
 namespace gs {
 
-Result<results::CollectiveResults> QueryProcessor::execute(
+result<results::CollectiveResults> QueryProcessor::execute(
     const physical::PhysicalPlan& plan, int32_t num_threads) {
   if (num_threads == 0) {
     num_threads = max_num_threads_;
@@ -35,16 +35,15 @@ Result<results::CollectiveResults> QueryProcessor::execute(
   LOG(INFO) << "Executing plan with " << num_threads
             << " threads, max_num_threads: " << max_num_threads_;
   if (num_threads < 1) {
-    return Result<results::CollectiveResults>(
-        gs::Status(gs::StatusCode::ERR_INVALID_ARGUMENT,
-                   "Number of threads must be greater than 0"));
+    RETURN_ERROR(gs::Status(gs::StatusCode::ERR_INVALID_ARGUMENT,
+                            "Number of threads must be greater than 0"));
   }
   VLOG(20) << "Executing plan: " << plan.DebugString();
   // TODO: Currently we get the read transaction with the thread id 0. Ideally,
   // we should be able to run queries with multiple threads.
   if (plan.has_ddl_plan()) {
     if (is_read_only_) {
-      return Result<results::CollectiveResults>(
+      RETURN_ERROR(
           gs::Status(gs::StatusCode::ERR_INVALID_ARGUMENT,
                      "DDL queries are not supported in read-only mode"));
     }
@@ -57,17 +56,16 @@ Result<results::CollectiveResults> QueryProcessor::execute(
 
   if (!plan.has_query_plan()) {
     LOG(ERROR) << "No query plan found";
-    return Result<results::CollectiveResults>(
-        gs::Status(gs::StatusCode::OK, "Empty query plan"));
+    RETURN_ERROR(gs::Status(gs::StatusCode::OK, "Empty query plan"));
   }
 
   auto mode = plan.query_plan().mode();
-  Result<results::CollectiveResults> res;
+  result<results::CollectiveResults> res;
   if (mode == physical::QueryPlan::READ_ONLY) {
     res = execute_read_only(plan, num_threads);
   } else if (mode == physical::QueryPlan::READ_WRITE) {
     if (is_read_only_) {
-      return Result<results::CollectiveResults>(
+      RETURN_ERROR(
           gs::Status(gs::StatusCode::ERR_INVALID_ARGUMENT,
                      "Read-write queries are not supported in read-only mode"));
     }
@@ -75,7 +73,7 @@ Result<results::CollectiveResults> QueryProcessor::execute(
 
   } else if (mode == physical::QueryPlan::WRITE_ONLY) {
     if (is_read_only_) {
-      return Result<results::CollectiveResults>(
+      RETURN_ERROR(
           gs::Status(gs::StatusCode::ERR_INVALID_ARGUMENT,
                      "Write-only queries are not supported in read-only mode"));
     }
@@ -83,13 +81,13 @@ Result<results::CollectiveResults> QueryProcessor::execute(
     res = execute_read_write(plan, num_threads);
   } else {
     LOG(ERROR) << "Unknown query plan mode: " << mode;
-    return Result<results::CollectiveResults>(gs::Status(
-        gs::StatusCode::ERR_INVALID_ARGUMENT, "Unknown query plan mode"));
+    RETURN_ERROR(gs::Status(gs::StatusCode::ERR_INVALID_ARGUMENT,
+                            "Unknown query plan mode"));
   }
   return res;
 }
 
-Result<results::CollectiveResults> QueryProcessor::execute_admin(
+result<results::CollectiveResults> QueryProcessor::execute_admin(
     const physical::AdminPlan& admin_plan, int32_t num_threads) {
   // For admin plan, we always use update transaction.
   auto txn = db_.GetUpdateTransaction();
@@ -102,19 +100,17 @@ Result<results::CollectiveResults> QueryProcessor::execute_admin(
   if (!ctx) {
     LOG(ERROR) << "Error: " << ctx.error().ToString();
     txn.Abort();
-    return Result<results::CollectiveResults>(ctx.error());
+    RETURN_ERROR(ctx.error());
   }
   if (!txn.Commit()) {
     LOG(ERROR) << "Commit failed";
     // If commit fails, we return an error.
-    return Result<results::CollectiveResults>(
-        Status(StatusCode::ERR_INTERNAL_ERROR, "Commit failed"));
+    RETURN_ERROR(Status(StatusCode::ERR_INTERNAL_ERROR, "Commit failed"));
   }
-  return Result<results::CollectiveResults>(
-      Status::OK(), runtime::Sink::sink(ctx.value(), gui));
+  return runtime::Sink::sink(ctx.value(), gui);
 }
 
-Result<results::CollectiveResults> QueryProcessor::execute_read_only(
+result<results::CollectiveResults> QueryProcessor::execute_read_only(
     const physical::PhysicalPlan& plan, int32_t num_threads) {
   auto txn = db_.GetReadTransaction();
   runtime::GraphReadInterface gri(txn);
@@ -127,26 +123,24 @@ Result<results::CollectiveResults> QueryProcessor::execute_read_only(
     txn.Abort();
     // We encode the error message to the output, so that the client can
     // get the error message.
-    return Result<results::CollectiveResults>(ctx.error());
+    RETURN_ERROR(ctx.error());
   }
   if (!txn.Commit()) {
     LOG(ERROR) << "Commit failed";
     // If commit fails, we return an error.
-    return Result<results::CollectiveResults>(
-        Status(StatusCode::ERR_INTERNAL_ERROR, "Commit failed"));
+    RETURN_ERROR(Status(StatusCode::ERR_INTERNAL_ERROR, "Commit failed"));
   }
-  return Result<results::CollectiveResults>(
-      Status::OK(), runtime::Sink::sink(ctx.value(), gri));
+  return runtime::Sink::sink(ctx.value(), gri);
 }
 
-Result<results::CollectiveResults> QueryProcessor::execute_read_write(
+result<results::CollectiveResults> QueryProcessor::execute_read_write(
     const physical::PhysicalPlan& plan, int32_t num_threads) {
   std::unique_ptr<runtime::OprTimer> timer = nullptr;
   return CypherUpdateApp::execute_update_query(db_.GetSession(0), plan,
                                                timer.get(), true);
 }
 
-Result<results::CollectiveResults> QueryProcessor::execute_ddl(
+result<results::CollectiveResults> QueryProcessor::execute_ddl(
     const physical::DDLPlan& ddl_plan, int32_t num_threads) {
   return CypherUpdateApp::execute_ddl(db_.GetSession(0), ddl_plan);
 }

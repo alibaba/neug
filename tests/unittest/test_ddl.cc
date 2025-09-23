@@ -39,58 +39,50 @@ TEST(StorageDDLTest, CreateAndAlterTables) {
   }
   std::string flex_data_dir = flex_data_dir_ptr;
   auto conn = db.Connect();
-  EXPECT_TRUE(conn->Query("CREATE NODE TABLE person(id INT64, name STRING, age "
-                          "INT64, PRIMARY "
-                          "KEY(id));")
-                  .ok());
   EXPECT_TRUE(
-      conn->Query(
-              "CREATE NODE TABLE software(id INT64, name STRING, lang STRING, "
-              "PRIMARY "
-              "KEY(id));")
-          .ok());
+      conn->Query("CREATE NODE TABLE person(id INT64, name STRING, age "
+                  "INT64, PRIMARY "
+                  "KEY(id));"));
+  EXPECT_TRUE(conn->Query(
+      "CREATE NODE TABLE software(id INT64, name STRING, lang STRING, "
+      "PRIMARY "
+      "KEY(id));"));
+  EXPECT_TRUE(conn->Query(
+      "CREATE REL TABLE knows(FROM person TO person, weight DOUBLE);"));
   EXPECT_TRUE(
-      conn->Query(
-              "CREATE REL TABLE knows(FROM person TO person, weight DOUBLE);")
-          .ok());
-  EXPECT_TRUE(conn->Query("CREATE REL TABLE created(FROM person TO software, "
-                          "weight DOUBLE, "
-                          "since INT64);")
-                  .ok());
+      conn->Query("CREATE REL TABLE created(FROM person TO software, "
+                  "weight DOUBLE, "
+                  "since INT64);"));
   EXPECT_TRUE(
-      conn->Query("COPY person from \"" + flex_data_dir + "/person.csv\";")
-          .ok());
-  EXPECT_TRUE(
-      conn->Query("COPY software from \"" + flex_data_dir + "/software.csv\";")
-          .ok());
+      conn->Query("COPY person from \"" + flex_data_dir + "/person.csv\";"));
+  EXPECT_TRUE(conn->Query("COPY software from \"" + flex_data_dir +
+                          "/software.csv\";"));
   EXPECT_TRUE(conn->Query("COPY knows from \"" + flex_data_dir +
                           "/person_knows_person.csv\" (from=\"person\", "
-                          "to=\"person\");")
-                  .ok());
+                          "to=\"person\");"));
   EXPECT_TRUE(conn->Query("COPY created from \"" + flex_data_dir +
                           "/person_created_software.csv\" (from=\"person\", "
-                          "to=\"software\");")
-                  .ok());
-  EXPECT_TRUE(conn->Query("ALTER TABLE person ADD birthday DATE;").ok());
+                          "to=\"software\");"));
+  EXPECT_TRUE(conn->Query("ALTER TABLE person ADD birthday DATE;"));
   EXPECT_TRUE(
-      conn->Query("ALTER TABLE person ADD IF NOT EXISTS birthday DATE;").ok());
+      conn->Query("ALTER TABLE person ADD IF NOT EXISTS birthday DATE;"));
   EXPECT_FALSE(
-      conn->Query("ALTER TABLE person ADD name STRING;").ok());  // should fail
-  EXPECT_TRUE(conn->Query("ALTER TABLE knows ADD registion DATE;").ok());
-  EXPECT_FALSE(conn->Query("ALTER TABLE person DROP non_existing_column;")
-                   .ok());  // should fail
-  EXPECT_TRUE(conn->Query("ALTER TABLE person DROP birthday;").ok());
-  EXPECT_TRUE(conn->Query("ALTER TABLE person DROP IF EXISTS birthday;").ok());
-  EXPECT_TRUE(conn->Query("ALTER TABLE person DROP age;").ok());
-  EXPECT_TRUE(conn->Query("ALTER TABLE person RENAME name TO username;").ok());
-  EXPECT_TRUE(conn->Query("MATCH (v:person)-[e:created]->(:software) "
-                          "DELETE e;")
-                  .ok());
-  EXPECT_TRUE(conn->Query("MATCH (v:person) DELETE v;").ok());
-  EXPECT_TRUE(conn->Query("DROP TABLE knows;").ok());
+      conn->Query("ALTER TABLE person ADD name STRING;"));  // should fail
+  EXPECT_TRUE(conn->Query("ALTER TABLE knows ADD registion DATE;"));
+  EXPECT_FALSE(conn->Query(
+      "ALTER TABLE person DROP non_existing_column;"));  // should fail
+  EXPECT_TRUE(conn->Query("ALTER TABLE person DROP birthday;"));
+  EXPECT_TRUE(conn->Query("ALTER TABLE person DROP IF EXISTS birthday;"));
+  EXPECT_TRUE(conn->Query("ALTER TABLE person DROP age;"));
+  EXPECT_TRUE(conn->Query("ALTER TABLE person RENAME name TO username;"));
+  EXPECT_TRUE(
+      conn->Query("MATCH (v:person)-[e:created]->(:software) "
+                  "DELETE e;"));
+  EXPECT_TRUE(conn->Query("MATCH (v:person) DELETE v;"));
+  EXPECT_TRUE(conn->Query("DROP TABLE knows;"));
   {
     auto res = conn->Query("MATCH (v:person) RETURN v;");
-    EXPECT_TRUE(res.ok());
+    EXPECT_TRUE(res);
     auto res_val = res.value();
     EXPECT_FALSE(res_val.hasNext());
   }
@@ -98,18 +90,18 @@ TEST(StorageDDLTest, CreateAndAlterTables) {
     auto res = conn->Query(
         "MATCH (v:software)<-[e:created]-(:person) "
         "RETURN e;");
-    EXPECT_TRUE(res.ok());
+    EXPECT_TRUE(res);
     auto res_val = res.value();
     EXPECT_FALSE(res_val.hasNext());
   }
   {
     auto res = conn->Query("COPY person from \"" + flex_data_dir +
                            "/person_after_alter.csv\";");
-    EXPECT_TRUE(res.ok());
+    EXPECT_TRUE(res);
   }
   {
     auto res = conn->Query("MATCH (v:person) RETURN count(v);");
-    EXPECT_TRUE(res.ok());
+    EXPECT_TRUE(res);
     auto res_val = res.value();
     EXPECT_TRUE(res_val.hasNext());
     auto row = res_val.next();

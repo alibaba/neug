@@ -705,9 +705,9 @@ void PropertyGraph::DumpSchema(const std::string& schema_path) {
   LOG(INFO) << "Dump schema to file: " << get_schema_yaml_path();
   std::string filename = get_schema_yaml_path();
   auto schema_res = schema_.to_yaml();
-  if (!schema_res.ok()) {
+  if (!schema_res) {
     LOG(ERROR) << "Failed to dump schema to yaml: "
-               << schema_res.status().error_message();
+               << schema_res.error().error_message();
     return;
   }
   write_yaml_file(schema_res.value(), filename);

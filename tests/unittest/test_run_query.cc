@@ -37,8 +37,8 @@ int main(int argc, char** argv) {
   LOG(INFO) << "Running query: " << query_string;
 
   auto res = conn->Query(query_string);
-  if (!res.ok()) {
-    LOG(ERROR) << "Query failed: " << res.status().ToString();
+  if (!res) {
+    LOG(ERROR) << "Query failed: " << res.error().ToString();
     return 1;
   }
   LOG(INFO) << "Query result: " << res.value().length() << " records found.";

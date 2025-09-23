@@ -61,7 +61,7 @@ class CSVFragmentLoader : public AbstractArrowFragmentLoader {
 
   ~CSVFragmentLoader() {}
 
-  Result<bool> LoadFragment() override;
+  result<bool> LoadFragment() override;
 
  private:
   void loadVertices();

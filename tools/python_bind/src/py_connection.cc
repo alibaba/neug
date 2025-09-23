@@ -65,16 +65,15 @@ void PyConnection::close() {
 std::unique_ptr<PyQueryResult> PyConnection::execute(
     const std::string& query_string, const std::string& format) {
   auto query_result = conn_->Query(query_string);
-  if (!query_result.ok()) {
-    return std::make_unique<PyQueryResult>(query_result.status());
+  if (!query_result) {
+    return std::make_unique<PyQueryResult>(query_result.error());
   }
   if (format == "json") {
-    QueryResult result(query_result.move_value());
-    std::string result_res = proto_to_bolt_response(result.get_result());
+    std::string result_res =
+        proto_to_bolt_response(query_result.value().get_result());
     return std::make_unique<PyQueryResult>(result_res, "json");
   } else {
-    return std::make_unique<PyQueryResult>(
-        std::move(query_result.move_value()));
+    return std::make_unique<PyQueryResult>(std::move(query_result.value()));
   }
 }
 

@@ -34,7 +34,7 @@
 #include "neug/execution/common/rt_any.h"
 #include "neug/execution/execute/ops/utils/project_utils.h"
 #include "neug/execution/utils/var.h"
-#include "neug/utils/leaf_utils.h"
+#include "neug/utils/result.h"
 
 namespace gs {
 class Schema;

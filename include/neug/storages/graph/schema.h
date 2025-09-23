@@ -29,7 +29,7 @@
 #include "neug/utils/id_indexer.h"               // for IdIndexer
 #include "neug/utils/property/types.h"           // for label_t
 #include "neug/utils/property/types.h"           // for Proper...
-#include "neug/utils/result.h"                   // for Result
+#include "neug/utils/result.h"                   // for result
 
 namespace YAML {
 class Node;
@@ -250,15 +250,15 @@ class Schema {
 
   void Deserialize(std::unique_ptr<grape::LocalIOAdaptor>& reader);
 
-  static Result<Schema> LoadFromYaml(const std::string& schema_config);
+  static gs::result<Schema> LoadFromYaml(const std::string& schema_config);
 
-  static Result<Schema> LoadFromYamlNode(const YAML::Node& schema_node);
+  static gs::result<Schema> LoadFromYamlNode(const YAML::Node& schema_node);
 
-  static Result<YAML::Node> DumpToYaml(const Schema& schema);
+  static gs::result<YAML::Node> DumpToYaml(const Schema& schema);
 
   bool Equals(const Schema& other) const;
 
-  Result<YAML::Node> to_yaml() const;
+  gs::result<YAML::Node> to_yaml() const;
 
   inline void SetGraphName(const std::string& name) { name_ = name; }
 

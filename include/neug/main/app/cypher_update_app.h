@@ -42,39 +42,39 @@ class CypherUpdateApp : public WriteAppBase {
 
   bool Query(NeugDBSession& graph, Decoder& input, Encoder& output) override;
 
-  static Result<results::CollectiveResults> execute_ddl(
+  static result<results::CollectiveResults> execute_ddl(
       NeugDBSession& graph, const physical::DDLPlan& ddl_plan);
 
-  static Result<results::CollectiveResults> execute_update_query(
+  static result<results::CollectiveResults> execute_update_query(
       NeugDBSession& graph, const physical::PhysicalPlan& plan,
       runtime::OprTimer* timer_, bool insert_with_resize = false);
 
-  static Result<results::CollectiveResults> execute_add_vertex_property(
+  static result<results::CollectiveResults> execute_add_vertex_property(
       NeugDBSession& graph,
       const physical::AddVertexPropertySchema& add_vertex_property_schema);
 
-  static Result<results::CollectiveResults> execute_add_edge_property(
+  static result<results::CollectiveResults> execute_add_edge_property(
       NeugDBSession& graph,
       const physical::AddEdgePropertySchema& add_edge_property_schema);
 
-  static Result<results::CollectiveResults> execute_drop_vertex_property(
+  static result<results::CollectiveResults> execute_drop_vertex_property(
       NeugDBSession& graph,
       const physical::DropVertexPropertySchema& drop_vertex_property_schema);
 
-  static Result<results::CollectiveResults> execute_drop_edge_property(
+  static result<results::CollectiveResults> execute_drop_edge_property(
       NeugDBSession& graph,
       const physical::DropEdgePropertySchema& drop_edge_property_schema);
 
-  static Result<results::CollectiveResults> execute_rename_vertex_property(
+  static result<results::CollectiveResults> execute_rename_vertex_property(
       NeugDBSession& graph, const physical::RenameVertexPropertySchema&
                                 rename_vertex_property_schema);
-  static Result<results::CollectiveResults> execute_rename_edge_property(
+  static result<results::CollectiveResults> execute_rename_edge_property(
       NeugDBSession& graph,
       const physical::RenameEdgePropertySchema& rename_edge_property_schema);
-  static Result<results::CollectiveResults> execute_drop_vertex_schema(
+  static result<results::CollectiveResults> execute_drop_vertex_schema(
       NeugDBSession& graph,
       const physical::DropVertexSchema& drop_vertex_schema);
-  static Result<results::CollectiveResults> execute_drop_edge_schema(
+  static result<results::CollectiveResults> execute_drop_edge_schema(
       NeugDBSession& graph, const physical::DropEdgeSchema& drop_edge_schema);
 
  private:

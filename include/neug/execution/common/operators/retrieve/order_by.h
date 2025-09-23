@@ -17,7 +17,7 @@
 
 #include "neug/execution/common/context.h"
 #include "neug/execution/common/graph_interface.h"
-#include "neug/utils/leaf_utils.h"
+#include "neug/utils/result.h"
 
 #include <queue>
 

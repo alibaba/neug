@@ -17,7 +17,7 @@
 #define EXECUTION_COMMON_OPERATORS_RETRIEVE_SELECT_H_
 
 #include "neug/execution/common/context.h"
-#include "neug/utils/leaf_utils.h"
+#include "neug/utils/result.h"
 
 namespace gs {
 

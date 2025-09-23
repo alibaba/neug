@@ -567,7 +567,7 @@ void CSVFragmentLoader::loadEdges() {
   }
 }
 
-Result<bool> CSVFragmentLoader::LoadFragment() {
+result<bool> CSVFragmentLoader::LoadFragment() {
   try {
     loadVertices();
     loadEdges();
@@ -577,11 +577,10 @@ Result<bool> CSVFragmentLoader::LoadFragment() {
     auto work_dir = basic_fragment_loader_.work_dir();
     printDiskRemaining(work_dir);
     LOG(ERROR) << "Load fragment failed: " << e.what();
-    return Result<bool>(StatusCode::ERR_INTERNAL_ERROR,
-                        "Load fragment failed: " + std::string(e.what()),
-                        false);
+    RETURN_ERROR(Status(StatusCode::ERR_INTERNAL_ERROR,
+                        "Load fragment failed: " + std::string(e.what())));
   }
-  return Result<bool>(true);
+  return result<bool>(true);
 }
 
 const bool CSVFragmentLoader::registered_ = LoaderFactory::Register(

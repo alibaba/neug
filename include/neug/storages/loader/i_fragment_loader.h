@@ -28,7 +28,7 @@ namespace gs {
 class IFragmentLoader {
  public:
   virtual ~IFragmentLoader() = default;
-  virtual Result<bool> LoadFragment() = 0;
+  virtual result<bool> LoadFragment() = 0;
 };
 
 }  // namespace gs

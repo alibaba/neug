@@ -34,8 +34,8 @@
 #include "neug/execution/utils/expr.h"
 #include "neug/execution/utils/var.h"
 #include "neug/storages/graph/schema.h"
-#include "neug/utils/leaf_utils.h"
 #include "neug/utils/property/types.h"
+#include "neug/utils/result.h"
 
 namespace gs {
 namespace runtime {

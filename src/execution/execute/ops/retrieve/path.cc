@@ -40,8 +40,8 @@
 #include "neug/execution/utils/utils.h"
 #include "neug/execution/utils/var.h"
 #include "neug/storages/csr/mutable_csr.h"
-#include "neug/utils/leaf_utils.h"
 #include "neug/utils/property/types.h"
+#include "neug/utils/result.h"
 
 namespace gs {
 class Schema;

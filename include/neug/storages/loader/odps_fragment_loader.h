@@ -177,7 +177,7 @@ class ODPSFragmentLoader : public AbstractArrowFragmentLoader {
 
   ~ODPSFragmentLoader() {}
 
-  Result<bool> LoadFragment() override;
+  result<bool> LoadFragment() override;
 
  private:
   void init();

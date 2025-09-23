@@ -81,7 +81,7 @@ bool data_type_to_property_type(const ::common::DataType& data_type,
 
 bool common_value_to_any(const ::common::Value& value, Any& out_any);
 
-Result<std::vector<std::tuple<PropertyType, std::string, Any>>>
+gs::result<std::vector<std::tuple<PropertyType, std::string, Any>>>
 property_defs_to_tuple(
     const google::protobuf::RepeatedPtrField<physical::PropertyDef>&
         properties);

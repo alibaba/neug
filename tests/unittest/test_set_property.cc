@@ -39,45 +39,37 @@ TEST(StorageDMLTest, SetVertexAndEdgeProperty) {
   }
   std::string flex_data_dir = flex_data_dir_ptr;
   auto conn = db.Connect();
-  EXPECT_TRUE(conn->Query("CREATE NODE TABLE person(id INT64, name STRING, age "
-                          "INT64, PRIMARY "
-                          "KEY(id));")
-                  .ok());
   EXPECT_TRUE(
-      conn->Query(
-              "CREATE NODE TABLE software(id INT64, name STRING, lang STRING, "
-              "PRIMARY "
-              "KEY(id));")
-          .ok());
+      conn->Query("CREATE NODE TABLE person(id INT64, name STRING, age "
+                  "INT64, PRIMARY "
+                  "KEY(id));"));
+  EXPECT_TRUE(conn->Query(
+      "CREATE NODE TABLE software(id INT64, name STRING, lang STRING, "
+      "PRIMARY "
+      "KEY(id));"));
+  EXPECT_TRUE(conn->Query(
+      "CREATE REL TABLE knows(FROM person TO person, weight DOUBLE);"));
   EXPECT_TRUE(
-      conn->Query(
-              "CREATE REL TABLE knows(FROM person TO person, weight DOUBLE);")
-          .ok());
-  EXPECT_TRUE(conn->Query("CREATE REL TABLE created(FROM person TO software, "
-                          "weight DOUBLE, "
-                          "since INT64);")
-                  .ok());
+      conn->Query("CREATE REL TABLE created(FROM person TO software, "
+                  "weight DOUBLE, "
+                  "since INT64);"));
   EXPECT_TRUE(
-      conn->Query("COPY person from \"" + flex_data_dir + "/person.csv\";")
-          .ok());
-  EXPECT_TRUE(
-      conn->Query("COPY software from \"" + flex_data_dir + "/software.csv\";")
-          .ok());
+      conn->Query("COPY person from \"" + flex_data_dir + "/person.csv\";"));
+  EXPECT_TRUE(conn->Query("COPY software from \"" + flex_data_dir +
+                          "/software.csv\";"));
   EXPECT_TRUE(conn->Query("COPY knows from \"" + flex_data_dir +
                           "/person_knows_person.csv\" (from=\"person\", "
-                          "to=\"person\");")
-                  .ok());
+                          "to=\"person\");"));
   EXPECT_TRUE(conn->Query("COPY created from \"" + flex_data_dir +
                           "/person_created_software.csv\" (from=\"person\", "
-                          "to=\"software\");")
-                  .ok());
+                          "to=\"software\");"));
 
   // Set the vertex property to a constant value.
   {
-    EXPECT_TRUE(conn->Query("ALTER TABLE person ADD score INT64;").ok());
-    EXPECT_TRUE(conn->Query("MATCH (v:person) SET v.score=3;").ok());
+    EXPECT_TRUE(conn->Query("ALTER TABLE person ADD score INT64;"));
+    EXPECT_TRUE(conn->Query("MATCH (v:person) SET v.score=3;"));
     auto res = conn->Query("MATCH (v:person) WHERE v.id=1 RETURN v.score;");
-    EXPECT_TRUE(res.ok());
+    EXPECT_TRUE(res);
     auto res_val = res.value();
     EXPECT_TRUE(res_val.hasNext());
     auto row = res_val.next();
@@ -86,10 +78,10 @@ TEST(StorageDMLTest, SetVertexAndEdgeProperty) {
 
   // Set the vertex property by expression
   {
-    EXPECT_TRUE(conn->Query("MATCH (v:person) SET v.score=v.id+4;").ok());
+    EXPECT_TRUE(conn->Query("MATCH (v:person) SET v.score=v.id+4;"));
     {
       auto res = conn->Query("MATCH (v:person) WHERE v.id=1 RETURN v.score;");
-      EXPECT_TRUE(res.ok());
+      EXPECT_TRUE(res);
       auto res_val = res.value();
       EXPECT_TRUE(res_val.hasNext());
       auto row = res_val.next();
@@ -97,7 +89,7 @@ TEST(StorageDMLTest, SetVertexAndEdgeProperty) {
     }
     {
       auto res = conn->Query("MATCH (v:person) WHERE v.id=2 RETURN v.score;");
-      EXPECT_TRUE(res.ok());
+      EXPECT_TRUE(res);
       auto res_val = res.value();
       EXPECT_TRUE(res_val.hasNext());
       auto row = res_val.next();
@@ -108,11 +100,10 @@ TEST(StorageDMLTest, SetVertexAndEdgeProperty) {
   // Set the edge property to a constant value.
   {
     EXPECT_TRUE(
-        conn->Query("MATCH (:person)-[e:knows]->(:person) SET e.weight=3.0;")
-            .ok());
+        conn->Query("MATCH (:person)-[e:knows]->(:person) SET e.weight=3.0;"));
     auto res = conn->Query(
         "MATCH (:person)-[e:knows]->(v:person) WHERE v.id=2 RETURN e.weight;");
-    EXPECT_TRUE(res.ok());
+    EXPECT_TRUE(res);
     auto res_val = res.value();
     EXPECT_TRUE(res_val.hasNext());
     auto row = res_val.next();
@@ -121,14 +112,14 @@ TEST(StorageDMLTest, SetVertexAndEdgeProperty) {
 
   // Set the edge property by expression
   {
-    EXPECT_TRUE(conn->Query("MATCH (:person)-[e:knows]->(v:person) SET "
-                            "e.weight=e.weight * 2;")
-                    .ok());
+    EXPECT_TRUE(
+        conn->Query("MATCH (:person)-[e:knows]->(v:person) SET "
+                    "e.weight=e.weight * 2;"));
     {
       auto res = conn->Query(
           "MATCH (:person)-[e:knows]->(v:person) WHERE v.id=2 RETURN "
           "e.weight;");
-      EXPECT_TRUE(res.ok());
+      EXPECT_TRUE(res);
       auto res_val = res.value();
       EXPECT_TRUE(res_val.hasNext());
       auto row = res_val.next();

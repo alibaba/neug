@@ -20,7 +20,7 @@
 #include <vector>
 
 #include <yaml-cpp/yaml.h>
-#include "neug/utils/leaf_utils.h"
+#include "neug/utils/result.h"
 #ifdef USE_SYSTEM_PROTOBUF
 #include "neug/generated/proto/plan/physical.pb.h"
 #else
@@ -47,7 +47,7 @@ class IGraphPlanner {
    * @param query The cypher query.
    * @return The executable plan.
    */
-  virtual Result<std::pair<physical::PhysicalPlan, std::string>> compilePlan(
+  virtual result<std::pair<physical::PhysicalPlan, std::string>> compilePlan(
       const std::string& query) = 0;
 
   /**

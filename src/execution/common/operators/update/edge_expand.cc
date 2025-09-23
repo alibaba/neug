@@ -31,8 +31,8 @@
 #include "neug/execution/utils/params.h"
 #include "neug/storages/graph/schema.h"
 #include "neug/transaction/update_transaction.h"
-#include "neug/utils/leaf_utils.h"
 #include "neug/utils/property/types.h"
+#include "neug/utils/result.h"
 
 namespace gs {
 namespace runtime {

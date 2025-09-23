@@ -726,7 +726,7 @@ Status parse_bulk_load_config_yaml(const YAML::Node& root, const Schema& schema,
 }
 }  // namespace config_parsing
 
-Result<LoadingConfig> LoadingConfig::ParseFromYamlFile(
+result<LoadingConfig> LoadingConfig::ParseFromYamlFile(
     const Schema& schema, const std::string& yaml_file) {
   LoadingConfig load_config(schema);
   if (!yaml_file.empty() && std::filesystem::exists(yaml_file)) {
@@ -734,16 +734,15 @@ Result<LoadingConfig> LoadingConfig::ParseFromYamlFile(
                                                      load_config)
              .ok()) {
       LOG(ERROR) << "Failed to parse bulk load config file: " << yaml_file;
-      return gs::Result<LoadingConfig>(
-          gs::Status(gs::StatusCode::ERR_INVALID_ARGUMENT,
-                     "Failed to parse bulk load config file: " + yaml_file),
-          load_config);
+      RETURN_ERROR(
+          Status(StatusCode::ERR_INVALID_ARGUMENT,
+                 "Failed to parse bulk load config file: " + yaml_file));
     }
   }
   return load_config;
 }
 
-Result<LoadingConfig> LoadingConfig::ParseFromYamlNode(
+result<LoadingConfig> LoadingConfig::ParseFromYamlNode(
     const Schema& schema, const YAML::Node& yaml_node) {
   LoadingConfig load_config(schema);
   try {
@@ -752,14 +751,14 @@ Result<LoadingConfig> LoadingConfig::ParseFromYamlNode(
           yaml_node, schema, load_config);
       if (!status.ok()) {
         LOG(ERROR) << "Failed to parse bulk load config: ";
-        return gs::Result<LoadingConfig>(status, load_config);
+        RETURN_ERROR(status);
       }
     }
   } catch (const YAML::Exception& e) {
-    return gs::Result<LoadingConfig>(
-        gs::Status(gs::StatusCode::ERR_INTERNAL_ERROR,
-                   "Failed to parse yaml node: " + std::string(e.what())),
-        load_config);
+    LOG(ERROR) << "Failed to parse bulk load config: " << e.what();
+    RETURN_ERROR(
+        Status(StatusCode::ERR_INVALID_ARGUMENT,
+               "Failed to parse bulk load config: " + std::string(e.what())));
   }
   return load_config;
 }

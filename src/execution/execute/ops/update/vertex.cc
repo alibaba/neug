@@ -36,8 +36,8 @@
 #include "neug/execution/utils/predicates.h"
 #include "neug/execution/utils/utils.h"
 #include "neug/execution/utils/var.h"
-#include "neug/utils/leaf_utils.h"
 #include "neug/utils/property/types.h"
+#include "neug/utils/result.h"
 #ifdef USE_SYSTEM_PROTOBUF
 #include "neug/generated/proto/plan/algebra.pb.h"
 #include "neug/generated/proto/plan/expr.pb.h"

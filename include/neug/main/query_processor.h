@@ -22,7 +22,7 @@
 #include "neug/execution/common/graph_interface.h"
 #include "neug/execution/utils/opr_timer.h"
 #include "neug/main/query_result.h"
-#include "neug/utils/leaf_utils.h"
+#include "neug/utils/result.h"
 #ifdef USE_SYSTEM_PROTOBUF
 #include "neug/generated/proto/plan/physical.pb.h"
 #include "neug/generated/proto/plan/results.pb.h"
@@ -43,20 +43,20 @@ class QueryProcessor {
         max_num_threads_(max_num_threads),
         is_read_only_(is_read_only) {}
 
-  Result<results::CollectiveResults> execute(const physical::PhysicalPlan& plan,
+  result<results::CollectiveResults> execute(const physical::PhysicalPlan& plan,
                                              int32_t num_threads = 0);
 
  private:
-  Result<results::CollectiveResults> execute_admin(
+  result<results::CollectiveResults> execute_admin(
       const physical::AdminPlan& admin_plan, int32_t num_threads);
 
-  Result<results::CollectiveResults> execute_read_only(
+  result<results::CollectiveResults> execute_read_only(
       const physical::PhysicalPlan& plan, int32_t num_threads);
 
-  Result<results::CollectiveResults> execute_read_write(
+  result<results::CollectiveResults> execute_read_write(
       const physical::PhysicalPlan& plan, int32_t num_threads);
 
-  Result<results::CollectiveResults> execute_ddl(
+  result<results::CollectiveResults> execute_ddl(
       const physical::DDLPlan& ddl_plan, int32_t num_threads);
 
   NeugDB& db_;

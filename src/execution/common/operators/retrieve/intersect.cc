@@ -31,7 +31,7 @@
 #include "neug/execution/common/context.h"
 #include "neug/execution/common/rt_any.h"
 #include "neug/execution/utils/params.h"
-#include "neug/utils/leaf_utils.h"
+#include "neug/utils/result.h"
 #include "parallel_hashmap/phmap.h"
 
 namespace gs {

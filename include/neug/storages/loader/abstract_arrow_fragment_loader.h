@@ -52,7 +52,6 @@
 #include "neug/utils/arrow_utils.h"
 #include "neug/utils/id_indexer.h"
 #include "neug/utils/indexers.h"
-#include "neug/utils/leaf_utils.h"
 #include "neug/utils/mmap_vector.h"
 #include "neug/utils/property/column.h"
 #include "neug/utils/property/table.h"

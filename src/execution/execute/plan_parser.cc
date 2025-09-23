@@ -60,7 +60,6 @@
 #include "neug/execution/execute/ops/update/unfold.h"
 #include "neug/execution/execute/ops/update/vertex.h"
 #include "neug/execution/execute/pipeline.h"
-#include "neug/utils/leaf_utils.h"
 #include "neug/utils/result.h"
 
 namespace gs {

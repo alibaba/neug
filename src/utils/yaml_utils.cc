@@ -165,45 +165,44 @@ void convert_yaml_node_to_json(const YAML::Node& node,
   }
 }
 
-Result<std::string> get_json_string_from_yaml(const std::string& file_path) {
+result<std::string> get_json_string_from_yaml(const std::string& file_path) {
   try {
     YAML::Node config = YAML::LoadFile(file_path);
     // output config to json string
     return get_json_string_from_yaml(config);
   } catch (const YAML::BadFile& e) {
-    return Result<std::string>(Status{StatusCode::ERR_IO_ERROR, e.what()});
+    RETURN_ERROR(Status(StatusCode::ERR_IO_ERROR, e.what()));
   }
 }
 
-Result<std::string> get_json_string_from_yaml(const YAML::Node& node) {
+result<std::string> get_json_string_from_yaml(const YAML::Node& node) {
   try {
     if (node.IsNull()) {
-      return Result<std::string>(Status{StatusCode::OK, "{}"});
+      return "{}";
     }
     rapidjson::Document doc;
     convert_yaml_node_to_json(node, doc.GetAllocator(), doc);
     // return json.dump(2);  // 2 indents
     return std::string(rapidjson_stringify(doc, 2));
   } catch (const YAML::BadConversion& e) {
-    return Result<std::string>(Status{StatusCode::ERR_IO_ERROR, e.what()});
+    RETURN_ERROR(Status(StatusCode::ERR_IO_ERROR, e.what()));
   } catch (const std::runtime_error& e) {
-    return Result<std::string>(Status{StatusCode::ERR_IO_ERROR, e.what()});
+    RETURN_ERROR(Status(StatusCode::ERR_IO_ERROR, e.what()));
   } catch (...) {
-    return Result<std::string>(
-        Status{StatusCode::ERR_IO_ERROR, "Unknown error"});
+    RETURN_ERROR(Status(StatusCode::ERR_IO_ERROR, "Unknown error"));
   }
 }
 
-Result<std::string> get_yaml_string_from_yaml_node(const YAML::Node& node) {
+result<std::string> get_yaml_string_from_yaml_node(const YAML::Node& node) {
   try {
     YAML::Emitter emitter;
     auto status = write_yaml_node_to_yaml_string(node, emitter);
     if (!status.ok()) {
-      return Result<std::string>(status);
+      RETURN_ERROR(status);
     }
     return std::string(emitter.c_str());
   } catch (const YAML::BadConversion& e) {
-    return Result<std::string>(Status{StatusCode::ERR_IO_ERROR, e.what()});
+    RETURN_ERROR(Status(StatusCode::ERR_IO_ERROR, e.what()));
   }
 }
 

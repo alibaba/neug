@@ -645,7 +645,9 @@ bool Schema::Equals(const Schema& other) const {
   return true;
 }
 
-Result<YAML::Node> Schema::to_yaml() const { return Schema::DumpToYaml(*this); }
+gs::result<YAML::Node> Schema::to_yaml() const {
+  return Schema::DumpToYaml(*this);
+}
 
 namespace config_parsing {
 
@@ -1430,33 +1432,34 @@ bool Schema::has_edge_label(label_t src_label, label_t dst_label,
   return eprop_names_.find(e_label_id) != eprop_names_.end();
 }
 
-Result<Schema> Schema::LoadFromYaml(const std::string& schema_config) {
+gs::result<Schema> Schema::LoadFromYaml(const std::string& schema_config) {
   Schema schema;
   if (!schema_config.empty() && std::filesystem::exists(schema_config)) {
     auto status =
         config_parsing::parse_schema_config_file(schema_config, schema);
     if (status.ok()) {
-      return Result<Schema>(std::move(schema));
+      return gs::result<Schema>(std::move(schema));
     } else {
-      return Result<Schema>(status);
+      RETURN_ERROR(status);
     }
   }
-  return Result<Schema>(
-      Status(StatusCode::ERR_INVALID_SCHEMA, "Schema config file not found"));
+  RETURN_ERROR(gs::Status(gs::StatusCode::ERR_INVALID_SCHEMA,
+                          "Schema config file not found"));
 }
 
-Result<Schema> Schema::LoadFromYamlNode(const YAML::Node& schema_yaml_node) {
+gs::result<Schema> Schema::LoadFromYamlNode(
+    const YAML::Node& schema_yaml_node) {
   Schema schema;
   auto status =
       config_parsing::parse_schema_from_yaml_node(schema_yaml_node, schema);
   if (status.ok()) {
-    return schema;
+    return gs::result<Schema>(std::move(schema));
   } else {
-    return Result<Schema>(status);
+    RETURN_ERROR(status);
   }
 }
 
-Result<YAML::Node> Schema::DumpToYaml(const Schema& schema) {
+gs::result<YAML::Node> Schema::DumpToYaml(const Schema& schema) {
   YAML::Node graph_node;
   graph_node["name"] = schema.GetGraphName();
   graph_node["id"] = schema.GetGraphId();

@@ -23,7 +23,7 @@
 #include "neug/execution/common/columns/value_columns.h"
 #include "neug/execution/common/context.h"
 #include "neug/execution/common/rt_any.h"
-#include "neug/utils/leaf_utils.h"
+#include "neug/utils/result.h"
 
 namespace gs {
 

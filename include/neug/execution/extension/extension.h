@@ -15,8 +15,8 @@
 #pragma once
 
 #include <string>
-#include "neug/utils/result.h"
 #include "neug/compiler/extension/extension.h"
+#include "neug/utils/result.h"
 #ifdef USE_SYSTEM_PROTOBUF
 #include "neug/generated/proto/plan/physical.pb.h"
 #include "neug/generated/proto/plan/results.pb.h"
@@ -37,7 +37,7 @@ Status uninstall_extension(const std::string& extension_name);
 Status downloadExtensionFile(const ExtensionRepoInfo& repoInfo,
                              const std::string& localFilePath);
 
-Result<std::string> computeFileSHA256(const std::string& path);
+result<std::string> computeFileSHA256(const std::string& path);
 
 Status verifyExtensionChecksum(const ExtensionRepoInfo& libRepoInfo,
                                const std::string& localLibPath,

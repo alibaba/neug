@@ -22,7 +22,7 @@
 #include "neug/execution/common/columns/edge_columns.h"
 #include "neug/execution/common/context.h"
 #include "neug/execution/utils/params.h"
-#include "neug/utils/leaf_utils.h"
+#include "neug/utils/result.h"
 #include "parallel_hashmap/phmap.h"
 
 namespace gs {

@@ -21,22 +21,27 @@
 
 namespace gs {
 
-Result<results::CollectiveResults> CypherUpdateApp::execute_add_vertex_property(
+result<results::CollectiveResults> CypherUpdateApp::execute_add_vertex_property(
     NeugDBSession& graph,
     const physical::AddVertexPropertySchema& add_vertex_property_schema) {
   auto& graph_ = graph.graph();
   auto vertex_type_name = add_vertex_property_schema.vertex_type().name();
   auto tuple_res =
       property_defs_to_tuple(add_vertex_property_schema.properties());
-  if (!tuple_res.ok()) {
-    return tuple_res.status();
+  if (!tuple_res) {
+    RETURN_ERROR(tuple_res.error());
   }
-  return graph_.add_vertex_properties(
+  auto ret = graph_.add_vertex_properties(
       vertex_type_name, tuple_res.value(),
       conflict_action_to_bool(add_vertex_property_schema.conflict_action()));
+  if (ret.ok()) {
+    return results::CollectiveResults();
+  } else {
+    RETURN_ERROR(ret);
+  }
 }
 
-Result<results::CollectiveResults> CypherUpdateApp::execute_add_edge_property(
+result<results::CollectiveResults> CypherUpdateApp::execute_add_edge_property(
     NeugDBSession& graph,
     const physical::AddEdgePropertySchema& add_edge_property_schema) {
   auto& graph_ = graph.graph();
@@ -47,16 +52,21 @@ Result<results::CollectiveResults> CypherUpdateApp::execute_add_edge_property(
       add_edge_property_schema.edge_type().dst_type_name().name();
   auto tuple_res =
       property_defs_to_tuple(add_edge_property_schema.properties());
-  if (!tuple_res.ok()) {
-    return tuple_res.status();
+  if (!tuple_res) {
+    RETURN_ERROR(tuple_res.error());
   }
 
-  return graph_.add_edge_properties(
+  auto ret = graph_.add_edge_properties(
       src_type_name, dst_type_name, edge_type_name, tuple_res.value(),
       conflict_action_to_bool(add_edge_property_schema.conflict_action()));
+  if (ret.ok()) {
+    return results::CollectiveResults();
+  } else {
+    RETURN_ERROR(ret);
+  }
 }
 
-Result<results::CollectiveResults>
+result<results::CollectiveResults>
 CypherUpdateApp::execute_drop_vertex_property(
     NeugDBSession& graph,
     const physical::DropVertexPropertySchema& drop_vertex_property_schema) {
@@ -66,12 +76,17 @@ CypherUpdateApp::execute_drop_vertex_property(
   for (const auto& prop : drop_vertex_property_schema.properties()) {
     property_names.push_back(prop);
   }
-  return graph_.delete_vertex_properties(
+  auto ret = graph_.delete_vertex_properties(
       vertex_type_name, property_names,
       conflict_action_to_bool(drop_vertex_property_schema.conflict_action()));
+  if (ret.ok()) {
+    return results::CollectiveResults();
+  } else {
+    RETURN_ERROR(ret);
+  }
 }
 
-Result<results::CollectiveResults> CypherUpdateApp::execute_drop_edge_property(
+result<results::CollectiveResults> CypherUpdateApp::execute_drop_edge_property(
     NeugDBSession& graph,
     const physical::DropEdgePropertySchema& drop_edge_property_schema) {
   auto& graph_ = graph.graph();
@@ -85,12 +100,17 @@ Result<results::CollectiveResults> CypherUpdateApp::execute_drop_edge_property(
   for (const auto& prop : drop_edge_property_schema.properties()) {
     property_names.push_back(prop);
   }
-  return graph_.delete_edge_properties(
+  auto ret = graph_.delete_edge_properties(
       src_type_name, dst_type_name, edge_type_name, property_names,
       conflict_action_to_bool(drop_edge_property_schema.conflict_action()));
+  if (ret.ok()) {
+    return results::CollectiveResults();
+  } else {
+    RETURN_ERROR(ret);
+  }
 }
 
-Result<results::CollectiveResults>
+result<results::CollectiveResults>
 CypherUpdateApp::execute_rename_vertex_property(
     NeugDBSession& graph,
     const physical::RenameVertexPropertySchema& rename_vertex_property_schema) {
@@ -100,12 +120,17 @@ CypherUpdateApp::execute_rename_vertex_property(
   for (const auto& rename : rename_vertex_property_schema.mappings()) {
     rename_pairs.emplace_back(rename.first, rename.second);
   }
-  return graph_.rename_vertex_properties(
+  auto ret = graph_.rename_vertex_properties(
       vertex_type_name, rename_pairs,
       conflict_action_to_bool(rename_vertex_property_schema.conflict_action()));
+  if (ret.ok()) {
+    return results::CollectiveResults();
+  } else {
+    RETURN_ERROR(ret);
+  }
 }
 
-Result<results::CollectiveResults>
+result<results::CollectiveResults>
 CypherUpdateApp::execute_rename_edge_property(
     NeugDBSession& graph,
     const physical::RenameEdgePropertySchema& rename_edge_property_schema) {
@@ -120,34 +145,48 @@ CypherUpdateApp::execute_rename_edge_property(
   for (const auto& rename : rename_edge_property_schema.mappings()) {
     rename_pairs.emplace_back(rename.first, rename.second);
   }
-  return graph_.rename_edge_properties(
+  auto ret = graph_.rename_edge_properties(
       src_type_name, dst_type_name, edge_type_name, rename_pairs,
       conflict_action_to_bool(rename_edge_property_schema.conflict_action()));
+  if (ret.ok()) {
+    return results::CollectiveResults();
+  } else {
+    RETURN_ERROR(ret);
+  }
 }
 
-Result<results::CollectiveResults> CypherUpdateApp::execute_drop_vertex_schema(
+result<results::CollectiveResults> CypherUpdateApp::execute_drop_vertex_schema(
     NeugDBSession& graph,
     const physical::DropVertexSchema& drop_vertex_schema) {
   auto& graph_ = graph.graph();
   auto vertex_type_name = drop_vertex_schema.vertex_type().name();
   // Todo(NENG): Always drop vertex type with detach mode
-  return graph_.delete_vertex_type(
+  auto ret = graph_.delete_vertex_type(
       vertex_type_name, true,
       conflict_action_to_bool(drop_vertex_schema.conflict_action()));
+  if (ret.ok()) {
+    return results::CollectiveResults();
+  } else {
+    RETURN_ERROR(ret);
+  }
 }
 
-Result<results::CollectiveResults> CypherUpdateApp::execute_drop_edge_schema(
+result<results::CollectiveResults> CypherUpdateApp::execute_drop_edge_schema(
     NeugDBSession& graph, const physical::DropEdgeSchema& drop_edge_schema) {
   auto& graph_ = graph.graph();
   auto edge_type_name = drop_edge_schema.edge_type().type_name().name();
   auto src_type_name = drop_edge_schema.edge_type().src_type_name().name();
   auto dst_type_name = drop_edge_schema.edge_type().dst_type_name().name();
-  return graph_.delete_edge_type(
+  auto status = graph_.delete_edge_type(
       src_type_name, dst_type_name, edge_type_name,
       conflict_action_to_bool(drop_edge_schema.conflict_action()));
+  if (!status.ok()) {
+    RETURN_ERROR(status);
+  }
+  return results::CollectiveResults();
 }
 
-Result<results::CollectiveResults> CypherUpdateApp::execute_ddl(
+result<results::CollectiveResults> CypherUpdateApp::execute_ddl(
     NeugDBSession& graph, const physical::DDLPlan& ddl_plan) {
   auto& graph_ = graph.graph();
   try {
@@ -156,30 +195,38 @@ Result<results::CollectiveResults> CypherUpdateApp::execute_ddl(
       VLOG(10) << "Got create vertex request: " << create_vertex.DebugString();
       auto vertex_type_name = create_vertex.vertex_type().name();
       auto tuple_res = property_defs_to_tuple(create_vertex.properties());
-      if (!tuple_res.ok()) {
-        return tuple_res.status();
+      if (!tuple_res) {
+        RETURN_ERROR(tuple_res.error());
       }
       if (create_vertex.primary_key_size() == 0) {
-        return Status(StatusCode::ERR_INVALID_ARGUMENT,
-                      "Primary key is required for vertex type creation");
+        RETURN_ERROR(
+            Status(StatusCode::ERR_INVALID_ARGUMENT,
+                   "Must specify a primary key for vertex type creation"));
       }
       if (create_vertex.primary_key_size() > 1) {
-        return Status(StatusCode::ERR_INVALID_ARGUMENT,
-                      "Only one primary key is supported");
+        RETURN_ERROR(Status(StatusCode::ERR_INVALID_ARGUMENT,
+                            "Only one primary key is supported"));
       }
       std::vector<std::string> pks{create_vertex.primary_key(0)};
-      return graph_.create_vertex_type(vertex_type_name, tuple_res.value(),
-                                       pks);
+      auto res =
+          graph_.create_vertex_type(vertex_type_name, tuple_res.value(), pks);
+      if (!res.ok()) {
+        LOG(ERROR) << "Fail to create vertex type: " << vertex_type_name
+                   << ", reason: " << res.ToString();
+        RETURN_ERROR(res);
+      }
+      return results::CollectiveResults();
     } else if (ddl_plan.has_create_edge_schema()) {
       auto& create_edges = ddl_plan.create_edge_schema();
       auto tuple_res = property_defs_to_tuple(create_edges.properties());
-      if (!tuple_res.ok()) {
-        return tuple_res.status();
+      if (!tuple_res) {
+        RETURN_ERROR(tuple_res.error());
       }
       if (create_edges.primary_key_size() != 0) {
         LOG(ERROR) << "Primary key is not supported for edge type creation";
-        return Status(StatusCode::ERR_INVALID_ARGUMENT,
-                      "Primary key is not supported for edge type creation");
+        RETURN_ERROR(
+            Status(StatusCode::ERR_INVALID_ARGUMENT,
+                   "Primary key is not supported for edge type creation"));
       }
       bool conflict_action =
           conflict_action_to_bool(create_edges.conflict_action());
@@ -201,17 +248,17 @@ Result<results::CollectiveResults> CypherUpdateApp::execute_ddl(
         if (!multiplicity_to_storage_strategy(multiplicity, oe_stragety,
                                               ie_stragety)) {
           LOG(ERROR) << "Invalid edge multiplicity: " << multiplicity;
-          return Status(
+          RETURN_ERROR(Status(
               StatusCode::ERR_INVALID_ARGUMENT,
               "Invalid edge multiplicity: " +
-                  physical::CreateEdgeSchema_Multiplicity_Name(multiplicity));
+                  physical::CreateEdgeSchema_Multiplicity_Name(multiplicity)));
         }
         if (graph_.schema().exist(src_vertex_type_name, dst_vertex_type_name,
                                   edge_type_name)) {
-          return Status(StatusCode::ERR_INVALID_ARGUMENT,
-                        "Edge triplet already exists: " + src_vertex_type_name +
-                            ", " + dst_vertex_type_name + ", " +
-                            edge_type_name);
+          RETURN_ERROR(
+              Status(StatusCode::ERR_INVALID_ARGUMENT,
+                     "Edge triplet already exists: " + src_vertex_type_name +
+                         ", " + dst_vertex_type_name + ", " + edge_type_name));
         }
         create_edge_defs.emplace_back(
             src_vertex_type_name, dst_vertex_type_name, edge_type_name,
@@ -249,7 +296,7 @@ Result<results::CollectiveResults> CypherUpdateApp::execute_ddl(
         }
         succeed_index -= 1;
       }
-      return Status::OK();
+      return results::CollectiveResults();
 
     } else if (ddl_plan.has_add_vertex_property_schema()) {
       return execute_add_vertex_property(graph,
@@ -275,57 +322,57 @@ Result<results::CollectiveResults> CypherUpdateApp::execute_ddl(
       return execute_drop_edge_schema(graph, ddl_plan.drop_edge_schema());
     } else {
       LOG(ERROR) << "Unknown DDL plan: " << ddl_plan.DebugString();
-      return Status(StatusCode::ERR_INVALID_ARGUMENT,
-                    "Unknown DDL plan: " + ddl_plan.DebugString());
+      RETURN_ERROR(Status(StatusCode::ERR_INVALID_ARGUMENT,
+                          "Unknown DDL plan: " + ddl_plan.DebugString()));
     }
   } catch (const exception::InvalidArgumentException& e) {
     LOG(ERROR) << "Invalid argument: " << e.what();
-    return Status(StatusCode::ERR_INVALID_ARGUMENT, e.what());
+    RETURN_ERROR(Status(StatusCode::ERR_INVALID_ARGUMENT, e.what()));
   } catch (const exception::InternalException& e) {
     LOG(ERROR) << "Internal error: " << e.what();
-    return Status(StatusCode::ERR_INTERNAL_ERROR, e.what());
+    RETURN_ERROR(Status(StatusCode::ERR_INTERNAL_ERROR, e.what()));
   } catch (const exception::ConnectionException& e) {
     LOG(ERROR) << "Connection error: " << e.what();
-    return Status(StatusCode::ERR_CONNECTION_ERROR, e.what());
+    RETURN_ERROR(Status(StatusCode::ERR_CONNECTION_ERROR, e.what()));
   } catch (const exception::ConversionException& e) {
     LOG(ERROR) << "Conversion error: " << e.what();
-    return Status(StatusCode::ERR_TYPE_CONVERSION, e.what());
+    RETURN_ERROR(Status(StatusCode::ERR_TYPE_CONVERSION, e.what()));
   } catch (const exception::BinderException& e) {
     LOG(ERROR) << "Binder error: " << e.what();
-    return Status(StatusCode::ERR_COMPILATION, e.what());
+    RETURN_ERROR(Status(StatusCode::ERR_COMPILATION, e.what()));
   } catch (const exception::RuntimeError& e) {
     LOG(ERROR) << "Runtime error: " << e.what();
-    return Status(StatusCode::ERR_INTERNAL_ERROR, e.what());
+    RETURN_ERROR(Status(StatusCode::ERR_INTERNAL_ERROR, e.what()));
   } catch (const exception::CopyException& e) {
     LOG(ERROR) << "Copy error: " << e.what();
-    return Status(StatusCode::ERR_INTERNAL_ERROR, e.what());
+    RETURN_ERROR(Status(StatusCode::ERR_INTERNAL_ERROR, e.what()));
   } catch (const exception::IndexException& e) {
     LOG(ERROR) << "Index error: " << e.what();
-    return Status(StatusCode::ERR_INDEX_ERROR, e.what());
+    RETURN_ERROR(Status(StatusCode::ERR_INDEX_ERROR, e.what()));
   } catch (const exception::ExtensionException& e) {
     LOG(ERROR) << "Extension error: " << e.what();
-    return Status(StatusCode::ERR_EXTENSION, e.what());
+    RETURN_ERROR(Status(StatusCode::ERR_EXTENSION, e.what()));
   } catch (const exception::QueryExecutionError& e) {
     LOG(ERROR) << "Query execution error: " << e.what();
-    return Status(StatusCode::ERR_QUERY_EXECUTION, e.what());
+    RETURN_ERROR(Status(StatusCode::ERR_QUERY_EXECUTION, e.what()));
   } catch (const exception::SchemaMismatchException& e) {
     LOG(ERROR) << "Schema mismatch error: " << e.what();
-    return Status(StatusCode::ERR_SCHEMA_MISMATCH, e.what());
+    RETURN_ERROR(Status(StatusCode::ERR_SCHEMA_MISMATCH, e.what()));
   } catch (const exception::Exception& e) {
     LOG(ERROR) << "Exception: " << e.what();
-    return Status(StatusCode::ERR_INTERNAL_ERROR, e.what());
+    RETURN_ERROR(Status(StatusCode::ERR_INTERNAL_ERROR, e.what()));
   } catch (const std::exception& e) {
     LOG(ERROR) << "Unknown error: " << e.what();
-    return Status(StatusCode::ERR_INTERNAL_ERROR, e.what());
+    RETURN_ERROR(Status(StatusCode::ERR_INTERNAL_ERROR, e.what()));
   } catch (...) {
     LOG(ERROR) << "Unknown error occurred during DDL execution";
-    return Status(StatusCode::ERR_UNKNOWN,
-                  "Unknown error occurred during DDL "
-                  "execution");
+    RETURN_ERROR(Status(StatusCode::ERR_UNKNOWN,
+                        "Unknown error occurred during DDL "
+                        "execution"));
   }
 }
 
-Result<results::CollectiveResults> CypherUpdateApp::execute_update_query(
+result<results::CollectiveResults> CypherUpdateApp::execute_update_query(
     NeugDBSession& graph, const physical::PhysicalPlan& plan,
     runtime::OprTimer* timer, bool insert_with_resize) {
   auto txn = graph.GetUpdateTransaction();
@@ -338,16 +385,15 @@ Result<results::CollectiveResults> CypherUpdateApp::execute_update_query(
     txn.Abort();
     // We encode the error message to the output, so that the client can
     // get the error message.
-    return Result<results::CollectiveResults>(ctx.error());
+    RETURN_ERROR(ctx.error());
   }
   auto res = runtime::Sink::sink(ctx.value(), gii);
   if (!txn.Commit()) {
     LOG(ERROR) << "Commit failed";
     // If commit fails, we return an error.
-    return Result<results::CollectiveResults>(
-        Status(StatusCode::ERR_INTERNAL_ERROR, "Commit failed"));
+    RETURN_ERROR(Status(StatusCode::ERR_INTERNAL_ERROR, "Commit failed"));
   }
-  return Result<results::CollectiveResults>(std::move(res));
+  return result<results::CollectiveResults>(std::move(res));
 }
 
 bool CypherUpdateApp::Query(NeugDBSession& graph, Decoder& input,
@@ -365,8 +411,8 @@ bool CypherUpdateApp::Query(NeugDBSession& graph, Decoder& input,
     LOG(INFO) << "plan: " << plan.DebugString();
     if (plan.has_ddl_plan()) {
       auto result = execute_ddl(graph, plan.ddl_plan());
-      if (!result.ok()) {
-        output.put_string(result.status().ToString());
+      if (!result) {
+        output.put_string(result.error().ToString());
         return false;
       }
       auto res = result.value().SerializeAsString();
@@ -381,9 +427,9 @@ bool CypherUpdateApp::Query(NeugDBSession& graph, Decoder& input,
         std::make_unique<runtime::OprTimer>();
     auto res = execute_update_query(graph, plan, timer.get(), true);
 
-    if (!res.ok()) {
-      LOG(ERROR) << "Execute update query failed: " << res.status().ToString();
-      output.put_string(res.status().ToString());
+    if (!res) {
+      LOG(ERROR) << "Execute update query failed: " << res.error().ToString();
+      output.put_string(res.error().ToString());
       return false;
     }
     auto collective_results = res.value().SerializeAsString();

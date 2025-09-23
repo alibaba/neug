@@ -68,20 +68,19 @@ PropertyGraph& NeugDBSession::graph() { return graph_; }
 
 const Schema& NeugDBSession::schema() const { return graph_.schema(); }
 
-Result<std::vector<char>> NeugDBSession::Eval(const std::string& input) {
+result<std::vector<char>> NeugDBSession::Eval(const std::string& input) {
   const auto start = std::chrono::high_resolution_clock::now();
 
   if (input.size() < 2) {
-    return Result<std::vector<char>>(
-        StatusCode::ERR_INVALID_ARGUMENT,
-        "Invalid input, input size: " + std::to_string(input.size()),
-        std::vector<char>());
+    RETURN_ERROR(
+        Status(StatusCode::ERR_INVALID_ARGUMENT,
+               "Invalid input, input size: " + std::to_string(input.size())));
   }
 
   auto type_res = parse_query_type(input);
-  if (!type_res.ok()) {
+  if (!type_res) {
     LOG(ERROR) << "Fail to parse query type";
-    return Result<std::vector<char>>(type_res.status(), std::vector<char>());
+    RETURN_ERROR(type_res.error());
   }
 
   uint8_t type;
@@ -95,9 +94,9 @@ Result<std::vector<char>> NeugDBSession::Eval(const std::string& input) {
 
   AppBase* app = GetApp(type);
   if (!app) {
-    return Result<std::vector<char>>(
-        StatusCode::ERR_NOT_FOUND,
-        "Procedure not found, id:" + std::to_string((int) type), result_buffer);
+    RETURN_ERROR(
+        Status(StatusCode::ERR_NOT_FOUND,
+               "Procedure not found, id:" + std::to_string((int) type)));
   }
 
   for (size_t i = 0; i < MAX_RETRY; ++i) {
@@ -133,17 +132,15 @@ Result<std::vector<char>> NeugDBSession::Eval(const std::string& input) {
   // For example, for adhoc_app.cc, if the query failed, the error info will
   // be put in the output buffer.
   if (result_buffer.size() > 4) {
-    return Result<std::vector<char>>(
+    RETURN_ERROR(Status(
         StatusCode::ERR_QUERY_EXECUTION,
-        std::string{result_buffer.data() + 4,
-                    result_buffer.size() -
-                        4},  // The first 4 bytes are the length of the message.
-        result_buffer);
+        std::string(result_buffer.data() + 4, result_buffer.size() - 4)
+        // The first 4 bytes are the length of the message.
+        ));
   } else {
-    return Result<std::vector<char>>(
-        StatusCode::ERR_QUERY_EXECUTION,
-        "Query failed for procedure id:" + std::to_string((int) type),
-        result_buffer);
+    RETURN_ERROR(
+        Status(StatusCode::ERR_QUERY_EXECUTION,
+               "Query failed for procedure id:" + std::to_string((int) type)));
   }
 }
 

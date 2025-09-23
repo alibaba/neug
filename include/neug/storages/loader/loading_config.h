@@ -27,7 +27,7 @@
 #include <vector>                        // for vector
 #include "neug/storages/graph/schema.h"  // for Schema, Schema::la...
 #include "neug/utils/property/types.h"   // for label_t
-#include "neug/utils/result.h"           // for Status, Result
+#include "neug/utils/result.h"           // for Status, result
 namespace YAML {
 class Node;
 }  // namespace YAML
@@ -161,9 +161,9 @@ class LoadingConfig {
                  schema_label_type>;  // src_label_t, dst_label_t, edge_label_t
 
   // Check whether loading config file is consistent with schema
-  static gs::Result<LoadingConfig> ParseFromYamlFile(
+  static gs::result<LoadingConfig> ParseFromYamlFile(
       const Schema& schema, const std::string& yaml_file);
-  static gs::Result<LoadingConfig> ParseFromYamlNode(
+  static gs::result<LoadingConfig> ParseFromYamlNode(
       const Schema& schema, const YAML::Node& yaml_node);
 
   LoadingConfig(const Schema& schema);

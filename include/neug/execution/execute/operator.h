@@ -21,7 +21,7 @@
 #include "neug/execution/common/context.h"
 #include "neug/execution/common/graph_interface.h"
 #include "neug/execution/utils/opr_timer.h"
-#include "neug/utils/leaf_utils.h"
+#include "neug/utils/result.h"
 #ifdef USE_SYSTEM_PROTOBUF
 #include "neug/generated/proto/plan/physical.pb.h"
 #else

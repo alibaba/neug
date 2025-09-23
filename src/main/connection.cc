@@ -58,32 +58,31 @@ void Connection::Close() {
   // Any necessary cleanup can be done here.
 }
 
-Result<QueryResult> Connection::Query(const std::string& query_string) {
+result<QueryResult> Connection::Query(const std::string& query_string) {
   LOG(INFO) << "Query: " << query_string;
   if (IsClosed()) {
     LOG(ERROR) << "Connection is closed, cannot execute query.";
-    return Result<QueryResult>(
+    RETURN_ERROR(
         Status(StatusCode::ERR_CONNECTION_CLOSED, "Connection is closed."));
   }
   auto result = query_impl(query_string);
-  if (result.ok()) {
-    return Result<QueryResult>(
-        QueryResult::From(std::move(result.move_value())));
+  if (result) {
+    return QueryResult::From(std::move(result.value()));
   } else {
-    return result.status();
+    RETURN_ERROR(result.error());
   }
 }
 
-Result<results::CollectiveResults> Connection::query_impl(
+result<results::CollectiveResults> Connection::query_impl(
     const std::string& query_string) {
   LOG(INFO) << "Executing query: " << query_string;
 
   auto plan_res = planner_->compilePlan(query_string);
-  if (!plan_res.ok()) {
+  if (!plan_res) {
     LOG(ERROR) << "Failed to compile plan for query: " << query_string
-               << ", error code: " << plan_res.status().error_code()
-               << ", message: " << plan_res.status().error_message();
-    return plan_res.status();
+               << ", error code: " << plan_res.error().error_code()
+               << ", message: " << plan_res.error().error_message();
+    RETURN_ERROR(plan_res.error());
   }
 
   const auto& physical_plan = plan_res.value().first;
@@ -94,24 +93,24 @@ Result<results::CollectiveResults> Connection::query_impl(
             << " operators.";
 
   auto result = query_processor_->execute(physical_plan);
-  if (result.ok()) {
+  if (result) {
     LOG(INFO) << "Query executed successfully.";
   } else {
     LOG(ERROR) << "Error in executing query: " << query_string
-               << ", error code: " << result.status().error_code()
-               << ", message: " << result.status().error_message();
-    return result.status();
+               << ", error code: " << result.error().error_code()
+               << ", message: " << result.error().error_message();
+    RETURN_ERROR(result.error());
   }
   result.value().set_result_schema(result_schema);
   // If the query contains operator that may mutable the graph schema or data,
   // we should update the schema and statistics for the planner.
   if (physical_plan.has_ddl_plan()) {
     auto yaml = graph_.schema().to_yaml();
-    if (!yaml.ok()) {
+    if (!yaml) {
       LOG(ERROR) << "Failed to convert schema to YAML: "
-                 << yaml.status().error_message();
+                 << yaml.error().error_message();
       THROW_RUNTIME_ERROR("Failed to convert schema to YAML: " +
-                          yaml.status().error_message());
+                          yaml.error().error_message());
     }
     planner_->update_meta(yaml.value());
     planner_->update_statistics(graph_.get_statistics_json());
@@ -122,7 +121,7 @@ Result<results::CollectiveResults> Connection::query_impl(
     planner_->update_statistics(graph_.get_statistics_json());
   }
 
-  return Result(std::move(result.move_value()));
+  return result;
 }
 
 }  // namespace gs

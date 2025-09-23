@@ -53,35 +53,36 @@ class AppManager;
 
 /**
  * @brief Database session for executing queries and managing transactions.
- * 
+ *
  * NeugDBSession provides a session-based interface for interacting with the
  * NeuG database. Each session maintains its own transaction context and
- * application state, enabling concurrent access while ensuring data consistency.
- * 
+ * application state, enabling concurrent access while ensuring data
+ * consistency.
+ *
  * **Core Capabilities:**
  * - Transaction management (Read, Insert, Update, Compact)
  * - Query execution with various data sources
  * - Batch operations for performance optimization
  * - Application-specific query processing
- * 
+ *
  * **Transaction Types:**
  * - ReadTransaction: Read-only snapshot access
  * - InsertTransaction: Add new vertices and edges
  * - UpdateTransaction: Modify existing graph elements
  * - CompactTransaction: Background compaction operations
- * 
+ *
  * **Thread Safety:** Each session is tied to a specific thread and should
  * not be shared across threads. Sessions are lightweight and can be created
  * per-thread as needed.
- * 
+ *
  * **Lifecycle:**
  * - Created through NeugDB::CreateSession()
  * - Automatically manages transaction lifecycle
  * - Provides retry mechanisms for failed operations
- * 
+ *
  * @note This is the primary interface for query execution and transaction
  *       management. Use NeugDB for database lifecycle operations.
- * 
+ *
  * @since v0.1.0
  */
 class NeugDBSession {
@@ -128,7 +129,7 @@ class NeugDBSession {
   // Get vertex id column.
   std::shared_ptr<RefColumnBase> get_vertex_id_column(uint8_t label) const;
 
-  Result<std::vector<char>> Eval(const std::string& input);
+  result<std::vector<char>> Eval(const std::string& input);
 
   int SessionId() const;
 
@@ -158,7 +159,7 @@ class NeugDBSession {
    * @return The id of the query and a string_view which contains the real input
    * of the query, discard the input format and query type.
    */
-  inline Result<std::pair<uint8_t, std::string_view>> parse_query_type(
+  inline result<std::pair<uint8_t, std::string_view>> parse_query_type(
       const std::string& input) {
     const char* str_data = input.data();
     VLOG(10) << "parse query type for " << input << " size: " << input.size();
@@ -175,7 +176,7 @@ class NeugDBSession {
       return std::make_pair((uint8_t) input[len - 2],
                             std::string_view(str_data, len - 1));
     } else {
-      return Result<std::pair<uint8_t, std::string_view>>(
+      RETURN_ERROR(
           gs::Status(StatusCode::ERR_INVALID_ARGUMENT,
                      "Invalid input tag: " + std::to_string(input_tag)));
     }

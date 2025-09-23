@@ -20,14 +20,13 @@ int main(int argc, char** argv) {
   gs::NeugDB db;  // In-memory database
   db.Open("");
   auto conn = db.Connect();
-  CHECK(conn->Query("CREATE NODE TABLE person(id INT64, name STRING, age "
-                    "INT64, PRIMARY KEY(id));")
-            .ok());
   CHECK(
-      conn->Query("CREATE (a: person {id: 1, name: 'Alice', age: 30});").ok());
-  CHECK(conn->Query("CREATE (b: person {id: 2, name: 'Bob', age: 25});").ok());
+      conn->Query("CREATE NODE TABLE person(id INT64, name STRING, age "
+                  "INT64, PRIMARY KEY(id));"));
+  CHECK(conn->Query("CREATE (a: person {id: 1, name: 'Alice', age: 30});"));
+  CHECK(conn->Query("CREATE (b: person {id: 2, name: 'Bob', age: 25});"));
   auto result = conn->Query("MATCH (n: person) WHERE n.age > 26 RETURN n.name");
-  CHECK(result.ok());
+  CHECK(result);
   CHECK(result.value().hasNext());
   auto record = result.value().next();
   CHECK(record.ToString() == "<element { object { str: \"Alice\" } }>")

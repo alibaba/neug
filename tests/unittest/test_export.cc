@@ -54,45 +54,37 @@ TEST(StorageDDLTest, ExportTest) {
   std::string flex_data_dir = flex_data_dir_ptr;
   LOG(INFO) << "Flex data dir: " << flex_data_dir;
   auto conn = db.Connect();
-  EXPECT_TRUE(conn->Query("CREATE NODE TABLE person(id INT64, name STRING, age "
-                          "INT64, PRIMARY "
-                          "KEY(id));")
-                  .ok());
   EXPECT_TRUE(
-      conn->Query(
-              "CREATE NODE TABLE software(id INT64, name STRING, lang STRING, "
-              "PRIMARY "
-              "KEY(id));")
-          .ok());
+      conn->Query("CREATE NODE TABLE person(id INT64, name STRING, age "
+                  "INT64, PRIMARY "
+                  "KEY(id));"));
+  EXPECT_TRUE(conn->Query(
+      "CREATE NODE TABLE software(id INT64, name STRING, lang STRING, "
+      "PRIMARY "
+      "KEY(id));"));
+  EXPECT_TRUE(conn->Query(
+      "CREATE REL TABLE knows(FROM person TO person, weight DOUBLE);"));
   EXPECT_TRUE(
-      conn->Query(
-              "CREATE REL TABLE knows(FROM person TO person, weight DOUBLE);")
-          .ok());
-  EXPECT_TRUE(conn->Query("CREATE REL TABLE created(FROM person TO software, "
-                          "weight DOUBLE, "
-                          "since INT64);")
-                  .ok());
+      conn->Query("CREATE REL TABLE created(FROM person TO software, "
+                  "weight DOUBLE, "
+                  "since INT64);"));
   EXPECT_TRUE(
-      conn->Query("COPY person from \"" + flex_data_dir + "/person.csv\";")
-          .ok());
-  EXPECT_TRUE(
-      conn->Query("COPY software from \"" + flex_data_dir + "/software.csv\";")
-          .ok());
+      conn->Query("COPY person from \"" + flex_data_dir + "/person.csv\";"));
+  EXPECT_TRUE(conn->Query("COPY software from \"" + flex_data_dir +
+                          "/software.csv\";"));
   EXPECT_TRUE(conn->Query("COPY knows from \"" + flex_data_dir +
                           "/person_knows_person.csv\" (from=\"person\", "
-                          "to=\"person\");")
-                  .ok());
+                          "to=\"person\");"));
   EXPECT_TRUE(conn->Query("COPY created from \"" + flex_data_dir +
                           "/person_created_software.csv\" (from=\"person\", "
-                          "to=\"software\");")
-                  .ok());
+                          "to=\"software\");"));
 
   if (std::filesystem::exists("/tmp/person.csv")) {
     std::filesystem::remove("/tmp/person.csv");
   }
-  EXPECT_TRUE(conn->Query("COPY (MATCH (v:person) RETURN v) to "
-                          "'/tmp/person.csv' (HEADER = true);")
-                  .ok());
+  EXPECT_TRUE(
+      conn->Query("COPY (MATCH (v:person) RETURN v) to "
+                  "'/tmp/person.csv' (HEADER = true);"));
   // Read from file /tmp/person.csv
   {
     std::ifstream file("/tmp/person.csv");
@@ -113,10 +105,10 @@ TEST(StorageDDLTest, ExportTest) {
   if (std::filesystem::exists("/tmp/person_knows_person.csv")) {
     std::filesystem::remove("/tmp/person_knows_person.csv");
   }
-  EXPECT_TRUE(conn->Query("COPY (MATCH (v:person)-[e:knows]->(v2:person) "
-                          "RETURN e) to "
-                          "'/tmp/person_knows_person.csv' (HEADER = true);")
-                  .ok());
+  EXPECT_TRUE(
+      conn->Query("COPY (MATCH (v:person)-[e:knows]->(v2:person) "
+                  "RETURN e) to "
+                  "'/tmp/person_knows_person.csv' (HEADER = true);"));
   // Read from file /tmp/person_knows_person.csv
   {
     std::ifstream file("/tmp/person_knows_person.csv");

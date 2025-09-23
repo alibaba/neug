@@ -38,14 +38,14 @@ YAML::Node property_type_to_yaml(const PropertyType& type);
 
 std::vector<std::string> get_yaml_files(const std::string& plugin_dir);
 
-Result<std::string> get_json_string_from_yaml(const std::string& file_path);
+result<std::string> get_json_string_from_yaml(const std::string& file_path);
 
-Result<std::string> get_json_string_from_yaml(const YAML::Node& yaml_node);
+result<std::string> get_json_string_from_yaml(const YAML::Node& yaml_node);
 
 Status write_yaml_node_to_yaml_string(const YAML::Node& node,
                                       YAML::Emitter& emitter);
 
-Result<std::string> get_yaml_string_from_yaml_node(const YAML::Node& node);
+result<std::string> get_yaml_string_from_yaml_node(const YAML::Node& node);
 
 std::string read_yaml_file_to_string(const std::string& file_path);
 

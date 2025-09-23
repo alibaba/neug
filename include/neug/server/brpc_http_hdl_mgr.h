@@ -27,8 +27,8 @@
 #include "neug/server/neug_db_service.h"
 #include "neug/storages/graph/schema.h"
 #include "neug/utils/http_handler_manager.h"
-#include "neug/utils/leaf_utils.h"
 #include "neug/utils/pb_utils.h"
+#include "neug/utils/result.h"
 #ifdef USE_SYSTEM_PROTOBUF
 #include "neug/generated/proto/http_service/http_svc.pb.h"
 #include "neug/generated/proto/plan/results.pb.h"
@@ -96,19 +96,19 @@ class HttpServiceImpl : public HttpService {
     cntl->http_response().set_status_code(brpc::HTTP_STATUS_OK);
     const auto& schema = graph_db_.schema();
     auto yaml = schema.to_yaml();
-    if (!yaml.ok()) {
+    if (!yaml) {
       LOG(ERROR) << "Failed to convert schema to YAML: "
-                 << yaml.status().error_message();
+                 << yaml.error().error_message();
       cntl->SetFailed(brpc::HTTP_STATUS_INTERNAL_SERVER_ERROR, "%s",
                       "Failed to convert schema to YAML");
       return;
     }
     auto schema_str_res = gs::get_json_string_from_yaml(yaml.value());
-    if (!schema_str_res.ok()) {
+    if (!schema_str_res) {
       LOG(ERROR) << "Failed to convert schema YAML to JSON: "
-                 << schema_str_res.status().error_message();
+                 << schema_str_res.error().error_message();
       cntl->SetFailed(
-          status_code_to_http_code(schema_str_res.status().error_code()), "%s",
+          status_code_to_http_code(schema_str_res.error().error_code()), "%s",
           "Failed to convert schema YAML to JSON");
       return;
     }
@@ -168,13 +168,13 @@ class HttpServiceImpl : public HttpService {
     gs::Status status;
     auto plan_res = planner_->compilePlan(query);
 
-    if (!plan_res.ok()) {
+    if (!plan_res) {
       LOG(ERROR) << "Plan compilation failed: "
-                 << plan_res.status().error_message();
-      const char* error_msg = plan_res.status().error_message().c_str();
-      cntl->SetFailed(status_code_to_http_code(plan_res.status().error_code()),
+                 << plan_res.error().error_message();
+      const char* error_msg = plan_res.error().error_message().c_str();
+      cntl->SetFailed(status_code_to_http_code(plan_res.error().error_code()),
                       "%s", error_msg);
-      cntl->response_attachment().append(plan_res.status().error_message());
+      cntl->response_attachment().append(plan_res.error().error_message());
       return false;
     }
     const auto& physical_plan = plan_res.value().first;
@@ -192,27 +192,27 @@ class HttpServiceImpl : public HttpService {
     }
 
     auto result = graph_db_.GetSession(id).Eval(plan_proto_str);
+    if (!result) {
+      LOG(ERROR) << "Eval failed: " << result.error().error_message();
+      const char* error_msg = result.error().error_message().c_str();
+      cntl->SetFailed(status_code_to_http_code(result.error().error_code()),
+                      "%s", error_msg);
+      cntl->response_attachment().append(result.error().error_message());
+      return false;
+    }
     const auto& result_buffer = result.value();
     // TODO(zhanglei): Remove encoder/decoder in de/serialization.
     gs::Decoder decoder(result_buffer.data(), result_buffer.size());
-    if (!result.ok()) {
-      LOG(ERROR) << "Eval failed: " << result.status().error_message();
-      const char* error_msg = result.status().error_message().c_str();
-      cntl->SetFailed(status_code_to_http_code(result.status().error_code()),
-                      "%s", error_msg);
-      cntl->response_attachment().append(result.status().error_message());
-      return false;
-    }
 
     VLOG(10) << "Query executed successfully, updating planner's schema and "
                 "statistics";
     auto yaml_node = graph_db_.schema().to_yaml();
-    if (!yaml_node.ok()) {
+    if (!yaml_node) {
       LOG(ERROR) << "Failed to convert schema to YAML: "
-                 << yaml_node.status().error_message();
+                 << yaml_node.error().error_message();
       // If schema updating fails, we should not proceed on.
       THROW_RUNTIME_ERROR("Failed to convert schema to YAML: " +
-                          yaml_node.status().error_message());
+                          yaml_node.error().error_message());
     }
     if (update_schema) {
       planner_->update_meta(yaml_node.value());

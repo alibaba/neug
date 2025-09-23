@@ -140,52 +140,52 @@ class CheckpointTest : public ::testing::Test {
     auto res = conn->Query(
         "CREATE NODE TABLE person(id INT64, name STRING, age INT64, PRIMARY "
         "KEY(id));");
-    EXPECT_TRUE(res.ok()) << res.status().ToString();
+    EXPECT_TRUE(res) << res.error().ToString();
 
     {
       auto res = conn->Query(
           "CREATE NODE TABLE software(id INT64, name STRING, lang STRING, "
           "PRIMARY "
           "KEY(id));");
-      EXPECT_TRUE(res.ok()) << res.status().ToString();
+      EXPECT_TRUE(res) << res.error().ToString();
     }
     {
       auto res = conn->Query(
           "CREATE REL TABLE knows(FROM person TO person, weight DOUBLE);");
-      EXPECT_TRUE(res.ok()) << res.status().ToString();
+      EXPECT_TRUE(res) << res.error().ToString();
     }
 
     {
       auto res = conn->Query(
           "CREATE REL TABLE created(FROM person TO software, weight DOUBLE, "
           "since INT64);");
-      EXPECT_TRUE(res.ok()) << res.status().ToString();
+      EXPECT_TRUE(res) << res.error().ToString();
     }
 
     {
       auto res =
           conn->Query("COPY person from \"" + csv_dir + "/person.csv\";");
-      EXPECT_TRUE(res.ok()) << res.status().ToString();
+      EXPECT_TRUE(res) << res.error().ToString();
     }
 
     {
       auto res =
           conn->Query("COPY software from \"" + csv_dir + "/software.csv\";");
-      EXPECT_TRUE(res.ok()) << res.status().ToString();
+      EXPECT_TRUE(res) << res.error().ToString();
     }
 
     {
       auto res = conn->Query(
           "COPY knows from \"" + csv_dir +
           "/person_knows_person.csv\" (from=\"person\", to=\"person\");");
-      EXPECT_TRUE(res.ok()) << res.status().ToString();
+      EXPECT_TRUE(res) << res.error().ToString();
     }
 
     {
       auto res = conn->Query("COPY created from \"" + csv_dir +
                              "/person_created_software.csv\" (from=\"person\", "
                              "to =\"software\");");
-      EXPECT_TRUE(res.ok()) << res.status().ToString();
+      EXPECT_TRUE(res) << res.error().ToString();
     }
   }
 };
@@ -201,7 +201,7 @@ TEST_F(CheckpointTest, test_basic) {
   std::vector<std::string> result_v, result_e;
   {
     auto res = conn->Query("MATCH (v:person) RETURN v.*;");
-    EXPECT_TRUE(res.ok()) << res.status().ToString();
+    EXPECT_TRUE(res) << res.error().ToString();
     auto res_val = res.value();
     while (res_val.hasNext()) {
       auto row = res_val.next();
@@ -211,7 +211,7 @@ TEST_F(CheckpointTest, test_basic) {
   assert(result_v == basic_test_result_v);
   {
     auto res = conn->Query("MATCH (v:person)-[e:knows]->(:person) RETURN e.*;");
-    EXPECT_TRUE(res.ok()) << res.status().ToString();
+    EXPECT_TRUE(res) << res.error().ToString();
     auto res_val = res.value();
     while (res_val.hasNext()) {
       auto row = res_val.next();
@@ -228,7 +228,7 @@ TEST_F(CheckpointTest, test_after_add_vertex_property) {
 
   {
     auto res = conn->Query("ALTER TABLE person ADD created STRING;");
-    EXPECT_TRUE(res.ok()) << res.status().ToString();
+    EXPECT_TRUE(res) << res.error().ToString();
   }
 
   gs::PropertyGraph& frag = db.graph();
@@ -237,7 +237,7 @@ TEST_F(CheckpointTest, test_after_add_vertex_property) {
   std::vector<std::string> result_v, result_e;
   {
     auto res = conn->Query("MATCH (v:person) RETURN v.*;");
-    EXPECT_TRUE(res.ok()) << res.status().ToString();
+    EXPECT_TRUE(res) << res.error().ToString();
     auto res_val = res.value();
     while (res_val.hasNext()) {
       auto row = res_val.next();
@@ -247,7 +247,7 @@ TEST_F(CheckpointTest, test_after_add_vertex_property) {
   assert(result_v == add_vertex_property_result_v);
   {
     auto res = conn->Query("MATCH (v:person)-[e:knows]->(:person) RETURN e.*;");
-    EXPECT_TRUE(res.ok()) << res.status().ToString();
+    EXPECT_TRUE(res) << res.error().ToString();
     auto res_val = res.value();
     while (res_val.hasNext()) {
       auto row = res_val.next();
@@ -264,7 +264,7 @@ TEST_F(CheckpointTest, test_after_delete_vertex_property) {
 
   {
     auto res = conn->Query("ALTER TABLE person DROP age;");
-    EXPECT_TRUE(res.ok()) << res.status().ToString();
+    EXPECT_TRUE(res) << res.error().ToString();
   }
 
   gs::PropertyGraph& frag = db.graph();
@@ -273,7 +273,7 @@ TEST_F(CheckpointTest, test_after_delete_vertex_property) {
   std::vector<std::string> result_v, result_e;
   {
     auto res = conn->Query("MATCH (v:person) RETURN v.*;");
-    EXPECT_TRUE(res.ok()) << res.status().ToString();
+    EXPECT_TRUE(res) << res.error().ToString();
     auto res_val = res.value();
     while (res_val.hasNext()) {
       auto row = res_val.next();
@@ -283,7 +283,7 @@ TEST_F(CheckpointTest, test_after_delete_vertex_property) {
   assert(result_v == delete_vertex_property_result_v);
   {
     auto res = conn->Query("MATCH (v:person)-[e:knows]->(:person) RETURN e.*;");
-    EXPECT_TRUE(res.ok()) << res.status().ToString();
+    EXPECT_TRUE(res) << res.error().ToString();
     auto res_val = res.value();
     while (res_val.hasNext()) {
       auto row = res_val.next();
@@ -300,7 +300,7 @@ TEST_F(CheckpointTest, test_after_delete_vertex) {
 
   {
     auto res = conn->Query("MATCH (v:person) WHERE v.id = 1 DELETE v;");
-    EXPECT_TRUE(res.ok()) << res.status().ToString();
+    EXPECT_TRUE(res) << res.error().ToString();
   }
 
   gs::PropertyGraph& frag = db.graph();
@@ -309,7 +309,7 @@ TEST_F(CheckpointTest, test_after_delete_vertex) {
   std::vector<std::string> result_v, result_e;
   {
     auto res = conn->Query("MATCH (v:person) RETURN v.*;");
-    EXPECT_TRUE(res.ok()) << res.status().ToString();
+    EXPECT_TRUE(res) << res.error().ToString();
     auto res_val = res.value();
     while (res_val.hasNext()) {
       auto row = res_val.next();
@@ -320,13 +320,13 @@ TEST_F(CheckpointTest, test_after_delete_vertex) {
 
   {
     auto res = conn->Query("MATCH (v:person)-[e:knows]->(:person) RETURN e.*;");
-    EXPECT_TRUE(res.ok()) << res.status().ToString();
+    EXPECT_TRUE(res) << res.error().ToString();
     auto res_val = res.value();
     while (res_val.hasNext()) {
       auto row = res_val.next();
       result_e.emplace_back(row.ToString());
     }
-    assert(result_e == delete_vertex_result_e);
+    CHECK(result_e == delete_vertex_result_e);
   }
 }
 
@@ -337,7 +337,7 @@ TEST_F(CheckpointTest, test_after_add_edge_property) {
 
   {
     auto res = conn->Query("ALTER TABLE knows ADD registration DATE;");
-    EXPECT_TRUE(res.ok()) << res.status().ToString();
+    EXPECT_TRUE(res) << res.error().ToString();
   }
 
   gs::PropertyGraph& frag = db.graph();
@@ -346,7 +346,7 @@ TEST_F(CheckpointTest, test_after_add_edge_property) {
   std::vector<std::string> result_v, result_e;
   {
     auto res = conn->Query("MATCH (v:person) RETURN v.*;");
-    EXPECT_TRUE(res.ok()) << res.status().ToString();
+    EXPECT_TRUE(res) << res.error().ToString();
     auto res_val = res.value();
     while (res_val.hasNext()) {
       auto row = res_val.next();
@@ -357,7 +357,7 @@ TEST_F(CheckpointTest, test_after_add_edge_property) {
 
   {
     auto res = conn->Query("MATCH (v:person)-[e:knows]->(:person) RETURN e.*;");
-    EXPECT_TRUE(res.ok()) << res.status().ToString();
+    EXPECT_TRUE(res) << res.error().ToString();
     auto res_val = res.value();
     while (res_val.hasNext()) {
       auto row = res_val.next();
@@ -374,7 +374,7 @@ TEST_F(CheckpointTest, test_after_delete_edge_property) {
 
   {
     auto res = conn->Query("ALTER TABLE knows DROP weight");
-    EXPECT_TRUE(res.ok()) << res.status().ToString();
+    EXPECT_TRUE(res) << res.error().ToString();
   }
 
   gs::PropertyGraph& frag = db.graph();
@@ -383,7 +383,7 @@ TEST_F(CheckpointTest, test_after_delete_edge_property) {
   std::vector<std::string> result_v, result_e;
   {
     auto res = conn->Query("MATCH (v:person) RETURN v.*;");
-    EXPECT_TRUE(res.ok()) << res.status().ToString();
+    EXPECT_TRUE(res) << res.error().ToString();
     auto res_val = res.value();
     while (res_val.hasNext()) {
       auto row = res_val.next();
@@ -394,7 +394,7 @@ TEST_F(CheckpointTest, test_after_delete_edge_property) {
 
   {
     auto res = conn->Query("MATCH (v:person)-[e:knows]->(:person) RETURN e;");
-    EXPECT_TRUE(res.ok()) << res.status().ToString();
+    EXPECT_TRUE(res) << res.error().ToString();
     auto res_val = res.value();
     while (res_val.hasNext()) {
       auto row = res_val.next();
@@ -412,7 +412,7 @@ TEST_F(CheckpointTest, test_after_delete_edge) {
   {
     auto res = conn->Query(
         "MATCH (v:person)-[e:knows]->(:person) WHERE v.id = 1 DELETE e;");
-    EXPECT_TRUE(res.ok()) << res.status().ToString();
+    EXPECT_TRUE(res) << res.error().ToString();
   }
 
   gs::PropertyGraph& frag = db.graph();
@@ -421,7 +421,7 @@ TEST_F(CheckpointTest, test_after_delete_edge) {
   std::vector<std::string> result_v, result_e;
   {
     auto res = conn->Query("MATCH (v:person) RETURN v.*;");
-    EXPECT_TRUE(res.ok()) << res.status().ToString();
+    EXPECT_TRUE(res) << res.error().ToString();
     auto res_val = res.value();
     while (res_val.hasNext()) {
       auto row = res_val.next();
@@ -431,13 +431,13 @@ TEST_F(CheckpointTest, test_after_delete_edge) {
   }
   {
     auto res = conn->Query("MATCH (:person)-[e:knows]->(v:person) RETURN e.*;");
-    EXPECT_TRUE(res.ok()) << res.status().ToString();
+    EXPECT_TRUE(res) << res.error().ToString();
     auto res_val = res.value();
     while (res_val.hasNext()) {
       auto row = res_val.next();
       result_e.emplace_back(row.ToString());
     }
-    assert(result_e == delete_edge_result_e);
+    CHECK(result_e == delete_edge_result_e);
   }
 }
 
@@ -466,7 +466,7 @@ TEST_F(CheckpointTest, test_compact) {
   std::vector<std::string> result_v, result_e;
   {
     auto res = conn2->Query("MATCH (v:person) RETURN COUNT(v);");
-    EXPECT_TRUE(res.ok()) << res.status().ToString();
+    EXPECT_TRUE(res) << res.error().ToString();
     auto res_val = res.value();
     EXPECT_TRUE(res_val.hasNext());
     auto row = res_val.next();
@@ -477,7 +477,7 @@ TEST_F(CheckpointTest, test_compact) {
   {
     // Delete half vertices
     auto res = conn2->Query("MATCH (v:person) WHERE v.id <= 2 DELETE v;");
-    EXPECT_TRUE(res.ok()) << res.status().ToString();
+    EXPECT_TRUE(res) << res.error().ToString();
   }
 
   auto compact_txn2 = db2.GetCompactTransaction(0);
@@ -485,7 +485,7 @@ TEST_F(CheckpointTest, test_compact) {
 
   {
     auto res = conn2->Query("MATCH (v:person) RETURN COUNT(v);");
-    EXPECT_TRUE(res.ok()) << res.status().ToString();
+    EXPECT_TRUE(res) << res.error().ToString();
     auto res_val = res.value();
     EXPECT_TRUE(res_val.hasNext());
     auto row = res_val.next();
@@ -496,7 +496,7 @@ TEST_F(CheckpointTest, test_compact) {
   {
     auto res =
         conn2->Query("MATCH (v:person)-[e:knows]->(:person) RETURN count(e);");
-    EXPECT_TRUE(res.ok()) << res.status().ToString();
+    EXPECT_TRUE(res) << res.error().ToString();
     auto res_val = res.value();
     while (res_val.hasNext()) {
       auto row = res_val.next();
@@ -516,7 +516,7 @@ TEST_F(CheckpointTest, test_recover_from_checkpoint) {
 
   {
     auto res = conn->Query("MATCH (v:person) RETURN COUNT(v);");
-    EXPECT_TRUE(res.ok()) << res.status().ToString();
+    EXPECT_TRUE(res) << res.error().ToString();
     auto res_val = res.value();
     EXPECT_TRUE(res_val.hasNext());
     auto row = res_val.next();
@@ -525,7 +525,7 @@ TEST_F(CheckpointTest, test_recover_from_checkpoint) {
   }
   {
     auto res = conn->Query("MATCH (v)-[e]->(a) RETURN COUNT(e);");
-    EXPECT_TRUE(res.ok()) << res.status().ToString();
+    EXPECT_TRUE(res) << res.error().ToString();
     auto res_val = res.value();
     EXPECT_TRUE(res_val.hasNext());
     auto row = res_val.next();
@@ -537,7 +537,7 @@ TEST_F(CheckpointTest, test_recover_from_checkpoint) {
     auto res = conn->Query(
         "MATCH (v:person)-[e:created]->(f:software) return v.id, e.since, "
         "f.id;");
-    EXPECT_TRUE(res.ok()) << res.status().ToString();
+    EXPECT_TRUE(res) << res.error().ToString();
     {
       auto res_val = res.value();
       while (res_val.hasNext()) {
@@ -547,13 +547,13 @@ TEST_F(CheckpointTest, test_recover_from_checkpoint) {
     }
   }
 
-  EXPECT_TRUE(conn->Query("MATCH (v:person) WHERE v.id = 1 DELETE v;").ok());
-  EXPECT_TRUE(conn->Query("MATCH (v:person)-[e:created]->(f:software) WHERE "
-                          "v.id > 4 DELETE e;")
-                  .ok());
+  EXPECT_TRUE(conn->Query("MATCH (v:person) WHERE v.id = 1 DELETE v;"));
+  EXPECT_TRUE(
+      conn->Query("MATCH (v:person)-[e:created]->(f:software) WHERE "
+                  "v.id > 4 DELETE e;"));
   auto res = conn->Query(
       "MATCH (v:person)-[e:created]->(f:software) return v.id, e.since, f.id;");
-  EXPECT_TRUE(res.ok()) << res.status().ToString();
+  EXPECT_TRUE(res) << res.error().ToString();
   {
     auto res_val = res.value();
     std::vector<std::string> result;
@@ -571,7 +571,7 @@ TEST_F(CheckpointTest, test_recover_from_checkpoint) {
   auto conn2 = db2.Connect();
   {
     auto res = conn2->Query("MATCH (v:person) RETURN COUNT(v);");
-    EXPECT_TRUE(res.ok()) << res.status().ToString();
+    EXPECT_TRUE(res) << res.error().ToString();
     auto res_val = res.value();
     EXPECT_TRUE(res_val.hasNext());
     auto row = res_val.next();
@@ -580,7 +580,7 @@ TEST_F(CheckpointTest, test_recover_from_checkpoint) {
   }
   {
     auto res = conn2->Query("MATCH (v)-[e]->(a) RETURN COUNT(e);");
-    EXPECT_TRUE(res.ok()) << res.status().ToString();
+    EXPECT_TRUE(res) << res.error().ToString();
     auto res_val = res.value();
     EXPECT_TRUE(res_val.hasNext());
     auto row = res_val.next();

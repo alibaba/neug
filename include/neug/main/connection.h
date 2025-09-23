@@ -84,7 +84,7 @@ class Connection {
    * 
    * @since v0.1.0
    */
-  Result<QueryResult> Query(const std::string& query_string);
+  result<QueryResult> Query(const std::string& query_string);
 
   /**
    * @brief Get the database schema.
@@ -132,7 +132,7 @@ class Connection {
    * 1. Parse the query string and generate the execution plan.
    * 2. Execute the execution plan using runtime engine.
    */
-  Result<results::CollectiveResults> query_impl(
+  result<results::CollectiveResults> query_impl(
       const std::string& query_string);
 
   PropertyGraph& graph_;

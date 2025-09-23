@@ -22,7 +22,7 @@
 #include <sstream>
 #include <utility>                      // for move, __tuple_element_t
 #include "neug/utils/property/types.h"  // for PropertyType, Any
-#include "neug/utils/result.h"          // for Result, Status, Statu...
+#include "neug/utils/result.h"          // for result, Status, Statu...
 
 namespace gs {
 
@@ -1032,7 +1032,7 @@ bool common_value_to_any(const common::Value& value, Any& out_any) {
   return true;
 }
 
-Result<std::vector<std::tuple<PropertyType, std::string, Any>>>
+gs::result<std::vector<std::tuple<PropertyType, std::string, Any>>>
 property_defs_to_tuple(
     const google::protobuf::RepeatedPtrField<physical::PropertyDef>&
         properties) {
@@ -1041,13 +1041,12 @@ property_defs_to_tuple(
     std::tuple<PropertyType, std::string, Any> tuple;
     std::get<1>(tuple) = property.name();
     if (!data_type_to_property_type(property.type(), std::get<0>(tuple))) {
-      return Result<std::vector<std::tuple<PropertyType, std::string, Any>>>(
-          Status(StatusCode::ERR_INVALID_ARGUMENT,
-                 "Invalid property type: " + property.DebugString()));
+      RETURN_ERROR(Status(StatusCode::ERR_INVALID_ARGUMENT,
+                          "Invalid property type: " + property.DebugString()));
     }
     if (property.has_default_value()) {
       if (!common_value_to_any(property.default_value(), std::get<2>(tuple))) {
-        return Result<std::vector<std::tuple<PropertyType, std::string, Any>>>(
+        RETURN_ERROR(
             Status(StatusCode::ERR_INVALID_ARGUMENT,
                    "Invalid default value: " + property.DebugString()));
       } else {
@@ -1059,8 +1058,7 @@ property_defs_to_tuple(
     }
     result.emplace_back(std::move(tuple));
   }
-  return Result<std::vector<std::tuple<PropertyType, std::string, Any>>>(
-      Status(StatusCode::OK), std::move(result));
+  return result;
 }
 
 // Convert to a bool representing error_on_conflict.

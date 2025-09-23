@@ -86,29 +86,27 @@ TEST(DatabaseTest, TestDangling) {
   gs::NeugDB db;
   db.Open(data_path, 1, gs::DBMode::READ_WRITE);
   auto conn = db.Connect();
-  EXPECT_TRUE(conn->Query("CREATE NODE TABLE person(id INT64, name STRING, age "
-                          "INT64, PRIMARY "
-                          "KEY(id));")
-                  .ok());
-  EXPECT_TRUE(conn->Query("CREATE REL TABLE knows(FROM person TO person, "
-                          "weight DOUBLE);")
-                  .ok());
+  EXPECT_TRUE(
+      conn->Query("CREATE NODE TABLE person(id INT64, name STRING, age "
+                  "INT64, PRIMARY "
+                  "KEY(id));"));
+  EXPECT_TRUE(
+      conn->Query("CREATE REL TABLE knows(FROM person TO person, "
+                  "weight DOUBLE);"));
   auto person_csv_path = csv_dir + "/person.csv";
   auto person_knows_person_csv_path = csv_dir + "/person_knows_person.csv";
+  EXPECT_TRUE(conn->Query("COPY person from \"" + person_csv_path + "\";"));
   EXPECT_TRUE(
-      conn->Query("COPY person from \"" + person_csv_path + "\";").ok());
-  EXPECT_TRUE(
-      conn->Query("COPY knows from \"" + person_knows_person_csv_path + "\";")
-          .ok());
+      conn->Query("COPY knows from \"" + person_knows_person_csv_path + "\";"));
   // close database, and connection should be dangling
   db.Close();
   LOG(INFO) << "Database closed, connection should be dangling now.";
   auto res = conn->Query("MATCH (v) RETURN v;");
   // The query should fail because the connection is dangling
-  EXPECT_FALSE(res.ok());
-  EXPECT_EQ(res.status().error_code(), gs::StatusCode::ERR_CONNECTION_CLOSED)
+  EXPECT_FALSE(res);
+  EXPECT_EQ(res.error().error_code(), gs::StatusCode::ERR_CONNECTION_CLOSED)
       << "Expected connection to be closed, but got: "
-      << res.status().ToString();
+      << res.error().ToString();
 }
 
 TEST(DatabaseTest, TestReadWriteConflict) {
@@ -181,26 +179,20 @@ TEST(DatabaseTest, TestUpdateRecordView) {
     EXPECT_TRUE(
         conn->Query("CREATE NODE TABLE person(id INT64, name STRING, age "
                     "INT64, PRIMARY "
-                    "KEY(id));")
-            .ok());
+                    "KEY(id));"));
     EXPECT_TRUE(
         conn->Query("CREATE REL TABLE knows(FROM person TO person, weight "
                     "DOUBLE, since "
-                    "INT64);")
-            .ok());
+                    "INT64);"));
     EXPECT_TRUE(
-        conn->Query("CREATE (t: person {id: 1, name: 'Alice', age: 30});")
-            .ok());
+        conn->Query("CREATE (t: person {id: 1, name: 'Alice', age: 30});"));
     EXPECT_TRUE(
-        conn->Query("CREATE (t: person {id: 2, name: 'Bob', age: 25});").ok());
+        conn->Query("CREATE (t: person {id: 2, name: 'Bob', age: 25});"));
     EXPECT_TRUE(
-        conn->Query("CREATE (t: person {id: 3, name: 'Charlie', age: 35});")
-            .ok());
-    EXPECT_TRUE(
-        conn->Query(
-                "MATCH(u1: person), (u2: person) WHERE u1.id = 1 AND u2.id = "
-                "2 CREATE (u1)-[:knows {weight: 0.5, since: 2020}]->(u2);")
-            .ok());
+        conn->Query("CREATE (t: person {id: 3, name: 'Charlie', age: 35});"));
+    EXPECT_TRUE(conn->Query(
+        "MATCH(u1: person), (u2: person) WHERE u1.id = 1 AND u2.id = "
+        "2 CREATE (u1)-[:knows {weight: 0.5, since: 2020}]->(u2);"));
 
     auto txn = db.GetUpdateTransaction(0);
     std::vector<gs::Any> props = {gs::Any::From<double>(0.8),
@@ -212,7 +204,7 @@ TEST(DatabaseTest, TestUpdateRecordView) {
     auto res = conn->Query(
         "MATCH (u1: person)-[r:knows]->(u2: person) "
         "RETURN r.weight;");
-    EXPECT_TRUE(res.ok());
+    EXPECT_TRUE(res);
     auto res_val = res.value();
     auto row1 = res_val.next();
     EXPECT_EQ(row1.ToString(), "<element { object { f64: 0.5 } }>");
@@ -230,7 +222,7 @@ TEST(DatabaseTest, TestUpdateRecordView) {
     res = conn->Query(
         "MATCH (u1: person)-[r:knows]->(u2: person) "
         "RETURN r.weight;");
-    EXPECT_TRUE(res.ok());
+    EXPECT_TRUE(res);
     EXPECT_TRUE(res.value().hasNext());
     res_val = res.value();
     auto row3 = res_val.next();
@@ -284,14 +276,11 @@ TEST(DatabaseTest, TestPersist) {
     auto conn = db.Connect();
     std::string flex_data_dir = std::getenv("FLEX_DATA_DIR");
     EXPECT_FALSE(flex_data_dir.empty());
+    EXPECT_TRUE(conn->Query(
+        "CREATE NODE TABLE person(id INT64, name STRING, age INT64, "
+        "PRIMARY KEY(id));"));
     EXPECT_TRUE(
-        conn->Query(
-                "CREATE NODE TABLE person(id INT64, name STRING, age INT64, "
-                "PRIMARY KEY(id));")
-            .ok());
-    EXPECT_TRUE(
-        conn->Query("COPY person from \"" + flex_data_dir + "/person.csv\";")
-            .ok());
+        conn->Query("COPY person from \"" + flex_data_dir + "/person.csv\";"));
     db.Close();
   }
   {
@@ -299,7 +288,7 @@ TEST(DatabaseTest, TestPersist) {
     db2.Open(db_dir, 1, gs::DBMode::READ_ONLY);
     auto conn = db2.Connect();
     auto res = conn->Query("MATCH (n: person) return n.id, n.name, n.age;");
-    EXPECT_TRUE(res.ok());
+    EXPECT_TRUE(res);
     conn->Close();
     db2.Close();
   }
@@ -317,28 +306,22 @@ TEST(DatabaseTest, TestCompaction) {
     auto conn = db.Connect();
     std::string flex_data_dir = std::getenv("FLEX_DATA_DIR");
     EXPECT_FALSE(flex_data_dir.empty());
+    EXPECT_TRUE(conn->Query(
+        "CREATE NODE TABLE person(id INT64, name STRING, age INT64, "
+        "PRIMARY KEY(id));"));
+    EXPECT_TRUE(conn->Query(
+        "CREATE REL TABLE knows(FROM person TO person, weight DOUBLE);"));
     EXPECT_TRUE(
-        conn->Query(
-                "CREATE NODE TABLE person(id INT64, name STRING, age INT64, "
-                "PRIMARY KEY(id));")
-            .ok());
-    EXPECT_TRUE(
-        conn->Query(
-                "CREATE REL TABLE knows(FROM person TO person, weight DOUBLE);")
-            .ok());
-    EXPECT_TRUE(
-        conn->Query("COPY person from \"" + flex_data_dir + "/person.csv\";")
-            .ok());
+        conn->Query("COPY person from \"" + flex_data_dir + "/person.csv\";"));
     EXPECT_TRUE(conn->Query("COPY knows from \"" + flex_data_dir +
-                            "/person_knows_person.csv\";")
-                    .ok());
+                            "/person_knows_person.csv\";"));
     // Delete some edges
-    EXPECT_TRUE(conn->Query("MATCH (a: person)-[r: knows]->(b: person) "
-                            "WHERE a.id = 1 AND b.id = 2 DELETE r;")
-                    .ok());
-    EXPECT_TRUE(conn->Query("MATCH (a: person) WHERE a.id = 1 DELETE a;").ok());
+    EXPECT_TRUE(
+        conn->Query("MATCH (a: person)-[r: knows]->(b: person) "
+                    "WHERE a.id = 1 AND b.id = 2 DELETE r;"));
+    EXPECT_TRUE(conn->Query("MATCH (a: person) WHERE a.id = 1 DELETE a;"));
     auto res = conn->Query("MATCH (n: person) return COUNT(n);");
-    EXPECT_TRUE(res.ok());
+    EXPECT_TRUE(res);
     EXPECT_EQ(res.value().next().ToString(), "<element { object { i64: 3 } }>");
     conn->Close();
     db.Close();
@@ -349,11 +332,11 @@ TEST(DatabaseTest, TestCompaction) {
     db2.Open(db_dir, 1, gs::DBMode::READ_ONLY);
     auto conn = db2.Connect();
     auto res = conn->Query("MATCH (n: person) return COUNT(n);");
-    EXPECT_TRUE(res.ok());
+    EXPECT_TRUE(res);
     EXPECT_EQ(res.value().next().ToString(), "<element { object { i64: 3 } }>");
     res = conn->Query(
         "MATCH (a: person)-[r: knows]->(b: person) return COUNT(r);");
-    EXPECT_TRUE(res.ok());
+    EXPECT_TRUE(res);
     EXPECT_EQ(res.value().next().ToString(), "<element { object { i64: 0 } }>");
     conn->Close();
     db2.Close();

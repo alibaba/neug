@@ -20,21 +20,22 @@ limitations under the License.
 
 namespace gs {
 
-Result<std::pair<physical::PhysicalPlan, std::string>> GOptPlanner::compilePlan(
+result<std::pair<physical::PhysicalPlan, std::string>> GOptPlanner::compilePlan(
     const std::string& query) {
   LOG(INFO) << "[GOptPlanner] compilePlan called with query: " << query;
   // read access to the planner
   std::shared_lock<std::shared_mutex> lock(planner_mutex);
 
   if (database->getCatalog() == nullptr) {
-    return Status(StatusCode::ERR_INVALID_SCHEMA, "Catalog is not initialized");
+    RETURN_ERROR(
+        Status(StatusCode::ERR_INVALID_SCHEMA, "Catalog is not initialized"));
   }
 
   try {
     // Prepare and compile query
     auto statement = ctx->prepare(query);
     if (!statement->success) {
-      return Status(StatusCode::ERR_QUERY_SYNTAX, statement->errMsg);
+      RETURN_ERROR(Status(StatusCode::ERR_QUERY_SYNTAX, statement->errMsg));
     }
 
     std::cout << "Logical Plan: " << std::endl
@@ -58,31 +59,32 @@ Result<std::pair<physical::PhysicalPlan, std::string>> GOptPlanner::compilePlan(
         *statement->logicalPlan, aliasManager, database->getCatalog());
     return std::make_pair(std::move(*physicalPlan), YAML::Dump(resultYaml));
   } catch (const gs::exception::InvalidArgumentException& e) {
-    return Status(StatusCode::ERR_INVALID_ARGUMENT, e.what());
+    // return Status(StatusCode::ERR_INVALID_ARGUMENT, e.what());
+    RETURN_ERROR(Status(StatusCode::ERR_INVALID_ARGUMENT, e.what()));
   } catch (const gs::exception::BinderException& e) {
-    return Status(StatusCode::ERR_COMPILATION, e.what());
+    RETURN_ERROR(Status(StatusCode::ERR_COMPILATION, e.what()));
   } catch (const gs::exception::CatalogException& e) {
-    return Status(StatusCode::ERR_INVALID_SCHEMA, e.what());
+    RETURN_ERROR(Status(StatusCode::ERR_INVALID_SCHEMA, e.what()));
   } catch (const gs::exception::ConversionException& e) {
-    return Status(StatusCode::ERR_TYPE_CONVERSION, e.what());
+    RETURN_ERROR(Status(StatusCode::ERR_TYPE_CONVERSION, e.what()));
   } catch (const gs::exception::InternalException& e) {
-    return Status(StatusCode::ERR_INTERNAL_ERROR, e.what());
+    RETURN_ERROR(Status(StatusCode::ERR_INTERNAL_ERROR, e.what()));
   } catch (const gs::exception::NotImplementedException& e) {
-    return Status(StatusCode::ERR_NOT_IMPLEMENTED, e.what());
+    RETURN_ERROR(Status(StatusCode::ERR_NOT_IMPLEMENTED, e.what()));
   } catch (const gs::exception::NotSupportedException& e) {
-    return Status(StatusCode::ERR_NOT_SUPPORTED, e.what());
+    RETURN_ERROR(Status(StatusCode::ERR_NOT_SUPPORTED, e.what()));
   } catch (const gs::exception::RuntimeError& e) {
-    return Status(StatusCode::ERR_INTERNAL_ERROR, e.what());
+    RETURN_ERROR(Status(StatusCode::ERR_INTERNAL_ERROR, e.what()));
   } catch (const gs::exception::TransactionManagerException& e) {
-    return Status(StatusCode::ERR_INTERNAL_ERROR, e.what());
+    RETURN_ERROR(Status(StatusCode::ERR_INTERNAL_ERROR, e.what()));
   } catch (const gs::exception::Exception& e) {
-    return Status(StatusCode::ERR_COMPILATION, e.what());
+    RETURN_ERROR(Status(StatusCode::ERR_COMPILATION, e.what()));
   } catch (const std::exception& e) {
-    return Status(StatusCode::ERR_COMPILATION, e.what());
+    RETURN_ERROR(Status(StatusCode::ERR_COMPILATION, e.what()));
   } catch (...) {
-    return Status(StatusCode::ERR_UNKNOWN,
-                  "Unknown error during plan "
-                  "compilation");
+    RETURN_ERROR(Status(StatusCode::ERR_UNKNOWN,
+                        "Unknown error during plan "
+                        "compilation"));
   }
 }
 

@@ -29,8 +29,8 @@
 #include "neug/execution/common/graph_interface.h"
 #include "neug/execution/utils/params.h"
 #include "neug/execution/utils/special_predicates.h"
-#include "neug/utils/leaf_utils.h"
 #include "neug/utils/property/types.h"
+#include "neug/utils/result.h"
 
 namespace gs {
 
