@@ -1,59 +1,82 @@
 # NeuG
 
-**NeuG** (pronounced "new-gee") is a Hybrid Transactional/Analytical Processing (HTAP) graph database designed for high-performance embedded graph analytics and real-time transaction processing.
+**NeuG** (pronounced "new-gee") is a graph database for HTAP (Hybrid Transactional/Analytical Processing) workloads. NeuG provides **two modes** that you can switch between based on your needs:
+
+- **Embedded Mode**: Optimized for analytical workloads including bulk data loading, complex pattern matching, and graph analytics
+- **Service Mode**: Optimized for transactional workloads for real-time applications and concurrent user access
 
 [![NeuG Test](https://github.com/GraphScope/neug/actions/workflows/neug-test.yml/badge.svg)](https://github.com/GraphScope/neug/actions/workflows/neug-test.yml)
 [![NeuG Wheel Packaging](https://github.com/GraphScope/neug/actions/workflows/build-wheel.yml/badge.svg)](https://github.com/GraphScope/neug/actions/workflows/build-wheel.yml)
 [![NeuG Documentation](https://github.com/GraphScope/neug/actions/workflows/docs.yml/badge.svg)](https://github.com/GraphScope/neug/actions/workflows/docs.yml)
 
-## Table of Contents
+For more information on using NeuG, please refer to the [NeuG documentation](https://graphscope.io/en/overview/introduction/).
 
-- [Installation](#installation)
-- [Documentation](#documentation)
-- [Development](#development)
-- [Contributing](#contributing)
-- [License](#license)
+## News
+- **2025-09**: We officially release NeuG v0.1.0 🎉
+- **2025-06**: We shatter [LDBC SNB Interactive Benchmark world record](https://graphscope.io/blog/tech/2025/06/12/graphscope-flex-achieved-record-breaking-on-ldbc-snb-interactive-workload-declarative) with 80,000+ QPS for declarative queries 🎉
 
 ## Installation
 
-**NeuG** is available as a Python package and can be easily installed using `pip`:
-
 ```bash
-pip3 install neug
+pip install neug
 ```
 
-Please note that `neug` requires `Python` version 3.8 or above and `pip` version 19.3 or higher. The package is developed and tested on major Linux distributions (Ubuntu 20.04+ / CentOS 7+) as well as macOS 11+ (Intel/Apple silicon). Windows users are encouraged to install Ubuntu via WSL2 to use this package.
+Please note that `neug` requires `Python` version 3.8 or above. The package works on Linux, macOS, and Windows (via WSL2).
 
 For more detailed installation instructions, please refer to the [installation guide](./doc/source/installation/installation.md).
 
+## Quick Example
+
+```python
+import neug
+
+# Step 1: Load and analyze data (Embedded Mode)
+db = neug.Database("/path/to/database") 
+conn = db.connection()
+
+# Load sample data
+db.load_builtin_dataset("tinysnb")
+
+# Run analytics - find triangles in the graph
+result = conn.execute("""
+    MATCH (a:person)-[:knows]->(b:person)-[:knows]->(c:person),
+          (a)-[:knows]->(c)
+    RETURN a.fName, b.fName, c.fName
+""")
+
+for record in result:
+    print(f"{record['a.fName']}, {record['b.fName']}, {record['c.fName']} are mutual friends")
+
+# Step 2: Serve applications (Service Mode)  
+conn.close()
+db.serve(port=8080)
+# Now your application can handle concurrent users
+```
+
 ## Documentation
 
-We are working on the documentation. For the latest information, visit [NeuG Documentation](https://github.com/GraphScope/neug).(TODO: release the doc)
+📚 **[Official Documentation](https://graphscope.io/en/overview/introduction/)** - Comprehensive guides, tutorials, and API reference
 
-You can also build the NeuG documentation locally:
+📝 **[GraphScope Blog](https://graphscope.io/blog/)** - Latest updates and technical insights
+
+You can also build the documentation locally:
 
 ```bash
-cd doc
-make dependencies
-make html
-python3 -m http.server --directory build/html 8080 # Access the documentation at http://localhost:8080
+cd doc && make dependencies && make html
+python3 -m http.server --directory build/html 8080
 ```
 
 ## Development
 
-For instructions on building NeuG from source, as well as for development and debugging, consult the [Development Guide](./doc/source/development/dev_guide.md).
-
-To test NeuG's functionality, see the [Testing](./doc/source/development/dev_and_test.md) section.
-
-For information on the code style adhered to by NeuG, please refer to the [Code Style Guide](./doc/source/development/code_style_guide.md).
+For building NeuG from source and development instructions, see the [Development Guide](./doc/source/development/dev_guide.md).
 
 ## Contributing
 
-We deeply value any contributions you make! Please refer to the [Development](#development) and [Testing](doc/source/development/dev_and_test.md) sections for instructions on building and testing NeuG. Before contributing, be sure to read our [Contributing Guide](./CONTRIBUTING.md).
+We welcome contributions! Please read our [Contributing Guide](./CONTRIBUTING.md) before submitting issues or pull requests.
 
-- To report bugs, [submit an issue on GitHub](https://github.com/GraphScope/neug/issues).
-- Submit your contributions via [pull requests](https://github.com/GraphScope/neug/pulls).
+- 🐛 **Bug Reports**: [Submit an issue](https://github.com/GraphScope/neug/issues) 
+- 💻 **Pull Requests**: [Submit a PR](https://github.com/GraphScope/neug/pulls)
 
 ## License
 
-NeuG is distributed under the [Apache License 2.0](https://www.apache.org/licenses/LICENSE-2.0). Please be aware that third-party libraries may have different licenses from GraphScope.
+NeuG is distributed under the [Apache License 2.0](https://www.apache.org/licenses/LICENSE-2.0).

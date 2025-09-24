@@ -1,82 +1,79 @@
-# Introducing NeuG
+# Introduction
 
-Welcome to NeuG (pronounced "new-gee"), an HTAP (Hybrid Transactional/Analytical Processing) graph database designed for high-performance embedded graph analytics and real-time transaction processing.
 
-NeuG is built to address the growing need for systems that can handle both operational graph workloads and complex analytical queries on the same data, providing a unified platform for modern graph applications.
+Welcome to NeuG (pronounced "new-gee"), a graph database for HTAP (Hybrid Transactional/Analytical Processing) workloads. For questions and community support, visit our [GitHub repository](https://github.com/GraphScope/neug).
+
+Most database systems excel at either analytics or transactions, but not both. Users are forced to choose between analytical performance and transactional consistency, or manage multiple systems.
+
+**NeuG's Approach**: Instead of compromising, NeuG provides **two modes** that you can switch between based on your needs:
+
+- **Embedded Mode**: Optimized for analytical workloads including complex pattern matching, graph analytics and bulk data loading
+- **Service Mode**: Optimized for transactional workloads for real-time applications and concurrent user access
+
+This flexibility allows you can use the same database for both data science work and production applications.
 
 ## What is NeuG?
 
-NeuG is a graph database that combines the best of both worlds through its **unique dual-mode architecture**:
-- **Transactional Processing (TP)**: Real-time graph operations with ACID guarantees
-- **Analytical Processing (AP)**: High-performance graph analytics and pattern matching
-- **Dual Connection Modes**: Flexible deployment as embedded or service-based system
-- **Optimized Performance**: Each mode is specifically tuned for its target workload
+NeuG is a graph database that gives you the best of both worlds: **powerful analytics** and **fast transactions**.
 
-Built on a modern C++ core engine, NeuG provides:
-- Property Graph data model with Cypher query language
-- Columnar disk-based storage with compressed adjacency lists
-- Vectorized and parallelized query processing
-- MVCC-based transaction management
+NeuG provides **two modes** that you can switch between:
+- **Embedded Mode**: For data processing and analytics  
+- **Service Mode**: For applications and real-time access
 
-## Why Choose NeuG?
+## Quick Example
 
-### Unique Dual-Mode Architecture
+```python
+import neug
 
-NeuG's standout feature is its **dual-mode design** that optimizes performance for different graph workload patterns:
+# Step 1: Load and analyze data (Embedded Mode)
+db = neug.Database("/path/to/database") 
+conn = db.connect()
 
-#### Embedded Mode - Optimized for Analytics (AP)
-**Best for**: Complex pattern matching, full-graph computations, and analytical workloads
-- **Batch Data Loading**: Efficiently handle large-scale data imports
-- **Maximum Query Performance**: Utilize all available CPU cores for complex queries
-- **Full Resource Utilization**: Every query can leverage the complete system resources
+# Load sample data
+db.load_builtin_dataset("tinysnb")
 
-**Typical Use Cases**:
-- Graph analytics and data science workloads
-- Complex pattern detection and graph algorithms
-- Batch processing and ETL operations
-- Research and exploratory data analysis
+# Run analytics
+result = conn.execute("""
+    MATCH (a:person)-[:knows]->(b:person)-[:knows]->(c:person),
+        (a)-[:knows]->(c)
+    RETURN a.fName, b.fName, c.fName
+""")
 
-#### Service Mode - Optimized for Transactions (TP)
-**Best for**: Real-time applications with frequent small updates and concurrent access
-- **Concurrent Read-Write Operations**: Optimized for high-frequency, small-scale data modifications
-- **Point Queries**: Efficient access to small subsets of graph data
-- **Multi-Session Support**: Handle multiple concurrent connections
-- **Low-Latency Operations**: Fast response times for transactional workloads
+for record in result:
+    print(f"{record} are mutual friends")
 
-**Typical Use Cases**:
-- Real-time recommendation systems
-- Fraud detection and risk management
-- Online transaction processing
+# Step 2: Serve users (Service Mode)  
+# Should first close the embedded connection
+conn.close()
+db.serve(port=8080)
+# Now your application can handle concurrent users
+```
 
-### Flexible Mode Combination
+## Key Features
 
-The true power of NeuG lies in the **flexible combination** of both modes:
+**Dual-Mode Architecture**:
+- **Embedded Mode**: Data analytics, ML/DL pipeline, bulk loading, research prototyping - no external dependencies
+- **Service Mode**: Web/mobile apps, real-time APIs, multi-user systems
 
-- **Data Pipeline Integration**: Use embedded mode for initial bulk data loading, then switch to service mode for operational queries
-- **Hybrid Workflows**: Export a checkpointed data from a running TP service to a separate copy for intensive AP analysis
-- **Development to Production**: Develop and test with embedded mode, deploy as service for production
-- **Workload Separation**: Run AP workloads on dedicated embedded instances while maintaining TP services
+**Technical Excellence**:
+- **Property Graph model** with standard Cypher query language
+- **High Performance**: Optimized for both analytical and transactional workloads
+- **Cross-Platform**: Works on Linux, macOS, x86, and ARM architectures
+- **ACID Transactions**: Reliable data consistency for production applications
 
-> **Note**: While embedded mode can handle small-scale modifications, but frequent writes will block all read queries (and vice versa) due to its exclusive locking design. Similarly, service mode can execute large pattern queries, but it is not recommended to use all available threads for single query acceleration since this would starve other concurrent queries.
+**Easy Integration**:
+- **Zero Dependencies**: Embedded mode requires no external services or setup
+- **Flexible Deployment**: Switch between embedded library and network service
+- **Seamless Workflow**: Use both modes together - process offline, serve online
 
-### Performance and Scalability
-NeuG is engineered for high-performance graph workloads with:
-- Advanced query optimization and execution planning
-- Vectorized operations for analytical workloads
-- Efficient storage format optimized for graph traversals
-- Multi-core parallelism for complex queries
+NeuG is developed by the [GraphScope](https://graphscope.io) team at Alibaba, bringing enterprise-scale graph computing expertise to an easy-to-use embedded database.
 
-### Flexibility and Usability
-- **Cross-Platform**: Runs on Linux and macOS across x86 and ARM architectures
-- **Easy Integration**: Embedded architecture eliminates server management overhead
-- **Mode Switching**: Seamlessly transition between embedded and service modes
+## Next Steps
+
+- **[Installation](../installation/installation.md)** - Setup guide for Python and C++
+- **[Getting Started](../getting_started/getting_started.md)** - Basic operations and examples  
+- **[Data Import](../import_export/import_data.md)** - Loading data into your database
+- **[Cypher Manual](../cypher_manual/index.md)** - Query language reference
 
 
-### Enterprise-Ready Features
-- **ACID Transactions**: Serializable ACID guarantees for mission-critical applications
-- **Concurrent Access**: Optimized for both read-heavy analytics and write-intensive operations
-- **Error Handling**: Comprehensive error management and recovery mechanisms
-- **Monitoring**: Built-in performance monitoring and query profiling
-
-NeuG is developed by the [GraphScope](https://graphscope.io) team, a leading research group from Alibaba renowned for its expertise in graph computing and large-scale data processing. The framework integrates advanced methodologies derived from Alibaba’s extensive experience in deploying graph analytics to solve enterprise-scale challenges across domains such as e-commerce, supply chain optimization, and fraud detection.
 

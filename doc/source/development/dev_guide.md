@@ -1,4 +1,4 @@
-# Development Guide
+# Developer Guide
 
 ### Building from Source
 

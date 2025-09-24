@@ -79,7 +79,7 @@ MATCH (p:person)-[:follows]->(m:person)
 RETURN p.name;
 ```
 
-We define a set of syntax for creating schema graphs as shown above, which we call DDL (Data Definition Language). All subsequent data updating and query operations must conform to the schema specifications defined by the current DDL. We will introduce this in detail in the [DDL section](ddl_clause).
+We define a set of syntax for creating schema graphs as shown above, which we call DDL (Data Definition Language). All subsequent data updating and query operations must conform to the schema specifications defined by the current DDL. We will introduce this in detail in the [DDL section](ddl_clause.md).
 
 ### Data Query (DQL)
 
@@ -95,9 +95,9 @@ WHERE a.name < c.name
 RETURN a.name, b.name, c.name;
 ```
 
-We refer to each `MATCH`, `WHERE`, and `RETURN` as a Clause, which are the basic units of graph data operations. Here, the `MATCH` operation primarily matches all data that constitutes triangle patterns, `WHERE` further filters the pattern data to guarantee deduplication, and `RETURN` operations perform projection of names and output the final results. The `MATCH` operation mainly completes graph pattern matching, while `WHERE`/`RETURN` operations primarily perform relational operations similar to SQL. These clauses will be introduced in detail in [DQL section](query_clauses).
+We refer to each `MATCH`, `WHERE`, and `RETURN` as a Clause, which are the basic units of graph data operations. Here, the `MATCH` operation primarily matches all data that constitutes triangle patterns, `WHERE` further filters the pattern data to guarantee deduplication, and `RETURN` operations perform projection of names and output the final results. The `MATCH` operation mainly completes graph pattern matching, while `WHERE`/`RETURN` operations primarily perform relational operations similar to SQL. These clauses will be introduced in detail in [DQL section](query_clauses/index.md).
 
-To further ensure the legality of Clause operations on data, we have defined the data type boundaries that NeuG supports, as well as expression operations based on these data types. These will be introduced in detail in the [Data Types](data_types) and [Expressions sections](expression).
+To further ensure the legality of Clause operations on data, we have defined the data type boundaries that NeuG supports, as well as expression operations based on these data types. These will be introduced in detail in the [Data Types](data_types.md) and [Expressions sections](expression/index.md).
 
 ### Data Management (DML)
 
@@ -132,4 +132,4 @@ MATCH (p:person {name: 'Bob'})
 DELETE p;
 ```
 
-We will introduce these DML operations in detail in the [DML section](dml_clause).
+We will introduce these DML operations in detail in the [DML section](dml_clause.md).

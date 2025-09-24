@@ -24,7 +24,7 @@ Let's begin by loading the TinySNB dataset and exploring its structure.
 import neug
 import os
 
-db_path = './tinysnb-tutorial'
+db_path = '/path/to/database'
 
 if not os.path.exists(db_path):
     # First, let's load the builtin TinySNB dataset into a new database

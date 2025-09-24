@@ -33,7 +33,7 @@ pip install neug
 import neug
 
 # Connect to database
-db = neug.Database("path/to/database")
+db = neug.Database("/path/to/database")
 conn = db.connect()
 
 # Execute a simple query
@@ -54,7 +54,7 @@ conn.close()
 import neug
 
 # Using context manager for automatic cleanup
-with neug.Database("path/to/database").connect() as conn:
+with neug.Database("/path/to/database").connect() as conn:
     result = conn.execute("MATCH (n:Person) RETURN n.name")
     names = [record['n.name'] for record in result]
     print(names)

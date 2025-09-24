@@ -62,7 +62,7 @@ Embedded mode uses a global lock-based approach for simplicity and analytical pe
 import neug
 import threading
 
-db = neug.Database(db_path='/tmp/analytics_db', mode='w')
+db = neug.Database("/path/to/database")
 conn = db.connect()
 
 def execute_ddl(connection, statement):
@@ -132,7 +132,7 @@ The checkpoint operation:
 ```python
 import neug
 
-db = neug.Database(db_path='/tmp/persistent_db')
+db = neug.Database("/path/to/database")
 conn = db.connect()
 
 # Execute data modifications
@@ -154,7 +154,7 @@ By default, NeuG automatically creates a checkpoint when closing the database:
 import neug
 
 # Automatic checkpoint on close (default behavior)
-db = neug.Database(db_path='/tmp/persistent_db')
+db = neug.Database("/path/to/database")
 conn = db.connect()
 
 conn.execute("CREATE (p:Person {name: 'Bob', age: 25})")
@@ -166,7 +166,7 @@ db.close()
 
 To disable automatic checkpointing and always manage checkpoints manually:
 ```python
-db = neug.Database(db_path='/tmp/persistent_db', checkpoint_when_close=False)
+db = neug.Database("/path/to/database", checkpoint_when_close=False)
 ```
 
 ### Service Mode: WAL-Based Persistence
@@ -252,7 +252,7 @@ finally:
 **Example:**
 ```python
 db = neug.Database(
-    db_path='/tmp/analytics_db',
+    "/path/to/database",
     checkpoint_when_close=True
 )
 ```
@@ -265,7 +265,7 @@ db = neug.Database(
 ```python
 import neug
 
-db = neug.Database(db_path='/tmp/analytics')
+db = neug.Database("/path/to/database")
 conn = db.connect()
 
 # Create schema first

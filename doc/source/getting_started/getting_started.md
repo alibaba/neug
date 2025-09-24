@@ -1,4 +1,4 @@
-# Getting Started with NeuG
+# Getting Started
 
 This guide will walk you through creating your first graph database, performing basic operations, and exploring both embedded and service modes.
 
@@ -15,7 +15,7 @@ Before you begin, make sure you have NeuG installed. If you haven't installed it
 ```python
 # Persistent mode examples
 # Make sure that the database directory exists and is writable by the user.
-db_persistent = neug.Database(db_path="/path/to/database")
+db_persistent = neug.Database("/path/to/database")
 ```
 
 ### In-Memory Database
@@ -24,7 +24,7 @@ db_persistent = neug.Database(db_path="/path/to/database")
 
 ```python
 # Memory mode examples
-db_memory = neug.Database(db_path="")
+db_memory = neug.Database("")
 ```
 
 ```{note}
@@ -42,7 +42,7 @@ Direct in-process access - easiest for single-user scenarios:
 import neug
 
 # Create database and connect directly
-db = neug.Database(db_path="./neug/db")  # or db_path="" for in-memory
+db = neug.Database("/path/to/database")  # or "" for in-memory
 conn = db.connect()
 
 print("Connect to NeuG in embedded mode")
@@ -59,7 +59,7 @@ Network-based access - ideal for multi-user applications:
 import neug
 
 # Start NeuG as a service
-db = neug.Database("./neug/db")
+db = neug.Database("/path/to/database")
 service = db.serve(host="localhost", port=10000)
 ```
 
@@ -81,7 +81,7 @@ The following operations work the same way regardless of which database mode (in
 import neug
 
 # Create database and establish connection
-db = neug.Database(db_path="./neug/db")
+db = neug.Database("/path/to/database")
 conn = db.connect()
 ```
 
@@ -224,7 +224,7 @@ for dataset in datasets:
 import neug
 
 # Open/create a database
-db = neug.Database("./my_analysis.db")
+db = neug.Database("/path/to/database")
 
 # Load a builtin dataset into it
 db.load_builtin_dataset(dataset_name="modern_graph")
@@ -239,6 +239,6 @@ Loading a builtin dataset into an existing database will fail if there are schem
 
 Congratulations! You've learned the basics of NeuG. Here's what you can explore next:
 
-1. **[Data Import/Export](import_export/import_graph.md)**: Learn how to import large datasets
-2. **[Advanced Cypher Queries](cypher_manual)**: Master complex graph patterns
-3. **[Tutorials](tutorials)**: Try these interesting tutorials of NeuG
+1. **[Data Import/Export](../import_export/import_data.md)**: Learn how to import large datasets
+2. **[Advanced Cypher Queries](../cypher_manual/index.md)**: Master complex graph patterns
+3. **[Tutorials](../tutorials/tinysnb_tutorial.md)**: Try these interesting tutorials of NeuG
