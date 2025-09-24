@@ -61,7 +61,6 @@ import neug
 # Start NeuG as a service
 db = neug.Database("./neug/db")
 service = db.serve(host="localhost", port=10000)
-print("NeuG service started on localhost:10000")
 ```
 
 **Connect from client:**

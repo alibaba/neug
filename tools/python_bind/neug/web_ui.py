@@ -97,7 +97,9 @@ class NeugWebUI:
             endpoint = f"http://{match_plain.group(1)}:{match_plain.group(2)}/"
         else:
             self.database = Database(db_path=self.db, mode="w")
-            endpoint = self.database.serve(port=self.port + 1, host=self.host)
+            endpoint = self.database.serve(
+                port=self.port + 1, host=self.host, blocking=False
+            )
             logger.info(f"Database server started at {endpoint}")
         self.session = Session(endpoint=endpoint)
 

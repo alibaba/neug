@@ -54,10 +54,12 @@ void signal_handler(int signal) {
   }
 }
 
-void setup_signal_handler() {
+void setup_signal_handler(bool is_interactive) {
   // Register handlers for SIGKILL, SIGINT, SIGTERM, SIGSEGV, SIGABRT
   // LOG(FATAL) cause SIGABRT
-  std::signal(SIGINT, signal_handler);
+  if (is_interactive) {
+    std::signal(SIGINT, signal_handler);
+  }
   std::signal(SIGTERM, signal_handler);
   std::signal(SIGKILL, signal_handler);
   std::signal(SIGSEGV, signal_handler);
@@ -89,6 +91,17 @@ void setup_logging() {
 }
 }  // namespace gs
 
+bool get_is_interactive() {
+  try {
+    py::module_ sys = py::module_::import("sys");
+    py::object flags = sys.attr("flags");
+    return py::cast<bool>(flags.attr("interactive"));
+  } catch (const py::error_already_set& e) {
+    PyErr_Print();
+    return false;
+  }
+}
+
 PYBIND11_MODULE(neug_py_bind, m) {
   m.doc() = R"pbdoc(
         
@@ -107,7 +120,8 @@ PYBIND11_MODULE(neug_py_bind, m) {
   gs::PyQueryResult::initialize(m);
 
   // Setup signal handling, for cleaning up resources on exit.
-  gs::setup_signal_handler();
+  bool is_interactive = get_is_interactive();
+  gs::setup_signal_handler(is_interactive);
 
   // Register exception translation for Python.
   PYBIND11_CONSTINIT static py::gil_safe_call_once_and_store<py::object>

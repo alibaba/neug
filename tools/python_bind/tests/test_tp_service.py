@@ -40,7 +40,7 @@ def setup_database():
     os.makedirs(db_dir)
     db = Database(db_dir, "w")
 
-    uri = db.serve(10000, "localhost")
+    uri = db.serve(10000, "localhost", False)
     logger.info(f"Database server started at {uri}")
 
     yield db, uri
@@ -97,7 +97,7 @@ def test_start_service_on_pure_memory_db():
         "MATCH (a:person), (b:person) WHERE a.id = 1 AND b.id = 2 CREATE (a)-[:knows {weight: 0.5}]->(b);"
     )
     conn.close()
-    uri = db.serve(10001, "localhost")
+    uri = db.serve(10001, "localhost", False)
     time.sleep(1)
 
     session = Session(uri, timeout="10s")
@@ -128,7 +128,7 @@ def test_start_serving_and_dump():
     db.close()
 
     db2 = Database(db_dir, "r")
-    uri = db2.serve(10002, "localhost")
+    uri = db2.serve(10002, "localhost", False)
     time.sleep(1)
 
     session = Session(uri, timeout="10s")
@@ -156,7 +156,7 @@ def test_start_service_and_stop():
         "MATCH (a:person), (b:person) WHERE a.id = 1 AND b.id = 2 CREATE (a)-[:knows {weight: 0.5}]->(b);"
     )
     conn.close()
-    uri = db.serve(10002, "localhost")
+    uri = db.serve(10002, "localhost", False)
     time.sleep(1)
 
     session = Session(uri, timeout="10s")
@@ -173,7 +173,7 @@ def test_start_service_and_stop():
     assert res[0][0] == "josh"
     conn.close()
 
-    db.serve(10002, "localhost")
+    db.serve(10002, "localhost", False)
     time.sleep(1)
     db.stop_serving()
     db.close()

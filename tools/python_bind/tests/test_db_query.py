@@ -90,7 +90,7 @@ def test_session_create_schema_basic_types(tmp_path):
     db_dir = tmp_path / "schema_basic_types"
     db_dir.mkdir()
     db = Database(db_path=str(db_dir), mode="w")
-    endpoint = db.serve(host="127.0.0.1", port=10001)
+    endpoint = db.serve(host="127.0.0.1", port=10001, blocking=False)
     sess = Session.open(endpoint=endpoint, timeout="30s", num_threads=5)
 
     sess.execute(
@@ -459,7 +459,7 @@ def test_session_alter_vertex_table(tmp_path):
     shutil.rmtree(db_dir, ignore_errors=True)
     db_dir.mkdir()
     db = Database(db_path=str(db_dir), mode="w")
-    endpoint = db.serve(host="localhost", port=10001)
+    endpoint = db.serve(host="localhost", port=10001, blocking=False)
     sess = Session.open(endpoint=endpoint, timeout="30s", num_threads=5)
     sess.execute("CREATE NODE TABLE person(name STRING, age INT64, PRIMARY KEY(name));")
     # 1. add property
@@ -950,7 +950,7 @@ def test_complex_example(tmp_path):
 
     conn.close()
 
-    service_endpoint = db.serve(host="localhost", port=10001)
+    service_endpoint = db.serve(host="localhost", port=10001, blocking=False)
     print(f"Serving database at {service_endpoint}")
 
     session = Session("http://localhost:10001/")

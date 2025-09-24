@@ -169,7 +169,7 @@ def neug_sess(pytestconfig):
     else:
         db = Database(db_path=str(db_dir), mode="w")
     # conn = db.connect()
-    endpoint = db.serve(port=10000, host="localhost")
+    endpoint = db.serve(port=10000, host="localhost", blocking=False)
     sess = Session.open(endpoint=endpoint, timeout="30s", num_threads=5)
     yield sess
     sess.close()

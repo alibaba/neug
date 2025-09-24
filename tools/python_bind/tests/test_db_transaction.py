@@ -83,7 +83,7 @@ def started_server(tmp_path, unused_tcp_port):
     db_dir = tmp_path / "remote_db"
     shutil.rmtree(db_dir, ignore_errors=True)
     db = Database(db_path=str(db_dir), mode="w")
-    endpoint = db.serve(port=unused_tcp_port, host="localhost")
+    endpoint = db.serve(port=unused_tcp_port, host="localhost", blocking=False)
     # sleep to ensure server is ready
     time.sleep(1)
     yield db, endpoint
