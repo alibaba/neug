@@ -25,7 +25,7 @@
 #include <string>
 
 #include "extension.h"
-#include "neug/compiler/common/api.h"
+#include "neug/utils/api.h"
 #include "neug/utils/result.h"
 
 namespace gs {
@@ -39,7 +39,7 @@ struct InstallExtensionInfo {
   std::string repo;
 };
 
-class KUZU_API ExtensionInstaller {
+class NEUG_API ExtensionInstaller {
  public:
   ExtensionInstaller(const InstallExtensionInfo& info,
                      main::ClientContext& context)

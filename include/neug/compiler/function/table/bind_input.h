@@ -58,7 +58,7 @@ struct ExtraTableFuncBindInput {
   }
 };
 
-struct KUZU_API TableFuncBindInput {
+struct NEUG_API TableFuncBindInput {
   binder::expression_vector params;
   optional_params_t optionalParams;
   binder::expression_vector optionalParamsLegacy;
@@ -78,7 +78,7 @@ struct KUZU_API TableFuncBindInput {
   T getLiteralVal(common::idx_t idx) const;
 };
 
-struct KUZU_API ExtraScanTableFuncBindInput : ExtraTableFuncBindInput {
+struct NEUG_API ExtraScanTableFuncBindInput : ExtraTableFuncBindInput {
   common::FileScanInfo fileScanInfo;
   std::vector<std::string> expectedColumnNames;
   std::vector<common::LogicalType> expectedColumnTypes;

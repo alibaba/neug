@@ -25,15 +25,15 @@
 #include <cstdint>
 #include <string>
 
-#include "neug/compiler/common/api.h"
 #include "neug/compiler/common/cast.h"
+#include "neug/utils/api.h"
 
 namespace gs {
 namespace common {
 
 class FileSystem;
 
-struct KUZU_API FileInfo {
+struct NEUG_API FileInfo {
   FileInfo(std::string path, FileSystem* fileSystem)
       : path{std::move(path)}, fileSystem{fileSystem} {}
 

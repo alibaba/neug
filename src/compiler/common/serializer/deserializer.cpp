@@ -35,8 +35,8 @@ void Deserializer::deserializeValue(std::string& value) {
 
 void Deserializer::validateDebuggingInfo(std::string& value,
                                          const std::string& expectedVal) {
-#if defined(KUZU_DESER_DEBUG) && \
-    (defined(KUZU_RUNTIME_CHECKS) || !defined(NDEBUG))
+#if defined(NEUG_DESER_DEBUG) && \
+    (defined(NEUG_RUNTIME_CHECKS) || !defined(NDEBUG))
   deserializeValue<std::string>(value);
   KU_ASSERT(value == expectedVal);
 #endif

@@ -36,7 +36,7 @@ class Table;
 
 class LocalTable;
 class StatsManager;
-class KUZU_API Table {
+class NEUG_API Table {
  public:
   Table(const catalog::TableCatalogEntry* tableEntry,
         const StatsManager* storageManager)

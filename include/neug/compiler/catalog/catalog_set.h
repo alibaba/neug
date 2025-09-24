@@ -44,7 +44,7 @@ class Transaction;
 using CatalogEntrySet = common::case_insensitive_map_t<catalog::CatalogEntry*>;
 
 namespace catalog {
-class KUZU_API CatalogSet {
+class NEUG_API CatalogSet {
   friend class storage::UndoBuffer;
 
  public:

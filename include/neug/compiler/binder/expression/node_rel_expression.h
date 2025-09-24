@@ -31,7 +31,7 @@ class TableCatalogEntry;
 }
 namespace binder {
 
-class KUZU_API NodeOrRelExpression : public Expression {
+class NEUG_API NodeOrRelExpression : public Expression {
   static constexpr common::ExpressionType expressionType_ =
       common::ExpressionType::PATTERN;
 

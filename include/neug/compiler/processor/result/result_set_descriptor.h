@@ -46,7 +46,7 @@ struct DataChunkDescriptor {
   }
 };
 
-struct KUZU_API ResultSetDescriptor {
+struct NEUG_API ResultSetDescriptor {
   std::vector<std::unique_ptr<DataChunkDescriptor>> dataChunkDescriptors;
 
   ResultSetDescriptor() = default;

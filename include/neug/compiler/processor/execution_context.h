@@ -31,7 +31,7 @@ namespace processor {
 
 class FactorizedTable;
 
-struct KUZU_API ExecutionContext {
+struct NEUG_API ExecutionContext {
   uint64_t queryID;
   common::Profiler* profiler;
   main::ClientContext* clientContext;

@@ -29,7 +29,7 @@
 namespace gs {
 namespace function {
 
-class KUZU_API GDSUtils {
+class NEUG_API GDSUtils {
  public:
   // Run edge compute for graph algorithms
   static void runAlgorithmEdgeCompute(processor::ExecutionContext* context,

@@ -27,7 +27,7 @@
 namespace gs {
 namespace binder {
 
-class KUZU_API NodeExpression final : public NodeOrRelExpression {
+class NEUG_API NodeExpression final : public NodeOrRelExpression {
  public:
   NodeExpression(common::LogicalType dataType, std::string uniqueName,
                  std::string variableName,

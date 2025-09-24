@@ -86,7 +86,7 @@ struct ActiveQuery {
  * @brief Contain client side configuration. We make profiler associated per
  * query, so profiler is not maintained in client context.
  */
-class KUZU_API ClientContext {
+class NEUG_API ClientContext {
   friend class Connection;
   friend class binder::Binder;
   friend class binder::ExpressionBinder;

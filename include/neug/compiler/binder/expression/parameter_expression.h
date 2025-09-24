@@ -28,7 +28,7 @@
 namespace gs {
 namespace binder {
 
-class KUZU_API ParameterExpression final : public Expression {
+class NEUG_API ParameterExpression final : public Expression {
   static constexpr common::ExpressionType expressionType =
       common::ExpressionType::PARAMETER;
 

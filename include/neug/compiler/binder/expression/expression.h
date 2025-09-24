@@ -51,7 +51,7 @@ template <typename T>
 using expression_map = std::unordered_map<std::shared_ptr<Expression>, T,
                                           ExpressionHasher, ExpressionEquality>;
 
-class KUZU_API Expression : public std::enable_shared_from_this<Expression> {
+class NEUG_API Expression : public std::enable_shared_from_this<Expression> {
   friend class ExpressionChildrenCollector;
 
  public:

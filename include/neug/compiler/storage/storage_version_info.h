@@ -26,7 +26,7 @@
 #include <string>
 #include <unordered_map>
 
-#include "neug/compiler/common/api.h"
+#include "neug/utils/api.h"
 
 namespace gs {
 namespace storage {
@@ -47,7 +47,7 @@ struct StorageVersionInfo {
         {"0.0.6", 9},     {"0.0.5", 8},     {"0.0.4", 7},    {"0.0.3", 1}};
   }
 
-  static KUZU_API storage_version_t getStorageVersion();
+  static NEUG_API storage_version_t getStorageVersion();
 
   static constexpr const char* MAGIC_BYTES = "KUZU";
 };

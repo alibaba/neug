@@ -26,10 +26,10 @@
 
 #include "neug/compiler/catalog/catalog.h"
 #include "neug/compiler/catalog/catalog_entry/catalog_entry_type.h"
-#include "neug/compiler/common/api.h"
 #include "neug/compiler/function/function.h"
 #include "neug/compiler/main/metadata_manager.h"
 #include "neug/compiler/transaction/transaction.h"
+#include "neug/utils/api.h"
 
 #define ADD_EXTENSION_OPTION(OPTION) \
   db->addExtensionOption(OPTION::NAME, OPTION::TYPE, OPTION::getDefaultValue())
@@ -55,7 +55,7 @@ typedef void (*ext_install_func_t)(const std::string&, main::ClientContext&);
 
 std::string getPlatform();
 
-class KUZU_API Extension {
+class NEUG_API Extension {
  public:
   virtual ~Extension() = default;
 };
@@ -84,7 +84,7 @@ void addFunc(main::MetadataManager& database, std::string name,
                        std::move(name), T::getFunctionSet(), isInternal);
 }
 
-struct KUZU_API ExtensionUtils {
+struct NEUG_API ExtensionUtils {
   static constexpr const char* OFFICIAL_EXTENSION_REPO =
       "https://graphscope.oss-cn-beijing.aliyuncs.com/neug/extensions/";
 
@@ -96,7 +96,7 @@ struct KUZU_API ExtensionUtils {
 
   static constexpr const char* OFFICIAL_EXTENSION[] = {
       "JSON",
-    };
+  };
 
   static constexpr const char* EXTENSION_LOADER_SUFFIX = "_loader";
 
@@ -171,7 +171,7 @@ struct KUZU_API ExtensionUtils {
   }
 };
 
-class KUZU_API ExtensionLibLoader {
+class NEUG_API ExtensionLibLoader {
  public:
   static constexpr const char* EXTENSION_LOAD_FUNC_NAME = "load";
 

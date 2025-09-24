@@ -28,7 +28,7 @@
 namespace gs {
 namespace binder {
 
-class KUZU_API BoundReadingClause {
+class NEUG_API BoundReadingClause {
  public:
   explicit BoundReadingClause(common::ClauseType clauseType)
       : clauseType{clauseType} {}

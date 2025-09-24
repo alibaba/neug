@@ -45,7 +45,7 @@ namespace storage {
 class Table;
 class DiskArrayCollection;
 
-class KUZU_API StatsManager {
+class NEUG_API StatsManager {
  public:
   StatsManager(MemoryManager& memoryManager) : memoryManager(memoryManager) {}
 

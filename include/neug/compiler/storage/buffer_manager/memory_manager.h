@@ -48,10 +48,10 @@ class MemoryBuffer {
   friend class Spiller;
 
  public:
-  KUZU_API MemoryBuffer(MemoryManager* mm, common::page_idx_t blockIdx,
+  NEUG_API MemoryBuffer(MemoryManager* mm, common::page_idx_t blockIdx,
                         uint8_t* buffer,
                         uint64_t size = common::TEMP_PAGE_SIZE) {}
-  KUZU_API ~MemoryBuffer() = default;
+  NEUG_API ~MemoryBuffer() = default;
   DELETE_COPY_AND_MOVE(MemoryBuffer);
 
   std::span<uint8_t> getBuffer() const {
@@ -92,7 +92,7 @@ class MemoryBuffer {
  * allocated memory block, and it will automatically call its allocator to
  * reclaim the memory block when it is destroyed.
  */
-class KUZU_API MemoryManager {
+class NEUG_API MemoryManager {
   friend class MemoryBuffer;
 
  public:

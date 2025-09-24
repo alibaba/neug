@@ -3,7 +3,7 @@
 #include <exception>
 #include <string>
 
-#include "neug/compiler/common/api.h"
+#include "neug/utils/api.h"
 
 namespace gs {
 
@@ -16,7 +16,7 @@ enum Code : int;
 using StatusCode = gs::neug::interactive::Code;
 namespace exception {
 
-class KUZU_API Exception : public std::exception {
+class NEUG_API Exception : public std::exception {
  public:
   explicit Exception(std::string msg, gs::StatusCode error_code);
   Exception(std::string msg, std::string file_line);
@@ -31,7 +31,7 @@ class KUZU_API Exception : public std::exception {
   std::string exception_message_;
 };
 
-class KUZU_API PermissionDeniedException : public Exception {
+class NEUG_API PermissionDeniedException : public Exception {
  public:
   explicit PermissionDeniedException(const std::string& msg);
 
@@ -39,14 +39,14 @@ class KUZU_API PermissionDeniedException : public Exception {
                             const std::string& file_line);
 };
 
-class KUZU_API DatabaseLockedException : public Exception {
+class NEUG_API DatabaseLockedException : public Exception {
  public:
   explicit DatabaseLockedException(const std::string& msg);
 
   DatabaseLockedException(const std::string& msg, const std::string& file_line);
 };
 
-class KUZU_API InvalidArgumentException : public Exception {
+class NEUG_API InvalidArgumentException : public Exception {
  public:
   explicit InvalidArgumentException(const std::string& msg);
 
@@ -54,125 +54,125 @@ class KUZU_API InvalidArgumentException : public Exception {
                            const std::string& file_line);
 };
 
-class KUZU_API BinderException : public Exception {
+class NEUG_API BinderException : public Exception {
  public:
   explicit BinderException(const std::string& msg);
 
   BinderException(const std::string& msg, const std::string& file_line);
 };
 
-class KUZU_API CatalogException : public Exception {
+class NEUG_API CatalogException : public Exception {
  public:
   explicit CatalogException(const std::string& msg);
 
   CatalogException(const std::string& msg, const std::string& file_line);
 };
 
-class KUZU_API CheckpointException : public Exception {
+class NEUG_API CheckpointException : public Exception {
  public:
   explicit CheckpointException(const std::exception& e);
 
   explicit CheckpointException(const std::string& msg);
 };
 
-class KUZU_API ConnectionException : public Exception {
+class NEUG_API ConnectionException : public Exception {
  public:
   explicit ConnectionException(const std::string& msg);
 
   ConnectionException(const std::string& msg, const std::string& file_line);
 };
 
-class KUZU_API ConversionException : public Exception {
+class NEUG_API ConversionException : public Exception {
  public:
   explicit ConversionException(const std::string& msg);
 
   ConversionException(const std::string& msg, const std::string& file_line);
 };
 
-class KUZU_API QueryExecutionError : public Exception {
+class NEUG_API QueryExecutionError : public Exception {
  public:
   explicit QueryExecutionError(const std::string& msg);
 
   QueryExecutionError(const std::string& msg, const std::string& file_line);
 };
 
-class KUZU_API CopyException : public Exception {
+class NEUG_API CopyException : public Exception {
  public:
   explicit CopyException(const std::string& msg);
 
   CopyException(const std::string& msg, const std::string& file_line);
 };
 
-class KUZU_API IndexException : public Exception {
+class NEUG_API IndexException : public Exception {
  public:
   explicit IndexException(const std::string& msg);
 
   IndexException(const std::string& msg, const std::string& file_line);
 };
 
-class KUZU_API ExtensionException : public Exception {
+class NEUG_API ExtensionException : public Exception {
  public:
   explicit ExtensionException(const std::string& msg);
 
   ExtensionException(const std::string& msg, const std::string& file_line);
 };
 
-class KUZU_API InternalException : public Exception {
+class NEUG_API InternalException : public Exception {
  public:
   explicit InternalException(const std::string& msg);
 
   InternalException(const std::string& msg, const std::string& file_line);
 };
 
-class KUZU_API InterruptException : public Exception {
+class NEUG_API InterruptException : public Exception {
  public:
   explicit InterruptException();
   InterruptException(const std::string& msg, const std::string& file_line);
 };
 
-class KUZU_API IOException : public Exception {
+class NEUG_API IOException : public Exception {
  public:
   explicit IOException(const std::string& msg);
 
   IOException(const std::string& msg, const std::string& file_line);
 };
 
-class KUZU_API NotImplementedException : public Exception {
+class NEUG_API NotImplementedException : public Exception {
  public:
   explicit NotImplementedException(const std::string& msg);
 
   NotImplementedException(const std::string& msg, const std::string& file_line);
 };
 
-class KUZU_API NotFoundException : public Exception {
+class NEUG_API NotFoundException : public Exception {
  public:
   explicit NotFoundException(const std::string& msg);
 
   NotFoundException(const std::string& msg, const std::string& file_line);
 };
 
-class KUZU_API NotSupportedException : public Exception {
+class NEUG_API NotSupportedException : public Exception {
  public:
   explicit NotSupportedException(const std::string& msg);
 
   NotSupportedException(const std::string& msg, const std::string& file_line);
 };
 
-class KUZU_API OverflowException : public Exception {
+class NEUG_API OverflowException : public Exception {
  public:
   explicit OverflowException(const std::string& msg);
 
   OverflowException(const std::string& msg, const std::string& file_line);
 };
 
-class KUZU_API SchemaMismatchException : public Exception {
+class NEUG_API SchemaMismatchException : public Exception {
  public:
   explicit SchemaMismatchException(const std::string& msg);
 
   SchemaMismatchException(const std::string& msg, const std::string& file_line);
 };
 
-class KUZU_API ParserException : public Exception {
+class NEUG_API ParserException : public Exception {
  public:
   static constexpr const char* ERROR_PREFIX = "Parser exception: ";
 
@@ -181,14 +181,14 @@ class KUZU_API ParserException : public Exception {
   ParserException(const std::string& msg, const std::string& file_line);
 };
 
-class KUZU_API RuntimeError : public Exception {
+class NEUG_API RuntimeError : public Exception {
  public:
   explicit RuntimeError(const std::string& msg);
 
   RuntimeError(const std::string& msg, const std::string& file_line);
 };
 
-class KUZU_API StorageException : public Exception {
+class NEUG_API StorageException : public Exception {
  public:
   explicit StorageException(const std::string& msg);
 
@@ -202,7 +202,7 @@ class TestException : public Exception {
   TestException(const std::string& msg, const std::string& file_line);
 };
 
-class KUZU_API TransactionManagerException : public Exception {
+class NEUG_API TransactionManagerException : public Exception {
  public:
   explicit TransactionManagerException(const std::string& msg);
 
@@ -210,7 +210,7 @@ class KUZU_API TransactionManagerException : public Exception {
                               const std::string& file_line);
 };
 
-class KUZU_API TxStateConflictException : public Exception {
+class NEUG_API TxStateConflictException : public Exception {
  public:
   explicit TxStateConflictException(const std::string& msg);
 

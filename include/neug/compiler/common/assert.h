@@ -37,7 +37,7 @@ namespace common {
   // LCOV_EXCL_STOP
 }
 
-#if defined(KUZU_RUNTIME_CHECKS) || !defined(NDEBUG)
+#if defined(NEUG_RUNTIME_CHECKS) || !defined(NDEBUG)
 #define RUNTIME_CHECK(code) code
 #define KU_ASSERT(condition)   \
   static_cast<bool>(condition) \

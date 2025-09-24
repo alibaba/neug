@@ -39,7 +39,7 @@ class BufferManager;
 };
 namespace common {
 
-class KUZU_API VirtualFileSystem final : public FileSystem {
+class NEUG_API VirtualFileSystem final : public FileSystem {
   friend class storage::BufferManager;
 
  public:

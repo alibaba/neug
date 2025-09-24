@@ -46,7 +46,7 @@ class FrontierMorsel {
   common::offset_t endOffset = common::INVALID_OFFSET;
 };
 
-class KUZU_API FrontierMorselDispatcher {
+class NEUG_API FrontierMorselDispatcher {
   static constexpr uint64_t MIN_FRONTIER_MORSEL_SIZE = 512;
   // Note: MIN_NUMBER_OF_FRONTIER_MORSELS is the minimum number of morsels we
   // aim to have but we can have fewer than this. See the

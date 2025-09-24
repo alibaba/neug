@@ -13,7 +13,6 @@ include_directories(SYSTEM ${CMAKE_SOURCE_DIR}/third_party/antlr_cypher)
 configure_file(${CMAKE_CURRENT_SOURCE_DIR}/../../cmake/templates/system_config.h.in ${CMAKE_CURRENT_BINARY_DIR}/neug/compiler/common/system_config.h @ONLY)
 include_directories(${CMAKE_CURRENT_BINARY_DIR})
 
-add_compile_definitions(KUZU_EXPORTS)
 add_compile_definitions(ANTLR4CPP_STATIC)
 include_directories(${CMAKE_CURRENT_BINARY_DIR})
 

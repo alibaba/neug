@@ -26,7 +26,7 @@
 #include <string>
 #include <system_error>
 
-#include "neug/compiler/common/api.h"
+#include "neug/utils/api.h"
 
 namespace gs {
 namespace common {
@@ -44,7 +44,7 @@ inline std::string posixErrMessage() {
   // LCOV_EXCL_STOP
 }
 
-KUZU_API std::string dlErrMessage();
+NEUG_API std::string dlErrMessage();
 
 }  // namespace common
 }  // namespace gs

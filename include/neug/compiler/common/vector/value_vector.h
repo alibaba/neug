@@ -41,7 +41,7 @@ class Value;
 //! A Vector represents values of the same data type.
 //! The capacity of a ValueVector is either 1 (sequence) or
 //! DEFAULT_VECTOR_CAPACITY.
-class KUZU_API ValueVector {
+class NEUG_API ValueVector {
   friend class ListVector;
   friend class ListAuxiliaryBuffer;
   friend class StructVector;
@@ -182,7 +182,7 @@ class KUZU_API ValueVector {
   std::unique_ptr<AuxiliaryBuffer> auxiliaryBuffer;
 };
 
-class KUZU_API StringVector {
+class NEUG_API StringVector {
  public:
   static inline InMemOverflowBuffer* getInMemOverflowBuffer(
       ValueVector* vector) {
@@ -215,7 +215,7 @@ class KUZU_API StringVector {
                             InMemOverflowBuffer* rowOverflowBuffer);
 };
 
-struct KUZU_API BlobVector {
+struct NEUG_API BlobVector {
   static void addBlob(ValueVector* vector, uint32_t pos, const char* data,
                       uint32_t length) {
     StringVector::addString(vector, pos, data, length);
@@ -228,7 +228,7 @@ struct KUZU_API BlobVector {
 };  // namespace gs
 
 // ListVector is used for both LIST and ARRAY physical type
-class KUZU_API ListVector {
+class NEUG_API ListVector {
  public:
   static const ListAuxiliaryBuffer& getAuxBuffer(const ValueVector& vector) {
     return vector.auxiliaryBuffer->constCast<ListAuxiliaryBuffer>();

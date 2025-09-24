@@ -27,17 +27,17 @@
 #include <unordered_map>
 #include <unordered_set>
 
-#include "neug/compiler/common/api.h"
+#include "neug/utils/api.h"
 
 namespace gs {
 namespace common {
 
 struct CaseInsensitiveStringHashFunction {
-  KUZU_API uint64_t operator()(const std::string& str) const;
+  NEUG_API uint64_t operator()(const std::string& str) const;
 };
 
 struct CaseInsensitiveStringEquality {
-  KUZU_API bool operator()(const std::string& lhs,
+  NEUG_API bool operator()(const std::string& lhs,
                            const std::string& rhs) const;
 };
 

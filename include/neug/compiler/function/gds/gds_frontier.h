@@ -43,7 +43,7 @@ static constexpr iteration_t FRONTIER_INITIAL_VISITED = 0;
 // A frontier keeps track of the existence of node. Instead of using boolean, we
 // assign an iteration number to each node. A node with iteration number "i",
 // meaning it is visited in the i-th iteration.
-class KUZU_API Frontier {
+class NEUG_API Frontier {
  public:
   virtual ~Frontier() = default;
 
@@ -64,7 +64,7 @@ class KUZU_API Frontier {
 
 // Sparse frontier implementation assuming the number of nodes is small.
 // Use an STL hash map to maintain node offset-> iteration number
-class KUZU_API SparseFrontier : public Frontier {
+class NEUG_API SparseFrontier : public Frontier {
   friend class SparseFrontierReference;
   friend class SPFrontierPair;
   friend class DenseSparseDynamicFrontierPair;
@@ -125,7 +125,7 @@ class SparseFrontierReference : public Frontier {
 
 // Dense frontier implementation assuming the number of nodes is large.
 // Use an array of iteration number. The array is allocated to max offset
-class KUZU_API DenseFrontier : public Frontier {
+class NEUG_API DenseFrontier : public Frontier {
   friend class SparseFrontier;
   friend class DenseFrontierReference;
   friend class SPFrontierPair;
@@ -196,7 +196,7 @@ class DenseFrontierReference : public Frontier {
   std::atomic<iteration_t>* curData = nullptr;
 };
 
-class KUZU_API FrontierPair {
+class NEUG_API FrontierPair {
  public:
   FrontierPair() { hasActiveNodesForNextIter_.store(false); }
   virtual ~FrontierPair() = default;
@@ -292,7 +292,7 @@ class SPFrontierPair : public FrontierPair {
 };
 
 // Frontier pair implementation that switches from sparse to dense adaptively.
-class KUZU_API DenseSparseDynamicFrontierPair : public FrontierPair {
+class NEUG_API DenseSparseDynamicFrontierPair : public FrontierPair {
  public:
   DenseSparseDynamicFrontierPair(
       std::unique_ptr<DenseFrontier> curDenseFrontier,
@@ -322,7 +322,7 @@ class KUZU_API DenseSparseDynamicFrontierPair : public FrontierPair {
 // Frontier pair implementation that only uses dense frontier. This is mostly
 // used in algorithms like wcc, scc where algorithms touch all nodes in the
 // graph.
-class KUZU_API DenseFrontierPair : public FrontierPair {
+class NEUG_API DenseFrontierPair : public FrontierPair {
  public:
   DenseFrontierPair(std::unique_ptr<DenseFrontier> curDenseFrontier,
                     std::unique_ptr<DenseFrontier> nextDenseFrontier);

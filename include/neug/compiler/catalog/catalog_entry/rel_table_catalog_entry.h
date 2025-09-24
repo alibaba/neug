@@ -38,7 +38,7 @@ struct RelTableToCypherInfo : public ToCypherInfo {
 };
 
 class RelGroupCatalogEntry;
-class KUZU_API RelTableCatalogEntry : public TableCatalogEntry {
+class NEUG_API RelTableCatalogEntry : public TableCatalogEntry {
   static constexpr auto entryType_ = CatalogEntryType::REL_TABLE_ENTRY;
 
  public:

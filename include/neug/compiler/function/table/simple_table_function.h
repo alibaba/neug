@@ -52,7 +52,7 @@ struct TableFuncMorsel {
 using simple_internal_table_func = std::function<common::offset_t(
     const TableFuncMorsel&, const TableFuncInput&, common::DataChunk& output)>;
 
-class KUZU_API SimpleTableFuncSharedState : public TableFuncSharedState {
+class NEUG_API SimpleTableFuncSharedState : public TableFuncSharedState {
  public:
   SimpleTableFuncSharedState() = default;
 
@@ -67,7 +67,7 @@ class KUZU_API SimpleTableFuncSharedState : public TableFuncSharedState {
   common::offset_t maxMorselSize = common::DEFAULT_VECTOR_CAPACITY;
 };
 
-struct KUZU_API SimpleTableFunc {
+struct NEUG_API SimpleTableFunc {
   static std::unique_ptr<TableFuncSharedState> initSharedState(
       const TableFuncInitSharedStateInput& input);
 

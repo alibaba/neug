@@ -28,11 +28,11 @@
 namespace gs {
 namespace binder {
 
-struct KUZU_API AttachOption {
+struct NEUG_API AttachOption {
   common::case_insensitive_map_t<common::Value> options;
 };
 
-struct KUZU_API AttachInfo {
+struct NEUG_API AttachInfo {
   AttachInfo(std::string dbPath, std::string dbAlias, std::string dbType,
              AttachOption options)
       : dbPath{std::move(dbPath)},

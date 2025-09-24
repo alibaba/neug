@@ -29,10 +29,10 @@
 #include <unordered_set>
 #include <vector>
 
-#include "neug/compiler/common/api.h"
 #include "neug/compiler/common/cast.h"
 #include "neug/compiler/common/copy_constructors.h"
 #include "neug/compiler/common/types/interval_t.h"
+#include "neug/utils/api.h"
 
 namespace gs {
 namespace main {
@@ -107,7 +107,7 @@ using relID_t = internalID_t;
 using cardinality_t = uint64_t;
 constexpr offset_t INVALID_LIMIT = UINT64_MAX;
 using offset_vec_t = std::vector<offset_t>;
-struct KUZU_API internalID_t {
+struct NEUG_API internalID_t {
   offset_t offset;
   table_id_t tableID;
 
@@ -176,9 +176,9 @@ concept ComparableTypes =
     std::is_same_v<T, interval_t> || std::is_same_v<T, bool>;
 
 template <typename T>
-concept HashablePrimitive =
-    ((std::integral<T> && !std::is_same_v<T, bool>) || std::floating_point<T> ||
-     std::is_same_v<T, int128_t>);
+concept HashablePrimitive = ((std::integral<T> && !std::is_same_v<T, bool>) ||
+                             std::floating_point<T> ||
+                             std::is_same_v<T, int128_t>);
 template <typename T>
 concept IndexHashable =
     ((std::integral<T> && !std::is_same_v<T, bool>) || std::floating_point<T> ||
@@ -186,14 +186,15 @@ concept IndexHashable =
      std::is_same_v<T, std::string_view> || std::same_as<T, std::string>);
 
 template <typename T>
-concept HashableNonNestedTypes =
-    (std::integral<T> || std::floating_point<T> ||
-     std::is_same_v<T, int128_t> || std::is_same_v<T, internalID_t> ||
-     std::is_same_v<T, interval_t> || std::is_same_v<T, ku_string_t>);
+concept HashableNonNestedTypes = (std::integral<T> || std::floating_point<T> ||
+                                  std::is_same_v<T, int128_t> ||
+                                  std::is_same_v<T, internalID_t> ||
+                                  std::is_same_v<T, interval_t> ||
+                                  std::is_same_v<T, ku_string_t>);
 
 template <typename T>
-concept HashableNestedTypes =
-    (std::is_same_v<T, list_entry_t> || std::is_same_v<T, struct_entry_t>);
+concept HashableNestedTypes = (std::is_same_v<T, list_entry_t> ||
+                               std::is_same_v<T, struct_entry_t>);
 
 template <typename T>
 concept HashableTypes = (HashableNestedTypes<T> || HashableNonNestedTypes<T>);
@@ -282,30 +283,30 @@ class LogicalType {
   friend struct ListType;
   friend struct ArrayType;
 
-  KUZU_API LogicalType(const LogicalType& other);
+  NEUG_API LogicalType(const LogicalType& other);
 
  public:
-  KUZU_API LogicalType() : typeID{LogicalTypeID::ANY}, extraTypeInfo{nullptr} {
+  NEUG_API LogicalType() : typeID{LogicalTypeID::ANY}, extraTypeInfo{nullptr} {
     physicalType = getPhysicalType(this->typeID);
   };
-  explicit KUZU_API LogicalType(LogicalTypeID typeID,
+  explicit NEUG_API LogicalType(LogicalTypeID typeID,
                                 TypeCategory info = TypeCategory::INTERNAL);
   EXPLICIT_COPY_DEFAULT_MOVE(LogicalType);
 
-  KUZU_API bool operator==(const LogicalType& other) const;
-  KUZU_API bool operator!=(const LogicalType& other) const;
+  NEUG_API bool operator==(const LogicalType& other) const;
+  NEUG_API bool operator!=(const LogicalType& other) const;
 
-  KUZU_API std::string toString() const;
+  NEUG_API std::string toString() const;
   static bool isBuiltInType(const std::string& str);
   static LogicalType convertFromString(const std::string& str,
                                        main::ClientContext* context);
 
-  KUZU_API LogicalTypeID getLogicalTypeID() const { return typeID; }
+  NEUG_API LogicalTypeID getLogicalTypeID() const { return typeID; }
   bool containsAny() const;
   bool isInternalType() const { return category == TypeCategory::INTERNAL; }
 
-  KUZU_API PhysicalTypeID getPhysicalType() const { return physicalType; }
-  KUZU_API static PhysicalTypeID getPhysicalType(
+  NEUG_API PhysicalTypeID getPhysicalType() const { return physicalType; }
+  NEUG_API static PhysicalTypeID getPhysicalType(
       LogicalTypeID logicalType,
       const std::unique_ptr<ExtraTypeInfo>& extraTypeInfo = nullptr);
 
@@ -319,9 +320,9 @@ class LogicalType {
 
   static LogicalType deserialize(Deserializer& deserializer);
 
-  KUZU_API static std::vector<LogicalType> copy(
+  NEUG_API static std::vector<LogicalType> copy(
       const std::vector<LogicalType>& types);
-  KUZU_API static std::vector<LogicalType> copy(
+  NEUG_API static std::vector<LogicalType> copy(
       const std::vector<LogicalType*>& types);
 
   static LogicalType ANY() { return LogicalType(LogicalTypeID::ANY); }
@@ -362,7 +363,7 @@ class LogicalType {
     return LogicalType(LogicalTypeID::TIMESTAMP);
   }
   static LogicalType INTERVAL() { return LogicalType(LogicalTypeID::INTERVAL); }
-  static KUZU_API LogicalType DECIMAL(uint32_t precision, uint32_t scale);
+  static NEUG_API LogicalType DECIMAL(uint32_t precision, uint32_t scale);
   static LogicalType INTERNAL_ID() {
     return LogicalType(LogicalTypeID::INTERNAL_ID);
   }
@@ -371,31 +372,31 @@ class LogicalType {
   static LogicalType BLOB() { return LogicalType(LogicalTypeID::BLOB); }
   static LogicalType UUID() { return LogicalType(LogicalTypeID::UUID); }
   static LogicalType POINTER() { return LogicalType(LogicalTypeID::POINTER); }
-  static KUZU_API LogicalType STRUCT(std::vector<StructField>&& fields);
+  static NEUG_API LogicalType STRUCT(std::vector<StructField>&& fields);
 
-  static KUZU_API LogicalType
+  static NEUG_API LogicalType
   RECURSIVE_REL(std::unique_ptr<StructTypeInfo> typeInfo);
 
-  static KUZU_API LogicalType NODE(std::unique_ptr<StructTypeInfo> typeInfo);
+  static NEUG_API LogicalType NODE(std::unique_ptr<StructTypeInfo> typeInfo);
 
-  static KUZU_API LogicalType REL(std::unique_ptr<StructTypeInfo> typeInfo);
+  static NEUG_API LogicalType REL(std::unique_ptr<StructTypeInfo> typeInfo);
 
-  static KUZU_API LogicalType UNION(std::vector<StructField>&& fields);
+  static NEUG_API LogicalType UNION(std::vector<StructField>&& fields);
 
-  static KUZU_API LogicalType LIST(LogicalType childType);
+  static NEUG_API LogicalType LIST(LogicalType childType);
   template <class T>
   static inline LogicalType LIST(T&& childType) {
     return LogicalType::LIST(LogicalType(std::forward<T>(childType)));
   }
 
-  static KUZU_API LogicalType MAP(LogicalType keyType, LogicalType valueType);
+  static NEUG_API LogicalType MAP(LogicalType keyType, LogicalType valueType);
   template <class T>
   static LogicalType MAP(T&& keyType, T&& valueType) {
     return LogicalType::MAP(LogicalType(std::forward<T>(keyType)),
                             LogicalType(std::forward<T>(valueType)));
   }
 
-  static KUZU_API LogicalType ARRAY(LogicalType childType,
+  static NEUG_API LogicalType ARRAY(LogicalType childType,
                                     uint64_t numElements);
   template <class T>
   static LogicalType ARRAY(T&& childType, uint64_t numElements) {
@@ -417,7 +418,7 @@ class LogicalType {
   TypeCategory category = TypeCategory::INTERNAL;
 };
 
-class KUZU_API ExtraTypeInfo {
+class NEUG_API ExtraTypeInfo {
  public:
   virtual ~ExtraTypeInfo() = default;
 
@@ -440,7 +441,7 @@ class KUZU_API ExtraTypeInfo {
   virtual void serializeInternal(Serializer& serializer) const = 0;
 };
 
-class KUZU_API UDTTypeInfo : public ExtraTypeInfo {
+class NEUG_API UDTTypeInfo : public ExtraTypeInfo {
  public:
   explicit UDTTypeInfo(std::string typeName) : typeName{std::move(typeName)} {}
 
@@ -483,7 +484,7 @@ class DecimalTypeInfo final : public ExtraTypeInfo {
   uint32_t precision, scale;
 };
 
-class KUZU_API ListTypeInfo : public ExtraTypeInfo {
+class NEUG_API ListTypeInfo : public ExtraTypeInfo {
  public:
   ListTypeInfo() = default;
   explicit ListTypeInfo(LogicalType childType)
@@ -506,7 +507,7 @@ class KUZU_API ListTypeInfo : public ExtraTypeInfo {
   LogicalType childType;
 };
 
-class KUZU_API ArrayTypeInfo final : public ListTypeInfo {
+class NEUG_API ArrayTypeInfo final : public ListTypeInfo {
  public:
   ArrayTypeInfo() : numElements{0} {};
   explicit ArrayTypeInfo(LogicalType childType, uint64_t numElements)
@@ -589,23 +590,23 @@ class StructTypeInfo final : public ExtraTypeInfo {
 
 using logical_type_vec_t = std::vector<LogicalType>;
 
-struct KUZU_API DecimalType {
+struct NEUG_API DecimalType {
   static uint32_t getPrecision(const LogicalType& type);
   static uint32_t getScale(const LogicalType& type);
   static std::string insertDecimalPoint(const std::string& value,
                                         uint32_t posFromEnd);
 };
 
-struct KUZU_API ListType {
+struct NEUG_API ListType {
   static const LogicalType& getChildType(const LogicalType& type);
 };
 
-struct KUZU_API ArrayType {
+struct NEUG_API ArrayType {
   static const LogicalType& getChildType(const LogicalType& type);
   static uint64_t getNumElements(const LogicalType& type);
 };
 
-struct KUZU_API StructType {
+struct NEUG_API StructType {
   static std::vector<const LogicalType*> getFieldTypes(const LogicalType& type);
 
   static const LogicalType& getFieldType(const LogicalType& type,
@@ -634,13 +635,13 @@ struct KUZU_API StructType {
   static LogicalType getNodeType(const catalog::NodeTableCatalogEntry& entry);
 };
 
-struct KUZU_API MapType {
+struct NEUG_API MapType {
   static const LogicalType& getKeyType(const LogicalType& type);
 
   static const LogicalType& getValueType(const LogicalType& type);
 };
 
-struct KUZU_API UnionType {
+struct NEUG_API UnionType {
   static constexpr union_field_idx_t TAG_FIELD_IDX = 0;
 
   static constexpr auto TAG_FIELD_TYPE = LogicalTypeID::INT8;
@@ -663,7 +664,7 @@ struct PhysicalTypeUtils {
   static uint32_t getFixedTypeSize(PhysicalTypeID physicalType);
 };
 
-struct KUZU_API LogicalTypeUtils {
+struct NEUG_API LogicalTypeUtils {
   static std::string toString(LogicalTypeID dataTypeID);
   static std::string toString(const std::vector<LogicalType>& dataTypes);
   static std::string toString(const std::vector<LogicalTypeID>& dataTypeIDs);

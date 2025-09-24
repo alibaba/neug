@@ -24,7 +24,7 @@
 
 #include <string>
 
-#include "neug/compiler/common/api.h"
+#include "neug/utils/api.h"
 
 namespace gs {
 namespace main {
@@ -32,7 +32,7 @@ class ClientContext;
 }
 namespace extension {
 
-class KUZU_API ExtensionLoader {
+class NEUG_API ExtensionLoader {
  public:
   explicit ExtensionLoader(std::string extensionName)
       : extensionName{std::move(extensionName)} {}

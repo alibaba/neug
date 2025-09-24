@@ -25,8 +25,8 @@
 #include <memory>
 #include <string>
 
-#include "neug/compiler/common/api.h"
 #include "neug/compiler/common/serializer/writer.h"
+#include "neug/utils/api.h"
 
 namespace gs {
 namespace common {
@@ -40,7 +40,7 @@ struct BinaryData {
   uint64_t size = 0;
 };
 
-class KUZU_API BufferedSerializer : public Writer {
+class NEUG_API BufferedSerializer : public Writer {
  public:
   // Serializes to a buffer allocated by the serializer, will expand when
   // writing past the initial threshold.

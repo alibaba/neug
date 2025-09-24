@@ -114,7 +114,7 @@ struct OperatorMetrics {
 
 using physical_op_vector_t = std::vector<std::unique_ptr<PhysicalOperator>>;
 
-class KUZU_API PhysicalOperator {
+class NEUG_API PhysicalOperator {
  public:
   // Leaf operator
   PhysicalOperator(PhysicalOperatorType operatorType, physical_op_id id,
@@ -201,7 +201,7 @@ class KUZU_API PhysicalOperator {
   double getExecutionTime(common::Profiler& profiler) const;
   uint64_t getNumOutputTuples(common::Profiler& profiler) const;
 
-  virtual void finalizeInternal(ExecutionContext* /*context*/) {};
+  virtual void finalizeInternal(ExecutionContext* /*context*/){};
 
  protected:
   physical_op_id id;

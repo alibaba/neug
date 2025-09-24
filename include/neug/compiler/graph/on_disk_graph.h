@@ -109,7 +109,7 @@ class OnDiskGraphVertexScanState final : public VertexScanState {
   common::offset_t endOffsetExclusive;
 };
 
-class KUZU_API OnDiskGraph final : public Graph {
+class NEUG_API OnDiskGraph final : public Graph {
  public:
   OnDiskGraph(main::ClientContext* context, GraphEntry entry);
 

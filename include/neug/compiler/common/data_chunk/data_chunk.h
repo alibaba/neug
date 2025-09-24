@@ -39,11 +39,11 @@ namespace common {
 // a DataChunkState, which keeps the data chunk's size, selector, and currIdx
 // (used when flattening and implies the value vector only contains the elements
 // at currIdx of each value vector).
-class KUZU_API DataChunk {
+class NEUG_API DataChunk {
  public:
   DataChunk() : DataChunk{0} {}
   explicit DataChunk(uint32_t numValueVectors)
-      : DataChunk(numValueVectors, std::make_shared<DataChunkState>()) {};
+      : DataChunk(numValueVectors, std::make_shared<DataChunkState>()){};
 
   DataChunk(uint32_t numValueVectors,
             const std::shared_ptr<DataChunkState>& state)

@@ -73,7 +73,7 @@ struct FileOpenFlags {
   explicit FileOpenFlags(int flags) : flags{flags} {}
 };
 
-class KUZU_API FileSystem {
+class NEUG_API FileSystem {
   friend struct FileInfo;
 
  public:

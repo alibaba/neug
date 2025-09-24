@@ -37,7 +37,7 @@
 namespace gs {
 namespace common {
 
-class KUZU_API Deserializer {
+class NEUG_API Deserializer {
  public:
   explicit Deserializer(std::unique_ptr<Reader> reader)
       : reader(std::move(reader)) {}
@@ -45,9 +45,8 @@ class KUZU_API Deserializer {
   bool finished() const { return reader->finished(); }
 
   template <typename T>
-    requires std::is_trivially_destructible_v<T> ||
-             std::is_same_v<std::string, T>
-  void deserializeValue(T& value) {
+      requires std::is_trivially_destructible_v<T> ||
+      std::is_same_v<std::string, T> void deserializeValue(T& value) {
     reader->read(reinterpret_cast<uint8_t*>(&value), sizeof(T));
   }
 
@@ -110,7 +109,7 @@ class KUZU_API Deserializer {
     deserializeValue(vectorSize);
     values.resize(vectorSize);
     for (auto& value : values) {
-      if constexpr (requires(Deserializer& deser) { T::deserialize(deser); }) {
+      if constexpr (requires(Deserializer & deser) { T::deserialize(deser); }) {
         value = T::deserialize(*this);
       } else {
         deserializeValue(value);
@@ -122,7 +121,7 @@ class KUZU_API Deserializer {
   void deserializeArray(std::array<T, ARRAY_SIZE>& values) {
     KU_ASSERT(values.size() == ARRAY_SIZE);
     for (auto& value : values) {
-      if constexpr (requires(Deserializer& deser) { T::deserialize(deser); }) {
+      if constexpr (requires(Deserializer & deser) { T::deserialize(deser); }) {
         value = T::deserialize(*this);
       } else {
         deserializeValue(value);

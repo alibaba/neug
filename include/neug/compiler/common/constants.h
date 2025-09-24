@@ -32,8 +32,6 @@
 namespace gs {
 namespace common {
 
-extern const char* KUZU_VERSION;
-
 constexpr double DEFAULT_HT_LOAD_FACTOR = 1.5;
 
 // This is the default thread sleep time we use when a thread,
@@ -258,7 +256,7 @@ struct WarningConstants {
                 WARNING_TABLE_NUM_COLUMNS);
 };
 
-static constexpr char ATTACHED_KUZU_DB_TYPE[] = "KUZU";
+static constexpr char ATTACHED_NEUG_DB_TYPE[] = "KUZU";
 
 static constexpr char LOCAL_DB_NAME[] = "local(gs)";
 

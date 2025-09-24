@@ -34,7 +34,7 @@ using namespace gs::common;
 namespace gs {
 namespace function {
 
-struct KUZU_API CastString {
+struct NEUG_API CastString {
   static void copyStringToVector(ValueVector* vector, uint64_t vectorPos,
                                  std::string_view strVal,
                                  const CSVOption* option);

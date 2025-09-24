@@ -48,7 +48,7 @@ class NodeTable;
 
 class StatsManager;
 
-class KUZU_API NodeTable : public Table {
+class NEUG_API NodeTable : public Table {
  public:
   NodeTable() = default;
   NodeTable(const StatsManager* storageManager,

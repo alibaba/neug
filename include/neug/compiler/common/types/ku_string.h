@@ -26,12 +26,12 @@
 #include <cstring>
 #include <string>
 
-#include "neug/compiler/common/api.h"
+#include "neug/utils/api.h"
 
 namespace gs {
 namespace common {
 
-struct KUZU_API ku_string_t {
+struct NEUG_API ku_string_t {
   static constexpr uint64_t PREFIX_LENGTH = 4 * 4;
   static constexpr uint64_t INLINED_SUFFIX_LENGTH = 8 * 4;
   static constexpr uint64_t SHORT_STR_LENGTH =

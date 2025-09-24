@@ -7,7 +7,7 @@
 namespace gs {
 namespace planner {
 
-class KUZU_API LogicalTableFunctionCall final : public LogicalOperator {
+class NEUG_API LogicalTableFunctionCall final : public LogicalOperator {
   static constexpr LogicalOperatorType operatorType_ =
       LogicalOperatorType::TABLE_FUNCTION_CALL;
 

@@ -156,7 +156,7 @@ class ExpressionBinder {
       const parser::ParsedExpression& parsedExpression);
 
   /****** cast *****/
-  KUZU_API std::shared_ptr<Expression> implicitCastIfNecessary(
+  NEUG_API std::shared_ptr<Expression> implicitCastIfNecessary(
       const std::shared_ptr<Expression>& expression,
       const common::LogicalType& targetType);
   // Use implicitCast to cast to types you have obtained through known implicit

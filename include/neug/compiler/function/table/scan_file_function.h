@@ -69,7 +69,7 @@ struct ScanFileWithProgressSharedState : ScanFileSharedState {
         totalSize{0} {}
 };
 
-struct KUZU_API ScanFileBindData : public TableFuncBindData {
+struct NEUG_API ScanFileBindData : public TableFuncBindData {
   common::FileScanInfo fileScanInfo;
   main::ClientContext* context;
   common::column_id_t numWarningDataColumns = 0;

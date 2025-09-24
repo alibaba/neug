@@ -40,7 +40,7 @@ enum class TransactionType : uint8_t {
 };
 
 class LocalCacheManager;
-class KUZU_API LocalCacheObject {
+class NEUG_API LocalCacheObject {
  public:
   explicit LocalCacheObject(std::string key) : key{std::move(key)} {}
 
@@ -123,7 +123,7 @@ class Transaction {
 
   bool shouldForceCheckpoint() const;
 
-  KUZU_API void commit(storage::WAL* wal);
+  NEUG_API void commit(storage::WAL* wal);
   void rollback(storage::WAL* wal);
 
   uint64_t getEstimatedMemUsage() const;
@@ -193,8 +193,8 @@ class Transaction {
       minUncommittedNodeOffsets;
 };
 
-extern KUZU_API Transaction DUMMY_TRANSACTION;
-extern KUZU_API Transaction DUMMY_CHECKPOINT_TRANSACTION;
+extern NEUG_API Transaction DUMMY_TRANSACTION;
+extern NEUG_API Transaction DUMMY_CHECKPOINT_TRANSACTION;
 
 }  // namespace transaction
 }  // namespace gs

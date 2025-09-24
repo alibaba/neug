@@ -31,13 +31,13 @@
 #include <stdexcept>
 #include <string>
 
-#include "neug/compiler/common/api.h"
+#include "neug/utils/api.h"
 #include "neug/utils/exception/exception.h"
 
 namespace gs {
 namespace common {
 
-struct KUZU_API int128_t;
+struct NEUG_API int128_t;
 
 // System representation for int128_t.
 struct int128_t {
@@ -95,25 +95,25 @@ struct int128_t {
 };
 
 // arithmetic operators
-KUZU_API int128_t operator+(const int128_t& lhs, const int128_t& rhs);
-KUZU_API int128_t operator-(const int128_t& lhs, const int128_t& rhs);
-KUZU_API int128_t operator*(const int128_t& lhs, const int128_t& rhs);
-KUZU_API int128_t operator/(const int128_t& lhs, const int128_t& rhs);
-KUZU_API int128_t operator%(const int128_t& lhs, const int128_t& rhs);
-KUZU_API int128_t operator^(const int128_t& lhs, const int128_t& rhs);
-KUZU_API int128_t operator&(const int128_t& lhs, const int128_t& rhs);
-KUZU_API int128_t operator~(const int128_t& val);
-KUZU_API int128_t operator|(const int128_t& lhs, const int128_t& rhs);
-KUZU_API int128_t operator<<(const int128_t& lhs, int amount);
-KUZU_API int128_t operator>>(const int128_t& lhs, int amount);
+NEUG_API int128_t operator+(const int128_t& lhs, const int128_t& rhs);
+NEUG_API int128_t operator-(const int128_t& lhs, const int128_t& rhs);
+NEUG_API int128_t operator*(const int128_t& lhs, const int128_t& rhs);
+NEUG_API int128_t operator/(const int128_t& lhs, const int128_t& rhs);
+NEUG_API int128_t operator%(const int128_t& lhs, const int128_t& rhs);
+NEUG_API int128_t operator^(const int128_t& lhs, const int128_t& rhs);
+NEUG_API int128_t operator&(const int128_t& lhs, const int128_t& rhs);
+NEUG_API int128_t operator~(const int128_t& val);
+NEUG_API int128_t operator|(const int128_t& lhs, const int128_t& rhs);
+NEUG_API int128_t operator<<(const int128_t& lhs, int amount);
+NEUG_API int128_t operator>>(const int128_t& lhs, int amount);
 
 // comparison operators
-KUZU_API bool operator==(const int128_t& lhs, const int128_t& rhs);
-KUZU_API bool operator!=(const int128_t& lhs, const int128_t& rhs);
-KUZU_API bool operator>(const int128_t& lhs, const int128_t& rhs);
-KUZU_API bool operator>=(const int128_t& lhs, const int128_t& rhs);
-KUZU_API bool operator<(const int128_t& lhs, const int128_t& rhs);
-KUZU_API bool operator<=(const int128_t& lhs, const int128_t& rhs);
+NEUG_API bool operator==(const int128_t& lhs, const int128_t& rhs);
+NEUG_API bool operator!=(const int128_t& lhs, const int128_t& rhs);
+NEUG_API bool operator>(const int128_t& lhs, const int128_t& rhs);
+NEUG_API bool operator>=(const int128_t& lhs, const int128_t& rhs);
+NEUG_API bool operator<(const int128_t& lhs, const int128_t& rhs);
+NEUG_API bool operator<=(const int128_t& lhs, const int128_t& rhs);
 
 class Int128_t {
  public:

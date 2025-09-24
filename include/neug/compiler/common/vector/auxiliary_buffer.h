@@ -22,9 +22,9 @@
 
 #pragma once
 
-#include "neug/compiler/common/api.h"
 #include "neug/compiler/common/in_mem_overflow_buffer.h"
 #include "neug/compiler/common/types/types.h"
+#include "neug/utils/api.h"
 
 namespace arrow {
 class ChunkedArray;
@@ -36,7 +36,7 @@ namespace common {
 class ValueVector;
 
 // AuxiliaryBuffer holds data which is only used by the targeting dataType.
-class KUZU_API AuxiliaryBuffer {
+class NEUG_API AuxiliaryBuffer {
  public:
   virtual ~AuxiliaryBuffer() = default;
 
@@ -69,7 +69,7 @@ class StringAuxiliaryBuffer : public AuxiliaryBuffer {
   std::unique_ptr<InMemOverflowBuffer> inMemOverflowBuffer;
 };
 
-class KUZU_API StructAuxiliaryBuffer : public AuxiliaryBuffer {
+class NEUG_API StructAuxiliaryBuffer : public AuxiliaryBuffer {
  public:
   StructAuxiliaryBuffer(const LogicalType& type,
                         storage::MemoryManager* memoryManager);
@@ -108,7 +108,7 @@ class ArrowColumnAuxiliaryBuffer : public AuxiliaryBuffer {
 // vector holds the actual elements of the lists in a flat, continuous storage.
 // Each list would be represented as a contiguous subsequence of elements in
 // this vector.
-class KUZU_API ListAuxiliaryBuffer : public AuxiliaryBuffer {
+class NEUG_API ListAuxiliaryBuffer : public AuxiliaryBuffer {
   friend class ListVector;
 
  public:

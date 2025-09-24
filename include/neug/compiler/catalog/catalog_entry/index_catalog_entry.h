@@ -37,7 +37,7 @@ class BufferedSerializer;
 namespace gs {
 namespace catalog {
 
-struct KUZU_API IndexToCypherInfo : ToCypherInfo {
+struct NEUG_API IndexToCypherInfo : ToCypherInfo {
   const main::ClientContext* context;
   const common::FileScanInfo& exportFileInfo;
 
@@ -47,7 +47,7 @@ struct KUZU_API IndexToCypherInfo : ToCypherInfo {
 };
 
 class IndexCatalogEntry;
-struct KUZU_API IndexAuxInfo {
+struct NEUG_API IndexAuxInfo {
   virtual ~IndexAuxInfo() = default;
   virtual std::shared_ptr<common::BufferedSerializer> serialize() const;
 
@@ -71,7 +71,7 @@ struct KUZU_API IndexAuxInfo {
   }
 };
 
-class KUZU_API IndexCatalogEntry final : public CatalogEntry {
+class NEUG_API IndexCatalogEntry final : public CatalogEntry {
  public:
   static std::string getInternalIndexName(common::table_id_t tableID,
                                           std::string indexName) {

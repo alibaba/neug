@@ -54,7 +54,7 @@ namespace function {
 struct TableFuncBindInput;
 struct TableFuncBindData;
 
-struct KUZU_API TableFuncSharedState {
+struct NEUG_API TableFuncSharedState {
   common::row_idx_t numRows = 0;
   common::NodeOffsetMaskMap semiMasks;
   std::mutex mtx;
@@ -111,7 +111,7 @@ struct TableFuncOutput {
   void setOutputSize(common::offset_t size) const;
 };
 
-struct KUZU_API TableFuncInitSharedStateInput final {
+struct NEUG_API TableFuncInitSharedStateInput final {
   TableFuncBindData* bindData;
   processor::ExecutionContext* context;
 
@@ -170,7 +170,7 @@ using table_func_infer_input_types =
     std::function<std::vector<common::LogicalType>(
         const binder::expression_vector&)>;
 
-struct KUZU_API TableFunction final : Function {
+struct NEUG_API TableFunction final : Function {
   table_func_t tableFunc = nullptr;
   table_func_bind_t bindFunc = nullptr;
   table_func_init_shared_t initSharedStateFunc = nullptr;

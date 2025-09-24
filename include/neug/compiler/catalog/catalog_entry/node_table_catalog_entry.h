@@ -32,7 +32,7 @@ class Transaction;
 namespace catalog {
 
 class Catalog;
-class KUZU_API NodeTableCatalogEntry final : public TableCatalogEntry {
+class NEUG_API NodeTableCatalogEntry final : public TableCatalogEntry {
   static constexpr CatalogEntryType entryType_ =
       CatalogEntryType::NODE_TABLE_ENTRY;
 

@@ -85,7 +85,7 @@ struct BoundCreateTableInfo {
         hasParent{other.hasParent} {}
 };
 
-struct KUZU_API BoundExtraCreateTableInfo
+struct NEUG_API BoundExtraCreateTableInfo
     : public BoundExtraCreateCatalogEntryInfo {
   std::vector<PropertyDefinition> propertyDefinitions;
 

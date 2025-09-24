@@ -26,11 +26,11 @@
 #include <variant>
 #include <vector>
 
-#include "neug/compiler/common/api.h"
 #include "neug/compiler/common/constants.h"
 #include "neug/compiler/common/type_utils.h"
 #include "neug/compiler/common/types/types.h"
 #include "neug/compiler/common/types/value/value.h"
+#include "neug/utils/api.h"
 
 namespace gs {
 namespace common {
@@ -46,7 +46,7 @@ template <typename T>
 concept DataSource = std::same_as<storage::ColumnChunkData, T> ||
                      std::same_as<common::ValueVector, T>;
 
-struct KUZU_API WarningSourceData {
+struct NEUG_API WarningSourceData {
   // we should stick to integral types here as each value essentially adds a
   // column to the output when reading from a file
   using DataType = std::variant<uint64_t, uint32_t>;
@@ -93,7 +93,7 @@ struct LineContext {
 // numbers Thus we have additional fields that can be used to determine line
 // numbers + reconstruct lines After parsing this will be used to populate a
 // PopulatedCopyFromError instance
-struct KUZU_API CopyFromFileError {
+struct NEUG_API CopyFromFileError {
   CopyFromFileError(std::string message, WarningSourceData warningData,
                     bool completedLine = true, bool mustThrow = false);
 

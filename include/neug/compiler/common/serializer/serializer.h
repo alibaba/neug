@@ -36,15 +36,14 @@
 namespace gs {
 namespace common {
 
-class KUZU_API Serializer {
+class NEUG_API Serializer {
  public:
   explicit Serializer(std::shared_ptr<Writer> writer)
       : writer(std::move(writer)) {}
 
   template <typename T>
-    requires std::is_trivially_destructible<T>::value ||
-             std::is_same<std::string, T>::value
-  void serializeValue(const T& value) {
+      requires std::is_trivially_destructible<T>::value ||
+      std::is_same<std::string, T>::value void serializeValue(const T& value) {
     writer->write((uint8_t*) &value, sizeof(T));
   }
 
@@ -102,7 +101,7 @@ class KUZU_API Serializer {
     uint64_t vectorSize = values.size();
     serializeValue<uint64_t>(vectorSize);
     for (auto& value : values) {
-      if constexpr (requires(Serializer& ser) { value.serialize(ser); }) {
+      if constexpr (requires(Serializer & ser) { value.serialize(ser); }) {
         value.serialize(*this);
       } else {
         serializeValue<T>(value);
@@ -113,7 +112,7 @@ class KUZU_API Serializer {
   template <typename T, uint64_t ARRAY_SIZE>
   void serializeArray(const std::array<T, ARRAY_SIZE>& values) {
     for (auto& value : values) {
-      if constexpr (requires(Serializer& ser) { value.serialize(ser); }) {
+      if constexpr (requires(Serializer & ser) { value.serialize(ser); }) {
         value.serialize(*this);
       } else {
         serializeValue<T>(value);

@@ -28,7 +28,7 @@ class CardinalityEstimator {
   // enumerating.
   void initNodeIDDom(const transaction::Transaction* transaction,
                      const binder::QueryGraph& queryGraph);
-  KUZU_API void addNodeIDDomAndStats(
+  NEUG_API void addNodeIDDomAndStats(
       const transaction::Transaction* transaction,
       const binder::Expression& nodeID,
       const std::vector<common::table_id_t>& tableIDs);

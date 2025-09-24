@@ -37,7 +37,7 @@ class MemoryManager;
 
 struct LocalRelTableScanState;
 
-class KUZU_API RelTable : public Table {
+class NEUG_API RelTable : public Table {
  public:
   RelTable(catalog::RelTableCatalogEntry* relTableEntry,
            const StatsManager* storageManager)

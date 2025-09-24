@@ -543,19 +543,19 @@ T ExpressionUtil::evaluateLiteral(const Expression& expression,
   return val;
 }
 
-template KUZU_API std::string ExpressionUtil::evaluateLiteral<std::string>(
+template NEUG_API std::string ExpressionUtil::evaluateLiteral<std::string>(
     const Expression& expression, const common::LogicalType& type,
     validate_param_func<std::string> validateParamFunc);
 
-template KUZU_API double ExpressionUtil::evaluateLiteral<double>(
+template NEUG_API double ExpressionUtil::evaluateLiteral<double>(
     const Expression& expression, const common::LogicalType& type,
     validate_param_func<double> validateParamFunc);
 
-template KUZU_API int64_t ExpressionUtil::evaluateLiteral<int64_t>(
+template NEUG_API int64_t ExpressionUtil::evaluateLiteral<int64_t>(
     const Expression& expression, const common::LogicalType& type,
     validate_param_func<int64_t> validateParamFunc);
 
-template KUZU_API bool ExpressionUtil::evaluateLiteral<bool>(
+template NEUG_API bool ExpressionUtil::evaluateLiteral<bool>(
     const Expression& expression, const common::LogicalType& type,
     validate_param_func<bool> validateParamFunc);
 

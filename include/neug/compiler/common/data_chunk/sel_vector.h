@@ -139,8 +139,8 @@ class SelectionVector : public SelectionView {
 
   SelectionVector();
 
-  KUZU_API void setToUnfiltered();
-  KUZU_API void setToUnfiltered(sel_t size);
+  NEUG_API void setToUnfiltered();
+  NEUG_API void setToUnfiltered(sel_t size);
   void setRange(sel_t startPos, sel_t size) {
     KU_ASSERT(startPos + size <= capacity);
     selectedPositions = selectedPositionsBuffer.get();

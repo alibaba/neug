@@ -21,7 +21,7 @@ namespace gs {
 namespace common {
 
 // clang-format off
-#define VECTOR_CAPACITY_LOG_2 @KUZU_VECTOR_CAPACITY_LOG2@
+#define VECTOR_CAPACITY_LOG_2 @NEUG_VECTOR_CAPACITY_LOG2@
 // clang-format on
 #if VECTOR_CAPACITY_LOG_2 > 12
 #error "Vector capacity log2 should be less than or equal to 12"
@@ -34,9 +34,9 @@ constexpr uint64_t DEFAULT_VECTOR_CAPACITY = static_cast<uint64_t>(1)
 // the page which is the unit of read/write to the database files.
 // clang-format off
 static constexpr uint64_t PAGE_SIZE_LOG2 =
-    @KUZU_PAGE_SIZE_LOG2@;  // Default to 4KB.
+    @NEUG_PAGE_SIZE_LOG2@;  // Default to 4KB.
 // clang-format on
-static constexpr uint64_t KUZU_PAGE_SIZE = static_cast<uint64_t>(1)
+static constexpr uint64_t NEUG_PAGE_SIZE = static_cast<uint64_t>(1)
                                            << PAGE_SIZE_LOG2;
 // Page size for files with large pages, e.g., temporary files that are used by
 // operators that may require large amounts of memory.
@@ -45,7 +45,7 @@ static const uint64_t TEMP_PAGE_SIZE = static_cast<uint64_t>(1)
                                        << TEMP_PAGE_SIZE_LOG2;
 
 //clang-format off
-#define DEFAULT_REL_STORAGE_DIRECTION @KUZU_DEFAULT_REL_STORAGE_DIRECTION@
+#define DEFAULT_REL_STORAGE_DIRECTION @NEUG_DEFAULT_REL_STORAGE_DIRECTION@
 // clang-format on
 #if DEFAULT_REL_STORAGE_DIRECTION == FWD_REL_STORAGE
 static constexpr ExtendDirection DEFAULT_EXTEND_DIRECTION =
@@ -60,7 +60,7 @@ static constexpr ExtendDirection DEFAULT_EXTEND_DIRECTION =
 
 struct StorageConfig {
   //clang-format off
-  static constexpr uint64_t NODE_GROUP_SIZE_LOG2 = @KUZU_NODE_GROUP_SIZE_LOG2@;
+  static constexpr uint64_t NODE_GROUP_SIZE_LOG2 = @NEUG_NODE_GROUP_SIZE_LOG2@;
   // clang-format on
   static constexpr uint64_t NODE_GROUP_SIZE = static_cast<uint64_t>(1)
                                               << NODE_GROUP_SIZE_LOG2;

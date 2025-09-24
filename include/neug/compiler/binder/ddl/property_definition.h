@@ -28,7 +28,7 @@
 namespace gs {
 namespace binder {
 
-struct KUZU_API ColumnDefinition {
+struct NEUG_API ColumnDefinition {
   std::string name;
   common::LogicalType type;
 
@@ -42,7 +42,7 @@ struct KUZU_API ColumnDefinition {
       : name{other.name}, type{other.type.copy()} {}
 };
 
-struct KUZU_API PropertyDefinition {
+struct NEUG_API PropertyDefinition {
   ColumnDefinition columnDefinition;
   std::unique_ptr<parser::ParsedExpression> defaultExpr;
 

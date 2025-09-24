@@ -71,7 +71,7 @@ class FunctionCatalogEntry;
 class SequenceCatalogEntry;
 class IndexCatalogEntry;
 
-class KUZU_API Catalog {
+class NEUG_API Catalog {
   friend class main::AttachedKuzuDatabase;
   friend class gs::extension::ExtensionAPI;
 
@@ -246,9 +246,10 @@ class KUZU_API Catalog {
                    function::function_set functionSet, bool isInternal = false);
 
   void addFunctionUnlocked(transaction::Transaction* transaction,
-                   CatalogEntryType entryType, std::string name,
-                   function::function_set functionSet, bool isInternal = false);
-                   
+                           CatalogEntryType entryType, std::string name,
+                           function::function_set functionSet,
+                           bool isInternal = false);
+
   // Drop function with name.
   void dropFunction(transaction::Transaction* transaction,
                     const std::string& name);

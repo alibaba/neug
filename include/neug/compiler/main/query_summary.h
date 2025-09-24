@@ -23,7 +23,7 @@
 #pragma once
 
 #include "kuzu_fwd.h"
-#include "neug/compiler/common/api.h"
+#include "neug/utils/api.h"
 
 namespace gs {
 namespace main {
@@ -49,11 +49,11 @@ class QuerySummary {
   /**
    * @return query compiling time in milliseconds.
    */
-  KUZU_API double getCompilingTime() const;
+  NEUG_API double getCompilingTime() const;
   /**
    * @return query execution time in milliseconds.
    */
-  KUZU_API double getExecutionTime() const;
+  NEUG_API double getExecutionTime() const;
 
   void incrementCompilingTime(double increment);
   void incrementExecutionTime(double increment);

@@ -42,7 +42,7 @@ static AttachInfo bindAttachInfo(const parser::AttachInfo& attachInfo) {
   }
 
   if (common::StringUtils::getUpper(attachInfo.dbType) ==
-          common::ATTACHED_KUZU_DB_TYPE &&
+          common::ATTACHED_NEUG_DB_TYPE &&
       attachInfo.dbAlias.empty()) {
     THROW_BINDER_EXCEPTION(
         "Attaching a gs database without an alias is not allowed.");

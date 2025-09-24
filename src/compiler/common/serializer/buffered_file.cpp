@@ -32,7 +32,7 @@
 namespace gs {
 namespace common {
 
-static constexpr uint64_t BUFFER_SIZE = KUZU_PAGE_SIZE;
+static constexpr uint64_t BUFFER_SIZE = NEUG_PAGE_SIZE;
 
 BufferedFileWriter::~BufferedFileWriter() { flush(); }
 

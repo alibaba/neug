@@ -24,16 +24,16 @@
 
 #include <cstring>
 
-#include "neug/compiler/common/api.h"
 #include "neug/compiler/common/types/ku_string.h"
 #include "neug/compiler/common/vector/value_vector.h"
+#include "neug/utils/api.h"
 
 namespace gs {
 namespace function {
 
 struct Repeat {
  public:
-  KUZU_API static void operation(common::ku_string_t& left, int64_t& right,
+  NEUG_API static void operation(common::ku_string_t& left, int64_t& right,
                                  common::ku_string_t& result,
                                  common::ValueVector& resultValueVector);
 

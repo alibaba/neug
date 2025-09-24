@@ -44,7 +44,7 @@ class Transaction;
 namespace catalog {
 
 class Catalog;
-class KUZU_API TableCatalogEntry : public CatalogEntry {
+class NEUG_API TableCatalogEntry : public CatalogEntry {
  public:
   TableCatalogEntry() = default;
   TableCatalogEntry(CatalogEntryType catalogType, std::string name)

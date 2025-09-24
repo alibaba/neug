@@ -27,13 +27,13 @@
 #include <vector>
 
 #include <span>
-#include "neug/compiler/common/api.h"
 #include "neug/compiler/function/cast/functions/numeric_limits.h"
+#include "neug/utils/api.h"
 
 namespace gs {
 namespace common {
 
-class KUZU_API StringUtils {
+class NEUG_API StringUtils {
  public:
   static std::vector<std::string> splitComma(const std::string& input);
 

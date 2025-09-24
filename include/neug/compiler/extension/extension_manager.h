@@ -38,15 +38,15 @@ class ExtensionManager {
  public:
   void loadExtension(const std::string& path, main::ClientContext* context);
 
-  KUZU_API std::string toCypher();
+  NEUG_API std::string toCypher();
 
-  KUZU_API void addExtensionOption(std::string name, common::LogicalTypeID type,
+  NEUG_API void addExtensionOption(std::string name, common::LogicalTypeID type,
                                    common::Value defaultValue,
                                    bool isConfidential);
 
   const main::ExtensionOption* getExtensionOption(std::string name) const;
 
-  KUZU_API const std::vector<LoadedExtension>& getLoadedExtensions() const {
+  NEUG_API const std::vector<LoadedExtension>& getLoadedExtensions() const {
     return loadedExtensions;
   }
 

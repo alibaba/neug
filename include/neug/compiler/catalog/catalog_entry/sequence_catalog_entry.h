@@ -70,7 +70,7 @@ struct SequenceData {
 };
 
 class CatalogSet;
-class KUZU_API SequenceCatalogEntry final : public CatalogEntry {
+class NEUG_API SequenceCatalogEntry final : public CatalogEntry {
  public:
   //===--------------------------------------------------------------------===//
   // constructors

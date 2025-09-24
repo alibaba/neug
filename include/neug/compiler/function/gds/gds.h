@@ -36,7 +36,7 @@ class ClientContext;
 
 namespace function {
 
-struct KUZU_API GDSConfig {
+struct NEUG_API GDSConfig {
   virtual ~GDSConfig() = default;
 
   template <class TARGET>
@@ -45,14 +45,14 @@ struct KUZU_API GDSConfig {
   }
 };
 
-struct KUZU_API GDSOptionalParams {
+struct NEUG_API GDSOptionalParams {
   virtual ~GDSOptionalParams() = default;
 
   virtual std::unique_ptr<GDSConfig> getConfig() const = 0;
   virtual std::unique_ptr<GDSOptionalParams> copy() const = 0;
 };
 
-struct KUZU_API GDSBindData : public TableFuncBindData {
+struct NEUG_API GDSBindData : public TableFuncBindData {
   graph::GraphEntry graphEntry;
   std::shared_ptr<binder::Expression> nodeOutput;
   std::unique_ptr<GDSOptionalParams> optionalParams;
@@ -84,7 +84,7 @@ struct KUZU_API GDSBindData : public TableFuncBindData {
  private:
 };
 
-struct KUZU_API GDSFuncSharedState : public TableFuncSharedState {
+struct NEUG_API GDSFuncSharedState : public TableFuncSharedState {
   std::unique_ptr<graph::Graph> graph;
 
   GDSFuncSharedState(std::unique_ptr<graph::Graph> graph)
@@ -100,7 +100,7 @@ struct KUZU_API GDSFuncSharedState : public TableFuncSharedState {
   std::unique_ptr<common::NodeOffsetMaskMap> graphNodeMask = nullptr;
 };
 
-class KUZU_API GDSFunction {
+class NEUG_API GDSFunction {
   static constexpr char NODE_COLUMN_NAME[] = "node";
 
  public:

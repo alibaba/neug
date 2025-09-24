@@ -70,7 +70,7 @@ struct BoundGraphEntryTableInfo {
 // Organize projected graph similar to CatalogEntry. When we want to share
 // projected graph across statements, we need to migrate this class to catalog
 // (or client context).
-struct KUZU_API GraphEntry {
+struct NEUG_API GraphEntry {
   std::vector<BoundGraphEntryTableInfo> nodeInfos;
   std::vector<BoundGraphEntryTableInfo> relInfos;
 

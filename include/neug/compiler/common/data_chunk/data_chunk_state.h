@@ -33,7 +33,7 @@ enum class FStateType : uint8_t {
   UNFLAT = 1,
 };
 
-class KUZU_API DataChunkState {
+class NEUG_API DataChunkState {
  public:
   DataChunkState();
   explicit DataChunkState(sel_t capacity) : fStateType{FStateType::UNFLAT} {

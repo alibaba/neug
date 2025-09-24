@@ -110,14 +110,14 @@ class Binder {
                            const catalog::Catalog& catalog,
                            const transaction::Transaction* transaction);
 
-  KUZU_API std::shared_ptr<Expression> createVariable(
+  NEUG_API std::shared_ptr<Expression> createVariable(
       const std::string& name, const common::LogicalType& dataType);
-  KUZU_API std::shared_ptr<Expression> createInvisibleVariable(
+  NEUG_API std::shared_ptr<Expression> createInvisibleVariable(
       const std::string& name, const common::LogicalType& dataType) const;
-  KUZU_API expression_vector
+  NEUG_API expression_vector
   createVariables(const std::vector<std::string>& names,
                   const std::vector<common::LogicalType>& types);
-  KUZU_API expression_vector
+  NEUG_API expression_vector
   createInvisibleVariables(const std::vector<std::string>& names,
                            const std::vector<common::LogicalType>& types) const;
 
@@ -363,7 +363,7 @@ class Binder {
       const parser::NodePattern& nodePattern, QueryGraph& queryGraph);
   std::shared_ptr<NodeExpression> createQueryNode(
       const parser::NodePattern& nodePattern);
-  KUZU_API std::shared_ptr<NodeExpression> createQueryNode(
+  NEUG_API std::shared_ptr<NodeExpression> createQueryNode(
       const std::string& parsedName,
       const std::vector<catalog::TableCatalogEntry*>& entries);
   static void bindQueryNodeProperties(NodeExpression& node);
@@ -380,11 +380,11 @@ class Binder {
       const BoundProjectionBody& boundProjectionBody);
   static bool isOrderByKeyTypeSupported(const common::LogicalType& dataType);
 
-  KUZU_API static void validateTableExistence(
+  NEUG_API static void validateTableExistence(
       const main::ClientContext& context, const std::string& tableName);
-  KUZU_API static void validateNodeTableType(
+  NEUG_API static void validateNodeTableType(
       const catalog::TableCatalogEntry* entry);
-  KUZU_API static void validateColumnExistence(
+  NEUG_API static void validateColumnExistence(
       const catalog::TableCatalogEntry* entry, const std::string& columnName);
 
   void validateNoIndexOnProperty(const std::string& tableName,
@@ -397,7 +397,7 @@ class Binder {
 
   void addToScope(const std::vector<std::string>& names,
                   const expression_vector& exprs);
-  KUZU_API void addToScope(const std::string& name,
+  NEUG_API void addToScope(const std::string& name,
                            std::shared_ptr<Expression> expr);
   BinderScope saveScope() const;
   void restoreScope(BinderScope prevScope);

@@ -32,7 +32,7 @@ class FileSystem;
 
 namespace function {
 
-struct KUZU_API TableFuncBindData {
+struct NEUG_API TableFuncBindData {
   binder::expression_vector columns;
   common::row_idx_t numRows;
 

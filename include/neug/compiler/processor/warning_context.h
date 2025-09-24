@@ -26,10 +26,10 @@
 #include <mutex>
 #include <vector>
 
-#include "neug/compiler/common/api.h"
 #include "neug/compiler/common/types/types.h"
 #include "neug/compiler/main/client_config.h"
 #include "neug/compiler/processor/operator/persistent/reader/copy_from_error.h"
+#include "neug/utils/api.h"
 
 namespace gs {
 namespace common {
@@ -56,7 +56,7 @@ using populate_func_t =
 using get_file_idx_func_t =
     std::function<common::idx_t(const CopyFromFileError&)>;
 
-class KUZU_API WarningContext {
+class NEUG_API WarningContext {
  public:
   explicit WarningContext(main::ClientConfig* clientConfig) {}
 

@@ -25,7 +25,7 @@
 #include <cstdint>
 #include <string>
 
-#include "neug/compiler/common/api.h"
+#include "neug/utils/api.h"
 
 namespace gs {
 namespace common {
@@ -88,7 +88,7 @@ struct ExpressionTypeUtil {
 
   static ExpressionType reverseComparisonDirection(ExpressionType type);
 
-  static KUZU_API std::string toString(ExpressionType type);
+  static NEUG_API std::string toString(ExpressionType type);
   static std::string toParsableString(ExpressionType type);
 };
 

@@ -27,8 +27,8 @@
 #include <unordered_map>
 
 #include "kuzu_fwd.h"
-#include "neug/compiler/common/api.h"
 #include "neug/compiler/parser/statement.h"
+#include "neug/utils/api.h"
 #include "query_summary.h"
 
 namespace gs {
@@ -49,15 +49,15 @@ class PreparedStatement {
   /**
    * @return the query is prepared successfully or not.
    */
-  KUZU_API bool isSuccess() const;
+  NEUG_API bool isSuccess() const;
   /**
    * @return the error message if the query is not prepared successfully.
    */
-  KUZU_API std::string getErrorMessage() const;
+  NEUG_API std::string getErrorMessage() const;
   /**
    * @return the prepared statement is read-only or not.
    */
-  KUZU_API bool isReadOnly() const;
+  NEUG_API bool isReadOnly() const;
 
   std::unordered_map<std::string, std::shared_ptr<common::Value>>
   getParameterMap() {
@@ -66,7 +66,7 @@ class PreparedStatement {
 
   common::StatementType getStatementType() const;
 
-  KUZU_API ~PreparedStatement();
+  NEUG_API ~PreparedStatement();
 
   std::unique_ptr<planner::LogicalPlan> logicalPlan;
   bool success = true;

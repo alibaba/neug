@@ -28,7 +28,7 @@
 namespace gs {
 namespace binder {
 
-class KUZU_API LiteralExpression final : public Expression {
+class NEUG_API LiteralExpression final : public Expression {
  public:
   LiteralExpression(common::Value value, const std::string& uniqueName)
       : Expression{common::ExpressionType::LITERAL, value.getDataType().copy(),

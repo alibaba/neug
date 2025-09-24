@@ -28,7 +28,7 @@
 namespace gs {
 namespace catalog {
 
-class KUZU_API FunctionCatalogEntry : public CatalogEntry {
+class NEUG_API FunctionCatalogEntry : public CatalogEntry {
  public:
   //===--------------------------------------------------------------------===//
   // constructors

@@ -27,9 +27,9 @@
 #include <memory>
 
 #include "kuzu_fwd.h"
-#include "neug/compiler/common/api.h"
 #include "neug/compiler/main/option_config.h"
 #include "neug/compiler/storage/buffer_manager/memory_manager.h"
+#include "neug/utils/api.h"
 
 namespace gs {
 namespace common {
@@ -78,9 +78,9 @@ class MetadataManager {
   /**
    * @brief Destructs the database object.
    */
-  KUZU_API virtual ~MetadataManager();
+  NEUG_API virtual ~MetadataManager();
 
-  KUZU_API catalog::Catalog* getCatalog() { return catalog.get(); }
+  NEUG_API catalog::Catalog* getCatalog() { return catalog.get(); }
 
   void updateSchema(const std::filesystem::path& schemaPath);
 

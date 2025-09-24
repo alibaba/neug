@@ -26,8 +26,8 @@
 #include <memory>
 #include <vector>
 
-#include "neug/compiler/common/api.h"
 #include "neug/compiler/common/copy_constructors.h"
+#include "neug/utils/api.h"
 
 namespace gs {
 namespace storage {
@@ -37,7 +37,7 @@ class MemoryManager;
 
 namespace common {
 
-struct KUZU_API BufferBlock {
+struct NEUG_API BufferBlock {
  public:
   explicit BufferBlock(std::unique_ptr<storage::MemoryBuffer> block);
   ~BufferBlock();

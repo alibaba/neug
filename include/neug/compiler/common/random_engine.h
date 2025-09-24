@@ -24,7 +24,7 @@
 
 #include <mutex>
 
-#include "neug/compiler/common/api.h"
+#include "neug/utils/api.h"
 #include "pcg/pcg_random.hpp"
 
 namespace gs {
@@ -41,7 +41,7 @@ struct RandomState {
   RandomState() {}
 };
 
-class KUZU_API RandomEngine {
+class NEUG_API RandomEngine {
  public:
   RandomEngine();
   RandomEngine(uint64_t seed, uint64_t stream);
