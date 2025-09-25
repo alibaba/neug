@@ -10,6 +10,7 @@ add_library(gds_function
         frontier_morsel.cpp
         gds_task.cpp
         )
+add_dependencies(gds_function neug_plan_proto)
 
 target_include_directories(gds_function PUBLIC
         ${CMAKE_CURRENT_SOURCE_DIR}/../include)

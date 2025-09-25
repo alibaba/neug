@@ -26,6 +26,7 @@ add_library(neug_list_function
         size_function.cpp
         quantifier_functions.cpp
         list_has_all.cpp)
+add_dependencies(neug_list_function neug_plan_proto)
 
 set(ALL_OBJECT_FILES
         ${ALL_OBJECT_FILES} $<TARGET_OBJECTS:neug_list_function>

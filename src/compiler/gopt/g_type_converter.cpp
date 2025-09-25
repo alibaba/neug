@@ -26,9 +26,15 @@
 #include "neug/compiler/gopt/g_graph_type.h"
 #include "neug/compiler/gopt/g_rel_table_entry.h"
 #include "neug/utils/exception/exception.h"
+#ifdef USE_SYSTEM_PROTOBUF
+#include "neug/generated/proto/plan/basic_type.pb.h"
+#include "neug/generated/proto/plan/common.pb.h"
+#include "neug/generated/proto/plan/type.pb.h"
+#else
 #include "neug/utils/proto/plan/basic_type.pb.h"
 #include "neug/utils/proto/plan/common.pb.h"
 #include "neug/utils/proto/plan/type.pb.h"
+#endif
 
 namespace gs {
 namespace gopt {

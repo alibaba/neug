@@ -360,8 +360,8 @@ class MLVertexColumnBuilder : public IVertexColumnBuilder {
 
   inline void push_back_null() override {
     is_optional_ = true;
-    vertices_.emplace_back(std::numeric_limits<label_t>::max(),
-                           std::numeric_limits<vid_t>::max());
+    vertices_.emplace_back(VertexRecord{std::numeric_limits<label_t>::max(),
+                                        std::numeric_limits<vid_t>::max()});
   }
 
   std::shared_ptr<IContextColumn> finish() override;

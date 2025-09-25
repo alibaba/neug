@@ -5,6 +5,7 @@ add_library(neug_function_path
         properties_function.cpp
         rels_function.cpp
         semantic_function.cpp)
+add_dependencies(neug_list_function neug_plan_proto)
 
 set(ALL_OBJECT_FILES
         ${ALL_OBJECT_FILES} $<TARGET_OBJECTS:neug_function_path>

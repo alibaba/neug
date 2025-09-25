@@ -7,6 +7,7 @@ add_library(neug_utility_function
         error.cpp
         nullif.cpp
         typeof.cpp)
+add_dependencies(neug_utility_function neug_plan_proto)
 
 set(ALL_OBJECT_FILES
         ${ALL_OBJECT_FILES} $<TARGET_OBJECTS:neug_utility_function>

@@ -9,6 +9,7 @@ add_library(neug_gopt
     g_precedence.cpp
     g_admin_convertor.cpp
 )
+add_dependencies(neug_gopt neug_plan_proto)
 
 target_link_libraries(neug_gopt
     PUBLIC

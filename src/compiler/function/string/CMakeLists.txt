@@ -6,6 +6,7 @@ add_library(neug_string_function
         split_part.cpp
         regex_full_match_function.cpp
         regex_replace_function.cpp)
+add_dependencies(neug_function_pattern neug_plan_proto)
 
 set(ALL_OBJECT_FILES
         ${ALL_OBJECT_FILES} $<TARGET_OBJECTS:neug_string_function>
