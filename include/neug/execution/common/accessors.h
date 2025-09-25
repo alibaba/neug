@@ -163,9 +163,18 @@ class VertexLabelPathAccessor : public IAccessor {
       : vertex_col_(*std::dynamic_pointer_cast<IVertexColumn>(ctx.get(tag))),
         schema_(schema) {}
 
-  elem_t typed_eval_path(size_t idx) const;
+  elem_t typed_eval_path(size_t idx) const {
+    auto label_id = vertex_col_.get_vertex(idx).label_;
+    return schema_.get_vertex_label_name(label_id);
+  }
 
-  RTAny eval_path(size_t idx) const override;
+  RTAny eval_path(size_t idx) const override {
+    if (!vertex_col_.has_value(idx)) {
+      return RTAny(RTAnyType::kNull);
+    }
+    auto label_id = vertex_col_.get_vertex(idx).label_;
+    return RTAny::from_string(schema_.get_vertex_label_name(label_id));
+  }
 
  private:
   const IVertexColumn& vertex_col_;
@@ -484,9 +493,19 @@ class EdgeLabelPathAccessor : public IAccessor {
       : col_(*std::dynamic_pointer_cast<IEdgeColumn>(ctx.get(tag))),
         schema_(schema) {}
 
-  RTAny eval_path(size_t idx) const override;
+  RTAny eval_path(size_t idx) const override {
+    if (!col_.has_value(idx)) {
+      return RTAny(RTAnyType::kNull);
+    }
+    const auto& e = col_.get_edge(idx);
+    return RTAny::from_string(
+        schema_.get_edge_label_name(e.label_triplet_.edge_label));
+  }
 
-  elem_t typed_eval_path(size_t idx) const;
+  elem_t typed_eval_path(size_t idx) const {
+    const auto& e = col_.get_edge(idx);
+    return schema_.get_edge_label_name(e.label_triplet_.edge_label);
+  }
 
  private:
   const IEdgeColumn& col_;

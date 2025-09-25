@@ -578,7 +578,6 @@ gs::result<Context> Join::join(Context&& ctx, Context&& ctx2,
                    ContextColumnType::kVertex &&
                ctx2.get(params.right_columns[1])->column_type() ==
                    ContextColumnType::kVertex) {
-      LOG(INFO) << "dual vertex column left outer join";
       return dual_vertex_column_left_outer_join(std::move(ctx), std::move(ctx2),
                                                 params);
     } else {

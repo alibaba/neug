@@ -338,29 +338,6 @@ VertexPropertyPathAccessor<GraphInterface, T>::VertexPropertyPathAccessor(
   }
 }
 
-VertexLabelPathAccessor::elem_t VertexLabelPathAccessor::typed_eval_path(
-    size_t idx) const {
-  auto label_id = vertex_col_.get_vertex(idx).label_;
-  return schema_.get_vertex_label_name(label_id);
-}
-
-RTAny VertexLabelPathAccessor::eval_path(size_t idx) const {
-  auto label_id = vertex_col_.get_vertex(idx).label_;
-  return RTAny::from_string(schema_.get_vertex_label_name(label_id));
-}
-
-EdgeLabelPathAccessor::elem_t EdgeLabelPathAccessor::typed_eval_path(
-    size_t idx) const {
-  const auto& e = col_.get_edge(idx);
-  return schema_.get_edge_label_name(e.label_triplet_.edge_label);
-}
-
-RTAny EdgeLabelPathAccessor::eval_path(size_t idx) const {
-  const auto& e = col_.get_edge(idx);
-  return RTAny::from_string(
-      schema_.get_edge_label_name(e.label_triplet_.edge_label));
-}
-
 std::shared_ptr<IAccessor> create_edge_label_path_accessor(const Schema& schema,
                                                            const Context& ctx,
                                                            int tag) {
