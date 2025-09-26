@@ -1,11 +1,4 @@
 add_executable(simple_example simple_example.cc)
 target_include_directories(simple_example PRIVATE ../../include)
 
-if (BUILD_ALL_IN_ONE)
-    target_link_libraries(simple_example PUBLIC neug_libraries)
-else()
-    target_link_libraries(simple_example PUBLIC neug_main neug_execution_service neug_execution neug_compiler_shared neug_brpc_proto neug_storages neug_utils)
-    if (BUILD_HTTP_SERVER)
-        target_link_libraries(simple_example PUBLIC ${GFLAGS_LIBRARIES})
-    endif()
-endif()
+target_link_libraries(simple_example PUBLIC neug_libraries)

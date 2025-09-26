@@ -41,7 +41,6 @@ option(WITH_MIMALLOC "Whether to use mimalloc" ON) # Whether to use mimalloc, de
 # Options to control the building of tools
 option(BUILD_PYTHON "Whether to build python embedded" ON)
 option(BUILD_COMPILER "Whether to build compiler" ON)
-option(BUILD_ALL_IN_ONE "Whether to build all in one" ON) # Whether to package all libraries into one dynamic library, default is OFF
 #---------------------------------------------------------------------------------
 #-------------------------------Compiler related options-------------------------------
 option(NEUG_DEFAULT_REL_STORAGE_DIRECTION "Only store fwd direction in rel tables by default." BOTH)
@@ -251,11 +250,7 @@ endif()
 function(add_compiler_test TEST_NAME)
     set(SRCS ${ARGN})
     add_executable(${TEST_NAME} ${SRCS})
-    if (BUILD_ALL_IN_ONE)
-        target_link_libraries(${TEST_NAME} PUBLIC neug::GTest neug_libraries)
-    else()
-        target_link_libraries(${TEST_NAME} PUBLIC neug::GTest neug_compiler_shared neug_plan_proto)
-    endif()
+    target_link_libraries(${TEST_NAME} PUBLIC neug::GTest neug_libraries)
 
     include(GoogleTest)
 
@@ -266,11 +261,7 @@ endfunction()
 function(add_storage_test TEST_NAME)
     set(SRCS ${ARGN})
     add_executable(${TEST_NAME} ${SRCS})
-    if (BUILD_ALL_IN_ONE)
-        target_link_libraries(${TEST_NAME} PUBLIC neug::GTest neug_libraries)
-    else()
-        target_link_libraries(${TEST_NAME} PUBLIC neug::GTest neug_storages)
-    endif()
+    target_link_libraries(${TEST_NAME} PUBLIC neug::GTest neug_libraries)
     include(GoogleTest)
     add_test(NAME ${TEST_NAME} COMMAND ${TEST_NAME})
     gtest_add_tests(TARGET ${TEST_NAME} TEST_LIST ${TEST_NAME}_tests)
@@ -742,11 +733,7 @@ if (BUILD_COMPILER)
     add_subdirectory(third_party/utf8proc)
 endif()
 
-if (BUILD_ALL_IN_ONE)
-    set(NEUG_LIBRARIES neug::neug_libraries)
-else()
-    set(NEUG_LIBRARIES neug::neug_utils neug::neug_storages neug::neug_execution neug::neug_plan_proto neug::neug_grape_lite)
-endif()
+set(NEUG_LIBRARIES neug::neug_libraries)
 
 configure_file(${CMAKE_CURRENT_SOURCE_DIR}/neug-config.in.cmake
                ${CMAKE_CURRENT_BINARY_DIR}/neug-config.cmake @ONLY)

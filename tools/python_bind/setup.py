@@ -110,9 +110,6 @@ class CMakeBuild(build_ext):
         enable_backtraces = (
             "ON" if os.environ.get("ENABLE_BACKTRACES", "OFF") == "ON" else "OFF"
         )
-        build_all_in_one = (
-            "ON" if os.environ.get("BUILD_ALL_IN_ONE", "ON") == "ON" else "OFF"
-        )
         with_mimalloc = "ON" if os.environ.get("WITH_MIMALLOC", "ON") == "ON" else "OFF"
         build_extensions = os.environ.get("BUILD_EXTENSIONS", "")
         cmake_install_prefix = os.environ.get("CMAKE_INSTALL_PREFIX", None)
@@ -140,7 +137,6 @@ class CMakeBuild(build_ext):
             f"-DBUILD_COMPILER={build_compiler}",
             f"-DENABLE_BACKTRACES={enable_backtraces}",
             f"-DBUILD_HTTP_SERVER={build_http_server}",
-            f"-DBUILD_ALL_IN_ONE={build_all_in_one}",
             f"-DWITH_MIMALLOC={with_mimalloc}",
             "-DCMAKE_POLICY_VERSION_MINIMUM=3.5",
         ]

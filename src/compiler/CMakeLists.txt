@@ -39,24 +39,6 @@ add_subdirectory(gopt)
 # add_library(neug_compiler STATIC ${ALL_OBJECT_FILES}) 
 set(ALL_OBJECT_FILES ${ALL_OBJECT_FILES} PARENT_SCOPE)
 
-# Note: The static neug_compiler target is currently unused and may be removed in the future if deemed unnecessary.
-if (NOT BUILD_ALL_IN_ONE)
-        message(STATUS "compiler: Compiler libraries: ${COMPILER_LIBRARIES}")
-        add_library(neug_compiler_shared SHARED ${ALL_OBJECT_FILES})
-        target_link_libraries(neug_compiler_shared PUBLIC ${COMPILER_LIBRARIES})
-        # target_include_directories(neug_compiler_shared PUBLIC ${CMAKE_CURRENT_BINARY_DIR})
-        set_target_properties(neug_compiler_shared PROPERTIES OUTPUT_NAME neug_compiler_shared)
-        target_link_libraries(neug_compiler_shared PUBLIC neug_utils)
-        if (BUILD_HTTP_SERVER)
-                target_link_libraries(neug_compiler_shared PUBLIC ${Protobuf_LIBRARIES} neug_brpc_proto ${GFLAGS_LIBRARIES} ${BRPC_LIB} ${LEVELDB_LIB} ${OPENSSL_LIBRARIES} ${GLOG_LIBRARIES})
-        endif()
-        if (APPLE)    
-                target_link_libraries(neug_compiler_shared PUBLIC ${MACOS_DYLIBS})
-        endif()
-        
-        install_neug_target(neug_compiler_shared)
-endif()
-
 
 install(FILES ${CMAKE_CURRENT_BINARY_DIR}/neug/compiler/common/system_config.h
         DESTINATION include/neug/compiler/common

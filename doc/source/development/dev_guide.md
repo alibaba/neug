@@ -74,7 +74,6 @@ You can customize the build process by specifying the following environment vari
 ```bash
 export BUILD_EXECUTABLES=ON/OFF # Toggle building utility executables
 export BUILD_HTTP_SERVER=ON/OFF # Enable or disable HTTP server support in NeuG
-export BUILD_ALL_IN_ONE=ON/OFF # Control whether NeuG libraries are built as a single dynamic library or multiple separate libraries
 export WITH_MIMALLOC=ON/OFF # Decide whether to use mimalloc instead of the default malloc from glibc
 export ENABLE_BACKTRACES=ON/OFF # Link NeuG libraries with cpptrace for detailed stack trace on exceptions
 export BUILD_TYPE=DEBUG/RELEASE # Set the CMake build type
