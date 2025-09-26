@@ -1928,3 +1928,16 @@ def test_delete_edges():
     res = conn.execute("MATCH (p1: Person)-[k: Knows]->(p2:Person) RETURN count(k)")
     records = list(res)
     assert records == [[1]]
+
+
+def test_internal_id_filter():
+    db_dir = "/tmp/ldbc"
+    db = Database(db_path=db_dir, mode="r")
+    conn = db.connect()
+    result = conn.execute(
+        "Match (n:PERSON {id: 933}) Where id(n) = 72057594037927936 Return n.id;"
+    )
+    for record in result:
+        assert record[0] == 933, f"Expected value 933, got {record[0]}"
+    conn.close()
+    db.close()
