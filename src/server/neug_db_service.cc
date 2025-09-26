@@ -22,6 +22,9 @@
 namespace server {
 
 void NeugDBService::init(const ServiceConfig& config) {
+  if (db_.IsClosed() || !db_.IsReadyForServing()) {
+    THROW_RUNTIME_ERROR("NeugDB instance is not ready for serving!");
+  }
   if (initialized_.load(std::memory_order_relaxed)) {
     std::cerr << "NeugDB service has been already initialized!" << std::endl;
     return;

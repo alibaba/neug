@@ -90,6 +90,8 @@ int main(int argc, char** argv) {
 
   LOG(INFO) << "Finished loading graph, elapsed " << t0 << " s";
 
+  db.SwitchToTPMode();
+
   // start service
   LOG(INFO) << "GraphScope http server start to listen on port " << http_port;
 

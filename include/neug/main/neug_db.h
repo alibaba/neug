@@ -77,33 +77,34 @@ class RefColumnBase;
 
 /**
  * @brief Core database engine for NeuG graph database system.
- * 
+ *
  * NeugDB serves as the main entry point and central management system for the
  * NeuG graph database. It coordinates all major components including storage,
  * transactions, query processing, and application management.
- * 
+ *
  * **Key Components:**
  * - PropertyGraph for graph data storage and schema management
  * - TransactionManager for ACID transaction control
  * - QueryProcessor for Cypher query execution
  * - VersionManager for multi-version concurrency control
  * - ConnectionManager for client connection handling
- * 
+ *
  * **Database Modes:**
  * - READ_ONLY: Read-only access for query operations
  * - READ_WRITE: Full read/write access with transaction support
- * 
+ *
  * **Thread Safety:** This class is thread-safe. Multiple sessions can
  * access the database concurrently through the connection manager.
- * 
- * **Resource Management:** 
+ *
+ * **Resource Management:**
  * - Handles file locking to prevent concurrent database access
  * - Manages background compaction and monitoring threads
  * - Provides graceful shutdown with optional data dumping
- * 
+ *
  * @note This is the primary interface for database lifecycle management.
- *       For query execution, use NeugDBSession obtained through CreateSession().
- * 
+ *       For query execution, use NeugDBSession obtained through
+ * CreateSession().
+ *
  * @since v0.1.0
  */
 class NeugDB {
@@ -148,6 +149,12 @@ class NeugDB {
    * @brief Close the current opened graph.
    */
   void Close();
+
+  /**
+   * @brief Check if the database is closed.
+   * @return true if the database is closed.
+   */
+  inline bool IsClosed() const { return closed_.load(); }
 
   /**
    * @brief Open a connection to the database.
@@ -226,6 +233,8 @@ class NeugDB {
    * the version manager is appropriate for analytical processing workloads.
    */
   void SwitchToAPMode();
+
+  bool IsReadyForServing() const;
 
  private:
   void preprocessConfig();

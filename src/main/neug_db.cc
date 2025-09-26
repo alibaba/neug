@@ -260,6 +260,23 @@ void NeugDB::SwitchToAPMode() {
   txn_manager_->SwitchToAPMode(thread_num_);
 }
 
+bool NeugDB::IsReadyForServing() const {
+  if (closed_) {
+    return false;
+  }
+  if (dynamic_cast<TPVersionManager*>(version_manager_.get()) == nullptr) {
+    LOG(WARNING)
+        << "The version manager is not a TPVersionManager, cannot serve.";
+    return false;
+  }
+  if (connection_manager_ && connection_manager_->ConnectionNum() > 0) {
+    LOG(WARNING)
+        << "There are active local connections, cannot switch to serving.";
+    return false;
+  }
+  return true;
+}
+
 void NeugDB::initVersionManager() {
   if (version_manager_) {
     THROW_INTERNAL_EXCEPTION("Version manager has already been initialized");
