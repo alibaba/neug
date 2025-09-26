@@ -502,12 +502,12 @@ AbstractArrowFragmentLoader::batch_load_vertices(
     while (cur_row_num < local_offset + primary_key_column->length()) {
       cur_row_num *= 2;
     }
-    if (cur_row_num >= table->row_num() || ids.size() < offset.load()) {
+    if (cur_row_num > table->row_num() || ids.size() < offset.load()) {
       std::unique_lock<std::shared_mutex> lock(rw_mutex);
       if (ids.size() < offset.load()) {
         ids.resize(offset.load());
       }
-      if (cur_row_num >= table->row_num()) {
+      if (cur_row_num > table->row_num()) {
         table->resize(cur_row_num);
       }
     }

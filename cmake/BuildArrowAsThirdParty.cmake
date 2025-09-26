@@ -69,6 +69,7 @@ function(build_arrow_as_third_party)
     set(ARROW_POSITION_INDEPENDENT_CODE ON CACHE BOOL "" FORCE)
     set(ARROW_DEPENDENCY_SOURCE "BUNDLED" CACHE STRING "" FORCE)
     set(ARROW_WITH_ZLIB OFF CACHE BOOL "" FORCE)
+    set(ARROW_ENABLE_THREADING ON CACHE BOOL "" FORCE)
 
     # Save original flags and set flags to suppress warnings for Arrow build
     # set(ORIGINAL_CXX_FLAGS "${CMAKE_CXX_FLAGS}" CACHE STRING "" FORCE)

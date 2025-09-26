@@ -218,11 +218,6 @@ int main(int argc, char** argv) {
   t += grape::GetCurrentTime();
   LOG(INFO) << "Finished bulk loading in " << t << " seconds.";
 
-  // Try to open graph db to generate statistics.json
-  gs::PropertyGraph frag;
-  frag.Open(data_dir_path.string(), 1);
-  LOG(INFO) << "Successfully opened graph db: " << data_dir_path.string();
-
   // Also copy the graph.yaml to the data directory
   std::error_code ec;
   std::filesystem::copy(graph_schema_path, data_dir_path / "graph.yaml",

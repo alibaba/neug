@@ -572,9 +572,9 @@ class AbstractArrowFragmentLoader : public IFragmentLoader {
       while (cur_row_num < local_offset + primary_key_col->length()) {
         cur_row_num *= 2;
       }
-      if (cur_row_num >= vtable.row_num()) {
+      if (cur_row_num > vtable.row_num()) {
         std::unique_lock<std::shared_mutex> lock(rw_mutex);
-        if (cur_row_num >= vtable.row_num()) {
+        if (cur_row_num > vtable.row_num()) {
           LOG(INFO) << "Resize vertex table from " << vtable.row_num() << " to "
                     << cur_row_num << ", local_offset: " << local_offset;
           vtable.resize(cur_row_num);
