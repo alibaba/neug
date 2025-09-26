@@ -168,6 +168,10 @@ std::shared_ptr<Expression> ExpressionBinder::forceCast(
     const std::shared_ptr<Expression>& expression,
     const LogicalType& targetType) {
   auto functionName = "CAST";
+  // we suppose INTERNAL_ID can be converted from other types without cast
+  if (targetType == common::LogicalType::INTERNAL_ID()) {
+    return expression;
+  }
   auto children = expression_vector{
       expression, createLiteralExpression(Value(targetType.toString()))};
   return bindScalarFunctionExpression(children, functionName);

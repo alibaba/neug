@@ -385,5 +385,21 @@ TEST_F(ExprTest, COUNT_AVG_GENDER) {
       *physical, getExprResource("COUNT_AVG_GENDER_physical"));
 }
 
+TEST_F(ExprTest, INTERNAL_ID_FILTER) {
+  std::string query = "Match (n:person) Where id(n) = 0 Return n";
+  auto logical = planLogical(query, schemaData, statsData, rules);
+  auto physical = planPhysical(*logical);
+  VerifyFactory::verifyPhysicalByJson(
+      *physical, getExprResource("INTERNAL_ID_FILTER_physical"));
+}
+
+TEST_F(ExprTest, INTERNAL_ID_FILTER_2) {
+  std::string query = "Match (n:person) Where 0=id(n) Return n";
+  auto logical = planLogical(query, schemaData, statsData, rules);
+  auto physical = planPhysical(*logical);
+  VerifyFactory::verifyPhysicalByJson(
+      *physical, getExprResource("INTERNAL_ID_FILTER_2_physical"));
+}
+
 }  // namespace gopt
 }  // namespace gs

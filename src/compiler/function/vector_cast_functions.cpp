@@ -25,6 +25,7 @@
 #include "neug/compiler/binder/expression/expression_util.h"
 #include "neug/compiler/binder/expression/literal_expression.h"
 #include "neug/compiler/catalog/catalog.h"
+#include "neug/compiler/common/types/types.h"
 #include "neug/compiler/function/built_in_function_utils.h"
 #include "neug/compiler/function/cast/functions/cast_array.h"
 #include "neug/compiler/function/cast/functions/cast_decimal.h"
