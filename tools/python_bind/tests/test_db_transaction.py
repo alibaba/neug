@@ -377,7 +377,6 @@ def test_auto_enable_checkpoint(tmp_path):
 
 
 # DB-004-16
-@pytest.mark.skip(reason="checkpoint_on_close parameter is not supported")
 def test_manual_enable_checkpoint(tmp_path):
     db_dir = tmp_path / "test_checkpoint"
     shutil.rmtree(db_dir, ignore_errors=True)
@@ -405,7 +404,6 @@ def test_manual_enable_checkpoint(tmp_path):
 
 
 # DB-004-17
-@pytest.mark.skip(reason="checkpoint_on_close parameter is not supported")
 def test_manual_disable_checkpoint(tmp_path):
     db_dir = tmp_path / "test_checkpoint"
     shutil.rmtree(db_dir, ignore_errors=True)
@@ -433,6 +431,34 @@ def test_manual_disable_checkpoint(tmp_path):
 
 
 # DB-004-18
+def test_manual_checkpoint_command(tmp_path):
+    db_dir = tmp_path / "test_checkpoint"
+    shutil.rmtree(db_dir, ignore_errors=True)
+    db_dir.mkdir()
+
+    # 1. open database with checkpoint_on_close=True
+    db = Database(db_path=str(db_dir), mode="w", checkpoint_on_close=False)
+    conn = db.connect()
+    conn.execute(
+        "CREATE NODE TABLE person(id INT64, name STRING, age INT32, PRIMARY KEY(id));"
+    )
+    conn.execute("CREATE (p:person {id: 1, name: 'Alice', age: 30});")
+    conn.execute("CREATE (p:person {id: 2, name: 'Bob', age: 25});")
+    conn.execute("CHECKPOINT;")
+    conn.close()
+    db.close()
+
+    # 2. reopen database with checkpoint
+    db = Database(db_path=str(db_dir), mode="w")
+    conn = db.connect()
+    result = conn.execute("MATCH (p:person) RETURN p.id, p.name, p.age ORDER BY p.id;")
+    rows = list(result)
+    assert rows == [[1, "Alice", 30], [2, "Bob", 25]]
+    conn.close()
+    db.close()
+
+
+# DB-004-19
 def test_pure_memory_without_parameter(tmp_path):
     # 1. open database with pure_memory model
     db = Database(db_path="", mode="w")
@@ -453,7 +479,6 @@ def test_pure_memory_without_parameter(tmp_path):
     conn.close()
 
 
-@pytest.mark.skip(reason="checkpoint_on_close parameter is not supported")
 def test_pure_memory_with_true_parameter(tmp_path):
     # 1. open database with pure_memory model
     db = Database(db_path="", mode="w", checkpoint_on_close=True)
@@ -474,7 +499,6 @@ def test_pure_memory_with_true_parameter(tmp_path):
     conn.close()
 
 
-@pytest.mark.skip(reason="checkpoint_on_close parameter is not supported")
 def test_pure_memory_with_false_parameter(tmp_path):
     # 1. open database with pure_memory model
     db = Database(db_path="", mode="w", checkpoint_on_close=False)
@@ -495,7 +519,7 @@ def test_pure_memory_with_false_parameter(tmp_path):
     conn.close()
 
 
-# DB-004-19
+# DB-004-20
 def test_database_concurrent_read(tmp_path):
     db_dir = tmp_path / "test_checkpoint"
     shutil.rmtree(db_dir, ignore_errors=True)
@@ -535,7 +559,7 @@ def test_database_concurrent_read(tmp_path):
     db2.close()
 
 
-# DB-004-20
+# DB-004-21
 def test_database_concurrent_lock(tmp_path):
     db_dir = tmp_path / "test_checkpoint"
     shutil.rmtree(db_dir, ignore_errors=True)
@@ -591,3 +615,33 @@ def test_database_concurrent_lock(tmp_path):
 
     conn1.close()
     db1.close()
+
+
+# DB-004-22
+def test_checkpoint_alter(tmp_path):
+    db_dir = tmp_path / "test_checkpoint"
+    shutil.rmtree(db_dir, ignore_errors=True)
+    db_dir.mkdir()
+
+    db = Database(db_path=str(db_dir), mode="w", checkpoint_on_close=True)
+    conn = db.connect()
+    conn.execute(
+        "CREATE NODE TABLE person(id INT64, name STRING, age INT32, PRIMARY KEY(id));"
+    )
+    conn.execute("CREATE (p:person {id: 1, name: 'Alice', age: 30});")
+    conn.execute("CREATE (p:person {id: 2, name: 'Bob', age: 25});")
+    conn.execute("ALTER TABLE person ADD creation INT64;")
+    conn.close()
+    db.close()
+
+    db = Database(db_path=str(db_dir), mode="w")
+    conn = db.connect()
+    result = conn.execute("MATCH (p:person) RETURN p.creation;")
+    rows = list(result)
+    assert rows == [[0], [0]]
+    conn.execute("ALTER TABLE person DROP creation;")
+    result = conn.execute("MATCH (p:person) RETURN p.id, p.name, p.age ORDER BY p.id;")
+    rows = list(result)
+    assert rows == [[1, "Alice", 30], [2, "Bob", 25]]
+    conn.close()
+    db.close()
