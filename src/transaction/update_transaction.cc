@@ -688,25 +688,6 @@ void UpdateTransaction::set_edge_data_with_offset(
   arc_ << edge_label;
   arc_ << col_id;  // column id
   serialize_field(arc_, value);
-
-  // Modify the edge data in place, since in this transaction the updated edge
-  // data should be visible right now.
-  std::shared_ptr<CsrEdgeIterBase> iter;
-  if (dir) {
-    iter = graph_.get_outgoing_edges_mut(label, v, neighbor_label, edge_label);
-  } else {
-    iter = graph_.get_incoming_edges_mut(label, v, neighbor_label, edge_label);
-  }
-  if (!iter) {
-    THROW_RUNTIME_ERROR("Failed to get edge iterator for updating edge data");
-  }
-  if (offset != std::numeric_limits<size_t>::max()) {
-    auto& edge_iter = *iter;
-    edge_iter += offset;
-    if (edge_iter.is_valid() && edge_iter.get_neighbor() == nbr) {
-      edge_iter.set_data(value, timestamp_, col_id);
-    }
-  }
 }
 
 bool UpdateTransaction::GetUpdatedEdgeData(bool dir, label_t label, vid_t v,

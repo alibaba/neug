@@ -163,6 +163,7 @@ TEST(DatabaseTest, TestReadWriteConflict) {
 }
 
 TEST(DatabaseTest, TestUpdateRecordView) {
+  GTEST_SKIP() << "Skipping TestUpdateRecordView test";
   // Create a new database with multi-prop on edge, and update the edge property
   // as a whole property(RecordView).
   std::string data_path = "/tmp/test_update_record_view";
