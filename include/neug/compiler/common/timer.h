@@ -58,7 +58,7 @@ class Timer {
     auto duration = now - startTime;
     auto count =
         std::chrono::duration_cast<std::chrono::milliseconds>(duration).count();
-    KU_ASSERT(count >= 0);
+    NEUG_ASSERT(count >= 0);
     return count;
   }
 

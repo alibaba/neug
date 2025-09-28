@@ -23,7 +23,7 @@
 #pragma once
 
 #include "neug/compiler/common/type_utils.h"
-#include "neug/compiler/common/types/ku_string.h"
+#include "neug/compiler/common/types/neug_string.h"
 #include "neug/compiler/function/scalar_function.h"
 #include "neug/utils/exception/exception.h"
 
@@ -85,13 +85,13 @@ struct UDF {
   template <typename RESULT_TYPE, typename... Args>
   static function::scalar_func_exec_t createEmptyParameterExecFunc(
       RESULT_TYPE (*)(Args...), const std::vector<common::LogicalTypeID>&) {
-    KU_UNREACHABLE;
+    NEUG_UNREACHABLE;
   }
 
   template <typename RESULT_TYPE>
   static function::scalar_func_exec_t createEmptyParameterExecFunc(
       RESULT_TYPE (*udfFunc)(), const std::vector<common::LogicalTypeID>&) {
-    KU_UNUSED(udfFunc);  // Disable compiler warnings.
+    NEUG_UNUSED(udfFunc);  // Disable compiler warnings.
     return
         [udfFunc]([[maybe_unused]] const std::vector<
                       std::shared_ptr<common::ValueVector>>& params,
@@ -100,7 +100,7 @@ struct UDF {
                   common::ValueVector& result,
                   common::SelectionVector* resultSelVector,
                   void* /*dataPtr*/ = nullptr) -> void {
-          KU_ASSERT(params.empty() && paramSelVectors.empty());
+          NEUG_ASSERT(params.empty() && paramSelVectors.empty());
           for (auto i = 0u; i < resultSelVector->getSelSize(); ++i) {
             auto resultPos = (*resultSelVector)[i];
             result.copyFromValue(resultPos, common::Value(udfFunc()));
@@ -110,9 +110,9 @@ struct UDF {
 
   template <typename RESULT_TYPE, typename... Args>
   static function::scalar_func_exec_t createUnaryExecFunc(
-      RESULT_TYPE (* /*udfFunc*/)(Args...),
+      RESULT_TYPE (*/*udfFunc*/)(Args...),
       const std::vector<common::LogicalTypeID>& /*parameterTypes*/) {
-    KU_UNREACHABLE;
+    NEUG_UNREACHABLE;
   }
 
   template <typename RESULT_TYPE, typename OPERAND_TYPE>
@@ -132,7 +132,7 @@ struct UDF {
             common::ValueVector& result,
             common::SelectionVector* resultSelVector,
             void* /*dataPtr*/ = nullptr) -> void {
-      KU_ASSERT(params.size() == 1);
+      NEUG_ASSERT(params.size() == 1);
       UnaryFunctionExecutor::executeSwitch<
           OPERAND_TYPE, RESULT_TYPE, UnaryUDFExecutor, UnaryUDFFunctionWrapper>(
           *params[0], paramSelVectors[0], result, resultSelVector,
@@ -143,9 +143,9 @@ struct UDF {
 
   template <typename RESULT_TYPE, typename... Args>
   static function::scalar_func_exec_t createBinaryExecFunc(
-      RESULT_TYPE (* /*udfFunc*/)(Args...),
+      RESULT_TYPE (*/*udfFunc*/)(Args...),
       const std::vector<common::LogicalTypeID>& /*parameterTypes*/) {
-    KU_UNREACHABLE;
+    NEUG_UNREACHABLE;
   }
 
   template <typename RESULT_TYPE, typename LEFT_TYPE, typename RIGHT_TYPE>
@@ -166,7 +166,7 @@ struct UDF {
             common::ValueVector& result,
             common::SelectionVector* resultSelVector,
             void* /*dataPtr*/ = nullptr) -> void {
-      KU_ASSERT(params.size() == 2);
+      NEUG_ASSERT(params.size() == 2);
       BinaryFunctionExecutor::executeSwitch<LEFT_TYPE, RIGHT_TYPE, RESULT_TYPE,
                                             BinaryUDFExecutor,
                                             BinaryUDFFunctionWrapper>(
@@ -178,9 +178,9 @@ struct UDF {
 
   template <typename RESULT_TYPE, typename... Args>
   static function::scalar_func_exec_t createTernaryExecFunc(
-      RESULT_TYPE (* /*udfFunc*/)(Args...),
+      RESULT_TYPE (*/*udfFunc*/)(Args...),
       const std::vector<common::LogicalTypeID>& /*parameterTypes*/) {
-    KU_UNREACHABLE;
+    NEUG_UNREACHABLE;
   }
 
   template <typename RESULT_TYPE, typename A_TYPE, typename B_TYPE,
@@ -203,7 +203,7 @@ struct UDF {
             common::ValueVector& result,
             common::SelectionVector* resultSelVector,
             void* /*dataPtr*/ = nullptr) -> void {
-      KU_ASSERT(params.size() == 3);
+      NEUG_ASSERT(params.size() == 3);
       TernaryFunctionExecutor::executeSwitch<A_TYPE, B_TYPE, C_TYPE,
                                              RESULT_TYPE, TernaryUDFExecutor,
                                              TernaryUDFFunctionWrapper>(
@@ -263,10 +263,10 @@ struct UDF {
       return common::LogicalTypeID::FLOAT;
     } else if (std::is_same<T, double>()) {
       return common::LogicalTypeID::DOUBLE;
-    } else if (std::is_same<T, common::ku_string_t>()) {
+    } else if (std::is_same<T, common::neug_string_t>()) {
       return common::LogicalTypeID::STRING;
     } else {
-      KU_UNREACHABLE;
+      NEUG_UNREACHABLE;
     }
   }
 
@@ -299,7 +299,7 @@ struct UDF {
       common::LogicalTypeID returnType) {
     function_set definitions;
     if (returnType == common::LogicalTypeID::STRING) {
-      KU_UNREACHABLE;
+      NEUG_UNREACHABLE;
     }
     validateType<TR>(returnType);
     scalar_func_exec_t scalarExecFunc =

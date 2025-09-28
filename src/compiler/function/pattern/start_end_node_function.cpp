@@ -35,7 +35,7 @@ namespace function {
 
 static std::shared_ptr<Expression> startRewriteFunc(
     const RewriteFunctionBindInput& input) {
-  KU_ASSERT(input.arguments.size() == 1);
+  NEUG_ASSERT(input.arguments.size() == 1);
   // auto param = input.arguments[0].get();
   // if (ExpressionUtil::isRelPattern(*param)) {
   //   return param->constCast<RelExpression>().getSrcNode();
@@ -56,7 +56,7 @@ function_set StartNodeFunction::getFunctionSet() {
 
 static std::shared_ptr<Expression> endRewriteFunc(
     const RewriteFunctionBindInput& input) {
-  KU_ASSERT(input.arguments.size() == 1);
+  NEUG_ASSERT(input.arguments.size() == 1);
   // auto param = input.arguments[0].get();
   // if (ExpressionUtil::isRelPattern(*param)) {
   //   return param->constCast<RelExpression>().getDstNode();

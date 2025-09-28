@@ -41,7 +41,7 @@ namespace binder {
 std::shared_ptr<Expression> ExpressionBinder::bindSubqueryExpression(
     const ParsedExpression& parsedExpr) {
   auto& subqueryExpr =
-      ku_dynamic_cast<const ParsedSubqueryExpression&>(parsedExpr);
+      neug_dynamic_cast<const ParsedSubqueryExpression&>(parsedExpr);
   auto prevScope = binder->saveScope();
   auto boundGraphPattern =
       binder->bindGraphPattern(subqueryExpr.getPatternElements());
@@ -86,7 +86,7 @@ std::shared_ptr<Expression> ExpressionBinder::bindSubqueryExpression(
                                  expression_vector{countStarExpr, literalExpr});
   } break;
   default:
-    KU_UNREACHABLE;
+    NEUG_UNREACHABLE;
   }
   // Use the same unique identifier for projection & subquery expression. We
   // will replace subquery expression with projection expression during

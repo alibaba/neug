@@ -24,7 +24,7 @@
 
 #include <cstring>
 
-#include "neug/compiler/common/types/ku_string.h"
+#include "neug/compiler/common/types/neug_string.h"
 #include "utf8proc.h"
 
 namespace gs {
@@ -39,7 +39,7 @@ struct ListLen {
 };
 
 template <>
-inline void ListLen::operation(common::ku_string_t& input, int64_t& result) {
+inline void ListLen::operation(common::neug_string_t& input, int64_t& result) {
   auto totalByteLength = input.len;
   auto inputString = input.getAsString();
   for (auto i = 0u; i < totalByteLength; i++) {

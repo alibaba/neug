@@ -24,7 +24,7 @@
 
 #include <cstring>
 
-#include "neug/compiler/common/types/ku_string.h"
+#include "neug/compiler/common/types/neug_string.h"
 #include "neug/compiler/common/vector/value_vector.h"
 #include "neug/utils/api.h"
 
@@ -33,8 +33,8 @@ namespace function {
 
 struct Repeat {
  public:
-  NEUG_API static void operation(common::ku_string_t& left, int64_t& right,
-                                 common::ku_string_t& result,
+  NEUG_API static void operation(common::neug_string_t& left, int64_t& right,
+                                 common::neug_string_t& result,
                                  common::ValueVector& resultValueVector);
 
  private:

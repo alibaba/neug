@@ -40,7 +40,7 @@ class ResultSet {
             storage::MemoryManager* memoryManager);
 
   void insert(common::idx_t pos, std::shared_ptr<common::DataChunk> dataChunk) {
-    KU_ASSERT(dataChunks.size() > pos);
+    NEUG_ASSERT(dataChunks.size() > pos);
     dataChunks[pos] = std::move(dataChunk);
   }
 

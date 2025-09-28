@@ -1,9 +1,13 @@
 
 // Generated from Cypher.g4 by ANTLR 4.13.1
 
+
 #include "cypher_lexer.h"
 
+
 using namespace antlr4;
+
+
 
 using namespace antlr4;
 
@@ -11,14 +15,12 @@ namespace {
 
 struct CypherLexerStaticData final {
   CypherLexerStaticData(std::vector<std::string> ruleNames,
-                        std::vector<std::string> channelNames,
-                        std::vector<std::string> modeNames,
-                        std::vector<std::string> literalNames,
-                        std::vector<std::string> symbolicNames)
-      : ruleNames(std::move(ruleNames)),
-        channelNames(std::move(channelNames)),
-        modeNames(std::move(modeNames)),
-        literalNames(std::move(literalNames)),
+                          std::vector<std::string> channelNames,
+                          std::vector<std::string> modeNames,
+                          std::vector<std::string> literalNames,
+                          std::vector<std::string> symbolicNames)
+      : ruleNames(std::move(ruleNames)), channelNames(std::move(channelNames)),
+        modeNames(std::move(modeNames)), literalNames(std::move(literalNames)),
         symbolicNames(std::move(symbolicNames)),
         vocabulary(this->literalNames, this->symbolicNames) {}
 
@@ -43,7 +45,7 @@ struct CypherLexerStaticData final {
 #if ANTLR4_USE_THREAD_LOCAL_CACHE
 static thread_local
 #endif
-    CypherLexerStaticData* cypherlexerLexerStaticData = nullptr;
+CypherLexerStaticData *cypherlexerLexerStaticData = nullptr;
 
 void cypherlexerLexerInitialize() {
 #if ANTLR4_USE_THREAD_LOCAL_CACHE
@@ -886,26 +888,26 @@ void cypherlexerLexerInitialize() {
 
   const size_t count = staticData->atn->getNumberOfDecisions();
   staticData->decisionToDFA.reserve(count);
-  for (size_t i = 0; i < count; i++) {
-    staticData->decisionToDFA.emplace_back(staticData->atn->getDecisionState(i),
-                                           i);
+  for (size_t i = 0; i < count; i++) { 
+    staticData->decisionToDFA.emplace_back(staticData->atn->getDecisionState(i), i);
   }
   cypherlexerLexerStaticData = staticData.release();
 }
 
-}  // namespace
-
-CypherLexer::CypherLexer(CharStream* input) : Lexer(input) {
-  CypherLexer::initialize();
-  _interpreter = new atn::LexerATNSimulator(
-      this, *cypherlexerLexerStaticData->atn,
-      cypherlexerLexerStaticData->decisionToDFA,
-      cypherlexerLexerStaticData->sharedContextCache);
 }
 
-CypherLexer::~CypherLexer() { delete _interpreter; }
+CypherLexer::CypherLexer(CharStream *input) : Lexer(input) {
+  CypherLexer::initialize();
+  _interpreter = new atn::LexerATNSimulator(this, *cypherlexerLexerStaticData->atn, cypherlexerLexerStaticData->decisionToDFA, cypherlexerLexerStaticData->sharedContextCache);
+}
 
-std::string CypherLexer::getGrammarFileName() const { return "Cypher.g4"; }
+CypherLexer::~CypherLexer() {
+  delete _interpreter;
+}
+
+std::string CypherLexer::getGrammarFileName() const {
+  return "Cypher.g4";
+}
 
 const std::vector<std::string>& CypherLexer::getRuleNames() const {
   return cypherlexerLexerStaticData->ruleNames;
@@ -931,11 +933,13 @@ const atn::ATN& CypherLexer::getATN() const {
   return *cypherlexerLexerStaticData->atn;
 }
 
+
+
+
 void CypherLexer::initialize() {
 #if ANTLR4_USE_THREAD_LOCAL_CACHE
   cypherlexerLexerInitialize();
 #else
-  ::antlr4::internal::call_once(cypherlexerLexerOnceFlag,
-                                cypherlexerLexerInitialize);
+  ::antlr4::internal::call_once(cypherlexerLexerOnceFlag, cypherlexerLexerInitialize);
 #endif
 }

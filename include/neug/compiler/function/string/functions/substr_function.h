@@ -24,7 +24,7 @@
 
 #include <cstring>
 
-#include "neug/compiler/common/types/ku_string.h"
+#include "neug/compiler/common/types/neug_string.h"
 #include "neug/compiler/common/vector/value_vector.h"
 #include "utf8proc.h"
 
@@ -33,8 +33,8 @@ namespace function {
 
 struct SubStr {
  public:
-  static inline void operation(common::ku_string_t& src, int64_t start,
-                               int64_t len, common::ku_string_t& result,
+  static inline void operation(common::neug_string_t& src, int64_t start,
+                               int64_t len, common::neug_string_t& result,
                                common::ValueVector& resultValueVector) {
     std::string srcStr = src.getAsString();
     bool isAscii = true;
@@ -80,8 +80,8 @@ struct SubStr {
     }
   }
 
-  static inline void copySubstr(common::ku_string_t& src, int64_t start,
-                                int64_t len, common::ku_string_t& result,
+  static inline void copySubstr(common::neug_string_t& src, int64_t start,
+                                int64_t len, common::neug_string_t& result,
                                 common::ValueVector& resultValueVector,
                                 bool isAscii) {
     auto length = std::min(len, src.len - start + 1);

@@ -58,7 +58,7 @@ static void bindBoolParsingOption(CSVReaderConfig& config,
   } else if (optionName == "AUTODETECT" || optionName == "AUTO_DETECT") {
     config.option.autoDetection = optionValue;
   } else {
-    KU_UNREACHABLE;
+    NEUG_UNREACHABLE;
   }
 }
 
@@ -76,7 +76,7 @@ static void bindStringParsingOption(CSVReaderConfig& config,
     config.option.quoteChar = parsingOptionValue;
     config.option.setQuote = true;
   } else {
-    KU_UNREACHABLE;
+    NEUG_UNREACHABLE;
   }
 }
 
@@ -96,7 +96,7 @@ static void bindIntParsingOption(CSVReaderConfig& config,
     }
     config.option.sampleSize = optionValue;
   } else {
-    KU_UNREACHABLE;
+    NEUG_UNREACHABLE;
   }
 }
 

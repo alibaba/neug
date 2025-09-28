@@ -48,7 +48,7 @@ struct BMInfoBindData final : TableFuncBindData {
 static common::offset_t internalTableFunc(const TableFuncMorsel& /*morsel*/,
                                           const TableFuncInput& input,
                                           common::DataChunk& output) {
-  KU_ASSERT(output.getNumValueVectors() == 2);
+  NEUG_ASSERT(output.getNumValueVectors() == 2);
   auto bmInfoBindData = input.bindData->constPtrCast<BMInfoBindData>();
   output.getValueVectorMutable(0).setValue<uint64_t>(0,
                                                      bmInfoBindData->memLimit);

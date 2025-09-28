@@ -96,8 +96,8 @@ static void executeNestedOperation(uint8_t& result, ValueVector* leftVector,
                   nullptr /* left */, nullptr /* right */);
   } break;
   case PhysicalTypeID::STRING: {
-    OP::operation(leftVector->getValue<ku_string_t>(leftPos),
-                  rightVector->getValue<ku_string_t>(rightPos), result,
+    OP::operation(leftVector->getValue<neug_string_t>(leftPos),
+                  rightVector->getValue<neug_string_t>(rightPos), result,
                   nullptr /* left */, nullptr /* right */);
   } break;
   case PhysicalTypeID::INTERVAL: {
@@ -122,7 +122,7 @@ static void executeNestedOperation(uint8_t& result, ValueVector* leftVector,
                   leftVector, rightVector);
   } break;
   default: {
-    KU_UNREACHABLE;
+    NEUG_UNREACHABLE;
   }
   }
 }
@@ -221,7 +221,7 @@ template <>
 void GreaterThan::operation(const list_entry_t& left, const list_entry_t& right,
                             uint8_t& result, ValueVector* leftVector,
                             ValueVector* rightVector) {
-  KU_ASSERT(leftVector->dataType == rightVector->dataType);
+  NEUG_ASSERT(leftVector->dataType == rightVector->dataType);
   auto leftDataVector = ListVector::getDataVector(leftVector);
   auto rightDataVector = ListVector::getDataVector(rightVector);
   auto commonLength = std::min(left.size, right.size);
@@ -242,7 +242,7 @@ template <>
 void GreaterThan::operation(const struct_entry_t& left,
                             const struct_entry_t& right, uint8_t& result,
                             ValueVector* leftVector, ValueVector* rightVector) {
-  KU_ASSERT(leftVector->dataType == rightVector->dataType);
+  NEUG_ASSERT(leftVector->dataType == rightVector->dataType);
   auto leftFields = StructVector::getFieldVectors(leftVector);
   auto rightFields = StructVector::getFieldVectors(rightVector);
   uint8_t isEqual = 0;

@@ -42,7 +42,7 @@ std::string ScanSourceTypeUtils::toString(ScanSourceType type) {
     return "QUERY";
   }
   default:
-    KU_UNREACHABLE;
+    NEUG_UNREACHABLE;
   }
 }
 

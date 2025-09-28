@@ -61,7 +61,7 @@ std::unique_ptr<LogicalPlan> Planner::planCopyFrom(
     return planCopyRelFrom(copyFromInfo, outExprs);
   }
   default:
-    KU_UNREACHABLE;
+    NEUG_UNREACHABLE;
   }
 }
 
@@ -87,7 +87,7 @@ std::unique_ptr<LogicalPlan> Planner::planCopyNodeFrom(
     }
   } break;
   default:
-    KU_UNREACHABLE;
+    NEUG_UNREACHABLE;
   }
   appendCopyFrom(*info, results, *plan);
   return plan;
@@ -117,7 +117,7 @@ std::unique_ptr<LogicalPlan> Planner::planCopyRelFrom(
                      nullptr /* mark */, *plan);
   } break;
   default:
-    KU_UNREACHABLE;
+    NEUG_UNREACHABLE;
   }
   auto& extraInfo = info->extraInfo->constCast<ExtraBoundCopyRelInfo>();
   appendIndexScan(extraInfo, *plan);
@@ -134,7 +134,7 @@ std::unique_ptr<LogicalPlan> Planner::planCopyTo(
   for (auto& column : regularQuery->getStatementResult()->getColumns()) {
     columnNames.push_back(column->toString());
   }
-  KU_ASSERT(regularQuery->getStatementType() == StatementType::QUERY);
+  NEUG_ASSERT(regularQuery->getStatementType() == StatementType::QUERY);
   auto plan = getBestPlan(*regularQuery);
   auto copyTo = make_shared<LogicalCopyTo>(boundCopyTo.getBindData()->copy(),
                                            boundCopyTo.getExportFunc(),

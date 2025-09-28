@@ -48,7 +48,7 @@ struct ListReverse {
 
 static std::unique_ptr<FunctionBindData> bindFunc(
     const ScalarBindFuncInput& input) {
-  auto scalarFunction = ku_dynamic_cast<ScalarFunction*>(input.definition);
+  auto scalarFunction = neug_dynamic_cast<ScalarFunction*>(input.definition);
   const auto& resultType = input.arguments[0]->dataType;
   scalarFunction->execFunc =
       ScalarFunction::UnaryExecNestedTypeFunction<list_entry_t, list_entry_t,

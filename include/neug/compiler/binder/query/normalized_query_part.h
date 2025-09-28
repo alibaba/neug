@@ -63,11 +63,11 @@ class NormalizedQueryPart {
   }
   bool hasProjectionBody() const { return projectionBody.has_value(); }
   BoundProjectionBody* getProjectionBodyUnsafe() {
-    KU_ASSERT(projectionBody.has_value());
+    NEUG_ASSERT(projectionBody.has_value());
     return &projectionBody.value();
   }
   const BoundProjectionBody* getProjectionBody() const {
-    KU_ASSERT(projectionBody.has_value());
+    NEUG_ASSERT(projectionBody.has_value());
     return &projectionBody.value();
   }
 

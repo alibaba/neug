@@ -59,7 +59,7 @@ bool ExpressionTypeUtil::isNullOperator(ExpressionType type) {
 
 ExpressionType ExpressionTypeUtil::reverseComparisonDirection(
     ExpressionType type) {
-  KU_ASSERT(isComparison(type));
+  NEUG_ASSERT(isComparison(type));
   switch (type) {
   case ExpressionType::GREATER_THAN:
     return ExpressionType::LESS_THAN;
@@ -128,7 +128,7 @@ std::string ExpressionTypeUtil::toString(ExpressionType type) {
   case ExpressionType::LAMBDA:
     return "LAMBDA";
   default:
-    KU_UNREACHABLE;
+    NEUG_UNREACHABLE;
   }
 }
 

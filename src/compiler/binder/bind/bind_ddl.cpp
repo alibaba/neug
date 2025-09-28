@@ -196,7 +196,7 @@ BoundCreateTableInfo Binder::bindCreateTableInfo(const CreateTableInfo* info) {
     return bindCreateRelTableGroupInfo(info);
   }
   default: {
-    KU_UNREACHABLE;
+    NEUG_UNREACHABLE;
   }
   }
 }
@@ -361,7 +361,7 @@ std::unique_ptr<BoundStatement> Binder::bindCreateSequence(
   default:
     break;
   }
-  auto literal = ku_string_t{info.increment.c_str(), info.increment.length()};
+  auto literal = neug_string_t{info.increment.c_str(), info.increment.length()};
   if (!function::CastString::tryCast(literal, increment)) {
     THROW_BINDER_EXCEPTION(
         "Out of bounds: SEQUENCE accepts integers within INT64.");
@@ -373,7 +373,7 @@ std::unique_ptr<BoundStatement> Binder::bindCreateSequence(
   if (info.minValue == "") {
     minValue = increment > 0 ? 1 : std::numeric_limits<int64_t>::min();
   } else {
-    literal = ku_string_t{info.minValue.c_str(), info.minValue.length()};
+    literal = neug_string_t{info.minValue.c_str(), info.minValue.length()};
     if (!function::CastString::tryCast(literal, minValue)) {
       THROW_BINDER_EXCEPTION(
           "Out of bounds: SEQUENCE accepts integers within INT64.");
@@ -382,7 +382,7 @@ std::unique_ptr<BoundStatement> Binder::bindCreateSequence(
   if (info.maxValue == "") {
     maxValue = increment > 0 ? std::numeric_limits<int64_t>::max() : -1;
   } else {
-    literal = ku_string_t{info.maxValue.c_str(), info.maxValue.length()};
+    literal = neug_string_t{info.maxValue.c_str(), info.maxValue.length()};
     if (!function::CastString::tryCast(literal, maxValue)) {
       THROW_BINDER_EXCEPTION(
           "Out of bounds: SEQUENCE accepts integers within INT64.");
@@ -391,7 +391,7 @@ std::unique_ptr<BoundStatement> Binder::bindCreateSequence(
   if (info.startWith == "") {
     startWith = increment > 0 ? minValue : maxValue;
   } else {
-    literal = ku_string_t{info.startWith.c_str(), info.startWith.length()};
+    literal = neug_string_t{info.startWith.c_str(), info.startWith.length()};
     if (!function::CastString::tryCast(literal, startWith)) {
       THROW_BINDER_EXCEPTION(
           "Out of bounds: SEQUENCE accepts integers within INT64.");
@@ -437,7 +437,7 @@ std::unique_ptr<BoundStatement> Binder::bindAlter(const Statement& statement) {
     return bindCommentOn(statement);
   }
   default: {
-    KU_UNREACHABLE;
+    NEUG_UNREACHABLE;
   }
   }
 }
@@ -447,7 +447,7 @@ std::unique_ptr<BoundStatement> Binder::bindRenameTable(
   auto& alter = statement.constCast<Alter>();
   auto info = alter.getInfo();
   auto extraInfo =
-      ku_dynamic_cast<ExtraRenameTableInfo*>(info->extraInfo.get());
+      neug_dynamic_cast<ExtraRenameTableInfo*>(info->extraInfo.get());
   auto tableName = info->tableName;
   auto newName = extraInfo->newName;
   auto boundExtraInfo = std::make_unique<BoundExtraRenameTableInfo>(newName);

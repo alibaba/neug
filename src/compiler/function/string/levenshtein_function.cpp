@@ -29,8 +29,8 @@ using namespace gs::common;
 
 struct Levenshtein {
  public:
-  static void operation(common::ku_string_t& left, common::ku_string_t& right,
-                        int64_t& result) {
+  static void operation(common::neug_string_t& left,
+                        common::neug_string_t& right, int64_t& result) {
     // If one string is empty, the distance equals the length of the other
     // string.
     if (left.len == 0 || right.len == 0) {
@@ -80,7 +80,7 @@ function_set LevenshteinFunction::getFunctionSet() {
       name,
       std::vector<LogicalTypeID>{LogicalTypeID::STRING, LogicalTypeID::STRING},
       LogicalTypeID::INT64,
-      ScalarFunction::BinaryExecFunction<ku_string_t, ku_string_t, int64_t,
+      ScalarFunction::BinaryExecFunction<neug_string_t, neug_string_t, int64_t,
                                          Levenshtein>));
   return functionSet;
 }

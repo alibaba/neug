@@ -46,7 +46,7 @@ namespace function {
 
 void GDSFuncSharedState::setGraphNodeMask(
     std::unique_ptr<NodeOffsetMaskMap> maskMap) {
-  auto onDiskGraph = ku_dynamic_cast<OnDiskGraph*>(graph.get());
+  auto onDiskGraph = neug_dynamic_cast<OnDiskGraph*>(graph.get());
   onDiskGraph->setNodeOffsetMask(maskMap.get());
   graphNodeMask = std::move(maskMap);
 }
@@ -54,7 +54,7 @@ void GDSFuncSharedState::setGraphNodeMask(
 static expression_vector getResultColumns(const std::string& cypher,
                                           ClientContext* context) {
   auto parsedStatements = parser::Parser::parseQuery(cypher);
-  KU_ASSERT(parsedStatements.size() == 1);
+  NEUG_ASSERT(parsedStatements.size() == 1);
   auto binder = Binder(context);
   auto boundStatement = binder.bind(*parsedStatements[0]);
   return boundStatement->getStatementResult()->getColumns();
@@ -106,12 +106,12 @@ static BoundGraphEntryTableInfo bindNodeEntry(ClientContext& context,
     auto cypher = stringFormat("MATCH (n:`{}`) RETURN n, {}",
                                nodeEntry->getName(), predicate);
     auto columns = getResultColumns(cypher, &context);
-    KU_ASSERT(columns.size() == 2);
+    NEUG_ASSERT(columns.size() == 2);
     return {nodeEntry, columns[0], columns[1]};
   } else {
     auto cypher = stringFormat("MATCH (n:`{}`) RETURN n", nodeEntry->getName());
     auto columns = getResultColumns(cypher, &context);
-    KU_ASSERT(columns.size() == 1);
+    NEUG_ASSERT(columns.size() == 1);
     return {nodeEntry, columns[0], nullptr /* empty predicate */};
   }
 }
@@ -130,13 +130,13 @@ static BoundGraphEntryTableInfo bindRelEntry(ClientContext& context,
     auto cypher = stringFormat("MATCH ()-[r:`{}`]->() RETURN r, {}",
                                relEntry->getName(), predicate);
     auto columns = getResultColumns(cypher, &context);
-    KU_ASSERT(columns.size() == 2);
+    NEUG_ASSERT(columns.size() == 2);
     return {relEntry, columns[0], columns[1]};
   } else {
     auto cypher =
         stringFormat("MATCH ()-[r:`{}`]->() RETURN r", relEntry->getName());
     auto columns = getResultColumns(cypher, &context);
-    KU_ASSERT(columns.size() == 1);
+    NEUG_ASSERT(columns.size() == 1);
     return {relEntry, columns[0], nullptr /* empty predicate */};
   }
 }
@@ -241,7 +241,7 @@ void GDSFunction::getLogicalPlan(
     planner->planReadOp(std::move(op), predicates, *plan);
   }
   auto nodeOutput = bindData->nodeOutput->ptrCast<NodeExpression>();
-  KU_ASSERT(nodeOutput != nullptr);
+  NEUG_ASSERT(nodeOutput != nullptr);
   auto scanPlan = planner->getNodePropertyScanPlan(*nodeOutput);
   if (scanPlan.isEmpty()) {
     return;

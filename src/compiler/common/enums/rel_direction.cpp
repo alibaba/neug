@@ -50,7 +50,7 @@ common::idx_t RelDirectionUtils::relDirectionToKeyIdx(
   case RelDataDirection::BWD:
     return 1;
   default:
-    KU_UNREACHABLE;
+    NEUG_UNREACHABLE;
   }
 }
 

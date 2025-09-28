@@ -244,7 +244,7 @@ LogicalType inferMinimalTypeFromString(std::string_view str) {
     }
     if (cpy.size() <= DECIMAL_PRECISION_LIMIT) {
       auto decimalPoint = cpy.find('.');
-      KU_ASSERT(decimalPoint != std::string::npos);
+      NEUG_ASSERT(decimalPoint != std::string::npos);
       return LogicalType::DECIMAL(cpy.size() - 1,
                                   cpy.size() - decimalPoint - 1);
     } else {

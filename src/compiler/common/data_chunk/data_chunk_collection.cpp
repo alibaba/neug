@@ -60,10 +60,10 @@ void DataChunkCollection::merge(DataChunk chunk) {
   if (chunks.empty()) {
     initTypes(chunk);
   }
-  KU_ASSERT(chunk.getNumValueVectors() == types.size());
+  NEUG_ASSERT(chunk.getNumValueVectors() == types.size());
   for (auto vectorIdx = 0u; vectorIdx < chunk.getNumValueVectors();
        vectorIdx++) {
-    KU_ASSERT(chunk.getValueVector(vectorIdx).dataType == types[vectorIdx]);
+    NEUG_ASSERT(chunk.getValueVector(vectorIdx).dataType == types[vectorIdx]);
   }
   chunks.push_back(std::move(chunk));
 }

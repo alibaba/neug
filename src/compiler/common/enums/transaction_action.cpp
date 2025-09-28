@@ -45,7 +45,7 @@ std::string TransactionActionUtils::toString(TransactionAction action) {
     return "CHECKPOINT";
   }
   default:
-    KU_UNREACHABLE;
+    NEUG_UNREACHABLE;
   }
 }
 

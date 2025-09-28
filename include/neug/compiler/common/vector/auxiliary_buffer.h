@@ -42,12 +42,12 @@ class NEUG_API AuxiliaryBuffer {
 
   template <class TARGET>
   TARGET& cast() {
-    return common::ku_dynamic_cast<TARGET&>(*this);
+    return common::neug_dynamic_cast<TARGET&>(*this);
   }
 
   template <class TARGET>
   const TARGET& constCast() const {
-    return common::ku_dynamic_cast<const TARGET&>(*this);
+    return common::neug_dynamic_cast<const TARGET&>(*this);
   }
 };
 

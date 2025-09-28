@@ -40,11 +40,11 @@ class DataChunkCollection {
   inline std::vector<common::DataChunk>& getChunksUnsafe() { return chunks; }
   inline uint64_t getNumChunks() const { return chunks.size(); }
   inline const DataChunk& getChunk(uint64_t idx) const {
-    KU_ASSERT(idx < chunks.size());
+    NEUG_ASSERT(idx < chunks.size());
     return chunks[idx];
   }
   inline DataChunk& getChunkUnsafe(uint64_t idx) {
-    KU_ASSERT(idx < chunks.size());
+    NEUG_ASSERT(idx < chunks.size());
     return chunks[idx];
   }
   inline void merge(DataChunkCollection* other) {

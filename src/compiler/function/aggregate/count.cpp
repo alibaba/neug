@@ -41,7 +41,7 @@ void CountFunction::updateAll(uint8_t* state_, ValueVector* input,
 }
 
 void CountFunction::paramRewriteFunc(binder::expression_vector& arguments) {
-  KU_ASSERT(arguments.size() == 1);
+  NEUG_ASSERT(arguments.size() == 1);
   if (ExpressionUtil::isNodePattern(*arguments[0])) {
     auto node = (NodeExpression*) arguments[0].get();
     arguments[0] = node->getInternalID();

@@ -48,7 +48,7 @@ class NEUG_API FunctionCatalogEntry : public CatalogEntry {
   // We always register functions while initializing the catalog, so we don't
   // have to serialize functions.
   void serialize(common::Serializer& /*serializer*/) const override {
-    KU_UNREACHABLE;
+    NEUG_UNREACHABLE;
   }
 
  protected:

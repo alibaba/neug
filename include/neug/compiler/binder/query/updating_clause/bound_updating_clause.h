@@ -38,11 +38,11 @@ class BoundUpdatingClause {
 
   template <class TARGET>
   TARGET& cast() const {
-    return common::ku_dynamic_cast<TARGET&>(*this);
+    return common::neug_dynamic_cast<TARGET&>(*this);
   }
   template <class TARGET>
   const TARGET& constCast() const {
-    return common::ku_dynamic_cast<const TARGET&>(*this);
+    return common::neug_dynamic_cast<const TARGET&>(*this);
   }
 
  private:

@@ -42,28 +42,29 @@ using namespace gs::common;
 namespace gs {
 namespace function {
 
-void BaseLowerUpperFunction::operation(ku_string_t& input, ku_string_t& result,
+void BaseLowerUpperFunction::operation(neug_string_t& input,
+                                       neug_string_t& result,
                                        ValueVector& resultValueVector,
                                        bool isUpper) {
   uint32_t resultLen =
       getResultLen((char*) input.getData(), input.len, isUpper);
   result.len = resultLen;
-  if (resultLen <= ku_string_t::SHORT_STR_LENGTH) {
+  if (resultLen <= neug_string_t::SHORT_STR_LENGTH) {
     convertCase((char*) result.prefix, input.len, (char*) input.getData(),
                 isUpper);
   } else {
     StringVector::reserveString(&resultValueVector, result, resultLen);
     auto buffer = reinterpret_cast<char*>(result.overflowPtr);
     convertCase(buffer, input.len, (char*) input.getData(), isUpper);
-    memcpy(result.prefix, buffer, ku_string_t::PREFIX_LENGTH);
+    memcpy(result.prefix, buffer, neug_string_t::PREFIX_LENGTH);
   }
 }
 
-void BaseStrOperation::operation(ku_string_t& input, ku_string_t& result,
+void BaseStrOperation::operation(neug_string_t& input, neug_string_t& result,
                                  ValueVector& resultValueVector,
                                  uint32_t (*strOperation)(char* data,
                                                           uint32_t len)) {
-  if (input.len <= ku_string_t::SHORT_STR_LENGTH) {
+  if (input.len <= neug_string_t::SHORT_STR_LENGTH) {
     memcpy(result.prefix, input.prefix, input.len);
     result.len = strOperation((char*) result.prefix, input.len);
   } else {
@@ -72,26 +73,26 @@ void BaseStrOperation::operation(ku_string_t& input, ku_string_t& result,
     memcpy(buffer, input.getData(), input.len);
     result.len = strOperation(buffer, input.len);
     memcpy(result.prefix, buffer,
-           result.len < ku_string_t::PREFIX_LENGTH
+           result.len < neug_string_t::PREFIX_LENGTH
                ? result.len
-               : ku_string_t::PREFIX_LENGTH);
+               : neug_string_t::PREFIX_LENGTH);
   }
 }
 
-void Repeat::operation(ku_string_t& left, int64_t& right, ku_string_t& result,
-                       ValueVector& resultValueVector) {
+void Repeat::operation(neug_string_t& left, int64_t& right,
+                       neug_string_t& result, ValueVector& resultValueVector) {
   result.len = left.len * right;
-  if (result.len <= ku_string_t::SHORT_STR_LENGTH) {
+  if (result.len <= neug_string_t::SHORT_STR_LENGTH) {
     repeatStr((char*) result.prefix, left.getAsString(), right);
   } else {
     StringVector::reserveString(&resultValueVector, result, result.len);
     auto buffer = reinterpret_cast<char*>(result.overflowPtr);
     repeatStr(buffer, left.getAsString(), right);
-    memcpy(result.prefix, buffer, ku_string_t::PREFIX_LENGTH);
+    memcpy(result.prefix, buffer, neug_string_t::PREFIX_LENGTH);
   }
 }
 
-void Reverse::operation(ku_string_t& input, ku_string_t& result,
+void Reverse::operation(neug_string_t& input, neug_string_t& result,
                         ValueVector& resultValueVector) {
   bool isAscii = true;
   std::string inputStr = input.getAsString();
@@ -105,10 +106,10 @@ void Reverse::operation(ku_string_t& input, ku_string_t& result,
     BaseStrOperation::operation(input, result, resultValueVector, reverseStr);
   } else {
     result.len = input.len;
-    if (result.len > ku_string_t::SHORT_STR_LENGTH) {
+    if (result.len > neug_string_t::SHORT_STR_LENGTH) {
       StringVector::reserveString(&resultValueVector, result, input.len);
     }
-    auto resultBuffer = result.len <= ku_string_t::SHORT_STR_LENGTH
+    auto resultBuffer = result.len <= neug_string_t::SHORT_STR_LENGTH
                             ? reinterpret_cast<char*>(result.prefix)
                             : reinterpret_cast<char*>(result.overflowPtr);
     utf8proc::utf8proc_grapheme_callback(
@@ -117,8 +118,8 @@ void Reverse::operation(ku_string_t& input, ku_string_t& result,
                  end - start);
           return true;
         });
-    if (result.len > ku_string_t::SHORT_STR_LENGTH) {
-      memcpy(result.prefix, resultBuffer, ku_string_t::PREFIX_LENGTH);
+    if (result.len > neug_string_t::SHORT_STR_LENGTH) {
+      memcpy(result.prefix, resultBuffer, neug_string_t::PREFIX_LENGTH);
     }
   }
 }
@@ -129,7 +130,7 @@ function_set ArrayExtractFunction::getFunctionSet() {
       name,
       std::vector<LogicalTypeID>{LogicalTypeID::STRING, LogicalTypeID::INT64},
       LogicalTypeID::STRING,
-      ScalarFunction::BinaryExecFunction<ku_string_t, int64_t, ku_string_t,
+      ScalarFunction::BinaryExecFunction<neug_string_t, int64_t, neug_string_t,
                                          ArrayExtract>));
   return functionSet;
 }
@@ -149,11 +150,11 @@ void ConcatFunction::execFunc(
       const auto& parameterSelVector = parameterSelVectors[i];
       auto paramPos =
           (*parameterSelVector)[parameter.state->isFlat() ? 0 : selectedPos];
-      strLen += parameter.getValue<ku_string_t>(paramPos).len;
+      strLen += parameter.getValue<neug_string_t>(paramPos).len;
     }
-    auto& resultStr = result.getValue<ku_string_t>(pos);
+    auto& resultStr = result.getValue<neug_string_t>(pos);
     StringVector::reserveString(&result, resultStr, strLen);
-    auto dstData = strLen <= ku_string_t::SHORT_STR_LENGTH
+    auto dstData = strLen <= neug_string_t::SHORT_STR_LENGTH
                        ? resultStr.prefix
                        : reinterpret_cast<uint8_t*>(resultStr.overflowPtr);
     for (auto i = 0u; i < parameters.size(); i++) {
@@ -161,12 +162,13 @@ void ConcatFunction::execFunc(
       const auto& parameterSelVector = parameterSelVectors[i];
       auto paramPos =
           (*parameterSelVector)[parameter.state->isFlat() ? 0 : selectedPos];
-      auto srcStr = parameter.getValue<ku_string_t>(paramPos);
+      auto srcStr = parameter.getValue<neug_string_t>(paramPos);
       memcpy(dstData, srcStr.getData(), srcStr.len);
       dstData += srcStr.len;
     }
-    if (strLen > ku_string_t::SHORT_STR_LENGTH) {
-      memcpy(resultStr.prefix, resultStr.getData(), ku_string_t::PREFIX_LENGTH);
+    if (strLen > neug_string_t::SHORT_STR_LENGTH) {
+      memcpy(resultStr.prefix, resultStr.getData(),
+             neug_string_t::PREFIX_LENGTH);
     }
   }
 }
@@ -187,9 +189,9 @@ function_set ContainsFunction::getFunctionSet() {
       name,
       std::vector<LogicalTypeID>{LogicalTypeID::STRING, LogicalTypeID::STRING},
       LogicalTypeID::BOOL,
-      ScalarFunction::BinaryExecFunction<ku_string_t, ku_string_t, uint8_t,
+      ScalarFunction::BinaryExecFunction<neug_string_t, neug_string_t, uint8_t,
                                          Contains>,
-      ScalarFunction::BinarySelectFunction<ku_string_t, ku_string_t,
+      ScalarFunction::BinarySelectFunction<neug_string_t, neug_string_t,
                                            Contains>));
   return functionSet;
 }
@@ -200,9 +202,9 @@ function_set EndsWithFunction::getFunctionSet() {
       name,
       std::vector<LogicalTypeID>{LogicalTypeID::STRING, LogicalTypeID::STRING},
       LogicalTypeID::BOOL,
-      ScalarFunction::BinaryExecFunction<ku_string_t, ku_string_t, uint8_t,
+      ScalarFunction::BinaryExecFunction<neug_string_t, neug_string_t, uint8_t,
                                          EndsWith>,
-      ScalarFunction::BinarySelectFunction<ku_string_t, ku_string_t,
+      ScalarFunction::BinarySelectFunction<neug_string_t, neug_string_t,
                                            EndsWith>));
   return functionSet;
 }
@@ -213,8 +215,8 @@ function_set LeftFunction::getFunctionSet() {
       name,
       std::vector<LogicalTypeID>{LogicalTypeID::STRING, LogicalTypeID::INT64},
       LogicalTypeID::STRING,
-      ScalarFunction::BinaryStringExecFunction<ku_string_t, int64_t,
-                                               ku_string_t, Left>));
+      ScalarFunction::BinaryStringExecFunction<neug_string_t, int64_t,
+                                               neug_string_t, Left>));
   return functionSet;
 }
 
@@ -226,7 +228,7 @@ function_set LpadFunction::getFunctionSet() {
                                  LogicalTypeID::STRING},
       LogicalTypeID::STRING,
       ScalarFunction::TernaryStringExecFunction<
-          ku_string_t, int64_t, ku_string_t, ku_string_t, Lpad>));
+          neug_string_t, int64_t, neug_string_t, neug_string_t, Lpad>));
   return functionSet;
 }
 
@@ -236,8 +238,8 @@ function_set RepeatFunction::getFunctionSet() {
       name,
       std::vector<LogicalTypeID>{LogicalTypeID::STRING, LogicalTypeID::INT64},
       LogicalTypeID::STRING,
-      ScalarFunction::BinaryStringExecFunction<ku_string_t, int64_t,
-                                               ku_string_t, Repeat>));
+      ScalarFunction::BinaryStringExecFunction<neug_string_t, int64_t,
+                                               neug_string_t, Repeat>));
   return functionSet;
 }
 
@@ -247,8 +249,8 @@ function_set RightFunction::getFunctionSet() {
       name,
       std::vector<LogicalTypeID>{LogicalTypeID::STRING, LogicalTypeID::INT64},
       LogicalTypeID::STRING,
-      ScalarFunction::BinaryStringExecFunction<ku_string_t, int64_t,
-                                               ku_string_t, Right>));
+      ScalarFunction::BinaryStringExecFunction<neug_string_t, int64_t,
+                                               neug_string_t, Right>));
   return functionSet;
 }
 
@@ -260,7 +262,7 @@ function_set RpadFunction::getFunctionSet() {
                                  LogicalTypeID::STRING},
       LogicalTypeID::STRING,
       ScalarFunction::TernaryStringExecFunction<
-          ku_string_t, int64_t, ku_string_t, ku_string_t, Rpad>));
+          neug_string_t, int64_t, neug_string_t, neug_string_t, Rpad>));
   return functionSet;
 }
 
@@ -270,9 +272,9 @@ function_set StartsWithFunction::getFunctionSet() {
       name,
       std::vector<LogicalTypeID>{LogicalTypeID::STRING, LogicalTypeID::STRING},
       LogicalTypeID::BOOL,
-      ScalarFunction::BinaryExecFunction<ku_string_t, ku_string_t, uint8_t,
+      ScalarFunction::BinaryExecFunction<neug_string_t, neug_string_t, uint8_t,
                                          StartsWith>,
-      ScalarFunction::BinarySelectFunction<ku_string_t, ku_string_t,
+      ScalarFunction::BinarySelectFunction<neug_string_t, neug_string_t,
                                            StartsWith>));
   return functionSet;
 }
@@ -284,8 +286,8 @@ function_set SubStrFunction::getFunctionSet() {
       std::vector<LogicalTypeID>{LogicalTypeID::STRING, LogicalTypeID::INT64,
                                  LogicalTypeID::INT64},
       LogicalTypeID::STRING,
-      ScalarFunction::TernaryStringExecFunction<ku_string_t, int64_t, int64_t,
-                                                ku_string_t, SubStr>));
+      ScalarFunction::TernaryStringExecFunction<neug_string_t, int64_t, int64_t,
+                                                neug_string_t, SubStr>));
   return functionSet;
 }
 
@@ -295,9 +297,9 @@ function_set RegexpMatchesFunction::getFunctionSet() {
       name,
       std::vector<LogicalTypeID>{LogicalTypeID::STRING, LogicalTypeID::STRING},
       LogicalTypeID::BOOL,
-      ScalarFunction::BinaryExecFunction<ku_string_t, ku_string_t, uint8_t,
+      ScalarFunction::BinaryExecFunction<neug_string_t, neug_string_t, uint8_t,
                                          RegexpMatches>,
-      ScalarFunction::BinarySelectFunction<ku_string_t, ku_string_t,
+      ScalarFunction::BinarySelectFunction<neug_string_t, neug_string_t,
                                            RegexpMatches>));
   return functionSet;
 }
@@ -308,15 +310,16 @@ function_set RegexpExtractFunction::getFunctionSet() {
       name,
       std::vector<LogicalTypeID>{LogicalTypeID::STRING, LogicalTypeID::STRING},
       LogicalTypeID::STRING,
-      ScalarFunction::BinaryStringExecFunction<ku_string_t, ku_string_t,
-                                               ku_string_t, RegexpExtract>));
+      ScalarFunction::BinaryStringExecFunction<neug_string_t, neug_string_t,
+                                               neug_string_t, RegexpExtract>));
   functionSet.emplace_back(make_unique<ScalarFunction>(
       name,
       std::vector<LogicalTypeID>{LogicalTypeID::STRING, LogicalTypeID::STRING,
                                  LogicalTypeID::INT64},
       LogicalTypeID::STRING,
-      ScalarFunction::TernaryStringExecFunction<
-          ku_string_t, ku_string_t, int64_t, ku_string_t, RegexpExtract>));
+      ScalarFunction::TernaryStringExecFunction<neug_string_t, neug_string_t,
+                                                int64_t, neug_string_t,
+                                                RegexpExtract>));
   return functionSet;
 }
 
@@ -334,7 +337,7 @@ function_set RegexpExtractAllFunction::getFunctionSet() {
       name,
       std::vector<LogicalTypeID>{LogicalTypeID::STRING, LogicalTypeID::STRING},
       LogicalTypeID::LIST,
-      ScalarFunction::BinaryStringExecFunction<ku_string_t, ku_string_t,
+      ScalarFunction::BinaryStringExecFunction<neug_string_t, neug_string_t,
                                                list_entry_t, RegexpExtractAll>);
   func->bindFunc = bindFunc;
   functionSet.emplace_back(std::move(func));
@@ -343,8 +346,9 @@ function_set RegexpExtractAllFunction::getFunctionSet() {
       std::vector<LogicalTypeID>{LogicalTypeID::STRING, LogicalTypeID::STRING,
                                  LogicalTypeID::INT64},
       LogicalTypeID::LIST,
-      ScalarFunction::TernaryStringExecFunction<
-          ku_string_t, ku_string_t, int64_t, list_entry_t, RegexpExtractAll>);
+      ScalarFunction::TernaryStringExecFunction<neug_string_t, neug_string_t,
+                                                int64_t, list_entry_t,
+                                                RegexpExtractAll>);
   func->bindFunc = bindFunc;
   functionSet.emplace_back(std::move(func));
   return functionSet;
@@ -357,7 +361,7 @@ function_set RegexpSplitToArrayFunction::getFunctionSet() {
       std::vector<LogicalTypeID>{LogicalTypeID::STRING, LogicalTypeID::STRING},
       LogicalTypeID::LIST,
       ScalarFunction::BinaryStringExecFunction<
-          ku_string_t, ku_string_t, list_entry_t, RegexpSplitToArray>);
+          neug_string_t, neug_string_t, list_entry_t, RegexpSplitToArray>);
   func->bindFunc = bindFunc;
   functionSet.emplace_back(std::move(func));
   return functionSet;
@@ -366,20 +370,19 @@ function_set RegexpSplitToArrayFunction::getFunctionSet() {
 function_set UpperFunction::getFunctionSet() {
   function_set functionSet;
   functionSet.emplace_back(std::make_unique<ScalarFunction>(
-    name,
-    std::vector<LogicalTypeID>{LogicalTypeID::STRING},
-    LogicalTypeID::STRING,
-    ScalarFunction::UnaryStringExecFunction<ku_string_t, ku_string_t, Upper>,
-    UpperFunction::Exec
-  ));
+      name, std::vector<LogicalTypeID>{LogicalTypeID::STRING},
+      LogicalTypeID::STRING,
+      ScalarFunction::UnaryStringExecFunction<neug_string_t, neug_string_t,
+                                              Upper>,
+      UpperFunction::Exec));
   return functionSet;
 }
 
-runtime::RTAny UpperFunction::Exec(size_t idx,
-                          runtime::Arena& arena,
-                          const std::vector<runtime::RTAny>& args) {
+runtime::RTAny UpperFunction::Exec(size_t idx, runtime::Arena& arena,
+                                   const std::vector<runtime::RTAny>& args) {
   if (args.size() != 1) {
-    THROW_RUNTIME_ERROR("UPPER: expect exactly 1 argument, got " + std::to_string(args.size()));
+    THROW_RUNTIME_ERROR("UPPER: expect exactly 1 argument, got " +
+                        std::to_string(args.size()));
   }
   const auto& val = args[0];
   if (val.type() != runtime::RTAnyType::kStringValue) {
@@ -396,20 +399,19 @@ runtime::RTAny UpperFunction::Exec(size_t idx,
 function_set LowerFunction::getFunctionSet() {
   function_set functionSet;
   functionSet.emplace_back(std::make_unique<ScalarFunction>(
-    name,
-    std::vector<LogicalTypeID>{LogicalTypeID::STRING},
-    LogicalTypeID::STRING,
-    ScalarFunction::UnaryStringExecFunction<ku_string_t, ku_string_t, Lower>,
-    LowerFunction::Exec
-  ));
+      name, std::vector<LogicalTypeID>{LogicalTypeID::STRING},
+      LogicalTypeID::STRING,
+      ScalarFunction::UnaryStringExecFunction<neug_string_t, neug_string_t,
+                                              Lower>,
+      LowerFunction::Exec));
   return functionSet;
 }
 
-runtime::RTAny LowerFunction::Exec(size_t idx,
-                          runtime::Arena& arena,
-                          const std::vector<runtime::RTAny>& args) {
+runtime::RTAny LowerFunction::Exec(size_t idx, runtime::Arena& arena,
+                                   const std::vector<runtime::RTAny>& args) {
   if (args.size() != 1) {
-    THROW_RUNTIME_ERROR("LOWER: expect exactly 1 argument, got " + std::to_string(args.size()));
+    THROW_RUNTIME_ERROR("LOWER: expect exactly 1 argument, got " +
+                        std::to_string(args.size()));
   }
   const auto& val = args[0];
   if (val.type() != runtime::RTAnyType::kStringValue) {
@@ -426,20 +428,19 @@ runtime::RTAny LowerFunction::Exec(size_t idx,
 function_set ReverseFunction::getFunctionSet() {
   function_set functionSet;
   functionSet.emplace_back(std::make_unique<ScalarFunction>(
-    name,
-    std::vector<LogicalTypeID>{LogicalTypeID::STRING},
-    LogicalTypeID::STRING,
-    ScalarFunction::UnaryStringExecFunction<ku_string_t, ku_string_t, Reverse>,
-    ReverseFunction::Exec
-  ));
+      name, std::vector<LogicalTypeID>{LogicalTypeID::STRING},
+      LogicalTypeID::STRING,
+      ScalarFunction::UnaryStringExecFunction<neug_string_t, neug_string_t,
+                                              Reverse>,
+      ReverseFunction::Exec));
   return functionSet;
 }
 
-runtime::RTAny ReverseFunction::Exec(size_t idx,
-                          runtime::Arena& arena,
-                          const std::vector<runtime::RTAny>& args) {
+runtime::RTAny ReverseFunction::Exec(size_t idx, runtime::Arena& arena,
+                                     const std::vector<runtime::RTAny>& args) {
   if (args.size() != 1) {
-    THROW_RUNTIME_ERROR("REVERSE: expect exactly 1 argument, got " + std::to_string(args.size()));
+    THROW_RUNTIME_ERROR("REVERSE: expect exactly 1 argument, got " +
+                        std::to_string(args.size()));
   }
   const auto& val = args[0];
   if (val.type() != runtime::RTAnyType::kStringValue) {
@@ -452,7 +453,6 @@ runtime::RTAny ReverseFunction::Exec(size_t idx,
   arena.emplace_back(std::move(ptr));
   return runtime::RTAny::from_string(str_view);
 }
-
 
 }  // namespace function
 }  // namespace gs

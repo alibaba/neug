@@ -78,7 +78,7 @@ LogicalType ArrowConverter::fromArrowSchema(const ArrowSchema* schema) {
     case 'u':
       return LogicalType(LogicalTypeID::STRING);
     default:
-      KU_UNREACHABLE;
+      NEUG_UNREACHABLE;
     }
 
   case 'd': {
@@ -114,7 +114,7 @@ LogicalType ArrowConverter::fromArrowSchema(const ArrowSchema* schema) {
       case 'n':
         return LogicalType(LogicalTypeID::TIMESTAMP_NS);
       default:
-        KU_UNREACHABLE;
+        NEUG_UNREACHABLE;
       }
     case 'D':
       // duration
@@ -122,10 +122,10 @@ LogicalType ArrowConverter::fromArrowSchema(const ArrowSchema* schema) {
       // interval
       return LogicalType(LogicalTypeID::INTERVAL);
     default:
-      KU_UNREACHABLE;
+      NEUG_UNREACHABLE;
     }
   case '+':
-    KU_ASSERT(schema->n_children > 0);
+    NEUG_ASSERT(schema->n_children > 0);
     switch (arrowType[1]) {
     // complex types need a complementary ExtraTypeInfo object
     case 'l':
@@ -162,16 +162,16 @@ LogicalType ArrowConverter::fromArrowSchema(const ArrowSchema* schema) {
         return LogicalType::LIST(
             LogicalType(fromArrowSchema(schema->children[0])));
       default:
-        KU_UNREACHABLE;
+        NEUG_UNREACHABLE;
       }
     case 'r':
       // logical type corresponds to second child
       return fromArrowSchema(schema->children[1]);
     default:
-      KU_UNREACHABLE;
+      NEUG_UNREACHABLE;
     }
   default:
-    KU_UNREACHABLE;
+    NEUG_UNREACHABLE;
   }
   // refer to arrow_converted.cpp:65
 }

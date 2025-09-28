@@ -31,8 +31,8 @@ using namespace gs::common;
 namespace gs {
 namespace function {
 
-void ListToString::operation(list_entry_t& input, ku_string_t& delim,
-                             ku_string_t& result, ValueVector& inputVector,
+void ListToString::operation(list_entry_t& input, neug_string_t& delim,
+                             neug_string_t& result, ValueVector& inputVector,
                              ValueVector& /*delimVector*/,
                              ValueVector& resultVector) {
   std::string resultStr = "";
@@ -66,8 +66,8 @@ function_set ListToStringFunction::getFunctionSet() {
       name,
       std::vector<LogicalTypeID>{LogicalTypeID::LIST, LogicalTypeID::STRING},
       LogicalTypeID::STRING,
-      ScalarFunction::BinaryExecListStructFunction<list_entry_t, ku_string_t,
-                                                   ku_string_t, ListToString>);
+      ScalarFunction::BinaryExecListStructFunction<
+          list_entry_t, neug_string_t, neug_string_t, ListToString>);
   function->bindFunc = bindFunc;
   result.push_back(std::move(function));
   return result;

@@ -25,7 +25,7 @@
 #include "neug/compiler/common/data_chunk/data_chunk_collection.h"
 #include "neug/compiler/common/type_utils.h"
 #include "neug/compiler/common/types/interval_t.h"
-#include "neug/compiler/common/types/ku_string.h"
+#include "neug/compiler/common/types/neug_string.h"
 #include "neug/compiler/common/types/types.h"
 #include "neug/compiler/function/table/bind_data.h"
 #include "neug/compiler/function/table/bind_input.h"

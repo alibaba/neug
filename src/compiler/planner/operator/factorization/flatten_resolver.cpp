@@ -212,7 +212,7 @@ void GroupDependencyAnalyzer::visitNodeOrRel(
     }
   } break;
   default:
-    KU_UNREACHABLE;
+    NEUG_UNREACHABLE;
   }
 }
 

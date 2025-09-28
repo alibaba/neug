@@ -45,8 +45,8 @@ class NEUG_API Deserializer {
   bool finished() const { return reader->finished(); }
 
   template <typename T>
-      requires std::is_trivially_destructible_v<T> ||
-      std::is_same_v<std::string, T> void deserializeValue(T& value) {
+  requires std::is_trivially_destructible_v<T> || std::is_same_v<std::string, T>
+  void deserializeValue(T& value) {
     reader->read(reinterpret_cast<uint8_t*>(&value), sizeof(T));
   }
 
@@ -119,7 +119,7 @@ class NEUG_API Deserializer {
 
   template <typename T, uint64_t ARRAY_SIZE>
   void deserializeArray(std::array<T, ARRAY_SIZE>& values) {
-    KU_ASSERT(values.size() == ARRAY_SIZE);
+    NEUG_ASSERT(values.size() == ARRAY_SIZE);
     for (auto& value : values) {
       if constexpr (requires(Deserializer & deser) { T::deserialize(deser); }) {
         value = T::deserialize(*this);

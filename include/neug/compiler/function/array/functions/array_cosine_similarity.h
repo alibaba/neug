@@ -41,7 +41,7 @@ struct ArrayCosineSimilarity {
         (T*) common::ListVector::getListValues(&leftVector, left);
     auto rightElements =
         (T*) common::ListVector::getListValues(&rightVector, right);
-    KU_ASSERT(left.size == right.size);
+    NEUG_ASSERT(left.size == right.size);
     // simsimd_distance_t tmpResult = 0.0;
     // static_assert(std::is_same_v<T, float> || std::is_same_v<T, double>);
     // if constexpr (std::is_same_v<T, float>) {

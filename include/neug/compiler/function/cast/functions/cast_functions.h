@@ -33,7 +33,7 @@ namespace function {
 
 struct CastToString {
   template <typename T>
-  static inline void operation(T& input, common::ku_string_t& result,
+  static inline void operation(T& input, common::neug_string_t& result,
                                common::ValueVector& inputVector,
                                common::ValueVector& resultVector) {
     auto str = common::TypeUtils::toString(input, (void*) &inputVector);
@@ -43,7 +43,7 @@ struct CastToString {
 
 struct CastNodeToString {
   static inline void operation(common::struct_entry_t& input,
-                               common::ku_string_t& result,
+                               common::neug_string_t& result,
                                common::ValueVector& inputVector,
                                common::ValueVector& resultVector) {
     auto str = common::TypeUtils::nodeToString(input, &inputVector);
@@ -53,7 +53,7 @@ struct CastNodeToString {
 
 struct CastRelToString {
   static inline void operation(common::struct_entry_t& input,
-                               common::ku_string_t& result,
+                               common::neug_string_t& result,
                                common::ValueVector& inputVector,
                                common::ValueVector& resultVector) {
     auto str = common::TypeUtils::relToString(input, &inputVector);

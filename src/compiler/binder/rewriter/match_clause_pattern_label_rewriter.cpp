@@ -43,7 +43,7 @@ void MatchClausePatternLabelRewriter::visitMatchUnsafe(
 
 void MatchClausePatternLabelRewriter::visitRegularQueryUnsafe(
     BoundStatement& statement) {
-  auto& regularQuery = common::ku_dynamic_cast<BoundRegularQuery&>(statement);
+  auto& regularQuery = common::neug_dynamic_cast<BoundRegularQuery&>(statement);
   auto preQueryPart = regularQuery.getPreQueryPartUnsafe();
   for (auto part : preQueryPart) {
     visitQueryPartUnsafe(*part);

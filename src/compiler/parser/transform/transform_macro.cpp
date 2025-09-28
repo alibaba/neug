@@ -27,7 +27,7 @@ namespace gs {
 namespace parser {
 
 std::vector<std::string> Transformer::transformPositionalArgs(
-    CypherParser::KU_PositionalArgsContext& ctx) {
+    CypherParser::NEUG_PositionalArgsContext& ctx) {
   std::vector<std::string> positionalArgs;
   for (auto& positionalArg : ctx.oC_SymbolicName()) {
     positionalArgs.push_back(transformSymbolicName(*positionalArg));
@@ -36,15 +36,15 @@ std::vector<std::string> Transformer::transformPositionalArgs(
 }
 
 std::unique_ptr<Statement> Transformer::transformCreateMacro(
-    CypherParser::KU_CreateMacroContext& ctx) {
+    CypherParser::NEUG_CreateMacroContext& ctx) {
   auto macroName = transformFunctionName(*ctx.oC_FunctionName());
   auto macroExpression = transformExpression(*ctx.oC_Expression());
   std::vector<std::string> positionalArgs;
-  if (ctx.kU_PositionalArgs()) {
-    positionalArgs = transformPositionalArgs(*ctx.kU_PositionalArgs());
+  if (ctx.nEUG_PositionalArgs()) {
+    positionalArgs = transformPositionalArgs(*ctx.nEUG_PositionalArgs());
   }
   default_macro_args defaultArgs;
-  for (auto& defaultArg : ctx.kU_DefaultArg()) {
+  for (auto& defaultArg : ctx.nEUG_DefaultArg()) {
     defaultArgs.emplace_back(
         transformSymbolicName(*defaultArg->oC_SymbolicName()),
         transformLiteral(*defaultArg->oC_Literal()));

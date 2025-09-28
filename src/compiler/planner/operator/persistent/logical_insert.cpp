@@ -24,7 +24,7 @@ void LogicalInsert::computeFactorizedSchema() {
       }
     }
     if (info.tableType == TableType::NODE) {
-      auto node = ku_dynamic_cast<NodeExpression*>(info.pattern.get());
+      auto node = neug_dynamic_cast<NodeExpression*>(info.pattern.get());
       schema->insertToGroupAndScopeMayRepeat(node->getInternalID(), groupPos);
     }
   }
@@ -39,7 +39,7 @@ void LogicalInsert::computeFlatSchema() {
       }
     }
     if (info.tableType == TableType::NODE) {
-      auto node = ku_dynamic_cast<NodeExpression*>(info.pattern.get());
+      auto node = neug_dynamic_cast<NodeExpression*>(info.pattern.get());
       schema->insertToGroupAndScopeMayRepeat(node->getInternalID(), 0);
     }
   }

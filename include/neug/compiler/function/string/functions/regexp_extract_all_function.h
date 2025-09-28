@@ -31,8 +31,8 @@ namespace gs {
 namespace function {
 
 struct RegexpExtractAll : BaseRegexpOperation {
-  static inline void operation(common::ku_string_t& value,
-                               common::ku_string_t& pattern,
+  static inline void operation(common::neug_string_t& value,
+                               common::neug_string_t& pattern,
                                std::int64_t& group,
                                common::list_entry_t& result,
                                common::ValueVector& resultVector) {
@@ -44,7 +44,7 @@ struct RegexpExtractAll : BaseRegexpOperation {
     auto resultDataVector = common::ListVector::getDataVector(&resultVector);
     auto numBytesPerValue = resultDataVector->getNumBytesPerValue();
     for (const auto& match : matches) {
-      common::ku_string_t kuString;
+      common::neug_string_t kuString;
       copyToKuzuString(match, kuString, *resultDataVector);
       resultDataVector->copyFromVectorData(
           resultValues, resultDataVector,
@@ -53,8 +53,8 @@ struct RegexpExtractAll : BaseRegexpOperation {
     }
   }
 
-  static inline void operation(common::ku_string_t& value,
-                               common::ku_string_t& pattern,
+  static inline void operation(common::neug_string_t& value,
+                               common::neug_string_t& pattern,
                                common::list_entry_t& result,
                                common::ValueVector& resultVector) {
     int64_t defaultGroup = 0;

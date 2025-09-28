@@ -86,12 +86,12 @@ class NEUG_API FileSystem {
   virtual std::unique_ptr<FileInfo> openFile(
       const std::string& /*path*/, FileOpenFlags /*flags*/,
       main::ClientContext* /*context*/ = nullptr) {
-    KU_UNREACHABLE;
+    NEUG_UNREACHABLE;
   }
 
   virtual std::vector<std::string> glob(main::ClientContext* /*context*/,
                                         const std::string& /*path*/) const {
-    KU_UNREACHABLE;
+    NEUG_UNREACHABLE;
   }
 
   virtual void overwriteFile(const std::string& from, const std::string& to);
@@ -117,7 +117,7 @@ class NEUG_API FileSystem {
   static std::string getFileName(const std::filesystem::path& path);
 
   virtual bool canHandleFile(const std::string_view /*path*/) const {
-    KU_UNREACHABLE;
+    NEUG_UNREACHABLE;
   }
 
   virtual void syncFile(const FileInfo& fileInfo) const = 0;
@@ -126,12 +126,12 @@ class NEUG_API FileSystem {
 
   template <class TARGET>
   TARGET* ptrCast() {
-    return common::ku_dynamic_cast<TARGET*>(this);
+    return common::neug_dynamic_cast<TARGET*>(this);
   }
 
   template <class TARGET>
   const TARGET* constPtrCast() const {
-    return common::ku_dynamic_cast<const TARGET*>(this);
+    return common::neug_dynamic_cast<const TARGET*>(this);
   }
 
   virtual void cleanUP(main::ClientContext* /*context*/) {}

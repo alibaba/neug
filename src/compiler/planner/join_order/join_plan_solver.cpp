@@ -23,7 +23,7 @@ LogicalPlan JoinPlanSolver::solveTreeNode(const JoinTreeNode& current,
     return solveNodeScanTreeNode(current);
   }
   case TreeNodeType::REL_SCAN: {
-    KU_ASSERT(parent != nullptr);
+    NEUG_ASSERT(parent != nullptr);
     return solveRelScanTreeNode(current, *parent);
   }
   case TreeNodeType::BINARY_JOIN: {
@@ -36,7 +36,7 @@ LogicalPlan JoinPlanSolver::solveTreeNode(const JoinTreeNode& current,
     return solveGetVTreeNode(current);
   }
   default:
-    KU_UNREACHABLE;
+    NEUG_UNREACHABLE;
   }
 }
 
@@ -63,7 +63,7 @@ static std::shared_ptr<binder::NodeExpression> getOtherNode(
 LogicalPlan JoinPlanSolver::solveNodeScanTreeNode(
     const JoinTreeNode& treeNode) {
   auto& extraInfo = treeNode.extraInfo->constCast<ExtraScanTreeNodeInfo>();
-  KU_ASSERT(extraInfo.nodeInfo != nullptr);
+  NEUG_ASSERT(extraInfo.nodeInfo != nullptr);
   auto& nodeInfo = *extraInfo.nodeInfo;
   auto boundNode = std::static_pointer_cast<NodeExpression>(nodeInfo.nodeOrRel);
   auto plan = LogicalPlan();
@@ -123,18 +123,18 @@ LogicalPlan JoinPlanSolver::solveRelScanTreeNode(const JoinTreeNode& treeNode,
   } break;
   case TreeNodeType::MULTIWAY_JOIN: {
     auto& joinExtraInfo = parent.extraInfo->constCast<ExtraJoinTreeNodeInfo>();
-    KU_ASSERT(joinExtraInfo.joinNodes.size() == 1);
+    NEUG_ASSERT(joinExtraInfo.joinNodes.size() == 1);
     nbrNode = joinExtraInfo.joinNodes[0];
     boundNode = getOtherNode(*rel, *nbrNode);
   } break;
   case TreeNodeType::GET_V: {
     auto& getVExtraInfo = parent.extraInfo->constCast<ExtraScanTreeNodeInfo>();
-    KU_ASSERT(getVExtraInfo.joinNodes.size() == 1);
+    NEUG_ASSERT(getVExtraInfo.joinNodes.size() == 1);
     nbrNode = getVExtraInfo.joinNodes[0];
     boundNode = getOtherNode(*rel, *nbrNode);
   } break;
   default:
-    KU_UNREACHABLE;
+    NEUG_UNREACHABLE;
   }
   auto direction = getExtendDirection(*rel, *boundNode);
   auto plan = LogicalPlan();
@@ -166,14 +166,14 @@ LogicalPlan JoinPlanSolver::solveBinaryJoinTreeNode(
 LogicalPlan JoinPlanSolver::solveMultiwayJoinTreeNode(
     const JoinTreeNode& treeNode) {
   auto& extraInfo = treeNode.extraInfo->constCast<ExtraJoinTreeNodeInfo>();
-  KU_ASSERT(extraInfo.joinNodes.size() == 1);
+  NEUG_ASSERT(extraInfo.joinNodes.size() == 1);
   auto& joinNode = extraInfo.joinNodes[0]->constCast<NodeExpression>();
   auto probePlan = solveTreeNode(*treeNode.children[0], &treeNode);
   std::vector<std::unique_ptr<LogicalPlan>> buildPlans;
   expression_vector boundNodeIDs;
   for (auto i = 1u; i < treeNode.children.size(); ++i) {
     auto child = treeNode.children[i];
-    KU_ASSERT(child->type == TreeNodeType::REL_SCAN);
+    NEUG_ASSERT(child->type == TreeNodeType::REL_SCAN);
     auto& childExtraInfo = child->extraInfo->constCast<ExtraScanTreeNodeInfo>();
     auto rel = std::static_pointer_cast<RelExpression>(
         childExtraInfo.relInfos[0].nodeOrRel);

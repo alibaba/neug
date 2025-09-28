@@ -50,7 +50,7 @@ class NEUG_API LocalCacheObject {
 
   template <typename T>
   T* cast() {
-    return common::ku_dynamic_cast<T*>(this);
+    return common::neug_dynamic_cast<T*>(this);
   }
 
  private:
@@ -134,7 +134,7 @@ class Transaction {
   }
   common::row_idx_t getLocalRowIdx(common::table_id_t tableID,
                                    common::offset_t nodeOffset) const {
-    KU_ASSERT(isUnCommitted(tableID, nodeOffset));
+    NEUG_ASSERT(isUnCommitted(tableID, nodeOffset));
     return nodeOffset - getMinUncommittedNodeOffset(tableID);
   }
   common::offset_t getUncommittedOffset(common::table_id_t tableID,

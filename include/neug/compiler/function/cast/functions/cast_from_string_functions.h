@@ -40,14 +40,14 @@ struct NEUG_API CastString {
                                  const CSVOption* option);
 
   template <typename T>
-  static inline bool tryCast(const ku_string_t& input, T& result) {
+  static inline bool tryCast(const neug_string_t& input, T& result) {
     // try cast for signed integer types
     return trySimpleIntegerCast<T, true>(
         reinterpret_cast<const char*>(input.getData()), input.len, result);
   }
 
   template <typename T>
-  static inline void operation(const ku_string_t& input, T& result,
+  static inline void operation(const neug_string_t& input, T& result,
                                ValueVector* /*resultVector*/ = nullptr,
                                uint64_t /*rowToAdd*/ = 0,
                                const CSVOption* /*option*/ = nullptr) {
@@ -58,7 +58,7 @@ struct NEUG_API CastString {
 };
 
 template <>
-inline void CastString::operation(const ku_string_t& input, int128_t& result,
+inline void CastString::operation(const neug_string_t& input, int128_t& result,
                                   ValueVector* /*resultVector*/,
                                   uint64_t /*rowToAdd*/,
                                   const CSVOption* /*option*/) {
@@ -67,7 +67,7 @@ inline void CastString::operation(const ku_string_t& input, int128_t& result,
 }
 
 template <>
-inline void CastString::operation(const ku_string_t& input, int32_t& result,
+inline void CastString::operation(const neug_string_t& input, int32_t& result,
                                   ValueVector* /*resultVector*/,
                                   uint64_t /*rowToAdd*/,
                                   const CSVOption* /*option*/) {
@@ -76,7 +76,7 @@ inline void CastString::operation(const ku_string_t& input, int32_t& result,
 }
 
 template <>
-inline void CastString::operation(const ku_string_t& input, int16_t& result,
+inline void CastString::operation(const neug_string_t& input, int16_t& result,
                                   ValueVector* /*resultVector*/,
                                   uint64_t /*rowToAdd*/,
                                   const CSVOption* /*option*/) {
@@ -85,7 +85,7 @@ inline void CastString::operation(const ku_string_t& input, int16_t& result,
 }
 
 template <>
-inline void CastString::operation(const ku_string_t& input, int8_t& result,
+inline void CastString::operation(const neug_string_t& input, int8_t& result,
                                   ValueVector* /*resultVector*/,
                                   uint64_t /*rowToAdd*/,
                                   const CSVOption* /*option*/) {
@@ -94,7 +94,7 @@ inline void CastString::operation(const ku_string_t& input, int8_t& result,
 }
 
 template <>
-inline void CastString::operation(const ku_string_t& input, uint64_t& result,
+inline void CastString::operation(const neug_string_t& input, uint64_t& result,
                                   ValueVector* /*resultVector*/,
                                   uint64_t /*rowToAdd*/,
                                   const CSVOption* /*option*/) {
@@ -104,7 +104,7 @@ inline void CastString::operation(const ku_string_t& input, uint64_t& result,
 }
 
 template <>
-inline void CastString::operation(const ku_string_t& input, uint32_t& result,
+inline void CastString::operation(const neug_string_t& input, uint32_t& result,
                                   ValueVector* /*resultVector*/,
                                   uint64_t /*rowToAdd*/,
                                   const CSVOption* /*option*/) {
@@ -114,7 +114,7 @@ inline void CastString::operation(const ku_string_t& input, uint32_t& result,
 }
 
 template <>
-inline void CastString::operation(const ku_string_t& input, uint16_t& result,
+inline void CastString::operation(const neug_string_t& input, uint16_t& result,
                                   ValueVector* /*resultVector*/,
                                   uint64_t /*rowToAdd*/,
                                   const CSVOption* /*option*/) {
@@ -124,7 +124,7 @@ inline void CastString::operation(const ku_string_t& input, uint16_t& result,
 }
 
 template <>
-inline void CastString::operation(const ku_string_t& input, uint8_t& result,
+inline void CastString::operation(const neug_string_t& input, uint8_t& result,
                                   ValueVector* /*resultVector*/,
                                   uint64_t /*rowToAdd*/,
                                   const CSVOption* /*option*/) {
@@ -134,7 +134,7 @@ inline void CastString::operation(const ku_string_t& input, uint8_t& result,
 }
 
 template <>
-inline void CastString::operation(const ku_string_t& input, float& result,
+inline void CastString::operation(const neug_string_t& input, float& result,
                                   ValueVector* /*resultVector*/,
                                   uint64_t /*rowToAdd*/,
                                   const CSVOption* /*option*/) {
@@ -143,7 +143,7 @@ inline void CastString::operation(const ku_string_t& input, float& result,
 }
 
 template <>
-inline void CastString::operation(const ku_string_t& input, double& result,
+inline void CastString::operation(const neug_string_t& input, double& result,
                                   ValueVector* /*resultVector*/,
                                   uint64_t /*rowToAdd*/,
                                   const CSVOption* /*option*/) {
@@ -152,7 +152,7 @@ inline void CastString::operation(const ku_string_t& input, double& result,
 }
 
 template <>
-inline void CastString::operation(const ku_string_t& input, date_t& result,
+inline void CastString::operation(const neug_string_t& input, date_t& result,
                                   ValueVector* /*resultVector*/,
                                   uint64_t /*rowToAdd*/,
                                   const CSVOption* /*option*/) {
@@ -161,7 +161,7 @@ inline void CastString::operation(const ku_string_t& input, date_t& result,
 }
 
 template <>
-inline void CastString::operation(const ku_string_t& input,
+inline void CastString::operation(const neug_string_t& input,
                                   gs::common::timestamp_t& result,
                                   ValueVector* /*resultVector*/,
                                   uint64_t /*rowToAdd*/,
@@ -170,7 +170,7 @@ inline void CastString::operation(const ku_string_t& input,
 }
 
 template <>
-inline void CastString::operation(const ku_string_t& input,
+inline void CastString::operation(const neug_string_t& input,
                                   timestamp_ns_t& result,
                                   ValueVector* /*resultVector*/,
                                   uint64_t /*rowToAdd*/,
@@ -181,7 +181,7 @@ inline void CastString::operation(const ku_string_t& input,
 }
 
 template <>
-inline void CastString::operation(const ku_string_t& input,
+inline void CastString::operation(const neug_string_t& input,
                                   timestamp_ms_t& result,
                                   ValueVector* /*resultVector*/,
                                   uint64_t /*rowToAdd*/,
@@ -192,7 +192,7 @@ inline void CastString::operation(const ku_string_t& input,
 }
 
 template <>
-inline void CastString::operation(const ku_string_t& input,
+inline void CastString::operation(const neug_string_t& input,
                                   timestamp_sec_t& result,
                                   ValueVector* /*resultVector*/,
                                   uint64_t /*rowToAdd*/,
@@ -203,7 +203,7 @@ inline void CastString::operation(const ku_string_t& input,
 }
 
 template <>
-inline void CastString::operation(const ku_string_t& input,
+inline void CastString::operation(const neug_string_t& input,
                                   gs::common::timestamp_tz_t& result,
                                   ValueVector* /*resultVector*/,
                                   uint64_t /*rowToAdd*/,
@@ -214,7 +214,8 @@ inline void CastString::operation(const ku_string_t& input,
 }
 
 template <>
-inline void CastString::operation(const ku_string_t& input, interval_t& result,
+inline void CastString::operation(const neug_string_t& input,
+                                  interval_t& result,
                                   ValueVector* /*resultVector*/,
                                   uint64_t /*rowToAdd*/,
                                   const CSVOption* /*option*/) {
@@ -223,7 +224,7 @@ inline void CastString::operation(const ku_string_t& input, interval_t& result,
 }
 
 template <>
-inline void CastString::operation(const ku_string_t& input, bool& result,
+inline void CastString::operation(const neug_string_t& input, bool& result,
                                   ValueVector* /*resultVector*/,
                                   uint64_t /*rowToAdd*/,
                                   const CSVOption* /*option*/) {
@@ -232,32 +233,32 @@ inline void CastString::operation(const ku_string_t& input, bool& result,
 }
 
 template <>
-void CastString::operation(const ku_string_t& input, blob_t& result,
+void CastString::operation(const neug_string_t& input, blob_t& result,
                            ValueVector* resultVector, uint64_t rowToAdd,
                            const CSVOption* option);
 
 template <>
-void CastString::operation(const ku_string_t& input, ku_uuid_t& result,
+void CastString::operation(const neug_string_t& input, neug_uuid_t& result,
                            ValueVector* result_vector, uint64_t rowToAdd,
                            const CSVOption* option);
 
 template <>
-void CastString::operation(const ku_string_t& input, list_entry_t& result,
+void CastString::operation(const neug_string_t& input, list_entry_t& result,
                            ValueVector* resultVector, uint64_t rowToAdd,
                            const CSVOption* option);
 
 template <>
-void CastString::operation(const ku_string_t& input, map_entry_t& result,
+void CastString::operation(const neug_string_t& input, map_entry_t& result,
                            ValueVector* resultVector, uint64_t rowToAdd,
                            const CSVOption* option);
 
 template <>
-void CastString::operation(const ku_string_t& input, struct_entry_t& result,
+void CastString::operation(const neug_string_t& input, struct_entry_t& result,
                            ValueVector* resultVector, uint64_t rowToAdd,
                            const CSVOption* option);
 
 template <>
-void CastString::operation(const ku_string_t& input, union_entry_t& result,
+void CastString::operation(const neug_string_t& input, union_entry_t& result,
                            ValueVector* resultVector, uint64_t rowToAdd,
                            const CSVOption* option);
 

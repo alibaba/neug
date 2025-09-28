@@ -237,7 +237,7 @@ interval_parse_number:
     } else {
       // finished the number, parse it from the string
       function::CastString::operation(
-          ku_string_t{str + startPos, pos - startPos}, number);
+          neug_string_t{str + startPos, pos - startPos}, number);
       fraction = 0;
       if (c == '.') {
         // we expect some microseconds
@@ -504,7 +504,7 @@ int32_t Interval::getIntervalPart(DatePartSpecifier specifier,
   case DatePartSpecifier::HOUR:
     return interval.micros / Interval::MICROS_PER_HOUR;
   default:
-    KU_UNREACHABLE;
+    NEUG_UNREACHABLE;
   }
 }
 

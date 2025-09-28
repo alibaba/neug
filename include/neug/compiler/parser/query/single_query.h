@@ -68,7 +68,7 @@ class SingleQuery {
   }
   inline bool hasReturnClause() const { return returnClause.has_value(); }
   inline const ReturnClause* getReturnClause() const {
-    KU_ASSERT(returnClause.has_value());
+    NEUG_ASSERT(returnClause.has_value());
     return &returnClause.value();
   }
 

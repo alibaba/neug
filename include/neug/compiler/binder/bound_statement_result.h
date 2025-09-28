@@ -58,7 +58,7 @@ class BoundStatementResult {
   }
 
   std::shared_ptr<Expression> getSingleColumnExpr() const {
-    KU_ASSERT(columns.size() == 1);
+    NEUG_ASSERT(columns.size() == 1);
     return columns[0];
   }
 

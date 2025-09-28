@@ -20,17 +20,28 @@
  * Zhou Xiaoli in 2025 to support Neug-specific features.
  */
 
-#include "neug/compiler/common/types/ku_list.h"
+#pragma once
 
-#include <cstring>
+#include "types.h"
 
 namespace gs {
 namespace common {
 
-void ku_list_t::set(const uint8_t* values, const LogicalType& dataType) const {}
+struct neug_list_t {
+ public:
+  neug_list_t() : size{0}, overflowPtr{0} {}
+  neug_list_t(uint64_t size, uint64_t overflowPtr)
+      : size{size}, overflowPtr{overflowPtr} {}
 
-void ku_list_t::set(const std::vector<uint8_t*>& parameters,
-                    LogicalTypeID childTypeId) {}
+  void set(const uint8_t* values, const LogicalType& dataType) const;
+
+ private:
+  void set(const std::vector<uint8_t*>& parameters, LogicalTypeID childTypeId);
+
+ public:
+  uint64_t size;
+  uint64_t overflowPtr;
+};
 
 }  // namespace common
 }  // namespace gs

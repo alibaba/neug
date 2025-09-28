@@ -115,7 +115,7 @@ class GraphEntrySet {
     return nameToEntry.contains(name);
   }
   const ParsedGraphEntry& getEntry(const std::string& name) const {
-    KU_ASSERT(hasGraph(name));
+    NEUG_ASSERT(hasGraph(name));
     return nameToEntry.at(name);
   }
   void addGraph(const std::string& name, const ParsedGraphEntry& entry) {

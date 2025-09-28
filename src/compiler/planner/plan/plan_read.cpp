@@ -28,7 +28,7 @@ void Planner::planReadingClause(
     planLoadFrom(readingClause, prevPlans);
   } break;
   default:
-    KU_UNREACHABLE;
+    NEUG_UNREACHABLE;
   }
 }
 
@@ -46,7 +46,7 @@ void Planner::planMatchClause(
         // set query plan info for each subquery in union, the info contains the
         // common expressions in pre query and the cardinality of the pre query
         // plan
-        KU_ASSERT(this->preQueryPlan->getSchema());
+        NEUG_ASSERT(this->preQueryPlan->getSchema());
         auto correlatedExprs = getCorrelatedExprs(
             *queryGraphCollection, {}, this->preQueryPlan->getSchema());
         auto joinNodeIDs = ExpressionUtil::getExpressionsWithDataType(
@@ -72,7 +72,7 @@ void Planner::planMatchClause(
     }
   } break;
   default:
-    KU_UNREACHABLE;
+    NEUG_UNREACHABLE;
   }
 }
 
@@ -135,7 +135,7 @@ void Planner::planTableFunctionCall(
   auto analyzer =
       PredicatesDependencyAnalyzer(boundCall.getBindData()->columns);
   analyzer.analyze(boundCall.getConjunctivePredicates());
-  KU_ASSERT(boundCall.getTableFunc().getLogicalPlanFunc);
+  NEUG_ASSERT(boundCall.getTableFunc().getLogicalPlanFunc);
   boundCall.getTableFunc().getLogicalPlanFunc(
       this, readingClause, analyzer.predicatesDependsOnlyOnOutputColumns,
       plans);

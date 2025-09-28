@@ -35,11 +35,11 @@ std::unique_ptr<LogicalPlan> Planner::planExportDatabase(
       clientContext->getTransaction(), name);
   auto func = function::BuiltInFunctionsUtils::matchFunction(
       name, entry->ptrCast<FunctionCatalogEntry>());
-  KU_ASSERT(func != nullptr);
+  NEUG_ASSERT(func != nullptr);
   auto exportFunc = *func->constPtrCast<function::ExportFunction>();
   for (auto& exportTableData : *exportData) {
     auto regularQuery = exportTableData.getRegularQuery();
-    KU_ASSERT(regularQuery->getStatementType() == StatementType::QUERY);
+    NEUG_ASSERT(regularQuery->getStatementType() == StatementType::QUERY);
     auto tablePlan = getBestPlan(*regularQuery);
     auto path = filePath + "/" + exportTableData.tableName + copyToSuffix;
     function::ExportFuncBindInput bindInput{

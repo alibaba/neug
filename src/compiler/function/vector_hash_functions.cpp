@@ -105,12 +105,12 @@ static void validateSelState(const common::SelectionVector& leftSelVec,
   auto resultSelSize = resultSelVec.getSelSize();
   (void) resultSelSize;
   if (leftSelSize > 1 && rightSelSize > 1) {
-    KU_ASSERT(leftSelSize == rightSelSize);
-    KU_ASSERT(leftSelSize == resultSelSize);
+    NEUG_ASSERT(leftSelSize == rightSelSize);
+    NEUG_ASSERT(leftSelSize == resultSelSize);
   } else if (leftSelSize > 1) {
-    KU_ASSERT(leftSelSize == resultSelSize);
+    NEUG_ASSERT(leftSelSize == resultSelSize);
   } else if (rightSelSize > 1) {
-    KU_ASSERT(rightSelSize == resultSelSize);
+    NEUG_ASSERT(rightSelSize == resultSelSize);
   }
 }
 
@@ -215,15 +215,15 @@ static void computeStructVecHash(const ValueVector& operand,
                                  const SelectionVector& resultSelVec) {
   switch (operand.dataType.getLogicalTypeID()) {
   case LogicalTypeID::NODE: {
-    KU_ASSERT(0 == common::StructType::getFieldIdx(operand.dataType,
-                                                   InternalKeyword::ID));
+    NEUG_ASSERT(0 == common::StructType::getFieldIdx(operand.dataType,
+                                                     InternalKeyword::ID));
     UnaryHashFunctionExecutor::execute<internalID_t, hash_t>(
         *StructVector::getFieldVector(&operand, 0), operandSelVec, result,
         resultSelVec);
   } break;
   case LogicalTypeID::REL: {
-    KU_ASSERT(3 ==
-              StructType::getFieldIdx(operand.dataType, InternalKeyword::ID));
+    NEUG_ASSERT(3 ==
+                StructType::getFieldIdx(operand.dataType, InternalKeyword::ID));
     UnaryHashFunctionExecutor::execute<internalID_t, hash_t>(
         *StructVector::getFieldVector(&operand, 3), operandSelVec, result,
         resultSelVec);
@@ -244,7 +244,7 @@ static void computeStructVecHash(const ValueVector& operand,
     }
   } break;
   default:
-    KU_UNREACHABLE;
+    NEUG_UNREACHABLE;
   }
 }
 
@@ -253,8 +253,8 @@ void VectorHashFunction::computeHash(const ValueVector& operand,
                                      ValueVector& result,
                                      const SelectionVector& resultSelectVec) {
   result.state = operand.state;
-  KU_ASSERT(result.dataType.getLogicalTypeID() ==
-            LogicalType::HASH().getLogicalTypeID());
+  NEUG_ASSERT(result.dataType.getLogicalTypeID() ==
+              LogicalType::HASH().getLogicalTypeID());
   TypeUtils::visit(
       operand.dataType.getPhysicalType(),
       [&]<HashableNonNestedTypes T>(T) {
@@ -283,12 +283,12 @@ void VectorHashFunction::combineHash(const ValueVector& left,
                                      const SelectionVector& rightSelVec,
                                      ValueVector& result,
                                      const SelectionVector& resultSelVec) {
-  KU_ASSERT(left.dataType.getLogicalTypeID() ==
-            LogicalType::HASH().getLogicalTypeID());
-  KU_ASSERT(left.dataType.getLogicalTypeID() ==
-            right.dataType.getLogicalTypeID());
-  KU_ASSERT(left.dataType.getLogicalTypeID() ==
-            result.dataType.getLogicalTypeID());
+  NEUG_ASSERT(left.dataType.getLogicalTypeID() ==
+              LogicalType::HASH().getLogicalTypeID());
+  NEUG_ASSERT(left.dataType.getLogicalTypeID() ==
+              right.dataType.getLogicalTypeID());
+  NEUG_ASSERT(left.dataType.getLogicalTypeID() ==
+              result.dataType.getLogicalTypeID());
   BinaryHashFunctionExecutor::execute<hash_t, hash_t, hash_t, CombineHash>(
       left, leftSelVec, right, rightSelVec, result, resultSelVec);
 }
@@ -298,7 +298,7 @@ static void HashExecFunc(
     const std::vector<common::SelectionVector*>& paramSelVectors,
     common::ValueVector& result, common::SelectionVector*,
     void* /*dataPtr*/ = nullptr) {
-  KU_ASSERT(params.size() == 1);
+  NEUG_ASSERT(params.size() == 1);
   // TODO(Ziyi): evaluators should resolve the state for result vector.
   result.state = params[0]->state;
   VectorHashFunction::computeHash(*params[0], *paramSelVectors[0], result,

@@ -34,7 +34,7 @@ function_set GenRandomUUIDFunction::getFunctionSet() {
   function_set definitions;
   definitions.push_back(make_unique<ScalarFunction>(
       name, std::vector<LogicalTypeID>{}, LogicalTypeID::UUID,
-      ScalarFunction::NullaryAuxilaryExecFunction<ku_uuid_t, GenRandomUUID>));
+      ScalarFunction::NullaryAuxilaryExecFunction<neug_uuid_t, GenRandomUUID>));
   return definitions;
 }
 

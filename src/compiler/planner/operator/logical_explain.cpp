@@ -15,7 +15,7 @@ void LogicalExplain::computeSchema() {
     createEmptySchema();
     break;
   default:
-    KU_UNREACHABLE;
+    NEUG_UNREACHABLE;
   }
 }
 

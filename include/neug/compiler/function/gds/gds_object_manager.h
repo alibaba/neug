@@ -71,12 +71,12 @@ class ObjectArray {
   }
 
   void set(const common::offset_t pos, const T value) {
-    KU_ASSERT(pos < data.size());
+    NEUG_ASSERT(pos < data.size());
     data[pos] = value;
   }
 
   T get(const common::offset_t pos) {
-    KU_ASSERT(pos < data.size());
+    NEUG_ASSERT(pos < data.size());
     return data[pos];
   }
 
@@ -96,12 +96,12 @@ class AtomicObjectArray {
       : array{ObjectArray<std::atomic<T>>(size, mm, initializeToZero)} {}
 
   void setRelaxed(common::offset_t pos, const T& value) {
-    KU_ASSERT(pos < array.data.size());
+    NEUG_ASSERT(pos < array.data.size());
     array.data[pos].store(value, std::memory_order_relaxed);
   }
 
   T getRelaxed(const common::offset_t pos) {
-    KU_ASSERT(pos < array.data.size());
+    NEUG_ASSERT(pos < array.data.size());
     return array.data[pos].load(std::memory_order_relaxed);
   }
 
@@ -132,7 +132,7 @@ class GDSDenseObjectManager {
   }
 
   T* getData(common::table_id_t tableID) const {
-    KU_ASSERT(bufferPerTable.contains(tableID));
+    NEUG_ASSERT(bufferPerTable.contains(tableID));
     return reinterpret_cast<T*>(bufferPerTable.at(tableID)->getData());
   }
 
@@ -151,7 +151,7 @@ class GDSSpareObjectManager {
   }
 
   void allocate(common::table_id_t tableID) {
-    KU_ASSERT(!mapPerTable.contains(tableID));
+    NEUG_ASSERT(!mapPerTable.contains(tableID));
     mapPerTable.insert({tableID, {}});
   }
 
@@ -161,7 +161,7 @@ class GDSSpareObjectManager {
   }
 
   std::unordered_map<common::offset_t, T>* getMap(common::table_id_t tableID) {
-    KU_ASSERT(mapPerTable.contains(tableID));
+    NEUG_ASSERT(mapPerTable.contains(tableID));
     return &mapPerTable.at(tableID);
   }
 
@@ -169,7 +169,7 @@ class GDSSpareObjectManager {
     if (!mapPerTable.contains(tableID)) {
       mapPerTable.insert({tableID, {}});
     }
-    KU_ASSERT(mapPerTable.contains(tableID));
+    NEUG_ASSERT(mapPerTable.contains(tableID));
     return &mapPerTable.at(tableID);
   }
 

@@ -23,7 +23,7 @@
 #pragma once
 
 #include "ltrim_function.h"
-#include "neug/compiler/common/types/ku_string.h"
+#include "neug/compiler/common/types/neug_string.h"
 #include "rtrim_function.h"
 
 namespace gs {
@@ -31,8 +31,8 @@ namespace function {
 
 struct Trim : BaseStrOperation {
  public:
-  static inline void operation(common::ku_string_t& input,
-                               common::ku_string_t& result,
+  static inline void operation(common::neug_string_t& input,
+                               common::neug_string_t& result,
                                common::ValueVector& resultValueVector) {
     BaseStrOperation::operation(input, result, resultValueVector, trim);
   }

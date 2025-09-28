@@ -29,7 +29,7 @@ namespace function {
 using namespace gs::common;
 
 struct StringSplit {
-  static void operation(ku_string_t& strToSplit, ku_string_t& separator,
+  static void operation(neug_string_t& strToSplit, neug_string_t& separator,
                         list_entry_t& result, ValueVector& resultVector) {
     auto splitStrVec =
         StringUtils::split(strToSplit.getAsString(), separator.getAsString());
@@ -53,7 +53,7 @@ function_set StringSplitFunction::getFunctionSet() {
       name,
       std::vector<LogicalTypeID>{LogicalTypeID::STRING, LogicalTypeID::STRING},
       LogicalTypeID::LIST,
-      ScalarFunction::BinaryStringExecFunction<ku_string_t, ku_string_t,
+      ScalarFunction::BinaryStringExecFunction<neug_string_t, neug_string_t,
                                                list_entry_t, StringSplit>);
   function->bindFunc = bindFunc;
   functionSet.emplace_back(std::move(function));

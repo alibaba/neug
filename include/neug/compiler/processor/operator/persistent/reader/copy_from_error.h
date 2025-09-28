@@ -44,7 +44,7 @@ namespace processor {
 
 template <typename T>
 concept DataSource = std::same_as<storage::ColumnChunkData, T> ||
-                     std::same_as<common::ValueVector, T>;
+    std::same_as<common::ValueVector, T>;
 
 struct NEUG_API WarningSourceData {
   // we should stick to integral types here as each value essentially adds a
@@ -118,7 +118,7 @@ void WarningSourceData::dumpTo(uint64_t& blockIdx, uint32_t& offsetInBlock,
                                Types&... vars) const {
   static_assert(sizeof...(Types) + NUM_BLOCK_VALUES <=
                 std::tuple_size_v<decltype(values)>);
-  KU_ASSERT(sizeof...(Types) + NUM_BLOCK_VALUES == numValues);
+  NEUG_ASSERT(sizeof...(Types) + NUM_BLOCK_VALUES == numValues);
   common::TypeUtils::paramPackForEach(
       [this](auto idx, auto& value) {
         value = std::get<std::decay_t<decltype(value)>>(values[idx]);

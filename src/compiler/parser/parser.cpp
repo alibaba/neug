@@ -71,7 +71,7 @@ std::vector<std::shared_ptr<Statement>> Parser::parseQuery(
   kuzuCypherParser.addErrorListener(&parserErrorListener);
   kuzuCypherParser.setErrorHandler(std::make_shared<ParserErrorStrategy>());
 
-  Transformer transformer(*kuzuCypherParser.ku_Statements());
+  Transformer transformer(*kuzuCypherParser.neug_Statements());
   return transformer.transform();
 }
 

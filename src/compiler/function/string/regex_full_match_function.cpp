@@ -45,8 +45,8 @@ struct RegexFullMatchBindData : public FunctionBindData {
 };
 
 struct RegexpFullMatch {
-  static void operation(common::ku_string_t& left, common::ku_string_t& right,
-                        uint8_t& result) {
+  static void operation(common::neug_string_t& left,
+                        common::neug_string_t& right, uint8_t& result) {
     result = RE2::FullMatch(
         left.getAsString(),
         BaseRegexpOperation::parseCypherPattern(right.getAsString()));
@@ -54,8 +54,8 @@ struct RegexpFullMatch {
 };
 
 struct RegexpFullMatchStaticPattern : BaseRegexpOperation {
-  static void operation(common::ku_string_t& left,
-                        common::ku_string_t& /*right*/, uint8_t& result,
+  static void operation(common::neug_string_t& left,
+                        common::neug_string_t& /*right*/, uint8_t& result,
                         common::ValueVector& /*leftValueVector*/,
                         common::ValueVector& /*rightValueVector*/,
                         common::ValueVector& /*resultValueVector*/,
@@ -78,9 +78,9 @@ function_set RegexpFullMatchFunction::getFunctionSet() {
       name,
       std::vector<LogicalTypeID>{LogicalTypeID::STRING, LogicalTypeID::STRING},
       LogicalTypeID::BOOL,
-      ScalarFunction::BinaryExecFunction<ku_string_t, ku_string_t, uint8_t,
+      ScalarFunction::BinaryExecFunction<neug_string_t, neug_string_t, uint8_t,
                                          RegexpFullMatch>,
-      ScalarFunction::BinarySelectFunction<ku_string_t, ku_string_t,
+      ScalarFunction::BinarySelectFunction<neug_string_t, neug_string_t,
                                            RegexpFullMatch>);
   scalarFunc->bindFunc = regexFullMatchBindFunc;
   functionSet.emplace_back(std::move(scalarFunc));

@@ -28,7 +28,7 @@
 
 #include "neug/compiler/common/types/int128_t.h"
 #include "neug/compiler/common/types/interval_t.h"
-#include "neug/compiler/common/types/ku_string.h"
+#include "neug/compiler/common/types/neug_string.h"
 #include "neug/compiler/common/types/types.h"
 #include "neug/utils/exception/exception.h"
 
@@ -180,7 +180,7 @@ inline void Hash::operation(const std::string& key, common::hash_t& result) {
 }
 
 template <>
-inline void Hash::operation(const common::ku_string_t& key,
+inline void Hash::operation(const common::neug_string_t& key,
                             common::hash_t& result) {
   Hash::operation(key.getAsStringView(), result);
 }

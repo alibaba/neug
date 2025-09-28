@@ -72,7 +72,7 @@ void FrontierTask::run() {
     }
   } break;
   default:
-    KU_UNREACHABLE;
+    NEUG_UNREACHABLE;
   }
   if (numActiveNodes) {
     sharedState->frontierPair.setActiveNodesForNextIter();
@@ -109,7 +109,7 @@ void FrontierTask::runSparse() {
     }
   } break;
   default:
-    KU_UNREACHABLE;
+    NEUG_UNREACHABLE;
   }
   if (numActiveNodes) {
     sharedState->frontierPair.setActiveNodesForNextIter();
@@ -138,7 +138,7 @@ void VertexComputeTask::run() {
 }
 
 void VertexComputeTask::runSparse() {
-  KU_ASSERT(!info.hasPropertiesToScan());
+  NEUG_ASSERT(!info.hasPropertiesToScan());
   auto localVc = info.vc.copy();
   localVc->vertexCompute(info.tableEntry->getTableID());
 }

@@ -32,37 +32,37 @@ namespace gs {
 namespace parser {
 
 std::unique_ptr<Statement> Transformer::transformCopyTo(
-    CypherParser::KU_CopyTOContext& ctx) {
+    CypherParser::NEUG_CopyTOContext& ctx) {
   std::string filePath = transformStringLiteral(*ctx.StringLiteral());
   auto regularQuery = transformQuery(*ctx.oC_Query());
   auto copyTo =
       std::make_unique<CopyTo>(std::move(filePath), std::move(regularQuery));
-  if (ctx.kU_Options()) {
-    copyTo->setParsingOption(transformOptions(*ctx.kU_Options()));
+  if (ctx.nEUG_Options()) {
+    copyTo->setParsingOption(transformOptions(*ctx.nEUG_Options()));
   }
   return copyTo;
 }
 
 std::unique_ptr<Statement> Transformer::transformCopyFrom(
-    CypherParser::KU_CopyFromContext& ctx) {
-  auto source = transformScanSource(*ctx.kU_ScanSource());
+    CypherParser::NEUG_CopyFromContext& ctx) {
+  auto source = transformScanSource(*ctx.nEUG_ScanSource());
   auto tableName = transformSchemaName(*ctx.oC_SchemaName());
   auto copyFrom =
       std::make_unique<CopyFrom>(std::move(source), std::move(tableName));
   CopyFromColumnInfo info;
-  info.inputColumnOrder = ctx.kU_ColumnNames();
-  if (ctx.kU_ColumnNames()) {
-    info.columnNames = transformColumnNames(*ctx.kU_ColumnNames());
+  info.inputColumnOrder = ctx.nEUG_ColumnNames();
+  if (ctx.nEUG_ColumnNames()) {
+    info.columnNames = transformColumnNames(*ctx.nEUG_ColumnNames());
   }
-  if (ctx.kU_Options()) {
-    copyFrom->setParsingOption(transformOptions(*ctx.kU_Options()));
+  if (ctx.nEUG_Options()) {
+    copyFrom->setParsingOption(transformOptions(*ctx.nEUG_Options()));
   }
   copyFrom->setColumnInfo(std::move(info));
   return copyFrom;
 }
 
 std::unique_ptr<Statement> Transformer::transformCopyFromByColumn(
-    CypherParser::KU_CopyFromByColumnContext& ctx) {
+    CypherParser::NEUG_CopyFromByColumnContext& ctx) {
   auto source =
       std::make_unique<FileScanSource>(transformFilePaths(ctx.StringLiteral()));
   auto tableName = transformSchemaName(*ctx.oC_SchemaName());
@@ -73,7 +73,7 @@ std::unique_ptr<Statement> Transformer::transformCopyFromByColumn(
 }
 
 std::vector<std::string> Transformer::transformColumnNames(
-    CypherParser::KU_ColumnNamesContext& ctx) {
+    CypherParser::NEUG_ColumnNamesContext& ctx) {
   std::vector<std::string> columnNames;
   for (auto& schemaName : ctx.oC_SchemaName()) {
     columnNames.push_back(transformSchemaName(*schemaName));
@@ -92,9 +92,9 @@ std::vector<std::string> Transformer::transformFilePaths(
 }
 
 std::unique_ptr<BaseScanSource> Transformer::transformScanSource(
-    CypherParser::KU_ScanSourceContext& ctx) {
-  if (ctx.kU_FilePaths()) {
-    auto filePaths = transformFilePaths(ctx.kU_FilePaths()->StringLiteral());
+    CypherParser::NEUG_ScanSourceContext& ctx) {
+  if (ctx.nEUG_FilePaths()) {
+    auto filePaths = transformFilePaths(ctx.nEUG_FilePaths()->StringLiteral());
     return std::make_unique<FileScanSource>(std::move(filePaths));
   } else if (ctx.oC_Query()) {
     auto query = transformQuery(*ctx.oC_Query());
@@ -111,12 +111,13 @@ std::unique_ptr<BaseScanSource> Transformer::transformScanSource(
         transformFunctionInvocation(*ctx.oC_FunctionInvocation());
     return std::make_unique<TableFuncScanSource>(std::move(functionExpression));
   }
-  KU_UNREACHABLE;
+  NEUG_UNREACHABLE;
 }
 
-options_t Transformer::transformOptions(CypherParser::KU_OptionsContext& ctx) {
+options_t Transformer::transformOptions(
+    CypherParser::NEUG_OptionsContext& ctx) {
   options_t options;
-  for (auto loadOption : ctx.kU_Option()) {
+  for (auto loadOption : ctx.nEUG_Option()) {
     auto optionName = transformSymbolicName(*loadOption->oC_SymbolicName());
     // Check if the literal exists, otherwise set the value to true by default
     if (loadOption->oC_Literal()) {

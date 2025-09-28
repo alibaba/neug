@@ -95,7 +95,7 @@ BoundReturnClause Binder::bindReturnClause(const ReturnClause& returnClause) {
   auto boundProjectionBody =
       bindProjectionBody(*projectionBody, projectionExprs, aliases);
   auto statementResult = BoundStatementResult();
-  KU_ASSERT(columnNames.size() == projectionExprs.size());
+  NEUG_ASSERT(columnNames.size() == projectionExprs.size());
   for (auto i = 0u; i < columnNames.size(); ++i) {
     statementResult.addColumn(columnNames[i], projectionExprs[i]);
   }
@@ -195,7 +195,7 @@ class NestedAggCollector final : public ExpressionVisitor {
 
 static void validateNestedAggregate(const Expression& expr,
                                     const BinderScope& scope) {
-  KU_ASSERT(expr.expressionType == ExpressionType::AGGREGATE_FUNCTION);
+  NEUG_ASSERT(expr.expressionType == ExpressionType::AGGREGATE_FUNCTION);
   if (expr.getNumChildren() == 0) {  // Skip COUNT(*)
     return;
   }
@@ -215,7 +215,7 @@ BoundProjectionBody Binder::bindProjectionBody(
     const std::vector<std::string>& aliases) {
   expression_vector groupByExprs;
   expression_vector aggregateExprs;
-  KU_ASSERT(projectionExprs.size() == aliases.size());
+  NEUG_ASSERT(projectionExprs.size() == aliases.size());
   for (auto i = 0u; i < projectionExprs.size(); ++i) {
     auto expr = projectionExprs[i];
     auto aggExprs = getAggregateExpressions(expr, scope);
@@ -267,8 +267,8 @@ BoundProjectionBody Binder::bindProjectionBody(
     if (boundProjectionBody.hasAggregateExpressions() ||
         boundProjectionBody.isDistinct()) {
       scope.clear();
-      KU_ASSERT(projectionBody.getProjectionExpressions().size() ==
-                projectionExprs.size());
+      NEUG_ASSERT(projectionBody.getProjectionExpressions().size() ==
+                  projectionExprs.size());
       std::vector<std::string> tmpAliases;
       for (auto& expr : projectionBody.getProjectionExpressions()) {
         tmpAliases.push_back(expr->hasAlias() ? expr->getAlias()

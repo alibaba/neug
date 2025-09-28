@@ -69,7 +69,8 @@ static void compileFunc(
     FunctionBindData* bindData,
     const std::vector<std::shared_ptr<ValueVector>>& parameters,
     std::shared_ptr<ValueVector>& result) {
-  KU_ASSERT(parameters[0]->dataType.getPhysicalType() == PhysicalTypeID::LIST);
+  NEUG_ASSERT(parameters[0]->dataType.getPhysicalType() ==
+              PhysicalTypeID::LIST);
   auto& propertiesBindData = bindData->cast<PropertiesBindData>();
   auto fieldVector = StructVector::getFieldVector(
       ListVector::getDataVector(parameters[0].get()),

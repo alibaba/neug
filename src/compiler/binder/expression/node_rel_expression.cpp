@@ -69,14 +69,14 @@ TableCatalogEntry* NodeOrRelExpression::getSingleEntry() const {
 
 void NodeOrRelExpression::addPropertyExpression(
     const std::string& propertyName, std::unique_ptr<Expression> property) {
-  KU_ASSERT(!propertyNameToIdx.contains(propertyName));
+  NEUG_ASSERT(!propertyNameToIdx.contains(propertyName));
   propertyNameToIdx.insert({propertyName, propertyExprs.size()});
   propertyExprs.push_back(std::move(property));
 }
 
 std::shared_ptr<Expression> NodeOrRelExpression::getPropertyExpression(
     const std::string& propertyName) const {
-  KU_ASSERT(propertyNameToIdx.contains(propertyName));
+  NEUG_ASSERT(propertyNameToIdx.contains(propertyName));
   return propertyExprs[propertyNameToIdx.at(propertyName)]->copy();
 }
 

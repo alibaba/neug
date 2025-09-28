@@ -122,7 +122,7 @@ class RelExpression final : public NodeOrRelExpression {
   }
   const RecursiveInfo* getRecursiveInfo() const { return recursiveInfo.get(); }
   std::shared_ptr<Expression> getLengthExpression() const {
-    KU_ASSERT(recursiveInfo != nullptr);
+    NEUG_ASSERT(recursiveInfo != nullptr);
     return recursiveInfo->bindData->lengthExpr;
   }
 

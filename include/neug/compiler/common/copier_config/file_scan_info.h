@@ -65,7 +65,7 @@ struct FileScanInfo {
 
   uint32_t getNumFiles() const { return filePaths.size(); }
   std::string getFilePath(idx_t fileIdx) const {
-    KU_ASSERT(fileIdx < getNumFiles());
+    NEUG_ASSERT(fileIdx < getNumFiles());
     return filePaths[fileIdx];
   }
 

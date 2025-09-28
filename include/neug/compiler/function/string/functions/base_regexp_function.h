@@ -38,7 +38,7 @@ struct BaseRegexpOperation {
   }
 
   static inline void copyToKuzuString(const std::string& value,
-                                      common::ku_string_t& kuString,
+                                      common::neug_string_t& kuString,
                                       common::ValueVector& valueVector) {
     common::StringVector::addString(&valueVector, kuString, value.data(),
                                     value.length());

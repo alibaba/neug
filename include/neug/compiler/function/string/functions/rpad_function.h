@@ -23,23 +23,23 @@
 #pragma once
 
 #include "base_pad_function.h"
-#include "neug/compiler/common/types/ku_string.h"
+#include "neug/compiler/common/types/neug_string.h"
 
 namespace gs {
 namespace function {
 
 struct Rpad : BasePadOperation {
  public:
-  static inline void operation(common::ku_string_t& src, int64_t count,
-                               common::ku_string_t& characterToPad,
-                               common::ku_string_t& result,
+  static inline void operation(common::neug_string_t& src, int64_t count,
+                               common::neug_string_t& characterToPad,
+                               common::neug_string_t& result,
                                common::ValueVector& resultValueVector) {
     BasePadOperation::operation(src, count, characterToPad, result,
                                 resultValueVector, rpadOperation);
   }
 
-  static void rpadOperation(common::ku_string_t& src, int64_t count,
-                            common::ku_string_t& characterToPad,
+  static void rpadOperation(common::neug_string_t& src, int64_t count,
+                            common::neug_string_t& characterToPad,
                             std::string& paddedResult) {
     auto srcPadInfo = BasePadOperation::padCountChars(
         count, (const char*) src.getData(), src.len);

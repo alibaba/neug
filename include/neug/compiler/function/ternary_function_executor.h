@@ -169,7 +169,7 @@ struct TernaryFunctionExecutor {
       common::ValueVector& c,
       [[maybe_unused]] common::SelectionVector* cSelVector,
       common::ValueVector& result, common::SelectionVector*, void* dataPtr) {
-    KU_ASSERT(bSelVector == cSelVector);
+    NEUG_ASSERT(bSelVector == cSelVector);
     auto aPos = (*aSelVector)[0];
     if (a.isNull(aPos)) {
       result.setAllNull();
@@ -266,7 +266,7 @@ struct TernaryFunctionExecutor {
       common::ValueVector& c,
       [[maybe_unused]] common::SelectionVector* cSelVector,
       common::ValueVector& result, common::SelectionVector*, void* dataPtr) {
-    KU_ASSERT(aSelVector == bSelVector && bSelVector == cSelVector);
+    NEUG_ASSERT(aSelVector == bSelVector && bSelVector == cSelVector);
     if (a.hasNoNullsGuarantee() && b.hasNoNullsGuarantee() &&
         c.hasNoNullsGuarantee()) {
       if (aSelVector->isUnfiltered()) {
@@ -360,7 +360,7 @@ struct TernaryFunctionExecutor {
       common::ValueVector& c,
       [[maybe_unused]] common::SelectionVector* cSelVector,
       common::ValueVector& result, common::SelectionVector*, void* dataPtr) {
-    KU_ASSERT(aSelVector == cSelVector);
+    NEUG_ASSERT(aSelVector == cSelVector);
     auto bPos = (*bSelVector)[0];
     if (b.isNull(bPos)) {
       result.setAllNull();
@@ -408,7 +408,7 @@ struct TernaryFunctionExecutor {
       [[maybe_unused]] common::SelectionVector* bSelVector,
       common::ValueVector& c, common::SelectionVector* cSelVector,
       common::ValueVector& result, common::SelectionVector*, void* dataPtr) {
-    KU_ASSERT(aSelVector == bSelVector);
+    NEUG_ASSERT(aSelVector == bSelVector);
     auto cPos = (*cSelVector)[0];
     if (c.isNull(cPos)) {
       result.setAllNull();
@@ -496,7 +496,7 @@ struct TernaryFunctionExecutor {
                                           cSelVector, result, resultSelVector,
                                           dataPtr);
     } else {
-      KU_ASSERT(false);
+      NEUG_ASSERT(false);
     }
   }
 };

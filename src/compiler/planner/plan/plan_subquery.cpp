@@ -281,7 +281,7 @@ std::unique_ptr<Schema> Planner::combineSchema(LogicalPlan& outerPlan) {
 
 void Planner::planSubquery(const std::shared_ptr<Expression>& expression,
                            LogicalPlan& outerPlan) {
-  KU_ASSERT(expression->expressionType == ExpressionType::SUBQUERY);
+  NEUG_ASSERT(expression->expressionType == ExpressionType::SUBQUERY);
   auto subquery = expression->ptrCast<SubqueryExpression>();
   auto correlatedExprs = getDependentExprs(expression, *outerPlan.getSchema());
   auto predicates = subquery->getPredicatesSplitOnAnd();
@@ -306,7 +306,7 @@ void Planner::planSubquery(const std::shared_ptr<Expression>& expression,
       appendAggregate(emptyHashKeys, projectExprs, *innerPlan);
     } break;
     default:
-      KU_UNREACHABLE;
+      NEUG_UNREACHABLE;
     }
     appendCrossProduct(outerPlan, *innerPlan, outerPlan);
     return;
@@ -353,7 +353,7 @@ void Planner::planSubquery(const std::shared_ptr<Expression>& expression,
                    *innerPlan, outerPlan);
   } break;
   default:
-    KU_UNREACHABLE;
+    NEUG_UNREACHABLE;
   }
 }
 

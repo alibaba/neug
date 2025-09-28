@@ -28,7 +28,7 @@ class LogicalExtension final : public LogicalSimple {
       return "UNINSTALL";
     }
     default: {
-      KU_UNREACHABLE;
+      NEUG_UNREACHABLE;
     }
     }
   }

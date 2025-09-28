@@ -22,7 +22,7 @@
 
 #pragma once
 
-#include "neug/compiler/common/types/ku_string.h"
+#include "neug/compiler/common/types/neug_string.h"
 #include "neug/compiler/common/vector/value_vector.h"
 #include "utf8proc.h"
 
@@ -34,11 +34,11 @@ namespace function {
 struct BasePadOperation {
  public:
   static inline void operation(
-      common::ku_string_t& src, int64_t count,
-      common::ku_string_t& characterToPad, common::ku_string_t& result,
+      common::neug_string_t& src, int64_t count,
+      common::neug_string_t& characterToPad, common::neug_string_t& result,
       common::ValueVector& resultValueVector,
-      void (*padOperation)(common::ku_string_t& src, int64_t count,
-                           common::ku_string_t& characterToPad,
+      void (*padOperation)(common::neug_string_t& src, int64_t count,
+                           common::neug_string_t& characterToPad,
                            std::string& paddedResult)) {
     if (count < 0) {
       count = 0;
@@ -63,7 +63,7 @@ struct BasePadOperation {
     return {byteCount, charCount};
   }
 
-  static void insertPadding(uint32_t charCount, common::ku_string_t pad,
+  static void insertPadding(uint32_t charCount, common::neug_string_t pad,
                             std::string& result) {
     auto padData = pad.getData();
     auto padSize = pad.len;

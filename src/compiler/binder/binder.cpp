@@ -101,7 +101,7 @@ std::unique_ptr<BoundStatement> Binder::bind(const Statement& statement) {
     boundStatement = bindUseDatabase(statement);
   } break;
   default: {
-    KU_UNREACHABLE;
+    NEUG_UNREACHABLE;
   }
   }
   BoundStatementRewriter::rewrite(*boundStatement, *clientContext);
@@ -149,7 +149,7 @@ std::shared_ptr<Expression> Binder::createInvisibleVariable(
 expression_vector Binder::createVariables(
     const std::vector<std::string>& names,
     const std::vector<common::LogicalType>& types) {
-  KU_ASSERT(names.size() == types.size());
+  NEUG_ASSERT(names.size() == types.size());
   expression_vector variables;
   for (auto i = 0u; i < names.size(); ++i) {
     variables.push_back(createVariable(names[i], types[i]));
@@ -160,7 +160,7 @@ expression_vector Binder::createVariables(
 expression_vector Binder::createInvisibleVariables(
     const std::vector<std::string>& names,
     const std::vector<LogicalType>& types) const {
-  KU_ASSERT(names.size() == types.size());
+  NEUG_ASSERT(names.size() == types.size());
   expression_vector variables;
   for (auto i = 0u; i < names.size(); ++i) {
     variables.push_back(createInvisibleVariable(names[i], types[i]));
@@ -218,7 +218,7 @@ bool Binder::reservedInPropertyLookup(const std::string& name) {
 
 void Binder::addToScope(const std::vector<std::string>& names,
                         const expression_vector& exprs) {
-  KU_ASSERT(names.size() == exprs.size());
+  NEUG_ASSERT(names.size() == exprs.size());
   for (auto i = 0u; i < names.size(); ++i) {
     addToScope(names[i], exprs[i]);
   }

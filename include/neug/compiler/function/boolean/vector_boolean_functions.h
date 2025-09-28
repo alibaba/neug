@@ -45,7 +45,7 @@ class VectorBooleanFunction {
       const std::vector<common::SelectionVector*>& paramSelVectors,
       common::ValueVector& result, common::SelectionVector* resultSelVector,
       void* /*dataPtr*/ = nullptr) {
-    KU_ASSERT(params.size() == 2);
+    NEUG_ASSERT(params.size() == 2);
     BinaryBooleanFunctionExecutor::execute<FUNC>(*params[0], paramSelVectors[0],
                                                  *params[1], paramSelVectors[1],
                                                  result, resultSelVector);
@@ -55,7 +55,7 @@ class VectorBooleanFunction {
   static bool BinaryBooleanSelectFunction(
       const std::vector<std::shared_ptr<common::ValueVector>>& params,
       common::SelectionVector& selVector, void* /*dataPtr*/) {
-    KU_ASSERT(params.size() == 2);
+    NEUG_ASSERT(params.size() == 2);
     return BinaryBooleanFunctionExecutor::select<FUNC>(*params[0], *params[1],
                                                        selVector);
   }
@@ -66,7 +66,7 @@ class VectorBooleanFunction {
       const std::vector<common::SelectionVector*>& paramSelVectors,
       common::ValueVector& result, common::SelectionVector* resultSelVector,
       void* /*dataPtr*/ = nullptr) {
-    KU_ASSERT(params.size() == 1);
+    NEUG_ASSERT(params.size() == 1);
     UnaryBooleanOperationExecutor::execute<FUNC>(*params[0], paramSelVectors[0],
                                                  result, resultSelVector);
   }
@@ -75,7 +75,7 @@ class VectorBooleanFunction {
   static bool UnaryBooleanSelectFunction(
       const std::vector<std::shared_ptr<common::ValueVector>>& params,
       common::SelectionVector& selVector, void* /*dataPtr*/) {
-    KU_ASSERT(params.size() == 1);
+    NEUG_ASSERT(params.size() == 1);
     return UnaryBooleanOperationExecutor::select<FUNC>(*params[0], selVector);
   }
 

@@ -37,7 +37,7 @@ namespace catalog {
 
 std::unique_ptr<TableCatalogEntry> TableCatalogEntry::alter(
     transaction_t timestamp, const BoundAlterInfo& alterInfo) const {
-  KU_ASSERT(!deleted);
+  NEUG_ASSERT(!deleted);
   auto newEntry = copy();
   switch (alterInfo.alterType) {
   case AlterType::RENAME: {
@@ -66,7 +66,7 @@ std::unique_ptr<TableCatalogEntry> TableCatalogEntry::alter(
     newEntry->setComment(commentInfo.comment);
   } break;
   default: {
-    KU_UNREACHABLE;
+    NEUG_UNREACHABLE;
   }
   }
   newEntry->setOID(oid);
@@ -133,7 +133,7 @@ std::string TableCatalogEntry::getLabel(
   if (type == CatalogEntryType::NODE_TABLE_ENTRY) {
     return name;
   }
-  KU_ASSERT(type == CatalogEntryType::REL_TABLE_ENTRY);
+  NEUG_ASSERT(type == CatalogEntryType::REL_TABLE_ENTRY);
   for (auto& relGroup : catalog->getRelGroupEntries(transaction)) {
     if (relGroup->isParent(getTableID())) {
       return relGroup->getName();
@@ -168,7 +168,7 @@ std::unique_ptr<TableCatalogEntry> TableCatalogEntry::deserialize(
     result = RelTableCatalogEntry::deserialize(deserializer);
     break;
   default:
-    KU_UNREACHABLE;
+    NEUG_UNREACHABLE;
   }
   result->comment = std::move(comment);
   result->propertyCollection = std::move(propertyCollection);
@@ -182,7 +182,7 @@ void TableCatalogEntry::setPropertyCollection(
 
 void TableCatalogEntry::copyFrom(const CatalogEntry& other) {
   CatalogEntry::copyFrom(other);
-  auto& otherTable = ku_dynamic_cast<const TableCatalogEntry&>(other);
+  auto& otherTable = neug_dynamic_cast<const TableCatalogEntry&>(other);
   comment = otherTable.comment;
   propertyCollection = otherTable.propertyCollection.copy();
 }

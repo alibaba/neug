@@ -87,7 +87,7 @@ class NEUG_API ParsedExpression {
     return children[idx].get();
   }
   void setChild(common::idx_t idx, std::unique_ptr<ParsedExpression> child) {
-    KU_ASSERT(idx < children.size());
+    NEUG_ASSERT(idx < children.size());
     children[idx] = std::move(child);
   }
 
@@ -105,15 +105,15 @@ class NEUG_API ParsedExpression {
 
   template <class TARGET>
   TARGET& cast() {
-    return common::ku_dynamic_cast<TARGET&>(*this);
+    return common::neug_dynamic_cast<TARGET&>(*this);
   }
   template <class TARGET>
   const TARGET& constCast() const {
-    return common::ku_dynamic_cast<const TARGET&>(*this);
+    return common::neug_dynamic_cast<const TARGET&>(*this);
   }
   template <class TARGET>
   const TARGET* constPtrCast() const {
-    return common::ku_dynamic_cast<const TARGET*>(this);
+    return common::neug_dynamic_cast<const TARGET*>(this);
   }
 
  private:

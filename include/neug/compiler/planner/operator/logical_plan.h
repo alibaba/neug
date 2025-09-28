@@ -36,13 +36,13 @@ class NEUG_API LogicalPlan {
     return lastOperator;
   }
   LogicalOperator& getLastOperatorRef() const {
-    KU_ASSERT(lastOperator);
+    NEUG_ASSERT(lastOperator);
     return *lastOperator;
   }
   Schema* getSchema() const { return lastOperator->getSchema(); }
 
   cardinality_t getCardinality() const {
-    KU_ASSERT(lastOperator);
+    NEUG_ASSERT(lastOperator);
     return lastOperator->getCardinality();
   }
 

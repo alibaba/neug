@@ -6,8 +6,8 @@ add_library(neug_common_types
         date_t.cpp
         dtime_t.cpp
         interval_t.cpp
-        ku_list.cpp
-        ku_string.cpp
+        neug_list.cpp
+        neug_string.cpp
         timestamp_t.cpp
         types.cpp
         int128_t.cpp

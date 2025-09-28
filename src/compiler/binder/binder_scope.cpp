@@ -34,7 +34,7 @@ void BinderScope::addExpression(const std::string& varName,
 void BinderScope::replaceExpression(const std::string& oldName,
                                     const std::string& newName,
                                     std::shared_ptr<Expression> expression) {
-  KU_ASSERT(nameToExprIdx.contains(oldName));
+  NEUG_ASSERT(nameToExprIdx.contains(oldName));
   auto idx = nameToExprIdx.at(oldName);
   expressions[idx] = std::move(expression);
   nameToExprIdx.erase(oldName);

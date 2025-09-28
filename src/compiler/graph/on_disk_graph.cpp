@@ -108,7 +108,7 @@ table_id_map_t<offset_t> OnDiskGraph::getMaxOffsetMap(
 
 offset_t OnDiskGraph::getMaxOffset(transaction::Transaction* transaction,
                                    table_id_t id) const {
-  KU_ASSERT(nodeIDToNodeTable.contains(id));
+  NEUG_ASSERT(nodeIDToNodeTable.contains(id));
   return nodeIDToNodeTable.at(id)->getNumTotalRows(transaction);
 }
 
@@ -127,7 +127,7 @@ offset_t OnDiskGraph::getNumNodes(transaction::Transaction* transaction) const {
 
 std::vector<NbrTableInfo> OnDiskGraph::getForwardNbrTableInfos(
     table_id_t srcNodeTableID) {
-  KU_ASSERT(nodeIDToNbrTableInfos.contains(srcNodeTableID));
+  NEUG_ASSERT(nodeIDToNbrTableInfos.contains(srcNodeTableID));
   return nodeIDToNbrTableInfos.at(srcNodeTableID);
 }
 
@@ -155,7 +155,7 @@ std::unique_ptr<NbrScanState> OnDiskGraph::prepareRelScan(
 }
 
 Graph::EdgeIterator OnDiskGraph::scanFwd(nodeID_t nodeID, NbrScanState& state) {
-  auto& onDiskScanState = ku_dynamic_cast<OnDiskGraphNbrScanState&>(state);
+  auto& onDiskScanState = neug_dynamic_cast<OnDiskGraphNbrScanState&>(state);
   onDiskScanState.srcNodeIDVector->setValue<nodeID_t>(0, nodeID);
   onDiskScanState.dstNodeIDVector->state->getSelVectorUnsafe().setSelSize(0);
   onDiskScanState.startScan(RelDataDirection::FWD);
@@ -163,7 +163,7 @@ Graph::EdgeIterator OnDiskGraph::scanFwd(nodeID_t nodeID, NbrScanState& state) {
 }
 
 Graph::EdgeIterator OnDiskGraph::scanBwd(nodeID_t nodeID, NbrScanState& state) {
-  auto& onDiskScanState = ku_dynamic_cast<OnDiskGraphNbrScanState&>(state);
+  auto& onDiskScanState = neug_dynamic_cast<OnDiskGraphNbrScanState&>(state);
   onDiskScanState.srcNodeIDVector->setValue<nodeID_t>(0, nodeID);
   onDiskScanState.dstNodeIDVector->state->getSelVectorUnsafe().setSelSize(0);
   onDiskScanState.startScan(RelDataDirection::BWD);
@@ -174,7 +174,7 @@ Graph::VertexIterator OnDiskGraph::scanVertices(offset_t beginOffset,
                                                 offset_t endOffsetExclusive,
                                                 VertexScanState& state) {
   auto& onDiskVertexScanState =
-      ku_dynamic_cast<OnDiskGraphVertexScanState&>(state);
+      neug_dynamic_cast<OnDiskGraphVertexScanState&>(state);
   onDiskVertexScanState.startScan(beginOffset, endOffsetExclusive);
   return VertexIterator(&state);
 }
@@ -190,7 +190,7 @@ OnDiskGraphVertexScanState::OnDiskGraphVertexScanState(
     ClientContext& context, const TableCatalogEntry* tableEntry,
     const std::vector<std::string>& propertyNames)
     : context{context},
-      nodeTable{ku_dynamic_cast<const NodeTable&>(
+      nodeTable{neug_dynamic_cast<const NodeTable&>(
           *context.getStatsManager()->getTable(tableEntry->getTableID()))},
       numNodesScanned{0},
       currentOffset{0},

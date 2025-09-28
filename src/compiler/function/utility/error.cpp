@@ -30,7 +30,7 @@ namespace gs {
 namespace function {
 
 struct Error {
-  static void operation(ku_string_t& input, int32_t& result) {
+  static void operation(neug_string_t& input, int32_t& result) {
     result = 0;
     THROW_RUNTIME_ERROR(input.getAsString());
   }
@@ -41,7 +41,7 @@ function_set ErrorFunction::getFunctionSet() {
   functionSet.push_back(std::make_unique<ScalarFunction>(
       name, std::vector<LogicalTypeID>{LogicalTypeID::STRING},
       LogicalTypeID::INT32,
-      ScalarFunction::UnaryExecFunction<ku_string_t, int32_t, Error>));
+      ScalarFunction::UnaryExecFunction<neug_string_t, int32_t, Error>));
   // int32_t is just a dummy resultType for error(), since this function throws
   // an exception instead of returns any result
   return functionSet;

@@ -49,7 +49,7 @@ struct StorageVersionInfo {
 
   static NEUG_API storage_version_t getStorageVersion();
 
-  static constexpr const char* MAGIC_BYTES = "KUZU";
+  static constexpr const char* MAGIC_BYTES = "NEUG";
 };
 
 }  // namespace storage

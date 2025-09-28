@@ -73,7 +73,7 @@ class ConcurrentVector {
         index->blocks[index->numBlocks] = newBlock.get();
         index->numBlocks++;
       } else {
-        KU_ASSERT(indices.back()->numBlocks == INDEX_SIZE);
+        NEUG_ASSERT(indices.back()->numBlocks == INDEX_SIZE);
         auto index = std::make_unique<BlockIndex>();
         index->blocks[0] = newBlock.get();
         index->numBlocks = 1;
@@ -93,20 +93,20 @@ class ConcurrentVector {
 
   T& operator[](uint64_t elemPos) {
     if (elemPos < initialBlockSize) {
-      KU_ASSERT(initialBlock);
+      NEUG_ASSERT(initialBlock);
       return initialBlock[elemPos];
     } else {
       auto blockNum = (elemPos - initialBlockSize) / BLOCK_SIZE;
       auto posInBlock = (elemPos - initialBlockSize) % BLOCK_SIZE;
       auto indexNum = blockNum / INDEX_SIZE;
       BlockIndex* index = firstIndex;
-      KU_ASSERT(index != nullptr);
+      NEUG_ASSERT(index != nullptr);
       while (indexNum > 0) {
-        KU_ASSERT(index->nextIndex != nullptr);
+        NEUG_ASSERT(index->nextIndex != nullptr);
         index = index->nextIndex;
         indexNum--;
       }
-      KU_ASSERT(index->blocks[blockNum % INDEX_SIZE] != nullptr);
+      NEUG_ASSERT(index->blocks[blockNum % INDEX_SIZE] != nullptr);
       return index->blocks[blockNum % INDEX_SIZE]->data[posInBlock];
     }
   }

@@ -80,8 +80,8 @@ case_insensitive_map_t<Value> Binder::bindParsingOptions(
     auto name = option.first;
     StringUtils::toUpper(name);
     auto expr = expressionBinder.bindExpression(*option.second);
-    KU_ASSERT(expr->expressionType == ExpressionType::LITERAL);
-    auto literalExpr = ku_dynamic_cast<LiteralExpression*>(expr.get());
+    NEUG_ASSERT(expr->expressionType == ExpressionType::LITERAL);
+    auto literalExpr = neug_dynamic_cast<LiteralExpression*>(expr.get());
     options.insert({name, literalExpr->getValue()});
   }
   return options;
@@ -105,7 +105,7 @@ std::unique_ptr<BoundBaseScanSource> Binder::bindScanSource(
     return bindTableFuncScanSource(*source, options, columnNames, columnTypes);
   }
   default:
-    KU_UNREACHABLE;
+    NEUG_UNREACHABLE;
   }
 }
 

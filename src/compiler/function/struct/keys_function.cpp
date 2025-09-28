@@ -33,7 +33,7 @@ namespace function {
 
 static std::shared_ptr<Expression> rewriteFunc(
     const RewriteFunctionBindInput& input) {
-  KU_ASSERT(input.arguments.size() == 1);
+  NEUG_ASSERT(input.arguments.size() == 1);
   auto uniqueExpressionName = ScalarFunctionExpression::getUniqueName(
       KeysFunctions::name, input.arguments);
   const auto& resultType = LogicalType::LIST(LogicalType::STRING());

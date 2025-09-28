@@ -31,7 +31,7 @@ namespace gs {
 namespace function {
 
 struct MD5Operator {
-  static void operation(ku_string_t& operand, ku_string_t& result,
+  static void operation(neug_string_t& operand, neug_string_t& result,
                         ValueVector& resultVector) {
     MD5 hasher;
     hasher.addToMD5(reinterpret_cast<const char*>(operand.getData()),
@@ -46,7 +46,7 @@ function_set MD5Function::getFunctionSet() {
   functionSet.push_back(std::make_unique<ScalarFunction>(
       name, std::vector<LogicalTypeID>{LogicalTypeID::STRING},
       LogicalTypeID::STRING,
-      ScalarFunction::UnaryStringExecFunction<ku_string_t, ku_string_t,
+      ScalarFunction::UnaryStringExecFunction<neug_string_t, neug_string_t,
                                               MD5Operator>));
   return functionSet;
 }

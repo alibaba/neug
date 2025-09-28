@@ -85,7 +85,7 @@ Table* StatsManager::getTable(common::table_id_t tableID) {
   if (!catalog) {
     THROW_EXCEPTION_WITH_FILE_LINE("Catalog is not initialized");
   }
-  KU_ASSERT(catalog->containsTable(&transaction, tableID));
+  NEUG_ASSERT(catalog->containsTable(&transaction, tableID));
   auto curEntry = catalog->getTableCatalogEntry(&transaction, tableID);
   Table* oldTable = getTableByName(tableID, curEntry);
   if (oldTable) {

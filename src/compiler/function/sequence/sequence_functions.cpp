@@ -33,8 +33,8 @@ namespace gs {
 namespace function {
 
 struct CurrVal {
-  static void operation(common::ku_string_t& input, common::ValueVector& result,
-                        void* dataPtr) {
+  static void operation(common::neug_string_t& input,
+                        common::ValueVector& result, void* dataPtr) {
     auto ctx = reinterpret_cast<FunctionBindData*>(dataPtr)->clientContext;
     auto catalog = ctx->getCatalog();
     auto sequenceName = input.getAsString();
@@ -45,8 +45,8 @@ struct CurrVal {
 };
 
 struct NextVal {
-  static void operation(common::ku_string_t& input, common::ValueVector& result,
-                        void* dataPtr) {
+  static void operation(common::neug_string_t& input,
+                        common::ValueVector& result, void* dataPtr) {
     auto ctx = reinterpret_cast<FunctionBindData*>(dataPtr)->clientContext;
     auto cnt = reinterpret_cast<FunctionBindData*>(dataPtr)->count;
     auto catalog = ctx->getCatalog();
@@ -63,7 +63,7 @@ function_set CurrValFunction::getFunctionSet() {
   functionSet.push_back(make_unique<ScalarFunction>(
       name, std::vector<LogicalTypeID>{LogicalTypeID::STRING},
       LogicalTypeID::INT64,
-      ScalarFunction::UnarySequenceExecFunction<common::ku_string_t,
+      ScalarFunction::UnarySequenceExecFunction<common::neug_string_t,
                                                 common::ValueVector, CurrVal>));
   return functionSet;
 }
@@ -73,7 +73,7 @@ function_set NextValFunction::getFunctionSet() {
   auto func = make_unique<ScalarFunction>(
       name, std::vector<LogicalTypeID>{LogicalTypeID::STRING},
       LogicalTypeID::INT64,
-      ScalarFunction::UnarySequenceExecFunction<common::ku_string_t,
+      ScalarFunction::UnarySequenceExecFunction<common::neug_string_t,
                                                 common::ValueVector, NextVal>);
   func->isReadOnly = false;
   functionSet.push_back(std::move(func));

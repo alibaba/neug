@@ -22,15 +22,16 @@
 
 #pragma once
 
-#include "neug/compiler/common/types/ku_string.h"
+#include "neug/compiler/common/types/neug_string.h"
 #include "neug/compiler/common/vector/value_vector.h"
 
 namespace gs {
 namespace function {
 
 struct ListToString {
-  static void operation(common::list_entry_t& input, common::ku_string_t& delim,
-                        common::ku_string_t& result,
+  static void operation(common::list_entry_t& input,
+                        common::neug_string_t& delim,
+                        common::neug_string_t& result,
                         common::ValueVector& inputVector,
                         common::ValueVector& /*delimVector*/,
                         common::ValueVector& resultVector);

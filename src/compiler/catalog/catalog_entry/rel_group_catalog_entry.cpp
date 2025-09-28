@@ -100,7 +100,7 @@ binder::BoundCreateTableInfo RelGroupCatalogEntry::getBoundCreateTableInfo(
   std::vector<binder::BoundCreateTableInfo> infos;
   for (auto relTableID : relTableIDs) {
     auto relEntry = catalog->getTableCatalogEntry(transaction, relTableID);
-    KU_ASSERT(relEntry != nullptr);
+    NEUG_ASSERT(relEntry != nullptr);
     auto boundInfo = relEntry->getBoundCreateTableInfo(transaction, false);
     boundInfo.hasParent = true;
     infos.push_back(std::move(boundInfo));
@@ -131,7 +131,7 @@ std::string RelGroupCatalogEntry::toCypher(const ToCypherInfo& info) const {
   auto transaction = relGroupInfo.context->getTransaction();
   std::stringstream ss;
   ss << stringFormat("CREATE REL TABLE `{}` (", getName());
-  KU_ASSERT(!relTableIDs.empty());
+  NEUG_ASSERT(!relTableIDs.empty());
   ss << getFromToStr(relTableIDs[0], catalog, transaction);
   for (auto i = 1u; i < relTableIDs.size(); ++i) {
     ss << stringFormat(", {}",

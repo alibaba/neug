@@ -63,7 +63,7 @@ RemoveUnnecessaryJoinOptimizer::visitHashJoinReplace(
   if (op->getChild(1)->getOperatorType() ==
       LogicalOperatorType::SCAN_NODE_TABLE) {
     const auto scanNode =
-        ku_dynamic_cast<LogicalScanNodeTable*>(op->getChild(1).get());
+        neug_dynamic_cast<LogicalScanNodeTable*>(op->getChild(1).get());
     if (scanNode->getProperties().empty()) {
       // Build side is trivial. Prune build side.
       return op->getChild(0);
@@ -72,7 +72,7 @@ RemoveUnnecessaryJoinOptimizer::visitHashJoinReplace(
   if (op->getChild(0)->getOperatorType() ==
       LogicalOperatorType::SCAN_NODE_TABLE) {
     const auto scanNode =
-        ku_dynamic_cast<LogicalScanNodeTable*>(op->getChild(0).get());
+        neug_dynamic_cast<LogicalScanNodeTable*>(op->getChild(0).get());
     if (scanNode->getProperties().empty()) {
       // Probe side is trivial. Prune probe side.
       return op->getChild(1);

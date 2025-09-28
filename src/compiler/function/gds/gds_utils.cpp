@@ -95,7 +95,7 @@ static void runOneIteration(ExecutionContext* context, Graph* graph,
                              ExtendDirection::BWD, compState, propertiesToScan);
       } break;
       default:
-        KU_UNREACHABLE;
+        NEUG_UNREACHABLE;
       }
     }
   }

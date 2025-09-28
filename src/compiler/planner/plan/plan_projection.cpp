@@ -65,7 +65,7 @@ void Planner::planProjectionBody(const BoundProjectionBody* projectionBody,
 void Planner::planAggregate(const expression_vector& expressionsToAggregate,
                             const expression_vector& expressionsToGroupBy,
                             LogicalPlan& plan) {
-  KU_ASSERT(!expressionsToAggregate.empty());
+  NEUG_ASSERT(!expressionsToAggregate.empty());
   expression_vector expressionsToProject;
   for (auto& expressionToAggregate : expressionsToAggregate) {
     if (ExpressionChildrenCollector::collectChildren(*expressionToAggregate)

@@ -76,11 +76,11 @@ static std::vector<table_id_t> getTableIDs(const LogicalOperator* op,
       return getTableIDs(node.getEntries());
     }
     default:
-      KU_UNREACHABLE;
+      NEUG_UNREACHABLE;
     }
   }
   default:
-    KU_UNREACHABLE;
+    NEUG_UNREACHABLE;
   }
 }
 
@@ -122,7 +122,7 @@ static bool haveSameType(const std::vector<LogicalOperator*>& ops) {
 
 bool sanityCheckCandidates(const std::vector<LogicalOperator*>& ops,
                            SemiMaskTargetType targetType) {
-  KU_ASSERT(!ops.empty());
+  NEUG_ASSERT(!ops.empty());
   if (!haveSameType(ops)) {
     return false;
   }
@@ -246,7 +246,7 @@ static std::shared_ptr<LogicalOperator> tryApplySemiMask(
       op->cast<LogicalRecursiveExtend>().setInputNodeMask();
     }
     auto targetType = SemiMaskTargetType::RECURSIVE_EXTEND_INPUT_NODE;
-    KU_ASSERT(
+    NEUG_ASSERT(
         sanityCheckCandidates(recursiveExtendInputNodeCandidates, targetType));
     return appendSemiMasker(
         SemiMaskKeyType::NODE, targetType, std::move(nodeID),
@@ -259,7 +259,8 @@ static std::shared_ptr<LogicalOperator> tryApplySemiMask(
       op->cast<LogicalRecursiveExtend>().setOutputNodeMask();
     }
     auto targetType = SemiMaskTargetType::RECURSIVE_EXTEND_OUTPUT_NODE;
-    KU_ASSERT(sanityCheckCandidates(recursiveExtendNodeCandidates, targetType));
+    NEUG_ASSERT(
+        sanityCheckCandidates(recursiveExtendNodeCandidates, targetType));
     return appendSemiMasker(SemiMaskKeyType::NODE, targetType,
                             std::move(nodeID), recursiveExtendNodeCandidates,
                             std::move(fromRoot));
@@ -432,8 +433,8 @@ void HashJoinSIPOptimizer::visitPathPropertyProbe(LogicalOperator* op) {
   if (opsToApplySemiMask.empty()) {
     return;
   }
-  KU_ASSERT(pathPropertyProbe.getChild(0)->getOperatorType() ==
-            LogicalOperatorType::RECURSIVE_EXTEND);
+  NEUG_ASSERT(pathPropertyProbe.getChild(0)->getOperatorType() ==
+              LogicalOperatorType::RECURSIVE_EXTEND);
   auto semiMasker = appendSemiMasker(
       SemiMaskKeyType::NODE_ID_LIST, SemiMaskTargetType::SCAN_NODE,
       recursiveRel->getRecursiveInfo()->bindData->pathNodeIDsExpr,

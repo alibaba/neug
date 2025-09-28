@@ -91,7 +91,7 @@ PathsOutputWriter::PathsOutputWriter(main::ClientContext* context,
 static void addListEntry(ValueVector* vector, uint64_t length) {
   vector->resetAuxiliaryBuffer();
   auto entry = ListVector::addList(vector, length);
-  KU_ASSERT(entry.offset == 0);
+  NEUG_ASSERT(entry.offset == 0);
   vector->setValue(0, entry);
 }
 
@@ -153,7 +153,7 @@ bool PathsOutputWriter::checkAppendSemantic(
   case PathSemantic::ACYCLIC:
     return isAppendAcyclic(path, candidate);
   default:
-    KU_UNREACHABLE;
+    NEUG_UNREACHABLE;
   }
 }
 
@@ -167,7 +167,7 @@ bool PathsOutputWriter::checkReplaceTopSemantic(
   case PathSemantic::ACYCLIC:
     return isReplaceTopAcyclic(path, candidate);
   default:
-    KU_UNREACHABLE;
+    NEUG_UNREACHABLE;
   }
 }
 
@@ -212,12 +212,12 @@ bool PathsOutputWriter::isReplaceTopAcyclic(
 }
 
 static void setLength(ValueVector* vector, uint16_t length) {
-  KU_ASSERT(vector->dataType.getLogicalTypeID() == LogicalTypeID::UINT16);
+  NEUG_ASSERT(vector->dataType.getLogicalTypeID() == LogicalTypeID::UINT16);
   vector->setValue<uint16_t>(0, length);
 }
 
 void PathsOutputWriter::beginWritePath(idx_t length) const {
-  KU_ASSERT(info.writePath);
+  NEUG_ASSERT(info.writePath);
   addListEntry(pathNodeIDsVector.get(), length > 1 ? length - 1 : 0);
   addListEntry(pathEdgeIDsVector.get(), length);
   if (info.writeEdgeDirection) {

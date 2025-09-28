@@ -54,7 +54,7 @@ class GDSAuxiliaryState {
 
   template <class TARGET>
   TARGET* ptrCast() {
-    return common::ku_dynamic_cast<TARGET*>(this);
+    return common::neug_dynamic_cast<TARGET*>(this);
   }
 };
 

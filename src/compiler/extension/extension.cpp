@@ -69,9 +69,8 @@ std::string getPlatform() { return getOS() + "_" + getArch(); }
 
 static bool startsWith(const std::string& str, const std::string& prefix) {
   return str.size() >= prefix.size() &&
-    str.compare(0, prefix.size(), prefix) == 0;
+         str.compare(0, prefix.size(), prefix) == 0;
 }
-
 
 static ExtensionRepoInfo getExtensionRepoInfo(std::string& extensionURL) {
   std::string scheme;
@@ -85,9 +84,10 @@ static ExtensionRepoInfo getExtensionRepoInfo(std::string& extensionURL) {
     scheme = "https";
   }
   auto pos = extensionURL.find('/');
-  std::string host = (pos == std::string::npos) ? extensionURL
-                                                : extensionURL.substr(0, pos);
-  std::string path = (pos == std::string::npos) ? "/" : extensionURL.substr(pos);
+  std::string host =
+      (pos == std::string::npos) ? extensionURL : extensionURL.substr(0, pos);
+  std::string path =
+      (pos == std::string::npos) ? "/" : extensionURL.substr(pos);
   if (path.empty() || path[0] != '/') {
     path = "/" + path;
   }
@@ -101,7 +101,7 @@ std::string ExtensionSourceUtils::toString(ExtensionSource source) {
   case ExtensionSource::USER:
     return "USER";
   default:
-    KU_UNREACHABLE;
+    NEUG_UNREACHABLE;
   }
 }
 
@@ -182,7 +182,7 @@ std::string ExtensionUtils::appendLibSuffix(const std::string& libName) {
   } else if (os == "osx") {
     suffix = "dylib";
   } else {
-    KU_UNREACHABLE;
+    NEUG_UNREACHABLE;
   }
   return common::stringFormat("{}.{}", libName, suffix);
 }
@@ -263,13 +263,13 @@ std::wstring utf8ToUnicode(const char* input) {
 }
 
 void* dlopen(const char* file, int /*mode*/) {
-  KU_ASSERT(file);
+  NEUG_ASSERT(file);
   auto fpath = utf8ToUnicode(file);
   return (void*) LoadLibraryW(fpath.c_str());
 }
 
 void* dlsym(void* handle, const char* name) {
-  KU_ASSERT(handle);
+  NEUG_ASSERT(handle);
   return (void*) GetProcAddress((HINSTANCE) handle, name);
 }
 #endif

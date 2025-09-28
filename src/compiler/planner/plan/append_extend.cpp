@@ -39,7 +39,7 @@ static std::unordered_set<table_id_t> getBoundNodeTableIDSet(
       result.insert(relTableEntry.getBoundTableID(RelDataDirection::BWD));
     } break;
     default:
-      KU_UNREACHABLE;
+      NEUG_UNREACHABLE;
     }
   }
   return result;
@@ -62,7 +62,7 @@ static std::unordered_set<table_id_t> getNbrNodeTableIDSet(
       result.insert(relTableEntry.getNbrTableID(RelDataDirection::BWD));
     } break;
     default:
-      KU_UNREACHABLE;
+      NEUG_UNREACHABLE;
     }
   }
   return result;

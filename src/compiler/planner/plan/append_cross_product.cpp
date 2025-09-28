@@ -26,7 +26,7 @@ void Planner::appendAccOptionalCrossProduct(std::shared_ptr<Expression> mark,
                                             LogicalPlan& probePlan,
                                             const LogicalPlan& buildPlan,
                                             LogicalPlan& resultPlan) {
-  KU_ASSERT(probePlan.hasUpdate());
+  NEUG_ASSERT(probePlan.hasUpdate());
   tryAppendAccumulate(probePlan);
   appendCrossProduct(AccumulateType::OPTIONAL_, mark, probePlan, buildPlan,
                      resultPlan);

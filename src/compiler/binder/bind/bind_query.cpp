@@ -121,7 +121,7 @@ std::unique_ptr<BoundRegularQuery> Binder::bindQuery(
     normalizedSingleQueries.push_back(std::move(singleQuery));
   }
   validateUnionColumnsOfTheSameType(normalizedSingleQueries);
-  KU_ASSERT(!normalizedSingleQueries.empty());
+  NEUG_ASSERT(!normalizedSingleQueries.empty());
   auto boundRegularQuery = std::make_unique<BoundRegularQuery>(
       regularQuery.getIsUnionAll(),
       normalizedSingleQueries[0].getStatementResult()->copy());

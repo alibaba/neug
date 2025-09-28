@@ -44,7 +44,7 @@ static void validateKeyType(
 static std::unique_ptr<FunctionBindData> bindFunc(
     const ScalarBindFuncInput& input) {
   validateKeyType(input.arguments[0], input.arguments[1]);
-  auto scalarFunction = ku_dynamic_cast<ScalarFunction*>(input.definition);
+  auto scalarFunction = neug_dynamic_cast<ScalarFunction*>(input.definition);
   TypeUtils::visit(
       input.arguments[1]->getDataType().getPhysicalType(), [&]<typename T>(T) {
         scalarFunction->execFunc = ScalarFunction::BinaryExecListStructFunction<

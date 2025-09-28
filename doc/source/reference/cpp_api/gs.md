@@ -7401,7 +7401,7 @@ For example, in the following query: MATCH (a:person) CALL (a) { subquery1 UNION
 
 - `toString(const uint8_t *value, uint64_t len)`
 - `toString(const blob_t &blob)`
-- `getBlobSize(const ku_string_t &blob)`
+- `getBlobSize(const neug_string_t &blob)`
 - `fromString(const char *str, uint64_t length, uint8_t *resultBuffer)`
 - `getValue(const blob_t &data)`
 - `getValue(char *data)`
@@ -8928,14 +8928,14 @@ Interface for displaying progress of a pipeline and a query.
 **Public Methods:**
 
 - `getInMemOverflowBuffer(ValueVector *vector)`
-- `addString(ValueVector *vector, uint32_t vectorPos, ku_strin...`
+- `addString(ValueVector *vector, uint32_t vectorPos, neug_strin...`
 - `addString(ValueVector *vector, uint32_t vectorPos, const ch...`
 - `addString(ValueVector *vector, uint32_t vectorPos, const st...`
 - `reserveString(ValueVector *vector, uint32_t vectorPos, uint64_t length)`
-- `reserveString(ValueVector *vector, ku_string_t &dstStr, uint64_t length)`
-- `addString(ValueVector *vector, ku_string_t &dstStr, ku_stri...`
-- `addString(ValueVector *vector, ku_string_t &dstStr, const c...`
-- `addString(gs::common::ValueVector *vector, ku_string_t &dst...`
+- `reserveString(ValueVector *vector, neug_string_t &dstStr, uint64_t length)`
+- `addString(ValueVector *vector, neug_string_t &dstStr, neug_stri...`
+- `addString(ValueVector *vector, neug_string_t &dstStr, const c...`
+- `addString(gs::common::ValueVector *vector, neug_string_t &dst...`
 - `copyToRowData(const ValueVector *vector, uint32_t pos, uint8_t ...`
 
 
@@ -9241,7 +9241,7 @@ A class that displays a progress bar in the terminal.
 - `fromCString(const char *str, uint64_t len)`
 - `toString(int128_t input, char *buf)`
 - `toString(int128_t input)`
-- `toString(ku_uuid_t val)`
+- `toString(neug_uuid_t val)`
 - `generateRandomUUID(RandomEngine *engine)`
 - ... and 1 more methods
 
@@ -9486,43 +9486,43 @@ A Vector represents values of the same data type. The capacity of a `ValueVector
 
 ---
 
-## ku_list_t
+## neug_list_t
 
-**Full name:** `gs::common::ku_list_t`
+**Full name:** `gs::common::neug_list_t`
 
 **Public Methods:**
 
-- `ku_list_t()`
-- `ku_list_t(uint64_t size, uint64_t overflowPtr)`
+- `neug_list_t()`
+- `neug_list_t(uint64_t size, uint64_t overflowPtr)`
 - `set(const uint8_t *values, const LogicalType &dataType) const`
 
 
 ---
 
-## ku_string_t
+## neug_string_t
 
-**Full name:** `gs::common::ku_string_t`
+**Full name:** `gs::common::neug_string_t`
 
 **Public Methods:**
 
-- `ku_string_t()`
-- `ku_string_t(const char *value, uint64_t length)`
+- `neug_string_t()`
+- `neug_string_t(const char *value, uint64_t length)`
 - `getData() const`
 - `getDataUnsafe()`
 - `set(const std::string &value)`
 - `set(const char *value, uint64_t length)`
-- `set(const ku_string_t &value)`
+- `set(const neug_string_t &value)`
 - `setShortString(const char *value, uint64_t length)`
 - `setLongString(const char *value, uint64_t length)`
-- `setShortString(const ku_string_t &value)`
+- `setShortString(const neug_string_t &value)`
 - ... and 12 more methods
 
 
 ---
 
-## ku_uuid_t
+## neug_uuid_t
 
-**Full name:** `gs::common::ku_uuid_t`
+**Full name:** `gs::common::neug_uuid_t`
 
 
 ---
@@ -10578,8 +10578,8 @@ T F T F 1 T F F F 0 F F T F 0 F F F F 0
 
 **Public Methods:**
 
-- `operation(common::ku_string_t &str, int64_t &idx, common::k...`
-- `copySubstr(common::ku_string_t &src, int64_t start, int64_t ...`
+- `operation(common::neug_string_t &str, int64_t &idx, common::k...`
+- `copySubstr(common::neug_string_t &src, int64_t start, int64_t ...`
 
 
 ---
@@ -10899,7 +10899,7 @@ T F T F 1 T F F F 0 F F T F 0 F F F F 0
 
 **Public Methods:**
 
-- `operation(common::ku_string_t &input, common::ku_string_t &...`
+- `operation(common::neug_string_t &input, common::neug_string_t &...`
 - `convertCharCase(char *result, const char *input, int32_t charPos,...`
 - `convertCase(char *result, uint32_t len, char *input, bool toUpper)`
 - `getResultLen(char *inputStr, uint32_t inputLen, bool isUpper)`
@@ -10924,9 +10924,9 @@ T F T F 1 T F F F 0 F F T F 0 F F F F 0
 
 **Public Methods:**
 
-- `operation(common::ku_string_t &src, int64_t count, common::...`
+- `operation(common::neug_string_t &src, int64_t count, common::...`
 - `padCountChars(const uint32_t count, const char *data, const uin...`
-- `insertPadding(uint32_t charCount, common::ku_string_t pad, std:...`
+- `insertPadding(uint32_t charCount, common::neug_string_t pad, std:...`
 
 
 ---
@@ -10938,7 +10938,7 @@ T F T F 1 T F F F 0 F F T F 0 F F F F 0
 **Public Methods:**
 
 - `parseCypherPattern(const std::string &pattern)`
-- `copyToKuzuString(const std::string &value, common::ku_string_t &ku...`
+- `copyToKuzuString(const std::string &value, common::neug_string_t &ku...`
 
 
 ---
@@ -10949,7 +10949,7 @@ T F T F 1 T F F F 0 F F T F 0 F F F F 0
 
 **Public Methods:**
 
-- `operation(common::ku_string_t &input, common::ku_string_t &...`
+- `operation(common::neug_string_t &input, common::neug_string_t &...`
 
 
 ---
@@ -11351,10 +11351,10 @@ This does NOT applies to binary boolean operations (e.g. AND, OR, XOR).
 **Public Methods:**
 
 - `operation(SRC &input, DST &output, const ValueVector &input...`
-- `operation(int16_t &input, ku_string_t &output, const ValueV...`
-- `operation(int32_t &input, ku_string_t &output, const ValueV...`
-- `operation(int64_t &input, ku_string_t &output, const ValueV...`
-- `operation(common::int128_t &input, ku_string_t &output, con...`
+- `operation(int16_t &input, neug_string_t &output, const ValueV...`
+- `operation(int32_t &input, neug_string_t &output, const ValueV...`
+- `operation(int64_t &input, neug_string_t &output, const ValueV...`
+- `operation(common::int128_t &input, neug_string_t &output, con...`
 
 
 ---
@@ -11389,7 +11389,7 @@ This does NOT applies to binary boolean operations (e.g. AND, OR, XOR).
 
 **Public Methods:**
 
-- `operation(common::struct_entry_t &input, common::ku_string_...`
+- `operation(common::struct_entry_t &input, common::neug_string_...`
 
 
 ---
@@ -11400,7 +11400,7 @@ This does NOT applies to binary boolean operations (e.g. AND, OR, XOR).
 
 **Public Methods:**
 
-- `operation(common::struct_entry_t &input, common::ku_string_...`
+- `operation(common::struct_entry_t &input, common::neug_string_...`
 
 
 ---
@@ -11412,15 +11412,15 @@ This does NOT applies to binary boolean operations (e.g. AND, OR, XOR).
 **Public Methods:**
 
 - `copyStringToVector(ValueVector *vector, uint64_t vectorPos, std::str...`
-- `tryCast(const ku_string_t &input, T &result)`
-- `operation(const ku_string_t &input, T &result, ValueVector ...`
-- `operation(const ku_string_t &input, int128_t &result, Value...`
-- `operation(const ku_string_t &input, int32_t &result, ValueV...`
-- `operation(const ku_string_t &input, int16_t &result, ValueV...`
-- `operation(const ku_string_t &input, int8_t &result, ValueVe...`
-- `operation(const ku_string_t &input, uint64_t &result, Value...`
-- `operation(const ku_string_t &input, uint32_t &result, Value...`
-- `operation(const ku_string_t &input, uint16_t &result, Value...`
+- `tryCast(const neug_string_t &input, T &result)`
+- `operation(const neug_string_t &input, T &result, ValueVector ...`
+- `operation(const neug_string_t &input, int128_t &result, Value...`
+- `operation(const neug_string_t &input, int32_t &result, ValueV...`
+- `operation(const neug_string_t &input, int16_t &result, ValueV...`
+- `operation(const neug_string_t &input, int8_t &result, ValueVe...`
+- `operation(const neug_string_t &input, uint64_t &result, Value...`
+- `operation(const neug_string_t &input, uint32_t &result, Value...`
+- `operation(const neug_string_t &input, uint16_t &result, Value...`
 - ... and 17 more methods
 
 
@@ -11481,10 +11481,10 @@ This does NOT applies to binary boolean operations (e.g. AND, OR, XOR).
 **Public Methods:**
 
 - `operation(SRC &input, DST &output, const ValueVector &, con...`
-- `operation(ku_string_t &input, int16_t &output, const ValueV...`
-- `operation(ku_string_t &input, int32_t &output, const ValueV...`
-- `operation(ku_string_t &input, int64_t &output, const ValueV...`
-- `operation(ku_string_t &input, common::int128_t &output, con...`
+- `operation(neug_string_t &input, int16_t &output, const ValueV...`
+- `operation(neug_string_t &input, int32_t &output, const ValueV...`
+- `operation(neug_string_t &input, int64_t &output, const ValueV...`
+- `operation(neug_string_t &input, common::int128_t &output, con...`
 
 
 ---
@@ -11689,7 +11689,7 @@ This does NOT applies to binary boolean operations (e.g. AND, OR, XOR).
 
 **Public Methods:**
 
-- `operation(T &input, common::ku_string_t &result, common::Va...`
+- `operation(T &input, common::neug_string_t &result, common::Va...`
 
 
 ---
@@ -11999,7 +11999,7 @@ This does NOT applies to binary boolean operations (e.g. AND, OR, XOR).
 
 **Public Methods:**
 
-- `operation(common::ku_string_t &left, common::ku_string_t &r...`
+- `operation(common::neug_string_t &left, common::neug_string_t &r...`
 
 
 ---
@@ -12210,9 +12210,9 @@ This does NOT applies to binary boolean operations (e.g. AND, OR, XOR).
 **Public Methods:**
 
 - `operation(LEFT_TYPE &, RIGHT_TYPE &, int64_t &)`
-- `operation(common::ku_string_t &partSpecifier, common::date_...`
-- `operation(common::ku_string_t &partSpecifier, common::times...`
-- `operation(common::ku_string_t &partSpecifier, common::inter...`
+- `operation(common::neug_string_t &partSpecifier, common::date_...`
+- `operation(common::neug_string_t &partSpecifier, common::times...`
+- `operation(common::neug_string_t &partSpecifier, common::inter...`
 
 
 ---
@@ -12242,8 +12242,8 @@ This does NOT applies to binary boolean operations (e.g. AND, OR, XOR).
 **Public Methods:**
 
 - `operation(LEFT_TYPE &, RIGHT_TYPE &, RIGHT_TYPE &)`
-- `operation(common::ku_string_t &partSpecifier, common::date_...`
-- `operation(common::ku_string_t &partSpecifier, common::times...`
+- `operation(common::neug_string_t &partSpecifier, common::date_...`
+- `operation(common::neug_string_t &partSpecifier, common::times...`
 
 
 ---
@@ -12272,9 +12272,9 @@ This does NOT applies to binary boolean operations (e.g. AND, OR, XOR).
 
 **Public Methods:**
 
-- `operation(T &, common::ku_string_t &)`
-- `operation(common::date_t &input, common::ku_string_t &result)`
-- `operation(common::timestamp_t &input, common::ku_string_t &result)`
+- `operation(T &, common::neug_string_t &)`
+- `operation(common::date_t &input, common::neug_string_t &result)`
+- `operation(common::timestamp_t &input, common::neug_string_t &result)`
 
 
 ---
@@ -12296,7 +12296,7 @@ This does NOT applies to binary boolean operations (e.g. AND, OR, XOR).
 
 **Public Methods:**
 
-- `operation(common::blob_t &input, common::ku_string_t &resul...`
+- `operation(common::blob_t &input, common::neug_string_t &resul...`
 
 
 ---
@@ -12530,7 +12530,7 @@ Intended to be passed to the helper functions in `GDSUtils` that parallelize suc
 
 **Public Methods:**
 
-- `operation(common::ku_string_t &input, common::blob_t &resul...`
+- `operation(common::neug_string_t &input, common::blob_t &resul...`
 
 
 ---
@@ -12563,7 +12563,7 @@ Intended to be passed to the helper functions in `GDSUtils` that parallelize suc
 
 **Public Methods:**
 
-- `operation(common::ku_string_t &left, common::ku_string_t &r...`
+- `operation(common::neug_string_t &left, common::neug_string_t &r...`
 
 
 ---
@@ -12800,7 +12800,7 @@ Intended to be passed to the helper functions in `GDSUtils` that parallelize suc
 
 **Public Methods:**
 
-- `operation(common::ku_string_t &left, common::ku_string_t &r...`
+- `operation(common::neug_string_t &left, common::neug_string_t &r...`
 
 
 ---
@@ -13205,7 +13205,7 @@ Intended to be passed to the helper functions in `GDSUtils` that parallelize suc
 
 **Public Methods:**
 
-- `operation(common::ku_uuid_t &input, void *dataPtr)`
+- `operation(common::neug_uuid_t &input, void *dataPtr)`
 
 
 ---
@@ -13571,7 +13571,7 @@ Intended to be passed to the helper functions in `GDSUtils` that parallelize suc
 
 **Public Methods:**
 
-- `operation(common::ku_string_t &left, int64_t &right, common...`
+- `operation(common::neug_string_t &left, int64_t &right, common...`
 
 
 ---
@@ -13799,7 +13799,7 @@ Intended to be passed to the helper functions in `GDSUtils` that parallelize suc
 **Public Methods:**
 
 - `operation(common::list_entry_t &listEntry, int64_t pos, T &...`
-- `operation(common::ku_string_t &str, int64_t &idx, common::k...`
+- `operation(common::neug_string_t &str, int64_t &idx, common::k...`
 
 
 ---
@@ -13858,7 +13858,7 @@ Intended to be passed to the helper functions in `GDSUtils` that parallelize suc
 **Public Methods:**
 
 - `operation(T &input, int64_t &result)`
-- `operation(common::ku_string_t &input, int64_t &result)`
+- `operation(common::neug_string_t &input, int64_t &result)`
 
 
 ---
@@ -13958,8 +13958,8 @@ Intended to be passed to the helper functions in `GDSUtils` that parallelize suc
 **Public Methods:**
 
 - `operation(common::list_entry_t &input, common::list_entry_t...`
-- `operation(common::list_entry_t &input, common::ku_string_t ...`
-- `operation(common::list_entry_t &, common::ku_string_t &, co...`
+- `operation(common::list_entry_t &input, common::neug_string_t ...`
+- `operation(common::list_entry_t &, common::neug_string_t &, co...`
 
 
 ---
@@ -14004,8 +14004,8 @@ Intended to be passed to the helper functions in `GDSUtils` that parallelize suc
 **Public Methods:**
 
 - `operation(common::list_entry_t &input, common::list_entry_t...`
-- `operation(common::list_entry_t &input, common::ku_string_t ...`
-- `operation(common::list_entry_t &input, common::ku_string_t ...`
+- `operation(common::list_entry_t &input, common::neug_string_t ...`
+- `operation(common::list_entry_t &input, common::neug_string_t ...`
 
 
 ---
@@ -14038,7 +14038,7 @@ Intended to be passed to the helper functions in `GDSUtils` that parallelize suc
 
 **Public Methods:**
 
-- `operation(common::list_entry_t &input, common::ku_string_t ...`
+- `operation(common::list_entry_t &input, common::neug_string_t ...`
 
 
 ---
@@ -14178,7 +14178,7 @@ Intended to be passed to the helper functions in `GDSUtils` that parallelize suc
 
 **Public Methods:**
 
-- `operation(common::ku_string_t &input, common::ku_string_t &...`
+- `operation(common::neug_string_t &input, common::neug_string_t &...`
 
 
 ---
@@ -14201,8 +14201,8 @@ Intended to be passed to the helper functions in `GDSUtils` that parallelize suc
 
 **Public Methods:**
 
-- `operation(common::ku_string_t &src, int64_t count, common::...`
-- `lpadOperation(common::ku_string_t &src, int64_t count, common::...`
+- `operation(common::neug_string_t &src, int64_t count, common::...`
+- `lpadOperation(common::neug_string_t &src, int64_t count, common::...`
 
 
 ---
@@ -14224,7 +14224,7 @@ Intended to be passed to the helper functions in `GDSUtils` that parallelize suc
 
 **Public Methods:**
 
-- `operation(common::ku_string_t &input, common::ku_string_t &...`
+- `operation(common::neug_string_t &input, common::neug_string_t &...`
 - `ltrim(char *data, uint32_t len)`
 
 
@@ -14388,7 +14388,7 @@ Intended to be passed to the helper functions in `GDSUtils` that parallelize suc
 - `getStateSize() const override`
 - `moveResultToVector(common::ValueVector *outputVector, uint64_t pos) override`
 - `setVal(const T &val_, common::InMemOverflowBuffer *)`
-- `setVal(const common::ku_string_t &val_, common::InMemOve...`
+- `setVal(const common::neug_string_t &val_, common::InMemOve...`
 
 
 ---
@@ -14430,9 +14430,9 @@ Intended to be passed to the helper functions in `GDSUtils` that parallelize suc
 
 **Public Methods:**
 
-- `operation(T &, common::ku_string_t &)`
-- `operation(common::date_t &input, common::ku_string_t &result)`
-- `operation(common::timestamp_t &input, common::ku_string_t &result)`
+- `operation(T &, common::neug_string_t &)`
+- `operation(common::date_t &input, common::neug_string_t &result)`
+- `operation(common::timestamp_t &input, common::neug_string_t &result)`
 
 
 ---
@@ -14728,7 +14728,7 @@ T F T F 1 T F F F 1 F F T F 1 F F F F 0
 
 **Public Methods:**
 
-- `operation(common::ku_string_t &src, int64_t count, common::...`
+- `operation(common::neug_string_t &src, int64_t count, common::...`
 
 
 ---
@@ -14954,8 +14954,8 @@ T F T F 1 T F F F 1 F F T F 1 F F F F 0
 
 **Public Methods:**
 
-- `operation(common::ku_string_t &value, common::ku_string_t &...`
-- `operation(common::ku_string_t &value, common::ku_string_t &...`
+- `operation(common::neug_string_t &value, common::neug_string_t &...`
+- `operation(common::neug_string_t &value, common::neug_string_t &...`
 - `regexExtract(const std::string &input, const std::string &patt...`
 
 
@@ -14967,8 +14967,8 @@ T F T F 1 T F F F 1 F F T F 1 F F F F 0
 
 **Public Methods:**
 
-- `operation(common::ku_string_t &value, common::ku_string_t &...`
-- `operation(common::ku_string_t &value, common::ku_string_t &...`
+- `operation(common::neug_string_t &value, common::neug_string_t &...`
+- `operation(common::neug_string_t &value, common::neug_string_t &...`
 - `regexExtractAll(const std::string &value, const std::string &patt...`
 - `IsCharacter(char c)`
 
@@ -15014,7 +15014,7 @@ T F T F 1 T F F F 1 F F T F 1 F F F F 0
 
 **Public Methods:**
 
-- `operation(common::ku_string_t &left, common::ku_string_t &r...`
+- `operation(common::neug_string_t &left, common::neug_string_t &r...`
 
 
 ---
@@ -15047,7 +15047,7 @@ T F T F 1 T F F F 1 F F T F 1 F F F F 0
 
 **Public Methods:**
 
-- `operation(common::ku_string_t &value, common::ku_string_t &...`
+- `operation(common::neug_string_t &value, common::neug_string_t &...`
 - `regexExtractAll(const std::string &value, const std::string &pattern)`
 
 
@@ -15088,7 +15088,7 @@ T F T F 1 T F F F 1 F F T F 1 F F F F 0
 
 **Public Methods:**
 
-- `operation(common::ku_string_t &left, int64_t &right, common...`
+- `operation(common::neug_string_t &left, int64_t &right, common...`
 
 
 ---
@@ -15110,7 +15110,7 @@ T F T F 1 T F F F 1 F F T F 1 F F F F 0
 
 **Public Methods:**
 
-- `operation(common::ku_string_t &input, common::ku_string_t &...`
+- `operation(common::neug_string_t &input, common::neug_string_t &...`
 
 
 ---
@@ -15155,7 +15155,7 @@ T F T F 1 T F F F 1 F F T F 1 F F F F 0
 
 **Public Methods:**
 
-- `operation(common::ku_string_t &left, int64_t &right, common...`
+- `operation(common::neug_string_t &left, int64_t &right, common...`
 
 
 ---
@@ -15199,8 +15199,8 @@ T F T F 1 T F F F 1 F F T F 1 F F F F 0
 
 **Public Methods:**
 
-- `operation(common::ku_string_t &src, int64_t count, common::...`
-- `rpadOperation(common::ku_string_t &src, int64_t count, common::...`
+- `operation(common::neug_string_t &src, int64_t count, common::...`
+- `rpadOperation(common::neug_string_t &src, int64_t count, common::...`
 
 
 ---
@@ -15222,7 +15222,7 @@ T F T F 1 T F F F 1 F F T F 1 F F F F 0
 
 **Public Methods:**
 
-- `operation(common::ku_string_t &input, common::ku_string_t &...`
+- `operation(common::neug_string_t &input, common::neug_string_t &...`
 - `rtrim(char *data, uint32_t len)`
 
 
@@ -15732,7 +15732,7 @@ T F T F 1 T F F F 1 F F T F 1 F F F F 0
 
 **Public Methods:**
 
-- `operation(common::ku_string_t &left, common::ku_string_t &r...`
+- `operation(common::neug_string_t &left, common::neug_string_t &r...`
 
 
 ---
@@ -15848,8 +15848,8 @@ T F T F 1 T F F F 1 F F T F 1 F F F F 0
 
 **Public Methods:**
 
-- `operation(common::ku_string_t &src, int64_t start, int64_t ...`
-- `copySubstr(common::ku_string_t &src, int64_t start, int64_t ...`
+- `operation(common::neug_string_t &src, int64_t start, int64_t ...`
+- `copySubstr(common::neug_string_t &src, int64_t start, int64_t ...`
 
 
 ---
@@ -16445,7 +16445,7 @@ T F T F 1 T F F F 1 F F T F 1 F F F F 0
 
 **Public Methods:**
 
-- `operation(common::ku_string_t &input, common::ku_string_t &...`
+- `operation(common::neug_string_t &input, common::neug_string_t &...`
 
 
 ---
@@ -16698,7 +16698,7 @@ This does NOT applies to IS_NULL and IS_NOT_NULL operation.
 
 **Public Methods:**
 
-- `operation(common::union_entry_t &unionValue, common::ku_str...`
+- `operation(common::union_entry_t &unionValue, common::neug_str...`
 
 
 ---
@@ -16731,7 +16731,7 @@ This does NOT applies to IS_NULL and IS_NOT_NULL operation.
 
 **Public Methods:**
 
-- `operation(common::ku_string_t &input, common::ku_string_t &...`
+- `operation(common::neug_string_t &input, common::neug_string_t &...`
 
 
 ---
@@ -19479,7 +19479,7 @@ To guarantee all subqueries have the same ouput schema by adding LogicalAliasMap
 
 **Public Methods:**
 
-- `Transformer(CypherParser::Ku_StatementsContext &root)`
+- `Transformer(CypherParser::Neug_StatementsContext &root)`
 - `transform()`
 
 

@@ -39,7 +39,7 @@ class LambdaExpression final : public Expression {
         parsedLambdaExpr{std::move(parsedLambdaExpr)} {}
 
   void cast(const common::LogicalType& type_) override {
-    KU_ASSERT(dataType.getLogicalTypeID() == common::LogicalTypeID::ANY);
+    NEUG_ASSERT(dataType.getLogicalTypeID() == common::LogicalTypeID::ANY);
     dataType = type_.copy();
   }
 

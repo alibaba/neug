@@ -62,7 +62,7 @@ std::unique_ptr<BoundUpdatingClause> Binder::bindUpdatingClause(
     return bindDeleteClause(updatingClause);
   }
   default:
-    KU_UNREACHABLE;
+    NEUG_UNREACHABLE;
   }
 }
 
@@ -206,7 +206,7 @@ void Binder::bindInsertNode(std::shared_ptr<NodeExpression> node,
                            " with multiple node labels is not supported.");
   }
   auto entry = node->getSingleEntry();
-  KU_ASSERT(entry->getTableType() == TableType::NODE);
+  NEUG_ASSERT(entry->getTableType() == TableType::NODE);
   auto insertInfo = BoundInsertInfo(TableType::NODE, node);
   for (auto& expr : node->getPropertyExprs()) {
     auto propertyExpr = expr->constPtrCast<PropertyExpression>();
@@ -226,7 +226,7 @@ static TableCatalogEntry* tryPruneMultiLabeled(const RelExpression& rel,
                                                table_id_t dstTableID) {
   std::vector<TableCatalogEntry*> candidates;
   for (auto& entry : rel.getEntries()) {
-    KU_ASSERT(entry->getType() == CatalogEntryType::REL_TABLE_ENTRY);
+    NEUG_ASSERT(entry->getType() == CatalogEntryType::REL_TABLE_ENTRY);
     auto& relEntry = entry->constCast<RelTableCatalogEntry>();
     if (relEntry.getSrcTableID() == srcTableID &&
         relEntry.getDstTableID() == dstTableID) {

@@ -249,11 +249,11 @@ ArrowNullMaskTree::ArrowNullMaskTree(const ArrowSchema* schema,
       }
       break;
     default:
-      KU_UNREACHABLE;
+      NEUG_UNREACHABLE;
     }
     break;
   default:
-    KU_UNREACHABLE;
+    NEUG_UNREACHABLE;
   }
 }
 

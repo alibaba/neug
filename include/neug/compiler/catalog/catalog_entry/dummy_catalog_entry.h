@@ -37,10 +37,10 @@ class DummyCatalogEntry final : public CatalogEntry {
   }
 
   void serialize(common::Serializer& /*serializer*/) const override {
-    KU_UNREACHABLE;
+    NEUG_UNREACHABLE;
   }
   std::string toCypher(const ToCypherInfo& /*info*/) const override {
-    KU_UNREACHABLE;
+    NEUG_UNREACHABLE;
   }
 };
 

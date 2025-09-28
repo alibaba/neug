@@ -64,7 +64,7 @@ class NodeOffsetMaskMap {
   offset_t getNumMaskedNode() const;
 
   void addMask(table_id_t tableID, std::unique_ptr<SemiMask> mask) {
-    KU_ASSERT(!maskMap.contains(tableID));
+    NEUG_ASSERT(!maskMap.contains(tableID));
     maskMap.insert({tableID, std::move(mask)});
   }
 
@@ -80,7 +80,7 @@ class NodeOffsetMaskMap {
     return maskMap.contains(tableID);
   }
   SemiMask* getOffsetMask(table_id_t tableID) const {
-    KU_ASSERT(containsTableID(tableID));
+    NEUG_ASSERT(containsTableID(tableID));
     return maskMap.at(tableID).get();
   }
 
@@ -95,11 +95,11 @@ class NodeOffsetMaskMap {
   SemiMask* getPinnedMask() const { return pinnedMask; }
 
   bool valid(offset_t offset) const {
-    KU_ASSERT(pinnedMask != nullptr);
+    NEUG_ASSERT(pinnedMask != nullptr);
     return pinnedMask->isMasked(offset);
   }
   bool valid(nodeID_t nodeID) const {
-    KU_ASSERT(maskMap.contains(nodeID.tableID));
+    NEUG_ASSERT(maskMap.contains(nodeID.tableID));
     return maskMap.at(nodeID.tableID)->isMasked(nodeID.offset);
   }
 

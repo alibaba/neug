@@ -45,7 +45,7 @@ std::unique_ptr<BoundReadingClause> Binder::bindReadingClause(
     return bindLoadFrom(readingClause);
   }
   default:
-    KU_UNREACHABLE;
+    NEUG_UNREACHABLE;
   }
 }
 

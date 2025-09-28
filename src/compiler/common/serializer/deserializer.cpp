@@ -38,11 +38,11 @@ void Deserializer::validateDebuggingInfo(std::string& value,
 #if defined(NEUG_DESER_DEBUG) && \
     (defined(NEUG_RUNTIME_CHECKS) || !defined(NDEBUG))
   deserializeValue<std::string>(value);
-  KU_ASSERT(value == expectedVal);
+  NEUG_ASSERT(value == expectedVal);
 #endif
   // DO NOTHING
-  KU_UNUSED(value);
-  KU_UNUSED(expectedVal);
+  NEUG_UNUSED(value);
+  NEUG_UNUSED(expectedVal);
 }
 
 }  // namespace common

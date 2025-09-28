@@ -87,7 +87,7 @@ static std::unique_ptr<ScalarFunction> getUnaryFunction(
       [&]<NumericTypes T>(T) {
         execFunc = ScalarFunction::UnaryExecFunction<T, T, FUNC>;
       },
-      [](auto) { KU_UNREACHABLE; });
+      [](auto) { NEUG_UNREACHABLE; });
   return std::make_unique<ScalarFunction>(
       std::move(name), std::vector<LogicalTypeID>{operandTypeID}, operandTypeID,
       execFunc);
@@ -111,7 +111,7 @@ static std::unique_ptr<ScalarFunction> getBinaryFunction(
       [&]<common::NumericTypes T>(T) {
         execFunc = ScalarFunction::BinaryExecFunction<T, T, T, FUNC>;
       },
-      [](auto) { KU_UNREACHABLE; });
+      [](auto) { NEUG_UNREACHABLE; });
   return std::make_unique<ScalarFunction>(
       std::move(name),
       std::vector<common::LogicalTypeID>{operandTypeID, operandTypeID},
@@ -732,10 +732,10 @@ struct DecimalFloor {
       // round to larger absolute value
       result = (R) input - (input % pow10s[scale] == 0
                                 ? 0
-                                : pow10s[scale] + (R)(input % pow10s[scale]));
+                                : pow10s[scale] + (R) (input % pow10s[scale]));
     } else {
       // round to smaller absolute value
-      result = (R) input - (R)(input % pow10s[scale]);
+      result = (R) input - (R) (input % pow10s[scale]);
     }
     result = result / pow10s[scale];
   }
@@ -753,12 +753,12 @@ struct DecimalCeil {
     auto scale = DecimalType::getScale(inputVector.dataType);
     if (input < 0) {
       // round to larger absolute value
-      result = (R) input - (R)(input % pow10s[scale]);
+      result = (R) input - (R) (input % pow10s[scale]);
     } else {
       // round to smaller absolute value
       result = (R) input + (input % pow10s[scale] == 0
                                 ? 0
-                                : pow10s[scale] - (R)(input % pow10s[scale]));
+                                : pow10s[scale] - (R) (input % pow10s[scale]));
     }
     result = result / pow10s[scale];
   }
@@ -785,7 +785,7 @@ static void getBinaryExecutionHelperB(const LogicalType& typeR,
     result = ScalarFunction::BinaryStringExecFunction<A, B, int128_t, FUNC>;
     break;
   default:
-    KU_UNREACHABLE;
+    NEUG_UNREACHABLE;
   }
 }
 
@@ -809,15 +809,15 @@ static void getBinaryExecutionHelperA(const LogicalType& typeB,
     getBinaryExecutionHelperB<FUNC, A, int128_t>(typeR, result);
     break;
   default:
-    KU_UNREACHABLE;
+    NEUG_UNREACHABLE;
   }
 }
 
 template <typename FUNC>
 static std::unique_ptr<FunctionBindData> genericBinaryArithmeticFunc(
     const binder::expression_vector& arguments, Function* func) {
-  auto asScalar = ku_dynamic_cast<ScalarFunction*>(func);
-  KU_ASSERT(asScalar != nullptr);
+  auto asScalar = neug_dynamic_cast<ScalarFunction*>(func);
+  NEUG_ASSERT(asScalar != nullptr);
   auto argADataType = arguments[0]->getDataType().copy();
   auto argBDataType = arguments[1]->getDataType().copy();
   if (argADataType.getLogicalTypeID() != LogicalTypeID::DECIMAL) {
@@ -843,7 +843,7 @@ static std::unique_ptr<FunctionBindData> genericBinaryArithmeticFunc(
           asScalar->execFunc =
               ScalarFunction::BinaryStringExecFunction<T, T, T, FUNC>;
         },
-        [](auto) { KU_UNREACHABLE; });
+        [](auto) { NEUG_UNREACHABLE; });
   } else {
     common::TypeUtils::visit(
         argumentAType.getPhysicalType(),
@@ -851,7 +851,7 @@ static std::unique_ptr<FunctionBindData> genericBinaryArithmeticFunc(
           getBinaryExecutionHelperA<FUNC, T>(argumentBType, resultingType,
                                              asScalar->execFunc);
         },
-        [](auto) { KU_UNREACHABLE; });
+        [](auto) { NEUG_UNREACHABLE; });
   }
   std::vector<LogicalType> resVec;
   resVec.push_back(std::move(argumentAType));
@@ -878,15 +878,15 @@ static void getUnaryExecutionHelper(const LogicalType& resultType,
     result = ScalarFunction::UnaryExecNestedTypeFunction<ARG, int128_t, FUNC>;
     break;
   default:
-    KU_UNREACHABLE;
+    NEUG_UNREACHABLE;
   }
 }
 
 template <typename FUNC>
 static std::unique_ptr<FunctionBindData> genericUnaryArithmeticFunc(
     const binder::expression_vector& arguments, Function* func) {
-  auto asScalar = ku_dynamic_cast<ScalarFunction*>(func);
-  KU_ASSERT(asScalar != nullptr);
+  auto asScalar = neug_dynamic_cast<ScalarFunction*>(func);
+  NEUG_ASSERT(asScalar != nullptr);
   auto argPrecision = DecimalType::getPrecision(arguments[0]->getDataType());
   auto argScale = DecimalType::getScale(arguments[0]->getDataType());
   auto params = FUNC::resultingParams(argPrecision, argScale);
@@ -913,7 +913,7 @@ static std::unique_ptr<FunctionBindData> genericUnaryArithmeticFunc(
           ScalarFunction::UnaryExecNestedTypeFunction<int128_t, int128_t, FUNC>;
       break;
     default:
-      KU_UNREACHABLE;
+      NEUG_UNREACHABLE;
     }
   } else {
     switch (argumentType.getPhysicalType()) {
@@ -931,7 +931,7 @@ static std::unique_ptr<FunctionBindData> genericUnaryArithmeticFunc(
                                               asScalar->execFunc);
       break;
     default:
-      KU_UNREACHABLE;
+      NEUG_UNREACHABLE;
     }
   }
   std::vector<LogicalType> argTypes;

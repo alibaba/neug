@@ -44,7 +44,7 @@ struct ExtraPropertyInfo {
 
   template <class TARGET>
   TARGET* ptrCast() {
-    return common::ku_dynamic_cast<TARGET*>(this);
+    return common::neug_dynamic_cast<TARGET*>(this);
   }
 
   virtual std::unique_ptr<ExtraPropertyInfo> copy() const = 0;
@@ -224,11 +224,11 @@ static std::unique_ptr<TableFuncBindData> bindFunc(
         type = CatalogEntryType::REL_TABLE_ENTRY;
       } break;
       default:
-        KU_UNREACHABLE;
+        NEUG_UNREACHABLE;
       }
     } else if (catalog->containsRelGroup(transaction, tableName)) {
       auto entry = catalog->getRelGroupEntry(transaction, tableName);
-      KU_ASSERT(entry->getNumRelTables() > 0);
+      NEUG_ASSERT(entry->getNumRelTables() > 0);
       auto id = entry->getRelTableIDs()[0];
       auto relEntry = catalog->getTableCatalogEntry(transaction, id)
                           ->ptrCast<RelTableCatalogEntry>();

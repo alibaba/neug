@@ -24,7 +24,7 @@
 
 #include "neug/compiler/common/assert.h"
 #include "neug/compiler/common/types/date_t.h"
-#include "neug/compiler/common/types/ku_string.h"
+#include "neug/compiler/common/types/neug_string.h"
 #include "neug/compiler/common/types/timestamp_t.h"
 
 namespace gs {
@@ -32,21 +32,22 @@ namespace function {
 
 struct DayName {
   template <class T>
-  static inline void operation(T& /*input*/, common::ku_string_t& /*result*/) {
-    KU_UNREACHABLE;
+  static inline void operation(T& /*input*/,
+                               common::neug_string_t& /*result*/) {
+    NEUG_UNREACHABLE;
   }
 };
 
 template <>
 inline void DayName::operation(common::date_t& input,
-                               common::ku_string_t& result) {
+                               common::neug_string_t& result) {
   std::string dayName = common::Date::getDayName(input);
   result.set(dayName);
 }
 
 template <>
 inline void DayName::operation(common::timestamp_t& input,
-                               common::ku_string_t& result) {
+                               common::neug_string_t& result) {
   common::dtime_t time{};
   common::date_t date{};
   common::Timestamp::convert(input, date, time);
@@ -56,21 +57,22 @@ inline void DayName::operation(common::timestamp_t& input,
 
 struct MonthName {
   template <class T>
-  static inline void operation(T& /*input*/, common::ku_string_t& /*result*/) {
-    KU_UNREACHABLE;
+  static inline void operation(T& /*input*/,
+                               common::neug_string_t& /*result*/) {
+    NEUG_UNREACHABLE;
   }
 };
 
 template <>
 inline void MonthName::operation(common::date_t& input,
-                                 common::ku_string_t& result) {
+                                 common::neug_string_t& result) {
   std::string monthName = common::Date::getMonthName(input);
   result.set(monthName);
 }
 
 template <>
 inline void MonthName::operation(common::timestamp_t& input,
-                                 common::ku_string_t& result) {
+                                 common::neug_string_t& result) {
   common::dtime_t time{};
   common::date_t date{};
   common::Timestamp::convert(input, date, time);
@@ -82,7 +84,7 @@ struct LastDay {
   template <class T>
 
   static inline void operation(T& /*input*/, common::date_t& /*result*/) {
-    KU_UNREACHABLE;
+    NEUG_UNREACHABLE;
   }
 };
 
@@ -104,12 +106,12 @@ struct DatePart {
   template <class LEFT_TYPE, class RIGHT_TYPE>
   static inline void operation(LEFT_TYPE& /*partSpecifier*/,
                                RIGHT_TYPE& /*input*/, int64_t& /*result*/) {
-    KU_UNREACHABLE;
+    NEUG_UNREACHABLE;
   }
 };
 
 template <>
-inline void DatePart::operation(common::ku_string_t& partSpecifier,
+inline void DatePart::operation(common::neug_string_t& partSpecifier,
                                 common::date_t& input, int64_t& result) {
   common::DatePartSpecifier specifier{};
   common::Interval::tryGetDatePartSpecifier(partSpecifier.getAsString(),
@@ -118,7 +120,7 @@ inline void DatePart::operation(common::ku_string_t& partSpecifier,
 }
 
 template <>
-inline void DatePart::operation(common::ku_string_t& partSpecifier,
+inline void DatePart::operation(common::neug_string_t& partSpecifier,
                                 common::timestamp_t& input, int64_t& result) {
   common::DatePartSpecifier specifier{};
   common::Interval::tryGetDatePartSpecifier(partSpecifier.getAsString(),
@@ -127,7 +129,7 @@ inline void DatePart::operation(common::ku_string_t& partSpecifier,
 }
 
 template <>
-inline void DatePart::operation(common::ku_string_t& partSpecifier,
+inline void DatePart::operation(common::neug_string_t& partSpecifier,
                                 common::interval_t& input, int64_t& result) {
   common::DatePartSpecifier specifier{};
   common::Interval::tryGetDatePartSpecifier(partSpecifier.getAsString(),
@@ -139,12 +141,12 @@ struct DateTrunc {
   template <class LEFT_TYPE, class RIGHT_TYPE>
   static inline void operation(LEFT_TYPE& /*partSpecifier*/,
                                RIGHT_TYPE& /*input*/, RIGHT_TYPE& /*result*/) {
-    KU_UNREACHABLE;
+    NEUG_UNREACHABLE;
   }
 };
 
 template <>
-inline void DateTrunc::operation(common::ku_string_t& partSpecifier,
+inline void DateTrunc::operation(common::neug_string_t& partSpecifier,
                                  common::date_t& input,
                                  common::date_t& result) {
   common::DatePartSpecifier specifier{};
@@ -154,7 +156,7 @@ inline void DateTrunc::operation(common::ku_string_t& partSpecifier,
 }
 
 template <>
-inline void DateTrunc::operation(common::ku_string_t& partSpecifier,
+inline void DateTrunc::operation(common::neug_string_t& partSpecifier,
                                  common::timestamp_t& input,
                                  common::timestamp_t& result) {
   common::DatePartSpecifier specifier{};

@@ -241,7 +241,7 @@ std::vector<std::shared_ptr<Statement>> ClientContext::parseQuery(
       parserTimer.stop();
       const auto avgRewriteParsingTime =
           parserTimer.getElapsedTimeMS() / rewrittenStatements.size() / 1.0;
-      KU_ASSERT(rewrittenStatements.size() >= 1);
+      NEUG_ASSERT(rewrittenStatements.size() >= 1);
       for (auto j = 0u; j < rewrittenStatements.size() - 1; j++) {
         rewrittenStatements[j]->setParsingTime(avgParsingTime +
                                                avgRewriteParsingTime);

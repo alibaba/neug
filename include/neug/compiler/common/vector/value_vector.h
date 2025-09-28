@@ -30,7 +30,7 @@
 #include "neug/compiler/common/copy_constructors.h"
 #include "neug/compiler/common/data_chunk/data_chunk_state.h"
 #include "neug/compiler/common/null_mask.h"
-#include "neug/compiler/common/types/ku_string.h"
+#include "neug/compiler/common/types/neug_string.h"
 #include "neug/compiler/common/vector/auxiliary_buffer.h"
 
 namespace gs {
@@ -55,7 +55,7 @@ class NEUG_API ValueVector {
   explicit ValueVector(LogicalTypeID dataTypeID,
                        storage::MemoryManager* memoryManager = nullptr)
       : ValueVector(LogicalType(dataTypeID), memoryManager) {
-    KU_ASSERT(dataTypeID != LogicalTypeID::LIST);
+    NEUG_ASSERT(dataTypeID != LogicalTypeID::LIST);
   }
 
   DELETE_COPY_AND_MOVE(ValueVector);
@@ -147,7 +147,7 @@ class NEUG_API ValueVector {
   uint8_t* getData() const { return valueBuffer.get(); }
 
   offset_t readNodeOffset(uint32_t pos) const {
-    KU_ASSERT(dataType.getLogicalTypeID() == LogicalTypeID::INTERNAL_ID);
+    NEUG_ASSERT(dataType.getLogicalTypeID() == LogicalTypeID::INTERNAL_ID);
     return getValue<nodeID_t>(pos).offset;
   }
 
@@ -186,29 +186,29 @@ class NEUG_API StringVector {
  public:
   static inline InMemOverflowBuffer* getInMemOverflowBuffer(
       ValueVector* vector) {
-    KU_ASSERT(vector->dataType.getPhysicalType() == PhysicalTypeID::STRING);
-    return ku_dynamic_cast<StringAuxiliaryBuffer*>(
+    NEUG_ASSERT(vector->dataType.getPhysicalType() == PhysicalTypeID::STRING);
+    return neug_dynamic_cast<StringAuxiliaryBuffer*>(
                vector->auxiliaryBuffer.get())
         ->getOverflowBuffer();
   }
 
   static void addString(ValueVector* vector, uint32_t vectorPos,
-                        ku_string_t& srcStr);
+                        neug_string_t& srcStr);
   static void addString(ValueVector* vector, uint32_t vectorPos,
                         const char* srcStr, uint64_t length);
   static void addString(ValueVector* vector, uint32_t vectorPos,
                         const std::string& srcStr);
   // Add empty string with space reserved for the provided size
   // Returned value can be modified to set the string contents
-  static ku_string_t& reserveString(ValueVector* vector, uint32_t vectorPos,
-                                    uint64_t length);
-  static void reserveString(ValueVector* vector, ku_string_t& dstStr,
+  static neug_string_t& reserveString(ValueVector* vector, uint32_t vectorPos,
+                                      uint64_t length);
+  static void reserveString(ValueVector* vector, neug_string_t& dstStr,
                             uint64_t length);
-  static void addString(ValueVector* vector, ku_string_t& dstStr,
-                        ku_string_t& srcStr);
-  static void addString(ValueVector* vector, ku_string_t& dstStr,
+  static void addString(ValueVector* vector, neug_string_t& dstStr,
+                        neug_string_t& srcStr);
+  static void addString(ValueVector* vector, neug_string_t& dstStr,
                         const char* srcStr, uint64_t length);
-  static void addString(gs::common::ValueVector* vector, ku_string_t& dstStr,
+  static void addString(gs::common::ValueVector* vector, neug_string_t& dstStr,
                         const std::string& srcStr);
   static void copyToRowData(const ValueVector* vector, uint32_t pos,
                             uint8_t* rowData,
@@ -241,7 +241,7 @@ class NEUG_API ListVector {
   // TODO(Xiyang): try to merge setDataVector & copyListEntryAndBufferMetaData
   static void setDataVector(const ValueVector* vector,
                             std::shared_ptr<ValueVector> dataVector) {
-    KU_ASSERT(validateType(*vector));
+    NEUG_ASSERT(validateType(*vector));
     auto& listBuffer = getAuxBufferUnsafe(*vector);
     listBuffer.setDataVector(std::move(dataVector));
   }
@@ -249,21 +249,21 @@ class NEUG_API ListVector {
       ValueVector& vector, const SelectionVector& selVector,
       const ValueVector& other, const SelectionVector& otherSelVector);
   static ValueVector* getDataVector(const ValueVector* vector) {
-    KU_ASSERT(validateType(*vector));
+    NEUG_ASSERT(validateType(*vector));
     return getAuxBuffer(*vector).getDataVector();
   }
   static std::shared_ptr<ValueVector> getSharedDataVector(
       const ValueVector* vector) {
-    KU_ASSERT(validateType(*vector));
+    NEUG_ASSERT(validateType(*vector));
     return getAuxBuffer(*vector).getSharedDataVector();
   }
   static uint64_t getDataVectorSize(const ValueVector* vector) {
-    KU_ASSERT(validateType(*vector));
+    NEUG_ASSERT(validateType(*vector));
     return getAuxBuffer(*vector).getSize();
   }
   static uint8_t* getListValues(const ValueVector* vector,
                                 const list_entry_t& listEntry) {
-    KU_ASSERT(validateType(*vector));
+    NEUG_ASSERT(validateType(*vector));
     auto dataVector = getDataVector(vector);
     return dataVector->getData() +
            dataVector->getNumBytesPerValue() * listEntry.offset;
@@ -271,16 +271,16 @@ class NEUG_API ListVector {
   static uint8_t* getListValuesWithOffset(const ValueVector* vector,
                                           const list_entry_t& listEntry,
                                           offset_t elementOffsetInList) {
-    KU_ASSERT(validateType(*vector));
+    NEUG_ASSERT(validateType(*vector));
     return getListValues(vector, listEntry) +
            elementOffsetInList * getDataVector(vector)->getNumBytesPerValue();
   }
   static list_entry_t addList(ValueVector* vector, uint64_t listSize) {
-    KU_ASSERT(validateType(*vector));
+    NEUG_ASSERT(validateType(*vector));
     return getAuxBufferUnsafe(*vector).addList(listSize);
   }
   static void resizeDataVector(ValueVector* vector, uint64_t numValues) {
-    KU_ASSERT(validateType(*vector));
+    NEUG_ASSERT(validateType(*vector));
     getAuxBufferUnsafe(*vector).resize(numValues);
   }
 
@@ -314,14 +314,14 @@ class StructVector {
  public:
   static const std::vector<std::shared_ptr<ValueVector>>& getFieldVectors(
       const ValueVector* vector) {
-    return ku_dynamic_cast<StructAuxiliaryBuffer*>(
+    return neug_dynamic_cast<StructAuxiliaryBuffer*>(
                vector->auxiliaryBuffer.get())
         ->getFieldVectors();
   }
 
   static std::shared_ptr<ValueVector> getFieldVector(const ValueVector* vector,
                                                      struct_field_idx_t idx) {
-    return ku_dynamic_cast<StructAuxiliaryBuffer*>(
+    return neug_dynamic_cast<StructAuxiliaryBuffer*>(
                vector->auxiliaryBuffer.get())
         ->getFieldVectorShared(idx);
   }
@@ -329,13 +329,14 @@ class StructVector {
   static ValueVector* getFieldVectorRaw(const ValueVector& vector,
                                         const std::string& fieldName) {
     auto idx = StructType::getFieldIdx(vector.dataType, fieldName);
-    return ku_dynamic_cast<StructAuxiliaryBuffer*>(vector.auxiliaryBuffer.get())
+    return neug_dynamic_cast<StructAuxiliaryBuffer*>(
+               vector.auxiliaryBuffer.get())
         ->getFieldVectorPtr(idx);
   }
 
   static void referenceVector(ValueVector* vector, struct_field_idx_t idx,
                               std::shared_ptr<ValueVector> vectorToReference) {
-    ku_dynamic_cast<StructAuxiliaryBuffer*>(vector->auxiliaryBuffer.get())
+    neug_dynamic_cast<StructAuxiliaryBuffer*>(vector->auxiliaryBuffer.get())
         ->referenceChildVector(idx, std::move(vectorToReference));
   }
 
@@ -352,13 +353,13 @@ class StructVector {
 class UnionVector {
  public:
   static inline ValueVector* getTagVector(const ValueVector* vector) {
-    KU_ASSERT(vector->dataType.getLogicalTypeID() == LogicalTypeID::UNION);
+    NEUG_ASSERT(vector->dataType.getLogicalTypeID() == LogicalTypeID::UNION);
     return StructVector::getFieldVector(vector, UnionType::TAG_FIELD_IDX).get();
   }
 
   static inline ValueVector* getValVector(const ValueVector* vector,
                                           union_field_idx_t fieldIdx) {
-    KU_ASSERT(vector->dataType.getLogicalTypeID() == LogicalTypeID::UNION);
+    NEUG_ASSERT(vector->dataType.getLogicalTypeID() == LogicalTypeID::UNION);
     return StructVector::getFieldVector(
                vector, UnionType::getInternalFieldIdx(fieldIdx))
         .get();
@@ -374,7 +375,7 @@ class UnionVector {
 
   static inline void setTagField(ValueVector& vector, SelectionVector& sel,
                                  union_field_idx_t tag) {
-    KU_ASSERT(vector.dataType.getLogicalTypeID() == LogicalTypeID::UNION);
+    NEUG_ASSERT(vector.dataType.getLogicalTypeID() == LogicalTypeID::UNION);
     for (auto i = 0u; i < sel.getSelSize(); i++) {
       vector.setValue<struct_field_idx_t>(sel[i], tag);
     }

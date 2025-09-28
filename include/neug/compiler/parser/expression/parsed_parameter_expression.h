@@ -38,15 +38,17 @@ class ParsedParameterExpression : public ParsedExpression {
 
   static std::unique_ptr<ParsedParameterExpression> deserialize(
       common::Deserializer&) {
-    KU_UNREACHABLE;
+    NEUG_UNREACHABLE;
   }
 
   inline std::unique_ptr<ParsedExpression> copy() const override {
-    KU_UNREACHABLE;
+    NEUG_UNREACHABLE;
   }
 
  private:
-  void serializeInternal(common::Serializer&) const override { KU_UNREACHABLE; }
+  void serializeInternal(common::Serializer&) const override {
+    NEUG_UNREACHABLE;
+  }
 
  private:
   std::string parameterName;

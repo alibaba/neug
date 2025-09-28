@@ -93,7 +93,7 @@ void BoundStatementVisitor::visit(const BoundStatement& statement) {
     visitStandaloneCallFunction(statement);
   } break;
   default:
-    KU_UNREACHABLE;
+    NEUG_UNREACHABLE;
   }
 }
 
@@ -108,21 +108,21 @@ void BoundStatementVisitor::visitUnsafe(BoundStatement& statement) {
 }
 
 void BoundStatementVisitor::visitCopyFrom(const BoundStatement& statement) {
-  auto& copyFrom = ku_dynamic_cast<const BoundCopyFrom&>(statement);
+  auto& copyFrom = neug_dynamic_cast<const BoundCopyFrom&>(statement);
   if (copyFrom.getInfo()->source->type == ScanSourceType::QUERY) {
-    auto querySource = ku_dynamic_cast<BoundQueryScanSource*>(
+    auto querySource = neug_dynamic_cast<BoundQueryScanSource*>(
         copyFrom.getInfo()->source.get());
     visit(*querySource->statement);
   }
 }
 
 void BoundStatementVisitor::visitCopyTo(const BoundStatement& statement) {
-  auto& copyTo = ku_dynamic_cast<const BoundCopyTo&>(statement);
+  auto& copyTo = neug_dynamic_cast<const BoundCopyTo&>(statement);
   visitRegularQuery(*copyTo.getRegularQuery());
 }
 
 void BoundStatementVisitor::visitRegularQuery(const BoundStatement& statement) {
-  auto& regularQuery = ku_dynamic_cast<const BoundRegularQuery&>(statement);
+  auto& regularQuery = neug_dynamic_cast<const BoundRegularQuery&>(statement);
   for (auto i = 0u; i < regularQuery.getNumSingleQueries(); ++i) {
     visitSingleQuery(*regularQuery.getSingleQuery(i));
   }
@@ -201,7 +201,7 @@ void BoundStatementVisitor::visitReadingClause(
     visitLoadFrom(readingClause);
   } break;
   default:
-    KU_UNREACHABLE;
+    NEUG_UNREACHABLE;
   }
 }
 
@@ -221,7 +221,7 @@ void BoundStatementVisitor::visitReadingClauseUnsafe(
     visitLoadFrom(readingClause);
   } break;
   default:
-    KU_UNREACHABLE;
+    NEUG_UNREACHABLE;
   }
 }
 
@@ -241,7 +241,7 @@ void BoundStatementVisitor::visitUpdatingClause(
     visitMerge(updatingClause);
   } break;
   default:
-    KU_UNREACHABLE;
+    NEUG_UNREACHABLE;
   }
 }
 

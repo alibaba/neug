@@ -96,19 +96,19 @@ std::string VirtualFileSystem::expandPath(main::ClientContext* context,
 void VirtualFileSystem::readFromFile(FileInfo& /*fileInfo*/, void* /*buffer*/,
                                      uint64_t /*numBytes*/,
                                      uint64_t /*position*/) const {
-  KU_UNREACHABLE;
+  NEUG_UNREACHABLE;
 }
 
 int64_t VirtualFileSystem::readFile(FileInfo& /*fileInfo*/, void* /*buf*/,
                                     size_t /*nbyte*/) const {
-  KU_UNREACHABLE;
+  NEUG_UNREACHABLE;
 }
 
 void VirtualFileSystem::writeFile(FileInfo& /*fileInfo*/,
                                   const uint8_t* /*buffer*/,
                                   uint64_t /*numBytes*/,
                                   uint64_t /*offset*/) const {
-  KU_UNREACHABLE;
+  NEUG_UNREACHABLE;
 }
 
 void VirtualFileSystem::syncFile(const FileInfo& fileInfo) const {
@@ -124,16 +124,16 @@ void VirtualFileSystem::cleanUP(main::ClientContext* context) {
 
 int64_t VirtualFileSystem::seek(FileInfo& /*fileInfo*/, uint64_t /*offset*/,
                                 int /*whence*/) const {
-  KU_UNREACHABLE;
+  NEUG_UNREACHABLE;
 }
 
 void VirtualFileSystem::truncate(FileInfo& /*fileInfo*/,
                                  uint64_t /*size*/) const {
-  KU_UNREACHABLE;
+  NEUG_UNREACHABLE;
 }
 
 uint64_t VirtualFileSystem::getFileSize(const FileInfo& /*fileInfo*/) const {
-  KU_UNREACHABLE;
+  NEUG_UNREACHABLE;
 }
 
 FileSystem* VirtualFileSystem::findFileSystem(const std::string& path) const {

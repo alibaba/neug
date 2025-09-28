@@ -94,7 +94,7 @@ struct NEUG_API ScalarFunction : public ScalarOrAggregateFunction {
       const std::vector<common::SelectionVector*>& paramSelVectors,
       common::ValueVector& result, common::SelectionVector* resultSelVector,
       void* dataPtr = nullptr) {
-    KU_ASSERT(params.size() == 3);
+    NEUG_ASSERT(params.size() == 3);
     TernaryFunctionExecutor::executeSwitch<A_TYPE, B_TYPE, C_TYPE, RESULT_TYPE,
                                            FUNC, TernaryFunctionWrapper>(
         *params[0], paramSelVectors[0], *params[1], paramSelVectors[1],
@@ -108,7 +108,7 @@ struct NEUG_API ScalarFunction : public ScalarOrAggregateFunction {
       const std::vector<common::SelectionVector*>& paramSelVectors,
       common::ValueVector& result, common::SelectionVector* resultSelVector,
       void* dataPtr = nullptr) {
-    KU_ASSERT(params.size() == 3);
+    NEUG_ASSERT(params.size() == 3);
     TernaryFunctionExecutor::executeSwitch<A_TYPE, B_TYPE, C_TYPE, RESULT_TYPE,
                                            FUNC, TernaryStringFunctionWrapper>(
         *params[0], paramSelVectors[0], *params[1], paramSelVectors[1],
@@ -135,7 +135,7 @@ struct NEUG_API ScalarFunction : public ScalarOrAggregateFunction {
       const std::vector<common::SelectionVector*>& paramSelVectors,
       common::ValueVector& result, common::SelectionVector* resultSelVector,
       void* dataPtr = nullptr) {
-    KU_ASSERT(params.size() == 3);
+    NEUG_ASSERT(params.size() == 3);
     TernaryFunctionExecutor::executeSwitch<A_TYPE, B_TYPE, C_TYPE, RESULT_TYPE,
                                            FUNC, TernaryListFunctionWrapper>(
         *params[0], paramSelVectors[0], *params[1], paramSelVectors[1],
@@ -149,7 +149,7 @@ struct NEUG_API ScalarFunction : public ScalarOrAggregateFunction {
       const std::vector<common::SelectionVector*>& paramSelVectors,
       common::ValueVector& result, common::SelectionVector* resultSelVector,
       void* /*dataPtr*/ = nullptr) {
-    KU_ASSERT(params.size() == 2);
+    NEUG_ASSERT(params.size() == 2);
     BinaryFunctionExecutor::execute<LEFT_TYPE, RIGHT_TYPE, RESULT_TYPE, FUNC>(
         *params[0], paramSelVectors[0], *params[1], paramSelVectors[1], result,
         resultSelVector);
@@ -162,7 +162,7 @@ struct NEUG_API ScalarFunction : public ScalarOrAggregateFunction {
       const std::vector<common::SelectionVector*>& paramSelVectors,
       common::ValueVector& result, common::SelectionVector* resultSelVector,
       void* dataPtr = nullptr) {
-    KU_ASSERT(params.size() == 2);
+    NEUG_ASSERT(params.size() == 2);
     BinaryFunctionExecutor::executeSwitch<LEFT_TYPE, RIGHT_TYPE, RESULT_TYPE,
                                           FUNC, BinaryStringFunctionWrapper>(
         *params[0], paramSelVectors[0], *params[1], paramSelVectors[1], result,
@@ -176,7 +176,7 @@ struct NEUG_API ScalarFunction : public ScalarOrAggregateFunction {
       const std::vector<common::SelectionVector*>& paramSelVectors,
       common::ValueVector& result, common::SelectionVector* resultSelVector,
       void* dataPtr = nullptr) {
-    KU_ASSERT(params.size() == 2);
+    NEUG_ASSERT(params.size() == 2);
     BinaryFunctionExecutor::executeSwitch<LEFT_TYPE, RIGHT_TYPE, RESULT_TYPE,
                                           FUNC,
                                           BinaryListStructFunctionWrapper>(
@@ -191,7 +191,7 @@ struct NEUG_API ScalarFunction : public ScalarOrAggregateFunction {
       const std::vector<common::SelectionVector*>& paramSelVectors,
       common::ValueVector& result, common::SelectionVector* resultSelVector,
       void* dataPtr) {
-    KU_ASSERT(params.size() == 2);
+    NEUG_ASSERT(params.size() == 2);
     BinaryFunctionExecutor::executeSwitch<LEFT_TYPE, RIGHT_TYPE, RESULT_TYPE,
                                           FUNC,
                                           BinaryMapCreationFunctionWrapper>(
@@ -203,7 +203,7 @@ struct NEUG_API ScalarFunction : public ScalarOrAggregateFunction {
   static bool BinarySelectFunction(
       const std::vector<std::shared_ptr<common::ValueVector>>& params,
       common::SelectionVector& selVector, void* dataPtr) {
-    KU_ASSERT(params.size() == 2);
+    NEUG_ASSERT(params.size() == 2);
     return BinaryFunctionExecutor::select<LEFT_TYPE, RIGHT_TYPE, FUNC>(
         *params[0], *params[1], selVector, dataPtr);
   }
@@ -212,7 +212,7 @@ struct NEUG_API ScalarFunction : public ScalarOrAggregateFunction {
   static bool BinarySelectWithBindData(
       const std::vector<std::shared_ptr<common::ValueVector>>& params,
       common::SelectionVector& selVector, void* dataPtr) {
-    KU_ASSERT(params.size() == 2);
+    NEUG_ASSERT(params.size() == 2);
     return BinaryFunctionExecutor::select<LEFT_TYPE, RIGHT_TYPE, FUNC,
                                           BinarySelectWithBindDataWrapper>(
         *params[0], *params[1], selVector, dataPtr);
@@ -225,7 +225,7 @@ struct NEUG_API ScalarFunction : public ScalarOrAggregateFunction {
       const std::vector<common::SelectionVector*>& paramSelVectors,
       common::ValueVector& result, common::SelectionVector* resultSelVector,
       void* dataPtr) {
-    KU_ASSERT(params.size() == 1);
+    NEUG_ASSERT(params.size() == 1);
     EXECUTOR::template executeSwitch<OPERAND_TYPE, RESULT_TYPE, FUNC,
                                      UnaryFunctionWrapper>(
         *params[0], paramSelVectors[0], result, resultSelVector, dataPtr);
@@ -237,7 +237,7 @@ struct NEUG_API ScalarFunction : public ScalarOrAggregateFunction {
       const std::vector<common::SelectionVector*>& paramSelVectors,
       common::ValueVector& result, common::SelectionVector* resultSelVector,
       void* dataPtr) {
-    KU_ASSERT(params.size() == 1);
+    NEUG_ASSERT(params.size() == 1);
     UnaryFunctionExecutor::executeSequence<OPERAND_TYPE, RESULT_TYPE, FUNC>(
         *params[0], paramSelVectors[0], result, resultSelVector, dataPtr);
   }
@@ -248,7 +248,7 @@ struct NEUG_API ScalarFunction : public ScalarOrAggregateFunction {
       const std::vector<common::SelectionVector*>& paramSelVectors,
       common::ValueVector& result, common::SelectionVector* resultSelVector,
       void* /*dataPtr*/ = nullptr) {
-    KU_ASSERT(params.size() == 1);
+    NEUG_ASSERT(params.size() == 1);
     UnaryFunctionExecutor::executeSwitch<OPERAND_TYPE, RESULT_TYPE, FUNC,
                                          UnaryStringFunctionWrapper>(
         *params[0], paramSelVectors[0], result, resultSelVector,
@@ -262,7 +262,7 @@ struct NEUG_API ScalarFunction : public ScalarOrAggregateFunction {
       const std::vector<common::SelectionVector*>& paramSelVectors,
       common::ValueVector& result, common::SelectionVector* resultSelVector,
       void* dataPtr) {
-    KU_ASSERT(params.size() == 1);
+    NEUG_ASSERT(params.size() == 1);
     EXECUTOR::template executeSwitch<OPERAND_TYPE, RESULT_TYPE, FUNC,
                                      UnaryCastStringFunctionWrapper>(
         *params[0], paramSelVectors[0], result, resultSelVector, dataPtr);
@@ -275,7 +275,7 @@ struct NEUG_API ScalarFunction : public ScalarOrAggregateFunction {
       const std::vector<common::SelectionVector*>& paramSelVectors,
       common::ValueVector& result, common::SelectionVector* resultSelVector,
       void* dataPtr) {
-    KU_ASSERT(params.size() == 1);
+    NEUG_ASSERT(params.size() == 1);
     EXECUTOR::template executeSwitch<OPERAND_TYPE, RESULT_TYPE, FUNC,
                                      UnaryCastFunctionWrapper>(
         *params[0], paramSelVectors[0], result, resultSelVector, dataPtr);
@@ -287,7 +287,7 @@ struct NEUG_API ScalarFunction : public ScalarOrAggregateFunction {
       const std::vector<common::SelectionVector*>& paramSelVectors,
       common::ValueVector& result, common::SelectionVector* resultSelVector,
       void* /*dataPtr*/ = nullptr) {
-    KU_ASSERT(params.size() == 1);
+    NEUG_ASSERT(params.size() == 1);
     UnaryFunctionExecutor::executeSwitch<OPERAND_TYPE, RESULT_TYPE, FUNC,
                                          UnaryNestedTypeFunctionWrapper>(
         *params[0], paramSelVectors[0], result, resultSelVector,
@@ -300,7 +300,7 @@ struct NEUG_API ScalarFunction : public ScalarOrAggregateFunction {
       const std::vector<common::SelectionVector*>& paramSelVectors,
       common::ValueVector& result, common::SelectionVector* resultSelVector,
       void* dataPtr) {
-    KU_ASSERT(params.size() == 1);
+    NEUG_ASSERT(params.size() == 1);
     UnaryFunctionExecutor::executeSwitch<OPERAND_TYPE, RESULT_TYPE, FUNC,
                                          UnaryStructFunctionWrapper>(
         *params[0], paramSelVectors[0], result, resultSelVector, dataPtr);
@@ -314,7 +314,7 @@ struct NEUG_API ScalarFunction : public ScalarOrAggregateFunction {
           paramSelVectors,
       common::ValueVector& result, common::SelectionVector* resultSelVector,
       void* /*dataPtr*/ = nullptr) {
-    KU_ASSERT(params.empty() && paramSelVectors.empty());
+    NEUG_ASSERT(params.empty() && paramSelVectors.empty());
     ConstFunctionExecutor::execute<RESULT_TYPE, FUNC>(result, *resultSelVector);
   }
 
@@ -326,7 +326,7 @@ struct NEUG_API ScalarFunction : public ScalarOrAggregateFunction {
           paramSelVectors,
       common::ValueVector& result, common::SelectionVector* resultSelVector,
       void* dataPtr) {
-    KU_ASSERT(params.empty() && paramSelVectors.empty());
+    NEUG_ASSERT(params.empty() && paramSelVectors.empty());
     PointerFunctionExecutor::execute<RESULT_TYPE, FUNC>(
         result, *resultSelVector, dataPtr);
   }

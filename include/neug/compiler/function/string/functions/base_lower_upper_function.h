@@ -22,7 +22,7 @@
 
 #pragma once
 
-#include "neug/compiler/common/types/ku_string.h"
+#include "neug/compiler/common/types/neug_string.h"
 #include "neug/compiler/common/vector/value_vector.h"
 #include "neug/utils/api.h"
 
@@ -30,8 +30,8 @@ namespace gs {
 namespace function {
 
 struct BaseLowerUpperFunction {
-  NEUG_API static void operation(common::ku_string_t& input,
-                                 common::ku_string_t& result,
+  NEUG_API static void operation(common::neug_string_t& input,
+                                 common::neug_string_t& result,
                                  common::ValueVector& resultValueVector,
                                  bool isUpper);
 

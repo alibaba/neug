@@ -125,15 +125,15 @@ std::shared_ptr<Expression> Binder::createPath(
   std::vector<LogicalType> relFieldTypes;
   for (auto& child : children) {
     if (ExpressionUtil::isNodePattern(*child)) {
-      auto node = ku_dynamic_cast<NodeExpression*>(child.get());
+      auto node = neug_dynamic_cast<NodeExpression*>(child.get());
       extraFieldFromStructType(node->getDataType(), nodeFieldNameSet,
                                nodeFieldNames, nodeFieldTypes);
     } else if (ExpressionUtil::isRelPattern(*child)) {
-      auto rel = ku_dynamic_cast<RelExpression*>(child.get());
+      auto rel = neug_dynamic_cast<RelExpression*>(child.get());
       extraFieldFromStructType(rel->getDataType(), relFieldNameSet,
                                relFieldNames, relFieldTypes);
     } else if (ExpressionUtil::isRecursiveRelPattern(*child)) {
-      auto recursiveRel = ku_dynamic_cast<RelExpression*>(child.get());
+      auto recursiveRel = neug_dynamic_cast<RelExpression*>(child.get());
       auto recursiveInfo = recursiveRel->getRecursiveInfo();
       extraFieldFromStructType(recursiveInfo->node->getDataType(),
                                nodeFieldNameSet, nodeFieldNames,
@@ -141,7 +141,7 @@ std::shared_ptr<Expression> Binder::createPath(
       extraFieldFromStructType(recursiveInfo->rel->getDataType(),
                                relFieldNameSet, relFieldNames, relFieldTypes);
     } else {
-      KU_UNREACHABLE;
+      NEUG_UNREACHABLE;
     }
   }
   auto nodeExtraInfo =
@@ -194,7 +194,7 @@ static std::unique_ptr<Expression> createPropertyExpression(
     infos.insert({entry->getTableID(), std::move(info)});
   }
   // Validate property under the same name has the same type.
-  KU_ASSERT(!dataTypes.empty());
+  NEUG_ASSERT(!dataTypes.empty());
   for (const auto& type : dataTypes) {
     if (dataTypes[0] != type) {
       THROW_BINDER_EXCEPTION(stringFormat(
@@ -236,7 +236,7 @@ static void checkRelDirectionTypeAgainstStorageDirection(
     }
     break;
   default:
-    KU_UNREACHABLE;
+    NEUG_UNREACHABLE;
   }
 }
 
@@ -279,7 +279,7 @@ std::shared_ptr<RelExpression> Binder::bindQueryRel(
     directionType = RelDirectionType::BOTH;
   } break;
   default:
-    KU_UNREACHABLE;
+    NEUG_UNREACHABLE;
   }
   // bind variable length
   std::shared_ptr<RelExpression> queryRel;
@@ -587,15 +587,15 @@ std::pair<uint64_t, uint64_t> Binder::bindVariableLengthRelBound(
   auto recursiveInfo = relPattern.getRecursiveInfo();
   uint32_t lowerBound = 0;
   function::CastString::operation(
-      ku_string_t{recursiveInfo->lowerBound.c_str(),
-                  recursiveInfo->lowerBound.length()},
+      neug_string_t{recursiveInfo->lowerBound.c_str(),
+                    recursiveInfo->lowerBound.length()},
       lowerBound);
   auto maxDepth = clientContext->getClientConfig()->varLengthMaxDepth;
   auto upperBound = maxDepth;
   if (!recursiveInfo->upperBound.empty()) {
     function::CastString::operation(
-        ku_string_t{recursiveInfo->upperBound.c_str(),
-                    recursiveInfo->upperBound.length()},
+        neug_string_t{recursiveInfo->upperBound.c_str(),
+                      recursiveInfo->upperBound.length()},
         upperBound);
   }
   if (lowerBound > upperBound) {
@@ -705,7 +705,7 @@ std::shared_ptr<NodeExpression> Binder::createQueryNode(
   // Bind properties.
   bindQueryNodeProperties(*queryNode);
   for (auto& expression : queryNode->getPropertyExprsRef()) {
-    auto property = ku_dynamic_cast<PropertyExpression*>(expression.get());
+    auto property = neug_dynamic_cast<PropertyExpression*>(expression.get());
     structFields.emplace_back(property->getPropertyName(),
                               property->getDataType().copy());
   }

@@ -38,18 +38,14 @@ struct AvgState : public AggregateState {
     outputVector->setValue(pos, avg);
   }
 
-  void finalize()
-    requires common::IntegerTypes<T>
-  {
+  void finalize() requires common::IntegerTypes<T> {
     if (!isNull) {
       avg = common::Int128_t::Cast<long double>(sum) /
             common::Int128_t::Cast<long double>(count);
     }
   }
 
-  void finalize()
-    requires common::FloatingPointTypes<T>
-  {
+  void finalize() requires common::FloatingPointTypes<T> {
     if (!isNull) {
       avg = sum / count;
     }
@@ -70,7 +66,7 @@ struct AvgFunction {
                         uint64_t multiplicity,
                         common::InMemOverflowBuffer* /*overflowBuffer*/) {
     auto* state = reinterpret_cast<AvgState<RESULT_TYPE>*>(state_);
-    KU_ASSERT(!input->state->isFlat());
+    NEUG_ASSERT(!input->state->isFlat());
     input->forEachNonNull(
         [&](auto pos) { updateSingleValue(state, input, pos, multiplicity); });
   }

@@ -31,7 +31,7 @@ f_group_pos_set LogicalSetProperty::getGroupsPosToFlatten(uint32_t idx) const {
         childSchema->getGroupPos(*rel->getDstNode()->getInternalID()));
   } break;
   default:
-    KU_UNREACHABLE;
+    NEUG_UNREACHABLE;
   }
   auto analyzer = GroupDependencyAnalyzer(false, *childSchema);
   analyzer.visit(info.columnData);
@@ -52,7 +52,7 @@ std::string LogicalSetProperty::getExpressionsForPrinting() const {
 }
 
 common::TableType LogicalSetProperty::getTableType() const {
-  KU_ASSERT(!infos.empty());
+  NEUG_ASSERT(!infos.empty());
   return infos[0].tableType;
 }
 

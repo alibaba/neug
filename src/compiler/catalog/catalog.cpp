@@ -32,19 +32,19 @@
 #include "neug/compiler/catalog/catalog_entry/scalar_macro_catalog_entry.h"
 #include "neug/compiler/catalog/catalog_entry/sequence_catalog_entry.h"
 #include "neug/compiler/catalog/catalog_entry/type_catalog_entry.h"
+#include "neug/compiler/catalog/function_signature_registry.h"
 #include "neug/compiler/common/file_system/virtual_file_system.h"
 #include "neug/compiler/common/serializer/buffered_file.h"
 #include "neug/compiler/common/serializer/deserializer.h"
 #include "neug/compiler/common/serializer/serializer.h"
 #include "neug/compiler/common/string_format.h"
+#include "neug/compiler/extension/extension_api.h"
 #include "neug/compiler/extension/extension_manager.h"
 #include "neug/compiler/function/function_collection.h"
+#include "neug/compiler/function/scalar_function.h"
 #include "neug/compiler/main/option_config.h"
 #include "neug/compiler/transaction/transaction.h"
 #include "neug/utils/exception/exception.h"
-#include "neug/compiler/catalog/function_signature_registry.h"
-#include "neug/compiler/function/scalar_function.h"
-#include "neug/compiler/extension/extension_api.h"
 
 using namespace gs::binder;
 using namespace gs::common;
@@ -256,7 +256,7 @@ CatalogEntry* Catalog::createRelGroupEntry(Transaction* transaction,
       info.extraInfo->ptrCast<BoundExtraCreateRelTableGroupInfo>();
   std::vector<table_id_t> childrenTableIDs;
   for (auto& childInfo : extraInfo->infos) {
-    KU_ASSERT(childInfo.hasParent);
+    NEUG_ASSERT(childInfo.hasParent);
     auto childEntry = createRelTableEntry(transaction, childInfo);
     childrenTableIDs.push_back(
         childEntry->ptrCast<TableCatalogEntry>()->getTableID());
@@ -288,7 +288,7 @@ SequenceCatalogEntry* Catalog::getSequenceEntry(const Transaction* transaction,
   } else {
     entry = sequences->getEntry(transaction, sequenceName);
   }
-  KU_ASSERT(entry);
+  NEUG_ASSERT(entry);
   return entry->ptrCast<SequenceCatalogEntry>();
 }
 
@@ -298,7 +298,7 @@ SequenceCatalogEntry* Catalog::getSequenceEntry(
   if (entry == nullptr) {
     entry = sequences->getEntryOfOID(transaction, sequenceID);
   }
-  KU_ASSERT(entry);
+  NEUG_ASSERT(entry);
   return entry->ptrCast<SequenceCatalogEntry>();
 }
 
@@ -456,9 +456,10 @@ void Catalog::addFunction(Transaction* transaction, CatalogEntryType entryType,
                        entryType, std::move(name), std::move(functionSet)));
 }
 
-void Catalog::addFunctionUnlocked(Transaction* transaction, CatalogEntryType entryType,
-                          std::string name, function::function_set functionSet,
-                          bool isInternal) {
+void Catalog::addFunctionUnlocked(Transaction* transaction,
+                                  CatalogEntryType entryType, std::string name,
+                                  function::function_set functionSet,
+                                  bool isInternal) {
   auto& catalogSet = isInternal ? internalFunctions : functions;
   if (catalogSet->containsEntry(transaction, name)) {
     THROW_CATALOG_EXCEPTION(stringFormat("function {} already exists.", name));
@@ -546,7 +547,7 @@ std::vector<std::string> Catalog::getMacroNames(
 
 void Catalog::checkpoint(const std::string& databasePath,
                          VirtualFileSystem* fs) const {
-  KU_ASSERT(!databasePath.empty());
+  NEUG_ASSERT(!databasePath.empty());
   saveToFile(databasePath, fs, FileVersionType::WAL_VERSION);
 }
 
@@ -561,7 +562,7 @@ void Catalog::registerBuiltInFunctions() {
   auto functionCollection = function::FunctionCollection::getFunctions();
 
   auto lock = functions->acquireExclusiveLock();
-  
+
   for (auto i = 0u; functionCollection[i].name != nullptr; ++i) {
     auto& f = functionCollection[i];
     auto functionSet = f.getFunctionSetFunc();
@@ -582,10 +583,11 @@ void Catalog::registerFunctionSignatures(FunctionCatalogEntry* entry) {
   for (auto& fnPtr : functionSet) {
     if (auto* scalarFn = dynamic_cast<function::ScalarFunction*>(fnPtr.get())) {
       auto signature = function::buildScalarSignature(
-        scalarFn->name, scalarFn->parameterTypeIDs);
+          scalarFn->name, scalarFn->parameterTypeIDs);
 
       if (scalarFn->neugExecFunc != nullptr) {
-        function::FunctionSignatureRegistry::registerScalar(signature, scalarFn->neugExecFunc);
+        function::FunctionSignatureRegistry::registerScalar(
+            signature, scalarFn->neugExecFunc);
       }
     }
   }
@@ -601,7 +603,7 @@ CatalogEntry* Catalog::createTableEntry(Transaction* transaction,
     return createRelTableEntry(transaction, info);
   }
   default:
-    KU_UNREACHABLE;
+    NEUG_UNREACHABLE;
   }
 }
 

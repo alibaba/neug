@@ -99,7 +99,7 @@ class NEUG_API NodeOrRelExpression : public Expression {
   }
   std::shared_ptr<Expression> getPropertyDataExpr(
       const std::string& propertyName) const {
-    KU_ASSERT(propertyDataExprs.contains(propertyName));
+    NEUG_ASSERT(propertyDataExprs.contains(propertyName));
     return propertyDataExprs.at(propertyName);
   }
 

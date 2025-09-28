@@ -56,7 +56,7 @@ void FunctionExpressionEvaluator::evaluate() {
 }
 
 void FunctionExpressionEvaluator::evaluate(common::sel_t count) {
-  KU_ASSERT(
+  NEUG_ASSERT(
       expression->constCast<ScalarFunctionExpression>().getFunction().name ==
       NextValFunction::name);
   for (auto& child : children) {
@@ -75,7 +75,8 @@ bool FunctionExpressionEvaluator::selectInternal(SelectionVector& selVector) {
   // interface is not implemented (e.g. list_contains). We should remove this if
   // statement eventually.
   if (function->selectFunc == nullptr) {
-    KU_ASSERT(resultVector->dataType.getLogicalTypeID() == LogicalTypeID::BOOL);
+    NEUG_ASSERT(resultVector->dataType.getLogicalTypeID() ==
+                LogicalTypeID::BOOL);
     runExecFunc();
     return updateSelectedPos(selVector);
   }

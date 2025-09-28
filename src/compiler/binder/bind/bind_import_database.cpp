@@ -122,14 +122,14 @@ std::unique_ptr<BoundStatement> Binder::bindImportDatabaseClause(
   if (!copyQuery.empty()) {
     auto parsedStatements = Parser::parseQuery(copyQuery);
     for (auto& parsedStatement : parsedStatements) {
-      KU_ASSERT(parsedStatement->getStatementType() ==
-                StatementType::COPY_FROM);
+      NEUG_ASSERT(parsedStatement->getStatementType() ==
+                  StatementType::COPY_FROM);
       auto& copyFromStatement = parsedStatement->constCast<CopyFrom>();
-      KU_ASSERT(copyFromStatement.getSource()->type == ScanSourceType::FILE);
+      NEUG_ASSERT(copyFromStatement.getSource()->type == ScanSourceType::FILE);
       auto filePaths = copyFromStatement.getSource()
                            ->constPtrCast<FileScanSource>()
                            ->filePaths;
-      KU_ASSERT(filePaths.size() == 1);
+      NEUG_ASSERT(filePaths.size() == 1);
       auto fileTypeInfo = bindFileTypeInfo(filePaths);
       std::string query;
       auto copyFilePath = getCopyFilePath(boundFilePath, filePaths[0]);

@@ -40,7 +40,7 @@ void Serializer::writeDebuggingInfo(const std::string& value) {
   serializeValue<std::string>(value);
 #endif
   // DO NOTHING
-  KU_UNUSED(value);
+  NEUG_UNUSED(value);
 }
 
 }  // namespace common

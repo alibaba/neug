@@ -23,7 +23,7 @@
 #pragma once
 
 #include "neug/compiler/common/type_utils.h"
-#include "neug/compiler/common/types/ku_string.h"
+#include "neug/compiler/common/types/neug_string.h"
 #include "neug/compiler/common/vector/value_vector.h"
 #include "neug/compiler/function/string/functions/array_extract_function.h"
 #include "neug/utils/exception/exception.h"
@@ -66,8 +66,8 @@ struct ListExtract {
     }
   }
 
-  static inline void operation(common::ku_string_t& str, int64_t& idx,
-                               common::ku_string_t& result) {
+  static inline void operation(common::neug_string_t& str, int64_t& idx,
+                               common::neug_string_t& result) {
     if (str.len < idx) {
       result.set("", 0);
     } else {

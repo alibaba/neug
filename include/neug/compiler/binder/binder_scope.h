@@ -44,7 +44,7 @@ class BinderScope {
     return nameToExprIdx.contains(varName);
   }
   std::shared_ptr<Expression> getExpression(const std::string& varName) const {
-    KU_ASSERT(nameToExprIdx.contains(varName));
+    NEUG_ASSERT(nameToExprIdx.contains(varName));
     return expressions[nameToExprIdx.at(varName)];
   }
   expression_vector getExpressions() const { return expressions; }
@@ -62,7 +62,7 @@ class BinderScope {
   }
   std::vector<catalog::TableCatalogEntry*> getMemorizedTableEntries(
       const std::string& name) {
-    KU_ASSERT(memorizedNodeNameToEntries.contains(name));
+    NEUG_ASSERT(memorizedNodeNameToEntries.contains(name));
     return memorizedNodeNameToEntries.at(name);
   }
 
@@ -74,7 +74,7 @@ class BinderScope {
   }
   std::shared_ptr<NodeExpression> getNodeReplacement(
       const std::string& name) const {
-    KU_ASSERT(hasNodeReplacement(name));
+    NEUG_ASSERT(hasNodeReplacement(name));
     return nodeReplacement.at(name);
   }
 
@@ -82,7 +82,7 @@ class BinderScope {
   getNameToExprMap() const {
     std::unordered_map<std::string, std::shared_ptr<Expression>> nameToExprMap;
     for (const auto& pair : nameToExprIdx) {
-      KU_ASSERT(pair.second < expressions.size());
+      NEUG_ASSERT(pair.second < expressions.size());
       nameToExprMap[pair.first] = expressions[pair.second];
     }
     return nameToExprMap;

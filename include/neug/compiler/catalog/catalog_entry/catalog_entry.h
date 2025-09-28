@@ -42,7 +42,7 @@ struct NEUG_API ToCypherInfo {
 
   template <class TARGET>
   const TARGET& constCast() const {
-    return common::ku_dynamic_cast<const TARGET&>(*this);
+    return common::neug_dynamic_cast<const TARGET&>(*this);
   }
 };
 
@@ -77,7 +77,7 @@ class NEUG_API CatalogEntry {
   void setOID(common::oid_t oid) { this->oid = oid; }
   common::oid_t getOID() const { return oid; }
   CatalogEntry* getPrev() const {
-    KU_ASSERT(prev);
+    NEUG_ASSERT(prev);
     return prev.get();
   }
   std::unique_ptr<CatalogEntry> movePrev() {
@@ -103,24 +103,24 @@ class NEUG_API CatalogEntry {
       common::Deserializer& deserializer);
 
   virtual std::string toCypher(const ToCypherInfo& /*info*/) const {
-    KU_UNREACHABLE;
+    NEUG_UNREACHABLE;
   }
 
   template <class TARGET>
   TARGET& cast() {
-    return common::ku_dynamic_cast<TARGET&>(*this);
+    return common::neug_dynamic_cast<TARGET&>(*this);
   }
   template <class TARGET>
   const TARGET& constCast() const {
-    return common::ku_dynamic_cast<const TARGET&>(*this);
+    return common::neug_dynamic_cast<const TARGET&>(*this);
   }
   template <class TARGET>
   const TARGET* constPtrCast() const {
-    return common::ku_dynamic_cast<const TARGET*>(this);
+    return common::neug_dynamic_cast<const TARGET*>(this);
   }
   template <class TARGET>
   TARGET* ptrCast() {
-    return common::ku_dynamic_cast<TARGET*>(this);
+    return common::neug_dynamic_cast<TARGET*>(this);
   }
 
  protected:

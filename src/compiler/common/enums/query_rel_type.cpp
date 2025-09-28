@@ -43,13 +43,13 @@ PathSemantic QueryRelTypeUtils::getPathSemantic(QueryRelType queryRelType) {
   case QueryRelType::ALL_WEIGHTED_SHORTEST:
     return PathSemantic::ACYCLIC;
   default:
-    KU_UNREACHABLE;
+    NEUG_UNREACHABLE;
   }
 }
 
 std::unique_ptr<function::RJAlgorithm> QueryRelTypeUtils::getFunction(
     QueryRelType type) {
-  // KU_UNREACHABLE;
+  // NEUG_UNREACHABLE;
   return std::make_unique<function::DefaultRJAlgorithm>();
 }
 

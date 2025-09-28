@@ -39,7 +39,7 @@ void Planner::planUpdatingClause(const BoundUpdatingClause* updatingClause,
     return;
   }
   default:
-    KU_UNREACHABLE;
+    NEUG_UNREACHABLE;
   }
 }
 

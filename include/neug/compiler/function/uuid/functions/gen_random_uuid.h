@@ -30,7 +30,7 @@ namespace gs {
 namespace function {
 
 struct GenRandomUUID {
-  static void operation(common::ku_uuid_t& input, void* dataPtr) {
+  static void operation(common::neug_uuid_t& input, void* dataPtr) {
     THROW_EXCEPTION_WITH_FILE_LINE("GenRandomUUID is not implemented");
   }
 };

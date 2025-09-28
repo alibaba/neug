@@ -115,7 +115,7 @@ class BaseBFSGraph {
 
   template <class TARGET>
   TARGET& cast() {
-    return common::ku_dynamic_cast<TARGET&>(*this);
+    return common::neug_dynamic_cast<TARGET&>(*this);
   }
 
  protected:
@@ -213,7 +213,7 @@ class BFSGraphManager {
                   storage::MemoryManager* mm);
 
   BaseBFSGraph* getCurrentGraph() const {
-    KU_ASSERT(curGraph);
+    NEUG_ASSERT(curGraph);
     return curGraph;
   }
 

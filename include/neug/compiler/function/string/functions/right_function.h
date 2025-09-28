@@ -22,7 +22,7 @@
 
 #pragma once
 
-#include "neug/compiler/common/types/ku_string.h"
+#include "neug/compiler/common/types/neug_string.h"
 #include "neug/compiler/function/list/functions/list_len_function.h"
 #include "substr_function.h"
 
@@ -31,8 +31,8 @@ namespace function {
 
 struct Right {
  public:
-  static inline void operation(common::ku_string_t& left, int64_t& right,
-                               common::ku_string_t& result,
+  static inline void operation(common::neug_string_t& left, int64_t& right,
+                               common::neug_string_t& result,
                                common::ValueVector& resultValueVector) {
     int64_t leftLen = 0;
     ListLen::operation(left, leftLen);

@@ -30,7 +30,8 @@ namespace gs {
 namespace function {
 
 struct RegexpSplitToArray : BaseRegexpOperation {
-  static void operation(common::ku_string_t& value, common::ku_string_t& regex,
+  static void operation(common::neug_string_t& value,
+                        common::neug_string_t& regex,
                         common::list_entry_t& result,
                         common::ValueVector& resultVector) {
     std::vector<std::string> matches =
@@ -40,7 +41,7 @@ struct RegexpSplitToArray : BaseRegexpOperation {
         common::ListVector::getListValues(&resultVector, result);
     auto resultDataVector = common::ListVector::getDataVector(&resultVector);
     auto numBytesPerValue = resultDataVector->getNumBytesPerValue();
-    common::ku_string_t kuString;
+    common::neug_string_t kuString;
     for (const auto& match : matches) {
       copyToKuzuString(match, kuString, *resultDataVector);
       resultDataVector->copyFromVectorData(

@@ -37,7 +37,7 @@ static void execFunc(
     const std::vector<common::SelectionVector*>& paramSelVectors,
     common::ValueVector& result, common::SelectionVector* resultSelVector,
     void* /*dataPtr*/ = nullptr) {
-  KU_ASSERT(params.size() == 1);
+  NEUG_ASSERT(params.size() == 1);
   UnaryFunctionExecutor::execute<internalID_t, int64_t, Offset>(
       *params[0], paramSelVectors[0], result, resultSelVector);
 }

@@ -27,7 +27,7 @@ namespace gs {
 namespace parser {
 
 std::unique_ptr<Statement> Transformer::transformUseDatabase(
-    CypherParser::KU_UseDatabaseContext& ctx) {
+    CypherParser::NEUG_UseDatabaseContext& ctx) {
   auto dbName = transformSchemaName(*ctx.oC_SchemaName());
   return std::make_unique<UseDatabase>(std::move(dbName));
 }

@@ -152,7 +152,7 @@ std::unique_ptr<::common::IrDataType> GTypeConverter::convertLogicalType(
     CHECK(const_off) << "Array type has null extra type info: " +
                             type.toString();
     auto array_type_info =
-        gs::common::ku_dynamic_cast<gs::common::ArrayTypeInfo*>(const_off);
+        gs::common::neug_dynamic_cast<gs::common::ArrayTypeInfo*>(const_off);
     CHECK(array_type_info) << "Expected ArrayTypeInfo for ARRAY type, ";
     auto& child_type = array_type_info->getChildType();
     return convertArrayType(child_type, expr);
@@ -167,7 +167,7 @@ std::unique_ptr<::common::IrDataType> GTypeConverter::convertLogicalType(
     CHECK(const_off) << "List type has null extra type info: " +
                             type.toString();
     auto list_type_info =
-        gs::common::ku_dynamic_cast<gs::common::ListTypeInfo*>(const_off);
+        gs::common::neug_dynamic_cast<gs::common::ListTypeInfo*>(const_off);
     CHECK(list_type_info) << "Expected ListTypeInfo for LIST type, ";
     auto& child_type = list_type_info->getChildType();
     return convertArrayType(child_type, expr);

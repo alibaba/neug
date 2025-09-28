@@ -43,10 +43,10 @@ namespace function {
 
 struct Label {
   static void operation(internalID_t& left, list_entry_t& right,
-                        ku_string_t& result, ValueVector& leftVector,
+                        neug_string_t& result, ValueVector& leftVector,
                         ValueVector& rightVector, ValueVector& resultVector,
                         uint64_t resPos) {
-    KU_ASSERT(left.tableID < right.size);
+    NEUG_ASSERT(left.tableID < right.size);
     ListExtract::operation(
         right, left.tableID + 1 /* listExtract requires 1-based index */,
         result, rightVector, leftVector, resultVector, resPos);
@@ -57,9 +57,9 @@ static void execFunction(
     const std::vector<std::shared_ptr<ValueVector>>& params,
     const std::vector<SelectionVector*>& paramSelVectors, ValueVector& result,
     SelectionVector* resultSelVector, void* dataPtr = nullptr) {
-  KU_ASSERT(params.size() == 2);
-  BinaryFunctionExecutor::executeSwitch<internalID_t, list_entry_t, ku_string_t,
-                                        Label,
+  NEUG_ASSERT(params.size() == 2);
+  BinaryFunctionExecutor::executeSwitch<internalID_t, list_entry_t,
+                                        neug_string_t, Label,
                                         BinaryListExtractFunctionWrapper>(
       *params[0], paramSelVectors[0], *params[1], paramSelVectors[1], result,
       resultSelVector, dataPtr);
@@ -95,7 +95,7 @@ static std::shared_ptr<binder::Expression> getLabelsAsLiteral(
 
 std::shared_ptr<Expression> LabelFunction::rewriteFunc(
     const RewriteFunctionBindInput& input) {
-  KU_ASSERT(input.arguments.size() == 1);
+  NEUG_ASSERT(input.arguments.size() == 1);
   auto argument = input.arguments[0].get();
   auto expressionBinder = input.expressionBinder;
   auto context = input.context;
@@ -140,7 +140,7 @@ std::shared_ptr<Expression> LabelFunction::rewriteFunc(
     children.push_back(
         getLabelsAsLiteral(context, rel.getEntries(), expressionBinder));
   }
-  KU_ASSERT(children.size() == 2);
+  NEUG_ASSERT(children.size() == 2);
   auto function = std::make_unique<ScalarFunction>(
       LabelFunction::name,
       std::vector<LogicalTypeID>{LogicalTypeID::STRING, LogicalTypeID::INT64},

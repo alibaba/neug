@@ -38,12 +38,12 @@ std::unique_ptr<ReadingClause> Transformer::transformReadingClause(
     return transformMatch(*ctx.oC_Match());
   } else if (ctx.oC_Unwind()) {
     return transformUnwind(*ctx.oC_Unwind());
-  } else if (ctx.kU_InQueryCall()) {
-    return transformInQueryCall(*ctx.kU_InQueryCall());
-  } else if (ctx.kU_LoadFrom()) {
-    return transformLoadFrom(*ctx.kU_LoadFrom());
+  } else if (ctx.nEUG_InQueryCall()) {
+    return transformInQueryCall(*ctx.nEUG_InQueryCall());
+  } else if (ctx.nEUG_LoadFrom()) {
+    return transformLoadFrom(*ctx.nEUG_LoadFrom());
   }
-  KU_UNREACHABLE;
+  NEUG_UNREACHABLE;
 }
 
 std::unique_ptr<ReadingClause> Transformer::transformMatch(
@@ -55,17 +55,17 @@ std::unique_ptr<ReadingClause> Transformer::transformMatch(
   if (ctx.oC_Where()) {
     matchClause->setWherePredicate(transformWhere(*ctx.oC_Where()));
   }
-  if (ctx.kU_Hint()) {
-    matchClause->setHint(transformJoinHint(*ctx.kU_Hint()->kU_JoinNode()));
+  if (ctx.nEUG_Hint()) {
+    matchClause->setHint(transformJoinHint(*ctx.nEUG_Hint()->nEUG_JoinNode()));
   }
   return matchClause;
 }
 
 std::shared_ptr<JoinHintNode> Transformer::transformJoinHint(
-    CypherParser::KU_JoinNodeContext& ctx) {
+    CypherParser::NEUG_JoinNodeContext& ctx) {
   if (!ctx.MULTI_JOIN().empty()) {
     auto joinNode = std::make_shared<JoinHintNode>();
-    joinNode->addChild(transformJoinHint(*ctx.kU_JoinNode(0)));
+    joinNode->addChild(transformJoinHint(*ctx.nEUG_JoinNode(0)));
     for (auto& schemaNameCtx : ctx.oC_SchemaName()) {
       joinNode->addChild(
           std::make_shared<JoinHintNode>(transformSchemaName(*schemaNameCtx)));
@@ -76,13 +76,13 @@ std::shared_ptr<JoinHintNode> Transformer::transformJoinHint(
     return std::make_shared<JoinHintNode>(
         transformSchemaName(*ctx.oC_SchemaName(0)));
   }
-  if (ctx.kU_JoinNode().size() == 1) {
-    return transformJoinHint(*ctx.kU_JoinNode(0));
+  if (ctx.nEUG_JoinNode().size() == 1) {
+    return transformJoinHint(*ctx.nEUG_JoinNode(0));
   }
-  KU_ASSERT(ctx.kU_JoinNode().size() == 2);
+  NEUG_ASSERT(ctx.nEUG_JoinNode().size() == 2);
   auto joinNode = std::make_shared<JoinHintNode>();
-  joinNode->addChild(transformJoinHint(*ctx.kU_JoinNode(0)));
-  joinNode->addChild(transformJoinHint(*ctx.kU_JoinNode(1)));
+  joinNode->addChild(transformJoinHint(*ctx.nEUG_JoinNode(0)));
+  joinNode->addChild(transformJoinHint(*ctx.nEUG_JoinNode(1)));
   return joinNode;
 }
 
@@ -110,7 +110,7 @@ std::vector<YieldVariable> Transformer::transformYieldVariables(
 }
 
 std::unique_ptr<ReadingClause> Transformer::transformInQueryCall(
-    CypherParser::KU_InQueryCallContext& ctx) {
+    CypherParser::NEUG_InQueryCallContext& ctx) {
   auto functionExpression =
       Transformer::transformFunctionInvocation(*ctx.oC_FunctionInvocation());
   std::vector<YieldVariable> yieldVariables;
@@ -126,15 +126,15 @@ std::unique_ptr<ReadingClause> Transformer::transformInQueryCall(
 }
 
 std::unique_ptr<ReadingClause> Transformer::transformLoadFrom(
-    CypherParser::KU_LoadFromContext& ctx) {
-  auto source = transformScanSource(*ctx.kU_ScanSource());
+    CypherParser::NEUG_LoadFromContext& ctx) {
+  auto source = transformScanSource(*ctx.nEUG_ScanSource());
   auto loadFrom = std::make_unique<LoadFrom>(std::move(source));
-  if (ctx.kU_ColumnDefinitions()) {
+  if (ctx.nEUG_ColumnDefinitions()) {
     loadFrom->setPropertyDefinitions(
-        transformColumnDefinitions(*ctx.kU_ColumnDefinitions()));
+        transformColumnDefinitions(*ctx.nEUG_ColumnDefinitions()));
   }
-  if (ctx.kU_Options()) {
-    loadFrom->setParingOptions(transformOptions(*ctx.kU_Options()));
+  if (ctx.nEUG_Options()) {
+    loadFrom->setParingOptions(transformOptions(*ctx.nEUG_Options()));
   }
   if (ctx.oC_Where()) {
     loadFrom->setWherePredicate(transformWhere(*ctx.oC_Where()));

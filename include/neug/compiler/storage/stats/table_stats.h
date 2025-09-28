@@ -53,10 +53,10 @@ class TableStats {
   void merge(const std::vector<common::column_id_t>& columnIDs,
              const TableStats& other) {
     cardinality += other.cardinality;
-    KU_ASSERT(columnIDs.size() == other.columnStats.size());
+    NEUG_ASSERT(columnIDs.size() == other.columnStats.size());
     for (auto i = 0u; i < columnIDs.size(); ++i) {
       auto columnID = columnIDs[i];
-      KU_ASSERT(columnID < columnStats.size());
+      NEUG_ASSERT(columnID < columnStats.size());
       columnStats[columnID].merge(other.columnStats[i]);
     }
   }
@@ -65,7 +65,7 @@ class TableStats {
 
   common::cardinality_t getNumDistinctValues(
       common::column_id_t columnID) const {
-    KU_ASSERT(columnID < columnStats.size());
+    NEUG_ASSERT(columnID < columnStats.size());
     return columnStats[columnID].getNumDistinctValues();
   }
 

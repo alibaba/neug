@@ -22,7 +22,7 @@
 
 #pragma once
 
-#include "neug/compiler/common/types/ku_string.h"
+#include "neug/compiler/common/types/neug_string.h"
 
 namespace gs {
 namespace function {
@@ -31,8 +31,8 @@ namespace function {
 // https://github.com/duckdb/duckdb/blob/master/src/function/scalar/string/contains.cpp
 
 struct Find {
-  static inline void operation(common::ku_string_t& left,
-                               common::ku_string_t& right, int64_t& result) {
+  static inline void operation(common::neug_string_t& left,
+                               common::neug_string_t& right, int64_t& result) {
     if (right.len == 0) {
       result = 1;
     } else if (right.len > left.len) {

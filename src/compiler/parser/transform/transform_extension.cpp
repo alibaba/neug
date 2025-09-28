@@ -31,32 +31,32 @@ namespace gs {
 namespace parser {
 
 std::unique_ptr<Statement> Transformer::transformExtension(
-    CypherParser::KU_ExtensionContext& ctx) {
-  if (ctx.kU_InstallExtension()) {
-    auto extensionRepo = ctx.kU_InstallExtension()->StringLiteral()
-                             ? transformStringLiteral(
-                                   *ctx.kU_InstallExtension()->StringLiteral())
-                             : ExtensionUtils::OFFICIAL_EXTENSION_REPO;
+    CypherParser::NEUG_ExtensionContext& ctx) {
+  if (ctx.nEUG_InstallExtension()) {
+    auto extensionRepo =
+        ctx.nEUG_InstallExtension()->StringLiteral()
+            ? transformStringLiteral(
+                  *ctx.nEUG_InstallExtension()->StringLiteral())
+            : ExtensionUtils::OFFICIAL_EXTENSION_REPO;
     auto installExtensionAuxInfo = std::make_unique<InstallExtensionAuxInfo>(
         std::move(extensionRepo),
-        transformVariable(*ctx.kU_InstallExtension()->oC_Variable()));
+        transformVariable(*ctx.nEUG_InstallExtension()->oC_Variable()));
     return std::make_unique<ExtensionStatement>(
         std::move(installExtensionAuxInfo));
-  } else if (ctx.kU_LoadExtension()) {
+  } else if (ctx.nEUG_LoadExtension()) {
     auto path =
-        ctx.kU_LoadExtension()->StringLiteral()
-            ? transformStringLiteral(*ctx.kU_LoadExtension()->StringLiteral())
-            : transformVariable(*ctx.kU_LoadExtension()->oC_Variable());
-    auto auxInfo = std::make_unique<ExtensionAuxInfo>(
-        ExtensionAction::LOAD, std::move(path));
+        ctx.nEUG_LoadExtension()->StringLiteral()
+            ? transformStringLiteral(*ctx.nEUG_LoadExtension()->StringLiteral())
+            : transformVariable(*ctx.nEUG_LoadExtension()->oC_Variable());
+    auto auxInfo = std::make_unique<ExtensionAuxInfo>(ExtensionAction::LOAD,
+                                                      std::move(path));
     return std::make_unique<ExtensionStatement>(std::move(auxInfo));
-  } 
-  else if (ctx.kU_UninstallExtension()) {
+  } else if (ctx.nEUG_UninstallExtension()) {
     auto name =
-        ctx.kU_UninstallExtension()->StringLiteral()
+        ctx.nEUG_UninstallExtension()->StringLiteral()
             ? transformStringLiteral(
-                  *ctx.kU_UninstallExtension()->StringLiteral())
-            : transformVariable(*ctx.kU_UninstallExtension()->oC_Variable());
+                  *ctx.nEUG_UninstallExtension()->StringLiteral())
+            : transformVariable(*ctx.nEUG_UninstallExtension()->oC_Variable());
     auto auxInfo = std::make_unique<ExtensionAuxInfo>(
         ExtensionAction::UNINSTALL, std::move(name));
     return std::make_unique<ExtensionStatement>(std::move(auxInfo));

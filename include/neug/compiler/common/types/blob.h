@@ -22,13 +22,13 @@
 
 #pragma once
 
-#include "neug/compiler/common/types/ku_string.h"
+#include "neug/compiler/common/types/neug_string.h"
 
 namespace gs {
 namespace common {
 
 struct blob_t {
-  ku_string_t value;
+  neug_string_t value;
 };
 
 struct HexFormatConstants {
@@ -52,7 +52,7 @@ struct Blob {
     return toString(blob.value.getData(), blob.value.len);
   }
 
-  static uint64_t getBlobSize(const ku_string_t& blob);
+  static uint64_t getBlobSize(const neug_string_t& blob);
 
   static uint64_t fromString(const char* str, uint64_t length,
                              uint8_t* resultBuffer);

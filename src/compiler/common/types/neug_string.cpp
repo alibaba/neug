@@ -20,26 +20,26 @@
  * Zhou Xiaoli in 2025 to support Neug-specific features.
  */
 
-#include "neug/compiler/common/types/ku_string.h"
+#include "neug/compiler/common/types/neug_string.h"
 
 namespace gs {
 namespace common {
 
-ku_string_t::ku_string_t(const char* value, uint64_t length)
+neug_string_t::neug_string_t(const char* value, uint64_t length)
     : len(length), prefix{} {
   if (isShortString(length)) {
     memcpy(prefix, value, length);
     return;
   }
-  overflowPtr = (uint64_t)(value);
+  overflowPtr = (uint64_t) (value);
   memcpy(prefix, value, PREFIX_LENGTH);
 }
 
-void ku_string_t::set(const std::string& value) {
+void neug_string_t::set(const std::string& value) {
   set(value.data(), value.length());
 }
 
-void ku_string_t::set(const char* value, uint64_t length) {
+void neug_string_t::set(const char* value, uint64_t length) {
   if (length <= SHORT_STR_LENGTH) {
     setShortString(value, length);
   } else {
@@ -47,7 +47,7 @@ void ku_string_t::set(const char* value, uint64_t length) {
   }
 }
 
-void ku_string_t::set(const ku_string_t& value) {
+void neug_string_t::set(const neug_string_t& value) {
   if (value.len <= SHORT_STR_LENGTH) {
     setShortString(value);
   } else {
@@ -55,15 +55,15 @@ void ku_string_t::set(const ku_string_t& value) {
   }
 }
 
-std::string ku_string_t::getAsShortString() const {
+std::string neug_string_t::getAsShortString() const {
   return std::string((char*) prefix, len);
 }
 
-std::string ku_string_t::getAsString() const {
+std::string neug_string_t::getAsString() const {
   return std::string(getAsStringView());
 }
 
-std::string_view ku_string_t::getAsStringView() const {
+std::string_view neug_string_t::getAsStringView() const {
   if (len <= SHORT_STR_LENGTH) {
     return std::string_view((char*) prefix, len);
   } else {
@@ -71,12 +71,12 @@ std::string_view ku_string_t::getAsStringView() const {
   }
 }
 
-bool ku_string_t::operator==(const ku_string_t& rhs) const {
+bool neug_string_t::operator==(const neug_string_t& rhs) const {
   // First compare the length and prefix of the strings.
   auto numBytesOfLenAndPrefix =
       sizeof(uint32_t) +
       std::min((uint64_t) len,
-               static_cast<uint64_t>(ku_string_t::PREFIX_LENGTH));
+               static_cast<uint64_t>(neug_string_t::PREFIX_LENGTH));
   if (!memcmp(this, &rhs, numBytesOfLenAndPrefix)) {
     // If length and prefix of a and b are equal, we compare the overflow
     // buffer.
@@ -85,15 +85,15 @@ bool ku_string_t::operator==(const ku_string_t& rhs) const {
   return false;
 }
 
-bool ku_string_t::operator>(const ku_string_t& rhs) const {
-  // Compare ku_string_t up to the shared length.
+bool neug_string_t::operator>(const neug_string_t& rhs) const {
+  // Compare neug_string_t up to the shared length.
   // If there is a tie, we just need to compare the std::string lengths.
   auto sharedLen = std::min(len, rhs.len);
   auto memcmpResult = memcmp(prefix, rhs.prefix,
-                             sharedLen <= ku_string_t::PREFIX_LENGTH
+                             sharedLen <= neug_string_t::PREFIX_LENGTH
                                  ? sharedLen
-                                 : ku_string_t::PREFIX_LENGTH);
-  if (memcmpResult == 0 && len > ku_string_t::PREFIX_LENGTH) {
+                                 : neug_string_t::PREFIX_LENGTH);
+  if (memcmpResult == 0 && len > neug_string_t::PREFIX_LENGTH) {
     memcmpResult = memcmp(getData(), rhs.getData(), sharedLen);
   }
   if (memcmpResult == 0) {

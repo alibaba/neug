@@ -54,7 +54,7 @@ void SelectionVector::setToUnfiltered() {
   state = State::STATIC;
 }
 void SelectionVector::setToUnfiltered(sel_t size) {
-  KU_ASSERT(size <= capacity);
+  NEUG_ASSERT(size <= capacity);
   selectedPositions = INCREMENTAL_SELECTED_POS.data();
   selectedSize = size;
   state = State::STATIC;

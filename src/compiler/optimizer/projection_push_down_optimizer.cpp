@@ -69,7 +69,8 @@ void ProjectionPushDownOptimizer::visitOperator(LogicalOperator* op) {
 void ProjectionPushDownOptimizer::visitPathPropertyProbe(LogicalOperator* op) {
   auto& pathPropertyProbe = op->cast<LogicalPathPropertyProbe>();
   auto child = pathPropertyProbe.getChild(0);
-  KU_ASSERT(child->getOperatorType() == LogicalOperatorType::RECURSIVE_EXTEND);
+  NEUG_ASSERT(child->getOperatorType() ==
+              LogicalOperatorType::RECURSIVE_EXTEND);
   if (nodeOrRelInUse.contains(pathPropertyProbe.getRel())) {
     return;
   }
@@ -168,7 +169,7 @@ void ProjectionPushDownOptimizer::visitInsert(LogicalOperator* op) {
 void ProjectionPushDownOptimizer::visitDelete(LogicalOperator* op) {
   auto& delete_ = op->constCast<LogicalDelete>();
   auto& infos = delete_.getInfos();
-  KU_ASSERT(!infos.empty());
+  NEUG_ASSERT(!infos.empty());
   switch (infos[0].tableType) {
   case TableType::NODE: {
     for (auto& info : infos) {
@@ -184,14 +185,14 @@ void ProjectionPushDownOptimizer::visitDelete(LogicalOperator* op) {
       auto& rel = info.pattern->constCast<RelExpression>();
       collectExpressionsInUse(rel.getSrcNode()->getInternalID());
       collectExpressionsInUse(rel.getDstNode()->getInternalID());
-      KU_ASSERT(rel.getRelType() == QueryRelType::NON_RECURSIVE);
+      NEUG_ASSERT(rel.getRelType() == QueryRelType::NON_RECURSIVE);
       if (!rel.isEmpty()) {
         collectExpressionsInUse(rel.getInternalIDProperty());
       }
     }
   } break;
   default:
-    KU_UNREACHABLE;
+    NEUG_UNREACHABLE;
   }
 }
 
@@ -261,7 +262,7 @@ void ProjectionPushDownOptimizer::visitSetInfo(
     collectExpressionsInUse(rel.getInternalIDProperty());
   } break;
   default:
-    KU_UNREACHABLE;
+    NEUG_UNREACHABLE;
   }
   collectExpressionsInUse(info.columnData);
 }

@@ -49,7 +49,7 @@ std::vector<std::unique_ptr<ParsedExpression>> Transformer::transformCallScope(
 
 std::unique_ptr<Statement> Transformer::transformCallUnionQuery(
     CypherParser::OC_CallUnionQueryContext& ctx) {
-  KU_ASSERT(ctx.oC_CallUnion());
+  NEUG_ASSERT(ctx.oC_CallUnion());
   auto oC_CallUnion = ctx.oC_CallUnion();
   auto regularQuery = std::make_unique<RegularQuery>(
       transformSingleQuery(*oC_CallUnion->oC_SingleQuery()));
@@ -59,7 +59,7 @@ std::unique_ptr<Statement> Transformer::transformCallUnionQuery(
         unionClause->ALL());
   }
   std::vector<QueryPart> preQueryParts;
-  for (auto part : ctx.kU_QueryPart()) {
+  for (auto part : ctx.nEUG_QueryPart()) {
     preQueryParts.emplace_back(std::move(transformQueryPart(*part)));
   }
   if (!preQueryParts.empty()) {
@@ -101,7 +101,7 @@ SingleQuery Transformer::transformSingleQuery(
                                *ctx.oC_MultiPartQuery()->oC_SinglePartQuery())
                          : transformSinglePartQuery(*ctx.oC_SinglePartQuery());
   if (ctx.oC_MultiPartQuery()) {
-    for (auto queryPart : ctx.oC_MultiPartQuery()->kU_QueryPart()) {
+    for (auto queryPart : ctx.oC_MultiPartQuery()->nEUG_QueryPart()) {
       singleQuery.addQueryPart(transformQueryPart(*queryPart));
     }
   }
@@ -124,7 +124,7 @@ SingleQuery Transformer::transformSinglePartQuery(
 }
 
 QueryPart Transformer::transformQueryPart(
-    CypherParser::KU_QueryPartContext& ctx) {
+    CypherParser::NEUG_QueryPartContext& ctx) {
   auto queryPart = QueryPart(transformWith(*ctx.oC_With()));
   for (auto& readingClause : ctx.oC_ReadingClause()) {
     queryPart.addReadingClause(transformReadingClause(*readingClause));

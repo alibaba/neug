@@ -134,7 +134,7 @@ bool Binder::bindExportTableData(ExportedTableData& tableData,
     return false;
   }
   auto parsedStatement = Parser::parseQuery(exportQuery);
-  KU_ASSERT(parsedStatement.size() == 1);
+  NEUG_ASSERT(parsedStatement.size() == 1);
   auto parsedQuery = parsedStatement[0]->constPtrCast<RegularQuery>();
   clientContext->setUseInternalCatalogEntry(true /* useInternalCatalogEntry */);
   auto query = bindQuery(*parsedQuery);

@@ -34,7 +34,7 @@ namespace binder {
 std::unique_ptr<PropertyExpression> PropertyExpression::construct(
     LogicalType type, const std::string& propertyName,
     const Expression& child) {
-  KU_ASSERT(child.expressionType == ExpressionType::PATTERN);
+  NEUG_ASSERT(child.expressionType == ExpressionType::PATTERN);
   auto& patternExpr = child.constCast<NodeOrRelExpression>();
   auto variableName = patternExpr.getVariableName();
   auto uniqueName = patternExpr.getUniqueName();
@@ -67,7 +67,7 @@ bool PropertyExpression::isPrimaryKey(common::table_id_t tableID) const {
 }
 
 bool PropertyExpression::hasProperty(common::table_id_t tableID) const {
-  KU_ASSERT(infos.contains(tableID));
+  NEUG_ASSERT(infos.contains(tableID));
   return infos.at(tableID).exists;
 }
 

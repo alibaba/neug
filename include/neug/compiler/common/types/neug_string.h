@@ -31,7 +31,7 @@
 namespace gs {
 namespace common {
 
-struct NEUG_API ku_string_t {
+struct NEUG_API neug_string_t {
   static constexpr uint64_t PREFIX_LENGTH = 4 * 4;
   static constexpr uint64_t INLINED_SUFFIX_LENGTH = 8 * 4;
   static constexpr uint64_t SHORT_STR_LENGTH =
@@ -44,8 +44,8 @@ struct NEUG_API ku_string_t {
     uint64_t overflowPtr;
   };
 
-  ku_string_t() : len{0}, prefix{}, overflowPtr{0} {}
-  ku_string_t(const char* value, uint64_t length);
+  neug_string_t() : len{0}, prefix{}, overflowPtr{0} {}
+  neug_string_t(const char* value, uint64_t length);
 
   static bool isShortString(uint32_t len) { return len <= SHORT_STR_LENGTH; }
 
@@ -63,7 +63,7 @@ struct NEUG_API ku_string_t {
   // copies the content and set the length.
   void set(const std::string& value);
   void set(const char* value, uint64_t length);
-  void set(const ku_string_t& value);
+  void set(const neug_string_t& value);
   void setShortString(const char* value, uint64_t length) {
     this->len = length;
     memcpy(prefix, value, length);
@@ -73,11 +73,11 @@ struct NEUG_API ku_string_t {
     memcpy(prefix, value, PREFIX_LENGTH);
     memcpy(reinterpret_cast<char*>(overflowPtr), value, length);
   }
-  void setShortString(const ku_string_t& value) {
+  void setShortString(const neug_string_t& value) {
     this->len = value.len;
     memcpy(prefix, value.prefix, value.len);
   }
-  void setLongString(const ku_string_t& value) {
+  void setLongString(const neug_string_t& value) {
     this->len = value.len;
     memcpy(prefix, value.prefix, PREFIX_LENGTH);
     memcpy(reinterpret_cast<char*>(overflowPtr),
@@ -98,23 +98,23 @@ struct NEUG_API ku_string_t {
   std::string getAsString() const;
   std::string_view getAsStringView() const;
 
-  bool operator==(const ku_string_t& rhs) const;
+  bool operator==(const neug_string_t& rhs) const;
 
-  inline bool operator!=(const ku_string_t& rhs) const {
+  inline bool operator!=(const neug_string_t& rhs) const {
     return !(*this == rhs);
   }
 
-  bool operator>(const ku_string_t& rhs) const;
+  bool operator>(const neug_string_t& rhs) const;
 
-  inline bool operator>=(const ku_string_t& rhs) const {
+  inline bool operator>=(const neug_string_t& rhs) const {
     return (*this > rhs) || (*this == rhs);
   }
 
-  inline bool operator<(const ku_string_t& rhs) const {
+  inline bool operator<(const neug_string_t& rhs) const {
     return !(*this >= rhs);
   }
 
-  inline bool operator<=(const ku_string_t& rhs) const {
+  inline bool operator<=(const neug_string_t& rhs) const {
     return !(*this > rhs);
   }
 };

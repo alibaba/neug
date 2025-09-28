@@ -37,7 +37,7 @@ static void BinaryExecListExtractFunction(
     const std::vector<common::SelectionVector*>& paramSelVectors,
     common::ValueVector& result, common::SelectionVector* resultSelVector,
     void* dataPtr = nullptr) {
-  KU_ASSERT(params.size() == 2);
+  NEUG_ASSERT(params.size() == 2);
   BinaryFunctionExecutor::executeSwitch<LEFT_TYPE, RIGHT_TYPE, RESULT_TYPE,
                                         FUNC, BinaryListExtractFunctionWrapper>(
       *params[0], paramSelVectors[0], *params[1], paramSelVectors[1], result,
@@ -48,12 +48,11 @@ static std::unique_ptr<FunctionBindData> ListExtractBindFunc(
     const ScalarBindFuncInput& input) {
   const auto& resultType = ListType::getChildType(input.arguments[0]->dataType);
   auto scalarFunction = input.definition->ptrCast<ScalarFunction>();
-  TypeUtils::visit(
-      resultType.getPhysicalType(), [&scalarFunction]<typename T>(T) {
-        scalarFunction->execFunc =
-            BinaryExecListExtractFunction<list_entry_t, int64_t, T,
-                                          ListExtract>;
-      });
+  TypeUtils::visit(resultType.getPhysicalType(), [&scalarFunction]<typename T>(
+                                                     T) {
+    scalarFunction->execFunc =
+        BinaryExecListExtractFunction<list_entry_t, int64_t, T, ListExtract>;
+  });
   std::vector<LogicalType> paramTypes;
   paramTypes.push_back(input.arguments[0]->getDataType().copy());
   paramTypes.push_back(LogicalType(input.definition->parameterTypeIDs[1]));
@@ -74,7 +73,7 @@ function_set ListExtractFunction::getFunctionSet() {
       name,
       std::vector<LogicalTypeID>{LogicalTypeID::STRING, LogicalTypeID::INT64},
       LogicalTypeID::STRING,
-      ScalarFunction::BinaryExecFunction<ku_string_t, int64_t, ku_string_t,
+      ScalarFunction::BinaryExecFunction<neug_string_t, int64_t, neug_string_t,
                                          ListExtract>);
   result.push_back(std::move(func));
   func = std::make_unique<ScalarFunction>(

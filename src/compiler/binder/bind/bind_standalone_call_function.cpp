@@ -42,7 +42,7 @@ std::unique_ptr<BoundStatement> Binder::bindStandaloneCallFunction(
   auto entry = clientContext->getCatalog()->getFunctionEntry(
       clientContext->getTransaction(), funcName,
       clientContext->useInternalCatalogEntry());
-  KU_ASSERT(entry);
+  NEUG_ASSERT(entry);
   if (entry->getType() !=
       catalog::CatalogEntryType::STANDALONE_TABLE_FUNCTION_ENTRY) {
     THROW_BINDER_EXCEPTION(

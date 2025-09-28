@@ -67,13 +67,15 @@ class ParsedSubqueryExpression : public ParsedExpression {
 
   static std::unique_ptr<ParsedSubqueryExpression> deserialize(
       common::Deserializer&) {
-    KU_UNREACHABLE;
+    NEUG_UNREACHABLE;
   }
 
-  std::unique_ptr<ParsedExpression> copy() const override { KU_UNREACHABLE; }
+  std::unique_ptr<ParsedExpression> copy() const override { NEUG_UNREACHABLE; }
 
  private:
-  void serializeInternal(common::Serializer&) const override { KU_UNREACHABLE; }
+  void serializeInternal(common::Serializer&) const override {
+    NEUG_UNREACHABLE;
+  }
 
  private:
   common::SubqueryType subqueryType;

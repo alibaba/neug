@@ -55,7 +55,7 @@ std::string FileTypeUtils::toString(FileType fileType) {
     return "NPY";
   }
   default: {
-    KU_UNREACHABLE;
+    NEUG_UNREACHABLE;
   }
   }
 }

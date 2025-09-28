@@ -52,7 +52,7 @@ void VectorNullFunction::bindExecFunction(
 void VectorNullFunction::bindSelectFunction(
     ExpressionType expressionType, const binder::expression_vector& children,
     scalar_func_select_t& func) {
-  KU_ASSERT(children.size() == 1);
+  NEUG_ASSERT(children.size() == 1);
   (void) children;
   switch (expressionType) {
   case ExpressionType::IS_NULL: {

@@ -65,7 +65,7 @@ uint64_t CostModel::computeIntersectCost(
   // picked in worst case.
   cost += probePlan.getCardinality();
   for (auto& buildPlan : buildPlans) {
-    KU_ASSERT(buildPlan->getCardinality() >= 1);
+    NEUG_ASSERT(buildPlan->getCardinality() >= 1);
     cost += buildPlan->getLastOperator()->getIntersectCard();
   }
   return cost;

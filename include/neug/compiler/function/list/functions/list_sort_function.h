@@ -39,7 +39,7 @@ struct ListSort : BaseListSortOperation {
   }
 
   static void operation(common::list_entry_t& input,
-                        common::ku_string_t& sortOrder,
+                        common::neug_string_t& sortOrder,
                         common::list_entry_t& result,
                         common::ValueVector& inputVector,
                         common::ValueVector& /*valueVector*/,
@@ -49,8 +49,8 @@ struct ListSort : BaseListSortOperation {
   }
 
   static void operation(common::list_entry_t& input,
-                        common::ku_string_t& sortOrder,
-                        common::ku_string_t& nullOrder,
+                        common::neug_string_t& sortOrder,
+                        common::neug_string_t& nullOrder,
                         common::list_entry_t& result,
                         common::ValueVector& inputVector,
                         common::ValueVector& resultVector) {

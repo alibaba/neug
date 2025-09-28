@@ -57,46 +57,46 @@ std::unique_ptr<Statement> Transformer::transformStatement(
     CypherParser::OC_StatementContext& ctx) {
   if (ctx.oC_Query()) {
     return transformQuery(*ctx.oC_Query());
-  } else if (ctx.kU_CreateNodeTable()) {
-    return transformCreateNodeTable(*ctx.kU_CreateNodeTable());
-  } else if (ctx.kU_CreateRelTable()) {
-    return transformCreateRelTable(*ctx.kU_CreateRelTable());
-  } else if (ctx.kU_CreateSequence()) {
-    return transformCreateSequence(*ctx.kU_CreateSequence());
-  } else if (ctx.kU_CreateType()) {
-    return transformCreateType(*ctx.kU_CreateType());
-  } else if (ctx.kU_Drop()) {
-    return transformDrop(*ctx.kU_Drop());
-  } else if (ctx.kU_AlterTable()) {
-    return transformAlterTable(*ctx.kU_AlterTable());
-  } else if (ctx.kU_CopyFromByColumn()) {
-    return transformCopyFromByColumn(*ctx.kU_CopyFromByColumn());
-  } else if (ctx.kU_CopyFrom()) {
-    return transformCopyFrom(*ctx.kU_CopyFrom());
-  } else if (ctx.kU_CopyTO()) {
-    return transformCopyTo(*ctx.kU_CopyTO());
-  } else if (ctx.kU_StandaloneCall()) {
-    return transformStandaloneCall(*ctx.kU_StandaloneCall());
-  } else if (ctx.kU_CreateMacro()) {
-    return transformCreateMacro(*ctx.kU_CreateMacro());
-  } else if (ctx.kU_CommentOn()) {
-    return transformCommentOn(*ctx.kU_CommentOn());
-  } else if (ctx.kU_Transaction()) {
-    return transformTransaction(*ctx.kU_Transaction());
-  } else if (ctx.kU_Extension()) {
-    return transformExtension(*ctx.kU_Extension());
-  } else if (ctx.kU_ExportDatabase()) {
-    return transformExportDatabase(*ctx.kU_ExportDatabase());
-  } else if (ctx.kU_ImportDatabase()) {
-    return transformImportDatabase(*ctx.kU_ImportDatabase());
-  } else if (ctx.kU_AttachDatabase()) {
-    return transformAttachDatabase(*ctx.kU_AttachDatabase());
-  } else if (ctx.kU_DetachDatabase()) {
-    return transformDetachDatabase(*ctx.kU_DetachDatabase());
-  } else if (ctx.kU_UseDatabase()) {
-    return transformUseDatabase(*ctx.kU_UseDatabase());
+  } else if (ctx.nEUG_CreateNodeTable()) {
+    return transformCreateNodeTable(*ctx.nEUG_CreateNodeTable());
+  } else if (ctx.nEUG_CreateRelTable()) {
+    return transformCreateRelTable(*ctx.nEUG_CreateRelTable());
+  } else if (ctx.nEUG_CreateSequence()) {
+    return transformCreateSequence(*ctx.nEUG_CreateSequence());
+  } else if (ctx.nEUG_CreateType()) {
+    return transformCreateType(*ctx.nEUG_CreateType());
+  } else if (ctx.nEUG_Drop()) {
+    return transformDrop(*ctx.nEUG_Drop());
+  } else if (ctx.nEUG_AlterTable()) {
+    return transformAlterTable(*ctx.nEUG_AlterTable());
+  } else if (ctx.nEUG_CopyFromByColumn()) {
+    return transformCopyFromByColumn(*ctx.nEUG_CopyFromByColumn());
+  } else if (ctx.nEUG_CopyFrom()) {
+    return transformCopyFrom(*ctx.nEUG_CopyFrom());
+  } else if (ctx.nEUG_CopyTO()) {
+    return transformCopyTo(*ctx.nEUG_CopyTO());
+  } else if (ctx.nEUG_StandaloneCall()) {
+    return transformStandaloneCall(*ctx.nEUG_StandaloneCall());
+  } else if (ctx.nEUG_CreateMacro()) {
+    return transformCreateMacro(*ctx.nEUG_CreateMacro());
+  } else if (ctx.nEUG_CommentOn()) {
+    return transformCommentOn(*ctx.nEUG_CommentOn());
+  } else if (ctx.nEUG_Transaction()) {
+    return transformTransaction(*ctx.nEUG_Transaction());
+  } else if (ctx.nEUG_Extension()) {
+    return transformExtension(*ctx.nEUG_Extension());
+  } else if (ctx.nEUG_ExportDatabase()) {
+    return transformExportDatabase(*ctx.nEUG_ExportDatabase());
+  } else if (ctx.nEUG_ImportDatabase()) {
+    return transformImportDatabase(*ctx.nEUG_ImportDatabase());
+  } else if (ctx.nEUG_AttachDatabase()) {
+    return transformAttachDatabase(*ctx.nEUG_AttachDatabase());
+  } else if (ctx.nEUG_DetachDatabase()) {
+    return transformDetachDatabase(*ctx.nEUG_DetachDatabase());
+  } else if (ctx.nEUG_UseDatabase()) {
+    return transformUseDatabase(*ctx.nEUG_UseDatabase());
   } else {
-    KU_UNREACHABLE;
+    NEUG_UNREACHABLE;
   }
 }
 
@@ -124,8 +124,8 @@ std::string Transformer::transformSymbolicName(
     // character.
     return escapedSymbolName.substr(1, escapedSymbolName.size() - 2);
   } else {
-    KU_ASSERT(ctx.HexLetter() || ctx.UnescapedSymbolicName() ||
-              ctx.kU_NonReservedKeywords());
+    NEUG_ASSERT(ctx.HexLetter() || ctx.UnescapedSymbolicName() ||
+                ctx.nEUG_NonReservedKeywords());
     return ctx.getText();
   }
 }

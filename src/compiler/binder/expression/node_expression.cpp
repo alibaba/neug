@@ -36,7 +36,7 @@ std::shared_ptr<Expression> NodeExpression::getPrimaryKey(
       return e->copy();
     }
   }
-  KU_UNREACHABLE;
+  NEUG_UNREACHABLE;
 }
 
 }  // namespace binder

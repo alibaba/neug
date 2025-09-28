@@ -37,9 +37,9 @@ namespace common {
 class BitmaskUtils {
  public:
   template <typename T>
-    requires std::integral<T>
+  requires std::integral<T>
   static T all1sMaskForLeastSignificantBits(uint32_t numBits) {
-    KU_ASSERT(numBits <= 64);
+    NEUG_ASSERT(numBits <= 64);
     using U = numeric_utils::MakeUnSignedT<T>;
     return (T) (numBits == (sizeof(U) * 8)
                     ? std::numeric_limits<U>::max()
@@ -48,7 +48,7 @@ class BitmaskUtils {
 
   // constructs all 1s mask while avoiding overflow/underflow for int128
   template <typename T>
-    requires std::same_as<std::remove_cvref_t<T>, int128_t>
+  requires std::same_as<std::remove_cvref_t<T>, int128_t>
   static T all1sMaskForLeastSignificantBits(uint32_t numBits) {
     static constexpr uint8_t numBitsInT = sizeof(T) * 8;
 
@@ -75,7 +75,7 @@ constexpr T ceilDiv(T a, T b) {
 
 template <std::integral To, std::integral From>
 constexpr To safeIntegerConversion(From val) {
-  KU_ASSERT(static_cast<To>(val) == val);
+  NEUG_ASSERT(static_cast<To>(val) == val);
   return val;
 }
 

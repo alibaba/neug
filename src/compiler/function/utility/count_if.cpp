@@ -54,7 +54,7 @@ function_set CountIfFunction::getFunctionSet() {
         [&execFunc](bool) {
           execFunc = ScalarFunction::UnaryExecFunction<bool, uint8_t, CountIf>;
         },
-        [](auto) { KU_UNREACHABLE; });
+        [](auto) { NEUG_UNREACHABLE; });
     functionSet.push_back(std::make_unique<ScalarFunction>(
         name, std::vector<LogicalTypeID>{operandTypeID}, LogicalTypeID::UINT8,
         execFunc));

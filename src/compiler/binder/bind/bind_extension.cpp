@@ -70,7 +70,7 @@ std::unique_ptr<BoundStatement> Binder::bindExtension(
   case ExtensionAction::UNINSTALL:
     break;
   default:
-    KU_UNREACHABLE;
+    NEUG_UNREACHABLE;
   }
   if (ExtensionUtils::isOfficialExtension(auxInfo->path)) {
     common::StringUtils::toLower(auxInfo->path);

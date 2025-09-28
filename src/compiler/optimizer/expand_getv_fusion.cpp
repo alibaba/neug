@@ -47,8 +47,8 @@ std::shared_ptr<planner::LogicalOperator> ExpandGetVFusion::visitOperator(
 std::shared_ptr<planner::LogicalOperator>
 ExpandGetVFusion::visitRecursiveExtendReplace(
     std::shared_ptr<planner::LogicalOperator> op) {
-  KU_ASSERT(op->getOperatorType() ==
-            planner::LogicalOperatorType::RECURSIVE_EXTEND);
+  NEUG_ASSERT(op->getOperatorType() ==
+              planner::LogicalOperatorType::RECURSIVE_EXTEND);
   auto extendOp = op->ptrCast<planner::LogicalRecursiveExtend>();
   if (extendOp->getResultOpt() == planner::ResultOpt::ALL_V_E) {
     // 'ALL_V_E' means edge must be kept independently, so we cannot fuse
@@ -75,7 +75,7 @@ ExpandGetVFusion::visitRecursiveExtendReplace(
 
 std::shared_ptr<planner::LogicalOperator> ExpandGetVFusion::visitGetVReplace(
     std::shared_ptr<planner::LogicalOperator> op) {
-  KU_ASSERT(op->getOperatorType() == planner::LogicalOperatorType::GET_V);
+  NEUG_ASSERT(op->getOperatorType() == planner::LogicalOperatorType::GET_V);
   auto child = op->getChild(0);
   if (child->getOperatorType() != planner::LogicalOperatorType::EXTEND) {
     return op;  // no extend operator, nothing to fuse

@@ -58,7 +58,7 @@ class NEUG_API Frontier {
 
   template <class TARGET>
   TARGET& cast() {
-    return common::ku_dynamic_cast<TARGET&>(*this);
+    return common::neug_dynamic_cast<TARGET&>(*this);
   }
 };
 
@@ -236,7 +236,7 @@ class NEUG_API FrontierPair {
 
   template <class TARGET>
   TARGET* ptrCast() {
-    return common::ku_dynamic_cast<TARGET*>(this);
+    return common::neug_dynamic_cast<TARGET*>(this);
   }
 
  protected:
@@ -331,7 +331,7 @@ class NEUG_API DenseFrontierPair : public FrontierPair {
 
   std::unordered_set<common::offset_t> getActiveNodesOnCurrentFrontier()
       override {
-    KU_UNREACHABLE;
+    NEUG_UNREACHABLE;
   }
 
   void resetValue(processor::ExecutionContext* context, graph::Graph* graph,

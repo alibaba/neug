@@ -71,8 +71,8 @@ void StructExtractFunctions::compileFunc(
     FunctionBindData* bindData,
     const std::vector<std::shared_ptr<ValueVector>>& parameters,
     std::shared_ptr<ValueVector>& result) {
-  KU_ASSERT(parameters[0]->dataType.getPhysicalType() ==
-            PhysicalTypeID::STRUCT);
+  NEUG_ASSERT(parameters[0]->dataType.getPhysicalType() ==
+              PhysicalTypeID::STRUCT);
   auto& structBindData = bindData->cast<StructExtractBindData>();
   result = StructVector::getFieldVector(parameters[0].get(),
                                         structBindData.childIdx);

@@ -95,7 +95,7 @@ std::unique_ptr<ParsedExpression> ParsedExpression::deserialize(
     parsedExpression = ParsedVariableExpression::deserialize(deserializer);
   } break;
   default: {
-    KU_UNREACHABLE;
+    NEUG_UNREACHABLE;
   }
   }
   parsedExpression->alias = std::move(alias);

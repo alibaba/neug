@@ -36,7 +36,7 @@ std::string AccumulateTypeUtil::toString(AccumulateType type) {
     return "OPTIONAL";
   }
   default:
-    KU_UNREACHABLE;
+    NEUG_UNREACHABLE;
   }
 }
 

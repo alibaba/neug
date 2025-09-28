@@ -29,7 +29,7 @@
 #include "neug/compiler/common/types/date_t.h"
 #include "neug/compiler/common/types/int128_t.h"
 #include "neug/compiler/common/types/interval_t.h"
-#include "neug/compiler/common/types/ku_string.h"
+#include "neug/compiler/common/types/neug_string.h"
 #include "neug/compiler/common/types/timestamp_t.h"
 #include "neug/compiler/common/types/types.h"
 #include "neug/compiler/common/types/uuid.h"
@@ -70,7 +70,7 @@ class TypeUtils {
                                      void* /*valueVector*/ = nullptr) {
     if constexpr (std::is_same_v<T, std::string>) {
       return val;
-    } else if constexpr (std::is_same_v<T, ku_string_t>) {
+    } else if constexpr (std::is_same_v<T, neug_string_t>) {
       return val.getAsString();
     } else {
       static_assert(
@@ -128,12 +128,12 @@ class TypeUtils {
       return common::PhysicalTypeID::INT128;
     } else if constexpr (std::is_same_v<T, interval_t>) {
       return common::PhysicalTypeID::INTERVAL;
-    } else if constexpr (std::same_as<T, ku_string_t> ||
+    } else if constexpr (std::same_as<T, neug_string_t> ||
                          std::same_as<T, std::string> ||
                          std::same_as<T, std::string_view>) {
       return common::PhysicalTypeID::STRING;
     } else {
-      KU_UNREACHABLE;
+      NEUG_UNREACHABLE;
     }
   }
 
@@ -145,25 +145,25 @@ class TypeUtils {
    *
    *  std::string result;
    *  visit(dataType, [&]<typename T>(T) {
-   *      if constexpr(std::is_same_v<T, ku_string_t>()) {
-   *          result = vector->getValue<ku_string_t>(0).getAsString();
+   *      if constexpr(std::is_same_v<T, neug_string_t>()) {
+   *          result = vector->getValue<neug_string_t>(0).getAsString();
    *      } else if (std::integral<T>) {
    *          result = std::to_string(vector->getValue<T>(0));
    *      } else {
-   *          KU_UNREACHABLE;
+   *          NEUG_UNREACHABLE;
    *      }
    *  });
    *
    * or
    *  std::string result;
    *  visit(dataType,
-   *      [&](ku_string_t) {
-   *          result = vector->getValue<ku_string_t>(0);
+   *      [&](neug_string_t) {
+   *          result = vector->getValue<neug_string_t>(0);
    *      },
    *      [&]<std::integral T>(T) {
    *          result = std::to_string(vector->getValue<T>(0));
    *      },
-   *      [](auto) { KU_UNREACHABLE; }
+   *      [](auto) { NEUG_UNREACHABLE; }
    *  );
    *
    * Note that when multiple functions are provided, at least one function must
@@ -217,14 +217,14 @@ class TypeUtils {
       case PhysicalTypeID::INT128:
         return func(int128_t());
       default:
-        KU_UNREACHABLE;
+        NEUG_UNREACHABLE;
       }
     case LogicalTypeID::INTERVAL:
       return func(interval_t());
     case LogicalTypeID::INTERNAL_ID:
       return func(internalID_t());
     case LogicalTypeID::STRING:
-      return func(ku_string_t());
+      return func(neug_string_t());
     case LogicalTypeID::DATE:
       return func(date_t());
     case LogicalTypeID::TIMESTAMP_NS:
@@ -240,7 +240,7 @@ class TypeUtils {
     case LogicalTypeID::BLOB:
       return func(blob_t());
     case LogicalTypeID::UUID:
-      return func(ku_uuid_t());
+      return func(neug_uuid_t());
     case LogicalTypeID::ARRAY:
     case LogicalTypeID::LIST:
       return func(list_entry_t());
@@ -256,7 +256,7 @@ class TypeUtils {
     /* NOLINTEND(bugprone-branch-clone)*/
     default:
       // Unsupported type
-      KU_UNREACHABLE;
+      NEUG_UNREACHABLE;
     }
   }
 
@@ -296,7 +296,7 @@ class TypeUtils {
     case PhysicalTypeID::INTERNAL_ID:
       return func(internalID_t());
     case PhysicalTypeID::STRING:
-      return func(ku_string_t());
+      return func(neug_string_t());
     case PhysicalTypeID::ARRAY:
     case PhysicalTypeID::LIST:
       return func(list_entry_t());
@@ -310,11 +310,11 @@ class TypeUtils {
       // Unsupported type
       THROW_NOT_SUPPORTED_EXCEPTION("Unsupported physical type " +
                                     std::to_string(static_cast<int>(dataType)));
-      KU_UNREACHABLE;
+      NEUG_UNREACHABLE;
       // Needed for return type deduction to work
       return func(uint8_t());
     default:
-      KU_UNREACHABLE;
+      NEUG_UNREACHABLE;
     }
   }
 };
@@ -341,11 +341,11 @@ std::string TypeUtils::toString(const timestamp_t& val, void* valueVector);
 template <>
 std::string TypeUtils::toString(const interval_t& val, void* valueVector);
 template <>
-std::string TypeUtils::toString(const ku_string_t& val, void* valueVector);
+std::string TypeUtils::toString(const neug_string_t& val, void* valueVector);
 template <>
 std::string TypeUtils::toString(const blob_t& val, void* valueVector);
 template <>
-std::string TypeUtils::toString(const ku_uuid_t& val, void* valueVector);
+std::string TypeUtils::toString(const neug_uuid_t& val, void* valueVector);
 template <>
 std::string TypeUtils::toString(const list_entry_t& val, void* valueVector);
 template <>

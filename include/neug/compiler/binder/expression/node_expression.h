@@ -42,12 +42,12 @@ class NEUG_API NodeExpression final : public NodeOrRelExpression {
     internalID = std::move(expression);
   }
   std::shared_ptr<Expression> getInternalID() const {
-    KU_ASSERT(internalID != nullptr);
+    NEUG_ASSERT(internalID != nullptr);
     return internalID->copy();
   }
 
   Expression* getInternalIDRef() const {
-    KU_ASSERT(internalID != nullptr);
+    NEUG_ASSERT(internalID != nullptr);
     return internalID.get();
   }
 

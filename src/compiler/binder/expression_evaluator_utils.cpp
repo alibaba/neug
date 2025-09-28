@@ -40,7 +40,7 @@ Value ExpressionEvaluatorUtils::evaluateConstantExpression(
   evaluator->init(*emptyResultSet, clientContext);
   evaluator->evaluate();
   auto& selVector = evaluator->resultVector->state->getSelVector();
-  KU_ASSERT(selVector.getSelSize() == 1);
+  NEUG_ASSERT(selVector.getSelSize() == 1);
   return *evaluator->resultVector->getAsValue(selVector[0]);
 }
 

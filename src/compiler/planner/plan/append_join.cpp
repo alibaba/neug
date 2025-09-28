@@ -67,7 +67,7 @@ void Planner::appendAccHashJoin(
     const std::vector<binder::expression_pair>& joinConditions,
     JoinType joinType, std::shared_ptr<Expression> mark, LogicalPlan& probePlan,
     LogicalPlan& buildPlan, LogicalPlan& resultPlan) {
-  KU_ASSERT(probePlan.hasUpdate());
+  NEUG_ASSERT(probePlan.hasUpdate());
   tryAppendAccumulate(probePlan);
   appendHashJoin(joinConditions, joinType, mark, probePlan, buildPlan,
                  resultPlan);
@@ -112,7 +112,7 @@ void Planner::appendIntersect(
     const std::shared_ptr<Expression>& intersectNodeID,
     expression_vector& boundNodeIDs, LogicalPlan& probePlan,
     std::vector<std::unique_ptr<LogicalPlan>>& buildPlans) {
-  KU_ASSERT(boundNodeIDs.size() == buildPlans.size());
+  NEUG_ASSERT(boundNodeIDs.size() == buildPlans.size());
   std::vector<std::shared_ptr<LogicalOperator>> buildChildren;
   expression_vector keyNodeIDs;
   for (auto i = 0u; i < buildPlans.size(); ++i) {
@@ -150,7 +150,7 @@ void Planner::appendIntersect(
     expression_vector& boundNodeIDs, LogicalPlan& probePlan,
     std::vector<std::unique_ptr<LogicalPlan>>& buildPlans,
     std::vector<cardinality_t>& buildCards) {
-  KU_ASSERT(boundNodeIDs.size() == buildPlans.size());
+  NEUG_ASSERT(boundNodeIDs.size() == buildPlans.size());
   std::vector<std::shared_ptr<LogicalOperator>> buildChildren;
   expression_vector keyNodeIDs;
   for (auto i = 0u; i < buildPlans.size(); ++i) {

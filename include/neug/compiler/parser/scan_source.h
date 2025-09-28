@@ -43,11 +43,11 @@ struct BaseScanSource {
 
   template <class TARGET>
   TARGET* ptrCast() {
-    return common::ku_dynamic_cast<TARGET*>(this);
+    return common::neug_dynamic_cast<TARGET*>(this);
   }
   template <class TARGET>
   const TARGET* constPtrCast() const {
-    return common::ku_dynamic_cast<const TARGET*>(this);
+    return common::neug_dynamic_cast<const TARGET*>(this);
   }
 };
 

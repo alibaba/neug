@@ -22,14 +22,14 @@
 
 #pragma once
 
-#include "neug/compiler/common/types/ku_string.h"
+#include "neug/compiler/common/types/neug_string.h"
 
 namespace gs {
 namespace function {
 
 struct StartsWith {
-  static inline void operation(common::ku_string_t& left,
-                               common::ku_string_t& right, uint8_t& result) {
+  static inline void operation(common::neug_string_t& left,
+                               common::neug_string_t& right, uint8_t& result) {
     auto lStr = left.getAsString();
     auto rStr = right.getAsString();
     result = lStr.starts_with(rStr);

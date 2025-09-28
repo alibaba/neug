@@ -38,7 +38,7 @@ namespace binder {
 std::unique_ptr<BoundStatement> Binder::bindStandaloneCall(
     const parser::Statement& statement) {
   auto& callStatement =
-      ku_dynamic_cast<const parser::StandaloneCall&>(statement);
+      neug_dynamic_cast<const parser::StandaloneCall&>(statement);
   const main::Option* option = nullptr;
   if (option == nullptr) {
     option = clientContext->getExtensionOption(callStatement.getOptionName());

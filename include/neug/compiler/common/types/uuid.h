@@ -34,8 +34,9 @@ namespace common {
 
 class RandomEngine;
 
-// Note: uuid_t is a reserved keyword in MSVC, we have to use ku_uuid_t instead.
-struct ku_uuid_t {
+// Note: uuid_t is a reserved keyword in MSVC, we have to use neug_uuid_t
+// instead.
+struct neug_uuid_t {
   int128_t value;
 };
 
@@ -51,9 +52,9 @@ struct UUID {
   static int128_t fromCString(const char* str, uint64_t len);
   static void toString(int128_t input, char* buf);
   static std::string toString(int128_t input);
-  static std::string toString(ku_uuid_t val);
+  static std::string toString(neug_uuid_t val);
 
-  static ku_uuid_t generateRandomUUID(RandomEngine* engine);
+  static neug_uuid_t generateRandomUUID(RandomEngine* engine);
 
   static const regex::RE2& regexPattern();
 };

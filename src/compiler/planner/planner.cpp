@@ -128,7 +128,7 @@ std::unique_ptr<LogicalPlan> Planner::getBestPlan(
     appendUseDatabase(statement, *plan);
   } break;
   default:
-    KU_UNREACHABLE;
+    NEUG_UNREACHABLE;
   }
   return plan;
 }
@@ -146,14 +146,14 @@ std::vector<std::unique_ptr<LogicalPlan>> Planner::getAllPlans(
     }
   } break;
   case StatementType::EXPLAIN: {
-    auto& explain = ku_dynamic_cast<const BoundExplain&>(statement);
+    auto& explain = neug_dynamic_cast<const BoundExplain&>(statement);
     plans = getAllPlans(*explain.getStatementToExplain());
     for (auto& plan : plans) {
       appendExplain(explain, *plan);
     }
   } break;
   default:
-    KU_UNREACHABLE;
+    NEUG_UNREACHABLE;
   }
   return plans;
 }

@@ -36,7 +36,7 @@ namespace function {
 
 static std::shared_ptr<Expression> rewriteFunc(
     const RewriteFunctionBindInput& input) {
-  KU_ASSERT(input.arguments.size() == 1);
+  NEUG_ASSERT(input.arguments.size() == 1);
   auto param = input.arguments[0].get();
   auto binder = input.expressionBinder;
   if (param->expressionType == ExpressionType::PATH) {
@@ -68,7 +68,7 @@ static std::shared_ptr<Expression> rewriteFunc(
   } else if (ExpressionUtil::isRecursiveRelPattern(*param)) {
     return param->constPtrCast<RelExpression>()->getLengthExpression();
   }
-  KU_UNREACHABLE;
+  NEUG_UNREACHABLE;
 }
 
 function_set LengthFunction::getFunctionSet() {

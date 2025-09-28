@@ -98,7 +98,7 @@ const BoundGraphEntryTableInfo& GraphEntry::getRelInfo(
 
 void GraphEntry::setRelPredicate(std::shared_ptr<Expression> predicate) {
   for (auto& info : relInfos) {
-    KU_ASSERT(info.predicate == nullptr);
+    NEUG_ASSERT(info.predicate == nullptr);
     info.predicate = predicate;
   }
 }

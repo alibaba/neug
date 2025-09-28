@@ -39,19 +39,19 @@ namespace common {
 
 #if defined(NEUG_RUNTIME_CHECKS) || !defined(NDEBUG)
 #define RUNTIME_CHECK(code) code
-#define KU_ASSERT(condition)   \
+#define NEUG_ASSERT(condition) \
   static_cast<bool>(condition) \
       ? void(0)                \
       : gs::common::kuAssertFailureInternal(#condition, __FILE__, __LINE__)
 #else
-#define KU_ASSERT(condition) void(0)
+#define NEUG_ASSERT(condition) void(0)
 #define RUNTIME_CHECK(code) void(0)
 #endif
 
-#define KU_UNREACHABLE                                                    \
+#define NEUG_UNREACHABLE                                                  \
   /* LCOV_EXCL_START */ [[unlikely]] gs::common::kuAssertFailureInternal( \
-      "KU_UNREACHABLE", __FILE__, __LINE__) /* LCOV_EXCL_STOP */
-#define KU_UNUSED(expr) (void) (expr)
+      "NEUG_UNREACHABLE", __FILE__, __LINE__) /* LCOV_EXCL_STOP */
+#define NEUG_UNUSED(expr) (void) (expr)
 
 }  // namespace common
 }  // namespace gs

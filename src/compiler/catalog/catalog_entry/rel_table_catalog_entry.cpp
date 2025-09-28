@@ -78,7 +78,7 @@ std::vector<RelDataDirection> RelTableCatalogEntry::getRelDataDirections()
     return {RelDataDirection::FWD, RelDataDirection::BWD};
   }
   default: {
-    KU_UNREACHABLE;
+    NEUG_UNREACHABLE;
   }
   }
 }

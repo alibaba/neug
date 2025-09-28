@@ -87,7 +87,7 @@ AggregateFunction* BuiltInFunctionsUtils::matchAggregateFunction(
   }
   validateNonEmptyCandidateFunctions(candidateFunctions, name, inputTypes,
                                      isDistinct, functionSet);
-  KU_ASSERT(candidateFunctions.size() == 1);
+  NEUG_ASSERT(candidateFunctions.size() == 1);
   return candidateFunctions[0];
 }
 
@@ -405,7 +405,7 @@ uint32_t BuiltInFunctionsUtils::castArray(LogicalTypeID targetTypeID) {
 
 Function* BuiltInFunctionsUtils::getBestMatch(
     std::vector<Function*>& functionsToMatch) {
-  KU_ASSERT(functionsToMatch.size() > 1);
+  NEUG_ASSERT(functionsToMatch.size() > 1);
   Function* result = nullptr;
   auto cost = UNDEFINED_CAST_COST;
   for (auto& function : functionsToMatch) {
@@ -425,14 +425,14 @@ Function* BuiltInFunctionsUtils::getBestMatch(
       result = function;
     }
   }
-  KU_ASSERT(result != nullptr);
+  NEUG_ASSERT(result != nullptr);
   return result;
 }
 
 uint32_t BuiltInFunctionsUtils::getFunctionCost(
     const std::vector<LogicalType>& inputTypes, Function* function) {
   if (function->isVarLength) {
-    KU_ASSERT(function->parameterTypeIDs.size() == 1);
+    NEUG_ASSERT(function->parameterTypeIDs.size() == 1);
     return matchVarLengthParameters(inputTypes, function->parameterTypeIDs[0]);
   }
   return matchParameters(inputTypes, function->parameterTypeIDs);

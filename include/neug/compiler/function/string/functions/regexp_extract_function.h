@@ -22,7 +22,7 @@
 
 #pragma once
 
-#include "neug/compiler/common/types/ku_string.h"
+#include "neug/compiler/common/types/neug_string.h"
 #include "neug/compiler/common/vector/value_vector.h"
 #include "neug/compiler/function/string/functions/base_regexp_function.h"
 #include "neug/utils/exception/exception.h"
@@ -32,17 +32,18 @@ namespace gs {
 namespace function {
 
 struct RegexpExtract : BaseRegexpOperation {
-  static inline void operation(common::ku_string_t& value,
-                               common::ku_string_t& pattern,
-                               std::int64_t& group, common::ku_string_t& result,
+  static inline void operation(common::neug_string_t& value,
+                               common::neug_string_t& pattern,
+                               std::int64_t& group,
+                               common::neug_string_t& result,
                                common::ValueVector& resultValueVector) {
     regexExtract(value.getAsString(), pattern.getAsString(), group, result,
                  resultValueVector);
   }
 
-  static inline void operation(common::ku_string_t& value,
-                               common::ku_string_t& pattern,
-                               common::ku_string_t& result,
+  static inline void operation(common::neug_string_t& value,
+                               common::neug_string_t& pattern,
+                               common::neug_string_t& result,
                                common::ValueVector& resultValueVector) {
     int64_t defaultGroup = 0;
     regexExtract(value.getAsString(), pattern.getAsString(), defaultGroup,
@@ -50,7 +51,7 @@ struct RegexpExtract : BaseRegexpOperation {
   }
 
   static void regexExtract(const std::string& input, const std::string& pattern,
-                           std::int64_t& group, common::ku_string_t& result,
+                           std::int64_t& group, common::neug_string_t& result,
                            common::ValueVector& resultValueVector) {
     RE2 regex(parseCypherPattern(pattern));
     auto submatchCount = regex.NumberOfCapturingGroups() + 1;

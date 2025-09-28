@@ -73,7 +73,7 @@ static void execFunc(
 
 static bool selectFunc(const std::vector<std::shared_ptr<ValueVector>>& params,
                        SelectionVector& selVector, void* /* dataPtr */) {
-  KU_ASSERT(!params.empty());
+  NEUG_ASSERT(!params.empty());
   auto unFlatVectorIdx = 0u;
   for (auto i = 0u; i < params.size(); ++i) {
     if (!params[i]->state->isFlat()) {

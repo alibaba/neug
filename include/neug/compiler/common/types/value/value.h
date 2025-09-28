@@ -27,7 +27,7 @@
 #include "neug/compiler/common/types/date_t.h"
 #include "neug/compiler/common/types/int128_t.h"
 #include "neug/compiler/common/types/interval_t.h"
-#include "neug/compiler/common/types/ku_list.h"
+#include "neug/compiler/common/types/neug_list.h"
 #include "neug/compiler/common/types/timestamp_t.h"
 #include "neug/compiler/common/types/uuid.h"
 #include "neug/utils/api.h"
@@ -112,7 +112,7 @@ class Value {
   /**
    * @param val_ the UUID value to set.
    */
-  NEUG_API explicit Value(ku_uuid_t val_);
+  NEUG_API explicit Value(neug_uuid_t val_);
   /**
    * @param val_ the double value to set.
    */
@@ -277,7 +277,7 @@ class Value {
   explicit Value(const LogicalType& dataType);
 
   void resizeChildrenVector(uint64_t size, const LogicalType& childType);
-  void copyFromRowLayoutList(const ku_list_t& list,
+  void copyFromRowLayoutList(const neug_list_t& list,
                              const LogicalType& childType);
   void copyFromColLayoutList(const list_entry_t& list, ValueVector* vec);
   void copyFromRowLayoutStruct(const uint8_t* kuStruct);
@@ -332,7 +332,7 @@ class Value {
  */
 template <>
 NEUG_API inline bool Value::getValue() const {
-  KU_ASSERT(dataType.getPhysicalType() == PhysicalTypeID::BOOL);
+  NEUG_ASSERT(dataType.getPhysicalType() == PhysicalTypeID::BOOL);
   return val.booleanVal;
 }
 
@@ -341,7 +341,7 @@ NEUG_API inline bool Value::getValue() const {
  */
 template <>
 NEUG_API inline int8_t Value::getValue() const {
-  KU_ASSERT(dataType.getPhysicalType() == PhysicalTypeID::INT8);
+  NEUG_ASSERT(dataType.getPhysicalType() == PhysicalTypeID::INT8);
   return val.int8Val;
 }
 
@@ -350,7 +350,7 @@ NEUG_API inline int8_t Value::getValue() const {
  */
 template <>
 NEUG_API inline int16_t Value::getValue() const {
-  KU_ASSERT(dataType.getPhysicalType() == PhysicalTypeID::INT16);
+  NEUG_ASSERT(dataType.getPhysicalType() == PhysicalTypeID::INT16);
   return val.int16Val;
 }
 
@@ -359,7 +359,7 @@ NEUG_API inline int16_t Value::getValue() const {
  */
 template <>
 NEUG_API inline int32_t Value::getValue() const {
-  KU_ASSERT(dataType.getPhysicalType() == PhysicalTypeID::INT32);
+  NEUG_ASSERT(dataType.getPhysicalType() == PhysicalTypeID::INT32);
   return val.int32Val;
 }
 
@@ -368,7 +368,7 @@ NEUG_API inline int32_t Value::getValue() const {
  */
 template <>
 NEUG_API inline int64_t Value::getValue() const {
-  KU_ASSERT(dataType.getPhysicalType() == PhysicalTypeID::INT64);
+  NEUG_ASSERT(dataType.getPhysicalType() == PhysicalTypeID::INT64);
   return val.int64Val;
 }
 
@@ -377,7 +377,7 @@ NEUG_API inline int64_t Value::getValue() const {
  */
 template <>
 NEUG_API inline uint64_t Value::getValue() const {
-  KU_ASSERT(dataType.getPhysicalType() == PhysicalTypeID::UINT64);
+  NEUG_ASSERT(dataType.getPhysicalType() == PhysicalTypeID::UINT64);
   return val.uint64Val;
 }
 
@@ -386,7 +386,7 @@ NEUG_API inline uint64_t Value::getValue() const {
  */
 template <>
 NEUG_API inline uint32_t Value::getValue() const {
-  KU_ASSERT(dataType.getPhysicalType() == PhysicalTypeID::UINT32);
+  NEUG_ASSERT(dataType.getPhysicalType() == PhysicalTypeID::UINT32);
   return val.uint32Val;
 }
 
@@ -395,7 +395,7 @@ NEUG_API inline uint32_t Value::getValue() const {
  */
 template <>
 NEUG_API inline uint16_t Value::getValue() const {
-  KU_ASSERT(dataType.getPhysicalType() == PhysicalTypeID::UINT16);
+  NEUG_ASSERT(dataType.getPhysicalType() == PhysicalTypeID::UINT16);
   return val.uint16Val;
 }
 
@@ -404,7 +404,7 @@ NEUG_API inline uint16_t Value::getValue() const {
  */
 template <>
 NEUG_API inline uint8_t Value::getValue() const {
-  KU_ASSERT(dataType.getPhysicalType() == PhysicalTypeID::UINT8);
+  NEUG_ASSERT(dataType.getPhysicalType() == PhysicalTypeID::UINT8);
   return val.uint8Val;
 }
 
@@ -413,7 +413,7 @@ NEUG_API inline uint8_t Value::getValue() const {
  */
 template <>
 NEUG_API inline int128_t Value::getValue() const {
-  KU_ASSERT(dataType.getPhysicalType() == PhysicalTypeID::INT128);
+  NEUG_ASSERT(dataType.getPhysicalType() == PhysicalTypeID::INT128);
   return val.int128Val;
 }
 
@@ -422,7 +422,7 @@ NEUG_API inline int128_t Value::getValue() const {
  */
 template <>
 NEUG_API inline float Value::getValue() const {
-  KU_ASSERT(dataType.getPhysicalType() == PhysicalTypeID::FLOAT);
+  NEUG_ASSERT(dataType.getPhysicalType() == PhysicalTypeID::FLOAT);
   return val.floatVal;
 }
 
@@ -431,7 +431,7 @@ NEUG_API inline float Value::getValue() const {
  */
 template <>
 NEUG_API inline double Value::getValue() const {
-  KU_ASSERT(dataType.getPhysicalType() == PhysicalTypeID::DOUBLE);
+  NEUG_ASSERT(dataType.getPhysicalType() == PhysicalTypeID::DOUBLE);
   return val.doubleVal;
 }
 
@@ -440,7 +440,7 @@ NEUG_API inline double Value::getValue() const {
  */
 template <>
 NEUG_API inline date_t Value::getValue() const {
-  KU_ASSERT(dataType.getLogicalTypeID() == LogicalTypeID::DATE);
+  NEUG_ASSERT(dataType.getLogicalTypeID() == LogicalTypeID::DATE);
   return date_t{val.int32Val};
 }
 
@@ -449,7 +449,7 @@ NEUG_API inline date_t Value::getValue() const {
  */
 template <>
 NEUG_API inline timestamp_t Value::getValue() const {
-  KU_ASSERT(dataType.getLogicalTypeID() == LogicalTypeID::TIMESTAMP);
+  NEUG_ASSERT(dataType.getLogicalTypeID() == LogicalTypeID::TIMESTAMP);
   return timestamp_t{val.int64Val};
 }
 
@@ -458,7 +458,7 @@ NEUG_API inline timestamp_t Value::getValue() const {
  */
 template <>
 NEUG_API inline timestamp_ns_t Value::getValue() const {
-  KU_ASSERT(dataType.getLogicalTypeID() == LogicalTypeID::TIMESTAMP_NS);
+  NEUG_ASSERT(dataType.getLogicalTypeID() == LogicalTypeID::TIMESTAMP_NS);
   return timestamp_ns_t{val.int64Val};
 }
 
@@ -467,7 +467,7 @@ NEUG_API inline timestamp_ns_t Value::getValue() const {
  */
 template <>
 NEUG_API inline timestamp_ms_t Value::getValue() const {
-  KU_ASSERT(dataType.getLogicalTypeID() == LogicalTypeID::TIMESTAMP_MS);
+  NEUG_ASSERT(dataType.getLogicalTypeID() == LogicalTypeID::TIMESTAMP_MS);
   return timestamp_ms_t{val.int64Val};
 }
 
@@ -476,7 +476,7 @@ NEUG_API inline timestamp_ms_t Value::getValue() const {
  */
 template <>
 NEUG_API inline timestamp_sec_t Value::getValue() const {
-  KU_ASSERT(dataType.getLogicalTypeID() == LogicalTypeID::TIMESTAMP_SEC);
+  NEUG_ASSERT(dataType.getLogicalTypeID() == LogicalTypeID::TIMESTAMP_SEC);
   return timestamp_sec_t{val.int64Val};
 }
 
@@ -485,7 +485,7 @@ NEUG_API inline timestamp_sec_t Value::getValue() const {
  */
 template <>
 NEUG_API inline timestamp_tz_t Value::getValue() const {
-  KU_ASSERT(dataType.getLogicalTypeID() == LogicalTypeID::TIMESTAMP_TZ);
+  NEUG_ASSERT(dataType.getLogicalTypeID() == LogicalTypeID::TIMESTAMP_TZ);
   return timestamp_tz_t{val.int64Val};
 }
 
@@ -494,7 +494,7 @@ NEUG_API inline timestamp_tz_t Value::getValue() const {
  */
 template <>
 NEUG_API inline interval_t Value::getValue() const {
-  KU_ASSERT(dataType.getLogicalTypeID() == LogicalTypeID::INTERVAL);
+  NEUG_ASSERT(dataType.getLogicalTypeID() == LogicalTypeID::INTERVAL);
   return val.intervalVal;
 }
 
@@ -503,7 +503,7 @@ NEUG_API inline interval_t Value::getValue() const {
  */
 template <>
 NEUG_API inline internalID_t Value::getValue() const {
-  KU_ASSERT(dataType.getLogicalTypeID() == LogicalTypeID::INTERNAL_ID);
+  NEUG_ASSERT(dataType.getLogicalTypeID() == LogicalTypeID::INTERNAL_ID);
   return val.internalIDVal;
 }
 
@@ -512,9 +512,9 @@ NEUG_API inline internalID_t Value::getValue() const {
  */
 template <>
 NEUG_API inline std::string Value::getValue() const {
-  KU_ASSERT(dataType.getLogicalTypeID() == LogicalTypeID::STRING ||
-            dataType.getLogicalTypeID() == LogicalTypeID::BLOB ||
-            dataType.getLogicalTypeID() == LogicalTypeID::UUID);
+  NEUG_ASSERT(dataType.getLogicalTypeID() == LogicalTypeID::STRING ||
+              dataType.getLogicalTypeID() == LogicalTypeID::BLOB ||
+              dataType.getLogicalTypeID() == LogicalTypeID::UUID);
   return strVal;
 }
 
@@ -523,7 +523,7 @@ NEUG_API inline std::string Value::getValue() const {
  */
 template <>
 NEUG_API inline uint8_t* Value::getValue() const {
-  KU_ASSERT(dataType.getLogicalTypeID() == LogicalTypeID::POINTER);
+  NEUG_ASSERT(dataType.getLogicalTypeID() == LogicalTypeID::POINTER);
   return val.pointer;
 }
 
@@ -532,7 +532,7 @@ NEUG_API inline uint8_t* Value::getValue() const {
  */
 template <>
 NEUG_API inline bool& Value::getValueReference() {
-  KU_ASSERT(dataType.getPhysicalType() == PhysicalTypeID::BOOL);
+  NEUG_ASSERT(dataType.getPhysicalType() == PhysicalTypeID::BOOL);
   return val.booleanVal;
 }
 
@@ -541,7 +541,7 @@ NEUG_API inline bool& Value::getValueReference() {
  */
 template <>
 NEUG_API inline int8_t& Value::getValueReference() {
-  KU_ASSERT(dataType.getPhysicalType() == PhysicalTypeID::INT8);
+  NEUG_ASSERT(dataType.getPhysicalType() == PhysicalTypeID::INT8);
   return val.int8Val;
 }
 
@@ -550,7 +550,7 @@ NEUG_API inline int8_t& Value::getValueReference() {
  */
 template <>
 NEUG_API inline int16_t& Value::getValueReference() {
-  KU_ASSERT(dataType.getPhysicalType() == PhysicalTypeID::INT16);
+  NEUG_ASSERT(dataType.getPhysicalType() == PhysicalTypeID::INT16);
   return val.int16Val;
 }
 
@@ -559,7 +559,7 @@ NEUG_API inline int16_t& Value::getValueReference() {
  */
 template <>
 NEUG_API inline int32_t& Value::getValueReference() {
-  KU_ASSERT(dataType.getPhysicalType() == PhysicalTypeID::INT32);
+  NEUG_ASSERT(dataType.getPhysicalType() == PhysicalTypeID::INT32);
   return val.int32Val;
 }
 
@@ -568,7 +568,7 @@ NEUG_API inline int32_t& Value::getValueReference() {
  */
 template <>
 NEUG_API inline int64_t& Value::getValueReference() {
-  KU_ASSERT(dataType.getPhysicalType() == PhysicalTypeID::INT64);
+  NEUG_ASSERT(dataType.getPhysicalType() == PhysicalTypeID::INT64);
   return val.int64Val;
 }
 
@@ -577,7 +577,7 @@ NEUG_API inline int64_t& Value::getValueReference() {
  */
 template <>
 NEUG_API inline uint8_t& Value::getValueReference() {
-  KU_ASSERT(dataType.getPhysicalType() == PhysicalTypeID::UINT8);
+  NEUG_ASSERT(dataType.getPhysicalType() == PhysicalTypeID::UINT8);
   return val.uint8Val;
 }
 
@@ -586,7 +586,7 @@ NEUG_API inline uint8_t& Value::getValueReference() {
  */
 template <>
 NEUG_API inline uint16_t& Value::getValueReference() {
-  KU_ASSERT(dataType.getPhysicalType() == PhysicalTypeID::UINT16);
+  NEUG_ASSERT(dataType.getPhysicalType() == PhysicalTypeID::UINT16);
   return val.uint16Val;
 }
 
@@ -595,7 +595,7 @@ NEUG_API inline uint16_t& Value::getValueReference() {
  */
 template <>
 NEUG_API inline uint32_t& Value::getValueReference() {
-  KU_ASSERT(dataType.getPhysicalType() == PhysicalTypeID::UINT32);
+  NEUG_ASSERT(dataType.getPhysicalType() == PhysicalTypeID::UINT32);
   return val.uint32Val;
 }
 
@@ -604,7 +604,7 @@ NEUG_API inline uint32_t& Value::getValueReference() {
  */
 template <>
 NEUG_API inline uint64_t& Value::getValueReference() {
-  KU_ASSERT(dataType.getPhysicalType() == PhysicalTypeID::UINT64);
+  NEUG_ASSERT(dataType.getPhysicalType() == PhysicalTypeID::UINT64);
   return val.uint64Val;
 }
 
@@ -613,7 +613,7 @@ NEUG_API inline uint64_t& Value::getValueReference() {
  */
 template <>
 NEUG_API inline int128_t& Value::getValueReference() {
-  KU_ASSERT(dataType.getPhysicalType() == PhysicalTypeID::INT128);
+  NEUG_ASSERT(dataType.getPhysicalType() == PhysicalTypeID::INT128);
   return val.int128Val;
 }
 
@@ -622,7 +622,7 @@ NEUG_API inline int128_t& Value::getValueReference() {
  */
 template <>
 NEUG_API inline float& Value::getValueReference() {
-  KU_ASSERT(dataType.getPhysicalType() == PhysicalTypeID::FLOAT);
+  NEUG_ASSERT(dataType.getPhysicalType() == PhysicalTypeID::FLOAT);
   return val.floatVal;
 }
 
@@ -631,7 +631,7 @@ NEUG_API inline float& Value::getValueReference() {
  */
 template <>
 NEUG_API inline double& Value::getValueReference() {
-  KU_ASSERT(dataType.getPhysicalType() == PhysicalTypeID::DOUBLE);
+  NEUG_ASSERT(dataType.getPhysicalType() == PhysicalTypeID::DOUBLE);
   return val.doubleVal;
 }
 
@@ -640,7 +640,7 @@ NEUG_API inline double& Value::getValueReference() {
  */
 template <>
 NEUG_API inline date_t& Value::getValueReference() {
-  KU_ASSERT(dataType.getLogicalTypeID() == LogicalTypeID::DATE);
+  NEUG_ASSERT(dataType.getLogicalTypeID() == LogicalTypeID::DATE);
   return *reinterpret_cast<date_t*>(&val.int32Val);
 }
 
@@ -649,7 +649,7 @@ NEUG_API inline date_t& Value::getValueReference() {
  */
 template <>
 NEUG_API inline timestamp_t& Value::getValueReference() {
-  KU_ASSERT(dataType.getLogicalTypeID() == LogicalTypeID::TIMESTAMP);
+  NEUG_ASSERT(dataType.getLogicalTypeID() == LogicalTypeID::TIMESTAMP);
   return *reinterpret_cast<timestamp_t*>(&val.int64Val);
 }
 
@@ -658,7 +658,7 @@ NEUG_API inline timestamp_t& Value::getValueReference() {
  */
 template <>
 NEUG_API inline timestamp_ms_t& Value::getValueReference() {
-  KU_ASSERT(dataType.getLogicalTypeID() == LogicalTypeID::TIMESTAMP_MS);
+  NEUG_ASSERT(dataType.getLogicalTypeID() == LogicalTypeID::TIMESTAMP_MS);
   return *reinterpret_cast<timestamp_ms_t*>(&val.int64Val);
 }
 
@@ -667,7 +667,7 @@ NEUG_API inline timestamp_ms_t& Value::getValueReference() {
  */
 template <>
 NEUG_API inline timestamp_ns_t& Value::getValueReference() {
-  KU_ASSERT(dataType.getLogicalTypeID() == LogicalTypeID::TIMESTAMP_NS);
+  NEUG_ASSERT(dataType.getLogicalTypeID() == LogicalTypeID::TIMESTAMP_NS);
   return *reinterpret_cast<timestamp_ns_t*>(&val.int64Val);
 }
 
@@ -676,7 +676,7 @@ NEUG_API inline timestamp_ns_t& Value::getValueReference() {
  */
 template <>
 NEUG_API inline timestamp_sec_t& Value::getValueReference() {
-  KU_ASSERT(dataType.getLogicalTypeID() == LogicalTypeID::TIMESTAMP_SEC);
+  NEUG_ASSERT(dataType.getLogicalTypeID() == LogicalTypeID::TIMESTAMP_SEC);
   return *reinterpret_cast<timestamp_sec_t*>(&val.int64Val);
 }
 
@@ -685,7 +685,7 @@ NEUG_API inline timestamp_sec_t& Value::getValueReference() {
  */
 template <>
 NEUG_API inline timestamp_tz_t& Value::getValueReference() {
-  KU_ASSERT(dataType.getLogicalTypeID() == LogicalTypeID::TIMESTAMP_TZ);
+  NEUG_ASSERT(dataType.getLogicalTypeID() == LogicalTypeID::TIMESTAMP_TZ);
   return *reinterpret_cast<timestamp_tz_t*>(&val.int64Val);
 }
 
@@ -694,7 +694,7 @@ NEUG_API inline timestamp_tz_t& Value::getValueReference() {
  */
 template <>
 NEUG_API inline interval_t& Value::getValueReference() {
-  KU_ASSERT(dataType.getLogicalTypeID() == LogicalTypeID::INTERVAL);
+  NEUG_ASSERT(dataType.getLogicalTypeID() == LogicalTypeID::INTERVAL);
   return val.intervalVal;
 }
 
@@ -703,7 +703,7 @@ NEUG_API inline interval_t& Value::getValueReference() {
  */
 template <>
 NEUG_API inline nodeID_t& Value::getValueReference() {
-  KU_ASSERT(dataType.getLogicalTypeID() == LogicalTypeID::INTERNAL_ID);
+  NEUG_ASSERT(dataType.getLogicalTypeID() == LogicalTypeID::INTERNAL_ID);
   return val.internalIDVal;
 }
 
@@ -712,7 +712,7 @@ NEUG_API inline nodeID_t& Value::getValueReference() {
  */
 template <>
 NEUG_API inline std::string& Value::getValueReference() {
-  KU_ASSERT(dataType.getLogicalTypeID() == LogicalTypeID::STRING);
+  NEUG_ASSERT(dataType.getLogicalTypeID() == LogicalTypeID::STRING);
   return strVal;
 }
 
@@ -721,7 +721,7 @@ NEUG_API inline std::string& Value::getValueReference() {
  */
 template <>
 NEUG_API inline uint8_t*& Value::getValueReference() {
-  KU_ASSERT(dataType.getLogicalTypeID() == LogicalTypeID::POINTER);
+  NEUG_ASSERT(dataType.getLogicalTypeID() == LogicalTypeID::POINTER);
   return val.pointer;
 }
 

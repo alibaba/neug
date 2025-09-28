@@ -40,7 +40,7 @@ function_set UnionTagFunction::getFunctionSet() {
   auto function = std::make_unique<ScalarFunction>(
       name, std::vector<LogicalTypeID>{LogicalTypeID::UNION},
       LogicalTypeID::STRING,
-      ScalarFunction::UnaryExecNestedTypeFunction<union_entry_t, ku_string_t,
+      ScalarFunction::UnaryExecNestedTypeFunction<union_entry_t, neug_string_t,
                                                   UnionTag>);
   function->bindFunc = bindFunc;
   functionSet.push_back(std::move(function));

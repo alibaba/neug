@@ -129,7 +129,7 @@ std::unique_ptr<LogicalPlan> Planner::getBestPlan(
 
 std::unique_ptr<LogicalPlan> Planner::createUnionPlan(
     std::vector<std::unique_ptr<LogicalPlan>>& childrenPlans, bool isUnionAll) {
-  KU_ASSERT(!childrenPlans.empty());
+  NEUG_ASSERT(!childrenPlans.empty());
   auto plan = std::make_unique<LogicalPlan>();
   std::vector<std::shared_ptr<LogicalOperator>> children;
   children.reserve(childrenPlans.size());
@@ -159,7 +159,7 @@ std::vector<std::unique_ptr<LogicalPlan>> Planner::getInitialEmptyPlans() {
 }
 
 expression_vector Planner::getProperties(const Expression& pattern) const {
-  KU_ASSERT(pattern.expressionType == ExpressionType::PATTERN);
+  NEUG_ASSERT(pattern.expressionType == ExpressionType::PATTERN);
   return propertyExprCollection.getProperties(pattern);
 }
 

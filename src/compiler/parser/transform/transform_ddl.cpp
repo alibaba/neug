@@ -36,12 +36,12 @@ namespace gs {
 namespace parser {
 
 std::unique_ptr<Statement> Transformer::transformAlterTable(
-    CypherParser::KU_AlterTableContext& ctx) {
-  if (ctx.kU_AlterOptions()->kU_AddProperty()) {
+    CypherParser::NEUG_AlterTableContext& ctx) {
+  if (ctx.nEUG_AlterOptions()->nEUG_AddProperty()) {
     return transformAddProperty(ctx);
-  } else if (ctx.kU_AlterOptions()->kU_DropProperty()) {
+  } else if (ctx.nEUG_AlterOptions()->nEUG_DropProperty()) {
     return transformDropProperty(ctx);
-  } else if (ctx.kU_AlterOptions()->kU_RenameTable()) {
+  } else if (ctx.nEUG_AlterOptions()->nEUG_RenameTable()) {
     return transformRenameTable(ctx);
   } else {
     return transformRenameProperty(ctx);
@@ -49,24 +49,24 @@ std::unique_ptr<Statement> Transformer::transformAlterTable(
 }
 
 std::string Transformer::getPKName(
-    CypherParser::KU_CreateNodeTableContext& ctx) {
+    CypherParser::NEUG_CreateNodeTableContext& ctx) {
   auto pkCount = 0;
   std::string pkName;
-  auto& propertyDefinitions = *ctx.kU_PropertyDefinitions();
-  for (auto& definition : propertyDefinitions.kU_PropertyDefinition()) {
+  auto& propertyDefinitions = *ctx.nEUG_PropertyDefinitions();
+  for (auto& definition : propertyDefinitions.nEUG_PropertyDefinition()) {
     if (definition->PRIMARY() && definition->KEY()) {
       pkCount++;
-      pkName = transformPrimaryKey(*definition->kU_ColumnDefinition());
+      pkName = transformPrimaryKey(*definition->nEUG_ColumnDefinition());
     }
   }
-  if (ctx.kU_CreateNodeConstraint()) {
+  if (ctx.nEUG_CreateNodeConstraint()) {
     // In the case where no pkName has been found, or the Node Constraint's name
     // is different than the pkName found, add the counter.
     if (pkCount == 0 ||
-        transformPrimaryKey(*ctx.kU_CreateNodeConstraint()) != pkName) {
+        transformPrimaryKey(*ctx.nEUG_CreateNodeConstraint()) != pkName) {
       pkCount++;
     }
-    pkName = transformPrimaryKey(*ctx.kU_CreateNodeConstraint());
+    pkName = transformPrimaryKey(*ctx.nEUG_CreateNodeConstraint());
   }
   if (pkCount == 0) {
     // Raise exception when no PRIMARY KEY is specified.
@@ -79,7 +79,7 @@ std::string Transformer::getPKName(
 }
 
 static ConflictAction getConflictAction(
-    CypherParser::KU_IfNotExistsContext* ctx) {
+    CypherParser::NEUG_IfNotExistsContext* ctx) {
   if (ctx != nullptr) {
     return ConflictAction::ON_CONFLICT_DO_NOTHING;
   }
@@ -87,15 +87,15 @@ static ConflictAction getConflictAction(
 }
 
 std::unique_ptr<Statement> Transformer::transformCreateNodeTable(
-    CypherParser::KU_CreateNodeTableContext& ctx) {
+    CypherParser::NEUG_CreateNodeTableContext& ctx) {
   auto tableName = transformSchemaName(*ctx.oC_SchemaName());
   std::string pkName;
   pkName = getPKName(ctx);
   auto createTableInfo =
       CreateTableInfo(CatalogEntryType::NODE_TABLE_ENTRY, tableName,
-                      getConflictAction(ctx.kU_IfNotExists()));
+                      getConflictAction(ctx.nEUG_IfNotExists()));
   createTableInfo.propertyDefinitions =
-      transformPropertyDefinitions(*ctx.kU_PropertyDefinitions());
+      transformPropertyDefinitions(*ctx.nEUG_PropertyDefinitions());
   createTableInfo.extraInfo =
       std::make_unique<ExtraCreateNodeTableInfo>(pkName);
   return std::make_unique<CreateTable>(std::move(createTableInfo));
@@ -107,18 +107,18 @@ static bool requireRelGroup(
 }
 
 std::unique_ptr<Statement> Transformer::transformCreateRelTable(
-    CypherParser::KU_CreateRelTableContext& ctx) {
+    CypherParser::NEUG_CreateRelTableContext& ctx) {
   auto tableName = transformSchemaName(*ctx.oC_SchemaName());
   std::string relMultiplicity = "MANY_MANY";
   if (ctx.oC_SymbolicName()) {
     relMultiplicity = transformSymbolicName(*ctx.oC_SymbolicName());
   }
   options_t options;
-  if (ctx.kU_Options()) {
-    options = transformOptions(*ctx.kU_Options());
+  if (ctx.nEUG_Options()) {
+    options = transformOptions(*ctx.nEUG_Options());
   }
   std::vector<std::pair<std::string, std::string>> fromToPairs;
-  for (auto& fromTo : ctx.kU_FromToConnections()->kU_FromToConnection()) {
+  for (auto& fromTo : ctx.nEUG_FromToConnections()->nEUG_FromToConnection()) {
     auto src = transformSchemaName(*fromTo->oC_SchemaName(0));
     auto dst = transformSchemaName(*fromTo->oC_SchemaName(1));
     fromToPairs.emplace_back(src, dst);
@@ -136,61 +136,61 @@ std::unique_ptr<Statement> Transformer::transformCreateRelTable(
         relMultiplicity, fromToPairs[0].first, fromToPairs[0].second,
         std::move(options));
   }
-  auto conflictAction = getConflictAction(ctx.kU_IfNotExists());
+  auto conflictAction = getConflictAction(ctx.nEUG_IfNotExists());
   auto createTableInfo = CreateTableInfo(entryType, tableName, conflictAction);
-  if (ctx.kU_PropertyDefinitions()) {
+  if (ctx.nEUG_PropertyDefinitions()) {
     createTableInfo.propertyDefinitions =
-        transformPropertyDefinitions(*ctx.kU_PropertyDefinitions());
+        transformPropertyDefinitions(*ctx.nEUG_PropertyDefinitions());
   }
   createTableInfo.extraInfo = std::move(extraInfo);
   return std::make_unique<CreateTable>(std::move(createTableInfo));
 }
 
 std::unique_ptr<Statement> Transformer::transformCreateSequence(
-    CypherParser::KU_CreateSequenceContext& ctx) {
+    CypherParser::NEUG_CreateSequenceContext& ctx) {
   auto sequenceName = transformSchemaName(*ctx.oC_SchemaName());
   auto createSequenceInfo = CreateSequenceInfo(
-      sequenceName, ctx.kU_IfNotExists()
+      sequenceName, ctx.nEUG_IfNotExists()
                         ? common::ConflictAction::ON_CONFLICT_DO_NOTHING
                         : common::ConflictAction::ON_CONFLICT_THROW);
   std::unordered_set<SequenceInfoType> applied;
-  for (auto seqOption : ctx.kU_SequenceOptions()) {
+  for (auto seqOption : ctx.nEUG_SequenceOptions()) {
     SequenceInfoType type;  // NOLINT(*-init-variables)
     std::string typeString;
     CypherParser::OC_IntegerLiteralContext* valCtx = nullptr;
     std::string* valOption = nullptr;
-    if (seqOption->kU_StartWith()) {
+    if (seqOption->nEUG_StartWith()) {
       type = SequenceInfoType::START;
       typeString = "START";
-      valCtx = seqOption->kU_StartWith()->oC_IntegerLiteral();
+      valCtx = seqOption->nEUG_StartWith()->oC_IntegerLiteral();
       valOption = &createSequenceInfo.startWith;
-      *valOption = seqOption->kU_StartWith()->MINUS() ? "-" : "";
-    } else if (seqOption->kU_IncrementBy()) {
+      *valOption = seqOption->nEUG_StartWith()->MINUS() ? "-" : "";
+    } else if (seqOption->nEUG_IncrementBy()) {
       type = SequenceInfoType::INCREMENT;
       typeString = "INCREMENT";
-      valCtx = seqOption->kU_IncrementBy()->oC_IntegerLiteral();
+      valCtx = seqOption->nEUG_IncrementBy()->oC_IntegerLiteral();
       valOption = &createSequenceInfo.increment;
-      *valOption = seqOption->kU_IncrementBy()->MINUS() ? "-" : "";
-    } else if (seqOption->kU_MinValue()) {
+      *valOption = seqOption->nEUG_IncrementBy()->MINUS() ? "-" : "";
+    } else if (seqOption->nEUG_MinValue()) {
       type = SequenceInfoType::MINVALUE;
       typeString = "MINVALUE";
-      if (!seqOption->kU_MinValue()->NO()) {
-        valCtx = seqOption->kU_MinValue()->oC_IntegerLiteral();
+      if (!seqOption->nEUG_MinValue()->NO()) {
+        valCtx = seqOption->nEUG_MinValue()->oC_IntegerLiteral();
         valOption = &createSequenceInfo.minValue;
-        *valOption = seqOption->kU_MinValue()->MINUS() ? "-" : "";
+        *valOption = seqOption->nEUG_MinValue()->MINUS() ? "-" : "";
       }
-    } else if (seqOption->kU_MaxValue()) {
+    } else if (seqOption->nEUG_MaxValue()) {
       type = SequenceInfoType::MAXVALUE;
       typeString = "MAXVALUE";
-      if (!seqOption->kU_MaxValue()->NO()) {
-        valCtx = seqOption->kU_MaxValue()->oC_IntegerLiteral();
+      if (!seqOption->nEUG_MaxValue()->NO()) {
+        valCtx = seqOption->nEUG_MaxValue()->oC_IntegerLiteral();
         valOption = &createSequenceInfo.maxValue;
-        *valOption = seqOption->kU_MaxValue()->MINUS() ? "-" : "";
+        *valOption = seqOption->nEUG_MaxValue()->MINUS() ? "-" : "";
       }
-    } else {  // seqOption->kU_Cycle()
+    } else {  // seqOption->nEUG_Cycle()
       type = SequenceInfoType::CYCLE;
       typeString = "CYCLE";
-      if (!seqOption->kU_Cycle()->NO()) {
+      if (!seqOption->nEUG_Cycle()->NO()) {
         createSequenceInfo.cycle = true;
       }
     }
@@ -207,27 +207,27 @@ std::unique_ptr<Statement> Transformer::transformCreateSequence(
 }
 
 std::unique_ptr<Statement> Transformer::transformCreateType(
-    CypherParser::KU_CreateTypeContext& ctx) {
+    CypherParser::NEUG_CreateTypeContext& ctx) {
   auto name = transformSchemaName(*ctx.oC_SchemaName());
-  auto type = transformDataType(*ctx.kU_DataType());
+  auto type = transformDataType(*ctx.nEUG_DataType());
   return std::make_unique<CreateType>(name, type);
 }
 
-DropType transformDropType(CypherParser::KU_DropContext& ctx) {
+DropType transformDropType(CypherParser::NEUG_DropContext& ctx) {
   if (ctx.TABLE()) {
     return DropType::TABLE;
   } else if (ctx.SEQUENCE()) {
     return DropType::SEQUENCE;
   } else {
-    KU_UNREACHABLE;
+    NEUG_UNREACHABLE;
   }
 }
 
 std::unique_ptr<Statement> Transformer::transformDrop(
-    CypherParser::KU_DropContext& ctx) {
+    CypherParser::NEUG_DropContext& ctx) {
   auto name = transformSchemaName(*ctx.oC_SchemaName());
   auto dropType = transformDropType(ctx);
-  auto conflictAction = ctx.kU_IfExists()
+  auto conflictAction = ctx.nEUG_IfExists()
                             ? common::ConflictAction::ON_CONFLICT_DO_NOTHING
                             : common::ConflictAction::ON_CONFLICT_THROW;
   return std::make_unique<Drop>(
@@ -235,31 +235,31 @@ std::unique_ptr<Statement> Transformer::transformDrop(
 }
 
 std::unique_ptr<Statement> Transformer::transformRenameTable(
-    CypherParser::KU_AlterTableContext& ctx) {
+    CypherParser::NEUG_AlterTableContext& ctx) {
   auto tableName = transformSchemaName(*ctx.oC_SchemaName());
   auto newName = transformSchemaName(
-      *ctx.kU_AlterOptions()->kU_RenameTable()->oC_SchemaName());
+      *ctx.nEUG_AlterOptions()->nEUG_RenameTable()->oC_SchemaName());
   auto extraInfo = std::make_unique<ExtraRenameTableInfo>(std::move(newName));
   auto info = AlterInfo(AlterType::RENAME, tableName, std::move(extraInfo));
   return std::make_unique<Alter>(std::move(info));
 }
 
 std::unique_ptr<Statement> Transformer::transformAddProperty(
-    CypherParser::KU_AlterTableContext& ctx) {
+    CypherParser::NEUG_AlterTableContext& ctx) {
   auto tableName = transformSchemaName(*ctx.oC_SchemaName());
-  auto addPropertyCtx = ctx.kU_AlterOptions()->kU_AddProperty();
+  auto addPropertyCtx = ctx.nEUG_AlterOptions()->nEUG_AddProperty();
   auto propertyName =
       transformPropertyKeyName(*addPropertyCtx->oC_PropertyKeyName());
-  auto dataType = transformDataType(*addPropertyCtx->kU_DataType());
+  auto dataType = transformDataType(*addPropertyCtx->nEUG_DataType());
   std::unique_ptr<ParsedExpression> defaultValue = nullptr;
-  if (addPropertyCtx->kU_Default()) {
+  if (addPropertyCtx->nEUG_Default()) {
     defaultValue =
-        transformExpression(*addPropertyCtx->kU_Default()->oC_Expression());
+        transformExpression(*addPropertyCtx->nEUG_Default()->oC_Expression());
   }
   auto extraInfo = std::make_unique<ExtraAddPropertyInfo>(
       std::move(propertyName), std::move(dataType), std::move(defaultValue));
   ConflictAction action = ConflictAction::ON_CONFLICT_THROW;
-  if (addPropertyCtx->kU_IfNotExists()) {
+  if (addPropertyCtx->nEUG_IfNotExists()) {
     action = ConflictAction::ON_CONFLICT_DO_NOTHING;
   }
   auto info = AlterInfo(AlterType::ADD_PROPERTY, tableName,
@@ -268,15 +268,15 @@ std::unique_ptr<Statement> Transformer::transformAddProperty(
 }
 
 std::unique_ptr<Statement> Transformer::transformDropProperty(
-    CypherParser::KU_AlterTableContext& ctx) {
+    CypherParser::NEUG_AlterTableContext& ctx) {
   auto tableName = transformSchemaName(*ctx.oC_SchemaName());
-  auto dropProperty = ctx.kU_AlterOptions()->kU_DropProperty();
+  auto dropProperty = ctx.nEUG_AlterOptions()->nEUG_DropProperty();
   auto propertyName =
       transformPropertyKeyName(*dropProperty->oC_PropertyKeyName());
   auto extraInfo =
       std::make_unique<ExtraDropPropertyInfo>(std::move(propertyName));
   common::ConflictAction action = common::ConflictAction::ON_CONFLICT_THROW;
-  if (dropProperty->kU_IfExists()) {
+  if (dropProperty->nEUG_IfExists()) {
     action = common::ConflictAction::ON_CONFLICT_DO_NOTHING;
   }
   auto info = AlterInfo(AlterType::DROP_PROPERTY, tableName,
@@ -285,12 +285,12 @@ std::unique_ptr<Statement> Transformer::transformDropProperty(
 }
 
 std::unique_ptr<Statement> Transformer::transformRenameProperty(
-    CypherParser::KU_AlterTableContext& ctx) {
+    CypherParser::NEUG_AlterTableContext& ctx) {
   auto tableName = transformSchemaName(*ctx.oC_SchemaName());
   auto propertyName = transformPropertyKeyName(
-      *ctx.kU_AlterOptions()->kU_RenameProperty()->oC_PropertyKeyName()[0]);
+      *ctx.nEUG_AlterOptions()->nEUG_RenameProperty()->oC_PropertyKeyName()[0]);
   auto newName = transformPropertyKeyName(
-      *ctx.kU_AlterOptions()->kU_RenameProperty()->oC_PropertyKeyName()[1]);
+      *ctx.nEUG_AlterOptions()->nEUG_RenameProperty()->oC_PropertyKeyName()[1]);
   auto extraInfo =
       std::make_unique<ExtraRenamePropertyInfo>(propertyName, newName);
   auto info =
@@ -299,7 +299,7 @@ std::unique_ptr<Statement> Transformer::transformRenameProperty(
 }
 
 std::unique_ptr<Statement> Transformer::transformCommentOn(
-    CypherParser::KU_CommentOnContext& ctx) {
+    CypherParser::NEUG_CommentOnContext& ctx) {
   auto tableName = transformSchemaName(*ctx.oC_SchemaName());
   auto comment = transformStringLiteral(*ctx.StringLiteral());
   auto extraInfo = std::make_unique<ExtraCommentInfo>(comment);
@@ -308,31 +308,31 @@ std::unique_ptr<Statement> Transformer::transformCommentOn(
 }
 
 std::vector<ParsedColumnDefinition> Transformer::transformColumnDefinitions(
-    CypherParser::KU_ColumnDefinitionsContext& ctx) {
+    CypherParser::NEUG_ColumnDefinitionsContext& ctx) {
   std::vector<ParsedColumnDefinition> definitions;
-  for (auto& definition : ctx.kU_ColumnDefinition()) {
+  for (auto& definition : ctx.nEUG_ColumnDefinition()) {
     definitions.emplace_back(transformColumnDefinition(*definition));
   }
   return definitions;
 }
 
 ParsedColumnDefinition Transformer::transformColumnDefinition(
-    CypherParser::KU_ColumnDefinitionContext& ctx) {
+    CypherParser::NEUG_ColumnDefinitionContext& ctx) {
   auto propertyName = transformPropertyKeyName(*ctx.oC_PropertyKeyName());
-  auto dataType = transformDataType(*ctx.kU_DataType());
+  auto dataType = transformDataType(*ctx.nEUG_DataType());
   return ParsedColumnDefinition(propertyName, dataType);
 }
 
 std::vector<ParsedPropertyDefinition> Transformer::transformPropertyDefinitions(
-    CypherParser::KU_PropertyDefinitionsContext& ctx) {
+    CypherParser::NEUG_PropertyDefinitionsContext& ctx) {
   std::vector<ParsedPropertyDefinition> definitions;
-  for (auto& definition : ctx.kU_PropertyDefinition()) {
+  for (auto& definition : ctx.nEUG_PropertyDefinition()) {
     auto columnDefinition =
-        transformColumnDefinition(*definition->kU_ColumnDefinition());
+        transformColumnDefinition(*definition->nEUG_ColumnDefinition());
     std::unique_ptr<ParsedExpression> defaultExpr = nullptr;
-    if (definition->kU_Default()) {
+    if (definition->nEUG_Default()) {
       defaultExpr =
-          transformExpression(*definition->kU_Default()->oC_Expression());
+          transformExpression(*definition->nEUG_Default()->oC_Expression());
     }
     definitions.push_back(ParsedPropertyDefinition(std::move(columnDefinition),
                                                    std::move(defaultExpr)));
@@ -341,17 +341,17 @@ std::vector<ParsedPropertyDefinition> Transformer::transformPropertyDefinitions(
 }
 
 std::string Transformer::transformDataType(
-    CypherParser::KU_DataTypeContext& ctx) {
+    CypherParser::NEUG_DataTypeContext& ctx) {
   return ctx.getText();
 }
 
 std::string Transformer::transformPrimaryKey(
-    CypherParser::KU_CreateNodeConstraintContext& ctx) {
+    CypherParser::NEUG_CreateNodeConstraintContext& ctx) {
   return transformPropertyKeyName(*ctx.oC_PropertyKeyName());
 }
 
 std::string Transformer::transformPrimaryKey(
-    CypherParser::KU_ColumnDefinitionContext& ctx) {
+    CypherParser::NEUG_ColumnDefinitionContext& ctx) {
   return transformPropertyKeyName(*ctx.oC_PropertyKeyName());
 }
 

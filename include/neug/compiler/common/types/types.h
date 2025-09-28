@@ -149,17 +149,15 @@ struct union_entry_t {
 };
 
 struct int128_t;
-struct ku_string_t;
+struct neug_string_t;
 
 template <typename T>
-concept SignedIntegerTypes =
-    std::is_same_v<T, int8_t> || std::is_same_v<T, int16_t> ||
-    std::is_same_v<T, int32_t> || std::is_same_v<T, int64_t> ||
-    std::is_same_v<T, int128_t>;
+concept SignedIntegerTypes = std::is_same_v<T, int8_t> ||
+    std::is_same_v<T, int16_t> || std::is_same_v<T, int32_t> ||
+    std::is_same_v<T, int64_t> || std::is_same_v<T, int128_t>;
 
 template <typename T>
-concept IntegerTypes =
-    SignedIntegerTypes<T> || std::is_same_v<T, uint8_t> ||
+concept IntegerTypes = SignedIntegerTypes<T> || std::is_same_v<T, uint8_t> ||
     std::is_same_v<T, uint16_t> || std::is_same_v<T, uint32_t> ||
     std::is_same_v<T, uint64_t>;
 
@@ -171,8 +169,7 @@ template <typename T>
 concept NumericTypes = IntegerTypes<T> || std::floating_point<T>;
 
 template <typename T>
-concept ComparableTypes =
-    NumericTypes<T> || std::is_same_v<T, ku_string_t> ||
+concept ComparableTypes = NumericTypes<T> || std::is_same_v<T, neug_string_t> ||
     std::is_same_v<T, interval_t> || std::is_same_v<T, bool>;
 
 template <typename T>
@@ -182,7 +179,7 @@ concept HashablePrimitive = ((std::integral<T> && !std::is_same_v<T, bool>) ||
 template <typename T>
 concept IndexHashable =
     ((std::integral<T> && !std::is_same_v<T, bool>) || std::floating_point<T> ||
-     std::is_same_v<T, int128_t> || std::is_same_v<T, ku_string_t> ||
+     std::is_same_v<T, int128_t> || std::is_same_v<T, neug_string_t> ||
      std::is_same_v<T, std::string_view> || std::same_as<T, std::string>);
 
 template <typename T>
@@ -190,7 +187,7 @@ concept HashableNonNestedTypes = (std::integral<T> || std::floating_point<T> ||
                                   std::is_same_v<T, int128_t> ||
                                   std::is_same_v<T, internalID_t> ||
                                   std::is_same_v<T, interval_t> ||
-                                  std::is_same_v<T, ku_string_t>);
+                                  std::is_same_v<T, neug_string_t>);
 
 template <typename T>
 concept HashableNestedTypes = (std::is_same_v<T, list_entry_t> ||
@@ -434,7 +431,7 @@ class NEUG_API ExtraTypeInfo {
 
   template <class TARGET>
   const TARGET* constPtrCast() const {
-    return common::ku_dynamic_cast<const TARGET*>(this);
+    return common::neug_dynamic_cast<const TARGET*>(this);
   }
 
  protected:

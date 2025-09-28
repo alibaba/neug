@@ -51,7 +51,7 @@ std::string ExtendDirectionUtil::toString(ExtendDirection direction) {
   case ExtendDirection::BOTH:
     return "both";
   default:
-    KU_UNREACHABLE;
+    NEUG_UNREACHABLE;
   }
 }
 

@@ -32,8 +32,8 @@ struct NullOperationExecutor {
   static void execute(common::ValueVector& operand,
                       common::SelectionVector& operandSelVector,
                       common::ValueVector& result) {
-    KU_ASSERT(result.dataType.getLogicalTypeID() ==
-              common::LogicalTypeID::BOOL);
+    NEUG_ASSERT(result.dataType.getLogicalTypeID() ==
+                common::LogicalTypeID::BOOL);
     auto resultValues = (uint8_t*) result.getData();
     if (operand.state->isFlat()) {
       auto pos = operandSelVector[0];

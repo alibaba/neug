@@ -42,7 +42,7 @@ struct VectorStringFunction {
         std::vector<common::LogicalTypeID>{common::LogicalTypeID::STRING},
         common::LogicalTypeID::STRING,
         ScalarFunction::UnaryStringExecFunction<
-            common::ku_string_t, common::ku_string_t, OPERATION>));
+            common::neug_string_t, common::neug_string_t, OPERATION>));
     return functionSet;
   }
 };

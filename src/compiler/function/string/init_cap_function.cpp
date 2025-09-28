@@ -28,7 +28,7 @@ namespace function {
 using namespace gs::common;
 
 struct InitCap {
-  static void operation(ku_string_t& operand, ku_string_t& result,
+  static void operation(neug_string_t& operand, neug_string_t& result,
                         ValueVector& resultVector) {
     Lower::operation(operand, result, resultVector);
     int originalSize = 0, newSize = 0;
@@ -44,7 +44,7 @@ function_set InitCapFunction::getFunctionSet() {
   functionSet.emplace_back(make_unique<ScalarFunction>(
       name, std::vector<LogicalTypeID>{LogicalTypeID::STRING},
       LogicalTypeID::STRING,
-      ScalarFunction::UnaryStringExecFunction<ku_string_t, ku_string_t,
+      ScalarFunction::UnaryStringExecFunction<neug_string_t, neug_string_t,
                                               InitCap>));
   return functionSet;
 }

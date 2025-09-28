@@ -82,7 +82,7 @@ CatalogEntry* CatalogSet::getEntryNoLock(const Transaction* transaction,
   // LCOV_EXCL_STOP
   const auto entry = traverseVersionChainsForTransactionNoLock(
       transaction, entries.at(name).get());
-  KU_ASSERT(entry != nullptr && !entry->isDeleted());
+  NEUG_ASSERT(entry != nullptr && !entry->isDeleted());
   return entry;
 }
 
@@ -96,7 +96,7 @@ oid_t CatalogSet::createEntry(Transaction* transaction,
     entry->setOID(oid);
     entryPtr = createEntryNoLock(transaction, std::move(entry));
   }
-  KU_ASSERT(entryPtr);
+  NEUG_ASSERT(entryPtr);
   if (transaction->shouldAppendToUndoBuffer()) {
     transaction->pushCreateDropCatalogEntry(*this, *entryPtr, isInternal());
   }
@@ -104,12 +104,12 @@ oid_t CatalogSet::createEntry(Transaction* transaction,
 }
 
 oid_t CatalogSet::createEntryUnlocked(Transaction* transaction,
-                              std::unique_ptr<CatalogEntry> entry) {
+                                      std::unique_ptr<CatalogEntry> entry) {
   CatalogEntry* entryPtr = nullptr;
   oid_t oid = nextOID++;
   entry->setOID(oid);
   entryPtr = createEntryNoLock(transaction, std::move(entry));
-  KU_ASSERT(entryPtr);
+  NEUG_ASSERT(entryPtr);
   if (transaction->shouldAppendToUndoBuffer()) {
     transaction->pushCreateDropCatalogEntry(*this, *entryPtr, isInternal());
   }
@@ -189,7 +189,7 @@ void CatalogSet::dropEntry(Transaction* transaction, const std::string& name,
     std::unique_lock lck{mtx};
     entryPtr = dropEntryNoLock(transaction, name, oid);
   }
-  KU_ASSERT(entryPtr);
+  NEUG_ASSERT(entryPtr);
   if (transaction->shouldAppendToUndoBuffer()) {
     transaction->pushCreateDropCatalogEntry(*this, *entryPtr, isInternal());
   }
@@ -214,8 +214,8 @@ void CatalogSet::alterTableEntry(Transaction* transaction,
   validateExistNoLock(transaction, alterInfo.tableName);
   // LCOV_EXCL_STOP
   auto entry = getEntryNoLock(transaction, alterInfo.tableName);
-  KU_ASSERT(entry->getType() == CatalogEntryType::NODE_TABLE_ENTRY ||
-            entry->getType() == CatalogEntryType::REL_TABLE_ENTRY);
+  NEUG_ASSERT(entry->getType() == CatalogEntryType::NODE_TABLE_ENTRY ||
+              entry->getType() == CatalogEntryType::REL_TABLE_ENTRY);
   const auto tableEntry = entry->ptrCast<TableCatalogEntry>();
   auto newEntry = tableEntry->alter(transaction->getID(), alterInfo);
   switch (alterInfo.alterType) {
@@ -239,7 +239,7 @@ void CatalogSet::alterTableEntry(Transaction* transaction,
     }
   } break;
   default: {
-    KU_UNREACHABLE;
+    NEUG_UNREACHABLE;
   }
   }
 }
@@ -251,7 +251,7 @@ void CatalogSet::alterRelGroupEntry(Transaction* transaction,
   validateExistNoLock(transaction, alterInfo.tableName);
   // LCOV_EXCL_STOP
   auto entry = getEntryNoLock(transaction, alterInfo.tableName);
-  KU_ASSERT(entry->getType() == CatalogEntryType::REL_GROUP_ENTRY);
+  NEUG_ASSERT(entry->getType() == CatalogEntryType::REL_GROUP_ENTRY);
   auto* relGroupEntry = entry->ptrCast<RelGroupCatalogEntry>();
   auto newEntry = relGroupEntry->alter(transaction->getID(), alterInfo);
   switch (alterInfo.alterType) {
@@ -259,7 +259,7 @@ void CatalogSet::alterRelGroupEntry(Transaction* transaction,
     // We treat rename rel group as drop and create.
     dropEntryNoLock(transaction, alterInfo.tableName, entry->getOID());
     auto createdEntry = createEntryNoLock(transaction, std::move(newEntry));
-    KU_ASSERT(entry);
+    NEUG_ASSERT(entry);
     if (transaction->shouldAppendToUndoBuffer()) {
       transaction->pushAlterCatalogEntry(*this, *entry, alterInfo);
       transaction->pushCreateDropCatalogEntry(

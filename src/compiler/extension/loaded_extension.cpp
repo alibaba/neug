@@ -35,7 +35,7 @@ std::string LoadedExtension::toCypher() {
   case ExtensionSource::USER:
     return common::stringFormat("LOAD EXTENSION '{}';\n", fullPath);
   default:
-    KU_UNREACHABLE;
+    NEUG_UNREACHABLE;
   }
 }
 

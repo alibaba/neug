@@ -48,64 +48,65 @@ public:
   };
 
   enum {
-    RuleKu_Statements = 0, RuleOC_Cypher = 1, RuleOC_Statement = 2, RuleKU_CopyFrom = 3, 
-    RuleKU_ColumnNames = 4, RuleKU_ScanSource = 5, RuleKU_CopyFromByColumn = 6, 
-    RuleKU_CopyTO = 7, RuleKU_ExportDatabase = 8, RuleKU_ImportDatabase = 9, 
-    RuleKU_AttachDatabase = 10, RuleKU_Option = 11, RuleKU_Options = 12, 
-    RuleKU_DetachDatabase = 13, RuleKU_UseDatabase = 14, RuleKU_StandaloneCall = 15, 
-    RuleKU_CommentOn = 16, RuleKU_CreateMacro = 17, RuleKU_PositionalArgs = 18, 
-    RuleKU_DefaultArg = 19, RuleKU_FilePaths = 20, RuleKU_IfNotExists = 21, 
-    RuleKU_CreateNodeTable = 22, RuleKU_CreateRelTable = 23, RuleKU_FromToConnections = 24, 
-    RuleKU_FromToConnection = 25, RuleKU_CreateSequence = 26, RuleKU_CreateType = 27, 
-    RuleKU_SequenceOptions = 28, RuleKU_IncrementBy = 29, RuleKU_MinValue = 30, 
-    RuleKU_MaxValue = 31, RuleKU_StartWith = 32, RuleKU_Cycle = 33, RuleKU_IfExists = 34, 
-    RuleKU_Drop = 35, RuleKU_AlterTable = 36, RuleKU_AlterOptions = 37, 
-    RuleKU_AddProperty = 38, RuleKU_Default = 39, RuleKU_DropProperty = 40, 
-    RuleKU_RenameTable = 41, RuleKU_RenameProperty = 42, RuleKU_ColumnDefinitions = 43, 
-    RuleKU_ColumnDefinition = 44, RuleKU_PropertyDefinitions = 45, RuleKU_PropertyDefinition = 46, 
-    RuleKU_CreateNodeConstraint = 47, RuleKU_DataType = 48, RuleKU_ListIdentifiers = 49, 
-    RuleKU_ListIdentifier = 50, RuleOC_AnyCypherOption = 51, RuleOC_Explain = 52, 
-    RuleOC_Profile = 53, RuleKU_Transaction = 54, RuleKU_Extension = 55, 
-    RuleKU_LoadExtension = 56, RuleKU_InstallExtension = 57, RuleKU_UninstallExtension = 58, 
-    RuleOC_Query = 59, RuleOC_RegularQuery = 60, RuleOC_Union = 61, RuleOC_CallUnionQuery = 62, 
+    RuleNeug_Statements = 0, RuleOC_Cypher = 1, RuleOC_Statement = 2, RuleNEUG_CopyFrom = 3, 
+    RuleNEUG_ColumnNames = 4, RuleNEUG_ScanSource = 5, RuleNEUG_CopyFromByColumn = 6, 
+    RuleNEUG_CopyTO = 7, RuleNEUG_ExportDatabase = 8, RuleNEUG_ImportDatabase = 9, 
+    RuleNEUG_AttachDatabase = 10, RuleNEUG_Option = 11, RuleNEUG_Options = 12, 
+    RuleNEUG_DetachDatabase = 13, RuleNEUG_UseDatabase = 14, RuleNEUG_StandaloneCall = 15, 
+    RuleNEUG_CommentOn = 16, RuleNEUG_CreateMacro = 17, RuleNEUG_PositionalArgs = 18, 
+    RuleNEUG_DefaultArg = 19, RuleNEUG_FilePaths = 20, RuleNEUG_IfNotExists = 21, 
+    RuleNEUG_CreateNodeTable = 22, RuleNEUG_CreateRelTable = 23, RuleNEUG_FromToConnections = 24, 
+    RuleNEUG_FromToConnection = 25, RuleNEUG_CreateSequence = 26, RuleNEUG_CreateType = 27, 
+    RuleNEUG_SequenceOptions = 28, RuleNEUG_IncrementBy = 29, RuleNEUG_MinValue = 30, 
+    RuleNEUG_MaxValue = 31, RuleNEUG_StartWith = 32, RuleNEUG_Cycle = 33, 
+    RuleNEUG_IfExists = 34, RuleNEUG_Drop = 35, RuleNEUG_AlterTable = 36, 
+    RuleNEUG_AlterOptions = 37, RuleNEUG_AddProperty = 38, RuleNEUG_Default = 39, 
+    RuleNEUG_DropProperty = 40, RuleNEUG_RenameTable = 41, RuleNEUG_RenameProperty = 42, 
+    RuleNEUG_ColumnDefinitions = 43, RuleNEUG_ColumnDefinition = 44, RuleNEUG_PropertyDefinitions = 45, 
+    RuleNEUG_PropertyDefinition = 46, RuleNEUG_CreateNodeConstraint = 47, 
+    RuleNEUG_DataType = 48, RuleNEUG_ListIdentifiers = 49, RuleNEUG_ListIdentifier = 50, 
+    RuleOC_AnyCypherOption = 51, RuleOC_Explain = 52, RuleOC_Profile = 53, 
+    RuleNEUG_Transaction = 54, RuleNEUG_Extension = 55, RuleNEUG_LoadExtension = 56, 
+    RuleNEUG_InstallExtension = 57, RuleNEUG_UninstallExtension = 58, RuleOC_Query = 59, 
+    RuleOC_RegularQuery = 60, RuleOC_Union = 61, RuleOC_CallUnionQuery = 62, 
     RuleOC_CallUnion = 63, RuleOC_CallUnionScope = 64, RuleOC_SingleQuery = 65, 
-    RuleOC_SinglePartQuery = 66, RuleOC_MultiPartQuery = 67, RuleKU_QueryPart = 68, 
-    RuleOC_UpdatingClause = 69, RuleOC_ReadingClause = 70, RuleKU_LoadFrom = 71, 
-    RuleOC_YieldItem = 72, RuleOC_YieldItems = 73, RuleKU_InQueryCall = 74, 
-    RuleOC_Match = 75, RuleKU_Hint = 76, RuleKU_JoinNode = 77, RuleOC_Unwind = 78, 
+    RuleOC_SinglePartQuery = 66, RuleOC_MultiPartQuery = 67, RuleNEUG_QueryPart = 68, 
+    RuleOC_UpdatingClause = 69, RuleOC_ReadingClause = 70, RuleNEUG_LoadFrom = 71, 
+    RuleOC_YieldItem = 72, RuleOC_YieldItems = 73, RuleNEUG_InQueryCall = 74, 
+    RuleOC_Match = 75, RuleNEUG_Hint = 76, RuleNEUG_JoinNode = 77, RuleOC_Unwind = 78, 
     RuleOC_Create = 79, RuleOC_Merge = 80, RuleOC_MergeAction = 81, RuleOC_Set = 82, 
     RuleOC_SetItem = 83, RuleOC_Delete = 84, RuleOC_With = 85, RuleOC_Return = 86, 
     RuleOC_ProjectionBody = 87, RuleOC_ProjectionItems = 88, RuleOC_ProjectionItem = 89, 
     RuleOC_Order = 90, RuleOC_Skip = 91, RuleOC_Limit = 92, RuleOC_SortItem = 93, 
     RuleOC_Where = 94, RuleOC_Pattern = 95, RuleOC_PatternPart = 96, RuleOC_AnonymousPatternPart = 97, 
     RuleOC_PatternElement = 98, RuleOC_NodePattern = 99, RuleOC_PatternElementChain = 100, 
-    RuleOC_RelationshipPattern = 101, RuleOC_RelationshipDetail = 102, RuleKU_Properties = 103, 
+    RuleOC_RelationshipPattern = 101, RuleOC_RelationshipDetail = 102, RuleNEUG_Properties = 103, 
     RuleOC_RelationshipTypes = 104, RuleOC_NodeLabels = 105, RuleOC_NodeLabel = 106, 
-    RuleKU_RecursiveDetail = 107, RuleKU_RecursiveType = 108, RuleOC_RangeLiteral = 109, 
-    RuleKU_RecursiveComprehension = 110, RuleKU_RecursiveProjectionItems = 111, 
+    RuleNEUG_RecursiveDetail = 107, RuleNEUG_RecursiveType = 108, RuleOC_RangeLiteral = 109, 
+    RuleNEUG_RecursiveComprehension = 110, RuleNEUG_RecursiveProjectionItems = 111, 
     RuleOC_LowerBound = 112, RuleOC_UpperBound = 113, RuleOC_LabelName = 114, 
     RuleOC_RelTypeName = 115, RuleOC_Expression = 116, RuleOC_OrExpression = 117, 
     RuleOC_XorExpression = 118, RuleOC_AndExpression = 119, RuleOC_NotExpression = 120, 
-    RuleOC_ComparisonExpression = 121, RuleKU_ComparisonOperator = 122, 
-    RuleKU_BitwiseOrOperatorExpression = 123, RuleKU_BitwiseAndOperatorExpression = 124, 
-    RuleKU_BitShiftOperatorExpression = 125, RuleKU_BitShiftOperator = 126, 
-    RuleOC_AddOrSubtractExpression = 127, RuleKU_AddOrSubtractOperator = 128, 
-    RuleOC_MultiplyDivideModuloExpression = 129, RuleKU_MultiplyDivideModuloOperator = 130, 
+    RuleOC_ComparisonExpression = 121, RuleNEUG_ComparisonOperator = 122, 
+    RuleNEUG_BitwiseOrOperatorExpression = 123, RuleNEUG_BitwiseAndOperatorExpression = 124, 
+    RuleNEUG_BitShiftOperatorExpression = 125, RuleNEUG_BitShiftOperator = 126, 
+    RuleOC_AddOrSubtractExpression = 127, RuleNEUG_AddOrSubtractOperator = 128, 
+    RuleOC_MultiplyDivideModuloExpression = 129, RuleNEUG_MultiplyDivideModuloOperator = 130, 
     RuleOC_PowerOfExpression = 131, RuleOC_UnaryAddSubtractOrFactorialExpression = 132, 
     RuleOC_StringListNullOperatorExpression = 133, RuleOC_ListOperatorExpression = 134, 
     RuleOC_StringOperatorExpression = 135, RuleOC_RegularExpression = 136, 
     RuleOC_NullOperatorExpression = 137, RuleOC_PropertyOrLabelsExpression = 138, 
     RuleOC_Atom = 139, RuleOC_Quantifier = 140, RuleOC_FilterExpression = 141, 
     RuleOC_IdInColl = 142, RuleOC_Literal = 143, RuleOC_BooleanLiteral = 144, 
-    RuleOC_ListLiteral = 145, RuleKU_ListEntry = 146, RuleKU_StructLiteral = 147, 
-    RuleKU_StructField = 148, RuleOC_ParenthesizedExpression = 149, RuleOC_FunctionInvocation = 150, 
-    RuleOC_FunctionName = 151, RuleKU_FunctionParameter = 152, RuleKU_LambdaParameter = 153, 
-    RuleKU_LambdaVars = 154, RuleOC_PathPatterns = 155, RuleOC_ExistCountSubquery = 156, 
+    RuleOC_ListLiteral = 145, RuleNEUG_ListEntry = 146, RuleNEUG_StructLiteral = 147, 
+    RuleNEUG_StructField = 148, RuleOC_ParenthesizedExpression = 149, RuleOC_FunctionInvocation = 150, 
+    RuleOC_FunctionName = 151, RuleNEUG_FunctionParameter = 152, RuleNEUG_LambdaParameter = 153, 
+    RuleNEUG_LambdaVars = 154, RuleOC_PathPatterns = 155, RuleOC_ExistCountSubquery = 156, 
     RuleOC_PropertyLookup = 157, RuleOC_CaseExpression = 158, RuleOC_CaseAlternative = 159, 
     RuleOC_Variable = 160, RuleOC_NumberLiteral = 161, RuleOC_Parameter = 162, 
     RuleOC_PropertyExpression = 163, RuleOC_PropertyKeyName = 164, RuleOC_IntegerLiteral = 165, 
     RuleOC_DoubleLiteral = 166, RuleOC_SchemaName = 167, RuleOC_SymbolicName = 168, 
-    RuleKU_NonReservedKeywords = 169, RuleOC_LeftArrowHead = 170, RuleOC_RightArrowHead = 171, 
+    RuleNEUG_NonReservedKeywords = 169, RuleOC_LeftArrowHead = 170, RuleOC_RightArrowHead = 171, 
     RuleOC_Dash = 172
   };
 
@@ -126,65 +127,65 @@ public:
   antlr4::atn::SerializedATNView getSerializedATN() const override;
 
 
-  class Ku_StatementsContext;
+  class Neug_StatementsContext;
   class OC_CypherContext;
   class OC_StatementContext;
-  class KU_CopyFromContext;
-  class KU_ColumnNamesContext;
-  class KU_ScanSourceContext;
-  class KU_CopyFromByColumnContext;
-  class KU_CopyTOContext;
-  class KU_ExportDatabaseContext;
-  class KU_ImportDatabaseContext;
-  class KU_AttachDatabaseContext;
-  class KU_OptionContext;
-  class KU_OptionsContext;
-  class KU_DetachDatabaseContext;
-  class KU_UseDatabaseContext;
-  class KU_StandaloneCallContext;
-  class KU_CommentOnContext;
-  class KU_CreateMacroContext;
-  class KU_PositionalArgsContext;
-  class KU_DefaultArgContext;
-  class KU_FilePathsContext;
-  class KU_IfNotExistsContext;
-  class KU_CreateNodeTableContext;
-  class KU_CreateRelTableContext;
-  class KU_FromToConnectionsContext;
-  class KU_FromToConnectionContext;
-  class KU_CreateSequenceContext;
-  class KU_CreateTypeContext;
-  class KU_SequenceOptionsContext;
-  class KU_IncrementByContext;
-  class KU_MinValueContext;
-  class KU_MaxValueContext;
-  class KU_StartWithContext;
-  class KU_CycleContext;
-  class KU_IfExistsContext;
-  class KU_DropContext;
-  class KU_AlterTableContext;
-  class KU_AlterOptionsContext;
-  class KU_AddPropertyContext;
-  class KU_DefaultContext;
-  class KU_DropPropertyContext;
-  class KU_RenameTableContext;
-  class KU_RenamePropertyContext;
-  class KU_ColumnDefinitionsContext;
-  class KU_ColumnDefinitionContext;
-  class KU_PropertyDefinitionsContext;
-  class KU_PropertyDefinitionContext;
-  class KU_CreateNodeConstraintContext;
-  class KU_DataTypeContext;
-  class KU_ListIdentifiersContext;
-  class KU_ListIdentifierContext;
+  class NEUG_CopyFromContext;
+  class NEUG_ColumnNamesContext;
+  class NEUG_ScanSourceContext;
+  class NEUG_CopyFromByColumnContext;
+  class NEUG_CopyTOContext;
+  class NEUG_ExportDatabaseContext;
+  class NEUG_ImportDatabaseContext;
+  class NEUG_AttachDatabaseContext;
+  class NEUG_OptionContext;
+  class NEUG_OptionsContext;
+  class NEUG_DetachDatabaseContext;
+  class NEUG_UseDatabaseContext;
+  class NEUG_StandaloneCallContext;
+  class NEUG_CommentOnContext;
+  class NEUG_CreateMacroContext;
+  class NEUG_PositionalArgsContext;
+  class NEUG_DefaultArgContext;
+  class NEUG_FilePathsContext;
+  class NEUG_IfNotExistsContext;
+  class NEUG_CreateNodeTableContext;
+  class NEUG_CreateRelTableContext;
+  class NEUG_FromToConnectionsContext;
+  class NEUG_FromToConnectionContext;
+  class NEUG_CreateSequenceContext;
+  class NEUG_CreateTypeContext;
+  class NEUG_SequenceOptionsContext;
+  class NEUG_IncrementByContext;
+  class NEUG_MinValueContext;
+  class NEUG_MaxValueContext;
+  class NEUG_StartWithContext;
+  class NEUG_CycleContext;
+  class NEUG_IfExistsContext;
+  class NEUG_DropContext;
+  class NEUG_AlterTableContext;
+  class NEUG_AlterOptionsContext;
+  class NEUG_AddPropertyContext;
+  class NEUG_DefaultContext;
+  class NEUG_DropPropertyContext;
+  class NEUG_RenameTableContext;
+  class NEUG_RenamePropertyContext;
+  class NEUG_ColumnDefinitionsContext;
+  class NEUG_ColumnDefinitionContext;
+  class NEUG_PropertyDefinitionsContext;
+  class NEUG_PropertyDefinitionContext;
+  class NEUG_CreateNodeConstraintContext;
+  class NEUG_DataTypeContext;
+  class NEUG_ListIdentifiersContext;
+  class NEUG_ListIdentifierContext;
   class OC_AnyCypherOptionContext;
   class OC_ExplainContext;
   class OC_ProfileContext;
-  class KU_TransactionContext;
-  class KU_ExtensionContext;
-  class KU_LoadExtensionContext;
-  class KU_InstallExtensionContext;
-  class KU_UninstallExtensionContext;
+  class NEUG_TransactionContext;
+  class NEUG_ExtensionContext;
+  class NEUG_LoadExtensionContext;
+  class NEUG_InstallExtensionContext;
+  class NEUG_UninstallExtensionContext;
   class OC_QueryContext;
   class OC_RegularQueryContext;
   class OC_UnionContext;
@@ -194,16 +195,16 @@ public:
   class OC_SingleQueryContext;
   class OC_SinglePartQueryContext;
   class OC_MultiPartQueryContext;
-  class KU_QueryPartContext;
+  class NEUG_QueryPartContext;
   class OC_UpdatingClauseContext;
   class OC_ReadingClauseContext;
-  class KU_LoadFromContext;
+  class NEUG_LoadFromContext;
   class OC_YieldItemContext;
   class OC_YieldItemsContext;
-  class KU_InQueryCallContext;
+  class NEUG_InQueryCallContext;
   class OC_MatchContext;
-  class KU_HintContext;
-  class KU_JoinNodeContext;
+  class NEUG_HintContext;
+  class NEUG_JoinNodeContext;
   class OC_UnwindContext;
   class OC_CreateContext;
   class OC_MergeContext;
@@ -229,15 +230,15 @@ public:
   class OC_PatternElementChainContext;
   class OC_RelationshipPatternContext;
   class OC_RelationshipDetailContext;
-  class KU_PropertiesContext;
+  class NEUG_PropertiesContext;
   class OC_RelationshipTypesContext;
   class OC_NodeLabelsContext;
   class OC_NodeLabelContext;
-  class KU_RecursiveDetailContext;
-  class KU_RecursiveTypeContext;
+  class NEUG_RecursiveDetailContext;
+  class NEUG_RecursiveTypeContext;
   class OC_RangeLiteralContext;
-  class KU_RecursiveComprehensionContext;
-  class KU_RecursiveProjectionItemsContext;
+  class NEUG_RecursiveComprehensionContext;
+  class NEUG_RecursiveProjectionItemsContext;
   class OC_LowerBoundContext;
   class OC_UpperBoundContext;
   class OC_LabelNameContext;
@@ -248,15 +249,15 @@ public:
   class OC_AndExpressionContext;
   class OC_NotExpressionContext;
   class OC_ComparisonExpressionContext;
-  class KU_ComparisonOperatorContext;
-  class KU_BitwiseOrOperatorExpressionContext;
-  class KU_BitwiseAndOperatorExpressionContext;
-  class KU_BitShiftOperatorExpressionContext;
-  class KU_BitShiftOperatorContext;
+  class NEUG_ComparisonOperatorContext;
+  class NEUG_BitwiseOrOperatorExpressionContext;
+  class NEUG_BitwiseAndOperatorExpressionContext;
+  class NEUG_BitShiftOperatorExpressionContext;
+  class NEUG_BitShiftOperatorContext;
   class OC_AddOrSubtractExpressionContext;
-  class KU_AddOrSubtractOperatorContext;
+  class NEUG_AddOrSubtractOperatorContext;
   class OC_MultiplyDivideModuloExpressionContext;
-  class KU_MultiplyDivideModuloOperatorContext;
+  class NEUG_MultiplyDivideModuloOperatorContext;
   class OC_PowerOfExpressionContext;
   class OC_UnaryAddSubtractOrFactorialExpressionContext;
   class OC_StringListNullOperatorExpressionContext;
@@ -272,15 +273,15 @@ public:
   class OC_LiteralContext;
   class OC_BooleanLiteralContext;
   class OC_ListLiteralContext;
-  class KU_ListEntryContext;
-  class KU_StructLiteralContext;
-  class KU_StructFieldContext;
+  class NEUG_ListEntryContext;
+  class NEUG_StructLiteralContext;
+  class NEUG_StructFieldContext;
   class OC_ParenthesizedExpressionContext;
   class OC_FunctionInvocationContext;
   class OC_FunctionNameContext;
-  class KU_FunctionParameterContext;
-  class KU_LambdaParameterContext;
-  class KU_LambdaVarsContext;
+  class NEUG_FunctionParameterContext;
+  class NEUG_LambdaParameterContext;
+  class NEUG_LambdaVarsContext;
   class OC_PathPatternsContext;
   class OC_ExistCountSubqueryContext;
   class OC_PropertyLookupContext;
@@ -295,14 +296,14 @@ public:
   class OC_DoubleLiteralContext;
   class OC_SchemaNameContext;
   class OC_SymbolicNameContext;
-  class KU_NonReservedKeywordsContext;
+  class NEUG_NonReservedKeywordsContext;
   class OC_LeftArrowHeadContext;
   class OC_RightArrowHeadContext;
   class OC_DashContext; 
 
-  class  Ku_StatementsContext : public antlr4::ParserRuleContext {
+  class  Neug_StatementsContext : public antlr4::ParserRuleContext {
   public:
-    Ku_StatementsContext(antlr4::ParserRuleContext *parent, size_t invokingState);
+    Neug_StatementsContext(antlr4::ParserRuleContext *parent, size_t invokingState);
     virtual size_t getRuleIndex() const override;
     std::vector<OC_CypherContext *> oC_Cypher();
     OC_CypherContext* oC_Cypher(size_t i);
@@ -313,7 +314,7 @@ public:
    
   };
 
-  Ku_StatementsContext* ku_Statements();
+  Neug_StatementsContext* neug_Statements();
 
   class  OC_CypherContext : public antlr4::ParserRuleContext {
   public:
@@ -334,52 +335,52 @@ public:
     OC_StatementContext(antlr4::ParserRuleContext *parent, size_t invokingState);
     virtual size_t getRuleIndex() const override;
     OC_QueryContext *oC_Query();
-    KU_CreateNodeTableContext *kU_CreateNodeTable();
-    KU_CreateRelTableContext *kU_CreateRelTable();
-    KU_CreateSequenceContext *kU_CreateSequence();
-    KU_CreateTypeContext *kU_CreateType();
-    KU_DropContext *kU_Drop();
-    KU_AlterTableContext *kU_AlterTable();
-    KU_CopyFromContext *kU_CopyFrom();
-    KU_CopyFromByColumnContext *kU_CopyFromByColumn();
-    KU_CopyTOContext *kU_CopyTO();
-    KU_StandaloneCallContext *kU_StandaloneCall();
-    KU_CreateMacroContext *kU_CreateMacro();
-    KU_CommentOnContext *kU_CommentOn();
-    KU_TransactionContext *kU_Transaction();
-    KU_ExtensionContext *kU_Extension();
-    KU_ExportDatabaseContext *kU_ExportDatabase();
-    KU_ImportDatabaseContext *kU_ImportDatabase();
-    KU_AttachDatabaseContext *kU_AttachDatabase();
-    KU_DetachDatabaseContext *kU_DetachDatabase();
-    KU_UseDatabaseContext *kU_UseDatabase();
+    NEUG_CreateNodeTableContext *nEUG_CreateNodeTable();
+    NEUG_CreateRelTableContext *nEUG_CreateRelTable();
+    NEUG_CreateSequenceContext *nEUG_CreateSequence();
+    NEUG_CreateTypeContext *nEUG_CreateType();
+    NEUG_DropContext *nEUG_Drop();
+    NEUG_AlterTableContext *nEUG_AlterTable();
+    NEUG_CopyFromContext *nEUG_CopyFrom();
+    NEUG_CopyFromByColumnContext *nEUG_CopyFromByColumn();
+    NEUG_CopyTOContext *nEUG_CopyTO();
+    NEUG_StandaloneCallContext *nEUG_StandaloneCall();
+    NEUG_CreateMacroContext *nEUG_CreateMacro();
+    NEUG_CommentOnContext *nEUG_CommentOn();
+    NEUG_TransactionContext *nEUG_Transaction();
+    NEUG_ExtensionContext *nEUG_Extension();
+    NEUG_ExportDatabaseContext *nEUG_ExportDatabase();
+    NEUG_ImportDatabaseContext *nEUG_ImportDatabase();
+    NEUG_AttachDatabaseContext *nEUG_AttachDatabase();
+    NEUG_DetachDatabaseContext *nEUG_DetachDatabase();
+    NEUG_UseDatabaseContext *nEUG_UseDatabase();
 
    
   };
 
   OC_StatementContext* oC_Statement();
 
-  class  KU_CopyFromContext : public antlr4::ParserRuleContext {
+  class  NEUG_CopyFromContext : public antlr4::ParserRuleContext {
   public:
-    KU_CopyFromContext(antlr4::ParserRuleContext *parent, size_t invokingState);
+    NEUG_CopyFromContext(antlr4::ParserRuleContext *parent, size_t invokingState);
     virtual size_t getRuleIndex() const override;
     antlr4::tree::TerminalNode *COPY();
     std::vector<antlr4::tree::TerminalNode *> SP();
     antlr4::tree::TerminalNode* SP(size_t i);
     OC_SchemaNameContext *oC_SchemaName();
     antlr4::tree::TerminalNode *FROM();
-    KU_ScanSourceContext *kU_ScanSource();
-    KU_ColumnNamesContext *kU_ColumnNames();
-    KU_OptionsContext *kU_Options();
+    NEUG_ScanSourceContext *nEUG_ScanSource();
+    NEUG_ColumnNamesContext *nEUG_ColumnNames();
+    NEUG_OptionsContext *nEUG_Options();
 
    
   };
 
-  KU_CopyFromContext* kU_CopyFrom();
+  NEUG_CopyFromContext* nEUG_CopyFrom();
 
-  class  KU_ColumnNamesContext : public antlr4::ParserRuleContext {
+  class  NEUG_ColumnNamesContext : public antlr4::ParserRuleContext {
   public:
-    KU_ColumnNamesContext(antlr4::ParserRuleContext *parent, size_t invokingState);
+    NEUG_ColumnNamesContext(antlr4::ParserRuleContext *parent, size_t invokingState);
     virtual size_t getRuleIndex() const override;
     std::vector<antlr4::tree::TerminalNode *> SP();
     antlr4::tree::TerminalNode* SP(size_t i);
@@ -389,13 +390,13 @@ public:
    
   };
 
-  KU_ColumnNamesContext* kU_ColumnNames();
+  NEUG_ColumnNamesContext* nEUG_ColumnNames();
 
-  class  KU_ScanSourceContext : public antlr4::ParserRuleContext {
+  class  NEUG_ScanSourceContext : public antlr4::ParserRuleContext {
   public:
-    KU_ScanSourceContext(antlr4::ParserRuleContext *parent, size_t invokingState);
+    NEUG_ScanSourceContext(antlr4::ParserRuleContext *parent, size_t invokingState);
     virtual size_t getRuleIndex() const override;
-    KU_FilePathsContext *kU_FilePaths();
+    NEUG_FilePathsContext *nEUG_FilePaths();
     OC_QueryContext *oC_Query();
     std::vector<antlr4::tree::TerminalNode *> SP();
     antlr4::tree::TerminalNode* SP(size_t i);
@@ -406,11 +407,11 @@ public:
    
   };
 
-  KU_ScanSourceContext* kU_ScanSource();
+  NEUG_ScanSourceContext* nEUG_ScanSource();
 
-  class  KU_CopyFromByColumnContext : public antlr4::ParserRuleContext {
+  class  NEUG_CopyFromByColumnContext : public antlr4::ParserRuleContext {
   public:
-    KU_CopyFromByColumnContext(antlr4::ParserRuleContext *parent, size_t invokingState);
+    NEUG_CopyFromByColumnContext(antlr4::ParserRuleContext *parent, size_t invokingState);
     virtual size_t getRuleIndex() const override;
     antlr4::tree::TerminalNode *COPY();
     std::vector<antlr4::tree::TerminalNode *> SP();
@@ -425,11 +426,11 @@ public:
    
   };
 
-  KU_CopyFromByColumnContext* kU_CopyFromByColumn();
+  NEUG_CopyFromByColumnContext* nEUG_CopyFromByColumn();
 
-  class  KU_CopyTOContext : public antlr4::ParserRuleContext {
+  class  NEUG_CopyTOContext : public antlr4::ParserRuleContext {
   public:
-    KU_CopyTOContext(antlr4::ParserRuleContext *parent, size_t invokingState);
+    NEUG_CopyTOContext(antlr4::ParserRuleContext *parent, size_t invokingState);
     virtual size_t getRuleIndex() const override;
     antlr4::tree::TerminalNode *COPY();
     std::vector<antlr4::tree::TerminalNode *> SP();
@@ -437,32 +438,32 @@ public:
     OC_QueryContext *oC_Query();
     antlr4::tree::TerminalNode *TO();
     antlr4::tree::TerminalNode *StringLiteral();
-    KU_OptionsContext *kU_Options();
+    NEUG_OptionsContext *nEUG_Options();
 
    
   };
 
-  KU_CopyTOContext* kU_CopyTO();
+  NEUG_CopyTOContext* nEUG_CopyTO();
 
-  class  KU_ExportDatabaseContext : public antlr4::ParserRuleContext {
+  class  NEUG_ExportDatabaseContext : public antlr4::ParserRuleContext {
   public:
-    KU_ExportDatabaseContext(antlr4::ParserRuleContext *parent, size_t invokingState);
+    NEUG_ExportDatabaseContext(antlr4::ParserRuleContext *parent, size_t invokingState);
     virtual size_t getRuleIndex() const override;
     antlr4::tree::TerminalNode *EXPORT();
     std::vector<antlr4::tree::TerminalNode *> SP();
     antlr4::tree::TerminalNode* SP(size_t i);
     antlr4::tree::TerminalNode *DATABASE();
     antlr4::tree::TerminalNode *StringLiteral();
-    KU_OptionsContext *kU_Options();
+    NEUG_OptionsContext *nEUG_Options();
 
    
   };
 
-  KU_ExportDatabaseContext* kU_ExportDatabase();
+  NEUG_ExportDatabaseContext* nEUG_ExportDatabase();
 
-  class  KU_ImportDatabaseContext : public antlr4::ParserRuleContext {
+  class  NEUG_ImportDatabaseContext : public antlr4::ParserRuleContext {
   public:
-    KU_ImportDatabaseContext(antlr4::ParserRuleContext *parent, size_t invokingState);
+    NEUG_ImportDatabaseContext(antlr4::ParserRuleContext *parent, size_t invokingState);
     virtual size_t getRuleIndex() const override;
     antlr4::tree::TerminalNode *IMPORT();
     std::vector<antlr4::tree::TerminalNode *> SP();
@@ -473,11 +474,11 @@ public:
    
   };
 
-  KU_ImportDatabaseContext* kU_ImportDatabase();
+  NEUG_ImportDatabaseContext* nEUG_ImportDatabase();
 
-  class  KU_AttachDatabaseContext : public antlr4::ParserRuleContext {
+  class  NEUG_AttachDatabaseContext : public antlr4::ParserRuleContext {
   public:
-    KU_AttachDatabaseContext(antlr4::ParserRuleContext *parent, size_t invokingState);
+    NEUG_AttachDatabaseContext(antlr4::ParserRuleContext *parent, size_t invokingState);
     virtual size_t getRuleIndex() const override;
     antlr4::tree::TerminalNode *ATTACH();
     std::vector<antlr4::tree::TerminalNode *> SP();
@@ -487,16 +488,16 @@ public:
     OC_SymbolicNameContext *oC_SymbolicName();
     antlr4::tree::TerminalNode *AS();
     OC_SchemaNameContext *oC_SchemaName();
-    KU_OptionsContext *kU_Options();
+    NEUG_OptionsContext *nEUG_Options();
 
    
   };
 
-  KU_AttachDatabaseContext* kU_AttachDatabase();
+  NEUG_AttachDatabaseContext* nEUG_AttachDatabase();
 
-  class  KU_OptionContext : public antlr4::ParserRuleContext {
+  class  NEUG_OptionContext : public antlr4::ParserRuleContext {
   public:
-    KU_OptionContext(antlr4::ParserRuleContext *parent, size_t invokingState);
+    NEUG_OptionContext(antlr4::ParserRuleContext *parent, size_t invokingState);
     virtual size_t getRuleIndex() const override;
     OC_SymbolicNameContext *oC_SymbolicName();
     OC_LiteralContext *oC_Literal();
@@ -506,25 +507,25 @@ public:
    
   };
 
-  KU_OptionContext* kU_Option();
+  NEUG_OptionContext* nEUG_Option();
 
-  class  KU_OptionsContext : public antlr4::ParserRuleContext {
+  class  NEUG_OptionsContext : public antlr4::ParserRuleContext {
   public:
-    KU_OptionsContext(antlr4::ParserRuleContext *parent, size_t invokingState);
+    NEUG_OptionsContext(antlr4::ParserRuleContext *parent, size_t invokingState);
     virtual size_t getRuleIndex() const override;
-    std::vector<KU_OptionContext *> kU_Option();
-    KU_OptionContext* kU_Option(size_t i);
+    std::vector<NEUG_OptionContext *> nEUG_Option();
+    NEUG_OptionContext* nEUG_Option(size_t i);
     std::vector<antlr4::tree::TerminalNode *> SP();
     antlr4::tree::TerminalNode* SP(size_t i);
 
    
   };
 
-  KU_OptionsContext* kU_Options();
+  NEUG_OptionsContext* nEUG_Options();
 
-  class  KU_DetachDatabaseContext : public antlr4::ParserRuleContext {
+  class  NEUG_DetachDatabaseContext : public antlr4::ParserRuleContext {
   public:
-    KU_DetachDatabaseContext(antlr4::ParserRuleContext *parent, size_t invokingState);
+    NEUG_DetachDatabaseContext(antlr4::ParserRuleContext *parent, size_t invokingState);
     virtual size_t getRuleIndex() const override;
     antlr4::tree::TerminalNode *DETACH();
     antlr4::tree::TerminalNode *SP();
@@ -533,11 +534,11 @@ public:
    
   };
 
-  KU_DetachDatabaseContext* kU_DetachDatabase();
+  NEUG_DetachDatabaseContext* nEUG_DetachDatabase();
 
-  class  KU_UseDatabaseContext : public antlr4::ParserRuleContext {
+  class  NEUG_UseDatabaseContext : public antlr4::ParserRuleContext {
   public:
-    KU_UseDatabaseContext(antlr4::ParserRuleContext *parent, size_t invokingState);
+    NEUG_UseDatabaseContext(antlr4::ParserRuleContext *parent, size_t invokingState);
     virtual size_t getRuleIndex() const override;
     antlr4::tree::TerminalNode *USE();
     antlr4::tree::TerminalNode *SP();
@@ -546,11 +547,11 @@ public:
    
   };
 
-  KU_UseDatabaseContext* kU_UseDatabase();
+  NEUG_UseDatabaseContext* nEUG_UseDatabase();
 
-  class  KU_StandaloneCallContext : public antlr4::ParserRuleContext {
+  class  NEUG_StandaloneCallContext : public antlr4::ParserRuleContext {
   public:
-    KU_StandaloneCallContext(antlr4::ParserRuleContext *parent, size_t invokingState);
+    NEUG_StandaloneCallContext(antlr4::ParserRuleContext *parent, size_t invokingState);
     virtual size_t getRuleIndex() const override;
     antlr4::tree::TerminalNode *CALL();
     std::vector<antlr4::tree::TerminalNode *> SP();
@@ -562,11 +563,11 @@ public:
    
   };
 
-  KU_StandaloneCallContext* kU_StandaloneCall();
+  NEUG_StandaloneCallContext* nEUG_StandaloneCall();
 
-  class  KU_CommentOnContext : public antlr4::ParserRuleContext {
+  class  NEUG_CommentOnContext : public antlr4::ParserRuleContext {
   public:
-    KU_CommentOnContext(antlr4::ParserRuleContext *parent, size_t invokingState);
+    NEUG_CommentOnContext(antlr4::ParserRuleContext *parent, size_t invokingState);
     virtual size_t getRuleIndex() const override;
     antlr4::tree::TerminalNode *COMMENT();
     std::vector<antlr4::tree::TerminalNode *> SP();
@@ -580,11 +581,11 @@ public:
    
   };
 
-  KU_CommentOnContext* kU_CommentOn();
+  NEUG_CommentOnContext* nEUG_CommentOn();
 
-  class  KU_CreateMacroContext : public antlr4::ParserRuleContext {
+  class  NEUG_CreateMacroContext : public antlr4::ParserRuleContext {
   public:
-    KU_CreateMacroContext(antlr4::ParserRuleContext *parent, size_t invokingState);
+    NEUG_CreateMacroContext(antlr4::ParserRuleContext *parent, size_t invokingState);
     virtual size_t getRuleIndex() const override;
     antlr4::tree::TerminalNode *CREATE();
     std::vector<antlr4::tree::TerminalNode *> SP();
@@ -593,18 +594,18 @@ public:
     OC_FunctionNameContext *oC_FunctionName();
     antlr4::tree::TerminalNode *AS();
     OC_ExpressionContext *oC_Expression();
-    KU_PositionalArgsContext *kU_PositionalArgs();
-    std::vector<KU_DefaultArgContext *> kU_DefaultArg();
-    KU_DefaultArgContext* kU_DefaultArg(size_t i);
+    NEUG_PositionalArgsContext *nEUG_PositionalArgs();
+    std::vector<NEUG_DefaultArgContext *> nEUG_DefaultArg();
+    NEUG_DefaultArgContext* nEUG_DefaultArg(size_t i);
 
    
   };
 
-  KU_CreateMacroContext* kU_CreateMacro();
+  NEUG_CreateMacroContext* nEUG_CreateMacro();
 
-  class  KU_PositionalArgsContext : public antlr4::ParserRuleContext {
+  class  NEUG_PositionalArgsContext : public antlr4::ParserRuleContext {
   public:
-    KU_PositionalArgsContext(antlr4::ParserRuleContext *parent, size_t invokingState);
+    NEUG_PositionalArgsContext(antlr4::ParserRuleContext *parent, size_t invokingState);
     virtual size_t getRuleIndex() const override;
     std::vector<OC_SymbolicNameContext *> oC_SymbolicName();
     OC_SymbolicNameContext* oC_SymbolicName(size_t i);
@@ -614,11 +615,11 @@ public:
    
   };
 
-  KU_PositionalArgsContext* kU_PositionalArgs();
+  NEUG_PositionalArgsContext* nEUG_PositionalArgs();
 
-  class  KU_DefaultArgContext : public antlr4::ParserRuleContext {
+  class  NEUG_DefaultArgContext : public antlr4::ParserRuleContext {
   public:
-    KU_DefaultArgContext(antlr4::ParserRuleContext *parent, size_t invokingState);
+    NEUG_DefaultArgContext(antlr4::ParserRuleContext *parent, size_t invokingState);
     virtual size_t getRuleIndex() const override;
     OC_SymbolicNameContext *oC_SymbolicName();
     antlr4::tree::TerminalNode *COLON();
@@ -629,11 +630,11 @@ public:
    
   };
 
-  KU_DefaultArgContext* kU_DefaultArg();
+  NEUG_DefaultArgContext* nEUG_DefaultArg();
 
-  class  KU_FilePathsContext : public antlr4::ParserRuleContext {
+  class  NEUG_FilePathsContext : public antlr4::ParserRuleContext {
   public:
-    KU_FilePathsContext(antlr4::ParserRuleContext *parent, size_t invokingState);
+    NEUG_FilePathsContext(antlr4::ParserRuleContext *parent, size_t invokingState);
     virtual size_t getRuleIndex() const override;
     std::vector<antlr4::tree::TerminalNode *> StringLiteral();
     antlr4::tree::TerminalNode* StringLiteral(size_t i);
@@ -644,11 +645,11 @@ public:
    
   };
 
-  KU_FilePathsContext* kU_FilePaths();
+  NEUG_FilePathsContext* nEUG_FilePaths();
 
-  class  KU_IfNotExistsContext : public antlr4::ParserRuleContext {
+  class  NEUG_IfNotExistsContext : public antlr4::ParserRuleContext {
   public:
-    KU_IfNotExistsContext(antlr4::ParserRuleContext *parent, size_t invokingState);
+    NEUG_IfNotExistsContext(antlr4::ParserRuleContext *parent, size_t invokingState);
     virtual size_t getRuleIndex() const override;
     antlr4::tree::TerminalNode *IF();
     std::vector<antlr4::tree::TerminalNode *> SP();
@@ -659,11 +660,11 @@ public:
    
   };
 
-  KU_IfNotExistsContext* kU_IfNotExists();
+  NEUG_IfNotExistsContext* nEUG_IfNotExists();
 
-  class  KU_CreateNodeTableContext : public antlr4::ParserRuleContext {
+  class  NEUG_CreateNodeTableContext : public antlr4::ParserRuleContext {
   public:
-    KU_CreateNodeTableContext(antlr4::ParserRuleContext *parent, size_t invokingState);
+    NEUG_CreateNodeTableContext(antlr4::ParserRuleContext *parent, size_t invokingState);
     virtual size_t getRuleIndex() const override;
     antlr4::tree::TerminalNode *CREATE();
     std::vector<antlr4::tree::TerminalNode *> SP();
@@ -671,18 +672,18 @@ public:
     antlr4::tree::TerminalNode *NODE();
     antlr4::tree::TerminalNode *TABLE();
     OC_SchemaNameContext *oC_SchemaName();
-    KU_PropertyDefinitionsContext *kU_PropertyDefinitions();
-    KU_IfNotExistsContext *kU_IfNotExists();
-    KU_CreateNodeConstraintContext *kU_CreateNodeConstraint();
+    NEUG_PropertyDefinitionsContext *nEUG_PropertyDefinitions();
+    NEUG_IfNotExistsContext *nEUG_IfNotExists();
+    NEUG_CreateNodeConstraintContext *nEUG_CreateNodeConstraint();
 
    
   };
 
-  KU_CreateNodeTableContext* kU_CreateNodeTable();
+  NEUG_CreateNodeTableContext* nEUG_CreateNodeTable();
 
-  class  KU_CreateRelTableContext : public antlr4::ParserRuleContext {
+  class  NEUG_CreateRelTableContext : public antlr4::ParserRuleContext {
   public:
-    KU_CreateRelTableContext(antlr4::ParserRuleContext *parent, size_t invokingState);
+    NEUG_CreateRelTableContext(antlr4::ParserRuleContext *parent, size_t invokingState);
     virtual size_t getRuleIndex() const override;
     antlr4::tree::TerminalNode *CREATE();
     std::vector<antlr4::tree::TerminalNode *> SP();
@@ -690,36 +691,36 @@ public:
     antlr4::tree::TerminalNode *REL();
     antlr4::tree::TerminalNode *TABLE();
     OC_SchemaNameContext *oC_SchemaName();
-    KU_FromToConnectionsContext *kU_FromToConnections();
+    NEUG_FromToConnectionsContext *nEUG_FromToConnections();
     antlr4::tree::TerminalNode *GROUP();
-    KU_IfNotExistsContext *kU_IfNotExists();
-    KU_PropertyDefinitionsContext *kU_PropertyDefinitions();
+    NEUG_IfNotExistsContext *nEUG_IfNotExists();
+    NEUG_PropertyDefinitionsContext *nEUG_PropertyDefinitions();
     OC_SymbolicNameContext *oC_SymbolicName();
     antlr4::tree::TerminalNode *WITH();
-    KU_OptionsContext *kU_Options();
+    NEUG_OptionsContext *nEUG_Options();
 
    
   };
 
-  KU_CreateRelTableContext* kU_CreateRelTable();
+  NEUG_CreateRelTableContext* nEUG_CreateRelTable();
 
-  class  KU_FromToConnectionsContext : public antlr4::ParserRuleContext {
+  class  NEUG_FromToConnectionsContext : public antlr4::ParserRuleContext {
   public:
-    KU_FromToConnectionsContext(antlr4::ParserRuleContext *parent, size_t invokingState);
+    NEUG_FromToConnectionsContext(antlr4::ParserRuleContext *parent, size_t invokingState);
     virtual size_t getRuleIndex() const override;
-    std::vector<KU_FromToConnectionContext *> kU_FromToConnection();
-    KU_FromToConnectionContext* kU_FromToConnection(size_t i);
+    std::vector<NEUG_FromToConnectionContext *> nEUG_FromToConnection();
+    NEUG_FromToConnectionContext* nEUG_FromToConnection(size_t i);
     std::vector<antlr4::tree::TerminalNode *> SP();
     antlr4::tree::TerminalNode* SP(size_t i);
 
    
   };
 
-  KU_FromToConnectionsContext* kU_FromToConnections();
+  NEUG_FromToConnectionsContext* nEUG_FromToConnections();
 
-  class  KU_FromToConnectionContext : public antlr4::ParserRuleContext {
+  class  NEUG_FromToConnectionContext : public antlr4::ParserRuleContext {
   public:
-    KU_FromToConnectionContext(antlr4::ParserRuleContext *parent, size_t invokingState);
+    NEUG_FromToConnectionContext(antlr4::ParserRuleContext *parent, size_t invokingState);
     virtual size_t getRuleIndex() const override;
     antlr4::tree::TerminalNode *FROM();
     std::vector<antlr4::tree::TerminalNode *> SP();
@@ -731,29 +732,29 @@ public:
    
   };
 
-  KU_FromToConnectionContext* kU_FromToConnection();
+  NEUG_FromToConnectionContext* nEUG_FromToConnection();
 
-  class  KU_CreateSequenceContext : public antlr4::ParserRuleContext {
+  class  NEUG_CreateSequenceContext : public antlr4::ParserRuleContext {
   public:
-    KU_CreateSequenceContext(antlr4::ParserRuleContext *parent, size_t invokingState);
+    NEUG_CreateSequenceContext(antlr4::ParserRuleContext *parent, size_t invokingState);
     virtual size_t getRuleIndex() const override;
     antlr4::tree::TerminalNode *CREATE();
     std::vector<antlr4::tree::TerminalNode *> SP();
     antlr4::tree::TerminalNode* SP(size_t i);
     antlr4::tree::TerminalNode *SEQUENCE();
     OC_SchemaNameContext *oC_SchemaName();
-    KU_IfNotExistsContext *kU_IfNotExists();
-    std::vector<KU_SequenceOptionsContext *> kU_SequenceOptions();
-    KU_SequenceOptionsContext* kU_SequenceOptions(size_t i);
+    NEUG_IfNotExistsContext *nEUG_IfNotExists();
+    std::vector<NEUG_SequenceOptionsContext *> nEUG_SequenceOptions();
+    NEUG_SequenceOptionsContext* nEUG_SequenceOptions(size_t i);
 
    
   };
 
-  KU_CreateSequenceContext* kU_CreateSequence();
+  NEUG_CreateSequenceContext* nEUG_CreateSequence();
 
-  class  KU_CreateTypeContext : public antlr4::ParserRuleContext {
+  class  NEUG_CreateTypeContext : public antlr4::ParserRuleContext {
   public:
-    KU_CreateTypeContext(antlr4::ParserRuleContext *parent, size_t invokingState);
+    NEUG_CreateTypeContext(antlr4::ParserRuleContext *parent, size_t invokingState);
     virtual size_t getRuleIndex() const override;
     antlr4::tree::TerminalNode *CREATE();
     std::vector<antlr4::tree::TerminalNode *> SP();
@@ -761,31 +762,31 @@ public:
     antlr4::tree::TerminalNode *TYPE();
     OC_SchemaNameContext *oC_SchemaName();
     antlr4::tree::TerminalNode *AS();
-    KU_DataTypeContext *kU_DataType();
+    NEUG_DataTypeContext *nEUG_DataType();
 
    
   };
 
-  KU_CreateTypeContext* kU_CreateType();
+  NEUG_CreateTypeContext* nEUG_CreateType();
 
-  class  KU_SequenceOptionsContext : public antlr4::ParserRuleContext {
+  class  NEUG_SequenceOptionsContext : public antlr4::ParserRuleContext {
   public:
-    KU_SequenceOptionsContext(antlr4::ParserRuleContext *parent, size_t invokingState);
+    NEUG_SequenceOptionsContext(antlr4::ParserRuleContext *parent, size_t invokingState);
     virtual size_t getRuleIndex() const override;
-    KU_IncrementByContext *kU_IncrementBy();
-    KU_MinValueContext *kU_MinValue();
-    KU_MaxValueContext *kU_MaxValue();
-    KU_StartWithContext *kU_StartWith();
-    KU_CycleContext *kU_Cycle();
+    NEUG_IncrementByContext *nEUG_IncrementBy();
+    NEUG_MinValueContext *nEUG_MinValue();
+    NEUG_MaxValueContext *nEUG_MaxValue();
+    NEUG_StartWithContext *nEUG_StartWith();
+    NEUG_CycleContext *nEUG_Cycle();
 
    
   };
 
-  KU_SequenceOptionsContext* kU_SequenceOptions();
+  NEUG_SequenceOptionsContext* nEUG_SequenceOptions();
 
-  class  KU_IncrementByContext : public antlr4::ParserRuleContext {
+  class  NEUG_IncrementByContext : public antlr4::ParserRuleContext {
   public:
-    KU_IncrementByContext(antlr4::ParserRuleContext *parent, size_t invokingState);
+    NEUG_IncrementByContext(antlr4::ParserRuleContext *parent, size_t invokingState);
     virtual size_t getRuleIndex() const override;
     antlr4::tree::TerminalNode *INCREMENT();
     std::vector<antlr4::tree::TerminalNode *> SP();
@@ -797,11 +798,11 @@ public:
    
   };
 
-  KU_IncrementByContext* kU_IncrementBy();
+  NEUG_IncrementByContext* nEUG_IncrementBy();
 
-  class  KU_MinValueContext : public antlr4::ParserRuleContext {
+  class  NEUG_MinValueContext : public antlr4::ParserRuleContext {
   public:
-    KU_MinValueContext(antlr4::ParserRuleContext *parent, size_t invokingState);
+    NEUG_MinValueContext(antlr4::ParserRuleContext *parent, size_t invokingState);
     virtual size_t getRuleIndex() const override;
     antlr4::tree::TerminalNode *NO();
     antlr4::tree::TerminalNode *SP();
@@ -812,11 +813,11 @@ public:
    
   };
 
-  KU_MinValueContext* kU_MinValue();
+  NEUG_MinValueContext* nEUG_MinValue();
 
-  class  KU_MaxValueContext : public antlr4::ParserRuleContext {
+  class  NEUG_MaxValueContext : public antlr4::ParserRuleContext {
   public:
-    KU_MaxValueContext(antlr4::ParserRuleContext *parent, size_t invokingState);
+    NEUG_MaxValueContext(antlr4::ParserRuleContext *parent, size_t invokingState);
     virtual size_t getRuleIndex() const override;
     antlr4::tree::TerminalNode *NO();
     antlr4::tree::TerminalNode *SP();
@@ -827,11 +828,11 @@ public:
    
   };
 
-  KU_MaxValueContext* kU_MaxValue();
+  NEUG_MaxValueContext* nEUG_MaxValue();
 
-  class  KU_StartWithContext : public antlr4::ParserRuleContext {
+  class  NEUG_StartWithContext : public antlr4::ParserRuleContext {
   public:
-    KU_StartWithContext(antlr4::ParserRuleContext *parent, size_t invokingState);
+    NEUG_StartWithContext(antlr4::ParserRuleContext *parent, size_t invokingState);
     virtual size_t getRuleIndex() const override;
     antlr4::tree::TerminalNode *START();
     std::vector<antlr4::tree::TerminalNode *> SP();
@@ -843,11 +844,11 @@ public:
    
   };
 
-  KU_StartWithContext* kU_StartWith();
+  NEUG_StartWithContext* nEUG_StartWith();
 
-  class  KU_CycleContext : public antlr4::ParserRuleContext {
+  class  NEUG_CycleContext : public antlr4::ParserRuleContext {
   public:
-    KU_CycleContext(antlr4::ParserRuleContext *parent, size_t invokingState);
+    NEUG_CycleContext(antlr4::ParserRuleContext *parent, size_t invokingState);
     virtual size_t getRuleIndex() const override;
     antlr4::tree::TerminalNode *CYCLE();
     antlr4::tree::TerminalNode *NO();
@@ -856,11 +857,11 @@ public:
    
   };
 
-  KU_CycleContext* kU_Cycle();
+  NEUG_CycleContext* nEUG_Cycle();
 
-  class  KU_IfExistsContext : public antlr4::ParserRuleContext {
+  class  NEUG_IfExistsContext : public antlr4::ParserRuleContext {
   public:
-    KU_IfExistsContext(antlr4::ParserRuleContext *parent, size_t invokingState);
+    NEUG_IfExistsContext(antlr4::ParserRuleContext *parent, size_t invokingState);
     virtual size_t getRuleIndex() const override;
     antlr4::tree::TerminalNode *IF();
     antlr4::tree::TerminalNode *SP();
@@ -869,11 +870,11 @@ public:
    
   };
 
-  KU_IfExistsContext* kU_IfExists();
+  NEUG_IfExistsContext* nEUG_IfExists();
 
-  class  KU_DropContext : public antlr4::ParserRuleContext {
+  class  NEUG_DropContext : public antlr4::ParserRuleContext {
   public:
-    KU_DropContext(antlr4::ParserRuleContext *parent, size_t invokingState);
+    NEUG_DropContext(antlr4::ParserRuleContext *parent, size_t invokingState);
     virtual size_t getRuleIndex() const override;
     antlr4::tree::TerminalNode *DROP();
     std::vector<antlr4::tree::TerminalNode *> SP();
@@ -881,63 +882,63 @@ public:
     OC_SchemaNameContext *oC_SchemaName();
     antlr4::tree::TerminalNode *TABLE();
     antlr4::tree::TerminalNode *SEQUENCE();
-    KU_IfExistsContext *kU_IfExists();
+    NEUG_IfExistsContext *nEUG_IfExists();
 
    
   };
 
-  KU_DropContext* kU_Drop();
+  NEUG_DropContext* nEUG_Drop();
 
-  class  KU_AlterTableContext : public antlr4::ParserRuleContext {
+  class  NEUG_AlterTableContext : public antlr4::ParserRuleContext {
   public:
-    KU_AlterTableContext(antlr4::ParserRuleContext *parent, size_t invokingState);
+    NEUG_AlterTableContext(antlr4::ParserRuleContext *parent, size_t invokingState);
     virtual size_t getRuleIndex() const override;
     antlr4::tree::TerminalNode *ALTER();
     std::vector<antlr4::tree::TerminalNode *> SP();
     antlr4::tree::TerminalNode* SP(size_t i);
     antlr4::tree::TerminalNode *TABLE();
     OC_SchemaNameContext *oC_SchemaName();
-    KU_AlterOptionsContext *kU_AlterOptions();
+    NEUG_AlterOptionsContext *nEUG_AlterOptions();
 
    
   };
 
-  KU_AlterTableContext* kU_AlterTable();
+  NEUG_AlterTableContext* nEUG_AlterTable();
 
-  class  KU_AlterOptionsContext : public antlr4::ParserRuleContext {
+  class  NEUG_AlterOptionsContext : public antlr4::ParserRuleContext {
   public:
-    KU_AlterOptionsContext(antlr4::ParserRuleContext *parent, size_t invokingState);
+    NEUG_AlterOptionsContext(antlr4::ParserRuleContext *parent, size_t invokingState);
     virtual size_t getRuleIndex() const override;
-    KU_AddPropertyContext *kU_AddProperty();
-    KU_DropPropertyContext *kU_DropProperty();
-    KU_RenameTableContext *kU_RenameTable();
-    KU_RenamePropertyContext *kU_RenameProperty();
+    NEUG_AddPropertyContext *nEUG_AddProperty();
+    NEUG_DropPropertyContext *nEUG_DropProperty();
+    NEUG_RenameTableContext *nEUG_RenameTable();
+    NEUG_RenamePropertyContext *nEUG_RenameProperty();
 
    
   };
 
-  KU_AlterOptionsContext* kU_AlterOptions();
+  NEUG_AlterOptionsContext* nEUG_AlterOptions();
 
-  class  KU_AddPropertyContext : public antlr4::ParserRuleContext {
+  class  NEUG_AddPropertyContext : public antlr4::ParserRuleContext {
   public:
-    KU_AddPropertyContext(antlr4::ParserRuleContext *parent, size_t invokingState);
+    NEUG_AddPropertyContext(antlr4::ParserRuleContext *parent, size_t invokingState);
     virtual size_t getRuleIndex() const override;
     antlr4::tree::TerminalNode *ADD();
     std::vector<antlr4::tree::TerminalNode *> SP();
     antlr4::tree::TerminalNode* SP(size_t i);
     OC_PropertyKeyNameContext *oC_PropertyKeyName();
-    KU_DataTypeContext *kU_DataType();
-    KU_IfNotExistsContext *kU_IfNotExists();
-    KU_DefaultContext *kU_Default();
+    NEUG_DataTypeContext *nEUG_DataType();
+    NEUG_IfNotExistsContext *nEUG_IfNotExists();
+    NEUG_DefaultContext *nEUG_Default();
 
    
   };
 
-  KU_AddPropertyContext* kU_AddProperty();
+  NEUG_AddPropertyContext* nEUG_AddProperty();
 
-  class  KU_DefaultContext : public antlr4::ParserRuleContext {
+  class  NEUG_DefaultContext : public antlr4::ParserRuleContext {
   public:
-    KU_DefaultContext(antlr4::ParserRuleContext *parent, size_t invokingState);
+    NEUG_DefaultContext(antlr4::ParserRuleContext *parent, size_t invokingState);
     virtual size_t getRuleIndex() const override;
     antlr4::tree::TerminalNode *DEFAULT();
     antlr4::tree::TerminalNode *SP();
@@ -946,26 +947,26 @@ public:
    
   };
 
-  KU_DefaultContext* kU_Default();
+  NEUG_DefaultContext* nEUG_Default();
 
-  class  KU_DropPropertyContext : public antlr4::ParserRuleContext {
+  class  NEUG_DropPropertyContext : public antlr4::ParserRuleContext {
   public:
-    KU_DropPropertyContext(antlr4::ParserRuleContext *parent, size_t invokingState);
+    NEUG_DropPropertyContext(antlr4::ParserRuleContext *parent, size_t invokingState);
     virtual size_t getRuleIndex() const override;
     antlr4::tree::TerminalNode *DROP();
     std::vector<antlr4::tree::TerminalNode *> SP();
     antlr4::tree::TerminalNode* SP(size_t i);
     OC_PropertyKeyNameContext *oC_PropertyKeyName();
-    KU_IfExistsContext *kU_IfExists();
+    NEUG_IfExistsContext *nEUG_IfExists();
 
    
   };
 
-  KU_DropPropertyContext* kU_DropProperty();
+  NEUG_DropPropertyContext* nEUG_DropProperty();
 
-  class  KU_RenameTableContext : public antlr4::ParserRuleContext {
+  class  NEUG_RenameTableContext : public antlr4::ParserRuleContext {
   public:
-    KU_RenameTableContext(antlr4::ParserRuleContext *parent, size_t invokingState);
+    NEUG_RenameTableContext(antlr4::ParserRuleContext *parent, size_t invokingState);
     virtual size_t getRuleIndex() const override;
     antlr4::tree::TerminalNode *RENAME();
     std::vector<antlr4::tree::TerminalNode *> SP();
@@ -976,11 +977,11 @@ public:
    
   };
 
-  KU_RenameTableContext* kU_RenameTable();
+  NEUG_RenameTableContext* nEUG_RenameTable();
 
-  class  KU_RenamePropertyContext : public antlr4::ParserRuleContext {
+  class  NEUG_RenamePropertyContext : public antlr4::ParserRuleContext {
   public:
-    KU_RenamePropertyContext(antlr4::ParserRuleContext *parent, size_t invokingState);
+    NEUG_RenamePropertyContext(antlr4::ParserRuleContext *parent, size_t invokingState);
     virtual size_t getRuleIndex() const override;
     antlr4::tree::TerminalNode *RENAME();
     std::vector<antlr4::tree::TerminalNode *> SP();
@@ -992,68 +993,68 @@ public:
    
   };
 
-  KU_RenamePropertyContext* kU_RenameProperty();
+  NEUG_RenamePropertyContext* nEUG_RenameProperty();
 
-  class  KU_ColumnDefinitionsContext : public antlr4::ParserRuleContext {
+  class  NEUG_ColumnDefinitionsContext : public antlr4::ParserRuleContext {
   public:
-    KU_ColumnDefinitionsContext(antlr4::ParserRuleContext *parent, size_t invokingState);
+    NEUG_ColumnDefinitionsContext(antlr4::ParserRuleContext *parent, size_t invokingState);
     virtual size_t getRuleIndex() const override;
-    std::vector<KU_ColumnDefinitionContext *> kU_ColumnDefinition();
-    KU_ColumnDefinitionContext* kU_ColumnDefinition(size_t i);
+    std::vector<NEUG_ColumnDefinitionContext *> nEUG_ColumnDefinition();
+    NEUG_ColumnDefinitionContext* nEUG_ColumnDefinition(size_t i);
     std::vector<antlr4::tree::TerminalNode *> SP();
     antlr4::tree::TerminalNode* SP(size_t i);
 
    
   };
 
-  KU_ColumnDefinitionsContext* kU_ColumnDefinitions();
+  NEUG_ColumnDefinitionsContext* nEUG_ColumnDefinitions();
 
-  class  KU_ColumnDefinitionContext : public antlr4::ParserRuleContext {
+  class  NEUG_ColumnDefinitionContext : public antlr4::ParserRuleContext {
   public:
-    KU_ColumnDefinitionContext(antlr4::ParserRuleContext *parent, size_t invokingState);
+    NEUG_ColumnDefinitionContext(antlr4::ParserRuleContext *parent, size_t invokingState);
     virtual size_t getRuleIndex() const override;
     OC_PropertyKeyNameContext *oC_PropertyKeyName();
     antlr4::tree::TerminalNode *SP();
-    KU_DataTypeContext *kU_DataType();
+    NEUG_DataTypeContext *nEUG_DataType();
 
    
   };
 
-  KU_ColumnDefinitionContext* kU_ColumnDefinition();
+  NEUG_ColumnDefinitionContext* nEUG_ColumnDefinition();
 
-  class  KU_PropertyDefinitionsContext : public antlr4::ParserRuleContext {
+  class  NEUG_PropertyDefinitionsContext : public antlr4::ParserRuleContext {
   public:
-    KU_PropertyDefinitionsContext(antlr4::ParserRuleContext *parent, size_t invokingState);
+    NEUG_PropertyDefinitionsContext(antlr4::ParserRuleContext *parent, size_t invokingState);
     virtual size_t getRuleIndex() const override;
-    std::vector<KU_PropertyDefinitionContext *> kU_PropertyDefinition();
-    KU_PropertyDefinitionContext* kU_PropertyDefinition(size_t i);
+    std::vector<NEUG_PropertyDefinitionContext *> nEUG_PropertyDefinition();
+    NEUG_PropertyDefinitionContext* nEUG_PropertyDefinition(size_t i);
     std::vector<antlr4::tree::TerminalNode *> SP();
     antlr4::tree::TerminalNode* SP(size_t i);
 
    
   };
 
-  KU_PropertyDefinitionsContext* kU_PropertyDefinitions();
+  NEUG_PropertyDefinitionsContext* nEUG_PropertyDefinitions();
 
-  class  KU_PropertyDefinitionContext : public antlr4::ParserRuleContext {
+  class  NEUG_PropertyDefinitionContext : public antlr4::ParserRuleContext {
   public:
-    KU_PropertyDefinitionContext(antlr4::ParserRuleContext *parent, size_t invokingState);
+    NEUG_PropertyDefinitionContext(antlr4::ParserRuleContext *parent, size_t invokingState);
     virtual size_t getRuleIndex() const override;
-    KU_ColumnDefinitionContext *kU_ColumnDefinition();
+    NEUG_ColumnDefinitionContext *nEUG_ColumnDefinition();
     std::vector<antlr4::tree::TerminalNode *> SP();
     antlr4::tree::TerminalNode* SP(size_t i);
-    KU_DefaultContext *kU_Default();
+    NEUG_DefaultContext *nEUG_Default();
     antlr4::tree::TerminalNode *PRIMARY();
     antlr4::tree::TerminalNode *KEY();
 
    
   };
 
-  KU_PropertyDefinitionContext* kU_PropertyDefinition();
+  NEUG_PropertyDefinitionContext* nEUG_PropertyDefinition();
 
-  class  KU_CreateNodeConstraintContext : public antlr4::ParserRuleContext {
+  class  NEUG_CreateNodeConstraintContext : public antlr4::ParserRuleContext {
   public:
-    KU_CreateNodeConstraintContext(antlr4::ParserRuleContext *parent, size_t invokingState);
+    NEUG_CreateNodeConstraintContext(antlr4::ParserRuleContext *parent, size_t invokingState);
     virtual size_t getRuleIndex() const override;
     antlr4::tree::TerminalNode *PRIMARY();
     std::vector<antlr4::tree::TerminalNode *> SP();
@@ -1064,51 +1065,51 @@ public:
    
   };
 
-  KU_CreateNodeConstraintContext* kU_CreateNodeConstraint();
+  NEUG_CreateNodeConstraintContext* nEUG_CreateNodeConstraint();
 
-  class  KU_DataTypeContext : public antlr4::ParserRuleContext {
+  class  NEUG_DataTypeContext : public antlr4::ParserRuleContext {
   public:
-    KU_DataTypeContext(antlr4::ParserRuleContext *parent, size_t invokingState);
+    NEUG_DataTypeContext(antlr4::ParserRuleContext *parent, size_t invokingState);
     virtual size_t getRuleIndex() const override;
     OC_SymbolicNameContext *oC_SymbolicName();
     antlr4::tree::TerminalNode *UNION();
-    KU_ColumnDefinitionsContext *kU_ColumnDefinitions();
+    NEUG_ColumnDefinitionsContext *nEUG_ColumnDefinitions();
     std::vector<antlr4::tree::TerminalNode *> SP();
     antlr4::tree::TerminalNode* SP(size_t i);
-    std::vector<KU_DataTypeContext *> kU_DataType();
-    KU_DataTypeContext* kU_DataType(size_t i);
+    std::vector<NEUG_DataTypeContext *> nEUG_DataType();
+    NEUG_DataTypeContext* nEUG_DataType(size_t i);
     antlr4::tree::TerminalNode *DECIMAL();
     std::vector<OC_IntegerLiteralContext *> oC_IntegerLiteral();
     OC_IntegerLiteralContext* oC_IntegerLiteral(size_t i);
-    KU_ListIdentifiersContext *kU_ListIdentifiers();
+    NEUG_ListIdentifiersContext *nEUG_ListIdentifiers();
 
    
   };
 
-  KU_DataTypeContext* kU_DataType();
-  KU_DataTypeContext* kU_DataType(int precedence);
-  class  KU_ListIdentifiersContext : public antlr4::ParserRuleContext {
+  NEUG_DataTypeContext* nEUG_DataType();
+  NEUG_DataTypeContext* nEUG_DataType(int precedence);
+  class  NEUG_ListIdentifiersContext : public antlr4::ParserRuleContext {
   public:
-    KU_ListIdentifiersContext(antlr4::ParserRuleContext *parent, size_t invokingState);
+    NEUG_ListIdentifiersContext(antlr4::ParserRuleContext *parent, size_t invokingState);
     virtual size_t getRuleIndex() const override;
-    std::vector<KU_ListIdentifierContext *> kU_ListIdentifier();
-    KU_ListIdentifierContext* kU_ListIdentifier(size_t i);
+    std::vector<NEUG_ListIdentifierContext *> nEUG_ListIdentifier();
+    NEUG_ListIdentifierContext* nEUG_ListIdentifier(size_t i);
 
    
   };
 
-  KU_ListIdentifiersContext* kU_ListIdentifiers();
+  NEUG_ListIdentifiersContext* nEUG_ListIdentifiers();
 
-  class  KU_ListIdentifierContext : public antlr4::ParserRuleContext {
+  class  NEUG_ListIdentifierContext : public antlr4::ParserRuleContext {
   public:
-    KU_ListIdentifierContext(antlr4::ParserRuleContext *parent, size_t invokingState);
+    NEUG_ListIdentifierContext(antlr4::ParserRuleContext *parent, size_t invokingState);
     virtual size_t getRuleIndex() const override;
     OC_IntegerLiteralContext *oC_IntegerLiteral();
 
    
   };
 
-  KU_ListIdentifierContext* kU_ListIdentifier();
+  NEUG_ListIdentifierContext* nEUG_ListIdentifier();
 
   class  OC_AnyCypherOptionContext : public antlr4::ParserRuleContext {
   public:
@@ -1146,9 +1147,9 @@ public:
 
   OC_ProfileContext* oC_Profile();
 
-  class  KU_TransactionContext : public antlr4::ParserRuleContext {
+  class  NEUG_TransactionContext : public antlr4::ParserRuleContext {
   public:
-    KU_TransactionContext(antlr4::ParserRuleContext *parent, size_t invokingState);
+    NEUG_TransactionContext(antlr4::ParserRuleContext *parent, size_t invokingState);
     virtual size_t getRuleIndex() const override;
     antlr4::tree::TerminalNode *BEGIN();
     std::vector<antlr4::tree::TerminalNode *> SP();
@@ -1163,24 +1164,24 @@ public:
    
   };
 
-  KU_TransactionContext* kU_Transaction();
+  NEUG_TransactionContext* nEUG_Transaction();
 
-  class  KU_ExtensionContext : public antlr4::ParserRuleContext {
+  class  NEUG_ExtensionContext : public antlr4::ParserRuleContext {
   public:
-    KU_ExtensionContext(antlr4::ParserRuleContext *parent, size_t invokingState);
+    NEUG_ExtensionContext(antlr4::ParserRuleContext *parent, size_t invokingState);
     virtual size_t getRuleIndex() const override;
-    KU_LoadExtensionContext *kU_LoadExtension();
-    KU_InstallExtensionContext *kU_InstallExtension();
-    KU_UninstallExtensionContext *kU_UninstallExtension();
+    NEUG_LoadExtensionContext *nEUG_LoadExtension();
+    NEUG_InstallExtensionContext *nEUG_InstallExtension();
+    NEUG_UninstallExtensionContext *nEUG_UninstallExtension();
 
    
   };
 
-  KU_ExtensionContext* kU_Extension();
+  NEUG_ExtensionContext* nEUG_Extension();
 
-  class  KU_LoadExtensionContext : public antlr4::ParserRuleContext {
+  class  NEUG_LoadExtensionContext : public antlr4::ParserRuleContext {
   public:
-    KU_LoadExtensionContext(antlr4::ParserRuleContext *parent, size_t invokingState);
+    NEUG_LoadExtensionContext(antlr4::ParserRuleContext *parent, size_t invokingState);
     virtual size_t getRuleIndex() const override;
     antlr4::tree::TerminalNode *LOAD();
     std::vector<antlr4::tree::TerminalNode *> SP();
@@ -1192,11 +1193,11 @@ public:
    
   };
 
-  KU_LoadExtensionContext* kU_LoadExtension();
+  NEUG_LoadExtensionContext* nEUG_LoadExtension();
 
-  class  KU_InstallExtensionContext : public antlr4::ParserRuleContext {
+  class  NEUG_InstallExtensionContext : public antlr4::ParserRuleContext {
   public:
-    KU_InstallExtensionContext(antlr4::ParserRuleContext *parent, size_t invokingState);
+    NEUG_InstallExtensionContext(antlr4::ParserRuleContext *parent, size_t invokingState);
     virtual size_t getRuleIndex() const override;
     antlr4::tree::TerminalNode *INSTALL();
     std::vector<antlr4::tree::TerminalNode *> SP();
@@ -1208,11 +1209,11 @@ public:
    
   };
 
-  KU_InstallExtensionContext* kU_InstallExtension();
+  NEUG_InstallExtensionContext* nEUG_InstallExtension();
 
-  class  KU_UninstallExtensionContext : public antlr4::ParserRuleContext {
+  class  NEUG_UninstallExtensionContext : public antlr4::ParserRuleContext {
   public:
-    KU_UninstallExtensionContext(antlr4::ParserRuleContext *parent, size_t invokingState);
+    NEUG_UninstallExtensionContext(antlr4::ParserRuleContext *parent, size_t invokingState);
     virtual size_t getRuleIndex() const override;
     antlr4::tree::TerminalNode *UNINSTALL();
     std::vector<antlr4::tree::TerminalNode *> SP();
@@ -1224,7 +1225,7 @@ public:
    
   };
 
-  KU_UninstallExtensionContext* kU_UninstallExtension();
+  NEUG_UninstallExtensionContext* nEUG_UninstallExtension();
 
   class  OC_QueryContext : public antlr4::ParserRuleContext {
   public:
@@ -1275,8 +1276,8 @@ public:
     OC_CallUnionQueryContext(antlr4::ParserRuleContext *parent, size_t invokingState);
     virtual size_t getRuleIndex() const override;
     OC_CallUnionContext *oC_CallUnion();
-    std::vector<KU_QueryPartContext *> kU_QueryPart();
-    KU_QueryPartContext* kU_QueryPart(size_t i);
+    std::vector<NEUG_QueryPartContext *> nEUG_QueryPart();
+    NEUG_QueryPartContext* nEUG_QueryPart(size_t i);
     std::vector<antlr4::tree::TerminalNode *> SP();
     antlr4::tree::TerminalNode* SP(size_t i);
     OC_SingleQueryContext *oC_SingleQuery();
@@ -1351,8 +1352,8 @@ public:
     OC_MultiPartQueryContext(antlr4::ParserRuleContext *parent, size_t invokingState);
     virtual size_t getRuleIndex() const override;
     OC_SinglePartQueryContext *oC_SinglePartQuery();
-    std::vector<KU_QueryPartContext *> kU_QueryPart();
-    KU_QueryPartContext* kU_QueryPart(size_t i);
+    std::vector<NEUG_QueryPartContext *> nEUG_QueryPart();
+    NEUG_QueryPartContext* nEUG_QueryPart(size_t i);
     std::vector<antlr4::tree::TerminalNode *> SP();
     antlr4::tree::TerminalNode* SP(size_t i);
 
@@ -1361,9 +1362,9 @@ public:
 
   OC_MultiPartQueryContext* oC_MultiPartQuery();
 
-  class  KU_QueryPartContext : public antlr4::ParserRuleContext {
+  class  NEUG_QueryPartContext : public antlr4::ParserRuleContext {
   public:
-    KU_QueryPartContext(antlr4::ParserRuleContext *parent, size_t invokingState);
+    NEUG_QueryPartContext(antlr4::ParserRuleContext *parent, size_t invokingState);
     virtual size_t getRuleIndex() const override;
     OC_WithContext *oC_With();
     std::vector<OC_ReadingClauseContext *> oC_ReadingClause();
@@ -1376,7 +1377,7 @@ public:
    
   };
 
-  KU_QueryPartContext* kU_QueryPart();
+  NEUG_QueryPartContext* nEUG_QueryPart();
 
   class  OC_UpdatingClauseContext : public antlr4::ParserRuleContext {
   public:
@@ -1398,33 +1399,33 @@ public:
     virtual size_t getRuleIndex() const override;
     OC_MatchContext *oC_Match();
     OC_UnwindContext *oC_Unwind();
-    KU_InQueryCallContext *kU_InQueryCall();
-    KU_LoadFromContext *kU_LoadFrom();
+    NEUG_InQueryCallContext *nEUG_InQueryCall();
+    NEUG_LoadFromContext *nEUG_LoadFrom();
 
    
   };
 
   OC_ReadingClauseContext* oC_ReadingClause();
 
-  class  KU_LoadFromContext : public antlr4::ParserRuleContext {
+  class  NEUG_LoadFromContext : public antlr4::ParserRuleContext {
   public:
-    KU_LoadFromContext(antlr4::ParserRuleContext *parent, size_t invokingState);
+    NEUG_LoadFromContext(antlr4::ParserRuleContext *parent, size_t invokingState);
     virtual size_t getRuleIndex() const override;
     antlr4::tree::TerminalNode *LOAD();
     std::vector<antlr4::tree::TerminalNode *> SP();
     antlr4::tree::TerminalNode* SP(size_t i);
     antlr4::tree::TerminalNode *FROM();
-    KU_ScanSourceContext *kU_ScanSource();
+    NEUG_ScanSourceContext *nEUG_ScanSource();
     antlr4::tree::TerminalNode *WITH();
     antlr4::tree::TerminalNode *HEADERS();
-    KU_ColumnDefinitionsContext *kU_ColumnDefinitions();
-    KU_OptionsContext *kU_Options();
+    NEUG_ColumnDefinitionsContext *nEUG_ColumnDefinitions();
+    NEUG_OptionsContext *nEUG_Options();
     OC_WhereContext *oC_Where();
 
    
   };
 
-  KU_LoadFromContext* kU_LoadFrom();
+  NEUG_LoadFromContext* nEUG_LoadFrom();
 
   class  OC_YieldItemContext : public antlr4::ParserRuleContext {
   public:
@@ -1455,9 +1456,9 @@ public:
 
   OC_YieldItemsContext* oC_YieldItems();
 
-  class  KU_InQueryCallContext : public antlr4::ParserRuleContext {
+  class  NEUG_InQueryCallContext : public antlr4::ParserRuleContext {
   public:
-    KU_InQueryCallContext(antlr4::ParserRuleContext *parent, size_t invokingState);
+    NEUG_InQueryCallContext(antlr4::ParserRuleContext *parent, size_t invokingState);
     virtual size_t getRuleIndex() const override;
     antlr4::tree::TerminalNode *CALL();
     std::vector<antlr4::tree::TerminalNode *> SP();
@@ -1470,7 +1471,7 @@ public:
    
   };
 
-  KU_InQueryCallContext* kU_InQueryCall();
+  NEUG_InQueryCallContext* nEUG_InQueryCall();
 
   class  OC_MatchContext : public antlr4::ParserRuleContext {
   public:
@@ -1482,32 +1483,32 @@ public:
     std::vector<antlr4::tree::TerminalNode *> SP();
     antlr4::tree::TerminalNode* SP(size_t i);
     OC_WhereContext *oC_Where();
-    KU_HintContext *kU_Hint();
+    NEUG_HintContext *nEUG_Hint();
 
    
   };
 
   OC_MatchContext* oC_Match();
 
-  class  KU_HintContext : public antlr4::ParserRuleContext {
+  class  NEUG_HintContext : public antlr4::ParserRuleContext {
   public:
-    KU_HintContext(antlr4::ParserRuleContext *parent, size_t invokingState);
+    NEUG_HintContext(antlr4::ParserRuleContext *parent, size_t invokingState);
     virtual size_t getRuleIndex() const override;
     antlr4::tree::TerminalNode *HINT();
     antlr4::tree::TerminalNode *SP();
-    KU_JoinNodeContext *kU_JoinNode();
+    NEUG_JoinNodeContext *nEUG_JoinNode();
 
    
   };
 
-  KU_HintContext* kU_Hint();
+  NEUG_HintContext* nEUG_Hint();
 
-  class  KU_JoinNodeContext : public antlr4::ParserRuleContext {
+  class  NEUG_JoinNodeContext : public antlr4::ParserRuleContext {
   public:
-    KU_JoinNodeContext(antlr4::ParserRuleContext *parent, size_t invokingState);
+    NEUG_JoinNodeContext(antlr4::ParserRuleContext *parent, size_t invokingState);
     virtual size_t getRuleIndex() const override;
-    std::vector<KU_JoinNodeContext *> kU_JoinNode();
-    KU_JoinNodeContext* kU_JoinNode(size_t i);
+    std::vector<NEUG_JoinNodeContext *> nEUG_JoinNode();
+    NEUG_JoinNodeContext* nEUG_JoinNode(size_t i);
     std::vector<antlr4::tree::TerminalNode *> SP();
     antlr4::tree::TerminalNode* SP(size_t i);
     std::vector<OC_SchemaNameContext *> oC_SchemaName();
@@ -1519,8 +1520,8 @@ public:
    
   };
 
-  KU_JoinNodeContext* kU_JoinNode();
-  KU_JoinNodeContext* kU_JoinNode(int precedence);
+  NEUG_JoinNodeContext* nEUG_JoinNode();
+  NEUG_JoinNodeContext* nEUG_JoinNode(int precedence);
   class  OC_UnwindContext : public antlr4::ParserRuleContext {
   public:
     OC_UnwindContext(antlr4::ParserRuleContext *parent, size_t invokingState);
@@ -1834,7 +1835,7 @@ public:
     antlr4::tree::TerminalNode* SP(size_t i);
     OC_VariableContext *oC_Variable();
     OC_NodeLabelsContext *oC_NodeLabels();
-    KU_PropertiesContext *kU_Properties();
+    NEUG_PropertiesContext *nEUG_Properties();
 
    
   };
@@ -1879,17 +1880,17 @@ public:
     antlr4::tree::TerminalNode* SP(size_t i);
     OC_VariableContext *oC_Variable();
     OC_RelationshipTypesContext *oC_RelationshipTypes();
-    KU_RecursiveDetailContext *kU_RecursiveDetail();
-    KU_PropertiesContext *kU_Properties();
+    NEUG_RecursiveDetailContext *nEUG_RecursiveDetail();
+    NEUG_PropertiesContext *nEUG_Properties();
 
    
   };
 
   OC_RelationshipDetailContext* oC_RelationshipDetail();
 
-  class  KU_PropertiesContext : public antlr4::ParserRuleContext {
+  class  NEUG_PropertiesContext : public antlr4::ParserRuleContext {
   public:
-    KU_PropertiesContext(antlr4::ParserRuleContext *parent, size_t invokingState);
+    NEUG_PropertiesContext(antlr4::ParserRuleContext *parent, size_t invokingState);
     virtual size_t getRuleIndex() const override;
     std::vector<antlr4::tree::TerminalNode *> SP();
     antlr4::tree::TerminalNode* SP(size_t i);
@@ -1903,7 +1904,7 @@ public:
    
   };
 
-  KU_PropertiesContext* kU_Properties();
+  NEUG_PropertiesContext* nEUG_Properties();
 
   class  OC_RelationshipTypesContext : public antlr4::ParserRuleContext {
   public:
@@ -1948,25 +1949,25 @@ public:
 
   OC_NodeLabelContext* oC_NodeLabel();
 
-  class  KU_RecursiveDetailContext : public antlr4::ParserRuleContext {
+  class  NEUG_RecursiveDetailContext : public antlr4::ParserRuleContext {
   public:
-    KU_RecursiveDetailContext(antlr4::ParserRuleContext *parent, size_t invokingState);
+    NEUG_RecursiveDetailContext(antlr4::ParserRuleContext *parent, size_t invokingState);
     virtual size_t getRuleIndex() const override;
     antlr4::tree::TerminalNode *STAR();
-    KU_RecursiveTypeContext *kU_RecursiveType();
+    NEUG_RecursiveTypeContext *nEUG_RecursiveType();
     OC_RangeLiteralContext *oC_RangeLiteral();
-    KU_RecursiveComprehensionContext *kU_RecursiveComprehension();
+    NEUG_RecursiveComprehensionContext *nEUG_RecursiveComprehension();
     std::vector<antlr4::tree::TerminalNode *> SP();
     antlr4::tree::TerminalNode* SP(size_t i);
 
    
   };
 
-  KU_RecursiveDetailContext* kU_RecursiveDetail();
+  NEUG_RecursiveDetailContext* nEUG_RecursiveDetail();
 
-  class  KU_RecursiveTypeContext : public antlr4::ParserRuleContext {
+  class  NEUG_RecursiveTypeContext : public antlr4::ParserRuleContext {
   public:
-    KU_RecursiveTypeContext(antlr4::ParserRuleContext *parent, size_t invokingState);
+    NEUG_RecursiveTypeContext(antlr4::ParserRuleContext *parent, size_t invokingState);
     virtual size_t getRuleIndex() const override;
     antlr4::tree::TerminalNode *WSHORTEST();
     OC_PropertyKeyNameContext *oC_PropertyKeyName();
@@ -1980,7 +1981,7 @@ public:
    
   };
 
-  KU_RecursiveTypeContext* kU_RecursiveType();
+  NEUG_RecursiveTypeContext* nEUG_RecursiveType();
 
   class  OC_RangeLiteralContext : public antlr4::ParserRuleContext {
   public:
@@ -1997,26 +1998,26 @@ public:
 
   OC_RangeLiteralContext* oC_RangeLiteral();
 
-  class  KU_RecursiveComprehensionContext : public antlr4::ParserRuleContext {
+  class  NEUG_RecursiveComprehensionContext : public antlr4::ParserRuleContext {
   public:
-    KU_RecursiveComprehensionContext(antlr4::ParserRuleContext *parent, size_t invokingState);
+    NEUG_RecursiveComprehensionContext(antlr4::ParserRuleContext *parent, size_t invokingState);
     virtual size_t getRuleIndex() const override;
     std::vector<OC_VariableContext *> oC_Variable();
     OC_VariableContext* oC_Variable(size_t i);
     std::vector<antlr4::tree::TerminalNode *> SP();
     antlr4::tree::TerminalNode* SP(size_t i);
     OC_WhereContext *oC_Where();
-    std::vector<KU_RecursiveProjectionItemsContext *> kU_RecursiveProjectionItems();
-    KU_RecursiveProjectionItemsContext* kU_RecursiveProjectionItems(size_t i);
+    std::vector<NEUG_RecursiveProjectionItemsContext *> nEUG_RecursiveProjectionItems();
+    NEUG_RecursiveProjectionItemsContext* nEUG_RecursiveProjectionItems(size_t i);
 
    
   };
 
-  KU_RecursiveComprehensionContext* kU_RecursiveComprehension();
+  NEUG_RecursiveComprehensionContext* nEUG_RecursiveComprehension();
 
-  class  KU_RecursiveProjectionItemsContext : public antlr4::ParserRuleContext {
+  class  NEUG_RecursiveProjectionItemsContext : public antlr4::ParserRuleContext {
   public:
-    KU_RecursiveProjectionItemsContext(antlr4::ParserRuleContext *parent, size_t invokingState);
+    NEUG_RecursiveProjectionItemsContext(antlr4::ParserRuleContext *parent, size_t invokingState);
     virtual size_t getRuleIndex() const override;
     std::vector<antlr4::tree::TerminalNode *> SP();
     antlr4::tree::TerminalNode* SP(size_t i);
@@ -2025,7 +2026,7 @@ public:
    
   };
 
-  KU_RecursiveProjectionItemsContext* kU_RecursiveProjectionItems();
+  NEUG_RecursiveProjectionItemsContext* nEUG_RecursiveProjectionItems();
 
   class  OC_LowerBoundContext : public antlr4::ParserRuleContext {
   public:
@@ -2150,10 +2151,10 @@ public:
     antlr4::Token *invalid_not_equalToken = nullptr;
     OC_ComparisonExpressionContext(antlr4::ParserRuleContext *parent, size_t invokingState);
     virtual size_t getRuleIndex() const override;
-    std::vector<KU_BitwiseOrOperatorExpressionContext *> kU_BitwiseOrOperatorExpression();
-    KU_BitwiseOrOperatorExpressionContext* kU_BitwiseOrOperatorExpression(size_t i);
-    std::vector<KU_ComparisonOperatorContext *> kU_ComparisonOperator();
-    KU_ComparisonOperatorContext* kU_ComparisonOperator(size_t i);
+    std::vector<NEUG_BitwiseOrOperatorExpressionContext *> nEUG_BitwiseOrOperatorExpression();
+    NEUG_BitwiseOrOperatorExpressionContext* nEUG_BitwiseOrOperatorExpression(size_t i);
+    std::vector<NEUG_ComparisonOperatorContext *> nEUG_ComparisonOperator();
+    NEUG_ComparisonOperatorContext* nEUG_ComparisonOperator(size_t i);
     std::vector<antlr4::tree::TerminalNode *> SP();
     antlr4::tree::TerminalNode* SP(size_t i);
     antlr4::tree::TerminalNode *INVALID_NOT_EQUAL();
@@ -2163,69 +2164,69 @@ public:
 
   OC_ComparisonExpressionContext* oC_ComparisonExpression();
 
-  class  KU_ComparisonOperatorContext : public antlr4::ParserRuleContext {
+  class  NEUG_ComparisonOperatorContext : public antlr4::ParserRuleContext {
   public:
-    KU_ComparisonOperatorContext(antlr4::ParserRuleContext *parent, size_t invokingState);
+    NEUG_ComparisonOperatorContext(antlr4::ParserRuleContext *parent, size_t invokingState);
     virtual size_t getRuleIndex() const override;
 
    
   };
 
-  KU_ComparisonOperatorContext* kU_ComparisonOperator();
+  NEUG_ComparisonOperatorContext* nEUG_ComparisonOperator();
 
-  class  KU_BitwiseOrOperatorExpressionContext : public antlr4::ParserRuleContext {
+  class  NEUG_BitwiseOrOperatorExpressionContext : public antlr4::ParserRuleContext {
   public:
-    KU_BitwiseOrOperatorExpressionContext(antlr4::ParserRuleContext *parent, size_t invokingState);
+    NEUG_BitwiseOrOperatorExpressionContext(antlr4::ParserRuleContext *parent, size_t invokingState);
     virtual size_t getRuleIndex() const override;
-    std::vector<KU_BitwiseAndOperatorExpressionContext *> kU_BitwiseAndOperatorExpression();
-    KU_BitwiseAndOperatorExpressionContext* kU_BitwiseAndOperatorExpression(size_t i);
+    std::vector<NEUG_BitwiseAndOperatorExpressionContext *> nEUG_BitwiseAndOperatorExpression();
+    NEUG_BitwiseAndOperatorExpressionContext* nEUG_BitwiseAndOperatorExpression(size_t i);
     std::vector<antlr4::tree::TerminalNode *> SP();
     antlr4::tree::TerminalNode* SP(size_t i);
 
    
   };
 
-  KU_BitwiseOrOperatorExpressionContext* kU_BitwiseOrOperatorExpression();
+  NEUG_BitwiseOrOperatorExpressionContext* nEUG_BitwiseOrOperatorExpression();
 
-  class  KU_BitwiseAndOperatorExpressionContext : public antlr4::ParserRuleContext {
+  class  NEUG_BitwiseAndOperatorExpressionContext : public antlr4::ParserRuleContext {
   public:
-    KU_BitwiseAndOperatorExpressionContext(antlr4::ParserRuleContext *parent, size_t invokingState);
+    NEUG_BitwiseAndOperatorExpressionContext(antlr4::ParserRuleContext *parent, size_t invokingState);
     virtual size_t getRuleIndex() const override;
-    std::vector<KU_BitShiftOperatorExpressionContext *> kU_BitShiftOperatorExpression();
-    KU_BitShiftOperatorExpressionContext* kU_BitShiftOperatorExpression(size_t i);
+    std::vector<NEUG_BitShiftOperatorExpressionContext *> nEUG_BitShiftOperatorExpression();
+    NEUG_BitShiftOperatorExpressionContext* nEUG_BitShiftOperatorExpression(size_t i);
     std::vector<antlr4::tree::TerminalNode *> SP();
     antlr4::tree::TerminalNode* SP(size_t i);
 
    
   };
 
-  KU_BitwiseAndOperatorExpressionContext* kU_BitwiseAndOperatorExpression();
+  NEUG_BitwiseAndOperatorExpressionContext* nEUG_BitwiseAndOperatorExpression();
 
-  class  KU_BitShiftOperatorExpressionContext : public antlr4::ParserRuleContext {
+  class  NEUG_BitShiftOperatorExpressionContext : public antlr4::ParserRuleContext {
   public:
-    KU_BitShiftOperatorExpressionContext(antlr4::ParserRuleContext *parent, size_t invokingState);
+    NEUG_BitShiftOperatorExpressionContext(antlr4::ParserRuleContext *parent, size_t invokingState);
     virtual size_t getRuleIndex() const override;
     std::vector<OC_AddOrSubtractExpressionContext *> oC_AddOrSubtractExpression();
     OC_AddOrSubtractExpressionContext* oC_AddOrSubtractExpression(size_t i);
-    std::vector<KU_BitShiftOperatorContext *> kU_BitShiftOperator();
-    KU_BitShiftOperatorContext* kU_BitShiftOperator(size_t i);
+    std::vector<NEUG_BitShiftOperatorContext *> nEUG_BitShiftOperator();
+    NEUG_BitShiftOperatorContext* nEUG_BitShiftOperator(size_t i);
     std::vector<antlr4::tree::TerminalNode *> SP();
     antlr4::tree::TerminalNode* SP(size_t i);
 
    
   };
 
-  KU_BitShiftOperatorExpressionContext* kU_BitShiftOperatorExpression();
+  NEUG_BitShiftOperatorExpressionContext* nEUG_BitShiftOperatorExpression();
 
-  class  KU_BitShiftOperatorContext : public antlr4::ParserRuleContext {
+  class  NEUG_BitShiftOperatorContext : public antlr4::ParserRuleContext {
   public:
-    KU_BitShiftOperatorContext(antlr4::ParserRuleContext *parent, size_t invokingState);
+    NEUG_BitShiftOperatorContext(antlr4::ParserRuleContext *parent, size_t invokingState);
     virtual size_t getRuleIndex() const override;
 
    
   };
 
-  KU_BitShiftOperatorContext* kU_BitShiftOperator();
+  NEUG_BitShiftOperatorContext* nEUG_BitShiftOperator();
 
   class  OC_AddOrSubtractExpressionContext : public antlr4::ParserRuleContext {
   public:
@@ -2233,8 +2234,8 @@ public:
     virtual size_t getRuleIndex() const override;
     std::vector<OC_MultiplyDivideModuloExpressionContext *> oC_MultiplyDivideModuloExpression();
     OC_MultiplyDivideModuloExpressionContext* oC_MultiplyDivideModuloExpression(size_t i);
-    std::vector<KU_AddOrSubtractOperatorContext *> kU_AddOrSubtractOperator();
-    KU_AddOrSubtractOperatorContext* kU_AddOrSubtractOperator(size_t i);
+    std::vector<NEUG_AddOrSubtractOperatorContext *> nEUG_AddOrSubtractOperator();
+    NEUG_AddOrSubtractOperatorContext* nEUG_AddOrSubtractOperator(size_t i);
     std::vector<antlr4::tree::TerminalNode *> SP();
     antlr4::tree::TerminalNode* SP(size_t i);
 
@@ -2243,16 +2244,16 @@ public:
 
   OC_AddOrSubtractExpressionContext* oC_AddOrSubtractExpression();
 
-  class  KU_AddOrSubtractOperatorContext : public antlr4::ParserRuleContext {
+  class  NEUG_AddOrSubtractOperatorContext : public antlr4::ParserRuleContext {
   public:
-    KU_AddOrSubtractOperatorContext(antlr4::ParserRuleContext *parent, size_t invokingState);
+    NEUG_AddOrSubtractOperatorContext(antlr4::ParserRuleContext *parent, size_t invokingState);
     virtual size_t getRuleIndex() const override;
     antlr4::tree::TerminalNode *MINUS();
 
    
   };
 
-  KU_AddOrSubtractOperatorContext* kU_AddOrSubtractOperator();
+  NEUG_AddOrSubtractOperatorContext* nEUG_AddOrSubtractOperator();
 
   class  OC_MultiplyDivideModuloExpressionContext : public antlr4::ParserRuleContext {
   public:
@@ -2260,8 +2261,8 @@ public:
     virtual size_t getRuleIndex() const override;
     std::vector<OC_PowerOfExpressionContext *> oC_PowerOfExpression();
     OC_PowerOfExpressionContext* oC_PowerOfExpression(size_t i);
-    std::vector<KU_MultiplyDivideModuloOperatorContext *> kU_MultiplyDivideModuloOperator();
-    KU_MultiplyDivideModuloOperatorContext* kU_MultiplyDivideModuloOperator(size_t i);
+    std::vector<NEUG_MultiplyDivideModuloOperatorContext *> nEUG_MultiplyDivideModuloOperator();
+    NEUG_MultiplyDivideModuloOperatorContext* nEUG_MultiplyDivideModuloOperator(size_t i);
     std::vector<antlr4::tree::TerminalNode *> SP();
     antlr4::tree::TerminalNode* SP(size_t i);
 
@@ -2270,16 +2271,16 @@ public:
 
   OC_MultiplyDivideModuloExpressionContext* oC_MultiplyDivideModuloExpression();
 
-  class  KU_MultiplyDivideModuloOperatorContext : public antlr4::ParserRuleContext {
+  class  NEUG_MultiplyDivideModuloOperatorContext : public antlr4::ParserRuleContext {
   public:
-    KU_MultiplyDivideModuloOperatorContext(antlr4::ParserRuleContext *parent, size_t invokingState);
+    NEUG_MultiplyDivideModuloOperatorContext(antlr4::ParserRuleContext *parent, size_t invokingState);
     virtual size_t getRuleIndex() const override;
     antlr4::tree::TerminalNode *STAR();
 
    
   };
 
-  KU_MultiplyDivideModuloOperatorContext* kU_MultiplyDivideModuloOperator();
+  NEUG_MultiplyDivideModuloOperatorContext* nEUG_MultiplyDivideModuloOperator();
 
   class  OC_PowerOfExpressionContext : public antlr4::ParserRuleContext {
   public:
@@ -2475,7 +2476,7 @@ public:
     OC_BooleanLiteralContext *oC_BooleanLiteral();
     antlr4::tree::TerminalNode *NULL_();
     OC_ListLiteralContext *oC_ListLiteral();
-    KU_StructLiteralContext *kU_StructLiteral();
+    NEUG_StructLiteralContext *nEUG_StructLiteral();
 
    
   };
@@ -2501,17 +2502,17 @@ public:
     std::vector<antlr4::tree::TerminalNode *> SP();
     antlr4::tree::TerminalNode* SP(size_t i);
     OC_ExpressionContext *oC_Expression();
-    std::vector<KU_ListEntryContext *> kU_ListEntry();
-    KU_ListEntryContext* kU_ListEntry(size_t i);
+    std::vector<NEUG_ListEntryContext *> nEUG_ListEntry();
+    NEUG_ListEntryContext* nEUG_ListEntry(size_t i);
 
    
   };
 
   OC_ListLiteralContext* oC_ListLiteral();
 
-  class  KU_ListEntryContext : public antlr4::ParserRuleContext {
+  class  NEUG_ListEntryContext : public antlr4::ParserRuleContext {
   public:
-    KU_ListEntryContext(antlr4::ParserRuleContext *parent, size_t invokingState);
+    NEUG_ListEntryContext(antlr4::ParserRuleContext *parent, size_t invokingState);
     virtual size_t getRuleIndex() const override;
     antlr4::tree::TerminalNode *SP();
     OC_ExpressionContext *oC_Expression();
@@ -2519,25 +2520,25 @@ public:
    
   };
 
-  KU_ListEntryContext* kU_ListEntry();
+  NEUG_ListEntryContext* nEUG_ListEntry();
 
-  class  KU_StructLiteralContext : public antlr4::ParserRuleContext {
+  class  NEUG_StructLiteralContext : public antlr4::ParserRuleContext {
   public:
-    KU_StructLiteralContext(antlr4::ParserRuleContext *parent, size_t invokingState);
+    NEUG_StructLiteralContext(antlr4::ParserRuleContext *parent, size_t invokingState);
     virtual size_t getRuleIndex() const override;
-    std::vector<KU_StructFieldContext *> kU_StructField();
-    KU_StructFieldContext* kU_StructField(size_t i);
+    std::vector<NEUG_StructFieldContext *> nEUG_StructField();
+    NEUG_StructFieldContext* nEUG_StructField(size_t i);
     std::vector<antlr4::tree::TerminalNode *> SP();
     antlr4::tree::TerminalNode* SP(size_t i);
 
    
   };
 
-  KU_StructLiteralContext* kU_StructLiteral();
+  NEUG_StructLiteralContext* nEUG_StructLiteral();
 
-  class  KU_StructFieldContext : public antlr4::ParserRuleContext {
+  class  NEUG_StructFieldContext : public antlr4::ParserRuleContext {
   public:
-    KU_StructFieldContext(antlr4::ParserRuleContext *parent, size_t invokingState);
+    NEUG_StructFieldContext(antlr4::ParserRuleContext *parent, size_t invokingState);
     virtual size_t getRuleIndex() const override;
     antlr4::tree::TerminalNode *COLON();
     OC_ExpressionContext *oC_Expression();
@@ -2549,7 +2550,7 @@ public:
    
   };
 
-  KU_StructFieldContext* kU_StructField();
+  NEUG_StructFieldContext* nEUG_StructField();
 
   class  OC_ParenthesizedExpressionContext : public antlr4::ParserRuleContext {
   public:
@@ -2573,10 +2574,10 @@ public:
     std::vector<antlr4::tree::TerminalNode *> SP();
     antlr4::tree::TerminalNode* SP(size_t i);
     antlr4::tree::TerminalNode *CAST();
-    std::vector<KU_FunctionParameterContext *> kU_FunctionParameter();
-    KU_FunctionParameterContext* kU_FunctionParameter(size_t i);
+    std::vector<NEUG_FunctionParameterContext *> nEUG_FunctionParameter();
+    NEUG_FunctionParameterContext* nEUG_FunctionParameter(size_t i);
     antlr4::tree::TerminalNode *AS();
-    KU_DataTypeContext *kU_DataType();
+    NEUG_DataTypeContext *nEUG_DataType();
     OC_FunctionNameContext *oC_FunctionName();
     antlr4::tree::TerminalNode *DISTINCT();
 
@@ -2596,27 +2597,27 @@ public:
 
   OC_FunctionNameContext* oC_FunctionName();
 
-  class  KU_FunctionParameterContext : public antlr4::ParserRuleContext {
+  class  NEUG_FunctionParameterContext : public antlr4::ParserRuleContext {
   public:
-    KU_FunctionParameterContext(antlr4::ParserRuleContext *parent, size_t invokingState);
+    NEUG_FunctionParameterContext(antlr4::ParserRuleContext *parent, size_t invokingState);
     virtual size_t getRuleIndex() const override;
     OC_ExpressionContext *oC_Expression();
     OC_SymbolicNameContext *oC_SymbolicName();
     antlr4::tree::TerminalNode *COLON();
     std::vector<antlr4::tree::TerminalNode *> SP();
     antlr4::tree::TerminalNode* SP(size_t i);
-    KU_LambdaParameterContext *kU_LambdaParameter();
+    NEUG_LambdaParameterContext *nEUG_LambdaParameter();
 
    
   };
 
-  KU_FunctionParameterContext* kU_FunctionParameter();
+  NEUG_FunctionParameterContext* nEUG_FunctionParameter();
 
-  class  KU_LambdaParameterContext : public antlr4::ParserRuleContext {
+  class  NEUG_LambdaParameterContext : public antlr4::ParserRuleContext {
   public:
-    KU_LambdaParameterContext(antlr4::ParserRuleContext *parent, size_t invokingState);
+    NEUG_LambdaParameterContext(antlr4::ParserRuleContext *parent, size_t invokingState);
     virtual size_t getRuleIndex() const override;
-    KU_LambdaVarsContext *kU_LambdaVars();
+    NEUG_LambdaVarsContext *nEUG_LambdaVars();
     antlr4::tree::TerminalNode *MINUS();
     OC_ExpressionContext *oC_Expression();
     std::vector<antlr4::tree::TerminalNode *> SP();
@@ -2625,11 +2626,11 @@ public:
    
   };
 
-  KU_LambdaParameterContext* kU_LambdaParameter();
+  NEUG_LambdaParameterContext* nEUG_LambdaParameter();
 
-  class  KU_LambdaVarsContext : public antlr4::ParserRuleContext {
+  class  NEUG_LambdaVarsContext : public antlr4::ParserRuleContext {
   public:
-    KU_LambdaVarsContext(antlr4::ParserRuleContext *parent, size_t invokingState);
+    NEUG_LambdaVarsContext(antlr4::ParserRuleContext *parent, size_t invokingState);
     virtual size_t getRuleIndex() const override;
     std::vector<OC_SymbolicNameContext *> oC_SymbolicName();
     OC_SymbolicNameContext* oC_SymbolicName(size_t i);
@@ -2639,7 +2640,7 @@ public:
    
   };
 
-  KU_LambdaVarsContext* kU_LambdaVars();
+  NEUG_LambdaVarsContext* nEUG_LambdaVars();
 
   class  OC_PathPatternsContext : public antlr4::ParserRuleContext {
   public:
@@ -2667,7 +2668,7 @@ public:
     std::vector<antlr4::tree::TerminalNode *> SP();
     antlr4::tree::TerminalNode* SP(size_t i);
     OC_WhereContext *oC_Where();
-    KU_HintContext *kU_Hint();
+    NEUG_HintContext *nEUG_Hint();
 
    
   };
@@ -2823,16 +2824,16 @@ public:
     antlr4::tree::TerminalNode *UnescapedSymbolicName();
     antlr4::tree::TerminalNode *EscapedSymbolicName();
     antlr4::tree::TerminalNode *HexLetter();
-    KU_NonReservedKeywordsContext *kU_NonReservedKeywords();
+    NEUG_NonReservedKeywordsContext *nEUG_NonReservedKeywords();
 
    
   };
 
   OC_SymbolicNameContext* oC_SymbolicName();
 
-  class  KU_NonReservedKeywordsContext : public antlr4::ParserRuleContext {
+  class  NEUG_NonReservedKeywordsContext : public antlr4::ParserRuleContext {
   public:
-    KU_NonReservedKeywordsContext(antlr4::ParserRuleContext *parent, size_t invokingState);
+    NEUG_NonReservedKeywordsContext(antlr4::ParserRuleContext *parent, size_t invokingState);
     virtual size_t getRuleIndex() const override;
     antlr4::tree::TerminalNode *COMMENT();
     antlr4::tree::TerminalNode *ADD();
@@ -2892,7 +2893,7 @@ public:
    
   };
 
-  KU_NonReservedKeywordsContext* kU_NonReservedKeywords();
+  NEUG_NonReservedKeywordsContext* nEUG_NonReservedKeywords();
 
   class  OC_LeftArrowHeadContext : public antlr4::ParserRuleContext {
   public:
@@ -2928,8 +2929,8 @@ public:
 
   bool sempred(antlr4::RuleContext *_localctx, size_t ruleIndex, size_t predicateIndex) override;
 
-  bool kU_DataTypeSempred(KU_DataTypeContext *_localctx, size_t predicateIndex);
-  bool kU_JoinNodeSempred(KU_JoinNodeContext *_localctx, size_t predicateIndex);
+  bool nEUG_DataTypeSempred(NEUG_DataTypeContext *_localctx, size_t predicateIndex);
+  bool nEUG_JoinNodeSempred(NEUG_JoinNodeContext *_localctx, size_t predicateIndex);
 
   // By default the static state used to implement the parser is lazily initialized during the first
   // call to the constructor. You can call this function if you wish to initialize the static state

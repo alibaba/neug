@@ -31,7 +31,7 @@ namespace gs {
 namespace parser {
 
 std::unique_ptr<Statement> Transformer::transformTransaction(
-    CypherParser::KU_TransactionContext& ctx) {
+    CypherParser::NEUG_TransactionContext& ctx) {
   if (ctx.TRANSACTION()) {
     if (ctx.READ()) {
       return std::make_unique<TransactionStatement>(
@@ -50,7 +50,7 @@ std::unique_ptr<Statement> Transformer::transformTransaction(
     return std::make_unique<TransactionStatement>(
         TransactionAction::CHECKPOINT);
   }
-  KU_UNREACHABLE;
+  NEUG_UNREACHABLE;
 }
 
 }  // namespace parser

@@ -56,8 +56,8 @@ static void outputRelTableConnection(DataChunk& outputDataChunk,
                                      const ClientContext& context,
                                      TableCatalogEntry* entry) {
   const auto catalog = context.getCatalog();
-  KU_ASSERT(entry->getType() == CatalogEntryType::REL_TABLE_ENTRY);
-  const auto relTableEntry = ku_dynamic_cast<RelTableCatalogEntry*>(entry);
+  NEUG_ASSERT(entry->getType() == CatalogEntryType::REL_TABLE_ENTRY);
+  const auto relTableEntry = neug_dynamic_cast<RelTableCatalogEntry*>(entry);
 
   const auto srcTableID = relTableEntry->getSrcTableID();
   const auto dstTableID = relTableEntry->getDstTableID();

@@ -42,7 +42,7 @@ namespace binder {
 
 std::unique_ptr<BoundStatement> Binder::bindCopyFromClause(
     const Statement& statement) {
-  auto& copyStatement = ku_dynamic_cast<const CopyFrom&>(statement);
+  auto& copyStatement = neug_dynamic_cast<const CopyFrom&>(statement);
   auto tableName = copyStatement.getTableName();
   auto catalog = clientContext->getCatalog();
   auto transaction = clientContext->getTransaction();
@@ -91,7 +91,7 @@ std::unique_ptr<BoundStatement> Binder::bindCopyFromClause(
       return bindCopyRelFrom(statement, relTableEntry);
     }
     default: {
-      KU_UNREACHABLE;
+      NEUG_UNREACHABLE;
     }
     }
   }
@@ -128,7 +128,7 @@ matchColumnExpression(const expression_vector& columns,
 
 std::unique_ptr<BoundStatement> Binder::bindCopyNodeFrom(
     const Statement& statement, NodeTableCatalogEntry* nodeTableEntry) {
-  auto& copyStatement = ku_dynamic_cast<const CopyFrom&>(statement);
+  auto& copyStatement = neug_dynamic_cast<const CopyFrom&>(statement);
   // Bind expected columns based on catalog information.
   std::vector<std::string> expectedColumnNames;
   std::vector<LogicalType> expectedColumnTypes;
@@ -305,7 +305,7 @@ void bindExpectedNodeColumns(const NodeTableCatalogEntry* nodeTableEntry,
                              const CopyFromColumnInfo& info,
                              std::vector<std::string>& columnNames,
                              std::vector<LogicalType>& columnTypes) {
-  KU_ASSERT(columnNames.empty() && columnTypes.empty());
+  NEUG_ASSERT(columnNames.empty() && columnTypes.empty());
   bindExpectedColumns(nodeTableEntry, info, columnNames, columnTypes);
 }
 
@@ -314,7 +314,7 @@ void bindExpectedRelColumns(const RelTableCatalogEntry* relTableEntry,
                             std::vector<std::string>& columnNames,
                             std::vector<LogicalType>& columnTypes,
                             const main::ClientContext* context) {
-  KU_ASSERT(columnNames.empty() && columnTypes.empty());
+  NEUG_ASSERT(columnNames.empty() && columnTypes.empty());
   auto catalog = context->getCatalog();
   auto transaction = context->getTransaction();
   auto srcTable =

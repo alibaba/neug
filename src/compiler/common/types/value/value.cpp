@@ -29,7 +29,7 @@
 #include "neug/compiler/common/serializer/serializer.h"
 #include "neug/compiler/common/type_utils.h"
 #include "neug/compiler/common/types/blob.h"
-#include "neug/compiler/common/types/ku_string.h"
+#include "neug/compiler/common/types/neug_string.h"
 #include "neug/compiler/common/types/uuid.h"
 #include "neug/compiler/common/vector/value_vector.h"
 #include "neug/compiler/function/hash/hash_functions.h"
@@ -89,12 +89,12 @@ bool Value::operator==(const Value& rhs) const {
     return true;
   }
   default:
-    KU_UNREACHABLE;
+    NEUG_UNREACHABLE;
   }
 }
 
 void Value::setDataType(const LogicalType& dataType_) {
-  KU_ASSERT(allowTypeChange());
+  NEUG_ASSERT(allowTypeChange());
   dataType = dataType_.copy();
 }
 
@@ -207,7 +207,7 @@ Value Value::createDefaultValue(const LogicalType& dataType) {
     return createNullValue();
   }
   default:
-    KU_UNREACHABLE;
+    NEUG_UNREACHABLE;
   }
 }
 
@@ -261,7 +261,7 @@ Value::Value(int128_t val_) : isNull_{false}, childrenSize{0} {
   val.int128Val = val_;
 }
 
-Value::Value(ku_uuid_t val_) : isNull_{false}, childrenSize{0} {
+Value::Value(neug_uuid_t val_) : isNull_{false}, childrenSize{0} {
   dataType = LogicalType::UUID();
   val.int128Val = val_.value;
 }
@@ -409,7 +409,7 @@ void Value::copyFromRowLayout(const uint8_t* value) {
       val.int128Val = (*(int128_t*) value);
       break;
     default:
-      KU_UNREACHABLE;
+      NEUG_UNREACHABLE;
     }
   } break;
   case LogicalTypeID::INTERVAL: {
@@ -422,19 +422,19 @@ void Value::copyFromRowLayout(const uint8_t* value) {
     strVal = ((blob_t*) value)->value.getAsString();
   } break;
   case LogicalTypeID::UUID: {
-    val.int128Val = ((ku_uuid_t*) value)->value;
-    strVal = UUID::toString(*((ku_uuid_t*) value));
+    val.int128Val = ((neug_uuid_t*) value)->value;
+    strVal = UUID::toString(*((neug_uuid_t*) value));
   } break;
   case LogicalTypeID::STRING: {
-    strVal = ((ku_string_t*) value)->getAsString();
+    strVal = ((neug_string_t*) value)->getAsString();
   } break;
   case LogicalTypeID::MAP:
   case LogicalTypeID::LIST: {
-    copyFromRowLayoutList(*(ku_list_t*) value,
+    copyFromRowLayoutList(*(neug_list_t*) value,
                           ListType::getChildType(dataType));
   } break;
   case LogicalTypeID::ARRAY: {
-    copyFromRowLayoutList(*(ku_list_t*) value,
+    copyFromRowLayoutList(*(neug_list_t*) value,
                           ArrayType::getChildType(dataType));
   } break;
   case LogicalTypeID::UNION: {
@@ -450,7 +450,7 @@ void Value::copyFromRowLayout(const uint8_t* value) {
     val.pointer = *((uint8_t**) value);
   } break;
   default:
-    KU_UNREACHABLE;
+    NEUG_UNREACHABLE;
   }
 }
 
@@ -496,7 +496,7 @@ void Value::copyFromColLayout(const uint8_t* value, ValueVector* vector) {
     val.intervalVal = *((interval_t*) value);
   } break;
   case PhysicalTypeID::STRING: {
-    strVal = ((ku_string_t*) value)->getAsString();
+    strVal = ((neug_string_t*) value)->getAsString();
   } break;
   case PhysicalTypeID::ARRAY:
   case PhysicalTypeID::LIST: {
@@ -509,7 +509,7 @@ void Value::copyFromColLayout(const uint8_t* value, ValueVector* vector) {
     val.internalIDVal = *((nodeID_t*) value);
   } break;
   default:
-    KU_UNREACHABLE;
+    NEUG_UNREACHABLE;
   }
 }
 
@@ -519,7 +519,7 @@ void Value::copyValueFrom(const Value& other) {
     return;
   }
   isNull_ = false;
-  KU_ASSERT(dataType == other.dataType);
+  NEUG_ASSERT(dataType == other.dataType);
   switch (dataType.getPhysicalType()) {
   case PhysicalTypeID::BOOL: {
     val.booleanVal = other.val.booleanVal;
@@ -577,7 +577,7 @@ void Value::copyValueFrom(const Value& other) {
     val.pointer = other.val.pointer;
   } break;
   default:
-    KU_UNREACHABLE;
+    NEUG_UNREACHABLE;
   }
 }
 
@@ -659,7 +659,7 @@ std::string Value::toString() const {
     return relToString();
   }
   default:
-    KU_UNREACHABLE;
+    NEUG_UNREACHABLE;
   }
 }
 
@@ -682,7 +682,7 @@ void Value::resizeChildrenVector(uint64_t size, const LogicalType& childType) {
   childrenSize = size;
 }
 
-void Value::copyFromRowLayoutList(const ku_list_t& list,
+void Value::copyFromRowLayoutList(const neug_list_t& list,
                                   const LogicalType& childType) {}
 
 void Value::copyFromColLayoutList(const list_entry_t& listEntry,
@@ -778,11 +778,11 @@ void Value::serialize(Serializer& serializer) const {
   } break;
   case PhysicalTypeID::ANY: {
     if (!isNull_) {
-      KU_UNREACHABLE;
+      NEUG_UNREACHABLE;
     }
   } break;
   default: {
-    KU_UNREACHABLE;
+    NEUG_UNREACHABLE;
   }
   }
 }
@@ -849,11 +849,11 @@ std::unique_ptr<Value> Value::deserialize(Deserializer& deserializer) {
   } break;
   case PhysicalTypeID::ANY: {
     if (!val->isNull_) {
-      KU_UNREACHABLE;
+      NEUG_UNREACHABLE;
     }
   } break;
   default: {
-    KU_UNREACHABLE;
+    NEUG_UNREACHABLE;
   }
   }
   return val;
@@ -978,7 +978,7 @@ uint64_t Value::computeHash() const {
     }
   } break;
   default: {
-    KU_UNREACHABLE;
+    NEUG_UNREACHABLE;
   }
   }
   return hashValue;
@@ -1076,7 +1076,7 @@ std::string Value::decimalToString() const {
     return DecimalType::insertDecimalPoint(TypeUtils::toString(val.int128Val),
                                            DecimalType::getScale(dataType));
   default:
-    KU_UNREACHABLE;
+    NEUG_UNREACHABLE;
   }
 }
 

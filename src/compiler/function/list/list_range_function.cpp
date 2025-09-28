@@ -63,7 +63,7 @@ struct Range {
     // start, start + step, start + 2step, ..., end
     T number = start;
     auto size = ((end - start) * 1.0 / step);
-    size < 0 ? size = 0 : size = (int64_t)(size + 1);
+    size < 0 ? size = 0 : size = (int64_t) (size + 1);
 
     result = ListVector::addList(&resultVector, (int64_t) size);
     auto resultDataVector = ListVector::getDataVector(&resultVector);
@@ -83,7 +83,7 @@ static scalar_func_exec_t getBinaryExecFunc(const LogicalType& type) {
             ScalarFunction::BinaryExecListStructFunction<T, T, list_entry_t,
                                                          Range>;
       },
-      [](auto) { KU_UNREACHABLE; });
+      [](auto) { NEUG_UNREACHABLE; });
   return execFunc;
 }
 
@@ -96,7 +96,7 @@ static scalar_func_exec_t getTernaryExecFunc(const LogicalType& type) {
             ScalarFunction::TernaryExecListStructFunction<T, T, T, list_entry_t,
                                                           Range>;
       },
-      [](auto) { KU_UNREACHABLE; });
+      [](auto) { NEUG_UNREACHABLE; });
   return execFunc;
 }
 

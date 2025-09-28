@@ -256,7 +256,7 @@ struct WarningConstants {
                 WARNING_TABLE_NUM_COLUMNS);
 };
 
-static constexpr char ATTACHED_NEUG_DB_TYPE[] = "KUZU";
+static constexpr char ATTACHED_NEUG_DB_TYPE[] = "NEUG";
 
 static constexpr char LOCAL_DB_NAME[] = "local(gs)";
 

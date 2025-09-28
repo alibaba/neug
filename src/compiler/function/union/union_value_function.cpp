@@ -30,7 +30,7 @@ namespace function {
 
 static std::unique_ptr<FunctionBindData> bindFunc(
     const ScalarBindFuncInput& input) {
-  KU_ASSERT(input.arguments.size() == 1);
+  NEUG_ASSERT(input.arguments.size() == 1);
   std::vector<StructField> fields;
   if (input.arguments[0]->getDataType().getLogicalTypeID() ==
       common::LogicalTypeID::ANY) {
@@ -54,7 +54,7 @@ static void valueCompileFunc(
     FunctionBindData* /*bindData*/,
     const std::vector<std::shared_ptr<ValueVector>>& parameters,
     std::shared_ptr<ValueVector>& result) {
-  KU_ASSERT(parameters.size() == 1);
+  NEUG_ASSERT(parameters.size() == 1);
   result->setState(parameters[0]->state);
   UnionVector::getTagVector(result.get())->setState(parameters[0]->state);
   UnionVector::referenceVector(result.get(), UnionType::TAG_FIELD_IDX,

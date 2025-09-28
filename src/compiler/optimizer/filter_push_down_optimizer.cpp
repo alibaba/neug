@@ -111,7 +111,7 @@ FilterPushDownOptimizer::visitCrossProductReplace(
       remainingPSet.addPredicate(p);
     }
   }
-  KU_ASSERT(op->getNumChildren() == 2);
+  NEUG_ASSERT(op->getNumChildren() == 2);
   auto probeOptimizer = FilterPushDownOptimizer(context, std::move(probePSet));
   op->setChild(0, probeOptimizer.visitOperator(op->getChild(0)));
   auto buildOptimizer = FilterPushDownOptimizer(context, std::move(buildPSet));

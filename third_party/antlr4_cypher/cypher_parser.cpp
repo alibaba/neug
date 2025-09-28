@@ -51,51 +51,52 @@ void cypherParserInitialize() {
 #endif
   auto staticData = std::make_unique<CypherParserStaticData>(
     std::vector<std::string>{
-      "ku_Statements", "oC_Cypher", "oC_Statement", "kU_CopyFrom", "kU_ColumnNames", 
-      "kU_ScanSource", "kU_CopyFromByColumn", "kU_CopyTO", "kU_ExportDatabase", 
-      "kU_ImportDatabase", "kU_AttachDatabase", "kU_Option", "kU_Options", 
-      "kU_DetachDatabase", "kU_UseDatabase", "kU_StandaloneCall", "kU_CommentOn", 
-      "kU_CreateMacro", "kU_PositionalArgs", "kU_DefaultArg", "kU_FilePaths", 
-      "kU_IfNotExists", "kU_CreateNodeTable", "kU_CreateRelTable", "kU_FromToConnections", 
-      "kU_FromToConnection", "kU_CreateSequence", "kU_CreateType", "kU_SequenceOptions", 
-      "kU_IncrementBy", "kU_MinValue", "kU_MaxValue", "kU_StartWith", "kU_Cycle", 
-      "kU_IfExists", "kU_Drop", "kU_AlterTable", "kU_AlterOptions", "kU_AddProperty", 
-      "kU_Default", "kU_DropProperty", "kU_RenameTable", "kU_RenameProperty", 
-      "kU_ColumnDefinitions", "kU_ColumnDefinition", "kU_PropertyDefinitions", 
-      "kU_PropertyDefinition", "kU_CreateNodeConstraint", "kU_DataType", 
-      "kU_ListIdentifiers", "kU_ListIdentifier", "oC_AnyCypherOption", "oC_Explain", 
-      "oC_Profile", "kU_Transaction", "kU_Extension", "kU_LoadExtension", 
-      "kU_InstallExtension", "kU_UninstallExtension", "oC_Query", "oC_RegularQuery", 
-      "oC_Union", "oC_CallUnionQuery", "oC_CallUnion", "oC_CallUnionScope", 
-      "oC_SingleQuery", "oC_SinglePartQuery", "oC_MultiPartQuery", "kU_QueryPart", 
-      "oC_UpdatingClause", "oC_ReadingClause", "kU_LoadFrom", "oC_YieldItem", 
-      "oC_YieldItems", "kU_InQueryCall", "oC_Match", "kU_Hint", "kU_JoinNode", 
-      "oC_Unwind", "oC_Create", "oC_Merge", "oC_MergeAction", "oC_Set", 
-      "oC_SetItem", "oC_Delete", "oC_With", "oC_Return", "oC_ProjectionBody", 
+      "neug_Statements", "oC_Cypher", "oC_Statement", "nEUG_CopyFrom", "nEUG_ColumnNames", 
+      "nEUG_ScanSource", "nEUG_CopyFromByColumn", "nEUG_CopyTO", "nEUG_ExportDatabase", 
+      "nEUG_ImportDatabase", "nEUG_AttachDatabase", "nEUG_Option", "nEUG_Options", 
+      "nEUG_DetachDatabase", "nEUG_UseDatabase", "nEUG_StandaloneCall", 
+      "nEUG_CommentOn", "nEUG_CreateMacro", "nEUG_PositionalArgs", "nEUG_DefaultArg", 
+      "nEUG_FilePaths", "nEUG_IfNotExists", "nEUG_CreateNodeTable", "nEUG_CreateRelTable", 
+      "nEUG_FromToConnections", "nEUG_FromToConnection", "nEUG_CreateSequence", 
+      "nEUG_CreateType", "nEUG_SequenceOptions", "nEUG_IncrementBy", "nEUG_MinValue", 
+      "nEUG_MaxValue", "nEUG_StartWith", "nEUG_Cycle", "nEUG_IfExists", 
+      "nEUG_Drop", "nEUG_AlterTable", "nEUG_AlterOptions", "nEUG_AddProperty", 
+      "nEUG_Default", "nEUG_DropProperty", "nEUG_RenameTable", "nEUG_RenameProperty", 
+      "nEUG_ColumnDefinitions", "nEUG_ColumnDefinition", "nEUG_PropertyDefinitions", 
+      "nEUG_PropertyDefinition", "nEUG_CreateNodeConstraint", "nEUG_DataType", 
+      "nEUG_ListIdentifiers", "nEUG_ListIdentifier", "oC_AnyCypherOption", 
+      "oC_Explain", "oC_Profile", "nEUG_Transaction", "nEUG_Extension", 
+      "nEUG_LoadExtension", "nEUG_InstallExtension", "nEUG_UninstallExtension", 
+      "oC_Query", "oC_RegularQuery", "oC_Union", "oC_CallUnionQuery", "oC_CallUnion", 
+      "oC_CallUnionScope", "oC_SingleQuery", "oC_SinglePartQuery", "oC_MultiPartQuery", 
+      "nEUG_QueryPart", "oC_UpdatingClause", "oC_ReadingClause", "nEUG_LoadFrom", 
+      "oC_YieldItem", "oC_YieldItems", "nEUG_InQueryCall", "oC_Match", "nEUG_Hint", 
+      "nEUG_JoinNode", "oC_Unwind", "oC_Create", "oC_Merge", "oC_MergeAction", 
+      "oC_Set", "oC_SetItem", "oC_Delete", "oC_With", "oC_Return", "oC_ProjectionBody", 
       "oC_ProjectionItems", "oC_ProjectionItem", "oC_Order", "oC_Skip", 
       "oC_Limit", "oC_SortItem", "oC_Where", "oC_Pattern", "oC_PatternPart", 
       "oC_AnonymousPatternPart", "oC_PatternElement", "oC_NodePattern", 
       "oC_PatternElementChain", "oC_RelationshipPattern", "oC_RelationshipDetail", 
-      "kU_Properties", "oC_RelationshipTypes", "oC_NodeLabels", "oC_NodeLabel", 
-      "kU_RecursiveDetail", "kU_RecursiveType", "oC_RangeLiteral", "kU_RecursiveComprehension", 
-      "kU_RecursiveProjectionItems", "oC_LowerBound", "oC_UpperBound", "oC_LabelName", 
-      "oC_RelTypeName", "oC_Expression", "oC_OrExpression", "oC_XorExpression", 
-      "oC_AndExpression", "oC_NotExpression", "oC_ComparisonExpression", 
-      "kU_ComparisonOperator", "kU_BitwiseOrOperatorExpression", "kU_BitwiseAndOperatorExpression", 
-      "kU_BitShiftOperatorExpression", "kU_BitShiftOperator", "oC_AddOrSubtractExpression", 
-      "kU_AddOrSubtractOperator", "oC_MultiplyDivideModuloExpression", "kU_MultiplyDivideModuloOperator", 
-      "oC_PowerOfExpression", "oC_UnaryAddSubtractOrFactorialExpression", 
+      "nEUG_Properties", "oC_RelationshipTypes", "oC_NodeLabels", "oC_NodeLabel", 
+      "nEUG_RecursiveDetail", "nEUG_RecursiveType", "oC_RangeLiteral", "nEUG_RecursiveComprehension", 
+      "nEUG_RecursiveProjectionItems", "oC_LowerBound", "oC_UpperBound", 
+      "oC_LabelName", "oC_RelTypeName", "oC_Expression", "oC_OrExpression", 
+      "oC_XorExpression", "oC_AndExpression", "oC_NotExpression", "oC_ComparisonExpression", 
+      "nEUG_ComparisonOperator", "nEUG_BitwiseOrOperatorExpression", "nEUG_BitwiseAndOperatorExpression", 
+      "nEUG_BitShiftOperatorExpression", "nEUG_BitShiftOperator", "oC_AddOrSubtractExpression", 
+      "nEUG_AddOrSubtractOperator", "oC_MultiplyDivideModuloExpression", 
+      "nEUG_MultiplyDivideModuloOperator", "oC_PowerOfExpression", "oC_UnaryAddSubtractOrFactorialExpression", 
       "oC_StringListNullOperatorExpression", "oC_ListOperatorExpression", 
       "oC_StringOperatorExpression", "oC_RegularExpression", "oC_NullOperatorExpression", 
       "oC_PropertyOrLabelsExpression", "oC_Atom", "oC_Quantifier", "oC_FilterExpression", 
       "oC_IdInColl", "oC_Literal", "oC_BooleanLiteral", "oC_ListLiteral", 
-      "kU_ListEntry", "kU_StructLiteral", "kU_StructField", "oC_ParenthesizedExpression", 
-      "oC_FunctionInvocation", "oC_FunctionName", "kU_FunctionParameter", 
-      "kU_LambdaParameter", "kU_LambdaVars", "oC_PathPatterns", "oC_ExistCountSubquery", 
+      "nEUG_ListEntry", "nEUG_StructLiteral", "nEUG_StructField", "oC_ParenthesizedExpression", 
+      "oC_FunctionInvocation", "oC_FunctionName", "nEUG_FunctionParameter", 
+      "nEUG_LambdaParameter", "nEUG_LambdaVars", "oC_PathPatterns", "oC_ExistCountSubquery", 
       "oC_PropertyLookup", "oC_CaseExpression", "oC_CaseAlternative", "oC_Variable", 
       "oC_NumberLiteral", "oC_Parameter", "oC_PropertyExpression", "oC_PropertyKeyName", 
       "oC_IntegerLiteral", "oC_DoubleLiteral", "oC_SchemaName", "oC_SymbolicName", 
-      "kU_NonReservedKeywords", "oC_LeftArrowHead", "oC_RightArrowHead", 
+      "nEUG_NonReservedKeywords", "oC_LeftArrowHead", "oC_RightArrowHead", 
       "oC_Dash"
     },
     std::vector<std::string>{
@@ -1336,41 +1337,41 @@ antlr4::atn::SerializedATNView CypherParser::getSerializedATN() const {
 }
 
 
-//----------------- Ku_StatementsContext ------------------------------------------------------------------
+//----------------- Neug_StatementsContext ------------------------------------------------------------------
 
-CypherParser::Ku_StatementsContext::Ku_StatementsContext(ParserRuleContext *parent, size_t invokingState)
+CypherParser::Neug_StatementsContext::Neug_StatementsContext(ParserRuleContext *parent, size_t invokingState)
   : ParserRuleContext(parent, invokingState) {
 }
 
-std::vector<CypherParser::OC_CypherContext *> CypherParser::Ku_StatementsContext::oC_Cypher() {
+std::vector<CypherParser::OC_CypherContext *> CypherParser::Neug_StatementsContext::oC_Cypher() {
   return getRuleContexts<CypherParser::OC_CypherContext>();
 }
 
-CypherParser::OC_CypherContext* CypherParser::Ku_StatementsContext::oC_Cypher(size_t i) {
+CypherParser::OC_CypherContext* CypherParser::Neug_StatementsContext::oC_Cypher(size_t i) {
   return getRuleContext<CypherParser::OC_CypherContext>(i);
 }
 
-tree::TerminalNode* CypherParser::Ku_StatementsContext::EOF() {
+tree::TerminalNode* CypherParser::Neug_StatementsContext::EOF() {
   return getToken(CypherParser::EOF, 0);
 }
 
-std::vector<tree::TerminalNode *> CypherParser::Ku_StatementsContext::SP() {
+std::vector<tree::TerminalNode *> CypherParser::Neug_StatementsContext::SP() {
   return getTokens(CypherParser::SP);
 }
 
-tree::TerminalNode* CypherParser::Ku_StatementsContext::SP(size_t i) {
+tree::TerminalNode* CypherParser::Neug_StatementsContext::SP(size_t i) {
   return getToken(CypherParser::SP, i);
 }
 
 
-size_t CypherParser::Ku_StatementsContext::getRuleIndex() const {
-  return CypherParser::RuleKu_Statements;
+size_t CypherParser::Neug_StatementsContext::getRuleIndex() const {
+  return CypherParser::RuleNeug_Statements;
 }
 
 
-CypherParser::Ku_StatementsContext* CypherParser::ku_Statements() {
-  Ku_StatementsContext *_localctx = _tracker.createInstance<Ku_StatementsContext>(_ctx, getState());
-  enterRule(_localctx, 0, CypherParser::RuleKu_Statements);
+CypherParser::Neug_StatementsContext* CypherParser::neug_Statements() {
+  Neug_StatementsContext *_localctx = _tracker.createInstance<Neug_StatementsContext>(_ctx, getState());
+  enterRule(_localctx, 0, CypherParser::RuleNeug_Statements);
   size_t _la = 0;
 
 #if __cplusplus > 201703L
@@ -1546,80 +1547,80 @@ CypherParser::OC_QueryContext* CypherParser::OC_StatementContext::oC_Query() {
   return getRuleContext<CypherParser::OC_QueryContext>(0);
 }
 
-CypherParser::KU_CreateNodeTableContext* CypherParser::OC_StatementContext::kU_CreateNodeTable() {
-  return getRuleContext<CypherParser::KU_CreateNodeTableContext>(0);
+CypherParser::NEUG_CreateNodeTableContext* CypherParser::OC_StatementContext::nEUG_CreateNodeTable() {
+  return getRuleContext<CypherParser::NEUG_CreateNodeTableContext>(0);
 }
 
-CypherParser::KU_CreateRelTableContext* CypherParser::OC_StatementContext::kU_CreateRelTable() {
-  return getRuleContext<CypherParser::KU_CreateRelTableContext>(0);
+CypherParser::NEUG_CreateRelTableContext* CypherParser::OC_StatementContext::nEUG_CreateRelTable() {
+  return getRuleContext<CypherParser::NEUG_CreateRelTableContext>(0);
 }
 
-CypherParser::KU_CreateSequenceContext* CypherParser::OC_StatementContext::kU_CreateSequence() {
-  return getRuleContext<CypherParser::KU_CreateSequenceContext>(0);
+CypherParser::NEUG_CreateSequenceContext* CypherParser::OC_StatementContext::nEUG_CreateSequence() {
+  return getRuleContext<CypherParser::NEUG_CreateSequenceContext>(0);
 }
 
-CypherParser::KU_CreateTypeContext* CypherParser::OC_StatementContext::kU_CreateType() {
-  return getRuleContext<CypherParser::KU_CreateTypeContext>(0);
+CypherParser::NEUG_CreateTypeContext* CypherParser::OC_StatementContext::nEUG_CreateType() {
+  return getRuleContext<CypherParser::NEUG_CreateTypeContext>(0);
 }
 
-CypherParser::KU_DropContext* CypherParser::OC_StatementContext::kU_Drop() {
-  return getRuleContext<CypherParser::KU_DropContext>(0);
+CypherParser::NEUG_DropContext* CypherParser::OC_StatementContext::nEUG_Drop() {
+  return getRuleContext<CypherParser::NEUG_DropContext>(0);
 }
 
-CypherParser::KU_AlterTableContext* CypherParser::OC_StatementContext::kU_AlterTable() {
-  return getRuleContext<CypherParser::KU_AlterTableContext>(0);
+CypherParser::NEUG_AlterTableContext* CypherParser::OC_StatementContext::nEUG_AlterTable() {
+  return getRuleContext<CypherParser::NEUG_AlterTableContext>(0);
 }
 
-CypherParser::KU_CopyFromContext* CypherParser::OC_StatementContext::kU_CopyFrom() {
-  return getRuleContext<CypherParser::KU_CopyFromContext>(0);
+CypherParser::NEUG_CopyFromContext* CypherParser::OC_StatementContext::nEUG_CopyFrom() {
+  return getRuleContext<CypherParser::NEUG_CopyFromContext>(0);
 }
 
-CypherParser::KU_CopyFromByColumnContext* CypherParser::OC_StatementContext::kU_CopyFromByColumn() {
-  return getRuleContext<CypherParser::KU_CopyFromByColumnContext>(0);
+CypherParser::NEUG_CopyFromByColumnContext* CypherParser::OC_StatementContext::nEUG_CopyFromByColumn() {
+  return getRuleContext<CypherParser::NEUG_CopyFromByColumnContext>(0);
 }
 
-CypherParser::KU_CopyTOContext* CypherParser::OC_StatementContext::kU_CopyTO() {
-  return getRuleContext<CypherParser::KU_CopyTOContext>(0);
+CypherParser::NEUG_CopyTOContext* CypherParser::OC_StatementContext::nEUG_CopyTO() {
+  return getRuleContext<CypherParser::NEUG_CopyTOContext>(0);
 }
 
-CypherParser::KU_StandaloneCallContext* CypherParser::OC_StatementContext::kU_StandaloneCall() {
-  return getRuleContext<CypherParser::KU_StandaloneCallContext>(0);
+CypherParser::NEUG_StandaloneCallContext* CypherParser::OC_StatementContext::nEUG_StandaloneCall() {
+  return getRuleContext<CypherParser::NEUG_StandaloneCallContext>(0);
 }
 
-CypherParser::KU_CreateMacroContext* CypherParser::OC_StatementContext::kU_CreateMacro() {
-  return getRuleContext<CypherParser::KU_CreateMacroContext>(0);
+CypherParser::NEUG_CreateMacroContext* CypherParser::OC_StatementContext::nEUG_CreateMacro() {
+  return getRuleContext<CypherParser::NEUG_CreateMacroContext>(0);
 }
 
-CypherParser::KU_CommentOnContext* CypherParser::OC_StatementContext::kU_CommentOn() {
-  return getRuleContext<CypherParser::KU_CommentOnContext>(0);
+CypherParser::NEUG_CommentOnContext* CypherParser::OC_StatementContext::nEUG_CommentOn() {
+  return getRuleContext<CypherParser::NEUG_CommentOnContext>(0);
 }
 
-CypherParser::KU_TransactionContext* CypherParser::OC_StatementContext::kU_Transaction() {
-  return getRuleContext<CypherParser::KU_TransactionContext>(0);
+CypherParser::NEUG_TransactionContext* CypherParser::OC_StatementContext::nEUG_Transaction() {
+  return getRuleContext<CypherParser::NEUG_TransactionContext>(0);
 }
 
-CypherParser::KU_ExtensionContext* CypherParser::OC_StatementContext::kU_Extension() {
-  return getRuleContext<CypherParser::KU_ExtensionContext>(0);
+CypherParser::NEUG_ExtensionContext* CypherParser::OC_StatementContext::nEUG_Extension() {
+  return getRuleContext<CypherParser::NEUG_ExtensionContext>(0);
 }
 
-CypherParser::KU_ExportDatabaseContext* CypherParser::OC_StatementContext::kU_ExportDatabase() {
-  return getRuleContext<CypherParser::KU_ExportDatabaseContext>(0);
+CypherParser::NEUG_ExportDatabaseContext* CypherParser::OC_StatementContext::nEUG_ExportDatabase() {
+  return getRuleContext<CypherParser::NEUG_ExportDatabaseContext>(0);
 }
 
-CypherParser::KU_ImportDatabaseContext* CypherParser::OC_StatementContext::kU_ImportDatabase() {
-  return getRuleContext<CypherParser::KU_ImportDatabaseContext>(0);
+CypherParser::NEUG_ImportDatabaseContext* CypherParser::OC_StatementContext::nEUG_ImportDatabase() {
+  return getRuleContext<CypherParser::NEUG_ImportDatabaseContext>(0);
 }
 
-CypherParser::KU_AttachDatabaseContext* CypherParser::OC_StatementContext::kU_AttachDatabase() {
-  return getRuleContext<CypherParser::KU_AttachDatabaseContext>(0);
+CypherParser::NEUG_AttachDatabaseContext* CypherParser::OC_StatementContext::nEUG_AttachDatabase() {
+  return getRuleContext<CypherParser::NEUG_AttachDatabaseContext>(0);
 }
 
-CypherParser::KU_DetachDatabaseContext* CypherParser::OC_StatementContext::kU_DetachDatabase() {
-  return getRuleContext<CypherParser::KU_DetachDatabaseContext>(0);
+CypherParser::NEUG_DetachDatabaseContext* CypherParser::OC_StatementContext::nEUG_DetachDatabase() {
+  return getRuleContext<CypherParser::NEUG_DetachDatabaseContext>(0);
 }
 
-CypherParser::KU_UseDatabaseContext* CypherParser::OC_StatementContext::kU_UseDatabase() {
-  return getRuleContext<CypherParser::KU_UseDatabaseContext>(0);
+CypherParser::NEUG_UseDatabaseContext* CypherParser::OC_StatementContext::nEUG_UseDatabase() {
+  return getRuleContext<CypherParser::NEUG_UseDatabaseContext>(0);
 }
 
 
@@ -1653,133 +1654,133 @@ CypherParser::OC_StatementContext* CypherParser::oC_Statement() {
     case 2: {
       enterOuterAlt(_localctx, 2);
       setState(379);
-      kU_CreateNodeTable();
+      nEUG_CreateNodeTable();
       break;
     }
 
     case 3: {
       enterOuterAlt(_localctx, 3);
       setState(380);
-      kU_CreateRelTable();
+      nEUG_CreateRelTable();
       break;
     }
 
     case 4: {
       enterOuterAlt(_localctx, 4);
       setState(381);
-      kU_CreateSequence();
+      nEUG_CreateSequence();
       break;
     }
 
     case 5: {
       enterOuterAlt(_localctx, 5);
       setState(382);
-      kU_CreateType();
+      nEUG_CreateType();
       break;
     }
 
     case 6: {
       enterOuterAlt(_localctx, 6);
       setState(383);
-      kU_Drop();
+      nEUG_Drop();
       break;
     }
 
     case 7: {
       enterOuterAlt(_localctx, 7);
       setState(384);
-      kU_AlterTable();
+      nEUG_AlterTable();
       break;
     }
 
     case 8: {
       enterOuterAlt(_localctx, 8);
       setState(385);
-      kU_CopyFrom();
+      nEUG_CopyFrom();
       break;
     }
 
     case 9: {
       enterOuterAlt(_localctx, 9);
       setState(386);
-      kU_CopyFromByColumn();
+      nEUG_CopyFromByColumn();
       break;
     }
 
     case 10: {
       enterOuterAlt(_localctx, 10);
       setState(387);
-      kU_CopyTO();
+      nEUG_CopyTO();
       break;
     }
 
     case 11: {
       enterOuterAlt(_localctx, 11);
       setState(388);
-      kU_StandaloneCall();
+      nEUG_StandaloneCall();
       break;
     }
 
     case 12: {
       enterOuterAlt(_localctx, 12);
       setState(389);
-      kU_CreateMacro();
+      nEUG_CreateMacro();
       break;
     }
 
     case 13: {
       enterOuterAlt(_localctx, 13);
       setState(390);
-      kU_CommentOn();
+      nEUG_CommentOn();
       break;
     }
 
     case 14: {
       enterOuterAlt(_localctx, 14);
       setState(391);
-      kU_Transaction();
+      nEUG_Transaction();
       break;
     }
 
     case 15: {
       enterOuterAlt(_localctx, 15);
       setState(392);
-      kU_Extension();
+      nEUG_Extension();
       break;
     }
 
     case 16: {
       enterOuterAlt(_localctx, 16);
       setState(393);
-      kU_ExportDatabase();
+      nEUG_ExportDatabase();
       break;
     }
 
     case 17: {
       enterOuterAlt(_localctx, 17);
       setState(394);
-      kU_ImportDatabase();
+      nEUG_ImportDatabase();
       break;
     }
 
     case 18: {
       enterOuterAlt(_localctx, 18);
       setState(395);
-      kU_AttachDatabase();
+      nEUG_AttachDatabase();
       break;
     }
 
     case 19: {
       enterOuterAlt(_localctx, 19);
       setState(396);
-      kU_DetachDatabase();
+      nEUG_DetachDatabase();
       break;
     }
 
     case 20: {
       enterOuterAlt(_localctx, 20);
       setState(397);
-      kU_UseDatabase();
+      nEUG_UseDatabase();
       break;
     }
 
@@ -1797,53 +1798,53 @@ CypherParser::OC_StatementContext* CypherParser::oC_Statement() {
   return _localctx;
 }
 
-//----------------- KU_CopyFromContext ------------------------------------------------------------------
+//----------------- NEUG_CopyFromContext ------------------------------------------------------------------
 
-CypherParser::KU_CopyFromContext::KU_CopyFromContext(ParserRuleContext *parent, size_t invokingState)
+CypherParser::NEUG_CopyFromContext::NEUG_CopyFromContext(ParserRuleContext *parent, size_t invokingState)
   : ParserRuleContext(parent, invokingState) {
 }
 
-tree::TerminalNode* CypherParser::KU_CopyFromContext::COPY() {
+tree::TerminalNode* CypherParser::NEUG_CopyFromContext::COPY() {
   return getToken(CypherParser::COPY, 0);
 }
 
-std::vector<tree::TerminalNode *> CypherParser::KU_CopyFromContext::SP() {
+std::vector<tree::TerminalNode *> CypherParser::NEUG_CopyFromContext::SP() {
   return getTokens(CypherParser::SP);
 }
 
-tree::TerminalNode* CypherParser::KU_CopyFromContext::SP(size_t i) {
+tree::TerminalNode* CypherParser::NEUG_CopyFromContext::SP(size_t i) {
   return getToken(CypherParser::SP, i);
 }
 
-CypherParser::OC_SchemaNameContext* CypherParser::KU_CopyFromContext::oC_SchemaName() {
+CypherParser::OC_SchemaNameContext* CypherParser::NEUG_CopyFromContext::oC_SchemaName() {
   return getRuleContext<CypherParser::OC_SchemaNameContext>(0);
 }
 
-tree::TerminalNode* CypherParser::KU_CopyFromContext::FROM() {
+tree::TerminalNode* CypherParser::NEUG_CopyFromContext::FROM() {
   return getToken(CypherParser::FROM, 0);
 }
 
-CypherParser::KU_ScanSourceContext* CypherParser::KU_CopyFromContext::kU_ScanSource() {
-  return getRuleContext<CypherParser::KU_ScanSourceContext>(0);
+CypherParser::NEUG_ScanSourceContext* CypherParser::NEUG_CopyFromContext::nEUG_ScanSource() {
+  return getRuleContext<CypherParser::NEUG_ScanSourceContext>(0);
 }
 
-CypherParser::KU_ColumnNamesContext* CypherParser::KU_CopyFromContext::kU_ColumnNames() {
-  return getRuleContext<CypherParser::KU_ColumnNamesContext>(0);
+CypherParser::NEUG_ColumnNamesContext* CypherParser::NEUG_CopyFromContext::nEUG_ColumnNames() {
+  return getRuleContext<CypherParser::NEUG_ColumnNamesContext>(0);
 }
 
-CypherParser::KU_OptionsContext* CypherParser::KU_CopyFromContext::kU_Options() {
-  return getRuleContext<CypherParser::KU_OptionsContext>(0);
-}
-
-
-size_t CypherParser::KU_CopyFromContext::getRuleIndex() const {
-  return CypherParser::RuleKU_CopyFrom;
+CypherParser::NEUG_OptionsContext* CypherParser::NEUG_CopyFromContext::nEUG_Options() {
+  return getRuleContext<CypherParser::NEUG_OptionsContext>(0);
 }
 
 
-CypherParser::KU_CopyFromContext* CypherParser::kU_CopyFrom() {
-  KU_CopyFromContext *_localctx = _tracker.createInstance<KU_CopyFromContext>(_ctx, getState());
-  enterRule(_localctx, 6, CypherParser::RuleKU_CopyFrom);
+size_t CypherParser::NEUG_CopyFromContext::getRuleIndex() const {
+  return CypherParser::RuleNEUG_CopyFrom;
+}
+
+
+CypherParser::NEUG_CopyFromContext* CypherParser::nEUG_CopyFrom() {
+  NEUG_CopyFromContext *_localctx = _tracker.createInstance<NEUG_CopyFromContext>(_ctx, getState());
+  enterRule(_localctx, 6, CypherParser::RuleNEUG_CopyFrom);
   size_t _la = 0;
 
 #if __cplusplus > 201703L
@@ -1867,7 +1868,7 @@ CypherParser::KU_CopyFromContext* CypherParser::kU_CopyFrom() {
     switch (getInterpreter<atn::ParserATNSimulator>()->adaptivePredict(_input, 9, _ctx)) {
     case 1: {
       setState(403);
-      kU_ColumnNames();
+      nEUG_ColumnNames();
       break;
     }
 
@@ -1881,7 +1882,7 @@ CypherParser::KU_CopyFromContext* CypherParser::kU_CopyFrom() {
     setState(408);
     match(CypherParser::SP);
     setState(409);
-    kU_ScanSource();
+    nEUG_ScanSource();
     setState(423);
     _errHandler->sync(this);
 
@@ -1906,7 +1907,7 @@ CypherParser::KU_CopyFromContext* CypherParser::kU_CopyFrom() {
         match(CypherParser::SP);
       }
       setState(417);
-      kU_Options();
+      nEUG_Options();
       setState(419);
       _errHandler->sync(this);
 
@@ -1934,37 +1935,37 @@ CypherParser::KU_CopyFromContext* CypherParser::kU_CopyFrom() {
   return _localctx;
 }
 
-//----------------- KU_ColumnNamesContext ------------------------------------------------------------------
+//----------------- NEUG_ColumnNamesContext ------------------------------------------------------------------
 
-CypherParser::KU_ColumnNamesContext::KU_ColumnNamesContext(ParserRuleContext *parent, size_t invokingState)
+CypherParser::NEUG_ColumnNamesContext::NEUG_ColumnNamesContext(ParserRuleContext *parent, size_t invokingState)
   : ParserRuleContext(parent, invokingState) {
 }
 
-std::vector<tree::TerminalNode *> CypherParser::KU_ColumnNamesContext::SP() {
+std::vector<tree::TerminalNode *> CypherParser::NEUG_ColumnNamesContext::SP() {
   return getTokens(CypherParser::SP);
 }
 
-tree::TerminalNode* CypherParser::KU_ColumnNamesContext::SP(size_t i) {
+tree::TerminalNode* CypherParser::NEUG_ColumnNamesContext::SP(size_t i) {
   return getToken(CypherParser::SP, i);
 }
 
-std::vector<CypherParser::OC_SchemaNameContext *> CypherParser::KU_ColumnNamesContext::oC_SchemaName() {
+std::vector<CypherParser::OC_SchemaNameContext *> CypherParser::NEUG_ColumnNamesContext::oC_SchemaName() {
   return getRuleContexts<CypherParser::OC_SchemaNameContext>();
 }
 
-CypherParser::OC_SchemaNameContext* CypherParser::KU_ColumnNamesContext::oC_SchemaName(size_t i) {
+CypherParser::OC_SchemaNameContext* CypherParser::NEUG_ColumnNamesContext::oC_SchemaName(size_t i) {
   return getRuleContext<CypherParser::OC_SchemaNameContext>(i);
 }
 
 
-size_t CypherParser::KU_ColumnNamesContext::getRuleIndex() const {
-  return CypherParser::RuleKU_ColumnNames;
+size_t CypherParser::NEUG_ColumnNamesContext::getRuleIndex() const {
+  return CypherParser::RuleNEUG_ColumnNames;
 }
 
 
-CypherParser::KU_ColumnNamesContext* CypherParser::kU_ColumnNames() {
-  KU_ColumnNamesContext *_localctx = _tracker.createInstance<KU_ColumnNamesContext>(_ctx, getState());
-  enterRule(_localctx, 8, CypherParser::RuleKU_ColumnNames);
+CypherParser::NEUG_ColumnNamesContext* CypherParser::nEUG_ColumnNames() {
+  NEUG_ColumnNamesContext *_localctx = _tracker.createInstance<NEUG_ColumnNamesContext>(_ctx, getState());
+  enterRule(_localctx, 8, CypherParser::RuleNEUG_ColumnNames);
   size_t _la = 0;
 
 #if __cplusplus > 201703L
@@ -2056,49 +2057,49 @@ CypherParser::KU_ColumnNamesContext* CypherParser::kU_ColumnNames() {
   return _localctx;
 }
 
-//----------------- KU_ScanSourceContext ------------------------------------------------------------------
+//----------------- NEUG_ScanSourceContext ------------------------------------------------------------------
 
-CypherParser::KU_ScanSourceContext::KU_ScanSourceContext(ParserRuleContext *parent, size_t invokingState)
+CypherParser::NEUG_ScanSourceContext::NEUG_ScanSourceContext(ParserRuleContext *parent, size_t invokingState)
   : ParserRuleContext(parent, invokingState) {
 }
 
-CypherParser::KU_FilePathsContext* CypherParser::KU_ScanSourceContext::kU_FilePaths() {
-  return getRuleContext<CypherParser::KU_FilePathsContext>(0);
+CypherParser::NEUG_FilePathsContext* CypherParser::NEUG_ScanSourceContext::nEUG_FilePaths() {
+  return getRuleContext<CypherParser::NEUG_FilePathsContext>(0);
 }
 
-CypherParser::OC_QueryContext* CypherParser::KU_ScanSourceContext::oC_Query() {
+CypherParser::OC_QueryContext* CypherParser::NEUG_ScanSourceContext::oC_Query() {
   return getRuleContext<CypherParser::OC_QueryContext>(0);
 }
 
-std::vector<tree::TerminalNode *> CypherParser::KU_ScanSourceContext::SP() {
+std::vector<tree::TerminalNode *> CypherParser::NEUG_ScanSourceContext::SP() {
   return getTokens(CypherParser::SP);
 }
 
-tree::TerminalNode* CypherParser::KU_ScanSourceContext::SP(size_t i) {
+tree::TerminalNode* CypherParser::NEUG_ScanSourceContext::SP(size_t i) {
   return getToken(CypherParser::SP, i);
 }
 
-CypherParser::OC_VariableContext* CypherParser::KU_ScanSourceContext::oC_Variable() {
+CypherParser::OC_VariableContext* CypherParser::NEUG_ScanSourceContext::oC_Variable() {
   return getRuleContext<CypherParser::OC_VariableContext>(0);
 }
 
-CypherParser::OC_SchemaNameContext* CypherParser::KU_ScanSourceContext::oC_SchemaName() {
+CypherParser::OC_SchemaNameContext* CypherParser::NEUG_ScanSourceContext::oC_SchemaName() {
   return getRuleContext<CypherParser::OC_SchemaNameContext>(0);
 }
 
-CypherParser::OC_FunctionInvocationContext* CypherParser::KU_ScanSourceContext::oC_FunctionInvocation() {
+CypherParser::OC_FunctionInvocationContext* CypherParser::NEUG_ScanSourceContext::oC_FunctionInvocation() {
   return getRuleContext<CypherParser::OC_FunctionInvocationContext>(0);
 }
 
 
-size_t CypherParser::KU_ScanSourceContext::getRuleIndex() const {
-  return CypherParser::RuleKU_ScanSource;
+size_t CypherParser::NEUG_ScanSourceContext::getRuleIndex() const {
+  return CypherParser::RuleNEUG_ScanSource;
 }
 
 
-CypherParser::KU_ScanSourceContext* CypherParser::kU_ScanSource() {
-  KU_ScanSourceContext *_localctx = _tracker.createInstance<KU_ScanSourceContext>(_ctx, getState());
-  enterRule(_localctx, 10, CypherParser::RuleKU_ScanSource);
+CypherParser::NEUG_ScanSourceContext* CypherParser::nEUG_ScanSource() {
+  NEUG_ScanSourceContext *_localctx = _tracker.createInstance<NEUG_ScanSourceContext>(_ctx, getState());
+  enterRule(_localctx, 10, CypherParser::RuleNEUG_ScanSource);
   size_t _la = 0;
 
 #if __cplusplus > 201703L
@@ -2115,7 +2116,7 @@ CypherParser::KU_ScanSourceContext* CypherParser::kU_ScanSource() {
     case 1: {
       enterOuterAlt(_localctx, 1);
       setState(453);
-      kU_FilePaths();
+      nEUG_FilePaths();
       break;
     }
 
@@ -2193,57 +2194,57 @@ CypherParser::KU_ScanSourceContext* CypherParser::kU_ScanSource() {
   return _localctx;
 }
 
-//----------------- KU_CopyFromByColumnContext ------------------------------------------------------------------
+//----------------- NEUG_CopyFromByColumnContext ------------------------------------------------------------------
 
-CypherParser::KU_CopyFromByColumnContext::KU_CopyFromByColumnContext(ParserRuleContext *parent, size_t invokingState)
+CypherParser::NEUG_CopyFromByColumnContext::NEUG_CopyFromByColumnContext(ParserRuleContext *parent, size_t invokingState)
   : ParserRuleContext(parent, invokingState) {
 }
 
-tree::TerminalNode* CypherParser::KU_CopyFromByColumnContext::COPY() {
+tree::TerminalNode* CypherParser::NEUG_CopyFromByColumnContext::COPY() {
   return getToken(CypherParser::COPY, 0);
 }
 
-std::vector<tree::TerminalNode *> CypherParser::KU_CopyFromByColumnContext::SP() {
+std::vector<tree::TerminalNode *> CypherParser::NEUG_CopyFromByColumnContext::SP() {
   return getTokens(CypherParser::SP);
 }
 
-tree::TerminalNode* CypherParser::KU_CopyFromByColumnContext::SP(size_t i) {
+tree::TerminalNode* CypherParser::NEUG_CopyFromByColumnContext::SP(size_t i) {
   return getToken(CypherParser::SP, i);
 }
 
-CypherParser::OC_SchemaNameContext* CypherParser::KU_CopyFromByColumnContext::oC_SchemaName() {
+CypherParser::OC_SchemaNameContext* CypherParser::NEUG_CopyFromByColumnContext::oC_SchemaName() {
   return getRuleContext<CypherParser::OC_SchemaNameContext>(0);
 }
 
-tree::TerminalNode* CypherParser::KU_CopyFromByColumnContext::FROM() {
+tree::TerminalNode* CypherParser::NEUG_CopyFromByColumnContext::FROM() {
   return getToken(CypherParser::FROM, 0);
 }
 
-std::vector<tree::TerminalNode *> CypherParser::KU_CopyFromByColumnContext::StringLiteral() {
+std::vector<tree::TerminalNode *> CypherParser::NEUG_CopyFromByColumnContext::StringLiteral() {
   return getTokens(CypherParser::StringLiteral);
 }
 
-tree::TerminalNode* CypherParser::KU_CopyFromByColumnContext::StringLiteral(size_t i) {
+tree::TerminalNode* CypherParser::NEUG_CopyFromByColumnContext::StringLiteral(size_t i) {
   return getToken(CypherParser::StringLiteral, i);
 }
 
-tree::TerminalNode* CypherParser::KU_CopyFromByColumnContext::BY() {
+tree::TerminalNode* CypherParser::NEUG_CopyFromByColumnContext::BY() {
   return getToken(CypherParser::BY, 0);
 }
 
-tree::TerminalNode* CypherParser::KU_CopyFromByColumnContext::COLUMN() {
+tree::TerminalNode* CypherParser::NEUG_CopyFromByColumnContext::COLUMN() {
   return getToken(CypherParser::COLUMN, 0);
 }
 
 
-size_t CypherParser::KU_CopyFromByColumnContext::getRuleIndex() const {
-  return CypherParser::RuleKU_CopyFromByColumn;
+size_t CypherParser::NEUG_CopyFromByColumnContext::getRuleIndex() const {
+  return CypherParser::RuleNEUG_CopyFromByColumn;
 }
 
 
-CypherParser::KU_CopyFromByColumnContext* CypherParser::kU_CopyFromByColumn() {
-  KU_CopyFromByColumnContext *_localctx = _tracker.createInstance<KU_CopyFromByColumnContext>(_ctx, getState());
-  enterRule(_localctx, 12, CypherParser::RuleKU_CopyFromByColumn);
+CypherParser::NEUG_CopyFromByColumnContext* CypherParser::nEUG_CopyFromByColumn() {
+  NEUG_CopyFromByColumnContext *_localctx = _tracker.createInstance<NEUG_CopyFromByColumnContext>(_ctx, getState());
+  enterRule(_localctx, 12, CypherParser::RuleNEUG_CopyFromByColumn);
   size_t _la = 0;
 
 #if __cplusplus > 201703L
@@ -2328,49 +2329,49 @@ CypherParser::KU_CopyFromByColumnContext* CypherParser::kU_CopyFromByColumn() {
   return _localctx;
 }
 
-//----------------- KU_CopyTOContext ------------------------------------------------------------------
+//----------------- NEUG_CopyTOContext ------------------------------------------------------------------
 
-CypherParser::KU_CopyTOContext::KU_CopyTOContext(ParserRuleContext *parent, size_t invokingState)
+CypherParser::NEUG_CopyTOContext::NEUG_CopyTOContext(ParserRuleContext *parent, size_t invokingState)
   : ParserRuleContext(parent, invokingState) {
 }
 
-tree::TerminalNode* CypherParser::KU_CopyTOContext::COPY() {
+tree::TerminalNode* CypherParser::NEUG_CopyTOContext::COPY() {
   return getToken(CypherParser::COPY, 0);
 }
 
-std::vector<tree::TerminalNode *> CypherParser::KU_CopyTOContext::SP() {
+std::vector<tree::TerminalNode *> CypherParser::NEUG_CopyTOContext::SP() {
   return getTokens(CypherParser::SP);
 }
 
-tree::TerminalNode* CypherParser::KU_CopyTOContext::SP(size_t i) {
+tree::TerminalNode* CypherParser::NEUG_CopyTOContext::SP(size_t i) {
   return getToken(CypherParser::SP, i);
 }
 
-CypherParser::OC_QueryContext* CypherParser::KU_CopyTOContext::oC_Query() {
+CypherParser::OC_QueryContext* CypherParser::NEUG_CopyTOContext::oC_Query() {
   return getRuleContext<CypherParser::OC_QueryContext>(0);
 }
 
-tree::TerminalNode* CypherParser::KU_CopyTOContext::TO() {
+tree::TerminalNode* CypherParser::NEUG_CopyTOContext::TO() {
   return getToken(CypherParser::TO, 0);
 }
 
-tree::TerminalNode* CypherParser::KU_CopyTOContext::StringLiteral() {
+tree::TerminalNode* CypherParser::NEUG_CopyTOContext::StringLiteral() {
   return getToken(CypherParser::StringLiteral, 0);
 }
 
-CypherParser::KU_OptionsContext* CypherParser::KU_CopyTOContext::kU_Options() {
-  return getRuleContext<CypherParser::KU_OptionsContext>(0);
+CypherParser::NEUG_OptionsContext* CypherParser::NEUG_CopyTOContext::nEUG_Options() {
+  return getRuleContext<CypherParser::NEUG_OptionsContext>(0);
 }
 
 
-size_t CypherParser::KU_CopyTOContext::getRuleIndex() const {
-  return CypherParser::RuleKU_CopyTO;
+size_t CypherParser::NEUG_CopyTOContext::getRuleIndex() const {
+  return CypherParser::RuleNEUG_CopyTO;
 }
 
 
-CypherParser::KU_CopyTOContext* CypherParser::kU_CopyTO() {
-  KU_CopyTOContext *_localctx = _tracker.createInstance<KU_CopyTOContext>(_ctx, getState());
-  enterRule(_localctx, 14, CypherParser::RuleKU_CopyTO);
+CypherParser::NEUG_CopyTOContext* CypherParser::nEUG_CopyTO() {
+  NEUG_CopyTOContext *_localctx = _tracker.createInstance<NEUG_CopyTOContext>(_ctx, getState());
+  enterRule(_localctx, 14, CypherParser::RuleNEUG_CopyTO);
   size_t _la = 0;
 
 #if __cplusplus > 201703L
@@ -2440,7 +2441,7 @@ CypherParser::KU_CopyTOContext* CypherParser::kU_CopyTO() {
         match(CypherParser::SP);
       }
       setState(527);
-      kU_Options();
+      nEUG_Options();
       setState(529);
       _errHandler->sync(this);
 
@@ -2468,45 +2469,45 @@ CypherParser::KU_CopyTOContext* CypherParser::kU_CopyTO() {
   return _localctx;
 }
 
-//----------------- KU_ExportDatabaseContext ------------------------------------------------------------------
+//----------------- NEUG_ExportDatabaseContext ------------------------------------------------------------------
 
-CypherParser::KU_ExportDatabaseContext::KU_ExportDatabaseContext(ParserRuleContext *parent, size_t invokingState)
+CypherParser::NEUG_ExportDatabaseContext::NEUG_ExportDatabaseContext(ParserRuleContext *parent, size_t invokingState)
   : ParserRuleContext(parent, invokingState) {
 }
 
-tree::TerminalNode* CypherParser::KU_ExportDatabaseContext::EXPORT() {
+tree::TerminalNode* CypherParser::NEUG_ExportDatabaseContext::EXPORT() {
   return getToken(CypherParser::EXPORT, 0);
 }
 
-std::vector<tree::TerminalNode *> CypherParser::KU_ExportDatabaseContext::SP() {
+std::vector<tree::TerminalNode *> CypherParser::NEUG_ExportDatabaseContext::SP() {
   return getTokens(CypherParser::SP);
 }
 
-tree::TerminalNode* CypherParser::KU_ExportDatabaseContext::SP(size_t i) {
+tree::TerminalNode* CypherParser::NEUG_ExportDatabaseContext::SP(size_t i) {
   return getToken(CypherParser::SP, i);
 }
 
-tree::TerminalNode* CypherParser::KU_ExportDatabaseContext::DATABASE() {
+tree::TerminalNode* CypherParser::NEUG_ExportDatabaseContext::DATABASE() {
   return getToken(CypherParser::DATABASE, 0);
 }
 
-tree::TerminalNode* CypherParser::KU_ExportDatabaseContext::StringLiteral() {
+tree::TerminalNode* CypherParser::NEUG_ExportDatabaseContext::StringLiteral() {
   return getToken(CypherParser::StringLiteral, 0);
 }
 
-CypherParser::KU_OptionsContext* CypherParser::KU_ExportDatabaseContext::kU_Options() {
-  return getRuleContext<CypherParser::KU_OptionsContext>(0);
+CypherParser::NEUG_OptionsContext* CypherParser::NEUG_ExportDatabaseContext::nEUG_Options() {
+  return getRuleContext<CypherParser::NEUG_OptionsContext>(0);
 }
 
 
-size_t CypherParser::KU_ExportDatabaseContext::getRuleIndex() const {
-  return CypherParser::RuleKU_ExportDatabase;
+size_t CypherParser::NEUG_ExportDatabaseContext::getRuleIndex() const {
+  return CypherParser::RuleNEUG_ExportDatabase;
 }
 
 
-CypherParser::KU_ExportDatabaseContext* CypherParser::kU_ExportDatabase() {
-  KU_ExportDatabaseContext *_localctx = _tracker.createInstance<KU_ExportDatabaseContext>(_ctx, getState());
-  enterRule(_localctx, 16, CypherParser::RuleKU_ExportDatabase);
+CypherParser::NEUG_ExportDatabaseContext* CypherParser::nEUG_ExportDatabase() {
+  NEUG_ExportDatabaseContext *_localctx = _tracker.createInstance<NEUG_ExportDatabaseContext>(_ctx, getState());
+  enterRule(_localctx, 16, CypherParser::RuleNEUG_ExportDatabase);
   size_t _la = 0;
 
 #if __cplusplus > 201703L
@@ -2552,7 +2553,7 @@ CypherParser::KU_ExportDatabaseContext* CypherParser::kU_ExportDatabase() {
         match(CypherParser::SP);
       }
       setState(547);
-      kU_Options();
+      nEUG_Options();
       setState(549);
       _errHandler->sync(this);
 
@@ -2580,41 +2581,41 @@ CypherParser::KU_ExportDatabaseContext* CypherParser::kU_ExportDatabase() {
   return _localctx;
 }
 
-//----------------- KU_ImportDatabaseContext ------------------------------------------------------------------
+//----------------- NEUG_ImportDatabaseContext ------------------------------------------------------------------
 
-CypherParser::KU_ImportDatabaseContext::KU_ImportDatabaseContext(ParserRuleContext *parent, size_t invokingState)
+CypherParser::NEUG_ImportDatabaseContext::NEUG_ImportDatabaseContext(ParserRuleContext *parent, size_t invokingState)
   : ParserRuleContext(parent, invokingState) {
 }
 
-tree::TerminalNode* CypherParser::KU_ImportDatabaseContext::IMPORT() {
+tree::TerminalNode* CypherParser::NEUG_ImportDatabaseContext::IMPORT() {
   return getToken(CypherParser::IMPORT, 0);
 }
 
-std::vector<tree::TerminalNode *> CypherParser::KU_ImportDatabaseContext::SP() {
+std::vector<tree::TerminalNode *> CypherParser::NEUG_ImportDatabaseContext::SP() {
   return getTokens(CypherParser::SP);
 }
 
-tree::TerminalNode* CypherParser::KU_ImportDatabaseContext::SP(size_t i) {
+tree::TerminalNode* CypherParser::NEUG_ImportDatabaseContext::SP(size_t i) {
   return getToken(CypherParser::SP, i);
 }
 
-tree::TerminalNode* CypherParser::KU_ImportDatabaseContext::DATABASE() {
+tree::TerminalNode* CypherParser::NEUG_ImportDatabaseContext::DATABASE() {
   return getToken(CypherParser::DATABASE, 0);
 }
 
-tree::TerminalNode* CypherParser::KU_ImportDatabaseContext::StringLiteral() {
+tree::TerminalNode* CypherParser::NEUG_ImportDatabaseContext::StringLiteral() {
   return getToken(CypherParser::StringLiteral, 0);
 }
 
 
-size_t CypherParser::KU_ImportDatabaseContext::getRuleIndex() const {
-  return CypherParser::RuleKU_ImportDatabase;
+size_t CypherParser::NEUG_ImportDatabaseContext::getRuleIndex() const {
+  return CypherParser::RuleNEUG_ImportDatabase;
 }
 
 
-CypherParser::KU_ImportDatabaseContext* CypherParser::kU_ImportDatabase() {
-  KU_ImportDatabaseContext *_localctx = _tracker.createInstance<KU_ImportDatabaseContext>(_ctx, getState());
-  enterRule(_localctx, 18, CypherParser::RuleKU_ImportDatabase);
+CypherParser::NEUG_ImportDatabaseContext* CypherParser::nEUG_ImportDatabase() {
+  NEUG_ImportDatabaseContext *_localctx = _tracker.createInstance<NEUG_ImportDatabaseContext>(_ctx, getState());
+  enterRule(_localctx, 18, CypherParser::RuleNEUG_ImportDatabase);
 
 #if __cplusplus > 201703L
   auto onExit = finally([=, this] {
@@ -2646,57 +2647,57 @@ CypherParser::KU_ImportDatabaseContext* CypherParser::kU_ImportDatabase() {
   return _localctx;
 }
 
-//----------------- KU_AttachDatabaseContext ------------------------------------------------------------------
+//----------------- NEUG_AttachDatabaseContext ------------------------------------------------------------------
 
-CypherParser::KU_AttachDatabaseContext::KU_AttachDatabaseContext(ParserRuleContext *parent, size_t invokingState)
+CypherParser::NEUG_AttachDatabaseContext::NEUG_AttachDatabaseContext(ParserRuleContext *parent, size_t invokingState)
   : ParserRuleContext(parent, invokingState) {
 }
 
-tree::TerminalNode* CypherParser::KU_AttachDatabaseContext::ATTACH() {
+tree::TerminalNode* CypherParser::NEUG_AttachDatabaseContext::ATTACH() {
   return getToken(CypherParser::ATTACH, 0);
 }
 
-std::vector<tree::TerminalNode *> CypherParser::KU_AttachDatabaseContext::SP() {
+std::vector<tree::TerminalNode *> CypherParser::NEUG_AttachDatabaseContext::SP() {
   return getTokens(CypherParser::SP);
 }
 
-tree::TerminalNode* CypherParser::KU_AttachDatabaseContext::SP(size_t i) {
+tree::TerminalNode* CypherParser::NEUG_AttachDatabaseContext::SP(size_t i) {
   return getToken(CypherParser::SP, i);
 }
 
-tree::TerminalNode* CypherParser::KU_AttachDatabaseContext::StringLiteral() {
+tree::TerminalNode* CypherParser::NEUG_AttachDatabaseContext::StringLiteral() {
   return getToken(CypherParser::StringLiteral, 0);
 }
 
-tree::TerminalNode* CypherParser::KU_AttachDatabaseContext::DBTYPE() {
+tree::TerminalNode* CypherParser::NEUG_AttachDatabaseContext::DBTYPE() {
   return getToken(CypherParser::DBTYPE, 0);
 }
 
-CypherParser::OC_SymbolicNameContext* CypherParser::KU_AttachDatabaseContext::oC_SymbolicName() {
+CypherParser::OC_SymbolicNameContext* CypherParser::NEUG_AttachDatabaseContext::oC_SymbolicName() {
   return getRuleContext<CypherParser::OC_SymbolicNameContext>(0);
 }
 
-tree::TerminalNode* CypherParser::KU_AttachDatabaseContext::AS() {
+tree::TerminalNode* CypherParser::NEUG_AttachDatabaseContext::AS() {
   return getToken(CypherParser::AS, 0);
 }
 
-CypherParser::OC_SchemaNameContext* CypherParser::KU_AttachDatabaseContext::oC_SchemaName() {
+CypherParser::OC_SchemaNameContext* CypherParser::NEUG_AttachDatabaseContext::oC_SchemaName() {
   return getRuleContext<CypherParser::OC_SchemaNameContext>(0);
 }
 
-CypherParser::KU_OptionsContext* CypherParser::KU_AttachDatabaseContext::kU_Options() {
-  return getRuleContext<CypherParser::KU_OptionsContext>(0);
+CypherParser::NEUG_OptionsContext* CypherParser::NEUG_AttachDatabaseContext::nEUG_Options() {
+  return getRuleContext<CypherParser::NEUG_OptionsContext>(0);
 }
 
 
-size_t CypherParser::KU_AttachDatabaseContext::getRuleIndex() const {
-  return CypherParser::RuleKU_AttachDatabase;
+size_t CypherParser::NEUG_AttachDatabaseContext::getRuleIndex() const {
+  return CypherParser::RuleNEUG_AttachDatabase;
 }
 
 
-CypherParser::KU_AttachDatabaseContext* CypherParser::kU_AttachDatabase() {
-  KU_AttachDatabaseContext *_localctx = _tracker.createInstance<KU_AttachDatabaseContext>(_ctx, getState());
-  enterRule(_localctx, 20, CypherParser::RuleKU_AttachDatabase);
+CypherParser::NEUG_AttachDatabaseContext* CypherParser::nEUG_AttachDatabase() {
+  NEUG_AttachDatabaseContext *_localctx = _tracker.createInstance<NEUG_AttachDatabaseContext>(_ctx, getState());
+  enterRule(_localctx, 20, CypherParser::RuleNEUG_AttachDatabase);
   size_t _la = 0;
 
 #if __cplusplus > 201703L
@@ -2775,7 +2776,7 @@ CypherParser::KU_AttachDatabaseContext* CypherParser::kU_AttachDatabase() {
         match(CypherParser::SP);
       }
       setState(585);
-      kU_Options();
+      nEUG_Options();
       break;
     }
 
@@ -2803,37 +2804,37 @@ CypherParser::KU_AttachDatabaseContext* CypherParser::kU_AttachDatabase() {
   return _localctx;
 }
 
-//----------------- KU_OptionContext ------------------------------------------------------------------
+//----------------- NEUG_OptionContext ------------------------------------------------------------------
 
-CypherParser::KU_OptionContext::KU_OptionContext(ParserRuleContext *parent, size_t invokingState)
+CypherParser::NEUG_OptionContext::NEUG_OptionContext(ParserRuleContext *parent, size_t invokingState)
   : ParserRuleContext(parent, invokingState) {
 }
 
-CypherParser::OC_SymbolicNameContext* CypherParser::KU_OptionContext::oC_SymbolicName() {
+CypherParser::OC_SymbolicNameContext* CypherParser::NEUG_OptionContext::oC_SymbolicName() {
   return getRuleContext<CypherParser::OC_SymbolicNameContext>(0);
 }
 
-CypherParser::OC_LiteralContext* CypherParser::KU_OptionContext::oC_Literal() {
+CypherParser::OC_LiteralContext* CypherParser::NEUG_OptionContext::oC_Literal() {
   return getRuleContext<CypherParser::OC_LiteralContext>(0);
 }
 
-std::vector<tree::TerminalNode *> CypherParser::KU_OptionContext::SP() {
+std::vector<tree::TerminalNode *> CypherParser::NEUG_OptionContext::SP() {
   return getTokens(CypherParser::SP);
 }
 
-tree::TerminalNode* CypherParser::KU_OptionContext::SP(size_t i) {
+tree::TerminalNode* CypherParser::NEUG_OptionContext::SP(size_t i) {
   return getToken(CypherParser::SP, i);
 }
 
 
-size_t CypherParser::KU_OptionContext::getRuleIndex() const {
-  return CypherParser::RuleKU_Option;
+size_t CypherParser::NEUG_OptionContext::getRuleIndex() const {
+  return CypherParser::RuleNEUG_Option;
 }
 
 
-CypherParser::KU_OptionContext* CypherParser::kU_Option() {
-  KU_OptionContext *_localctx = _tracker.createInstance<KU_OptionContext>(_ctx, getState());
-  enterRule(_localctx, 22, CypherParser::RuleKU_Option);
+CypherParser::NEUG_OptionContext* CypherParser::nEUG_Option() {
+  NEUG_OptionContext *_localctx = _tracker.createInstance<NEUG_OptionContext>(_ctx, getState());
+  enterRule(_localctx, 22, CypherParser::RuleNEUG_Option);
   size_t _la = 0;
 
 #if __cplusplus > 201703L
@@ -2919,37 +2920,37 @@ CypherParser::KU_OptionContext* CypherParser::kU_Option() {
   return _localctx;
 }
 
-//----------------- KU_OptionsContext ------------------------------------------------------------------
+//----------------- NEUG_OptionsContext ------------------------------------------------------------------
 
-CypherParser::KU_OptionsContext::KU_OptionsContext(ParserRuleContext *parent, size_t invokingState)
+CypherParser::NEUG_OptionsContext::NEUG_OptionsContext(ParserRuleContext *parent, size_t invokingState)
   : ParserRuleContext(parent, invokingState) {
 }
 
-std::vector<CypherParser::KU_OptionContext *> CypherParser::KU_OptionsContext::kU_Option() {
-  return getRuleContexts<CypherParser::KU_OptionContext>();
+std::vector<CypherParser::NEUG_OptionContext *> CypherParser::NEUG_OptionsContext::nEUG_Option() {
+  return getRuleContexts<CypherParser::NEUG_OptionContext>();
 }
 
-CypherParser::KU_OptionContext* CypherParser::KU_OptionsContext::kU_Option(size_t i) {
-  return getRuleContext<CypherParser::KU_OptionContext>(i);
+CypherParser::NEUG_OptionContext* CypherParser::NEUG_OptionsContext::nEUG_Option(size_t i) {
+  return getRuleContext<CypherParser::NEUG_OptionContext>(i);
 }
 
-std::vector<tree::TerminalNode *> CypherParser::KU_OptionsContext::SP() {
+std::vector<tree::TerminalNode *> CypherParser::NEUG_OptionsContext::SP() {
   return getTokens(CypherParser::SP);
 }
 
-tree::TerminalNode* CypherParser::KU_OptionsContext::SP(size_t i) {
+tree::TerminalNode* CypherParser::NEUG_OptionsContext::SP(size_t i) {
   return getToken(CypherParser::SP, i);
 }
 
 
-size_t CypherParser::KU_OptionsContext::getRuleIndex() const {
-  return CypherParser::RuleKU_Options;
+size_t CypherParser::NEUG_OptionsContext::getRuleIndex() const {
+  return CypherParser::RuleNEUG_Options;
 }
 
 
-CypherParser::KU_OptionsContext* CypherParser::kU_Options() {
-  KU_OptionsContext *_localctx = _tracker.createInstance<KU_OptionsContext>(_ctx, getState());
-  enterRule(_localctx, 24, CypherParser::RuleKU_Options);
+CypherParser::NEUG_OptionsContext* CypherParser::nEUG_Options() {
+  NEUG_OptionsContext *_localctx = _tracker.createInstance<NEUG_OptionsContext>(_ctx, getState());
+  enterRule(_localctx, 24, CypherParser::RuleNEUG_Options);
   size_t _la = 0;
 
 #if __cplusplus > 201703L
@@ -2963,7 +2964,7 @@ CypherParser::KU_OptionsContext* CypherParser::kU_Options() {
     size_t alt;
     enterOuterAlt(_localctx, 1);
     setState(614);
-    kU_Option();
+    nEUG_Option();
     setState(625);
     _errHandler->sync(this);
     alt = getInterpreter<atn::ParserATNSimulator>()->adaptivePredict(_input, 52, _ctx);
@@ -2988,7 +2989,7 @@ CypherParser::KU_OptionsContext* CypherParser::kU_Options() {
           match(CypherParser::SP);
         }
         setState(622);
-        kU_Option(); 
+        nEUG_Option(); 
       }
       setState(627);
       _errHandler->sync(this);
@@ -3005,33 +3006,33 @@ CypherParser::KU_OptionsContext* CypherParser::kU_Options() {
   return _localctx;
 }
 
-//----------------- KU_DetachDatabaseContext ------------------------------------------------------------------
+//----------------- NEUG_DetachDatabaseContext ------------------------------------------------------------------
 
-CypherParser::KU_DetachDatabaseContext::KU_DetachDatabaseContext(ParserRuleContext *parent, size_t invokingState)
+CypherParser::NEUG_DetachDatabaseContext::NEUG_DetachDatabaseContext(ParserRuleContext *parent, size_t invokingState)
   : ParserRuleContext(parent, invokingState) {
 }
 
-tree::TerminalNode* CypherParser::KU_DetachDatabaseContext::DETACH() {
+tree::TerminalNode* CypherParser::NEUG_DetachDatabaseContext::DETACH() {
   return getToken(CypherParser::DETACH, 0);
 }
 
-tree::TerminalNode* CypherParser::KU_DetachDatabaseContext::SP() {
+tree::TerminalNode* CypherParser::NEUG_DetachDatabaseContext::SP() {
   return getToken(CypherParser::SP, 0);
 }
 
-CypherParser::OC_SchemaNameContext* CypherParser::KU_DetachDatabaseContext::oC_SchemaName() {
+CypherParser::OC_SchemaNameContext* CypherParser::NEUG_DetachDatabaseContext::oC_SchemaName() {
   return getRuleContext<CypherParser::OC_SchemaNameContext>(0);
 }
 
 
-size_t CypherParser::KU_DetachDatabaseContext::getRuleIndex() const {
-  return CypherParser::RuleKU_DetachDatabase;
+size_t CypherParser::NEUG_DetachDatabaseContext::getRuleIndex() const {
+  return CypherParser::RuleNEUG_DetachDatabase;
 }
 
 
-CypherParser::KU_DetachDatabaseContext* CypherParser::kU_DetachDatabase() {
-  KU_DetachDatabaseContext *_localctx = _tracker.createInstance<KU_DetachDatabaseContext>(_ctx, getState());
-  enterRule(_localctx, 26, CypherParser::RuleKU_DetachDatabase);
+CypherParser::NEUG_DetachDatabaseContext* CypherParser::nEUG_DetachDatabase() {
+  NEUG_DetachDatabaseContext *_localctx = _tracker.createInstance<NEUG_DetachDatabaseContext>(_ctx, getState());
+  enterRule(_localctx, 26, CypherParser::RuleNEUG_DetachDatabase);
 
 #if __cplusplus > 201703L
   auto onExit = finally([=, this] {
@@ -3059,33 +3060,33 @@ CypherParser::KU_DetachDatabaseContext* CypherParser::kU_DetachDatabase() {
   return _localctx;
 }
 
-//----------------- KU_UseDatabaseContext ------------------------------------------------------------------
+//----------------- NEUG_UseDatabaseContext ------------------------------------------------------------------
 
-CypherParser::KU_UseDatabaseContext::KU_UseDatabaseContext(ParserRuleContext *parent, size_t invokingState)
+CypherParser::NEUG_UseDatabaseContext::NEUG_UseDatabaseContext(ParserRuleContext *parent, size_t invokingState)
   : ParserRuleContext(parent, invokingState) {
 }
 
-tree::TerminalNode* CypherParser::KU_UseDatabaseContext::USE() {
+tree::TerminalNode* CypherParser::NEUG_UseDatabaseContext::USE() {
   return getToken(CypherParser::USE, 0);
 }
 
-tree::TerminalNode* CypherParser::KU_UseDatabaseContext::SP() {
+tree::TerminalNode* CypherParser::NEUG_UseDatabaseContext::SP() {
   return getToken(CypherParser::SP, 0);
 }
 
-CypherParser::OC_SchemaNameContext* CypherParser::KU_UseDatabaseContext::oC_SchemaName() {
+CypherParser::OC_SchemaNameContext* CypherParser::NEUG_UseDatabaseContext::oC_SchemaName() {
   return getRuleContext<CypherParser::OC_SchemaNameContext>(0);
 }
 
 
-size_t CypherParser::KU_UseDatabaseContext::getRuleIndex() const {
-  return CypherParser::RuleKU_UseDatabase;
+size_t CypherParser::NEUG_UseDatabaseContext::getRuleIndex() const {
+  return CypherParser::RuleNEUG_UseDatabase;
 }
 
 
-CypherParser::KU_UseDatabaseContext* CypherParser::kU_UseDatabase() {
-  KU_UseDatabaseContext *_localctx = _tracker.createInstance<KU_UseDatabaseContext>(_ctx, getState());
-  enterRule(_localctx, 28, CypherParser::RuleKU_UseDatabase);
+CypherParser::NEUG_UseDatabaseContext* CypherParser::nEUG_UseDatabase() {
+  NEUG_UseDatabaseContext *_localctx = _tracker.createInstance<NEUG_UseDatabaseContext>(_ctx, getState());
+  enterRule(_localctx, 28, CypherParser::RuleNEUG_UseDatabase);
 
 #if __cplusplus > 201703L
   auto onExit = finally([=, this] {
@@ -3113,45 +3114,45 @@ CypherParser::KU_UseDatabaseContext* CypherParser::kU_UseDatabase() {
   return _localctx;
 }
 
-//----------------- KU_StandaloneCallContext ------------------------------------------------------------------
+//----------------- NEUG_StandaloneCallContext ------------------------------------------------------------------
 
-CypherParser::KU_StandaloneCallContext::KU_StandaloneCallContext(ParserRuleContext *parent, size_t invokingState)
+CypherParser::NEUG_StandaloneCallContext::NEUG_StandaloneCallContext(ParserRuleContext *parent, size_t invokingState)
   : ParserRuleContext(parent, invokingState) {
 }
 
-tree::TerminalNode* CypherParser::KU_StandaloneCallContext::CALL() {
+tree::TerminalNode* CypherParser::NEUG_StandaloneCallContext::CALL() {
   return getToken(CypherParser::CALL, 0);
 }
 
-std::vector<tree::TerminalNode *> CypherParser::KU_StandaloneCallContext::SP() {
+std::vector<tree::TerminalNode *> CypherParser::NEUG_StandaloneCallContext::SP() {
   return getTokens(CypherParser::SP);
 }
 
-tree::TerminalNode* CypherParser::KU_StandaloneCallContext::SP(size_t i) {
+tree::TerminalNode* CypherParser::NEUG_StandaloneCallContext::SP(size_t i) {
   return getToken(CypherParser::SP, i);
 }
 
-CypherParser::OC_SymbolicNameContext* CypherParser::KU_StandaloneCallContext::oC_SymbolicName() {
+CypherParser::OC_SymbolicNameContext* CypherParser::NEUG_StandaloneCallContext::oC_SymbolicName() {
   return getRuleContext<CypherParser::OC_SymbolicNameContext>(0);
 }
 
-CypherParser::OC_ExpressionContext* CypherParser::KU_StandaloneCallContext::oC_Expression() {
+CypherParser::OC_ExpressionContext* CypherParser::NEUG_StandaloneCallContext::oC_Expression() {
   return getRuleContext<CypherParser::OC_ExpressionContext>(0);
 }
 
-CypherParser::OC_FunctionInvocationContext* CypherParser::KU_StandaloneCallContext::oC_FunctionInvocation() {
+CypherParser::OC_FunctionInvocationContext* CypherParser::NEUG_StandaloneCallContext::oC_FunctionInvocation() {
   return getRuleContext<CypherParser::OC_FunctionInvocationContext>(0);
 }
 
 
-size_t CypherParser::KU_StandaloneCallContext::getRuleIndex() const {
-  return CypherParser::RuleKU_StandaloneCall;
+size_t CypherParser::NEUG_StandaloneCallContext::getRuleIndex() const {
+  return CypherParser::RuleNEUG_StandaloneCall;
 }
 
 
-CypherParser::KU_StandaloneCallContext* CypherParser::kU_StandaloneCall() {
-  KU_StandaloneCallContext *_localctx = _tracker.createInstance<KU_StandaloneCallContext>(_ctx, getState());
-  enterRule(_localctx, 30, CypherParser::RuleKU_StandaloneCall);
+CypherParser::NEUG_StandaloneCallContext* CypherParser::nEUG_StandaloneCall() {
+  NEUG_StandaloneCallContext *_localctx = _tracker.createInstance<NEUG_StandaloneCallContext>(_ctx, getState());
+  enterRule(_localctx, 30, CypherParser::RuleNEUG_StandaloneCall);
   size_t _la = 0;
 
 #if __cplusplus > 201703L
@@ -3221,53 +3222,53 @@ CypherParser::KU_StandaloneCallContext* CypherParser::kU_StandaloneCall() {
   return _localctx;
 }
 
-//----------------- KU_CommentOnContext ------------------------------------------------------------------
+//----------------- NEUG_CommentOnContext ------------------------------------------------------------------
 
-CypherParser::KU_CommentOnContext::KU_CommentOnContext(ParserRuleContext *parent, size_t invokingState)
+CypherParser::NEUG_CommentOnContext::NEUG_CommentOnContext(ParserRuleContext *parent, size_t invokingState)
   : ParserRuleContext(parent, invokingState) {
 }
 
-tree::TerminalNode* CypherParser::KU_CommentOnContext::COMMENT() {
+tree::TerminalNode* CypherParser::NEUG_CommentOnContext::COMMENT() {
   return getToken(CypherParser::COMMENT, 0);
 }
 
-std::vector<tree::TerminalNode *> CypherParser::KU_CommentOnContext::SP() {
+std::vector<tree::TerminalNode *> CypherParser::NEUG_CommentOnContext::SP() {
   return getTokens(CypherParser::SP);
 }
 
-tree::TerminalNode* CypherParser::KU_CommentOnContext::SP(size_t i) {
+tree::TerminalNode* CypherParser::NEUG_CommentOnContext::SP(size_t i) {
   return getToken(CypherParser::SP, i);
 }
 
-tree::TerminalNode* CypherParser::KU_CommentOnContext::ON() {
+tree::TerminalNode* CypherParser::NEUG_CommentOnContext::ON() {
   return getToken(CypherParser::ON, 0);
 }
 
-tree::TerminalNode* CypherParser::KU_CommentOnContext::TABLE() {
+tree::TerminalNode* CypherParser::NEUG_CommentOnContext::TABLE() {
   return getToken(CypherParser::TABLE, 0);
 }
 
-CypherParser::OC_SchemaNameContext* CypherParser::KU_CommentOnContext::oC_SchemaName() {
+CypherParser::OC_SchemaNameContext* CypherParser::NEUG_CommentOnContext::oC_SchemaName() {
   return getRuleContext<CypherParser::OC_SchemaNameContext>(0);
 }
 
-tree::TerminalNode* CypherParser::KU_CommentOnContext::IS() {
+tree::TerminalNode* CypherParser::NEUG_CommentOnContext::IS() {
   return getToken(CypherParser::IS, 0);
 }
 
-tree::TerminalNode* CypherParser::KU_CommentOnContext::StringLiteral() {
+tree::TerminalNode* CypherParser::NEUG_CommentOnContext::StringLiteral() {
   return getToken(CypherParser::StringLiteral, 0);
 }
 
 
-size_t CypherParser::KU_CommentOnContext::getRuleIndex() const {
-  return CypherParser::RuleKU_CommentOn;
+size_t CypherParser::NEUG_CommentOnContext::getRuleIndex() const {
+  return CypherParser::RuleNEUG_CommentOn;
 }
 
 
-CypherParser::KU_CommentOnContext* CypherParser::kU_CommentOn() {
-  KU_CommentOnContext *_localctx = _tracker.createInstance<KU_CommentOnContext>(_ctx, getState());
-  enterRule(_localctx, 32, CypherParser::RuleKU_CommentOn);
+CypherParser::NEUG_CommentOnContext* CypherParser::nEUG_CommentOn() {
+  NEUG_CommentOnContext *_localctx = _tracker.createInstance<NEUG_CommentOnContext>(_ctx, getState());
+  enterRule(_localctx, 32, CypherParser::RuleNEUG_CommentOn);
 
 #if __cplusplus > 201703L
   auto onExit = finally([=, this] {
@@ -3311,61 +3312,61 @@ CypherParser::KU_CommentOnContext* CypherParser::kU_CommentOn() {
   return _localctx;
 }
 
-//----------------- KU_CreateMacroContext ------------------------------------------------------------------
+//----------------- NEUG_CreateMacroContext ------------------------------------------------------------------
 
-CypherParser::KU_CreateMacroContext::KU_CreateMacroContext(ParserRuleContext *parent, size_t invokingState)
+CypherParser::NEUG_CreateMacroContext::NEUG_CreateMacroContext(ParserRuleContext *parent, size_t invokingState)
   : ParserRuleContext(parent, invokingState) {
 }
 
-tree::TerminalNode* CypherParser::KU_CreateMacroContext::CREATE() {
+tree::TerminalNode* CypherParser::NEUG_CreateMacroContext::CREATE() {
   return getToken(CypherParser::CREATE, 0);
 }
 
-std::vector<tree::TerminalNode *> CypherParser::KU_CreateMacroContext::SP() {
+std::vector<tree::TerminalNode *> CypherParser::NEUG_CreateMacroContext::SP() {
   return getTokens(CypherParser::SP);
 }
 
-tree::TerminalNode* CypherParser::KU_CreateMacroContext::SP(size_t i) {
+tree::TerminalNode* CypherParser::NEUG_CreateMacroContext::SP(size_t i) {
   return getToken(CypherParser::SP, i);
 }
 
-tree::TerminalNode* CypherParser::KU_CreateMacroContext::MACRO() {
+tree::TerminalNode* CypherParser::NEUG_CreateMacroContext::MACRO() {
   return getToken(CypherParser::MACRO, 0);
 }
 
-CypherParser::OC_FunctionNameContext* CypherParser::KU_CreateMacroContext::oC_FunctionName() {
+CypherParser::OC_FunctionNameContext* CypherParser::NEUG_CreateMacroContext::oC_FunctionName() {
   return getRuleContext<CypherParser::OC_FunctionNameContext>(0);
 }
 
-tree::TerminalNode* CypherParser::KU_CreateMacroContext::AS() {
+tree::TerminalNode* CypherParser::NEUG_CreateMacroContext::AS() {
   return getToken(CypherParser::AS, 0);
 }
 
-CypherParser::OC_ExpressionContext* CypherParser::KU_CreateMacroContext::oC_Expression() {
+CypherParser::OC_ExpressionContext* CypherParser::NEUG_CreateMacroContext::oC_Expression() {
   return getRuleContext<CypherParser::OC_ExpressionContext>(0);
 }
 
-CypherParser::KU_PositionalArgsContext* CypherParser::KU_CreateMacroContext::kU_PositionalArgs() {
-  return getRuleContext<CypherParser::KU_PositionalArgsContext>(0);
+CypherParser::NEUG_PositionalArgsContext* CypherParser::NEUG_CreateMacroContext::nEUG_PositionalArgs() {
+  return getRuleContext<CypherParser::NEUG_PositionalArgsContext>(0);
 }
 
-std::vector<CypherParser::KU_DefaultArgContext *> CypherParser::KU_CreateMacroContext::kU_DefaultArg() {
-  return getRuleContexts<CypherParser::KU_DefaultArgContext>();
+std::vector<CypherParser::NEUG_DefaultArgContext *> CypherParser::NEUG_CreateMacroContext::nEUG_DefaultArg() {
+  return getRuleContexts<CypherParser::NEUG_DefaultArgContext>();
 }
 
-CypherParser::KU_DefaultArgContext* CypherParser::KU_CreateMacroContext::kU_DefaultArg(size_t i) {
-  return getRuleContext<CypherParser::KU_DefaultArgContext>(i);
-}
-
-
-size_t CypherParser::KU_CreateMacroContext::getRuleIndex() const {
-  return CypherParser::RuleKU_CreateMacro;
+CypherParser::NEUG_DefaultArgContext* CypherParser::NEUG_CreateMacroContext::nEUG_DefaultArg(size_t i) {
+  return getRuleContext<CypherParser::NEUG_DefaultArgContext>(i);
 }
 
 
-CypherParser::KU_CreateMacroContext* CypherParser::kU_CreateMacro() {
-  KU_CreateMacroContext *_localctx = _tracker.createInstance<KU_CreateMacroContext>(_ctx, getState());
-  enterRule(_localctx, 34, CypherParser::RuleKU_CreateMacro);
+size_t CypherParser::NEUG_CreateMacroContext::getRuleIndex() const {
+  return CypherParser::RuleNEUG_CreateMacro;
+}
+
+
+CypherParser::NEUG_CreateMacroContext* CypherParser::nEUG_CreateMacro() {
+  NEUG_CreateMacroContext *_localctx = _tracker.createInstance<NEUG_CreateMacroContext>(_ctx, getState());
+  enterRule(_localctx, 34, CypherParser::RuleNEUG_CreateMacro);
   size_t _la = 0;
 
 #if __cplusplus > 201703L
@@ -3417,7 +3418,7 @@ CypherParser::KU_CreateMacroContext* CypherParser::kU_CreateMacro() {
     switch (getInterpreter<atn::ParserATNSimulator>()->adaptivePredict(_input, 58, _ctx)) {
     case 1: {
       setState(677);
-      kU_PositionalArgs();
+      nEUG_PositionalArgs();
       break;
     }
 
@@ -3445,7 +3446,7 @@ CypherParser::KU_CreateMacroContext* CypherParser::kU_CreateMacro() {
       ((1ULL << (_la - 49)) & -2380888042297776235) != 0) || ((((_la - 123) & ~ 0x3fULL) == 0) &&
       ((1ULL << (_la - 123)) & 10137503149540799) != 0)) {
       setState(683);
-      kU_DefaultArg();
+      nEUG_DefaultArg();
     }
     setState(696);
     _errHandler->sync(this);
@@ -3471,7 +3472,7 @@ CypherParser::KU_CreateMacroContext* CypherParser::kU_CreateMacro() {
           match(CypherParser::SP);
         }
         setState(693);
-        kU_DefaultArg(); 
+        nEUG_DefaultArg(); 
       }
       setState(698);
       _errHandler->sync(this);
@@ -3506,37 +3507,37 @@ CypherParser::KU_CreateMacroContext* CypherParser::kU_CreateMacro() {
   return _localctx;
 }
 
-//----------------- KU_PositionalArgsContext ------------------------------------------------------------------
+//----------------- NEUG_PositionalArgsContext ------------------------------------------------------------------
 
-CypherParser::KU_PositionalArgsContext::KU_PositionalArgsContext(ParserRuleContext *parent, size_t invokingState)
+CypherParser::NEUG_PositionalArgsContext::NEUG_PositionalArgsContext(ParserRuleContext *parent, size_t invokingState)
   : ParserRuleContext(parent, invokingState) {
 }
 
-std::vector<CypherParser::OC_SymbolicNameContext *> CypherParser::KU_PositionalArgsContext::oC_SymbolicName() {
+std::vector<CypherParser::OC_SymbolicNameContext *> CypherParser::NEUG_PositionalArgsContext::oC_SymbolicName() {
   return getRuleContexts<CypherParser::OC_SymbolicNameContext>();
 }
 
-CypherParser::OC_SymbolicNameContext* CypherParser::KU_PositionalArgsContext::oC_SymbolicName(size_t i) {
+CypherParser::OC_SymbolicNameContext* CypherParser::NEUG_PositionalArgsContext::oC_SymbolicName(size_t i) {
   return getRuleContext<CypherParser::OC_SymbolicNameContext>(i);
 }
 
-std::vector<tree::TerminalNode *> CypherParser::KU_PositionalArgsContext::SP() {
+std::vector<tree::TerminalNode *> CypherParser::NEUG_PositionalArgsContext::SP() {
   return getTokens(CypherParser::SP);
 }
 
-tree::TerminalNode* CypherParser::KU_PositionalArgsContext::SP(size_t i) {
+tree::TerminalNode* CypherParser::NEUG_PositionalArgsContext::SP(size_t i) {
   return getToken(CypherParser::SP, i);
 }
 
 
-size_t CypherParser::KU_PositionalArgsContext::getRuleIndex() const {
-  return CypherParser::RuleKU_PositionalArgs;
+size_t CypherParser::NEUG_PositionalArgsContext::getRuleIndex() const {
+  return CypherParser::RuleNEUG_PositionalArgs;
 }
 
 
-CypherParser::KU_PositionalArgsContext* CypherParser::kU_PositionalArgs() {
-  KU_PositionalArgsContext *_localctx = _tracker.createInstance<KU_PositionalArgsContext>(_ctx, getState());
-  enterRule(_localctx, 36, CypherParser::RuleKU_PositionalArgs);
+CypherParser::NEUG_PositionalArgsContext* CypherParser::nEUG_PositionalArgs() {
+  NEUG_PositionalArgsContext *_localctx = _tracker.createInstance<NEUG_PositionalArgsContext>(_ctx, getState());
+  enterRule(_localctx, 36, CypherParser::RuleNEUG_PositionalArgs);
   size_t _la = 0;
 
 #if __cplusplus > 201703L
@@ -3592,41 +3593,41 @@ CypherParser::KU_PositionalArgsContext* CypherParser::kU_PositionalArgs() {
   return _localctx;
 }
 
-//----------------- KU_DefaultArgContext ------------------------------------------------------------------
+//----------------- NEUG_DefaultArgContext ------------------------------------------------------------------
 
-CypherParser::KU_DefaultArgContext::KU_DefaultArgContext(ParserRuleContext *parent, size_t invokingState)
+CypherParser::NEUG_DefaultArgContext::NEUG_DefaultArgContext(ParserRuleContext *parent, size_t invokingState)
   : ParserRuleContext(parent, invokingState) {
 }
 
-CypherParser::OC_SymbolicNameContext* CypherParser::KU_DefaultArgContext::oC_SymbolicName() {
+CypherParser::OC_SymbolicNameContext* CypherParser::NEUG_DefaultArgContext::oC_SymbolicName() {
   return getRuleContext<CypherParser::OC_SymbolicNameContext>(0);
 }
 
-tree::TerminalNode* CypherParser::KU_DefaultArgContext::COLON() {
+tree::TerminalNode* CypherParser::NEUG_DefaultArgContext::COLON() {
   return getToken(CypherParser::COLON, 0);
 }
 
-CypherParser::OC_LiteralContext* CypherParser::KU_DefaultArgContext::oC_Literal() {
+CypherParser::OC_LiteralContext* CypherParser::NEUG_DefaultArgContext::oC_Literal() {
   return getRuleContext<CypherParser::OC_LiteralContext>(0);
 }
 
-std::vector<tree::TerminalNode *> CypherParser::KU_DefaultArgContext::SP() {
+std::vector<tree::TerminalNode *> CypherParser::NEUG_DefaultArgContext::SP() {
   return getTokens(CypherParser::SP);
 }
 
-tree::TerminalNode* CypherParser::KU_DefaultArgContext::SP(size_t i) {
+tree::TerminalNode* CypherParser::NEUG_DefaultArgContext::SP(size_t i) {
   return getToken(CypherParser::SP, i);
 }
 
 
-size_t CypherParser::KU_DefaultArgContext::getRuleIndex() const {
-  return CypherParser::RuleKU_DefaultArg;
+size_t CypherParser::NEUG_DefaultArgContext::getRuleIndex() const {
+  return CypherParser::RuleNEUG_DefaultArg;
 }
 
 
-CypherParser::KU_DefaultArgContext* CypherParser::kU_DefaultArg() {
-  KU_DefaultArgContext *_localctx = _tracker.createInstance<KU_DefaultArgContext>(_ctx, getState());
-  enterRule(_localctx, 38, CypherParser::RuleKU_DefaultArg);
+CypherParser::NEUG_DefaultArgContext* CypherParser::nEUG_DefaultArg() {
+  NEUG_DefaultArgContext *_localctx = _tracker.createInstance<NEUG_DefaultArgContext>(_ctx, getState());
+  enterRule(_localctx, 38, CypherParser::RuleNEUG_DefaultArg);
   size_t _la = 0;
 
 #if __cplusplus > 201703L
@@ -3673,41 +3674,41 @@ CypherParser::KU_DefaultArgContext* CypherParser::kU_DefaultArg() {
   return _localctx;
 }
 
-//----------------- KU_FilePathsContext ------------------------------------------------------------------
+//----------------- NEUG_FilePathsContext ------------------------------------------------------------------
 
-CypherParser::KU_FilePathsContext::KU_FilePathsContext(ParserRuleContext *parent, size_t invokingState)
+CypherParser::NEUG_FilePathsContext::NEUG_FilePathsContext(ParserRuleContext *parent, size_t invokingState)
   : ParserRuleContext(parent, invokingState) {
 }
 
-std::vector<tree::TerminalNode *> CypherParser::KU_FilePathsContext::StringLiteral() {
+std::vector<tree::TerminalNode *> CypherParser::NEUG_FilePathsContext::StringLiteral() {
   return getTokens(CypherParser::StringLiteral);
 }
 
-tree::TerminalNode* CypherParser::KU_FilePathsContext::StringLiteral(size_t i) {
+tree::TerminalNode* CypherParser::NEUG_FilePathsContext::StringLiteral(size_t i) {
   return getToken(CypherParser::StringLiteral, i);
 }
 
-std::vector<tree::TerminalNode *> CypherParser::KU_FilePathsContext::SP() {
+std::vector<tree::TerminalNode *> CypherParser::NEUG_FilePathsContext::SP() {
   return getTokens(CypherParser::SP);
 }
 
-tree::TerminalNode* CypherParser::KU_FilePathsContext::SP(size_t i) {
+tree::TerminalNode* CypherParser::NEUG_FilePathsContext::SP(size_t i) {
   return getToken(CypherParser::SP, i);
 }
 
-tree::TerminalNode* CypherParser::KU_FilePathsContext::GLOB() {
+tree::TerminalNode* CypherParser::NEUG_FilePathsContext::GLOB() {
   return getToken(CypherParser::GLOB, 0);
 }
 
 
-size_t CypherParser::KU_FilePathsContext::getRuleIndex() const {
-  return CypherParser::RuleKU_FilePaths;
+size_t CypherParser::NEUG_FilePathsContext::getRuleIndex() const {
+  return CypherParser::RuleNEUG_FilePaths;
 }
 
 
-CypherParser::KU_FilePathsContext* CypherParser::kU_FilePaths() {
-  KU_FilePathsContext *_localctx = _tracker.createInstance<KU_FilePathsContext>(_ctx, getState());
-  enterRule(_localctx, 40, CypherParser::RuleKU_FilePaths);
+CypherParser::NEUG_FilePathsContext* CypherParser::nEUG_FilePaths() {
+  NEUG_FilePathsContext *_localctx = _tracker.createInstance<NEUG_FilePathsContext>(_ctx, getState());
+  enterRule(_localctx, 40, CypherParser::RuleNEUG_FilePaths);
   size_t _la = 0;
 
 #if __cplusplus > 201703L
@@ -3826,41 +3827,41 @@ CypherParser::KU_FilePathsContext* CypherParser::kU_FilePaths() {
   return _localctx;
 }
 
-//----------------- KU_IfNotExistsContext ------------------------------------------------------------------
+//----------------- NEUG_IfNotExistsContext ------------------------------------------------------------------
 
-CypherParser::KU_IfNotExistsContext::KU_IfNotExistsContext(ParserRuleContext *parent, size_t invokingState)
+CypherParser::NEUG_IfNotExistsContext::NEUG_IfNotExistsContext(ParserRuleContext *parent, size_t invokingState)
   : ParserRuleContext(parent, invokingState) {
 }
 
-tree::TerminalNode* CypherParser::KU_IfNotExistsContext::IF() {
+tree::TerminalNode* CypherParser::NEUG_IfNotExistsContext::IF() {
   return getToken(CypherParser::IF, 0);
 }
 
-std::vector<tree::TerminalNode *> CypherParser::KU_IfNotExistsContext::SP() {
+std::vector<tree::TerminalNode *> CypherParser::NEUG_IfNotExistsContext::SP() {
   return getTokens(CypherParser::SP);
 }
 
-tree::TerminalNode* CypherParser::KU_IfNotExistsContext::SP(size_t i) {
+tree::TerminalNode* CypherParser::NEUG_IfNotExistsContext::SP(size_t i) {
   return getToken(CypherParser::SP, i);
 }
 
-tree::TerminalNode* CypherParser::KU_IfNotExistsContext::NOT() {
+tree::TerminalNode* CypherParser::NEUG_IfNotExistsContext::NOT() {
   return getToken(CypherParser::NOT, 0);
 }
 
-tree::TerminalNode* CypherParser::KU_IfNotExistsContext::EXISTS() {
+tree::TerminalNode* CypherParser::NEUG_IfNotExistsContext::EXISTS() {
   return getToken(CypherParser::EXISTS, 0);
 }
 
 
-size_t CypherParser::KU_IfNotExistsContext::getRuleIndex() const {
-  return CypherParser::RuleKU_IfNotExists;
+size_t CypherParser::NEUG_IfNotExistsContext::getRuleIndex() const {
+  return CypherParser::RuleNEUG_IfNotExists;
 }
 
 
-CypherParser::KU_IfNotExistsContext* CypherParser::kU_IfNotExists() {
-  KU_IfNotExistsContext *_localctx = _tracker.createInstance<KU_IfNotExistsContext>(_ctx, getState());
-  enterRule(_localctx, 42, CypherParser::RuleKU_IfNotExists);
+CypherParser::NEUG_IfNotExistsContext* CypherParser::nEUG_IfNotExists() {
+  NEUG_IfNotExistsContext *_localctx = _tracker.createInstance<NEUG_IfNotExistsContext>(_ctx, getState());
+  enterRule(_localctx, 42, CypherParser::RuleNEUG_IfNotExists);
 
 #if __cplusplus > 201703L
   auto onExit = finally([=, this] {
@@ -3892,57 +3893,57 @@ CypherParser::KU_IfNotExistsContext* CypherParser::kU_IfNotExists() {
   return _localctx;
 }
 
-//----------------- KU_CreateNodeTableContext ------------------------------------------------------------------
+//----------------- NEUG_CreateNodeTableContext ------------------------------------------------------------------
 
-CypherParser::KU_CreateNodeTableContext::KU_CreateNodeTableContext(ParserRuleContext *parent, size_t invokingState)
+CypherParser::NEUG_CreateNodeTableContext::NEUG_CreateNodeTableContext(ParserRuleContext *parent, size_t invokingState)
   : ParserRuleContext(parent, invokingState) {
 }
 
-tree::TerminalNode* CypherParser::KU_CreateNodeTableContext::CREATE() {
+tree::TerminalNode* CypherParser::NEUG_CreateNodeTableContext::CREATE() {
   return getToken(CypherParser::CREATE, 0);
 }
 
-std::vector<tree::TerminalNode *> CypherParser::KU_CreateNodeTableContext::SP() {
+std::vector<tree::TerminalNode *> CypherParser::NEUG_CreateNodeTableContext::SP() {
   return getTokens(CypherParser::SP);
 }
 
-tree::TerminalNode* CypherParser::KU_CreateNodeTableContext::SP(size_t i) {
+tree::TerminalNode* CypherParser::NEUG_CreateNodeTableContext::SP(size_t i) {
   return getToken(CypherParser::SP, i);
 }
 
-tree::TerminalNode* CypherParser::KU_CreateNodeTableContext::NODE() {
+tree::TerminalNode* CypherParser::NEUG_CreateNodeTableContext::NODE() {
   return getToken(CypherParser::NODE, 0);
 }
 
-tree::TerminalNode* CypherParser::KU_CreateNodeTableContext::TABLE() {
+tree::TerminalNode* CypherParser::NEUG_CreateNodeTableContext::TABLE() {
   return getToken(CypherParser::TABLE, 0);
 }
 
-CypherParser::OC_SchemaNameContext* CypherParser::KU_CreateNodeTableContext::oC_SchemaName() {
+CypherParser::OC_SchemaNameContext* CypherParser::NEUG_CreateNodeTableContext::oC_SchemaName() {
   return getRuleContext<CypherParser::OC_SchemaNameContext>(0);
 }
 
-CypherParser::KU_PropertyDefinitionsContext* CypherParser::KU_CreateNodeTableContext::kU_PropertyDefinitions() {
-  return getRuleContext<CypherParser::KU_PropertyDefinitionsContext>(0);
+CypherParser::NEUG_PropertyDefinitionsContext* CypherParser::NEUG_CreateNodeTableContext::nEUG_PropertyDefinitions() {
+  return getRuleContext<CypherParser::NEUG_PropertyDefinitionsContext>(0);
 }
 
-CypherParser::KU_IfNotExistsContext* CypherParser::KU_CreateNodeTableContext::kU_IfNotExists() {
-  return getRuleContext<CypherParser::KU_IfNotExistsContext>(0);
+CypherParser::NEUG_IfNotExistsContext* CypherParser::NEUG_CreateNodeTableContext::nEUG_IfNotExists() {
+  return getRuleContext<CypherParser::NEUG_IfNotExistsContext>(0);
 }
 
-CypherParser::KU_CreateNodeConstraintContext* CypherParser::KU_CreateNodeTableContext::kU_CreateNodeConstraint() {
-  return getRuleContext<CypherParser::KU_CreateNodeConstraintContext>(0);
-}
-
-
-size_t CypherParser::KU_CreateNodeTableContext::getRuleIndex() const {
-  return CypherParser::RuleKU_CreateNodeTable;
+CypherParser::NEUG_CreateNodeConstraintContext* CypherParser::NEUG_CreateNodeTableContext::nEUG_CreateNodeConstraint() {
+  return getRuleContext<CypherParser::NEUG_CreateNodeConstraintContext>(0);
 }
 
 
-CypherParser::KU_CreateNodeTableContext* CypherParser::kU_CreateNodeTable() {
-  KU_CreateNodeTableContext *_localctx = _tracker.createInstance<KU_CreateNodeTableContext>(_ctx, getState());
-  enterRule(_localctx, 44, CypherParser::RuleKU_CreateNodeTable);
+size_t CypherParser::NEUG_CreateNodeTableContext::getRuleIndex() const {
+  return CypherParser::RuleNEUG_CreateNodeTable;
+}
+
+
+CypherParser::NEUG_CreateNodeTableContext* CypherParser::nEUG_CreateNodeTable() {
+  NEUG_CreateNodeTableContext *_localctx = _tracker.createInstance<NEUG_CreateNodeTableContext>(_ctx, getState());
+  enterRule(_localctx, 44, CypherParser::RuleNEUG_CreateNodeTable);
   size_t _la = 0;
 
 #if __cplusplus > 201703L
@@ -3972,7 +3973,7 @@ CypherParser::KU_CreateNodeTableContext* CypherParser::kU_CreateNodeTable() {
     switch (getInterpreter<atn::ParserATNSimulator>()->adaptivePredict(_input, 78, _ctx)) {
     case 1: {
       setState(780);
-      kU_IfNotExists();
+      nEUG_IfNotExists();
       setState(781);
       match(CypherParser::SP);
       break;
@@ -4002,7 +4003,7 @@ CypherParser::KU_CreateNodeTableContext* CypherParser::kU_CreateNodeTable() {
       match(CypherParser::SP);
     }
     setState(793);
-    kU_PropertyDefinitions();
+    nEUG_PropertyDefinitions();
     setState(795);
     _errHandler->sync(this);
 
@@ -4032,7 +4033,7 @@ CypherParser::KU_CreateNodeTableContext* CypherParser::kU_CreateNodeTable() {
         match(CypherParser::SP);
       }
       setState(801);
-      kU_CreateNodeConstraint();
+      nEUG_CreateNodeConstraint();
     }
     setState(805);
     _errHandler->sync(this);
@@ -4055,73 +4056,73 @@ CypherParser::KU_CreateNodeTableContext* CypherParser::kU_CreateNodeTable() {
   return _localctx;
 }
 
-//----------------- KU_CreateRelTableContext ------------------------------------------------------------------
+//----------------- NEUG_CreateRelTableContext ------------------------------------------------------------------
 
-CypherParser::KU_CreateRelTableContext::KU_CreateRelTableContext(ParserRuleContext *parent, size_t invokingState)
+CypherParser::NEUG_CreateRelTableContext::NEUG_CreateRelTableContext(ParserRuleContext *parent, size_t invokingState)
   : ParserRuleContext(parent, invokingState) {
 }
 
-tree::TerminalNode* CypherParser::KU_CreateRelTableContext::CREATE() {
+tree::TerminalNode* CypherParser::NEUG_CreateRelTableContext::CREATE() {
   return getToken(CypherParser::CREATE, 0);
 }
 
-std::vector<tree::TerminalNode *> CypherParser::KU_CreateRelTableContext::SP() {
+std::vector<tree::TerminalNode *> CypherParser::NEUG_CreateRelTableContext::SP() {
   return getTokens(CypherParser::SP);
 }
 
-tree::TerminalNode* CypherParser::KU_CreateRelTableContext::SP(size_t i) {
+tree::TerminalNode* CypherParser::NEUG_CreateRelTableContext::SP(size_t i) {
   return getToken(CypherParser::SP, i);
 }
 
-tree::TerminalNode* CypherParser::KU_CreateRelTableContext::REL() {
+tree::TerminalNode* CypherParser::NEUG_CreateRelTableContext::REL() {
   return getToken(CypherParser::REL, 0);
 }
 
-tree::TerminalNode* CypherParser::KU_CreateRelTableContext::TABLE() {
+tree::TerminalNode* CypherParser::NEUG_CreateRelTableContext::TABLE() {
   return getToken(CypherParser::TABLE, 0);
 }
 
-CypherParser::OC_SchemaNameContext* CypherParser::KU_CreateRelTableContext::oC_SchemaName() {
+CypherParser::OC_SchemaNameContext* CypherParser::NEUG_CreateRelTableContext::oC_SchemaName() {
   return getRuleContext<CypherParser::OC_SchemaNameContext>(0);
 }
 
-CypherParser::KU_FromToConnectionsContext* CypherParser::KU_CreateRelTableContext::kU_FromToConnections() {
-  return getRuleContext<CypherParser::KU_FromToConnectionsContext>(0);
+CypherParser::NEUG_FromToConnectionsContext* CypherParser::NEUG_CreateRelTableContext::nEUG_FromToConnections() {
+  return getRuleContext<CypherParser::NEUG_FromToConnectionsContext>(0);
 }
 
-tree::TerminalNode* CypherParser::KU_CreateRelTableContext::GROUP() {
+tree::TerminalNode* CypherParser::NEUG_CreateRelTableContext::GROUP() {
   return getToken(CypherParser::GROUP, 0);
 }
 
-CypherParser::KU_IfNotExistsContext* CypherParser::KU_CreateRelTableContext::kU_IfNotExists() {
-  return getRuleContext<CypherParser::KU_IfNotExistsContext>(0);
+CypherParser::NEUG_IfNotExistsContext* CypherParser::NEUG_CreateRelTableContext::nEUG_IfNotExists() {
+  return getRuleContext<CypherParser::NEUG_IfNotExistsContext>(0);
 }
 
-CypherParser::KU_PropertyDefinitionsContext* CypherParser::KU_CreateRelTableContext::kU_PropertyDefinitions() {
-  return getRuleContext<CypherParser::KU_PropertyDefinitionsContext>(0);
+CypherParser::NEUG_PropertyDefinitionsContext* CypherParser::NEUG_CreateRelTableContext::nEUG_PropertyDefinitions() {
+  return getRuleContext<CypherParser::NEUG_PropertyDefinitionsContext>(0);
 }
 
-CypherParser::OC_SymbolicNameContext* CypherParser::KU_CreateRelTableContext::oC_SymbolicName() {
+CypherParser::OC_SymbolicNameContext* CypherParser::NEUG_CreateRelTableContext::oC_SymbolicName() {
   return getRuleContext<CypherParser::OC_SymbolicNameContext>(0);
 }
 
-tree::TerminalNode* CypherParser::KU_CreateRelTableContext::WITH() {
+tree::TerminalNode* CypherParser::NEUG_CreateRelTableContext::WITH() {
   return getToken(CypherParser::WITH, 0);
 }
 
-CypherParser::KU_OptionsContext* CypherParser::KU_CreateRelTableContext::kU_Options() {
-  return getRuleContext<CypherParser::KU_OptionsContext>(0);
+CypherParser::NEUG_OptionsContext* CypherParser::NEUG_CreateRelTableContext::nEUG_Options() {
+  return getRuleContext<CypherParser::NEUG_OptionsContext>(0);
 }
 
 
-size_t CypherParser::KU_CreateRelTableContext::getRuleIndex() const {
-  return CypherParser::RuleKU_CreateRelTable;
+size_t CypherParser::NEUG_CreateRelTableContext::getRuleIndex() const {
+  return CypherParser::RuleNEUG_CreateRelTable;
 }
 
 
-CypherParser::KU_CreateRelTableContext* CypherParser::kU_CreateRelTable() {
-  KU_CreateRelTableContext *_localctx = _tracker.createInstance<KU_CreateRelTableContext>(_ctx, getState());
-  enterRule(_localctx, 46, CypherParser::RuleKU_CreateRelTable);
+CypherParser::NEUG_CreateRelTableContext* CypherParser::nEUG_CreateRelTable() {
+  NEUG_CreateRelTableContext *_localctx = _tracker.createInstance<NEUG_CreateRelTableContext>(_ctx, getState());
+  enterRule(_localctx, 46, CypherParser::RuleNEUG_CreateRelTable);
   size_t _la = 0;
 
 #if __cplusplus > 201703L
@@ -4166,7 +4167,7 @@ CypherParser::KU_CreateRelTableContext* CypherParser::kU_CreateRelTable() {
       setState(818);
       match(CypherParser::SP);
       setState(819);
-      kU_IfNotExists();
+      nEUG_IfNotExists();
       break;
     }
 
@@ -4196,7 +4197,7 @@ CypherParser::KU_CreateRelTableContext* CypherParser::kU_CreateRelTable() {
       match(CypherParser::SP);
     }
     setState(831);
-    kU_FromToConnections();
+    nEUG_FromToConnections();
     setState(833);
     _errHandler->sync(this);
 
@@ -4221,7 +4222,7 @@ CypherParser::KU_CreateRelTableContext* CypherParser::kU_CreateRelTable() {
         match(CypherParser::SP);
       }
       setState(839);
-      kU_PropertyDefinitions();
+      nEUG_PropertyDefinitions();
       setState(841);
       _errHandler->sync(this);
 
@@ -4292,7 +4293,7 @@ CypherParser::KU_CreateRelTableContext* CypherParser::kU_CreateRelTable() {
         match(CypherParser::SP);
       }
       setState(865);
-      kU_Options();
+      nEUG_Options();
       setState(867);
       _errHandler->sync(this);
 
@@ -4320,37 +4321,37 @@ CypherParser::KU_CreateRelTableContext* CypherParser::kU_CreateRelTable() {
   return _localctx;
 }
 
-//----------------- KU_FromToConnectionsContext ------------------------------------------------------------------
+//----------------- NEUG_FromToConnectionsContext ------------------------------------------------------------------
 
-CypherParser::KU_FromToConnectionsContext::KU_FromToConnectionsContext(ParserRuleContext *parent, size_t invokingState)
+CypherParser::NEUG_FromToConnectionsContext::NEUG_FromToConnectionsContext(ParserRuleContext *parent, size_t invokingState)
   : ParserRuleContext(parent, invokingState) {
 }
 
-std::vector<CypherParser::KU_FromToConnectionContext *> CypherParser::KU_FromToConnectionsContext::kU_FromToConnection() {
-  return getRuleContexts<CypherParser::KU_FromToConnectionContext>();
+std::vector<CypherParser::NEUG_FromToConnectionContext *> CypherParser::NEUG_FromToConnectionsContext::nEUG_FromToConnection() {
+  return getRuleContexts<CypherParser::NEUG_FromToConnectionContext>();
 }
 
-CypherParser::KU_FromToConnectionContext* CypherParser::KU_FromToConnectionsContext::kU_FromToConnection(size_t i) {
-  return getRuleContext<CypherParser::KU_FromToConnectionContext>(i);
+CypherParser::NEUG_FromToConnectionContext* CypherParser::NEUG_FromToConnectionsContext::nEUG_FromToConnection(size_t i) {
+  return getRuleContext<CypherParser::NEUG_FromToConnectionContext>(i);
 }
 
-std::vector<tree::TerminalNode *> CypherParser::KU_FromToConnectionsContext::SP() {
+std::vector<tree::TerminalNode *> CypherParser::NEUG_FromToConnectionsContext::SP() {
   return getTokens(CypherParser::SP);
 }
 
-tree::TerminalNode* CypherParser::KU_FromToConnectionsContext::SP(size_t i) {
+tree::TerminalNode* CypherParser::NEUG_FromToConnectionsContext::SP(size_t i) {
   return getToken(CypherParser::SP, i);
 }
 
 
-size_t CypherParser::KU_FromToConnectionsContext::getRuleIndex() const {
-  return CypherParser::RuleKU_FromToConnections;
+size_t CypherParser::NEUG_FromToConnectionsContext::getRuleIndex() const {
+  return CypherParser::RuleNEUG_FromToConnections;
 }
 
 
-CypherParser::KU_FromToConnectionsContext* CypherParser::kU_FromToConnections() {
-  KU_FromToConnectionsContext *_localctx = _tracker.createInstance<KU_FromToConnectionsContext>(_ctx, getState());
-  enterRule(_localctx, 48, CypherParser::RuleKU_FromToConnections);
+CypherParser::NEUG_FromToConnectionsContext* CypherParser::nEUG_FromToConnections() {
+  NEUG_FromToConnectionsContext *_localctx = _tracker.createInstance<NEUG_FromToConnectionsContext>(_ctx, getState());
+  enterRule(_localctx, 48, CypherParser::RuleNEUG_FromToConnections);
   size_t _la = 0;
 
 #if __cplusplus > 201703L
@@ -4364,7 +4365,7 @@ CypherParser::KU_FromToConnectionsContext* CypherParser::kU_FromToConnections() 
     size_t alt;
     enterOuterAlt(_localctx, 1);
     setState(873);
-    kU_FromToConnection();
+    nEUG_FromToConnection();
     setState(884);
     _errHandler->sync(this);
     alt = getInterpreter<atn::ParserATNSimulator>()->adaptivePredict(_input, 102, _ctx);
@@ -4389,7 +4390,7 @@ CypherParser::KU_FromToConnectionsContext* CypherParser::kU_FromToConnections() 
           match(CypherParser::SP);
         }
         setState(881);
-        kU_FromToConnection(); 
+        nEUG_FromToConnection(); 
       }
       setState(886);
       _errHandler->sync(this);
@@ -4406,45 +4407,45 @@ CypherParser::KU_FromToConnectionsContext* CypherParser::kU_FromToConnections() 
   return _localctx;
 }
 
-//----------------- KU_FromToConnectionContext ------------------------------------------------------------------
+//----------------- NEUG_FromToConnectionContext ------------------------------------------------------------------
 
-CypherParser::KU_FromToConnectionContext::KU_FromToConnectionContext(ParserRuleContext *parent, size_t invokingState)
+CypherParser::NEUG_FromToConnectionContext::NEUG_FromToConnectionContext(ParserRuleContext *parent, size_t invokingState)
   : ParserRuleContext(parent, invokingState) {
 }
 
-tree::TerminalNode* CypherParser::KU_FromToConnectionContext::FROM() {
+tree::TerminalNode* CypherParser::NEUG_FromToConnectionContext::FROM() {
   return getToken(CypherParser::FROM, 0);
 }
 
-std::vector<tree::TerminalNode *> CypherParser::KU_FromToConnectionContext::SP() {
+std::vector<tree::TerminalNode *> CypherParser::NEUG_FromToConnectionContext::SP() {
   return getTokens(CypherParser::SP);
 }
 
-tree::TerminalNode* CypherParser::KU_FromToConnectionContext::SP(size_t i) {
+tree::TerminalNode* CypherParser::NEUG_FromToConnectionContext::SP(size_t i) {
   return getToken(CypherParser::SP, i);
 }
 
-std::vector<CypherParser::OC_SchemaNameContext *> CypherParser::KU_FromToConnectionContext::oC_SchemaName() {
+std::vector<CypherParser::OC_SchemaNameContext *> CypherParser::NEUG_FromToConnectionContext::oC_SchemaName() {
   return getRuleContexts<CypherParser::OC_SchemaNameContext>();
 }
 
-CypherParser::OC_SchemaNameContext* CypherParser::KU_FromToConnectionContext::oC_SchemaName(size_t i) {
+CypherParser::OC_SchemaNameContext* CypherParser::NEUG_FromToConnectionContext::oC_SchemaName(size_t i) {
   return getRuleContext<CypherParser::OC_SchemaNameContext>(i);
 }
 
-tree::TerminalNode* CypherParser::KU_FromToConnectionContext::TO() {
+tree::TerminalNode* CypherParser::NEUG_FromToConnectionContext::TO() {
   return getToken(CypherParser::TO, 0);
 }
 
 
-size_t CypherParser::KU_FromToConnectionContext::getRuleIndex() const {
-  return CypherParser::RuleKU_FromToConnection;
+size_t CypherParser::NEUG_FromToConnectionContext::getRuleIndex() const {
+  return CypherParser::RuleNEUG_FromToConnection;
 }
 
 
-CypherParser::KU_FromToConnectionContext* CypherParser::kU_FromToConnection() {
-  KU_FromToConnectionContext *_localctx = _tracker.createInstance<KU_FromToConnectionContext>(_ctx, getState());
-  enterRule(_localctx, 50, CypherParser::RuleKU_FromToConnection);
+CypherParser::NEUG_FromToConnectionContext* CypherParser::nEUG_FromToConnection() {
+  NEUG_FromToConnectionContext *_localctx = _tracker.createInstance<NEUG_FromToConnectionContext>(_ctx, getState());
+  enterRule(_localctx, 50, CypherParser::RuleNEUG_FromToConnection);
 
 #if __cplusplus > 201703L
   auto onExit = finally([=, this] {
@@ -4480,53 +4481,53 @@ CypherParser::KU_FromToConnectionContext* CypherParser::kU_FromToConnection() {
   return _localctx;
 }
 
-//----------------- KU_CreateSequenceContext ------------------------------------------------------------------
+//----------------- NEUG_CreateSequenceContext ------------------------------------------------------------------
 
-CypherParser::KU_CreateSequenceContext::KU_CreateSequenceContext(ParserRuleContext *parent, size_t invokingState)
+CypherParser::NEUG_CreateSequenceContext::NEUG_CreateSequenceContext(ParserRuleContext *parent, size_t invokingState)
   : ParserRuleContext(parent, invokingState) {
 }
 
-tree::TerminalNode* CypherParser::KU_CreateSequenceContext::CREATE() {
+tree::TerminalNode* CypherParser::NEUG_CreateSequenceContext::CREATE() {
   return getToken(CypherParser::CREATE, 0);
 }
 
-std::vector<tree::TerminalNode *> CypherParser::KU_CreateSequenceContext::SP() {
+std::vector<tree::TerminalNode *> CypherParser::NEUG_CreateSequenceContext::SP() {
   return getTokens(CypherParser::SP);
 }
 
-tree::TerminalNode* CypherParser::KU_CreateSequenceContext::SP(size_t i) {
+tree::TerminalNode* CypherParser::NEUG_CreateSequenceContext::SP(size_t i) {
   return getToken(CypherParser::SP, i);
 }
 
-tree::TerminalNode* CypherParser::KU_CreateSequenceContext::SEQUENCE() {
+tree::TerminalNode* CypherParser::NEUG_CreateSequenceContext::SEQUENCE() {
   return getToken(CypherParser::SEQUENCE, 0);
 }
 
-CypherParser::OC_SchemaNameContext* CypherParser::KU_CreateSequenceContext::oC_SchemaName() {
+CypherParser::OC_SchemaNameContext* CypherParser::NEUG_CreateSequenceContext::oC_SchemaName() {
   return getRuleContext<CypherParser::OC_SchemaNameContext>(0);
 }
 
-CypherParser::KU_IfNotExistsContext* CypherParser::KU_CreateSequenceContext::kU_IfNotExists() {
-  return getRuleContext<CypherParser::KU_IfNotExistsContext>(0);
+CypherParser::NEUG_IfNotExistsContext* CypherParser::NEUG_CreateSequenceContext::nEUG_IfNotExists() {
+  return getRuleContext<CypherParser::NEUG_IfNotExistsContext>(0);
 }
 
-std::vector<CypherParser::KU_SequenceOptionsContext *> CypherParser::KU_CreateSequenceContext::kU_SequenceOptions() {
-  return getRuleContexts<CypherParser::KU_SequenceOptionsContext>();
+std::vector<CypherParser::NEUG_SequenceOptionsContext *> CypherParser::NEUG_CreateSequenceContext::nEUG_SequenceOptions() {
+  return getRuleContexts<CypherParser::NEUG_SequenceOptionsContext>();
 }
 
-CypherParser::KU_SequenceOptionsContext* CypherParser::KU_CreateSequenceContext::kU_SequenceOptions(size_t i) {
-  return getRuleContext<CypherParser::KU_SequenceOptionsContext>(i);
-}
-
-
-size_t CypherParser::KU_CreateSequenceContext::getRuleIndex() const {
-  return CypherParser::RuleKU_CreateSequence;
+CypherParser::NEUG_SequenceOptionsContext* CypherParser::NEUG_CreateSequenceContext::nEUG_SequenceOptions(size_t i) {
+  return getRuleContext<CypherParser::NEUG_SequenceOptionsContext>(i);
 }
 
 
-CypherParser::KU_CreateSequenceContext* CypherParser::kU_CreateSequence() {
-  KU_CreateSequenceContext *_localctx = _tracker.createInstance<KU_CreateSequenceContext>(_ctx, getState());
-  enterRule(_localctx, 52, CypherParser::RuleKU_CreateSequence);
+size_t CypherParser::NEUG_CreateSequenceContext::getRuleIndex() const {
+  return CypherParser::RuleNEUG_CreateSequence;
+}
+
+
+CypherParser::NEUG_CreateSequenceContext* CypherParser::nEUG_CreateSequence() {
+  NEUG_CreateSequenceContext *_localctx = _tracker.createInstance<NEUG_CreateSequenceContext>(_ctx, getState());
+  enterRule(_localctx, 52, CypherParser::RuleNEUG_CreateSequence);
 
 #if __cplusplus > 201703L
   auto onExit = finally([=, this] {
@@ -4552,7 +4553,7 @@ CypherParser::KU_CreateSequenceContext* CypherParser::kU_CreateSequence() {
     switch (getInterpreter<atn::ParserATNSimulator>()->adaptivePredict(_input, 103, _ctx)) {
     case 1: {
       setState(899);
-      kU_IfNotExists();
+      nEUG_IfNotExists();
       setState(900);
       match(CypherParser::SP);
       break;
@@ -4571,7 +4572,7 @@ CypherParser::KU_CreateSequenceContext* CypherParser::kU_CreateSequence() {
         setState(905);
         match(CypherParser::SP);
         setState(906);
-        kU_SequenceOptions(); 
+        nEUG_SequenceOptions(); 
       }
       setState(911);
       _errHandler->sync(this);
@@ -4588,49 +4589,49 @@ CypherParser::KU_CreateSequenceContext* CypherParser::kU_CreateSequence() {
   return _localctx;
 }
 
-//----------------- KU_CreateTypeContext ------------------------------------------------------------------
+//----------------- NEUG_CreateTypeContext ------------------------------------------------------------------
 
-CypherParser::KU_CreateTypeContext::KU_CreateTypeContext(ParserRuleContext *parent, size_t invokingState)
+CypherParser::NEUG_CreateTypeContext::NEUG_CreateTypeContext(ParserRuleContext *parent, size_t invokingState)
   : ParserRuleContext(parent, invokingState) {
 }
 
-tree::TerminalNode* CypherParser::KU_CreateTypeContext::CREATE() {
+tree::TerminalNode* CypherParser::NEUG_CreateTypeContext::CREATE() {
   return getToken(CypherParser::CREATE, 0);
 }
 
-std::vector<tree::TerminalNode *> CypherParser::KU_CreateTypeContext::SP() {
+std::vector<tree::TerminalNode *> CypherParser::NEUG_CreateTypeContext::SP() {
   return getTokens(CypherParser::SP);
 }
 
-tree::TerminalNode* CypherParser::KU_CreateTypeContext::SP(size_t i) {
+tree::TerminalNode* CypherParser::NEUG_CreateTypeContext::SP(size_t i) {
   return getToken(CypherParser::SP, i);
 }
 
-tree::TerminalNode* CypherParser::KU_CreateTypeContext::TYPE() {
+tree::TerminalNode* CypherParser::NEUG_CreateTypeContext::TYPE() {
   return getToken(CypherParser::TYPE, 0);
 }
 
-CypherParser::OC_SchemaNameContext* CypherParser::KU_CreateTypeContext::oC_SchemaName() {
+CypherParser::OC_SchemaNameContext* CypherParser::NEUG_CreateTypeContext::oC_SchemaName() {
   return getRuleContext<CypherParser::OC_SchemaNameContext>(0);
 }
 
-tree::TerminalNode* CypherParser::KU_CreateTypeContext::AS() {
+tree::TerminalNode* CypherParser::NEUG_CreateTypeContext::AS() {
   return getToken(CypherParser::AS, 0);
 }
 
-CypherParser::KU_DataTypeContext* CypherParser::KU_CreateTypeContext::kU_DataType() {
-  return getRuleContext<CypherParser::KU_DataTypeContext>(0);
+CypherParser::NEUG_DataTypeContext* CypherParser::NEUG_CreateTypeContext::nEUG_DataType() {
+  return getRuleContext<CypherParser::NEUG_DataTypeContext>(0);
 }
 
 
-size_t CypherParser::KU_CreateTypeContext::getRuleIndex() const {
-  return CypherParser::RuleKU_CreateType;
+size_t CypherParser::NEUG_CreateTypeContext::getRuleIndex() const {
+  return CypherParser::RuleNEUG_CreateType;
 }
 
 
-CypherParser::KU_CreateTypeContext* CypherParser::kU_CreateType() {
-  KU_CreateTypeContext *_localctx = _tracker.createInstance<KU_CreateTypeContext>(_ctx, getState());
-  enterRule(_localctx, 54, CypherParser::RuleKU_CreateType);
+CypherParser::NEUG_CreateTypeContext* CypherParser::nEUG_CreateType() {
+  NEUG_CreateTypeContext *_localctx = _tracker.createInstance<NEUG_CreateTypeContext>(_ctx, getState());
+  enterRule(_localctx, 54, CypherParser::RuleNEUG_CreateType);
 
 #if __cplusplus > 201703L
   auto onExit = finally([=, this] {
@@ -4658,7 +4659,7 @@ CypherParser::KU_CreateTypeContext* CypherParser::kU_CreateType() {
     setState(919);
     match(CypherParser::SP);
     setState(920);
-    kU_DataType(0);
+    nEUG_DataType(0);
     setState(922);
     _errHandler->sync(this);
 
@@ -4683,41 +4684,41 @@ CypherParser::KU_CreateTypeContext* CypherParser::kU_CreateType() {
   return _localctx;
 }
 
-//----------------- KU_SequenceOptionsContext ------------------------------------------------------------------
+//----------------- NEUG_SequenceOptionsContext ------------------------------------------------------------------
 
-CypherParser::KU_SequenceOptionsContext::KU_SequenceOptionsContext(ParserRuleContext *parent, size_t invokingState)
+CypherParser::NEUG_SequenceOptionsContext::NEUG_SequenceOptionsContext(ParserRuleContext *parent, size_t invokingState)
   : ParserRuleContext(parent, invokingState) {
 }
 
-CypherParser::KU_IncrementByContext* CypherParser::KU_SequenceOptionsContext::kU_IncrementBy() {
-  return getRuleContext<CypherParser::KU_IncrementByContext>(0);
+CypherParser::NEUG_IncrementByContext* CypherParser::NEUG_SequenceOptionsContext::nEUG_IncrementBy() {
+  return getRuleContext<CypherParser::NEUG_IncrementByContext>(0);
 }
 
-CypherParser::KU_MinValueContext* CypherParser::KU_SequenceOptionsContext::kU_MinValue() {
-  return getRuleContext<CypherParser::KU_MinValueContext>(0);
+CypherParser::NEUG_MinValueContext* CypherParser::NEUG_SequenceOptionsContext::nEUG_MinValue() {
+  return getRuleContext<CypherParser::NEUG_MinValueContext>(0);
 }
 
-CypherParser::KU_MaxValueContext* CypherParser::KU_SequenceOptionsContext::kU_MaxValue() {
-  return getRuleContext<CypherParser::KU_MaxValueContext>(0);
+CypherParser::NEUG_MaxValueContext* CypherParser::NEUG_SequenceOptionsContext::nEUG_MaxValue() {
+  return getRuleContext<CypherParser::NEUG_MaxValueContext>(0);
 }
 
-CypherParser::KU_StartWithContext* CypherParser::KU_SequenceOptionsContext::kU_StartWith() {
-  return getRuleContext<CypherParser::KU_StartWithContext>(0);
+CypherParser::NEUG_StartWithContext* CypherParser::NEUG_SequenceOptionsContext::nEUG_StartWith() {
+  return getRuleContext<CypherParser::NEUG_StartWithContext>(0);
 }
 
-CypherParser::KU_CycleContext* CypherParser::KU_SequenceOptionsContext::kU_Cycle() {
-  return getRuleContext<CypherParser::KU_CycleContext>(0);
-}
-
-
-size_t CypherParser::KU_SequenceOptionsContext::getRuleIndex() const {
-  return CypherParser::RuleKU_SequenceOptions;
+CypherParser::NEUG_CycleContext* CypherParser::NEUG_SequenceOptionsContext::nEUG_Cycle() {
+  return getRuleContext<CypherParser::NEUG_CycleContext>(0);
 }
 
 
-CypherParser::KU_SequenceOptionsContext* CypherParser::kU_SequenceOptions() {
-  KU_SequenceOptionsContext *_localctx = _tracker.createInstance<KU_SequenceOptionsContext>(_ctx, getState());
-  enterRule(_localctx, 56, CypherParser::RuleKU_SequenceOptions);
+size_t CypherParser::NEUG_SequenceOptionsContext::getRuleIndex() const {
+  return CypherParser::RuleNEUG_SequenceOptions;
+}
+
+
+CypherParser::NEUG_SequenceOptionsContext* CypherParser::nEUG_SequenceOptions() {
+  NEUG_SequenceOptionsContext *_localctx = _tracker.createInstance<NEUG_SequenceOptionsContext>(_ctx, getState());
+  enterRule(_localctx, 56, CypherParser::RuleNEUG_SequenceOptions);
 
 #if __cplusplus > 201703L
   auto onExit = finally([=, this] {
@@ -4733,35 +4734,35 @@ CypherParser::KU_SequenceOptionsContext* CypherParser::kU_SequenceOptions() {
     case 1: {
       enterOuterAlt(_localctx, 1);
       setState(924);
-      kU_IncrementBy();
+      nEUG_IncrementBy();
       break;
     }
 
     case 2: {
       enterOuterAlt(_localctx, 2);
       setState(925);
-      kU_MinValue();
+      nEUG_MinValue();
       break;
     }
 
     case 3: {
       enterOuterAlt(_localctx, 3);
       setState(926);
-      kU_MaxValue();
+      nEUG_MaxValue();
       break;
     }
 
     case 4: {
       enterOuterAlt(_localctx, 4);
       setState(927);
-      kU_StartWith();
+      nEUG_StartWith();
       break;
     }
 
     case 5: {
       enterOuterAlt(_localctx, 5);
       setState(928);
-      kU_Cycle();
+      nEUG_Cycle();
       break;
     }
 
@@ -4779,45 +4780,45 @@ CypherParser::KU_SequenceOptionsContext* CypherParser::kU_SequenceOptions() {
   return _localctx;
 }
 
-//----------------- KU_IncrementByContext ------------------------------------------------------------------
+//----------------- NEUG_IncrementByContext ------------------------------------------------------------------
 
-CypherParser::KU_IncrementByContext::KU_IncrementByContext(ParserRuleContext *parent, size_t invokingState)
+CypherParser::NEUG_IncrementByContext::NEUG_IncrementByContext(ParserRuleContext *parent, size_t invokingState)
   : ParserRuleContext(parent, invokingState) {
 }
 
-tree::TerminalNode* CypherParser::KU_IncrementByContext::INCREMENT() {
+tree::TerminalNode* CypherParser::NEUG_IncrementByContext::INCREMENT() {
   return getToken(CypherParser::INCREMENT, 0);
 }
 
-std::vector<tree::TerminalNode *> CypherParser::KU_IncrementByContext::SP() {
+std::vector<tree::TerminalNode *> CypherParser::NEUG_IncrementByContext::SP() {
   return getTokens(CypherParser::SP);
 }
 
-tree::TerminalNode* CypherParser::KU_IncrementByContext::SP(size_t i) {
+tree::TerminalNode* CypherParser::NEUG_IncrementByContext::SP(size_t i) {
   return getToken(CypherParser::SP, i);
 }
 
-CypherParser::OC_IntegerLiteralContext* CypherParser::KU_IncrementByContext::oC_IntegerLiteral() {
+CypherParser::OC_IntegerLiteralContext* CypherParser::NEUG_IncrementByContext::oC_IntegerLiteral() {
   return getRuleContext<CypherParser::OC_IntegerLiteralContext>(0);
 }
 
-tree::TerminalNode* CypherParser::KU_IncrementByContext::BY() {
+tree::TerminalNode* CypherParser::NEUG_IncrementByContext::BY() {
   return getToken(CypherParser::BY, 0);
 }
 
-tree::TerminalNode* CypherParser::KU_IncrementByContext::MINUS() {
+tree::TerminalNode* CypherParser::NEUG_IncrementByContext::MINUS() {
   return getToken(CypherParser::MINUS, 0);
 }
 
 
-size_t CypherParser::KU_IncrementByContext::getRuleIndex() const {
-  return CypherParser::RuleKU_IncrementBy;
+size_t CypherParser::NEUG_IncrementByContext::getRuleIndex() const {
+  return CypherParser::RuleNEUG_IncrementBy;
 }
 
 
-CypherParser::KU_IncrementByContext* CypherParser::kU_IncrementBy() {
-  KU_IncrementByContext *_localctx = _tracker.createInstance<KU_IncrementByContext>(_ctx, getState());
-  enterRule(_localctx, 58, CypherParser::RuleKU_IncrementBy);
+CypherParser::NEUG_IncrementByContext* CypherParser::nEUG_IncrementBy() {
+  NEUG_IncrementByContext *_localctx = _tracker.createInstance<NEUG_IncrementByContext>(_ctx, getState());
+  enterRule(_localctx, 58, CypherParser::RuleNEUG_IncrementBy);
   size_t _la = 0;
 
 #if __cplusplus > 201703L
@@ -4864,41 +4865,41 @@ CypherParser::KU_IncrementByContext* CypherParser::kU_IncrementBy() {
   return _localctx;
 }
 
-//----------------- KU_MinValueContext ------------------------------------------------------------------
+//----------------- NEUG_MinValueContext ------------------------------------------------------------------
 
-CypherParser::KU_MinValueContext::KU_MinValueContext(ParserRuleContext *parent, size_t invokingState)
+CypherParser::NEUG_MinValueContext::NEUG_MinValueContext(ParserRuleContext *parent, size_t invokingState)
   : ParserRuleContext(parent, invokingState) {
 }
 
-tree::TerminalNode* CypherParser::KU_MinValueContext::NO() {
+tree::TerminalNode* CypherParser::NEUG_MinValueContext::NO() {
   return getToken(CypherParser::NO, 0);
 }
 
-tree::TerminalNode* CypherParser::KU_MinValueContext::SP() {
+tree::TerminalNode* CypherParser::NEUG_MinValueContext::SP() {
   return getToken(CypherParser::SP, 0);
 }
 
-tree::TerminalNode* CypherParser::KU_MinValueContext::MINVALUE() {
+tree::TerminalNode* CypherParser::NEUG_MinValueContext::MINVALUE() {
   return getToken(CypherParser::MINVALUE, 0);
 }
 
-CypherParser::OC_IntegerLiteralContext* CypherParser::KU_MinValueContext::oC_IntegerLiteral() {
+CypherParser::OC_IntegerLiteralContext* CypherParser::NEUG_MinValueContext::oC_IntegerLiteral() {
   return getRuleContext<CypherParser::OC_IntegerLiteralContext>(0);
 }
 
-tree::TerminalNode* CypherParser::KU_MinValueContext::MINUS() {
+tree::TerminalNode* CypherParser::NEUG_MinValueContext::MINUS() {
   return getToken(CypherParser::MINUS, 0);
 }
 
 
-size_t CypherParser::KU_MinValueContext::getRuleIndex() const {
-  return CypherParser::RuleKU_MinValue;
+size_t CypherParser::NEUG_MinValueContext::getRuleIndex() const {
+  return CypherParser::RuleNEUG_MinValue;
 }
 
 
-CypherParser::KU_MinValueContext* CypherParser::kU_MinValue() {
-  KU_MinValueContext *_localctx = _tracker.createInstance<KU_MinValueContext>(_ctx, getState());
-  enterRule(_localctx, 60, CypherParser::RuleKU_MinValue);
+CypherParser::NEUG_MinValueContext* CypherParser::nEUG_MinValue() {
+  NEUG_MinValueContext *_localctx = _tracker.createInstance<NEUG_MinValueContext>(_ctx, getState());
+  enterRule(_localctx, 60, CypherParser::RuleNEUG_MinValue);
   size_t _la = 0;
 
 #if __cplusplus > 201703L
@@ -4956,41 +4957,41 @@ CypherParser::KU_MinValueContext* CypherParser::kU_MinValue() {
   return _localctx;
 }
 
-//----------------- KU_MaxValueContext ------------------------------------------------------------------
+//----------------- NEUG_MaxValueContext ------------------------------------------------------------------
 
-CypherParser::KU_MaxValueContext::KU_MaxValueContext(ParserRuleContext *parent, size_t invokingState)
+CypherParser::NEUG_MaxValueContext::NEUG_MaxValueContext(ParserRuleContext *parent, size_t invokingState)
   : ParserRuleContext(parent, invokingState) {
 }
 
-tree::TerminalNode* CypherParser::KU_MaxValueContext::NO() {
+tree::TerminalNode* CypherParser::NEUG_MaxValueContext::NO() {
   return getToken(CypherParser::NO, 0);
 }
 
-tree::TerminalNode* CypherParser::KU_MaxValueContext::SP() {
+tree::TerminalNode* CypherParser::NEUG_MaxValueContext::SP() {
   return getToken(CypherParser::SP, 0);
 }
 
-tree::TerminalNode* CypherParser::KU_MaxValueContext::MAXVALUE() {
+tree::TerminalNode* CypherParser::NEUG_MaxValueContext::MAXVALUE() {
   return getToken(CypherParser::MAXVALUE, 0);
 }
 
-CypherParser::OC_IntegerLiteralContext* CypherParser::KU_MaxValueContext::oC_IntegerLiteral() {
+CypherParser::OC_IntegerLiteralContext* CypherParser::NEUG_MaxValueContext::oC_IntegerLiteral() {
   return getRuleContext<CypherParser::OC_IntegerLiteralContext>(0);
 }
 
-tree::TerminalNode* CypherParser::KU_MaxValueContext::MINUS() {
+tree::TerminalNode* CypherParser::NEUG_MaxValueContext::MINUS() {
   return getToken(CypherParser::MINUS, 0);
 }
 
 
-size_t CypherParser::KU_MaxValueContext::getRuleIndex() const {
-  return CypherParser::RuleKU_MaxValue;
+size_t CypherParser::NEUG_MaxValueContext::getRuleIndex() const {
+  return CypherParser::RuleNEUG_MaxValue;
 }
 
 
-CypherParser::KU_MaxValueContext* CypherParser::kU_MaxValue() {
-  KU_MaxValueContext *_localctx = _tracker.createInstance<KU_MaxValueContext>(_ctx, getState());
-  enterRule(_localctx, 62, CypherParser::RuleKU_MaxValue);
+CypherParser::NEUG_MaxValueContext* CypherParser::nEUG_MaxValue() {
+  NEUG_MaxValueContext *_localctx = _tracker.createInstance<NEUG_MaxValueContext>(_ctx, getState());
+  enterRule(_localctx, 62, CypherParser::RuleNEUG_MaxValue);
   size_t _la = 0;
 
 #if __cplusplus > 201703L
@@ -5048,45 +5049,45 @@ CypherParser::KU_MaxValueContext* CypherParser::kU_MaxValue() {
   return _localctx;
 }
 
-//----------------- KU_StartWithContext ------------------------------------------------------------------
+//----------------- NEUG_StartWithContext ------------------------------------------------------------------
 
-CypherParser::KU_StartWithContext::KU_StartWithContext(ParserRuleContext *parent, size_t invokingState)
+CypherParser::NEUG_StartWithContext::NEUG_StartWithContext(ParserRuleContext *parent, size_t invokingState)
   : ParserRuleContext(parent, invokingState) {
 }
 
-tree::TerminalNode* CypherParser::KU_StartWithContext::START() {
+tree::TerminalNode* CypherParser::NEUG_StartWithContext::START() {
   return getToken(CypherParser::START, 0);
 }
 
-std::vector<tree::TerminalNode *> CypherParser::KU_StartWithContext::SP() {
+std::vector<tree::TerminalNode *> CypherParser::NEUG_StartWithContext::SP() {
   return getTokens(CypherParser::SP);
 }
 
-tree::TerminalNode* CypherParser::KU_StartWithContext::SP(size_t i) {
+tree::TerminalNode* CypherParser::NEUG_StartWithContext::SP(size_t i) {
   return getToken(CypherParser::SP, i);
 }
 
-CypherParser::OC_IntegerLiteralContext* CypherParser::KU_StartWithContext::oC_IntegerLiteral() {
+CypherParser::OC_IntegerLiteralContext* CypherParser::NEUG_StartWithContext::oC_IntegerLiteral() {
   return getRuleContext<CypherParser::OC_IntegerLiteralContext>(0);
 }
 
-tree::TerminalNode* CypherParser::KU_StartWithContext::WITH() {
+tree::TerminalNode* CypherParser::NEUG_StartWithContext::WITH() {
   return getToken(CypherParser::WITH, 0);
 }
 
-tree::TerminalNode* CypherParser::KU_StartWithContext::MINUS() {
+tree::TerminalNode* CypherParser::NEUG_StartWithContext::MINUS() {
   return getToken(CypherParser::MINUS, 0);
 }
 
 
-size_t CypherParser::KU_StartWithContext::getRuleIndex() const {
-  return CypherParser::RuleKU_StartWith;
+size_t CypherParser::NEUG_StartWithContext::getRuleIndex() const {
+  return CypherParser::RuleNEUG_StartWith;
 }
 
 
-CypherParser::KU_StartWithContext* CypherParser::kU_StartWith() {
-  KU_StartWithContext *_localctx = _tracker.createInstance<KU_StartWithContext>(_ctx, getState());
-  enterRule(_localctx, 64, CypherParser::RuleKU_StartWith);
+CypherParser::NEUG_StartWithContext* CypherParser::nEUG_StartWith() {
+  NEUG_StartWithContext *_localctx = _tracker.createInstance<NEUG_StartWithContext>(_ctx, getState());
+  enterRule(_localctx, 64, CypherParser::RuleNEUG_StartWith);
   size_t _la = 0;
 
 #if __cplusplus > 201703L
@@ -5133,33 +5134,33 @@ CypherParser::KU_StartWithContext* CypherParser::kU_StartWith() {
   return _localctx;
 }
 
-//----------------- KU_CycleContext ------------------------------------------------------------------
+//----------------- NEUG_CycleContext ------------------------------------------------------------------
 
-CypherParser::KU_CycleContext::KU_CycleContext(ParserRuleContext *parent, size_t invokingState)
+CypherParser::NEUG_CycleContext::NEUG_CycleContext(ParserRuleContext *parent, size_t invokingState)
   : ParserRuleContext(parent, invokingState) {
 }
 
-tree::TerminalNode* CypherParser::KU_CycleContext::CYCLE() {
+tree::TerminalNode* CypherParser::NEUG_CycleContext::CYCLE() {
   return getToken(CypherParser::CYCLE, 0);
 }
 
-tree::TerminalNode* CypherParser::KU_CycleContext::NO() {
+tree::TerminalNode* CypherParser::NEUG_CycleContext::NO() {
   return getToken(CypherParser::NO, 0);
 }
 
-tree::TerminalNode* CypherParser::KU_CycleContext::SP() {
+tree::TerminalNode* CypherParser::NEUG_CycleContext::SP() {
   return getToken(CypherParser::SP, 0);
 }
 
 
-size_t CypherParser::KU_CycleContext::getRuleIndex() const {
-  return CypherParser::RuleKU_Cycle;
+size_t CypherParser::NEUG_CycleContext::getRuleIndex() const {
+  return CypherParser::RuleNEUG_Cycle;
 }
 
 
-CypherParser::KU_CycleContext* CypherParser::kU_Cycle() {
-  KU_CycleContext *_localctx = _tracker.createInstance<KU_CycleContext>(_ctx, getState());
-  enterRule(_localctx, 66, CypherParser::RuleKU_Cycle);
+CypherParser::NEUG_CycleContext* CypherParser::nEUG_Cycle() {
+  NEUG_CycleContext *_localctx = _tracker.createInstance<NEUG_CycleContext>(_ctx, getState());
+  enterRule(_localctx, 66, CypherParser::RuleNEUG_Cycle);
   size_t _la = 0;
 
 #if __cplusplus > 201703L
@@ -5194,33 +5195,33 @@ CypherParser::KU_CycleContext* CypherParser::kU_Cycle() {
   return _localctx;
 }
 
-//----------------- KU_IfExistsContext ------------------------------------------------------------------
+//----------------- NEUG_IfExistsContext ------------------------------------------------------------------
 
-CypherParser::KU_IfExistsContext::KU_IfExistsContext(ParserRuleContext *parent, size_t invokingState)
+CypherParser::NEUG_IfExistsContext::NEUG_IfExistsContext(ParserRuleContext *parent, size_t invokingState)
   : ParserRuleContext(parent, invokingState) {
 }
 
-tree::TerminalNode* CypherParser::KU_IfExistsContext::IF() {
+tree::TerminalNode* CypherParser::NEUG_IfExistsContext::IF() {
   return getToken(CypherParser::IF, 0);
 }
 
-tree::TerminalNode* CypherParser::KU_IfExistsContext::SP() {
+tree::TerminalNode* CypherParser::NEUG_IfExistsContext::SP() {
   return getToken(CypherParser::SP, 0);
 }
 
-tree::TerminalNode* CypherParser::KU_IfExistsContext::EXISTS() {
+tree::TerminalNode* CypherParser::NEUG_IfExistsContext::EXISTS() {
   return getToken(CypherParser::EXISTS, 0);
 }
 
 
-size_t CypherParser::KU_IfExistsContext::getRuleIndex() const {
-  return CypherParser::RuleKU_IfExists;
+size_t CypherParser::NEUG_IfExistsContext::getRuleIndex() const {
+  return CypherParser::RuleNEUG_IfExists;
 }
 
 
-CypherParser::KU_IfExistsContext* CypherParser::kU_IfExists() {
-  KU_IfExistsContext *_localctx = _tracker.createInstance<KU_IfExistsContext>(_ctx, getState());
-  enterRule(_localctx, 68, CypherParser::RuleKU_IfExists);
+CypherParser::NEUG_IfExistsContext* CypherParser::nEUG_IfExists() {
+  NEUG_IfExistsContext *_localctx = _tracker.createInstance<NEUG_IfExistsContext>(_ctx, getState());
+  enterRule(_localctx, 68, CypherParser::RuleNEUG_IfExists);
 
 #if __cplusplus > 201703L
   auto onExit = finally([=, this] {
@@ -5248,49 +5249,49 @@ CypherParser::KU_IfExistsContext* CypherParser::kU_IfExists() {
   return _localctx;
 }
 
-//----------------- KU_DropContext ------------------------------------------------------------------
+//----------------- NEUG_DropContext ------------------------------------------------------------------
 
-CypherParser::KU_DropContext::KU_DropContext(ParserRuleContext *parent, size_t invokingState)
+CypherParser::NEUG_DropContext::NEUG_DropContext(ParserRuleContext *parent, size_t invokingState)
   : ParserRuleContext(parent, invokingState) {
 }
 
-tree::TerminalNode* CypherParser::KU_DropContext::DROP() {
+tree::TerminalNode* CypherParser::NEUG_DropContext::DROP() {
   return getToken(CypherParser::DROP, 0);
 }
 
-std::vector<tree::TerminalNode *> CypherParser::KU_DropContext::SP() {
+std::vector<tree::TerminalNode *> CypherParser::NEUG_DropContext::SP() {
   return getTokens(CypherParser::SP);
 }
 
-tree::TerminalNode* CypherParser::KU_DropContext::SP(size_t i) {
+tree::TerminalNode* CypherParser::NEUG_DropContext::SP(size_t i) {
   return getToken(CypherParser::SP, i);
 }
 
-CypherParser::OC_SchemaNameContext* CypherParser::KU_DropContext::oC_SchemaName() {
+CypherParser::OC_SchemaNameContext* CypherParser::NEUG_DropContext::oC_SchemaName() {
   return getRuleContext<CypherParser::OC_SchemaNameContext>(0);
 }
 
-tree::TerminalNode* CypherParser::KU_DropContext::TABLE() {
+tree::TerminalNode* CypherParser::NEUG_DropContext::TABLE() {
   return getToken(CypherParser::TABLE, 0);
 }
 
-tree::TerminalNode* CypherParser::KU_DropContext::SEQUENCE() {
+tree::TerminalNode* CypherParser::NEUG_DropContext::SEQUENCE() {
   return getToken(CypherParser::SEQUENCE, 0);
 }
 
-CypherParser::KU_IfExistsContext* CypherParser::KU_DropContext::kU_IfExists() {
-  return getRuleContext<CypherParser::KU_IfExistsContext>(0);
+CypherParser::NEUG_IfExistsContext* CypherParser::NEUG_DropContext::nEUG_IfExists() {
+  return getRuleContext<CypherParser::NEUG_IfExistsContext>(0);
 }
 
 
-size_t CypherParser::KU_DropContext::getRuleIndex() const {
-  return CypherParser::RuleKU_Drop;
+size_t CypherParser::NEUG_DropContext::getRuleIndex() const {
+  return CypherParser::RuleNEUG_Drop;
 }
 
 
-CypherParser::KU_DropContext* CypherParser::kU_Drop() {
-  KU_DropContext *_localctx = _tracker.createInstance<KU_DropContext>(_ctx, getState());
-  enterRule(_localctx, 70, CypherParser::RuleKU_Drop);
+CypherParser::NEUG_DropContext* CypherParser::nEUG_Drop() {
+  NEUG_DropContext *_localctx = _tracker.createInstance<NEUG_DropContext>(_ctx, getState());
+  enterRule(_localctx, 70, CypherParser::RuleNEUG_Drop);
   size_t _la = 0;
 
 #if __cplusplus > 201703L
@@ -5325,7 +5326,7 @@ CypherParser::KU_DropContext* CypherParser::kU_Drop() {
     switch (getInterpreter<atn::ParserATNSimulator>()->adaptivePredict(_input, 116, _ctx)) {
     case 1: {
       setState(989);
-      kU_IfExists();
+      nEUG_IfExists();
       setState(990);
       match(CypherParser::SP);
       break;
@@ -5347,45 +5348,45 @@ CypherParser::KU_DropContext* CypherParser::kU_Drop() {
   return _localctx;
 }
 
-//----------------- KU_AlterTableContext ------------------------------------------------------------------
+//----------------- NEUG_AlterTableContext ------------------------------------------------------------------
 
-CypherParser::KU_AlterTableContext::KU_AlterTableContext(ParserRuleContext *parent, size_t invokingState)
+CypherParser::NEUG_AlterTableContext::NEUG_AlterTableContext(ParserRuleContext *parent, size_t invokingState)
   : ParserRuleContext(parent, invokingState) {
 }
 
-tree::TerminalNode* CypherParser::KU_AlterTableContext::ALTER() {
+tree::TerminalNode* CypherParser::NEUG_AlterTableContext::ALTER() {
   return getToken(CypherParser::ALTER, 0);
 }
 
-std::vector<tree::TerminalNode *> CypherParser::KU_AlterTableContext::SP() {
+std::vector<tree::TerminalNode *> CypherParser::NEUG_AlterTableContext::SP() {
   return getTokens(CypherParser::SP);
 }
 
-tree::TerminalNode* CypherParser::KU_AlterTableContext::SP(size_t i) {
+tree::TerminalNode* CypherParser::NEUG_AlterTableContext::SP(size_t i) {
   return getToken(CypherParser::SP, i);
 }
 
-tree::TerminalNode* CypherParser::KU_AlterTableContext::TABLE() {
+tree::TerminalNode* CypherParser::NEUG_AlterTableContext::TABLE() {
   return getToken(CypherParser::TABLE, 0);
 }
 
-CypherParser::OC_SchemaNameContext* CypherParser::KU_AlterTableContext::oC_SchemaName() {
+CypherParser::OC_SchemaNameContext* CypherParser::NEUG_AlterTableContext::oC_SchemaName() {
   return getRuleContext<CypherParser::OC_SchemaNameContext>(0);
 }
 
-CypherParser::KU_AlterOptionsContext* CypherParser::KU_AlterTableContext::kU_AlterOptions() {
-  return getRuleContext<CypherParser::KU_AlterOptionsContext>(0);
+CypherParser::NEUG_AlterOptionsContext* CypherParser::NEUG_AlterTableContext::nEUG_AlterOptions() {
+  return getRuleContext<CypherParser::NEUG_AlterOptionsContext>(0);
 }
 
 
-size_t CypherParser::KU_AlterTableContext::getRuleIndex() const {
-  return CypherParser::RuleKU_AlterTable;
+size_t CypherParser::NEUG_AlterTableContext::getRuleIndex() const {
+  return CypherParser::RuleNEUG_AlterTable;
 }
 
 
-CypherParser::KU_AlterTableContext* CypherParser::kU_AlterTable() {
-  KU_AlterTableContext *_localctx = _tracker.createInstance<KU_AlterTableContext>(_ctx, getState());
-  enterRule(_localctx, 72, CypherParser::RuleKU_AlterTable);
+CypherParser::NEUG_AlterTableContext* CypherParser::nEUG_AlterTable() {
+  NEUG_AlterTableContext *_localctx = _tracker.createInstance<NEUG_AlterTableContext>(_ctx, getState());
+  enterRule(_localctx, 72, CypherParser::RuleNEUG_AlterTable);
 
 #if __cplusplus > 201703L
   auto onExit = finally([=, this] {
@@ -5409,7 +5410,7 @@ CypherParser::KU_AlterTableContext* CypherParser::kU_AlterTable() {
     setState(1001);
     match(CypherParser::SP);
     setState(1002);
-    kU_AlterOptions();
+    nEUG_AlterOptions();
    
   }
   catch (RecognitionException &e) {
@@ -5421,37 +5422,37 @@ CypherParser::KU_AlterTableContext* CypherParser::kU_AlterTable() {
   return _localctx;
 }
 
-//----------------- KU_AlterOptionsContext ------------------------------------------------------------------
+//----------------- NEUG_AlterOptionsContext ------------------------------------------------------------------
 
-CypherParser::KU_AlterOptionsContext::KU_AlterOptionsContext(ParserRuleContext *parent, size_t invokingState)
+CypherParser::NEUG_AlterOptionsContext::NEUG_AlterOptionsContext(ParserRuleContext *parent, size_t invokingState)
   : ParserRuleContext(parent, invokingState) {
 }
 
-CypherParser::KU_AddPropertyContext* CypherParser::KU_AlterOptionsContext::kU_AddProperty() {
-  return getRuleContext<CypherParser::KU_AddPropertyContext>(0);
+CypherParser::NEUG_AddPropertyContext* CypherParser::NEUG_AlterOptionsContext::nEUG_AddProperty() {
+  return getRuleContext<CypherParser::NEUG_AddPropertyContext>(0);
 }
 
-CypherParser::KU_DropPropertyContext* CypherParser::KU_AlterOptionsContext::kU_DropProperty() {
-  return getRuleContext<CypherParser::KU_DropPropertyContext>(0);
+CypherParser::NEUG_DropPropertyContext* CypherParser::NEUG_AlterOptionsContext::nEUG_DropProperty() {
+  return getRuleContext<CypherParser::NEUG_DropPropertyContext>(0);
 }
 
-CypherParser::KU_RenameTableContext* CypherParser::KU_AlterOptionsContext::kU_RenameTable() {
-  return getRuleContext<CypherParser::KU_RenameTableContext>(0);
+CypherParser::NEUG_RenameTableContext* CypherParser::NEUG_AlterOptionsContext::nEUG_RenameTable() {
+  return getRuleContext<CypherParser::NEUG_RenameTableContext>(0);
 }
 
-CypherParser::KU_RenamePropertyContext* CypherParser::KU_AlterOptionsContext::kU_RenameProperty() {
-  return getRuleContext<CypherParser::KU_RenamePropertyContext>(0);
-}
-
-
-size_t CypherParser::KU_AlterOptionsContext::getRuleIndex() const {
-  return CypherParser::RuleKU_AlterOptions;
+CypherParser::NEUG_RenamePropertyContext* CypherParser::NEUG_AlterOptionsContext::nEUG_RenameProperty() {
+  return getRuleContext<CypherParser::NEUG_RenamePropertyContext>(0);
 }
 
 
-CypherParser::KU_AlterOptionsContext* CypherParser::kU_AlterOptions() {
-  KU_AlterOptionsContext *_localctx = _tracker.createInstance<KU_AlterOptionsContext>(_ctx, getState());
-  enterRule(_localctx, 74, CypherParser::RuleKU_AlterOptions);
+size_t CypherParser::NEUG_AlterOptionsContext::getRuleIndex() const {
+  return CypherParser::RuleNEUG_AlterOptions;
+}
+
+
+CypherParser::NEUG_AlterOptionsContext* CypherParser::nEUG_AlterOptions() {
+  NEUG_AlterOptionsContext *_localctx = _tracker.createInstance<NEUG_AlterOptionsContext>(_ctx, getState());
+  enterRule(_localctx, 74, CypherParser::RuleNEUG_AlterOptions);
 
 #if __cplusplus > 201703L
   auto onExit = finally([=, this] {
@@ -5467,28 +5468,28 @@ CypherParser::KU_AlterOptionsContext* CypherParser::kU_AlterOptions() {
     case 1: {
       enterOuterAlt(_localctx, 1);
       setState(1004);
-      kU_AddProperty();
+      nEUG_AddProperty();
       break;
     }
 
     case 2: {
       enterOuterAlt(_localctx, 2);
       setState(1005);
-      kU_DropProperty();
+      nEUG_DropProperty();
       break;
     }
 
     case 3: {
       enterOuterAlt(_localctx, 3);
       setState(1006);
-      kU_RenameTable();
+      nEUG_RenameTable();
       break;
     }
 
     case 4: {
       enterOuterAlt(_localctx, 4);
       setState(1007);
-      kU_RenameProperty();
+      nEUG_RenameProperty();
       break;
     }
 
@@ -5506,49 +5507,49 @@ CypherParser::KU_AlterOptionsContext* CypherParser::kU_AlterOptions() {
   return _localctx;
 }
 
-//----------------- KU_AddPropertyContext ------------------------------------------------------------------
+//----------------- NEUG_AddPropertyContext ------------------------------------------------------------------
 
-CypherParser::KU_AddPropertyContext::KU_AddPropertyContext(ParserRuleContext *parent, size_t invokingState)
+CypherParser::NEUG_AddPropertyContext::NEUG_AddPropertyContext(ParserRuleContext *parent, size_t invokingState)
   : ParserRuleContext(parent, invokingState) {
 }
 
-tree::TerminalNode* CypherParser::KU_AddPropertyContext::ADD() {
+tree::TerminalNode* CypherParser::NEUG_AddPropertyContext::ADD() {
   return getToken(CypherParser::ADD, 0);
 }
 
-std::vector<tree::TerminalNode *> CypherParser::KU_AddPropertyContext::SP() {
+std::vector<tree::TerminalNode *> CypherParser::NEUG_AddPropertyContext::SP() {
   return getTokens(CypherParser::SP);
 }
 
-tree::TerminalNode* CypherParser::KU_AddPropertyContext::SP(size_t i) {
+tree::TerminalNode* CypherParser::NEUG_AddPropertyContext::SP(size_t i) {
   return getToken(CypherParser::SP, i);
 }
 
-CypherParser::OC_PropertyKeyNameContext* CypherParser::KU_AddPropertyContext::oC_PropertyKeyName() {
+CypherParser::OC_PropertyKeyNameContext* CypherParser::NEUG_AddPropertyContext::oC_PropertyKeyName() {
   return getRuleContext<CypherParser::OC_PropertyKeyNameContext>(0);
 }
 
-CypherParser::KU_DataTypeContext* CypherParser::KU_AddPropertyContext::kU_DataType() {
-  return getRuleContext<CypherParser::KU_DataTypeContext>(0);
+CypherParser::NEUG_DataTypeContext* CypherParser::NEUG_AddPropertyContext::nEUG_DataType() {
+  return getRuleContext<CypherParser::NEUG_DataTypeContext>(0);
 }
 
-CypherParser::KU_IfNotExistsContext* CypherParser::KU_AddPropertyContext::kU_IfNotExists() {
-  return getRuleContext<CypherParser::KU_IfNotExistsContext>(0);
+CypherParser::NEUG_IfNotExistsContext* CypherParser::NEUG_AddPropertyContext::nEUG_IfNotExists() {
+  return getRuleContext<CypherParser::NEUG_IfNotExistsContext>(0);
 }
 
-CypherParser::KU_DefaultContext* CypherParser::KU_AddPropertyContext::kU_Default() {
-  return getRuleContext<CypherParser::KU_DefaultContext>(0);
-}
-
-
-size_t CypherParser::KU_AddPropertyContext::getRuleIndex() const {
-  return CypherParser::RuleKU_AddProperty;
+CypherParser::NEUG_DefaultContext* CypherParser::NEUG_AddPropertyContext::nEUG_Default() {
+  return getRuleContext<CypherParser::NEUG_DefaultContext>(0);
 }
 
 
-CypherParser::KU_AddPropertyContext* CypherParser::kU_AddProperty() {
-  KU_AddPropertyContext *_localctx = _tracker.createInstance<KU_AddPropertyContext>(_ctx, getState());
-  enterRule(_localctx, 76, CypherParser::RuleKU_AddProperty);
+size_t CypherParser::NEUG_AddPropertyContext::getRuleIndex() const {
+  return CypherParser::RuleNEUG_AddProperty;
+}
+
+
+CypherParser::NEUG_AddPropertyContext* CypherParser::nEUG_AddProperty() {
+  NEUG_AddPropertyContext *_localctx = _tracker.createInstance<NEUG_AddPropertyContext>(_ctx, getState());
+  enterRule(_localctx, 76, CypherParser::RuleNEUG_AddProperty);
 
 #if __cplusplus > 201703L
   auto onExit = finally([=, this] {
@@ -5569,7 +5570,7 @@ CypherParser::KU_AddPropertyContext* CypherParser::kU_AddProperty() {
     switch (getInterpreter<atn::ParserATNSimulator>()->adaptivePredict(_input, 118, _ctx)) {
     case 1: {
       setState(1012);
-      kU_IfNotExists();
+      nEUG_IfNotExists();
       setState(1013);
       match(CypherParser::SP);
       break;
@@ -5583,7 +5584,7 @@ CypherParser::KU_AddPropertyContext* CypherParser::kU_AddProperty() {
     setState(1018);
     match(CypherParser::SP);
     setState(1019);
-    kU_DataType(0);
+    nEUG_DataType(0);
     setState(1022);
     _errHandler->sync(this);
 
@@ -5592,7 +5593,7 @@ CypherParser::KU_AddPropertyContext* CypherParser::kU_AddProperty() {
       setState(1020);
       match(CypherParser::SP);
       setState(1021);
-      kU_Default();
+      nEUG_Default();
       break;
     }
 
@@ -5610,33 +5611,33 @@ CypherParser::KU_AddPropertyContext* CypherParser::kU_AddProperty() {
   return _localctx;
 }
 
-//----------------- KU_DefaultContext ------------------------------------------------------------------
+//----------------- NEUG_DefaultContext ------------------------------------------------------------------
 
-CypherParser::KU_DefaultContext::KU_DefaultContext(ParserRuleContext *parent, size_t invokingState)
+CypherParser::NEUG_DefaultContext::NEUG_DefaultContext(ParserRuleContext *parent, size_t invokingState)
   : ParserRuleContext(parent, invokingState) {
 }
 
-tree::TerminalNode* CypherParser::KU_DefaultContext::DEFAULT() {
+tree::TerminalNode* CypherParser::NEUG_DefaultContext::DEFAULT() {
   return getToken(CypherParser::DEFAULT, 0);
 }
 
-tree::TerminalNode* CypherParser::KU_DefaultContext::SP() {
+tree::TerminalNode* CypherParser::NEUG_DefaultContext::SP() {
   return getToken(CypherParser::SP, 0);
 }
 
-CypherParser::OC_ExpressionContext* CypherParser::KU_DefaultContext::oC_Expression() {
+CypherParser::OC_ExpressionContext* CypherParser::NEUG_DefaultContext::oC_Expression() {
   return getRuleContext<CypherParser::OC_ExpressionContext>(0);
 }
 
 
-size_t CypherParser::KU_DefaultContext::getRuleIndex() const {
-  return CypherParser::RuleKU_Default;
+size_t CypherParser::NEUG_DefaultContext::getRuleIndex() const {
+  return CypherParser::RuleNEUG_Default;
 }
 
 
-CypherParser::KU_DefaultContext* CypherParser::kU_Default() {
-  KU_DefaultContext *_localctx = _tracker.createInstance<KU_DefaultContext>(_ctx, getState());
-  enterRule(_localctx, 78, CypherParser::RuleKU_Default);
+CypherParser::NEUG_DefaultContext* CypherParser::nEUG_Default() {
+  NEUG_DefaultContext *_localctx = _tracker.createInstance<NEUG_DefaultContext>(_ctx, getState());
+  enterRule(_localctx, 78, CypherParser::RuleNEUG_Default);
 
 #if __cplusplus > 201703L
   auto onExit = finally([=, this] {
@@ -5664,41 +5665,41 @@ CypherParser::KU_DefaultContext* CypherParser::kU_Default() {
   return _localctx;
 }
 
-//----------------- KU_DropPropertyContext ------------------------------------------------------------------
+//----------------- NEUG_DropPropertyContext ------------------------------------------------------------------
 
-CypherParser::KU_DropPropertyContext::KU_DropPropertyContext(ParserRuleContext *parent, size_t invokingState)
+CypherParser::NEUG_DropPropertyContext::NEUG_DropPropertyContext(ParserRuleContext *parent, size_t invokingState)
   : ParserRuleContext(parent, invokingState) {
 }
 
-tree::TerminalNode* CypherParser::KU_DropPropertyContext::DROP() {
+tree::TerminalNode* CypherParser::NEUG_DropPropertyContext::DROP() {
   return getToken(CypherParser::DROP, 0);
 }
 
-std::vector<tree::TerminalNode *> CypherParser::KU_DropPropertyContext::SP() {
+std::vector<tree::TerminalNode *> CypherParser::NEUG_DropPropertyContext::SP() {
   return getTokens(CypherParser::SP);
 }
 
-tree::TerminalNode* CypherParser::KU_DropPropertyContext::SP(size_t i) {
+tree::TerminalNode* CypherParser::NEUG_DropPropertyContext::SP(size_t i) {
   return getToken(CypherParser::SP, i);
 }
 
-CypherParser::OC_PropertyKeyNameContext* CypherParser::KU_DropPropertyContext::oC_PropertyKeyName() {
+CypherParser::OC_PropertyKeyNameContext* CypherParser::NEUG_DropPropertyContext::oC_PropertyKeyName() {
   return getRuleContext<CypherParser::OC_PropertyKeyNameContext>(0);
 }
 
-CypherParser::KU_IfExistsContext* CypherParser::KU_DropPropertyContext::kU_IfExists() {
-  return getRuleContext<CypherParser::KU_IfExistsContext>(0);
+CypherParser::NEUG_IfExistsContext* CypherParser::NEUG_DropPropertyContext::nEUG_IfExists() {
+  return getRuleContext<CypherParser::NEUG_IfExistsContext>(0);
 }
 
 
-size_t CypherParser::KU_DropPropertyContext::getRuleIndex() const {
-  return CypherParser::RuleKU_DropProperty;
+size_t CypherParser::NEUG_DropPropertyContext::getRuleIndex() const {
+  return CypherParser::RuleNEUG_DropProperty;
 }
 
 
-CypherParser::KU_DropPropertyContext* CypherParser::kU_DropProperty() {
-  KU_DropPropertyContext *_localctx = _tracker.createInstance<KU_DropPropertyContext>(_ctx, getState());
-  enterRule(_localctx, 80, CypherParser::RuleKU_DropProperty);
+CypherParser::NEUG_DropPropertyContext* CypherParser::nEUG_DropProperty() {
+  NEUG_DropPropertyContext *_localctx = _tracker.createInstance<NEUG_DropPropertyContext>(_ctx, getState());
+  enterRule(_localctx, 80, CypherParser::RuleNEUG_DropProperty);
 
 #if __cplusplus > 201703L
   auto onExit = finally([=, this] {
@@ -5719,7 +5720,7 @@ CypherParser::KU_DropPropertyContext* CypherParser::kU_DropProperty() {
     switch (getInterpreter<atn::ParserATNSimulator>()->adaptivePredict(_input, 120, _ctx)) {
     case 1: {
       setState(1030);
-      kU_IfExists();
+      nEUG_IfExists();
       setState(1031);
       match(CypherParser::SP);
       break;
@@ -5741,41 +5742,41 @@ CypherParser::KU_DropPropertyContext* CypherParser::kU_DropProperty() {
   return _localctx;
 }
 
-//----------------- KU_RenameTableContext ------------------------------------------------------------------
+//----------------- NEUG_RenameTableContext ------------------------------------------------------------------
 
-CypherParser::KU_RenameTableContext::KU_RenameTableContext(ParserRuleContext *parent, size_t invokingState)
+CypherParser::NEUG_RenameTableContext::NEUG_RenameTableContext(ParserRuleContext *parent, size_t invokingState)
   : ParserRuleContext(parent, invokingState) {
 }
 
-tree::TerminalNode* CypherParser::KU_RenameTableContext::RENAME() {
+tree::TerminalNode* CypherParser::NEUG_RenameTableContext::RENAME() {
   return getToken(CypherParser::RENAME, 0);
 }
 
-std::vector<tree::TerminalNode *> CypherParser::KU_RenameTableContext::SP() {
+std::vector<tree::TerminalNode *> CypherParser::NEUG_RenameTableContext::SP() {
   return getTokens(CypherParser::SP);
 }
 
-tree::TerminalNode* CypherParser::KU_RenameTableContext::SP(size_t i) {
+tree::TerminalNode* CypherParser::NEUG_RenameTableContext::SP(size_t i) {
   return getToken(CypherParser::SP, i);
 }
 
-tree::TerminalNode* CypherParser::KU_RenameTableContext::TO() {
+tree::TerminalNode* CypherParser::NEUG_RenameTableContext::TO() {
   return getToken(CypherParser::TO, 0);
 }
 
-CypherParser::OC_SchemaNameContext* CypherParser::KU_RenameTableContext::oC_SchemaName() {
+CypherParser::OC_SchemaNameContext* CypherParser::NEUG_RenameTableContext::oC_SchemaName() {
   return getRuleContext<CypherParser::OC_SchemaNameContext>(0);
 }
 
 
-size_t CypherParser::KU_RenameTableContext::getRuleIndex() const {
-  return CypherParser::RuleKU_RenameTable;
+size_t CypherParser::NEUG_RenameTableContext::getRuleIndex() const {
+  return CypherParser::RuleNEUG_RenameTable;
 }
 
 
-CypherParser::KU_RenameTableContext* CypherParser::kU_RenameTable() {
-  KU_RenameTableContext *_localctx = _tracker.createInstance<KU_RenameTableContext>(_ctx, getState());
-  enterRule(_localctx, 82, CypherParser::RuleKU_RenameTable);
+CypherParser::NEUG_RenameTableContext* CypherParser::nEUG_RenameTable() {
+  NEUG_RenameTableContext *_localctx = _tracker.createInstance<NEUG_RenameTableContext>(_ctx, getState());
+  enterRule(_localctx, 82, CypherParser::RuleNEUG_RenameTable);
 
 #if __cplusplus > 201703L
   auto onExit = finally([=, this] {
@@ -5807,45 +5808,45 @@ CypherParser::KU_RenameTableContext* CypherParser::kU_RenameTable() {
   return _localctx;
 }
 
-//----------------- KU_RenamePropertyContext ------------------------------------------------------------------
+//----------------- NEUG_RenamePropertyContext ------------------------------------------------------------------
 
-CypherParser::KU_RenamePropertyContext::KU_RenamePropertyContext(ParserRuleContext *parent, size_t invokingState)
+CypherParser::NEUG_RenamePropertyContext::NEUG_RenamePropertyContext(ParserRuleContext *parent, size_t invokingState)
   : ParserRuleContext(parent, invokingState) {
 }
 
-tree::TerminalNode* CypherParser::KU_RenamePropertyContext::RENAME() {
+tree::TerminalNode* CypherParser::NEUG_RenamePropertyContext::RENAME() {
   return getToken(CypherParser::RENAME, 0);
 }
 
-std::vector<tree::TerminalNode *> CypherParser::KU_RenamePropertyContext::SP() {
+std::vector<tree::TerminalNode *> CypherParser::NEUG_RenamePropertyContext::SP() {
   return getTokens(CypherParser::SP);
 }
 
-tree::TerminalNode* CypherParser::KU_RenamePropertyContext::SP(size_t i) {
+tree::TerminalNode* CypherParser::NEUG_RenamePropertyContext::SP(size_t i) {
   return getToken(CypherParser::SP, i);
 }
 
-std::vector<CypherParser::OC_PropertyKeyNameContext *> CypherParser::KU_RenamePropertyContext::oC_PropertyKeyName() {
+std::vector<CypherParser::OC_PropertyKeyNameContext *> CypherParser::NEUG_RenamePropertyContext::oC_PropertyKeyName() {
   return getRuleContexts<CypherParser::OC_PropertyKeyNameContext>();
 }
 
-CypherParser::OC_PropertyKeyNameContext* CypherParser::KU_RenamePropertyContext::oC_PropertyKeyName(size_t i) {
+CypherParser::OC_PropertyKeyNameContext* CypherParser::NEUG_RenamePropertyContext::oC_PropertyKeyName(size_t i) {
   return getRuleContext<CypherParser::OC_PropertyKeyNameContext>(i);
 }
 
-tree::TerminalNode* CypherParser::KU_RenamePropertyContext::TO() {
+tree::TerminalNode* CypherParser::NEUG_RenamePropertyContext::TO() {
   return getToken(CypherParser::TO, 0);
 }
 
 
-size_t CypherParser::KU_RenamePropertyContext::getRuleIndex() const {
-  return CypherParser::RuleKU_RenameProperty;
+size_t CypherParser::NEUG_RenamePropertyContext::getRuleIndex() const {
+  return CypherParser::RuleNEUG_RenameProperty;
 }
 
 
-CypherParser::KU_RenamePropertyContext* CypherParser::kU_RenameProperty() {
-  KU_RenamePropertyContext *_localctx = _tracker.createInstance<KU_RenamePropertyContext>(_ctx, getState());
-  enterRule(_localctx, 84, CypherParser::RuleKU_RenameProperty);
+CypherParser::NEUG_RenamePropertyContext* CypherParser::nEUG_RenameProperty() {
+  NEUG_RenamePropertyContext *_localctx = _tracker.createInstance<NEUG_RenamePropertyContext>(_ctx, getState());
+  enterRule(_localctx, 84, CypherParser::RuleNEUG_RenameProperty);
 
 #if __cplusplus > 201703L
   auto onExit = finally([=, this] {
@@ -5881,37 +5882,37 @@ CypherParser::KU_RenamePropertyContext* CypherParser::kU_RenameProperty() {
   return _localctx;
 }
 
-//----------------- KU_ColumnDefinitionsContext ------------------------------------------------------------------
+//----------------- NEUG_ColumnDefinitionsContext ------------------------------------------------------------------
 
-CypherParser::KU_ColumnDefinitionsContext::KU_ColumnDefinitionsContext(ParserRuleContext *parent, size_t invokingState)
+CypherParser::NEUG_ColumnDefinitionsContext::NEUG_ColumnDefinitionsContext(ParserRuleContext *parent, size_t invokingState)
   : ParserRuleContext(parent, invokingState) {
 }
 
-std::vector<CypherParser::KU_ColumnDefinitionContext *> CypherParser::KU_ColumnDefinitionsContext::kU_ColumnDefinition() {
-  return getRuleContexts<CypherParser::KU_ColumnDefinitionContext>();
+std::vector<CypherParser::NEUG_ColumnDefinitionContext *> CypherParser::NEUG_ColumnDefinitionsContext::nEUG_ColumnDefinition() {
+  return getRuleContexts<CypherParser::NEUG_ColumnDefinitionContext>();
 }
 
-CypherParser::KU_ColumnDefinitionContext* CypherParser::KU_ColumnDefinitionsContext::kU_ColumnDefinition(size_t i) {
-  return getRuleContext<CypherParser::KU_ColumnDefinitionContext>(i);
+CypherParser::NEUG_ColumnDefinitionContext* CypherParser::NEUG_ColumnDefinitionsContext::nEUG_ColumnDefinition(size_t i) {
+  return getRuleContext<CypherParser::NEUG_ColumnDefinitionContext>(i);
 }
 
-std::vector<tree::TerminalNode *> CypherParser::KU_ColumnDefinitionsContext::SP() {
+std::vector<tree::TerminalNode *> CypherParser::NEUG_ColumnDefinitionsContext::SP() {
   return getTokens(CypherParser::SP);
 }
 
-tree::TerminalNode* CypherParser::KU_ColumnDefinitionsContext::SP(size_t i) {
+tree::TerminalNode* CypherParser::NEUG_ColumnDefinitionsContext::SP(size_t i) {
   return getToken(CypherParser::SP, i);
 }
 
 
-size_t CypherParser::KU_ColumnDefinitionsContext::getRuleIndex() const {
-  return CypherParser::RuleKU_ColumnDefinitions;
+size_t CypherParser::NEUG_ColumnDefinitionsContext::getRuleIndex() const {
+  return CypherParser::RuleNEUG_ColumnDefinitions;
 }
 
 
-CypherParser::KU_ColumnDefinitionsContext* CypherParser::kU_ColumnDefinitions() {
-  KU_ColumnDefinitionsContext *_localctx = _tracker.createInstance<KU_ColumnDefinitionsContext>(_ctx, getState());
-  enterRule(_localctx, 86, CypherParser::RuleKU_ColumnDefinitions);
+CypherParser::NEUG_ColumnDefinitionsContext* CypherParser::nEUG_ColumnDefinitions() {
+  NEUG_ColumnDefinitionsContext *_localctx = _tracker.createInstance<NEUG_ColumnDefinitionsContext>(_ctx, getState());
+  enterRule(_localctx, 86, CypherParser::RuleNEUG_ColumnDefinitions);
   size_t _la = 0;
 
 #if __cplusplus > 201703L
@@ -5925,7 +5926,7 @@ CypherParser::KU_ColumnDefinitionsContext* CypherParser::kU_ColumnDefinitions() 
     size_t alt;
     enterOuterAlt(_localctx, 1);
     setState(1051);
-    kU_ColumnDefinition();
+    nEUG_ColumnDefinition();
     setState(1062);
     _errHandler->sync(this);
     alt = getInterpreter<atn::ParserATNSimulator>()->adaptivePredict(_input, 123, _ctx);
@@ -5950,7 +5951,7 @@ CypherParser::KU_ColumnDefinitionsContext* CypherParser::kU_ColumnDefinitions() 
           match(CypherParser::SP);
         }
         setState(1059);
-        kU_ColumnDefinition(); 
+        nEUG_ColumnDefinition(); 
       }
       setState(1064);
       _errHandler->sync(this);
@@ -5967,33 +5968,33 @@ CypherParser::KU_ColumnDefinitionsContext* CypherParser::kU_ColumnDefinitions() 
   return _localctx;
 }
 
-//----------------- KU_ColumnDefinitionContext ------------------------------------------------------------------
+//----------------- NEUG_ColumnDefinitionContext ------------------------------------------------------------------
 
-CypherParser::KU_ColumnDefinitionContext::KU_ColumnDefinitionContext(ParserRuleContext *parent, size_t invokingState)
+CypherParser::NEUG_ColumnDefinitionContext::NEUG_ColumnDefinitionContext(ParserRuleContext *parent, size_t invokingState)
   : ParserRuleContext(parent, invokingState) {
 }
 
-CypherParser::OC_PropertyKeyNameContext* CypherParser::KU_ColumnDefinitionContext::oC_PropertyKeyName() {
+CypherParser::OC_PropertyKeyNameContext* CypherParser::NEUG_ColumnDefinitionContext::oC_PropertyKeyName() {
   return getRuleContext<CypherParser::OC_PropertyKeyNameContext>(0);
 }
 
-tree::TerminalNode* CypherParser::KU_ColumnDefinitionContext::SP() {
+tree::TerminalNode* CypherParser::NEUG_ColumnDefinitionContext::SP() {
   return getToken(CypherParser::SP, 0);
 }
 
-CypherParser::KU_DataTypeContext* CypherParser::KU_ColumnDefinitionContext::kU_DataType() {
-  return getRuleContext<CypherParser::KU_DataTypeContext>(0);
+CypherParser::NEUG_DataTypeContext* CypherParser::NEUG_ColumnDefinitionContext::nEUG_DataType() {
+  return getRuleContext<CypherParser::NEUG_DataTypeContext>(0);
 }
 
 
-size_t CypherParser::KU_ColumnDefinitionContext::getRuleIndex() const {
-  return CypherParser::RuleKU_ColumnDefinition;
+size_t CypherParser::NEUG_ColumnDefinitionContext::getRuleIndex() const {
+  return CypherParser::RuleNEUG_ColumnDefinition;
 }
 
 
-CypherParser::KU_ColumnDefinitionContext* CypherParser::kU_ColumnDefinition() {
-  KU_ColumnDefinitionContext *_localctx = _tracker.createInstance<KU_ColumnDefinitionContext>(_ctx, getState());
-  enterRule(_localctx, 88, CypherParser::RuleKU_ColumnDefinition);
+CypherParser::NEUG_ColumnDefinitionContext* CypherParser::nEUG_ColumnDefinition() {
+  NEUG_ColumnDefinitionContext *_localctx = _tracker.createInstance<NEUG_ColumnDefinitionContext>(_ctx, getState());
+  enterRule(_localctx, 88, CypherParser::RuleNEUG_ColumnDefinition);
 
 #if __cplusplus > 201703L
   auto onExit = finally([=, this] {
@@ -6009,7 +6010,7 @@ CypherParser::KU_ColumnDefinitionContext* CypherParser::kU_ColumnDefinition() {
     setState(1066);
     match(CypherParser::SP);
     setState(1067);
-    kU_DataType(0);
+    nEUG_DataType(0);
    
   }
   catch (RecognitionException &e) {
@@ -6021,37 +6022,37 @@ CypherParser::KU_ColumnDefinitionContext* CypherParser::kU_ColumnDefinition() {
   return _localctx;
 }
 
-//----------------- KU_PropertyDefinitionsContext ------------------------------------------------------------------
+//----------------- NEUG_PropertyDefinitionsContext ------------------------------------------------------------------
 
-CypherParser::KU_PropertyDefinitionsContext::KU_PropertyDefinitionsContext(ParserRuleContext *parent, size_t invokingState)
+CypherParser::NEUG_PropertyDefinitionsContext::NEUG_PropertyDefinitionsContext(ParserRuleContext *parent, size_t invokingState)
   : ParserRuleContext(parent, invokingState) {
 }
 
-std::vector<CypherParser::KU_PropertyDefinitionContext *> CypherParser::KU_PropertyDefinitionsContext::kU_PropertyDefinition() {
-  return getRuleContexts<CypherParser::KU_PropertyDefinitionContext>();
+std::vector<CypherParser::NEUG_PropertyDefinitionContext *> CypherParser::NEUG_PropertyDefinitionsContext::nEUG_PropertyDefinition() {
+  return getRuleContexts<CypherParser::NEUG_PropertyDefinitionContext>();
 }
 
-CypherParser::KU_PropertyDefinitionContext* CypherParser::KU_PropertyDefinitionsContext::kU_PropertyDefinition(size_t i) {
-  return getRuleContext<CypherParser::KU_PropertyDefinitionContext>(i);
+CypherParser::NEUG_PropertyDefinitionContext* CypherParser::NEUG_PropertyDefinitionsContext::nEUG_PropertyDefinition(size_t i) {
+  return getRuleContext<CypherParser::NEUG_PropertyDefinitionContext>(i);
 }
 
-std::vector<tree::TerminalNode *> CypherParser::KU_PropertyDefinitionsContext::SP() {
+std::vector<tree::TerminalNode *> CypherParser::NEUG_PropertyDefinitionsContext::SP() {
   return getTokens(CypherParser::SP);
 }
 
-tree::TerminalNode* CypherParser::KU_PropertyDefinitionsContext::SP(size_t i) {
+tree::TerminalNode* CypherParser::NEUG_PropertyDefinitionsContext::SP(size_t i) {
   return getToken(CypherParser::SP, i);
 }
 
 
-size_t CypherParser::KU_PropertyDefinitionsContext::getRuleIndex() const {
-  return CypherParser::RuleKU_PropertyDefinitions;
+size_t CypherParser::NEUG_PropertyDefinitionsContext::getRuleIndex() const {
+  return CypherParser::RuleNEUG_PropertyDefinitions;
 }
 
 
-CypherParser::KU_PropertyDefinitionsContext* CypherParser::kU_PropertyDefinitions() {
-  KU_PropertyDefinitionsContext *_localctx = _tracker.createInstance<KU_PropertyDefinitionsContext>(_ctx, getState());
-  enterRule(_localctx, 90, CypherParser::RuleKU_PropertyDefinitions);
+CypherParser::NEUG_PropertyDefinitionsContext* CypherParser::nEUG_PropertyDefinitions() {
+  NEUG_PropertyDefinitionsContext *_localctx = _tracker.createInstance<NEUG_PropertyDefinitionsContext>(_ctx, getState());
+  enterRule(_localctx, 90, CypherParser::RuleNEUG_PropertyDefinitions);
   size_t _la = 0;
 
 #if __cplusplus > 201703L
@@ -6065,7 +6066,7 @@ CypherParser::KU_PropertyDefinitionsContext* CypherParser::kU_PropertyDefinition
     size_t alt;
     enterOuterAlt(_localctx, 1);
     setState(1069);
-    kU_PropertyDefinition();
+    nEUG_PropertyDefinition();
     setState(1080);
     _errHandler->sync(this);
     alt = getInterpreter<atn::ParserATNSimulator>()->adaptivePredict(_input, 126, _ctx);
@@ -6090,7 +6091,7 @@ CypherParser::KU_PropertyDefinitionsContext* CypherParser::kU_PropertyDefinition
           match(CypherParser::SP);
         }
         setState(1077);
-        kU_PropertyDefinition(); 
+        nEUG_PropertyDefinition(); 
       }
       setState(1082);
       _errHandler->sync(this);
@@ -6107,45 +6108,45 @@ CypherParser::KU_PropertyDefinitionsContext* CypherParser::kU_PropertyDefinition
   return _localctx;
 }
 
-//----------------- KU_PropertyDefinitionContext ------------------------------------------------------------------
+//----------------- NEUG_PropertyDefinitionContext ------------------------------------------------------------------
 
-CypherParser::KU_PropertyDefinitionContext::KU_PropertyDefinitionContext(ParserRuleContext *parent, size_t invokingState)
+CypherParser::NEUG_PropertyDefinitionContext::NEUG_PropertyDefinitionContext(ParserRuleContext *parent, size_t invokingState)
   : ParserRuleContext(parent, invokingState) {
 }
 
-CypherParser::KU_ColumnDefinitionContext* CypherParser::KU_PropertyDefinitionContext::kU_ColumnDefinition() {
-  return getRuleContext<CypherParser::KU_ColumnDefinitionContext>(0);
+CypherParser::NEUG_ColumnDefinitionContext* CypherParser::NEUG_PropertyDefinitionContext::nEUG_ColumnDefinition() {
+  return getRuleContext<CypherParser::NEUG_ColumnDefinitionContext>(0);
 }
 
-std::vector<tree::TerminalNode *> CypherParser::KU_PropertyDefinitionContext::SP() {
+std::vector<tree::TerminalNode *> CypherParser::NEUG_PropertyDefinitionContext::SP() {
   return getTokens(CypherParser::SP);
 }
 
-tree::TerminalNode* CypherParser::KU_PropertyDefinitionContext::SP(size_t i) {
+tree::TerminalNode* CypherParser::NEUG_PropertyDefinitionContext::SP(size_t i) {
   return getToken(CypherParser::SP, i);
 }
 
-CypherParser::KU_DefaultContext* CypherParser::KU_PropertyDefinitionContext::kU_Default() {
-  return getRuleContext<CypherParser::KU_DefaultContext>(0);
+CypherParser::NEUG_DefaultContext* CypherParser::NEUG_PropertyDefinitionContext::nEUG_Default() {
+  return getRuleContext<CypherParser::NEUG_DefaultContext>(0);
 }
 
-tree::TerminalNode* CypherParser::KU_PropertyDefinitionContext::PRIMARY() {
+tree::TerminalNode* CypherParser::NEUG_PropertyDefinitionContext::PRIMARY() {
   return getToken(CypherParser::PRIMARY, 0);
 }
 
-tree::TerminalNode* CypherParser::KU_PropertyDefinitionContext::KEY() {
+tree::TerminalNode* CypherParser::NEUG_PropertyDefinitionContext::KEY() {
   return getToken(CypherParser::KEY, 0);
 }
 
 
-size_t CypherParser::KU_PropertyDefinitionContext::getRuleIndex() const {
-  return CypherParser::RuleKU_PropertyDefinition;
+size_t CypherParser::NEUG_PropertyDefinitionContext::getRuleIndex() const {
+  return CypherParser::RuleNEUG_PropertyDefinition;
 }
 
 
-CypherParser::KU_PropertyDefinitionContext* CypherParser::kU_PropertyDefinition() {
-  KU_PropertyDefinitionContext *_localctx = _tracker.createInstance<KU_PropertyDefinitionContext>(_ctx, getState());
-  enterRule(_localctx, 92, CypherParser::RuleKU_PropertyDefinition);
+CypherParser::NEUG_PropertyDefinitionContext* CypherParser::nEUG_PropertyDefinition() {
+  NEUG_PropertyDefinitionContext *_localctx = _tracker.createInstance<NEUG_PropertyDefinitionContext>(_ctx, getState());
+  enterRule(_localctx, 92, CypherParser::RuleNEUG_PropertyDefinition);
 
 #if __cplusplus > 201703L
   auto onExit = finally([=, this] {
@@ -6157,7 +6158,7 @@ CypherParser::KU_PropertyDefinitionContext* CypherParser::kU_PropertyDefinition(
   try {
     enterOuterAlt(_localctx, 1);
     setState(1083);
-    kU_ColumnDefinition();
+    nEUG_ColumnDefinition();
     setState(1086);
     _errHandler->sync(this);
 
@@ -6166,7 +6167,7 @@ CypherParser::KU_PropertyDefinitionContext* CypherParser::kU_PropertyDefinition(
       setState(1084);
       match(CypherParser::SP);
       setState(1085);
-      kU_Default();
+      nEUG_Default();
       break;
     }
 
@@ -6203,41 +6204,41 @@ CypherParser::KU_PropertyDefinitionContext* CypherParser::kU_PropertyDefinition(
   return _localctx;
 }
 
-//----------------- KU_CreateNodeConstraintContext ------------------------------------------------------------------
+//----------------- NEUG_CreateNodeConstraintContext ------------------------------------------------------------------
 
-CypherParser::KU_CreateNodeConstraintContext::KU_CreateNodeConstraintContext(ParserRuleContext *parent, size_t invokingState)
+CypherParser::NEUG_CreateNodeConstraintContext::NEUG_CreateNodeConstraintContext(ParserRuleContext *parent, size_t invokingState)
   : ParserRuleContext(parent, invokingState) {
 }
 
-tree::TerminalNode* CypherParser::KU_CreateNodeConstraintContext::PRIMARY() {
+tree::TerminalNode* CypherParser::NEUG_CreateNodeConstraintContext::PRIMARY() {
   return getToken(CypherParser::PRIMARY, 0);
 }
 
-std::vector<tree::TerminalNode *> CypherParser::KU_CreateNodeConstraintContext::SP() {
+std::vector<tree::TerminalNode *> CypherParser::NEUG_CreateNodeConstraintContext::SP() {
   return getTokens(CypherParser::SP);
 }
 
-tree::TerminalNode* CypherParser::KU_CreateNodeConstraintContext::SP(size_t i) {
+tree::TerminalNode* CypherParser::NEUG_CreateNodeConstraintContext::SP(size_t i) {
   return getToken(CypherParser::SP, i);
 }
 
-tree::TerminalNode* CypherParser::KU_CreateNodeConstraintContext::KEY() {
+tree::TerminalNode* CypherParser::NEUG_CreateNodeConstraintContext::KEY() {
   return getToken(CypherParser::KEY, 0);
 }
 
-CypherParser::OC_PropertyKeyNameContext* CypherParser::KU_CreateNodeConstraintContext::oC_PropertyKeyName() {
+CypherParser::OC_PropertyKeyNameContext* CypherParser::NEUG_CreateNodeConstraintContext::oC_PropertyKeyName() {
   return getRuleContext<CypherParser::OC_PropertyKeyNameContext>(0);
 }
 
 
-size_t CypherParser::KU_CreateNodeConstraintContext::getRuleIndex() const {
-  return CypherParser::RuleKU_CreateNodeConstraint;
+size_t CypherParser::NEUG_CreateNodeConstraintContext::getRuleIndex() const {
+  return CypherParser::RuleNEUG_CreateNodeConstraint;
 }
 
 
-CypherParser::KU_CreateNodeConstraintContext* CypherParser::kU_CreateNodeConstraint() {
-  KU_CreateNodeConstraintContext *_localctx = _tracker.createInstance<KU_CreateNodeConstraintContext>(_ctx, getState());
-  enterRule(_localctx, 94, CypherParser::RuleKU_CreateNodeConstraint);
+CypherParser::NEUG_CreateNodeConstraintContext* CypherParser::nEUG_CreateNodeConstraint() {
+  NEUG_CreateNodeConstraintContext *_localctx = _tracker.createInstance<NEUG_CreateNodeConstraintContext>(_ctx, getState());
+  enterRule(_localctx, 94, CypherParser::RuleNEUG_CreateNodeConstraint);
   size_t _la = 0;
 
 #if __cplusplus > 201703L
@@ -6296,75 +6297,75 @@ CypherParser::KU_CreateNodeConstraintContext* CypherParser::kU_CreateNodeConstra
   return _localctx;
 }
 
-//----------------- KU_DataTypeContext ------------------------------------------------------------------
+//----------------- NEUG_DataTypeContext ------------------------------------------------------------------
 
-CypherParser::KU_DataTypeContext::KU_DataTypeContext(ParserRuleContext *parent, size_t invokingState)
+CypherParser::NEUG_DataTypeContext::NEUG_DataTypeContext(ParserRuleContext *parent, size_t invokingState)
   : ParserRuleContext(parent, invokingState) {
 }
 
-CypherParser::OC_SymbolicNameContext* CypherParser::KU_DataTypeContext::oC_SymbolicName() {
+CypherParser::OC_SymbolicNameContext* CypherParser::NEUG_DataTypeContext::oC_SymbolicName() {
   return getRuleContext<CypherParser::OC_SymbolicNameContext>(0);
 }
 
-tree::TerminalNode* CypherParser::KU_DataTypeContext::UNION() {
+tree::TerminalNode* CypherParser::NEUG_DataTypeContext::UNION() {
   return getToken(CypherParser::UNION, 0);
 }
 
-CypherParser::KU_ColumnDefinitionsContext* CypherParser::KU_DataTypeContext::kU_ColumnDefinitions() {
-  return getRuleContext<CypherParser::KU_ColumnDefinitionsContext>(0);
+CypherParser::NEUG_ColumnDefinitionsContext* CypherParser::NEUG_DataTypeContext::nEUG_ColumnDefinitions() {
+  return getRuleContext<CypherParser::NEUG_ColumnDefinitionsContext>(0);
 }
 
-std::vector<tree::TerminalNode *> CypherParser::KU_DataTypeContext::SP() {
+std::vector<tree::TerminalNode *> CypherParser::NEUG_DataTypeContext::SP() {
   return getTokens(CypherParser::SP);
 }
 
-tree::TerminalNode* CypherParser::KU_DataTypeContext::SP(size_t i) {
+tree::TerminalNode* CypherParser::NEUG_DataTypeContext::SP(size_t i) {
   return getToken(CypherParser::SP, i);
 }
 
-std::vector<CypherParser::KU_DataTypeContext *> CypherParser::KU_DataTypeContext::kU_DataType() {
-  return getRuleContexts<CypherParser::KU_DataTypeContext>();
+std::vector<CypherParser::NEUG_DataTypeContext *> CypherParser::NEUG_DataTypeContext::nEUG_DataType() {
+  return getRuleContexts<CypherParser::NEUG_DataTypeContext>();
 }
 
-CypherParser::KU_DataTypeContext* CypherParser::KU_DataTypeContext::kU_DataType(size_t i) {
-  return getRuleContext<CypherParser::KU_DataTypeContext>(i);
+CypherParser::NEUG_DataTypeContext* CypherParser::NEUG_DataTypeContext::nEUG_DataType(size_t i) {
+  return getRuleContext<CypherParser::NEUG_DataTypeContext>(i);
 }
 
-tree::TerminalNode* CypherParser::KU_DataTypeContext::DECIMAL() {
+tree::TerminalNode* CypherParser::NEUG_DataTypeContext::DECIMAL() {
   return getToken(CypherParser::DECIMAL, 0);
 }
 
-std::vector<CypherParser::OC_IntegerLiteralContext *> CypherParser::KU_DataTypeContext::oC_IntegerLiteral() {
+std::vector<CypherParser::OC_IntegerLiteralContext *> CypherParser::NEUG_DataTypeContext::oC_IntegerLiteral() {
   return getRuleContexts<CypherParser::OC_IntegerLiteralContext>();
 }
 
-CypherParser::OC_IntegerLiteralContext* CypherParser::KU_DataTypeContext::oC_IntegerLiteral(size_t i) {
+CypherParser::OC_IntegerLiteralContext* CypherParser::NEUG_DataTypeContext::oC_IntegerLiteral(size_t i) {
   return getRuleContext<CypherParser::OC_IntegerLiteralContext>(i);
 }
 
-CypherParser::KU_ListIdentifiersContext* CypherParser::KU_DataTypeContext::kU_ListIdentifiers() {
-  return getRuleContext<CypherParser::KU_ListIdentifiersContext>(0);
+CypherParser::NEUG_ListIdentifiersContext* CypherParser::NEUG_DataTypeContext::nEUG_ListIdentifiers() {
+  return getRuleContext<CypherParser::NEUG_ListIdentifiersContext>(0);
 }
 
 
-size_t CypherParser::KU_DataTypeContext::getRuleIndex() const {
-  return CypherParser::RuleKU_DataType;
+size_t CypherParser::NEUG_DataTypeContext::getRuleIndex() const {
+  return CypherParser::RuleNEUG_DataType;
 }
 
 
 
-CypherParser::KU_DataTypeContext* CypherParser::kU_DataType() {
-   return kU_DataType(0);
+CypherParser::NEUG_DataTypeContext* CypherParser::nEUG_DataType() {
+   return nEUG_DataType(0);
 }
 
-CypherParser::KU_DataTypeContext* CypherParser::kU_DataType(int precedence) {
+CypherParser::NEUG_DataTypeContext* CypherParser::nEUG_DataType(int precedence) {
   ParserRuleContext *parentContext = _ctx;
   size_t parentState = getState();
-  CypherParser::KU_DataTypeContext *_localctx = _tracker.createInstance<KU_DataTypeContext>(_ctx, parentState);
-  CypherParser::KU_DataTypeContext *previousContext = _localctx;
+  CypherParser::NEUG_DataTypeContext *_localctx = _tracker.createInstance<NEUG_DataTypeContext>(_ctx, parentState);
+  CypherParser::NEUG_DataTypeContext *previousContext = _localctx;
   (void)previousContext; // Silence compiler, in case the context is not used by generated code.
   size_t startState = 96;
-  enterRecursionRule(_localctx, 96, CypherParser::RuleKU_DataType, precedence);
+  enterRecursionRule(_localctx, 96, CypherParser::RuleNEUG_DataType, precedence);
 
     size_t _la = 0;
 
@@ -6409,7 +6410,7 @@ CypherParser::KU_DataTypeContext* CypherParser::kU_DataType(int precedence) {
         match(CypherParser::SP);
       }
       setState(1120);
-      kU_ColumnDefinitions();
+      nEUG_ColumnDefinitions();
       setState(1122);
       _errHandler->sync(this);
 
@@ -6445,7 +6446,7 @@ CypherParser::KU_DataTypeContext* CypherParser::kU_DataType(int precedence) {
         match(CypherParser::SP);
       }
       setState(1134);
-      kU_ColumnDefinitions();
+      nEUG_ColumnDefinitions();
       setState(1136);
       _errHandler->sync(this);
 
@@ -6481,7 +6482,7 @@ CypherParser::KU_DataTypeContext* CypherParser::kU_DataType(int precedence) {
         match(CypherParser::SP);
       }
       setState(1148);
-      kU_DataType(0);
+      nEUG_DataType(0);
       setState(1150);
       _errHandler->sync(this);
 
@@ -6501,7 +6502,7 @@ CypherParser::KU_DataTypeContext* CypherParser::kU_DataType(int precedence) {
         match(CypherParser::SP);
       }
       setState(1156);
-      kU_DataType(0);
+      nEUG_DataType(0);
       setState(1158);
       _errHandler->sync(this);
 
@@ -6583,13 +6584,13 @@ CypherParser::KU_DataTypeContext* CypherParser::kU_DataType(int precedence) {
         if (!_parseListeners.empty())
           triggerExitRuleEvent();
         previousContext = _localctx;
-        _localctx = _tracker.createInstance<KU_DataTypeContext>(parentContext, parentState);
-        pushNewRecursionContext(_localctx, startState, RuleKU_DataType);
+        _localctx = _tracker.createInstance<NEUG_DataTypeContext>(parentContext, parentState);
+        pushNewRecursionContext(_localctx, startState, RuleNEUG_DataType);
         setState(1186);
 
         if (!(precpred(_ctx, 5))) throw FailedPredicateException(this, "precpred(_ctx, 5)");
         setState(1187);
-        kU_ListIdentifiers(); 
+        nEUG_ListIdentifiers(); 
       }
       setState(1192);
       _errHandler->sync(this);
@@ -6604,29 +6605,29 @@ CypherParser::KU_DataTypeContext* CypherParser::kU_DataType(int precedence) {
   return _localctx;
 }
 
-//----------------- KU_ListIdentifiersContext ------------------------------------------------------------------
+//----------------- NEUG_ListIdentifiersContext ------------------------------------------------------------------
 
-CypherParser::KU_ListIdentifiersContext::KU_ListIdentifiersContext(ParserRuleContext *parent, size_t invokingState)
+CypherParser::NEUG_ListIdentifiersContext::NEUG_ListIdentifiersContext(ParserRuleContext *parent, size_t invokingState)
   : ParserRuleContext(parent, invokingState) {
 }
 
-std::vector<CypherParser::KU_ListIdentifierContext *> CypherParser::KU_ListIdentifiersContext::kU_ListIdentifier() {
-  return getRuleContexts<CypherParser::KU_ListIdentifierContext>();
+std::vector<CypherParser::NEUG_ListIdentifierContext *> CypherParser::NEUG_ListIdentifiersContext::nEUG_ListIdentifier() {
+  return getRuleContexts<CypherParser::NEUG_ListIdentifierContext>();
 }
 
-CypherParser::KU_ListIdentifierContext* CypherParser::KU_ListIdentifiersContext::kU_ListIdentifier(size_t i) {
-  return getRuleContext<CypherParser::KU_ListIdentifierContext>(i);
-}
-
-
-size_t CypherParser::KU_ListIdentifiersContext::getRuleIndex() const {
-  return CypherParser::RuleKU_ListIdentifiers;
+CypherParser::NEUG_ListIdentifierContext* CypherParser::NEUG_ListIdentifiersContext::nEUG_ListIdentifier(size_t i) {
+  return getRuleContext<CypherParser::NEUG_ListIdentifierContext>(i);
 }
 
 
-CypherParser::KU_ListIdentifiersContext* CypherParser::kU_ListIdentifiers() {
-  KU_ListIdentifiersContext *_localctx = _tracker.createInstance<KU_ListIdentifiersContext>(_ctx, getState());
-  enterRule(_localctx, 98, CypherParser::RuleKU_ListIdentifiers);
+size_t CypherParser::NEUG_ListIdentifiersContext::getRuleIndex() const {
+  return CypherParser::RuleNEUG_ListIdentifiers;
+}
+
+
+CypherParser::NEUG_ListIdentifiersContext* CypherParser::nEUG_ListIdentifiers() {
+  NEUG_ListIdentifiersContext *_localctx = _tracker.createInstance<NEUG_ListIdentifiersContext>(_ctx, getState());
+  enterRule(_localctx, 98, CypherParser::RuleNEUG_ListIdentifiers);
 
 #if __cplusplus > 201703L
   auto onExit = finally([=, this] {
@@ -6639,14 +6640,14 @@ CypherParser::KU_ListIdentifiersContext* CypherParser::kU_ListIdentifiers() {
     size_t alt;
     enterOuterAlt(_localctx, 1);
     setState(1193);
-    kU_ListIdentifier();
+    nEUG_ListIdentifier();
     setState(1197);
     _errHandler->sync(this);
     alt = getInterpreter<atn::ParserATNSimulator>()->adaptivePredict(_input, 150, _ctx);
     while (alt != 2 && alt != atn::ATN::INVALID_ALT_NUMBER) {
       if (alt == 1) {
         setState(1194);
-        kU_ListIdentifier(); 
+        nEUG_ListIdentifier(); 
       }
       setState(1199);
       _errHandler->sync(this);
@@ -6663,25 +6664,25 @@ CypherParser::KU_ListIdentifiersContext* CypherParser::kU_ListIdentifiers() {
   return _localctx;
 }
 
-//----------------- KU_ListIdentifierContext ------------------------------------------------------------------
+//----------------- NEUG_ListIdentifierContext ------------------------------------------------------------------
 
-CypherParser::KU_ListIdentifierContext::KU_ListIdentifierContext(ParserRuleContext *parent, size_t invokingState)
+CypherParser::NEUG_ListIdentifierContext::NEUG_ListIdentifierContext(ParserRuleContext *parent, size_t invokingState)
   : ParserRuleContext(parent, invokingState) {
 }
 
-CypherParser::OC_IntegerLiteralContext* CypherParser::KU_ListIdentifierContext::oC_IntegerLiteral() {
+CypherParser::OC_IntegerLiteralContext* CypherParser::NEUG_ListIdentifierContext::oC_IntegerLiteral() {
   return getRuleContext<CypherParser::OC_IntegerLiteralContext>(0);
 }
 
 
-size_t CypherParser::KU_ListIdentifierContext::getRuleIndex() const {
-  return CypherParser::RuleKU_ListIdentifier;
+size_t CypherParser::NEUG_ListIdentifierContext::getRuleIndex() const {
+  return CypherParser::RuleNEUG_ListIdentifier;
 }
 
 
-CypherParser::KU_ListIdentifierContext* CypherParser::kU_ListIdentifier() {
-  KU_ListIdentifierContext *_localctx = _tracker.createInstance<KU_ListIdentifierContext>(_ctx, getState());
-  enterRule(_localctx, 100, CypherParser::RuleKU_ListIdentifier);
+CypherParser::NEUG_ListIdentifierContext* CypherParser::nEUG_ListIdentifier() {
+  NEUG_ListIdentifierContext *_localctx = _tracker.createInstance<NEUG_ListIdentifierContext>(_ctx, getState());
+  enterRule(_localctx, 100, CypherParser::RuleNEUG_ListIdentifier);
   size_t _la = 0;
 
 #if __cplusplus > 201703L
@@ -6886,57 +6887,57 @@ CypherParser::OC_ProfileContext* CypherParser::oC_Profile() {
   return _localctx;
 }
 
-//----------------- KU_TransactionContext ------------------------------------------------------------------
+//----------------- NEUG_TransactionContext ------------------------------------------------------------------
 
-CypherParser::KU_TransactionContext::KU_TransactionContext(ParserRuleContext *parent, size_t invokingState)
+CypherParser::NEUG_TransactionContext::NEUG_TransactionContext(ParserRuleContext *parent, size_t invokingState)
   : ParserRuleContext(parent, invokingState) {
 }
 
-tree::TerminalNode* CypherParser::KU_TransactionContext::BEGIN() {
+tree::TerminalNode* CypherParser::NEUG_TransactionContext::BEGIN() {
   return getToken(CypherParser::BEGIN, 0);
 }
 
-std::vector<tree::TerminalNode *> CypherParser::KU_TransactionContext::SP() {
+std::vector<tree::TerminalNode *> CypherParser::NEUG_TransactionContext::SP() {
   return getTokens(CypherParser::SP);
 }
 
-tree::TerminalNode* CypherParser::KU_TransactionContext::SP(size_t i) {
+tree::TerminalNode* CypherParser::NEUG_TransactionContext::SP(size_t i) {
   return getToken(CypherParser::SP, i);
 }
 
-tree::TerminalNode* CypherParser::KU_TransactionContext::TRANSACTION() {
+tree::TerminalNode* CypherParser::NEUG_TransactionContext::TRANSACTION() {
   return getToken(CypherParser::TRANSACTION, 0);
 }
 
-tree::TerminalNode* CypherParser::KU_TransactionContext::READ() {
+tree::TerminalNode* CypherParser::NEUG_TransactionContext::READ() {
   return getToken(CypherParser::READ, 0);
 }
 
-tree::TerminalNode* CypherParser::KU_TransactionContext::ONLY() {
+tree::TerminalNode* CypherParser::NEUG_TransactionContext::ONLY() {
   return getToken(CypherParser::ONLY, 0);
 }
 
-tree::TerminalNode* CypherParser::KU_TransactionContext::COMMIT() {
+tree::TerminalNode* CypherParser::NEUG_TransactionContext::COMMIT() {
   return getToken(CypherParser::COMMIT, 0);
 }
 
-tree::TerminalNode* CypherParser::KU_TransactionContext::ROLLBACK() {
+tree::TerminalNode* CypherParser::NEUG_TransactionContext::ROLLBACK() {
   return getToken(CypherParser::ROLLBACK, 0);
 }
 
-tree::TerminalNode* CypherParser::KU_TransactionContext::CHECKPOINT() {
+tree::TerminalNode* CypherParser::NEUG_TransactionContext::CHECKPOINT() {
   return getToken(CypherParser::CHECKPOINT, 0);
 }
 
 
-size_t CypherParser::KU_TransactionContext::getRuleIndex() const {
-  return CypherParser::RuleKU_Transaction;
+size_t CypherParser::NEUG_TransactionContext::getRuleIndex() const {
+  return CypherParser::RuleNEUG_Transaction;
 }
 
 
-CypherParser::KU_TransactionContext* CypherParser::kU_Transaction() {
-  KU_TransactionContext *_localctx = _tracker.createInstance<KU_TransactionContext>(_ctx, getState());
-  enterRule(_localctx, 108, CypherParser::RuleKU_Transaction);
+CypherParser::NEUG_TransactionContext* CypherParser::nEUG_Transaction() {
+  NEUG_TransactionContext *_localctx = _tracker.createInstance<NEUG_TransactionContext>(_ctx, getState());
+  enterRule(_localctx, 108, CypherParser::RuleNEUG_Transaction);
 
 #if __cplusplus > 201703L
   auto onExit = finally([=, this] {
@@ -7014,33 +7015,33 @@ CypherParser::KU_TransactionContext* CypherParser::kU_Transaction() {
   return _localctx;
 }
 
-//----------------- KU_ExtensionContext ------------------------------------------------------------------
+//----------------- NEUG_ExtensionContext ------------------------------------------------------------------
 
-CypherParser::KU_ExtensionContext::KU_ExtensionContext(ParserRuleContext *parent, size_t invokingState)
+CypherParser::NEUG_ExtensionContext::NEUG_ExtensionContext(ParserRuleContext *parent, size_t invokingState)
   : ParserRuleContext(parent, invokingState) {
 }
 
-CypherParser::KU_LoadExtensionContext* CypherParser::KU_ExtensionContext::kU_LoadExtension() {
-  return getRuleContext<CypherParser::KU_LoadExtensionContext>(0);
+CypherParser::NEUG_LoadExtensionContext* CypherParser::NEUG_ExtensionContext::nEUG_LoadExtension() {
+  return getRuleContext<CypherParser::NEUG_LoadExtensionContext>(0);
 }
 
-CypherParser::KU_InstallExtensionContext* CypherParser::KU_ExtensionContext::kU_InstallExtension() {
-  return getRuleContext<CypherParser::KU_InstallExtensionContext>(0);
+CypherParser::NEUG_InstallExtensionContext* CypherParser::NEUG_ExtensionContext::nEUG_InstallExtension() {
+  return getRuleContext<CypherParser::NEUG_InstallExtensionContext>(0);
 }
 
-CypherParser::KU_UninstallExtensionContext* CypherParser::KU_ExtensionContext::kU_UninstallExtension() {
-  return getRuleContext<CypherParser::KU_UninstallExtensionContext>(0);
-}
-
-
-size_t CypherParser::KU_ExtensionContext::getRuleIndex() const {
-  return CypherParser::RuleKU_Extension;
+CypherParser::NEUG_UninstallExtensionContext* CypherParser::NEUG_ExtensionContext::nEUG_UninstallExtension() {
+  return getRuleContext<CypherParser::NEUG_UninstallExtensionContext>(0);
 }
 
 
-CypherParser::KU_ExtensionContext* CypherParser::kU_Extension() {
-  KU_ExtensionContext *_localctx = _tracker.createInstance<KU_ExtensionContext>(_ctx, getState());
-  enterRule(_localctx, 110, CypherParser::RuleKU_Extension);
+size_t CypherParser::NEUG_ExtensionContext::getRuleIndex() const {
+  return CypherParser::RuleNEUG_Extension;
+}
+
+
+CypherParser::NEUG_ExtensionContext* CypherParser::nEUG_Extension() {
+  NEUG_ExtensionContext *_localctx = _tracker.createInstance<NEUG_ExtensionContext>(_ctx, getState());
+  enterRule(_localctx, 110, CypherParser::RuleNEUG_Extension);
 
 #if __cplusplus > 201703L
   auto onExit = finally([=, this] {
@@ -7056,21 +7057,21 @@ CypherParser::KU_ExtensionContext* CypherParser::kU_Extension() {
       case CypherParser::LOAD: {
         enterOuterAlt(_localctx, 1);
         setState(1232);
-        kU_LoadExtension();
+        nEUG_LoadExtension();
         break;
       }
 
       case CypherParser::INSTALL: {
         enterOuterAlt(_localctx, 2);
         setState(1233);
-        kU_InstallExtension();
+        nEUG_InstallExtension();
         break;
       }
 
       case CypherParser::UNINSTALL: {
         enterOuterAlt(_localctx, 3);
         setState(1234);
-        kU_UninstallExtension();
+        nEUG_UninstallExtension();
         break;
       }
 
@@ -7088,45 +7089,45 @@ CypherParser::KU_ExtensionContext* CypherParser::kU_Extension() {
   return _localctx;
 }
 
-//----------------- KU_LoadExtensionContext ------------------------------------------------------------------
+//----------------- NEUG_LoadExtensionContext ------------------------------------------------------------------
 
-CypherParser::KU_LoadExtensionContext::KU_LoadExtensionContext(ParserRuleContext *parent, size_t invokingState)
+CypherParser::NEUG_LoadExtensionContext::NEUG_LoadExtensionContext(ParserRuleContext *parent, size_t invokingState)
   : ParserRuleContext(parent, invokingState) {
 }
 
-tree::TerminalNode* CypherParser::KU_LoadExtensionContext::LOAD() {
+tree::TerminalNode* CypherParser::NEUG_LoadExtensionContext::LOAD() {
   return getToken(CypherParser::LOAD, 0);
 }
 
-std::vector<tree::TerminalNode *> CypherParser::KU_LoadExtensionContext::SP() {
+std::vector<tree::TerminalNode *> CypherParser::NEUG_LoadExtensionContext::SP() {
   return getTokens(CypherParser::SP);
 }
 
-tree::TerminalNode* CypherParser::KU_LoadExtensionContext::SP(size_t i) {
+tree::TerminalNode* CypherParser::NEUG_LoadExtensionContext::SP(size_t i) {
   return getToken(CypherParser::SP, i);
 }
 
-tree::TerminalNode* CypherParser::KU_LoadExtensionContext::StringLiteral() {
+tree::TerminalNode* CypherParser::NEUG_LoadExtensionContext::StringLiteral() {
   return getToken(CypherParser::StringLiteral, 0);
 }
 
-CypherParser::OC_VariableContext* CypherParser::KU_LoadExtensionContext::oC_Variable() {
+CypherParser::OC_VariableContext* CypherParser::NEUG_LoadExtensionContext::oC_Variable() {
   return getRuleContext<CypherParser::OC_VariableContext>(0);
 }
 
-tree::TerminalNode* CypherParser::KU_LoadExtensionContext::EXTENSION() {
+tree::TerminalNode* CypherParser::NEUG_LoadExtensionContext::EXTENSION() {
   return getToken(CypherParser::EXTENSION, 0);
 }
 
 
-size_t CypherParser::KU_LoadExtensionContext::getRuleIndex() const {
-  return CypherParser::RuleKU_LoadExtension;
+size_t CypherParser::NEUG_LoadExtensionContext::getRuleIndex() const {
+  return CypherParser::RuleNEUG_LoadExtension;
 }
 
 
-CypherParser::KU_LoadExtensionContext* CypherParser::kU_LoadExtension() {
-  KU_LoadExtensionContext *_localctx = _tracker.createInstance<KU_LoadExtensionContext>(_ctx, getState());
-  enterRule(_localctx, 112, CypherParser::RuleKU_LoadExtension);
+CypherParser::NEUG_LoadExtensionContext* CypherParser::nEUG_LoadExtension() {
+  NEUG_LoadExtensionContext *_localctx = _tracker.createInstance<NEUG_LoadExtensionContext>(_ctx, getState());
+  enterRule(_localctx, 112, CypherParser::RuleNEUG_LoadExtension);
 
 #if __cplusplus > 201703L
   auto onExit = finally([=, this] {
@@ -7241,45 +7242,45 @@ CypherParser::KU_LoadExtensionContext* CypherParser::kU_LoadExtension() {
   return _localctx;
 }
 
-//----------------- KU_InstallExtensionContext ------------------------------------------------------------------
+//----------------- NEUG_InstallExtensionContext ------------------------------------------------------------------
 
-CypherParser::KU_InstallExtensionContext::KU_InstallExtensionContext(ParserRuleContext *parent, size_t invokingState)
+CypherParser::NEUG_InstallExtensionContext::NEUG_InstallExtensionContext(ParserRuleContext *parent, size_t invokingState)
   : ParserRuleContext(parent, invokingState) {
 }
 
-tree::TerminalNode* CypherParser::KU_InstallExtensionContext::INSTALL() {
+tree::TerminalNode* CypherParser::NEUG_InstallExtensionContext::INSTALL() {
   return getToken(CypherParser::INSTALL, 0);
 }
 
-std::vector<tree::TerminalNode *> CypherParser::KU_InstallExtensionContext::SP() {
+std::vector<tree::TerminalNode *> CypherParser::NEUG_InstallExtensionContext::SP() {
   return getTokens(CypherParser::SP);
 }
 
-tree::TerminalNode* CypherParser::KU_InstallExtensionContext::SP(size_t i) {
+tree::TerminalNode* CypherParser::NEUG_InstallExtensionContext::SP(size_t i) {
   return getToken(CypherParser::SP, i);
 }
 
-CypherParser::OC_VariableContext* CypherParser::KU_InstallExtensionContext::oC_Variable() {
+CypherParser::OC_VariableContext* CypherParser::NEUG_InstallExtensionContext::oC_Variable() {
   return getRuleContext<CypherParser::OC_VariableContext>(0);
 }
 
-tree::TerminalNode* CypherParser::KU_InstallExtensionContext::FROM() {
+tree::TerminalNode* CypherParser::NEUG_InstallExtensionContext::FROM() {
   return getToken(CypherParser::FROM, 0);
 }
 
-tree::TerminalNode* CypherParser::KU_InstallExtensionContext::StringLiteral() {
+tree::TerminalNode* CypherParser::NEUG_InstallExtensionContext::StringLiteral() {
   return getToken(CypherParser::StringLiteral, 0);
 }
 
 
-size_t CypherParser::KU_InstallExtensionContext::getRuleIndex() const {
-  return CypherParser::RuleKU_InstallExtension;
+size_t CypherParser::NEUG_InstallExtensionContext::getRuleIndex() const {
+  return CypherParser::RuleNEUG_InstallExtension;
 }
 
 
-CypherParser::KU_InstallExtensionContext* CypherParser::kU_InstallExtension() {
-  KU_InstallExtensionContext *_localctx = _tracker.createInstance<KU_InstallExtensionContext>(_ctx, getState());
-  enterRule(_localctx, 114, CypherParser::RuleKU_InstallExtension);
+CypherParser::NEUG_InstallExtensionContext* CypherParser::nEUG_InstallExtension() {
+  NEUG_InstallExtensionContext *_localctx = _tracker.createInstance<NEUG_InstallExtensionContext>(_ctx, getState());
+  enterRule(_localctx, 114, CypherParser::RuleNEUG_InstallExtension);
 
 #if __cplusplus > 201703L
   auto onExit = finally([=, this] {
@@ -7326,45 +7327,45 @@ CypherParser::KU_InstallExtensionContext* CypherParser::kU_InstallExtension() {
   return _localctx;
 }
 
-//----------------- KU_UninstallExtensionContext ------------------------------------------------------------------
+//----------------- NEUG_UninstallExtensionContext ------------------------------------------------------------------
 
-CypherParser::KU_UninstallExtensionContext::KU_UninstallExtensionContext(ParserRuleContext *parent, size_t invokingState)
+CypherParser::NEUG_UninstallExtensionContext::NEUG_UninstallExtensionContext(ParserRuleContext *parent, size_t invokingState)
   : ParserRuleContext(parent, invokingState) {
 }
 
-tree::TerminalNode* CypherParser::KU_UninstallExtensionContext::UNINSTALL() {
+tree::TerminalNode* CypherParser::NEUG_UninstallExtensionContext::UNINSTALL() {
   return getToken(CypherParser::UNINSTALL, 0);
 }
 
-std::vector<tree::TerminalNode *> CypherParser::KU_UninstallExtensionContext::SP() {
+std::vector<tree::TerminalNode *> CypherParser::NEUG_UninstallExtensionContext::SP() {
   return getTokens(CypherParser::SP);
 }
 
-tree::TerminalNode* CypherParser::KU_UninstallExtensionContext::SP(size_t i) {
+tree::TerminalNode* CypherParser::NEUG_UninstallExtensionContext::SP(size_t i) {
   return getToken(CypherParser::SP, i);
 }
 
-tree::TerminalNode* CypherParser::KU_UninstallExtensionContext::StringLiteral() {
+tree::TerminalNode* CypherParser::NEUG_UninstallExtensionContext::StringLiteral() {
   return getToken(CypherParser::StringLiteral, 0);
 }
 
-CypherParser::OC_VariableContext* CypherParser::KU_UninstallExtensionContext::oC_Variable() {
+CypherParser::OC_VariableContext* CypherParser::NEUG_UninstallExtensionContext::oC_Variable() {
   return getRuleContext<CypherParser::OC_VariableContext>(0);
 }
 
-tree::TerminalNode* CypherParser::KU_UninstallExtensionContext::EXTENSION() {
+tree::TerminalNode* CypherParser::NEUG_UninstallExtensionContext::EXTENSION() {
   return getToken(CypherParser::EXTENSION, 0);
 }
 
 
-size_t CypherParser::KU_UninstallExtensionContext::getRuleIndex() const {
-  return CypherParser::RuleKU_UninstallExtension;
+size_t CypherParser::NEUG_UninstallExtensionContext::getRuleIndex() const {
+  return CypherParser::RuleNEUG_UninstallExtension;
 }
 
 
-CypherParser::KU_UninstallExtensionContext* CypherParser::kU_UninstallExtension() {
-  KU_UninstallExtensionContext *_localctx = _tracker.createInstance<KU_UninstallExtensionContext>(_ctx, getState());
-  enterRule(_localctx, 116, CypherParser::RuleKU_UninstallExtension);
+CypherParser::NEUG_UninstallExtensionContext* CypherParser::nEUG_UninstallExtension() {
+  NEUG_UninstallExtensionContext *_localctx = _tracker.createInstance<NEUG_UninstallExtensionContext>(_ctx, getState());
+  enterRule(_localctx, 116, CypherParser::RuleNEUG_UninstallExtension);
 
 #if __cplusplus > 201703L
   auto onExit = finally([=, this] {
@@ -7774,12 +7775,12 @@ CypherParser::OC_CallUnionContext* CypherParser::OC_CallUnionQueryContext::oC_Ca
   return getRuleContext<CypherParser::OC_CallUnionContext>(0);
 }
 
-std::vector<CypherParser::KU_QueryPartContext *> CypherParser::OC_CallUnionQueryContext::kU_QueryPart() {
-  return getRuleContexts<CypherParser::KU_QueryPartContext>();
+std::vector<CypherParser::NEUG_QueryPartContext *> CypherParser::OC_CallUnionQueryContext::nEUG_QueryPart() {
+  return getRuleContexts<CypherParser::NEUG_QueryPartContext>();
 }
 
-CypherParser::KU_QueryPartContext* CypherParser::OC_CallUnionQueryContext::kU_QueryPart(size_t i) {
-  return getRuleContext<CypherParser::KU_QueryPartContext>(i);
+CypherParser::NEUG_QueryPartContext* CypherParser::OC_CallUnionQueryContext::nEUG_QueryPart(size_t i) {
+  return getRuleContext<CypherParser::NEUG_QueryPartContext>(i);
 }
 
 std::vector<tree::TerminalNode *> CypherParser::OC_CallUnionQueryContext::SP() {
@@ -7821,7 +7822,7 @@ CypherParser::OC_CallUnionQueryContext* CypherParser::oC_CallUnionQuery() {
     while (alt != 2 && alt != atn::ATN::INVALID_ALT_NUMBER) {
       if (alt == 1) {
         setState(1306);
-        kU_QueryPart();
+        nEUG_QueryPart();
         setState(1308);
         _errHandler->sync(this);
 
@@ -8353,12 +8354,12 @@ CypherParser::OC_SinglePartQueryContext* CypherParser::OC_MultiPartQueryContext:
   return getRuleContext<CypherParser::OC_SinglePartQueryContext>(0);
 }
 
-std::vector<CypherParser::KU_QueryPartContext *> CypherParser::OC_MultiPartQueryContext::kU_QueryPart() {
-  return getRuleContexts<CypherParser::KU_QueryPartContext>();
+std::vector<CypherParser::NEUG_QueryPartContext *> CypherParser::OC_MultiPartQueryContext::nEUG_QueryPart() {
+  return getRuleContexts<CypherParser::NEUG_QueryPartContext>();
 }
 
-CypherParser::KU_QueryPartContext* CypherParser::OC_MultiPartQueryContext::kU_QueryPart(size_t i) {
-  return getRuleContext<CypherParser::KU_QueryPartContext>(i);
+CypherParser::NEUG_QueryPartContext* CypherParser::OC_MultiPartQueryContext::nEUG_QueryPart(size_t i) {
+  return getRuleContext<CypherParser::NEUG_QueryPartContext>(i);
 }
 
 std::vector<tree::TerminalNode *> CypherParser::OC_MultiPartQueryContext::SP() {
@@ -8397,7 +8398,7 @@ CypherParser::OC_MultiPartQueryContext* CypherParser::oC_MultiPartQuery() {
       switch (alt) {
         case 1: {
               setState(1415);
-              kU_QueryPart();
+              nEUG_QueryPart();
               setState(1417);
               _errHandler->sync(this);
 
@@ -8429,49 +8430,49 @@ CypherParser::OC_MultiPartQueryContext* CypherParser::oC_MultiPartQuery() {
   return _localctx;
 }
 
-//----------------- KU_QueryPartContext ------------------------------------------------------------------
+//----------------- NEUG_QueryPartContext ------------------------------------------------------------------
 
-CypherParser::KU_QueryPartContext::KU_QueryPartContext(ParserRuleContext *parent, size_t invokingState)
+CypherParser::NEUG_QueryPartContext::NEUG_QueryPartContext(ParserRuleContext *parent, size_t invokingState)
   : ParserRuleContext(parent, invokingState) {
 }
 
-CypherParser::OC_WithContext* CypherParser::KU_QueryPartContext::oC_With() {
+CypherParser::OC_WithContext* CypherParser::NEUG_QueryPartContext::oC_With() {
   return getRuleContext<CypherParser::OC_WithContext>(0);
 }
 
-std::vector<CypherParser::OC_ReadingClauseContext *> CypherParser::KU_QueryPartContext::oC_ReadingClause() {
+std::vector<CypherParser::OC_ReadingClauseContext *> CypherParser::NEUG_QueryPartContext::oC_ReadingClause() {
   return getRuleContexts<CypherParser::OC_ReadingClauseContext>();
 }
 
-CypherParser::OC_ReadingClauseContext* CypherParser::KU_QueryPartContext::oC_ReadingClause(size_t i) {
+CypherParser::OC_ReadingClauseContext* CypherParser::NEUG_QueryPartContext::oC_ReadingClause(size_t i) {
   return getRuleContext<CypherParser::OC_ReadingClauseContext>(i);
 }
 
-std::vector<CypherParser::OC_UpdatingClauseContext *> CypherParser::KU_QueryPartContext::oC_UpdatingClause() {
+std::vector<CypherParser::OC_UpdatingClauseContext *> CypherParser::NEUG_QueryPartContext::oC_UpdatingClause() {
   return getRuleContexts<CypherParser::OC_UpdatingClauseContext>();
 }
 
-CypherParser::OC_UpdatingClauseContext* CypherParser::KU_QueryPartContext::oC_UpdatingClause(size_t i) {
+CypherParser::OC_UpdatingClauseContext* CypherParser::NEUG_QueryPartContext::oC_UpdatingClause(size_t i) {
   return getRuleContext<CypherParser::OC_UpdatingClauseContext>(i);
 }
 
-std::vector<tree::TerminalNode *> CypherParser::KU_QueryPartContext::SP() {
+std::vector<tree::TerminalNode *> CypherParser::NEUG_QueryPartContext::SP() {
   return getTokens(CypherParser::SP);
 }
 
-tree::TerminalNode* CypherParser::KU_QueryPartContext::SP(size_t i) {
+tree::TerminalNode* CypherParser::NEUG_QueryPartContext::SP(size_t i) {
   return getToken(CypherParser::SP, i);
 }
 
 
-size_t CypherParser::KU_QueryPartContext::getRuleIndex() const {
-  return CypherParser::RuleKU_QueryPart;
+size_t CypherParser::NEUG_QueryPartContext::getRuleIndex() const {
+  return CypherParser::RuleNEUG_QueryPart;
 }
 
 
-CypherParser::KU_QueryPartContext* CypherParser::kU_QueryPart() {
-  KU_QueryPartContext *_localctx = _tracker.createInstance<KU_QueryPartContext>(_ctx, getState());
-  enterRule(_localctx, 136, CypherParser::RuleKU_QueryPart);
+CypherParser::NEUG_QueryPartContext* CypherParser::nEUG_QueryPart() {
+  NEUG_QueryPartContext *_localctx = _tracker.createInstance<NEUG_QueryPartContext>(_ctx, getState());
+  enterRule(_localctx, 136, CypherParser::RuleNEUG_QueryPart);
   size_t _la = 0;
 
 #if __cplusplus > 201703L
@@ -8634,12 +8635,12 @@ CypherParser::OC_UnwindContext* CypherParser::OC_ReadingClauseContext::oC_Unwind
   return getRuleContext<CypherParser::OC_UnwindContext>(0);
 }
 
-CypherParser::KU_InQueryCallContext* CypherParser::OC_ReadingClauseContext::kU_InQueryCall() {
-  return getRuleContext<CypherParser::KU_InQueryCallContext>(0);
+CypherParser::NEUG_InQueryCallContext* CypherParser::OC_ReadingClauseContext::nEUG_InQueryCall() {
+  return getRuleContext<CypherParser::NEUG_InQueryCallContext>(0);
 }
 
-CypherParser::KU_LoadFromContext* CypherParser::OC_ReadingClauseContext::kU_LoadFrom() {
-  return getRuleContext<CypherParser::KU_LoadFromContext>(0);
+CypherParser::NEUG_LoadFromContext* CypherParser::OC_ReadingClauseContext::nEUG_LoadFrom() {
+  return getRuleContext<CypherParser::NEUG_LoadFromContext>(0);
 }
 
 
@@ -8681,14 +8682,14 @@ CypherParser::OC_ReadingClauseContext* CypherParser::oC_ReadingClause() {
       case CypherParser::CALL: {
         enterOuterAlt(_localctx, 3);
         setState(1453);
-        kU_InQueryCall();
+        nEUG_InQueryCall();
         break;
       }
 
       case CypherParser::LOAD: {
         enterOuterAlt(_localctx, 4);
         setState(1454);
-        kU_LoadFrom();
+        nEUG_LoadFrom();
         break;
       }
 
@@ -8706,61 +8707,61 @@ CypherParser::OC_ReadingClauseContext* CypherParser::oC_ReadingClause() {
   return _localctx;
 }
 
-//----------------- KU_LoadFromContext ------------------------------------------------------------------
+//----------------- NEUG_LoadFromContext ------------------------------------------------------------------
 
-CypherParser::KU_LoadFromContext::KU_LoadFromContext(ParserRuleContext *parent, size_t invokingState)
+CypherParser::NEUG_LoadFromContext::NEUG_LoadFromContext(ParserRuleContext *parent, size_t invokingState)
   : ParserRuleContext(parent, invokingState) {
 }
 
-tree::TerminalNode* CypherParser::KU_LoadFromContext::LOAD() {
+tree::TerminalNode* CypherParser::NEUG_LoadFromContext::LOAD() {
   return getToken(CypherParser::LOAD, 0);
 }
 
-std::vector<tree::TerminalNode *> CypherParser::KU_LoadFromContext::SP() {
+std::vector<tree::TerminalNode *> CypherParser::NEUG_LoadFromContext::SP() {
   return getTokens(CypherParser::SP);
 }
 
-tree::TerminalNode* CypherParser::KU_LoadFromContext::SP(size_t i) {
+tree::TerminalNode* CypherParser::NEUG_LoadFromContext::SP(size_t i) {
   return getToken(CypherParser::SP, i);
 }
 
-tree::TerminalNode* CypherParser::KU_LoadFromContext::FROM() {
+tree::TerminalNode* CypherParser::NEUG_LoadFromContext::FROM() {
   return getToken(CypherParser::FROM, 0);
 }
 
-CypherParser::KU_ScanSourceContext* CypherParser::KU_LoadFromContext::kU_ScanSource() {
-  return getRuleContext<CypherParser::KU_ScanSourceContext>(0);
+CypherParser::NEUG_ScanSourceContext* CypherParser::NEUG_LoadFromContext::nEUG_ScanSource() {
+  return getRuleContext<CypherParser::NEUG_ScanSourceContext>(0);
 }
 
-tree::TerminalNode* CypherParser::KU_LoadFromContext::WITH() {
+tree::TerminalNode* CypherParser::NEUG_LoadFromContext::WITH() {
   return getToken(CypherParser::WITH, 0);
 }
 
-tree::TerminalNode* CypherParser::KU_LoadFromContext::HEADERS() {
+tree::TerminalNode* CypherParser::NEUG_LoadFromContext::HEADERS() {
   return getToken(CypherParser::HEADERS, 0);
 }
 
-CypherParser::KU_ColumnDefinitionsContext* CypherParser::KU_LoadFromContext::kU_ColumnDefinitions() {
-  return getRuleContext<CypherParser::KU_ColumnDefinitionsContext>(0);
+CypherParser::NEUG_ColumnDefinitionsContext* CypherParser::NEUG_LoadFromContext::nEUG_ColumnDefinitions() {
+  return getRuleContext<CypherParser::NEUG_ColumnDefinitionsContext>(0);
 }
 
-CypherParser::KU_OptionsContext* CypherParser::KU_LoadFromContext::kU_Options() {
-  return getRuleContext<CypherParser::KU_OptionsContext>(0);
+CypherParser::NEUG_OptionsContext* CypherParser::NEUG_LoadFromContext::nEUG_Options() {
+  return getRuleContext<CypherParser::NEUG_OptionsContext>(0);
 }
 
-CypherParser::OC_WhereContext* CypherParser::KU_LoadFromContext::oC_Where() {
+CypherParser::OC_WhereContext* CypherParser::NEUG_LoadFromContext::oC_Where() {
   return getRuleContext<CypherParser::OC_WhereContext>(0);
 }
 
 
-size_t CypherParser::KU_LoadFromContext::getRuleIndex() const {
-  return CypherParser::RuleKU_LoadFrom;
+size_t CypherParser::NEUG_LoadFromContext::getRuleIndex() const {
+  return CypherParser::RuleNEUG_LoadFrom;
 }
 
 
-CypherParser::KU_LoadFromContext* CypherParser::kU_LoadFrom() {
-  KU_LoadFromContext *_localctx = _tracker.createInstance<KU_LoadFromContext>(_ctx, getState());
-  enterRule(_localctx, 142, CypherParser::RuleKU_LoadFrom);
+CypherParser::NEUG_LoadFromContext* CypherParser::nEUG_LoadFrom() {
+  NEUG_LoadFromContext *_localctx = _tracker.createInstance<NEUG_LoadFromContext>(_ctx, getState());
+  enterRule(_localctx, 142, CypherParser::RuleNEUG_LoadFrom);
   size_t _la = 0;
 
 #if __cplusplus > 201703L
@@ -8806,7 +8807,7 @@ CypherParser::KU_LoadFromContext* CypherParser::kU_LoadFrom() {
         match(CypherParser::SP);
       }
       setState(1469);
-      kU_ColumnDefinitions();
+      nEUG_ColumnDefinitions();
       setState(1471);
       _errHandler->sync(this);
 
@@ -8830,7 +8831,7 @@ CypherParser::KU_LoadFromContext* CypherParser::kU_LoadFrom() {
     setState(1479);
     match(CypherParser::SP);
     setState(1480);
-    kU_ScanSource();
+    nEUG_ScanSource();
     setState(1494);
     _errHandler->sync(this);
 
@@ -8855,7 +8856,7 @@ CypherParser::KU_LoadFromContext* CypherParser::kU_LoadFrom() {
         match(CypherParser::SP);
       }
       setState(1488);
-      kU_Options();
+      nEUG_Options();
       setState(1490);
       _errHandler->sync(this);
 
@@ -9067,49 +9068,49 @@ CypherParser::OC_YieldItemsContext* CypherParser::oC_YieldItems() {
   return _localctx;
 }
 
-//----------------- KU_InQueryCallContext ------------------------------------------------------------------
+//----------------- NEUG_InQueryCallContext ------------------------------------------------------------------
 
-CypherParser::KU_InQueryCallContext::KU_InQueryCallContext(ParserRuleContext *parent, size_t invokingState)
+CypherParser::NEUG_InQueryCallContext::NEUG_InQueryCallContext(ParserRuleContext *parent, size_t invokingState)
   : ParserRuleContext(parent, invokingState) {
 }
 
-tree::TerminalNode* CypherParser::KU_InQueryCallContext::CALL() {
+tree::TerminalNode* CypherParser::NEUG_InQueryCallContext::CALL() {
   return getToken(CypherParser::CALL, 0);
 }
 
-std::vector<tree::TerminalNode *> CypherParser::KU_InQueryCallContext::SP() {
+std::vector<tree::TerminalNode *> CypherParser::NEUG_InQueryCallContext::SP() {
   return getTokens(CypherParser::SP);
 }
 
-tree::TerminalNode* CypherParser::KU_InQueryCallContext::SP(size_t i) {
+tree::TerminalNode* CypherParser::NEUG_InQueryCallContext::SP(size_t i) {
   return getToken(CypherParser::SP, i);
 }
 
-CypherParser::OC_FunctionInvocationContext* CypherParser::KU_InQueryCallContext::oC_FunctionInvocation() {
+CypherParser::OC_FunctionInvocationContext* CypherParser::NEUG_InQueryCallContext::oC_FunctionInvocation() {
   return getRuleContext<CypherParser::OC_FunctionInvocationContext>(0);
 }
 
-CypherParser::OC_WhereContext* CypherParser::KU_InQueryCallContext::oC_Where() {
+CypherParser::OC_WhereContext* CypherParser::NEUG_InQueryCallContext::oC_Where() {
   return getRuleContext<CypherParser::OC_WhereContext>(0);
 }
 
-tree::TerminalNode* CypherParser::KU_InQueryCallContext::YIELD() {
+tree::TerminalNode* CypherParser::NEUG_InQueryCallContext::YIELD() {
   return getToken(CypherParser::YIELD, 0);
 }
 
-CypherParser::OC_YieldItemsContext* CypherParser::KU_InQueryCallContext::oC_YieldItems() {
+CypherParser::OC_YieldItemsContext* CypherParser::NEUG_InQueryCallContext::oC_YieldItems() {
   return getRuleContext<CypherParser::OC_YieldItemsContext>(0);
 }
 
 
-size_t CypherParser::KU_InQueryCallContext::getRuleIndex() const {
-  return CypherParser::RuleKU_InQueryCall;
+size_t CypherParser::NEUG_InQueryCallContext::getRuleIndex() const {
+  return CypherParser::RuleNEUG_InQueryCall;
 }
 
 
-CypherParser::KU_InQueryCallContext* CypherParser::kU_InQueryCall() {
-  KU_InQueryCallContext *_localctx = _tracker.createInstance<KU_InQueryCallContext>(_ctx, getState());
-  enterRule(_localctx, 148, CypherParser::RuleKU_InQueryCall);
+CypherParser::NEUG_InQueryCallContext* CypherParser::nEUG_InQueryCall() {
+  NEUG_InQueryCallContext *_localctx = _tracker.createInstance<NEUG_InQueryCallContext>(_ctx, getState());
+  enterRule(_localctx, 148, CypherParser::RuleNEUG_InQueryCall);
   size_t _la = 0;
 
 #if __cplusplus > 201703L
@@ -9214,8 +9215,8 @@ CypherParser::OC_WhereContext* CypherParser::OC_MatchContext::oC_Where() {
   return getRuleContext<CypherParser::OC_WhereContext>(0);
 }
 
-CypherParser::KU_HintContext* CypherParser::OC_MatchContext::kU_Hint() {
-  return getRuleContext<CypherParser::KU_HintContext>(0);
+CypherParser::NEUG_HintContext* CypherParser::OC_MatchContext::nEUG_Hint() {
+  return getRuleContext<CypherParser::NEUG_HintContext>(0);
 }
 
 
@@ -9283,7 +9284,7 @@ CypherParser::OC_MatchContext* CypherParser::oC_Match() {
       setState(1555);
       match(CypherParser::SP);
       setState(1556);
-      kU_Hint();
+      nEUG_Hint();
       break;
     }
 
@@ -9301,33 +9302,33 @@ CypherParser::OC_MatchContext* CypherParser::oC_Match() {
   return _localctx;
 }
 
-//----------------- KU_HintContext ------------------------------------------------------------------
+//----------------- NEUG_HintContext ------------------------------------------------------------------
 
-CypherParser::KU_HintContext::KU_HintContext(ParserRuleContext *parent, size_t invokingState)
+CypherParser::NEUG_HintContext::NEUG_HintContext(ParserRuleContext *parent, size_t invokingState)
   : ParserRuleContext(parent, invokingState) {
 }
 
-tree::TerminalNode* CypherParser::KU_HintContext::HINT() {
+tree::TerminalNode* CypherParser::NEUG_HintContext::HINT() {
   return getToken(CypherParser::HINT, 0);
 }
 
-tree::TerminalNode* CypherParser::KU_HintContext::SP() {
+tree::TerminalNode* CypherParser::NEUG_HintContext::SP() {
   return getToken(CypherParser::SP, 0);
 }
 
-CypherParser::KU_JoinNodeContext* CypherParser::KU_HintContext::kU_JoinNode() {
-  return getRuleContext<CypherParser::KU_JoinNodeContext>(0);
+CypherParser::NEUG_JoinNodeContext* CypherParser::NEUG_HintContext::nEUG_JoinNode() {
+  return getRuleContext<CypherParser::NEUG_JoinNodeContext>(0);
 }
 
 
-size_t CypherParser::KU_HintContext::getRuleIndex() const {
-  return CypherParser::RuleKU_Hint;
+size_t CypherParser::NEUG_HintContext::getRuleIndex() const {
+  return CypherParser::RuleNEUG_Hint;
 }
 
 
-CypherParser::KU_HintContext* CypherParser::kU_Hint() {
-  KU_HintContext *_localctx = _tracker.createInstance<KU_HintContext>(_ctx, getState());
-  enterRule(_localctx, 152, CypherParser::RuleKU_Hint);
+CypherParser::NEUG_HintContext* CypherParser::nEUG_Hint() {
+  NEUG_HintContext *_localctx = _tracker.createInstance<NEUG_HintContext>(_ctx, getState());
+  enterRule(_localctx, 152, CypherParser::RuleNEUG_Hint);
 
 #if __cplusplus > 201703L
   auto onExit = finally([=, this] {
@@ -9343,7 +9344,7 @@ CypherParser::KU_HintContext* CypherParser::kU_Hint() {
     setState(1560);
     match(CypherParser::SP);
     setState(1561);
-    kU_JoinNode(0);
+    nEUG_JoinNode(0);
    
   }
   catch (RecognitionException &e) {
@@ -9355,67 +9356,67 @@ CypherParser::KU_HintContext* CypherParser::kU_Hint() {
   return _localctx;
 }
 
-//----------------- KU_JoinNodeContext ------------------------------------------------------------------
+//----------------- NEUG_JoinNodeContext ------------------------------------------------------------------
 
-CypherParser::KU_JoinNodeContext::KU_JoinNodeContext(ParserRuleContext *parent, size_t invokingState)
+CypherParser::NEUG_JoinNodeContext::NEUG_JoinNodeContext(ParserRuleContext *parent, size_t invokingState)
   : ParserRuleContext(parent, invokingState) {
 }
 
-std::vector<CypherParser::KU_JoinNodeContext *> CypherParser::KU_JoinNodeContext::kU_JoinNode() {
-  return getRuleContexts<CypherParser::KU_JoinNodeContext>();
+std::vector<CypherParser::NEUG_JoinNodeContext *> CypherParser::NEUG_JoinNodeContext::nEUG_JoinNode() {
+  return getRuleContexts<CypherParser::NEUG_JoinNodeContext>();
 }
 
-CypherParser::KU_JoinNodeContext* CypherParser::KU_JoinNodeContext::kU_JoinNode(size_t i) {
-  return getRuleContext<CypherParser::KU_JoinNodeContext>(i);
+CypherParser::NEUG_JoinNodeContext* CypherParser::NEUG_JoinNodeContext::nEUG_JoinNode(size_t i) {
+  return getRuleContext<CypherParser::NEUG_JoinNodeContext>(i);
 }
 
-std::vector<tree::TerminalNode *> CypherParser::KU_JoinNodeContext::SP() {
+std::vector<tree::TerminalNode *> CypherParser::NEUG_JoinNodeContext::SP() {
   return getTokens(CypherParser::SP);
 }
 
-tree::TerminalNode* CypherParser::KU_JoinNodeContext::SP(size_t i) {
+tree::TerminalNode* CypherParser::NEUG_JoinNodeContext::SP(size_t i) {
   return getToken(CypherParser::SP, i);
 }
 
-std::vector<CypherParser::OC_SchemaNameContext *> CypherParser::KU_JoinNodeContext::oC_SchemaName() {
+std::vector<CypherParser::OC_SchemaNameContext *> CypherParser::NEUG_JoinNodeContext::oC_SchemaName() {
   return getRuleContexts<CypherParser::OC_SchemaNameContext>();
 }
 
-CypherParser::OC_SchemaNameContext* CypherParser::KU_JoinNodeContext::oC_SchemaName(size_t i) {
+CypherParser::OC_SchemaNameContext* CypherParser::NEUG_JoinNodeContext::oC_SchemaName(size_t i) {
   return getRuleContext<CypherParser::OC_SchemaNameContext>(i);
 }
 
-tree::TerminalNode* CypherParser::KU_JoinNodeContext::JOIN() {
+tree::TerminalNode* CypherParser::NEUG_JoinNodeContext::JOIN() {
   return getToken(CypherParser::JOIN, 0);
 }
 
-std::vector<tree::TerminalNode *> CypherParser::KU_JoinNodeContext::MULTI_JOIN() {
+std::vector<tree::TerminalNode *> CypherParser::NEUG_JoinNodeContext::MULTI_JOIN() {
   return getTokens(CypherParser::MULTI_JOIN);
 }
 
-tree::TerminalNode* CypherParser::KU_JoinNodeContext::MULTI_JOIN(size_t i) {
+tree::TerminalNode* CypherParser::NEUG_JoinNodeContext::MULTI_JOIN(size_t i) {
   return getToken(CypherParser::MULTI_JOIN, i);
 }
 
 
-size_t CypherParser::KU_JoinNodeContext::getRuleIndex() const {
-  return CypherParser::RuleKU_JoinNode;
+size_t CypherParser::NEUG_JoinNodeContext::getRuleIndex() const {
+  return CypherParser::RuleNEUG_JoinNode;
 }
 
 
 
-CypherParser::KU_JoinNodeContext* CypherParser::kU_JoinNode() {
-   return kU_JoinNode(0);
+CypherParser::NEUG_JoinNodeContext* CypherParser::nEUG_JoinNode() {
+   return nEUG_JoinNode(0);
 }
 
-CypherParser::KU_JoinNodeContext* CypherParser::kU_JoinNode(int precedence) {
+CypherParser::NEUG_JoinNodeContext* CypherParser::nEUG_JoinNode(int precedence) {
   ParserRuleContext *parentContext = _ctx;
   size_t parentState = getState();
-  CypherParser::KU_JoinNodeContext *_localctx = _tracker.createInstance<KU_JoinNodeContext>(_ctx, parentState);
-  CypherParser::KU_JoinNodeContext *previousContext = _localctx;
+  CypherParser::NEUG_JoinNodeContext *_localctx = _tracker.createInstance<NEUG_JoinNodeContext>(_ctx, parentState);
+  CypherParser::NEUG_JoinNodeContext *previousContext = _localctx;
   (void)previousContext; // Silence compiler, in case the context is not used by generated code.
   size_t startState = 154;
-  enterRecursionRule(_localctx, 154, CypherParser::RuleKU_JoinNode, precedence);
+  enterRecursionRule(_localctx, 154, CypherParser::RuleNEUG_JoinNode, precedence);
 
     size_t _la = 0;
 
@@ -9444,7 +9445,7 @@ CypherParser::KU_JoinNodeContext* CypherParser::kU_JoinNode(int precedence) {
           match(CypherParser::SP);
         }
         setState(1568);
-        kU_JoinNode(0);
+        nEUG_JoinNode(0);
         setState(1570);
         _errHandler->sync(this);
 
@@ -9536,8 +9537,8 @@ CypherParser::KU_JoinNodeContext* CypherParser::kU_JoinNode(int precedence) {
         _errHandler->sync(this);
         switch (getInterpreter<atn::ParserATNSimulator>()->adaptivePredict(_input, 228, _ctx)) {
         case 1: {
-          _localctx = _tracker.createInstance<KU_JoinNodeContext>(parentContext, parentState);
-          pushNewRecursionContext(_localctx, startState, RuleKU_JoinNode);
+          _localctx = _tracker.createInstance<NEUG_JoinNodeContext>(parentContext, parentState);
+          pushNewRecursionContext(_localctx, startState, RuleNEUG_JoinNode);
           setState(1577);
 
           if (!(precpred(_ctx, 4))) throw FailedPredicateException(this, "precpred(_ctx, 4)");
@@ -9548,13 +9549,13 @@ CypherParser::KU_JoinNodeContext* CypherParser::kU_JoinNode(int precedence) {
           setState(1580);
           match(CypherParser::SP);
           setState(1581);
-          kU_JoinNode(5);
+          nEUG_JoinNode(5);
           break;
         }
 
         case 2: {
-          _localctx = _tracker.createInstance<KU_JoinNodeContext>(parentContext, parentState);
-          pushNewRecursionContext(_localctx, startState, RuleKU_JoinNode);
+          _localctx = _tracker.createInstance<NEUG_JoinNodeContext>(parentContext, parentState);
+          pushNewRecursionContext(_localctx, startState, RuleNEUG_JoinNode);
           setState(1582);
 
           if (!(precpred(_ctx, 3))) throw FailedPredicateException(this, "precpred(_ctx, 3)");
@@ -11521,8 +11522,8 @@ CypherParser::OC_NodeLabelsContext* CypherParser::OC_NodePatternContext::oC_Node
   return getRuleContext<CypherParser::OC_NodeLabelsContext>(0);
 }
 
-CypherParser::KU_PropertiesContext* CypherParser::OC_NodePatternContext::kU_Properties() {
-  return getRuleContext<CypherParser::KU_PropertiesContext>(0);
+CypherParser::NEUG_PropertiesContext* CypherParser::OC_NodePatternContext::nEUG_Properties() {
+  return getRuleContext<CypherParser::NEUG_PropertiesContext>(0);
 }
 
 
@@ -11595,7 +11596,7 @@ CypherParser::OC_NodePatternContext* CypherParser::oC_NodePattern() {
     _la = _input->LA(1);
     if (_la == CypherParser::T__8) {
       setState(1851);
-      kU_Properties();
+      nEUG_Properties();
       setState(1853);
       _errHandler->sync(this);
 
@@ -11905,12 +11906,12 @@ CypherParser::OC_RelationshipTypesContext* CypherParser::OC_RelationshipDetailCo
   return getRuleContext<CypherParser::OC_RelationshipTypesContext>(0);
 }
 
-CypherParser::KU_RecursiveDetailContext* CypherParser::OC_RelationshipDetailContext::kU_RecursiveDetail() {
-  return getRuleContext<CypherParser::KU_RecursiveDetailContext>(0);
+CypherParser::NEUG_RecursiveDetailContext* CypherParser::OC_RelationshipDetailContext::nEUG_RecursiveDetail() {
+  return getRuleContext<CypherParser::NEUG_RecursiveDetailContext>(0);
 }
 
-CypherParser::KU_PropertiesContext* CypherParser::OC_RelationshipDetailContext::kU_Properties() {
-  return getRuleContext<CypherParser::KU_PropertiesContext>(0);
+CypherParser::NEUG_PropertiesContext* CypherParser::OC_RelationshipDetailContext::nEUG_Properties() {
+  return getRuleContext<CypherParser::NEUG_PropertiesContext>(0);
 }
 
 
@@ -11983,7 +11984,7 @@ CypherParser::OC_RelationshipDetailContext* CypherParser::oC_RelationshipDetail(
     _la = _input->LA(1);
     if (_la == CypherParser::STAR) {
       setState(1927);
-      kU_RecursiveDetail();
+      nEUG_RecursiveDetail();
       setState(1929);
       _errHandler->sync(this);
 
@@ -11999,7 +12000,7 @@ CypherParser::OC_RelationshipDetailContext* CypherParser::oC_RelationshipDetail(
     _la = _input->LA(1);
     if (_la == CypherParser::T__8) {
       setState(1933);
-      kU_Properties();
+      nEUG_Properties();
       setState(1935);
       _errHandler->sync(this);
 
@@ -12022,53 +12023,53 @@ CypherParser::OC_RelationshipDetailContext* CypherParser::oC_RelationshipDetail(
   return _localctx;
 }
 
-//----------------- KU_PropertiesContext ------------------------------------------------------------------
+//----------------- NEUG_PropertiesContext ------------------------------------------------------------------
 
-CypherParser::KU_PropertiesContext::KU_PropertiesContext(ParserRuleContext *parent, size_t invokingState)
+CypherParser::NEUG_PropertiesContext::NEUG_PropertiesContext(ParserRuleContext *parent, size_t invokingState)
   : ParserRuleContext(parent, invokingState) {
 }
 
-std::vector<tree::TerminalNode *> CypherParser::KU_PropertiesContext::SP() {
+std::vector<tree::TerminalNode *> CypherParser::NEUG_PropertiesContext::SP() {
   return getTokens(CypherParser::SP);
 }
 
-tree::TerminalNode* CypherParser::KU_PropertiesContext::SP(size_t i) {
+tree::TerminalNode* CypherParser::NEUG_PropertiesContext::SP(size_t i) {
   return getToken(CypherParser::SP, i);
 }
 
-std::vector<CypherParser::OC_PropertyKeyNameContext *> CypherParser::KU_PropertiesContext::oC_PropertyKeyName() {
+std::vector<CypherParser::OC_PropertyKeyNameContext *> CypherParser::NEUG_PropertiesContext::oC_PropertyKeyName() {
   return getRuleContexts<CypherParser::OC_PropertyKeyNameContext>();
 }
 
-CypherParser::OC_PropertyKeyNameContext* CypherParser::KU_PropertiesContext::oC_PropertyKeyName(size_t i) {
+CypherParser::OC_PropertyKeyNameContext* CypherParser::NEUG_PropertiesContext::oC_PropertyKeyName(size_t i) {
   return getRuleContext<CypherParser::OC_PropertyKeyNameContext>(i);
 }
 
-std::vector<tree::TerminalNode *> CypherParser::KU_PropertiesContext::COLON() {
+std::vector<tree::TerminalNode *> CypherParser::NEUG_PropertiesContext::COLON() {
   return getTokens(CypherParser::COLON);
 }
 
-tree::TerminalNode* CypherParser::KU_PropertiesContext::COLON(size_t i) {
+tree::TerminalNode* CypherParser::NEUG_PropertiesContext::COLON(size_t i) {
   return getToken(CypherParser::COLON, i);
 }
 
-std::vector<CypherParser::OC_ExpressionContext *> CypherParser::KU_PropertiesContext::oC_Expression() {
+std::vector<CypherParser::OC_ExpressionContext *> CypherParser::NEUG_PropertiesContext::oC_Expression() {
   return getRuleContexts<CypherParser::OC_ExpressionContext>();
 }
 
-CypherParser::OC_ExpressionContext* CypherParser::KU_PropertiesContext::oC_Expression(size_t i) {
+CypherParser::OC_ExpressionContext* CypherParser::NEUG_PropertiesContext::oC_Expression(size_t i) {
   return getRuleContext<CypherParser::OC_ExpressionContext>(i);
 }
 
 
-size_t CypherParser::KU_PropertiesContext::getRuleIndex() const {
-  return CypherParser::RuleKU_Properties;
+size_t CypherParser::NEUG_PropertiesContext::getRuleIndex() const {
+  return CypherParser::RuleNEUG_Properties;
 }
 
 
-CypherParser::KU_PropertiesContext* CypherParser::kU_Properties() {
-  KU_PropertiesContext *_localctx = _tracker.createInstance<KU_PropertiesContext>(_ctx, getState());
-  enterRule(_localctx, 206, CypherParser::RuleKU_Properties);
+CypherParser::NEUG_PropertiesContext* CypherParser::nEUG_Properties() {
+  NEUG_PropertiesContext *_localctx = _tracker.createInstance<NEUG_PropertiesContext>(_ctx, getState());
+  enterRule(_localctx, 206, CypherParser::RuleNEUG_Properties);
   size_t _la = 0;
 
 #if __cplusplus > 201703L
@@ -12438,45 +12439,45 @@ CypherParser::OC_NodeLabelContext* CypherParser::oC_NodeLabel() {
   return _localctx;
 }
 
-//----------------- KU_RecursiveDetailContext ------------------------------------------------------------------
+//----------------- NEUG_RecursiveDetailContext ------------------------------------------------------------------
 
-CypherParser::KU_RecursiveDetailContext::KU_RecursiveDetailContext(ParserRuleContext *parent, size_t invokingState)
+CypherParser::NEUG_RecursiveDetailContext::NEUG_RecursiveDetailContext(ParserRuleContext *parent, size_t invokingState)
   : ParserRuleContext(parent, invokingState) {
 }
 
-tree::TerminalNode* CypherParser::KU_RecursiveDetailContext::STAR() {
+tree::TerminalNode* CypherParser::NEUG_RecursiveDetailContext::STAR() {
   return getToken(CypherParser::STAR, 0);
 }
 
-CypherParser::KU_RecursiveTypeContext* CypherParser::KU_RecursiveDetailContext::kU_RecursiveType() {
-  return getRuleContext<CypherParser::KU_RecursiveTypeContext>(0);
+CypherParser::NEUG_RecursiveTypeContext* CypherParser::NEUG_RecursiveDetailContext::nEUG_RecursiveType() {
+  return getRuleContext<CypherParser::NEUG_RecursiveTypeContext>(0);
 }
 
-CypherParser::OC_RangeLiteralContext* CypherParser::KU_RecursiveDetailContext::oC_RangeLiteral() {
+CypherParser::OC_RangeLiteralContext* CypherParser::NEUG_RecursiveDetailContext::oC_RangeLiteral() {
   return getRuleContext<CypherParser::OC_RangeLiteralContext>(0);
 }
 
-CypherParser::KU_RecursiveComprehensionContext* CypherParser::KU_RecursiveDetailContext::kU_RecursiveComprehension() {
-  return getRuleContext<CypherParser::KU_RecursiveComprehensionContext>(0);
+CypherParser::NEUG_RecursiveComprehensionContext* CypherParser::NEUG_RecursiveDetailContext::nEUG_RecursiveComprehension() {
+  return getRuleContext<CypherParser::NEUG_RecursiveComprehensionContext>(0);
 }
 
-std::vector<tree::TerminalNode *> CypherParser::KU_RecursiveDetailContext::SP() {
+std::vector<tree::TerminalNode *> CypherParser::NEUG_RecursiveDetailContext::SP() {
   return getTokens(CypherParser::SP);
 }
 
-tree::TerminalNode* CypherParser::KU_RecursiveDetailContext::SP(size_t i) {
+tree::TerminalNode* CypherParser::NEUG_RecursiveDetailContext::SP(size_t i) {
   return getToken(CypherParser::SP, i);
 }
 
 
-size_t CypherParser::KU_RecursiveDetailContext::getRuleIndex() const {
-  return CypherParser::RuleKU_RecursiveDetail;
+size_t CypherParser::NEUG_RecursiveDetailContext::getRuleIndex() const {
+  return CypherParser::RuleNEUG_RecursiveDetail;
 }
 
 
-CypherParser::KU_RecursiveDetailContext* CypherParser::kU_RecursiveDetail() {
-  KU_RecursiveDetailContext *_localctx = _tracker.createInstance<KU_RecursiveDetailContext>(_ctx, getState());
-  enterRule(_localctx, 214, CypherParser::RuleKU_RecursiveDetail);
+CypherParser::NEUG_RecursiveDetailContext* CypherParser::nEUG_RecursiveDetail() {
+  NEUG_RecursiveDetailContext *_localctx = _tracker.createInstance<NEUG_RecursiveDetailContext>(_ctx, getState());
+  enterRule(_localctx, 214, CypherParser::RuleNEUG_RecursiveDetail);
   size_t _la = 0;
 
 #if __cplusplus > 201703L
@@ -12504,7 +12505,7 @@ CypherParser::KU_RecursiveDetailContext* CypherParser::kU_RecursiveDetail() {
         match(CypherParser::SP);
       }
       setState(2023);
-      kU_RecursiveType();
+      nEUG_RecursiveType();
       break;
     }
 
@@ -12551,7 +12552,7 @@ CypherParser::KU_RecursiveDetailContext* CypherParser::kU_RecursiveDetail() {
         match(CypherParser::SP);
       }
       setState(2035);
-      kU_RecursiveComprehension();
+      nEUG_RecursiveComprehension();
       break;
     }
 
@@ -12569,53 +12570,53 @@ CypherParser::KU_RecursiveDetailContext* CypherParser::kU_RecursiveDetail() {
   return _localctx;
 }
 
-//----------------- KU_RecursiveTypeContext ------------------------------------------------------------------
+//----------------- NEUG_RecursiveTypeContext ------------------------------------------------------------------
 
-CypherParser::KU_RecursiveTypeContext::KU_RecursiveTypeContext(ParserRuleContext *parent, size_t invokingState)
+CypherParser::NEUG_RecursiveTypeContext::NEUG_RecursiveTypeContext(ParserRuleContext *parent, size_t invokingState)
   : ParserRuleContext(parent, invokingState) {
 }
 
-tree::TerminalNode* CypherParser::KU_RecursiveTypeContext::WSHORTEST() {
+tree::TerminalNode* CypherParser::NEUG_RecursiveTypeContext::WSHORTEST() {
   return getToken(CypherParser::WSHORTEST, 0);
 }
 
-CypherParser::OC_PropertyKeyNameContext* CypherParser::KU_RecursiveTypeContext::oC_PropertyKeyName() {
+CypherParser::OC_PropertyKeyNameContext* CypherParser::NEUG_RecursiveTypeContext::oC_PropertyKeyName() {
   return getRuleContext<CypherParser::OC_PropertyKeyNameContext>(0);
 }
 
-tree::TerminalNode* CypherParser::KU_RecursiveTypeContext::ALL() {
+tree::TerminalNode* CypherParser::NEUG_RecursiveTypeContext::ALL() {
   return getToken(CypherParser::ALL, 0);
 }
 
-std::vector<tree::TerminalNode *> CypherParser::KU_RecursiveTypeContext::SP() {
+std::vector<tree::TerminalNode *> CypherParser::NEUG_RecursiveTypeContext::SP() {
   return getTokens(CypherParser::SP);
 }
 
-tree::TerminalNode* CypherParser::KU_RecursiveTypeContext::SP(size_t i) {
+tree::TerminalNode* CypherParser::NEUG_RecursiveTypeContext::SP(size_t i) {
   return getToken(CypherParser::SP, i);
 }
 
-tree::TerminalNode* CypherParser::KU_RecursiveTypeContext::SHORTEST() {
+tree::TerminalNode* CypherParser::NEUG_RecursiveTypeContext::SHORTEST() {
   return getToken(CypherParser::SHORTEST, 0);
 }
 
-tree::TerminalNode* CypherParser::KU_RecursiveTypeContext::TRAIL() {
+tree::TerminalNode* CypherParser::NEUG_RecursiveTypeContext::TRAIL() {
   return getToken(CypherParser::TRAIL, 0);
 }
 
-tree::TerminalNode* CypherParser::KU_RecursiveTypeContext::ACYCLIC() {
+tree::TerminalNode* CypherParser::NEUG_RecursiveTypeContext::ACYCLIC() {
   return getToken(CypherParser::ACYCLIC, 0);
 }
 
 
-size_t CypherParser::KU_RecursiveTypeContext::getRuleIndex() const {
-  return CypherParser::RuleKU_RecursiveType;
+size_t CypherParser::NEUG_RecursiveTypeContext::getRuleIndex() const {
+  return CypherParser::RuleNEUG_RecursiveType;
 }
 
 
-CypherParser::KU_RecursiveTypeContext* CypherParser::kU_RecursiveType() {
-  KU_RecursiveTypeContext *_localctx = _tracker.createInstance<KU_RecursiveTypeContext>(_ctx, getState());
-  enterRule(_localctx, 216, CypherParser::RuleKU_RecursiveType);
+CypherParser::NEUG_RecursiveTypeContext* CypherParser::nEUG_RecursiveType() {
+  NEUG_RecursiveTypeContext *_localctx = _tracker.createInstance<NEUG_RecursiveTypeContext>(_ctx, getState());
+  enterRule(_localctx, 216, CypherParser::RuleNEUG_RecursiveType);
   size_t _la = 0;
 
 #if __cplusplus > 201703L
@@ -12835,49 +12836,49 @@ CypherParser::OC_RangeLiteralContext* CypherParser::oC_RangeLiteral() {
   return _localctx;
 }
 
-//----------------- KU_RecursiveComprehensionContext ------------------------------------------------------------------
+//----------------- NEUG_RecursiveComprehensionContext ------------------------------------------------------------------
 
-CypherParser::KU_RecursiveComprehensionContext::KU_RecursiveComprehensionContext(ParserRuleContext *parent, size_t invokingState)
+CypherParser::NEUG_RecursiveComprehensionContext::NEUG_RecursiveComprehensionContext(ParserRuleContext *parent, size_t invokingState)
   : ParserRuleContext(parent, invokingState) {
 }
 
-std::vector<CypherParser::OC_VariableContext *> CypherParser::KU_RecursiveComprehensionContext::oC_Variable() {
+std::vector<CypherParser::OC_VariableContext *> CypherParser::NEUG_RecursiveComprehensionContext::oC_Variable() {
   return getRuleContexts<CypherParser::OC_VariableContext>();
 }
 
-CypherParser::OC_VariableContext* CypherParser::KU_RecursiveComprehensionContext::oC_Variable(size_t i) {
+CypherParser::OC_VariableContext* CypherParser::NEUG_RecursiveComprehensionContext::oC_Variable(size_t i) {
   return getRuleContext<CypherParser::OC_VariableContext>(i);
 }
 
-std::vector<tree::TerminalNode *> CypherParser::KU_RecursiveComprehensionContext::SP() {
+std::vector<tree::TerminalNode *> CypherParser::NEUG_RecursiveComprehensionContext::SP() {
   return getTokens(CypherParser::SP);
 }
 
-tree::TerminalNode* CypherParser::KU_RecursiveComprehensionContext::SP(size_t i) {
+tree::TerminalNode* CypherParser::NEUG_RecursiveComprehensionContext::SP(size_t i) {
   return getToken(CypherParser::SP, i);
 }
 
-CypherParser::OC_WhereContext* CypherParser::KU_RecursiveComprehensionContext::oC_Where() {
+CypherParser::OC_WhereContext* CypherParser::NEUG_RecursiveComprehensionContext::oC_Where() {
   return getRuleContext<CypherParser::OC_WhereContext>(0);
 }
 
-std::vector<CypherParser::KU_RecursiveProjectionItemsContext *> CypherParser::KU_RecursiveComprehensionContext::kU_RecursiveProjectionItems() {
-  return getRuleContexts<CypherParser::KU_RecursiveProjectionItemsContext>();
+std::vector<CypherParser::NEUG_RecursiveProjectionItemsContext *> CypherParser::NEUG_RecursiveComprehensionContext::nEUG_RecursiveProjectionItems() {
+  return getRuleContexts<CypherParser::NEUG_RecursiveProjectionItemsContext>();
 }
 
-CypherParser::KU_RecursiveProjectionItemsContext* CypherParser::KU_RecursiveComprehensionContext::kU_RecursiveProjectionItems(size_t i) {
-  return getRuleContext<CypherParser::KU_RecursiveProjectionItemsContext>(i);
-}
-
-
-size_t CypherParser::KU_RecursiveComprehensionContext::getRuleIndex() const {
-  return CypherParser::RuleKU_RecursiveComprehension;
+CypherParser::NEUG_RecursiveProjectionItemsContext* CypherParser::NEUG_RecursiveComprehensionContext::nEUG_RecursiveProjectionItems(size_t i) {
+  return getRuleContext<CypherParser::NEUG_RecursiveProjectionItemsContext>(i);
 }
 
 
-CypherParser::KU_RecursiveComprehensionContext* CypherParser::kU_RecursiveComprehension() {
-  KU_RecursiveComprehensionContext *_localctx = _tracker.createInstance<KU_RecursiveComprehensionContext>(_ctx, getState());
-  enterRule(_localctx, 220, CypherParser::RuleKU_RecursiveComprehension);
+size_t CypherParser::NEUG_RecursiveComprehensionContext::getRuleIndex() const {
+  return CypherParser::RuleNEUG_RecursiveComprehension;
+}
+
+
+CypherParser::NEUG_RecursiveComprehensionContext* CypherParser::nEUG_RecursiveComprehension() {
+  NEUG_RecursiveComprehensionContext *_localctx = _tracker.createInstance<NEUG_RecursiveComprehensionContext>(_ctx, getState());
+  enterRule(_localctx, 220, CypherParser::RuleNEUG_RecursiveComprehension);
   size_t _la = 0;
 
 #if __cplusplus > 201703L
@@ -12989,7 +12990,7 @@ CypherParser::KU_RecursiveComprehensionContext* CypherParser::kU_RecursiveCompre
         match(CypherParser::SP);
       }
       setState(2113);
-      kU_RecursiveProjectionItems();
+      nEUG_RecursiveProjectionItems();
       setState(2115);
       _errHandler->sync(this);
 
@@ -13009,7 +13010,7 @@ CypherParser::KU_RecursiveComprehensionContext* CypherParser::kU_RecursiveCompre
         match(CypherParser::SP);
       }
       setState(2121);
-      kU_RecursiveProjectionItems();
+      nEUG_RecursiveProjectionItems();
       setState(2123);
       _errHandler->sync(this);
 
@@ -13032,33 +13033,33 @@ CypherParser::KU_RecursiveComprehensionContext* CypherParser::kU_RecursiveCompre
   return _localctx;
 }
 
-//----------------- KU_RecursiveProjectionItemsContext ------------------------------------------------------------------
+//----------------- NEUG_RecursiveProjectionItemsContext ------------------------------------------------------------------
 
-CypherParser::KU_RecursiveProjectionItemsContext::KU_RecursiveProjectionItemsContext(ParserRuleContext *parent, size_t invokingState)
+CypherParser::NEUG_RecursiveProjectionItemsContext::NEUG_RecursiveProjectionItemsContext(ParserRuleContext *parent, size_t invokingState)
   : ParserRuleContext(parent, invokingState) {
 }
 
-std::vector<tree::TerminalNode *> CypherParser::KU_RecursiveProjectionItemsContext::SP() {
+std::vector<tree::TerminalNode *> CypherParser::NEUG_RecursiveProjectionItemsContext::SP() {
   return getTokens(CypherParser::SP);
 }
 
-tree::TerminalNode* CypherParser::KU_RecursiveProjectionItemsContext::SP(size_t i) {
+tree::TerminalNode* CypherParser::NEUG_RecursiveProjectionItemsContext::SP(size_t i) {
   return getToken(CypherParser::SP, i);
 }
 
-CypherParser::OC_ProjectionItemsContext* CypherParser::KU_RecursiveProjectionItemsContext::oC_ProjectionItems() {
+CypherParser::OC_ProjectionItemsContext* CypherParser::NEUG_RecursiveProjectionItemsContext::oC_ProjectionItems() {
   return getRuleContext<CypherParser::OC_ProjectionItemsContext>(0);
 }
 
 
-size_t CypherParser::KU_RecursiveProjectionItemsContext::getRuleIndex() const {
-  return CypherParser::RuleKU_RecursiveProjectionItems;
+size_t CypherParser::NEUG_RecursiveProjectionItemsContext::getRuleIndex() const {
+  return CypherParser::RuleNEUG_RecursiveProjectionItems;
 }
 
 
-CypherParser::KU_RecursiveProjectionItemsContext* CypherParser::kU_RecursiveProjectionItems() {
-  KU_RecursiveProjectionItemsContext *_localctx = _tracker.createInstance<KU_RecursiveProjectionItemsContext>(_ctx, getState());
-  enterRule(_localctx, 222, CypherParser::RuleKU_RecursiveProjectionItems);
+CypherParser::NEUG_RecursiveProjectionItemsContext* CypherParser::nEUG_RecursiveProjectionItems() {
+  NEUG_RecursiveProjectionItemsContext *_localctx = _tracker.createInstance<NEUG_RecursiveProjectionItemsContext>(_ctx, getState());
+  enterRule(_localctx, 222, CypherParser::RuleNEUG_RecursiveProjectionItems);
   size_t _la = 0;
 
 #if __cplusplus > 201703L
@@ -13653,20 +13654,20 @@ CypherParser::OC_ComparisonExpressionContext::OC_ComparisonExpressionContext(Par
   : ParserRuleContext(parent, invokingState) {
 }
 
-std::vector<CypherParser::KU_BitwiseOrOperatorExpressionContext *> CypherParser::OC_ComparisonExpressionContext::kU_BitwiseOrOperatorExpression() {
-  return getRuleContexts<CypherParser::KU_BitwiseOrOperatorExpressionContext>();
+std::vector<CypherParser::NEUG_BitwiseOrOperatorExpressionContext *> CypherParser::OC_ComparisonExpressionContext::nEUG_BitwiseOrOperatorExpression() {
+  return getRuleContexts<CypherParser::NEUG_BitwiseOrOperatorExpressionContext>();
 }
 
-CypherParser::KU_BitwiseOrOperatorExpressionContext* CypherParser::OC_ComparisonExpressionContext::kU_BitwiseOrOperatorExpression(size_t i) {
-  return getRuleContext<CypherParser::KU_BitwiseOrOperatorExpressionContext>(i);
+CypherParser::NEUG_BitwiseOrOperatorExpressionContext* CypherParser::OC_ComparisonExpressionContext::nEUG_BitwiseOrOperatorExpression(size_t i) {
+  return getRuleContext<CypherParser::NEUG_BitwiseOrOperatorExpressionContext>(i);
 }
 
-std::vector<CypherParser::KU_ComparisonOperatorContext *> CypherParser::OC_ComparisonExpressionContext::kU_ComparisonOperator() {
-  return getRuleContexts<CypherParser::KU_ComparisonOperatorContext>();
+std::vector<CypherParser::NEUG_ComparisonOperatorContext *> CypherParser::OC_ComparisonExpressionContext::nEUG_ComparisonOperator() {
+  return getRuleContexts<CypherParser::NEUG_ComparisonOperatorContext>();
 }
 
-CypherParser::KU_ComparisonOperatorContext* CypherParser::OC_ComparisonExpressionContext::kU_ComparisonOperator(size_t i) {
-  return getRuleContext<CypherParser::KU_ComparisonOperatorContext>(i);
+CypherParser::NEUG_ComparisonOperatorContext* CypherParser::OC_ComparisonExpressionContext::nEUG_ComparisonOperator(size_t i) {
+  return getRuleContext<CypherParser::NEUG_ComparisonOperatorContext>(i);
 }
 
 std::vector<tree::TerminalNode *> CypherParser::OC_ComparisonExpressionContext::SP() {
@@ -13707,7 +13708,7 @@ CypherParser::OC_ComparisonExpressionContext* CypherParser::oC_ComparisonExpress
     case 1: {
       enterOuterAlt(_localctx, 1);
       setState(2192);
-      kU_BitwiseOrOperatorExpression();
+      nEUG_BitwiseOrOperatorExpression();
       setState(2202);
       _errHandler->sync(this);
 
@@ -13722,7 +13723,7 @@ CypherParser::OC_ComparisonExpressionContext* CypherParser::oC_ComparisonExpress
           match(CypherParser::SP);
         }
         setState(2196);
-        kU_ComparisonOperator();
+        nEUG_ComparisonOperator();
         setState(2198);
         _errHandler->sync(this);
 
@@ -13732,7 +13733,7 @@ CypherParser::OC_ComparisonExpressionContext* CypherParser::oC_ComparisonExpress
           match(CypherParser::SP);
         }
         setState(2200);
-        kU_BitwiseOrOperatorExpression();
+        nEUG_BitwiseOrOperatorExpression();
         break;
       }
 
@@ -13745,7 +13746,7 @@ CypherParser::OC_ComparisonExpressionContext* CypherParser::oC_ComparisonExpress
     case 2: {
       enterOuterAlt(_localctx, 2);
       setState(2204);
-      kU_BitwiseOrOperatorExpression();
+      nEUG_BitwiseOrOperatorExpression();
 
       setState(2206);
       _errHandler->sync(this);
@@ -13766,7 +13767,7 @@ CypherParser::OC_ComparisonExpressionContext* CypherParser::oC_ComparisonExpress
         match(CypherParser::SP);
       }
       setState(2212);
-      kU_BitwiseOrOperatorExpression();
+      nEUG_BitwiseOrOperatorExpression();
        notifyInvalidNotEqualOperator(antlrcpp::downCast<OC_ComparisonExpressionContext *>(_localctx)->invalid_not_equalToken); 
       break;
     }
@@ -13774,7 +13775,7 @@ CypherParser::OC_ComparisonExpressionContext* CypherParser::oC_ComparisonExpress
     case 3: {
       enterOuterAlt(_localctx, 3);
       setState(2216);
-      kU_BitwiseOrOperatorExpression();
+      nEUG_BitwiseOrOperatorExpression();
       setState(2218);
       _errHandler->sync(this);
 
@@ -13784,7 +13785,7 @@ CypherParser::OC_ComparisonExpressionContext* CypherParser::oC_ComparisonExpress
         match(CypherParser::SP);
       }
       setState(2220);
-      kU_ComparisonOperator();
+      nEUG_ComparisonOperator();
       setState(2222);
       _errHandler->sync(this);
 
@@ -13794,7 +13795,7 @@ CypherParser::OC_ComparisonExpressionContext* CypherParser::oC_ComparisonExpress
         match(CypherParser::SP);
       }
       setState(2224);
-      kU_BitwiseOrOperatorExpression();
+      nEUG_BitwiseOrOperatorExpression();
       setState(2234); 
       _errHandler->sync(this);
       alt = 1;
@@ -13810,7 +13811,7 @@ CypherParser::OC_ComparisonExpressionContext* CypherParser::oC_ComparisonExpress
                   match(CypherParser::SP);
                 }
                 setState(2228);
-                kU_ComparisonOperator();
+                nEUG_ComparisonOperator();
                 setState(2230);
                 _errHandler->sync(this);
 
@@ -13820,7 +13821,7 @@ CypherParser::OC_ComparisonExpressionContext* CypherParser::oC_ComparisonExpress
                   match(CypherParser::SP);
                 }
                 setState(2232);
-                kU_BitwiseOrOperatorExpression();
+                nEUG_BitwiseOrOperatorExpression();
                 break;
               }
 
@@ -13849,21 +13850,21 @@ CypherParser::OC_ComparisonExpressionContext* CypherParser::oC_ComparisonExpress
   return _localctx;
 }
 
-//----------------- KU_ComparisonOperatorContext ------------------------------------------------------------------
+//----------------- NEUG_ComparisonOperatorContext ------------------------------------------------------------------
 
-CypherParser::KU_ComparisonOperatorContext::KU_ComparisonOperatorContext(ParserRuleContext *parent, size_t invokingState)
+CypherParser::NEUG_ComparisonOperatorContext::NEUG_ComparisonOperatorContext(ParserRuleContext *parent, size_t invokingState)
   : ParserRuleContext(parent, invokingState) {
 }
 
 
-size_t CypherParser::KU_ComparisonOperatorContext::getRuleIndex() const {
-  return CypherParser::RuleKU_ComparisonOperator;
+size_t CypherParser::NEUG_ComparisonOperatorContext::getRuleIndex() const {
+  return CypherParser::RuleNEUG_ComparisonOperator;
 }
 
 
-CypherParser::KU_ComparisonOperatorContext* CypherParser::kU_ComparisonOperator() {
-  KU_ComparisonOperatorContext *_localctx = _tracker.createInstance<KU_ComparisonOperatorContext>(_ctx, getState());
-  enterRule(_localctx, 244, CypherParser::RuleKU_ComparisonOperator);
+CypherParser::NEUG_ComparisonOperatorContext* CypherParser::nEUG_ComparisonOperator() {
+  NEUG_ComparisonOperatorContext *_localctx = _tracker.createInstance<NEUG_ComparisonOperatorContext>(_ctx, getState());
+  enterRule(_localctx, 244, CypherParser::RuleNEUG_ComparisonOperator);
   size_t _la = 0;
 
 #if __cplusplus > 201703L
@@ -13896,37 +13897,37 @@ CypherParser::KU_ComparisonOperatorContext* CypherParser::kU_ComparisonOperator(
   return _localctx;
 }
 
-//----------------- KU_BitwiseOrOperatorExpressionContext ------------------------------------------------------------------
+//----------------- NEUG_BitwiseOrOperatorExpressionContext ------------------------------------------------------------------
 
-CypherParser::KU_BitwiseOrOperatorExpressionContext::KU_BitwiseOrOperatorExpressionContext(ParserRuleContext *parent, size_t invokingState)
+CypherParser::NEUG_BitwiseOrOperatorExpressionContext::NEUG_BitwiseOrOperatorExpressionContext(ParserRuleContext *parent, size_t invokingState)
   : ParserRuleContext(parent, invokingState) {
 }
 
-std::vector<CypherParser::KU_BitwiseAndOperatorExpressionContext *> CypherParser::KU_BitwiseOrOperatorExpressionContext::kU_BitwiseAndOperatorExpression() {
-  return getRuleContexts<CypherParser::KU_BitwiseAndOperatorExpressionContext>();
+std::vector<CypherParser::NEUG_BitwiseAndOperatorExpressionContext *> CypherParser::NEUG_BitwiseOrOperatorExpressionContext::nEUG_BitwiseAndOperatorExpression() {
+  return getRuleContexts<CypherParser::NEUG_BitwiseAndOperatorExpressionContext>();
 }
 
-CypherParser::KU_BitwiseAndOperatorExpressionContext* CypherParser::KU_BitwiseOrOperatorExpressionContext::kU_BitwiseAndOperatorExpression(size_t i) {
-  return getRuleContext<CypherParser::KU_BitwiseAndOperatorExpressionContext>(i);
+CypherParser::NEUG_BitwiseAndOperatorExpressionContext* CypherParser::NEUG_BitwiseOrOperatorExpressionContext::nEUG_BitwiseAndOperatorExpression(size_t i) {
+  return getRuleContext<CypherParser::NEUG_BitwiseAndOperatorExpressionContext>(i);
 }
 
-std::vector<tree::TerminalNode *> CypherParser::KU_BitwiseOrOperatorExpressionContext::SP() {
+std::vector<tree::TerminalNode *> CypherParser::NEUG_BitwiseOrOperatorExpressionContext::SP() {
   return getTokens(CypherParser::SP);
 }
 
-tree::TerminalNode* CypherParser::KU_BitwiseOrOperatorExpressionContext::SP(size_t i) {
+tree::TerminalNode* CypherParser::NEUG_BitwiseOrOperatorExpressionContext::SP(size_t i) {
   return getToken(CypherParser::SP, i);
 }
 
 
-size_t CypherParser::KU_BitwiseOrOperatorExpressionContext::getRuleIndex() const {
-  return CypherParser::RuleKU_BitwiseOrOperatorExpression;
+size_t CypherParser::NEUG_BitwiseOrOperatorExpressionContext::getRuleIndex() const {
+  return CypherParser::RuleNEUG_BitwiseOrOperatorExpression;
 }
 
 
-CypherParser::KU_BitwiseOrOperatorExpressionContext* CypherParser::kU_BitwiseOrOperatorExpression() {
-  KU_BitwiseOrOperatorExpressionContext *_localctx = _tracker.createInstance<KU_BitwiseOrOperatorExpressionContext>(_ctx, getState());
-  enterRule(_localctx, 246, CypherParser::RuleKU_BitwiseOrOperatorExpression);
+CypherParser::NEUG_BitwiseOrOperatorExpressionContext* CypherParser::nEUG_BitwiseOrOperatorExpression() {
+  NEUG_BitwiseOrOperatorExpressionContext *_localctx = _tracker.createInstance<NEUG_BitwiseOrOperatorExpressionContext>(_ctx, getState());
+  enterRule(_localctx, 246, CypherParser::RuleNEUG_BitwiseOrOperatorExpression);
   size_t _la = 0;
 
 #if __cplusplus > 201703L
@@ -13940,7 +13941,7 @@ CypherParser::KU_BitwiseOrOperatorExpressionContext* CypherParser::kU_BitwiseOrO
     size_t alt;
     enterOuterAlt(_localctx, 1);
     setState(2244);
-    kU_BitwiseAndOperatorExpression();
+    nEUG_BitwiseAndOperatorExpression();
     setState(2255);
     _errHandler->sync(this);
     alt = getInterpreter<atn::ParserATNSimulator>()->adaptivePredict(_input, 371, _ctx);
@@ -13965,7 +13966,7 @@ CypherParser::KU_BitwiseOrOperatorExpressionContext* CypherParser::kU_BitwiseOrO
           match(CypherParser::SP);
         }
         setState(2252);
-        kU_BitwiseAndOperatorExpression(); 
+        nEUG_BitwiseAndOperatorExpression(); 
       }
       setState(2257);
       _errHandler->sync(this);
@@ -13982,37 +13983,37 @@ CypherParser::KU_BitwiseOrOperatorExpressionContext* CypherParser::kU_BitwiseOrO
   return _localctx;
 }
 
-//----------------- KU_BitwiseAndOperatorExpressionContext ------------------------------------------------------------------
+//----------------- NEUG_BitwiseAndOperatorExpressionContext ------------------------------------------------------------------
 
-CypherParser::KU_BitwiseAndOperatorExpressionContext::KU_BitwiseAndOperatorExpressionContext(ParserRuleContext *parent, size_t invokingState)
+CypherParser::NEUG_BitwiseAndOperatorExpressionContext::NEUG_BitwiseAndOperatorExpressionContext(ParserRuleContext *parent, size_t invokingState)
   : ParserRuleContext(parent, invokingState) {
 }
 
-std::vector<CypherParser::KU_BitShiftOperatorExpressionContext *> CypherParser::KU_BitwiseAndOperatorExpressionContext::kU_BitShiftOperatorExpression() {
-  return getRuleContexts<CypherParser::KU_BitShiftOperatorExpressionContext>();
+std::vector<CypherParser::NEUG_BitShiftOperatorExpressionContext *> CypherParser::NEUG_BitwiseAndOperatorExpressionContext::nEUG_BitShiftOperatorExpression() {
+  return getRuleContexts<CypherParser::NEUG_BitShiftOperatorExpressionContext>();
 }
 
-CypherParser::KU_BitShiftOperatorExpressionContext* CypherParser::KU_BitwiseAndOperatorExpressionContext::kU_BitShiftOperatorExpression(size_t i) {
-  return getRuleContext<CypherParser::KU_BitShiftOperatorExpressionContext>(i);
+CypherParser::NEUG_BitShiftOperatorExpressionContext* CypherParser::NEUG_BitwiseAndOperatorExpressionContext::nEUG_BitShiftOperatorExpression(size_t i) {
+  return getRuleContext<CypherParser::NEUG_BitShiftOperatorExpressionContext>(i);
 }
 
-std::vector<tree::TerminalNode *> CypherParser::KU_BitwiseAndOperatorExpressionContext::SP() {
+std::vector<tree::TerminalNode *> CypherParser::NEUG_BitwiseAndOperatorExpressionContext::SP() {
   return getTokens(CypherParser::SP);
 }
 
-tree::TerminalNode* CypherParser::KU_BitwiseAndOperatorExpressionContext::SP(size_t i) {
+tree::TerminalNode* CypherParser::NEUG_BitwiseAndOperatorExpressionContext::SP(size_t i) {
   return getToken(CypherParser::SP, i);
 }
 
 
-size_t CypherParser::KU_BitwiseAndOperatorExpressionContext::getRuleIndex() const {
-  return CypherParser::RuleKU_BitwiseAndOperatorExpression;
+size_t CypherParser::NEUG_BitwiseAndOperatorExpressionContext::getRuleIndex() const {
+  return CypherParser::RuleNEUG_BitwiseAndOperatorExpression;
 }
 
 
-CypherParser::KU_BitwiseAndOperatorExpressionContext* CypherParser::kU_BitwiseAndOperatorExpression() {
-  KU_BitwiseAndOperatorExpressionContext *_localctx = _tracker.createInstance<KU_BitwiseAndOperatorExpressionContext>(_ctx, getState());
-  enterRule(_localctx, 248, CypherParser::RuleKU_BitwiseAndOperatorExpression);
+CypherParser::NEUG_BitwiseAndOperatorExpressionContext* CypherParser::nEUG_BitwiseAndOperatorExpression() {
+  NEUG_BitwiseAndOperatorExpressionContext *_localctx = _tracker.createInstance<NEUG_BitwiseAndOperatorExpressionContext>(_ctx, getState());
+  enterRule(_localctx, 248, CypherParser::RuleNEUG_BitwiseAndOperatorExpression);
   size_t _la = 0;
 
 #if __cplusplus > 201703L
@@ -14026,7 +14027,7 @@ CypherParser::KU_BitwiseAndOperatorExpressionContext* CypherParser::kU_BitwiseAn
     size_t alt;
     enterOuterAlt(_localctx, 1);
     setState(2258);
-    kU_BitShiftOperatorExpression();
+    nEUG_BitShiftOperatorExpression();
     setState(2269);
     _errHandler->sync(this);
     alt = getInterpreter<atn::ParserATNSimulator>()->adaptivePredict(_input, 374, _ctx);
@@ -14051,7 +14052,7 @@ CypherParser::KU_BitwiseAndOperatorExpressionContext* CypherParser::kU_BitwiseAn
           match(CypherParser::SP);
         }
         setState(2266);
-        kU_BitShiftOperatorExpression(); 
+        nEUG_BitShiftOperatorExpression(); 
       }
       setState(2271);
       _errHandler->sync(this);
@@ -14068,45 +14069,45 @@ CypherParser::KU_BitwiseAndOperatorExpressionContext* CypherParser::kU_BitwiseAn
   return _localctx;
 }
 
-//----------------- KU_BitShiftOperatorExpressionContext ------------------------------------------------------------------
+//----------------- NEUG_BitShiftOperatorExpressionContext ------------------------------------------------------------------
 
-CypherParser::KU_BitShiftOperatorExpressionContext::KU_BitShiftOperatorExpressionContext(ParserRuleContext *parent, size_t invokingState)
+CypherParser::NEUG_BitShiftOperatorExpressionContext::NEUG_BitShiftOperatorExpressionContext(ParserRuleContext *parent, size_t invokingState)
   : ParserRuleContext(parent, invokingState) {
 }
 
-std::vector<CypherParser::OC_AddOrSubtractExpressionContext *> CypherParser::KU_BitShiftOperatorExpressionContext::oC_AddOrSubtractExpression() {
+std::vector<CypherParser::OC_AddOrSubtractExpressionContext *> CypherParser::NEUG_BitShiftOperatorExpressionContext::oC_AddOrSubtractExpression() {
   return getRuleContexts<CypherParser::OC_AddOrSubtractExpressionContext>();
 }
 
-CypherParser::OC_AddOrSubtractExpressionContext* CypherParser::KU_BitShiftOperatorExpressionContext::oC_AddOrSubtractExpression(size_t i) {
+CypherParser::OC_AddOrSubtractExpressionContext* CypherParser::NEUG_BitShiftOperatorExpressionContext::oC_AddOrSubtractExpression(size_t i) {
   return getRuleContext<CypherParser::OC_AddOrSubtractExpressionContext>(i);
 }
 
-std::vector<CypherParser::KU_BitShiftOperatorContext *> CypherParser::KU_BitShiftOperatorExpressionContext::kU_BitShiftOperator() {
-  return getRuleContexts<CypherParser::KU_BitShiftOperatorContext>();
+std::vector<CypherParser::NEUG_BitShiftOperatorContext *> CypherParser::NEUG_BitShiftOperatorExpressionContext::nEUG_BitShiftOperator() {
+  return getRuleContexts<CypherParser::NEUG_BitShiftOperatorContext>();
 }
 
-CypherParser::KU_BitShiftOperatorContext* CypherParser::KU_BitShiftOperatorExpressionContext::kU_BitShiftOperator(size_t i) {
-  return getRuleContext<CypherParser::KU_BitShiftOperatorContext>(i);
+CypherParser::NEUG_BitShiftOperatorContext* CypherParser::NEUG_BitShiftOperatorExpressionContext::nEUG_BitShiftOperator(size_t i) {
+  return getRuleContext<CypherParser::NEUG_BitShiftOperatorContext>(i);
 }
 
-std::vector<tree::TerminalNode *> CypherParser::KU_BitShiftOperatorExpressionContext::SP() {
+std::vector<tree::TerminalNode *> CypherParser::NEUG_BitShiftOperatorExpressionContext::SP() {
   return getTokens(CypherParser::SP);
 }
 
-tree::TerminalNode* CypherParser::KU_BitShiftOperatorExpressionContext::SP(size_t i) {
+tree::TerminalNode* CypherParser::NEUG_BitShiftOperatorExpressionContext::SP(size_t i) {
   return getToken(CypherParser::SP, i);
 }
 
 
-size_t CypherParser::KU_BitShiftOperatorExpressionContext::getRuleIndex() const {
-  return CypherParser::RuleKU_BitShiftOperatorExpression;
+size_t CypherParser::NEUG_BitShiftOperatorExpressionContext::getRuleIndex() const {
+  return CypherParser::RuleNEUG_BitShiftOperatorExpression;
 }
 
 
-CypherParser::KU_BitShiftOperatorExpressionContext* CypherParser::kU_BitShiftOperatorExpression() {
-  KU_BitShiftOperatorExpressionContext *_localctx = _tracker.createInstance<KU_BitShiftOperatorExpressionContext>(_ctx, getState());
-  enterRule(_localctx, 250, CypherParser::RuleKU_BitShiftOperatorExpression);
+CypherParser::NEUG_BitShiftOperatorExpressionContext* CypherParser::nEUG_BitShiftOperatorExpression() {
+  NEUG_BitShiftOperatorExpressionContext *_localctx = _tracker.createInstance<NEUG_BitShiftOperatorExpressionContext>(_ctx, getState());
+  enterRule(_localctx, 250, CypherParser::RuleNEUG_BitShiftOperatorExpression);
   size_t _la = 0;
 
 #if __cplusplus > 201703L
@@ -14135,7 +14136,7 @@ CypherParser::KU_BitShiftOperatorExpressionContext* CypherParser::kU_BitShiftOpe
           match(CypherParser::SP);
         }
         setState(2276);
-        kU_BitShiftOperator();
+        nEUG_BitShiftOperator();
         setState(2278);
         _errHandler->sync(this);
 
@@ -14162,21 +14163,21 @@ CypherParser::KU_BitShiftOperatorExpressionContext* CypherParser::kU_BitShiftOpe
   return _localctx;
 }
 
-//----------------- KU_BitShiftOperatorContext ------------------------------------------------------------------
+//----------------- NEUG_BitShiftOperatorContext ------------------------------------------------------------------
 
-CypherParser::KU_BitShiftOperatorContext::KU_BitShiftOperatorContext(ParserRuleContext *parent, size_t invokingState)
+CypherParser::NEUG_BitShiftOperatorContext::NEUG_BitShiftOperatorContext(ParserRuleContext *parent, size_t invokingState)
   : ParserRuleContext(parent, invokingState) {
 }
 
 
-size_t CypherParser::KU_BitShiftOperatorContext::getRuleIndex() const {
-  return CypherParser::RuleKU_BitShiftOperator;
+size_t CypherParser::NEUG_BitShiftOperatorContext::getRuleIndex() const {
+  return CypherParser::RuleNEUG_BitShiftOperator;
 }
 
 
-CypherParser::KU_BitShiftOperatorContext* CypherParser::kU_BitShiftOperator() {
-  KU_BitShiftOperatorContext *_localctx = _tracker.createInstance<KU_BitShiftOperatorContext>(_ctx, getState());
-  enterRule(_localctx, 252, CypherParser::RuleKU_BitShiftOperator);
+CypherParser::NEUG_BitShiftOperatorContext* CypherParser::nEUG_BitShiftOperator() {
+  NEUG_BitShiftOperatorContext *_localctx = _tracker.createInstance<NEUG_BitShiftOperatorContext>(_ctx, getState());
+  enterRule(_localctx, 252, CypherParser::RuleNEUG_BitShiftOperator);
   size_t _la = 0;
 
 #if __cplusplus > 201703L
@@ -14224,12 +14225,12 @@ CypherParser::OC_MultiplyDivideModuloExpressionContext* CypherParser::OC_AddOrSu
   return getRuleContext<CypherParser::OC_MultiplyDivideModuloExpressionContext>(i);
 }
 
-std::vector<CypherParser::KU_AddOrSubtractOperatorContext *> CypherParser::OC_AddOrSubtractExpressionContext::kU_AddOrSubtractOperator() {
-  return getRuleContexts<CypherParser::KU_AddOrSubtractOperatorContext>();
+std::vector<CypherParser::NEUG_AddOrSubtractOperatorContext *> CypherParser::OC_AddOrSubtractExpressionContext::nEUG_AddOrSubtractOperator() {
+  return getRuleContexts<CypherParser::NEUG_AddOrSubtractOperatorContext>();
 }
 
-CypherParser::KU_AddOrSubtractOperatorContext* CypherParser::OC_AddOrSubtractExpressionContext::kU_AddOrSubtractOperator(size_t i) {
-  return getRuleContext<CypherParser::KU_AddOrSubtractOperatorContext>(i);
+CypherParser::NEUG_AddOrSubtractOperatorContext* CypherParser::OC_AddOrSubtractExpressionContext::nEUG_AddOrSubtractOperator(size_t i) {
+  return getRuleContext<CypherParser::NEUG_AddOrSubtractOperatorContext>(i);
 }
 
 std::vector<tree::TerminalNode *> CypherParser::OC_AddOrSubtractExpressionContext::SP() {
@@ -14277,7 +14278,7 @@ CypherParser::OC_AddOrSubtractExpressionContext* CypherParser::oC_AddOrSubtractE
           match(CypherParser::SP);
         }
         setState(2293);
-        kU_AddOrSubtractOperator();
+        nEUG_AddOrSubtractOperator();
         setState(2295);
         _errHandler->sync(this);
 
@@ -14304,25 +14305,25 @@ CypherParser::OC_AddOrSubtractExpressionContext* CypherParser::oC_AddOrSubtractE
   return _localctx;
 }
 
-//----------------- KU_AddOrSubtractOperatorContext ------------------------------------------------------------------
+//----------------- NEUG_AddOrSubtractOperatorContext ------------------------------------------------------------------
 
-CypherParser::KU_AddOrSubtractOperatorContext::KU_AddOrSubtractOperatorContext(ParserRuleContext *parent, size_t invokingState)
+CypherParser::NEUG_AddOrSubtractOperatorContext::NEUG_AddOrSubtractOperatorContext(ParserRuleContext *parent, size_t invokingState)
   : ParserRuleContext(parent, invokingState) {
 }
 
-tree::TerminalNode* CypherParser::KU_AddOrSubtractOperatorContext::MINUS() {
+tree::TerminalNode* CypherParser::NEUG_AddOrSubtractOperatorContext::MINUS() {
   return getToken(CypherParser::MINUS, 0);
 }
 
 
-size_t CypherParser::KU_AddOrSubtractOperatorContext::getRuleIndex() const {
-  return CypherParser::RuleKU_AddOrSubtractOperator;
+size_t CypherParser::NEUG_AddOrSubtractOperatorContext::getRuleIndex() const {
+  return CypherParser::RuleNEUG_AddOrSubtractOperator;
 }
 
 
-CypherParser::KU_AddOrSubtractOperatorContext* CypherParser::kU_AddOrSubtractOperator() {
-  KU_AddOrSubtractOperatorContext *_localctx = _tracker.createInstance<KU_AddOrSubtractOperatorContext>(_ctx, getState());
-  enterRule(_localctx, 256, CypherParser::RuleKU_AddOrSubtractOperator);
+CypherParser::NEUG_AddOrSubtractOperatorContext* CypherParser::nEUG_AddOrSubtractOperator() {
+  NEUG_AddOrSubtractOperatorContext *_localctx = _tracker.createInstance<NEUG_AddOrSubtractOperatorContext>(_ctx, getState());
+  enterRule(_localctx, 256, CypherParser::RuleNEUG_AddOrSubtractOperator);
   size_t _la = 0;
 
 #if __cplusplus > 201703L
@@ -14368,12 +14369,12 @@ CypherParser::OC_PowerOfExpressionContext* CypherParser::OC_MultiplyDivideModulo
   return getRuleContext<CypherParser::OC_PowerOfExpressionContext>(i);
 }
 
-std::vector<CypherParser::KU_MultiplyDivideModuloOperatorContext *> CypherParser::OC_MultiplyDivideModuloExpressionContext::kU_MultiplyDivideModuloOperator() {
-  return getRuleContexts<CypherParser::KU_MultiplyDivideModuloOperatorContext>();
+std::vector<CypherParser::NEUG_MultiplyDivideModuloOperatorContext *> CypherParser::OC_MultiplyDivideModuloExpressionContext::nEUG_MultiplyDivideModuloOperator() {
+  return getRuleContexts<CypherParser::NEUG_MultiplyDivideModuloOperatorContext>();
 }
 
-CypherParser::KU_MultiplyDivideModuloOperatorContext* CypherParser::OC_MultiplyDivideModuloExpressionContext::kU_MultiplyDivideModuloOperator(size_t i) {
-  return getRuleContext<CypherParser::KU_MultiplyDivideModuloOperatorContext>(i);
+CypherParser::NEUG_MultiplyDivideModuloOperatorContext* CypherParser::OC_MultiplyDivideModuloExpressionContext::nEUG_MultiplyDivideModuloOperator(size_t i) {
+  return getRuleContext<CypherParser::NEUG_MultiplyDivideModuloOperatorContext>(i);
 }
 
 std::vector<tree::TerminalNode *> CypherParser::OC_MultiplyDivideModuloExpressionContext::SP() {
@@ -14421,7 +14422,7 @@ CypherParser::OC_MultiplyDivideModuloExpressionContext* CypherParser::oC_Multipl
           match(CypherParser::SP);
         }
         setState(2310);
-        kU_MultiplyDivideModuloOperator();
+        nEUG_MultiplyDivideModuloOperator();
         setState(2312);
         _errHandler->sync(this);
 
@@ -14448,25 +14449,25 @@ CypherParser::OC_MultiplyDivideModuloExpressionContext* CypherParser::oC_Multipl
   return _localctx;
 }
 
-//----------------- KU_MultiplyDivideModuloOperatorContext ------------------------------------------------------------------
+//----------------- NEUG_MultiplyDivideModuloOperatorContext ------------------------------------------------------------------
 
-CypherParser::KU_MultiplyDivideModuloOperatorContext::KU_MultiplyDivideModuloOperatorContext(ParserRuleContext *parent, size_t invokingState)
+CypherParser::NEUG_MultiplyDivideModuloOperatorContext::NEUG_MultiplyDivideModuloOperatorContext(ParserRuleContext *parent, size_t invokingState)
   : ParserRuleContext(parent, invokingState) {
 }
 
-tree::TerminalNode* CypherParser::KU_MultiplyDivideModuloOperatorContext::STAR() {
+tree::TerminalNode* CypherParser::NEUG_MultiplyDivideModuloOperatorContext::STAR() {
   return getToken(CypherParser::STAR, 0);
 }
 
 
-size_t CypherParser::KU_MultiplyDivideModuloOperatorContext::getRuleIndex() const {
-  return CypherParser::RuleKU_MultiplyDivideModuloOperator;
+size_t CypherParser::NEUG_MultiplyDivideModuloOperatorContext::getRuleIndex() const {
+  return CypherParser::RuleNEUG_MultiplyDivideModuloOperator;
 }
 
 
-CypherParser::KU_MultiplyDivideModuloOperatorContext* CypherParser::kU_MultiplyDivideModuloOperator() {
-  KU_MultiplyDivideModuloOperatorContext *_localctx = _tracker.createInstance<KU_MultiplyDivideModuloOperatorContext>(_ctx, getState());
-  enterRule(_localctx, 260, CypherParser::RuleKU_MultiplyDivideModuloOperator);
+CypherParser::NEUG_MultiplyDivideModuloOperatorContext* CypherParser::nEUG_MultiplyDivideModuloOperator() {
+  NEUG_MultiplyDivideModuloOperatorContext *_localctx = _tracker.createInstance<NEUG_MultiplyDivideModuloOperatorContext>(_ctx, getState());
+  enterRule(_localctx, 260, CypherParser::RuleNEUG_MultiplyDivideModuloOperator);
   size_t _la = 0;
 
 #if __cplusplus > 201703L
@@ -15770,8 +15771,8 @@ CypherParser::OC_ListLiteralContext* CypherParser::OC_LiteralContext::oC_ListLit
   return getRuleContext<CypherParser::OC_ListLiteralContext>(0);
 }
 
-CypherParser::KU_StructLiteralContext* CypherParser::OC_LiteralContext::kU_StructLiteral() {
-  return getRuleContext<CypherParser::KU_StructLiteralContext>(0);
+CypherParser::NEUG_StructLiteralContext* CypherParser::OC_LiteralContext::nEUG_StructLiteral() {
+  return getRuleContext<CypherParser::NEUG_StructLiteralContext>(0);
 }
 
 
@@ -15836,7 +15837,7 @@ CypherParser::OC_LiteralContext* CypherParser::oC_Literal() {
       case CypherParser::T__8: {
         enterOuterAlt(_localctx, 6);
         setState(2513);
-        kU_StructLiteral();
+        nEUG_StructLiteral();
         break;
       }
 
@@ -15928,12 +15929,12 @@ CypherParser::OC_ExpressionContext* CypherParser::OC_ListLiteralContext::oC_Expr
   return getRuleContext<CypherParser::OC_ExpressionContext>(0);
 }
 
-std::vector<CypherParser::KU_ListEntryContext *> CypherParser::OC_ListLiteralContext::kU_ListEntry() {
-  return getRuleContexts<CypherParser::KU_ListEntryContext>();
+std::vector<CypherParser::NEUG_ListEntryContext *> CypherParser::OC_ListLiteralContext::nEUG_ListEntry() {
+  return getRuleContexts<CypherParser::NEUG_ListEntryContext>();
 }
 
-CypherParser::KU_ListEntryContext* CypherParser::OC_ListLiteralContext::kU_ListEntry(size_t i) {
-  return getRuleContext<CypherParser::KU_ListEntryContext>(i);
+CypherParser::NEUG_ListEntryContext* CypherParser::OC_ListLiteralContext::nEUG_ListEntry(size_t i) {
+  return getRuleContext<CypherParser::NEUG_ListEntryContext>(i);
 }
 
 
@@ -15989,7 +15990,7 @@ CypherParser::OC_ListLiteralContext* CypherParser::oC_ListLiteral() {
       _la = _input->LA(1);
       while (_la == CypherParser::T__3) {
         setState(2526);
-        kU_ListEntry();
+        nEUG_ListEntry();
         setState(2528);
         _errHandler->sync(this);
 
@@ -16016,29 +16017,29 @@ CypherParser::OC_ListLiteralContext* CypherParser::oC_ListLiteral() {
   return _localctx;
 }
 
-//----------------- KU_ListEntryContext ------------------------------------------------------------------
+//----------------- NEUG_ListEntryContext ------------------------------------------------------------------
 
-CypherParser::KU_ListEntryContext::KU_ListEntryContext(ParserRuleContext *parent, size_t invokingState)
+CypherParser::NEUG_ListEntryContext::NEUG_ListEntryContext(ParserRuleContext *parent, size_t invokingState)
   : ParserRuleContext(parent, invokingState) {
 }
 
-tree::TerminalNode* CypherParser::KU_ListEntryContext::SP() {
+tree::TerminalNode* CypherParser::NEUG_ListEntryContext::SP() {
   return getToken(CypherParser::SP, 0);
 }
 
-CypherParser::OC_ExpressionContext* CypherParser::KU_ListEntryContext::oC_Expression() {
+CypherParser::OC_ExpressionContext* CypherParser::NEUG_ListEntryContext::oC_Expression() {
   return getRuleContext<CypherParser::OC_ExpressionContext>(0);
 }
 
 
-size_t CypherParser::KU_ListEntryContext::getRuleIndex() const {
-  return CypherParser::RuleKU_ListEntry;
+size_t CypherParser::NEUG_ListEntryContext::getRuleIndex() const {
+  return CypherParser::RuleNEUG_ListEntry;
 }
 
 
-CypherParser::KU_ListEntryContext* CypherParser::kU_ListEntry() {
-  KU_ListEntryContext *_localctx = _tracker.createInstance<KU_ListEntryContext>(_ctx, getState());
-  enterRule(_localctx, 292, CypherParser::RuleKU_ListEntry);
+CypherParser::NEUG_ListEntryContext* CypherParser::nEUG_ListEntry() {
+  NEUG_ListEntryContext *_localctx = _tracker.createInstance<NEUG_ListEntryContext>(_ctx, getState());
+  enterRule(_localctx, 292, CypherParser::RuleNEUG_ListEntry);
   size_t _la = 0;
 
 #if __cplusplus > 201703L
@@ -16087,37 +16088,37 @@ CypherParser::KU_ListEntryContext* CypherParser::kU_ListEntry() {
   return _localctx;
 }
 
-//----------------- KU_StructLiteralContext ------------------------------------------------------------------
+//----------------- NEUG_StructLiteralContext ------------------------------------------------------------------
 
-CypherParser::KU_StructLiteralContext::KU_StructLiteralContext(ParserRuleContext *parent, size_t invokingState)
+CypherParser::NEUG_StructLiteralContext::NEUG_StructLiteralContext(ParserRuleContext *parent, size_t invokingState)
   : ParserRuleContext(parent, invokingState) {
 }
 
-std::vector<CypherParser::KU_StructFieldContext *> CypherParser::KU_StructLiteralContext::kU_StructField() {
-  return getRuleContexts<CypherParser::KU_StructFieldContext>();
+std::vector<CypherParser::NEUG_StructFieldContext *> CypherParser::NEUG_StructLiteralContext::nEUG_StructField() {
+  return getRuleContexts<CypherParser::NEUG_StructFieldContext>();
 }
 
-CypherParser::KU_StructFieldContext* CypherParser::KU_StructLiteralContext::kU_StructField(size_t i) {
-  return getRuleContext<CypherParser::KU_StructFieldContext>(i);
+CypherParser::NEUG_StructFieldContext* CypherParser::NEUG_StructLiteralContext::nEUG_StructField(size_t i) {
+  return getRuleContext<CypherParser::NEUG_StructFieldContext>(i);
 }
 
-std::vector<tree::TerminalNode *> CypherParser::KU_StructLiteralContext::SP() {
+std::vector<tree::TerminalNode *> CypherParser::NEUG_StructLiteralContext::SP() {
   return getTokens(CypherParser::SP);
 }
 
-tree::TerminalNode* CypherParser::KU_StructLiteralContext::SP(size_t i) {
+tree::TerminalNode* CypherParser::NEUG_StructLiteralContext::SP(size_t i) {
   return getToken(CypherParser::SP, i);
 }
 
 
-size_t CypherParser::KU_StructLiteralContext::getRuleIndex() const {
-  return CypherParser::RuleKU_StructLiteral;
+size_t CypherParser::NEUG_StructLiteralContext::getRuleIndex() const {
+  return CypherParser::RuleNEUG_StructLiteral;
 }
 
 
-CypherParser::KU_StructLiteralContext* CypherParser::kU_StructLiteral() {
-  KU_StructLiteralContext *_localctx = _tracker.createInstance<KU_StructLiteralContext>(_ctx, getState());
-  enterRule(_localctx, 294, CypherParser::RuleKU_StructLiteral);
+CypherParser::NEUG_StructLiteralContext* CypherParser::nEUG_StructLiteral() {
+  NEUG_StructLiteralContext *_localctx = _tracker.createInstance<NEUG_StructLiteralContext>(_ctx, getState());
+  enterRule(_localctx, 294, CypherParser::RuleNEUG_StructLiteral);
   size_t _la = 0;
 
 #if __cplusplus > 201703L
@@ -16140,7 +16141,7 @@ CypherParser::KU_StructLiteralContext* CypherParser::kU_StructLiteral() {
       match(CypherParser::SP);
     }
     setState(2550);
-    kU_StructField();
+    nEUG_StructField();
     setState(2552);
     _errHandler->sync(this);
 
@@ -16164,7 +16165,7 @@ CypherParser::KU_StructLiteralContext* CypherParser::kU_StructLiteral() {
         match(CypherParser::SP);
       }
       setState(2558);
-      kU_StructField();
+      nEUG_StructField();
       setState(2560);
       _errHandler->sync(this);
 
@@ -16190,45 +16191,45 @@ CypherParser::KU_StructLiteralContext* CypherParser::kU_StructLiteral() {
   return _localctx;
 }
 
-//----------------- KU_StructFieldContext ------------------------------------------------------------------
+//----------------- NEUG_StructFieldContext ------------------------------------------------------------------
 
-CypherParser::KU_StructFieldContext::KU_StructFieldContext(ParserRuleContext *parent, size_t invokingState)
+CypherParser::NEUG_StructFieldContext::NEUG_StructFieldContext(ParserRuleContext *parent, size_t invokingState)
   : ParserRuleContext(parent, invokingState) {
 }
 
-tree::TerminalNode* CypherParser::KU_StructFieldContext::COLON() {
+tree::TerminalNode* CypherParser::NEUG_StructFieldContext::COLON() {
   return getToken(CypherParser::COLON, 0);
 }
 
-CypherParser::OC_ExpressionContext* CypherParser::KU_StructFieldContext::oC_Expression() {
+CypherParser::OC_ExpressionContext* CypherParser::NEUG_StructFieldContext::oC_Expression() {
   return getRuleContext<CypherParser::OC_ExpressionContext>(0);
 }
 
-CypherParser::OC_SymbolicNameContext* CypherParser::KU_StructFieldContext::oC_SymbolicName() {
+CypherParser::OC_SymbolicNameContext* CypherParser::NEUG_StructFieldContext::oC_SymbolicName() {
   return getRuleContext<CypherParser::OC_SymbolicNameContext>(0);
 }
 
-tree::TerminalNode* CypherParser::KU_StructFieldContext::StringLiteral() {
+tree::TerminalNode* CypherParser::NEUG_StructFieldContext::StringLiteral() {
   return getToken(CypherParser::StringLiteral, 0);
 }
 
-std::vector<tree::TerminalNode *> CypherParser::KU_StructFieldContext::SP() {
+std::vector<tree::TerminalNode *> CypherParser::NEUG_StructFieldContext::SP() {
   return getTokens(CypherParser::SP);
 }
 
-tree::TerminalNode* CypherParser::KU_StructFieldContext::SP(size_t i) {
+tree::TerminalNode* CypherParser::NEUG_StructFieldContext::SP(size_t i) {
   return getToken(CypherParser::SP, i);
 }
 
 
-size_t CypherParser::KU_StructFieldContext::getRuleIndex() const {
-  return CypherParser::RuleKU_StructField;
+size_t CypherParser::NEUG_StructFieldContext::getRuleIndex() const {
+  return CypherParser::RuleNEUG_StructField;
 }
 
 
-CypherParser::KU_StructFieldContext* CypherParser::kU_StructField() {
-  KU_StructFieldContext *_localctx = _tracker.createInstance<KU_StructFieldContext>(_ctx, getState());
-  enterRule(_localctx, 296, CypherParser::RuleKU_StructField);
+CypherParser::NEUG_StructFieldContext* CypherParser::nEUG_StructField() {
+  NEUG_StructFieldContext *_localctx = _tracker.createInstance<NEUG_StructFieldContext>(_ctx, getState());
+  enterRule(_localctx, 296, CypherParser::RuleNEUG_StructField);
   size_t _la = 0;
 
 #if __cplusplus > 201703L
@@ -16442,20 +16443,20 @@ tree::TerminalNode* CypherParser::OC_FunctionInvocationContext::CAST() {
   return getToken(CypherParser::CAST, 0);
 }
 
-std::vector<CypherParser::KU_FunctionParameterContext *> CypherParser::OC_FunctionInvocationContext::kU_FunctionParameter() {
-  return getRuleContexts<CypherParser::KU_FunctionParameterContext>();
+std::vector<CypherParser::NEUG_FunctionParameterContext *> CypherParser::OC_FunctionInvocationContext::nEUG_FunctionParameter() {
+  return getRuleContexts<CypherParser::NEUG_FunctionParameterContext>();
 }
 
-CypherParser::KU_FunctionParameterContext* CypherParser::OC_FunctionInvocationContext::kU_FunctionParameter(size_t i) {
-  return getRuleContext<CypherParser::KU_FunctionParameterContext>(i);
+CypherParser::NEUG_FunctionParameterContext* CypherParser::OC_FunctionInvocationContext::nEUG_FunctionParameter(size_t i) {
+  return getRuleContext<CypherParser::NEUG_FunctionParameterContext>(i);
 }
 
 tree::TerminalNode* CypherParser::OC_FunctionInvocationContext::AS() {
   return getToken(CypherParser::AS, 0);
 }
 
-CypherParser::KU_DataTypeContext* CypherParser::OC_FunctionInvocationContext::kU_DataType() {
-  return getRuleContext<CypherParser::KU_DataTypeContext>(0);
+CypherParser::NEUG_DataTypeContext* CypherParser::OC_FunctionInvocationContext::nEUG_DataType() {
+  return getRuleContext<CypherParser::NEUG_DataTypeContext>(0);
 }
 
 CypherParser::OC_FunctionNameContext* CypherParser::OC_FunctionInvocationContext::oC_FunctionName() {
@@ -16548,7 +16549,7 @@ CypherParser::OC_FunctionInvocationContext* CypherParser::oC_FunctionInvocation(
         match(CypherParser::SP);
       }
       setState(2613);
-      kU_FunctionParameter();
+      nEUG_FunctionParameter();
       setState(2615);
       _errHandler->sync(this);
 
@@ -16572,7 +16573,7 @@ CypherParser::OC_FunctionInvocationContext* CypherParser::oC_FunctionInvocation(
             match(CypherParser::SP);
           }
           setState(2621);
-          kU_DataType(0);
+          nEUG_DataType(0);
           break;
         }
 
@@ -16588,7 +16589,7 @@ CypherParser::OC_FunctionInvocationContext* CypherParser::oC_FunctionInvocation(
             match(CypherParser::SP);
           }
           setState(2626);
-          kU_FunctionParameter();
+          nEUG_FunctionParameter();
           break;
         }
 
@@ -16655,7 +16656,7 @@ CypherParser::OC_FunctionInvocationContext* CypherParser::oC_FunctionInvocation(
         ((1ULL << (_la - 64)) & -572029811611842117) != 0) || ((((_la - 128) & ~ 0x3fULL) == 0) &&
         ((1ULL << (_la - 128)) & 343284581997101) != 0)) {
         setState(2648);
-        kU_FunctionParameter();
+        nEUG_FunctionParameter();
         setState(2650);
         _errHandler->sync(this);
 
@@ -16679,7 +16680,7 @@ CypherParser::OC_FunctionInvocationContext* CypherParser::oC_FunctionInvocation(
             match(CypherParser::SP);
           }
           setState(2656);
-          kU_FunctionParameter();
+          nEUG_FunctionParameter();
           setState(2658);
           _errHandler->sync(this);
 
@@ -16754,45 +16755,45 @@ CypherParser::OC_FunctionNameContext* CypherParser::oC_FunctionName() {
   return _localctx;
 }
 
-//----------------- KU_FunctionParameterContext ------------------------------------------------------------------
+//----------------- NEUG_FunctionParameterContext ------------------------------------------------------------------
 
-CypherParser::KU_FunctionParameterContext::KU_FunctionParameterContext(ParserRuleContext *parent, size_t invokingState)
+CypherParser::NEUG_FunctionParameterContext::NEUG_FunctionParameterContext(ParserRuleContext *parent, size_t invokingState)
   : ParserRuleContext(parent, invokingState) {
 }
 
-CypherParser::OC_ExpressionContext* CypherParser::KU_FunctionParameterContext::oC_Expression() {
+CypherParser::OC_ExpressionContext* CypherParser::NEUG_FunctionParameterContext::oC_Expression() {
   return getRuleContext<CypherParser::OC_ExpressionContext>(0);
 }
 
-CypherParser::OC_SymbolicNameContext* CypherParser::KU_FunctionParameterContext::oC_SymbolicName() {
+CypherParser::OC_SymbolicNameContext* CypherParser::NEUG_FunctionParameterContext::oC_SymbolicName() {
   return getRuleContext<CypherParser::OC_SymbolicNameContext>(0);
 }
 
-tree::TerminalNode* CypherParser::KU_FunctionParameterContext::COLON() {
+tree::TerminalNode* CypherParser::NEUG_FunctionParameterContext::COLON() {
   return getToken(CypherParser::COLON, 0);
 }
 
-std::vector<tree::TerminalNode *> CypherParser::KU_FunctionParameterContext::SP() {
+std::vector<tree::TerminalNode *> CypherParser::NEUG_FunctionParameterContext::SP() {
   return getTokens(CypherParser::SP);
 }
 
-tree::TerminalNode* CypherParser::KU_FunctionParameterContext::SP(size_t i) {
+tree::TerminalNode* CypherParser::NEUG_FunctionParameterContext::SP(size_t i) {
   return getToken(CypherParser::SP, i);
 }
 
-CypherParser::KU_LambdaParameterContext* CypherParser::KU_FunctionParameterContext::kU_LambdaParameter() {
-  return getRuleContext<CypherParser::KU_LambdaParameterContext>(0);
+CypherParser::NEUG_LambdaParameterContext* CypherParser::NEUG_FunctionParameterContext::nEUG_LambdaParameter() {
+  return getRuleContext<CypherParser::NEUG_LambdaParameterContext>(0);
 }
 
 
-size_t CypherParser::KU_FunctionParameterContext::getRuleIndex() const {
-  return CypherParser::RuleKU_FunctionParameter;
+size_t CypherParser::NEUG_FunctionParameterContext::getRuleIndex() const {
+  return CypherParser::RuleNEUG_FunctionParameter;
 }
 
 
-CypherParser::KU_FunctionParameterContext* CypherParser::kU_FunctionParameter() {
-  KU_FunctionParameterContext *_localctx = _tracker.createInstance<KU_FunctionParameterContext>(_ctx, getState());
-  enterRule(_localctx, 304, CypherParser::RuleKU_FunctionParameter);
+CypherParser::NEUG_FunctionParameterContext* CypherParser::nEUG_FunctionParameter() {
+  NEUG_FunctionParameterContext *_localctx = _tracker.createInstance<NEUG_FunctionParameterContext>(_ctx, getState());
+  enterRule(_localctx, 304, CypherParser::RuleNEUG_FunctionParameter);
   size_t _la = 0;
 
 #if __cplusplus > 201703L
@@ -16849,7 +16850,7 @@ CypherParser::KU_FunctionParameterContext* CypherParser::kU_FunctionParameter() 
     case 2: {
       enterOuterAlt(_localctx, 2);
       setState(2685);
-      kU_LambdaParameter();
+      nEUG_LambdaParameter();
       break;
     }
 
@@ -16867,41 +16868,41 @@ CypherParser::KU_FunctionParameterContext* CypherParser::kU_FunctionParameter() 
   return _localctx;
 }
 
-//----------------- KU_LambdaParameterContext ------------------------------------------------------------------
+//----------------- NEUG_LambdaParameterContext ------------------------------------------------------------------
 
-CypherParser::KU_LambdaParameterContext::KU_LambdaParameterContext(ParserRuleContext *parent, size_t invokingState)
+CypherParser::NEUG_LambdaParameterContext::NEUG_LambdaParameterContext(ParserRuleContext *parent, size_t invokingState)
   : ParserRuleContext(parent, invokingState) {
 }
 
-CypherParser::KU_LambdaVarsContext* CypherParser::KU_LambdaParameterContext::kU_LambdaVars() {
-  return getRuleContext<CypherParser::KU_LambdaVarsContext>(0);
+CypherParser::NEUG_LambdaVarsContext* CypherParser::NEUG_LambdaParameterContext::nEUG_LambdaVars() {
+  return getRuleContext<CypherParser::NEUG_LambdaVarsContext>(0);
 }
 
-tree::TerminalNode* CypherParser::KU_LambdaParameterContext::MINUS() {
+tree::TerminalNode* CypherParser::NEUG_LambdaParameterContext::MINUS() {
   return getToken(CypherParser::MINUS, 0);
 }
 
-CypherParser::OC_ExpressionContext* CypherParser::KU_LambdaParameterContext::oC_Expression() {
+CypherParser::OC_ExpressionContext* CypherParser::NEUG_LambdaParameterContext::oC_Expression() {
   return getRuleContext<CypherParser::OC_ExpressionContext>(0);
 }
 
-std::vector<tree::TerminalNode *> CypherParser::KU_LambdaParameterContext::SP() {
+std::vector<tree::TerminalNode *> CypherParser::NEUG_LambdaParameterContext::SP() {
   return getTokens(CypherParser::SP);
 }
 
-tree::TerminalNode* CypherParser::KU_LambdaParameterContext::SP(size_t i) {
+tree::TerminalNode* CypherParser::NEUG_LambdaParameterContext::SP(size_t i) {
   return getToken(CypherParser::SP, i);
 }
 
 
-size_t CypherParser::KU_LambdaParameterContext::getRuleIndex() const {
-  return CypherParser::RuleKU_LambdaParameter;
+size_t CypherParser::NEUG_LambdaParameterContext::getRuleIndex() const {
+  return CypherParser::RuleNEUG_LambdaParameter;
 }
 
 
-CypherParser::KU_LambdaParameterContext* CypherParser::kU_LambdaParameter() {
-  KU_LambdaParameterContext *_localctx = _tracker.createInstance<KU_LambdaParameterContext>(_ctx, getState());
-  enterRule(_localctx, 306, CypherParser::RuleKU_LambdaParameter);
+CypherParser::NEUG_LambdaParameterContext* CypherParser::nEUG_LambdaParameter() {
+  NEUG_LambdaParameterContext *_localctx = _tracker.createInstance<NEUG_LambdaParameterContext>(_ctx, getState());
+  enterRule(_localctx, 306, CypherParser::RuleNEUG_LambdaParameter);
   size_t _la = 0;
 
 #if __cplusplus > 201703L
@@ -16914,7 +16915,7 @@ CypherParser::KU_LambdaParameterContext* CypherParser::kU_LambdaParameter() {
   try {
     enterOuterAlt(_localctx, 1);
     setState(2688);
-    kU_LambdaVars();
+    nEUG_LambdaVars();
     setState(2690);
     _errHandler->sync(this);
 
@@ -16961,37 +16962,37 @@ CypherParser::KU_LambdaParameterContext* CypherParser::kU_LambdaParameter() {
   return _localctx;
 }
 
-//----------------- KU_LambdaVarsContext ------------------------------------------------------------------
+//----------------- NEUG_LambdaVarsContext ------------------------------------------------------------------
 
-CypherParser::KU_LambdaVarsContext::KU_LambdaVarsContext(ParserRuleContext *parent, size_t invokingState)
+CypherParser::NEUG_LambdaVarsContext::NEUG_LambdaVarsContext(ParserRuleContext *parent, size_t invokingState)
   : ParserRuleContext(parent, invokingState) {
 }
 
-std::vector<CypherParser::OC_SymbolicNameContext *> CypherParser::KU_LambdaVarsContext::oC_SymbolicName() {
+std::vector<CypherParser::OC_SymbolicNameContext *> CypherParser::NEUG_LambdaVarsContext::oC_SymbolicName() {
   return getRuleContexts<CypherParser::OC_SymbolicNameContext>();
 }
 
-CypherParser::OC_SymbolicNameContext* CypherParser::KU_LambdaVarsContext::oC_SymbolicName(size_t i) {
+CypherParser::OC_SymbolicNameContext* CypherParser::NEUG_LambdaVarsContext::oC_SymbolicName(size_t i) {
   return getRuleContext<CypherParser::OC_SymbolicNameContext>(i);
 }
 
-std::vector<tree::TerminalNode *> CypherParser::KU_LambdaVarsContext::SP() {
+std::vector<tree::TerminalNode *> CypherParser::NEUG_LambdaVarsContext::SP() {
   return getTokens(CypherParser::SP);
 }
 
-tree::TerminalNode* CypherParser::KU_LambdaVarsContext::SP(size_t i) {
+tree::TerminalNode* CypherParser::NEUG_LambdaVarsContext::SP(size_t i) {
   return getToken(CypherParser::SP, i);
 }
 
 
-size_t CypherParser::KU_LambdaVarsContext::getRuleIndex() const {
-  return CypherParser::RuleKU_LambdaVars;
+size_t CypherParser::NEUG_LambdaVarsContext::getRuleIndex() const {
+  return CypherParser::RuleNEUG_LambdaVars;
 }
 
 
-CypherParser::KU_LambdaVarsContext* CypherParser::kU_LambdaVars() {
-  KU_LambdaVarsContext *_localctx = _tracker.createInstance<KU_LambdaVarsContext>(_ctx, getState());
-  enterRule(_localctx, 308, CypherParser::RuleKU_LambdaVars);
+CypherParser::NEUG_LambdaVarsContext* CypherParser::nEUG_LambdaVars() {
+  NEUG_LambdaVarsContext *_localctx = _tracker.createInstance<NEUG_LambdaVarsContext>(_ctx, getState());
+  enterRule(_localctx, 308, CypherParser::RuleNEUG_LambdaVars);
   size_t _la = 0;
 
 #if __cplusplus > 201703L
@@ -17257,8 +17258,8 @@ CypherParser::OC_WhereContext* CypherParser::OC_ExistCountSubqueryContext::oC_Wh
   return getRuleContext<CypherParser::OC_WhereContext>(0);
 }
 
-CypherParser::KU_HintContext* CypherParser::OC_ExistCountSubqueryContext::kU_Hint() {
-  return getRuleContext<CypherParser::KU_HintContext>(0);
+CypherParser::NEUG_HintContext* CypherParser::OC_ExistCountSubqueryContext::nEUG_Hint() {
+  return getRuleContext<CypherParser::NEUG_HintContext>(0);
 }
 
 
@@ -17357,7 +17358,7 @@ CypherParser::OC_ExistCountSubqueryContext* CypherParser::oC_ExistCountSubquery(
         match(CypherParser::SP);
       }
       setState(2758);
-      kU_Hint();
+      nEUG_Hint();
       break;
     }
 
@@ -18293,8 +18294,8 @@ tree::TerminalNode* CypherParser::OC_SymbolicNameContext::HexLetter() {
   return getToken(CypherParser::HexLetter, 0);
 }
 
-CypherParser::KU_NonReservedKeywordsContext* CypherParser::OC_SymbolicNameContext::kU_NonReservedKeywords() {
-  return getRuleContext<CypherParser::KU_NonReservedKeywordsContext>(0);
+CypherParser::NEUG_NonReservedKeywordsContext* CypherParser::OC_SymbolicNameContext::nEUG_NonReservedKeywords() {
+  return getRuleContext<CypherParser::NEUG_NonReservedKeywordsContext>(0);
 }
 
 
@@ -18396,7 +18397,7 @@ CypherParser::OC_SymbolicNameContext* CypherParser::oC_SymbolicName() {
       case CypherParser::L_SKIP: {
         enterOuterAlt(_localctx, 4);
         setState(2856);
-        kU_NonReservedKeywords();
+        nEUG_NonReservedKeywords();
         break;
       }
 
@@ -18414,237 +18415,237 @@ CypherParser::OC_SymbolicNameContext* CypherParser::oC_SymbolicName() {
   return _localctx;
 }
 
-//----------------- KU_NonReservedKeywordsContext ------------------------------------------------------------------
+//----------------- NEUG_NonReservedKeywordsContext ------------------------------------------------------------------
 
-CypherParser::KU_NonReservedKeywordsContext::KU_NonReservedKeywordsContext(ParserRuleContext *parent, size_t invokingState)
+CypherParser::NEUG_NonReservedKeywordsContext::NEUG_NonReservedKeywordsContext(ParserRuleContext *parent, size_t invokingState)
   : ParserRuleContext(parent, invokingState) {
 }
 
-tree::TerminalNode* CypherParser::KU_NonReservedKeywordsContext::COMMENT() {
+tree::TerminalNode* CypherParser::NEUG_NonReservedKeywordsContext::COMMENT() {
   return getToken(CypherParser::COMMENT, 0);
 }
 
-tree::TerminalNode* CypherParser::KU_NonReservedKeywordsContext::ADD() {
+tree::TerminalNode* CypherParser::NEUG_NonReservedKeywordsContext::ADD() {
   return getToken(CypherParser::ADD, 0);
 }
 
-tree::TerminalNode* CypherParser::KU_NonReservedKeywordsContext::ALTER() {
+tree::TerminalNode* CypherParser::NEUG_NonReservedKeywordsContext::ALTER() {
   return getToken(CypherParser::ALTER, 0);
 }
 
-tree::TerminalNode* CypherParser::KU_NonReservedKeywordsContext::AS() {
+tree::TerminalNode* CypherParser::NEUG_NonReservedKeywordsContext::AS() {
   return getToken(CypherParser::AS, 0);
 }
 
-tree::TerminalNode* CypherParser::KU_NonReservedKeywordsContext::ATTACH() {
+tree::TerminalNode* CypherParser::NEUG_NonReservedKeywordsContext::ATTACH() {
   return getToken(CypherParser::ATTACH, 0);
 }
 
-tree::TerminalNode* CypherParser::KU_NonReservedKeywordsContext::BEGIN() {
+tree::TerminalNode* CypherParser::NEUG_NonReservedKeywordsContext::BEGIN() {
   return getToken(CypherParser::BEGIN, 0);
 }
 
-tree::TerminalNode* CypherParser::KU_NonReservedKeywordsContext::BY() {
+tree::TerminalNode* CypherParser::NEUG_NonReservedKeywordsContext::BY() {
   return getToken(CypherParser::BY, 0);
 }
 
-tree::TerminalNode* CypherParser::KU_NonReservedKeywordsContext::CALL() {
+tree::TerminalNode* CypherParser::NEUG_NonReservedKeywordsContext::CALL() {
   return getToken(CypherParser::CALL, 0);
 }
 
-tree::TerminalNode* CypherParser::KU_NonReservedKeywordsContext::CHECKPOINT() {
+tree::TerminalNode* CypherParser::NEUG_NonReservedKeywordsContext::CHECKPOINT() {
   return getToken(CypherParser::CHECKPOINT, 0);
 }
 
-tree::TerminalNode* CypherParser::KU_NonReservedKeywordsContext::COMMIT() {
+tree::TerminalNode* CypherParser::NEUG_NonReservedKeywordsContext::COMMIT() {
   return getToken(CypherParser::COMMIT, 0);
 }
 
-tree::TerminalNode* CypherParser::KU_NonReservedKeywordsContext::CONTAINS() {
+tree::TerminalNode* CypherParser::NEUG_NonReservedKeywordsContext::CONTAINS() {
   return getToken(CypherParser::CONTAINS, 0);
 }
 
-tree::TerminalNode* CypherParser::KU_NonReservedKeywordsContext::COPY() {
+tree::TerminalNode* CypherParser::NEUG_NonReservedKeywordsContext::COPY() {
   return getToken(CypherParser::COPY, 0);
 }
 
-tree::TerminalNode* CypherParser::KU_NonReservedKeywordsContext::COUNT() {
+tree::TerminalNode* CypherParser::NEUG_NonReservedKeywordsContext::COUNT() {
   return getToken(CypherParser::COUNT, 0);
 }
 
-tree::TerminalNode* CypherParser::KU_NonReservedKeywordsContext::CYCLE() {
+tree::TerminalNode* CypherParser::NEUG_NonReservedKeywordsContext::CYCLE() {
   return getToken(CypherParser::CYCLE, 0);
 }
 
-tree::TerminalNode* CypherParser::KU_NonReservedKeywordsContext::DATABASE() {
+tree::TerminalNode* CypherParser::NEUG_NonReservedKeywordsContext::DATABASE() {
   return getToken(CypherParser::DATABASE, 0);
 }
 
-tree::TerminalNode* CypherParser::KU_NonReservedKeywordsContext::DECIMAL() {
+tree::TerminalNode* CypherParser::NEUG_NonReservedKeywordsContext::DECIMAL() {
   return getToken(CypherParser::DECIMAL, 0);
 }
 
-tree::TerminalNode* CypherParser::KU_NonReservedKeywordsContext::DELETE() {
+tree::TerminalNode* CypherParser::NEUG_NonReservedKeywordsContext::DELETE() {
   return getToken(CypherParser::DELETE, 0);
 }
 
-tree::TerminalNode* CypherParser::KU_NonReservedKeywordsContext::DETACH() {
+tree::TerminalNode* CypherParser::NEUG_NonReservedKeywordsContext::DETACH() {
   return getToken(CypherParser::DETACH, 0);
 }
 
-tree::TerminalNode* CypherParser::KU_NonReservedKeywordsContext::DROP() {
+tree::TerminalNode* CypherParser::NEUG_NonReservedKeywordsContext::DROP() {
   return getToken(CypherParser::DROP, 0);
 }
 
-tree::TerminalNode* CypherParser::KU_NonReservedKeywordsContext::EXPLAIN() {
+tree::TerminalNode* CypherParser::NEUG_NonReservedKeywordsContext::EXPLAIN() {
   return getToken(CypherParser::EXPLAIN, 0);
 }
 
-tree::TerminalNode* CypherParser::KU_NonReservedKeywordsContext::EXPORT() {
+tree::TerminalNode* CypherParser::NEUG_NonReservedKeywordsContext::EXPORT() {
   return getToken(CypherParser::EXPORT, 0);
 }
 
-tree::TerminalNode* CypherParser::KU_NonReservedKeywordsContext::EXTENSION() {
+tree::TerminalNode* CypherParser::NEUG_NonReservedKeywordsContext::EXTENSION() {
   return getToken(CypherParser::EXTENSION, 0);
 }
 
-tree::TerminalNode* CypherParser::KU_NonReservedKeywordsContext::GRAPH() {
+tree::TerminalNode* CypherParser::NEUG_NonReservedKeywordsContext::GRAPH() {
   return getToken(CypherParser::GRAPH, 0);
 }
 
-tree::TerminalNode* CypherParser::KU_NonReservedKeywordsContext::IF() {
+tree::TerminalNode* CypherParser::NEUG_NonReservedKeywordsContext::IF() {
   return getToken(CypherParser::IF, 0);
 }
 
-tree::TerminalNode* CypherParser::KU_NonReservedKeywordsContext::IS() {
+tree::TerminalNode* CypherParser::NEUG_NonReservedKeywordsContext::IS() {
   return getToken(CypherParser::IS, 0);
 }
 
-tree::TerminalNode* CypherParser::KU_NonReservedKeywordsContext::IMPORT() {
+tree::TerminalNode* CypherParser::NEUG_NonReservedKeywordsContext::IMPORT() {
   return getToken(CypherParser::IMPORT, 0);
 }
 
-tree::TerminalNode* CypherParser::KU_NonReservedKeywordsContext::INCREMENT() {
+tree::TerminalNode* CypherParser::NEUG_NonReservedKeywordsContext::INCREMENT() {
   return getToken(CypherParser::INCREMENT, 0);
 }
 
-tree::TerminalNode* CypherParser::KU_NonReservedKeywordsContext::KEY() {
+tree::TerminalNode* CypherParser::NEUG_NonReservedKeywordsContext::KEY() {
   return getToken(CypherParser::KEY, 0);
 }
 
-tree::TerminalNode* CypherParser::KU_NonReservedKeywordsContext::LOAD() {
+tree::TerminalNode* CypherParser::NEUG_NonReservedKeywordsContext::LOAD() {
   return getToken(CypherParser::LOAD, 0);
 }
 
-tree::TerminalNode* CypherParser::KU_NonReservedKeywordsContext::LOGICAL() {
+tree::TerminalNode* CypherParser::NEUG_NonReservedKeywordsContext::LOGICAL() {
   return getToken(CypherParser::LOGICAL, 0);
 }
 
-tree::TerminalNode* CypherParser::KU_NonReservedKeywordsContext::MATCH() {
+tree::TerminalNode* CypherParser::NEUG_NonReservedKeywordsContext::MATCH() {
   return getToken(CypherParser::MATCH, 0);
 }
 
-tree::TerminalNode* CypherParser::KU_NonReservedKeywordsContext::MAXVALUE() {
+tree::TerminalNode* CypherParser::NEUG_NonReservedKeywordsContext::MAXVALUE() {
   return getToken(CypherParser::MAXVALUE, 0);
 }
 
-tree::TerminalNode* CypherParser::KU_NonReservedKeywordsContext::MERGE() {
+tree::TerminalNode* CypherParser::NEUG_NonReservedKeywordsContext::MERGE() {
   return getToken(CypherParser::MERGE, 0);
 }
 
-tree::TerminalNode* CypherParser::KU_NonReservedKeywordsContext::MINVALUE() {
+tree::TerminalNode* CypherParser::NEUG_NonReservedKeywordsContext::MINVALUE() {
   return getToken(CypherParser::MINVALUE, 0);
 }
 
-tree::TerminalNode* CypherParser::KU_NonReservedKeywordsContext::NO() {
+tree::TerminalNode* CypherParser::NEUG_NonReservedKeywordsContext::NO() {
   return getToken(CypherParser::NO, 0);
 }
 
-tree::TerminalNode* CypherParser::KU_NonReservedKeywordsContext::NODE() {
+tree::TerminalNode* CypherParser::NEUG_NonReservedKeywordsContext::NODE() {
   return getToken(CypherParser::NODE, 0);
 }
 
-tree::TerminalNode* CypherParser::KU_NonReservedKeywordsContext::PROJECT() {
+tree::TerminalNode* CypherParser::NEUG_NonReservedKeywordsContext::PROJECT() {
   return getToken(CypherParser::PROJECT, 0);
 }
 
-tree::TerminalNode* CypherParser::KU_NonReservedKeywordsContext::READ() {
+tree::TerminalNode* CypherParser::NEUG_NonReservedKeywordsContext::READ() {
   return getToken(CypherParser::READ, 0);
 }
 
-tree::TerminalNode* CypherParser::KU_NonReservedKeywordsContext::REL() {
+tree::TerminalNode* CypherParser::NEUG_NonReservedKeywordsContext::REL() {
   return getToken(CypherParser::REL, 0);
 }
 
-tree::TerminalNode* CypherParser::KU_NonReservedKeywordsContext::RENAME() {
+tree::TerminalNode* CypherParser::NEUG_NonReservedKeywordsContext::RENAME() {
   return getToken(CypherParser::RENAME, 0);
 }
 
-tree::TerminalNode* CypherParser::KU_NonReservedKeywordsContext::RETURN() {
+tree::TerminalNode* CypherParser::NEUG_NonReservedKeywordsContext::RETURN() {
   return getToken(CypherParser::RETURN, 0);
 }
 
-tree::TerminalNode* CypherParser::KU_NonReservedKeywordsContext::ROLLBACK() {
+tree::TerminalNode* CypherParser::NEUG_NonReservedKeywordsContext::ROLLBACK() {
   return getToken(CypherParser::ROLLBACK, 0);
 }
 
-tree::TerminalNode* CypherParser::KU_NonReservedKeywordsContext::SEQUENCE() {
+tree::TerminalNode* CypherParser::NEUG_NonReservedKeywordsContext::SEQUENCE() {
   return getToken(CypherParser::SEQUENCE, 0);
 }
 
-tree::TerminalNode* CypherParser::KU_NonReservedKeywordsContext::SET() {
+tree::TerminalNode* CypherParser::NEUG_NonReservedKeywordsContext::SET() {
   return getToken(CypherParser::SET, 0);
 }
 
-tree::TerminalNode* CypherParser::KU_NonReservedKeywordsContext::START() {
+tree::TerminalNode* CypherParser::NEUG_NonReservedKeywordsContext::START() {
   return getToken(CypherParser::START, 0);
 }
 
-tree::TerminalNode* CypherParser::KU_NonReservedKeywordsContext::L_SKIP() {
+tree::TerminalNode* CypherParser::NEUG_NonReservedKeywordsContext::L_SKIP() {
   return getToken(CypherParser::L_SKIP, 0);
 }
 
-tree::TerminalNode* CypherParser::KU_NonReservedKeywordsContext::LIMIT() {
+tree::TerminalNode* CypherParser::NEUG_NonReservedKeywordsContext::LIMIT() {
   return getToken(CypherParser::LIMIT, 0);
 }
 
-tree::TerminalNode* CypherParser::KU_NonReservedKeywordsContext::TRANSACTION() {
+tree::TerminalNode* CypherParser::NEUG_NonReservedKeywordsContext::TRANSACTION() {
   return getToken(CypherParser::TRANSACTION, 0);
 }
 
-tree::TerminalNode* CypherParser::KU_NonReservedKeywordsContext::TYPE() {
+tree::TerminalNode* CypherParser::NEUG_NonReservedKeywordsContext::TYPE() {
   return getToken(CypherParser::TYPE, 0);
 }
 
-tree::TerminalNode* CypherParser::KU_NonReservedKeywordsContext::USE() {
+tree::TerminalNode* CypherParser::NEUG_NonReservedKeywordsContext::USE() {
   return getToken(CypherParser::USE, 0);
 }
 
-tree::TerminalNode* CypherParser::KU_NonReservedKeywordsContext::WRITE() {
+tree::TerminalNode* CypherParser::NEUG_NonReservedKeywordsContext::WRITE() {
   return getToken(CypherParser::WRITE, 0);
 }
 
-tree::TerminalNode* CypherParser::KU_NonReservedKeywordsContext::FROM() {
+tree::TerminalNode* CypherParser::NEUG_NonReservedKeywordsContext::FROM() {
   return getToken(CypherParser::FROM, 0);
 }
 
-tree::TerminalNode* CypherParser::KU_NonReservedKeywordsContext::TO() {
+tree::TerminalNode* CypherParser::NEUG_NonReservedKeywordsContext::TO() {
   return getToken(CypherParser::TO, 0);
 }
 
-tree::TerminalNode* CypherParser::KU_NonReservedKeywordsContext::YIELD() {
+tree::TerminalNode* CypherParser::NEUG_NonReservedKeywordsContext::YIELD() {
   return getToken(CypherParser::YIELD, 0);
 }
 
 
-size_t CypherParser::KU_NonReservedKeywordsContext::getRuleIndex() const {
-  return CypherParser::RuleKU_NonReservedKeywords;
+size_t CypherParser::NEUG_NonReservedKeywordsContext::getRuleIndex() const {
+  return CypherParser::RuleNEUG_NonReservedKeywords;
 }
 
 
-CypherParser::KU_NonReservedKeywordsContext* CypherParser::kU_NonReservedKeywords() {
-  KU_NonReservedKeywordsContext *_localctx = _tracker.createInstance<KU_NonReservedKeywordsContext>(_ctx, getState());
-  enterRule(_localctx, 338, CypherParser::RuleKU_NonReservedKeywords);
+CypherParser::NEUG_NonReservedKeywordsContext* CypherParser::nEUG_NonReservedKeywords() {
+  NEUG_NonReservedKeywordsContext *_localctx = _tracker.createInstance<NEUG_NonReservedKeywordsContext>(_ctx, getState());
+  enterRule(_localctx, 338, CypherParser::RuleNEUG_NonReservedKeywords);
   size_t _la = 0;
 
 #if __cplusplus > 201703L
@@ -18825,8 +18826,8 @@ CypherParser::OC_DashContext* CypherParser::oC_Dash() {
 
 bool CypherParser::sempred(RuleContext *context, size_t ruleIndex, size_t predicateIndex) {
   switch (ruleIndex) {
-    case 48: return kU_DataTypeSempred(antlrcpp::downCast<KU_DataTypeContext *>(context), predicateIndex);
-    case 77: return kU_JoinNodeSempred(antlrcpp::downCast<KU_JoinNodeContext *>(context), predicateIndex);
+    case 48: return nEUG_DataTypeSempred(antlrcpp::downCast<NEUG_DataTypeContext *>(context), predicateIndex);
+    case 77: return nEUG_JoinNodeSempred(antlrcpp::downCast<NEUG_JoinNodeContext *>(context), predicateIndex);
 
   default:
     break;
@@ -18834,7 +18835,7 @@ bool CypherParser::sempred(RuleContext *context, size_t ruleIndex, size_t predic
   return true;
 }
 
-bool CypherParser::kU_DataTypeSempred(KU_DataTypeContext *_localctx, size_t predicateIndex) {
+bool CypherParser::nEUG_DataTypeSempred(NEUG_DataTypeContext *_localctx, size_t predicateIndex) {
   switch (predicateIndex) {
     case 0: return precpred(_ctx, 5);
 
@@ -18844,7 +18845,7 @@ bool CypherParser::kU_DataTypeSempred(KU_DataTypeContext *_localctx, size_t pred
   return true;
 }
 
-bool CypherParser::kU_JoinNodeSempred(KU_JoinNodeContext *_localctx, size_t predicateIndex) {
+bool CypherParser::nEUG_JoinNodeSempred(NEUG_JoinNodeContext *_localctx, size_t predicateIndex) {
   switch (predicateIndex) {
     case 1: return precpred(_ctx, 4);
     case 2: return precpred(_ctx, 3);

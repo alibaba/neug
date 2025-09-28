@@ -43,7 +43,7 @@ UnionAliasMapOptimizer::visitUnionReplace(
   } else {
     schema = unionOp.getChild(0)->getSchema();
   }
-  KU_ASSERT(schema);
+  NEUG_ASSERT(schema);
   binder::expression_vector schemaExprs = schema->getExpressionsInScope();
   for (auto i = subqueryOffset; i < unionOp.getNumChildren(); i++) {
     auto subquery = unionOp.getChild(i);

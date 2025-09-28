@@ -85,7 +85,7 @@ class NEUG_API Expression : public std::enable_shared_from_this<Expression> {
 
   void setUniqueName(const std::string& name) { uniqueName = name; }
   std::string getUniqueName() const {
-    KU_ASSERT(!uniqueName.empty());
+    NEUG_ASSERT(!uniqueName.empty());
     return uniqueName;
   }
 
@@ -98,12 +98,12 @@ class NEUG_API Expression : public std::enable_shared_from_this<Expression> {
 
   common::idx_t getNumChildren() const { return children.size(); }
   std::shared_ptr<Expression> getChild(common::idx_t idx) const {
-    KU_ASSERT(idx < children.size());
+    NEUG_ASSERT(idx < children.size());
     return children[idx];
   }
   expression_vector getChildren() const { return children; }
   void setChild(common::idx_t idx, std::shared_ptr<Expression> child) {
-    KU_ASSERT(idx < children.size());
+    NEUG_ASSERT(idx < children.size());
     children[idx] = std::move(child);
   }
 
@@ -123,19 +123,19 @@ class NEUG_API Expression : public std::enable_shared_from_this<Expression> {
 
   template <class TARGET>
   TARGET& cast() {
-    return common::ku_dynamic_cast<TARGET&>(*this);
+    return common::neug_dynamic_cast<TARGET&>(*this);
   }
   template <class TARGET>
   TARGET* ptrCast() {
-    return common::ku_dynamic_cast<TARGET*>(this);
+    return common::neug_dynamic_cast<TARGET*>(this);
   }
   template <class TARGET>
   const TARGET& constCast() const {
-    return common::ku_dynamic_cast<const TARGET&>(*this);
+    return common::neug_dynamic_cast<const TARGET&>(*this);
   }
   template <class TARGET>
   const TARGET* constPtrCast() const {
-    return common::ku_dynamic_cast<const TARGET*>(this);
+    return common::neug_dynamic_cast<const TARGET*>(this);
   }
 
  protected:

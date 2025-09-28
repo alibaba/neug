@@ -94,7 +94,7 @@ static uint64_t getArrowMainBufferSize(const LogicalType& type,
   case LogicalTypeID::REL:
     return 0;
   default:
-    KU_UNREACHABLE;
+    NEUG_UNREACHABLE;
   }
 }
 
@@ -407,7 +407,7 @@ void ArrowRowBatch::templateCopyNonNullValue<LogicalTypeID::UNION>(
                          value->children[0].get());
     }
   }
-  KU_UNREACHABLE;
+  NEUG_UNREACHABLE;
 }
 
 template <>
@@ -563,7 +563,7 @@ void ArrowRowBatch::copyNonNullValue(ArrowVector* vector,
     templateCopyNonNullValue<LogicalTypeID::REL>(vector, type, value, pos);
   } break;
   default: {
-    KU_UNREACHABLE;
+    NEUG_UNREACHABLE;
   }
   }
 }
@@ -723,7 +723,7 @@ void ArrowRowBatch::copyNullValue(ArrowVector* vector, Value* value,
     templateCopyNullValue<LogicalTypeID::REL>(vector, pos);
   } break;
   default: {
-    KU_UNREACHABLE;
+    NEUG_UNREACHABLE;
   }
   }
 }
@@ -982,7 +982,7 @@ ArrowArray* ArrowRowBatch::convertVectorToArray(ArrowVector& vector,
     return templateCreateArray<LogicalTypeID::REL>(vector, type);
   }
   default: {
-    KU_UNREACHABLE;
+    NEUG_UNREACHABLE;
   }
   }
 }

@@ -71,8 +71,8 @@ struct ListSlice {
     }
   }
 
-  static void operation(common::ku_string_t& str, int64_t& begin, int64_t& end,
-                        common::ku_string_t& result,
+  static void operation(common::neug_string_t& str, int64_t& begin,
+                        int64_t& end, common::neug_string_t& result,
                         common::ValueVector& /*listValueVector*/,
                         common::ValueVector& resultValueVector) {
     auto startIdx = begin;
@@ -85,7 +85,7 @@ struct ListSlice {
 
 static std::unique_ptr<FunctionBindData> bindFunc(
     const ScalarBindFuncInput& input) {
-  KU_ASSERT(input.arguments.size() == 3);
+  NEUG_ASSERT(input.arguments.size() == 3);
   std::vector<LogicalType> paramTypes;
   paramTypes.push_back(input.arguments[0]->getDataType().copy());
   paramTypes.push_back(LogicalType(input.definition->parameterTypeIDs[1]));
@@ -112,7 +112,7 @@ function_set ListSliceFunction::getFunctionSet() {
                                  LogicalTypeID::INT64},
       LogicalTypeID::STRING,
       ScalarFunction::TernaryExecListStructFunction<
-          ku_string_t, int64_t, int64_t, ku_string_t, ListSlice>);
+          neug_string_t, int64_t, int64_t, neug_string_t, ListSlice>);
   func->bindFunc = bindFunc;
   result.push_back(std::move(func));
   return result;
