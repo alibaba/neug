@@ -191,3 +191,121 @@ def test_add_multiple_edge_properties2():
     assert list(res2) == [[0.5, "0-00-00", 0], [0.8, "0-00-00", 0]]
     conn2.close()
     db2.close()
+
+
+def test_drop_vertex_table():
+    db_dir = "/tmp/test_drop_vertex_table"
+    shutil.rmtree(db_dir, ignore_errors=True)
+
+    db = Database(db_dir, "w")
+    conn = db.connect()
+    # First create the graph schema
+    with pytest.raises(Exception):
+        conn.execute("DROP TABLE IF EXISTS TestNode")
+    conn.execute(
+        """
+            CREATE NODE TABLE IF NOT EXISTS TestNode(
+                id INT64 PRIMARY KEY,
+                thread_id INT64,
+                iteration INT64,
+                timestamp INT64,
+                random_value INT64
+            )
+        """
+    )
+    conn.close()
+    db.close()
+
+    db2 = Database(db_dir, "w")
+    conn2 = db2.connect()
+    conn2.execute("DROP TABLE IF EXISTS TestNode")
+    conn2.execute(
+        """
+            CREATE NODE TABLE IF NOT EXISTS TestNode(
+                id INT64 PRIMARY KEY,
+                thread_id INT64,
+                iteration INT64,
+                timestamp INT64,
+                random_value INT64
+            )
+        """
+    )
+    conn2.close()
+    db2.close()
+
+
+def test_drop_edge_table():
+    db_dir = "/tmp/test_drop_edge_table"
+    shutil.rmtree(db_dir, ignore_errors=True)
+    db = Database(db_dir, "w")
+    conn = db.connect()
+    # First create the graph schema
+    with pytest.raises(Exception):
+        conn.execute("DROP TABLE IF EXISTS TestEdge")
+    with pytest.raises(Exception):
+        conn.execute("DROP TABLE IF EXISTS TestEdge2")
+    conn.execute(
+        """
+            CREATE NODE TABLE IF NOT EXISTS TestNode(
+                id INT64 PRIMARY KEY,
+                thread_id INT64
+            )
+        """
+    )
+    conn.execute(
+        """
+                 CREATE NODE TABLE IF NOT EXISTS TestNode2(
+                     id INT64 PRIMARY KEY,
+                     thread_id INT64
+                 )
+             """
+    )
+    conn.execute(
+        """
+            CREATE REL TABLE IF NOT EXISTS TestEdge(
+                FROM TestNode TO TestNode,
+                iteration INT64,
+                timestamp INT64,
+                random_value INT64
+            )
+        """
+    )
+    conn.execute(
+        """
+            CREATE REL TABLE IF NOT EXISTS TestEdge2(
+                FROM TestNode TO TestNode2,
+                iteration INT64,
+                timestamp INT64,
+                random_value INT64
+            )
+        """
+    )
+    conn.close()
+    db.close()
+
+    db2 = Database(db_dir, "w")
+    conn2 = db2.connect()
+    conn2.execute("DROP TABLE IF EXISTS TestEdge")
+    conn2.execute(
+        """
+            CREATE REL TABLE IF NOT EXISTS TestEdge(
+                FROM TestNode TO TestNode,
+                iteration INT64,
+                timestamp INT64,
+                random_value INT64
+            )
+        """
+    )
+    conn2.execute("DROP TABLE IF EXISTS TestEdge2")
+    conn2.execute(
+        """
+            CREATE REL TABLE IF NOT EXISTS TestEdge2(
+                FROM TestNode TO TestNode2,
+                iteration INT64,
+                timestamp INT64,
+                random_value INT64
+            )
+        """
+    )
+    conn2.close()
+    db2.close()

@@ -73,6 +73,10 @@ void Schema::add_vertex_label(
     const std::vector<StorageStrategy>& strategies, size_t max_vnum,
     const std::string& description) {
   label_t v_label_id = vertex_label_to_index(label);
+  if (vlabel_tomb_.get(v_label_id)) {  // Add back a deleted label
+    vlabel_tomb_.reset(v_label_id);
+  }
+
   vproperties_[v_label_id] = property_types;
   vprop_names_[v_label_id] = property_names;
   vprop_storage_[v_label_id] = strategies;
