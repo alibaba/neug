@@ -688,25 +688,6 @@ void UpdateTransaction::set_edge_data_with_offset(
   arc_ << edge_label;
   arc_ << col_id;  // column id
   serialize_field(arc_, value);
-
-  // Modify the edge data in place, since in this transaction the updated edge
-  // data should be visible right now.
-  std::shared_ptr<CsrEdgeIterBase> iter;
-  if (dir) {
-    iter = graph_.get_outgoing_edges_mut(label, v, neighbor_label, edge_label);
-  } else {
-    iter = graph_.get_incoming_edges_mut(label, v, neighbor_label, edge_label);
-  }
-  if (!iter) {
-    THROW_RUNTIME_ERROR("Failed to get edge iterator for updating edge data");
-  }
-  if (offset != std::numeric_limits<size_t>::max()) {
-    auto& edge_iter = *iter;
-    edge_iter += offset;
-    if (edge_iter.is_valid() && edge_iter.get_neighbor() == nbr) {
-      edge_iter.set_data(value, timestamp_, col_id);
-    }
-  }
 }
 
 bool UpdateTransaction::GetUpdatedEdgeData(bool dir, label_t label, vid_t v,
@@ -1058,6 +1039,33 @@ void UpdateTransaction::applyEdgesUpdates() {
         size_t oe_csr_index =
             get_out_csr_index(src_label, dst_label, edge_label);
 
+        for (auto& pair : updated_edge_data_[oe_csr_index]) {
+          auto& updates = pair.second;
+          if (updates.empty()) {
+            continue;
+          }
+
+          std::shared_ptr<CsrEdgeIterBase> edge_iter =
+              graph_.get_outgoing_edges_mut(src_label, pair.first, dst_label,
+                                            edge_label);
+          for (auto& edge : updates) {
+            if (std::get<2>(edge.second) !=
+                std::numeric_limits<size_t>::max()) {
+              auto& iter = *edge_iter;
+              iter += std::get<2>(edge.second);
+              if (iter.is_valid() && iter.get_neighbor() == edge.first) {
+                iter.set_data(std::get<0>(edge.second), timestamp_);
+              } else if (iter.is_valid() && iter.get_neighbor() != edge.first) {
+                LOG(FATAL) << "Inconsistent neighbor id:" << iter.get_neighbor()
+                           << " " << edge.first << "\n";
+              } else {
+                LOG(FATAL) << "Illegal offset: " << edge.first << " "
+                           << std::get<2>(edge.second) << "\n";
+              }
+            }
+          }
+        }
+
         for (auto& pair : added_edges_[oe_csr_index]) {
           vid_t v = pair.first;
           auto& add_list = pair.second;
@@ -1077,6 +1085,40 @@ void UpdateTransaction::applyEdgesUpdates() {
             grape::OutArchive oarc(std::move(iarc));
             graph_.IngestEdge(src_label, v, dst_label, u, edge_label,
                               timestamp_, oarc, alloc_);
+          }
+        }
+      }
+    }
+  }
+
+  for (label_t src_label = 0; src_label < vertex_label_num_; ++src_label) {
+    for (label_t dst_label = 0; dst_label < vertex_label_num_; ++dst_label) {
+      for (label_t edge_label = 0; edge_label < edge_label_num_; ++edge_label) {
+        size_t ie_csr_index =
+            get_in_csr_index(src_label, dst_label, edge_label);
+        for (auto& pair : updated_edge_data_[ie_csr_index]) {
+          auto& updates = pair.second;
+          if (updates.empty()) {
+            continue;
+          }
+          std::shared_ptr<CsrEdgeIterBase> edge_iter =
+              graph_.get_incoming_edges_mut(dst_label, pair.first, src_label,
+                                            edge_label);
+          for (auto& edge : updates) {
+            if (std::get<2>(edge.second) !=
+                std::numeric_limits<size_t>::max()) {
+              auto& iter = *edge_iter;
+              iter += std::get<2>(edge.second);
+              if (iter.is_valid() && iter.get_neighbor() == edge.first) {
+                iter.set_data(std::get<0>(edge.second), timestamp_);
+              } else if (iter.is_valid() && iter.get_neighbor() != edge.first) {
+                LOG(FATAL) << "Inconsistent neighbor id:" << iter.get_neighbor()
+                           << " " << edge.first << "\n";
+              } else {
+                LOG(FATAL) << "Illegal offset: " << edge.first << " "
+                           << std::get<2>(edge.second) << "\n";
+              }
+            }
           }
         }
       }
