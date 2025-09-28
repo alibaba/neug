@@ -234,8 +234,9 @@ void Planner::planBaseTableScans(const QueryGraphPlanningInfo& info) {
       auto queryNode = queryGraph->getQueryNode(nodePos);
       if (info.containsCorrExpr(*queryNode->getInternalID())) {
         planCorrelatedExpressionsScan(info);
+      } else {
+        planNodeScan(nodePos);
       }
-      planNodeScan(nodePos);
     }
   } break;
   case SubqueryPlanningType::CORRELATED: {

@@ -47,6 +47,7 @@
 #include "neug/compiler/planner/operator/logical_projection.h"
 #include "neug/compiler/planner/operator/logical_table_function_call.h"
 #include "neug/compiler/planner/operator/logical_union.h"
+#include "neug/compiler/planner/operator/logical_unwind.h"
 #include "neug/compiler/planner/operator/persistent/logical_copy_from.h"
 #include "neug/compiler/planner/operator/persistent/logical_copy_to.h"
 #include "neug/compiler/planner/operator/persistent/logical_delete.h"
@@ -158,6 +159,9 @@ class GQueryConvertor {
 
   void convertDistinct(const planner::LogicalDistinct& distinct,
                        ::physical::QueryPlan* plan);
+
+  void convertUnwind(const planner::LogicalUnwind& unwind,
+                     ::physical::QueryPlan* plan);
 
   // help functions
   ::physical::Join::JoinKind convertJoinKind(common::JoinType joinType);

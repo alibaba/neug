@@ -93,7 +93,7 @@ class GExprConverter {
   std::unique_ptr<::common::Expression> convertTemporalFunc(
       const binder::Expression& expr);
 
-  std::unique_ptr<::common::Expression> convertExtensionScalarFunction(
+  std::unique_ptr<::common::Expression> convertExtensionFunc(
       const binder::ScalarFunctionExpression& expr,
       const std::vector<std::string>& schemaAlias);
 
@@ -148,6 +148,9 @@ class GExprConverter {
       const std::vector<std::string>& schemaAlias);
   std::string convertRegexValue(const std::string& regex,
                                 const GScalarType& scalarType);
+  std::unique_ptr<::common::Expression> convertListContainsFunc(
+      const binder::Expression& expr, const GScalarType& scalarType,
+      const std::vector<std::string>& schemaAlias);
 
  private:
   const std::shared_ptr<gopt::GAliasManager> aliasManager;

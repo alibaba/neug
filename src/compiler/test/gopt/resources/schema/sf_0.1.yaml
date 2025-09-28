@@ -363,6 +363,10 @@ schema:
           property_type:
             temporal:
               datetime:
+        - property_id: 1
+          property_name: score
+          property_type:
+            primitive_type: DT_DOUBLE
     - type_id: 9
       type_name: LIKES
       vertex_type_pair_relations:

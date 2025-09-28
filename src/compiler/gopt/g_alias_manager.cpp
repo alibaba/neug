@@ -20,6 +20,7 @@
 #include <unordered_map>
 #include <unordered_set>
 #include "neug/compiler/common/types/types.h"
+#include "neug/compiler/gopt/g_alias_name.h"
 #include "neug/compiler/planner/operator/extend/logical_extend.h"
 #include "neug/compiler/planner/operator/extend/logical_recursive_extend.h"
 #include "neug/compiler/planner/operator/logical_aggregate.h"
@@ -28,6 +29,7 @@
 #include "neug/compiler/planner/operator/logical_plan.h"
 #include "neug/compiler/planner/operator/logical_projection.h"
 #include "neug/compiler/planner/operator/logical_union.h"
+#include "neug/compiler/planner/operator/logical_unwind.h"
 #include "neug/compiler/planner/operator/persistent/logical_insert.h"
 #include "neug/compiler/planner/operator/scan/logical_scan_node_table.h"
 #include "neug/utils/exception/exception.h"
@@ -71,6 +73,19 @@ void GAliasManager::extractGAliasNames(
     aliasNames.emplace_back(getVOp.getGAliasName());
     if (getVOp.getNumChildren() > 0) {
       extractGAliasNames(*getVOp.getChild(0), aliasNames);
+    }
+    break;
+  }
+  case planner::LogicalOperatorType::UNWIND: {
+    auto& unwind = op.constCast<planner::LogicalUnwind>();
+    auto outExpr = unwind.getOutExpr();
+    auto queryName = outExpr->hasAlias()
+                         ? std::make_optional(outExpr->getAlias())
+                         : std::nullopt;
+    GAliasName aliasName(outExpr->getUniqueName(), queryName);
+    aliasNames.emplace_back(aliasName);
+    if (unwind.getNumChildren() > 0) {
+      extractGAliasNames(*unwind.getChild(0), aliasNames);
     }
     break;
   }

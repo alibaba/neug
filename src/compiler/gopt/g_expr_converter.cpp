@@ -26,6 +26,7 @@
 #include "neug/compiler/binder/expression/rel_expression.h"
 #include "neug/compiler/binder/expression/scalar_function_expression.h"
 #include "neug/compiler/binder/expression/variable_expression.h"
+#include "neug/compiler/catalog/function_signature_registry.h"
 #include "neug/compiler/common/enums/expression_type.h"
 #include "neug/compiler/common/string_utils.h"
 #include "neug/compiler/common/types/int128_t.h"
@@ -36,7 +37,6 @@
 #include "neug/compiler/gopt/g_alias_manager.h"
 #include "neug/compiler/gopt/g_alias_name.h"
 #include "neug/compiler/gopt/g_scalar_type.h"
-#include "neug/compiler/catalog/function_signature_registry.h"
 #ifdef USE_SYSTEM_PROTOBUF
 #include "neug/generated/proto/plan/common.pb.h"
 #include "neug/generated/proto/plan/expr.pb.h"
@@ -286,6 +286,21 @@ std::string GExprConverter::convertRegexValue(const std::string& regex,
   }
 }
 
+std::unique_ptr<::common::Expression> GExprConverter::convertListContainsFunc(
+    const binder::Expression& expr, const GScalarType& scalarType,
+    const std::vector<std::string>& schemaAlias) {
+  if (expr.expressionType != common::ExpressionType::FUNCTION) {
+    THROW_EXCEPTION_WITH_FILE_LINE(
+        "List Contains function should be a function expression");
+  }
+  auto& scalarExpr = expr.constCast<binder::ScalarFunctionExpression>();
+  if (expr.getChildren().size() < 2) {
+    THROW_EXCEPTION_WITH_FILE_LINE(
+        "List Contains function should have at least two children");
+  }
+  return convertChildren(expr, schemaAlias);
+}
+
 std::unique_ptr<::common::Expression> GExprConverter::convertRegexFunc(
     const binder::Expression& expr, const GScalarType& scalarType,
     const std::vector<std::string>& schemaAlias) {
@@ -533,31 +548,30 @@ bool isLiteralOrVariable(const binder::Expression& expr) {
          expr.expressionType == common::ExpressionType::PROPERTY;
 }
 
-std::unique_ptr<::common::Expression> GExprConverter::convertExtensionScalarFunction(
+std::unique_ptr<::common::Expression> GExprConverter::convertExtensionFunc(
     const binder::ScalarFunctionExpression& expr,
     const std::vector<std::string>& schemaAlias) {
-      
-      // acquire unqiue name
-    const auto& func = expr.getFunction();
-    const auto signature = function::buildScalarSignature(func.name, func.parameterTypeIDs);
+  // acquire unqiue name
+  const auto& func = expr.getFunction();
+  const auto signature =
+      function::buildScalarSignature(func.name, func.parameterTypeIDs);
 
-    auto scalarPB = std::make_unique<::common::ScalarFunction>();
-    scalarPB->set_unique_name(signature);
+  auto scalarPB = std::make_unique<::common::ScalarFunction>();
+  scalarPB->set_unique_name(signature);
 
-    // convert arguments
-    for (auto child : expr.getChildren()) {
-      auto childExprPB = convert(*child, schemaAlias);
-      scalarPB->mutable_parameters()->AddAllocated(childExprPB.release());
-    }
+  // convert arguments
+  for (auto child : expr.getChildren()) {
+    auto childExprPB = convert(*child, schemaAlias);
+    scalarPB->mutable_parameters()->AddAllocated(childExprPB.release());
+  }
 
   auto exprPB = std::make_unique<::common::Expression>();
   auto opr = exprPB->add_operators();
   opr->set_allocated_scalar_func(scalarPB.release());
   opr->set_allocated_node_type(
-      typeConverter.convertLogicalType(expr.getDataType(),expr).release());
+      typeConverter.convertLogicalType(expr.getDataType(), expr).release());
   return exprPB;
 }
-
 
 std::unique_ptr<::common::Expression> GExprConverter::convertToTupleFunc(
     const binder::Expression& expr,
@@ -626,27 +640,18 @@ std::unique_ptr<::common::Expression> GExprConverter::convertScalarFunc(
     return convertPropertiesFunc(expr, schemaAlias);
   } else if (scalarType.getType() == TO_ARRAY) {
     return convertToTupleFunc(expr, schemaAlias);
-  } else if (scalarType.isString()) {
-    return convertExtensionScalarFunction(expr.constCast<binder::ScalarFunctionExpression>(), schemaAlias);
   } else if (scalarType.getType() == STARTS_WITH ||
              scalarType.getType() == ENDS_WITH ||
              scalarType.getType() == CONTAINS) {
     return convertRegexFunc(expr, scalarType, schemaAlias);
+  } else if (scalarType.getType() == LIST_CONTAINS) {
+    return convertListContainsFunc(expr, scalarType, schemaAlias);
   }
-  if (expr.expressionType == common::ExpressionType::FUNCTION) {
-    auto& sfExpr = expr.constCast<binder::ScalarFunctionExpression>();
-    const auto& fn = sfExpr.getFunction();
-    auto signature = function::buildScalarSignature(fn.name, fn.parameterTypeIDs);
-    try {
-      (void)function::FunctionSignatureRegistry::lookup(signature);
-      return convertExtensionScalarFunction(sfExpr, schemaAlias);
-    } catch (...) {
-      THROW_EXCEPTION_WITH_FILE_LINE("Unsupported expression type: " +
-                                 expr.toString());
-    }
-  }
-  THROW_EXCEPTION_WITH_FILE_LINE("Unsupported expression type: " +
-                                 expr.toString());
+  auto& sfExpr = expr.constCast<binder::ScalarFunctionExpression>();
+  const auto& fn = sfExpr.getFunction();
+  auto signature = function::buildScalarSignature(fn.name, fn.parameterTypeIDs);
+  (void) function::FunctionSignatureRegistry::lookup(signature);
+  return convertExtensionFunc(sfExpr, schemaAlias);
 }
 
 std::unique_ptr<::common::Property> GExprConverter::convertPropertyExpr(
@@ -768,6 +773,9 @@ std::unique_ptr<::common::ExprOpr> GExprConverter::convertOperator(
     case ScalarType::ENDS_WITH:
     case ScalarType::CONTAINS:
       result->set_logical(::common::Logical::REGEX);
+      break;
+    case ScalarType::LIST_CONTAINS:
+      result->set_logical(::common::Logical::WITHIN);
       break;
     default:
       THROW_EXCEPTION_WITH_FILE_LINE("Unsupported scalar function: " +

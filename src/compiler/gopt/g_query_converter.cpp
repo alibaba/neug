@@ -45,6 +45,7 @@
 #include "neug/compiler/planner/operator/logical_operator.h"
 #include "neug/compiler/planner/operator/logical_plan.h"
 #include "neug/compiler/planner/operator/logical_projection.h"
+#include "neug/compiler/planner/operator/logical_union.h"
 #include "neug/compiler/planner/operator/persistent/logical_copy_to.h"
 #include "neug/compiler/planner/operator/scan/logical_scan_node_table.h"
 #ifdef USE_SYSTEM_PROTOBUF
@@ -215,6 +216,11 @@ void GQueryConvertor::convertOperator(const planner::LogicalOperator& op,
   case planner::LogicalOperatorType::ALIAS_MAP: {
     auto aliasMap = op.constPtrCast<planner::LogicalAliasMap>();
     convertAliasMap(*aliasMap, plan);
+    break;
+  }
+  case planner::LogicalOperatorType::UNWIND: {
+    auto unwind = op.constPtrCast<planner::LogicalUnwind>();
+    convertUnwind(*unwind, plan);
     break;
   }
   case planner::LogicalOperatorType::PARTITIONER:
@@ -661,6 +667,38 @@ void GQueryConvertor::convertFilter(const planner::LogicalFilter& filter,
   physicalPB->set_allocated_opr(oprPB.release());
 
   // Append filter in query plan
+  plan->mutable_plan()->AddAllocated(physicalPB.release());
+}
+
+void GQueryConvertor::convertUnwind(const planner::LogicalUnwind& unwind,
+                                    ::physical::QueryPlan* plan) {
+  if (!unwind.getInExpr() || !unwind.getOutExpr()) {
+    THROW_EXCEPTION_WITH_FILE_LINE(
+        "unwind input and output expr should not be null");
+  }
+  auto inputAliasId =
+      aliasManager->getAliasId(unwind.getInExpr()->getUniqueName());
+  if (inputAliasId == DEFAULT_ALIAS_ID) {
+    THROW_EXCEPTION_WITH_FILE_LINE("invalid unwind input alias id");
+  }
+  auto unwindPB = std::make_unique<::physical::Unfold>();
+  auto inputAliasPB = std::make_unique<google::protobuf::Int32Value>();
+  inputAliasPB->set_value(inputAliasId);
+  unwindPB->set_allocated_tag(inputAliasPB.release());
+
+  int outAliasId =
+      aliasManager->getAliasId(unwind.getOutExpr()->getUniqueName());
+  if (outAliasId != DEFAULT_ALIAS_ID) {
+    auto outAliasPB = std::make_unique<google::protobuf::Int32Value>();
+    outAliasPB->set_value(outAliasId);
+    unwindPB->set_allocated_alias(outAliasPB.release());
+  }
+
+  auto physicalPB = std::make_unique<::physical::PhysicalOpr>();
+  auto oprPB = std::make_unique<::physical::PhysicalOpr_Operator>();
+  oprPB->set_allocated_unfold(unwindPB.release());
+  physicalPB->set_allocated_opr(oprPB.release());
+
   plan->mutable_plan()->AddAllocated(physicalPB.release());
 }
 

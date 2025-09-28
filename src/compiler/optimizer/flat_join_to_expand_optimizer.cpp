@@ -123,7 +123,6 @@ FlatJoinToExpandOptimizer::visitHashJoinReplace(
     return op;
   }
   if (joinOp->getJoinType() == common::JoinType::LEFT) {
-    std::cout << "set optional" << std::endl;
     setOptional(rightChild);
   }
   // set the left plan as the child of the right plan, to flat the join

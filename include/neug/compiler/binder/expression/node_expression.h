@@ -22,7 +22,8 @@
 
 #pragma once
 
-#include "node_rel_expression.h"
+#include "neug/compiler/binder/expression/node_rel_expression.h"
+#include "neug/compiler/binder/expression/property_expression.h"
 
 namespace gs {
 namespace binder {
@@ -43,6 +44,20 @@ class NEUG_API NodeExpression final : public NodeOrRelExpression {
   std::shared_ptr<Expression> getInternalID() const {
     KU_ASSERT(internalID != nullptr);
     return internalID->copy();
+  }
+
+  Expression* getInternalIDRef() const {
+    KU_ASSERT(internalID != nullptr);
+    return internalID.get();
+  }
+
+  void setNodeUniqueName(const std::string& uniqueName) {
+    this->uniqueName = uniqueName;
+    this->internalID->setUniqueName(uniqueName);
+    for (auto& expr : this->propertyExprs) {
+      auto propertyExpr = expr->ptrCast<binder::PropertyExpression>();
+      propertyExpr->setUniqueVarName(uniqueName);
+    }
   }
 
   // Get primary key property expression for a given table ID.

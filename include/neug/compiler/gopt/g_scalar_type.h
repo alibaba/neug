@@ -53,6 +53,7 @@ enum ScalarType {
   STARTS_WITH,
   ENDS_WITH,
   CONTAINS,
+  LIST_CONTAINS
 };
 
 class GScalarType {
@@ -70,11 +71,6 @@ class GScalarType {
   bool isTemporal() const {
     return type == ScalarType::TO_DATE || type == ScalarType::TO_DATETIME ||
            type == ScalarType::TO_INTERVAL;
-  }
-
-  bool isString() const {
-    return type == ScalarType::UPPER || type == ScalarType::LOWER ||
-           type == ScalarType::REVERSE;
   }
 
  private:
@@ -130,6 +126,8 @@ class GScalarType {
       return ScalarType::ENDS_WITH;
     } else if (func.name == function::ContainsFunction::name) {
       return ScalarType::CONTAINS;
+    } else if (func.name == function::ListContainsFunction::name) {
+      return ScalarType::LIST_CONTAINS;
     }
 
     // todo: support more scalar functions

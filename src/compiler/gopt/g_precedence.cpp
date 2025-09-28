@@ -104,6 +104,8 @@ bool GPrecedence::isLeftAssociative(const binder::Expression& expr) {
       return true;  // Left-associative for +, -, *, /, %
     case ScalarType::POWER:
       return false;  // Right-associative for power (exponentiation)
+    case ScalarType::LIST_CONTAINS:
+      return false;
     default:
       return true;  // Default to left-associative for other functions
     }

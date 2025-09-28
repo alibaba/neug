@@ -20,9 +20,13 @@
  * Zhou Xiaoli in 2025 to support Neug-specific features.
  */
 
+#include <memory>
 #include "neug/compiler/binder/binder.h"
 #include "neug/compiler/binder/expression/expression_util.h"
+#include "neug/compiler/binder/expression/node_expression.h"
+#include "neug/compiler/binder/expression/property_expression.h"
 #include "neug/compiler/binder/query/reading_clause/bound_unwind_clause.h"
+#include "neug/compiler/common/types/types.h"
 #include "neug/compiler/parser/query/reading_clause/unwind_clause.h"
 
 using namespace gs::parser;
@@ -36,6 +40,29 @@ namespace binder {
 static bool skipDataTypeValidation(const Expression& expr) {
   return expr.expressionType == ExpressionType::PARAMETER &&
          expr.getDataType().getLogicalTypeID() == LogicalTypeID::ANY;
+}
+
+std::shared_ptr<Expression> Binder::createAlias(const std::string& name,
+                                                const LogicalType& dataType) {
+  if (scope.contains(name)) {
+    THROW_BINDER_EXCEPTION("Variable " + name + " already exists.");
+  }
+  if (dataType.getLogicalTypeID() == LogicalTypeID::NODE) {
+    std::vector<catalog::TableCatalogEntry*> entries;
+    auto nodeExpr = std::make_shared<binder::NodeExpression>(
+        dataType.copy(), getUniqueExpressionName(name), name, entries);
+    nodeExpr->setAlias(name);
+    auto internalID = PropertyExpression::construct(
+        LogicalType::INTERNAL_ID(), InternalKeyword::ID, *nodeExpr);
+    nodeExpr->setInternalID(std::move(internalID));
+    addToScope(name, nodeExpr);
+    return nodeExpr;
+  }
+  auto expression =
+      expressionBinder.createVariableExpression(dataType.copy(), name);
+  expression->setAlias(name);
+  addToScope(name, expression);
+  return expression;
 }
 
 std::unique_ptr<BoundReadingClause> Binder::bindUnwindClause(
@@ -54,10 +81,10 @@ std::unique_ptr<BoundReadingClause> Binder::bindUnwindClause(
   }
   if (!skipDataTypeValidation(*boundExpression)) {
     ExpressionUtil::validateDataType(*boundExpression, LogicalTypeID::LIST);
-    alias = createVariable(aliasName,
-                           ListType::getChildType(boundExpression->dataType));
+    alias = createAlias(aliasName,
+                        ListType::getChildType(boundExpression->dataType));
   } else {
-    alias = createVariable(aliasName, LogicalType::ANY());
+    alias = createAlias(aliasName, LogicalType::ANY());
   }
   std::shared_ptr<Expression> idExpr = nullptr;
   if (scope.hasMemorizedTableIDs(boundExpression->getAlias())) {

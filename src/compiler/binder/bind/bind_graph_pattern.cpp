@@ -650,7 +650,14 @@ std::shared_ptr<NodeExpression> Binder::bindQueryNode(
       queryNode = std::static_pointer_cast<NodeExpression>(prevVariable);
       // E.g. MATCH (a:person) MATCH (a:organisation)
       // We bind to a single node with both labels
-      if (!nodePattern.getTableNames().empty()) {
+
+      if (queryNode->getEntries()
+              .empty()) {  // handle the special case of unwind node
+        std::string preUniqueName = queryNode->getUniqueName();
+        queryNode = createQueryNode(nodePattern);
+        queryNode->setNodeUniqueName(preUniqueName);
+        replaceExpressionInScope(parsedName, parsedName, queryNode);
+      } else if (!nodePattern.getTableNames().empty()) {
         auto otherNodeEntries =
             bindNodeTableEntries(nodePattern.getTableNames());
         queryNode->addEntries(otherNodeEntries);

@@ -411,6 +411,9 @@ class Binder {
 
   ExpressionBinder* getExpressionBinder() { return &expressionBinder; }
 
+  std::shared_ptr<Expression> createAlias(const std::string& name,
+                                          const common::LogicalType& dataType);
+
  private:
   common::idx_t lastExpressionId;
   BinderScope scope;
