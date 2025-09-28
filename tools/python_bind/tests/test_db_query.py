@@ -700,7 +700,6 @@ def test_set_node_property(tmp_path):
 
 
 # DB-003-11 DML-SET edge property
-@pytest.mark.skip(reason="https://github.com/GraphScope/neug/issues/943")
 def test_set_multi_edge_property(tmp_path):
     db_dir = tmp_path / "set_multi_edge_prop"
     shutil.rmtree(db_dir, ignore_errors=True)

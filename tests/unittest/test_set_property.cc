@@ -22,7 +22,6 @@
 #include "neug/storages/graph/schema.h"
 
 TEST(StorageDMLTest, SetVertexAndEdgeProperty) {
-  GTEST_SKIP() << "Skipping SetVertexAndEdgeProperty test";
   std::string data_path = "/tmp/test_set_property";
   // remove the directory if it exists
   if (std::filesystem::exists(data_path)) {
