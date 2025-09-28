@@ -40,7 +40,8 @@ gs::result<Context> AdminPipeline::Execute(
     TRY_HANDLE_ALL_WITH_EXCEPTION(
         gs::result<Context>,
         [&]() -> gs::result<Context> {
-          auto ret = operators_[i]->Eval(graph, params, std::move(ctx), timer);
+          auto ret =
+              operators_[i]->Eval(graph, params, std::move(ctx), cur_timer);
           if (!ret) {
             return ret;
           }
@@ -84,7 +85,8 @@ gs::result<Context> ReadPipeline::Execute(
     TRY_HANDLE_ALL_WITH_EXCEPTION(
         gs::result<Context>,
         [&]() -> gs::result<Context> {
-          auto ret = operators_[i]->Eval(graph, params, std::move(ctx), timer);
+          auto ret =
+              operators_[i]->Eval(graph, params, std::move(ctx), cur_timer);
           if (!ret) {
             return ret;
           }
@@ -129,7 +131,8 @@ gs::result<WriteContext> InsertPipeline::Execute(
     TRY_HANDLE_ALL_WITH_EXCEPTION(
         gs::result<Context>,
         [&]() -> gs::result<WriteContext> {
-          auto ret = operators_[i]->Eval(graph, params, std::move(ctx), timer);
+          auto ret =
+              operators_[i]->Eval(graph, params, std::move(ctx), cur_timer);
           if (!ret) {
             return ret;
           }
@@ -183,7 +186,8 @@ gs::result<Context> UpdatePipeline::Execute(
     TRY_HANDLE_ALL_WITH_EXCEPTION(
         gs::result<Context>,
         [&]() -> gs::result<Context> {
-          auto ret = operators_[i]->Eval(graph, params, std::move(ctx), timer);
+          auto ret =
+              operators_[i]->Eval(graph, params, std::move(ctx), cur_timer);
           if (!ret) {
             return ret;
           }
