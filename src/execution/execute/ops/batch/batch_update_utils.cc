@@ -68,9 +68,8 @@ void put_column_types_option(const std::vector<PropertyType>& column_types,
 bool check_csv_import_options(
     const std::unordered_map<std::string, std::string>& options) {
   std::unordered_set<std::string> valid_keys = {
-      CSV_DELIMITER_KEY, CSV_DELIM_KEY,         CSV_HEADER_KEY,
-      CSV_QUOTE_KEY,     CSV_DOUBLE_QUOTE_KEY,  CSV_ESCAPE_KEY,
-      CSV_SKIP_KEY,      CSV_IGNORE_ERRORS_KEY, CSV_PARALLEL_KEY};
+      CSV_DELIMITER_KEY,    CSV_DELIM_KEY,  CSV_HEADER_KEY, CSV_QUOTE_KEY,
+      CSV_DOUBLE_QUOTE_KEY, CSV_ESCAPE_KEY, CSV_SKIP_KEY,   CSV_PARALLEL_KEY};
   int32_t delim_count = 0;
   for (const auto& [key, value] : options) {
     if (valid_keys.find(key) == valid_keys.end()) {

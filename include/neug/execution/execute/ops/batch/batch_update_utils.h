@@ -64,7 +64,6 @@ static const std::string CSV_QUOTE_KEY = "QUOTE";
 static const std::string CSV_DOUBLE_QUOTE_KEY = "DOUBLE_QUOTE";
 static const std::string CSV_ESCAPE_KEY = "ESCAPE";
 static const std::string CSV_SKIP_KEY = "SKIP";
-static const std::string CSV_IGNORE_ERRORS_KEY = "IGNORE_ERRORS";
 static const std::string CSV_PARALLEL_KEY = "PARALLEL";
 static const std::string CSV_NULL_STRINGS_KEY = "NULL_STRINGS";
 static const std::string CSV_STREAM_READER = "STREAM_READER";

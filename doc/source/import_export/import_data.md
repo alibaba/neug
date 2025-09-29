@@ -129,7 +129,6 @@ The following configuration parameters are supported:
 |`ESCAPE`|Character within string quotes to escape QUOTE and other characters, e.g., a line break.|`\`|
 |`SKIP`|Number of rows to skip from the input file.|`0`|
 |`PARALLEL`|Read CSV files in parallel or not.|`true`|
-|`IGNORE_ERRORS`|Skips malformed rows in CSV files if set to true.|`false`|
 |`NULL_STRINGS`|The strings that should be treated as nulls in the CSV file.|`""`(empty string)|
 |`FROM`|Name of source vertex label, only used in edge importing|`-`|
 |`TO`|Name of destination vertex label, only used in edge importing|`-`|
