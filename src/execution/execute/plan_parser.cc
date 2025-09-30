@@ -22,8 +22,8 @@
 #include <string>
 
 #include "neug/execution/common/context.h"
-#include "neug/execution/execute/ops/admin/extension.h"
 #include "neug/execution/execute/ops/admin/checkpoint.h"
+#include "neug/execution/execute/ops/admin/extension.h"
 #include "neug/execution/execute/ops/batch/batch_delete_edge.h"
 #include "neug/execution/execute/ops/batch/batch_delete_vertex.h"
 #include "neug/execution/execute/ops/batch/batch_insert_edge.h"
@@ -40,6 +40,7 @@
 #include "neug/execution/execute/ops/retrieve/limit.h"
 #include "neug/execution/execute/ops/retrieve/order_by.h"
 #include "neug/execution/execute/ops/retrieve/path.h"
+#include "neug/execution/execute/ops/retrieve/procedure_call.h"
 #include "neug/execution/execute/ops/retrieve/project.h"
 #include "neug/execution/execute/ops/retrieve/scan.h"
 #include "neug/execution/execute/ops/retrieve/select.h"
@@ -113,6 +114,7 @@ void PlanParser::init() {
   register_read_operator_builder(std::make_unique<ops::SinkOprBuilder>());
   register_read_operator_builder(std::make_unique<ops::DataExportOprBuilder>());
 
+
   //////////////////////////////Write
   /// operators////////////////////////////////
   register_write_operator_builder(std::make_unique<ops::LoadOprBuilder>());
@@ -157,6 +159,9 @@ void PlanParser::init() {
       std::make_unique<ops::UpdateVertexOprBuilder>());
   register_update_operator_builder(
       std::make_unique<ops::UpdateEdgeOprBuilder>());
+  // TODO: Review which pipeline should procedureCall be put.
+  register_update_operator_builder(
+      std::make_unique<ops::ProcedureCallOprBuilder>());
 
   //////////////////////////////Admin Operators////////////////////////////////
   register_admin_operator_builder(
@@ -273,6 +278,9 @@ static std::string get_opr_name(
   }
   case physical::PhysicalOpr_Operator::OpKindCase::kDeleteEdge: {
     return "delete_edge";
+  }
+  case physical::PhysicalOpr_Operator::OpKindCase::kProcedureCall: {
+    return "procedure_call";
   }
   default:
     return "unknown";

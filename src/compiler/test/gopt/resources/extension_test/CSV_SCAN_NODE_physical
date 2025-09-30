@@ -1,0 +1,492 @@
+{
+ "plan_id": 0,
+ "query_plan": {
+  "mode": "READ_WRITE",
+  "plan": [
+   {
+    "opr": {
+     "source": {
+      "extension_name": "csv",
+      "file_path": "/workspaces/neug/src/compiler/test/gopt/resources/dml_test/person.csv",
+      "options": {
+       "HEADER": "True",
+       "DELIM": " | "
+      }
+     }
+    },
+    "meta_data": [
+     {
+      "type": {
+       "data_type": {
+        "primitive_type": "DT_SIGNED_INT64"
+       }
+      },
+      "alias": 0
+     },
+     {
+      "type": {
+       "data_type": {
+        "string": {
+         "var_char": {
+          "max_length": 65536
+         }
+        }
+       }
+      },
+      "alias": 1
+     },
+     {
+      "type": {
+       "data_type": {
+        "primitive_type": "DT_SIGNED_INT32"
+       }
+      },
+      "alias": 2
+     },
+     {
+      "type": {
+       "data_type": {
+        "primitive_type": "DT_BOOL"
+       }
+      },
+      "alias": 3
+     },
+     {
+      "type": {
+       "data_type": {
+        "primitive_type": "DT_BOOL"
+       }
+      },
+      "alias": 4
+     },
+     {
+      "type": {
+       "data_type": {
+        "primitive_type": "DT_SIGNED_INT64"
+       }
+      },
+      "alias": 5
+     },
+     {
+      "type": {
+       "data_type": {
+        "primitive_type": "DT_DOUBLE"
+       }
+      },
+      "alias": 6
+     },
+     {
+      "type": {
+       "data_type": {
+        "temporal": {
+         "date32": {}
+        }
+       }
+      },
+      "alias": 7
+     },
+     {
+      "type": {
+       "data_type": {
+        "temporal": {
+         "date": {
+          "date_format": "DF_YYYY_MM_DD"
+         }
+        }
+       }
+      },
+      "alias": 8
+     },
+     {
+      "type": {
+       "data_type": {
+        "string": {
+         "var_char": {
+          "max_length": 65536
+         }
+        }
+       }
+      },
+      "alias": 9
+     },
+     {
+      "type": {
+       "data_type": {
+        "string": {
+         "var_char": {
+          "max_length": 65536
+         }
+        }
+       }
+      },
+      "alias": 10
+     },
+     {
+      "type": {
+       "data_type": {
+        "string": {
+         "var_char": {
+          "max_length": 65536
+         }
+        }
+       }
+      },
+      "alias": 11
+     },
+     {
+      "type": {
+       "data_type": {
+        "string": {
+         "var_char": {
+          "max_length": 65536
+         }
+        }
+       }
+      },
+      "alias": 12
+     },
+     {
+      "type": {
+       "data_type": {
+        "string": {
+         "var_char": {
+          "max_length": 65536
+         }
+        }
+       }
+      },
+      "alias": 13
+     },
+     {
+      "type": {
+       "data_type": {
+        "primitive_type": "DT_DOUBLE"
+       }
+      },
+      "alias": 14
+     },
+     {
+      "type": {
+       "data_type": {
+        "string": {
+         "var_char": {
+          "max_length": 65536
+         }
+        }
+       }
+      },
+      "alias": 15
+     }
+    ]
+   },
+   {
+    "opr": {
+     "load_vertex": {
+      "vertex_type": {
+       "id": 0
+      },
+      "property_mappings": [
+       {
+        "property": {
+         "key": {
+          "name": "ID"
+         }
+        },
+        "data": {
+         "operators": [
+          {
+           "var": {
+            "tag": {
+             "id": 0
+            }
+           }
+          }
+         ]
+        }
+       },
+       {
+        "property": {
+         "key": {
+          "name": "fName"
+         }
+        },
+        "data": {
+         "operators": [
+          {
+           "var": {
+            "tag": {
+             "id": 1
+            }
+           }
+          }
+         ]
+        }
+       },
+       {
+        "property": {
+         "key": {
+          "name": "gender"
+         }
+        },
+        "data": {
+         "operators": [
+          {
+           "var": {
+            "tag": {
+             "id": 2
+            }
+           }
+          }
+         ]
+        }
+       },
+       {
+        "property": {
+         "key": {
+          "name": "isStudent"
+         }
+        },
+        "data": {
+         "operators": [
+          {
+           "var": {
+            "tag": {
+             "id": 3
+            }
+           }
+          }
+         ]
+        }
+       },
+       {
+        "property": {
+         "key": {
+          "name": "isWorker"
+         }
+        },
+        "data": {
+         "operators": [
+          {
+           "var": {
+            "tag": {
+             "id": 4
+            }
+           }
+          }
+         ]
+        }
+       },
+       {
+        "property": {
+         "key": {
+          "name": "age"
+         }
+        },
+        "data": {
+         "operators": [
+          {
+           "var": {
+            "tag": {
+             "id": 5
+            }
+           }
+          }
+         ]
+        }
+       },
+       {
+        "property": {
+         "key": {
+          "name": "eyeSight"
+         }
+        },
+        "data": {
+         "operators": [
+          {
+           "var": {
+            "tag": {
+             "id": 6
+            }
+           }
+          }
+         ]
+        }
+       },
+       {
+        "property": {
+         "key": {
+          "name": "birthdate"
+         }
+        },
+        "data": {
+         "operators": [
+          {
+           "var": {
+            "tag": {
+             "id": 7
+            }
+           }
+          }
+         ]
+        }
+       },
+       {
+        "property": {
+         "key": {
+          "name": "registerTime"
+         }
+        },
+        "data": {
+         "operators": [
+          {
+           "var": {
+            "tag": {
+             "id": 8
+            }
+           }
+          }
+         ]
+        }
+       },
+       {
+        "property": {
+         "key": {
+          "name": "lastJobDuration"
+         }
+        },
+        "data": {
+         "operators": [
+          {
+           "var": {
+            "tag": {
+             "id": 9
+            }
+           }
+          }
+         ]
+        }
+       },
+       {
+        "property": {
+         "key": {
+          "name": "workedHours"
+         }
+        },
+        "data": {
+         "operators": [
+          {
+           "var": {
+            "tag": {
+             "id": 10
+            }
+           }
+          }
+         ]
+        }
+       },
+       {
+        "property": {
+         "key": {
+          "name": "usedNames"
+         }
+        },
+        "data": {
+         "operators": [
+          {
+           "var": {
+            "tag": {
+             "id": 11
+            }
+           }
+          }
+         ]
+        }
+       },
+       {
+        "property": {
+         "key": {
+          "name": "courseScoresPerTerm"
+         }
+        },
+        "data": {
+         "operators": [
+          {
+           "var": {
+            "tag": {
+             "id": 12
+            }
+           }
+          }
+         ]
+        }
+       },
+       {
+        "property": {
+         "key": {
+          "name": "grades"
+         }
+        },
+        "data": {
+         "operators": [
+          {
+           "var": {
+            "tag": {
+             "id": 13
+            }
+           }
+          }
+         ]
+        }
+       },
+       {
+        "property": {
+         "key": {
+          "name": "height"
+         }
+        },
+        "data": {
+         "operators": [
+          {
+           "var": {
+            "tag": {
+             "id": 14
+            }
+           }
+          }
+         ]
+        }
+       },
+       {
+        "property": {
+         "key": {
+          "name": "u"
+         }
+        },
+        "data": {
+         "operators": [
+          {
+           "var": {
+            "tag": {
+             "id": 15
+            }
+           }
+          }
+         ]
+        }
+       }
+      ]
+     }
+    },
+    "meta_data": []
+   },
+   {
+    "opr": {
+     "sink": {
+      "tags": []
+     }
+    },
+    "meta_data": []
+   }
+  ]
+ }
+}

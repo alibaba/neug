@@ -102,6 +102,7 @@ jobs:
         export USE_NINJA=OFF
         export WITH_MIMALLOC=ON
         export CMAKE_INSTALL_PREFIX=/opt/neug-install/
+        export BUILD_EXTENSIONS="json"
         sudo mkdir -p /opt/neug-install
         sudo chown -R $USER:$USER /opt/neug-install/
         # export CC="ccache gcc"
@@ -273,3 +274,8 @@ jobs:
         python3 -m pytest -sv test_ngcli_commands.py
         # test ngcli shell
         python3 -m pytest -sv test_ngcli_basics.py
+
+    - name: Run JSON Extension Test
+      run: |
+        cd ${GITHUB_WORKSPACE}/tools/python_bind/build/neug_py_bind/extension/json
+        ./json_extension_test

@@ -29,10 +29,26 @@ namespace gs {
 namespace catalog {
 class GCatalog : public Catalog {
  public:
+  GCatalog();
   GCatalog(const std::filesystem::path& schemaPath);
   GCatalog(const std::string& schemaData);
   GCatalog(const YAML::Node& schema);
   ~GCatalog() = default;
+
+  void addFunctionWithSignature(transaction::Transaction* transaction,
+                                CatalogEntryType entryType, std::string name,
+                                function::function_set functionSet,
+                                bool isInternal = false);
+
+  function::Function* getFunctionWithSignature(
+      transaction::Transaction* transaction, const std::string& signatureName);
+
+  function::Function* getFunctionWithSignature(
+      const std::string& signatureName);
+
+  void updateSchema(const std::filesystem::path& schemaPath);
+  void updateSchema(const std::string& schema);
+  void updateSchema(const YAML::Node& schema_yaml_node);
 
  private:
   void loadSchema(const YAML::Node& schema);

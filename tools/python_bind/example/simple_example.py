@@ -40,6 +40,7 @@ if __name__ == "__main__":
     for record in res:
         print(record)
 
+
     db.close()
     db2 = Database("")
     db2.load_builtin_dataset(dataset_name="tinysnb")

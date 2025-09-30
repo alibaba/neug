@@ -26,6 +26,7 @@
 #include "neug/compiler/binder/expression/literal_expression.h"
 #include "neug/compiler/catalog/catalog.h"
 #include "neug/compiler/function/built_in_function_utils.h"
+#include "neug/compiler/function/neug_procedure_call_function.h"
 #include "neug/compiler/main/client_context.h"
 
 using namespace gs::common;
@@ -66,23 +67,15 @@ BoundTableScanInfo Binder::bindTableFunc(
   auto func = BuiltInFunctionsUtils::matchFunction(
       tableFuncName, positionalParamTypes,
       entry->ptrCast<catalog::FunctionCatalogEntry>());
-  auto tableFunc = func->constPtrCast<TableFunction>();
+  auto callFunc = func->constPtrCast<NeugCallFunction>();
   std::vector<common::LogicalType> inputTypes;
-  if (tableFunc->inferInputTypes) {
-    // For functions which take in nested data types, we have to use the input
-    // parameters to detect the input types. (E.g. query_hnsw_index takes in an
-    // ARRAY which needs the user input parameters to decide the array
-    // dimension).
-    inputTypes = tableFunc->inferInputTypes(positionalParams);
-  } else {
-    // For functions which don't have nested type parameters, we can simply use
-    // the types declared in the function signature.
-    for (auto i = 0u; i < tableFunc->parameterTypeIDs.size(); i++) {
-      inputTypes.push_back(common::LogicalType(tableFunc->parameterTypeIDs[i]));
-    }
+  // For functions which don't have nested type parameters, we can simply use
+  // the types declared in the function signature.
+  for (auto i = 0u; i < callFunc->parameterTypeIDs.size(); i++) {
+    inputTypes.push_back(common::LogicalType(callFunc->parameterTypeIDs[i]));
   }
   for (auto i = 0u; i < positionalParams.size(); ++i) {
-    auto parameterTypeID = tableFunc->parameterTypeIDs[i];
+    auto parameterTypeID = callFunc->parameterTypeIDs[i];
     if (positionalParams[i]->expressionType == ExpressionType::LITERAL &&
         parameterTypeID != LogicalTypeID::ANY) {
       positionalParams[i] = expressionBinder.foldExpression(
@@ -90,14 +83,7 @@ BoundTableScanInfo Binder::bindTableFunc(
                                                    inputTypes[i]));
     }
   }
-  auto bindInput = TableFuncBindInput();
-  bindInput.params = std::move(positionalParams);
-  bindInput.optionalParams = std::move(optionalParams);
-  bindInput.optionalParamsLegacy = std::move(optionalParamsLegacy);
-  bindInput.binder = this;
-  bindInput.yieldVariables = std::move(yieldVariables);
-  return BoundTableScanInfo{*tableFunc,
-                            tableFunc->bindFunc(clientContext, &bindInput)};
+  return BoundTableScanInfo{*callFunc, std::move(positionalParams)};
 }
 
 }  // namespace binder

@@ -1,4 +1,7 @@
+#include <memory>
 #include "neug/compiler/binder/bound_table_scan_info.h"
+#include "neug/compiler/binder/copy/bound_copy_from.h"
+#include "neug/compiler/binder/expression/expression.h"
 #include "neug/compiler/binder/query/reading_clause/bound_table_function_call.h"
 #include "neug/compiler/planner/operator/logical_table_function_call.h"
 #include "neug/compiler/planner/planner.h"
@@ -10,8 +13,23 @@ namespace planner {
 
 void Planner::appendTableFunctionCall(const BoundTableScanInfo& info,
                                       LogicalPlan& plan) {
-  auto call = std::make_shared<LogicalTableFunctionCall>(info.func,
-                                                         info.bindData->copy());
+  std::shared_ptr<LogicalTableFunctionCall> call =
+      std::make_shared<LogicalTableFunctionCall>(info.func,
+                                                 info.bindData->copy());
+  call->computeFactorizedSchema();
+  plan.setLastOperator(std::move(call));
+}
+
+void Planner::appendTableFunctionCall(const BoundTableScanInfo& info,
+                                      binder::expression_vector outputColumns,
+                                      LogicalPlan& plan) {
+  if (info.bindData) {
+    appendTableFunctionCall(info, plan);
+    return;
+  }
+  std::shared_ptr<LogicalTableFunctionCall> call =
+      std::make_shared<LogicalTableFunctionCall>(info.callFunc, info.callParams,
+                                                 outputColumns);
   call->computeFactorizedSchema();
   plan.setLastOperator(std::move(call));
 }

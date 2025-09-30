@@ -33,6 +33,7 @@
 #endif
 
 #include "neug/compiler/common/file_system/virtual_file_system.h"
+#include "neug/compiler/gopt/g_catalog_holder.h"
 #include "neug/compiler/storage/stats_manager.h"
 
 using namespace gs::catalog;
@@ -47,20 +48,36 @@ MetadataManager::MetadataManager() {
   this->vfs = std::make_unique<VirtualFileSystem>();
   this->extensionManager = std::make_unique<extension::ExtensionManager>();
   this->memoryManager = std::make_unique<gs::storage::MemoryManager>();
+  // the catalog is initialized only once and is empty before data loading
+  this->catalog = std::make_unique<gs::catalog::GCatalog>();
+  catalog::GCatalogHolder::setGCatalog(
+      this->catalog->ptrCast<catalog::GCatalog>());
+  std::string emptyStats = "";
+  this->storageManager = std::make_unique<gs::storage::StatsManager>(
+      emptyStats, this, *this->memoryManager);
 }
 
 MetadataManager::~MetadataManager() = default;
 
 void MetadataManager::updateSchema(const std::filesystem::path& schemaPath) {
-  this->catalog = std::make_unique<gs::catalog::GCatalog>(schemaPath);
+  if (!this->catalog) {
+    THROW_CATALOG_EXCEPTION("Catalog is not set");
+  }
+  this->catalog->ptrCast<gs::catalog::GCatalog>()->updateSchema(schemaPath);
 }
 
 void MetadataManager::updateSchema(const std::string& schema) {
-  this->catalog = std::make_unique<gs::catalog::GCatalog>(schema);
+  if (!this->catalog) {
+    THROW_CATALOG_EXCEPTION("Catalog is not set");
+  }
+  this->catalog->ptrCast<gs::catalog::GCatalog>()->updateSchema(schema);
 }
 
 void MetadataManager::updateSchema(const YAML::Node& schema) {
-  this->catalog = std::make_unique<gs::catalog::GCatalog>(schema);
+  if (!this->catalog) {
+    THROW_CATALOG_EXCEPTION("Catalog is not set");
+  }
+  this->catalog->ptrCast<gs::catalog::GCatalog>()->updateSchema(schema);
 }
 
 void MetadataManager::updateStats(const std::filesystem::path& statsPath) {

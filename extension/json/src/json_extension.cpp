@@ -19,22 +19,29 @@
 #include "neug/compiler/extension/extension_api.h"
 
 // JSON functions
-#include "include/json_dummy_function.h"
+#include "json_dummy_function.h"
+#include "json_scan_function.h"
 
 extern "C" {
 
-void init() {
+void Init() {
     LOG(INFO) << "[json extension] init called";
 
     try {
-        gs::extension::ExtensionAPI::registerScalarFunction<gs::extension::JsonDummyFunction>();
+        gs::extension::ExtensionAPI::registerFunction<gs::extension::JsonScanFunction>(
+            gs::catalog::CatalogEntryType::TABLE_FUNCTION_ENTRY);
+
+        // gs::extension::ExtensionAPI::registerScalarFunction<gs::extension::JsonDummyFunction>();
+            
         LOG(INFO) << "[json extension] functions registered successfully";
     } catch (const std::exception& e) {
-        THROW_EXCEPTION_WITH_FILE_LINE("[json extension] registration failed");
+        THROW_EXCEPTION_WITH_FILE_LINE("[json extension] registration failed: " + std::string(e.what()));
+    } catch (...) {
+        THROW_EXCEPTION_WITH_FILE_LINE("[json extension] registration failed: unknown exception");
     }
 }
 
-const char* name() {
+const char* Name() {
     return "JSON";
 }
 

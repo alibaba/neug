@@ -21,6 +21,7 @@
 #include <string>
 #include "neug/compiler/common/constants.h"
 #include "neug/compiler/common/string_format.h"
+#include "neug/compiler/function/function_signature_util.h"
 #include "neug/compiler/gopt/g_constants.h"
 #include "neug/compiler/transaction/transaction.h"
 #include "neug/utils/exception/exception.h"
@@ -28,6 +29,8 @@
 
 namespace gs {
 namespace catalog {
+
+GCatalog::GCatalog() : Catalog() {}
 
 GCatalog::GCatalog(const std::filesystem::path& schemaPath) : Catalog() {
   if (!std::filesystem::exists(schemaPath)) {
@@ -43,6 +46,67 @@ GCatalog::GCatalog(const std::string& schemaData) : Catalog() {
 }
 
 GCatalog::GCatalog(const YAML::Node& schema) : Catalog() { loadSchema(schema); }
+
+void GCatalog::updateSchema(const YAML::Node& schema_yaml_node) {
+  // destroy the previous schema nodes and rels
+  this->tables = std::make_unique<CatalogSet>();
+  this->relGroups = std::make_unique<CatalogSet>();
+  // create new schema nodes and rels
+  loadSchema(schema_yaml_node);
+}
+
+void GCatalog::updateSchema(const std::filesystem::path& schemaPath) {
+  if (!std::filesystem::exists(schemaPath)) {
+    THROW_RUNTIME_ERROR(common::stringFormat("YAML file does not exist: {}",
+                                             schemaPath.string()));
+  }
+  this->tables = std::make_unique<CatalogSet>();
+  this->relGroups = std::make_unique<CatalogSet>();
+  loadSchema(YAML::LoadFile(schemaPath));
+}
+
+void GCatalog::updateSchema(const std::string& schema) {
+  this->tables = std::make_unique<CatalogSet>();
+  this->relGroups = std::make_unique<CatalogSet>();
+  loadSchema(YAML::Load(schema));
+}
+
+void GCatalog::addFunctionWithSignature(transaction::Transaction* transaction,
+                                        CatalogEntryType entryType,
+                                        std::string name,
+                                        function::function_set functionSet,
+                                        bool isInternal) {
+  for (auto& func : functionSet) {
+    func->computeSignature();
+  }
+  addFunction(transaction, entryType, std::move(name), std::move(functionSet),
+              isInternal);
+}
+
+function::Function* GCatalog::getFunctionWithSignature(
+    const std::string& signatureName) {
+  return getFunctionWithSignature(&gs::Constants::DEFAULT_TRANSACTION,
+                                  signatureName);
+}
+
+function::Function* GCatalog::getFunctionWithSignature(
+    transaction::Transaction* transaction, const std::string& signatureName) {
+  auto funcName =
+      function::FunctionSignatureUtil::getFunctionName(signatureName);
+  auto entry = getFunctionEntry(transaction, funcName);
+  if (!entry) {
+    THROW_CATALOG_EXCEPTION("cannot find function entry with name " + funcName);
+  }
+  auto funcEntry = entry->ptrCast<catalog::FunctionCatalogEntry>();
+  auto& functionSet = funcEntry->getFunctionSet();
+  for (auto& func : functionSet) {
+    if (func->signatureName == signatureName) {
+      return func.get();
+    }
+  }
+  THROW_CATALOG_EXCEPTION("cannot find function with signature name " +
+                          signatureName);
+}
 
 void GCatalog::loadSchema(const YAML::Node& schema) {
   validateYAMLStructure(schema);
@@ -75,8 +139,8 @@ void GCatalog::loadSchema(const YAML::Node& schema) {
   }
 
   common::table_id_t maxLabelId = 0;
-  // map vertex type name to node table entry, when building rel table entry, we
-  // need to find the corresponding src and dst node table entries
+  // map vertex type name to node table entry, when building rel table entry,
+  // we need to find the corresponding src and dst node table entries
   std::unordered_map<std::string, NodeTableCatalogEntry*> nameToVertexMap;
 
   auto vertexTypes = info["vertex_types"].as<std::vector<YAML::Node>>();

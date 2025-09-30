@@ -9,6 +9,7 @@
 
 #include <yaml-cpp/yaml.h>
 #include "neug/compiler/gopt/g_alias_manager.h"
+#include "neug/compiler/gopt/g_catalog_holder.h"
 #include "neug/compiler/gopt/g_physical_convertor.h"
 #include "neug/compiler/main/client_context.h"
 #include "neug/compiler/main/metadata_manager.h"

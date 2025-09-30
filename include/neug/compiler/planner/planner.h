@@ -482,6 +482,10 @@ class NEUG_API Planner {
       const std::shared_ptr<binder::NodeExpression>& intersectNode);
   std::unique_ptr<Schema> combineSchema(LogicalPlan& outerPlan);
 
+  void appendTableFunctionCall(const binder::BoundTableScanInfo& info,
+                               binder::expression_vector outputColumns,
+                               LogicalPlan& plan);
+
  private:
   main::ClientContext* clientContext;
   PropertyExprCollection propertyExprCollection;

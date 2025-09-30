@@ -54,3 +54,16 @@ target_link_libraries(test_vertex_table
 # Register the test with CTest
 add_test(NAME test_vertex_table COMMAND test_vertex_table)
 set_tests_properties(test_vertex_table PROPERTIES TIMEOUT 60)
+
+
+add_executable(test_extension test_extension.cc)
+target_link_libraries(test_extension
+    PRIVATE
+    ${NEUG_LIBRARIES}
+    neug::GTest
+    ${Protobuf_LIBRARIES}
+)
+
+# Register the test with CTest
+add_test(NAME test_extension COMMAND test_extension)
+set_tests_properties(test_extension PROPERTIES TIMEOUT 60)

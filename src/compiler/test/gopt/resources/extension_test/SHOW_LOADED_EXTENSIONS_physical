@@ -1,0 +1,29 @@
+{
+ "plan_id": 0,
+ "query_plan": {
+  "mode": "READ_ONLY",
+  "plan": [
+   {
+    "opr": {
+     "procedure_call": {
+      "query": {
+       "query_name": {
+        "name": "SHOW_LOADED_EXTENSIONS()"
+       },
+       "arguments": []
+      }
+     }
+    },
+    "meta_data": []
+   },
+   {
+    "opr": {
+     "sink": {
+      "tags": []
+     }
+    },
+    "meta_data": []
+   }
+  ]
+ }
+}

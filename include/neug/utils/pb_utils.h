@@ -76,7 +76,7 @@ std::string proto_to_string(const T& proto) {
 Any get_default_value(const PropertyType& type);
 
 bool multiplicity_to_storage_strategy(
-    const physical::CreateEdgeSchema::Multiplicity& multiplicity,
+    const ::physical::CreateEdgeSchema::Multiplicity& multiplicity,
     EdgeStrategy& oe_strategy, EdgeStrategy& ie_strategy);
 
 bool primitive_type_to_property_type(
@@ -95,11 +95,11 @@ bool common_value_to_any(const ::common::Value& value, Any& out_any);
 
 gs::result<std::vector<std::tuple<PropertyType, std::string, Any>>>
 property_defs_to_tuple(
-    const google::protobuf::RepeatedPtrField<physical::PropertyDef>&
+    const google::protobuf::RepeatedPtrField<::physical::PropertyDef>&
         properties);
 
 // Convert to a bool representing error_on_conflict.
-bool conflict_action_to_bool(const physical::ConflictAction& action);
+bool conflict_action_to_bool(const ::physical::ConflictAction& action);
 
 // Currently support
 // 1. common::Value const

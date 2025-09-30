@@ -159,6 +159,8 @@ class GQueryConvertor {
 
   void convertDistinct(const planner::LogicalDistinct& distinct,
                        ::physical::QueryPlan* plan);
+  void convertProcedureCall(const planner::LogicalTableFunctionCall& funcCall,
+                            ::physical::QueryPlan* plan);
 
   void convertUnwind(const planner::LogicalUnwind& unwind,
                      ::physical::QueryPlan* plan);
@@ -173,7 +175,7 @@ class GQueryConvertor {
 
   void setMetaData(::physical::PhysicalOpr* physicalOpr,
                    const planner::LogicalOperator& op,
-                   std::vector<std::shared_ptr<binder::Expression>> exprs);
+                   const binder::expression_vector& exprs);
   std::unique_ptr<::algebra::QueryParams> convertParams(
       const std::vector<common::table_id_t>& labelIds,
       std::shared_ptr<binder::Expression> predicates);
@@ -185,8 +187,8 @@ class GQueryConvertor {
   std::unique_ptr<::physical::PropertyMapping> convertPropMapping(
       const std::string& propertyName, const binder::Expression& data,
       const planner::LogicalOperator& op);
-  std::unique_ptr<::physical::DataSource> convertDataSource(
-      const common::FileScanInfo& fileInfo);
+  void convertDataSource(const planner::LogicalTableFunctionCall& fileInfo,
+                         ::physical::QueryPlan* plan);
   std::unique_ptr<Options> convertDataSourceOptions(
       const common::FileScanInfo& fileInfo);
   std::unique_ptr<Options> convertExportOptions(

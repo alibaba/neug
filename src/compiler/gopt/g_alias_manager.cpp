@@ -28,6 +28,7 @@
 #include "neug/compiler/planner/operator/logical_operator.h"
 #include "neug/compiler/planner/operator/logical_plan.h"
 #include "neug/compiler/planner/operator/logical_projection.h"
+#include "neug/compiler/planner/operator/logical_table_function_call.h"
 #include "neug/compiler/planner/operator/logical_union.h"
 #include "neug/compiler/planner/operator/logical_unwind.h"
 #include "neug/compiler/planner/operator/persistent/logical_insert.h"
@@ -95,6 +96,7 @@ void GAliasManager::extractGAliasNames(
     aliasNames.insert(aliasNames.end(), aliases.begin(), aliases.end());
     break;
   }
+  case planner::LogicalOperatorType::TABLE_FUNCTION_CALL:
   case planner::LogicalOperatorType::PROJECTION:
   case planner::LogicalOperatorType::AGGREGATE:
   case planner::LogicalOperatorType::DISTINCT: {
@@ -124,7 +126,6 @@ void GAliasManager::extractGAliasNames(
   }
   case planner::LogicalOperatorType::COPY_FROM:
   case planner::LogicalOperatorType::COPY_TO:
-  case planner::LogicalOperatorType::TABLE_FUNCTION_CALL:
   case planner::LogicalOperatorType::ALTER:
   case planner::LogicalOperatorType::DROP:
   case planner::LogicalOperatorType::CREATE_TABLE:

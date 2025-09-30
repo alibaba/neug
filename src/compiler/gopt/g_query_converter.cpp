@@ -63,6 +63,7 @@
 #include "neug/utils/proto/plan/expr.pb.h"
 #include "neug/utils/proto/plan/physical.pb.h"
 #endif
+#include "neug/compiler/function/table/bind_input.h"
 #include "neug/compiler/planner/operator/extend/logical_recursive_extend.h"
 #include "neug/compiler/planner/operator/logical_hash_join.h"
 #include "neug/compiler/planner/operator/scan/logical_dummy_scan.h"
@@ -730,7 +731,7 @@ void GQueryConvertor::convertDistinct(const planner::LogicalDistinct& distinct,
 
 void GQueryConvertor::setMetaData(::physical::PhysicalOpr* physicalOpr,
                                   const planner::LogicalOperator& op,
-                                  binder::expression_vector exprs) {
+                                  const binder::expression_vector& exprs) {
   for (auto expr : exprs) {
     auto metaPB = std::make_unique<::physical::PhysicalOpr_MetaData>();
     // Convert alias name to ID
@@ -971,8 +972,16 @@ std::unique_ptr<algebra::QueryParams> GQueryConvertor::convertParams(
   return queryParams;
 }
 
-std::unique_ptr<::physical::DataSource> GQueryConvertor::convertDataSource(
-    const common::FileScanInfo& fileInfo) {
+void GQueryConvertor::convertDataSource(
+    const planner::LogicalTableFunctionCall& funcCall,
+    ::physical::QueryPlan* plan) {
+  auto bindData = funcCall.getBindData();
+  auto scanBindData = bindData->constPtrCast<function::ScanFileBindData>();
+  if (!scanBindData) {
+    THROW_EXCEPTION_WITH_FILE_LINE(
+        "Table function bind data is not of type ScanFileBindData.");
+  }
+  const auto& fileInfo = scanBindData->fileScanInfo;
   // set extension_name from file type info
   auto extensionName = fileInfo.fileTypeInfo.fileTypeStr;
   if (extensionName.empty()) {
@@ -982,7 +991,24 @@ std::unique_ptr<::physical::DataSource> GQueryConvertor::convertDataSource(
   sourcePB->set_extension_name(extensionName);
   sourcePB->set_file_path(fileInfo.filePaths[0]);
   *sourcePB->mutable_options() = std::move(*convertDataSourceOptions(fileInfo));
-  return sourcePB;
+  auto physicalPB = std::make_unique<::physical::PhysicalOpr>();
+  auto oprPB = std::make_unique<::physical::PhysicalOpr_Operator>();
+  oprPB->set_allocated_source(sourcePB.release());
+  physicalPB->set_allocated_opr(oprPB.release());
+
+  common::alias_id_t columnId = 0;
+  for (auto& column : scanBindData->columns) {
+    if (skipColumn(column->toString())) {
+      continue;  // skip internal columns
+    }
+    auto dataPB = std::make_unique<::physical::PhysicalOpr_MetaData>();
+    auto typePB =
+        typeConverter->convertSimpleLogicalType(column->getDataType());
+    dataPB->set_allocated_type(typePB.release());
+    dataPB->set_alias(columnId++);
+    physicalPB->mutable_meta_data()->AddAllocated(dataPB.release());
+  }
+  plan->mutable_plan()->AddAllocated(physicalPB.release());
 }
 
 std::unique_ptr<Options> GQueryConvertor::convertDataSourceOptions(
@@ -1012,30 +1038,67 @@ std::unique_ptr<Options> GQueryConvertor::convertExportOptions(
 }
 
 void GQueryConvertor::convertTableFunc(
-    const planner::LogicalTableFunctionCall& tableFunc,
+    const planner::LogicalTableFunctionCall& funcCall,
     ::physical::QueryPlan* plan) {
-  auto bindData = tableFunc.getBindData();
-  auto scanBindData = bindData->constPtrCast<function::ScanFileBindData>();
-  if (!scanBindData) {
-    THROW_EXCEPTION_WITH_FILE_LINE(
-        "Table function bind data is not of type ScanFileBindData.");
+  auto& tableFunc = funcCall.getTableFunc();
+  auto tableName = tableFunc.name;
+  std::transform(tableName.begin(), tableName.end(), tableName.begin(),
+                 [](unsigned char c) { return std::toupper(c); });
+  if (tableName == "CSV_SCAN") {
+    convertDataSource(funcCall, plan);
+  } else {
+    convertProcedureCall(funcCall, plan);
   }
-  auto dataSource = convertDataSource(scanBindData->fileScanInfo);
+}
+
+void GQueryConvertor::convertProcedureCall(
+    const planner::LogicalTableFunctionCall& funcCall,
+    ::physical::QueryPlan* plan) {
+  auto callFunc = funcCall.getCallFunc();
+  auto queryPB = std::make_unique<::procedure::Query>();
+  // set procedure query name
+  auto namePB = std::make_unique<::common::NameOrId>();
+  namePB->set_name(callFunc.signatureName);
+  queryPB->set_allocated_query_name(namePB.release());
+
+  // add procedure params
+  const auto& params = funcCall.getCallParams();
+  for (size_t pos = 0; pos < params.size(); pos++) {
+    const auto& param = params.at(pos);
+    auto paramPB = exprConvertor->convert(*param, {});
+    if (paramPB->operators_size() == 0) {
+      THROW_EXCEPTION_WITH_FILE_LINE("Failed to convert parameter: " +
+                                     param->toString());
+    }
+    auto queryArgPB = std::make_unique<::procedure::Argument>();
+    // set param value
+    if (paramPB->operators(0).has_var()) {
+      queryArgPB->set_allocated_var(
+          paramPB->mutable_operators(0)->release_var());
+    } else if (paramPB->operators(0).has_const_()) {
+      queryArgPB->set_allocated_const_(
+          paramPB->mutable_operators(0)->release_const_());
+    } else {
+      THROW_EXCEPTION_WITH_FILE_LINE("Unsupported parameter value type: " +
+                                     param->toString());
+    }
+    // set param id
+    queryArgPB->set_param_ind(pos);
+    // TODO: set param name
+    queryPB->mutable_arguments()->AddAllocated(queryArgPB.release());
+  }
+
+  auto procedurePB = std::make_unique<::physical::ProcedureCall>();
+  procedurePB->set_allocated_query(queryPB.release());
   auto physicalPB = std::make_unique<::physical::PhysicalOpr>();
   auto oprPB = std::make_unique<::physical::PhysicalOpr_Operator>();
-  oprPB->set_allocated_source(dataSource.release());
+  oprPB->set_allocated_procedure_call(procedurePB.release());
   physicalPB->set_allocated_opr(oprPB.release());
-  common::alias_id_t columnId = 0;
-  for (auto& column : scanBindData->columns) {
-    if (skipColumn(column->toString())) {
-      continue;  // skip internal columns
+  if (funcCall.getSchema()) {
+    auto exprInScope = funcCall.getSchema()->getExpressionsInScope();
+    if (!exprInScope.empty()) {
+      setMetaData(physicalPB.get(), funcCall, exprInScope);
     }
-    auto dataPB = std::make_unique<::physical::PhysicalOpr_MetaData>();
-    auto typePB =
-        typeConverter->convertSimpleLogicalType(column->getDataType());
-    dataPB->set_allocated_type(typePB.release());
-    dataPB->set_alias(columnId++);
-    physicalPB->mutable_meta_data()->AddAllocated(dataPB.release());
   }
   plan->mutable_plan()->AddAllocated(physicalPB.release());
 }
@@ -1089,6 +1152,9 @@ void GQueryConvertor::convertBatchInsertEdge(
   auto dstPropMap = convertPropMapping(*dstColumn, columnId++);
   batchEdge->mutable_property_mappings()->AddAllocated(dstPropMap.release());
   for (auto& column : columnExprs) {
+    if (column->toString() == "from" || column->toString() == "to") {
+      continue;
+    }
     if (skipColumn(column->toString())) {
       continue;  // skip internal columns
     }

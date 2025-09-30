@@ -22,7 +22,10 @@
 
 #pragma once
 
+#include "neug/compiler/binder/expression/expression.h"
+#include "neug/compiler/function/neug_procedure_call_function.h"
 #include "neug/compiler/function/table/bind_data.h"
+#include "neug/compiler/function/table/bind_input.h"
 #include "neug/compiler/function/table/table_function.h"
 
 namespace gs {
@@ -30,16 +33,31 @@ namespace binder {
 
 struct BoundTableScanInfo {
   function::TableFunction func;
-  std::unique_ptr<function::TableFuncBindData> bindData;
+  std::unique_ptr<function::TableFuncBindData> bindData = nullptr;
+
+  function::NeugCallFunction callFunc;
+  binder::expression_vector callParams;
 
   BoundTableScanInfo(function::TableFunction func,
                      std::unique_ptr<function::TableFuncBindData> bindData)
       : func{std::move(func)}, bindData{std::move(bindData)} {}
+
+  BoundTableScanInfo(function::NeugCallFunction callFunc,
+                     binder::expression_vector callParams)
+      : callFunc{std::move(callFunc)}, callParams{std::move(callParams)} {}
+
   EXPLICIT_COPY_DEFAULT_MOVE(BoundTableScanInfo);
 
  private:
-  BoundTableScanInfo(const BoundTableScanInfo& other)
-      : func{other.func}, bindData{other.bindData->copy()} {}
+  BoundTableScanInfo(const BoundTableScanInfo& other) {
+    if (other.bindData) {
+      func = other.func;
+      bindData = other.bindData->copy();
+    } else {
+      callFunc = other.callFunc;
+      callParams = other.callParams;
+    }
+  }
 };
 
 }  // namespace binder

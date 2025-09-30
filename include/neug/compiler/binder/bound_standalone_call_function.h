@@ -38,6 +38,8 @@ class BoundStandaloneCallFunction final : public BoundStatement {
                        BoundStatementResult::createEmptyResult()},
         info{std::move(info)} {}
 
+  const BoundTableScanInfo& getTableScanInfo() const { return info; }
+
   const function::TableFunction& getTableFunction() const { return info.func; }
 
   const function::TableFuncBindData* getBindData() const {

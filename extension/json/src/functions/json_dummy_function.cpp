@@ -13,7 +13,7 @@
  * limitations under the License.
  */
 
-#include "include/json_dummy_function.h"
+#include "json_dummy_function.h"
 #include "neug/utils/exception/exception.h"
 #include <glog/logging.h>
 

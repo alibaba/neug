@@ -137,27 +137,10 @@ std::unique_ptr<BoundStatement> Binder::bindCopyNodeFrom(
   auto boundSource = bindScanSource(copyStatement.getSource(),
                                     copyStatement.getParsingOptions(),
                                     expectedColumnNames, expectedColumnTypes);
-  // expression_vector warningDataExprs = boundSource->getWarningColumns();
-  // if (boundSource->type == ScanSourceType::FILE) {
-  //   auto& source = boundSource->constCast<BoundTableScanSource>();
-  //   auto bindData = source.info.bindData->constPtrCast<ScanFileBindData>();
-  //   if (copyStatement.byColumn() &&
-  //       bindData->fileScanInfo.fileTypeInfo.fileType != FileType::NPY) {
-  //     THROW_BINDER_EXCEPTION(
-  //         stringFormat("Copy by column with {} file type is not supported.",
-  //                      bindData->fileScanInfo.fileTypeInfo.fileTypeStr));
-  //   }
-  // }
-  expression_vector columns;
-  std::vector<ColumnEvaluateType> evaluateTypes;
-  for (auto& property : nodeTableEntry->getProperties()) {
-    auto [evaluateType, column] = matchColumnExpression(
-        boundSource->getColumns(), property, expressionBinder);
-    columns.push_back(column);
-    evaluateTypes.push_back(evaluateType);
-  }
-  // columns.insert(columns.end(), warningDataExprs.begin(),
-  //                warningDataExprs.end());
+  expression_vector columns =
+      createVariables(expectedColumnNames, expectedColumnTypes);
+  std::vector<ColumnEvaluateType> evaluateTypes(columns.size(),
+                                                ColumnEvaluateType::REFERENCE);
   auto offset = createInvisibleVariable(
       std::string(InternalKeyword::ROW_OFFSET), LogicalType::INT64());
   auto boundCopyFromInfo = BoundCopyFromInfo(
@@ -195,8 +178,7 @@ std::unique_ptr<BoundStatement> Binder::bindCopyRelFrom(
   auto boundSource = bindScanSource(copyStatement.getSource(),
                                     getScanSourceOptions(copyStatement),
                                     expectedColumnNames, expectedColumnTypes);
-  expression_vector warningDataExprs = boundSource->getWarningColumns();
-  auto columns = boundSource->getColumns();
+  expression_vector warningDataExprs;
   auto offset = createInvisibleVariable(
       std::string(InternalKeyword::ROW_OFFSET), LogicalType::INT64());
   auto srcTableID = relTableEntry->getSrcTableID();
@@ -206,20 +188,10 @@ std::unique_ptr<BoundStatement> Binder::bindCopyRelFrom(
                                   LogicalType::INT64());
   auto dstOffset = createVariable(std::string(InternalKeyword::DST_OFFSET),
                                   LogicalType::INT64());
-  expression_vector columnExprs{srcOffset, dstOffset, offset};
-  std::vector<ColumnEvaluateType> evaluateTypes{ColumnEvaluateType::REFERENCE,
-                                                ColumnEvaluateType::REFERENCE,
+  expression_vector columns =
+      createVariables(expectedColumnNames, expectedColumnTypes);
+  std::vector<ColumnEvaluateType> evaluateTypes{columns.size(),
                                                 ColumnEvaluateType::REFERENCE};
-  auto properties = relTableEntry->getProperties();
-  for (auto i = 1u; i < properties.size(); ++i) {  // skip internal ID
-    auto& property = properties[i];
-    auto [evaluateType, column] = matchColumnExpression(
-        boundSource->getColumns(), property, expressionBinder);
-    columnExprs.push_back(column);
-    evaluateTypes.push_back(evaluateType);
-  }
-  columnExprs.insert(columnExprs.end(), warningDataExprs.begin(),
-                     warningDataExprs.end());
   std::shared_ptr<Expression> srcKey = nullptr, dstKey = nullptr;
   if (expectedColumnTypes[0] != columns[0]->getDataType()) {
     srcKey = expressionBinder.forceCast(columns[0], expectedColumnTypes[0]);
@@ -240,7 +212,7 @@ std::unique_ptr<BoundStatement> Binder::bindCopyRelFrom(
   auto extraCopyRelInfo = std::make_unique<ExtraBoundCopyRelInfo>(
       internalIDColumnIndices, lookupInfos);
   auto boundCopyFromInfo = BoundCopyFromInfo(
-      relTableEntry, boundSource->copy(), offset, std::move(columnExprs),
+      relTableEntry, boundSource->copy(), offset, std::move(columns),
       std::move(evaluateTypes), std::move(extraCopyRelInfo));
   return std::make_unique<BoundCopyFrom>(std::move(boundCopyFromInfo));
 }
@@ -259,6 +231,15 @@ static bool skipPropertyInSchema(const PropertyDefinition& property) {
   if (property.getName() == InternalKeyword::ID) {
     return true;
   }
+  if (property.getName() == common::InternalKeyword::ID ||
+      property.getName() == common::InternalKeyword::LABEL ||
+      property.getName() == common::InternalKeyword::ROW_OFFSET ||
+      property.getName() == common::InternalKeyword::SRC_OFFSET ||
+      property.getName() == common::InternalKeyword::DST_OFFSET ||
+      property.getName() == common::InternalKeyword::SRC ||
+      property.getName() == common::InternalKeyword::DST) {
+    return true;
+  }
   return false;
 }
 
@@ -266,38 +247,12 @@ static void bindExpectedColumns(const TableCatalogEntry* tableEntry,
                                 const CopyFromColumnInfo& info,
                                 std::vector<std::string>& columnNames,
                                 std::vector<LogicalType>& columnTypes) {
-  if (info.inputColumnOrder) {
-    std::unordered_set<std::string> inputColumnNamesSet;
-    for (auto& columName : info.columnNames) {
-      if (inputColumnNamesSet.contains(columName)) {
-        THROW_BINDER_EXCEPTION(stringFormat(
-            "Detect duplicate column name {} during COPY.", columName));
-      }
-      inputColumnNamesSet.insert(columName);
+  for (auto& property : tableEntry->getProperties()) {
+    if (skipPropertyInSchema(property)) {
+      continue;
     }
-    // Search column data type for each input column.
-    for (auto& columnName : info.columnNames) {
-      if (!tableEntry->containsProperty(columnName)) {
-        THROW_BINDER_EXCEPTION(
-            stringFormat("Table {} does not contain column {}.",
-                         tableEntry->getName(), columnName));
-      }
-      auto& property = tableEntry->getProperty(columnName);
-      if (skipPropertyInFile(property)) {
-        continue;
-      }
-      columnNames.push_back(columnName);
-      columnTypes.push_back(property.getType().copy());
-    }
-  } else {
-    // No column specified. Fall back to schema columns.
-    for (auto& property : tableEntry->getProperties()) {
-      if (skipPropertyInSchema(property)) {
-        continue;
-      }
-      columnNames.push_back(property.getName());
-      columnTypes.push_back(property.getType().copy());
-    }
+    columnNames.push_back(property.getName());
+    columnTypes.push_back(property.getType().copy());
   }
 }
 

@@ -72,7 +72,7 @@ std::unique_ptr<LogicalPlan> Planner::planCopyNodeFrom(
   case ScanSourceType::FILE:
   case ScanSourceType::OBJECT: {
     auto& scanSource = info->source->constCast<BoundTableScanSource>();
-    appendTableFunctionCall(scanSource.info, *plan);
+    appendTableFunctionCall(scanSource.info, info->columnExprs, *plan);
   } break;
   case ScanSourceType::QUERY: {
     auto& querySource = info->source->constCast<BoundQueryScanSource>();
@@ -100,7 +100,7 @@ std::unique_ptr<LogicalPlan> Planner::planCopyRelFrom(
   case ScanSourceType::FILE:
   case ScanSourceType::OBJECT: {
     auto& fileSource = info->source->constCast<BoundTableScanSource>();
-    appendTableFunctionCall(fileSource.info, *plan);
+    appendTableFunctionCall(fileSource.info, info->columnExprs, *plan);
   } break;
   case ScanSourceType::QUERY: {
     auto& querySource = info->source->constCast<BoundQueryScanSource>();
@@ -120,8 +120,6 @@ std::unique_ptr<LogicalPlan> Planner::planCopyRelFrom(
     NEUG_UNREACHABLE;
   }
   auto& extraInfo = info->extraInfo->constCast<ExtraBoundCopyRelInfo>();
-  appendIndexScan(extraInfo, *plan);
-  appendPartitioner(*info, *plan);
   appendCopyFrom(*info, results, *plan);
   return plan;
 }

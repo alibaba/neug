@@ -23,6 +23,8 @@
 #pragma once
 
 #include "neug/compiler/binder/expression/expression.h"
+
+#include "neug/compiler/function/function_signature_util.h"
 #include "neug/utils/api.h"
 
 namespace gs {
@@ -90,6 +92,7 @@ using scalar_bind_func = std::function<std::unique_ptr<FunctionBindData>(
 struct NEUG_API Function {
   std::string name;
   std::vector<common::LogicalTypeID> parameterTypeIDs;
+  std::string signatureName;
   // Currently we only one variable-length function which is list creation. The
   // expectation is that all parameters must have the same type as
   // parameterTypes[0]. For variable length function. A
@@ -110,6 +113,11 @@ struct NEUG_API Function {
 
   virtual std::string signatureToString() const {
     return common::LogicalTypeUtils::toString(parameterTypeIDs);
+  }
+
+  void computeSignature() {
+    this->signatureName = FunctionSignatureUtil::getSignatureName(
+        this->name, this->parameterTypeIDs);
   }
 
   template <class TARGET>

@@ -259,13 +259,13 @@ Status load_extension(const std::string& extension_name) {
   dlerror();
 
   typedef void (*init_func_t)();
-  init_func_t init_func = (init_func_t) dlsym(handle, "init");
+  init_func_t init_func = (init_func_t) dlsym(handle, "Init");
 
   const char* dlsym_error = dlerror();
   if (dlsym_error) {
     dlclose(handle);
     return Status(StatusCode::ERR_IO_ERROR,
-                  "Failed to find 'init' function in extension: " +
+                  "Failed to find 'Init' function in extension: " +
                       extension_name + ". Error: " + std::string(dlsym_error));
   }
 

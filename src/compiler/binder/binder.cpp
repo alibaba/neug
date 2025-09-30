@@ -25,8 +25,11 @@
 #include <memory>
 #include "neug/compiler/binder/bound_statement_rewriter.h"
 #include "neug/compiler/binder/expression/expression.h"
+#include "neug/compiler/catalog/catalog.h"
 #include "neug/compiler/common/constants.h"
 #include "neug/compiler/common/string_utils.h"
+#include "neug/compiler/function/built_in_function_utils.h"
+#include "neug/compiler/function/neug_procedure_call_function.h"
 #include "neug/compiler/function/table/bind_data.h"
 #include "neug/compiler/function/table/bind_input.h"
 #include "neug/compiler/function/table/scan_file_function.h"
@@ -129,7 +132,7 @@ std::shared_ptr<Expression> Binder::createVariable(
 std::shared_ptr<Expression> Binder::createVariable(
     const std::string& name, const LogicalType& dataType) {
   if (scope.contains(name)) {
-    THROW_BINDER_EXCEPTION("Variable " + name + " already exists.");
+    return scope.getExpression(name);
   }
   auto expression =
       expressionBinder.createVariableExpression(dataType.copy(), name);
@@ -252,11 +255,27 @@ static std::unique_ptr<TableFuncBindData> scanBindFunc(
       vars, vars.size(), scanInput->fileScanInfo.copy(), context);
 }
 
-TableFunction Binder::getScanFunction(const FileTypeInfo& typeInfo,
-                                      const FileScanInfo& fileScanInfo) const {
+TableFunction Binder::getCSVScanFunction(
+    const FileTypeInfo& typeInfo, const FileScanInfo& fileScanInfo) const {
   TableFunction scanFunction;
   scanFunction.bindFunc = scanBindFunc;
+  scanFunction.name = stringFormat("{}_SCAN", typeInfo.fileTypeStr);
   return scanFunction;
+}
+
+function::NeugCallFunction Binder::getScanFunction(
+    const common::FileTypeInfo& typeInfo,
+    const common::FileScanInfo& fileScanInfo) const {
+  auto name = stringFormat("{}_SCAN", typeInfo.fileTypeStr);
+  // TODO: consider about other parameters of data source except input file
+  std::vector<LogicalType> inputTypes;
+  inputTypes.push_back(LogicalType::STRING());
+  auto catalog = clientContext->getCatalog();
+  auto transaction = clientContext->getTransaction();
+  auto entry = catalog->getFunctionEntry(transaction, name);
+  auto func = BuiltInFunctionsUtils::matchFunction(
+      name, inputTypes, entry->ptrCast<FunctionCatalogEntry>());
+  return *func->ptrCast<function::NeugCallFunction>();
 }
 
 }  // namespace binder

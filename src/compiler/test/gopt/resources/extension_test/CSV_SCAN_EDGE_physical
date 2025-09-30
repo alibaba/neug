@@ -1,0 +1,312 @@
+{
+ "plan_id": 0,
+ "query_plan": {
+  "mode": "READ_WRITE",
+  "plan": [
+   {
+    "opr": {
+     "source": {
+      "extension_name": "csv",
+      "file_path": "/workspaces/neug/src/compiler/test/gopt/resources/dml_test/knows.csv",
+      "options": {
+       "HEADER": "True",
+       "DELIM": " | "
+      }
+     }
+    },
+    "meta_data": [
+     {
+      "type": {
+       "data_type": {
+        "primitive_type": "DT_SIGNED_INT64"
+       }
+      },
+      "alias": 0
+     },
+     {
+      "type": {
+       "data_type": {
+        "primitive_type": "DT_SIGNED_INT64"
+       }
+      },
+      "alias": 1
+     },
+     {
+      "type": {
+       "data_type": {
+        "temporal": {
+         "date32": {}
+        }
+       }
+      },
+      "alias": 2
+     },
+     {
+      "type": {
+       "data_type": {
+        "string": {
+         "var_char": {
+          "max_length": 65536
+         }
+        }
+       }
+      },
+      "alias": 3
+     },
+     {
+      "type": {
+       "data_type": {
+        "string": {
+         "var_char": {
+          "max_length": 65536
+         }
+        }
+       }
+      },
+      "alias": 4
+     },
+     {
+      "type": {
+       "data_type": {
+        "string": {
+         "var_char": {
+          "max_length": 65536
+         }
+        }
+       }
+      },
+      "alias": 5
+     },
+     {
+      "type": {
+       "data_type": {
+        "string": {
+         "var_char": {
+          "max_length": 65536
+         }
+        }
+       }
+      },
+      "alias": 6
+     },
+     {
+      "type": {
+       "data_type": {
+        "string": {
+         "var_char": {
+          "max_length": 65536
+         }
+        }
+       }
+      },
+      "alias": 7
+     },
+     {
+      "type": {
+       "data_type": {
+        "string": {
+         "var_char": {
+          "max_length": 65536
+         }
+        }
+       }
+      },
+      "alias": 8
+     }
+    ]
+   },
+   {
+    "opr": {
+     "load_edge": {
+      "edge_type": {
+       "type_name": {
+        "id": 0
+       },
+       "src_type_name": {
+        "id": 0
+       },
+       "dst_type_name": {
+        "id": 0
+       }
+      },
+      "source_vertex_binding": [],
+      "destination_vertex_binding": [],
+      "property_mappings": [
+       {
+        "property": {
+         "key": {
+          "name": "ID"
+         }
+        },
+        "data": {
+         "operators": [
+          {
+           "var": {
+            "tag": {
+             "id": 0
+            }
+           }
+          }
+         ]
+        }
+       },
+       {
+        "property": {
+         "key": {
+          "name": "ID"
+         }
+        },
+        "data": {
+         "operators": [
+          {
+           "var": {
+            "tag": {
+             "id": 1
+            }
+           }
+          }
+         ]
+        }
+       },
+       {
+        "property": {
+         "key": {
+          "name": "date"
+         }
+        },
+        "data": {
+         "operators": [
+          {
+           "var": {
+            "tag": {
+             "id": 2
+            }
+           }
+          }
+         ]
+        }
+       },
+       {
+        "property": {
+         "key": {
+          "name": "meetTime"
+         }
+        },
+        "data": {
+         "operators": [
+          {
+           "var": {
+            "tag": {
+             "id": 3
+            }
+           }
+          }
+         ]
+        }
+       },
+       {
+        "property": {
+         "key": {
+          "name": "validInterval"
+         }
+        },
+        "data": {
+         "operators": [
+          {
+           "var": {
+            "tag": {
+             "id": 4
+            }
+           }
+          }
+         ]
+        }
+       },
+       {
+        "property": {
+         "key": {
+          "name": "comments"
+         }
+        },
+        "data": {
+         "operators": [
+          {
+           "var": {
+            "tag": {
+             "id": 5
+            }
+           }
+          }
+         ]
+        }
+       },
+       {
+        "property": {
+         "key": {
+          "name": "summary"
+         }
+        },
+        "data": {
+         "operators": [
+          {
+           "var": {
+            "tag": {
+             "id": 6
+            }
+           }
+          }
+         ]
+        }
+       },
+       {
+        "property": {
+         "key": {
+          "name": "notes"
+         }
+        },
+        "data": {
+         "operators": [
+          {
+           "var": {
+            "tag": {
+             "id": 7
+            }
+           }
+          }
+         ]
+        }
+       },
+       {
+        "property": {
+         "key": {
+          "name": "someMap"
+         }
+        },
+        "data": {
+         "operators": [
+          {
+           "var": {
+            "tag": {
+             "id": 8
+            }
+           }
+          }
+         ]
+        }
+       }
+      ]
+     }
+    },
+    "meta_data": []
+   },
+   {
+    "opr": {
+     "sink": {
+      "tags": []
+     }
+    },
+    "meta_data": []
+   }
+  ]
+ }
+}

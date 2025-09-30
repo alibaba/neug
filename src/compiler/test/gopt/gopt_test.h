@@ -219,6 +219,15 @@ class GOptTest : public ::testing::Test {
     return std::move(statement->logicalPlan);
   }
 
+  std::unique_ptr<planner::LogicalPlan> planLogical(const std::string& query) {
+    // Prepare the query
+    auto statement = ctx->prepare(query);
+    if (!statement->success) {
+      THROW_RUNTIME_ERROR("Failed to prepare query: " + statement->errMsg);
+    }
+    return std::move(statement->logicalPlan);
+  }
+
   std::unique_ptr<::physical::PhysicalPlan> planPhysical(
       const planner::LogicalPlan& plan,
       std::shared_ptr<gopt::GAliasManager> aliasManager) {
@@ -375,7 +384,7 @@ class GOptTest : public ::testing::Test {
     }
   }
 
- private:
+ protected:
   std::unique_ptr<main::MetadataManager> database;
   std::unique_ptr<main::ClientContext> ctx;
 };

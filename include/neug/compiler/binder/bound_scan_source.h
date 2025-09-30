@@ -25,6 +25,7 @@
 #include "bound_table_scan_info.h"
 #include "neug/compiler/binder/bound_statement.h"
 #include "neug/compiler/binder/copy/bound_query_scan_info.h"
+#include "neug/compiler/binder/expression/expression.h"
 #include "neug/compiler/common/enums/scan_source_type.h"
 #include "neug/compiler/function/table/scan_file_function.h"
 
@@ -66,7 +67,11 @@ struct BoundTableScanSource final : BoundBaseScanSource {
   BoundTableScanSource(const BoundTableScanSource& other)
       : BoundBaseScanSource{other}, info{other.info.copy()} {}
 
-  expression_vector getColumns() override { return info.bindData->columns; }
+  expression_vector getColumns() override {
+    if (!info.bindData)
+      return {};
+    return info.bindData->columns;
+  }
   expression_vector getWarningColumns() const override;
   bool getIgnoreErrorsOption() const override;
   common::column_id_t getNumWarningDataColumns() const override {
