@@ -3,19 +3,36 @@ file(GLOB_RECURSE JSON_SRC_FILES
     "${CMAKE_CURRENT_SOURCE_DIR}/src/functions/*.cpp")
 
 add_library(json SHARED ${JSON_SRC_FILES})
+add_dependencies(json neug_plan_proto)
+
+if(DEFINED ENV{HOME})
+    set(USER_HOME $ENV{HOME})
+else()
+    set(USER_HOME "/tmp")
+endif()
 
 set_target_properties(json PROPERTIES
     OUTPUT_NAME "json"
     PREFIX "lib"
     SUFFIX ".neug_extension"
-    LIBRARY_OUTPUT_DIRECTORY "${CMAKE_SOURCE_DIR}/lib/json"
+    LIBRARY_OUTPUT_DIRECTORY "${USER_HOME}/.neug/extensions/json"
 )
+
+message(STATUS "JSON extension will be built to: ${USER_HOME}/.neug/extensions/json")
 
 target_include_directories(json
     PRIVATE
-      ${CMAKE_SOURCE_DIR}/include
-      ${CMAKE_SOURCE_DIR}/third_party
-      ${CMAKE_CURRENT_SOURCE_DIR}/include
+    ${CMAKE_SOURCE_DIR}/include
+    ${CMAKE_SOURCE_DIR}/third_party
+    ${CMAKE_CURRENT_SOURCE_DIR}/include
+)
+
+target_link_libraries(json
+    PRIVATE
+    ${ARROW_LIB}
+    ${Protobuf_LIBRARIES}
+    ${GLOG_LIBRARIES}
+    neug_libraries
 )
 
 if (CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
