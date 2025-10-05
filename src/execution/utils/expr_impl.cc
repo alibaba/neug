@@ -14,7 +14,8 @@
  */
 
 #include "neug/execution/utils/expr_impl.h"
-#include "neug/compiler/catalog/function_signature_registry.h"
+#include "neug/compiler/gopt/g_catalog_holder.h"
+#include "neug/compiler/function/scalar_function.h"
 
 #include <time.h>
 #include <iterator>
@@ -892,8 +893,19 @@ static std::unique_ptr<ExprBase> build_expr(
       auto op = opr.scalar_func();
       const std::string& signature = op.unique_name();
       gs::runtime::neug_func_exec_t fn = nullptr;
+      
       try {
-        fn = function::FunctionSignatureRegistry::lookup(signature);
+        auto gCatalog = catalog::GCatalogHolder::getGCatalog();
+        auto func = gCatalog->getFunctionWithSignature(&gs::transaction::DUMMY_TRANSACTION, signature);
+        if (!func) {
+          throw std::runtime_error("Function not found in catalog for signature: " + signature);
+        }
+
+        auto* scalarFunc = dynamic_cast<function::ScalarFunction*>(func);
+        fn = scalarFunc->neugExecFunc;
+        if (!fn) {
+          throw std::runtime_error("ScalarFunction neugExecFunc is null for signature: " + signature);
+        }
       } catch (const std::exception& e) {
         throw std::runtime_error(
             "ScalarFunctionExec not found for signature: " + signature +

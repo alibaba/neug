@@ -245,16 +245,9 @@ class NEUG_API Catalog {
                    CatalogEntryType entryType, std::string name,
                    function::function_set functionSet, bool isInternal = false);
 
-  void addFunctionUnlocked(transaction::Transaction* transaction,
-                           CatalogEntryType entryType, std::string name,
-                           function::function_set functionSet,
-                           bool isInternal = false);
-
   // Drop function with name.
   void dropFunction(transaction::Transaction* transaction,
                     const std::string& name);
-
-  void registerFunctionSignatures(FunctionCatalogEntry* entry);
 
   // ----------------------------- Macro ----------------------------
 
@@ -291,7 +284,6 @@ class NEUG_API Catalog {
 
  private:
   void initCatalogSets();
-  void registerBuiltInFunctions();
 
   CatalogEntry* createNodeTableEntry(transaction::Transaction* transaction,
                                      const binder::BoundCreateTableInfo& info);

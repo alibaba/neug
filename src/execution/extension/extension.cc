@@ -17,6 +17,10 @@
 #include <glog/logging.h>
 #include <filesystem>
 #include <fstream>
+#include <string>
+#include <unordered_map>
+#include "neug/compiler/common/types/types.h"
+#include "neug/utils/function_type.h"
 
 #ifdef __GNUC__
 #pragma GCC diagnostic push
@@ -27,7 +31,6 @@
 #pragma GCC diagnostic pop
 #endif
 
-#include "neug/compiler/catalog/function_signature_registry.h"
 #include "neug/execution/extension/extension.h"
 #include "neug/storages/graph/schema.h"
 
@@ -281,7 +284,6 @@ Status load_extension(const std::string& extension_name) {
                         extension_name);
     }
     LOG(INFO) << "[Admin] Extension " << extension_name << " is now available";
-    gs::function::FunctionSignatureRegistry::printAllSignatures();
     return Status::OK();
   }
 
@@ -324,7 +326,6 @@ Status load_extension(const std::string& extension_name) {
                           extension_name);
       }
       LOG(INFO) << "[Admin] Extension " << extension_name << " is now available";
-      gs::function::FunctionSignatureRegistry::printAllSignatures();
       return Status::OK();
     }
   }

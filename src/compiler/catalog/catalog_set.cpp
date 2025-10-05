@@ -103,19 +103,6 @@ oid_t CatalogSet::createEntry(Transaction* transaction,
   return oid;
 }
 
-oid_t CatalogSet::createEntryUnlocked(Transaction* transaction,
-                                      std::unique_ptr<CatalogEntry> entry) {
-  CatalogEntry* entryPtr = nullptr;
-  oid_t oid = nextOID++;
-  entry->setOID(oid);
-  entryPtr = createEntryNoLock(transaction, std::move(entry));
-  NEUG_ASSERT(entryPtr);
-  if (transaction->shouldAppendToUndoBuffer()) {
-    transaction->pushCreateDropCatalogEntry(*this, *entryPtr, isInternal());
-  }
-  return oid;
-}
-
 CatalogEntry* CatalogSet::createEntryNoLock(
     const Transaction* transaction, std::unique_ptr<CatalogEntry> entry) {
   // LCOV_EXCL_START

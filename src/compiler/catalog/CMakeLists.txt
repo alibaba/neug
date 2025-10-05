@@ -4,7 +4,6 @@ add_library(neug_catalog
         OBJECT
         catalog.cpp
         catalog_set.cpp
-        function_signature_registry.cpp
         property_definition_collection.cpp)
 
 add_dependencies(neug_catalog neug_plan_proto)

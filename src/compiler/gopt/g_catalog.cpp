@@ -26,11 +26,14 @@
 #include "neug/compiler/transaction/transaction.h"
 #include "neug/utils/exception/exception.h"
 #include "neug/utils/string_utils.h"
+#include "neug/compiler/function/function_collection.h"
 
 namespace gs {
 namespace catalog {
 
-GCatalog::GCatalog() : Catalog() {}
+GCatalog::GCatalog() : Catalog() {
+  registerBuiltInFunctions();
+}
 
 GCatalog::GCatalog(const std::filesystem::path& schemaPath) : Catalog() {
   if (!std::filesystem::exists(schemaPath)) {
@@ -69,6 +72,20 @@ void GCatalog::updateSchema(const std::string& schema) {
   this->tables = std::make_unique<CatalogSet>();
   this->relGroups = std::make_unique<CatalogSet>();
   loadSchema(YAML::Load(schema));
+}
+
+void GCatalog::registerBuiltInFunctions() {
+  auto functionCollection = function::FunctionCollection::getFunctions();
+
+  for (auto i = 0u; functionCollection[i].name != nullptr; ++i) {
+    auto& f = functionCollection[i];
+    auto functionSet = f.getFunctionSetFunc();
+    addFunctionWithSignature(&gs::transaction::DUMMY_TRANSACTION, 
+                           f.catalogEntryType, 
+                           f.name, 
+                           std::move(functionSet), 
+                           false);
+  }
 }
 
 void GCatalog::addFunctionWithSignature(transaction::Transaction* transaction,

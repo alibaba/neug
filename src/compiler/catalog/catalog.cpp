@@ -32,7 +32,6 @@
 #include "neug/compiler/catalog/catalog_entry/scalar_macro_catalog_entry.h"
 #include "neug/compiler/catalog/catalog_entry/sequence_catalog_entry.h"
 #include "neug/compiler/catalog/catalog_entry/type_catalog_entry.h"
-#include "neug/compiler/catalog/function_signature_registry.h"
 #include "neug/compiler/common/file_system/virtual_file_system.h"
 #include "neug/compiler/common/serializer/buffered_file.h"
 #include "neug/compiler/common/serializer/deserializer.h"
@@ -56,8 +55,6 @@ namespace catalog {
 
 Catalog::Catalog() : version{0} {
   initCatalogSets();
-  registerBuiltInFunctions();
-  gs::extension::ExtensionAPI::setCatalog(this);
 }
 
 Catalog::Catalog(const std::string& directory, VirtualFileSystem* vfs)
@@ -456,19 +453,6 @@ void Catalog::addFunction(Transaction* transaction, CatalogEntryType entryType,
                        entryType, std::move(name), std::move(functionSet)));
 }
 
-void Catalog::addFunctionUnlocked(Transaction* transaction,
-                                  CatalogEntryType entryType, std::string name,
-                                  function::function_set functionSet,
-                                  bool isInternal) {
-  auto& catalogSet = isInternal ? internalFunctions : functions;
-  if (catalogSet->containsEntry(transaction, name)) {
-    THROW_CATALOG_EXCEPTION(stringFormat("function {} already exists.", name));
-  }
-  catalogSet->createEntryUnlocked(
-      transaction, std::make_unique<FunctionCatalogEntry>(
-                       entryType, std::move(name), std::move(functionSet)));
-}
-
 static std::string getFunctionDoesNotExistMessage(std::string_view entryName) {
   std::string message = stringFormat("function {} does not exist.", entryName);
   const auto matchingExtensionFunction =
@@ -557,41 +541,6 @@ void Catalog::saveToFile(const std::string& directory, VirtualFileSystem* fs,
 void Catalog::readFromFile(const std::string& directory, VirtualFileSystem* fs,
                            FileVersionType versionType,
                            main::ClientContext* context) {}
-
-void Catalog::registerBuiltInFunctions() {
-  auto functionCollection = function::FunctionCollection::getFunctions();
-
-  auto lock = functions->acquireExclusiveLock();
-
-  for (auto i = 0u; functionCollection[i].name != nullptr; ++i) {
-    auto& f = functionCollection[i];
-    auto functionSet = f.getFunctionSetFunc();
-    auto entry = std::make_unique<FunctionCatalogEntry>(
-        f.catalogEntryType, f.name, std::move(functionSet));
-    auto* rawPtr = entry.get();
-    functions->createEntryUnlocked(&DUMMY_TRANSACTION, std::move(entry));
-
-    // register signature for scalar function
-    if (f.catalogEntryType == CatalogEntryType::SCALAR_FUNCTION_ENTRY) {
-      registerFunctionSignatures(rawPtr);
-    }
-  }
-}
-
-void Catalog::registerFunctionSignatures(FunctionCatalogEntry* entry) {
-  auto& functionSet = entry->getFunctionSet();
-  for (auto& fnPtr : functionSet) {
-    if (auto* scalarFn = dynamic_cast<function::ScalarFunction*>(fnPtr.get())) {
-      auto signature = function::buildScalarSignature(
-          scalarFn->name, scalarFn->parameterTypeIDs);
-
-      if (scalarFn->neugExecFunc != nullptr) {
-        function::FunctionSignatureRegistry::registerScalar(
-            signature, scalarFn->neugExecFunc);
-      }
-    }
-  }
-}
 
 CatalogEntry* Catalog::createTableEntry(Transaction* transaction,
                                         const BoundCreateTableInfo& info) {

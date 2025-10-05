@@ -51,6 +51,7 @@ class GCatalog : public Catalog {
   void updateSchema(const YAML::Node& schema_yaml_node);
 
  private:
+  void registerBuiltInFunctions();
   void loadSchema(const YAML::Node& schema);
   std::unique_ptr<TableCatalogEntry> createTableEntry(CatalogEntryType type,
                                                       const YAML::Node& info);

@@ -31,7 +31,8 @@ void Init() {
         gs::extension::ExtensionAPI::registerFunction<gs::extension::JsonScanFunction>(
             gs::catalog::CatalogEntryType::TABLE_FUNCTION_ENTRY);
 
-        // gs::extension::ExtensionAPI::registerScalarFunction<gs::extension::JsonDummyFunction>();
+        gs::extension::ExtensionAPI::registerFunction<gs::extension::JsonDummyFunction>(
+            gs::catalog::CatalogEntryType::SCALAR_FUNCTION_ENTRY);
             
         LOG(INFO) << "[json extension] functions registered successfully";
     } catch (const std::exception& e) {

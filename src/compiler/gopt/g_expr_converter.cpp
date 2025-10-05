@@ -26,7 +26,6 @@
 #include "neug/compiler/binder/expression/rel_expression.h"
 #include "neug/compiler/binder/expression/scalar_function_expression.h"
 #include "neug/compiler/binder/expression/variable_expression.h"
-#include "neug/compiler/catalog/function_signature_registry.h"
 #include "neug/compiler/common/enums/expression_type.h"
 #include "neug/compiler/common/string_utils.h"
 #include "neug/compiler/common/types/int128_t.h"
@@ -47,6 +46,7 @@
 #include "neug/utils/proto/plan/physical.pb.h"
 #endif
 #include "neug/utils/exception/exception.h"
+#include "neug/compiler/gopt/g_catalog_holder.h"
 
 namespace gs {
 namespace gopt {
@@ -553,8 +553,7 @@ std::unique_ptr<::common::Expression> GExprConverter::convertExtensionFunc(
     const std::vector<std::string>& schemaAlias) {
   // acquire unqiue name
   const auto& func = expr.getFunction();
-  const auto signature =
-      function::buildScalarSignature(func.name, func.parameterTypeIDs);
+  const auto& signature = func.signatureName;
 
   auto scalarPB = std::make_unique<::common::ScalarFunction>();
   scalarPB->set_unique_name(signature);
@@ -649,8 +648,16 @@ std::unique_ptr<::common::Expression> GExprConverter::convertScalarFunc(
   }
   auto& sfExpr = expr.constCast<binder::ScalarFunctionExpression>();
   const auto& fn = sfExpr.getFunction();
-  auto signature = function::buildScalarSignature(fn.name, fn.parameterTypeIDs);
-  (void) function::FunctionSignatureRegistry::lookup(signature);
+  auto signature = fn.signatureName;
+  auto gCatalog = catalog::GCatalogHolder::getGCatalog();
+  try {
+    auto func = gCatalog->getFunctionWithSignature(&gs::transaction::DUMMY_TRANSACTION, signature);
+    if (!func) {
+      THROW_EXCEPTION_WITH_FILE_LINE("Function with signature '" + signature + "' not found in catalog");
+    }
+  } catch (const std::exception& e) {
+    THROW_EXCEPTION_WITH_FILE_LINE("Function lookup failed for signature '" + signature + "': " + e.what());
+  }
   return convertExtensionFunc(sfExpr, schemaAlias);
 }
 
