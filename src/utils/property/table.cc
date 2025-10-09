@@ -66,17 +66,16 @@ void Table::init(const std::string& name, const std::string& work_dir,
   buildColumnPtrs();
 }
 
-void Table::open(const std::string& name, const std::string& snapshot_dir,
-                 const std::string& work_dir,
+void Table::open(const std::string& name, const std::string& work_dir,
                  const std::vector<std::string>& col_name,
                  const std::vector<PropertyType>& property_types,
                  const std::vector<StorageStrategy>& strategies_) {
   name_ = name;
   work_dir_ = work_dir;
-  snapshot_dir_ = snapshot_dir;
+  snapshot_dir_ = checkpoint_dir(work_dir_);
   initColumns(col_name, property_types, strategies_);
   for (size_t i = 0; i < columns_.size(); ++i) {
-    columns_[i]->open(name + ".col_" + std::to_string(i), snapshot_dir,
+    columns_[i]->open(name + ".col_" + std::to_string(i), snapshot_dir_,
                       tmp_dir(work_dir));
   }
   touched_ = false;

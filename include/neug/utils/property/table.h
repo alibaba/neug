@@ -42,19 +42,17 @@ class Table {
             const std::vector<PropertyType>& types,
             const std::vector<StorageStrategy>& strategies_);
 
-  void open(const std::string& name, const std::string& snapshot_dir,
-            const std::string& work_dir,
+  void open(const std::string& name, const std::string& work_dir,
             const std::vector<std::string>& col_name,
             const std::vector<PropertyType>& property_types,
             const std::vector<StorageStrategy>& strategies_);
 
-  void open_in_memory(const std::string& name, const std::string& snapshot_dir,
+  void open_in_memory(const std::string& name, const std::string& work_dir,
                       const std::vector<std::string>& col_name,
                       const std::vector<PropertyType>& property_types,
                       const std::vector<StorageStrategy>& strategies_);
 
-  void open_with_hugepages(const std::string& name,
-                           const std::string& snapshot_dir,
+  void open_with_hugepages(const std::string& name, const std::string& work_dir,
                            const std::vector<std::string>& col_name,
                            const std::vector<PropertyType>& property_types,
                            const std::vector<StorageStrategy>& strategies_,

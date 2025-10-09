@@ -26,24 +26,20 @@ void VertexTable::Open(const std::string& work_dir, int memory_level,
 
   std::string vertex_ts_filename =
       checkpoint_dir_path + "/" + vertex_timestamp_file(v_label_name_);
-
+  auto indexer_filename =
+      IndexerType::prefix() + "_" + vertex_map_prefix(v_label_name_);
   if (memory_level_ == 0) {
-    indexer_.open(
-        IndexerType::prefix() + "_" + vertex_map_prefix(v_label_name_),
-        checkpoint_dir_path, work_dir_);
-    table_->open(vertex_table_prefix(v_label_name_), checkpoint_dir_path,
-                 work_dir_, property_names, property_types, storage_strategies);
+    indexer_.open(indexer_filename, checkpoint_dir_path, work_dir_);
+    table_->open(vertex_table_prefix(v_label_name_), work_dir_, property_names,
+                 property_types, storage_strategies);
     vertex_ts_.open(vertex_ts_filename, true);
   } else if (memory_level_ == 1) {
-    indexer_.open_in_memory(checkpoint_dir_path + "/" + IndexerType::prefix() +
-                            "_" + vertex_map_prefix(v_label_name_));
+    indexer_.open_in_memory(checkpoint_dir_path + "/" + indexer_filename);
     table_->open_in_memory(vertex_table_prefix(v_label_name_), work_dir_,
                            property_names, property_types, storage_strategies);
     vertex_ts_.open(vertex_ts_filename, false);
   } else if (memory_level_ >= 2) {
-    indexer_.open_with_hugepages(checkpoint_dir_path + "/" +
-                                     IndexerType::prefix() + "_" +
-                                     vertex_map_prefix(v_label_name_),
+    indexer_.open_with_hugepages(checkpoint_dir_path + "/" + indexer_filename,
                                  (memory_level_ > 2));
     table_->open_with_hugepages(vertex_table_prefix(v_label_name_), work_dir_,
                                 property_names, property_types,

@@ -9,7 +9,7 @@ find_package(OpenSSL REQUIRED)
 add_executable(test_run_query test_run_query.cc)
 target_link_libraries(test_run_query PRIVATE ${GLOG_LIBRARIES} ${NEUG_LIBRARIES} ${OPENSSL_LIBRARIES} ${CRYPTO_LIB} ${GFLAGS_LIBRARIES})
 
-add_storage_test(storage_test test_ddl.cc test_export.cc test_open_graph.cc alter_property_test.cc test_set_property.cc test_checkpoint.cc)
+add_storage_test(storage_test test_ddl.cc test_export.cc test_open_graph.cc alter_property_test.cc test_set_property.cc test_checkpoint.cc test_memory_level.cc)
 target_link_libraries(storage_test
     PRIVATE
     ${GLOG_LIBRARIES}

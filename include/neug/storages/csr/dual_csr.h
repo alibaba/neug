@@ -407,7 +407,7 @@ class DualCsr<std::string_view> : public DualCsrBase {
             const std::vector<PropertyType>& property_types) override {
     in_csr_->open(ie_name, snapshot_dir, work_dir);
     out_csr_->open(oe_name, snapshot_dir, work_dir);
-    table_.open(edata_name, snapshot_dir, work_dir, {col_names[0]},
+    table_.open(edata_name, work_dir, {col_names[0]},
                 {PropertyType::StringView()}, {});
     column_idx_.store(table_.row_num());
     table_.resize(
@@ -651,10 +651,7 @@ class DualCsr<RecordView> : public DualCsrBase {
             const std::vector<PropertyType>& property_types) override {
     in_csr_->open(ie_name, snapshot_dir, work_dir);
     out_csr_->open(oe_name, snapshot_dir, work_dir);
-
-    // fix me: storage_strategies_ is not used
-    table_.open(edata_name, snapshot_dir, work_dir, col_names, property_types,
-                {});
+    table_.open(edata_name, work_dir, col_names, property_types, {});
     table_idx_.store(table_.row_num());
     table_.resize(
         std::max(table_.row_num() + (table_.row_num() + 4) / 5, 4096ul));
