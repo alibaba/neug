@@ -100,15 +100,18 @@ void Table::open_in_memory(const std::string& name, const std::string& work_dir,
 }
 
 void Table::open_with_hugepages(const std::string& name,
-                                const std::string& snapshot_dir,
+                                const std::string& work_dir,
                                 const std::vector<std::string>& col_name,
                                 const std::vector<PropertyType>& property_types,
                                 const std::vector<StorageStrategy>& strategies_,
                                 bool force) {
+  name_ = name;
+  work_dir_ = work_dir;
+  snapshot_dir_ = checkpoint_dir(work_dir);
   initColumns(col_name, property_types, strategies_);
   for (size_t i = 0; i < columns_.size(); ++i) {
     columns_[i]->open_with_hugepages(
-        snapshot_dir + "/" + name + ".col_" + std::to_string(i), force);
+        snapshot_dir_ + "/" + name + ".col_" + std::to_string(i), force);
   }
   touched_ = true;
   buildColumnPtrs();
