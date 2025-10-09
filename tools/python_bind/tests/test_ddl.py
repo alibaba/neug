@@ -201,7 +201,7 @@ def test_drop_vertex_table():
     conn = db.connect()
     # First create the graph schema
     with pytest.raises(Exception):
-        conn.execute("DROP TABLE IF EXISTS TestNode")
+        conn.execute("DROP TABLE TestNode")
     conn.execute(
         """
             CREATE NODE TABLE IF NOT EXISTS TestNode(
@@ -241,9 +241,9 @@ def test_drop_edge_table():
     conn = db.connect()
     # First create the graph schema
     with pytest.raises(Exception):
-        conn.execute("DROP TABLE IF EXISTS TestEdge")
+        conn.execute("DROP TABLE TestEdge")
     with pytest.raises(Exception):
-        conn.execute("DROP TABLE IF EXISTS TestEdge2")
+        conn.execute("DROP TABLE TestEdge2")
     conn.execute(
         """
             CREATE NODE TABLE IF NOT EXISTS TestNode(

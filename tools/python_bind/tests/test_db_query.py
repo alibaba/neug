@@ -1942,3 +1942,58 @@ def test_internal_id_filter():
         assert record[0] == 933, f"Expected value 933, got {record[0]}"
     conn.close()
     db.close()
+
+
+def test_drop_person_if_exists():
+    db_dir = "/tmp/modern_graph"
+    db = Database(db_path=db_dir, mode="w")
+    conn = db.connect()
+    result = conn.execute("drop table if exists person2;")
+    assert len(result) == 0
+    db.close()
+
+
+def test_drop_knows_if_exists():
+    db_dir = "/tmp/modern_graph"
+    db = Database(db_path=db_dir, mode="w")
+    conn = db.connect()
+    result = conn.execute("drop table if exists knows2;")
+    assert len(result) == 0
+    db.close()
+
+
+def test_create_person_if_not_exists():
+    db_dir = "/tmp/modern_graph"
+    db = Database(db_path=db_dir, mode="w")
+    conn = db.connect()
+    conn.execute(
+        """
+        create node table if not exists
+        person(name STRING, PRIMARY KEY(name));
+    """
+    )
+    res = conn.execute("match (p:person) return count(p.age);")
+    records = list(res)
+    assert records == [[4]]
+    db.close()
+
+
+def test_create_knows_if_not_exists():
+    db_dir = "/tmp/modern_graph"
+    db = Database(db_path=db_dir, mode="w")
+    conn = db.connect()
+    conn.execute(
+        """
+        create rel table if not exists
+        knows(FROM person TO person, name STRING);
+    """
+    )
+    res = conn.execute(
+        """
+        match (p:person)-[r:knows]->(q:person)
+        return count(r.weight);
+    """
+    )
+    records = list(res)
+    assert records == [[2]]
+    db.close()

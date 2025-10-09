@@ -130,6 +130,18 @@ CypherUpdateApp::execute_rename_vertex_property(
   }
 }
 
+result<results::CollectiveResults> CypherUpdateApp::execute_rename_vertex_type(
+    NeugDBSession& graph,
+    const physical::RenameVertexTypeSchema& rename_vertex_type_schema) {
+  THROW_NOT_IMPLEMENTED_EXCEPTION("Rename vertex type is not implemented yet");
+}
+
+result<results::CollectiveResults> CypherUpdateApp::execute_rename_edge_type(
+    NeugDBSession& graph,
+    const physical::RenameEdgeTypeSchema& rename_edge_type_schema) {
+  THROW_NOT_IMPLEMENTED_EXCEPTION("Rename edge type is not implemented yet");
+}
+
 result<results::CollectiveResults>
 CypherUpdateApp::execute_rename_edge_property(
     NeugDBSession& graph,
@@ -208,8 +220,9 @@ result<results::CollectiveResults> CypherUpdateApp::execute_ddl(
                             "Only one primary key is supported"));
       }
       std::vector<std::string> pks{create_vertex.primary_key(0)};
-      auto res =
-          graph_.create_vertex_type(vertex_type_name, tuple_res.value(), pks);
+      auto res = graph_.create_vertex_type(
+          vertex_type_name, tuple_res.value(), pks,
+          conflict_action_to_bool(create_vertex.conflict_action()));
       if (!res.ok()) {
         LOG(ERROR) << "Fail to create vertex type: " << vertex_type_name
                    << ", reason: " << res.ToString();
@@ -253,16 +266,20 @@ result<results::CollectiveResults> CypherUpdateApp::execute_ddl(
               "Invalid edge multiplicity: " +
                   physical::CreateEdgeSchema_Multiplicity_Name(multiplicity)));
         }
+
         if (graph_.schema().exist(src_vertex_type_name, dst_vertex_type_name,
                                   edge_type_name)) {
-          RETURN_ERROR(
-              Status(StatusCode::ERR_INVALID_ARGUMENT,
-                     "Edge triplet already exists: " + src_vertex_type_name +
-                         ", " + dst_vertex_type_name + ", " + edge_type_name));
+          if (conflict_action) {
+            RETURN_ERROR(Status(
+                StatusCode::ERR_INVALID_ARGUMENT,
+                "Edge triplet already exists: " + src_vertex_type_name + ", " +
+                    dst_vertex_type_name + ", " + edge_type_name));
+          }
+        } else {
+          create_edge_defs.emplace_back(
+              src_vertex_type_name, dst_vertex_type_name, edge_type_name,
+              tuple_res.value(), conflict_action, oe_stragety, ie_stragety);
         }
-        create_edge_defs.emplace_back(
-            src_vertex_type_name, dst_vertex_type_name, edge_type_name,
-            tuple_res.value(), conflict_action, oe_stragety, ie_stragety);
       }
       int32_t succeed_index = 0;
       int32_t defs_size = create_edge_defs.size();
@@ -320,6 +337,12 @@ result<results::CollectiveResults> CypherUpdateApp::execute_ddl(
       return execute_drop_vertex_schema(graph, ddl_plan.drop_vertex_schema());
     } else if (ddl_plan.has_drop_edge_schema()) {
       return execute_drop_edge_schema(graph, ddl_plan.drop_edge_schema());
+    } else if (ddl_plan.has_rename_vertex_type_schema()) {
+      return execute_rename_vertex_type(graph,
+                                        ddl_plan.rename_vertex_type_schema());
+    } else if (ddl_plan.has_rename_edge_type_schema()) {
+      return execute_rename_edge_type(graph,
+                                      ddl_plan.rename_edge_type_schema());
     } else {
       LOG(ERROR) << "Unknown DDL plan: " << ddl_plan.DebugString();
       RETURN_ERROR(Status(StatusCode::ERR_INVALID_ARGUMENT,
@@ -420,8 +443,8 @@ bool CypherUpdateApp::Query(NeugDBSession& graph, Decoder& input,
       return true;
     }
 
-    // TODO(lexiao,zhanglei): Currently we resize the vertex property column is
-    // space is not enough.
+    // TODO(lexiao,zhanglei): Currently we resize the vertex property column
+    // is space is not enough.
     //  This may infect the performance of the update query.
     std::unique_ptr<runtime::OprTimer> timer =
         std::make_unique<runtime::OprTimer>();

@@ -199,8 +199,8 @@ Status PropertyGraph::create_edge_type(
     const std::string& src_vertex_type, const std::string& dst_vertex_type,
     const std::string& edge_type_name,
     const std::vector<std::tuple<PropertyType, std::string, Any>>& properties,
-    bool error_on_conflict,  // Not used
-    EdgeStrategy oe_edge_strategy, EdgeStrategy ie_edge_strategy) {
+    bool error_on_conflict, EdgeStrategy oe_edge_strategy,
+    EdgeStrategy ie_edge_strategy) {
   LOG(INFO) << "create_edge_type: src_vertex_type: " << src_vertex_type
             << ", dst_vertex_type: " << dst_vertex_type
             << ", edge_type_name: " << edge_type_name;

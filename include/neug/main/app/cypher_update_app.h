@@ -65,6 +65,14 @@ class CypherUpdateApp : public WriteAppBase {
       NeugDBSession& graph,
       const physical::DropEdgePropertySchema& drop_edge_property_schema);
 
+  static result<results::CollectiveResults> execute_rename_vertex_type(
+      NeugDBSession& graph,
+      const physical::RenameVertexTypeSchema& rename_vertex_type_schema);
+
+  static result<results::CollectiveResults> execute_rename_edge_type(
+      NeugDBSession& graph,
+      const physical::RenameEdgeTypeSchema& rename_edge_type_schema);
+
   static result<results::CollectiveResults> execute_rename_vertex_property(
       NeugDBSession& graph, const physical::RenameVertexPropertySchema&
                                 rename_vertex_property_schema);

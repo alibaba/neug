@@ -20,8 +20,7 @@
 
 namespace gs {
 namespace gopt {
-
-class DDLTest : public GOptTest {
+class GOptDDLTest : public GOptTest {
  public:
   std::string schemaData = getGOptResource("schema/create_follows_schema.yaml");
   std::string statsData = getGOptResource("stats/create_follows_stats.json");
@@ -37,7 +36,7 @@ class DDLTest : public GOptTest {
 };
 
 // todo: support temporal data type
-TEST_F(DDLTest, CREATE_USER) {
+TEST_F(GOptDDLTest, CREATE_USER) {
   std::string query =
       "CREATE NODE TABLE User (name STRING, age INT64 DEFAULT 0, reg_date "
       "INT64, PRIMARY KEY (name));";
@@ -51,7 +50,7 @@ TEST_F(DDLTest, CREATE_USER) {
   ASSERT_TRUE(returns.IsSequence() && returns.size() == 0);
 }
 
-TEST_F(DDLTest, CREATE_FOLLOWS) {
+TEST_F(GOptDDLTest, CREATE_FOLLOWS) {
   std::string query =
       "CREATE REL TABLE Follows(FROM User TO User, since INT64);";
   auto logical = planLogical(query, schemaData, statsData, rules);
@@ -60,7 +59,7 @@ TEST_F(DDLTest, CREATE_FOLLOWS) {
       *physical, getDDLResource("CREATE_FOLLOWS_physical"));
 }
 
-TEST_F(DDLTest, ALTER_USER_ADD) {
+TEST_F(GOptDDLTest, ALTER_USER_ADD) {
   std::string query = "ALTER TABLE User ADD age INT64;";
   auto logical = planLogical(query, schemaData, statsData, rules);
   auto physical = planPhysical(*logical);
@@ -68,7 +67,7 @@ TEST_F(DDLTest, ALTER_USER_ADD) {
       *physical, getDDLResource("ALTER_USER_ADD_physical"));
 }
 
-TEST_F(DDLTest, ALTER_USER_RENAME_COLUMN) {
+TEST_F(GOptDDLTest, ALTER_USER_RENAME_COLUMN) {
   std::string query = "ALTER TABLE User RENAME age TO grade;";
   auto logical = planLogical(query, schemaData, statsData, rules);
   auto physical = planPhysical(*logical);
@@ -76,7 +75,7 @@ TEST_F(DDLTest, ALTER_USER_RENAME_COLUMN) {
       *physical, getDDLResource("ALTER_USER_RENAME_COLUMN_physical"));
 }
 
-TEST_F(DDLTest, ALTER_USER_DROP_COLUMN) {
+TEST_F(GOptDDLTest, ALTER_USER_DROP_COLUMN) {
   std::string query = "ALTER TABLE User DROP grade;";
   auto logical = planLogical(query, schemaData, statsData, rules);
   auto physical = planPhysical(*logical);
@@ -84,7 +83,7 @@ TEST_F(DDLTest, ALTER_USER_DROP_COLUMN) {
       *physical, getDDLResource("ALTER_USER_DROP_COLUMN_physical"));
 }
 
-TEST_F(DDLTest, ALTER_FOLLOWS_ADD) {
+TEST_F(GOptDDLTest, ALTER_FOLLOWS_ADD) {
   std::string query = "ALTER TABLE Follows ADD age INT64;";
   auto logical = planLogical(query, schemaData, statsData, rules);
   auto physical = planPhysical(*logical);
@@ -92,7 +91,7 @@ TEST_F(DDLTest, ALTER_FOLLOWS_ADD) {
       *physical, getDDLResource("ALTER_FOLLOWS_ADD_physical"));
 }
 
-TEST_F(DDLTest, ALTER_FOLLOWS_RENAME_COLUMN) {
+TEST_F(GOptDDLTest, ALTER_FOLLOWS_RENAME_COLUMN) {
   std::string query = "ALTER TABLE Follows RENAME age TO grade;";
   auto logical = planLogical(query, schemaData, statsData, rules);
   auto physical = planPhysical(*logical);
@@ -100,7 +99,7 @@ TEST_F(DDLTest, ALTER_FOLLOWS_RENAME_COLUMN) {
       *physical, getDDLResource("ALTER_FOLLOWS_RENAME_COLUMN_physical"));
 }
 
-TEST_F(DDLTest, ALTER_FOLLOWS_DROP_COLUMN) {
+TEST_F(GOptDDLTest, ALTER_FOLLOWS_DROP_COLUMN) {
   std::string query = "ALTER TABLE Follows DROP grade;";
   auto logical = planLogical(query, schemaData, statsData, rules);
   auto physical = planPhysical(*logical);
@@ -108,7 +107,7 @@ TEST_F(DDLTest, ALTER_FOLLOWS_DROP_COLUMN) {
       *physical, getDDLResource("ALTER_FOLLOWS_DROP_COLUMN_physical"));
 }
 
-TEST_F(DDLTest, ALTER_USER_RENAME_TABLE) {
+TEST_F(GOptDDLTest, ALTER_USER_RENAME_TABLE) {
   std::string query = "ALTER TABLE User RENAME TO Student;";
   auto logical = planLogical(query, schemaData, statsData, rules);
   auto physical = planPhysical(*logical);
@@ -116,7 +115,7 @@ TEST_F(DDLTest, ALTER_USER_RENAME_TABLE) {
       *physical, getDDLResource("ALTER_USER_RENAME_TABLE_physical"));
 }
 
-TEST_F(DDLTest, ALTER_FOLLOWS_RENAME_TABLE) {
+TEST_F(GOptDDLTest, ALTER_FOLLOWS_RENAME_TABLE) {
   std::string query = "ALTER TABLE Follows RENAME TO Follows2;";
   auto logical = planLogical(query, schemaData, statsData, rules);
   auto physical = planPhysical(*logical);
@@ -124,7 +123,7 @@ TEST_F(DDLTest, ALTER_FOLLOWS_RENAME_TABLE) {
       *physical, getDDLResource("ALTER_FOLLOWS_RENAME_TABLE_physical"));
 }
 
-TEST_F(DDLTest, DROP_USER) {
+TEST_F(GOptDDLTest, DROP_USER) {
   std::string query = "DROP TABLE User;";
   auto logical = planLogical(query, schemaData, statsData, rules);
   auto physical = planPhysical(*logical);
@@ -132,7 +131,7 @@ TEST_F(DDLTest, DROP_USER) {
                                       getDDLResource("DROP_USER_physical"));
 }
 
-TEST_F(DDLTest, DROP_FOLLOWS) {
+TEST_F(GOptDDLTest, DROP_FOLLOWS) {
   std::string query = "DROP TABLE Follows;";
   auto logical = planLogical(query, schemaData, statsData, rules);
   auto physical = planPhysical(*logical);
@@ -140,7 +139,7 @@ TEST_F(DDLTest, DROP_FOLLOWS) {
                                       getDDLResource("DROP_FOLLOWS_physical"));
 }
 
-TEST_F(DDLTest, CREATE_MULTI_EDGE) {
+TEST_F(GOptDDLTest, CREATE_MULTI_EDGE) {
   std::string schemaData = getGOptResource("schema/modern_schema.yaml");
   std::string query =
       "CREATE REL TABLE Follows(FROM person TO person, FROM person TO "
@@ -149,6 +148,37 @@ TEST_F(DDLTest, CREATE_MULTI_EDGE) {
   auto physical = planPhysical(*logical);
   VerifyFactory::verifyPhysicalByJson(
       *physical, getDDLResource("CREATE_MULTI_EDGE_physical"));
+}
+
+TEST_F(GOptDDLTest, DROP_PERSON_IF_EXISTS) {
+  std::string query = "DROP TABLE IF EXISTS User2;";
+  auto logical = planLogical(query, schemaData, statsData, rules);
+  ASSERT_TRUE(logical->emptyResult(logical->getLastOperator()));
+}
+
+TEST_F(GOptDDLTest, DROP_KNOWS_IF_EXISTS) {
+  std::string query = "DROP TABLE IF EXISTS Follows2;";
+  auto logical = planLogical(query, schemaData, statsData, rules);
+  ASSERT_TRUE(logical->emptyResult(logical->getLastOperator()));
+}
+
+TEST_F(GOptDDLTest, CREATE_PERSON_IF_NOT_EXISTS) {
+  std::string query =
+      "CREATE NODE TABLE IF NOT EXISTS User(name STRING, PRIMARY KEY (name));";
+  auto logical = planLogical(query, schemaData, statsData, rules);
+  auto physical = planPhysical(*logical);
+  VerifyFactory::verifyPhysicalByJson(
+      *physical, getDDLResource("CREATE_PERSON_IF_NOT_EXISTS_physical"));
+}
+
+TEST_F(GOptDDLTest, CREATE_KNOWS_IF_NOT_EXISTS) {
+  std::string query =
+      "CREATE REL TABLE IF NOT EXISTS Follows (FROM User TO User, weight "
+      "DOUBLE);";
+  auto logical = planLogical(query, schemaData, statsData, rules);
+  auto physical = planPhysical(*logical);
+  VerifyFactory::verifyPhysicalByJson(
+      *physical, getDDLResource("CREATE_KNOWS_IF_NOT_EXISTS_physical"));
 }
 
 }  // namespace gopt
