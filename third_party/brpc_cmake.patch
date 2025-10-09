@@ -1,0 +1,12 @@
+diff --git a/CMakeLists.txt b/CMakeLists.txt
+index 30076bf2..e9bb83b8 100644
+--- a/CMakeLists.txt
++++ b/CMakeLists.txt
+@@ -33,6 +33,7 @@ option(BUILD_UNIT_TESTS "Whether to build unit tests" OFF)
+ option(BUILD_FUZZ_TESTS "Whether to build fuzz tests" OFF)
+ option(BUILD_BRPC_TOOLS "Whether to build brpc tools" ON)
+ option(DOWNLOAD_GTEST "Download and build a fresh copy of googletest. Requires Internet access." ON)
++add_definitions(-DNO_PTHREAD_MUTEX_HOOK)
+ 
+ # Enable MACOSX_RPATH. Run "cmake --help-policy CMP0042" for policy details.
+ if(POLICY CMP0042)

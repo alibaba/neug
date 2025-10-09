@@ -15,8 +15,8 @@ add_dependencies(neug_gopt neug_plan_proto)
 target_link_libraries(neug_gopt
     PUBLIC
     neug_plan_proto
-    ${Protobuf_LIBRARIES}
-    ${YAML_CPP_LIBRARIES})
+    ${Protobuf_LIBRARIES})
+target_link_libraries(neug_gopt PRIVATE  ${YAML_CPP_LIBRARIES})
 
 set(ALL_OBJECT_FILES
         ${ALL_OBJECT_FILES} $<TARGET_OBJECTS:neug_gopt>

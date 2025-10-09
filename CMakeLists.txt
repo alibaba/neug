@@ -32,7 +32,6 @@ option(BUILD_DOC "Whether to build doc" OFF)
 option(BUILD_ODPS_FRAGMENT_LOADER "Whether to build odps fragment loader" OFF)
 option(USE_PTHASH "Whether to use pthash" OFF)
 option(OPTIMIZE_FOR_HOST "Whether to optimize on host" ON) # Whether to build optimized code on host
-option(USE_STATIC_ARROW "Whether to use static arrow" OFF) # Whether to link arrow statically, default is OFF
 option(BUILD_WITH_OSS "Whether to build with oss support" OFF) # Whether to build with oss support, default is OFF
 option(BUILD_EXECUTABLES "When to build executors" OFF) # Whether to build executables, default is OFF
 option(BUILD_HTTP_SERVER "Whether to build http server" OFF) # Whether to build http server, default is OFF
@@ -79,7 +78,6 @@ option(BUILD_EXTENSION_TESTS "Build C++ extension tests." FALSE)
 option(ENABLE_BACKTRACES "Enable backtrace printing for exceptions and segfaults" FALSE)
 option(BUILD_EXAMPLES "Build examples." ON)
 
-set (Seastar_SCHEDULING_GROUPS_COUNT "16" CACHE STRING "A positive number to set Seastar's reactor number of allowed different scheduling groups.")
 
 add_definitions(-DNEUG_CMAKE_VERSION="${CMAKE_PROJECT_VERSION}")
 #TODO: Fixme
@@ -116,13 +114,13 @@ if (NOT EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/third_party/yaml-cpp/CMakeLists.txt"
 endif()
 
 if (WITH_MIMALLOC)
-    find_package(mimalloc 2.0)
-    if (NOT mimalloc_FOUND)
-        message(STATUS "mimalloc not found, installing mimalloc from source")
-        set(MI_BUILD_TESTS OFF CACHE BOOL "Build mimalloc tests")
-        add_subdirectory(third_party/mimalloc)
-        include_directories(SYSTEM third_party/mimalloc/include)
-    endif()
+    set(MI_BUILD_TESTS OFF CACHE BOOL "Build mimalloc tests")
+    set(MI_BUILD_SHARED ON CACHE BOOL "Build mimalloc as shared library" FORCE)
+    set(MI_BUILD_STATIC OFF CACHE BOOL "Build mimalloc as static library") 
+    # we should not use static mimalloc, the reason is that static mimalloc will override the default malloc.
+    add_subdirectory(third_party/mimalloc)
+    set_target_properties(mimalloc PROPERTIES DEBUG_POSTFIX "")
+    include_directories(SYSTEM third_party/mimalloc/include)
     unset(PACKAGE_VERSION) # Unset PACKAGE_VERSION to avoid generate two PACKAGE_VERSION in config.h for libdwarf-lite.
 endif()
 
@@ -295,37 +293,6 @@ endif()
 
 find_package(Threads REQUIRED)
 
-# find gflags-------------------------------------------------------------------
-find_package(gflags)
-if (NOT gflags_FOUND)
-    if (BUILD_HTTP_SERVER)
-        message(STATUS "gflags not found, build gflags from source") 
-        # We need gflags for brpc, so we build it as a third party library
-        include(cmake/BuildGflagsAsThirdParty.cmake)
-        build_gflags_as_third_party()
-    else()
-        message(STATUS "gflags not found, build without gflags")
-    endif()
-endif()
-include_directories(SYSTEM ${GFLAGS_INCLUDE_DIRS})
-
-# find glog---------------------------------------------------------------------
-include("cmake/FindGlog.cmake")
-if (NOT GLOG_FOUND)
-    message(STATUS "glog not found, using glog from third_party")
-    set(BUILD_TESTING OFF CACHE BOOL "Build glog tests")
-    add_subdirectory(third_party/glog)
-    include_directories(SYSTEM third_party/glog/src)
-    include_directories(SYSTEM ${CMAKE_CURRENT_BINARY_DIR}/third_party/glog/) # For generated headers
-    set_target_properties(glog PROPERTIES DEBUG_POSTFIX "")
-    set(GLOG_LIBRARIES glog::glog)
-    set(GLOG_LIB glog::glog)
-    set(GLOG_INCLUDE_PATH ${CMAKE_CURRENT_SOURCE_DIR}/third_party/glog/src)
-else ()
-    include_directories(SYSTEM ${GLOG_INCLUDE_DIRS})
-endif ()
-message(STATUS "glog libraries: ${GLOG_LIBRARIES}")
-
 # if os is macos, 
 if (CMAKE_CXX_COMPILER_ID MATCHES "Clang")
     message("macos detected")
@@ -454,21 +421,21 @@ endif()
 set(CMAKE_THREAD_PREFER_PTHREAD ON)
 find_package(Threads REQUIRED)
 
+# find gflags-------------------------------------------------------------------
+# We need gflags for brpc, so we build it as a third party library
+include(cmake/BuildGflagsAsThirdParty.cmake)
+build_gflags_as_third_party()
+include_directories(SYSTEM ${GFLAGS_INCLUDE_DIRS})
+message(STATUS "gflags libraries: ${GFLAGS_LIBRARIES}")
+
 # find yaml-cpp-----------------------------------------------------------------
-find_package(yaml-cpp)
-message(STATUS "yaml-cpp found: ${yaml-cpp_FOUND}, ${yaml-cpp_INCLUDE_DIRS}")
-if (NOT yaml-cpp_FOUND)
-    message(STATUS "yaml-cpp not found, installing yaml-cpp from source")
-    set(BUILD_SHARED_LIBS ON CACHE BOOL "Build shared libraries")
-    set(YAML_CPP_INSTALL ON CACHE BOOL "Install yaml-cpp")
-    set(YAML_CPP_BUILD_TOOLS OFF CACHE BOOL "Build yaml-cpp tools")
-    add_subdirectory(third_party/yaml-cpp)
-    include_directories(SYSTEM third_party/yaml-cpp/include)
-    set(YAML_CPP_LIBRARIES yaml-cpp)
-    set_target_properties(yaml-cpp PROPERTIES DEBUG_POSTFIX "")
-else()
-    include_directories(SYSTEM ${yaml-cpp_INCLUDE_DIRS})
-endif ()
+set(BUILD_SHARED_LIBS OFF CACHE BOOL "Build shared libraries" FORCE)
+set(YAML_CPP_INSTALL OFF CACHE BOOL "Install yaml-cpp")
+set(YAML_CPP_BUILD_TOOLS OFF CACHE BOOL "Build yaml-cpp tools")
+add_subdirectory(third_party/yaml-cpp)
+include_directories(SYSTEM third_party/yaml-cpp/include)
+set(YAML_CPP_LIBRARIES yaml-cpp)
+set_target_properties(yaml-cpp PROPERTIES DEBUG_POSTFIX "")
 message(STATUS "yaml-cpp libraries: ${YAML_CPP_LIBRARIES}")
 
 #find protobuf-------------------------------------------------------------------
@@ -520,27 +487,23 @@ configure_file(
 
 
 if (BUILD_HTTP_SERVER)
-    find_path(LEVELDB_INCLUDE_PATH NAMES leveldb/db.h)
-    find_library(LEVELDB_LIB NAMES leveldb)
-    if ((NOT LEVELDB_INCLUDE_PATH) OR (NOT LEVELDB_LIB))
-        message(STATUS "Fail to find leveldb, try build from source")
-        set(LEVELDB_BUILD_TESTS OFF CACHE BOOL "Build leveldb tests")
-        set(LEVELDB_BUILD_BENCHMARKS OFF CACHE BOOL "Build leveldb benchmarks")
-        # Apply third_party/leveldb.patch to leveldb to fix compilation issue for wunused-variable
-        if (NOT EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/third_party/leveldb.patch")
-            message(FATAL_ERROR "leveldb.patch not found in third_party")
-        endif()
-        execute_process(COMMAND git apply ${CMAKE_CURRENT_SOURCE_DIR}/third_party/leveldb.patch
-                        WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/third_party/leveldb
-                        RESULT_VARIABLE result
-                        OUTPUT_VARIABLE output
-                        ERROR_VARIABLE error_output)
-        add_subdirectory(third_party/leveldb)
-        target_compile_definitions(leveldb PRIVATE NDEBUG=1)
-        set(LEVELDB_INCLUDE_PATH ${CMAKE_CURRENT_SOURCE_DIR}/third_party/leveldb/include)
-        set(LEVELDB_LIB leveldb)
-        set(INSTALL_LEVELDB ON CACHE BOOL "Install leveldb")
+    set(BUILD_SHARED_LIBS OFF CACHE BOOL "Build leveldb as static library" FORCE)
+    set(LEVELDB_INSTALL OFF CACHE BOOL "Install leveldb")
+    set(LEVELDB_BUILD_TESTS OFF CACHE BOOL "Build leveldb tests")
+    set(LEVELDB_BUILD_BENCHMARKS OFF CACHE BOOL "Build leveldb benchmarks")
+    # Apply third_party/leveldb.patch to leveldb to fix compilation issue for wunused-variable
+    if (NOT EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/third_party/leveldb.patch")
+        message(FATAL_ERROR "leveldb.patch not found in third_party")
     endif()
+    execute_process(COMMAND git apply ${CMAKE_CURRENT_SOURCE_DIR}/third_party/leveldb.patch
+                    WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/third_party/leveldb
+                    RESULT_VARIABLE result
+                    OUTPUT_VARIABLE output
+                    ERROR_VARIABLE error_output)
+    add_subdirectory(third_party/leveldb)
+    target_compile_definitions(leveldb PRIVATE NDEBUG=1)
+    set(LEVELDB_INCLUDE_PATH ${CMAKE_CURRENT_SOURCE_DIR}/third_party/leveldb/include)
+    set(LEVELDB_LIB leveldb)
     include_directories(${LEVELDB_INCLUDE_PATH})
 
     find_package(OpenSSL)
@@ -552,17 +515,24 @@ if (BUILD_HTTP_SERVER)
         message(FATAL_ERROR "Fail to find crypto lib")
     endif()
 
-    find_library(BRPC_LIB NAMES brpc)
-    find_path(BRPC_INCLUDE_PATH NAMES brpc/server.h)
     if((NOT BRPC_INCLUDE_PATH) OR (NOT BRPC_LIB))
             # Requires gflags, leveldb-dev to be installed.
             set(BUILD_BRPC_AS_THIRD_PARTY TRUE CACHE BOOL "Build brpc as third party")
             message(STATUS "Fail to find brpc, try build from source")
             set(WITH_DEBUG_SYMBOLS OFF CACHE BOOL "Build brpc with debug symbols")
             set(BUILD_BRPC_TOOLS OFF CACHE BOOL "Build brpc tools")
-            set(BUILD_SHARED_LIBS OFF CACHE BOOL "Build brpc as static library")
+            set(BUILD_SHARED_LIBS OFF CACHE BOOL "Build brpc as static library" FORCE)
             set(WITH_GLOG ON CACHE BOOL "Build brpc with glog")
             set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wno-sign-compare -Wno-deprecated-declarations -Wno-attributes")
+
+            # We will always apply brpc_cmake.patch to fix the issue of dlsym issue related to packing wheel. 
+            # https://github.com/GraphScope/neug/issues/365
+            execute_process(COMMAND git apply ${CMAKE_CURRENT_SOURCE_DIR}/third_party/brpc_cmake.patch
+                        WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/third_party/brpc
+                        RESULT_VARIABLE result
+                        OUTPUT_VARIABLE output
+                        ERROR_VARIABLE error_output)
+
 
             if (APPLY_BRPC_PATCH)
                 if (NOT EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/third_party/brpc.patch")
@@ -587,31 +557,9 @@ if (BUILD_HTTP_SERVER)
 endif()
 
 #find arrow----------------------------------------------------------------------
-find_package(Arrow)
-if (NOT Arrow_FOUND)
-    include(cmake/BuildArrowAsThirdParty.cmake)
-    build_arrow_as_third_party()
-    install_neug_target(${ARROW_LIB})
-else ()
-    include_directories(SYSTEM ${ARROW_INCLUDE_DIR})
-    if (USE_STATIC_ARROW)
-        if (TARGET Arrow::arrow_static)
-            set(ARROW_LIB Arrow::arrow_static)
-        elseif (TARGET arrow_static) # For backward compatibility, see https://arrow.apache.org/docs/cpp/build_system.html#available-variables-and-targets
-            set(ARROW_LIB arrow_static)
-        else()
-            message(FATAL_ERROR "Building with USE_STATIC_ARROW=ON, but arrow_static target not found")
-        endif()
-    else ()
-        if (TARGET Arrow::arrow_shared)
-            set(ARROW_LIB Arrow::arrow_shared)
-        elseif (TARGET arrow_shared) # For backward compatibility
-            set(ARROW_LIB arrow_shared)
-        else()
-            message(FATAL_ERROR "Building with USE_STATIC_ARROW=OFF, but arrow_shared target not found")
-        endif()
-    endif()
-endif ()
+
+include(cmake/BuildArrowAsThirdParty.cmake)
+build_arrow_as_third_party()
 
 # Find Doxygen
 if (BUILD_DOC)
@@ -629,17 +577,8 @@ if (BUILD_DOC)
     endif(DOXYGEN_FOUND)
 endif()
 
-find_package(RapidJSON)
-if (NOT RapidJSON_FOUND)
-    message(STATUS "RapidJSON not found, installing RapidJSON from source")
-    include_directories(SYSTEM third_party/rapidjson/include)
-else ()
-    if (DEFINED RapidJSON_INCLUDE_DIRS)  # rapidjson > 1.1.0
-        include_directories(${RapidJSON_INCLUDE_DIRS})
-    else ()  # rapidjson <= 1.1.0
-        include_directories(${RAPIDJSON_INCLUDE_DIRS})
-    endif ()
-endif()
+
+include_directories(SYSTEM third_party/rapidjson/include)
 
 add_definitions(-DRAPIDJSON_HAS_CXX11=1)
 add_definitions(-DRAPIDJSON_HAS_STDSTRING=1)
@@ -846,36 +785,6 @@ if (NOT RapidJSON_FOUND)
             PATTERN "*.h"
             PATTERN "*.hpp"
     )
-endif()
-
-if (WITH_MIMALLOC)
-    if (NOT mimalloc_FOUND)
-        install_neug_target(mimalloc)
-    endif()
-endif()
-
-if (BUILD_HTTP_SERVER)
-    if (BUILD_BRPC_AS_THIRD_PARTY)
-        install_neug_target(brpc-static)
-    endif()
-endif()
-
-# Remove the debug_postfix for glog and yaml-cpp
-if (NOT GLOG_FOUND)
-    install_neug_target(glog)
-endif()
-
-if (NOT yaml-cpp_FOUND)
-    install_neug_target(yaml-cpp)
-endif()
-
-if (BUILD_HTTP_SERVER)
-    if (INSTALL_LEVELDB)
-        install_neug_target(${LEVELDB_LIB})
-    endif()
-    if (GFLAGS_IS_SUBPROJECT)
-        install_neug_target(gflags_nothreads_shared)
-    endif()
 endif()
 
 include(CPack)

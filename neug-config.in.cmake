@@ -14,15 +14,8 @@ set(NEUG_INCLUDE_DIR "${NEUG_HOME}/include")
 set(NEUG_INCLUDE_DIRS "${NEUG_INCLUDE_DIR}")
 
 find_package(Threads REQUIRED)
-find_package(Arrow REQUIRED)
-# only include gflags when http server is enabled, but note,after installation, the BUILD_HTTP_SERVER option is not available
-if (@BUILD_HTTP_SERVER@)
-    find_package(gflags REQUIRED)
-endif()
-
-if (@WITH_MIMALLOC@)
-    find_package(mimalloc 2.0 REQUIRED)
-endif()
+find_package(Protobuf)
+include_directories(SYSTEM ${Protobuf_INCLUDE_DIRS})
 
 add_definitions(-DRAPIDJSON_HAS_CXX11=1)
 add_definitions(-DRAPIDJSON_HAS_STDSTRING=1)

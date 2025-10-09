@@ -777,6 +777,7 @@ class ToFloatExpr : public ExprBase {
       return val.as_double();
     } else {
       LOG(FATAL) << "invalid type";
+      return 0.0; // avoid compiler warning
     }
   }
 

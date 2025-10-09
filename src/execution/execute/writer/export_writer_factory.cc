@@ -37,7 +37,6 @@ std::shared_ptr<IExportWriter> ExportWriterFactory::CreateExportWriter(
 bool ExportWriterFactory::Register(
     const std::string& name,
     ExportWriterFactory::writer_initializer_t initializer) {
-  VLOG(1) << "Registering writer: " << name;
   auto& known_writers_ = getKnownWriters();
   known_writers_.emplace(name, initializer);
   return true;

@@ -17,8 +17,8 @@
 #define NEUG_TRANSACTION_TRANSACTION_MANAGER_H_
 
 #include "neug/config.h"
-#include "neug/main/neug_db_session.h"
 #include "neug/storages/graph/property_graph.h"
+#include "neug/main/neug_db_session.h"
 #include "neug/transaction/version_manager.h"
 #include "neug/transaction/wal/wal.h"
 #include "neug/utils/allocators.h"

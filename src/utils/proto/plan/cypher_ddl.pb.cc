@@ -67,12 +67,25 @@ struct CreateVertexSchemaDefaultTypeInternal {
   };
 };
 PROTOBUF_ATTRIBUTE_NO_DESTROY PROTOBUF_CONSTINIT PROTOBUF_ATTRIBUTE_INIT_PRIORITY1 CreateVertexSchemaDefaultTypeInternal _CreateVertexSchema_default_instance_;
+PROTOBUF_CONSTEXPR CreateEdgeSchema_TypeInfo::CreateEdgeSchema_TypeInfo(
+    ::_pbi::ConstantInitialized): _impl_{
+    /*decltype(_impl_.edge_type_)*/nullptr
+  , /*decltype(_impl_.multiplicity_)*/0
+  , /*decltype(_impl_._cached_size_)*/{}} {}
+struct CreateEdgeSchema_TypeInfoDefaultTypeInternal {
+  PROTOBUF_CONSTEXPR CreateEdgeSchema_TypeInfoDefaultTypeInternal()
+      : _instance(::_pbi::ConstantInitialized{}) {}
+  ~CreateEdgeSchema_TypeInfoDefaultTypeInternal() {}
+  union {
+    CreateEdgeSchema_TypeInfo _instance;
+  };
+};
+PROTOBUF_ATTRIBUTE_NO_DESTROY PROTOBUF_CONSTINIT PROTOBUF_ATTRIBUTE_INIT_PRIORITY1 CreateEdgeSchema_TypeInfoDefaultTypeInternal _CreateEdgeSchema_TypeInfo_default_instance_;
 PROTOBUF_CONSTEXPR CreateEdgeSchema::CreateEdgeSchema(
     ::_pbi::ConstantInitialized): _impl_{
-    /*decltype(_impl_.properties_)*/{}
+    /*decltype(_impl_.type_info_)*/{}
+  , /*decltype(_impl_.properties_)*/{}
   , /*decltype(_impl_.primary_key_)*/{}
-  , /*decltype(_impl_.edge_type_)*/nullptr
-  , /*decltype(_impl_.multiplicity_)*/0
   , /*decltype(_impl_.conflict_action_)*/0
   , /*decltype(_impl_._cached_size_)*/{}} {}
 struct CreateEdgeSchemaDefaultTypeInternal {
@@ -269,7 +282,7 @@ struct DDLPlanDefaultTypeInternal {
 };
 PROTOBUF_ATTRIBUTE_NO_DESTROY PROTOBUF_CONSTINIT PROTOBUF_ATTRIBUTE_INIT_PRIORITY1 DDLPlanDefaultTypeInternal _DDLPlan_default_instance_;
 }  // namespace physical
-static ::_pb::Metadata file_level_metadata_cypher_5fddl_2eproto[17];
+static ::_pb::Metadata file_level_metadata_cypher_5fddl_2eproto[18];
 static const ::_pb::EnumDescriptor* file_level_enum_descriptors_cypher_5fddl_2eproto[2];
 static constexpr ::_pb::ServiceDescriptor const** file_level_service_descriptors_cypher_5fddl_2eproto = nullptr;
 
@@ -303,15 +316,22 @@ const uint32_t TableStruct_cypher_5fddl_2eproto::offsets[] PROTOBUF_SECTION_VARI
   PROTOBUF_FIELD_OFFSET(::physical::CreateVertexSchema, _impl_.primary_key_),
   PROTOBUF_FIELD_OFFSET(::physical::CreateVertexSchema, _impl_.conflict_action_),
   ~0u,  // no _has_bits_
+  PROTOBUF_FIELD_OFFSET(::physical::CreateEdgeSchema_TypeInfo, _internal_metadata_),
+  ~0u,  // no _extensions_
+  ~0u,  // no _oneof_case_
+  ~0u,  // no _weak_field_map_
+  ~0u,  // no _inlined_string_donated_
+  PROTOBUF_FIELD_OFFSET(::physical::CreateEdgeSchema_TypeInfo, _impl_.edge_type_),
+  PROTOBUF_FIELD_OFFSET(::physical::CreateEdgeSchema_TypeInfo, _impl_.multiplicity_),
+  ~0u,  // no _has_bits_
   PROTOBUF_FIELD_OFFSET(::physical::CreateEdgeSchema, _internal_metadata_),
   ~0u,  // no _extensions_
   ~0u,  // no _oneof_case_
   ~0u,  // no _weak_field_map_
   ~0u,  // no _inlined_string_donated_
-  PROTOBUF_FIELD_OFFSET(::physical::CreateEdgeSchema, _impl_.edge_type_),
+  PROTOBUF_FIELD_OFFSET(::physical::CreateEdgeSchema, _impl_.type_info_),
   PROTOBUF_FIELD_OFFSET(::physical::CreateEdgeSchema, _impl_.properties_),
   PROTOBUF_FIELD_OFFSET(::physical::CreateEdgeSchema, _impl_.primary_key_),
-  PROTOBUF_FIELD_OFFSET(::physical::CreateEdgeSchema, _impl_.multiplicity_),
   PROTOBUF_FIELD_OFFSET(::physical::CreateEdgeSchema, _impl_.conflict_action_),
   ~0u,  // no _has_bits_
   PROTOBUF_FIELD_OFFSET(::physical::DropVertexSchema, _internal_metadata_),
@@ -445,26 +465,28 @@ static const ::_pbi::MigrationSchema schemas[] PROTOBUF_SECTION_VARIABLE(protode
   { 0, -1, -1, sizeof(::physical::EdgeType)},
   { 9, -1, -1, sizeof(::physical::PropertyDef)},
   { 18, -1, -1, sizeof(::physical::CreateVertexSchema)},
-  { 28, -1, -1, sizeof(::physical::CreateEdgeSchema)},
-  { 39, -1, -1, sizeof(::physical::DropVertexSchema)},
-  { 47, -1, -1, sizeof(::physical::DropEdgeSchema)},
-  { 55, -1, -1, sizeof(::physical::AddVertexPropertySchema)},
-  { 64, -1, -1, sizeof(::physical::AddEdgePropertySchema)},
-  { 73, -1, -1, sizeof(::physical::DropVertexPropertySchema)},
-  { 82, -1, -1, sizeof(::physical::DropEdgePropertySchema)},
-  { 91, 99, -1, sizeof(::physical::RenameVertexPropertySchema_MappingsEntry_DoNotUse)},
-  { 101, -1, -1, sizeof(::physical::RenameVertexPropertySchema)},
-  { 110, 118, -1, sizeof(::physical::RenameEdgePropertySchema_MappingsEntry_DoNotUse)},
-  { 120, -1, -1, sizeof(::physical::RenameEdgePropertySchema)},
-  { 129, -1, -1, sizeof(::physical::RenameVertexTypeSchema)},
-  { 138, -1, -1, sizeof(::physical::RenameEdgeTypeSchema)},
-  { 147, -1, -1, sizeof(::physical::DDLPlan)},
+  { 28, -1, -1, sizeof(::physical::CreateEdgeSchema_TypeInfo)},
+  { 36, -1, -1, sizeof(::physical::CreateEdgeSchema)},
+  { 46, -1, -1, sizeof(::physical::DropVertexSchema)},
+  { 54, -1, -1, sizeof(::physical::DropEdgeSchema)},
+  { 62, -1, -1, sizeof(::physical::AddVertexPropertySchema)},
+  { 71, -1, -1, sizeof(::physical::AddEdgePropertySchema)},
+  { 80, -1, -1, sizeof(::physical::DropVertexPropertySchema)},
+  { 89, -1, -1, sizeof(::physical::DropEdgePropertySchema)},
+  { 98, 106, -1, sizeof(::physical::RenameVertexPropertySchema_MappingsEntry_DoNotUse)},
+  { 108, -1, -1, sizeof(::physical::RenameVertexPropertySchema)},
+  { 117, 125, -1, sizeof(::physical::RenameEdgePropertySchema_MappingsEntry_DoNotUse)},
+  { 127, -1, -1, sizeof(::physical::RenameEdgePropertySchema)},
+  { 136, -1, -1, sizeof(::physical::RenameVertexTypeSchema)},
+  { 145, -1, -1, sizeof(::physical::RenameEdgeTypeSchema)},
+  { 154, -1, -1, sizeof(::physical::DDLPlan)},
 };
 
 static const ::_pb::Message* const file_default_instances[] = {
   &::physical::_EdgeType_default_instance_._instance,
   &::physical::_PropertyDef_default_instance_._instance,
   &::physical::_CreateVertexSchema_default_instance_._instance,
+  &::physical::_CreateEdgeSchema_TypeInfo_default_instance_._instance,
   &::physical::_CreateEdgeSchema_default_instance_._instance,
   &::physical::_DropVertexSchema_default_instance_._instance,
   &::physical::_DropEdgeSchema_default_instance_._instance,
@@ -493,78 +515,79 @@ const char descriptor_table_protodef_cypher_5fddl_2eproto[] PROTOBUF_SECTION_VAR
   "rtex_type\030\001 \001(\0132\020.common.NameOrId\022)\n\npro"
   "perties\030\002 \003(\0132\025.physical.PropertyDef\022\023\n\013"
   "primary_key\030\003 \003(\t\0221\n\017conflict_action\030\004 \001"
-  "(\0162\030.physical.ConflictAction\"\277\002\n\020CreateE"
-  "dgeSchema\022%\n\tedge_type\030\001 \001(\0132\022.physical."
-  "EdgeType\022)\n\nproperties\030\002 \003(\0132\025.physical."
-  "PropertyDef\022\023\n\013primary_key\030\003 \003(\t\022=\n\014mult"
-  "iplicity\030\004 \001(\0162\'.physical.CreateEdgeSche"
-  "ma.Multiplicity\0221\n\017conflict_action\030\005 \001(\016"
-  "2\030.physical.ConflictAction\"R\n\014Multiplici"
-  "ty\022\016\n\nONE_TO_ONE\020\000\022\017\n\013ONE_TO_MANY\020\001\022\017\n\013M"
-  "ANY_TO_ONE\020\002\022\020\n\014MANY_TO_MANY\020\003\"l\n\020DropVe"
-  "rtexSchema\022%\n\013vertex_type\030\001 \001(\0132\020.common"
-  ".NameOrId\0221\n\017conflict_action\030\002 \001(\0162\030.phy"
-  "sical.ConflictAction\"j\n\016DropEdgeSchema\022%"
-  "\n\tedge_type\030\001 \001(\0132\022.physical.EdgeType\0221\n"
+  "(\0162\030.physical.ConflictAction\"\203\003\n\020CreateE"
+  "dgeSchema\0226\n\ttype_info\030\001 \003(\0132#.physical."
+  "CreateEdgeSchema.TypeInfo\022)\n\nproperties\030"
+  "\002 \003(\0132\025.physical.PropertyDef\022\023\n\013primary_"
+  "key\030\003 \003(\t\0221\n\017conflict_action\030\004 \001(\0162\030.phy"
+  "sical.ConflictAction\032p\n\010TypeInfo\022%\n\tedge"
+  "_type\030\001 \001(\0132\022.physical.EdgeType\022=\n\014multi"
+  "plicity\030\002 \001(\0162\'.physical.CreateEdgeSchem"
+  "a.Multiplicity\"R\n\014Multiplicity\022\016\n\nONE_TO"
+  "_ONE\020\000\022\017\n\013ONE_TO_MANY\020\001\022\017\n\013MANY_TO_ONE\020\002"
+  "\022\020\n\014MANY_TO_MANY\020\003\"l\n\020DropVertexSchema\022%"
+  "\n\013vertex_type\030\001 \001(\0132\020.common.NameOrId\0221\n"
   "\017conflict_action\030\002 \001(\0162\030.physical.Confli"
-  "ctAction\"\236\001\n\027AddVertexPropertySchema\022%\n\013"
-  "vertex_type\030\001 \001(\0132\020.common.NameOrId\022)\n\np"
-  "roperties\030\002 \003(\0132\025.physical.PropertyDef\0221"
-  "\n\017conflict_action\030\003 \001(\0162\030.physical.Confl"
-  "ictAction\"\234\001\n\025AddEdgePropertySchema\022%\n\te"
-  "dge_type\030\001 \001(\0132\022.physical.EdgeType\022)\n\npr"
-  "operties\030\002 \003(\0132\025.physical.PropertyDef\0221\n"
-  "\017conflict_action\030\003 \001(\0162\030.physical.Confli"
-  "ctAction\"\210\001\n\030DropVertexPropertySchema\022%\n"
-  "\013vertex_type\030\001 \001(\0132\020.common.NameOrId\022\022\n\n"
-  "properties\030\002 \003(\t\0221\n\017conflict_action\030\003 \001("
-  "\0162\030.physical.ConflictAction\"\206\001\n\026DropEdge"
-  "PropertySchema\022%\n\tedge_type\030\001 \001(\0132\022.phys"
-  "ical.EdgeType\022\022\n\nproperties\030\002 \003(\t\0221\n\017con"
-  "flict_action\030\003 \001(\0162\030.physical.ConflictAc"
-  "tion\"\355\001\n\032RenameVertexPropertySchema\022%\n\013v"
-  "ertex_type\030\001 \001(\0132\020.common.NameOrId\022D\n\010ma"
-  "ppings\030\002 \003(\01322.physical.RenameVertexProp"
-  "ertySchema.MappingsEntry\0221\n\017conflict_act"
-  "ion\030\003 \001(\0162\030.physical.ConflictAction\032/\n\rM"
-  "appingsEntry\022\013\n\003key\030\001 \001(\t\022\r\n\005value\030\002 \001(\t"
-  ":\0028\001\"\351\001\n\030RenameEdgePropertySchema\022%\n\tedg"
-  "e_type\030\001 \001(\0132\022.physical.EdgeType\022B\n\010mapp"
-  "ings\030\002 \003(\01320.physical.RenameEdgeProperty"
-  "Schema.MappingsEntry\0221\n\017conflict_action\030"
-  "\003 \001(\0162\030.physical.ConflictAction\032/\n\rMappi"
-  "ngsEntry\022\013\n\003key\030\001 \001(\t\022\r\n\005value\030\002 \001(\t:\0028\001"
-  "\"\223\001\n\026RenameVertexTypeSchema\022\"\n\010old_type\030"
-  "\001 \001(\0132\020.common.NameOrId\022\"\n\010new_type\030\002 \001("
-  "\0132\020.common.NameOrId\0221\n\017conflict_action\030\003"
-  " \001(\0162\030.physical.ConflictAction\"\225\001\n\024Renam"
-  "eEdgeTypeSchema\022$\n\010old_type\030\001 \001(\0132\022.phys"
-  "ical.EdgeType\022$\n\010new_type\030\002 \001(\0132\022.physic"
-  "al.EdgeType\0221\n\017conflict_action\030\003 \001(\0162\030.p"
-  "hysical.ConflictAction\"\275\006\n\007DDLPlan\022<\n\024cr"
-  "eate_vertex_schema\030\001 \001(\0132\034.physical.Crea"
-  "teVertexSchemaH\000\0228\n\022create_edge_schema\030\002"
-  " \001(\0132\032.physical.CreateEdgeSchemaH\000\0228\n\022dr"
-  "op_vertex_schema\030\003 \001(\0132\032.physical.DropVe"
-  "rtexSchemaH\000\0224\n\020drop_edge_schema\030\004 \001(\0132\030"
-  ".physical.DropEdgeSchemaH\000\022G\n\032add_vertex"
-  "_property_schema\030\005 \001(\0132!.physical.AddVer"
-  "texPropertySchemaH\000\022C\n\030add_edge_property"
-  "_schema\030\006 \001(\0132\037.physical.AddEdgeProperty"
-  "SchemaH\000\022I\n\033drop_vertex_property_schema\030"
-  "\007 \001(\0132\".physical.DropVertexPropertySchem"
-  "aH\000\022E\n\031drop_edge_property_schema\030\010 \001(\0132 "
-  ".physical.DropEdgePropertySchemaH\000\022M\n\035re"
-  "name_vertex_property_schema\030\t \001(\0132$.phys"
-  "ical.RenameVertexPropertySchemaH\000\022I\n\033ren"
-  "ame_edge_property_schema\030\n \001(\0132\".physica"
-  "l.RenameEdgePropertySchemaH\000\022E\n\031rename_v"
-  "ertex_type_schema\030\013 \001(\0132 .physical.Renam"
-  "eVertexTypeSchemaH\000\022A\n\027rename_edge_type_"
-  "schema\030\014 \001(\0132\036.physical.RenameEdgeTypeSc"
-  "hemaH\000B\006\n\004plan*C\n\016ConflictAction\022\025\n\021ON_C"
-  "ONFLICT_THROW\020\000\022\032\n\026ON_CONFLICT_DO_NOTHIN"
-  "G\020\001b\006proto3"
+  "ctAction\"j\n\016DropEdgeSchema\022%\n\tedge_type\030"
+  "\001 \001(\0132\022.physical.EdgeType\0221\n\017conflict_ac"
+  "tion\030\002 \001(\0162\030.physical.ConflictAction\"\236\001\n"
+  "\027AddVertexPropertySchema\022%\n\013vertex_type\030"
+  "\001 \001(\0132\020.common.NameOrId\022)\n\nproperties\030\002 "
+  "\003(\0132\025.physical.PropertyDef\0221\n\017conflict_a"
+  "ction\030\003 \001(\0162\030.physical.ConflictAction\"\234\001"
+  "\n\025AddEdgePropertySchema\022%\n\tedge_type\030\001 \001"
+  "(\0132\022.physical.EdgeType\022)\n\nproperties\030\002 \003"
+  "(\0132\025.physical.PropertyDef\0221\n\017conflict_ac"
+  "tion\030\003 \001(\0162\030.physical.ConflictAction\"\210\001\n"
+  "\030DropVertexPropertySchema\022%\n\013vertex_type"
+  "\030\001 \001(\0132\020.common.NameOrId\022\022\n\nproperties\030\002"
+  " \003(\t\0221\n\017conflict_action\030\003 \001(\0162\030.physical"
+  ".ConflictAction\"\206\001\n\026DropEdgePropertySche"
+  "ma\022%\n\tedge_type\030\001 \001(\0132\022.physical.EdgeTyp"
+  "e\022\022\n\nproperties\030\002 \003(\t\0221\n\017conflict_action"
+  "\030\003 \001(\0162\030.physical.ConflictAction\"\355\001\n\032Ren"
+  "ameVertexPropertySchema\022%\n\013vertex_type\030\001"
+  " \001(\0132\020.common.NameOrId\022D\n\010mappings\030\002 \003(\013"
+  "22.physical.RenameVertexPropertySchema.M"
+  "appingsEntry\0221\n\017conflict_action\030\003 \001(\0162\030."
+  "physical.ConflictAction\032/\n\rMappingsEntry"
+  "\022\013\n\003key\030\001 \001(\t\022\r\n\005value\030\002 \001(\t:\0028\001\"\351\001\n\030Ren"
+  "ameEdgePropertySchema\022%\n\tedge_type\030\001 \001(\013"
+  "2\022.physical.EdgeType\022B\n\010mappings\030\002 \003(\01320"
+  ".physical.RenameEdgePropertySchema.Mappi"
+  "ngsEntry\0221\n\017conflict_action\030\003 \001(\0162\030.phys"
+  "ical.ConflictAction\032/\n\rMappingsEntry\022\013\n\003"
+  "key\030\001 \001(\t\022\r\n\005value\030\002 \001(\t:\0028\001\"\223\001\n\026RenameV"
+  "ertexTypeSchema\022\"\n\010old_type\030\001 \001(\0132\020.comm"
+  "on.NameOrId\022\"\n\010new_type\030\002 \001(\0132\020.common.N"
+  "ameOrId\0221\n\017conflict_action\030\003 \001(\0162\030.physi"
+  "cal.ConflictAction\"\225\001\n\024RenameEdgeTypeSch"
+  "ema\022$\n\010old_type\030\001 \001(\0132\022.physical.EdgeTyp"
+  "e\022$\n\010new_type\030\002 \001(\0132\022.physical.EdgeType\022"
+  "1\n\017conflict_action\030\003 \001(\0162\030.physical.Conf"
+  "lictAction\"\275\006\n\007DDLPlan\022<\n\024create_vertex_"
+  "schema\030\001 \001(\0132\034.physical.CreateVertexSche"
+  "maH\000\0228\n\022create_edge_schema\030\002 \001(\0132\032.physi"
+  "cal.CreateEdgeSchemaH\000\0228\n\022drop_vertex_sc"
+  "hema\030\003 \001(\0132\032.physical.DropVertexSchemaH\000"
+  "\0224\n\020drop_edge_schema\030\004 \001(\0132\030.physical.Dr"
+  "opEdgeSchemaH\000\022G\n\032add_vertex_property_sc"
+  "hema\030\005 \001(\0132!.physical.AddVertexPropertyS"
+  "chemaH\000\022C\n\030add_edge_property_schema\030\006 \001("
+  "\0132\037.physical.AddEdgePropertySchemaH\000\022I\n\033"
+  "drop_vertex_property_schema\030\007 \001(\0132\".phys"
+  "ical.DropVertexPropertySchemaH\000\022E\n\031drop_"
+  "edge_property_schema\030\010 \001(\0132 .physical.Dr"
+  "opEdgePropertySchemaH\000\022M\n\035rename_vertex_"
+  "property_schema\030\t \001(\0132$.physical.RenameV"
+  "ertexPropertySchemaH\000\022I\n\033rename_edge_pro"
+  "perty_schema\030\n \001(\0132\".physical.RenameEdge"
+  "PropertySchemaH\000\022E\n\031rename_vertex_type_s"
+  "chema\030\013 \001(\0132 .physical.RenameVertexTypeS"
+  "chemaH\000\022A\n\027rename_edge_type_schema\030\014 \001(\013"
+  "2\036.physical.RenameEdgeTypeSchemaH\000B\006\n\004pl"
+  "an*C\n\016ConflictAction\022\025\n\021ON_CONFLICT_THRO"
+  "W\020\000\022\032\n\026ON_CONFLICT_DO_NOTHING\020\001b\006proto3"
   ;
 static const ::_pbi::DescriptorTable* const descriptor_table_cypher_5fddl_2eproto_deps[2] = {
   &::descriptor_table_basic_5ftype_2eproto,
@@ -572,9 +595,9 @@ static const ::_pbi::DescriptorTable* const descriptor_table_cypher_5fddl_2eprot
 };
 static ::_pbi::once_flag descriptor_table_cypher_5fddl_2eproto_once;
 const ::_pbi::DescriptorTable descriptor_table_cypher_5fddl_2eproto = {
-    false, false, 3291, descriptor_table_protodef_cypher_5fddl_2eproto,
+    false, false, 3359, descriptor_table_protodef_cypher_5fddl_2eproto,
     "cypher_ddl.proto",
-    &descriptor_table_cypher_5fddl_2eproto_once, descriptor_table_cypher_5fddl_2eproto_deps, 2, 17,
+    &descriptor_table_cypher_5fddl_2eproto_once, descriptor_table_cypher_5fddl_2eproto_deps, 2, 18,
     schemas, file_default_instances, TableStruct_cypher_5fddl_2eproto::offsets,
     file_level_metadata_cypher_5fddl_2eproto, file_level_enum_descriptors_cypher_5fddl_2eproto,
     file_level_service_descriptors_cypher_5fddl_2eproto,
@@ -1535,15 +1558,237 @@ void CreateVertexSchema::InternalSwap(CreateVertexSchema* other) {
 
 // ===================================================================
 
-class CreateEdgeSchema::_Internal {
+class CreateEdgeSchema_TypeInfo::_Internal {
  public:
-  static const ::physical::EdgeType& edge_type(const CreateEdgeSchema* msg);
+  static const ::physical::EdgeType& edge_type(const CreateEdgeSchema_TypeInfo* msg);
 };
 
 const ::physical::EdgeType&
-CreateEdgeSchema::_Internal::edge_type(const CreateEdgeSchema* msg) {
+CreateEdgeSchema_TypeInfo::_Internal::edge_type(const CreateEdgeSchema_TypeInfo* msg) {
   return *msg->_impl_.edge_type_;
 }
+CreateEdgeSchema_TypeInfo::CreateEdgeSchema_TypeInfo(::PROTOBUF_NAMESPACE_ID::Arena* arena,
+                         bool is_message_owned)
+  : ::PROTOBUF_NAMESPACE_ID::Message(arena, is_message_owned) {
+  SharedCtor(arena, is_message_owned);
+  // @@protoc_insertion_point(arena_constructor:physical.CreateEdgeSchema.TypeInfo)
+}
+CreateEdgeSchema_TypeInfo::CreateEdgeSchema_TypeInfo(const CreateEdgeSchema_TypeInfo& from)
+  : ::PROTOBUF_NAMESPACE_ID::Message() {
+  CreateEdgeSchema_TypeInfo* const _this = this; (void)_this;
+  new (&_impl_) Impl_{
+      decltype(_impl_.edge_type_){nullptr}
+    , decltype(_impl_.multiplicity_){}
+    , /*decltype(_impl_._cached_size_)*/{}};
+
+  _internal_metadata_.MergeFrom<::PROTOBUF_NAMESPACE_ID::UnknownFieldSet>(from._internal_metadata_);
+  if (from._internal_has_edge_type()) {
+    _this->_impl_.edge_type_ = new ::physical::EdgeType(*from._impl_.edge_type_);
+  }
+  _this->_impl_.multiplicity_ = from._impl_.multiplicity_;
+  // @@protoc_insertion_point(copy_constructor:physical.CreateEdgeSchema.TypeInfo)
+}
+
+inline void CreateEdgeSchema_TypeInfo::SharedCtor(
+    ::_pb::Arena* arena, bool is_message_owned) {
+  (void)arena;
+  (void)is_message_owned;
+  new (&_impl_) Impl_{
+      decltype(_impl_.edge_type_){nullptr}
+    , decltype(_impl_.multiplicity_){0}
+    , /*decltype(_impl_._cached_size_)*/{}
+  };
+}
+
+CreateEdgeSchema_TypeInfo::~CreateEdgeSchema_TypeInfo() {
+  // @@protoc_insertion_point(destructor:physical.CreateEdgeSchema.TypeInfo)
+  if (auto *arena = _internal_metadata_.DeleteReturnArena<::PROTOBUF_NAMESPACE_ID::UnknownFieldSet>()) {
+  (void)arena;
+    return;
+  }
+  SharedDtor();
+}
+
+inline void CreateEdgeSchema_TypeInfo::SharedDtor() {
+  GOOGLE_DCHECK(GetArenaForAllocation() == nullptr);
+  if (this != internal_default_instance()) delete _impl_.edge_type_;
+}
+
+void CreateEdgeSchema_TypeInfo::SetCachedSize(int size) const {
+  _impl_._cached_size_.Set(size);
+}
+
+void CreateEdgeSchema_TypeInfo::Clear() {
+// @@protoc_insertion_point(message_clear_start:physical.CreateEdgeSchema.TypeInfo)
+  uint32_t cached_has_bits = 0;
+  // Prevent compiler warnings about cached_has_bits being unused
+  (void) cached_has_bits;
+
+  if (GetArenaForAllocation() == nullptr && _impl_.edge_type_ != nullptr) {
+    delete _impl_.edge_type_;
+  }
+  _impl_.edge_type_ = nullptr;
+  _impl_.multiplicity_ = 0;
+  _internal_metadata_.Clear<::PROTOBUF_NAMESPACE_ID::UnknownFieldSet>();
+}
+
+const char* CreateEdgeSchema_TypeInfo::_InternalParse(const char* ptr, ::_pbi::ParseContext* ctx) {
+#define CHK_(x) if (PROTOBUF_PREDICT_FALSE(!(x))) goto failure
+  while (!ctx->Done(&ptr)) {
+    uint32_t tag;
+    ptr = ::_pbi::ReadTag(ptr, &tag);
+    switch (tag >> 3) {
+      // .physical.EdgeType edge_type = 1;
+      case 1:
+        if (PROTOBUF_PREDICT_TRUE(static_cast<uint8_t>(tag) == 10)) {
+          ptr = ctx->ParseMessage(_internal_mutable_edge_type(), ptr);
+          CHK_(ptr);
+        } else
+          goto handle_unusual;
+        continue;
+      // .physical.CreateEdgeSchema.Multiplicity multiplicity = 2;
+      case 2:
+        if (PROTOBUF_PREDICT_TRUE(static_cast<uint8_t>(tag) == 16)) {
+          uint64_t val = ::PROTOBUF_NAMESPACE_ID::internal::ReadVarint64(&ptr);
+          CHK_(ptr);
+          _internal_set_multiplicity(static_cast<::physical::CreateEdgeSchema_Multiplicity>(val));
+        } else
+          goto handle_unusual;
+        continue;
+      default:
+        goto handle_unusual;
+    }  // switch
+  handle_unusual:
+    if ((tag == 0) || ((tag & 7) == 4)) {
+      CHK_(ptr);
+      ctx->SetLastTag(tag);
+      goto message_done;
+    }
+    ptr = UnknownFieldParse(
+        tag,
+        _internal_metadata_.mutable_unknown_fields<::PROTOBUF_NAMESPACE_ID::UnknownFieldSet>(),
+        ptr, ctx);
+    CHK_(ptr != nullptr);
+  }  // while
+message_done:
+  return ptr;
+failure:
+  ptr = nullptr;
+  goto message_done;
+#undef CHK_
+}
+
+uint8_t* CreateEdgeSchema_TypeInfo::_InternalSerialize(
+    uint8_t* target, ::PROTOBUF_NAMESPACE_ID::io::EpsCopyOutputStream* stream) const {
+  // @@protoc_insertion_point(serialize_to_array_start:physical.CreateEdgeSchema.TypeInfo)
+  uint32_t cached_has_bits = 0;
+  (void) cached_has_bits;
+
+  // .physical.EdgeType edge_type = 1;
+  if (this->_internal_has_edge_type()) {
+    target = ::PROTOBUF_NAMESPACE_ID::internal::WireFormatLite::
+      InternalWriteMessage(1, _Internal::edge_type(this),
+        _Internal::edge_type(this).GetCachedSize(), target, stream);
+  }
+
+  // .physical.CreateEdgeSchema.Multiplicity multiplicity = 2;
+  if (this->_internal_multiplicity() != 0) {
+    target = stream->EnsureSpace(target);
+    target = ::_pbi::WireFormatLite::WriteEnumToArray(
+      2, this->_internal_multiplicity(), target);
+  }
+
+  if (PROTOBUF_PREDICT_FALSE(_internal_metadata_.have_unknown_fields())) {
+    target = ::_pbi::WireFormat::InternalSerializeUnknownFieldsToArray(
+        _internal_metadata_.unknown_fields<::PROTOBUF_NAMESPACE_ID::UnknownFieldSet>(::PROTOBUF_NAMESPACE_ID::UnknownFieldSet::default_instance), target, stream);
+  }
+  // @@protoc_insertion_point(serialize_to_array_end:physical.CreateEdgeSchema.TypeInfo)
+  return target;
+}
+
+size_t CreateEdgeSchema_TypeInfo::ByteSizeLong() const {
+// @@protoc_insertion_point(message_byte_size_start:physical.CreateEdgeSchema.TypeInfo)
+  size_t total_size = 0;
+
+  uint32_t cached_has_bits = 0;
+  // Prevent compiler warnings about cached_has_bits being unused
+  (void) cached_has_bits;
+
+  // .physical.EdgeType edge_type = 1;
+  if (this->_internal_has_edge_type()) {
+    total_size += 1 +
+      ::PROTOBUF_NAMESPACE_ID::internal::WireFormatLite::MessageSize(
+        *_impl_.edge_type_);
+  }
+
+  // .physical.CreateEdgeSchema.Multiplicity multiplicity = 2;
+  if (this->_internal_multiplicity() != 0) {
+    total_size += 1 +
+      ::_pbi::WireFormatLite::EnumSize(this->_internal_multiplicity());
+  }
+
+  return MaybeComputeUnknownFieldsSize(total_size, &_impl_._cached_size_);
+}
+
+const ::PROTOBUF_NAMESPACE_ID::Message::ClassData CreateEdgeSchema_TypeInfo::_class_data_ = {
+    ::PROTOBUF_NAMESPACE_ID::Message::CopyWithSourceCheck,
+    CreateEdgeSchema_TypeInfo::MergeImpl
+};
+const ::PROTOBUF_NAMESPACE_ID::Message::ClassData*CreateEdgeSchema_TypeInfo::GetClassData() const { return &_class_data_; }
+
+
+void CreateEdgeSchema_TypeInfo::MergeImpl(::PROTOBUF_NAMESPACE_ID::Message& to_msg, const ::PROTOBUF_NAMESPACE_ID::Message& from_msg) {
+  auto* const _this = static_cast<CreateEdgeSchema_TypeInfo*>(&to_msg);
+  auto& from = static_cast<const CreateEdgeSchema_TypeInfo&>(from_msg);
+  // @@protoc_insertion_point(class_specific_merge_from_start:physical.CreateEdgeSchema.TypeInfo)
+  GOOGLE_DCHECK_NE(&from, _this);
+  uint32_t cached_has_bits = 0;
+  (void) cached_has_bits;
+
+  if (from._internal_has_edge_type()) {
+    _this->_internal_mutable_edge_type()->::physical::EdgeType::MergeFrom(
+        from._internal_edge_type());
+  }
+  if (from._internal_multiplicity() != 0) {
+    _this->_internal_set_multiplicity(from._internal_multiplicity());
+  }
+  _this->_internal_metadata_.MergeFrom<::PROTOBUF_NAMESPACE_ID::UnknownFieldSet>(from._internal_metadata_);
+}
+
+void CreateEdgeSchema_TypeInfo::CopyFrom(const CreateEdgeSchema_TypeInfo& from) {
+// @@protoc_insertion_point(class_specific_copy_from_start:physical.CreateEdgeSchema.TypeInfo)
+  if (&from == this) return;
+  Clear();
+  MergeFrom(from);
+}
+
+bool CreateEdgeSchema_TypeInfo::IsInitialized() const {
+  return true;
+}
+
+void CreateEdgeSchema_TypeInfo::InternalSwap(CreateEdgeSchema_TypeInfo* other) {
+  using std::swap;
+  _internal_metadata_.InternalSwap(&other->_internal_metadata_);
+  ::PROTOBUF_NAMESPACE_ID::internal::memswap<
+      PROTOBUF_FIELD_OFFSET(CreateEdgeSchema_TypeInfo, _impl_.multiplicity_)
+      + sizeof(CreateEdgeSchema_TypeInfo::_impl_.multiplicity_)
+      - PROTOBUF_FIELD_OFFSET(CreateEdgeSchema_TypeInfo, _impl_.edge_type_)>(
+          reinterpret_cast<char*>(&_impl_.edge_type_),
+          reinterpret_cast<char*>(&other->_impl_.edge_type_));
+}
+
+::PROTOBUF_NAMESPACE_ID::Metadata CreateEdgeSchema_TypeInfo::GetMetadata() const {
+  return ::_pbi::AssignDescriptors(
+      &descriptor_table_cypher_5fddl_2eproto_getter, &descriptor_table_cypher_5fddl_2eproto_once,
+      file_level_metadata_cypher_5fddl_2eproto[3]);
+}
+
+// ===================================================================
+
+class CreateEdgeSchema::_Internal {
+ public:
+};
+
 CreateEdgeSchema::CreateEdgeSchema(::PROTOBUF_NAMESPACE_ID::Arena* arena,
                          bool is_message_owned)
   : ::PROTOBUF_NAMESPACE_ID::Message(arena, is_message_owned) {
@@ -1554,20 +1799,14 @@ CreateEdgeSchema::CreateEdgeSchema(const CreateEdgeSchema& from)
   : ::PROTOBUF_NAMESPACE_ID::Message() {
   CreateEdgeSchema* const _this = this; (void)_this;
   new (&_impl_) Impl_{
-      decltype(_impl_.properties_){from._impl_.properties_}
+      decltype(_impl_.type_info_){from._impl_.type_info_}
+    , decltype(_impl_.properties_){from._impl_.properties_}
     , decltype(_impl_.primary_key_){from._impl_.primary_key_}
-    , decltype(_impl_.edge_type_){nullptr}
-    , decltype(_impl_.multiplicity_){}
     , decltype(_impl_.conflict_action_){}
     , /*decltype(_impl_._cached_size_)*/{}};
 
   _internal_metadata_.MergeFrom<::PROTOBUF_NAMESPACE_ID::UnknownFieldSet>(from._internal_metadata_);
-  if (from._internal_has_edge_type()) {
-    _this->_impl_.edge_type_ = new ::physical::EdgeType(*from._impl_.edge_type_);
-  }
-  ::memcpy(&_impl_.multiplicity_, &from._impl_.multiplicity_,
-    static_cast<size_t>(reinterpret_cast<char*>(&_impl_.conflict_action_) -
-    reinterpret_cast<char*>(&_impl_.multiplicity_)) + sizeof(_impl_.conflict_action_));
+  _this->_impl_.conflict_action_ = from._impl_.conflict_action_;
   // @@protoc_insertion_point(copy_constructor:physical.CreateEdgeSchema)
 }
 
@@ -1576,10 +1815,9 @@ inline void CreateEdgeSchema::SharedCtor(
   (void)arena;
   (void)is_message_owned;
   new (&_impl_) Impl_{
-      decltype(_impl_.properties_){arena}
+      decltype(_impl_.type_info_){arena}
+    , decltype(_impl_.properties_){arena}
     , decltype(_impl_.primary_key_){arena}
-    , decltype(_impl_.edge_type_){nullptr}
-    , decltype(_impl_.multiplicity_){0}
     , decltype(_impl_.conflict_action_){0}
     , /*decltype(_impl_._cached_size_)*/{}
   };
@@ -1596,9 +1834,9 @@ CreateEdgeSchema::~CreateEdgeSchema() {
 
 inline void CreateEdgeSchema::SharedDtor() {
   GOOGLE_DCHECK(GetArenaForAllocation() == nullptr);
+  _impl_.type_info_.~RepeatedPtrField();
   _impl_.properties_.~RepeatedPtrField();
   _impl_.primary_key_.~RepeatedPtrField();
-  if (this != internal_default_instance()) delete _impl_.edge_type_;
 }
 
 void CreateEdgeSchema::SetCachedSize(int size) const {
@@ -1611,15 +1849,10 @@ void CreateEdgeSchema::Clear() {
   // Prevent compiler warnings about cached_has_bits being unused
   (void) cached_has_bits;
 
+  _impl_.type_info_.Clear();
   _impl_.properties_.Clear();
   _impl_.primary_key_.Clear();
-  if (GetArenaForAllocation() == nullptr && _impl_.edge_type_ != nullptr) {
-    delete _impl_.edge_type_;
-  }
-  _impl_.edge_type_ = nullptr;
-  ::memset(&_impl_.multiplicity_, 0, static_cast<size_t>(
-      reinterpret_cast<char*>(&_impl_.conflict_action_) -
-      reinterpret_cast<char*>(&_impl_.multiplicity_)) + sizeof(_impl_.conflict_action_));
+  _impl_.conflict_action_ = 0;
   _internal_metadata_.Clear<::PROTOBUF_NAMESPACE_ID::UnknownFieldSet>();
 }
 
@@ -1629,11 +1862,16 @@ const char* CreateEdgeSchema::_InternalParse(const char* ptr, ::_pbi::ParseConte
     uint32_t tag;
     ptr = ::_pbi::ReadTag(ptr, &tag);
     switch (tag >> 3) {
-      // .physical.EdgeType edge_type = 1;
+      // repeated .physical.CreateEdgeSchema.TypeInfo type_info = 1;
       case 1:
         if (PROTOBUF_PREDICT_TRUE(static_cast<uint8_t>(tag) == 10)) {
-          ptr = ctx->ParseMessage(_internal_mutable_edge_type(), ptr);
-          CHK_(ptr);
+          ptr -= 1;
+          do {
+            ptr += 1;
+            ptr = ctx->ParseMessage(_internal_add_type_info(), ptr);
+            CHK_(ptr);
+            if (!ctx->DataAvailable(ptr)) break;
+          } while (::PROTOBUF_NAMESPACE_ID::internal::ExpectTag<10>(ptr));
         } else
           goto handle_unusual;
         continue;
@@ -1665,18 +1903,9 @@ const char* CreateEdgeSchema::_InternalParse(const char* ptr, ::_pbi::ParseConte
         } else
           goto handle_unusual;
         continue;
-      // .physical.CreateEdgeSchema.Multiplicity multiplicity = 4;
+      // .physical.ConflictAction conflict_action = 4;
       case 4:
         if (PROTOBUF_PREDICT_TRUE(static_cast<uint8_t>(tag) == 32)) {
-          uint64_t val = ::PROTOBUF_NAMESPACE_ID::internal::ReadVarint64(&ptr);
-          CHK_(ptr);
-          _internal_set_multiplicity(static_cast<::physical::CreateEdgeSchema_Multiplicity>(val));
-        } else
-          goto handle_unusual;
-        continue;
-      // .physical.ConflictAction conflict_action = 5;
-      case 5:
-        if (PROTOBUF_PREDICT_TRUE(static_cast<uint8_t>(tag) == 40)) {
           uint64_t val = ::PROTOBUF_NAMESPACE_ID::internal::ReadVarint64(&ptr);
           CHK_(ptr);
           _internal_set_conflict_action(static_cast<::physical::ConflictAction>(val));
@@ -1712,11 +1941,12 @@ uint8_t* CreateEdgeSchema::_InternalSerialize(
   uint32_t cached_has_bits = 0;
   (void) cached_has_bits;
 
-  // .physical.EdgeType edge_type = 1;
-  if (this->_internal_has_edge_type()) {
+  // repeated .physical.CreateEdgeSchema.TypeInfo type_info = 1;
+  for (unsigned i = 0,
+      n = static_cast<unsigned>(this->_internal_type_info_size()); i < n; i++) {
+    const auto& repfield = this->_internal_type_info(i);
     target = ::PROTOBUF_NAMESPACE_ID::internal::WireFormatLite::
-      InternalWriteMessage(1, _Internal::edge_type(this),
-        _Internal::edge_type(this).GetCachedSize(), target, stream);
+        InternalWriteMessage(1, repfield, repfield.GetCachedSize(), target, stream);
   }
 
   // repeated .physical.PropertyDef properties = 2;
@@ -1737,18 +1967,11 @@ uint8_t* CreateEdgeSchema::_InternalSerialize(
     target = stream->WriteString(3, s, target);
   }
 
-  // .physical.CreateEdgeSchema.Multiplicity multiplicity = 4;
-  if (this->_internal_multiplicity() != 0) {
-    target = stream->EnsureSpace(target);
-    target = ::_pbi::WireFormatLite::WriteEnumToArray(
-      4, this->_internal_multiplicity(), target);
-  }
-
-  // .physical.ConflictAction conflict_action = 5;
+  // .physical.ConflictAction conflict_action = 4;
   if (this->_internal_conflict_action() != 0) {
     target = stream->EnsureSpace(target);
     target = ::_pbi::WireFormatLite::WriteEnumToArray(
-      5, this->_internal_conflict_action(), target);
+      4, this->_internal_conflict_action(), target);
   }
 
   if (PROTOBUF_PREDICT_FALSE(_internal_metadata_.have_unknown_fields())) {
@@ -1767,6 +1990,13 @@ size_t CreateEdgeSchema::ByteSizeLong() const {
   // Prevent compiler warnings about cached_has_bits being unused
   (void) cached_has_bits;
 
+  // repeated .physical.CreateEdgeSchema.TypeInfo type_info = 1;
+  total_size += 1UL * this->_internal_type_info_size();
+  for (const auto& msg : this->_impl_.type_info_) {
+    total_size +=
+      ::PROTOBUF_NAMESPACE_ID::internal::WireFormatLite::MessageSize(msg);
+  }
+
   // repeated .physical.PropertyDef properties = 2;
   total_size += 1UL * this->_internal_properties_size();
   for (const auto& msg : this->_impl_.properties_) {
@@ -1782,20 +2012,7 @@ size_t CreateEdgeSchema::ByteSizeLong() const {
       _impl_.primary_key_.Get(i));
   }
 
-  // .physical.EdgeType edge_type = 1;
-  if (this->_internal_has_edge_type()) {
-    total_size += 1 +
-      ::PROTOBUF_NAMESPACE_ID::internal::WireFormatLite::MessageSize(
-        *_impl_.edge_type_);
-  }
-
-  // .physical.CreateEdgeSchema.Multiplicity multiplicity = 4;
-  if (this->_internal_multiplicity() != 0) {
-    total_size += 1 +
-      ::_pbi::WireFormatLite::EnumSize(this->_internal_multiplicity());
-  }
-
-  // .physical.ConflictAction conflict_action = 5;
+  // .physical.ConflictAction conflict_action = 4;
   if (this->_internal_conflict_action() != 0) {
     total_size += 1 +
       ::_pbi::WireFormatLite::EnumSize(this->_internal_conflict_action());
@@ -1819,15 +2036,9 @@ void CreateEdgeSchema::MergeImpl(::PROTOBUF_NAMESPACE_ID::Message& to_msg, const
   uint32_t cached_has_bits = 0;
   (void) cached_has_bits;
 
+  _this->_impl_.type_info_.MergeFrom(from._impl_.type_info_);
   _this->_impl_.properties_.MergeFrom(from._impl_.properties_);
   _this->_impl_.primary_key_.MergeFrom(from._impl_.primary_key_);
-  if (from._internal_has_edge_type()) {
-    _this->_internal_mutable_edge_type()->::physical::EdgeType::MergeFrom(
-        from._internal_edge_type());
-  }
-  if (from._internal_multiplicity() != 0) {
-    _this->_internal_set_multiplicity(from._internal_multiplicity());
-  }
   if (from._internal_conflict_action() != 0) {
     _this->_internal_set_conflict_action(from._internal_conflict_action());
   }
@@ -1848,20 +2059,16 @@ bool CreateEdgeSchema::IsInitialized() const {
 void CreateEdgeSchema::InternalSwap(CreateEdgeSchema* other) {
   using std::swap;
   _internal_metadata_.InternalSwap(&other->_internal_metadata_);
+  _impl_.type_info_.InternalSwap(&other->_impl_.type_info_);
   _impl_.properties_.InternalSwap(&other->_impl_.properties_);
   _impl_.primary_key_.InternalSwap(&other->_impl_.primary_key_);
-  ::PROTOBUF_NAMESPACE_ID::internal::memswap<
-      PROTOBUF_FIELD_OFFSET(CreateEdgeSchema, _impl_.conflict_action_)
-      + sizeof(CreateEdgeSchema::_impl_.conflict_action_)
-      - PROTOBUF_FIELD_OFFSET(CreateEdgeSchema, _impl_.edge_type_)>(
-          reinterpret_cast<char*>(&_impl_.edge_type_),
-          reinterpret_cast<char*>(&other->_impl_.edge_type_));
+  swap(_impl_.conflict_action_, other->_impl_.conflict_action_);
 }
 
 ::PROTOBUF_NAMESPACE_ID::Metadata CreateEdgeSchema::GetMetadata() const {
   return ::_pbi::AssignDescriptors(
       &descriptor_table_cypher_5fddl_2eproto_getter, &descriptor_table_cypher_5fddl_2eproto_once,
-      file_level_metadata_cypher_5fddl_2eproto[3]);
+      file_level_metadata_cypher_5fddl_2eproto[4]);
 }
 
 // ===================================================================
@@ -2094,7 +2301,7 @@ void DropVertexSchema::InternalSwap(DropVertexSchema* other) {
 ::PROTOBUF_NAMESPACE_ID::Metadata DropVertexSchema::GetMetadata() const {
   return ::_pbi::AssignDescriptors(
       &descriptor_table_cypher_5fddl_2eproto_getter, &descriptor_table_cypher_5fddl_2eproto_once,
-      file_level_metadata_cypher_5fddl_2eproto[4]);
+      file_level_metadata_cypher_5fddl_2eproto[5]);
 }
 
 // ===================================================================
@@ -2321,7 +2528,7 @@ void DropEdgeSchema::InternalSwap(DropEdgeSchema* other) {
 ::PROTOBUF_NAMESPACE_ID::Metadata DropEdgeSchema::GetMetadata() const {
   return ::_pbi::AssignDescriptors(
       &descriptor_table_cypher_5fddl_2eproto_getter, &descriptor_table_cypher_5fddl_2eproto_once,
-      file_level_metadata_cypher_5fddl_2eproto[5]);
+      file_level_metadata_cypher_5fddl_2eproto[6]);
 }
 
 // ===================================================================
@@ -2588,7 +2795,7 @@ void AddVertexPropertySchema::InternalSwap(AddVertexPropertySchema* other) {
 ::PROTOBUF_NAMESPACE_ID::Metadata AddVertexPropertySchema::GetMetadata() const {
   return ::_pbi::AssignDescriptors(
       &descriptor_table_cypher_5fddl_2eproto_getter, &descriptor_table_cypher_5fddl_2eproto_once,
-      file_level_metadata_cypher_5fddl_2eproto[6]);
+      file_level_metadata_cypher_5fddl_2eproto[7]);
 }
 
 // ===================================================================
@@ -2849,7 +3056,7 @@ void AddEdgePropertySchema::InternalSwap(AddEdgePropertySchema* other) {
 ::PROTOBUF_NAMESPACE_ID::Metadata AddEdgePropertySchema::GetMetadata() const {
   return ::_pbi::AssignDescriptors(
       &descriptor_table_cypher_5fddl_2eproto_getter, &descriptor_table_cypher_5fddl_2eproto_once,
-      file_level_metadata_cypher_5fddl_2eproto[7]);
+      file_level_metadata_cypher_5fddl_2eproto[8]);
 }
 
 // ===================================================================
@@ -3121,7 +3328,7 @@ void DropVertexPropertySchema::InternalSwap(DropVertexPropertySchema* other) {
 ::PROTOBUF_NAMESPACE_ID::Metadata DropVertexPropertySchema::GetMetadata() const {
   return ::_pbi::AssignDescriptors(
       &descriptor_table_cypher_5fddl_2eproto_getter, &descriptor_table_cypher_5fddl_2eproto_once,
-      file_level_metadata_cypher_5fddl_2eproto[8]);
+      file_level_metadata_cypher_5fddl_2eproto[9]);
 }
 
 // ===================================================================
@@ -3387,7 +3594,7 @@ void DropEdgePropertySchema::InternalSwap(DropEdgePropertySchema* other) {
 ::PROTOBUF_NAMESPACE_ID::Metadata DropEdgePropertySchema::GetMetadata() const {
   return ::_pbi::AssignDescriptors(
       &descriptor_table_cypher_5fddl_2eproto_getter, &descriptor_table_cypher_5fddl_2eproto_once,
-      file_level_metadata_cypher_5fddl_2eproto[9]);
+      file_level_metadata_cypher_5fddl_2eproto[10]);
 }
 
 // ===================================================================
@@ -3401,7 +3608,7 @@ void RenameVertexPropertySchema_MappingsEntry_DoNotUse::MergeFrom(const RenameVe
 ::PROTOBUF_NAMESPACE_ID::Metadata RenameVertexPropertySchema_MappingsEntry_DoNotUse::GetMetadata() const {
   return ::_pbi::AssignDescriptors(
       &descriptor_table_cypher_5fddl_2eproto_getter, &descriptor_table_cypher_5fddl_2eproto_once,
-      file_level_metadata_cypher_5fddl_2eproto[10]);
+      file_level_metadata_cypher_5fddl_2eproto[11]);
 }
 
 // ===================================================================
@@ -3702,7 +3909,7 @@ void RenameVertexPropertySchema::InternalSwap(RenameVertexPropertySchema* other)
 ::PROTOBUF_NAMESPACE_ID::Metadata RenameVertexPropertySchema::GetMetadata() const {
   return ::_pbi::AssignDescriptors(
       &descriptor_table_cypher_5fddl_2eproto_getter, &descriptor_table_cypher_5fddl_2eproto_once,
-      file_level_metadata_cypher_5fddl_2eproto[11]);
+      file_level_metadata_cypher_5fddl_2eproto[12]);
 }
 
 // ===================================================================
@@ -3716,7 +3923,7 @@ void RenameEdgePropertySchema_MappingsEntry_DoNotUse::MergeFrom(const RenameEdge
 ::PROTOBUF_NAMESPACE_ID::Metadata RenameEdgePropertySchema_MappingsEntry_DoNotUse::GetMetadata() const {
   return ::_pbi::AssignDescriptors(
       &descriptor_table_cypher_5fddl_2eproto_getter, &descriptor_table_cypher_5fddl_2eproto_once,
-      file_level_metadata_cypher_5fddl_2eproto[12]);
+      file_level_metadata_cypher_5fddl_2eproto[13]);
 }
 
 // ===================================================================
@@ -4011,7 +4218,7 @@ void RenameEdgePropertySchema::InternalSwap(RenameEdgePropertySchema* other) {
 ::PROTOBUF_NAMESPACE_ID::Metadata RenameEdgePropertySchema::GetMetadata() const {
   return ::_pbi::AssignDescriptors(
       &descriptor_table_cypher_5fddl_2eproto_getter, &descriptor_table_cypher_5fddl_2eproto_once,
-      file_level_metadata_cypher_5fddl_2eproto[13]);
+      file_level_metadata_cypher_5fddl_2eproto[14]);
 }
 
 // ===================================================================
@@ -4291,7 +4498,7 @@ void RenameVertexTypeSchema::InternalSwap(RenameVertexTypeSchema* other) {
 ::PROTOBUF_NAMESPACE_ID::Metadata RenameVertexTypeSchema::GetMetadata() const {
   return ::_pbi::AssignDescriptors(
       &descriptor_table_cypher_5fddl_2eproto_getter, &descriptor_table_cypher_5fddl_2eproto_once,
-      file_level_metadata_cypher_5fddl_2eproto[14]);
+      file_level_metadata_cypher_5fddl_2eproto[15]);
 }
 
 // ===================================================================
@@ -4559,7 +4766,7 @@ void RenameEdgeTypeSchema::InternalSwap(RenameEdgeTypeSchema* other) {
 ::PROTOBUF_NAMESPACE_ID::Metadata RenameEdgeTypeSchema::GetMetadata() const {
   return ::_pbi::AssignDescriptors(
       &descriptor_table_cypher_5fddl_2eproto_getter, &descriptor_table_cypher_5fddl_2eproto_once,
-      file_level_metadata_cypher_5fddl_2eproto[15]);
+      file_level_metadata_cypher_5fddl_2eproto[16]);
 }
 
 // ===================================================================
@@ -5444,7 +5651,7 @@ void DDLPlan::InternalSwap(DDLPlan* other) {
 ::PROTOBUF_NAMESPACE_ID::Metadata DDLPlan::GetMetadata() const {
   return ::_pbi::AssignDescriptors(
       &descriptor_table_cypher_5fddl_2eproto_getter, &descriptor_table_cypher_5fddl_2eproto_once,
-      file_level_metadata_cypher_5fddl_2eproto[16]);
+      file_level_metadata_cypher_5fddl_2eproto[17]);
 }
 
 // @@protoc_insertion_point(namespace_scope)
@@ -5461,6 +5668,10 @@ Arena::CreateMaybeMessage< ::physical::PropertyDef >(Arena* arena) {
 template<> PROTOBUF_NOINLINE ::physical::CreateVertexSchema*
 Arena::CreateMaybeMessage< ::physical::CreateVertexSchema >(Arena* arena) {
   return Arena::CreateMessageInternal< ::physical::CreateVertexSchema >(arena);
+}
+template<> PROTOBUF_NOINLINE ::physical::CreateEdgeSchema_TypeInfo*
+Arena::CreateMaybeMessage< ::physical::CreateEdgeSchema_TypeInfo >(Arena* arena) {
+  return Arena::CreateMessageInternal< ::physical::CreateEdgeSchema_TypeInfo >(arena);
 }
 template<> PROTOBUF_NOINLINE ::physical::CreateEdgeSchema*
 Arena::CreateMaybeMessage< ::physical::CreateEdgeSchema >(Arena* arena) {

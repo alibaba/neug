@@ -340,6 +340,56 @@ struct ProcedureCallDefaultTypeInternal {
   };
 };
 PROTOBUF_ATTRIBUTE_NO_DESTROY PROTOBUF_CONSTINIT PROTOBUF_ATTRIBUTE_INIT_PRIORITY1 ProcedureCallDefaultTypeInternal _ProcedureCall_default_instance_;
+PROTOBUF_CONSTEXPR ExtensionInstall::ExtensionInstall(
+    ::_pbi::ConstantInitialized): _impl_{
+    /*decltype(_impl_.extension_name_)*/{&::_pbi::fixed_address_empty_string, ::_pbi::ConstantInitialized{}}
+  , /*decltype(_impl_._cached_size_)*/{}} {}
+struct ExtensionInstallDefaultTypeInternal {
+  PROTOBUF_CONSTEXPR ExtensionInstallDefaultTypeInternal()
+      : _instance(::_pbi::ConstantInitialized{}) {}
+  ~ExtensionInstallDefaultTypeInternal() {}
+  union {
+    ExtensionInstall _instance;
+  };
+};
+PROTOBUF_ATTRIBUTE_NO_DESTROY PROTOBUF_CONSTINIT PROTOBUF_ATTRIBUTE_INIT_PRIORITY1 ExtensionInstallDefaultTypeInternal _ExtensionInstall_default_instance_;
+PROTOBUF_CONSTEXPR ExtensionLoad::ExtensionLoad(
+    ::_pbi::ConstantInitialized): _impl_{
+    /*decltype(_impl_.extension_name_)*/{&::_pbi::fixed_address_empty_string, ::_pbi::ConstantInitialized{}}
+  , /*decltype(_impl_._cached_size_)*/{}} {}
+struct ExtensionLoadDefaultTypeInternal {
+  PROTOBUF_CONSTEXPR ExtensionLoadDefaultTypeInternal()
+      : _instance(::_pbi::ConstantInitialized{}) {}
+  ~ExtensionLoadDefaultTypeInternal() {}
+  union {
+    ExtensionLoad _instance;
+  };
+};
+PROTOBUF_ATTRIBUTE_NO_DESTROY PROTOBUF_CONSTINIT PROTOBUF_ATTRIBUTE_INIT_PRIORITY1 ExtensionLoadDefaultTypeInternal _ExtensionLoad_default_instance_;
+PROTOBUF_CONSTEXPR ExtensionUninstall::ExtensionUninstall(
+    ::_pbi::ConstantInitialized): _impl_{
+    /*decltype(_impl_.extension_name_)*/{&::_pbi::fixed_address_empty_string, ::_pbi::ConstantInitialized{}}
+  , /*decltype(_impl_._cached_size_)*/{}} {}
+struct ExtensionUninstallDefaultTypeInternal {
+  PROTOBUF_CONSTEXPR ExtensionUninstallDefaultTypeInternal()
+      : _instance(::_pbi::ConstantInitialized{}) {}
+  ~ExtensionUninstallDefaultTypeInternal() {}
+  union {
+    ExtensionUninstall _instance;
+  };
+};
+PROTOBUF_ATTRIBUTE_NO_DESTROY PROTOBUF_CONSTINIT PROTOBUF_ATTRIBUTE_INIT_PRIORITY1 ExtensionUninstallDefaultTypeInternal _ExtensionUninstall_default_instance_;
+PROTOBUF_CONSTEXPR Checkpoint::Checkpoint(
+    ::_pbi::ConstantInitialized) {}
+struct CheckpointDefaultTypeInternal {
+  PROTOBUF_CONSTEXPR CheckpointDefaultTypeInternal()
+      : _instance(::_pbi::ConstantInitialized{}) {}
+  ~CheckpointDefaultTypeInternal() {}
+  union {
+    Checkpoint _instance;
+  };
+};
+PROTOBUF_ATTRIBUTE_NO_DESTROY PROTOBUF_CONSTINIT PROTOBUF_ATTRIBUTE_INIT_PRIORITY1 CheckpointDefaultTypeInternal _Checkpoint_default_instance_;
 PROTOBUF_CONSTEXPR PhysicalOpr_Operator::PhysicalOpr_Operator(
     ::_pbi::ConstantInitialized): _impl_{
     /*decltype(_impl_.op_kind_)*/{}
@@ -396,6 +446,33 @@ struct QueryPlanDefaultTypeInternal {
   };
 };
 PROTOBUF_ATTRIBUTE_NO_DESTROY PROTOBUF_CONSTINIT PROTOBUF_ATTRIBUTE_INIT_PRIORITY1 QueryPlanDefaultTypeInternal _QueryPlan_default_instance_;
+PROTOBUF_CONSTEXPR AdminPlan_Operator::AdminPlan_Operator(
+    ::_pbi::ConstantInitialized): _impl_{
+    /*decltype(_impl_.kind_)*/{}
+  , /*decltype(_impl_._cached_size_)*/{}
+  , /*decltype(_impl_._oneof_case_)*/{}} {}
+struct AdminPlan_OperatorDefaultTypeInternal {
+  PROTOBUF_CONSTEXPR AdminPlan_OperatorDefaultTypeInternal()
+      : _instance(::_pbi::ConstantInitialized{}) {}
+  ~AdminPlan_OperatorDefaultTypeInternal() {}
+  union {
+    AdminPlan_Operator _instance;
+  };
+};
+PROTOBUF_ATTRIBUTE_NO_DESTROY PROTOBUF_CONSTINIT PROTOBUF_ATTRIBUTE_INIT_PRIORITY1 AdminPlan_OperatorDefaultTypeInternal _AdminPlan_Operator_default_instance_;
+PROTOBUF_CONSTEXPR AdminPlan::AdminPlan(
+    ::_pbi::ConstantInitialized): _impl_{
+    /*decltype(_impl_.plan_)*/{}
+  , /*decltype(_impl_._cached_size_)*/{}} {}
+struct AdminPlanDefaultTypeInternal {
+  PROTOBUF_CONSTEXPR AdminPlanDefaultTypeInternal()
+      : _instance(::_pbi::ConstantInitialized{}) {}
+  ~AdminPlanDefaultTypeInternal() {}
+  union {
+    AdminPlan _instance;
+  };
+};
+PROTOBUF_ATTRIBUTE_NO_DESTROY PROTOBUF_CONSTINIT PROTOBUF_ATTRIBUTE_INIT_PRIORITY1 AdminPlanDefaultTypeInternal _AdminPlan_default_instance_;
 PROTOBUF_CONSTEXPR PhysicalPlan::PhysicalPlan(
     ::_pbi::ConstantInitialized): _impl_{
     /*decltype(_impl_.plan_id_)*/0
@@ -425,7 +502,7 @@ struct PhysicalPlansDefaultTypeInternal {
 };
 PROTOBUF_ATTRIBUTE_NO_DESTROY PROTOBUF_CONSTINIT PROTOBUF_ATTRIBUTE_INIT_PRIORITY1 PhysicalPlansDefaultTypeInternal _PhysicalPlans_default_instance_;
 }  // namespace physical
-static ::_pb::Metadata file_level_metadata_physical_2eproto[28];
+static ::_pb::Metadata file_level_metadata_physical_2eproto[34];
 static const ::_pb::EnumDescriptor* file_level_enum_descriptors_physical_2eproto[9];
 static constexpr ::_pb::ServiceDescriptor const** file_level_service_descriptors_physical_2eproto = nullptr;
 
@@ -621,6 +698,33 @@ const uint32_t TableStruct_physical_2eproto::offsets[] PROTOBUF_SECTION_VARIABLE
   ~0u,  // no _inlined_string_donated_
   PROTOBUF_FIELD_OFFSET(::physical::ProcedureCall, _impl_.query_),
   ~0u,  // no _has_bits_
+  PROTOBUF_FIELD_OFFSET(::physical::ExtensionInstall, _internal_metadata_),
+  ~0u,  // no _extensions_
+  ~0u,  // no _oneof_case_
+  ~0u,  // no _weak_field_map_
+  ~0u,  // no _inlined_string_donated_
+  PROTOBUF_FIELD_OFFSET(::physical::ExtensionInstall, _impl_.extension_name_),
+  ~0u,  // no _has_bits_
+  PROTOBUF_FIELD_OFFSET(::physical::ExtensionLoad, _internal_metadata_),
+  ~0u,  // no _extensions_
+  ~0u,  // no _oneof_case_
+  ~0u,  // no _weak_field_map_
+  ~0u,  // no _inlined_string_donated_
+  PROTOBUF_FIELD_OFFSET(::physical::ExtensionLoad, _impl_.extension_name_),
+  ~0u,  // no _has_bits_
+  PROTOBUF_FIELD_OFFSET(::physical::ExtensionUninstall, _internal_metadata_),
+  ~0u,  // no _extensions_
+  ~0u,  // no _oneof_case_
+  ~0u,  // no _weak_field_map_
+  ~0u,  // no _inlined_string_donated_
+  PROTOBUF_FIELD_OFFSET(::physical::ExtensionUninstall, _impl_.extension_name_),
+  ~0u,  // no _has_bits_
+  PROTOBUF_FIELD_OFFSET(::physical::Checkpoint, _internal_metadata_),
+  ~0u,  // no _extensions_
+  ~0u,  // no _oneof_case_
+  ~0u,  // no _weak_field_map_
+  ~0u,  // no _inlined_string_donated_
+  ~0u,  // no _has_bits_
   PROTOBUF_FIELD_OFFSET(::physical::PhysicalOpr_Operator, _internal_metadata_),
   ~0u,  // no _extensions_
   PROTOBUF_FIELD_OFFSET(::physical::PhysicalOpr_Operator, _impl_._oneof_case_[0]),
@@ -685,12 +789,31 @@ const uint32_t TableStruct_physical_2eproto::offsets[] PROTOBUF_SECTION_VARIABLE
   PROTOBUF_FIELD_OFFSET(::physical::QueryPlan, _impl_.mode_),
   PROTOBUF_FIELD_OFFSET(::physical::QueryPlan, _impl_.plan_),
   ~0u,  // no _has_bits_
+  PROTOBUF_FIELD_OFFSET(::physical::AdminPlan_Operator, _internal_metadata_),
+  ~0u,  // no _extensions_
+  PROTOBUF_FIELD_OFFSET(::physical::AdminPlan_Operator, _impl_._oneof_case_[0]),
+  ~0u,  // no _weak_field_map_
+  ~0u,  // no _inlined_string_donated_
+  ::_pbi::kInvalidFieldOffsetTag,
+  ::_pbi::kInvalidFieldOffsetTag,
+  ::_pbi::kInvalidFieldOffsetTag,
+  ::_pbi::kInvalidFieldOffsetTag,
+  PROTOBUF_FIELD_OFFSET(::physical::AdminPlan_Operator, _impl_.kind_),
+  ~0u,  // no _has_bits_
+  PROTOBUF_FIELD_OFFSET(::physical::AdminPlan, _internal_metadata_),
+  ~0u,  // no _extensions_
+  ~0u,  // no _oneof_case_
+  ~0u,  // no _weak_field_map_
+  ~0u,  // no _inlined_string_donated_
+  PROTOBUF_FIELD_OFFSET(::physical::AdminPlan, _impl_.plan_),
+  ~0u,  // no _has_bits_
   PROTOBUF_FIELD_OFFSET(::physical::PhysicalPlan, _internal_metadata_),
   ~0u,  // no _extensions_
   PROTOBUF_FIELD_OFFSET(::physical::PhysicalPlan, _impl_._oneof_case_[0]),
   ~0u,  // no _weak_field_map_
   ~0u,  // no _inlined_string_donated_
   PROTOBUF_FIELD_OFFSET(::physical::PhysicalPlan, _impl_.plan_id_),
+  ::_pbi::kInvalidFieldOffsetTag,
   ::_pbi::kInvalidFieldOffsetTag,
   ::_pbi::kInvalidFieldOffsetTag,
   PROTOBUF_FIELD_OFFSET(::physical::PhysicalPlan, _impl_.plan_),
@@ -725,12 +848,18 @@ static const ::_pbi::MigrationSchema schemas[] PROTOBUF_SECTION_VARIABLE(protode
   { 168, -1, -1, sizeof(::physical::Repartition)},
   { 177, -1, -1, sizeof(::physical::Root)},
   { 183, -1, -1, sizeof(::physical::ProcedureCall)},
-  { 190, -1, -1, sizeof(::physical::PhysicalOpr_Operator)},
-  { 230, -1, -1, sizeof(::physical::PhysicalOpr_MetaData)},
-  { 238, -1, -1, sizeof(::physical::PhysicalOpr)},
-  { 246, -1, -1, sizeof(::physical::QueryPlan)},
-  { 254, -1, -1, sizeof(::physical::PhysicalPlan)},
-  { 264, -1, -1, sizeof(::physical::PhysicalPlans)},
+  { 190, -1, -1, sizeof(::physical::ExtensionInstall)},
+  { 197, -1, -1, sizeof(::physical::ExtensionLoad)},
+  { 204, -1, -1, sizeof(::physical::ExtensionUninstall)},
+  { 211, -1, -1, sizeof(::physical::Checkpoint)},
+  { 217, -1, -1, sizeof(::physical::PhysicalOpr_Operator)},
+  { 257, -1, -1, sizeof(::physical::PhysicalOpr_MetaData)},
+  { 265, -1, -1, sizeof(::physical::PhysicalOpr)},
+  { 273, -1, -1, sizeof(::physical::QueryPlan)},
+  { 281, -1, -1, sizeof(::physical::AdminPlan_Operator)},
+  { 292, -1, -1, sizeof(::physical::AdminPlan)},
+  { 299, -1, -1, sizeof(::physical::PhysicalPlan)},
+  { 310, -1, -1, sizeof(::physical::PhysicalPlans)},
 };
 
 static const ::_pb::Message* const file_default_instances[] = {
@@ -756,10 +885,16 @@ static const ::_pb::Message* const file_default_instances[] = {
   &::physical::_Repartition_default_instance_._instance,
   &::physical::_Root_default_instance_._instance,
   &::physical::_ProcedureCall_default_instance_._instance,
+  &::physical::_ExtensionInstall_default_instance_._instance,
+  &::physical::_ExtensionLoad_default_instance_._instance,
+  &::physical::_ExtensionUninstall_default_instance_._instance,
+  &::physical::_Checkpoint_default_instance_._instance,
   &::physical::_PhysicalOpr_Operator_default_instance_._instance,
   &::physical::_PhysicalOpr_MetaData_default_instance_._instance,
   &::physical::_PhysicalOpr_default_instance_._instance,
   &::physical::_QueryPlan_default_instance_._instance,
+  &::physical::_AdminPlan_Operator_default_instance_._instance,
+  &::physical::_AdminPlan_default_instance_._instance,
   &::physical::_PhysicalPlan_default_instance_._instance,
   &::physical::_PhysicalPlans_default_instance_._instance,
 };
@@ -848,54 +983,66 @@ const char descriptor_table_protodef_physical_2eproto[] PROTOBUF_SECTION_VARIABL
   "\n\007Shuffle\0220\n\013shuffle_key\030\001 \001(\0132\033.google."
   "protobuf.Int32Value\032\013\n\tBroadcastB\n\n\010Stra"
   "tegy\"\006\n\004Root\"0\n\rProcedureCall\022\037\n\005query\030\001"
-  " \001(\0132\020.procedure.Query\"\321\013\n\013PhysicalOpr\022+"
-  "\n\003opr\030\001 \001(\0132\036.physical.PhysicalOpr.Opera"
-  "tor\0221\n\tmeta_data\030\002 \003(\0132\036.physical.Physic"
-  "alOpr.MetaData\032\244\n\n\010Operator\022$\n\007project\030\001"
-  " \001(\0132\021.physical.ProjectH\000\022!\n\006select\030\002 \001("
-  "\0132\017.algebra.SelectH\000\022%\n\010group_by\030\003 \001(\0132\021"
-  ".physical.GroupByH\000\022$\n\010order_by\030\004 \001(\0132\020."
-  "algebra.OrderByH\000\022\037\n\005dedup\030\005 \001(\0132\016.algeb"
-  "ra.DedupH\000\022\"\n\006unfold\030\006 \001(\0132\020.physical.Un"
-  "foldH\000\022\037\n\005limit\030\007 \001(\0132\016.algebra.LimitH\000\022"
-  "\036\n\004scan\030\010 \001(\0132\016.physical.ScanH\000\022\036\n\004sink\030"
-  "\t \001(\0132\016.physical.SinkH\000\022 \n\005apply\030\n \001(\0132\017"
-  ".physical.ApplyH\000\022\036\n\004join\030\013 \001(\0132\016.physic"
-  "al.JoinH\000\022 \n\005union\030\014 \001(\0132\017.physical.Unio"
-  "nH\000\022(\n\tintersect\030\r \001(\0132\023.physical.Inters"
-  "ectH\000\022,\n\013repartition\030\016 \001(\0132\025.physical.Re"
-  "partitionH\000\022\036\n\004root\030\020 \001(\0132\016.physical.Roo"
-  "tH\000\022!\n\006sample\030\021 \001(\0132\017.algebra.SampleH\000\022 "
-  "\n\006vertex\030\036 \001(\0132\016.physical.GetVH\000\022$\n\004edge"
-  "\030\037 \001(\0132\024.physical.EdgeExpandH\000\022$\n\004path\030 "
-  " \001(\0132\024.physical.PathExpandH\000\0221\n\016procedur"
-  "e_call\030! \001(\0132\027.physical.ProcedureCallH\000\022"
-  "\032\n\003set\030\" \001(\0132\013.cypher.SetH\000\022\034\n\004load\030# \001("
-  "\0132\014.cypher.LoadH\000\022 \n\006delete\030$ \001(\0132\016.cyph"
-  "er.DeleteH\000\022&\n\006source\030% \001(\0132\024.physical.D"
-  "ataSourceH\000\0222\n\013load_vertex\030& \001(\0132\033.physi"
-  "cal.BatchInsertVertexH\000\022.\n\tload_edge\030\' \001"
-  "(\0132\031.physical.BatchInsertEdgeH\000\022/\n\rcreat"
-  "e_vertex\030( \001(\0132\026.physical.InsertVertexH\000"
-  "\022+\n\013create_edge\030) \001(\0132\024.physical.InsertE"
-  "dgeH\000\0221\n\nset_vertex\030* \001(\0132\033.physical.Set"
-  "VertexPropertyH\000\022-\n\010set_edge\030+ \001(\0132\031.phy"
-  "sical.SetEdgePropertyH\000\022/\n\rdelete_vertex"
-  "\030, \001(\0132\026.physical.DeleteVertexH\000\022+\n\013dele"
-  "te_edge\030- \001(\0132\024.physical.DeleteEdgeH\000\022+\n"
-  "\013data_export\030. \001(\0132\024.physical.DataExport"
-  "H\000B\t\n\007op_kind\032;\n\010MetaData\022 \n\004type\030\001 \001(\0132"
-  "\022.common.IrDataType\022\r\n\005alias\030\002 \001(\005\"\217\001\n\tQ"
-  "ueryPlan\022&\n\004mode\030\001 \001(\0162\030.physical.QueryP"
-  "lan.Mode\022#\n\004plan\030\002 \003(\0132\025.physical.Physic"
-  "alOpr\"5\n\004Mode\022\r\n\tREAD_ONLY\020\000\022\016\n\nWRITE_ON"
-  "LY\020\001\022\016\n\nREAD_WRITE\020\002\"y\n\014PhysicalPlan\022\017\n\007"
-  "plan_id\030\001 \001(\005\022%\n\010ddl_plan\030\002 \001(\0132\021.physic"
-  "al.DDLPlanH\000\022)\n\nquery_plan\030\003 \001(\0132\023.physi"
-  "cal.QueryPlanH\000B\006\n\004plan\"6\n\rPhysicalPlans"
-  "\022%\n\005plans\030\001 \003(\0132\026.physical.PhysicalPlanB"
-  "9\n!com.alibaba.graphscope.gaia.protoB\024Gr"
-  "aphAlgebraPhysicalb\006proto3"
+  " \001(\0132\020.procedure.Query\"*\n\020ExtensionInsta"
+  "ll\022\026\n\016extension_name\030\001 \001(\t\"\'\n\rExtensionL"
+  "oad\022\026\n\016extension_name\030\001 \001(\t\",\n\022Extension"
+  "Uninstall\022\026\n\016extension_name\030\001 \001(\t\"\014\n\nChe"
+  "ckpoint\"\321\013\n\013PhysicalOpr\022+\n\003opr\030\001 \001(\0132\036.p"
+  "hysical.PhysicalOpr.Operator\0221\n\tmeta_dat"
+  "a\030\002 \003(\0132\036.physical.PhysicalOpr.MetaData\032"
+  "\244\n\n\010Operator\022$\n\007project\030\001 \001(\0132\021.physical"
+  ".ProjectH\000\022!\n\006select\030\002 \001(\0132\017.algebra.Sel"
+  "ectH\000\022%\n\010group_by\030\003 \001(\0132\021.physical.Group"
+  "ByH\000\022$\n\010order_by\030\004 \001(\0132\020.algebra.OrderBy"
+  "H\000\022\037\n\005dedup\030\005 \001(\0132\016.algebra.DedupH\000\022\"\n\006u"
+  "nfold\030\006 \001(\0132\020.physical.UnfoldH\000\022\037\n\005limit"
+  "\030\007 \001(\0132\016.algebra.LimitH\000\022\036\n\004scan\030\010 \001(\0132\016"
+  ".physical.ScanH\000\022\036\n\004sink\030\t \001(\0132\016.physica"
+  "l.SinkH\000\022 \n\005apply\030\n \001(\0132\017.physical.Apply"
+  "H\000\022\036\n\004join\030\013 \001(\0132\016.physical.JoinH\000\022 \n\005un"
+  "ion\030\014 \001(\0132\017.physical.UnionH\000\022(\n\tintersec"
+  "t\030\r \001(\0132\023.physical.IntersectH\000\022,\n\013repart"
+  "ition\030\016 \001(\0132\025.physical.RepartitionH\000\022\036\n\004"
+  "root\030\020 \001(\0132\016.physical.RootH\000\022!\n\006sample\030\021"
+  " \001(\0132\017.algebra.SampleH\000\022 \n\006vertex\030\036 \001(\0132"
+  "\016.physical.GetVH\000\022$\n\004edge\030\037 \001(\0132\024.physic"
+  "al.EdgeExpandH\000\022$\n\004path\030  \001(\0132\024.physical"
+  ".PathExpandH\000\0221\n\016procedure_call\030! \001(\0132\027."
+  "physical.ProcedureCallH\000\022\032\n\003set\030\" \001(\0132\013."
+  "cypher.SetH\000\022\034\n\004load\030# \001(\0132\014.cypher.Load"
+  "H\000\022 \n\006delete\030$ \001(\0132\016.cypher.DeleteH\000\022&\n\006"
+  "source\030% \001(\0132\024.physical.DataSourceH\000\0222\n\013"
+  "load_vertex\030& \001(\0132\033.physical.BatchInsert"
+  "VertexH\000\022.\n\tload_edge\030\' \001(\0132\031.physical.B"
+  "atchInsertEdgeH\000\022/\n\rcreate_vertex\030( \001(\0132"
+  "\026.physical.InsertVertexH\000\022+\n\013create_edge"
+  "\030) \001(\0132\024.physical.InsertEdgeH\000\0221\n\nset_ve"
+  "rtex\030* \001(\0132\033.physical.SetVertexPropertyH"
+  "\000\022-\n\010set_edge\030+ \001(\0132\031.physical.SetEdgePr"
+  "opertyH\000\022/\n\rdelete_vertex\030, \001(\0132\026.physic"
+  "al.DeleteVertexH\000\022+\n\013delete_edge\030- \001(\0132\024"
+  ".physical.DeleteEdgeH\000\022+\n\013data_export\030. "
+  "\001(\0132\024.physical.DataExportH\000B\t\n\007op_kind\032;"
+  "\n\010MetaData\022 \n\004type\030\001 \001(\0132\022.common.IrData"
+  "Type\022\r\n\005alias\030\002 \001(\005\"\217\001\n\tQueryPlan\022&\n\004mod"
+  "e\030\001 \001(\0162\030.physical.QueryPlan.Mode\022#\n\004pla"
+  "n\030\002 \003(\0132\025.physical.PhysicalOpr\"5\n\004Mode\022\r"
+  "\n\tREAD_ONLY\020\000\022\016\n\nWRITE_ONLY\020\001\022\016\n\nREAD_WR"
+  "ITE\020\002\"\217\002\n\tAdminPlan\022*\n\004plan\030\001 \003(\0132\034.phys"
+  "ical.AdminPlan.Operator\032\325\001\n\010Operator\022*\n\n"
+  "checkpoint\030\001 \001(\0132\024.physical.CheckpointH\000"
+  "\0221\n\013ext_install\030\002 \001(\0132\032.physical.Extensi"
+  "onInstallH\000\022+\n\010ext_load\030\003 \001(\0132\027.physical"
+  ".ExtensionLoadH\000\0225\n\rext_uninstall\030\004 \001(\0132"
+  "\034.physical.ExtensionUninstallH\000B\006\n\004kind\""
+  "\244\001\n\014PhysicalPlan\022\017\n\007plan_id\030\001 \001(\005\022%\n\010ddl"
+  "_plan\030\002 \001(\0132\021.physical.DDLPlanH\000\022)\n\nquer"
+  "y_plan\030\003 \001(\0132\023.physical.QueryPlanH\000\022)\n\na"
+  "dmin_plan\030\004 \001(\0132\023.physical.AdminPlanH\000B\006"
+  "\n\004plan\"6\n\rPhysicalPlans\022%\n\005plans\030\001 \003(\0132\026"
+  ".physical.PhysicalPlanB9\n!com.alibaba.gr"
+  "aphscope.gaia.protoB\024GraphAlgebraPhysica"
+  "lb\006proto3"
   ;
 static const ::_pbi::DescriptorTable* const descriptor_table_physical_2eproto_deps[10] = {
   &::descriptor_table_algebra_2eproto,
@@ -911,9 +1058,9 @@ static const ::_pbi::DescriptorTable* const descriptor_table_physical_2eproto_de
 };
 static ::_pbi::once_flag descriptor_table_physical_2eproto_once;
 const ::_pbi::DescriptorTable descriptor_table_physical_2eproto = {
-    false, false, 5226, descriptor_table_protodef_physical_2eproto,
+    false, false, 5689, descriptor_table_protodef_physical_2eproto,
     "physical.proto",
-    &descriptor_table_physical_2eproto_once, descriptor_table_physical_2eproto_deps, 10, 28,
+    &descriptor_table_physical_2eproto_once, descriptor_table_physical_2eproto_deps, 10, 34,
     schemas, file_default_instances, TableStruct_physical_2eproto::offsets,
     file_level_metadata_physical_2eproto, file_level_enum_descriptors_physical_2eproto,
     file_level_service_descriptors_physical_2eproto,
@@ -6655,6 +6802,655 @@ void ProcedureCall::InternalSwap(ProcedureCall* other) {
 
 // ===================================================================
 
+class ExtensionInstall::_Internal {
+ public:
+};
+
+ExtensionInstall::ExtensionInstall(::PROTOBUF_NAMESPACE_ID::Arena* arena,
+                         bool is_message_owned)
+  : ::PROTOBUF_NAMESPACE_ID::Message(arena, is_message_owned) {
+  SharedCtor(arena, is_message_owned);
+  // @@protoc_insertion_point(arena_constructor:physical.ExtensionInstall)
+}
+ExtensionInstall::ExtensionInstall(const ExtensionInstall& from)
+  : ::PROTOBUF_NAMESPACE_ID::Message() {
+  ExtensionInstall* const _this = this; (void)_this;
+  new (&_impl_) Impl_{
+      decltype(_impl_.extension_name_){}
+    , /*decltype(_impl_._cached_size_)*/{}};
+
+  _internal_metadata_.MergeFrom<::PROTOBUF_NAMESPACE_ID::UnknownFieldSet>(from._internal_metadata_);
+  _impl_.extension_name_.InitDefault();
+  #ifdef PROTOBUF_FORCE_COPY_DEFAULT_STRING
+    _impl_.extension_name_.Set("", GetArenaForAllocation());
+  #endif // PROTOBUF_FORCE_COPY_DEFAULT_STRING
+  if (!from._internal_extension_name().empty()) {
+    _this->_impl_.extension_name_.Set(from._internal_extension_name(), 
+      _this->GetArenaForAllocation());
+  }
+  // @@protoc_insertion_point(copy_constructor:physical.ExtensionInstall)
+}
+
+inline void ExtensionInstall::SharedCtor(
+    ::_pb::Arena* arena, bool is_message_owned) {
+  (void)arena;
+  (void)is_message_owned;
+  new (&_impl_) Impl_{
+      decltype(_impl_.extension_name_){}
+    , /*decltype(_impl_._cached_size_)*/{}
+  };
+  _impl_.extension_name_.InitDefault();
+  #ifdef PROTOBUF_FORCE_COPY_DEFAULT_STRING
+    _impl_.extension_name_.Set("", GetArenaForAllocation());
+  #endif // PROTOBUF_FORCE_COPY_DEFAULT_STRING
+}
+
+ExtensionInstall::~ExtensionInstall() {
+  // @@protoc_insertion_point(destructor:physical.ExtensionInstall)
+  if (auto *arena = _internal_metadata_.DeleteReturnArena<::PROTOBUF_NAMESPACE_ID::UnknownFieldSet>()) {
+  (void)arena;
+    return;
+  }
+  SharedDtor();
+}
+
+inline void ExtensionInstall::SharedDtor() {
+  GOOGLE_DCHECK(GetArenaForAllocation() == nullptr);
+  _impl_.extension_name_.Destroy();
+}
+
+void ExtensionInstall::SetCachedSize(int size) const {
+  _impl_._cached_size_.Set(size);
+}
+
+void ExtensionInstall::Clear() {
+// @@protoc_insertion_point(message_clear_start:physical.ExtensionInstall)
+  uint32_t cached_has_bits = 0;
+  // Prevent compiler warnings about cached_has_bits being unused
+  (void) cached_has_bits;
+
+  _impl_.extension_name_.ClearToEmpty();
+  _internal_metadata_.Clear<::PROTOBUF_NAMESPACE_ID::UnknownFieldSet>();
+}
+
+const char* ExtensionInstall::_InternalParse(const char* ptr, ::_pbi::ParseContext* ctx) {
+#define CHK_(x) if (PROTOBUF_PREDICT_FALSE(!(x))) goto failure
+  while (!ctx->Done(&ptr)) {
+    uint32_t tag;
+    ptr = ::_pbi::ReadTag(ptr, &tag);
+    switch (tag >> 3) {
+      // string extension_name = 1;
+      case 1:
+        if (PROTOBUF_PREDICT_TRUE(static_cast<uint8_t>(tag) == 10)) {
+          auto str = _internal_mutable_extension_name();
+          ptr = ::_pbi::InlineGreedyStringParser(str, ptr, ctx);
+          CHK_(ptr);
+          CHK_(::_pbi::VerifyUTF8(str, "physical.ExtensionInstall.extension_name"));
+        } else
+          goto handle_unusual;
+        continue;
+      default:
+        goto handle_unusual;
+    }  // switch
+  handle_unusual:
+    if ((tag == 0) || ((tag & 7) == 4)) {
+      CHK_(ptr);
+      ctx->SetLastTag(tag);
+      goto message_done;
+    }
+    ptr = UnknownFieldParse(
+        tag,
+        _internal_metadata_.mutable_unknown_fields<::PROTOBUF_NAMESPACE_ID::UnknownFieldSet>(),
+        ptr, ctx);
+    CHK_(ptr != nullptr);
+  }  // while
+message_done:
+  return ptr;
+failure:
+  ptr = nullptr;
+  goto message_done;
+#undef CHK_
+}
+
+uint8_t* ExtensionInstall::_InternalSerialize(
+    uint8_t* target, ::PROTOBUF_NAMESPACE_ID::io::EpsCopyOutputStream* stream) const {
+  // @@protoc_insertion_point(serialize_to_array_start:physical.ExtensionInstall)
+  uint32_t cached_has_bits = 0;
+  (void) cached_has_bits;
+
+  // string extension_name = 1;
+  if (!this->_internal_extension_name().empty()) {
+    ::PROTOBUF_NAMESPACE_ID::internal::WireFormatLite::VerifyUtf8String(
+      this->_internal_extension_name().data(), static_cast<int>(this->_internal_extension_name().length()),
+      ::PROTOBUF_NAMESPACE_ID::internal::WireFormatLite::SERIALIZE,
+      "physical.ExtensionInstall.extension_name");
+    target = stream->WriteStringMaybeAliased(
+        1, this->_internal_extension_name(), target);
+  }
+
+  if (PROTOBUF_PREDICT_FALSE(_internal_metadata_.have_unknown_fields())) {
+    target = ::_pbi::WireFormat::InternalSerializeUnknownFieldsToArray(
+        _internal_metadata_.unknown_fields<::PROTOBUF_NAMESPACE_ID::UnknownFieldSet>(::PROTOBUF_NAMESPACE_ID::UnknownFieldSet::default_instance), target, stream);
+  }
+  // @@protoc_insertion_point(serialize_to_array_end:physical.ExtensionInstall)
+  return target;
+}
+
+size_t ExtensionInstall::ByteSizeLong() const {
+// @@protoc_insertion_point(message_byte_size_start:physical.ExtensionInstall)
+  size_t total_size = 0;
+
+  uint32_t cached_has_bits = 0;
+  // Prevent compiler warnings about cached_has_bits being unused
+  (void) cached_has_bits;
+
+  // string extension_name = 1;
+  if (!this->_internal_extension_name().empty()) {
+    total_size += 1 +
+      ::PROTOBUF_NAMESPACE_ID::internal::WireFormatLite::StringSize(
+        this->_internal_extension_name());
+  }
+
+  return MaybeComputeUnknownFieldsSize(total_size, &_impl_._cached_size_);
+}
+
+const ::PROTOBUF_NAMESPACE_ID::Message::ClassData ExtensionInstall::_class_data_ = {
+    ::PROTOBUF_NAMESPACE_ID::Message::CopyWithSourceCheck,
+    ExtensionInstall::MergeImpl
+};
+const ::PROTOBUF_NAMESPACE_ID::Message::ClassData*ExtensionInstall::GetClassData() const { return &_class_data_; }
+
+
+void ExtensionInstall::MergeImpl(::PROTOBUF_NAMESPACE_ID::Message& to_msg, const ::PROTOBUF_NAMESPACE_ID::Message& from_msg) {
+  auto* const _this = static_cast<ExtensionInstall*>(&to_msg);
+  auto& from = static_cast<const ExtensionInstall&>(from_msg);
+  // @@protoc_insertion_point(class_specific_merge_from_start:physical.ExtensionInstall)
+  GOOGLE_DCHECK_NE(&from, _this);
+  uint32_t cached_has_bits = 0;
+  (void) cached_has_bits;
+
+  if (!from._internal_extension_name().empty()) {
+    _this->_internal_set_extension_name(from._internal_extension_name());
+  }
+  _this->_internal_metadata_.MergeFrom<::PROTOBUF_NAMESPACE_ID::UnknownFieldSet>(from._internal_metadata_);
+}
+
+void ExtensionInstall::CopyFrom(const ExtensionInstall& from) {
+// @@protoc_insertion_point(class_specific_copy_from_start:physical.ExtensionInstall)
+  if (&from == this) return;
+  Clear();
+  MergeFrom(from);
+}
+
+bool ExtensionInstall::IsInitialized() const {
+  return true;
+}
+
+void ExtensionInstall::InternalSwap(ExtensionInstall* other) {
+  using std::swap;
+  auto* lhs_arena = GetArenaForAllocation();
+  auto* rhs_arena = other->GetArenaForAllocation();
+  _internal_metadata_.InternalSwap(&other->_internal_metadata_);
+  ::PROTOBUF_NAMESPACE_ID::internal::ArenaStringPtr::InternalSwap(
+      &_impl_.extension_name_, lhs_arena,
+      &other->_impl_.extension_name_, rhs_arena
+  );
+}
+
+::PROTOBUF_NAMESPACE_ID::Metadata ExtensionInstall::GetMetadata() const {
+  return ::_pbi::AssignDescriptors(
+      &descriptor_table_physical_2eproto_getter, &descriptor_table_physical_2eproto_once,
+      file_level_metadata_physical_2eproto[22]);
+}
+
+// ===================================================================
+
+class ExtensionLoad::_Internal {
+ public:
+};
+
+ExtensionLoad::ExtensionLoad(::PROTOBUF_NAMESPACE_ID::Arena* arena,
+                         bool is_message_owned)
+  : ::PROTOBUF_NAMESPACE_ID::Message(arena, is_message_owned) {
+  SharedCtor(arena, is_message_owned);
+  // @@protoc_insertion_point(arena_constructor:physical.ExtensionLoad)
+}
+ExtensionLoad::ExtensionLoad(const ExtensionLoad& from)
+  : ::PROTOBUF_NAMESPACE_ID::Message() {
+  ExtensionLoad* const _this = this; (void)_this;
+  new (&_impl_) Impl_{
+      decltype(_impl_.extension_name_){}
+    , /*decltype(_impl_._cached_size_)*/{}};
+
+  _internal_metadata_.MergeFrom<::PROTOBUF_NAMESPACE_ID::UnknownFieldSet>(from._internal_metadata_);
+  _impl_.extension_name_.InitDefault();
+  #ifdef PROTOBUF_FORCE_COPY_DEFAULT_STRING
+    _impl_.extension_name_.Set("", GetArenaForAllocation());
+  #endif // PROTOBUF_FORCE_COPY_DEFAULT_STRING
+  if (!from._internal_extension_name().empty()) {
+    _this->_impl_.extension_name_.Set(from._internal_extension_name(), 
+      _this->GetArenaForAllocation());
+  }
+  // @@protoc_insertion_point(copy_constructor:physical.ExtensionLoad)
+}
+
+inline void ExtensionLoad::SharedCtor(
+    ::_pb::Arena* arena, bool is_message_owned) {
+  (void)arena;
+  (void)is_message_owned;
+  new (&_impl_) Impl_{
+      decltype(_impl_.extension_name_){}
+    , /*decltype(_impl_._cached_size_)*/{}
+  };
+  _impl_.extension_name_.InitDefault();
+  #ifdef PROTOBUF_FORCE_COPY_DEFAULT_STRING
+    _impl_.extension_name_.Set("", GetArenaForAllocation());
+  #endif // PROTOBUF_FORCE_COPY_DEFAULT_STRING
+}
+
+ExtensionLoad::~ExtensionLoad() {
+  // @@protoc_insertion_point(destructor:physical.ExtensionLoad)
+  if (auto *arena = _internal_metadata_.DeleteReturnArena<::PROTOBUF_NAMESPACE_ID::UnknownFieldSet>()) {
+  (void)arena;
+    return;
+  }
+  SharedDtor();
+}
+
+inline void ExtensionLoad::SharedDtor() {
+  GOOGLE_DCHECK(GetArenaForAllocation() == nullptr);
+  _impl_.extension_name_.Destroy();
+}
+
+void ExtensionLoad::SetCachedSize(int size) const {
+  _impl_._cached_size_.Set(size);
+}
+
+void ExtensionLoad::Clear() {
+// @@protoc_insertion_point(message_clear_start:physical.ExtensionLoad)
+  uint32_t cached_has_bits = 0;
+  // Prevent compiler warnings about cached_has_bits being unused
+  (void) cached_has_bits;
+
+  _impl_.extension_name_.ClearToEmpty();
+  _internal_metadata_.Clear<::PROTOBUF_NAMESPACE_ID::UnknownFieldSet>();
+}
+
+const char* ExtensionLoad::_InternalParse(const char* ptr, ::_pbi::ParseContext* ctx) {
+#define CHK_(x) if (PROTOBUF_PREDICT_FALSE(!(x))) goto failure
+  while (!ctx->Done(&ptr)) {
+    uint32_t tag;
+    ptr = ::_pbi::ReadTag(ptr, &tag);
+    switch (tag >> 3) {
+      // string extension_name = 1;
+      case 1:
+        if (PROTOBUF_PREDICT_TRUE(static_cast<uint8_t>(tag) == 10)) {
+          auto str = _internal_mutable_extension_name();
+          ptr = ::_pbi::InlineGreedyStringParser(str, ptr, ctx);
+          CHK_(ptr);
+          CHK_(::_pbi::VerifyUTF8(str, "physical.ExtensionLoad.extension_name"));
+        } else
+          goto handle_unusual;
+        continue;
+      default:
+        goto handle_unusual;
+    }  // switch
+  handle_unusual:
+    if ((tag == 0) || ((tag & 7) == 4)) {
+      CHK_(ptr);
+      ctx->SetLastTag(tag);
+      goto message_done;
+    }
+    ptr = UnknownFieldParse(
+        tag,
+        _internal_metadata_.mutable_unknown_fields<::PROTOBUF_NAMESPACE_ID::UnknownFieldSet>(),
+        ptr, ctx);
+    CHK_(ptr != nullptr);
+  }  // while
+message_done:
+  return ptr;
+failure:
+  ptr = nullptr;
+  goto message_done;
+#undef CHK_
+}
+
+uint8_t* ExtensionLoad::_InternalSerialize(
+    uint8_t* target, ::PROTOBUF_NAMESPACE_ID::io::EpsCopyOutputStream* stream) const {
+  // @@protoc_insertion_point(serialize_to_array_start:physical.ExtensionLoad)
+  uint32_t cached_has_bits = 0;
+  (void) cached_has_bits;
+
+  // string extension_name = 1;
+  if (!this->_internal_extension_name().empty()) {
+    ::PROTOBUF_NAMESPACE_ID::internal::WireFormatLite::VerifyUtf8String(
+      this->_internal_extension_name().data(), static_cast<int>(this->_internal_extension_name().length()),
+      ::PROTOBUF_NAMESPACE_ID::internal::WireFormatLite::SERIALIZE,
+      "physical.ExtensionLoad.extension_name");
+    target = stream->WriteStringMaybeAliased(
+        1, this->_internal_extension_name(), target);
+  }
+
+  if (PROTOBUF_PREDICT_FALSE(_internal_metadata_.have_unknown_fields())) {
+    target = ::_pbi::WireFormat::InternalSerializeUnknownFieldsToArray(
+        _internal_metadata_.unknown_fields<::PROTOBUF_NAMESPACE_ID::UnknownFieldSet>(::PROTOBUF_NAMESPACE_ID::UnknownFieldSet::default_instance), target, stream);
+  }
+  // @@protoc_insertion_point(serialize_to_array_end:physical.ExtensionLoad)
+  return target;
+}
+
+size_t ExtensionLoad::ByteSizeLong() const {
+// @@protoc_insertion_point(message_byte_size_start:physical.ExtensionLoad)
+  size_t total_size = 0;
+
+  uint32_t cached_has_bits = 0;
+  // Prevent compiler warnings about cached_has_bits being unused
+  (void) cached_has_bits;
+
+  // string extension_name = 1;
+  if (!this->_internal_extension_name().empty()) {
+    total_size += 1 +
+      ::PROTOBUF_NAMESPACE_ID::internal::WireFormatLite::StringSize(
+        this->_internal_extension_name());
+  }
+
+  return MaybeComputeUnknownFieldsSize(total_size, &_impl_._cached_size_);
+}
+
+const ::PROTOBUF_NAMESPACE_ID::Message::ClassData ExtensionLoad::_class_data_ = {
+    ::PROTOBUF_NAMESPACE_ID::Message::CopyWithSourceCheck,
+    ExtensionLoad::MergeImpl
+};
+const ::PROTOBUF_NAMESPACE_ID::Message::ClassData*ExtensionLoad::GetClassData() const { return &_class_data_; }
+
+
+void ExtensionLoad::MergeImpl(::PROTOBUF_NAMESPACE_ID::Message& to_msg, const ::PROTOBUF_NAMESPACE_ID::Message& from_msg) {
+  auto* const _this = static_cast<ExtensionLoad*>(&to_msg);
+  auto& from = static_cast<const ExtensionLoad&>(from_msg);
+  // @@protoc_insertion_point(class_specific_merge_from_start:physical.ExtensionLoad)
+  GOOGLE_DCHECK_NE(&from, _this);
+  uint32_t cached_has_bits = 0;
+  (void) cached_has_bits;
+
+  if (!from._internal_extension_name().empty()) {
+    _this->_internal_set_extension_name(from._internal_extension_name());
+  }
+  _this->_internal_metadata_.MergeFrom<::PROTOBUF_NAMESPACE_ID::UnknownFieldSet>(from._internal_metadata_);
+}
+
+void ExtensionLoad::CopyFrom(const ExtensionLoad& from) {
+// @@protoc_insertion_point(class_specific_copy_from_start:physical.ExtensionLoad)
+  if (&from == this) return;
+  Clear();
+  MergeFrom(from);
+}
+
+bool ExtensionLoad::IsInitialized() const {
+  return true;
+}
+
+void ExtensionLoad::InternalSwap(ExtensionLoad* other) {
+  using std::swap;
+  auto* lhs_arena = GetArenaForAllocation();
+  auto* rhs_arena = other->GetArenaForAllocation();
+  _internal_metadata_.InternalSwap(&other->_internal_metadata_);
+  ::PROTOBUF_NAMESPACE_ID::internal::ArenaStringPtr::InternalSwap(
+      &_impl_.extension_name_, lhs_arena,
+      &other->_impl_.extension_name_, rhs_arena
+  );
+}
+
+::PROTOBUF_NAMESPACE_ID::Metadata ExtensionLoad::GetMetadata() const {
+  return ::_pbi::AssignDescriptors(
+      &descriptor_table_physical_2eproto_getter, &descriptor_table_physical_2eproto_once,
+      file_level_metadata_physical_2eproto[23]);
+}
+
+// ===================================================================
+
+class ExtensionUninstall::_Internal {
+ public:
+};
+
+ExtensionUninstall::ExtensionUninstall(::PROTOBUF_NAMESPACE_ID::Arena* arena,
+                         bool is_message_owned)
+  : ::PROTOBUF_NAMESPACE_ID::Message(arena, is_message_owned) {
+  SharedCtor(arena, is_message_owned);
+  // @@protoc_insertion_point(arena_constructor:physical.ExtensionUninstall)
+}
+ExtensionUninstall::ExtensionUninstall(const ExtensionUninstall& from)
+  : ::PROTOBUF_NAMESPACE_ID::Message() {
+  ExtensionUninstall* const _this = this; (void)_this;
+  new (&_impl_) Impl_{
+      decltype(_impl_.extension_name_){}
+    , /*decltype(_impl_._cached_size_)*/{}};
+
+  _internal_metadata_.MergeFrom<::PROTOBUF_NAMESPACE_ID::UnknownFieldSet>(from._internal_metadata_);
+  _impl_.extension_name_.InitDefault();
+  #ifdef PROTOBUF_FORCE_COPY_DEFAULT_STRING
+    _impl_.extension_name_.Set("", GetArenaForAllocation());
+  #endif // PROTOBUF_FORCE_COPY_DEFAULT_STRING
+  if (!from._internal_extension_name().empty()) {
+    _this->_impl_.extension_name_.Set(from._internal_extension_name(), 
+      _this->GetArenaForAllocation());
+  }
+  // @@protoc_insertion_point(copy_constructor:physical.ExtensionUninstall)
+}
+
+inline void ExtensionUninstall::SharedCtor(
+    ::_pb::Arena* arena, bool is_message_owned) {
+  (void)arena;
+  (void)is_message_owned;
+  new (&_impl_) Impl_{
+      decltype(_impl_.extension_name_){}
+    , /*decltype(_impl_._cached_size_)*/{}
+  };
+  _impl_.extension_name_.InitDefault();
+  #ifdef PROTOBUF_FORCE_COPY_DEFAULT_STRING
+    _impl_.extension_name_.Set("", GetArenaForAllocation());
+  #endif // PROTOBUF_FORCE_COPY_DEFAULT_STRING
+}
+
+ExtensionUninstall::~ExtensionUninstall() {
+  // @@protoc_insertion_point(destructor:physical.ExtensionUninstall)
+  if (auto *arena = _internal_metadata_.DeleteReturnArena<::PROTOBUF_NAMESPACE_ID::UnknownFieldSet>()) {
+  (void)arena;
+    return;
+  }
+  SharedDtor();
+}
+
+inline void ExtensionUninstall::SharedDtor() {
+  GOOGLE_DCHECK(GetArenaForAllocation() == nullptr);
+  _impl_.extension_name_.Destroy();
+}
+
+void ExtensionUninstall::SetCachedSize(int size) const {
+  _impl_._cached_size_.Set(size);
+}
+
+void ExtensionUninstall::Clear() {
+// @@protoc_insertion_point(message_clear_start:physical.ExtensionUninstall)
+  uint32_t cached_has_bits = 0;
+  // Prevent compiler warnings about cached_has_bits being unused
+  (void) cached_has_bits;
+
+  _impl_.extension_name_.ClearToEmpty();
+  _internal_metadata_.Clear<::PROTOBUF_NAMESPACE_ID::UnknownFieldSet>();
+}
+
+const char* ExtensionUninstall::_InternalParse(const char* ptr, ::_pbi::ParseContext* ctx) {
+#define CHK_(x) if (PROTOBUF_PREDICT_FALSE(!(x))) goto failure
+  while (!ctx->Done(&ptr)) {
+    uint32_t tag;
+    ptr = ::_pbi::ReadTag(ptr, &tag);
+    switch (tag >> 3) {
+      // string extension_name = 1;
+      case 1:
+        if (PROTOBUF_PREDICT_TRUE(static_cast<uint8_t>(tag) == 10)) {
+          auto str = _internal_mutable_extension_name();
+          ptr = ::_pbi::InlineGreedyStringParser(str, ptr, ctx);
+          CHK_(ptr);
+          CHK_(::_pbi::VerifyUTF8(str, "physical.ExtensionUninstall.extension_name"));
+        } else
+          goto handle_unusual;
+        continue;
+      default:
+        goto handle_unusual;
+    }  // switch
+  handle_unusual:
+    if ((tag == 0) || ((tag & 7) == 4)) {
+      CHK_(ptr);
+      ctx->SetLastTag(tag);
+      goto message_done;
+    }
+    ptr = UnknownFieldParse(
+        tag,
+        _internal_metadata_.mutable_unknown_fields<::PROTOBUF_NAMESPACE_ID::UnknownFieldSet>(),
+        ptr, ctx);
+    CHK_(ptr != nullptr);
+  }  // while
+message_done:
+  return ptr;
+failure:
+  ptr = nullptr;
+  goto message_done;
+#undef CHK_
+}
+
+uint8_t* ExtensionUninstall::_InternalSerialize(
+    uint8_t* target, ::PROTOBUF_NAMESPACE_ID::io::EpsCopyOutputStream* stream) const {
+  // @@protoc_insertion_point(serialize_to_array_start:physical.ExtensionUninstall)
+  uint32_t cached_has_bits = 0;
+  (void) cached_has_bits;
+
+  // string extension_name = 1;
+  if (!this->_internal_extension_name().empty()) {
+    ::PROTOBUF_NAMESPACE_ID::internal::WireFormatLite::VerifyUtf8String(
+      this->_internal_extension_name().data(), static_cast<int>(this->_internal_extension_name().length()),
+      ::PROTOBUF_NAMESPACE_ID::internal::WireFormatLite::SERIALIZE,
+      "physical.ExtensionUninstall.extension_name");
+    target = stream->WriteStringMaybeAliased(
+        1, this->_internal_extension_name(), target);
+  }
+
+  if (PROTOBUF_PREDICT_FALSE(_internal_metadata_.have_unknown_fields())) {
+    target = ::_pbi::WireFormat::InternalSerializeUnknownFieldsToArray(
+        _internal_metadata_.unknown_fields<::PROTOBUF_NAMESPACE_ID::UnknownFieldSet>(::PROTOBUF_NAMESPACE_ID::UnknownFieldSet::default_instance), target, stream);
+  }
+  // @@protoc_insertion_point(serialize_to_array_end:physical.ExtensionUninstall)
+  return target;
+}
+
+size_t ExtensionUninstall::ByteSizeLong() const {
+// @@protoc_insertion_point(message_byte_size_start:physical.ExtensionUninstall)
+  size_t total_size = 0;
+
+  uint32_t cached_has_bits = 0;
+  // Prevent compiler warnings about cached_has_bits being unused
+  (void) cached_has_bits;
+
+  // string extension_name = 1;
+  if (!this->_internal_extension_name().empty()) {
+    total_size += 1 +
+      ::PROTOBUF_NAMESPACE_ID::internal::WireFormatLite::StringSize(
+        this->_internal_extension_name());
+  }
+
+  return MaybeComputeUnknownFieldsSize(total_size, &_impl_._cached_size_);
+}
+
+const ::PROTOBUF_NAMESPACE_ID::Message::ClassData ExtensionUninstall::_class_data_ = {
+    ::PROTOBUF_NAMESPACE_ID::Message::CopyWithSourceCheck,
+    ExtensionUninstall::MergeImpl
+};
+const ::PROTOBUF_NAMESPACE_ID::Message::ClassData*ExtensionUninstall::GetClassData() const { return &_class_data_; }
+
+
+void ExtensionUninstall::MergeImpl(::PROTOBUF_NAMESPACE_ID::Message& to_msg, const ::PROTOBUF_NAMESPACE_ID::Message& from_msg) {
+  auto* const _this = static_cast<ExtensionUninstall*>(&to_msg);
+  auto& from = static_cast<const ExtensionUninstall&>(from_msg);
+  // @@protoc_insertion_point(class_specific_merge_from_start:physical.ExtensionUninstall)
+  GOOGLE_DCHECK_NE(&from, _this);
+  uint32_t cached_has_bits = 0;
+  (void) cached_has_bits;
+
+  if (!from._internal_extension_name().empty()) {
+    _this->_internal_set_extension_name(from._internal_extension_name());
+  }
+  _this->_internal_metadata_.MergeFrom<::PROTOBUF_NAMESPACE_ID::UnknownFieldSet>(from._internal_metadata_);
+}
+
+void ExtensionUninstall::CopyFrom(const ExtensionUninstall& from) {
+// @@protoc_insertion_point(class_specific_copy_from_start:physical.ExtensionUninstall)
+  if (&from == this) return;
+  Clear();
+  MergeFrom(from);
+}
+
+bool ExtensionUninstall::IsInitialized() const {
+  return true;
+}
+
+void ExtensionUninstall::InternalSwap(ExtensionUninstall* other) {
+  using std::swap;
+  auto* lhs_arena = GetArenaForAllocation();
+  auto* rhs_arena = other->GetArenaForAllocation();
+  _internal_metadata_.InternalSwap(&other->_internal_metadata_);
+  ::PROTOBUF_NAMESPACE_ID::internal::ArenaStringPtr::InternalSwap(
+      &_impl_.extension_name_, lhs_arena,
+      &other->_impl_.extension_name_, rhs_arena
+  );
+}
+
+::PROTOBUF_NAMESPACE_ID::Metadata ExtensionUninstall::GetMetadata() const {
+  return ::_pbi::AssignDescriptors(
+      &descriptor_table_physical_2eproto_getter, &descriptor_table_physical_2eproto_once,
+      file_level_metadata_physical_2eproto[24]);
+}
+
+// ===================================================================
+
+class Checkpoint::_Internal {
+ public:
+};
+
+Checkpoint::Checkpoint(::PROTOBUF_NAMESPACE_ID::Arena* arena,
+                         bool is_message_owned)
+  : ::PROTOBUF_NAMESPACE_ID::internal::ZeroFieldsBase(arena, is_message_owned) {
+  // @@protoc_insertion_point(arena_constructor:physical.Checkpoint)
+}
+Checkpoint::Checkpoint(const Checkpoint& from)
+  : ::PROTOBUF_NAMESPACE_ID::internal::ZeroFieldsBase() {
+  Checkpoint* const _this = this; (void)_this;
+  _internal_metadata_.MergeFrom<::PROTOBUF_NAMESPACE_ID::UnknownFieldSet>(from._internal_metadata_);
+  // @@protoc_insertion_point(copy_constructor:physical.Checkpoint)
+}
+
+
+
+
+
+const ::PROTOBUF_NAMESPACE_ID::Message::ClassData Checkpoint::_class_data_ = {
+    ::PROTOBUF_NAMESPACE_ID::internal::ZeroFieldsBase::CopyImpl,
+    ::PROTOBUF_NAMESPACE_ID::internal::ZeroFieldsBase::MergeImpl,
+};
+const ::PROTOBUF_NAMESPACE_ID::Message::ClassData*Checkpoint::GetClassData() const { return &_class_data_; }
+
+
+
+
+
+
+
+::PROTOBUF_NAMESPACE_ID::Metadata Checkpoint::GetMetadata() const {
+  return ::_pbi::AssignDescriptors(
+      &descriptor_table_physical_2eproto_getter, &descriptor_table_physical_2eproto_once,
+      file_level_metadata_physical_2eproto[25]);
+}
+
+// ===================================================================
+
 class PhysicalOpr_Operator::_Internal {
  public:
   static const ::physical::Project& project(const PhysicalOpr_Operator* msg);
@@ -8915,7 +9711,7 @@ void PhysicalOpr_Operator::InternalSwap(PhysicalOpr_Operator* other) {
 ::PROTOBUF_NAMESPACE_ID::Metadata PhysicalOpr_Operator::GetMetadata() const {
   return ::_pbi::AssignDescriptors(
       &descriptor_table_physical_2eproto_getter, &descriptor_table_physical_2eproto_once,
-      file_level_metadata_physical_2eproto[22]);
+      file_level_metadata_physical_2eproto[26]);
 }
 
 // ===================================================================
@@ -9145,7 +9941,7 @@ void PhysicalOpr_MetaData::InternalSwap(PhysicalOpr_MetaData* other) {
 ::PROTOBUF_NAMESPACE_ID::Metadata PhysicalOpr_MetaData::GetMetadata() const {
   return ::_pbi::AssignDescriptors(
       &descriptor_table_physical_2eproto_getter, &descriptor_table_physical_2eproto_once,
-      file_level_metadata_physical_2eproto[23]);
+      file_level_metadata_physical_2eproto[27]);
 }
 
 // ===================================================================
@@ -9372,7 +10168,7 @@ void PhysicalOpr::InternalSwap(PhysicalOpr* other) {
 ::PROTOBUF_NAMESPACE_ID::Metadata PhysicalOpr::GetMetadata() const {
   return ::_pbi::AssignDescriptors(
       &descriptor_table_physical_2eproto_getter, &descriptor_table_physical_2eproto_once,
-      file_level_metadata_physical_2eproto[24]);
+      file_level_metadata_physical_2eproto[28]);
 }
 
 // ===================================================================
@@ -9587,7 +10383,613 @@ void QueryPlan::InternalSwap(QueryPlan* other) {
 ::PROTOBUF_NAMESPACE_ID::Metadata QueryPlan::GetMetadata() const {
   return ::_pbi::AssignDescriptors(
       &descriptor_table_physical_2eproto_getter, &descriptor_table_physical_2eproto_once,
-      file_level_metadata_physical_2eproto[25]);
+      file_level_metadata_physical_2eproto[29]);
+}
+
+// ===================================================================
+
+class AdminPlan_Operator::_Internal {
+ public:
+  static const ::physical::Checkpoint& checkpoint(const AdminPlan_Operator* msg);
+  static const ::physical::ExtensionInstall& ext_install(const AdminPlan_Operator* msg);
+  static const ::physical::ExtensionLoad& ext_load(const AdminPlan_Operator* msg);
+  static const ::physical::ExtensionUninstall& ext_uninstall(const AdminPlan_Operator* msg);
+};
+
+const ::physical::Checkpoint&
+AdminPlan_Operator::_Internal::checkpoint(const AdminPlan_Operator* msg) {
+  return *msg->_impl_.kind_.checkpoint_;
+}
+const ::physical::ExtensionInstall&
+AdminPlan_Operator::_Internal::ext_install(const AdminPlan_Operator* msg) {
+  return *msg->_impl_.kind_.ext_install_;
+}
+const ::physical::ExtensionLoad&
+AdminPlan_Operator::_Internal::ext_load(const AdminPlan_Operator* msg) {
+  return *msg->_impl_.kind_.ext_load_;
+}
+const ::physical::ExtensionUninstall&
+AdminPlan_Operator::_Internal::ext_uninstall(const AdminPlan_Operator* msg) {
+  return *msg->_impl_.kind_.ext_uninstall_;
+}
+void AdminPlan_Operator::set_allocated_checkpoint(::physical::Checkpoint* checkpoint) {
+  ::PROTOBUF_NAMESPACE_ID::Arena* message_arena = GetArenaForAllocation();
+  clear_kind();
+  if (checkpoint) {
+    ::PROTOBUF_NAMESPACE_ID::Arena* submessage_arena =
+      ::PROTOBUF_NAMESPACE_ID::Arena::InternalGetOwningArena(checkpoint);
+    if (message_arena != submessage_arena) {
+      checkpoint = ::PROTOBUF_NAMESPACE_ID::internal::GetOwnedMessage(
+          message_arena, checkpoint, submessage_arena);
+    }
+    set_has_checkpoint();
+    _impl_.kind_.checkpoint_ = checkpoint;
+  }
+  // @@protoc_insertion_point(field_set_allocated:physical.AdminPlan.Operator.checkpoint)
+}
+void AdminPlan_Operator::set_allocated_ext_install(::physical::ExtensionInstall* ext_install) {
+  ::PROTOBUF_NAMESPACE_ID::Arena* message_arena = GetArenaForAllocation();
+  clear_kind();
+  if (ext_install) {
+    ::PROTOBUF_NAMESPACE_ID::Arena* submessage_arena =
+      ::PROTOBUF_NAMESPACE_ID::Arena::InternalGetOwningArena(ext_install);
+    if (message_arena != submessage_arena) {
+      ext_install = ::PROTOBUF_NAMESPACE_ID::internal::GetOwnedMessage(
+          message_arena, ext_install, submessage_arena);
+    }
+    set_has_ext_install();
+    _impl_.kind_.ext_install_ = ext_install;
+  }
+  // @@protoc_insertion_point(field_set_allocated:physical.AdminPlan.Operator.ext_install)
+}
+void AdminPlan_Operator::set_allocated_ext_load(::physical::ExtensionLoad* ext_load) {
+  ::PROTOBUF_NAMESPACE_ID::Arena* message_arena = GetArenaForAllocation();
+  clear_kind();
+  if (ext_load) {
+    ::PROTOBUF_NAMESPACE_ID::Arena* submessage_arena =
+      ::PROTOBUF_NAMESPACE_ID::Arena::InternalGetOwningArena(ext_load);
+    if (message_arena != submessage_arena) {
+      ext_load = ::PROTOBUF_NAMESPACE_ID::internal::GetOwnedMessage(
+          message_arena, ext_load, submessage_arena);
+    }
+    set_has_ext_load();
+    _impl_.kind_.ext_load_ = ext_load;
+  }
+  // @@protoc_insertion_point(field_set_allocated:physical.AdminPlan.Operator.ext_load)
+}
+void AdminPlan_Operator::set_allocated_ext_uninstall(::physical::ExtensionUninstall* ext_uninstall) {
+  ::PROTOBUF_NAMESPACE_ID::Arena* message_arena = GetArenaForAllocation();
+  clear_kind();
+  if (ext_uninstall) {
+    ::PROTOBUF_NAMESPACE_ID::Arena* submessage_arena =
+      ::PROTOBUF_NAMESPACE_ID::Arena::InternalGetOwningArena(ext_uninstall);
+    if (message_arena != submessage_arena) {
+      ext_uninstall = ::PROTOBUF_NAMESPACE_ID::internal::GetOwnedMessage(
+          message_arena, ext_uninstall, submessage_arena);
+    }
+    set_has_ext_uninstall();
+    _impl_.kind_.ext_uninstall_ = ext_uninstall;
+  }
+  // @@protoc_insertion_point(field_set_allocated:physical.AdminPlan.Operator.ext_uninstall)
+}
+AdminPlan_Operator::AdminPlan_Operator(::PROTOBUF_NAMESPACE_ID::Arena* arena,
+                         bool is_message_owned)
+  : ::PROTOBUF_NAMESPACE_ID::Message(arena, is_message_owned) {
+  SharedCtor(arena, is_message_owned);
+  // @@protoc_insertion_point(arena_constructor:physical.AdminPlan.Operator)
+}
+AdminPlan_Operator::AdminPlan_Operator(const AdminPlan_Operator& from)
+  : ::PROTOBUF_NAMESPACE_ID::Message() {
+  AdminPlan_Operator* const _this = this; (void)_this;
+  new (&_impl_) Impl_{
+      decltype(_impl_.kind_){}
+    , /*decltype(_impl_._cached_size_)*/{}
+    , /*decltype(_impl_._oneof_case_)*/{}};
+
+  _internal_metadata_.MergeFrom<::PROTOBUF_NAMESPACE_ID::UnknownFieldSet>(from._internal_metadata_);
+  clear_has_kind();
+  switch (from.kind_case()) {
+    case kCheckpoint: {
+      _this->_internal_mutable_checkpoint()->::physical::Checkpoint::MergeFrom(
+          from._internal_checkpoint());
+      break;
+    }
+    case kExtInstall: {
+      _this->_internal_mutable_ext_install()->::physical::ExtensionInstall::MergeFrom(
+          from._internal_ext_install());
+      break;
+    }
+    case kExtLoad: {
+      _this->_internal_mutable_ext_load()->::physical::ExtensionLoad::MergeFrom(
+          from._internal_ext_load());
+      break;
+    }
+    case kExtUninstall: {
+      _this->_internal_mutable_ext_uninstall()->::physical::ExtensionUninstall::MergeFrom(
+          from._internal_ext_uninstall());
+      break;
+    }
+    case KIND_NOT_SET: {
+      break;
+    }
+  }
+  // @@protoc_insertion_point(copy_constructor:physical.AdminPlan.Operator)
+}
+
+inline void AdminPlan_Operator::SharedCtor(
+    ::_pb::Arena* arena, bool is_message_owned) {
+  (void)arena;
+  (void)is_message_owned;
+  new (&_impl_) Impl_{
+      decltype(_impl_.kind_){}
+    , /*decltype(_impl_._cached_size_)*/{}
+    , /*decltype(_impl_._oneof_case_)*/{}
+  };
+  clear_has_kind();
+}
+
+AdminPlan_Operator::~AdminPlan_Operator() {
+  // @@protoc_insertion_point(destructor:physical.AdminPlan.Operator)
+  if (auto *arena = _internal_metadata_.DeleteReturnArena<::PROTOBUF_NAMESPACE_ID::UnknownFieldSet>()) {
+  (void)arena;
+    return;
+  }
+  SharedDtor();
+}
+
+inline void AdminPlan_Operator::SharedDtor() {
+  GOOGLE_DCHECK(GetArenaForAllocation() == nullptr);
+  if (has_kind()) {
+    clear_kind();
+  }
+}
+
+void AdminPlan_Operator::SetCachedSize(int size) const {
+  _impl_._cached_size_.Set(size);
+}
+
+void AdminPlan_Operator::clear_kind() {
+// @@protoc_insertion_point(one_of_clear_start:physical.AdminPlan.Operator)
+  switch (kind_case()) {
+    case kCheckpoint: {
+      if (GetArenaForAllocation() == nullptr) {
+        delete _impl_.kind_.checkpoint_;
+      }
+      break;
+    }
+    case kExtInstall: {
+      if (GetArenaForAllocation() == nullptr) {
+        delete _impl_.kind_.ext_install_;
+      }
+      break;
+    }
+    case kExtLoad: {
+      if (GetArenaForAllocation() == nullptr) {
+        delete _impl_.kind_.ext_load_;
+      }
+      break;
+    }
+    case kExtUninstall: {
+      if (GetArenaForAllocation() == nullptr) {
+        delete _impl_.kind_.ext_uninstall_;
+      }
+      break;
+    }
+    case KIND_NOT_SET: {
+      break;
+    }
+  }
+  _impl_._oneof_case_[0] = KIND_NOT_SET;
+}
+
+
+void AdminPlan_Operator::Clear() {
+// @@protoc_insertion_point(message_clear_start:physical.AdminPlan.Operator)
+  uint32_t cached_has_bits = 0;
+  // Prevent compiler warnings about cached_has_bits being unused
+  (void) cached_has_bits;
+
+  clear_kind();
+  _internal_metadata_.Clear<::PROTOBUF_NAMESPACE_ID::UnknownFieldSet>();
+}
+
+const char* AdminPlan_Operator::_InternalParse(const char* ptr, ::_pbi::ParseContext* ctx) {
+#define CHK_(x) if (PROTOBUF_PREDICT_FALSE(!(x))) goto failure
+  while (!ctx->Done(&ptr)) {
+    uint32_t tag;
+    ptr = ::_pbi::ReadTag(ptr, &tag);
+    switch (tag >> 3) {
+      // .physical.Checkpoint checkpoint = 1;
+      case 1:
+        if (PROTOBUF_PREDICT_TRUE(static_cast<uint8_t>(tag) == 10)) {
+          ptr = ctx->ParseMessage(_internal_mutable_checkpoint(), ptr);
+          CHK_(ptr);
+        } else
+          goto handle_unusual;
+        continue;
+      // .physical.ExtensionInstall ext_install = 2;
+      case 2:
+        if (PROTOBUF_PREDICT_TRUE(static_cast<uint8_t>(tag) == 18)) {
+          ptr = ctx->ParseMessage(_internal_mutable_ext_install(), ptr);
+          CHK_(ptr);
+        } else
+          goto handle_unusual;
+        continue;
+      // .physical.ExtensionLoad ext_load = 3;
+      case 3:
+        if (PROTOBUF_PREDICT_TRUE(static_cast<uint8_t>(tag) == 26)) {
+          ptr = ctx->ParseMessage(_internal_mutable_ext_load(), ptr);
+          CHK_(ptr);
+        } else
+          goto handle_unusual;
+        continue;
+      // .physical.ExtensionUninstall ext_uninstall = 4;
+      case 4:
+        if (PROTOBUF_PREDICT_TRUE(static_cast<uint8_t>(tag) == 34)) {
+          ptr = ctx->ParseMessage(_internal_mutable_ext_uninstall(), ptr);
+          CHK_(ptr);
+        } else
+          goto handle_unusual;
+        continue;
+      default:
+        goto handle_unusual;
+    }  // switch
+  handle_unusual:
+    if ((tag == 0) || ((tag & 7) == 4)) {
+      CHK_(ptr);
+      ctx->SetLastTag(tag);
+      goto message_done;
+    }
+    ptr = UnknownFieldParse(
+        tag,
+        _internal_metadata_.mutable_unknown_fields<::PROTOBUF_NAMESPACE_ID::UnknownFieldSet>(),
+        ptr, ctx);
+    CHK_(ptr != nullptr);
+  }  // while
+message_done:
+  return ptr;
+failure:
+  ptr = nullptr;
+  goto message_done;
+#undef CHK_
+}
+
+uint8_t* AdminPlan_Operator::_InternalSerialize(
+    uint8_t* target, ::PROTOBUF_NAMESPACE_ID::io::EpsCopyOutputStream* stream) const {
+  // @@protoc_insertion_point(serialize_to_array_start:physical.AdminPlan.Operator)
+  uint32_t cached_has_bits = 0;
+  (void) cached_has_bits;
+
+  // .physical.Checkpoint checkpoint = 1;
+  if (_internal_has_checkpoint()) {
+    target = ::PROTOBUF_NAMESPACE_ID::internal::WireFormatLite::
+      InternalWriteMessage(1, _Internal::checkpoint(this),
+        _Internal::checkpoint(this).GetCachedSize(), target, stream);
+  }
+
+  // .physical.ExtensionInstall ext_install = 2;
+  if (_internal_has_ext_install()) {
+    target = ::PROTOBUF_NAMESPACE_ID::internal::WireFormatLite::
+      InternalWriteMessage(2, _Internal::ext_install(this),
+        _Internal::ext_install(this).GetCachedSize(), target, stream);
+  }
+
+  // .physical.ExtensionLoad ext_load = 3;
+  if (_internal_has_ext_load()) {
+    target = ::PROTOBUF_NAMESPACE_ID::internal::WireFormatLite::
+      InternalWriteMessage(3, _Internal::ext_load(this),
+        _Internal::ext_load(this).GetCachedSize(), target, stream);
+  }
+
+  // .physical.ExtensionUninstall ext_uninstall = 4;
+  if (_internal_has_ext_uninstall()) {
+    target = ::PROTOBUF_NAMESPACE_ID::internal::WireFormatLite::
+      InternalWriteMessage(4, _Internal::ext_uninstall(this),
+        _Internal::ext_uninstall(this).GetCachedSize(), target, stream);
+  }
+
+  if (PROTOBUF_PREDICT_FALSE(_internal_metadata_.have_unknown_fields())) {
+    target = ::_pbi::WireFormat::InternalSerializeUnknownFieldsToArray(
+        _internal_metadata_.unknown_fields<::PROTOBUF_NAMESPACE_ID::UnknownFieldSet>(::PROTOBUF_NAMESPACE_ID::UnknownFieldSet::default_instance), target, stream);
+  }
+  // @@protoc_insertion_point(serialize_to_array_end:physical.AdminPlan.Operator)
+  return target;
+}
+
+size_t AdminPlan_Operator::ByteSizeLong() const {
+// @@protoc_insertion_point(message_byte_size_start:physical.AdminPlan.Operator)
+  size_t total_size = 0;
+
+  uint32_t cached_has_bits = 0;
+  // Prevent compiler warnings about cached_has_bits being unused
+  (void) cached_has_bits;
+
+  switch (kind_case()) {
+    // .physical.Checkpoint checkpoint = 1;
+    case kCheckpoint: {
+      total_size += 1 +
+        ::PROTOBUF_NAMESPACE_ID::internal::WireFormatLite::MessageSize(
+          *_impl_.kind_.checkpoint_);
+      break;
+    }
+    // .physical.ExtensionInstall ext_install = 2;
+    case kExtInstall: {
+      total_size += 1 +
+        ::PROTOBUF_NAMESPACE_ID::internal::WireFormatLite::MessageSize(
+          *_impl_.kind_.ext_install_);
+      break;
+    }
+    // .physical.ExtensionLoad ext_load = 3;
+    case kExtLoad: {
+      total_size += 1 +
+        ::PROTOBUF_NAMESPACE_ID::internal::WireFormatLite::MessageSize(
+          *_impl_.kind_.ext_load_);
+      break;
+    }
+    // .physical.ExtensionUninstall ext_uninstall = 4;
+    case kExtUninstall: {
+      total_size += 1 +
+        ::PROTOBUF_NAMESPACE_ID::internal::WireFormatLite::MessageSize(
+          *_impl_.kind_.ext_uninstall_);
+      break;
+    }
+    case KIND_NOT_SET: {
+      break;
+    }
+  }
+  return MaybeComputeUnknownFieldsSize(total_size, &_impl_._cached_size_);
+}
+
+const ::PROTOBUF_NAMESPACE_ID::Message::ClassData AdminPlan_Operator::_class_data_ = {
+    ::PROTOBUF_NAMESPACE_ID::Message::CopyWithSourceCheck,
+    AdminPlan_Operator::MergeImpl
+};
+const ::PROTOBUF_NAMESPACE_ID::Message::ClassData*AdminPlan_Operator::GetClassData() const { return &_class_data_; }
+
+
+void AdminPlan_Operator::MergeImpl(::PROTOBUF_NAMESPACE_ID::Message& to_msg, const ::PROTOBUF_NAMESPACE_ID::Message& from_msg) {
+  auto* const _this = static_cast<AdminPlan_Operator*>(&to_msg);
+  auto& from = static_cast<const AdminPlan_Operator&>(from_msg);
+  // @@protoc_insertion_point(class_specific_merge_from_start:physical.AdminPlan.Operator)
+  GOOGLE_DCHECK_NE(&from, _this);
+  uint32_t cached_has_bits = 0;
+  (void) cached_has_bits;
+
+  switch (from.kind_case()) {
+    case kCheckpoint: {
+      _this->_internal_mutable_checkpoint()->::physical::Checkpoint::MergeFrom(
+          from._internal_checkpoint());
+      break;
+    }
+    case kExtInstall: {
+      _this->_internal_mutable_ext_install()->::physical::ExtensionInstall::MergeFrom(
+          from._internal_ext_install());
+      break;
+    }
+    case kExtLoad: {
+      _this->_internal_mutable_ext_load()->::physical::ExtensionLoad::MergeFrom(
+          from._internal_ext_load());
+      break;
+    }
+    case kExtUninstall: {
+      _this->_internal_mutable_ext_uninstall()->::physical::ExtensionUninstall::MergeFrom(
+          from._internal_ext_uninstall());
+      break;
+    }
+    case KIND_NOT_SET: {
+      break;
+    }
+  }
+  _this->_internal_metadata_.MergeFrom<::PROTOBUF_NAMESPACE_ID::UnknownFieldSet>(from._internal_metadata_);
+}
+
+void AdminPlan_Operator::CopyFrom(const AdminPlan_Operator& from) {
+// @@protoc_insertion_point(class_specific_copy_from_start:physical.AdminPlan.Operator)
+  if (&from == this) return;
+  Clear();
+  MergeFrom(from);
+}
+
+bool AdminPlan_Operator::IsInitialized() const {
+  return true;
+}
+
+void AdminPlan_Operator::InternalSwap(AdminPlan_Operator* other) {
+  using std::swap;
+  _internal_metadata_.InternalSwap(&other->_internal_metadata_);
+  swap(_impl_.kind_, other->_impl_.kind_);
+  swap(_impl_._oneof_case_[0], other->_impl_._oneof_case_[0]);
+}
+
+::PROTOBUF_NAMESPACE_ID::Metadata AdminPlan_Operator::GetMetadata() const {
+  return ::_pbi::AssignDescriptors(
+      &descriptor_table_physical_2eproto_getter, &descriptor_table_physical_2eproto_once,
+      file_level_metadata_physical_2eproto[30]);
+}
+
+// ===================================================================
+
+class AdminPlan::_Internal {
+ public:
+};
+
+AdminPlan::AdminPlan(::PROTOBUF_NAMESPACE_ID::Arena* arena,
+                         bool is_message_owned)
+  : ::PROTOBUF_NAMESPACE_ID::Message(arena, is_message_owned) {
+  SharedCtor(arena, is_message_owned);
+  // @@protoc_insertion_point(arena_constructor:physical.AdminPlan)
+}
+AdminPlan::AdminPlan(const AdminPlan& from)
+  : ::PROTOBUF_NAMESPACE_ID::Message() {
+  AdminPlan* const _this = this; (void)_this;
+  new (&_impl_) Impl_{
+      decltype(_impl_.plan_){from._impl_.plan_}
+    , /*decltype(_impl_._cached_size_)*/{}};
+
+  _internal_metadata_.MergeFrom<::PROTOBUF_NAMESPACE_ID::UnknownFieldSet>(from._internal_metadata_);
+  // @@protoc_insertion_point(copy_constructor:physical.AdminPlan)
+}
+
+inline void AdminPlan::SharedCtor(
+    ::_pb::Arena* arena, bool is_message_owned) {
+  (void)arena;
+  (void)is_message_owned;
+  new (&_impl_) Impl_{
+      decltype(_impl_.plan_){arena}
+    , /*decltype(_impl_._cached_size_)*/{}
+  };
+}
+
+AdminPlan::~AdminPlan() {
+  // @@protoc_insertion_point(destructor:physical.AdminPlan)
+  if (auto *arena = _internal_metadata_.DeleteReturnArena<::PROTOBUF_NAMESPACE_ID::UnknownFieldSet>()) {
+  (void)arena;
+    return;
+  }
+  SharedDtor();
+}
+
+inline void AdminPlan::SharedDtor() {
+  GOOGLE_DCHECK(GetArenaForAllocation() == nullptr);
+  _impl_.plan_.~RepeatedPtrField();
+}
+
+void AdminPlan::SetCachedSize(int size) const {
+  _impl_._cached_size_.Set(size);
+}
+
+void AdminPlan::Clear() {
+// @@protoc_insertion_point(message_clear_start:physical.AdminPlan)
+  uint32_t cached_has_bits = 0;
+  // Prevent compiler warnings about cached_has_bits being unused
+  (void) cached_has_bits;
+
+  _impl_.plan_.Clear();
+  _internal_metadata_.Clear<::PROTOBUF_NAMESPACE_ID::UnknownFieldSet>();
+}
+
+const char* AdminPlan::_InternalParse(const char* ptr, ::_pbi::ParseContext* ctx) {
+#define CHK_(x) if (PROTOBUF_PREDICT_FALSE(!(x))) goto failure
+  while (!ctx->Done(&ptr)) {
+    uint32_t tag;
+    ptr = ::_pbi::ReadTag(ptr, &tag);
+    switch (tag >> 3) {
+      // repeated .physical.AdminPlan.Operator plan = 1;
+      case 1:
+        if (PROTOBUF_PREDICT_TRUE(static_cast<uint8_t>(tag) == 10)) {
+          ptr -= 1;
+          do {
+            ptr += 1;
+            ptr = ctx->ParseMessage(_internal_add_plan(), ptr);
+            CHK_(ptr);
+            if (!ctx->DataAvailable(ptr)) break;
+          } while (::PROTOBUF_NAMESPACE_ID::internal::ExpectTag<10>(ptr));
+        } else
+          goto handle_unusual;
+        continue;
+      default:
+        goto handle_unusual;
+    }  // switch
+  handle_unusual:
+    if ((tag == 0) || ((tag & 7) == 4)) {
+      CHK_(ptr);
+      ctx->SetLastTag(tag);
+      goto message_done;
+    }
+    ptr = UnknownFieldParse(
+        tag,
+        _internal_metadata_.mutable_unknown_fields<::PROTOBUF_NAMESPACE_ID::UnknownFieldSet>(),
+        ptr, ctx);
+    CHK_(ptr != nullptr);
+  }  // while
+message_done:
+  return ptr;
+failure:
+  ptr = nullptr;
+  goto message_done;
+#undef CHK_
+}
+
+uint8_t* AdminPlan::_InternalSerialize(
+    uint8_t* target, ::PROTOBUF_NAMESPACE_ID::io::EpsCopyOutputStream* stream) const {
+  // @@protoc_insertion_point(serialize_to_array_start:physical.AdminPlan)
+  uint32_t cached_has_bits = 0;
+  (void) cached_has_bits;
+
+  // repeated .physical.AdminPlan.Operator plan = 1;
+  for (unsigned i = 0,
+      n = static_cast<unsigned>(this->_internal_plan_size()); i < n; i++) {
+    const auto& repfield = this->_internal_plan(i);
+    target = ::PROTOBUF_NAMESPACE_ID::internal::WireFormatLite::
+        InternalWriteMessage(1, repfield, repfield.GetCachedSize(), target, stream);
+  }
+
+  if (PROTOBUF_PREDICT_FALSE(_internal_metadata_.have_unknown_fields())) {
+    target = ::_pbi::WireFormat::InternalSerializeUnknownFieldsToArray(
+        _internal_metadata_.unknown_fields<::PROTOBUF_NAMESPACE_ID::UnknownFieldSet>(::PROTOBUF_NAMESPACE_ID::UnknownFieldSet::default_instance), target, stream);
+  }
+  // @@protoc_insertion_point(serialize_to_array_end:physical.AdminPlan)
+  return target;
+}
+
+size_t AdminPlan::ByteSizeLong() const {
+// @@protoc_insertion_point(message_byte_size_start:physical.AdminPlan)
+  size_t total_size = 0;
+
+  uint32_t cached_has_bits = 0;
+  // Prevent compiler warnings about cached_has_bits being unused
+  (void) cached_has_bits;
+
+  // repeated .physical.AdminPlan.Operator plan = 1;
+  total_size += 1UL * this->_internal_plan_size();
+  for (const auto& msg : this->_impl_.plan_) {
+    total_size +=
+      ::PROTOBUF_NAMESPACE_ID::internal::WireFormatLite::MessageSize(msg);
+  }
+
+  return MaybeComputeUnknownFieldsSize(total_size, &_impl_._cached_size_);
+}
+
+const ::PROTOBUF_NAMESPACE_ID::Message::ClassData AdminPlan::_class_data_ = {
+    ::PROTOBUF_NAMESPACE_ID::Message::CopyWithSourceCheck,
+    AdminPlan::MergeImpl
+};
+const ::PROTOBUF_NAMESPACE_ID::Message::ClassData*AdminPlan::GetClassData() const { return &_class_data_; }
+
+
+void AdminPlan::MergeImpl(::PROTOBUF_NAMESPACE_ID::Message& to_msg, const ::PROTOBUF_NAMESPACE_ID::Message& from_msg) {
+  auto* const _this = static_cast<AdminPlan*>(&to_msg);
+  auto& from = static_cast<const AdminPlan&>(from_msg);
+  // @@protoc_insertion_point(class_specific_merge_from_start:physical.AdminPlan)
+  GOOGLE_DCHECK_NE(&from, _this);
+  uint32_t cached_has_bits = 0;
+  (void) cached_has_bits;
+
+  _this->_impl_.plan_.MergeFrom(from._impl_.plan_);
+  _this->_internal_metadata_.MergeFrom<::PROTOBUF_NAMESPACE_ID::UnknownFieldSet>(from._internal_metadata_);
+}
+
+void AdminPlan::CopyFrom(const AdminPlan& from) {
+// @@protoc_insertion_point(class_specific_copy_from_start:physical.AdminPlan)
+  if (&from == this) return;
+  Clear();
+  MergeFrom(from);
+}
+
+bool AdminPlan::IsInitialized() const {
+  return true;
+}
+
+void AdminPlan::InternalSwap(AdminPlan* other) {
+  using std::swap;
+  _internal_metadata_.InternalSwap(&other->_internal_metadata_);
+  _impl_.plan_.InternalSwap(&other->_impl_.plan_);
+}
+
+::PROTOBUF_NAMESPACE_ID::Metadata AdminPlan::GetMetadata() const {
+  return ::_pbi::AssignDescriptors(
+      &descriptor_table_physical_2eproto_getter, &descriptor_table_physical_2eproto_once,
+      file_level_metadata_physical_2eproto[31]);
 }
 
 // ===================================================================
@@ -9596,6 +10998,7 @@ class PhysicalPlan::_Internal {
  public:
   static const ::physical::DDLPlan& ddl_plan(const PhysicalPlan* msg);
   static const ::physical::QueryPlan& query_plan(const PhysicalPlan* msg);
+  static const ::physical::AdminPlan& admin_plan(const PhysicalPlan* msg);
 };
 
 const ::physical::DDLPlan&
@@ -9605,6 +11008,10 @@ PhysicalPlan::_Internal::ddl_plan(const PhysicalPlan* msg) {
 const ::physical::QueryPlan&
 PhysicalPlan::_Internal::query_plan(const PhysicalPlan* msg) {
   return *msg->_impl_.plan_.query_plan_;
+}
+const ::physical::AdminPlan&
+PhysicalPlan::_Internal::admin_plan(const PhysicalPlan* msg) {
+  return *msg->_impl_.plan_.admin_plan_;
 }
 void PhysicalPlan::set_allocated_ddl_plan(::physical::DDLPlan* ddl_plan) {
   ::PROTOBUF_NAMESPACE_ID::Arena* message_arena = GetArenaForAllocation();
@@ -9645,6 +11052,21 @@ void PhysicalPlan::set_allocated_query_plan(::physical::QueryPlan* query_plan) {
   }
   // @@protoc_insertion_point(field_set_allocated:physical.PhysicalPlan.query_plan)
 }
+void PhysicalPlan::set_allocated_admin_plan(::physical::AdminPlan* admin_plan) {
+  ::PROTOBUF_NAMESPACE_ID::Arena* message_arena = GetArenaForAllocation();
+  clear_plan();
+  if (admin_plan) {
+    ::PROTOBUF_NAMESPACE_ID::Arena* submessage_arena =
+      ::PROTOBUF_NAMESPACE_ID::Arena::InternalGetOwningArena(admin_plan);
+    if (message_arena != submessage_arena) {
+      admin_plan = ::PROTOBUF_NAMESPACE_ID::internal::GetOwnedMessage(
+          message_arena, admin_plan, submessage_arena);
+    }
+    set_has_admin_plan();
+    _impl_.plan_.admin_plan_ = admin_plan;
+  }
+  // @@protoc_insertion_point(field_set_allocated:physical.PhysicalPlan.admin_plan)
+}
 PhysicalPlan::PhysicalPlan(::PROTOBUF_NAMESPACE_ID::Arena* arena,
                          bool is_message_owned)
   : ::PROTOBUF_NAMESPACE_ID::Message(arena, is_message_owned) {
@@ -9672,6 +11094,11 @@ PhysicalPlan::PhysicalPlan(const PhysicalPlan& from)
     case kQueryPlan: {
       _this->_internal_mutable_query_plan()->::physical::QueryPlan::MergeFrom(
           from._internal_query_plan());
+      break;
+    }
+    case kAdminPlan: {
+      _this->_internal_mutable_admin_plan()->::physical::AdminPlan::MergeFrom(
+          from._internal_admin_plan());
       break;
     }
     case PLAN_NOT_SET: {
@@ -9729,6 +11156,12 @@ void PhysicalPlan::clear_plan() {
       }
       break;
     }
+    case kAdminPlan: {
+      if (GetArenaForAllocation() == nullptr) {
+        delete _impl_.plan_.admin_plan_;
+      }
+      break;
+    }
     case PLAN_NOT_SET: {
       break;
     }
@@ -9774,6 +11207,14 @@ const char* PhysicalPlan::_InternalParse(const char* ptr, ::_pbi::ParseContext* 
       case 3:
         if (PROTOBUF_PREDICT_TRUE(static_cast<uint8_t>(tag) == 26)) {
           ptr = ctx->ParseMessage(_internal_mutable_query_plan(), ptr);
+          CHK_(ptr);
+        } else
+          goto handle_unusual;
+        continue;
+      // .physical.AdminPlan admin_plan = 4;
+      case 4:
+        if (PROTOBUF_PREDICT_TRUE(static_cast<uint8_t>(tag) == 34)) {
+          ptr = ctx->ParseMessage(_internal_mutable_admin_plan(), ptr);
           CHK_(ptr);
         } else
           goto handle_unusual;
@@ -9827,6 +11268,13 @@ uint8_t* PhysicalPlan::_InternalSerialize(
         _Internal::query_plan(this).GetCachedSize(), target, stream);
   }
 
+  // .physical.AdminPlan admin_plan = 4;
+  if (_internal_has_admin_plan()) {
+    target = ::PROTOBUF_NAMESPACE_ID::internal::WireFormatLite::
+      InternalWriteMessage(4, _Internal::admin_plan(this),
+        _Internal::admin_plan(this).GetCachedSize(), target, stream);
+  }
+
   if (PROTOBUF_PREDICT_FALSE(_internal_metadata_.have_unknown_fields())) {
     target = ::_pbi::WireFormat::InternalSerializeUnknownFieldsToArray(
         _internal_metadata_.unknown_fields<::PROTOBUF_NAMESPACE_ID::UnknownFieldSet>(::PROTOBUF_NAMESPACE_ID::UnknownFieldSet::default_instance), target, stream);
@@ -9861,6 +11309,13 @@ size_t PhysicalPlan::ByteSizeLong() const {
       total_size += 1 +
         ::PROTOBUF_NAMESPACE_ID::internal::WireFormatLite::MessageSize(
           *_impl_.plan_.query_plan_);
+      break;
+    }
+    // .physical.AdminPlan admin_plan = 4;
+    case kAdminPlan: {
+      total_size += 1 +
+        ::PROTOBUF_NAMESPACE_ID::internal::WireFormatLite::MessageSize(
+          *_impl_.plan_.admin_plan_);
       break;
     }
     case PLAN_NOT_SET: {
@@ -9899,6 +11354,11 @@ void PhysicalPlan::MergeImpl(::PROTOBUF_NAMESPACE_ID::Message& to_msg, const ::P
           from._internal_query_plan());
       break;
     }
+    case kAdminPlan: {
+      _this->_internal_mutable_admin_plan()->::physical::AdminPlan::MergeFrom(
+          from._internal_admin_plan());
+      break;
+    }
     case PLAN_NOT_SET: {
       break;
     }
@@ -9928,7 +11388,7 @@ void PhysicalPlan::InternalSwap(PhysicalPlan* other) {
 ::PROTOBUF_NAMESPACE_ID::Metadata PhysicalPlan::GetMetadata() const {
   return ::_pbi::AssignDescriptors(
       &descriptor_table_physical_2eproto_getter, &descriptor_table_physical_2eproto_once,
-      file_level_metadata_physical_2eproto[26]);
+      file_level_metadata_physical_2eproto[32]);
 }
 
 // ===================================================================
@@ -10113,7 +11573,7 @@ void PhysicalPlans::InternalSwap(PhysicalPlans* other) {
 ::PROTOBUF_NAMESPACE_ID::Metadata PhysicalPlans::GetMetadata() const {
   return ::_pbi::AssignDescriptors(
       &descriptor_table_physical_2eproto_getter, &descriptor_table_physical_2eproto_once,
-      file_level_metadata_physical_2eproto[27]);
+      file_level_metadata_physical_2eproto[33]);
 }
 
 // @@protoc_insertion_point(namespace_scope)
@@ -10207,6 +11667,22 @@ template<> PROTOBUF_NOINLINE ::physical::ProcedureCall*
 Arena::CreateMaybeMessage< ::physical::ProcedureCall >(Arena* arena) {
   return Arena::CreateMessageInternal< ::physical::ProcedureCall >(arena);
 }
+template<> PROTOBUF_NOINLINE ::physical::ExtensionInstall*
+Arena::CreateMaybeMessage< ::physical::ExtensionInstall >(Arena* arena) {
+  return Arena::CreateMessageInternal< ::physical::ExtensionInstall >(arena);
+}
+template<> PROTOBUF_NOINLINE ::physical::ExtensionLoad*
+Arena::CreateMaybeMessage< ::physical::ExtensionLoad >(Arena* arena) {
+  return Arena::CreateMessageInternal< ::physical::ExtensionLoad >(arena);
+}
+template<> PROTOBUF_NOINLINE ::physical::ExtensionUninstall*
+Arena::CreateMaybeMessage< ::physical::ExtensionUninstall >(Arena* arena) {
+  return Arena::CreateMessageInternal< ::physical::ExtensionUninstall >(arena);
+}
+template<> PROTOBUF_NOINLINE ::physical::Checkpoint*
+Arena::CreateMaybeMessage< ::physical::Checkpoint >(Arena* arena) {
+  return Arena::CreateMessageInternal< ::physical::Checkpoint >(arena);
+}
 template<> PROTOBUF_NOINLINE ::physical::PhysicalOpr_Operator*
 Arena::CreateMaybeMessage< ::physical::PhysicalOpr_Operator >(Arena* arena) {
   return Arena::CreateMessageInternal< ::physical::PhysicalOpr_Operator >(arena);
@@ -10222,6 +11698,14 @@ Arena::CreateMaybeMessage< ::physical::PhysicalOpr >(Arena* arena) {
 template<> PROTOBUF_NOINLINE ::physical::QueryPlan*
 Arena::CreateMaybeMessage< ::physical::QueryPlan >(Arena* arena) {
   return Arena::CreateMessageInternal< ::physical::QueryPlan >(arena);
+}
+template<> PROTOBUF_NOINLINE ::physical::AdminPlan_Operator*
+Arena::CreateMaybeMessage< ::physical::AdminPlan_Operator >(Arena* arena) {
+  return Arena::CreateMessageInternal< ::physical::AdminPlan_Operator >(arena);
+}
+template<> PROTOBUF_NOINLINE ::physical::AdminPlan*
+Arena::CreateMaybeMessage< ::physical::AdminPlan >(Arena* arena) {
+  return Arena::CreateMessageInternal< ::physical::AdminPlan >(arena);
 }
 template<> PROTOBUF_NOINLINE ::physical::PhysicalPlan*
 Arena::CreateMaybeMessage< ::physical::PhysicalPlan >(Arena* arena) {

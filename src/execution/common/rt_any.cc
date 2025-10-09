@@ -1120,6 +1120,7 @@ int RTAny::numerical_cmp(const RTAny& other) const {
     THROW_NOT_SUPPORTED_EXCEPTION("not support for " +
                                   std::to_string(static_cast<int>(type_)));
   }
+  return 0;  // This line is unreachable but avoids compiler warning.
 }
 inline static bool is_numerical_type(const RTAnyType& type) {
   return type == RTAnyType::kI64Value || type == RTAnyType::kI32Value ||

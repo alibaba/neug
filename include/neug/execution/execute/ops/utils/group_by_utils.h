@@ -749,6 +749,7 @@ inline std::unique_ptr<ReducerBase> make_general_reducer(const Context& ctx,
   } else {
     LOG(FATAL) << "not support var reduce\n";
   }
+  return nullptr; // This line is unreachable but avoids compiler warning.
 }
 
 inline std::unique_ptr<ReducerBase> make_pair_reducer(const Context& ctx,
@@ -778,6 +779,7 @@ inline std::unique_ptr<ReducerBase> make_pair_reducer(const Context& ctx,
   } else {
     LOG(FATAL) << "not support var reduce\n";
   }
+  return nullptr; //// This line is unreachable but avoids compiler warning.
 }
 
 template <typename GraphInterface>

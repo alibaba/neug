@@ -72,9 +72,13 @@ if (JSON_EXTENSION_BUILD_TEST AND BUILD_TEST)
     target_link_libraries(json_extension_test
         PRIVATE
             json
+            ${GLOG_LIBRARIES}
             ${_NEUG_CORE_TARGETS}
             neug::GTest
             ${Protobuf_LIBRARIES}
+            ${OPENSSL_LIBRARIES}
+            ${CRYPTO_LIB}
+            ${GFLAGS_LIBRARIES}
     )
 
     include(GoogleTest)

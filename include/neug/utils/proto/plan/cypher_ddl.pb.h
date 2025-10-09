@@ -60,6 +60,9 @@ extern AddVertexPropertySchemaDefaultTypeInternal _AddVertexPropertySchema_defau
 class CreateEdgeSchema;
 struct CreateEdgeSchemaDefaultTypeInternal;
 extern CreateEdgeSchemaDefaultTypeInternal _CreateEdgeSchema_default_instance_;
+class CreateEdgeSchema_TypeInfo;
+struct CreateEdgeSchema_TypeInfoDefaultTypeInternal;
+extern CreateEdgeSchema_TypeInfoDefaultTypeInternal _CreateEdgeSchema_TypeInfo_default_instance_;
 class CreateVertexSchema;
 struct CreateVertexSchemaDefaultTypeInternal;
 extern CreateVertexSchemaDefaultTypeInternal _CreateVertexSchema_default_instance_;
@@ -107,6 +110,7 @@ PROTOBUF_NAMESPACE_OPEN
 template<> ::physical::AddEdgePropertySchema* Arena::CreateMaybeMessage<::physical::AddEdgePropertySchema>(Arena*);
 template<> ::physical::AddVertexPropertySchema* Arena::CreateMaybeMessage<::physical::AddVertexPropertySchema>(Arena*);
 template<> ::physical::CreateEdgeSchema* Arena::CreateMaybeMessage<::physical::CreateEdgeSchema>(Arena*);
+template<> ::physical::CreateEdgeSchema_TypeInfo* Arena::CreateMaybeMessage<::physical::CreateEdgeSchema_TypeInfo>(Arena*);
 template<> ::physical::CreateVertexSchema* Arena::CreateMaybeMessage<::physical::CreateVertexSchema>(Arena*);
 template<> ::physical::DDLPlan* Arena::CreateMaybeMessage<::physical::DDLPlan>(Arena*);
 template<> ::physical::DropEdgePropertySchema* Arena::CreateMaybeMessage<::physical::DropEdgePropertySchema>(Arena*);
@@ -782,6 +786,174 @@ class CreateVertexSchema final :
 };
 // -------------------------------------------------------------------
 
+class CreateEdgeSchema_TypeInfo final :
+    public ::PROTOBUF_NAMESPACE_ID::Message /* @@protoc_insertion_point(class_definition:physical.CreateEdgeSchema.TypeInfo) */ {
+ public:
+  inline CreateEdgeSchema_TypeInfo() : CreateEdgeSchema_TypeInfo(nullptr) {}
+  ~CreateEdgeSchema_TypeInfo() override;
+  explicit PROTOBUF_CONSTEXPR CreateEdgeSchema_TypeInfo(::PROTOBUF_NAMESPACE_ID::internal::ConstantInitialized);
+
+  CreateEdgeSchema_TypeInfo(const CreateEdgeSchema_TypeInfo& from);
+  CreateEdgeSchema_TypeInfo(CreateEdgeSchema_TypeInfo&& from) noexcept
+    : CreateEdgeSchema_TypeInfo() {
+    *this = ::std::move(from);
+  }
+
+  inline CreateEdgeSchema_TypeInfo& operator=(const CreateEdgeSchema_TypeInfo& from) {
+    CopyFrom(from);
+    return *this;
+  }
+  inline CreateEdgeSchema_TypeInfo& operator=(CreateEdgeSchema_TypeInfo&& from) noexcept {
+    if (this == &from) return *this;
+    if (GetOwningArena() == from.GetOwningArena()
+  #ifdef PROTOBUF_FORCE_COPY_IN_MOVE
+        && GetOwningArena() != nullptr
+  #endif  // !PROTOBUF_FORCE_COPY_IN_MOVE
+    ) {
+      InternalSwap(&from);
+    } else {
+      CopyFrom(from);
+    }
+    return *this;
+  }
+
+  static const ::PROTOBUF_NAMESPACE_ID::Descriptor* descriptor() {
+    return GetDescriptor();
+  }
+  static const ::PROTOBUF_NAMESPACE_ID::Descriptor* GetDescriptor() {
+    return default_instance().GetMetadata().descriptor;
+  }
+  static const ::PROTOBUF_NAMESPACE_ID::Reflection* GetReflection() {
+    return default_instance().GetMetadata().reflection;
+  }
+  static const CreateEdgeSchema_TypeInfo& default_instance() {
+    return *internal_default_instance();
+  }
+  static inline const CreateEdgeSchema_TypeInfo* internal_default_instance() {
+    return reinterpret_cast<const CreateEdgeSchema_TypeInfo*>(
+               &_CreateEdgeSchema_TypeInfo_default_instance_);
+  }
+  static constexpr int kIndexInFileMessages =
+    3;
+
+  friend void swap(CreateEdgeSchema_TypeInfo& a, CreateEdgeSchema_TypeInfo& b) {
+    a.Swap(&b);
+  }
+  inline void Swap(CreateEdgeSchema_TypeInfo* other) {
+    if (other == this) return;
+  #ifdef PROTOBUF_FORCE_COPY_IN_SWAP
+    if (GetOwningArena() != nullptr &&
+        GetOwningArena() == other->GetOwningArena()) {
+   #else  // PROTOBUF_FORCE_COPY_IN_SWAP
+    if (GetOwningArena() == other->GetOwningArena()) {
+  #endif  // !PROTOBUF_FORCE_COPY_IN_SWAP
+      InternalSwap(other);
+    } else {
+      ::PROTOBUF_NAMESPACE_ID::internal::GenericSwap(this, other);
+    }
+  }
+  void UnsafeArenaSwap(CreateEdgeSchema_TypeInfo* other) {
+    if (other == this) return;
+    GOOGLE_DCHECK(GetOwningArena() == other->GetOwningArena());
+    InternalSwap(other);
+  }
+
+  // implements Message ----------------------------------------------
+
+  CreateEdgeSchema_TypeInfo* New(::PROTOBUF_NAMESPACE_ID::Arena* arena = nullptr) const final {
+    return CreateMaybeMessage<CreateEdgeSchema_TypeInfo>(arena);
+  }
+  using ::PROTOBUF_NAMESPACE_ID::Message::CopyFrom;
+  void CopyFrom(const CreateEdgeSchema_TypeInfo& from);
+  using ::PROTOBUF_NAMESPACE_ID::Message::MergeFrom;
+  void MergeFrom( const CreateEdgeSchema_TypeInfo& from) {
+    CreateEdgeSchema_TypeInfo::MergeImpl(*this, from);
+  }
+  private:
+  static void MergeImpl(::PROTOBUF_NAMESPACE_ID::Message& to_msg, const ::PROTOBUF_NAMESPACE_ID::Message& from_msg);
+  public:
+  PROTOBUF_ATTRIBUTE_REINITIALIZES void Clear() final;
+  bool IsInitialized() const final;
+
+  size_t ByteSizeLong() const final;
+  const char* _InternalParse(const char* ptr, ::PROTOBUF_NAMESPACE_ID::internal::ParseContext* ctx) final;
+  uint8_t* _InternalSerialize(
+      uint8_t* target, ::PROTOBUF_NAMESPACE_ID::io::EpsCopyOutputStream* stream) const final;
+  int GetCachedSize() const final { return _impl_._cached_size_.Get(); }
+
+  private:
+  void SharedCtor(::PROTOBUF_NAMESPACE_ID::Arena* arena, bool is_message_owned);
+  void SharedDtor();
+  void SetCachedSize(int size) const final;
+  void InternalSwap(CreateEdgeSchema_TypeInfo* other);
+
+  private:
+  friend class ::PROTOBUF_NAMESPACE_ID::internal::AnyMetadata;
+  static ::PROTOBUF_NAMESPACE_ID::StringPiece FullMessageName() {
+    return "physical.CreateEdgeSchema.TypeInfo";
+  }
+  protected:
+  explicit CreateEdgeSchema_TypeInfo(::PROTOBUF_NAMESPACE_ID::Arena* arena,
+                       bool is_message_owned = false);
+  public:
+
+  static const ClassData _class_data_;
+  const ::PROTOBUF_NAMESPACE_ID::Message::ClassData*GetClassData() const final;
+
+  ::PROTOBUF_NAMESPACE_ID::Metadata GetMetadata() const final;
+
+  // nested types ----------------------------------------------------
+
+  // accessors -------------------------------------------------------
+
+  enum : int {
+    kEdgeTypeFieldNumber = 1,
+    kMultiplicityFieldNumber = 2,
+  };
+  // .physical.EdgeType edge_type = 1;
+  bool has_edge_type() const;
+  private:
+  bool _internal_has_edge_type() const;
+  public:
+  void clear_edge_type();
+  const ::physical::EdgeType& edge_type() const;
+  PROTOBUF_NODISCARD ::physical::EdgeType* release_edge_type();
+  ::physical::EdgeType* mutable_edge_type();
+  void set_allocated_edge_type(::physical::EdgeType* edge_type);
+  private:
+  const ::physical::EdgeType& _internal_edge_type() const;
+  ::physical::EdgeType* _internal_mutable_edge_type();
+  public:
+  void unsafe_arena_set_allocated_edge_type(
+      ::physical::EdgeType* edge_type);
+  ::physical::EdgeType* unsafe_arena_release_edge_type();
+
+  // .physical.CreateEdgeSchema.Multiplicity multiplicity = 2;
+  void clear_multiplicity();
+  ::physical::CreateEdgeSchema_Multiplicity multiplicity() const;
+  void set_multiplicity(::physical::CreateEdgeSchema_Multiplicity value);
+  private:
+  ::physical::CreateEdgeSchema_Multiplicity _internal_multiplicity() const;
+  void _internal_set_multiplicity(::physical::CreateEdgeSchema_Multiplicity value);
+  public:
+
+  // @@protoc_insertion_point(class_scope:physical.CreateEdgeSchema.TypeInfo)
+ private:
+  class _Internal;
+
+  template <typename T> friend class ::PROTOBUF_NAMESPACE_ID::Arena::InternalHelper;
+  typedef void InternalArenaConstructable_;
+  typedef void DestructorSkippable_;
+  struct Impl_ {
+    ::physical::EdgeType* edge_type_;
+    int multiplicity_;
+    mutable ::PROTOBUF_NAMESPACE_ID::internal::CachedSize _cached_size_;
+  };
+  union { Impl_ _impl_; };
+  friend struct ::TableStruct_cypher_5fddl_2eproto;
+};
+// -------------------------------------------------------------------
+
 class CreateEdgeSchema final :
     public ::PROTOBUF_NAMESPACE_ID::Message /* @@protoc_insertion_point(class_definition:physical.CreateEdgeSchema) */ {
  public:
@@ -830,7 +1002,7 @@ class CreateEdgeSchema final :
                &_CreateEdgeSchema_default_instance_);
   }
   static constexpr int kIndexInFileMessages =
-    3;
+    4;
 
   friend void swap(CreateEdgeSchema& a, CreateEdgeSchema& b) {
     a.Swap(&b);
@@ -900,6 +1072,8 @@ class CreateEdgeSchema final :
 
   // nested types ----------------------------------------------------
 
+  typedef CreateEdgeSchema_TypeInfo TypeInfo;
+
   typedef CreateEdgeSchema_Multiplicity Multiplicity;
   static constexpr Multiplicity ONE_TO_ONE =
     CreateEdgeSchema_Multiplicity_ONE_TO_ONE;
@@ -937,12 +1111,29 @@ class CreateEdgeSchema final :
   // accessors -------------------------------------------------------
 
   enum : int {
+    kTypeInfoFieldNumber = 1,
     kPropertiesFieldNumber = 2,
     kPrimaryKeyFieldNumber = 3,
-    kEdgeTypeFieldNumber = 1,
-    kMultiplicityFieldNumber = 4,
-    kConflictActionFieldNumber = 5,
+    kConflictActionFieldNumber = 4,
   };
+  // repeated .physical.CreateEdgeSchema.TypeInfo type_info = 1;
+  int type_info_size() const;
+  private:
+  int _internal_type_info_size() const;
+  public:
+  void clear_type_info();
+  ::physical::CreateEdgeSchema_TypeInfo* mutable_type_info(int index);
+  ::PROTOBUF_NAMESPACE_ID::RepeatedPtrField< ::physical::CreateEdgeSchema_TypeInfo >*
+      mutable_type_info();
+  private:
+  const ::physical::CreateEdgeSchema_TypeInfo& _internal_type_info(int index) const;
+  ::physical::CreateEdgeSchema_TypeInfo* _internal_add_type_info();
+  public:
+  const ::physical::CreateEdgeSchema_TypeInfo& type_info(int index) const;
+  ::physical::CreateEdgeSchema_TypeInfo* add_type_info();
+  const ::PROTOBUF_NAMESPACE_ID::RepeatedPtrField< ::physical::CreateEdgeSchema_TypeInfo >&
+      type_info() const;
+
   // repeated .physical.PropertyDef properties = 2;
   int properties_size() const;
   private:
@@ -985,34 +1176,7 @@ class CreateEdgeSchema final :
   std::string* _internal_add_primary_key();
   public:
 
-  // .physical.EdgeType edge_type = 1;
-  bool has_edge_type() const;
-  private:
-  bool _internal_has_edge_type() const;
-  public:
-  void clear_edge_type();
-  const ::physical::EdgeType& edge_type() const;
-  PROTOBUF_NODISCARD ::physical::EdgeType* release_edge_type();
-  ::physical::EdgeType* mutable_edge_type();
-  void set_allocated_edge_type(::physical::EdgeType* edge_type);
-  private:
-  const ::physical::EdgeType& _internal_edge_type() const;
-  ::physical::EdgeType* _internal_mutable_edge_type();
-  public:
-  void unsafe_arena_set_allocated_edge_type(
-      ::physical::EdgeType* edge_type);
-  ::physical::EdgeType* unsafe_arena_release_edge_type();
-
-  // .physical.CreateEdgeSchema.Multiplicity multiplicity = 4;
-  void clear_multiplicity();
-  ::physical::CreateEdgeSchema_Multiplicity multiplicity() const;
-  void set_multiplicity(::physical::CreateEdgeSchema_Multiplicity value);
-  private:
-  ::physical::CreateEdgeSchema_Multiplicity _internal_multiplicity() const;
-  void _internal_set_multiplicity(::physical::CreateEdgeSchema_Multiplicity value);
-  public:
-
-  // .physical.ConflictAction conflict_action = 5;
+  // .physical.ConflictAction conflict_action = 4;
   void clear_conflict_action();
   ::physical::ConflictAction conflict_action() const;
   void set_conflict_action(::physical::ConflictAction value);
@@ -1029,10 +1193,9 @@ class CreateEdgeSchema final :
   typedef void InternalArenaConstructable_;
   typedef void DestructorSkippable_;
   struct Impl_ {
+    ::PROTOBUF_NAMESPACE_ID::RepeatedPtrField< ::physical::CreateEdgeSchema_TypeInfo > type_info_;
     ::PROTOBUF_NAMESPACE_ID::RepeatedPtrField< ::physical::PropertyDef > properties_;
     ::PROTOBUF_NAMESPACE_ID::RepeatedPtrField<std::string> primary_key_;
-    ::physical::EdgeType* edge_type_;
-    int multiplicity_;
     int conflict_action_;
     mutable ::PROTOBUF_NAMESPACE_ID::internal::CachedSize _cached_size_;
   };
@@ -1089,7 +1252,7 @@ class DropVertexSchema final :
                &_DropVertexSchema_default_instance_);
   }
   static constexpr int kIndexInFileMessages =
-    4;
+    5;
 
   friend void swap(DropVertexSchema& a, DropVertexSchema& b) {
     a.Swap(&b);
@@ -1257,7 +1420,7 @@ class DropEdgeSchema final :
                &_DropEdgeSchema_default_instance_);
   }
   static constexpr int kIndexInFileMessages =
-    5;
+    6;
 
   friend void swap(DropEdgeSchema& a, DropEdgeSchema& b) {
     a.Swap(&b);
@@ -1425,7 +1588,7 @@ class AddVertexPropertySchema final :
                &_AddVertexPropertySchema_default_instance_);
   }
   static constexpr int kIndexInFileMessages =
-    6;
+    7;
 
   friend void swap(AddVertexPropertySchema& a, AddVertexPropertySchema& b) {
     a.Swap(&b);
@@ -1613,7 +1776,7 @@ class AddEdgePropertySchema final :
                &_AddEdgePropertySchema_default_instance_);
   }
   static constexpr int kIndexInFileMessages =
-    7;
+    8;
 
   friend void swap(AddEdgePropertySchema& a, AddEdgePropertySchema& b) {
     a.Swap(&b);
@@ -1801,7 +1964,7 @@ class DropVertexPropertySchema final :
                &_DropVertexPropertySchema_default_instance_);
   }
   static constexpr int kIndexInFileMessages =
-    8;
+    9;
 
   friend void swap(DropVertexPropertySchema& a, DropVertexPropertySchema& b) {
     a.Swap(&b);
@@ -1995,7 +2158,7 @@ class DropEdgePropertySchema final :
                &_DropEdgePropertySchema_default_instance_);
   }
   static constexpr int kIndexInFileMessages =
-    9;
+    10;
 
   friend void swap(DropEdgePropertySchema& a, DropEdgePropertySchema& b) {
     a.Swap(&b);
@@ -2217,7 +2380,7 @@ class RenameVertexPropertySchema final :
                &_RenameVertexPropertySchema_default_instance_);
   }
   static constexpr int kIndexInFileMessages =
-    11;
+    12;
 
   friend void swap(RenameVertexPropertySchema& a, RenameVertexPropertySchema& b) {
     a.Swap(&b);
@@ -2439,7 +2602,7 @@ class RenameEdgePropertySchema final :
                &_RenameEdgePropertySchema_default_instance_);
   }
   static constexpr int kIndexInFileMessages =
-    13;
+    14;
 
   friend void swap(RenameEdgePropertySchema& a, RenameEdgePropertySchema& b) {
     a.Swap(&b);
@@ -2633,7 +2796,7 @@ class RenameVertexTypeSchema final :
                &_RenameVertexTypeSchema_default_instance_);
   }
   static constexpr int kIndexInFileMessages =
-    14;
+    15;
 
   friend void swap(RenameVertexTypeSchema& a, RenameVertexTypeSchema& b) {
     a.Swap(&b);
@@ -2821,7 +2984,7 @@ class RenameEdgeTypeSchema final :
                &_RenameEdgeTypeSchema_default_instance_);
   }
   static constexpr int kIndexInFileMessages =
-    15;
+    16;
 
   friend void swap(RenameEdgeTypeSchema& a, RenameEdgeTypeSchema& b) {
     a.Swap(&b);
@@ -3025,7 +3188,7 @@ class DDLPlan final :
                &_DDLPlan_default_instance_);
   }
   static constexpr int kIndexInFileMessages =
-    16;
+    17;
 
   friend void swap(DDLPlan& a, DDLPlan& b) {
     a.Swap(&b);
@@ -4091,31 +4254,31 @@ inline void CreateVertexSchema::set_conflict_action(::physical::ConflictAction v
 
 // -------------------------------------------------------------------
 
-// CreateEdgeSchema
+// CreateEdgeSchema_TypeInfo
 
 // .physical.EdgeType edge_type = 1;
-inline bool CreateEdgeSchema::_internal_has_edge_type() const {
+inline bool CreateEdgeSchema_TypeInfo::_internal_has_edge_type() const {
   return this != internal_default_instance() && _impl_.edge_type_ != nullptr;
 }
-inline bool CreateEdgeSchema::has_edge_type() const {
+inline bool CreateEdgeSchema_TypeInfo::has_edge_type() const {
   return _internal_has_edge_type();
 }
-inline void CreateEdgeSchema::clear_edge_type() {
+inline void CreateEdgeSchema_TypeInfo::clear_edge_type() {
   if (GetArenaForAllocation() == nullptr && _impl_.edge_type_ != nullptr) {
     delete _impl_.edge_type_;
   }
   _impl_.edge_type_ = nullptr;
 }
-inline const ::physical::EdgeType& CreateEdgeSchema::_internal_edge_type() const {
+inline const ::physical::EdgeType& CreateEdgeSchema_TypeInfo::_internal_edge_type() const {
   const ::physical::EdgeType* p = _impl_.edge_type_;
   return p != nullptr ? *p : reinterpret_cast<const ::physical::EdgeType&>(
       ::physical::_EdgeType_default_instance_);
 }
-inline const ::physical::EdgeType& CreateEdgeSchema::edge_type() const {
-  // @@protoc_insertion_point(field_get:physical.CreateEdgeSchema.edge_type)
+inline const ::physical::EdgeType& CreateEdgeSchema_TypeInfo::edge_type() const {
+  // @@protoc_insertion_point(field_get:physical.CreateEdgeSchema.TypeInfo.edge_type)
   return _internal_edge_type();
 }
-inline void CreateEdgeSchema::unsafe_arena_set_allocated_edge_type(
+inline void CreateEdgeSchema_TypeInfo::unsafe_arena_set_allocated_edge_type(
     ::physical::EdgeType* edge_type) {
   if (GetArenaForAllocation() == nullptr) {
     delete reinterpret_cast<::PROTOBUF_NAMESPACE_ID::MessageLite*>(_impl_.edge_type_);
@@ -4126,9 +4289,9 @@ inline void CreateEdgeSchema::unsafe_arena_set_allocated_edge_type(
   } else {
     
   }
-  // @@protoc_insertion_point(field_unsafe_arena_set_allocated:physical.CreateEdgeSchema.edge_type)
+  // @@protoc_insertion_point(field_unsafe_arena_set_allocated:physical.CreateEdgeSchema.TypeInfo.edge_type)
 }
-inline ::physical::EdgeType* CreateEdgeSchema::release_edge_type() {
+inline ::physical::EdgeType* CreateEdgeSchema_TypeInfo::release_edge_type() {
   
   ::physical::EdgeType* temp = _impl_.edge_type_;
   _impl_.edge_type_ = nullptr;
@@ -4143,14 +4306,14 @@ inline ::physical::EdgeType* CreateEdgeSchema::release_edge_type() {
 #endif  // !PROTOBUF_FORCE_COPY_IN_RELEASE
   return temp;
 }
-inline ::physical::EdgeType* CreateEdgeSchema::unsafe_arena_release_edge_type() {
-  // @@protoc_insertion_point(field_release:physical.CreateEdgeSchema.edge_type)
+inline ::physical::EdgeType* CreateEdgeSchema_TypeInfo::unsafe_arena_release_edge_type() {
+  // @@protoc_insertion_point(field_release:physical.CreateEdgeSchema.TypeInfo.edge_type)
   
   ::physical::EdgeType* temp = _impl_.edge_type_;
   _impl_.edge_type_ = nullptr;
   return temp;
 }
-inline ::physical::EdgeType* CreateEdgeSchema::_internal_mutable_edge_type() {
+inline ::physical::EdgeType* CreateEdgeSchema_TypeInfo::_internal_mutable_edge_type() {
   
   if (_impl_.edge_type_ == nullptr) {
     auto* p = CreateMaybeMessage<::physical::EdgeType>(GetArenaForAllocation());
@@ -4158,12 +4321,12 @@ inline ::physical::EdgeType* CreateEdgeSchema::_internal_mutable_edge_type() {
   }
   return _impl_.edge_type_;
 }
-inline ::physical::EdgeType* CreateEdgeSchema::mutable_edge_type() {
+inline ::physical::EdgeType* CreateEdgeSchema_TypeInfo::mutable_edge_type() {
   ::physical::EdgeType* _msg = _internal_mutable_edge_type();
-  // @@protoc_insertion_point(field_mutable:physical.CreateEdgeSchema.edge_type)
+  // @@protoc_insertion_point(field_mutable:physical.CreateEdgeSchema.TypeInfo.edge_type)
   return _msg;
 }
-inline void CreateEdgeSchema::set_allocated_edge_type(::physical::EdgeType* edge_type) {
+inline void CreateEdgeSchema_TypeInfo::set_allocated_edge_type(::physical::EdgeType* edge_type) {
   ::PROTOBUF_NAMESPACE_ID::Arena* message_arena = GetArenaForAllocation();
   if (message_arena == nullptr) {
     delete _impl_.edge_type_;
@@ -4180,7 +4343,71 @@ inline void CreateEdgeSchema::set_allocated_edge_type(::physical::EdgeType* edge
     
   }
   _impl_.edge_type_ = edge_type;
-  // @@protoc_insertion_point(field_set_allocated:physical.CreateEdgeSchema.edge_type)
+  // @@protoc_insertion_point(field_set_allocated:physical.CreateEdgeSchema.TypeInfo.edge_type)
+}
+
+// .physical.CreateEdgeSchema.Multiplicity multiplicity = 2;
+inline void CreateEdgeSchema_TypeInfo::clear_multiplicity() {
+  _impl_.multiplicity_ = 0;
+}
+inline ::physical::CreateEdgeSchema_Multiplicity CreateEdgeSchema_TypeInfo::_internal_multiplicity() const {
+  return static_cast< ::physical::CreateEdgeSchema_Multiplicity >(_impl_.multiplicity_);
+}
+inline ::physical::CreateEdgeSchema_Multiplicity CreateEdgeSchema_TypeInfo::multiplicity() const {
+  // @@protoc_insertion_point(field_get:physical.CreateEdgeSchema.TypeInfo.multiplicity)
+  return _internal_multiplicity();
+}
+inline void CreateEdgeSchema_TypeInfo::_internal_set_multiplicity(::physical::CreateEdgeSchema_Multiplicity value) {
+  
+  _impl_.multiplicity_ = value;
+}
+inline void CreateEdgeSchema_TypeInfo::set_multiplicity(::physical::CreateEdgeSchema_Multiplicity value) {
+  _internal_set_multiplicity(value);
+  // @@protoc_insertion_point(field_set:physical.CreateEdgeSchema.TypeInfo.multiplicity)
+}
+
+// -------------------------------------------------------------------
+
+// CreateEdgeSchema
+
+// repeated .physical.CreateEdgeSchema.TypeInfo type_info = 1;
+inline int CreateEdgeSchema::_internal_type_info_size() const {
+  return _impl_.type_info_.size();
+}
+inline int CreateEdgeSchema::type_info_size() const {
+  return _internal_type_info_size();
+}
+inline void CreateEdgeSchema::clear_type_info() {
+  _impl_.type_info_.Clear();
+}
+inline ::physical::CreateEdgeSchema_TypeInfo* CreateEdgeSchema::mutable_type_info(int index) {
+  // @@protoc_insertion_point(field_mutable:physical.CreateEdgeSchema.type_info)
+  return _impl_.type_info_.Mutable(index);
+}
+inline ::PROTOBUF_NAMESPACE_ID::RepeatedPtrField< ::physical::CreateEdgeSchema_TypeInfo >*
+CreateEdgeSchema::mutable_type_info() {
+  // @@protoc_insertion_point(field_mutable_list:physical.CreateEdgeSchema.type_info)
+  return &_impl_.type_info_;
+}
+inline const ::physical::CreateEdgeSchema_TypeInfo& CreateEdgeSchema::_internal_type_info(int index) const {
+  return _impl_.type_info_.Get(index);
+}
+inline const ::physical::CreateEdgeSchema_TypeInfo& CreateEdgeSchema::type_info(int index) const {
+  // @@protoc_insertion_point(field_get:physical.CreateEdgeSchema.type_info)
+  return _internal_type_info(index);
+}
+inline ::physical::CreateEdgeSchema_TypeInfo* CreateEdgeSchema::_internal_add_type_info() {
+  return _impl_.type_info_.Add();
+}
+inline ::physical::CreateEdgeSchema_TypeInfo* CreateEdgeSchema::add_type_info() {
+  ::physical::CreateEdgeSchema_TypeInfo* _add = _internal_add_type_info();
+  // @@protoc_insertion_point(field_add:physical.CreateEdgeSchema.type_info)
+  return _add;
+}
+inline const ::PROTOBUF_NAMESPACE_ID::RepeatedPtrField< ::physical::CreateEdgeSchema_TypeInfo >&
+CreateEdgeSchema::type_info() const {
+  // @@protoc_insertion_point(field_list:physical.CreateEdgeSchema.type_info)
+  return _impl_.type_info_;
 }
 
 // repeated .physical.PropertyDef properties = 2;
@@ -4298,27 +4525,7 @@ CreateEdgeSchema::mutable_primary_key() {
   return &_impl_.primary_key_;
 }
 
-// .physical.CreateEdgeSchema.Multiplicity multiplicity = 4;
-inline void CreateEdgeSchema::clear_multiplicity() {
-  _impl_.multiplicity_ = 0;
-}
-inline ::physical::CreateEdgeSchema_Multiplicity CreateEdgeSchema::_internal_multiplicity() const {
-  return static_cast< ::physical::CreateEdgeSchema_Multiplicity >(_impl_.multiplicity_);
-}
-inline ::physical::CreateEdgeSchema_Multiplicity CreateEdgeSchema::multiplicity() const {
-  // @@protoc_insertion_point(field_get:physical.CreateEdgeSchema.multiplicity)
-  return _internal_multiplicity();
-}
-inline void CreateEdgeSchema::_internal_set_multiplicity(::physical::CreateEdgeSchema_Multiplicity value) {
-  
-  _impl_.multiplicity_ = value;
-}
-inline void CreateEdgeSchema::set_multiplicity(::physical::CreateEdgeSchema_Multiplicity value) {
-  _internal_set_multiplicity(value);
-  // @@protoc_insertion_point(field_set:physical.CreateEdgeSchema.multiplicity)
-}
-
-// .physical.ConflictAction conflict_action = 5;
+// .physical.ConflictAction conflict_action = 4;
 inline void CreateEdgeSchema::clear_conflict_action() {
   _impl_.conflict_action_ = 0;
 }
@@ -6824,6 +7031,8 @@ inline DDLPlan::PlanCase DDLPlan::plan_case() const {
 #ifdef __GNUC__
   #pragma GCC diagnostic pop
 #endif  // __GNUC__
+// -------------------------------------------------------------------
+
 // -------------------------------------------------------------------
 
 // -------------------------------------------------------------------

@@ -19,9 +19,15 @@ add_compiler_test(
 	extension_test.cpp
 	admin_test.cpp)
 
+find_package(OpenSSL REQUIRED)
 target_link_libraries(gopt_test
-    PRIVATE
+    PUBLIC
 	neug_gopt
+	${GLOG_LIBRARIES}
 	neug::GTest
     ${Protobuf_LIBRARIES}
+	${ARROW_LIB}
+	${OPENSSL_LIBRARIES}
+    ${CRYPTO_LIB}
+	${GFLAGS_LIBRARIES}
 )

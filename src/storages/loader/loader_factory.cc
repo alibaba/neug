@@ -23,6 +23,8 @@
 #include <utility>         // for pair
 #include <vector>          // for vector
 
+#include <glog/logging.h>
+
 #include "neug/utils/string_utils.h"
 namespace gs {
 class IFragmentLoader;
@@ -67,7 +69,12 @@ std::shared_ptr<IFragmentLoader> LoaderFactory::CreateFragmentLoader(
   if (iter != known_loaders_.end()) {
     return iter->second(work_dir, schema, loading_config);
   } else {
-    LOG(FATAL) << "Unsupported format: " << format;
+    std::stringstream ss;
+    for (const auto& loader : known_loaders_) {
+      ss << "[" << loader.first << "] ";
+    }
+    LOG(FATAL) << "Unsupported format: " << format << " with scheme: " << scheme
+               << ", supported loaders are: " << ss.str();
   }
   return std::shared_ptr<IFragmentLoader>();
 }
@@ -76,7 +83,6 @@ std::shared_ptr<IFragmentLoader> LoaderFactory::CreateFragmentLoader(
 bool LoaderFactory::Register(const std::string& scheme_type,
                              const std::string& format,
                              LoaderFactory::loader_initializer_t initializer) {
-  VLOG(1) << "Registering loader: " << scheme_type << ", format:" << format;
   auto& known_loaders_ = getKnownLoaders();
   auto key = scheme_type + format;
   known_loaders_.emplace(key, initializer);

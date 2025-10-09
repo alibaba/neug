@@ -1069,6 +1069,7 @@ bool conflict_action_to_bool(const physical::ConflictAction& action) {
     return false;
   } else {
     LOG(FATAL) << "invalid action: " << action;
+    return false;  // to suppress warning
   }
 }
 

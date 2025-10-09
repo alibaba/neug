@@ -201,6 +201,7 @@ std::unique_ptr<IUpdateOperator> DataSourceOprBuilder::Build(
     LOG(FATAL) << "Unsupported csv data source, got: "
                << source_opr.ShortDebugString();
   }
+  return nullptr;  // to suppress compiler warning
 }
 }  // namespace ops
 }  // namespace runtime

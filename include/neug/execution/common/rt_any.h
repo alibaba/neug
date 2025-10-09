@@ -788,6 +788,7 @@ struct TypedConverter<bool> {
     } else {
       LOG(FATAL) << "Invalid boolean string: " << str;
     }
+    return false;  // to suppress compiler warning
   }
 };
 template <>

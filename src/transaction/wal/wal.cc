@@ -76,7 +76,13 @@ std::unique_ptr<IWalWriter> WalWriterFactory::CreateWalWriter(
   if (iter != known_writers_.end()) {
     return iter->second(wal_uri, thread_id);
   } else {
-    LOG(FATAL) << "Unknown wal writer: " << scheme << " for uri: " << wal_uri;
+    std::stringstream ss;
+    for (const auto& writer : known_writers_) {
+      ss << "[" << writer.first << "] ";
+    }
+    LOG(FATAL) << "Unknown wal writer: " << scheme << " for uri: " << wal_uri
+               << ", supported writers are: " << ss.str();
+    return nullptr;  // to suppress warning
   }
 }
 
@@ -87,7 +93,6 @@ std::unique_ptr<IWalWriter> WalWriterFactory::CreateDummyWalWriter() {
 bool WalWriterFactory::RegisterWalWriter(
     const std::string& wal_writer_type,
     WalWriterFactory::wal_writer_initializer_t initializer) {
-  VLOG(1) << "Registering wal writer of type: " << wal_writer_type;
   auto& known_writers_ = getKnownWalWriters();
   known_writers_.emplace(wal_writer_type, initializer);
   return true;
@@ -115,14 +120,19 @@ std::unique_ptr<IWalParser> WalParserFactory::CreateWalParser(
   if (iter != know_parsers_.end()) {
     return iter->second(wal_uri);
   } else {
-    LOG(FATAL) << "Unknown wal parser: " << scheme << " for uri: " << wal_uri;
+    std::stringstream ss;
+    for (const auto& parser : know_parsers_) {
+      ss << "[" << parser.first << "] ";
+    }
+    LOG(FATAL) << "Unknown wal parser: " << scheme << " for uri: " << wal_uri
+               << ", supported parsers are: " << ss.str();
+    return nullptr;  // to suppress warning
   }
 }
 
 bool WalParserFactory::RegisterWalParser(
     const std::string& wal_writer_type,
     WalParserFactory::wal_parser_initializer_t initializer) {
-  VLOG(1) << "Registering wal parse of type: " << wal_writer_type;
   auto& known_parsers_ = getKnownWalParsers();
   known_parsers_.emplace(wal_writer_type, initializer);
   return true;
