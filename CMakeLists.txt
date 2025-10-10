@@ -93,11 +93,6 @@ macro(install_neug_target target)
     )
 endmacro()
 
-function(add_third_party_project_without_werror proj_dir)
-    set(CMAKE_COMPILE_WARNING_AS_ERROR NO)
-    add_subdirectory(${proj_dir})
-endfunction()
-
 if (BUILD_HTTP_SERVER)
     add_compile_definitions(BUILD_HTTP_SERVER)
 endif()
@@ -245,24 +240,15 @@ if(ENABLE_WERROR)
     endif()
 endif()
 
-function(add_compiler_test TEST_NAME)
+function(add_neug_test TEST_NAME)
     set(SRCS ${ARGN})
     add_executable(${TEST_NAME} ${SRCS})
-    target_link_libraries(${TEST_NAME} PUBLIC neug::GTest neug_libraries)
-
+    target_link_libraries(${TEST_NAME} PUBLIC neug::GTest neug_libraries   
+        ${GLOG_LIBRARIES} ${Protobuf_LIBRARIES} ${ARROW_LIB} ${OPENSSL_LIBRARIES} 
+        ${CRYPTO_LIB} ${GFLAGS_LIBRARIES})
     include(GoogleTest)
-
 	add_test(NAME ${TEST_NAME} COMMAND ${TEST_NAME})
 	gtest_add_tests(TARGET ${TEST_NAME} TEST_LIST ${TEST_NAME}_tests)
-endfunction()
-
-function(add_storage_test TEST_NAME)
-    set(SRCS ${ARGN})
-    add_executable(${TEST_NAME} ${SRCS})
-    target_link_libraries(${TEST_NAME} PUBLIC neug::GTest neug_libraries)
-    include(GoogleTest)
-    add_test(NAME ${TEST_NAME} COMMAND ${TEST_NAME})
-    gtest_add_tests(TARGET ${TEST_NAME} TEST_LIST ${TEST_NAME}_tests)
 endfunction()
 
 
