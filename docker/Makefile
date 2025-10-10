@@ -73,3 +73,9 @@ neug-dev-base: # The base image where no dependencies are installed
 		--build-arg ARCH=${ARCH} \
 		-t graphscope/neug-dev-base:${ARCH}  \
 		-f ${DOCKERFILES_DIR}/neug-dev-base.Dockerfile .
+
+neug-release:
+	cd .. && \
+	docker build \
+	-t graphscope/neug:${ARCH} \
+	-f docker/neug-release.Dockerfile .

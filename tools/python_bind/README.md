@@ -2,7 +2,7 @@
 
 ## Building the Wheel
 
-### Develope
+### Develop
 
 To build a wheel for the local environment, run:
 

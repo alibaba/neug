@@ -397,6 +397,18 @@ setup(
             "neug-cli=neug.neug_cli:cli",
         ],
     },
+    install_requires=[
+        "packaging>=24.2",
+        "protobuf==4.25",
+        "requests",
+        "click>=8.0.0",
+        "tabulate>=0.9.0",
+        "PyYAML>=6.0.2",
+        "tqdm",
+        "gnureadline>=8.0.0; sys_platform == 'darwin'",
+        "Flask",
+        "Flask-Cors",
+    ],
     cmdclass={
         "build_py": BuildExtFirst,
         "build_ext": CMakeBuild,
