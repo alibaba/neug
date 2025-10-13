@@ -41,7 +41,10 @@ using call_bind_func_t = std::function<std::unique_ptr<CallFuncInputBase>(
 using call_exec_func_t =
     std::function<runtime::Context(const CallFuncInputBase& input)>;
 
+using call_output_columns = std::vector<std::pair<std::string, common::LogicalTypeID>>;
+
 struct NeugCallFunction : public Function {
+  call_output_columns outputColumns;
   call_bind_func_t bindFunc = nullptr;
   call_exec_func_t execFunc = nullptr;
 
@@ -50,6 +53,10 @@ struct NeugCallFunction : public Function {
   NeugCallFunction(std::string name,
                    std::vector<common::LogicalTypeID> inputTypes)
       : Function{std::move(name), std::move(inputTypes)} {}
+  NeugCallFunction(std::string name,
+                   std::vector<common::LogicalTypeID> inputTypes,
+                   call_output_columns outputColumns)
+      : Function{std::move(name), std::move(inputTypes)}, outputColumns{std::move(outputColumns)} {}
 };
 
 }  // namespace function

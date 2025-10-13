@@ -24,6 +24,7 @@
 
 #include "bound_table_scan_info.h"
 #include "neug/compiler/binder/bound_statement.h"
+#include "neug/compiler/binder/expression/expression.h"
 
 namespace gs {
 namespace binder {
@@ -37,10 +38,18 @@ class BoundStandaloneCallFunction final : public BoundStatement {
       : BoundStatement{statementType,
                        BoundStatementResult::createEmptyResult()},
         info{std::move(info)} {}
+  explicit BoundStandaloneCallFunction(BoundTableScanInfo info,
+                                       expression_vector outputColumns)
+      : BoundStatement{statementType,
+                       BoundStatementResult::createEmptyResult()},
+        info{std::move(info)},
+        outputColumns{std::move(outputColumns)} {}
 
   const BoundTableScanInfo& getTableScanInfo() const { return info; }
 
   const function::TableFunction& getTableFunction() const { return info.func; }
+
+  const expression_vector& getOutputColumns() const { return outputColumns; }
 
   const function::TableFuncBindData* getBindData() const {
     return info.bindData.get();
@@ -48,6 +57,7 @@ class BoundStandaloneCallFunction final : public BoundStatement {
 
  private:
   BoundTableScanInfo info;
+  expression_vector outputColumns;
 };
 
 }  // namespace binder

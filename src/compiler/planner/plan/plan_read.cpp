@@ -132,17 +132,22 @@ void Planner::planTableFunctionCall(
     const BoundReadingClause& readingClause,
     std::vector<std::unique_ptr<LogicalPlan>>& plans) {
   auto& boundCall = readingClause.constCast<BoundTableFunctionCall>();
-  auto analyzer =
-      PredicatesDependencyAnalyzer(boundCall.getBindData()->columns);
-  analyzer.analyze(boundCall.getConjunctivePredicates());
-  NEUG_ASSERT(boundCall.getTableFunc().getLogicalPlanFunc);
-  boundCall.getTableFunc().getLogicalPlanFunc(
-      this, readingClause, analyzer.predicatesDependsOnlyOnOutputColumns,
-      plans);
-  if (!analyzer.predicatesWithOtherDependencies.empty()) {
-    for (auto& plan : plans) {
-      appendFilters(analyzer.predicatesWithOtherDependencies, *plan);
+  if (boundCall.getBindData()) {
+    auto analyzer =
+        PredicatesDependencyAnalyzer(boundCall.getBindData()->columns);
+    analyzer.analyze(boundCall.getConjunctivePredicates());
+    NEUG_ASSERT(boundCall.getTableFunc().getLogicalPlanFunc);
+    boundCall.getTableFunc().getLogicalPlanFunc(
+        this, readingClause, analyzer.predicatesDependsOnlyOnOutputColumns,
+        plans);
+    if (!analyzer.predicatesWithOtherDependencies.empty()) {
+      for (auto& plan : plans) {
+        appendFilters(analyzer.predicatesWithOtherDependencies, *plan);
+      }
     }
+  } else {
+    appendTableFunctionCall(boundCall.getTableScanInfo(),
+                            boundCall.getOutputColumns(), *plans[0]);
   }
 }
 

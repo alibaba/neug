@@ -1,0 +1,165 @@
+{
+ "plan_id": 0,
+ "query_plan": {
+  "mode": "READ_ONLY",
+  "plan": [
+   {
+    "opr": {
+     "procedure_call": {
+      "query": {
+       "query_name": {
+        "name": "SHOW_LOADED_EXTENSIONS()"
+       },
+       "arguments": []
+      }
+     }
+    },
+    "meta_data": [
+     {
+      "type": {
+       "data_type": {
+        "string": {
+         "var_char": {
+          "max_length": 65536
+         }
+        }
+       }
+      },
+      "alias": 0
+     },
+     {
+      "type": {
+       "data_type": {
+        "string": {
+         "var_char": {
+          "max_length": 65536
+         }
+        }
+       }
+      },
+      "alias": 1
+     },
+     {
+      "type": {
+       "data_type": {
+        "string": {
+         "var_char": {
+          "max_length": 65536
+         }
+        }
+       }
+      },
+      "alias": 2
+     }
+    ]
+   },
+   {
+    "opr": {
+     "project": {
+      "mappings": [
+       {
+        "expr": {
+         "operators": [
+          {
+           "var": {
+            "tag": {
+             "id": 0
+            },
+            "node_type": {
+             "data_type": {
+              "string": {
+               "var_char": {
+                "max_length": 65536
+               }
+              }
+             }
+            }
+           },
+           "node_type": {
+            "data_type": {
+             "string": {
+              "var_char": {
+               "max_length": 65536
+              }
+             }
+            }
+           }
+          }
+         ]
+        },
+        "alias": 0
+       },
+       {
+        "expr": {
+         "operators": [
+          {
+           "var": {
+            "tag": {
+             "id": 2
+            },
+            "node_type": {
+             "data_type": {
+              "string": {
+               "var_char": {
+                "max_length": 65536
+               }
+              }
+             }
+            }
+           },
+           "node_type": {
+            "data_type": {
+             "string": {
+              "var_char": {
+               "max_length": 65536
+              }
+             }
+            }
+           }
+          }
+         ]
+        },
+        "alias": 2
+       }
+      ],
+      "is_append": false
+     }
+    },
+    "meta_data": [
+     {
+      "type": {
+       "data_type": {
+        "string": {
+         "var_char": {
+          "max_length": 65536
+         }
+        }
+       }
+      },
+      "alias": 0
+     },
+     {
+      "type": {
+       "data_type": {
+        "string": {
+         "var_char": {
+          "max_length": 65536
+         }
+        }
+       }
+      },
+      "alias": 2
+     }
+    ]
+   },
+   {
+    "opr": {
+     "sink": {
+      "tags": []
+     }
+    },
+    "meta_data": []
+   }
+  ]
+ }
+}

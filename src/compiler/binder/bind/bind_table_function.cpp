@@ -26,7 +26,7 @@
 #include "neug/compiler/binder/expression/literal_expression.h"
 #include "neug/compiler/catalog/catalog.h"
 #include "neug/compiler/function/built_in_function_utils.h"
-#include "neug/compiler/function/neug_procedure_call_function.h"
+#include "neug/compiler/function/neug_call_function.h"
 #include "neug/compiler/main/client_context.h"
 
 using namespace gs::common;

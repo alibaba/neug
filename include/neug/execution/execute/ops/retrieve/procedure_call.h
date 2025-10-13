@@ -26,7 +26,7 @@
 #include "neug/utils/proto/plan/physical.pb.h"
 #endif
 
-#include "neug/compiler/function/neug_procedure_call_function.h"
+#include "neug/compiler/function/neug_call_function.h"
 
 namespace gs {
 class Schema;
@@ -45,7 +45,8 @@ class ProcedureCallOprBuilder : public IUpdateOperatorBuilder {
                                          const physical::PhysicalPlan& plan,
                                          int op_idx) override;
 
-  std::vector<physical::PhysicalOpr_Operator::OpKindCase> GetOpKinds() const override {
+  std::vector<physical::PhysicalOpr_Operator::OpKindCase> GetOpKinds()
+      const override {
     return {physical::PhysicalOpr_Operator::OpKindCase::kProcedureCall};
   }
 };

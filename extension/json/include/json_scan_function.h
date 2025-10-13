@@ -15,70 +15,69 @@
 
 #pragma once
 
+#include <functional>
 #include <memory>
 #include <string>
 #include <vector>
-#include <functional>
+#include "neug/compiler/function/neug_call_function.h"
 #include "neug/compiler/function/scalar_function.h"
 #include "neug/execution/common/context.h"
 #include "neug/utils/property/types.h"
 #include "neug/utils/proto/plan/physical.pb.h"
-#include "neug/compiler/function/neug_procedure_call_function.h"
 
 namespace gs {
 namespace extension {
 
 struct JsonScanFuncInput : public gs::function::CallFuncInputBase {
-    std::string filePath;
-    std::vector<PropertyType> columnTypes;
-    
-    JsonScanFuncInput(const std::string& path, 
-                            const std::vector<PropertyType>& types)
-                            : filePath(path), columnTypes(types) {}
+  std::string filePath;
+  std::vector<PropertyType> columnTypes;
+
+  JsonScanFuncInput(const std::string& path,
+                    const std::vector<PropertyType>& types)
+      : filePath(path), columnTypes(types) {}
 };
 
 struct JsonScanFunction {
-    static constexpr const char* name = "JSON_SCAN";
+  static constexpr const char* name = "JSON_SCAN";
 
-    static gs::function::function_set getFunctionSet() {
-        auto function = std::make_unique<gs::function::NeugCallFunction>(name, 
-            std::vector<gs::common::LogicalTypeID>{gs::common::LogicalTypeID::STRING});
+  static gs::function::function_set getFunctionSet() {
+    auto function = std::make_unique<gs::function::NeugCallFunction>(
+        name, std::vector<gs::common::LogicalTypeID>{
+                  gs::common::LogicalTypeID::STRING});
 
-        function->bindFunc = [](const gs::Schema& schema, 
-                               const gs::runtime::ContextMeta& ctx_meta,
-                               const ::physical::PhysicalPlan& plan,
-                               int op_idx) -> std::unique_ptr<gs::function::CallFuncInputBase> {
-            return bindFunc(schema, ctx_meta, plan, op_idx);
-        };
-        
-        function->execFunc = [](const gs::function::CallFuncInputBase& input) -> gs::runtime::Context {
-            const auto& jsonInput = static_cast<const JsonScanFuncInput&>(input);
-            return execFunc(jsonInput);
-        };
-        
-        gs::function::function_set functionSet;
-        functionSet.push_back(std::move(function));
-        return functionSet;
-    }
+    function->bindFunc =
+        [](const gs::Schema& schema, const gs::runtime::ContextMeta& ctx_meta,
+           const ::physical::PhysicalPlan& plan,
+           int op_idx) -> std::unique_ptr<gs::function::CallFuncInputBase> {
+      return bindFunc(schema, ctx_meta, plan, op_idx);
+    };
 
-    static std::unique_ptr<JsonScanFuncInput> bindFunc(
-        const gs::Schema& schema,
-        const gs::runtime::ContextMeta& ctx_meta,
-        const ::physical::PhysicalPlan& plan,
-        int op_idx);
+    function->execFunc = [](const gs::function::CallFuncInputBase& input)
+        -> gs::runtime::Context {
+      const auto& jsonInput = static_cast<const JsonScanFuncInput&>(input);
+      return execFunc(jsonInput);
+    };
 
-    static gs::runtime::Context execFunc(const JsonScanFuncInput& input);
+    gs::function::function_set functionSet;
+    functionSet.push_back(std::move(function));
+    return functionSet;
+  }
 
-private:
-    // Helper Functions for JSON parsing
-    static std::vector<std::shared_ptr<arrow::Array>> parseJsonFile(
-        const std::string& filePath,
-        const std::vector<PropertyType>& columnTypes);
+  static std::unique_ptr<JsonScanFuncInput> bindFunc(
+      const gs::Schema& schema, const gs::runtime::ContextMeta& ctx_meta,
+      const ::physical::PhysicalPlan& plan, int op_idx);
 
-    static std::shared_ptr<arrow::Array> convertJsonValue(
-        const std::vector<std::string>& jsonValues,
-        PropertyType targetType);
+  static gs::runtime::Context execFunc(const JsonScanFuncInput& input);
+
+ private:
+  // Helper Functions for JSON parsing
+  static std::vector<std::shared_ptr<arrow::Array>> parseJsonFile(
+      const std::string& filePath,
+      const std::vector<PropertyType>& columnTypes);
+
+  static std::shared_ptr<arrow::Array> convertJsonValue(
+      const std::vector<std::string>& jsonValues, PropertyType targetType);
 };
 
-} // namespace extension
-} // namespace gs
+}  // namespace extension
+}  // namespace gs

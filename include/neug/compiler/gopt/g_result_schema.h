@@ -101,8 +101,7 @@ class GResultSchema {
       if (opType == planner::LogicalOperatorType::COPY_FROM ||
           opType == planner::LogicalOperatorType::INSERT ||
           opType == planner::LogicalOperatorType::SET_PROPERTY ||
-          opType == planner::LogicalOperatorType::DELETE ||
-          opType == planner::LogicalOperatorType::TABLE_FUNCTION_CALL) {
+          opType == planner::LogicalOperatorType::DELETE) {
         return false;
       }
     } else {

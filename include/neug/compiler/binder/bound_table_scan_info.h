@@ -23,7 +23,7 @@
 #pragma once
 
 #include "neug/compiler/binder/expression/expression.h"
-#include "neug/compiler/function/neug_procedure_call_function.h"
+#include "neug/compiler/function/neug_call_function.h"
 #include "neug/compiler/function/table/bind_data.h"
 #include "neug/compiler/function/table/bind_input.h"
 #include "neug/compiler/function/table/table_function.h"
@@ -32,6 +32,7 @@ namespace gs {
 namespace binder {
 
 struct BoundTableScanInfo {
+  // todo: to be deprecated
   function::TableFunction func;
   std::unique_ptr<function::TableFuncBindData> bindData = nullptr;
 

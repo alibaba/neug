@@ -23,7 +23,7 @@
 
 #include "gopt_test.h"
 #include "neug/compiler/extension/extension_api.h"
-#include "neug/compiler/function/neug_procedure_call_function.h"
+#include "neug/compiler/function/neug_call_function.h"
 
 namespace gs {
 namespace gopt {
@@ -46,7 +46,10 @@ struct TestJsonFunctionSet {
 class TestShowExtensionsFunction : public function::NeugCallFunction {
  public:
   TestShowExtensionsFunction()
-      : NeugCallFunction("SHOW_LOADED_EXTENSIONS", {}) {}
+      : NeugCallFunction("SHOW_LOADED_EXTENSIONS", {},
+                         {{"name", common::LogicalTypeID::STRING},
+                          {"description", common::LogicalTypeID::STRING},
+                          {"path", common::LogicalTypeID::STRING}}) {}
 };
 
 struct TestShowExtensionsFunctionSet {
@@ -137,16 +140,34 @@ TEST_F(ExtensionTest, JSON_SCAN_EDGE) {
 
 TEST_F(ExtensionTest, SHOW_LOADED_EXTENSIONS) {
   extension::ExtensionAPI::registerFunction<TestShowExtensionsFunctionSet>(
-      catalog::CatalogEntryType::STANDALONE_TABLE_FUNCTION_ENTRY);
+      catalog::CatalogEntryType::TABLE_FUNCTION_ENTRY);
   std::string query = "CALL SHOW_LOADED_EXTENSIONS();";
   auto logical = planLogical(query, schemaData, "", {});
   auto aliasManager = std::make_shared<GAliasManager>(*logical);
   auto physical = planPhysical(*logical, aliasManager);
   VerifyFactory::verifyPhysicalByJson(
       *physical, getExtensionResource("SHOW_LOADED_EXTENSIONS_physical"));
-  auto resultYaml = GResultSchema::infer(*logical, aliasManager, getCatalog());
-  auto returns = resultYaml["returns"];
-  ASSERT_TRUE(returns.IsSequence() && returns.size() == 0);
+  auto resultSchema =
+      GResultSchema::infer(*logical, aliasManager, getCatalog());
+  VerifyFactory::verifyResultByYaml(
+      resultSchema, getExtensionResource("SHOW_LOADED_EXTENSIONS_result"));
+}
+
+TEST_F(ExtensionTest, SHOW_LOADED_EXTENSIONS_RETURN) {
+  extension::ExtensionAPI::registerFunction<TestShowExtensionsFunctionSet>(
+      catalog::CatalogEntryType::TABLE_FUNCTION_ENTRY);
+  std::string query = "CALL SHOW_LOADED_EXTENSIONS() Return name, path;";
+  auto logical = planLogical(query);
+  auto aliasManager = std::make_shared<GAliasManager>(*logical);
+  auto physical = planPhysical(*logical, aliasManager);
+  VerifyFactory::verifyPhysicalByJson(
+      *physical,
+      getExtensionResource("SHOW_LOADED_EXTENSIONS_RETURN_physical"));
+  auto resultSchema =
+      GResultSchema::infer(*logical, aliasManager, getCatalog());
+  VerifyFactory::verifyResultByYaml(
+      resultSchema,
+      getExtensionResource("SHOW_LOADED_EXTENSIONS_RETURN_result"));
 }
 }  // namespace gopt
 }  // namespace gs

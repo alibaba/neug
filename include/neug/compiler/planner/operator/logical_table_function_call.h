@@ -1,7 +1,7 @@
 #pragma once
 
 #include "neug/compiler/binder/expression/expression.h"
-#include "neug/compiler/function/neug_procedure_call_function.h"
+#include "neug/compiler/function/neug_call_function.h"
 #include "neug/compiler/function/table/bind_data.h"
 #include "neug/compiler/function/table/bind_input.h"
 #include "neug/compiler/function/table/table_function.h"
@@ -81,6 +81,7 @@ class NEUG_API LogicalTableFunctionCall final : public LogicalOperator {
   }
 
  private:
+  // to be deprecated
   function::TableFunction tableFunc;
   std::unique_ptr<function::TableFuncBindData> bindData;
 

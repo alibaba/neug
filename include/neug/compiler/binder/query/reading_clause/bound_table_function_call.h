@@ -37,6 +37,16 @@ class NEUG_API BoundTableFunctionCall : public BoundReadingClause {
   explicit BoundTableFunctionCall(BoundTableScanInfo info)
       : BoundReadingClause{clauseType_}, info{std::move(info)} {}
 
+  explicit BoundTableFunctionCall(BoundTableScanInfo info,
+                                  expression_vector outputColumns)
+      : BoundReadingClause{clauseType_},
+        info{std::move(info)},
+        outputColumns{std::move(outputColumns)} {}
+
+  const BoundTableScanInfo& getTableScanInfo() const { return info; }
+
+  const expression_vector& getOutputColumns() const { return outputColumns; }
+
   const function::TableFunction& getTableFunc() const { return info.func; }
   const function::TableFuncBindData* getBindData() const {
     return info.bindData.get();
@@ -44,6 +54,7 @@ class NEUG_API BoundTableFunctionCall : public BoundReadingClause {
 
  private:
   BoundTableScanInfo info;
+  expression_vector outputColumns;
 };
 
 }  // namespace binder

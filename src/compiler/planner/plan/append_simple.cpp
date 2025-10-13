@@ -12,6 +12,7 @@
 #include "neug/compiler/binder/ddl/bound_create_table.h"
 #include "neug/compiler/binder/ddl/bound_create_type.h"
 #include "neug/compiler/binder/ddl/bound_drop.h"
+#include "neug/compiler/binder/expression/expression.h"
 #include "neug/compiler/main/client_context.h"
 #include "neug/compiler/planner/operator/ddl/logical_alter.h"
 #include "neug/compiler/planner/operator/ddl/logical_create_sequence.h"
@@ -111,7 +112,8 @@ void Planner::appendStandaloneCallFunction(const BoundStatement& statement,
                                            LogicalPlan& plan) {
   auto& standaloneCallFunctionClause =
       statement.constCast<BoundStandaloneCallFunction>();
-  appendTableFunctionCall(standaloneCallFunctionClause.getTableScanInfo(), {},
+  appendTableFunctionCall(standaloneCallFunctionClause.getTableScanInfo(),
+                          standaloneCallFunctionClause.getOutputColumns(),
                           plan);
 }
 

@@ -43,16 +43,18 @@ std::unique_ptr<BoundStatement> Binder::bindStandaloneCallFunction(
       clientContext->getTransaction(), funcName,
       clientContext->useInternalCatalogEntry());
   NEUG_ASSERT(entry);
-  if (entry->getType() !=
-      catalog::CatalogEntryType::STANDALONE_TABLE_FUNCTION_ENTRY) {
-    THROW_BINDER_EXCEPTION(
-        "Only standalone table functions can be called without return "
-        "statement.");
-  }
   auto boundTableFunction =
       bindTableFunc(funcName, funcExpr, {} /* yieldVariables */);
+  // add ouput columns to scope if exists
+  auto callFunc =
+      boundTableFunction.callFunc.constPtrCast<function::NeugCallFunction>();
+  expression_vector outputColumns;
+  for (auto& outputColumn : callFunc->outputColumns) {
+    outputColumns.push_back(
+        createVariable(outputColumn.first, outputColumn.second));
+  }
   return std::make_unique<BoundStandaloneCallFunction>(
-      std::move(boundTableFunction));
+      std::move(boundTableFunction), std::move(outputColumns));
 }
 
 }  // namespace binder

@@ -29,7 +29,7 @@
 #include "neug/compiler/common/constants.h"
 #include "neug/compiler/common/string_utils.h"
 #include "neug/compiler/function/built_in_function_utils.h"
-#include "neug/compiler/function/neug_procedure_call_function.h"
+#include "neug/compiler/function/neug_call_function.h"
 #include "neug/compiler/function/table/bind_data.h"
 #include "neug/compiler/function/table/bind_input.h"
 #include "neug/compiler/function/table/scan_file_function.h"

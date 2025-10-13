@@ -1,0 +1,16 @@
+returns:
+  - name: name
+    type:
+      string:
+        var_char:
+          max_length: 65536
+  - name: description
+    type:
+      string:
+        var_char:
+          max_length: 65536
+  - name: path
+    type:
+      string:
+        var_char:
+          max_length: 65536

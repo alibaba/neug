@@ -28,7 +28,7 @@
 #include "neug/compiler/binder/query/query_graph.h"
 #include "neug/compiler/catalog/catalog_entry/table_catalog_entry.h"
 #include "neug/compiler/common/copier_config/file_scan_info.h"
-#include "neug/compiler/function/neug_procedure_call_function.h"
+#include "neug/compiler/function/neug_call_function.h"
 #include "neug/compiler/parser/ddl/parsed_property_definition.h"
 #include "neug/compiler/parser/query/graph_pattern/pattern_element.h"
 
