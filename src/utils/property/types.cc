@@ -679,8 +679,6 @@ bool IntervalValue::operator<(const IntervalValue& rhs) const {
   return microsecond < rhs.microsecond;
 }
 
-Date::Date(int64_t x) { from_timestamp(x); }
-
 Date::Date(const std::string& date_str) {
   // Parse date string in format YYYY-MM-DD
   std::istringstream ss(date_str);
@@ -717,17 +715,6 @@ int64_t Date::to_timestamp() const {
   // Convert seconds to milliseconds
   int64_t timestamp_millis = timestamp * 1000;
   return timestamp_millis;
-}
-
-void Date::from_timestamp(int64_t ts) {
-  auto time_point = std::chrono::system_clock::from_time_t(ts / 1000);
-  auto ymd = date::year_month_day{floor<std::chrono::days>(time_point)};
-  auto time_of_day = time_point - date::sys_days(ymd);
-  this->value.internal.year = static_cast<int>(ymd.year());
-  this->value.internal.month = static_cast<unsigned>(ymd.month());
-  this->value.internal.day = static_cast<unsigned>(ymd.day());
-  this->value.internal.hour = static_cast<unsigned>(
-      std::chrono::duration_cast<std::chrono::hours>(time_of_day).count());
 }
 
 bool Date::operator<(const Date& rhs) const {

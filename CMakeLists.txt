@@ -360,6 +360,19 @@ else()
     set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++20")
 endif()
 
+include(CheckCXXSourceCompiles)
+check_cxx_source_compiles("
+#include <chrono>
+int main() {
+    std::chrono::year_month_day ymd{std::chrono::year{2024}, std::chrono::month{6}, std::chrono::day{9}};
+    return 0;
+}
+" HAVE_CHRONO_YMD)
+
+if (HAVE_CHRONO_YMD)
+    add_definitions(-DENABLE_CHRONO_YMD)
+endif()
+
 # -Wno-psabi for no warning about returning a pair in c++ function
 if (OPTIMIZE_FOR_HOST AND NOT APPLE)
     set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -march=native")
