@@ -146,8 +146,7 @@ void Planner::planTableFunctionCall(
       }
     }
   } else {
-    appendTableFunctionCall(boundCall.getTableScanInfo(),
-                            boundCall.getOutputColumns(), *plans[0]);
+    appendTableFunctionCall(boundCall.getTableScanInfo(), *plans[0]);
   }
 }
 

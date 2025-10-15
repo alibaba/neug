@@ -24,6 +24,7 @@
 
 #include "neug/compiler/binder/bound_statement.h"
 #include "neug/compiler/function/export/export_function.h"
+#include "neug/compiler/function/table/table_function.h"
 
 namespace gs {
 namespace binder {
@@ -31,7 +32,7 @@ namespace binder {
 class BoundCopyTo final : public BoundStatement {
  public:
   BoundCopyTo(std::unique_ptr<function::ExportFuncBindData> bindData,
-              function::ExportFunction exportFunc,
+              function::TableFunction exportFunc,
               std::unique_ptr<BoundStatement> query)
       : BoundStatement{common::StatementType::COPY_TO,
                        BoundStatementResult::createEmptyResult()},
@@ -43,13 +44,13 @@ class BoundCopyTo final : public BoundStatement {
     return bindData->copy();
   }
 
-  function::ExportFunction getExportFunc() const { return exportFunc; }
+  function::TableFunction getExportFunc() const { return exportFunc; }
 
   const BoundStatement* getRegularQuery() const { return query.get(); }
 
  private:
   std::unique_ptr<function::ExportFuncBindData> bindData;
-  function::ExportFunction exportFunc;
+  function::TableFunction exportFunc;
   std::unique_ptr<BoundStatement> query;
 };
 

@@ -61,6 +61,8 @@ class MetadataManager;
 
 namespace function {
 struct TableFunction;
+struct ExportFuncBindInput;
+struct ExportFuncBindData;
 }  // namespace function
 
 namespace transaction {
@@ -406,13 +408,19 @@ class Binder {
                                 const std::string& newName,
                                 std::shared_ptr<Expression> expression);
 
-  function::TableFunction getCSVScanFunction(
+  function::TableFunction getScanFunction(
       const common::FileTypeInfo& typeInfo,
       const common::FileScanInfo& fileScanInfo) const;
 
-  function::NeugCallFunction getScanFunction(
+  std::unique_ptr<function::TableFuncBindData> getScanFuncBindData(
+      const function::TableFuncBindInput* input) const;
+
+  function::TableFunction getExportFunction(
+      const common::FileTypeInfo& typeInfo);
+
+  std::unique_ptr<function::ExportFuncBindData> getExportFuncBindData(
       const common::FileTypeInfo& typeInfo,
-      const common::FileScanInfo& fileScanInfo) const;
+      const function::ExportFuncBindInput& bindInput);
 
   ExpressionBinder* getExpressionBinder() { return &expressionBinder; }
 

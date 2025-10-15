@@ -5,31 +5,17 @@ namespace planner {
 
 void LogicalTableFunctionCall::computeFlatSchema() {
   createEmptySchema();
-  if (bindData) {
-    auto groupPos = schema->createGroup();
-    for (auto& expr : bindData->columns) {
-      schema->insertToGroupAndScope(expr, groupPos);
-    }
-  } else if (!callOutput.empty()) {
-    auto groupPos = schema->createGroup();
-    for (auto& expr : callOutput) {
-      schema->insertToGroupAndScope(expr, groupPos);
-    }
+  auto groupPos = schema->createGroup();
+  for (auto& expr : bindData->columns) {
+    schema->insertToGroupAndScope(expr, groupPos);
   }
 }
 
 void LogicalTableFunctionCall::computeFactorizedSchema() {
   createEmptySchema();
-  if (bindData) {
-    auto groupPos = schema->createGroup();
-    for (auto& expr : bindData->columns) {
-      schema->insertToGroupAndScope(expr, groupPos);
-    }
-  } else if (!callOutput.empty()) {
-    auto groupPos = schema->createGroup();
-    for (auto& expr : callOutput) {
-      schema->insertToGroupAndScope(expr, groupPos);
-    }
+  auto groupPos = schema->createGroup();
+  for (auto& expr : bindData->columns) {
+    schema->insertToGroupAndScope(expr, groupPos);
   }
 }
 

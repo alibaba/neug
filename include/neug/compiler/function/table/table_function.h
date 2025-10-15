@@ -170,7 +170,7 @@ using table_func_infer_input_types =
     std::function<std::vector<common::LogicalType>(
         const binder::expression_vector&)>;
 
-struct NEUG_API TableFunction final : Function {
+struct NEUG_API TableFunction : Function {
   table_func_t tableFunc = nullptr;
   table_func_bind_t bindFunc = nullptr;
   table_func_init_shared_t initSharedStateFunc = nullptr;

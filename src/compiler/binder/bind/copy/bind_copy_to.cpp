@@ -24,6 +24,8 @@
 #include "neug/compiler/binder/copy/bound_copy_to.h"
 #include "neug/compiler/catalog/catalog.h"
 #include "neug/compiler/function/built_in_function_utils.h"
+#include "neug/compiler/function/export/export_function.h"
+#include "neug/compiler/function/table/table_function.h"
 #include "neug/compiler/main/client_context.h"
 #include "neug/compiler/parser/copy.h"
 #include "neug/compiler/parser/query/regular_query.h"
@@ -33,6 +35,51 @@ using namespace gs::parser;
 
 namespace gs {
 namespace binder {
+
+/**
+ * @brief Get the export function by file type info
+ * Create table function directly if file type is CSV (CSV will be integrated
+ * into extension framework later), Otherwise, get the function from catalog
+ * which has been registered into extension system.
+ * @param typeInfo
+ * @return function::TableFunction
+ */
+function::TableFunction Binder::getExportFunction(
+    const common::FileTypeInfo& typeInfo) {
+  auto fileTypeStr = typeInfo.fileTypeStr;
+  std::transform(fileTypeStr.begin(), fileTypeStr.end(), fileTypeStr.begin(),
+                 [](unsigned char c) { return std::toupper(c); });
+  auto name = stringFormat("COPY_{}", fileTypeStr);
+  if (typeInfo.fileType == FileType::CSV) {
+    return function::TableFunction(name, {});
+  }
+  auto entry = clientContext->getCatalog()->getFunctionEntry(
+      clientContext->getTransaction(), name);
+  return *function::BuiltInFunctionsUtils::matchFunction(
+              name, entry->ptrCast<catalog::FunctionCatalogEntry>())
+              ->constPtrCast<function::NeugCallFunction>();
+}
+
+/**
+ * @brief Get the export function bind data by file type info
+ * Create ExportCSVBindData specifically if file type is CSV (CSV will be
+ * integrated into extension framework later), Otherwise, create
+ * ExportFuncBindData for other common cases.
+ * @param typeInfo
+ * @param bindInput
+ * @return std::unique_ptr<function::ExportFuncBindData>
+ */
+std::unique_ptr<function::ExportFuncBindData> Binder::getExportFuncBindData(
+    const common::FileTypeInfo& typeInfo,
+    const function::ExportFuncBindInput& bindInput) {
+  if (typeInfo.fileType == FileType::CSV) {
+    return std::make_unique<function::ExportCSVBindData>(
+        bindInput.columnNames, bindInput.filePath,
+        CSVReaderConfig::construct(bindInput.parsingOptions).option.copy());
+  }
+  return std::make_unique<function::ExportFuncBindData>(bindInput.columnNames,
+                                                        bindInput.filePath);
+}
 
 std::unique_ptr<BoundStatement> Binder::bindCopyToClause(
     const Statement& statement) {
@@ -44,13 +91,7 @@ std::unique_ptr<BoundStatement> Binder::bindCopyToClause(
       copyToStatement.getStatement()->constPtrCast<RegularQuery>();
   auto query = bindQuery(*parsedQuery);
   auto columns = query->getStatementResult()->getColumns();
-  auto fileTypeStr = fileTypeInfo.fileTypeStr;
-  auto name = stringFormat("COPY_{}", fileTypeStr);
-  auto entry = clientContext->getCatalog()->getFunctionEntry(
-      clientContext->getTransaction(), name);
-  auto exportFunc = function::BuiltInFunctionsUtils::matchFunction(
-                        name, entry->ptrCast<catalog::FunctionCatalogEntry>())
-                        ->constPtrCast<function::ExportFunction>();
+  auto exportFunc = getExportFunction(fileTypeInfo);
   for (auto& column : columns) {
     auto columnName =
         column->hasAlias() ? column->getAlias() : column->toString();
@@ -59,8 +100,8 @@ std::unique_ptr<BoundStatement> Binder::bindCopyToClause(
   function::ExportFuncBindInput bindInput{
       std::move(columnNames), std::move(boundFilePath),
       bindParsingOptions(copyToStatement.getParsingOptions())};
-  auto bindData = exportFunc->bind(bindInput);
-  return std::make_unique<BoundCopyTo>(std::move(bindData), *exportFunc,
+  auto bindData = getExportFuncBindData(fileTypeInfo, bindInput);
+  return std::make_unique<BoundCopyTo>(std::move(bindData), exportFunc,
                                        std::move(query));
 }
 

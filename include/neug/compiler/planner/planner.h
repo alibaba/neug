@@ -483,9 +483,6 @@ class NEUG_API Planner {
   std::unique_ptr<Schema> combineSchema(LogicalPlan& outerPlan);
 
   bool tryGetTableEntry(const std::string& labelName);
-  void appendTableFunctionCall(const binder::BoundTableScanInfo& info,
-                               binder::expression_vector outputColumns,
-                               LogicalPlan& plan);
 
  private:
   main::ClientContext* clientContext;

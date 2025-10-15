@@ -339,8 +339,6 @@ FunctionCollection* FunctionCollection::getFunctions() {
       AGGREGATE_FUNCTION(AggregateMaxFunction),
       AGGREGATE_FUNCTION(CollectFunction),
 
-      EXPORT_FUNCTION(ExportCSVFunction),
-
       FINAL_FUNCTION};
 
   return functions;

@@ -77,7 +77,11 @@ struct ExportFuncBindData {
     return common::neug_dynamic_cast<TARGET*>(this);
   }
 
-  virtual std::unique_ptr<ExportFuncBindData> copy() const = 0;
+  virtual std::unique_ptr<ExportFuncBindData> copy() const {
+    auto bindData = std::make_unique<ExportFuncBindData>(columnNames, fileName);
+    bindData->types = common::LogicalType::copy(types);
+    return bindData;
+  };
 };
 
 struct ExportFuncBindInput {

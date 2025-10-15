@@ -244,29 +244,48 @@ void Binder::replaceExpressionInScope(const std::string& oldName,
   scope.replaceExpression(oldName, newName, expression);
 }
 
-static std::unique_ptr<TableFuncBindData> scanBindFunc(
-    main::ClientContext* context, const TableFuncBindInput* input) {
+/**
+ * @brief Get the scan function bind data by file type info
+ * Create ScanFileBindData specifically if file type is CSV (CSV will be
+ * integrated into extension framework later), Otherwise, create
+ * TableFuncBindData for other common cases.
+ * @param input
+ * @return std::unique_ptr<function::TableFuncBindData>
+ */
+std::unique_ptr<function::TableFuncBindData> Binder::getScanFuncBindData(
+    const function::TableFuncBindInput* input) const {
   auto& extraInput = input->extraInput;
   // todo: check if extraInput is of type ExtraScanTableFuncBindInput
   auto scanInput = extraInput->constPtrCast<ExtraScanTableFuncBindInput>();
   auto vars = input->binder->createVariables(scanInput->expectedColumnNames,
                                              scanInput->expectedColumnTypes);
-  return std::make_unique<function::ScanFileBindData>(
-      vars, vars.size(), scanInput->fileScanInfo.copy(), context);
+  if (scanInput->fileScanInfo.fileTypeInfo.fileType == FileType::CSV) {
+    return std::make_unique<function::ScanFileBindData>(
+        vars, vars.size(), scanInput->fileScanInfo.copy(), clientContext);
+  }
+  return std::make_unique<function::TableFuncBindData>(vars, vars.size(),
+                                                       input->params);
 }
 
-TableFunction Binder::getCSVScanFunction(
-    const FileTypeInfo& typeInfo, const FileScanInfo& fileScanInfo) const {
-  TableFunction scanFunction;
-  scanFunction.bindFunc = scanBindFunc;
-  scanFunction.name = stringFormat("{}_SCAN", typeInfo.fileTypeStr);
-  return scanFunction;
-}
-
-function::NeugCallFunction Binder::getScanFunction(
+/**
+ * @brief Get the scan function by file type info
+ * Create table function directly if file type is CSV (CSV will be integrated
+ * into extension framework later), Otherwise, get the function from catalog
+ * which has been registered into extension system.
+ * @param typeInfo
+ * @param fileScanInfo
+ * @return function::TableFunction
+ */
+function::TableFunction Binder::getScanFunction(
     const common::FileTypeInfo& typeInfo,
     const common::FileScanInfo& fileScanInfo) const {
-  auto name = stringFormat("{}_SCAN", typeInfo.fileTypeStr);
+  auto fileTypeStr = typeInfo.fileTypeStr;
+  std::transform(fileTypeStr.begin(), fileTypeStr.end(), fileTypeStr.begin(),
+                 [](unsigned char c) { return std::toupper(c); });
+  auto name = stringFormat("{}_SCAN", fileTypeStr);
+  if (typeInfo.fileType == FileType::CSV) {
+    return TableFunction(name, {});
+  }
   // TODO: consider about other parameters of data source except input file
   std::vector<LogicalType> inputTypes;
   inputTypes.push_back(LogicalType::STRING());

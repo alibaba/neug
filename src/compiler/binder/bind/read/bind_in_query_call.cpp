@@ -50,16 +50,8 @@ std::unique_ptr<BoundReadingClause> Binder::bindInQueryCall(
   case CatalogEntryType::TABLE_FUNCTION_ENTRY: {
     auto boundTableFunction =
         bindTableFunc(functionName, *functionExpr, call.getYieldVariables());
-    // add ouput columns to scope if exists
-    auto callFunc =
-        boundTableFunction.callFunc.constPtrCast<function::NeugCallFunction>();
-    expression_vector outputColumns;
-    for (auto& outputColumn : callFunc->outputColumns) {
-      outputColumns.push_back(
-          createVariable(outputColumn.first, outputColumn.second));
-    }
-    boundReadingClause = std::make_unique<BoundTableFunctionCall>(
-        std::move(boundTableFunction), std::move(outputColumns));
+    boundReadingClause =
+        std::make_unique<BoundTableFunctionCall>(std::move(boundTableFunction));
   } break;
   default:
     THROW_BINDER_EXCEPTION(

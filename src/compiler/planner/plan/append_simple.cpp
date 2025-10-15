@@ -113,7 +113,6 @@ void Planner::appendStandaloneCallFunction(const BoundStatement& statement,
   auto& standaloneCallFunctionClause =
       statement.constCast<BoundStandaloneCallFunction>();
   appendTableFunctionCall(standaloneCallFunctionClause.getTableScanInfo(),
-                          standaloneCallFunctionClause.getOutputColumns(),
                           plan);
 }
 

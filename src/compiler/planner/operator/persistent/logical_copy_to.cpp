@@ -1,5 +1,6 @@
 #include "neug/compiler/planner/operator/persistent/logical_copy_to.h"
 
+#include "neug/compiler/function/export/export_function.h"
 #include "neug/compiler/planner/operator/factorization/flatten_resolver.h"
 
 namespace gs {

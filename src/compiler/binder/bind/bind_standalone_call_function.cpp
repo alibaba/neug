@@ -45,16 +45,8 @@ std::unique_ptr<BoundStatement> Binder::bindStandaloneCallFunction(
   NEUG_ASSERT(entry);
   auto boundTableFunction =
       bindTableFunc(funcName, funcExpr, {} /* yieldVariables */);
-  // add ouput columns to scope if exists
-  auto callFunc =
-      boundTableFunction.callFunc.constPtrCast<function::NeugCallFunction>();
-  expression_vector outputColumns;
-  for (auto& outputColumn : callFunc->outputColumns) {
-    outputColumns.push_back(
-        createVariable(outputColumn.first, outputColumn.second));
-  }
   return std::make_unique<BoundStandaloneCallFunction>(
-      std::move(boundTableFunction), std::move(outputColumns));
+      std::move(boundTableFunction));
 }
 
 }  // namespace binder

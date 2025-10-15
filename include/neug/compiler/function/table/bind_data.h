@@ -22,6 +22,7 @@
 
 #pragma once
 
+#include "neug/compiler/binder/expression/expression.h"
 #include "neug/compiler/common/types/types.h"
 #include "neug/compiler/storage/predicate/column_predicate.h"
 
@@ -33,8 +34,11 @@ class FileSystem;
 namespace function {
 
 struct NEUG_API TableFuncBindData {
+  // output columns
   binder::expression_vector columns;
   common::row_idx_t numRows;
+  // input params
+  binder::expression_vector params;
 
   TableFuncBindData() : numRows{0} {}
   explicit TableFuncBindData(common::row_idx_t numRows) : numRows{numRows} {}
@@ -43,6 +47,11 @@ struct NEUG_API TableFuncBindData {
   TableFuncBindData(binder::expression_vector columns,
                     common::row_idx_t numRows)
       : columns{std::move(columns)}, numRows{numRows} {}
+  TableFuncBindData(binder::expression_vector columns,
+                    common::row_idx_t numRows, binder::expression_vector params)
+      : columns{std::move(columns)},
+        numRows{numRows},
+        params{std::move(params)} {}
   TableFuncBindData(const TableFuncBindData& other)
       : columns{other.columns},
         numRows{other.numRows},

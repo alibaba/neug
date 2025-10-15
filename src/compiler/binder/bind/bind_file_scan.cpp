@@ -141,32 +141,22 @@ std::unique_ptr<BoundBaseScanSource> Binder::bindFileScanSource(
   // Bind file configuration
   auto fileScanInfo =
       std::make_unique<FileScanInfo>(std::move(fileTypeInfo), filePaths);
-  if (fileTypeInfo.fileType == FileType::CSV) {
-    fileScanInfo->options = std::move(boundOptions);
-    auto func = getCSVScanFunction(fileScanInfo->fileTypeInfo, *fileScanInfo);
-    // Bind table function
-    auto bindInput = TableFuncBindInput();
-    bindInput.addLiteralParam(Value::createValue(filePaths[0]));
-    auto extraInput = std::make_unique<ExtraScanTableFuncBindInput>();
-    extraInput->fileScanInfo = fileScanInfo->copy();
-    extraInput->expectedColumnNames = columnNames;
-    extraInput->expectedColumnTypes = LogicalType::copy(columnTypes);
-    extraInput->tableFunction = &func;
-    bindInput.extraInput = std::move(extraInput);
-    bindInput.binder = this;
-    auto bindData = func.bindFunc(clientContext, &bindInput);
-    auto info = BoundTableScanInfo(func, std::move(bindData));
-    return std::make_unique<BoundTableScanSource>(ScanSourceType::FILE,
-                                                  std::move(info));
-  } else {
-    auto func = getScanFunction(fileScanInfo->fileTypeInfo, *fileScanInfo);
-    binder::expression_vector params;
-    params.push_back(std::make_shared<binder::LiteralExpression>(
-        std::move(Value::createValue(filePaths[0])), ""));
-    auto info = BoundTableScanInfo(func, std::move(params));
-    return std::make_unique<BoundTableScanSource>(ScanSourceType::FILE,
-                                                  std::move(info));
-  }
+  fileScanInfo->options = std::move(boundOptions);
+  auto func = getScanFunction(fileScanInfo->fileTypeInfo, *fileScanInfo);
+  // Bind table function
+  auto bindInput = TableFuncBindInput();
+  bindInput.addLiteralParam(Value::createValue(filePaths[0]));
+  auto extraInput = std::make_unique<ExtraScanTableFuncBindInput>();
+  extraInput->fileScanInfo = fileScanInfo->copy();
+  extraInput->expectedColumnNames = columnNames;
+  extraInput->expectedColumnTypes = LogicalType::copy(columnTypes);
+  extraInput->tableFunction = &func;
+  bindInput.extraInput = std::move(extraInput);
+  bindInput.binder = this;
+  auto bindData = getScanFuncBindData(&bindInput);
+  auto info = BoundTableScanInfo(func, std::move(bindData));
+  return std::make_unique<BoundTableScanSource>(ScanSourceType::FILE,
+                                                std::move(info));
 }
 
 std::unique_ptr<BoundBaseScanSource> Binder::bindQueryScanSource(

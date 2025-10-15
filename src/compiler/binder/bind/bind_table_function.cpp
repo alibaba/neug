@@ -83,7 +83,16 @@ BoundTableScanInfo Binder::bindTableFunc(
                                                    inputTypes[i]));
     }
   }
-  return BoundTableScanInfo{*callFunc, std::move(positionalParams)};
+  expression_vector outputColumns;
+  for (auto& outputColumn : callFunc->outputColumns) {
+    // add ouput columns to scope if exists
+    outputColumns.push_back(
+        createVariable(outputColumn.first, outputColumn.second));
+  }
+  auto bindData = std::make_unique<TableFuncBindData>(
+      std::move(outputColumns), callFunc->outputColumns.size(),
+      std::move(positionalParams));
+  return BoundTableScanInfo{*callFunc, std::move(bindData)};
 }
 
 }  // namespace binder

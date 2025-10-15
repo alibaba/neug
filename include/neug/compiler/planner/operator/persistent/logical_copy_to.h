@@ -1,9 +1,13 @@
 #pragma once
 
 #include "neug/compiler/function/export/export_function.h"
+#include "neug/compiler/function/table/table_function.h"
 #include "neug/compiler/planner/operator/logical_operator.h"
 
 namespace gs {
+namespace function {
+struct ExportFuncBindData;
+}
 namespace planner {
 
 struct LogicalCopyToPrintInfo final : OPPrintInfo {
@@ -31,7 +35,7 @@ struct LogicalCopyToPrintInfo final : OPPrintInfo {
 class LogicalCopyTo final : public LogicalOperator {
  public:
   LogicalCopyTo(std::unique_ptr<function::ExportFuncBindData> bindData,
-                function::ExportFunction exportFunc,
+                function::TableFunction exportFunc,
                 std::shared_ptr<LogicalOperator> child)
       : LogicalOperator{LogicalOperatorType::COPY_TO, std::move(child),
                         std::optional<common::cardinality_t>(0)},
@@ -50,7 +54,8 @@ class LogicalCopyTo final : public LogicalOperator {
   std::unique_ptr<function::ExportFuncBindData> getBindData() const {
     return bindData->copy();
   }
-  function::ExportFunction getExportFunc() const { return exportFunc; };
+
+  const function::TableFunction& getExportFunc() const { return exportFunc; };
 
   std::unique_ptr<OPPrintInfo> getPrintInfo() const override {
     return std::make_unique<LogicalCopyToPrintInfo>(bindData->columnNames,
@@ -64,7 +69,7 @@ class LogicalCopyTo final : public LogicalOperator {
 
  private:
   std::unique_ptr<function::ExportFuncBindData> bindData;
-  function::ExportFunction exportFunc;
+  function::TableFunction exportFunc;
 };
 
 }  // namespace planner

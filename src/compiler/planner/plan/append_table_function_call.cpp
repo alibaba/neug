@@ -20,20 +20,6 @@ void Planner::appendTableFunctionCall(const BoundTableScanInfo& info,
   plan.setLastOperator(std::move(call));
 }
 
-void Planner::appendTableFunctionCall(const BoundTableScanInfo& info,
-                                      binder::expression_vector outputColumns,
-                                      LogicalPlan& plan) {
-  if (info.bindData) {
-    appendTableFunctionCall(info, plan);
-    return;
-  }
-  std::shared_ptr<LogicalTableFunctionCall> call =
-      std::make_shared<LogicalTableFunctionCall>(info.callFunc, info.callParams,
-                                                 outputColumns);
-  call->computeFactorizedSchema();
-  plan.setLastOperator(std::move(call));
-}
-
 std::shared_ptr<LogicalOperator> Planner::getTableFunctionCall(
     const BoundTableScanInfo& info) {
   auto call = std::make_shared<LogicalTableFunctionCall>(info.func,

@@ -212,6 +212,12 @@ class GQueryConvertor {
       std::shared_ptr<binder::Expression> limit);
   uint64_t convertValueAsUint64(common::Value value);
   std::string getExtensionName(const planner::LogicalCopyTo& copyTo);
+  void convertDataExport(const planner::LogicalCopyTo& copyTo,
+                         ::physical::QueryPlan* plan);
+  void convertProcedureCall(const planner::LogicalCopyTo& copyTo,
+                            ::physical::QueryPlan* plan);
+  std::unique_ptr<::common::Value> convertCopyToHeader(
+      const planner::LogicalCopyTo& copyTo);
 
  private:
   std::shared_ptr<GAliasManager> aliasManager;

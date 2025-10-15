@@ -1,8 +1,10 @@
+#include <memory>
 #include "neug/compiler/binder/bound_export_database.h"
 #include "neug/compiler/binder/bound_import_database.h"
 #include "neug/compiler/catalog/catalog.h"
 #include "neug/compiler/common/string_utils.h"
 #include "neug/compiler/function/built_in_function_utils.h"
+#include "neug/compiler/function/neug_call_function.h"
 #include "neug/compiler/main/client_context.h"
 #include "neug/compiler/planner/operator/persistent/logical_copy_to.h"
 #include "neug/compiler/planner/operator/simple/logical_export_db.h"
@@ -36,17 +38,16 @@ std::unique_ptr<LogicalPlan> Planner::planExportDatabase(
   auto func = function::BuiltInFunctionsUtils::matchFunction(
       name, entry->ptrCast<FunctionCatalogEntry>());
   NEUG_ASSERT(func != nullptr);
-  auto exportFunc = *func->constPtrCast<function::ExportFunction>();
+  auto exportFunc = *func->constPtrCast<function::NeugCallFunction>();
   for (auto& exportTableData : *exportData) {
     auto regularQuery = exportTableData.getRegularQuery();
     NEUG_ASSERT(regularQuery->getStatementType() == StatementType::QUERY);
     auto tablePlan = getBestPlan(*regularQuery);
     auto path = filePath + "/" + exportTableData.tableName + copyToSuffix;
-    function::ExportFuncBindInput bindInput{
-        exportTableData.columnNames, std::move(path),
-        boundExportDatabase.getExportOptions()};
+    auto bindData = std::make_unique<function::ExportFuncBindData>(
+        exportTableData.columnNames, std::move(path));
     auto copyTo = std::make_shared<LogicalCopyTo>(
-        exportFunc.bind(bindInput), exportFunc, tablePlan->getLastOperator());
+        std::move(bindData), exportFunc, tablePlan->getLastOperator());
     logicalOperators.push_back(std::move(copyTo));
   }
   auto exportDatabase = make_shared<LogicalExportDatabase>(
