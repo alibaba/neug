@@ -101,14 +101,31 @@ class VertexRecord {
 };
 
 struct VertexRecordHash {
-  std::size_t operator()(const VertexRecord& v) const {
-    return std::hash<vid_t>()(v.vid_) ^ std::hash<label_t>()(v.label_);
+  // Hash combine functions copied from Boost.ContainerHash
+  // https://github.com/boostorg/container_hash/blob/171c012d4723c5e93cc7cffe42919afdf8b27dfa/include/boost/container_hash/hash.hpp#L311
+  // that is based on Peter Dimov's proposal
+  // http://www.open-std.org/JTC1/SC22/WG21/docs/papers/2005/n1756.pdf
+  // issue 6.18.
+  template <typename T>
+  static inline void hash_combine(std::size_t& seed, const T& val) {
+    std::hash<T> hasher;
+    seed ^= hasher(val) + 0x9e3779b9 + (seed << 6) + (seed >> 2);
   }
-  std::size_t operator()(const std::pair<VertexRecord, VertexRecord>& v) const {
-    return std::hash<vid_t>()(v.first.vid_) ^
-           std::hash<label_t>()(v.first.label_) ^
-           std::hash<vid_t>()(v.second.vid_) ^
-           std::hash<label_t>()(v.second.label_);
+
+  std::size_t operator()(const VertexRecord& v) const {
+    std::size_t seed = 0;
+    hash_combine(seed, v.vid_);
+    hash_combine(seed, v.label_);
+    return seed;
+  }
+
+  std::size_t operator()(const std::pair<VertexRecord, VertexRecord>& p) const {
+    std::size_t seed = 0;
+    hash_combine(seed, p.first.vid_);
+    hash_combine(seed, p.first.label_);
+    hash_combine(seed, p.second.vid_);
+    hash_combine(seed, p.second.label_);
+    return seed;
   }
 };
 struct Relation {

@@ -27,8 +27,17 @@
 namespace std {
 template <>
 struct hash<gs::runtime::VertexRecord> {
+  template <typename T>
+  static inline void hash_combine(std::size_t& seed, const T& val) {
+    std::hash<T> hasher;
+    seed ^= hasher(val) + 0x9e3779b9 + (seed << 6) + (seed >> 2);
+  }
+
   size_t operator()(const gs::runtime::VertexRecord& record) const {
-    return std::hash<int64_t>()(1ll * record.vid_ << 4 | record.label_);
+    std::size_t seed = 0;
+    hash_combine(seed, record.vid_);
+    hash_combine(seed, record.label_);
+    return seed;
   }
 };
 
