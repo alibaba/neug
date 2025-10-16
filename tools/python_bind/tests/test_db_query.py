@@ -184,27 +184,19 @@ def test_insert_basic_type_check(tmp_path):
     # INT32 invalid
     with pytest.raises(Exception) as excinfo:
         conn.execute("CREATE (t:person {id: 'abc'})")
-    # TODO(shirly): throw ERR_TYPE_CONVERSION instead of BinderException
-    # assert str(ERR_TYPE_CONVERSION) in str(excinfo.value)
-    assert str(ERR_COMPILATION) in str(excinfo.value)
+    assert str(ERR_TYPE_CONVERSION) in str(excinfo.value)
     # INT64 invalid
     with pytest.raises(Exception) as excinfo:
         conn.execute("CREATE (t:person {id: 2, i64: 'bad'})")
-    # assert str(ERR_TYPE_CONVERSION) in str(excinfo.value)
-    # TODO(shirly): throw ERR_TYPE_CONVERSION instead of BinderException
-    assert str(ERR_COMPILATION) in str(excinfo.value)
+    assert str(ERR_TYPE_CONVERSION) in str(excinfo.value)
     # UNSIGNED invalid
     with pytest.raises(Exception) as excinfo:
         conn.execute("CREATE (t:person {id: 3, u32: -1})")
-    # assert str(ERR_TYPE_OVERFLOW) in str(excinfo.value)
-    # TODO(shirly): throw ERR_TYPE_OVERFLOW instead of BinderException
-    assert str(ERR_COMPILATION) in str(excinfo.value)
+    assert str(ERR_TYPE_OVERFLOW) in str(excinfo.value)
     # FLOAT invalid
     with pytest.raises(Exception) as excinfo:
         conn.execute("CREATE (t:person {id: 4, f: 'bad'})")
-    # assert str(ERR_TYPE_CONVERSION) in str(excinfo.value)
-    # TODO(shirly): throw ERR_TYPE_CONVERSION instead of BinderException
-    assert str(ERR_COMPILATION) in str(excinfo.value)
+    assert str(ERR_TYPE_CONVERSION) in str(excinfo.value)
     conn.close()
     db.close()
 
@@ -329,7 +321,7 @@ def test_create_node_table_errors(tmp_path):
         conn.execute(
             "CREATE NODE TABLE person2(name STRING, age INT64 DEFAULT 'abc', PRIMARY KEY (name));"
         )
-    assert str(ERR_COMPILATION) in str(excinfo.value)
+    assert str(ERR_TYPE_CONVERSION) in str(excinfo.value)
     conn.close()
     db.close()
 

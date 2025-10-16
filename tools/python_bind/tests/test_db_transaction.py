@@ -163,8 +163,7 @@ def test_auto_transaction_management(tmp_path):
     # create with errors, rollback automatically
     with pytest.raises(Exception) as excinfo:
         conn.execute("CREATE (n:T {id: 'bad_type'});")
-    # TODO(xiaoli): Raise ConversionException instead of BinderException
-    assert str(ERR_COMPILATION) in str(excinfo.value)
+    assert str(ERR_TYPE_CONVERSION) in str(excinfo.value)
     r2 = conn.execute("MATCH (n:T) RETURN n;")
     assert len(r2) == 1
 

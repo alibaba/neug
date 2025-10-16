@@ -159,7 +159,7 @@ std::shared_ptr<Expression> ExpressionBinder::implicitCast(
   if (CastFunction::hasImplicitCast(expression->dataType, targetType)) {
     return forceCast(expression, targetType);
   } else {
-    THROW_BINDER_EXCEPTION(
+    THROW_CONVERSION_EXCEPTION(
         unsupportedImplicitCastException(*expression, targetType.toString()));
   }
 }
