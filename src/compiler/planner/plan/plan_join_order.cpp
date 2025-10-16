@@ -3,6 +3,7 @@
 #include <iterator>
 #include <memory>
 
+#include "neug/compiler/binder/expression/node_expression.h"
 #include "neug/compiler/binder/expression_visitor.h"
 #include "neug/compiler/common/enums/join_type.h"
 #include "neug/compiler/common/enums/rel_direction.h"
@@ -764,6 +765,22 @@ std::shared_ptr<binder::RelExpression> getRel(
   }
 }
 
+std::shared_ptr<binder::NodeExpression> getNbrNode(
+    std::shared_ptr<LogicalOperator> op) {
+  switch (op->getOperatorType()) {
+  case LogicalOperatorType::EXTEND: {
+    auto extend = op->ptrCast<LogicalExtend>();
+    return extend->getNbrNode();
+  }
+  case LogicalOperatorType::RECURSIVE_EXTEND: {
+    auto extend2 = op->ptrCast<LogicalRecursiveExtend>();
+    return extend2->getNbrNode();
+  }
+  default:
+    NEUG_UNREACHABLE;
+  }
+}
+
 std::unique_ptr<LogicalPlan> Planner::planGetV(
     std::unique_ptr<LogicalPlan> leftPlan,
     std::unique_ptr<LogicalPlan> rightPlan,
@@ -776,6 +793,11 @@ std::unique_ptr<LogicalPlan> Planner::planGetV(
   auto rightGetV = std::dynamic_pointer_cast<LogicalScanNodeTable>(
       extractGetV(rightPlan->getLastOperator()));
   if (leftExtend && rightGetV) {
+    auto nbrNode = getNbrNode(leftExtend);
+    if (nbrNode->getInternalID()->toString() !=
+        rightGetV->getNodeID()->toString()) {
+      return nullptr;
+    }
     // build join for cost, cardinality and schema
     auto leftPlanBuildCopy = leftPlan->shallowCopy();
     auto rightPlanProbeCopy = rightPlan->shallowCopy();

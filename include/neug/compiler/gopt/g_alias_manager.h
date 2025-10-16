@@ -54,6 +54,8 @@ class GAliasManager {
                      std::unordered_set<std::string>& vTags);
   // void addAliasName(const std::string& name);
   void addGAliasName(const gopt::GAliasName& gAliasName);
+  std::vector<gopt::GAliasName> extractSingleOpGAliasNames(
+      const planner::LogicalOperator& op);
 };
 
 }  // namespace gopt

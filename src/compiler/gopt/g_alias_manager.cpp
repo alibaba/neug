@@ -25,6 +25,7 @@
 #include "neug/compiler/planner/operator/extend/logical_recursive_extend.h"
 #include "neug/compiler/planner/operator/logical_aggregate.h"
 #include "neug/compiler/planner/operator/logical_get_v.h"
+#include "neug/compiler/planner/operator/logical_intersect.h"
 #include "neug/compiler/planner/operator/logical_operator.h"
 #include "neug/compiler/planner/operator/logical_plan.h"
 #include "neug/compiler/planner/operator/logical_projection.h"
@@ -34,7 +35,6 @@
 #include "neug/compiler/planner/operator/persistent/logical_insert.h"
 #include "neug/compiler/planner/operator/scan/logical_scan_node_table.h"
 #include "neug/utils/exception/exception.h"
-
 namespace gs {
 namespace gopt {
 
@@ -44,38 +44,24 @@ GAliasManager::GAliasManager(const planner::LogicalPlan& plan) {
   visitOperator(*lastOp, vTags);
 }
 
-void GAliasManager::extractGAliasNames(
-    const planner::LogicalOperator& op,
-    std::vector<gopt::GAliasName>& aliasNames) {
+std::vector<gopt::GAliasName> GAliasManager::extractSingleOpGAliasNames(
+    const planner::LogicalOperator& op) {
   switch (op.getOperatorType()) {
   case planner::LogicalOperatorType::SCAN_NODE_TABLE: {
     auto scanOp = op.constCast<planner::LogicalScanNodeTable>();
-    aliasNames.emplace_back(scanOp.getGAliasName());
-    break;
+    return {scanOp.getGAliasName()};
   }
   case planner::LogicalOperatorType::EXTEND: {
     auto& extendOp = op.constCast<planner::LogicalExtend>();
-    aliasNames.emplace_back(extendOp.getGAliasName());
-    if (extendOp.getNumChildren() > 0) {
-      extractGAliasNames(*extendOp.getChild(0), aliasNames);
-    }
-    break;
+    return {extendOp.getGAliasName()};
   }
   case planner::LogicalOperatorType::RECURSIVE_EXTEND: {
     auto& extendOp = op.constCast<planner::LogicalRecursiveExtend>();
-    aliasNames.emplace_back(extendOp.getGAliasName());
-    if (extendOp.getNumChildren() > 0) {
-      extractGAliasNames(*extendOp.getChild(0), aliasNames);
-    }
-    break;
+    return {extendOp.getGAliasName()};
   }
   case planner::LogicalOperatorType::GET_V: {
     auto& getVOp = op.constCast<planner::LogicalGetV>();
-    aliasNames.emplace_back(getVOp.getGAliasName());
-    if (getVOp.getNumChildren() > 0) {
-      extractGAliasNames(*getVOp.getChild(0), aliasNames);
-    }
-    break;
+    return {getVOp.getGAliasName()};
   }
   case planner::LogicalOperatorType::UNWIND: {
     auto& unwind = op.constCast<planner::LogicalUnwind>();
@@ -83,24 +69,18 @@ void GAliasManager::extractGAliasNames(
     auto queryName = outExpr->hasAlias()
                          ? std::make_optional(outExpr->getAlias())
                          : std::nullopt;
-    GAliasName aliasName(outExpr->getUniqueName(), queryName);
-    aliasNames.emplace_back(aliasName);
-    if (unwind.getNumChildren() > 0) {
-      extractGAliasNames(*unwind.getChild(0), aliasNames);
-    }
-    break;
+    return {GAliasName(outExpr->getUniqueName(), queryName)};
   }
   case planner::LogicalOperatorType::INSERT: {
     auto& insertOp = op.constCast<planner::LogicalInsert>();
-    auto aliases = insertOp.getGAliasNames();
-    aliasNames.insert(aliasNames.end(), aliases.begin(), aliases.end());
-    break;
+    return insertOp.getGAliasNames();
   }
   case planner::LogicalOperatorType::TABLE_FUNCTION_CALL:
   case planner::LogicalOperatorType::PROJECTION:
   case planner::LogicalOperatorType::AGGREGATE:
   case planner::LogicalOperatorType::DISTINCT: {
     auto schema = op.getSchema();
+    std::vector<gopt::GAliasName> aliasNames;
     if (schema != nullptr) {
       auto exprs = schema->getExpressionsInScope();
       for (const auto& expr : exprs) {
@@ -110,8 +90,51 @@ void GAliasManager::extractGAliasNames(
             gopt::GAliasName{expr->getUniqueName(), queryName});
       }
     }
-    break;
+    return aliasNames;
   }
+  case planner::LogicalOperatorType::INTERSECT:
+  case planner::LogicalOperatorType::CROSS_PRODUCT:
+  case planner::LogicalOperatorType::HASH_JOIN:
+  case planner::LogicalOperatorType::FILTER:
+  case planner::LogicalOperatorType::ORDER_BY:
+  case planner::LogicalOperatorType::LIMIT:
+  case planner::LogicalOperatorType::SET_PROPERTY:
+  case planner::LogicalOperatorType::DELETE:
+  case planner::LogicalOperatorType::COPY_FROM:
+  case planner::LogicalOperatorType::COPY_TO:
+  case planner::LogicalOperatorType::ALTER:
+  case planner::LogicalOperatorType::DROP:
+  case planner::LogicalOperatorType::CREATE_TABLE:
+  case planner::LogicalOperatorType::INDEX_LOOK_UP:
+  case planner::LogicalOperatorType::PARTITIONER:
+  case planner::LogicalOperatorType::MULTIPLICITY_REDUCER:
+  case planner::LogicalOperatorType::DUMMY_SCAN:
+  case planner::LogicalOperatorType::FLATTEN:
+  case planner::LogicalOperatorType::ACCUMULATE:
+  case planner::LogicalOperatorType::EXPRESSIONS_SCAN:
+  case planner::LogicalOperatorType::UNION_ALL:
+  case planner::LogicalOperatorType::ALIAS_MAP:
+  case planner::LogicalOperatorType::EXTENSION:
+  case planner::LogicalOperatorType::TRANSACTION:
+    return {};
+  default: {
+    THROW_EXCEPTION_WITH_FILE_LINE(
+        "Unsupported operator type for alias management: " +
+        std::to_string(static_cast<int>(op.getOperatorType())));
+  }
+  }
+}
+
+void GAliasManager::extractGAliasNames(
+    const planner::LogicalOperator& op,
+    std::vector<gopt::GAliasName>& aliasNames) {
+  switch (op.getOperatorType()) {
+  case planner::LogicalOperatorType::SCAN_NODE_TABLE:
+  case planner::LogicalOperatorType::EXTEND:
+  case planner::LogicalOperatorType::RECURSIVE_EXTEND:
+  case planner::LogicalOperatorType::GET_V:
+  case planner::LogicalOperatorType::UNWIND:
+  case planner::LogicalOperatorType::INTERSECT:
   case planner::LogicalOperatorType::CROSS_PRODUCT:
   case planner::LogicalOperatorType::HASH_JOIN:
   case planner::LogicalOperatorType::FILTER:
@@ -122,6 +145,15 @@ void GAliasManager::extractGAliasNames(
     for (auto& child : op.getChildren()) {
       extractGAliasNames(*child, aliasNames);
     }
+  }
+  case planner::LogicalOperatorType::INSERT:
+  case planner::LogicalOperatorType::TABLE_FUNCTION_CALL:
+  case planner::LogicalOperatorType::PROJECTION:
+  case planner::LogicalOperatorType::AGGREGATE:
+  case planner::LogicalOperatorType::DISTINCT: {
+    auto singleOpGAliasNames = extractSingleOpGAliasNames(op);
+    aliasNames.insert(aliasNames.end(), singleOpGAliasNames.begin(),
+                      singleOpGAliasNames.end());
     break;
   }
   case planner::LogicalOperatorType::COPY_FROM:
@@ -133,7 +165,6 @@ void GAliasManager::extractGAliasNames(
   case planner::LogicalOperatorType::PARTITIONER:
   case planner::LogicalOperatorType::MULTIPLICITY_REDUCER:
   case planner::LogicalOperatorType::DUMMY_SCAN:
-  case planner::LogicalOperatorType::INTERSECT:
   case planner::LogicalOperatorType::FLATTEN:
   case planner::LogicalOperatorType::ACCUMULATE:
   case planner::LogicalOperatorType::EXPRESSIONS_SCAN:
@@ -209,8 +240,7 @@ void GAliasManager::visitOperator(const planner::LogicalOperator& op,
     visitOperator(*child, vTags);
   }
 
-  std::vector<gopt::GAliasName> aliasNames;
-  extractGAliasNames(op, aliasNames);
+  std::vector<gopt::GAliasName> aliasNames = extractSingleOpGAliasNames(op);
   for (const auto& name : aliasNames) {
     switch (op.getOperatorType()) {
     case planner::LogicalOperatorType::EXTEND:

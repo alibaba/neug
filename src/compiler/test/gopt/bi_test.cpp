@@ -69,5 +69,14 @@ TEST_F(BITest, BI_13) {
                                       getBIResource("BI_13_physical"));
 }
 
+TEST_F(BITest, BI_17) {
+  std::string query = getBIResource("bi_17.cypher");
+  auto logical = planLogical(query, schemaData, statsData, rules);
+  auto physical = planPhysical(*logical);
+  VerifyFactory::verifyLogicalByStr(*logical, getBIResource("BI_17_logical"));
+  VerifyFactory::verifyPhysicalByJson(*physical,
+                                      getBIResource("BI_17_physical"));
+}
+
 }  // namespace gopt
 }  // namespace gs
