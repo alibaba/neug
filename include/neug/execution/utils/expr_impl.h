@@ -252,11 +252,75 @@ class LogicalExpr : public ExprBase {
     return lhs_->is_optional() || rhs_->is_optional();
   }
 
- private:
+ protected:
   std::unique_ptr<ExprBase> lhs_;
   std::unique_ptr<ExprBase> rhs_;
   std::function<bool(RTAny, RTAny)> op_;
   ::common::Logical logic_;
+};
+
+class AndOpExpr : public LogicalExpr {
+ public:
+  AndOpExpr(std::unique_ptr<ExprBase>&& lhs, std::unique_ptr<ExprBase>&& rhs)
+      : LogicalExpr(std::move(lhs), std::move(rhs), common::Logical::AND) {}
+  RTAnyType type() const override { return RTAnyType::kBoolValue; }
+  bool is_optional() const override { return LogicalExpr::is_optional(); }
+
+  RTAny eval_edge(const LabelTriplet& label, vid_t src, vid_t dst,
+                  const Any& data, size_t idx, Arena& arena) const override {
+    if (lhs_->eval_edge(label, src, dst, data, idx, arena).as_bool() == false) {
+      return RTAny::from_bool(false);
+    }
+    return RTAny::from_bool(
+        rhs_->eval_edge(label, src, dst, data, idx, arena).as_bool());
+  }
+
+  RTAny eval_path(size_t idx, Arena& arena) const override {
+    if (lhs_->eval_path(idx, arena).as_bool() == false) {
+      return RTAny::from_bool(false);
+    }
+    return RTAny::from_bool(rhs_->eval_path(idx, arena).as_bool());
+  }
+
+  RTAny eval_vertex(label_t label, vid_t v, size_t idx,
+                    Arena& arena) const override {
+    if (lhs_->eval_vertex(label, v, idx, arena).as_bool() == false) {
+      return RTAny::from_bool(false);
+    }
+    return RTAny::from_bool(rhs_->eval_vertex(label, v, idx, arena).as_bool());
+  }
+};
+
+class OrOpExpr : public LogicalExpr {
+ public:
+  OrOpExpr(std::unique_ptr<ExprBase>&& lhs, std::unique_ptr<ExprBase>&& rhs)
+      : LogicalExpr(std::move(lhs), std::move(rhs), common::Logical::OR) {}
+  RTAnyType type() const override { return RTAnyType::kBoolValue; }
+  bool is_optional() const override { return LogicalExpr::is_optional(); }
+
+  RTAny eval_edge(const LabelTriplet& label, vid_t src, vid_t dst,
+                  const Any& data, size_t idx, Arena& arena) const override {
+    if (lhs_->eval_edge(label, src, dst, data, idx, arena).as_bool() == true) {
+      return RTAny::from_bool(true);
+    }
+    return RTAny::from_bool(
+        rhs_->eval_edge(label, src, dst, data, idx, arena).as_bool());
+  }
+
+  RTAny eval_path(size_t idx, Arena& arena) const override {
+    if (lhs_->eval_path(idx, arena).as_bool() == true) {
+      return RTAny::from_bool(true);
+    }
+    return RTAny::from_bool(rhs_->eval_path(idx, arena).as_bool());
+  }
+
+  RTAny eval_vertex(label_t label, vid_t v, size_t idx,
+                    Arena& arena) const override {
+    if (lhs_->eval_vertex(label, v, idx, arena).as_bool() == true) {
+      return RTAny::from_bool(true);
+    }
+    return RTAny::from_bool(rhs_->eval_vertex(label, v, idx, arena).as_bool());
+  }
 };
 
 int32_t extract_time_from_milli_second(int64_t ms, ::common::Extract extract);
@@ -777,7 +841,7 @@ class ToFloatExpr : public ExprBase {
       return val.as_double();
     } else {
       LOG(FATAL) << "invalid type";
-      return 0.0; // avoid compiler warning
+      return 0.0;  // avoid compiler warning
     }
   }
 

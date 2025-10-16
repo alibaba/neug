@@ -14,8 +14,8 @@
  */
 
 #include "neug/execution/utils/expr_impl.h"
-#include "neug/compiler/gopt/g_catalog_holder.h"
 #include "neug/compiler/function/scalar_function.h"
+#include "neug/compiler/gopt/g_catalog_holder.h"
 
 #include <time.h>
 #include <iterator>
@@ -178,16 +178,6 @@ LogicalExpr::LogicalExpr(std::unique_ptr<ExprBase>&& lhs,
 }
 
 RTAny LogicalExpr::eval_impl(const RTAny& lhs_val, const RTAny& rhs_val) const {
-  if (logic_ == ::common::Logical::OR) {
-    bool flag = false;
-    if (!lhs_val.is_null()) {
-      flag |= lhs_val.as_bool();
-    }
-    if (!rhs_val.is_null()) {
-      flag |= rhs_val.as_bool();
-    }
-    return RTAny::from_bool(flag);
-  }
   if (lhs_val.is_null() || rhs_val.is_null()) {
     return RTAny(RTAnyType::kNull);
   }
@@ -783,6 +773,11 @@ static std::unique_ptr<ExprBase> build_expr(
       } else {
         auto lhs = build_expr(graph, ctx, params, opr_stack, var_type);
         auto rhs = build_expr(graph, ctx, params, opr_stack, var_type);
+        if (opr.logical() == ::common::Logical::AND) {
+          return std::make_unique<AndOpExpr>(std::move(lhs), std::move(rhs));
+        } else if (opr.logical() == ::common::Logical::OR) {
+          return std::make_unique<OrOpExpr>(std::move(lhs), std::move(rhs));
+        }
         return std::make_unique<LogicalExpr>(std::move(lhs), std::move(rhs),
                                              opr.logical());
       }
@@ -893,18 +888,22 @@ static std::unique_ptr<ExprBase> build_expr(
       auto op = opr.scalar_func();
       const std::string& signature = op.unique_name();
       gs::runtime::neug_func_exec_t fn = nullptr;
-      
+
       try {
         auto gCatalog = catalog::GCatalogHolder::getGCatalog();
-        auto func = gCatalog->getFunctionWithSignature(&gs::transaction::DUMMY_TRANSACTION, signature);
+        auto func = gCatalog->getFunctionWithSignature(
+            &gs::transaction::DUMMY_TRANSACTION, signature);
         if (!func) {
-          throw std::runtime_error("Function not found in catalog for signature: " + signature);
+          throw std::runtime_error(
+              "Function not found in catalog for signature: " + signature);
         }
 
         auto* scalarFunc = dynamic_cast<function::ScalarFunction*>(func);
         fn = scalarFunc->neugExecFunc;
         if (!fn) {
-          throw std::runtime_error("ScalarFunction neugExecFunc is null for signature: " + signature);
+          throw std::runtime_error(
+              "ScalarFunction neugExecFunc is null for signature: " +
+              signature);
         }
       } catch (const std::exception& e) {
         throw std::runtime_error(
