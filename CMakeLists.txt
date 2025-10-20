@@ -241,6 +241,7 @@ if(ENABLE_WERROR)
 endif()
 
 function(add_neug_test TEST_NAME)
+    find_package(OpenSSL REQUIRED)
     set(SRCS ${ARGN})
     add_executable(${TEST_NAME} ${SRCS})
     target_link_libraries(${TEST_NAME} PUBLIC neug::GTest neug_libraries   
