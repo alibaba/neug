@@ -15,6 +15,8 @@
 
 #include "neug/utils/string_utils.h"
 
+#include <cctype>
+
 namespace gs {
 
 std::string to_lower_copy(const std::string& str) {

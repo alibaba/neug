@@ -23,7 +23,40 @@
 #include "arrow/status.h"
 #include "storage_api.hpp"
 
+#include "neug/storages/loader/loader_utils.h"
+
 namespace gs {
+
+// odps_table_path is like /project_name/table_name/partition_name
+// partition : pt1
+// selected partitions pt1=1,
+void parseLocation(const std::string& odps_table_path,
+                   TableIdentifier& table_identifier,
+                   std::vector<std::string>& res_partitions,
+                   std::vector<std::string>& selected_partitions) {
+  LOG(INFO) << "Parse real path: " << odps_table_path;
+
+  std::vector<std::string> splits;
+  boost::split(splits, odps_table_path, boost::is_any_of("/"));
+  // the first one is empty
+  CHECK(splits.size() >= 2) << "Invalid odps table path: " << odps_table_path;
+  table_identifier.project_ = splits[0];
+  table_identifier.table_ = splits[1];
+
+  if (splits.size() == 3) {
+    boost::split(selected_partitions, splits[2], boost::is_any_of(","));
+    std::vector<std::string> partitions;
+    for (size_t i = 0; i < selected_partitions.size(); ++i) {
+      partitions.emplace_back(selected_partitions[i].substr(
+          0, selected_partitions[i].find_first_of("=")));
+    }
+    // dedup partitions
+    std::sort(partitions.begin(), partitions.end());
+    partitions.erase(std::unique(partitions.begin(), partitions.end()),
+                     partitions.end());
+    res_partitions = partitions;
+  }
+}
 
 ODPSReadClient::ODPSReadClient() {}
 ODPSReadClient::~ODPSReadClient() {}
@@ -356,263 +389,95 @@ std::shared_ptr<IFragmentLoader> ODPSFragmentLoader::Make(
   return std::shared_ptr<IFragmentLoader>(
       new ODPSFragmentLoader(work_dir, schema, loading_config));
 }
-void ODPSFragmentLoader::init() { odps_read_client_.init(); }
-
-result<bool> ODPSFragmentLoader::LoadFragment() {
-  try {
-    init();
-    loadVertices();
-    loadEdges();
-
-    basic_fragment_loader_.LoadFragment();
-  } catch (const std::exception& e) {
-    auto work_dir = basic_fragment_loader_.work_dir();
-    printDiskRemaining(work_dir);
-    LOG(ERROR) << "Failed to load fragment: " << e.what();
-    return result<bool>(StatusCode::ERR_INTERNAL_ERROR,
-                        "Load fragment failed: " + std::string(e.what()),
-                        false);
-  }
-  return result<bool>(true);
-}
-
-// odps_table_path is like /project_name/table_name/partition_name
-// partition : pt1
-// selected partitions pt1=1,
-void ODPSFragmentLoader::parseLocation(
-    const std::string& odps_table_path, TableIdentifier& table_identifier,
-    std::vector<std::string>& res_partitions,
-    std::vector<std::string>& selected_partitions) {
-  LOG(INFO) << "Parse real path: " << odps_table_path;
-
-  std::vector<std::string> splits = split_string_into_vec(odps_table_path, "/");
-  // the first one is empty
-  CHECK(splits.size() >= 2) << "Invalid odps table path: " << odps_table_path;
-  table_identifier.project_ = splits[0];
-  table_identifier.table_ = splits[1];
-
-  if (splits.size() == 3) {
-    selected_partitions = split_string_into_vec(splits[2], ",");
-    std::vector<std::string> partitions;
-    for (size_t i = 0; i < selected_partitions.size(); ++i) {
-      partitions.emplace_back(selected_partitions[i].substr(
-          0, selected_partitions[i].find_first_of("=")));
-    }
-    // dedup partitions
-    std::sort(partitions.begin(), partitions.end());
-    partitions.erase(std::unique(partitions.begin(), partitions.end()),
-                     partitions.end());
-    res_partitions = partitions;
-  }
-}
-
-void ODPSFragmentLoader::addVertices(label_t v_label_id,
-                                     const std::vector<std::string>& v_files) {
-  auto record_batch_supplier_creator = [this](
-                                           label_t label_id,
-                                           const std::string& v_file,
-                                           const LoadingConfig& loading_config,
-                                           int worker_num) {
-    auto vertex_column_mappings =
-        loading_config_.GetVertexColumnMappings(label_id);
-    std::string session_id;
-    int split_count;
-    TableIdentifier table_identifier;
-    std::vector<std::string> partition_cols;
-    std::vector<std::string> selected_partitions;
-    std::vector<std::shared_ptr<IRecordBatchSupplier>> suppliers;
-    parseLocation(v_file, table_identifier, partition_cols,
-                  selected_partitions);
-    auto selected_cols = columnMappingsToSelectedCols(vertex_column_mappings);
-    odps_read_client_.CreateReadSession(&session_id, &split_count,
-                                        table_identifier, selected_cols,
-                                        partition_cols, selected_partitions);
-    VLOG(1) << "Successfully got session_id: " << session_id
-            << ", split count: " << split_count;
-    if (loading_config.GetIsBatchReader()) {
-      for (int i = 0; i < worker_num; ++i) {
-        suppliers.emplace_back(std::make_shared<ODPSStreamRecordBatchSupplier>(
-            label_id, v_file, odps_read_client_, session_id, split_count,
-            table_identifier, i, worker_num));
-      }
-    } else {
-      suppliers.emplace_back(std::make_shared<ODPSTableRecordBatchSupplier>(
-          label_id, v_file, odps_read_client_, session_id, split_count,
-          table_identifier, thread_num_));
-    }
-    return suppliers;
-  };
-  return AbstractArrowFragmentLoader::AddVerticesRecordBatch(
-      v_label_id, v_files, record_batch_supplier_creator);
-}
-
-void ODPSFragmentLoader::loadVertices() {
-  auto vertex_sources = loading_config_.GetVertexLoadingMeta();
-  if (vertex_sources.empty()) {
-    LOG(INFO) << "Skip loading vertices since no vertex source is specified.";
-    return;
-  }
-
-  if (thread_num_ == 1) {
-    LOG(INFO) << "Loading vertices with single thread...";
-    for (auto iter = vertex_sources.begin(); iter != vertex_sources.end();
-         ++iter) {
-      auto v_label_id = iter->first;
-      auto v_files = iter->second;
-      addVertices(v_label_id, v_files);
-    }
-  } else {
-    // copy vertex_sources and edge sources to vector, since we need to
-    // use multi-thread loading.
-    std::vector<std::pair<label_t, std::vector<std::string>>> vertex_files;
-    for (auto iter = vertex_sources.begin(); iter != vertex_sources.end();
-         ++iter) {
-      vertex_files.emplace_back(iter->first, iter->second);
-    }
-    LOG(INFO) << "Parallel loading with " << thread_num_ << " threads, "
-              << " " << vertex_files.size() << " vertex files, ";
-    std::atomic<size_t> v_ind(0);
-    std::vector<std::thread> threads(thread_num_);
-    for (int i = 0; i < thread_num_; ++i) {
-      threads[i] = std::thread([&]() {
-        while (true) {
-          size_t cur = v_ind.fetch_add(1);
-          if (cur >= vertex_files.size()) {
-            break;
-          }
-          auto v_label_id = vertex_files[cur].first;
-          addVertices(v_label_id, vertex_files[cur].second);
-        }
-      });
-    }
-    for (auto& thread : threads) {
-      thread.join();
-    }
-
-    LOG(INFO) << "Finished loading vertices";
-  }
-}
 
 ////////////////Loading edges/////////////////
 
-void ODPSFragmentLoader::addEdges(label_t src_label_i, label_t dst_label_i,
-                                  label_t edge_label_i,
-                                  const std::vector<std::string>& table_paths) {
-  auto lambda = [this](label_t src_label_id, label_t dst_label_id,
-                       label_t e_label_id, const std::string& table_path,
-                       const LoadingConfig& loading_config, int worker_num) {
-    std::string session_id;
-    int split_count;
-    TableIdentifier table_identifier;
-    std::vector<std::string> partition_cols;
-    std::vector<std::string> selected_partitions;
-    std::vector<std::shared_ptr<IRecordBatchSupplier>> suppliers;
-    parseLocation(table_path, table_identifier, partition_cols,
-                  selected_partitions);
-    auto edge_column_mappings = loading_config_.GetEdgeColumnMappings(
-        src_label_id, dst_label_id, e_label_id);
-    auto selected_props = columnMappingsToSelectedCols(edge_column_mappings);
-    // if odps fragment loader, src_column_name and dst_column_name must be
-    // specified.
-    auto src_dst_col_pair = loading_config_.GetEdgeSrcDstCol(
-        src_label_id, dst_label_id, e_label_id);
-    auto src_col_name = src_dst_col_pair.first[0].first;
-    auto dst_col_name = src_dst_col_pair.second[0].first;
-    if (src_col_name.empty()) {
-      LOG(FATAL) << "SrcColumnName in edge table should be specified";
-    }
-    if (dst_col_name.empty()) {
-      LOG(FATAL) << "DstColumnName in edge table should be specified";
-    }
-    std::vector<std::string> selected_cols;
-    selected_cols.emplace_back(src_col_name);
-    selected_cols.emplace_back(dst_col_name);
-    selected_cols.insert(selected_cols.end(), selected_props.begin(),
-                         selected_props.end());
-
-    odps_read_client_.CreateReadSession(&session_id, &split_count,
-                                        table_identifier, selected_cols,
-                                        partition_cols, selected_partitions);
-    VLOG(1) << "Successfully got session_id: " << session_id
-            << ", split count: " << split_count;
-    if (loading_config.GetIsBatchReader()) {
-      for (int i = 0; i < worker_num; ++i) {
-        suppliers.emplace_back(std::make_shared<ODPSStreamRecordBatchSupplier>(
-            e_label_id, table_path, odps_read_client_, session_id, split_count,
-            table_identifier, i, worker_num));
-      }
-
-    } else {
-      suppliers.emplace_back(std::make_shared<ODPSTableRecordBatchSupplier>(
-          e_label_id, table_path, odps_read_client_, session_id, split_count,
-          table_identifier, thread_num_));
-    }
-    return suppliers;
-  };
-
-  AbstractArrowFragmentLoader::AddEdgesRecordBatch(
-      src_label_i, dst_label_i, edge_label_i, table_paths, lambda);
-}
-
-void ODPSFragmentLoader::loadEdges() {
-  auto& edge_sources = loading_config_.GetEdgeLoadingMeta();
-
-  if (edge_sources.empty()) {
-    LOG(INFO) << "Skip loading edges since no edge source is specified.";
-    return;
-  }
-
-  if (thread_num_ == 1) {
-    LOG(INFO) << "Loading edges with single thread...";
-    for (auto iter = edge_sources.begin(); iter != edge_sources.end(); ++iter) {
-      auto& src_label_id = std::get<0>(iter->first);
-      auto& dst_label_id = std::get<1>(iter->first);
-      auto& e_label_id = std::get<2>(iter->first);
-      auto& e_files = iter->second;
-      addEdges(src_label_id, dst_label_id, e_label_id, e_files);
+virtual std::vector<std::shared_ptr<IRecordBatchSupplier>>
+ODPSFragmentLoader::ODPSFragmentLoader(label_t v_label,
+                                       const std::string& v_file,
+                                       const LoadingConfig& loading_config,
+                                       int thread_id) const override {
+  auto vertex_column_mappings =
+      loading_config.GetVertexColumnMappings(label_id);
+  std::string session_id;
+  int split_count;
+  TableIdentifier table_identifier;
+  std::vector<std::string> partition_cols;
+  std::vector<std::string> selected_partitions;
+  std::vector<std::shared_ptr<IRecordBatchSupplier>> suppliers;
+  parseLocation(v_file, table_identifier, partition_cols, selected_partitions);
+  auto selected_cols = columnMappingsToSelectedCols(vertex_column_mappings);
+  odps_read_client_.CreateReadSession(&session_id, &split_count,
+                                      table_identifier, selected_cols,
+                                      partition_cols, selected_partitions);
+  VLOG(1) << "Successfully got session_id: " << session_id
+          << ", split count: " << split_count;
+  if (loading_config.GetIsBatchReader()) {
+    for (int i = 0; i < thread_num_; ++i) {
+      suppliers.emplace_back(std::make_shared<ODPSStreamRecordBatchSupplier>(
+          label_id, v_file, odps_read_client_, session_id, split_count,
+          table_identifier, i, thread_num_));
     }
   } else {
-    std::vector<std::pair<typename LoadingConfig::edge_triplet_type,
-                          std::vector<std::string>>>
-        edge_files;
-    for (auto iter = edge_sources.begin(); iter != edge_sources.end(); ++iter) {
-      edge_files.emplace_back(iter->first, iter->second);
-    }
-    LOG(INFO) << "Parallel loading with " << thread_num_ << " threads, "
-              << edge_files.size() << " edge files.";
-    std::atomic<size_t> e_ind(0);
-    std::vector<std::thread> threads(thread_num_);
-    for (int i = 0; i < thread_num_; ++i) {
-      threads[i] = std::thread([&]() {
-        while (true) {
-          size_t cur = e_ind.fetch_add(1);
-          if (cur >= edge_files.size()) {
-            break;
-          }
-          auto& edge_file = edge_files[cur];
-          auto src_label_id = std::get<0>(edge_file.first);
-          auto dst_label_id = std::get<1>(edge_file.first);
-          auto e_label_id = std::get<2>(edge_file.first);
-          auto& file_names = edge_file.second;
-          addEdges(src_label_id, dst_label_id, e_label_id, file_names);
-        }
-      });
-    }
-    for (auto& thread : threads) {
-      thread.join();
-    }
-    LOG(INFO) << "Finished loading edges";
+    suppliers.emplace_back(std::make_shared<ODPSTableRecordBatchSupplier>(
+        label_id, v_file, odps_read_client_, session_id, split_count,
+        table_identifier, thread_num_));
   }
+  return suppliers;
 }
 
-std::vector<std::string> ODPSFragmentLoader::columnMappingsToSelectedCols(
-    const std::vector<std::tuple<size_t, std::string, std::string>>&
-        column_mappings) {
-  std::vector<std::string> selected_cols;
-  for (auto& column_mapping : column_mappings) {
-    selected_cols.push_back(std::get<1>(column_mapping));
+std::vector<std::shared_ptr<IRecordBatchSupplier>>
+ODPSFragmentLoader::createEdgeRecordBatchSupplier(
+    label_t src_label, label_t dst_label, label_t e_label,
+    const std::string& e_file, const LoadingConfig& loading_config,
+    int thread_id) const override {
+  std::string session_id;
+  int split_count;
+  TableIdentifier table_identifier;
+  std::vector<std::string> partition_cols;
+  std::vector<std::string> selected_partitions;
+  std::vector<std::shared_ptr<IRecordBatchSupplier>> suppliers;
+  parseLocation(table_path, table_identifier, partition_cols,
+                selected_partitions);
+  auto edge_column_mappings = loading_config_.GetEdgeColumnMappings(
+      src_label_id, dst_label_id, e_label_id);
+  auto selected_props = columnMappingsToSelectedCols(edge_column_mappings);
+  // if odps fragment loader, src_column_name and dst_column_name must be
+  // specified.
+  auto src_dst_col_pair =
+      loading_config_.GetEdgeSrcDstCol(src_label_id, dst_label_id, e_label_id);
+  auto src_col_name = src_dst_col_pair.first[0].first;
+  auto dst_col_name = src_dst_col_pair.second[0].first;
+  if (src_col_name.empty()) {
+    LOG(FATAL) << "SrcColumnName in edge table should be specified";
   }
-  return selected_cols;
+  if (dst_col_name.empty()) {
+    LOG(FATAL) << "DstColumnName in edge table should be specified";
+  }
+  std::vector<std::string> selected_cols;
+  selected_cols.emplace_back(src_col_name);
+  selected_cols.emplace_back(dst_col_name);
+  selected_cols.insert(selected_cols.end(), selected_props.begin(),
+                       selected_props.end());
+
+  odps_read_client_.CreateReadSession(&session_id, &split_count,
+                                      table_identifier, selected_cols,
+                                      partition_cols, selected_partitions);
+  VLOG(1) << "Successfully got session_id: " << session_id
+          << ", split count: " << split_count;
+  if (loading_config.GetIsBatchReader()) {
+    for (int i = 0; i < worker_num; ++i) {
+      suppliers.emplace_back(std::make_shared<ODPSStreamRecordBatchSupplier>(
+          e_label_id, table_path, odps_read_client_, session_id, split_count,
+          table_identifier, i, worker_num));
+    }
+
+  } else {
+    suppliers.emplace_back(std::make_shared<ODPSTableRecordBatchSupplier>(
+        e_label_id, table_path, odps_read_client_, session_id, split_count,
+        table_identifier, thread_num_));
+  }
+  return suppliers;
 }
 
 const bool ODPSFragmentLoader::registered_ =

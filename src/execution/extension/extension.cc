@@ -15,6 +15,7 @@
 
 #include <dlfcn.h>
 #include <glog/logging.h>
+
 #include <filesystem>
 #include <fstream>
 #include <string>
@@ -148,9 +149,9 @@ result<std::string> computeFileSHA256(const std::string& path) {
                         "Failed to initialize SHA256 digest"));
   }
 
-  constexpr size_t bufferSize = 8192;
-  char buffer[bufferSize];
-  while (file.read(buffer, bufferSize) || file.gcount() > 0) {
+  constexpr size_t kBufferSize = 8192;
+  char buffer[kBufferSize];
+  while (file.read(buffer, kBufferSize) || file.gcount() > 0) {
     if (EVP_DigestUpdate(mdctx, buffer, file.gcount()) != 1) {
       EVP_MD_CTX_free(mdctx);
       RETURN_ERROR(Status(StatusCode::ERR_INTERNAL_ERROR,

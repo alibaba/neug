@@ -13,10 +13,13 @@
  * limitations under the License.
  */
 
-#ifndef SRC_UTILS_REMOTE_REMOTE_STORAGE_H_
-#define SRC_UTILS_REMOTE_REMOTE_STORAGE_H_
+#ifndef INCLUDE_NEUG_UTILS_REMOTE_REMOTE_STORAGE_H_
+#define INCLUDE_NEUG_UTILS_REMOTE_REMOTE_STORAGE_H_
 
+#include <memory>
 #include <string>
+#include <vector>
+
 #include "neug/utils/result.h"
 
 namespace gs {
@@ -92,4 +95,4 @@ class RemoteStorageDownloader {
 
 }  // namespace gs
 
-#endif  // SRC_UTILS_REMOTE_REMOTE_STORAGE_H_
+#endif  // INCLUDE_NEUG_UTILS_REMOTE_REMOTE_STORAGE_H_

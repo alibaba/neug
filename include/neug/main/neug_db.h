@@ -13,44 +13,27 @@
  * limitations under the License.
  */
 
-#ifndef ENGINES_GRAPH_DB_DATABASE_GRAPH_DB_H_
-#define ENGINES_GRAPH_DB_DATABASE_GRAPH_DB_H_
+#ifndef INCLUDE_NEUG_MAIN_NEUG_DB_H_
+#define INCLUDE_NEUG_MAIN_NEUG_DB_H_
 
-#include <dlfcn.h>
 #include <stddef.h>
 #include <stdint.h>
-#include <array>
-#include <map>
+#include <atomic>
 #include <memory>
 #include <mutex>
 #include <string>
 #include <thread>
-#include <unordered_map>
-#include <utility>
-#include <vector>
 
-#include "neug/compiler/planner/gopt_planner.h"
-#include "neug/compiler/planner/graph_planner.h"
 #include "neug/config.h"
-
-#include "neug/main/connection_manager.h"
-#include "neug/main/file_lock.h"
-#include "neug/main/neug_db.h"
-#include "neug/main/query_processor.h"
+#include "neug/main/connection.h"
 #include "neug/storages/graph/property_graph.h"
-#include "neug/storages/graph/schema.h"
-#include "neug/storages/loader/loader_factory.h"
-#include "neug/storages/loader/loading_config.h"
+#include "neug/transaction/compact_transaction.h"
 #include "neug/transaction/insert_transaction.h"
 #include "neug/transaction/read_transaction.h"
-#include "neug/transaction/transaction_manager.h"
 #include "neug/transaction/update_transaction.h"
-#include "neug/transaction/version_manager.h"
-#include "neug/utils/exception/exception.h"
-#include "neug/utils/file_utils.h"
 #include "neug/utils/mmap_array.h"
-#include "neug/utils/property/table.h"
 #include "neug/utils/property/types.h"
+#include "neug/version.h"
 #ifdef USE_SYSTEM_PROTOBUF
 #include "neug/generated/proto/plan/cypher_ddl.pb.h"
 #include "neug/generated/proto/plan/cypher_dml.pb.h"
@@ -60,20 +43,23 @@
 #include "neug/utils/proto/plan/cypher_dml.pb.h"
 #include "neug/utils/proto/plan/physical.pb.h"
 #endif
-#include "neug/version.h"
 
 #define STRINGIFY(x) #x
 #define TOSTRING(x) STRINGIFY(x)
 
 namespace gs {
 
-class NeugDB;
-class NeugDBSession;
-struct SessionLocalContext;
-class ColumnBase;
-class Encoder;
+class AppManager;
+class Connection;
+class ConnectionManager;
+class FileLock;
+class IGraphPlanner;
+class IVersionManager;
 class IWalParser;
-class RefColumnBase;
+class NeugDBSession;
+class QueryProcessor;
+class Schema;
+class TransactionManager;
 
 /**
  * @brief Core database engine for NeuG graph database system.
@@ -285,4 +271,4 @@ class NeugDB {
 
 }  // namespace gs
 
-#endif  // ENGINES_GRAPH_DB_DATABASE_GRAPH_DB_H_
+#endif  // INCLUDE_NEUG_MAIN_NEUG_DB_H_

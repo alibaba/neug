@@ -688,7 +688,7 @@ install(EXPORT neug-targets
 	    NAMESPACE neug::
         DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/neug)
 
-file(GLOB_RECURSE FILES_NEED_LINT
+file(GLOB_RECURSE FILES_NEED_FORMAT
         "include/**/*.h"
         "src/**/*.h"
         "src/**/*.cc"
@@ -696,17 +696,38 @@ file(GLOB_RECURSE FILES_NEED_LINT
         "tests/**/*.cc"
         "tools/**/*.h"
         "tools/**/*.cc")
-list(FILTER FILES_NEED_LINT EXCLUDE REGEX ".*\.act.h$|.*\.actg.h$|.*\.autogen.h$|.*\.autogen.cc$")
-list(FILTER FILES_NEED_LINT EXCLUDE REGEX ".*/third_party/.*")
-list(FILTER FILES_NEED_LINT EXCLUDE REGEX ".*\.pb.h$|.*\.pb.cc$")
-list(FILTER FILES_NEED_LINT EXCLUDE REGEX ".*/arrow-src/.*")
-list(FILTER FILES_NEED_LINT EXCLUDE REGEX ".*/deps/.*")
-list(FILTER FILES_NEED_LINT EXCLUDE REGEX ".*/build/.*")
-list(FILTER FILES_NEED_LINT EXCLUDE REGEX ".*\.clang-format$")
+list(FILTER FILES_NEED_FORMAT EXCLUDE REGEX ".*\.act.h$|.*\.actg.h$|.*\.autogen.h$|.*\.autogen.cc$")
+list(FILTER FILES_NEED_FORMAT EXCLUDE REGEX ".*/third_party/.*")
+list(FILTER FILES_NEED_FORMAT EXCLUDE REGEX ".*\.pb.h$|.*\.pb.cc$")
+list(FILTER FILES_NEED_FORMAT EXCLUDE REGEX ".*/arrow-src/.*")
+list(FILTER FILES_NEED_FORMAT EXCLUDE REGEX ".*/deps/.*")
+list(FILTER FILES_NEED_FORMAT EXCLUDE REGEX ".*/build/.*")
+list(FILTER FILES_NEED_FORMAT EXCLUDE REGEX ".*\.clang-format$")
 
 add_custom_target(neug_clformat
-    COMMAND clang-format --style=file -i ${FILES_NEED_LINT}
+    COMMAND clang-format --style=file -i ${FILES_NEED_FORMAT}
     COMMENT "Running clang-format, using clang-format-8 from https://github.com/muttleyxd/clang-tools-static-binaries/releases"
+    VERBATIM)
+
+file(GLOB_RECURSE FILES_NEED_LINT
+        "include/neug/neug.h"
+        "include/neug/execution/*.h"
+        "include/neug/main/*.h"
+        "include/neug/server/*.h"
+        "include/neug/storage/*.h"
+        "include/neug/transaction/*.h"
+        "include/neug/utils/*.h"
+        "src/execution/*.cc"
+        "src/main/*.cc"
+        "src/server/*.cc"
+        "src/storage/*.cc"
+        "src/transaction/*.cc"
+        "src/utils/*.cc")
+list(FILTER FILES_NEED_LINT EXCLUDE REGEX "\\.pb.h$|\\.pb.cc$")
+
+add_custom_target(neug_cpplint
+    COMMAND ${CMAKE_CURRENT_SOURCE_DIR}/scripts/cpplint.py ${FILES_NEED_LINT}
+    COMMENT "Running cpplint"
     VERBATIM)
 
 if (NOT DEFINED CPACK_PACKAGE_NAME)

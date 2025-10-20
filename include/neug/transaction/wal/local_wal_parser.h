@@ -13,8 +13,8 @@
  * limitations under the License.
  */
 
-#ifndef ENGINES_GRAPH_DB_DATABASE_WAL_LOCAL_WAL_PARSER_H_
-#define ENGINES_GRAPH_DB_DATABASE_WAL_LOCAL_WAL_PARSER_H_
+#ifndef INCLUDE_NEUG_TRANSACTION_WAL_LOCAL_WAL_PARSER_H_
+#define INCLUDE_NEUG_TRANSACTION_WAL_LOCAL_WAL_PARSER_H_
 
 #include <stddef.h>
 #include <stdint.h>
@@ -32,7 +32,7 @@ class LocalWalParser : public IWalParser {
     return std::unique_ptr<IWalParser>(new LocalWalParser(wal_dir));
   }
 
-  LocalWalParser(const std::string& wal_uri);
+  explicit LocalWalParser(const std::string& wal_uri);
   ~LocalWalParser() { close(); }
 
   void open(const std::string& wal_uri) override;
@@ -56,4 +56,4 @@ class LocalWalParser : public IWalParser {
 
 }  // namespace gs
 
-#endif  // ENGINES_GRAPH_DB_DATABASE_WAL_LOCAL_WAL_PARSER_H_
+#endif  // INCLUDE_NEUG_TRANSACTION_WAL_LOCAL_WAL_PARSER_H_

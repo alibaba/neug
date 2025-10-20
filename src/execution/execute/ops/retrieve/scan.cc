@@ -33,7 +33,6 @@
 #include "neug/execution/common/context.h"
 #include "neug/execution/common/graph_interface.h"
 #include "neug/execution/common/operators/retrieve/scan.h"
-#include "neug/execution/common/rt_any.h"
 #include "neug/execution/execute/ops/retrieve/scan_utils.h"
 #include "neug/execution/utils/expr_impl.h"
 #include "neug/execution/utils/params.h"
@@ -66,8 +65,8 @@ class FilterOidsWithoutPredOpr : public IReadOperator {
           std::move(ctx), graph, params_.tables[0], oids[0], params_.alias);
     }
     return Scan::filter_oids(
-        std::move(ctx), graph, params_, [](label_t, vid_t) { return true; },
-        oids);
+        std::move(ctx), graph, params_,
+        [](label_t, vid_t, size_t) { return true; }, oids);
   }
 
   std::string get_operator_name() const override { return "FilterOidsOpr"; }
@@ -96,8 +95,8 @@ class FilterMultiTypeOidsWithoutPredOpr : public IReadOperator {
       }
     }
     return Scan::filter_oids(
-        std::move(ctx), graph, params_, [](label_t, vid_t) { return true; },
-        oids);
+        std::move(ctx), graph, params_,
+        [](label_t, vid_t, size_t) { return true; }, oids);
   }
 
   std::string get_operator_name() const override { return "FilterOidsOpr"; }
@@ -128,8 +127,8 @@ class FilterGidsWithoutPredOpr : public IReadOperator {
           std::move(ctx), graph, params_.tables[0], gids[0], params_.alias);
     }
     return Scan::filter_gids(
-        std::move(ctx), graph, params_, [](label_t, vid_t) { return true; },
-        gids);
+        std::move(ctx), graph, params_,
+        [](label_t, vid_t, size_t) { return true; }, gids);
   }
 
   std::string get_operator_name() const override { return "FilterGidsOpr"; }
@@ -143,19 +142,16 @@ class FilterOidsSPredOpr : public IReadOperator {
  public:
   FilterOidsSPredOpr(ScanParams params,
                      const std::function<std::vector<Any>(ParamsType)>& oids,
-                     const std::function<std::unique_ptr<SPVertexPredicate>(
-                         const gs::runtime::GraphReadInterface&,
-                         const std::map<std::string, std::string>&)>& pred)
-      : params_(params), oids_(std::move(oids)), pred_(pred) {}
+                     const SpecialVertexPredicateConfig& config)
+      : params_(params), oids_(std::move(oids)), config_(config) {}
 
   gs::result<gs::runtime::Context> Eval(
       const gs::runtime::GraphReadInterface& graph, ParamsType params,
       gs::runtime::Context&& ctx, gs::runtime::OprTimer* timer) override {
     ctx = Context();
     auto ids = oids_(params);
-    auto pred = pred_(graph, params);
     return Scan::filter_oids_with_special_vertex_predicate(
-        std::move(ctx), graph, params_, *pred, ids);
+        std::move(ctx), graph, params_, config_, ids);
   }
 
   std::string get_operator_name() const override {
@@ -165,10 +161,7 @@ class FilterOidsSPredOpr : public IReadOperator {
  private:
   ScanParams params_;
   std::function<std::vector<Any>(ParamsType)> oids_;
-  std::function<std::unique_ptr<SPVertexPredicate>(
-      const gs::runtime::GraphReadInterface&,
-      const std::map<std::string, std::string>&)>
-      pred_;
+  SpecialVertexPredicateConfig config_;
 };
 
 class FilterOidsGPredOpr : public IReadOperator {
@@ -188,8 +181,8 @@ class FilterOidsGPredOpr : public IReadOperator {
         parse_expression(graph, ctx, params, pred_, VarType::kVertexVar);
     return Scan::filter_oids(
         std::move(ctx), graph, params_,
-        [&expr, &arena](label_t label, vid_t vid) {
-          return expr->eval_vertex(label, vid, 0, arena).as_bool();
+        [&expr, &arena](label_t label, vid_t vid, size_t idx) {
+          return expr->eval_vertex(label, vid, idx, arena).as_bool();
         },
         ids);
   }
@@ -209,10 +202,8 @@ class FilterOidsMultiTypeSPredOpr : public IReadOperator {
   FilterOidsMultiTypeSPredOpr(
       ScanParams params,
       const std::vector<std::function<std::vector<Any>(ParamsType)>>& oids,
-      const std::function<std::unique_ptr<SPVertexPredicate>(
-          const gs::runtime::GraphReadInterface&,
-          const std::map<std::string, std::string>&)>& pred)
-      : params_(params), oids_(oids), pred_(pred) {}
+      const SpecialVertexPredicateConfig& config)
+      : params_(params), oids_(oids), config_(config) {}
 
   gs::result<gs::runtime::Context> Eval(
       const gs::runtime::GraphReadInterface& graph, ParamsType params,
@@ -225,9 +216,8 @@ class FilterOidsMultiTypeSPredOpr : public IReadOperator {
         all_ids.push_back(o);
       }
     }
-    auto pred = pred_(graph, params);
     return Scan::filter_oids_with_special_vertex_predicate(
-        std::move(ctx), graph, params_, *pred, all_ids);
+        std::move(ctx), graph, params_, config_, all_ids);
   }
 
   std::string get_operator_name() const override {
@@ -237,10 +227,7 @@ class FilterOidsMultiTypeSPredOpr : public IReadOperator {
  private:
   ScanParams params_;
   std::vector<std::function<std::vector<Any>(ParamsType)>> oids_;
-  std::function<std::unique_ptr<SPVertexPredicate>(
-      const gs::runtime::GraphReadInterface&,
-      const std::map<std::string, std::string>&)>
-      pred_;
+  SpecialVertexPredicateConfig config_;
 };
 
 class FilterOidsMultiTypeGPredOpr : public IReadOperator {
@@ -272,8 +259,8 @@ class FilterOidsMultiTypeGPredOpr : public IReadOperator {
 
     return Scan::filter_oids(
         std::move(ctx), graph, params_,
-        [&expr, &arena](label_t label, vid_t vid) {
-          return expr->eval_vertex(label, vid, 0, arena).as_bool();
+        [&expr, &arena](label_t label, vid_t vid, size_t idx) {
+          return expr->eval_vertex(label, vid, idx, arena).as_bool();
         },
         all_ids);
   }
@@ -288,10 +275,8 @@ class FilterGidsSPredOpr : public IReadOperator {
  public:
   FilterGidsSPredOpr(ScanParams params,
                      const std::function<std::vector<Any>(ParamsType)>& oids,
-                     const std::function<std::unique_ptr<SPVertexPredicate>(
-                         const gs::runtime::GraphReadInterface&,
-                         const std::map<std::string, std::string>&)>& pred)
-      : params_(params), oids_(std::move(oids)), pred_(pred) {}
+                     const SpecialVertexPredicateConfig& config)
+      : params_(params), oids_(std::move(oids)), config_(config) {}
 
   std::string get_operator_name() const override {
     return "FilterGidsSPredOpr";
@@ -306,18 +291,14 @@ class FilterGidsSPredOpr : public IReadOperator {
     for (size_t i = 0; i < ids.size(); i++) {
       gids.push_back(ids[i].AsInt64());
     }
-    auto pred = pred_(graph, params);
     return Scan::filter_gids_with_special_vertex_predicate(
-        std::move(ctx), graph, params_, *pred, gids);
+        std::move(ctx), graph, params_, config_, gids);
   }
 
  private:
   ScanParams params_;
   std::function<std::vector<Any>(ParamsType)> oids_;
-  std::function<std::unique_ptr<SPVertexPredicate>(
-      const gs::runtime::GraphReadInterface&,
-      const std::map<std::string, std::string>&)>
-      pred_;
+  SpecialVertexPredicateConfig config_;
 };
 
 class FilterGidsGPredOpr : public IReadOperator {
@@ -347,8 +328,8 @@ class FilterGidsGPredOpr : public IReadOperator {
         parse_expression(graph, ctx, params, pred_, VarType::kVertexVar);
     return Scan::filter_gids(
         std::move(ctx), graph, params_,
-        [&expr, &arena](label_t label, vid_t vid) {
-          return expr->eval_vertex(label, vid, 0, arena).as_bool();
+        [&expr, &arena](label_t label, vid_t vid, size_t idx) {
+          return expr->eval_vertex(label, vid, idx, arena).as_bool();
         },
         gids);
   }
@@ -362,11 +343,8 @@ class FilterGidsGPredOpr : public IReadOperator {
 class ScanWithSPredOpr : public IReadOperator {
  public:
   ScanWithSPredOpr(const ScanParams& scan_params,
-                   std::function<std::unique_ptr<SPVertexPredicate>(
-                       const gs::runtime::GraphReadInterface&,
-                       const std::map<std::string, std::string>&)>
-                       pred)
-      : scan_params_(scan_params), pred_(pred) {}
+                   const SpecialVertexPredicateConfig& config)
+      : scan_params_(scan_params), config_(config) {}
 
   std::string get_operator_name() const override { return "ScanWithSPredOpr"; }
 
@@ -375,17 +353,13 @@ class ScanWithSPredOpr : public IReadOperator {
       const std::map<std::string, std::string>& params,
       gs::runtime::Context&& ctx, gs::runtime::OprTimer* timer) override {
     ctx = Context();
-    auto pred = pred_(graph, params);
     return Scan::scan_vertex_with_special_vertex_predicate(
-        std::move(ctx), graph, scan_params_, *pred);
+        std::move(ctx), graph, scan_params_, config_, params);
   }
 
  private:
   ScanParams scan_params_;
-  std::function<std::unique_ptr<SPVertexPredicate>(
-      const gs::runtime::GraphReadInterface&,
-      const std::map<std::string, std::string>&)>
-      pred_;
+  SpecialVertexPredicateConfig config_;
 };
 
 class ScanWithGPredOpr : public IReadOperator {
@@ -405,15 +379,15 @@ class ScanWithGPredOpr : public IReadOperator {
     if (scan_params_.limit == std::numeric_limits<int32_t>::max()) {
       auto ret = Scan::scan_vertex(
           std::move(ctx), graph, scan_params_,
-          [&expr, &arena](label_t label, vid_t vid) {
-            return expr->eval_vertex(label, vid, 0, arena).as_bool();
+          [&expr, &arena](label_t label, vid_t vid, size_t idx) {
+            return expr->eval_vertex(label, vid, idx, arena).as_bool();
           });
       return ret;
     } else {
       auto ret = Scan::scan_vertex_with_limit(
           std::move(ctx), graph, scan_params_,
-          [&expr, &arena](label_t label, vid_t vid) {
-            return expr->eval_vertex(label, vid, 0, arena).as_bool();
+          [&expr, &arena](label_t label, vid_t vid, size_t idx) {
+            return expr->eval_vertex(label, vid, idx, arena).as_bool();
           });
       return ret;
     }
@@ -427,7 +401,7 @@ class ScanWithGPredOpr : public IReadOperator {
 
 class ScanWithoutPredOpr : public IReadOperator {
  public:
-  ScanWithoutPredOpr(const ScanParams& scan_params)
+  explicit ScanWithoutPredOpr(const ScanParams& scan_params)
       : scan_params_(scan_params) {}
 
   gs::result<gs::runtime::Context> Eval(
@@ -437,10 +411,11 @@ class ScanWithoutPredOpr : public IReadOperator {
     ctx = Context();
     if (scan_params_.limit == std::numeric_limits<int32_t>::max()) {
       return Scan::scan_vertex(std::move(ctx), graph, scan_params_,
-                               [](label_t, vid_t) { return true; });
+                               [](label_t, vid_t, size_t) { return true; });
     } else {
-      return Scan::scan_vertex_with_limit(std::move(ctx), graph, scan_params_,
-                                          [](label_t, vid_t) { return true; });
+      return Scan::scan_vertex_with_limit(
+          std::move(ctx), graph, scan_params_,
+          [](label_t, vid_t, size_t) { return true; });
     }
   }
 
@@ -544,8 +519,9 @@ gs::result<ReadOpBuildResultT> ScanOprBuilder::Build(
         }
       }
     } else {
-      auto sp_vertex_pred =
-          parse_special_vertex_predicate(scan_opr.params().predicate());
+      SpecialVertexPredicateConfig sp_config;
+      bool is_sp_pred =
+          is_special_vertex_predicate(scan_opr.params().predicate(), sp_config);
       if (scan_oid) {
         std::set<int> types;
         std::vector<std::function<std::vector<Any>(ParamsType)>> oids;
@@ -561,9 +537,9 @@ gs::result<ReadOpBuildResultT> ScanOprBuilder::Build(
           }
         }
         if (types.size() == 1) {
-          if (sp_vertex_pred.has_value()) {
+          if (is_sp_pred) {
             return std::make_pair(std::make_unique<FilterOidsSPredOpr>(
-                                      scan_params, oids[0], *sp_vertex_pred),
+                                      scan_params, oids[0], sp_config),
                                   ret_meta);
           } else {
             return std::make_pair(
@@ -572,9 +548,9 @@ gs::result<ReadOpBuildResultT> ScanOprBuilder::Build(
                 ret_meta);
           }
         } else {
-          if (sp_vertex_pred.has_value()) {
+          if (is_sp_pred) {
             return std::make_pair(std::make_unique<FilterOidsMultiTypeSPredOpr>(
-                                      scan_params, oids, *sp_vertex_pred),
+                                      scan_params, oids, sp_config),
                                   ret_meta);
           } else {
             return std::make_pair(
@@ -587,9 +563,9 @@ gs::result<ReadOpBuildResultT> ScanOprBuilder::Build(
       } else {
         auto gids = ScanUtils::parse_ids_with_type(PropertyType::kInt64,
                                                    scan_opr.idx_predicate());
-        if (sp_vertex_pred.has_value()) {
+        if (is_sp_pred) {
           return std::make_pair(std::make_unique<FilterGidsSPredOpr>(
-                                    scan_params, gids, *sp_vertex_pred),
+                                    scan_params, gids, sp_config),
                                 ret_meta);
         } else {
           return std::make_pair(
@@ -602,12 +578,10 @@ gs::result<ReadOpBuildResultT> ScanOprBuilder::Build(
 
   } else {
     if (scan_opr.params().has_predicate()) {
-      auto sp_vertex_pred =
-          parse_special_vertex_predicate(scan_opr.params().predicate());
-      if (sp_vertex_pred.has_value()) {
+      SpecialVertexPredicateConfig config;
+      if (is_special_vertex_predicate(scan_opr.params().predicate(), config)) {
         return std::make_pair(
-            std::make_unique<ScanWithSPredOpr>(scan_params, *sp_vertex_pred),
-            ret_meta);
+            std::make_unique<ScanWithSPredOpr>(scan_params, config), ret_meta);
       } else {
         return std::make_pair(std::make_unique<ScanWithGPredOpr>(
                                   scan_params, scan_opr.params().predicate()),

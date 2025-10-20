@@ -13,29 +13,26 @@
  * limitations under the License.
  */
 
+#ifndef INCLUDE_NEUG_UTILS_PB_UTILS_H_
+#define INCLUDE_NEUG_UTILS_PB_UTILS_H_
+
 #include <google/protobuf/util/json_util.h>
-#include <rapidjson/document.h>
-#include <rapidjson/prettywriter.h>
-#include <rapidjson/stringbuffer.h>
-#include <rapidjson/writer.h>
 #include <string>
 #include <tuple>
-#include <unordered_map>
-#include <unordered_set>
 #include <vector>
 
-#include "neug/utils/property/types.h"
 #ifdef USE_SYSTEM_PROTOBUF
 #include "neug/generated/proto/plan/basic_type.pb.h"
 #include "neug/generated/proto/plan/cypher_ddl.pb.h"
-#include "neug/generated/proto/plan/physical.pb.h"
 #include "neug/generated/proto/plan/results.pb.h"
 #else
-#include "neug/utils/proto/plan/basic_type.pb.h"  // for DataType (ptr only)
+#include "neug/utils/proto/plan/basic_type.pb.h"
 #include "neug/utils/proto/plan/cypher_ddl.pb.h"
-#include "neug/utils/proto/plan/physical.pb.h"
 #include "neug/utils/proto/plan/results.pb.h"
 #endif
+#include "neug/utils/exception/exception.h"
+#include "neug/utils/property/property.h"
+#include "neug/utils/property/types.h"
 #include "neug/utils/result.h"
 
 namespace common {
@@ -107,4 +104,9 @@ bool conflict_action_to_bool(const ::physical::ConflictAction& action);
 // 3. ToDatetime to_datetime
 // 4. ToInterval to_interval
 Any expr_opr_value_to_any(const ::common::ExprOpr& value);
+Prop expr_opr_value_to_prop(const ::common::ExprOpr& value);
+
+std::string expr_opr_to_string(const ::common::ExprOpr& opr);
 }  // namespace gs
+
+#endif  // INCLUDE_NEUG_UTILS_PB_UTILS_H_

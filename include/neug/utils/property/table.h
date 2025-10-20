@@ -13,18 +13,18 @@
  * limitations under the License.
  */
 
-#ifndef UTILS_PROPERTY_TABLE_H_
-#define UTILS_PROPERTY_TABLE_H_
+#ifndef INCLUDE_NEUG_UTILS_PROPERTY_TABLE_H_
+#define INCLUDE_NEUG_UTILS_PROPERTY_TABLE_H_
 
-#include <stddef.h>  // for size_t
-#include <stdint.h>  // for int32_t, uint32_t
+#include <stddef.h>
+#include <stdint.h>
 #include <memory>
-#include <string>  // for string
-#include <vector>  // for vector
+#include <string>
+#include <unordered_map>
+#include <vector>
 
-#include "neug/utils/id_indexer.h"
 #include "neug/utils/property/column.h"
-#include "neug/utils/property/types.h"  // for StorageStrategy, Any, Propert...
+#include "neug/utils/property/types.h"
 
 namespace grape {
 class OutArchive;
@@ -158,4 +158,4 @@ class Table {
 
 }  // namespace gs
 
-#endif  // UTILS_PROPERTY_TABLE_H_
+#endif  // INCLUDE_NEUG_UTILS_PROPERTY_TABLE_H_

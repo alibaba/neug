@@ -19,12 +19,18 @@
 #include <glog/logging.h>
 #include <stdlib.h>
 #include <string.h>
-#include <sys/wait.h>  // for waitpid()
-#include <unistd.h>    // for fork() and execvp()
+#include <sys/wait.h>
+#include <unistd.h>
 #include <fstream>
 #include <iostream>
 #include <thread>
 #include <vector>
+
+#ifdef USE_SYSTEM_PROTOBUF
+#include "neug/generated/proto/plan/physical.pb.h"
+#else
+#include "neug/utils/proto/plan/physical.pb.h"
+#endif
 
 namespace gs {
 

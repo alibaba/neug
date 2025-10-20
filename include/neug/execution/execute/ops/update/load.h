@@ -13,8 +13,8 @@
  * limitations under the License.
  */
 
-#ifndef EXECUTION_EXECUTE_UPDATE_OPS_LOAD_H_
-#define EXECUTION_EXECUTE_UPDATE_OPS_LOAD_H_
+#ifndef INCLUDE_NEUG_EXECUTION_EXECUTE_OPS_UPDATE_LOAD_H_
+#define INCLUDE_NEUG_EXECUTION_EXECUTE_OPS_UPDATE_LOAD_H_
 
 #include <memory>
 #include <utility>
@@ -56,4 +56,4 @@ std::pair<std::unique_ptr<IInsertOperator>, int> create_load_operator(
 
 }  // namespace gs
 
-#endif  // EXECUTION_EXECUTE_UPDATE_OPS_LOAD_H_
+#endif  // INCLUDE_NEUG_EXECUTION_EXECUTE_OPS_UPDATE_LOAD_H_

@@ -118,10 +118,10 @@ Status CsvExportWriter::Write(
     return Status(StatusCode::ERR_DIRECTORY_NOT_EXIST,
                   "Directory \"" + dir_path + "\" does not exist");
   }
-  CHECK(columns_map.size() > 0);
+  CHECK_GT(columns_map.size(), 0);
   size_t row_num = columns_map[0]->size();
   for (size_t i = 1; i < columns_map.size(); i++) {
-    CHECK(columns_map[i]->size() == row_num);
+    CHECK_EQ(columns_map[i]->size(), row_num);
   }
   std::ofstream ofs;
   ofs.open(file_path_, std::ios::out);
@@ -185,4 +185,5 @@ const bool CsvExportWriter::registered_ = ExportWriterFactory::Register(
                &CsvExportWriter::Make));
 
 }  // namespace runtime
+
 }  // namespace gs

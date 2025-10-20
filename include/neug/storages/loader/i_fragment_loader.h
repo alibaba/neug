@@ -16,11 +16,11 @@
 #ifndef STORAGES_RT_MUTABLE_GRAPH_LOADER_FRAGMENT_LOADER_H_
 #define STORAGES_RT_MUTABLE_GRAPH_LOADER_FRAGMENT_LOADER_H_
 
-#include "neug/storages/csr/dual_csr.h"
 #include "neug/storages/csr/mutable_csr.h"
 #include "neug/storages/graph/schema.h"
 #include "neug/utils/indexers.h"
 #include "neug/utils/property/types.h"
+#include "neug/utils/result.h"
 
 namespace gs {
 

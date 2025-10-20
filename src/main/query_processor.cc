@@ -39,8 +39,8 @@ result<results::CollectiveResults> QueryProcessor::execute(
                             "Number of threads must be greater than 0"));
   }
   VLOG(20) << "Executing plan: " << plan.DebugString();
-  // TODO: Currently we get the read transaction with the thread id 0. Ideally,
-  // we should be able to run queries with multiple threads.
+  // TODO(zhanglei): Currently we get the read transaction with the thread id 0.
+  // Ideally, we should be able to run queries with multiple threads.
   if (plan.has_ddl_plan()) {
     if (is_read_only_) {
       RETURN_ERROR(

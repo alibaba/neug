@@ -25,26 +25,27 @@
 #include <glog/logging.h>
 #include <rapidjson/document.h>
 #include <stdint.h>
-#include <yaml-cpp/emitter.h>
-#include <yaml-cpp/emittermanip.h>
-#include <yaml-cpp/exceptions.h>
-#include <yaml-cpp/node/detail/iterator.h>
-#include <yaml-cpp/node/emit.h>
-#include <yaml-cpp/node/iterator.h>
-#include <yaml-cpp/node/parse.h>
-#include <yaml-cpp/node/type.h>
-#include <yaml-cpp/null.h>
-#include <fstream>
+#include <yaml-cpp/yaml.h>
 
 #pragma GCC diagnostic pop
 #include <exception>
 #include <filesystem>
+#include <fstream>
 #include <stdexcept>
 
+#include "neug/utils/exception/exception.h"
 #include "neug/utils/property/types.h"
 #include "neug/utils/result.h"
 #include "neug/utils/service_utils.h"
 
+template YAML::detail::node& YAML::detail::node_data::get<char[5]>(
+    char const (&)[5], std::shared_ptr<YAML::detail::memory_holder>);
+template YAML::detail::node* YAML::detail::node_data::get<char[5]>(
+    char const (&)[5], std::shared_ptr<YAML::detail::memory_holder>) const;
+template YAML::detail::node& YAML::detail::node_data::get<char[8]>(
+    char const (&)[8], std::shared_ptr<YAML::detail::memory_holder>);
+template YAML::detail::node& YAML::detail::node_data::get<char[9]>(
+    char const (&)[9], std::shared_ptr<YAML::detail::memory_holder>);
 namespace gs {
 
 YAML::Node property_type_to_yaml(const PropertyType& type) {

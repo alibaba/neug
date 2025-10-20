@@ -13,9 +13,11 @@
  * limitations under the License.
  */
 
-#ifndef EXECUTION_EXECUTE_OPS_VERTEX_H_
-#define EXECUTION_EXECUTE_OPS_VERTEX_H_
+#ifndef INCLUDE_NEUG_EXECUTION_EXECUTE_OPS_UPDATE_VERTEX_H_
+#define INCLUDE_NEUG_EXECUTION_EXECUTE_OPS_UPDATE_VERTEX_H_
+
 #include <memory>
+#include <vector>
 
 #include "neug/execution/execute/operator.h"
 
@@ -40,4 +42,5 @@ class UVertexOprBuilder : public IUpdateOperatorBuilder {
 }  // namespace ops
 }  // namespace runtime
 }  // namespace gs
-#endif  // EXECUTION_EXECUTE_OPS_VERTEX_H_
+
+#endif  // INCLUDE_NEUG_EXECUTION_EXECUTE_OPS_UPDATE_VERTEX_H_

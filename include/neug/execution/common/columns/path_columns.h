@@ -13,8 +13,9 @@
  * limitations under the License.
  */
 
-#ifndef EXECUTION_COMMON_COLUMNS_PATH_COLUMNS_H_
-#define EXECUTION_COMMON_COLUMNS_PATH_COLUMNS_H_
+#ifndef INCLUDE_NEUG_EXECUTION_COMMON_COLUMNS_PATH_COLUMNS_H_
+#define INCLUDE_NEUG_EXECUTION_COMMON_COLUMNS_PATH_COLUMNS_H_
+
 #include <glog/logging.h>
 #include <stddef.h>
 #include <memory>
@@ -24,7 +25,7 @@
 
 #include "neug/execution/common/columns/columns_utils.h"
 #include "neug/execution/common/columns/i_context_column.h"
-#include "neug/execution/common/rt_any.h"
+#include "neug/utils/runtime/rt_any.h"
 
 namespace gs {
 namespace runtime {
@@ -216,4 +217,4 @@ class OptionalGeneralPathColumnBuilder : public IContextColumnBuilder {
 }  // namespace runtime
 }  // namespace gs
 
-#endif  // EXECUTION_COMMON_COLUMNS_PATH_COLUMNS_H_
+#endif  // INCLUDE_NEUG_EXECUTION_COMMON_COLUMNS_PATH_COLUMNS_H_

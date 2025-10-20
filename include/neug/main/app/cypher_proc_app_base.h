@@ -13,8 +13,11 @@
  * limitations under the License.
  */
 
-#ifndef ENGINES_GRAPH_DB_APP_CYPHER_PROC_APP_BASE_H_
-#define ENGINES_GRAPH_DB_APP_CYPHER_PROC_APP_BASE_H_
+#ifndef INCLUDE_NEUG_MAIN_APP_CYPHER_PROC_APP_BASE_H_
+#define INCLUDE_NEUG_MAIN_APP_CYPHER_PROC_APP_BASE_H_
+
+#include <string>
+#include <tuple>
 
 // Disable class-memaccess warning to facilitate compilation with gcc>7
 // https://github.com/Tencent/rapidjson/issues/1700
@@ -202,4 +205,4 @@ class CypherWriteProcAppBase : public WriteAppBase {
 
 }  // namespace gs
 
-#endif  // ENGINES_GRAPH_DB_APP_CYPHER_PROC_APP_BASE_H_
+#endif  // INCLUDE_NEUG_MAIN_APP_CYPHER_PROC_APP_BASE_H_

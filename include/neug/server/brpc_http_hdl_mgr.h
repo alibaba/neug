@@ -13,19 +13,22 @@
  * limitations under the License.
  */
 
-#ifndef ENGINES_BRPC_SERVER_BRPC_HTTP_HDL_MGR_H_
-#define ENGINES_BRPC_SERVER_BRPC_HTTP_HDL_MGR_H_
+#ifndef INCLUDE_NEUG_SERVER_BRPC_HTTP_HDL_MGR_H_
+#define INCLUDE_NEUG_SERVER_BRPC_HTTP_HDL_MGR_H_
 
 #include <brpc/server.h>
 #include <json2pb/pb_to_json.h>
 #include <rapidjson/document.h>
 #include <memory>
+#include <string>
 #include <string_view>
+
 #include "neug/compiler/planner/graph_planner.h"
 #include "neug/main/neug_db.h"
+#include "neug/main/neug_db_session.h"
 #include "neug/server/neug_db_service.h"
 #include "neug/storages/graph/schema.h"
-#include "neug/main/neug_db_session.h"
+#include "neug/utils/app_utils.h"
 #include "neug/utils/http_handler_manager.h"
 #include "neug/utils/pb_utils.h"
 #include "neug/utils/result.h"
@@ -51,7 +54,7 @@ int32_t status_code_to_http_code(gs::StatusCode code);
 
 class HttpServiceImpl : public HttpService {
  public:
-  HttpServiceImpl(gs::NeugDB& graph_db) : graph_db_(graph_db) {
+  explicit HttpServiceImpl(gs::NeugDB& graph_db) : graph_db_(graph_db) {
     planner_ = graph_db_.GetPlanner();
     pthread_key_create(&thread_id_key, cleanup);
   }
@@ -121,7 +124,7 @@ class HttpServiceImpl : public HttpService {
  private:
   bool do_cypher_query(brpc::Controller* cntl, const HttpRequest* request,
                        std::string& final_res_str) {
-    int* id_ptr = (int*) pthread_getspecific(thread_id_key);
+    int* id_ptr = reinterpret_cast<int*>(pthread_getspecific(thread_id_key));
 #ifdef __GLIBC__
     if (__glibc_unlikely(!id_ptr)) {
 #else
@@ -244,7 +247,7 @@ class HttpServiceImpl : public HttpService {
 
 class BrpcHttpHandlerManager : public IHttpHandlerManager {
  public:
-  BrpcHttpHandlerManager(gs::NeugDB& graph_db);
+  explicit BrpcHttpHandlerManager(gs::NeugDB& graph_db);
 
   ~BrpcHttpHandlerManager();
   void Init(const ServiceConfig& config) override;
@@ -260,6 +263,7 @@ class BrpcHttpHandlerManager : public IHttpHandlerManager {
   HttpServiceImpl svc_;
   std::unique_ptr<brpc::Server> brpc_server_;
 };
+
 }  // namespace server
 
-#endif  // ENGINES_BRPC_SERVER_BRPC_HTTP_HDL_MGR_H_
+#endif  // INCLUDE_NEUG_SERVER_BRPC_HTTP_HDL_MGR_H_

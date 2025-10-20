@@ -24,7 +24,6 @@
 #include <ostream>
 
 #include "neug/transaction/wal/wal.h"
-#include "neug/utils/exception/exception.h"
 
 namespace gs {
 

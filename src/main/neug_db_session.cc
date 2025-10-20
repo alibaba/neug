@@ -13,20 +13,34 @@
  * limitations under the License.
  */
 
-#include <rapidjson/document.h>
-#include <chrono>
-#include <thread>
-#include <tuple>
-#include <unordered_map>
+#include "neug/main/neug_db_session.h"
 
+#include <glog/logging.h>
+#include <stddef.h>
+#include <stdint.h>
+#include <array>
+#include <atomic>
+#include <chrono>
+#include <memory>
+#include <ostream>
+#include <string>
+#include <string_view>
+#include <thread>
+#include <tl/expected.hpp>
+#include <tuple>
+#include <vector>
+
+#include "neug/config.h"
 #include "neug/main/app/app_base.h"
 #include "neug/main/app_manager.h"
-#include "neug/main/neug_db_session.h"
 #include "neug/storages/graph/property_graph.h"
 #include "neug/storages/graph/schema.h"
+#include "neug/transaction/compact_transaction.h"
+#include "neug/transaction/insert_transaction.h"
+#include "neug/transaction/read_transaction.h"
+#include "neug/transaction/update_transaction.h"
 #include "neug/transaction/version_manager.h"
 #include "neug/utils/app_utils.h"
-#include "neug/utils/property/column.h"
 #include "neug/utils/property/types.h"
 #ifdef USE_SYSTEM_PROTOBUF
 #include "neug/generated/proto/plan/common.pb.h"
@@ -36,30 +50,25 @@
 #include "neug/utils/proto/plan/stored_procedure.pb.h"
 #endif
 #include "neug/utils/result.h"
-#include "neug/utils/service_utils.h"
 
 namespace gs {
-class UpdateBatch;
+
+class Schema;
 
 ReadTransaction NeugDBSession::GetReadTransaction() const {
   uint32_t ts = version_manager_->acquire_read_timestamp();
-  return ReadTransaction(*this, graph_, *version_manager_, ts);
+  return ReadTransaction(graph_, *version_manager_, ts);
 }
 
 InsertTransaction NeugDBSession::GetInsertTransaction() {
   uint32_t ts = version_manager_->acquire_insert_timestamp();
-  return InsertTransaction(*this, graph_, alloc_, logger_, *version_manager_,
-                           ts);
+  return InsertTransaction(graph_, alloc_, logger_, *version_manager_, ts);
 }
 
 UpdateTransaction NeugDBSession::GetUpdateTransaction() {
   uint32_t ts = version_manager_->acquire_update_timestamp();
-  return UpdateTransaction(*this, graph_, alloc_, work_dir_, logger_,
+  return UpdateTransaction(graph_, alloc_, work_dir_, logger_,
                            *version_manager_, ts);
-}
-
-bool NeugDBSession::BatchUpdate(UpdateBatch& batch) {
-  return GetUpdateTransaction().batch_commit(batch);
 }
 
 const PropertyGraph& NeugDBSession::graph() const { return graph_; }
@@ -94,9 +103,9 @@ result<std::vector<char>> NeugDBSession::Eval(const std::string& input) {
 
   AppBase* app = GetApp(type);
   if (!app) {
-    RETURN_ERROR(
-        Status(StatusCode::ERR_NOT_FOUND,
-               "Procedure not found, id:" + std::to_string((int) type)));
+    RETURN_ERROR(Status(
+        StatusCode::ERR_NOT_FOUND,
+        "Procedure not found, id:" + std::to_string(static_cast<int>(type))));
   }
 
   for (size_t i = 0; i < MAX_RETRY; ++i) {
@@ -113,8 +122,8 @@ result<std::vector<char>> NeugDBSession::Eval(const std::string& input) {
       return result_buffer;
     }
 
-    LOG(INFO) << "[Query-" << (int) type << "][Thread-" << thread_id_
-              << "] retry - " << i << " / " << MAX_RETRY;
+    LOG(INFO) << "[Query-" << static_cast<int>(type) << "][Thread-"
+              << thread_id_ << "] retry - " << i << " / " << MAX_RETRY;
     if (i + 1 < MAX_RETRY) {
       std::this_thread::sleep_for(std::chrono::milliseconds(1));
     }
@@ -138,9 +147,9 @@ result<std::vector<char>> NeugDBSession::Eval(const std::string& input) {
         // The first 4 bytes are the length of the message.
         ));
   } else {
-    RETURN_ERROR(
-        Status(StatusCode::ERR_QUERY_EXECUTION,
-               "Query failed for procedure id:" + std::to_string((int) type)));
+    RETURN_ERROR(Status(StatusCode::ERR_QUERY_EXECUTION,
+                        "Query failed for procedure id:" +
+                            std::to_string(static_cast<int>(type))));
   }
 }
 
@@ -175,7 +184,7 @@ AppBase* NeugDBSession::GetApp(int type) {
   } else {
     app_wrappers_[type] = app_manager_.CreateApp(type, thread_id_);
     if (app_wrappers_[type].app() == NULL) {
-      LOG(ERROR) << "[Query-" + std::to_string((int) type)
+      LOG(ERROR) << "[Query-" + std::to_string(static_cast<int>(type))
                  << "] is not registered...";
       return nullptr;
     } else {

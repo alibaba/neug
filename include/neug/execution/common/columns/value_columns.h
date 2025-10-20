@@ -13,8 +13,8 @@
  * limitations under the License.
  */
 
-#ifndef EXECUTION_COMMON_COLUMNS_VALUE_COLUMNS_H_
-#define EXECUTION_COMMON_COLUMNS_VALUE_COLUMNS_H_
+#ifndef INCLUDE_NEUG_EXECUTION_COMMON_COLUMNS_VALUE_COLUMNS_H_
+#define INCLUDE_NEUG_EXECUTION_COMMON_COLUMNS_VALUE_COLUMNS_H_
 
 #include <assert.h>
 #include <glog/logging.h>
@@ -31,8 +31,8 @@
 #include "neug/execution/common/columns/columns_utils.h"
 #include "neug/execution/common/columns/i_context_column.h"
 #include "neug/execution/common/columns/vertex_columns.h"
-#include "neug/execution/common/rt_any.h"
 #include "neug/utils/property/types.h"
+#include "neug/utils/runtime/rt_any.h"
 #include "neug/utils/top_n_generator.h"
 
 namespace gs {
@@ -159,7 +159,7 @@ class ListValueColumnBase : public IValueColumn<List> {
 
 class ListValueColumn : public ListValueColumnBase {
  public:
-  ListValueColumn(RTAnyType type) : elem_type_(type) {}
+  explicit ListValueColumn(RTAnyType type) : elem_type_(type) {}
   ~ListValueColumn() = default;
 
   size_t size() const override { return data_.size(); }
@@ -208,8 +208,8 @@ class ListValueColumn : public ListValueColumnBase {
     }
 
     if constexpr (gs::runtime::is_view_type<T>::value) {
-      // TODO: we shouldn't use the same arena as the original column.
-      // The ownership of list elements should be released.
+      // TODO(liulexiao): we shouldn't use the same arena as the original
+      // column. The ownership of list elements should be released.
       builder->set_arena(this->get_arena());
       return {builder->finish(), offsets};
     } else {
@@ -285,7 +285,7 @@ class ListValueColumn : public ListValueColumnBase {
 
 class ListValueColumnBuilder : public IContextColumnBuilder {
  public:
-  ListValueColumnBuilder(RTAnyType type) : type_(type) {}
+  explicit ListValueColumnBuilder(RTAnyType type) : type_(type) {}
   ~ListValueColumnBuilder() = default;
 
   void reserve(size_t size) override { data_.reserve(size); }
@@ -506,4 +506,4 @@ bool ValueColumn<T>::order_by_limit(bool asc, size_t limit,
 
 }  // namespace gs
 
-#endif  // EXECUTION_COMMON_COLUMNS_VALUE_COLUMNS_H_
+#endif  // INCLUDE_NEUG_EXECUTION_COMMON_COLUMNS_VALUE_COLUMNS_H_

@@ -15,6 +15,14 @@
 
 #include "neug/main/app_manager.h"
 
+#include <glog/logging.h>
+#include <stddef.h>
+#include <ostream>
+
+#include "neug/main/app/cypher_read_app.h"
+#include "neug/main/app/cypher_update_app.h"
+#include "neug/storages/graph/schema.h"
+
 namespace gs {
 
 void AppManager::initApps() {  // Currently we only have builtin apps

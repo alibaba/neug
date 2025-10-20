@@ -13,8 +13,8 @@
  * limitations under the License.
  */
 
-#ifndef RUNTIME_EXECUTE_PIPELINE_H_
-#define RUNTIME_EXECUTE_PIPELINE_H_
+#ifndef INCLUDE_NEUG_EXECUTION_EXECUTE_PIPELINE_H_
+#define INCLUDE_NEUG_EXECUTION_EXECUTE_PIPELINE_H_
 
 #include <map>
 #include <memory>
@@ -36,7 +36,8 @@ class AdminPipeline {
  public:
   AdminPipeline() {}
   AdminPipeline(AdminPipeline&& rhs) : operators_(std::move(rhs.operators_)) {}
-  AdminPipeline(std::vector<std::unique_ptr<IAdminOperator>>&& operators)
+  explicit AdminPipeline(
+      std::vector<std::unique_ptr<IAdminOperator>>&& operators)
       : operators_(std::move(operators)) {}
   ~AdminPipeline() = default;
 
@@ -52,7 +53,7 @@ class ReadPipeline {
  public:
   ReadPipeline() {}
   ReadPipeline(ReadPipeline&& rhs) : operators_(std::move(rhs.operators_)) {}
-  ReadPipeline(std::vector<std::unique_ptr<IReadOperator>>&& operators)
+  explicit ReadPipeline(std::vector<std::unique_ptr<IReadOperator>>&& operators)
       : operators_(std::move(operators)) {}
   ~ReadPipeline() = default;
 
@@ -69,7 +70,8 @@ class InsertPipeline {
   InsertPipeline() = default;
   InsertPipeline(InsertPipeline&& rhs)
       : operators_(std::move(rhs.operators_)) {}
-  InsertPipeline(std::vector<std::unique_ptr<IInsertOperator>>&& operators)
+  explicit InsertPipeline(
+      std::vector<std::unique_ptr<IInsertOperator>>&& operators)
       : operators_(std::move(operators)) {}
   ~InsertPipeline() = default;
 
@@ -88,9 +90,10 @@ class UpdatePipeline {
       : is_insert_(rhs.is_insert_),
         operators_(std::move(rhs.operators_)),
         inserts_(std::move(rhs.inserts_)) {}
-  UpdatePipeline(std::vector<std::unique_ptr<IUpdateOperator>>&& operators)
+  explicit UpdatePipeline(
+      std::vector<std::unique_ptr<IUpdateOperator>>&& operators)
       : is_insert_(false), operators_(std::move(operators)) {}
-  UpdatePipeline(InsertPipeline&& insert)
+  explicit UpdatePipeline(InsertPipeline&& insert)
       : is_insert_(true),
         inserts_(
             std::make_unique<InsertPipeline>(std::move(std::move(insert)))) {}
@@ -115,4 +118,4 @@ class UpdatePipeline {
 
 }  // namespace gs
 
-#endif  // RUNTIME_EXECUTE_PIPELINE_H_
+#endif  // INCLUDE_NEUG_EXECUTION_EXECUTE_PIPELINE_H_

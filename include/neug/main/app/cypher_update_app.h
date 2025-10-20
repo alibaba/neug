@@ -13,8 +13,9 @@
  * limitations under the License.
  */
 
-#ifndef ENGINES_GRAPH_DB_CYPHER_UPDATE_APP_H_
-#define ENGINES_GRAPH_DB_CYPHER_UPDATE_APP_H_
+#ifndef INCLUDE_NEUG_MAIN_APP_CYPHER_UPDATE_APP_H_
+#define INCLUDE_NEUG_MAIN_APP_CYPHER_UPDATE_APP_H_
+
 #include <string>
 #include <unordered_map>
 
@@ -36,7 +37,7 @@ class NeugDBSession;
 
 class CypherUpdateApp : public WriteAppBase {
  public:
-  CypherUpdateApp(const NeugDB& db) {}
+  explicit CypherUpdateApp(const NeugDB& db) {}
 
   AppType type() const override { return AppType::kCypherAdhoc; }
 
@@ -99,4 +100,5 @@ class CypherUpdateAppFactory : public AppFactoryBase {
 };
 
 }  // namespace gs
-#endif  // ENGINES_GRAPH_DB_CYPHER_WRITE_APP_H_
+
+#endif  // INCLUDE_NEUG_MAIN_APP_CYPHER_UPDATE_APP_H_

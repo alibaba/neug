@@ -46,13 +46,13 @@ SharedLibraryAppFactory::SharedLibraryAppFactory(const std::string& path)
                << ", error: " << p_error_msg;
   }
 
-  *(void**) (&func_creator_) = dlsym(app_handle_, "CreateApp");
+  *reinterpret_cast<void**>(&func_creator_) = dlsym(app_handle_, "CreateApp");
   p_error_msg = dlerror();
   if (p_error_msg) {
     LOG(ERROR) << "Failed to get symbol CreateApp from " << path
                << ". Reason: " << std::string(p_error_msg);
   }
-  *(void**) (&func_deletor_) = dlsym(app_handle_, "DeleteApp");
+  *reinterpret_cast<void**>(&func_deletor_) = dlsym(app_handle_, "DeleteApp");
   p_error_msg = dlerror();
   if (p_error_msg) {
     LOG(ERROR) << "Failed to get symbol DeleteApp from " << path

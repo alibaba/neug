@@ -13,13 +13,16 @@
  * limitations under the License.
  */
 
-#ifndef SRC_UTILS_REMOTE_OSS_STORAGE_H_
-#define SRC_UTILS_REMOTE_OSS_STORAGE_H_
+#ifndef INCLUDE_NEUG_UTILS_REMOTE_OSS_STORAGE_H_
+#define INCLUDE_NEUG_UTILS_REMOTE_OSS_STORAGE_H_
 
 #ifdef BUILD_WITH_OSS
 
 #include <filesystem>
+#include <memory>
 #include <string>
+#include <vector>
+
 #include "aliyun-oss-cpp-sdk/sdk/include/alibabacloud/oss/OssClient.h"
 #include "aliyun-oss-cpp-sdk/sdk/include/alibabacloud/oss/client/ClientConfiguration.h"
 #include "neug/utils/remote/remote_storage.h"
@@ -47,7 +50,7 @@ struct OSSConf {
 
 class OSSRemoteStorageUploader : public RemoteStorageUploader {
  public:
-  OSSRemoteStorageUploader(OSSConf conf = {}) : conf_(conf) {}
+  explicit OSSRemoteStorageUploader(OSSConf conf = {}) : conf_(conf) {}
 
   ~OSSRemoteStorageUploader() override = default;
 
@@ -69,7 +72,7 @@ class OSSRemoteStorageUploader : public RemoteStorageUploader {
 
 class OSSRemoteStorageDownloader : public RemoteStorageDownloader {
  public:
-  OSSRemoteStorageDownloader(OSSConf conf = {}) : conf_(conf) {}
+  explicit OSSRemoteStorageDownloader(OSSConf conf = {}) : conf_(conf) {}
 
   ~OSSRemoteStorageDownloader() override = default;
 
@@ -92,4 +95,4 @@ class OSSRemoteStorageDownloader : public RemoteStorageDownloader {
 
 #endif  // BUILD_WITH_OSS
 
-#endif  // SRC_UTILS_REMOTE_OSS_STORAGE_H_
+#endif  // INCLUDE_NEUG_UTILS_REMOTE_OSS_STORAGE_H_

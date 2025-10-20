@@ -12,10 +12,9 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-#ifndef SERVICE_UTILS_H
-#define SERVICE_UTILS_H
+#ifndef INCLUDE_NEUG_UTILS_SERVICE_UTILS_H_
+#define INCLUDE_NEUG_UTILS_SERVICE_UTILS_H_
 
-#include <fcntl.h>
 #include <rapidjson/encodings.h>
 #include <stdint.h>
 
@@ -25,35 +24,21 @@
 #if defined(__GNUC__) && __GNUC__ >= 8
 #pragma GCC diagnostic ignored "-Wclass-memaccess"
 #endif
-#include <rapidjson/pointer.h>
 #include <rapidjson/rapidjson.h>
 
 #pragma GCC diagnostic pop
 
 #include <signal.h>
-#if defined(__APPLE__)
-#include <sys/sysctl.h>
-#else
-#include <sys/sysinfo.h>
-#endif
+
 #include <glog/logging.h>
-#include <sys/types.h>
-#include <unistd.h>
 #include <algorithm>
 #include <cctype>
 #include <chrono>
 #include <cstdio>
-#include <cstdlib>
-#include <cstring>
-#include <exception>
-#include <filesystem>
 #include <iostream>
-#include <stdexcept>
 #include <string>
 #include <utility>
-#include <vector>
 
-#include "neug/utils/property/types.h"
 #include "neug/utils/yaml_utils.h"
 
 // Disable class-memaccess warning to facilitate compilation with gcc>7
@@ -68,6 +53,9 @@
 #include <rapidjson/prettywriter.h>
 #include <rapidjson/stringbuffer.h>
 #include <rapidjson/writer.h>
+
+#include "neug/utils/exception/exception.h"
+#include "neug/utils/property/types.h"
 
 namespace gs {
 
@@ -228,4 +216,4 @@ size_t human_readable_to_bytes(const std::string& human_readable);
 
 }  // namespace gs
 
-#endif  // SERVICE_UTILS_H
+#endif  // INCLUDE_NEUG_UTILS_SERVICE_UTILS_H_

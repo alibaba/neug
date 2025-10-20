@@ -43,30 +43,6 @@ class BatchDeleteEdgeOpr : public IUpdateOperator {
   std::vector<int32_t> edge_bindings_;
 };
 
-Direction get_dir(std::shared_ptr<IEdgeColumn> column) {
-  if (column->edge_column_type() == EdgeColumnType::kSDSL) {
-    if (column->is_optional()) {
-      auto edge_column =
-          std::dynamic_pointer_cast<OptionalSDSLEdgeColumn>(column);
-      return edge_column->dir();
-    } else {
-      auto edge_column = std::dynamic_pointer_cast<SDSLEdgeColumn>(column);
-      return edge_column->dir();
-    }
-  } else if (column->edge_column_type() == EdgeColumnType::kSDML) {
-    if (column->is_optional()) {
-      auto edge_column =
-          std::dynamic_pointer_cast<OptionalSDMLEdgeColumn>(column);
-      return edge_column->dir();
-    } else {
-      auto edge_column = std::dynamic_pointer_cast<SDMLEdgeColumn>(column);
-      return edge_column->dir();
-    }
-  } else {
-    return Direction::kBoth;
-  }
-}
-
 gs::result<Context> BatchDeleteEdgeOpr::Eval(
     GraphUpdateInterface& graph,
     const std::map<std::string, std::string>& params, Context&& ctx,
@@ -83,48 +59,48 @@ gs::result<Context> BatchDeleteEdgeOpr::Eval(
       label_t edge_label = std::get<2>(edge_triplets[0]);
       if (edge_column->edge_column_type() == EdgeColumnType::kSDSL) {
         size_t edge_size = edge_column->size();
-        if (get_dir(edge_column) == Direction::kOut) {
+        if (edge_column->dir() == Direction::kOut) {
           for (size_t j = 0; j < edge_size; j++) {
             auto edge = edge_column->get_edge(j);
-            edges.emplace_back(std::make_tuple(edge.src_, edge.dst_));
+            edges.emplace_back(std::make_tuple(edge.src, edge.dst));
           }
         } else {
           for (size_t j = 0; j < edge_size; j++) {
             auto edge = edge_column->get_edge(j);
-            edges.emplace_back(std::make_tuple(edge.dst_, edge.src_));
+            edges.emplace_back(std::make_tuple(edge.dst, edge.src));
           }
         }
       } else if (edge_column->edge_column_type() == EdgeColumnType::kBDSL) {
         size_t edge_size = edge_column->size();
         for (size_t j = 0; j < edge_size; j++) {
           auto edge = edge_column->get_edge(j);
-          if (edge.dir_ == Direction::kOut) {
-            edges.emplace_back(std::make_tuple(edge.src_, edge.dst_));
+          if (edge.dir == Direction::kOut) {
+            edges.emplace_back(std::make_tuple(edge.src, edge.dst));
           } else {
-            edges.emplace_back(std::make_tuple(edge.dst_, edge.src_));
+            edges.emplace_back(std::make_tuple(edge.dst, edge.src));
           }
         }
       } else if (edge_column->edge_column_type() == EdgeColumnType::kSDML) {
         size_t edge_size = edge_column->size();
-        if (get_dir(edge_column) == Direction::kOut) {
+        if (edge_column->dir() == Direction::kOut) {
           for (size_t j = 0; j < edge_size; j++) {
             auto edge = edge_column->get_edge(j);
-            edges.emplace_back(std::make_tuple(edge.src_, edge.dst_));
+            edges.emplace_back(std::make_tuple(edge.src, edge.dst));
           }
         } else {
           for (size_t j = 0; j < edge_size; j++) {
             auto edge = edge_column->get_edge(j);
-            edges.emplace_back(std::make_tuple(edge.dst_, edge.src_));
+            edges.emplace_back(std::make_tuple(edge.dst, edge.src));
           }
         }
       } else if (edge_column->edge_column_type() == EdgeColumnType::kBDML) {
         size_t edge_size = edge_column->size();
         for (size_t j = 0; j < edge_size; j++) {
           auto edge = edge_column->get_edge(j);
-          if (edge.dir_ == Direction::kOut) {
-            edges.emplace_back(std::make_tuple(edge.src_, edge.dst_));
+          if (edge.dir == Direction::kOut) {
+            edges.emplace_back(std::make_tuple(edge.src, edge.dst));
           } else {
-            edges.emplace_back(std::make_tuple(edge.dst_, edge.src_));
+            edges.emplace_back(std::make_tuple(edge.dst, edge.src));
           }
         }
       } else {
@@ -144,44 +120,44 @@ gs::result<Context> BatchDeleteEdgeOpr::Eval(
         edges_map.insert({index, edges});
       }
       if (edge_column->edge_column_type() == EdgeColumnType::kSDML) {
-        if (get_dir(edge_column) == Direction::kOut) {
+        if (edge_column->dir() == Direction::kOut) {
           for (size_t j = 0; j < edge_column->size(); j++) {
             auto edge = edge_column->get_edge(j);
-            label_t src_v_label = edge.label_triplet_.src_label;
-            label_t dst_v_label = edge.label_triplet_.dst_label;
-            label_t edge_label = edge.label_triplet_.edge_label;
+            label_t src_v_label = edge.label.src_label;
+            label_t dst_v_label = edge.label.dst_label;
+            label_t edge_label = edge.label.edge_label;
             uint32_t index = graph.schema().generate_edge_label(
                 src_v_label, dst_v_label, edge_label);
             edges_map.at(index).emplace_back(
-                std::make_tuple(edge.src_, edge.dst_));
+                std::make_tuple(edge.src, edge.dst));
           }
         } else {
           for (size_t j = 0; j < edge_column->size(); j++) {
             auto edge = edge_column->get_edge(j);
-            label_t src_v_label = edge.label_triplet_.src_label;
-            label_t dst_v_label = edge.label_triplet_.dst_label;
-            label_t edge_label = edge.label_triplet_.edge_label;
+            label_t src_v_label = edge.label.src_label;
+            label_t dst_v_label = edge.label.dst_label;
+            label_t edge_label = edge.label.edge_label;
             uint32_t index = graph.schema().generate_edge_label(
                 src_v_label, dst_v_label, edge_label);
             edges_map.at(index).emplace_back(
-                std::make_tuple(edge.dst_, edge.src_));
+                std::make_tuple(edge.dst, edge.src));
           }
         }
       } else if (edge_column->edge_column_type() == EdgeColumnType::kBDML) {
         size_t edge_size = edge_column->size();
         for (size_t j = 0; j < edge_size; j++) {
           auto edge = edge_column->get_edge(j);
-          label_t src_v_label = edge.label_triplet_.src_label;
-          label_t dst_v_label = edge.label_triplet_.dst_label;
-          label_t edge_label = edge.label_triplet_.edge_label;
+          label_t src_v_label = edge.label.src_label;
+          label_t dst_v_label = edge.label.dst_label;
+          label_t edge_label = edge.label.edge_label;
           uint32_t index = graph.schema().generate_edge_label(
               src_v_label, dst_v_label, edge_label);
-          if (edge.dir_ == Direction::kOut) {
+          if (edge.dir == Direction::kOut) {
             edges_map.at(index).emplace_back(
-                std::make_tuple(edge.src_, edge.dst_));
+                std::make_tuple(edge.src, edge.dst));
           } else {
             edges_map.at(index).emplace_back(
-                std::make_tuple(edge.dst_, edge.src_));
+                std::make_tuple(edge.dst, edge.src));
           }
         }
       } else {

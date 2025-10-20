@@ -13,8 +13,8 @@
  * limitations under the License.
  */
 
-#ifndef EXECUTION_EXECUTE_UPDATE_OPS_DEDUP_H_
-#define EXECUTION_EXECUTE_UPDATE_OPS_DEDUP_H_
+#ifndef INCLUDE_NEUG_EXECUTION_EXECUTE_OPS_UPDATE_DEDUP_H_
+#define INCLUDE_NEUG_EXECUTION_EXECUTE_OPS_UPDATE_DEDUP_H_
 
 #include <memory>
 
@@ -51,4 +51,4 @@ class DedupInsertOprBuilder : public IInsertOperatorBuilder {
 
 }  // namespace gs
 
-#endif  // EXECUTION_EXECUTE_UPDATE_OPS_DEDUP_H_
+#endif  // INCLUDE_NEUG_EXECUTION_EXECUTE_OPS_UPDATE_DEDUP_H_

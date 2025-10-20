@@ -18,21 +18,19 @@
 #include <algorithm>
 #include <string>
 #include "neug/compiler/function/scalar_function.h"
-#include "neug/execution/common/rt_any.h"
+#include "neug/utils/runtime/rt_any.h"
 
 namespace gs {
 namespace extension {
 
 struct JsonDummyFunction {
-    static constexpr const char* name = "JSON_DUMMY";
+  static constexpr const char* name = "JSON_DUMMY";
 
-    static gs::function::function_set getFunctionSet();
-    
-    static gs::runtime::RTAny Exec(size_t idx, 
-                                  gs::runtime::Arena& arena, 
-                                  const std::vector<gs::runtime::RTAny>& args);
+  static gs::function::function_set getFunctionSet();
+
+  static gs::runtime::RTAny Exec(size_t idx, gs::runtime::Arena& arena,
+                                 const std::vector<gs::runtime::RTAny>& args);
 };
 
-} // namespace extension
-} // namespace gs
-
+}  // namespace extension
+}  // namespace gs

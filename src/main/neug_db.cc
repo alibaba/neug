@@ -16,30 +16,39 @@
 #include "neug/main/neug_db.h"
 
 #include <glog/logging.h>
-#include <stdlib.h>
 #include <unistd.h>
 #include <algorithm>
 #include <atomic>
+#include <chrono>
 #include <cstdint>
 #include <exception>
-
 #include <filesystem>
 #include <limits>
-#include <new>
-#include <regex>
 #include <sstream>
 #include <vector>
 
+#include "neug/compiler/planner/gopt_planner.h"
+#include "neug/compiler/planner/graph_planner.h"
 #include "neug/execution/execute/plan_parser.h"
-#include "neug/execution/utils/opr_timer.h"
 #include "neug/main/app_manager.h"
-#include "neug/storages/file_names.h"
-#include "neug/transaction/compact_transaction.h"
+#include "neug/main/connection_manager.h"
+#include "neug/main/file_lock.h"
 #include "neug/main/neug_db_session.h"
+#include "neug/main/query_processor.h"
+#include "neug/main/transaction_manager.h"
+#include "neug/storages/file_names.h"
+#include "neug/storages/graph/schema.h"
+#include "neug/transaction/compact_transaction.h"
+#include "neug/transaction/version_manager.h"
+#include "neug/transaction/wal/wal.h"
 #include "neug/utils/allocators.h"
-#include "neug/utils/app_utils.h"
+#include "neug/utils/exception/exception.h"
+#include "neug/utils/file_utils.h"
+#include "neug/utils/result.h"
 
 namespace gs {
+
+class Connection;
 
 static void IngestWalRange(PropertyGraph& graph, const IWalParser& parser,
                            uint32_t from, uint32_t to,
@@ -88,7 +97,9 @@ NeugDB::~NeugDB() {
   //  dir until the db is destructed.
   if (is_pure_memory_) {
     VLOG(10) << "Removing temp NeugDB at: " << work_dir_;
-    std::filesystem::remove_all(work_dir_);
+    remove_directory(work_dir_);
+  } else {
+    remove_directory(tmp_dir(work_dir_));
   }
 }
 
@@ -163,7 +174,7 @@ void NeugDB::Close() {
   if (query_processor_) {
     query_processor_.reset();
   }
-  //-----------Clear graph_db----------------
+  // -----------Clear graph_db----------------
   if (config_.checkpoint_on_close) {
     createCheckpoint();
   }

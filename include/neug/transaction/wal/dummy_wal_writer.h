@@ -13,8 +13,11 @@
  * limitations under the License.
  */
 
-#ifndef NEUG_TRANSACTION_DUMMY_WAL_PARSER_H_
-#define NEUG_TRANSACTION_DUMMY_WAL_PARSER_H_
+#ifndef INCLUDE_NEUG_TRANSACTION_WAL_DUMMY_WAL_WRITER_H_
+#define INCLUDE_NEUG_TRANSACTION_WAL_DUMMY_WAL_WRITER_H_
+
+#include <stddef.h>
+#include <string>
 
 #include "neug/transaction/wal/wal.h"
 
@@ -37,4 +40,4 @@ class DummyWalWriter : public IWalWriter {
 };
 }  // namespace gs
 
-#endif  // NEUG_TRANSACTION_DUMMY_WAL_PARSER_H_
+#endif  // INCLUDE_NEUG_TRANSACTION_WAL_DUMMY_WAL_WRITER_H_

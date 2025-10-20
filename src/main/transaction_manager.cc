@@ -13,10 +13,22 @@
  * limitations under the License.
  */
 
-#include "neug/transaction/transaction_manager.h"
+#include "neug/main/transaction_manager.h"
+
+#include <glog/logging.h>
+#include <stdlib.h>
+#include <filesystem>
+#include <new>
+#include <ostream>
+
+#include "neug/transaction/version_manager.h"
 #include "neug/transaction/wal/wal.h"
+#include "neug/utils/exception/exception.h"
 
 namespace gs {
+
+class AppManager;
+class PropertyGraph;
 
 TransactionManager::TransactionManager(
     std::shared_ptr<AppManager> app_manager,
@@ -95,22 +107,21 @@ size_t TransactionManager::GetQueryNum(int thread_id) const {
 
 ReadTransaction TransactionManager::GetReadTransaction(int thread_id) const {
   uint32_t ts = version_manager_->acquire_read_timestamp();
-  return ReadTransaction(contexts_[thread_id].session, graph_,
-                         *version_manager_, ts);
+  return ReadTransaction(graph_, *version_manager_, ts);
 }
 
 InsertTransaction TransactionManager::GetInsertTransaction(int thread_id) {
   uint32_t ts = version_manager_->acquire_insert_timestamp();
-  return InsertTransaction(
-      contexts_[thread_id].session, graph_, contexts_[thread_id].allocator,
-      *(contexts_[thread_id].logger), *version_manager_, ts);
+  return InsertTransaction(graph_, contexts_[thread_id].allocator,
+                           *(contexts_[thread_id].logger), *version_manager_,
+                           ts);
 }
 
 UpdateTransaction TransactionManager::GetUpdateTransaction(int thread_id) {
   uint32_t ts = version_manager_->acquire_update_timestamp();
-  return UpdateTransaction(
-      contexts_[thread_id].session, graph_, contexts_[thread_id].allocator,
-      work_dir_, *(contexts_[thread_id].logger), *version_manager_, ts);
+  return UpdateTransaction(graph_, contexts_[thread_id].allocator, work_dir_,
+                           *(contexts_[thread_id].logger), *version_manager_,
+                           ts);
 }
 
 CompactTransaction TransactionManager::GetCompactTransaction(int thread_id) {

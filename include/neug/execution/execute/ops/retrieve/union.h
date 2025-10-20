@@ -13,8 +13,8 @@
  * limitations under the License.
  */
 
-#ifndef EXECUTION_EXECUTE_RETRIEVE_OPS_UNION_H_
-#define EXECUTION_EXECUTE_RETRIEVE_OPS_UNION_H_
+#ifndef INCLUDE_NEUG_EXECUTION_EXECUTE_OPS_RETRIEVE_UNION_H_
+#define INCLUDE_NEUG_EXECUTION_EXECUTE_OPS_RETRIEVE_UNION_H_
 
 #include <vector>
 
@@ -55,4 +55,4 @@ class UnionOprBuilder : public IReadOperatorBuilder {
 
 }  // namespace gs
 
-#endif  // EXECUTION_EXECUTE_RETRIEVE_OPS_UNION_H_
+#endif  // INCLUDE_NEUG_EXECUTION_EXECUTE_OPS_RETRIEVE_UNION_H_

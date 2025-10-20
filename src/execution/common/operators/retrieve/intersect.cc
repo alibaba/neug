@@ -29,7 +29,6 @@
 #include "neug/execution/common/columns/value_columns.h"
 #include "neug/execution/common/columns/vertex_columns.h"
 #include "neug/execution/common/context.h"
-#include "neug/execution/common/rt_any.h"
 #include "neug/execution/utils/params.h"
 #include "neug/utils/result.h"
 #include "parallel_hashmap/phmap.h"
@@ -63,9 +62,9 @@ gs::result<gs::runtime::Context> Intersect::Multiple_Intersect(
     const std::map<std::string, std::string>& params,
     gs::runtime::Context&& ctx,
     const std::vector<std::function<bool(label_t, vid_t, size_t)>>& preds,
-    const std::vector<std::function<bool(const LabelTriplet&, vid_t, vid_t,
-                                         const Any&, Direction, size_t)>>&
-        e_preds,
+    const std::vector<
+        std::function<bool(label_t, vid_t, label_t, vid_t, label_t, Direction,
+                           const void*, size_t)>>& e_preds,
     const std::vector<EdgeExpandParams>& eeps, int vertex_alias,
     std::vector<int> edge_aliases) {
   std::vector<IVertexColumn*> vertex_cols;
@@ -74,6 +73,7 @@ gs::result<gs::runtime::Context> Intersect::Multiple_Intersect(
     vertex_cols.push_back(dynamic_cast<IVertexColumn*>(col.get()));
   }
   size_t row_num = ctx.row_num();
+  // TODO(luoxiaojian): opt with MLVertexColumnBuilderOpt
   MLVertexColumnBuilder builder;
   std::vector<std::vector<std::pair<LabelTriplet, PropertyType>>> labels;
   std::vector<BDMLEdgeColumnBuilder> edge_builders;
@@ -82,7 +82,11 @@ gs::result<gs::runtime::Context> Intersect::Multiple_Intersect(
 
   for (size_t i = 0; i < eeps.size(); ++i) {
     get_labels(eeps[i], graph, labels);
-    edge_builders.emplace_back(BDMLEdgeColumnBuilder::builder(labels[i]));
+    std::vector<LabelTriplet> label_triplets;
+    for (const auto& p : labels.back()) {
+      label_triplets.push_back(p.first);
+    }
+    edge_builders.emplace_back(label_triplets);
   }
 
   std::vector<size_t> offsets;
@@ -95,21 +99,21 @@ gs::result<gs::runtime::Context> Intersect::Multiple_Intersect(
         if (label_triplet.src_label != v.label_) {
           continue;
         }
-        auto iter =
-            graph.GetOutEdgeIterator(v.label_, v.vid_, label_triplet.dst_label,
-                                     label_triplet.edge_label);
-        while (iter.IsValid()) {
-          label_t label = iter.GetNeighborLabel();
-          vid_t vid = iter.GetNeighbor();
-          if (e_preds[0](label_triplet, v.vid_, vid, iter.GetData(),
-                         Direction::kOut, i)) {
-            if (preds[0](label, vid, i)) {
+        auto oview = graph.GetGenericOutgoingGraphView(
+            v.label_, label_triplet.dst_label, label_triplet.edge_label);
+        auto oes = oview.get_edges(v.vid_);
+        for (auto iter = oes.begin(); iter != oes.end(); ++iter) {
+          vid_t vid = iter.get_vertex();
+          if (e_preds[0](v.label_, v.vid_, label_triplet.dst_label, vid,
+                         label_triplet.edge_label, Direction::kOut,
+                         iter.get_data_ptr(), i)) {
+            if (preds[0](label_triplet.dst_label, vid, i)) {
               edge_builders[0].push_back_opt(label_triplet, v.vid_, vid,
-                                             iter.GetData(), Direction::kOut);
-              vertex_set.emplace(VertexRecord{label, vid});
+                                             iter.get_data_ptr(),
+                                             Direction::kOut);
+              vertex_set.emplace(VertexRecord{label_triplet.dst_label, vid});
             }
           }
-          iter.Next();
         }
       }
     }
@@ -118,21 +122,21 @@ gs::result<gs::runtime::Context> Intersect::Multiple_Intersect(
         if (label_triplet.dst_label != v.label_) {
           continue;
         }
-        auto iter =
-            graph.GetInEdgeIterator(v.label_, v.vid_, label_triplet.src_label,
-                                    label_triplet.edge_label);
-        while (iter.IsValid()) {
-          label_t label = iter.GetNeighborLabel();
-          vid_t vid = iter.GetNeighbor();
-          if (e_preds[0](label_triplet, vid, v.vid_, iter.GetData(),
-                         Direction::kIn, i)) {
-            if (preds[0](label, vid, i)) {
+        auto iview = graph.GetGenericIncomingGraphView(
+            v.label_, label_triplet.src_label, label_triplet.edge_label);
+        auto ies = iview.get_edges(v.vid_);
+        for (auto iter = ies.begin(); iter != ies.end(); ++iter) {
+          vid_t vid = iter.get_vertex();
+          if (e_preds[0](v.label_, v.vid_, label_triplet.src_label, vid,
+                         label_triplet.edge_label, Direction::kIn,
+                         iter.get_data_ptr(), i)) {
+            if (preds[0](label_triplet.src_label, vid, i)) {
               edge_builders[0].push_back_opt(label_triplet, vid, v.vid_,
-                                             iter.GetData(), Direction::kIn);
-              vertex_set.emplace(VertexRecord{label, vid});
+                                             iter.get_data_ptr(),
+                                             Direction::kIn);
+              vertex_set.emplace(VertexRecord{label_triplet.src_label, vid});
             }
           }
-          iter.Next();
         }
       }
     }
@@ -145,23 +149,23 @@ gs::result<gs::runtime::Context> Intersect::Multiple_Intersect(
           if (label_triplet.src_label != v.label_) {
             continue;
           }
-          auto iter = graph.GetOutEdgeIterator(v.label_, v.vid_,
-                                               label_triplet.dst_label,
-                                               label_triplet.edge_label);
-          while (iter.IsValid()) {
-            if (e_preds[j](label_triplet, v.vid_, iter.GetNeighbor(),
-                           iter.GetData(), Direction::kOut, i)) {
-              VertexRecord v_record{iter.GetNeighborLabel(),
-                                    iter.GetNeighbor()};
+          auto oview = graph.GetGenericOutgoingGraphView(
+              v.label_, label_triplet.dst_label, label_triplet.edge_label);
+          auto oes = oview.get_edges(v.vid_);
+          for (auto iter = oes.begin(); iter != oes.end(); ++iter) {
+            vid_t vid = iter.get_vertex();
+            if (e_preds[j](v.label_, v.vid_, label_triplet.dst_label, vid,
+                           label_triplet.edge_label, Direction::kOut,
+                           iter.get_data_ptr(), i)) {
+              VertexRecord v_record{label_triplet.dst_label, vid};
               if (vertex_set.find(v_record) != vertex_set.end() &&
                   preds[j](v_record.label_, v_record.vid_, i)) {
-                edge_builders[j].push_back_opt(label_triplet, v.vid_,
-                                               v_record.vid_, iter.GetData(),
+                edge_builders[j].push_back_opt(label_triplet, v.vid_, vid,
+                                               iter.get_data_ptr(),
                                                Direction::kOut);
                 tmp_set.emplace(v_record);
               }
             }
-            iter.Next();
           }
         }
       }
@@ -170,23 +174,23 @@ gs::result<gs::runtime::Context> Intersect::Multiple_Intersect(
           if (label_triplet.dst_label != v.label_) {
             continue;
           }
-          auto iter =
-              graph.GetInEdgeIterator(v.label_, v.vid_, label_triplet.src_label,
-                                      label_triplet.edge_label);
-          while (iter.IsValid()) {
-            if (e_preds[j](label_triplet, iter.GetNeighbor(), v.vid_,
-                           iter.GetData(), Direction::kIn, i)) {
-              VertexRecord v_record{iter.GetNeighborLabel(),
-                                    iter.GetNeighbor()};
+          auto iview = graph.GetGenericIncomingGraphView(
+              v.label_, label_triplet.src_label, label_triplet.edge_label);
+          auto ies = iview.get_edges(v.vid_);
+          for (auto iter = ies.begin(); iter != ies.end(); ++iter) {
+            vid_t vid = iter.get_vertex();
+            if (e_preds[j](v.label_, v.vid_, label_triplet.src_label, vid,
+                           label_triplet.edge_label, Direction::kIn,
+                           iter.get_data_ptr(), i)) {
+              VertexRecord v_record{label_triplet.src_label, vid};
               if (vertex_set.find(v_record) != vertex_set.end() &&
                   preds[j](v_record.label_, v_record.vid_, i)) {
-                tmp_set.emplace(v_record);
-                edge_builders[j].push_back_opt(label_triplet, v_record.vid_,
-                                               v.vid_, iter.GetData(),
+                edge_builders[j].push_back_opt(label_triplet, vid, v.vid_,
+                                               iter.get_data_ptr(),
                                                Direction::kIn);
+                tmp_set.emplace(v_record);
               }
             }
-            iter.Next();
           }
         }
       }

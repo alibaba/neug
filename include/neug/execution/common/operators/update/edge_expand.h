@@ -13,8 +13,11 @@
  * limitations under the License.
  */
 
-#ifndef EXECUTION_COMMON_OPERATORS_UPDATE_EDGE_H_
-#define EXECUTION_COMMON_OPERATORS_UPDATE_EDGE_H_
+#ifndef INCLUDE_NEUG_EXECUTION_COMMON_OPERATORS_UPDATE_EDGE_EXPAND_H_
+#define INCLUDE_NEUG_EXECUTION_COMMON_OPERATORS_UPDATE_EDGE_EXPAND_H_
+
+#include <utility>
+#include <vector>
 
 #include "neug/execution/common/columns/edge_columns.h"
 #include "neug/execution/common/columns/vertex_columns.h"
@@ -53,6 +56,7 @@ class UEdgeExpand {
       auto& input_vertex_list =
           *std::dynamic_pointer_cast<IVertexColumn>(ctx.get(params.v_tag));
       std::vector<std::pair<LabelTriplet, PropertyType>> label_props;
+      std::vector<LabelTriplet> label_triplets;
       for (auto& triplet : params.labels) {
         auto& props = graph.schema().get_edge_properties(
             triplet.src_label, triplet.dst_label, triplet.edge_label);
@@ -61,39 +65,40 @@ class UEdgeExpand {
           pt = props[0];
         }
         label_props.emplace_back(triplet, pt);
+        label_triplets.push_back(triplet);
       }
-      auto builder = BDMLEdgeColumnBuilder::builder(label_props);
+      BDMLEdgeColumnBuilder builder(label_triplets);
 
       foreach_vertex(
           input_vertex_list, [&](size_t index, label_t label, vid_t v) {
             for (auto& label_prop : label_props) {
               auto& triplet = label_prop.first;
               if (label == triplet.src_label) {
-                auto oe_iter = graph.GetOutEdgeIterator(
-                    label, v, triplet.dst_label, triplet.edge_label);
-                while (oe_iter.IsValid()) {
-                  auto nbr = oe_iter.GetNeighbor();
-                  if (pred(triplet, v, nbr, oe_iter.GetData(), Direction::kOut,
-                           index)) {
-                    builder.push_back_opt(triplet, v, nbr, oe_iter.GetData(),
+                auto view = graph.GetGenericOutgoingGraphView(
+                    label, triplet.dst_label, triplet.edge_label);
+                auto oes = view.get_edges(v);
+                for (auto it = oes.begin(); it != oes.end(); ++it) {
+                  auto nbr = it.get_vertex();
+                  if (pred(label, v, triplet.dst_label, nbr, triplet.edge_label,
+                           Direction::kOut, it.get_data_ptr(), index)) {
+                    builder.push_back_opt(triplet, v, nbr, it.get_data_ptr(),
                                           Direction::kOut);
                     shuffle_offset.push_back(index);
                   }
-                  oe_iter.Next();
                 }
               }
               if (label == triplet.dst_label) {
-                auto ie_iter = graph.GetInEdgeIterator(
-                    label, v, triplet.src_label, triplet.edge_label);
-                while (ie_iter.IsValid()) {
-                  auto nbr = ie_iter.GetNeighbor();
-                  if (pred(triplet, nbr, v, ie_iter.GetData(), Direction::kIn,
-                           index)) {
-                    builder.push_back_opt(triplet, nbr, v, ie_iter.GetData(),
+                auto view = graph.GetGenericIncomingGraphView(
+                    label, triplet.src_label, triplet.edge_label);
+                auto ies = view.get_edges(v);
+                for (auto it = ies.begin(); it != ies.end(); ++it) {
+                  auto nbr = it.get_vertex();
+                  if (pred(label, v, triplet.src_label, nbr, triplet.edge_label,
+                           Direction::kIn, it.get_data_ptr(), index)) {
+                    builder.push_back_opt(triplet, nbr, v, it.get_data_ptr(),
                                           Direction::kIn);
                     shuffle_offset.push_back(index);
                   }
-                  ie_iter.Next();
                 }
               }
             }
@@ -104,6 +109,7 @@ class UEdgeExpand {
       auto& input_vertex_list =
           *std::dynamic_pointer_cast<IVertexColumn>(ctx.get(params.v_tag));
       std::vector<std::pair<LabelTriplet, PropertyType>> label_props;
+      std::vector<LabelTriplet> label_triplets;
       for (auto& triplet : params.labels) {
         auto& props = graph.schema().get_edge_properties(
             triplet.src_label, triplet.dst_label, triplet.edge_label);
@@ -112,9 +118,9 @@ class UEdgeExpand {
           pt = props[0];
         }
         label_props.emplace_back(triplet, pt);
+        label_triplets.push_back(triplet);
       }
-      auto builder =
-          SDMLEdgeColumnBuilder::builder(Direction::kOut, label_props);
+      SDMLEdgeColumnBuilder builder(Direction::kOut, label_triplets);
 
       foreach_vertex(
           input_vertex_list, [&](size_t index, label_t label, vid_t v) {
@@ -122,17 +128,16 @@ class UEdgeExpand {
               auto& triplet = label_prop.first;
               if (label != triplet.src_label)
                 continue;
-              auto oe_iter = graph.GetOutEdgeIterator(
-                  label, v, triplet.dst_label, triplet.edge_label);
-              while (oe_iter.IsValid()) {
-                auto nbr = oe_iter.GetNeighbor();
-                if (pred(triplet, v, nbr, oe_iter.GetData(), Direction::kOut,
-                         index)) {
-                  // assert(oe_iter.GetData().type == label_prop.second);
-                  builder.push_back_opt(triplet, v, nbr, oe_iter.GetData());
+              auto view = graph.GetGenericOutgoingGraphView(
+                  label, triplet.dst_label, triplet.edge_label);
+              auto oes = view.get_edges(v);
+              for (auto it = oes.begin(); it != oes.end(); ++it) {
+                auto nbr = it.get_vertex();
+                if (pred(label, v, triplet.dst_label, nbr, triplet.edge_label,
+                         Direction::kOut, it.get_data_ptr(), index)) {
+                  builder.push_back_opt(triplet, v, nbr, it.get_data_ptr());
                   shuffle_offset.push_back(index);
                 }
-                oe_iter.Next();
               }
             }
           });
@@ -142,6 +147,7 @@ class UEdgeExpand {
       auto& input_vertex_list =
           *std::dynamic_pointer_cast<IVertexColumn>(ctx.get(params.v_tag));
       std::vector<std::pair<LabelTriplet, PropertyType>> label_props;
+      std::vector<LabelTriplet> label_triplets;
       for (auto& triplet : params.labels) {
         auto& props = graph.schema().get_edge_properties(
             triplet.src_label, triplet.dst_label, triplet.edge_label);
@@ -150,9 +156,9 @@ class UEdgeExpand {
           pt = props[0];
         }
         label_props.emplace_back(triplet, pt);
+        label_triplets.push_back(triplet);
       }
-      auto builder =
-          SDMLEdgeColumnBuilder::builder(Direction::kIn, label_props);
+      SDMLEdgeColumnBuilder builder(Direction::kIn, label_triplets);
 
       foreach_vertex(
           input_vertex_list, [&](size_t index, label_t label, vid_t v) {
@@ -160,16 +166,16 @@ class UEdgeExpand {
               auto& triplet = label_prop.first;
               if (label != triplet.dst_label)
                 continue;
-              auto ie_iter = graph.GetInEdgeIterator(
-                  label, v, triplet.src_label, triplet.edge_label);
-              while (ie_iter.IsValid()) {
-                auto nbr = ie_iter.GetNeighbor();
-                if (pred(triplet, nbr, v, ie_iter.GetData(), Direction::kIn,
-                         index)) {
-                  builder.push_back_opt(triplet, nbr, v, ie_iter.GetData());
+              auto view = graph.GetGenericIncomingGraphView(
+                  label, triplet.src_label, triplet.edge_label);
+              auto ies = view.get_edges(v);
+              for (auto it = ies.begin(); it != ies.end(); ++it) {
+                auto nbr = it.get_vertex();
+                if (pred(label, v, triplet.src_label, nbr, triplet.edge_label,
+                         Direction::kIn, it.get_data_ptr(), index)) {
+                  builder.push_back_opt(triplet, nbr, v, it.get_data_ptr());
                   shuffle_offset.push_back(index);
                 }
-                ie_iter.Next();
               }
             }
           });
@@ -180,4 +186,5 @@ class UEdgeExpand {
 };
 }  // namespace runtime
 }  // namespace gs
-#endif  // EXECUTION_COMMON_OPERATORS_UPDATE_EDGE_H_
+
+#endif  // INCLUDE_NEUG_EXECUTION_COMMON_OPERATORS_UPDATE_EDGE_EXPAND_H_

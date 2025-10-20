@@ -13,28 +13,20 @@
  * limitations under the License.
  */
 
-#ifndef UTILS_RESULT_H_
-#define UTILS_RESULT_H_
+#ifndef INCLUDE_NEUG_UTILS_RESULT_H_
+#define INCLUDE_NEUG_UTILS_RESULT_H_
 
 #include <cstdint>
 #include <iomanip>
 #include <iostream>
-#include <sstream>
 #include <string>
-#include <type_traits>
-#include <utility>
-
-#include "neug/utils/exception/exception.h"
-#include "neug/utils/result.h"
-#include "tl/expected.hpp"
-
-#include "neug/config.h"  // For build-time configuration macros
 
 #ifdef USE_SYSTEM_PROTOBUF
 #include "neug/generated/proto/plan/error.pb.h"
 #else
 #include "neug/utils/proto/plan/error.pb.h"
 #endif
+#include "tl/expected.hpp"
 
 namespace gs {
 
@@ -48,7 +40,7 @@ using StatusCode = gs::neug::interactive::Code;
 class Status {
  public:
   Status() noexcept;
-  Status(StatusCode error_code) noexcept;
+  explicit Status(StatusCode error_code) noexcept;
   Status(StatusCode error_code, std::string&& error_msg) noexcept;
   Status(StatusCode error_code, const std::string& error_msg) noexcept;
   bool ok() const;
@@ -191,4 +183,4 @@ inline std::string to_string(const gs::neug::interactive::Code& status) {
     RETURN_ERROR(gs::Status(gs::StatusCode::ERR_UNKNOWN, "Unknown error"));    \
   }
 
-#endif  // UTILS_RESULT_H_
+#endif  // INCLUDE_NEUG_UTILS_RESULT_H_

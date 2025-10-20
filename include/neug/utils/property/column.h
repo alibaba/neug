@@ -13,8 +13,8 @@
  * limitations under the License.
  */
 
-#ifndef UTILS_PROPERTY_COLUMN_H_
-#define UTILS_PROPERTY_COLUMN_H_
+#ifndef INCLUDE_NEUG_UTILS_PROPERTY_COLUMN_H_
+#define INCLUDE_NEUG_UTILS_PROPERTY_COLUMN_H_
 
 #include <glog/logging.h>
 #include <stddef.h>
@@ -22,21 +22,20 @@
 #include <atomic>
 #include <cstdint>
 #include <filesystem>
-#include <limits>
 #include <memory>
 #include <mutex>
 #include <ostream>
 #include <shared_mutex>
-#include <stdexcept>
 #include <string>
 #include <string_view>
 #include <vector>
 
 #include "libgrape-lite/grape/serialization/out_archive.h"
 #include "libgrape-lite/grape/types.h"
-#include "libgrape-lite/grape/utils/concurrent_queue.h"
 #include "neug/storages/file_names.h"
+#include "neug/utils/exception/exception.h"
 #include "neug/utils/mmap_array.h"
+#include "neug/utils/property/property.h"
 #include "neug/utils/property/types.h"
 
 namespace gs {
@@ -73,6 +72,16 @@ class ColumnBase {
 
   virtual Any get(size_t index) const = 0;
 
+  virtual Prop get_prop(size_t index) const {
+    THROW_NOT_IMPLEMENTED_EXCEPTION("get_prop not implemented: index = " +
+                                    std::to_string(index));
+    return Prop::empty();
+  }
+
+  virtual void set_prop(size_t index, const Prop& prop) {
+    LOG(FATAL) << "Not implemented";
+  }
+
   virtual void ingest(uint32_t index, grape::OutArchive& arc) = 0;
 
   virtual StorageStrategy storage_strategy() const = 0;
@@ -83,7 +92,8 @@ class ColumnBase {
 template <typename T>
 class TypedColumn : public ColumnBase {
  public:
-  TypedColumn(StorageStrategy strategy) : size_(0), strategy_(strategy) {}
+  explicit TypedColumn(StorageStrategy strategy)
+      : size_(0), strategy_(strategy) {}
   ~TypedColumn() { close(); }
 
   void open(const std::string& name, const std::string& snapshot_dir,
@@ -181,10 +191,21 @@ class TypedColumn : public ColumnBase {
     set_value_with_check(index, AnyConverter<T>::from_any(value));
   }
 
-  inline T get_view(size_t index) const { return buffer_.get(index); }
+  inline T get_view(size_t index) const {
+    CHECK(index < size_) << "Index out of range: " << index << " >= " << size_;
+    return buffer_.get(index);
+  }
 
   Any get(size_t index) const override {
     return AnyConverter<T>::to_any(get_view(index));
+  }
+
+  Prop get_prop(size_t index) const override {
+    return PropUtils<T>::to_prop(get_view(index));
+  }
+
+  void set_prop(size_t index, const Prop& prop) override {
+    set_value(index, PropUtils<T>::to_typed(prop));
   }
 
   void ingest(uint32_t index, grape::OutArchive& arc) override {
@@ -208,10 +229,11 @@ class TypedColumn : public ColumnBase {
   StorageStrategy strategy_;
 };
 
+#if 0
 template <>
 class TypedColumn<RecordView> : public ColumnBase {
  public:
-  TypedColumn(const std::vector<PropertyType>& types) : types_(types) {
+  explicit TypedColumn(const std::vector<PropertyType>& types) : types_(types) {
     if (types.size() == 0) {
       LOG(FATAL) << "RecordView column must have sub types.";
     }
@@ -274,6 +296,7 @@ class TypedColumn<RecordView> : public ColumnBase {
   std::vector<PropertyType> types_;
   std::shared_ptr<Table> table_;
 };
+#endif
 
 using BoolColumn = TypedColumn<bool>;
 using UInt8Column = TypedColumn<uint8_t>;
@@ -286,7 +309,7 @@ using DateColumn = TypedColumn<Date>;
 // using DayColumn = TypedColumn<Day>;
 using DoubleColumn = TypedColumn<double>;
 using FloatColumn = TypedColumn<float>;
-using RecordViewColumn = TypedColumn<RecordView>;
+// using RecordViewColumn = TypedColumn<RecordView>;
 using DateTimeColumn = TypedColumn<DateTime>;
 using IntervalColumn = TypedColumn<Interval>;
 using TimeStampColumn = TypedColumn<TimeStamp>;
@@ -294,7 +317,7 @@ using TimeStampColumn = TypedColumn<TimeStamp>;
 template <>
 class TypedColumn<grape::EmptyType> : public ColumnBase {
  public:
-  TypedColumn(StorageStrategy strategy) : strategy_(strategy) {}
+  explicit TypedColumn(StorageStrategy strategy) : strategy_(strategy) {}
   ~TypedColumn() {}
 
   void open(const std::string& name, const std::string& snapshot_dir,
@@ -318,6 +341,10 @@ class TypedColumn<grape::EmptyType> : public ColumnBase {
 
   Any get(size_t index) const override { return Any(); }
 
+  Prop get_prop(size_t index) const override { return Prop::empty(); }
+
+  void set_prop(size_t index, const Prop& prop) override {}
+
   grape::EmptyType get_view(size_t index) const { return grape::EmptyType(); }
 
   void ingest(uint32_t index, grape::OutArchive& arc) override {}
@@ -338,7 +365,7 @@ class TypedColumn<std::string_view> : public ColumnBase {
         strategy_(strategy),
         width_(width),
         type_(PropertyType::Varchar(width_)) {}
-  TypedColumn(StorageStrategy strategy)
+  explicit TypedColumn(StorageStrategy strategy)
       : size_(0),
         pos_(0),
         strategy_(strategy),
@@ -487,6 +514,14 @@ class TypedColumn<std::string_view> : public ColumnBase {
     return AnyConverter<std::string_view>::to_any(get_view(idx));
   }
 
+  Prop get_prop(size_t index) const override {
+    return PropUtils<std::string_view>::to_prop(get_view(index));
+  }
+
+  void set_prop(size_t index, const Prop& prop) override {
+    set_value(index, PropUtils<std::string_view>::to_typed(prop));
+  }
+
   void ingest(uint32_t index, grape::OutArchive& arc) override {
     std::string_view val;
     arc >> val;
@@ -514,157 +549,6 @@ class TypedColumn<std::string_view> : public ColumnBase {
 };
 
 using StringColumn = TypedColumn<std::string_view>;
-template <typename INDEX_T>
-class LFIndexer;
-
-template <typename INDEX_T>
-class StringMapColumn : public ColumnBase {
- public:
-  StringMapColumn(StorageStrategy strategy)
-      : index_col_(strategy), meta_map_(nullptr) {
-    meta_map_ = new LFIndexer<INDEX_T>();
-    meta_map_->init(
-        PropertyType::Varchar(PropertyType::GetStringDefaultMaxLength()));
-  }
-
-  ~StringMapColumn() {
-    if (meta_map_) {
-      meta_map_->close();
-      delete meta_map_;
-    }
-    index_col_.close();
-  }
-
-  void copy_to_tmp(const std::string& cur_path,
-                   const std::string& tmp_path) override {
-    meta_map_->copy_to_tmp(cur_path + ".map_meta", tmp_path + ".map_meta");
-    index_col_.copy_to_tmp(cur_path, tmp_path);
-  }
-  void open(const std::string& name, const std::string& snapshot_dir,
-            const std::string& work_dir) override;
-  void open_in_memory(const std::string& name) override;
-  void open_with_hugepages(const std::string& name, bool force) override;
-  void dump(const std::string& filename) override;
-
-  void close() override {
-    if (meta_map_ != nullptr) {
-      meta_map_->close();
-    }
-    index_col_.close();
-  }
-
-  size_t size() const override { return index_col_.size(); }
-  void resize(size_t size) override { index_col_.resize(size); }
-
-  PropertyType type() const override { return PropertyType::kStringMap; }
-
-  void set_value(size_t idx, const std::string_view& val);
-
-  void set_value_with_check(size_t idx, const std::string_view& val);
-
-  void set_any(size_t idx, const Any& value) override {
-    set_value(idx, value.AsStringView());
-  }
-
-  void set_any_with_resize(size_t idx, const Any& value) override {
-    set_value_with_check(idx, value.AsStringView());
-  }
-
-  std::string_view get_view(size_t idx) const;
-
-  Any get(size_t idx) const override {
-    return AnyConverter<std::string_view>::to_any(get_view(idx));
-  }
-
-  void ingest(uint32_t index, grape::OutArchive& arc) override {
-    std::string_view val;
-    arc >> val;
-    set_value(index, val);
-  }
-
-  StorageStrategy storage_strategy() const override {
-    return index_col_.storage_strategy();
-  }
-
-  const TypedColumn<INDEX_T>& get_index_col() const { return index_col_; }
-  const LFIndexer<INDEX_T>& get_meta_map() const { return *meta_map_; }
-
-  void ensure_writable(const std::string& work_dir) override {
-    index_col_.ensure_writable(work_dir);
-    meta_map_->ensure_writable(work_dir);
-  }
-
- private:
-  TypedColumn<INDEX_T> index_col_;
-  LFIndexer<INDEX_T>* meta_map_;
-  grape::SpinLock lock_;
-};
-
-template <typename INDEX_T>
-void StringMapColumn<INDEX_T>::open(const std::string& name,
-                                    const std::string& snapshot_dir,
-                                    const std::string& work_dir) {
-  index_col_.open(name, snapshot_dir, work_dir);
-  meta_map_->open(name + ".map_meta", snapshot_dir, work_dir);
-  meta_map_->reserve(std::numeric_limits<INDEX_T>::max());
-}
-
-template <typename INDEX_T>
-void StringMapColumn<INDEX_T>::open_in_memory(const std::string& name) {
-  index_col_.open_in_memory(name);
-  meta_map_->open_in_memory(name + ".map_meta");
-  meta_map_->reserve(std::numeric_limits<INDEX_T>::max());
-}
-
-template <typename INDEX_T>
-void StringMapColumn<INDEX_T>::open_with_hugepages(const std::string& name,
-                                                   bool force) {
-  index_col_.open_with_hugepages(name, force);
-  meta_map_->open_with_hugepages(name + ".map_meta", true);
-  meta_map_->reserve(std::numeric_limits<INDEX_T>::max());
-}
-
-template <typename INDEX_T>
-void StringMapColumn<INDEX_T>::dump(const std::string& filename) {
-  index_col_.dump(filename);
-  meta_map_->dump(filename + ".map_meta", "");
-}
-
-template <typename INDEX_T>
-std::string_view StringMapColumn<INDEX_T>::get_view(size_t idx) const {
-  INDEX_T ind = index_col_.get_view(idx);
-  return meta_map_->get_key(ind).AsStringView();
-}
-
-template <typename INDEX_T>
-void StringMapColumn<INDEX_T>::set_value(size_t idx,
-                                         const std::string_view& val) {
-  INDEX_T lid;
-  if (!meta_map_->get_index(val, lid)) {
-    lock_.lock();
-    if (!meta_map_->get_index(val, lid)) {
-      lid = meta_map_->insert(val);
-    }
-    lock_.unlock();
-  }
-  index_col_.set_value(idx, lid);
-}
-
-template <typename INDEX_T>
-void StringMapColumn<INDEX_T>::set_value_with_check(
-    size_t idx, const std::string_view& val) {
-  INDEX_T lid;
-  if (!meta_map_->get_index(val, lid)) {
-    lock_.lock();
-    if (!meta_map_->get_index(val, lid)) {
-      lid = meta_map_->insert(val);
-    }
-    lock_.unlock();
-  }
-  index_col_.set_value_with_check(idx, lid);
-}
-
-using DefaultStringMapColumn = StringMapColumn<uint8_t>;
 
 std::shared_ptr<ColumnBase> CreateColumn(
     PropertyType type, StorageStrategy strategy = StorageStrategy::kMem,
@@ -685,13 +569,17 @@ class TypedRefColumn : public RefColumnBase {
 
   TypedRefColumn(const mmap_array<T>& buffer, StorageStrategy strategy)
       : basic_buffer(buffer), basic_size(0), strategy_(strategy) {}
-  TypedRefColumn(const TypedColumn<T>& column)
+  explicit TypedRefColumn(const TypedColumn<T>& column)
       : basic_buffer(column.buffer()),
         basic_size(column.buffer_size()),
         strategy_(column.storage_strategy()) {}
   ~TypedRefColumn() {}
 
-  inline T get_view(size_t index) const { return basic_buffer.get(index); }
+  inline T get_view(size_t index) const {
+    CHECK(index < basic_size)
+        << "Index out of range: " << index << " >= " << basic_size;
+    return basic_buffer.get(index);
+  }
 
   size_t size() const { return basic_size; }
 
@@ -709,7 +597,7 @@ class TypedRefColumn : public RefColumnBase {
 template <>
 class TypedRefColumn<LabelKey> : public RefColumnBase {
  public:
-  TypedRefColumn(LabelKey label_key) : label_key_(label_key) {}
+  explicit TypedRefColumn(LabelKey label_key) : label_key_(label_key) {}
 
   ~TypedRefColumn() {}
 
@@ -728,7 +616,7 @@ template <>
 class TypedRefColumn<GlobalId> : public RefColumnBase {
  public:
   using label_t = typename LabelKey::label_data_type;
-  TypedRefColumn(label_t label_key) : label_key_(label_key) {}
+  explicit TypedRefColumn(label_t label_key) : label_key_(label_key) {}
 
   ~TypedRefColumn() {}
 
@@ -753,4 +641,4 @@ std::shared_ptr<RefColumnBase> CreateRefColumn(
 
 }  // namespace gs
 
-#endif  // UTILS_PROPERTY_COLUMN_H_
+#endif  // INCLUDE_NEUG_UTILS_PROPERTY_COLUMN_H_

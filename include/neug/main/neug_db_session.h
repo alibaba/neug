@@ -13,8 +13,8 @@
  * limitations under the License.
  */
 
-#ifndef ENGINES_GRAPH_DB_DATABASE_GRAPH_DB_SESSION_H_
-#define ENGINES_GRAPH_DB_DATABASE_GRAPH_DB_SESSION_H_
+#ifndef INCLUDE_NEUG_MAIN_NEUG_DB_SESSION_H_
+#define INCLUDE_NEUG_MAIN_NEUG_DB_SESSION_H_
 
 #include <glog/logging.h>
 #include <stddef.h>
@@ -48,7 +48,6 @@ class Encoder;
 class PropertyGraph;
 class RefColumnBase;
 class Schema;
-class UpdateBatch;
 class AppManager;
 
 /**
@@ -115,8 +114,6 @@ class NeugDBSession {
   UpdateTransaction GetUpdateTransaction();
 
   CompactTransaction GetCompactTransaction();
-
-  bool BatchUpdate(UpdateBatch& batch);
 
   const PropertyGraph& graph() const;
   PropertyGraph& graph();
@@ -200,4 +197,4 @@ class NeugDBSession {
 
 }  // namespace gs
 
-#endif  // ENGINES_GRAPH_DB_DATABASE_GRAPH_DB_SESSION_H_
+#endif  // INCLUDE_NEUG_MAIN_NEUG_DB_SESSION_H_

@@ -13,8 +13,9 @@
  * limitations under the License.
  */
 
-#ifndef EXECUTION_COMMON_OPERATORS_UPDATE_SCAN_H_
-#define EXECUTION_COMMON_OPERATORS_UPDATE_SCAN_H_
+#ifndef INCLUDE_NEUG_EXECUTION_COMMON_OPERATORS_UPDATE_SCAN_H_
+#define INCLUDE_NEUG_EXECUTION_COMMON_OPERATORS_UPDATE_SCAN_H_
+
 #include "neug/execution/common/columns/vertex_columns.h"
 #include "neug/execution/common/context.h"
 #include "neug/execution/utils/params.h"
@@ -28,12 +29,13 @@ class UScan {
   static gs::result<Context> scan(const GraphUpdateInterface& graph,
                                   Context&& ctx, const ScanParams& params,
                                   const PRED_T& pred) {
-    MLVertexColumnBuilder builder;
+    MSVertexColumnBuilder builder(params.tables[0]);
     for (auto& label : params.tables) {
+      builder.start_label(label);
       auto vit = graph.GetVertexIterator(label);
       for (; vit.IsValid(); vit.Next()) {
         if (pred(label, vit.GetIndex())) {
-          builder.push_back_vertex(VertexRecord{label, vit.GetIndex()});
+          builder.push_back_opt(vit.GetIndex());
         }
       }
     }
@@ -44,4 +46,5 @@ class UScan {
 
 }  // namespace runtime
 }  // namespace gs
-#endif  // EXECUTION_COMMON_OPERATORS_UPDATE_SCAN_H_
+
+#endif  // INCLUDE_NEUG_EXECUTION_COMMON_OPERATORS_UPDATE_SCAN_H_

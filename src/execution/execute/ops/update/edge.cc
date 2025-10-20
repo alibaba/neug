@@ -42,7 +42,8 @@ namespace ops {
 
 class UEdgeExpandVWithoutPredOpr : public IUpdateOperator {
  public:
-  UEdgeExpandVWithoutPredOpr(EdgeExpandParams params) : params_(params) {}
+  explicit UEdgeExpandVWithoutPredOpr(EdgeExpandParams params)
+      : params_(params) {}
   ~UEdgeExpandVWithoutPredOpr() = default;
 
   std::string get_operator_name() const override { return "UEdgeExpandVOpr"; }
@@ -60,7 +61,8 @@ class UEdgeExpandVWithoutPredOpr : public IUpdateOperator {
 
 class UEdgeExpandEWithoutPredOpr : public IUpdateOperator {
  public:
-  UEdgeExpandEWithoutPredOpr(EdgeExpandParams params) : params_(params) {}
+  explicit UEdgeExpandEWithoutPredOpr(EdgeExpandParams params)
+      : params_(params) {}
   ~UEdgeExpandEWithoutPredOpr() = default;
 
   std::string get_operator_name() const override { return "UEdgeExpandEOpr"; }
@@ -76,18 +78,6 @@ class UEdgeExpandEWithoutPredOpr : public IUpdateOperator {
   EdgeExpandParams params_;
 };
 
-struct GeneralEdgePredicateWrapper {
-  GeneralEdgePredicateWrapper(GeneralEdgePredicate& pred) : pred_(pred) {}
-
-  inline bool operator()(const LabelTriplet& label, vid_t src, vid_t dst,
-                         const Any& edata, Direction dir,
-                         size_t path_idx) const {
-    return pred_(label, src, dst, edata, dir, path_idx, arena_);
-  }
-
-  mutable Arena arena_;
-  const GeneralEdgePredicate& pred_;
-};
 class UEdgeExpandEOpr : public IUpdateOperator {
  public:
   UEdgeExpandEOpr(const EdgeExpandParams& params,
@@ -101,8 +91,7 @@ class UEdgeExpandEOpr : public IUpdateOperator {
                            const std::map<std::string, std::string>& params,
                            Context&& ctx, OprTimer* timer) override {
     GeneralEdgePredicate pred(graph, ctx, params, pred_);
-    GeneralEdgePredicateWrapper wpred(pred);
-    return UEdgeExpand::edge_expand_e(graph, std::move(ctx), params_, wpred);
+    return UEdgeExpand::edge_expand_e(graph, std::move(ctx), params_, pred);
   }
 
  private:

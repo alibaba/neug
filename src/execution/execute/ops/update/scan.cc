@@ -31,7 +31,6 @@
 #include "neug/execution/common/context.h"
 #include "neug/execution/common/graph_interface.h"
 #include "neug/execution/common/operators/update/scan.h"
-#include "neug/execution/common/rt_any.h"
 #include "neug/execution/execute/ops/retrieve/scan_utils.h"
 #include "neug/execution/utils/expr_impl.h"
 #include "neug/execution/utils/params.h"

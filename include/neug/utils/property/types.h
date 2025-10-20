@@ -13,38 +13,31 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-#ifndef UTILS_PROPERTY_TYPES_H_
-#define UTILS_PROPERTY_TYPES_H_
+#ifndef INCLUDE_NEUG_UTILS_PROPERTY_TYPES_H_
+#define INCLUDE_NEUG_UTILS_PROPERTY_TYPES_H_
 
 #include <assert.h>
 #include <glog/logging.h>
+#include <yaml-cpp/node/convert.h>
 #include <yaml-cpp/node/emit.h>
 #include <yaml-cpp/node/impl.h>
 #include <yaml-cpp/node/node.h>
-#include <yaml-cpp/yaml.h>
 #include <chrono>
-#include <compare>
 #include <cstdint>
 #include <cstring>
-#include <exception>
 #include <functional>
 #include <initializer_list>
-#include <istream>
 #include <new>
 #include <ostream>
-#include <regex>
-#include <sstream>
-#include <stdexcept>
 #include <string>
 #include <string_view>
+#include <typeinfo>
 #include <utility>
 #include <vector>
+
+#include "libgrape-lite/grape/types.h"
 #include "neug/config.h"
 #include "neug/utils/exception/exception.h"
-
-#include "libgrape-lite/grape/serialization/in_archive.h"
-#include "libgrape-lite/grape/serialization/out_archive.h"
-#include "libgrape-lite/grape/types.h"
 
 namespace YAML {
 template <typename T>
@@ -163,7 +156,7 @@ struct PropertyType {
 
   constexpr PropertyType()
       : type_enum(impl::PropertyTypeImpl::kEmpty), additional_type_info() {}
-  constexpr PropertyType(impl::PropertyTypeImpl type)
+  explicit constexpr PropertyType(impl::PropertyTypeImpl type)
       : type_enum(type), additional_type_info() {}
   constexpr PropertyType(impl::PropertyTypeImpl type, uint16_t max_length)
       : type_enum(type) {
@@ -250,7 +243,7 @@ struct GlobalId {
 
   GlobalId();
   GlobalId(label_id_t label_id, vid_t vid);
-  GlobalId(gid_t gid);
+  explicit GlobalId(gid_t gid);
 
   label_id_t label_id() const;
   vid_t vid() const;
@@ -280,7 +273,7 @@ struct DayValue {
   uint32_t hour : 5;
 };
 
-struct __attribute__((packed)) IntervalValue {
+struct IntervalValue {
   uint64_t year : 18;         // 0~8192
   uint64_t month : 4;         // 0~12
   uint64_t day : 5;           // 0~31
@@ -302,7 +295,7 @@ struct __attribute__((packed)) IntervalValue {
   IntervalValue& operator=(const IntervalValue& rhs) = default;
 };
 
-struct __attribute__((packed)) Interval {
+struct Interval {
   static constexpr int64_t SECOND_PER_YEAR = 365 * 24 * 3600;
   static constexpr int64_t SECOND_PER_MONTH = 30 * 24 * 3600;
   static constexpr int64_t SECOND_PER_DAY = 24 * 3600;
@@ -389,13 +382,13 @@ struct __attribute__((packed)) Interval {
   static void adjustMonthYearUnderflow(Interval& interval);
 };
 
-struct __attribute__((packed)) Date {
+struct Date {
   Date() = default;
   ~Date() = default;
 
-  Date(int64_t ts) { from_timestamp(ts); }
+  explicit Date(int64_t ts);
 
-  Date(int32_t num_days) { from_num_days(num_days); }
+  explicit Date(int32_t num_days) { from_num_days(num_days); }
 
   Date(const std::string& date_str);
 
@@ -498,11 +491,11 @@ struct __attribute__((packed)) Date {
   } value;
 };
 
-struct __attribute__((packed)) DateTime {
+struct DateTime {
   DateTime() = default;
   ~DateTime() = default;
-  DateTime(int64_t x) : milli_second(x) {}
-  DateTime(const std::string& date_time_str);
+  explicit DateTime(int64_t x) : milli_second(x) {}
+  explicit DateTime(const std::string& date_time_str);
 
   std::string to_string() const;
 
@@ -549,49 +542,56 @@ struct __attribute__((packed)) DateTime {
 
 // Although DateTime and TimeStamp are similar, they are different types, parsed
 // from different arrow types, and has different usages.
-struct __attribute__((packed)) TimeStamp {
+struct TimeStamp {
   TimeStamp() = default;
   ~TimeStamp() = default;
 
-  TimeStamp(int64_t x) : milli_second(x) {}
+  explicit TimeStamp(int64_t x) : milli_second(x) {}
 
   std::string to_string() const;
 
-  inline bool operator<(const TimeStamp& rhs) const {
+  __attribute__((always_inline)) bool operator<(const TimeStamp& rhs) const {
     return milli_second < rhs.milli_second;
   }
 
-  inline bool operator==(const TimeStamp& rhs) const {
+  __attribute__((always_inline)) bool operator==(const TimeStamp& rhs) const {
     return milli_second == rhs.milli_second;
   }
 
-  TimeStamp& operator+(const Interval& interval) {
+  __attribute__((always_inline)) TimeStamp& operator+(
+      const Interval& interval) {
     milli_second += interval.to_mill_seconds();
     return *this;
   }
 
-  TimeStamp& operator+=(const Interval& interval) {
+  __attribute__((always_inline)) TimeStamp& operator+=(
+      const Interval& interval) {
     milli_second += interval.to_mill_seconds();
     return *this;
   }
 
-  TimeStamp& operator-(const Interval& interval) {
+  __attribute__((always_inline)) TimeStamp& operator-(
+      const Interval& interval) {
     milli_second -= interval.to_mill_seconds();
     return *this;
   }
 
-  inline TimeStamp& operator-=(const Interval& interval) {
+  __attribute__((always_inline)) TimeStamp& operator-=(
+      const Interval& interval) {
     milli_second -= interval.to_mill_seconds();
     return *this;
   }
 
-  Interval operator-(const TimeStamp& rhs) const {
+  __attribute__((always_inline)) Interval operator-(
+      const TimeStamp& rhs) const {
     Interval interval;
     interval.from_mill_seconds(this->milli_second - rhs.milli_second);
     return interval;
   }
 
-  Interval operator-=(const TimeStamp& rhs) { return this->operator-(rhs); }
+  __attribute__((always_inline)) Interval operator-=(const TimeStamp& rhs) {
+    return this->operator-(rhs);
+  }
 
   int64_t milli_second;
 };
@@ -615,7 +615,7 @@ struct LabelKey {
   using label_data_type = uint8_t;
   int32_t label_id;
   LabelKey() = default;
-  LabelKey(label_data_type id) : label_id(id) {}
+  explicit LabelKey(label_data_type id) : label_id(id) {}
 };
 
 class Table;
@@ -644,15 +644,13 @@ struct RecordView {
   const Table* table;
 };
 
-struct Any;
-
 struct Record {
   Record() : len(0), props(nullptr) {}
-  Record(size_t len);
+  explicit Record(size_t len);
   Record(const Record& other);
   Record(Record&& other);
   Record& operator=(const Record& other);
-  Record(const std::vector<Any>& vec);
+  explicit Record(const std::vector<Any>& vec);
   Record(const std::initializer_list<Any>& list);
   ~Record();
   size_t size() const { return len; }
@@ -666,7 +664,7 @@ struct Record {
 
 struct StringPtr {
   StringPtr() : ptr(nullptr) {}
-  StringPtr(const std::string& str) : ptr(new std::string(str)) {}
+  explicit StringPtr(const std::string& str) : ptr(new std::string(str)) {}
   StringPtr(const StringPtr& other) {
     if (other.ptr) {
       ptr = new std::string(*other.ptr);
@@ -762,18 +760,18 @@ struct Any {
     type = PropertyType::kRecord;
     new (&value.record) Record(list);
   }
-  Any(const std::vector<Any>& vec) {
+  explicit Any(const std::vector<Any>& vec) {
     type = PropertyType::kRecord;
     new (&value.record) Record(vec);
   }
 
-  Any(const std::string& str) {
+  explicit Any(const std::string& str) {
     type = PropertyType::kString;
     new (&value.s_ptr) StringPtr(str);
   }
 
   template <typename T>
-  Any(const T& val) {
+  explicit Any(const T& val) {
     Any a = Any::From(val);
     type = a.type;
     if (type == PropertyType::kRecord) {
@@ -1844,9 +1842,8 @@ struct convert<gs::PropertyType> {
         THROW_NOT_SUPPORTED_EXCEPTION("Unrecognized temporal type: " +
                                       temporal.as<std::string>());
       }
-    }
-    // compatibility with old config files
-    else if (config["varchar"]) {
+    } else if (config["varchar"]) {
+      // compatibility with old config files
       if (config["varchar"]["max_length"]) {
         property_type = gs::PropertyType::Varchar(
             config["varchar"]["max_length"].as<int32_t>());
@@ -1889,4 +1886,4 @@ struct convert<gs::PropertyType> {
 };
 }  // namespace YAML
 
-#endif  // UTILS_PROPERTY_TYPES_H_
+#endif  // INCLUDE_NEUG_UTILS_PROPERTY_TYPES_H_

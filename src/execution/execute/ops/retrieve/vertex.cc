@@ -32,7 +32,6 @@
 #include "neug/execution/common/context.h"
 #include "neug/execution/common/graph_interface.h"
 #include "neug/execution/common/operators/retrieve/get_v.h"
-#include "neug/execution/common/rt_any.h"
 #include "neug/execution/common/types.h"
 #include "neug/execution/utils/params.h"
 #include "neug/execution/utils/predicates.h"
@@ -77,14 +76,10 @@ class GetVFromVerticesWithLabelWithInOpr : public IReadOperator {
       ctx.set(v_params_.alias, input_vertex_list_ptr);
       return ctx;
     } else {
-      Arena arena;
       GeneralVertexPredicate pred(graph, ctx, params,
                                   opr_.params().predicate());
-      return GetV::get_vertex_from_vertices(
-          graph, std::move(ctx), v_params_,
-          [&arena, &pred](label_t label, vid_t v, size_t idx) {
-            return pred(label, v, idx, arena);
-          });
+      return GetV::get_vertex_from_vertices(graph, std::move(ctx), v_params_,
+                                            pred);
     }
   }
 
@@ -114,7 +109,7 @@ class GetVFromVerticesWithPKExactOpr : public IReadOperator {
       gs::runtime::Context&& ctx, gs::runtime::OprTimer* timer) override {
     int64_t pk = std::stoll(params.at(exact_pk_));
     vid_t index = std::numeric_limits<vid_t>::max();
-    graph.GetVertexIndex(exact_pk_label_, pk, index);
+    graph.GetVertexIndex(exact_pk_label_, Any(pk), index);
     ExactVertexPredicate pred(exact_pk_label_, index);
     return GetV::get_vertex_from_vertices(graph, std::move(ctx), v_params_,
                                           pred);
@@ -142,12 +137,8 @@ class GetVFromVerticesWithPredicateOpr : public IReadOperator {
       const std::map<std::string, std::string>& params,
       gs::runtime::Context&& ctx, gs::runtime::OprTimer* timer) override {
     GeneralVertexPredicate pred(graph, ctx, params, opr_.params().predicate());
-    Arena arena;
-    return GetV::get_vertex_from_vertices(
-        graph, std::move(ctx), v_params_,
-        [&arena, &pred](label_t label, vid_t v, size_t idx) {
-          return pred(label, v, idx, arena);
-        });
+    return GetV::get_vertex_from_vertices(graph, std::move(ctx), v_params_,
+                                          pred);
   }
 
  private:
@@ -171,9 +162,8 @@ class GetVFromEdgesWithPredicateOpr : public IReadOperator {
     if (opr_.params().has_predicate()) {
       GeneralVertexPredicate pred(graph, ctx, params,
                                   opr_.params().predicate());
-      GeneralVertexPredicateWrapper vpred(pred);
       return GetV::get_vertex_from_edges(graph, std::move(ctx), v_params_,
-                                         vpred);
+                                         pred);
     } else {
       return GetV::get_vertex_from_edges(graph, std::move(ctx), v_params_,
                                          DummyVertexPredicate());

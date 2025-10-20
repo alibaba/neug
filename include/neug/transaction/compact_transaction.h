@@ -13,8 +13,8 @@
  * limitations under the License.
  */
 
-#ifndef ENGINES_GRAPH_DB_DATABASE_COMPACT_TRANSACTION_H_
-#define ENGINES_GRAPH_DB_DATABASE_COMPACT_TRANSACTION_H_
+#ifndef INCLUDE_NEUG_TRANSACTION_COMPACT_TRANSACTION_H_
+#define INCLUDE_NEUG_TRANSACTION_COMPACT_TRANSACTION_H_
 
 #include "libgrape-lite/grape/serialization/in_archive.h"
 #include "neug/utils/property/types.h"
@@ -53,4 +53,4 @@ class CompactTransaction {
 
 }  // namespace gs
 
-#endif  // ENGINES_GRAPH_DB_DATABASE_COMPACT_TRANSACTION_H_
+#endif  // INCLUDE_NEUG_TRANSACTION_COMPACT_TRANSACTION_H_

@@ -68,7 +68,7 @@ std::unique_ptr<IInsertOperator> SinkInsertOprBuilder::Build(
 
 class USinkOpr : public IUpdateOperator {
  public:
-  USinkOpr(const std::vector<int>& tag_ids) : tag_ids(tag_ids) {}
+  explicit USinkOpr(const std::vector<int>& tag_ids) : tag_ids(tag_ids) {}
 
   std::string get_operator_name() const override { return "USinkOpr"; }
 

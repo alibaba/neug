@@ -13,8 +13,8 @@
  * limitations under the License.
  */
 
-#ifndef ENGINES_GRAPH_DB_DATABASE_UPDATE_TRANSACTION_H_
-#define ENGINES_GRAPH_DB_DATABASE_UPDATE_TRANSACTION_H_
+#ifndef INCLUDE_NEUG_TRANSACTION_UPDATE_TRANSACTION_H_
+#define INCLUDE_NEUG_TRANSACTION_UPDATE_TRANSACTION_H_
 
 #include <stddef.h>
 #include <stdint.h>
@@ -22,6 +22,7 @@
 #include <map>
 #include <memory>
 #include <string>
+#include <tuple>
 #include <utility>
 #include <vector>
 
@@ -32,6 +33,7 @@
 #include "neug/transaction/transaction_utils.h"
 #include "neug/utils/allocators.h"
 #include "neug/utils/id_indexer.h"
+#include "neug/utils/property/property.h"
 #include "neug/utils/property/table.h"
 #include "neug/utils/property/types.h"
 
@@ -40,40 +42,37 @@ namespace gs {
 class PropertyGraph;
 class IWalWriter;
 class IVersionManager;
-class NeugDBSession;
-class CsrConstEdgeIterBase;
 class Schema;
-class UpdateBatch;
 template <typename INDEX_T>
 class IdIndexerBase;
 
 /**
  * @brief Transaction for updating existing graph elements (vertices and edges).
- * 
- * UpdateTransaction handles modifications to existing graph data with ACID guarantees.
- * It supports updating vertex properties, edge properties, and provides options for
- * vertex column resizing during updates.
- * 
+ *
+ * UpdateTransaction handles modifications to existing graph data with ACID
+ * guarantees. It supports updating vertex properties, edge properties, and
+ * provides options for vertex column resizing during updates.
+ *
  * **Key Features:**
- * - Update vertex and edge properties  
+ * - Update vertex and edge properties
  * - Configurable vertex column resizing behavior
  * - Write-Ahead Logging for durability
  * - MVCC support with timestamp management
  * - Commit/abort transaction semantics
- * 
+ *
  * **Implementation Details:**
  * - insert_vertex_with_resize_ controls whether to resize vertex columns
  * - Uses work_dir for temporary storage during updates
  * - Destructor calls release() for cleanup
  * - Integrates with version manager for timestamp coordination
- * 
+ *
  * @since v0.1.0
  */
 class UpdateTransaction {
  public:
   /**
    * @brief Construct an UpdateTransaction.
-   * 
+   *
    * @param session Reference to the database session
    * @param graph Reference to the property graph (mutable for updates)
    * @param alloc Reference to memory allocator
@@ -81,57 +80,60 @@ class UpdateTransaction {
    * @param logger Reference to WAL writer
    * @param vm Reference to version manager
    * @param timestamp Transaction timestamp
-   * 
-   * Implementation: Stores references and initializes insert_vertex_with_resize_=false.
-   * 
+   *
+   * Implementation: Stores references and initializes
+   * insert_vertex_with_resize_=false.
+   *
    * @since v0.1.0
    */
-  UpdateTransaction(const NeugDBSession& session, PropertyGraph& graph,
-                    Allocator& alloc, const std::string& work_dir,
-                    IWalWriter& logger, IVersionManager& vm,
-                    timestamp_t timestamp);
+  UpdateTransaction(PropertyGraph& graph, Allocator& alloc,
+                    const std::string& work_dir, IWalWriter& logger,
+                    IVersionManager& vm, timestamp_t timestamp);
 
   /**
    * @brief Destructor that calls release().
-   * 
-   * Implementation: Calls release() to clean up resources and release timestamp.
-   * 
+   *
+   * Implementation: Calls release() to clean up resources and release
+   * timestamp.
+   *
    * @since v0.1.0
    */
   ~UpdateTransaction();
 
   /**
    * @brief Configure whether to resize vertex columns during property updates.
-   * 
-   * By default, update transactions will not resize vertex columns when updating
-   * properties. Setting this to true enables column resizing if needed.
-   * 
-   * @param insert_vertex_with_resize true to enable column resizing, false to disable
-   * 
+   *
+   * By default, update transactions will not resize vertex columns when
+   * updating properties. Setting this to true enables column resizing if
+   * needed.
+   *
+   * @param insert_vertex_with_resize true to enable column resizing, false to
+   * disable
+   *
    * Implementation: Sets insert_vertex_with_resize_ member variable.
-   * 
+   *
    * @since v0.1.0
    */
   void set_insert_vertex_with_resize(bool insert_vertex_with_resize);
 
   /**
    * @brief Get the transaction timestamp.
-   * 
+   *
    * @return timestamp_t The timestamp for this transaction
-   * 
+   *
    * Implementation: Returns timestamp_ member variable.
-   * 
+   *
    * @since v0.1.0
    */
   timestamp_t timestamp() const;
 
   /**
    * @brief Get read-only access to the graph schema.
-   * 
+   *
    * @return const Schema& Reference to the graph schema
-   * 
+   *
    * Implementation: Returns graph_.schema().
-   * 
+   *
    * @since v0.1.0
    */
   const Schema& schema() const { return graph_.schema(); }
@@ -140,16 +142,17 @@ class UpdateTransaction {
 
   void Abort();
 
-  bool AddVertex(label_t label, const Any& oid, const std::vector<Any>& props);
+  bool AddVertex(label_t label, const Any& oid, const std::vector<Prop>& props);
 
-  bool AddVertex(label_t label, const Any& oid, const std::vector<Any>& props,
+  bool AddVertex(label_t label, const Any& oid, const std::vector<Prop>& props,
                  vid_t& vid);
 
   bool AddEdge(label_t src_label, const Any& src, label_t dst_label,
-               const Any& dst, label_t edge_label, const Any& value);
+               const Any& dst, label_t edge_label,
+               const std::vector<Prop>& properties);
 
   bool AddEdge(label_t src_label, vid_t src, label_t dst_label, vid_t dst,
-               label_t edge_label, const Any& value);
+               label_t edge_label, const std::vector<Prop>& properties);
 
   class vertex_iterator {
    public:
@@ -181,13 +184,13 @@ class UpdateTransaction {
    public:
     edge_iterator(bool dir, label_t label, vid_t v, label_t neighbor_label,
                   label_t edge_label, const vid_t* aeb, const vid_t* aee,
-                  std::shared_ptr<CsrConstEdgeIterBase> init_iter,
-                  UpdateTransaction* txn);
+                  const NbrList& edges, const EdgeDataAccessor& ed_accessor,
+                  int32_t prop_id, UpdateTransaction* txn);
     ~edge_iterator();
 
-    Any GetData() const;
+    Prop GetData() const;
 
-    void SetData(const Any& value);
+    void SetData(const Prop& value);
 
     bool IsValid() const;
 
@@ -213,7 +216,11 @@ class UpdateTransaction {
     const vid_t* added_edges_cur_;
     const vid_t* added_edges_end_;
 
-    std::shared_ptr<CsrConstEdgeIterBase> init_iter_;
+    NbrIterator init_iter_;
+    NbrIterator init_iter_end_;
+    EdgeDataAccessor ed_accessor_;
+    int32_t prop_id_;
+
     UpdateTransaction* txn_;
     size_t offset_;
   };
@@ -223,10 +230,12 @@ class UpdateTransaction {
   vid_t GetVertexNum(label_t label) const;
 
   edge_iterator GetOutEdgeIterator(label_t label, vid_t u,
-                                   label_t neighbor_label, label_t edge_label);
+                                   label_t neighbor_label, label_t edge_label,
+                                   int prop_id);
 
   edge_iterator GetInEdgeIterator(label_t label, vid_t u,
-                                  label_t neighbor_label, label_t edge_label);
+                                  label_t neighbor_label, label_t edge_label,
+                                  int prop_id);
 
   Any GetVertexField(label_t label, vid_t lid, int col_id) const;
 
@@ -234,12 +243,12 @@ class UpdateTransaction {
 
   // set col_id = -1 to set the whole edge data
   void SetEdgeData(bool dir, label_t label, vid_t v, label_t neighbor_label,
-                   vid_t nbr, label_t edge_label, const Any& value,
+                   vid_t nbr, label_t edge_label, const Prop& value,
                    int32_t col_id = 0);
 
   bool GetUpdatedEdgeData(bool dir, label_t label, vid_t v,
                           label_t neighbor_label, vid_t nbr, label_t edge_label,
-                          Any& ret) const;
+                          int32_t prop_id, Prop& ret) const;
 
   static void IngestWal(PropertyGraph& graph, const std::string& work_dir,
                         uint32_t timestamp, char* data, size_t length,
@@ -247,8 +256,6 @@ class UpdateTransaction {
   Any GetVertexId(label_t label, vid_t lid) const;
 
   bool GetVertexIndex(label_t label, const Any& id, vid_t& index) const;
-
-  const NeugDBSession& GetSession() const;
 
   PropertyGraph& GetGraph() const { return graph_; }
 
@@ -259,6 +266,12 @@ class UpdateTransaction {
    * @return true if the vertex exists, false otherwise.
    */
   bool HasVertex(label_t label, const Any& oid) const;
+
+  EdgeDataAccessor GetEdgeDataAccessor(label_t src_label, label_t dst_label,
+                                       label_t edge_label, int prop_id) const {
+    return graph_.GetEdgeDataAccessor(src_label, dst_label, edge_label,
+                                      prop_id);
+  }
 
   void CreateCheckpoint();
 
@@ -271,19 +284,17 @@ class UpdateTransaction {
    * @param table The property table of the vertices to be added.
    * @return Status
    */
-  inline Status batch_add_vertices(label_t v_label_id, std::vector<Any>&& ids,
-                                   std::unique_ptr<Table>&& table) {
-    return graph_.batch_add_vertices(v_label_id, std::move(ids),
-                                     std::move(table), timestamp_);
+  inline Status batch_add_vertices(
+      label_t v_label_id, std::shared_ptr<IRecordBatchSupplier> supplier) {
+    return graph_.batch_add_vertices(v_label_id, supplier);
   }
 
   // Also executed in batch mode
   inline Status batch_add_edges(
-      label_t src_label_id, label_t dst_label_id, label_t edge_label_id,
-      std::vector<std::tuple<vid_t, vid_t, size_t>>&& edges_vec,
-      std::unique_ptr<Table>&& table) {
-    return graph_.batch_add_edges(src_label_id, dst_label_id, edge_label_id,
-                                  std::move(edges_vec), std::move(table));
+      label_t src_label, label_t dst_label, label_t edge_label,
+      std::shared_ptr<IRecordBatchSupplier> supplier) {
+    return graph_.batch_add_edges(src_label, dst_label, edge_label,
+                                  std::move(supplier));
   }
 
   // Also executed in batch mode
@@ -303,12 +314,9 @@ class UpdateTransaction {
   inline std::string work_dir() const { return graph_.work_dir(); }
 
  private:
-  friend class NeugDBSession;
-  bool batch_commit(UpdateBatch& batch);
-
   void set_edge_data_with_offset(bool dir, label_t label, vid_t v,
                                  label_t neighbor_label, vid_t nbr,
-                                 label_t edge_label, const Any& value,
+                                 label_t edge_label, const Prop& value,
                                  size_t offset, int32_t col_id = 0);
 
   size_t get_in_csr_index(label_t src_label, label_t dst_label,
@@ -328,8 +336,6 @@ class UpdateTransaction {
   void applyVerticesUpdates();
 
   void applyEdgesUpdates();
-
-  const NeugDBSession& session_;
 
   bool insert_vertex_with_resize_;
 
@@ -353,7 +359,8 @@ class UpdateTransaction {
 
   std::vector<ska::flat_hash_map<vid_t, std::vector<vid_t>>> added_edges_;
   std::vector<ska::flat_hash_map<
-      vid_t, ska::flat_hash_map<vid_t, std::tuple<Any, int32_t, size_t>>>>
+      vid_t, ska::flat_hash_map<
+                 vid_t, std::vector<std::tuple<Prop, int32_t, size_t>>>>>
       updated_edge_data_;
 
   std::vector<std::string> sv_vec_;
@@ -361,4 +368,4 @@ class UpdateTransaction {
 
 }  // namespace gs
 
-#endif  // ENGINES_GRAPH_DB_DATABASE_UPDATE_TRANSACTION_H_
+#endif  // INCLUDE_NEUG_TRANSACTION_UPDATE_TRANSACTION_H_

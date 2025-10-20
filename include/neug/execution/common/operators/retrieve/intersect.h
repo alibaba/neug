@@ -13,10 +13,13 @@
  * limitations under the License.
  */
 
-#ifndef EXECUTION_COMMON_OPERATORS_RETRIEVE_INTERSECT_H_
-#define EXECUTION_COMMON_OPERATORS_RETRIEVE_INTERSECT_H_
+#ifndef INCLUDE_NEUG_EXECUTION_COMMON_OPERATORS_RETRIEVE_INTERSECT_H_
+#define INCLUDE_NEUG_EXECUTION_COMMON_OPERATORS_RETRIEVE_INTERSECT_H_
 
+#include <map>
+#include <string>
 #include <tuple>
+#include <utility>
 #include <vector>
 
 #include "neug/execution/common/columns/edge_columns.h"
@@ -70,70 +73,66 @@ class Intersect {
       edge_builders.reserve(2);
       get_labels(eep0, graph, labels);
       CHECK(labels.back().size() == 1) << "Expect only one label triplet";
-      edge_builders.emplace_back(BDSLEdgeColumnBuilder::builder(
-          labels.back()[0].first, labels.back()[0].second));
+      edge_builders.emplace_back(BDSLEdgeColumnBuilder(labels.back()[0].first));
       get_labels(eep1, graph, labels);
       CHECK(labels.back().size() == 1) << "Expect only one label triplet";
-      edge_builders.emplace_back(BDSLEdgeColumnBuilder::builder(
-          labels.back()[0].first, labels.back()[0].second));
+      edge_builders.emplace_back(BDSLEdgeColumnBuilder(labels.back()[0].first));
     }
 
     for (size_t i = 0; i < row_num; ++i) {
-      using value_t = std::tuple<vid_t, vid_t, Any, Direction>;
+      using value_t = std::tuple<vid_t, vid_t, const void*, Direction>;
       phmap::flat_hash_map<vid_t, std::vector<value_t>> vertex_set;
 
       auto v0 = vertex_col0->get_vertex(i);
       if (eep0.dir == Direction::kOut || eep0.dir == Direction::kBoth) {
-        auto iter = graph.GetOutEdgeIterator(v0.label_, v0.vid_,
-                                             eep0.labels[0].dst_label,
-                                             eep0.labels[0].edge_label);
-        while (iter.IsValid()) {
-          label_t label = iter.GetNeighborLabel();
-          vid_t vid = iter.GetNeighbor();
-          if (left_e_pred(eep0.labels[0], v0.vid_, vid, iter.GetData(),
-                          Direction::kOut, i)) {
+        auto oview = graph.GetGenericOutgoingGraphView(
+            v0.label_, eep0.labels[0].dst_label, eep0.labels[0].edge_label);
+        auto oes = oview.get_edges(v0.vid_);
+        for (auto iter = oes.begin(); iter != oes.end(); ++iter) {
+          vid_t vid = iter.get_vertex();
+          if (left_e_pred(v0.label_, v0.vid_, label, vid,
+                          eep0.labels[0].edge_label, Direction::kOut,
+                          iter.get_data_ptr(), i)) {
             if (left_pred(label, vid, i)) {
               if (vertex_set.find(vid) == vertex_set.end()) {
                 vertex_set.emplace(vid, std::vector<value_t>());
               }
-              vertex_set[vid].emplace_back(v0.vid_, vid, iter.GetData(),
+              vertex_set[vid].emplace_back(v0.vid_, vid, iter.get_data_ptr(),
                                            Direction::kOut);
             }
           }
-          iter.Next();
         }
       }
       if (eep0.dir == Direction::kIn || eep0.dir == Direction::kBoth) {
-        auto iter = graph.GetInEdgeIterator(v0.label_, v0.vid_,
-                                            eep0.labels[0].src_label,
-                                            eep0.labels[0].edge_label);
-        while (iter.IsValid()) {
-          label_t label = iter.GetNeighborLabel();
-          vid_t vid = iter.GetNeighbor();
-          if (left_e_pred(eep0.labels[0], vid, v0.vid_, iter.GetData(),
-                          Direction::kIn, i)) {
+        auto iview = graph.GetGenericIncomingGraphView(
+            v0.label_, eep0.labels[0].src_label, eep0.labels[0].edge_label);
+        auto ies = iview.get_edges(v0.vid_);
+        for (auto iter = ies.begin(); iter != ies.end(); ++iter) {
+          vid_t vid = iter.get_vertex();
+          if (left_e_pred(v0.label_, v0.vid_, label, vid,
+                          eep0.labels[0].edge_label, Direction::kIn,
+                          iter.get_data_ptr(), i)) {
             if (left_pred(label, vid, i)) {
               if (vertex_set.find(vid) == vertex_set.end()) {
                 vertex_set.emplace(vid, std::vector<value_t>());
               }
-              vertex_set[vid].emplace_back(vid, v0.vid_, iter.GetData(),
+              vertex_set[vid].emplace_back(vid, v0.vid_, iter.get_data_ptr(),
                                            Direction::kIn);
             }
           }
-          iter.Next();
         }
       }
       auto v1 = vertex_col1->get_vertex(i);
 
       if (eep1.dir == Direction::kOut || eep1.dir == Direction::kBoth) {
-        auto iter = graph.GetOutEdgeIterator(v1.label_, v1.vid_,
-                                             eep1.labels[0].dst_label,
-                                             eep1.labels[0].edge_label);
-        while (iter.IsValid()) {
-          label_t label = iter.GetNeighborLabel();
-          vid_t vid = iter.GetNeighbor();
-          if (left_e_pred(eep1.labels[0], v1.vid_, vid, iter.GetData(),
-                          Direction::kOut, i)) {
+        auto oview = graph.GetGenericOutgoingGraphView(
+            v1.label_, eep1.labels[0].dst_label, eep1.labels[0].edge_label);
+        auto oes = oview.get_edges(v1.vid_);
+        for (auto iter = oes.begin(); iter != oes.end(); ++iter) {
+          vid_t vid = iter.get_vertex();
+          if (right_e_pred(v1.label_, v1.vid_, label, vid,
+                           eep1.labels[0].edge_label, Direction::kOut,
+                           iter.get_data_ptr(), i)) {
             if (vertex_set.find(vid) != vertex_set.end() &&
                 right_pred(label, vid, i)) {
               const auto& edges = vertex_set[vid];
@@ -145,25 +144,24 @@ class Intersect {
                         edge_builders[0].push_back_opt(args...);
                       },
                       edge);
-                  edge_builders[1].push_back_opt(v1.vid_, vid, iter.GetData(),
-                                                 Direction::kOut);
+                  edge_builders[1].push_back_opt(
+                      v1.vid_, vid, iter.get_data_ptr(), Direction::kOut);
                 }
                 offsets.emplace_back(i);
               }
             }
           }
-          iter.Next();
         }
       }
       if (eep1.dir == Direction::kIn || eep1.dir == Direction::kBoth) {
-        auto iter = graph.GetInEdgeIterator(v1.label_, v1.vid_,
-                                            eep1.labels[0].src_label,
-                                            eep1.labels[0].edge_label);
-        while (iter.IsValid()) {
-          label_t label = iter.GetNeighborLabel();
-          vid_t vid = iter.GetNeighbor();
-          if (right_e_pred(eep1.labels[0], vid, v1.vid_, iter.GetData(),
-                           Direction::kIn, i)) {
+        auto iview = graph.GetGenericIncomingGraphView(
+            v1.label_, eep1.labels[0].src_label, eep1.labels[0].edge_label);
+        auto ies = iview.get_edges(v1.vid_);
+        for (auto iter = ies.begin(); iter != ies.end(); ++iter) {
+          vid_t vid = iter.get_vertex();
+          if (right_e_pred(v1.label_, v1.vid_, label, vid,
+                           eep1.labels[0].edge_label, Direction::kIn,
+                           iter.get_data_ptr(), i)) {
             if (vertex_set.find(vid) != vertex_set.end() &&
                 right_pred(label, vid, i)) {
               const auto& edges = vertex_set[vid];
@@ -175,14 +173,13 @@ class Intersect {
                         edge_builders[0].push_back_opt(args...);
                       },
                       edge);
-                  edge_builders[1].push_back_opt(vid, v1.vid_, iter.GetData(),
-                                                 Direction::kIn);
+                  edge_builders[1].push_back_opt(
+                      vid, v1.vid_, iter.get_data_ptr(), Direction::kIn);
                 }
                 offsets.emplace_back(i);
               }
             }
           }
-          iter.Next();
         }
       }
     }
@@ -217,6 +214,7 @@ class Intersect {
         << "IntersectOprBeta does not support optional edge expand";
     size_t row_num = ctx.row_num();
 
+    // TODO(luoxiaojian): use MLVertexColumnBuilderOpt
     MLVertexColumnBuilder builder;
     std::vector<size_t> offsets;
 
@@ -228,13 +226,22 @@ class Intersect {
       labels.reserve(2);
       edge_builders.reserve(2);
       get_labels(eep0, graph, labels);
-      edge_builders.emplace_back(BDMLEdgeColumnBuilder::builder(labels.back()));
+      std::vector<LabelTriplet> label_triplets;
+      for (const auto& p : labels.back()) {
+        label_triplets.push_back(p.first);
+      }
+      edge_builders.emplace_back(BDMLEdgeColumnBuilder(label_triplets));
       get_labels(eep1, graph, labels);
-      edge_builders.emplace_back(BDMLEdgeColumnBuilder::builder(labels.back()));
+      label_triplets.clear();
+      for (const auto& p : labels.back()) {
+        label_triplets.push_back(p.first);
+      }
+      edge_builders.emplace_back(BDMLEdgeColumnBuilder(label_triplets));
     }
 
     for (size_t i = 0; i < row_num; ++i) {
-      using value_t = std::tuple<LabelTriplet, vid_t, vid_t, Any, Direction>;
+      using value_t =
+          std::tuple<LabelTriplet, vid_t, vid_t, const void*, Direction>;
       phmap::flat_hash_map<VertexRecord, std::vector<value_t>, VertexRecordHash>
           vertex_set;
 
@@ -244,23 +251,23 @@ class Intersect {
           if (label_triplet.src_label != v0.label_) {
             continue;
           }
-          auto iter = graph.GetOutEdgeIterator(v0.label_, v0.vid_,
-                                               label_triplet.dst_label,
-                                               label_triplet.edge_label);
-          while (iter.IsValid()) {
-            label_t label = iter.GetNeighborLabel();
-            vid_t vid = iter.GetNeighbor();
-            if (left_e_pred(label_triplet, v0.vid_, vid, iter.GetData(),
-                            Direction::kOut, i) &&
-                left_pred(label, vid, i)) {
-              auto rcd = VertexRecord{label, vid};
+          auto oview = graph.GetGenericOutgoingGraphView(
+              v0.label_, label_triplet.dst_label, label_triplet.edge_label);
+          auto oes = oview.get_edges(v0.vid_);
+          for (auto iter = oes.begin(); iter != oes.end(); ++iter) {
+            vid_t vid = iter.get_vertex();
+            if (left_e_pred(v0.label_, v0.vid_, label_triplet.dst_label, vid,
+                            label_triplet.edge_label, Direction::kOut,
+                            iter.get_data_ptr(), i) &&
+                left_pred(label_triplet.dst_label, vid, i)) {
+              auto rcd = VertexRecord{label_triplet.dst_label, vid};
               if (vertex_set.find(rcd) == vertex_set.end()) {
                 vertex_set.emplace(rcd, std::vector<value_t>());
               }
               vertex_set[rcd].emplace_back(label_triplet, v0.vid_, vid,
-                                           iter.GetData(), Direction::kOut);
+                                           iter.get_data_ptr(),
+                                           Direction::kOut);
             }
-            iter.Next();
           }
         }
       }
@@ -269,23 +276,22 @@ class Intersect {
           if (label_triplet.dst_label != v0.label_) {
             continue;
           }
-          auto iter = graph.GetInEdgeIterator(v0.label_, v0.vid_,
-                                              label_triplet.src_label,
-                                              label_triplet.edge_label);
-          while (iter.IsValid()) {
-            label_t label = iter.GetNeighborLabel();
-            vid_t vid = iter.GetNeighbor();
-            if (left_e_pred(label_triplet, vid, v0.vid_, iter.GetData(),
-                            Direction::kIn, i) &&
-                left_pred(label, vid, i)) {
-              auto rcd = VertexRecord{label, vid};
+          auto iview = graph.GetGenericIncomingGraphView(
+              v0.label_, label_triplet.src_label, label_triplet.edge_label);
+          auto ies = iview.get_edges(v0.vid_);
+          for (auto iter = ies.begin(); iter != ies.end(); ++iter) {
+            vid_t vid = iter.get_vertex();
+            if (left_e_pred(v0.label_, v0.vid_, label_triplet.src_label, vid,
+                            label_triplet.edge_label, Direction::kIn,
+                            iter.get_data_ptr(), i) &&
+                left_pred(label_triplet.src_label, vid, i)) {
+              auto rcd = VertexRecord{label_triplet.src_label, vid};
               if (vertex_set.find(rcd) == vertex_set.end()) {
                 vertex_set.emplace(rcd, std::vector<value_t>());
               }
               vertex_set[rcd].emplace_back(label_triplet, vid, v0.vid_,
-                                           iter.GetData(), Direction::kIn);
+                                           iter.get_data_ptr(), Direction::kIn);
             }
-            iter.Next();
           }
         }
       }
@@ -296,20 +302,20 @@ class Intersect {
           if (label_triplet.src_label != v1.label_) {
             continue;
           }
-          auto iter = graph.GetOutEdgeIterator(v1.label_, v1.vid_,
-                                               label_triplet.dst_label,
-                                               label_triplet.edge_label);
-          while (iter.IsValid()) {
-            label_t label = iter.GetNeighborLabel();
-            vid_t vid = iter.GetNeighbor();
-            VertexRecord v_record{label, vid};
-            if (right_e_pred(label_triplet, vid, v1.vid_, iter.GetData(),
-                             Direction::kOut, i) &&
-                right_pred(label, vid, i)) {
-              if (vertex_set.find(v_record) != vertex_set.end()) {
-                const auto& values = vertex_set[v_record];
+          auto oview = graph.GetGenericOutgoingGraphView(
+              v1.label_, label_triplet.dst_label, label_triplet.edge_label);
+          auto oes = oview.get_edges(v1.vid_);
+          for (auto iter = oes.begin(); iter != oes.end(); ++iter) {
+            vid_t vid = iter.get_vertex();
+            if (right_e_pred(v1.label_, v1.vid_, label_triplet.dst_label, vid,
+                             label_triplet.edge_label, Direction::kOut,
+                             iter.get_data_ptr(), i) &&
+                right_pred(label_triplet.dst_label, vid, i)) {
+              auto rcd = VertexRecord{label_triplet.dst_label, vid};
+              if (vertex_set.find(rcd) != vertex_set.end()) {
+                const auto& values = vertex_set[rcd];
                 for (const auto& value : values) {
-                  builder.push_back_opt(v_record);
+                  builder.push_back_opt(rcd);
                   if (keep_edges) {
                     std::apply(
                         [&](const auto&... args) {
@@ -317,14 +323,13 @@ class Intersect {
                         },
                         value);
                     edge_builders[1].push_back_opt(label_triplet, v1.vid_, vid,
-                                                   iter.GetData(),
+                                                   iter.get_data_ptr(),
                                                    Direction::kOut);
                   }
                   offsets.emplace_back(i);
                 }
               }
             }
-            iter.Next();
           }
         }
       }
@@ -333,17 +338,17 @@ class Intersect {
           if (label_triplet.dst_label != v1.label_) {
             continue;
           }
-          auto iter = graph.GetInEdgeIterator(v1.label_, v1.vid_,
-                                              label_triplet.src_label,
-                                              label_triplet.edge_label);
-          while (iter.IsValid()) {
-            label_t label = iter.GetNeighborLabel();
-            vid_t vid = iter.GetNeighbor();
-            VertexRecord v_record{label, vid};
-            if (right_e_pred(label_triplet, vid, v1.vid_, iter.GetData(),
-                             Direction::kIn, i) &&
+          auto iview = graph.GetGenericIncomingGraphView(
+              v1.label_, label_triplet.src_label, label_triplet.edge_label);
+          auto ies = iview.get_edges(v1.vid_);
+          for (auto iter = ies.begin(); iter != ies.end(); ++iter) {
+            vid_t vid = iter.get_vertex();
+            VertexRecord v_record{label_triplet.src_label, vid};
+            if (right_e_pred(v1.label_, v1.vid_, label_triplet.src_label, vid,
+                             label_triplet.edge_label, Direction::kIn,
+                             iter.get_data_ptr(), i) &&
                 vertex_set.find(v_record) != vertex_set.end() &&
-                right_pred(v_record.label_, vid, i)) {
+                right_pred(label_triplet.src_label, vid, i)) {
               const auto& values = vertex_set[v_record];
               for (const auto& value : values) {
                 builder.push_back_opt(v_record);
@@ -354,13 +359,12 @@ class Intersect {
                       },
                       value);
                   edge_builders[1].push_back_opt(label_triplet, vid, v1.vid_,
-                                                 iter.GetData(),
+                                                 iter.get_data_ptr(),
                                                  Direction::kIn);
                 }
                 offsets.emplace_back(i);
               }
             }
-            iter.Next();
           }
         }
       }
@@ -403,9 +407,9 @@ class Intersect {
       const std::map<std::string, std::string>& params,
       gs::runtime::Context&& ctx,
       const std::vector<std::function<bool(label_t, vid_t, size_t)>>& preds,
-      const std::vector<std::function<bool(const LabelTriplet&, vid_t, vid_t,
-                                           const Any&, Direction, size_t)>>&
-          e_preds,
+      const std::vector<
+          std::function<bool(label_t, vid_t, label_t, vid_t, label_t, Direction,
+                             const void*, size_t)>>& e_preds,
       const std::vector<EdgeExpandParams>& eeps, int vertex_alias,
       std::vector<int> edge_aliases);
 };
@@ -414,4 +418,4 @@ class Intersect {
 
 }  // namespace gs
 
-#endif  // EXECUTION_COMMON_OPERATORS_RETRIEVE_INTERSECT_H_
+#endif  // INCLUDE_NEUG_EXECUTION_COMMON_OPERATORS_RETRIEVE_INTERSECT_H_

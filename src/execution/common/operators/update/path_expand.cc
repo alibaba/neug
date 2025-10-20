@@ -31,7 +31,7 @@ gs::result<Context> UPathExpand::path_expand_v(
       out_labels_map[label.src_label].emplace_back(label);
     }
 
-    MLVertexColumnBuilder builder(labels);
+    MLVertexColumnBuilderOpt builder(labels);
     std::vector<std::tuple<label_t, vid_t, size_t>> input;
     std::vector<std::tuple<label_t, vid_t, size_t>> output;
     foreach_vertex(input_vertex_list,
@@ -60,7 +60,7 @@ gs::result<Context> UPathExpand::path_expand_v(
         for (const auto& label_triplet : out_labels_map[label]) {
           auto oe_iter = graph.GetOutEdgeIterator(label_triplet.src_label, v,
                                                   label_triplet.dst_label,
-                                                  label_triplet.edge_label);
+                                                  label_triplet.edge_label, 0);
 
           while (oe_iter.IsValid()) {
             auto nbr = oe_iter.GetNeighbor();
@@ -84,7 +84,7 @@ gs::result<Context> UPathExpand::path_expand_v(
       in_labels_map[label.dst_label].emplace_back(label);
     }
 
-    MLVertexColumnBuilder builder(labels);
+    MLVertexColumnBuilderOpt builder(labels);
     std::vector<std::tuple<label_t, vid_t, size_t>> input;
     std::vector<std::tuple<label_t, vid_t, size_t>> output;
     foreach_vertex(input_vertex_list,
@@ -113,7 +113,7 @@ gs::result<Context> UPathExpand::path_expand_v(
         for (const auto& label_triplet : in_labels_map[label]) {
           auto oe_iter = graph.GetInEdgeIterator(label_triplet.dst_label, v,
                                                  label_triplet.src_label,
-                                                 label_triplet.edge_label);
+                                                 label_triplet.edge_label, 0);
 
           while (oe_iter.IsValid()) {
             auto nbr = oe_iter.GetNeighbor();
@@ -138,7 +138,7 @@ gs::result<Context> UPathExpand::path_expand_v(
       out_labels_map[label.src_label].emplace_back(label);
     }
 
-    MLVertexColumnBuilder builder(labels);
+    MLVertexColumnBuilderOpt builder(labels);
     std::vector<std::tuple<label_t, vid_t, size_t>> input;
     std::vector<std::tuple<label_t, vid_t, size_t>> output;
     auto input_vertex_list =
@@ -180,7 +180,7 @@ gs::result<Context> UPathExpand::path_expand_v(
         for (const auto& label_triplet : out_labels_map[label]) {
           auto oe_iter = graph.GetOutEdgeIterator(label_triplet.src_label, v,
                                                   label_triplet.dst_label,
-                                                  label_triplet.edge_label);
+                                                  label_triplet.edge_label, 0);
 
           while (oe_iter.IsValid()) {
             auto nbr = oe_iter.GetNeighbor();
@@ -191,7 +191,7 @@ gs::result<Context> UPathExpand::path_expand_v(
         for (const auto& label_triplet : in_labels_map[label]) {
           auto ie_iter = graph.GetInEdgeIterator(label_triplet.dst_label, v,
                                                  label_triplet.src_label,
-                                                 label_triplet.edge_label);
+                                                 label_triplet.edge_label, 0);
           while (ie_iter.IsValid()) {
             auto nbr = ie_iter.GetNeighbor();
             output.emplace_back(label_triplet.src_label, nbr, index);

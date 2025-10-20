@@ -23,7 +23,6 @@
 #include "neug/execution/common/context.h"
 #include "neug/execution/common/graph_interface.h"
 #include "neug/execution/common/operators/retrieve/select.h"
-#include "neug/execution/common/rt_any.h"
 #include "neug/execution/utils/expr.h"
 #include "neug/execution/utils/var.h"
 
@@ -36,7 +35,8 @@ class OprTimer;
 namespace ops {
 class USelectOpr : public IUpdateOperator {
  public:
-  USelectOpr(const common::Expression& predicate) : predicate_(predicate) {}
+  explicit USelectOpr(const common::Expression& predicate)
+      : predicate_(predicate) {}
   gs::result<Context> Eval(GraphUpdateInterface& graph,
                            const std::map<std::string, std::string>& params,
                            Context&& ctx, OprTimer* timer) override {

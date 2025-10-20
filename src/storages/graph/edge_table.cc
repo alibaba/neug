@@ -15,600 +15,985 @@
 
 #include "neug/storages/graph/edge_table.h"
 
+#include <arrow/api.h>
+#include <arrow/array/array_base.h>
+#include <arrow/array/array_binary.h>
+#include <arrow/array/array_primitive.h>
+#include <glog/logging.h>
+#include <algorithm>
+#include <cstdint>
+#include <filesystem>
+#include <ostream>
+#include <string_view>
+#include <utility>
+
+#include "libgrape-lite/grape/serialization/in_archive.h"
+#include "libgrape-lite/grape/types.h"
+
+#include "neug/storages/csr/immutable_csr.h"
+#include "neug/storages/csr/mutable_csr.h"
+#include "neug/storages/file_names.h"
+#include "neug/storages/loader/loader_utils.h"
+#include "neug/utils/arrow_utils.h"
+
 namespace gs {
-DualCsrBase* EdgeTable::create_dual_csr(
-    EdgeStrategy oes, EdgeStrategy ies,
-    const std::vector<PropertyType>& properties, bool oe_mutable,
-    bool ie_mutable, const std::vector<std::string>& prop_names, Table& table,
-    std::atomic<size_t>& offset) {
+
+std::tuple<std::vector<vid_t>, std::vector<vid_t>, std::vector<bool>>
+filterInvalidEdges(const std::vector<vid_t>& src_lid,
+                   const std::vector<vid_t>& dst_lid) {
+  assert(src_lid.size() == dst_lid.size());
+  std::vector<vid_t> filtered_src, filtered_dst;
+  std::vector<bool> valid_flags;
+  filtered_src.reserve(src_lid.size());
+  filtered_dst.reserve(dst_lid.size());
+  valid_flags.reserve(src_lid.size());
+  for (size_t i = 0; i < src_lid.size(); ++i) {
+    if (src_lid[i] != std::numeric_limits<vid_t>::max() &&
+        dst_lid[i] != std::numeric_limits<vid_t>::max()) {
+      filtered_src.push_back(src_lid[i]);
+      filtered_dst.push_back(dst_lid[i]);
+      valid_flags.push_back(true);
+    } else {
+      valid_flags.push_back(false);
+    }
+  }
+  return std::make_tuple(std::move(filtered_src), std::move(filtered_dst),
+                         std::move(valid_flags));
+}
+
+template <typename EDATA_T>
+void batch_put_edges_with_default_edata_impl(const std::vector<vid_t>& src_lid,
+                                             const std::vector<vid_t>& dst_lid,
+                                             CsrBase* out_csr) {
+  assert(src_lid.size() == dst_lid.size());
+  std::vector<EDATA_T> default_data(src_lid.size(), EDATA_T());
+  dynamic_cast<TypedCsrBase<EDATA_T>*>(out_csr)->batch_put_edges(
+      src_lid, dst_lid, default_data);
+}
+
+// TODO(zhanglei): Support default value for non-empty edge data type
+void batch_put_edges_with_default_edata(const std::vector<vid_t>& src_lid,
+                                        const std::vector<vid_t>& dst_lid,
+                                        PropType property_type,
+                                        CsrBase* out_csr) {
+  assert(src_lid.size() == dst_lid.size());
+  if (property_type == PropType::kEmpty) {
+    batch_put_edges_with_default_edata_impl<grape::EmptyType>(src_lid, dst_lid,
+                                                              out_csr);
+  } else if (property_type == PropType::kInt32) {
+    batch_put_edges_with_default_edata_impl<int32_t>(src_lid, dst_lid, out_csr);
+  } else if (property_type == PropType::kUInt32) {
+    batch_put_edges_with_default_edata_impl<uint32_t>(src_lid, dst_lid,
+                                                      out_csr);
+  } else if (property_type == PropType::kInt64) {
+    batch_put_edges_with_default_edata_impl<int64_t>(src_lid, dst_lid, out_csr);
+  } else if (property_type == PropType::kUInt64) {
+    batch_put_edges_with_default_edata_impl<uint64_t>(src_lid, dst_lid,
+                                                      out_csr);
+  } else if (property_type == PropType::kFloat) {
+    batch_put_edges_with_default_edata_impl<float>(src_lid, dst_lid, out_csr);
+  } else if (property_type == PropType::kDouble) {
+    batch_put_edges_with_default_edata_impl<double>(src_lid, dst_lid, out_csr);
+  } else if (property_type == PropType::kTimestamp) {
+    batch_put_edges_with_default_edata_impl<TimeStamp>(src_lid, dst_lid,
+                                                       out_csr);
+  } else if (property_type == PropType::kDate) {
+    batch_put_edges_with_default_edata_impl<Date>(src_lid, dst_lid, out_csr);
+  } else if (property_type == PropType::kDateTime) {
+    batch_put_edges_with_default_edata_impl<DateTime>(src_lid, dst_lid,
+                                                      out_csr);
+  } else if (property_type == PropType::kInterval) {
+    batch_put_edges_with_default_edata_impl<Interval>(src_lid, dst_lid,
+                                                      out_csr);
+  } else {
+    THROW_NOT_SUPPORTED_EXCEPTION(
+        "not support edge data type: " +
+        std::to_string(static_cast<int>(property_type)));
+  }
+}
+
+EdgeTableMeta::EdgeTableMeta(const std::string& src_label_name_,
+                             const std::string& dst_label_name_,
+                             const std::string& edge_label_name_,
+                             bool ie_mutable_, bool oe_mutable_,
+                             EdgeStrategy ie_strategy_,
+                             EdgeStrategy oe_strategy_,
+                             const std::vector<PropType>& properties_,
+                             const std::vector<std::string>& property_names_,
+                             const std::vector<StorageStrategy>& strategies_)
+    : src_label_name(src_label_name_),
+      dst_label_name(dst_label_name_),
+      edge_label_name(edge_label_name_),
+      ie_mutable(ie_mutable_),
+      oe_mutable(oe_mutable_),
+      oe_strategy(oe_strategy_),
+      ie_strategy(ie_strategy_),
+      properties(properties_),
+      property_names(property_names_),
+      strategies(strategies_) {
+  CHECK_EQ(properties.size(), property_names.size());
+  CHECK_EQ(properties.size(), strategies.size());
+}
+
+EdgeTableMeta::EdgeTableMeta(const std::string& src_label_name_,
+                             const std::string& dst_label_name_,
+                             const std::string& edge_label_name_,
+                             bool ie_mutable_, bool oe_mutable_,
+                             EdgeStrategy ie_strategy_,
+                             EdgeStrategy oe_strategy_,
+                             const std::vector<PropertyType>& properties_,
+                             const std::vector<std::string>& property_names_,
+                             const std::vector<StorageStrategy>& strategies_)
+    : src_label_name(src_label_name_),
+      dst_label_name(dst_label_name_),
+      edge_label_name(edge_label_name_),
+      ie_mutable(ie_mutable_),
+      oe_mutable(oe_mutable_),
+      oe_strategy(oe_strategy_),
+      ie_strategy(ie_strategy_),
+      property_names(property_names_),
+      strategies(strategies_) {
+  for (auto pt : properties_) {
+    properties.push_back(to_prop_type(pt));
+  }
+  CHECK_EQ(properties.size(), property_names.size());
+  CHECK_EQ(properties.size(), strategies.size());
+}
+
+bool EdgeTableMeta::is_bundled() const {
   if (properties.empty()) {
-    return new DualCsr<grape::EmptyType>(oes, ies, oe_mutable, ie_mutable);
-  } else if (properties.size() == 1) {
-    if (properties[0] == PropertyType::kBool) {
-      return new DualCsr<bool>(oes, ies, oe_mutable, ie_mutable);
-    } else if (properties[0] == PropertyType::kInt32) {
-      return new DualCsr<int32_t>(oes, ies, oe_mutable, ie_mutable);
-    } else if (properties[0] == PropertyType::kUInt32) {
-      return new DualCsr<uint32_t>(oes, ies, oe_mutable, ie_mutable);
-    } else if (properties[0] == PropertyType::kDate) {
-      return new DualCsr<Date>(oes, ies, oe_mutable, ie_mutable);
-    } else if (properties[0] == PropertyType::kInt64) {
-      return new DualCsr<int64_t>(oes, ies, oe_mutable, ie_mutable);
-    } else if (properties[0] == PropertyType::kUInt64) {
-      return new DualCsr<uint64_t>(oes, ies, oe_mutable, ie_mutable);
-    } else if (properties[0] == PropertyType::kDouble) {
-      return new DualCsr<double>(oes, ies, oe_mutable, ie_mutable);
-    } else if (properties[0] == PropertyType::kFloat) {
-      return new DualCsr<float>(oes, ies, oe_mutable, ie_mutable);
-    } else if (properties[0].type_enum == impl::PropertyTypeImpl::kVarChar) {
-      return new DualCsr<std::string_view>(oes, ies, table, offset, oe_mutable,
-                                           ie_mutable);
-    } else if (properties[0] == PropertyType::kStringView) {
-      return new DualCsr<std::string_view>(oes, ies, table, offset, oe_mutable,
-                                           ie_mutable);
-    } else if (properties[0] == PropertyType::kDateTime) {
-      return new DualCsr<DateTime>(oes, ies, oe_mutable, ie_mutable);
-    } else if (properties[0] == PropertyType::kTimestamp) {
-      return new DualCsr<TimeStamp>(oes, ies, oe_mutable, ie_mutable);
-    } else if (properties[0] == PropertyType::kDateTime) {
-      return new DualCsr<DateTime>(oes, ies, oe_mutable, ie_mutable);
-    }
+    return true;
+  } else if (properties.size() == 1 && properties[0] == PropType::kString) {
+    return false;
+  } else if (properties.size() > 1) {
+    return false;
   } else {
-    // TODO: fix me, storage strategy not set
-    return new DualCsr<RecordView>(oes, ies, table, offset, oe_mutable,
-                                   ie_mutable);
-  }
-  LOG(FATAL) << "not support edge strategy or edge data type";
-  return nullptr;
-}
-
-EdgeTable::EdgeTable(const std::string& src_label_name,
-                     const std::string& dst_label_name,
-                     const std::string& edge_label_name,
-                     EdgeStrategy oe_strategy, EdgeStrategy ie_strategy,
-                     const std::vector<std::string>& prop_names,
-                     const std::vector<PropertyType>& prop_types,
-                     bool oe_mutable, bool ie_mutable)
-    : src_label_name_(src_label_name),
-      dst_label_name_(dst_label_name),
-      edge_label_name_(edge_label_name),
-      oe_strategy_(oe_strategy),
-      ie_strategy_(ie_strategy),
-      oe_mutable_(oe_mutable),
-      ie_mutable_(ie_mutable),
-      prop_names_(prop_names),
-      prop_types_(prop_types) {
-  table_ = std::make_unique<Table>();
-  offset_ = std::make_unique<std::atomic<size_t>>(0);
-  dual_csr_ = create_dual_csr(oe_strategy, ie_strategy, prop_types, oe_mutable,
-                              ie_mutable, prop_names, *table_, *offset_);
-}
-
-EdgeTable::EdgeTable(EdgeTable&& edge_table)
-    : src_label_name_(std::move(edge_table.src_label_name_)),
-      dst_label_name_(std::move(edge_table.dst_label_name_)),
-      edge_label_name_(std::move(edge_table.edge_label_name_)),
-      oe_strategy_(edge_table.oe_strategy_),
-      ie_strategy_(edge_table.ie_strategy_),
-      oe_mutable_(edge_table.oe_mutable_),
-      ie_mutable_(edge_table.ie_mutable_),
-      dual_csr_(edge_table.dual_csr_),
-      table_(std::move(edge_table.table_)),
-      offset_(std::move(edge_table.offset_)),
-      prop_names_(std::move(edge_table.prop_names_)),
-      prop_types_(std::move(edge_table.prop_types_)),
-      memory_level_(edge_table.memory_level_),
-      work_dir_(edge_table.work_dir_) {
-  edge_table.dual_csr_ = nullptr;
-}
-
-void EdgeTable::Open(const std::string& work_dir, int memory_level,
-                     size_t src_vertex_cap, size_t dst_vertex_cap) {
-  memory_level_ = memory_level;
-  work_dir_ = work_dir;
-  table_->set_work_dir(work_dir_);
-  // Here we only set the name and work_dir of the table, the real open
-  // operation is not needed before we got csr that needs at least two
-  // properties
-  table_->set_name(
-      edata_prefix(src_label_name_, dst_label_name_, edge_label_name_));
-  std::string checkpoint_dir_path = checkpoint_dir(work_dir_);
-  if (memory_level_ == 0) {
-    dual_csr_->Open(
-        oe_prefix(src_label_name_, dst_label_name_, edge_label_name_),
-        ie_prefix(src_label_name_, dst_label_name_, edge_label_name_),
-        edata_prefix(src_label_name_, dst_label_name_, edge_label_name_),
-        checkpoint_dir_path, work_dir, prop_names_, prop_types_);
-  } else if (memory_level_ >= 2) {
-    dual_csr_->OpenWithHugepages(
-        oe_prefix(src_label_name_, dst_label_name_, edge_label_name_),
-        ie_prefix(src_label_name_, dst_label_name_, edge_label_name_),
-        edata_prefix(src_label_name_, dst_label_name_, edge_label_name_),
-        checkpoint_dir_path, prop_names_, prop_types_, src_vertex_cap,
-        dst_vertex_cap);
-  } else {
-    dual_csr_->OpenInMemory(
-        oe_prefix(src_label_name_, dst_label_name_, edge_label_name_),
-        ie_prefix(src_label_name_, dst_label_name_, edge_label_name_),
-        edata_prefix(src_label_name_, dst_label_name_, edge_label_name_),
-        work_dir, prop_names_, prop_types_, src_vertex_cap, dst_vertex_cap);
-  }
-}
-
-void EdgeTable::Dump(const std::string& checkpoint_dir_path) {
-  dual_csr_->Dump(
-      oe_prefix(src_label_name_, dst_label_name_, edge_label_name_),
-      ie_prefix(src_label_name_, dst_label_name_, edge_label_name_),
-      edata_prefix(src_label_name_, dst_label_name_, edge_label_name_),
-      checkpoint_dir_path);
-  table_->dump(edata_prefix(src_label_name_, dst_label_name_, edge_label_name_),
-               checkpoint_dir_path);
-}
-
-void EdgeTable::SortByEdgeData(timestamp_t ts) {
-  dual_csr_->SortByEdgeData(ts);
-}
-
-void EdgeTable::UpdateEdge(vid_t src, vid_t dst, const Any& data,
-                           timestamp_t ts, Allocator& alloc) {
-  dual_csr_->UpdateEdge(src, dst, data, ts, alloc);
-}
-
-void EdgeTable::BatchDeleteVertices(bool is_src,
-                                    const std::vector<vid_t>& vids) {
-  dual_csr_->BatchDeleteVertices(is_src, vids);
-}
-
-void EdgeTable::BatchDeleteEdge(
-    const std::vector<std::tuple<vid_t, vid_t>>& parsed_edges_vec) {
-  dual_csr_->BatchDeleteEdge(parsed_edges_vec);
-}
-
-void EdgeTable::Reserve(vid_t src_vertex_num, vid_t dst_vertex_num) {
-  dual_csr_->Resize(src_vertex_num, dst_vertex_num);
-}
-
-static void collectEdgesWithNoProperty(DualCsrBase* dual_csr,
-                                       std::vector<std::vector<vid_t>>& edges,
-                                       std::vector<int>& out_degs,
-                                       std::vector<int>& in_degs) {
-  auto csr = dual_csr->GetOutCsr();
-  auto src_vertex_cap = dual_csr->GetOutCsr()->size();
-  auto dst_vertex_cap = dual_csr->GetInCsr()->size();
-  edges.clear();
-  edges.resize(src_vertex_cap);
-  out_degs.clear();
-  out_degs.resize(src_vertex_cap, 0);
-  in_degs.clear();
-  in_degs.resize(dst_vertex_cap, 0);
-  for (size_t i = 0; i < src_vertex_cap; ++i) {
-    auto it = csr->edge_iter(i);
-    while (it->is_valid()) {
-      vid_t dst = it->get_neighbor();
-      edges[i].push_back(dst);
-      out_degs[i]++;
-      in_degs[dst]++;
-      it->next();
-    }
-  }
-}
-
-static void collectEdgesWithProperty(DualCsrBase* dual_csr,
-                                     std::vector<std::vector<vid_t>>& edges,
-                                     std::vector<int>& out_degs,
-                                     std::vector<int>& in_degs,
-                                     std::vector<Any>& prop_values) {
-  auto csr = dual_csr->GetOutCsr();
-  edges.clear();
-  auto src_vertex_cap = dual_csr->GetOutCsr()->size();
-  auto dst_vertex_cap = dual_csr->GetInCsr()->size();
-  edges.resize(src_vertex_cap);
-  out_degs.clear();
-  out_degs.resize(src_vertex_cap, 0);
-  in_degs.clear();
-  in_degs.resize(dst_vertex_cap, 0);
-  for (size_t i = 0; i < src_vertex_cap; ++i) {
-    auto it = csr->edge_iter(i);
-    while (it->is_valid()) {
-      vid_t dst = it->get_neighbor();
-      edges[i].push_back(dst);
-      out_degs[i]++;
-      in_degs[dst]++;
-      prop_values.push_back(it->get_data());
-      it->next();
-    }
+    return true;
   }
 }
 
 template <typename T>
-void AppendEdgesUtils(DualCsrBase* dual_csr,
-                      const std::vector<std::vector<vid_t>>& edges) {
-  auto casted_dual_csr = dynamic_cast<DualCsr<T>*>(dual_csr);
-  if constexpr (std::is_same_v<T, RecordView> ||
-                std::is_same_v<T, std::string_view>) {
-    size_t row_id = 0;
-    for (vid_t i = 0; i < edges.size(); ++i) {
-      for (vid_t j : edges[i]) {
-        casted_dual_csr->BatchPutEdge(i, j, row_id);
-        ++row_id;
-      }
+std::unique_ptr<CsrBase> create_csr_impl(bool is_mutable,
+                                         EdgeStrategy strategy) {
+  if (strategy == EdgeStrategy::kSingle) {
+    if (is_mutable) {
+      return std::unique_ptr<CsrBase>(new SingleMutableCsr<T>());
+    } else {
+      return std::unique_ptr<CsrBase>(new SingleImmutableCsr<T>());
+    }
+  } else if (strategy == EdgeStrategy::kMultiple) {
+    if (is_mutable) {
+      return std::unique_ptr<CsrBase>(new MutableCsr<T>());
+    } else {
+      return std::unique_ptr<CsrBase>(new ImmutableCsr<T>());
     }
   } else {
-    for (vid_t i = 0; i < edges.size(); ++i) {
-      for (vid_t j : edges[i]) {
-        casted_dual_csr->BatchPutEdge(i, j, T());
-      }
-    }
-  }
-}
-void EdgeTable::AddProperties(const std::vector<std::string>& prop_names,
-                              const std::vector<PropertyType>& prop_types) {
-  CHECK(prop_names.size() == prop_types.size());
-  if (prop_names.empty()) {
-    return;
-  }
-  for (const auto& name : prop_names) {
-    if (std::find(prop_names_.begin(), prop_names_.end(), name) !=
-        prop_names_.end()) {
-      LOG(ERROR) << "Column " << name << " already exists.";
-      return;
-    }
-  }
-  std::vector<PropertyType> old_prop_types = prop_types_;
-
-  for (size_t i = 0; i < prop_names.size(); ++i) {
-    prop_names_.push_back(prop_names[i]);
-    prop_types_.push_back(prop_types[i]);
-  }
-  std::vector<std::vector<vid_t>> edges;
-  std::vector<int> out_degs, in_degs;
-  if (old_prop_types.size() == 0 && prop_names_.size() == 1) {
-    collectEdgesWithNoProperty(dual_csr_, edges, out_degs, in_degs);
-    // TODO: delete the files related to the old properties
-    drop_and_create_dual_csr();
-    if (memory_level_ == 0) {
-      BatchInit(work_dir_, out_degs, in_degs, false);
-    } else {
-      BatchInit(work_dir_, out_degs, in_degs, true);
-    }
-    if (prop_types_[0].type_enum == impl::PropertyTypeImpl::kStringView ||
-        prop_types_[0].type_enum == impl::PropertyTypeImpl::kVarChar) {
-      AppendEdgesUtils<std::string_view>(dual_csr_, edges);
-    } else if (prop_types_[0] == PropertyType::DateTime()) {
-      AppendEdgesUtils<DateTime>(dual_csr_, edges);
-    } else if (prop_types_[0] == PropertyType::Date()) {
-      AppendEdgesUtils<Date>(dual_csr_, edges);
-    } else if (prop_types_[0] == PropertyType::Timestamp()) {
-      AppendEdgesUtils<TimeStamp>(dual_csr_, edges);
-    } else if (prop_types_[0] == PropertyType::Double()) {
-      AppendEdgesUtils<double>(dual_csr_, edges);
-    } else if (prop_types_[0] == PropertyType::Int64()) {
-      AppendEdgesUtils<int64_t>(dual_csr_, edges);
-    } else if (prop_types_[0] == PropertyType::Int32()) {
-      AppendEdgesUtils<int32_t>(dual_csr_, edges);
-    } else {
-      LOG(FATAL) << "Unsupported property type: " << prop_types_[0].ToString();
-    }
-  } else {
-    // Add properties from empty edge
-    if (old_prop_types.size() == 0) {
-      collectEdgesWithNoProperty(dual_csr_, edges, out_degs, in_degs);
-      drop_and_create_dual_csr();
-      if (memory_level_ == 0) {
-        BatchInit(work_dir_, out_degs, in_degs, false);
-      } else {
-        BatchInit(work_dir_, out_degs, in_degs, true);
-      }
-      AppendEdgesUtils<RecordView>(dual_csr_, edges);
-      table_->add_columns(prop_names, prop_types, memory_level_);
-      table_->resize(EdgeNum());
-    } else if (old_prop_types.size() == 1) {
-      if ((old_prop_types[0].type_enum !=
-           impl::PropertyTypeImpl::kStringView) &&
-          (old_prop_types[0].type_enum != impl::PropertyTypeImpl::kVarChar)) {
-        table_->add_columns(prop_names_, prop_types_, memory_level_);
-        table_->resize(EdgeNum());
-        std::vector<Any> prop_values;
-        collectEdgesWithProperty(dual_csr_, edges, out_degs, in_degs,
-                                 prop_values);
-        auto col = table_->get_column_by_id(0);
-        for (size_t i = 0; i < prop_values.size(); ++i) {
-          col->set_any(i, prop_values[i]);
-        }
-        drop_and_create_dual_csr();
-        if (memory_level_ == 0) {
-          BatchInit(work_dir_, out_degs, in_degs, false);
-        } else {
-          BatchInit(work_dir_, out_degs, in_degs, true);
-        }
-        AppendEdgesUtils<RecordView>(dual_csr_, edges);
-      } else {
-        collectEdgesWithNoProperty(dual_csr_, edges, out_degs, in_degs);
-        drop_and_create_dual_csr();
-        table_->add_columns(prop_names, prop_types, memory_level_);
-        if (memory_level_ == 0) {
-          BatchInit(work_dir_, out_degs, in_degs, false);
-        } else {
-          BatchInit(work_dir_, out_degs, in_degs, true);
-        }
-        AppendEdgesUtils<RecordView>(dual_csr_, edges);
-      }
-    } else {
-      table_->add_columns(prop_names, prop_types, memory_level_);
-    }
+    return std::unique_ptr<CsrBase>(new EmptyCsr<T>());
   }
 }
 
-void EdgeTable::BatchInit(const std::string& work_dir,
-                          const std::vector<int>& oe_degree,
-                          const std::vector<int>& ie_degree, bool in_memory) {
-  if (!in_memory) {
-    dual_csr_->BatchInit(
-        oe_prefix(src_label_name_, dst_label_name_, edge_label_name_),
-        ie_prefix(src_label_name_, dst_label_name_, edge_label_name_),
-        edata_prefix(src_label_name_, dst_label_name_, edge_label_name_),
-        work_dir, oe_degree, ie_degree);
+static std::unique_ptr<CsrBase> create_csr(bool is_mutable,
+                                           EdgeStrategy strategy,
+                                           PropType property_type) {
+  if (property_type == PropType::kEmpty) {
+    return create_csr_impl<grape::EmptyType>(is_mutable, strategy);
+  } else if (property_type == PropType::kInt32) {
+    return create_csr_impl<int32_t>(is_mutable, strategy);
+  } else if (property_type == PropType::kUInt32) {
+    return create_csr_impl<uint32_t>(is_mutable, strategy);
+  } else if (property_type == PropType::kInt64) {
+    return create_csr_impl<int64_t>(is_mutable, strategy);
+  } else if (property_type == PropType::kUInt64) {
+    return create_csr_impl<uint64_t>(is_mutable, strategy);
+  } else if (property_type == PropType::kFloat) {
+    return create_csr_impl<float>(is_mutable, strategy);
+  } else if (property_type == PropType::kDouble) {
+    return create_csr_impl<double>(is_mutable, strategy);
+  } else if (property_type == PropType::kTimestamp) {
+    return create_csr_impl<TimeStamp>(is_mutable, strategy);
+  } else if (property_type == PropType::kDate) {
+    return create_csr_impl<Date>(is_mutable, strategy);
+  } else if (property_type == PropType::kDateTime) {
+    return create_csr_impl<DateTime>(is_mutable, strategy);
+  } else if (property_type == PropType::kInterval) {
+    return create_csr_impl<Interval>(is_mutable, strategy);
   } else {
-    dual_csr_->BatchInitInMemory(
-        edata_prefix(src_label_name_, dst_label_name_, edge_label_name_),
-        work_dir, oe_degree, ie_degree);
+    LOG(FATAL) << "not support edge data type";
+    return nullptr;
+  }
+}
+
+EdgeTable::EdgeTable(const EdgeTableMeta& meta) : meta_(meta) {
+  table_ = std::make_unique<Table>();
+
+  if (meta_.is_bundled()) {
+    auto property_type =
+        meta_.properties.empty() ? PropType::kEmpty : meta_.properties[0];
+    out_csr_ = create_csr(meta_.oe_mutable, meta_.oe_strategy, property_type);
+    in_csr_ = create_csr(meta_.ie_mutable, meta_.ie_strategy, property_type);
+  } else {
+    out_csr_ =
+        create_csr(meta_.oe_mutable, meta_.oe_strategy, PropType::kUInt64);
+    in_csr_ =
+        create_csr(meta_.ie_mutable, meta_.ie_strategy, PropType::kUInt64);
+  }
+}
+
+EdgeTable::EdgeTable(EdgeTable&& edge_table)
+    : meta_(edge_table.meta_),
+      work_dir_(edge_table.work_dir_),
+      memory_level_(edge_table.memory_level_) {
+  csr_alter_version_ = edge_table.csr_alter_version_.load();
+  out_csr_ = std::move(edge_table.out_csr_);
+  in_csr_ = std::move(edge_table.in_csr_);
+  table_ = std::move(edge_table.table_);
+  table_idx_ = edge_table.table_idx_.load();
+}
+
+static std::vector<PropertyType> convert_prop_type(
+    const std::vector<PropType>& prop_types) {
+  std::vector<PropertyType> ret;
+  for (auto& pt : prop_types) {
+    if (pt == PropType::kEmpty) {
+      ret.push_back(PropertyType::Empty());
+    } else if (pt == PropType::kInt32) {
+      ret.push_back(PropertyType::Int32());
+    } else if (pt == PropType::kUInt32) {
+      ret.push_back(PropertyType::UInt32());
+    } else if (pt == PropType::kInt64) {
+      ret.push_back(PropertyType::Int64());
+    } else if (pt == PropType::kUInt64) {
+      ret.push_back(PropertyType::UInt64());
+    } else if (pt == PropType::kString) {
+      ret.push_back(PropertyType::String());
+    } else if (pt == PropType::kFloat) {
+      ret.push_back(PropertyType::Float());
+    } else if (pt == PropType::kDouble) {
+      ret.push_back(PropertyType::Double());
+    } else if (pt == PropType::kTimestamp) {
+      ret.push_back(PropertyType::Timestamp());
+    } else if (pt == PropType::kDate) {
+      ret.push_back(PropertyType::Date());
+    } else if (pt == PropType::kDateTime) {
+      ret.push_back(PropertyType::DateTime());
+    } else if (pt == PropType::kInterval) {
+      ret.push_back(PropertyType::Interval());
+    } else {
+      LOG(FATAL) << "not support property type";
+    }
+  }
+  return ret;
+}
+
+void EdgeTable::Open(const std::string& work_dir) {
+  work_dir_ = work_dir;
+  memory_level_ = 0;
+  auto checkpoint_dir_path = checkpoint_dir(work_dir);
+  in_csr_->open(ie_prefix(meta_.src_label_name, meta_.dst_label_name,
+                          meta_.edge_label_name),
+                checkpoint_dir_path, work_dir);
+  out_csr_->open(oe_prefix(meta_.src_label_name, meta_.dst_label_name,
+                           meta_.edge_label_name),
+                 checkpoint_dir_path, work_dir);
+  if (!meta_.is_bundled()) {
+    table_->open(edata_prefix(meta_.src_label_name, meta_.dst_label_name,
+                              meta_.edge_label_name),
+                 work_dir, meta_.property_names,
+                 convert_prop_type(meta_.properties), meta_.strategies);
+    table_idx_.store(table_->row_num());
+    table_->resize(std::max(table_->row_num() + (table_->row_num() + 4) / 5,
+                            static_cast<size_t>(4096)));
+  }
+}
+
+void EdgeTable::OpenInMemory(const std::string& work_dir, size_t src_v_cap,
+                             size_t dst_v_cap) {
+  work_dir_ = work_dir;
+  memory_level_ = 1;
+  auto checkpoint_dir_path = checkpoint_dir(work_dir);
+  in_csr_->open_in_memory(
+      checkpoint_dir_path + "/" +
+          ie_prefix(meta_.src_label_name, meta_.dst_label_name,
+                    meta_.edge_label_name),
+      dst_v_cap);
+  out_csr_->open_in_memory(
+      checkpoint_dir_path + "/" +
+          oe_prefix(meta_.src_label_name, meta_.dst_label_name,
+                    meta_.edge_label_name),
+      src_v_cap);
+  if (!meta_.is_bundled()) {
+    table_->open_in_memory(
+        edata_prefix(meta_.src_label_name, meta_.dst_label_name,
+                     meta_.edge_label_name),
+        work_dir_, meta_.property_names, convert_prop_type(meta_.properties),
+        meta_.strategies);
+    table_idx_.store(table_->row_num());
+    table_->resize(
+        std::max(table_->row_num() + (table_->row_num() + 4) / 5, 4096ul));
+  }
+}
+
+void EdgeTable::OpenWithHugepages(const std::string& work_dir, size_t src_v_cap,
+                                  size_t dst_v_cap) {
+  work_dir_ = work_dir;
+  memory_level_ = 2;  // 2 or 3?
+  auto checkpoint_dir_path = checkpoint_dir(work_dir);
+  in_csr_->open_with_hugepages(
+      checkpoint_dir_path + "/" +
+          ie_prefix(meta_.src_label_name, meta_.dst_label_name,
+                    meta_.edge_label_name),
+      dst_v_cap);
+  out_csr_->open_with_hugepages(
+      checkpoint_dir_path + "/" +
+          oe_prefix(meta_.src_label_name, meta_.dst_label_name,
+                    meta_.edge_label_name),
+      src_v_cap);
+  if (!meta_.is_bundled()) {
+    table_->open_in_memory(
+        edata_prefix(meta_.src_label_name, meta_.dst_label_name,
+                     meta_.edge_label_name),
+        checkpoint_dir_path, meta_.property_names,
+        convert_prop_type(meta_.properties), meta_.strategies);
+    table_idx_.store(table_->row_num());
+    table_->resize(
+        std::max(table_->row_num() + (table_->row_num() + 4) / 5, 4096ul));
+  }
+}
+
+void EdgeTable::Dump(const std::string& checkpoint_dir_path) {
+  in_csr_->dump(ie_prefix(meta_.src_label_name, meta_.dst_label_name,
+                          meta_.edge_label_name),
+                checkpoint_dir_path);
+  out_csr_->dump(oe_prefix(meta_.src_label_name, meta_.dst_label_name,
+                           meta_.edge_label_name),
+                 checkpoint_dir_path);
+  if (!meta_.is_bundled()) {
+    table_->dump(edata_prefix(meta_.src_label_name, meta_.dst_label_name,
+                              meta_.edge_label_name),
+                 checkpoint_dir_path);
   }
 }
 
 void EdgeTable::IngestEdge(vid_t src, vid_t dst, grape::OutArchive& oarc,
                            timestamp_t ts, Allocator& alloc) {
-  dual_csr_->IngestEdge(src, dst, oarc, ts, alloc);
+  Prop prop;
+  if (!meta_.is_bundled()) {
+    size_t row_id = table_idx_.fetch_add(1);
+    table_->ingest(row_id, oarc);
+    prop.set_uint64(row_id);
+    out_csr_->put_generic_edge(src, dst, prop, ts, alloc);
+    in_csr_->put_generic_edge(dst, src, prop, ts, alloc);
+  } else {
+    if (meta_.properties.empty() || meta_.properties[0] == PropType::kEmpty) {
+      // Expect a zero
+      uint32_t num_cols;
+      oarc >> num_cols;
+      assert(num_cols == 0);
+      prop = Prop::empty();
+      out_csr_->put_generic_edge(src, dst, prop, ts, alloc);
+      in_csr_->put_generic_edge(dst, src, prop, ts, alloc);
+    } else {
+      uint32_t num_cols;
+      oarc >> num_cols;
+      assert(num_cols == 1);
+      for (uint32_t i = 0; i < num_cols; ++i) {
+        int32_t col_id;
+        oarc >> col_id;
+        if (col_id != 0) {
+          LOG(ERROR) << "Bundled edge table only support one property column";
+        }
+        deserialize_property(oarc, meta_.properties[0], prop);
+        out_csr_->put_generic_edge(src, dst, prop, ts, alloc);
+        in_csr_->put_generic_edge(dst, src, prop, ts, alloc);
+      }
+    }
+  }
 }
 
+void EdgeTable::SortByEdgeData(timestamp_t ts) {
+  // TODO
+}
+
+void EdgeTable::BatchDeleteVertices(const std::set<vid_t>& src_set,
+                                    const std::set<vid_t>& dst_set) {
+  out_csr_->batch_delete_vertices(src_set, dst_set);
+  in_csr_->batch_delete_vertices(dst_set, src_set);
+}
+
+void EdgeTable::BatchDeleteEdges(const std::vector<vid_t>& src_list,
+                                 const std::vector<vid_t>& dst_list) {
+  out_csr_->batch_delete_edges(src_list, dst_list);
+  in_csr_->batch_delete_edges(dst_list, src_list);
+}
+
+void EdgeTable::Resize(vid_t src_vertex_num, vid_t dst_vertex_num) {
+  out_csr_->resize(src_vertex_num);
+  in_csr_->resize(dst_vertex_num);
+}
+
+size_t EdgeTable::EdgeNum() const {
+  // TODO
+  return 0;
+}
+
+GenericView EdgeTable::get_outgoing_view(timestamp_t ts) const {
+  return out_csr_->get_generic_view(ts);
+}
+
+GenericView EdgeTable::get_incoming_view(timestamp_t ts) const {
+  return in_csr_->get_generic_view(ts);
+}
+
+EdgeDataAccessor EdgeTable::get_edge_data_accessor(int col_id) const {
+  if (!meta_.is_bundled()) {
+    return EdgeDataAccessor(meta_.properties[col_id],
+                            table_->get_column_by_id(col_id).get());
+  } else {
+    if (meta_.properties.empty()) {
+      return EdgeDataAccessor(PropType::kEmpty, nullptr);
+    } else {
+      return EdgeDataAccessor(meta_.properties[0], nullptr);
+    }
+  }
+}
+
+void EdgeTable::AddProperties(const std::vector<std::string>& prop_names,
+                              const std::vector<PropertyType>& prop_types) {
+  if (prop_names.empty()) {
+    return;
+  }
+  for (const auto& name : prop_names) {
+    if (std::find(meta_.property_names.begin(), meta_.property_names.end(),
+                  name) != meta_.property_names.end()) {
+      LOG(ERROR) << "Column " << name << " already exists.";
+      return;
+    }
+  }
+  if (meta_.is_bundled()) {
+    if (meta_.properties.empty()) {
+      meta_.property_names.clear();
+      meta_.properties.clear();
+      meta_.strategies.clear();
+      meta_.property_names.insert(meta_.property_names.end(),
+                                  prop_names.begin(), prop_names.end());
+      for (auto pt : prop_types) {
+        meta_.properties.push_back(to_prop_type(pt));
+        meta_.strategies.push_back(StorageStrategy::kMem);
+      }
+      dropAndCreateNewBundledCSR();
+    } else {
+      dropAndCreateNewUnbundledCSR(false);
+      table_->add_columns(prop_names, prop_types, memory_level_);
+      meta_.property_names.insert(meta_.property_names.end(),
+                                  prop_names.begin(), prop_names.end());
+      for (auto pt : prop_types) {
+        meta_.properties.push_back(to_prop_type(pt));
+        meta_.strategies.push_back(StorageStrategy::kMem);
+      }
+    }
+  } else {
+    table_->add_columns(prop_names, prop_types, memory_level_);
+    meta_.property_names.insert(meta_.property_names.end(), prop_names.begin(),
+                                prop_names.end());
+    for (auto pt : prop_types) {
+      meta_.properties.push_back(to_prop_type(pt));
+      meta_.strategies.push_back(StorageStrategy::kMem);
+    }
+  }
+}
 void EdgeTable::RenameProperties(const std::vector<std::string>& old_names,
                                  const std::vector<std::string>& new_names) {
   CHECK_EQ(old_names.size(), new_names.size());
   for (size_t i = 0; i < old_names.size(); ++i) {
-    auto it = std::find(prop_names_.begin(), prop_names_.end(), old_names[i]);
-    if (it == prop_names_.end()) {
+    auto it = std::find(meta_.property_names.begin(),
+                        meta_.property_names.end(), old_names[i]);
+    if (it == meta_.property_names.end()) {
       LOG(ERROR) << "Column " << old_names[i] << " does not exist.";
       return;
     }
-    if (std::find(prop_names_.begin(), prop_names_.end(), new_names[i]) !=
-        prop_names_.end()) {
+    if (std::find(meta_.property_names.begin(), meta_.property_names.end(),
+                  new_names[i]) != meta_.property_names.end()) {
       LOG(ERROR) << "Column " << new_names[i] << " already exists.";
       return;
     }
-    size_t index = std::distance(prop_names_.begin(), it);
-    prop_names_[index] = new_names[i];
-    if (has_complex_property()) {
+    size_t index = std::distance(meta_.property_names.begin(), it);
+    meta_.property_names[index] = new_names[i];
+    if (!meta_.is_bundled()) {
       table_->rename_column(old_names[i], new_names[i]);
     }
   }
 }
-template <typename T>
-void AppendEdgesExtractPropertyFromRecordView(
-    DualCsrBase* dual_csr, const std::vector<std::vector<vid_t>>& edges,
-    const std::vector<Any>& prop_values, const ColumnBase& column) {
-  auto casted_csr = dynamic_cast<DualCsr<T>*>(dual_csr);
-  size_t row_id = 0;
-  const auto& casted_column = dynamic_cast<const TypedColumn<T>&>(column);
-  for (vid_t i = 0; i < edges.size(); ++i) {
-    for (vid_t j : edges[i]) {
-      Any val = prop_values[row_id++];
-      size_t offset = val.AsRecordView().offset;
-      if constexpr (std::is_same_v<T, std::string_view>) {
-        casted_csr->BatchPutEdge(i, j, offset);
-      } else {
-        T value = casted_column.get_view(offset);
-        casted_csr->BatchPutEdge(i, j, value);
+void EdgeTable::DeleteProperties(const std::vector<std::string>& col_names) {
+  if (meta_.is_bundled()) {
+    bool found = false;
+    for (auto col : col_names) {
+      if (col == meta_.property_names[0]) {
+        found = true;
+        break;
       }
     }
-  }
-}
-void EdgeTable::DeleteProperties(const std::vector<std::string>& col_names) {
-  for (const auto& col : col_names) {
-    auto it = std::find(prop_names_.begin(), prop_names_.end(), col);
-    if (it == prop_names_.end()) {
-      LOG(ERROR) << "Column " << col << " does not exist.";
-      return;
+    if (found) {
+      dropAndCreateNewUnbundledCSR(true);
+      meta_.property_names.clear();
+      meta_.properties.clear();
+      meta_.strategies.clear();
     }
-  }
-
-  std::vector<PropertyType> old_prop_types = prop_types_;
-  std::vector<std::string> old_prop_names = prop_names_;
-  for (const auto& col : col_names) {
-    auto it = std::find(prop_names_.begin(), prop_names_.end(), col);
-    size_t index = std::distance(prop_names_.begin(), it);
-    prop_names_.erase(it);
-    prop_types_.erase(prop_types_.begin() + index);
-  }
-  if (prop_types_.size() == old_prop_types.size()) {
-    // No properties deleted
-    return;
-  }
-  std::vector<std::vector<vid_t>> edges;
-  std::vector<int> out_degs, in_degs;
-  if (old_prop_types.size() == 1 &&
-      old_prop_types[0].type_enum != impl::PropertyTypeImpl::kStringView &&
-      old_prop_types[0].type_enum != impl::PropertyTypeImpl::kVarChar) {
   } else {
     for (const auto& col : col_names) {
-      table_->delete_column(col);
-    }
-  }
-  if (prop_names_.empty()) {
-    collectEdgesWithNoProperty(dual_csr_, edges, out_degs, in_degs);
-    drop_and_create_dual_csr();
-    if (memory_level_ == 0) {
-      BatchInit(work_dir_, out_degs, in_degs, false);
-    } else {
-      BatchInit(work_dir_, out_degs, in_degs, true);
-    }
-    AppendEdgesUtils<grape::EmptyType>(dual_csr_, edges);
-
-  } else if (prop_names_.size() == 1) {
-    std::vector<Any> prop_values;
-    collectEdgesWithProperty(dual_csr_, edges, out_degs, in_degs, prop_values);
-    drop_and_create_dual_csr();
-    if (memory_level_ == 0) {
-      BatchInit(work_dir_, out_degs, in_degs, false);
-    } else {
-      BatchInit(work_dir_, out_degs, in_degs, true);
-    }
-    if (prop_types_[0].type_enum == impl::PropertyTypeImpl::kStringView ||
-        prop_types_[0].type_enum == impl::PropertyTypeImpl::kVarChar) {
-      AppendEdgesExtractPropertyFromRecordView<std::string_view>(
-          dual_csr_, edges, prop_values, *table_->get_column_by_id(0));
-    } else if (prop_types_[0] == PropertyType::DateTime()) {
-      AppendEdgesExtractPropertyFromRecordView<DateTime>(
-          dual_csr_, edges, prop_values, *table_->get_column_by_id(0));
-    } else if (prop_types_[0] == PropertyType::Timestamp()) {
-      AppendEdgesExtractPropertyFromRecordView<TimeStamp>(
-          dual_csr_, edges, prop_values, *table_->get_column_by_id(0));
-    } else if (prop_types_[0] == PropertyType::Double()) {
-      AppendEdgesExtractPropertyFromRecordView<double>(
-          dual_csr_, edges, prop_values, *table_->get_column_by_id(0));
-    } else if (prop_types_[0] == PropertyType::Int64()) {
-      AppendEdgesExtractPropertyFromRecordView<int64_t>(
-          dual_csr_, edges, prop_values, *table_->get_column_by_id(0));
-    } else if (prop_types_[0] == PropertyType::Int32()) {
-      AppendEdgesExtractPropertyFromRecordView<int32_t>(
-          dual_csr_, edges, prop_values, *table_->get_column_by_id(0));
-    } else {
-      LOG(FATAL) << "Unsupported property type: " << prop_types_[0].ToString();
-    }
-    if (prop_types_[0].type_enum == impl::PropertyTypeImpl::kStringView ||
-        prop_types_[0].type_enum == impl::PropertyTypeImpl::kVarChar) {
-    } else {
-      table_->delete_column(prop_names_[0]);
-    }
-  }
-
-  // Remove columns from the table
-}
-
-void EdgeTable::BatchAddEdges(
-    std::vector<std::tuple<vid_t, vid_t, size_t>>&& edges,
-    std::unique_ptr<Table>&& table, size_t src_v_cap, size_t dst_v_cap) {
-  std::vector<std::vector<vid_t>> parsed_edges_vec;
-  std::vector<int> out_degs, in_degs;
-  std::vector<Any> prop_values;
-  collectEdgesWithProperty(dual_csr_, parsed_edges_vec, out_degs, in_degs,
-                           prop_values);
-  dual_csr_->Resize(src_v_cap, dst_v_cap);
-  out_degs.resize(src_v_cap, 0);
-  in_degs.resize(dst_v_cap, 0);
-  for (const auto& [v0, v1, prop] : edges) {
-    if (v0 == std::numeric_limits<vid_t>::max() ||
-        v1 == std::numeric_limits<vid_t>::max()) {
-      continue;
-    }
-    if (v0 >= out_degs.size()) {
-      THROW_INTERNAL_EXCEPTION("src vid " + std::to_string(v0) +
-                               " exceeds src vid cap " +
-                               std::to_string(out_degs.size()));
-    }
-    if (v1 >= in_degs.size()) {
-      THROW_INTERNAL_EXCEPTION("dst vid " + std::to_string(v1) +
-                               " exceeds dst vid cap " +
-                               std::to_string(in_degs.size()));
-    }
-    out_degs[v0]++;
-    in_degs[v1]++;
-  }
-  size_t prev_size = offset_->load();
-  if (memory_level_ == 0) {
-    BatchInit(work_dir_, out_degs, in_degs, false);
-  } else {
-    BatchInit(work_dir_, out_degs, in_degs, true);
-  }
-  if (!has_complex_property()) {
-    if (prop_types_.size() == 0) {
-      BatchPutEdgeUtil<grape::EmptyType>(parsed_edges_vec, prop_values,
-                                         std::move(edges), std::move(table),
-                                         prev_size);
-    } else if (prop_types_.size() == 1) {
-      if (prop_types_[0] == PropertyType::kBool) {
-        BatchPutEdgeUtil<bool>(parsed_edges_vec, prop_values, std::move(edges),
-                               std::move(table), prev_size);
-      } else if (prop_types_[0] == PropertyType::kInt32) {
-        BatchPutEdgeUtil<int32_t>(parsed_edges_vec, prop_values,
-                                  std::move(edges), std::move(table),
-                                  prev_size);
-      } else if (prop_types_[0] == PropertyType::kUInt32) {
-        BatchPutEdgeUtil<uint32_t>(parsed_edges_vec, prop_values,
-                                   std::move(edges), std::move(table),
-                                   prev_size);
-      } else if (prop_types_[0] == PropertyType::kDate) {
-        BatchPutEdgeUtil<Date>(parsed_edges_vec, prop_values, std::move(edges),
-                               std::move(table), prev_size);
-      } else if (prop_types_[0] == PropertyType::kInt64) {
-        BatchPutEdgeUtil<int64_t>(parsed_edges_vec, prop_values,
-                                  std::move(edges), std::move(table),
-                                  prev_size);
-      } else if (prop_types_[0] == PropertyType::kUInt64) {
-        BatchPutEdgeUtil<uint64_t>(parsed_edges_vec, prop_values,
-                                   std::move(edges), std::move(table),
-                                   prev_size);
-      } else if (prop_types_[0] == PropertyType::kDouble) {
-        BatchPutEdgeUtil<double>(parsed_edges_vec, prop_values,
-                                 std::move(edges), std::move(table), prev_size);
-      } else if (prop_types_[0] == PropertyType::kFloat) {
-        BatchPutEdgeUtil<float>(parsed_edges_vec, prop_values, std::move(edges),
-                                std::move(table), prev_size);
-      } else if (prop_types_[0] == PropertyType::kTimestamp) {
-        BatchPutEdgeUtil<TimeStamp>(parsed_edges_vec, prop_values,
-                                    std::move(edges), std::move(table),
-                                    prev_size);
-      } else if (prop_types_[0] == PropertyType::kDateTime) {
-        BatchPutEdgeUtil<DateTime>(parsed_edges_vec, prop_values,
-                                   std::move(edges), std::move(table),
-                                   prev_size);
-      } else {
-        LOG(FATAL) << "Unsupported property type: "
-                   << prop_types_[0].ToString();
+      auto it = std::find(meta_.property_names.begin(),
+                          meta_.property_names.end(), col);
+      if (it != meta_.property_names.end()) {
+        meta_.property_names.erase(it);
+        auto idx = std::distance(meta_.property_names.begin(), it);
+        meta_.properties.erase(meta_.properties.begin() + idx);
+        meta_.strategies.erase(meta_.strategies.begin() + idx);
+        table_->delete_column(col);
+        VLOG(1) << "delete column " << col;
       }
-    } else {
-      THROW_INTERNAL_EXCEPTION("Got invalid property size: " +
-                               std::to_string(prop_types_.size()));
-    }
-  } else {
-    if (prop_types_.size() == 1 &&
-        (prop_types_[0].type_enum == impl::PropertyTypeImpl::kStringView ||
-         prop_types_[0].type_enum == impl::PropertyTypeImpl::kVarChar)) {
-      BatchPutEdgeUtil<std::string_view>(parsed_edges_vec, prop_values,
-                                         std::move(edges), std::move(table),
-                                         prev_size);
-    } else {
-      CHECK(prop_types_.size() > 1);
-
-      BatchPutEdgeUtil<RecordView>(parsed_edges_vec, prop_values,
-                                   std::move(edges), std::move(table),
-                                   prev_size);
     }
   }
 }
 
-void EdgeTable::drop_and_create_dual_csr() {
-  if (dual_csr_) {
-    dual_csr_->Drop();
-    delete dual_csr_;
-    dual_csr_ = nullptr;
+static void parse_endpoint_column(const IndexerType& indexer,
+                                  const std::shared_ptr<arrow::Array>& array,
+                                  std::vector<vid_t>& lids) {
+  if (array->type()->Equals(arrow::utf8())) {
+    auto casted = std::static_pointer_cast<arrow::StringArray>(array);
+    for (int64_t i = 0; i < casted->length(); ++i) {
+      auto str = casted->GetView(i);
+      std::string_view sv(str.data(), str.size());
+      auto vid = indexer.get_index(Any::From(sv));
+      lids.push_back(vid);
+    }
+  } else if (array->type()->Equals(arrow::large_utf8())) {
+    auto casted = std::static_pointer_cast<arrow::LargeStringArray>(array);
+    for (int64_t i = 0; i < casted->length(); ++i) {
+      auto str = casted->GetView(i);
+      std::string_view sv(str.data(), str.size());
+      auto vid = indexer.get_index(Any::From(sv));
+      lids.push_back(vid);
+    }
+  } else if (array->type()->Equals(arrow::int64())) {
+    auto casted = std::static_pointer_cast<arrow::Int64Array>(array);
+    for (int64_t i = 0; i < casted->length(); ++i) {
+      auto vid = indexer.get_index(Any::From(casted->Value(i)));
+      lids.push_back(vid);
+    }
+  } else if (array->type()->Equals(arrow::uint64())) {
+    auto casted = std::static_pointer_cast<arrow::UInt64Array>(array);
+    for (int64_t i = 0; i < casted->length(); ++i) {
+      auto vid = indexer.get_index(Any::From(casted->Value(i)));
+      lids.push_back(vid);
+    }
+  } else if (array->type()->Equals(arrow::int32())) {
+    auto casted = std::static_pointer_cast<arrow::Int32Array>(array);
+    for (int64_t i = 0; i < casted->length(); ++i) {
+      auto vid = indexer.get_index(Any::From(casted->Value(i)));
+      lids.push_back(vid);
+    }
+  } else if (array->type()->Equals(arrow::uint32())) {
+    auto casted = std::static_pointer_cast<arrow::UInt32Array>(array);
+    for (int64_t i = 0; i < casted->length(); ++i) {
+      auto vid = indexer.get_index(Any::From(casted->Value(i)));
+      lids.push_back(vid);
+    }
+  } else {
+    LOG(FATAL) << "not support type " << array->type()->ToString();
   }
-  dual_csr_ =
-      create_dual_csr(oe_strategy_, ie_strategy_, prop_types_, oe_mutable_,
-                      ie_mutable_, prop_names_, *table_, *offset_);
+}
+
+void insert_edges_empty_impl(TypedCsrBase<grape::EmptyType>* out_csr,
+                             TypedCsrBase<grape::EmptyType>* in_csr,
+                             const std::vector<vid_t>& src_lid,
+                             const std::vector<vid_t>& dst_lid) {
+  std::vector<grape::EmptyType> empty_data(src_lid.size());
+  out_csr->batch_put_edges(src_lid, dst_lid, empty_data);
+  in_csr->batch_put_edges(dst_lid, src_lid, empty_data);
+}
+
+template <typename EDATA_T, typename ARROW_COL_T>
+std::vector<EDATA_T> extract_edge_data(
+    const std::vector<std::shared_ptr<arrow::RecordBatch>>& data_batches,
+    const std::vector<bool>& valid_flags) {
+  std::vector<EDATA_T> edge_data;
+  assert([&]() {
+    int64_t total = 0;
+    for (auto rb : data_batches) {
+      total += rb->num_rows();
+    }
+    return total == static_cast<int64_t>(valid_flags.size());
+  }());
+  edge_data.reserve(std::count(valid_flags.begin(), valid_flags.end(), true));
+  size_t cur_index = 0;
+  for (auto rb : data_batches) {
+    auto array = rb->column(0);
+    auto casted = std::static_pointer_cast<ARROW_COL_T>(array);
+    for (int64_t i = 0; i < casted->length(); ++i) {
+      if (valid_flags[cur_index++]) {
+        edge_data.emplace_back(casted->GetView(i));
+      }
+    }
+  }
+  return edge_data;
+}
+
+template <typename EDATA_T>
+void insert_edges_bundled_typed_impl(TypedCsrBase<EDATA_T>* out_csr,
+                                     TypedCsrBase<EDATA_T>* in_csr,
+                                     const std::vector<vid_t>& src_lid,
+                                     const std::vector<vid_t>& dst_lid,
+                                     const std::vector<EDATA_T>& edge_data) {
+  out_csr->batch_put_edges(src_lid, dst_lid, edge_data);
+  in_csr->batch_put_edges(dst_lid, src_lid, edge_data);
+}
+
+void insert_edges_separated_impl(TypedCsrBase<uint64_t>* out_csr,
+                                 TypedCsrBase<uint64_t>* in_csr,
+                                 const std::vector<vid_t>& src_lid,
+                                 const std::vector<vid_t>& dst_lid,
+                                 size_t offset) {
+  std::vector<uint64_t> edge_data(src_lid.size());
+  for (size_t i = 0; i < src_lid.size(); ++i) {
+    edge_data[i] = offset + i;
+  }
+  out_csr->batch_put_edges(src_lid, dst_lid, edge_data);
+  in_csr->batch_put_edges(dst_lid, src_lid, edge_data);
+}
+
+static std::vector<Any> get_row_from_recordbatch(
+    const std::vector<PropType>& prop_types,
+    const std::vector<std::shared_ptr<arrow::DataType>>& expected_types,
+    const std::shared_ptr<arrow::RecordBatch>& rb, int64_t row_idx) {
+  std::vector<Any> row;
+  if ((int32_t) expected_types.size() != rb->num_columns()) {
+    THROW_INVALID_ARGUMENT_EXCEPTION(
+        "property types size not match recordbatch column size");
+  }
+  for (int i = 0; i < rb->num_columns(); ++i) {
+    auto array = rb->column(i);
+    if (!array->type()->Equals(expected_types[i])) {
+      // Except for large string and string
+      if ((expected_types[i]->Equals(arrow::utf8()) &&
+           array->type()->Equals(arrow::large_utf8())) ||
+          (expected_types[i]->Equals(arrow::large_utf8()) &&
+           array->type()->Equals(arrow::utf8()))) {
+        // pass
+      } else {
+        THROW_INVALID_ARGUMENT_EXCEPTION(
+            std::string("property type not match recordbatch column type: ") +
+            std::to_string(static_cast<int>(prop_types[i])) + "(" +
+            expected_types[i]->ToString() + ") vs " +
+            array->type()->ToString());
+      }
+    }
+    if (array->IsNull(row_idx)) {
+      row.push_back(Any());
+      continue;
+    } else if (prop_types[i] == PropType::kInt32) {
+      auto casted = std::static_pointer_cast<arrow::Int32Array>(array);
+      row.push_back(Any(casted->Value(row_idx)));
+    } else if (prop_types[i] == PropType::kInt64) {
+      auto casted = std::static_pointer_cast<arrow::Int64Array>(array);
+      row.push_back(Any(casted->Value(row_idx)));
+    } else if (prop_types[i] == PropType::kUInt32) {
+      auto casted = std::static_pointer_cast<arrow::UInt32Array>(array);
+      row.push_back(Any(casted->Value(row_idx)));
+    } else if (prop_types[i] == PropType::kUInt64) {
+      auto casted = std::static_pointer_cast<arrow::UInt64Array>(array);
+      row.push_back(Any(casted->Value(row_idx)));
+    } else if (prop_types[i] == PropType::kFloat) {
+      auto casted = std::static_pointer_cast<arrow::FloatArray>(array);
+      row.push_back(Any(casted->Value(row_idx)));
+    } else if (prop_types[i] == PropType::kDouble) {
+      auto casted = std::static_pointer_cast<arrow::DoubleArray>(array);
+      row.push_back(Any(casted->Value(row_idx)));
+    } else if (prop_types[i] == PropType::kString) {
+      if (array->type()->Equals(arrow::utf8())) {
+        auto casted = std::static_pointer_cast<arrow::StringArray>(array);
+        auto str = casted->GetView(row_idx);
+        row.push_back(Any(std::string(str.data(), str.size())));
+      } else if (array->type()->Equals(arrow::large_utf8())) {
+        auto casted = std::static_pointer_cast<arrow::LargeStringArray>(array);
+        auto str = casted->GetView(row_idx);
+        row.push_back(Any(std::string(str.data(), str.size())));
+      } else {
+        LOG(FATAL) << "not support type " << array->type()->ToString();
+      }
+    } else if (prop_types[i] == PropType::kDate) {
+      auto casted = std::static_pointer_cast<arrow::Date32Array>(array);
+      Date d;
+      d.from_num_days(casted->Value(row_idx));
+      row.push_back(Any(d));
+    } else if (prop_types[i] == PropType::kTimestamp) {
+      auto casted = std::static_pointer_cast<arrow::TimestampArray>(array);
+      row.push_back(Any(TimeStamp(casted->Value(row_idx))));
+    } else if (prop_types[i] == PropType::kDateTime) {
+      auto casted = std::static_pointer_cast<arrow::TimestampArray>(array);
+      row.push_back(Any(DateTime(casted->Value(row_idx))));
+    } else if (prop_types[i] == PropType::kInterval) {
+      auto casted = std::static_pointer_cast<arrow::LargeStringArray>(array);
+      row.push_back(Any(Interval(casted->GetView(row_idx))));
+    } else {
+      LOG(FATAL) << "not support type " << array->type()->ToString();
+    }
+  }
+  return row;
+}
+
+void EdgeTable::BatchAddEdges(const IndexerType& src_indexer,
+                              const IndexerType& dst_indexer,
+                              std::shared_ptr<IRecordBatchSupplier> supplier) {
+  in_csr_->resize(dst_indexer.size());
+  out_csr_->resize(src_indexer.size());
+  std::vector<vid_t> src_lid, dst_lid;
+  std::vector<std::shared_ptr<arrow::RecordBatch>> data_batches;
+  while (true) {
+    auto batch = supplier->GetNextBatch();
+    if (batch == nullptr) {
+      break;
+    }
+    auto src_array = batch->column(0);
+    auto dst_array = batch->column(1);
+    parse_endpoint_column(src_indexer, src_array, src_lid);
+    parse_endpoint_column(dst_indexer, dst_array, dst_lid);
+    if (batch->num_columns() > 2) {
+      batch = batch->RemoveColumn(0).ValueOrDie()->RemoveColumn(0).ValueOrDie();
+      data_batches.push_back(batch);
+    }
+  }
+  std::vector<bool> valid_flags;  // true for valid edges
+  std::tie(src_lid, dst_lid, valid_flags) =
+      filterInvalidEdges(src_lid, dst_lid);
+
+  if (meta_.is_bundled()) {
+    if (meta_.properties.empty() || meta_.properties[0] == PropType::kEmpty) {
+      insert_edges_empty_impl(
+          dynamic_cast<TypedCsrBase<grape::EmptyType>*>(out_csr_.get()),
+          dynamic_cast<TypedCsrBase<grape::EmptyType>*>(in_csr_.get()), src_lid,
+          dst_lid);
+    } else if (meta_.properties[0] == PropType::kInt32) {
+      auto edge_data = extract_edge_data<int32_t, arrow::Int32Array>(
+          data_batches, valid_flags);
+      insert_edges_bundled_typed_impl(
+          dynamic_cast<TypedCsrBase<int32_t>*>(out_csr_.get()),
+          dynamic_cast<TypedCsrBase<int32_t>*>(in_csr_.get()), src_lid, dst_lid,
+          edge_data);
+    } else if (meta_.properties[0] == PropType::kUInt32) {
+      auto edge_data = extract_edge_data<uint32_t, arrow::UInt32Array>(
+          data_batches, valid_flags);
+      insert_edges_bundled_typed_impl(
+          dynamic_cast<TypedCsrBase<uint32_t>*>(out_csr_.get()),
+          dynamic_cast<TypedCsrBase<uint32_t>*>(in_csr_.get()), src_lid,
+          dst_lid, edge_data);
+    } else if (meta_.properties[0] == PropType::kInt64) {
+      auto edge_data = extract_edge_data<int64_t, arrow::Int64Array>(
+          data_batches, valid_flags);
+      insert_edges_bundled_typed_impl(
+          dynamic_cast<TypedCsrBase<int64_t>*>(out_csr_.get()),
+          dynamic_cast<TypedCsrBase<int64_t>*>(in_csr_.get()), src_lid, dst_lid,
+          edge_data);
+    } else if (meta_.properties[0] == PropType::kUInt64) {
+      auto edge_data = extract_edge_data<uint64_t, arrow::UInt64Array>(
+          data_batches, valid_flags);
+      insert_edges_bundled_typed_impl(
+          dynamic_cast<TypedCsrBase<uint64_t>*>(out_csr_.get()),
+          dynamic_cast<TypedCsrBase<uint64_t>*>(in_csr_.get()), src_lid,
+          dst_lid, edge_data);
+    } else if (meta_.properties[0] == PropType::kTimestamp) {
+      auto edge_data = extract_edge_data<TimeStamp, arrow::TimestampArray>(
+          data_batches, valid_flags);
+      insert_edges_bundled_typed_impl(
+          dynamic_cast<TypedCsrBase<TimeStamp>*>(out_csr_.get()),
+          dynamic_cast<TypedCsrBase<TimeStamp>*>(in_csr_.get()), src_lid,
+          dst_lid, edge_data);
+    } else if (meta_.properties[0] == PropType::kDouble) {
+      auto edge_data = extract_edge_data<double, arrow::DoubleArray>(
+          data_batches, valid_flags);
+      insert_edges_bundled_typed_impl(
+          dynamic_cast<TypedCsrBase<double>*>(out_csr_.get()),
+          dynamic_cast<TypedCsrBase<double>*>(in_csr_.get()), src_lid, dst_lid,
+          edge_data);
+    } else if (meta_.properties[0] == PropType::kFloat) {
+      auto edge_data = extract_edge_data<float, arrow::FloatArray>(data_batches,
+                                                                   valid_flags);
+      insert_edges_bundled_typed_impl(
+          dynamic_cast<TypedCsrBase<float>*>(out_csr_.get()),
+          dynamic_cast<TypedCsrBase<float>*>(in_csr_.get()), src_lid, dst_lid,
+          edge_data);
+    } else if (meta_.properties[0] == PropType::kDate) {
+      auto edge_data = extract_edge_data<Date, arrow::Date32Array>(data_batches,
+                                                                   valid_flags);
+      insert_edges_bundled_typed_impl(
+          dynamic_cast<TypedCsrBase<Date>*>(out_csr_.get()),
+          dynamic_cast<TypedCsrBase<Date>*>(in_csr_.get()), src_lid, dst_lid,
+          edge_data);
+    } else if (meta_.properties[0] == PropType::kDateTime) {
+      auto edge_data = extract_edge_data<DateTime, arrow::TimestampArray>(
+          data_batches, valid_flags);
+      insert_edges_bundled_typed_impl(
+          dynamic_cast<TypedCsrBase<DateTime>*>(out_csr_.get()),
+          dynamic_cast<TypedCsrBase<DateTime>*>(in_csr_.get()), src_lid,
+          dst_lid, edge_data);
+    } else if (meta_.properties[0] == PropType::kInterval) {
+      auto edge_data = extract_edge_data<Interval, arrow::LargeStringArray>(
+          data_batches, valid_flags);
+      insert_edges_bundled_typed_impl(
+          dynamic_cast<TypedCsrBase<Interval>*>(out_csr_.get()),
+          dynamic_cast<TypedCsrBase<Interval>*>(in_csr_.get()), src_lid,
+          dst_lid, edge_data);
+    } else {
+      LOG(FATAL) << "not support edge data type: "
+                 << static_cast<int>(meta_.properties[0]);
+    }
+  } else {
+    size_t offset = table_idx_.fetch_add(src_lid.size());
+    insert_edges_separated_impl(
+        dynamic_cast<TypedCsrBase<uint64_t>*>(out_csr_.get()),
+        dynamic_cast<TypedCsrBase<uint64_t>*>(in_csr_.get()), src_lid, dst_lid,
+        offset);
+    table_->resize(table_idx_.load());
+    std::vector<std::shared_ptr<arrow::DataType>> expected_types;
+    for (auto pt : meta_.properties) {
+      expected_types.emplace_back(PropertyTypeToArrowType(pt));
+    }
+    // assert the totoal number of rows in data_batches equals to
+    // src_lid.size()
+    assert([&]() {
+      int64_t total = 0;
+      for (auto rb : data_batches) {
+        total += rb->num_rows();
+      }
+      return total == static_cast<int64_t>(valid_flags.size());
+    }());
+    size_t cur_index = 0;
+    for (auto rb : data_batches) {
+      for (int64_t i = 0; i < rb->num_rows(); ++i) {
+        assert(cur_index < valid_flags.size());
+        if (valid_flags[cur_index++]) {
+          auto row =
+              get_row_from_recordbatch(meta_.properties, expected_types, rb, i);
+          table_->insert(offset++, row);
+        }
+      }
+    }
+  }
 }
 
 void EdgeTable::Compact(bool reset_timestamp, bool compact_csr,
                         bool sort_on_compaction, float reserve_ratio,
                         timestamp_t ts) {
-  if (reset_timestamp) {
-    dual_csr_->ResetTimestamp();
+  // TODO
+}
+
+void EdgeTable::dropAndCreateNewBundledCSR() {
+  auto suffix = get_next_csr_path_suffix();
+  std::string next_oe_csr_path =
+      tmp_dir(work_dir_) + "/" +
+      oe_prefix(meta_.src_label_name, meta_.dst_label_name,
+                meta_.edge_label_name) +
+      suffix;
+  std::string next_ie_csr_path =
+      tmp_dir(work_dir_) + "/" +
+      ie_prefix(meta_.src_label_name, meta_.dst_label_name,
+                meta_.edge_label_name) +
+      suffix;
+
+  auto edges = out_csr_->batch_export(nullptr);
+  std::unique_ptr<CsrBase> new_out_csr, new_in_csr;
+  assert(meta_.properties.size() == 1);
+  new_out_csr =
+      create_csr(meta_.oe_mutable, meta_.oe_strategy, meta_.properties[0]);
+  new_in_csr =
+      create_csr(meta_.ie_mutable, meta_.ie_strategy, meta_.properties[0]);
+
+  new_out_csr->open_in_memory(next_oe_csr_path, out_csr_->size());
+  new_in_csr->open_in_memory(next_ie_csr_path, in_csr_->size());
+  new_out_csr->resize(out_csr_->size());
+  new_in_csr->resize(in_csr_->size());
+
+  batch_put_edges_with_default_edata(std::get<0>(edges), std::get<1>(edges),
+                                     meta_.properties[0], new_out_csr.get());
+  batch_put_edges_with_default_edata(std::get<1>(edges), std::get<0>(edges),
+                                     meta_.properties[0], new_in_csr.get());
+
+  out_csr_->close();
+  in_csr_->close();
+  out_csr_ = std::move(new_out_csr);
+  in_csr_ = std::move(new_in_csr);
+}
+
+void EdgeTable::dropAndCreateNewUnbundledCSR(bool delete_property) {
+  auto suffix = get_next_csr_path_suffix();
+  std::string next_oe_csr_path =
+      tmp_dir(work_dir_) + "/" +
+      oe_prefix(meta_.src_label_name, meta_.dst_label_name,
+                meta_.edge_label_name) +
+      suffix;
+  std::string next_ie_csr_path =
+      tmp_dir(work_dir_) + "/" +
+      ie_prefix(meta_.src_label_name, meta_.dst_label_name,
+                meta_.edge_label_name) +
+      suffix;
+  std::string next_table_prefix = edata_prefix(
+      meta_.src_label_name, meta_.dst_label_name, meta_.edge_label_name);
+  // In this method, the edge table must be bundled, so the table must be
+  // opened opened. In open_in_memory method, table will try to read the
+  // existing table file from checkpoint_dir, but it must not exist.
+  if (!delete_property) {
+    table_->open_in_memory(next_table_prefix, work_dir_, meta_.property_names,
+                           convert_prop_type(meta_.properties),
+                           meta_.strategies);
   }
-  if (compact_csr) {
-    dual_csr_->CompactNbr(work_dir_, reserve_ratio);
+
+  std::shared_ptr<ColumnBase> prev_data_col = nullptr;
+
+  if (!delete_property) {
+    if (!meta_.properties.empty()) {
+      prev_data_col = table_->get_column_by_id(0);
+    }
   }
-  if (sort_on_compaction) {
-    dual_csr_->SortByEdgeData(ts);
+
+  auto edges = out_csr_->batch_export(prev_data_col);
+  std::vector<uint64_t> row_ids;
+  for (size_t i = 0; i < std::get<0>(edges).size(); ++i) {
+    row_ids.push_back(i);
   }
-  // TODO(zhanglei): Support updating nbr lids which are deleted.
+  std::unique_ptr<CsrBase> new_out_csr, new_in_csr;
+  if (delete_property) {
+    new_out_csr =
+        create_csr(meta_.oe_mutable, meta_.oe_strategy, PropType::kEmpty);
+    new_in_csr =
+        create_csr(meta_.ie_mutable, meta_.ie_strategy, PropType::kEmpty);
+  } else {
+    new_out_csr =
+        create_csr(meta_.oe_mutable, meta_.oe_strategy, PropType::kUInt64);
+    new_in_csr =
+        create_csr(meta_.ie_mutable, meta_.ie_strategy, PropType::kUInt64);
+  }
+
+  new_out_csr->open_in_memory(next_oe_csr_path, out_csr_->size());
+  new_in_csr->open_in_memory(next_ie_csr_path, in_csr_->size());
+  new_out_csr->resize(out_csr_->size());
+  new_in_csr->resize(in_csr_->size());
+  if (delete_property) {
+    dynamic_cast<TypedCsrBase<grape::EmptyType>*>(new_out_csr.get())
+        ->batch_put_edges(std::get<0>(edges), std::get<1>(edges), {});
+    dynamic_cast<TypedCsrBase<grape::EmptyType>*>(new_in_csr.get())
+        ->batch_put_edges(std::get<1>(edges), std::get<0>(edges), {});
+  } else {
+    dynamic_cast<TypedCsrBase<uint64_t>*>(new_out_csr.get())
+        ->batch_put_edges(std::get<0>(edges), std::get<1>(edges), row_ids);
+    dynamic_cast<TypedCsrBase<uint64_t>*>(new_in_csr.get())
+        ->batch_put_edges(std::get<1>(edges), std::get<0>(edges), row_ids);
+  }
+  out_csr_->close();
+  in_csr_->close();
+  out_csr_ = std::move(new_out_csr);
+  in_csr_ = std::move(new_in_csr);
+}
+
+std::string EdgeTable::get_next_csr_path_suffix() {
+  return std::string("_v_") + std::to_string(csr_alter_version_.fetch_add(1));
 }
 
 }  // namespace gs

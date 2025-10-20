@@ -13,8 +13,8 @@
  * limitations under the License.
  */
 
-#ifndef RUNTIME_UTILS_RUNTIME_EXPR_IMPL_H_
-#define RUNTIME_UTILS_RUNTIME_EXPR_IMPL_H_
+#ifndef INCLUDE_NEUG_EXECUTION_UTILS_EXPR_IMPL_H_
+#define INCLUDE_NEUG_EXECUTION_UTILS_EXPR_IMPL_H_
 
 #include <assert.h>
 #include <glog/logging.h>
@@ -36,10 +36,10 @@
 #include <utility>
 #include <vector>
 
-#include "neug/execution/common/rt_any.h"
 #include "neug/execution/utils/var.h"
 #include "neug/utils/function_type.h"
 #include "neug/utils/property/types.h"
+#include "neug/utils/runtime/rt_any.h"
 #ifdef USE_SYSTEM_PROTOBUF
 #include "neug/generated/proto/plan/common.pb.h"
 #include "neug/generated/proto/plan/expr.pb.h"
@@ -60,7 +60,7 @@ class ExprBase {
   virtual RTAny eval_vertex(label_t label, vid_t v, size_t idx,
                             Arena&) const = 0;
   virtual RTAny eval_edge(const LabelTriplet& label, vid_t src, vid_t dst,
-                          const Any& data, size_t idx, Arena&) const = 0;
+                          const void* data_ptr, size_t idx, Arena&) const = 0;
   virtual RTAnyType type() const = 0;
 
   virtual bool is_optional() const { return false; }
@@ -80,7 +80,8 @@ class VertexWithInSetExpr : public ExprBase {
                     Arena& arena) const override;
 
   RTAny eval_edge(const LabelTriplet& label, vid_t src, vid_t dst,
-                  const Any& data, size_t idx, Arena& arena) const override;
+                  const void* data_ptr, size_t idx,
+                  Arena& arena) const override;
 
   RTAnyType type() const override { return RTAnyType::kBoolValue; }
 
@@ -101,7 +102,8 @@ class VertexWithInListExpr : public ExprBase {
                     Arena& arena) const override;
 
   RTAny eval_edge(const LabelTriplet& label, vid_t src, vid_t dst,
-                  const Any& data, size_t idx, Arena& arena) const override;
+                  const void* data_ptr, size_t idx,
+                  Arena& arena) const override;
 
   RTAnyType type() const override { return RTAnyType::kBoolValue; }
 
@@ -186,8 +188,9 @@ class WithInExpr : public ExprBase {
   }
 
   RTAny eval_edge(const LabelTriplet& label, vid_t src, vid_t dst,
-                  const Any& data, size_t idx, Arena& arena) const override {
-    auto any_val = key_->eval_edge(label, src, dst, data, idx, arena);
+                  const void* data_ptr, size_t idx,
+                  Arena& arena) const override {
+    auto any_val = key_->eval_edge(label, src, dst, data_ptr, idx, arena);
     return eval_impl(any_val);
   }
   RTAnyType type() const override { return RTAnyType::kBoolValue; }
@@ -208,7 +211,7 @@ class VariableExpr : public ExprBase {
   RTAny eval_path(size_t idx, Arena&) const override;
   RTAny eval_vertex(label_t label, vid_t v, size_t idx, Arena&) const override;
   RTAny eval_edge(const LabelTriplet& label, vid_t src, vid_t dst,
-                  const Any& data, size_t idx, Arena&) const override;
+                  const void* data_ptr, size_t idx, Arena&) const override;
   RTAnyType type() const override;
 
   bool is_optional() const override { return var_.is_optional(); }
@@ -224,7 +227,7 @@ class UnaryLogicalExpr : public ExprBase {
   RTAny eval_path(size_t idx, Arena&) const override;
   RTAny eval_vertex(label_t label, vid_t v, size_t idx, Arena&) const override;
   RTAny eval_edge(const LabelTriplet& label, vid_t src, vid_t dst,
-                  const Any& data, size_t idx, Arena&) const override;
+                  const void* data_ptr, size_t idx, Arena&) const override;
 
   RTAnyType type() const override;
 
@@ -242,7 +245,7 @@ class LogicalExpr : public ExprBase {
   RTAny eval_path(size_t idx, Arena&) const override;
   RTAny eval_vertex(label_t label, vid_t v, size_t idx, Arena&) const override;
   RTAny eval_edge(const LabelTriplet& label, vid_t src, vid_t dst,
-                  const Any& data, size_t idx, Arena&) const override;
+                  const void* data_ptr, size_t idx, Arena&) const override;
 
   RTAny eval_impl(const RTAny& lhs_val, const RTAny& rhs_val) const;
 
@@ -267,12 +270,14 @@ class AndOpExpr : public LogicalExpr {
   bool is_optional() const override { return LogicalExpr::is_optional(); }
 
   RTAny eval_edge(const LabelTriplet& label, vid_t src, vid_t dst,
-                  const Any& data, size_t idx, Arena& arena) const override {
-    if (lhs_->eval_edge(label, src, dst, data, idx, arena).as_bool() == false) {
+                  const void* data_ptr, size_t idx,
+                  Arena& arena) const override {
+    if (lhs_->eval_edge(label, src, dst, data_ptr, idx, arena).as_bool() ==
+        false) {
       return RTAny::from_bool(false);
     }
     return RTAny::from_bool(
-        rhs_->eval_edge(label, src, dst, data, idx, arena).as_bool());
+        rhs_->eval_edge(label, src, dst, data_ptr, idx, arena).as_bool());
   }
 
   RTAny eval_path(size_t idx, Arena& arena) const override {
@@ -299,12 +304,14 @@ class OrOpExpr : public LogicalExpr {
   bool is_optional() const override { return LogicalExpr::is_optional(); }
 
   RTAny eval_edge(const LabelTriplet& label, vid_t src, vid_t dst,
-                  const Any& data, size_t idx, Arena& arena) const override {
-    if (lhs_->eval_edge(label, src, dst, data, idx, arena).as_bool() == true) {
+                  const void* data_ptr, size_t idx,
+                  Arena& arena) const override {
+    if (lhs_->eval_edge(label, src, dst, data_ptr, idx, arena).as_bool() ==
+        true) {
       return RTAny::from_bool(true);
     }
     return RTAny::from_bool(
-        rhs_->eval_edge(label, src, dst, data, idx, arena).as_bool());
+        rhs_->eval_edge(label, src, dst, data_ptr, idx, arena).as_bool());
   }
 
   RTAny eval_path(size_t idx, Arena& arena) const override {
@@ -401,8 +408,9 @@ class ExtractExpr : public ExprBase {
     return RTAny::from_int64(eval_impl(any_val));
   }
   RTAny eval_edge(const LabelTriplet& label, vid_t src, vid_t dst,
-                  const Any& data, size_t idx, Arena& arena) const override {
-    auto any_val = expr_->eval_edge(label, src, dst, data, idx, arena);
+                  const void* data_ptr, size_t idx,
+                  Arena& arena) const override {
+    auto any_val = expr_->eval_edge(label, src, dst, data_ptr, idx, arena);
     if (any_val.is_null()) {
       return RTAny(RTAnyType::kNull);
     }
@@ -423,7 +431,7 @@ class ArithExpr : public ExprBase {
   RTAny eval_path(size_t idx, Arena&) const override;
   RTAny eval_vertex(label_t label, vid_t v, size_t idx, Arena&) const override;
   RTAny eval_edge(const LabelTriplet& label, vid_t src, vid_t dst,
-                  const Any& data, size_t idx, Arena&) const override;
+                  const void* data_ptr, size_t idx, Arena&) const override;
 
   RTAnyType type() const override;
 
@@ -442,7 +450,7 @@ class DateMinusExpr : public ExprBase {
   RTAny eval_path(size_t idx, Arena&) const override;
   RTAny eval_vertex(label_t label, vid_t v, size_t idx, Arena&) const override;
   RTAny eval_edge(const LabelTriplet& label, vid_t src, vid_t dst,
-                  const Any& data, size_t idx, Arena&) const override;
+                  const void* data_ptr, size_t idx, Arena&) const override;
 
   RTAnyType type() const override;
 
@@ -453,11 +461,11 @@ class DateMinusExpr : public ExprBase {
 
 class ConstExpr : public ExprBase {
  public:
-  ConstExpr(const RTAny& val, bool take_ownership = false);
+  explicit ConstExpr(const RTAny& val, bool take_ownership = false);
   RTAny eval_path(size_t idx, Arena&) const override;
   RTAny eval_vertex(label_t label, vid_t v, size_t idx, Arena&) const override;
   RTAny eval_edge(const LabelTriplet& label, vid_t src, vid_t dst,
-                  const Any& data, size_t idx, Arena&) const override;
+                  const void* data_ptr, size_t idx, Arena&) const override;
 
   RTAnyType type() const override;
 
@@ -478,7 +486,7 @@ class CaseWhenExpr : public ExprBase {
   RTAny eval_path(size_t idx, Arena&) const override;
   RTAny eval_vertex(label_t label, vid_t v, size_t idx, Arena&) const override;
   RTAny eval_edge(const LabelTriplet& label, vid_t src, vid_t dst,
-                  const Any& data, size_t idx, Arena&) const override;
+                  const void* data_ptr, size_t idx, Arena&) const override;
 
   RTAnyType type() const override;
 
@@ -523,11 +531,12 @@ class ScalarFunctionExpr : public ExprBase {
   }
 
   RTAny eval_edge(const LabelTriplet& label, vid_t src, vid_t dst,
-                  const Any& data, size_t idx, Arena& arena) const override {
+                  const void* data_ptr, size_t idx,
+                  Arena& arena) const override {
     std::vector<RTAny> params;
     params.reserve(children_.size());
     for (auto& ch : children_) {
-      params.emplace_back(ch->eval_edge(label, src, dst, data, idx, arena));
+      params.emplace_back(ch->eval_edge(label, src, dst, data_ptr, idx, arena));
     }
     return func_(idx, arena, params);
   }
@@ -550,12 +559,12 @@ class ScalarFunctionExpr : public ExprBase {
 
 class TupleExpr : public ExprBase {
  public:
-  TupleExpr(std::vector<std::unique_ptr<ExprBase>>&& exprs);
+  explicit TupleExpr(std::vector<std::unique_ptr<ExprBase>>&& exprs);
 
   RTAny eval_path(size_t idx, Arena&) const override;
   RTAny eval_vertex(label_t label, vid_t v, size_t idx, Arena&) const override;
   RTAny eval_edge(const LabelTriplet& label, vid_t src, vid_t dst,
-                  const Any& data, size_t idx, Arena&) const override;
+                  const void* data_ptr, size_t idx, Arena&) const override;
 
   RTAnyType type() const override;
 
@@ -566,7 +575,8 @@ class TupleExpr : public ExprBase {
 template <typename... Args>
 class TypedTupleExpr : public ExprBase {
  public:
-  TypedTupleExpr(std::array<std::unique_ptr<ExprBase>, sizeof...(Args)>&& exprs)
+  explicit TypedTupleExpr(
+      std::array<std::unique_ptr<ExprBase>, sizeof...(Args)>&& exprs)
       : exprs_(std::move(exprs)) {
     assert(exprs.size() == sizeof...(Args));
   }
@@ -607,16 +617,17 @@ class TypedTupleExpr : public ExprBase {
   template <std::size_t... Is>
   std::tuple<Args...> eval_edge_impl(std::index_sequence<Is...>,
                                      const LabelTriplet& label, vid_t src,
-                                     vid_t dst, const Any& data, size_t idx,
-                                     Arena& arena) const {
+                                     vid_t dst, const void* data_ptr,
+                                     size_t idx, Arena& arena) const {
     return std::make_tuple(TypedConverter<Args>::to_typed(
-        exprs_[Is]->eval_edge(label, src, dst, data, idx, arena))...);
+        exprs_[Is]->eval_edge(label, src, dst, data_ptr, idx, arena))...);
   }
 
   RTAny eval_edge(const LabelTriplet& label, vid_t src, vid_t dst,
-                  const Any& data, size_t idx, Arena& arena) const override {
+                  const void* data_ptr, size_t idx,
+                  Arena& arena) const override {
     auto tup = eval_edge_impl(std::index_sequence_for<Args...>(), label, src,
-                              dst, data, idx, arena);
+                              dst, data_ptr, idx, arena);
     auto t = Tuple::make_tuple_impl(std::move(tup));
     Tuple ret(t.get());
     arena.emplace_back(std::move(t));
@@ -663,7 +674,7 @@ class MapExpr : public ExprBase {
     return RTAny();
   }
   RTAny eval_edge(const LabelTriplet& label, vid_t src, vid_t dst,
-                  const Any& data, size_t idx, Arena&) const override {
+                  const void* data_ptr, size_t idx, Arena&) const override {
     LOG(FATAL) << "not implemented";
     return RTAny();
   }
@@ -693,7 +704,8 @@ class ListExprBase : public ExprBase {
 };
 class RelationshipsExpr : public ListExprBase {
  public:
-  RelationshipsExpr(std::unique_ptr<ExprBase>&& args) : args(std::move(args)) {}
+  explicit RelationshipsExpr(std::unique_ptr<ExprBase>&& args)
+      : args(std::move(args)) {}
   RTAny eval_path(size_t idx, Arena& arena) const override {
     assert(args->type() == RTAnyType::kPath);
     auto path_any = args->eval_path(idx, arena);
@@ -714,7 +726,7 @@ class RelationshipsExpr : public ListExprBase {
   }
 
   RTAny eval_edge(const LabelTriplet& label, vid_t src, vid_t dst,
-                  const Any& data, size_t idx, Arena&) const override {
+                  const void* data_ptr, size_t idx, Arena&) const override {
     LOG(FATAL) << "should not be called";
     return RTAny();
   }
@@ -729,7 +741,8 @@ class RelationshipsExpr : public ListExprBase {
 
 class NodesExpr : public ListExprBase {
  public:
-  NodesExpr(std::unique_ptr<ExprBase>&& args) : args(std::move(args)) {}
+  explicit NodesExpr(std::unique_ptr<ExprBase>&& args)
+      : args(std::move(args)) {}
   RTAny eval_path(size_t idx, Arena& arena) const override {
     assert(args->type() == RTAnyType::kPath);
     auto path_any = args->eval_path(idx, arena);
@@ -750,7 +763,7 @@ class NodesExpr : public ListExprBase {
   }
 
   RTAny eval_edge(const LabelTriplet& label, vid_t src, vid_t dst,
-                  const Any& data, size_t idx, Arena&) const override {
+                  const void* data_ptr, size_t idx, Arena&) const override {
     LOG(FATAL) << "should not be called";
     return RTAny();
   }
@@ -765,7 +778,8 @@ class NodesExpr : public ListExprBase {
 
 class StartNodeExpr : public ExprBase {
  public:
-  StartNodeExpr(std::unique_ptr<ExprBase>&& args) : args(std::move(args)) {}
+  explicit StartNodeExpr(std::unique_ptr<ExprBase>&& args)
+      : args(std::move(args)) {}
   RTAny eval_path(size_t idx, Arena& arena) const override {
     assert(args->type() == RTAnyType::kRelation ||
            args->type() == RTAnyType::kEdge);
@@ -784,7 +798,7 @@ class StartNodeExpr : public ExprBase {
   }
 
   RTAny eval_edge(const LabelTriplet& label, vid_t src, vid_t dst,
-                  const Any& data, size_t idx, Arena&) const override {
+                  const void* data_ptr, size_t idx, Arena&) const override {
     LOG(FATAL) << "should not be called";
     return RTAny();
   }
@@ -799,7 +813,8 @@ class StartNodeExpr : public ExprBase {
 
 class EndNodeExpr : public ExprBase {
  public:
-  EndNodeExpr(std::unique_ptr<ExprBase>&& args) : args(std::move(args)) {}
+  explicit EndNodeExpr(std::unique_ptr<ExprBase>&& args)
+      : args(std::move(args)) {}
   RTAny eval_path(size_t idx, Arena& arena) const override {
     assert(args->type() == RTAnyType::kRelation ||
            args->type() == RTAnyType::kEdge);
@@ -818,7 +833,7 @@ class EndNodeExpr : public ExprBase {
   }
 
   RTAny eval_edge(const LabelTriplet& label, vid_t src, vid_t dst,
-                  const Any& data, size_t idx, Arena&) const override {
+                  const void* data_ptr, size_t idx, Arena&) const override {
     LOG(FATAL) << "should not be called";
     return RTAny();
   }
@@ -845,7 +860,8 @@ class ToFloatExpr : public ExprBase {
     }
   }
 
-  ToFloatExpr(std::unique_ptr<ExprBase>&& args) : args(std::move(args)) {}
+  explicit ToFloatExpr(std::unique_ptr<ExprBase>&& args)
+      : args(std::move(args)) {}
   RTAny eval_path(size_t idx, Arena& arena) const override {
     auto val = args->eval_path(idx, arena);
     if (val.is_null()) {
@@ -864,8 +880,9 @@ class ToFloatExpr : public ExprBase {
   }
 
   RTAny eval_edge(const LabelTriplet& label, vid_t src, vid_t dst,
-                  const Any& data, size_t idx, Arena& arena) const override {
-    auto val = args->eval_edge(label, src, dst, data, idx, arena);
+                  const void* data_ptr, size_t idx,
+                  Arena& arena) const override {
+    auto val = args->eval_edge(label, src, dst, data_ptr, idx, arena);
     if (val.is_null()) {
       return RTAny(RTAnyType::kNull);
     }
@@ -916,9 +933,10 @@ class StrConcatExpr : public ExprBase {
   }
 
   RTAny eval_edge(const LabelTriplet& label, vid_t src, vid_t dst,
-                  const Any& data, size_t idx, Arena& arena) const override {
-    auto lhs_val = lhs->eval_edge(label, src, dst, data, idx, arena);
-    auto rhs_val = rhs->eval_edge(label, src, dst, data, idx, arena);
+                  const void* data_ptr, size_t idx,
+                  Arena& arena) const override {
+    auto lhs_val = lhs->eval_edge(label, src, dst, data_ptr, idx, arena);
+    auto rhs_val = rhs->eval_edge(label, src, dst, data_ptr, idx, arena);
     if (lhs_val.is_null() || rhs_val.is_null()) {
       return RTAny(RTAnyType::kNull);
     }
@@ -943,7 +961,8 @@ class StrConcatExpr : public ExprBase {
 
 class StrListSizeExpr : public ExprBase {
  public:
-  StrListSizeExpr(std::unique_ptr<ExprBase>&& args) : args(std::move(args)) {}
+  explicit StrListSizeExpr(std::unique_ptr<ExprBase>&& args)
+      : args(std::move(args)) {}
 
   RTAny eval_path(size_t idx, Arena& arena) const override {
     CHECK(args->type() == RTAnyType::kStringValue);
@@ -964,8 +983,9 @@ class StrListSizeExpr : public ExprBase {
   }
 
   RTAny eval_edge(const LabelTriplet& label, vid_t src, vid_t dst,
-                  const Any& data, size_t idx, Arena& arena) const override {
-    auto str_list = args->eval_edge(label, src, dst, data, idx, arena);
+                  const void* data_ptr, size_t idx,
+                  Arena& arena) const override {
+    auto str_list = args->eval_edge(label, src, dst, data_ptr, idx, arena);
     if (str_list.is_null()) {
       return RTAny(RTAnyType::kNull);
     }
@@ -1001,4 +1021,4 @@ std::unique_ptr<ExprBase> parse_expression(
 
 }  // namespace gs
 
-#endif  // RUNTIME_UTILS_RUNTIME_EXPR_IMPL_H_
+#endif  // INCLUDE_NEUG_EXECUTION_UTILS_EXPR_IMPL_H_

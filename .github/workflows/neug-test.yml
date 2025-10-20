@@ -140,6 +140,8 @@ jobs:
         export FLEX_DATA_DIR=${GITHUB_WORKSPACE}/example_dataset/modern_graph
         cd build/neug_py_bind
         ctest -R storage_test -V
+        ctest -R csr_test -V
+        ctest -R edge_table_test -V
         export TEST_RESOURCE=${GITHUB_WORKSPACE}/src/compiler
         ctest -R gopt_test -V
         ctest -R version_manager_test -V

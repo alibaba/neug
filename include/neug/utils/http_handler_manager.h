@@ -13,9 +13,10 @@
  * limitations under the License.
  */
 
-#ifndef ENGINES_COMMON_HTTP_HANDLER_MANAGER_H_
-#define ENGINES_COMMON_HTTP_HANDLER_MANAGER_H_
+#ifndef INCLUDE_NEUG_UTILS_HTTP_HANDLER_MANAGER_H_
+#define INCLUDE_NEUG_UTILS_HTTP_HANDLER_MANAGER_H_
 
+#include <algorithm>
 #include <atomic>
 #include <cstdint>
 #include <memory>
@@ -214,4 +215,4 @@ struct convert<server::ServiceConfig> {
 };
 }  // namespace YAML
 
-#endif  // ENGINES_COMMON_HTTP_HANDLER_MANAGER_H_
+#endif  // INCLUDE_NEUG_UTILS_HTTP_HANDLER_MANAGER_H_

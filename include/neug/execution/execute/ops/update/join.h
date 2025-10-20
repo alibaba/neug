@@ -13,9 +13,10 @@
  * limitations under the License.
  */
 
-#ifndef EXECUTION_EXECUTE_RETRIEVE_OPS_UPDATE_JOIN_H_
-#define EXECUTION_EXECUTE_RETRIEVE_OPS_UPDATE_JOIN_H_
+#ifndef INCLUDE_NEUG_EXECUTION_EXECUTE_OPS_UPDATE_JOIN_H_
+#define INCLUDE_NEUG_EXECUTION_EXECUTE_OPS_UPDATE_JOIN_H_
 
+#include <memory>
 #include <vector>
 
 #include "neug/execution/execute/operator.h"
@@ -54,4 +55,4 @@ class UJoinOprBuilder : public IUpdateOperatorBuilder {
 
 }  // namespace gs
 
-#endif  // EXECUTION_EXECUTE_RETRIEVE_OPS_JOIN_H_
+#endif  // INCLUDE_NEUG_EXECUTION_EXECUTE_OPS_UPDATE_JOIN_H_

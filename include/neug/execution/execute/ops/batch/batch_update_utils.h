@@ -13,19 +13,18 @@
  * limitations under the License.
  */
 
-#ifndef EXECUTION_EXECUTE_OPS_BATCH_BATCH_INSERT_UTILS_H_
-#define EXECUTION_EXECUTE_OPS_BATCH_BATCH_INSERT_UTILS_H_
+#ifndef INCLUDE_NEUG_EXECUTION_EXECUTE_OPS_BATCH_BATCH_UPDATE_UTILS_H_
+#define INCLUDE_NEUG_EXECUTION_EXECUTE_OPS_BATCH_BATCH_UPDATE_UTILS_H_
 
 #include <glog/logging.h>
 #include <stdint.h>
 #include <memory>
 #include <string>
-#include <unordered_set>
+#include <unordered_map>
 #include <utility>
 #include <vector>
 
 #include "neug/execution/common/context.h"
-#include "neug/storages/loader/abstract_arrow_fragment_loader.h"
 #include "neug/utils/property/types.h"
 #ifdef USE_SYSTEM_PROTOBUF
 #include "neug/generated/proto/plan/common.pb.h"
@@ -77,7 +76,7 @@ bool check_csv_export_options(
 std::string vertex_to_json_string(label_t label, vid_t vid,
                                   const gs::runtime::GraphReadInterface& graph);
 
-std::string edge_to_json_string(EdgeRecord& edge,
+std::string edge_to_json_string(const EdgeRecord& edge,
                                 const gs::runtime::GraphReadInterface& graph);
 
 std::string path_to_json_string(Path& path,
@@ -117,4 +116,4 @@ void parse_property_mappings(
 
 }  // namespace gs
 
-#endif  // EXECUTION_EXECUTE_OPS_BATCH_BATCH_INSERT_UTILS_H_
+#endif  // INCLUDE_NEUG_EXECUTION_EXECUTE_OPS_BATCH_BATCH_UPDATE_UTILS_H_

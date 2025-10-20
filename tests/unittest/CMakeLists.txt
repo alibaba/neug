@@ -12,6 +12,8 @@ target_link_libraries(test_run_query PRIVATE ${GLOG_LIBRARIES} ${NEUG_LIBRARIES}
 add_neug_test(storage_test test_ddl.cc test_export.cc test_open_graph.cc alter_property_test.cc test_set_property.cc test_checkpoint.cc test_memory_level.cc test_acid.cc)
 
 add_neug_test(version_manager_test test_version_manager.cc)
+add_neug_test(csr_test test_csr_stream_ops.cc test_csr_batch_ops.cc)
+add_neug_test(edge_table_test test_edge_table.cc)
 
 # Add vertex table benchmark
 add_neug_test(vertex_table_benchmark vertex_table_benchmark.cc)

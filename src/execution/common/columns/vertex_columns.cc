@@ -28,10 +28,11 @@ std::shared_ptr<IContextColumn> SLVertexColumn::shuffle(
   builder.reserve(offsets.size());
   if (is_optional_) {
     for (auto offset : offsets) {
-      if (vertices_[offset] == std::numeric_limits<vid_t>::max()) {
+      auto v = vertices_[offset];
+      if (v == std::numeric_limits<vid_t>::max()) {
         builder.push_back_null();
       } else {
-        builder.push_back_opt(vertices_[offset]);
+        builder.push_back_opt(v);
       }
     }
   } else {
@@ -135,11 +136,13 @@ std::shared_ptr<IContextColumn> SLVertexColumn::union_col(
       return builder.finish();
     }
   }
-  MLVertexColumnBuilder builder;
+  auto col = dynamic_cast<const IVertexColumn*>(other.get());
+  std::set<label_t> labels_set = col->get_labels_set();
+  labels_set.insert(label_);
+  MLVertexColumnBuilderOpt builder(labels_set);
   for (auto v : vertices_) {
     builder.push_back_vertex({label_, v});
   }
-  auto col = dynamic_cast<const IVertexColumn*>(other.get());
   for (size_t i = 0; i < col->size(); ++i) {
     builder.push_back_vertex(col->get_vertex(i));
   }
@@ -148,7 +151,7 @@ std::shared_ptr<IContextColumn> SLVertexColumn::union_col(
 
 std::shared_ptr<IContextColumn> MSVertexColumn::shuffle(
     const std::vector<size_t>& offsets) const {
-  MLVertexColumnBuilder builder;
+  MLVertexColumnBuilderOpt builder(this->get_labels_set());
   builder.reserve(offsets.size());
   for (auto offset : offsets) {
     auto v = get_vertex(offset);
@@ -163,7 +166,7 @@ std::shared_ptr<IContextColumn> MSVertexColumn::shuffle(
 
 std::shared_ptr<IContextColumn> MSVertexColumn::optional_shuffle(
     const std::vector<size_t>& offsets) const {
-  MLVertexColumnBuilder builder;
+  MLVertexColumnBuilderOpt builder(this->get_labels_set());
   builder.reserve(offsets.size());
   for (auto offset : offsets) {
     if (offset == std::numeric_limits<size_t>::max()) {
@@ -216,7 +219,7 @@ std::shared_ptr<IContextColumn> MSVertexColumnBuilder::finish() {
 
 std::shared_ptr<IContextColumn> MLVertexColumn::shuffle(
     const std::vector<size_t>& offsets) const {
-  MLVertexColumnBuilder builder;
+  MLVertexColumnBuilderOpt builder(this->get_labels_set());
   builder.reserve(offsets.size());
   for (auto offset : offsets) {
     auto& v = vertices_[offset];
@@ -231,7 +234,7 @@ std::shared_ptr<IContextColumn> MLVertexColumn::shuffle(
 
 std::shared_ptr<IContextColumn> MLVertexColumn::optional_shuffle(
     const std::vector<size_t>& offsets) const {
-  MLVertexColumnBuilder builder;
+  MLVertexColumnBuilderOpt builder(this->get_labels_set());
   builder.reserve(offsets.size());
   for (auto offset : offsets) {
     if (offset == std::numeric_limits<size_t>::max()) {

@@ -13,8 +13,11 @@
  * limitations under the License.
  */
 
-#ifndef RUNTIME_UTILS_PARAMS_H_
-#define RUNTIME_UTILS_PARAMS_H_
+#ifndef INCLUDE_NEUG_EXECUTION_UTILS_PARAMS_H_
+#define INCLUDE_NEUG_EXECUTION_UTILS_PARAMS_H_
+
+#include <limits>
+#include <vector>
 
 #include "neug/execution/common/types.h"
 
@@ -66,4 +69,5 @@ struct ShortestPathParams {
 
 }  // namespace runtime
 }  // namespace gs
-#endif  // RUNTIME_UTILS_PARAMS_H_
+
+#endif  // INCLUDE_NEUG_EXECUTION_UTILS_PARAMS_H_

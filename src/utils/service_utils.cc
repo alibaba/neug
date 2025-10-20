@@ -16,9 +16,14 @@
 #include "neug/utils/service_utils.h"
 
 #include <fcntl.h>
+#if defined(__APPLE__)
+#include <sys/sysctl.h>
+#else
+#include <sys/sysinfo.h>
+#endif
+#include <sys/types.h>
 #include <unistd.h>
 #include <cstdint>
-#include <type_traits>
 #include <unordered_map>
 
 namespace gs {

@@ -16,6 +16,8 @@
 #ifndef STORAGES_RT_MUTABLE_GRAPH_VERTEX_TABLE_H_
 #define STORAGES_RT_MUTABLE_GRAPH_VERTEX_TABLE_H_
 
+#include "neug/storages/loader/loader_utils.h"
+#include "neug/utils/arrow_utils.h"
 #include "neug/utils/indexers.h"
 #include "neug/utils/mmap_array.h"
 #include "neug/utils/property/table.h"
@@ -155,7 +157,99 @@ class VertexTable {
 
   inline std::string& work_dir() { return work_dir_; }
 
+  void insert_vertices(std::shared_ptr<IRecordBatchSupplier> suppliers);
+
  private:
+  template <typename PK_T>
+  std::vector<vid_t> insert_primary_keys(
+      std::shared_ptr<arrow::Array> primary_key_column) {
+    size_t row_num = primary_key_column->length();
+    std::vector<vid_t> vids;
+    vids.resize(row_num);
+    if constexpr (!std::is_same<std::string_view, PK_T>::value &&
+                  !std::is_same<std::string, PK_T>::value) {
+      auto expected_type = gs::TypeConverter<PK_T>::ArrowTypeValue();
+      using arrow_array_t = typename gs::TypeConverter<PK_T>::ArrowArrayType;
+      if (!primary_key_column->type()->Equals(expected_type)) {
+        LOG(FATAL) << "Inconsistent data type, expect "
+                   << expected_type->ToString() << ", but got "
+                   << primary_key_column->type()->ToString();
+      }
+      auto casted_array =
+          std::static_pointer_cast<arrow_array_t>(primary_key_column);
+
+      for (size_t j = 0; j < row_num; ++j) {
+        auto oid = Any(static_cast<PK_T>(casted_array->Value(j)));
+        if (indexer_.get_index(oid, vids[j])) {
+          vids[j] = std::numeric_limits<vid_t>::max();
+          continue;  // already exists
+        }
+        vids[j] = add_vertex(oid, 0);
+      }
+    } else {
+      if (primary_key_column->type()->Equals(arrow::utf8())) {
+        auto casted_array =
+            std::static_pointer_cast<arrow::StringArray>(primary_key_column);
+        for (size_t j = 0; j < row_num; ++j) {
+          auto oid = Any(std::string(casted_array->GetView(j)));
+          if (indexer_.get_index(oid, vids[j])) {
+            vids[j] = std::numeric_limits<vid_t>::max();
+            continue;  // already exists
+          }
+          vids[j] = add_vertex(oid, 0);
+        }
+      } else if (primary_key_column->type()->Equals(arrow::large_utf8())) {
+        auto casted_array = std::static_pointer_cast<arrow::LargeStringArray>(
+            primary_key_column);
+        for (size_t j = 0; j < row_num; ++j) {
+          auto oid = Any(std::string(casted_array->GetView(j)));
+          if (indexer_.get_index(oid, vids[j])) {
+            vids[j] = std::numeric_limits<vid_t>::max();
+            continue;  // already exists
+          }
+          vids[j] = add_vertex(oid, 0);
+        }
+      } else {
+        LOG(FATAL) << "Not support type: "
+                   << primary_key_column->type()->ToString();
+      }
+    }
+    return vids;
+  }
+
+  template <typename PK_T>
+  void insert_vertices_impl(std::shared_ptr<IRecordBatchSupplier> supplier) {
+    while (true) {
+      auto batch = supplier->GetNextBatch();
+      if (batch == nullptr) {
+        break;
+      }
+      auto columns = batch->columns();
+      CHECK(columns.size() == property_names.size() + 1)
+          << "Number of columns in the batch (" << columns.size()
+          << ") does not match the number of properties ("
+          << property_names.size() + 1 << ").";
+      auto pk_array = columns[0];  // primary key column. TODO(zhanglei):
+                                   // make sure the pk is the first column
+      columns.erase(columns.begin());
+      auto cur_size = table_->row_num();
+      while (cur_size < indexer_.size() + pk_array->length()) {
+        cur_size = std::max(16, 2 * static_cast<int>(cur_size));
+      }
+      Reserve(cur_size);
+
+      auto vids = insert_primary_keys<PK_T>(pk_array);
+
+      for (size_t i = 0; i < columns.size(); ++i) {
+        auto col = table_->get_column_by_id(i);
+        auto chunked_array = std::make_shared<arrow::ChunkedArray>(columns[i]);
+        set_properties_column(col, chunked_array, vids);
+      }
+      VLOG(10) << "Inserted " << pk_array->length()
+               << " vertices, current vertex num: " << vertex_num();
+    }
+  }
+
   IndexerType indexer_;
   std::unique_ptr<Table> table_;
   std::string v_label_name_;

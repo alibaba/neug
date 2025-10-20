@@ -16,67 +16,40 @@
 #ifndef STORAGES_RT_MUTABLE_GRAPH_MUTABLE_PROPERTY_FRAGMENT_H_
 #define STORAGES_RT_MUTABLE_GRAPH_MUTABLE_PROPERTY_FRAGMENT_H_
 
-#include <arrow/api.h>
-#include <arrow/array/array_base.h>
-#include <arrow/array/array_binary.h>
 #include <glog/logging.h>
 #include <stddef.h>
-#include <algorithm>
-#include <atomic>
 #include <cstdint>
-
 #include <limits>
 #include <memory>
 #include <mutex>
 #include <ostream>
-#include <shared_mutex>
 #include <string>
-#include <string_view>
-#include <thread>
 #include <tuple>
-#include <type_traits>
 #include <unordered_map>
 #include <vector>
 
-#include "libgrape-lite/grape/utils/concurrent_queue.h"
-#include "neug/execution/common/utils/bitset.h"
-#include "neug/storages/csr/dual_csr.h"
-#include "neug/storages/csr/mutable_csr.h"
-#include "neug/storages/file_names.h"
+#include "neug/storages/csr/generic_view.h"
+#include "neug/storages/graph/edge_table.h"
 #include "neug/storages/graph/schema.h"
-#include "neug/storages/loader/abstract_arrow_fragment_loader.h"
-#include "neug/storages/loader/basic_fragment_loader.h"
-#include "neug/storages/loader/loader_utils.h"
+#include "neug/storages/graph/vertex_table.h"
 #include "neug/utils/allocators.h"
-#include "neug/utils/arrow_utils.h"
-#include "neug/utils/id_indexer.h"
-#include "neug/utils/indexers.h"
-#include "neug/utils/property/column.h"
-#include "neug/utils/property/table.h"
+#include "neug/utils/property/property.h"
 #include "neug/utils/property/types.h"
 #include "neug/utils/result.h"
 
-#include "neug/storages/graph/edge_table.h"
-#include "neug/storages/graph/vertex_table.h"
-
 namespace grape {
 class OutArchive;
-struct EmptyType;
 }  // namespace grape
 
 namespace gs {
-class CsrBase;
-class CsrConstEdgeIterBase;
-class CsrEdgeIterBase;
-template <typename EDATA_T>
-class TypedMutableCsrBase;
 /**
  * @brief Core property graph storage engine managing vertices, edges, and
  * schema.
  *
- * PropertyGraph provides the fundamental storage layer for graph data in NeuG.
- * It manages vertex and edge tables, schema information, and provides
- * persistence through file-based storage with memory management optimizations.
+ * PropertyGraph provides the fundamental storage layer for graph data in
+ * NeuG. It manages vertex and edge tables, schema information, and provides
+ * persistence through file-based storage with memory management
+ * optimizations.
  *
  * **Key Components:**
  * - Vertex tables for storing vertex data and properties
@@ -143,30 +116,6 @@ class PropertyGraph {
                   grape::OutArchive& arc, Allocator& alloc);
 
   /**
-   * @brief Update an existing edge's property data.
-   *
-   * This method updates the properties of an existing edge in the graph.
-   * The edge is identified by its source/destination vertices and edge label.
-   *
-   * @param src_label Source vertex label
-   * @param src_lid Source vertex local ID
-   * @param dst_label Destination vertex label
-   * @param dst_lid Destination vertex local ID
-   * @param edge_label Edge label/type
-   * @param ts Timestamp for the update
-   * @param arc New property data for the edge
-   * @param alloc Memory allocator for update operations
-   *
-   * Implementation: Generates edge table index from labels, then calls
-   * EdgeTable::UpdateEdge() on the corresponding edge table.
-   *
-   * @since v0.1.0
-   */
-  void UpdateEdge(label_t src_label, vid_t src_lid, label_t dst_label,
-                  vid_t dst_lid, label_t edge_label, timestamp_t ts,
-                  const Any& arc, Allocator& alloc);
-
-  /**
    * @brief Open the property graph from persistent storage.
    *
    * @param work_dir Working directory containing graph data files
@@ -180,10 +129,13 @@ class PropertyGraph {
    */
   void Open(const std::string& work_dir, int memory_level);
 
+  void Open(const Schema& schema, const std::string& work_dir,
+            int memory_level);
+
   void Compact(bool reset_timestamp, bool compact_csr, float reserve_ratio,
                timestamp_t ts);
 
-  void Dump();
+  void Dump(bool reopen = true);
 
   /**
    * @brief Dump schema information to a file.
@@ -215,8 +167,8 @@ class PropertyGraph {
   /**
    * @brief Clear all graph data and reset to empty state.
    *
-   * Implementation: Clears vertex_tables_, edge_tables_, resets label counts to
-   * 0, and calls schema_.Clear().
+   * Implementation: Clears vertex_tables_, edge_tables_, resets label counts
+   * to 0, and calls schema_.Clear().
    *
    * @since v0.1.0
    */
@@ -284,13 +236,12 @@ class PropertyGraph {
                           const std::string& dst_vertex_type,
                           const std::string& edge_type, bool error_on_conflict);
 
-  Status batch_add_vertices(label_t v_label_id, std::vector<Any>&& ids,
-                            std::unique_ptr<Table>&& table, timestamp_t ts);
+  Status batch_add_vertices(label_t v_label_id,
+                            std::shared_ptr<IRecordBatchSupplier> supplier);
 
-  Status batch_add_edges(
-      label_t src_label_id, label_t dst_label_id, label_t edge_label_id,
-      std::vector<std::tuple<vid_t, vid_t, size_t>>&& edges_vec,
-      std::unique_ptr<Table>&& table);
+  Status batch_add_edges(label_t src_label, label_t dst_label,
+                         label_t edge_label,
+                         std::shared_ptr<IRecordBatchSupplier> supplier);
 
   Status batch_delete_vertices(const label_t& v_label_id,
                                const std::vector<vid_t>& vids);
@@ -325,68 +276,27 @@ class PropertyGraph {
 
   vid_t add_vertex_safe(label_t label, const Any& id, timestamp_t ts);
 
-  std::shared_ptr<CsrConstEdgeIterBase> get_outgoing_edges(
-      label_t label, vid_t u, label_t neighbor_label, label_t edge_label) const;
-
-  std::shared_ptr<CsrConstEdgeIterBase> get_incoming_edges(
-      label_t label, vid_t u, label_t neighbor_label, label_t edge_label) const;
-
-  std::shared_ptr<CsrEdgeIterBase> get_outgoing_edges_mut(
-      label_t label, vid_t u, label_t neighbor_label, label_t edge_label);
-
-  std::shared_ptr<CsrEdgeIterBase> get_incoming_edges_mut(
-      label_t label, vid_t u, label_t neighbor_label, label_t edge_label);
-
-  inline CsrBase* get_oe_csr(label_t label, label_t neighbor_label,
-                             label_t edge_label) {
+  GenericView GetGenericOutgoingGraphView(
+      label_t v_label, label_t neighbor_label, label_t edge_label,
+      timestamp_t ts = std::numeric_limits<timestamp_t>::max()) const {
     size_t index =
-        schema_.generate_edge_label(label, neighbor_label, edge_label);
-    if (edge_tables_.find(index) == edge_tables_.end()) {
-      LOG(ERROR) << "Edge csr not found for label: " << label
-                 << ", neighbor_label: " << neighbor_label
-                 << ", edge_label: " << edge_label;
-      return nullptr;
-    }
-    return edge_tables_.at(index).GetOutCsr();
+        schema_.generate_edge_label(v_label, neighbor_label, edge_label);
+    return edge_tables_.at(index).get_outgoing_view(ts);
   }
 
-  inline const CsrBase* get_oe_csr(label_t label, label_t neighbor_label,
-                                   label_t edge_label) const {
+  GenericView GetGenericIncomingGraphView(
+      label_t v_label, label_t neighbor_label, label_t edge_label,
+      timestamp_t ts = std::numeric_limits<timestamp_t>::max()) const {
     size_t index =
-        schema_.generate_edge_label(label, neighbor_label, edge_label);
-    if (edge_tables_.find(index) == edge_tables_.end()) {
-      LOG(ERROR) << "Edge csr not found for label: " << label
-                 << ", neighbor_label: " << neighbor_label
-                 << ", edge_label: " << edge_label;
-      return nullptr;
-    }
-    return edge_tables_.at(index).GetOutCsr();
+        schema_.generate_edge_label(neighbor_label, v_label, edge_label);
+    return edge_tables_.at(index).get_incoming_view(ts);
   }
 
-  inline CsrBase* get_ie_csr(label_t label, label_t neighbor_label,
-                             label_t edge_label) {
+  EdgeDataAccessor GetEdgeDataAccessor(label_t src_label, label_t dst_label,
+                                       label_t edge_label, int prop_id) const {
     size_t index =
-        schema_.generate_edge_label(neighbor_label, label, edge_label);
-    if (edge_tables_.find(index) == edge_tables_.end()) {
-      LOG(ERROR) << "Edge csr not found for label: " << label
-                 << ", neighbor_label: " << neighbor_label
-                 << ", edge_label: " << edge_label;
-      return nullptr;
-    }
-    return edge_tables_.at(index).GetInCsr();
-  }
-
-  inline const CsrBase* get_ie_csr(label_t label, label_t neighbor_label,
-                                   label_t edge_label) const {
-    size_t index =
-        schema_.generate_edge_label(neighbor_label, label, edge_label);
-    if (edge_tables_.find(index) == edge_tables_.end()) {
-      LOG(ERROR) << "Edge csr not found for label: " << (int32_t) label
-                 << ", neighbor_label: " << (int32_t) neighbor_label
-                 << ", edge_label: " << (int32_t) edge_label;
-      return nullptr;
-    }
-    return edge_tables_.at(index).GetInCsr();
+        schema_.generate_edge_label(src_label, dst_label, edge_label);
+    return edge_tables_.at(index).get_edge_data_accessor(prop_id);
   }
 
   inline bool vertex_table_modified(label_t label) const {

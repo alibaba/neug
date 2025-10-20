@@ -31,7 +31,6 @@
 #include "neug/execution/common/context.h"
 #include "neug/execution/common/graph_interface.h"
 #include "neug/execution/common/operators/update/project.h"
-#include "neug/execution/common/rt_any.h"
 #include "neug/execution/execute/ops/utils/project_utils.h"
 #include "neug/execution/utils/var.h"
 #include "neug/utils/result.h"

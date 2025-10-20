@@ -13,15 +13,18 @@
  * limitations under the License.
  */
 
-#ifndef RUNTIME_EXECUTE_WRITER_EXPORT_WRITER_FACTORY_H_
-#define RUNTIME_EXECUTE_WRITER_EXPORT_WRITER_FACTORY_H_
+#ifndef INCLUDE_NEUG_EXECUTION_EXECUTE_WRITER_EXPORT_WRITER_FACTORY_H_
+#define INCLUDE_NEUG_EXECUTION_EXECUTE_WRITER_EXPORT_WRITER_FACTORY_H_
 
 #include <memory>
 #include <string>
 #include <unordered_map>
+#include <utility>
 #include <vector>
 
 #include "neug/execution/common/columns/i_context_column.h"
+#include "neug/execution/common/graph_interface.h"
+#include "neug/utils/result.h"
 
 namespace gs {
 namespace runtime {
@@ -56,4 +59,4 @@ class ExportWriterFactory {
 }  // namespace runtime
 }  // namespace gs
 
-#endif  // RUNTIME_EXECUTE_WRITER_EXPORT_WRITER_FACTORY_H_
+#endif  // INCLUDE_NEUG_EXECUTION_EXECUTE_WRITER_EXPORT_WRITER_FACTORY_H_

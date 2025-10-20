@@ -28,10 +28,7 @@
 #include "common/configuration.h"  // odps/include
 #include "httplib.h"
 #include "libgrape-lite/grape/util.h"
-#include "neug/storages/graph/property_graph.h"
-#include "neug/storages/loader/abstract_arrow_fragment_loader.h"
-#include "neug/storages/loader/basic_fragment_loader.h"
-#include "neug/storages/loader/i_fragment_loader.h"
+#include "neug/storages/loader/abstract_property_fragment_loader.h"
 #include "neug/storages/loader/loader_factory.h"
 #include "neug/storages/loader/loading_config.h"
 #include "storage_api.hpp"
@@ -165,11 +162,13 @@ class ODPSTableRecordBatchSupplier : public IRecordBatchSupplier {
  * 3. ODPS_ENDPOINT
  * 4. ODPS_TUNNEL_ENDPOINT(optional)
  */
-class ODPSFragmentLoader : public AbstractArrowFragmentLoader {
+class ODPSFragmentLoader : public AbstractPropertyGraphLoader {
  public:
   ODPSFragmentLoader(const std::string& work_dir, const Schema& schema,
                      const LoadingConfig& loading_config)
-      : AbstractArrowFragmentLoader(work_dir, schema, loading_config) {}
+      : AbstractPropertyGraphLoader(work_dir, schema, loading_config) {
+    odps_read_client_.init();
+  }
 
   static std::shared_ptr<IFragmentLoader> Make(
       const std::string& work_dir, const Schema& schema,
@@ -177,31 +176,25 @@ class ODPSFragmentLoader : public AbstractArrowFragmentLoader {
 
   ~ODPSFragmentLoader() {}
 
+ protected:
+  virtual std::vector<std::shared_ptr<IRecordBatchSupplier>>
+  createVertexRecordBatchSupplier(label_t v_label,
+                                  const std::string& v_label_name,
+                                  const std::string& v_file,
+                                  PropertyType pk_type,
+                                  const std::string& pk_name, int pk_ind,
+                                  const LoadingConfig& loading_config,
+                                  int thread_id) const = 0;
+  virtual std::vector<std::shared_ptr<IRecordBatchSupplier>>
+  createEdgeRecordBatchSupplier(label_t src_label, label_t dst_label,
+                                label_t e_label, const std::string& e_file,
+                                const LoadingConfig& loading_config,
+                                int thread_id) const = 0;
+
   result<bool> LoadFragment() override;
 
  private:
-  void init();
-
-  void parseLocation(const std::string& odps_table_path,
-                     TableIdentifier& table_identifier,
-                     std::vector<std::string>& partition_names,
-                     std::vector<std::string>& selected_partitions);
-
-  void loadVertices();
-
-  void loadEdges();
-
-  void addVertices(label_t v_label_id, const std::vector<std::string>& v_files);
-
-  void addEdges(label_t src_label_id, label_t dst_label_id, label_t e_label_id,
-                const std::vector<std::string>& e_files);
-
-  std::vector<std::string> columnMappingsToSelectedCols(
-      const std::vector<std::tuple<size_t, std::string, std::string>>&
-          column_mappings);
-
   ODPSReadClient odps_read_client_;
-
   static const bool registered_;
 };
 

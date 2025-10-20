@@ -12,27 +12,28 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-#include <cmath>
 
 #include "neug/utils/property/types.h"
 
 #include <algorithm>
 #include <cctype>
 #include <chrono>
+#include <cmath>
+#include <compare>
 #include <cstdlib>
+#include <exception>
 #include <iomanip>
 #include <istream>
 #include <memory>
 #include <ostream>
-#include <sstream>
+#include <ratio>
+#include <regex>
 
 #include "date/date.h"
-
 #include "libgrape-lite/grape/serialization/in_archive.h"
 #include "libgrape-lite/grape/serialization/out_archive.h"
 #include "neug/utils/property/column.h"
 #include "neug/utils/property/table.h"
-#include "neug/utils/property/types.h"
 
 namespace gs {
 
@@ -486,7 +487,7 @@ grape::InArchive& operator<<(grape::InArchive& in_archive, const Any& value) {
     in_archive << value.type << value.value.f;
   } else if (value.type == PropertyType::Double()) {
     in_archive << value.type << value.value.db;
-  } else if (value.type == impl::PropertyTypeImpl::kString) {
+  } else if (value.type == PropertyType::String()) {
     // serialize as string_view
     auto s = *value.value.s_ptr;
     auto type = PropertyType::StringView();
@@ -678,6 +679,8 @@ bool IntervalValue::operator<(const IntervalValue& rhs) const {
     return millisecond < rhs.millisecond;
   return microsecond < rhs.microsecond;
 }
+
+Date::Date(int64_t x) { from_timestamp(x); }
 
 Date::Date(const std::string& date_str) {
   // Parse date string in format YYYY-MM-DD
@@ -933,15 +936,20 @@ void Interval::from_mill_seconds(int64_t mill_seconds) {
   int64_t total_seconds = mill_seconds / 1000;
   // internal.year = std::floor(total_seconds / SECOND_PER_YEAR);
   // Get the floor division for years, months, days, hours, minutes, and seconds
-  internal.year = std::floor((double) total_seconds / SECOND_PER_YEAR);
+  internal.year =
+      std::floor(static_cast<double>(total_seconds) / SECOND_PER_YEAR);
   total_seconds -= internal.year * SECOND_PER_YEAR;
-  internal.month = std::floor((double) total_seconds / SECOND_PER_MONTH);
+  internal.month =
+      std::floor(static_cast<double>(total_seconds) / SECOND_PER_MONTH);
   total_seconds -= internal.month * SECOND_PER_MONTH;
-  internal.day = std::floor((double) total_seconds / SECOND_PER_DAY);
+  internal.day =
+      std::floor(static_cast<double>(total_seconds) / SECOND_PER_DAY);
   total_seconds -= internal.day * SECOND_PER_DAY;
-  internal.hour = std::floor((double) total_seconds / SECOND_PER_HOUR);
+  internal.hour =
+      std::floor(static_cast<double>(total_seconds) / SECOND_PER_HOUR);
   total_seconds -= internal.hour * SECOND_PER_HOUR;
-  internal.minute = std::floor((double) total_seconds / SECOND_PER_MINUTE);
+  internal.minute =
+      std::floor(static_cast<double>(total_seconds) / SECOND_PER_MINUTE);
   total_seconds -= internal.minute * SECOND_PER_MINUTE;
   internal.second = total_seconds;
   internal.millisecond = mill_seconds % 1000;

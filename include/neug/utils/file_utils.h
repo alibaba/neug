@@ -13,8 +13,8 @@
  * limitations under the License.
  */
 
-#ifndef UTILS_FILE_UTILS_H_
-#define UTILS_FILE_UTILS_H_
+#ifndef INCLUDE_NEUG_UTILS_FILE_UTILS_H_
+#define INCLUDE_NEUG_UTILS_FILE_UTILS_H_
 
 #include <string>
 
@@ -37,6 +37,8 @@ bool write_string_to_file(const std::string& content,
 void copy_directory(const std::string& src, const std::string& dst,
                     bool overwrite = false, bool recursive = true);
 
+void remove_directory(const std::string& dir_path);
+
 }  // namespace gs
 
-#endif  // UTILS_FILE_UTILS_H_
+#endif  // INCLUDE_NEUG_UTILS_FILE_UTILS_H_

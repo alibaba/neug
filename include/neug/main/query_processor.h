@@ -13,16 +13,16 @@
  * limitations under the License.
  */
 
-#ifndef SRC_MAIN_QUERY_PROCESS_H_
-#define SRC_MAIN_QUERY_PROCESS_H_
+#ifndef INCLUDE_NEUG_MAIN_QUERY_PROCESSOR_H_
+#define INCLUDE_NEUG_MAIN_QUERY_PROCESSOR_H_
+
+#include <glog/logging.h>
 
 #include <string>
 
-#include <glog/logging.h>
 #include "neug/execution/common/graph_interface.h"
 #include "neug/execution/utils/opr_timer.h"
 #include "neug/main/query_result.h"
-#include "neug/utils/result.h"
 #ifdef USE_SYSTEM_PROTOBUF
 #include "neug/generated/proto/plan/physical.pb.h"
 #include "neug/generated/proto/plan/results.pb.h"
@@ -66,4 +66,4 @@ class QueryProcessor {
 
 }  // namespace gs
 
-#endif  // SRC_MAIN_QUERY_PROCESS_H_
+#endif  // INCLUDE_NEUG_MAIN_QUERY_PROCESSOR_H_

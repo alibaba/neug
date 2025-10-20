@@ -38,7 +38,7 @@ namespace ops {
 
 static PropertyType get_vertex_pk_type(const Schema& schema, label_t label) {
   const auto& pk_types = schema.get_vertex_primary_key(label);
-  CHECK(pk_types.size() == 1) << "Only support one primary key";
+  CHECK_EQ(pk_types.size(), 1) << "Only support one primary key";
   return std::get<0>(pk_types[0]);
 }
 
@@ -196,24 +196,24 @@ parse_edge_mapping(
       schema.get_edge_property_names(src_label_id, dst_label_id, edge_label_id);
   const auto& prop_types =
       schema.get_edge_properties(src_label_id, dst_label_id, edge_label_id);
-  CHECK(edge_mapping.source_vertex_mappings_size() == 1);
-  CHECK(edge_mapping.destination_vertex_mappings_size() == 1);
+  CHECK_EQ(edge_mapping.source_vertex_mappings_size(), 1);
+  CHECK_EQ(edge_mapping.destination_vertex_mappings_size(), 1);
   auto src_mapping = edge_mapping.source_vertex_mappings(0);
   auto dst_mapping = edge_mapping.destination_vertex_mappings(0);
 
-  CHECK(src_mapping.property().key().name() ==
-        schema.get_vertex_primary_key_name(src_label_id));
-  CHECK(dst_mapping.property().key().name() ==
-        schema.get_vertex_primary_key_name(dst_label_id));
+  CHECK_EQ(src_mapping.property().key().name(),
+           schema.get_vertex_primary_key_name(src_label_id));
+  CHECK_EQ(dst_mapping.property().key().name(),
+           schema.get_vertex_primary_key_name(dst_label_id));
 
   auto src_pk_type = get_vertex_pk_type(schema, src_label_id);
   auto dst_pk_type = get_vertex_pk_type(schema, dst_label_id);
   const auto& edge_props = edge_mapping.column_mappings();
-  CHECK(static_cast<size_t>(edge_mapping.column_mappings_size()) ==
-        prop_types.size())
+  CHECK_EQ(static_cast<size_t>(edge_mapping.column_mappings_size()),
+           prop_types.size())
       << "Only support one property";
 
-  CHECK(prop_names.size() < 2) << "Only support one property";
+  CHECK_LT(prop_names.size(), 2) << "Only support one property";
   PropertyType edge_prop_type = PropertyType::kEmpty;
   int prop_index = -1;
   int src_index = src_mapping.column().index();
@@ -221,7 +221,7 @@ parse_edge_mapping(
   if (prop_names.size() == 1) {
     const auto& edge_prop = edge_props[0];
     const auto& prop_name = edge_prop.property().key().name();
-    CHECK(prop_name == prop_names[0]) << "property name not match";
+    CHECK_EQ(prop_name, prop_names[0]) << "property name not match";
 
     prop_index = edge_props[0].column().index();
     edge_prop_type = prop_types[0];
@@ -247,7 +247,7 @@ parse_vertex_mapping(
   size_t prop_size = vertex_mapping.column_mappings_size();
   std::vector<int> properties(vertex_prop_types.size());
   const auto& pk_name = schema.get_vertex_primary_key_name(vertex_label_id);
-  CHECK(prop_size == vertex_prop_types.size() + 1)
+  CHECK_EQ(prop_size, vertex_prop_types.size() + 1)
       << "Only support one primary key";
   int id_col = -1;
   for (size_t j = 0; j < prop_size; ++j) {

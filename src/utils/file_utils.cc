@@ -15,11 +15,14 @@
 
 #include "neug/utils/file_utils.h"
 
-#include "neug/utils/exception/exception.h"
-
 #include <glog/logging.h>
+
 #include <filesystem>
 #include <fstream>
+#include <sstream>
+#include <system_error>
+
+#include "neug/utils/exception/exception.h"
 
 namespace gs {
 
@@ -89,6 +92,22 @@ void copy_directory(const std::string& src, const std::string& dst,
         THROW_IO_EXCEPTION("Failed to create hard link from " + path.string() +
                            " to " + dest.string() + " " + errorCode.message());
       }
+    }
+  }
+}
+
+void remove_directory(const std::string& dir_path) {
+  if (std::filesystem::exists(dir_path)) {
+    std::error_code errorCode;
+    std::filesystem::remove_all(dir_path, errorCode);
+    if (errorCode == std::errc::no_such_file_or_directory) {
+      return;
+    }
+    if (errorCode) {
+      LOG(ERROR) << "Failed to remove directory: " << dir_path << ", "
+                 << errorCode.message();
+      THROW_IO_EXCEPTION("Failed to remove directory: " + dir_path + ", " +
+                         errorCode.message());
     }
   }
 }

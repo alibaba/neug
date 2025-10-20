@@ -29,13 +29,13 @@
 #include "neug/execution/common/columns/vertex_columns.h"
 #include "neug/execution/common/context.h"
 #include "neug/execution/common/graph_interface.h"
-#include "neug/execution/common/rt_any.h"
 #include "neug/execution/common/types.h"
 #include "neug/execution/utils/expr.h"
 #include "neug/execution/utils/var.h"
 #include "neug/storages/graph/schema.h"
 #include "neug/utils/property/types.h"
 #include "neug/utils/result.h"
+#include "neug/utils/runtime/rt_any.h"
 
 namespace gs {
 namespace runtime {
@@ -73,11 +73,13 @@ class SetOpr : public IUpdateOperator {
       return false;
     }
     if (type == PropertyType::kStringView) {
-      graph.SetVertexField(label, vid, prop_id, value);
+      graph.SetVertexField(label, vid, prop_id, Any(value));
     } else if (type == PropertyType::kInt32) {
-      graph.SetVertexField(label, vid, prop_id, std::stoi(value));
+      graph.SetVertexField(label, vid, prop_id,
+                           AnyConverter<int>::to_any(std::stoi(value)));
     } else if (type == PropertyType::kInt64) {
-      graph.SetVertexField(label, vid, prop_id, int64_t(std::stoll(value)));
+      graph.SetVertexField(label, vid, prop_id,
+                           AnyConverter<int64_t>::to_any(std::stoll(value)));
     } else {
       LOG(ERROR) << "Property " << key << " type not supported in vertex label "
                  << label;
@@ -108,8 +110,25 @@ class SetOpr : public IUpdateOperator {
   bool set_edge_property(GraphUpdateInterface& graph, const LabelTriplet& label,
                          Direction dir, vid_t src, vid_t dst,
                          const std::string& key, const RTAny& value) {
+    auto val_type = value.type();
+    Prop prop = Prop::empty();
+    if (val_type == RTAnyType::kNull || val_type == RTAnyType::kEmpty) {
+    } else if (val_type == RTAnyType::kI32Value) {
+      prop = Prop::from_int32(value.as_int32());
+    } else if (val_type == RTAnyType::kI64Value) {
+      prop = Prop::from_int64(value.as_int64());
+    } else if (val_type == RTAnyType::kStringValue) {
+      prop = Prop::from_string(value.as_string());
+    } else if (val_type == RTAnyType::kF64Value) {
+      prop = Prop::from_double(value.as_double());
+    } else {
+      LOG(ERROR) << "Edge property type not supported: "
+                 << static_cast<int>(val_type);
+      return false;
+    }
+
     graph.SetEdgeData(dir == Direction::kOut, label.src_label, src,
-                      label.dst_label, dst, label.edge_label, value.to_any());
+                      label.dst_label, dst, label.edge_label, prop);
     return true;
   }
 
@@ -119,26 +138,24 @@ class SetOpr : public IUpdateOperator {
                           const std::string& value) {
     const auto& types = graph.schema().get_edge_properties(
         label.src_label, label.dst_label, label.edge_label);
+    const auto& property_names = graph.schema().get_edge_property_names(
+        label.src_label, label.dst_label, label.edge_label);
     PropertyType type(PropertyType::kEmpty);
-    if (types.size() == 1) {
-      type = types[0];
+    size_t col_id = 0;
+    for (; col_id < property_names.size(); col_id++) {
+      if (property_names[col_id] == key) {
+        type = types[col_id];
+        break;
+      }
     }
-    if (type == PropertyType::kStringView) {
-      graph.SetEdgeData(dir == Direction::kOut, label.src_label, src,
-                        label.dst_label, dst, label.edge_label, value);
-    } else if (type == PropertyType::kInt32) {
-      graph.SetEdgeData(dir == Direction::kOut, label.src_label, src,
-                        label.dst_label, dst, label.edge_label,
-                        std::stoi(value));
-    } else if (type == PropertyType::kInt64) {
-      graph.SetEdgeData(dir == Direction::kOut, label.src_label, src,
-                        label.dst_label, dst, label.edge_label,
-                        int64_t(std::stoll(value)));
-    } else {
-      LOG(ERROR) << "Property " << key << " type not supported in edge label "
+    if (col_id == property_names.size()) {
+      LOG(ERROR) << "Property " << key << " not found in edge label "
                  << label.edge_label;
       return false;
     }
+    Prop prop = parse_property_from_string(to_prop_type(type), value);
+    graph.SetEdgeData(dir == Direction::kOut, label.src_label, src,
+                      label.dst_label, dst, label.edge_label, prop, col_id);
     return true;
   }
 
@@ -173,8 +190,7 @@ class SetOpr : public IUpdateOperator {
             auto edge =
                 dynamic_cast<const IEdgeColumn*>(prop.get())->get_edge(j);
             if (!_set_edge_property(
-                    graph, edge.label_triplet(), edge.dir_, edge.src_,
-                    edge.dst_, key.second,
+                    graph, edge.label, edge.dir, edge.src, edge.dst, key.second,
                     params.at(value.operators(0).param().name()))) {
               LOG(ERROR) << "Failed to set edge property";
               RETURN_INVALID_ARGUMENT_ERROR("Failed to set edge property");
@@ -206,8 +222,8 @@ class SetOpr : public IUpdateOperator {
         for (size_t j = 0; j < ctx.row_num(); j++) {
           auto val = expr.eval_path(j, arena);
           auto edge = edge_col->get_edge(j);
-          if (!set_edge_property(graph, edge.label_triplet(), edge.dir_,
-                                 edge.src_, edge.dst_, key.second, val)) {
+          if (!set_edge_property(graph, edge.label, edge.dir, edge.src,
+                                 edge.dst, key.second, val)) {
             LOG(ERROR) << "Failed to set edge property";
             RETURN_INVALID_ARGUMENT_ERROR("Failed to set edge property");
           }

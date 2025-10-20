@@ -23,7 +23,7 @@
 #include <type_traits>
 #include <utility>
 
-#include "neug/execution/common/rt_any.h"
+#include "neug/utils/runtime/rt_any.h"
 
 namespace gs {
 namespace runtime {
@@ -64,12 +64,12 @@ void parse_ids_from_idx_predicate(
     if (param_type == RTAnyType::kI32Value) {
       ids = [triplet](ParamsType params) {
         return std::vector<Any>{
-            static_cast<T>(std::stoi(params.at(triplet.param().name())))};
+            Any(static_cast<T>(std::stoi(params.at(triplet.param().name()))))};
       };
     } else if (param_type == RTAnyType::kI64Value) {
       ids = [triplet](ParamsType params) {
         return std::vector<Any>{
-            static_cast<T>(std::stoll(params.at(triplet.param().name())))};
+            Any(static_cast<T>(std::stoll(params.at(triplet.param().name()))))};
       };
     }
   }
@@ -104,7 +104,7 @@ void parse_ids_from_idx_predicate(
 
     if (param_type == RTAnyType::kStringValue) {
       ids = [triplet](ParamsType params) {
-        return std::vector<Any>{params.at(triplet.param().name())};
+        return std::vector<Any>{Any(params.at(triplet.param().name()))};
       };
     }
   }

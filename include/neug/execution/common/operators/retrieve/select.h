@@ -13,8 +13,10 @@
  * limitations under the License.
  */
 
-#ifndef EXECUTION_COMMON_OPERATORS_RETRIEVE_SELECT_H_
-#define EXECUTION_COMMON_OPERATORS_RETRIEVE_SELECT_H_
+#ifndef INCLUDE_NEUG_EXECUTION_COMMON_OPERATORS_RETRIEVE_SELECT_H_
+#define INCLUDE_NEUG_EXECUTION_COMMON_OPERATORS_RETRIEVE_SELECT_H_
+
+#include <vector>
 
 #include "neug/execution/common/context.h"
 #include "neug/utils/result.h"
@@ -44,4 +46,4 @@ class Select {
 
 }  // namespace gs
 
-#endif  // EXECUTION_COMMON_OPERATORS_RETRIEVE_SELECT_H_
+#endif  // INCLUDE_NEUG_EXECUTION_COMMON_OPERATORS_RETRIEVE_SELECT_H_

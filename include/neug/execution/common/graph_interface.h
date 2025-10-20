@@ -13,8 +13,15 @@
  * limitations under the License.
  */
 
-#ifndef EXECUTION_COMMON_GRAPH_INTERFACE_H_
-#define EXECUTION_COMMON_GRAPH_INTERFACE_H_
+#ifndef INCLUDE_NEUG_EXECUTION_COMMON_GRAPH_INTERFACE_H_
+#define INCLUDE_NEUG_EXECUTION_COMMON_GRAPH_INTERFACE_H_
+
+#include <limits>
+#include <memory>
+#include <string>
+#include <tuple>
+#include <utility>
+#include <vector>
 
 #include "neug/transaction/insert_transaction.h"
 #include "neug/transaction/read_transaction.h"
@@ -34,7 +41,7 @@ using gs::vid_t;
 template <typename PROP_T>
 class VertexColumn {
  public:
-  VertexColumn(std::shared_ptr<TypedRefColumn<PROP_T>> column) {
+  explicit VertexColumn(std::shared_ptr<TypedRefColumn<PROP_T>> column) {
     if (column == nullptr) {
       column_ = nullptr;
     } else {
@@ -49,169 +56,6 @@ class VertexColumn {
 
  private:
   std::shared_ptr<TypedRefColumn<PROP_T>> column_;
-};
-
-class EdgeIterator {
- public:
-  EdgeIterator(gs::ReadTransaction::edge_iterator&& iter)
-      : iter_(std::move(iter)) {}
-  ~EdgeIterator() {}
-
-  inline Any GetData() const { return iter_.GetData(); }
-  inline bool IsValid() const { return iter_.IsValid(); }
-  inline void Next() { iter_.Next(); }
-  inline vid_t GetNeighbor() const { return iter_.GetNeighbor(); }
-  inline label_t GetNeighborLabel() const { return iter_.GetNeighborLabel(); }
-  inline label_t GetEdgeLabel() const { return iter_.GetEdgeLabel(); }
-
- private:
-  gs::ReadTransaction::edge_iterator iter_;
-};
-
-template <typename EDATA_T>
-class AdjListView {
-  class nbr_iterator {
-    // const_nbr_t provide two methods:
-    // 1. vid_t get_neighbor() const;
-    // 2. const EDATA_T& get_data() const;
-    using const_nbr_t = typename gs::MutableNbrSlice<EDATA_T>::const_nbr_t;
-    using const_nbr_ptr_t =
-        typename gs::MutableNbrSlice<EDATA_T>::const_nbr_ptr_t;
-
-   public:
-    nbr_iterator(const_nbr_ptr_t ptr, const_nbr_ptr_t end,
-                 timestamp_t timestamp)
-        : ptr_(ptr), end_(end), timestamp_(timestamp) {
-      while (ptr_ != end_ && ptr_->get_timestamp() > timestamp_) {
-        ++ptr_;
-      }
-    }
-
-    inline const_nbr_t& operator*() const { return *ptr_; }
-
-    inline const_nbr_ptr_t operator->() const { return ptr_; }
-
-    inline nbr_iterator& operator++() {
-      ++ptr_;
-      while (ptr_ != end_ && ptr_->get_timestamp() > timestamp_) {
-        ++ptr_;
-      }
-      return *this;
-    }
-
-    inline bool operator==(const nbr_iterator& rhs) const {
-      return (ptr_ == rhs.ptr_);
-    }
-
-    inline bool operator!=(const nbr_iterator& rhs) const {
-      return (ptr_ != rhs.ptr_);
-    }
-
-   private:
-    const_nbr_ptr_t ptr_;
-    const_nbr_ptr_t end_;
-    timestamp_t timestamp_;
-  };
-
- public:
-  using slice_t = gs::MutableNbrSlice<EDATA_T>;
-  AdjListView(const slice_t& slice, timestamp_t timestamp)
-      : edges_(slice), timestamp_(timestamp) {}
-
-  inline nbr_iterator begin() const {
-    return nbr_iterator(edges_.begin(), edges_.end(), timestamp_);
-  }
-  inline nbr_iterator end() const {
-    return nbr_iterator(edges_.end(), edges_.end(), timestamp_);
-  }
-
- private:
-  slice_t edges_;
-  timestamp_t timestamp_;
-};
-
-template <typename EDATA_T>
-class GraphView {
- public:
-  GraphView() : csr_(nullptr), timestamp_(0), unsorted_since_(0) {}
-  GraphView(const gs::MutableCsr<EDATA_T>* csr, timestamp_t timestamp)
-      : csr_(csr), timestamp_(timestamp) {
-    if (csr_) {
-      unsorted_since_ = csr->unsorted_since();
-    }
-  }
-
-  inline bool is_null() const { return csr_ == nullptr; }
-
-  inline AdjListView<EDATA_T> get_edges(vid_t v) const {
-    return AdjListView<EDATA_T>(csr_->get_edges(v), timestamp_);
-  }
-
-  template <typename FUNC_T>
-  inline void foreach_edges_gt(vid_t v, const EDATA_T& min_value,
-                               const FUNC_T& func) const {
-    const auto& edges = csr_->get_edges(v);
-    auto ptr = edges.end() - 1;
-    auto end = edges.begin() - 1;
-    while (ptr != end) {
-      if (ptr->timestamp > timestamp_) {
-        --ptr;
-        continue;
-      }
-      if (ptr->timestamp < unsorted_since_) {
-        break;
-      }
-      if (min_value < ptr->data) {
-        func(ptr->neighbor, ptr->data);
-      }
-      --ptr;
-    }
-    while (ptr != end) {
-      if (ptr->data < min_value) {
-        break;
-      }
-      func(ptr->neighbor, ptr->data);
-      --ptr;
-    }
-  }
-
-  template <typename FUNC_T>
-  inline void foreach_edges_lt(vid_t v, const EDATA_T& max_value,
-                               const FUNC_T& func) const {
-    const auto& edges = csr_->get_edges(v);
-    auto ptr = edges.end() - 1;
-    auto end = edges.begin() - 1;
-    while (ptr != end) {
-      if (ptr->timestamp > timestamp_) {
-        --ptr;
-        continue;
-      }
-      if (ptr->timestamp < unsorted_since_) {
-        break;
-      }
-      if (ptr->data < max_value) {
-        func(ptr->neighbor, ptr->data);
-      }
-      --ptr;
-    }
-    if (ptr == end) {
-      return;
-    }
-    ptr = std::upper_bound(end + 1, ptr + 1, max_value,
-                           [](const EDATA_T& a, const MutableNbr<EDATA_T>& b) {
-                             return a < b.data;
-                           }) -
-          1;
-    while (ptr != end) {
-      func(ptr->neighbor, ptr->data);
-      --ptr;
-    }
-  }
-
- private:
-  const gs::MutableCsr<EDATA_T>* csr_;
-  timestamp_t timestamp_;
-  timestamp_t unsorted_since_;
 };
 
 template <typename T>
@@ -280,17 +124,12 @@ class GraphReadInterface {
 
   using vertex_set_t = gs::VertexSet;
 
-  using edge_iterator_t = graph_interface_impl::EdgeIterator;
-
-  template <typename EDATA_T>
-  using graph_view_t = graph_interface_impl::GraphView<EDATA_T>;
-
   template <typename T>
   using vertex_array_t = graph_interface_impl::VertexArray<T>;
 
   static constexpr vid_t kInvalidVid = std::numeric_limits<vid_t>::max();
 
-  GraphReadInterface(const gs::ReadTransaction& txn) : txn_(txn) {}
+  explicit GraphReadInterface(const gs::ReadTransaction& txn) : txn_(txn) {}
   ~GraphReadInterface() {}
 
   template <typename PROP_T>
@@ -320,65 +159,27 @@ class GraphReadInterface {
     return txn_.graph().get_vertex_table(label).at(index, prop_id);
   }
 
-  inline edge_iterator_t GetOutEdgeIterator(label_t label, vid_t v,
-                                            label_t neighbor_label,
-                                            label_t edge_label) const {
-    return edge_iterator_t(
-        txn_.GetOutEdgeIterator(label, v, neighbor_label, edge_label));
+  GenericView GetGenericOutgoingGraphView(label_t v_label,
+                                          label_t neighbor_label,
+                                          label_t edge_label) const {
+    return txn_.graph().GetGenericOutgoingGraphView(
+        v_label, neighbor_label, edge_label, txn_.timestamp());
   }
 
-  inline edge_iterator_t GetInEdgeIterator(label_t label, vid_t v,
-                                           label_t neighbor_label,
-                                           label_t edge_label) const {
-    return edge_iterator_t(
-        txn_.GetInEdgeIterator(label, v, neighbor_label, edge_label));
+  GenericView GetGenericIncomingGraphView(label_t v_label,
+                                          label_t neighbor_label,
+                                          label_t edge_label) const {
+    return txn_.graph().GetGenericIncomingGraphView(
+        v_label, neighbor_label, edge_label, txn_.timestamp());
   }
 
-  template <typename EDATA_T>
-  graph_view_t<EDATA_T> GetOutgoingGraphView(label_t v_label,
-                                             label_t neighbor_label,
-                                             label_t edge_label) const {
-    auto csr = txn_.graph().get_oe_csr(v_label, neighbor_label, edge_label);
-    if (!csr) {
-      VLOG(1) << "GetOutgoingGraphView: csr is null: " << (int32_t) v_label
-              << " " << (int32_t) neighbor_label << " " << (int32_t) edge_label;
-    }
-    auto casted = dynamic_cast<const MutableCsr<EDATA_T>*>(csr);
-    if (!casted && csr) {
-      THROW_RUNTIME_ERROR(
-          "GetOutgoingGraphView: csr is not of type MutableCsr<EDATA_T>: " +
-          std::to_string(static_cast<int32_t>(v_label)) + " " +
-          std::to_string(static_cast<int32_t>(neighbor_label)) + " " +
-          std::to_string(static_cast<int32_t>(edge_label)) +
-          " EDATA_T:" + AnyConverter<EDATA_T>::type_name());
-    }
-    return graph_view_t<EDATA_T>(casted, txn_.timestamp());
-  }
-
-  template <typename EDATA_T>
-  graph_view_t<EDATA_T> GetIncomingGraphView(label_t v_label,
-                                             label_t neighbor_label,
-                                             label_t edge_label) const {
-    auto csr = txn_.graph().get_ie_csr(v_label, neighbor_label, edge_label);
-    if (!csr) {
-      VLOG(1) << "GetIncomingGraphView: csr is null: " << (int32_t) v_label
-              << " " << (int32_t) neighbor_label << " " << (int32_t) edge_label;
-    }
-    auto casted = dynamic_cast<const MutableCsr<EDATA_T>*>(csr);
-    if (!casted && csr) {
-      THROW_RUNTIME_ERROR(
-          "GetIncomingGraphView: csr is not of type MutableCsr<EDATA_T>: " +
-          std::to_string(static_cast<int32_t>(v_label)) + " " +
-          std::to_string(static_cast<int32_t>(neighbor_label)) + " " +
-          std::to_string(static_cast<int32_t>(edge_label)) +
-          " EDATA_T:" + AnyConverter<EDATA_T>::type_name());
-    }
-    return graph_view_t<EDATA_T>(casted, txn_.timestamp());
+  EdgeDataAccessor GetEdgeDataAccessor(label_t src_label, label_t dst_label,
+                                       label_t edge_label, int prop_id) const {
+    return txn_.graph().GetEdgeDataAccessor(src_label, dst_label, edge_label,
+                                            prop_id);
   }
 
   inline const Schema& schema() const { return txn_.schema(); }
-
-  const NeugDBSession& GetSession() const { return txn_.GetSession(); }
 
  private:
   const gs::ReadTransaction& txn_;
@@ -386,22 +187,18 @@ class GraphReadInterface {
 
 class GraphInsertInterface {
  public:
-  GraphInsertInterface(gs::InsertTransaction& txn) : txn_(txn) {}
+  explicit GraphInsertInterface(gs::InsertTransaction& txn) : txn_(txn) {}
   ~GraphInsertInterface() {}
 
   inline bool AddVertex(label_t label, const Any& id,
-                        const std::vector<Any>& props) {
+                        const std::vector<Prop>& props) {
     return txn_.AddVertex(label, id, props);
   }
 
   inline bool AddEdge(label_t src_label, const Any& src, label_t dst_label,
-                      const Any& dst, label_t edge_label, const Any& prop) {
-    return txn_.AddEdge(src_label, src, dst_label, dst, edge_label, prop);
-  }
-
-  inline bool AddEdge(label_t src_label, vid_t src, label_t dst_label,
-                      vid_t dst, label_t edge_label, const Any& prop) {
-    return txn_.AddEdge(src_label, src, dst_label, dst, edge_label, prop);
+                      const Any& dst, label_t edge_label,
+                      const std::vector<Prop>& properties) {
+    return txn_.AddEdge(src_label, src, dst_label, dst, edge_label, properties);
   }
 
   inline bool Commit() { return txn_.Commit(); }
@@ -429,7 +226,7 @@ class GraphUpdateInterface {
       }
     }
     const auto& pk = txn_.schema().get_vertex_primary_key(label);
-    CHECK(pk.size() == 1);
+    CHECK_EQ(pk.size(), 1);
 
     if (std::get<1>(pk[0]) == prop_name) {
       return vertex_column_t<PROP_T>(
@@ -443,7 +240,7 @@ class GraphUpdateInterface {
         static_cast<int>(vertex_column_t<PROP_T>::ColState::kInvalidColId));
   }
 
-  GraphUpdateInterface(gs::UpdateTransaction& txn) : txn_(txn) {}
+  explicit GraphUpdateInterface(gs::UpdateTransaction& txn) : txn_(txn) {}
   ~GraphUpdateInterface() {}
 
   inline void SetVertexField(label_t label, vid_t lid, int col_id,
@@ -457,20 +254,21 @@ class GraphUpdateInterface {
 
   inline void SetEdgeData(bool dir, label_t label, vid_t v,
                           label_t neighbor_label, vid_t nbr, label_t edge_label,
-                          const Any& value, int32_t col_id = 0) {
+                          const Prop& value, int32_t col_id = 0) {
     txn_.SetEdgeData(dir, label, v, neighbor_label, nbr, edge_label, value,
                      col_id);
   }
 
   inline bool GetUpdatedEdgeData(bool dir, label_t label, vid_t v,
                                  label_t neighbor_label, vid_t nbr,
-                                 label_t edge_label, Any& ret) const {
+                                 label_t edge_label, int32_t prop_id,
+                                 Prop& ret) const {
     return txn_.GetUpdatedEdgeData(dir, label, v, neighbor_label, nbr,
-                                   edge_label, ret);
+                                   edge_label, prop_id, ret);
   }
 
   inline bool AddVertex(label_t label, const Any& id,
-                        const std::vector<Any>& props) {
+                        const std::vector<Prop>& props) {
     return txn_.AddVertex(label, id, props);
   }
 
@@ -479,20 +277,22 @@ class GraphUpdateInterface {
   }
 
   inline bool AddVertex(label_t label, const Any& id,
-                        const std::vector<Any>& props, vid_t& vid) {
+                        const std::vector<Prop>& props, vid_t& vid) {
     LOG(INFO) << "AddVertex called with label: " << static_cast<int>(label)
               << ", id: " << id.to_string();
     return txn_.AddVertex(label, id, props, vid);
   }
 
   inline bool AddEdge(label_t src_label, const Any& src, label_t dst_label,
-                      const Any& dst, label_t edge_label, const Any& prop) {
-    return txn_.AddEdge(src_label, src, dst_label, dst, edge_label, prop);
+                      const Any& dst, label_t edge_label,
+                      const std::vector<Prop>& properties) {
+    return txn_.AddEdge(src_label, src, dst_label, dst, edge_label, properties);
   }
 
   inline bool AddEdge(label_t src_label, vid_t src, label_t dst_label,
-                      vid_t dst, label_t edge_label, const Any& prop) {
-    return txn_.AddEdge(src_label, src, dst_label, dst, edge_label, prop);
+                      vid_t dst, label_t edge_label,
+                      const std::vector<Prop>& properties) {
+    return txn_.AddEdge(src_label, src, dst_label, dst, edge_label, properties);
   }
 
   inline bool Commit() { return txn_.Commit(); }
@@ -518,35 +318,55 @@ class GraphUpdateInterface {
   }
 
   inline auto GetOutEdgeIterator(label_t label, vid_t src,
-                                 label_t neighbor_label,
-                                 label_t edge_label) const {
-    return txn_.GetOutEdgeIterator(label, src, neighbor_label, edge_label);
+                                 label_t neighbor_label, label_t edge_label,
+                                 int prop_id) const {
+    return txn_.GetOutEdgeIterator(label, src, neighbor_label, edge_label,
+                                   prop_id);
   }
 
   inline auto GetInEdgeIterator(label_t label, vid_t src,
-                                label_t neighbor_label,
-                                label_t edge_label) const {
-    return txn_.GetInEdgeIterator(label, src, neighbor_label, edge_label);
+                                label_t neighbor_label, label_t edge_label,
+                                int prop_id) const {
+    return txn_.GetInEdgeIterator(label, src, neighbor_label, edge_label,
+                                  prop_id);
   }
 
   inline void CreateCheckpoint() { txn_.CreateCheckpoint(); }
 
   gs::UpdateTransaction& GetTransaction() { return txn_; }
 
+  GenericView GetGenericOutgoingGraphView(label_t v_label,
+                                          label_t neighbor_label,
+                                          label_t edge_label) const {
+    return txn_.GetGraph().GetGenericOutgoingGraphView(
+        v_label, neighbor_label, edge_label, txn_.timestamp());
+  }
+
+  GenericView GetGenericIncomingGraphView(label_t v_label,
+                                          label_t neighbor_label,
+                                          label_t edge_label) const {
+    return txn_.GetGraph().GetGenericIncomingGraphView(
+        v_label, neighbor_label, edge_label, txn_.timestamp());
+  }
+
+  EdgeDataAccessor GetEdgeDataAccessor(label_t src_label, label_t dst_label,
+                                       label_t edge_label, int prop_id) const {
+    return txn_.GetGraph().GetEdgeDataAccessor(src_label, dst_label, edge_label,
+                                               prop_id);
+  }
+
   inline std::string work_dir() const { return txn_.GetGraph().work_dir(); }
 
-  inline Status batch_add_vertices(label_t v_label_id, std::vector<Any>&& ids,
-                                   std::unique_ptr<Table>&& table) {
-    return txn_.batch_add_vertices(v_label_id, std::move(ids),
-                                   std::move(table));
+  inline Status batch_add_vertices(
+      label_t v_label_id, std::shared_ptr<IRecordBatchSupplier> supplier) {
+    return txn_.batch_add_vertices(v_label_id, std::move(supplier));
   }
 
   inline Status batch_add_edges(
-      label_t src_label_id, label_t dst_label_id, label_t edge_label_id,
-      std::vector<std::tuple<vid_t, vid_t, size_t>>&& edges_vec,
-      std::unique_ptr<Table>&& table) {
-    return txn_.batch_add_edges(src_label_id, dst_label_id, edge_label_id,
-                                std::move(edges_vec), std::move(table));
+      label_t src_label, label_t dst_label, label_t edge_label,
+      std::shared_ptr<IRecordBatchSupplier> supplier) {
+    return txn_.batch_add_edges(src_label, dst_label, edge_label,
+                                std::move(supplier));
   }
 
   inline Status batch_delete_vertices(label_t v_label_id,
@@ -569,4 +389,4 @@ class GraphUpdateInterface {
 
 }  // namespace gs
 
-#endif  // EXECUTION_COMMON_GRAPH_INTERFACE_H_
+#endif  // INCLUDE_NEUG_EXECUTION_COMMON_GRAPH_INTERFACE_H_

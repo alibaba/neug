@@ -114,9 +114,7 @@ void PlanParser::init() {
   register_read_operator_builder(std::make_unique<ops::SinkOprBuilder>());
   register_read_operator_builder(std::make_unique<ops::DataExportOprBuilder>());
 
-
-  //////////////////////////////Write
-  /// operators////////////////////////////////
+  // ------------- Write operators -------------
   register_write_operator_builder(std::make_unique<ops::LoadOprBuilder>());
   register_write_operator_builder(
       std::make_unique<ops::DedupInsertOprBuilder>());
@@ -127,8 +125,7 @@ void PlanParser::init() {
   register_write_operator_builder(
       std::make_unique<ops::UnfoldInsertOprBuilder>());
 
-  //////////////////////////////Update
-  /// operators////////////////////////////////
+  // ------------- Update operators -------------
   register_update_operator_builder(
       std::make_unique<ops::UEdgeExpandOprBuilder>());
   register_update_operator_builder(std::make_unique<ops::UScanOprBuilder>());
@@ -163,7 +160,7 @@ void PlanParser::init() {
   register_update_operator_builder(
       std::make_unique<ops::ProcedureCallOprBuilder>());
 
-  //////////////////////////////Admin Operators////////////////////////////////
+  // ---------------------- Admin Operators ----------------------
   register_admin_operator_builder(
       std::make_unique<ops::CheckpointOprBuilder>());
   register_admin_operator_builder(

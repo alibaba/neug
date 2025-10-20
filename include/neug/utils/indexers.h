@@ -13,8 +13,8 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-#ifndef UTILS_INDEXERS_H_
-#define UTILS_INDEXERS_H_
+#ifndef INCLUDE_NEUG_UTILS_INDEXERS_H_
+#define INCLUDE_NEUG_UTILS_INDEXERS_H_
 
 #include "neug/utils/id_indexer.h"
 
@@ -29,4 +29,4 @@ using IndexerBuilderType = IdIndexer<KEY_T, vid_t>;
 
 }  // namespace gs
 
-#endif  // UTILS_INDEXERS_H_
+#endif  // INCLUDE_NEUG_UTILS_INDEXERS_H_

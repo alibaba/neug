@@ -13,16 +13,20 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-#ifndef UTILS_ID_INDEXER_H_
-#define UTILS_ID_INDEXER_H_
+#ifndef INCLUDE_NEUG_UTILS_ID_INDEXER_H_
+#define INCLUDE_NEUG_UTILS_ID_INDEXER_H_
 
+#include <algorithm>
 #include <atomic>
 #include <cassert>
 #include <cmath>
+#include <limits>
 #include <memory>
+#include <string>
 #include <string_view>
 #include <thread>
 #include <type_traits>
+#include <utility>
 #include <vector>
 // header for size_t
 #include <cstddef>
@@ -441,7 +445,7 @@ class LFIndexer {
   void copy_to_tmp(const std::string& cur_path, const std::string& tmp_path) {
     copy_file(cur_path + ".meta", tmp_path + ".meta");
     load_meta(tmp_path + ".meta");
-    keys_->copy_to_tmp(cur_path + ".keys", tmp_path + ".keys");
+    copy_file(cur_path + ".keys", tmp_path + ".keys");
     copy_file(cur_path + ".indices", tmp_path + ".indices");
   }
 
@@ -525,7 +529,7 @@ class LFIndexer {
 
   void drop() {
     close();
-    // TODO: delete files in work_dir
+    // TODO(zhanglei): delete files in work_dir
   }
 
   void dump_meta(const std::string& filename) const {
@@ -1126,4 +1130,4 @@ void build_lf_indexer(const IdIndexer<KEY_T, INDEX_T>& input,
 
 }  // namespace gs
 
-#endif  // UTILS_ID_INDEXER_H_
+#endif  // INCLUDE_NEUG_UTILS_ID_INDEXER_H_

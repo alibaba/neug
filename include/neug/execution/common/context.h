@@ -13,13 +13,12 @@
  * limitations under the License.
  */
 
-#ifndef EXECUTION_COMMON_CONTEXT_H_
-#define EXECUTION_COMMON_CONTEXT_H_
+#ifndef INCLUDE_NEUG_EXECUTION_COMMON_CONTEXT_H_
+#define INCLUDE_NEUG_EXECUTION_COMMON_CONTEXT_H_
 
 #include <glog/logging.h>
 #include <stddef.h>
 #include <stdint.h>
-#include <compare>
 
 #include <iostream>
 #include <memory>
@@ -126,8 +125,8 @@ class WriteContext {
  public:
   struct WriteParams {
     WriteParams() = default;
-    WriteParams(const std::string& val) : value(val) {}
-    WriteParams(std::string_view val) : value(val) {}
+    explicit WriteParams(const std::string& val) : value(val) {}
+    explicit WriteParams(std::string_view val) : value(val) {}
     bool operator<(const WriteParams& rhs) const { return value < rhs.value; }
     bool operator==(const WriteParams& rhs) const { return value == rhs.value; }
     std::vector<WriteParams> unfold() const {
@@ -179,12 +178,34 @@ class WriteContext {
       }
     }
 
+    Prop to_prop(PropertyType type) const {
+      if (type == PropertyType::kInt32) {
+        return Prop::from_int32(std::stoi(std::string(value)));
+      } else if (type == PropertyType::kInt64) {
+        return Prop::from_int64(
+            static_cast<int64_t>(std::stoll(std::string(value))));
+      } else if (type == PropertyType::kDouble) {
+        return Prop::from_double(std::stod(std::string(value)));
+      } else if (type == PropertyType::kString) {
+        return Prop::from_string(value);
+      } else if (type == PropertyType::kDate) {
+        return Prop::from_date(
+            Date(static_cast<int64_t>(std::stoll(std::string(value)))));
+      } else if (type == PropertyType::kTimestamp) {
+        return Prop::from_timestamp(TimeStamp(std::stoll(std::string(value))));
+      } else {
+        THROW_NOT_SUPPORTED_EXCEPTION("Unsupported type for WriteParams: " +
+                                      type.ToString());
+        return Prop();
+      }
+    }
+
     std::string_view value;
   };
 
   struct WriteParamsColumn {
     WriteParamsColumn() : is_set(false) {}
-    WriteParamsColumn(std::vector<WriteParams>&& col)
+    explicit WriteParamsColumn(std::vector<WriteParams>&& col)
         : values(std::move(col)), is_set(true) {}
     int size() const { return values.size(); }
     const WriteParams& get(int idx) const { return values[idx]; }
@@ -301,4 +322,4 @@ class WriteContext {
 
 }  // namespace gs
 
-#endif  // EXECUTION_COMMON_CONTEXT_H_
+#endif  // INCLUDE_NEUG_EXECUTION_COMMON_CONTEXT_H_

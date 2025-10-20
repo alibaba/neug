@@ -13,10 +13,11 @@
  * limitations under the License.
  */
 
-#ifndef SRC_UTILS_TOP_N_GENERATOR_H_
-#define SRC_UTILS_TOP_N_GENERATOR_H_
+#ifndef INCLUDE_NEUG_UTILS_TOP_N_GENERATOR_H_
+#define INCLUDE_NEUG_UTILS_TOP_N_GENERATOR_H_
 
 #include <queue>
+#include <utility>
 #include <vector>
 
 namespace gs {
@@ -55,7 +56,7 @@ class TopNGenerator {
   using unit_t = TopNUnit<T>;
 
  public:
-  TopNGenerator(size_t n) : n_(n), pq_(CMP_T()) {}
+  explicit TopNGenerator(size_t n) : n_(n), pq_(CMP_T()) {}
 
   inline void push(const T& val, size_t idx) {
     if (pq_.empty()) {
@@ -124,7 +125,7 @@ class InplaceTopNGenerator {
   using unit_t = TopNUnit<T>;
 
  public:
-  InplaceTopNGenerator(size_t n) : n_(n) {}
+  explicit InplaceTopNGenerator(size_t n) : n_(n) {}
 
   void generate_indices(const std::vector<T>& input,
                         std::vector<size_t>& indices) {
@@ -161,4 +162,4 @@ class InplaceTopNGenerator {
 
 }  // namespace gs
 
-#endif  // SRC_UTILS_TOP_N_GENERATOR_H_
+#endif  // INCLUDE_NEUG_UTILS_TOP_N_GENERATOR_H_

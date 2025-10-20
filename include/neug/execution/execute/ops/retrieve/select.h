@@ -13,8 +13,8 @@
  * limitations under the License.
  */
 
-#ifndef EXECUTION_EXECUTE_RETRIEVE_OPS_SELECT_H_
-#define EXECUTION_EXECUTE_RETRIEVE_OPS_SELECT_H_
+#ifndef INCLUDE_NEUG_EXECUTION_EXECUTE_OPS_RETRIEVE_SELECT_H_
+#define INCLUDE_NEUG_EXECUTION_EXECUTE_OPS_RETRIEVE_SELECT_H_
 
 #include <vector>
 
@@ -55,4 +55,4 @@ class SelectOprBuilder : public IReadOperatorBuilder {
 
 }  // namespace gs
 
-#endif  // EXECUTION_EXECUTE_RETRIEVE_OPS_SELECT_H_
+#endif  // INCLUDE_NEUG_EXECUTION_EXECUTE_OPS_RETRIEVE_SELECT_H_

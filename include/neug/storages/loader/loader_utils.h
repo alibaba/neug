@@ -29,6 +29,7 @@
 #include <utility>
 #include <vector>
 
+#include "neug/storages/loader/loading_config.h"
 #include "neug/utils/exception/exception.h"
 #include "neug/utils/string_utils.h"
 
@@ -49,6 +50,8 @@ struct ReadOptions;
 
 namespace gs {
 
+void printDiskRemaining(const std::string& path);
+
 void put_boolean_option(arrow::csv::ConvertOptions& convert_options);
 
 void put_delimiter_option(const std::string& delimiter_str,
@@ -62,6 +65,10 @@ std::vector<std::string> read_header(const std::string& file_name,
                                      char delimiter, bool is_quoting,
                                      char quote_char, bool is_escaping,
                                      char escape_char);
+
+std::vector<std::string> columnMappingsToSelectedCols(
+    const std::vector<std::tuple<size_t, std::string, std::string>>&
+        column_mappings);
 
 void put_column_names_option(bool header_row, const std::string& file_path,
                              char delimiter, bool is_quoting, char quote_char,
@@ -184,6 +191,31 @@ class ArrowRecordBatchStreamSupplier : public IRecordBatchSupplier {
  private:
   std::shared_ptr<arrow::csv::StreamingReader> reader_;
 };
+
+void fillVertexReaderMeta(
+    label_t v_label, const std::string& v_label_name, const std::string& v_file,
+    const LoadingConfig& loading_config,
+    const std::vector<std::string>& vertex_property_names,
+    const std::vector<PropertyType>& vertex_property_types,
+    PropertyType pk_type, const std::string& pk_name, size_t pk_ind,
+    arrow::csv::ReadOptions& read_options,
+    arrow::csv::ParseOptions& parse_options,
+    arrow::csv::ConvertOptions& convert_options);
+
+void fillEdgeReaderMeta(label_t src_label_id, label_t dst_label_id,
+                        label_t label_id, const std::string& edge_label_name,
+                        const std::string& e_file,
+                        const LoadingConfig& loading_config,
+                        const std::vector<std::string>& edge_property_names,
+                        const std::vector<PropertyType>& edge_property_types,
+                        PropertyType src_pk_type, PropertyType dst_pk_type,
+                        arrow::csv::ReadOptions& read_options,
+                        arrow::csv::ParseOptions& parse_options,
+                        arrow::csv::ConvertOptions& convert_options);
+
+void set_properties_column(std::shared_ptr<gs::ColumnBase> col,
+                           std::shared_ptr<arrow::ChunkedArray> array,
+                           const std::vector<vid_t>& vids);
 
 }  // namespace gs
 

@@ -13,19 +13,15 @@
  * limitations under the License.
  */
 
-#ifndef UTILS_YAML_UTILS_H_
-#define UTILS_YAML_UTILS_H_
+#ifndef INCLUDE_NEUG_UTILS_YAML_UTILS_H_
+#define INCLUDE_NEUG_UTILS_YAML_UTILS_H_
 
-#include <yaml-cpp/node/impl.h>
-#include <yaml-cpp/node/node.h>
 #include <yaml-cpp/yaml.h>
-#include <filesystem>
 #include <ostream>
 #include <string>
 #include <vector>
-
 #include "glog/logging.h"
-#include "neug/utils/property/types.h"
+
 #include "neug/utils/result.h"
 
 namespace YAML {
@@ -33,6 +29,8 @@ class Emitter;
 }  // namespace YAML
 
 namespace gs {
+
+struct PropertyType;
 
 YAML::Node property_type_to_yaml(const PropertyType& type);
 
@@ -97,4 +95,4 @@ static bool expect_config(YAML::Node root, const std::string& key,
 }  // namespace config_parsing
 }  // namespace gs
 
-#endif  // UTILS_YAML_UTILS_H_
+#endif  // INCLUDE_NEUG_UTILS_YAML_UTILS_H_

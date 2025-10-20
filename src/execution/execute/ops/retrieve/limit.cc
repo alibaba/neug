@@ -36,7 +36,7 @@ class OprTimer;
 namespace ops {
 class LimitOpr : public IReadOperator {
  public:
-  LimitOpr(const algebra::Limit& opr) {
+  explicit LimitOpr(const algebra::Limit& opr) {
     lower_ = 0;
     upper_ = std::numeric_limits<size_t>::max();
     if (opr.has_range()) {

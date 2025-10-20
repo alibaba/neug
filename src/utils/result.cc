@@ -15,6 +15,8 @@
 
 #include "neug/utils/result.h"
 
+#include <utility>
+
 namespace gs {
 Status::Status() noexcept : error_code_(StatusCode::OK) {}
 

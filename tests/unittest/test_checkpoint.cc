@@ -16,6 +16,7 @@
 #include <gtest/gtest.h>
 #include <iostream>
 #include <string>
+#include "neug/main/connection.h"
 #include "neug/main/neug_db.h"
 #include "neug/storages/file_names.h"
 #include "neug/storages/graph/schema.h"
@@ -195,9 +196,10 @@ TEST_F(CheckpointTest, test_basic) {
   db_->Open(DB_DIR);
   auto conn = db_->Connect();
 
-  gs::PropertyGraph& frag = db_->graph();
-  frag.Dump();
+  db_->Close();
+  db_->Open(DB_DIR);
 
+  conn = db_->Connect();
   std::vector<std::string> result_v, result_e;
   {
     auto res = conn->Query("MATCH (v:person) RETURN v.*;");
@@ -208,7 +210,7 @@ TEST_F(CheckpointTest, test_basic) {
       result_v.emplace_back(row.ToString());
     }
   }
-  assert(result_v == basic_test_result_v);
+  EXPECT_EQ(result_v, basic_test_result_v);
   {
     auto res = conn->Query("MATCH (v:person)-[e:knows]->(:person) RETURN e.*;");
     EXPECT_TRUE(res) << res.error().ToString();
@@ -218,7 +220,7 @@ TEST_F(CheckpointTest, test_basic) {
       result_e.emplace_back(row.ToString());
     }
   }
-  assert(result_e == basic_test_result_e);
+  EXPECT_EQ(result_e, basic_test_result_e);
 }
 
 TEST_F(CheckpointTest, test_after_add_vertex_property) {
@@ -231,9 +233,10 @@ TEST_F(CheckpointTest, test_after_add_vertex_property) {
     EXPECT_TRUE(res) << res.error().ToString();
   }
 
-  gs::PropertyGraph& frag = db.graph();
-  frag.Dump();
+  db.Close();
+  db.Open(DB_DIR);
 
+  conn = db.Connect();
   std::vector<std::string> result_v, result_e;
   {
     auto res = conn->Query("MATCH (v:person) RETURN v.*;");
@@ -244,7 +247,7 @@ TEST_F(CheckpointTest, test_after_add_vertex_property) {
       result_v.emplace_back(row.ToString());
     }
   }
-  assert(result_v == add_vertex_property_result_v);
+  EXPECT_EQ(result_v, add_vertex_property_result_v);
   {
     auto res = conn->Query("MATCH (v:person)-[e:knows]->(:person) RETURN e.*;");
     EXPECT_TRUE(res) << res.error().ToString();
@@ -254,7 +257,7 @@ TEST_F(CheckpointTest, test_after_add_vertex_property) {
       result_e.emplace_back(row.ToString());
     }
   }
-  assert(result_e == add_vertex_property_result_e);
+  EXPECT_EQ(result_e, add_vertex_property_result_e);
 }
 
 TEST_F(CheckpointTest, test_after_delete_vertex_property) {
@@ -267,8 +270,9 @@ TEST_F(CheckpointTest, test_after_delete_vertex_property) {
     EXPECT_TRUE(res) << res.error().ToString();
   }
 
-  gs::PropertyGraph& frag = db.graph();
-  frag.Dump();
+  db.Close();
+  db.Open(DB_DIR);
+  conn = db.Connect();
 
   std::vector<std::string> result_v, result_e;
   {
@@ -280,7 +284,7 @@ TEST_F(CheckpointTest, test_after_delete_vertex_property) {
       result_v.emplace_back(row.ToString());
     }
   }
-  assert(result_v == delete_vertex_property_result_v);
+  EXPECT_EQ(result_v, delete_vertex_property_result_v);
   {
     auto res = conn->Query("MATCH (v:person)-[e:knows]->(:person) RETURN e.*;");
     EXPECT_TRUE(res) << res.error().ToString();
@@ -290,7 +294,7 @@ TEST_F(CheckpointTest, test_after_delete_vertex_property) {
       result_e.emplace_back(row.ToString());
     }
   }
-  assert(result_e == delete_vertex_property_result_e);
+  EXPECT_EQ(result_e, delete_vertex_property_result_e);
 }
 
 TEST_F(CheckpointTest, test_after_delete_vertex) {
@@ -303,8 +307,9 @@ TEST_F(CheckpointTest, test_after_delete_vertex) {
     EXPECT_TRUE(res) << res.error().ToString();
   }
 
-  gs::PropertyGraph& frag = db.graph();
-  frag.Dump();
+  db.Close();
+  db.Open(DB_DIR);
+  conn = db.Connect();
 
   std::vector<std::string> result_v, result_e;
   {
@@ -315,7 +320,7 @@ TEST_F(CheckpointTest, test_after_delete_vertex) {
       auto row = res_val.next();
       result_v.emplace_back(row.ToString());
     }
-    assert(result_v == delete_vertex_result_v);
+    EXPECT_EQ(result_v, delete_vertex_result_v);
   }
 
   {
@@ -326,11 +331,11 @@ TEST_F(CheckpointTest, test_after_delete_vertex) {
       auto row = res_val.next();
       result_e.emplace_back(row.ToString());
     }
-    CHECK(result_e == delete_vertex_result_e);
+    EXPECT_EQ(result_e, delete_vertex_result_e);
   }
 }
 
-TEST_F(CheckpointTest, test_after_add_edge_property) {
+TEST_F(CheckpointTest, test_after_add_edge_property1) {
   gs::NeugDB db;
   db.Open(DB_DIR);
   auto conn = db.Connect();
@@ -340,8 +345,26 @@ TEST_F(CheckpointTest, test_after_add_edge_property) {
     EXPECT_TRUE(res) << res.error().ToString();
   }
 
-  gs::PropertyGraph& frag = db.graph();
-  frag.Dump();
+  {
+    std::vector<std::string> result_e;
+    auto res = conn->Query("MATCH (v:person)-[e:knows]->(:person) RETURN e.*;");
+    EXPECT_TRUE(res) << res.error().ToString();
+    auto res_val = res.value();
+    while (res_val.hasNext()) {
+      auto row = res_val.next();
+      result_e.emplace_back(row.ToString());
+    }
+    EXPECT_EQ(result_e, add_edge_property_result_e)
+        << "result_e size: " << result_e.size()
+        << ", add_edge_property_result_e "
+           "size: "
+        << add_edge_property_result_e.size();
+  }
+
+  db.Close();
+  db.Open(DB_DIR);
+
+  conn = db.Connect();
 
   std::vector<std::string> result_v, result_e;
   {
@@ -352,7 +375,7 @@ TEST_F(CheckpointTest, test_after_add_edge_property) {
       auto row = res_val.next();
       result_v.emplace_back(row.ToString());
     }
-    assert(result_v == add_edge_property_result_v);
+    EXPECT_EQ(result_v, add_edge_property_result_v);
   }
 
   {
@@ -363,22 +386,57 @@ TEST_F(CheckpointTest, test_after_add_edge_property) {
       auto row = res_val.next();
       result_e.emplace_back(row.ToString());
     }
-    assert(result_e == add_edge_property_result_e);
+    EXPECT_EQ(result_e, add_edge_property_result_e)
+        << "result_e size: " << result_e.size()
+        << ", add_edge_property_result_e "
+           "size: "
+        << add_edge_property_result_e.size();
   }
 }
 
-TEST_F(CheckpointTest, test_after_delete_edge_property) {
+// Add a test test_after_add_edge_property2 which add property to an edge table
+// which already have 2 properties
+TEST_F(CheckpointTest, test_after_add_edge_property2) {
   gs::NeugDB db;
   db.Open(DB_DIR);
   auto conn = db.Connect();
-
   {
-    auto res = conn->Query("ALTER TABLE knows DROP weight");
+    auto res = conn->Query("ALTER TABLE knows ADD description STRING;");
     EXPECT_TRUE(res) << res.error().ToString();
   }
 
-  gs::PropertyGraph& frag = db.graph();
-  frag.Dump();
+  db.Close();
+  db.Open(DB_DIR);
+
+  conn = db.Connect();
+  {
+    std::vector<std::string> result_e;
+    auto res = conn->Query("MATCH (v:person)-[e:knows]->(:person) RETURN e.*;");
+    EXPECT_TRUE(res) << res.error().ToString();
+    auto res_val = res.value();
+    while (res_val.hasNext()) {
+      auto row = res_val.next();
+      result_e.emplace_back(row.ToString());
+    }
+    EXPECT_EQ(result_e.size(), 2);
+    EXPECT_EQ(
+        result_e[0],
+        "<element { object { f64: 0.5 } }, element { object { str: \"\" } }>");
+    EXPECT_EQ(
+        result_e[1],
+        "<element { object { f64: 1 } }, element { object { str: \"\" } }>");
+  }
+
+  {
+    // Add another edge to check if the new property is added correctly
+    auto res = conn->Query("ALTER TABLE knows ADD date DATE;");
+    EXPECT_TRUE(res) << res.error().ToString();
+  }
+
+  db.Close();
+  db.Open(DB_DIR);
+
+  conn = db.Connect();
 
   std::vector<std::string> result_v, result_e;
   {
@@ -389,7 +447,51 @@ TEST_F(CheckpointTest, test_after_delete_edge_property) {
       auto row = res_val.next();
       result_v.emplace_back(row.ToString());
     }
-    assert(result_v == delete_edge_property_result_v);
+    EXPECT_EQ(result_v, add_edge_property_result_v);
+  }
+
+  {
+    auto res = conn->Query("MATCH (v:person)-[e:knows]->(:person) RETURN e.*;");
+    EXPECT_TRUE(res) << res.error().ToString();
+    auto res_val = res.value();
+    while (res_val.hasNext()) {
+      auto row = res_val.next();
+      result_e.emplace_back(row.ToString());
+    }
+    EXPECT_EQ(result_e.size(), 2);
+    EXPECT_EQ(result_e[0],
+              "<element { object { f64: 0.5 } }, element { object { str: \"\" "
+              "} }, element { object { str: \"0-00-00\" } }>");
+    EXPECT_EQ(result_e[1],
+              "<element { object { f64: 1 } }, element { object { str: \"\" } "
+              "}, element { object { str: \"0-00-00\" } }>");
+  }
+}
+
+TEST_F(CheckpointTest, test_after_delete_edge_property) {
+  gs::NeugDB db;
+  db.Open(DB_DIR);
+
+  {
+    auto conn = db.Connect();
+    auto res = conn->Query("ALTER TABLE knows DROP weight");
+    EXPECT_TRUE(res) << res.error().ToString();
+  }
+
+  db.Close();
+  db.Open(DB_DIR);
+  auto conn = db.Connect();
+
+  std::vector<std::string> result_v, result_e;
+  {
+    auto res = conn->Query("MATCH (v:person) RETURN v.*;");
+    EXPECT_TRUE(res) << res.error().ToString();
+    auto res_val = res.value();
+    while (res_val.hasNext()) {
+      auto row = res_val.next();
+      result_v.emplace_back(row.ToString());
+    }
+    EXPECT_EQ(result_v, delete_edge_property_result_v);
   }
 
   {
@@ -400,23 +502,24 @@ TEST_F(CheckpointTest, test_after_delete_edge_property) {
       auto row = res_val.next();
       result_e.emplace_back(row.ToString());
     }
-    assert(result_e == delete_edge_property_result_e);
+    EXPECT_EQ(result_e, delete_edge_property_result_e);
   }
 }
 
 TEST_F(CheckpointTest, test_after_delete_edge) {
   gs::NeugDB db;
   db.Open(DB_DIR);
-  auto conn = db.Connect();
 
   {
+    auto conn = db.Connect();
     auto res = conn->Query(
         "MATCH (v:person)-[e:knows]->(:person) WHERE v.id = 1 DELETE e;");
     EXPECT_TRUE(res) << res.error().ToString();
   }
 
-  gs::PropertyGraph& frag = db.graph();
-  frag.Dump();
+  db.Close();
+  db.Open(DB_DIR);
+  auto conn = db.Connect();
 
   std::vector<std::string> result_v, result_e;
   {
@@ -427,7 +530,7 @@ TEST_F(CheckpointTest, test_after_delete_edge) {
       auto row = res_val.next();
       result_v.emplace_back(row.ToString());
     }
-    assert(result_v == delete_edge_result_v);
+    EXPECT_EQ(result_v, delete_edge_result_v);
   }
   {
     auto res = conn->Query("MATCH (:person)-[e:knows]->(v:person) RETURN e.*;");
@@ -502,8 +605,8 @@ TEST_F(CheckpointTest, test_compact) {
       auto row = res_val.next();
       result_e.emplace_back(row.ToString());
     }
-    assert(result_e ==
-           std::vector<std::string>{"<element { object { i64: 0 } }>"});
+    EXPECT_EQ(result_e,
+              std::vector<std::string>{"<element { object { i64: 0 } }>"});
   }
   conn2->Close();
   db2.Close();

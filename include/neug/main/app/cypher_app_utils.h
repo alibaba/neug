@@ -13,19 +13,12 @@
  * limitations under the License.
  */
 
-#ifndef ENGINES_GRAPH_DB_CYPHER_APP_UTILS_H_
-#define ENGINES_GRAPH_DB_CYPHER_APP_UTILS_H_
+#ifndef INCLUDE_NEUG_MAIN_APP_CYPHER_APP_UTILS_H_
+#define INCLUDE_NEUG_MAIN_APP_CYPHER_APP_UTILS_H_
 
 #include <map>
 #include <string>
 #include <string_view>
-#include <unordered_map>
-
-#ifdef USE_SYSTEM_PROTOBUF
-#include "neug/generated/proto/plan/physical.pb.h"
-#else
-#include "neug/utils/proto/plan/physical.pb.h"
-#endif
 
 namespace physical {
 class PhysicalPlan;
@@ -40,4 +33,4 @@ void parse_params(std::string_view sw,
                   std::map<std::string, std::string>& params);
 }  // namespace gs
 
-#endif  // ENGINES_GRAPH_DB_CYPHER_APP_UTILS_H_
+#endif  // INCLUDE_NEUG_MAIN_APP_CYPHER_APP_UTILS_H_

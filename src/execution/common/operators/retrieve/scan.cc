@@ -19,7 +19,6 @@
 #include <ostream>
 #include <string_view>
 
-#include "neug/execution/common/rt_any.h"
 #include "neug/execution/utils/special_predicates.h"
 #include "neug/utils/result.h"
 
@@ -55,248 +54,69 @@ gs::result<Context> Scan::find_vertex_with_gid(Context&& ctx,
   return ctx;
 }
 
-template <typename T>
-static gs::result<Context> _scan_vertex_with_special_vertex_predicate(
-    Context&& ctx, const GraphReadInterface& graph, const ScanParams& params,
-    const SPVertexPredicate& pred) {
-  if (pred.type() == SPPredicateType::kPropertyEQ) {
-    return Scan::scan_vertex<VertexPropertyEQPredicateBeta<T>>(
-        std::move(ctx), graph, params,
-        dynamic_cast<const VertexPropertyEQPredicateBeta<T>&>(pred));
-  } else if (pred.type() == SPPredicateType::kPropertyGE) {
-    return Scan::scan_vertex<VertexPropertyGEPredicateBeta<T>>(
-        std::move(ctx), graph, params,
-        dynamic_cast<const VertexPropertyGEPredicateBeta<T>&>(pred));
-  } else if (pred.type() == SPPredicateType::kPropertyGT) {
-    return Scan::scan_vertex<VertexPropertyGTPredicateBeta<T>>(
-        std::move(ctx), graph, params,
-        dynamic_cast<const VertexPropertyGTPredicateBeta<T>&>(pred));
-  } else if (pred.type() == SPPredicateType::kPropertyLE) {
-    return Scan::scan_vertex<VertexPropertyLEPredicateBeta<T>>(
-        std::move(ctx), graph, params,
-        dynamic_cast<const VertexPropertyLEPredicateBeta<T>&>(pred));
-  } else if (pred.type() == SPPredicateType::kPropertyLT) {
-    return Scan::scan_vertex<VertexPropertyLTPredicateBeta<T>>(
-        std::move(ctx), graph, params,
-        dynamic_cast<const VertexPropertyLTPredicateBeta<T>&>(pred));
-  } else if (pred.type() == SPPredicateType::kPropertyNE) {
-    return Scan::scan_vertex<VertexPropertyNEPredicateBeta<T>>(
-        std::move(ctx), graph, params,
-        dynamic_cast<const VertexPropertyNEPredicateBeta<T>&>(pred));
-  } else {
-    LOG(ERROR) << "not impl... - " << static_cast<int>(pred.type());
-    RETURN_UNSUPPORTED_ERROR(
-        "not support vertex special property predicate type");
+struct ScanVertexSPOp {
+  template <typename PRED_T>
+  static gs::result<Context> eval_with_predicate(
+      const PRED_T& pred, const GraphReadInterface& graph, Context&& ctx,
+      const ScanParams& params) {
+    return Scan::scan_vertex<PRED_T>(std::move(ctx), graph, params, pred);
   }
-}
+};
 
 gs::result<Context> Scan::scan_vertex_with_special_vertex_predicate(
     Context&& ctx, const GraphReadInterface& graph, const ScanParams& params,
-    const SPVertexPredicate& pred) {
-  if (pred.data_type() == RTAnyType::kI64Value) {
-    return _scan_vertex_with_special_vertex_predicate<int64_t>(
-        std::move(ctx), graph, params, pred);
-  } else if (pred.data_type() == RTAnyType::kI32Value) {
-    return _scan_vertex_with_special_vertex_predicate<int32_t>(
-        std::move(ctx), graph, params, pred);
-  } else if (pred.data_type() == RTAnyType::kU64Value) {
-    return _scan_vertex_with_special_vertex_predicate<uint64_t>(
-        std::move(ctx), graph, params, pred);
-  } else if (pred.data_type() == RTAnyType::kU32Value) {
-    return _scan_vertex_with_special_vertex_predicate<uint32_t>(
-        std::move(ctx), graph, params, pred);
-  } else if (pred.data_type() == RTAnyType::kBoolValue) {
-    return _scan_vertex_with_special_vertex_predicate<bool>(
-        std::move(ctx), graph, params, pred);
-  } else if (pred.data_type() == RTAnyType::kStringValue) {
-    return _scan_vertex_with_special_vertex_predicate<std::string_view>(
-        std::move(ctx), graph, params, pred);
-  } else if (pred.data_type() == RTAnyType::kF32Value) {
-    return _scan_vertex_with_special_vertex_predicate<float>(
-        std::move(ctx), graph, params, pred);
-  } else if (pred.data_type() == RTAnyType::kF64Value) {
-    return _scan_vertex_with_special_vertex_predicate<double>(
-        std::move(ctx), graph, params, pred);
-  } else if (pred.data_type() == RTAnyType::kDate) {
-    return _scan_vertex_with_special_vertex_predicate<Date>(
-        std::move(ctx), graph, params, pred);
-  } else if (pred.data_type() == RTAnyType::kDateTime) {
-    return _scan_vertex_with_special_vertex_predicate<DateTime>(
-        std::move(ctx), graph, params, pred);
-  } else if (pred.data_type() == RTAnyType::kTimestamp) {
-    return _scan_vertex_with_special_vertex_predicate<TimeStamp>(
-        std::move(ctx), graph, params, pred);
-  } else if (pred.data_type() == RTAnyType::kInterval) {
-    return _scan_vertex_with_special_vertex_predicate<Interval>(
-        std::move(ctx), graph, params, pred);
-  } else {
-    LOG(ERROR) << "not impl... - " << static_cast<int>(pred.data_type());
-    RETURN_UNSUPPORTED_ERROR(
-        "not support vertex special property predicate type");
+    const SpecialVertexPredicateConfig& config,
+    const std::map<std::string, std::string>& query_params) {
+  std::set<label_t> expected_labels;
+  for (auto label : params.tables) {
+    expected_labels.insert(label);
   }
+  return dispatch_vertex_predicate<ScanVertexSPOp>(graph, expected_labels,
+                                                   config, query_params, graph,
+                                                   std::move(ctx), params);
 }
 
-template <typename T>
-static gs::result<Context> _filter_gids_with_special_vertex_predicate(
-    Context&& ctx, const GraphReadInterface& graph, const ScanParams& params,
-    const SPVertexPredicate& pred, const std::vector<int64_t>& gids) {
-  if (pred.type() == SPPredicateType::kPropertyEQ) {
-    return Scan::filter_gids<VertexPropertyEQPredicateBeta<T>>(
-        std::move(ctx), graph, params,
-        dynamic_cast<const VertexPropertyEQPredicateBeta<T>&>(pred), gids);
-  } else if (pred.type() == SPPredicateType::kPropertyGE) {
-    return Scan::filter_gids<VertexPropertyGEPredicateBeta<T>>(
-        std::move(ctx), graph, params,
-        dynamic_cast<const VertexPropertyGEPredicateBeta<T>&>(pred), gids);
-  } else if (pred.type() == SPPredicateType::kPropertyGT) {
-    return Scan::filter_gids<VertexPropertyGTPredicateBeta<T>>(
-        std::move(ctx), graph, params,
-        dynamic_cast<const VertexPropertyGTPredicateBeta<T>&>(pred), gids);
-  } else if (pred.type() == SPPredicateType::kPropertyLE) {
-    return Scan::filter_gids<VertexPropertyLEPredicateBeta<T>>(
-        std::move(ctx), graph, params,
-        dynamic_cast<const VertexPropertyLEPredicateBeta<T>&>(pred), gids);
-  } else if (pred.type() == SPPredicateType::kPropertyLT) {
-    return Scan::filter_gids<VertexPropertyLTPredicateBeta<T>>(
-        std::move(ctx), graph, params,
-        dynamic_cast<const VertexPropertyLTPredicateBeta<T>&>(pred), gids);
-  } else if (pred.type() == SPPredicateType::kPropertyNE) {
-    return Scan::filter_gids<VertexPropertyNEPredicateBeta<T>>(
-        std::move(ctx), graph, params,
-        dynamic_cast<const VertexPropertyNEPredicateBeta<T>&>(pred), gids);
-  } else {
-    LOG(ERROR) << "not impl... - " << static_cast<int>(pred.type());
-    RETURN_UNSUPPORTED_ERROR(
-        "not support vertex special property predicate type");
+struct FilterGidSPOp {
+  template <typename PRED_T>
+  static gs::result<Context> eval_with_predicate(
+      const PRED_T& pred, const GraphReadInterface& graph, Context&& ctx,
+      const ScanParams& params, const std::vector<int64_t>& gids) {
+    return Scan::filter_gids<PRED_T>(std::move(ctx), graph, params, pred, gids);
   }
-}
+};
 
 gs::result<Context> Scan::filter_gids_with_special_vertex_predicate(
     Context&& ctx, const GraphReadInterface& graph, const ScanParams& params,
-    const SPVertexPredicate& predicate, const std::vector<int64_t>& oids) {
-  if (predicate.data_type() == RTAnyType::kI64Value) {
-    return _filter_gids_with_special_vertex_predicate<int64_t>(
-        std::move(ctx), graph, params, predicate, oids);
-  } else if (predicate.data_type() == RTAnyType::kI32Value) {
-    return _filter_gids_with_special_vertex_predicate<int32_t>(
-        std::move(ctx), graph, params, predicate, oids);
-  } else if (predicate.data_type() == RTAnyType::kStringValue) {
-    return _filter_gids_with_special_vertex_predicate<std::string_view>(
-        std::move(ctx), graph, params, predicate, oids);
-  } else if (predicate.data_type() == RTAnyType::kU64Value) {
-    return _filter_gids_with_special_vertex_predicate<uint64_t>(
-        std::move(ctx), graph, params, predicate, oids);
-  } else if (predicate.data_type() == RTAnyType::kU32Value) {
-    return _filter_gids_with_special_vertex_predicate<uint32_t>(
-        std::move(ctx), graph, params, predicate, oids);
-  } else if (predicate.data_type() == RTAnyType::kBoolValue) {
-    return _filter_gids_with_special_vertex_predicate<bool>(
-        std::move(ctx), graph, params, predicate, oids);
-  } else if (predicate.data_type() == RTAnyType::kF32Value) {
-    return _filter_gids_with_special_vertex_predicate<float>(
-        std::move(ctx), graph, params, predicate, oids);
-  } else if (predicate.data_type() == RTAnyType::kF64Value) {
-    return _filter_gids_with_special_vertex_predicate<double>(
-        std::move(ctx), graph, params, predicate, oids);
-  } else if (predicate.data_type() == RTAnyType::kDate) {
-    return _filter_gids_with_special_vertex_predicate<Date>(
-        std::move(ctx), graph, params, predicate, oids);
-  } else if (predicate.data_type() == RTAnyType::kDateTime) {
-    return _filter_gids_with_special_vertex_predicate<DateTime>(
-        std::move(ctx), graph, params, predicate, oids);
-  } else if (predicate.data_type() == RTAnyType::kTimestamp) {
-    return _filter_gids_with_special_vertex_predicate<TimeStamp>(
-        std::move(ctx), graph, params, predicate, oids);
-  } else if (predicate.data_type() == RTAnyType::kInterval) {
-    return _filter_gids_with_special_vertex_predicate<Interval>(
-        std::move(ctx), graph, params, predicate, oids);
-  } else {
-    LOG(ERROR) << "not support type: "
-               << static_cast<int>(predicate.data_type());
-    RETURN_UNSUPPORTED_ERROR("not support vertex property type");
+    const SpecialVertexPredicateConfig& config,
+    const std::vector<int64_t>& gids) {
+  std::set<label_t> expected_labels;
+  for (auto label : params.tables) {
+    expected_labels.insert(label);
   }
+  return dispatch_vertex_predicate<FilterGidSPOp>(
+      graph, expected_labels, config, {}, graph, std::move(ctx), params, gids);
 }
 
-template <typename T>
-static gs::result<Context> _filter_oid_with_special_vertex_predicate(
-    Context&& ctx, const GraphReadInterface& graph, const ScanParams& params,
-    const SPVertexPredicate& pred, const std::vector<Any>& oids) {
-  if (pred.type() == SPPredicateType::kPropertyEQ) {
-    return Scan::filter_oids<VertexPropertyEQPredicateBeta<T>>(
-        std::move(ctx), graph, params,
-        dynamic_cast<const VertexPropertyEQPredicateBeta<T>&>(pred), oids);
-  } else if (pred.type() == SPPredicateType::kPropertyGE) {
-    return Scan::filter_oids<VertexPropertyGEPredicateBeta<T>>(
-        std::move(ctx), graph, params,
-        dynamic_cast<const VertexPropertyGEPredicateBeta<T>&>(pred), oids);
-  } else if (pred.type() == SPPredicateType::kPropertyGT) {
-    return Scan::filter_oids<VertexPropertyGTPredicateBeta<T>>(
-        std::move(ctx), graph, params,
-        dynamic_cast<const VertexPropertyGTPredicateBeta<T>&>(pred), oids);
-  } else if (pred.type() == SPPredicateType::kPropertyLE) {
-    return Scan::filter_oids<VertexPropertyLEPredicateBeta<T>>(
-        std::move(ctx), graph, params,
-        dynamic_cast<const VertexPropertyLEPredicateBeta<T>&>(pred), oids);
-  } else if (pred.type() == SPPredicateType::kPropertyLT) {
-    return Scan::filter_oids<VertexPropertyLTPredicateBeta<T>>(
-        std::move(ctx), graph, params,
-        dynamic_cast<const VertexPropertyLTPredicateBeta<T>&>(pred), oids);
-  } else if (pred.type() == SPPredicateType::kPropertyNE) {
-    return Scan::filter_oids<VertexPropertyNEPredicateBeta<T>>(
-        std::move(ctx), graph, params,
-        dynamic_cast<const VertexPropertyNEPredicateBeta<T>&>(pred), oids);
-  } else {
-    LOG(ERROR) << "not impl... - " << static_cast<int>(pred.type());
-    RETURN_UNSUPPORTED_ERROR(
-        "not support vertex special property predicate type");
+struct FilterOidsSPOp {
+  template <typename PRED_T>
+  static gs::result<Context> eval_with_predicate(
+      const PRED_T& pred, const GraphReadInterface& graph, Context&& ctx,
+      const ScanParams& params, const std::vector<Any>& oids) {
+    return Scan::filter_oids<PRED_T>(std::move(ctx), graph, params, pred, oids);
   }
-}
+};
 
 gs::result<Context> Scan::filter_oids_with_special_vertex_predicate(
     Context&& ctx, const GraphReadInterface& graph, const ScanParams& params,
-    const SPVertexPredicate& predicate, const std::vector<Any>& oids) {
-  if (predicate.data_type() == RTAnyType::kI64Value) {
-    return _filter_oid_with_special_vertex_predicate<int64_t>(
-        std::move(ctx), graph, params, predicate, oids);
-  } else if (predicate.data_type() == RTAnyType::kI32Value) {
-    return _filter_oid_with_special_vertex_predicate<int32_t>(
-        std::move(ctx), graph, params, predicate, oids);
-  } else if (predicate.data_type() == RTAnyType::kU64Value) {
-    return _filter_oid_with_special_vertex_predicate<uint64_t>(
-        std::move(ctx), graph, params, predicate, oids);
-  } else if (predicate.data_type() == RTAnyType::kU32Value) {
-    return _filter_oid_with_special_vertex_predicate<uint32_t>(
-        std::move(ctx), graph, params, predicate, oids);
-  } else if (predicate.data_type() == RTAnyType::kBoolValue) {
-    return _filter_oid_with_special_vertex_predicate<bool>(
-        std::move(ctx), graph, params, predicate, oids);
-  } else if (predicate.data_type() == RTAnyType::kF32Value) {
-    return _filter_oid_with_special_vertex_predicate<float>(
-        std::move(ctx), graph, params, predicate, oids);
-  } else if (predicate.data_type() == RTAnyType::kF64Value) {
-    return _filter_oid_with_special_vertex_predicate<double>(
-        std::move(ctx), graph, params, predicate, oids);
-  } else if (predicate.data_type() == RTAnyType::kStringValue) {
-    return _filter_oid_with_special_vertex_predicate<std::string_view>(
-        std::move(ctx), graph, params, predicate, oids);
-  } else if (predicate.data_type() == RTAnyType::kDate) {
-    return _filter_oid_with_special_vertex_predicate<Date>(
-        std::move(ctx), graph, params, predicate, oids);
-  } else if (predicate.data_type() == RTAnyType::kDateTime) {
-    return _filter_oid_with_special_vertex_predicate<DateTime>(
-        std::move(ctx), graph, params, predicate, oids);
-  } else if (predicate.data_type() == RTAnyType::kInterval) {
-    return _filter_oid_with_special_vertex_predicate<Interval>(
-        std::move(ctx), graph, params, predicate, oids);
-  } else if (predicate.data_type() == RTAnyType::kTimestamp) {
-    return _filter_oid_with_special_vertex_predicate<TimeStamp>(
-        std::move(ctx), graph, params, predicate, oids);
-  } else {
-    LOG(ERROR) << "not support type: "
-               << static_cast<int>(predicate.data_type());
-    RETURN_UNSUPPORTED_ERROR("not support vertex property type");
+    const SpecialVertexPredicateConfig& config, const std::vector<Any>& oids) {
+  std::set<label_t> expected_labels;
+  for (auto label : params.tables) {
+    expected_labels.insert(label);
   }
+  return dispatch_vertex_predicate<FilterOidsSPOp>(
+      graph, expected_labels, config, {}, graph, std::move(ctx), params, oids);
 }
+
 }  // namespace runtime
 
 }  // namespace gs

@@ -14,30 +14,22 @@
  */
 
 #include "neug/storages/graph/schema.h"
-#include <ctype.h>                                          // for toupper
-#include <glog/logging.h>                                   // for LogMessage
-#include <yaml-cpp/exceptions.h>                            // for BadConver...
-#include <yaml-cpp/node/detail/iterator.h>                  // for iterator_...
-#include <yaml-cpp/node/impl.h>                             // for Node::ope...
-#include <yaml-cpp/node/iterator.h>                         // for iterator_...
-#include <yaml-cpp/node/node.h>                             // for Node
-#include <yaml-cpp/node/parse.h>                            // for LoadFile
-#include <yaml-cpp/node/type.h>                             // for NodeType
-#include <algorithm>                                        // for find, tra...
-#include <exception>                                        // for exception
-                                                            // for __alloc_t...
-#include <filesystem>                                       // for exists, path
-#include <ostream>                                          // for operator<<
-#include <stdexcept>                                        // for runtime_e...
-#include <type_traits>                                      // for __strip_r...
-#include <unordered_set>                                    // for unordered...
-#include "libgrape-lite/grape/io/local_io_adaptor.h"        // for LocalIOAd...
-#include "libgrape-lite/grape/serialization/in_archive.h"   // for operator<<
-#include "libgrape-lite/grape/serialization/out_archive.h"  // for operator>>
-#include "neug/utils/id_indexer.h"                          // for IdIndexer
-#include "neug/utils/property/types.h"                      // for PropertyType
-#include "neug/utils/result.h"                              // for Status
-#include "neug/utils/yaml_utils.h"                          // for get_scalar
+#include <ctype.h>
+#include <glog/logging.h>
+#include <yaml-cpp/yaml.h>
+#include <algorithm>
+#include <filesystem>
+#include <ostream>
+#include <stdexcept>
+#include <type_traits>
+#include "libgrape-lite/grape/io/local_io_adaptor.h"
+#include "libgrape-lite/grape/serialization/in_archive.h"
+#include "libgrape-lite/grape/serialization/out_archive.h"
+#include "neug/utils/exception/exception.h"
+#include "neug/utils/id_indexer.h"
+#include "neug/utils/property/types.h"
+#include "neug/utils/result.h"
+#include "neug/utils/yaml_utils.h"
 
 namespace gs {
 
@@ -477,9 +469,10 @@ const std::string& Schema::get_edge_label_name(label_t index) const {
 
 const std::vector<std::tuple<PropertyType, std::string, size_t>>&
 Schema::get_vertex_primary_key(label_t index) const {
-  LOG_FATAL_IF(index >= v_primary_keys_.size(),
-               "Fail to get vertex primary key: " + std::to_string(index) +
-                   ", out of range");
+  if (index >= v_primary_keys_.size()) {
+    THROW_INVALID_ARGUMENT_EXCEPTION("Fail to get vertex primary key: " +
+                                     std::to_string(index) + ", out of range");
+  }
   return v_primary_keys_[index];
 }
 
@@ -807,7 +800,8 @@ static Status parse_edge_properties(YAML::Node node,
       LOG(ERROR) << "Please use varchar as the type of edge-" << label_name
                  << " prop-" << i - 1
                  << ", if you want to use string property: " << prop_type
-                 << ", prop_type.enum" << prop_type.type_enum;
+                 << ", prop_type.enum-"
+                 << static_cast<int>(prop_type.type_enum);
       return Status(StatusCode::ERR_INVALID_SCHEMA,
                     "Please use varchar as the type of edge-" + label_name +
                         " prop-" + std::to_string(i - 1) +

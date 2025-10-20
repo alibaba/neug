@@ -12,8 +12,8 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-#ifndef UTILS_ARROW_UTILS_H_
-#define UTILS_ARROW_UTILS_H_
+#ifndef INCLUDE_NEUG_UTILS_ARROW_UTILS_H_
+#define INCLUDE_NEUG_UTILS_ARROW_UTILS_H_
 
 #include <arrow/api.h>
 #include <arrow/array/array_binary.h>     // for LargeStringArray
@@ -29,6 +29,7 @@
 #include <string>       // for string
 #include <string_view>  // for string_view
 #include "glog/logging.h"
+#include "neug/utils/property/property.h"
 #include "neug/utils/property/types.h"
 
 namespace gs {
@@ -273,7 +274,7 @@ struct TypeConverter<int32_t> {
 
 #ifdef __APPLE__
 template <>
-struct TypeConverter<unsigned long> {
+struct TypeConverter<uint64_t> {
   static PropertyType property_type() { return PropertyType::kUInt64; }
   using ArrowType = arrow::UInt64Type;
   using ArrowArrayType = arrow::UInt64Array;
@@ -392,6 +393,7 @@ struct TypeConverter<Interval> {
 };
 
 std::shared_ptr<arrow::DataType> PropertyTypeToArrowType(PropertyType type);
+std::shared_ptr<arrow::DataType> PropertyTypeToArrowType(PropType type);
 }  // namespace gs
 
-#endif  // UTILS_ARROW_UTILS_H_
+#endif  // INCLUDE_NEUG_UTILS_ARROW_UTILS_H_

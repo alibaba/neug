@@ -13,8 +13,11 @@
  * limitations under the License.
  */
 
-#ifndef EXECUTION_COMMON_OPERATORS_UPDATE_GET_V_H_
-#define EXECUTION_COMMON_OPERATORS_UPDATE_GET_V_H_
+#ifndef INCLUDE_NEUG_EXECUTION_COMMON_OPERATORS_UPDATE_GET_V_H_
+#define INCLUDE_NEUG_EXECUTION_COMMON_OPERATORS_UPDATE_GET_V_H_
+
+#include <vector>
+
 #include "neug/execution/common/columns/edge_columns.h"
 #include "neug/execution/common/context.h"
 #include "neug/execution/utils/params.h"
@@ -36,7 +39,7 @@ class UGetV {
     }
     const auto input_vertex_list =
         dynamic_cast<const IVertexColumn*>(col.get());
-    MLVertexColumnBuilder builder;
+    MLVertexColumnBuilderOpt builder(input_vertex_list->get_labels_set());
     foreach_vertex(*input_vertex_list,
                    [&](size_t index, label_t label, vid_t v) {
                      if (pred(label, v, index)) {
@@ -48,6 +51,8 @@ class UGetV {
     return ctx;
   }
 };
+
 }  // namespace runtime
 }  // namespace gs
-#endif  // EXECUTION_COMMON_OPERATORS_UPDATE_GET_V_H_
+
+#endif  // INCLUDE_NEUG_EXECUTION_COMMON_OPERATORS_UPDATE_GET_V_H_

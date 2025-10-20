@@ -12,10 +12,12 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-#ifndef ENGINES_COMMON_GRAPH_DB_SERVICE_H_
-#define ENGINES_COMMON_GRAPH_DB_SERVICE_H_
+#ifndef INCLUDE_NEUG_SERVER_NEUG_DB_SERVICE_H_
+#define INCLUDE_NEUG_SERVER_NEUG_DB_SERVICE_H_
 
+#include <yaml-cpp/yaml.h>
 #include <cctype>
+
 #include <memory>
 #include <string>
 
@@ -25,8 +27,6 @@
 #include "neug/utils/http_handler_manager.h"
 #include "neug/utils/result.h"
 #include "neug/utils/service_utils.h"
-
-#include <yaml-cpp/yaml.h>
 
 namespace server {
 
@@ -188,4 +188,4 @@ class NeugDBService {
 
 }  // namespace server
 
-#endif  // ENGINES_COMMON_GRAPH_DB_SERVICE_H_
+#endif  // INCLUDE_NEUG_SERVER_NEUG_DB_SERVICE_H_

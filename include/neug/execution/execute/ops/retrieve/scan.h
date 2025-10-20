@@ -13,8 +13,8 @@
  * limitations under the License.
  */
 
-#ifndef EXECUTION_EXECUTE_RETRIEVE_OPS_SCAN_H_
-#define EXECUTION_EXECUTE_RETRIEVE_OPS_SCAN_H_
+#ifndef INCLUDE_NEUG_EXECUTION_EXECUTE_OPS_RETRIEVE_SCAN_H_
+#define INCLUDE_NEUG_EXECUTION_EXECUTE_OPS_RETRIEVE_SCAN_H_
 
 #include <vector>
 
@@ -73,4 +73,4 @@ class DummySourceOprBuilder : public IReadOperatorBuilder {
 
 }  // namespace gs
 
-#endif  // EXECUTION_EXECUTE_RETRIEVE_OPS_SCAN_H_
+#endif  // INCLUDE_NEUG_EXECUTION_EXECUTE_OPS_RETRIEVE_SCAN_H_

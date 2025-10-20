@@ -14,11 +14,45 @@
  */
 #include "neug/utils/arrow_utils.h"
 
-#include <glog/logging.h>  // for COMPACT_GOOGLE_LOG_FATAL, LOG, LogMessag...
-#include <vector>          // for vector
-#include "neug/utils/property/types.h"  // for PropertyType, PropertyTypeImpl, Any (ptr...
+#include <vector>
+#include "neug/utils/exception/exception.h"
+#include "neug/utils/property/property.h"
 
 namespace gs {
+
+std::shared_ptr<arrow::DataType> PropertyTypeToArrowType(PropType type) {
+  if (type == PropType::kInt32) {
+    return arrow::int32();
+  } else if (type == PropType::kInt64) {
+    return arrow::int64();
+  } else if (type == PropType::kUInt32) {
+    return arrow::uint32();
+  } else if (type == PropType::kUInt64) {
+    return arrow::uint64();
+  } else if (type == PropType::kDouble) {
+    return arrow::float64();
+  } else if (type == PropType::kFloat) {
+    return arrow::float32();
+  } else if (type == PropType::kDate) {
+    return arrow::date32();
+  } else if (type == PropType::kString) {
+    return arrow::large_utf8();
+  } else if (type == PropType::kEmpty) {
+    return arrow::null();
+  } else if (type == PropType::kDateTime) {
+    return arrow::timestamp(arrow::TimeUnit::type::MILLI);
+  } else if (type == PropType::kTimestamp) {
+    return arrow::timestamp(arrow::TimeUnit::type::MILLI);
+  } else if (type == PropType::kInterval) {
+    return arrow::large_utf8();  // Use large_utf8 for interval, use
+                                 // AnyConverter to handle it
+  } else {
+    THROW_NOT_SUPPORTED_EXCEPTION("Unexpected property type: " +
+                                  std::to_string(static_cast<int>(type)));
+    return nullptr;
+  }
+}
+
 std::shared_ptr<arrow::DataType> PropertyTypeToArrowType(PropertyType type) {
   if (type == PropertyType::Bool()) {
     return arrow::boolean();

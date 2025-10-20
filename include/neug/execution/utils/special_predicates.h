@@ -14,12 +14,18 @@
  * limitations under the License.
  */
 
-#ifndef RUNTIME_UTILS_SPECIAL_PREDICATES_H_
-#define RUNTIME_UTILS_SPECIAL_PREDICATES_H_
+#ifndef INCLUDE_NEUG_EXECUTION_UTILS_SPECIAL_PREDICATES_H_
+#define INCLUDE_NEUG_EXECUTION_UTILS_SPECIAL_PREDICATES_H_
+
+#include <map>
+#include <set>
+#include <string>
+#include <utility>
+#include <vector>
 
 #include "neug/execution/common/graph_interface.h"
-#include "neug/execution/common/rt_any.h"
 #include "neug/utils/property/types.h"
+#include "neug/utils/runtime/rt_any.h"
 #ifdef USE_SYSTEM_PROTOBUF
 #include "neug/generated/proto/plan/expr.pb.h"
 #else
@@ -229,361 +235,287 @@ inline SPPredicateType parse_sp_pred(const common::Expression& expr) {
   }
 }
 
-class SPVertexPredicate {
+template <typename T>
+class SLEdgePropertyGetter {
  public:
-  virtual ~SPVertexPredicate() {}
-  virtual SPPredicateType type() const = 0;
-  virtual RTAnyType data_type() const = 0;
+  SLEdgePropertyGetter(const GraphReadInterface& graph,
+                       const std::vector<LabelTriplet>& labels,
+                       const std::string& property_name) {
+    CHECK_EQ(labels.size(), 1);
+    int prop_id = 0;
+    for (auto& name : graph.schema().get_edge_property_names(
+             labels[0].src_label, labels[0].dst_label, labels[0].edge_label)) {
+      if (name == property_name) {
+        break;
+      }
+      ++prop_id;
+    }
+    ed_accessor_ =
+        graph.GetEdgeDataAccessor(labels[0].src_label, labels[0].dst_label,
+                                  labels[0].edge_label, prop_id);
+  }
+  ~SLEdgePropertyGetter() = default;
+
+  inline T get(label_t v_label, vid_t v, label_t nbr_label, vid_t nbr,
+               label_t edge_label, Direction dir, const void* data_ptr) const {
+    return ed_accessor_.get_typed_data_from_ptr<T>(data_ptr);
+  }
+
+ private:
+  EdgeDataAccessor ed_accessor_;
 };
 
 template <typename T>
-class VertexPropertyLTPredicateBeta : public SPVertexPredicate {
+class MLEdgePropertyGetter {
  public:
-  VertexPropertyLTPredicateBeta(const GraphReadInterface& graph,
-                                const std::string& property_name,
-                                const std::string& target_str) {
-    label_t label_num = graph.schema().vertex_label_num();
-    for (label_t i = 0; i < label_num; ++i) {
+  MLEdgePropertyGetter(const GraphReadInterface& graph,
+                       const std::vector<LabelTriplet>& labels,
+                       const std::string& property_name) {
+    // property_name -> prop_id
+    for (const auto& lt : labels) {
+      int prop_id = 0;
+      for (auto& name : graph.schema().get_edge_property_names(
+               lt.src_label, lt.dst_label, lt.edge_label)) {
+        if (name == property_name) {
+          break;
+        }
+        ++prop_id;
+      }
+      ed_accessors_.emplace(
+          lt, graph.GetEdgeDataAccessor(lt.src_label, lt.dst_label,
+                                        lt.edge_label, prop_id));
+    }
+  }
+  ~MLEdgePropertyGetter() = default;
+
+  inline T get(label_t v_label, vid_t v, label_t nbr_label, vid_t nbr,
+               label_t edge_label, Direction dir, const void* data_ptr) const {
+    auto label_triplet = (dir == Direction::kOut)
+                             ? LabelTriplet{v_label, nbr_label, edge_label}
+                             : LabelTriplet{nbr_label, v_label, edge_label};
+    return ed_accessors_.at(label_triplet).get_typed_data_from_ptr<T>(data_ptr);
+  }
+
+ private:
+  std::map<LabelTriplet, EdgeDataAccessor> ed_accessors_;
+};
+
+template <typename T>
+class SLVertexPropertyGetter {
+ public:
+  SLVertexPropertyGetter(const GraphReadInterface& graph, label_t label,
+                         const std::string& property_name) {
+    column_ = graph.GetVertexColumn<T>(label, property_name);
+  }
+  ~SLVertexPropertyGetter() = default;
+
+  inline T get(label_t label, vid_t v) const { return column_.get_view(v); }
+
+ private:
+  GraphReadInterface::vertex_column_t<T> column_;
+};
+
+template <typename T>
+class MLVertexPropertyGetter {
+ public:
+  MLVertexPropertyGetter(const GraphReadInterface& graph,
+                         const std::string& property_name) {
+    for (label_t i = 0; i < graph.schema().vertex_label_num(); ++i) {
       columns_.emplace_back(graph.GetVertexColumn<T>(i, property_name));
     }
-    target_str_ = target_str;
-    target_ = TypedConverter<T>::typed_from_string(target_str_);
   }
+  ~MLVertexPropertyGetter() = default;
 
-  VertexPropertyLTPredicateBeta(VertexPropertyLTPredicateBeta&& other) {
-    columns_ = std::move(other.columns_);
-    target_str_ = std::move(other.target_str_);
-    target_ = TypedConverter<T>::typed_from_string(target_str_);
-  }
-
-  ~VertexPropertyLTPredicateBeta() = default;
-
-  inline SPPredicateType type() const override {
-    return SPPredicateType::kPropertyLT;
-  }
-
-  inline RTAnyType data_type() const override {
-    return TypedConverter<T>::type();
-  }
-
-  inline bool operator()(label_t label, vid_t v) const {
-    return columns_[label].get_view(v) < target_;
+  inline T get(label_t label, vid_t v) const {
+    return columns_[label].get_view(v);
   }
 
  private:
   std::vector<GraphReadInterface::vertex_column_t<T>> columns_;
-  T target_;
-  std::string target_str_;
 };
 
 template <typename T>
-class VertexPropertyLEPredicateBeta : public SPVertexPredicate {
+class GTCmp {
  public:
-  VertexPropertyLEPredicateBeta(const GraphReadInterface& graph,
-                                const std::string& property_name,
-                                const std::string& target_str) {
-    label_t label_num = graph.schema().vertex_label_num();
-    for (label_t i = 0; i < label_num; ++i) {
-      columns_.emplace_back(graph.GetVertexColumn<T>(i, property_name));
-    }
-    target_str_ = target_str;
-    target_ = TypedConverter<T>::typed_from_string(target_str_);
-  }
+  using data_t = T;
 
-  VertexPropertyLEPredicateBeta(VertexPropertyLEPredicateBeta&& other) {
-    columns_ = std::move(other.columns_);
-    target_str_ = std::move(other.target_str_);
-    target_ = TypedConverter<T>::typed_from_string(target_str_);
-  }
+  GTCmp() = default;
+  explicit GTCmp(const T& target) : target_(target) {}
+  bool operator()(const T& v) const { return target_ < v; }
 
-  ~VertexPropertyLEPredicateBeta() = default;
-
-  inline SPPredicateType type() const override {
-    return SPPredicateType::kPropertyLE;
-  }
-
-  inline RTAnyType data_type() const override {
-    return TypedConverter<T>::type();
-  }
-
-  inline bool operator()(label_t label, vid_t v) const {
-    return !(target_ < columns_[label].get_view(v));
-  }
+  void reset(const std::vector<T>& targets) { target_ = targets[0]; }
 
  private:
-  std::vector<GraphReadInterface::vertex_column_t<T>> columns_;
-  std::string target_str_;
-  T target_;
-};
-
-template <typename T>
-class VertexPropertyGEPredicateBeta : public SPVertexPredicate {
- public:
-  VertexPropertyGEPredicateBeta(const GraphReadInterface& graph,
-                                const std::string& property_name,
-                                const std::string& target_str) {
-    label_t label_num = graph.schema().vertex_label_num();
-    for (label_t i = 0; i < label_num; ++i) {
-      columns_.emplace_back(graph.GetVertexColumn<T>(i, property_name));
-    }
-    target_str_ = target_str;
-    target_ = TypedConverter<T>::typed_from_string(target_str_);
-  }
-
-  VertexPropertyGEPredicateBeta(VertexPropertyGEPredicateBeta&& other) {
-    columns_ = std::move(other.columns_);
-    target_str_ = std::move(other.target_str_);
-    target_ = TypedConverter<T>::typed_from_string(target_str_);
-  }
-
-  ~VertexPropertyGEPredicateBeta() = default;
-
-  inline SPPredicateType type() const override {
-    return SPPredicateType::kPropertyGE;
-  }
-
-  inline RTAnyType data_type() const override {
-    return TypedConverter<T>::type();
-  }
-
-  inline bool operator()(label_t label, vid_t v) const {
-    return !(columns_[label].get_view(v) < target_);
-  }
-
- private:
-  std::vector<GraphReadInterface::vertex_column_t<T>> columns_;
-  T target_;
-  std::string target_str_;
-};
-
-template <typename T>
-class VertexPropertyGTPredicateBeta : public SPVertexPredicate {
- public:
-  VertexPropertyGTPredicateBeta(const GraphReadInterface& graph,
-                                const std::string& property_name,
-                                const std::string& target_str) {
-    label_t label_num = graph.schema().vertex_label_num();
-    for (label_t i = 0; i < label_num; ++i) {
-      columns_.emplace_back(graph.GetVertexColumn<T>(i, property_name));
-    }
-    target_str_ = target_str;
-    target_ = TypedConverter<T>::typed_from_string(target_str_);
-  }
-
-  VertexPropertyGTPredicateBeta(VertexPropertyGTPredicateBeta&& other) {
-    columns_ = std::move(other.columns_);
-    target_str_ = std::move(other.target_str_);
-    target_ = TypedConverter<T>::typed_from_string(target_str_);
-  }
-
-  ~VertexPropertyGTPredicateBeta() = default;
-
-  inline SPPredicateType type() const override {
-    return SPPredicateType::kPropertyGT;
-  }
-
-  inline RTAnyType data_type() const override {
-    return TypedConverter<T>::type();
-  }
-
-  inline bool operator()(label_t label, vid_t v) const {
-    return target_ < columns_[label].get_view(v);
-  }
-
- private:
-  std::vector<GraphReadInterface::vertex_column_t<T>> columns_;
-  std::string target_str_;
   T target_;
 };
 
 template <typename T>
-class VertexPropertyEQPredicateBeta : public SPVertexPredicate {
+class LTCmp {
  public:
-  VertexPropertyEQPredicateBeta(const GraphReadInterface& graph,
-                                const std::string& property_name,
-                                const std::string& target_str) {
-    label_t label_num = graph.schema().vertex_label_num();
-    for (label_t i = 0; i < label_num; ++i) {
-      columns_.emplace_back(graph.GetVertexColumn<T>(i, property_name));
-    }
-    target_str_ = target_str;
-    target_ = TypedConverter<T>::typed_from_string(target_str_);
-  }
+  using data_t = T;
 
-  VertexPropertyEQPredicateBeta(VertexPropertyEQPredicateBeta&& other) {
-    columns_ = std::move(other.columns_);
-    target_str_ = std::move(other.target_str_);
-    target_ = TypedConverter<T>::typed_from_string(target_str_);
-  }
+  LTCmp() = default;
+  explicit LTCmp(const T& target) : target_(target) {}
+  bool operator()(const T& v) const { return v < target_; }
 
-  ~VertexPropertyEQPredicateBeta() = default;
-
-  inline SPPredicateType type() const override {
-    return SPPredicateType::kPropertyEQ;
-  }
-
-  inline RTAnyType data_type() const override {
-    return TypedConverter<T>::type();
-  }
-
-  inline bool operator()(label_t label, vid_t v) const {
-    return target_ == columns_[label].get_view(v);
-  }
+  void reset(const std::vector<T>& targets) { target_ = targets[0]; }
 
  private:
-  std::vector<GraphReadInterface::vertex_column_t<T>> columns_;
   T target_;
-  // for string_view
-  std::string target_str_;
 };
 
 template <typename T>
-class VertexPropertyNEPredicateBeta : public SPVertexPredicate {
+class EQCmp {
  public:
-  VertexPropertyNEPredicateBeta(const GraphReadInterface& graph,
-                                const std::string& property_name,
-                                const std::string& target_str) {
-    label_t label_num = graph.schema().vertex_label_num();
-    for (label_t i = 0; i < label_num; ++i) {
-      columns_.emplace_back(graph.GetVertexColumn<T>(i, property_name));
-    }
-    target_str_ = target_str;
-    target_ = TypedConverter<T>::typed_from_string(target_str_);
-  }
+  using data_t = T;
 
-  VertexPropertyNEPredicateBeta(VertexPropertyNEPredicateBeta&& other) {
-    columns_ = std::move(other.columns_);
-    target_str_ = std::move(other.target_str_);
-    target_ = TypedConverter<T>::typed_from_string(target_str_);
-  }
+  EQCmp() = default;
+  explicit EQCmp(const T& target) : target_(target) {}
+  bool operator()(const T& v) const { return target_ == v; }
 
-  ~VertexPropertyNEPredicateBeta() = default;
-
-  inline SPPredicateType type() const override {
-    return SPPredicateType::kPropertyNE;
-  }
-
-  inline RTAnyType data_type() const override {
-    return TypedConverter<T>::type();
-  }
-
-  inline bool operator()(label_t label, vid_t v) const {
-    return !(target_ == columns_[label].get_view(v));
-  }
+  void reset(const std::vector<T>& targets) { target_ = targets[0]; }
 
  private:
-  std::vector<GraphReadInterface::vertex_column_t<T>> columns_;
   T target_;
-  std::string target_str_;
 };
 
 template <typename T>
-class VertexPropertyBetweenPredicateBeta : public SPVertexPredicate {
+class GECmp {
  public:
-  VertexPropertyBetweenPredicateBeta(const GraphReadInterface& graph,
-                                     const std::string& property_name,
-                                     const std::string& from_str,
-                                     const std::string& to_str) {
-    label_t label_num = graph.schema().vertex_label_num();
-    for (label_t i = 0; i < label_num; ++i) {
-      columns_.emplace_back(graph.GetVertexColumn<T>(i, property_name));
-    }
-    from_str_ = from_str;
-    to_str_ = to_str;
-    from_ = TypedConverter<T>::typed_from_string(from_str_);
-    to_ = TypedConverter<T>::typed_from_string(to_str_);
-  }
+  using data_t = T;
 
-  VertexPropertyBetweenPredicateBeta(
-      VertexPropertyBetweenPredicateBeta&& other) {
-    columns_ = std::move(other.columns_);
-    from_str_ = std::move(other.from_str_);
-    to_str_ = std::move(other.to_str_);
-    from_ = TypedConverter<T>::typed_from_string(from_str_);
-    to_ = TypedConverter<T>::typed_from_string(to_str_);
-  }
+  GECmp() = default;
+  explicit GECmp(const T& target) : target_(target) {}
+  bool operator()(const T& v) const { return !(v < target_); }
 
-  ~VertexPropertyBetweenPredicateBeta() = default;
+  void reset(const std::vector<T>& targets) { target_ = targets[0]; }
 
-  inline SPPredicateType type() const override {
-    return SPPredicateType::kPropertyBetween;
-  }
+ private:
+  T target_;
+};
 
-  inline RTAnyType data_type() const override {
-    return TypedConverter<T>::type();
-  }
+template <typename T>
+class LECmp {
+ public:
+  using data_t = T;
 
-  inline bool operator()(label_t label, vid_t v) const {
-    auto val = columns_[label].get_view(v);
-    return ((val < to_) && !(val < from_));
+  LECmp() = default;
+  explicit LECmp(const T& target) : target_(target) {}
+  bool operator()(const T& v) const { return !(target_ < v); }
+
+  void reset(const std::vector<T>& targets) { target_ = targets[0]; }
+
+ private:
+  T target_;
+};
+
+template <typename T>
+class NECmp {
+ public:
+  using data_t = T;
+
+  NECmp() = default;
+  explicit NECmp(const T& target) : target_(target) {}
+  bool operator()(const T& v) const { return !(target_ == v); }
+
+  void reset(const std::vector<T>& targets) { target_ = targets[0]; }
+
+ private:
+  T target_;
+};
+
+template <typename T>
+class BetweenCmp {
+ public:
+  using data_t = T;
+
+  BetweenCmp() = default;
+  BetweenCmp(const T& from, const T& to) : from_(from), to_(to) {}
+
+  bool operator()(const T& v) const { return (v < to_) && !(v < from_); }
+
+  void reset(const std::vector<T>& targets) {
+    from_ = targets[0];
+    to_ = targets[1];
   }
 
  private:
-  std::vector<GraphReadInterface::vertex_column_t<T>> columns_;
   T from_;
   T to_;
-  std::string from_str_;
-  std::string to_str_;
 };
 
-template <typename T>
-inline std::unique_ptr<SPVertexPredicate> _make_vertex_predicate(
-    const SPPredicateType& ptype, const GraphReadInterface& graph,
-    const std::string& property_name, const std::string& target_str) {
-  if (ptype == SPPredicateType::kPropertyLT) {
-    return std::make_unique<VertexPropertyLTPredicateBeta<T>>(
-        graph, property_name, target_str);
+template <typename T, typename GETTER_T, typename CMP_T>
+class EdgePropertyCmpPredicate {
+ public:
+  using data_t = T;
+  static constexpr bool is_dummy = false;
 
-  } else if (ptype == SPPredicateType::kPropertyEQ) {
-    return std::make_unique<VertexPropertyEQPredicateBeta<T>>(
-        graph, property_name, target_str);
+  EdgePropertyCmpPredicate(const GETTER_T& getter, const CMP_T& cmp)
+      : getter_(getter), cmp_(cmp) {}
+  ~EdgePropertyCmpPredicate() = default;
 
-  } else if (ptype == SPPredicateType::kPropertyGT) {
-    return std::make_unique<VertexPropertyGTPredicateBeta<T>>(
-        graph, property_name, target_str);
-
-  } else if (ptype == SPPredicateType::kPropertyLE) {
-    return std::make_unique<VertexPropertyLEPredicateBeta<T>>(
-        graph, property_name, target_str);
-
-  } else if (ptype == SPPredicateType::kPropertyGE) {
-    return std::make_unique<VertexPropertyGEPredicateBeta<T>>(
-        graph, property_name, target_str);
-
-  } else if (ptype == SPPredicateType::kPropertyNE) {
-    return std::make_unique<VertexPropertyNEPredicateBeta<T>>(
-        graph, property_name, target_str);
-  } else {
-    return nullptr;
+  bool operator()(label_t v_label, vid_t v, label_t nbr_label, vid_t nbr,
+                  label_t edge_label, Direction dir, const void* data_ptr,
+                  size_t path_idx) const {
+    T val = getter_.get(v_label, v, nbr_label, nbr, edge_label, dir, data_ptr);
+    return cmp_(val);
   }
-}
 
-inline std::optional<std::function<std::unique_ptr<SPVertexPredicate>(
-    const GraphReadInterface&, const std::map<std::string, std::string>&)>>
-parse_special_vertex_predicate(const common::Expression& expr) {
+ private:
+  GETTER_T getter_;
+  CMP_T cmp_;
+};
+
+template <typename T, typename GETTER_T, typename CMP_T>
+class VertexPropertyCmpPredicate {
+ public:
+  using data_t = T;
+  static constexpr bool is_dummy = false;
+
+  VertexPropertyCmpPredicate(const GETTER_T& getter, const CMP_T& cmp)
+      : getter_(getter), cmp_(cmp) {}
+
+  bool operator()(label_t label, vid_t v, size_t path_idx) const {
+    T val = getter_.get(label, v);
+    return cmp_(val);
+  }
+
+ private:
+  GETTER_T getter_;
+  CMP_T cmp_;
+};
+
+struct SpecialEdgePredicateConfig {
+  std::string property_name;
+  SPPredicateType ptype;
+  std::string param_name;
+  RTAnyType param_type;
+};
+
+inline bool is_special_edge_predicate(const common::Expression& expr,
+                                      SpecialEdgePredicateConfig& config) {
   if (expr.operators_size() == 3) {
     const common::ExprOpr& op0 = expr.operators(0);
     if (!op0.has_var()) {
-      return std::nullopt;
+      return false;
     }
     if (!op0.var().has_property()) {
-      return std::nullopt;
+      return false;
     }
     if (!op0.var().property().has_key()) {
-      return std::nullopt;
+      return false;
     }
     if (!(op0.var().property().key().item_case() ==
           common::NameOrId::ItemCase::kName)) {
-      return std::nullopt;
+      return false;
     }
 
-    std::string property_name = op0.var().property().key().name();
+    config.property_name = op0.var().property().key().name();
 
     const common::ExprOpr& op1 = expr.operators(1);
     if (!(op1.item_case() == common::ExprOpr::kLogical)) {
-      return std::nullopt;
+      return false;
     }
-
     SPPredicateType ptype;
     if (op1.logical() == common::Logical::LT) {
       ptype = SPPredicateType::kPropertyLT;
@@ -598,584 +530,312 @@ parse_special_vertex_predicate(const common::Expression& expr) {
     } else if (op1.logical() == common::Logical::NE) {
       ptype = SPPredicateType::kPropertyNE;
     } else {
-      return std::nullopt;
+      return false;
     }
+    config.ptype = ptype;
 
     const common::ExprOpr& op2 = expr.operators(2);
     if (!op2.has_param()) {
-      return std::nullopt;
+      return false;
     }
     if (!op2.param().has_data_type()) {
-      return std::nullopt;
+      return false;
     }
     if (!(op2.param().data_type().type_case() ==
           common::IrDataType::TypeCase::kDataType)) {
-      return std::nullopt;
+      return false;
     }
-    auto name = op2.param().name();
-    auto type = parse_from_ir_data_type(op2.param().data_type());
-    if (type == RTAnyType::kI64Value) {
-      return [ptype, property_name, name](
-                 const GraphReadInterface& graph,
-                 const std::map<std::string, std::string>& params)
-                 -> std::unique_ptr<SPVertexPredicate> {
-        return _make_vertex_predicate<int64_t>(ptype, graph, property_name,
-                                               params.at(name));
-      };
+    config.param_name = op2.param().name();
+    config.param_type = parse_from_ir_data_type(op2.param().data_type());
+    return true;
+  }
+  return false;
+}
 
-    } else if (type == RTAnyType::kStringValue) {
-      return [ptype, property_name, name](
-                 const GraphReadInterface& graph,
-                 const std::map<std::string, std::string>& params)
-                 -> std::unique_ptr<SPVertexPredicate> {
-        return _make_vertex_predicate<std::string_view>(
-            ptype, graph, property_name, params.at(name));
-      };
+struct SpecialVertexPredicateConfig {
+  std::string property_name;
+  SPPredicateType ptype;
+  std::vector<std::string> param_names;
+  RTAnyType param_type;
+};
 
-    } else if (type == RTAnyType::kDate) {
-      return [ptype, property_name, name](
-                 const GraphReadInterface& graph,
-                 const std::map<std::string, std::string>& params)
-                 -> std::unique_ptr<SPVertexPredicate> {
-        return _make_vertex_predicate<Date>(ptype, graph, property_name,
-                                            params.at(name));
-      };
+inline bool is_special_vertex_predicate(const common::Expression& expr,
+                                        SpecialVertexPredicateConfig& config) {
+  if (expr.operators_size() == 3) {
+    const common::ExprOpr& op0 = expr.operators(0);
+    if (!op0.has_var()) {
+      return false;
+    }
+    if (!op0.var().has_property()) {
+      return false;
+    }
+    if (!op0.var().property().has_key()) {
+      return false;
+    }
+    if (!(op0.var().property().key().item_case() ==
+          common::NameOrId::ItemCase::kName)) {
+      return false;
+    }
 
-    } else if (type == RTAnyType::kTimestamp) {
-      return [ptype, property_name, name](
-                 const GraphReadInterface& graph,
-                 const std::map<std::string, std::string>& params)
-                 -> std::unique_ptr<SPVertexPredicate> {
-        return _make_vertex_predicate<TimeStamp>(ptype, graph, property_name,
-                                                 params.at(name));
-      };
+    config.property_name = op0.var().property().key().name();
 
-    } else if (type == RTAnyType::kI32Value) {
-      return [ptype, property_name, name](
-                 const GraphReadInterface& graph,
-                 const std::map<std::string, std::string>& params)
-                 -> std::unique_ptr<SPVertexPredicate> {
-        return _make_vertex_predicate<int32_t>(ptype, graph, property_name,
-                                               params.at(name));
-      };
-
-    } else if (type == RTAnyType::kBoolValue) {
-      return [ptype, property_name, name](
-                 const GraphReadInterface& graph,
-                 const std::map<std::string, std::string>& params)
-                 -> std::unique_ptr<SPVertexPredicate> {
-        return _make_vertex_predicate<bool>(ptype, graph, property_name,
-                                            params.at(name));
-      };
-    } else if (type == RTAnyType::kF32Value) {
-      return [ptype, property_name, name](
-                 const GraphReadInterface& graph,
-                 const std::map<std::string, std::string>& params)
-                 -> std::unique_ptr<SPVertexPredicate> {
-        return _make_vertex_predicate<float>(ptype, graph, property_name,
-                                             params.at(name));
-      };
-    } else if (type == RTAnyType::kF64Value) {
-      return [ptype, property_name, name](
-                 const GraphReadInterface& graph,
-                 const std::map<std::string, std::string>& params)
-                 -> std::unique_ptr<SPVertexPredicate> {
-        return _make_vertex_predicate<double>(ptype, graph, property_name,
-                                              params.at(name));
-      };
+    const common::ExprOpr& op1 = expr.operators(1);
+    if (!(op1.item_case() == common::ExprOpr::kLogical)) {
+      return false;
+    }
+    SPPredicateType ptype;
+    if (op1.logical() == common::Logical::LT) {
+      ptype = SPPredicateType::kPropertyLT;
+    } else if (op1.logical() == common::Logical::GT) {
+      ptype = SPPredicateType::kPropertyGT;
+    } else if (op1.logical() == common::Logical::EQ) {
+      ptype = SPPredicateType::kPropertyEQ;
+    } else if (op1.logical() == common::Logical::LE) {
+      ptype = SPPredicateType::kPropertyLE;
+    } else if (op1.logical() == common::Logical::GE) {
+      ptype = SPPredicateType::kPropertyGE;
+    } else if (op1.logical() == common::Logical::NE) {
+      ptype = SPPredicateType::kPropertyNE;
     } else {
-      VLOG(10) << "Unsupported type: " << static_cast<int>(type)
-               << ", for property name: " + property_name;
-      return std::nullopt;
+      return false;
     }
+    config.ptype = ptype;
+
+    const common::ExprOpr& op2 = expr.operators(2);
+    if (!op2.has_param()) {
+      return false;
+    }
+    if (!op2.param().has_data_type()) {
+      return false;
+    }
+    if (!(op2.param().data_type().type_case() ==
+          common::IrDataType::TypeCase::kDataType)) {
+      return false;
+    }
+    config.param_names.push_back(op2.param().name());
+    config.param_type = parse_from_ir_data_type(op2.param().data_type());
+    return true;
   } else if (expr.operators_size() == 7) {
     // between
     const common::ExprOpr& op0 = expr.operators(0);
     if (!op0.has_var()) {
-      return std::nullopt;
+      return false;
     }
     if (!op0.var().has_property()) {
-      return std::nullopt;
+      return false;
     }
     if (!op0.var().property().has_key()) {
-      return std::nullopt;
+      return false;
     }
     if (!(op0.var().property().key().item_case() ==
           common::NameOrId::ItemCase::kName)) {
-      return std::nullopt;
+      return false;
     }
-    std::string property_name = op0.var().property().key().name();
+    config.property_name = op0.var().property().key().name();
 
     const common::ExprOpr& op1 = expr.operators(1);
     if (!(op1.item_case() == common::ExprOpr::kLogical)) {
-      return std::nullopt;
+      return false;
     }
     if (op1.logical() != common::Logical::GE) {
-      return std::nullopt;
+      return false;
     }
 
     const common::ExprOpr& op2 = expr.operators(2);
     if (!op2.has_param()) {
-      return std::nullopt;
+      return false;
     }
     if (!op2.param().has_data_type()) {
-      return std::nullopt;
+      return false;
     }
     if (!(op2.param().data_type().type_case() ==
           common::IrDataType::TypeCase::kDataType)) {
-      return std::nullopt;
+      return false;
     }
-    std::string from_str = op2.param().name();
+    config.param_names.push_back(op2.param().name());
 
     const common::ExprOpr& op3 = expr.operators(3);
     if (!(op3.item_case() == common::ExprOpr::kLogical)) {
-      return std::nullopt;
+      return false;
     }
     if (op3.logical() != common::Logical::AND) {
-      return std::nullopt;
+      return false;
     }
 
     const common::ExprOpr& op4 = expr.operators(4);
     if (!op4.has_var()) {
-      return std::nullopt;
+      return false;
     }
     if (!op4.var().has_property()) {
-      return std::nullopt;
+      return false;
     }
     if (!op4.var().property().has_key()) {
-      return std::nullopt;
+      return false;
     }
     if (!(op4.var().property().key().item_case() ==
           common::NameOrId::ItemCase::kName)) {
-      return std::nullopt;
+      return false;
     }
-    if (property_name != op4.var().property().key().name()) {
-      return std::nullopt;
+    if (config.property_name != op4.var().property().key().name()) {
+      return false;
     }
 
     const common::ExprOpr& op5 = expr.operators(5);
     if (!(op5.item_case() == common::ExprOpr::kLogical)) {
-      return std::nullopt;
+      return false;
     }
     if (op5.logical() != common::Logical::LT) {
-      return std::nullopt;
+      return false;
     }
-
     const common::ExprOpr& op6 = expr.operators(6);
     if (!op6.has_param()) {
-      return std::nullopt;
+      return false;
     }
     if (!op6.param().has_data_type()) {
-      return std::nullopt;
+      return false;
     }
     if (!(op6.param().data_type().type_case() ==
           common::IrDataType::TypeCase::kDataType)) {
-      return std::nullopt;
+      return false;
     }
-    std::string to_str = op6.param().name();
-
+    config.param_names.push_back(op6.param().name());
     auto type = parse_from_ir_data_type(op2.param().data_type());
     auto type1 = parse_from_ir_data_type(op6.param().data_type());
-
     if (type != type1) {
-      return std::nullopt;
+      return false;
     }
-
-    if (type == RTAnyType::kI64Value) {
-      return [property_name, from_str, to_str](
-                 const GraphReadInterface& graph,
-                 const std::map<std::string, std::string>& params)
-                 -> std::unique_ptr<SPVertexPredicate> {
-        return std::make_unique<VertexPropertyBetweenPredicateBeta<int64_t>>(
-            graph, property_name, params.at(from_str), params.at(to_str));
-      };
-
-    } else if (type == RTAnyType::kDate) {
-      return [property_name, from_str, to_str](
-                 const GraphReadInterface& graph,
-                 const std::map<std::string, std::string>& params)
-                 -> std::unique_ptr<SPVertexPredicate> {
-        return std::make_unique<VertexPropertyBetweenPredicateBeta<Date>>(
-            graph, property_name, params.at(from_str), params.at(to_str));
-      };
-
-    } else if (type == RTAnyType::kTimestamp) {
-      return [property_name, from_str, to_str](
-                 const GraphReadInterface& graph,
-                 const std::map<std::string, std::string>& params)
-                 -> std::unique_ptr<SPVertexPredicate> {
-        return std::make_unique<VertexPropertyBetweenPredicateBeta<TimeStamp>>(
-            graph, property_name, params.at(from_str), params.at(to_str));
-      };
-    } else if (type == RTAnyType::kI32Value) {
-      return [property_name, from_str, to_str](
-                 const GraphReadInterface& graph,
-                 const std::map<std::string, std::string>& params)
-                 -> std::unique_ptr<SPVertexPredicate> {
-        return std::make_unique<VertexPropertyBetweenPredicateBeta<int32_t>>(
-            graph, property_name, params.at(from_str), params.at(to_str));
-      };
-    } else if (type == RTAnyType::kF32Value) {
-      return [property_name, from_str, to_str](
-                 const GraphReadInterface& graph,
-                 const std::map<std::string, std::string>& params)
-                 -> std::unique_ptr<SPVertexPredicate> {
-        return std::make_unique<VertexPropertyBetweenPredicateBeta<float>>(
-            graph, property_name, params.at(from_str), params.at(to_str));
-      };
-    } else if (type == RTAnyType::kF64Value) {
-      return [property_name, from_str, to_str](
-                 const GraphReadInterface& graph,
-                 const std::map<std::string, std::string>& params)
-                 -> std::unique_ptr<SPVertexPredicate> {
-        return std::make_unique<VertexPropertyBetweenPredicateBeta<double>>(
-            graph, property_name, params.at(from_str), params.at(to_str));
-      };
-    } else if (type == RTAnyType::kStringValue) {
-      return [property_name, from_str, to_str](
-                 const GraphReadInterface& graph,
-                 const std::map<std::string, std::string>& params)
-                 -> std::unique_ptr<SPVertexPredicate> {
-        return std::make_unique<
-            VertexPropertyBetweenPredicateBeta<std::string_view>>(
-            graph, property_name, params.at(from_str), params.at(to_str));
-      };
-    } else {
-      return std::nullopt;
-    }
+    config.ptype = SPPredicateType::kPropertyBetween;
+    config.param_type = type;
+    return true;
   }
-
-  return std::nullopt;
+  return false;
 }
 
-class SPEdgePredicate {
- public:
-  virtual ~SPEdgePredicate() {}
-  virtual SPPredicateType type() const = 0;
-  virtual RTAnyType data_type() const = 0;
-};
-
-template <typename T>
-class EdgePropertyLTPredicate : public SPEdgePredicate {
- public:
-  EdgePropertyLTPredicate(const std::string& target_str) {
-    target_str_ = target_str;
-    target_ = TypedConverter<T>::typed_from_string(target_str_);
-  }
-
-  ~EdgePropertyLTPredicate() = default;
-
-  SPPredicateType type() const override { return SPPredicateType::kPropertyLT; }
-
-  inline RTAnyType data_type() const override {
-    return TypedConverter<T>::type();
-  }
-
-  inline bool operator()(label_t v_label, vid_t v, label_t nbr_label, vid_t nbr,
-                         label_t edge_label, Direction dir,
-                         const T& edata) const {
-    return edata < target_;
-  }
-
-  inline bool operator()(const LabelTriplet& label, vid_t src, vid_t dst,
-                         const Any& edata, Direction dir, size_t idx) const {
-    return AnyConverter<T>::from_any(edata) < target_;
-  }
-
- private:
-  T target_;
-  std::string target_str_;
-};
-
-template <typename T>
-class EdgePropertyGTPredicate : public SPEdgePredicate {
- public:
-  EdgePropertyGTPredicate(const std::string& target_str) {
-    target_str_ = target_str;
-    target_ = TypedConverter<T>::typed_from_string(target_str_);
-  }
-
-  ~EdgePropertyGTPredicate() = default;
-
-  inline SPPredicateType type() const override {
-    return SPPredicateType::kPropertyGT;
-  }
-
-  inline RTAnyType data_type() const override {
-    return TypedConverter<T>::type();
-  }
-
-  inline bool operator()(label_t v_label, vid_t v, label_t nbr_label, vid_t nbr,
-                         label_t edge_label, Direction dir,
-                         const T& edata) const {
-    return target_ < edata;
-  }
-
-  inline bool operator()(const LabelTriplet& label, vid_t src, vid_t dst,
-                         const Any& edata, Direction dir, size_t idx) const {
-    return target_ < AnyConverter<T>::from_any(edata);
-  }
-
- private:
-  T target_;
-  std::string target_str_;
-};
-
-template <typename T>
-class EdgePropertyEQPredicate : public SPEdgePredicate {
- public:
-  EdgePropertyEQPredicate(const std::string& target_str) {
-    target_str_ = target_str;
-    target_ = TypedConverter<T>::typed_from_string(target_str_);
-  }
-
-  ~EdgePropertyEQPredicate() = default;
-
-  inline SPPredicateType type() const override {
-    return SPPredicateType::kPropertyEQ;
-  }
-
-  inline RTAnyType data_type() const override {
-    return TypedConverter<T>::type();
-  }
-
-  inline bool operator()(label_t v_label, vid_t v, label_t nbr_label, vid_t nbr,
-                         label_t edge_label, Direction dir,
-                         const T& edata) const {
-    return target_ == edata;
-  }
-
-  inline bool operator()(const LabelTriplet& label, vid_t src, vid_t dst,
-                         const Any& edata, Direction dir, size_t idx) const {
-    return target_ == AnyConverter<T>::from_any(edata);
-  }
-
- private:
-  T target_;
-  std::string target_str_;
-};
-
-template <typename T>
-class EdgePropertyGEPredicate : public SPEdgePredicate {
- public:
-  EdgePropertyGEPredicate(const std::string& target_str) {
-    target_str_ = target_str;
-    target_ = TypedConverter<T>::typed_from_string(target_str_);
-  }
-
-  ~EdgePropertyGEPredicate() = default;
-
-  inline SPPredicateType type() const override {
-    return SPPredicateType::kPropertyGE;
-  }
-
-  inline RTAnyType data_type() const override {
-    return TypedConverter<T>::type();
-  }
-
-  inline bool operator()(label_t v_label, vid_t v, label_t nbr_label, vid_t nbr,
-                         label_t edge_label, Direction dir,
-                         const T& edata) const {
-    return !(edata < target_);
-  }
-
-  inline bool operator()(const LabelTriplet& label, vid_t src, vid_t dst,
-                         const Any& edata, Direction dir, size_t idx) const {
-    return !(AnyConverter<T>::from_any(edata) < target_);
-  }
-
- private:
-  T target_;
-  std::string target_str_;
-};
-
-template <typename T>
-class EdgePropertyLEPredicate : public SPEdgePredicate {
- public:
-  EdgePropertyLEPredicate(const std::string& target_str) {
-    target_str_ = target_str;
-
-    target_ = TypedConverter<T>::typed_from_string(target_str_);
-  }
-
-  ~EdgePropertyLEPredicate() = default;
-
-  inline SPPredicateType type() const override {
-    return SPPredicateType::kPropertyLE;
-  }
-
-  inline RTAnyType data_type() const override {
-    return TypedConverter<T>::type();
-  }
-
-  inline bool operator()(label_t v_label, vid_t v, label_t nbr_label, vid_t nbr,
-                         label_t edge_label, Direction dir,
-                         const T& edata) const {
-    return !(target_ < edata);
-  }
-
-  inline bool operator()(const LabelTriplet& label, vid_t src, vid_t dst,
-                         const Any& edata, Direction dir, size_t idx) const {
-    return !(target_ < AnyConverter<T>::from_any(edata));
-  }
-
- private:
-  T target_;
-  std::string target_str_;
-};
-
-template <typename T>
-class EdgePropertyNEPredicate : public SPEdgePredicate {
- public:
-  EdgePropertyNEPredicate(const std::string& target_str) {
-    target_str_ = target_str;
-    target_ = TypedConverter<T>::typed_from_string(target_str_);
-  }
-
-  ~EdgePropertyNEPredicate() = default;
-
-  inline SPPredicateType type() const override {
-    return SPPredicateType::kPropertyNE;
-  }
-
-  inline RTAnyType data_type() const override {
-    return TypedConverter<T>::type();
-  }
-
-  inline bool operator()(label_t v_label, vid_t v, label_t nbr_label, vid_t nbr,
-                         label_t edge_label, Direction dir,
-                         const T& edata) const {
-    return !(target_ == edata);
-  }
-
-  inline bool operator()(const LabelTriplet& label, vid_t src, vid_t dst,
-                         const Any& edata, Direction dir, size_t idx) const {
-    return !(target_ == AnyConverter<T>::from_any(edata));
-  }
-
- private:
-  T target_;
-  std::string target_str_;
-};
-
-template <typename T>
-inline std::unique_ptr<SPEdgePredicate> _make_edge_predicate(
-    const SPPredicateType& ptype, const std::string& target_str) {
-  if (ptype == SPPredicateType::kPropertyLT) {
-    return std::make_unique<EdgePropertyLTPredicate<T>>(target_str);
-  } else if (ptype == SPPredicateType::kPropertyGT) {
-    return std::make_unique<EdgePropertyGTPredicate<T>>(target_str);
-  } else if (ptype == SPPredicateType::kPropertyEQ) {
-    return std::make_unique<EdgePropertyEQPredicate<T>>(target_str);
-  } else if (ptype == SPPredicateType::kPropertyLE) {
-    return std::make_unique<EdgePropertyLEPredicate<T>>(target_str);
-  } else if (ptype == SPPredicateType::kPropertyGE) {
-    return std::make_unique<EdgePropertyGEPredicate<T>>(target_str);
-  } else if (ptype == SPPredicateType::kPropertyNE) {
-    return std::make_unique<EdgePropertyNEPredicate<T>>(target_str);
+template <typename OP_T, typename CMP_T, typename... Args>
+static gs::result<Context> dispatch_vertex_predicate_impl_cmp_type(
+    const gs::runtime::GraphReadInterface& graph,
+    const std::set<label_t>& expected_labels,
+    const SpecialVertexPredicateConfig& config,
+    const std::map<std::string, std::string>& params, const CMP_T& cmp_val,
+    Args&&... args) {
+  if (expected_labels.size() == 1) {
+    // single label
+    label_t label = *expected_labels.begin();
+    using GETTER_T = SLVertexPropertyGetter<typename CMP_T::data_t>;
+    GETTER_T getter(graph, label, config.property_name);
+    using PRED_T =
+        VertexPropertyCmpPredicate<typename CMP_T::data_t, GETTER_T, CMP_T>;
+    auto pred = PRED_T(getter, cmp_val);
+    return OP_T::template eval_with_predicate<PRED_T>(
+        pred, std::forward<Args>(args)...);
   } else {
-    return nullptr;
+    // multi labels
+    using GETTER_T = MLVertexPropertyGetter<typename CMP_T::data_t>;
+    GETTER_T getter(graph, config.property_name);
+    using PRED_T =
+        VertexPropertyCmpPredicate<typename CMP_T::data_t, GETTER_T, CMP_T>;
+    auto pred = PRED_T(getter, cmp_val);
+    return OP_T::template eval_with_predicate<PRED_T>(
+        pred, std::forward<Args>(args)...);
   }
 }
 
-inline std::optional<std::function<std::unique_ptr<SPEdgePredicate>(
-    const GraphReadInterface&,
-    const std::map<std::string, std::string>& params)>>
-parse_special_edge_predicate(const common::Expression& expr) {
-  if (expr.operators_size() == 3) {
-    const common::ExprOpr& op0 = expr.operators(0);
-    if (!op0.has_var()) {
-      return std::nullopt;
-    }
-    if (!op0.var().has_property()) {
-      return std::nullopt;
-    }
-    if (!op0.var().property().has_key()) {
-      return std::nullopt;
-    }
-    if (!(op0.var().property().key().item_case() ==
-          common::NameOrId::ItemCase::kName)) {
-      return std::nullopt;
-    }
-    // std::string property_name = op0.var().property().key().name();
-
-    const common::ExprOpr& op1 = expr.operators(1);
-    if (!(op1.item_case() == common::ExprOpr::kLogical)) {
-      return std::nullopt;
-    }
-    SPPredicateType ptype;
-    if (op1.logical() == common::Logical::LT) {
-      ptype = SPPredicateType::kPropertyLT;
-    } else if (op1.logical() == common::Logical::GT) {
-      ptype = SPPredicateType::kPropertyGT;
-    } else if (op1.logical() == common::Logical::GE) {
-      ptype = SPPredicateType::kPropertyGE;
-    } else if (op1.logical() == common::Logical::LE) {
-      ptype = SPPredicateType::kPropertyLE;
-    } else if (op1.logical() == common::Logical::EQ) {
-      ptype = SPPredicateType::kPropertyEQ;
-    } else if (op1.logical() == common::Logical::NE) {
-      ptype = SPPredicateType::kPropertyNE;
-    } else {
-      return std::nullopt;
-    }
-    const common::ExprOpr& op2 = expr.operators(2);
-    if (!op2.has_param()) {
-      return std::nullopt;
-    }
-    if (!op2.param().has_data_type()) {
-      return std::nullopt;
-    }
-    if (!(op2.param().data_type().type_case() ==
-          common::IrDataType::TypeCase::kDataType)) {
-      return std::nullopt;
-    }
-    const std::string& name = op2.param().name();
-    auto type = parse_from_ir_data_type(op2.param().data_type());
-    if (type == RTAnyType::kI64Value) {
-      return [ptype, name](const GraphReadInterface& graph,
-                           const std::map<std::string, std::string>& params) {
-        return _make_edge_predicate<int64_t>(ptype, params.at(name));
-      };
-    } else if (type == RTAnyType::kF32Value) {
-      return [ptype, name](const GraphReadInterface& graph,
-                           const std::map<std::string, std::string>& params) {
-        return _make_edge_predicate<float>(ptype, params.at(name));
-      };
-    } else if (type == RTAnyType::kF64Value) {
-      return [ptype, name](const GraphReadInterface& graph,
-                           const std::map<std::string, std::string>& params) {
-        return _make_edge_predicate<double>(ptype, params.at(name));
-      };
-    } else if (type == RTAnyType::kI32Value) {
-      return [ptype, name](const GraphReadInterface& graph,
-                           const std::map<std::string, std::string>& params) {
-        return _make_edge_predicate<int32_t>(ptype, params.at(name));
-      };
-    } else if (type == RTAnyType::kTimestamp) {
-      return [ptype, name](const GraphReadInterface& graph,
-                           const std::map<std::string, std::string>& params) {
-        return _make_edge_predicate<TimeStamp>(ptype, params.at(name));
-      };
-    } else if (type == RTAnyType::kStringValue) {
-      return [ptype, name](const GraphReadInterface& graph,
-                           const std::map<std::string, std::string>& params) {
-        return _make_edge_predicate<std::string_view>(ptype, params.at(name));
-      };
-    } else if (type == RTAnyType::kDate) {
-      return [ptype, name](const GraphReadInterface& graph,
-                           const std::map<std::string, std::string>& params) {
-        return _make_edge_predicate<Date>(ptype, params.at(name));
-      };
-    } else {
-      return std::nullopt;
-    }
+template <typename OP_T, typename T, typename... Args>
+static gs::result<Context> dispatch_vertex_predicate_impl_typed(
+    const gs::runtime::GraphReadInterface& graph,
+    const std::set<label_t>& expected_labels,
+    const SpecialVertexPredicateConfig& config,
+    const std::map<std::string, std::string>& params, Args&&... args) {
+  if (config.ptype == SPPredicateType::kPropertyLT) {
+    using CMP_T = LTCmp<T>;
+    auto cmp_val = CMP_T(
+        TypedConverter<T>::typed_from_string(params.at(config.param_names[0])));
+    return dispatch_vertex_predicate_impl_cmp_type<OP_T, CMP_T>(
+        graph, expected_labels, config, params, cmp_val,
+        std::forward<Args>(args)...);
+  } else if (config.ptype == SPPredicateType::kPropertyGT) {
+    using CMP_T = GTCmp<T>;
+    auto cmp_val = CMP_T(
+        TypedConverter<T>::typed_from_string(params.at(config.param_names[0])));
+    return dispatch_vertex_predicate_impl_cmp_type<OP_T, CMP_T>(
+        graph, expected_labels, config, params, cmp_val,
+        std::forward<Args>(args)...);
+  } else if (config.ptype == SPPredicateType::kPropertyEQ) {
+    using CMP_T = EQCmp<T>;
+    auto cmp_val = CMP_T(
+        TypedConverter<T>::typed_from_string(params.at(config.param_names[0])));
+    return dispatch_vertex_predicate_impl_cmp_type<OP_T, CMP_T>(
+        graph, expected_labels, config, params, cmp_val,
+        std::forward<Args>(args)...);
+  } else if (config.ptype == SPPredicateType::kPropertyLE) {
+    using CMP_T = LECmp<T>;
+    auto cmp_val = CMP_T(
+        TypedConverter<T>::typed_from_string(params.at(config.param_names[0])));
+    return dispatch_vertex_predicate_impl_cmp_type<OP_T, CMP_T>(
+        graph, expected_labels, config, params, cmp_val,
+        std::forward<Args>(args)...);
+  } else if (config.ptype == SPPredicateType::kPropertyGE) {
+    using CMP_T = GECmp<T>;
+    auto cmp_val = CMP_T(
+        TypedConverter<T>::typed_from_string(params.at(config.param_names[0])));
+    return dispatch_vertex_predicate_impl_cmp_type<OP_T, CMP_T>(
+        graph, expected_labels, config, params, cmp_val,
+        std::forward<Args>(args)...);
+  } else if (config.ptype == SPPredicateType::kPropertyNE) {
+    using CMP_T = NECmp<T>;
+    auto cmp_val = CMP_T(
+        TypedConverter<T>::typed_from_string(params.at(config.param_names[0])));
+    return dispatch_vertex_predicate_impl_cmp_type<OP_T, CMP_T>(
+        graph, expected_labels, config, params, cmp_val,
+        std::forward<Args>(args)...);
+  } else if (config.ptype == SPPredicateType::kPropertyBetween) {
+    using CMP_T = BetweenCmp<T>;
+    auto cmp_val = CMP_T(
+        TypedConverter<T>::typed_from_string(params.at(config.param_names[0])),
+        TypedConverter<T>::typed_from_string(params.at(config.param_names[1])));
+    return dispatch_vertex_predicate_impl_cmp_type<OP_T, CMP_T>(
+        graph, expected_labels, config, params, cmp_val,
+        std::forward<Args>(args)...);
   }
-  return std::nullopt;
+  LOG(ERROR) << "Unsupported predicate type for special vertex predicate: "
+             << static_cast<int>(config.ptype);
+  RETURN_UNSUPPORTED_ERROR(
+      "Unsupported predicate type for special vertex predicate");
+}
+
+template <typename OP_T, typename... Args>
+gs::result<Context> dispatch_vertex_predicate(
+    const gs::runtime::GraphReadInterface& graph,
+    const std::set<label_t>& expected_labels,
+    const SpecialVertexPredicateConfig& config,
+    const std::map<std::string, std::string>& params, Args&&... args) {
+  if (config.param_type == RTAnyType::kI64Value) {
+    return dispatch_vertex_predicate_impl_typed<OP_T, int64_t>(
+        graph, expected_labels, config, params, std::forward<Args>(args)...);
+  } else if (config.param_type == RTAnyType::kStringValue) {
+    return dispatch_vertex_predicate_impl_typed<OP_T, std::string_view>(
+        graph, expected_labels, config, params, std::forward<Args>(args)...);
+  } else if (config.param_type == RTAnyType::kDate) {
+    return dispatch_vertex_predicate_impl_typed<OP_T, Date>(
+        graph, expected_labels, config, params, std::forward<Args>(args)...);
+  } else if (config.param_type == RTAnyType::kTimestamp) {
+    return dispatch_vertex_predicate_impl_typed<OP_T, TimeStamp>(
+        graph, expected_labels, config, params, std::forward<Args>(args)...);
+  } else if (config.param_type == RTAnyType::kI32Value) {
+    return dispatch_vertex_predicate_impl_typed<OP_T, int32_t>(
+        graph, expected_labels, config, params, std::forward<Args>(args)...);
+  } else if (config.param_type == RTAnyType::kF64Value) {
+    return dispatch_vertex_predicate_impl_typed<OP_T, double>(
+        graph, expected_labels, config, params, std::forward<Args>(args)...);
+  }
+  LOG(ERROR) << "Unsupported param type for special vertex predicate: "
+             << static_cast<int>(config.param_type);
+  RETURN_UNSUPPORTED_ERROR(
+      "Unsupported param type for special vertex predicate");
 }
 
 }  // namespace runtime
 
 }  // namespace gs
 
-#endif  // RUNTIME_UTILS_OPERATORS_SPECIAL_PREDICATES_H_
+#endif  // INCLUDE_NEUG_EXECUTION_UTILS_SPECIAL_PREDICATES_H_

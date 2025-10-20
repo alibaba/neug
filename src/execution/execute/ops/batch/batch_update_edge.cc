@@ -33,7 +33,7 @@ class UpdateEdgeOpr : public IUpdateOperator {
                  common::Expression>;  // tag_id, property_name, value
   using edge_data_vec_t = std::vector<edge_data_t>;
 
-  UpdateEdgeOpr(edge_data_vec_t&& edge_data)
+  explicit UpdateEdgeOpr(edge_data_vec_t&& edge_data)
       : edge_data_(std::move(edge_data)) {}
 
   std::string get_operator_name() const override { return "UpdateEdgeOpr"; }
@@ -73,15 +73,16 @@ gs::result<Context> UpdateEdgeOpr::Eval(
 
     Expr expr(graph, ctx, params, expression, VarType::kPathVar);
     for (size_t ind = 0; ind < edge_col->size(); ++ind) {
-      auto value = expr.eval_path(ind, arena).to_any();
+      auto value = expr.eval_path(ind, arena);
       auto er = edge_col->get_edge(ind);
-      auto label_id = er.label_triplet().edge_label;
-      auto src_label = er.label_triplet().src_label;
-      auto dst_label = er.label_triplet().dst_label;
+      auto label_id = er.label.edge_label;
+      auto src_label = er.label.src_label;
+      auto dst_label = er.label.dst_label;
+      LOG(INFO) << "edge: , label_id: " << static_cast<int>(label_id)
+                << ", src_label: " << static_cast<int>(src_label)
+                << ", dst_label: " << static_cast<int>(dst_label);
       const auto& property_names = graph.schema().get_edge_property_names(
           src_label, dst_label, label_id);
-      const auto& property_types =
-          graph.schema().get_edge_properties(src_label, dst_label, label_id);
       int col_id = -1;
       for (size_t i = 0; i < property_names.size(); ++i) {
         if (property_names[i] == prop_name) {
@@ -97,30 +98,37 @@ gs::result<Context> UpdateEdgeOpr::Eval(
             "Property " + prop_name +
             " does not exist for edge label: " + std::to_string(label_id));
       }
-      if (property_types[col_id] != value.type) {
-        LOG(ERROR) << "Property type mismatch for property " << prop_name
-                   << ": expected " << property_types[col_id].ToString()
-                   << ", got " << value.type.ToString();
-        THROW_RUNTIME_ERROR("Property type mismatch for property " + prop_name +
-                            ": expected " + property_types[col_id].ToString() +
-                            ", got " + value.type.ToString());
-      }
-      if (er.dir() == Direction::kOut) {
-        graph.SetEdgeData(true, src_label, er.src(), dst_label, er.dst(),
-                          label_id, value, col_id);
-        graph.SetEdgeData(false, dst_label, er.dst(), src_label, er.src(),
-                          label_id, value, col_id);
+      Prop prop;
+      auto val_type = value.type();
+      LOG(INFO) << "value type: " << static_cast<int>(val_type);
+      if (val_type == RTAnyType::kNull || val_type == RTAnyType::kEmpty) {
+      } else if (val_type == RTAnyType::kI32Value) {
+        // prop = Prop::from_int32(value.as_int32());
+        prop.set_int32(value.as_int32());
+      } else if (val_type == RTAnyType::kI64Value) {
+        prop.set_int64(value.as_int64());
+      } else if (val_type == RTAnyType::kStringValue) {
+        prop.set_string(value.as_string());
+      } else if (val_type == RTAnyType::kF64Value) {
+        prop.set_double(value.as_double());
       } else {
-        graph.SetEdgeData(false, dst_label, er.dst(), src_label, er.src(),
-                          label_id, value, col_id);
-        graph.SetEdgeData(true, src_label, er.src(), dst_label, er.dst(),
-                          label_id, value, col_id);
+        THROW_RUNTIME_ERROR("Unsupported property type: " +
+                            std::to_string(static_cast<int>(val_type)));
+      }
+      LOG(INFO) << "Before insert " << prop.to_string();
+      if (er.dir == Direction::kOut) {
+        graph.SetEdgeData(true, src_label, er.src, dst_label, er.dst, label_id,
+                          prop, col_id);
+        graph.SetEdgeData(false, dst_label, er.dst, src_label, er.src, label_id,
+                          prop, col_id);
+      } else {
+        graph.SetEdgeData(false, dst_label, er.dst, src_label, er.src, label_id,
+                          prop, col_id);
+        graph.SetEdgeData(true, src_label, er.src, dst_label, er.dst, label_id,
+                          prop, col_id);
       }
 
-      // We also need to update the edge data stored in previous columns in
-      // context, for consistency.
-      edge_col->set_edge_data(ind, col_id, value);
-      LOG(INFO) << "After insert " << value.to_string();
+      LOG(INFO) << "After insert " << prop.to_string();
     }
   }
   return gs::result<Context>(std::move(ctx));

@@ -13,9 +13,10 @@
  * limitations under the License.
  */
 
-#ifndef EXECUTION_COMMON_UTILS_BITSET_H_
-#define EXECUTION_COMMON_UTILS_BITSET_H_
+#ifndef INCLUDE_NEUG_EXECUTION_COMMON_UTILS_BITSET_H_
+#define INCLUDE_NEUG_EXECUTION_COMMON_UTILS_BITSET_H_
 
+#include <memory>
 #include <utility>
 
 #include "libgrape-lite/grape/io/local_io_adaptor.h"
@@ -223,4 +224,4 @@ class Bitset : public SPAllocator<uint64_t> {
 #undef ROUND_UP
 #undef ROUND_DOWN
 
-#endif  // EXECUTION_COMMON_UTILS_BITSET_H_
+#endif  // INCLUDE_NEUG_EXECUTION_COMMON_UTILS_BITSET_H_

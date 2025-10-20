@@ -39,7 +39,7 @@ namespace ops {
 
 class DedupInsertOpr : public IInsertOperator {
  public:
-  DedupInsertOpr(const std::vector<size_t>& keys) : keys(keys) {}
+  explicit DedupInsertOpr(const std::vector<size_t>& keys) : keys(keys) {}
 
   template <typename GraphInterface>
   gs::result<gs::runtime::WriteContext> eval_impl(

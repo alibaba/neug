@@ -13,8 +13,11 @@
  * limitations under the License.
  */
 
-#ifndef EXECUTION_EXECUTE_UPDATE_OPS_PATH_H_
-#define EXECUTION_EXECUTE_UPDATE_OPS_PATH_H_
+#ifndef INCLUDE_NEUG_EXECUTION_EXECUTE_OPS_UPDATE_PATH_H_
+#define INCLUDE_NEUG_EXECUTION_EXECUTE_OPS_UPDATE_PATH_H_
+
+#include <memory>
+#include <vector>
 
 #include "neug/execution/execute/operator.h"
 
@@ -54,8 +57,9 @@ class UPathExpandOprBuilder : public IUpdateOperatorBuilder {
     return {physical::PhysicalOpr_Operator::OpKindCase::kPath};
   }
 };
+
 }  // namespace ops
 }  // namespace runtime
 }  // namespace gs
 
-#endif  // EXECUTION_EXECUTE_UPDATE_OPS_PATH_H_
+#endif  // INCLUDE_NEUG_EXECUTION_EXECUTE_OPS_UPDATE_PATH_H_

@@ -141,7 +141,7 @@ def test_add_multiple_edge_properties():
 
 
 def test_add_multiple_edge_properties2():
-    db_dir = "/tmp/test_add_multiple_edge_triplet"
+    db_dir = "/tmp/test_add_multiple_edge_triplet2"
     shutil.rmtree(db_dir, ignore_errors=True)
 
     db = Database(db_dir, "w")

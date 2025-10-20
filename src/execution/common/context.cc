@@ -20,7 +20,6 @@
 #include "neug/execution/common/columns/i_context_column.h"
 #include "neug/execution/common/columns/value_columns.h"
 #include "neug/execution/common/columns/vertex_columns.h"
-#include "neug/execution/common/rt_any.h"
 
 namespace gs {
 
@@ -197,7 +196,11 @@ void Context::show(const GraphInterface& graph) const {
           columns[ci]->column_type() == ContextColumnType::kVertex) {
         auto v = std::dynamic_pointer_cast<IVertexColumn>(columns[ci])
                      ->get_vertex(ri);
-        line += graph.GetVertexId(v.label_, v.vid_).to_string();
+        if (v.vid_ == std::numeric_limits<vid_t>::max()) {
+          line += "(null)";
+        } else {
+          line += graph.GetVertexId(v.label_, v.vid_).to_string();
+        }
         line += ", ";
       } else if (columns[ci] != nullptr) {
         line += columns[ci]->get_elem(ri).to_string();

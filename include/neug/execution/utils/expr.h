@@ -12,8 +12,8 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-#ifndef RUNTIME_UTILS_RUNTIME_EXPR_H_
-#define RUNTIME_UTILS_RUNTIME_EXPR_H_
+#ifndef INCLUDE_NEUG_EXECUTION_UTILS_EXPR_H_
+#define INCLUDE_NEUG_EXECUTION_UTILS_EXPR_H_
 
 #include <stddef.h>
 #include <map>
@@ -21,10 +21,10 @@
 #include <string>
 
 #include "neug/execution/common/graph_interface.h"
-#include "neug/execution/common/rt_any.h"
 #include "neug/execution/utils/expr_impl.h"
 #include "neug/execution/utils/var.h"
 #include "neug/utils/property/types.h"
+#include "neug/utils/runtime/rt_any.h"
 
 namespace common {
 class Expression;
@@ -53,7 +53,7 @@ class Expr {
   RTAny eval_path(size_t idx, Arena&) const;
   RTAny eval_vertex(label_t label, vid_t v, size_t idx, Arena&) const;
   RTAny eval_edge(const LabelTriplet& label, vid_t src, vid_t dst,
-                  const Any& data, size_t idx, Arena&) const;
+                  const void* data_ptr, size_t idx, Arena&) const;
 
   RTAnyType type() const;
 
@@ -70,4 +70,4 @@ class Expr {
 
 }  // namespace gs
 
-#endif  // RUNTIME_UTILS_RUNTIME_EXPR_H_
+#endif  // INCLUDE_NEUG_EXECUTION_UTILS_EXPR_H_

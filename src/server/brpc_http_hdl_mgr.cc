@@ -24,7 +24,7 @@
 
 namespace server {
 
-void cleanup(void* ptr) { delete (int*) ptr; }
+void cleanup(void* ptr) { delete reinterpret_cast<int*>(ptr); }
 
 bool append_plugin_id(const physical::PhysicalPlan& physical_plan,
                       std::string& plan_proto_str, bool& update_schema,

@@ -58,15 +58,15 @@ void OSSConf::load_conf_from_env() {
 
 class UserRetryStrategy : public AlibabaCloud::OSS::RetryStrategy {
  public:
-  UserRetryStrategy(long maxRetries = 3, long scaleFactor = 300)
+  explicit UserRetryStrategy(int64_t maxRetries = 3, int64_t scaleFactor = 300)
       : m_scaleFactor(scaleFactor), m_maxRetries(maxRetries) {}
 
   bool shouldRetry(const AlibabaCloud::OSS::Error& error,
-                   long attemptedRetries) const {
+                   int64_t attemptedRetries) const {
     if (attemptedRetries >= m_maxRetries)
       return false;
 
-    long responseCode = error.Status();
+    int64_t responseCode = error.Status();
 
     // http code
     if ((responseCode == 403 &&
@@ -87,20 +87,20 @@ class UserRetryStrategy : public AlibabaCloud::OSS::RetryStrategy {
         return true;
       default:
         break;
-      };
+      }
     }
 
     return false;
   }
 
-  long calcDelayTimeMs(const AlibabaCloud::OSS::Error& error,
-                       long attemptedRetries) const {
+  int64_t calcDelayTimeMs(const AlibabaCloud::OSS::Error& error,
+                          int64_t attemptedRetries) const {
     return (1 << attemptedRetries) * m_scaleFactor;
   }
 
  private:
-  long m_scaleFactor;
-  long m_maxRetries;
+  int64_t m_scaleFactor;
+  int64_t m_maxRetries;
 };
 
 template <typename ResultT>

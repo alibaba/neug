@@ -14,9 +14,12 @@
  */
 
 #include "neug/main/query_result.h"
-#include "neug/utils/exception/exception.h"
 
 #include <glog/logging.h>
+#include <stdint.h>
+#include <memory>
+#include <ostream>
+#include "neug/utils/exception/exception.h"
 
 namespace gs {
 
@@ -62,7 +65,7 @@ RecordLine QueryResult::next() {
 }
 
 RecordLine QueryResult::operator[](int index) {
-  if (index < 0 || index >= (int) result_.results_size()) {
+  if (index < 0 || index >= static_cast<int>(result_.results_size())) {
     THROW_RUNTIME_ERROR("Index out of range");
   }
   return record_to_entries_vec(

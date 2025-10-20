@@ -13,8 +13,8 @@
  * limitations under the License.
  */
 
-#ifndef ENGINES_GRAPH_DB_DATABASE_INSERT_TRANSACTION_H_
-#define ENGINES_GRAPH_DB_DATABASE_INSERT_TRANSACTION_H_
+#ifndef INCLUDE_NEUG_TRANSACTION_INSERT_TRANSACTION_H_
+#define INCLUDE_NEUG_TRANSACTION_INSERT_TRANSACTION_H_
 
 #include <stddef.h>
 #include <stdint.h>
@@ -28,6 +28,7 @@
 #include "libgrape-lite/grape/serialization/in_archive.h"
 #include "neug/storages/graph/schema.h"
 #include "neug/utils/allocators.h"
+#include "neug/utils/property/property.h"
 #include "neug/utils/property/types.h"
 
 namespace gs {
@@ -35,111 +36,114 @@ namespace gs {
 class PropertyGraph;
 class IWalWriter;
 class IVersionManager;
-class NeugDBSession;
 class Schema;
 
 /**
  * @brief Transaction for inserting new vertices and edges into the graph.
- * 
- * InsertTransaction handles the insertion of new graph elements with ACID guarantees.
- * It maintains a Write-Ahead Log (WAL) for durability and tracks added vertices
- * to resolve edge insertions that reference newly added vertices.
- * 
+ *
+ * InsertTransaction handles the insertion of new graph elements with ACID
+ * guarantees. It maintains a Write-Ahead Log (WAL) for durability and tracks
+ * added vertices to resolve edge insertions that reference newly added
+ * vertices.
+ *
  * **Key Features:**
  * - Write-Ahead Logging for durability
  * - Vertex insertion with property validation
  * - Edge insertion with vertex existence checking
  * - Automatic vertex resolution for new edges
  * - Transaction commit/abort semantics
- * 
+ *
  * **Implementation Details:**
  * - Uses grape::OutArchive for serializing operations to WAL
  * - Maintains added_vertices_ map to track new vertices
  * - Destructor calls Abort() for cleanup
  * - Validates property types against schema
- * 
+ *
  * @since v0.1.0
  */
 class InsertTransaction {
  public:
   /**
    * @brief Construct an InsertTransaction.
-   * 
+   *
    * @param session Reference to the database session
    * @param graph Reference to the property graph (mutable for insertions)
    * @param alloc Reference to memory allocator
    * @param logger Reference to WAL writer
    * @param vm Reference to version manager
    * @param timestamp Transaction timestamp
-   * 
-   * Implementation: Stores references and initializes WAL archive with WalHeader.
-   * 
+   *
+   * Implementation: Stores references and initializes WAL archive with
+   * WalHeader.
+   *
    * @since v0.1.0
    */
-  InsertTransaction(const NeugDBSession& session, PropertyGraph& graph,
-                    Allocator& alloc, IWalWriter& logger, IVersionManager& vm,
-                    timestamp_t timestamp);
+  InsertTransaction(PropertyGraph& graph, Allocator& alloc, IWalWriter& logger,
+                    IVersionManager& vm, timestamp_t timestamp);
 
   /**
    * @brief Destructor that calls Abort().
-   * 
-   * Implementation: Calls Abort() to ensure proper cleanup and release resources.
-   * 
+   *
+   * Implementation: Calls Abort() to ensure proper cleanup and release
+   * resources.
+   *
    * @since v0.1.0
    */
   ~InsertTransaction();
 
   /**
    * @brief Add a new vertex to the transaction.
-   * 
-   * Validates properties against schema and serializes the vertex insertion to WAL.
-   * Tracks the added vertex for later edge resolution.
-   * 
+   *
+   * Validates properties against schema and serializes the vertex insertion to
+   * WAL. Tracks the added vertex for later edge resolution.
+   *
    * @param label Vertex label/type
    * @param id Vertex primary key value
    * @param props Vector of property values matching schema order
    * @return true if vertex added successfully, false if validation fails
-   * 
-   * Implementation: Validates property count against schema, serializes operation
-   * to arc_ with op_type=0, adds vertex to added_vertices_ tracking map.
-   * 
+   *
+   * Implementation: Validates property count against schema, serializes
+   * operation to arc_ with op_type=0, adds vertex to added_vertices_ tracking
+   * map.
+   *
    * @since v0.1.0
    */
-  bool AddVertex(label_t label, const Any& id, const std::vector<Any>& props);
+  bool AddVertex(label_t label, const Any& id, const std::vector<Prop>& props);
 
   /**
    * @brief Add a new edge to the transaction.
-   * 
-   * Checks for existence of source and destination vertices (including newly added ones),
-   * then serializes the edge insertion to WAL.
-   * 
+   *
+   * Checks for existence of source and destination vertices (including newly
+   * added ones), then serializes the edge insertion to WAL.
+   *
    * @param src_label Source vertex label
    * @param src Source vertex ID
-   * @param dst_label Destination vertex label  
+   * @param dst_label Destination vertex label
    * @param dst Destination vertex ID
    * @param edge_label Edge label/type
    * @param prop Edge property value
    * @return true if edge added successfully, false if vertices don't exist
-   * 
+   *
    * Implementation: Uses graph.get_lid() and added_vertices_ to find vertices,
    * serializes operation to arc_ with op_type=1.
-   * 
+   *
    * @since v0.1.0
    */
   bool AddEdge(label_t src_label, const Any& src, label_t dst_label,
-               const Any& dst, label_t edge_label, const Any& prop);
+               const Any& dst, label_t edge_label,
+               const std::vector<Prop>& properties);
 
   /**
    * @brief Commit the transaction.
-   * 
+   *
    * Writes the WAL data to persistent storage and releases the timestamp.
    * Returns early if no operations were performed.
-   * 
+   *
    * @return true if commit successful
-   * 
+   *
    * Implementation: Checks if any operations in arc_, writes WAL via logger_,
    * calls vm_.release_insert_timestamp(), then calls clear().
-   * 
+   *
    * @since v0.1.0
    */
   bool Commit();
@@ -153,16 +157,12 @@ class InsertTransaction {
 
   const Schema& schema() const;
 
-  const NeugDBSession& GetSession() const;
-
  private:
   void clear();
 
   static bool get_vertex_with_retries(PropertyGraph& graph, label_t label,
                                       const Any& oid, vid_t& lid,
                                       timestamp_t timestamp);
-  const NeugDBSession& session_;
-
   grape::InArchive arc_;
 
   std::set<std::pair<label_t, Any>> added_vertices_;
@@ -177,4 +177,4 @@ class InsertTransaction {
 
 }  // namespace gs
 
-#endif  // ENGINES_GRAPH_DB_DATABASE_INSERT_TRANSACTION_H_
+#endif  // INCLUDE_NEUG_TRANSACTION_INSERT_TRANSACTION_H_

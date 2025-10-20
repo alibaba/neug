@@ -22,12 +22,44 @@
 #include "neug/execution/execute/ops/batch/batch_update_utils.h"
 #include "neug/storages/graph/property_graph.h"
 #include "neug/storages/graph/schema.h"
-#include "neug/storages/loader/abstract_arrow_fragment_loader.h"
 #include "neug/transaction/update_transaction.h"
 #include "neug/utils/exception/exception.h"
 #include "neug/utils/pb_utils.h"
+#include "neug/utils/property/property.h"
 
 namespace gs {
+
+Any prop_to_any(const Prop& prop) {
+  switch (prop.type()) {
+  case PropType::kInt32:
+    return Any(PropUtils<int32_t>::to_typed(prop));
+  case PropType::kUInt32:
+    return Any(PropUtils<uint32_t>::to_typed(prop));
+  case PropType::kInt64:
+    return Any(PropUtils<int64_t>::to_typed(prop));
+  case PropType::kUInt64:
+    return Any(PropUtils<uint64_t>::to_typed(prop));
+  case PropType::kString:
+    return Any(PropUtils<std::string_view>::to_typed(prop));
+  case PropType::kFloat:
+    return Any(PropUtils<float>::to_typed(prop));
+  case PropType::kDouble:
+    return Any(PropUtils<double>::to_typed(prop));
+  case PropType::kTimestamp:
+    return Any(PropUtils<TimeStamp>::to_typed(prop));
+  case PropType::kDate:
+    return Any(PropUtils<Date>::to_typed(prop));
+  case PropType::kDateTime:
+    return Any(PropUtils<DateTime>::to_typed(prop));
+  case PropType::kInterval:
+    return Any(PropUtils<Interval>::to_typed(prop));
+  case PropType::kEmpty:
+    return Any(grape::EmptyType());
+  default:
+    LOG(FATAL) << "Unsupported Prop type: " << static_cast<int>(prop.type());
+    return Any();
+  }
+}
 namespace runtime {
 class OprTimer;
 
@@ -58,7 +90,7 @@ class BatchInsertVertexOpr : public IUpdateOperator {
 
 class InsertVertexOpr : public IUpdateOperator {
  public:
-  using vertex_prop_vec_t = std::vector<std::pair<std::string, Any>>;
+  using vertex_prop_vec_t = std::vector<std::pair<std::string, Prop>>;
   InsertVertexOpr(std::vector<std::tuple<label_t, vertex_prop_vec_t, int32_t>>&&
                       vertex_data)
       : vertex_data_(std::move(vertex_data)) {}
@@ -83,26 +115,10 @@ gs::result<Context> BatchInsertVertexOpr::Eval(
     const std::map<std::string, std::string>& params, Context&& ctx,
     OprTimer* timer) {
   auto suppliers = create_record_batch_supplier(ctx, prop_mappings_);
-  std::string work_dir =
-      (graph.work_dir() == "" ? "." : graph.work_dir()) + "/vertex_" +
-      graph.schema().get_vertex_label_name(vertex_label_id_) + "/";
-  if (std::filesystem::exists(work_dir)) {
-    std::filesystem::remove_all(work_dir);
-  }
-  auto res = AbstractArrowFragmentLoader::batch_load_vertices(
-      graph.schema(), work_dir, vertex_label_id_, suppliers);
-  if (!res) {
-    RETURN_ERROR(res.error());
-  }
-  auto [ids, table] = std::move(res.value());
-  if (!graph
-           .batch_add_vertices(vertex_label_id_, std::move(ids),
-                               std::move(table))
-           .ok()) {
-    THROW_INTERNAL_EXCEPTION("Failed to add vertices");
-  }
-  if (std::filesystem::exists(work_dir)) {
-    std::filesystem::remove_all(work_dir);
+  for (auto supplier : suppliers) {
+    if (!graph.batch_add_vertices(vertex_label_id_, supplier).ok()) {
+      THROW_INTERNAL_EXCEPTION("Failed to add vertices");
+    }
   }
   return gs::result<Context>(std::move(ctx));
 }
@@ -139,8 +155,8 @@ std::unique_ptr<IUpdateOperator> BatchInsertVertexOprBuilder::Build(
       prop_mappings);
 }
 
-std::pair<Any, std::vector<Any>> get_pk_and_prop_values(
-    const std::vector<std::pair<std::string, Any>>& properties,
+std::pair<Any, std::vector<Prop>> get_pk_and_prop_values(
+    const std::vector<std::pair<std::string, Prop>>& properties,
     const std::string& pk_name, const PropertyType& pk_type,
     const std::vector<std::string>& properties_name,
     const std::vector<PropertyType>& properties_type) {
@@ -152,7 +168,7 @@ std::pair<Any, std::vector<Any>> get_pk_and_prop_values(
   }
 
   Any pk_value;
-  std::vector<Any> prop_values;
+  std::vector<Prop> prop_values;
   // The order should match the schema
   bool pk_found = false;
   for (size_t i = 0; i < properties.size(); ++i) {
@@ -161,11 +177,12 @@ std::pair<Any, std::vector<Any>> get_pk_and_prop_values(
     const auto& prop_value = prop.second;
     if (!pk_found && prop_name == pk_name) {
       pk_found = true;
-      if (prop_value.type != pk_type) {
+      if (prop_value.type() != to_prop_type(pk_type)) {
         THROW_RUNTIME_ERROR("Primary key type mismatch for property " +
                             prop_name);
       }
-      pk_value = prop_value;
+      pk_value = prop_to_any(
+          prop_value);  // TODO(zhanglei): Primary key should also use Any
     } else {
       auto it =
           std::find(properties_name.begin(), properties_name.end(), prop_name);
@@ -177,11 +194,11 @@ std::pair<Any, std::vector<Any>> get_pk_and_prop_values(
                          << " has empty type, skipping.";
             continue;
           }
-          if (prop_value.type != properties_type[idx]) {
-            THROW_RUNTIME_ERROR("Property type mismatch for property " +
-                                prop_name + ": expected " +
-                                properties_type[idx].ToString() + ", got " +
-                                prop_value.type.ToString());
+          if (prop_value.type() != to_prop_type(properties_type[idx])) {
+            THROW_RUNTIME_ERROR(
+                "Property type mismatch for property " + prop_name +
+                ": expected " + properties_type[idx].ToString() + ", got " +
+                std::to_string(static_cast<int>(prop_value.type())));
           }
           prop_values.push_back(prop_value);
         } else {
@@ -235,7 +252,7 @@ gs::result<Context> InsertVertexOpr::eval_impl(
                           std::to_string(properties_name.size() + 1));
     }
     Any pk_value;
-    std::vector<Any> prop_values;
+    std::vector<Prop> prop_values;
     std::tie(pk_value, prop_values) =
         get_pk_and_prop_values(properties, std::get<1>(pk), std::get<0>(pk),
                                properties_name, properties_type);
@@ -307,7 +324,7 @@ std::unique_ptr<IUpdateOperator> InsertVertexOprBuilder::Build(
         THROW_RUNTIME_ERROR("Property value must have exactly one operator");
       }
       properties.emplace_back(prop.property().key().name(),
-                              expr_opr_value_to_any(prop.data().operators(0)));
+                              expr_opr_value_to_prop(prop.data().operators(0)));
     }
     vertex_data.emplace_back(vertex_label_id, properties, entry.alias().id());
   }

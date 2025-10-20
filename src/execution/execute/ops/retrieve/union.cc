@@ -35,7 +35,7 @@ class OprTimer;
 namespace ops {
 class UnionOpr : public IReadOperator {
  public:
-  UnionOpr(std::vector<ReadPipeline>&& sub_plans)
+  explicit UnionOpr(std::vector<ReadPipeline>&& sub_plans)
       : sub_plans_(std::move(sub_plans)) {}
 
   std::string get_operator_name() const override { return "UnionOpr"; }
@@ -82,7 +82,7 @@ gs::result<ReadOpBuildResultT> UnionOprBuilder::Build(
     sub_plans.emplace_back(std::move(pair.first));
     sub_metas.push_back(pair.second);
   }
-  // TODO: check sub metas consisitency
+  // TODO(liulexiao): check sub metas consisitency
   return std::make_pair(std::make_unique<UnionOpr>(std::move(sub_plans)),
                         *sub_metas.rbegin());
 }

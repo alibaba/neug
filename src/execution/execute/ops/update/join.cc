@@ -52,10 +52,9 @@ class JoinUpdateOpr : public IUpdateOperator {
 
   std::string get_operator_name() const override { return "JoinOpr"; }
 
-  virtual gs::result<Context> Eval(
-      gs::runtime::GraphUpdateInterface& graph,
-      const std::map<std::string, std::string>& params, Context&& ctx,
-      OprTimer* timer) override {
+  gs::result<Context> Eval(gs::runtime::GraphUpdateInterface& graph,
+                           const std::map<std::string, std::string>& params,
+                           Context&& ctx, OprTimer* timer) override {
     gs::runtime::Context ret_dup(ctx);
     std::unique_ptr<OprTimer> left_timer =
         (timer == nullptr ? nullptr : std::make_unique<OprTimer>());

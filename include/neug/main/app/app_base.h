@@ -13,10 +13,9 @@
  * limitations under the License.
  */
 
-#ifndef ENGINES_GRAPH_DB_APP_BASE_H_
-#define ENGINES_GRAPH_DB_APP_BASE_H_
+#ifndef INCLUDE_NEUG_MAIN_APP_APP_BASE_H_
+#define INCLUDE_NEUG_MAIN_APP_APP_BASE_H_
 
-#include <dlfcn.h>
 #include <glog/logging.h>
 #include <stdint.h>
 #include <string.h>
@@ -24,9 +23,6 @@
 #include <iostream>
 #include <limits>
 #include <string>
-#include <vector>
-
-#include "neug/utils/app_utils.h"
 
 namespace gs {
 
@@ -113,8 +109,6 @@ class AppWrapper {
   void (*func_deletor_)(void*);
 };
 
-class NeugDBSession;
-
 class AppFactoryBase {
  public:
   AppFactoryBase() {}
@@ -125,7 +119,7 @@ class AppFactoryBase {
 
 class SharedLibraryAppFactory : public AppFactoryBase {
  public:
-  SharedLibraryAppFactory(const std::string& path);
+  explicit SharedLibraryAppFactory(const std::string& path);
 
   ~SharedLibraryAppFactory();
 
@@ -191,4 +185,4 @@ std::ostream& operator<<(std::ostream& out, const gs::AppBase::AppMode& mode);
 
 }  // namespace std
 
-#endif  // ENGINES_GRAPH_DB_APP_BASE_H_
+#endif  // INCLUDE_NEUG_MAIN_APP_APP_BASE_H_

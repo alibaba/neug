@@ -13,8 +13,8 @@
  * limitations under the License.
  */
 
-#ifndef UTILS_APP_UTILS_H_
-#define UTILS_APP_UTILS_H_
+#ifndef INCLUDE_NEUG_UTILS_APP_UTILS_H_
+#define INCLUDE_NEUG_UTILS_APP_UTILS_H_
 
 #include <cstddef>
 #include <cstdint>
@@ -26,7 +26,7 @@ namespace gs {
 
 class Encoder {
  public:
-  Encoder(std::vector<char>& buf) : buf_(buf) {}
+  explicit Encoder(std::vector<char>& buf) : buf_(buf) {}
 
   void put_long(int64_t v);
 
@@ -110,4 +110,4 @@ class Decoder {
 
 }  // namespace gs
 
-#endif  // UTILS_APP_UTILS_H_
+#endif  // INCLUDE_NEUG_UTILS_APP_UTILS_H_

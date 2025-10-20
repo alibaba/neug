@@ -13,11 +13,9 @@
  * limitations under the License.
  */
 
-#ifndef EXECUTION_COMMON_RT_ANY_H_
-#define EXECUTION_COMMON_RT_ANY_H_
+#ifndef INCLUDE_NEUG_UTILS_RUNTIME_RT_ANY_H_
+#define INCLUDE_NEUG_UTILS_RUNTIME_RT_ANY_H_
 
-#include <arrow/type.h>
-#include <assert.h>
 #include <glog/logging.h>
 #include <compare>
 #include <cstdint>
@@ -30,17 +28,14 @@
 #include <string_view>
 #include <tuple>
 #include <type_traits>
-#include <typeinfo>
 #include <unordered_set>
 #include <utility>
 #include <variant>
 #include <vector>
 
-#include "libgrape-lite/grape/types.h"
-#include "neug/execution/common/graph_interface.h"
 #include "neug/execution/common/types.h"
-#include "neug/utils/app_utils.h"
 #include "neug/utils/property/types.h"
+
 #ifdef USE_SYSTEM_PROTOBUF
 #include "neug/generated/proto/plan/basic_type.pb.h"
 #include "neug/generated/proto/plan/results.pb.h"
@@ -56,12 +51,12 @@ class DataType;
 }  // namespace arrow
 namespace common {
 class Value;
+class IrDataType;
 }  // namespace common
-namespace results {
-class Column;
-}  // namespace results
 
 namespace gs {
+
+class Encoder;
 
 namespace runtime {
 
@@ -73,12 +68,15 @@ class CObject {
 using Arena = std::vector<std::unique_ptr<CObject>>;
 
 struct ArenaRef : public CObject {
-  ArenaRef(const std::shared_ptr<Arena>& arena) : arena_(arena) {}
+  explicit ArenaRef(const std::shared_ptr<Arena>& arena) : arena_(arena) {}
   std::shared_ptr<Arena> arena_;
 };
 
 class VertexRecord {
  public:
+  VertexRecord() = default;
+  VertexRecord(label_t label, vid_t vid) : label_(label), vid_(vid) {}
+
   bool operator<(const VertexRecord& v) const {
     if (label_ == v.label_) {
       return vid_ < v.vid_;
@@ -198,7 +196,7 @@ class PathImpl : public CObject {
 class Path {
  public:
   Path() = default;
-  Path(PathImpl* impl) : impl_(impl) {}
+  explicit Path(PathImpl* impl) : impl_(impl) {}
 
   std::string to_string() const { return impl_->to_string(); }
 
@@ -243,13 +241,10 @@ class ListImplBase : public CObject {
   virtual RTAny get(size_t idx) const = 0;
 };
 
-template <typename T>
-class ListImpl;
-
 class List {
  public:
   List() = default;
-  List(ListImplBase* impl) : impl_(impl) {}
+  explicit List(ListImplBase* impl) : impl_(impl) {}
 
   bool operator<(const List& p) const { return *impl_ < *(p.impl_); }
   bool operator==(const List& p) const { return *(impl_) == *(p.impl_); }
@@ -272,13 +267,10 @@ class SetImplBase : public CObject {
   virtual RTAnyType type() const = 0;
 };
 
-template <typename T>
-class SetImpl;
-
 class Set {
  public:
   Set() = default;
-  Set(SetImplBase* impl) : impl_(impl) {}
+  explicit Set(SetImplBase* impl) : impl_(impl) {}
   void insert(const RTAny& val);
   bool operator<(const Set& p) const;
   bool operator==(const Set& p) const;
@@ -306,8 +298,8 @@ class TupleImpl : public TupleImplBase {
  public:
   TupleImpl() = default;
   ~TupleImpl() = default;
-  TupleImpl(Args&&... args) : values(std::forward<Args>(args)...) {}
-  TupleImpl(std::tuple<Args...>&& args) : values(std::move(args)) {}
+  explicit TupleImpl(Args&&... args) : values(std::forward<Args>(args)...) {}
+  explicit TupleImpl(std::tuple<Args...>&& args) : values(std::move(args)) {}
   bool operator<(const TupleImplBase& p) const override {
     return values < dynamic_cast<const TupleImpl<Args...>&>(p).values;
   }
@@ -340,7 +332,7 @@ class TupleImpl<RTAny> : public TupleImplBase {
  public:
   TupleImpl() = default;
   ~TupleImpl();
-  TupleImpl(std::vector<RTAny>&& val);
+  explicit TupleImpl(std::vector<RTAny>&& val);
   bool operator<(const TupleImplBase& p) const override;
   bool operator==(const TupleImplBase& p) const override;
   size_t size() const override;
@@ -363,7 +355,7 @@ class Tuple {
   }
 
   Tuple() = default;
-  Tuple(TupleImplBase* impl) : impl_(impl) {}
+  explicit Tuple(TupleImplBase* impl) : impl_(impl) {}
   bool operator<(const Tuple& p) const { return *impl_ < *(p.impl_); }
   bool operator==(const Tuple& p) const { return *impl_ == *(p.impl_); }
   size_t size() const { return impl_->size(); }
@@ -457,11 +449,12 @@ struct pod_string_view {
   size_t size_;
   pod_string_view() = default;
   pod_string_view(const pod_string_view& other) = default;
-  pod_string_view(const char* data) : data_(data), size_(strlen(data_)) {}
+  explicit pod_string_view(const char* data)
+      : data_(data), size_(strlen(data_)) {}
   pod_string_view(const char* data, size_t size) : data_(data), size_(size) {}
-  pod_string_view(const std::string& str)
+  explicit pod_string_view(const std::string& str)
       : data_(str.data()), size_(str.size()) {}
-  pod_string_view(const std::string_view& str)
+  explicit pod_string_view(const std::string_view& str)
       : data_(str.data()), size_(str.size()) {}
   const char* data() const { return data_; }
   size_t size() const { return size_; }
@@ -469,155 +462,26 @@ struct pod_string_view {
   std::string to_string() const { return std::string(data_, size_); }
 };
 // only for pod type
-struct EdgeData {
-  // PropertyType type;
-
-  template <typename T>
-  T as() const {
-    if constexpr (std::is_same_v<T, int32_t>) {
-      return value.i32_val;
-    } else if constexpr (std::is_same_v<T, int64_t>) {
-      return value.i64_val;
-    } else if constexpr (std::is_same_v<T, uint64_t>) {
-      return value.u64_val;
-    } else if constexpr (std::is_same_v<T, double>) {
-      return value.f64_val;
-    } else if constexpr (std::is_same_v<T, float>) {
-      return value.f32_val;
-    } else if constexpr (std::is_same_v<T, bool>) {
-      return value.b_val;
-    } else if constexpr (std::is_same_v<T, std::string_view>) {
-      return std::string_view(value.str_val.data(), value.str_val.size());
-    } else if constexpr (std::is_same_v<T, grape::EmptyType>) {
-      return grape::EmptyType();
-    } else if constexpr (std::is_same_v<T, TimeStamp>) {
-      return TimeStamp(value.ts_val);
-    } else if constexpr (std::is_same_v<T, RecordView>) {
-      return value.record_view;
-    } else {
-      THROW_NOT_SUPPORTED_EXCEPTION("not support for " +
-                                    std::string(typeid(T).name()));
-    }
-  }
-
-  template <typename T>
-  explicit EdgeData(T val) {
-    if constexpr (std::is_same_v<T, int32_t>) {
-      type = RTAnyType::kI32Value;
-      value.i32_val = val;
-    } else if constexpr (std::is_same_v<T, uint32_t>) {
-      type = RTAnyType::kU32Value;
-      value.u32_val = val;
-    } else if constexpr (std::is_same_v<T, int64_t>) {
-      type = RTAnyType::kI64Value;
-      value.i64_val = val;
-    } else if constexpr (std::is_same_v<T, uint64_t>) {
-      type = RTAnyType::kU64Value;
-      value.u64_val = val;
-    } else if constexpr (std::is_same_v<T, float>) {
-      type = RTAnyType::kF32Value;
-      value.f32_val = static_cast<float>(val);
-    } else if constexpr (std::is_same_v<T, double>) {
-      type = RTAnyType::kF64Value;
-      value.f64_val = val;
-    } else if constexpr (std::is_same_v<T, bool>) {
-      type = RTAnyType::kBoolValue;
-      value.b_val = val;
-    } else if constexpr (std::is_same_v<T, std::string_view>) {
-      type = RTAnyType::kStringValue;
-      value.str_val = val;
-    } else if constexpr (std::is_same_v<T, grape::EmptyType>) {
-      type = RTAnyType::kEmpty;
-    } else if constexpr (std::is_same_v<T, TimeStamp>) {
-      type = RTAnyType::kTimestamp;
-      value.ts_val = val;
-    } else if constexpr (std::is_same_v<T, Date>) {
-      type = RTAnyType::kDate;
-      value.date_val = val;
-    } else if constexpr (std::is_same_v<T, DateTime>) {
-      type = RTAnyType::kDateTime;
-      value.dt_val = val;
-    } else if constexpr (std::is_same_v<T, Interval>) {
-      type = RTAnyType::kInterval;
-      value.interval_val = val;
-    } else if constexpr (std::is_same_v<T, RecordView>) {
-      type = RTAnyType::kRecordView;
-      value.record_view = val;
-    } else {
-      THROW_NOT_SUPPORTED_EXCEPTION("not support for " +
-                                    std::string(typeid(T).name()));
-    }
-  }
-
-  std::string to_string() const;
-
-  EdgeData() = default;
-
-  EdgeData(const Any& any);
-
-  bool operator<(const EdgeData& e) const;
-
-  bool operator==(const EdgeData& e) const;
-  RTAnyType type;
-
-  union {
-    int32_t i32_val;
-    uint32_t u32_val;
-    int64_t i64_val;
-    uint64_t u64_val;
-    float f32_val;
-    double f64_val;
-    bool b_val;
-    pod_string_view str_val;
-    DateTime dt_val;
-    Date date_val;
-    TimeStamp ts_val;
-    Interval interval_val;
-    RecordView record_view;
-    // todo: make recordview as a pod type
-    // RecordView record;
-  } value;
-};
 class EdgeRecord {
  public:
   bool operator<(const EdgeRecord& e) const {
-    return std::tie(src_, dst_, label_triplet_, prop_, dir_) <
-           std::tie(e.src_, e.dst_, e.label_triplet_, prop_, dir_);
+    return std::tie(src, dst, label) < std::tie(e.src, e.dst, e.label);
   }
   bool operator==(const EdgeRecord& e) const {
-    return std::tie(src_, dst_, label_triplet_, prop_, dir_) ==
-           std::tie(e.src_, e.dst_, e.label_triplet_, prop_, dir_);
-  }
-  vid_t src() const { return src_; }
-  vid_t dst() const { return dst_; }
-  LabelTriplet label_triplet() const { return label_triplet_; }
-  EdgeData prop() const { return prop_; }
-  Direction dir() const { return dir_; }
-  std::string to_string() const {
-    return "(" + std::to_string(static_cast<int>(label_triplet_.src_label)) +
-           "," + std::to_string(src_) + ")-[" +
-           std::to_string(static_cast<int>(label_triplet_.edge_label)) +
-           "]->(" + std::to_string(static_cast<int>(label_triplet_.dst_label)) +
-           "," + std::to_string(dst_) + ")";
+    return std::tie(src, dst, label) == std::tie(e.src, e.dst, e.label);
   }
 
-  Relation as_relation() const {
-    if (dir_ == Direction::kOut) {
-      return Relation{label_triplet_, src_, dst_};
-    } else {
-      return Relation{label_triplet_, dst_, src_};
-    }
-  }
+  Relation as_relation() const { return Relation{label, src, dst}; }
 
-  LabelTriplet label_triplet_;
-  vid_t src_, dst_;
-  EdgeData prop_;
-  Direction dir_;
+  LabelTriplet label;
+  vid_t src, dst;
+  const void* prop;
+  Direction dir;
 };
 RTAnyType parse_from_ir_data_type(const ::common::IrDataType& dt);
 
 union RTAnyValue {
-  // TODO delete it later
+  // TODO(liulexiao) delete it later
   RTAnyValue() {}
   ~RTAnyValue() {}
   VertexRecord vertex;
@@ -646,12 +510,11 @@ union RTAnyValue {
 class RTAny {
  public:
   RTAny();
-  RTAny(RTAnyType type);
-  RTAny(const Any& val);
+  explicit RTAny(RTAnyType type);
+  explicit RTAny(const Any& val);
   Any to_any() const;
-  RTAny(const EdgeData& val);
   RTAny(const RTAny& rhs);
-  RTAny(const Path& p);
+  explicit RTAny(const Path& p);
   ~RTAny() = default;
   bool is_null() const { return type_ == RTAnyType::kNull; }
 
@@ -714,76 +577,17 @@ class RTAny {
   RTAny operator/(const RTAny& other) const;
   RTAny operator%(const RTAny& other) const;
 
-  template <typename GraphInterface>
-  void sink(const GraphInterface& graph, int id, results::Column* column) const;
-
-  // convert RTAny value to element PB value
-  template <typename GraphInterface>
-  bool sink_element(const GraphInterface& graph, results::Element* element);
-
-  // convert RTAny value to entry PB value
-  template <typename GraphInterface>
-  void sink_entry(const GraphInterface& graph, results::Entry* entry) const;
-
-  template <typename GraphInterface>
-  void sink(const GraphInterface& graph, Encoder& encoder) const {
-    if (type_ == RTAnyType::kList) {
-      encoder.put_int(value_.list.size());
-      for (size_t i = 0; i < value_.list.size(); ++i) {
-        value_.list.get(i).sink(graph, encoder);
-      }
-    } else if (type_ == RTAnyType::kTuple) {
-      for (size_t i = 0; i < value_.t.size(); ++i) {
-        value_.t.get(i).sink(graph, encoder);
-      }
-    } else if (type_ == RTAnyType::kStringValue) {
-      encoder.put_string_view(value_.str_val);
-    } else if (type_ == RTAnyType::kDate) {
-      encoder.put_long(value_.date_val.to_timestamp());
-    } else if (type_ == RTAnyType::kDateTime) {
-      encoder.put_long(value_.dt_val.milli_second);
-    } else if (type_ == RTAnyType::kTimestamp) {
-      encoder.put_long(value_.ts_val.milli_second);
-    } else if (type_ == RTAnyType::kInterval) {
-      encoder.put_long(value_.interval_val.millisecond());
-    } else if (type_ == RTAnyType::kI64Value) {
-      encoder.put_long(value_.i64_val);
-    } else if (type_ == RTAnyType::kI32Value) {
-      encoder.put_int(value_.i32_val);
-    } else if (type_ == RTAnyType::kU32Value) {
-      encoder.put_uint(value_.u32_val);
-    } else if (type_ == RTAnyType::kF32Value) {
-      encoder.put_float(static_cast<float>(value_.f32_val));
-    } else if (type_ == RTAnyType::kF64Value) {
-      int64_t long_value;
-      std::memcpy(&long_value, &value_.f64_val, sizeof(long_value));
-      encoder.put_long(long_value);
-    } else if (type_ == RTAnyType::kBoolValue) {
-      encoder.put_byte(value_.b_val ? static_cast<uint8_t>(1)
-                                    : static_cast<uint8_t>(0));
-    } else if (type_ == RTAnyType::kSet) {
-      encoder.put_int(value_.set.size());
-      auto value = value_.set.values();
-      for (const auto& val : value) {
-        val.sink(graph, encoder);
-      }
-    } else if (type_ == RTAnyType::kVertex) {
-      encoder.put_byte(value_.vertex.label_);
-      encoder.put_int(value_.vertex.vid_);
-    } else {
-      THROW_NOT_SUPPORTED_EXCEPTION("sink not support for " +
-                                    std::string(typeid(*this).name()));
-    }
-  }
-
   void encode_sig(RTAnyType type, Encoder& encoder) const;
 
   std::string to_string() const;
 
   RTAnyType type() const;
 
- private:
+  const RTAnyValue& value() const { return value_; }
+
   void sink_impl(::common::Value* collection) const;
+
+ private:
   RTAnyType type_;
   RTAnyValue value_;
 };
@@ -850,17 +654,6 @@ struct TypedConverter<uint64_t> {
   static RTAny from_typed(uint64_t val) { return RTAny::from_uint64(val); }
   static const std::string name() { return "uint64"; }
 };
-
-#ifdef __APPLE__
-
-template <>
-struct TypedConverter<unsigned long> {
-  static RTAnyType type() { return RTAnyType::kU64Value; }
-  static uint64_t to_typed(const RTAny& val) { return val.as_uint64(); }
-  static RTAny from_typed(uint64_t val) { return RTAny::from_uint64(val); }
-  static const std::string name() { return "uint64"; }
-};
-#endif
 
 template <>
 struct TypedConverter<int64_t> {
@@ -1145,80 +938,6 @@ class SetImpl<VertexRecord> : public SetImplBase {
   std::unordered_set<int64_t> set_;
 };
 
-class EdgePropVecBase {
- public:
-  static std::shared_ptr<EdgePropVecBase> make_edge_prop_vec(PropertyType type);
-  virtual ~EdgePropVecBase() = default;
-  virtual size_t size() const = 0;
-  virtual void resize(size_t size) = 0;
-  virtual void reserve(size_t size) = 0;
-  virtual void clear() = 0;
-  virtual EdgeData get(size_t idx) const = 0;
-
-  virtual PropertyType type() const = 0;
-  virtual void set_any(size_t idx, EdgePropVecBase* other,
-                       size_t other_idx) = 0;
-};
-template <typename T>
-class EdgePropVec : public EdgePropVecBase {
- public:
-  ~EdgePropVec() {}
-
-  void push_back(const T& val) { prop_data_.push_back(val); }
-  void emplace_back(T&& val) { prop_data_.emplace_back(std::move(val)); }
-  size_t size() const override { return prop_data_.size(); }
-
-  EdgeData get(size_t idx) const override { return EdgeData(prop_data_[idx]); }
-
-  T get_view(size_t idx) const { return prop_data_[idx]; }
-  void resize(size_t size) override { prop_data_.resize(size); }
-  void clear() override { prop_data_.clear(); }
-  void reserve(size_t size) override { prop_data_.reserve(size); }
-  T operator[](size_t idx) const { return prop_data_[idx]; }
-  void set(size_t idx, const T& val) {
-    if (prop_data_.size() <= idx) {
-      prop_data_.resize(idx + 1);
-    }
-    prop_data_[idx] = val;
-  }
-
-  PropertyType type() const override { return AnyConverter<T>::type(); }
-
-  void set_any(size_t idx, EdgePropVecBase* other, size_t other_idx) override {
-    assert(dynamic_cast<EdgePropVec<T>*>(other) != nullptr);
-    set(idx, dynamic_cast<EdgePropVec<T>*>(other)->get_view(other_idx));
-  }
-
- private:
-  std::vector<T> prop_data_;
-};
-
-template <>
-class EdgePropVec<grape::EmptyType> : public EdgePropVecBase {
- public:
-  EdgePropVec() : size_(0) {}
-  ~EdgePropVec() {}
-  void push_back(const grape::EmptyType& val) { size_++; }
-  void emplace_back(grape::EmptyType&& val) { size_++; }
-  size_t size() const override { return size_; }
-
-  EdgeData get(size_t idx) const override {
-    return EdgeData(grape::EmptyType());
-  }
-
-  grape::EmptyType get_view(size_t idx) const { return grape::EmptyType(); }
-  void resize(size_t size) override { size_ = size; }
-  void clear() override {}
-  void reserve(size_t size) override {}
-  grape::EmptyType operator[](size_t idx) const { return grape::EmptyType(); }
-  void set(size_t idx, const grape::EmptyType& val) {}
-
-  PropertyType type() const override { return PropertyType::kEmpty; }
-
-  void set_any(size_t idx, EdgePropVecBase* other, size_t other_idx) override {}
-  size_t size_;
-};
-
 template <typename T>
 using is_view_type =
     std::disjunction<std::is_same<T, List>, std::is_same<T, Tuple>,
@@ -1235,10 +954,6 @@ inline ostream& operator<<(ostream& os, const gs::runtime::RTAny& any) {
   return os;
 }
 
-inline ostream& operator<<(ostream& os, const gs::runtime::EdgeData& data) {
-  os << data.to_string();
-  return os;
-}
 inline ostream& operator<<(ostream& os, const gs::runtime::Tuple& tuple) {
   os << tuple.to_string();
   return os;
@@ -1270,10 +985,10 @@ inline ostream& operator<<(ostream& os, const gs::runtime::VertexRecord& v) {
 }
 
 inline ostream& operator<<(ostream& os, const gs::runtime::EdgeRecord& e) {
-  os << e.to_string();
+  os << e.label.to_string() << " (" << e.src << "-" << e.dst << ")";
   return os;
 }
 
 }  // namespace std
 
-#endif  // EXECUTION_COMMON_RT_ANY_H_
+#endif  // INCLUDE_NEUG_UTILS_RUNTIME_RT_ANY_H_

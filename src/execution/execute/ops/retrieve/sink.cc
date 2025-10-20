@@ -34,7 +34,7 @@ namespace ops {
 
 class SinkOpr : public IReadOperator {
  public:
-  SinkOpr(const std::vector<int>& tag_ids) : tag_ids_(tag_ids) {}
+  explicit SinkOpr(const std::vector<int>& tag_ids) : tag_ids_(tag_ids) {}
 
   gs::result<Context> Eval(const GraphReadInterface& graph,
                            const std::map<std::string, std::string>& params,

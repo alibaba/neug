@@ -13,6 +13,15 @@
  * limitations under the License.
  */
 
+#ifndef INCLUDE_NEUG_EXECUTION_EXECUTE_WRITER_CSV_EXPORT_WRITER_H_
+#define INCLUDE_NEUG_EXECUTION_EXECUTE_WRITER_CSV_EXPORT_WRITER_H_
+
+#include <memory>
+#include <string>
+#include <unordered_map>
+#include <utility>
+#include <vector>
+
 #include "neug/execution/execute/writer/export_writer_factory.h"
 
 namespace gs {
@@ -45,5 +54,8 @@ class CsvExportWriter : public IExportWriter {
   char delimeter_;
   static const bool registered_;
 };
+
 }  // namespace runtime
 }  // namespace gs
+
+#endif  // INCLUDE_NEUG_EXECUTION_EXECUTE_WRITER_CSV_EXPORT_WRITER_H_

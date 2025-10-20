@@ -29,7 +29,6 @@
 #include "neug/execution/common/graph_interface.h"
 #include "neug/execution/common/operators/retrieve/get_v.h"
 #include "neug/execution/common/operators/update/get_v.h"
-#include "neug/execution/common/rt_any.h"
 #include "neug/execution/common/types.h"
 #include "neug/execution/utils/expr_impl.h"
 #include "neug/execution/utils/params.h"
@@ -71,9 +70,8 @@ class UGetVFromEdgeWithPredOpr : public IUpdateOperator {
     if (opr_.params().has_predicate()) {
       GeneralVertexPredicate pred(graph, ctx, params,
                                   opr_.params().predicate());
-      GeneralVertexPredicateWrapper vpred(pred);
       return GetV::get_vertex_from_edges(graph, std::move(ctx), v_params_,
-                                         vpred);
+                                         pred);
     } else {
       return GetV::get_vertex_from_edges(graph, std::move(ctx), v_params_,
                                          DummyVertexPredicate());

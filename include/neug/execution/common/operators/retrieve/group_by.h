@@ -13,15 +13,19 @@
  * limitations under the License.
  */
 
-#ifndef EXECUTION_COMMON_OPERATORS_RETRIEVE_GROUP_BY_H_
-#define EXECUTION_COMMON_OPERATORS_RETRIEVE_GROUP_BY_H_
+#ifndef INCLUDE_NEUG_EXECUTION_COMMON_OPERATORS_RETRIEVE_GROUP_BY_H_
+#define INCLUDE_NEUG_EXECUTION_COMMON_OPERATORS_RETRIEVE_GROUP_BY_H_
 
 #include <map>
+#include <memory>
+#include <set>
 #include <unordered_map>
+#include <utility>
 #include <vector>
 
 #include "neug/execution/common/columns/value_columns.h"
 #include "neug/execution/common/context.h"
+#include "neug/utils/app_utils.h"
 #include "neug/utils/result.h"
 #include "parallel_hashmap/phmap.h"
 namespace std {
@@ -232,4 +236,4 @@ class GroupBy {
 
 }  // namespace gs
 
-#endif  // EXECUTION_COMMON_OPERATORS_RETRIEVE_GROUP_BY_H_
+#endif  // INCLUDE_NEUG_EXECUTION_COMMON_OPERATORS_RETRIEVE_GROUP_BY_H_

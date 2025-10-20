@@ -13,8 +13,8 @@
  * limitations under the License.
  */
 
-#ifndef RUNTIME_UTILS_VAR_H_
-#define RUNTIME_UTILS_VAR_H_
+#ifndef INCLUDE_NEUG_EXECUTION_UTILS_VAR_H_
+#define INCLUDE_NEUG_EXECUTION_UTILS_VAR_H_
 
 #include <stddef.h>
 #include <memory>
@@ -23,8 +23,8 @@
 #include "neug/execution/common/accessors.h"
 #include "neug/execution/common/context.h"
 #include "neug/execution/common/graph_interface.h"
-#include "neug/execution/common/rt_any.h"
 #include "neug/utils/property/types.h"
+#include "neug/utils/runtime/rt_any.h"
 #ifdef USE_SYSTEM_PROTOBUF
 #include "neug/generated/proto/plan/common.pb.h"
 #include "neug/generated/proto/plan/expr.pb.h"
@@ -56,7 +56,7 @@ class VarGetterBase {
   virtual RTAny eval_path(size_t idx) const = 0;
   virtual RTAny eval_vertex(label_t label, vid_t v, size_t idx) const = 0;
   virtual RTAny eval_edge(const LabelTriplet& label, vid_t src, vid_t dst,
-                          const Any& data, size_t idx) const = 0;
+                          const void* data_ptr, size_t idx) const = 0;
   virtual std::string name() const = 0;
 };
 
@@ -70,7 +70,7 @@ class Var {
   RTAny get(size_t path_idx) const;
   RTAny get_vertex(label_t label, vid_t v, size_t idx) const;
   RTAny get_edge(const LabelTriplet& label, vid_t src, vid_t dst,
-                 const Any& data, size_t idx) const;
+                 const void* data_ptr, size_t idx) const;
 
   RTAnyType type() const;
   bool is_optional() const { return getter_->is_optional(); }
@@ -85,4 +85,4 @@ class Var {
 
 }  // namespace gs
 
-#endif  // RUNTIME_UTILS_VAR_H_
+#endif  // INCLUDE_NEUG_EXECUTION_UTILS_VAR_H_

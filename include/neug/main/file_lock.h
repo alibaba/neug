@@ -13,16 +13,14 @@
  * limitations under the License.
  */
 
-#ifndef SRC_MAIN_FILE_LOCK_H_
-#define SRC_MAIN_FILE_LOCK_H_
+#ifndef INCLUDE_NEUG_MAIN_FILE_LOCK_H_
+#define INCLUDE_NEUG_MAIN_FILE_LOCK_H_
 
+#include <cstdio>
 #include <filesystem>
-#include <fstream>
 #include <set>
 #include <string>
-#include "neug/utils/property/types.h"
-
-#include <glog/logging.h>
+#include "neug/config.h"
 
 namespace gs {
 
@@ -63,4 +61,4 @@ class FileLock {
 
 }  // namespace gs
 
-#endif  // SRC_MAIN_FILE_LOCK_H_
+#endif  // INCLUDE_NEUG_MAIN_FILE_LOCK_H_

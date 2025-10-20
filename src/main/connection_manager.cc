@@ -15,6 +15,12 @@
 
 #include "neug/main/connection_manager.h"
 
+#include <glog/logging.h>
+#include <ostream>
+#include "neug/config.h"
+#include "neug/main/connection.h"
+#include "neug/utils/exception/exception.h"
+
 namespace gs {
 
 void ConnectionManager::ConnectionManager::Close() {

@@ -15,6 +15,11 @@
 
 #pragma once
 
+#include <map>
+#include <memory>
+#include <string>
+#include <utility>
+
 #include "neug/execution/execute/operator.h"
 #include "neug/execution/extension/extension.h"
 
@@ -24,44 +29,51 @@ namespace ops {
 
 class ExtensionInstallOpr : public IAdminOperator {
  public:
-  ExtensionInstallOpr(std::string extension_name) 
+  explicit ExtensionInstallOpr(std::string extension_name)
       : extension_name_(std::move(extension_name)) {}
   ~ExtensionInstallOpr() override = default;
-  std::string get_operator_name() const override { return "ExtensionInstallOpr"; }
+  std::string get_operator_name() const override {
+    return "ExtensionInstallOpr";
+  }
   gs::result<Context> Eval(GraphUpdateInterface& graph,
                            const std::map<std::string, std::string>& params,
                            Context&& ctx, OprTimer* timer) override;
+
  private:
   std::string extension_name_;
 };
 
 class ExtensionLoadOpr : public IAdminOperator {
  public:
-  ExtensionLoadOpr(std::string extension_name) 
+  explicit ExtensionLoadOpr(std::string extension_name)
       : extension_name_(std::move(extension_name)) {}
   ~ExtensionLoadOpr() override = default;
   std::string get_operator_name() const override { return "ExtensionLoadOpr"; }
   gs::result<Context> Eval(GraphUpdateInterface& graph,
                            const std::map<std::string, std::string>& params,
                            Context&& ctx, OprTimer* timer) override;
+
  private:
   std::string extension_name_;
 };
 
 class ExtensionUninstallOpr : public IAdminOperator {
  public:
-  ExtensionUninstallOpr(std::string extension_name) 
+  explicit ExtensionUninstallOpr(std::string extension_name)
       : extension_name_(std::move(extension_name)) {}
   ~ExtensionUninstallOpr() override = default;
-  std::string get_operator_name() const override { return "ExtensionUninstallOpr"; }
+  std::string get_operator_name() const override {
+    return "ExtensionUninstallOpr";
+  }
   gs::result<Context> Eval(GraphUpdateInterface& graph,
                            const std::map<std::string, std::string>& params,
                            Context&& ctx, OprTimer* timer) override;
+
  private:
   std::string extension_name_;
 };
 
-//Builders
+// Builders
 class ExtensionInstallOprBuilder : public IAdminOperatorBuilder {
  public:
   ExtensionInstallOprBuilder() = default;

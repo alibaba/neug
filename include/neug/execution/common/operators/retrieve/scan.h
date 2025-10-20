@@ -13,13 +13,15 @@
  * limitations under the License.
  */
 
-#ifndef EXECUTION_COMMON_OPERATORS_RETRIEVE_SCAN_H_
-#define EXECUTION_COMMON_OPERATORS_RETRIEVE_SCAN_H_
+#ifndef INCLUDE_NEUG_EXECUTION_COMMON_OPERATORS_RETRIEVE_SCAN_H_
+#define INCLUDE_NEUG_EXECUTION_COMMON_OPERATORS_RETRIEVE_SCAN_H_
 
 #include <stdint.h>
 
 #include <compare>
+#include <map>
 #include <memory>
+#include <string>
 #include <string_view>
 #include <utility>
 #include <vector>
@@ -44,30 +46,17 @@ class Scan {
                                          const GraphReadInterface& graph,
                                          const ScanParams& params,
                                          const PRED_T& predicate) {
-    if (params.tables.size() == 1) {
-      label_t label = params.tables[0];
-      MSVertexColumnBuilder builder(label);
+    MSVertexColumnBuilder builder(params.tables[0]);
+    for (auto label : params.tables) {
       auto vertices = graph.GetVertexSet(label);
+      builder.start_label(label);
       for (auto vid : vertices) {
-        if (predicate(label, vid)) {
+        if (predicate(label, vid, 0)) {
           builder.push_back_opt(vid);
         }
       }
-      ctx.set(params.alias, builder.finish());
-    } else if (params.tables.size() > 1) {
-      MSVertexColumnBuilder builder;
-
-      for (auto label : params.tables) {
-        auto vertices = graph.GetVertexSet(label);
-        builder.start_label(label);
-        for (auto vid : vertices) {
-          if (predicate(label, vid)) {
-            builder.push_back_opt(vid);
-          }
-        }
-      }
-      ctx.set(params.alias, builder.finish());
     }
+    ctx.set(params.alias, builder.finish());
     return ctx;
   }
 
@@ -84,14 +73,14 @@ class Scan {
         if (cur_limit <= 0) {
           break;
         }
-        if (predicate(label, vid)) {
+        if (predicate(label, vid, 0)) {
           builder.push_back_opt(vid);
           cur_limit--;
         }
       }
       ctx.set(params.alias, builder.finish());
     } else if (params.tables.size() > 1) {
-      MSVertexColumnBuilder builder;
+      MSVertexColumnBuilder builder(params.tables[0]);
       for (auto label : params.tables) {
         if (cur_limit <= 0) {
           break;
@@ -102,7 +91,7 @@ class Scan {
           if (cur_limit <= 0) {
             break;
           }
-          if (predicate(label, vid)) {
+          if (predicate(label, vid, 0)) {
             builder.push_back_opt(vid);
             cur_limit--;
           }
@@ -115,7 +104,8 @@ class Scan {
 
   static gs::result<Context> scan_vertex_with_special_vertex_predicate(
       Context&& ctx, const GraphReadInterface& graph, const ScanParams& params,
-      const SPVertexPredicate& pred);
+      const SpecialVertexPredicateConfig& config,
+      const std::map<std::string, std::string>& query_params);
 
   template <typename PRED_T>
   static gs::result<Context> filter_gids(Context&& ctx,
@@ -124,34 +114,25 @@ class Scan {
                                          const PRED_T& predicate,
                                          const std::vector<int64_t>& gids) {
     int32_t cur_limit = params.limit;
-    if (params.tables.size() == 1) {
-      label_t label = params.tables[0];
-      MSVertexColumnBuilder builder(label);
-      for (auto gid : gids) {
-        if (cur_limit <= 0) {
-          break;
-        }
-        vid_t vid = GlobalId::get_vid(gid);
-        if (GlobalId::get_label_id(gid) == label && predicate(label, vid)) {
-          builder.push_back_opt(vid);
-          cur_limit--;
-        }
-      }
-      ctx.set(params.alias, builder.finish());
-    } else if (params.tables.size() > 1) {
+    if (params.tables.empty()) {
       MLVertexColumnBuilder builder;
+      ctx.set(params.alias, builder.finish());
+    } else {
+      MSVertexColumnBuilder builder(params.tables[0]);
 
       for (auto label : params.tables) {
         if (cur_limit <= 0) {
           break;
         }
+        builder.start_label(label);
         for (auto gid : gids) {
           if (cur_limit <= 0) {
             break;
           }
           vid_t vid = GlobalId::get_vid(gid);
-          if (GlobalId::get_label_id(gid) == label && predicate(label, vid)) {
-            builder.push_back_vertex({label, vid});
+          if (GlobalId::get_label_id(gid) == label &&
+              predicate(label, vid, 0)) {
+            builder.push_back_opt(vid);
             cur_limit--;
           }
         }
@@ -163,7 +144,8 @@ class Scan {
 
   static gs::result<Context> filter_gids_with_special_vertex_predicate(
       Context&& ctx, const GraphReadInterface& graph, const ScanParams& params,
-      const SPVertexPredicate& predicate, const std::vector<int64_t>& oids);
+      const SpecialVertexPredicateConfig& config,
+      const std::vector<int64_t>& oids);
 
   template <typename PRED_T>
   static gs::result<Context> filter_oids(Context&& ctx,
@@ -181,7 +163,7 @@ class Scan {
         }
         vid_t vid;
         if (graph.GetVertexIndex(label, oid, vid)) {
-          if (predicate(label, vid)) {
+          if (predicate(label, vid, 0)) {
             builder.push_back_opt(vid);
             --limit;
           }
@@ -189,6 +171,7 @@ class Scan {
       }
       ctx.set(params.alias, builder.finish());
     } else if (params.tables.size() > 1) {
+      // TODO(luoxiaojian): use MSVertexColumnBuilder
       std::vector<std::pair<label_t, vid_t>> vids;
 
       for (auto label : params.tables) {
@@ -201,7 +184,7 @@ class Scan {
           }
           vid_t vid;
           if (graph.GetVertexIndex(label, oid, vid)) {
-            if (predicate(label, vid)) {
+            if (predicate(label, vid, 0)) {
               vids.emplace_back(label, vid);
               --limit;
             }
@@ -225,7 +208,7 @@ class Scan {
 
   static gs::result<Context> filter_oids_with_special_vertex_predicate(
       Context&& ctx, const GraphReadInterface& graph, const ScanParams& params,
-      const SPVertexPredicate& predicate, const std::vector<Any>& oids);
+      const SpecialVertexPredicateConfig& config, const std::vector<Any>& oids);
 
   static gs::result<Context> find_vertex_with_oid(
       Context&& ctx, const GraphReadInterface& graph, label_t label,
@@ -240,4 +223,4 @@ class Scan {
 
 }  // namespace gs
 
-#endif  // EXECUTION_COMMON_OPERATORS_RETRIEVE_SCAN_H_
+#endif  // INCLUDE_NEUG_EXECUTION_COMMON_OPERATORS_RETRIEVE_SCAN_H_

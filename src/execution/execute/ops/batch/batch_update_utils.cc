@@ -108,8 +108,8 @@ bool check_csv_export_options(
 }
 
 void add_member(rapidjson::Value& object,
-                rapidjson::Document::AllocatorType& allocator, std::string& key,
-                Any value) {
+                rapidjson::Document::AllocatorType& allocator,
+                const std::string& key, Any value) {
   if (value.type == PropertyType::kBool) {
     object.AddMember(rapidjson::Value(key.c_str(), allocator).Move(),
                      value.AsBool(), allocator);
@@ -153,15 +153,58 @@ void add_member(rapidjson::Value& object,
   }
 }
 
+void add_prop_member(rapidjson::Value& object,
+                     rapidjson::Document::AllocatorType& allocator,
+                     const std::string& key, Prop value) {
+  if (value.type() == PropType::kInt32) {
+    object.AddMember(rapidjson::Value(key.c_str(), allocator).Move(),
+                     value.as_int32(), allocator);
+  } else if (value.type() == PropType::kUInt32) {
+    object.AddMember(rapidjson::Value(key.c_str(), allocator).Move(),
+                     value.as_uint32(), allocator);
+  } else if (value.type() == PropType::kInt64) {
+    object.AddMember(rapidjson::Value(key.c_str(), allocator).Move(),
+                     value.as_int64(), allocator);
+  } else if (value.type() == PropType::kUInt64) {
+    object.AddMember(rapidjson::Value(key.c_str(), allocator).Move(),
+                     value.as_uint64(), allocator);
+  } else if (value.type() == PropType::kFloat) {
+    object.AddMember(rapidjson::Value(key.c_str(), allocator).Move(),
+                     value.as_float(), allocator);
+  } else if (value.type() == PropType::kDouble) {
+    object.AddMember(rapidjson::Value(key.c_str(), allocator).Move(),
+                     value.as_double(), allocator);
+  } else if (value.type() == PropType::kDate) {
+    std::string date = value.as_date().to_string();
+    object.AddMember(rapidjson::Value(key.c_str(), allocator).Move(),
+                     rapidjson::Value(date.c_str(), allocator).Move(),
+                     allocator);
+  } else if (value.type() == PropType::kTimestamp) {
+    object.AddMember(rapidjson::Value(key.c_str(), allocator).Move(),
+                     value.as_timestamp().milli_second, allocator);
+  } else if (value.type() == PropType::kInterval) {
+    std::string interval_str = value.as_interval().to_string();
+    object.AddMember(rapidjson::Value(key.c_str(), allocator).Move(),
+                     rapidjson::Value(interval_str.c_str(), allocator).Move(),
+                     allocator);
+  } else if (value.type() == PropType::kString) {
+    rapidjson::Value valueVal;
+    auto str_value = value.as_string();
+    valueVal.SetString(str_value.data(), str_value.size(), allocator);
+    object.AddMember(rapidjson::Value(key.c_str(), allocator).Move(), valueVal,
+                     allocator);
+  }
+}
+
 rapidjson::Value build_vertex_object(
     label_t label, vid_t vid, const gs::runtime::GraphReadInterface& graph,
     rapidjson::Document::AllocatorType& allocator) {
   rapidjson::Value vertex_object(rapidjson::kObjectType);
   std::string internal_id_key = "_ID";
-  Any encoded_id = std::to_string(label) + ":" + std::to_string(vid);
+  Any encoded_id(std::to_string(label) + ":" + std::to_string(vid));
   add_member(vertex_object, allocator, internal_id_key, encoded_id);
   std::string internal_label_key = "_LABEL";
-  Any label_name = graph.schema().get_vertex_label_name(label);
+  Any label_name(graph.schema().get_vertex_label_name(label));
   add_member(vertex_object, allocator, internal_label_key, label_name);
   std::string primary_key = graph.schema().get_vertex_primary_key_name(label);
   add_member(vertex_object, allocator, primary_key,
@@ -188,90 +231,46 @@ std::string vertex_to_json_string(
 }
 
 rapidjson::Value build_edge_object(
-    EdgeRecord& edge, const gs::runtime::GraphReadInterface& graph,
+    const EdgeRecord& edge, const gs::runtime::GraphReadInterface& graph,
     rapidjson::Document::AllocatorType& allocator) {
   rapidjson::Value edge_object(rapidjson::kObjectType);
-  label_t src_label = edge.label_triplet_.src_label;
-  label_t dst_label = edge.label_triplet_.dst_label;
-  label_t edge_label = edge.label_triplet_.edge_label;
+  label_t src_label = edge.label.src_label;
+  label_t dst_label = edge.label.dst_label;
+  label_t edge_label = edge.label.edge_label;
   std::string internal_src_id = "_SRC";
-  Any encoded_src_id =
-      std::to_string(src_label) + ":" + std::to_string(edge.src_);
+  Any encoded_src_id(std::to_string(src_label) + ":" +
+                     std::to_string(edge.src));
   add_member(edge_object, allocator, internal_src_id, encoded_src_id);
 
   std::string internal_dst_id = "_DST";
-  Any encoded_dst_id =
-      std::to_string(dst_label) + ":" + std::to_string(edge.dst_);
+  Any encoded_dst_id(std::to_string(dst_label) + ":" +
+                     std::to_string(edge.dst));
   add_member(edge_object, allocator, internal_dst_id, encoded_dst_id);
 
   std::string internal_src_label_key = "_SRC_LABEL";
-  Any src_label_name = graph.schema().get_vertex_label_name(src_label);
+  Any src_label_name(graph.schema().get_vertex_label_name(src_label));
   add_member(edge_object, allocator, internal_src_label_key, src_label_name);
 
   std::string internal_dst_label_key = "_DST_LABEL";
-  Any dst_label_name = graph.schema().get_vertex_label_name(dst_label);
+  Any dst_label_name(graph.schema().get_vertex_label_name(dst_label));
   add_member(edge_object, allocator, internal_dst_label_key, dst_label_name);
 
   std::string internal_label_key = "_LABEL";
-  Any edge_label_name = graph.schema().get_edge_label_name(edge_label);
+  Any edge_label_name(graph.schema().get_edge_label_name(edge_label));
   add_member(edge_object, allocator, internal_label_key, edge_label_name);
 
   auto property_names =
       graph.schema().get_edge_property_names(src_label, dst_label, edge_label);
-  if (property_names.size() == 1) {
-    if (edge.prop_.type == RTAnyType::kBoolValue) {
-      add_member(edge_object, allocator, property_names[0],
-                 edge.prop_.as<bool>());
-    } else if (edge.prop_.type == RTAnyType::kI32Value) {
-      add_member(edge_object, allocator, property_names[0],
-                 edge.prop_.as<int32_t>());
-    } else if (edge.prop_.type == RTAnyType::kU32Value) {
-      add_member(edge_object, allocator, property_names[0],
-                 edge.prop_.as<uint32_t>());
-    } else if (edge.prop_.type == RTAnyType::kI64Value) {
-      add_member(edge_object, allocator, property_names[0],
-                 edge.prop_.as<int64_t>());
-    } else if (edge.prop_.type == RTAnyType::kU64Value) {
-      add_member(edge_object, allocator, property_names[0],
-                 edge.prop_.as<uint64_t>());
-    } else if (edge.prop_.type == RTAnyType::kF32Value) {
-      add_member(edge_object, allocator, property_names[0],
-                 edge.prop_.as<float>());
-    } else if (edge.prop_.type == RTAnyType::kF64Value) {
-      add_member(edge_object, allocator, property_names[0],
-                 edge.prop_.as<double>());
-    } else if (edge.prop_.type == RTAnyType::kStringValue) {
-      add_member(edge_object, allocator, property_names[0],
-                 edge.prop_.as<std::string_view>());
-    } else if (edge.prop_.type == RTAnyType::kDate) {
-      add_member(edge_object, allocator, property_names[0],
-                 edge.prop_.as<Date>());
-    } else if (edge.prop_.type == RTAnyType::kDateTime) {
-      add_member(edge_object, allocator, property_names[0],
-                 edge.prop_.as<DateTime>());
-    } else if (edge.prop_.type == RTAnyType::kTimestamp) {
-      add_member(edge_object, allocator, property_names[0],
-                 edge.prop_.as<TimeStamp>());
-    } else if (edge.prop_.type == RTAnyType::kInterval) {
-      add_member(edge_object, allocator, property_names[0],
-                 edge.prop_.as<Interval>());
-    } else {
-      LOG(ERROR) << "not support edge property type "
-                 << static_cast<int>(edge.prop_.type);
-      THROW_RUNTIME_ERROR("not support edge property type " +
-                          std::to_string(static_cast<int>(edge.prop_.type)));
-    }
-  } else if (property_names.size() > 1) {
-    assert(edge.prop_.type == RTAnyType::kRecordView);
-    RecordView record = edge.prop_.as<RecordView>();
-    for (size_t i = 0; i < property_names.size(); i++) {
-      add_member(edge_object, allocator, property_names[i], record[i]);
-    }
+  for (size_t i = 0; i < property_names.size(); i++) {
+    auto ed_accessor =
+        graph.GetEdgeDataAccessor(src_label, dst_label, edge_label, i);
+    add_prop_member(edge_object, allocator, property_names[i],
+                    ed_accessor.get_data_from_ptr(edge.prop));
   }
   return edge_object;
 }
 
-std::string edge_to_json_string(EdgeRecord& edge,
+std::string edge_to_json_string(const EdgeRecord& edge,
                                 const gs::runtime::GraphReadInterface& graph) {
   rapidjson::Document doc;
   auto& allocator = doc.GetAllocator();
@@ -299,18 +298,18 @@ std::string path_to_json_string(Path& path,
     if (i > 0) {
       rapidjson::Value edge_object(rapidjson::kObjectType);
       std::string internal_src_label_key = "_SRC_LABEL";
-      Any src_label_name =
-          graph.schema().get_vertex_label_name(path_vertices[i - 1].label_);
+      Any src_label_name(
+          graph.schema().get_vertex_label_name(path_vertices[i - 1].label_));
       add_member(edge_object, allocator, internal_src_label_key,
                  src_label_name);
       std::string internal_dst_label_key = "_DST_LABEL";
-      Any dst_label_name =
-          graph.schema().get_vertex_label_name(path_vertices[i].label_);
+      Any dst_label_name(
+          graph.schema().get_vertex_label_name(path_vertices[i].label_));
       add_member(edge_object, allocator, internal_dst_label_key,
                  dst_label_name);
       std::string internal_label_key = "_LABEL";
-      Any edge_label_name =
-          graph.schema().get_edge_label_name(path_edges[i - 1]);
+      Any edge_label_name(
+          graph.schema().get_edge_label_name(path_edges[i - 1]));
       add_member(edge_object, allocator, internal_label_key, edge_label_name);
       edge_array.PushBack(edge_object, allocator);
     }
@@ -558,7 +557,7 @@ void to_arrow_csv_options(
                  << "\" is currently not supported.";
   }
 
-  // TODO: support selecting included columns.
+  // TODO(zhanglei): support selecting included columns.
 }
 
 std::vector<std::shared_ptr<IRecordBatchSupplier>> create_csv_record_suppliers(

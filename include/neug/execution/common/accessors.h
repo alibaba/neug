@@ -13,8 +13,8 @@
  * limitations under the License.
  */
 
-#ifndef EXECUTION_COMMON_ACCESSORS_H_
-#define EXECUTION_COMMON_ACCESSORS_H_
+#ifndef INCLUDE_NEUG_EXECUTION_COMMON_ACCESSORS_H_
+#define INCLUDE_NEUG_EXECUTION_COMMON_ACCESSORS_H_
 
 #include <assert.h>
 #include <glog/logging.h>
@@ -35,10 +35,10 @@
 #include "neug/execution/common/columns/vertex_columns.h"
 #include "neug/execution/common/context.h"
 #include "neug/execution/common/graph_interface.h"
-#include "neug/execution/common/rt_any.h"
 #include "neug/execution/common/types.h"
 #include "neug/transaction/read_transaction.h"
 #include "neug/utils/property/types.h"
+#include "neug/utils/runtime/rt_any.h"
 
 namespace gs {
 
@@ -55,7 +55,7 @@ class IAccessor {
     return this->eval_path(idx);
   }
   virtual RTAny eval_edge(const LabelTriplet& label, vid_t src, vid_t dst,
-                          const Any& data, size_t idx) const {
+                          const void* data_ptr, size_t idx) const {
     return this->eval_path(idx);
   }
 
@@ -184,7 +184,7 @@ class VertexLabelPathAccessor : public IAccessor {
 class VertexLabelVertexAccessor : public IAccessor {
  public:
   using elem_t = std::string_view;
-  VertexLabelVertexAccessor(const Schema& schema) : schema_(schema) {}
+  explicit VertexLabelVertexAccessor(const Schema& schema) : schema_(schema) {}
 
   elem_t typed_eval_vertex(label_t label, vid_t v, size_t idx) const {
     return schema_.get_vertex_label_name(label);
@@ -334,10 +334,12 @@ class EdgeIdPathAccessor : public IAccessor {
   elem_t typed_eval_path(size_t idx) const { return edge_col_.get_edge(idx); }
 
   RTAny eval_path(size_t idx) const override {
-    if (!edge_col_.has_value(idx)) {
+    auto e = edge_col_.get_edge(idx);
+    if (e.src == std::numeric_limits<vid_t>::max() ||
+        e.dst == std::numeric_limits<vid_t>::max()) {
       return RTAny(RTAnyType::kNull);
     }
-    return RTAny::from_edge(typed_eval_path(idx));
+    return RTAny::from_edge(e);
   }
 
   bool is_optional() const override { return edge_col_.is_optional(); }
@@ -354,12 +356,10 @@ class EdgeGIdPathAccessor : public IAccessor {
 
   elem_t typed_eval_path(size_t idx) const {
     auto edge_record = edge_col_.get_edge(idx);
-    auto edge_label =
-        generate_edge_label_id(edge_record.label_triplet_.src_label,
-                               edge_record.label_triplet_.dst_label,
-                               edge_record.label_triplet_.edge_label);
-    return encode_unique_edge_id(edge_label, edge_record.src_,
-                                 edge_record.dst_);
+    auto edge_label = generate_edge_label_id(edge_record.label.src_label,
+                                             edge_record.label.dst_label,
+                                             edge_record.label.edge_label);
+    return encode_unique_edge_id(edge_label, edge_record.src, edge_record.dst);
   }
 
   RTAny eval_path(size_t idx) const override {
@@ -376,117 +376,104 @@ class EdgeGIdPathAccessor : public IAccessor {
 };
 
 template <typename GraphInterface, typename T>
+class SLEdgePropertyPathAccessor : public IAccessor {
+ public:
+  using elem_t = T;
+  SLEdgePropertyPathAccessor(const GraphInterface& graph,
+                             const std::string& prop_name, const Context& ctx,
+                             int tag)
+      : col_(*std::dynamic_pointer_cast<IEdgeColumn>(ctx.get(tag))) {
+    CHECK(col_.get_labels().size() == 1)
+        << "SLEdgePropertyPathAccessor only support single label edge column";
+    auto label = col_.get_labels()[0];
+    int prop_id = 0;
+    for (auto& name : graph.schema().get_edge_property_names(
+             label.src_label, label.dst_label, label.edge_label)) {
+      if (name == prop_name) {
+        break;
+      }
+      ++prop_id;
+    }
+    LOG(INFO) << "SLEdgePropertyPathAccessor prop_id: " << prop_id
+              << ", prop_num: "
+              << graph.schema()
+                     .get_edge_property_names(label.src_label, label.dst_label,
+                                              label.edge_label)
+                     .size();
+    ed_accessor_ = graph.GetEdgeDataAccessor(label.src_label, label.dst_label,
+                                             label.edge_label, prop_id);
+  }
+
+  RTAny eval_path(size_t idx) const override {
+    auto e = col_.get_edge(idx);
+    if (e.src == std::numeric_limits<vid_t>::max() ||
+        e.dst == std::numeric_limits<vid_t>::max()) {
+      return RTAny(RTAnyType::kNull);
+    }
+    T elem = ed_accessor_.get_typed_data_from_ptr<T>(e.prop);
+    return TypedConverter<T>::from_typed(elem);
+  }
+
+  elem_t typed_eval_path(size_t idx) const {
+    const auto& e = col_.get_edge(idx);
+    return ed_accessor_.get_typed_data_from_ptr<T>(e.prop);
+  }
+
+  bool is_optional() const override { return col_.is_optional(); }
+
+ private:
+  const IEdgeColumn& col_;
+  EdgeDataAccessor ed_accessor_;
+};
+
+template <typename GraphInterface, typename T>
 class EdgePropertyPathAccessor : public IAccessor {
  public:
   using elem_t = T;
   EdgePropertyPathAccessor(const GraphInterface& graph,
                            const std::string& prop_name, const Context& ctx,
                            int tag)
-      : col_(*std::dynamic_pointer_cast<IEdgeColumn>(ctx.get(tag))) {}
-
-  RTAny eval_path(size_t idx) const override {
-    if (!col_.has_value(idx)) {
-      return RTAny(RTAnyType::kNull);
-    }
-    const auto& e = col_.get_edge(idx);
-    return RTAny(e.prop_);
-  }
-
-  elem_t typed_eval_path(size_t idx) const {
-    const auto& e = col_.get_edge(idx);
-    elem_t ret = e.prop_.template as<elem_t>();
-    return ret;
-  }
-
-  bool is_optional() const override { return col_.is_optional(); }
-
- private:
-  const IEdgeColumn& col_;
-};
-
-template <typename GraphInterface, typename T>
-class MultiPropsEdgePropertyPathAccessor : public IAccessor {
- public:
-  using elem_t = T;
-  MultiPropsEdgePropertyPathAccessor(const GraphInterface& graph,
-                                     const std::string& prop_name,
-                                     const Context& ctx, int tag)
       : col_(*std::dynamic_pointer_cast<IEdgeColumn>(ctx.get(tag))) {
-    VLOG(10) << "MultiPropsEdgePropertyPathAccessor: prop_name = " << prop_name
-             << ", colum info " << col_.column_info();
-    const auto& labels = col_.get_labels();
-    vertex_label_num_ = graph.schema().vertex_label_num();
-    edge_label_num_ = graph.schema().edge_label_num();
-    prop_index_.resize(
-        2 * vertex_label_num_ * vertex_label_num_ * edge_label_num_,
-        std::numeric_limits<size_t>::max());
-    for (auto& label : labels) {
-      size_t idx = label.src_label * vertex_label_num_ * edge_label_num_ +
-                   label.dst_label * edge_label_num_ + label.edge_label;
-      const auto& names = graph.schema().get_edge_property_names(
-          label.src_label, label.dst_label, label.edge_label);
-      for (size_t i = 0; i < names.size(); ++i) {
-        if (names[i] == prop_name) {
-          prop_index_[idx] = i;
+    for (auto& label : col_.get_labels()) {
+      int prop_id = 0;
+      for (auto& name : graph.schema().get_edge_property_names(
+               label.src_label, label.dst_label, label.edge_label)) {
+        if (name == prop_name) {
           break;
         }
+        ++prop_id;
       }
+      ed_accessor_[label] = graph.GetEdgeDataAccessor(
+          label.src_label, label.dst_label, label.edge_label, prop_id);
     }
   }
 
   RTAny eval_path(size_t idx) const override {
-    if (!col_.has_value(idx)) {
+    auto e = col_.get_edge(idx);
+    if (e.src == std::numeric_limits<vid_t>::max() ||
+        e.dst == std::numeric_limits<vid_t>::max()) {
       return RTAny(RTAnyType::kNull);
     }
-    const auto& e = col_.get_edge(idx);
-    auto val = e.prop_;
-    auto id = get_index(e.label_triplet_);
-    if (e.prop_.type != RTAnyType::kRecordView) {
-      assert(id == 0);
-      return RTAny(val);
+    auto it = ed_accessor_.find(e.label);
+    if (it == ed_accessor_.end()) {
+      return RTAny(RTAnyType::kNull);
     } else {
-      auto rv = val.template as<RecordView>();
-      assert(id != std::numeric_limits<size_t>::max());
-      return RTAny(rv[id]);
+      T elem = it->second.get_typed_data_from_ptr<T>(e.prop);
+      return TypedConverter<T>::from_typed(elem);
     }
   }
 
   elem_t typed_eval_path(size_t idx) const {
     const auto& e = col_.get_edge(idx);
-    auto val = e.prop_;
-    auto id = get_index(e.label_triplet_);
-
-    if (e.prop_.type != RTAnyType::kRecordView) {
-      assert(id == 0);
-      elem_t ret = e.prop_.template as<elem_t>();
-
-      return ret;
-
-    } else {
-      auto rv = val.template as<RecordView>();
-      assert(id != std::numeric_limits<size_t>::max());
-      auto tmp = rv[id];
-      elem_t ret;
-      ConvertAny<T>::to(tmp, ret);
-      return ret;
-    }
+    return ed_accessor_.at(e.label).get_typed_data_from_ptr<T>(e.prop);
   }
 
   bool is_optional() const override { return col_.is_optional(); }
 
-  size_t get_index(const LabelTriplet& label) const {
-    size_t idx = label.src_label * vertex_label_num_ * edge_label_num_ +
-                 label.dst_label * edge_label_num_ + label.edge_label;
-    return prop_index_[idx];
-  }
-
  private:
   const IEdgeColumn& col_;
-  std::vector<size_t> prop_index_;
-  size_t vertex_label_num_;
-  size_t edge_label_num_;
+  std::map<LabelTriplet, EdgeDataAccessor> ed_accessor_;
 };
-
 class EdgeLabelPathAccessor : public IAccessor {
  public:
   using elem_t = std::string_view;
@@ -499,13 +486,12 @@ class EdgeLabelPathAccessor : public IAccessor {
       return RTAny(RTAnyType::kNull);
     }
     const auto& e = col_.get_edge(idx);
-    return RTAny::from_string(
-        schema_.get_edge_label_name(e.label_triplet_.edge_label));
+    return RTAny::from_string(schema_.get_edge_label_name(e.label.edge_label));
   }
 
   elem_t typed_eval_path(size_t idx) const {
     const auto& e = col_.get_edge(idx);
-    return schema_.get_edge_label_name(e.label_triplet_.edge_label);
+    return schema_.get_edge_label_name(e.label.edge_label);
   }
 
  private:
@@ -518,56 +504,27 @@ class EdgePropertyEdgeAccessor : public IAccessor {
  public:
   using elem_t = T;
   EdgePropertyEdgeAccessor(const GraphInterface& graph,
-                           const std::string& name) {}
-
-  elem_t typed_eval_edge(const LabelTriplet& label, vid_t src, vid_t dst,
-                         const Any& data, size_t idx) const {
-    T ret;
-    ConvertAny<T>::to(data, ret);
-    return ret;
-  }
-
-  RTAny eval_path(size_t idx) const override {
-    THROW_INTERNAL_EXCEPTION(
-        "EdgePropertyEdgeAccessor should not be used to eval path");
-    return RTAny();
-  }
-
-  RTAny eval_edge(const LabelTriplet& label, vid_t src, vid_t dst,
-                  const Any& data, size_t idx) const override {
-    return RTAny(data);
-  }
-};
-
-template <typename GraphInterface, typename T>
-class MultiPropsEdgePropertyEdgeAccessor : public IAccessor {
- public:
-  using elem_t = T;
-
-  MultiPropsEdgePropertyEdgeAccessor(const GraphInterface& graph,
-                                     const std::string& name) {
-    edge_label_num_ = graph.schema().edge_label_num();
-    vertex_label_num_ = graph.schema().vertex_label_num();
-    indexs.resize(2 * vertex_label_num_ * vertex_label_num_ * edge_label_num_,
-                  std::numeric_limits<size_t>::max());
-    for (label_t src_label = 0; src_label < vertex_label_num_; ++src_label) {
-      auto src = graph.schema().get_vertex_label_name(src_label);
-      for (label_t dst_label = 0; dst_label < vertex_label_num_; ++dst_label) {
-        auto dst = graph.schema().get_vertex_label_name(dst_label);
-        for (label_t edge_label = 0; edge_label < edge_label_num_;
+                           const std::string& name) {
+    label_t edge_label_num = graph.schema().edge_label_num();
+    label_t vertex_label_num = graph.schema().vertex_label_num();
+    for (label_t src_label = 0; src_label < vertex_label_num; ++src_label) {
+      for (label_t dst_label = 0; dst_label < vertex_label_num; ++dst_label) {
+        for (label_t edge_label = 0; edge_label < edge_label_num;
              ++edge_label) {
-          auto edge = graph.schema().get_edge_label_name(edge_label);
-          if (!graph.schema().exist(src, dst, edge)) {
+          if (!graph.schema().exist(src_label, dst_label, edge_label)) {
             continue;
           }
-          size_t idx = src_label * vertex_label_num_ * edge_label_num_ +
-                       dst_label * edge_label_num_ + edge_label;
           const std::vector<std::string>& names =
               graph.schema().get_edge_property_names(src_label, dst_label,
                                                      edge_label);
+          const std::vector<PropertyType>& types =
+              graph.schema().get_edge_properties(src_label, dst_label,
+                                                 edge_label);
           for (size_t i = 0; i < names.size(); ++i) {
-            if (names[i] == name) {
-              indexs[idx] = i;
+            if (names[i] == name && types[i] == AnyConverter<T>::type()) {
+              LabelTriplet label{src_label, dst_label, edge_label};
+              ed_accessors_[label] = graph.GetEdgeDataAccessor(
+                  src_label, dst_label, edge_label, i);
               break;
             }
           }
@@ -577,41 +534,23 @@ class MultiPropsEdgePropertyEdgeAccessor : public IAccessor {
   }
 
   elem_t typed_eval_edge(const LabelTriplet& label, vid_t src, vid_t dst,
-                         const Any& data, size_t idx) const {
-    T ret;
-    if (data.type != PropertyType::RecordView()) {
-      assert(get_index(label) == 0);
-      ConvertAny<T>::to(data, ret);
-    } else {
-      auto id = get_index(label);
-      assert(id != std::numeric_limits<size_t>::max());
-      auto view = data.AsRecordView();
-      ConvertAny<T>::to(view[id], ret);
-    }
-    return ret;
+                         const void* ptr, size_t idx) const {
+    return ed_accessors_.at(label).get_typed_data_from_ptr<T>(ptr);
   }
 
   RTAny eval_path(size_t idx) const override {
-    THROW_INTERNAL_EXCEPTION(
-        "MultiPropsEdgePropertyEdgeAccessor should not be used to eval path");
+    LOG(FATAL) << "not supposed to reach here...";
     return RTAny();
   }
 
   RTAny eval_edge(const LabelTriplet& label, vid_t src, vid_t dst,
-                  const Any& data, size_t idx) const override {
-    return RTAny(typed_eval_edge(label, src, dst, data, idx));
-  }
-
-  size_t get_index(const LabelTriplet& label) const {
-    size_t idx = label.src_label * vertex_label_num_ * edge_label_num_ +
-                 label.dst_label * edge_label_num_ + label.edge_label;
-    return indexs[idx];
+                  const void* data_ptr, size_t idx) const override {
+    return TypedConverter<T>::from_typed(
+        typed_eval_edge(label, src, dst, data_ptr, idx));
   }
 
  private:
-  std::vector<size_t> indexs;
-  size_t vertex_label_num_;
-  size_t edge_label_num_;
+  std::map<LabelTriplet, EdgeDataAccessor> ed_accessors_;
 };
 
 template <typename T>
@@ -636,7 +575,7 @@ class ParamAccessor : public IAccessor {
   RTAny eval_vertex(label_t, vid_t, size_t) const override {
     return TypedConverter<T>::from_typed(val_);
   }
-  RTAny eval_edge(const LabelTriplet&, vid_t, vid_t, const Any&,
+  RTAny eval_edge(const LabelTriplet&, vid_t, vid_t, const void*,
                   size_t) const override {
     return TypedConverter<T>::from_typed(val_);
   }
@@ -670,7 +609,7 @@ class PathLenPathAccessor : public IAccessor {
   }
 
   RTAny eval_path(size_t idx) const override {
-    return RTAny(static_cast<int64_t>(typed_eval_path(idx)));
+    return RTAny::from_int64(static_cast<int64_t>(typed_eval_path(idx)));
   }
 
  private:
@@ -681,7 +620,7 @@ template <typename T>
 class ConstAccessor : public IAccessor {
  public:
   using elem_t = T;
-  ConstAccessor(const T& val) : val_(val) {}
+  explicit ConstAccessor(const T& val) : val_(val) {}
 
   T typed_eval_path(size_t) const { return val_; }
   T typed_eval_vertex(label_t, vid_t, size_t) const { return val_; }
@@ -698,7 +637,7 @@ class ConstAccessor : public IAccessor {
     return TypedConverter<T>::from_typed(val_);
   }
 
-  RTAny eval_edge(const LabelTriplet&, vid_t, vid_t, const Any&,
+  RTAny eval_edge(const LabelTriplet&, vid_t, vid_t, const void* data_ptr,
                   size_t) const override {
     return TypedConverter<T>::from_typed(val_);
   }
@@ -740,4 +679,4 @@ std::shared_ptr<IAccessor> create_edge_property_edge_accessor(
 
 }  // namespace gs
 
-#endif  // EXECUTION_COMMON_ACCESSORS_H_
+#endif  // INCLUDE_NEUG_EXECUTION_COMMON_ACCESSORS_H_

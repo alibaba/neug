@@ -24,6 +24,7 @@
 #include "libgrape-lite/grape/util.h"
 #include "neug/execution/common/operators/retrieve/edge_expand_impl.h"
 #include "neug/execution/utils/opr_timer.h"
+#include "neug/execution/utils/predicates.h"
 #include "neug/execution/utils/special_predicates.h"
 #include "neug/storages/csr/mutable_csr.h"
 
@@ -32,507 +33,65 @@ namespace gs {
 namespace runtime {
 class IContextColumn;
 
-static std::vector<LabelTriplet> get_expand_label_set(
-    const GraphReadInterface& graph, const std::set<label_t>& label_set,
-    const std::vector<LabelTriplet>& labels, Direction dir) {
-  std::vector<LabelTriplet> label_triplets;
-  if (dir == Direction::kOut) {
-    for (auto& triplet : labels) {
-      if (label_set.count(triplet.src_label)) {
-        label_triplets.emplace_back(triplet);
-      }
-    }
-  } else if (dir == Direction::kIn) {
-    for (auto& triplet : labels) {
-      if (label_set.count(triplet.dst_label)) {
-        label_triplets.emplace_back(triplet);
-      }
-    }
-  } else {
-    for (auto& triplet : labels) {
-      if (label_set.count(triplet.src_label) ||
-          label_set.count(triplet.dst_label)) {
-        label_triplets.emplace_back(triplet);
-      }
-    }
-  }
-  return label_triplets;
-}
-
-static gs::result<Context> expand_edge_without_predicate_optional_impl(
-    const GraphReadInterface& graph, Context&& ctx,
-    const EdgeExpandParams& params) {
-  std::vector<size_t> shuffle_offset;
-  // has only one label
-  if (params.labels.size() == 1) {
-    // both direction and src_label == dst_label
-    if (params.dir == Direction::kBoth &&
-        params.labels[0].src_label == params.labels[0].dst_label) {
-      auto& input_vertex_list =
-          *std::dynamic_pointer_cast<IVertexColumn>(ctx.get(params.v_tag));
-      if (input_vertex_list.is_optional()) {
-        LOG(ERROR) << "not support optional vertex column as input currently";
-        RETURN_UNSUPPORTED_ERROR(
-            "not support optional vertex column as input currently");
-      }
-      auto& triplet = params.labels[0];
-      auto props = graph.schema().get_edge_properties(
-          triplet.src_label, triplet.dst_label, triplet.edge_label);
-      PropertyType pt = PropertyType::kEmpty;
-      if (!props.empty()) {
-        pt = props[0];
-      }
-      if (props.size() > 1) {
-        pt = PropertyType::kRecordView;
-      }
-      auto builder = BDSLEdgeColumnBuilder::optional_builder(triplet, pt);
-      foreach_vertex(input_vertex_list, [&](size_t index, label_t label,
-                                            vid_t v) {
-        bool has_edge = false;
-        if (label == triplet.src_label) {
-          auto oe_iter = graph.GetOutEdgeIterator(label, v, triplet.dst_label,
-                                                  triplet.edge_label);
-          while (oe_iter.IsValid()) {
-            auto nbr = oe_iter.GetNeighbor();
-            builder.push_back_opt(v, nbr, oe_iter.GetData(), Direction::kOut);
-            shuffle_offset.push_back(index);
-            has_edge = true;
-            oe_iter.Next();
-          }
-        }
-        if (label == triplet.dst_label) {
-          auto ie_iter = graph.GetInEdgeIterator(label, v, triplet.src_label,
-                                                 triplet.edge_label);
-          while (ie_iter.IsValid()) {
-            auto nbr = ie_iter.GetNeighbor();
-            builder.push_back_opt(nbr, v, ie_iter.GetData(), Direction::kIn);
-            shuffle_offset.push_back(index);
-            has_edge = true;
-            ie_iter.Next();
-          }
-        }
-        if (!has_edge) {
-          builder.push_back_null();
-          shuffle_offset.push_back(index);
-        }
-      });
-      ctx.set_with_reshuffle(params.alias, builder.finish(), shuffle_offset);
-      return ctx;
-    } else if (params.dir == Direction::kOut) {
-      auto& input_vertex_list =
-          *std::dynamic_pointer_cast<IVertexColumn>(ctx.get(params.v_tag));
-      if (input_vertex_list.is_optional()) {
-        LOG(ERROR) << "not support optional vertex column as input currently";
-        RETURN_UNSUPPORTED_ERROR(
-            "not support optional vertex column as input currently");
-      }
-      auto& triplet = params.labels[0];
-      auto props = graph.schema().get_edge_properties(
-          triplet.src_label, triplet.dst_label, triplet.edge_label);
-      PropertyType pt = PropertyType::kEmpty;
-      if (!props.empty()) {
-        pt = props[0];
-      }
-      if (props.size() > 1) {
-        pt = PropertyType::kRecordView;
-      }
-      auto builder =
-          SDSLEdgeColumnBuilder::optional_builder(Direction::kOut, triplet, pt);
-      foreach_vertex(input_vertex_list,
-                     [&](size_t index, label_t label, vid_t v) {
-                       if (label == triplet.src_label) {
-                         auto oe_iter = graph.GetOutEdgeIterator(
-                             label, v, triplet.dst_label, triplet.edge_label);
-                         bool has_edge = false;
-                         while (oe_iter.IsValid()) {
-                           auto nbr = oe_iter.GetNeighbor();
-                           builder.push_back_opt(v, nbr, oe_iter.GetData());
-                           shuffle_offset.push_back(index);
-                           oe_iter.Next();
-                           has_edge = true;
-                         }
-                         if (!has_edge) {
-                           builder.push_back_null();
-                           shuffle_offset.push_back(index);
-                         }
-                       } else {
-                         builder.push_back_null();
-                         shuffle_offset.push_back(index);
-                       }
-                     });
-
-      ctx.set_with_reshuffle(params.alias, builder.finish(), shuffle_offset);
-      return ctx;
-    } else if (params.dir == Direction::kIn) {
-      auto& input_vertex_list =
-          *std::dynamic_pointer_cast<IVertexColumn>(ctx.get(params.v_tag));
-      if (input_vertex_list.is_optional()) {
-        LOG(ERROR) << "not support optional vertex column as input currently";
-        RETURN_UNSUPPORTED_ERROR(
-            "not support optional vertex column as input currently");
-      }
-      auto& triplet = params.labels[0];
-      auto props = graph.schema().get_edge_properties(
-          triplet.src_label, triplet.dst_label, triplet.edge_label);
-      PropertyType pt = PropertyType::kEmpty;
-      if (!props.empty()) {
-        pt = props[0];
-      }
-      if (props.size() > 1) {
-        pt = PropertyType::kRecordView;
-      }
-      auto builder =
-          SDSLEdgeColumnBuilder::optional_builder(Direction::kIn, triplet, pt);
-      foreach_vertex(input_vertex_list,
-                     [&](size_t index, label_t label, vid_t v) {
-                       if (label == triplet.dst_label) {
-                         auto ie_iter = graph.GetInEdgeIterator(
-                             label, v, triplet.src_label, triplet.edge_label);
-                         bool has_edge = false;
-                         while (ie_iter.IsValid()) {
-                           auto nbr = ie_iter.GetNeighbor();
-                           builder.push_back_opt(nbr, v, ie_iter.GetData());
-                           shuffle_offset.push_back(index);
-                           ie_iter.Next();
-                           has_edge = true;
-                         }
-                         if (!has_edge) {
-                           builder.push_back_null();
-                           shuffle_offset.push_back(index);
-                         }
-                       } else {
-                         builder.push_back_null();
-                         shuffle_offset.push_back(index);
-                       }
-                     });
-
-      ctx.set_with_reshuffle(params.alias, builder.finish(), shuffle_offset);
-      return ctx;
-    }
-  }
-  LOG(ERROR) << "not support" << params.labels.size() << " "
-             << (int) params.dir;
-  RETURN_UNSUPPORTED_ERROR("not support" +
-                           std::to_string(params.labels.size()) + " " +
-                           std::to_string((int) params.dir));
-}
+struct DummyPredicate {
+  static constexpr bool is_dummy = true;
+};
 
 gs::result<Context> EdgeExpand::expand_edge_without_predicate(
     const GraphReadInterface& graph, Context&& ctx,
-    const EdgeExpandParams& params, OprTimer* timer) {
-  if (params.is_optional) {
-    // TimerUnit tx;
-    // tx.start();
-    auto ret = expand_edge_without_predicate_optional_impl(
-        graph, std::move(ctx), params);
-    // timer.record_routine("#### expand_edge_without_predicate_optional", tx);
-    return ret;
-  }
-  std::vector<size_t> shuffle_offset;
-
-  if (params.labels.size() == 1) {
-    if (params.dir == Direction::kIn) {
-      auto& input_vertex_list =
-          *std::dynamic_pointer_cast<IVertexColumn>(ctx.get(params.v_tag));
-      label_t output_vertex_label = params.labels[0].src_label;
-      label_t edge_label = params.labels[0].edge_label;
-
-      auto& props = graph.schema().get_edge_properties(
-          params.labels[0].src_label, params.labels[0].dst_label,
-          params.labels[0].edge_label);
-      PropertyType pt = PropertyType::kEmpty;
-      if (props.size() > 1) {
-        pt = PropertyType::kRecordView;
-
-      } else if (!props.empty()) {
-        pt = props[0];
-      }
-
-      auto builder =
-          SDSLEdgeColumnBuilder::builder(Direction::kIn, params.labels[0], pt);
-
-      label_t dst_label = params.labels[0].dst_label;
-      foreach_vertex(input_vertex_list,
-                     [&](size_t index, label_t label, vid_t v) {
-                       if (label != dst_label) {
-                         return;
-                       }
-                       auto ie_iter = graph.GetInEdgeIterator(
-                           label, v, output_vertex_label, edge_label);
-                       while (ie_iter.IsValid()) {
-                         auto nbr = ie_iter.GetNeighbor();
-                         //  assert(ie_iter.GetData().type == pt);
-                         builder.push_back_opt(nbr, v, ie_iter.GetData());
-                         shuffle_offset.push_back(index);
-                         ie_iter.Next();
-                       }
-                     });
-
-      ctx.set_with_reshuffle(params.alias, builder.finish(), shuffle_offset);
+    const EdgeExpandParams& params) {
+  std::shared_ptr<IVertexColumn> input_vertex_list =
+      std::dynamic_pointer_cast<IVertexColumn>(ctx.get(params.v_tag));
+  auto vertex_column_type = input_vertex_list->vertex_column_type();
+  if (input_vertex_list->is_optional() || params.is_optional) {
+    if (vertex_column_type == VertexColumnType::kSingle) {
+      const SLVertexColumn& sl_col =
+          *dynamic_cast<const SLVertexColumn*>(input_vertex_list.get());
+      auto pair = expand_edge_impl<DummyPredicate, true>(
+          graph, sl_col, params.labels, params.dir, DummyPredicate());
+      ctx.set_with_reshuffle(params.alias, pair.first, pair.second);
       return ctx;
-    } else if (params.dir == Direction::kOut) {
-      auto& input_vertex_list =
-          *std::dynamic_pointer_cast<IVertexColumn>(ctx.get(params.v_tag));
-      label_t output_vertex_label = params.labels[0].dst_label;
-      label_t edge_label = params.labels[0].edge_label;
-
-      auto& props = graph.schema().get_edge_properties(
-          params.labels[0].src_label, params.labels[0].dst_label,
-          params.labels[0].edge_label);
-      PropertyType pt = PropertyType::kEmpty;
-
-      if (!props.empty()) {
-        pt = props[0];
-      }
-      if (props.size() > 1) {
-        pt = PropertyType::kRecordView;
-      }
-
-      auto builder =
-          SDSLEdgeColumnBuilder::builder(Direction::kOut, params.labels[0], pt);
-      label_t src_label = params.labels[0].src_label;
-      foreach_vertex(input_vertex_list,
-                     [&](size_t index, label_t label, vid_t v) {
-                       if (label != src_label) {
-                         return;
-                       }
-                       auto oe_iter = graph.GetOutEdgeIterator(
-                           label, v, output_vertex_label, edge_label);
-
-                       while (oe_iter.IsValid()) {
-                         auto nbr = oe_iter.GetNeighbor();
-                         //  assert(oe_iter.GetData().type == pt);
-                         builder.push_back_opt(v, nbr, oe_iter.GetData());
-                         shuffle_offset.push_back(index);
-                         oe_iter.Next();
-                       }
-                     });
-
-      ctx.set_with_reshuffle(params.alias, builder.finish(), shuffle_offset);
+    } else if (vertex_column_type == VertexColumnType::kMultiple) {
+      const MLVertexColumn& ml_col =
+          *dynamic_cast<const MLVertexColumn*>(input_vertex_list.get());
+      auto pair = expand_edge_impl<DummyPredicate, true>(
+          graph, ml_col, params.labels, params.dir, DummyPredicate());
+      ctx.set_with_reshuffle(params.alias, pair.first, pair.second);
       return ctx;
     } else {
-      auto& input_vertex_list =
-          *std::dynamic_pointer_cast<IVertexColumn>(ctx.get(params.v_tag));
-      auto props = graph.schema().get_edge_properties(
-          params.labels[0].src_label, params.labels[0].dst_label,
-          params.labels[0].edge_label);
-      PropertyType pt = PropertyType::kEmpty;
-      if (!props.empty()) {
-        pt = props[0];
-      }
-
-      if (props.size() > 1) {
-        pt = PropertyType::kRecordView;
-      }
-      auto builder = BDSLEdgeColumnBuilder::builder(params.labels[0], pt);
-      foreach_vertex(input_vertex_list, [&](size_t index, label_t label,
-                                            vid_t v) {
-        if (label == params.labels[0].src_label) {
-          auto oe_iter =
-              graph.GetOutEdgeIterator(label, v, params.labels[0].dst_label,
-                                       params.labels[0].edge_label);
-          while (oe_iter.IsValid()) {
-            auto nbr = oe_iter.GetNeighbor();
-            builder.push_back_opt(v, nbr, oe_iter.GetData(), Direction::kOut);
-            shuffle_offset.push_back(index);
-            oe_iter.Next();
-          }
-        }
-        if (label == params.labels[0].dst_label) {
-          auto ie_iter =
-              graph.GetInEdgeIterator(label, v, params.labels[0].src_label,
-                                      params.labels[0].edge_label);
-          while (ie_iter.IsValid()) {
-            auto nbr = ie_iter.GetNeighbor();
-            builder.push_back_opt(nbr, v, ie_iter.GetData(), Direction::kIn);
-            shuffle_offset.push_back(index);
-            ie_iter.Next();
-          }
-        }
-      });
-      ctx.set_with_reshuffle(params.alias, builder.finish(), shuffle_offset);
+      CHECK(vertex_column_type == VertexColumnType::kMultiSegment);
+      const MSVertexColumn& ms_col =
+          *dynamic_cast<const MSVertexColumn*>(input_vertex_list.get());
+      auto pair = expand_edge_impl<DummyPredicate, true>(
+          graph, ms_col, params.labels, params.dir, DummyPredicate());
+      ctx.set_with_reshuffle(params.alias, pair.first, pair.second);
       return ctx;
     }
   } else {
-    auto column =
-        std::dynamic_pointer_cast<IVertexColumn>(ctx.get(params.v_tag));
-    auto label_set = column->get_labels_set();
-    auto labels =
-        get_expand_label_set(graph, label_set, params.labels, params.dir);
-    std::vector<std::pair<LabelTriplet, PropertyType>> label_props;
-    std::vector<std::vector<PropertyType>> props_vec;
-    std::vector<std::vector<LabelTriplet>> in_labels_map(
-        graph.schema().vertex_label_num()),
-        out_labels_map(graph.schema().vertex_label_num());
-    for (const auto& triplet : labels) {
-      auto& props = graph.schema().get_edge_properties(
-          triplet.src_label, triplet.dst_label, triplet.edge_label);
-      in_labels_map[triplet.dst_label].emplace_back(triplet);
-      out_labels_map[triplet.src_label].emplace_back(triplet);
-      PropertyType pt = PropertyType::kEmpty;
-      if (!props.empty()) {
-        pt = props[0];
-      }
-      if (props.size() > 1) {
-        pt = PropertyType::kRecordView;
-      }
-      props_vec.emplace_back(props);
-      label_props.emplace_back(triplet, pt);
-    }
-    if (params.dir == Direction::kOut || params.dir == Direction::kIn) {
-      if (labels.size() == 1) {
-        auto& input_vertex_list =
-            *std::dynamic_pointer_cast<IVertexColumn>(ctx.get(params.v_tag));
-        if (params.dir == Direction::kOut) {
-          auto& triplet = labels[0];
-          auto builder = SDSLEdgeColumnBuilder::builder(
-              Direction::kOut, triplet, label_props[0].second);
-          foreach_vertex(
-              input_vertex_list, [&](size_t index, label_t label, vid_t v) {
-                if (label == triplet.src_label) {
-                  auto oe_iter = graph.GetOutEdgeIterator(
-                      label, v, triplet.dst_label, triplet.edge_label);
-                  while (oe_iter.IsValid()) {
-                    auto nbr = oe_iter.GetNeighbor();
-                    builder.push_back_opt(v, nbr, oe_iter.GetData());
-                    shuffle_offset.push_back(index);
-                    oe_iter.Next();
-                  }
-                }
-              });
-          ctx.set_with_reshuffle(params.alias, builder.finish(),
-                                 shuffle_offset);
-          return ctx;
-        } else if (params.dir == Direction::kIn) {
-          auto& triplet = labels[0];
-          auto builder = SDSLEdgeColumnBuilder::builder(Direction::kIn, triplet,
-                                                        label_props[0].second);
-          foreach_vertex(
-              input_vertex_list, [&](size_t index, label_t label, vid_t v) {
-                if (label == triplet.dst_label) {
-                  auto ie_iter = graph.GetInEdgeIterator(
-                      label, v, triplet.src_label, triplet.edge_label);
-                  while (ie_iter.IsValid()) {
-                    auto nbr = ie_iter.GetNeighbor();
-                    builder.push_back_opt(nbr, v, ie_iter.GetData());
-                    shuffle_offset.push_back(index);
-                    ie_iter.Next();
-                  }
-                }
-              });
-          ctx.set_with_reshuffle(params.alias, builder.finish(),
-                                 shuffle_offset);
-          return ctx;
-        }
-      } else if (labels.size() > 1 || labels.size() == 0) {
-        auto& input_vertex_list =
-            *std::dynamic_pointer_cast<IVertexColumn>(ctx.get(params.v_tag));
-
-        auto builder = SDMLEdgeColumnBuilder::builder(params.dir, label_props);
-        if (params.dir == Direction::kOut) {
-          foreach_vertex(
-              input_vertex_list, [&](size_t index, label_t label, vid_t v) {
-                for (const auto& triplet : out_labels_map[label]) {
-                  auto oe_iter = graph.GetOutEdgeIterator(
-                      label, v, triplet.dst_label, triplet.edge_label);
-                  while (oe_iter.IsValid()) {
-                    auto nbr = oe_iter.GetNeighbor();
-                    builder.push_back_opt(triplet, v, nbr, oe_iter.GetData());
-                    shuffle_offset.push_back(index);
-                    oe_iter.Next();
-                  }
-                }
-              });
-        } else {
-          foreach_vertex(
-              input_vertex_list, [&](size_t index, label_t label, vid_t v) {
-                for (const auto& triplet : in_labels_map[label]) {
-                  auto ie_iter = graph.GetInEdgeIterator(
-                      label, v, triplet.src_label, triplet.edge_label);
-                  while (ie_iter.IsValid()) {
-                    auto nbr = ie_iter.GetNeighbor();
-                    builder.push_back_opt(triplet, nbr, v, ie_iter.GetData());
-                    shuffle_offset.push_back(index);
-                    ie_iter.Next();
-                  }
-                }
-              });
-        }
-
-        ctx.set_with_reshuffle(params.alias, builder.finish(), shuffle_offset);
-        return ctx;
-      }
-    } else if (params.dir == Direction::kBoth) {
-      if (labels.size() == 1) {
-        auto builder =
-            BDSLEdgeColumnBuilder::builder(labels[0], label_props[0].second);
-        auto& input_vertex_list =
-            *std::dynamic_pointer_cast<IVertexColumn>(ctx.get(params.v_tag));
-        foreach_vertex(input_vertex_list, [&](size_t index, label_t label,
-                                              vid_t v) {
-          if (label == labels[0].src_label) {
-            auto oe_iter = graph.GetOutEdgeIterator(
-                label, v, labels[0].dst_label, labels[0].edge_label);
-            while (oe_iter.IsValid()) {
-              auto nbr = oe_iter.GetNeighbor();
-              builder.push_back_opt(v, nbr, oe_iter.GetData(), Direction::kOut);
-              shuffle_offset.push_back(index);
-              oe_iter.Next();
-            }
-          }
-          if (label == labels[0].dst_label) {
-            auto ie_iter = graph.GetInEdgeIterator(
-                label, v, labels[0].src_label, labels[0].edge_label);
-            while (ie_iter.IsValid()) {
-              auto nbr = ie_iter.GetNeighbor();
-              builder.push_back_opt(nbr, v, ie_iter.GetData(), Direction::kIn);
-              shuffle_offset.push_back(index);
-              ie_iter.Next();
-            }
-          }
-        });
-        ctx.set_with_reshuffle(params.alias, builder.finish(), shuffle_offset);
-        return ctx;
-      } else {
-        auto builder = BDMLEdgeColumnBuilder::builder(label_props);
-        auto& input_vertex_list =
-            *std::dynamic_pointer_cast<IVertexColumn>(ctx.get(params.v_tag));
-        foreach_vertex(
-            input_vertex_list, [&](size_t index, label_t label, vid_t v) {
-              for (const auto& triplet : out_labels_map[label]) {
-                auto oe_iter = graph.GetOutEdgeIterator(
-                    label, v, triplet.dst_label, triplet.edge_label);
-                while (oe_iter.IsValid()) {
-                  auto nbr = oe_iter.GetNeighbor();
-                  builder.push_back_opt(triplet, v, nbr, oe_iter.GetData(),
-                                        Direction::kOut);
-                  shuffle_offset.push_back(index);
-                  oe_iter.Next();
-                }
-              }
-              for (const auto& triplet : in_labels_map[label]) {
-                auto ie_iter = graph.GetInEdgeIterator(
-                    label, v, triplet.src_label, triplet.edge_label);
-                while (ie_iter.IsValid()) {
-                  auto nbr = ie_iter.GetNeighbor();
-                  builder.push_back_opt(triplet, nbr, v, ie_iter.GetData(),
-                                        Direction::kIn);
-                  shuffle_offset.push_back(index);
-                  ie_iter.Next();
-                }
-              }
-            });
-        ctx.set_with_reshuffle(params.alias, builder.finish(), shuffle_offset);
-        return ctx;
-      }
+    if (vertex_column_type == VertexColumnType::kSingle) {
+      const SLVertexColumn& sl_col =
+          *dynamic_cast<const SLVertexColumn*>(input_vertex_list.get());
+      auto pair = expand_edge_impl<DummyPredicate, false>(
+          graph, sl_col, params.labels, params.dir, DummyPredicate());
+      ctx.set_with_reshuffle(params.alias, pair.first, pair.second);
+      return ctx;
+    } else if (vertex_column_type == VertexColumnType::kMultiple) {
+      const MLVertexColumn& ml_col =
+          *dynamic_cast<const MLVertexColumn*>(input_vertex_list.get());
+      auto pair = expand_edge_impl<DummyPredicate, false>(
+          graph, ml_col, params.labels, params.dir, DummyPredicate());
+      ctx.set_with_reshuffle(params.alias, pair.first, pair.second);
+      return ctx;
+    } else {
+      CHECK(vertex_column_type == VertexColumnType::kMultiSegment);
+      const MSVertexColumn& ms_col =
+          *dynamic_cast<const MSVertexColumn*>(input_vertex_list.get());
+      auto pair = expand_edge_impl<DummyPredicate, false>(
+          graph, ms_col, params.labels, params.dir, DummyPredicate());
+      ctx.set_with_reshuffle(params.alias, pair.first, pair.second);
+      return ctx;
     }
   }
-
-  LOG(ERROR) << "not support" << params.labels.size() << " "
-             << (int) params.dir;
-  RETURN_UNSUPPORTED_ERROR("not support" +
-                           std::to_string(params.labels.size()) + " " +
-                           std::to_string((int) params.dir));
 }
 
 gs::result<Context> EdgeExpand::expand_vertex_without_predicate(
@@ -540,422 +99,242 @@ gs::result<Context> EdgeExpand::expand_vertex_without_predicate(
     const EdgeExpandParams& params) {
   std::shared_ptr<IVertexColumn> input_vertex_list =
       std::dynamic_pointer_cast<IVertexColumn>(ctx.get(params.v_tag));
-  VertexColumnType input_vertex_list_type =
-      input_vertex_list->vertex_column_type();
-  if (input_vertex_list_type == VertexColumnType::kSingle) {
-    // optional edge expand
+  auto vertex_column_type = input_vertex_list->vertex_column_type();
+  // The optional syntax are in two folders:
+  // 1. Input vertex column is optional.
+  // 1.1 Common Expand: Then we need to discard the invalid source vertices
+  // when expanding. For example, input vertices [1,2,null,4], the expected
+  // output is [[1,2],[2,3],[4,5]]. The null vertex is discarded.
+  // 1.2 Optional Expand: Then we need to keep the invalid source vertices
+  // when expanding. For example, input vertices [1,2,null,4], the expected
+  // output is [[1,2],[2,3],[null,null],[4,5]]. The null vertex is kept.
+  // 2. Input vertex column is not optional,
+  // 2.1 Common Expand: Just expand
+  // 2.2 Optional Expand: Then we need to keep the invalid source vertices
+  // when expanding. For example, input vertices [1,2,3,4], the expected
+  // output is [[1,2],[2,3],[3,null],[4,5]]. The null vertex is kept.
+  if (vertex_column_type == VertexColumnType::kSingle) {
+    const SLVertexColumn& sl_col =
+        *dynamic_cast<const SLVertexColumn*>(input_vertex_list.get());
     if (params.is_optional) {
-      auto casted_input_vertex_list =
-          std::dynamic_pointer_cast<SLVertexColumn>(input_vertex_list);
-      auto pair = expand_vertex_without_predicate_optional_impl(
-          graph, *casted_input_vertex_list, params.labels, params.dir);
+      auto pair = expand_vertex_impl<DummyPredicate, true>(
+          graph, sl_col, params.labels, params.dir, DummyPredicate());
       ctx.set_with_reshuffle(params.alias, pair.first, pair.second);
-      return ctx;
     } else {
-      if (input_vertex_list->is_optional()) {
-        MSVertexColumnBuilder builder(
-            *input_vertex_list->get_labels_set().begin());
-        std::vector<size_t> shuffle_offset;
-        for (size_t i = 0; i < input_vertex_list->size(); i++) {
-          if (!input_vertex_list->has_value(i)) {
-            continue;
-          }
-          builder.push_back_vertex(input_vertex_list->get_vertex(i));
-          shuffle_offset.push_back(i);
-        }
-        ctx.remove(params.v_tag);
-        ctx.reshuffle(shuffle_offset);
-        ctx.set(params.v_tag, builder.finish());
-        input_vertex_list =
-            std::dynamic_pointer_cast<IVertexColumn>(ctx.get(params.v_tag));
-      }
-      auto casted_input_vertex_list =
-          std::dynamic_pointer_cast<SLVertexColumn>(input_vertex_list);
-      auto pair = expand_vertex_without_predicate_impl(
-          graph, *casted_input_vertex_list, params.labels, params.dir);
+      auto pair = expand_vertex_impl<DummyPredicate, false>(
+          graph, sl_col, params.labels, params.dir, DummyPredicate());
       ctx.set_with_reshuffle(params.alias, pair.first, pair.second);
-      return ctx;
     }
-  } else if (input_vertex_list_type == VertexColumnType::kMultiple) {
+    return ctx;
+  } else if (vertex_column_type == VertexColumnType::kMultiple) {
+    const MLVertexColumn& ml_col =
+        *dynamic_cast<const MLVertexColumn*>(input_vertex_list.get());
     if (params.is_optional) {
-      auto casted_input_vertex_list =
-          std::dynamic_pointer_cast<MLVertexColumn>(input_vertex_list);
-      auto pair = expand_vertex_without_predicate_optional_impl(
-          graph, *casted_input_vertex_list, params.labels, params.dir);
+      auto pair = expand_vertex_impl<DummyPredicate, true>(
+          graph, ml_col, params.labels, params.dir, DummyPredicate());
       ctx.set_with_reshuffle(params.alias, pair.first, pair.second);
-      return ctx;
     } else {
-      if (input_vertex_list->is_optional()) {
-        MLVertexColumnBuilder builder(input_vertex_list->get_labels_set());
-        std::vector<size_t> shuffle_offset;
-        for (size_t i = 0; i < input_vertex_list->size(); i++) {
-          if (!input_vertex_list->has_value(i)) {
-            continue;
-          }
-          builder.push_back_vertex(input_vertex_list->get_vertex(i));
-          shuffle_offset.push_back(i);
-        }
-        ctx.remove(params.v_tag);
-        ctx.reshuffle(shuffle_offset);
-        ctx.set(params.v_tag, builder.finish());
-        input_vertex_list =
-            std::dynamic_pointer_cast<IVertexColumn>(ctx.get(params.v_tag));
-      }
-
-      auto casted_input_vertex_list =
-          std::dynamic_pointer_cast<MLVertexColumn>(input_vertex_list);
-      auto pair = expand_vertex_without_predicate_impl(
-          graph, *casted_input_vertex_list, params.labels, params.dir);
+      auto pair = expand_vertex_impl<DummyPredicate, false>(
+          graph, ml_col, params.labels, params.dir, DummyPredicate());
       ctx.set_with_reshuffle(params.alias, pair.first, pair.second);
-      return ctx;
     }
-  } else if (input_vertex_list_type == VertexColumnType::kMultiSegment) {
-    if (params.is_optional) {
-      auto casted_input_vertex_list =
-          std::dynamic_pointer_cast<MSVertexColumn>(input_vertex_list);
-      auto pair = expand_vertex_without_predicate_optional_impl(
-          graph, *casted_input_vertex_list, params.labels, params.dir);
-      ctx.set_with_reshuffle(params.alias, pair.first, pair.second);
-      return ctx;
-    } else {
-      if (input_vertex_list->is_optional()) {
-        MSVertexColumnBuilder builder;
-        std::vector<size_t> shuffle_offset;
-        for (size_t i = 0; i < input_vertex_list->size(); i++) {
-          if (!input_vertex_list->has_value(i)) {
-            continue;
-          }
-          builder.push_back_vertex(input_vertex_list->get_vertex(i));
-          shuffle_offset.push_back(i);
-        }
-        ctx.remove(params.v_tag);
-        ctx.reshuffle(shuffle_offset);
-        ctx.set(params.v_tag, builder.finish());
-        input_vertex_list =
-            std::dynamic_pointer_cast<IVertexColumn>(ctx.get(params.v_tag));
-      }
-      auto casted_input_vertex_list =
-          std::dynamic_pointer_cast<MSVertexColumn>(input_vertex_list);
-      auto pair = expand_vertex_without_predicate_impl(
-          graph, *casted_input_vertex_list, params.labels, params.dir);
-      ctx.set_with_reshuffle(params.alias, pair.first, pair.second);
-      return ctx;
-    }
+    return ctx;
   } else {
-    LOG(ERROR) << "not support vertex column type "
-               << static_cast<int>(input_vertex_list_type);
-    RETURN_UNSUPPORTED_ERROR(
-        "not support vertex column type " +
-        std::to_string(static_cast<int>(input_vertex_list_type)));
+    CHECK(vertex_column_type == VertexColumnType::kMultiSegment);
+    const MSVertexColumn& ms_col =
+        *dynamic_cast<const MSVertexColumn*>(input_vertex_list.get());
+    if (params.is_optional) {
+      auto pair = expand_vertex_impl<DummyPredicate, true>(
+          graph, ms_col, params.labels, params.dir, DummyPredicate());
+      ctx.set_with_reshuffle(params.alias, pair.first, pair.second);
+    } else {
+      auto pair = expand_vertex_impl<DummyPredicate, false>(
+          graph, ms_col, params.labels, params.dir, DummyPredicate());
+      ctx.set_with_reshuffle(params.alias, pair.first, pair.second);
+    }
+    return ctx;
+  }
+}
+
+template <typename CMP_T>
+static gs::result<Context> expand_edge_with_special_edge_predicate_impl1(
+    const GraphReadInterface& graph, Context&& ctx,
+    const EdgeExpandParams& params, const SpecialEdgePredicateConfig& config,
+    const CMP_T& cmp_value) {
+  auto input_col =
+      std::dynamic_pointer_cast<IVertexColumn>(ctx.get(params.v_tag));
+  if (input_col->is_optional() || params.is_optional) {
+    LOG(ERROR) << "not support optional edge expand with predicate";
+    RETURN_UNSUPPORTED_ERROR("not support optional edge expand");
+  }
+  auto input_vertex_labels_set = input_col->get_labels_set();
+  std::vector<LabelTriplet> expected_labels;
+  for (const auto& triplet : params.labels) {
+    if ((params.dir == Direction::kOut || params.dir == Direction::kBoth) &&
+        input_vertex_labels_set.count(triplet.src_label)) {
+      expected_labels.emplace_back(triplet);
+    } else if ((params.dir == Direction::kIn ||
+                params.dir == Direction::kBoth) &&
+               input_vertex_labels_set.count(triplet.dst_label)) {
+      expected_labels.emplace_back(triplet);
+    }
+  }
+  grape::DistinctSort(expected_labels);
+  if (expected_labels.empty()) {
+    MLVertexColumnBuilder builder;
+    auto col = builder.finish();
+    ctx.set_with_reshuffle(params.alias, col, {});
+    return ctx;
+  } else if (expected_labels.size() == 1) {
+    SLEdgePropertyGetter<typename CMP_T::data_t> accessor(
+        graph, expected_labels, config.property_name);
+    EdgePropertyCmpPredicate<typename CMP_T::data_t,
+                             SLEdgePropertyGetter<typename CMP_T::data_t>,
+                             CMP_T>
+        pred(accessor, cmp_value);
+    return EdgeExpand::expand_edge(graph, std::move(ctx), params, pred);
+  } else {
+    MLEdgePropertyGetter<typename CMP_T::data_t> accessor(
+        graph, expected_labels, config.property_name);
+    EdgePropertyCmpPredicate<typename CMP_T::data_t,
+                             MLEdgePropertyGetter<typename CMP_T::data_t>,
+                             CMP_T>
+        pred(accessor, cmp_value);
+    return EdgeExpand::expand_edge(graph, std::move(ctx), params, pred);
   }
 }
 
 template <typename T>
-static gs::result<Context> _expand_edge_with_special_edge_predicate(
+static gs::result<Context> expand_edge_with_special_edge_predicate_impl0(
     const GraphReadInterface& graph, Context&& ctx,
-    const EdgeExpandParams& params, const SPEdgePredicate& pred) {
-  if (pred.type() == SPPredicateType::kPropertyGT) {
-    return EdgeExpand::expand_edge<EdgePropertyGTPredicate<T>>(
-        graph, std::move(ctx), params,
-        dynamic_cast<const EdgePropertyGTPredicate<T>&>(pred));
-  } else if (pred.type() == SPPredicateType::kPropertyLT) {
-    return EdgeExpand::expand_edge<EdgePropertyLTPredicate<T>>(
-        graph, std::move(ctx), params,
-        dynamic_cast<const EdgePropertyLTPredicate<T>&>(pred));
-  } else if (pred.type() == SPPredicateType::kPropertyEQ) {
-    return EdgeExpand::expand_edge<EdgePropertyEQPredicate<T>>(
-        graph, std::move(ctx), params,
-        dynamic_cast<const EdgePropertyEQPredicate<T>&>(pred));
-  } else if (pred.type() == SPPredicateType::kPropertyNE) {
-    return EdgeExpand::expand_edge<EdgePropertyNEPredicate<T>>(
-        graph, std::move(ctx), params,
-        dynamic_cast<const EdgePropertyNEPredicate<T>&>(pred));
-  } else if (pred.type() == SPPredicateType::kPropertyLE) {
-    return EdgeExpand::expand_edge<EdgePropertyLEPredicate<T>>(
-        graph, std::move(ctx), params,
-        dynamic_cast<const EdgePropertyLEPredicate<T>&>(pred));
-  } else if (pred.type() == SPPredicateType::kPropertyGE) {
-    return EdgeExpand::expand_edge<EdgePropertyGEPredicate<T>>(
-        graph, std::move(ctx), params,
-        dynamic_cast<const EdgePropertyGEPredicate<T>&>(pred));
+    const EdgeExpandParams& params, const SpecialEdgePredicateConfig& config,
+    const std::string& target_val_str) {
+  T target = TypedConverter<T>::typed_from_string(target_val_str);
+  if (config.ptype == SPPredicateType::kPropertyGT) {
+    GTCmp<T> target_cmp(target);
+    return expand_edge_with_special_edge_predicate_impl1(
+        graph, std::move(ctx), params, config, target_cmp);
+  } else if (config.ptype == SPPredicateType::kPropertyLT) {
+    LTCmp<T> target_cmp(target);
+    return expand_edge_with_special_edge_predicate_impl1(
+        graph, std::move(ctx), params, config, target_cmp);
+  } else if (config.ptype == SPPredicateType::kPropertyEQ) {
+    EQCmp<T> target_cmp(target);
+    return expand_edge_with_special_edge_predicate_impl1(
+        graph, std::move(ctx), params, config, target_cmp);
+  } else if (config.ptype == SPPredicateType::kPropertyNE) {
+    NECmp<T> target_cmp(target);
+    return expand_edge_with_special_edge_predicate_impl1(
+        graph, std::move(ctx), params, config, target_cmp);
+  } else if (config.ptype == SPPredicateType::kPropertyLE) {
+    LECmp<T> target_cmp(target);
+    return expand_edge_with_special_edge_predicate_impl1(
+        graph, std::move(ctx), params, config, target_cmp);
   } else {
-    LOG(ERROR) << "not support edge property type "
-               << static_cast<int>(pred.type());
+    CHECK(config.ptype == SPPredicateType::kPropertyGE);
+    GECmp<T> target_cmp(target);
+    return expand_edge_with_special_edge_predicate_impl1(
+        graph, std::move(ctx), params, config, target_cmp);
   }
-  RETURN_UNSUPPORTED_ERROR("not support edge property type " +
-                           std::to_string(static_cast<int>(pred.type())));
 }
 
 gs::result<Context> EdgeExpand::expand_edge_with_special_edge_predicate(
     const GraphReadInterface& graph, Context&& ctx,
-    const EdgeExpandParams& params, const SPEdgePredicate& pred) {
-  if (params.is_optional) {
-    LOG(ERROR) << "not support optional edge expand";
-    RETURN_UNSUPPORTED_ERROR("not support optional edge expand");
-  }
-  if (pred.data_type() == RTAnyType::kBoolValue) {
-    return _expand_edge_with_special_edge_predicate<bool>(graph, std::move(ctx),
-                                                          params, pred);
-  } else if (pred.data_type() == RTAnyType::kI64Value) {
-    return _expand_edge_with_special_edge_predicate<int64_t>(
-        graph, std::move(ctx), params, pred);
-  } else if (pred.data_type() == RTAnyType::kI32Value) {
-    return _expand_edge_with_special_edge_predicate<int32_t>(
-        graph, std::move(ctx), params, pred);
-  } else if (pred.data_type() == RTAnyType::kU32Value) {
-    return _expand_edge_with_special_edge_predicate<uint32_t>(
-        graph, std::move(ctx), params, pred);
-  } else if (pred.data_type() == RTAnyType::kU64Value) {
-    return _expand_edge_with_special_edge_predicate<uint64_t>(
-        graph, std::move(ctx), params, pred);
-  } else if (pred.data_type() == RTAnyType::kF32Value) {
-    return _expand_edge_with_special_edge_predicate<float>(
-        graph, std::move(ctx), params, pred);
-  } else if (pred.data_type() == RTAnyType::kF64Value) {
-    return _expand_edge_with_special_edge_predicate<double>(
-        graph, std::move(ctx), params, pred);
-  } else if (pred.data_type() == RTAnyType::kStringValue) {
-    return _expand_edge_with_special_edge_predicate<std::string_view>(
-        graph, std::move(ctx), params, pred);
-  } else if (pred.data_type() == RTAnyType::kTimestamp) {
-    return _expand_edge_with_special_edge_predicate<TimeStamp>(
-        graph, std::move(ctx), params, pred);
-  } else if (pred.data_type() == RTAnyType::kDate) {
-    return _expand_edge_with_special_edge_predicate<Date>(graph, std::move(ctx),
-                                                          params, pred);
-  } else if (pred.data_type() == RTAnyType::kDateTime) {
-    return _expand_edge_with_special_edge_predicate<DateTime>(
-        graph, std::move(ctx), params, pred);
-  } else if (pred.data_type() == RTAnyType::kInterval) {
-    return _expand_edge_with_special_edge_predicate<Interval>(
-        graph, std::move(ctx), params, pred);
+    const EdgeExpandParams& params, const SpecialEdgePredicateConfig& config,
+    const std::string& target_val_str) {
+  if (config.param_type == RTAnyType::kI32Value) {
+    return expand_edge_with_special_edge_predicate_impl0<int>(
+        graph, std::move(ctx), params, config, target_val_str);
+  } else if (config.param_type == RTAnyType::kI64Value) {
+    return expand_edge_with_special_edge_predicate_impl0<int64_t>(
+        graph, std::move(ctx), params, config, target_val_str);
+  } else if (config.param_type == RTAnyType::kTimestamp) {
+    return expand_edge_with_special_edge_predicate_impl0<TimeStamp>(
+        graph, std::move(ctx), params, config, target_val_str);
   } else {
     LOG(ERROR) << "not support edge property type "
-               << static_cast<int>(pred.data_type());
+               << static_cast<int>(config.param_type);
     RETURN_UNSUPPORTED_ERROR(
         "not support edge property type " +
-        std::to_string(static_cast<int>(pred.data_type())));
+        std::to_string(static_cast<int>(config.param_type)));
   }
-  RETURN_UNSUPPORTED_ERROR("not support edge property type");
 }
 
-template <typename T, typename VERTEX_COL_T>
-Context expand_vertex_ep_lt_ml_impl(
-    const GraphReadInterface& graph, Context&& ctx,
-    const std::vector<std::tuple<label_t, label_t, Direction>>& label_dirs,
-    label_t input_label, const std::string& ep_val,
-    VERTEX_COL_T* casted_input_vertex_list, int alias) {
-  T max_value(TypedConverter<T>::typed_from_string(ep_val));
-  std::vector<GraphReadInterface::graph_view_t<T>> views;
-  for (auto& t : label_dirs) {
-    label_t nbr_label = std::get<0>(t);
-    label_t edge_label = std::get<1>(t);
-    Direction dir = std::get<2>(t);
-    if (dir == Direction::kOut) {
-      views.emplace_back(
-          graph.GetOutgoingGraphView<T>(input_label, nbr_label, edge_label));
+template <typename T>
+void expand_vertex_ep_cmp_impl(
+    const GraphReadInterface& graph, const SLVertexColumn& input_column,
+    MSVertexColumnBuilder& builder, std::vector<size_t>& offsets,
+    label_t input_label, label_t nbr_label, label_t edge_label, Direction dir,
+    const std::string& cmp_value, SPPredicateType tp) {
+  T cmp_val(TypedConverter<T>::typed_from_string(cmp_value));
+  auto view = (dir == Direction::kOut)
+                  ? graph.GetGenericOutgoingGraphView(input_label, nbr_label,
+                                                      edge_label)
+                  : graph.GetGenericIncomingGraphView(input_label, nbr_label,
+                                                      edge_label);
+  auto& vertices = input_column.vertices();
+  size_t vertex_num = vertices.size();
+  auto ed_accessor = graph.GetEdgeDataAccessor(
+      dir == Direction::kOut ? input_label : nbr_label,
+      dir == Direction::kOut ? nbr_label : input_label, edge_label, 0);
+  if (view.type() == CsrViewType::kMultipleMutable &&
+      ed_accessor.is_bundled()) {
+    auto typed_view =
+        view.template get_typed_view<T, CsrViewType::kMultipleMutable>();
+    if (tp == SPPredicateType::kPropertyGT) {
+      for (size_t idx = 0; idx < vertex_num; ++idx) {
+        vid_t v = vertices[idx];
+        typed_view.foreach_nbr_gt(v, cmp_val, [&](vid_t nbr, const T& ed) {
+          builder.push_back_opt(nbr);
+          offsets.push_back(idx);
+        });
+      }
     } else {
-      CHECK(dir == Direction::kIn);
-      views.emplace_back(
-          graph.GetIncomingGraphView<T>(input_label, nbr_label, edge_label));
-    }
-  }
-  MSVertexColumnBuilder builder;
-  size_t csr_idx = 0;
-  std::vector<size_t> offsets;
-  for (auto& csr : views) {
-    label_t nbr_label = std::get<0>(label_dirs[csr_idx]);
-    size_t idx = 0;
-    builder.start_label(nbr_label);
-    for (auto v : casted_input_vertex_list->vertices()) {
-      csr.foreach_edges_lt(v, max_value, [&](vid_t nbr, const T& e) {
-        builder.push_back_opt(nbr);
-        offsets.push_back(idx);
-      });
-      ++idx;
-    }
-    ++csr_idx;
-  }
-  std::shared_ptr<IContextColumn> col = builder.finish();
-  ctx.set_with_reshuffle(alias, col, offsets);
-  return ctx;
-}
-gs::result<Context> EdgeExpand::expand_vertex_ep_lt(
-    const GraphReadInterface& graph, Context&& ctx,
-    const EdgeExpandParams& params, const std::string& ep_val) {
-  if (params.is_optional) {
-    LOG(ERROR) << "not support optional edge expand";
-    RETURN_UNSUPPORTED_ERROR("not support optional edge expand");
-  }
-  std::shared_ptr<IVertexColumn> input_vertex_list =
-      std::dynamic_pointer_cast<IVertexColumn>(ctx.get(params.v_tag));
-  VertexColumnType input_vertex_list_type =
-      input_vertex_list->vertex_column_type();
-
-  if (input_vertex_list_type == VertexColumnType::kSingle) {
-    auto casted_input_vertex_list =
-        std::dynamic_pointer_cast<SLVertexColumn>(input_vertex_list);
-    label_t input_label = casted_input_vertex_list->label();
-    std::vector<std::tuple<label_t, label_t, Direction>> label_dirs;
-    std::vector<PropertyType> ed_types;
-    for (auto& triplet : params.labels) {
-      if (!graph.schema().exist(triplet.src_label, triplet.dst_label,
-                                triplet.edge_label)) {
-        continue;
+      CHECK(tp == SPPredicateType::kPropertyLT);
+      for (size_t idx = 0; idx < vertex_num; ++idx) {
+        vid_t v = vertices[idx];
+        typed_view.foreach_nbr_lt(v, cmp_val, [&](vid_t nbr, const T& ed) {
+          builder.push_back_opt(nbr);
+          offsets.push_back(idx);
+        });
       }
-      if (triplet.src_label == input_label &&
-          ((params.dir == Direction::kOut) ||
-           (params.dir == Direction::kBoth))) {
-        label_dirs.emplace_back(triplet.dst_label, triplet.edge_label,
-                                Direction::kOut);
-        const auto& properties = graph.schema().get_edge_properties(
-            triplet.src_label, triplet.dst_label, triplet.edge_label);
-        if (properties.empty()) {
-          ed_types.push_back(PropertyType::Empty());
-        } else {
-          if (properties.size() != 1) {
-            LOG(ERROR) << "not support edge type";
-            RETURN_UNSUPPORTED_ERROR("not support edge type");
-          }
-          ed_types.push_back(properties[0]);
-        }
-      }
-      if (triplet.dst_label == input_label &&
-          ((params.dir == Direction::kIn) ||
-           (params.dir == Direction::kBoth))) {
-        label_dirs.emplace_back(triplet.src_label, triplet.edge_label,
-                                Direction::kIn);
-        const auto& properties = graph.schema().get_edge_properties(
-            triplet.src_label, triplet.dst_label, triplet.edge_label);
-        if (properties.empty()) {
-          ed_types.push_back(PropertyType::Empty());
-        } else {
-          if (properties.size() != 1) {
-            LOG(ERROR) << "not support edge type";
-            RETURN_UNSUPPORTED_ERROR("not support edge type");
-          }
-          ed_types.push_back(properties[0]);
-        }
-      }
-    }
-    grape::DistinctSort(label_dirs);
-    bool se = (label_dirs.size() == 1);
-    bool sp = true;
-    if (!se) {
-      for (size_t k = 1; k < ed_types.size(); ++k) {
-        if (ed_types[k] != ed_types[0]) {
-          sp = false;
-          break;
-        }
-      }
-    }
-    if (!sp) {
-      LOG(ERROR) << "not support edge type";
-      RETURN_UNSUPPORTED_ERROR("not support edge type");
-    }
-    const PropertyType& ed_type = ed_types[0];
-    if (ed_type == PropertyType::Timestamp()) {
-      return expand_vertex_ep_lt_ml_impl<TimeStamp>(
-          graph, std::move(ctx), label_dirs, input_label, ep_val,
-          casted_input_vertex_list.get(), params.alias);
-    } else if (ed_type == PropertyType::Int64()) {
-      return expand_vertex_ep_lt_ml_impl<int64_t>(
-          graph, std::move(ctx), label_dirs, input_label, ep_val,
-          casted_input_vertex_list.get(), params.alias);
-    } else {
-      LOG(ERROR) << "not support edge type";
-      RETURN_UNSUPPORTED_ERROR("not support edge type");
     }
   } else {
-    LOG(ERROR) << "not support vertex column type";
-    RETURN_UNSUPPORTED_ERROR("not support vertex column type");
-  }
-}
-
-template <typename T, typename VERTEX_COL_T>
-Context expand_vertex_ep_gt_sl_impl(
-    const GraphReadInterface& graph, Context&& ctx,
-    const std::vector<std::tuple<label_t, label_t, Direction>>& label_dirs,
-    label_t input_label, const std::string& ep_val,
-    VERTEX_COL_T* casted_input_vertex_list, int alias) {
-  T max_value(TypedConverter<T>::typed_from_string(ep_val));
-  std::vector<GraphReadInterface::graph_view_t<T>> views;
-  for (auto& t : label_dirs) {
-    label_t nbr_label = std::get<0>(t);
-    label_t edge_label = std::get<1>(t);
-    Direction dir = std::get<2>(t);
-    if (dir == Direction::kOut) {
-      views.emplace_back(
-          graph.GetOutgoingGraphView<T>(input_label, nbr_label, edge_label));
+    if (tp == SPPredicateType::kPropertyGT) {
+      for (size_t idx = 0; idx < vertex_num; ++idx) {
+        vid_t v = vertices[idx];
+        auto es = view.get_edges(v);
+        for (auto it = es.begin(); it != es.end(); ++it) {
+          auto nbr = it.get_vertex();
+          auto ed = ed_accessor.get_typed_data<T>(it);
+          if (cmp_val < ed) {
+            builder.push_back_opt(nbr);
+            offsets.push_back(idx);
+          }
+        }
+      }
     } else {
-      CHECK(dir == Direction::kIn);
-      views.emplace_back(
-          graph.GetIncomingGraphView<T>(input_label, nbr_label, edge_label));
+      CHECK(tp == SPPredicateType::kPropertyLT);
+      for (size_t idx = 0; idx < vertex_num; ++idx) {
+        vid_t v = vertices[idx];
+        auto es = view.get_edges(v);
+        for (auto it = es.begin(); it != es.end(); ++it) {
+          auto nbr = it.get_vertex();
+          auto ed = ed_accessor.get_typed_data<T>(it);
+          if (ed < cmp_val) {
+            builder.push_back_opt(nbr);
+            offsets.push_back(idx);
+          }
+        }
+      }
     }
   }
-  MSVertexColumnBuilder builder(std::get<0>(label_dirs[0]));
-  std::vector<size_t> offsets;
-  for (auto& csr : views) {
-    size_t idx = 0;
-    for (auto v : casted_input_vertex_list->vertices()) {
-      csr.foreach_edges_gt(v, max_value, [&](vid_t nbr, const T& val) {
-        builder.push_back_opt(nbr);
-        offsets.push_back(idx);
-      });
-      ++idx;
-    }
-  }
-  std::shared_ptr<IContextColumn> col = builder.finish();
-  ctx.set_with_reshuffle(alias, col, offsets);
-  return ctx;
 }
 
-template <typename T, typename VERTEX_COL_T>
-Context expand_vertex_ep_gt_ml_impl(
+gs::result<Context> EdgeExpand::expand_vertex_ep_cmp(
     const GraphReadInterface& graph, Context&& ctx,
-    const std::vector<std::tuple<label_t, label_t, Direction>>& label_dirs,
-    label_t input_label, const EdgeExpandParams& params,
-    const std::string& ep_val, VERTEX_COL_T* casted_input_vertex_list,
-    int alias) {
-  T max_value = TypedConverter<T>::typed_from_string(ep_val);
-  std::vector<GraphReadInterface::graph_view_t<T>> views;
-  for (auto& t : label_dirs) {
-    label_t nbr_label = std::get<0>(t);
-    label_t edge_label = std::get<1>(t);
-    Direction dir = std::get<2>(t);
-    if (dir == Direction::kOut) {
-      views.emplace_back(
-          graph.GetOutgoingGraphView<T>(input_label, nbr_label, edge_label));
-    } else {
-      CHECK(dir == Direction::kIn);
-      views.emplace_back(
-          graph.GetIncomingGraphView<T>(input_label, nbr_label, edge_label));
-    }
-  }
-  MSVertexColumnBuilder builder;
-  size_t csr_idx = 0;
-  std::vector<size_t> offsets;
-  for (auto& csr : views) {
-    label_t nbr_label = std::get<0>(label_dirs[csr_idx]);
-    size_t idx = 0;
-    builder.start_label(nbr_label);
-    for (auto v : casted_input_vertex_list->vertices()) {
-      csr.foreach_edges_gt(v, max_value, [&](vid_t nbr, const T& val) {
-        builder.push_back_opt(nbr);
-        offsets.push_back(idx);
-      });
-      ++idx;
-    }
-    ++csr_idx;
-  }
-  std::shared_ptr<IContextColumn> col = builder.finish();
-  ctx.set_with_reshuffle(alias, col, offsets);
-  return ctx;
-}
-
-gs::result<Context> EdgeExpand::expand_vertex_ep_gt(
-    const GraphReadInterface& graph, Context&& ctx,
-    const EdgeExpandParams& params, const std::string& ep_val) {
+    const EdgeExpandParams& params, const std::string& ep_val,
+    SPPredicateType tp) {
   if (params.is_optional) {
     LOG(ERROR) << "not support optional edge expand";
     RETURN_UNSUPPORTED_ERROR("not support optional edge expand");
@@ -970,7 +349,6 @@ gs::result<Context> EdgeExpand::expand_vertex_ep_gt(
         std::dynamic_pointer_cast<SLVertexColumn>(input_vertex_list);
     label_t input_label = casted_input_vertex_list->label();
     std::vector<std::tuple<label_t, label_t, Direction>> label_dirs;
-    std::vector<PropertyType> ed_types;
     for (auto& triplet : params.labels) {
       if (!graph.schema().exist(triplet.src_label, triplet.dst_label,
                                 triplet.edge_label)) {
@@ -981,181 +359,108 @@ gs::result<Context> EdgeExpand::expand_vertex_ep_gt(
            (params.dir == Direction::kBoth))) {
         label_dirs.emplace_back(triplet.dst_label, triplet.edge_label,
                                 Direction::kOut);
-        const auto& properties = graph.schema().get_edge_properties(
-            triplet.src_label, triplet.dst_label, triplet.edge_label);
-        if (properties.empty()) {
-          ed_types.push_back(PropertyType::Empty());
-        } else {
-          if (properties.size() != 1) {
-            LOG(ERROR) << "not support multiple edge types";
-            RETURN_UNSUPPORTED_ERROR("not support multiple edge types");
-          }
-          ed_types.push_back(properties[0]);
-        }
       }
       if (triplet.dst_label == input_label &&
           ((params.dir == Direction::kIn) ||
            (params.dir == Direction::kBoth))) {
         label_dirs.emplace_back(triplet.src_label, triplet.edge_label,
                                 Direction::kIn);
-        const auto& properties = graph.schema().get_edge_properties(
-            triplet.src_label, triplet.dst_label, triplet.edge_label);
-        if (properties.empty()) {
-          ed_types.push_back(PropertyType::Empty());
-        } else {
-          if (properties.size() != 1) {
-            LOG(ERROR) << "not support multiple edge types";
-            RETURN_UNSUPPORTED_ERROR("not support multiple edge types");
-          }
-          ed_types.push_back(properties[0]);
-        }
       }
+    }
+
+    if (label_dirs.empty()) {
+      MLVertexColumnBuilder builder;
+      auto col = builder.finish();
+      ctx.set_with_reshuffle(params.alias, col, {});
+      return ctx;
     }
     grape::DistinctSort(label_dirs);
-    bool se = (label_dirs.size() == 1);
-    bool sp = true;
-    if (!se) {
-      for (size_t k = 1; k < ed_types.size(); ++k) {
-        if (ed_types[k] != ed_types[0]) {
-          sp = false;
-          break;
-        }
+    std::vector<PropertyType> ed_types;
+    for (auto& label_dir : label_dirs) {
+      Direction dir = std::get<2>(label_dir);
+      label_t nbr_label = std::get<0>(label_dir);
+      label_t edge_label = std::get<1>(label_dir);
+
+      const auto& properties = graph.schema().get_edge_properties(
+          dir == Direction::kOut ? input_label : nbr_label,
+          dir == Direction::kOut ? nbr_label : input_label, edge_label);
+
+      if (properties.size() != 1) {
+        LOG(ERROR) << "not support edge type";
+        RETURN_UNSUPPORTED_ERROR("not support edge type");
       }
+      auto pt = properties[0];
+      if (pt != PropertyType::Timestamp() && pt != PropertyType::Int64() &&
+          pt != PropertyType::Int32()) {
+        LOG(ERROR) << "not support edge type";
+        RETURN_UNSUPPORTED_ERROR("not support edge type");
+      }
+      ed_types.push_back(pt);
     }
-    if (!sp) {
-      LOG(ERROR) << "not support multiple edge types";
-      RETURN_UNSUPPORTED_ERROR("not support multiple edge types");
-    }
-    const PropertyType& ed_type = ed_types[0];
-    if (se) {
-      if (ed_type == PropertyType::Timestamp()) {
-        return expand_vertex_ep_gt_sl_impl<TimeStamp>(
-            graph, std::move(ctx), label_dirs, input_label, ep_val,
-            casted_input_vertex_list.get(), params.alias);
-      } else if (ed_type == PropertyType::Int64()) {
-        return expand_vertex_ep_gt_sl_impl<int64_t>(
-            graph, std::move(ctx), label_dirs, input_label, ep_val,
-            casted_input_vertex_list.get(), params.alias);
+    MSVertexColumnBuilder builder(std::get<0>(label_dirs[0]));
+    std::vector<size_t> offsets;
+    size_t ld_idx = 0;
+    for (auto& label_dir : label_dirs) {
+      label_t nbr_label = std::get<0>(label_dir);
+      label_t edge_label = std::get<1>(label_dir);
+      Direction dir = std::get<2>(label_dir);
+      PropertyType pt = ed_types[ld_idx++];
+      builder.start_label(nbr_label);
+      if (pt == PropertyType::Timestamp()) {
+        expand_vertex_ep_cmp_impl<TimeStamp>(
+            graph, *casted_input_vertex_list, builder, offsets, input_label,
+            nbr_label, edge_label, dir, ep_val, tp);
+      } else if (pt == PropertyType::Int64()) {
+        expand_vertex_ep_cmp_impl<int64_t>(
+            graph, *casted_input_vertex_list, builder, offsets, input_label,
+            nbr_label, edge_label, dir, ep_val, tp);
       } else {
-        LOG(ERROR) << "not support edge type" << ed_type.ToString();
-        RETURN_UNSUPPORTED_ERROR("not support edge type " + ed_type.ToString());
-      }
-    } else {
-      if (ed_type == PropertyType::Timestamp()) {
-        return expand_vertex_ep_gt_ml_impl<TimeStamp>(
-            graph, std::move(ctx), label_dirs, input_label, params, ep_val,
-            casted_input_vertex_list.get(), params.alias);
-      } else if (ed_type == PropertyType::Int64()) {
-        return expand_vertex_ep_gt_ml_impl<int64_t>(
-            graph, std::move(ctx), label_dirs, input_label, params, ep_val,
-            casted_input_vertex_list.get(), params.alias);
-      } else {
-        LOG(ERROR) << "not support edge type" << ed_type.ToString();
-        RETURN_UNSUPPORTED_ERROR("not support edge type " + ed_type.ToString());
+        CHECK(pt == PropertyType::Int32());
+        expand_vertex_ep_cmp_impl<int32_t>(
+            graph, *casted_input_vertex_list, builder, offsets, input_label,
+            nbr_label, edge_label, dir, ep_val, tp);
       }
     }
+    std::shared_ptr<IContextColumn> col = builder.finish();
+    ctx.set_with_reshuffle(params.alias, col, offsets);
+    return ctx;
   } else {
     LOG(ERROR) << "unexpected to reach here...";
     RETURN_UNSUPPORTED_ERROR("unexpected to reach here...");
   }
 }
 
-template <typename T>
-static gs::result<Context> _expand_vertex_with_special_vertex_predicate(
-    const GraphReadInterface& graph, Context&& ctx,
-    const EdgeExpandParams& params, const SPVertexPredicate& pred) {
-  if (pred.type() == SPPredicateType::kPropertyEQ) {
-    return EdgeExpand::expand_vertex<
-        EdgeExpand::SPVPWrapper<VertexPropertyEQPredicateBeta<T>>>(
-        graph, std::move(ctx), params,
-        EdgeExpand::SPVPWrapper(
-            dynamic_cast<const VertexPropertyEQPredicateBeta<T>&>(pred)));
-  } else if (pred.type() == SPPredicateType::kPropertyLT) {
-    return EdgeExpand::expand_vertex<
-        EdgeExpand::SPVPWrapper<VertexPropertyLTPredicateBeta<T>>>(
-        graph, std::move(ctx), params,
-        EdgeExpand::SPVPWrapper(
-            dynamic_cast<const VertexPropertyLTPredicateBeta<T>&>(pred)));
-  } else if (pred.type() == SPPredicateType::kPropertyGT) {
-    return EdgeExpand::expand_vertex<
-        EdgeExpand::SPVPWrapper<VertexPropertyGTPredicateBeta<T>>>(
-        graph, std::move(ctx), params,
-        EdgeExpand::SPVPWrapper(
-            dynamic_cast<const VertexPropertyGTPredicateBeta<T>&>(pred)));
-  } else if (pred.type() == SPPredicateType::kPropertyLE) {
-    return EdgeExpand::expand_vertex<
-        EdgeExpand::SPVPWrapper<VertexPropertyLEPredicateBeta<T>>>(
-        graph, std::move(ctx), params,
-        EdgeExpand::SPVPWrapper(
-            dynamic_cast<const VertexPropertyLEPredicateBeta<T>&>(pred)));
-  } else if (pred.type() == SPPredicateType::kPropertyGE) {
-    return EdgeExpand::expand_vertex<
-        EdgeExpand::SPVPWrapper<VertexPropertyGEPredicateBeta<T>>>(
-        graph, std::move(ctx), params,
-        EdgeExpand::SPVPWrapper(
-            dynamic_cast<const VertexPropertyGEPredicateBeta<T>&>(pred)));
-  } else if (pred.type() == SPPredicateType::kPropertyBetween) {
-    return EdgeExpand::expand_vertex<
-        EdgeExpand::SPVPWrapper<VertexPropertyBetweenPredicateBeta<T>>>(
-        graph, std::move(ctx), params,
-        EdgeExpand::SPVPWrapper(
-            dynamic_cast<const VertexPropertyBetweenPredicateBeta<T>&>(pred)));
-  } else {
-    LOG(ERROR) << "not support vertex property type "
-               << static_cast<int>(pred.type());
-    RETURN_UNSUPPORTED_ERROR("not support vertex property type " +
-                             std::to_string(static_cast<int>(pred.type())));
+struct ExpandVertexSPOp {
+  template <typename PRED_T>
+  static gs::result<Context> eval_with_predicate(
+      const PRED_T& pred, const GraphReadInterface& graph, Context&& ctx,
+      const EdgeExpandParams& params) {
+    return EdgeExpand::expand_vertex<EdgeNbrPredicate<PRED_T>>(
+        graph, std::move(ctx), params, EdgeNbrPredicate(pred));
   }
-}
+};
 
 gs::result<Context> EdgeExpand::expand_vertex_with_special_vertex_predicate(
     const GraphReadInterface& graph, Context&& ctx,
-    const EdgeExpandParams& params, const SPVertexPredicate& pred) {
-  if (params.is_optional) {
-    LOG(ERROR) << "not support optional edge expand";
-    RETURN_UNSUPPORTED_ERROR("not support optional edge expand");
+    const EdgeExpandParams& params, const SpecialVertexPredicateConfig& config,
+    const std::map<std::string, std::string>& query_params) {
+  auto input_col =
+      std::dynamic_pointer_cast<IVertexColumn>(ctx.get(params.v_tag));
+  auto input_vertex_labels_set = input_col->get_labels_set();
+  std::set<label_t> expected_labels;
+  for (const auto& triplet : params.labels) {
+    if ((params.dir == Direction::kOut || params.dir == Direction::kBoth) &&
+        input_vertex_labels_set.count(triplet.src_label)) {
+      expected_labels.insert(triplet.dst_label);
+    } else if ((params.dir == Direction::kIn ||
+                params.dir == Direction::kBoth) &&
+               input_vertex_labels_set.count(triplet.dst_label)) {
+      expected_labels.insert(triplet.src_label);
+    }
   }
-  if (pred.data_type() == RTAnyType::kBoolValue) {
-    return _expand_vertex_with_special_vertex_predicate<bool>(
-        graph, std::move(ctx), params, pred);
-  } else if (pred.data_type() == RTAnyType::kI64Value) {
-    return _expand_vertex_with_special_vertex_predicate<int64_t>(
-        graph, std::move(ctx), params, pred);
-  } else if (pred.data_type() == RTAnyType::kI32Value) {
-    return _expand_vertex_with_special_vertex_predicate<int32_t>(
-        graph, std::move(ctx), params, pred);
-  } else if (pred.data_type() == RTAnyType::kU32Value) {
-    return _expand_vertex_with_special_vertex_predicate<uint32_t>(
-        graph, std::move(ctx), params, pred);
-  } else if (pred.data_type() == RTAnyType::kU64Value) {
-    return _expand_vertex_with_special_vertex_predicate<uint64_t>(
-        graph, std::move(ctx), params, pred);
-  } else if (pred.data_type() == RTAnyType::kF32Value) {
-    return _expand_vertex_with_special_vertex_predicate<float>(
-        graph, std::move(ctx), params, pred);
-  } else if (pred.data_type() == RTAnyType::kF64Value) {
-    return _expand_vertex_with_special_vertex_predicate<double>(
-        graph, std::move(ctx), params, pred);
-  } else if (pred.data_type() == RTAnyType::kStringValue) {
-    return _expand_vertex_with_special_vertex_predicate<std::string_view>(
-        graph, std::move(ctx), params, pred);
-  } else if (pred.data_type() == RTAnyType::kDate) {
-    return _expand_vertex_with_special_vertex_predicate<Date>(
-        graph, std::move(ctx), params, pred);
-  } else if (pred.data_type() == RTAnyType::kDateTime) {
-    return _expand_vertex_with_special_vertex_predicate<DateTime>(
-        graph, std::move(ctx), params, pred);
-  } else if (pred.data_type() == RTAnyType::kInterval) {
-    return _expand_vertex_with_special_vertex_predicate<Interval>(
-        graph, std::move(ctx), params, pred);
-  } else if (pred.data_type() == RTAnyType::kTimestamp) {
-    return _expand_vertex_with_special_vertex_predicate<TimeStamp>(
-        graph, std::move(ctx), params, pred);
-  }
-  LOG(ERROR) << "not support vertex property type "
-             << static_cast<int>(pred.data_type());
-  RETURN_UNSUPPORTED_ERROR("not support vertex property type " +
-                           std::to_string(static_cast<int>(pred.data_type())));
+  return dispatch_vertex_predicate<ExpandVertexSPOp>(
+      graph, expected_labels, config, query_params, graph, std::move(ctx),
+      params);
 }
 
 }  // namespace runtime

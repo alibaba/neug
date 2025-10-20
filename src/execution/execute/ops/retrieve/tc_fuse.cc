@@ -45,7 +45,7 @@ class OprTimer;
 
 namespace ops {
 
-template <typename T1, typename T2, typename T3>
+template <typename T1>
 class TCOpr : public IReadOperator {
  public:
   TCOpr(const physical::EdgeExpand& ee_opr0,
@@ -102,9 +102,8 @@ class TCOpr : public IReadOperator {
       const std::map<std::string, std::string>& params,
       gs::runtime::Context&& ctx, gs::runtime::OprTimer* timer) override {
     const std::string& param_value = params.at(param_name_);
-    return EdgeExpand::tc<T1, T2, T3>(graph, std::move(ctx), labels_,
-                                      input_tag_, alias1_, alias2_, is_lt_,
-                                      param_value);
+    return EdgeExpand::tc<T1>(graph, std::move(ctx), labels_, input_tag_,
+                              alias1_, alias2_, is_lt_, param_value);
   }
 
  private:
@@ -251,49 +250,24 @@ inline bool parse_edge_type(const Schema& schema, const LabelTriplet& label,
   return false;
 }
 
-template <typename T1, typename T2>
-std::unique_ptr<IReadOperator> _make_tc_opr(
-    const physical::EdgeExpand& ee_opr0, const physical::EdgeExpand& ee_opr1,
-    const physical::GetV& v_opr1, const physical::EdgeExpand& ee_opr2,
-    const LabelTriplet& label0, const LabelTriplet& label1,
-    const LabelTriplet& label2, const std::array<PropertyType, 3>& eps) {
-  if (eps[2] == PropertyType::Empty()) {
-    return std::make_unique<TCOpr<T1, T2, grape::EmptyType>>(
-        ee_opr0, ee_opr1, v_opr1, ee_opr2, label0, label1, label2);
-  } else if (eps[2] == PropertyType::Timestamp()) {
-    return std::make_unique<TCOpr<T1, T2, TimeStamp>>(
-        ee_opr0, ee_opr1, v_opr1, ee_opr2, label0, label1, label2);
-  } else if (eps[2] == PropertyType::Int64()) {
-    return std::make_unique<TCOpr<T1, T2, int64_t>>(
-        ee_opr0, ee_opr1, v_opr1, ee_opr2, label0, label1, label2);
-  }
-  return nullptr;
-}
-
 std::unique_ptr<IReadOperator> make_tc_opr(
     const physical::EdgeExpand& ee_opr0, const physical::EdgeExpand& ee_opr1,
     const physical::GetV& v_opr1, const physical::EdgeExpand& ee_opr2,
     const LabelTriplet& label0, const LabelTriplet& label1,
     const LabelTriplet& label2, const std::array<PropertyType, 3>& eps) {
   if (eps[0] == PropertyType::Timestamp()) {
-    if (eps[1] == PropertyType::Timestamp()) {
-      return _make_tc_opr<TimeStamp, TimeStamp>(
-          ee_opr0, ee_opr1, v_opr1, ee_opr2, label0, label1, label2, eps);
-    } else if (eps[1] == PropertyType::Empty()) {
-      return _make_tc_opr<TimeStamp, grape::EmptyType>(
-          ee_opr0, ee_opr1, v_opr1, ee_opr2, label0, label1, label2, eps);
-    }
+    return std::make_unique<TCOpr<TimeStamp>>(ee_opr0, ee_opr1, v_opr1, ee_opr2,
+                                              label0, label1, label2);
   } else if (eps[0] == PropertyType::Int64()) {
-    if (eps[1] == PropertyType::Timestamp()) {
-      return _make_tc_opr<int64_t, TimeStamp>(ee_opr0, ee_opr1, v_opr1, ee_opr2,
-                                              label0, label1, label2, eps);
-    } else if (eps[1] == PropertyType::Empty()) {
-      return _make_tc_opr<int64_t, grape::EmptyType>(
-          ee_opr0, ee_opr1, v_opr1, ee_opr2, label0, label1, label2, eps);
-    }
+    return std::make_unique<TCOpr<int64_t>>(ee_opr0, ee_opr1, v_opr1, ee_opr2,
+                                            label0, label1, label2);
+  } else if (eps[0] == PropertyType::Int32()) {
+    return std::make_unique<TCOpr<int32_t>>(ee_opr0, ee_opr1, v_opr1, ee_opr2,
+                                            label0, label1, label2);
   }
   return nullptr;
 }
+
 gs::result<ReadOpBuildResultT> TCOprBuilder::Build(
     const gs::Schema& schema, const ContextMeta& ctx_meta,
     const physical::PhysicalPlan& plan, int op_idx) {

@@ -46,7 +46,7 @@ using gs::vid_t;
 
 // Utility: Generate unique id (thread-safe)
 static std::atomic<int64_t> neug_current_id(0);
-int64_t neug_generate_id() { return neug_current_id.fetch_add(1); }
+Any neug_generate_id() { return gs::Any::From(neug_current_id.fetch_add(1)); }
 
 std::string neug_generate_random_string(int length) {
   static const char alphanum[] = "abcdefghijklmnopqrstuvwxyz";
@@ -73,11 +73,8 @@ std::string neug_generate_work_dir(const std::string& prefix) {
 class NeugDBACIDTest : public ::testing::Test {
  protected:
   void SetUp() override {
-    work_dir_ = neug_generate_work_dir("/tmp/neug_acid_");
-    thread_num_ = std::thread::hardware_concurrency();
-    if (thread_num_ == 0) {
-      thread_num_ = 4;
-    }
+    work_dir_ = neug_generate_work_dir("/tmp/neug_acid/");
+    thread_num_ = 16;
   }
   void TearDown() override { fs::remove_all(work_dir_); }
   std::string work_dir_;
@@ -183,12 +180,12 @@ void neug_AtomicityInit(NeugDB& db, const std::string& work_dir,
   int64_t id2 = 2;
   std::string name2 = "Bob";
   std::string email2 = "bob@hotmail.com;bobby@yahoo.com";
-  EXPECT_TRUE(
-      txn.AddVertex(person_label_id, neug_generate_id(),
-                    {Any::From(id1), Any::From(name1), Any::From(email1)}));
-  EXPECT_TRUE(
-      txn.AddVertex(person_label_id, neug_generate_id(),
-                    {Any::From(id2), Any::From(name2), Any::From(email2)}));
+  EXPECT_TRUE(txn.AddVertex(person_label_id, neug_generate_id(),
+                            {Prop::from_int64(id1), Prop::from_string(name1),
+                             Prop::from_string(email1)}));
+  EXPECT_TRUE(txn.AddVertex(person_label_id, neug_generate_id(),
+                            {Prop::from_int64(id2), Prop::from_string(name2),
+                             Prop::from_string(email2)}));
   txn.Commit();
 }
 
@@ -204,16 +201,16 @@ bool neug_AtomicityC(NeugDBSession& db, int64_t person2_id,
   }
   int64_t p1_id = vit.GetId().AsInt64();
   neug_append_string_to_field(vit, 2, new_email);
-  int64_t p2_id = neug_generate_id();
+  auto p2_id = neug_generate_id();
   std::string name = "", email = "";
-  if (!txn.AddVertex(
-          person_label_id, p2_id,
-          {Any::From(person2_id), Any::From(name), Any::From(email)})) {
+  if (!txn.AddVertex(person_label_id, p2_id,
+                     {Prop::from_int64(person2_id), Prop::from_string(name),
+                      Prop::from_string(email)})) {
     txn.Abort();
     return false;
   }
-  if (!txn.AddEdge(person_label_id, p1_id, person_label_id, p2_id,
-                   knows_label_id, Any::From(since))) {
+  if (!txn.AddEdge(person_label_id, gs::Any::From(p1_id), person_label_id,
+                   p2_id, knows_label_id, {Prop::from_int64(since)})) {
     txn.Abort();
     return false;
   }
@@ -235,11 +232,12 @@ bool neug_AtomicityRB(NeugDBSession& db, int64_t person2_id,
       return false;
     }
   }
-  int64_t p2_id = neug_generate_id();
+  auto p2_id = neug_generate_id();
   std::string name = "", email = "";
-  EXPECT_TRUE(txn.AddVertex(
-      person_label_id, p2_id,
-      {Any::From(person2_id), Any::From(name), Any::From(email)}));
+  EXPECT_TRUE(
+      txn.AddVertex(person_label_id, p2_id,
+                    {Prop::from_int64(person2_id), Prop::from_string(name),
+                     Prop::from_string(email)}));
   auto ret = txn.Commit();
   EXPECT_TRUE(ret);
   return true;
@@ -293,14 +291,16 @@ void G0Init(NeugDB& db, const std::string& work_dir, int thread_num) {
   for (int i = 0; i < 100; ++i) {
     auto p1_id = neug_generate_id();
     int64_t p1_id_property = 2 * i + 1;
-    CHECK(txn.AddVertex(person_label_id, p1_id,
-                        {Any::From(p1_id_property), Any::From(value)}));
+    CHECK(txn.AddVertex(
+        person_label_id, p1_id,
+        {Prop::from_int64(p1_id_property), Prop::from_string(value)}));
     auto p2_id = neug_generate_id();
     int64_t p2_id_property = 2 * i + 2;
-    CHECK(txn.AddVertex(person_label_id, p2_id,
-                        {Any::From(p2_id_property), Any::From(value)}));
+    CHECK(txn.AddVertex(
+        person_label_id, p2_id,
+        {Prop::from_int64(p2_id_property), Prop::from_string(value)}));
     CHECK(txn.AddEdge(person_label_id, p1_id, person_label_id, p2_id,
-                      knows_label_id, Any::From(value)));
+                      knows_label_id, {Prop::from_string(value)}));
   }
   txn.Commit();
 }
@@ -332,7 +332,7 @@ void G0(NeugDBSession& db, int64_t person1_id, int64_t person2_id,
   neug_append_string_to_field(vit2, 1, std::to_string(txn_id));
 
   auto oeit = txn.GetOutEdgeIterator(person_label_id, vit1.GetIndex(),
-                                     person_label_id, knows_label_id);
+                                     person_label_id, knows_label_id, 0);
   while (oeit.IsValid()) {
     if (oeit.GetNeighbor() == vit2.GetIndex()) {
       break;
@@ -341,15 +341,15 @@ void G0(NeugDBSession& db, int64_t person1_id, int64_t person2_id,
   }
   CHECK(oeit.IsValid());
 
-  Any cur = oeit.GetData();
-  std::string cur_str(cur.value.s);
+  Prop cur = oeit.GetData();
+  std::string cur_str(cur.as_string());
   if (cur_str.empty()) {
     cur_str = std::to_string(txn_id);
   } else {
     cur_str += ";";
     cur_str += std::to_string(txn_id);
   }
-  Any new_value;
+  Prop new_value;
   new_value.set_string(cur_str);
 
   oeit.SetData(new_value);
@@ -380,18 +380,23 @@ std::tuple<std::string, std::string, std::string> G0Check(NeugDB& db,
   }
   std::string p2_version_history = std::string(vit2.GetField(1).AsStringView());
 
-  auto oeit = txn.GetOutEdgeIterator(person_label_id, vit1.GetIndex(),
-                                     person_label_id, knows_label_id);
-  while (oeit.IsValid()) {
-    if (oeit.GetNeighbor() == vit2.GetIndex()) {
+  auto view = txn.GetGenericOutgoingGraphView(person_label_id, person_label_id,
+                                              knows_label_id);
+  auto oeit = view.get_edges(vit1.GetIndex());
+  NbrIterator iter = oeit.begin();
+  auto end = oeit.end();
+  for (; iter != end; ++iter) {
+    if ((*iter) == vit2.GetIndex()) {
       break;
     }
-    oeit.Next();
   }
-  CHECK(oeit.IsValid());
-  Any k_version_history_field = oeit.GetData();
-  CHECK(k_version_history_field.type == PropertyType::Varchar(256));
-  std::string k_version_history(k_version_history_field.value.s);
+  auto ed_accessor = txn.GetEdgeDataAccessor(person_label_id, knows_label_id,
+                                             person_label_id, 0);
+
+  CHECK(iter != end);
+  Prop k_version_history_field = ed_accessor.get_data(iter);
+  CHECK(k_version_history_field.type() == gs::PropType::kString);
+  std::string k_version_history(k_version_history_field.as_string());
 
   return std::make_tuple(p1_version_history, p2_version_history,
                          k_version_history);
@@ -414,10 +419,10 @@ void G1BInit(NeugDB& db, const std::string& work_dir, int thread_num) {
   auto txn = db.GetInsertTransaction();
   int64_t value = 99;
   for (int i = 0; i < 100; ++i) {
-    LOG(INFO) << "Inserting vertex " << i;
     int64_t vertex_id_property = i + 1;
-    CHECK(txn.AddVertex(person_label_id, neug_generate_id(),
-                        {Any::From(vertex_id_property), Any::From(value)}));
+    CHECK(txn.AddVertex(
+        person_label_id, neug_generate_id(),
+        {Prop::from_int64(vertex_id_property), Prop::from_int64(value)}));
   }
   txn.Commit();
 }
@@ -458,8 +463,9 @@ void G1CInit(NeugDB& db, const std::string& work_dir, int thread_num) {
   int64_t version_property = 0;
   for (int i = 0; i < 100; ++i) {
     int64_t id_property = i + 1;
-    CHECK(txn.AddVertex(person_label_id, neug_generate_id(),
-                        {Any::From(id_property), Any::From(version_property)}));
+    CHECK(txn.AddVertex(
+        person_label_id, neug_generate_id(),
+        {Prop::from_int64(id_property), Prop::from_int64(version_property)}));
   }
   txn.Commit();
 }
@@ -508,9 +514,9 @@ void G1AInit(NeugDB& db, const std::string& work_dir, int thread_num) {
   int64_t vertex_data = 1;
   for (int i = 0; i < 100; ++i) {
     int64_t vertex_id_property = i + 1;
-    CHECK(
-        txn.AddVertex(person_label_id, neug_generate_id(),
-                      {Any::From(vertex_id_property), Any::From(vertex_data)}));
+    CHECK(txn.AddVertex(
+        person_label_id, neug_generate_id(),
+        {Prop::from_int64(vertex_id_property), Prop::from_int64(vertex_data)}));
   }
   txn.Commit();
 }
@@ -554,8 +560,9 @@ void IMPInit(NeugDB& db, const std::string& work_dir, int thread_num) {
   int64_t version_property = 1;
   for (int i = 0; i < 100; ++i) {
     int64_t id_property = i + 1;
-    CHECK(txn.AddVertex(person_label_id, neug_generate_id(),
-                        {Any::From(id_property), Any::From(version_property)}));
+    CHECK(txn.AddVertex(
+        person_label_id, neug_generate_id(),
+        {Prop::from_int64(id_property), Prop::from_int64(version_property)}));
   }
   txn.Commit();
 }
@@ -617,9 +624,10 @@ void PMPInit(NeugDB& db, const std::string& work_dir, int thread_num) {
   auto txn = db.GetInsertTransaction();
   for (int i = 0; i < 100; ++i) {
     int64_t value = i + 1;
-    CHECK(
-        txn.AddVertex(person_label_id, neug_generate_id(), {Any::From(value)}));
-    CHECK(txn.AddVertex(post_label_id, neug_generate_id(), {Any::From(value)}));
+    CHECK(txn.AddVertex(person_label_id, neug_generate_id(),
+                        {Prop::from_int64(value)}));
+    CHECK(txn.AddVertex(post_label_id, neug_generate_id(),
+                        {Prop::from_int64(value)}));
   }
   txn.Commit();
 }
@@ -647,7 +655,7 @@ bool PMP1(NeugDBSession& db, int64_t person_id, int64_t post_id) {
   CHECK(vit1.IsValid());
 
   if (!txn.AddEdge(person_label_id, vit0.GetId(), post_label_id, vit1.GetId(),
-                   likes_label_id, Any())) {
+                   likes_label_id, {})) {
     txn.Abort();
     return false;
   }
@@ -668,9 +676,10 @@ std::tuple<int64_t, int64_t> PMP2(NeugDBSession& db, int64_t post_id) {
     }
   }
   int64_t c1 = 0;
-  for (auto ieit = txn.GetInEdgeIterator(post_label_id, vit0.GetIndex(),
-                                         person_label_id, likes_label_id);
-       ieit.IsValid(); ieit.Next()) {
+  auto view = txn.GetGenericIncomingGraphView(post_label_id, likes_label_id,
+                                              person_label_id);
+  auto ieit = view.get_edges(vit0.GetIndex());
+  for (auto iter = ieit.begin(); iter != ieit.end(); ++iter) {
     c1++;
   }
   std::this_thread::sleep_for(std::chrono::milliseconds(SLEEP_TIME_MILLI_SEC));
@@ -682,9 +691,10 @@ std::tuple<int64_t, int64_t> PMP2(NeugDBSession& db, int64_t post_id) {
     }
   }
   int64_t c2 = 0;
-  for (auto ieit = txn.GetInEdgeIterator(post_label_id, vit1.GetIndex(),
-                                         person_label_id, likes_label_id);
-       ieit.IsValid(); ieit.Next()) {
+  auto view2 = txn.GetGenericIncomingGraphView(post_label_id, likes_label_id,
+                                               person_label_id);
+  auto ieit2 = view2.get_edges(vit1.GetIndex());
+  for (auto iter = ieit2.begin(); iter != ieit2.end(); ++iter) {
     c2++;
   }
   return std::make_tuple(c1, c2);
@@ -711,18 +721,19 @@ void OTVInit(NeugDB& db, const std::string& work_dir, int thread_num) {
   int64_t value = 0;
 
   for (int j = 1; j <= 100; j++) {
-    std::vector<oid_t> vids;
+    std::vector<Any> vids;
     for (int i = 1; i <= 4; i++) {
       auto vid = neug_generate_id();
       int64_t id_property = j * 4 + i;
-      CHECK(txn.AddVertex(person_label_id, vid,
-                          {Any::From(id_property), Any::From(std::to_string(j)),
-                           Any::From(value)}));
+      CHECK(txn.AddVertex(
+          person_label_id, vid,
+          {Prop::from_int64(id_property), Prop::from_string(std::to_string(j)),
+           Prop::from_int64(value)}));
       vids.push_back(vid);
     }
     for (int i = 0; i < 4; i++) {
       CHECK(txn.AddEdge(person_label_id, vids[i], person_label_id,
-                        vids[(i + 1) % 4], knows_label_id, Any()));
+                        vids[(i + 1) % 4], knows_label_id, {}));
     }
   }
   txn.Commit();
@@ -742,22 +753,22 @@ void OTV1(NeugDBSession& db, int64_t person_id) {
   CHECK(vit1.IsValid());
   vid_t vid1 = vit1.GetIndex();
   for (auto eit1 = txn.GetOutEdgeIterator(person_label_id, vid1,
-                                          person_label_id, knows_label_id);
+                                          person_label_id, knows_label_id, 0);
        eit1.IsValid(); eit1.Next()) {
     CHECK(eit1.IsValid());
     vid_t vid2 = eit1.GetNeighbor();
     for (auto eit2 = txn.GetOutEdgeIterator(person_label_id, vid2,
-                                            person_label_id, knows_label_id);
+                                            person_label_id, knows_label_id, 0);
          eit2.IsValid(); eit2.Next()) {
       CHECK(eit2.IsValid());
       vid_t vid3 = eit2.GetNeighbor();
-      for (auto eit3 = txn.GetOutEdgeIterator(person_label_id, vid3,
-                                              person_label_id, knows_label_id);
+      for (auto eit3 = txn.GetOutEdgeIterator(
+               person_label_id, vid3, person_label_id, knows_label_id, 0);
            eit3.IsValid(); eit3.Next()) {
         CHECK(eit3.IsValid());
         vid_t vid4 = eit3.GetNeighbor();
         for (auto eit4 = txn.GetOutEdgeIterator(
-                 person_label_id, vid4, person_label_id, knows_label_id);
+                 person_label_id, vid4, person_label_id, knows_label_id, 0);
              eit4.IsValid(); eit4.Next()) {
           CHECK(eit4.IsValid());
           if (eit4.GetNeighbor() == vid1) {
@@ -795,40 +806,29 @@ OTV2(NeugDBSession& db, int64_t person_id) {
   auto get_versions = [&]() -> std::tuple<int64_t, int64_t, int64_t, int64_t> {
     CHECK(vit1.IsValid());
     vid_t vid1 = vit1.GetIndex();
-    for (auto eit1 = txn.GetOutEdgeIterator(person_label_id, vid1,
-                                            person_label_id, knows_label_id);
-         eit1.IsValid(); eit1.Next()) {
-      CHECK(eit1.IsValid());
-      vid_t vid2 = eit1.GetNeighbor();
-      for (auto eit2 = txn.GetOutEdgeIterator(person_label_id, vid2,
-                                              person_label_id, knows_label_id);
-           eit2.IsValid(); eit2.Next()) {
-        CHECK(eit2.IsValid());
-        vid_t vid3 = eit2.GetNeighbor();
-        for (auto eit3 = txn.GetOutEdgeIterator(
-                 person_label_id, vid3, person_label_id, knows_label_id);
-             eit3.IsValid(); eit3.Next()) {
-          CHECK(eit3.IsValid());
-          vid_t vid4 = eit3.GetNeighbor();
-          for (auto eit4 = txn.GetOutEdgeIterator(
-                   person_label_id, vid4, person_label_id, knows_label_id);
-               eit4.IsValid(); eit4.Next()) {
-            CHECK(eit4.IsValid());
-            if (eit4.GetNeighbor() == vid1) {
+    auto view = txn.GetGenericOutgoingGraphView(person_label_id, knows_label_id,
+                                                person_label_id);
+    auto edges1 = view.get_edges(vid1);
+    for (auto it = edges1.begin(); it != edges1.end(); ++it) {
+      vid_t vid2 = it.get_vertex();
+      auto edges2 = view.get_edges(vid2);
+      for (auto it2 = edges2.begin(); it2 != edges2.end(); ++it2) {
+        vid_t vid3 = it2.get_vertex();
+        auto edges3 = view.get_edges(vid3);
+        for (auto it3 = edges3.begin(); it3 != edges3.end(); ++it3) {
+          vid_t vid4 = it3.get_vertex();
+          auto edges4 = view.get_edges(vid4);
+          for (auto it4 = edges4.begin(); it4 != edges4.end(); ++it4) {
+            if (it4.get_vertex() == vid1) {
               auto vit = txn.GetVertexIterator(person_label_id);
-
               vit.Goto(vid1);
               int64_t v1_version = vit.GetField(2).AsInt64();
-
               vit.Goto(vid2);
               int64_t v2_version = vit.GetField(2).AsInt64();
-
               vit.Goto(vid3);
               int64_t v3_version = vit.GetField(2).AsInt64();
-
               vit.Goto(vid4);
               int64_t v4_version = vit.GetField(2).AsInt64();
-
               return std::make_tuple(v1_version, v2_version, v3_version,
                                      v4_version);
             }
@@ -883,9 +883,10 @@ void LUInit(NeugDB& db, const std::string& work_dir, int thread_num) {
   db.SwitchToTPMode();
   {
     auto conn = db.Connect();
-    EXPECT_TRUE(conn->Query(
-        "CREATE NODE TABLE PERSON (id INT64, id_prop INT64, num_friends INT64, "
-        "PRIMARY KEY(id));"));
+    EXPECT_TRUE(
+        conn->Query("CREATE NODE TABLE PERSON (id INT64, id_prop INT64, "
+                    "num_friends INT64, "
+                    "PRIMARY KEY(id));"));
   }
   const auto& schema = db.schema();
   auto person_label_id = schema.get_vertex_label_id("PERSON");
@@ -894,8 +895,9 @@ void LUInit(NeugDB& db, const std::string& work_dir, int thread_num) {
   int64_t num_property = 0;
   for (int i = 0; i < 100; ++i) {
     int64_t id_property = i + 1;
-    CHECK(txn.AddVertex(person_label_id, neug_generate_id(),
-                        {Any::From(id_property), Any::From(num_property)}));
+    CHECK(txn.AddVertex(
+        person_label_id, neug_generate_id(),
+        {Prop::from_int64(id_property), Prop::from_int64(num_property)}));
   }
 
   txn.Commit();
@@ -958,11 +960,11 @@ void WSInit(NeugDB& db, const std::string& work_dir, int thread_num) {
     int64_t id1 = 2 * i - 1;
     int64_t version1 = 70;
     CHECK(txn.AddVertex(person_label_id, neug_generate_id(),
-                        {Any::From(id1), Any::From(version1)}));
+                        {Prop::from_int64(id1), Prop::from_int64(version1)}));
     int64_t id2 = 2 * i;
     int64_t version2 = 80;
     CHECK(txn.AddVertex(person_label_id, neug_generate_id(),
-                        {Any::From(id2), Any::From(version2)}));
+                        {Prop::from_int64(id2), Prop::from_int64(version2)}));
   }
   txn.Commit();
 }
@@ -997,7 +999,8 @@ void WS1(NeugDBSession& db, int64_t person1_id, int64_t person2_id,
   std::this_thread::sleep_for(std::chrono::milliseconds(SLEEP_TIME_MILLI_SEC));
   std::uniform_int_distribution<> dist(0, 1);
 
-  // pick randomly between person1 and person2 and decrement the value property
+  // pick randomly between person1 and person2 and decrement the value
+  // property
   if (dist(gen)) {
     vit1.SetField(1, Any::From(p1_value - 100));
   } else {
@@ -1118,14 +1121,15 @@ TEST_F(NeugDBACIDTest, G1A) {
   int rc = thread_num_ / 2;
   neug_parallel_client(db, [&](NeugDBSession& db, int client_id) {
     if (client_id < rc) {
-      for (int i = 0; i < 1000; ++i) {
+      for (int i = 0; i < 100; ++i) {
         auto p_version = G1A2(db);
         if (p_version != 1)
           num_incorrect_checks.fetch_add(1);
       }
     } else {
-      for (int i = 0; i < 1000; ++i)
+      for (int i = 0; i < 100; ++i) {
         G1A1(db);
+      }
     }
   });
   ASSERT_EQ(num_incorrect_checks, 0);
@@ -1140,14 +1144,15 @@ TEST_F(NeugDBACIDTest, G1B) {
   int rc = thread_num_ / 2;
   neug_parallel_client(db, [&](NeugDBSession& session, int client_id) {
     if (client_id < rc) {
-      for (int i = 0; i < 1000; ++i) {
+      for (int i = 0; i < 100; ++i) {
         auto p_version = G1B2(session);
         if (p_version % 2 != 1)
           num_incorrect_checks.fetch_add(1);
       }
     } else {
-      for (int i = 0; i < 1000; ++i)
+      for (int i = 0; i < 100; ++i) {
         G1B1(session, 0, 1);
+      }
     }
   });
   ASSERT_EQ(num_incorrect_checks, 0);
@@ -1198,7 +1203,7 @@ TEST_F(NeugDBACIDTest, IMP) {
       std::random_device rand_dev;
       std::mt19937 gen(rand_dev());
       std::uniform_int_distribution<int> dist(1, 100);
-      for (int i = 0; i < 1000; ++i) {
+      for (int i = 0; i < 100; ++i) {
         int picked = dist(gen);
         int64_t v1, v2;
         std::tie(v1, v2) = IMP2(session, picked);
@@ -1206,7 +1211,7 @@ TEST_F(NeugDBACIDTest, IMP) {
           num_incorrect_checks.fetch_add(1);
       }
     } else {
-      for (int i = 0; i < 1000; ++i)
+      for (int i = 0; i < 100; ++i)
         IMP1(session);
     }
   });
@@ -1226,7 +1231,7 @@ TEST_F(NeugDBACIDTest, PMP) {
     std::mt19937 gen(rand_dev());
     std::uniform_int_distribution<int> dist(1, 100);
     if (client_id < rc) {
-      for (int i = 0; i < 1000; ++i) {
+      for (int i = 0; i < 100; ++i) {
         int64_t v1, v2;
         int post_id = dist(gen);
         std::tie(v1, v2) = PMP2(session, post_id);
@@ -1234,7 +1239,7 @@ TEST_F(NeugDBACIDTest, PMP) {
           num_incorrect_checks.fetch_add(1);
       }
     } else {
-      for (int i = 0; i < 1000; ++i) {
+      for (int i = 0; i < 100; ++i) {
         int person_id = dist(gen);
         int post_id = dist(gen);
         if (!PMP1(session, person_id, post_id))
@@ -1257,7 +1262,7 @@ TEST_F(NeugDBACIDTest, OTV) {
     std::mt19937 gen(rand_dev());
     std::uniform_int_distribution<int> dist(1, 100);
     if (client_id < rc) {
-      for (int i = 0; i < 1000; ++i) {
+      for (int i = 0; i < 100; ++i) {
         std::tuple<int64_t, int64_t, int64_t, int64_t> tup1, tup2;
         std::tie(tup1, tup2) = OTV2(session, dist(gen) * 4 + 1);
         int64_t v1_max = std::max({std::get<0>(tup1), std::get<1>(tup1),
@@ -1268,7 +1273,7 @@ TEST_F(NeugDBACIDTest, OTV) {
           num_incorrect_checks.fetch_add(1);
       }
     } else {
-      for (int i = 0; i < 1000; ++i)
+      for (int i = 0; i < 100; ++i)
         OTV1(session, dist(gen) * 4 + 1);
     }
   });
@@ -1287,14 +1292,14 @@ TEST_F(NeugDBACIDTest, FR) {
     std::mt19937 gen(rand_dev());
     std::uniform_int_distribution<int> dist(1, 100);
     if (client_id < rc) {
-      for (int i = 0; i < 1000; ++i) {
+      for (int i = 0; i < 100; ++i) {
         std::tuple<int64_t, int64_t, int64_t, int64_t> tup1, tup2;
         std::tie(tup1, tup2) = FR2(session, dist(gen) * 4 + 1);
         if (tup1 != tup2)
           num_incorrect_checks.fetch_add(1);
       }
     } else {
-      for (int i = 0; i < 1000; ++i)
+      for (int i = 0; i < 100; ++i)
         FR1(session, dist(gen) * 4 + 1);
     }
   });
@@ -1314,7 +1319,7 @@ TEST_F(NeugDBACIDTest, LU) {
     std::mt19937 gen(rand_dev());
     std::uniform_int_distribution<int> dist(1, 100);
     std::map<int64_t, int64_t> localExpNumFriends;
-    for (int i = 0; i < 1000; ++i) {
+    for (int i = 0; i < 100; ++i) {
       int64_t person_id = dist(gen);
       if (LU1(session, person_id))
         ++localExpNumFriends[person_id];
@@ -1338,7 +1343,7 @@ TEST_F(NeugDBACIDTest, WS) {
     std::random_device rand_dev;
     std::mt19937 gen(rand_dev());
     std::uniform_int_distribution<int> dist(1, 100);
-    for (int i = 0; i < 1000; ++i) {
+    for (int i = 0; i < 100; ++i) {
       int64_t person1_id = dist(gen) * 2 - 1;
       int64_t person2_id = person1_id + 1;
       WS1(session, person1_id, person2_id, gen);

@@ -13,8 +13,12 @@
  * limitations under the License.
  */
 
-#ifndef EXECUTION_EXECUTE_OPS_ADMIN_CHECKPOINT_H_
-#define EXECUTION_EXECUTE_OPS_ADMIN_CHECKPOINT_H_
+#ifndef INCLUDE_NEUG_EXECUTION_EXECUTE_OPS_ADMIN_CHECKPOINT_H_
+#define INCLUDE_NEUG_EXECUTION_EXECUTE_OPS_ADMIN_CHECKPOINT_H_
+
+#include <map>
+#include <memory>
+#include <string>
 
 #include "neug/execution/execute/operator.h"
 
@@ -50,4 +54,4 @@ class CheckpointOprBuilder : public IAdminOperatorBuilder {
 
 }  // namespace gs
 
-#endif  // EXECUTION_EXECUTE_OPS_ADMIN_CHECKPOINT_H_
+#endif  // INCLUDE_NEUG_EXECUTION_EXECUTE_OPS_ADMIN_CHECKPOINT_H_

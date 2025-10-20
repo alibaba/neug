@@ -12,14 +12,17 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-#ifndef EXECUTION_COMMON_OPERATORS_RETRIEVE_ORDER_BY_H_
-#define EXECUTION_COMMON_OPERATORS_RETRIEVE_ORDER_BY_H_
+#ifndef INCLUDE_NEUG_EXECUTION_COMMON_OPERATORS_RETRIEVE_ORDER_BY_H_
+#define INCLUDE_NEUG_EXECUTION_COMMON_OPERATORS_RETRIEVE_ORDER_BY_H_
+
+#include <algorithm>
+#include <queue>
+#include <utility>
+#include <vector>
 
 #include "neug/execution/common/context.h"
 #include "neug/execution/common/graph_interface.h"
 #include "neug/utils/result.h"
-
-#include <queue>
 
 namespace gs {
 
@@ -114,4 +117,4 @@ class OrderBy {
 
 }  // namespace gs
 
-#endif  // EXECUTION_COMMON_OPERATORS_RETRIEVE_ORDER_BY_H_
+#endif  // INCLUDE_NEUG_EXECUTION_COMMON_OPERATORS_RETRIEVE_ORDER_BY_H_

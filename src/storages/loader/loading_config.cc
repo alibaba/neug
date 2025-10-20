@@ -14,23 +14,17 @@
  */
 
 #include "neug/storages/loader/loading_config.h"
-#include <glog/logging.h>                   // for LogMessage, LOG, COMPACT_...
-#include <yaml-cpp/exceptions.h>            // for Exception
-#include <yaml-cpp/node/detail/iterator.h>  // for iterator_base, iterator_b...
-#include <yaml-cpp/node/emit.h>             // for operator<<
-#include <yaml-cpp/node/impl.h>             // for Node::operator[], Node::as
-#include <yaml-cpp/node/iterator.h>         // for iterator_value
-#include <yaml-cpp/node/node.h>             // for Node
-#include <yaml-cpp/node/parse.h>            // for LoadFile
-#include <cstdlib>                          // for size_t, getenv, NULL
-#include <filesystem>                       // for canonical, exists, path
-#include <iostream>                         // for operator<<, basic_ostream
-#include <memory>                           // for allocator_traits<>::value...
-#include <sstream>                          // for basic_stringbuf<>::int_type
-#include <stdexcept>                        // for runtime_error
-#include <string>                           // for string, allocator, char_t...
-#include <tuple>                            // for tuple, make_tuple, get
-#include "neug/utils/yaml_utils.h"          // for get_scalar
+#include <glog/logging.h>
+#include <yaml-cpp/yaml.h>
+#include <cstdlib>
+#include <filesystem>
+#include <iostream>
+#include <memory>
+#include <sstream>
+#include <string>
+#include <tuple>
+#include "neug/utils/exception/exception.h"
+#include "neug/utils/yaml_utils.h"
 
 namespace gs {
 

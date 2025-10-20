@@ -13,22 +13,15 @@
  * limitations under the License.
  */
 
-#ifndef ENGINES_GRAPH_DB_DATABASE_VERSION_MANAGER_H_
-#define ENGINES_GRAPH_DB_DATABASE_VERSION_MANAGER_H_
+#ifndef INCLUDE_NEUG_TRANSACTION_VERSION_MANAGER_H_
+#define INCLUDE_NEUG_TRANSACTION_VERSION_MANAGER_H_
 
-#include <assert.h>
-#include <fcntl.h>
 #include <stdint.h>
-#include <unistd.h>
-#include <array>
 #include <atomic>
-#include <bitset>
 #include <condition_variable>
 #include <mutex>
 #include <shared_mutex>
-#include <thread>
 
-#include "glog/logging.h"
 #include "libgrape-lite/grape/utils/bitset.h"
 #include "libgrape-lite/grape/utils/concurrent_queue.h"
 
@@ -122,4 +115,4 @@ class TPVersionManager : public IVersionManager {
 
 }  // namespace gs
 
-#endif  // GRAPHSCOPE_DATABASE_VERSION_MANAGER_H_
+#endif  // INCLUDE_NEUG_TRANSACTION_VERSION_MANAGER_H_

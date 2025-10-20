@@ -13,13 +13,16 @@
  * limitations under the License.
  */
 
-#ifndef EXECUTION_COMMON_COLUMNS_I_CONTEXT_COLUMNS_H_
-#define EXECUTION_COMMON_COLUMNS_I_CONTEXT_COLUMNS_H_
+#ifndef INCLUDE_NEUG_EXECUTION_COMMON_COLUMNS_I_CONTEXT_COLUMN_H_
+#define INCLUDE_NEUG_EXECUTION_COMMON_COLUMNS_I_CONTEXT_COLUMN_H_
 
 #include <memory>
 #include <string>
+#include <unordered_map>
+#include <utility>
+#include <vector>
 
-#include "neug/execution/common/rt_any.h"
+#include "neug/utils/runtime/rt_any.h"
 
 #include "glog/logging.h"
 
@@ -48,7 +51,7 @@ class ISigColumn {
 template <typename T>
 class SigColumn : public ISigColumn {
  public:
-  SigColumn(const std::vector<T>& data) : data_(data.data()) {}
+  explicit SigColumn(const std::vector<T>& data) : data_(data.data()) {}
   ~SigColumn() = default;
   inline size_t get_sig(size_t idx) const override {
     return static_cast<size_t>(data_[idx]);
@@ -61,7 +64,7 @@ class SigColumn : public ISigColumn {
 template <>
 class SigColumn<Interval> : public ISigColumn {
  public:
-  SigColumn(const std::vector<Interval>& data) : data_(data.data()) {}
+  explicit SigColumn(const std::vector<Interval>& data) : data_(data.data()) {}
   ~SigColumn() = default;
   inline size_t get_sig(size_t idx) const override {
     return static_cast<size_t>(data_[idx].to_mill_seconds());
@@ -74,7 +77,7 @@ class SigColumn<Interval> : public ISigColumn {
 template <>
 class SigColumn<Date> : public ISigColumn {
  public:
-  SigColumn(const std::vector<Date>& data) : data_(data.data()) {}
+  explicit SigColumn(const std::vector<Date>& data) : data_(data.data()) {}
   ~SigColumn() = default;
   inline size_t get_sig(size_t idx) const override {
     return static_cast<size_t>(data_[idx].to_u32());
@@ -87,7 +90,7 @@ class SigColumn<Date> : public ISigColumn {
 template <>
 class SigColumn<DateTime> : public ISigColumn {
  public:
-  SigColumn(const std::vector<DateTime>& data) : data_(data.data()) {}
+  explicit SigColumn(const std::vector<DateTime>& data) : data_(data.data()) {}
   ~SigColumn() = default;
   inline size_t get_sig(size_t idx) const override {
     return static_cast<size_t>(data_[idx].milli_second);
@@ -100,7 +103,7 @@ class SigColumn<DateTime> : public ISigColumn {
 template <>
 class SigColumn<TimeStamp> : public ISigColumn {
  public:
-  SigColumn(const std::vector<TimeStamp>& data) : data_(data.data()) {}
+  explicit SigColumn(const std::vector<TimeStamp>& data) : data_(data.data()) {}
   ~SigColumn() = default;
   inline size_t get_sig(size_t idx) const override {
     return static_cast<size_t>(data_[idx].milli_second);
@@ -113,7 +116,8 @@ class SigColumn<TimeStamp> : public ISigColumn {
 template <>
 class SigColumn<VertexRecord> : public ISigColumn {
  public:
-  SigColumn(const std::vector<VertexRecord>& data) : data_(data.data()) {}
+  explicit SigColumn(const std::vector<VertexRecord>& data)
+      : data_(data.data()) {}
   ~SigColumn() = default;
   inline size_t get_sig(size_t idx) const override {
     const auto& v = data_[idx];
@@ -130,7 +134,7 @@ class SigColumn<VertexRecord> : public ISigColumn {
 template <>
 class SigColumn<std::string_view> : public ISigColumn {
  public:
-  SigColumn(const std::vector<std::string_view>& data) {
+  explicit SigColumn(const std::vector<std::string_view>& data) {
     std::unordered_map<std::string_view, size_t> table;
     sig_list_.reserve(data.size());
     for (auto& str : data) {
@@ -249,4 +253,4 @@ class IOptionalContextColumnBuilder : public IContextColumnBuilder {
 
 }  // namespace gs
 
-#endif  // EXECUTION_COMMON_COLUMNS_I_CONTEXT_COLUMNS_H_
+#endif  // INCLUDE_NEUG_EXECUTION_COMMON_COLUMNS_I_CONTEXT_COLUMN_H_

@@ -32,7 +32,6 @@
 #include "neug/execution/common/context.h"
 #include "neug/execution/common/graph_interface.h"
 #include "neug/execution/common/operators/retrieve/path_expand.h"
-#include "neug/execution/common/rt_any.h"
 #include "neug/execution/common/types.h"
 #include "neug/execution/utils/expr_impl.h"
 #include "neug/execution/utils/predicates.h"
@@ -288,102 +287,42 @@ static bool is_shortest_path(const physical::PhysicalPlan& plan, int i) {
   return false;
 }
 
+struct OrderByLimitSPOp {
+  template <typename PRED_T>
+  static gs::result<Context> eval_with_predicate(
+      const PRED_T& pred, const GraphReadInterface& graph, Context&& ctx,
+      const ShortestPathParams& spp, int limit) {
+    return PathExpand::single_source_shortest_path_with_order_by_length_limit(
+        graph, std::move(ctx), spp, pred, limit);
+  }
+};
+
 class SPOrderByLimitOpr : public IReadOperator {
  public:
-  SPOrderByLimitOpr(
-      const ShortestPathParams& spp, int limit,
-      std::function<std::unique_ptr<SPVertexPredicate>(
-          const GraphReadInterface&, const std::map<std::string, std::string>&)>
-          pred)
-      : spp_(spp), limit_(limit), pred_(std::move(pred)) {}
+  SPOrderByLimitOpr(const ShortestPathParams& spp, int limit,
+                    const SpecialVertexPredicateConfig& config)
+      : spp_(spp), limit_(limit), config_(config) {}
 
   std::string get_operator_name() const override { return "SPOrderByLimitOpr"; }
-
-  template <typename T>
-  gs::result<gs::runtime::Context> _invoke(
-      const GraphReadInterface& graph, Context&& ctx,
-      std::unique_ptr<SPVertexPredicate>&& pred) {
-    if (pred->type() == SPPredicateType::kPropertyEQ) {
-      const auto& casted_pred =
-          dynamic_cast<const VertexPropertyEQPredicateBeta<T>&>(*pred);
-      return PathExpand::single_source_shortest_path_with_order_by_length_limit(
-          graph, std::move(ctx), spp_, casted_pred, limit_);
-    } else if (pred->type() == SPPredicateType::kPropertyLT) {
-      const auto& casted_pred =
-          dynamic_cast<const VertexPropertyLTPredicateBeta<T>&>(*pred);
-      return PathExpand::single_source_shortest_path_with_order_by_length_limit(
-          graph, std::move(ctx), spp_, casted_pred, limit_);
-    } else if (pred->type() == SPPredicateType::kPropertyGT) {
-      const auto& casted_pred =
-          dynamic_cast<const VertexPropertyGTPredicateBeta<T>&>(*pred);
-      return PathExpand::single_source_shortest_path_with_order_by_length_limit(
-          graph, std::move(ctx), spp_, casted_pred, limit_);
-    } else if (pred->type() == SPPredicateType::kPropertyLE) {
-      const auto& casted_pred =
-          dynamic_cast<const VertexPropertyLEPredicateBeta<T>&>(*pred);
-      return PathExpand::single_source_shortest_path_with_order_by_length_limit(
-          graph, std::move(ctx), spp_, casted_pred, limit_);
-    } else if (pred->type() == SPPredicateType::kPropertyGE) {
-      const auto& casted_pred =
-          dynamic_cast<const VertexPropertyGEPredicateBeta<T>&>(*pred);
-      return PathExpand::single_source_shortest_path_with_order_by_length_limit(
-          graph, std::move(ctx), spp_, casted_pred, limit_);
-    } else {
-      LOG(ERROR) << "type not supported currently"
-                 << static_cast<int>(pred->type());
-      RETURN_UNSUPPORTED_ERROR("type not supported currently" +
-                               std::to_string(static_cast<int>(pred->type())));
-    }
-  }
 
   gs::result<gs::runtime::Context> Eval(
       const gs::runtime::GraphReadInterface& graph,
       const std::map<std::string, std::string>& params,
       gs::runtime::Context&& ctx, gs::runtime::OprTimer* timer) override {
-    auto sp_vertex_pred = pred_(graph, params);
-    gs::result<gs::runtime::Context> ret;
-    if (sp_vertex_pred->data_type() == RTAnyType::kStringValue) {
-      ret = _invoke<std::string_view>(graph, std::move(ctx),
-                                      std::move(sp_vertex_pred));
-    } else if (sp_vertex_pred->data_type() == RTAnyType::kI32Value) {
-      ret = _invoke<int32_t>(graph, std::move(ctx), std::move(sp_vertex_pred));
-    } else if (sp_vertex_pred->data_type() == RTAnyType::kU32Value) {
-      ret = _invoke<uint32_t>(graph, std::move(ctx), std::move(sp_vertex_pred));
-    } else if (sp_vertex_pred->data_type() == RTAnyType::kU64Value) {
-      ret = _invoke<uint64_t>(graph, std::move(ctx), std::move(sp_vertex_pred));
-    } else if (sp_vertex_pred->data_type() == RTAnyType::kI64Value) {
-      ret = _invoke<int64_t>(graph, std::move(ctx), std::move(sp_vertex_pred));
-    } else if (sp_vertex_pred->data_type() == RTAnyType::kF32Value) {
-      ret = _invoke<float>(graph, std::move(ctx), std::move(sp_vertex_pred));
-    } else if (sp_vertex_pred->data_type() == RTAnyType::kBoolValue) {
-      ret = _invoke<bool>(graph, std::move(ctx), std::move(sp_vertex_pred));
-    } else if (sp_vertex_pred->data_type() == RTAnyType::kDate) {
-      ret = _invoke<Date>(graph, std::move(ctx), std::move(sp_vertex_pred));
-    } else if (sp_vertex_pred->data_type() == RTAnyType::kDateTime) {
-      ret = _invoke<DateTime>(graph, std::move(ctx), std::move(sp_vertex_pred));
-    } else if (sp_vertex_pred->data_type() == RTAnyType::kInterval) {
-      ret = _invoke<Interval>(graph, std::move(ctx), std::move(sp_vertex_pred));
-    } else if (sp_vertex_pred->data_type() == RTAnyType::kF64Value) {
-      ret = _invoke<double>(graph, std::move(ctx), std::move(sp_vertex_pred));
-    } else if (sp_vertex_pred->data_type() == RTAnyType::kTimestamp) {
-      ret =
-          _invoke<TimeStamp>(graph, std::move(ctx), std::move(sp_vertex_pred));
-    } else {
-      LOG(ERROR) << "type not supported currently"
-                 << static_cast<int>(sp_vertex_pred->data_type());
-      RETURN_UNSUPPORTED_ERROR(
-          "type not supported currently" +
-          std::to_string(static_cast<int>(sp_vertex_pred->data_type())));
+    std::set<label_t> expected_labels;
+    for (auto label : spp_.labels) {
+      expected_labels.insert(label.src_label);
+      expected_labels.insert(label.dst_label);
     }
-    return ret;
+    return dispatch_vertex_predicate<OrderByLimitSPOp>(
+        graph, expected_labels, config_, params, graph, std::move(ctx), spp_,
+        limit_);
   }
 
  private:
   ShortestPathParams spp_;
   int limit_;
-  std::function<std::unique_ptr<SPVertexPredicate>(
-      const GraphReadInterface&, const std::map<std::string, std::string>&)>
-      pred_;
+  SpecialVertexPredicateConfig config_;
 };
 
 class SPOrderByLimitWithOutPredOpr : public IReadOperator {
@@ -400,8 +339,8 @@ class SPOrderByLimitWithOutPredOpr : public IReadOperator {
       const std::map<std::string, std::string>& params,
       gs::runtime::Context&& ctx, gs::runtime::OprTimer* timer) override {
     return PathExpand::single_source_shortest_path_with_order_by_length_limit(
-        graph, std::move(ctx), spp_, [](label_t, vid_t) { return true; },
-        limit_);
+        graph, std::move(ctx), spp_,
+        [](label_t, vid_t, size_t) { return true; }, limit_);
   }
 
  private:
@@ -426,8 +365,8 @@ class SPOrderByLimitWithGPredOpr : public IReadOperator {
     auto v_pred = parse_expression(graph, std::move(ctx), params, pred_,
                                    VarType::kVertexVar);
     Arena arena;
-    auto pred = [&v_pred, &arena](label_t label, vid_t vid) {
-      return v_pred->eval_vertex(label, vid, 0, arena).as_bool();
+    auto pred = [&v_pred, &arena](label_t label, vid_t vid, size_t idx) {
+      return v_pred->eval_vertex(label, vid, idx, arena).as_bool();
     };
 
     return PathExpand::single_source_shortest_path_with_order_by_length_limit(
@@ -477,12 +416,12 @@ gs::result<ReadOpBuildResultT> SPOrderByLimitOprBuilder::Build(
     }
     const auto& get_v_opr = plan.query_plan().plan(op_idx + 2).opr().vertex();
     if (get_v_opr.has_params() && get_v_opr.params().has_predicate()) {
-      auto sp_vertex_pred =
-          parse_special_vertex_predicate(get_v_opr.params().predicate());
-      if (sp_vertex_pred.has_value()) {
-        return std::make_pair(std::make_unique<SPOrderByLimitOpr>(
-                                  spp, limit_upper, sp_vertex_pred.value()),
-                              ret_meta);
+      SpecialVertexPredicateConfig sp_config;
+      if (is_special_vertex_predicate(get_v_opr.params().predicate(),
+                                      sp_config)) {
+        return std::make_pair(
+            std::make_unique<SPOrderByLimitOpr>(spp, limit_upper, sp_config),
+            ret_meta);
       } else {
         return std::make_pair(
             std::make_unique<SPOrderByLimitWithGPredOpr>(
@@ -501,12 +440,9 @@ gs::result<ReadOpBuildResultT> SPOrderByLimitOprBuilder::Build(
 
 class SPSPredOpr : public IReadOperator {
  public:
-  SPSPredOpr(
-      const ShortestPathParams& spp,
-      std::function<std::unique_ptr<SPVertexPredicate>(
-          const GraphReadInterface&, const std::map<std::string, std::string>&)>
-          pred)
-      : spp_(spp), pred_(std::move(pred)) {}
+  SPSPredOpr(const ShortestPathParams& spp,
+             const SpecialVertexPredicateConfig& config)
+      : spp_(spp), config_(config) {}
 
   std::string get_operator_name() const override { return "SPSPredOpr"; }
 
@@ -514,17 +450,14 @@ class SPSPredOpr : public IReadOperator {
       const gs::runtime::GraphReadInterface& graph,
       const std::map<std::string, std::string>& params,
       gs::runtime::Context&& ctx, gs::runtime::OprTimer* timer) override {
-    auto sp_vertex_pred = pred_(graph, params);
     return PathExpand::
         single_source_shortest_path_with_special_vertex_predicate(
-            graph, std::move(ctx), spp_, *sp_vertex_pred);
+            graph, std::move(ctx), spp_, config_, params);
   }
 
  private:
   ShortestPathParams spp_;
-  std::function<std::unique_ptr<SPVertexPredicate>(
-      const GraphReadInterface&, const std::map<std::string, std::string>&)>
-      pred_;
+  SpecialVertexPredicateConfig config_;
 };
 
 class SPGPredOpr : public IReadOperator {
@@ -541,8 +474,8 @@ class SPGPredOpr : public IReadOperator {
     auto predicate = parse_expression(graph, std::move(ctx), params, pred_,
                                       VarType::kVertexVar);
     Arena arena;
-    auto pred = [&arena, &predicate](label_t label, vid_t v) {
-      return predicate->eval_vertex(label, v, 0, arena).as_bool();
+    auto pred = [&arena, &predicate](label_t label, vid_t v, size_t idx) {
+      return predicate->eval_vertex(label, v, idx, arena).as_bool();
     };
 
     return PathExpand::single_source_shortest_path(graph, std::move(ctx), spp_,
@@ -555,7 +488,7 @@ class SPGPredOpr : public IReadOperator {
 };
 class SPWithoutPredOpr : public IReadOperator {
  public:
-  SPWithoutPredOpr(const ShortestPathParams& spp) : spp_(spp) {}
+  explicit SPWithoutPredOpr(const ShortestPathParams& spp) : spp_(spp) {}
 
   std::string get_operator_name() const override { return "SPWithoutPredOpr"; }
 
@@ -564,7 +497,8 @@ class SPWithoutPredOpr : public IReadOperator {
       const std::map<std::string, std::string>& params,
       gs::runtime::Context&& ctx, gs::runtime::OprTimer* timer) override {
     return PathExpand::single_source_shortest_path(
-        graph, std::move(ctx), spp_, [](label_t, vid_t) { return true; });
+        graph, std::move(ctx), spp_,
+        [](label_t, vid_t, size_t) { return true; });
   }
 
  private:
@@ -715,12 +649,11 @@ gs::result<ReadOpBuildResultT> SPOprBuilder::Build(
                             ret_meta);
     } else {
       if (vertex.has_params() && vertex.params().has_predicate()) {
-        auto sp_vertex_pred =
-            parse_special_vertex_predicate(vertex.params().predicate());
-        if (sp_vertex_pred.has_value()) {
-          return std::make_pair(
-              std::make_unique<SPSPredOpr>(spp, sp_vertex_pred.value()),
-              ret_meta);
+        SpecialVertexPredicateConfig sp_config;
+        if (is_special_vertex_predicate(vertex.params().predicate(),
+                                        sp_config)) {
+          return std::make_pair(std::make_unique<SPSPredOpr>(spp, sp_config),
+                                ret_meta);
         } else {
           return std::make_pair(
               std::make_unique<SPGPredOpr>(spp, vertex.params().predicate()),
@@ -778,7 +711,7 @@ gs::result<ReadOpBuildResultT> SPOprBuilder::Build(
 
 class PathExpandVOpr : public IReadOperator {
  public:
-  PathExpandVOpr(const PathExpandParams& pep) : pep_(pep) {}
+  explicit PathExpandVOpr(const PathExpandParams& pep) : pep_(pep) {}
 
   gs::result<gs::runtime::Context> Eval(
       const gs::runtime::GraphReadInterface& graph,
@@ -852,7 +785,7 @@ gs::result<ReadOpBuildResultT> PathExpandVOprBuilder::Build(
 
 class PathExpandOpr : public IReadOperator {
  public:
-  PathExpandOpr(PathExpandParams pep) : pep_(pep) {}
+  explicit PathExpandOpr(PathExpandParams pep) : pep_(pep) {}
 
   std::string get_operator_name() const override { return "PathExpandOpr"; }
 
@@ -881,15 +814,8 @@ class PathExpandOprWithPred : public IReadOperator {
       const std::map<std::string, std::string>& params,
       gs::runtime::Context&& ctx, gs::runtime::OprTimer* timer) override {
     GeneralEdgePredicate pred(graph, ctx, params, pred_);
-    Arena arena;
-    auto edge_pred = [&pred, &arena](const LabelTriplet& label, vid_t src,
-                                     vid_t dst, const Any& edata, Direction dir,
-                                     size_t path_idx) {
-      return pred(label, src, dst, edata, dir, path_idx, arena);
-    };
-
     return PathExpand::edge_expand_p_with_pred(graph, std::move(ctx), pep_,
-                                               edge_pred);
+                                               pred);
   }
 
  private:

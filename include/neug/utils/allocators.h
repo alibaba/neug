@@ -13,8 +13,8 @@
  * limitations under the License.
  */
 
-#ifndef UTILS_ALLOCATORS_H_
-#define UTILS_ALLOCATORS_H_
+#ifndef INCLUDE_NEUG_UTILS_ALLOCATORS_H_
+#define INCLUDE_NEUG_UTILS_ALLOCATORS_H_
 
 #include <stdlib.h>
 
@@ -60,7 +60,7 @@ class ArenaAllocator {
   void* allocate(size_t size) {
     allocated_memory_ += size;
     if (cur_size_ - cur_loc_ >= size) {
-      void* ret = (char*) cur_buffer_ + cur_loc_;
+      void* ret = reinterpret_cast<char*>(cur_buffer_) + cur_loc_;
       cur_loc_ += size;
       return ret;
     } else if (size >= batch_size / 2) {
@@ -114,4 +114,4 @@ using Allocator = ArenaAllocator;
 
 }  // namespace gs
 
-#endif  // UTILS_ALLOCATORS_H_
+#endif  // INCLUDE_NEUG_UTILS_ALLOCATORS_H_

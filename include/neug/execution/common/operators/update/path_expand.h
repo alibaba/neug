@@ -13,8 +13,8 @@
  * limitations under the License.
  */
 
-#ifndef EXECUTION_COMMON_OPERATORS_UPDATE_PATH_EXPAND_H_
-#define EXECUTION_COMMON_OPERATORS_UPDATE_PATH_EXPAND_H_
+#ifndef INCLUDE_NEUG_EXECUTION_COMMON_OPERATORS_UPDATE_PATH_EXPAND_H_
+#define INCLUDE_NEUG_EXECUTION_COMMON_OPERATORS_UPDATE_PATH_EXPAND_H_
 
 #include "neug/execution/common/context.h"
 #include "neug/execution/common/graph_interface.h"
@@ -34,4 +34,4 @@ class UPathExpand {
 }  // namespace runtime
 }  // namespace gs
 
-#endif  // EXECUTION_COMMON_OPERATORS_UPDATE_PATH_EXPAND_H_
+#endif  // INCLUDE_NEUG_EXECUTION_COMMON_OPERATORS_UPDATE_PATH_EXPAND_H_

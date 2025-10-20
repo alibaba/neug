@@ -13,24 +13,15 @@
  * limitations under the License.
  */
 
-#ifndef ENGINES_GRAPH_DB_DATABASE_WAL_WAL_H_
-#define ENGINES_GRAPH_DB_DATABASE_WAL_WAL_H_
+#ifndef INCLUDE_NEUG_TRANSACTION_WAL_WAL_H_
+#define INCLUDE_NEUG_TRANSACTION_WAL_WAL_H_
 
-#include <fcntl.h>
 #include <stddef.h>
 #include <stdint.h>
-#include <sys/mman.h>
-#include <unistd.h>
-#include <algorithm>
-#include <filesystem>
 #include <memory>
-#include <queue>
 #include <string>
-#include <thread>
 #include <unordered_map>
 #include <vector>
-
-#include "glog/logging.h"
 
 namespace gs {
 
@@ -153,4 +144,4 @@ class WalParserFactory {
 
 }  // namespace gs
 
-#endif  // ENGINES_GRAPH_DB_DATABASE_WAL_WAL_H_
+#endif  // INCLUDE_NEUG_TRANSACTION_WAL_WAL_H_

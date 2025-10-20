@@ -23,9 +23,65 @@
 #include <arrow/io/type_fwd.h>
 #include <glog/logging.h>
 #include <stdint.h>
+#include <sys/statvfs.h>
 #include <ostream>
 
+#include "neug/utils/arrow_utils.h"
+#include "neug/utils/string_utils.h"
+
 namespace gs {
+
+static bool put_skip_rows_option(const LoadingConfig& loading_config,
+                                 arrow::csv::ReadOptions& read_options) {
+  bool header_row = loading_config.GetHasHeaderRow();
+  if (header_row) {
+    read_options.skip_rows = 1;
+  } else {
+    read_options.skip_rows = 0;
+  }
+  return header_row;
+}
+
+static void put_escape_char_option(const LoadingConfig& loading_config,
+                                   arrow::csv::ParseOptions& parse_options) {
+  parse_options.escaping = loading_config.GetIsEscaping();
+  if (parse_options.escaping) {
+    parse_options.escape_char = loading_config.GetEscapeChar();
+  }
+}
+static void put_block_size_option(const LoadingConfig& loading_config,
+                                  arrow::csv::ReadOptions& read_options) {
+  auto batch_size = loading_config.GetBatchSize();
+  if (batch_size <= 0) {
+    LOG(FATAL) << "Block size should be positive";
+  }
+  read_options.block_size = batch_size;
+}
+
+static void put_quote_char_option(const LoadingConfig& loading_config,
+                                  arrow::csv::ParseOptions& parse_options) {
+  parse_options.quoting = loading_config.GetIsQuoting();
+  if (parse_options.quoting) {
+    parse_options.quote_char = loading_config.GetQuotingChar();
+  }
+  parse_options.double_quote = loading_config.GetIsDoubleQuoting();
+}
+
+static void put_null_values(const LoadingConfig& loading_config,
+                            arrow::csv::ConvertOptions& convert_options) {
+  auto null_values = loading_config.GetNullValues();
+  for (auto& null_value : null_values) {
+    convert_options.null_values.emplace_back(null_value);
+  }
+}
+
+void printDiskRemaining(const std::string& path) {
+  struct statvfs buf;
+  if (statvfs(path.c_str(), &buf) == 0) {
+    LOG(INFO) << "Disk remaining: " << buf.f_bsize * buf.f_bavail / 1024 / 1024
+              << "MB";
+  }
+}
 
 void put_delimiter_option(const std::string& delimiter_str,
                           arrow::csv::ParseOptions& parse_options) {
@@ -168,6 +224,16 @@ void put_column_names_option(bool header_row, const std::string& file_path,
            << gs::to_string(all_column_names);
 }
 
+std::vector<std::string> columnMappingsToSelectedCols(
+    const std::vector<std::tuple<size_t, std::string, std::string>>&
+        column_mappings) {
+  std::vector<std::string> selected_cols;
+  for (auto& column_mapping : column_mappings) {
+    selected_cols.push_back(std::get<1>(column_mapping));
+  }
+  return selected_cols;
+}
+
 CSVStreamRecordBatchSupplier::CSVStreamRecordBatchSupplier(
     const std::string& file_path, arrow::csv::ConvertOptions convert_options,
     arrow::csv::ReadOptions read_options,
@@ -285,4 +351,493 @@ ArrowRecordBatchStreamSupplier::GetNextBatch() {
     return nullptr;  // Handle error appropriately in production code
   }
 }
+
+void fillVertexReaderMeta(
+    label_t v_label, const std::string& v_label_name, const std::string& v_file,
+    const LoadingConfig& loading_config,
+    const std::vector<std::string>& vertex_property_names,
+    const std::vector<PropertyType>& vertex_edge_property_types,
+    PropertyType pk_type, const std::string& pk_name, size_t pk_ind,
+    arrow::csv::ReadOptions& read_options,
+    arrow::csv::ParseOptions& parse_options,
+    arrow::csv::ConvertOptions& convert_options) {
+  CHECK(vertex_edge_property_types.size() == vertex_property_names.size());
+  convert_options.timestamp_parsers.emplace_back(
+      std::make_shared<LDBCTimeStampParser>());
+  convert_options.timestamp_parsers.emplace_back(
+      std::make_shared<LDBCLongDateParser>());
+  convert_options.timestamp_parsers.emplace_back(
+      arrow::TimestampParser::MakeISO8601());
+  // BOOLEAN parser
+  put_boolean_option(convert_options);
+
+  put_delimiter_option(loading_config.GetDelimiter(), parse_options);
+  bool header_row = put_skip_rows_option(loading_config, read_options);
+  put_column_names_option(
+      header_row, v_file, parse_options.delimiter,
+      loading_config.GetIsQuoting(), loading_config.GetQuotingChar(),
+      loading_config.GetIsEscaping(), loading_config.GetEscapeChar(),
+      read_options, vertex_property_names.size() + 1);
+  put_escape_char_option(loading_config, parse_options);
+  put_quote_char_option(loading_config, parse_options);
+  put_block_size_option(loading_config, read_options);
+  put_null_values(loading_config, convert_options);
+
+  // parse all column_names
+
+  std::vector<std::string> included_col_names;
+  std::vector<std::string> mapped_property_names;
+
+  auto cur_label_col_mapping = loading_config.GetVertexColumnMappings(v_label);
+
+  if (cur_label_col_mapping.size() == 0) {
+    // use default mapping, we assume the order of the columns in the file is
+    // the same as the order of the properties in the schema, except for
+    // primary key.
+    // for example, schema is : (name,age)
+    // file header is (id,name,age), the primary key is id.
+    // so, the mapped_property_names are: (id,name,age)
+    std::vector<std::string> vertex_property_names_copy =
+        vertex_property_names;  // make a copy
+    CHECK(vertex_property_names.size() + 1 == read_options.column_names.size())
+        << " size in schema: " << vertex_property_names.size()
+        << ", size in file: " << read_options.column_names.size() << ","
+        << gs::to_string(vertex_property_names)
+        << ", read options: " << gs::to_string(read_options.column_names);
+    vertex_property_names_copy.insert(
+        vertex_property_names_copy.begin() + pk_ind, pk_name);
+
+    for (size_t i = 0; i < read_options.column_names.size(); ++i) {
+      included_col_names.emplace_back(read_options.column_names[i]);
+      // We assume the order of the columns in the file is the same as the
+      // order of the properties in the schema, except for primary key.
+      mapped_property_names.emplace_back(vertex_property_names_copy[i]);
+    }
+  } else {
+    for (size_t i = 0; i < cur_label_col_mapping.size(); ++i) {
+      auto& [col_id, col_name, property_name] = cur_label_col_mapping[i];
+      if (col_name.empty()) {
+        if (col_id >= read_options.column_names.size() || col_id < 0) {
+          LOG(FATAL) << "The specified column index: " << col_id
+                     << " is out of range, please check your configuration";
+        }
+        col_name = read_options.column_names[col_id];
+      }
+      // check whether index match to the name if col_id is valid
+      if (col_id >= 0 && col_id < read_options.column_names.size()) {
+        if (col_name != read_options.column_names[col_id]) {
+          LOG(FATAL) << "The specified column name: " << col_name
+                     << " does not match the column name in the file: "
+                     << read_options.column_names[col_id];
+        }
+      }
+      included_col_names.emplace_back(col_name);
+      mapped_property_names.emplace_back(property_name);
+    }
+  }
+
+  VLOG(10) << "Include columns: " << included_col_names.size();
+  // if empty, then means need all columns
+  convert_options.include_columns = included_col_names;
+
+  // put column_types, col_name : col_type
+  std::unordered_map<std::string, std::shared_ptr<arrow::DataType>> arrow_types;
+  {
+    for (size_t i = 0; i < vertex_edge_property_types.size(); ++i) {
+      // for each schema' property name, get the index of the column in
+      // vertex_column mapping, and bind the type with the column name
+      auto property_type = vertex_edge_property_types[i];
+      auto property_name = vertex_property_names[i];
+      size_t ind = mapped_property_names.size();
+      for (size_t i = 0; i < mapped_property_names.size(); ++i) {
+        if (mapped_property_names[i] == property_name) {
+          ind = i;
+          break;
+        }
+      }
+      if (ind == mapped_property_names.size()) {
+        LOG(FATAL) << "The specified property name: " << property_name
+                   << " does not exist in the vertex column mapping for "
+                      "vertex label: "
+                   << v_label_name
+                   << " please "
+                      "check your configuration";
+      }
+      auto arrow_type = PropertyTypeToArrowType(property_type);
+      VLOG(10) << "vertex_label: " << v_label_name
+               << " property_name: " << property_name
+               << " property_type: " << property_type << " ind: " << ind << " "
+               << arrow_type->ToString();
+      arrow_types.insert({included_col_names[ind], arrow_type});
+    }
+    {
+      // add primary key types;
+      size_t ind = mapped_property_names.size();
+      for (size_t i = 0; i < mapped_property_names.size(); ++i) {
+        if (mapped_property_names[i] == pk_name) {
+          ind = i;
+          break;
+        }
+      }
+      if (ind == mapped_property_names.size()) {
+        LOG(FATAL) << "The specified property name: " << pk_name
+                   << " does not exist in the vertex column mapping, please "
+                      "check your configuration";
+      }
+      arrow_types.insert(
+          {included_col_names[ind], PropertyTypeToArrowType(pk_type)});
+    }
+
+    convert_options.column_types = arrow_types;
+  }
+}
+
+void fillEdgeReaderMeta(label_t src_label_id, label_t dst_label_id,
+                        label_t label_id, const std::string& edge_label_name,
+                        const std::string& e_file,
+                        const LoadingConfig& loading_config,
+                        const std::vector<std::string>& edge_property_names,
+                        const std::vector<PropertyType>& edge_property_types,
+                        PropertyType src_pk_type, PropertyType dst_pk_type,
+                        arrow::csv::ReadOptions& read_options,
+                        arrow::csv::ParseOptions& parse_options,
+                        arrow::csv::ConvertOptions& convert_options) {
+  CHECK(edge_property_types.size() == edge_property_names.size());
+  convert_options.timestamp_parsers.emplace_back(
+      std::make_shared<LDBCTimeStampParser>());
+  convert_options.timestamp_parsers.emplace_back(
+      std::make_shared<LDBCLongDateParser>());
+  convert_options.timestamp_parsers.emplace_back(
+      arrow::TimestampParser::MakeISO8601());
+  put_boolean_option(convert_options);
+
+  put_delimiter_option(loading_config.GetDelimiter(), parse_options);
+  bool header_row = put_skip_rows_option(loading_config, read_options);
+
+  put_column_names_option(
+      header_row, e_file, parse_options.delimiter,
+      loading_config.GetIsQuoting(), loading_config.GetQuotingChar(),
+      loading_config.GetIsEscaping(), loading_config.GetEscapeChar(),
+      read_options, edge_property_names.size() + 2);
+  put_escape_char_option(loading_config, parse_options);
+  put_quote_char_option(loading_config, parse_options);
+  put_block_size_option(loading_config, read_options);
+  put_null_values(loading_config, convert_options);
+
+  auto src_dst_cols =
+      loading_config.GetEdgeSrcDstCol(src_label_id, dst_label_id, label_id);
+
+  // parse all column_names
+  // Get all column names(header, and always skip the first row)
+  std::vector<std::string> included_col_names;
+  std::vector<std::string> mapped_property_names;
+
+  {
+    // add src and dst primary col, to included_columns, put src_col and
+    // dst_col at the first of included_columns.
+    CHECK(src_dst_cols.first.size() == 1 && src_dst_cols.second.size() == 1);
+    auto src_col_ind = src_dst_cols.first[0].second;
+    auto dst_col_ind = src_dst_cols.second[0].second;
+    CHECK(src_col_ind >= 0 && src_col_ind < read_options.column_names.size())
+        << " src_col_ind: " << src_col_ind
+        << ", read_options.column_names.size(): "
+        << read_options.column_names.size();
+    CHECK(dst_col_ind >= 0 && dst_col_ind < read_options.column_names.size())
+        << " dst_col_ind: " << dst_col_ind
+        << ", read_options.column_names.size(): "
+        << read_options.column_names.size();
+
+    included_col_names.emplace_back(read_options.column_names[src_col_ind]);
+    included_col_names.emplace_back(read_options.column_names[dst_col_ind]);
+  }
+
+  auto cur_label_col_mapping = loading_config.GetEdgeColumnMappings(
+      src_label_id, dst_label_id, label_id);
+  if (cur_label_col_mapping.empty()) {
+    // use default mapping, we assume the order of the columns in the file is
+    // the same as the order of the properties in the schema,
+    for (size_t i = 0; i < edge_property_names.size(); ++i) {
+      auto property_name = edge_property_names[i];
+      if (loading_config.GetHasHeaderRow()) {
+        included_col_names.emplace_back(property_name);
+      } else {
+        included_col_names.emplace_back(read_options.column_names[i + 2]);
+      }
+      mapped_property_names.emplace_back(property_name);
+    }
+  } else {
+    // add the property columns into the included columns
+    for (size_t i = 0; i < cur_label_col_mapping.size(); ++i) {
+      // TODO: make the property column's names are in same order with schema.
+      auto& [col_id, col_name, property_name] = cur_label_col_mapping[i];
+      if (col_name.empty()) {
+        if (col_id >= read_options.column_names.size() || col_id < 0) {
+          LOG(FATAL) << "The specified column index: " << col_id
+                     << " is out of range, please check your configuration";
+        }
+        col_name = read_options.column_names[col_id];
+      }
+      // check whether index match to the name if col_id is valid
+      if (col_id >= 0 && col_id < read_options.column_names.size()) {
+        if (col_name != read_options.column_names[col_id]) {
+          LOG(FATAL) << "The specified column name: " << col_name
+                     << " does not match the column name in the file: "
+                     << read_options.column_names[col_id];
+        }
+      }
+      if (loading_config.GetHasHeaderRow()) {
+        included_col_names.emplace_back(col_name);
+      } else {
+        included_col_names.emplace_back(read_options.column_names[col_id]);
+      }
+      mapped_property_names.emplace_back(property_name);
+    }
+  }
+
+  VLOG(10) << "Include Edge columns: " << gs::to_string(included_col_names);
+  // if empty, then means need all columns
+  convert_options.include_columns = included_col_names;
+
+  // put column_types, col_name : col_type
+  std::unordered_map<std::string, std::shared_ptr<arrow::DataType>> arrow_types;
+  {
+    for (size_t i = 0; i < edge_property_types.size(); ++i) {
+      // for each schema' property name, get the index of the column in
+      // vertex_column mapping, and bind the type with the column name
+      auto property_type = edge_property_types[i];
+      auto property_name = edge_property_names[i];
+      size_t ind = mapped_property_names.size();
+      for (size_t i = 0; i < mapped_property_names.size(); ++i) {
+        if (mapped_property_names[i] == property_name) {
+          ind = i;
+          break;
+        }
+      }
+      if (ind == mapped_property_names.size()) {
+        LOG(FATAL) << "The specified property name: " << property_name
+                   << " does not exist in the vertex column mapping, please "
+                      "check your configuration";
+      }
+      VLOG(10) << "edge_label: " << edge_label_name
+               << " property_name: " << property_name
+               << " property_type: " << property_type << " ind: " << ind;
+      arrow_types.insert({included_col_names[ind + 2],
+                          PropertyTypeToArrowType(property_type)});
+    }
+    {
+      // add src and dst primary col, to included_columns and column types.
+      auto src_dst_cols =
+          loading_config.GetEdgeSrcDstCol(src_label_id, dst_label_id, label_id);
+      CHECK(src_dst_cols.first.size() == 1 && src_dst_cols.second.size() == 1);
+      auto src_col_ind = src_dst_cols.first[0].second;
+      auto dst_col_ind = src_dst_cols.second[0].second;
+      CHECK(src_col_ind >= 0 && src_col_ind < read_options.column_names.size());
+      CHECK(dst_col_ind >= 0 && dst_col_ind < read_options.column_names.size());
+      arrow_types.insert({read_options.column_names[src_col_ind],
+                          PropertyTypeToArrowType(src_pk_type)});
+      arrow_types.insert({read_options.column_names[dst_col_ind],
+                          PropertyTypeToArrowType(dst_pk_type)});
+    }
+
+    convert_options.column_types = arrow_types;
+
+    VLOG(10) << "Column types: ";
+    for (auto iter : arrow_types) {
+      VLOG(10) << iter.first << " : " << iter.second->ToString();
+    }
+  }
+}
+
+template <typename COL_T>
+void set_column(std::shared_ptr<gs::ColumnBase> col,
+                std::shared_ptr<arrow::ChunkedArray> array,
+                const std::vector<vid_t>& vids) {
+  using arrow_array_type = typename gs::TypeConverter<COL_T>::ArrowArrayType;
+  auto array_type = array->type();
+  auto arrow_type = gs::TypeConverter<COL_T>::ArrowTypeValue();
+  CHECK(array_type->Equals(arrow_type))
+      << "Inconsistent data type, expect " << arrow_type->ToString()
+      << ", but got " << array_type->ToString();
+  for (auto j = 0; j < array->num_chunks(); ++j) {
+    auto casted = std::static_pointer_cast<arrow_array_type>(array->chunk(j));
+    for (auto k = 0; k < casted->length(); ++k) {
+      if (vids[k] >= std::numeric_limits<vid_t>::max()) {
+        continue;
+      }
+      col->set_any(vids[k],
+                   std::move(AnyConverter<COL_T>::to_any(casted->Value(k))));
+    }
+  }
+}
+
+void set_column_from_date_array(std::shared_ptr<gs::ColumnBase> col,
+                                std::shared_ptr<arrow::ChunkedArray> array,
+                                const std::vector<vid_t>& vids) {
+  auto type = array->type();
+  auto col_type = col->type();
+  if (type->Equals(arrow::date32())) {
+    for (auto j = 0; j < array->num_chunks(); ++j) {
+      auto casted =
+          std::static_pointer_cast<arrow::Date32Array>(array->chunk(j));
+      for (auto k = 0; k < casted->length(); ++k) {
+        if (vids[k] >= std::numeric_limits<vid_t>::max()) {
+          continue;
+        }
+        col->set_any(vids[k],
+                     std::move(AnyConverter<Date>::to_any(casted->Value(k))));
+      }
+    }
+  } else {
+    LOG(FATAL) << "Not implemented: converting " << type->ToString() << " to "
+               << col_type;
+  }
+}
+
+template <typename COL_T>  // COL_T = DateTime or Timestamp
+void set_column_from_timestamp_array(std::shared_ptr<gs::ColumnBase> col,
+                                     std::shared_ptr<arrow::ChunkedArray> array,
+                                     const std::vector<vid_t>& vids) {
+  auto type = array->type();
+  auto col_type = col->type();
+  if (type->Equals(arrow::timestamp(arrow::TimeUnit::type::MILLI))) {
+    for (auto j = 0; j < array->num_chunks(); ++j) {
+      auto casted =
+          std::static_pointer_cast<arrow::TimestampArray>(array->chunk(j));
+      for (auto k = 0; k < casted->length(); ++k) {
+        if (vids[k] >= std::numeric_limits<vid_t>::max()) {
+          continue;
+        }
+        col->set_any(
+            vids[k],
+            std::move(AnyConverter<COL_T>::to_any(COL_T(casted->Value(k)))));
+      }
+    }
+  } else {
+    LOG(FATAL) << "Not implemented: converting " << type->ToString() << " to "
+               << col_type;
+  }
+}
+
+void set_interval_column_from_string_array(
+    std::shared_ptr<gs::ColumnBase> col,
+    std::shared_ptr<arrow::ChunkedArray> array,
+    const std::vector<vid_t>& vids) {
+  auto type = array->type();
+  auto col_type = col->type();
+  if (type->Equals(arrow::large_utf8())) {
+    for (auto j = 0; j < array->num_chunks(); ++j) {
+      auto casted =
+          std::static_pointer_cast<arrow::LargeStringArray>(array->chunk(j));
+      for (auto k = 0; k < casted->length(); ++k) {
+        if (vids[k] >= std::numeric_limits<vid_t>::max()) {
+          continue;
+        }
+        col->set_any(
+            vids[k],
+            std::move(AnyConverter<Interval>::to_any(casted->GetView(k))));
+      }
+    }
+  } else {
+    LOG(FATAL) << "Not implemented: converting " << type->ToString() << " to "
+               << col_type;
+  }
+}
+
+void set_column_from_string_array(std::shared_ptr<gs::ColumnBase> col,
+                                  std::shared_ptr<arrow::ChunkedArray> array,
+                                  const std::vector<vid_t>& vids,
+                                  bool enable_resize = false) {
+  auto type = array->type();
+  auto typed_col = dynamic_cast<gs::TypedColumn<std::string_view>*>(col.get());
+  if (enable_resize) {
+    CHECK(typed_col != nullptr) << "Only support TypedColumn<std::string_view>";
+  }
+  CHECK(type->Equals(arrow::large_utf8()) || type->Equals(arrow::utf8()))
+      << "Inconsistent data type, expect string, but got " << type->ToString();
+  if (type->Equals(arrow::large_utf8())) {
+    for (auto j = 0; j < array->num_chunks(); ++j) {
+      auto casted =
+          std::static_pointer_cast<arrow::LargeStringArray>(array->chunk(j));
+      for (auto k = 0; k < casted->length(); ++k) {
+        if (vids[k] >= std::numeric_limits<vid_t>::max()) {
+          continue;
+        }
+        auto str = casted->GetView(k);
+        std::string_view sw;
+        if (casted->IsNull(k)) {
+          VLOG(1) << "Found null string in vertex property.";
+          sw = "";
+        } else {
+          sw = std::string_view(str.data(), str.size());
+        }
+        if (!enable_resize) {
+          Any any_val = Any::From(sw);
+          col->set_any(vids[k], any_val);
+        } else {
+          typed_col->set_value_safe(vids[k], std::move(sw));
+        }
+      }
+    }
+  } else {
+    for (auto j = 0; j < array->num_chunks(); ++j) {
+      auto casted =
+          std::static_pointer_cast<arrow::StringArray>(array->chunk(j));
+      for (auto k = 0; k < casted->length(); ++k) {
+        if (vids[k] >= std::numeric_limits<vid_t>::max()) {
+          continue;
+        }
+        auto str = casted->GetView(k);
+        std::string_view sw(str.data(), str.size());
+
+        if (!enable_resize) {
+          Any any_val = Any::From(sw);
+          col->set_any(vids[k], std::move(any_val));
+        } else {
+          typed_col->set_value_safe(vids[k], std::move(sw));
+        }
+      }
+    }
+  }
+}
+
+void set_properties_column(std::shared_ptr<gs::ColumnBase> col,
+                           std::shared_ptr<arrow::ChunkedArray> array,
+                           const std::vector<vid_t>& vids) {
+  auto type = array->type();
+  auto col_type = col->type();
+
+  // TODO(zhanglei): reduce the dummy code here with a template function.
+  if (col_type == PropertyType::kBool) {
+    set_column<bool>(col, array, vids);
+  } else if (col_type == PropertyType::kInt64) {
+    set_column<int64_t>(col, array, vids);
+  } else if (col_type == PropertyType::kInt32) {
+    set_column<int32_t>(col, array, vids);
+  } else if (col_type == PropertyType::kUInt64) {
+    set_column<uint64_t>(col, array, vids);
+  } else if (col_type == PropertyType::kUInt32) {
+    set_column<uint32_t>(col, array, vids);
+  } else if (col_type == PropertyType::kDouble) {
+    set_column<double>(col, array, vids);
+  } else if (col_type == PropertyType::kFloat) {
+    set_column<float>(col, array, vids);
+  } else if (col_type == PropertyType::kDateTime) {
+    set_column_from_timestamp_array<DateTime>(col, array, vids);
+  } else if (col_type == PropertyType::kTimestamp) {
+    set_column_from_timestamp_array<TimeStamp>(col, array, vids);
+  } else if (col_type == PropertyType::kDate) {
+    set_column_from_date_array(col, array, vids);
+  } else if (col_type == PropertyType::kInterval) {
+    set_interval_column_from_string_array(col, array, vids);
+  } else if (col_type == PropertyType::kStringMap) {
+    set_column_from_string_array(col, array, vids);
+  } else if (col_type.type_enum == impl::PropertyTypeImpl::kVarChar) {
+    set_column_from_string_array(col, array, vids);
+  } else if (col_type == PropertyType::kStringView) {
+    set_column_from_string_array(col, array, vids, true);
+  } else {
+    LOG(FATAL) << "Not support type: " << type->ToString();
+  }
+}
+
 }  // namespace gs

@@ -13,8 +13,19 @@
  * limitations under the License.
  */
 
-#ifndef EXECUTION_EXECUTE_OPS_UTILS_GROUP_BY_UTILS_H_
-#define EXECUTION_EXECUTE_OPS_UTILS_GROUP_BY_UTILS_H_
+#ifndef INCLUDE_NEUG_EXECUTION_EXECUTE_OPS_UTILS_GROUP_BY_UTILS_H_
+#define INCLUDE_NEUG_EXECUTION_EXECUTE_OPS_UTILS_GROUP_BY_UTILS_H_
+
+#include <algorithm>
+#include <map>
+#include <memory>
+#include <set>
+#include <string>
+#include <tuple>
+#include <unordered_set>
+#include <utility>
+#include <vector>
+
 #include "neug/execution/common/columns/i_context_column.h"
 #include "neug/execution/common/columns/value_columns.h"
 #include "neug/execution/common/columns/vertex_columns.h"
@@ -38,18 +49,14 @@ template <typename T>
 struct TypedKeyCollector {
   struct TypedKeyWrapper {
     using V = T;
-    TypedKeyWrapper(Var&& expr) : expr(std::move(expr)) {}
-    V operator()(size_t idx) const {
-      return TypedConverter<T>::to_typed(expr.get(idx));
-    }
+    explicit TypedKeyWrapper(Var&& expr) : expr(std::move(expr)) {}
+    V operator()(size_t idx) const { return TypedConverter<T>::to_typed(expr.get(idx)); }
     Var expr;
   };
 
   TypedKeyCollector() {}
   void init(size_t size) { builder.reserve(size); }
-  void collect(const TypedKeyWrapper& expr, size_t idx) {
-    builder.push_back_opt(expr(idx));
-  }
+  void collect(const TypedKeyWrapper& expr, size_t idx) { builder.push_back_opt(expr(idx)); }
   auto get() { return builder.finish(); }
 
   ValueColumnBuilder<T> builder;
@@ -57,14 +64,14 @@ struct TypedKeyCollector {
 
 struct SLVertexWrapper {
   using V = vid_t;
-  SLVertexWrapper(const SLVertexColumn& column) : column(column) {}
+  explicit SLVertexWrapper(const SLVertexColumn& column) : column(column) {}
   V operator()(size_t idx) const { return column.vertices()[idx]; }
   const SLVertexColumn& column;
 };
 
 struct SLVertexWrapperBeta {
   using V = VertexRecord;
-  SLVertexWrapperBeta(const SLVertexColumn& column) : column(column) {}
+  explicit SLVertexWrapperBeta(const SLVertexColumn& column) : column(column) {}
   V operator()(size_t idx) const { return column.get_vertex(idx); }
   const SLVertexColumn& column;
 };
@@ -72,21 +79,21 @@ struct SLVertexWrapperBeta {
 template <typename VERTEX_COL>
 struct MLVertexWrapper {
   using V = VertexRecord;
-  MLVertexWrapper(const VERTEX_COL& vertex) : vertex(vertex) {}
+  explicit MLVertexWrapper(const VERTEX_COL& vertex) : vertex(vertex) {}
   V operator()(size_t idx) const { return vertex.get_vertex(idx); }
   const VERTEX_COL& vertex;
 };
 template <typename T>
 struct ValueWrapper {
   using V = T;
-  ValueWrapper(const ValueColumn<T>& column) : column(column) {}
+  explicit ValueWrapper(const ValueColumn<T>& column) : column(column) {}
   V operator()(size_t idx) const { return column.get_value(idx); }
   const ValueColumn<T>& column;
 };
 
 struct ColumnWrapper {
   using V = RTAny;
-  ColumnWrapper(const IContextColumn& column) : column(column) {}
+  explicit ColumnWrapper(const IContextColumn& column) : column(column) {}
   V operator()(size_t idx) const { return column.get_elem(idx); }
   const IContextColumn& column;
 };
@@ -94,19 +101,18 @@ struct ColumnWrapper {
 template <typename... EXPR>
 struct KeyExpr {
   std::tuple<EXPR...> exprs;
-  KeyExpr(std::tuple<EXPR...>&& exprs) : exprs(std::move(exprs)) {}
+  explicit KeyExpr(std::tuple<EXPR...>&& exprs) : exprs(std::move(exprs)) {}
   using V = std::tuple<typename EXPR::V...>;
   V operator()(size_t idx) const {
-    return std::apply(
-        [idx](auto&&... expr) { return std::make_tuple(expr(idx)...); }, exprs);
+    return std::apply([idx](auto&&... expr) { return std::make_tuple(expr(idx)...); }, exprs);
   }
 };
 
 template <size_t I, typename... EXPR>
 struct _KeyBuilder {
-  static std::unique_ptr<KeyBase> make_sp_key(
-      const Context& ctx, const std::vector<std::pair<int, int>>& tag_alias,
-      std::tuple<EXPR...>&& exprs) {
+  static std::unique_ptr<KeyBase> make_sp_key(const Context& ctx,
+                                              const std::vector<std::pair<int, int>>& tag_alias,
+                                              std::tuple<EXPR...>&& exprs) {
     if constexpr (I == 0) {
       KeyExpr<EXPR...> key(std::move(exprs));
       return std::make_unique<Key<decltype(key)>>(std::move(key), tag_alias);
@@ -119,31 +125,23 @@ struct _KeyBuilder {
       if (col->column_type() == ContextColumnType::kVertex) {
         auto vertex_col = std::dynamic_pointer_cast<IVertexColumn>(col);
         if (vertex_col->vertex_column_type() == VertexColumnType::kSingle) {
-          SLVertexWrapper wrapper(
-              *dynamic_cast<const SLVertexColumn*>(vertex_col.get()));
-          auto new_exprs = std::tuple_cat(std::make_tuple(std::move(wrapper)),
-                                          std::move(exprs));
-          return _KeyBuilder<I - 1, SLVertexWrapper, EXPR...>::make_sp_key(
-              ctx, tag_alias, std::move(new_exprs));
+          SLVertexWrapper wrapper(*dynamic_cast<const SLVertexColumn*>(vertex_col.get()));
+          auto new_exprs = std::tuple_cat(std::make_tuple(std::move(wrapper)), std::move(exprs));
+          return _KeyBuilder<I - 1, SLVertexWrapper, EXPR...>::make_sp_key(ctx, tag_alias,
+                                                                           std::move(new_exprs));
         }
 
       } else if (col->column_type() == ContextColumnType::kValue) {
         if (col->elem_type() == RTAnyType::kI64Value) {
-          ValueWrapper<int64_t> wrapper(
-              *dynamic_cast<const ValueColumn<int64_t>*>(col.get()));
-          auto new_exprs = std::tuple_cat(std::make_tuple(std::move(wrapper)),
-                                          std::move(exprs));
-          return _KeyBuilder<I - 1, ValueWrapper<int64_t>,
-                             EXPR...>::make_sp_key(ctx, tag_alias,
-                                                   std::move(new_exprs));
+          ValueWrapper<int64_t> wrapper(*dynamic_cast<const ValueColumn<int64_t>*>(col.get()));
+          auto new_exprs = std::tuple_cat(std::make_tuple(std::move(wrapper)), std::move(exprs));
+          return _KeyBuilder<I - 1, ValueWrapper<int64_t>, EXPR...>::make_sp_key(
+              ctx, tag_alias, std::move(new_exprs));
         } else if (col->elem_type() == RTAnyType::kI32Value) {
-          ValueWrapper<int32_t> wrapper(
-              *dynamic_cast<const ValueColumn<int32_t>*>(col.get()));
-          auto new_exprs = std::tuple_cat(std::make_tuple(std::move(wrapper)),
-                                          std::move(exprs));
-          return _KeyBuilder<I - 1, ValueWrapper<int32_t>,
-                             EXPR...>::make_sp_key(ctx, tag_alias,
-                                                   std::move(new_exprs));
+          ValueWrapper<int32_t> wrapper(*dynamic_cast<const ValueColumn<int32_t>*>(col.get()));
+          auto new_exprs = std::tuple_cat(std::make_tuple(std::move(wrapper)), std::move(exprs));
+          return _KeyBuilder<I - 1, ValueWrapper<int32_t>, EXPR...>::make_sp_key(
+              ctx, tag_alias, std::move(new_exprs));
         } else {
           return nullptr;
         }
@@ -154,8 +152,8 @@ struct _KeyBuilder {
 };
 template <size_t I>
 struct KeyBuilder {
-  static std::unique_ptr<KeyBase> make_sp_key(
-      const Context& ctx, const std::vector<std::pair<int, int>>& tag_alias) {
+  static std::unique_ptr<KeyBase> make_sp_key(const Context& ctx,
+                                              const std::vector<std::pair<int, int>>& tag_alias) {
     if (I != tag_alias.size()) {
       return nullptr;
     }
@@ -163,27 +161,22 @@ struct KeyBuilder {
     if (col->column_type() == ContextColumnType::kVertex) {
       auto vertex_col = std::dynamic_pointer_cast<IVertexColumn>(col);
       if (vertex_col->vertex_column_type() == VertexColumnType::kSingle) {
-        SLVertexWrapper wrapper(
-            *dynamic_cast<const SLVertexColumn*>(vertex_col.get()));
+        SLVertexWrapper wrapper(*dynamic_cast<const SLVertexColumn*>(vertex_col.get()));
         auto new_exprs = std::make_tuple<SLVertexWrapper>(std::move(wrapper));
-        return _KeyBuilder<I - 1, SLVertexWrapper>::make_sp_key(
-            ctx, tag_alias, std::move(new_exprs));
+        return _KeyBuilder<I - 1, SLVertexWrapper>::make_sp_key(ctx, tag_alias,
+                                                                std::move(new_exprs));
       }
     } else if (col->column_type() == ContextColumnType::kValue) {
       if (col->elem_type() == RTAnyType::kI64Value) {
-        ValueWrapper<int64_t> wrapper(
-            *dynamic_cast<const ValueColumn<int64_t>*>(col.get()));
-        auto new_exprs =
-            std::make_tuple<ValueWrapper<int64_t>>(std::move(wrapper));
-        return _KeyBuilder<I - 1, ValueWrapper<int64_t>>::make_sp_key(
-            ctx, tag_alias, std::move(new_exprs));
+        ValueWrapper<int64_t> wrapper(*dynamic_cast<const ValueColumn<int64_t>*>(col.get()));
+        auto new_exprs = std::make_tuple<ValueWrapper<int64_t>>(std::move(wrapper));
+        return _KeyBuilder<I - 1, ValueWrapper<int64_t>>::make_sp_key(ctx, tag_alias,
+                                                                      std::move(new_exprs));
       } else if (col->elem_type() == RTAnyType::kI32Value) {
-        ValueWrapper<int32_t> wrapper(
-            *dynamic_cast<const ValueColumn<int32_t>*>(col.get()));
-        auto new_exprs =
-            std::make_tuple<ValueWrapper<int32_t>>(std::move(wrapper));
-        return _KeyBuilder<I - 1, ValueWrapper<int32_t>>::make_sp_key(
-            ctx, tag_alias, std::move(new_exprs));
+        ValueWrapper<int32_t> wrapper(*dynamic_cast<const ValueColumn<int32_t>*>(col.get()));
+        auto new_exprs = std::make_tuple<ValueWrapper<int32_t>>(std::move(wrapper));
+        return _KeyBuilder<I - 1, ValueWrapper<int32_t>>::make_sp_key(ctx, tag_alias,
+                                                                      std::move(new_exprs));
       } else {
         return nullptr;
       }
@@ -202,13 +195,13 @@ struct OptionalVarWrapper {
       return v;
     }
   }
-  OptionalVarWrapper(Var&& vars) : vars(std::move(vars)) {}
+  explicit OptionalVarWrapper(Var&& vars) : vars(std::move(vars)) {}
   Var vars;
 };
 struct VarWrapper {
   using V = RTAny;
   RTAny operator()(size_t idx) const { return vars.get(idx); }
-  VarWrapper(Var&& vars) : vars(std::move(vars)) {}
+  explicit VarWrapper(Var&& vars) : vars(std::move(vars)) {}
   Var vars;
 };
 
@@ -217,8 +210,7 @@ struct VarPairWrapper {
   std::pair<RTAny, RTAny> operator()(size_t idx) const {
     return std::make_pair(fst.get(idx), snd.get(idx));
   }
-  VarPairWrapper(Var&& fst, Var&& snd)
-      : fst(std::move(fst)), snd(std::move(snd)) {}
+  VarPairWrapper(Var&& fst, Var&& snd) : fst(std::move(fst)), snd(std::move(snd)) {}
   Var fst;
   Var snd;
 };
@@ -230,7 +222,7 @@ struct TypedVarWrapper {
     auto v = vars.get(idx);
     return TypedConverter<T>::to_typed(v);
   }
-  TypedVarWrapper(Var&& vars) : vars(std::move(vars)) {}
+  explicit TypedVarWrapper(Var&& vars) : vars(std::move(vars)) {}
   Var vars;
 };
 
@@ -244,7 +236,7 @@ struct OptionalTypedVarWrapper {
     }
     return TypedConverter<T>::to_typed(v);
   }
-  OptionalTypedVarWrapper(Var&& vars) : vars_(std::move(vars)) {}
+  explicit OptionalTypedVarWrapper(Var&& vars) : vars_(std::move(vars)) {}
   Var vars_;
 };
 
@@ -252,12 +244,11 @@ template <typename EXPR, bool IS_OPTIONAL, typename Enable = void>
 struct SumReducer;
 
 template <typename EXPR, bool IS_OPTIONAL>
-struct SumReducer<
-    EXPR, IS_OPTIONAL,
-    std::enable_if_t<std::is_arithmetic<typename EXPR::V>::value>> {
+struct SumReducer<EXPR, IS_OPTIONAL,
+                  std::enable_if_t<std::is_arithmetic<typename EXPR::V>::value>> {
   EXPR expr;
   using V = typename EXPR::V;
-  SumReducer(EXPR&& expr) : expr(std::move(expr)) {}
+  explicit SumReducer(EXPR&& expr) : expr(std::move(expr)) {}
   bool operator()(const std::vector<size_t>& group, V& sum) const {
     if constexpr (!IS_OPTIONAL) {
       sum = expr(group[0]);
@@ -289,8 +280,7 @@ template <typename T, typename = void>
 struct is_hashable : std::false_type {};
 
 template <typename T>
-struct is_hashable<
-    T, std::void_t<decltype(std::declval<std::hash<T>>()(std::declval<T>()))>>
+struct is_hashable<T, std::void_t<decltype(std::declval<std::hash<T>>()(std::declval<T>()))>>
     : std::true_type {};
 
 template <typename EXPR, bool IS_OPTIONAL>
@@ -299,7 +289,7 @@ struct CountDistinctReducer {
   using V = int64_t;
   using T = typename EXPR::V;
 
-  CountDistinctReducer(EXPR&& expr) : expr(std::move(expr)) {}
+  explicit CountDistinctReducer(EXPR&& expr) : expr(std::move(expr)) {}
   bool operator()(const std::vector<size_t>& group, V& val) const {
     if constexpr (is_hashable<T>::value) {
       if constexpr (!IS_OPTIONAL) {
@@ -348,7 +338,7 @@ struct CountReducer {
   EXPR expr;
   using V = int64_t;
 
-  CountReducer(EXPR&& expr) : expr(std::move(expr)) {}
+  explicit CountReducer(EXPR&& expr) : expr(std::move(expr)) {}
   bool operator()(const std::vector<size_t>& group, V& val) const {
     if constexpr (!IS_OPTIONAL) {
       val = group.size();
@@ -391,7 +381,7 @@ struct MinReducer {
   EXPR expr;
 
   using V = typename EXPR::V;
-  MinReducer(EXPR&& expr) : expr(std::move(expr)) {}
+  explicit MinReducer(EXPR&& expr) : expr(std::move(expr)) {}
   bool operator()(const std::vector<size_t>& group, V& val) const {
     if constexpr (!IS_OPTIONAL) {
       val = expr(group[0]);
@@ -424,7 +414,7 @@ struct MaxReducer {
   EXPR expr;
 
   using V = typename EXPR::V;
-  MaxReducer(EXPR&& expr) : expr(std::move(expr)) {}
+  explicit MaxReducer(EXPR&& expr) : expr(std::move(expr)) {}
   bool operator()(const std::vector<size_t>& group, V& val) const {
     if constexpr (!IS_OPTIONAL) {
       val = expr(group[0]);
@@ -456,7 +446,7 @@ template <typename EXPR, bool IS_OPTIONAL>
 struct FirstReducer {
   EXPR expr;
   using V = typename EXPR::V;
-  FirstReducer(EXPR&& expr) : expr(std::move(expr)) {}
+  explicit FirstReducer(EXPR&& expr) : expr(std::move(expr)) {}
   bool operator()(const std::vector<size_t>& group, V& val) const {
     if constexpr (!IS_OPTIONAL) {
       val = expr(group[0]);
@@ -478,7 +468,7 @@ template <typename EXPR, bool IS_OPTIONAL>
 struct ToSetReducer {
   EXPR expr;
   using V = std::set<typename EXPR::V>;
-  ToSetReducer(EXPR&& expr) : expr(std::move(expr)) {}
+  explicit ToSetReducer(EXPR&& expr) : expr(std::move(expr)) {}
   bool operator()(const std::vector<size_t>& group, V& val) const {
     val.clear();
     if constexpr (!IS_OPTIONAL) {
@@ -503,7 +493,7 @@ struct ToListReducer {
   EXPR expr;
 
   using V = std::vector<typename EXPR::V>;
-  ToListReducer(EXPR&& expr) : expr(std::move(expr)) {}
+  explicit ToListReducer(EXPR&& expr) : expr(std::move(expr)) {}
   bool operator()(const std::vector<size_t>& group, V& list) const {
     list.clear();
     if constexpr (!IS_OPTIONAL) {
@@ -527,12 +517,11 @@ template <typename EXPR, bool IS_OPTIONAL, typename Enable = void>
 struct AvgReducer;
 
 template <typename EXPR, bool IS_OPTIONAL>
-struct AvgReducer<
-    EXPR, IS_OPTIONAL,
-    std::enable_if_t<std::is_arithmetic<typename EXPR::V>::value>> {
+struct AvgReducer<EXPR, IS_OPTIONAL,
+                  std::enable_if_t<std::is_arithmetic<typename EXPR::V>::value>> {
   EXPR expr;
   using V = double;
-  AvgReducer(EXPR&& expr) : expr(std::move(expr)) {}
+  explicit AvgReducer(EXPR&& expr) : expr(std::move(expr)) {}
 
   bool operator()(const std::vector<size_t>& group, double& avg) const {
     // The result of avg is always a double, even if the input is integer.
@@ -603,8 +592,7 @@ template <typename T>
 struct ListCollector {
   ListCollector()
       : arena(std::make_shared<Arena>()),
-        builder(std::make_shared<ListValueColumnBuilder>(
-            TypedConverter<T>::type())) {}
+        builder(std::make_shared<ListValueColumnBuilder>(TypedConverter<T>::type())) {}
   void init(size_t size) { builder->reserve(size); }
   void collect(std::vector<T>&& val) {
     auto impl = ListImpl<T>::make_list_impl(std::move(val));
@@ -624,8 +612,8 @@ struct ListCollector {
 };
 
 template <typename EXPR, bool IS_OPTIONAL>
-std::unique_ptr<ReducerBase> _make_reducer(const Context& ctx, EXPR&& expr,
-                                           AggrKind kind, int alias) {
+std::unique_ptr<ReducerBase> _make_reducer(const Context& ctx, EXPR&& expr, AggrKind kind,
+                                           int alias) {
   switch (kind) {
   case AggrKind::kSum: {
     if constexpr (std::is_arithmetic<typename EXPR::V>::value) {
@@ -641,26 +629,26 @@ std::unique_ptr<ReducerBase> _make_reducer(const Context& ctx, EXPR&& expr,
   case AggrKind::kCountDistinct: {
     CountDistinctReducer<EXPR, IS_OPTIONAL> r(std::move(expr));
     SingleValueCollector<int64_t> collector;
-    return std::make_unique<Reducer<decltype(r), decltype(collector)>>(
-        std::move(r), std::move(collector), alias);
+    return std::make_unique<Reducer<decltype(r), decltype(collector)>>(std::move(r),
+                                                                       std::move(collector), alias);
   }
   case AggrKind::kCount: {
     CountReducer<EXPR, IS_OPTIONAL> r(std::move(expr));
     SingleValueCollector<int64_t> collector;
-    return std::make_unique<Reducer<decltype(r), decltype(collector)>>(
-        std::move(r), std::move(collector), alias);
+    return std::make_unique<Reducer<decltype(r), decltype(collector)>>(std::move(r),
+                                                                       std::move(collector), alias);
   }
   case AggrKind::kMin: {
     MinReducer<EXPR, IS_OPTIONAL> r(std::move(expr));
     SingleValueCollector<typename EXPR::V> collector;
-    return std::make_unique<Reducer<decltype(r), decltype(collector)>>(
-        std::move(r), std::move(collector), alias);
+    return std::make_unique<Reducer<decltype(r), decltype(collector)>>(std::move(r),
+                                                                       std::move(collector), alias);
   }
   case AggrKind::kMax: {
     MaxReducer<EXPR, IS_OPTIONAL> r(std::move(expr));
     SingleValueCollector<typename EXPR::V> collector;
-    return std::make_unique<Reducer<decltype(r), decltype(collector)>>(
-        std::move(r), std::move(collector), alias);
+    return std::make_unique<Reducer<decltype(r), decltype(collector)>>(std::move(r),
+                                                                       std::move(collector), alias);
   }
   case AggrKind::kFirst: {
     FirstReducer<EXPR, IS_OPTIONAL> r(std::move(expr));
@@ -677,14 +665,14 @@ std::unique_ptr<ReducerBase> _make_reducer(const Context& ctx, EXPR&& expr,
   case AggrKind::kToSet: {
     ToSetReducer<EXPR, IS_OPTIONAL> r(std::move(expr));
     SetCollector<typename EXPR::V> collector;
-    return std::make_unique<Reducer<decltype(r), decltype(collector)>>(
-        std::move(r), std::move(collector), alias);
+    return std::make_unique<Reducer<decltype(r), decltype(collector)>>(std::move(r),
+                                                                       std::move(collector), alias);
   }
   case AggrKind::kToList: {
     ToListReducer<EXPR, IS_OPTIONAL> r(std::move(expr));
     ListCollector<typename EXPR::V> collector;
-    return std::make_unique<Reducer<decltype(r), decltype(collector)>>(
-        std::move(r), std::move(collector), alias);
+    return std::make_unique<Reducer<decltype(r), decltype(collector)>>(std::move(r),
+                                                                       std::move(collector), alias);
   }
   case AggrKind::kAvg: {
     if constexpr (std::is_arithmetic<typename EXPR::V>::value) {
@@ -700,27 +688,22 @@ std::unique_ptr<ReducerBase> _make_reducer(const Context& ctx, EXPR&& expr,
   default:
     LOG(FATAL) << "unsupport" << static_cast<int>(kind);
     return nullptr;
-  };
-}
-
-template <typename T>
-std::unique_ptr<ReducerBase> make_reducer(const Context& ctx, Var&& var,
-                                          AggrKind kind, int alias) {
-  if (var.is_optional()) {
-    OptionalTypedVarWrapper<T> wrapper(std::move(var));
-    return _make_reducer<decltype(wrapper), true>(ctx, std::move(wrapper), kind,
-                                                  alias);
-  } else {
-    TypedVarWrapper<T> wrapper(std::move(var));
-    return _make_reducer<decltype(wrapper), false>(ctx, std::move(wrapper),
-                                                   kind, alias);
   }
 }
 
-inline std::unique_ptr<ReducerBase> make_general_reducer(const Context& ctx,
-                                                         Var&& var,
-                                                         AggrKind kind,
-                                                         int alias) {
+template <typename T>
+std::unique_ptr<ReducerBase> make_reducer(const Context& ctx, Var&& var, AggrKind kind, int alias) {
+  if (var.is_optional()) {
+    OptionalTypedVarWrapper<T> wrapper(std::move(var));
+    return _make_reducer<decltype(wrapper), true>(ctx, std::move(wrapper), kind, alias);
+  } else {
+    TypedVarWrapper<T> wrapper(std::move(var));
+    return _make_reducer<decltype(wrapper), false>(ctx, std::move(wrapper), kind, alias);
+  }
+}
+
+inline std::unique_ptr<ReducerBase> make_general_reducer(const Context& ctx, Var&& var,
+                                                         AggrKind kind, int alias) {
   if (kind == AggrKind::kCount) {
     if (!var.is_optional()) {
       VarWrapper var_wrap(std::move(var));
@@ -749,13 +732,11 @@ inline std::unique_ptr<ReducerBase> make_general_reducer(const Context& ctx,
   } else {
     LOG(FATAL) << "not support var reduce\n";
   }
-  return nullptr; // This line is unreachable but avoids compiler warning.
+  return nullptr;  // This line is unreachable but avoids compiler warning.
 }
 
-inline std::unique_ptr<ReducerBase> make_pair_reducer(const Context& ctx,
-                                                      Var&& fst, Var&& snd,
-                                                      AggrKind kind,
-                                                      int alias) {
+inline std::unique_ptr<ReducerBase> make_pair_reducer(const Context& ctx, Var&& fst, Var&& snd,
+                                                      AggrKind kind, int alias) {
   if (kind == AggrKind::kCount) {
     VarPairWrapper var_wrap(std::move(fst), std::move(snd));
     if ((!fst.is_optional()) && (!snd.is_optional())) {
@@ -779,14 +760,12 @@ inline std::unique_ptr<ReducerBase> make_pair_reducer(const Context& ctx,
   } else {
     LOG(FATAL) << "not support var reduce\n";
   }
-  return nullptr; //// This line is unreachable but avoids compiler warning.
+  return nullptr;
 }
 
 template <typename GraphInterface>
-std::unique_ptr<ReducerBase> make_reducer(const GraphInterface& graph,
-                                          const Context& ctx,
-                                          const common::Variable& var,
-                                          AggrKind kind, int alias) {
+std::unique_ptr<ReducerBase> make_reducer(const GraphInterface& graph, const Context& ctx,
+                                          const common::Variable& var, AggrKind kind, int alias) {
   if (!var.has_property() && var.has_tag()) {
     int tag = var.has_tag() ? var.tag().id() : -1;
     auto col = ctx.get(tag);
@@ -794,47 +773,31 @@ std::unique_ptr<ReducerBase> make_reducer(const GraphInterface& graph,
       if (col->column_type() == ContextColumnType::kVertex) {
         auto vertex_col = std::dynamic_pointer_cast<IVertexColumn>(col);
         if (vertex_col->vertex_column_type() == VertexColumnType::kSingle) {
-          SLVertexWrapperBeta wrapper(
-              *dynamic_cast<const SLVertexColumn*>(vertex_col.get()));
-          return _make_reducer<decltype(wrapper), false>(
-              ctx, std::move(wrapper), kind, alias);
-        } else if (vertex_col->vertex_column_type() ==
-                   VertexColumnType::kMultiple) {
-          auto typed_vertex_col =
-              std::dynamic_pointer_cast<MLVertexColumn>(vertex_col);
-          MLVertexWrapper<decltype(*typed_vertex_col)> wrapper(
-              *typed_vertex_col);
-          return _make_reducer<decltype(wrapper), false>(
-              ctx, std::move(wrapper), kind, alias);
+          SLVertexWrapperBeta wrapper(*dynamic_cast<const SLVertexColumn*>(vertex_col.get()));
+          return _make_reducer<decltype(wrapper), false>(ctx, std::move(wrapper), kind, alias);
+        } else if (vertex_col->vertex_column_type() == VertexColumnType::kMultiple) {
+          auto typed_vertex_col = std::dynamic_pointer_cast<MLVertexColumn>(vertex_col);
+          MLVertexWrapper<decltype(*typed_vertex_col)> wrapper(*typed_vertex_col);
+          return _make_reducer<decltype(wrapper), false>(ctx, std::move(wrapper), kind, alias);
         } else {
-          auto typed_vertex_col =
-              std::dynamic_pointer_cast<MSVertexColumn>(vertex_col);
-          MLVertexWrapper<decltype(*typed_vertex_col)> wrapper(
-              *typed_vertex_col);
-          return _make_reducer<decltype(wrapper), false>(
-              ctx, std::move(wrapper), kind, alias);
+          auto typed_vertex_col = std::dynamic_pointer_cast<MSVertexColumn>(vertex_col);
+          MLVertexWrapper<decltype(*typed_vertex_col)> wrapper(*typed_vertex_col);
+          return _make_reducer<decltype(wrapper), false>(ctx, std::move(wrapper), kind, alias);
         }
       } else if (col->column_type() == ContextColumnType::kValue) {
         if (col->elem_type() == RTAnyType::kI64Value) {
-          ValueWrapper<int64_t> wrapper(
-              *dynamic_cast<const ValueColumn<int64_t>*>(col.get()));
-          return _make_reducer<decltype(wrapper), false>(
-              ctx, std::move(wrapper), kind, alias);
+          ValueWrapper<int64_t> wrapper(*dynamic_cast<const ValueColumn<int64_t>*>(col.get()));
+          return _make_reducer<decltype(wrapper), false>(ctx, std::move(wrapper), kind, alias);
         } else if (col->elem_type() == RTAnyType::kI32Value) {
-          ValueWrapper<int32_t> wrapper(
-              *dynamic_cast<const ValueColumn<int32_t>*>(col.get()));
-          return _make_reducer<decltype(wrapper), false>(
-              ctx, std::move(wrapper), kind, alias);
+          ValueWrapper<int32_t> wrapper(*dynamic_cast<const ValueColumn<int32_t>*>(col.get()));
+          return _make_reducer<decltype(wrapper), false>(ctx, std::move(wrapper), kind, alias);
         } else if (col->elem_type() == RTAnyType::kStringValue) {
           ValueWrapper<std::string_view> wrapper(
               *dynamic_cast<const ValueColumn<std::string_view>*>(col.get()));
-          return _make_reducer<decltype(wrapper), false>(
-              ctx, std::move(wrapper), kind, alias);
+          return _make_reducer<decltype(wrapper), false>(ctx, std::move(wrapper), kind, alias);
         } else if (col->elem_type() == RTAnyType::kTimestamp) {
-          ValueWrapper<TimeStamp> wrapper(
-              *dynamic_cast<const ValueColumn<TimeStamp>*>(col.get()));
-          return _make_reducer<decltype(wrapper), false>(
-              ctx, std::move(wrapper), kind, alias);
+          ValueWrapper<TimeStamp> wrapper(*dynamic_cast<const ValueColumn<TimeStamp>*>(col.get()));
+          return _make_reducer<decltype(wrapper), false>(ctx, std::move(wrapper), kind, alias);
         }
       }
     }
@@ -874,8 +837,8 @@ std::unique_ptr<ReducerBase> make_reducer(const GraphInterface& graph,
 }
 template <typename GraphInterface>
 std::vector<std::unique_ptr<ProjectExprBase>> create_project_funcs(
-    const std::vector<std::pair<common::Variable, int>>& vars,
-    const GraphInterface& graph, const Context& ctx) {
+    const std::vector<std::pair<common::Variable, int>>& vars, const GraphInterface& graph,
+    const Context& ctx) {
   std::vector<std::unique_ptr<ProjectExprBase>> exprs;
   for (const auto& [var, alias] : vars) {
     if (!var.has_property()) {
@@ -884,86 +847,72 @@ std::vector<std::unique_ptr<ProjectExprBase>> create_project_funcs(
 
     Var var_(graph, ctx, var, VarType::kPathVar);
     if (var_.type() == RTAnyType::kStringValue) {
-      TypedKeyCollector<std::string_view>::TypedKeyWrapper wrapper(
-          std::move(var_));
+      TypedKeyCollector<std::string_view>::TypedKeyWrapper wrapper(std::move(var_));
       TypedKeyCollector<std::string_view> collector;
-      exprs.emplace_back(
-          std::make_unique<ProjectExpr<decltype(wrapper), decltype(collector)>>(
-              std::move(wrapper), std::move(collector), alias));
+      exprs.emplace_back(std::make_unique<ProjectExpr<decltype(wrapper), decltype(collector)>>(
+          std::move(wrapper), std::move(collector), alias));
     } else if (var_.type() == RTAnyType::kI64Value) {
       TypedKeyCollector<int64_t>::TypedKeyWrapper wrapper(std::move(var_));
       TypedKeyCollector<int64_t> collector;
-      exprs.emplace_back(
-          std::make_unique<ProjectExpr<decltype(wrapper), decltype(collector)>>(
-              std::move(wrapper), std::move(collector), alias));
+      exprs.emplace_back(std::make_unique<ProjectExpr<decltype(wrapper), decltype(collector)>>(
+          std::move(wrapper), std::move(collector), alias));
     } else if (var_.type() == RTAnyType::kI32Value) {
       TypedKeyCollector<int32_t>::TypedKeyWrapper wrapper(std::move(var_));
       TypedKeyCollector<int32_t> collector;
-      exprs.emplace_back(
-          std::make_unique<ProjectExpr<decltype(wrapper), decltype(collector)>>(
-              std::move(wrapper), std::move(collector), alias));
+      exprs.emplace_back(std::make_unique<ProjectExpr<decltype(wrapper), decltype(collector)>>(
+          std::move(wrapper), std::move(collector), alias));
     } else if (var_.type() == RTAnyType::kU64Value) {
       TypedKeyCollector<uint64_t>::TypedKeyWrapper wrapper(std::move(var_));
       TypedKeyCollector<uint64_t> collector;
-      exprs.emplace_back(
-          std::make_unique<ProjectExpr<decltype(wrapper), decltype(collector)>>(
-              std::move(wrapper), std::move(collector), alias));
+      exprs.emplace_back(std::make_unique<ProjectExpr<decltype(wrapper), decltype(collector)>>(
+          std::move(wrapper), std::move(collector), alias));
     } else if (var_.type() == RTAnyType::kU32Value) {
       TypedKeyCollector<uint32_t>::TypedKeyWrapper wrapper(std::move(var_));
       TypedKeyCollector<uint32_t> collector;
-      exprs.emplace_back(
-          std::make_unique<ProjectExpr<decltype(wrapper), decltype(collector)>>(
-              std::move(wrapper), std::move(collector), alias));
+      exprs.emplace_back(std::make_unique<ProjectExpr<decltype(wrapper), decltype(collector)>>(
+          std::move(wrapper), std::move(collector), alias));
     } else if (var_.type() == RTAnyType::kF32Value) {
       TypedKeyCollector<float>::TypedKeyWrapper wrapper(std::move(var_));
       TypedKeyCollector<float> collector;
-      exprs.emplace_back(
-          std::make_unique<ProjectExpr<decltype(wrapper), decltype(collector)>>(
-              std::move(wrapper), std::move(collector), alias));
+      exprs.emplace_back(std::make_unique<ProjectExpr<decltype(wrapper), decltype(collector)>>(
+          std::move(wrapper), std::move(collector), alias));
     } else if (var_.type() == RTAnyType::kF64Value) {
       TypedKeyCollector<double>::TypedKeyWrapper wrapper(std::move(var_));
       TypedKeyCollector<double> collector;
-      exprs.emplace_back(
-          std::make_unique<ProjectExpr<decltype(wrapper), decltype(collector)>>(
-              std::move(wrapper), std::move(collector), alias));
+      exprs.emplace_back(std::make_unique<ProjectExpr<decltype(wrapper), decltype(collector)>>(
+          std::move(wrapper), std::move(collector), alias));
     } else if (var_.type() == RTAnyType::kBoolValue) {
       TypedKeyCollector<bool>::TypedKeyWrapper wrapper(std::move(var_));
       TypedKeyCollector<bool> collector;
-      exprs.emplace_back(
-          std::make_unique<ProjectExpr<decltype(wrapper), decltype(collector)>>(
-              std::move(wrapper), std::move(collector), alias));
+      exprs.emplace_back(std::make_unique<ProjectExpr<decltype(wrapper), decltype(collector)>>(
+          std::move(wrapper), std::move(collector), alias));
     } else if (var_.type() == RTAnyType::kDate) {
       TypedKeyCollector<Date>::TypedKeyWrapper wrapper(std::move(var_));
       TypedKeyCollector<Date> collector;
-      exprs.emplace_back(
-          std::make_unique<ProjectExpr<decltype(wrapper), decltype(collector)>>(
-              std::move(wrapper), std::move(collector), alias));
+      exprs.emplace_back(std::make_unique<ProjectExpr<decltype(wrapper), decltype(collector)>>(
+          std::move(wrapper), std::move(collector), alias));
     } else if (var_.type() == RTAnyType::kDateTime) {
       TypedKeyCollector<DateTime>::TypedKeyWrapper wrapper(std::move(var_));
       TypedKeyCollector<DateTime> collector;
-      exprs.emplace_back(
-          std::make_unique<ProjectExpr<decltype(wrapper), decltype(collector)>>(
-              std::move(wrapper), std::move(collector), alias));
+      exprs.emplace_back(std::make_unique<ProjectExpr<decltype(wrapper), decltype(collector)>>(
+          std::move(wrapper), std::move(collector), alias));
     } else if (var_.type() == RTAnyType::kInterval) {
       TypedKeyCollector<Interval>::TypedKeyWrapper wrapper(std::move(var_));
       TypedKeyCollector<Interval> collector;
-      exprs.emplace_back(
-          std::make_unique<ProjectExpr<decltype(wrapper), decltype(collector)>>(
-              std::move(wrapper), std::move(collector), alias));
+      exprs.emplace_back(std::make_unique<ProjectExpr<decltype(wrapper), decltype(collector)>>(
+          std::move(wrapper), std::move(collector), alias));
     } else {
-      THROW_NOT_SUPPORTED_EXCEPTION(
-          "not support property type " +
-          std::to_string(static_cast<int>(var_.type())));
+      THROW_NOT_SUPPORTED_EXCEPTION("not support property type " +
+                                    std::to_string(static_cast<int>(var_.type())));
     }
   }
   return exprs;
 }
 
 template <typename GraphInterface>
-std::unique_ptr<KeyBase> create_key_func(
-    const std::vector<common::Variable>& vars,
-    const std::vector<std::pair<int, int>>& mappings,
-    const GraphInterface& graph, const Context& ctx) {
+std::unique_ptr<KeyBase> create_key_func(const std::vector<common::Variable>& vars,
+                                         const std::vector<std::pair<int, int>>& mappings,
+                                         const GraphInterface& graph, const Context& ctx) {
   if (mappings.size() == 1) {
     auto key = KeyBuilder<1>::make_sp_key(ctx, mappings);
     if (key) {
@@ -980,21 +929,18 @@ std::unique_ptr<KeyBase> create_key_func(
 }
 
 template <typename GraphInterface>
-std::unique_ptr<ReducerBase> create_reducer(
-    const physical::GroupBy_AggFunc& func, const GraphInterface& graph,
-    const Context& ctx) {
+std::unique_ptr<ReducerBase> create_reducer(const physical::GroupBy_AggFunc& func,
+                                            const GraphInterface& graph, const Context& ctx) {
   auto aggr_kind = parse_aggregate(func.aggregate());
   int alias = func.has_alias() ? func.alias().value() : -1;
   if (func.vars_size() == 0) {
     if (aggr_kind == AggrKind::kCount) {
       using count_res_t = typename CountStartReducer::V;
-      return std::make_unique<
-          Reducer<CountStartReducer, SingleValueCollector<count_res_t>>>(
+      return std::make_unique<Reducer<CountStartReducer, SingleValueCollector<count_res_t>>>(
           CountStartReducer(), SingleValueCollector<count_res_t>(), alias);
 
     } else {
-      THROW_NOT_SUPPORTED_EXCEPTION(
-          "not support reduce with no var except count");
+      THROW_NOT_SUPPORTED_EXCEPTION("not support reduce with no var except count");
     }
   } else if (func.vars_size() == 2) {
     auto& fst = func.vars(0);
@@ -1002,8 +948,7 @@ std::unique_ptr<ReducerBase> create_reducer(
 
     Var fst_var(graph, ctx, fst, VarType::kPathVar);
     Var snd_var(graph, ctx, snd, VarType::kPathVar);
-    return make_pair_reducer(ctx, std::move(fst_var), std::move(snd_var),
-                             aggr_kind, alias);
+    return make_pair_reducer(ctx, std::move(fst_var), std::move(snd_var), aggr_kind, alias);
   } else if (func.vars_size() == 1) {
     auto& var = func.vars(0);
 
@@ -1013,18 +958,16 @@ std::unique_ptr<ReducerBase> create_reducer(
   }
 }
 
-bool BuildGroupByUtils(
-    const physical::GroupBy& group_by,
-    std::vector<std::pair<common::Variable, int>>& project_vars,
-    std::vector<common::Variable>& key_vars,
-    std::vector<std::pair<int, int>>& mappings,
-    std::vector<physical::GroupBy_AggFunc>& reduce_funcs,
-    std::vector<std::pair<int, int>>& dependencies);
+bool BuildGroupByUtils(const physical::GroupBy& group_by,
+                       std::vector<std::pair<common::Variable, int>>& project_vars,
+                       std::vector<common::Variable>& key_vars,
+                       std::vector<std::pair<int, int>>& mappings,
+                       std::vector<physical::GroupBy_AggFunc>& reduce_funcs,
+                       std::vector<std::pair<int, int>>& dependencies);
 
 template <typename GraphInterface>
 inline gs::result<gs::runtime::Context> GroupByEvalImpl(
-    const GraphInterface& graph,
-    const std::map<std::string, std::string>& params,
+    const GraphInterface& graph, const std::map<std::string, std::string>& params,
     gs::runtime::Context&& ctx, const std::vector<common::Variable>& vars,
     const std::vector<std::pair<int, int>>& mappings,
     const std::vector<physical::GroupBy_AggFunc>& aggrs,
@@ -1043,8 +986,7 @@ inline gs::result<gs::runtime::Context> GroupByEvalImpl(
   for (auto& aggr : aggrs) {
     reducers.push_back(create_reducer(aggr, graph, ctx));
   }
-  auto ret =
-      GroupBy::group_by(std::move(ctx), std::move(key), std::move(reducers));
+  auto ret = GroupBy::group_by(std::move(ctx), std::move(key), std::move(reducers));
   if (!ret) {
     return ret;
   }
@@ -1064,11 +1006,9 @@ inline gs::result<gs::runtime::Context> GroupByEvalImpl(
 
 template <typename GraphInterface>
 inline gs::result<gs::runtime::Context> GroupByBetaEvalImpl(
-    const GraphInterface& graph,
-    const std::map<std::string, std::string>& params, Context&& ctx,
+    const GraphInterface& graph, const std::map<std::string, std::string>& params, Context&& ctx,
     const std::vector<std::pair<common::Variable, int>>& project_var_alias,
-    const std::vector<common::Variable>& vars,
-    const std::vector<std::pair<int, int>>& mappings,
+    const std::vector<common::Variable>& vars, const std::vector<std::pair<int, int>>& mappings,
     const std::vector<physical::GroupBy_AggFunc>& aggrs,
     const std::vector<std::pair<int, int>>& dependencies) {
   std::vector<std::shared_ptr<Arena>> arenas;
@@ -1099,8 +1039,7 @@ inline gs::result<gs::runtime::Context> GroupByBetaEvalImpl(
   for (auto& aggr : aggrs) {
     reducers.push_back(create_reducer(aggr, graph, ctx));
   }
-  auto ret_ctx =
-      GroupBy::group_by(std::move(ctx), std::move(key), std::move(reducers));
+  auto ret_ctx = GroupBy::group_by(std::move(ctx), std::move(key), std::move(reducers));
   if (!ret_ctx) {
     return ret_ctx;
   }
@@ -1122,4 +1061,4 @@ inline gs::result<gs::runtime::Context> GroupByBetaEvalImpl(
 }  // namespace runtime
 }  // namespace gs
 
-#endif  // EXECUTION_EXECUTE_OPS_UTILS_GROUP_BY_UTILS_H_
+#endif  // INCLUDE_NEUG_EXECUTION_EXECUTE_OPS_UTILS_GROUP_BY_UTILS_H_

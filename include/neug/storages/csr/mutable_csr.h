@@ -16,37 +16,28 @@
 #ifndef STORAGES_RT_MUTABLE_GRAPH_CSR_MUTABLE_CSR_H_
 #define STORAGES_RT_MUTABLE_GRAPH_CSR_MUTABLE_CSR_H_
 
-#include <errno.h>
 #include <glog/logging.h>
-#include <stdint.h>
+
+#include <stddef.h>
 #include <stdio.h>
 #include <string.h>
+
 #include <algorithm>
 #include <atomic>
-#include <cmath>
-#include <filesystem>
 #include <limits>
 #include <memory>
 #include <ostream>
-#include <stdexcept>
+#include <set>
 #include <string>
-#include <string_view>
-#include <system_error>
-#include <thread>
-#include <type_traits>
-#include <utility>
 #include <vector>
 
 #include "libgrape-lite/grape/types.h"
 #include "libgrape-lite/grape/utils/concurrent_queue.h"
-#include "neug/storages/csr/adj_list.h"
 #include "neug/storages/csr/csr_base.h"
+#include "neug/storages/csr/generic_view.h"
 #include "neug/storages/csr/nbr.h"
-#include "neug/storages/file_names.h"
 #include "neug/utils/allocators.h"
 #include "neug/utils/mmap_array.h"
-#include "neug/utils/property/column.h"
-#include "neug/utils/property/table.h"
 #include "neug/utils/property/types.h"
 
 namespace gs {
@@ -58,987 +49,160 @@ void write_file(const std::string& filename, const void* buffer, size_t size,
                 size_t num);
 
 template <typename EDATA_T>
-class MutableCsrConstEdgeIter : public CsrConstEdgeIterBase {
-  using const_nbr_ptr_t = typename MutableNbrSlice<EDATA_T>::const_nbr_ptr_t;
-
+class MutableCsr : public TypedCsrBase<EDATA_T> {
  public:
-  explicit MutableCsrConstEdgeIter(const MutableNbrSlice<EDATA_T>& slice)
-      : cur_(slice.begin()), end_(slice.end()) {}
-  ~MutableCsrConstEdgeIter() = default;
-
-  vid_t get_neighbor() const override { return (*cur_).get_neighbor(); }
-  Any get_data() const override {
-    return AnyConverter<EDATA_T>::to_any((*cur_).get_data());
-  }
-  timestamp_t get_timestamp() const override { return (*cur_).get_timestamp(); }
-
-  void next() override { ++cur_; }
-  CsrConstEdgeIterBase& operator+=(size_t offset) override {
-    cur_ += offset;
-    if (!(cur_ < end_)) {
-      cur_ = end_;
-    }
-    return *this;
-  }
-  bool is_valid() const override { return cur_ != end_; }
-  size_t size() const override { return end_ - cur_; }
-
- private:
-  const_nbr_ptr_t cur_;
-  const_nbr_ptr_t end_;
-};
-
-template <typename EDATA_T>
-class MutableCsrEdgeIter : public CsrEdgeIterBase {
+  static constexpr float RESERVE_RATIO = 1.2;
+  using data_t = EDATA_T;
   using nbr_t = MutableNbr<EDATA_T>;
 
- public:
-  explicit MutableCsrEdgeIter(MutableNbrSliceMut<EDATA_T> slice)
-      : cur_(slice.begin()), end_(slice.end()) {}
-  ~MutableCsrEdgeIter() = default;
-
-  vid_t get_neighbor() const override { return cur_->neighbor; }
-  Any get_data() const override {
-    return AnyConverter<EDATA_T>::to_any(cur_->data);
-  }
-  timestamp_t get_timestamp() const override { return cur_->timestamp.load(); }
-
-  void set_data(const Any& value, timestamp_t ts, int32_t col_id = 0) override {
-    assert(col_id == 0);
-    if constexpr (!std::is_same<EDATA_T, grape::EmptyType>::value) {
-      ConvertAny<EDATA_T>::to(value, cur_->data);
-    }
-
-    cur_->timestamp.store(ts);
-  }
-
-  CsrEdgeIterBase& operator+=(size_t offset) override {
-    if (cur_ + offset >= end_) {
-      cur_ = end_;
-    } else {
-      cur_ += offset;
-    }
-    return *this;
-  }
-
-  void next() override { ++cur_; }
-  bool is_valid() const override { return cur_ != end_; }
-  size_t size() const override { return end_ - cur_; }
-
- private:
-  nbr_t* cur_;
-  nbr_t* end_;
-};
-
-template <>
-class MutableCsrEdgeIter<std::string_view> : public CsrEdgeIterBase {
-  using nbr_ptr_t = typename MutableNbrSliceMut<std::string_view>::nbr_ptr_t;
-
- public:
-  explicit MutableCsrEdgeIter(MutableNbrSliceMut<std::string_view> slice)
-      : cur_(slice.begin()), end_(slice.end()) {}
-  ~MutableCsrEdgeIter() = default;
-
-  vid_t get_neighbor() const override { return cur_.get_neighbor(); }
-  Any get_data() const override {
-    return AnyConverter<std::string_view>::to_any(cur_.get_data());
-  }
-  timestamp_t get_timestamp() const override { return cur_.get_timestamp(); }
-
-  void set_data(const Any& value, timestamp_t ts, int32_t col_id = 0) override {
-    assert(col_id == 0);
-    cur_.set_data(value.AsStringView(), ts);
-  }
-  size_t get_index() const { return cur_.get_index(); }
-  void set_timestamp(timestamp_t ts) { cur_.set_timestamp(ts); }
-
-  CsrEdgeIterBase& operator+=(size_t offset) override {
-    cur_ += offset;
-    if (!(cur_ < end_)) {
-      cur_ = end_;
-    }
-    return *this;
-  }
-
-  void next() override { ++cur_; }
-  bool is_valid() const override { return cur_ != end_; }
-  size_t size() const override { return end_.ptr_ - cur_.ptr_; }
-
- private:
-  nbr_ptr_t cur_;
-  nbr_ptr_t end_;
-};
-
-template <>
-class MutableCsrEdgeIter<RecordView> : public CsrEdgeIterBase {
-  using nbr_ptr_t = typename MutableNbrSliceMut<RecordView>::nbr_ptr_t;
-
- public:
-  explicit MutableCsrEdgeIter(MutableNbrSliceMut<RecordView> slice)
-      : cur_(slice.begin()), end_(slice.end()) {}
-  ~MutableCsrEdgeIter() = default;
-
-  vid_t get_neighbor() const override { return cur_->get_neighbor(); }
-  Any get_data() const override {
-    return AnyConverter<RecordView>::to_any(cur_->get_data());
-  }
-  size_t get_index() const { return cur_.get_index(); }
-
-  timestamp_t get_timestamp() const override { return cur_->get_timestamp(); }
-
-  void set_timestamp(timestamp_t ts) { cur_->set_timestamp(ts); }
-
-  void set_data(const Any& value, timestamp_t ts, int32_t col_id = 0) override {
-    if (col_id == -1) {
-      assert(value.type == PropertyType::kRecord);
-    }
-    cur_->set_data(value, ts, col_id);
-  }
-
-  CsrEdgeIterBase& operator+=(size_t offset) override {
-    cur_ += offset;
-    if (!(cur_ < end_)) {
-      cur_ = end_;
-    }
-    return *this;
-  }
-
-  void next() override { ++cur_; }
-  bool is_valid() const override { return cur_ != end_; }
-  size_t size() const override { return end_ - cur_; }
-
- private:
-  nbr_ptr_t cur_;
-  nbr_ptr_t end_;
-};
-template <typename EDATA_T>
-class MutableCsr : public TypedMutableCsrBase<EDATA_T> {
- public:
-  using nbr_t = MutableNbr<EDATA_T>;
-  using adjlist_t = MutableAdjlist<EDATA_T>;
-  using slice_t = MutableNbrSlice<EDATA_T>;
-  using mut_slice_t = MutableNbrSliceMut<EDATA_T>;
-
-  MutableCsr() : locks_(nullptr), memory_level_(1) {}
-  MutableCsr(MutableCsr<EDATA_T>&& rhs) {
-    locks_ = rhs.locks_;
-    rhs.locks_ = nullptr;
-    adj_lists_.swap(rhs.adj_lists_);
-    nbr_list_.swap(rhs.nbr_list_);
-    unsorted_since_ = rhs.unsorted_since_;
-    memory_level_ = rhs.memory_level_;
-  }
+  MutableCsr() : locks_(nullptr) {}
   ~MutableCsr() {
     if (locks_ != nullptr) {
       delete[] locks_;
     }
   }
 
-  MutableCsr& operator=(const MutableCsr&) = delete;
+  CsrType csr_type() const override { return CsrType::kMutable; }
 
-  MutableCsr& operator=(MutableCsr&& other) noexcept {
-    if (this != &other) {
-      locks_ = other.locks_;
-      other.locks_ = nullptr;
-      adj_lists_.swap(other.adj_lists_);
-      nbr_list_.swap(other.nbr_list_);
-      unsorted_since_ = other.unsorted_since_;
-      memory_level_ = other.memory_level_;
-    }
-    return *this;
-  }
-
-  size_t batch_init(const std::string& name, const std::string& work_dir,
-                    const std::vector<int>& degree,
-                    double reserve_ratio) override {
-    reserve_ratio = std::max(reserve_ratio, 1.0);
-    size_t vnum = degree.size();
-    adj_lists_.open(work_dir + "/" + name + ".adj", true);
-    adj_lists_.resize(vnum);
-
-    locks_ = new grape::SpinLock[vnum];
-
-    size_t edge_num = 0;
-    for (auto d : degree) {
-      edge_num += (std::ceil(d * reserve_ratio));
-    }
-    nbr_list_.open(work_dir + "/" + name + ".nbr", true);
-    nbr_list_.resize(edge_num);
-
-    nbr_t* ptr = nbr_list_.data();
-    for (vid_t i = 0; i < vnum; ++i) {
-      int deg = degree[i];
-      int cap = std::ceil(deg * reserve_ratio);
-      adj_lists_[i].init(ptr, cap, 0);
-      ptr += cap;
-    }
-
-    unsorted_since_ = 0;
-    return edge_num;
-  }
-
-  size_t batch_init_in_memory(const std::vector<int>& degree,
-                              double reserve_ratio) override {
-    reserve_ratio = std::max(reserve_ratio, 1.0);
-    size_t vnum = degree.size();
-    adj_lists_.open("", false);
-    adj_lists_.resize(vnum);
-
-    locks_ = new grape::SpinLock[vnum];
-
-    size_t edge_num = 0;
-    for (auto d : degree) {
-      edge_num += (std::ceil(d * reserve_ratio));
-    }
-    nbr_list_.open("", false);
-    nbr_list_.resize(edge_num);
-
-    nbr_t* ptr = nbr_list_.data();
-    for (vid_t i = 0; i < vnum; ++i) {
-      int deg = degree[i];
-      int cap = std::ceil(deg * reserve_ratio);
-      adj_lists_[i].init(ptr, cap, 0);
-      ptr += cap;
-    }
-
-    unsorted_since_ = 0;
-    return edge_num;
-  }
-
-  void batch_put_edge(vid_t src, vid_t dst, const EDATA_T& data,
-                      timestamp_t ts) override {
-    adj_lists_[src].batch_put_edge(dst, data, ts);
-  }
-
-  void batch_delete_vertices(bool is_src, const std::vector<vid_t>& vids) {
-    if (is_src) {
-      for (auto v : vids) {
-        if (v < adj_lists_.size()) {
-          adj_lists_[v].clear();
-        }
-      }
-    } else {
-      std::unordered_set<vid_t> vertices_set;
-      for (auto v : vids) {
-        vertices_set.emplace(v);
-      }
-      for (size_t i = 0; i < adj_lists_.size(); i++) {
-        adj_lists_[i].remove_nbrs(vertices_set);
-      }
-    }
-  }
-
-  void batch_delete_edges(
-      bool is_out,
-      const std::vector<std::tuple<vid_t, vid_t>>& delete_edges_vec) {
-    std::unordered_map<vid_t, std::unordered_set<vid_t>> edge_map;
-    for (auto& e : delete_edges_vec) {
-      if (is_out) {
-        auto it = edge_map.find(std::get<0>(e));
-        if (it != edge_map.end()) {
-          it->second.emplace(std::get<1>(e));
-        } else {
-          std::unordered_set<vid_t> edge_set;
-          edge_set.emplace(std::get<1>(e));
-          edge_map.insert({std::get<0>(e), edge_set});
-        }
-      } else {
-        auto it = edge_map.find(std::get<1>(e));
-        if (it != edge_map.end()) {
-          it->second.emplace(std::get<0>(e));
-        } else {
-          std::unordered_set<vid_t> edge_set;
-          edge_set.emplace(std::get<0>(e));
-          edge_map.insert({std::get<1>(e), edge_set});
-        }
-      }
-    }
-    for (size_t i = 0; i < adj_lists_.size(); i++) {
-      auto it = edge_map.find(i);
-      if (it != edge_map.end()) {
-        adj_lists_[i].remove_nbrs(it->second);
-      }
-    }
-    return;
-  }
-
-  void batch_sort_by_edge_data(timestamp_t ts) override {
-    size_t vnum = adj_lists_.size();
-    for (size_t i = 0; i != vnum; ++i) {
-      std::sort(adj_lists_[i].data(),
-                adj_lists_[i].data() + adj_lists_[i].size(),
-                [](const nbr_t& lhs, const nbr_t& rhs) {
-                  return lhs.data < rhs.data;
-                });
-    }
-    unsorted_since_ = ts;
+  GenericView get_generic_view(timestamp_t ts) const override {
+    NbrIterConfig cfg;
+    cfg.stride = sizeof(nbr_t);
+    cfg.ts_offset = offsetof(nbr_t, timestamp);
+    cfg.data_offset = offsetof(nbr_t, data);
+    return GenericView(reinterpret_cast<const char*>(adj_list_buffer_.data()),
+                       reinterpret_cast<const int*>(adj_list_size_.data()), cfg,
+                       ts, unsorted_since_);
   }
 
   timestamp_t unsorted_since() const override { return unsorted_since_; }
 
-  void open(const std::string& name, const std::string& checkpoint_dir,
-            const std::string& work_dir) override {
-    memory_level_ = 0;
-    mmap_array<int> degree_list;
-    mmap_array<int>* cap_list = &degree_list;
-    if (checkpoint_dir != "") {
-      degree_list.open(checkpoint_dir + "/" + name + ".deg", false, false);
-      if (std::filesystem::exists(checkpoint_dir + "/" + name + ".cap")) {
-        cap_list = new mmap_array<int>();
-        cap_list->open(checkpoint_dir + "/" + name + ".cap", false, false);
-      }
-      if (std::filesystem::exists(checkpoint_dir + "/" + name + ".nbr")) {
-        nbr_list_.open(checkpoint_dir + "/" + name + ".nbr", false, false);
-      } else {
-        nbr_list_.open(tmp_dir(work_dir) + "/" + name + ".nbr", false, true);
-      }
-      load_meta(checkpoint_dir + "/" + name);
-    }
-    adj_lists_.open(tmp_dir(work_dir) + "/" + name + ".adj", true);
-
-    adj_lists_.resize(degree_list.size());
-    locks_ = new grape::SpinLock[degree_list.size()];
-
-    nbr_t* ptr = nbr_list_.data();
-    for (size_t i = 0; i < degree_list.size(); ++i) {
-      int degree = degree_list[i];
-      int cap = (*cap_list)[i];
-      adj_lists_[i].init(ptr, cap, degree);
-      ptr += cap;
-    }
-    if (cap_list != &degree_list) {
-      delete cap_list;
-    }
-  }
-
-  void open_in_memory(const std::string& prefix, size_t v_cap) override {
-    memory_level_ = 1;
-    mmap_array<int> degree_list;
-    degree_list.open(prefix + ".deg", false);
-    load_meta(prefix);
-    mmap_array<int>* cap_list = &degree_list;
-    if (std::filesystem::exists(prefix + ".cap")) {
-      cap_list = new mmap_array<int>();
-      cap_list->open(prefix + ".cap", false);
-    }
-
-    nbr_list_.open(prefix + ".nbr", false);
-
-    adj_lists_.reset();
-    v_cap = std::max(v_cap, degree_list.size());
-    adj_lists_.resize(v_cap);
-    locks_ = new grape::SpinLock[v_cap];
-
-    nbr_t* ptr = nbr_list_.data();
-    for (size_t i = 0; i < degree_list.size(); ++i) {
-      int degree = degree_list[i];
-      int cap = (*cap_list)[i];
-      adj_lists_[i].init(ptr, cap, degree);
-      ptr += cap;
-    }
-    for (size_t i = degree_list.size(); i < v_cap; ++i) {
-      adj_lists_[i].init(ptr, 0, 0);
-    }
-
-    if (cap_list != &degree_list) {
-      delete cap_list;
-    }
-  }
-
-  void open_with_hugepages(const std::string& prefix, size_t v_cap) override {
-    memory_level_ = 2;
-    mmap_array<int> degree_list;
-    degree_list.open(prefix + ".deg", false);
-    load_meta(prefix);
-    mmap_array<int>* cap_list = &degree_list;
-    if (std::filesystem::exists(prefix + ".cap")) {
-      cap_list = new mmap_array<int>();
-      cap_list->open(prefix + ".cap", false);
-    }
-
-    nbr_list_.open_with_hugepages(prefix + ".nbr");
-
-    adj_lists_.reset();
-    v_cap = std::max(v_cap, degree_list.size());
-    adj_lists_.open_with_hugepages("");
-    adj_lists_.resize(v_cap);
-    locks_ = new grape::SpinLock[v_cap];
-
-    nbr_t* ptr = nbr_list_.data();
-    for (size_t i = 0; i < degree_list.size(); ++i) {
-      int degree = degree_list[i];
-      int cap = (*cap_list)[i];
-      adj_lists_[i].init(ptr, cap, degree);
-      ptr += cap;
-    }
-    for (size_t i = degree_list.size(); i < v_cap; ++i) {
-      adj_lists_[i].init(ptr, 0, 0);
-    }
-
-    if (cap_list != &degree_list) {
-      delete cap_list;
-    }
-  }
-
-  void dump(const std::string& name,
-            const std::string& new_snapshot_dir) override {
-    size_t vnum = adj_lists_.size();
-    bool reuse_nbr_list = true;
-    dump_meta(new_snapshot_dir + "/" + name);
-    mmap_array<int> degree_list;
-    std::vector<int> cap_list;
-    degree_list.open(new_snapshot_dir + "/" + name + ".deg", true);
-    degree_list.resize(vnum);
-    cap_list.resize(vnum);
-    bool need_cap_list = false;
-    size_t offset = 0;
-    for (size_t i = 0; i < vnum; ++i) {
-      if (adj_lists_[i].size() != 0) {
-        if (!(adj_lists_[i].data() == nbr_list_.data() + offset &&
-              offset < nbr_list_.size())) {
-          reuse_nbr_list = false;
-        }
-      }
-      offset += adj_lists_[i].capacity();
-
-      degree_list[i] = adj_lists_[i].size();
-      cap_list[i] = adj_lists_[i].capacity();
-      if (degree_list[i] != cap_list[i]) {
-        need_cap_list = true;
-      }
-    }
-
-    if (need_cap_list) {
-      write_file(new_snapshot_dir + "/" + name + ".cap", cap_list.data(),
-                 sizeof(int), cap_list.size());
-    }
-
-    if (reuse_nbr_list && !nbr_list_.filename().empty() &&
-        std::filesystem::exists(nbr_list_.filename())) {
-      std::error_code errorCode;
-      std::string link_filename = new_snapshot_dir + "/" + name + ".nbr";
-      if (std::filesystem::exists(link_filename)) {
-        std::filesystem::remove(link_filename);
-      }
-      std::filesystem::create_hard_link(nbr_list_.filename(),
-                                        new_snapshot_dir + "/" + name + ".nbr",
-                                        errorCode);
-      if (errorCode) {
-        std::stringstream ss;
-        ss << "Failed to create hard link from " << nbr_list_.filename()
-           << " to " << new_snapshot_dir + "/" + name + ".nbr"
-           << ", error code: " << errorCode << " " << errorCode.message();
-        LOG(ERROR) << ss.str();
-        THROW_RUNTIME_ERROR(ss.str());
-      }
-    } else {
-      FILE* fout =
-          fopen((new_snapshot_dir + "/" + name + ".nbr").c_str(), "wb");
-      std::string filename = new_snapshot_dir + "/" + name + ".nbr";
-      if (fout == nullptr) {
-        std::stringstream ss;
-        ss << "Failed to open nbr list " << filename << ", " << strerror(errno);
-        LOG(ERROR) << ss.str();
-        THROW_RUNTIME_ERROR(ss.str());
-      }
-
-      for (size_t i = 0; i < vnum; ++i) {
-        size_t ret{};
-        if ((ret = fwrite(adj_lists_[i].data(), sizeof(nbr_t),
-                          adj_lists_[i].capacity(), fout)) !=
-            static_cast<size_t>(adj_lists_[i].capacity())) {
-          std::stringstream ss;
-          ss << "Failed to write nbr list " << filename << ", expected "
-             << adj_lists_[i].capacity() << ", got " << ret << ", "
-             << strerror(errno);
-          LOG(ERROR) << ss.str();
-          THROW_RUNTIME_ERROR(ss.str());
-        }
-      }
-      int ret = 0;
-      if ((ret = fflush(fout)) != 0) {
-        std::stringstream ss;
-        ss << "Failed to flush nbr list " << filename << ", error code: " << ret
-           << " " << strerror(errno);
-        LOG(ERROR) << ss.str();
-        THROW_RUNTIME_ERROR(ss.str());
-      }
-      if ((ret = fclose(fout)) != 0) {
-        std::stringstream ss;
-        ss << "Failed to close nbr list " << filename << ", error code: " << ret
-           << " " << strerror(errno);
-        LOG(ERROR) << ss.str();
-        THROW_RUNTIME_ERROR(ss.str());
-      }
-    }
-  }
-
-  void resize(vid_t vnum) override {
-    if (vnum > adj_lists_.size()) {
-      size_t old_size = adj_lists_.size();
-      adj_lists_.resize(vnum);
-      for (size_t k = old_size; k != vnum; ++k) {
-        adj_lists_[k].init(NULL, 0, 0);
-      }
-      delete[] locks_;
-      locks_ = new grape::SpinLock[vnum];
-    } else {
-      adj_lists_.resize(vnum);
-    }
-  }
-  size_t size() const override { return adj_lists_.size(); }
+  size_t size() const override { return adj_list_size_.size(); }
 
   size_t edge_num() const override {
     size_t res = 0;
-    for (size_t i = 0; i < adj_lists_.size(); ++i) {
-      res += adj_lists_[i].size();
+    for (size_t i = 0; i < adj_list_size_.size(); ++i) {
+      res += adj_list_size_[i];
     }
     return res;
   }
 
-  std::shared_ptr<CsrConstEdgeIterBase> edge_iter(vid_t v) const override {
-    return std::make_shared<MutableCsrConstEdgeIter<EDATA_T>>(get_edges(v));
-  }
+  void open(const std::string& name, const std::string& snapshot_dir,
+            const std::string& work_dir) override;
 
-  std::shared_ptr<CsrEdgeIterBase> edge_iter_mut(vid_t v) override {
-    return std::make_shared<MutableCsrEdgeIter<EDATA_T>>(get_edges_mut(v));
-  }
+  void open_in_memory(const std::string& prefix, size_t v_cap) override;
+
+  void open_with_hugepages(const std::string& prefix, size_t v_cap) override;
+
+  void dump(const std::string& name,
+            const std::string& new_snapshot_dir) override;
+
+  void warmup(int thread_num) const override;
+
+  void resize(vid_t vnum) override;
+
+  void close() override;
+
+  void batch_sort_by_edge_data(timestamp_t ts) override;
+
+  void batch_delete_vertices(const std::set<vid_t>& src_set,
+                             const std::set<vid_t>& dst_set) override;
+
+  void batch_delete_edges(const std::vector<vid_t>& src_list,
+                          const std::vector<vid_t>& dst_list) override;
+
+  void batch_put_edges(const std::vector<vid_t>& src_list,
+                       const std::vector<vid_t>& dst_list,
+                       const std::vector<EDATA_T>& data_list,
+                       timestamp_t ts = 0) override;
 
   void put_edge(vid_t src, vid_t dst, const EDATA_T& data, timestamp_t ts,
                 Allocator& alloc) override {
-    CHECK_LT(src, adj_lists_.size());
+    CHECK_LT(src, adj_list_size_.size());
     locks_[src].lock();
-    adj_lists_[src].put_edge(dst, data, ts, alloc);
+    int sz = adj_list_size_[src];
+    int cap = adj_list_capacity_[src];
+    if (sz == cap) {
+      cap += (cap >> 1);
+      cap = std::max(cap, 8);
+      nbr_t* new_buffer =
+          static_cast<nbr_t*>(alloc.allocate(cap * sizeof(nbr_t)));
+      if (sz > 0) {
+        memcpy(new_buffer, adj_list_buffer_[src], sz * sizeof(nbr_t));
+      }
+      adj_list_buffer_[src] = new_buffer;
+      adj_list_capacity_[src] = cap;
+    }
+    auto& nbr = adj_list_buffer_[src][adj_list_size_[src].fetch_add(1)];
+    nbr.neighbor = dst;
+    nbr.data = data;
+    nbr.timestamp.store(ts);
     locks_[src].unlock();
   }
 
-  inline slice_t get_edges(vid_t v) const override {
-    return adj_lists_[v].get_edges();
-  }
-
-  inline mut_slice_t get_edges_mut(vid_t i) {
-    return adj_lists_[i].get_edges_mut();
-  }
-
-  void close() override {
-    if (locks_ != nullptr) {
-      delete[] locks_;
-      locks_ = nullptr;
-    }
-    adj_lists_.reset();
-    nbr_list_.reset();
-  }
-
-  void reset_timestamp() override {
-    for (size_t i = 0; i < adj_lists_.size(); i++) {
-      for (auto nbr : adj_lists_[i].get_edges()) {
-        nbr.timestamp = 0;
-      }
-    }
-  }
-
-  void compact_nbr(const std::string& work_dir, float reserve_ratio) override {
-    size_t nbr_count = 0;
-    for (size_t i = 0; i < adj_lists_.size(); i++) {
-      nbr_count += (std::ceil(adj_lists_[i].size() * reserve_ratio));
-    }
-    if (memory_level_ == 0) {
-      std::filesystem::path original_path = nbr_list_.filename();
-      std::string filename = original_path.filename().string();
-      std::string nbr_filename = tmp_dir(work_dir) + "/" + filename;
-      if (!std::filesystem::exists(compact_dir(work_dir))) {
-        std::filesystem::create_directories(compact_dir(work_dir));
-      }
-      std::string tmp_nbr_filename =
-          compact_dir(work_dir) + "/" + filename + ".tmp";
-      mmap_array<nbr_t> new_nbr_list;
-      new_nbr_list.open(tmp_nbr_filename, true);
-      new_nbr_list.resize(nbr_count);
-      {
-        nbr_t* ptr = new_nbr_list.data();
-        for (size_t i = 0; i < adj_lists_.size(); i++) {
-          memcpy(ptr, adj_lists_[i].data(),
-                 adj_lists_[i].size() * sizeof(nbr_t));
-          int cap = std::ceil(adj_lists_[i].size() * reserve_ratio);
-          ptr += cap;
+  std::tuple<std::vector<vid_t>, std::vector<vid_t>> batch_export(
+      std::shared_ptr<ColumnBase> prev_data_col) const override {
+    std::vector<vid_t> src_list, dst_list;
+    std::vector<EDATA_T> data_list;
+    for (vid_t src = 0; src < adj_list_size_.size(); ++src) {
+      for (int i = 0; i < adj_list_size_[src]; ++i) {
+        if (adj_list_buffer_[src][i].timestamp.load() !=
+            std::numeric_limits<timestamp_t>::max()) {
+          src_list.push_back(src);
+          dst_list.push_back(adj_list_buffer_[src][i].neighbor);
+          data_list.push_back(adj_list_buffer_[src][i].data);
         }
       }
-      nbr_list_.reset();
-      new_nbr_list.reset();
-      if (std::filesystem::exists(nbr_filename)) {
-        std::filesystem::remove(nbr_filename);
-      }
-      std::filesystem::copy(tmp_nbr_filename, nbr_filename);
-      nbr_list_.open(nbr_filename, true);
-    } else {
-      mmap_array<nbr_t> new_nbr_list;
-      new_nbr_list.open("", false);
-      new_nbr_list.resize(nbr_count);
-      {
-        nbr_t* ptr = new_nbr_list.data();
-        for (size_t i = 0; i < adj_lists_.size(); i++) {
-          memcpy(ptr, adj_lists_[i].data(),
-                 adj_lists_[i].size() * sizeof(nbr_t));
-          int cap = std::ceil(adj_lists_[i].size() * reserve_ratio);
-          ptr += cap;
-        }
-      }
-      nbr_list_.swap(new_nbr_list);
     }
-    nbr_t* ptr = nbr_list_.data();
-    for (size_t i = 0; i < adj_lists_.size(); i++) {
-      int deg = adj_lists_[i].size();
-      int cap = std::ceil(deg * reserve_ratio);
-      adj_lists_[i].init(ptr, cap, deg);
-      ptr += cap;
+    if (prev_data_col) {
+      auto casted =
+          std::dynamic_pointer_cast<TypedColumn<EDATA_T>>(prev_data_col);
+      if (!casted) {
+        THROW_INTERNAL_EXCEPTION(
+            "prev_data_col cannot be casted to TypedColumn<EDATA_T>");
+      }
+      casted->resize(data_list.size());
+      for (size_t i = 0; i < data_list.size(); ++i) {
+        casted->set_value(i, data_list[i]);
+      }
     }
-  }
-
-  void ensure_writable(const std::string& work_dir) override {
-    nbr_list_.ensure_writable(work_dir);
-    adj_lists_.ensure_writable(work_dir);
+    return std::make_tuple(std::move(src_list), std::move(dst_list));
   }
 
  private:
-  void load_meta(const std::string& prefix) {
-    std::string meta_file_path = prefix + ".meta";
-    if (std::filesystem::exists(meta_file_path)) {
-      read_file(meta_file_path, &unsorted_since_, sizeof(timestamp_t), 1);
+  void load_meta(const std::string& prefix);
 
-    } else {
-      unsorted_since_ = 0;
-    }
-  }
-
-  void dump_meta(const std::string& prefix) const {
-    std::string meta_file_path = prefix + ".meta";
-    write_file(meta_file_path, &unsorted_since_, sizeof(timestamp_t), 1);
-  }
+  void dump_meta(const std::string& prefix) const;
 
   grape::SpinLock* locks_;
-  mmap_array<adjlist_t> adj_lists_;
+  mmap_array<nbr_t*> adj_list_buffer_;
+  mmap_array<std::atomic<int>> adj_list_size_;
+  mmap_array<int> adj_list_capacity_;
   mmap_array<nbr_t> nbr_list_;
   timestamp_t unsorted_since_;
-  int memory_level_;
-};
-
-template <>
-class MutableCsr<std::string_view>
-    : public TypedMutableCsrBase<std::string_view> {
- public:
-  using nbr_t = MutableNbr<size_t>;
-  using adjlist_t = MutableAdjlist<size_t>;
-  using slice_t = MutableNbrSlice<std::string_view>;
-  using mut_slice_t = MutableNbrSliceMut<std::string_view>;
-
-  MutableCsr(Table& table) : table_(table), csr_() {}
-  ~MutableCsr() {}
-
-  size_t batch_init(const std::string& name, const std::string& work_dir,
-                    const std::vector<int>& degree,
-                    double reserve_ratio) override {
-    return csr_.batch_init(name, work_dir, degree, reserve_ratio);
-  }
-
-  size_t batch_init_in_memory(const std::vector<int>& degree,
-                              double reserve) override {
-    return csr_.batch_init_in_memory(degree, reserve);
-  }
-
-  void batch_put_edge_with_index(vid_t src, vid_t dst, size_t data,
-                                 timestamp_t ts) override {
-    csr_.batch_put_edge(src, dst, data, ts);
-  }
-
-  void open(const std::string& name, const std::string& snapshot_dir,
-            const std::string& work_dir) override {
-    csr_.open(name, snapshot_dir, work_dir);
-  }
-
-  void open_in_memory(const std::string& prefix, size_t v_cap) override {
-    csr_.open_in_memory(prefix, v_cap);
-  }
-
-  void dump(const std::string& name,
-            const std::string& new_snapshot_dir) override {
-    csr_.dump(name, new_snapshot_dir);
-  }
-
-  void resize(vid_t vnum) override { csr_.resize(vnum); }
-
-  size_t size() const override { return csr_.size(); }
-
-  size_t edge_num() const override { return csr_.edge_num(); }
-
-  std::shared_ptr<CsrConstEdgeIterBase> edge_iter(vid_t v) const override {
-    return std::make_shared<MutableCsrConstEdgeIter<std::string_view>>(
-        get_edges(v));
-  }
-
-  std::shared_ptr<CsrEdgeIterBase> edge_iter_mut(vid_t v) override {
-    return std::make_shared<MutableCsrEdgeIter<std::string_view>>(
-        get_edges_mut(v));
-  }
-
-  void put_edge(vid_t src, vid_t dst, size_t data, timestamp_t ts,
-                Allocator& alloc) {
-    csr_.put_edge(src, dst, data, ts, alloc);
-  }
-
-  void put_edge_with_index(vid_t src, vid_t dst, size_t index, timestamp_t ts,
-                           Allocator& alloc) override {
-    csr_.put_edge(src, dst, index, ts, alloc);
-  }
-
-  void batch_delete_vertices(bool is_src, const std::vector<vid_t>& vids) {
-    csr_.batch_delete_vertices(is_src, vids);
-  }
-
-  void batch_delete_edges(
-      bool is_out,
-      const std::vector<std::tuple<vid_t, vid_t>>& delete_edges_vec) {
-    csr_.batch_delete_edges(is_out, delete_edges_vec);
-  }
-
-  inline slice_t get_edges(vid_t i) const override {
-    auto& column = dynamic_cast<StringColumn&>(*table_.get_column_by_id(0));
-    return slice_t(csr_.get_edges(i), column);
-  }
-
-  inline mut_slice_t get_edges_mut(vid_t i) {
-    auto& column = dynamic_cast<StringColumn&>(*table_.get_column_by_id(0));
-    return mut_slice_t(csr_.get_edges_mut(i), column);
-  }
-
-  void close() override { csr_.close(); }
-
-  void reset_timestamp() override { csr_.reset_timestamp(); }
-
-  void compact_nbr(const std::string& work_dir, float reserve_ratio) override {
-    csr_.compact_nbr(work_dir, reserve_ratio);
-  }
-  void ensure_writable(const std::string& work_dir) override {
-    csr_.ensure_writable(work_dir);
-  }
-
- private:
-  Table& table_;
-  MutableCsr<size_t> csr_;
-};
-
-template <>
-class MutableCsr<RecordView> : public TypedMutableCsrBase<RecordView> {
- public:
-  using nbr_t = MutableNbr<size_t>;
-  using adjlist_t = MutableAdjlist<size_t>;
-  using slice_t = MutableNbrSlice<RecordView>;
-  using mut_slice_t = MutableNbrSliceMut<RecordView>;
-  MutableCsr(Table& table) : table_(table), csr_() {}
-  ~MutableCsr() {}
-
-  size_t batch_init(const std::string& name, const std::string& work_dir,
-                    const std::vector<int>& degree,
-                    double reserve_ratio = 1.2) override {
-    return csr_.batch_init(name, work_dir, degree, reserve_ratio);
-  }
-
-  size_t batch_init_in_memory(const std::vector<int>& degree,
-                              double reserve_ratio = 1.2) override {
-    return csr_.batch_init_in_memory(degree, reserve_ratio);
-  }
-
-  void batch_put_edge_with_index(vid_t src, vid_t dst, size_t data,
-                                 timestamp_t ts = 0) override {
-    csr_.batch_put_edge(src, dst, data, ts);
-  }
-
-  void batch_append_edge_with_index(vid_t src, vid_t dst, size_t data,
-                                    timestamp_t ts = 0) override {
-    csr_.batch_put_edge(src, dst, data, ts);
-  }
-
-  void open(const std::string& name, const std::string& snapshot_dir,
-            const std::string& work_dir) override {
-    csr_.open(name, snapshot_dir, work_dir);
-  }
-
-  void open_in_memory(const std::string& prefix, size_t v_cap) override {
-    csr_.open_in_memory(prefix, v_cap);
-  }
-
-  void dump(const std::string& name,
-            const std::string& new_snapshot_dir) override {
-    csr_.dump(name, new_snapshot_dir);
-  }
-
-  void resize(vid_t vnum) override { csr_.resize(vnum); }
-
-  size_t size() const override { return csr_.size(); }
-
-  size_t edge_num() const override { return csr_.edge_num(); }
-
-  std::shared_ptr<CsrConstEdgeIterBase> edge_iter(vid_t v) const override {
-    return std::make_shared<MutableCsrConstEdgeIter<RecordView>>(get_edges(v));
-  }
-
-  std::shared_ptr<CsrEdgeIterBase> edge_iter_mut(vid_t v) override {
-    return std::make_shared<MutableCsrEdgeIter<RecordView>>(get_edges_mut(v));
-  }
-
-  void put_edge(vid_t src, vid_t dst, size_t data, timestamp_t ts,
-                Allocator& alloc) {
-    csr_.put_edge(src, dst, data, ts, alloc);
-  }
-
-  void put_edge_with_index(vid_t src, vid_t dst, size_t index, timestamp_t ts,
-                           Allocator& alloc) override {
-    csr_.put_edge(src, dst, index, ts, alloc);
-  }
-
-  void batch_delete_vertices(bool is_src, const std::vector<vid_t>& vids) {
-    csr_.batch_delete_vertices(is_src, vids);
-  }
-
-  void batch_delete_edges(
-      bool is_out,
-      const std::vector<std::tuple<vid_t, vid_t>>& delete_edges_vec) {
-    csr_.batch_delete_edges(is_out, delete_edges_vec);
-  }
-
-  inline slice_t get_edges(vid_t i) const override {
-    return slice_t(csr_.get_edges(i), table_);
-  }
-
-  inline mut_slice_t get_edges_mut(vid_t i) {
-    return mut_slice_t(csr_.get_edges_mut(i), table_);
-  }
-
-  void close() override { csr_.close(); }
-
-  void reset_timestamp() override { csr_.reset_timestamp(); }
-
-  void compact_nbr(const std::string& work_dir, float reserve_ratio) override {
-    csr_.compact_nbr(work_dir, reserve_ratio);
-  }
-  void ensure_writable(const std::string& work_dir) override {
-    csr_.ensure_writable(work_dir);
-  }
-
- private:
-  Table& table_;
-  MutableCsr<size_t> csr_;
 };
 
 template <typename EDATA_T>
-class SingleMutableCsr : public TypedMutableCsrBase<EDATA_T> {
+class SingleMutableCsr : public TypedCsrBase<EDATA_T> {
  public:
+  using data_t = EDATA_T;
   using nbr_t = MutableNbr<EDATA_T>;
-  using slice_t = MutableNbrSlice<EDATA_T>;
-  using mut_slice_t = MutableNbrSliceMut<EDATA_T>;
 
   SingleMutableCsr() {}
   ~SingleMutableCsr() {}
 
-  size_t batch_init(const std::string& name, const std::string& work_dir,
-                    const std::vector<int>& degree,
-                    double reserve_ratio) override {
-    size_t vnum = degree.size();
-    nbr_list_.open(work_dir + "/" + name + ".snbr", true);
-    nbr_list_.resize(vnum);
-    for (size_t k = 0; k != vnum; ++k) {
-      nbr_list_[k].timestamp.store(INVALID_TIMESTAMP);
-    }
-    return vnum;
+  CsrType csr_type() const override { return CsrType::kSingleMutable; }
+
+  GenericView get_generic_view(timestamp_t ts) const override {
+    NbrIterConfig cfg;
+    cfg.stride = sizeof(nbr_t);
+    cfg.ts_offset = offsetof(nbr_t, timestamp);
+    cfg.data_offset = offsetof(nbr_t, data);
+    return GenericView(reinterpret_cast<const char*>(nbr_list_.data()), cfg, ts,
+                       std::numeric_limits<timestamp_t>::max());
   }
 
-  size_t batch_init_in_memory(const std::vector<int>& degree,
-                              double reserve_ratio) override {
-    size_t vnum = degree.size();
-    nbr_list_.open("", false);
-    nbr_list_.resize(vnum);
-    for (size_t k = 0; k != vnum; ++k) {
-      nbr_list_[k].timestamp.store(INVALID_TIMESTAMP);
-    }
-    return vnum;
-  }
-
-  void batch_put_edge(vid_t src, vid_t dst, const EDATA_T& data,
-                      timestamp_t ts = 0) override {
-    nbr_list_[src].neighbor = dst;
-    nbr_list_[src].data = data;
-    CHECK_EQ(nbr_list_[src].timestamp.load(), INVALID_TIMESTAMP);
-    nbr_list_[src].timestamp.store(ts);
-  }
-
-  void batch_sort_by_edge_data(timestamp_t ts) override {}
-
-  timestamp_t unsorted_since() const override { return INVALID_TIMESTAMP; }
-
-  void open(const std::string& name, const std::string& snapshot_dir,
-            const std::string& work_dir) override {
-    if (!std::filesystem::exists(work_dir + "/" + name + ".snbr")) {
-      copy_file(snapshot_dir + "/" + name + ".snbr",
-                work_dir + "/" + name + ".snbr");
-    }
-    nbr_list_.open(work_dir + "/" + name + ".snbr", true);
-  }
-
-  void open_in_memory(const std::string& prefix, size_t v_cap) override {
-    nbr_list_.open(prefix + ".snbr", false);
-    if (nbr_list_.size() < v_cap) {
-      size_t old_size = nbr_list_.size();
-      nbr_list_.reset();
-      nbr_list_.resize(v_cap);
-      read_file(prefix + ".snbr", nbr_list_.data(), sizeof(nbr_t), old_size);
-      for (size_t k = old_size; k != v_cap; ++k) {
-        nbr_list_[k].timestamp.store(INVALID_TIMESTAMP);
-      }
-    }
-  }
-
-  void open_with_hugepages(const std::string& prefix, size_t v_cap) override {
-    nbr_list_.open_with_hugepages(prefix + ".snbr", v_cap);
-    size_t old_size = nbr_list_.size();
-    if (old_size < v_cap) {
-      nbr_list_.resize(v_cap);
-      for (size_t k = old_size; k != v_cap; ++k) {
-        nbr_list_[k].timestamp.store(INVALID_TIMESTAMP);
-      }
-    }
-  }
-
-  void dump(const std::string& name,
-            const std::string& new_snapshot_dir) override {
-    if ((!nbr_list_.filename().empty() &&
-         std::filesystem::exists(nbr_list_.filename()))) {
-      std::error_code errorCode;
-      std::filesystem::create_hard_link(nbr_list_.filename(),
-                                        new_snapshot_dir + "/" + name + ".snbr",
-                                        errorCode);
-      if (errorCode) {
-        std::stringstream ss;
-        ss << "Failed to create hard link from " << nbr_list_.filename()
-           << " to " << new_snapshot_dir + "/" + name + ".snbr"
-           << ", error code: " << errorCode << " " << errorCode.message();
-        LOG(ERROR) << ss.str();
-        THROW_RUNTIME_ERROR(ss.str());
-      }
-    } else {
-      write_file(new_snapshot_dir + "/" + name + ".snbr", nbr_list_.data(),
-                 sizeof(nbr_t), nbr_list_.size());
-    }
-  }
-
-  void resize(vid_t vnum) override {
-    if (vnum > nbr_list_.size()) {
-      size_t old_size = nbr_list_.size();
-      nbr_list_.resize(vnum);
-      for (size_t k = old_size; k != vnum; ++k) {
-        nbr_list_[k].timestamp.store(INVALID_TIMESTAMP);
-      }
-    } else {
-      nbr_list_.resize(vnum);
-    }
+  timestamp_t unsorted_since() const override {
+    return std::numeric_limits<timestamp_t>::max();
   }
 
   size_t size() const override { return nbr_list_.size(); }
@@ -1046,304 +210,82 @@ class SingleMutableCsr : public TypedMutableCsrBase<EDATA_T> {
   size_t edge_num() const override {
     size_t cnt = 0;
     for (size_t k = 0; k != nbr_list_.size(); ++k) {
-      if (nbr_list_[k].timestamp.load() != INVALID_TIMESTAMP) {
+      if (nbr_list_[k].timestamp.load() !=
+          std::numeric_limits<timestamp_t>::max()) {
         ++cnt;
       }
     }
     return cnt;
   }
 
-  std::shared_ptr<CsrConstEdgeIterBase> edge_iter(vid_t v) const override {
-    return std::make_shared<MutableCsrConstEdgeIter<EDATA_T>>(get_edges(v));
-  }
+  void open(const std::string& name, const std::string& snapshot_dir,
+            const std::string& work_dir) override;
 
-  std::shared_ptr<CsrEdgeIterBase> edge_iter_mut(vid_t v) override {
-    return std::make_shared<MutableCsrEdgeIter<EDATA_T>>(get_edges_mut(v));
-  }
+  void open_in_memory(const std::string& prefix, size_t v_cap) override;
+
+  void open_with_hugepages(const std::string& prefix, size_t v_cap) override;
+
+  void dump(const std::string& name,
+            const std::string& new_snapshot_dir) override;
+
+  void warmup(int thread_num) const override;
+
+  void resize(vid_t vnum) override;
+
+  void close() override;
+
+  void batch_sort_by_edge_data(timestamp_t ts) override;
+
+  void batch_delete_vertices(const std::set<vid_t>& src_set,
+                             const std::set<vid_t>& dst_set) override;
+
+  void batch_delete_edges(const std::vector<vid_t>& src_list,
+                          const std::vector<vid_t>& dst_list) override;
+
+  void batch_put_edges(const std::vector<vid_t>& src_list,
+                       const std::vector<vid_t>& dst_list,
+                       const std::vector<EDATA_T>& data_list,
+                       timestamp_t ts = 0) override;
 
   void put_edge(vid_t src, vid_t dst, const EDATA_T& data, timestamp_t ts,
                 Allocator& alloc) override {
     CHECK_LT(src, nbr_list_.size());
     nbr_list_[src].neighbor = dst;
     nbr_list_[src].data = data;
-    CHECK_EQ(nbr_list_[src].timestamp, INVALID_TIMESTAMP);
+    CHECK_EQ(nbr_list_[src].timestamp, std::numeric_limits<timestamp_t>::max());
     nbr_list_[src].timestamp.store(ts);
   }
 
-  inline slice_t get_edges(vid_t v) const override {
-    slice_t ret;
-    ret.set_size(nbr_list_[v].timestamp.load() == INVALID_TIMESTAMP ? 0 : 1);
-    if (ret.size() != 0) {
-      ret.set_begin(&nbr_list_[v]);
-    }
-    return ret;
-  }
-
-  inline mut_slice_t get_edges_mut(vid_t i) {
-    mut_slice_t ret;
-    ret.set_size(nbr_list_[i].timestamp.load() == INVALID_TIMESTAMP ? 0 : 1);
-    if (ret.size() != 0) {
-      ret.set_begin(&nbr_list_[i]);
-    }
-    return ret;
-  }
-
-  inline const nbr_t& get_edge(vid_t i) const { return nbr_list_[i]; }
-
-  void close() override { nbr_list_.reset(); }
-
-  void reset_timestamp() override {
-    for (size_t k = 0; k != nbr_list_.size(); ++k) {
-      nbr_list_[k].timestamp.store(INVALID_TIMESTAMP);
-    }
-  }
-
-  void compact_nbr(const std::string& work_dir, float reserve_ratio) override {}
-  void ensure_writable(const std::string& work_dir) override {
-    nbr_list_.ensure_writable(work_dir);
+  std::tuple<std::vector<vid_t>, std::vector<vid_t>> batch_export(
+      std::shared_ptr<ColumnBase> prev_data_col) const override {
+    LOG(FATAL) << "not implemented...";
+    return {};
   }
 
  private:
   mmap_array<nbr_t> nbr_list_;
 };
 
-template <>
-class SingleMutableCsr<std::string_view>
-    : public TypedMutableCsrBase<std::string_view> {
- public:
-  using nbr_t = MutableNbr<size_t>;
-  using slice_t = MutableNbrSlice<std::string_view>;
-  using mut_slice_t = MutableNbrSliceMut<std::string_view>;
-
-  SingleMutableCsr(Table& table) : table_(table), csr_() {}
-  ~SingleMutableCsr() {}
-
-  size_t batch_init(const std::string& name, const std::string& work_dir,
-                    const std::vector<int>& degree,
-                    double reserve_ratio) override {
-    return csr_.batch_init(name, work_dir, degree, reserve_ratio);
-  }
-
-  size_t batch_init_in_memory(const std::vector<int>& degree,
-                              double reserve_ratio) override {
-    return csr_.batch_init_in_memory(degree, reserve_ratio);
-  }
-
-  void batch_put_edge_with_index(vid_t src, vid_t dst, size_t data,
-                                 timestamp_t ts) override {
-    csr_.batch_put_edge(src, dst, data, ts);
-  }
-
-  void batch_sort_by_edge_data(timestamp_t ts) override {}
-
-  timestamp_t unsorted_since() const override { return INVALID_TIMESTAMP; }
-
-  void open(const std::string& name, const std::string& snapshot_dir,
-            const std::string& work_dir) override {
-    csr_.open(name, snapshot_dir, work_dir);
-  }
-
-  void open_in_memory(const std::string& prefix, size_t v_cap) override {
-    csr_.open_in_memory(prefix, v_cap);
-  }
-
-  void dump(const std::string& name,
-            const std::string& new_snapshot_dir) override {
-    csr_.dump(name, new_snapshot_dir);
-  }
-
-  void resize(vid_t vnum) override { csr_.resize(vnum); }
-
-  size_t size() const override { return csr_.size(); }
-
-  size_t edge_num() const override { return csr_.edge_num(); }
-
-  std::shared_ptr<CsrConstEdgeIterBase> edge_iter(vid_t v) const override {
-    return std::make_shared<MutableCsrConstEdgeIter<std::string_view>>(
-        get_edges(v));
-  }
-
-  std::shared_ptr<CsrEdgeIterBase> edge_iter_mut(vid_t v) override {
-    return std::make_shared<MutableCsrEdgeIter<std::string_view>>(
-        get_edges_mut(v));
-  }
-
-  void put_edge(vid_t src, vid_t dst, size_t data, timestamp_t ts,
-                Allocator& alloc) {
-    csr_.put_edge(src, dst, data, ts, alloc);
-  }
-
-  void put_edge_with_index(vid_t src, vid_t dst, size_t index, timestamp_t ts,
-                           Allocator& alloc) override {
-    put_edge(src, dst, index, ts, alloc);
-  }
-
-  inline slice_t get_edges(vid_t i) const override {
-    auto ret = csr_.get_edges(i);
-    auto& column = dynamic_cast<StringColumn&>(*table_.get_column_by_id(0));
-    return slice_t(ret, column);
-  }
-
-  inline mut_slice_t get_edges_mut(vid_t i) {
-    auto ret = csr_.get_edges_mut(i);
-    auto& column = dynamic_cast<StringColumn&>(*table_.get_column_by_id(0));
-    return mut_slice_t(ret, column);
-  }
-
-  inline MutableNbr<std::string_view> get_edge(vid_t i) const {
-    MutableNbr<std::string_view> nbr;
-    auto nbr_tmp = csr_.get_edge(i);
-    nbr.neighbor = nbr_tmp.neighbor;
-    nbr.timestamp.store(nbr_tmp.timestamp.load());
-    auto& column = dynamic_cast<StringColumn&>(*table_.get_column_by_id(0));
-    nbr.data = column.get_view(nbr_tmp.data);
-    return nbr;
-  }
-
-  void close() override { csr_.close(); }
-
-  void reset_timestamp() override { csr_.reset_timestamp(); }
-
-  void compact_nbr(const std::string& work_dir, float reserve_ratio) override {}
-  void ensure_writable(const std::string& work_dir) override {
-    csr_.ensure_writable(work_dir);
-  }
-
- private:
-  Table& table_;
-  SingleMutableCsr<size_t> csr_;
-};
-
-template <>
-class SingleMutableCsr<RecordView> : public TypedMutableCsrBase<RecordView> {
- public:
-  using nbr_t = MutableNbr<size_t>;
-  using slice_t = MutableNbrSlice<RecordView>;
-  using mut_slice_t = MutableNbrSliceMut<RecordView>;
-
-  SingleMutableCsr(Table& table) : table_(table), csr_() {}
-  ~SingleMutableCsr() {}
-
-  size_t batch_init(const std::string& name, const std::string& work_dir,
-                    const std::vector<int>& degree,
-                    double reserve_ratio) override {
-    return csr_.batch_init(name, work_dir, degree, reserve_ratio);
-  }
-
-  size_t batch_init_in_memory(const std::vector<int>& degree,
-                              double reserve_ratio) override {
-    return csr_.batch_init_in_memory(degree, reserve_ratio);
-  }
-
-  void batch_put_edge_with_index(vid_t src, vid_t dst, size_t data,
-                                 timestamp_t ts) override {
-    csr_.batch_put_edge(src, dst, data, ts);
-  }
-
-  void batch_append_edge_with_index(vid_t src, vid_t dst, size_t data,
-                                    timestamp_t ts) override {
-    csr_.batch_put_edge(src, dst, data, ts);
-  }
-
-  void batch_sort_by_edge_data(timestamp_t ts) override {}
-
-  timestamp_t unsorted_since() const override { return INVALID_TIMESTAMP; }
-
-  void open(const std::string& name, const std::string& snapshot_dir,
-            const std::string& work_dir) override {
-    csr_.open(name, snapshot_dir, work_dir);
-  }
-
-  void open_in_memory(const std::string& prefix, size_t v_cap) override {
-    csr_.open_in_memory(prefix, v_cap);
-  }
-
-  void dump(const std::string& name,
-            const std::string& new_snapshot_dir) override {
-    csr_.dump(name, new_snapshot_dir);
-  }
-
-  void resize(vid_t vnum) override { csr_.resize(vnum); }
-
-  size_t size() const override { return csr_.size(); }
-
-  size_t edge_num() const override { return csr_.edge_num(); }
-
-  std::shared_ptr<CsrConstEdgeIterBase> edge_iter(vid_t v) const override {
-    return std::make_shared<MutableCsrConstEdgeIter<RecordView>>(get_edges(v));
-  }
-
-  std::shared_ptr<CsrEdgeIterBase> edge_iter_mut(vid_t v) override {
-    return std::make_shared<MutableCsrEdgeIter<RecordView>>(get_edges_mut(v));
-  }
-
-  void put_edge(vid_t src, vid_t dst, size_t data, timestamp_t ts,
-                Allocator& alloc) {
-    csr_.put_edge(src, dst, data, ts, alloc);
-  }
-
-  void put_edge_with_index(vid_t src, vid_t dst, size_t index, timestamp_t ts,
-                           Allocator& alloc) override {
-    put_edge(src, dst, index, ts, alloc);
-  }
-
-  inline slice_t get_edges(vid_t i) const override {
-    auto ret = csr_.get_edges(i);
-    return slice_t(ret, table_);
-  }
-
-  inline mut_slice_t get_edges_mut(vid_t i) {
-    auto ret = csr_.get_edges_mut(i);
-    return mut_slice_t(ret, table_);
-  }
-
-  struct RecordNbr {
-    using nbr_t = MutableNbr<size_t>;
-    RecordNbr(const nbr_t* ptr, Table& table) : ptr_(ptr), table_(table) {}
-    vid_t get_neighbor() const { return ptr_->neighbor; }
-    timestamp_t get_timestamp() const { return ptr_->timestamp.load(); }
-    size_t get_index() const { return ptr_->data; }
-    RecordView get_data() const { return RecordView(ptr_->data, &table_); }
-    const nbr_t* ptr_;
-    Table table_;
-  };
-
-  inline RecordNbr get_edge(vid_t i) const {
-    auto nbr = csr_.get_edge(i);
-    return RecordNbr(&nbr, table_);
-  }
-
-  void close() override { csr_.close(); }
-
-  void reset_timestamp() override { csr_.reset_timestamp(); }
-  void compact_nbr(const std::string& work_dir, float reserve_ratio) override {}
-  void ensure_writable(const std::string& work_dir) override {
-    csr_.ensure_writable(work_dir);
-  }
-
- private:
-  Table& table_;
-  SingleMutableCsr<size_t> csr_;
-};
-
 template <typename EDATA_T>
-class EmptyCsr : public TypedMutableCsrBase<EDATA_T> {
+class EmptyCsr : public TypedCsrBase<EDATA_T> {
  public:
-  using slice_t = MutableNbrSlice<EDATA_T>;
-
   EmptyCsr() = default;
   ~EmptyCsr() = default;
 
-  size_t batch_init(const std::string& name, const std::string& work_dir,
-                    const std::vector<int>& degree,
-                    double reserve_ratio) override {
-    return 0;
+  CsrType csr_type() const override { return CsrType::kEmpty; }
+
+  GenericView get_generic_view(timestamp_t ts) const override {
+    LOG(FATAL) << "Not implemented";
+    return GenericView();
   }
 
-  size_t batch_init_in_memory(const std::vector<int>& degree,
-                              double reserve_ratio) override {
-    return 0;
+  timestamp_t unsorted_since() const override {
+    return std::numeric_limits<timestamp_t>::max();
   }
+
+  size_t size() const override { return 0; }
+
+  size_t edge_num() const override { return 0; }
 
   void open(const std::string& name, const std::string& snapshot_dir,
             const std::string& work_dir) override {}
@@ -1355,166 +297,32 @@ class EmptyCsr : public TypedMutableCsrBase<EDATA_T> {
   void dump(const std::string& name,
             const std::string& new_snapshot_dir) override {}
 
+  void warmup(int thread_num) const override {}
+
   void resize(vid_t vnum) override {}
 
-  size_t size() const override { return 0; }
-
-  size_t edge_num() const override { return 0; }
-
-  void batch_put_edge(vid_t src, vid_t dst, const EDATA_T& data,
-                      timestamp_t ts = 0) override {}
-  void put_edge(vid_t src, vid_t dst, const EDATA_T& data, timestamp_t ts,
-                Allocator&) override {}
-
-  std::shared_ptr<CsrConstEdgeIterBase> edge_iter(vid_t v) const override {
-    return std::make_shared<MutableCsrConstEdgeIter<EDATA_T>>(
-        MutableNbrSlice<EDATA_T>::empty());
-  }
-
-  std::shared_ptr<CsrEdgeIterBase> edge_iter_mut(vid_t v) override {
-    return std::make_shared<MutableCsrEdgeIter<EDATA_T>>(
-        MutableNbrSliceMut<EDATA_T>::empty());
-  }
+  void close() override {}
 
   void batch_sort_by_edge_data(timestamp_t ts) override {}
 
-  timestamp_t unsorted_since() const override { return INVALID_TIMESTAMP; }
+  void batch_delete_vertices(const std::set<vid_t>& src_set,
+                             const std::set<vid_t>& dst_set) override {}
 
-  inline slice_t get_edges(vid_t v) const override { return slice_t::empty(); }
+  void batch_delete_edges(const std::vector<vid_t>& src_list,
+                          const std::vector<vid_t>& dst_list) override {}
 
-  void close() override {}
+  void batch_put_edges(const std::vector<vid_t>& src_list,
+                       const std::vector<vid_t>& dst_list,
+                       const std::vector<EDATA_T>& data_list,
+                       timestamp_t ts = 0) override {}
 
-  void reset_timestamp() override {}
-  void compact_nbr(const std::string& work_dir, float reserve_ratio) override {}
-  void ensure_writable(const std::string& work_dir) override {}
-};
+  void put_edge(vid_t src, vid_t dst, const EDATA_T& data, timestamp_t ts,
+                Allocator&) override {}
 
-template <>
-class EmptyCsr<std::string_view>
-    : public TypedMutableCsrBase<std::string_view> {
- public:
-  using slice_t = MutableNbrSlice<std::string_view>;
-
-  EmptyCsr(Table& table) : table_(table) {}
-  ~EmptyCsr() = default;
-
-  size_t batch_init(const std::string& name, const std::string& work_dir,
-                    const std::vector<int>& degree,
-                    double reserve_ratio) override {
-    return 0;
+  std::tuple<std::vector<vid_t>, std::vector<vid_t>> batch_export(
+      std::shared_ptr<ColumnBase> prev_data_col) const override {
+    return {};
   }
-  size_t batch_init_in_memory(const std::vector<int>& degree,
-                              double reserve_ratio) override {
-    return 0;
-  }
-
-  void open(const std::string& name, const std::string& snapshot_dir,
-            const std::string& work_dir) override {}
-
-  void open_in_memory(const std::string& prefix, size_t v_cap) override {}
-
-  void dump(const std::string& name,
-            const std::string& new_snapshot_dir) override {}
-
-  void resize(vid_t vnum) override {}
-
-  size_t size() const override { return 0; }
-
-  size_t edge_num() const override { return 0; }
-
-  void put_edge_with_index(vid_t src, vid_t dst, size_t index, timestamp_t ts,
-                           Allocator& alloc) override {}
-  void batch_put_edge_with_index(vid_t src, vid_t dst, size_t data,
-                                 timestamp_t ts = 0) override {}
-
-  std::shared_ptr<CsrConstEdgeIterBase> edge_iter(vid_t v) const override {
-    auto& column = dynamic_cast<StringColumn&>(*table_.get_column_by_id(0));
-    return std::make_shared<MutableCsrConstEdgeIter<std::string_view>>(
-        MutableNbrSlice<std::string_view>::empty(column));
-  }
-
-  std::shared_ptr<CsrEdgeIterBase> edge_iter_mut(vid_t v) override {
-    auto& column = dynamic_cast<StringColumn&>(*table_.get_column_by_id(0));
-    return std::make_shared<MutableCsrEdgeIter<std::string_view>>(
-        MutableNbrSliceMut<std::string_view>::empty(column));
-  }
-
-  inline slice_t get_edges(vid_t v) const override {
-    auto& column = dynamic_cast<StringColumn&>(*table_.get_column_by_id(0));
-    return slice_t::empty(column);
-  }
-
-  void close() override {}
-
-  void reset_timestamp() override {}
-  void compact_nbr(const std::string& work_dir, float reserve_ratio) override {}
-  void ensure_writable(const std::string& work_dir) override {}
-
- private:
-  Table& table_;
-};
-
-template <>
-class EmptyCsr<RecordView> : public TypedMutableCsrBase<RecordView> {
- public:
-  using slice_t = MutableNbrSlice<RecordView>;
-
-  EmptyCsr(Table& table) : table_(table) {}
-  ~EmptyCsr() = default;
-
-  size_t batch_init(const std::string& name, const std::string& work_dir,
-                    const std::vector<int>& degree,
-                    double reserve_ratio) override {
-    return 0;
-  }
-
-  size_t batch_init_in_memory(const std::vector<int>& degree,
-                              double reserve_ratio) override {
-    return 0;
-  }
-
-  void open(const std::string& name, const std::string& snapshot_dir,
-            const std::string& work_dir) override {}
-
-  void open_in_memory(const std::string& prefix, size_t v_cap) override {}
-
-  void dump(const std::string& name,
-            const std::string& new_snapshot_dir) override {}
-
-  void resize(vid_t vnum) override {}
-
-  size_t size() const override { return 0; }
-
-  size_t edge_num() const override { return 0; }
-
-  void put_edge_with_index(vid_t src, vid_t dst, size_t index, timestamp_t ts,
-                           Allocator& alloc) override {}
-  void batch_put_edge_with_index(vid_t src, vid_t dst, size_t data,
-                                 timestamp_t ts = 0) override {}
-  void batch_append_edge_with_index(vid_t src, vid_t dst, size_t data,
-                                    timestamp_t ts = 0) override {}
-  std::shared_ptr<CsrConstEdgeIterBase> edge_iter(vid_t v) const override {
-    return std::make_shared<MutableCsrConstEdgeIter<RecordView>>(
-        MutableNbrSlice<RecordView>::empty(table_));
-  }
-
-  std::shared_ptr<CsrEdgeIterBase> edge_iter_mut(vid_t v) override {
-    return std::make_shared<MutableCsrEdgeIter<RecordView>>(
-        MutableNbrSliceMut<RecordView>::empty(table_));
-  }
-
-  inline slice_t get_edges(vid_t v) const override {
-    return slice_t::empty(table_);
-  }
-
-  void close() override {}
-
-  void reset_timestamp() override {}
-  void compact_nbr(const std::string& work_dir, float reserve_ratio) override {}
-  void ensure_writable(const std::string& work_dir) override {}
-
- private:
-  Table& table_;
 };
 
 }  // namespace gs

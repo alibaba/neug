@@ -35,13 +35,11 @@
 
 namespace gs {
 
-InsertTransaction::InsertTransaction(const NeugDBSession& session,
-                                     PropertyGraph& graph, Allocator& alloc,
+InsertTransaction::InsertTransaction(PropertyGraph& graph, Allocator& alloc,
                                      IWalWriter& logger, IVersionManager& vm,
                                      timestamp_t timestamp)
 
-    : session_(session),
-      graph_(graph),
+    : graph_(graph),
       alloc_(alloc),
       logger_(logger),
       vm_(vm),
@@ -52,7 +50,7 @@ InsertTransaction::InsertTransaction(const NeugDBSession& session,
 InsertTransaction::~InsertTransaction() { Abort(); }
 
 bool InsertTransaction::AddVertex(label_t label, const Any& id,
-                                  const std::vector<Any>& props) {
+                                  const std::vector<Prop>& props) {
   size_t arc_size = arc_.GetSize();
   arc_ << static_cast<uint8_t>(0) << label;
   serialize_field(arc_, id);
@@ -67,21 +65,22 @@ bool InsertTransaction::AddVertex(label_t label, const Any& id,
     return false;
   }
   int col_num = props.size();
+  arc_ << static_cast<uint32_t>(col_num);
   for (int col_i = 0; col_i != col_num; ++col_i) {
     auto& prop = props[col_i];
-    if (prop.type != types[col_i]) {
-      if (prop.type == PropertyType::kStringView &&
-          types[col_i] == PropertyType::kStringMap) {
+    if (prop.type() != to_prop_type(types[col_i])) {
+      if (prop.type() == PropType::kString) {
       } else {
         arc_.Resize(arc_size);
         std::string label_name = graph_.schema().get_vertex_label_name(label);
         LOG(ERROR) << "Vertex [" << label_name << "][" << col_i
                    << "] property type not match, expected " << types[col_i]
-                   << ", but got " << prop.type;
+                   << ", but got " << static_cast<int>(prop.type());
         return false;
       }
     }
-    serialize_field(arc_, prop);
+    arc_ << static_cast<uint32_t>(col_i);
+    serialize_property(arc_, prop);
   }
   added_vertices_.emplace(label, id);
   return true;
@@ -89,7 +88,8 @@ bool InsertTransaction::AddVertex(label_t label, const Any& id,
 
 bool InsertTransaction::AddEdge(label_t src_label, const Any& src,
                                 label_t dst_label, const Any& dst,
-                                label_t edge_label, const Any& prop) {
+                                label_t edge_label,
+                                const std::vector<Prop>& properties) {
   vid_t lid;
   if (!graph_.get_lid(src_label, src, lid, timestamp_)) {
     if (added_vertices_.find(std::make_pair(src_label, src)) ==
@@ -109,36 +109,22 @@ bool InsertTransaction::AddEdge(label_t src_label, const Any& src,
       return false;
     }
   }
-  if (prop.type != PropertyType::kRecord) {
-    const PropertyType& type =
-        graph_.schema().get_edge_property(src_label, dst_label, edge_label);
-    if (prop.type != type) {
+  const auto& types =
+      graph_.schema().get_edge_properties(src_label, dst_label, edge_label);
+  if (properties.size() != types.size()) {
+    std::string label_name = graph_.schema().get_edge_label_name(edge_label);
+    LOG(ERROR) << "Edge property size not match for edge " << label_name
+               << ", expected " << types.size() << ", got "
+               << properties.size();
+    return false;
+  }
+  for (size_t i = 0; i < properties.size(); ++i) {
+    if (properties[i].type() != to_prop_type(types[i])) {
       std::string label_name = graph_.schema().get_edge_label_name(edge_label);
       LOG(ERROR) << "Edge property " << label_name
-                 << " type not match, expected " << type << ", got "
-                 << prop.type;
+                 << " type not match, expected " << types[i] << ", got "
+                 << static_cast<int>(properties[i].type());
       return false;
-    }
-  } else {
-    const auto& types =
-        graph_.schema().get_edge_properties(src_label, dst_label, edge_label);
-    if (prop.AsRecord().size() != types.size()) {
-      std::string label_name = graph_.schema().get_edge_label_name(edge_label);
-      LOG(ERROR) << "Edge property " << label_name
-                 << " size not match, expected " << types.size() << ", got "
-                 << prop.AsRecord().size();
-      return false;
-    }
-    auto r = prop.AsRecord();
-    for (size_t i = 0; i < r.size(); ++i) {
-      if (r[i].type != types[i]) {
-        std::string label_name =
-            graph_.schema().get_edge_label_name(edge_label);
-        LOG(ERROR) << "Edge property " << label_name
-                   << " type not match, expected " << types[i] << ", got "
-                   << r[i].type;
-        return false;
-      }
     }
   }
   arc_ << static_cast<uint8_t>(1) << src_label;
@@ -146,7 +132,11 @@ bool InsertTransaction::AddEdge(label_t src_label, const Any& src,
   arc_ << dst_label;
   serialize_field(arc_, dst);
   arc_ << edge_label;
-  serialize_field(arc_, prop);
+  arc_ << static_cast<uint32_t>(properties.size());
+  for (size_t col_id = 0; col_id < properties.size(); ++col_id) {
+    arc_ << static_cast<uint32_t>(col_id);
+    serialize_property(arc_, properties[col_id]);
+  }
   return true;
 }
 
@@ -229,8 +219,6 @@ void InsertTransaction::clear() {
 }
 
 const Schema& InsertTransaction::schema() const { return graph_.schema(); }
-
-const NeugDBSession& InsertTransaction::GetSession() const { return session_; }
 
 #define likely(x) __builtin_expect(!!(x), 1)
 

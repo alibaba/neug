@@ -13,17 +13,21 @@
  * limitations under the License.
  */
 
-#ifndef NEUG_MAIN_CONNECTION_MANAGER_H_
-#define NEUG_MAIN_CONNECTION_MANAGER_H_
+#ifndef INCLUDE_NEUG_MAIN_CONNECTION_MANAGER_H_
+#define INCLUDE_NEUG_MAIN_CONNECTION_MANAGER_H_
 
+#include <stddef.h>
 #include <memory>
 #include <mutex>
 #include <vector>
 
-#include "neug/config.h"
-#include "neug/main/connection.h"
-
 namespace gs {
+
+class PropertyGraph;
+class Connection;
+class IGraphPlanner;
+class QueryProcessor;
+struct NeugDBConfig;
 
 class ConnectionManager {
  public:
@@ -70,4 +74,4 @@ class ConnectionManager {
 };
 }  // namespace gs
 
-#endif  // NEUG_MAIN_CONNECTION_MANAGER_H_
+#endif  // INCLUDE_NEUG_MAIN_CONNECTION_MANAGER_H_

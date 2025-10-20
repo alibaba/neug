@@ -79,7 +79,7 @@ class TestBachLoading(unittest.TestCase):
         # Test add edge property
         res = conn.execute("ALTER TABLE knows ADD since INT32")
 
-        res = conn.execute("MATCH (:person)-[e:knows]->(:person) return e;")
+        res = conn.execute("MATCH (n:person)-[e:knows]->(m:person) return e;")
         for record in res:
             print(record)
 

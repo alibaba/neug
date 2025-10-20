@@ -13,8 +13,8 @@
  * limitations under the License.
  */
 
-#ifndef EXECUTION_COMMON_COLUMNS_ARROW_COLUMN_H_
-#define EXECUTION_COMMON_COLUMNS_ARROW_COLUMN_H_
+#ifndef INCLUDE_NEUG_EXECUTION_COMMON_COLUMNS_ARROW_CONTEXT_COLUMN_H_
+#define INCLUDE_NEUG_EXECUTION_COMMON_COLUMNS_ARROW_CONTEXT_COLUMN_H_
 
 #include <arrow/array/array_base.h>
 #include <arrow/type_fwd.h>
@@ -27,7 +27,7 @@
 #include <vector>
 
 #include "neug/execution/common/columns/i_context_column.h"
-#include "neug/execution/common/rt_any.h"
+#include "neug/utils/runtime/rt_any.h"
 
 namespace arrow {
 class DataType;
@@ -175,4 +175,4 @@ class ArrowStreamContextColumnBuilder : public IContextColumnBuilder {
 }  // namespace runtime
 }  // namespace gs
 
-#endif  // EXECUTION_COMMON_COLUMNS_ARROW_COLUMN_H_
+#endif  // INCLUDE_NEUG_EXECUTION_COMMON_COLUMNS_ARROW_CONTEXT_COLUMN_H_

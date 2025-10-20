@@ -15,14 +15,37 @@
 
 #include "neug/utils/pb_utils.h"
 #include <glog/logging.h>
-#include <stdint.h>
-#include <yaml-cpp/yaml.h>
+#include <google/protobuf/stubs/port.h>
+#ifdef USE_SYSTEM_PROTOBUF
+#include "neug/generated/proto/plan/common.pb.h"
+#include "neug/generated/proto/plan/expr.pb.h"
+#include "neug/generated/proto/plan/results.pb.h"
+#else
+#include "neug/utils/proto/plan/common.pb.h"
+#include "neug/utils/proto/plan/expr.pb.h"
+#include "neug/utils/proto/plan/results.pb.h"
+#endif
+#include <rapidjson/document.h>
+#include <rapidjson/encodings.h>
+#include <rapidjson/prettywriter.h>
+#include <rapidjson/rapidjson.h>
+#include <rapidjson/stringbuffer.h>
+#include <stddef.h>
+#include <yaml-cpp/exceptions.h>
+#include <yaml-cpp/node/impl.h>
+#include <yaml-cpp/node/iterator.h>
+#include <yaml-cpp/node/node.h>
+#include <yaml-cpp/node/parse.h>
+#include <cstdint>
 #include <limits>
-#include <ostream>
+#include <memory>
 #include <sstream>
-#include <utility>                      // for move, __tuple_element_t
-#include "neug/utils/property/types.h"  // for PropertyType, Any
-#include "neug/utils/result.h"          // for result, Status, Statu...
+#include <stdexcept>
+#include <unordered_set>
+#include <utility>
+#include "neug/utils/property/property.h"
+#include "neug/utils/property/types.h"
+#include "neug/utils/result.h"
 
 namespace gs {
 
@@ -947,7 +970,7 @@ bool temporal_type_to_property_type(const common::Temporal& temporal_type,
     out_type = PropertyType::Timestamp();
     break;
   case common::Temporal::kDate:
-    // TODO: Parse format
+    // TODO(zhanglei): Parse format
     out_type = PropertyType::Date();
     break;
   case common::Temporal::kInterval:
@@ -1106,6 +1129,39 @@ Any const_value_to_any(const common::Value& value) {
   }
 }
 
+Prop const_value_to_prop(const common::Value& value) {
+  switch (value.item_case()) {
+  case common::Value::ItemCase::kBoolean: {
+    return Prop::from_bool(value.boolean());
+  }
+  case common::Value::ItemCase::kI32: {
+    return Prop::from_int32(value.i32());
+  }
+  case common::Value::ItemCase::kI64: {
+    return Prop::from_int64(value.i64());
+  }
+  case common::Value::ItemCase::kU32: {
+    return Prop::from_uint32(value.u32());
+  }
+  case common::Value::ItemCase::kU64: {
+    return Prop::from_uint64(value.u64());
+  }
+  case common::Value::ItemCase::kF64: {
+    return Prop::from_double(value.f64());
+  }
+  case common::Value::ItemCase::kF32: {
+    return Prop::from_float(value.f32());
+  }
+  case common::Value::ItemCase::kStr: {
+    return Prop::from_string(value.str());
+  }
+  default: {
+    THROW_RUNTIME_ERROR("Unsupported constant value type: " +
+                        value.DebugString());
+  }
+  }
+}
+
 Any expr_opr_value_to_any(const common::ExprOpr& value) {
   switch (value.item_case()) {
   case common::ExprOpr::ItemCase::kConst: {
@@ -1123,6 +1179,78 @@ Any expr_opr_value_to_any(const common::ExprOpr& value) {
   default: {
     THROW_RUNTIME_ERROR("Unsupported ExprOpr value type: " +
                         value.DebugString());
+  }
+  }
+}
+
+Prop expr_opr_value_to_prop(const common::ExprOpr& value) {
+  switch (value.item_case()) {
+  case common::ExprOpr::ItemCase::kConst: {
+    return const_value_to_prop(value.const_());
+  }
+  case common::ExprOpr::ItemCase::kToDate: {
+    return Prop::from_date(Date(value.to_date().date_str()));
+  }
+  case common::ExprOpr::ItemCase::kToDatetime: {
+    return Prop::from_date_time(DateTime(value.to_datetime().datetime_str()));
+  }
+  case common::ExprOpr::ItemCase::kToInterval: {
+    return Prop::from_interval(Interval(value.to_interval().interval_str()));
+  }
+  default: {
+    THROW_RUNTIME_ERROR("Unsupported ExprOpr value type: " +
+                        value.DebugString());
+  }
+  }
+}
+
+std::string const_value_to_string(const common::Value& value) {
+  switch (value.item_case()) {
+  case common::Value::ItemCase::kI32: {
+    return std::to_string(value.i32());
+  }
+  case common::Value::ItemCase::kI64: {
+    return std::to_string(value.i64());
+  }
+  case common::Value::ItemCase::kU32: {
+    return std::to_string(value.u32());
+  }
+  case common::Value::ItemCase::kU64: {
+    return std::to_string(value.u64());
+  }
+  case common::Value::ItemCase::kF64: {
+    return std::to_string(value.f64());
+  }
+  case common::Value::ItemCase::kBoolean: {
+    return std::to_string(value.boolean());
+  }
+  case common::Value::ItemCase::kStr: {
+    return value.str();
+  }
+  default: {
+    throw std::runtime_error("Unsupported constant value type: " +
+                             value.DebugString());
+  }
+  }
+}
+
+std::string expr_opr_to_string(const common::ExprOpr& opr) {
+  switch (opr.item_case()) {
+  case common::ExprOpr::ItemCase::kConst: {
+    return const_value_to_string(opr.const_());
+  }
+  case common::ExprOpr::ItemCase::kToDate: {
+    return opr.to_date().date_str();
+  }
+  case common::ExprOpr::ItemCase::kToDatetime: {
+    return opr.to_datetime().datetime_str();
+  }
+  case common::ExprOpr::ItemCase::kToInterval: {
+    return opr.to_interval().interval_str();
+  }
+  default: {
+    throw std::runtime_error("Unsupported ExprOpr value type: " +
+                             opr.DebugString());
   }
   }
 }

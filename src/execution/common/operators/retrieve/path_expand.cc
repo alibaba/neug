@@ -24,7 +24,6 @@
 #include "neug/execution/common/columns/i_context_column.h"
 #include "neug/execution/common/columns/path_columns.h"
 #include "neug/execution/common/operators/retrieve/path_expand_impl.h"
-#include "neug/execution/common/rt_any.h"
 #include "neug/execution/utils/special_predicates.h"
 #include "neug/storages/csr/mutable_csr.h"
 
@@ -59,7 +58,7 @@ gs::result<Context> PathExpand::edge_expand_v(const GraphReadInterface& graph,
         out_labels_map[label.src_label].emplace_back(label);
       }
 
-      MLVertexColumnBuilder builder(labels);
+      MLVertexColumnBuilderOpt builder(labels);
       std::vector<std::tuple<label_t, vid_t, size_t>> input;
       std::vector<std::tuple<label_t, vid_t, size_t>> output;
       foreach_vertex(input_vertex_list,
@@ -86,14 +85,13 @@ gs::result<Context> PathExpand::edge_expand_v(const GraphReadInterface& graph,
           auto v = std::get<1>(tuple);
           auto index = std::get<2>(tuple);
           for (const auto& label_triplet : out_labels_map[label]) {
-            auto oe_iter = graph.GetOutEdgeIterator(label_triplet.src_label, v,
-                                                    label_triplet.dst_label,
-                                                    label_triplet.edge_label);
-
-            while (oe_iter.IsValid()) {
-              auto nbr = oe_iter.GetNeighbor();
-              output.emplace_back(label_triplet.dst_label, nbr, index);
-              oe_iter.Next();
+            auto oe_view = graph.GetGenericOutgoingGraphView(
+                label_triplet.src_label, label_triplet.dst_label,
+                label_triplet.edge_label);
+            auto oes = oe_view.get_edges(v);
+            for (auto it = oes.begin(); it != oes.end(); ++it) {
+              output.emplace_back(label_triplet.dst_label, it.get_vertex(),
+                                  index);
             }
           }
         }
@@ -112,7 +110,7 @@ gs::result<Context> PathExpand::edge_expand_v(const GraphReadInterface& graph,
         in_labels_map[label.dst_label].emplace_back(label);
       }
 
-      MLVertexColumnBuilder builder(labels);
+      MLVertexColumnBuilderOpt builder(labels);
       std::vector<std::tuple<label_t, vid_t, size_t>> input;
       std::vector<std::tuple<label_t, vid_t, size_t>> output;
       foreach_vertex(input_vertex_list,
@@ -139,14 +137,13 @@ gs::result<Context> PathExpand::edge_expand_v(const GraphReadInterface& graph,
           auto v = std::get<1>(tuple);
           auto index = std::get<2>(tuple);
           for (const auto& label_triplet : in_labels_map[label]) {
-            auto oe_iter = graph.GetInEdgeIterator(label_triplet.dst_label, v,
-                                                   label_triplet.src_label,
-                                                   label_triplet.edge_label);
-
-            while (oe_iter.IsValid()) {
-              auto nbr = oe_iter.GetNeighbor();
-              output.emplace_back(label_triplet.src_label, nbr, index);
-              oe_iter.Next();
+            auto iview = graph.GetGenericIncomingGraphView(
+                label_triplet.dst_label, label_triplet.src_label,
+                label_triplet.edge_label);
+            auto ies = iview.get_edges(v);
+            for (auto it = ies.begin(); it != ies.end(); ++it) {
+              output.emplace_back(label_triplet.src_label, it.get_vertex(),
+                                  index);
             }
           }
         }
@@ -166,7 +163,7 @@ gs::result<Context> PathExpand::edge_expand_v(const GraphReadInterface& graph,
         out_labels_map[label.src_label].emplace_back(label);
       }
 
-      MLVertexColumnBuilder builder(labels);
+      MLVertexColumnBuilderOpt builder(labels);
       std::vector<std::tuple<label_t, vid_t, size_t>> input;
       std::vector<std::tuple<label_t, vid_t, size_t>> output;
       auto input_vertex_list =
@@ -206,24 +203,23 @@ gs::result<Context> PathExpand::edge_expand_v(const GraphReadInterface& graph,
           auto v = std::get<1>(tuple);
           auto index = std::get<2>(tuple);
           for (const auto& label_triplet : out_labels_map[label]) {
-            auto oe_iter = graph.GetOutEdgeIterator(label_triplet.src_label, v,
-                                                    label_triplet.dst_label,
-                                                    label_triplet.edge_label);
-
-            while (oe_iter.IsValid()) {
-              auto nbr = oe_iter.GetNeighbor();
-              output.emplace_back(label_triplet.dst_label, nbr, index);
-              oe_iter.Next();
+            auto oview = graph.GetGenericOutgoingGraphView(
+                label_triplet.src_label, label_triplet.dst_label,
+                label_triplet.edge_label);
+            auto oes = oview.get_edges(v);
+            for (auto it = oes.begin(); it != oes.end(); ++it) {
+              output.emplace_back(label_triplet.dst_label, it.get_vertex(),
+                                  index);
             }
           }
           for (const auto& label_triplet : in_labels_map[label]) {
-            auto ie_iter = graph.GetInEdgeIterator(label_triplet.dst_label, v,
-                                                   label_triplet.src_label,
-                                                   label_triplet.edge_label);
-            while (ie_iter.IsValid()) {
-              auto nbr = ie_iter.GetNeighbor();
-              output.emplace_back(label_triplet.src_label, nbr, index);
-              ie_iter.Next();
+            auto iview = graph.GetGenericIncomingGraphView(
+                label_triplet.dst_label, label_triplet.src_label,
+                label_triplet.edge_label);
+            auto ies = iview.get_edges(v);
+            for (auto it = ies.begin(); it != ies.end(); ++it) {
+              output.emplace_back(label_triplet.src_label, it.get_vertex(),
+                                  index);
             }
           }
         }
@@ -271,15 +267,14 @@ gs::result<Context> path_expand_p_arbitrary(const GraphReadInterface& graph,
         for (auto& [path, index] : input) {
           auto end = path->get_end();
           for (const auto& label_triplet : out_labels_map[end.label_]) {
-            auto oe_iter = graph.GetOutEdgeIterator(end.label_, end.vid_,
-                                                    label_triplet.dst_label,
-                                                    label_triplet.edge_label);
-            while (oe_iter.IsValid()) {
+            auto oview = graph.GetGenericOutgoingGraphView(
+                end.label_, label_triplet.dst_label, label_triplet.edge_label);
+            auto oes = oview.get_edges(end.vid_);
+            for (auto it = oes.begin(); it != oes.end(); ++it) {
               std::unique_ptr<PathImpl> new_path =
                   path->expand(label_triplet.edge_label,
-                               label_triplet.dst_label, oe_iter.GetNeighbor());
+                               label_triplet.dst_label, it.get_vertex());
               output.emplace_back(std::move(new_path), index);
-              oe_iter.Next();
             }
           }
         }
@@ -318,15 +313,14 @@ gs::result<Context> path_expand_p_arbitrary(const GraphReadInterface& graph,
         for (const auto& [path, index] : input) {
           auto end = path->get_end();
           for (const auto& label_triplet : in_labels_map[end.label_]) {
-            auto ie_iter = graph.GetInEdgeIterator(end.label_, end.vid_,
-                                                   label_triplet.src_label,
-                                                   label_triplet.edge_label);
-            while (ie_iter.IsValid()) {
+            auto iview = graph.GetGenericIncomingGraphView(
+                end.label_, label_triplet.src_label, label_triplet.edge_label);
+            auto ies = iview.get_edges(end.vid_);
+            for (auto it = ies.begin(); it != ies.end(); ++it) {
               std::unique_ptr<PathImpl> new_path =
                   path->expand(label_triplet.edge_label,
-                               label_triplet.src_label, ie_iter.GetNeighbor());
+                               label_triplet.src_label, it.get_vertex());
               output.emplace_back(std::move(new_path), index);
-              ie_iter.Next();
             }
           }
         }
@@ -365,28 +359,26 @@ gs::result<Context> path_expand_p_arbitrary(const GraphReadInterface& graph,
         for (auto& [path, index] : input) {
           auto end = path->get_end();
           for (const auto& label_triplet : out_labels_map[end.label_]) {
-            auto oe_iter = graph.GetOutEdgeIterator(end.label_, end.vid_,
-                                                    label_triplet.dst_label,
-                                                    label_triplet.edge_label);
-            while (oe_iter.IsValid()) {
+            auto oview = graph.GetGenericOutgoingGraphView(
+                end.label_, label_triplet.dst_label, label_triplet.edge_label);
+            auto oes = oview.get_edges(end.vid_);
+            for (auto it = oes.begin(); it != oes.end(); ++it) {
               auto new_path =
                   path->expand(label_triplet.edge_label,
-                               label_triplet.dst_label, oe_iter.GetNeighbor());
+                               label_triplet.dst_label, it.get_vertex());
               output.emplace_back(std::move(new_path), index);
-              oe_iter.Next();
             }
           }
 
           for (const auto& label_triplet : in_labels_map[end.label_]) {
-            auto ie_iter = graph.GetInEdgeIterator(end.label_, end.vid_,
-                                                   label_triplet.src_label,
-                                                   label_triplet.edge_label);
-            while (ie_iter.IsValid()) {
+            auto iview = graph.GetGenericIncomingGraphView(
+                end.label_, label_triplet.src_label, label_triplet.edge_label);
+            auto ies = iview.get_edges(end.vid_);
+            for (auto it = ies.begin(); it != ies.end(); ++it) {
               auto new_path =
                   path->expand(label_triplet.edge_label,
-                               label_triplet.src_label, ie_iter.GetNeighbor());
+                               label_triplet.src_label, it.get_vertex());
               output.emplace_back(std::move(new_path), index);
-              ie_iter.Next();
             }
           }
         }
@@ -449,11 +441,11 @@ gs::result<Context> path_expand_p_simple(const GraphReadInterface& graph,
         auto end = path.back();
         if (dir == Direction::kOut || dir == Direction::kBoth) {
           for (const auto& label_triplet : out_labels_map[end.label_]) {
-            auto oe_iter = graph.GetOutEdgeIterator(end.label_, end.vid_,
-                                                    label_triplet.dst_label,
-                                                    label_triplet.edge_label);
-            while (oe_iter.IsValid()) {
-              VertexRecord nbr{label_triplet.dst_label, oe_iter.GetNeighbor()};
+            auto oview = graph.GetGenericOutgoingGraphView(
+                end.label_, label_triplet.dst_label, label_triplet.edge_label);
+            auto oes = oview.get_edges(end.vid_);
+            for (auto it = oes.begin(); it != oes.end(); ++it) {
+              VertexRecord nbr{label_triplet.dst_label, it.get_vertex()};
               if (std::find(path.begin(), path.end(), nbr) == path.end()) {
                 path.emplace_back(nbr);
                 edge_labels.emplace_back(label_triplet.edge_label);
@@ -461,17 +453,16 @@ gs::result<Context> path_expand_p_simple(const GraphReadInterface& graph,
                 path.pop_back();
                 edge_labels.pop_back();
               }
-              oe_iter.Next();
             }
           }
           if (dir == Direction::kIn || dir == Direction::kBoth) {
             for (const auto& label_triplet : in_labels_map[end.label_]) {
-              auto ie_iter = graph.GetInEdgeIterator(end.label_, end.vid_,
-                                                     label_triplet.src_label,
-                                                     label_triplet.edge_label);
-              while (ie_iter.IsValid()) {
-                VertexRecord nbr{label_triplet.src_label,
-                                 ie_iter.GetNeighbor()};
+              auto iview = graph.GetGenericIncomingGraphView(
+                  end.label_, label_triplet.src_label,
+                  label_triplet.edge_label);
+              auto ies = iview.get_edges(end.vid_);
+              for (auto it = ies.begin(); it != ies.end(); ++it) {
+                VertexRecord nbr{label_triplet.src_label, it.get_vertex()};
                 if (std::find(path.begin(), path.end(), nbr) == path.end()) {
                   path.emplace_back(nbr);
                   edge_labels.emplace_back(label_triplet.edge_label);
@@ -479,7 +470,6 @@ gs::result<Context> path_expand_p_simple(const GraphReadInterface& graph,
                   path.pop_back();
                   edge_labels.pop_back();
                 }
-                ie_iter.Next();
               }
             }
           }
@@ -529,11 +519,11 @@ gs::result<Context> path_expand_p_trail(const GraphReadInterface& graph,
         auto end = path.back();
         if (dir == Direction::kOut || dir == Direction::kBoth) {
           for (const auto& label_triplet : out_labels_map[end.label_]) {
-            auto oe_iter = graph.GetOutEdgeIterator(end.label_, end.vid_,
-                                                    label_triplet.dst_label,
-                                                    label_triplet.edge_label);
-            while (oe_iter.IsValid()) {
-              VertexRecord nbr{label_triplet.dst_label, oe_iter.GetNeighbor()};
+            auto oview = graph.GetGenericOutgoingGraphView(
+                end.label_, label_triplet.dst_label, label_triplet.edge_label);
+            auto oes = oview.get_edges(end.vid_);
+            for (auto it = oes.begin(); it != oes.end(); ++it) {
+              VertexRecord nbr{label_triplet.dst_label, it.get_vertex()};
               bool skip = false;
               if (path.size() > 1) {
                 for (size_t i = 0; i + 1 < path.size(); ++i) {
@@ -551,17 +541,16 @@ gs::result<Context> path_expand_p_trail(const GraphReadInterface& graph,
                 path.pop_back();
                 edge_labels.pop_back();
               }
-              oe_iter.Next();
             }
           }
           if (dir == Direction::kIn || dir == Direction::kBoth) {
             for (const auto& label_triplet : in_labels_map[end.label_]) {
-              auto ie_iter = graph.GetInEdgeIterator(end.label_, end.vid_,
-                                                     label_triplet.src_label,
-                                                     label_triplet.edge_label);
-              while (ie_iter.IsValid()) {
-                VertexRecord nbr{label_triplet.src_label,
-                                 ie_iter.GetNeighbor()};
+              auto iview = graph.GetGenericIncomingGraphView(
+                  end.label_, label_triplet.src_label,
+                  label_triplet.edge_label);
+              auto es = iview.get_edges(end.vid_);
+              for (auto it = es.begin(); it != es.end(); ++it) {
+                VertexRecord nbr{label_triplet.src_label, it.get_vertex()};
                 bool skip = false;
                 if (path.size() > 1) {
                   for (size_t i = 0; i + 1 < path.size(); ++i) {
@@ -579,7 +568,6 @@ gs::result<Context> path_expand_p_trail(const GraphReadInterface& graph,
                   path.pop_back();
                   edge_labels.pop_back();
                 }
-                ie_iter.Next();
               }
             }
           }
@@ -630,35 +618,33 @@ gs::result<Context> path_expand_p_any_shortest(const GraphReadInterface& graph,
           for (const auto& node : current_level) {
             if (dir == Direction::kOut || dir == Direction::kBoth) {
               for (const auto& label_triplet : out_labels_map[node.label_]) {
-                auto oe_iter = graph.GetOutEdgeIterator(
-                    node.label_, node.vid_, label_triplet.dst_label,
+                auto oview = graph.GetGenericOutgoingGraphView(
+                    node.label_, label_triplet.dst_label,
                     label_triplet.edge_label);
-                while (oe_iter.IsValid()) {
-                  VertexRecord nbr{label_triplet.dst_label,
-                                   oe_iter.GetNeighbor()};
+                auto oes = oview.get_edges(node.vid_);
+                for (auto it = oes.begin(); it != oes.end(); ++it) {
+                  VertexRecord nbr{label_triplet.dst_label, it.get_vertex()};
                   if (visited.find(nbr) == visited.end()) {
                     visited.emplace(
                         nbr, std::make_pair(node, label_triplet.edge_label));
                     next_level.emplace_back(nbr);
                   }
-                  oe_iter.Next();
                 }
               }
             }
             if (dir == Direction::kIn || dir == Direction::kBoth) {
               for (const auto& label_triplet : in_labels_map[node.label_]) {
-                auto ie_iter = graph.GetInEdgeIterator(
-                    node.label_, node.vid_, label_triplet.src_label,
+                auto iview = graph.GetGenericIncomingGraphView(
+                    node.label_, label_triplet.src_label,
                     label_triplet.edge_label);
-                while (ie_iter.IsValid()) {
-                  VertexRecord nbr{label_triplet.src_label,
-                                   ie_iter.GetNeighbor()};
+                auto es = iview.get_edges(node.vid_);
+                for (auto it = es.begin(); it != es.end(); ++it) {
+                  VertexRecord nbr{label_triplet.src_label, it.get_vertex()};
                   if (visited.find(nbr) == visited.end()) {
                     visited.emplace(
                         nbr, std::make_pair(node, label_triplet.edge_label));
                     next_level.emplace_back(nbr);
                   }
-                  ie_iter.Next();
                 }
               }
             }
@@ -736,6 +722,9 @@ static bool single_source_single_dest_shortest_path_impl(
   q2.push(dst);
   dis[dst] = -1;
 
+  auto oview = graph.GetGenericOutgoingGraphView(v_label, v_label, e_label);
+  auto iview = graph.GetGenericIncomingGraphView(v_label, v_label, e_label);
+
   while (true) {
     if (q1.size() <= q2.size()) {
       if (q1.empty()) {
@@ -747,9 +736,9 @@ static bool single_source_single_dest_shortest_path_impl(
           return false;
         }
         q1.pop();
-        auto oe_iter = graph.GetOutEdgeIterator(v_label, x, v_label, e_label);
-        while (oe_iter.IsValid()) {
-          int y = oe_iter.GetNeighbor();
+        auto oes = oview.get_edges(x);
+        for (auto it = oes.begin(); it != oes.end(); ++it) {
+          int y = it.get_vertex();
           if (dis[y] == 0) {
             dis[y] = dis[x] + 1;
             tmp.push(y);
@@ -767,11 +756,10 @@ static bool single_source_single_dest_shortest_path_impl(
             int len = path.size() - 1;
             return len >= params.hop_lower && len < params.hop_upper;
           }
-          oe_iter.Next();
         }
-        auto ie_iter = graph.GetInEdgeIterator(v_label, x, v_label, e_label);
-        while (ie_iter.IsValid()) {
-          int y = ie_iter.GetNeighbor();
+        auto ies = iview.get_edges(x);
+        for (auto it = ies.begin(); it != ies.end(); ++it) {
+          int y = it.get_vertex();
           if (dis[y] == 0) {
             dis[y] = dis[x] + 1;
             tmp.push(y);
@@ -789,7 +777,6 @@ static bool single_source_single_dest_shortest_path_impl(
             int len = path.size() - 1;
             return len >= params.hop_lower && len < params.hop_upper;
           }
-          ie_iter.Next();
         }
       }
       std::swap(q1, tmp);
@@ -803,9 +790,9 @@ static bool single_source_single_dest_shortest_path_impl(
           return false;
         }
         q2.pop();
-        auto oe_iter = graph.GetOutEdgeIterator(v_label, x, v_label, e_label);
-        while (oe_iter.IsValid()) {
-          int y = oe_iter.GetNeighbor();
+        auto oes = oview.get_edges(x);
+        for (auto it = oes.begin(); it != oes.end(); ++it) {
+          int y = it.get_vertex();
           if (dis[y] == 0) {
             dis[y] = dis[x] - 1;
             tmp.push(y);
@@ -823,11 +810,10 @@ static bool single_source_single_dest_shortest_path_impl(
             int len = path.size() - 1;
             return len >= params.hop_lower && len < params.hop_upper;
           }
-          oe_iter.Next();
         }
-        auto ie_iter = graph.GetInEdgeIterator(v_label, x, v_label, e_label);
-        while (ie_iter.IsValid()) {
-          int y = ie_iter.GetNeighbor();
+        auto ies = iview.get_edges(x);
+        for (auto it = ies.begin(); it != ies.end(); ++it) {
+          int y = it.get_vertex();
           if (dis[y] == 0) {
             dis[y] = dis[x] - 1;
             tmp.push(y);
@@ -845,7 +831,6 @@ static bool single_source_single_dest_shortest_path_impl(
             int len = path.size() - 1;
             return len >= params.hop_lower && len < params.hop_upper;
           }
-          ie_iter.Next();
         }
       }
       std::swap(q2, tmp);
@@ -896,7 +881,8 @@ gs::result<Context> PathExpand::single_source_single_dest_shortest_path(
   return ctx;
 }
 
-static void dfs(const GraphReadInterface& graph, vid_t src, vid_t dst,
+static void dfs(const GenericView& oview, const GenericView& iview, vid_t src,
+                vid_t dst,
                 const GraphReadInterface::vertex_array_t<bool>& visited,
                 const GraphReadInterface::vertex_array_t<int8_t>& dist,
                 const ShortestPathParams& params,
@@ -908,29 +894,23 @@ static void dfs(const GraphReadInterface& graph, vid_t src, vid_t dst,
     cur_path.pop_back();
     return;
   }
-  auto oe_iter = graph.GetOutEdgeIterator(params.labels[0].src_label, src,
-                                          params.labels[0].dst_label,
-                                          params.labels[0].edge_label);
-  while (oe_iter.IsValid()) {
-    vid_t nbr = oe_iter.GetNeighbor();
+  auto oes = oview.get_edges(src);
+  for (auto it = oes.begin(); it != oes.end(); ++it) {
+    vid_t nbr = it.get_vertex();
     if (visited[nbr] && dist[nbr] == dist[src] + 1) {
-      dfs(graph, nbr, dst, visited, dist, params, paths, cur_path);
+      dfs(oview, iview, nbr, dst, visited, dist, params, paths, cur_path);
     }
-    oe_iter.Next();
   }
-  auto ie_iter = graph.GetInEdgeIterator(params.labels[0].dst_label, src,
-                                         params.labels[0].src_label,
-                                         params.labels[0].edge_label);
-  while (ie_iter.IsValid()) {
-    vid_t nbr = ie_iter.GetNeighbor();
+  auto ies = iview.get_edges(src);
+  for (auto it = ies.begin(); it != ies.end(); ++it) {
+    vid_t nbr = it.get_vertex();
     if (visited[nbr] && dist[nbr] == dist[src] + 1) {
-      dfs(graph, nbr, dst, visited, dist, params, paths, cur_path);
+      dfs(oview, iview, nbr, dst, visited, dist, params, paths, cur_path);
     }
-
-    ie_iter.Next();
   }
   cur_path.pop_back();
 }
+
 static void all_shortest_path_with_given_source_and_dest_impl(
     const GraphReadInterface& graph, const ShortestPathParams& params,
     vid_t src, vid_t dst, std::vector<std::vector<vid_t>>& paths) {
@@ -946,6 +926,19 @@ static void all_shortest_path_with_given_source_and_dest_impl(
   std::vector<vid_t> vec;
   int8_t src_dep = 0, dst_dep = 0;
 
+  auto oview1 = graph.GetGenericOutgoingGraphView(params.labels[0].src_label,
+                                                  params.labels[0].dst_label,
+                                                  params.labels[0].edge_label);
+  auto iview1 = graph.GetGenericIncomingGraphView(params.labels[0].dst_label,
+                                                  params.labels[0].src_label,
+                                                  params.labels[0].edge_label);
+  auto oview2 = graph.GetGenericOutgoingGraphView(params.labels[0].dst_label,
+                                                  params.labels[0].src_label,
+                                                  params.labels[0].edge_label);
+  auto iview2 = graph.GetGenericIncomingGraphView(params.labels[0].src_label,
+                                                  params.labels[0].dst_label,
+                                                  params.labels[0].edge_label);
+
   while (true) {
     if (src_dep >= params.hop_upper || dst_dep >= params.hop_upper ||
         !vec.empty()) {
@@ -958,11 +951,9 @@ static void all_shortest_path_with_given_source_and_dest_impl(
       while (!q1.empty()) {
         vid_t v = q1.front();
         q1.pop();
-        auto oe_iter = graph.GetOutEdgeIterator(params.labels[0].src_label, v,
-                                                params.labels[0].dst_label,
-                                                params.labels[0].edge_label);
-        while (oe_iter.IsValid()) {
-          vid_t nbr = oe_iter.GetNeighbor();
+        auto oes = oview1.get_edges(v);
+        for (auto it = oes.begin(); it != oes.end(); ++it) {
+          vid_t nbr = it.get_vertex();
           if (dist_from_src[nbr] == -1) {
             dist_from_src[nbr] = src_dep + 1;
             tmp.push(nbr);
@@ -970,13 +961,10 @@ static void all_shortest_path_with_given_source_and_dest_impl(
               vec.push_back(nbr);
             }
           }
-          oe_iter.Next();
         }
-        auto ie_iter = graph.GetInEdgeIterator(params.labels[0].dst_label, v,
-                                               params.labels[0].src_label,
-                                               params.labels[0].edge_label);
-        while (ie_iter.IsValid()) {
-          vid_t nbr = ie_iter.GetNeighbor();
+        auto ies = iview1.get_edges(v);
+        for (auto it = ies.begin(); it != ies.end(); ++it) {
+          vid_t nbr = it.get_vertex();
           if (dist_from_src[nbr] == -1) {
             dist_from_src[nbr] = src_dep + 1;
             tmp.push(nbr);
@@ -984,7 +972,6 @@ static void all_shortest_path_with_given_source_and_dest_impl(
               vec.push_back(nbr);
             }
           }
-          ie_iter.Next();
         }
       }
       std::swap(q1, tmp);
@@ -996,11 +983,9 @@ static void all_shortest_path_with_given_source_and_dest_impl(
       while (!q2.empty()) {
         vid_t v = q2.front();
         q2.pop();
-        auto oe_iter = graph.GetOutEdgeIterator(params.labels[0].dst_label, v,
-                                                params.labels[0].src_label,
-                                                params.labels[0].edge_label);
-        while (oe_iter.IsValid()) {
-          vid_t nbr = oe_iter.GetNeighbor();
+        auto oes = oview2.get_edges(v);
+        for (auto it = oes.begin(); it != oes.end(); ++it) {
+          vid_t nbr = it.get_vertex();
           if (dist_from_dst[nbr] == -1) {
             dist_from_dst[nbr] = dst_dep + 1;
             tmp.push(nbr);
@@ -1008,13 +993,10 @@ static void all_shortest_path_with_given_source_and_dest_impl(
               vec.push_back(nbr);
             }
           }
-          oe_iter.Next();
         }
-        auto ie_iter = graph.GetInEdgeIterator(params.labels[0].src_label, v,
-                                               params.labels[0].dst_label,
-                                               params.labels[0].edge_label);
-        while (ie_iter.IsValid()) {
-          vid_t nbr = ie_iter.GetNeighbor();
+        auto ies = iview2.get_edges(v);
+        for (auto it = ies.begin(); it != ies.end(); ++it) {
+          vid_t nbr = it.get_vertex();
           if (dist_from_dst[nbr] == -1) {
             dist_from_dst[nbr] = dst_dep + 1;
             tmp.push(nbr);
@@ -1022,7 +1004,6 @@ static void all_shortest_path_with_given_source_and_dest_impl(
               vec.push_back(nbr);
             }
           }
-          ie_iter.Next();
         }
       }
       std::swap(q2, tmp);
@@ -1048,13 +1029,10 @@ static void all_shortest_path_with_given_source_and_dest_impl(
   while (!q1.empty()) {
     auto v = q1.front();
     q1.pop();
-    auto oe_iter = graph.GetOutEdgeIterator(params.labels[0].src_label, v,
-                                            params.labels[0].dst_label,
-                                            params.labels[0].edge_label);
-    while (oe_iter.IsValid()) {
-      vid_t nbr = oe_iter.GetNeighbor();
+    auto oes = oview1.get_edges(v);
+    for (auto it = oes.begin(); it != oes.end(); ++it) {
+      vid_t nbr = it.get_vertex();
       if (visited[nbr]) {
-        oe_iter.Next();
         continue;
       }
       if (dist_from_src[nbr] != -1 &&
@@ -1068,16 +1046,12 @@ static void all_shortest_path_with_given_source_and_dest_impl(
         visited[nbr] = true;
         dist_from_src[nbr] = dist_from_src[v] + 1;
       }
-      oe_iter.Next();
     }
 
-    auto ie_iter = graph.GetInEdgeIterator(params.labels[0].dst_label, v,
-                                           params.labels[0].src_label,
-                                           params.labels[0].edge_label);
-    while (ie_iter.IsValid()) {
-      vid_t nbr = ie_iter.GetNeighbor();
+    auto ies = iview1.get_edges(v);
+    for (auto it = ies.begin(); it != ies.end(); ++it) {
+      vid_t nbr = it.get_vertex();
       if (visited[nbr]) {
-        ie_iter.Next();
         continue;
       }
       if (dist_from_src[nbr] != -1 &&
@@ -1091,11 +1065,11 @@ static void all_shortest_path_with_given_source_and_dest_impl(
         visited[nbr] = true;
         dist_from_src[nbr] = dist_from_src[v] + 1;
       }
-      ie_iter.Next();
     }
   }
   std::vector<vid_t> cur_path;
-  dfs(graph, src, dst, visited, dist_from_src, params, paths, cur_path);
+  dfs(oview1, iview1, src, dst, visited, dist_from_src, params, paths,
+      cur_path);
 }
 
 gs::result<Context> PathExpand::all_shortest_paths_with_given_source_and_dest(
@@ -1147,94 +1121,30 @@ gs::result<Context> PathExpand::all_shortest_paths_with_given_source_and_dest(
   return ctx;
 }
 
-template <typename T>
-static gs::result<Context> _single_shortest_path(
-    const GraphReadInterface& graph, Context&& ctx,
-    const ShortestPathParams& params, const SPVertexPredicate& pred) {
-  if (pred.type() == SPPredicateType::kPropertyLT) {
-    return PathExpand::single_source_shortest_path<
-        VertexPropertyLTPredicateBeta<T>>(
-        graph, std::move(ctx), params,
-        dynamic_cast<const VertexPropertyLTPredicateBeta<T>&>(pred));
-  } else if (pred.type() == SPPredicateType::kPropertyGT) {
-    return PathExpand::single_source_shortest_path<
-        VertexPropertyGTPredicateBeta<T>>(
-        graph, std::move(ctx), params,
-        dynamic_cast<const VertexPropertyGTPredicateBeta<T>&>(pred));
-  } else if (pred.type() == SPPredicateType::kPropertyLE) {
-    return PathExpand::single_source_shortest_path<
-        VertexPropertyLEPredicateBeta<T>>(
-        graph, std::move(ctx), params,
-        dynamic_cast<const VertexPropertyLEPredicateBeta<T>&>(pred));
-  } else if (pred.type() == SPPredicateType::kPropertyGE) {
-    return PathExpand::single_source_shortest_path<
-        VertexPropertyGEPredicateBeta<T>>(
-        graph, std::move(ctx), params,
-        dynamic_cast<const VertexPropertyGEPredicateBeta<T>&>(pred));
-  } else if (pred.type() == SPPredicateType::kPropertyBetween) {
-    return PathExpand::single_source_shortest_path<
-        VertexPropertyBetweenPredicateBeta<T>>(
-        graph, std::move(ctx), params,
-        dynamic_cast<const VertexPropertyBetweenPredicateBeta<T>&>(pred));
-  } else if (pred.type() == SPPredicateType::kPropertyEQ) {
-    return PathExpand::single_source_shortest_path<
-        VertexPropertyEQPredicateBeta<T>>(
-        graph, std::move(ctx), params,
-        dynamic_cast<const VertexPropertyEQPredicateBeta<T>&>(pred));
-  } else if (pred.type() == SPPredicateType::kPropertyNE) {
-    return PathExpand::single_source_shortest_path<
-        VertexPropertyNEPredicateBeta<T>>(
-        graph, std::move(ctx), params,
-        dynamic_cast<const VertexPropertyNEPredicateBeta<T>&>(pred));
-  } else {
-    LOG(ERROR) << "not support edge property type "
-               << static_cast<int>(pred.type());
-    RETURN_UNSUPPORTED_ERROR("not support edge property type");
+struct SSSPSPOp {
+  template <typename PRED_T>
+  static gs::result<Context> eval_with_predicate(
+      const PRED_T& pred, const GraphReadInterface& graph, Context&& ctx,
+      const ShortestPathParams& params) {
+    return PathExpand::single_source_shortest_path<PRED_T>(
+        graph, std::move(ctx), params, pred);
   }
-}
+};
 
 gs::result<Context>
 PathExpand::single_source_shortest_path_with_special_vertex_predicate(
     const GraphReadInterface& graph, Context&& ctx,
-    const ShortestPathParams& params, const SPVertexPredicate& pred) {
-  if (pred.data_type() == RTAnyType::kBoolValue) {
-    return _single_shortest_path<bool>(graph, std::move(ctx), params, pred);
-  } else if (pred.data_type() == RTAnyType::kI64Value) {
-    return _single_shortest_path<int64_t>(graph, std::move(ctx), params, pred);
-  } else if (pred.data_type() == RTAnyType::kI32Value) {
-    return _single_shortest_path<int>(graph, std::move(ctx), params, pred);
-  } else if (pred.data_type() == RTAnyType::kU32Value) {
-    return _single_shortest_path<uint32_t>(graph, std::move(ctx), params, pred);
-  } else if (pred.data_type() == RTAnyType::kU64Value) {
-    return _single_shortest_path<uint64_t>(graph, std::move(ctx), params, pred);
-  } else if (pred.data_type() == RTAnyType::kStringValue) {
-    return _single_shortest_path<std::string_view>(graph, std::move(ctx),
-                                                   params, pred);
-  } else if (pred.data_type() == RTAnyType::kTimestamp) {
-    return _single_shortest_path<TimeStamp>(graph, std::move(ctx), params,
-                                            pred);
-  } else if (pred.data_type() == RTAnyType::kF32Value) {
-    return _single_shortest_path<float>(graph, std::move(ctx), params, pred);
-  } else if (pred.data_type() == RTAnyType::kF64Value) {
-    return _single_shortest_path<double>(graph, std::move(ctx), params, pred);
-  } else if (pred.data_type() == RTAnyType::kDate) {
-    return _single_shortest_path<Date>(graph, std::move(ctx), params, pred);
-  } else if (pred.data_type() == RTAnyType::kDateTime) {
-    return _single_shortest_path<DateTime>(graph, std::move(ctx), params, pred);
-  } else if (pred.data_type() == RTAnyType::kInterval) {
-    return _single_shortest_path<Interval>(graph, std::move(ctx), params, pred);
-  } else if (pred.data_type() == RTAnyType::kTimestamp) {
-    return _single_shortest_path<TimeStamp>(graph, std::move(ctx), params,
-                                            pred);
-  } else if (pred.data_type() == RTAnyType::kEmpty) {
-    return _single_shortest_path<grape::EmptyType>(graph, std::move(ctx),
-                                                   params, pred);
-  } else {
-    LOG(ERROR) << "not support edge property type "
-               << static_cast<int>(pred.type());
-    RETURN_UNSUPPORTED_ERROR("not support edge property type");
+    const ShortestPathParams& params,
+    const SpecialVertexPredicateConfig& config,
+    const std::map<std::string, std::string>& query_params) {
+  std::set<label_t> expected_labels;
+  for (const auto& label_triplet : params.labels) {
+    expected_labels.insert(label_triplet.dst_label);
+    expected_labels.insert(label_triplet.src_label);
   }
-  return ctx;
+  return dispatch_vertex_predicate<SSSPSPOp>(graph, expected_labels, config,
+                                             query_params, graph,
+                                             std::move(ctx), params);
 }
 
 }  // namespace runtime

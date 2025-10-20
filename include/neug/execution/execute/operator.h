@@ -13,10 +13,14 @@
  * limitations under the License.
  */
 
-#ifndef RUNTIME_EXECUTE_OPERATOR_H_
-#define RUNTIME_EXECUTE_OPERATOR_H_
+#ifndef INCLUDE_NEUG_EXECUTION_EXECUTE_OPERATOR_H_
+#define INCLUDE_NEUG_EXECUTION_EXECUTE_OPERATOR_H_
 
 #include <map>
+#include <memory>
+#include <string>
+#include <utility>
+#include <vector>
 
 #include "neug/execution/common/context.h"
 #include "neug/execution/common/graph_interface.h"
@@ -134,4 +138,4 @@ class IAdminOperatorBuilder {
 
 }  // namespace gs
 
-#endif  // RUNTIME_EXECUTE_OPERATOR_H_
+#endif  // INCLUDE_NEUG_EXECUTION_EXECUTE_OPERATOR_H_

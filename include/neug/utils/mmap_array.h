@@ -13,16 +13,18 @@
  * limitations under the License.
  */
 
-#ifndef UTILS_MMAP_ARRAY_H_
-#define UTILS_MMAP_ARRAY_H_
+#ifndef INCLUDE_NEUG_UTILS_MMAP_ARRAY_H_
+#define INCLUDE_NEUG_UTILS_MMAP_ARRAY_H_
 
 #include <assert.h>
-
 #include <sys/mman.h>
+
+#include <algorithm>
 #include <atomic>
 #include <filesystem>
 #include <string>
 #include <string_view>
+#include <utility>
 
 #include "glog/logging.h"
 #include "libgrape-lite/grape/util.h"
@@ -91,7 +93,7 @@ class mmap_array {
   mmap_array(mmap_array&& rhs) : mmap_array() { swap(rhs); }
   ~mmap_array() { reset(); }
 
-  void reset() {
+  void reset(bool remove_file = true) {
     if (data_ != NULL && mmap_size_ != 0) {
       if (munmap(data_, mmap_size_) != 0) {
         std::stringstream ss;
@@ -114,21 +116,15 @@ class mmap_array {
       }
       fd_ = -1;
     }
-    filename_ = "";
-    sync_to_file_ = false;
-  }
-
-  void unlink() {
-    std::string old_filename = filename_;
-    reset();
-    if (old_filename != "" && std::filesystem::exists(old_filename)) {
-      if (std::filesystem::remove(old_filename) == 0) {
-        std::stringstream ss;
-        ss << "Failed to remove file [ " << old_filename << " ] "
-           << strerror(errno);
-        LOG(ERROR) << ss.str();
-        THROW_RUNTIME_ERROR(ss.str());
+    if (sync_to_file_ && remove_file && !filename_.empty()) {
+      std::error_code errorCode;
+      std::filesystem::remove(filename_, errorCode);
+      if (errorCode) {
+        LOG(ERROR) << "Failed to remove file: " << filename_ << ", "
+                   << errorCode.message();
       }
+      filename_ = "";
+      sync_to_file_ = false;
     }
   }
 
@@ -336,13 +332,13 @@ class mmap_array {
   void dump(const std::string& filename) {
     if (sync_to_file_) {
       std::string old_filename = filename_;
-      reset();
+      reset(false);
       std::error_code errorCode;
-      std::filesystem::rename(old_filename, filename, errorCode);
+      std::filesystem::create_hard_link(old_filename, filename, errorCode);
       if (errorCode) {
         std::stringstream ss;
-        ss << "Failed to rename file " << old_filename << " to " << filename
-           << " " << errorCode.message() << std::endl;
+        ss << "Failed to create hard link from " << old_filename << " to "
+           << filename << " " << errorCode.message() << std::endl;
         LOG(ERROR) << ss.str();
         THROW_RUNTIME_ERROR(ss.str());
       }
@@ -603,10 +599,6 @@ class mmap_array<std::string_view> {
     items_.swap(rhs.items_);
     data_.swap(rhs.data_);
   }
-  void unlink() {
-    items_.unlink();
-    data_.unlink();
-  }
 
   void set_writable(bool is_writable) {
     items_.set_writable(is_writable);
@@ -631,4 +623,4 @@ class mmap_array<std::string_view> {
 
 }  // namespace gs
 
-#endif  // UTILS_MMAP_ARRAY_H_
+#endif  // INCLUDE_NEUG_UTILS_MMAP_ARRAY_H_

@@ -13,13 +13,14 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-#ifndef UTILS_STRING_VIEW_VECTOR_H_
-#define UTILS_STRING_VIEW_VECTOR_H_
+#ifndef INCLUDE_NEUG_UTILS_STRING_VIEW_VECTOR_H_
+#define INCLUDE_NEUG_UTILS_STRING_VIEW_VECTOR_H_
 
 #include <stdlib.h>
 #include <string.h>
 
 #include <string_view>
+#include <utility>
 #include <vector>
 
 namespace gs {
@@ -80,4 +81,4 @@ class StringViewVector {
 
 }  // namespace gs
 
-#endif  // UTILS_STRING_VIEW_VECTOR_H_
+#endif  // INCLUDE_NEUG_UTILS_STRING_VIEW_VECTOR_H_

@@ -13,8 +13,8 @@
  * limitations under the License.
  */
 
-#ifndef RUNTIME_UTILS_UTILS_H_
-#define RUNTIME_UTILS_UTILS_H_
+#ifndef INCLUDE_NEUG_EXECUTION_UTILS_UTILS_H_
+#define INCLUDE_NEUG_EXECUTION_UTILS_UTILS_H_
 
 #include <stddef.h>
 #include <memory>
@@ -23,7 +23,6 @@
 
 #include "neug/execution/common/columns/i_context_column.h"
 #include "neug/execution/common/graph_interface.h"
-#include "neug/execution/common/rt_any.h"
 #include "neug/execution/common/types.h"
 #include "neug/execution/utils/expr.h"
 #include "neug/utils/property/types.h"
@@ -74,4 +73,4 @@ bool vertex_id_topN(bool asc, size_t limit,
 
 }  // namespace gs
 
-#endif  // RUNTIME_UTILS_UTILS_H_
+#endif  // INCLUDE_NEUG_EXECUTION_UTILS_UTILS_H_

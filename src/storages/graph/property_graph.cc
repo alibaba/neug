@@ -15,24 +15,20 @@
 
 #include "neug/storages/graph/property_graph.h"
 
-#include <assert.h>
+#include <algorithm>
 #include <filesystem>
+#include <set>
 #include <stdexcept>
 #include <system_error>
+#include <thread>
+#include <tl/expected.hpp>
 #include <utility>
 
 #include "libgrape-lite/grape/io/local_io_adaptor.h"
-#include "libgrape-lite/grape/serialization/out_archive.h"
-#include "libgrape-lite/grape/types.h"
-#include "libgrape-lite/grape/util.h"
-#include "neug/storages/csr/csr_base.h"
-#include "neug/storages/csr/immutable_csr.h"
-#include "neug/storages/csr/mutable_csr.h"
-#include "neug/storages/csr/nbr.h"
 #include "neug/storages/file_names.h"
+#include "neug/utils/exception/exception.h"
 #include "neug/utils/file_utils.h"
 #include "neug/utils/indexers.h"
-#include "neug/utils/property/table.h"
 #include "neug/utils/property/types.h"
 #include "neug/utils/yaml_utils.h"
 
@@ -54,8 +50,9 @@ PropertyGraph::~PropertyGraph() {
             schema_.generate_edge_label(src_label, dst_label, e_label);
         auto edge_table = edge_tables_.find(index);
         if (edge_table != edge_tables_.end()) {
-          edge_table->second.Reserve(degree_list[src_label],
-                                     degree_list[dst_label]);
+          edge_table->second.Resize(degree_list[src_label],
+                                    degree_list[dst_label]);
+          edge_tables_.erase(edge_table);
         }
       }
     }
@@ -75,6 +72,30 @@ void PropertyGraph::Clear() {
   vertex_label_num_ = 0;
   edge_label_num_ = 0;
   schema_.Clear();
+}
+
+Status PropertyGraph::batch_add_vertices(
+    label_t v_label, std::shared_ptr<IRecordBatchSupplier> supplier) {
+  CHECK(vertex_tables_.size() > v_label);
+  vertex_tables_[v_label].insert_vertices(supplier);
+  return gs::Status::OK();
+}
+
+Status PropertyGraph::batch_add_edges(
+    label_t src_v_label, label_t dst_v_label, label_t e_label,
+    std::shared_ptr<IRecordBatchSupplier> supplier) {
+  size_t index = schema_.generate_edge_label(src_v_label, dst_v_label, e_label);
+  auto dual_csr = edge_tables_.find(index);
+  if (dual_csr != edge_tables_.end()) {
+    dual_csr->second.BatchAddEdges(vertex_tables_[src_v_label].get_indexer(),
+                                   vertex_tables_[dst_v_label].get_indexer(),
+                                   supplier);
+  } else {
+    LOG(ERROR) << "Edge label not found for src_v_label: " << src_v_label
+               << ", dst_v_label: " << dst_v_label << ", e_label: " << e_label;
+    throw std::runtime_error("Edge label not found");
+  }
+  return gs::Status::OK();
 }
 
 Status PropertyGraph::create_vertex_type(
@@ -167,34 +188,6 @@ Status PropertyGraph::create_vertex_type(
   return gs::Status::OK();
 }
 
-Status PropertyGraph::batch_add_vertices(label_t label_id,
-                                         std::vector<Any>&& vertices,
-                                         std::unique_ptr<Table>&& table,
-                                         timestamp_t ts) {
-  if (vertices.size() == 0) {
-    return gs::Status::OK();
-  }
-  vertex_tables_[label_id].BatchAddVertices(std::move(vertices),
-                                            std::move(table), ts);
-  return gs::Status::OK();
-}
-
-Status PropertyGraph::batch_add_edges(
-    label_t src_label_id, label_t dst_label_id, label_t edge_label_id,
-    std::vector<std::tuple<vid_t, vid_t, size_t>>&& edges_vec,
-    std::unique_ptr<Table>&& table) {
-  if (edges_vec.size() == 0) {
-    return gs::Status::OK();
-  }
-  int index =
-      schema_.generate_edge_label(src_label_id, dst_label_id, edge_label_id);
-  auto src_v_cap = vertex_tables_[src_label_id].get_indexer().size();
-  auto dst_v_cap = vertex_tables_[dst_label_id].get_indexer().size();
-  edge_tables_.at(index).BatchAddEdges(std::move(edges_vec), std::move(table),
-                                       src_v_cap, dst_v_cap);
-  return gs::Status::OK();
-}
-
 Status PropertyGraph::create_edge_type(
     const std::string& src_vertex_type, const std::string& dst_vertex_type,
     const std::string& edge_type_name,
@@ -258,18 +251,22 @@ Status PropertyGraph::create_edge_type(
       schema_.generate_edge_label(src_label_i, dst_label_i, e_label_i);
   EdgeStrategy oe_strategy = EdgeStrategy::kMultiple;
   EdgeStrategy ie_strategy = EdgeStrategy::kMultiple;
-  EdgeTable edge_table(src_vertex_type, dst_vertex_type, edge_type_name,
-                       oe_strategy, ie_strategy, property_names, property_types,
-                       oe_mutable, ie_mutable);
+  std::vector<StorageStrategy> strategies;
+  for (size_t i = 0; i < property_types.size(); i++) {
+    strategies.emplace_back(StorageStrategy::kMem);
+  }
+  EdgeTableMeta meta(src_vertex_type, dst_vertex_type, edge_type_name,
+                     ie_mutable, oe_mutable, ie_strategy, oe_strategy,
+                     property_types, property_names, strategies);
+  EdgeTable edge_table(meta);
   edge_tables_.emplace(index, std::move(edge_table));
   auto src_v_capacity = std::max(
       vertex_tables_[src_label_i].get_indexer().capacity(), (size_t) 4096);
   auto dst_v_capacity = std::max(
       vertex_tables_[dst_label_i].get_indexer().capacity(), (size_t) 4096);
-  edge_tables_.at(index).Open(work_dir_, memory_level_, src_v_capacity,
-                              dst_v_capacity);
-
-  edge_tables_.at(index).Reserve(src_v_capacity, dst_v_capacity);
+  edge_tables_.at(index).OpenInMemory(work_dir_, src_v_capacity,
+                                      dst_v_capacity);
+  edge_tables_.at(index).Resize(src_v_capacity, dst_v_capacity);
 
   return gs::Status::OK();
 }
@@ -611,7 +608,6 @@ Status PropertyGraph::delete_vertex_type(const std::string& vertex_type_name,
 
           auto edge_table = edge_tables_.find(index);
           if (edge_table != edge_tables_.end()) {
-            edge_table->second.Drop();
             edge_tables_.erase(index);
           }
         }
@@ -620,7 +616,6 @@ Status PropertyGraph::delete_vertex_type(const std::string& vertex_type_name,
           size_t index = schema_.generate_edge_label(i, v_label_id, j);
           auto edge_table = edge_tables_.find(index);
           if (edge_table != edge_tables_.end()) {
-            edge_table->second.Drop();
             edge_tables_.erase(index);
           }
         }
@@ -657,7 +652,6 @@ Status PropertyGraph::delete_edge_type(const std::string& src_vertex_type,
       schema_.generate_edge_label(src_v_label, dst_v_label, edge_label);
   auto edge_table = edge_tables_.find(index);
   if (edge_table != edge_tables_.end()) {
-    edge_table->second.Drop();
     edge_tables_.erase(index);
   }
   return gs::Status::OK();
@@ -667,15 +661,17 @@ Status PropertyGraph::batch_delete_vertices(const label_t& v_label_id,
                                             const std::vector<vid_t>& vids) {
   vertex_tables_.at(v_label_id).BatchDeleteVertices(vids);
 
+  std::set<vid_t> vids_set(vids.begin(), vids.end());
+
   for (label_t i = 0; i < vertex_label_num_; i++) {
     for (label_t j = 0; j < edge_label_num_; j++) {
       if (schema_.has_edge_label(i, v_label_id, j)) {
         size_t index = schema_.generate_edge_label(i, v_label_id, j);
-        edge_tables_.at(index).BatchDeleteVertices(false, vids);
+        edge_tables_.at(index).BatchDeleteVertices({}, vids_set);
       }
       if (schema_.has_edge_label(v_label_id, i, j)) {
         size_t index = schema_.generate_edge_label(v_label_id, i, j);
-        edge_tables_.at(index).BatchDeleteVertices(true, vids);
+        edge_tables_.at(index).BatchDeleteVertices(vids_set, {});
       }
     }
   }
@@ -692,7 +688,12 @@ Status PropertyGraph::batch_delete_edges(
   std::string edge_type_name = schema_.get_edge_label_name(edge_label);
   size_t index =
       schema_.generate_edge_label(src_v_label, dst_v_label, edge_label);
-  edge_tables_.at(index).BatchDeleteEdge(edges_vec);
+  std::vector<vid_t> src_vids, dst_vids;
+  for (auto& edge : edges_vec) {
+    src_vids.push_back(std::get<0>(edge));
+    dst_vids.push_back(std::get<1>(edge));
+  }
+  edge_tables_.at(index).BatchDeleteEdges(src_vids, dst_vids);
   return Status::OK();
 }
 
@@ -711,6 +712,12 @@ void PropertyGraph::DumpSchema(const std::string& schema_path) {
     return;
   }
   write_yaml_file(schema_res.value(), filename);
+}
+
+void PropertyGraph::Open(const Schema& schema, const std::string& work_dir,
+                         int memory_level) {
+  schema_ = schema;
+  Open(work_dir, memory_level);
 }
 
 void PropertyGraph::Open(const std::string& work_dir, int memory_level) {
@@ -758,7 +765,7 @@ void PropertyGraph::Open(const std::string& work_dir, int memory_level) {
   std::string tmp_dir_path = tmp_dir(work_dir_);
 
   if (std::filesystem::exists(tmp_dir_path)) {
-    std::filesystem::remove_all(tmp_dir_path);
+    remove_directory(tmp_dir_path);
   }
 
   std::filesystem::create_directories(tmp_dir_path);
@@ -806,15 +813,26 @@ void PropertyGraph::Open(const std::string& work_dir, int memory_level) {
 
         auto& prop_names =
             schema_.get_edge_property_names(src_label, dst_label, edge_label);
+        EdgeTableMeta meta(src_label, dst_label, edge_label, ie_mutable,
+                           oe_mutable, ie_strategy, oe_strategy, properties,
+                           prop_names,
+                           std::vector<StorageStrategy>(properties.size(),
+                                                        StorageStrategy::kMem));
 
-        EdgeTable edge_table(src_label, dst_label, edge_label, oe_strategy,
-                             ie_strategy, prop_names, properties, oe_mutable,
-                             ie_mutable);
+        EdgeTable edge_table(meta);
+        if (memory_level == 0) {
+          edge_table.Open(work_dir_);
+        } else if (memory_level >= 2) {
+          edge_table.OpenWithHugepages(work_dir_,
+                                       vertex_capacities[src_label_i],
+                                       vertex_capacities[dst_label_i]);
+        } else {
+          edge_table.OpenInMemory(work_dir_, vertex_capacities[src_label_i],
+                                  vertex_capacities[dst_label_i]);
+        }
 
-        edge_table.Open(work_dir_, memory_level, vertex_capacities[src_label_i],
-                        vertex_capacities[dst_label_i]);
-        edge_table.Reserve(vertex_capacities[src_label_i],
-                           vertex_capacities[dst_label_i]);
+        edge_table.Resize(vertex_capacities[src_label_i],
+                          vertex_capacities[dst_label_i]);
         edge_tables_.emplace(index, std::move(edge_table));
       }
     }
@@ -857,11 +875,11 @@ void PropertyGraph::Compact(bool reset_timestamp, bool compact_csr,
   }
 }
 
-void PropertyGraph::Dump() {
+void PropertyGraph::Dump(bool reopen) {
   // First dump to the  temp dir, then move to the checkpoint dir
   std::string target_dir = temp_checkpoint_dir(work_dir_);
   if (std::filesystem::exists(target_dir)) {
-    std::filesystem::remove_all(target_dir);
+    remove_directory(target_dir);
   } else {
     std::filesystem::create_directories(target_dir);
   }
@@ -911,8 +929,8 @@ void PropertyGraph::Dump() {
             schema_.generate_edge_label(src_label_i, dst_label_i, e_label_i);
         auto edge_table = edge_tables_.find(index);
         if (edge_table != edge_tables_.end()) {
-          edge_table->second.Reserve(vertex_num[src_label_i],
-                                     vertex_num[dst_label_i]);
+          edge_table->second.Resize(vertex_num[src_label_i],
+                                    vertex_num[dst_label_i]);
           edge_table->second.Dump(target_dir);
         }
       }
@@ -920,12 +938,14 @@ void PropertyGraph::Dump() {
   }
   DumpSchema(schema_path(work_dir_));
   copy_directory(target_dir, checkpoint_dir(work_dir_), true, true);
-  std::filesystem::remove_all(target_dir);
-  std::filesystem::remove_all(tmp_dir(work_dir_));
-  std::filesystem::remove_all(wal_dir(work_dir_));
+  remove_directory(target_dir);
+  remove_directory(tmp_dir(work_dir_));
+  remove_directory(wal_dir(work_dir_));
   LOG(INFO) << "Dump graph to " << checkpoint_dir(work_dir_);
   Clear();
-  Open(work_dir_, memory_level_);
+  if (reopen) {
+    Open(work_dir_, memory_level_);
+  }
 }
 
 void PropertyGraph::IngestEdge(label_t src_label, vid_t src_lid,
@@ -936,13 +956,6 @@ void PropertyGraph::IngestEdge(label_t src_label, vid_t src_lid,
   edge_tables_.at(index).IngestEdge(src_lid, dst_lid, arc, ts, alloc);
 }
 
-void PropertyGraph::UpdateEdge(label_t src_label, vid_t src_lid,
-                               label_t dst_label, vid_t dst_lid,
-                               label_t edge_label, timestamp_t ts,
-                               const Any& arc, Allocator& alloc) {
-  size_t index = schema_.generate_edge_label(src_label, dst_label, edge_label);
-  edge_tables_.at(index).UpdateEdge(src_lid, dst_lid, arc, ts, alloc);
-}
 const Schema& PropertyGraph::schema() const { return schema_; }
 
 Schema& PropertyGraph::mutable_schema() { return schema_; }
@@ -987,26 +1000,6 @@ vid_t PropertyGraph::add_vertex(label_t label, const Any& id, timestamp_t ts) {
 vid_t PropertyGraph::add_vertex_safe(label_t label, const Any& id,
                                      timestamp_t ts) {
   return vertex_tables_[label].add_vertex_safe(id, ts);
-}
-
-std::shared_ptr<CsrConstEdgeIterBase> PropertyGraph::get_outgoing_edges(
-    label_t label, vid_t u, label_t neighbor_label, label_t edge_label) const {
-  return get_oe_csr(label, neighbor_label, edge_label)->edge_iter(u);
-}
-
-std::shared_ptr<CsrConstEdgeIterBase> PropertyGraph::get_incoming_edges(
-    label_t label, vid_t u, label_t neighbor_label, label_t edge_label) const {
-  return get_ie_csr(label, neighbor_label, edge_label)->edge_iter(u);
-}
-
-std::shared_ptr<CsrEdgeIterBase> PropertyGraph::get_outgoing_edges_mut(
-    label_t label, vid_t u, label_t neighbor_label, label_t edge_label) {
-  return get_oe_csr(label, neighbor_label, edge_label)->edge_iter_mut(u);
-}
-
-std::shared_ptr<CsrEdgeIterBase> PropertyGraph::get_incoming_edges_mut(
-    label_t label, vid_t u, label_t neighbor_label, label_t edge_label) {
-  return get_ie_csr(label, neighbor_label, edge_label)->edge_iter_mut(u);
 }
 
 std::string PropertyGraph::get_statistics_json() const {

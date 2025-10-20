@@ -13,14 +13,15 @@
  * limitations under the License.
  */
 
-#ifndef TOOLS_PYTHON_BIND_SRC_CONNECTION_H_
-#define TOOLS_PYTHON_BIND_SRC_CONNECTION_H_
-
-#include <atomic>
-#include <string>
-#include <vector>
+#ifndef INCLUDE_NEUG_MAIN_CONNECTION_H_
+#define INCLUDE_NEUG_MAIN_CONNECTION_H_
 
 #include <glog/logging.h>
+
+#include <atomic>
+#include <memory>
+#include <string>
+#include <vector>
 
 #include "neug/compiler/planner/graph_planner.h"
 #include "neug/main/query_processor.h"
@@ -39,23 +40,24 @@ namespace gs {
 class NeugDB;
 
 /**
- * @brief Internal connection class for executing queries against the graph database.
- * 
- * Connection provides the core interface for query execution within a NeuG database.
- * It maintains a reference to the property graph, query planner, and query processor
- * to handle the complete query execution pipeline.
- * 
- * **Thread Safety:** This class is NOT thread-safe. Each thread should create and 
- * manage its own Connection instance.
- * 
- * **Lifecycle:** 
+ * @brief Internal connection class for executing queries against the graph
+ * database.
+ *
+ * Connection provides the core interface for query execution within a NeuG
+ * database. It maintains a reference to the property graph, query planner, and
+ * query processor to handle the complete query execution pipeline.
+ *
+ * **Thread Safety:** This class is NOT thread-safe. Each thread should create
+ * and manage its own Connection instance.
+ *
+ * **Lifecycle:**
  * - Created with references to graph, planner, and query processor
  * - Used to execute queries via Query() method
  * - Must be explicitly closed or will be closed in destructor
- * 
+ *
  * @note This is an internal C++ API class. External users should use the Python
  *       binding classes for database interactions.
- * 
+ *
  * @since v0.1.0
  */
 class Connection {
@@ -70,57 +72,60 @@ class Connection {
 
   /**
    * @brief Execute a query string and return the results.
-   * 
-   * Processes the query string through the planner and query processor, then converts
-   * the internal CollectiveResults to a QueryResult for user consumption.
-   * 
+   *
+   * Processes the query string through the planner and query processor, then
+   * converts the internal CollectiveResults to a QueryResult for user
+   * consumption.
+   *
    * @param query_string The query string to execute
-   * @return Result<QueryResult> containing either the query results or an error status
-   * 
+   * @return Result<QueryResult> containing either the query results or an error
+   * status
+   *
    * @throws Logs error and returns error status if connection is closed
-   * 
-   * Implementation: Calls query_impl() internally, then converts CollectiveResults
-   * to QueryResult using QueryResult::From().
-   * 
+   *
+   * Implementation: Calls query_impl() internally, then converts
+   * CollectiveResults to QueryResult using QueryResult::From().
+   *
    * @since v0.1.0
    */
   result<QueryResult> Query(const std::string& query_string);
 
   /**
    * @brief Get the database schema.
-   * 
+   *
    * Returns a reference to the schema from the underlying property graph.
-   * 
+   *
    * @return const Schema& Reference to the database schema
-   * 
+   *
    * @throws std::runtime_error if the connection is closed
-   * 
-   * Implementation: Checks if connection is closed, then returns graph_.schema().
-   * 
+   *
+   * Implementation: Checks if connection is closed, then returns
+   * graph_.schema().
+   *
    * @since v0.1.0
    */
   const Schema& GetSchema() const;
 
   /**
    * @brief Close the connection and mark it as closed.
-   * 
-   * Sets the is_closed_ atomic flag to true. This method is idempotent and 
+   *
+   * Sets the is_closed_ atomic flag to true. This method is idempotent and
    * safe to call multiple times.
-   * 
+   *
    * Implementation: Uses atomic store operation to set is_closed_ flag.
    * Logs warning if already closed, otherwise logs info message.
-   * 
+   *
    * @since v0.1.0
    */
   void Close();
 
   /**
    * @brief Check if the connection is closed.
-   * 
+   *
    * @return true if the connection has been closed, false otherwise
-   * 
+   *
    * Implementation: Uses atomic load operation on is_closed_ flag.
-   * 
+   *
    * @since v0.1.0
    */
   bool IsClosed() const { return is_closed_.load(); }
@@ -142,6 +147,7 @@ class Connection {
 
   std::atomic<bool> is_closed_{false};
 };
+
 }  // namespace gs
 
-#endif  // TOOLS_PYTHON_BIND_SRC_CONNECTION_H_
+#endif  // INCLUDE_NEUG_MAIN_CONNECTION_H_

@@ -13,15 +13,27 @@
  * limitations under the License.
  */
 
-#ifndef UTILS_STRING_UTILS_H_
-#define UTILS_STRING_UTILS_H_
+#ifndef INCLUDE_NEUG_UTILS_STRING_UTILS_H_
+#define INCLUDE_NEUG_UTILS_STRING_UTILS_H_
 
+#include <cstddef>
+#include <cstdint>
+
+#include <array>
+#include <iterator>
+#include <ostream>
 #include <string>
 #include <string_view>
+#include <tuple>
+#include <type_traits>
 #include <unordered_map>
 #include <vector>
 
 #include "neug/utils/property/types.h"
+
+namespace grape {
+struct EmptyType;
+}  // namespace grape
 
 namespace gs {
 
@@ -122,8 +134,8 @@ struct to_string_impl<bool> {
 };
 
 template <>
-struct to_string_impl<unsigned long> {
-  static inline std::string to_string(const unsigned long& empty) { return std::to_string(empty); }
+struct to_string_impl<uint64_t> {
+  static inline std::string to_string(const uint64_t& empty) { return std::to_string(empty); }
 };
 
 template <>
@@ -188,4 +200,5 @@ std::string to_string(const T& t) {
 }
 
 }  // namespace gs
-#endif
+
+#endif  // INCLUDE_NEUG_UTILS_STRING_UTILS_H_

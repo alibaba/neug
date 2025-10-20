@@ -25,6 +25,7 @@
 #include "neug/compiler/extension/extension_manager.h"
 #include "neug/compiler/gopt/g_catalog.h"
 #include "neug/compiler/main/client_context.h"
+#include "neug/utils/yaml_utils.h"
 
 #if defined(_WIN32)
 #include <windows.h>

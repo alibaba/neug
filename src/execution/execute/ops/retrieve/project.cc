@@ -19,7 +19,6 @@
 #include <glog/logging.h>
 #include <google/protobuf/wrappers.pb.h>
 #include <stddef.h>
-#include <compare>
 #include <cstdint>
 
 #include <functional>
@@ -42,7 +41,6 @@
 #include "neug/execution/common/context.h"
 #include "neug/execution/common/graph_interface.h"
 #include "neug/execution/common/operators/retrieve/project.h"
-#include "neug/execution/common/rt_any.h"
 #include "neug/execution/execute/ops/retrieve/order_by_utils.h"
 #include "neug/execution/execute/ops/utils/project_utils.h"
 #include "neug/execution/utils/expr.h"
@@ -65,14 +63,75 @@ class ProjectOpr : public IReadOperator {
                  exprs_infos,
              const std::vector<std::pair<int, std::set<int>>>& dependencies,
              bool is_append)
-      : exprs_infos_(exprs_infos),
-        dependencies_(dependencies),
-        is_append_(is_append) {}
+      : dependencies_(dependencies), is_append_(is_append) {
+    is_select_columns_ = true;
+    for (auto& expr_info : exprs_infos) {
+      int tag = -1;
+      if (is_exchange_index(std::get<0>(expr_info), tag)) {
+        select_columns_mapping_.emplace_back(tag, std::get<1>(expr_info));
+      } else {
+        is_select_columns_ = false;
+        select_columns_mapping_.clear();
+        break;
+      }
+    }
+    if (is_select_columns_) {
+      return;
+    }
+    for (auto& expr_info : exprs_infos) {
+      std::unique_ptr<ProjectExprBuilderBase> builder = nullptr;
+      builder = create_dummy_getter_builder(std::get<0>(expr_info),
+                                            std::get<1>(expr_info));
+      if (builder != nullptr) {
+        expr_builders_.push_back(std::move(builder));
+        fallback_expr_builders_.push_back(
+            std::make_unique<GeneralProjectExprBuilder>(
+                std::get<0>(expr_info), std::get<2>(expr_info),
+                std::get<1>(expr_info)));
+        continue;
+      }
+
+      builder = create_vertex_property_expr_builder(std::get<0>(expr_info),
+                                                    std::get<1>(expr_info));
+      if (builder != nullptr) {
+        expr_builders_.push_back(std::move(builder));
+        fallback_expr_builders_.push_back(
+            std::make_unique<GeneralProjectExprBuilder>(
+                std::get<0>(expr_info), std::get<2>(expr_info),
+                std::get<1>(expr_info)));
+        continue;
+      }
+
+      builder = create_case_when_builder(std::get<0>(expr_info),
+                                         std::get<1>(expr_info));
+      if (builder != nullptr) {
+        expr_builders_.push_back(std::move(builder));
+        fallback_expr_builders_.push_back(
+            std::make_unique<GeneralProjectExprBuilder>(
+                std::get<0>(expr_info), std::get<2>(expr_info),
+                std::get<1>(expr_info)));
+        continue;
+      }
+      expr_builders_.push_back(std::move(builder));
+      fallback_expr_builders_.push_back(
+          std::make_unique<GeneralProjectExprBuilder>(std::get<0>(expr_info),
+                                                      std::get<2>(expr_info),
+                                                      std::get<1>(expr_info)));
+    }
+  }
+  ~ProjectOpr() {}
 
   gs::result<gs::runtime::Context> Eval(
       const gs::runtime::GraphReadInterface& graph,
       const std::map<std::string, std::string>& params,
       gs::runtime::Context&& ctx, gs::runtime::OprTimer* timer) override {
+    if (is_select_columns_) {
+      Context ret;
+      for (auto& p : select_columns_mapping_) {
+        ret.set(p.second, ctx.get(p.first));
+      }
+      return ret;
+    }
     std::vector<std::unique_ptr<ProjectExprBase>> exprs;
     std::vector<std::shared_ptr<Arena>> arenas;
     if (!dependencies_.empty()) {
@@ -83,10 +142,19 @@ class ProjectOpr : public IReadOperator {
         }
       }
     }
-    for (size_t i = 0; i < exprs_infos_.size(); ++i) {
-      const auto& [expr, alias, data_type] = exprs_infos_[i];
-      exprs.push_back(
-          create_project_expr(expr, alias, data_type, graph, ctx, params));
+
+    for (size_t i = 0; i < expr_builders_.size(); ++i) {
+      if (!expr_builders_[i]) {
+        exprs.push_back(fallback_expr_builders_[i]->build(graph, ctx, params));
+      } else {
+        auto expr = expr_builders_[i]->build(graph, ctx, params);
+        if (!expr) {
+          exprs.push_back(
+              fallback_expr_builders_[i]->build(graph, ctx, params));
+        } else {
+          exprs.push_back(std::move(expr));
+        }
+      }
     }
 
     auto ret = Project::project(std::move(ctx), exprs, is_append_);
@@ -114,11 +182,14 @@ class ProjectOpr : public IReadOperator {
   std::string get_operator_name() const override { return "ProjectOpr"; }
 
  private:
-  std::vector<
-      std::tuple<common::Expression, int, std::optional<common::IrDataType>>>
-      exprs_infos_;
   std::vector<std::pair<int, std::set<int>>> dependencies_;
   bool is_append_;
+
+  bool is_select_columns_;
+  std::vector<std::pair<int, int>> select_columns_mapping_;
+
+  std::vector<std::unique_ptr<ProjectExprBuilderBase>> expr_builders_;
+  std::vector<std::unique_ptr<ProjectExprBuilderBase>> fallback_expr_builders_;
 };
 
 gs::result<ReadOpBuildResultT> ProjectOprBuilder::Build(
@@ -231,7 +302,9 @@ class ProjectOrderByOprBeta : public IReadOperator {
         const Context&)>>
         exprs;
     for (size_t i = 0; i < exprs_infos_.size(); ++i) {
-      const auto& [expr, alias, data_type] = exprs_infos_[i];
+      const auto& expr = std::get<0>(exprs_infos_[i]);
+      const auto& alias = std::get<1>(exprs_infos_[i]);
+      const auto& data_type = std::get<2>(exprs_infos_[i]);
       exprs.push_back([expr, alias, data_type](
                           const GraphReadInterface& graph,
                           const std::map<std::string, std::string>& params,

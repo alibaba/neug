@@ -26,8 +26,8 @@
 #include "neug/execution/common/context.h"
 #include "neug/execution/common/graph_interface.h"
 #include "neug/execution/common/operators/retrieve/dedup.h"
-#include "neug/execution/common/rt_any.h"
 #include "neug/execution/utils/var.h"
+#include "neug/utils/runtime/rt_any.h"
 
 namespace gs {
 class Schema;
@@ -38,7 +38,7 @@ class OprTimer;
 namespace ops {
 class DedupOpr : public IReadOperator {
  public:
-  DedupOpr(const std::vector<size_t>& tag_ids) : tag_ids_(tag_ids) {}
+  explicit DedupOpr(const std::vector<size_t>& tag_ids) : tag_ids_(tag_ids) {}
   std::string get_operator_name() const override { return "DedupOpr"; }
 
   gs::result<gs::runtime::Context> Eval(
@@ -53,7 +53,8 @@ class DedupOpr : public IReadOperator {
 
 class DedupWithPropertyOpr : public IReadOperator {
  public:
-  DedupWithPropertyOpr(const algebra::Dedup& dedup_opr) : opr_(dedup_opr) {}
+  explicit DedupWithPropertyOpr(const algebra::Dedup& dedup_opr)
+      : opr_(dedup_opr) {}
 
   std::string get_operator_name() const override { return "DedupWithProperty"; }
 

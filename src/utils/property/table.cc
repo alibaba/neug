@@ -15,13 +15,15 @@
 
 #include "neug/utils/property/table.h"
 
-#include <assert.h>        // for assert
-#include <glog/logging.h>  // for Check_EQImpl, CHECK_EQ, CHECK, COMPACT...
-                           // for __alloc_traits<>::value_type
-#include <ostream>         // for operator<<, basic_ostream
+#include <assert.h>
+#include <glog/logging.h>
 
-#include "neug/utils/id_indexer.h"       // for IdIndexer
-#include "neug/utils/property/column.h"  // for ColumnBase, CreateColumn
+#include <ostream>
+#include <utility>
+
+#include "neug/storages/file_names.h"
+#include "neug/utils/exception/exception.h"
+#include "neug/utils/property/column.h"
 
 namespace grape {
 class OutArchive;
@@ -164,6 +166,10 @@ void Table::add_columns(const std::vector<std::string>& col_names,
                         int memory_level) {
   // When add_columns are called, the table is already initialized and col_files
   // are opened.
+  std::stringstream ss;
+  for (const auto& col_name : col_names) {
+    ss << col_name << " ";
+  }
   size_t old_size = columns_.size();
   columns_.resize(old_size + col_names.size());
 
@@ -354,8 +360,18 @@ void Table::ingest(uint32_t index, grape::OutArchive& arc) {
   }
 
   CHECK_GT(row_num(), index);
-  for (auto col : column_ptrs_) {
-    col->ingest(index, arc);
+  uint32_t num_updates;
+  arc >> num_updates;
+  for (uint32_t i = 0; i < num_updates; ++i) {
+    uint32_t col_id;
+    arc >> col_id;
+    if (col_id >= column_ptrs_.size()) {
+      THROW_INTERNAL_EXCEPTION(
+          "Column id out of range: " + std::to_string(col_id) +
+          " >= " + std::to_string(column_ptrs_.size()) + "Table::ingest");
+      continue;
+    }
+    column_ptrs_[col_id]->ingest(index, arc);
   }
 }
 
@@ -377,7 +393,7 @@ void Table::close() {
 
 void Table::drop() {
   close();
-  // TODO: delete files in work_dir
+  // TODO(zhanglei): delete files in work_dir
 }
 
 void Table::set_name(const std::string& name) { name_ = name; }

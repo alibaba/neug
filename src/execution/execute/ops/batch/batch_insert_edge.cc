@@ -24,7 +24,6 @@
 #include "neug/execution/common/graph_interface.h"
 #include "neug/execution/execute/ops/batch/batch_insert_edge.h"
 #include "neug/storages/graph/schema.h"
-#include "neug/storages/loader/abstract_arrow_fragment_loader.h"
 #include "neug/transaction/update_transaction.h"
 #include "neug/utils/pb_utils.h"
 
@@ -73,13 +72,13 @@ class BatchInsertEdgeOpr : public IUpdateOperator {
 
 class InsertEdgeOpr : public IUpdateOperator {
  public:
-  using edge_prop_vec_t = std::vector<std::pair<std::string, Any>>;
+  using edge_prop_vec_t = std::vector<std::pair<std::string, std::string>>;
   using edge_triplet_t =
       std::tuple<label_t, label_t, label_t>;  // edge, src, dst
   using edge_data_t =
       std::tuple<edge_triplet_t, int32_t, int32_t, edge_prop_vec_t>;
   // type_triplet, src_vertex_bindings, dst_vertex_bindings, edge_properties
-  InsertEdgeOpr(std::vector<edge_data_t>&& edge_data)
+  explicit InsertEdgeOpr(std::vector<edge_data_t>&& edge_data)
       : edge_data_(std::move(edge_data)) {}
 
   std::string get_operator_name() const override { return "InsertEdgeOpr"; }
@@ -117,48 +116,13 @@ gs::result<Context> BatchInsertEdgeOpr::Eval(
   }
   auto suppliers = create_record_batch_supplier(ctx, total_mappings);
 
-  std::string work_dir = (graph.work_dir() == "" ? "." : graph.work_dir());
-  auto src_label_name = graph.schema().get_vertex_label_name(src_label_id_);
-  auto dst_label_name = graph.schema().get_vertex_label_name(dst_label_id_);
-  auto edge_type_name = graph.schema().get_edge_label_name(edge_label_id_);
-  // const auto& src_indexer = graph.GetVertexIndexer(src_label_id_);
-  // const auto& dst_indexer = graph.GetVertexIndexer(dst_label_id_);
-  work_dir +=
-      "/" + edata_prefix(src_label_name, dst_label_name, edge_type_name) + "/";
-  if (std::filesystem::exists(work_dir)) {
-    std::filesystem::remove_all(work_dir);
-  }
-  auto src_indexer = [&](const Any& pk) {
-    vid_t lid;
-    if (!graph.GetVertexIndex(src_label_id_, pk, lid)) {
-      return std::numeric_limits<vid_t>::max();
+  for (auto& supplier : suppliers) {
+    if (!graph
+             .batch_add_edges(src_label_id_, dst_label_id_, edge_label_id_,
+                              supplier)
+             .ok()) {
+      THROW_INTERNAL_EXCEPTION("Failed to add edges");
     }
-    return lid;
-  };
-  auto dst_indexer = [&](const Any& pk) {
-    vid_t lid;
-    if (!graph.GetVertexIndex(dst_label_id_, pk, lid)) {
-      return std::numeric_limits<vid_t>::max();
-    }
-    return lid;
-  };
-  auto res = AbstractArrowFragmentLoader::batch_load_edges(
-      graph.schema(), work_dir, src_label_id_, dst_label_id_, edge_label_id_,
-      src_indexer, dst_indexer, graph.GetVertexNum(src_label_id_),
-      graph.GetVertexNum(dst_label_id_), suppliers);
-
-  if (!res) {
-    RETURN_ERROR(res.error());
-  }
-  auto [parsed_edges, table] = std::move(res.value());
-  if (!graph
-           .batch_add_edges(src_label_id_, dst_label_id_, edge_label_id_,
-                            std::move(parsed_edges), std::move(table))
-           .ok()) {
-    THROW_INTERNAL_EXCEPTION("Failed to add edges");
-  }
-  if (std::filesystem::exists(work_dir)) {
-    std::filesystem::remove_all(work_dir);
   }
   return gs::result<Context>(std::move(ctx));
 }
@@ -320,7 +284,9 @@ gs::result<Context> InsertEdgeOpr::eval_impl(
 
     auto edge_properties_name = graph.schema().get_edge_property_names(
         src_label_id, dst_label_id, edge_label_id);
-    std::vector<Any> edge_properties_ordered;
+    const auto& edge_properties_type = graph.schema().get_edge_properties(
+        src_label_id, dst_label_id, edge_label_id);
+    std::vector<Prop> edge_properties_ordered;
     edge_properties_ordered.resize(edge_properties.size());
     for (const auto& prop : edge_properties) {
       auto it = std::find(edge_properties_name.begin(),
@@ -343,12 +309,13 @@ gs::result<Context> InsertEdgeOpr::eval_impl(
             gs::StatusCode::ERR_INTERNAL_ERROR,
             "Edge property index out of range in edge type from source to ");
       }
-      if (edge_properties_ordered[idx].type != PropertyType::Empty()) {
+      if (edge_properties_ordered[idx].type() != PropType::kEmpty) {
         THROW_RUNTIME_ERROR(
             "InsertEdgeOpr::eval_impl: edge property already set at index " +
             std::to_string(idx) + ", property name: " + prop.first);
       }
-      edge_properties_ordered[idx] = prop.second;
+      edge_properties_ordered[idx] = parse_property_from_string(
+          to_prop_type(edge_properties_type[idx]), prop.second);
     }
     // Now we have all the information we need to insert the edges.
     for (size_t i = 0; i < src_size; ++i) {
@@ -374,17 +341,10 @@ gs::result<Context> InsertEdgeOpr::eval_impl(
                "id is invalid";
         continue;
       }
-      bool insert_res = false;
-      if (edge_properties_ordered.size() == 1) {
-        insert_res =
-            graph.AddEdge(src_label_id, src_vertex, dst_label_id, dst_vertex,
-                          edge_label_id, edge_properties_ordered[0]);
-      } else {
-        Record record(edge_properties_ordered);
-        insert_res =
-            graph.AddEdge(src_label_id, src_vertex, dst_label_id, dst_vertex,
-                          edge_label_id, Any::From(record));
-      }
+      bool insert_res =
+          graph.AddEdge(src_label_id, src_vertex, dst_label_id, dst_vertex,
+                        edge_label_id, edge_properties_ordered);
+
       if (!insert_res) {
         THROW_RUNTIME_ERROR(
             "InsertEdgeOpr::eval_impl: failed to add edge from " +
@@ -399,7 +359,7 @@ gs::result<Context> InsertEdgeOpr::eval_impl(
 std::unique_ptr<IUpdateOperator> InsertEdgeOprBuilder::Build(
     const Schema& schema, const physical::PhysicalPlan& plan, int op_idx) {
   auto& opr = plan.query_plan().plan(op_idx).opr().create_edge();
-  LOG(INFO) << "InsertEdgeOprBuilder::Build: opr = " << opr.DebugString();
+  VLOG(10) << "InsertEdgeOprBuilder::Build: opr = " << opr.DebugString();
   std::vector<InsertEdgeOpr::edge_data_t> edge_data;
   for (const auto& edge : opr.entries()) {
     auto edge_triplet = std::make_tuple(edge.edge_type().type_name().id(),
@@ -407,7 +367,7 @@ std::unique_ptr<IUpdateOperator> InsertEdgeOprBuilder::Build(
                                         edge.edge_type().dst_type_name().id());
     auto src_vertex_mapping = edge.source_vertex_binding().id();
     auto dst_vertex_mapping = edge.destination_vertex_binding().id();
-    std::vector<std::pair<std::string, Any>> edge_properties;
+    std::vector<std::pair<std::string, std::string>> edge_properties;
     for (const auto& prop : edge.property_mappings()) {
       if (prop.data().operators_size() != 1) {
         THROW_RUNTIME_ERROR(
@@ -416,7 +376,7 @@ std::unique_ptr<IUpdateOperator> InsertEdgeOprBuilder::Build(
       }
       edge_properties.emplace_back(
           prop.property().key().name(),
-          expr_opr_value_to_any(prop.data().operators(0)));
+          expr_opr_to_string(prop.data().operators(0)));
     }
     edge_data.emplace_back(edge_triplet, src_vertex_mapping, dst_vertex_mapping,
                            edge_properties);

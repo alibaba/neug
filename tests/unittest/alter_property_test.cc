@@ -28,7 +28,6 @@
 #include "neug/storages/csr/csr_base.h"
 #include "neug/storages/graph/property_graph.h"
 #include "neug/storages/graph/schema.h"
-#include "neug/storages/loader/abstract_arrow_fragment_loader.h"
 #include "neug/storages/loader/loader_utils.h"
 #include "neug/utils/arrow_utils.h"
 #include "neug/utils/property/types.h"
@@ -150,15 +149,8 @@ void testLoadVertexBatch(PropertyGraph& graph, std::string vertex_type_name,
   }
   auto supplier = std::make_shared<CSVStreamRecordBatchSupplier>(
       v_file, convert_options, read_options, parse_options);
-  std::vector<std::shared_ptr<IRecordBatchSupplier>> suppliers;
-  suppliers.emplace_back(
-      std::dynamic_pointer_cast<IRecordBatchSupplier>(supplier));
-  auto res = AbstractArrowFragmentLoader::batch_load_vertices(
-      graph.schema(), graph.work_dir(), v_label, suppliers);
-  CHECK(res);
-  auto [ids, table] = std::move(res.value());
-  CHECK(graph.batch_add_vertices(v_label, std::move(ids), std::move(table), 0)
-            .ok());
+  auto casted = std::dynamic_pointer_cast<IRecordBatchSupplier>(supplier);
+  CHECK(graph.batch_add_vertices(v_label, casted).ok());
 }
 
 void testLoadEdgeBatch(PropertyGraph& graph, std::string src_vertex_type,
@@ -268,26 +260,8 @@ void testLoadEdgeBatch(PropertyGraph& graph, std::string src_vertex_type,
   auto supplier = std::make_shared<CSVStreamRecordBatchSupplier>(
       e_file, convert_options, read_options, parse_options);
   std::vector<std::shared_ptr<IRecordBatchSupplier>> suppliers;
-  suppliers.emplace_back(
-      std::dynamic_pointer_cast<IRecordBatchSupplier>(supplier));
-  const auto& src_indexer = graph.vertex_tables_[src_label_id].get_indexer();
-  const auto& dst_indexer = graph.vertex_tables_[dst_label_id].get_indexer();
-  auto src_indexer_func = [&](const Any& id) {
-    return src_indexer.get_index(id);
-  };
-  auto dst_indexer_func = [&](const Any& id) {
-    return dst_indexer.get_index(id);
-  };
-
-  auto res = AbstractArrowFragmentLoader::batch_load_edges(
-      graph.schema(), graph.work_dir(), src_label_id, dst_label_id, e_label_id,
-      src_indexer_func, dst_indexer_func, graph.vertex_num(src_label_id),
-      graph.vertex_num(dst_label_id), suppliers);
-  CHECK(res);
-  auto [parsed_edges, table] = std::move(res.value());
-  CHECK(graph
-            .batch_add_edges(src_label_id, dst_label_id, e_label_id,
-                             std::move(parsed_edges), std::move(table))
+  auto casted = std::dynamic_pointer_cast<IRecordBatchSupplier>(supplier);
+  CHECK(graph.batch_add_edges(src_label_id, dst_label_id, e_label_id, casted)
             .ok());
 }
 
@@ -368,12 +342,13 @@ void testOpenEmptyGraph(const std::string& graph_dir,
   {
     LOG(INFO) << "Start to traverse edge 1";
     auto person_num = graph.vertex_num(0, MAX_TIMESTAMP);
+    auto generic_view = graph.GetGenericOutgoingGraphView(0, 0, 0);
+    auto ed_accessor = graph.GetEdgeDataAccessor(0, 0, 0, 0);
     for (vid_t i = 0; i < person_num; i++) {
-      auto adj_list = graph.get_outgoing_edges(0, i, 0, 0);
-      while (adj_list->is_valid()) {
-        LOG(INFO) << "edge " << i << " " << adj_list->get_neighbor() << " "
-                  << adj_list->get_data().to_string();
-        adj_list->next();
+      auto adj_list = generic_view.get_edges(i);
+      for (auto nbr = adj_list.begin(); nbr != adj_list.end(); ++nbr) {
+        LOG(INFO) << "edge " << i << " " << nbr.get_vertex()
+                  << ", data: " << ed_accessor.get_data(nbr).to_string();
       }
     }
   }
@@ -395,12 +370,13 @@ void testOpenEmptyGraph(const std::string& graph_dir,
   {
     LOG(INFO) << "Start to traverse edge 2";
     auto person_num = graph.vertex_num(0);
+    auto generic_view = graph.GetGenericOutgoingGraphView(0, 0, 0);
+    auto ed_accessor = graph.GetEdgeDataAccessor(0, 0, 0, 0);
     for (vid_t i = 0; i < person_num; i++) {
-      auto adj_list = graph.get_outgoing_edges(0, i, 0, 0);
-      while (adj_list->is_valid()) {
-        LOG(INFO) << "edge " << i << " " << adj_list->get_neighbor() << " "
-                  << adj_list->get_data().AsRecordView().to_string();
-        adj_list->next();
+      auto adj_list = generic_view.get_edges(i);
+      for (auto nbr = adj_list.begin(); nbr != adj_list.end(); ++nbr) {
+        LOG(INFO) << "edge " << i << " " << nbr.get_vertex()
+                  << ", data: " << ed_accessor.get_data(nbr).to_string();
       }
     }
   }

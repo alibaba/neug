@@ -16,6 +16,7 @@
 #include <gtest/gtest.h>
 #include <iostream>
 #include <string>
+#include "neug/main/connection.h"
 #include "neug/main/neug_db.h"
 #include "neug/storages/file_names.h"
 #include "neug/storages/graph/schema.h"
@@ -196,10 +197,9 @@ TEST(DatabaseTest, TestUpdateRecordView) {
         "2 CREATE (u1)-[:knows {weight: 0.5, since: 2020}]->(u2);"));
 
     auto txn = db.GetUpdateTransaction(0);
-    std::vector<gs::Any> props = {gs::Any::From<double>(0.8),
-                                  gs::Any::From<int64_t>(2021)};
-    gs::Record record(props);
-    CHECK(txn.AddEdge(0, 0, 0, 2, 0, record));
+    std::vector<gs::Prop> props = {gs::Prop::from_double(0.8),
+                                   gs::Prop::from_int64(2021)};
+    CHECK(txn.AddEdge(0, 0, 0, 2, 0, props));
     CHECK(txn.Commit());
 
     auto res = conn->Query(
@@ -214,10 +214,11 @@ TEST(DatabaseTest, TestUpdateRecordView) {
     EXPECT_EQ(row2.ToString(), "<element { object { f64: 0.8 } }>");
 
     // Now update the property with whole new record
-    props = {gs::Any::From<double>(0.9), gs::Any::From<int64_t>(2022)};
-    record = gs::Record(props);
+    props = {gs::Prop::from_double(0.9), gs::Prop::from_int64(2022)};
     auto txn2 = db.GetUpdateTransaction(0);
-    txn2.SetEdgeData(true, 0, 0, 0, 2, 0, record, -1);
+    for (size_t i = 0; i < props.size(); ++i) {
+      txn2.SetEdgeData(true, 0, 0, 0, 2, 0, props[i], i);
+    }
     CHECK(txn2.Commit());
 
     res = conn->Query(

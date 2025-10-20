@@ -13,25 +13,23 @@
  * limitations under the License.
  */
 
-#ifndef NEUG_MAIN_APP_MANAGER_H_
-#define NEUG_MAIN_APP_MANAGER_H_
+#ifndef INCLUDE_NEUG_MAIN_APP_MANAGER_H_
+#define INCLUDE_NEUG_MAIN_APP_MANAGER_H_
 
+#include <stdint.h>
+#include <algorithm>
 #include <array>
 #include <memory>
 #include <string>
-#include <unordered_map>
 
 #include "neug/main/app/app_base.h"
-#include "neug/main/app/cypher_read_app.h"
-#include "neug/main/app/cypher_update_app.h"
-#include "neug/storages/graph/schema.h"
 
 namespace gs {
 
 class NeugDB;
 class AppManager {
  public:
-  AppManager(NeugDB& db) : db_(db) {
+  explicit AppManager(NeugDB& db) : db_(db) {
     app_paths_.fill("");
     app_factories_.fill(nullptr);
   }
@@ -51,6 +49,7 @@ class AppManager {
   std::array<std::string, 256> app_paths_;
   std::array<std::shared_ptr<AppFactoryBase>, 256> app_factories_;
 };
+
 }  // namespace gs
 
-#endif  // NEUG_MAIN_APP_MANAGER_H_
+#endif  // INCLUDE_NEUG_MAIN_APP_MANAGER_H_

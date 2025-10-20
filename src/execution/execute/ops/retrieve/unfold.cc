@@ -34,7 +34,7 @@ class OprTimer;
 namespace ops {
 class UnfoldOpr : public IReadOperator {
  public:
-  UnfoldOpr(const physical::Unfold& opr)
+  explicit UnfoldOpr(const physical::Unfold& opr)
       : opr_(opr), tag_(opr.tag().value()), alias_(opr.alias().value()) {}
 
   std::string get_operator_name() const override { return "UnfoldOpr"; }

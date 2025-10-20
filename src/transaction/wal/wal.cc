@@ -17,8 +17,8 @@
 
 #include <glog/logging.h>
 #include <memory>
-#include <ostream>
 #include <regex>
+#include <sstream>
 #include <utility>
 
 #include "neug/storages/file_names.h"

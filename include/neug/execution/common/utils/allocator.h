@@ -13,12 +13,14 @@
  * limitations under the License.
  */
 
-#ifndef EXECUTION_COMMON_UTILS_ALLOCATOR_H_
-#define EXECUTION_COMMON_UTILS_ALLOCATOR_H_
+#ifndef INCLUDE_NEUG_EXECUTION_COMMON_UTILS_ALLOCATOR_H_
+#define INCLUDE_NEUG_EXECUTION_COMMON_UTILS_ALLOCATOR_H_
 
 #include <stdlib.h>
 #include <sys/mman.h>
+
 #include <limits>
+#include <memory>
 
 #include <glog/logging.h>
 
@@ -130,4 +132,4 @@ template <typename T>
 using SPAllocator = std::allocator<T>;
 #endif
 
-#endif  // EXECUTION_COMMON_UTILS_ALLOCATOR_H_
+#endif  // INCLUDE_NEUG_EXECUTION_COMMON_UTILS_ALLOCATOR_H_

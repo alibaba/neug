@@ -30,7 +30,6 @@
 #include "neug/execution/common/columns/i_context_column.h"
 #include "neug/execution/common/columns/vertex_columns.h"
 #include "neug/execution/common/context.h"
-#include "neug/execution/common/rt_any.h"
 #include "neug/utils/app_utils.h"
 #include "neug/utils/property/types.h"
 #include "neug/utils/result.h"

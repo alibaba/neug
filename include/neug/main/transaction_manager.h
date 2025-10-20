@@ -13,17 +13,31 @@
  * limitations under the License.
  */
 
-#ifndef NEUG_TRANSACTION_TRANSACTION_MANAGER_H_
-#define NEUG_TRANSACTION_TRANSACTION_MANAGER_H_
+#ifndef INCLUDE_NEUG_MAIN_TRANSACTION_MANAGER_H_
+#define INCLUDE_NEUG_MAIN_TRANSACTION_MANAGER_H_
+
+#include <stddef.h>
+#include <stdint.h>
+#include <memory>
+#include <string>
+#include <utility>
 
 #include "neug/config.h"
-#include "neug/storages/graph/property_graph.h"
 #include "neug/main/neug_db_session.h"
-#include "neug/transaction/version_manager.h"
+#include "neug/storages/file_names.h"
+#include "neug/transaction/compact_transaction.h"
+#include "neug/transaction/insert_transaction.h"
+#include "neug/transaction/read_transaction.h"
+#include "neug/transaction/update_transaction.h"
 #include "neug/transaction/wal/wal.h"
 #include "neug/utils/allocators.h"
+#include "neug/utils/mmap_array.h"
 
 namespace gs {
+
+class AppManager;
+class IVersionManager;
+class PropertyGraph;
 
 struct SessionLocalContext {
   SessionLocalContext(PropertyGraph& graph_, AppManager& app_manager,
@@ -129,6 +143,7 @@ class TransactionManager {
 
   SessionLocalContext* contexts_;
 };
+
 }  // namespace gs
 
-#endif  // ENGINES_GRAPH_DB_DATABASE_TRANSACTION_MANAGER_H_
+#endif  // INCLUDE_NEUG_MAIN_TRANSACTION_MANAGER_H_

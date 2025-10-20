@@ -25,68 +25,67 @@ gs::result<Context> ExtensionInstallOpr::Eval(
     GraphUpdateInterface& graph,
     const std::map<std::string, std::string>& params, Context&& ctx,
     OprTimer* timer) {
-        
-    LOG(INFO) << "[Admin Pipeline] Executing ExtensionInstall for: " << extension_name_;
+  LOG(INFO) << "[Admin Pipeline] Executing ExtensionInstall for: "
+            << extension_name_;
 
-    auto status = gs::extension::install_extension(extension_name_);
-    if (!status.ok()) {
-        THROW_EXCEPTION_WITH_FILE_LINE("Install failed: " + status.ToString() + "; ");
-    }
-    return gs::result<Context>(std::move(ctx));
+  auto status = gs::extension::install_extension(extension_name_);
+  if (!status.ok()) {
+    THROW_EXCEPTION_WITH_FILE_LINE("Install failed: " + status.ToString() +
+                                   "; ");
+  }
+  return gs::result<Context>(std::move(ctx));
 }
 
 gs::result<Context> ExtensionLoadOpr::Eval(
     GraphUpdateInterface& graph,
     const std::map<std::string, std::string>& params, Context&& ctx,
     OprTimer* timer) {
+  LOG(INFO) << "[Admin Pipeline] Executing ExtensionLoad for: "
+            << extension_name_;
 
-    LOG(INFO) << "[Admin Pipeline] Executing ExtensionLoad for: " << extension_name_;
-
-    auto status = gs::extension::load_extension(extension_name_);
-    if (!status.ok()) {
-        THROW_EXCEPTION_WITH_FILE_LINE("Load failed: " + status.ToString() + "; ");
-    }
-    return gs::result<Context>(std::move(ctx));
+  auto status = gs::extension::load_extension(extension_name_);
+  if (!status.ok()) {
+    THROW_EXCEPTION_WITH_FILE_LINE("Load failed: " + status.ToString() + "; ");
+  }
+  return gs::result<Context>(std::move(ctx));
 }
 
 gs::result<Context> ExtensionUninstallOpr::Eval(
     GraphUpdateInterface& graph,
     const std::map<std::string, std::string>& params, Context&& ctx,
     OprTimer* timer) {
-    
-    LOG(INFO) << "[Admin Pipeline] Executing ExtensionUninstall for: " << extension_name_;
+  LOG(INFO) << "[Admin Pipeline] Executing ExtensionUninstall for: "
+            << extension_name_;
 
-    auto status = gs::extension::uninstall_extension(extension_name_);
-    if (!status.ok()) {
-        THROW_EXCEPTION_WITH_FILE_LINE("Uninstall failed: " + status.ToString() + "; ");
-    }
-    return gs::result<Context>(std::move(ctx));
+  auto status = gs::extension::uninstall_extension(extension_name_);
+  if (!status.ok()) {
+    THROW_EXCEPTION_WITH_FILE_LINE("Uninstall failed: " + status.ToString() +
+                                   "; ");
+  }
+  return gs::result<Context>(std::move(ctx));
 }
 
 // Builders
 std::unique_ptr<IAdminOperator> ExtensionInstallOprBuilder::Build(
     const Schema& schema, const physical::AdminPlan& plan, int op_idx) {
-
   const auto& op = plan.plan(op_idx);
-  return std::make_unique<ExtensionInstallOpr>(op.ext_install().extension_name());
+  return std::make_unique<ExtensionInstallOpr>(
+      op.ext_install().extension_name());
 }
 
 std::unique_ptr<IAdminOperator> ExtensionLoadOprBuilder::Build(
     const Schema& schema, const physical::AdminPlan& plan, int op_idx) {
-
   const auto& op = plan.plan(op_idx);
   return std::make_unique<ExtensionLoadOpr>(op.ext_load().extension_name());
 }
 
 std::unique_ptr<IAdminOperator> ExtensionUninstallOprBuilder::Build(
     const Schema& schema, const physical::AdminPlan& plan, int op_idx) {
-
   const auto& op = plan.plan(op_idx);
-  return std::make_unique<ExtensionUninstallOpr>(op.ext_uninstall().extension_name());
+  return std::make_unique<ExtensionUninstallOpr>(
+      op.ext_uninstall().extension_name());
 }
 
-} // namespace ops
-} // namespace runtime
-} // namespace gs
-
-    
+}  // namespace ops
+}  // namespace runtime
+}  // namespace gs

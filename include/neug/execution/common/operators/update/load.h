@@ -13,8 +13,12 @@
  * limitations under the License.
  */
 
-#ifndef EXECUTION_COMMON_OPERATORS_UPDATE_LOAD_H_
-#define EXECUTION_COMMON_OPERATORS_UPDATE_LOAD_H_
+#ifndef INCLUDE_NEUG_EXECUTION_COMMON_OPERATORS_UPDATE_LOAD_H_
+#define INCLUDE_NEUG_EXECUTION_COMMON_OPERATORS_UPDATE_LOAD_H_
+
+#include <tuple>
+#include <utility>
+#include <vector>
 
 #include "neug/execution/common/context.h"
 #include "neug/utils/result.h"
@@ -38,7 +42,7 @@ class Load {
       for (int i = 0; i < ctxs.row_num(); i++) {
         graph.AddEdge(src_label_id, src.get(i).to_any(src_pk_type),
                       dst_label_id, dst.get(i).to_any(dst_pk_type),
-                      edge_label_id, Any());
+                      edge_label_id, {});
       }
     } else {
       auto& src = ctxs.get(src_index);
@@ -47,7 +51,7 @@ class Load {
       for (int i = 0; i < ctxs.row_num(); i++) {
         graph.AddEdge(src_label_id, src.get(i).to_any(src_pk_type),
                       dst_label_id, dst.get(i).to_any(dst_pk_type),
-                      edge_label_id, prop.get(i).to_any(edge_prop_type));
+                      edge_label_id, {prop.get(i).to_prop(edge_prop_type)});
       }
     }
     return ctxs;
@@ -67,9 +71,10 @@ class Load {
 
     for (int row = 0; row < row_num; ++row) {
       const auto& id = id_c.get(row).to_any(pk_type);
-      std::vector<Any> props;
+      std::vector<Prop> props;
       for (size_t j = 0; j < properties.size(); ++j) {
-        props.push_back(ctxs.get(properties[j]).get(row).to_any(prop_types[j]));
+        props.push_back(
+            ctxs.get(properties[j]).get(row).to_prop(prop_types[j]));
       }
       graph.AddVertex(label, id, props);
     }
@@ -105,10 +110,10 @@ class Load {
       auto& prop_types = graph.schema().get_vertex_properties(label);
       for (int row = 0; row < row_num; ++row) {
         const auto& id = id_c.get(row).to_any(pk_type);
-        std::vector<Any> props;
+        std::vector<Prop> props;
         for (size_t j = 0; j < properties.size(); ++j) {
           props.push_back(
-              ctxs.get(properties[j]).get(row).to_any(prop_types[j]));
+              ctxs.get(properties[j]).get(row).to_prop(prop_types[j]));
         }
         graph.AddVertex(label, id, props);
       }
@@ -134,4 +139,4 @@ class Load {
 
 }  // namespace gs
 
-#endif  // EXECUTION_COMMON_OPERATORS_UPDATE_LOAD_H_
+#endif  // INCLUDE_NEUG_EXECUTION_COMMON_OPERATORS_UPDATE_LOAD_H_

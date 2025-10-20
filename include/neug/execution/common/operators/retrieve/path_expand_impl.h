@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 
-#ifndef EXECUTION_COMMON_OPERATORS_RETRIEVE_PATH_EXPAND_IMPL_H_
-#define EXECUTION_COMMON_OPERATORS_RETRIEVE_PATH_EXPAND_IMPL_H_
+#ifndef INCLUDE_NEUG_EXECUTION_COMMON_OPERATORS_RETRIEVE_PATH_EXPAND_IMPL_H_
+#define INCLUDE_NEUG_EXECUTION_COMMON_OPERATORS_RETRIEVE_PATH_EXPAND_IMPL_H_
 
 #include <glog/logging.h>
 #include <stddef.h>
@@ -37,20 +37,19 @@
 #include "neug/execution/common/columns/value_columns.h"
 #include "neug/execution/common/columns/vertex_columns.h"
 #include "neug/execution/common/graph_interface.h"
-#include "neug/execution/common/rt_any.h"
 #include "neug/execution/common/types.h"
 #include "neug/storages/graph/schema.h"
 #include "neug/utils/property/types.h"
+#include "neug/utils/runtime/rt_any.h"
 
 namespace gs {
 namespace runtime {
 class IContextColumn;
 
-template <typename EDATA_T>
-std::pair<std::shared_ptr<IContextColumn>, std::vector<size_t>>
-iterative_expand_vertex_on_graph_view(
-    const GraphReadInterface::graph_view_t<EDATA_T>& view,
-    const SLVertexColumn& input, int lower, int upper) {
+inline std::pair<std::shared_ptr<IContextColumn>, std::vector<size_t>>
+iterative_expand_vertex_on_graph_view(const GenericView& view,
+                                      const SLVertexColumn& input, int lower,
+                                      int upper) {
   int input_label = input.label();
   MSVertexColumnBuilder builder(input_label);
   std::vector<size_t> offsets;
@@ -91,25 +90,17 @@ iterative_expand_vertex_on_graph_view(
           builder.push_back_opt(pair.first);
           offsets.push_back(pair.second);
 
-          if (!view.is_null()) {
-            auto es = view.get_edges(pair.first);
-            for (auto& e : es) {
-              output_list.emplace_back(e.get_neighbor(), pair.second);
-            }
-          } else {
-            VLOG(1) << "view is null";
+          auto es = view.get_edges(pair.first);
+          for (auto it = es.begin(); it != es.end(); ++it) {
+            output_list.emplace_back(it.get_vertex(), pair.second);
           }
         }
       }
     } else if (depth < lower) {
       for (auto& pair : input_list) {
-        if (!view.is_null()) {
-          auto es = view.get_edges(pair.first);
-          for (auto& e : es) {
-            output_list.emplace_back(e.get_neighbor(), pair.second);
-          }
-        } else {
-          VLOG(1) << "view is null";
+        auto es = view.get_edges(pair.first);
+        for (auto it = es.begin(); it != es.end(); ++it) {
+          output_list.emplace_back(it.get_vertex(), pair.second);
         }
       }
     }
@@ -119,12 +110,11 @@ iterative_expand_vertex_on_graph_view(
   return std::make_pair(builder.finish(), std::move(offsets));
 }
 
-template <typename EDATA_T>
-std::pair<std::shared_ptr<IContextColumn>, std::vector<size_t>>
-iterative_expand_vertex_on_dual_graph_view(
-    const GraphReadInterface::graph_view_t<EDATA_T>& iview,
-    const GraphReadInterface::graph_view_t<EDATA_T>& oview,
-    const SLVertexColumn& input, int lower, int upper) {
+inline std::pair<std::shared_ptr<IContextColumn>, std::vector<size_t>>
+iterative_expand_vertex_on_dual_graph_view(const GenericView& iview,
+                                           const GenericView& oview,
+                                           const SLVertexColumn& input,
+                                           int lower, int upper) {
   int input_label = input.label();
   MSVertexColumnBuilder builder(input_label);
   std::vector<size_t> offsets;
@@ -166,24 +156,24 @@ iterative_expand_vertex_on_dual_graph_view(
           offsets.push_back(pair.second);
 
           auto ies = iview.get_edges(pair.first);
-          for (auto& e : ies) {
-            output_list.emplace_back(e.get_neighbor(), pair.second);
+          for (auto it = ies.begin(); it != ies.end(); ++it) {
+            output_list.emplace_back(it.get_vertex(), pair.second);
           }
           auto oes = oview.get_edges(pair.first);
-          for (auto& e : oes) {
-            output_list.emplace_back(e.get_neighbor(), pair.second);
+          for (auto it = oes.begin(); it != oes.end(); ++it) {
+            output_list.emplace_back(it.get_vertex(), pair.second);
           }
         }
       }
     } else if (depth < lower) {
       for (auto& pair : input_list) {
         auto ies = iview.get_edges(pair.first);
-        for (auto& e : ies) {
-          output_list.emplace_back(e.get_neighbor(), pair.second);
+        for (auto it = ies.begin(); it != ies.end(); ++it) {
+          output_list.emplace_back(it.get_vertex(), pair.second);
         }
         auto oes = oview.get_edges(pair.first);
-        for (auto& e : oes) {
-          output_list.emplace_back(e.get_neighbor(), pair.second);
+        for (auto it = oes.begin(); it != oes.end(); ++it) {
+          output_list.emplace_back(it.get_vertex(), pair.second);
         }
       }
     }
@@ -199,11 +189,11 @@ path_expand_vertex_without_predicate_impl(
     const std::vector<LabelTriplet>& labels, Direction dir, int lower,
     int upper);
 
-template <typename EDATA_T, typename PRED_T>
-void sssp_dir(const GraphReadInterface::graph_view_t<EDATA_T>& view,
-              label_t v_label, vid_t v, label_t e_label,
-              const GraphReadInterface::vertex_set_t& vertices, size_t idx,
-              int lower, int upper, MSVertexColumnBuilder& dest_col_builder,
+template <typename PRED_T>
+void sssp_dir(const GenericView& view, label_t v_label, vid_t v,
+              label_t e_label, const GraphReadInterface::vertex_set_t& vertices,
+              size_t idx, int lower, int upper,
+              MSVertexColumnBuilder& dest_col_builder,
               GeneralPathColumnBuilder& path_col_builder, Arena& path_impls,
               std::vector<size_t>& offsets, const PRED_T& pred) {
   std::vector<vid_t> cur;
@@ -217,7 +207,7 @@ void sssp_dir(const GraphReadInterface::graph_view_t<EDATA_T>& view,
     if (depth >= lower) {
       if (depth == upper - 1) {
         for (auto u : cur) {
-          if (pred(v_label, u)) {
+          if (pred(v_label, u, idx)) {
             std::vector<vid_t> path(depth + 1);
             vid_t x = u;
             for (int i = 0; i <= depth; ++i) {
@@ -234,7 +224,7 @@ void sssp_dir(const GraphReadInterface::graph_view_t<EDATA_T>& view,
         }
       } else {
         for (auto u : cur) {
-          if (pred(v_label, u)) {
+          if (pred(v_label, u, idx)) {
             std::vector<vid_t> path(depth + 1);
             vid_t x = u;
             for (int i = 0; i <= depth; ++i) {
@@ -248,8 +238,9 @@ void sssp_dir(const GraphReadInterface::graph_view_t<EDATA_T>& view,
             path_impls.emplace_back(std::move(impl));
             offsets.push_back(idx);
           }
-          for (auto& e : view.get_edges(u)) {
-            auto nbr = e.get_neighbor();
+          auto es = view.get_edges(u);
+          for (auto it = es.begin(); it != es.end(); ++it) {
+            auto nbr = it.get_vertex();
             if (parent[nbr] == GraphReadInterface::kInvalidVid) {
               parent[nbr] = u;
               next.push_back(nbr);
@@ -259,8 +250,9 @@ void sssp_dir(const GraphReadInterface::graph_view_t<EDATA_T>& view,
       }
     } else {
       for (auto u : cur) {
-        for (auto& e : view.get_edges(u)) {
-          auto nbr = e.get_neighbor();
+        auto es = view.get_edges(u);
+        for (auto it = es.begin(); it != es.end(); ++it) {
+          auto nbr = it.get_vertex();
           if (parent[nbr] == GraphReadInterface::kInvalidVid) {
             parent[nbr] = u;
             next.push_back(nbr);
@@ -274,9 +266,8 @@ void sssp_dir(const GraphReadInterface::graph_view_t<EDATA_T>& view,
   }
 }
 
-template <typename EDATA_T, typename PRED_T>
-void sssp_both_dir(const GraphReadInterface::graph_view_t<EDATA_T>& view0,
-                   const GraphReadInterface::graph_view_t<EDATA_T>& view1,
+template <typename PRED_T>
+void sssp_both_dir(const GenericView& view0, const GenericView& view1,
                    label_t v_label, vid_t v, label_t e_label,
                    const GraphReadInterface::vertex_set_t& vertices, size_t idx,
                    int lower, int upper,
@@ -295,7 +286,7 @@ void sssp_both_dir(const GraphReadInterface::graph_view_t<EDATA_T>& view0,
     if (depth >= lower) {
       if (depth == upper - 1) {
         for (auto u : cur) {
-          if (pred(v_label, u)) {
+          if (pred(v_label, u, idx)) {
             std::vector<vid_t> path(depth + 1);
             vid_t x = u;
             for (int i = 0; i <= depth; ++i) {
@@ -312,7 +303,7 @@ void sssp_both_dir(const GraphReadInterface::graph_view_t<EDATA_T>& view0,
         }
       } else {
         for (auto u : cur) {
-          if (pred(v_label, u)) {
+          if (pred(v_label, u, idx)) {
             std::vector<vid_t> path(depth + 1);
             vid_t x = u;
             for (int i = 0; i <= depth; ++i) {
@@ -326,15 +317,17 @@ void sssp_both_dir(const GraphReadInterface::graph_view_t<EDATA_T>& view0,
             path_impls.emplace_back(std::move(impl));
             offsets.push_back(idx);
           }
-          for (auto& e : view0.get_edges(u)) {
-            auto nbr = e.get_neighbor();
+          auto es0 = view0.get_edges(u);
+          for (auto it = es0.begin(); it != es0.end(); ++it) {
+            auto nbr = it.get_vertex();
             if (parent[nbr] == GraphReadInterface::kInvalidVid) {
               parent[nbr] = u;
               next.push_back(nbr);
             }
           }
-          for (auto& e : view1.get_edges(u)) {
-            auto nbr = e.get_neighbor();
+          auto es1 = view1.get_edges(u);
+          for (auto it = es1.begin(); it != es1.end(); ++it) {
+            auto nbr = it.get_vertex();
             if (parent[nbr] == GraphReadInterface::kInvalidVid) {
               parent[nbr] = u;
               next.push_back(nbr);
@@ -344,15 +337,17 @@ void sssp_both_dir(const GraphReadInterface::graph_view_t<EDATA_T>& view0,
       }
     } else {
       for (auto u : cur) {
-        for (auto& e : view0.get_edges(u)) {
-          auto nbr = e.get_neighbor();
+        auto es0 = view0.get_edges(u);
+        for (auto it = es0.begin(); it != es0.end(); ++it) {
+          auto nbr = it.get_vertex();
           if (parent[nbr] == GraphReadInterface::kInvalidVid) {
             parent[nbr] = u;
             next.push_back(nbr);
           }
         }
-        for (auto& e : view1.get_edges(u)) {
-          auto nbr = e.get_neighbor();
+        auto es1 = view1.get_edges(u);
+        for (auto it = es1.begin(); it != es1.end(); ++it) {
+          auto nbr = it.get_vertex();
           if (parent[nbr] == GraphReadInterface::kInvalidVid) {
             parent[nbr] = u;
             next.push_back(nbr);
@@ -366,10 +361,9 @@ void sssp_both_dir(const GraphReadInterface::graph_view_t<EDATA_T>& view0,
   }
 }
 
-template <typename EDATA_T, typename PRED_T>
+template <typename PRED_T>
 void sssp_both_dir_with_order_by_length_limit(
-    const GraphReadInterface::graph_view_t<EDATA_T>& view0,
-    const GraphReadInterface::graph_view_t<EDATA_T>& view1, label_t v_label,
+    const GenericView& view0, const GenericView& view1, label_t v_label,
     vid_t v, const GraphReadInterface::vertex_set_t& vertices, size_t idx,
     int lower, int upper, MSVertexColumnBuilder& dest_col_builder,
     ValueColumnBuilder<int>& path_len_builder, std::vector<size_t>& offsets,
@@ -388,7 +382,7 @@ void sssp_both_dir_with_order_by_length_limit(
     if (depth >= lower) {
       if (depth == upper - 1) {
         for (auto u : cur) {
-          if (pred(v_label, u)) {
+          if (pred(v_label, u, idx)) {
             dest_col_builder.push_back_opt(u);
 
             path_len_builder.push_back_opt(depth);
@@ -397,21 +391,23 @@ void sssp_both_dir_with_order_by_length_limit(
         }
       } else {
         for (auto u : cur) {
-          if (pred(v_label, u)) {
+          if (pred(v_label, u, idx)) {
             dest_col_builder.push_back_opt(u);
 
             path_len_builder.push_back_opt(depth);
             offsets.push_back(idx);
           }
-          for (auto& e : view0.get_edges(u)) {
-            auto nbr = e.get_neighbor();
+          auto es0 = view0.get_edges(u);
+          for (auto it = es0.begin(); it != es0.end(); ++it) {
+            auto nbr = it.get_vertex();
             if (!vis[nbr]) {
               vis[nbr] = true;
               next.push_back(nbr);
             }
           }
-          for (auto& e : view1.get_edges(u)) {
-            auto nbr = e.get_neighbor();
+          auto es1 = view1.get_edges(u);
+          for (auto it = es1.begin(); it != es1.end(); ++it) {
+            auto nbr = it.get_vertex();
             if (!vis[nbr]) {
               vis[nbr] = true;
               next.push_back(nbr);
@@ -421,15 +417,17 @@ void sssp_both_dir_with_order_by_length_limit(
       }
     } else {
       for (auto u : cur) {
-        for (auto& e : view0.get_edges(u)) {
-          auto nbr = e.get_neighbor();
+        auto es0 = view0.get_edges(u);
+        for (auto it = es0.begin(); it != es0.end(); ++it) {
+          auto nbr = it.get_vertex();
           if (!vis[nbr]) {
             vis[nbr] = true;
             next.push_back(nbr);
           }
         }
-        for (auto& e : view1.get_edges(u)) {
-          auto nbr = e.get_neighbor();
+        auto es1 = view1.get_edges(u);
+        for (auto it = es1.begin(); it != es1.end(); ++it) {
+          auto nbr = it.get_vertex();
           if (!vis[nbr]) {
             vis[nbr] = true;
             next.push_back(nbr);
@@ -442,7 +440,7 @@ void sssp_both_dir_with_order_by_length_limit(
     std::swap(cur, next);
   }
 }
-template <typename EDATA_T, typename PRED_T>
+template <typename PRED_T>
 std::tuple<std::shared_ptr<IContextColumn>, std::shared_ptr<IContextColumn>,
            std::vector<size_t>>
 single_source_shortest_path_with_order_by_length_limit_impl(
@@ -457,10 +455,8 @@ single_source_shortest_path_with_order_by_length_limit_impl(
   std::vector<size_t> offsets;
   {
     CHECK(dir == Direction::kBoth);
-    auto oe_view =
-        graph.GetOutgoingGraphView<EDATA_T>(v_label, v_label, e_label);
-    auto ie_view =
-        graph.GetIncomingGraphView<EDATA_T>(v_label, v_label, e_label);
+    auto oe_view = graph.GetGenericOutgoingGraphView(v_label, v_label, e_label);
+    auto ie_view = graph.GetGenericIncomingGraphView(v_label, v_label, e_label);
     foreach_vertex(input, [&](size_t idx, label_t label, vid_t v) {
       sssp_both_dir_with_order_by_length_limit(
           oe_view, ie_view, v_label, v, vertices, idx, lower, upper,
@@ -472,7 +468,7 @@ single_source_shortest_path_with_order_by_length_limit_impl(
                          std::move(offsets));
 }
 
-template <typename EDATA_T, typename PRED_T>
+template <typename PRED_T>
 std::tuple<std::shared_ptr<IContextColumn>, std::shared_ptr<IContextColumn>,
            std::vector<size_t>>
 single_source_shortest_path_impl(const GraphReadInterface& graph,
@@ -488,18 +484,16 @@ single_source_shortest_path_impl(const GraphReadInterface& graph,
   if (dir == Direction::kIn || dir == Direction::kOut) {
     auto view =
         (dir == Direction::kIn)
-            ? graph.GetIncomingGraphView<EDATA_T>(v_label, v_label, e_label)
-            : graph.GetOutgoingGraphView<EDATA_T>(v_label, v_label, e_label);
+            ? graph.GetGenericIncomingGraphView(v_label, v_label, e_label)
+            : graph.GetGenericOutgoingGraphView(v_label, v_label, e_label);
     foreach_vertex(input, [&](size_t idx, label_t label, vid_t v) {
       sssp_dir(view, label, v, e_label, vertices, idx, lower, upper,
                dest_col_builder, path_col_builder, *path_impls, offsets, pred);
     });
   } else {
     CHECK(dir == Direction::kBoth);
-    auto oe_view =
-        graph.GetOutgoingGraphView<EDATA_T>(v_label, v_label, e_label);
-    auto ie_view =
-        graph.GetIncomingGraphView<EDATA_T>(v_label, v_label, e_label);
+    auto oe_view = graph.GetGenericOutgoingGraphView(v_label, v_label, e_label);
+    auto ie_view = graph.GetGenericIncomingGraphView(v_label, v_label, e_label);
     foreach_vertex(input, [&](size_t idx, label_t label, vid_t v) {
       sssp_both_dir(oe_view, ie_view, v_label, v, e_label, vertices, idx, lower,
                     upper, dest_col_builder, path_col_builder, *path_impls,
@@ -563,7 +557,7 @@ default_single_source_shortest_path_impl(
       int depth = 0;
       while (depth < upper && !cur.empty()) {
         for (auto [edge_label, v_label, vid] : cur) {
-          if (depth >= lower && pred(v_label, vid)) {
+          if (depth >= lower && pred(v_label, vid, idx)) {
             std::vector<VertexRecord> path;
             std::vector<label_t> edge_labels;
             auto x = std::tie(edge_label, label, vid);
@@ -589,21 +583,21 @@ default_single_source_shortest_path_impl(
 
           for (auto& l : labels_map[v_label]) {
             label_t nbr_label = std::get<0>(l);
-            auto iter = (std::get<2>(l) == Direction::kOut)
-                            ? graph.GetOutEdgeIterator(v_label, vid, nbr_label,
-                                                       std::get<1>(l))
-                            : graph.GetInEdgeIterator(v_label, vid, nbr_label,
-                                                      std::get<1>(l));
-            while (iter.IsValid()) {
-              auto nbr = std::make_tuple(std::get<1>(l), nbr_label,
-                                         iter.GetNeighbor());
-              auto vertex = std::make_pair(nbr_label, iter.GetNeighbor());
+            auto view = (std::get<2>(l) == Direction::kOut)
+                            ? graph.GetGenericOutgoingGraphView(
+                                  v_label, nbr_label, std::get<1>(l))
+                            : graph.GetGenericIncomingGraphView(
+                                  v_label, nbr_label, std::get<1>(l));
+            auto es = view.get_edges(vid);
+            for (auto it = es.begin(); it != es.end(); ++it) {
+              auto nbr =
+                  std::make_tuple(std::get<1>(l), nbr_label, it.get_vertex());
+              auto vertex = std::make_pair(nbr_label, it.get_vertex());
               if (visited.find(vertex) == visited.end()) {
                 visited.insert(vertex);
                 parent[nbr] = std::tie(edge_label, v_label, vid);
                 next.push_back(nbr);
               }
-              iter.Next();
             }
           }
 
@@ -616,6 +610,7 @@ default_single_source_shortest_path_impl(
 
     dest_col = dest_col_builder.finish();
   } else {
+    // TODO(luoxiaojian): opt with MLVertexColumnBuilderOpt
     MLVertexColumnBuilder dest_col_builder;
 
     foreach_vertex(input, [&](size_t idx, label_t label, vid_t v) {
@@ -630,7 +625,7 @@ default_single_source_shortest_path_impl(
       int depth = 0;
       while (depth < upper && !cur.empty()) {
         for (auto [edge_label, v_label, vid] : cur) {
-          if (depth >= lower && pred(v_label, vid)) {
+          if (depth >= lower && pred(v_label, vid, idx)) {
             std::vector<VertexRecord> path;
             std::vector<label_t> edge_labels;
             auto x = std::tie(edge_label, v_label, vid);
@@ -655,21 +650,21 @@ default_single_source_shortest_path_impl(
 
           for (auto& l : labels_map[v_label]) {
             label_t nbr_label = std::get<0>(l);
-            auto iter = (std::get<2>(l) == Direction::kOut)
-                            ? graph.GetOutEdgeIterator(v_label, vid, nbr_label,
-                                                       std::get<1>(l))
-                            : graph.GetInEdgeIterator(v_label, vid, nbr_label,
-                                                      std::get<1>(l));
-            while (iter.IsValid()) {
-              auto nbr = std::make_tuple(std::get<1>(l), nbr_label,
-                                         iter.GetNeighbor());
-              auto vertex = std::make_pair(nbr_label, iter.GetNeighbor());
+            auto view = (std::get<2>(l) == Direction::kOut)
+                            ? graph.GetGenericOutgoingGraphView(
+                                  v_label, nbr_label, std::get<1>(l))
+                            : graph.GetGenericIncomingGraphView(
+                                  v_label, nbr_label, std::get<1>(l));
+            auto es = view.get_edges(vid);
+            for (auto it = es.begin(); it != es.end(); ++it) {
+              auto nbr =
+                  std::make_tuple(std::get<1>(l), nbr_label, it.get_vertex());
+              auto vertex = std::make_pair(nbr_label, it.get_vertex());
               if (visited.find(vertex) == visited.end()) {
                 visited.insert(vertex);
                 parent[nbr] = std::tie(edge_label, v_label, vid);
                 next.push_back(nbr);
               }
-              iter.Next();
             }
           }
 
@@ -691,4 +686,4 @@ default_single_source_shortest_path_impl(
 
 }  // namespace gs
 
-#endif  // EXECUTION_COMMON_OPERATORS_RETRIEVE_PATH_EXPAND_H_
+#endif  // INCLUDE_NEUG_EXECUTION_COMMON_OPERATORS_RETRIEVE_PATH_EXPAND_IMPL_H_

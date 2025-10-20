@@ -102,6 +102,21 @@ TEST(StorageDDLTest, ExportTest) {
     file.close();
   }
 
+  {
+    auto res = conn->Query(
+        "MATCH (v:person)-[e:knows]->(v2:person) "
+        "RETURN e;");
+    ASSERT_TRUE(res);
+    auto query_result = res.value();
+    int count = 0;
+    while (query_result.hasNext()) {
+      auto record = query_result.next();
+      LOG(INFO) << "record: " << record.ToString();
+      count++;
+    }
+    LOG(INFO) << "Total knows relationships: " << count;
+  }
+
   if (std::filesystem::exists("/tmp/person_knows_person.csv")) {
     std::filesystem::remove("/tmp/person_knows_person.csv");
   }

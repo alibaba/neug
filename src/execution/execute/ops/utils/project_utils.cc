@@ -1,3 +1,17 @@
+/** Copyright 2020 Alibaba Group Holding Limited.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ * 	http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
 
 #include "neug/execution/execute/ops/utils/project_utils.h"
 #include "neug/execution/utils/special_predicates.h"
@@ -6,7 +20,21 @@ namespace gs {
 namespace runtime {
 namespace ops {
 
-bool is_exchange_index(const common::Expression& expr, int alias, int& tag) {
+std::unique_ptr<ProjectExprBase> GeneralProjectExprBuilder::build(
+    const GraphReadInterface& graph, const Context& ctx,
+    const std::map<std::string, std::string>& params) {
+  if (data_type_.has_value() &&
+      data_type_.value().type_case() != common::IrDataType::TYPE_NOT_SET) {
+    auto func = make_project_expr(expr_, data_type_.value(), alias_, graph, ctx,
+                                  params);
+    if (func != nullptr) {
+      return func;
+    }
+  }
+  return make_project_expr_without_data_type(expr_, alias_, graph, ctx, params);
+}
+
+bool is_exchange_index(const common::Expression& expr, int& tag) {
   if (expr.operators().size() == 1 &&
       expr.operators(0).item_case() == common::ExprOpr::kVar) {
     auto var = expr.operators(0).var();
@@ -260,217 +288,77 @@ bool is_property_extract(const common::Expression& expr, int& tag,
   return false;
 }
 
-template <typename VERTEX_COL_PTR, typename SP_PRED_T, typename RESULT_T>
-struct SPOpr {
-  using V = RESULT_T;
-  SPOpr(const VERTEX_COL_PTR& vertex_col, SP_PRED_T&& pred, RESULT_T then_value,
-        RESULT_T else_value)
-      : vertex_col(vertex_col),
-        pred(std::move(pred)),
-        then_value(then_value),
-        else_value(else_value) {}
-  inline RESULT_T operator()(size_t idx) const {
-    auto v = vertex_col->get_vertex(idx);
-    if (pred(v.label_, v.vid_)) {
-      return then_value;
-    } else {
-      return else_value;
-    }
-  }
-
-  VERTEX_COL_PTR vertex_col;
-  SP_PRED_T pred;
-  RESULT_T then_value;
-  RESULT_T else_value;
-};
-
-template <typename VertexColoumn, typename T>
-struct SLPropertyExpr {
-  using V = T;
-  SLPropertyExpr(const GraphReadInterface& graph, const VertexColoumn& column,
-                 const std::string& property_name)
-      : column(column) {
-    auto labels = column.get_labels_set();
-    auto& label = *labels.begin();
-    property = graph.GetVertexColumn<T>(label, property_name);
-    is_optional_ = property.is_null();
-  }
-  inline T operator()(size_t idx) const {
-    auto v = column.get_vertex(idx);
-    return property.get_view(v.vid_);
-  }
-  bool is_optional() const { return is_optional_; }
-  bool is_optional_;
-  const VertexColoumn& column;
-  GraphReadInterface::vertex_column_t<T> property;
-};
-
-template <typename VertexColoumn, typename T>
-struct MLPropertyExpr {
-  using V = T;
-  MLPropertyExpr(const GraphReadInterface& graph, const VertexColoumn& vertex,
-                 const std::string& property_name)
-      : vertex(vertex) {
-    auto labels = vertex.get_labels_set();
-    int label_num = graph.schema().vertex_label_num();
-    property.resize(label_num);
-    is_optional_ = false;
-    for (auto label : labels) {
-      property[label] = graph.GetVertexColumn<T>(label, property_name);
-      if (property[label].is_null()) {
-        is_optional_ = true;
-      }
-    }
-  }
-  bool is_optional() const { return is_optional_; }
-  inline T operator()(size_t idx) const {
-    auto v = vertex.get_vertex(idx);
-    return property[v.label_].get_view(v.vid_);
-  }
-  const VertexColoumn& vertex;
-  std::vector<GraphReadInterface::vertex_column_t<T>> property;
-
-  bool is_optional_;
-};
-
-template <typename VertexColumn>
 std::unique_ptr<ProjectExprBase> create_sl_property_expr(
     const Context& ctx, const GraphReadInterface& graph,
-    const VertexColumn& column, const std::string& property_name,
+    const SLVertexColumn& column, const std::string& property_name,
     RTAnyType type, int alias) {
   switch (type) {
-  case RTAnyType::kBoolValue: {
-    auto expr =
-        SLPropertyExpr<VertexColumn, bool>(graph, column, property_name);
-    if (expr.is_optional()) {
-      return nullptr;
-    }
-    PropertyValueCollector<decltype(expr)> collector(ctx);
-    return std::make_unique<
-        ProjectExpr<SLPropertyExpr<VertexColumn, bool>, decltype(collector)>>(
-        std::move(expr), collector, alias);
-  }
   case RTAnyType::kI32Value: {
     auto expr =
-        SLPropertyExpr<VertexColumn, int32_t>(graph, column, property_name);
+        SLPropertyExpr<SLVertexColumn, int32_t>(graph, column, property_name);
     if (expr.is_optional()) {
       return nullptr;
     }
     PropertyValueCollector<decltype(expr)> collector(ctx);
-    return std::make_unique<ProjectExpr<SLPropertyExpr<VertexColumn, int32_t>,
-                                        decltype(collector)>>(std::move(expr),
-                                                              collector, alias);
-  }
-  case RTAnyType::kU32Value: {
-    auto expr =
-        SLPropertyExpr<VertexColumn, uint32_t>(graph, column, property_name);
-    if (expr.is_optional()) {
-      return nullptr;
-    }
-    PropertyValueCollector<decltype(expr)> collector(ctx);
-    return std::make_unique<ProjectExpr<SLPropertyExpr<VertexColumn, uint32_t>,
+    return std::make_unique<ProjectExpr<SLPropertyExpr<SLVertexColumn, int32_t>,
                                         decltype(collector)>>(std::move(expr),
                                                               collector, alias);
   }
   case RTAnyType::kI64Value: {
     auto expr =
-        SLPropertyExpr<VertexColumn, int64_t>(graph, column, property_name);
+        SLPropertyExpr<SLVertexColumn, int64_t>(graph, column, property_name);
     if (expr.is_optional()) {
       return nullptr;
     }
     PropertyValueCollector<decltype(expr)> collector(ctx);
-    return std::make_unique<ProjectExpr<SLPropertyExpr<VertexColumn, int64_t>,
+    return std::make_unique<ProjectExpr<SLPropertyExpr<SLVertexColumn, int64_t>,
                                         decltype(collector)>>(std::move(expr),
                                                               collector, alias);
-  }
-  case RTAnyType::kU64Value: {
-    auto expr =
-        SLPropertyExpr<VertexColumn, uint64_t>(graph, column, property_name);
-    if (expr.is_optional()) {
-      return nullptr;
-    }
-    PropertyValueCollector<decltype(expr)> collector(ctx);
-    return std::make_unique<ProjectExpr<SLPropertyExpr<VertexColumn, uint64_t>,
-                                        decltype(collector)>>(std::move(expr),
-                                                              collector, alias);
-  }
-  case RTAnyType::kF32Value: {
-    auto expr =
-        SLPropertyExpr<VertexColumn, float>(graph, column, property_name);
-    if (expr.is_optional()) {
-      return nullptr;
-    }
-    PropertyValueCollector<decltype(expr)> collector(ctx);
-    return std::make_unique<
-        ProjectExpr<SLPropertyExpr<VertexColumn, float>, decltype(collector)>>(
-        std::move(expr), collector, alias);
   }
   case RTAnyType::kF64Value: {
     auto expr =
-        SLPropertyExpr<VertexColumn, double>(graph, column, property_name);
+        SLPropertyExpr<SLVertexColumn, double>(graph, column, property_name);
     if (expr.is_optional()) {
       return nullptr;
     }
     PropertyValueCollector<decltype(expr)> collector(ctx);
-    return std::make_unique<
-        ProjectExpr<SLPropertyExpr<VertexColumn, double>, decltype(collector)>>(
-        std::move(expr), collector, alias);
+    return std::make_unique<ProjectExpr<SLPropertyExpr<SLVertexColumn, double>,
+                                        decltype(collector)>>(std::move(expr),
+                                                              collector, alias);
   }
   case RTAnyType::kStringValue: {
-    auto expr = SLPropertyExpr<VertexColumn, std::string_view>(graph, column,
-                                                               property_name);
+    auto expr = SLPropertyExpr<SLVertexColumn, std::string_view>(graph, column,
+                                                                 property_name);
     PropertyValueCollector<decltype(expr)> collector(ctx);
     if (expr.is_optional()) {
       return nullptr;
     }
 
     return std::make_unique<ProjectExpr<
-        SLPropertyExpr<VertexColumn, std::string_view>, decltype(collector)>>(
+        SLPropertyExpr<SLVertexColumn, std::string_view>, decltype(collector)>>(
         std::move(expr), collector, alias);
   }
   case RTAnyType::kDate: {
     auto expr =
-        SLPropertyExpr<VertexColumn, Date>(graph, column, property_name);
+        SLPropertyExpr<SLVertexColumn, Date>(graph, column, property_name);
     if (expr.is_optional()) {
       return nullptr;
     }
     PropertyValueCollector<decltype(expr)> collector(ctx);
     return std::make_unique<
-        ProjectExpr<SLPropertyExpr<VertexColumn, Date>, decltype(collector)>>(
+        ProjectExpr<SLPropertyExpr<SLVertexColumn, Date>, decltype(collector)>>(
         std::move(expr), collector, alias);
-  }
-  case RTAnyType::kDateTime: {
-    auto expr =
-        SLPropertyExpr<VertexColumn, DateTime>(graph, column, property_name);
-    PropertyValueCollector<decltype(expr)> collector(ctx);
-    if (expr.is_optional()) {
-      return nullptr;
-    }
-    return std::make_unique<ProjectExpr<SLPropertyExpr<VertexColumn, DateTime>,
-                                        decltype(collector)>>(std::move(expr),
-                                                              collector, alias);
   }
   case RTAnyType::kTimestamp: {
     auto expr =
-        SLPropertyExpr<VertexColumn, TimeStamp>(graph, column, property_name);
+        SLPropertyExpr<SLVertexColumn, TimeStamp>(graph, column, property_name);
     PropertyValueCollector<decltype(expr)> collector(ctx);
     if (expr.is_optional()) {
       return nullptr;
     }
-    return std::make_unique<ProjectExpr<SLPropertyExpr<VertexColumn, TimeStamp>,
-                                        decltype(collector)>>(std::move(expr),
-                                                              collector, alias);
-  }
-  case RTAnyType::kInterval: {
-    auto expr =
-        SLPropertyExpr<VertexColumn, Interval>(graph, column, property_name);
-    PropertyValueCollector<decltype(expr)> collector(ctx);
-    if (expr.is_optional()) {
-      return nullptr;
-    }
-    return std::make_unique<ProjectExpr<SLPropertyExpr<VertexColumn, Interval>,
-                                        decltype(collector)>>(std::move(expr),
-                                                              collector, alias);
+    return std::make_unique<ProjectExpr<
+        SLPropertyExpr<SLVertexColumn, TimeStamp>, decltype(collector)>>(
+        std::move(expr), collector, alias);
   }
   default:
     LOG(ERROR) << "create_sl_property_expr: not implemented for type: "
@@ -664,6 +552,34 @@ std::unique_ptr<ProjectExprBase> create_case_when_project(
   }
 }
 
+template <typename T, typename CMP_T>
+static std::unique_ptr<ProjectExprBase> create_sp_pred_case_when_impl(
+    const Context& ctx, const GraphReadInterface& graph,
+    const std::shared_ptr<IVertexColumn>& vertex,
+    const std::string& property_name, const CMP_T& cmp_val,
+    const common::Value& then_value, const common::Value& else_value,
+    int alias) {
+  auto labels = vertex->get_labels_set();
+  if (labels.size() == 1) {
+    label_t label = *labels.begin();
+    using GETTER_T = SLVertexPropertyGetter<typename CMP_T::data_t>;
+    GETTER_T getter(graph, label, property_name);
+    using PRED_T =
+        VertexPropertyCmpPredicate<typename CMP_T::data_t, GETTER_T, CMP_T>;
+    PRED_T pred(getter, cmp_val);
+    return create_case_when_project(ctx, vertex, std::move(pred), then_value,
+                                    else_value, alias);
+  } else {
+    using GETTER_T = MLVertexPropertyGetter<typename CMP_T::data_t>;
+    GETTER_T getter(graph, property_name);
+    using PRED_T =
+        VertexPropertyCmpPredicate<typename CMP_T::data_t, GETTER_T, CMP_T>;
+    PRED_T pred(getter, cmp_val);
+    return create_case_when_project(ctx, vertex, std::move(pred), then_value,
+                                    else_value, alias);
+  }
+}
+
 template <typename T>
 static std::unique_ptr<ProjectExprBase> create_sp_pred_case_when(
     const Context& ctx, const GraphReadInterface& graph,
@@ -673,39 +589,75 @@ static std::unique_ptr<ProjectExprBase> create_sp_pred_case_when(
     const common::Value& then_value, const common::Value& else_value,
     int alias) {
   if (type == SPPredicateType::kPropertyLT) {
-    VertexPropertyLTPredicateBeta<T> pred(graph, name, params.at(target));
-    return create_case_when_project(ctx, vertex, std::move(pred), then_value,
-                                    else_value, alias);
+    using CMP_T = LTCmp<T>;
+    CMP_T cmp(TypedConverter<T>::typed_from_string(params.at(target)));
+    return create_sp_pred_case_when_impl<T, CMP_T>(
+        ctx, graph, vertex, name, cmp, then_value, else_value, alias);
   } else if (type == SPPredicateType::kPropertyGT) {
-    VertexPropertyGTPredicateBeta<T> pred(graph, name, params.at(target));
-    return create_case_when_project(ctx, vertex, std::move(pred), then_value,
-                                    else_value, alias);
+    using CMP_T = GTCmp<T>;
+    CMP_T cmp(TypedConverter<T>::typed_from_string(params.at(target)));
+    return create_sp_pred_case_when_impl<T, CMP_T>(
+        ctx, graph, vertex, name, cmp, then_value, else_value, alias);
   } else if (type == SPPredicateType::kPropertyLE) {
-    VertexPropertyLEPredicateBeta<T> pred(graph, name, params.at(target));
-    return create_case_when_project(ctx, vertex, std::move(pred), then_value,
-                                    else_value, alias);
+    using CMP_T = LECmp<T>;
+    CMP_T cmp(TypedConverter<T>::typed_from_string(params.at(target)));
+    return create_sp_pred_case_when_impl<T, CMP_T>(
+        ctx, graph, vertex, name, cmp, then_value, else_value, alias);
   } else if (type == SPPredicateType::kPropertyGE) {
-    VertexPropertyGEPredicateBeta<T> pred(graph, name, params.at(target));
-    return create_case_when_project(ctx, vertex, std::move(pred), then_value,
-                                    else_value, alias);
+    using CMP_T = GECmp<T>;
+    CMP_T cmp(TypedConverter<T>::typed_from_string(params.at(target)));
+    return create_sp_pred_case_when_impl<T, CMP_T>(
+        ctx, graph, vertex, name, cmp, then_value, else_value, alias);
   } else if (type == SPPredicateType::kPropertyEQ) {
-    VertexPropertyEQPredicateBeta<T> pred(graph, name, params.at(target));
-    return create_case_when_project(ctx, vertex, std::move(pred), then_value,
-                                    else_value, alias);
+    using CMP_T = EQCmp<T>;
+    CMP_T cmp(TypedConverter<T>::typed_from_string(params.at(target)));
+    return create_sp_pred_case_when_impl<T, CMP_T>(
+        ctx, graph, vertex, name, cmp, then_value, else_value, alias);
   } else if (type == SPPredicateType::kPropertyNE) {
-    VertexPropertyNEPredicateBeta<T> pred(graph, name, params.at(target));
-
-    return create_case_when_project(ctx, vertex, std::move(pred), then_value,
-                                    else_value, alias);
+    using CMP_T = NECmp<T>;
+    CMP_T cmp(TypedConverter<T>::typed_from_string(params.at(target)));
+    return create_sp_pred_case_when_impl<T, CMP_T>(
+        ctx, graph, vertex, name, cmp, then_value, else_value, alias);
   }
   return nullptr;
+}
+
+template <typename T>
+static std::unique_ptr<ProjectExprBase> parse_special_expr_between_impl(
+    const GraphReadInterface& graph, const Context& ctx, int alias,
+    const std::shared_ptr<IVertexColumn>& vertex_col,
+    const std::string& property_name, const std::string& lower_value,
+    const std::string& upper_value, int then_value, int else_value) {
+  BetweenCmp<T> cmp(TypedConverter<T>::typed_from_string(lower_value),
+                    TypedConverter<T>::typed_from_string(upper_value));
+  auto labels = vertex_col->get_labels_set();
+  if (labels.size() == 1) {
+    label_t label = *labels.begin();
+    using GETTER_T = SLVertexPropertyGetter<T>;
+    GETTER_T getter(graph, label, property_name);
+    using PRED_T = VertexPropertyCmpPredicate<T, GETTER_T, BetweenCmp<T>>;
+    PRED_T pred(getter, cmp);
+    SPOpr sp(vertex_col, std::move(pred), then_value, else_value);
+    CaseWhenCollector<decltype(sp), int32_t> collector(ctx);
+    return std::make_unique<ProjectExpr<decltype(sp), decltype(collector)>>(
+        std::move(sp), collector, alias);
+  } else {
+    using GETTER_T = MLVertexPropertyGetter<T>;
+    GETTER_T getter(graph, property_name);
+    using PRED_T = VertexPropertyCmpPredicate<T, GETTER_T, BetweenCmp<T>>;
+    PRED_T pred(getter, cmp);
+    SPOpr sp(vertex_col, std::move(pred), then_value, else_value);
+    CaseWhenCollector<decltype(sp), int32_t> collector(ctx);
+    return std::make_unique<ProjectExpr<decltype(sp), decltype(collector)>>(
+        std::move(sp), collector, alias);
+  }
 }
 
 std::unique_ptr<ProjectExprBase> parse_special_expr(
     const common::Expression& expr, int alias, const GraphReadInterface& graph,
     const Context& ctx, const std::map<std::string, std::string>& params) {
   int tag = -1;
-  if (is_exchange_index(expr, alias, tag)) {
+  if (is_exchange_index(expr, tag)) {
     return std::make_unique<DummyGetter>(tag, alias);
   }
   {
@@ -769,46 +721,17 @@ std::unique_ptr<ProjectExprBase> parse_special_expr(
         }
 
         if (type_ == RTAnyType::kI32Value) {
-          SPOpr sp(vertex_col,
-                   VertexPropertyBetweenPredicateBeta<int32_t>(
-                       graph, name, params.at(lower), params.at(upper)),
-                   then_value.i32(), else_value.i32());
-          CaseWhenCollector<decltype(sp), int32_t> collector(ctx);
-          return std::make_unique<
-              ProjectExpr<decltype(sp), decltype(collector)>>(std::move(sp),
-                                                              collector, alias);
-
+          return parse_special_expr_between_impl<int32_t>(
+              graph, ctx, alias, vertex_col, name, params.at(lower),
+              params.at(upper), then_value.i32(), else_value.i32());
         } else if (type_ == RTAnyType::kI64Value) {
-          SPOpr sp(vertex_col,
-                   VertexPropertyBetweenPredicateBeta<int64_t>(
-                       graph, name, params.at(lower), params.at(upper)),
-                   then_value.i32(), else_value.i32());
-          CaseWhenCollector<decltype(sp), int32_t> collector(ctx);
-          return std::make_unique<
-              ProjectExpr<decltype(sp), decltype(collector)>>(std::move(sp),
-                                                              collector, alias);
+          return parse_special_expr_between_impl<int64_t>(
+              graph, ctx, alias, vertex_col, name, params.at(lower),
+              params.at(upper), then_value.i32(), else_value.i32());
         } else if (type_ == RTAnyType::kTimestamp) {
-          if (vertex_col->vertex_column_type() == VertexColumnType::kSingle) {
-            auto typed_vertex_col =
-                std::dynamic_pointer_cast<SLVertexColumn>(vertex_col);
-            SPOpr sp(typed_vertex_col,
-                     VertexPropertyBetweenPredicateBeta<TimeStamp>(
-                         graph, name, params.at(lower), params.at(upper)),
-                     then_value.i32(), else_value.i32());
-            CaseWhenCollector<decltype(sp), int32_t> collector(ctx);
-            return std::make_unique<
-                ProjectExpr<decltype(sp), decltype(collector)>>(
-                std::move(sp), collector, alias);
-          } else {
-            SPOpr sp(vertex_col,
-                     VertexPropertyBetweenPredicateBeta<TimeStamp>(
-                         graph, name, params.at(lower), params.at(upper)),
-                     then_value.i32(), else_value.i32());
-            CaseWhenCollector<decltype(sp), int32_t> collector(ctx);
-            return std::make_unique<
-                ProjectExpr<decltype(sp), decltype(collector)>>(
-                std::move(sp), collector, alias);
-          }
+          return parse_special_expr_between_impl<TimeStamp>(
+              graph, ctx, alias, vertex_col, name, params.at(lower),
+              params.at(upper), then_value.i32(), else_value.i32());
         }
       }
       return make_project_expr_without_data_type(expr, alias, graph, ctx,
@@ -865,6 +788,211 @@ std::unique_ptr<ProjectExprBase> parse_special_expr(
   }
   return nullptr;
 }
+
+std::unique_ptr<ProjectExprBuilderBase> create_dummy_getter_builder(
+    const common::Expression& expr, int alias) {
+  int tag = -1;
+  if (is_exchange_index(expr, tag)) {
+    return std::make_unique<DummyGetterBuilder>(tag, alias);
+  }
+  return nullptr;
+}
+
+std::unique_ptr<ProjectExprBuilderBase> create_vertex_property_expr_builder(
+    const common::Expression& expr, int alias) {
+  int tag;
+  std::string name;
+  RTAnyType type;
+  if (is_property_extract(expr, tag, name, type)) {
+    if (type == RTAnyType::kI32Value) {
+      return std::make_unique<VertexPropertyExprBuilder<int32_t>>(tag, name,
+                                                                  alias);
+    } else if (type == RTAnyType::kU32Value) {
+      return std::make_unique<VertexPropertyExprBuilder<uint32_t>>(tag, name,
+                                                                   alias);
+    } else if (type == RTAnyType::kI64Value) {
+      return std::make_unique<VertexPropertyExprBuilder<int64_t>>(tag, name,
+                                                                  alias);
+    } else if (type == RTAnyType::kU64Value) {
+      return std::make_unique<VertexPropertyExprBuilder<uint64_t>>(tag, name,
+                                                                   alias);
+    } else if (type == RTAnyType::kF32Value) {
+      return std::make_unique<VertexPropertyExprBuilder<float>>(tag, name,
+                                                                alias);
+    } else if (type == RTAnyType::kF64Value) {
+      return std::make_unique<VertexPropertyExprBuilder<double>>(tag, name,
+                                                                 alias);
+    } else if (type == RTAnyType::kStringValue) {
+      return std::make_unique<VertexPropertyExprBuilder<std::string_view>>(
+          tag, name, alias);
+    } else if (type == RTAnyType::kTimestamp) {
+      return std::make_unique<VertexPropertyExprBuilder<TimeStamp>>(tag, name,
+                                                                    alias);
+    } else if (type == RTAnyType::kDate) {
+      return std::make_unique<VertexPropertyExprBuilder<Date>>(tag, name,
+                                                               alias);
+    } else if (type == RTAnyType::kDateTime) {
+      return std::make_unique<VertexPropertyExprBuilder<DateTime>>(tag, name,
+                                                                   alias);
+    } else if (type == RTAnyType::kInterval) {
+      return std::make_unique<VertexPropertyExprBuilder<Interval>>(tag, name,
+                                                                   alias);
+    }
+  }
+  return nullptr;
+}
+
+template <typename CMP_T>
+std::unique_ptr<ProjectExprBuilderBase> create_case_when_builder_impl1(
+    RTAnyType then_type, const std::vector<std::string>& param_names,
+    const common::Value& then_value, const common::Value& else_value, int tag,
+    const std::string& property_name, int alias) {
+  if (then_type == RTAnyType::kI32Value) {
+    return std::make_unique<CaseWhenExprBuilder<CMP_T, int32_t>>(
+        param_names, then_value.i32(), else_value.i32(), tag, property_name,
+        alias);
+  } else {
+    LOG(ERROR) << "unsupported then type " << static_cast<int>(then_type);
+    return nullptr;
+  }
+}
+
+template <typename WHEN_T>
+std::unique_ptr<ProjectExprBuilderBase> create_case_when_builder_impl0(
+    SPPredicateType ptype, RTAnyType then_type,
+    const std::vector<std::string>& param_names,
+    const common::Value& then_value, const common::Value& else_value, int tag,
+    const std::string& property_name, int alias) {
+  if (ptype == SPPredicateType::kPropertyBetween) {
+    using CMP_T = BetweenCmp<WHEN_T>;
+    return create_case_when_builder_impl1<CMP_T>(then_type, param_names,
+                                                 then_value, else_value, tag,
+                                                 property_name, alias);
+  } else if (ptype == SPPredicateType::kPropertyEQ) {
+    using CMP_T = EQCmp<WHEN_T>;
+    return create_case_when_builder_impl1<CMP_T>(then_type, param_names,
+                                                 then_value, else_value, tag,
+                                                 property_name, alias);
+  } else if (ptype == SPPredicateType::kPropertyGT) {
+    using CMP_T = GTCmp<WHEN_T>;
+    return create_case_when_builder_impl1<CMP_T>(then_type, param_names,
+                                                 then_value, else_value, tag,
+                                                 property_name, alias);
+  } else if (ptype == SPPredicateType::kPropertyGE) {
+    using CMP_T = GECmp<WHEN_T>;
+    return create_case_when_builder_impl1<CMP_T>(then_type, param_names,
+                                                 then_value, else_value, tag,
+                                                 property_name, alias);
+  } else if (ptype == SPPredicateType::kPropertyLT) {
+    using CMP_T = LTCmp<WHEN_T>;
+    return create_case_when_builder_impl1<CMP_T>(then_type, param_names,
+                                                 then_value, else_value, tag,
+                                                 property_name, alias);
+  } else if (ptype == SPPredicateType::kPropertyLE) {
+    using CMP_T = LECmp<WHEN_T>;
+    return create_case_when_builder_impl1<CMP_T>(then_type, param_names,
+                                                 then_value, else_value, tag,
+                                                 property_name, alias);
+  } else if (ptype == SPPredicateType::kPropertyNE) {
+    using CMP_T = NECmp<WHEN_T>;
+    return create_case_when_builder_impl1<CMP_T>(then_type, param_names,
+                                                 then_value, else_value, tag,
+                                                 property_name, alias);
+  } else {
+    LOG(ERROR) << "unsupported predicate type " << static_cast<int>(ptype);
+    return nullptr;
+  }
+}
+
+std::unique_ptr<ProjectExprBuilderBase> create_case_when_builder(
+    const common::Expression& expr, int alias) {
+  int tag;
+  std::string name, lower, upper, target;
+  common::Value then_value, else_value;
+
+  SPPredicateType ptype = SPPredicateType::kUnknown;
+  RTAnyType when_type, then_type;
+  std::vector<std::string> param_names;
+
+  if (is_check_property_in_range(expr, tag, name, lower, upper, then_value,
+                                 else_value)) {
+    when_type = parse_from_ir_data_type(expr.operators(0)
+                                            .case_()
+                                            .when_then_expressions(0)
+                                            .when_expression()
+                                            .operators(2)
+                                            .param()
+                                            .data_type());
+    ptype = SPPredicateType::kPropertyBetween;
+    param_names.push_back(lower);
+    param_names.push_back(upper);
+
+    if (then_value.item_case() != else_value.item_case()) {
+      LOG(ERROR) << "then and else value type mismatch"
+                 << then_value.DebugString() << else_value.DebugString();
+      return nullptr;
+    }
+    if (then_value.item_case() == common::Value::kI32) {
+      then_type = RTAnyType::kI32Value;
+    } else {
+      LOG(ERROR) << "unexpected then value type" << then_value.DebugString();
+      return nullptr;
+    }
+  } else if (is_check_property_cmp(expr, tag, name, target, then_value,
+                                   else_value, ptype)) {
+    when_type = parse_from_ir_data_type(expr.operators(0)
+                                            .case_()
+                                            .when_then_expressions(0)
+                                            .when_expression()
+                                            .operators(2)
+                                            .param()
+                                            .data_type());
+    param_names.push_back(target);
+    if (then_value.item_case() != else_value.item_case()) {
+      LOG(ERROR) << "then and else value type mismatch"
+                 << then_value.DebugString() << else_value.DebugString();
+      return nullptr;
+    }
+    if (then_value.item_case() == common::Value::kI32) {
+      then_type = RTAnyType::kI32Value;
+    } else {
+      LOG(ERROR) << "unexpected then value type" << then_value.DebugString();
+      return nullptr;
+    }
+  } else {
+    return nullptr;
+  }
+
+  if (when_type == RTAnyType::kI32Value) {
+    return create_case_when_builder_impl0<int32_t>(
+        ptype, then_type, param_names, then_value, else_value, tag, name,
+        alias);
+  } else if (when_type == RTAnyType::kI64Value) {
+    return create_case_when_builder_impl0<int64_t>(
+        ptype, then_type, param_names, then_value, else_value, tag, name,
+        alias);
+  } else if (when_type == RTAnyType::kF64Value) {
+    return create_case_when_builder_impl0<double>(ptype, then_type, param_names,
+                                                  then_value, else_value, tag,
+                                                  name, alias);
+  } else if (when_type == RTAnyType::kStringValue) {
+    return create_case_when_builder_impl0<std::string_view>(
+        ptype, then_type, param_names, then_value, else_value, tag, name,
+        alias);
+  } else if (when_type == RTAnyType::kDate) {
+    return create_case_when_builder_impl0<Date>(ptype, then_type, param_names,
+                                                then_value, else_value, tag,
+                                                name, alias);
+  } else if (when_type == RTAnyType::kTimestamp) {
+    return create_case_when_builder_impl0<TimeStamp>(
+        ptype, then_type, param_names, then_value, else_value, tag, name,
+        alias);
+  } else {
+    LOG(ERROR) << "unsupported when type " << static_cast<int>(when_type);
+    return nullptr;
+  }
+}
+
 }  // namespace ops
 }  // namespace runtime
 }  // namespace gs

@@ -28,12 +28,12 @@
 #include "neug/execution/common/context.h"
 #include "neug/execution/common/graph_interface.h"
 #include "neug/execution/common/operators/retrieve/select.h"
-#include "neug/execution/common/rt_any.h"
 #include "neug/execution/utils/expr.h"
 #include "neug/execution/utils/special_predicates.h"
 #include "neug/execution/utils/var.h"
 #include "neug/storages/graph/schema.h"
 #include "neug/utils/property/types.h"
+#include "neug/utils/runtime/rt_any.h"
 
 namespace gs {
 namespace runtime {
@@ -42,7 +42,7 @@ class OprTimer;
 namespace ops {
 
 struct ExprWrapper {
-  ExprWrapper(Expr&& expr) : expr_(std::move(expr)) {}
+  explicit ExprWrapper(Expr&& expr) : expr_(std::move(expr)) {}
 
   bool operator()(size_t idx, Arena& arena) const {
     return expr_.eval_path(idx, arena).as_bool();
@@ -52,7 +52,7 @@ struct ExprWrapper {
 };
 
 struct OptionalExprWrapper {
-  OptionalExprWrapper(Expr&& expr) : expr_(std::move(expr)) {}
+  explicit OptionalExprWrapper(Expr&& expr) : expr_(std::move(expr)) {}
 
   bool operator()(size_t idx, Arena& arena) const {
     auto val = expr_.eval_path(idx, arena);
@@ -64,7 +64,7 @@ struct OptionalExprWrapper {
 
 class SelectIdNeOpr : public IReadOperator {
  public:
-  SelectIdNeOpr(const common::Expression& expr) : expr_(expr) {}
+  explicit SelectIdNeOpr(const common::Expression& expr) : expr_(expr) {}
 
   std::string get_operator_name() const override { return "SelectIdNeOpr"; }
 
@@ -84,7 +84,7 @@ class SelectIdNeOpr : public IReadOperator {
         auto label = *labels.begin();
         int64_t oid = std::stoll(params.at(expr_.operators(2).param().name()));
         vid_t vid;
-        if (graph.GetVertexIndex(label, oid, vid)) {
+        if (graph.GetVertexIndex(label, Any(oid), vid)) {
           if (vertex_col->vertex_column_type() == VertexColumnType::kSingle) {
             const SLVertexColumn& sl_vertex_col =
                 *(dynamic_cast<const SLVertexColumn*>(vertex_col.get()));
@@ -121,7 +121,7 @@ class SelectIdNeOpr : public IReadOperator {
 
 class SelectOpr : public IReadOperator {
  public:
-  SelectOpr(const common::Expression& expr) : expr_(expr) {}
+  explicit SelectOpr(const common::Expression& expr) : expr_(expr) {}
 
   std::string get_operator_name() const override { return "SelectOpr"; }
 

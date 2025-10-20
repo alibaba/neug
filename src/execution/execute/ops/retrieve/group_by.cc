@@ -42,7 +42,6 @@
 #include "neug/execution/common/graph_interface.h"
 #include "neug/execution/common/operators/retrieve/group_by.h"
 #include "neug/execution/common/operators/retrieve/project.h"
-#include "neug/execution/common/rt_any.h"
 #include "neug/execution/execute/ops/utils/group_by_utils.h"
 #include "neug/execution/utils/var.h"
 #include "neug/utils/property/types.h"
