@@ -47,7 +47,7 @@ using vertex_pair = std::pair<VertexRecord, VertexRecord>;
 static Context default_semi_join(Context&& ctx, Context&& ctx2,
                                  const JoinParams& params) {
   size_t right_size = ctx2.row_num();
-  std::set<std::string> right_set;
+  phmap::flat_hash_set<std::string> right_set;
   std::vector<size_t> offset;
 
   for (size_t r_i = 0; r_i < right_size; ++r_i) {
@@ -72,6 +72,43 @@ static Context default_semi_join(Context&& ctx, Context&& ctx2,
       encoder.put_byte('#');
     }
     std::string cur(bytes.begin(), bytes.end());
+    if (params.join_type == JoinKind::kSemiJoin) {
+      if (right_set.find(cur) != right_set.end()) {
+        offset.push_back(r_i);
+      }
+    } else {
+      if (right_set.find(cur) == right_set.end()) {
+        offset.push_back(r_i);
+      }
+    }
+  }
+  ctx.reshuffle(offset);
+  return ctx;
+}
+
+static Context dual_vertex_column_semi_join(Context&& ctx, Context&& ctx2,
+                                            const JoinParams& params) {
+  size_t right_size = ctx2.row_num();
+  phmap::flat_hash_set<vertex_pair, VertexRecordHash> right_set;
+  std::vector<size_t> offset;
+  auto casted_right_col = std::dynamic_pointer_cast<IVertexColumn>(
+      ctx2.get(params.right_columns[0]));
+  auto casted_right_col2 = std::dynamic_pointer_cast<IVertexColumn>(
+      ctx2.get(params.right_columns[1]));
+  for (size_t r_i = 0; r_i < right_size; ++r_i) {
+    auto cur1 = casted_right_col->get_vertex(r_i);
+    auto cur2 = casted_right_col2->get_vertex(r_i);
+    right_set.emplace(cur1, cur2);
+  }
+  size_t left_size = ctx.row_num();
+  auto casted_left_col =
+      std::dynamic_pointer_cast<IVertexColumn>(ctx.get(params.left_columns[0]));
+  auto casted_left_col2 =
+      std::dynamic_pointer_cast<IVertexColumn>(ctx.get(params.left_columns[1]));
+  for (size_t r_i = 0; r_i < left_size; ++r_i) {
+    auto cur1 = casted_left_col->get_vertex(r_i);
+    auto cur2 = casted_left_col2->get_vertex(r_i);
+    auto cur = std::make_pair(cur1, cur2);
     if (params.join_type == JoinKind::kSemiJoin) {
       if (right_set.find(cur) != right_set.end()) {
         offset.push_back(r_i);
@@ -202,24 +239,33 @@ static Context dual_vertex_column_inner_join(Context&& ctx, Context&& ctx2,
       }
     }
   } else {
+    phmap::flat_hash_set<vertex_pair, VertexRecordHash> right_set;
     phmap::flat_hash_map<vertex_pair, std::vector<size_t>, VertexRecordHash>
-        right_map;
+        left_map;
     for (size_t r_i = 0; r_i < right_size; ++r_i) {
       auto cur1 = casted_right_col->get_vertex(r_i);
       auto cur2 = casted_right_col2->get_vertex(r_i);
-      auto cur = std::make_pair(cur1, cur2);
-      right_map[cur].emplace_back(r_i);
+
+      right_set.emplace(cur1, cur2);
     }
     for (size_t r_i = 0; r_i < left_size; ++r_i) {
       auto cur1 = casted_left_col->get_vertex(r_i);
       auto cur2 = casted_left_col2->get_vertex(r_i);
       auto cur = std::make_pair(cur1, cur2);
+      if (right_set.find(cur) != right_set.end()) {
+        left_map[cur].emplace_back(r_i);
+      }
+    }
+    for (size_t r_i = 0; r_i < right_size; ++r_i) {
+      auto cur1 = casted_right_col->get_vertex(r_i);
+      auto cur2 = casted_right_col2->get_vertex(r_i);
+      auto cur = std::make_pair(cur1, cur2);
 
-      auto iter = right_map.find(cur);
-      if (iter != right_map.end()) {
+      auto iter = left_map.find(cur);
+      if (iter != left_map.end()) {
         for (auto idx : iter->second) {
-          left_offset.emplace_back(r_i);
-          right_offset.emplace_back(idx);
+          left_offset.emplace_back(idx);
+          right_offset.emplace_back(r_i);
         }
       }
     }
@@ -550,6 +596,14 @@ gs::result<Context> Join::join(Context&& ctx, Context&& ctx2,
 
   if (params.join_type == JoinKind::kSemiJoin ||
       params.join_type == JoinKind::kAntiJoin) {
+    if (params.left_columns.size() == 2 &&
+        ctx.get(params.left_columns[0])->column_type() ==
+            ContextColumnType::kVertex &&
+        ctx.get(params.left_columns[1])->column_type() ==
+            ContextColumnType::kVertex) {
+      return dual_vertex_column_semi_join(std::move(ctx), std::move(ctx2),
+                                          params);
+    }
     return default_semi_join(std::move(ctx), std::move(ctx2), params);
   } else if (params.join_type == JoinKind::kInnerJoin) {
     if (params.right_columns.size() == 1 &&
