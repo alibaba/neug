@@ -170,13 +170,29 @@ Status PropertyGraph::create_vertex_type(
                            primary_keys, strategies, Schema::MAX_VNUM,
                            description);
   label_t vertex_label_id = schema_.get_vertex_label_id(vertex_type_name);
-  vertex_tables_.emplace_back(
-      vertex_type_name,
-      std::get<0>(schema_.get_vertex_primary_key(vertex_label_id)[0]),
-      property_names, property_types, strategies);
-  vertex_tables_.back().Open(work_dir_, memory_level_, true);
+  if (vertex_label_id < vertex_tables_.size()) {
+    if (vertex_tables_[vertex_label_id].is_dropped()) {
+      // Reuse a dropped vertex table
+      auto new_v_table = VertexTable(
+          vertex_type_name,
+          std::get<0>(schema_.get_vertex_primary_key(vertex_label_id)[0]),
+          property_names, property_types, strategies);
+      vertex_tables_[vertex_label_id].Swap(new_v_table);
+    } else {
+      return Status(StatusCode::ERR_INVALID_SCHEMA,
+                    "Vertex label id conflict.");
+    }
+  } else {
+    vertex_tables_.emplace_back(
+        vertex_type_name,
+        std::get<0>(schema_.get_vertex_primary_key(vertex_label_id)[0]),
+        property_names, property_types, strategies);
+  }
+  vertex_tables_[vertex_label_id].Open(work_dir_, memory_level_, true);
   vertex_tables_.back().Reserve(4096);
   vertex_label_num_ = schema_.vertex_label_num();
+  assert(vertex_tables_.size() == vertex_label_num_);
+
   while (v_mutex_.size() < vertex_label_num_) {
     v_mutex_.emplace_back(std::make_shared<std::mutex>());
   }
@@ -254,6 +270,9 @@ Status PropertyGraph::create_edge_type(
   std::vector<StorageStrategy> strategies;
   for (size_t i = 0; i < property_types.size(); i++) {
     strategies.emplace_back(StorageStrategy::kMem);
+  }
+  if (edge_tables_.find(index) != edge_tables_.end()) {
+    return Status(StatusCode::ERR_INVALID_SCHEMA, "Edge label id conflict.");
   }
   EdgeTableMeta meta(src_vertex_type, dst_vertex_type, edge_type_name,
                      ie_mutable, oe_mutable, ie_strategy, oe_strategy,
@@ -601,7 +620,13 @@ Status PropertyGraph::delete_vertex_type(const std::string& vertex_type_name,
 
   if (is_detach) {
     for (label_t i = 0; i < vertex_label_num_; i++) {
+      if (!schema_.vertex_label_valid(i)) {
+        continue;
+      }
       for (label_t j = 0; j < edge_label_num_; j++) {
+        if (!schema_.edge_label_valid(j)) {
+          continue;
+        }
         if (schema_.exist(v_label_id, i, j)) {
           schema_.delete_edge_label(v_label_id, i, j);
           size_t index = schema_.generate_edge_label(v_label_id, i, j);
@@ -622,6 +647,7 @@ Status PropertyGraph::delete_vertex_type(const std::string& vertex_type_name,
       }
     }
   }
+  vertex_label_num_ = schema_.vertex_label_num();
   return gs::Status::OK();
 }
 
@@ -654,6 +680,7 @@ Status PropertyGraph::delete_edge_type(const std::string& src_vertex_type,
   if (edge_table != edge_tables_.end()) {
     edge_tables_.erase(index);
   }
+  edge_label_num_ = schema_.edge_label_num();
   return gs::Status::OK();
 }
 

@@ -172,6 +172,7 @@ bool VertexTable::is_valid_lid(vid_t lid, timestamp_t ts) const {
   // clang-format off
   if (!is_vertex_table_modified_)
     [[likely]] { return lid < indexer_.size(); }
+  // clang-format on
   return lid < indexer_.size() && vertex_ts_.get(lid) <= ts;
   // clang-format on
 }

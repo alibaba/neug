@@ -46,7 +46,7 @@ def test_1(tmp_path):
     db_dir = tmp_path / "test_db"
     shutil.rmtree(db_dir, ignore_errors=True)
     db = Database(db_path=str(db_dir), mode="w")
-    endpoint = db.serve(port=10001, host="localhost", blocking=False)
+    endpoint = db.serve(port=10010, host="localhost", blocking=False)
 
     import multiprocessing as mp
 
@@ -94,7 +94,7 @@ def test_2(tmp_path):
     db_dir = tmp_path / "test_db"
     shutil.rmtree(db_dir, ignore_errors=True)
     db = Database(db_path=str(db_dir), mode="w")
-    endpoint = db.serve(port=10001, host="localhost", blocking=False)
+    endpoint = db.serve(port=10010, host="localhost", blocking=False)
 
     import multiprocessing as mp
 

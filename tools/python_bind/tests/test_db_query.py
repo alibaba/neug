@@ -90,7 +90,7 @@ def test_session_create_schema_basic_types(tmp_path):
     db_dir = tmp_path / "schema_basic_types"
     db_dir.mkdir()
     db = Database(db_path=str(db_dir), mode="w")
-    endpoint = db.serve(host="127.0.0.1", port=10001, blocking=False)
+    endpoint = db.serve(host="127.0.0.1", port=10010, blocking=False)
     sess = Session.open(endpoint=endpoint, timeout="30s", num_threads=5)
 
     sess.execute(
@@ -451,7 +451,7 @@ def test_session_alter_vertex_table(tmp_path):
     shutil.rmtree(db_dir, ignore_errors=True)
     db_dir.mkdir()
     db = Database(db_path=str(db_dir), mode="w")
-    endpoint = db.serve(host="localhost", port=10001, blocking=False)
+    endpoint = db.serve(host="localhost", port=10010, blocking=False)
     sess = Session.open(endpoint=endpoint, timeout="30s", num_threads=5)
     sess.execute("CREATE NODE TABLE person(name STRING, age INT64, PRIMARY KEY(name));")
     # 1. add property
@@ -943,10 +943,10 @@ def test_complex_example(tmp_path):
 
     conn.close()
 
-    service_endpoint = db.serve(host="localhost", port=10001, blocking=False)
+    service_endpoint = db.serve(host="localhost", port=10010, blocking=False)
     print(f"Serving database at {service_endpoint}")
 
-    session = Session("http://localhost:10001/")
+    session = Session("http://localhost:10010/")
 
     session.execute(
         """
@@ -2033,3 +2033,114 @@ def test_mullti_label2():
     records = list(result)
     logger.info(f"records: {records}, len: {len(records)}")
     assert len(records) == 11
+
+
+def test_recreate_vertex():
+    db_dir = "/tmp/test_recreate_vertex"
+    logger.info("Starting test_recreate_vertex")
+    shutil.rmtree(db_dir, ignore_errors=True)
+    db = Database(db_path=db_dir, mode="w")
+    conn = db.connect()
+    conn.execute("CREATE NODE TABLE Person(id INT64, PRIMARY KEY(id));")
+    conn.execute("CREATE (p: Person {id: 111});")
+    conn.execute("CREATE (p: Person {id: 222});")
+    conn.execute("DROP TABLE IF EXISTS Person;")
+
+    conn.execute("CREATE NODE TABLE Person(id INT64, age INT32, PRIMARY KEY(id));")
+    val = conn.execute("MATCH (n) return count(n);")
+    records = list(val)
+    assert records == [[0]], f"Expected value [[0]], got {records}"
+    conn.execute("CREATE (p: Person {id: 111, age: 20});")
+    res = conn.execute("MATCH (p: Person) RETURN p.id, p.age;")
+    records = list(res)
+    assert records == [[111, 20]]
+    logger.info("test_recreate_vertex passed first part")
+
+    conn.execute("DROP TABLE IF EXISTS Person;")
+    conn.execute("CREATE NODE TABLE Person(id INT64, name STRING, PRIMARY KEY(id));")
+    conn.execute("CREATE (p: Person {id: 111, name: 'Alice'});")
+    res = conn.execute("MATCH (p: Person) RETURN p.id, p.name;")
+    records = list(res)
+    assert records == [[111, "Alice"]]
+    logger.info("test_recreate_vertex passed second part")
+    conn.close()
+    db.close()
+
+
+def test_recreate_edge():
+    db_dir = "/tmp/test_recreate_edge"
+    logger.info("Starting test_recreate_edge")
+    shutil.rmtree(db_dir, ignore_errors=True)
+    db = Database(db_path=db_dir, mode="w")
+    conn = db.connect()
+    conn.execute("CREATE NODE TABLE Person(id INT64, PRIMARY KEY(id));")
+    conn.execute("CREATE REL TABLE Knows(FROM Person TO Person, id INT64);")
+    conn.execute("CREATE (p: Person {id: 111});")
+    conn.execute("CREATE (p: Person {id: 222});")
+    conn.execute(
+        "MATCH (p1: Person {id: 111}), (p2: Person {id: 222}) CREATE (p1)-[k:Knows {id: 333}]->(p2);"
+    )
+    conn.execute("DROP TABLE IF EXISTS Knows;")
+
+    conn.execute("CREATE REL TABLE Knows(FROM Person TO Person, weight DOUBLE);")
+    val = conn.execute("MATCH ()-[e:Knows]->() return count(e);")
+    records = list(val)
+    assert records == [[0]], f"Expected value [[0]], got {records}"
+    conn.execute(
+        "MATCH (p1: Person {id: 111}), (p2: Person {id: 222}) CREATE (p1)-[k:Knows {weight: 1.5}]->(p2);"
+    )
+    res = conn.execute("MATCH (p1: Person)-[k: Knows]->(p2:Person) RETURN k.weight;")
+    records = list(res)
+    assert records == [[1.5]]
+    logger.info("test_recreate_edge passed first part")
+
+    conn.execute("DROP TABLE IF EXISTS Knows;")
+    conn.execute("CREATE REL TABLE Knows(FROM Person TO Person, id INT64);")
+    conn.execute(
+        "MATCH (p1: Person {id: 111}), (p2: Person {id: 222}) CREATE (p1)-[k:Knows {id: 444}]->(p2);"
+    )
+    res = conn.execute("MATCH (p1: Person)-[k: Knows]->(p2:Person) RETURN k.id;")
+    records = list(res)
+    assert records == [[444]]
+    logger.info("test_recreate_edge passed second part")
+    conn.close()
+    db.close()
+
+
+def test_delete_vertex_detach_edge():
+    db_dir = "/tmp/test_delete_vertex_detach_edge"
+    logger.info("Starting test_delete_vertex_detach_edge")
+    shutil.rmtree(db_dir, ignore_errors=True)
+    db = Database(db_path=db_dir, mode="w")
+    conn = db.connect()
+    conn.execute("CREATE NODE TABLE Person(id INT64, PRIMARY KEY(id));")
+    conn.execute("CREATE REL TABLE Knows(FROM Person TO Person, id INT64);")
+    conn.execute("CREATE (p: Person {id: 111});")
+    conn.execute("CREATE (p: Person {id: 222});")
+    conn.execute(
+        "MATCH (p1: Person {id: 111}), (p2: Person {id: 222}) CREATE (p1)-[k:Knows {id: 333}]->(p2);"
+    )
+
+    conn.execute(
+        """
+        MATCH (p1: Person)-[k: Knows]->(p2:Person) WHERE p1.id = 111 DETACH DELETE p1
+        """
+    )
+    res = conn.execute("MATCH (p: Person) RETURN p.id;")
+    records = list(res)
+    assert records == [[222]], f"Expected value [[222]], got {records}"
+    # Drop person
+    conn.execute("DROP TABLE IF EXISTS Person;")
+
+    res = conn.execute("MATCH ()-[e]->() RETURN count(e);")
+    records = list(res)
+    # TODO(zhanglei): Should return [[0]], but now returns empty list
+    assert records == [], f"Expected value [], got {records}"
+
+    with pytest.raises(Exception):
+        conn.execute("MATCH (p: Person) RETURN count(p);")
+    with pytest.raises(Exception):
+        conn.execute("MATCH ()-[e: Knows]->() RETURN count(e);")
+    logger.info("test_delete_vertex_detach_edge passed")
+    conn.close()
+    db.close()

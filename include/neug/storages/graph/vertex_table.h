@@ -56,6 +56,20 @@ class VertexTable {
 
   VertexTable(const VertexTable&) = delete;
 
+  void Swap(VertexTable& other) {
+    indexer_.swap(other.indexer_);
+    table_.swap(other.table_);
+    std::swap(v_label_name_, other.v_label_name_);
+    std::swap(pk_type_, other.pk_type_);
+    std::swap(property_names, other.property_names);
+    std::swap(property_types, other.property_types);
+    std::swap(storage_strategies, other.storage_strategies);
+    vertex_ts_.swap(other.vertex_ts_);
+    std::swap(memory_level_, other.memory_level_);
+    std::swap(work_dir_, other.work_dir_);
+    std::swap(is_vertex_table_modified_, other.is_vertex_table_modified_);
+  }
+
   void Open(const std::string& work_dir, int memory_level,
             bool build_empty_graph = false);
 

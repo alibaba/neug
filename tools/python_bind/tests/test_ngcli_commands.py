@@ -150,10 +150,10 @@ def test_connect_remote_database_fails_without_uri(runner):
 
 
 def test_start_remote_database_neug_ui(runner):
-    db_endpoint = "http://127.0.0.1:10001"
+    db_endpoint = "http://127.0.0.1:10010"
     db_path = "/tmp/modern_graph"
     db = Database(db_path=db_path, mode="w")
-    db.serve(host="127.0.0.1", port=10001, blocking=False)
+    db.serve(host="127.0.0.1", port=10010, blocking=False)
 
     time.sleep(1)
     session = Session(endpoint=db_endpoint)

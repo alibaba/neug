@@ -97,7 +97,7 @@ def test_start_service_on_pure_memory_db():
         "MATCH (a:person), (b:person) WHERE a.id = 1 AND b.id = 2 CREATE (a)-[:knows {weight: 0.5}]->(b);"
     )
     conn.close()
-    uri = db.serve(10001, "localhost", False)
+    uri = db.serve(10010, "localhost", False)
     time.sleep(1)
 
     session = Session(uri, timeout="10s")

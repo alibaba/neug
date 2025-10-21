@@ -225,6 +225,18 @@ class LFIndexer {
 
   static std::string prefix() { return "indexer"; }
 
+  void swap(LFIndexer& other) {
+    indices_.swap(other.indices_);
+    std::swap(indices_size_, other.indices_size_);
+    size_t temp_num = num_elements_.load();
+    num_elements_.store(other.num_elements_.load());
+    other.num_elements_.store(temp_num);
+    std::swap(num_slots_minus_one_, other.num_slots_minus_one_);
+    std::swap(keys_, other.keys_);
+    hash_policy_.swap(other.hash_policy_);
+    std::swap(hasher_, other.hasher_);
+  }
+
   void init(const PropertyType& type) {
     keys_ = nullptr;
     if (type == PropertyType::kInt64) {
