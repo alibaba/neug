@@ -885,7 +885,6 @@ Interval::Interval(std::string str) {
     } else {
       THROW_INVALID_ARGUMENT_EXCEPTION("Invalid interval unit: " + unit);
     }
-    LOG(INFO) << "Parsed interval part: " << num << " " << unit;
     str = match.suffix().str();
     // trim leading and trailing spaces
     str.erase(0, str.find_first_not_of(' '));

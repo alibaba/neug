@@ -49,10 +49,9 @@
 namespace gs {
 
 class Connection;
-
-static void IngestWalRange(PropertyGraph& graph, const IWalParser& parser,
-                           uint32_t from, uint32_t to,
-                           std::vector<Allocator>& allocators,
+static void IngestWalRange(PropertyGraph& graph,
+                           std::shared_ptr<TransactionManager> txn_manager,
+                           const IWalParser& parser, uint32_t from, uint32_t to,
                            const std::string& work_dir, int thread_num) {
   std::atomic<uint32_t> cur_ts(from);
   std::vector<std::thread> threads(thread_num);
@@ -65,8 +64,9 @@ static void IngestWalRange(PropertyGraph& graph, const IWalParser& parser,
               break;
             }
             const auto& unit = parser.get_insert_wal(got_ts);
-            InsertTransaction::IngestWal(graph, got_ts, unit.ptr, unit.size,
-                                         allocators[tid]);
+            InsertTransaction::IngestWal(
+                graph, got_ts, unit.ptr, unit.size,
+                txn_manager->GetSession(tid).allocator());
             if (got_ts % 1000000 == 0) {
               LOG(INFO) << "Ingested " << got_ts << " WALs";
             }
@@ -134,10 +134,10 @@ bool NeugDB::Open(const NeugDBConfig& config) {
   }
   gs::runtime::PlanParser::get().init();
   openGraphAndSchema();
-  initVersionManager();  // must before initTransactionManager
+  initVersionManager();      // must before initTransactionManager
+  initAppManager();          // must before initTransactionManager
+  initTransactionManager();  // must before ingestWals
   ingestWals();
-  initAppManager();  // must before initTransactionManager
-  initTransactionManager();
   startMonitorIfNeeded();
   startCompactThreadIfNeeded();
   initPlannerAndQueryProcessor();
@@ -177,6 +177,12 @@ void NeugDB::Close() {
   // -----------Clear graph_db----------------
   if (config_.checkpoint_on_close) {
     createCheckpoint();
+  } else {
+    // If not checkpoint_on_close is off, then we need to recover from the WAL
+    // files next time. It is ok for insert and update vertices and edges, but
+    // currently DDL operations are not writen into WAL. So currently we just
+    // dump the schema to disk
+    graph_.DumpSchema();
   }
   graph_.Clear();
   if (version_manager_) {
@@ -235,6 +241,7 @@ void NeugDB::SwitchToTPMode() {
     THROW_NOT_SUPPORTED_EXCEPTION(
         "Cannot switch to TP mode when there are active connections");
   }
+  createCheckpoint();
   std::unique_lock<std::mutex> lock(mutex_);
   if (dynamic_cast<TPVersionManager*>(version_manager_.get()) != nullptr) {
     LOG(WARNING) << "The version manager is already a TPVersionManager, no "
@@ -257,6 +264,7 @@ void NeugDB::SwitchToAPMode() {
     THROW_NOT_SUPPORTED_EXCEPTION(
         "Cannot switch to AP mode when there are active connections");
   }
+  createCheckpoint();
   std::unique_lock<std::mutex> lock(mutex_);
   if (dynamic_cast<APVersionManager*>(version_manager_.get()) != nullptr) {
     LOG(WARNING) << "The version manager is already an APVersionManager, no "
@@ -267,7 +275,6 @@ void NeugDB::SwitchToAPMode() {
   new_vm->init_ts(version_manager_->acquire_read_timestamp(), thread_num_);
   version_manager_ = new_vm;
   txn_manager_->SetVersionManager(version_manager_);
-  thread_num_ = 1;  // APVersionManager only support single thread
   txn_manager_->SwitchToAPMode(thread_num_);
 }
 
@@ -303,8 +310,8 @@ void NeugDB::initTransactionManager() {
         "Transaction manager has already been initialized");
   }
 
-  txn_manager_ = std::make_unique<TransactionManager>(
-      app_manager_, version_manager_, graph_, config_, work_dir_);
+  txn_manager_ = std::make_shared<TransactionManager>(
+      app_manager_, version_manager_, graph_, config_, work_dir_, thread_num_);
 
   VLOG(1) << "Successfully Created TransactionManager with " << thread_num_
           << " threads";
@@ -370,33 +377,21 @@ void NeugDB::openGraphAndSchema() {
 }
 
 void NeugDB::ingestWals() {
-  MemoryStrategy allocator_strategy = MemoryStrategy::kMemoryOnly;
-  if (config_.memory_level == 0) {
-    allocator_strategy = MemoryStrategy::kSyncToFile;
-  } else if (config_.memory_level >= 2) {
-    allocator_strategy = MemoryStrategy::kHugepagePrefered;
-  }
   auto wal_uri = parse_wal_uri(config_.wal_uri, work_dir_);
   auto wal_parser = WalParserFactory::CreateWalParser(wal_uri);
-  ingestWals(*wal_parser, work_dir_, allocator_strategy, thread_num_);
+  ingestWals(*wal_parser, work_dir_);
   version_manager_->init_ts(wal_parser->last_ts(), thread_num_);
 }
 
-void NeugDB::ingestWals(IWalParser& parser, const std::string& work_dir,
-                        MemoryStrategy allocator_strategy, int thread_num) {
+void NeugDB::ingestWals(IWalParser& parser, const std::string& work_dir) {
   uint32_t from_ts = 1;
-  std::vector<Allocator> allocators;
-  for (int i = 0; i < thread_num; ++i) {
-    allocators.emplace_back(allocator_strategy,
-                            allocator_strategy != MemoryStrategy::kSyncToFile
-                                ? ""
-                                : wal_ingest_allocator_prefix(work_dir, i));
-  }
+  LOG(INFO) << "Ingesting update wals size: "
+            << parser.get_update_wals().size();
   for (auto& update_wal : parser.get_update_wals()) {
     uint32_t to_ts = update_wal.timestamp;
     if (from_ts < to_ts) {
-      IngestWalRange(graph_, parser, from_ts, to_ts, allocators, work_dir,
-                     thread_num);
+      IngestWalRange(graph_, txn_manager_, parser, from_ts, to_ts, work_dir,
+                     thread_num_);
     }
     if (update_wal.size == 0) {
       graph_.Compact(config_.reset_timestamp_before_checkpoint,
@@ -405,15 +400,17 @@ void NeugDB::ingestWals(IWalParser& parser, const std::string& work_dir,
       last_compaction_ts_ = update_wal.timestamp;
     } else {
       UpdateTransaction::IngestWal(graph_, work_dir, to_ts, update_wal.ptr,
-                                   update_wal.size, allocators[0]);
+                                   update_wal.size,
+                                   txn_manager_->GetSession(0).allocator());
     }
     from_ts = to_ts + 1;
   }
   if (from_ts <= parser.last_ts()) {
-    IngestWalRange(graph_, parser, from_ts, parser.last_ts() + 1, allocators,
-                   work_dir, thread_num);
+    IngestWalRange(graph_, txn_manager_, parser, from_ts, parser.last_ts() + 1,
+                   work_dir, thread_num_);
   }
-  version_manager_->init_ts(parser.last_ts(), thread_num);
+  LOG(INFO) << "Finish ingesting wals up to timestamp: " << parser.last_ts();
+  version_manager_->init_ts(parser.last_ts(), thread_num_);
 }
 void NeugDB::startMonitorIfNeeded() {
   if (config_.enable_monitoring) {
@@ -534,4 +531,5 @@ void NeugDB::createCheckpoint() {
   graph_.Dump();
   VLOG(1) << "Finish checkpoint";
 }
+
 }  // namespace gs

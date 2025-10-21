@@ -41,14 +41,21 @@ bool QueryResult::hasNext() const {
 
 size_t QueryResult::length() const { return result_.results_size(); }
 
-RecordLine record_to_entries_vec(results::Record* result) {
+std::string QueryResult::ToString() const {
+  std::string result = "QueryResult: [\n";
+  for (size_t i = 0; i < length(); ++i) {
+    result += "  " + (*this)[i].ToString() + "\n";
+  }
+  result += "]";
+  return result;
+}
+
+RecordLine record_to_entries_vec(const results::Record* result) {
   std::vector<const results::Entry*> entries;
   for (int32_t i = 0; i < result->columns_size(); ++i) {
-    // Although we use mutable_columns, we don't mutate the data.
-    auto ptr = result->mutable_columns(i)->mutable_entry();
-    // cast to a const pointer and points to const data
-    auto entry = reinterpret_cast<const results::Entry*>(ptr);
-    entries.emplace_back(entry);
+    // auto ptr = result->mutable_columns(i)->mutable_entry();
+    auto ptr = &result->columns(i).entry();
+    entries.emplace_back(ptr);
   }
   return RecordLine(entries);
 }
@@ -64,12 +71,11 @@ RecordLine QueryResult::next() {
   return record_to_entries_vec(result);
 }
 
-RecordLine QueryResult::operator[](int index) {
+RecordLine QueryResult::operator[](int index) const {
   if (index < 0 || index >= static_cast<int>(result_.results_size())) {
     THROW_RUNTIME_ERROR("Index out of range");
   }
-  return record_to_entries_vec(
-      result_.mutable_results(index)->mutable_record());
+  return record_to_entries_vec(&result_.results(index).record());
 }
 
 const std::string& QueryResult::get_result_schema() const {

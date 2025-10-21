@@ -882,7 +882,15 @@ void EdgeTable::BatchAddEdges(const IndexerType& src_indexer,
 void EdgeTable::Compact(bool reset_timestamp, bool compact_csr,
                         bool sort_on_compaction, float reserve_ratio,
                         timestamp_t ts) {
-  // TODO
+  if (sort_on_compaction) {
+    out_csr_->batch_sort_by_edge_data(ts);
+    in_csr_->batch_sort_by_edge_data(ts);
+  }
+  if (reset_timestamp) {
+    out_csr_->reset_timestamp();
+    in_csr_->reset_timestamp();
+  }
+  // TODO(zhanglei): Resize the CSR with reserve_ratio
 }
 
 void EdgeTable::dropAndCreateNewBundledCSR() {

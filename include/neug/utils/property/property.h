@@ -71,12 +71,7 @@ class Prop {
 
   void set_float(float v) { value_ = v; }
 
-  void set_double(double v) {
-    LOG(INFO) << "set_double: " << v;
-    value_ = v;  // std::get<double>(value_) = v; doesn't work: std::get: wrong
-                 // index for variant
-    LOG(INFO) << "set_double done";
-  }
+  void set_double(double v) { value_ = v; }
 
   void set_timestamp(const TimeStamp& v) { value_ = v; }
 

@@ -140,11 +140,9 @@ class PropertyGraph {
   /**
    * @brief Dump schema information to a file.
    *
-   * @param filename Target file for schema dump
-   *
    * @since v0.1.0
    */
-  void DumpSchema(const std::string& filename);
+  void DumpSchema();
 
   /**
    * @brief Get read-only access to the schema.

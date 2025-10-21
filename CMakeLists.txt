@@ -112,6 +112,7 @@ if (WITH_MIMALLOC)
     set(MI_BUILD_TESTS OFF CACHE BOOL "Build mimalloc tests")
     set(MI_BUILD_SHARED ON CACHE BOOL "Build mimalloc as shared library" FORCE)
     set(MI_BUILD_STATIC OFF CACHE BOOL "Build mimalloc as static library") 
+    set(MI_USE_LIBATOMIC OFF CACHE BOOL "Use libatomic")
     # we should not use static mimalloc, the reason is that static mimalloc will override the default malloc.
     add_subdirectory(third_party/mimalloc)
     set_target_properties(mimalloc PROPERTIES DEBUG_POSTFIX "")
@@ -451,6 +452,7 @@ endif()
 include_directories(SYSTEM ${Protobuf_INCLUDE_DIRS})
 message(STATUS "protobuf include dir: ${Protobuf_INCLUDE_DIR}, ${Protobuf_INCLUDE_DIRS}")
 message(STATUS "protobuf libraries: ${Protobuf_LIBRARIES}")
+message(STATUS "Use system protobuf: ${USE_SYSTEM_PROTOBUF}")
 
 # Check protobuf version for conditional patching
 if(Protobuf_FOUND AND Protobuf_VERSION)

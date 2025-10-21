@@ -226,8 +226,7 @@ class NeugDB {
   void preprocessConfig();
   void openGraphAndSchema();
   void ingestWals();
-  void ingestWals(IWalParser& parser, const std::string& work_dir,
-                  MemoryStrategy allocator_strategy, int thread_num);
+  void ingestWals(IWalParser& parser, const std::string& work_dir);
   void startMonitorIfNeeded();
   void startAutoCompactionIfNeeded();
   void startCompactThreadIfNeeded();
@@ -256,7 +255,7 @@ class NeugDB {
   PropertyGraph graph_;
   std::shared_ptr<AppManager> app_manager_;
   std::shared_ptr<IVersionManager> version_manager_;
-  std::unique_ptr<TransactionManager> txn_manager_;
+  std::shared_ptr<TransactionManager> txn_manager_;
   std::shared_ptr<IGraphPlanner> planner_;
   std::shared_ptr<QueryProcessor> query_processor_;
   std::unique_ptr<ConnectionManager> connection_manager_;

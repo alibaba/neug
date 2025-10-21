@@ -137,6 +137,9 @@ template <typename EDATA_T>
 void ImmutableCsr<EDATA_T>::warmup(int thread_num) const {}
 
 template <typename EDATA_T>
+void ImmutableCsr<EDATA_T>::reset_timestamp() {}
+
+template <typename EDATA_T>
 void ImmutableCsr<EDATA_T>::resize(vid_t vnum) {
   if (vnum > adj_lists_.size()) {
     size_t old_size = adj_lists_.size();
@@ -387,6 +390,9 @@ void SingleImmutableCsr<EDATA_T>::warmup(int thread_num) const {
   }
   (void) output.load();
 }
+
+template <typename EDATA_T>
+void SingleImmutableCsr<EDATA_T>::reset_timestamp() {}
 
 template <typename EDATA_T>
 void SingleImmutableCsr<EDATA_T>::resize(vid_t vnum) {

@@ -25,10 +25,12 @@
 #include "neug/config.h"
 #include "neug/main/neug_db_session.h"
 #include "neug/storages/file_names.h"
+#include "neug/storages/graph/property_graph.h"
 #include "neug/transaction/compact_transaction.h"
 #include "neug/transaction/insert_transaction.h"
 #include "neug/transaction/read_transaction.h"
 #include "neug/transaction/update_transaction.h"
+#include "neug/transaction/version_manager.h"
 #include "neug/transaction/wal/wal.h"
 #include "neug/utils/allocators.h"
 #include "neug/utils/mmap_array.h"
@@ -80,7 +82,7 @@ class TransactionManager {
   TransactionManager(std::shared_ptr<AppManager> app_manager,
                      std::shared_ptr<IVersionManager> version_manager,
                      PropertyGraph& graph, const NeugDBConfig& config,
-                     const std::string& work_dir);
+                     const std::string& work_dir, int32_t thread_num = 1);
   ~TransactionManager() { Clear(); }
 
   void Clear();
@@ -128,8 +130,7 @@ class TransactionManager {
   void SetVersionManager(std::shared_ptr<IVersionManager> vm);
 
  private:
-  void ingestWals(IWalParser& parser, const std::string& work_dir,
-                  MemoryStrategy allocator_strategy, int thread_num);
+  void ingestWals(IWalParser& parser, const std::string& work_dir);
 
   int thread_num_;
   std::string work_dir_;

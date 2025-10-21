@@ -80,7 +80,8 @@ struct ServiceConfig {
         log_level(DEFAULT_LOG_LEVEL),
         verbose_level(DEFAULT_VERBOSE_LEVEL),
         sharding_mode(DEFAULT_SHARDING_MODE),
-        wal_uri(DEFAULT_WAL_URI) {}
+        wal_uri(DEFAULT_WAL_URI),
+        host_str("127.0.0.1") {}
 
   void set_sharding_mode(const std::string& mode) {
     VLOG(10) << "Set sharding mode: " << mode;

@@ -75,6 +75,8 @@ class ImmutableCsr : public TypedCsrBase<EDATA_T> {
 
   void warmup(int thread_num) const override;
 
+  void reset_timestamp() override;
+
   void resize(vid_t vnum) override;
 
   void close() override;
@@ -157,6 +159,8 @@ class SingleImmutableCsr : public TypedCsrBase<EDATA_T> {
             const std::string& new_snapshot_dir) override;
 
   void warmup(int thread_num) const override;
+
+  void reset_timestamp() override;
 
   void resize(vid_t vnum) override;
 

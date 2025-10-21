@@ -446,13 +446,18 @@ bool CypherUpdateApp::Query(NeugDBSession& graph, Decoder& input,
       return false;
     }
 
-    LOG(INFO) << "plan: " << plan.DebugString();
+    VLOG(1) << "plan: " << plan.DebugString();
     if (plan.has_ddl_plan()) {
       auto result = execute_ddl(graph, plan.ddl_plan());
       if (!result) {
         output.put_string(result.error().ToString());
         return false;
       }
+      // TODO(zhanglei): Currently we dump schema to disk after each DDL
+      // operation, to ensure the consistency.
+      // The better way is to write the schema change to WAL, and apply them
+      // after the transaction is committed.
+      graph.graph().DumpSchema();
       auto res = result.value().SerializeAsString();
       output.put_bytes(res.data(), res.size());
       return true;

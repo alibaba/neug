@@ -140,6 +140,8 @@ class NeugDBSession {
 
   AppBase* GetApp(const std::string& name);
 
+  inline Allocator& allocator() { return alloc_; }
+
   inline const std::string& work_dir() const { return work_dir_; }
 
   inline void SetVersionManager(std::shared_ptr<IVersionManager> vm) {

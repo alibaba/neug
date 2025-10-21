@@ -537,7 +537,7 @@ Open the property graph from persistent storage.
 
 #### `Dump()`
 
-#### `DumpSchema(const std::string &filename)`
+#### `DumpSchema()`
 
 Dump schema information to a file.
 

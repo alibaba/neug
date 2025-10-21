@@ -278,8 +278,6 @@ class GraphUpdateInterface {
 
   inline bool AddVertex(label_t label, const Any& id,
                         const std::vector<Prop>& props, vid_t& vid) {
-    LOG(INFO) << "AddVertex called with label: " << static_cast<int>(label)
-              << ", id: " << id.to_string();
     return txn_.AddVertex(label, id, props, vid);
   }
 

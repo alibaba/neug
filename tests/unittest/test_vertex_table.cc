@@ -122,6 +122,7 @@ TEST_F(VertexTableTest, VertexTableDumpAndReload) {
   }
   std::filesystem::create_directories(dump_dir);
   std::filesystem::create_directories(gs::checkpoint_dir(dump_dir));
+  std::filesystem::create_directories(gs::temp_checkpoint_dir(dump_dir));
   {
     gs::VertexTable table(v_label_name_, pk_type_, property_names_,
                           property_types_, storage_strategies_);
@@ -138,9 +139,12 @@ TEST_F(VertexTableTest, VertexTableDumpAndReload) {
     lid3 = table.add_vertex(oid3, 3);
     LOG(INFO) << "Added vertices with lids: " << lid1 << ", " << lid2 << ", "
               << lid3;
-
-    table.Dump(gs::checkpoint_dir(dump_dir));
+    table.Dump(gs::temp_checkpoint_dir(dump_dir));
   }
+
+  std::filesystem::remove_all(gs::checkpoint_dir(dump_dir));
+  std::filesystem::rename(gs::temp_checkpoint_dir(dump_dir),
+                          gs::checkpoint_dir(dump_dir));
 
   {
     gs::VertexTable new_table(v_label_name_, pk_type_, property_names_,
@@ -148,8 +152,83 @@ TEST_F(VertexTableTest, VertexTableDumpAndReload) {
     new_table.Open(dump_dir, memory_level_);
     EXPECT_EQ(new_table.vertex_num(), 3);
     EXPECT_EQ(new_table.lid_num(), 3);
-    EXPECT_EQ(new_table.vertex_num(2), 2);
-    EXPECT_EQ(new_table.vertex_num(1), 1);
+    EXPECT_EQ(new_table.vertex_num(2), 3);
+    EXPECT_EQ(new_table.vertex_num(1), 3);
+    EXPECT_FALSE(new_table.vertex_table_modified());
+  }
+}
+
+TEST_F(VertexTableTest, VertexTableAddAndDeleteAndReload) {
+  std::string dump_dir = "/tmp/test_vertex_table_add_delete";
+  if (std::filesystem::exists(dump_dir)) {
+    std::filesystem::remove_all(dump_dir);
+  }
+  std::filesystem::create_directories(dump_dir);
+  std::filesystem::create_directories(gs::checkpoint_dir(dump_dir));
+  std::filesystem::create_directories(gs::temp_checkpoint_dir(dump_dir));
+  gs::vid_t lid1, lid2, lid3;
+  gs::Any oid1, oid2, oid3;
+  {
+    gs::VertexTable table(v_label_name_, pk_type_, property_names_,
+                          property_types_, storage_strategies_);
+    table.Open(dump_dir, memory_level_, true);
+    table.Reserve(vertex_count_);
+
+    oid1.set_i64(1);
+    oid2.set_i64(2);
+    oid3.set_i64(3);
+    lid1 = table.add_vertex(oid1, 1);
+    lid2 = table.add_vertex(oid2, 2);
+    lid3 = table.add_vertex(oid3, 3);
+    LOG(INFO) << "Added vertices with lids: " << lid1 << ", " << lid2 << ", "
+              << lid3;
+
+    EXPECT_EQ(table.vertex_num(), 3);
+    EXPECT_EQ(table.lid_num(), 3);
+
+    table.Dump(gs::temp_checkpoint_dir(dump_dir));
+  }
+
+  std::filesystem::remove_all(gs::checkpoint_dir(dump_dir));
+  std::filesystem::rename(gs::temp_checkpoint_dir(dump_dir),
+                          gs::checkpoint_dir(dump_dir));
+  std::filesystem::create_directories(gs::temp_checkpoint_dir(dump_dir));
+
+  {
+    gs::VertexTable new_table(v_label_name_, pk_type_, property_names_,
+                              property_types_, storage_strategies_);
+    new_table.Open(dump_dir, memory_level_);
+    EXPECT_EQ(new_table.vertex_num(), 3);
+    EXPECT_EQ(new_table.lid_num(), 3);
+
+    new_table.BatchDeleteVertices({lid1, lid2});
+    EXPECT_EQ(new_table.vertex_num(), 1);
+    EXPECT_EQ(new_table.lid_num(), 3);
+
+    gs::vid_t tmp_vid;
+    EXPECT_FALSE(new_table.get_index(oid1, tmp_vid));
+    EXPECT_FALSE(new_table.get_index(oid2, tmp_vid));
+    EXPECT_TRUE(new_table.get_index(oid3, tmp_vid));
+
+    new_table.Dump(gs::temp_checkpoint_dir(dump_dir));
+  }
+
+  std::filesystem::remove_all(gs::checkpoint_dir(dump_dir));
+  std::filesystem::rename(gs::temp_checkpoint_dir(dump_dir),
+                          gs::checkpoint_dir(dump_dir));
+  std::filesystem::create_directories(gs::temp_checkpoint_dir(dump_dir));
+
+  {
+    gs::VertexTable new_table(v_label_name_, pk_type_, property_names_,
+                              property_types_, storage_strategies_);
+    new_table.Open(dump_dir, memory_level_);
+    EXPECT_EQ(new_table.vertex_num(), 1);
+    EXPECT_EQ(new_table.lid_num(), 3);
     EXPECT_TRUE(new_table.vertex_table_modified());
+
+    gs::vid_t tmp_vid;
+    EXPECT_FALSE(new_table.get_index(oid1, tmp_vid));
+    EXPECT_FALSE(new_table.get_index(oid2, tmp_vid));
+    EXPECT_TRUE(new_table.get_index(oid3, tmp_vid));
   }
 }

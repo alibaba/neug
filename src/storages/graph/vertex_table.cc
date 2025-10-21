@@ -84,6 +84,12 @@ void VertexTable::Dump(const std::string& target_dir) {
   table_->resize(indexer_.size());
   table_->dump(vertex_table_prefix(v_label_name_), target_dir);
   vertex_ts_.resize(indexer_.size());
+  // When dumping, we need to reset the existing vertex's timestamp to 0.
+  for (size_t i = 0; i < vertex_ts_.size(); ++i) {
+    if (vertex_ts_.get(i) != INVALID_TIMESTAMP) {
+      vertex_ts_.set(i, 0);
+    }
+  }
   vertex_ts_.dump(target_dir + "/" + vertex_timestamp_file(v_label_name_));
   VLOG(1) << "Dump vertex table " << v_label_name_ << " done, size "
           << indexer_.size();
@@ -97,6 +103,7 @@ void VertexTable::Close() {
 
 bool VertexTable::get_index(const Any& oid, vid_t& lid, timestamp_t ts) const {
   auto res = indexer_.get_index(oid, lid);
+  // clang-format off
   if (res && is_vertex_table_modified_)
     [[unlikely]] {
       if (!is_valid_lid(lid, ts)) {
@@ -104,6 +111,7 @@ bool VertexTable::get_index(const Any& oid, vid_t& lid, timestamp_t ts) const {
         return false;
       }
     }
+  // clang-format on
   return res;
 }
 
@@ -146,6 +154,7 @@ vid_t VertexTable::add_vertex_safe(const Any& id, timestamp_t ts) {
 }
 
 Any VertexTable::get_oid(vid_t lid, timestamp_t ts) const {
+  // clang-format off
   if (is_vertex_table_modified_)
     [[unlikely]] {
       if (!is_valid_lid(lid, ts)) {
@@ -153,15 +162,18 @@ Any VertexTable::get_oid(vid_t lid, timestamp_t ts) const {
                                          " has been deleted.");
       }
     }
+  // clang-format on
   return indexer_.get_key(lid);
 }
 
 bool VertexTable::is_valid_lid(vid_t lid, timestamp_t ts) const {
   // We use numeric_limits<timestamp_t>::max() to denote a deleted vertex.
   // But we ts is passed as a timestamp limit, we take it as a normal timestamp.
+  // clang-format off
   if (!is_vertex_table_modified_)
     [[likely]] { return lid < indexer_.size(); }
   return lid < indexer_.size() && vertex_ts_.get(lid) <= ts;
+  // clang-format on
 }
 
 void VertexTable::Reserve(size_t cap) {

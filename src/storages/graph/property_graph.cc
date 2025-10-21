@@ -697,9 +697,10 @@ Status PropertyGraph::batch_delete_edges(
   return Status::OK();
 }
 
-void PropertyGraph::DumpSchema(const std::string& schema_path) {
+void PropertyGraph::DumpSchema() {
+  auto _schema_path = schema_path(work_dir_);
   auto io_adaptor = std::unique_ptr<grape::LocalIOAdaptor>(
-      new grape::LocalIOAdaptor(schema_path));
+      new grape::LocalIOAdaptor(_schema_path));
   io_adaptor->Open("wb");
   schema_.Serialize(io_adaptor);
   io_adaptor->Close();
@@ -936,7 +937,7 @@ void PropertyGraph::Dump(bool reopen) {
       }
     }
   }
-  DumpSchema(schema_path(work_dir_));
+  DumpSchema();
   copy_directory(target_dir, checkpoint_dir(work_dir_), true, true);
   remove_directory(target_dir);
   remove_directory(tmp_dir(work_dir_));

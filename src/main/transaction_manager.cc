@@ -33,8 +33,8 @@ class PropertyGraph;
 TransactionManager::TransactionManager(
     std::shared_ptr<AppManager> app_manager,
     std::shared_ptr<IVersionManager> version_manager, PropertyGraph& graph,
-    const NeugDBConfig& config, const std::string& work_dir)
-    : thread_num_(1),
+    const NeugDBConfig& config, const std::string& work_dir, int32_t thread_num)
+    : thread_num_(thread_num),
       work_dir_(work_dir),
       app_manager_(app_manager),
       version_manager_(version_manager),

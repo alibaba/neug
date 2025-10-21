@@ -13,24 +13,50 @@
  * limitations under the License.
  */
 
+#include "neug/main/file_lock.h"
 #include "neug/main/neug_db.h"
 #include "neug/server/neug_db_service.h"
 #include "neug/utils/service_utils.h"
 
 #include <glog/logging.h>
+#include <csignal>
 #include "cxxopts/cxxopts.hpp"
 
 using namespace server;
 
-int main(int argc, char** argv) {
-  gs::blockSignal(SIGINT);
-  gs::blockSignal(SIGTERM);
+void signal_handler(int signal) {
+  LOG(INFO) << "Received signal " << signal << ", exiting...";
+  // support SIGKILL, SIGINT, SIGTERM
+  if (signal == SIGKILL || signal == SIGINT || signal == SIGTERM ||
+      signal == SIGSEGV || signal == SIGABRT) {
+    LOG(ERROR) << "Received signal " << signal << ", Remove all filelocks";
+    // remove all files in work_dir
+    gs::FileLock::CleanupAllLocks();
+    exit(signal);
+  } else {
+    LOG(ERROR) << "Received unexpected signal " << signal << ", exiting...";
+    exit(1);
+  }
+}
 
+void setup_signal_handler() {
+  std::signal(SIGINT, signal_handler);
+  std::signal(SIGTERM, signal_handler);
+  std::signal(SIGKILL, signal_handler);
+  std::signal(SIGSEGV, signal_handler);
+  std::signal(SIGABRT, signal_handler);
+  std::signal(SIGFPE, signal_handler);
+  std::signal(SIGQUIT, signal_handler);
+  std::signal(SIGKILL, signal_handler);
+  std::signal(SIGHUP, signal_handler);
+}
+
+int main(int argc, char** argv) {
   cxxopts::Options options("rt_server", "Real-time graph server for NeuG");
   options.add_options()("h,help", "Display help message")("v,version",
                                                           "Display version")(
       "s,shard-num", "Shard number of actor system",
-      cxxopts::value<uint32_t>()->default_value("1"))(
+      cxxopts::value<uint32_t>()->default_value("4"))(
       "p,http-port", "HTTP port of query handler",
       cxxopts::value<uint16_t>()->default_value("10000"))(
       "d,data-path", "Data directory path", cxxopts::value<std::string>())(
@@ -48,6 +74,8 @@ int main(int argc, char** argv) {
   FLAGS_logtostderr = true;
 
   cxxopts::ParseResult vm = options.parse(argc, argv);
+
+  setup_signal_handler();
 
   if (vm.count("help")) {
     std::cout << options.help() << std::endl;

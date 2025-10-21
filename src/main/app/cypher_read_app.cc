@@ -32,8 +32,8 @@
 #include "neug/execution/execute/plan_parser.h"
 #include "neug/main/app/cypher_app_utils.h"
 #include "neug/main/neug_db.h"
-#include "neug/storages/graph/schema.h"
 #include "neug/main/neug_db_session.h"
+#include "neug/storages/graph/schema.h"
 #include "neug/utils/app_utils.h"
 #include "neug/utils/result.h"
 
@@ -51,7 +51,7 @@ bool CypherReadApp::Query(const NeugDBSession& graph, Decoder& input,
       return false;
     }
 
-    LOG(INFO) << "plan: " << plan.DebugString();
+    VLOG(1) << "plan: " << plan.DebugString();
     auto txn = graph.GetReadTransaction();
 
     gs::runtime::GraphReadInterface gri(txn);

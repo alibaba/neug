@@ -176,7 +176,7 @@ class QueryResult {
    *
    * @since v0.1.0
    */
-  RecordLine operator[](int index);
+  RecordLine operator[](int index) const;
 
   /**
    * @brief Get total number of records in the result set.
@@ -188,6 +188,17 @@ class QueryResult {
    * @since v0.1.0
    */
   size_t length() const;
+
+  /* Convert the QueryResult to a string representation.
+   *
+   * @return std::string String representation of the QueryResult
+   *
+   * Implementation: Iterates over all records and calls ToString() on each
+   * RecordLine, concatenating results.
+   *
+   * @since v0.1.0
+   */
+  std::string ToString() const;
 
   /**
    * @brief Get the result schema as a string.

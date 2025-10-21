@@ -313,6 +313,18 @@ template <typename EDATA_T>
 void MutableCsr<EDATA_T>::warmup(int thread_num) const {}
 
 template <typename EDATA_T>
+void MutableCsr<EDATA_T>::reset_timestamp() {
+  size_t vnum = adj_list_buffer_.size();
+  for (size_t i = 0; i != vnum; ++i) {
+    nbr_t* nbrs = adj_list_buffer_[i];
+    size_t deg = adj_list_size_[i].load(std::memory_order_relaxed);
+    for (size_t j = 0; j != deg; ++j) {
+      nbrs[j].timestamp.store(0, std::memory_order_relaxed);
+    }
+  }
+}
+
+template <typename EDATA_T>
 void MutableCsr<EDATA_T>::resize(vid_t vnum) {
   if (vnum > adj_list_size_.size()) {
     size_t old_size = adj_list_size_.size();
@@ -580,6 +592,14 @@ void SingleMutableCsr<EDATA_T>::warmup(int thread_num) const {
     thrd.join();
   }
   (void) output.load();
+}
+
+template <typename EDATA_T>
+void SingleMutableCsr<EDATA_T>::reset_timestamp() {
+  size_t vnum = nbr_list_.size();
+  for (size_t i = 0; i != vnum; ++i) {
+    nbr_list_[i].timestamp.store(0, std::memory_order_relaxed);
+  }
 }
 
 template <typename EDATA_T>
