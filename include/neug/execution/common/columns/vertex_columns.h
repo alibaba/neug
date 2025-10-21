@@ -46,8 +46,8 @@ class IVertexColumn : public IContextColumn {
   IVertexColumn() = default;
   virtual ~IVertexColumn() = default;
 
-  __attribute__((always_inline)) ContextColumnType column_type()
-      const override {
+  __attribute__((always_inline)) ContextColumnType
+  column_type() const override {
     return ContextColumnType::kVertex;
   }
 
@@ -103,8 +103,8 @@ class SLVertexColumn : public IVertexColumn {
            std::to_string(size()) + "]";
   }
 
-  __attribute__((always_inline)) VertexColumnType vertex_column_type()
-      const override {
+  __attribute__((always_inline)) VertexColumnType
+  vertex_column_type() const override {
     return VertexColumnType::kSingle;
   }
 
@@ -114,8 +114,8 @@ class SLVertexColumn : public IVertexColumn {
   std::shared_ptr<IContextColumn> optional_shuffle(
       const std::vector<size_t>& offset) const override;
 
-  __attribute__((always_inline)) VertexRecord get_vertex(
-      size_t idx) const override {
+  __attribute__((always_inline)) VertexRecord
+  get_vertex(size_t idx) const override {
     return {label_, vertices_[idx]};
   }
 
@@ -191,8 +191,8 @@ class MSVertexColumn : public IVertexColumn {
            std::to_string(size()) + "]";
   }
 
-  __attribute__((always_inline)) VertexColumnType vertex_column_type()
-      const override {
+  __attribute__((always_inline)) VertexColumnType
+  vertex_column_type() const override {
     return VertexColumnType::kMultiSegment;
   }
 
@@ -202,8 +202,8 @@ class MSVertexColumn : public IVertexColumn {
   std::shared_ptr<IContextColumn> optional_shuffle(
       const std::vector<size_t>& offsets) const override;
 
-  __attribute__((always_inline)) VertexRecord get_vertex(
-      size_t idx) const override {
+  __attribute__((always_inline)) VertexRecord
+  get_vertex(size_t idx) const override {
     for (auto& pair : vertices_) {
       if (idx < pair.second.size()) {
         return {pair.first, pair.second[idx]};
@@ -288,7 +288,7 @@ class MSVertexColumnBuilder : public IVertexColumnBuilder {
   }
 
   __attribute__((always_inline)) void push_back_opt(vid_t v) {
-    // assert(v != std::numeric_limits<vid_t>::max());
+    assert(v != std::numeric_limits<vid_t>::max());
     cur_list_.push_back(v);
   }
 
@@ -338,8 +338,8 @@ class MLVertexColumn : public IVertexColumn {
            std::to_string(size()) + "]";
   }
 
-  __attribute__((always_inline)) VertexColumnType vertex_column_type()
-      const override {
+  __attribute__((always_inline)) VertexColumnType
+  vertex_column_type() const override {
     return VertexColumnType::kMultiple;
   }
 
@@ -348,8 +348,8 @@ class MLVertexColumn : public IVertexColumn {
   std::shared_ptr<IContextColumn> optional_shuffle(
       const std::vector<size_t>& offsets) const override;
 
-  __attribute__((always_inline)) VertexRecord get_vertex(
-      size_t idx) const override {
+  __attribute__((always_inline)) VertexRecord
+  get_vertex(size_t idx) const override {
     return vertices_[idx];
   }
 
@@ -429,7 +429,6 @@ class MLVertexColumnBuilderOpt : public IVertexColumnBuilder {
   // v should not be null
   __attribute__((always_inline)) void push_back_opt(VertexRecord v) {
     labels_bitmap_[v.label_] = true;
-    // CHECK(v.vid_ != std::numeric_limits<vid_t>::max());
     assert(v.vid_ != std::numeric_limits<vid_t>::max());
     vertices_.push_back(v);
   }

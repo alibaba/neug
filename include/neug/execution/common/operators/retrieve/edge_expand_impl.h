@@ -188,9 +188,7 @@ expand_vertex_impl(const GraphReadInterface& graph, const SLVertexColumn& input,
             offsets.push_back(idx);
           }
         } else {
-          if (v != std::numeric_limits<vid_t>::max()) {
-            expand_sv_np_ms(v, idx, view, builder, offsets);
-          }  // Common EdgeExpand from null vertex will not expand any vertex
+          expand_sv_np_ms(v, idx, view, builder, offsets);
         }
       }
     } else {
@@ -210,10 +208,8 @@ expand_vertex_impl(const GraphReadInterface& graph, const SLVertexColumn& input,
             offsets.push_back(idx);
           }
         } else {
-          if (v != std::numeric_limits<vid_t>::max()) {
-            expand_sv_p_ms(input_label, v, idx, nbr_label, edge_label, dir,
-                           view, gpred, builder, offsets);
-          }  // Common EdgeExpand from null vertex will not expand any vertex
+          expand_sv_p_ms(input_label, v, idx, nbr_label, edge_label, dir, view,
+                         gpred, builder, offsets);
         }
       }
     }
@@ -287,9 +283,7 @@ expand_vertex_impl(const GraphReadInterface& graph, const MLVertexColumn& input,
               offsets.push_back(idx);
             }
           } else {
-            if (vid != std::numeric_limits<vid_t>::max()) {
-              expand_sv_np_ms(vid, idx, view, builder, offsets);
-            }  // Common EdgeExpand from null vertex will not expand any vertex
+            expand_sv_np_ms(vid, idx, view, builder, offsets);
           }
         });
       } else {
@@ -311,10 +305,8 @@ expand_vertex_impl(const GraphReadInterface& graph, const MLVertexColumn& input,
               offsets.push_back(idx);
             }
           } else {
-            if (vid != std::numeric_limits<vid_t>::max()) {
-              expand_sv_p_ms(l, vid, idx, nbr_label, edge_label, dir, view,
-                             gpred, builder, offsets);
-            }  // Common EdgeExpand from null vertex will not expand any vertex
+            expand_sv_p_ms(l, vid, idx, nbr_label, edge_label, dir, view, gpred,
+                           builder, offsets);
           }
         });
       }
@@ -358,11 +350,9 @@ expand_vertex_impl(const GraphReadInterface& graph, const MLVertexColumn& input,
               }
             }
           } else {
-            if (vid != std::numeric_limits<vid_t>::max()) {
-              for (auto& view : views[l]) {
-                expand_sv_np_ms(vid, idx, view, builder, offsets);
-              }
-            }  // Common EdgeExpand from null vertex will not expand any vertex
+            for (auto& view : views[l]) {
+              expand_sv_np_ms(vid, idx, view, builder, offsets);
+            }
           }
         });
       } else {
@@ -387,15 +377,13 @@ expand_vertex_impl(const GraphReadInterface& graph, const MLVertexColumn& input,
               offsets.push_back(idx);
             }
           } else {
-            if (vid != std::numeric_limits<vid_t>::max()) {
-              size_t csr_idx = 0;
-              for (auto& view : views[l]) {
-                label_t edge_label = std::get<1>(label_dirs[l][csr_idx]);
-                Direction dir = std::get<2>(label_dirs[l][csr_idx]);
-                expand_sv_p_ms(l, vid, idx, nbr_label, edge_label, dir, view,
-                               gpred, builder, offsets);
-                ++csr_idx;
-              }
+            size_t csr_idx = 0;
+            for (auto& view : views[l]) {
+              label_t edge_label = std::get<1>(label_dirs[l][csr_idx]);
+              Direction dir = std::get<2>(label_dirs[l][csr_idx]);
+              expand_sv_p_ms(l, vid, idx, nbr_label, edge_label, dir, view,
+                             gpred, builder, offsets);
+              ++csr_idx;
             }
           }
         });
@@ -452,9 +440,7 @@ expand_vertex_impl(const GraphReadInterface& graph, const MLVertexColumn& input,
               }
             }
           } else {
-            if (vid != std::numeric_limits<vid_t>::max()) {
-              expand_sv_np_ml(vid, idx, view, nbr_label, builder, offsets);
-            }  // Common EdgeExpand from null vertex will not expand any vertex
+            expand_sv_np_ml(vid, idx, view, nbr_label, builder, offsets);
           }
         });
       } else {
@@ -477,10 +463,8 @@ expand_vertex_impl(const GraphReadInterface& graph, const MLVertexColumn& input,
               offsets.push_back(idx);
             }
           } else {
-            if (vid != std::numeric_limits<vid_t>::max()) {
-              expand_sv_p_ml(l, vid, idx, nbr_label, edge_label, dir, view,
-                             gpred, builder, offsets);
-            }
+            expand_sv_p_ml(l, vid, idx, nbr_label, edge_label, dir, view, gpred,
+                           builder, offsets);
           }
         });
       }
@@ -520,13 +504,10 @@ expand_vertex_impl(const GraphReadInterface& graph, const MLVertexColumn& input,
               offsets.push_back(idx);
             }
           } else {
-            if (vid != std::numeric_limits<vid_t>::max()) {
-              for (size_t i = 0; i < views[l].size(); ++i) {
-                expand_sv_np_ml(vid, idx, views[l][i],
-                                std::get<0>(label_dirs[l][i]), builder,
-                                offsets);
-              }
-            }  // Common EdgeExpand from null vertex will not expand any vertex
+            for (size_t i = 0; i < views[l].size(); ++i) {
+              expand_sv_np_ml(vid, idx, views[l][i],
+                              std::get<0>(label_dirs[l][i]), builder, offsets);
+            }
           }
         });
       } else {
@@ -551,15 +532,13 @@ expand_vertex_impl(const GraphReadInterface& graph, const MLVertexColumn& input,
               offsets.push_back(idx);
             }
           } else {
-            if (vid != std::numeric_limits<vid_t>::max()) {
-              for (size_t i = 0; i < views[l].size(); ++i) {
-                auto& view = views[l][i];
-                label_t nbr_label = std::get<0>(label_dirs[l][i]);
-                label_t edge_label = std::get<1>(label_dirs[l][i]);
-                Direction dir = std::get<2>(label_dirs[l][i]);
-                expand_sv_p_ml(l, vid, idx, nbr_label, edge_label, dir, view,
-                               gpred, builder, offsets);
-              }
+            for (size_t i = 0; i < views[l].size(); ++i) {
+              auto& view = views[l][i];
+              label_t nbr_label = std::get<0>(label_dirs[l][i]);
+              label_t edge_label = std::get<1>(label_dirs[l][i]);
+              Direction dir = std::get<2>(label_dirs[l][i]);
+              expand_sv_p_ml(l, vid, idx, nbr_label, edge_label, dir, view,
+                             gpred, builder, offsets);
             }
           }
         });

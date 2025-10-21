@@ -5,7 +5,6 @@
 -CASE ProjectionMultiLabel
 
 -LOG MultiLabelReturn
--SKIP: TODO(lexiao): fix this issue
 -STATEMENT MATCH (a:person:organisation) RETURN a.ID, label(a), a.fName, a.orgCode ORDER BY a.ID
 ---- 11
 0|person|Alice|

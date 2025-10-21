@@ -45,8 +45,12 @@ bool is_exchange_index(const common::Expression& expr, int& tag);
 
 template <typename EXPR>
 struct PropertyValueCollector {
-  explicit PropertyValueCollector(const Context& ctx) { builder.reserve(ctx.row_num()); }
-  void collect(const EXPR& expr, size_t idx) { builder.push_back_opt(expr(idx)); }
+  explicit PropertyValueCollector(const Context& ctx) {
+    builder.reserve(ctx.row_num());
+  }
+  void collect(const EXPR& expr, size_t idx) {
+    builder.push_back_opt(expr(idx));
+  }
   auto get() { return builder.finish(); }
 
   ValueColumnBuilder<typename EXPR::V> builder;
@@ -65,9 +69,6 @@ struct SLPropertyExpr {
   }
   inline T operator()(size_t idx) const {
     auto v = column.get_vertex(idx);
-    if (v.vid_ == std::numeric_limits<vid_t>::max()) {
-      return std::numeric_limits<T>::max();
-    }
     return property.get_view(v.vid_);
   }
   bool is_optional() const { return is_optional_; }
@@ -112,12 +113,12 @@ struct ProjectExprBuilderBase {
   virtual bool is_general() const { return false; }
 };
 
-std::unique_ptr<ProjectExprBuilderBase> create_dummy_getter_builder(const common::Expression& expr,
-                                                                    int alias);
+std::unique_ptr<ProjectExprBuilderBase> create_dummy_getter_builder(
+    const common::Expression& expr, int alias);
 std::unique_ptr<ProjectExprBuilderBase> create_vertex_property_expr_builder(
     const common::Expression& expr, int alias);
-std::unique_ptr<ProjectExprBuilderBase> create_case_when_builder(const common::Expression& expr,
-                                                                 int alias);
+std::unique_ptr<ProjectExprBuilderBase> create_case_when_builder(
+    const common::Expression& expr, int alias);
 
 struct DummyGetterBuilder : public ProjectExprBuilderBase {
   DummyGetterBuilder(int from, int to) : from_(from), to_(to) {}
@@ -132,7 +133,8 @@ struct DummyGetterBuilder : public ProjectExprBuilderBase {
 
 template <typename T>
 struct VertexPropertyExprBuilder : public ProjectExprBuilderBase {
-  VertexPropertyExprBuilder(int tag, const std::string& property_name, int alias)
+  VertexPropertyExprBuilder(int tag, const std::string& property_name,
+                            int alias)
       : tag_(tag), property_name_(property_name), alias_(alias) {}
   std::unique_ptr<ProjectExprBase> build(
       const GraphReadInterface& graph, const Context& ctx,
@@ -141,31 +143,49 @@ struct VertexPropertyExprBuilder : public ProjectExprBuilderBase {
     if (col->column_type() != ContextColumnType::kVertex) {
       return nullptr;
     }
+    if (col->is_optional()) {
+      return nullptr;
+    }
+
     auto vertex_col = std::dynamic_pointer_cast<IVertexColumn>(col);
     if (vertex_col->vertex_column_type() == VertexColumnType::kSingle) {
       auto casted_col = std::dynamic_pointer_cast<SLVertexColumn>(col);
-      SLPropertyExpr<SLVertexColumn, T> expr(graph, *casted_col, property_name_);
+      SLPropertyExpr<SLVertexColumn, T> expr(graph, *casted_col,
+                                             property_name_);
+      if (expr.is_optional()) {
+        return nullptr;
+      }
       PropertyValueCollector<SLPropertyExpr<SLVertexColumn, T>> collector(ctx);
-      return std::make_unique<
-          ProjectExpr<SLPropertyExpr<SLVertexColumn, T>,
-                      PropertyValueCollector<SLPropertyExpr<SLVertexColumn, T>>>>(
+      return std::make_unique<ProjectExpr<
+          SLPropertyExpr<SLVertexColumn, T>,
+          PropertyValueCollector<SLPropertyExpr<SLVertexColumn, T>>>>(
           std::move(expr), collector, alias_);
-    } else if (vertex_col->vertex_column_type() == VertexColumnType::kMultiSegment) {
+    } else if (vertex_col->vertex_column_type() ==
+               VertexColumnType::kMultiSegment) {
       auto casted_col = std::dynamic_pointer_cast<MSVertexColumn>(col);
-      MLPropertyExpr<MSVertexColumn, T> expr(graph, *casted_col, property_name_);
+      MLPropertyExpr<MSVertexColumn, T> expr(graph, *casted_col,
+                                             property_name_);
+      if (expr.is_optional()) {
+        return nullptr;
+      }
       PropertyValueCollector<MLPropertyExpr<MSVertexColumn, T>> collector(ctx);
-      return std::make_unique<
-          ProjectExpr<MLPropertyExpr<MSVertexColumn, T>,
-                      PropertyValueCollector<MLPropertyExpr<MSVertexColumn, T>>>>(
+      return std::make_unique<ProjectExpr<
+          MLPropertyExpr<MSVertexColumn, T>,
+          PropertyValueCollector<MLPropertyExpr<MSVertexColumn, T>>>>(
           std::move(expr), collector, alias_);
+
     } else {
       CHECK(vertex_col->vertex_column_type() == VertexColumnType::kMultiple);
       auto casted_col = std::dynamic_pointer_cast<MLVertexColumn>(col);
-      MLPropertyExpr<MLVertexColumn, T> expr(graph, *casted_col, property_name_);
+      MLPropertyExpr<MLVertexColumn, T> expr(graph, *casted_col,
+                                             property_name_);
+      if (expr.is_optional()) {
+        return nullptr;
+      }
       PropertyValueCollector<MLPropertyExpr<MLVertexColumn, T>> collector(ctx);
-      return std::make_unique<
-          ProjectExpr<MLPropertyExpr<MLVertexColumn, T>,
-                      PropertyValueCollector<MLPropertyExpr<MLVertexColumn, T>>>>(
+      return std::make_unique<ProjectExpr<
+          MLPropertyExpr<MLVertexColumn, T>,
+          PropertyValueCollector<MLPropertyExpr<MLVertexColumn, T>>>>(
           std::move(expr), collector, alias_);
     }
   }
@@ -201,8 +221,12 @@ struct SPOpr {
 
 template <typename EXPR, typename RESULT_T>
 struct CaseWhenCollector {
-  explicit CaseWhenCollector(const Context& ctx) : ctx_(ctx) { builder.reserve(ctx.row_num()); }
-  void collect(const EXPR& expr, size_t idx) { builder.push_back_opt(expr(idx)); }
+  explicit CaseWhenCollector(const Context& ctx) : ctx_(ctx) {
+    builder.reserve(ctx.row_num());
+  }
+  void collect(const EXPR& expr, size_t idx) {
+    builder.push_back_opt(expr(idx));
+  }
   auto get() { return builder.finish(); }
   const Context& ctx_;
   ValueColumnBuilder<RESULT_T> builder;
@@ -210,9 +234,9 @@ struct CaseWhenCollector {
 
 template <typename CMP_T, typename THEN_T>
 struct CaseWhenExprBuilder : public ProjectExprBuilderBase {
-  CaseWhenExprBuilder(const std::vector<std::string>& param_names, const THEN_T& then_value,
-                      const THEN_T& else_value, int tag, const std::string& property_name,
-                      int alias)
+  CaseWhenExprBuilder(const std::vector<std::string>& param_names,
+                      const THEN_T& then_value, const THEN_T& else_value,
+                      int tag, const std::string& property_name, int alias)
       : param_names_(param_names),
         then_value_(then_value),
         else_value_(else_value),
@@ -231,7 +255,8 @@ struct CaseWhenExprBuilder : public ProjectExprBuilderBase {
     using T = typename CMP_T::data_t;
     std::vector<T> values;
     for (auto& param_name : param_names_) {
-      values.push_back(TypedConverter<T>::typed_from_string(params.at(param_name)));
+      values.push_back(
+          TypedConverter<T>::typed_from_string(params.at(param_name)));
     }
     CMP_T cmp;
     cmp.reset(values);
@@ -246,8 +271,8 @@ struct CaseWhenExprBuilder : public ProjectExprBuilderBase {
       auto casted_col = std::dynamic_pointer_cast<SLVertexColumn>(vertex_col);
       SPOpr sp(casted_col, std::move(pred), then_value_, else_value_);
       CaseWhenCollector<decltype(sp), THEN_T> collector(ctx);
-      return std::make_unique<ProjectExpr<decltype(sp), decltype(collector)>>(std::move(sp),
-                                                                              collector, alias_);
+      return std::make_unique<ProjectExpr<decltype(sp), decltype(collector)>>(
+          std::move(sp), collector, alias_);
     } else {
       using GETTER_T = MLVertexPropertyGetter<T>;
       GETTER_T getter(graph, property_name_);
@@ -255,8 +280,8 @@ struct CaseWhenExprBuilder : public ProjectExprBuilderBase {
       PRED_T pred(getter, cmp);
       SPOpr sp(vertex_col, std::move(pred), then_value_, else_value_);
       CaseWhenCollector<decltype(sp), THEN_T> collector(ctx);
-      return std::make_unique<ProjectExpr<decltype(sp), decltype(collector)>>(std::move(sp),
-                                                                              collector, alias_);
+      return std::make_unique<ProjectExpr<decltype(sp), decltype(collector)>>(
+          std::move(sp), collector, alias_);
     }
   }
 
@@ -270,10 +295,12 @@ struct CaseWhenExprBuilder : public ProjectExprBuilderBase {
 
 struct GeneralProjectExprBuilder : public ProjectExprBuilderBase {
   GeneralProjectExprBuilder(const common::Expression& expr,
-                            const std::optional<common::IrDataType>& data_type, int alias)
+                            const std::optional<common::IrDataType>& data_type,
+                            int alias)
       : expr_(expr), data_type_(data_type), alias_(alias) {}
-  std::unique_ptr<ProjectExprBase> build(const GraphReadInterface& graph, const Context& ctx,
-                                         const std::map<std::string, std::string>& params) override;
+  std::unique_ptr<ProjectExprBase> build(
+      const GraphReadInterface& graph, const Context& ctx,
+      const std::map<std::string, std::string>& params) override;
 
   bool is_general() const override { return true; }
 
@@ -286,7 +313,8 @@ template <typename T>
 struct ValueCollector {
   struct ExprWrapper {
     using V = T;
-    explicit ExprWrapper(Expr&& expr) : arena(std::make_shared<Arena>()), expr(std::move(expr)) {}
+    explicit ExprWrapper(Expr&& expr)
+        : arena(std::make_shared<Arena>()), expr(std::move(expr)) {}
     inline T operator()(size_t idx) const {
       auto val = expr.eval_path(idx, *arena);
       return TypedConverter<T>::to_typed(val);
@@ -336,7 +364,8 @@ struct OptionalValueCollector {
     Expr expr;
   };
   using EXPR = OptionalExprWrapper;
-  OptionalValueCollector(const Context& ctx, const EXPR& expr) : arena_(expr.arena) {
+  OptionalValueCollector(const Context& ctx, const EXPR& expr)
+      : arena_(expr.arena) {
     builder.reserve(ctx.row_num());
   }
 
@@ -398,7 +427,9 @@ struct EdgeCollector {
     using V = EdgeRecord;
 
     explicit EdgeExprWrapper(Expr&& expr) : expr(std::move(expr)) {}
-    inline EdgeRecord operator()(size_t idx) const { return expr.eval_path(idx, arena).as_edge(); }
+    inline EdgeRecord operator()(size_t idx) const {
+      return expr.eval_path(idx, arena).as_edge();
+    }
 
     mutable Arena arena;
     Expr expr;
@@ -418,17 +449,22 @@ struct ListCollector {
     using V = List;
     explicit ListExprWrapper(Expr&& expr)
         : arena(std::make_shared<Arena>()), expr(std::move(expr)) {}
-    inline List operator()(size_t idx) const { return expr.eval_path(idx, *arena).as_list(); }
+    inline List operator()(size_t idx) const {
+      return expr.eval_path(idx, *arena).as_list();
+    }
 
     mutable std::shared_ptr<Arena> arena;
     Expr expr;
   };
   using EXPR = ListExprWrapper;
   ListCollector(const Context& ctx, const EXPR& expr)
-      : builder_(std::make_shared<ListValueColumnBuilder>(expr.expr.elem_type())),
+      : builder_(
+            std::make_shared<ListValueColumnBuilder>(expr.expr.elem_type())),
         arena_(expr.arena) {}
 
-  void collect(const EXPR& expr, size_t idx) { builder_->push_back_opt(expr(idx)); }
+  void collect(const EXPR& expr, size_t idx) {
+    builder_->push_back_opt(expr(idx));
+  }
   auto get() {
     builder_->set_arena(arena_);
     return builder_->finish();
@@ -439,18 +475,20 @@ struct ListCollector {
 };
 
 template <typename T>
-static std::unique_ptr<ProjectExprBase> _make_project_expr(Expr&& expr, int alias,
+static std::unique_ptr<ProjectExprBase> _make_project_expr(Expr&& expr,
+                                                           int alias,
                                                            const Context& ctx) {
   if (!expr.is_optional()) {
     typename ValueCollector<T>::EXPR wexpr(std::move(expr));
     ValueCollector<T> collector(ctx, wexpr);
-    return std::make_unique<ProjectExpr<typename ValueCollector<T>::EXPR, ValueCollector<T>>>(
+    return std::make_unique<
+        ProjectExpr<typename ValueCollector<T>::EXPR, ValueCollector<T>>>(
         std::move(wexpr), collector, alias);
   } else {
     typename OptionalValueCollector<T>::EXPR wexpr(std::move(expr));
     OptionalValueCollector<T> collector(ctx, wexpr);
-    return std::make_unique<
-        ProjectExpr<typename OptionalValueCollector<T>::EXPR, OptionalValueCollector<T>>>(
+    return std::make_unique<ProjectExpr<
+        typename OptionalValueCollector<T>::EXPR, OptionalValueCollector<T>>>(
         std::move(wexpr), collector, alias);
   }
 }
@@ -505,8 +543,8 @@ inline void parse_potential_dependencies(const common::Expression& expr,
 
 template <typename GraphInterface>
 static std::unique_ptr<ProjectExprBase> make_project_expr_without_data_type(
-    const common::Expression& expr, int alias, const GraphInterface& graph, const Context& ctx,
-    const std::map<std::string, std::string>& params) {
+    const common::Expression& expr, int alias, const GraphInterface& graph,
+    const Context& ctx, const std::map<std::string, std::string>& params) {
   Expr e(graph, ctx, params, expr, VarType::kPathVar);
 
   switch (e.type()) {
@@ -540,7 +578,8 @@ static std::unique_ptr<ProjectExprBase> make_project_expr_without_data_type(
   case RTAnyType::kVertex: {
     MLVertexCollector collector;
     collector.builder.reserve(ctx.row_num());
-    return std::make_unique<ProjectExpr<typename MLVertexCollector::EXPR, MLVertexCollector>>(
+    return std::make_unique<
+        ProjectExpr<typename MLVertexCollector::EXPR, MLVertexCollector>>(
         MLVertexCollector::EXPR(std::move(e)), collector, alias);
   } break;
 
@@ -555,7 +594,8 @@ static std::unique_ptr<ProjectExprBase> make_project_expr_without_data_type(
   } break;
   case RTAnyType::kEdge: {
     EdgeCollector collector;
-    return std::make_unique<ProjectExpr<typename EdgeCollector::EXPR, EdgeCollector>>(
+    return std::make_unique<
+        ProjectExpr<typename EdgeCollector::EXPR, EdgeCollector>>(
         EdgeCollector::EXPR(std::move(e)), collector, alias);
   } break;
   case RTAnyType::kTuple: {
@@ -564,7 +604,8 @@ static std::unique_ptr<ProjectExprBase> make_project_expr_without_data_type(
   case RTAnyType::kList: {
     ListCollector::EXPR expr(std::move(e));
     ListCollector collector(ctx, expr);
-    return std::make_unique<ProjectExpr<typename ListCollector::EXPR, ListCollector>>(
+    return std::make_unique<
+        ProjectExpr<typename ListCollector::EXPR, ListCollector>>(
         ListCollector::EXPR(std::move(expr)), collector, alias);
   } break;
   case RTAnyType::kMap: {
@@ -580,8 +621,8 @@ static std::unique_ptr<ProjectExprBase> make_project_expr_without_data_type(
 
 template <typename GraphInterface>
 inline std::unique_ptr<ProjectExprBase> make_project_expr(
-    const common::Expression& expr, const common::IrDataType& data_type, int alias,
-    const GraphInterface& graph, const Context& ctx,
+    const common::Expression& expr, const common::IrDataType& data_type,
+    int alias, const GraphInterface& graph, const Context& ctx,
     const std::map<std::string, std::string>& params) {
   switch (data_type.type_case()) {
   case common::IrDataType::kDataType: {
@@ -624,48 +665,57 @@ inline std::unique_ptr<ProjectExprBase> make_project_expr(
 
     // compiler bug here
     case RTAnyType::kUnknown: {
-      return make_project_expr_without_data_type(expr, alias, graph, ctx, params);
+      return make_project_expr_without_data_type(expr, alias, graph, ctx,
+                                                 params);
     } break;
     case RTAnyType::kU64Value: {
       return _make_project_expr<uint64_t>(std::move(e), alias, ctx);
     } break;
     case RTAnyType::kList: {
-      return make_project_expr_without_data_type(expr, alias, graph, ctx, params);
+      return make_project_expr_without_data_type(expr, alias, graph, ctx,
+                                                 params);
     }
     default: {
-      return make_project_expr_without_data_type(expr, alias, graph, ctx, params);
+      return make_project_expr_without_data_type(expr, alias, graph, ctx,
+                                                 params);
     }
     }
   }
   case common::IrDataType::kGraphType: {
     const common::GraphDataType& graph_data_type = data_type.graph_type();
-    common::GraphDataType_GraphElementOpt elem_opt = graph_data_type.element_opt();
+    common::GraphDataType_GraphElementOpt elem_opt =
+        graph_data_type.element_opt();
     int label_num = graph_data_type.graph_data_type_size();
-    if (elem_opt == common::GraphDataType_GraphElementOpt::GraphDataType_GraphElementOpt_VERTEX) {
+    if (elem_opt == common::GraphDataType_GraphElementOpt::
+                        GraphDataType_GraphElementOpt_VERTEX) {
       if (label_num == 1) {
-        label_t v_label = static_cast<label_t>(graph_data_type.graph_data_type(0).label().label());
+        label_t v_label = static_cast<label_t>(
+            graph_data_type.graph_data_type(0).label().label());
 
         Expr e(graph, ctx, params, expr, VarType::kPathVar);
         SLVertexCollector collector(v_label);
         collector.builder.reserve(ctx.row_num());
-        return std::make_unique<ProjectExpr<typename SLVertexCollector::EXPR, SLVertexCollector>>(
+        return std::make_unique<
+            ProjectExpr<typename SLVertexCollector::EXPR, SLVertexCollector>>(
             SLVertexCollector::EXPR(std::move(e)), collector, alias);
 
       } else if (label_num > 1) {
         Expr e(graph, ctx, params, expr, VarType::kPathVar);
         MLVertexCollector collector;
         collector.builder.reserve(ctx.row_num());
-        return std::make_unique<ProjectExpr<typename MLVertexCollector::EXPR, MLVertexCollector>>(
+        return std::make_unique<
+            ProjectExpr<typename MLVertexCollector::EXPR, MLVertexCollector>>(
             MLVertexCollector::EXPR(std::move(e)), collector, alias);
 
       } else {
         LOG(INFO) << "unexpected type";
       }
-    } else if (elem_opt ==
-               common::GraphDataType_GraphElementOpt::GraphDataType_GraphElementOpt_EDGE) {
+    } else if (elem_opt == common::GraphDataType_GraphElementOpt::
+                               GraphDataType_GraphElementOpt_EDGE) {
       Expr e(graph, ctx, params, expr, VarType::kPathVar);
       EdgeCollector collector;
-      return std::make_unique<ProjectExpr<typename EdgeCollector::EXPR, EdgeCollector>>(
+      return std::make_unique<
+          ProjectExpr<typename EdgeCollector::EXPR, EdgeCollector>>(
           EdgeCollector::EXPR(std::move(e)), collector, alias);
     } else {
       LOG(INFO) << "unexpected type";
@@ -683,20 +733,22 @@ inline std::unique_ptr<ProjectExprBase> make_project_expr(
 }
 
 std::unique_ptr<ProjectExprBase> parse_special_expr(
-    const common::Expression& expr, int alias, const GraphReadInterface& graph, const Context& ctx,
-    const std::map<std::string, std::string>& params);
+    const common::Expression& expr, int alias, const GraphReadInterface& graph,
+    const Context& ctx, const std::map<std::string, std::string>& params);
 
 inline std::unique_ptr<ProjectExprBase> create_project_expr(
-    const common::Expression& expr, int alias, const std::optional<common::IrDataType>& data_type,
+    const common::Expression& expr, int alias,
+    const std::optional<common::IrDataType>& data_type,
     const GraphReadInterface& graph, const Context& ctx,
     const std::map<std::string, std::string>& params) {
   auto func = parse_special_expr(expr, alias, graph, ctx, params);
   if (func != nullptr) {
     return func;
   }
-  LOG(INFO) << "create general project expr";
-  if (data_type.has_value() && data_type.value().type_case() != common::IrDataType::TYPE_NOT_SET) {
-    auto func = make_project_expr(expr, data_type.value(), alias, graph, ctx, params);
+  if (data_type.has_value() &&
+      data_type.value().type_case() != common::IrDataType::TYPE_NOT_SET) {
+    auto func =
+        make_project_expr(expr, data_type.value(), alias, graph, ctx, params);
     if (func != nullptr) {
       return func;
     }
@@ -705,11 +757,14 @@ inline std::unique_ptr<ProjectExprBase> create_project_expr(
 }
 
 inline std::unique_ptr<ProjectExprBase> create_project_expr(
-    const common::Expression& expr, int alias, const std::optional<common::IrDataType>& data_type,
+    const common::Expression& expr, int alias,
+    const std::optional<common::IrDataType>& data_type,
     const GraphUpdateInterface& graph, const Context& ctx,
     const std::map<std::string, std::string>& params) {
-  if (data_type.has_value() && data_type.value().type_case() != common::IrDataType::TYPE_NOT_SET) {
-    auto func = make_project_expr(expr, data_type.value(), alias, graph, ctx, params);
+  if (data_type.has_value() &&
+      data_type.value().type_case() != common::IrDataType::TYPE_NOT_SET) {
+    auto func =
+        make_project_expr(expr, data_type.value(), alias, graph, ctx, params);
     if (func != nullptr) {
       return func;
     }
@@ -719,10 +774,13 @@ inline std::unique_ptr<ProjectExprBase> create_project_expr(
 
 template <typename GraphInterface>
 gs::result<Context> ProjectEvalImpl(
-    const GraphInterface& graph, const std::map<std::string, std::string>& params, Context&& ctx,
-    const std::vector<std::tuple<common::Expression, int, std::optional<common::IrDataType>>>&
+    const GraphInterface& graph,
+    const std::map<std::string, std::string>& params, Context&& ctx,
+    const std::vector<
+        std::tuple<common::Expression, int, std::optional<common::IrDataType>>>&
         exprs_infos,
-    const std::vector<std::pair<int, std::set<int>>>& dependencies, bool is_append) {
+    const std::vector<std::pair<int, std::set<int>>>& dependencies,
+    bool is_append) {
   std::vector<std::unique_ptr<ProjectExprBase>> exprs;
   std::vector<std::shared_ptr<Arena>> arenas;
   if (!dependencies.empty()) {
@@ -735,7 +793,8 @@ gs::result<Context> ProjectEvalImpl(
   }
   for (size_t i = 0; i < exprs_infos.size(); ++i) {
     const auto& [expr, alias, data_type] = exprs_infos[i];
-    exprs.push_back(create_project_expr(expr, alias, data_type, graph, ctx, params));
+    exprs.push_back(
+        create_project_expr(expr, alias, data_type, graph, ctx, params));
   }
 
   auto ret = Project::project(std::move(ctx), exprs, is_append);

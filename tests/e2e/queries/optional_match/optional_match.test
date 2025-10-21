@@ -5,7 +5,6 @@
 -CASE OptionalMatch
 
 -LOG CrossProductOptionalMatch1
--SKIP: TODO(lexiao): fix this issue
 -STATEMENT MATCH (a:person) WHERE a.fName = 'Alice' OPTIONAL MATCH (b:person) WHERE b.fName = 'A' RETURN a.ID, b.ID
 ---- 1
 0|
@@ -79,7 +78,6 @@ Elizabeth|Greg
 Hubert Blaine Wolfeschlegelsteinhausenbergerdorff|
 
 -LOG OptionalReturnTest
--SKIP: lexiao: return value for invalid vertex
 -STATEMENT MATCH (a:person)-[:knows]->(b:person) WHERE a.fName='Alice' OPTIONAL MATCH (b)-[:studyAt]->(c:organisation) RETURN c.orgCode
 ---- 3
 
@@ -98,17 +96,17 @@ Farooq|
 Greg|
 Hubert Blaine Wolfeschlegelsteinhausenbergerdorff|
 
-# -LOG OptionalListExtendCountTest
-# -STATEMENT MATCH (a:person) OPTIONAL MATCH (a)-[:studyAt]->(b:organisation) RETURN a.fName, b.name
-# ---- 8
-# Alice|ABFsUni
-# Bob|ABFsUni
-# Carol|
-# Dan|
-# Elizabeth|
-# Farooq|ABFsUni
-# Greg|
-# Hubert Blaine Wolfeschlegelsteinhausenbergerdorff|
+-LOG OptionalListExtendCountTest
+-STATEMENT MATCH (a:person) OPTIONAL MATCH (a)-[:studyAt]->(b:organisation) RETURN a.fName, b.name
+---- 8
+Alice|ABFsUni
+Bob|ABFsUni
+Carol|
+Dan|
+Elizabeth|
+Farooq|ABFsUni
+Greg|
+Hubert Blaine Wolfeschlegelsteinhausenbergerdorff|
 
 # TODO: EXECUTION: unexpected result, expected 40, but returns 41
 -LOG OptionalListExtendTest2

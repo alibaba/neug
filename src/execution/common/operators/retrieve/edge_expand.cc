@@ -37,13 +37,32 @@ struct DummyPredicate {
   static constexpr bool is_dummy = true;
 };
 
+Context remove_null_from_ctx(Context&& ctx, int tag_id) {
+  std::shared_ptr<IVertexColumn> vertex_col =
+      std::dynamic_pointer_cast<IVertexColumn>(ctx.get(tag_id));
+  std::vector<size_t> selected_offsets;
+  size_t num = vertex_col->size();
+  for (size_t k = 0; k < num; ++k) {
+    if (vertex_col->has_value(k)) {
+      selected_offsets.push_back(k);
+    }
+  }
+  ctx.reshuffle(selected_offsets);
+  return ctx;
+}
+
 gs::result<Context> EdgeExpand::expand_edge_without_predicate(
     const GraphReadInterface& graph, Context&& ctx,
     const EdgeExpandParams& params) {
   std::shared_ptr<IVertexColumn> input_vertex_list =
       std::dynamic_pointer_cast<IVertexColumn>(ctx.get(params.v_tag));
   auto vertex_column_type = input_vertex_list->vertex_column_type();
-  if (input_vertex_list->is_optional() || params.is_optional) {
+  if (!params.is_optional && input_vertex_list->is_optional()) {
+    ctx = remove_null_from_ctx(std::move(ctx), params.v_tag);
+    input_vertex_list =
+        std::dynamic_pointer_cast<IVertexColumn>(ctx.get(params.v_tag));
+  }
+  if (params.is_optional) {
     if (vertex_column_type == VertexColumnType::kSingle) {
       const SLVertexColumn& sl_col =
           *dynamic_cast<const SLVertexColumn*>(input_vertex_list.get());
@@ -100,19 +119,11 @@ gs::result<Context> EdgeExpand::expand_vertex_without_predicate(
   std::shared_ptr<IVertexColumn> input_vertex_list =
       std::dynamic_pointer_cast<IVertexColumn>(ctx.get(params.v_tag));
   auto vertex_column_type = input_vertex_list->vertex_column_type();
-  // The optional syntax are in two folders:
-  // 1. Input vertex column is optional.
-  // 1.1 Common Expand: Then we need to discard the invalid source vertices
-  // when expanding. For example, input vertices [1,2,null,4], the expected
-  // output is [[1,2],[2,3],[4,5]]. The null vertex is discarded.
-  // 1.2 Optional Expand: Then we need to keep the invalid source vertices
-  // when expanding. For example, input vertices [1,2,null,4], the expected
-  // output is [[1,2],[2,3],[null,null],[4,5]]. The null vertex is kept.
-  // 2. Input vertex column is not optional,
-  // 2.1 Common Expand: Just expand
-  // 2.2 Optional Expand: Then we need to keep the invalid source vertices
-  // when expanding. For example, input vertices [1,2,3,4], the expected
-  // output is [[1,2],[2,3],[3,null],[4,5]]. The null vertex is kept.
+  if (!params.is_optional && input_vertex_list->is_optional()) {
+    ctx = remove_null_from_ctx(std::move(ctx), params.v_tag);
+    input_vertex_list =
+        std::dynamic_pointer_cast<IVertexColumn>(ctx.get(params.v_tag));
+  }
   if (vertex_column_type == VertexColumnType::kSingle) {
     const SLVertexColumn& sl_col =
         *dynamic_cast<const SLVertexColumn*>(input_vertex_list.get());
