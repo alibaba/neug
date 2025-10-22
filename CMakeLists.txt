@@ -120,6 +120,8 @@ if (WITH_MIMALLOC)
     unset(PACKAGE_VERSION) # Unset PACKAGE_VERSION to avoid generate two PACKAGE_VERSION in config.h for libdwarf-lite.
 endif()
 
+set(SKIP_PERFORMANCE_COMPARISON ON CACHE BOOL "Skip building performance sandbox comparison (requires boost)")
+set(BUILD_SANDBOX OFF CACHE BOOL "Build sandbox examples")
 add_subdirectory(third_party/cereal)
 include_directories(SYSTEM ${CMAKE_CURRENT_SOURCE_DIR}/third_party/cereal/include)
 
