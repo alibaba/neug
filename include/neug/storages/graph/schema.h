@@ -148,7 +148,10 @@ class Schema {
                                                        label_t dst_label,
                                                        label_t label) const;
 
-  const std::string& get_compiler_path() const;
+  const std::string get_compiler_path() const {
+    // TODO: Eliminate this interface
+    return "";
+  }
 
   std::string get_edge_description(const std::string& src_label,
                                    const std::string& dst_label,

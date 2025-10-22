@@ -13,8 +13,8 @@
  * limitations under the License.
  */
 
-#ifndef INCLUDE_NEUG_MAIN_APP_CYPHER_READ_APP_H_
-#define INCLUDE_NEUG_MAIN_APP_CYPHER_READ_APP_H_
+#ifndef INCLUDE_NEUG_MAIN_APP_CYPHER_INSERT_APP_H_
+#define INCLUDE_NEUG_MAIN_APP_CYPHER_INSERT_APP_H_
 
 #include <string>
 #include <unordered_map>
@@ -35,25 +35,24 @@ class Encoder;
 class NeugDB;
 class NeugDBSession;
 
-class CypherReadApp : public ReadAppBase {
+class CypherInsertApp : public WriteAppBase {
  public:
-  explicit CypherReadApp(const NeugDB& db) : db_(db) {}
+  explicit CypherInsertApp(const NeugDB& db) : db_(db) {}
 
   AppType type() const override { return AppType::kCypherAdhoc; }
 
-  bool Query(const NeugDBSession& graph, Decoder& input,
-             Encoder& output) override;
+  bool Query(NeugDBSession& graph, Decoder& input, Encoder& output) override;
 
  private:
   const NeugDB& db_;
   std::unordered_map<std::string, physical::PhysicalPlan> plan_cache_;
-  std::unordered_map<std::string, runtime::ReadPipeline> pipeline_cache_;
+  std::unordered_map<std::string, runtime::InsertPipeline> pipeline_cache_;
 };
 
-class CypherReadAppFactory : public AppFactoryBase {
+class CypherInsertAppFactory : public AppFactoryBase {
  public:
-  CypherReadAppFactory() = default;
-  ~CypherReadAppFactory() = default;
+  CypherInsertAppFactory() = default;
+  ~CypherInsertAppFactory() = default;
 
   AppWrapper CreateApp(const NeugDB& db) override;
 };
