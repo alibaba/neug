@@ -301,7 +301,7 @@ return
 -STATEMENT MATCH 
     (unused:PERSON {id: 10995116278647 })-[:KNOWS]-(friend:PERSON)<-[:HASCREATOR]-(comments:COMMENT)-[:REPLYOF]->(:POST)-[:HASTAG]->(tags:TAG)
 WITH friend, tags, comments
-MATCH (tags:TAG)-[:HASTYPE]->(:TAGCLASS {name: "Chancellor"})-[:ISSUBCLASSOF*0..20]->(baseTagClass:TAGCLASS {name: "Chancellor"})
+MATCH (tags:TAG)-[:HASTYPE]->(:TAGCLASS)-[:ISSUBCLASSOF*0..20]->(baseTagClass:TAGCLASS {name: "Chancellor"})
 WITH 
     friend AS friend, 
     collect(DISTINCT tags.name) AS tagNames, 

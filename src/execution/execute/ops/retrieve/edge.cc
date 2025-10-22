@@ -500,12 +500,6 @@ gs::result<ReadOpBuildResultT> EdgeExpandGetVOprBuilder::Build(
                  << ee_opr.DebugString();
       return std::make_pair(nullptr, ContextMeta());
     }
-    if (query_params.has_predicate()) {
-      LOG(ERROR)
-          << "EdgeExpandGetVOprBuilder::Build: query_params has predicate"
-          << query_params.predicate().DebugString();
-      return std::make_pair(nullptr, ContextMeta());
-    }
 
     EdgeExpandParams eep;
     eep.v_tag = v_tag;

@@ -1537,6 +1537,13 @@ def test_length():
     )
     for record in result:
         assert record[0] == 1, f"Expected value 1, got {record[0]}"
+    result = conn.execute(
+        """
+    MATCH (:TAGCLASS {name: "OfficeHolder"})<-[:HASTYPE]-(:TAG)<-[:HASTAG]-(message)-[:REPLYOF*0..30]->(p:POST)
+        RETURN count(p) AS numPosts"""
+    )
+    for record in result:
+        assert record[0] == 19519, f"Expected value 19519, got {record[0]}"
     conn.close()
     db.close()
 
