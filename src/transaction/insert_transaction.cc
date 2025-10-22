@@ -30,6 +30,7 @@
 #include "neug/transaction/version_manager.h"
 #include "neug/transaction/wal/wal.h"
 #include "neug/utils/allocators.h"
+#include "neug/utils/likely.h"
 #include "neug/utils/property/table.h"
 #include "neug/utils/property/types.h"
 
@@ -220,18 +221,16 @@ void InsertTransaction::clear() {
 
 const Schema& InsertTransaction::schema() const { return graph_.schema(); }
 
-#define likely(x) __builtin_expect(!!(x), 1)
-
 bool InsertTransaction::get_vertex_with_retries(PropertyGraph& graph,
                                                 label_t label, const Any& oid,
                                                 vid_t& lid,
                                                 timestamp_t timestamp) {
-  if (likely(graph.get_lid(label, oid, lid, timestamp))) {
+  if (NEUG_LIKELY(graph.get_lid(label, oid, lid, timestamp))) {
     return true;
   }
   for (int i = 0; i < 10; ++i) {
     std::this_thread::sleep_for(std::chrono::microseconds(1000000));
-    if (likely(graph.get_lid(label, oid, lid, timestamp))) {
+    if (NEUG_LIKELY(graph.get_lid(label, oid, lid, timestamp))) {
       return true;
     }
   }
@@ -239,7 +238,5 @@ bool InsertTransaction::get_vertex_with_retries(PropertyGraph& graph,
   LOG(ERROR) << "get_vertex [" << oid.to_string() << "] failed";
   return false;
 }
-
-#undef likely
 
 }  // namespace gs

@@ -25,6 +25,7 @@
 #include "neug/execution/common/operators/retrieve/union.h"
 #include "neug/execution/execute/pipeline.h"
 #include "neug/execution/execute/plan_parser.h"
+#include "neug/utils/likely.h"
 
 namespace gs {
 class Schema;
@@ -51,8 +52,9 @@ class UnionOpr : public IReadOperator {
           (timer != nullptr) ? std::make_unique<gs::runtime::OprTimer>()
                              : nullptr;
       auto ret = plan.Execute(graph, std::move(n_ctx), params, sub_timer.get());
-      if (timer != nullptr)
-        [[unlikely]] { timer->add_child(std::move(sub_timer)); }
+      if (NEUG_UNLIKELY(timer != nullptr)) {
+        timer->add_child(std::move(sub_timer));
+      }
       if (!ret) {
         return ret;
       }

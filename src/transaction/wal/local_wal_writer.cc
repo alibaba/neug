@@ -24,6 +24,7 @@
 #include <ostream>
 
 #include "neug/transaction/wal/wal.h"
+#include "neug/utils/likely.h"
 
 namespace gs {
 
@@ -68,10 +69,8 @@ void LocalWalWriter::close() {
   }
 }
 
-#define unlikely(x) __builtin_expect(!!(x), 0)
-
 bool LocalWalWriter::append(const char* data, size_t length) {
-  if (unlikely(fd_ == -1)) {
+  if (NEUG_UNLIKELY(fd_ == -1)) {
     return false;
   }
   size_t expected_size = file_used_ + length;
@@ -107,8 +106,6 @@ bool LocalWalWriter::append(const char* data, size_t length) {
 #endif
   return true;
 }
-
-#undef unlikely
 
 const bool LocalWalWriter::registered_ = WalWriterFactory::RegisterWalWriter(
     "file", static_cast<WalWriterFactory::wal_writer_initializer_t>(

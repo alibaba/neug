@@ -41,6 +41,7 @@
 #include "neug/transaction/update_transaction.h"
 #include "neug/transaction/version_manager.h"
 #include "neug/utils/app_utils.h"
+#include "neug/utils/likely.h"
 #include "neug/utils/property/types.h"
 #ifdef USE_SYSTEM_PROTOBUF
 #include "neug/generated/proto/plan/common.pb.h"
@@ -169,8 +170,6 @@ double NeugDBSession::eval_duration() const {
 
 int64_t NeugDBSession::query_num() const { return query_num_.load(); }
 
-#define likely(x) __builtin_expect(!!(x), 1)
-
 AppBase* NeugDBSession::GetApp(int type) {
   // create if not exist
   if (type >= MAX_PLUGIN_NUM) {
@@ -179,7 +178,7 @@ AppBase* NeugDBSession::GetApp(int type) {
     return nullptr;
   }
   AppBase* app = nullptr;
-  if (likely(apps_[type] != nullptr)) {
+  if (NEUG_LIKELY(apps_[type] != nullptr)) {
     app = apps_[type];
   } else {
     app_wrappers_[type] = app_manager_.CreateApp(type, thread_id_);
@@ -194,8 +193,6 @@ AppBase* NeugDBSession::GetApp(int type) {
   }
   return app;
 }
-
-#undef likely  // likely
 
 const AppMetric& NeugDBSession::GetAppMetric(int idx) const {
   return app_metrics_[idx];

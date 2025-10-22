@@ -22,8 +22,7 @@
 
 #include "libgrape-lite/grape/utils/bitset.h"
 #include "libgrape-lite/grape/utils/concurrent_queue.h"
-
-#define likely(x) __builtin_expect(!!(x), 1)
+#include "neug/utils/likely.h"
 
 namespace gs {
 
@@ -130,7 +129,7 @@ void TPVersionManager::clear() {
 
 uint32_t TPVersionManager::acquire_read_timestamp() {
   int pr = pending_reqs_.fetch_add(1);
-  if (likely(pr >= 0)) {
+  if (NEUG_LIKELY(pr >= 0)) {
     return read_ts_.load();
   } else {
     --pending_reqs_;
@@ -152,7 +151,7 @@ void TPVersionManager::release_read_timestamp() { pending_reqs_.fetch_sub(1); }
 
 uint32_t TPVersionManager::acquire_insert_timestamp() {
   int pr = pending_reqs_.fetch_add(1);
-  if (likely(pr >= 0)) {
+  if (NEUG_LIKELY(pr >= 0)) {
     return write_ts_.fetch_add(1);
   } else {
     --pending_reqs_;
@@ -228,5 +227,3 @@ bool TPVersionManager::revert_update_timestamp(uint32_t ts) {
 }
 
 }  // namespace gs
-
-#undef likely

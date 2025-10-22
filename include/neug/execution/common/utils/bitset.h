@@ -28,9 +28,7 @@
 #define NEUG_BYTE_SIZE(n) (WORD_SIZE(n) * sizeof(uint64_t))
 
 #define WORD_INDEX(i) ((i) >> 6)
-// clang-format off
-#define BIT_OFFSET(i) ((i) &0x3f)
-// clang-format on
+#define BIT_OFFSET(i) ((i) & 0x3f)
 
 #define ROUND_UP(i) (((i) + 63ul) & (~63ul))
 #define ROUND_DOWN(i) ((i) & (~63ul))

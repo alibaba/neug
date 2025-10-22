@@ -37,6 +37,7 @@
 #include "neug/utils/allocators.h"
 #include "neug/utils/file_utils.h"
 #include "neug/utils/id_indexer.h"
+#include "neug/utils/likely.h"
 #include "neug/utils/property/column.h"
 #include "neug/utils/property/table.h"
 #include "neug/utils/property/types.h"
@@ -325,38 +326,27 @@ UpdateTransaction::vertex_iterator::vertex_iterator(label_t label, vid_t cur,
       num_(num),
       vertex_table_modifed_(vertex_table_modified),
       txn_(txn) {
-  // clang-format off
-  if (vertex_table_modifed_)
-    [[unlikely]] {
-      while (cur_ < num_ && !txn_->is_valid_lid(label_, cur_)) {
-        ++cur_;
-      }
+  if (NEUG_UNLIKELY(vertex_table_modifed_)) {
+    while (cur_ < num_ && !txn_->is_valid_lid(label_, cur_)) {
+      ++cur_;
     }
-  // clang-format on
+  }
 }
 UpdateTransaction::vertex_iterator::~vertex_iterator() = default;
 bool UpdateTransaction::vertex_iterator::IsValid() const { return cur_ < num_; }
 void UpdateTransaction::vertex_iterator::Next() {
-  // clang-format off
-  if (vertex_table_modifed_)
-    [[unlikely]] {
-      while (++cur_ < num_ && !txn_->is_valid_lid(label_, cur_)) {}
-    }
-  else {
+  if (NEUG_LIKELY(vertex_table_modifed_)) {
+    while (++cur_ < num_ && !txn_->is_valid_lid(label_, cur_)) {}
+  } else {
     ++cur_;
   }
-  // clang-format on
 }
 void UpdateTransaction::vertex_iterator::Goto(vid_t target) {
-  // clang-format off
-  if (vertex_table_modifed_)
-    [[unlikely]] {
-      if (std::min(target, num_) < num_ &&
-          !txn_->is_valid_lid(label_, target)) {
-        THROW_INVALID_ARGUMENT_EXCEPTION("Target vertex is deleted");
-      }
+  if (NEUG_UNLIKELY(vertex_table_modifed_)) {
+    if (std::min(target, num_) < num_ && !txn_->is_valid_lid(label_, target)) {
+      THROW_INVALID_ARGUMENT_EXCEPTION("Target vertex is deleted");
     }
-  // clang-format on
+  }
   cur_ = std::min(target, num_);
 }
 

@@ -20,6 +20,7 @@
 #include <ostream>
 
 #include "neug/execution/common/context.h"
+#include "neug/utils/likely.h"
 #include "neug/utils/result.h"
 
 namespace gs {
@@ -34,8 +35,9 @@ gs::result<Context> AdminPipeline::Execute(
   OprTimer* cur_timer = timer;
   std::unique_ptr<OprTimer> next_timer = nullptr;
   for (size_t i = 0; i < operators_.size(); ++i) {
-    if (timer != nullptr)
-      [[unlikely]] { tu.start(); }
+    if (NEUG_UNLIKELY(timer != nullptr)) {
+      tu.start();
+    }
     TRY_HANDLE_ALL_WITH_EXCEPTION(
         gs::result<Context>,
         [&]() -> gs::result<Context> {
@@ -44,17 +46,16 @@ gs::result<Context> AdminPipeline::Execute(
           if (!ret) {
             return ret;
           }
-          if (timer != nullptr)
-            [[unlikely]] {
-              cur_timer->set_name(operators_[i]->get_operator_name());
-              cur_timer->add_num_tuples(ret.value().row_num());
-              cur_timer->record(tu);
-              if (i + 1 < operators_.size()) {
-                next_timer = std::make_unique<OprTimer>();
-                cur_timer->set_next(std::move(next_timer));
-                cur_timer = cur_timer->next();
-              }
+          if (NEUG_UNLIKELY(timer != nullptr)) {
+            cur_timer->set_name(operators_[i]->get_operator_name());
+            cur_timer->add_num_tuples(ret.value().row_num());
+            cur_timer->record(tu);
+            if (i + 1 < operators_.size()) {
+              next_timer = std::make_unique<OprTimer>();
+              cur_timer->set_next(std::move(next_timer));
+              cur_timer = cur_timer->next();
             }
+          }
           return ret;
         },
         [&](const gs::Status& err) {
@@ -79,8 +80,9 @@ gs::result<Context> ReadPipeline::Execute(
   OprTimer* cur_timer = timer;
   std::unique_ptr<OprTimer> next_timer = nullptr;
   for (size_t i = 0; i < operators_.size(); ++i) {
-    if (timer != nullptr)
-      [[unlikely]] { tu.start(); }
+    if (NEUG_UNLIKELY(timer != nullptr)) {
+      tu.start();
+    }
     TRY_HANDLE_ALL_WITH_EXCEPTION(
         gs::result<Context>,
         [&]() -> gs::result<Context> {
@@ -89,17 +91,16 @@ gs::result<Context> ReadPipeline::Execute(
           if (!ret) {
             return ret;
           }
-          if (timer != nullptr)
-            [[unlikely]] {
-              cur_timer->set_name(operators_[i]->get_operator_name());
-              cur_timer->add_num_tuples(ret.value().row_num());
-              cur_timer->record(tu);
-              if (i + 1 < operators_.size()) {
-                next_timer = std::make_unique<OprTimer>();
-                cur_timer->set_next(std::move(next_timer));
-                cur_timer = cur_timer->next();
-              }
+          if (NEUG_UNLIKELY(timer != nullptr)) {
+            cur_timer->set_name(operators_[i]->get_operator_name());
+            cur_timer->add_num_tuples(ret.value().row_num());
+            cur_timer->record(tu);
+            if (i + 1 < operators_.size()) {
+              next_timer = std::make_unique<OprTimer>();
+              cur_timer->set_next(std::move(next_timer));
+              cur_timer = cur_timer->next();
             }
+          }
           return ret;
         },
         [&](const gs::Status& err) {
@@ -125,8 +126,9 @@ gs::result<WriteContext> InsertPipeline::Execute(
   TimerUnit tu;
   gs::Status status = Status::OK();
   for (size_t i = 0; i < operators_.size(); ++i) {
-    if (timer != nullptr)
-      [[unlikely]] { tu.start(); }
+    if (NEUG_UNLIKELY(timer != nullptr)) {
+      tu.start();
+    }
     TRY_HANDLE_ALL_WITH_EXCEPTION(
         gs::result<Context>,
         [&]() -> gs::result<WriteContext> {
@@ -135,17 +137,16 @@ gs::result<WriteContext> InsertPipeline::Execute(
           if (!ret) {
             return ret;
           }
-          if (timer != nullptr)
-            [[unlikely]] {
-              cur_timer->set_name(operators_[i]->get_operator_name());
-              cur_timer->add_num_tuples(ret.value().row_num());
-              cur_timer->record(tu);
-              if (i + 1 < operators_.size()) {
-                next_timer = std::make_unique<OprTimer>();
-                cur_timer->set_next(std::move(next_timer));
-                cur_timer = cur_timer->next();
-              }
+          if (NEUG_UNLIKELY(timer != nullptr)) {
+            cur_timer->set_name(operators_[i]->get_operator_name());
+            cur_timer->add_num_tuples(ret.value().row_num());
+            cur_timer->record(tu);
+            if (i + 1 < operators_.size()) {
+              next_timer = std::make_unique<OprTimer>();
+              cur_timer->set_next(std::move(next_timer));
+              cur_timer = cur_timer->next();
             }
+          }
           return ret;
         },
         [&](const gs::Status& err) {
@@ -180,8 +181,9 @@ gs::result<Context> UpdatePipeline::Execute(
   OprTimer* cur_timer = timer;
   std::unique_ptr<OprTimer> next_timer = nullptr;
   for (size_t i = 0; i < operators_.size(); ++i) {
-    if (timer != nullptr)
-      [[unlikely]] { tu.start(); }
+    if (NEUG_UNLIKELY(timer != nullptr)) {
+      tu.start();
+    }
     TRY_HANDLE_ALL_WITH_EXCEPTION(
         gs::result<Context>,
         [&]() -> gs::result<Context> {
@@ -190,17 +192,16 @@ gs::result<Context> UpdatePipeline::Execute(
           if (!ret) {
             return ret;
           }
-          if (timer != nullptr)
-            [[unlikely]] {
-              cur_timer->set_name(operators_[i]->get_operator_name());
-              cur_timer->add_num_tuples(ret.value().row_num());
-              cur_timer->record(tu);
-              if (i + 1 < operators_.size()) {
-                next_timer = std::make_unique<OprTimer>();
-                cur_timer->set_next(std::move(next_timer));
-                cur_timer = cur_timer->next();
-              }
+          if (NEUG_UNLIKELY(timer != nullptr)) {
+            cur_timer->set_name(operators_[i]->get_operator_name());
+            cur_timer->add_num_tuples(ret.value().row_num());
+            cur_timer->record(tu);
+            if (i + 1 < operators_.size()) {
+              next_timer = std::make_unique<OprTimer>();
+              cur_timer->set_next(std::move(next_timer));
+              cur_timer = cur_timer->next();
             }
+          }
           return ret;
         },
         [&](const gs::Status& err) {

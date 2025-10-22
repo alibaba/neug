@@ -14,6 +14,7 @@
  */
 
 #include "neug/storages/graph/vertex_table.h"
+#include "neug/utils/likely.h"
 
 namespace gs {
 
@@ -103,15 +104,12 @@ void VertexTable::Close() {
 
 bool VertexTable::get_index(const Any& oid, vid_t& lid, timestamp_t ts) const {
   auto res = indexer_.get_index(oid, lid);
-  // clang-format off
-  if (res && is_vertex_table_modified_)
-    [[unlikely]] {
-      if (!is_valid_lid(lid, ts)) {
-        LOG(WARNING) << "Lid " << lid << " has been deleted.";
-        return false;
-      }
+  if (NEUG_UNLIKELY(res && is_vertex_table_modified_)) {
+    if (!is_valid_lid(lid, ts)) {
+      LOG(WARNING) << "Lid " << lid << " has been deleted.";
+      return false;
     }
-  // clang-format on
+  }
   return res;
 }
 
@@ -154,27 +152,22 @@ vid_t VertexTable::add_vertex_safe(const Any& id, timestamp_t ts) {
 }
 
 Any VertexTable::get_oid(vid_t lid, timestamp_t ts) const {
-  // clang-format off
-  if (is_vertex_table_modified_)
-    [[unlikely]] {
-      if (!is_valid_lid(lid, ts)) {
-        THROW_INVALID_ARGUMENT_EXCEPTION("Lid " + std::to_string(lid) +
-                                         " has been deleted.");
-      }
+  if (NEUG_UNLIKELY(is_vertex_table_modified_)) {
+    if (!is_valid_lid(lid, ts)) {
+      THROW_INVALID_ARGUMENT_EXCEPTION("Lid " + std::to_string(lid) +
+                                       " has been deleted.");
     }
-  // clang-format on
+  }
   return indexer_.get_key(lid);
 }
 
 bool VertexTable::is_valid_lid(vid_t lid, timestamp_t ts) const {
   // We use numeric_limits<timestamp_t>::max() to denote a deleted vertex.
   // But we ts is passed as a timestamp limit, we take it as a normal timestamp.
-  // clang-format off
-  if (!is_vertex_table_modified_)
-    [[likely]] { return lid < indexer_.size(); }
-  // clang-format on
+  if (NEUG_LIKELY(!is_vertex_table_modified_)) {
+    return lid < indexer_.size();
+  }
   return lid < indexer_.size() && vertex_ts_.get(lid) <= ts;
-  // clang-format on
 }
 
 void VertexTable::Reserve(size_t cap) {

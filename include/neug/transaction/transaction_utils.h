@@ -21,6 +21,7 @@
 #include "libgrape-lite/grape/serialization/out_archive.h"
 #include "neug/storages/graph/property_graph.h"
 #include "neug/transaction/wal/wal.h"
+#include "neug/utils/likely.h"
 #include "neug/utils/property/types.h"
 
 namespace gs {
@@ -43,25 +44,22 @@ class VertexSet {
           vertex_ts_(vertex_ts),
           ts_(ts),
           vertex_table_modifed_(vertex_table_modified) {
-      if (vertex_table_modifed_)
-        [[unlikely]] {
-          while (v_ < vertex_ts_.size() && vertex_ts_.get(v_) > ts_) {
-            ++v_;
-          }
+      if (NEUG_UNLIKELY(vertex_table_modifed_)) {
+        while (v_ < vertex_ts_.size() && vertex_ts_.get(v_) > ts_) {
+          ++v_;
         }
+      }
     }
     ~iterator() {}
 
     inline vid_t operator*() const { return v_; }
 
     inline iterator& operator++() {
-      if (vertex_table_modifed_)
-        [[unlikely]] {
-          do {
-            ++v_;
-          } while (v_ < vertex_ts_.size() && vertex_ts_.get(v_) > ts_);
-        }
-      else {
+      if (NEUG_UNLIKELY(vertex_table_modifed_)) {
+        do {
+          ++v_;
+        } while (v_ < vertex_ts_.size() && vertex_ts_.get(v_) > ts_);
+      } else {
         ++v_;
       }
       return *this;

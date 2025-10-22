@@ -41,6 +41,7 @@
 #include "neug/compiler/function/scalar_function.h"
 #include "neug/compiler/function/string/vector_string_functions.h"
 #include "neug/utils/exception/exception.h"
+#include "neug/utils/likely.h"
 
 using namespace gs::common;
 using std::max;
@@ -632,9 +633,9 @@ struct DecimalMultiply {
     auto precision = DecimalType::getPrecision(resultValueVector.dataType);
     result = (R) left * (R) right;
     // no need to divide by any scale given resultingParams and matchToOutput
-    if (result <= -pow10s[precision] || result >= pow10s[precision]) {
-      [[unlikely]] THROW_OVERFLOW_EXCEPTION(
-          "Decimal Multiplication Result is out of range");
+    if (NEUG_UNLIKELY(result <= -pow10s[precision] ||
+                      result >= pow10s[precision])) {
+      THROW_OVERFLOW_EXCEPTION("Decimal Multiplication Result is out of range");
     }
   }
 

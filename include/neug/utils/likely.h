@@ -1,0 +1,29 @@
+/** Copyright 2020 Alibaba Group Holding Limited.
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
+
+#ifndef INCLUDE_NEUG_UTILS_LIKELY_H_
+#define INCLUDE_NEUG_UTILS_LIKELY_H_
+
+#if __GNUC__
+#define NEUG_BULTIN_EXPECT(cond, expected_value) \
+  (__builtin_expect((cond), (expected_value)))
+#else
+#define NEUG_BULTIN_EXPECT(cond, expected_value) (cond)
+#endif
+
+#define NEUG_LIKELY(...) NEUG_BULTIN_EXPECT(!!(__VA_ARGS__), 1)
+#define NEUG_UNLIKELY(...) NEUG_BULTIN_EXPECT(!!(__VA_ARGS__), 0)
+
+#endif  // INCLUDE_NEUG_UTILS_LIKELY_H_

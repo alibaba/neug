@@ -23,6 +23,7 @@
 #include "neug/compiler/common/type_utils.h"
 #include "neug/compiler/common/types/types.h"
 #include "neug/utils/exception/exception.h"
+#include "neug/utils/likely.h"
 
 namespace gs {
 namespace function {
@@ -65,8 +66,8 @@ static auto visit(const common::LogicalType& dataType, Fs... funcs) {
 
 template <typename T>
 static void checkWeight(T weight) {
-  if (weight < 0) {
-    [[unlikely]] THROW_RUNTIME_ERROR(
+  if (NEUG_UNLIKELY(weight < 0)) {
+    THROW_RUNTIME_ERROR(
         common::stringFormat("Found negative weight {}. This is not supported "
                              "in weighted shortest path.",
                              weight));

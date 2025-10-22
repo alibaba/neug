@@ -40,6 +40,7 @@
 #include "neug/utils/proto/plan/results.pb.h"
 #endif
 
+#include "neug/utils/likely.h"
 #include "neug/utils/yaml_utils.h"
 
 namespace server {
@@ -125,11 +126,7 @@ class HttpServiceImpl : public HttpService {
   bool do_cypher_query(brpc::Controller* cntl, const HttpRequest* request,
                        std::string& final_res_str) {
     int* id_ptr = reinterpret_cast<int*>(pthread_getspecific(thread_id_key));
-#ifdef __GLIBC__
-    if (__glibc_unlikely(!id_ptr)) {
-#else
-    if (!id_ptr) {
-#endif
+    if (NEUG_UNLIKELY(!id_ptr)) {
       id_ptr = new int;
       *id_ptr = thread_id_key_count.fetch_add(1);
       pthread_setspecific(thread_id_key, id_ptr);

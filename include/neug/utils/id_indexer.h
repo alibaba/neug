@@ -37,6 +37,7 @@ limitations under the License.
 #include "libgrape-lite/grape/serialization/in_archive.h"
 #include "libgrape-lite/grape/serialization/out_archive.h"
 #include "neug/execution/common/utils/bitset.h"
+#include "neug/utils/likely.h"
 #include "neug/utils/mmap_array.h"
 #include "neug/utils/property/column.h"
 #include "neug/utils/property/types.h"
@@ -45,8 +46,6 @@ limitations under the License.
 namespace gs {
 
 namespace id_indexer_impl {
-
-#define likely(x) __builtin_expect(!!(x), 1)
 
 static constexpr int8_t min_lookups = 4;
 static constexpr double max_load_factor = 0.5f;
@@ -343,7 +342,7 @@ class LFIndexer {
   INDEX_T insert(const Any& oid) {
     assert(oid.type == get_type());
     INDEX_T ind = static_cast<INDEX_T>(num_elements_.fetch_add(1));
-    if (!likely(ind >= 0 && ind < capacity())) {
+    if (!NEUG_LIKELY(ind >= 0 && ind < capacity())) {
       THROW_INTERNAL_EXCEPTION(
           "Reserved size is not enough: " + std::to_string(capacity()) +
           " vs " + std::to_string(ind));
