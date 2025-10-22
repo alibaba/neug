@@ -457,3 +457,35 @@ TEST_F(EdgeTableTest, TestSeperatedIntString) {
     }
   }
 }
+
+TEST_F(EdgeTableTest, TestCountEdgeNum) {
+  auto work_dir = this->WorkDirectory();
+  auto snapshot_dir = this->SnapshotDirectory();
+
+  int64_t src_num = 1000;
+  int64_t dst_num = 1000;
+  size_t edge_num = 20000;
+
+  auto src_list = generate_random_vertices<int64_t>(src_num, edge_num);
+  auto dst_list = generate_random_vertices<int64_t>(dst_num, edge_num);
+
+  auto data_list = generate_random_data<int>(edge_num);
+
+  auto src_arrs = convert_to_arrow_arrays(src_list, 10);
+  auto dst_arrs = convert_to_arrow_arrays(dst_list, 10);
+  auto data_arrs = convert_to_arrow_arrays(data_list, 10);
+
+  auto batches = convert_to_record_batches({"src", "dst", "data"},
+                                           {src_arrs, dst_arrs, data_arrs});
+
+  this->InitIndexers(src_num, dst_num);
+  gs::EdgeTableMeta meta("person", "comment", "create", true, true,
+                         gs::EdgeStrategy::kMultiple,
+                         gs::EdgeStrategy::kMultiple, {gs::PropType::kInt32},
+                         {"data"}, {gs::StorageStrategy::kMem});
+  this->ConstructEdgeTable(meta);
+  this->OpenEdgeTable();
+  this->BatchInsert(std::move(batches));
+
+  EXPECT_EQ(this->edge_table->EdgeNum(), edge_num);
+}

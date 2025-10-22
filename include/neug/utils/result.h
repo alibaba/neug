@@ -19,6 +19,7 @@
 #include <cstdint>
 #include <iomanip>
 #include <iostream>
+#include <sstream>
 #include <string>
 
 #ifdef USE_SYSTEM_PROTOBUF

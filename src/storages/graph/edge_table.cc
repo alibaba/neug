@@ -432,8 +432,13 @@ void EdgeTable::Resize(vid_t src_vertex_num, vid_t dst_vertex_num) {
 }
 
 size_t EdgeTable::EdgeNum() const {
-  // TODO
-  return 0;
+  if (out_csr_) {
+    return out_csr_->edge_num();
+  } else if (in_csr_) {
+    return in_csr_->edge_num();
+  } else {
+    return 0;
+  }
 }
 
 GenericView EdgeTable::get_outgoing_view(timestamp_t ts) const {

@@ -293,7 +293,8 @@ class MLEdgePropertyGetter {
     auto label_triplet = (dir == Direction::kOut)
                              ? LabelTriplet{v_label, nbr_label, edge_label}
                              : LabelTriplet{nbr_label, v_label, edge_label};
-    return ed_accessors_.at(label_triplet).get_typed_data_from_ptr<T>(data_ptr);
+    return ed_accessors_.at(label_triplet)
+        .template get_typed_data_from_ptr<T>(data_ptr);
   }
 
  private:

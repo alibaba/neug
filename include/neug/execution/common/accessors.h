@@ -458,14 +458,14 @@ class EdgePropertyPathAccessor : public IAccessor {
     if (it == ed_accessor_.end()) {
       return RTAny(RTAnyType::kNull);
     } else {
-      T elem = it->second.get_typed_data_from_ptr<T>(e.prop);
+      T elem = it->second.template get_typed_data_from_ptr<T>(e.prop);
       return TypedConverter<T>::from_typed(elem);
     }
   }
 
   elem_t typed_eval_path(size_t idx) const {
     const auto& e = col_.get_edge(idx);
-    return ed_accessor_.at(e.label).get_typed_data_from_ptr<T>(e.prop);
+    return ed_accessor_.at(e.label).template get_typed_data_from_ptr<T>(e.prop);
   }
 
   bool is_optional() const override { return col_.is_optional(); }
@@ -535,7 +535,7 @@ class EdgePropertyEdgeAccessor : public IAccessor {
 
   elem_t typed_eval_edge(const LabelTriplet& label, vid_t src, vid_t dst,
                          const void* ptr, size_t idx) const {
-    return ed_accessors_.at(label).get_typed_data_from_ptr<T>(ptr);
+    return ed_accessors_.at(label).template get_typed_data_from_ptr<T>(ptr);
   }
 
   RTAny eval_path(size_t idx) const override {
