@@ -33,7 +33,7 @@
 
 namespace gs {
 
-Schema::Schema() : has_multi_props_edge_(false) {}
+Schema::Schema() = default;
 Schema::~Schema() = default;
 
 void Schema::Clear() {
@@ -51,7 +51,6 @@ void Schema::Clear() {
   oe_mutability_.clear();
   sort_on_compactions_.clear();
   max_vnum_.clear();
-  has_multi_props_edge_ = false;
   vlabel_tomb_.clear();
   elabel_tomb_.clear();
   elabel_triplet_tomb_.clear();
@@ -98,9 +97,6 @@ void Schema::add_edge_label(const std::string& src_label,
   uint32_t label_id =
       generate_edge_label(src_label_id, dst_label_id, edge_label_id);
   eproperties_[label_id] = properties;
-  if (properties.size() > 1) {
-    has_multi_props_edge_ = true;
-  }
   oe_strategy_[label_id] = oe;
   ie_strategy_[label_id] = ie;
   oe_mutability_[label_id] = oe_mutable;
@@ -511,13 +507,6 @@ void Schema::Deserialize(std::unique_ptr<grape::LocalIOAdaptor>& reader) {
       ie_mutability_ >> oe_mutability_ >> sort_on_compactions_ >> max_vnum_ >>
       v_descriptions_ >> e_descriptions_ >> description_ >> version_ >>
       remote_path_ >> name_ >> id_;
-  has_multi_props_edge_ = false;
-  for (auto& eprops : eproperties_) {
-    if (eprops.second.size() > 1) {
-      has_multi_props_edge_ = true;
-      break;
-    }
-  }
   vprop_name_to_type_and_index_.clear();
   vprop_name_to_type_and_index_.resize(vprop_names_.size());
   for (size_t i = 0; i < vprop_names_.size(); i++) {
@@ -1359,8 +1348,6 @@ void Schema::SetRemotePath(const std::string& remote_path) {
 
 void Schema::SetVersion(const std::string& version) { version_ = version; }
 std::string Schema::GetVersion() const { return version_; }
-
-bool Schema::has_multi_props_edge() const { return has_multi_props_edge_; }
 
 // check whether prop in vprop_names, or is the primary key
 bool Schema::vertex_has_property(const std::string& label,

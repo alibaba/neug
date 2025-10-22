@@ -282,8 +282,6 @@ class Schema {
 
   std::string GetVersion() const;
 
-  bool has_multi_props_edge() const;
-
   const std::unordered_map<std::string, std::pair<PropertyType, uint8_t>>&
   get_vprop_name_to_type_and_index(label_t label) const;
 
@@ -366,7 +364,6 @@ class Schema {
   std::string description_;
   std::string version_;
   std::string remote_path_;  // The path to the data on the remote storage
-  bool has_multi_props_edge_;
 
   Bitset vlabel_tomb_;
   Bitset elabel_tomb_;          // tombstone for edge label
