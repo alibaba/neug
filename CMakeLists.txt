@@ -120,6 +120,9 @@ if (WITH_MIMALLOC)
     unset(PACKAGE_VERSION) # Unset PACKAGE_VERSION to avoid generate two PACKAGE_VERSION in config.h for libdwarf-lite.
 endif()
 
+add_subdirectory(third_party/cereal)
+include_directories(SYSTEM ${CMAKE_CURRENT_SOURCE_DIR}/third_party/cereal/include)
+
 if (BUILD_TEST)
     enable_testing()
     find_package(GTest)
