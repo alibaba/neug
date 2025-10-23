@@ -143,9 +143,7 @@ class SDSLEdgeColumn : public IEdgeColumn {
 class SDSLEdgeColumnBuilder : public IContextColumnBuilder {
  public:
   SDSLEdgeColumnBuilder(Direction dir, const LabelTriplet& label)
-      : dir_(dir), label_(label), is_optional_(false) {
-    LOG(INFO) << "SDSLEdgeColumnBuilder label: " << label_.to_string();
-  }
+      : dir_(dir), label_(label), is_optional_(false) {}
   ~SDSLEdgeColumnBuilder() = default;
 
   void reserve(size_t size) override { edges_.reserve(size); }
@@ -265,9 +263,7 @@ class MSEdgeColumn : public IEdgeColumn {
 
 class MSEdgeColumnBuilder : public IContextColumnBuilder {
  public:
-  MSEdgeColumnBuilder() : is_optional_(false) {
-    LOG(INFO) << "MSEdgeColumnBuilder";
-  }
+  MSEdgeColumnBuilder() : is_optional_(false) {}
   ~MSEdgeColumnBuilder() = default;
 
   void reserve(size_t size) override { cur_edges_.reserve(size); }
@@ -308,7 +304,6 @@ class MSEdgeColumnBuilder : public IContextColumnBuilder {
   }
 
   inline std::shared_ptr<IContextColumn> finish() override {
-    LOG(INFO) << "MSEdgeColumnBuilder finish";
     if (!cur_edges_.empty()) {
       edges_.emplace_back(cur_label_idx_, cur_dir_, std::move(cur_edges_));
     }

@@ -383,8 +383,7 @@ class SLEdgePropertyPathAccessor : public IAccessor {
                              const std::string& prop_name, const Context& ctx,
                              int tag)
       : col_(*std::dynamic_pointer_cast<IEdgeColumn>(ctx.get(tag))) {
-    CHECK(col_.get_labels().size() == 1)
-        << "SLEdgePropertyPathAccessor only support single label edge column";
+    assert(col_.get_labels().size() == 1);
     auto label = col_.get_labels()[0];
     int prop_id = 0;
     for (auto& name : graph.schema().get_edge_property_names(
@@ -394,12 +393,6 @@ class SLEdgePropertyPathAccessor : public IAccessor {
       }
       ++prop_id;
     }
-    LOG(INFO) << "SLEdgePropertyPathAccessor prop_id: " << prop_id
-              << ", prop_num: "
-              << graph.schema()
-                     .get_edge_property_names(label.src_label, label.dst_label,
-                                              label.edge_label)
-                     .size();
     ed_accessor_ = graph.GetEdgeDataAccessor(label.src_label, label.dst_label,
                                              label.edge_label, prop_id);
   }

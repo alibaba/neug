@@ -590,8 +590,6 @@ expand_vertex_impl(const GraphReadInterface& graph, const MSVertexColumn& input,
   size_t input_seg_num = input.seg_num();
   size_t seg_start_idx = 0;
   std::vector<bool> edges_found(input.size(), false);
-  LOG(INFO) << "input_seg_num: " << input_seg_num
-            << ", input.size(): " << input.size();
   for (size_t k = 0; k < input_seg_num; ++k) {
     label_t input_label = input.seg_label(k);
     auto& vertices = input.seg_vertices(k);

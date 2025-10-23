@@ -63,7 +63,6 @@ std::shared_ptr<IContextColumn> SDSLEdgeColumn::optional_shuffle(
 }
 
 std::shared_ptr<IContextColumn> SDSLEdgeColumnBuilder::finish() {
-  LOG(INFO) << "SDSLEdgeColumnBuilder finish, size = " << edges_.size();
   auto col = std::make_shared<SDSLEdgeColumn>(dir_, label_);
   col->edges_ = std::move(edges_);
   col->is_optional_ = is_optional_;

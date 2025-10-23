@@ -192,7 +192,7 @@ class TypedColumn : public ColumnBase {
   }
 
   inline T get_view(size_t index) const {
-    CHECK(index < size_) << "Index out of range: " << index << " >= " << size_;
+    assert(index < size_);
     return buffer_.get(index);
   }
 
@@ -576,8 +576,7 @@ class TypedRefColumn : public RefColumnBase {
   ~TypedRefColumn() {}
 
   inline T get_view(size_t index) const {
-    CHECK(index < basic_size)
-        << "Index out of range: " << index << " >= " << basic_size;
+    assert(index < basic_size);
     return basic_buffer.get(index);
   }
 
