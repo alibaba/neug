@@ -65,8 +65,7 @@ gs::result<gs::runtime::Context> Intersect::Multiple_Intersect(
     const std::vector<
         std::function<bool(label_t, vid_t, label_t, vid_t, label_t, Direction,
                            const void*, size_t)>>& e_preds,
-    const std::vector<EdgeExpandParams>& eeps, int vertex_alias,
-    std::vector<int> edge_aliases) {
+    const std::vector<EdgeExpandParams>& eeps, int vertex_alias) {
   std::vector<IVertexColumn*> vertex_cols;
   for (const auto& eep : eeps) {
     auto col = ctx.get(eep.v_tag);
@@ -76,9 +75,7 @@ gs::result<gs::runtime::Context> Intersect::Multiple_Intersect(
   // TODO(luoxiaojian): opt with MLVertexColumnBuilderOpt
   MLVertexColumnBuilder builder;
   std::vector<std::vector<std::pair<LabelTriplet, PropertyType>>> labels;
-  std::vector<BDMLEdgeColumnBuilder> edge_builders;
   labels.reserve(eeps.size());
-  edge_builders.reserve(eeps.size());
 
   for (size_t i = 0; i < eeps.size(); ++i) {
     get_labels(eeps[i], graph, labels);
@@ -86,13 +83,12 @@ gs::result<gs::runtime::Context> Intersect::Multiple_Intersect(
     for (const auto& p : labels.back()) {
       label_triplets.push_back(p.first);
     }
-    edge_builders.emplace_back(label_triplets);
   }
 
   std::vector<size_t> offsets;
 
   for (size_t i = 0; i < row_num; ++i) {
-    phmap::flat_hash_set<VertexRecord, VertexRecordHash> vertex_set;
+    phmap::flat_hash_map<VertexRecord, size_t, VertexRecordHash> vertex_set;
     auto v = vertex_cols[0]->get_vertex(i);
     if (eeps[0].dir == Direction::kOut || eeps[0].dir == Direction::kBoth) {
       for (const auto& label_triplet : eeps[0].labels) {
@@ -108,10 +104,11 @@ gs::result<gs::runtime::Context> Intersect::Multiple_Intersect(
                          label_triplet.edge_label, Direction::kOut,
                          iter.get_data_ptr(), i)) {
             if (preds[0](label_triplet.dst_label, vid, i)) {
-              edge_builders[0].push_back_opt(label_triplet, v.vid_, vid,
-                                             iter.get_data_ptr(),
-                                             Direction::kOut);
-              vertex_set.emplace(VertexRecord{label_triplet.dst_label, vid});
+              VertexRecord v_record{label_triplet.dst_label, vid};
+              if (vertex_set.find(v_record) == vertex_set.end()) {
+                vertex_set.emplace(v_record, 0);
+              }
+              vertex_set[v_record]++;
             }
           }
         }
@@ -131,10 +128,11 @@ gs::result<gs::runtime::Context> Intersect::Multiple_Intersect(
                          label_triplet.edge_label, Direction::kIn,
                          iter.get_data_ptr(), i)) {
             if (preds[0](label_triplet.src_label, vid, i)) {
-              edge_builders[0].push_back_opt(label_triplet, vid, v.vid_,
-                                             iter.get_data_ptr(),
-                                             Direction::kIn);
-              vertex_set.emplace(VertexRecord{label_triplet.src_label, vid});
+              VertexRecord v_record{label_triplet.src_label, vid};
+              if (vertex_set.find(v_record) == vertex_set.end()) {
+                vertex_set.emplace(v_record, 0);
+              }
+              vertex_set[v_record]++;
             }
           }
         }
@@ -142,7 +140,7 @@ gs::result<gs::runtime::Context> Intersect::Multiple_Intersect(
     }
 
     for (size_t j = 1; j < eeps.size(); ++j) {
-      phmap::flat_hash_set<VertexRecord, VertexRecordHash> tmp_set;
+      phmap::flat_hash_map<VertexRecord, size_t, VertexRecordHash> tmp_set;
       v = vertex_cols[j]->get_vertex(i);
       if (eeps[j].dir == Direction::kOut || eeps[j].dir == Direction::kBoth) {
         for (const auto& label_triplet : eeps[j].labels) {
@@ -160,10 +158,10 @@ gs::result<gs::runtime::Context> Intersect::Multiple_Intersect(
               VertexRecord v_record{label_triplet.dst_label, vid};
               if (vertex_set.find(v_record) != vertex_set.end() &&
                   preds[j](v_record.label_, v_record.vid_, i)) {
-                edge_builders[j].push_back_opt(label_triplet, v.vid_, vid,
-                                               iter.get_data_ptr(),
-                                               Direction::kOut);
-                tmp_set.emplace(v_record);
+                if (tmp_set.find(v_record) == tmp_set.end()) {
+                  tmp_set.emplace(v_record, 0);
+                }
+                tmp_set[v_record] += vertex_set[v_record];
               }
             }
           }
@@ -185,10 +183,10 @@ gs::result<gs::runtime::Context> Intersect::Multiple_Intersect(
               VertexRecord v_record{label_triplet.src_label, vid};
               if (vertex_set.find(v_record) != vertex_set.end() &&
                   preds[j](v_record.label_, v_record.vid_, i)) {
-                edge_builders[j].push_back_opt(label_triplet, vid, v.vid_,
-                                               iter.get_data_ptr(),
-                                               Direction::kIn);
-                tmp_set.emplace(v_record);
+                if (tmp_set.find(v_record) == tmp_set.end()) {
+                  tmp_set.emplace(v_record, 0);
+                }
+                tmp_set[v_record] += vertex_set[v_record];
               }
             }
           }
@@ -200,19 +198,211 @@ gs::result<gs::runtime::Context> Intersect::Multiple_Intersect(
       }
     }
     if (!vertex_set.empty()) {
-      for (const auto& v_record : vertex_set) {
-        builder.push_back_opt(v_record);
-        offsets.emplace_back(i);
+      for (const auto& [v_record, cnt] : vertex_set) {
+        for (size_t k = 0; k < cnt; ++k) {
+          builder.push_back_opt(v_record);
+          offsets.emplace_back(i);
+        }
       }
     }
   }
   ctx.reshuffle(offsets);
   auto col = builder.finish();
   ctx.set(vertex_alias, std::move(col));
-  for (size_t i = 0; i < edge_builders.size(); ++i) {
-    auto e_col = edge_builders[i].finish();
-    ctx.set(edge_aliases[i], std::move(e_col));
+  return std::move(ctx);
+}
+
+gs::result<gs::runtime::Context> Intersect::Binary_Intersect_With_Edge(
+    const gs::runtime::GraphReadInterface& graph,
+    const std::map<std::string, std::string>& params,
+    gs::runtime::Context&& ctx,
+    const std::function<bool(label_t, vid_t, size_t)>& left_pred,
+    const std::function<bool(label_t, vid_t, size_t)>& right_pred,
+    const std::function<bool(label_t, vid_t, label_t, vid_t, label_t, Direction,
+                             const void*, size_t)>& left_e_pred,
+    const std::function<bool(label_t, vid_t, label_t, vid_t, label_t, Direction,
+                             const void*, size_t)>& right_e_pred,
+    const EdgeExpandParams& eep0, const EdgeExpandParams& eep1,
+    int vertex_alias, const std::vector<int>& edge_alias) {
+  const auto& vertex_col0 =
+      dynamic_cast<const IVertexColumn*>(ctx.get(eep0.v_tag).get());
+  const auto& vertex_col1 =
+      dynamic_cast<const IVertexColumn*>(ctx.get(eep1.v_tag).get());
+
+  CHECK(!eep0.is_optional && !eep1.is_optional)
+      << "Intersect operator does not support optional edge expand.";
+  size_t row_num = ctx.row_num();
+
+  // TODO(luoxiaojian): use MLVertexColumnBuilderOpt
+  MLVertexColumnBuilder builder;
+  std::vector<size_t> offsets;
+
+  std::vector<std::vector<std::pair<LabelTriplet, PropertyType>>> labels;
+  std::vector<BDMLEdgeColumnBuilder> edge_builders;
+  {
+    get_labels(eep0, graph, labels);
+    std::vector<LabelTriplet> label_triplets;
+    for (const auto& p : labels.back()) {
+      label_triplets.push_back(p.first);
+    }
+    edge_builders.emplace_back(label_triplets);
   }
+  {
+    get_labels(eep1, graph, labels);
+    std::vector<LabelTriplet> label_triplets;
+    for (const auto& p : labels.back()) {
+      label_triplets.push_back(p.first);
+    }
+    edge_builders.emplace_back(label_triplets);
+  }
+
+  for (size_t i = 0; i < row_num; ++i) {
+    using value_t =
+        std::tuple<LabelTriplet, vid_t, vid_t, const void*, Direction>;
+
+    std::vector<value_t> aux_values;
+    phmap::flat_hash_map<VertexRecord, std::vector<size_t>, VertexRecordHash>
+        vertex_set;
+
+    auto v0 = vertex_col0->get_vertex(i);
+    if (eep0.dir == Direction::kOut || eep0.dir == Direction::kBoth) {
+      for (const auto& label_triplet : eep0.labels) {
+        if (label_triplet.src_label != v0.label_) {
+          continue;
+        }
+        auto oview = graph.GetGenericOutgoingGraphView(
+            v0.label_, label_triplet.dst_label, label_triplet.edge_label);
+        auto oes = oview.get_edges(v0.vid_);
+        for (auto iter = oes.begin(); iter != oes.end(); ++iter) {
+          vid_t vid = iter.get_vertex();
+          if (left_e_pred(v0.label_, v0.vid_, label_triplet.dst_label, vid,
+                          label_triplet.edge_label, Direction::kOut,
+                          iter.get_data_ptr(), i) &&
+              left_pred(label_triplet.dst_label, vid, i)) {
+            auto rcd = VertexRecord{label_triplet.dst_label, vid};
+            aux_values.emplace_back(label_triplet, v0.vid_, vid,
+                                    iter.get_data_ptr(), Direction::kOut);
+            size_t idx = aux_values.size() - 1;
+
+            vertex_set[rcd].emplace_back(idx);
+          }
+        }
+      }
+    }
+    if (eep0.dir == Direction::kIn || eep0.dir == Direction::kBoth) {
+      for (const auto& label_triplet : eep0.labels) {
+        if (label_triplet.dst_label != v0.label_) {
+          continue;
+        }
+        auto iview = graph.GetGenericIncomingGraphView(
+            v0.label_, label_triplet.src_label, label_triplet.edge_label);
+        auto ies = iview.get_edges(v0.vid_);
+        for (auto iter = ies.begin(); iter != ies.end(); ++iter) {
+          vid_t vid = iter.get_vertex();
+          if (left_e_pred(v0.label_, v0.vid_, label_triplet.src_label, vid,
+                          label_triplet.edge_label, Direction::kIn,
+                          iter.get_data_ptr(), i) &&
+              left_pred(label_triplet.src_label, vid, i)) {
+            auto rcd = VertexRecord{label_triplet.src_label, vid};
+            aux_values.emplace_back(label_triplet, vid, v0.vid_,
+                                    iter.get_data_ptr(), Direction::kIn);
+            size_t idx = aux_values.size() - 1;
+            vertex_set[rcd].emplace_back(idx);
+          }
+        }
+      }
+    }
+    auto v1 = vertex_col1->get_vertex(i);
+
+    if (eep1.dir == Direction::kOut || eep1.dir == Direction::kBoth) {
+      for (const auto& label_triplet : eep1.labels) {
+        if (label_triplet.src_label != v1.label_) {
+          continue;
+        }
+        auto oview = graph.GetGenericOutgoingGraphView(
+            v1.label_, label_triplet.dst_label, label_triplet.edge_label);
+        auto oes = oview.get_edges(v1.vid_);
+        for (auto iter = oes.begin(); iter != oes.end(); ++iter) {
+          vid_t vid = iter.get_vertex();
+          if (right_e_pred(v1.label_, v1.vid_, label_triplet.dst_label, vid,
+                           label_triplet.edge_label, Direction::kOut,
+                           iter.get_data_ptr(), i) &&
+              right_pred(label_triplet.dst_label, vid, i)) {
+            auto rcd = VertexRecord{label_triplet.dst_label, vid};
+            if (vertex_set.find(rcd) != vertex_set.end()) {
+              const auto& values = vertex_set[rcd];
+              for (const auto& value : values) {
+                builder.push_back_opt(rcd);
+                if (edge_alias[0] != -1) {
+                  std::apply(
+                      [&](const auto&... args) {
+                        edge_builders[0].push_back_opt(args...);
+                      },
+                      aux_values[value]);
+                }
+                if (edge_alias[1] != -1) {
+                  edge_builders[1].push_back_opt(label_triplet, v1.vid_, vid,
+                                                 iter.get_data_ptr(),
+                                                 Direction::kOut);
+                }
+                offsets.emplace_back(i);
+              }
+            }
+          }
+        }
+      }
+    }
+    if (eep1.dir == Direction::kIn || eep1.dir == Direction::kBoth) {
+      for (const auto& label_triplet : eep1.labels) {
+        if (label_triplet.dst_label != v1.label_) {
+          continue;
+        }
+        auto iview = graph.GetGenericIncomingGraphView(
+            v1.label_, label_triplet.src_label, label_triplet.edge_label);
+        auto ies = iview.get_edges(v1.vid_);
+        for (auto iter = ies.begin(); iter != ies.end(); ++iter) {
+          vid_t vid = iter.get_vertex();
+          VertexRecord v_record{label_triplet.src_label, vid};
+          if (right_e_pred(v1.label_, v1.vid_, label_triplet.src_label, vid,
+                           label_triplet.edge_label, Direction::kIn,
+                           iter.get_data_ptr(), i) &&
+              vertex_set.find(v_record) != vertex_set.end() &&
+              right_pred(label_triplet.src_label, vid, i)) {
+            const auto& values = vertex_set[v_record];
+            for (const auto& value : values) {
+              builder.push_back_opt(v_record);
+              if (edge_alias[0] != -1) {
+                std::apply(
+                    [&](const auto&... args) {
+                      edge_builders[0].push_back_opt(args...);
+                    },
+                    aux_values[value]);
+              }
+              if (edge_alias[1] != -1) {
+                edge_builders[1].push_back_opt(label_triplet, vid, v1.vid_,
+                                               iter.get_data_ptr(),
+                                               Direction::kIn);
+              }
+              offsets.emplace_back(i);
+            }
+          }
+        }
+      }
+    }
+  }
+  ctx.reshuffle(offsets);
+  auto col = builder.finish();
+  ctx.set(vertex_alias, std::move(col));
+
+  if (edge_alias[0] != -1) {
+    auto left_e_col = edge_builders[0].finish();
+    ctx.set(edge_alias[0], std::move(left_e_col));
+  }
+  if (edge_alias[1] != -1) {
+    auto right_e_col = edge_builders[1].finish();
+    ctx.set(edge_alias[1], std::move(right_e_col));
+  }
+
   return std::move(ctx);
 }
 }  // namespace runtime
