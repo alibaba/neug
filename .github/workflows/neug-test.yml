@@ -28,6 +28,7 @@ on:
       - 'tests/**'
       - '.github/workflows/neug-test.yml'
       - 'scripts/install_deps.sh'
+      - 'include/**'
   push:
     branches:
       - main
@@ -39,6 +40,7 @@ on:
       - 'tools/python_bind/**'
       - 'tests/**'
       - '.github/workflows/neug-test.yml'
+      - 'include/**'
 
 concurrency:
   group: ${{ github.repository }}-${{ github.event.number || github.head_ref || github.sha }}-${{ github.workflow }}

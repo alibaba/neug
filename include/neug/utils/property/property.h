@@ -45,100 +45,148 @@ enum class PropType {
   kInterval,
 };
 
-using PropValue =
-    std::variant<grape::EmptyType, bool, int32_t, uint32_t, int64_t, uint64_t,
-                 std::string_view, float, double, struct TimeStamp, struct Date,
-                 struct DateTime, struct Interval>;
+union PropValue {
+  PropValue() {}
+  ~PropValue() {}
+
+  grape::EmptyType empty;
+  bool b;
+  int32_t i;
+  uint32_t ui;
+  int64_t l;
+  uint64_t ul;
+  std::string_view s;
+  float f;
+  double db;
+  struct TimeStamp ts;
+  struct Date d;
+  struct DateTime dt;
+  struct Interval itv;
+};
 
 class Prop {
  public:
   Prop() = default;
   ~Prop() = default;
 
-  PropType type() const { return static_cast<PropType>(value_.index()); }
+  void set_bool(bool v) {
+    type_ = PropType::kBool;
+    value_.b = v;
+  }
 
-  void set_bool(bool v) { value_ = v; }
+  void set_int32(int32_t v) {
+    type_ = PropType::kInt32;
+    value_.i = v;
+  }
 
-  void set_int32(int32_t v) { value_ = v; }
+  void set_uint32(uint32_t v) {
+    type_ = PropType::kUInt32;
+    value_.ui = v;
+  }
 
-  void set_uint32(uint32_t v) { value_ = v; }
+  void set_int64(int64_t v) {
+    type_ = PropType::kInt64;
+    value_.l = v;
+  }
 
-  void set_int64(int64_t v) { value_ = v; }
+  void set_uint64(uint64_t v) {
+    type_ = PropType::kUInt64;
+    value_.ul = v;
+  }
 
-  void set_uint64(uint64_t v) { value_ = v; }
+  void set_string(const std::string_view& v) {
+    type_ = PropType::kString;
+    value_.s = v;
+  }
 
-  void set_string(const std::string_view& v) { value_ = v; }
+  void set_float(float v) {
+    type_ = PropType::kFloat;
+    value_.f = v;
+  }
 
-  void set_float(float v) { value_ = v; }
+  void set_double(double v) {
+    type_ = PropType::kDouble;
+    value_.db = v;
+  }
 
-  void set_double(double v) { value_ = v; }
+  void set_timestamp(const TimeStamp& v) {
+    type_ = PropType::kTimestamp;
+    value_.ts = v;
+  }
 
-  void set_timestamp(const TimeStamp& v) { value_ = v; }
+  void set_date(const Date& v) {
+    type_ = PropType::kDate;
+    value_.d = v;
+  }
 
-  void set_date(const Date& v) { value_ = v; }
+  void set_date_time(const DateTime& v) {
+    type_ = PropType::kDateTime;
+    value_.dt = v;
+  }
 
-  void set_date_time(const DateTime& v) { value_ = v; }
-
-  void set_interval(const Interval& v) { value_ = v; }
+  void set_interval(const Interval& v) {
+    type_ = PropType::kInterval;
+    value_.itv = v;
+  }
 
   bool as_bool() const {
     assert(type() == PropType::kBool);
-    return std::get<1>(value_);
+    return value_.b;
   }
 
   int as_int32() const {
     assert(type() == PropType::kInt32);
-    return std::get<2>(value_);
+    return value_.i;
   }
 
   uint32_t as_uint32() const {
     assert(type() == PropType::kUInt32);
-    return std::get<3>(value_);
+    return value_.ui;
   }
 
   int64_t as_int64() const {
     assert(type() == PropType::kInt64);
-    return std::get<4>(value_);
+    return value_.l;
   }
 
   uint64_t as_uint64() const {
     assert(type() == PropType::kUInt64);
-    return std::get<5>(value_);
+    return value_.ul;
   }
 
   std::string_view as_string() const {
     assert(type() == PropType::kString);
-    return std::get<6>(value_);
+    return value_.s;
   }
 
   float as_float() const {
     assert(type() == PropType::kFloat);
-    return std::get<7>(value_);
+    return value_.f;
   }
 
   double as_double() const {
     assert(type() == PropType::kDouble);
-    return std::get<8>(value_);
+    return value_.db;
   }
 
   TimeStamp as_timestamp() const {
     assert(type() == PropType::kTimestamp);
-    return std::get<9>(value_);
+    return value_.ts;
   }
 
   Date as_date() const {
     assert(type() == PropType::kDate);
-    return std::get<10>(value_);
+    return value_.d;
   }
 
   DateTime as_date_time() const {
     assert(type() == PropType::kDateTime);
-    return std::get<11>(value_);
+    return value_.dt;
   }
 
   Interval as_interval() const {
     assert(type() == PropType::kInterval);
-    return std::get<12>(value_);
+    return value_.itv;
   }
 
   std::string to_string() const {
@@ -246,7 +294,10 @@ class Prop {
     return ret;
   }
 
+  PropType type() const { return type_; }
+
  private:
+  PropType type_;
   PropValue value_;
 };
 
