@@ -32,7 +32,7 @@ class AbstractPropertyGraphLoader : public IFragmentLoader {
         schema_(schema),
         loading_config_(loading_config),
         thread_num_(loading_config_.GetParallelism()) {
-    graph_.Open(schema_, work_dir_, 1);
+    graph_.Open(schema_, work_dir_, 0);
   }
 
   virtual ~AbstractPropertyGraphLoader() = default;
