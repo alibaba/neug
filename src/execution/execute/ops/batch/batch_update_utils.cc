@@ -18,6 +18,7 @@
 #include <arrow/csv/options.h>
 #include <arrow/type.h>
 #include <arrow/util/value_parsing.h>
+#include <glob.h>
 #include <glog/logging.h>
 #include <rapidjson/document.h>
 #include <rapidjson/stringbuffer.h>
@@ -578,38 +579,65 @@ void to_arrow_csv_options(
   // TODO(zhanglei): support selecting included columns.
 }
 
+std::vector<std::string> match_files_with_pattern(
+    const std::string& file_path) {
+  std::vector<std::string> result;
+  if (file_path.find('*') != std::string::npos ||
+      file_path.find('?') != std::string::npos) {
+    glob_t glob_result;
+    int flags = GLOB_TILDE | GLOB_MARK;
+    int ret = glob(file_path.c_str(), flags, nullptr, &glob_result);
+    if (ret == 0) {
+      for (size_t i = 0; i < glob_result.gl_pathc; ++i) {
+        result.push_back(glob_result.gl_pathv[i]);
+      }
+    }
+    globfree(&glob_result);
+  } else {
+    std::filesystem::path p = std::filesystem::absolute(file_path);
+    if (!std::filesystem::exists(p)) {
+      THROW_IO_EXCEPTION("Provided path is not a file: " + file_path + ".");
+    }
+    result.emplace_back(file_path);
+  }
+  return result;
+}
+
 std::vector<std::shared_ptr<IRecordBatchSupplier>> create_csv_record_suppliers(
     const std::string& file_path, const std::vector<PropertyType>& column_types,
     const std::unordered_map<std::string, std::string> csv_options) {
   std::vector<std::shared_ptr<IRecordBatchSupplier>> suppliers;
-  arrow::csv::ConvertOptions convert_options;
-  arrow::csv::ReadOptions read_options;
-  arrow::csv::ParseOptions parse_options;
+  std::vector<std::string> file_paths = match_files_with_pattern(file_path);
 
-  to_arrow_csv_options(file_path, csv_options, column_types, convert_options,
-                       read_options, parse_options);
+  for (auto& path : file_paths) {
+    arrow::csv::ConvertOptions convert_options;
+    arrow::csv::ReadOptions read_options;
+    arrow::csv::ParseOptions parse_options;
+    to_arrow_csv_options(path, csv_options, column_types, convert_options,
+                         read_options, parse_options);
 
-  bool stream_reader = true;
-  if (csv_options.find(CSV_STREAM_READER) != csv_options.end()) {
-    // check lower-case
-    auto val = to_lower_copy(csv_options.at(CSV_STREAM_READER));
-    if (val == "false" || val == "0") {
-      stream_reader = false;
-    } else if (val != "true" && val != "1") {
-      LOG(WARNING) << "Invalid value for CSV_STREAM_READER: "
-                   << csv_options.at(CSV_STREAM_READER)
-                   << ". Defaulting to true (stream reader enabled).";
+    bool stream_reader = true;
+    if (csv_options.find(CSV_STREAM_READER) != csv_options.end()) {
+      // check lower-case
+      auto val = to_lower_copy(csv_options.at(CSV_STREAM_READER));
+      if (val == "false" || val == "0") {
+        stream_reader = false;
+      } else if (val != "true" && val != "1") {
+        LOG(WARNING) << "Invalid value for CSV_STREAM_READER: "
+                     << csv_options.at(CSV_STREAM_READER)
+                     << ". Defaulting to true (stream reader enabled).";
+      }
     }
-  }
 
-  if (stream_reader) {
-    suppliers.emplace_back(std::dynamic_pointer_cast<IRecordBatchSupplier>(
-        std::make_shared<CSVStreamRecordBatchSupplier>(
-            file_path, convert_options, read_options, parse_options)));
-  } else {
-    suppliers.emplace_back(std::dynamic_pointer_cast<IRecordBatchSupplier>(
-        std::make_shared<CSVTableRecordBatchSupplier>(
-            file_path, convert_options, read_options, parse_options)));
+    if (stream_reader) {
+      suppliers.emplace_back(std::dynamic_pointer_cast<IRecordBatchSupplier>(
+          std::make_shared<CSVStreamRecordBatchSupplier>(
+              path, convert_options, read_options, parse_options)));
+    } else {
+      suppliers.emplace_back(std::dynamic_pointer_cast<IRecordBatchSupplier>(
+          std::make_shared<CSVTableRecordBatchSupplier>(
+              path, convert_options, read_options, parse_options)));
+    }
   }
   return suppliers;
 }

@@ -101,6 +101,8 @@ void to_arrow_csv_options(
     arrow::csv::ReadOptions& read_options,
     arrow::csv::ParseOptions& parse_options);
 
+std::vector<std::string> match_files_with_pattern(const std::string& file_path);
+
 std::vector<std::shared_ptr<IRecordBatchSupplier>> create_csv_record_suppliers(
     const std::string& file_path, const std::vector<PropertyType>& column_types,
     const std::unordered_map<std::string, std::string> csv_options);

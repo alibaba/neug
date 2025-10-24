@@ -95,6 +95,10 @@ The following statement will import `person.csv` into person table.
 ```cypher
 COPY person FROM "person.csv" (header=true);
 ```
+If the data is spread across multiple files in a directory, you can use wildcard characters to specify all files at once. For example
+```cypher
+COPY person FROM "person*.csv" (header=true);
+```
 **Note:**
 - The number of columns in the CSV file must be equal to the number of properties defined for the node.
 - The order of columns in the CSV file must align with the order of properties defined for the node. For example, the above node has properties ordered: id, name, age, which correspond to the columns in the CSV file.

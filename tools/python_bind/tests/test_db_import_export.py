@@ -263,7 +263,7 @@ def test_import_file_not_found(tmp_path):
     conn.execute("CREATE NODE TABLE person(id INT64, PRIMARY KEY(id));")
     with pytest.raises(Exception) as excinfo:
         conn.execute('COPY person FROM "/not/exist.csv";')
-    assert str(ERR_COMPILATION) in str(excinfo.value)
+    assert str(ERR_IO_ERROR) in str(excinfo.value)
     conn.close()
     db.close()
 

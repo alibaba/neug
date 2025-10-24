@@ -126,17 +126,6 @@ std::unique_ptr<BoundBaseScanSource> Binder::bindFileScanSource(
   } else {
     fileTypeInfo = bindFileTypeInfo(filePaths);
   }
-  // If we defined a certain FileType, we have to ensure the path is a file, not
-  // something else (e.g. an existed directory)
-  if (fileTypeInfo.fileType != FileType::UNKNOWN) {
-    for (const auto& filePath : filePaths) {
-      if (!LocalFileSystem::fileExists(filePath) &&
-          LocalFileSystem::isLocalPath(filePath)) {
-        THROW_BINDER_EXCEPTION(
-            stringFormat("Provided path is not a file: {}.", filePath));
-      }
-    }
-  }
   boundOptions.erase(FileScanInfo::FILE_FORMAT_OPTION_NAME);
   // Bind file configuration
   auto fileScanInfo =

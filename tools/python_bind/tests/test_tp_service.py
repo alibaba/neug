@@ -55,11 +55,8 @@ def test_batch_loading(setup_database):
     if not flex_data_dir:
         raise Exception("FLEX_DATA_DIR is not set")
     person_csv = os.path.join(flex_data_dir, "person.csv")
-    person_knows_person_csv_part1 = os.path.join(
-        flex_data_dir, "person_knows_person.part1.csv"
-    )
-    person_knows_person_csv_part2 = os.path.join(
-        flex_data_dir, "person_knows_person.part2.csv"
+    person_knows_person_csv = os.path.join(
+        flex_data_dir, "person_knows_person.part*.csv"
     )
     sess = Session(uri, timeout="10s")
     sess.execute(
@@ -68,15 +65,15 @@ def test_batch_loading(setup_database):
     sess.execute("CREATE REL TABLE knows(FROM person TO person, weight DOUBLE);")
     sess.execute(f'COPY person from "{person_csv}"')
     sess.execute(
-        f'COPY knows from "{person_knows_person_csv_part1}" (from="person", to="person")'
-    )
-    sess.execute(
-        f'COPY knows from "{person_knows_person_csv_part2}" (from="person", to="person")'
+        f'COPY knows from "{person_knows_person_csv}" (from="person", to="person")'
     )
 
     res = sess.execute("MATCH (n) WHERE n.id = 1 RETURN n.name;")
     assert len(res) == 1
     assert res[0][0] == "marko"
+
+    res = sess.execute("MATCH (n:person)-[e:knows]->(:person) WHERE n.id = 1 RETURN e;")
+    assert len(res) == 2
 
     # get service status
     status = sess.service_status()
