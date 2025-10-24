@@ -108,7 +108,8 @@ class InsertTransaction {
    *
    * @since v0.1.0
    */
-  bool AddVertex(label_t label, const Prop& id, const std::vector<Prop>& props);
+  bool AddVertex(label_t label, const Property& id,
+                 const std::vector<Property>& props);
 
   /**
    * @brief Add a new edge to the transaction.
@@ -129,9 +130,9 @@ class InsertTransaction {
    *
    * @since v0.1.0
    */
-  bool AddEdge(label_t src_label, const Prop& src, label_t dst_label,
-               const Prop& dst, label_t edge_label,
-               const std::vector<Prop>& properties);
+  bool AddEdge(label_t src_label, const Property& src, label_t dst_label,
+               const Property& dst, label_t edge_label,
+               const std::vector<Property>& properties);
 
   /**
    * @brief Commit the transaction.
@@ -161,11 +162,11 @@ class InsertTransaction {
   void clear();
 
   static bool get_vertex_with_retries(PropertyGraph& graph, label_t label,
-                                      const Prop& oid, vid_t& lid,
+                                      const Property& oid, vid_t& lid,
                                       timestamp_t timestamp);
   grape::InArchive arc_;
 
-  std::set<std::pair<label_t, Prop>> added_vertices_;
+  std::set<std::pair<label_t, Property>> added_vertices_;
 
   PropertyGraph& graph_;
 

@@ -143,7 +143,7 @@ class GraphReadInterface {
     return txn_.GetVertexSet(label);
   }
 
-  inline bool GetVertexIndex(label_t label, const Prop& id,
+  inline bool GetVertexIndex(label_t label, const Property& id,
                              vid_t& index) const {
     return txn_.GetVertexIndex(label, id, index);
   }
@@ -152,11 +152,12 @@ class GraphReadInterface {
     return txn_.IsValidVertex(label, index);
   }
 
-  inline Prop GetVertexId(label_t label, vid_t index) const {
+  inline Property GetVertexId(label_t label, vid_t index) const {
     return txn_.GetVertexId(label, index);
   }
 
-  inline Prop GetVertexProperty(label_t label, vid_t index, int prop_id) const {
+  inline Property GetVertexProperty(label_t label, vid_t index,
+                                    int prop_id) const {
     return txn_.graph().get_vertex_table(label).at(index, prop_id);
   }
 
@@ -191,14 +192,14 @@ class GraphInsertInterface {
   explicit GraphInsertInterface(gs::InsertTransaction& txn) : txn_(txn) {}
   ~GraphInsertInterface() {}
 
-  inline bool AddVertex(label_t label, const Prop& id,
-                        const std::vector<Prop>& props) {
+  inline bool AddVertex(label_t label, const Property& id,
+                        const std::vector<Property>& props) {
     return txn_.AddVertex(label, id, props);
   }
 
-  inline bool AddEdge(label_t src_label, const Prop& src, label_t dst_label,
-                      const Prop& dst, label_t edge_label,
-                      const std::vector<Prop>& properties) {
+  inline bool AddEdge(label_t src_label, const Property& src, label_t dst_label,
+                      const Property& dst, label_t edge_label,
+                      const std::vector<Property>& properties) {
     return txn_.AddEdge(src_label, src, dst_label, dst, edge_label, properties);
   }
 
@@ -245,17 +246,18 @@ class GraphUpdateInterface {
   ~GraphUpdateInterface() {}
 
   inline void SetVertexField(label_t label, vid_t lid, int col_id,
-                             const Prop& value) {
+                             const Property& value) {
     txn_.SetVertexField(label, lid, col_id, value);
   }
 
-  inline Prop GetVertexProperty(label_t label, vid_t index, int prop_id) const {
+  inline Property GetVertexProperty(label_t label, vid_t index,
+                                    int prop_id) const {
     return txn_.GetGraph().get_vertex_table(label).at(index, prop_id);
   }
 
   inline void SetEdgeData(bool dir, label_t label, vid_t v,
                           label_t neighbor_label, vid_t nbr, label_t edge_label,
-                          const Prop& value, int32_t col_id = 0) {
+                          const Property& value, int32_t col_id = 0) {
     txn_.SetEdgeData(dir, label, v, neighbor_label, nbr, edge_label, value,
                      col_id);
   }
@@ -263,35 +265,35 @@ class GraphUpdateInterface {
   inline bool GetUpdatedEdgeData(bool dir, label_t label, vid_t v,
                                  label_t neighbor_label, vid_t nbr,
                                  label_t edge_label, int32_t prop_id,
-                                 Prop& ret) const {
+                                 Property& ret) const {
     return txn_.GetUpdatedEdgeData(dir, label, v, neighbor_label, nbr,
                                    edge_label, prop_id, ret);
   }
 
-  inline bool AddVertex(label_t label, const Prop& id,
-                        const std::vector<Prop>& props) {
+  inline bool AddVertex(label_t label, const Property& id,
+                        const std::vector<Property>& props) {
     return txn_.AddVertex(label, id, props);
   }
 
-  inline bool GetVertexIndex(label_t label, const Prop& id,
+  inline bool GetVertexIndex(label_t label, const Property& id,
                              vid_t& index) const {
     return txn_.GetVertexIndex(label, id, index);
   }
 
-  inline bool AddVertex(label_t label, const Prop& id,
-                        const std::vector<Prop>& props, vid_t& vid) {
+  inline bool AddVertex(label_t label, const Property& id,
+                        const std::vector<Property>& props, vid_t& vid) {
     return txn_.AddVertex(label, id, props, vid);
   }
 
-  inline bool AddEdge(label_t src_label, const Prop& src, label_t dst_label,
-                      const Prop& dst, label_t edge_label,
-                      const std::vector<Prop>& properties) {
+  inline bool AddEdge(label_t src_label, const Property& src, label_t dst_label,
+                      const Property& dst, label_t edge_label,
+                      const std::vector<Property>& properties) {
     return txn_.AddEdge(src_label, src, dst_label, dst, edge_label, properties);
   }
 
   inline bool AddEdge(label_t src_label, vid_t src, label_t dst_label,
                       vid_t dst, label_t edge_label,
-                      const std::vector<Prop>& properties) {
+                      const std::vector<Property>& properties) {
     return txn_.AddEdge(src_label, src, dst_label, dst, edge_label, properties);
   }
 
@@ -301,7 +303,7 @@ class GraphUpdateInterface {
 
   inline const Schema& schema() const { return txn_.schema(); }
 
-  inline Prop GetVertexId(label_t label, vid_t index) const {
+  inline Property GetVertexId(label_t label, vid_t index) const {
     return txn_.GetVertexId(label, index);
   }
 
@@ -309,7 +311,7 @@ class GraphUpdateInterface {
     return txn_.GetVertexNum(label);
   }
 
-  inline bool HasVertex(label_t label, const Prop& oid) const {
+  inline bool HasVertex(label_t label, const Property& oid) const {
     return txn_.HasVertex(label, oid);
   }
 

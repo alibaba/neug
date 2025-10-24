@@ -70,7 +70,7 @@ class VertexTableBenchmark : public ::testing::Test {
 
     for (size_t i = 0; i < count; ++i) {
       // Add vertex with integer ID
-      gs::Prop vertex_id;
+      gs::Property vertex_id;
       vertex_id.set_int64(static_cast<int64_t>(i));
 
       gs::vid_t vid = table.add_vertex(vertex_id, i);
@@ -80,17 +80,17 @@ class VertexTableBenchmark : public ::testing::Test {
       auto& props_table = table.get_properties_table();
 
       // Set name property
-      gs::Prop name_value;
+      gs::Property name_value;
       name_value.set_string_view("person_" + std::to_string(i));
       props_table.get_column_by_id(0)->set_any(vid, name_value);
 
       // Set age property
-      gs::Prop age_value;
+      gs::Property age_value;
       age_value.set_int32(age_dist(generator_));
       props_table.get_column_by_id(1)->set_any(vid, age_value);
 
       // Set score property
-      gs::Prop score_value;
+      gs::Property score_value;
       score_value.set_double(score_dist(generator_));
       props_table.get_column_by_id(2)->set_any(vid, score_value);
     }
@@ -132,14 +132,14 @@ class VertexTableBenchmark : public ::testing::Test {
     return ids;
   }
 
-  std::vector<gs::Prop> GenerateRandomOids(const gs::VertexTable& vertex_table,
-                                           size_t count, size_t max_id) {
-    std::vector<gs::Prop> oids;
+  std::vector<gs::Property> GenerateRandomOids(
+      const gs::VertexTable& vertex_table, size_t count, size_t max_id) {
+    std::vector<gs::Property> oids;
     std::uniform_int_distribution<int64_t> oid_dist(0, max_id - 1);
 
     gs::vid_t lid;
     while (oids.size() < count) {
-      gs::Prop oid;
+      gs::Property oid;
       auto oid_value = oid_dist(generator_);
       oid.set_int64(oid_value);
       if (vertex_table.get_index(oid, lid)) {
@@ -176,7 +176,7 @@ TEST_F(VertexTableBenchmark, AddVertexPerformance) {
 
   // Add vertices
   for (size_t i = 0; i < vertex_count; ++i) {
-    gs::Prop vertex_id;
+    gs::Property vertex_id;
     vertex_id.set_int64(static_cast<int64_t>(i));
     table.add_vertex(vertex_id);
   }
@@ -210,7 +210,7 @@ TEST_F(VertexTableBenchmark, GetOidPerformance) {
 
   // Warm up
   for (auto vid : random_vids) {
-    gs::Prop oid = table.get_oid(vid, gs::MAX_TIMESTAMP);
+    gs::Property oid = table.get_oid(vid, gs::MAX_TIMESTAMP);
     (void) oid;  // Avoid unused variable warning
   }
 
@@ -218,7 +218,7 @@ TEST_F(VertexTableBenchmark, GetOidPerformance) {
 
   // Perform get_oid operations
   for (auto vid : random_vids) {
-    gs::Prop oid = table.get_oid(vid);
+    gs::Property oid = table.get_oid(vid);
     (void) oid;  // Avoid unused variable warning
   }
 
@@ -235,7 +235,7 @@ TEST_F(VertexTableBenchmark, GetOidPerformance) {
   auto start2 = std::chrono::high_resolution_clock::now();
 
   for (auto vid : random_vids_after_delete) {
-    gs::Prop oid = table.get_oid(vid);
+    gs::Property oid = table.get_oid(vid);
     (void) oid;  // Avoid unused variable warning
   }
   auto end2 = std::chrono::high_resolution_clock::now();
@@ -404,7 +404,7 @@ TEST_F(VertexTableBenchmark, MixedOperationsPerformance) {
     switch (op) {
     case 0: {
       // get_oid operation
-      gs::Prop oid = table.get_oid(random_vids[i]);
+      gs::Property oid = table.get_oid(random_vids[i]);
       (void) oid;
       break;
     }

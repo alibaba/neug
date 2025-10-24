@@ -263,7 +263,7 @@ class EdgeExpandVWithExactVertexOpr : public IReadOperator {
     std::string param_value = params.at(pk_);
     int64_t oid = std::stoll(param_value);
     vid_t vid = std::numeric_limits<vid_t>::max();
-    if (!graph.GetVertexIndex(pk_label_, Prop(oid), vid)) {
+    if (!graph.GetVertexIndex(pk_label_, Property(oid), vid)) {
       LOG(ERROR) << "vertex not found with label " << pk_label_ << " and oid "
                  << oid;
       RETURN_UNSUPPORTED_ERROR("vertex not found with label " +

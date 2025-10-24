@@ -532,7 +532,7 @@ class ASPOpr : public IReadOperator {
       const gs::runtime::GraphReadInterface& graph,
       const std::map<std::string, std::string>& params,
       gs::runtime::Context&& ctx, gs::runtime::OprTimer* timer) override {
-    Prop oid = oid_getter_(params);
+    Property oid = oid_getter_(params);
     vid_t vid;
     if (!graph.GetVertexIndex(aspp_.labels[0].dst_label, oid, vid)) {
       LOG(ERROR) << "vertex not found "
@@ -551,14 +551,15 @@ class ASPOpr : public IReadOperator {
 
  private:
   ShortestPathParams aspp_;
-  std::function<Prop(const std::map<std::string, std::string>&)> oid_getter_;
+  std::function<Property(const std::map<std::string, std::string>&)>
+      oid_getter_;
 };
 
 class SSSDSPOpr : public IReadOperator {
  public:
   SSSDSPOpr(
       const ShortestPathParams& spp,
-      const std::function<Prop(const std::map<std::string, std::string>&)>&
+      const std::function<Property(const std::map<std::string, std::string>&)>&
           oid_getter)
       : spp_(spp), oid_getter_(oid_getter) {}
 
@@ -568,7 +569,7 @@ class SSSDSPOpr : public IReadOperator {
       const gs::runtime::GraphReadInterface& graph,
       const std::map<std::string, std::string>& params,
       gs::runtime::Context&& ctx, gs::runtime::OprTimer* timer) override {
-    Prop vertex = oid_getter_(params);
+    Property vertex = oid_getter_(params);
     vid_t vid;
     if (!graph.GetVertexIndex(spp_.labels[0].dst_label, vertex, vid)) {
       LOG(ERROR) << "vertex not found" << spp_.labels[0].dst_label << " "
@@ -587,7 +588,8 @@ class SSSDSPOpr : public IReadOperator {
 
  private:
   ShortestPathParams spp_;
-  std::function<Prop(const std::map<std::string, std::string>&)> oid_getter_;
+  std::function<Property(const std::map<std::string, std::string>&)>
+      oid_getter_;
 };
 gs::result<ReadOpBuildResultT> SPOprBuilder::Build(
     const gs::Schema& schema, const ContextMeta& ctx_meta,
@@ -642,7 +644,8 @@ gs::result<ReadOpBuildResultT> SPOprBuilder::Build(
       LOG(ERROR) << "only support same src and dst label";
       return std::make_pair(nullptr, ContextMeta());
     }
-    std::function<Prop(const std::map<std::string, std::string>&)> oid_getter;
+    std::function<Property(const std::map<std::string, std::string>&)>
+        oid_getter;
     if (vertex.has_params() && vertex.params().has_predicate() &&
         is_pk_oid_exact_check(schema, spp.labels[0].src_label,
                               vertex.params().predicate(), oid_getter)) {

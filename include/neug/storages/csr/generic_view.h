@@ -127,7 +127,7 @@ struct EdgeDataAccessor {
 
   bool is_bundled() const { return data_column_ == nullptr; }
 
-  inline Prop get_data(const NbrIterator& it) const {
+  inline Property get_data(const NbrIterator& it) const {
     return data_column_ == nullptr
                ? get_generic_bundled_data_from_ptr(it.get_data_ptr())
                : get_generic_column_data(
@@ -159,14 +159,14 @@ struct EdgeDataAccessor {
     }
   }
 
-  inline Prop get_data_from_ptr(const void* data_ptr) const {
+  inline Property get_data_from_ptr(const void* data_ptr) const {
     return data_column_ == nullptr
                ? get_generic_bundled_data_from_ptr(data_ptr)
                : get_generic_column_data(
                      *reinterpret_cast<const size_t*>(data_ptr));
   }
 
-  inline void set_data(const NbrIterator& it, const Prop& prop,
+  inline void set_data(const NbrIterator& it, const Property& prop,
                        timestamp_t ts) {
     if (it.cfg.ts_offset != 0) {
       *const_cast<timestamp_t*>(it.get_timestamp_ptr()) = ts;
@@ -228,41 +228,45 @@ struct EdgeDataAccessor {
     return reinterpret_cast<const TypedColumn<T>*>(data_column_)->get_view(idx);
   }
 
-  inline Prop get_generic_bundled_data_from_ptr(const void* data_ptr) const {
+  inline Property get_generic_bundled_data_from_ptr(
+      const void* data_ptr) const {
     if (data_type_ == PropertyType::kEmpty) {
-      return Prop::empty();
+      return Property::empty();
     } else if (data_type_ == PropertyType::kInt32) {
-      return Prop::from_int32(get_bundled_data_from_ptr<int32_t>(data_ptr));
+      return Property::from_int32(get_bundled_data_from_ptr<int32_t>(data_ptr));
     } else if (data_type_ == PropertyType::kUInt32) {
-      return Prop::from_uint32(get_bundled_data_from_ptr<uint32_t>(data_ptr));
+      return Property::from_uint32(
+          get_bundled_data_from_ptr<uint32_t>(data_ptr));
     } else if (data_type_ == PropertyType::kInt64) {
-      return Prop::from_int64(get_bundled_data_from_ptr<int64_t>(data_ptr));
+      return Property::from_int64(get_bundled_data_from_ptr<int64_t>(data_ptr));
     } else if (data_type_ == PropertyType::kUInt64) {
-      return Prop::from_uint64(get_bundled_data_from_ptr<uint64_t>(data_ptr));
+      return Property::from_uint64(
+          get_bundled_data_from_ptr<uint64_t>(data_ptr));
     } else if (data_type_.type_enum == impl::PropertyTypeImpl::kStringView) {
-      return Prop::from_string_view(
+      return Property::from_string_view(
           get_bundled_data_from_ptr<std::string_view>(data_ptr));
     } else if (data_type_ == PropertyType::kFloat) {
-      return Prop::from_float(get_bundled_data_from_ptr<float>(data_ptr));
+      return Property::from_float(get_bundled_data_from_ptr<float>(data_ptr));
     } else if (data_type_ == PropertyType::kDouble) {
-      return Prop::from_double(get_bundled_data_from_ptr<double>(data_ptr));
+      return Property::from_double(get_bundled_data_from_ptr<double>(data_ptr));
     } else if (data_type_ == PropertyType::kDate) {
-      return Prop::from_date(get_bundled_data_from_ptr<Date>(data_ptr));
+      return Property::from_date(get_bundled_data_from_ptr<Date>(data_ptr));
     } else if (data_type_ == PropertyType::kTimestamp) {
-      return Prop::from_timestamp(
+      return Property::from_timestamp(
           get_bundled_data_from_ptr<TimeStamp>(data_ptr));
     } else if (data_type_ == PropertyType::kDateTime) {
-      return Prop::from_date_time(
+      return Property::from_date_time(
           get_bundled_data_from_ptr<DateTime>(data_ptr));
     } else if (data_type_ == PropertyType::kInterval) {
-      return Prop::from_interval(get_bundled_data_from_ptr<Interval>(data_ptr));
+      return Property::from_interval(
+          get_bundled_data_from_ptr<Interval>(data_ptr));
     } else {
       LOG(FATAL) << "type - " << data_type_.ToString() << " - not implemented";
-      return Prop::empty();
+      return Property::empty();
     }
   }
 
-  inline Prop get_generic_column_data(size_t idx) const {
+  inline Property get_generic_column_data(size_t idx) const {
     return data_column_->get_prop(idx);
   }
 

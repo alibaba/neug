@@ -46,7 +46,7 @@ namespace ops {
 class UScanOpr : public IUpdateOperator {
  public:
   UScanOpr(const ScanParams& params,
-           const std::vector<std::function<std::vector<Prop>(
+           const std::vector<std::function<std::vector<Property>(
                const std::map<std::string, std::string>&)>>& oids,
            const std::optional<common::Expression>& pred)
       : scan_params(params), oids(oids), pred(pred) {}
@@ -55,7 +55,7 @@ class UScanOpr : public IUpdateOperator {
       gs::runtime::GraphUpdateInterface& graph,
       const std::map<std::string, std::string>& params,
       gs::runtime::Context&& ctx, gs::runtime::OprTimer* timer) override {
-    std::vector<Prop> oids_vec;
+    std::vector<Property> oids_vec;
     for (auto& oid : oids) {
       auto oids = oid(params);
       oids_vec.insert(oids_vec.end(), oids.begin(), oids.end());
@@ -103,7 +103,7 @@ class UScanOpr : public IUpdateOperator {
 
  private:
   ScanParams scan_params;
-  std::vector<std::function<std::vector<Prop>(
+  std::vector<std::function<std::vector<Property>(
       const std::map<std::string, std::string>&)>>
       oids;
   std::optional<common::Expression> pred;
@@ -128,7 +128,7 @@ std::unique_ptr<IUpdateOperator> UScanOprBuilder::Build(
   ScanParams params;
   params.alias = alias;
   params.tables = std::move(tables);
-  std::vector<std::function<std::vector<Prop>(
+  std::vector<std::function<std::vector<Property>(
       const std::map<std::string, std::string>&)>>
       oids;
 

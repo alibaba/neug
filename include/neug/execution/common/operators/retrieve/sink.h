@@ -26,7 +26,8 @@
 namespace gs {
 namespace runtime {
 
-[[maybe_unused]] static void sink_any(const Prop& any, common::Value* value) {
+[[maybe_unused]] static void sink_any(const Property& any,
+                                      common::Value* value) {
   if (any.type() == PropertyType::Int64()) {
     value->set_i64(any.as_int64());
   } else if (any.type() == PropertyType::kStringView) {
@@ -64,7 +65,7 @@ namespace runtime {
   }
 }
 
-[[maybe_unused]] static void sink_property(const Prop& prop,
+[[maybe_unused]] static void sink_property(const Property& prop,
                                            common::Value* value) {
   if (prop.type() == PropertyType::kInt32) {
     value->set_i32(prop.as_int32());

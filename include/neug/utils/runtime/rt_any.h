@@ -511,8 +511,8 @@ class RTAny {
  public:
   RTAny();
   explicit RTAny(RTAnyType type);
-  explicit RTAny(const Prop& val);
-  Prop to_any() const;
+  explicit RTAny(const Property& val);
+  Property to_any() const;
   RTAny(const RTAny& rhs);
   explicit RTAny(const Path& p);
   ~RTAny() = default;

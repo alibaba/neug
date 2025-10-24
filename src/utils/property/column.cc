@@ -74,13 +74,13 @@ class TypedEmptyColumn : public ColumnBase {
 
   void set_value(size_t index, const T& val) {}
 
-  void set_any(size_t index, const Prop& value) override {}
+  void set_any(size_t index, const Property& value) override {}
 
-  void set_any_with_resize(size_t index, const Prop& value) override {}
+  void set_any_with_resize(size_t index, const Property& value) override {}
 
   T get_view(size_t index) const { T{}; }
 
-  Prop get_prop(size_t index) const override { return Prop(); }
+  Property get_prop(size_t index) const override { return Property(); }
 
   void ingest(uint32_t index, grape::OutArchive& arc) override {
     T val;
@@ -116,13 +116,13 @@ class TypedEmptyColumn<std::string_view> : public ColumnBase {
 
   void set_value(size_t index, const std::string_view& val) {}
 
-  void set_any(size_t index, const Prop& value) override {}
+  void set_any(size_t index, const Property& value) override {}
 
-  void set_any_with_resize(size_t index, const Prop& value) override {}
+  void set_any_with_resize(size_t index, const Property& value) override {}
 
   std::string_view get_view(size_t index) const { return std::string_view{}; }
 
-  Prop get_prop(size_t index) const override { return Prop(); }
+  Property get_prop(size_t index) const override { return Property(); }
 
   void ingest(uint32_t index, grape::OutArchive& arc) override {
     std::string_view val;

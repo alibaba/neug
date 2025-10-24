@@ -59,7 +59,7 @@ std::shared_ptr<arrow::DataType> PropertyTypeToArrowType(PropertyType type) {
 
 template <typename T>
 void emplace_into_vector(const std::shared_ptr<arrow::ChunkedArray>& array,
-                         std::vector<Prop>& vec) {
+                         std::vector<Property>& vec) {
   using arrow_array_type = typename gs::TypeConverter<T>::ArrowArrayType;
   for (int32_t i = 0; i < array->num_chunks(); ++i) {
     auto casted = std::static_pointer_cast<arrow_array_type>(array->chunk(i));

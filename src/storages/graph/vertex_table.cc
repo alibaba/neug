@@ -102,7 +102,8 @@ void VertexTable::Close() {
   vertex_ts_.reset();
 }
 
-bool VertexTable::get_index(const Prop& oid, vid_t& lid, timestamp_t ts) const {
+bool VertexTable::get_index(const Property& oid, vid_t& lid,
+                            timestamp_t ts) const {
   auto res = indexer_.get_index(oid, lid);
   if (NEUG_UNLIKELY(res && is_vertex_table_modified_)) {
     if (!is_valid_lid(lid, ts)) {
@@ -129,7 +130,7 @@ size_t VertexTable::vertex_num(timestamp_t ts) const {
 
 size_t VertexTable::lid_num() const { return indexer_.size(); }
 
-vid_t VertexTable::add_vertex(const Prop& id, timestamp_t ts) {
+vid_t VertexTable::add_vertex(const Property& id, timestamp_t ts) {
   indexer_.ensure_writable(work_dir_);
   vid_t vid = indexer_.insert(id);
   vertex_ts_.set(vid, ts);
@@ -139,7 +140,7 @@ vid_t VertexTable::add_vertex(const Prop& id, timestamp_t ts) {
   return vid;
 }
 
-vid_t VertexTable::add_vertex_safe(const Prop& id, timestamp_t ts) {
+vid_t VertexTable::add_vertex_safe(const Property& id, timestamp_t ts) {
   auto lid = indexer_.insert_safe(id);
   if (lid >= vertex_ts_.size()) {
     vertex_ts_.resize(vertex_ts_.size() + (vertex_ts_.size() >> 2));
@@ -151,7 +152,7 @@ vid_t VertexTable::add_vertex_safe(const Prop& id, timestamp_t ts) {
   return lid;
 }
 
-Prop VertexTable::get_oid(vid_t lid, timestamp_t ts) const {
+Property VertexTable::get_oid(vid_t lid, timestamp_t ts) const {
   if (NEUG_UNLIKELY(is_vertex_table_modified_)) {
     if (!is_valid_lid(lid, ts)) {
       THROW_INVALID_ARGUMENT_EXCEPTION("Lid " + std::to_string(lid) +
@@ -178,7 +179,7 @@ void VertexTable::Reserve(size_t cap) {
   vertex_ts_.resize(cap);
 }
 
-void VertexTable::BatchAddVertices(std::vector<Prop>&& ids,
+void VertexTable::BatchAddVertices(std::vector<Property>&& ids,
                                    std::unique_ptr<Table> table,
                                    timestamp_t ts) {
   size_t new_row_num = table_->row_num() + ids.size();

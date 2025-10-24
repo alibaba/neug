@@ -118,7 +118,7 @@ enum class PropertyTypeImpl {
   kDouble,
   // string types
   kStringView,
-  kVarChar,  // TODO(zhanglei): Not implemented for Prop now.
+  kVarChar,  // TODO(zhanglei): Not implemented for Property now.
   kString,   // holding a string
 
   // temporal types

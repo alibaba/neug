@@ -66,13 +66,13 @@ class ColumnBase {
 
   virtual PropertyType type() const = 0;
 
-  virtual void set_any(size_t index, const Prop& value) = 0;
+  virtual void set_any(size_t index, const Property& value) = 0;
 
-  virtual void set_any_with_resize(size_t index, const Prop& value) = 0;
+  virtual void set_any_with_resize(size_t index, const Property& value) = 0;
 
-  virtual Prop get_prop(size_t index) const = 0;
+  virtual Property get_prop(size_t index) const = 0;
 
-  virtual void set_prop(size_t index, const Prop& prop) {
+  virtual void set_prop(size_t index, const Property& prop) {
     LOG(FATAL) << "Not implemented";
   }
 
@@ -177,11 +177,11 @@ class TypedColumn : public ColumnBase {
     }
   }
 
-  void set_any(size_t index, const Prop& value) override {
+  void set_any(size_t index, const Property& value) override {
     set_value(index, PropUtils<T>::to_typed(value));
   }
 
-  void set_any_with_resize(size_t index, const Prop& value) override {
+  void set_any_with_resize(size_t index, const Property& value) override {
     set_value_with_check(index, PropUtils<T>::to_typed(value));
   }
 
@@ -190,11 +190,11 @@ class TypedColumn : public ColumnBase {
     return buffer_.get(index);
   }
 
-  Prop get_prop(size_t index) const override {
+  Property get_prop(size_t index) const override {
     return PropUtils<T>::to_prop(get_view(index));
   }
 
-  void set_prop(size_t index, const Prop& prop) override {
+  void set_prop(size_t index, const Property& prop) override {
     set_value(index, PropUtils<T>::to_typed(prop));
   }
 
@@ -252,15 +252,15 @@ class TypedColumn<grape::EmptyType> : public ColumnBase {
 
   PropertyType type() const override { return PropertyType::kEmpty; }
 
-  void set_any(size_t index, const Prop& value) override {}
+  void set_any(size_t index, const Property& value) override {}
 
-  void set_any_with_resize(size_t index, const Prop& value) override {}
+  void set_any_with_resize(size_t index, const Property& value) override {}
 
   void set_value(size_t index, const grape::EmptyType& value) {}
 
-  Prop get_prop(size_t index) const override { return Prop::empty(); }
+  Property get_prop(size_t index) const override { return Property::empty(); }
 
-  void set_prop(size_t index, const Prop& prop) override {}
+  void set_prop(size_t index, const Property& prop) override {}
 
   grape::EmptyType get_view(size_t index) const { return grape::EmptyType(); }
 
@@ -392,11 +392,11 @@ class TypedColumn<std::string_view> : public ColumnBase {
     }
   }
 
-  void set_any(size_t idx, const Prop& value) override {
+  void set_any(size_t idx, const Property& value) override {
     set_value(idx, value.as_string_view());
   }
 
-  void set_any_with_resize(size_t idx, const Prop& value) override {
+  void set_any_with_resize(size_t idx, const Property& value) override {
     return set_value_with_resize(idx, value.as_string_view());
   }
 
@@ -427,11 +427,11 @@ class TypedColumn<std::string_view> : public ColumnBase {
     return buffer_.get(idx);
   }
 
-  Prop get_prop(size_t index) const override {
+  Property get_prop(size_t index) const override {
     return PropUtils<std::string_view>::to_prop(get_view(index));
   }
 
-  void set_prop(size_t index, const Prop& prop) override {
+  void set_prop(size_t index, const Property& prop) override {
     set_value(index, PropUtils<std::string_view>::to_typed(prop));
   }
 
@@ -471,7 +471,7 @@ std::shared_ptr<ColumnBase> CreateColumn(
 class RefColumnBase {
  public:
   virtual ~RefColumnBase() {}
-  virtual Prop get(size_t index) const = 0;
+  virtual Property get(size_t index) const = 0;
 };
 
 // Different from TypedColumn, RefColumn is a wrapper of mmap_array
@@ -495,7 +495,7 @@ class TypedRefColumn : public RefColumnBase {
 
   size_t size() const { return basic_size; }
 
-  Prop get(size_t index) const override {
+  Property get(size_t index) const override {
     return PropUtils<T>::to_prop(get_view(index));
   }
 

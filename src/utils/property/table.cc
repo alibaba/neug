@@ -281,8 +281,8 @@ const std::shared_ptr<ColumnBase> Table::get_column(
   return nullptr;
 }
 
-std::vector<Prop> Table::get_row(size_t row_id) const {
-  std::vector<Prop> ret;
+std::vector<Property> Table::get_row(size_t row_id) const {
+  std::vector<Property> ret;
   for (auto ptr : columns_) {
     ret.push_back(ptr->get_prop(row_id));
   }
@@ -316,7 +316,7 @@ std::vector<std::shared_ptr<ColumnBase>>& Table::columns() { return columns_; }
 // get column pointers
 std::vector<ColumnBase*>& Table::column_ptrs() { return column_ptrs_; }
 
-void Table::insert(size_t index, const std::vector<Prop>& values) {
+void Table::insert(size_t index, const std::vector<Property>& values) {
   assert(values.size() == columns_.size());
   CHECK_EQ(values.size(), columns_.size());
   size_t col_num = columns_.size();
@@ -325,7 +325,8 @@ void Table::insert(size_t index, const std::vector<Prop>& values) {
   }
 }
 
-void Table::insert_with_resize(size_t index, const std::vector<Prop>& values) {
+void Table::insert_with_resize(size_t index,
+                               const std::vector<Property>& values) {
   assert(values.size() == columns_.size());
   CHECK_EQ(values.size(), columns_.size());
   size_t col_num = columns_.size();
@@ -336,7 +337,7 @@ void Table::insert_with_resize(size_t index, const std::vector<Prop>& values) {
 
 // column_id_mapping is the mapping from the column id in the input table to
 // the column id in the current table
-void Table::insert(size_t index, const std::vector<Prop>& values,
+void Table::insert(size_t index, const std::vector<Property>& values,
                    const std::vector<int32_t>& col_ind_mapping) {
   assert(values.size() == columns_.size() + 1);
   CHECK_EQ(values.size(), columns_.size() + 1);

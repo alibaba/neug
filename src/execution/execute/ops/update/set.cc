@@ -73,7 +73,7 @@ class SetOpr : public IUpdateOperator {
       return false;
     }
     if (type.type_enum == impl::PropertyTypeImpl::kStringView) {
-      graph.SetVertexField(label, vid, prop_id, Prop(value));
+      graph.SetVertexField(label, vid, prop_id, Property(value));
     } else if (type == PropertyType::kInt32) {
       graph.SetVertexField(label, vid, prop_id,
                            PropUtils<int>::to_prop(std::stoi(value)));
@@ -111,16 +111,16 @@ class SetOpr : public IUpdateOperator {
                          Direction dir, vid_t src, vid_t dst,
                          const std::string& key, const RTAny& value) {
     auto val_type = value.type();
-    Prop prop = Prop::empty();
+    Property prop = Property::empty();
     if (val_type == RTAnyType::kNull || val_type == RTAnyType::kEmpty) {
     } else if (val_type == RTAnyType::kI32Value) {
-      prop = Prop::from_int32(value.as_int32());
+      prop = Property::from_int32(value.as_int32());
     } else if (val_type == RTAnyType::kI64Value) {
-      prop = Prop::from_int64(value.as_int64());
+      prop = Property::from_int64(value.as_int64());
     } else if (val_type == RTAnyType::kStringValue) {
-      prop = Prop::from_string_view(value.as_string());
+      prop = Property::from_string_view(value.as_string());
     } else if (val_type == RTAnyType::kF64Value) {
-      prop = Prop::from_double(value.as_double());
+      prop = Property::from_double(value.as_double());
     } else {
       LOG(ERROR) << "Edge property type not supported: "
                  << static_cast<int>(val_type);
@@ -153,7 +153,7 @@ class SetOpr : public IUpdateOperator {
                  << label.edge_label;
       return false;
     }
-    Prop prop = parse_property_from_string(type, value);
+    Property prop = parse_property_from_string(type, value);
     graph.SetEdgeData(dir == Direction::kOut, label.src_label, src,
                       label.dst_label, dst, label.edge_label, prop, col_id);
     return true;

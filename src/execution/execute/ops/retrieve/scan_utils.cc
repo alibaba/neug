@@ -33,13 +33,13 @@ typedef const std::map<std::string, std::string>& ParamsType;
 template <typename T>
 void parse_ids_from_idx_predicate(
     const algebra::IndexPredicate& predicate,
-    std::function<std::vector<Prop>(ParamsType)>& ids) {
+    std::function<std::vector<Property>(ParamsType)>& ids) {
   const algebra::IndexPredicate_Triplet& triplet =
       predicate.or_predicates(0).predicates(0);
 
   switch (triplet.value_case()) {
   case algebra::IndexPredicate_Triplet::ValueCase::kConst: {
-    std::vector<Prop> ret;
+    std::vector<Property> ret;
     if (triplet.const_().item_case() == common::Value::kI32) {
       ret.emplace_back(static_cast<T>(triplet.const_().i32()));
     } else if (triplet.const_().item_case() == common::Value::kI64) {
@@ -63,12 +63,12 @@ void parse_ids_from_idx_predicate(
 
     if (param_type == RTAnyType::kI32Value) {
       ids = [triplet](ParamsType params) {
-        return std::vector<Prop>{PropUtils<T>::to_prop(
+        return std::vector<Property>{PropUtils<T>::to_prop(
             static_cast<T>(std::stoi(params.at(triplet.param().name()))))};
       };
     } else if (param_type == RTAnyType::kI64Value) {
       ids = [triplet](ParamsType params) {
-        return std::vector<Prop>{PropUtils<T>::to_prop(
+        return std::vector<Property>{PropUtils<T>::to_prop(
             static_cast<T>(std::stoll(params.at(triplet.param().name()))))};
       };
     }
@@ -80,10 +80,10 @@ void parse_ids_from_idx_predicate(
 
 void parse_ids_from_idx_predicate(
     const algebra::IndexPredicate& predicate,
-    std::function<std::vector<Prop>(ParamsType)>& ids) {
+    std::function<std::vector<Property>(ParamsType)>& ids) {
   const algebra::IndexPredicate_Triplet& triplet =
       predicate.or_predicates(0).predicates(0);
-  std::vector<Prop> ret;
+  std::vector<Property> ret;
   switch (triplet.value_case()) {
   case algebra::IndexPredicate_Triplet::ValueCase::kConst: {
     if (triplet.const_().item_case() == common::Value::kStr) {
@@ -104,8 +104,8 @@ void parse_ids_from_idx_predicate(
 
     if (param_type == RTAnyType::kStringValue) {
       ids = [triplet](ParamsType params) {
-        return std::vector<Prop>{
-            Prop::from_string(params.at(triplet.param().name()))};
+        return std::vector<Property>{
+            Property::from_string(params.at(triplet.param().name()))};
       };
     }
   }
@@ -113,10 +113,11 @@ void parse_ids_from_idx_predicate(
     break;
   }
 }
-std::function<std::vector<Prop>(const std::map<std::string, std::string>&)>
+std::function<std::vector<Property>(const std::map<std::string, std::string>&)>
 ScanUtils::parse_ids_with_type(PropertyType type,
                                const algebra::IndexPredicate& triplet) {
-  std::function<std::vector<Prop>(const std::map<std::string, std::string>&)>
+  std::function<std::vector<Property>(
+      const std::map<std::string, std::string>&)>
       ids;
   switch (type.type_enum) {
   case impl::PropertyTypeImpl::kInt64: {

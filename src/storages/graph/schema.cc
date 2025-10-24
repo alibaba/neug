@@ -1463,7 +1463,7 @@ void Schema::add_vertex_properties(
     const std::string& label, std::vector<std::string>& properties_names,
     std::vector<PropertyType>& properties_types,
     std::vector<StorageStrategy>& storage_strategies,
-    std::vector<Prop>& properties_default_values) {
+    std::vector<Property>& properties_default_values) {
   auto v_label_id = get_vertex_label_id(label);
   LOG_FATAL_IF(v_label_id >= vprop_names_.size(),
                "vertex label id out of range of vprop_names_");
@@ -1597,12 +1597,11 @@ void Schema::delete_edge_label(const label_t& src, const label_t& dst,
   sort_on_compactions_.erase(index);
 }
 
-void Schema::add_edge_properties(const std::string& src_label,
-                                 const std::string& dst_label,
-                                 const std::string& edge_label,
-                                 std::vector<std::string>& properties_names,
-                                 std::vector<PropertyType>& properties_types,
-                                 std::vector<Prop>& properties_default_values) {
+void Schema::add_edge_properties(
+    const std::string& src_label, const std::string& dst_label,
+    const std::string& edge_label, std::vector<std::string>& properties_names,
+    std::vector<PropertyType>& properties_types,
+    std::vector<Property>& properties_default_values) {
   label_t src = get_vertex_label_id(src_label);
   label_t dst = get_vertex_label_id(dst_label);
   label_t edge = get_edge_label_id(edge_label);

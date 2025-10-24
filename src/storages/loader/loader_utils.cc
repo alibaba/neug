@@ -771,7 +771,7 @@ void set_column_from_string_array(std::shared_ptr<gs::ColumnBase> col,
           sw = std::string_view(str.data(), str.size());
         }
         if (!enable_resize) {
-          Prop any_val = Prop::From(sw);
+          Property any_val = Property::From(sw);
           col->set_any(vids[k], any_val);
         } else {
           typed_col->set_value_safe(vids[k], std::move(sw));
@@ -790,7 +790,7 @@ void set_column_from_string_array(std::shared_ptr<gs::ColumnBase> col,
         std::string_view sw(str.data(), str.size());
 
         if (!enable_resize) {
-          Prop any_val = Prop::From(sw);
+          Property any_val = Property::From(sw);
           col->set_any(vids[k], std::move(any_val));
         } else {
           typed_col->set_value_safe(vids[k], std::move(sw));

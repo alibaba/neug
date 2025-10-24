@@ -17,7 +17,8 @@
 
 namespace gs {
 
-grape::InArchive& operator<<(grape::InArchive& in_archive, const Prop& value) {
+grape::InArchive& operator<<(grape::InArchive& in_archive,
+                             const Property& value) {
   if (value.type() == PropertyType::Empty()) {
     in_archive << value.type();
   } else if (value.type() == PropertyType::Bool()) {
@@ -55,7 +56,7 @@ grape::InArchive& operator<<(grape::InArchive& in_archive, const Prop& value) {
   return in_archive;
 }
 
-grape::OutArchive& operator>>(grape::OutArchive& out_archive, Prop& value) {
+grape::OutArchive& operator>>(grape::OutArchive& out_archive, Property& value) {
   PropertyType pt;
   out_archive >> pt;
   if (pt == PropertyType::Empty()) {
@@ -114,7 +115,7 @@ grape::OutArchive& operator>>(grape::OutArchive& out_archive, Prop& value) {
   return out_archive;
 }
 
-Prop& Prop::operator=(const Prop& other) {
+Property& Property::operator=(const Property& other) {
   if (this != &other) {
     // clean up existing string ptr if needed
     if (type_.type_enum == impl::PropertyTypeImpl::kString) {
@@ -131,7 +132,7 @@ Prop& Prop::operator=(const Prop& other) {
   return *this;
 }
 
-bool Prop::operator==(const Prop& other) const {
+bool Property::operator==(const Property& other) const {
   if (type_ != other.type_) {
     return false;
   } else {
@@ -163,7 +164,7 @@ bool Prop::operator==(const Prop& other) const {
   }
 }
 
-bool Prop::operator<(const Prop& other) const {
+bool Property::operator<(const Property& other) const {
   if (type_ == other.type_) {
     if (type() == PropertyType::kInt32) {
       return value_.i < other.value_.i;

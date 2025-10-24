@@ -288,7 +288,7 @@ gs::result<Context> InsertEdgeOpr::eval_impl(
         src_label_id, dst_label_id, edge_label_id);
     const auto& edge_properties_type = graph.schema().get_edge_properties(
         src_label_id, dst_label_id, edge_label_id);
-    std::vector<Prop> edge_properties_ordered;
+    std::vector<Property> edge_properties_ordered;
     edge_properties_ordered.resize(edge_properties.size());
     for (const auto& prop : edge_properties) {
       auto it = std::find(edge_properties_name.begin(),

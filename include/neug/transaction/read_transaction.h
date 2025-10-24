@@ -149,10 +149,10 @@ class ReadTransaction {
     void Next();
     void Goto(vid_t target);
 
-    Prop GetId() const;
+    Property GetId() const;
     vid_t GetIndex() const;
 
-    Prop GetField(int col_id) const;
+    Property GetField(int col_id) const;
     int FieldNum() const;
 
    private:
@@ -166,9 +166,9 @@ class ReadTransaction {
 
   vertex_iterator GetVertexIterator(label_t label) const;
 
-  vertex_iterator FindVertex(label_t label, const Prop& id) const;
+  vertex_iterator FindVertex(label_t label, const Property& id) const;
 
-  bool GetVertexIndex(label_t label, const Prop& id, vid_t& index) const;
+  bool GetVertexIndex(label_t label, const Property& id, vid_t& index) const;
 
   vid_t GetVertexNum(label_t label) const;
 
@@ -176,7 +176,7 @@ class ReadTransaction {
 
   bool IsValidVertex(label_t label, vid_t index) const;
 
-  Prop GetVertexId(label_t label, vid_t index) const;
+  Property GetVertexId(label_t label, vid_t index) const;
 
   GenericView GetGenericOutgoingGraphView(label_t v_label,
                                           label_t neighbor_label,

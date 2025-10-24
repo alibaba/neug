@@ -557,7 +557,7 @@ class ParamAccessor : public IAccessor {
 
   T typed_eval_path(size_t) const { return val_; }
   T typed_eval_vertex(label_t, vid_t, size_t) const { return val_; }
-  T typed_eval_edge(const LabelTriplet&, vid_t, vid_t, const Prop&,
+  T typed_eval_edge(const LabelTriplet&, vid_t, vid_t, const Property&,
                     size_t) const {
     return val_;
   }
@@ -617,7 +617,7 @@ class ConstAccessor : public IAccessor {
 
   T typed_eval_path(size_t) const { return val_; }
   T typed_eval_vertex(label_t, vid_t, size_t) const { return val_; }
-  T typed_eval_edge(const LabelTriplet&, vid_t, vid_t, const Prop&,
+  T typed_eval_edge(const LabelTriplet&, vid_t, vid_t, const Property&,
                     size_t) const {
     return val_;
   }

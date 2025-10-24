@@ -109,7 +109,7 @@ class GetVFromVerticesWithPKExactOpr : public IReadOperator {
       gs::runtime::Context&& ctx, gs::runtime::OprTimer* timer) override {
     int64_t pk = std::stoll(params.at(exact_pk_));
     vid_t index = std::numeric_limits<vid_t>::max();
-    graph.GetVertexIndex(exact_pk_label_, Prop::from_int64(pk), index);
+    graph.GetVertexIndex(exact_pk_label_, Property::from_int64(pk), index);
     ExactVertexPredicate pred(exact_pk_label_, index);
     return GetV::get_vertex_from_vertices(graph, std::move(ctx), v_params_,
                                           pred);

@@ -169,8 +169,8 @@ struct GHash<int64_t> {
 };
 
 template <>
-struct GHash<Prop> {
-  size_t operator()(const Prop& val) const {
+struct GHash<Property> {
+  size_t operator()(const Property& val) const {
     if (val.type() == PropertyType::kInt64) {
       return GHash<int64_t>()(val.as_int64());
     } else if (val.type() == PropertyType::kInt32) {
@@ -334,7 +334,7 @@ class LFIndexer {
   PropertyType get_type() const { return keys_->type(); }
 
   // only for update transaction
-  INDEX_T insert_safe(const Prop& oid) {
+  INDEX_T insert_safe(const Property& oid) {
     INDEX_T ind = static_cast<INDEX_T>(num_elements_.load());
     if (ind >= capacity()) {
       reserve(capacity() + (capacity() >> 2));
@@ -342,7 +342,7 @@ class LFIndexer {
     return insert(oid);
   }
 
-  INDEX_T insert(const Prop& oid) {
+  INDEX_T insert(const Property& oid) {
     assert(oid.type() == get_type());
     INDEX_T ind = static_cast<INDEX_T>(num_elements_.fetch_add(1));
     if (!NEUG_LIKELY(ind >= 0 && ind < capacity())) {
@@ -368,7 +368,7 @@ class LFIndexer {
     return ind;
   }
 
-  bool remove(const Prop& oid) {
+  bool remove(const Property& oid) {
     assert(oid.type() == get_type());
     static constexpr INDEX_T sentinel = std::numeric_limits<INDEX_T>::max();
     static constexpr INDEX_T deleted = std::numeric_limits<INDEX_T>::max() - 1;
@@ -389,7 +389,7 @@ class LFIndexer {
     }
   }
 
-  INDEX_T get_index(const Prop& oid) const {
+  INDEX_T get_index(const Property& oid) const {
     assert(oid.type() == get_type());
     size_t index =
         hash_policy_.index_for_hash(hasher_(oid), num_slots_minus_one_);
@@ -410,7 +410,7 @@ class LFIndexer {
     }
   }
 
-  bool get_index(const Prop& oid, INDEX_T& ret) const {
+  bool get_index(const Property& oid, INDEX_T& ret) const {
     if (oid.type() != get_type()) {
       return false;
     }
@@ -434,7 +434,7 @@ class LFIndexer {
     return false;
   }
 
-  bool contains(const Prop& oid) const {
+  bool contains(const Property& oid) const {
     assert(oid.type() == get_type());
     size_t index =
         hash_policy_.index_for_hash(hasher_(oid), num_slots_minus_one_);
@@ -454,7 +454,9 @@ class LFIndexer {
     }
   }
 
-  Prop get_key(const INDEX_T& index) const { return keys_->get_prop(index); }
+  Property get_key(const INDEX_T& index) const {
+    return keys_->get_prop(index);
+  }
 
   void copy_to_tmp(const std::string& cur_path, const std::string& tmp_path) {
     copy_file(cur_path + ".meta", tmp_path + ".meta");
@@ -595,7 +597,7 @@ class LFIndexer {
   std::shared_ptr<ColumnBase> keys_;
 
   ska::ska::prime_number_hash_policy hash_policy_;
-  GHash<Prop> hasher_;
+  GHash<Property> hasher_;
 
   // _KEY_T is defined in sys/_types/_key_t.h on macos
   template <typename __KEY_T, typename _INDEX_T>
@@ -612,10 +614,10 @@ class IdIndexerBase {
   IdIndexerBase() = default;
   virtual ~IdIndexerBase() = default;
   virtual PropertyType get_type() const = 0;
-  virtual void _add(const Prop& oid) = 0;
-  virtual bool add(const Prop& oid, INDEX_T& lid) = 0;
-  virtual bool get_key(const INDEX_T& lid, Prop& oid) const = 0;
-  virtual bool get_index(const Prop& oid, INDEX_T& lid) const = 0;
+  virtual void _add(const Property& oid) = 0;
+  virtual bool add(const Property& oid, INDEX_T& lid) = 0;
+  virtual bool get_key(const INDEX_T& lid, Property& oid) const = 0;
+  virtual bool get_index(const Property& oid, INDEX_T& lid) const = 0;
   virtual size_t size() const = 0;
 };
 
@@ -633,28 +635,28 @@ class IdIndexer : public IdIndexerBase<INDEX_T> {
     return PropUtils<KEY_T>::prop_type();
   }
 
-  void _add(const Prop& oid) override {
+  void _add(const Property& oid) override {
     assert(get_type() == oid.type());
     KEY_T oid_ = PropUtils<KEY_T>::to_typed(oid);
     _add(oid_);
   }
 
-  bool add(const Prop& oid, INDEX_T& lid) override {
+  bool add(const Property& oid, INDEX_T& lid) override {
     assert(get_type() == oid.type());
     KEY_T oid_ = PropUtils<KEY_T>::to_typed(oid);
     return add(oid_, lid);
   }
 
-  bool get_key(const INDEX_T& lid, Prop& oid) const override {
+  bool get_key(const INDEX_T& lid, Property& oid) const override {
     KEY_T oid_;
     bool flag = get_key(lid, oid_);
     if (flag) {
-      oid = Prop::From(oid_);
+      oid = Property::From(oid_);
     }
     return flag;
   }
 
-  bool get_index(const Prop& oid, INDEX_T& lid) const override {
+  bool get_index(const Property& oid, INDEX_T& lid) const override {
     assert(get_type() == oid.type());
     KEY_T oid_ = PropUtils<KEY_T>::to_typed(oid);
     return get_index(oid_, lid);

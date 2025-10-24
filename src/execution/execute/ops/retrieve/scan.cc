@@ -52,14 +52,14 @@ class FilterOidsWithoutPredOpr : public IReadOperator {
  public:
   FilterOidsWithoutPredOpr(
       ScanParams params,
-      const std::function<std::vector<Prop>(ParamsType)>& oids)
+      const std::function<std::vector<Property>(ParamsType)>& oids)
       : params_(params), oids_(std::move(oids)) {}
 
   gs::result<gs::runtime::Context> Eval(
       const gs::runtime::GraphReadInterface& graph, ParamsType params,
       gs::runtime::Context&& ctx, gs::runtime::OprTimer* timer) override {
     ctx = Context();
-    std::vector<Prop> oids = oids_(params);
+    std::vector<Property> oids = oids_(params);
     if (params_.tables.size() == 1 && oids.size() == 1) {
       return Scan::find_vertex_with_oid(
           std::move(ctx), graph, params_.tables[0], oids[0], params_.alias);
@@ -73,21 +73,21 @@ class FilterOidsWithoutPredOpr : public IReadOperator {
 
  private:
   ScanParams params_;
-  std::function<std::vector<Prop>(ParamsType)> oids_;
+  std::function<std::vector<Property>(ParamsType)> oids_;
 };
 
 class FilterMultiTypeOidsWithoutPredOpr : public IReadOperator {
  public:
   FilterMultiTypeOidsWithoutPredOpr(
       ScanParams params,
-      const std::vector<std::function<std::vector<Prop>(ParamsType)>>& oids)
+      const std::vector<std::function<std::vector<Property>(ParamsType)>>& oids)
       : params_(params), oids_(oids) {}
 
   gs::result<gs::runtime::Context> Eval(
       const gs::runtime::GraphReadInterface& graph, ParamsType params,
       gs::runtime::Context&& ctx, gs::runtime::OprTimer* timer) override {
     ctx = Context();
-    std::vector<Prop> oids;
+    std::vector<Property> oids;
     for (auto& _oid : oids_) {
       auto oid = _oid(params);
       for (auto& o : oid) {
@@ -103,14 +103,14 @@ class FilterMultiTypeOidsWithoutPredOpr : public IReadOperator {
 
  private:
   ScanParams params_;
-  std::vector<std::function<std::vector<Prop>(ParamsType)>> oids_;
+  std::vector<std::function<std::vector<Property>(ParamsType)>> oids_;
 };
 
 class FilterGidsWithoutPredOpr : public IReadOperator {
  public:
   FilterGidsWithoutPredOpr(
       ScanParams params,
-      const std::function<std::vector<Prop>(ParamsType)>& oids)
+      const std::function<std::vector<Property>(ParamsType)>& oids)
       : params_(params), oids_(std::move(oids)) {}
 
   gs::result<gs::runtime::Context> Eval(
@@ -135,14 +135,15 @@ class FilterGidsWithoutPredOpr : public IReadOperator {
 
  private:
   ScanParams params_;
-  std::function<std::vector<Prop>(ParamsType)> oids_;
+  std::function<std::vector<Property>(ParamsType)> oids_;
 };
 
 class FilterOidsSPredOpr : public IReadOperator {
  public:
-  FilterOidsSPredOpr(ScanParams params,
-                     const std::function<std::vector<Prop>(ParamsType)>& oids,
-                     const SpecialVertexPredicateConfig& config)
+  FilterOidsSPredOpr(
+      ScanParams params,
+      const std::function<std::vector<Property>(ParamsType)>& oids,
+      const SpecialVertexPredicateConfig& config)
       : params_(params), oids_(std::move(oids)), config_(config) {}
 
   gs::result<gs::runtime::Context> Eval(
@@ -160,15 +161,16 @@ class FilterOidsSPredOpr : public IReadOperator {
 
  private:
   ScanParams params_;
-  std::function<std::vector<Prop>(ParamsType)> oids_;
+  std::function<std::vector<Property>(ParamsType)> oids_;
   SpecialVertexPredicateConfig config_;
 };
 
 class FilterOidsGPredOpr : public IReadOperator {
  public:
-  FilterOidsGPredOpr(ScanParams params,
-                     const std::function<std::vector<Prop>(ParamsType)>& oids,
-                     const common::Expression& pred)
+  FilterOidsGPredOpr(
+      ScanParams params,
+      const std::function<std::vector<Property>(ParamsType)>& oids,
+      const common::Expression& pred)
       : params_(params), oids_(std::move(oids)), pred_(pred) {}
 
   gs::result<gs::runtime::Context> Eval(
@@ -193,7 +195,7 @@ class FilterOidsGPredOpr : public IReadOperator {
 
  private:
   ScanParams params_;
-  std::function<std::vector<Prop>(ParamsType)> oids_;
+  std::function<std::vector<Property>(ParamsType)> oids_;
   common::Expression pred_;
 };
 
@@ -201,7 +203,7 @@ class FilterOidsMultiTypeSPredOpr : public IReadOperator {
  public:
   FilterOidsMultiTypeSPredOpr(
       ScanParams params,
-      const std::vector<std::function<std::vector<Prop>(ParamsType)>>& oids,
+      const std::vector<std::function<std::vector<Property>(ParamsType)>>& oids,
       const SpecialVertexPredicateConfig& config)
       : params_(params), oids_(oids), config_(config) {}
 
@@ -209,7 +211,7 @@ class FilterOidsMultiTypeSPredOpr : public IReadOperator {
       const gs::runtime::GraphReadInterface& graph, ParamsType params,
       gs::runtime::Context&& ctx, gs::runtime::OprTimer* timer) override {
     ctx = Context();
-    std::vector<Prop> all_ids;
+    std::vector<Property> all_ids;
     for (auto& _oid : oids_) {
       auto oid = _oid(params);
       for (auto& o : oid) {
@@ -226,7 +228,7 @@ class FilterOidsMultiTypeSPredOpr : public IReadOperator {
 
  private:
   ScanParams params_;
-  std::vector<std::function<std::vector<Prop>(ParamsType)>> oids_;
+  std::vector<std::function<std::vector<Property>(ParamsType)>> oids_;
   SpecialVertexPredicateConfig config_;
 };
 
@@ -234,7 +236,7 @@ class FilterOidsMultiTypeGPredOpr : public IReadOperator {
  public:
   FilterOidsMultiTypeGPredOpr(
       ScanParams params,
-      const std::vector<std::function<std::vector<Prop>(ParamsType)>>& oids,
+      const std::vector<std::function<std::vector<Property>(ParamsType)>>& oids,
       const common::Expression& pred)
       : params_(params), oids_(oids), pred_(pred) {}
 
@@ -246,7 +248,7 @@ class FilterOidsMultiTypeGPredOpr : public IReadOperator {
       const gs::runtime::GraphReadInterface& graph, ParamsType params,
       gs::runtime::Context&& ctx, gs::runtime::OprTimer* timer) override {
     ctx = Context();
-    std::vector<Prop> all_ids;
+    std::vector<Property> all_ids;
     for (auto& _oid : oids_) {
       auto oid = _oid(params);
       for (auto& o : oid) {
@@ -267,15 +269,16 @@ class FilterOidsMultiTypeGPredOpr : public IReadOperator {
 
  private:
   ScanParams params_;
-  std::vector<std::function<std::vector<Prop>(ParamsType)>> oids_;
+  std::vector<std::function<std::vector<Property>(ParamsType)>> oids_;
   common::Expression pred_;
 };
 
 class FilterGidsSPredOpr : public IReadOperator {
  public:
-  FilterGidsSPredOpr(ScanParams params,
-                     const std::function<std::vector<Prop>(ParamsType)>& oids,
-                     const SpecialVertexPredicateConfig& config)
+  FilterGidsSPredOpr(
+      ScanParams params,
+      const std::function<std::vector<Property>(ParamsType)>& oids,
+      const SpecialVertexPredicateConfig& config)
       : params_(params), oids_(std::move(oids)), config_(config) {}
 
   std::string get_operator_name() const override {
@@ -297,15 +300,16 @@ class FilterGidsSPredOpr : public IReadOperator {
 
  private:
   ScanParams params_;
-  std::function<std::vector<Prop>(ParamsType)> oids_;
+  std::function<std::vector<Property>(ParamsType)> oids_;
   SpecialVertexPredicateConfig config_;
 };
 
 class FilterGidsGPredOpr : public IReadOperator {
  public:
-  FilterGidsGPredOpr(ScanParams params,
-                     const std::function<std::vector<Prop>(ParamsType)>& oids,
-                     const common::Expression& pred)
+  FilterGidsGPredOpr(
+      ScanParams params,
+      const std::function<std::vector<Property>(ParamsType)>& oids,
+      const common::Expression& pred)
       : params_(params), oids_(std::move(oids)), pred_(pred) {}
 
   std::string get_operator_name() const override {
@@ -336,7 +340,7 @@ class FilterGidsGPredOpr : public IReadOperator {
 
  private:
   ScanParams params_;
-  std::function<std::vector<Prop>(ParamsType)> oids_;
+  std::function<std::vector<Property>(ParamsType)> oids_;
   common::Expression pred_;
 };
 
@@ -494,7 +498,7 @@ gs::result<ReadOpBuildResultT> ScanOprBuilder::Build(
             std::make_unique<FilterGidsWithoutPredOpr>(scan_params, gids),
             ret_meta);
       } else {
-        std::vector<std::function<std::vector<Prop>(ParamsType)>> oids;
+        std::vector<std::function<std::vector<Property>(ParamsType)>> oids;
         std::set<int> types;
         for (auto& table : scan_params.tables) {
           const auto& pks = schema.get_vertex_primary_key(table);
@@ -524,7 +528,7 @@ gs::result<ReadOpBuildResultT> ScanOprBuilder::Build(
           is_special_vertex_predicate(scan_opr.params().predicate(), sp_config);
       if (scan_oid) {
         std::set<int> types;
-        std::vector<std::function<std::vector<Prop>(ParamsType)>> oids;
+        std::vector<std::function<std::vector<Property>(ParamsType)>> oids;
         for (auto& table : scan_params.tables) {
           const auto& pks = schema.get_vertex_primary_key(table);
           const auto& [type, _, __] = pks[0];

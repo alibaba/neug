@@ -91,16 +91,16 @@ class VertexSet {
   bool vertex_table_modifed_;
 };
 
-inline void serialize_field(grape::InArchive& arc, const Prop& prop) {
+inline void serialize_field(grape::InArchive& arc, const Property& prop) {
   arc << prop;
 }
 
-inline void deserialize_field(grape::OutArchive& arc, Prop& prop) {
+inline void deserialize_field(grape::OutArchive& arc, Property& prop) {
   arc >> prop;
 }
 
 inline label_t deserialize_oid(const PropertyGraph& graph,
-                               grape::OutArchive& arc, Prop& oid) {
+                               grape::OutArchive& arc, Property& oid) {
   label_t label;
   arc >> label;
   deserialize_field(arc, oid);

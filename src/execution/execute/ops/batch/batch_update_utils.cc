@@ -109,7 +109,7 @@ bool check_csv_export_options(
 
 void add_member(rapidjson::Value& object,
                 rapidjson::Document::AllocatorType& allocator,
-                const std::string& key, Prop value) {
+                const std::string& key, Property value) {
   if (value.type() == PropertyType::kBool) {
     object.AddMember(rapidjson::Value(key.c_str(), allocator).Move(),
                      value.as_bool(), allocator);
@@ -170,7 +170,7 @@ void add_member(rapidjson::Value& object,
 
 void add_prop_member(rapidjson::Value& object,
                      rapidjson::Document::AllocatorType& allocator,
-                     const std::string& key, Prop value) {
+                     const std::string& key, Property value) {
   if (value.type() == PropertyType::kInt32) {
     object.AddMember(rapidjson::Value(key.c_str(), allocator).Move(),
                      value.as_int32(), allocator);
@@ -219,10 +219,10 @@ rapidjson::Value build_vertex_object(
     rapidjson::Document::AllocatorType& allocator) {
   rapidjson::Value vertex_object(rapidjson::kObjectType);
   std::string internal_id_key = "_ID";
-  Prop encoded_id(std::to_string(label) + ":" + std::to_string(vid));
+  Property encoded_id(std::to_string(label) + ":" + std::to_string(vid));
   add_member(vertex_object, allocator, internal_id_key, encoded_id);
   std::string internal_label_key = "_LABEL";
-  Prop label_name(graph.schema().get_vertex_label_name(label));
+  Property label_name(graph.schema().get_vertex_label_name(label));
   add_member(vertex_object, allocator, internal_label_key, label_name);
   std::string primary_key = graph.schema().get_vertex_primary_key_name(label);
   add_member(vertex_object, allocator, primary_key,
@@ -256,25 +256,25 @@ rapidjson::Value build_edge_object(
   label_t dst_label = edge.label.dst_label;
   label_t edge_label = edge.label.edge_label;
   std::string internal_src_id = "_SRC";
-  Prop encoded_src_id(std::to_string(src_label) + ":" +
-                      std::to_string(edge.src));
+  Property encoded_src_id(std::to_string(src_label) + ":" +
+                          std::to_string(edge.src));
   add_member(edge_object, allocator, internal_src_id, encoded_src_id);
 
   std::string internal_dst_id = "_DST";
-  Prop encoded_dst_id(std::to_string(dst_label) + ":" +
-                      std::to_string(edge.dst));
+  Property encoded_dst_id(std::to_string(dst_label) + ":" +
+                          std::to_string(edge.dst));
   add_member(edge_object, allocator, internal_dst_id, encoded_dst_id);
 
   std::string internal_src_label_key = "_SRC_LABEL";
-  Prop src_label_name(graph.schema().get_vertex_label_name(src_label));
+  Property src_label_name(graph.schema().get_vertex_label_name(src_label));
   add_member(edge_object, allocator, internal_src_label_key, src_label_name);
 
   std::string internal_dst_label_key = "_DST_LABEL";
-  Prop dst_label_name(graph.schema().get_vertex_label_name(dst_label));
+  Property dst_label_name(graph.schema().get_vertex_label_name(dst_label));
   add_member(edge_object, allocator, internal_dst_label_key, dst_label_name);
 
   std::string internal_label_key = "_LABEL";
-  Prop edge_label_name(graph.schema().get_edge_label_name(edge_label));
+  Property edge_label_name(graph.schema().get_edge_label_name(edge_label));
   add_member(edge_object, allocator, internal_label_key, edge_label_name);
 
   auto property_names =
@@ -316,17 +316,17 @@ std::string path_to_json_string(Path& path,
     if (i > 0) {
       rapidjson::Value edge_object(rapidjson::kObjectType);
       std::string internal_src_label_key = "_SRC_LABEL";
-      Prop src_label_name(
+      Property src_label_name(
           graph.schema().get_vertex_label_name(path_vertices[i - 1].label_));
       add_member(edge_object, allocator, internal_src_label_key,
                  src_label_name);
       std::string internal_dst_label_key = "_DST_LABEL";
-      Prop dst_label_name(
+      Property dst_label_name(
           graph.schema().get_vertex_label_name(path_vertices[i].label_));
       add_member(edge_object, allocator, internal_dst_label_key,
                  dst_label_name);
       std::string internal_label_key = "_LABEL";
-      Prop edge_label_name(
+      Property edge_label_name(
           graph.schema().get_edge_label_name(path_edges[i - 1]));
       add_member(edge_object, allocator, internal_label_key, edge_label_name);
       edge_array.PushBack(edge_object, allocator);

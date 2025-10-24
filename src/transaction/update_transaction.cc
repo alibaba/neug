@@ -147,14 +147,15 @@ bool UpdateTransaction::Commit() {
 
 void UpdateTransaction::Abort() { release(); }
 
-bool UpdateTransaction::AddVertex(label_t label, const Prop& oid,
-                                  const std::vector<Prop>& props) {
+bool UpdateTransaction::AddVertex(label_t label, const Property& oid,
+                                  const std::vector<Property>& props) {
   vid_t vid;
   return AddVertex(label, oid, props, vid);
 }
 
-bool UpdateTransaction::AddVertex(label_t label, const Prop& oid,
-                                  const std::vector<Prop>& props, vid_t& vid) {
+bool UpdateTransaction::AddVertex(label_t label, const Property& oid,
+                                  const std::vector<Property>& props,
+                                  vid_t& vid) {
   const std::vector<PropertyType>& types =
       graph_.schema().get_vertex_properties(label);
   if (types.size() != props.size()) {
@@ -170,7 +171,7 @@ bool UpdateTransaction::AddVertex(label_t label, const Prop& oid,
       return false;
     }
   }
-  Prop dup_oid;
+  Property dup_oid;
   if (oid.type().type_enum == impl::PropertyTypeImpl::kString) {
     sv_vec_.emplace_back(oid.as_string());
     dup_oid.set_string_view(std::string_view(sv_vec_.back()));
@@ -183,12 +184,12 @@ bool UpdateTransaction::AddVertex(label_t label, const Prop& oid,
     vid = vertex_nums_[label]++;
   }
 
-  std::vector<Prop> dup_props;
+  std::vector<Property> dup_props;
   for (size_t i = 0; i < props.size(); ++i) {
     if (props[i].type().type_enum == impl::PropertyTypeImpl::kString) {
       sv_vec_.emplace_back(props[i].as_string());
       dup_props.emplace_back(
-          Prop::from_string_view(std::string_view(sv_vec_.back())));
+          Property::from_string_view(std::string_view(sv_vec_.back())));
     } else {
       dup_props.push_back(props[i]);
     }
@@ -230,7 +231,7 @@ static size_t get_offset(NbrIterator base, NbrIterator end, vid_t target) {
 bool UpdateTransaction::AddEdge(label_t src_label, vid_t src_lid,
                                 label_t dst_label, vid_t dst_lid,
                                 label_t edge_label,
-                                const std::vector<Prop>& properties) {
+                                const std::vector<Property>& properties) {
   static constexpr size_t sentinel = std::numeric_limits<size_t>::max();
   size_t offset_out = sentinel, offset_in = sentinel;
   // TODO(lineng): refactor this part after delete vertex is supported.
@@ -262,7 +263,7 @@ bool UpdateTransaction::AddEdge(label_t src_label, vid_t src_lid,
                << ", got " << properties.size();
     return false;
   }
-  std::vector<Prop> dup_properties;
+  std::vector<Property> dup_properties;
   for (size_t i = 0; i < properties.size(); ++i) {
     if (properties[i].type() != types[i]) {
       std::string label_name = graph_.schema().get_edge_label_name(edge_label);
@@ -273,7 +274,7 @@ bool UpdateTransaction::AddEdge(label_t src_label, vid_t src_lid,
     }
     if (properties[i].type().type_enum == impl::PropertyTypeImpl::kString) {
       sv_vec_.emplace_back(properties[i].as_string_view());
-      dup_properties.emplace_back(Prop::from_string_view(
+      dup_properties.emplace_back(Property::from_string_view(
           std::string_view(sv_vec_.back().data(), sv_vec_.back().size())));
     } else {
       dup_properties.push_back(properties[i]);
@@ -299,18 +300,18 @@ bool UpdateTransaction::AddEdge(label_t src_label, vid_t src_lid,
   arc_ << static_cast<uint32_t>(dup_properties.size());
   if (!updated_edge_data_[in_csr_index][dst_lid].count(src_lid)) {
     updated_edge_data_[in_csr_index][dst_lid].emplace(
-        src_lid, std::vector<std::tuple<Prop, int32_t, size_t>>{});
+        src_lid, std::vector<std::tuple<Property, int32_t, size_t>>{});
   }
   if (!updated_edge_data_[in_csr_index][src_lid].count(dst_lid)) {
     updated_edge_data_[in_csr_index][src_lid].emplace(
-        dst_lid, std::vector<std::tuple<Prop, int32_t, size_t>>{});
+        dst_lid, std::vector<std::tuple<Property, int32_t, size_t>>{});
   }
   for (size_t col_id = 0; col_id < dup_properties.size(); ++col_id) {
     updated_edge_data_[in_csr_index][dst_lid][src_lid].emplace_back(
-        std::tuple<Prop, int32_t, size_t>{
+        std::tuple<Property, int32_t, size_t>{
             dup_properties[col_id], static_cast<int32_t>(col_id), offset_in});
     updated_edge_data_[out_csr_index][src_lid][dst_lid].emplace_back(
-        std::tuple<Prop, int32_t, size_t>{
+        std::tuple<Property, int32_t, size_t>{
             dup_properties[col_id], static_cast<int32_t>(col_id), offset_out});
     arc_ << (int32_t) col_id;
     serialize_property(arc_, dup_properties[col_id]);
@@ -319,10 +320,10 @@ bool UpdateTransaction::AddEdge(label_t src_label, vid_t src_lid,
   return true;
 }
 
-bool UpdateTransaction::AddEdge(label_t src_label, const Prop& src,
-                                label_t dst_label, const Prop& dst,
+bool UpdateTransaction::AddEdge(label_t src_label, const Property& src,
+                                label_t dst_label, const Property& dst,
                                 label_t edge_label,
-                                const std::vector<Prop>& properties) {
+                                const std::vector<Property>& properties) {
   vid_t src_lid, dst_lid;
   if (graph_.get_lid(src_label, src, src_lid, timestamp_) &&
       graph_.get_lid(dst_label, dst, dst_lid, timestamp_)) {
@@ -369,18 +370,18 @@ void UpdateTransaction::vertex_iterator::Goto(vid_t target) {
   cur_ = std::min(target, num_);
 }
 
-Prop UpdateTransaction::vertex_iterator::GetId() const {
+Property UpdateTransaction::vertex_iterator::GetId() const {
   return txn_->lid_to_oid(label_, cur_);
 }
 
 vid_t UpdateTransaction::vertex_iterator::GetIndex() const { return cur_; }
 
-Prop UpdateTransaction::vertex_iterator::GetField(int col_id) const {
+Property UpdateTransaction::vertex_iterator::GetField(int col_id) const {
   return txn_->GetVertexField(label_, cur_, col_id);
 }
 
 bool UpdateTransaction::vertex_iterator::SetField(int col_id,
-                                                  const Prop& value) {
+                                                  const Property& value) {
   return txn_->SetVertexField(label_, cur_, col_id, value);
 }
 
@@ -404,10 +405,10 @@ UpdateTransaction::edge_iterator::edge_iterator(
       offset_(0) {}
 UpdateTransaction::edge_iterator::~edge_iterator() = default;
 
-Prop UpdateTransaction::edge_iterator::GetData() const {
+Property UpdateTransaction::edge_iterator::GetData() const {
   if (init_iter_ != init_iter_end_) {
     vid_t cur = init_iter_.get_vertex();
-    Prop ret;
+    Property ret;
     if (txn_->GetUpdatedEdgeData(dir_, label_, v_, neighbor_label_, cur,
                                  edge_label_, prop_id_, ret)) {
       return ret;
@@ -416,14 +417,14 @@ Prop UpdateTransaction::edge_iterator::GetData() const {
     }
   } else {
     vid_t cur = *added_edges_cur_;
-    Prop ret;
+    Property ret;
     CHECK(txn_->GetUpdatedEdgeData(dir_, label_, v_, neighbor_label_, cur,
                                    edge_label_, prop_id_, ret));
     return ret;
   }
 }
 
-void UpdateTransaction::edge_iterator::SetData(const Prop& value) {
+void UpdateTransaction::edge_iterator::SetData(const Property& value) {
   if (init_iter_ != init_iter_end_) {
     vid_t cur = init_iter_.get_vertex();
     txn_->set_edge_data_with_offset(dir_, label_, v_, neighbor_label_, cur,
@@ -534,8 +535,8 @@ UpdateTransaction::edge_iterator UpdateTransaction::GetInEdgeIterator(
           ed_accessor, prop_id, this};
 }
 
-Prop UpdateTransaction::GetVertexField(label_t label, vid_t lid,
-                                       int col_id) const {
+Property UpdateTransaction::GetVertexField(label_t label, vid_t lid,
+                                           int col_id) const {
   auto& vertex_offset = vertex_offsets_[label];
   auto iter = vertex_offset.find(lid);
   if (iter == vertex_offset.end()) {
@@ -547,17 +548,17 @@ Prop UpdateTransaction::GetVertexField(label_t label, vid_t lid,
   }
 }
 
-Prop UpdateTransaction::GetVertexId(label_t label, vid_t lid) const {
+Property UpdateTransaction::GetVertexId(label_t label, vid_t lid) const {
   return lid_to_oid(label, lid);
 }
 
-bool UpdateTransaction::GetVertexIndex(label_t label, const Prop& id,
+bool UpdateTransaction::GetVertexIndex(label_t label, const Property& id,
                                        vid_t& index) const {
   return oid_to_lid(label, id, index);
 }
 
 bool UpdateTransaction::SetVertexField(label_t label, vid_t lid, int col_id,
-                                       const Prop& value) {
+                                       const Property& value) {
   auto& vertex_offset = vertex_offsets_[label];
   auto iter = vertex_offset.find(lid);
   auto& extra_table = extra_vertex_properties_[label];
@@ -569,7 +570,7 @@ bool UpdateTransaction::SetVertexField(label_t label, vid_t lid, int col_id,
   if (types[col_id] != value.type()) {
     return false;
   }
-  Prop dup_value;
+  Property dup_value;
   if (value.type().type_enum == impl::PropertyTypeImpl::kString) {
     sv_vec_.emplace_back(value.as_string());
     dup_value.set_string_view(std::string_view(sv_vec_.back()));
@@ -609,7 +610,7 @@ bool UpdateTransaction::SetVertexField(label_t label, vid_t lid, int col_id,
 
 void UpdateTransaction::SetEdgeData(bool dir, label_t label, vid_t v,
                                     label_t neighbor_label, vid_t nbr,
-                                    label_t edge_label, const Prop& value,
+                                    label_t edge_label, const Property& value,
                                     int32_t col_id) {
   auto view = dir ? graph_.GetGenericOutgoingGraphView(label, neighbor_label,
                                                        edge_label, timestamp_)
@@ -623,7 +624,7 @@ void UpdateTransaction::SetEdgeData(bool dir, label_t label, vid_t v,
 
 void UpdateTransaction::set_edge_data_with_offset(
     bool dir, label_t label, vid_t v, label_t neighbor_label, vid_t nbr,
-    label_t edge_label, const Prop& value, size_t offset, int32_t col_id) {
+    label_t edge_label, const Property& value, size_t offset, int32_t col_id) {
   size_t csr_index = dir ? get_out_csr_index(label, neighbor_label, edge_label)
                          : get_in_csr_index(neighbor_label, label, edge_label);
   const auto& edge_prop_types = dir ? graph_.schema().get_edge_properties(
@@ -636,7 +637,7 @@ void UpdateTransaction::set_edge_data_with_offset(
   if (col_id >= 0 && value.type() != edge_prop_types[col_id]) {
     THROW_RUNTIME_ERROR("Edge property type does not match the schema");
   }
-  Prop dup_value;
+  Property dup_value;
   if (value.type().type_enum == impl::PropertyTypeImpl::kString) {
     sv_vec_.emplace_back(value.as_string());
     dup_value.set_string_view(std::string_view(sv_vec_.back()));
@@ -645,16 +646,15 @@ void UpdateTransaction::set_edge_data_with_offset(
   }
   if (!updated_edge_data_[csr_index].count(v)) {
     updated_edge_data_[csr_index].emplace(
-        v,
-        ska::flat_hash_map<vid_t,
-                           std::vector<std::tuple<Prop, int32_t, size_t>>>{});
+        v, ska::flat_hash_map<
+               vid_t, std::vector<std::tuple<Property, int32_t, size_t>>>{});
   }
   if (!updated_edge_data_[csr_index][v].count(nbr)) {
     updated_edge_data_[csr_index][v].emplace(
-        nbr, std::vector<std::tuple<Prop, int32_t, size_t>>{});
+        nbr, std::vector<std::tuple<Property, int32_t, size_t>>{});
   }
   updated_edge_data_[csr_index][v][nbr].emplace_back(
-      std::tuple<Prop, int32_t, size_t>{dup_value, col_id, offset});
+      std::tuple<Property, int32_t, size_t>{dup_value, col_id, offset});
 
   op_num_ += 1;
   arc_ << static_cast<uint8_t>(3) << static_cast<uint8_t>(dir ? 1 : 0) << label;
@@ -688,7 +688,7 @@ void UpdateTransaction::set_edge_data_with_offset(
 bool UpdateTransaction::GetUpdatedEdgeData(bool dir, label_t label, vid_t v,
                                            label_t neighbor_label, vid_t nbr,
                                            label_t edge_label, int32_t prop_id,
-                                           Prop& ret) const {
+                                           Property& ret) const {
   size_t csr_index = dir ? get_out_csr_index(label, neighbor_label, edge_label)
                          : get_in_csr_index(label, neighbor_label, edge_label);
   auto map_iter = updated_edge_data_[csr_index].find(v);
@@ -723,7 +723,7 @@ void UpdateTransaction::IngestWal(PropertyGraph& graph,
   std::vector<Table> extra_vertex_properties;
 
   std::vector<ska::flat_hash_map<vid_t, std::vector<vid_t>>> added_edges;
-  std::vector<ska::flat_hash_map<vid_t, ska::flat_hash_map<vid_t, Prop>>>
+  std::vector<ska::flat_hash_map<vid_t, ska::flat_hash_map<vid_t, Property>>>
       updated_edge_data;
 
   size_t vertex_label_num = graph.schema().vertex_label_num();
@@ -783,7 +783,7 @@ void UpdateTransaction::IngestWal(PropertyGraph& graph,
     arc >> op_type;
     if (op_type == 0) {
       label_t label;
-      Prop oid;
+      Property oid;
       label = deserialize_oid(graph, arc, oid);
       vid_t vid;
       if (!graph.get_lid(label, oid, vid, timestamp)) {
@@ -793,7 +793,7 @@ void UpdateTransaction::IngestWal(PropertyGraph& graph,
       graph.get_vertex_table(label).ingest(vid, arc);
     } else if (op_type == 1) {
       label_t src_label, dst_label, edge_label;
-      Prop src, dst;
+      Property src, dst;
       vid_t src_vid, dst_vid;
       src_label = deserialize_oid(graph, arc, src);
       dst_label = deserialize_oid(graph, arc, dst);
@@ -804,7 +804,7 @@ void UpdateTransaction::IngestWal(PropertyGraph& graph,
                        timestamp, arc, alloc);
     } else if (op_type == 2) {
       label_t label;
-      Prop oid;
+      Property oid;
       int col_id;
       label = deserialize_oid(graph, arc, oid);
       arc >> col_id;
@@ -814,7 +814,7 @@ void UpdateTransaction::IngestWal(PropertyGraph& graph,
     } else if (op_type == 3) {
       uint8_t dir;
       label_t label, neighbor_label, edge_label;
-      Prop v, nbr;
+      Property v, nbr;
       vid_t v_lid, nbr_lid;
       int32_t col_id = 0;
       arc >> dir;
@@ -823,13 +823,13 @@ void UpdateTransaction::IngestWal(PropertyGraph& graph,
       arc >> edge_label;
       int32_t num_cols;
       arc >> num_cols;
-      std::vector<std::pair<int32_t, Prop>> values;
+      std::vector<std::pair<int32_t, Property>> values;
       const auto& edge_prop_types = graph.schema().get_edge_properties(
           dir == 0 ? label : neighbor_label, dir == 0 ? neighbor_label : label,
           edge_label);
       for (size_t i = 0; i < static_cast<size_t>(num_cols); ++i) {
         arc >> col_id;
-        Prop prop;
+        Property prop;
         auto pt = edge_prop_types[col_id];
         deserialize_property(arc, pt, prop);
         values.emplace_back(col_id, prop);
@@ -884,7 +884,7 @@ size_t UpdateTransaction::get_out_csr_index(label_t src_label,
          vertex_label_num_ * vertex_label_num_ * edge_label_num_;
 }
 
-bool UpdateTransaction::oid_to_lid(label_t label, const Prop& oid,
+bool UpdateTransaction::oid_to_lid(label_t label, const Property& oid,
                                    vid_t& lid) const {
   if (graph_.get_lid(label, oid, lid, timestamp_)) {
     return true;
@@ -897,7 +897,7 @@ bool UpdateTransaction::oid_to_lid(label_t label, const Prop& oid,
   return false;
 }
 
-bool UpdateTransaction::HasVertex(label_t label, const Prop& oid) const {
+bool UpdateTransaction::HasVertex(label_t label, const Property& oid) const {
   vid_t lid;
   if (graph_.get_lid(label, oid, lid, timestamp_)) {
     return true;
@@ -917,11 +917,11 @@ void UpdateTransaction::CreateCheckpoint() {
   graph_.Dump();
 }
 
-Prop UpdateTransaction::lid_to_oid(label_t label, vid_t lid) const {
+Property UpdateTransaction::lid_to_oid(label_t label, vid_t lid) const {
   if (graph_.lid_num(label) > lid) {
     return graph_.get_oid(label, lid, timestamp_);
   } else {
-    Prop ret;
+    Property ret;
     CHECK(added_vertices_[label]->get_key(lid - added_vertices_base_[label],
                                           ret));
     return ret;
@@ -955,17 +955,17 @@ void UpdateTransaction::release() {
 
 void UpdateTransaction::applyVerticesUpdates() {
   for (label_t label = 0; label < vertex_label_num_; ++label) {
-    std::vector<std::pair<vid_t, Prop>> added_vertices;
+    std::vector<std::pair<vid_t, Property>> added_vertices;
     vid_t added_vertices_num = added_vertices_[label]->size();
     for (vid_t v = 0; v < added_vertices_num; ++v) {
       vid_t lid = v + added_vertices_base_[label];
-      Prop oid;
+      Property oid;
       CHECK(added_vertices_[label]->get_key(v, oid));
       added_vertices.emplace_back(lid, oid);
     }
     std::sort(added_vertices.begin(), added_vertices.end(),
-              [](const std::pair<vid_t, Prop>& lhs,
-                 const std::pair<vid_t, Prop>& rhs) {
+              [](const std::pair<vid_t, Property>& lhs,
+                 const std::pair<vid_t, Property>& rhs) {
                 return lhs.first < rhs.first;
               });
 

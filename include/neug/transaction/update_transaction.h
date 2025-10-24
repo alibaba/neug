@@ -142,18 +142,18 @@ class UpdateTransaction {
 
   void Abort();
 
-  bool AddVertex(label_t label, const Prop& oid,
-                 const std::vector<Prop>& props);
+  bool AddVertex(label_t label, const Property& oid,
+                 const std::vector<Property>& props);
 
-  bool AddVertex(label_t label, const Prop& oid, const std::vector<Prop>& props,
-                 vid_t& vid);
+  bool AddVertex(label_t label, const Property& oid,
+                 const std::vector<Property>& props, vid_t& vid);
 
-  bool AddEdge(label_t src_label, const Prop& src, label_t dst_label,
-               const Prop& dst, label_t edge_label,
-               const std::vector<Prop>& properties);
+  bool AddEdge(label_t src_label, const Property& src, label_t dst_label,
+               const Property& dst, label_t edge_label,
+               const std::vector<Property>& properties);
 
   bool AddEdge(label_t src_label, vid_t src, label_t dst_label, vid_t dst,
-               label_t edge_label, const std::vector<Prop>& properties);
+               label_t edge_label, const std::vector<Property>& properties);
 
   class vertex_iterator {
    public:
@@ -164,13 +164,13 @@ class UpdateTransaction {
     void Next();
     void Goto(vid_t target);
 
-    Prop GetId() const;
+    Property GetId() const;
 
     vid_t GetIndex() const;
 
-    Prop GetField(int col_id) const;
+    Property GetField(int col_id) const;
 
-    bool SetField(int col_id, const Prop& value);
+    bool SetField(int col_id, const Property& value);
 
    private:
     label_t label_;
@@ -189,9 +189,9 @@ class UpdateTransaction {
                   int32_t prop_id, UpdateTransaction* txn);
     ~edge_iterator();
 
-    Prop GetData() const;
+    Property GetData() const;
 
-    void SetData(const Prop& value);
+    void SetData(const Property& value);
 
     bool IsValid() const;
 
@@ -238,25 +238,26 @@ class UpdateTransaction {
                                   label_t neighbor_label, label_t edge_label,
                                   int prop_id);
 
-  Prop GetVertexField(label_t label, vid_t lid, int col_id) const;
+  Property GetVertexField(label_t label, vid_t lid, int col_id) const;
 
-  bool SetVertexField(label_t label, vid_t lid, int col_id, const Prop& value);
+  bool SetVertexField(label_t label, vid_t lid, int col_id,
+                      const Property& value);
 
   // set col_id = -1 to set the whole edge data
   void SetEdgeData(bool dir, label_t label, vid_t v, label_t neighbor_label,
-                   vid_t nbr, label_t edge_label, const Prop& value,
+                   vid_t nbr, label_t edge_label, const Property& value,
                    int32_t col_id = 0);
 
   bool GetUpdatedEdgeData(bool dir, label_t label, vid_t v,
                           label_t neighbor_label, vid_t nbr, label_t edge_label,
-                          int32_t prop_id, Prop& ret) const;
+                          int32_t prop_id, Property& ret) const;
 
   static void IngestWal(PropertyGraph& graph, const std::string& work_dir,
                         uint32_t timestamp, char* data, size_t length,
                         Allocator& alloc);
-  Prop GetVertexId(label_t label, vid_t lid) const;
+  Property GetVertexId(label_t label, vid_t lid) const;
 
-  bool GetVertexIndex(label_t label, const Prop& id, vid_t& index) const;
+  bool GetVertexIndex(label_t label, const Property& id, vid_t& index) const;
 
   PropertyGraph& GetGraph() const { return graph_; }
 
@@ -266,7 +267,7 @@ class UpdateTransaction {
    * @param oid The oid of the vertex.
    * @return true if the vertex exists, false otherwise.
    */
-  bool HasVertex(label_t label, const Prop& oid) const;
+  bool HasVertex(label_t label, const Property& oid) const;
 
   EdgeDataAccessor GetEdgeDataAccessor(label_t src_label, label_t dst_label,
                                        label_t edge_label, int prop_id) const {
@@ -317,7 +318,7 @@ class UpdateTransaction {
  private:
   void set_edge_data_with_offset(bool dir, label_t label, vid_t v,
                                  label_t neighbor_label, vid_t nbr,
-                                 label_t edge_label, const Prop& value,
+                                 label_t edge_label, const Property& value,
                                  size_t offset, int32_t col_id = 0);
 
   size_t get_in_csr_index(label_t src_label, label_t dst_label,
@@ -326,9 +327,9 @@ class UpdateTransaction {
   size_t get_out_csr_index(label_t src_label, label_t dst_label,
                            label_t edge_label) const;
 
-  bool oid_to_lid(label_t label, const Prop& oid, vid_t& lid) const;
+  bool oid_to_lid(label_t label, const Property& oid, vid_t& lid) const;
 
-  Prop lid_to_oid(label_t label, vid_t lid) const;
+  Property lid_to_oid(label_t label, vid_t lid) const;
 
   bool is_valid_lid(label_t label, vid_t lid) const;
 
@@ -361,7 +362,7 @@ class UpdateTransaction {
   std::vector<ska::flat_hash_map<vid_t, std::vector<vid_t>>> added_edges_;
   std::vector<ska::flat_hash_map<
       vid_t, ska::flat_hash_map<
-                 vid_t, std::vector<std::tuple<Prop, int32_t, size_t>>>>>
+                 vid_t, std::vector<std::tuple<Property, int32_t, size_t>>>>>
       updated_edge_data_;
 
   std::vector<std::string> sv_vec_;

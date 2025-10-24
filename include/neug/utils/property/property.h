@@ -52,14 +52,14 @@ union PropValue {
 template <typename T>
 struct PropUtils;
 
-class Prop {
+class Property {
  public:
-  Prop() = default;
-  ~Prop() = default;
+  Property() = default;
+  ~Property() = default;
 
   template <typename T>
-  explicit Prop(const T& val) {
-    Prop a = Prop::From(val);
+  explicit Property(const T& val) {
+    Property a = Property::From(val);
     type_ = a.type_;
     if (type_.type_enum == impl::PropertyTypeImpl::kString) {
       new (&value_.sp) StringPtr(a.value_.sp);
@@ -69,7 +69,7 @@ class Prop {
     }
   }
 
-  Prop(const Prop& other) {
+  Property(const Property& other) {
     type_ = other.type_;
     if (type_.type_enum == impl::PropertyTypeImpl::kString) {
       new (&value_.sp) StringPtr(other.value_.sp);
@@ -78,7 +78,7 @@ class Prop {
     }
   }
 
-  Prop(Prop&& other) noexcept {
+  Property(Property&& other) noexcept {
     type_ = other.type_;
     if (type_.type_enum == impl::PropertyTypeImpl::kString) {
       new (&value_.sp) StringPtr(std::move(other.value_.sp));
@@ -272,96 +272,96 @@ class Prop {
     }
   }
 
-  static Prop empty() { return Prop(); }
+  static Property empty() { return Property(); }
 
-  static Prop from_bool(bool v) {
-    Prop ret;
+  static Property from_bool(bool v) {
+    Property ret;
     ret.set_bool(v);
     return ret;
   }
 
-  static Prop from_int32(int32_t v) {
-    Prop ret;
+  static Property from_int32(int32_t v) {
+    Property ret;
     ret.set_int32(v);
     return ret;
   }
 
-  static Prop from_uint32(uint32_t v) {
-    Prop ret;
+  static Property from_uint32(uint32_t v) {
+    Property ret;
     ret.set_uint32(v);
     return ret;
   }
 
-  static Prop from_int64(int64_t v) {
-    Prop ret;
+  static Property from_int64(int64_t v) {
+    Property ret;
     ret.set_int64(v);
     return ret;
   }
 
-  static Prop from_uint64(uint64_t v) {
-    Prop ret;
+  static Property from_uint64(uint64_t v) {
+    Property ret;
     ret.set_uint64(v);
     return ret;
   }
 
-  static Prop from_string_view(const std::string_view& v) {
-    Prop ret;
+  static Property from_string_view(const std::string_view& v) {
+    Property ret;
     ret.set_string_view(v);
     return ret;
   }
 
-  static Prop from_string(const std::string& v) {
-    Prop ret;
+  static Property from_string(const std::string& v) {
+    Property ret;
     ret.set_string(v);
     return ret;
   }
 
-  static Prop from_float(float v) {
-    Prop ret;
+  static Property from_float(float v) {
+    Property ret;
     ret.set_float(v);
     return ret;
   }
 
-  static Prop from_double(double v) {
-    Prop ret;
+  static Property from_double(double v) {
+    Property ret;
     ret.set_double(v);
     return ret;
   }
 
-  static Prop from_timestamp(const TimeStamp& v) {
-    Prop ret;
+  static Property from_timestamp(const TimeStamp& v) {
+    Property ret;
     ret.set_timestamp(v);
     return ret;
   }
 
-  static Prop from_date(const Date& v) {
-    Prop ret;
+  static Property from_date(const Date& v) {
+    Property ret;
     ret.set_date(v);
     return ret;
   }
 
-  static Prop from_date_time(const DateTime& v) {
-    Prop ret;
+  static Property from_date_time(const DateTime& v) {
+    Property ret;
     ret.set_date_time(v);
     return ret;
   }
 
-  static Prop from_interval(const Interval& v) {
-    Prop ret;
+  static Property from_interval(const Interval& v) {
+    Property ret;
     ret.set_interval(v);
     return ret;
   }
 
   PropertyType type() const { return type_; }
 
-  Prop& operator=(const Prop& other);
+  Property& operator=(const Property& other);
 
-  bool operator==(const Prop& other) const;
+  bool operator==(const Property& other) const;
 
-  bool operator<(const Prop& other) const;
+  bool operator<(const Property& other) const;
 
   template <typename T>
-  static Prop From(const T& v) {
+  static Property From(const T& v) {
     return PropUtils<T>::to_prop(v);
   }
 
@@ -370,40 +370,40 @@ class Prop {
   PropValue value_;
 };
 
-inline Prop parse_property_from_string(PropertyType pt,
-                                       const std::string& str) {
+inline Property parse_property_from_string(PropertyType pt,
+                                           const std::string& str) {
   if (pt == PropertyType::kEmpty) {
-    return Prop::empty();
+    return Property::empty();
   } else if (pt == PropertyType::kBool) {
-    return Prop::from_bool(str == "true" || str == "1" || str == "TRUE");
+    return Property::from_bool(str == "true" || str == "1" || str == "TRUE");
   } else if (pt == PropertyType::kInt32) {
-    return Prop::from_int32(std::stoi(str));
+    return Property::from_int32(std::stoi(str));
   } else if (pt == PropertyType::kUInt32) {
-    return Prop::from_uint32(static_cast<uint32_t>(std::stoul(str)));
+    return Property::from_uint32(static_cast<uint32_t>(std::stoul(str)));
   } else if (pt == PropertyType::kInt64) {
-    return Prop::from_int64(std::stoll(str));
+    return Property::from_int64(std::stoll(str));
   } else if (pt == PropertyType::kUInt64) {
-    return Prop::from_uint64(static_cast<uint64_t>(std::stoull(str)));
+    return Property::from_uint64(static_cast<uint64_t>(std::stoull(str)));
   } else if (pt.type_enum == impl::PropertyTypeImpl::kStringView) {
-    return Prop::from_string_view(str);
+    return Property::from_string_view(str);
   } else if (pt == PropertyType::kFloat) {
-    return Prop::from_float(std::stof(str));
+    return Property::from_float(std::stof(str));
   } else if (pt == PropertyType::kDouble) {
-    return Prop::from_double(std::stod(str));
+    return Property::from_double(std::stod(str));
   } else if (pt == PropertyType::kTimestamp) {
-    return Prop::from_timestamp(TimeStamp(std::stoll(str)));
+    return Property::from_timestamp(TimeStamp(std::stoll(str)));
   } else if (pt == PropertyType::kDate) {
-    return Prop::from_date(Date(str));
+    return Property::from_date(Date(str));
   } else if (pt == PropertyType::kDateTime) {
-    return Prop::from_date_time(DateTime(str));
+    return Property::from_date_time(DateTime(str));
   } else if (pt == PropertyType::kInterval) {
-    return Prop::from_interval(Interval(str));
+    return Property::from_interval(Interval(str));
   } else {
     LOG(FATAL) << "Unsupported property type: " << pt.ToString();
-    return Prop::empty();
+    return Property::empty();
   }
 }
-inline void serialize_property(grape::InArchive& arc, const Prop& prop) {
+inline void serialize_property(grape::InArchive& arc, const Property& prop) {
   auto type = prop.type();
   if (type == PropertyType::kBool) {
     arc << prop.as_bool();
@@ -438,7 +438,7 @@ inline void serialize_property(grape::InArchive& arc, const Prop& prop) {
 }
 
 inline void deserialize_property(grape::OutArchive& arc, PropertyType pt,
-                                 Prop& prop) {
+                                 Property& prop) {
   if (pt == PropertyType::kBool) {
     bool v;
     arc >> v;
@@ -496,7 +496,7 @@ inline void deserialize_property(grape::OutArchive& arc, PropertyType pt,
     iv.from_mill_seconds(iv_val);
     prop.set_interval(iv);
   } else if (pt == PropertyType::kEmpty) {
-    prop = Prop::empty();
+    prop = Property::empty();
   } else {
     LOG(FATAL) << "Unexpected property type" << pt.ToString();
   }
@@ -504,12 +504,12 @@ inline void deserialize_property(grape::OutArchive& arc, PropertyType pt,
 
 template <typename T>
 struct PropUtils {
-  static Prop to_prop(const T& v) {
+  static Property to_prop(const T& v) {
     LOG(FATAL) << "Not implemented";
-    return Prop::empty();
+    return Property::empty();
   }
 
-  static T to_typed(const Prop& prop) {
+  static T to_typed(const Property& prop) {
     LOG(FATAL) << "Not implemented";
     return T();
   }
@@ -518,109 +518,122 @@ struct PropUtils {
 template <>
 struct PropUtils<bool> {
   static PropertyType prop_type() { return PropertyType::kBool; }
-  static bool to_typed(const Prop& prop) { return prop.as_bool(); }
-  static Prop to_prop(bool v) { return Prop::from_bool(v); }
+  static bool to_typed(const Property& prop) { return prop.as_bool(); }
+  static Property to_prop(bool v) { return Property::from_bool(v); }
 };
 
 template <>
 struct PropUtils<int32_t> {
   static PropertyType prop_type() { return PropertyType::kInt32; }
-  static int32_t to_typed(const Prop& prop) { return prop.as_int32(); }
-  static Prop to_prop(int32_t v) { return Prop::from_int32(v); }
+  static int32_t to_typed(const Property& prop) { return prop.as_int32(); }
+  static Property to_prop(int32_t v) { return Property::from_int32(v); }
 };
 
 template <>
 struct PropUtils<uint32_t> {
   static PropertyType prop_type() { return PropertyType::kUInt32; }
-  static uint32_t to_typed(const Prop& prop) { return prop.as_uint32(); }
-  static Prop to_prop(uint32_t v) { return Prop::from_uint32(v); }
+  static uint32_t to_typed(const Property& prop) { return prop.as_uint32(); }
+  static Property to_prop(uint32_t v) { return Property::from_uint32(v); }
 };
 
 template <>
 struct PropUtils<int64_t> {
   static PropertyType prop_type() { return PropertyType::kInt64; }
-  static int64_t to_typed(const Prop& prop) { return prop.as_int64(); }
-  static Prop to_prop(int64_t v) { return Prop::from_int64(v); }
+  static int64_t to_typed(const Property& prop) { return prop.as_int64(); }
+  static Property to_prop(int64_t v) { return Property::from_int64(v); }
 };
 
 template <>
 struct PropUtils<uint64_t> {
   static PropertyType prop_type() { return PropertyType::kUInt64; }
-  static uint64_t to_typed(const Prop& prop) { return prop.as_uint64(); }
-  static Prop to_prop(uint64_t v) { return Prop::from_uint64(v); }
+  static uint64_t to_typed(const Property& prop) { return prop.as_uint64(); }
+  static Property to_prop(uint64_t v) { return Property::from_uint64(v); }
 };
 
 template <>
 struct PropUtils<std::string_view> {
   static PropertyType prop_type() { return PropertyType::kStringView; }
-  static std::string_view to_typed(const Prop& prop) {
+  static std::string_view to_typed(const Property& prop) {
     return prop.as_string_view();
   }
-  static Prop to_prop(const std::string_view& v) {
-    return Prop::from_string_view(v);
+  static Property to_prop(const std::string_view& v) {
+    return Property::from_string_view(v);
   }
 };
 
 template <>
 struct PropUtils<std::string> {
   static PropertyType prop_type() { return PropertyType::kString; }
-  static std::string to_typed(const Prop& prop) { return prop.as_string(); }
-  static Prop to_prop(const std::string& v) { return Prop::from_string(v); }
+  static std::string to_typed(const Property& prop) { return prop.as_string(); }
+  static Property to_prop(const std::string& v) {
+    return Property::from_string(v);
+  }
 };
 
 template <>
 struct PropUtils<float> {
   static PropertyType prop_type() { return PropertyType::kFloat; }
-  static float to_typed(const Prop& prop) { return prop.as_float(); }
-  static Prop to_prop(float v) { return Prop::from_float(v); }
+  static float to_typed(const Property& prop) { return prop.as_float(); }
+  static Property to_prop(float v) { return Property::from_float(v); }
 };
 
 template <>
 struct PropUtils<double> {
   static PropertyType prop_type() { return PropertyType::kDouble; }
-  static double to_typed(const Prop& prop) { return prop.as_double(); }
-  static Prop to_prop(double v) { return Prop::from_double(v); }
+  static double to_typed(const Property& prop) { return prop.as_double(); }
+  static Property to_prop(double v) { return Property::from_double(v); }
 };
 
 template <>
 struct PropUtils<TimeStamp> {
   static PropertyType prop_type() { return PropertyType::kTimestamp; }
-  static TimeStamp to_typed(const Prop& prop) { return prop.as_timestamp(); }
-  static Prop to_prop(const TimeStamp& v) { return Prop::from_timestamp(v); }
+  static TimeStamp to_typed(const Property& prop) {
+    return prop.as_timestamp();
+  }
+  static Property to_prop(const TimeStamp& v) {
+    return Property::from_timestamp(v);
+  }
 };
 
 template <>
 struct PropUtils<Date> {
   static PropertyType prop_type() { return PropertyType::kDate; }
-  static Date to_typed(const Prop& prop) { return prop.as_date(); }
-  static Prop to_prop(const Date& v) { return Prop::from_date(v); }
+  static Date to_typed(const Property& prop) { return prop.as_date(); }
+  static Property to_prop(const Date& v) { return Property::from_date(v); }
 };
 
 template <>
 struct PropUtils<DateTime> {
   static PropertyType prop_type() { return PropertyType::kDateTime; }
-  static DateTime to_typed(const Prop& prop) { return prop.as_date_time(); }
-  static Prop to_prop(const DateTime& v) { return Prop::from_date_time(v); }
+  static DateTime to_typed(const Property& prop) { return prop.as_date_time(); }
+  static Property to_prop(const DateTime& v) {
+    return Property::from_date_time(v);
+  }
 };
 
 template <>
 struct PropUtils<grape::EmptyType> {
   static PropertyType prop_type() { return PropertyType::kEmpty; }
-  static grape::EmptyType to_typed(const Prop& prop) {
+  static grape::EmptyType to_typed(const Property& prop) {
     return grape::EmptyType();
   }
-  static Prop to_prop(const grape::EmptyType& v) { return Prop::empty(); }
+  static Property to_prop(const grape::EmptyType& v) {
+    return Property::empty();
+  }
 };
 
 template <>
 struct PropUtils<Interval> {
   static PropertyType prop_type() { return PropertyType::kInterval; }
-  static Interval to_typed(const Prop& prop) { return prop.as_interval(); }
-  static Prop to_prop(const Interval& v) { return Prop::from_interval(v); }
+  static Interval to_typed(const Property& prop) { return prop.as_interval(); }
+  static Property to_prop(const Interval& v) {
+    return Property::from_interval(v);
+  }
 };
 
-grape::InArchive& operator<<(grape::InArchive& in_archive, const Prop& value);
-grape::OutArchive& operator>>(grape::OutArchive& out_archive, Prop& value);
+grape::InArchive& operator<<(grape::InArchive& in_archive,
+                             const Property& value);
+grape::OutArchive& operator>>(grape::OutArchive& out_archive, Property& value);
 
 }  // namespace gs
 

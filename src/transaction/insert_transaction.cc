@@ -50,8 +50,8 @@ InsertTransaction::InsertTransaction(PropertyGraph& graph, Allocator& alloc,
 
 InsertTransaction::~InsertTransaction() { Abort(); }
 
-bool InsertTransaction::AddVertex(label_t label, const Prop& id,
-                                  const std::vector<Prop>& props) {
+bool InsertTransaction::AddVertex(label_t label, const Property& id,
+                                  const std::vector<Property>& props) {
   size_t arc_size = arc_.GetSize();
   arc_ << static_cast<uint8_t>(0) << label;
   serialize_field(arc_, id);
@@ -87,10 +87,10 @@ bool InsertTransaction::AddVertex(label_t label, const Prop& id,
   return true;
 }
 
-bool InsertTransaction::AddEdge(label_t src_label, const Prop& src,
-                                label_t dst_label, const Prop& dst,
+bool InsertTransaction::AddEdge(label_t src_label, const Property& src,
+                                label_t dst_label, const Property& dst,
                                 label_t edge_label,
-                                const std::vector<Prop>& properties) {
+                                const std::vector<Property>& properties) {
   vid_t lid;
   if (!graph_.get_lid(src_label, src, lid, timestamp_)) {
     if (added_vertices_.find(std::make_pair(src_label, src)) ==
@@ -187,14 +187,14 @@ void InsertTransaction::IngestWal(PropertyGraph& graph, uint32_t timestamp,
     arc >> op_type;
     if (op_type == 0) {
       label_t label;
-      Prop id;
+      Property id;
       label = deserialize_oid(graph, arc, id);
       vid_t lid = graph.add_vertex(label, id, timestamp);
       // Ignore the cases that the vertex already exists.
       graph.get_vertex_table(label).ingest(lid, arc);
     } else if (op_type == 1) {
       label_t src_label, dst_label, edge_label;
-      Prop src, dst;
+      Property src, dst;
       vid_t src_lid, dst_lid;
       src_label = deserialize_oid(graph, arc, src);
       dst_label = deserialize_oid(graph, arc, dst);
@@ -222,8 +222,8 @@ void InsertTransaction::clear() {
 const Schema& InsertTransaction::schema() const { return graph_.schema(); }
 
 bool InsertTransaction::get_vertex_with_retries(PropertyGraph& graph,
-                                                label_t label, const Prop& oid,
-                                                vid_t& lid,
+                                                label_t label,
+                                                const Property& oid, vid_t& lid,
                                                 timestamp_t timestamp) {
   if (NEUG_LIKELY(graph.get_lid(label, oid, lid, timestamp))) {
     return true;

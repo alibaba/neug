@@ -274,7 +274,7 @@ void testOpenEmptyGraph(const std::string& graph_dir,
   {
     LOG(INFO) << "Create vertex type PERSON";
     std::string vertex_label_name = "PERSON";
-    std::vector<std::tuple<PropertyType, std::string, Prop>> properties;
+    std::vector<std::tuple<PropertyType, std::string, Property>> properties;
     std::vector<std::string> primary_keys;
     primary_keys.emplace_back("id");
     properties.emplace_back(
@@ -300,7 +300,8 @@ void testOpenEmptyGraph(const std::string& graph_dir,
     std::string src_vertex_label = "PERSON";
     std::string edge_label_name = "KNOWS";
     std::string dst_vertex_label = "PERSON";
-    std::vector<std::tuple<PropertyType, std::string, Prop>> edge_properties;
+    std::vector<std::tuple<PropertyType, std::string, Property>>
+        edge_properties;
     edge_properties.emplace_back(
         std::make_tuple<PropertyType, std::string, std::string>(
             PropertyType::Float(), std::string("weight"), std::string("")));
@@ -359,7 +360,7 @@ void testOpenEmptyGraph(const std::string& graph_dir,
     std::string src_vertex_type = "PERSON";
     std::string dst_vertex_type = "PERSON";
     std::string edge_type_name = "KNOWS";
-    std::vector<std::tuple<PropertyType, std::string, Prop>> add_properties;
+    std::vector<std::tuple<PropertyType, std::string, Property>> add_properties;
     add_properties.emplace_back(std::make_tuple(
         PropertyType::DateTime(), "creationDate", std::string("")));
     graph.add_edge_properties(src_vertex_type, dst_vertex_type, edge_type_name,

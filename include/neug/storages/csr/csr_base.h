@@ -80,7 +80,7 @@ class CsrBase {
   virtual void batch_delete_edges(const std::vector<vid_t>& src_list,
                                   const std::vector<vid_t>& dst_list) = 0;
 
-  virtual void put_generic_edge(vid_t src, vid_t dst, const Prop& data,
+  virtual void put_generic_edge(vid_t src, vid_t dst, const Property& data,
                                 timestamp_t ts, Allocator& alloc) = 0;
 
   virtual std::tuple<std::vector<vid_t>, std::vector<vid_t>> batch_export(
@@ -100,8 +100,8 @@ class TypedCsrBase : public CsrBase {
     LOG(FATAL) << "not supported...";
   }
 
-  void put_generic_edge(vid_t src, vid_t dst, const Prop& data, timestamp_t ts,
-                        Allocator& alloc) override {
+  void put_generic_edge(vid_t src, vid_t dst, const Property& data,
+                        timestamp_t ts, Allocator& alloc) override {
     this->put_edge(src, dst, PropUtils<EDATA_T>::to_typed(data), ts, alloc);
   }
 };

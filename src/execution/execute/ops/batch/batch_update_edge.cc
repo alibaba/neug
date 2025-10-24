@@ -98,12 +98,12 @@ gs::result<Context> UpdateEdgeOpr::Eval(
             "Property " + prop_name +
             " does not exist for edge label: " + std::to_string(label_id));
       }
-      Prop prop;
+      Property prop;
       auto val_type = value.type();
       LOG(INFO) << "value type: " << static_cast<int>(val_type);
       if (val_type == RTAnyType::kNull || val_type == RTAnyType::kEmpty) {
       } else if (val_type == RTAnyType::kI32Value) {
-        // prop = Prop::from_int32(value.as_int32());
+        // prop = Property::from_int32(value.as_int32());
         prop.set_int32(value.as_int32());
       } else if (val_type == RTAnyType::kI64Value) {
         prop.set_int64(value.as_int64());

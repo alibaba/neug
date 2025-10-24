@@ -155,25 +155,26 @@ class WriteContext {
                             WriteParams(value.substr(pos + 1)));
     }
 
-    Prop to_prop(PropertyType type) const {
+    Property to_prop(PropertyType type) const {
       if (type == PropertyType::kInt32) {
-        return Prop::from_int32(std::stoi(std::string(value)));
+        return Property::from_int32(std::stoi(std::string(value)));
       } else if (type == PropertyType::kInt64) {
-        return Prop::from_int64(
+        return Property::from_int64(
             static_cast<int64_t>(std::stoll(std::string(value))));
       } else if (type == PropertyType::kDouble) {
-        return Prop::from_double(std::stod(std::string(value)));
+        return Property::from_double(std::stod(std::string(value)));
       } else if (type.type_enum == impl::PropertyTypeImpl::kStringView) {
-        return Prop::from_string_view(value);
+        return Property::from_string_view(value);
       } else if (type == PropertyType::kDate) {
-        return Prop::from_date(
+        return Property::from_date(
             Date(static_cast<int64_t>(std::stoll(std::string(value)))));
       } else if (type == PropertyType::kTimestamp) {
-        return Prop::from_timestamp(TimeStamp(std::stoll(std::string(value))));
+        return Property::from_timestamp(
+            TimeStamp(std::stoll(std::string(value))));
       } else {
         THROW_NOT_SUPPORTED_EXCEPTION("Unsupported type for WriteParams: " +
                                       type.ToString());
-        return Prop();
+        return Property();
       }
     }
 

@@ -289,7 +289,7 @@ class Schema {
                              std::vector<std::string>& properties_names,
                              std::vector<PropertyType>& properties_types,
                              std::vector<StorageStrategy>& storage_strategies,
-                             std::vector<Prop>& properties_default_values);
+                             std::vector<Property>& properties_default_values);
 
   void update_vertex_properties(const std::string& label,
                                 std::vector<std::string>& properties_names,
@@ -313,7 +313,7 @@ class Schema {
                            const std::string& edge_label,
                            std::vector<std::string>& properties_names,
                            std::vector<PropertyType>& properties_types,
-                           std::vector<Prop>& properties_default_values);
+                           std::vector<Property>& properties_default_values);
 
   void update_edge_properties(const std::string& src_label,
                               const std::string& dst_label,
@@ -344,7 +344,7 @@ class Schema {
   IdIndexer<std::string, label_t> elabel_indexer_;
   std::vector<std::vector<PropertyType>> vproperties_;
   std::vector<std::vector<std::string>> vprop_names_;
-  std::vector<std::vector<Prop>> vprop_default_values_;
+  std::vector<std::vector<Property>> vprop_default_values_;
   std::vector<std::string> v_descriptions_;
   std::vector<std::vector<std::tuple<PropertyType, std::string, size_t>>>
       v_primary_keys_;  // the third element is the index of the property in

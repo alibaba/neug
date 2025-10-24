@@ -27,7 +27,8 @@ namespace runtime {
 
 gs::result<Context> Scan::find_vertex_with_oid(Context&& ctx,
                                                const GraphReadInterface& graph,
-                                               label_t label, const Prop& oid,
+                                               label_t label,
+                                               const Property& oid,
                                                int32_t alias) {
   MSVertexColumnBuilder builder(label);
   vid_t vid;
@@ -101,14 +102,15 @@ struct FilterOidsSPOp {
   template <typename PRED_T>
   static gs::result<Context> eval_with_predicate(
       const PRED_T& pred, const GraphReadInterface& graph, Context&& ctx,
-      const ScanParams& params, const std::vector<Prop>& oids) {
+      const ScanParams& params, const std::vector<Property>& oids) {
     return Scan::filter_oids<PRED_T>(std::move(ctx), graph, params, pred, oids);
   }
 };
 
 gs::result<Context> Scan::filter_oids_with_special_vertex_predicate(
     Context&& ctx, const GraphReadInterface& graph, const ScanParams& params,
-    const SpecialVertexPredicateConfig& config, const std::vector<Prop>& oids) {
+    const SpecialVertexPredicateConfig& config,
+    const std::vector<Property>& oids) {
   std::set<label_t> expected_labels;
   for (auto label : params.tables) {
     expected_labels.insert(label);

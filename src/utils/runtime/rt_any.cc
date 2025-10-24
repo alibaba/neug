@@ -263,7 +263,7 @@ std::string Map::to_string() const {
 RTAny::RTAny() : type_(RTAnyType::kUnknown) {}
 RTAny::RTAny(RTAnyType type) : type_(type) {}
 
-RTAny::RTAny(const Prop& val) {
+RTAny::RTAny(const Property& val) {
   if (val.type() == PropertyType::Bool()) {
     type_ = RTAnyType::kBoolValue;
     value_.b_val = val.as_bool();
@@ -408,30 +408,30 @@ RTAny& RTAny::operator=(const RTAny& rhs) {
 
 RTAnyType RTAny::type() const { return type_; }
 
-Prop RTAny::to_any() const {
+Property RTAny::to_any() const {
   switch (type_) {
   case RTAnyType::kBoolValue:
-    return Prop::from_bool(value_.b_val);
+    return Property::from_bool(value_.b_val);
   case RTAnyType::kI64Value:
-    return Prop::from_int64(value_.i64_val);
+    return Property::from_int64(value_.i64_val);
   case RTAnyType::kI32Value:
-    return Prop::from_int32(value_.i32_val);
+    return Property::from_int32(value_.i32_val);
   case RTAnyType::kU32Value:
-    return Prop::from_uint32(value_.u32_val);
+    return Property::from_uint32(value_.u32_val);
   case RTAnyType::kF32Value:
-    return Prop::from_float(value_.f32_val);
+    return Property::from_float(value_.f32_val);
   case RTAnyType::kF64Value:
-    return Prop::from_double(value_.f64_val);
+    return Property::from_double(value_.f64_val);
   case RTAnyType::kStringValue:
-    return Prop::from_string(std::string(value_.str_val));
+    return Property::from_string(std::string(value_.str_val));
   case RTAnyType::kDate:
-    return Prop::from_date(value_.date_val);
+    return Property::from_date(value_.date_val);
   case RTAnyType::kDateTime:
-    return Prop::from_date_time(value_.dt_val);
+    return Property::from_date_time(value_.dt_val);
   case RTAnyType::kTimestamp:
-    return Prop::from_timestamp(value_.ts_val);
+    return Property::from_timestamp(value_.ts_val);
   case RTAnyType::kInterval:
-    return Prop::from_interval(value_.interval_val);
+    return Property::from_interval(value_.interval_val);
   default:
     THROW_NOT_SUPPORTED_EXCEPTION("Unexpected RTAny type: " +
                                   std::to_string(static_cast<int>(type_)));

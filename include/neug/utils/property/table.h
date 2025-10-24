@@ -85,7 +85,7 @@ class Table {
 
   const std::shared_ptr<ColumnBase> get_column(const std::string& name) const;
 
-  std::vector<Prop> get_row(size_t row_id) const;
+  std::vector<Property> get_row(size_t row_id) const;
 
   std::shared_ptr<ColumnBase> get_column_by_id(size_t index);
 
@@ -100,7 +100,7 @@ class Table {
   std::vector<std::shared_ptr<ColumnBase>>& columns();
   std::vector<ColumnBase*>& column_ptrs();
 
-  void insert(size_t index, const std::vector<Prop>& values);
+  void insert(size_t index, const std::vector<Property>& values);
 
   /**
    * @brief Different from insert, this function will resize the columns
@@ -108,17 +108,17 @@ class Table {
    * @param index The index to insert the row.
    * @param values The values to insert.
    */
-  void insert_with_resize(size_t index, const std::vector<Prop>& values);
+  void insert_with_resize(size_t index, const std::vector<Property>& values);
 
   // insert properties except for the primary key
   // col_ind_mapping: the mapping from the column index in
   // the raw file row to the column index in the schema
-  void insert(size_t index, const std::vector<Prop>& values,
+  void insert(size_t index, const std::vector<Property>& values,
               const std::vector<int32_t>& col_ind_mapping);
 
   void resize(size_t row_num);
 
-  inline Prop at(size_t row_id, size_t col_id) const {
+  inline Property at(size_t row_id, size_t col_id) const {
     return column_ptrs_[col_id]->get_prop(row_id);
   }
 

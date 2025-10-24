@@ -152,7 +152,7 @@ class Scan {
                                          const GraphReadInterface& graph,
                                          const ScanParams& params,
                                          const PRED_T& predicate,
-                                         const std::vector<Prop>& oids) {
+                                         const std::vector<Property>& oids) {
     auto limit = params.limit;
     if (params.tables.size() == 1) {
       label_t label = params.tables[0];
@@ -209,11 +209,11 @@ class Scan {
   static gs::result<Context> filter_oids_with_special_vertex_predicate(
       Context&& ctx, const GraphReadInterface& graph, const ScanParams& params,
       const SpecialVertexPredicateConfig& config,
-      const std::vector<Prop>& oids);
+      const std::vector<Property>& oids);
 
   static gs::result<Context> find_vertex_with_oid(
       Context&& ctx, const GraphReadInterface& graph, label_t label,
-      const Prop& pk, int32_t alias);
+      const Property& pk, int32_t alias);
 
   static gs::result<Context> find_vertex_with_gid(
       Context&& ctx, const GraphReadInterface& graph, label_t label, int64_t pk,

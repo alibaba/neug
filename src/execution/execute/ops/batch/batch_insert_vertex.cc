@@ -59,7 +59,7 @@ class BatchInsertVertexOpr : public IUpdateOperator {
 
 class InsertVertexOpr : public IUpdateOperator {
  public:
-  using vertex_prop_vec_t = std::vector<std::pair<std::string, Prop>>;
+  using vertex_prop_vec_t = std::vector<std::pair<std::string, Property>>;
   InsertVertexOpr(std::vector<std::tuple<label_t, vertex_prop_vec_t, int32_t>>&&
                       vertex_data)
       : vertex_data_(std::move(vertex_data)) {}
@@ -124,8 +124,8 @@ std::unique_ptr<IUpdateOperator> BatchInsertVertexOprBuilder::Build(
       prop_mappings);
 }
 
-std::pair<Prop, std::vector<Prop>> get_pk_and_prop_values(
-    const std::vector<std::pair<std::string, Prop>>& properties,
+std::pair<Property, std::vector<Property>> get_pk_and_prop_values(
+    const std::vector<std::pair<std::string, Property>>& properties,
     const std::string& pk_name, const PropertyType& pk_type,
     const std::vector<std::string>& properties_name,
     const std::vector<PropertyType>& properties_type) {
@@ -136,8 +136,8 @@ std::pair<Prop, std::vector<Prop>> get_pk_and_prop_values(
     THROW_RUNTIME_ERROR("Properties name and type size mismatch");
   }
 
-  Prop pk_value;
-  std::vector<Prop> prop_values;
+  Property pk_value;
+  std::vector<Property> prop_values;
   // The order should match the schema
   bool pk_found = false;
   for (size_t i = 0; i < properties.size(); ++i) {
@@ -219,8 +219,8 @@ gs::result<Context> InsertVertexOpr::eval_impl(
                           " does not match schema size: " +
                           std::to_string(properties_name.size() + 1));
     }
-    Prop pk_value;
-    std::vector<Prop> prop_values;
+    Property pk_value;
+    std::vector<Property> prop_values;
     std::tie(pk_value, prop_values) =
         get_pk_and_prop_values(properties, std::get<1>(pk), std::get<0>(pk),
                                properties_name, properties_type);

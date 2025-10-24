@@ -315,7 +315,7 @@ void EdgeTable::Dump(const std::string& checkpoint_dir_path) {
 
 void EdgeTable::IngestEdge(vid_t src, vid_t dst, grape::OutArchive& oarc,
                            timestamp_t ts, Allocator& alloc) {
-  Prop prop;
+  Property prop;
   if (!meta_.is_bundled()) {
     size_t row_id = table_idx_.fetch_add(1);
     table_->ingest(row_id, oarc);
@@ -329,7 +329,7 @@ void EdgeTable::IngestEdge(vid_t src, vid_t dst, grape::OutArchive& oarc,
       uint32_t num_cols;
       oarc >> num_cols;
       assert(num_cols == 0);
-      prop = Prop::empty();
+      prop = Property::empty();
       out_csr_->put_generic_edge(src, dst, prop, ts, alloc);
       in_csr_->put_generic_edge(dst, src, prop, ts, alloc);
     } else {
@@ -507,7 +507,7 @@ static void parse_endpoint_column(const IndexerType& indexer,
     for (int64_t i = 0; i < casted->length(); ++i) {
       auto str = casted->GetView(i);
       std::string_view sv(str.data(), str.size());
-      auto vid = indexer.get_index(Prop::From(sv));
+      auto vid = indexer.get_index(Property::From(sv));
       lids.push_back(vid);
     }
   } else if (array->type()->Equals(arrow::large_utf8())) {
@@ -515,31 +515,31 @@ static void parse_endpoint_column(const IndexerType& indexer,
     for (int64_t i = 0; i < casted->length(); ++i) {
       auto str = casted->GetView(i);
       std::string_view sv(str.data(), str.size());
-      auto vid = indexer.get_index(Prop::From(sv));
+      auto vid = indexer.get_index(Property::From(sv));
       lids.push_back(vid);
     }
   } else if (array->type()->Equals(arrow::int64())) {
     auto casted = std::static_pointer_cast<arrow::Int64Array>(array);
     for (int64_t i = 0; i < casted->length(); ++i) {
-      auto vid = indexer.get_index(Prop::From(casted->Value(i)));
+      auto vid = indexer.get_index(Property::From(casted->Value(i)));
       lids.push_back(vid);
     }
   } else if (array->type()->Equals(arrow::uint64())) {
     auto casted = std::static_pointer_cast<arrow::UInt64Array>(array);
     for (int64_t i = 0; i < casted->length(); ++i) {
-      auto vid = indexer.get_index(Prop::From(casted->Value(i)));
+      auto vid = indexer.get_index(Property::From(casted->Value(i)));
       lids.push_back(vid);
     }
   } else if (array->type()->Equals(arrow::int32())) {
     auto casted = std::static_pointer_cast<arrow::Int32Array>(array);
     for (int64_t i = 0; i < casted->length(); ++i) {
-      auto vid = indexer.get_index(Prop::From(casted->Value(i)));
+      auto vid = indexer.get_index(Property::From(casted->Value(i)));
       lids.push_back(vid);
     }
   } else if (array->type()->Equals(arrow::uint32())) {
     auto casted = std::static_pointer_cast<arrow::UInt32Array>(array);
     for (int64_t i = 0; i < casted->length(); ++i) {
-      auto vid = indexer.get_index(Prop::From(casted->Value(i)));
+      auto vid = indexer.get_index(Property::From(casted->Value(i)));
       lids.push_back(vid);
     }
   } else {
@@ -605,11 +605,11 @@ void insert_edges_separated_impl(TypedCsrBase<uint64_t>* out_csr,
   in_csr->batch_put_edges(dst_lid, src_lid, edge_data);
 }
 
-static std::vector<Prop> get_row_from_recordbatch(
+static std::vector<Property> get_row_from_recordbatch(
     const std::vector<PropertyType>& prop_types,
     const std::vector<std::shared_ptr<arrow::DataType>>& expected_types,
     const std::shared_ptr<arrow::RecordBatch>& rb, int64_t row_idx) {
-  std::vector<Prop> row;
+  std::vector<Property> row;
   if ((int32_t) expected_types.size() != rb->num_columns()) {
     THROW_INVALID_ARGUMENT_EXCEPTION(
         "property types size not match recordbatch column size");
@@ -631,35 +631,37 @@ static std::vector<Prop> get_row_from_recordbatch(
       }
     }
     if (array->IsNull(row_idx)) {
-      row.push_back(Prop());
+      row.push_back(Property());
       continue;
     } else if (prop_types[i] == PropertyType::kInt32) {
       auto casted = std::static_pointer_cast<arrow::Int32Array>(array);
-      row.push_back(Prop::from_int32(casted->Value(row_idx)));
+      row.push_back(Property::from_int32(casted->Value(row_idx)));
     } else if (prop_types[i] == PropertyType::kInt64) {
       auto casted = std::static_pointer_cast<arrow::Int64Array>(array);
-      row.push_back(Prop::from_int64(casted->Value(row_idx)));
+      row.push_back(Property::from_int64(casted->Value(row_idx)));
     } else if (prop_types[i] == PropertyType::kUInt32) {
       auto casted = std::static_pointer_cast<arrow::UInt32Array>(array);
-      row.push_back(Prop::from_uint32(casted->Value(row_idx)));
+      row.push_back(Property::from_uint32(casted->Value(row_idx)));
     } else if (prop_types[i] == PropertyType::kUInt64) {
       auto casted = std::static_pointer_cast<arrow::UInt64Array>(array);
-      row.push_back(Prop::from_uint64(casted->Value(row_idx)));
+      row.push_back(Property::from_uint64(casted->Value(row_idx)));
     } else if (prop_types[i] == PropertyType::kFloat) {
       auto casted = std::static_pointer_cast<arrow::FloatArray>(array);
-      row.push_back(Prop::from_float(casted->Value(row_idx)));
+      row.push_back(Property::from_float(casted->Value(row_idx)));
     } else if (prop_types[i] == PropertyType::kDouble) {
       auto casted = std::static_pointer_cast<arrow::DoubleArray>(array);
-      row.push_back(Prop::from_double(casted->Value(row_idx)));
+      row.push_back(Property::from_double(casted->Value(row_idx)));
     } else if (prop_types[i].type_enum == impl::PropertyTypeImpl::kStringView) {
       if (array->type()->Equals(arrow::utf8())) {
         auto casted = std::static_pointer_cast<arrow::StringArray>(array);
         auto str = casted->GetView(row_idx);
-        row.push_back(Prop::from_string(std::string(str.data(), str.size())));
+        row.push_back(
+            Property::from_string(std::string(str.data(), str.size())));
       } else if (array->type()->Equals(arrow::large_utf8())) {
         auto casted = std::static_pointer_cast<arrow::LargeStringArray>(array);
         auto str = casted->GetView(row_idx);
-        row.push_back(Prop::from_string(std::string(str.data(), str.size())));
+        row.push_back(
+            Property::from_string(std::string(str.data(), str.size())));
       } else {
         LOG(FATAL) << "not support type " << array->type()->ToString();
       }
@@ -667,16 +669,18 @@ static std::vector<Prop> get_row_from_recordbatch(
       auto casted = std::static_pointer_cast<arrow::Date32Array>(array);
       Date d;
       d.from_num_days(casted->Value(row_idx));
-      row.push_back(Prop::from_date(d));
+      row.push_back(Property::from_date(d));
     } else if (prop_types[i] == PropertyType::kTimestamp) {
       auto casted = std::static_pointer_cast<arrow::TimestampArray>(array);
-      row.push_back(Prop::from_timestamp(TimeStamp(casted->Value(row_idx))));
+      row.push_back(
+          Property::from_timestamp(TimeStamp(casted->Value(row_idx))));
     } else if (prop_types[i] == PropertyType::kDateTime) {
       auto casted = std::static_pointer_cast<arrow::TimestampArray>(array);
-      row.push_back(Prop::from_date_time(DateTime(casted->Value(row_idx))));
+      row.push_back(Property::from_date_time(DateTime(casted->Value(row_idx))));
     } else if (prop_types[i] == PropertyType::kInterval) {
       auto casted = std::static_pointer_cast<arrow::LargeStringArray>(array);
-      row.push_back(Prop::from_interval(Interval(casted->GetView(row_idx))));
+      row.push_back(
+          Property::from_interval(Interval(casted->GetView(row_idx))));
     } else {
       LOG(FATAL) << "not support type " << array->type()->ToString();
     }

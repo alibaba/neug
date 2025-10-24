@@ -81,14 +81,14 @@ class VertexTable {
 
   bool is_dropped() const { return table_ == nullptr; }
 
-  bool get_index(const Prop& oid, vid_t& lid,
+  bool get_index(const Property& oid, vid_t& lid,
                  timestamp_t ts = MAX_TIMESTAMP) const;
 
-  Prop get_oid(vid_t lid, timestamp_t ts = MAX_TIMESTAMP) const;
+  Property get_oid(vid_t lid, timestamp_t ts = MAX_TIMESTAMP) const;
 
-  vid_t add_vertex(const Prop& id, timestamp_t ts = MAX_TIMESTAMP);
+  vid_t add_vertex(const Property& id, timestamp_t ts = MAX_TIMESTAMP);
 
-  vid_t add_vertex_safe(const Prop& id, timestamp_t ts = MAX_TIMESTAMP);
+  vid_t add_vertex_safe(const Property& id, timestamp_t ts = MAX_TIMESTAMP);
 
   size_t vertex_num(timestamp_t ts = MAX_TIMESTAMP) const;
 
@@ -148,8 +148,8 @@ class VertexTable {
     return is_vertex_table_modified_;
   }
 
-  void BatchAddVertices(std::vector<Prop>&& ids, std::unique_ptr<Table> table,
-                        timestamp_t ts);
+  void BatchAddVertices(std::vector<Property>&& ids,
+                        std::unique_ptr<Table> table, timestamp_t ts);
 
   void BatchDeleteVertices(const std::vector<vid_t>& vids);
 
@@ -205,7 +205,8 @@ class VertexTable {
         auto casted_array =
             std::static_pointer_cast<arrow::StringArray>(primary_key_column);
         for (size_t j = 0; j < row_num; ++j) {
-          auto oid = Prop::from_string(std::string(casted_array->GetView(j)));
+          auto oid =
+              Property::from_string(std::string(casted_array->GetView(j)));
           if (indexer_.get_index(oid, vids[j])) {
             vids[j] = std::numeric_limits<vid_t>::max();
             continue;  // already exists
@@ -216,7 +217,8 @@ class VertexTable {
         auto casted_array = std::static_pointer_cast<arrow::LargeStringArray>(
             primary_key_column);
         for (size_t j = 0; j < row_num; ++j) {
-          auto oid = Prop::from_string(std::string(casted_array->GetView(j)));
+          auto oid =
+              Property::from_string(std::string(casted_array->GetView(j)));
           if (indexer_.get_index(oid, vids[j])) {
             vids[j] = std::numeric_limits<vid_t>::max();
             continue;  // already exists

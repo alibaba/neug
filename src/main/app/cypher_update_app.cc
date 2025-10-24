@@ -259,7 +259,7 @@ result<results::CollectiveResults> CypherUpdateApp::execute_ddl(
       bool conflict_action =
           conflict_action_to_bool(create_edges.conflict_action());
       using property_def_t =
-          std::vector<std::tuple<PropertyType, std::string, Prop>>;
+          std::vector<std::tuple<PropertyType, std::string, Property>>;
       using create_edge_value_t =
           std::tuple<std::string, std::string, std::string, property_def_t,
                      bool, EdgeStrategy, EdgeStrategy>;

@@ -825,8 +825,8 @@ std::string proto_to_bolt_response(const results::CollectiveResults& result) {
   return buffer.GetString();
 }
 
-Prop get_default_value(const PropertyType& type) {
-  Prop default_value;
+Property get_default_value(const PropertyType& type) {
+  Property default_value;
   switch (type.type_enum) {
   case impl::PropertyTypeImpl::kEmpty:
     break;
@@ -1018,7 +1018,7 @@ bool data_type_to_property_type(const common::DataType& data_type,
   }
 }
 
-bool common_value_to_any(const common::Value& value, Prop& out_any) {
+bool common_value_to_any(const common::Value& value, Property& out_any) {
   if (value.item_case() == common::Value::ITEM_NOT_SET) {
     LOG(ERROR) << "Value is not set: " << value.DebugString();
     return false;
@@ -1055,13 +1055,13 @@ bool common_value_to_any(const common::Value& value, Prop& out_any) {
   return true;
 }
 
-gs::result<std::vector<std::tuple<PropertyType, std::string, Prop>>>
+gs::result<std::vector<std::tuple<PropertyType, std::string, Property>>>
 property_defs_to_tuple(
     const google::protobuf::RepeatedPtrField<physical::PropertyDef>&
         properties) {
-  std::vector<std::tuple<PropertyType, std::string, Prop>> result;
+  std::vector<std::tuple<PropertyType, std::string, Property>> result;
   for (const auto& property : properties) {
-    std::tuple<PropertyType, std::string, Prop> tuple;
+    std::tuple<PropertyType, std::string, Property> tuple;
     std::get<1>(tuple) = property.name();
     if (!data_type_to_property_type(property.type(), std::get<0>(tuple))) {
       RETURN_ERROR(Status(StatusCode::ERR_INVALID_ARGUMENT,
@@ -1096,31 +1096,31 @@ bool conflict_action_to_bool(const physical::ConflictAction& action) {
   }
 }
 
-Prop const_value_to_any(const common::Value& value) {
+Property const_value_to_any(const common::Value& value) {
   switch (value.item_case()) {
   case common::Value::ItemCase::kI32: {
-    return Prop::From(value.i32());
+    return Property::From(value.i32());
   }
   case common::Value::ItemCase::kI64: {
-    return Prop::From(value.i64());
+    return Property::From(value.i64());
   }
   case common::Value::ItemCase::kU32: {
-    return Prop::From(value.u32());
+    return Property::From(value.u32());
   }
   case common::Value::ItemCase::kU64: {
-    return Prop::From(value.u64());
+    return Property::From(value.u64());
   }
   case common::Value::ItemCase::kF64: {
-    return Prop::From(value.f64());
+    return Property::From(value.f64());
   }
   case common::Value::ItemCase::kF32: {
-    return Prop::From(value.f32());
+    return Property::From(value.f32());
   }
   case common::Value::ItemCase::kBoolean: {
-    return Prop::From(value.boolean());
+    return Property::From(value.boolean());
   }
   case common::Value::ItemCase::kStr: {
-    return Prop::From(value.str());
+    return Property::From(value.str());
   }
   default: {
     THROW_RUNTIME_ERROR("Unsupported constant value type: " +
@@ -1129,31 +1129,31 @@ Prop const_value_to_any(const common::Value& value) {
   }
 }
 
-Prop const_value_to_prop(const common::Value& value) {
+Property const_value_to_prop(const common::Value& value) {
   switch (value.item_case()) {
   case common::Value::ItemCase::kBoolean: {
-    return Prop::from_bool(value.boolean());
+    return Property::from_bool(value.boolean());
   }
   case common::Value::ItemCase::kI32: {
-    return Prop::from_int32(value.i32());
+    return Property::from_int32(value.i32());
   }
   case common::Value::ItemCase::kI64: {
-    return Prop::from_int64(value.i64());
+    return Property::from_int64(value.i64());
   }
   case common::Value::ItemCase::kU32: {
-    return Prop::from_uint32(value.u32());
+    return Property::from_uint32(value.u32());
   }
   case common::Value::ItemCase::kU64: {
-    return Prop::from_uint64(value.u64());
+    return Property::from_uint64(value.u64());
   }
   case common::Value::ItemCase::kF64: {
-    return Prop::from_double(value.f64());
+    return Property::from_double(value.f64());
   }
   case common::Value::ItemCase::kF32: {
-    return Prop::from_float(value.f32());
+    return Property::from_float(value.f32());
   }
   case common::Value::ItemCase::kStr: {
-    return Prop::from_string(value.str());
+    return Property::from_string(value.str());
   }
   default: {
     THROW_RUNTIME_ERROR("Unsupported constant value type: " +
@@ -1162,19 +1162,19 @@ Prop const_value_to_prop(const common::Value& value) {
   }
 }
 
-Prop expr_opr_value_to_any(const common::ExprOpr& value) {
+Property expr_opr_value_to_any(const common::ExprOpr& value) {
   switch (value.item_case()) {
   case common::ExprOpr::ItemCase::kConst: {
     return const_value_to_any(value.const_());
   }
   case common::ExprOpr::ItemCase::kToDate: {
-    return Prop::From(Date(value.to_date().date_str()));
+    return Property::From(Date(value.to_date().date_str()));
   }
   case common::ExprOpr::ItemCase::kToDatetime: {
-    return Prop::From(DateTime(value.to_datetime().datetime_str()));
+    return Property::From(DateTime(value.to_datetime().datetime_str()));
   }
   case common::ExprOpr::ItemCase::kToInterval: {
-    return Prop::From(Interval(value.to_interval().interval_str()));
+    return Property::From(Interval(value.to_interval().interval_str()));
   }
   default: {
     THROW_RUNTIME_ERROR("Unsupported ExprOpr value type: " +
@@ -1183,19 +1183,21 @@ Prop expr_opr_value_to_any(const common::ExprOpr& value) {
   }
 }
 
-Prop expr_opr_value_to_prop(const common::ExprOpr& value) {
+Property expr_opr_value_to_prop(const common::ExprOpr& value) {
   switch (value.item_case()) {
   case common::ExprOpr::ItemCase::kConst: {
     return const_value_to_prop(value.const_());
   }
   case common::ExprOpr::ItemCase::kToDate: {
-    return Prop::from_date(Date(value.to_date().date_str()));
+    return Property::from_date(Date(value.to_date().date_str()));
   }
   case common::ExprOpr::ItemCase::kToDatetime: {
-    return Prop::from_date_time(DateTime(value.to_datetime().datetime_str()));
+    return Property::from_date_time(
+        DateTime(value.to_datetime().datetime_str()));
   }
   case common::ExprOpr::ItemCase::kToInterval: {
-    return Prop::from_interval(Interval(value.to_interval().interval_str()));
+    return Property::from_interval(
+        Interval(value.to_interval().interval_str()));
   }
   default: {
     THROW_RUNTIME_ERROR("Unsupported ExprOpr value type: " +

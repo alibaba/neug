@@ -77,7 +77,7 @@ TEST_F(VertexTableTest, VertexTableBasicOps) {
   table.Reserve(vertex_count_);
 
   gs::vid_t lid1, lid2, lid3;
-  gs::Prop oid1, oid2, oid3;
+  gs::Property oid1, oid2, oid3;
   oid1.set_int64(1);
   oid2.set_int64(2);
   oid3.set_int64(3);
@@ -130,7 +130,7 @@ TEST_F(VertexTableTest, VertexTableDumpAndReload) {
     table.Reserve(vertex_count_);
 
     gs::vid_t lid1, lid2, lid3;
-    gs::Prop oid1, oid2, oid3;
+    gs::Property oid1, oid2, oid3;
     oid1.set_int64(1);
     oid2.set_int64(2);
     oid3.set_int64(3);
@@ -167,7 +167,7 @@ TEST_F(VertexTableTest, VertexTableAddAndDeleteAndReload) {
   std::filesystem::create_directories(gs::checkpoint_dir(dump_dir));
   std::filesystem::create_directories(gs::temp_checkpoint_dir(dump_dir));
   gs::vid_t lid1, lid2, lid3;
-  gs::Prop oid1, oid2, oid3;
+  gs::Property oid1, oid2, oid3;
   {
     gs::VertexTable table(v_label_name_, pk_type_, property_names_,
                           property_types_, storage_strategies_);
