@@ -34,6 +34,7 @@
 #include <vector>
 
 #include "neug/execution/common/types.h"
+#include "neug/utils/property/property.h"
 #include "neug/utils/property/types.h"
 
 #ifdef USE_SYSTEM_PROTOBUF
@@ -423,7 +424,6 @@ enum class RTAnyType {
   kRelation = 20,
   kSet = 21,
   kEmpty = 22,
-  kRecordView = 23,
 };
 
 PropertyType rt_type_to_property_type(RTAnyType type);
@@ -511,8 +511,8 @@ class RTAny {
  public:
   RTAny();
   explicit RTAny(RTAnyType type);
-  explicit RTAny(const Any& val);
-  Any to_any() const;
+  explicit RTAny(const Prop& val);
+  Prop to_any() const;
   RTAny(const RTAny& rhs);
   explicit RTAny(const Path& p);
   ~RTAny() = default;

@@ -859,10 +859,9 @@ static std::unique_ptr<ExprBase> build_expr(
     case ::common::ExprOpr::kToInterval: {
       auto interval_str = opr.to_interval().interval_str();
       // Parse the interval string into Interval
-      auto interval = AnyConverter<Interval>::to_any(interval_str);
+      Interval interval(interval_str);
       // Create a ConstExpr with the parsed Interval
-      return std::make_unique<ConstExpr>(
-          RTAny::from_interval(interval.AsInterval()));
+      return std::make_unique<ConstExpr>(RTAny::from_interval(interval));
     }
 
     case ::common::ExprOpr::kToTuple: {

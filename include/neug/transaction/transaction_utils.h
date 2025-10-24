@@ -91,95 +91,18 @@ class VertexSet {
   bool vertex_table_modifed_;
 };
 
-inline void serialize_field(grape::InArchive& arc, const Any& prop) {
-  if (prop.type == PropertyType::Bool()) {
-    arc << prop.value.b;
-  } else if (prop.type == PropertyType::Int32()) {
-    arc << prop.value.i;
-  } else if (prop.type == PropertyType::UInt32()) {
-    arc << prop.value.ui;
-  } else if (prop.type == PropertyType::Date()) {
-    arc << prop.value.d.to_u32();
-  } else if (prop.type == PropertyType::Timestamp()) {
-    arc << prop.value.ts.milli_second;
-  } else if (prop.type == PropertyType::DateTime()) {
-    arc << prop.value.dt.milli_second;
-  } else if (prop.type.type_enum == impl::PropertyTypeImpl::kString) {
-    std::string_view s = *prop.value.s_ptr;
-    arc << s;
-  } else if (prop.type == PropertyType::StringView()) {
-    arc << prop.value.s;
-  } else if (prop.type == PropertyType::Int64()) {
-    arc << prop.value.l;
-  } else if (prop.type == PropertyType::UInt64()) {
-    arc << prop.value.ul;
-  } else if (prop.type == PropertyType::Double()) {
-    arc << prop.value.db;
-  } else if (prop.type == PropertyType::Float()) {
-    arc << prop.value.f;
-  } else if (prop.type == PropertyType::Empty()) {
-  } else if (prop.type == PropertyType::Record()) {
-    arc << prop.value.record.size();
-    for (auto& field : prop.value.record) {
-      serialize_field(arc, field);
-    }
-  } else {
-    THROW_NOT_SUPPORTED_EXCEPTION(
-        "Unexpected property type: " + prop.type.ToString() + ", " +
-        std::to_string((int32_t) prop.type.type_enum));
-  }
+inline void serialize_field(grape::InArchive& arc, const Prop& prop) {
+  arc << prop;
 }
 
-inline void deserialize_field(grape::OutArchive& arc, Any& prop) {
-  if (prop.type == PropertyType::Bool()) {
-    arc >> prop.value.b;
-  } else if (prop.type == PropertyType::Int32()) {
-    arc >> prop.value.i;
-  } else if (prop.type == PropertyType::UInt32()) {
-    arc >> prop.value.ui;
-  } else if (prop.type == PropertyType::Date()) {
-    uint32_t date_val;
-    arc >> date_val;
-    prop.value.d.from_u32(date_val);
-  } else if (prop.type == PropertyType::Timestamp()) {
-    int64_t ts_val;
-    arc >> ts_val;
-    prop.value.ts.milli_second = ts_val;
-  } else if (prop.type == PropertyType::DateTime()) {
-    int64_t dt_val;
-    arc >> dt_val;
-    prop.value.dt.milli_second = dt_val;
-  } else if (prop.type == PropertyType::StringView()) {
-    arc >> prop.value.s;
-  } else if (prop.type == PropertyType::Int64()) {
-    arc >> prop.value.l;
-  } else if (prop.type == PropertyType::UInt64()) {
-    arc >> prop.value.ul;
-  } else if (prop.type == PropertyType::Double()) {
-    arc >> prop.value.db;
-  } else if (prop.type == PropertyType::Float()) {
-    arc >> prop.value.f;
-  } else if (prop.type == PropertyType::Empty()) {
-  } else if (prop.type == PropertyType::Record()) {
-    size_t len;
-    arc >> len;
-    Record r(len);
-    for (size_t i = 0; i < r.len; ++i) {
-      deserialize_field(arc, r.props[i]);
-    }
-    prop.set_record(r);
-
-  } else {
-    LOG(FATAL) << "Unexpected property type: "
-               << static_cast<int>(prop.type.type_enum);
-  }
+inline void deserialize_field(grape::OutArchive& arc, Prop& prop) {
+  arc >> prop;
 }
 
 inline label_t deserialize_oid(const PropertyGraph& graph,
-                               grape::OutArchive& arc, Any& oid) {
+                               grape::OutArchive& arc, Prop& oid) {
   label_t label;
   arc >> label;
-  oid.type = std::get<0>(graph.schema().get_vertex_primary_key(label).at(0));
   deserialize_field(arc, oid);
   return label;
 }

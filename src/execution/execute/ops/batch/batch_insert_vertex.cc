@@ -29,37 +29,6 @@
 
 namespace gs {
 
-Any prop_to_any(const Prop& prop) {
-  switch (prop.type()) {
-  case PropType::kInt32:
-    return Any(PropUtils<int32_t>::to_typed(prop));
-  case PropType::kUInt32:
-    return Any(PropUtils<uint32_t>::to_typed(prop));
-  case PropType::kInt64:
-    return Any(PropUtils<int64_t>::to_typed(prop));
-  case PropType::kUInt64:
-    return Any(PropUtils<uint64_t>::to_typed(prop));
-  case PropType::kString:
-    return Any(PropUtils<std::string_view>::to_typed(prop));
-  case PropType::kFloat:
-    return Any(PropUtils<float>::to_typed(prop));
-  case PropType::kDouble:
-    return Any(PropUtils<double>::to_typed(prop));
-  case PropType::kTimestamp:
-    return Any(PropUtils<TimeStamp>::to_typed(prop));
-  case PropType::kDate:
-    return Any(PropUtils<Date>::to_typed(prop));
-  case PropType::kDateTime:
-    return Any(PropUtils<DateTime>::to_typed(prop));
-  case PropType::kInterval:
-    return Any(PropUtils<Interval>::to_typed(prop));
-  case PropType::kEmpty:
-    return Any(grape::EmptyType());
-  default:
-    LOG(FATAL) << "Unsupported Prop type: " << static_cast<int>(prop.type());
-    return Any();
-  }
-}
 namespace runtime {
 class OprTimer;
 
@@ -155,7 +124,7 @@ std::unique_ptr<IUpdateOperator> BatchInsertVertexOprBuilder::Build(
       prop_mappings);
 }
 
-std::pair<Any, std::vector<Prop>> get_pk_and_prop_values(
+std::pair<Prop, std::vector<Prop>> get_pk_and_prop_values(
     const std::vector<std::pair<std::string, Prop>>& properties,
     const std::string& pk_name, const PropertyType& pk_type,
     const std::vector<std::string>& properties_name,
@@ -167,7 +136,7 @@ std::pair<Any, std::vector<Prop>> get_pk_and_prop_values(
     THROW_RUNTIME_ERROR("Properties name and type size mismatch");
   }
 
-  Any pk_value;
+  Prop pk_value;
   std::vector<Prop> prop_values;
   // The order should match the schema
   bool pk_found = false;
@@ -177,12 +146,11 @@ std::pair<Any, std::vector<Prop>> get_pk_and_prop_values(
     const auto& prop_value = prop.second;
     if (!pk_found && prop_name == pk_name) {
       pk_found = true;
-      if (prop_value.type() != to_prop_type(pk_type)) {
+      if (prop_value.type() != pk_type) {
         THROW_RUNTIME_ERROR("Primary key type mismatch for property " +
                             prop_name);
       }
-      pk_value = prop_to_any(
-          prop_value);  // TODO(zhanglei): Primary key should also use Any
+      pk_value = prop_value;
     } else {
       auto it =
           std::find(properties_name.begin(), properties_name.end(), prop_name);
@@ -194,11 +162,11 @@ std::pair<Any, std::vector<Prop>> get_pk_and_prop_values(
                          << " has empty type, skipping.";
             continue;
           }
-          if (prop_value.type() != to_prop_type(properties_type[idx])) {
-            THROW_RUNTIME_ERROR(
-                "Property type mismatch for property " + prop_name +
-                ": expected " + properties_type[idx].ToString() + ", got " +
-                std::to_string(static_cast<int>(prop_value.type())));
+          if (prop_value.type() != properties_type[idx]) {
+            THROW_RUNTIME_ERROR("Property type mismatch for property " +
+                                prop_name + ": expected " +
+                                properties_type[idx].ToString() + ", got " +
+                                prop_value.type().ToString());
           }
           prop_values.push_back(prop_value);
         } else {
@@ -251,7 +219,7 @@ gs::result<Context> InsertVertexOpr::eval_impl(
                           " does not match schema size: " +
                           std::to_string(properties_name.size() + 1));
     }
-    Any pk_value;
+    Prop pk_value;
     std::vector<Prop> prop_values;
     std::tie(pk_value, prop_values) =
         get_pk_and_prop_values(properties, std::get<1>(pk), std::get<0>(pk),

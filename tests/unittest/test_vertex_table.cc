@@ -77,17 +77,17 @@ TEST_F(VertexTableTest, VertexTableBasicOps) {
   table.Reserve(vertex_count_);
 
   gs::vid_t lid1, lid2, lid3;
-  gs::Any oid1, oid2, oid3;
-  oid1.set_i64(1);
-  oid2.set_i64(2);
-  oid3.set_i64(3);
+  gs::Prop oid1, oid2, oid3;
+  oid1.set_int64(1);
+  oid2.set_int64(2);
+  oid3.set_int64(3);
   lid1 = table.add_vertex(oid1, 1);
   lid2 = table.add_vertex(oid2, 2);
   lid3 = table.add_vertex(oid3, 3);
   LOG(INFO) << "Added vertices with lids: " << lid1 << ", " << lid2 << ", "
             << lid3;
-  LOG(INFO) << "and oids: " << oid1.AsInt64() << ", " << oid2.AsInt64() << ", "
-            << oid3.AsInt64();
+  LOG(INFO) << "and oids: " << oid1.as_int64() << ", " << oid2.as_int64()
+            << ", " << oid3.as_int64();
 
   EXPECT_EQ(table.vertex_num(), 3);
   EXPECT_EQ(table.lid_num(), 3);
@@ -130,10 +130,10 @@ TEST_F(VertexTableTest, VertexTableDumpAndReload) {
     table.Reserve(vertex_count_);
 
     gs::vid_t lid1, lid2, lid3;
-    gs::Any oid1, oid2, oid3;
-    oid1.set_i64(1);
-    oid2.set_i64(2);
-    oid3.set_i64(3);
+    gs::Prop oid1, oid2, oid3;
+    oid1.set_int64(1);
+    oid2.set_int64(2);
+    oid3.set_int64(3);
     lid1 = table.add_vertex(oid1, 1);
     lid2 = table.add_vertex(oid2, 2);
     lid3 = table.add_vertex(oid3, 3);
@@ -167,16 +167,16 @@ TEST_F(VertexTableTest, VertexTableAddAndDeleteAndReload) {
   std::filesystem::create_directories(gs::checkpoint_dir(dump_dir));
   std::filesystem::create_directories(gs::temp_checkpoint_dir(dump_dir));
   gs::vid_t lid1, lid2, lid3;
-  gs::Any oid1, oid2, oid3;
+  gs::Prop oid1, oid2, oid3;
   {
     gs::VertexTable table(v_label_name_, pk_type_, property_names_,
                           property_types_, storage_strategies_);
     table.Open(dump_dir, memory_level_, true);
     table.Reserve(vertex_count_);
 
-    oid1.set_i64(1);
-    oid2.set_i64(2);
-    oid3.set_i64(3);
+    oid1.set_int64(1);
+    oid2.set_int64(2);
+    oid3.set_int64(3);
     lid1 = table.add_vertex(oid1, 1);
     lid2 = table.add_vertex(oid2, 2);
     lid3 = table.add_vertex(oid3, 3);

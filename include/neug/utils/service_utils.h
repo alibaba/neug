@@ -104,8 +104,7 @@ inline std::string toUpper(const std::string str) {
 inline bool to_json(rapidjson::Document& j, const PropertyType& p) {
   if (p == PropertyType::Empty()) {
     j.AddMember("empty", "empty", j.GetAllocator());
-  } else if (p == PropertyType::Bool() || p == PropertyType::UInt8() ||
-             p == PropertyType::UInt16() || p == PropertyType::Int32() ||
+  } else if (p == PropertyType::Bool() || p == PropertyType::Int32() ||
              p == PropertyType::UInt32() || p == PropertyType::Float() ||
              p == PropertyType::Int64() || p == PropertyType::UInt64() ||
              p == PropertyType::Double()) {
@@ -116,8 +115,7 @@ inline bool to_json(rapidjson::Document& j, const PropertyType& p) {
     rapidjson::Document temporal(rapidjson::kObjectType, &j.GetAllocator());
     temporal.AddMember("timestamp", "", j.GetAllocator());
     j.AddMember("temporal", temporal, j.GetAllocator());
-  } else if (p == PropertyType::StringView() ||
-             p == PropertyType::StringMap()) {
+  } else if (p.type_enum == impl::PropertyTypeImpl::kString) {
     rapidjson::Document long_text(rapidjson::kObjectType, &j.GetAllocator());
     long_text.AddMember("long_text", "", j.GetAllocator());
     j.AddMember("string", long_text, j.GetAllocator());

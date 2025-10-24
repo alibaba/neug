@@ -96,11 +96,11 @@ class VertexColumn {
   inline PROP_T get_view(vid_t v) const {
     // col_id == -1 means the primary key column
     if (col_id == static_cast<int>(ColState::kPrimaryKeyColId)) {
-      return AnyConverter<PROP_T>::from_any(txn_->GetVertexId(label_, v));
+      return PropUtils<PROP_T>::to_typed(txn_->GetVertexId(label_, v));
     } else if (col_id == static_cast<int>(ColState::kInvalidColId)) {
       return PROP_T();
     } else {
-      return AnyConverter<PROP_T>::from_any(
+      return PropUtils<PROP_T>::to_typed(
           txn_->GetVertexField(label_, v, col_id));
     }
   }
@@ -143,7 +143,8 @@ class GraphReadInterface {
     return txn_.GetVertexSet(label);
   }
 
-  inline bool GetVertexIndex(label_t label, const Any& id, vid_t& index) const {
+  inline bool GetVertexIndex(label_t label, const Prop& id,
+                             vid_t& index) const {
     return txn_.GetVertexIndex(label, id, index);
   }
 
@@ -151,11 +152,11 @@ class GraphReadInterface {
     return txn_.IsValidVertex(label, index);
   }
 
-  inline Any GetVertexId(label_t label, vid_t index) const {
+  inline Prop GetVertexId(label_t label, vid_t index) const {
     return txn_.GetVertexId(label, index);
   }
 
-  inline Any GetVertexProperty(label_t label, vid_t index, int prop_id) const {
+  inline Prop GetVertexProperty(label_t label, vid_t index, int prop_id) const {
     return txn_.graph().get_vertex_table(label).at(index, prop_id);
   }
 
@@ -190,13 +191,13 @@ class GraphInsertInterface {
   explicit GraphInsertInterface(gs::InsertTransaction& txn) : txn_(txn) {}
   ~GraphInsertInterface() {}
 
-  inline bool AddVertex(label_t label, const Any& id,
+  inline bool AddVertex(label_t label, const Prop& id,
                         const std::vector<Prop>& props) {
     return txn_.AddVertex(label, id, props);
   }
 
-  inline bool AddEdge(label_t src_label, const Any& src, label_t dst_label,
-                      const Any& dst, label_t edge_label,
+  inline bool AddEdge(label_t src_label, const Prop& src, label_t dst_label,
+                      const Prop& dst, label_t edge_label,
                       const std::vector<Prop>& properties) {
     return txn_.AddEdge(src_label, src, dst_label, dst, edge_label, properties);
   }
@@ -244,11 +245,11 @@ class GraphUpdateInterface {
   ~GraphUpdateInterface() {}
 
   inline void SetVertexField(label_t label, vid_t lid, int col_id,
-                             const Any& value) {
+                             const Prop& value) {
     txn_.SetVertexField(label, lid, col_id, value);
   }
 
-  inline Any GetVertexProperty(label_t label, vid_t index, int prop_id) const {
+  inline Prop GetVertexProperty(label_t label, vid_t index, int prop_id) const {
     return txn_.GetGraph().get_vertex_table(label).at(index, prop_id);
   }
 
@@ -267,22 +268,23 @@ class GraphUpdateInterface {
                                    edge_label, prop_id, ret);
   }
 
-  inline bool AddVertex(label_t label, const Any& id,
+  inline bool AddVertex(label_t label, const Prop& id,
                         const std::vector<Prop>& props) {
     return txn_.AddVertex(label, id, props);
   }
 
-  inline bool GetVertexIndex(label_t label, const Any& id, vid_t& index) const {
+  inline bool GetVertexIndex(label_t label, const Prop& id,
+                             vid_t& index) const {
     return txn_.GetVertexIndex(label, id, index);
   }
 
-  inline bool AddVertex(label_t label, const Any& id,
+  inline bool AddVertex(label_t label, const Prop& id,
                         const std::vector<Prop>& props, vid_t& vid) {
     return txn_.AddVertex(label, id, props, vid);
   }
 
-  inline bool AddEdge(label_t src_label, const Any& src, label_t dst_label,
-                      const Any& dst, label_t edge_label,
+  inline bool AddEdge(label_t src_label, const Prop& src, label_t dst_label,
+                      const Prop& dst, label_t edge_label,
                       const std::vector<Prop>& properties) {
     return txn_.AddEdge(src_label, src, dst_label, dst, edge_label, properties);
   }
@@ -299,7 +301,7 @@ class GraphUpdateInterface {
 
   inline const Schema& schema() const { return txn_.schema(); }
 
-  inline Any GetVertexId(label_t label, vid_t index) const {
+  inline Prop GetVertexId(label_t label, vid_t index) const {
     return txn_.GetVertexId(label, index);
   }
 
@@ -307,7 +309,7 @@ class GraphUpdateInterface {
     return txn_.GetVertexNum(label);
   }
 
-  inline bool HasVertex(label_t label, const Any& oid) const {
+  inline bool HasVertex(label_t label, const Prop& oid) const {
     return txn_.HasVertex(label, oid);
   }
 

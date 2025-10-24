@@ -37,7 +37,7 @@ namespace ops {
 class ScanUtils {
  public:
   static std::function<
-      std::vector<Any>(const std::map<std::string, std::string>&)>
+      std::vector<Prop>(const std::map<std::string, std::string>&)>
   parse_ids_with_type(PropertyType type,
                       const algebra::IndexPredicate& triplet);
 

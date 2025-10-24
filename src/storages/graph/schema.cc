@@ -783,20 +783,6 @@ static Status parse_edge_properties(YAML::Node node,
                     "type of edge-" + label_name + " prop-" +
                         std::to_string(i - 1) + " is not specified...");
     }
-    // For edge properties, we have some constrains on the property type. We
-    // currently only support var_char. long_text string are not supported.
-    if (prop_type == PropertyType::StringMap()) {
-      LOG(ERROR) << "Please use varchar as the type of edge-" << label_name
-                 << " prop-" << i - 1
-                 << ", if you want to use string property: " << prop_type
-                 << ", prop_type.enum-"
-                 << static_cast<int>(prop_type.type_enum);
-      return Status(StatusCode::ERR_INVALID_SCHEMA,
-                    "Please use varchar as the type of edge-" + label_name +
-                        " prop-" + std::to_string(i - 1) +
-                        ", if you want to "
-                        "use string property.");
-    }
 
     if (!get_scalar(node[i], "property_name", prop_name_str)) {
       LOG(ERROR) << "name of edge-" << label_name << " prop-" << i - 1
@@ -1477,7 +1463,7 @@ void Schema::add_vertex_properties(
     const std::string& label, std::vector<std::string>& properties_names,
     std::vector<PropertyType>& properties_types,
     std::vector<StorageStrategy>& storage_strategies,
-    std::vector<Any>& properties_default_values) {
+    std::vector<Prop>& properties_default_values) {
   auto v_label_id = get_vertex_label_id(label);
   LOG_FATAL_IF(v_label_id >= vprop_names_.size(),
                "vertex label id out of range of vprop_names_");
@@ -1616,7 +1602,7 @@ void Schema::add_edge_properties(const std::string& src_label,
                                  const std::string& edge_label,
                                  std::vector<std::string>& properties_names,
                                  std::vector<PropertyType>& properties_types,
-                                 std::vector<Any>& properties_default_values) {
+                                 std::vector<Prop>& properties_default_values) {
   label_t src = get_vertex_label_id(src_label);
   label_t dst = get_vertex_label_id(dst_label);
   label_t edge = get_edge_label_id(edge_label);

@@ -39,19 +39,19 @@ namespace runtime {
 
 void get_labels(
     const EdgeExpandParams& eep, const GraphReadInterface& graph,
-    std::vector<std::vector<std::pair<LabelTriplet, PropertyType>>>& labels) {
-  std::vector<std::pair<LabelTriplet, PropertyType>> labels_i;
+    std::vector<
+        std::vector<std::pair<LabelTriplet, std::vector<PropertyType>>>>&
+        labels) {
+  std::vector<std::pair<LabelTriplet, std::vector<PropertyType>>> labels_i;
   for (const auto& label_triplet : eep.labels) {
     std::vector<PropertyType> props;
     props = graph.schema().get_edge_properties(label_triplet.src_label,
                                                label_triplet.dst_label,
                                                label_triplet.edge_label);
     if (props.empty()) {
-      labels_i.emplace_back(label_triplet, PropertyType::kEmpty);
-    } else if (props.size() == 1) {
-      labels_i.emplace_back(label_triplet, props[0]);
+      labels_i.emplace_back(label_triplet, std::vector{PropertyType::kEmpty});
     } else {
-      labels_i.emplace_back(label_triplet, PropertyType::kRecordView);
+      labels_i.emplace_back(label_triplet, props);
     }
   }
   labels.push_back(std::move(labels_i));
@@ -74,7 +74,8 @@ gs::result<gs::runtime::Context> Intersect::Multiple_Intersect(
   size_t row_num = ctx.row_num();
   // TODO(luoxiaojian): opt with MLVertexColumnBuilderOpt
   MLVertexColumnBuilder builder;
-  std::vector<std::vector<std::pair<LabelTriplet, PropertyType>>> labels;
+  std::vector<std::vector<std::pair<LabelTriplet, std::vector<PropertyType>>>>
+      labels;
   labels.reserve(eeps.size());
 
   for (size_t i = 0; i < eeps.size(); ++i) {
@@ -237,7 +238,8 @@ gs::result<gs::runtime::Context> Intersect::Binary_Intersect_With_Edge(
   MLVertexColumnBuilder builder;
   std::vector<size_t> offsets;
 
-  std::vector<std::vector<std::pair<LabelTriplet, PropertyType>>> labels;
+  std::vector<std::vector<std::pair<LabelTriplet, std::vector<PropertyType>>>>
+      labels;
   std::vector<BDMLEdgeColumnBuilder> edge_builders;
   {
     get_labels(eep0, graph, labels);

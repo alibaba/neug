@@ -100,7 +100,7 @@ Status PropertyGraph::batch_add_edges(
 
 Status PropertyGraph::create_vertex_type(
     const std::string& vertex_type_name,
-    const std::vector<std::tuple<PropertyType, std::string, Any>>& properties,
+    const std::vector<std::tuple<PropertyType, std::string, Prop>>& properties,
     const std::vector<std::string>& primary_key_names, bool error_on_conflict) {
   if (schema_.contains_vertex_label(vertex_type_name)) {
     if (error_on_conflict) {
@@ -113,7 +113,7 @@ Status PropertyGraph::create_vertex_type(
   std::vector<std::string> property_names;
   std::vector<PropertyType> property_types;
   // TODO(zhanglei): Not used
-  std::vector<Any> default_property_values;
+  std::vector<Prop> default_property_values;
   std::vector<std::tuple<PropertyType, std::string, size_t>> primary_keys;
   std::vector<int> primary_key_inds(primary_key_names.size(), -1);
   if (primary_key_inds.size() > 1) {
@@ -207,7 +207,7 @@ Status PropertyGraph::create_vertex_type(
 Status PropertyGraph::create_edge_type(
     const std::string& src_vertex_type, const std::string& dst_vertex_type,
     const std::string& edge_type_name,
-    const std::vector<std::tuple<PropertyType, std::string, Any>>& properties,
+    const std::vector<std::tuple<PropertyType, std::string, Prop>>& properties,
     bool error_on_conflict, EdgeStrategy oe_edge_strategy,
     EdgeStrategy ie_edge_strategy) {
   LOG(INFO) << "create_edge_type: src_vertex_type: " << src_vertex_type
@@ -242,7 +242,7 @@ Status PropertyGraph::create_edge_type(
   std::vector<std::string> property_names;
   std::vector<PropertyType> property_types;
   // TODO(zhanglei): Not used
-  std::vector<Any> default_property_values;
+  std::vector<Prop> default_property_values;
   for (size_t i = 0; i < properties.size(); i++) {
     auto [type, name, default_value] = properties[i];
     property_names.emplace_back(name);
@@ -292,7 +292,7 @@ Status PropertyGraph::create_edge_type(
 
 Status PropertyGraph::add_vertex_properties(
     const std::string& vertex_type_name,
-    const std::vector<std::tuple<PropertyType, std::string, Any>>&
+    const std::vector<std::tuple<PropertyType, std::string, Prop>>&
         add_properties,
     bool error_on_conflict) {
   if (!schema_.contains_vertex_label(vertex_type_name)) {
@@ -308,7 +308,7 @@ Status PropertyGraph::add_vertex_properties(
   std::vector<std::string> add_property_names;
   std::vector<PropertyType> add_property_types;
   std::vector<StorageStrategy> add_property_storages;
-  std::vector<Any> add_default_property_values;
+  std::vector<Prop> add_default_property_values;
   for (size_t i = 0; i < add_properties.size(); i++) {
     auto [property_type, property_name, default_value] = add_properties[i];
     if (schema_.vertex_has_property(vertex_type_name, property_name)) {
@@ -347,7 +347,7 @@ Status PropertyGraph::add_vertex_properties(
 Status PropertyGraph::add_edge_properties(
     const std::string& src_type_name, const std::string& dst_type_name,
     const std::string& edge_type_name,
-    const std::vector<std::tuple<PropertyType, std::string, Any>>&
+    const std::vector<std::tuple<PropertyType, std::string, Prop>>&
         add_properties,
     bool error_on_conflict) {
   if (!schema_.has_edge_label(src_type_name, dst_type_name, edge_type_name)) {
@@ -363,7 +363,7 @@ Status PropertyGraph::add_edge_properties(
   }
   std::vector<std::string> add_property_names;
   std::vector<PropertyType> add_property_types;
-  std::vector<Any> add_default_property_values;
+  std::vector<Prop> add_default_property_values;
   for (size_t i = 0; i < add_properties.size(); i++) {
     auto [property_type, property_name, default_value] = add_properties[i];
     if (schema_.edge_has_property(src_type_name, dst_type_name, edge_type_name,
@@ -1012,20 +1012,20 @@ size_t PropertyGraph::edge_num(label_t src_label, label_t edge_label,
   }
 }
 
-bool PropertyGraph::get_lid(label_t label, const Any& oid, vid_t& lid,
+bool PropertyGraph::get_lid(label_t label, const Prop& oid, vid_t& lid,
                             timestamp_t ts) const {
   return vertex_tables_[label].get_index(oid, lid, ts);
 }
 
-Any PropertyGraph::get_oid(label_t label, vid_t lid, timestamp_t ts) const {
+Prop PropertyGraph::get_oid(label_t label, vid_t lid, timestamp_t ts) const {
   return vertex_tables_[label].get_oid(lid, ts);
 }
 
-vid_t PropertyGraph::add_vertex(label_t label, const Any& id, timestamp_t ts) {
+vid_t PropertyGraph::add_vertex(label_t label, const Prop& id, timestamp_t ts) {
   return vertex_tables_[label].add_vertex(id, ts);
 }
 
-vid_t PropertyGraph::add_vertex_safe(label_t label, const Any& id,
+vid_t PropertyGraph::add_vertex_safe(label_t label, const Prop& id,
                                      timestamp_t ts) {
   return vertex_tables_[label].add_vertex_safe(id, ts);
 }

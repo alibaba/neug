@@ -44,10 +44,6 @@ std::string PrimitivePropertyTypeToString(PropertyType type) {
     return "Empty";
   } else if (type == PropertyType::kBool) {
     return DT_BOOL;
-  } else if (type == PropertyType::kUInt8) {
-    return DT_UNSIGNED_INT8;
-  } else if (type == PropertyType::kUInt16) {
-    return DT_UNSIGNED_INT16;
   } else if (type == PropertyType::kInt32) {
     return DT_SIGNED_INT32;
   } else if (type == PropertyType::kUInt32) {
@@ -60,18 +56,8 @@ std::string PrimitivePropertyTypeToString(PropertyType type) {
     return DT_FLOAT;
   } else if (type == PropertyType::kDouble) {
     return DT_DOUBLE;
-  } else if (type == PropertyType::kStringView) {
+  } else if (type.type_enum == impl::PropertyTypeImpl::kStringView) {
     return DT_STRING;
-  } else if (type == PropertyType::kStringMap) {
-    return DT_STRINGMAP;
-  } else if (type == PropertyType::kVertexGlobalId) {
-    return "VertexGlobalId";
-  } else if (type == PropertyType::kLabel) {
-    return "Label";
-  } else if (type == PropertyType::kRecord) {
-    return "Record";
-  } else if (type == PropertyType::kRecordView) {
-    return "RecordView";
   } else if (type == PropertyType::kDate) {
     return DT_DATE;
   } else if (type == PropertyType::kDateTime) {
@@ -104,8 +90,6 @@ PropertyType StringToPrimitivePropertyType(const std::string& str) {
   } else if (str == "String" || str == "STRING" || str == DT_STRING) {
     // DT_STRING is a alias for VARCHAR(GetStringDefaultMaxLength());
     return PropertyType::Varchar(PropertyType::GetStringDefaultMaxLength());
-  } else if (str == DT_STRINGMAP) {
-    return PropertyType::kStringMap;
   } else if (str == "Empty") {
     return PropertyType::kEmpty;
   } else if (str == "int64" || str == "LONG" || str == DT_SIGNED_INT64) {
@@ -162,98 +146,10 @@ uint16_t PropertyType::GetStringDefaultMaxLength() {
              : PropertyType::STRING_DEFAULT_MAX_LENGTH;
 }
 
-size_t RecordView::size() const { return table->col_num(); }
-
-Any RecordView::operator[](size_t col_id) const {
-  return table->get_column_by_id(col_id)->get(offset);
-}
-
-std::string RecordView::to_string() const {
-  std::string ret = "RecordView{";
-  for (size_t i = 0; i < table->col_num(); ++i) {
-    if (i > 0) {
-      ret += ", ";
-    }
-    ret += table->get_column_by_id(i)->get(offset).to_string();
-  }
-  ret += "}";
-  return ret;
-}
-
-Record::Record(size_t len) : len(len) { props = new Any[len]; }
-
-Record::Record(const Record& record) {
-  len = record.len;
-  props = new Any[len];
-  for (size_t i = 0; i < len; ++i) {
-    props[i] = record.props[i];
-  }
-}
-
-Record::Record(Record&& record) {
-  len = record.len;
-  props = record.props;
-  record.len = 0;
-  record.props = nullptr;
-}
-
-Record& Record::operator=(const Record& record) {
-  if (this == &record) {
-    return *this;
-  }
-  if (props) {
-    delete[] props;
-  }
-  len = record.len;
-  props = new Any[len];
-  for (size_t i = 0; i < len; ++i) {
-    props[i] = record.props[i];
-  }
-  return *this;
-}
-
-Record::Record(const std::initializer_list<Any>& list) {
-  len = list.size();
-  props = new Any[len];
-  size_t i = 0;
-  for (auto& item : list) {
-    props[i++] = item;
-  }
-}
-
-Record::Record(const std::vector<Any>& vec) {
-  len = vec.size();
-  props = new Any[len];
-  for (size_t i = 0; i < len; ++i) {
-    props[i] = vec[i];
-  }
-}
-
-Any Record::operator[](size_t idx) const {
-  if (idx >= len) {
-    return Any();
-  }
-  return props[idx];
-}
-
-Any* Record::begin() const { return props; }
-Any* Record::end() const { return props + len; }
-
-Record::~Record() {
-  if (props) {
-    delete[] props;
-  }
-  props = nullptr;
-}
-
 const PropertyType PropertyType::kEmpty =
     PropertyType(impl::PropertyTypeImpl::kEmpty);
 const PropertyType PropertyType::kBool =
     PropertyType(impl::PropertyTypeImpl::kBool);
-const PropertyType PropertyType::kUInt8 =
-    PropertyType(impl::PropertyTypeImpl::kUInt8);
-const PropertyType PropertyType::kUInt16 =
-    PropertyType(impl::PropertyTypeImpl::kUInt16);
 const PropertyType PropertyType::kInt32 =
     PropertyType(impl::PropertyTypeImpl::kInt32);
 const PropertyType PropertyType::kUInt32 =
@@ -268,19 +164,8 @@ const PropertyType PropertyType::kDouble =
     PropertyType(impl::PropertyTypeImpl::kDouble);
 const PropertyType PropertyType::kStringView =
     PropertyType(impl::PropertyTypeImpl::kStringView);
-const PropertyType PropertyType::kStringMap =
-    PropertyType(impl::PropertyTypeImpl::kStringMap);
 const PropertyType PropertyType::kString =
     PropertyType(impl::PropertyTypeImpl::kString);
-const PropertyType PropertyType::kVertexGlobalId =
-    PropertyType(impl::PropertyTypeImpl::kVertexGlobalId);
-const PropertyType PropertyType::kLabel =
-    PropertyType(impl::PropertyTypeImpl::kLabel);
-const PropertyType PropertyType::kRecordView =
-    PropertyType(impl::PropertyTypeImpl::kRecordView);
-const PropertyType PropertyType::kRecord =
-    PropertyType(impl::PropertyTypeImpl::kRecord);
-
 const PropertyType PropertyType::kDate =
     PropertyType(impl::PropertyTypeImpl::kDate);
 const PropertyType PropertyType::kDateTime =
@@ -327,10 +212,6 @@ std::string PropertyType::ToString() const {
     return "Empty";
   case impl::PropertyTypeImpl::kBool:
     return "Bool";
-  case impl::PropertyTypeImpl::kUInt8:
-    return "UInt8";
-  case impl::PropertyTypeImpl::kUInt16:
-    return "UInt16";
   case impl::PropertyTypeImpl::kInt32:
     return "Int32";
   case impl::PropertyTypeImpl::kUInt32:
@@ -349,16 +230,6 @@ std::string PropertyType::ToString() const {
     return "String";
   case impl::PropertyTypeImpl::kStringView:
     return "StringView";
-  case impl::PropertyTypeImpl::kStringMap:
-    return "StringMap";
-  case impl::PropertyTypeImpl::kVertexGlobalId:
-    return "VertexGlobalId";
-  case impl::PropertyTypeImpl::kLabel:
-    return "Label";
-  case impl::PropertyTypeImpl::kRecordView:
-    return "RecordView";
-  case impl::PropertyTypeImpl::kRecord:
-    return "Record";
   case impl::PropertyTypeImpl::kDate:
     return "Date";
   case impl::PropertyTypeImpl::kDateTime:
@@ -379,12 +250,6 @@ PropertyType PropertyType::Empty() {
 }
 PropertyType PropertyType::Bool() {
   return PropertyType(impl::PropertyTypeImpl::kBool);
-}
-PropertyType PropertyType::UInt8() {
-  return PropertyType(impl::PropertyTypeImpl::kUInt8);
-}
-PropertyType PropertyType::UInt16() {
-  return PropertyType(impl::PropertyTypeImpl::kUInt16);
 }
 PropertyType PropertyType::Int32() {
   return PropertyType(impl::PropertyTypeImpl::kInt32);
@@ -410,27 +275,9 @@ PropertyType PropertyType::String() {
 PropertyType PropertyType::StringView() {
   return PropertyType(impl::PropertyTypeImpl::kStringView);
 }
-PropertyType PropertyType::StringMap() {
-  return PropertyType(impl::PropertyTypeImpl::kStringMap);
-}
+
 PropertyType PropertyType::Varchar(uint16_t max_length) {
   return PropertyType(impl::PropertyTypeImpl::kVarChar, max_length);
-}
-
-PropertyType PropertyType::VertexGlobalId() {
-  return PropertyType(impl::PropertyTypeImpl::kVertexGlobalId);
-}
-
-PropertyType PropertyType::Label() {
-  return PropertyType(impl::PropertyTypeImpl::kLabel);
-}
-
-PropertyType PropertyType::RecordView() {
-  return PropertyType(impl::PropertyTypeImpl::kRecordView);
-}
-
-PropertyType PropertyType::Record() {
-  return PropertyType(impl::PropertyTypeImpl::kRecord);
 }
 
 PropertyType PropertyType::Date() {
@@ -463,121 +310,6 @@ grape::OutArchive& operator>>(grape::OutArchive& out_archive,
   if (value.type_enum == impl::PropertyTypeImpl::kVarChar) {
     out_archive >> value.additional_type_info.max_length;
   }
-  return out_archive;
-}
-
-grape::InArchive& operator<<(grape::InArchive& in_archive, const Any& value) {
-  if (value.type == PropertyType::Empty()) {
-    in_archive << value.type;
-  } else if (value.type == PropertyType::Bool()) {
-    in_archive << value.type << value.value.b;
-  } else if (value.type == PropertyType::UInt8()) {
-    in_archive << value.type << value.value.u8;
-  } else if (value.type == PropertyType::UInt16()) {
-    in_archive << value.type << value.value.u16;
-  } else if (value.type == PropertyType::Int32()) {
-    in_archive << value.type << value.value.i;
-  } else if (value.type == PropertyType::UInt32()) {
-    in_archive << value.type << value.value.ui;
-  } else if (value.type == PropertyType::Int64()) {
-    in_archive << value.type << value.value.l;
-  } else if (value.type == PropertyType::UInt64()) {
-    in_archive << value.type << value.value.ul;
-  } else if (value.type == PropertyType::Float()) {
-    in_archive << value.type << value.value.f;
-  } else if (value.type == PropertyType::Double()) {
-    in_archive << value.type << value.value.db;
-  } else if (value.type == PropertyType::String()) {
-    // serialize as string_view
-    auto s = *value.value.s_ptr;
-    auto type = PropertyType::StringView();
-    in_archive << type << s;
-  } else if (value.type == PropertyType::StringView()) {
-    in_archive << value.type << value.value.s;
-  } else if (value.type == PropertyType::VertexGlobalId()) {
-    in_archive << value.type << value.value.vertex_gid;
-  } else if (value.type == PropertyType::Label()) {
-    in_archive << value.type << value.value.label_key;
-  } else if (value.type == PropertyType::RecordView()) {
-    THROW_NOT_SUPPORTED_EXCEPTION(
-        "RecordView is not supported in deserialization.");
-  } else if (value.type == PropertyType::Record()) {
-    in_archive << value.type << value.value.record.len;
-    for (size_t i = 0; i < value.value.record.len; ++i) {
-      in_archive << value.value.record.props[i];
-    }
-  } else if (value.type == PropertyType::Date()) {
-    in_archive << value.type << value.value.d.to_u32();
-  } else if (value.type == PropertyType::DateTime()) {
-    in_archive << value.type << value.value.dt.milli_second;
-  } else if (value.type == PropertyType::Interval()) {
-    in_archive << value.type << value.value.interval.to_mill_seconds();
-  } else {
-    THROW_NOT_SUPPORTED_EXCEPTION("Not supported: " + value.type.ToString());
-  }
-
-  return in_archive;
-}
-
-grape::OutArchive& operator>>(grape::OutArchive& out_archive, Any& value) {
-  out_archive >> value.type;
-  if (value.type == PropertyType::Empty()) {
-  } else if (value.type == PropertyType::Bool()) {
-    out_archive >> value.value.b;
-  } else if (value.type == PropertyType::UInt8()) {
-    out_archive >> value.value.u8;
-  } else if (value.type == PropertyType::UInt16()) {
-    out_archive >> value.value.u16;
-  } else if (value.type == PropertyType::Int32()) {
-    out_archive >> value.value.i;
-  } else if (value.type == PropertyType::UInt32()) {
-    out_archive >> value.value.ui;
-  } else if (value.type == PropertyType::Float()) {
-    out_archive >> value.value.f;
-  } else if (value.type == PropertyType::Int64()) {
-    out_archive >> value.value.l;
-  } else if (value.type == PropertyType::UInt64()) {
-    out_archive >> value.value.ul;
-  } else if (value.type == PropertyType::Double()) {
-    out_archive >> value.value.db;
-  } else if (value.type.type_enum == impl::PropertyTypeImpl::kString) {
-    THROW_NOT_SUPPORTED_EXCEPTION(
-        "Serialization of String type is not supported, use StringView "
-        "instead.");
-  } else if (value.type == PropertyType::StringView()) {
-    out_archive >> value.value.s;
-  } else if (value.type == PropertyType::VertexGlobalId()) {
-    out_archive >> value.value.vertex_gid;
-  } else if (value.type == PropertyType::Label()) {
-    out_archive >> value.value.label_key;
-  } else if (value.type == PropertyType::RecordView()) {
-    THROW_NOT_SUPPORTED_EXCEPTION(
-        "RecordView is not supported in serialization.");
-  } else if (value.type == PropertyType::Record()) {
-    size_t len;
-    out_archive >> len;
-    Record r;
-    r.props = new Any[len];
-    for (size_t i = 0; i < len; ++i) {
-      out_archive >> r.props[i];
-    }
-    value.set_record(r);
-  } else if (value.type == PropertyType::Date()) {
-    uint32_t date_val;
-    out_archive >> date_val;
-    value.value.d.from_u32(date_val);
-  } else if (value.type == PropertyType::DateTime()) {
-    int64_t date_time_val;
-    out_archive >> date_time_val;
-    value.value.dt.milli_second = date_time_val;
-  } else if (value.type == PropertyType::Interval()) {
-    uint64_t interval_val;
-    out_archive >> interval_val;
-    value.value.interval.from_mill_seconds(interval_val);
-  } else {
-    THROW_NOT_SUPPORTED_EXCEPTION("Not supported: " + value.type.ToString());
-  }
-
   return out_archive;
 }
 
@@ -1142,220 +874,6 @@ Interval operator-(const Interval& lhs, const Interval& rhs) {
   Interval result = lhs;
   result -= rhs;
   return result;
-}
-
-std::string Any::to_string() const {
-  if (type == PropertyType::kInt32) {
-    return std::to_string(value.i);
-  } else if (type == PropertyType::kInt64) {
-    return std::to_string(value.l);
-  } else if (type.type_enum == impl::PropertyTypeImpl::kString) {
-    return *value.s_ptr.ptr;
-  } else if (type == PropertyType::kStringView) {
-    return std::string(value.s.data(), value.s.size());
-    //      return value.s.to_string();
-  } else if (type == PropertyType::kEmpty) {
-    return "NULL";
-  } else if (type == PropertyType::kDouble) {
-    return std::to_string(value.db);
-  } else if (type == PropertyType::kUInt8) {
-    return std::to_string(value.u8);
-  } else if (type == PropertyType::kUInt16) {
-    return std::to_string(value.u16);
-  } else if (type == PropertyType::kUInt32) {
-    return std::to_string(value.ui);
-  } else if (type == PropertyType::kUInt64) {
-    return std::to_string(value.ul);
-  } else if (type == PropertyType::kBool) {
-    return value.b ? "true" : "false";
-  } else if (type == PropertyType::kFloat) {
-    return std::to_string(value.f);
-  } else if (type == PropertyType::kVertexGlobalId) {
-    return value.vertex_gid.to_string();
-  } else if (type == PropertyType::kLabel) {
-    return std::to_string(value.label_key.label_id);
-  } else if (type == PropertyType::kDate) {
-    return value.d.to_string();
-  } else if (type == PropertyType::kDateTime) {
-    return value.dt.to_string();
-  } else if (type == PropertyType::kInterval) {
-    return value.interval.to_string();
-  } else if (type == PropertyType::kTimestamp) {
-    return value.ts.to_string();
-  } else if (type == PropertyType::kRecordView) {
-    return value.record_view.to_string();
-  } else {
-    THROW_NOT_SUPPORTED_EXCEPTION(
-        "Unexpected property type: " +
-        std::to_string(static_cast<int>(type.type_enum)));
-  }
-}
-
-bool Any::operator==(const Any& other) const {
-  if (type == other.type) {
-    if (type == PropertyType::kInt32) {
-      return value.i == other.value.i;
-    } else if (type == PropertyType::kInt64) {
-      return value.l == other.value.l;
-    } else if (type.type_enum == impl::PropertyTypeImpl::kString) {
-      return *value.s_ptr == other.AsStringView();
-    } else if (type == PropertyType::kStringView) {
-      return value.s == other.AsStringView();
-    } else if (type == PropertyType::kEmpty) {
-      return true;
-    } else if (type == PropertyType::kDouble) {
-      return value.db == other.value.db;
-    } else if (type == PropertyType::kUInt32) {
-      return value.ui == other.value.ui;
-    } else if (type == PropertyType::kUInt64) {
-      return value.ul == other.value.ul;
-    } else if (type == PropertyType::kBool) {
-      return value.b == other.value.b;
-    } else if (type == PropertyType::kFloat) {
-      return value.f == other.value.f;
-    } else if (type == PropertyType::kVertexGlobalId) {
-      return value.vertex_gid == other.value.vertex_gid;
-    } else if (type == PropertyType::kLabel) {
-      return value.label_key.label_id == other.value.label_key.label_id;
-    } else if (type.type_enum == impl::PropertyTypeImpl::kVarChar) {
-      if (other.type.type_enum != impl::PropertyTypeImpl::kVarChar) {
-        return false;
-      }
-      return value.s == other.value.s;
-    } else if (type == PropertyType::kDate) {
-      return value.d.to_u32() == other.value.d.to_u32();
-    } else if (type == PropertyType::kDateTime) {
-      return value.dt.milli_second == other.value.dt.milli_second;
-    } else if (type == PropertyType::kTimestamp) {
-      return value.ts.milli_second == other.value.ts.milli_second;
-    } else if (type == PropertyType::kInterval) {
-      return value.interval.internal == other.value.interval.internal;
-    } else {
-      return false;
-    }
-  } else if (type == PropertyType::kRecordView) {
-    return value.record_view.offset == other.value.record_view.offset &&
-           value.record_view.table == other.value.record_view.table;
-  } else if (type == PropertyType::kRecord) {
-    if (value.record.len != other.value.record.len) {
-      return false;
-    }
-    for (size_t i = 0; i < value.record.len; ++i) {
-      if (!(value.record.props[i] == other.value.record.props[i])) {
-        return false;
-      }
-    }
-    return true;
-  } else {
-    return false;
-  }
-}
-
-bool Any::operator<(const Any& other) const {
-  if (type == other.type) {
-    if (type == PropertyType::kInt32) {
-      return value.i < other.value.i;
-    } else if (type == PropertyType::kInt64) {
-      return value.l < other.value.l;
-    } else if (type.type_enum == impl::PropertyTypeImpl::kString) {
-      return *value.s_ptr < other.AsStringView();
-    } else if (type == PropertyType::kStringView) {
-      return value.s < other.AsStringView();
-    } else if (type == PropertyType::kEmpty) {
-      return false;
-    } else if (type == PropertyType::kDouble) {
-      return value.db < other.value.db;
-    } else if (type == PropertyType::kUInt32) {
-      return value.ui < other.value.ui;
-    } else if (type == PropertyType::kUInt64) {
-      return value.ul < other.value.ul;
-    } else if (type == PropertyType::kBool) {
-      return value.b < other.value.b;
-    } else if (type == PropertyType::kFloat) {
-      return value.f < other.value.f;
-    } else if (type == PropertyType::kVertexGlobalId) {
-      return value.vertex_gid < other.value.vertex_gid;
-    } else if (type == PropertyType::kLabel) {
-      return value.label_key.label_id < other.value.label_key.label_id;
-    } else if (type == PropertyType::kRecord) {
-      for (size_t i = 0; i < value.record.len; ++i) {
-        if (i >= other.value.record.len) {
-          return false;
-        }
-        if (value.record.props[i] < other.value.record.props[i]) {
-          return true;
-        } else if (other.value.record.props[i] < value.record.props[i]) {
-          return false;
-        }
-      }
-      return false;
-    } else if (type == PropertyType::kDate) {
-      return value.d.to_u32() < other.value.d.to_u32();
-    } else if (type == PropertyType::kDateTime) {
-      return value.dt.milli_second < other.value.dt.milli_second;
-    } else if (type == PropertyType::kTimestamp) {
-      return value.ts.milli_second < other.value.ts.milli_second;
-    } else if (type == PropertyType::kInterval) {
-      return value.interval < other.value.interval;
-    } else {
-      return false;
-    }
-  } else {
-    THROW_INVALID_ARGUMENT_EXCEPTION("Type [" + type.ToString() + "] and [" +
-                                     other.type.ToString() +
-                                     "] cannot be compared.");
-  }
-}
-
-Any ConvertStringToAny(const std::string& value, const gs::PropertyType& type) {
-  if (type == gs::PropertyType::Int32()) {
-    return gs::Any(static_cast<int32_t>(std::stoi(value)));
-  } else if (type == gs::PropertyType::String() ||
-             type == gs::PropertyType::StringMap()) {
-    return gs::Any(std::string(value));
-  } else if (type == gs::PropertyType::Int64()) {
-    return gs::Any(static_cast<int64_t>(std::stoll(value)));
-  } else if (type == gs::PropertyType::Double()) {
-    return gs::Any(std::stod(value));
-  } else if (type == gs::PropertyType::UInt32()) {
-    return gs::Any(static_cast<uint32_t>(std::stoul(value)));
-  } else if (type == gs::PropertyType::UInt64()) {
-    return gs::Any(static_cast<uint64_t>(std::stoull(value)));
-  } else if (type == gs::PropertyType::Bool()) {
-    auto lower = value;
-    std::transform(lower.begin(), lower.end(), lower.begin(),
-                   [](unsigned char c) { return std::tolower(c); });
-    if (lower == "true") {
-      return gs::Any(true);
-    } else if (lower == "false") {
-      return gs::Any(false);
-    } else {
-      THROW_INVALID_ARGUMENT_EXCEPTION("Invalid boolean value: " + value);
-    }
-  } else if (type == gs::PropertyType::Float()) {
-    return gs::Any(std::stof(value));
-  } else if (type == gs::PropertyType::UInt8()) {
-    return gs::Any(static_cast<uint8_t>(std::stoul(value)));
-  } else if (type == gs::PropertyType::UInt16()) {
-    return gs::Any(static_cast<uint16_t>(std::stoul(value)));
-  } else if (type == gs::PropertyType::VertexGlobalId()) {
-    return gs::Any(gs::GlobalId(static_cast<uint64_t>(std::stoull(value))));
-  } else if (type == gs::PropertyType::Label()) {
-    return gs::Any(gs::LabelKey(static_cast<uint8_t>(std::stoul(value))));
-  } else if (type == gs::PropertyType::Empty()) {
-    return gs::Any();
-  } else if (type == gs::PropertyType::StringView()) {
-    return gs::Any(std::string_view(value));
-  } else if (type == gs::PropertyType::Date()) {
-    return gs::Any(gs::Date(static_cast<int64_t>(std::stoll(value))));
-  } else {
-    LOG(ERROR) << "Unsupported type: " << type.ToString();
-    return gs::Any();
-  }
-}
-
-Any AnyConverter<Interval>::to_any(std::string_view value) {
-  return Any::From(Interval(value));
 }
 
 }  // namespace gs

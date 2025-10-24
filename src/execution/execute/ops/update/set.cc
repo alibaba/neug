@@ -72,14 +72,14 @@ class SetOpr : public IUpdateOperator {
                  << label;
       return false;
     }
-    if (type == PropertyType::kStringView) {
-      graph.SetVertexField(label, vid, prop_id, Any(value));
+    if (type.type_enum == impl::PropertyTypeImpl::kStringView) {
+      graph.SetVertexField(label, vid, prop_id, Prop(value));
     } else if (type == PropertyType::kInt32) {
       graph.SetVertexField(label, vid, prop_id,
-                           AnyConverter<int>::to_any(std::stoi(value)));
+                           PropUtils<int>::to_prop(std::stoi(value)));
     } else if (type == PropertyType::kInt64) {
       graph.SetVertexField(label, vid, prop_id,
-                           AnyConverter<int64_t>::to_any(std::stoll(value)));
+                           PropUtils<int64_t>::to_prop(std::stoll(value)));
     } else {
       LOG(ERROR) << "Property " << key << " type not supported in vertex label "
                  << label;
@@ -118,7 +118,7 @@ class SetOpr : public IUpdateOperator {
     } else if (val_type == RTAnyType::kI64Value) {
       prop = Prop::from_int64(value.as_int64());
     } else if (val_type == RTAnyType::kStringValue) {
-      prop = Prop::from_string(value.as_string());
+      prop = Prop::from_string_view(value.as_string());
     } else if (val_type == RTAnyType::kF64Value) {
       prop = Prop::from_double(value.as_double());
     } else {
@@ -153,7 +153,7 @@ class SetOpr : public IUpdateOperator {
                  << label.edge_label;
       return false;
     }
-    Prop prop = parse_property_from_string(to_prop_type(type), value);
+    Prop prop = parse_property_from_string(type, value);
     graph.SetEdgeData(dir == Direction::kOut, label.src_label, src,
                       label.dst_label, dst, label.edge_label, prop, col_id);
     return true;

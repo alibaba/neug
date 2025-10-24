@@ -63,9 +63,6 @@ YAML::Node property_type_to_yaml(const PropertyType& type) {
         config_parsing::PrimitivePropertyTypeToString(type);
     break;
   case impl::PropertyTypeImpl::kStringView:
-  case impl::PropertyTypeImpl::kStringMap:
-    node["string"]["long_text"] = "";
-    break;
   case impl::PropertyTypeImpl::kVarChar:
     node["string"]["var_char"]["max_length"] =
         type.additional_type_info.max_length;

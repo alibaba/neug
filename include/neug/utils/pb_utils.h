@@ -70,7 +70,7 @@ std::string proto_to_string(const T& proto) {
   return json_str;
 }
 
-Any get_default_value(const PropertyType& type);
+Prop get_default_value(const PropertyType& type);
 
 bool multiplicity_to_storage_strategy(
     const ::physical::CreateEdgeSchema::Multiplicity& multiplicity,
@@ -88,9 +88,9 @@ bool temporal_type_to_property_type(const ::common::Temporal& temporal_type,
 bool data_type_to_property_type(const ::common::DataType& data_type,
                                 PropertyType& out_type);
 
-bool common_value_to_any(const ::common::Value& value, Any& out_any);
+bool common_value_to_any(const ::common::Value& value, Prop& out_any);
 
-gs::result<std::vector<std::tuple<PropertyType, std::string, Any>>>
+gs::result<std::vector<std::tuple<PropertyType, std::string, Prop>>>
 property_defs_to_tuple(
     const google::protobuf::RepeatedPtrField<::physical::PropertyDef>&
         properties);
@@ -103,7 +103,7 @@ bool conflict_action_to_bool(const ::physical::ConflictAction& action);
 // 2. ToDate to_date
 // 3. ToDatetime to_datetime
 // 4. ToInterval to_interval
-Any expr_opr_value_to_any(const ::common::ExprOpr& value);
+Prop expr_opr_value_to_any(const ::common::ExprOpr& value);
 Prop expr_opr_value_to_prop(const ::common::ExprOpr& value);
 
 std::string expr_opr_to_string(const ::common::ExprOpr& opr);

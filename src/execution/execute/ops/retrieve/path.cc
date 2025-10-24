@@ -532,16 +532,16 @@ class ASPOpr : public IReadOperator {
       const gs::runtime::GraphReadInterface& graph,
       const std::map<std::string, std::string>& params,
       gs::runtime::Context&& ctx, gs::runtime::OprTimer* timer) override {
-    Any oid = oid_getter_(params);
+    Prop oid = oid_getter_(params);
     vid_t vid;
     if (!graph.GetVertexIndex(aspp_.labels[0].dst_label, oid, vid)) {
       LOG(ERROR) << "vertex not found "
                  << static_cast<int>(aspp_.labels[0].dst_label) << " "
-                 << oid.AsString();
+                 << oid.as_string();
       RETURN_UNSUPPORTED_ERROR(
           "vertex not found" +
           std::to_string(static_cast<int>(aspp_.labels[0].dst_label)) + " " +
-          oid.AsString());
+          std::string(oid.as_string()));
     }
 
     auto v = std::make_pair(aspp_.labels[0].dst_label, vid);
@@ -551,14 +551,15 @@ class ASPOpr : public IReadOperator {
 
  private:
   ShortestPathParams aspp_;
-  std::function<Any(const std::map<std::string, std::string>&)> oid_getter_;
+  std::function<Prop(const std::map<std::string, std::string>&)> oid_getter_;
 };
 
 class SSSDSPOpr : public IReadOperator {
  public:
-  SSSDSPOpr(const ShortestPathParams& spp,
-            const std::function<Any(const std::map<std::string, std::string>&)>&
-                oid_getter)
+  SSSDSPOpr(
+      const ShortestPathParams& spp,
+      const std::function<Prop(const std::map<std::string, std::string>&)>&
+          oid_getter)
       : spp_(spp), oid_getter_(oid_getter) {}
 
   std::string get_operator_name() const override { return "SSSDSPOpr"; }
@@ -567,15 +568,15 @@ class SSSDSPOpr : public IReadOperator {
       const gs::runtime::GraphReadInterface& graph,
       const std::map<std::string, std::string>& params,
       gs::runtime::Context&& ctx, gs::runtime::OprTimer* timer) override {
-    Any vertex = oid_getter_(params);
+    Prop vertex = oid_getter_(params);
     vid_t vid;
     if (!graph.GetVertexIndex(spp_.labels[0].dst_label, vertex, vid)) {
       LOG(ERROR) << "vertex not found" << spp_.labels[0].dst_label << " "
-                 << vertex.AsString();
+                 << vertex.as_string();
       RETURN_UNSUPPORTED_ERROR(
           "vertex not found" +
           std::to_string(static_cast<int>(spp_.labels[0].dst_label)) + " " +
-          vertex.AsString());
+          vertex.as_string());
     }
 
     auto v = std::make_pair(spp_.labels[0].dst_label, vid);
@@ -586,7 +587,7 @@ class SSSDSPOpr : public IReadOperator {
 
  private:
   ShortestPathParams spp_;
-  std::function<Any(const std::map<std::string, std::string>&)> oid_getter_;
+  std::function<Prop(const std::map<std::string, std::string>&)> oid_getter_;
 };
 gs::result<ReadOpBuildResultT> SPOprBuilder::Build(
     const gs::Schema& schema, const ContextMeta& ctx_meta,
@@ -641,7 +642,7 @@ gs::result<ReadOpBuildResultT> SPOprBuilder::Build(
       LOG(ERROR) << "only support same src and dst label";
       return std::make_pair(nullptr, ContextMeta());
     }
-    std::function<Any(const std::map<std::string, std::string>&)> oid_getter;
+    std::function<Prop(const std::map<std::string, std::string>&)> oid_getter;
     if (vertex.has_params() && vertex.params().has_predicate() &&
         is_pk_oid_exact_check(schema, spp.labels[0].src_label,
                               vertex.params().predicate(), oid_getter)) {

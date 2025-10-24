@@ -195,8 +195,6 @@ PropertyType rt_type_to_property_type(RTAnyType type) {
     return PropertyType::kDate;  // FIXME
   case RTAnyType::kInterval:
     return PropertyType::kInterval;
-  case RTAnyType::kRecordView:
-    return PropertyType::kRecordView;
   default:
     THROW_NOT_SUPPORTED_EXCEPTION("Unexpected property type: " +
                                   std::to_string(static_cast<int>(type)));
@@ -265,49 +263,51 @@ std::string Map::to_string() const {
 RTAny::RTAny() : type_(RTAnyType::kUnknown) {}
 RTAny::RTAny(RTAnyType type) : type_(type) {}
 
-RTAny::RTAny(const Any& val) {
-  if (val.type == PropertyType::Bool()) {
+RTAny::RTAny(const Prop& val) {
+  if (val.type() == PropertyType::Bool()) {
     type_ = RTAnyType::kBoolValue;
-    value_.b_val = val.AsBool();
-  } else if (val.type == PropertyType::Int64()) {
+    value_.b_val = val.as_bool();
+  } else if (val.type() == PropertyType::Int64()) {
     type_ = RTAnyType::kI64Value;
-    value_.i64_val = val.AsInt64();
-  } else if (val.type == PropertyType::Int32()) {
+    value_.i64_val = val.as_int64();
+  } else if (val.type() == PropertyType::Int32()) {
     type_ = RTAnyType::kI32Value;
-    value_.i32_val = val.AsInt32();
-  } else if (val.type == PropertyType::UInt32()) {
+    value_.i32_val = val.as_int32();
+  } else if (val.type() == PropertyType::UInt32()) {
     type_ = RTAnyType::kU32Value;
-    value_.i32_val = val.AsUInt32();
-  } else if (val.type == PropertyType::UInt64()) {
+    value_.i32_val = val.as_uint32();
+  } else if (val.type() == PropertyType::UInt64()) {
     type_ = RTAnyType::kU64Value;
-    value_.u64_val = val.AsUInt64();
-  } else if (val.type == PropertyType::Float()) {
+    value_.u64_val = val.as_uint64();
+  } else if (val.type() == PropertyType::Float()) {
     type_ = RTAnyType::kF32Value;
-    value_.f32_val = val.AsFloat();
-  } else if (val.type == PropertyType::kDouble) {
+    value_.f32_val = val.as_float();
+  } else if (val.type() == PropertyType::kDouble) {
     type_ = RTAnyType::kF64Value;
-    value_.f64_val = val.AsDouble();
-  } else if (val.type == PropertyType::String()) {
+    value_.f64_val = val.as_double();
+  } else if (val.type().type_enum == impl::PropertyTypeImpl::kStringView) {
     type_ = RTAnyType::kStringValue;
-    value_.str_val = val.AsStringView();
-  } else if (val.type == PropertyType::Empty()) {
+    value_.str_val = val.as_string_view();
+  } else if (val.type().type_enum == impl::PropertyTypeImpl::kString) {
+    type_ = RTAnyType::kStringValue;
+    value_.str_val = val.as_string();
+  } else if (val.type() == PropertyType::Empty()) {
     type_ = RTAnyType::kNull;
-  } else if (val.type == PropertyType::Date()) {
+  } else if (val.type() == PropertyType::Date()) {
     type_ = RTAnyType::kDate;
-    value_.date_val = val.AsDate();
-  } else if (val.type == PropertyType::Interval()) {
+    value_.date_val = val.as_date();
+  } else if (val.type() == PropertyType::Interval()) {
     type_ = RTAnyType::kInterval;
-    value_.interval_val = val.AsInterval();
-  } else if (val.type == PropertyType::DateTime()) {
+    value_.interval_val = val.as_interval();
+  } else if (val.type() == PropertyType::DateTime()) {
     type_ = RTAnyType::kDateTime;
-    value_.dt_val = val.AsDateTime();
-  } else if (val.type == PropertyType::Timestamp()) {
+    value_.dt_val = val.as_date_time();
+  } else if (val.type() == PropertyType::Timestamp()) {
     type_ = RTAnyType::kTimestamp;
-    value_.ts_val = val.AsTimeStamp();
+    value_.ts_val = val.as_timestamp();
   } else {
     THROW_NOT_SUPPORTED_EXCEPTION(
-        "Unexpected property type: " +
-        std::to_string(static_cast<int>(val.type.type_enum)) +
+        "Unexpected property type: " + val.type().ToString() +
         "value: " + val.to_string());
   }
 }
@@ -408,31 +408,30 @@ RTAny& RTAny::operator=(const RTAny& rhs) {
 
 RTAnyType RTAny::type() const { return type_; }
 
-Any RTAny::to_any() const {
+Prop RTAny::to_any() const {
   switch (type_) {
   case RTAnyType::kBoolValue:
-    return Any(value_.b_val);
+    return Prop::from_bool(value_.b_val);
   case RTAnyType::kI64Value:
-    return Any(value_.i64_val);
+    return Prop::from_int64(value_.i64_val);
   case RTAnyType::kI32Value:
-    return Any(value_.i32_val);
+    return Prop::from_int32(value_.i32_val);
   case RTAnyType::kU32Value:
-    return Any(value_.u32_val);
+    return Prop::from_uint32(value_.u32_val);
   case RTAnyType::kF32Value:
-    return Any(value_.f32_val);
+    return Prop::from_float(value_.f32_val);
   case RTAnyType::kF64Value:
-    return Any(value_.f64_val);
+    return Prop::from_double(value_.f64_val);
   case RTAnyType::kStringValue:
-    return Any(std::string(value_.str_val));
-
+    return Prop::from_string(std::string(value_.str_val));
   case RTAnyType::kDate:
-    return Any(value_.date_val);
+    return Prop::from_date(value_.date_val);
   case RTAnyType::kDateTime:
-    return Any(value_.dt_val);
+    return Prop::from_date_time(value_.dt_val);
   case RTAnyType::kTimestamp:
-    return Any(value_.ts_val);
+    return Prop::from_timestamp(value_.ts_val);
   case RTAnyType::kInterval:
-    return Any(value_.interval_val);
+    return Prop::from_interval(value_.interval_val);
   default:
     THROW_NOT_SUPPORTED_EXCEPTION("Unexpected RTAny type: " +
                                   std::to_string(static_cast<int>(type_)));

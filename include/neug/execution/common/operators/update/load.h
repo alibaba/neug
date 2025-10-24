@@ -40,8 +40,8 @@ class Load {
       auto& src = ctxs.get(src_index);
       auto& dst = ctxs.get(dst_index);
       for (int i = 0; i < ctxs.row_num(); i++) {
-        graph.AddEdge(src_label_id, src.get(i).to_any(src_pk_type),
-                      dst_label_id, dst.get(i).to_any(dst_pk_type),
+        graph.AddEdge(src_label_id, src.get(i).to_prop(src_pk_type),
+                      dst_label_id, dst.get(i).to_prop(dst_pk_type),
                       edge_label_id, {});
       }
     } else {
@@ -49,8 +49,8 @@ class Load {
       auto& dst = ctxs.get(dst_index);
       auto& prop = ctxs.get(prop_index);
       for (int i = 0; i < ctxs.row_num(); i++) {
-        graph.AddEdge(src_label_id, src.get(i).to_any(src_pk_type),
-                      dst_label_id, dst.get(i).to_any(dst_pk_type),
+        graph.AddEdge(src_label_id, src.get(i).to_prop(src_pk_type),
+                      dst_label_id, dst.get(i).to_prop(dst_pk_type),
                       edge_label_id, {prop.get(i).to_prop(edge_prop_type)});
       }
     }
@@ -70,7 +70,7 @@ class Load {
     auto& prop_types = graph.schema().get_vertex_properties(label);
 
     for (int row = 0; row < row_num; ++row) {
-      const auto& id = id_c.get(row).to_any(pk_type);
+      const auto& id = id_c.get(row).to_prop(pk_type);
       std::vector<Prop> props;
       for (size_t j = 0; j < properties.size(); ++j) {
         props.push_back(
@@ -109,7 +109,7 @@ class Load {
       auto id_c = ctxs.get(id_col);
       auto& prop_types = graph.schema().get_vertex_properties(label);
       for (int row = 0; row < row_num; ++row) {
-        const auto& id = id_c.get(row).to_any(pk_type);
+        const auto& id = id_c.get(row).to_prop(pk_type);
         std::vector<Prop> props;
         for (size_t j = 0; j < properties.size(); ++j) {
           props.push_back(

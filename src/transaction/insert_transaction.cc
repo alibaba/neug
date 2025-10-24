@@ -50,7 +50,7 @@ InsertTransaction::InsertTransaction(PropertyGraph& graph, Allocator& alloc,
 
 InsertTransaction::~InsertTransaction() { Abort(); }
 
-bool InsertTransaction::AddVertex(label_t label, const Any& id,
+bool InsertTransaction::AddVertex(label_t label, const Prop& id,
                                   const std::vector<Prop>& props) {
   size_t arc_size = arc_.GetSize();
   arc_ << static_cast<uint8_t>(0) << label;
@@ -69,14 +69,14 @@ bool InsertTransaction::AddVertex(label_t label, const Any& id,
   arc_ << static_cast<uint32_t>(col_num);
   for (int col_i = 0; col_i != col_num; ++col_i) {
     auto& prop = props[col_i];
-    if (prop.type() != to_prop_type(types[col_i])) {
-      if (prop.type() == PropType::kString) {
+    if (prop.type() != types[col_i]) {
+      if (prop.type().type_enum == impl::PropertyTypeImpl::kStringView) {
       } else {
         arc_.Resize(arc_size);
         std::string label_name = graph_.schema().get_vertex_label_name(label);
         LOG(ERROR) << "Vertex [" << label_name << "][" << col_i
                    << "] property type not match, expected " << types[col_i]
-                   << ", but got " << static_cast<int>(prop.type());
+                   << ", but got " << prop.type().ToString();
         return false;
       }
     }
@@ -87,8 +87,8 @@ bool InsertTransaction::AddVertex(label_t label, const Any& id,
   return true;
 }
 
-bool InsertTransaction::AddEdge(label_t src_label, const Any& src,
-                                label_t dst_label, const Any& dst,
+bool InsertTransaction::AddEdge(label_t src_label, const Prop& src,
+                                label_t dst_label, const Prop& dst,
                                 label_t edge_label,
                                 const std::vector<Prop>& properties) {
   vid_t lid;
@@ -120,11 +120,11 @@ bool InsertTransaction::AddEdge(label_t src_label, const Any& src,
     return false;
   }
   for (size_t i = 0; i < properties.size(); ++i) {
-    if (properties[i].type() != to_prop_type(types[i])) {
+    if (properties[i].type() != types[i]) {
       std::string label_name = graph_.schema().get_edge_label_name(edge_label);
       LOG(ERROR) << "Edge property " << label_name
                  << " type not match, expected " << types[i] << ", got "
-                 << static_cast<int>(properties[i].type());
+                 << properties[i].type().ToString();
       return false;
     }
   }
@@ -187,14 +187,14 @@ void InsertTransaction::IngestWal(PropertyGraph& graph, uint32_t timestamp,
     arc >> op_type;
     if (op_type == 0) {
       label_t label;
-      Any id;
+      Prop id;
       label = deserialize_oid(graph, arc, id);
       vid_t lid = graph.add_vertex(label, id, timestamp);
       // Ignore the cases that the vertex already exists.
       graph.get_vertex_table(label).ingest(lid, arc);
     } else if (op_type == 1) {
       label_t src_label, dst_label, edge_label;
-      Any src, dst;
+      Prop src, dst;
       vid_t src_lid, dst_lid;
       src_label = deserialize_oid(graph, arc, src);
       dst_label = deserialize_oid(graph, arc, dst);
@@ -222,7 +222,7 @@ void InsertTransaction::clear() {
 const Schema& InsertTransaction::schema() const { return graph_.schema(); }
 
 bool InsertTransaction::get_vertex_with_retries(PropertyGraph& graph,
-                                                label_t label, const Any& oid,
+                                                label_t label, const Prop& oid,
                                                 vid_t& lid,
                                                 timestamp_t timestamp) {
   if (NEUG_LIKELY(graph.get_lid(label, oid, lid, timestamp))) {

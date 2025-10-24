@@ -665,7 +665,7 @@ void set_column(std::shared_ptr<gs::ColumnBase> col,
         continue;
       }
       col->set_any(vids[k],
-                   std::move(AnyConverter<COL_T>::to_any(casted->Value(k))));
+                   std::move(PropUtils<COL_T>::to_prop(casted->Value(k))));
     }
   }
 }
@@ -683,8 +683,9 @@ void set_column_from_date_array(std::shared_ptr<gs::ColumnBase> col,
         if (vids[k] >= std::numeric_limits<vid_t>::max()) {
           continue;
         }
-        col->set_any(vids[k],
-                     std::move(AnyConverter<Date>::to_any(casted->Value(k))));
+        col->set_any(
+            vids[k],
+            std::move(PropUtils<Date>::to_prop(Date(casted->Value(k)))));
       }
     }
   } else {
@@ -709,7 +710,7 @@ void set_column_from_timestamp_array(std::shared_ptr<gs::ColumnBase> col,
         }
         col->set_any(
             vids[k],
-            std::move(AnyConverter<COL_T>::to_any(COL_T(casted->Value(k)))));
+            std::move(PropUtils<COL_T>::to_prop(COL_T(casted->Value(k)))));
       }
     }
   } else {
@@ -732,9 +733,8 @@ void set_interval_column_from_string_array(
         if (vids[k] >= std::numeric_limits<vid_t>::max()) {
           continue;
         }
-        col->set_any(
-            vids[k],
-            std::move(AnyConverter<Interval>::to_any(casted->GetView(k))));
+        col->set_any(vids[k], std::move(PropUtils<Interval>::to_prop(
+                                  Interval(casted->GetView(k)))));
       }
     }
   } else {
@@ -771,7 +771,7 @@ void set_column_from_string_array(std::shared_ptr<gs::ColumnBase> col,
           sw = std::string_view(str.data(), str.size());
         }
         if (!enable_resize) {
-          Any any_val = Any::From(sw);
+          Prop any_val = Prop::From(sw);
           col->set_any(vids[k], any_val);
         } else {
           typed_col->set_value_safe(vids[k], std::move(sw));
@@ -790,7 +790,7 @@ void set_column_from_string_array(std::shared_ptr<gs::ColumnBase> col,
         std::string_view sw(str.data(), str.size());
 
         if (!enable_resize) {
-          Any any_val = Any::From(sw);
+          Prop any_val = Prop::From(sw);
           col->set_any(vids[k], std::move(any_val));
         } else {
           typed_col->set_value_safe(vids[k], std::move(sw));
@@ -829,11 +829,9 @@ void set_properties_column(std::shared_ptr<gs::ColumnBase> col,
     set_column_from_date_array(col, array, vids);
   } else if (col_type == PropertyType::kInterval) {
     set_interval_column_from_string_array(col, array, vids);
-  } else if (col_type == PropertyType::kStringMap) {
-    set_column_from_string_array(col, array, vids);
   } else if (col_type.type_enum == impl::PropertyTypeImpl::kVarChar) {
     set_column_from_string_array(col, array, vids);
-  } else if (col_type == PropertyType::kStringView) {
+  } else if (col_type.type_enum == impl::PropertyTypeImpl::kStringView) {
     set_column_from_string_array(col, array, vids, true);
   } else {
     LOG(FATAL) << "Not support type: " << type->ToString();

@@ -825,8 +825,8 @@ std::string proto_to_bolt_response(const results::CollectiveResults& result) {
   return buffer.GetString();
 }
 
-Any get_default_value(const PropertyType& type) {
-  Any default_value;
+Prop get_default_value(const PropertyType& type) {
+  Prop default_value;
   switch (type.type_enum) {
   case impl::PropertyTypeImpl::kEmpty:
     break;
@@ -834,16 +834,16 @@ Any get_default_value(const PropertyType& type) {
     default_value.set_bool(false);
     break;
   case impl::PropertyTypeImpl::kInt32:
-    default_value.set_i32(0);
+    default_value.set_int32(0);
     break;
   case impl::PropertyTypeImpl::kUInt32:
-    default_value.set_u32(0);
+    default_value.set_uint32(0);
     break;
   case impl::PropertyTypeImpl::kInt64:
-    default_value.set_i64(0);
+    default_value.set_int64(0);
     break;
   case impl::PropertyTypeImpl::kUInt64:
-    default_value.set_u64(0);
+    default_value.set_uint64(0);
     break;
   case impl::PropertyTypeImpl::kFloat:
     default_value.set_float(0.0f);
@@ -889,7 +889,7 @@ bool primitive_type_to_property_type(
     const common::PrimitiveType& primitive_type, PropertyType& out_type) {
   switch (primitive_type) {
   case common::PrimitiveType::DT_ANY:
-    LOG(ERROR) << "Any type is not supported";
+    LOG(ERROR) << "Proptype is not supported";
     return false;
   case common::PrimitiveType::DT_SIGNED_INT32:
     out_type = PropertyType::Int32();
@@ -1018,7 +1018,7 @@ bool data_type_to_property_type(const common::DataType& data_type,
   }
 }
 
-bool common_value_to_any(const common::Value& value, Any& out_any) {
+bool common_value_to_any(const common::Value& value, Prop& out_any) {
   if (value.item_case() == common::Value::ITEM_NOT_SET) {
     LOG(ERROR) << "Value is not set: " << value.DebugString();
     return false;
@@ -1028,10 +1028,10 @@ bool common_value_to_any(const common::Value& value, Any& out_any) {
     out_any.set_bool(value.boolean());
     break;
   case common::Value::kI32:
-    out_any.set_i32(value.i32());
+    out_any.set_int32(value.i32());
     break;
   case common::Value::kI64:
-    out_any.set_i64(value.i64());
+    out_any.set_int64(value.i64());
     break;
   case common::Value::kF64:
     out_any.set_double(value.f64());
@@ -1043,10 +1043,10 @@ bool common_value_to_any(const common::Value& value, Any& out_any) {
     LOG(ERROR) << "Date type is not supported";
     return false;
   case common::Value::kU32:
-    out_any.set_u32(value.u32());
+    out_any.set_uint32(value.u32());
     break;
   case common::Value::kU64:
-    out_any.set_u64(value.u64());
+    out_any.set_uint64(value.u64());
     break;
   default:
     LOG(ERROR) << "Unknown value type: " << value.DebugString();
@@ -1055,13 +1055,13 @@ bool common_value_to_any(const common::Value& value, Any& out_any) {
   return true;
 }
 
-gs::result<std::vector<std::tuple<PropertyType, std::string, Any>>>
+gs::result<std::vector<std::tuple<PropertyType, std::string, Prop>>>
 property_defs_to_tuple(
     const google::protobuf::RepeatedPtrField<physical::PropertyDef>&
         properties) {
-  std::vector<std::tuple<PropertyType, std::string, Any>> result;
+  std::vector<std::tuple<PropertyType, std::string, Prop>> result;
   for (const auto& property : properties) {
-    std::tuple<PropertyType, std::string, Any> tuple;
+    std::tuple<PropertyType, std::string, Prop> tuple;
     std::get<1>(tuple) = property.name();
     if (!data_type_to_property_type(property.type(), std::get<0>(tuple))) {
       RETURN_ERROR(Status(StatusCode::ERR_INVALID_ARGUMENT,
@@ -1096,31 +1096,31 @@ bool conflict_action_to_bool(const physical::ConflictAction& action) {
   }
 }
 
-Any const_value_to_any(const common::Value& value) {
+Prop const_value_to_any(const common::Value& value) {
   switch (value.item_case()) {
   case common::Value::ItemCase::kI32: {
-    return Any::From(value.i32());
+    return Prop::From(value.i32());
   }
   case common::Value::ItemCase::kI64: {
-    return Any::From(value.i64());
+    return Prop::From(value.i64());
   }
   case common::Value::ItemCase::kU32: {
-    return Any::From(value.u32());
+    return Prop::From(value.u32());
   }
   case common::Value::ItemCase::kU64: {
-    return Any::From(value.u64());
+    return Prop::From(value.u64());
   }
   case common::Value::ItemCase::kF64: {
-    return Any::From(value.f64());
+    return Prop::From(value.f64());
   }
   case common::Value::ItemCase::kF32: {
-    return Any::From(value.f32());
+    return Prop::From(value.f32());
   }
   case common::Value::ItemCase::kBoolean: {
-    return Any::From(value.boolean());
+    return Prop::From(value.boolean());
   }
   case common::Value::ItemCase::kStr: {
-    return Any::From(value.str());
+    return Prop::From(value.str());
   }
   default: {
     THROW_RUNTIME_ERROR("Unsupported constant value type: " +
@@ -1162,19 +1162,19 @@ Prop const_value_to_prop(const common::Value& value) {
   }
 }
 
-Any expr_opr_value_to_any(const common::ExprOpr& value) {
+Prop expr_opr_value_to_any(const common::ExprOpr& value) {
   switch (value.item_case()) {
   case common::ExprOpr::ItemCase::kConst: {
     return const_value_to_any(value.const_());
   }
   case common::ExprOpr::ItemCase::kToDate: {
-    return Any::From(Date(value.to_date().date_str()));
+    return Prop::From(Date(value.to_date().date_str()));
   }
   case common::ExprOpr::ItemCase::kToDatetime: {
-    return Any::From(DateTime(value.to_datetime().datetime_str()));
+    return Prop::From(DateTime(value.to_datetime().datetime_str()));
   }
   case common::ExprOpr::ItemCase::kToInterval: {
-    return Any::From(Interval(value.to_interval().interval_str()));
+    return Prop::From(Interval(value.to_interval().interval_str()));
   }
   default: {
     THROW_RUNTIME_ERROR("Unsupported ExprOpr value type: " +

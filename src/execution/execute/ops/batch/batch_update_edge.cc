@@ -108,7 +108,7 @@ gs::result<Context> UpdateEdgeOpr::Eval(
       } else if (val_type == RTAnyType::kI64Value) {
         prop.set_int64(value.as_int64());
       } else if (val_type == RTAnyType::kStringValue) {
-        prop.set_string(value.as_string());
+        prop.set_string_view(value.as_string());
       } else if (val_type == RTAnyType::kF64Value) {
         prop.set_double(value.as_double());
       } else {

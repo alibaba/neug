@@ -178,28 +178,30 @@ class PropertyGraph {
   // vertex type or edge type already exists.
   Status create_vertex_type(
       const std::string& vertex_type_name,
-      const std::vector<std::tuple<PropertyType, std::string, Any>>& properties,
+      const std::vector<std::tuple<PropertyType, std::string, Prop>>&
+          properties,
       const std::vector<std::string>& primary_key_names,
       bool error_on_conflict = true);
 
   Status create_edge_type(
       const std::string& src_vertex_type, const std::string& dst_vertex_type,
       const std::string& edge_type_name,
-      const std::vector<std::tuple<PropertyType, std::string, Any>>& properties,
+      const std::vector<std::tuple<PropertyType, std::string, Prop>>&
+          properties,
       bool error_on_conflict = true,
       EdgeStrategy oe_strategy = EdgeStrategy::kMultiple,
       EdgeStrategy ie_strategy = EdgeStrategy::kMultiple);
 
   Status add_vertex_properties(
       const std::string& vertex_type_name,
-      const std::vector<std::tuple<PropertyType, std::string, Any>>&
+      const std::vector<std::tuple<PropertyType, std::string, Prop>>&
           add_properties,
       bool error_on_conflict = true);
 
   Status add_edge_properties(
       const std::string& src_type_name, const std::string& dst_type_name,
       const std::string& edge_type_name,
-      const std::vector<std::tuple<PropertyType, std::string, Any>>&
+      const std::vector<std::tuple<PropertyType, std::string, Prop>>&
           add_properties,
       bool error_on_conflict = true);
 
@@ -266,13 +268,14 @@ class PropertyGraph {
   size_t edge_num(label_t src_label, label_t edge_label,
                   label_t dst_label) const;
 
-  bool get_lid(label_t label, const Any& oid, vid_t& lid, timestamp_t ts) const;
+  bool get_lid(label_t label, const Prop& oid, vid_t& lid,
+               timestamp_t ts) const;
 
-  Any get_oid(label_t label, vid_t lid, timestamp_t ts) const;
+  Prop get_oid(label_t label, vid_t lid, timestamp_t ts) const;
 
-  vid_t add_vertex(label_t label, const Any& id, timestamp_t ts);
+  vid_t add_vertex(label_t label, const Prop& id, timestamp_t ts);
 
-  vid_t add_vertex_safe(label_t label, const Any& id, timestamp_t ts);
+  vid_t add_vertex_safe(label_t label, const Prop& id, timestamp_t ts);
 
   GenericView GetGenericOutgoingGraphView(
       label_t v_label, label_t neighbor_label, label_t edge_label,

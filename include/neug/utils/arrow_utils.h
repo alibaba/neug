@@ -381,7 +381,6 @@ struct TypeConverter<Interval> {
 };
 
 std::shared_ptr<arrow::DataType> PropertyTypeToArrowType(PropertyType type);
-std::shared_ptr<arrow::DataType> PropertyTypeToArrowType(PropType type);
 }  // namespace gs
 
 #endif  // INCLUDE_NEUG_UTILS_ARROW_UTILS_H_

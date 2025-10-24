@@ -167,14 +167,14 @@ bool vertex_id_topN_impl(bool asc, size_t limit,
   if (asc) {
     TopNGenerator<T, TopNAscCmp<T>> gen(limit);
     foreach_vertex(*col, [&](size_t idx, label_t label, vid_t v) {
-      auto oid = AnyConverter<T>::from_any(graph.GetVertexId(label, v));
+      auto oid = PropUtils<T>::to_typed(graph.GetVertexId(label, v));
       gen.push(oid, idx);
     });
     gen.generate_indices(offsets);
   } else {
     TopNGenerator<T, TopNDescCmp<T>> gen(limit);
     foreach_vertex(*col, [&](size_t idx, label_t label, vid_t v) {
-      auto oid = AnyConverter<T>::from_any(graph.GetVertexId(label, v));
+      auto oid = PropUtils<T>::to_typed(graph.GetVertexId(label, v));
       gen.push(oid, idx);
     });
     gen.generate_indices(offsets);
@@ -197,7 +197,7 @@ bool vertex_id_topN(bool asc, size_t limit,
   auto type = std::get<0>(vec[0]);
   if (type == PropertyType::Int64()) {
     return vertex_id_topN_impl<int64_t>(asc, limit, col, graph, offsets);
-  } else if (type == PropertyType::StringView()) {
+  } else if (type.type_enum == impl::PropertyTypeImpl::kStringView) {
     return vertex_id_topN_impl<std::string_view>(asc, limit, col, graph,
                                                  offsets);
   } else if (type == PropertyType::Int32()) {

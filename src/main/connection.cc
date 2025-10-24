@@ -55,7 +55,7 @@ void Connection::Close() {
   }
   LOG(INFO) << "Closing connection.";
   is_closed_.store(true);
-  // Any necessary cleanup can be done here.
+  // Propnecessary cleanup can be done here.
 }
 
 result<QueryResult> Connection::Query(const std::string& query_string) {

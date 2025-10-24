@@ -63,7 +63,7 @@ inline bool is_label_within_predicate(const common::Expression& expr,
 
 inline bool is_pk_oid_exact_check(
     const gs::Schema& schema, label_t label, const common::Expression& expr,
-    std::function<Any(const std::map<std::string, std::string>&)>& value) {
+    std::function<Prop(const std::map<std::string, std::string>&)>& value) {
   if (expr.operators_size() != 3) {
     return false;
   }
@@ -90,19 +90,20 @@ inline bool is_pk_oid_exact_check(
       return false;
     }
     value = [name](const std::map<std::string, std::string>& params) {
-      return Any(static_cast<int64_t>(std::stoll(params.at(name))));
+      return Prop::from_int64(
+          static_cast<int64_t>(std::stoll(params.at(name))));
     };
     return true;
   } else if (expr.operators(2).has_const_()) {
     auto& c = expr.operators(2).const_();
     if (c.item_case() == common::Value::kI64) {
       value = [c](const std::map<std::string, std::string>&) {
-        return Any(c.i64());
+        return Prop::from_int64(c.i64());
       };
 
     } else if (c.item_case() == common::Value::kI32) {
       value = [c](const std::map<std::string, std::string>&) {
-        return Any(static_cast<int64_t>(c.i32()));
+        return Prop::from_int64(static_cast<int64_t>(c.i32()));
       };
     } else {
       return false;

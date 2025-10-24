@@ -66,17 +66,11 @@ class ColumnBase {
 
   virtual PropertyType type() const = 0;
 
-  virtual void set_any(size_t index, const Any& value) = 0;
+  virtual void set_any(size_t index, const Prop& value) = 0;
 
-  virtual void set_any_with_resize(size_t index, const Any& value) = 0;
+  virtual void set_any_with_resize(size_t index, const Prop& value) = 0;
 
-  virtual Any get(size_t index) const = 0;
-
-  virtual Prop get_prop(size_t index) const {
-    THROW_NOT_IMPLEMENTED_EXCEPTION("get_prop not implemented: index = " +
-                                    std::to_string(index));
-    return Prop::empty();
-  }
+  virtual Prop get_prop(size_t index) const = 0;
 
   virtual void set_prop(size_t index, const Prop& prop) {
     LOG(FATAL) << "Not implemented";
@@ -162,7 +156,7 @@ class TypedColumn : public ColumnBase {
     buffer_.resize(size_);
   }
 
-  PropertyType type() const override { return AnyConverter<T>::type(); }
+  PropertyType type() const override { return PropUtils<T>::prop_type(); }
 
   void set_value(size_t index, const T& val) {
     if (index < size_) {
@@ -183,21 +177,17 @@ class TypedColumn : public ColumnBase {
     }
   }
 
-  void set_any(size_t index, const Any& value) override {
-    set_value(index, AnyConverter<T>::from_any(value));
+  void set_any(size_t index, const Prop& value) override {
+    set_value(index, PropUtils<T>::to_typed(value));
   }
 
-  void set_any_with_resize(size_t index, const Any& value) override {
-    set_value_with_check(index, AnyConverter<T>::from_any(value));
+  void set_any_with_resize(size_t index, const Prop& value) override {
+    set_value_with_check(index, PropUtils<T>::to_typed(value));
   }
 
   inline T get_view(size_t index) const {
     assert(index < size_);
     return buffer_.get(index);
-  }
-
-  Any get(size_t index) const override {
-    return AnyConverter<T>::to_any(get_view(index));
   }
 
   Prop get_prop(size_t index) const override {
@@ -229,75 +219,6 @@ class TypedColumn : public ColumnBase {
   StorageStrategy strategy_;
 };
 
-#if 0
-template <>
-class TypedColumn<RecordView> : public ColumnBase {
- public:
-  explicit TypedColumn(const std::vector<PropertyType>& types) : types_(types) {
-    if (types.size() == 0) {
-      LOG(FATAL) << "RecordView column must have sub types.";
-    }
-  }
-
-  ~TypedColumn() { close(); }
-
-  void open(const std::string& name, const std::string& snapshot_dir,
-            const std::string& work_dir) override {
-    LOG(FATAL) << "RecordView column does not support open.";
-  }
-
-  void open_in_memory(const std::string& name) override;
-
-  void open_with_hugepages(const std::string& name, bool force) override {
-    LOG(FATAL) << "RecordView column does not support open with hugepages.";
-  }
-
-  void dump(const std::string& filename) override {
-    LOG(FATAL) << "RecordView column does not support dump.";
-  }
-
-  void copy_to_tmp(const std::string& cur_path,
-                   const std::string& tmp_path) override {
-    LOG(FATAL) << "RecordView column does not support copy_to_tmp.";
-  }
-  void close() override;
-
-  size_t size() const override;
-  void resize(size_t size) override;
-
-  PropertyType type() const override { return PropertyType::kRecordView; }
-
-  void set_any(size_t index, const Any& value) override;
-
-  void set_any_with_resize(size_t index, const Any& value) override;
-
-  void set_value(size_t index, const RecordView& val);
-
-  void set_value_with_check(size_t index, const RecordView& val);
-
-  RecordView get_view(size_t index) const;
-
-  Any get(size_t index) const override;
-
-  void ingest(uint32_t index, grape::OutArchive& arc) override {
-    LOG(FATAL) << "RecordView column does not support ingest.";
-  }
-
-  StorageStrategy storage_strategy() const override {
-    LOG(ERROR) << "RecordView column does not have storage strategy.";
-    return StorageStrategy::kMem;
-  }
-
-  std::vector<PropertyType> sub_types() const { return types_; }
-
-  void ensure_writable(const std::string& work_dir) override {}
-
- private:
-  std::vector<PropertyType> types_;
-  std::shared_ptr<Table> table_;
-};
-#endif
-
 using BoolColumn = TypedColumn<bool>;
 using UInt8Column = TypedColumn<uint8_t>;
 using UInt16Column = TypedColumn<uint16_t>;
@@ -306,10 +227,8 @@ using UIntColumn = TypedColumn<uint32_t>;
 using LongColumn = TypedColumn<int64_t>;
 using ULongColumn = TypedColumn<uint64_t>;
 using DateColumn = TypedColumn<Date>;
-// using DayColumn = TypedColumn<Day>;
 using DoubleColumn = TypedColumn<double>;
 using FloatColumn = TypedColumn<float>;
-// using RecordViewColumn = TypedColumn<RecordView>;
 using DateTimeColumn = TypedColumn<DateTime>;
 using IntervalColumn = TypedColumn<Interval>;
 using TimeStampColumn = TypedColumn<TimeStamp>;
@@ -333,13 +252,11 @@ class TypedColumn<grape::EmptyType> : public ColumnBase {
 
   PropertyType type() const override { return PropertyType::kEmpty; }
 
-  void set_any(size_t index, const Any& value) override {}
+  void set_any(size_t index, const Prop& value) override {}
 
-  void set_any_with_resize(size_t index, const Any& value) override {}
+  void set_any_with_resize(size_t index, const Prop& value) override {}
 
   void set_value(size_t index, const grape::EmptyType& value) {}
-
-  Any get(size_t index) const override { return Any(); }
 
   Prop get_prop(size_t index) const override { return Prop::empty(); }
 
@@ -475,12 +392,12 @@ class TypedColumn<std::string_view> : public ColumnBase {
     }
   }
 
-  void set_any(size_t idx, const Any& value) override {
-    set_value(idx, value.AsStringView());
+  void set_any(size_t idx, const Prop& value) override {
+    set_value(idx, value.as_string_view());
   }
 
-  void set_any_with_resize(size_t idx, const Any& value) override {
-    return set_value_with_resize(idx, value.AsStringView());
+  void set_any_with_resize(size_t idx, const Prop& value) override {
+    return set_value_with_resize(idx, value.as_string_view());
   }
 
   void set_value_with_resize(size_t idx, const std::string_view& value) {
@@ -508,10 +425,6 @@ class TypedColumn<std::string_view> : public ColumnBase {
 
   inline std::string_view get_view(size_t idx) const {
     return buffer_.get(idx);
-  }
-
-  Any get(size_t idx) const override {
-    return AnyConverter<std::string_view>::to_any(get_view(idx));
   }
 
   Prop get_prop(size_t index) const override {
@@ -558,7 +471,7 @@ std::shared_ptr<ColumnBase> CreateColumn(
 class RefColumnBase {
  public:
   virtual ~RefColumnBase() {}
-  virtual Any get(size_t index) const = 0;
+  virtual Prop get(size_t index) const = 0;
 };
 
 // Different from TypedColumn, RefColumn is a wrapper of mmap_array
@@ -582,8 +495,8 @@ class TypedRefColumn : public RefColumnBase {
 
   size_t size() const { return basic_size; }
 
-  Any get(size_t index) const override {
-    return AnyConverter<T>::to_any(get_view(index));
+  Prop get(size_t index) const override {
+    return PropUtils<T>::to_prop(get_view(index));
   }
 
  private:
@@ -591,45 +504,6 @@ class TypedRefColumn : public RefColumnBase {
   size_t basic_size;
 
   StorageStrategy strategy_;
-};
-
-template <>
-class TypedRefColumn<LabelKey> : public RefColumnBase {
- public:
-  explicit TypedRefColumn(LabelKey label_key) : label_key_(label_key) {}
-
-  ~TypedRefColumn() {}
-
-  inline LabelKey get_view(size_t index) const { return label_key_; }
-
-  Any get(size_t index) const override {
-    LOG(ERROR) << "LabelKeyColumn does not support get() to Any";
-    return Any();
-  }
-
- private:
-  LabelKey label_key_;
-};
-
-template <>
-class TypedRefColumn<GlobalId> : public RefColumnBase {
- public:
-  using label_t = typename LabelKey::label_data_type;
-  explicit TypedRefColumn(label_t label_key) : label_key_(label_key) {}
-
-  ~TypedRefColumn() {}
-
-  inline GlobalId get_view(size_t index) const {
-    return GlobalId(label_key_, index);
-  }
-
-  Any get(size_t index) const override {
-    LOG(ERROR) << "GlobalId Column does not support get() to Any";
-    return Any();
-  }
-
- private:
-  label_t label_key_;
 };
 
 // Create a reference column from a ColumnBase that contains a const reference

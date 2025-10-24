@@ -107,9 +107,9 @@ class EdgeTableTest : public ::testing::Test {
     gs::vid_t vnum = src_indexer.size();
     for (gs::vid_t i = 0; i < vnum; ++i) {
       auto es = view.get_edges(i);
-      int64_t src_oid = src_indexer.get_key(i).AsInt64();
+      int64_t src_oid = src_indexer.get_key(i).as_int64();
       for (auto it = es.begin(); it != es.end(); ++it) {
-        int64_t dst_oid = dst_indexer.get_key(it.get_vertex()).AsInt64();
+        int64_t dst_oid = dst_indexer.get_key(it.get_vertex()).as_int64();
         srcs.push_back(src_oid);
         dsts.push_back(dst_oid);
       }
@@ -122,9 +122,9 @@ class EdgeTableTest : public ::testing::Test {
     gs::vid_t vnum = dst_indexer.size();
     for (gs::vid_t i = 0; i < vnum; ++i) {
       auto es = view.get_edges(i);
-      int64_t dst_oid = dst_indexer.get_key(i).AsInt64();
+      int64_t dst_oid = dst_indexer.get_key(i).as_int64();
       for (auto it = es.begin(); it != es.end(); ++it) {
-        int64_t src_oid = src_indexer.get_key(it.get_vertex()).AsInt64();
+        int64_t src_oid = src_indexer.get_key(it.get_vertex()).as_int64();
         srcs.push_back(src_oid);
         dsts.push_back(dst_oid);
       }
@@ -193,10 +193,10 @@ TEST_F(EdgeTableTest, TestBundledInt32) {
                                            {src_arrs, dst_arrs, data_arrs});
 
   this->InitIndexers(src_num, dst_num);
-  gs::EdgeTableMeta meta("person", "comment", "create", true, true,
-                         gs::EdgeStrategy::kMultiple,
-                         gs::EdgeStrategy::kMultiple, {gs::PropType::kInt32},
-                         {"data"}, {gs::StorageStrategy::kMem});
+  gs::EdgeTableMeta meta(
+      "person", "comment", "create", true, true, gs::EdgeStrategy::kMultiple,
+      gs::EdgeStrategy::kMultiple, {gs::PropertyType::kInt32}, {"data"},
+      {gs::StorageStrategy::kMem});
   this->ConstructEdgeTable(meta);
   this->OpenEdgeTable();
   this->BatchInsert(std::move(batches));
@@ -267,10 +267,10 @@ TEST_F(EdgeTableTest, TestSeperatedString) {
                                            {src_arrs, dst_arrs, data_arrs});
 
   this->InitIndexers(src_num, dst_num);
-  gs::EdgeTableMeta meta("person", "comment", "create", true, true,
-                         gs::EdgeStrategy::kMultiple,
-                         gs::EdgeStrategy::kMultiple, {gs::PropType::kString},
-                         {"data"}, {gs::StorageStrategy::kMem});
+  gs::EdgeTableMeta meta(
+      "person", "comment", "create", true, true, gs::EdgeStrategy::kMultiple,
+      gs::EdgeStrategy::kMultiple, {gs::PropertyType::kStringView}, {"data"},
+      {gs::StorageStrategy::kMem});
   this->ConstructEdgeTable(meta);
   this->OpenEdgeTable();
   this->BatchInsert(std::move(batches));
@@ -347,7 +347,8 @@ TEST_F(EdgeTableTest, TestSeperatedIntString) {
   gs::EdgeTableMeta meta(
       "person", "comment", "create", true, true, gs::EdgeStrategy::kMultiple,
       gs::EdgeStrategy::kMultiple,
-      {gs::PropType::kString, gs::PropType::kInt32}, {"prop0", "prop1"},
+      {gs::PropertyType::kStringView, gs::PropertyType::kInt32},
+      {"prop0", "prop1"},
       {gs::StorageStrategy::kMem, gs::StorageStrategy::kMem});
   this->ConstructEdgeTable(meta);
   this->OpenEdgeTable();
@@ -479,10 +480,10 @@ TEST_F(EdgeTableTest, TestCountEdgeNum) {
                                            {src_arrs, dst_arrs, data_arrs});
 
   this->InitIndexers(src_num, dst_num);
-  gs::EdgeTableMeta meta("person", "comment", "create", true, true,
-                         gs::EdgeStrategy::kMultiple,
-                         gs::EdgeStrategy::kMultiple, {gs::PropType::kInt32},
-                         {"data"}, {gs::StorageStrategy::kMem});
+  gs::EdgeTableMeta meta(
+      "person", "comment", "create", true, true, gs::EdgeStrategy::kMultiple,
+      gs::EdgeStrategy::kMultiple, {gs::PropertyType::kInt32}, {"data"},
+      {gs::StorageStrategy::kMem});
   this->ConstructEdgeTable(meta);
   this->OpenEdgeTable();
   this->BatchInsert(std::move(batches));

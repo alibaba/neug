@@ -38,6 +38,7 @@
 #include "neug/storages/graph/schema.h"
 #include "neug/transaction/transaction_utils.h"
 #include "neug/utils/property/column.h"
+#include "neug/utils/property/property.h"
 #include "neug/utils/property/table.h"
 #include "neug/utils/property/types.h"
 
@@ -148,10 +149,10 @@ class ReadTransaction {
     void Next();
     void Goto(vid_t target);
 
-    Any GetId() const;
+    Prop GetId() const;
     vid_t GetIndex() const;
 
-    Any GetField(int col_id) const;
+    Prop GetField(int col_id) const;
     int FieldNum() const;
 
    private:
@@ -165,9 +166,9 @@ class ReadTransaction {
 
   vertex_iterator GetVertexIterator(label_t label) const;
 
-  vertex_iterator FindVertex(label_t label, const Any& id) const;
+  vertex_iterator FindVertex(label_t label, const Prop& id) const;
 
-  bool GetVertexIndex(label_t label, const Any& id, vid_t& index) const;
+  bool GetVertexIndex(label_t label, const Prop& id, vid_t& index) const;
 
   vid_t GetVertexNum(label_t label) const;
 
@@ -175,7 +176,7 @@ class ReadTransaction {
 
   bool IsValidVertex(label_t label, vid_t index) const;
 
-  Any GetVertexId(label_t label, vid_t index) const;
+  Prop GetVertexId(label_t label, vid_t index) const;
 
   GenericView GetGenericOutgoingGraphView(label_t v_label,
                                           label_t neighbor_label,

@@ -70,17 +70,17 @@ class TypedEmptyColumn : public ColumnBase {
   size_t size() const override { return 0; }
   void resize(size_t size) override {}
 
-  PropertyType type() const override { return AnyConverter<T>::type(); }
+  PropertyType type() const override { return PropUtils<T>::prop_type(); }
 
   void set_value(size_t index, const T& val) {}
 
-  void set_any(size_t index, const Any& value) override {}
+  void set_any(size_t index, const Prop& value) override {}
 
-  void set_any_with_resize(size_t index, const Any& value) override {}
+  void set_any_with_resize(size_t index, const Prop& value) override {}
 
   T get_view(size_t index) const { T{}; }
 
-  Any get(size_t index) const override { return Any(); }
+  Prop get_prop(size_t index) const override { return Prop(); }
 
   void ingest(uint32_t index, grape::OutArchive& arc) override {
     T val;
@@ -116,13 +116,13 @@ class TypedEmptyColumn<std::string_view> : public ColumnBase {
 
   void set_value(size_t index, const std::string_view& val) {}
 
-  void set_any(size_t index, const Any& value) override {}
+  void set_any(size_t index, const Prop& value) override {}
 
-  void set_any_with_resize(size_t index, const Any& value) override {}
+  void set_any_with_resize(size_t index, const Prop& value) override {}
 
   std::string_view get_view(size_t index) const { return std::string_view{}; }
 
-  Any get(size_t index) const override { return Any(); }
+  Prop get_prop(size_t index) const override { return Prop(); }
 
   void ingest(uint32_t index, grape::OutArchive& arc) override {
     std::string_view val;
@@ -148,159 +148,7 @@ using BoolEmptyColumn = TypedEmptyColumn<bool>;
 using FloatEmptyColumn = TypedEmptyColumn<float>;
 using DoubleEmptyColumn = TypedEmptyColumn<double>;
 using StringEmptyColumn = TypedEmptyColumn<std::string_view>;
-using RecordViewEmptyColumn = TypedEmptyColumn<RecordView>;
 using TimeStampEmptyColumn = TypedEmptyColumn<TimeStamp>;
-
-template <typename INDEX_T>
-class StringMapColumn : public ColumnBase {
- public:
-  explicit StringMapColumn(StorageStrategy strategy)
-      : index_col_(strategy), meta_map_(nullptr) {
-    meta_map_ = new LFIndexer<INDEX_T>();
-    meta_map_->init(
-        PropertyType::Varchar(PropertyType::GetStringDefaultMaxLength()));
-  }
-
-  ~StringMapColumn() {
-    if (meta_map_) {
-      meta_map_->close();
-      delete meta_map_;
-    }
-    index_col_.close();
-  }
-
-  void copy_to_tmp(const std::string& cur_path,
-                   const std::string& tmp_path) override {
-    meta_map_->copy_to_tmp(cur_path + ".map_meta", tmp_path + ".map_meta");
-    index_col_.copy_to_tmp(cur_path, tmp_path);
-  }
-  void open(const std::string& name, const std::string& snapshot_dir,
-            const std::string& work_dir) override;
-  void open_in_memory(const std::string& name) override;
-  void open_with_hugepages(const std::string& name, bool force) override;
-  void dump(const std::string& filename) override;
-
-  void close() override {
-    if (meta_map_ != nullptr) {
-      meta_map_->close();
-    }
-    index_col_.close();
-  }
-
-  size_t size() const override { return index_col_.size(); }
-  void resize(size_t size) override { index_col_.resize(size); }
-
-  PropertyType type() const override { return PropertyType::kStringMap; }
-
-  void set_value(size_t idx, const std::string_view& val);
-
-  void set_value_with_check(size_t idx, const std::string_view& val);
-
-  void set_any(size_t idx, const Any& value) override {
-    set_value(idx, value.AsStringView());
-  }
-
-  void set_any_with_resize(size_t idx, const Any& value) override {
-    set_value_with_check(idx, value.AsStringView());
-  }
-
-  std::string_view get_view(size_t idx) const;
-
-  Any get(size_t idx) const override {
-    return AnyConverter<std::string_view>::to_any(get_view(idx));
-  }
-
-  void ingest(uint32_t index, grape::OutArchive& arc) override {
-    std::string_view val;
-    arc >> val;
-    set_value(index, val);
-  }
-
-  StorageStrategy storage_strategy() const override {
-    return index_col_.storage_strategy();
-  }
-
-  const TypedColumn<INDEX_T>& get_index_col() const { return index_col_; }
-  const LFIndexer<INDEX_T>& get_meta_map() const { return *meta_map_; }
-
-  void ensure_writable(const std::string& work_dir) override {
-    index_col_.ensure_writable(work_dir);
-    meta_map_->ensure_writable(work_dir);
-  }
-
- private:
-  TypedColumn<INDEX_T> index_col_;
-  LFIndexer<INDEX_T>* meta_map_;
-  grape::SpinLock lock_;
-};
-
-template <typename INDEX_T>
-void StringMapColumn<INDEX_T>::open(const std::string& name,
-                                    const std::string& snapshot_dir,
-                                    const std::string& work_dir) {
-  index_col_.open(name, snapshot_dir, work_dir);
-  meta_map_->open(name + ".map_meta", snapshot_dir, work_dir);
-  meta_map_->reserve(std::numeric_limits<INDEX_T>::max());
-}
-
-template <typename INDEX_T>
-void StringMapColumn<INDEX_T>::open_in_memory(const std::string& name) {
-  index_col_.open_in_memory(name);
-  meta_map_->open_in_memory(name + ".map_meta");
-  meta_map_->reserve(std::numeric_limits<INDEX_T>::max());
-}
-
-template <typename INDEX_T>
-void StringMapColumn<INDEX_T>::open_with_hugepages(const std::string& name,
-                                                   bool force) {
-  index_col_.open_with_hugepages(name, force);
-  meta_map_->open_with_hugepages(name + ".map_meta", true);
-  meta_map_->reserve(std::numeric_limits<INDEX_T>::max());
-}
-
-template <typename INDEX_T>
-void StringMapColumn<INDEX_T>::dump(const std::string& filename) {
-  index_col_.dump(filename);
-  meta_map_->dump(filename + ".map_meta", "");
-}
-
-template <typename INDEX_T>
-std::string_view StringMapColumn<INDEX_T>::get_view(size_t idx) const {
-  INDEX_T ind = index_col_.get_view(idx);
-  return meta_map_->get_key(ind).AsStringView();
-}
-
-template <typename INDEX_T>
-void StringMapColumn<INDEX_T>::set_value(size_t idx,
-                                         const std::string_view& val) {
-  INDEX_T lid;
-  Any any_val = Any::From(val);
-  if (!meta_map_->get_index(any_val, lid)) {
-    lock_.lock();
-    if (!meta_map_->get_index(any_val, lid)) {
-      lid = meta_map_->insert(any_val);
-    }
-    lock_.unlock();
-  }
-  index_col_.set_value(idx, lid);
-}
-
-template <typename INDEX_T>
-void StringMapColumn<INDEX_T>::set_value_with_check(
-    size_t idx, const std::string_view& val) {
-  INDEX_T lid;
-  Any any_val = Any::From(val);
-  if (!meta_map_->get_index(any_val, lid)) {
-    lock_.lock();
-    if (!meta_map_->get_index(any_val, lid)) {
-      lid = meta_map_->insert(any_val);
-    }
-    lock_.unlock();
-  }
-  index_col_.set_value_with_check(idx, lid);
-}
-
-using DefaultStringMapColumn = StringMapColumn<uint8_t>;
 
 std::shared_ptr<ColumnBase> CreateColumn(
     PropertyType type, StorageStrategy strategy,
@@ -320,9 +168,7 @@ std::shared_ptr<ColumnBase> CreateColumn(
       return std::make_shared<DoubleEmptyColumn>();
     } else if (type == PropertyType::kFloat) {
       return std::make_shared<FloatEmptyColumn>();
-    } else if (type == PropertyType::kStringMap) {
-      return std::make_shared<StringEmptyColumn>();
-    } else if (type == PropertyType::kStringView) {
+    } else if (type.type_enum == impl::PropertyTypeImpl::kStringView) {
       return std::make_shared<StringEmptyColumn>(
           gs::PropertyType::GetStringDefaultMaxLength());
     } else if (type.type_enum == impl::PropertyTypeImpl::kVarChar) {
@@ -345,10 +191,6 @@ std::shared_ptr<ColumnBase> CreateColumn(
       return std::make_shared<TypedColumn<grape::EmptyType>>(strategy);
     } else if (type == PropertyType::kBool) {
       return std::make_shared<BoolColumn>(strategy);
-    } else if (type == PropertyType::kUInt8) {
-      return std::make_shared<UInt8Column>(strategy);
-    } else if (type == PropertyType::kUInt16) {
-      return std::make_shared<UInt16Column>(strategy);
     } else if (type == PropertyType::kInt32) {
       return std::make_shared<IntColumn>(strategy);
     } else if (type == PropertyType::kInt64) {
@@ -363,19 +205,14 @@ std::shared_ptr<ColumnBase> CreateColumn(
       return std::make_shared<FloatColumn>(strategy);
     } else if (type == PropertyType::kDate) {
       return std::make_shared<DateColumn>(strategy);
-    } else if (type == PropertyType::kStringMap) {
-      return std::make_shared<DefaultStringMapColumn>(strategy);
     } else if (type.type_enum == impl::PropertyTypeImpl::kVarChar) {
       // We must check is varchar first, because in implementation of
       // PropertyType::operator==(const PropertyType& other), we string_view is
       // equal to varchar.
       return std::make_shared<StringColumn>(
           strategy, type.additional_type_info.max_length);
-    } else if (type == PropertyType::kStringView) {
+    } else if (type.type_enum == impl::PropertyTypeImpl::kStringView) {
       return std::make_shared<StringColumn>(strategy);
-    } else if (type.type_enum == impl::PropertyTypeImpl::kRecordView) {
-      LOG(FATAL) << "RecordView column is not supported now.";
-      return nullptr;
     } else if (type.type_enum == impl::PropertyTypeImpl::kDateTime) {
       return std::make_shared<DateTimeColumn>(strategy);
     } else if (type.type_enum == impl::PropertyTypeImpl::kInterval) {
@@ -419,12 +256,6 @@ std::shared_ptr<RefColumnBase> CreateRefColumn(
   if (type == PropertyType::kBool) {
     return std::make_shared<TypedRefColumn<bool>>(
         *std::dynamic_pointer_cast<TypedColumn<bool>>(column));
-  } else if (type == PropertyType::kUInt8) {
-    return std::make_shared<TypedRefColumn<uint8_t>>(
-        *std::dynamic_pointer_cast<TypedColumn<uint8_t>>(column));
-  } else if (type == PropertyType::kUInt16) {
-    return std::make_shared<TypedRefColumn<uint16_t>>(
-        *std::dynamic_pointer_cast<TypedColumn<uint16_t>>(column));
   } else if (type == PropertyType::kInt32) {
     return std::make_shared<TypedRefColumn<int32_t>>(
         *std::dynamic_pointer_cast<TypedColumn<int32_t>>(column));
@@ -463,65 +294,5 @@ std::shared_ptr<RefColumnBase> CreateRefColumn(
                                   type.ToString());
   }
 }
-
-#if 0
-void TypedColumn<RecordView>::open_in_memory(const std::string& name) {
-  table_ = std::make_shared<Table>();
-  std::vector<std::string> col_names;
-  for (size_t i = 0; i < types_.size(); ++i) {
-    col_names.emplace_back("col_" + std::to_string(i));
-  }
-  table_->open_in_memory(name, "", col_names, types_, {});
-}
-
-size_t TypedColumn<RecordView>::size() const { return table_->row_num(); }
-
-void TypedColumn<RecordView>::resize(size_t size) { table_->resize(size); }
-
-void TypedColumn<RecordView>::close() { table_->close(); }
-
-void TypedColumn<RecordView>::set_any(size_t index, const Any& value) {
-  auto rv = value.AsRecordView();
-  set_value(index, rv);
-}
-
-void TypedColumn<RecordView>::set_value(size_t index, const RecordView& val) {
-  auto& cols = table_->columns();
-  for (size_t i = 0; i < val.size(); ++i) {
-    if (cols[i]->type() == PropertyType::kStringView) {
-      (dynamic_cast<TypedColumn<std::string_view>*>(cols[i].get()))
-          ->set_value_with_check(index, val[i].AsStringView());
-    } else {
-      cols[i]->set_any(index, val[i]);
-    }
-  }
-}
-
-void TypedColumn<RecordView>::set_value_with_check(size_t index,
-                                                   const RecordView& val) {
-  auto& cols = table_->columns();
-  for (size_t i = 0; i < val.size(); ++i) {
-    if (cols[i]->type() == PropertyType::kStringView) {
-      (dynamic_cast<TypedColumn<std::string_view>*>(cols[i].get()))
-          ->set_value_with_check(index, val[i].AsStringView());
-    } else {
-      cols[i]->set_any_with_resize(index, val[i]);
-    }
-  }
-}
-void TypedColumn<RecordView>::set_any_with_resize(size_t index,
-                                                  const Any& value) {
-  auto rv = value.AsRecordView();
-  set_value_with_check(index, rv);
-}
-
-Any TypedColumn<RecordView>::get(size_t index) const {
-  return Any(RecordView(index, table_.get()));
-}
-
-RecordView TypedColumn<RecordView>::get_view(size_t index) const {
-  return RecordView(index, table_.get());
-}
-#endif
 
 }  // namespace gs

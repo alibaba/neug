@@ -118,8 +118,9 @@ struct NbrList {
 static_assert(std::is_pod<NbrList>::value, "NbrList should be POD");
 
 struct EdgeDataAccessor {
-  EdgeDataAccessor() : data_type_(PropType::kEmpty), data_column_(nullptr) {}
-  EdgeDataAccessor(PropType data_type, ColumnBase* data_column)
+  EdgeDataAccessor()
+      : data_type_(PropertyType::kEmpty), data_column_(nullptr) {}
+  EdgeDataAccessor(PropertyType data_type, ColumnBase* data_column)
       : data_type_(data_type), data_column_(data_column) {}
   EdgeDataAccessor(const EdgeDataAccessor& other)
       : data_type_(other.data_type_), data_column_(other.data_column_) {}
@@ -174,43 +175,43 @@ struct EdgeDataAccessor {
       size_t idx = get_bundled_data_from_ptr<size_t>(it.get_data_ptr());
       data_column_->set_prop(idx, prop);
     } else {
-      if (data_type_ == PropType::kEmpty) {
+      if (data_type_ == PropertyType::kEmpty) {
         return;
-      } else if (data_type_ == PropType::kInt32) {
+      } else if (data_type_ == PropertyType::kInt32) {
         *reinterpret_cast<int32_t*>(const_cast<void*>(it.get_data_ptr())) =
             prop.as_int32();
-      } else if (data_type_ == PropType::kUInt32) {
+      } else if (data_type_ == PropertyType::kUInt32) {
         *reinterpret_cast<uint32_t*>(const_cast<void*>(it.get_data_ptr())) =
             prop.as_uint32();
-      } else if (data_type_ == PropType::kInt64) {
+      } else if (data_type_ == PropertyType::kInt64) {
         *reinterpret_cast<int64_t*>(const_cast<void*>(it.get_data_ptr())) =
             prop.as_int64();
-      } else if (data_type_ == PropType::kUInt64) {
+      } else if (data_type_ == PropertyType::kUInt64) {
         *reinterpret_cast<uint64_t*>(const_cast<void*>(it.get_data_ptr())) =
             prop.as_uint64();
-      } else if (data_type_ == PropType::kString) {
+      } else if (data_type_.type_enum == impl::PropertyTypeImpl::kStringView) {
         *reinterpret_cast<std::string_view*>(
             const_cast<void*>(it.get_data_ptr())) = prop.as_string();
-      } else if (data_type_ == PropType::kFloat) {
+      } else if (data_type_ == PropertyType::kFloat) {
         *reinterpret_cast<float*>(const_cast<void*>(it.get_data_ptr())) =
             prop.as_float();
-      } else if (data_type_ == PropType::kDouble) {
+      } else if (data_type_ == PropertyType::kDouble) {
         *reinterpret_cast<double*>(const_cast<void*>(it.get_data_ptr())) =
             prop.as_double();
-      } else if (data_type_ == PropType::kDate) {
+      } else if (data_type_ == PropertyType::kDate) {
         *reinterpret_cast<Date*>(const_cast<void*>(it.get_data_ptr())) =
             prop.as_date();
-      } else if (data_type_ == PropType::kDateTime) {
+      } else if (data_type_ == PropertyType::kDateTime) {
         *reinterpret_cast<DateTime*>(const_cast<void*>(it.get_data_ptr())) =
             prop.as_date_time();
-      } else if (data_type_ == PropType::kTimestamp) {
+      } else if (data_type_ == PropertyType::kTimestamp) {
         *reinterpret_cast<TimeStamp*>(const_cast<void*>(it.get_data_ptr())) =
             prop.as_timestamp();
-      } else if (data_type_ == PropType::kInterval) {
+      } else if (data_type_ == PropertyType::kInterval) {
         *reinterpret_cast<Interval*>(const_cast<void*>(it.get_data_ptr())) =
             prop.as_interval();
       } else {
-        LOG(FATAL) << "type - " << static_cast<int>(data_type_)
+        LOG(FATAL) << "type - " << data_type_.ToString()
                    << " - not implemented";
       }
     }
@@ -228,36 +229,35 @@ struct EdgeDataAccessor {
   }
 
   inline Prop get_generic_bundled_data_from_ptr(const void* data_ptr) const {
-    if (data_type_ == PropType::kEmpty) {
+    if (data_type_ == PropertyType::kEmpty) {
       return Prop::empty();
-    } else if (data_type_ == PropType::kInt32) {
+    } else if (data_type_ == PropertyType::kInt32) {
       return Prop::from_int32(get_bundled_data_from_ptr<int32_t>(data_ptr));
-    } else if (data_type_ == PropType::kUInt32) {
+    } else if (data_type_ == PropertyType::kUInt32) {
       return Prop::from_uint32(get_bundled_data_from_ptr<uint32_t>(data_ptr));
-    } else if (data_type_ == PropType::kInt64) {
+    } else if (data_type_ == PropertyType::kInt64) {
       return Prop::from_int64(get_bundled_data_from_ptr<int64_t>(data_ptr));
-    } else if (data_type_ == PropType::kUInt64) {
+    } else if (data_type_ == PropertyType::kUInt64) {
       return Prop::from_uint64(get_bundled_data_from_ptr<uint64_t>(data_ptr));
-    } else if (data_type_ == PropType::kString) {
-      return Prop::from_string(
+    } else if (data_type_.type_enum == impl::PropertyTypeImpl::kStringView) {
+      return Prop::from_string_view(
           get_bundled_data_from_ptr<std::string_view>(data_ptr));
-    } else if (data_type_ == PropType::kFloat) {
+    } else if (data_type_ == PropertyType::kFloat) {
       return Prop::from_float(get_bundled_data_from_ptr<float>(data_ptr));
-    } else if (data_type_ == PropType::kDouble) {
+    } else if (data_type_ == PropertyType::kDouble) {
       return Prop::from_double(get_bundled_data_from_ptr<double>(data_ptr));
-    } else if (data_type_ == PropType::kDate) {
+    } else if (data_type_ == PropertyType::kDate) {
       return Prop::from_date(get_bundled_data_from_ptr<Date>(data_ptr));
-    } else if (data_type_ == PropType::kTimestamp) {
+    } else if (data_type_ == PropertyType::kTimestamp) {
       return Prop::from_timestamp(
           get_bundled_data_from_ptr<TimeStamp>(data_ptr));
-    } else if (data_type_ == PropType::kDateTime) {
+    } else if (data_type_ == PropertyType::kDateTime) {
       return Prop::from_date_time(
           get_bundled_data_from_ptr<DateTime>(data_ptr));
-    } else if (data_type_ == PropType::kInterval) {
+    } else if (data_type_ == PropertyType::kInterval) {
       return Prop::from_interval(get_bundled_data_from_ptr<Interval>(data_ptr));
     } else {
-      LOG(FATAL) << "type - " << static_cast<int>(data_type_)
-                 << " - not implemented";
+      LOG(FATAL) << "type - " << data_type_.ToString() << " - not implemented";
       return Prop::empty();
     }
   }
@@ -266,7 +266,7 @@ struct EdgeDataAccessor {
     return data_column_->get_prop(idx);
   }
 
-  PropType data_type_;
+  PropertyType data_type_;
   ColumnBase* data_column_;
 };
 

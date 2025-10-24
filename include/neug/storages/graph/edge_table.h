@@ -47,14 +47,6 @@ class EdgeTableMeta {
                 const std::string& edge_label_name_, bool ie_mutable_,
                 bool oe_mutable_, EdgeStrategy ie_strategy_,
                 EdgeStrategy oe_strategy_,
-                const std::vector<PropType>& properties_,
-                const std::vector<std::string>& property_names_,
-                const std::vector<StorageStrategy>& strategies_);
-  EdgeTableMeta(const std::string& src_label_name_,
-                const std::string& dst_label_name_,
-                const std::string& edge_label_name_, bool ie_mutable_,
-                bool oe_mutable_, EdgeStrategy ie_strategy_,
-                EdgeStrategy oe_strategy_,
                 const std::vector<PropertyType>& properties_,
                 const std::vector<std::string>& property_names_,
                 const std::vector<StorageStrategy>& strategies_);
@@ -69,7 +61,7 @@ class EdgeTableMeta {
   bool oe_mutable;
   EdgeStrategy oe_strategy;
   EdgeStrategy ie_strategy;
-  std::vector<PropType> properties;
+  std::vector<PropertyType> properties;
   std::vector<std::string> property_names;
   std::vector<StorageStrategy> strategies;
 };

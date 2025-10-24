@@ -24,6 +24,7 @@
 #include <vector>
 
 #include "neug/utils/property/column.h"
+#include "neug/utils/property/property.h"
 #include "neug/utils/property/types.h"
 
 namespace grape {
@@ -84,7 +85,7 @@ class Table {
 
   const std::shared_ptr<ColumnBase> get_column(const std::string& name) const;
 
-  std::vector<Any> get_row(size_t row_id) const;
+  std::vector<Prop> get_row(size_t row_id) const;
 
   std::shared_ptr<ColumnBase> get_column_by_id(size_t index);
 
@@ -99,7 +100,7 @@ class Table {
   std::vector<std::shared_ptr<ColumnBase>>& columns();
   std::vector<ColumnBase*>& column_ptrs();
 
-  void insert(size_t index, const std::vector<Any>& values);
+  void insert(size_t index, const std::vector<Prop>& values);
 
   /**
    * @brief Different from insert, this function will resize the columns
@@ -107,22 +108,18 @@ class Table {
    * @param index The index to insert the row.
    * @param values The values to insert.
    */
-  void insert_with_resize(size_t index, const std::vector<Any>& values);
+  void insert_with_resize(size_t index, const std::vector<Prop>& values);
 
   // insert properties except for the primary key
   // col_ind_mapping: the mapping from the column index in
   // the raw file row to the column index in the schema
-  void insert(size_t index, const std::vector<Any>& values,
+  void insert(size_t index, const std::vector<Prop>& values,
               const std::vector<int32_t>& col_ind_mapping);
 
   void resize(size_t row_num);
 
-  inline Any at(size_t row_id, size_t col_id) {
-    return column_ptrs_[col_id]->get(row_id);
-  }
-
-  inline Any at(size_t row_id, size_t col_id) const {
-    return column_ptrs_[col_id]->get(row_id);
+  inline Prop at(size_t row_id, size_t col_id) const {
+    return column_ptrs_[col_id]->get_prop(row_id);
   }
 
   void ingest(uint32_t index, grape::OutArchive& arc);

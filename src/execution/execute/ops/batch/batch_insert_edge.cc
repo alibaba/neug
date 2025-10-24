@@ -40,7 +40,7 @@ class BatchInsertEdgeOpr : public IUpdateOperator {
  public:
   BatchInsertEdgeOpr(
       const label_t& edge_label_id, const label_t& src_label_id,
-      const label_t& dst_label_id, const PropertyType& e_prop,
+      const label_t& dst_label_id, const std::vector<PropertyType>& e_prop,
       const PropertyType& src_pk_prop, const PropertyType& dst_pk_prop,
       const std::vector<std::pair<int32_t, std::string>>& prop_mappings,
       const std::vector<std::pair<int32_t, std::string>>& src_vertex_bindings,
@@ -65,7 +65,8 @@ class BatchInsertEdgeOpr : public IUpdateOperator {
 
  private:
   label_t edge_label_id_, src_label_id_, dst_label_id_;
-  PropertyType e_prop_, src_pk_prop_, dst_pk_prop_;
+  std::vector<PropertyType> e_prop_;
+  PropertyType src_pk_prop_, dst_pk_prop_;
   std::vector<std::pair<int32_t, std::string>> prop_mappings_,
       src_vertex_bindings_, dst_vertex_bindings_;
 };
@@ -193,14 +194,15 @@ std::unique_ptr<IUpdateOperator> BatchInsertEdgeOprBuilder::Build(
   parse_property_mappings(opr.source_vertex_binding(), src_vertex_bindings);
   parse_property_mappings(opr.destination_vertex_binding(), dst_vertex_binds);
 
-  PropertyType edge_prop_type, src_pk_type, dst_pk_type;
+  PropertyType src_pk_type, dst_pk_type;
+  std::vector<PropertyType> edge_prop_types;
   auto& edge_props = schema.get_edge_properties(src_type, dst_type, edge_type);
   if (edge_props.empty()) {
-    edge_prop_type = PropertyType::Empty();
-  } else if (edge_props.size() == 1) {
-    edge_prop_type = edge_props[0];
+    edge_prop_types.emplace_back(PropertyType::Empty());
   } else {
-    edge_prop_type = PropertyType::RecordView();
+    for (const auto& prop : edge_props) {
+      edge_prop_types.emplace_back(prop);
+    }
   }
   src_pk_type = get_the_pk_type_from_schema(schema, src_type);
   dst_pk_type = get_the_pk_type_from_schema(schema, dst_type);
@@ -209,7 +211,7 @@ std::unique_ptr<IUpdateOperator> BatchInsertEdgeOprBuilder::Build(
       dst_primary_key;
 
   return std::make_unique<BatchInsertEdgeOpr>(
-      edge_type, src_type, dst_type, edge_prop_type, src_pk_type, dst_pk_type,
+      edge_type, src_type, dst_type, edge_prop_types, src_pk_type, dst_pk_type,
       prop_mappings, src_vertex_bindings, dst_vertex_binds);
 }
 
@@ -309,13 +311,13 @@ gs::result<Context> InsertEdgeOpr::eval_impl(
             gs::StatusCode::ERR_INTERNAL_ERROR,
             "Edge property index out of range in edge type from source to ");
       }
-      if (edge_properties_ordered[idx].type() != PropType::kEmpty) {
+      if (edge_properties_ordered[idx].type() != PropertyType::kEmpty) {
         THROW_RUNTIME_ERROR(
             "InsertEdgeOpr::eval_impl: edge property already set at index " +
             std::to_string(idx) + ", property name: " + prop.first);
       }
-      edge_properties_ordered[idx] = parse_property_from_string(
-          to_prop_type(edge_properties_type[idx]), prop.second);
+      edge_properties_ordered[idx] =
+          parse_property_from_string(edge_properties_type[idx], prop.second);
     }
     // Now we have all the information we need to insert the edges.
     for (size_t i = 0; i < src_size; ++i) {

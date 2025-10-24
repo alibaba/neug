@@ -154,29 +154,6 @@ class WriteContext {
       return std::make_pair(WriteParams(value.substr(0, pos)),
                             WriteParams(value.substr(pos + 1)));
     }
-    Any to_any(PropertyType type) const {
-      if (type == PropertyType::kInt32) {
-        return Any(std::stoi(std::string(value)));
-      } else if (type == PropertyType::kInt64) {
-        return Any(static_cast<int64_t>(std::stoll(std::string(value))));
-      } else if (type == PropertyType::kDouble) {
-        return Any(std::stod(std::string(value)));
-      } else if (type == PropertyType::kString) {
-        return Any(value);
-      } else if (type == PropertyType::kBool) {
-        return Any(value == "true");
-      } else if (type == PropertyType::kDate) {
-        return Any(Date(static_cast<int64_t>(std::stoll(std::string(value)))));
-      } else if (type == PropertyType::kDateTime) {
-        return Any(DateTime(std::stoll(std::string(value))));
-      } else if (type == PropertyType::kTimestamp) {
-        return Any(TimeStamp(std::stoll(std::string(value))));
-      } else {
-        THROW_NOT_SUPPORTED_EXCEPTION("Unsupported type for WriteParams: " +
-                                      type.ToString());
-        return Any();
-      }
-    }
 
     Prop to_prop(PropertyType type) const {
       if (type == PropertyType::kInt32) {
@@ -186,8 +163,8 @@ class WriteContext {
             static_cast<int64_t>(std::stoll(std::string(value))));
       } else if (type == PropertyType::kDouble) {
         return Prop::from_double(std::stod(std::string(value)));
-      } else if (type == PropertyType::kString) {
-        return Prop::from_string(value);
+      } else if (type.type_enum == impl::PropertyTypeImpl::kStringView) {
+        return Prop::from_string_view(value);
       } else if (type == PropertyType::kDate) {
         return Prop::from_date(
             Date(static_cast<int64_t>(std::stoll(std::string(value)))));

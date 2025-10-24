@@ -74,13 +74,14 @@ void ReadTransaction::vertex_iterator::Goto(vid_t target) {
   cur_ = std::min(target, num_);
 }
 
-Any ReadTransaction::vertex_iterator::GetId() const {
+Prop ReadTransaction::vertex_iterator::GetId() const {
   return graph_.get_oid(label_, cur_, ts_);
 }
 vid_t ReadTransaction::vertex_iterator::GetIndex() const { return cur_; }
 
-Any ReadTransaction::vertex_iterator::GetField(int col_id) const {
-  return graph_.get_vertex_table(label_).get_column_by_id(col_id)->get(cur_);
+Prop ReadTransaction::vertex_iterator::GetField(int col_id) const {
+  return graph_.get_vertex_table(label_).get_column_by_id(col_id)->get_prop(
+      cur_);
 }
 
 int ReadTransaction::vertex_iterator::FieldNum() const {
@@ -98,7 +99,7 @@ ReadTransaction::vertex_iterator ReadTransaction::GetVertexIterator(
 }
 
 ReadTransaction::vertex_iterator ReadTransaction::FindVertex(
-    label_t label, const Any& id) const {
+    label_t label, const Prop& id) const {
   vid_t lid;
   if (graph_.get_lid(label, id, lid, timestamp_)) {
     return {label,
@@ -117,7 +118,7 @@ ReadTransaction::vertex_iterator ReadTransaction::FindVertex(
   }
 }
 
-bool ReadTransaction::GetVertexIndex(label_t label, const Any& id,
+bool ReadTransaction::GetVertexIndex(label_t label, const Prop& id,
                                      vid_t& index) const {
   return graph_.get_lid(label, id, index, timestamp_);
 }
@@ -136,7 +137,7 @@ bool ReadTransaction::IsValidVertex(label_t label, vid_t index) const {
          graph_.is_valid_lid(label, index, timestamp_);
 }
 
-Any ReadTransaction::GetVertexId(label_t label, vid_t index) const {
+Prop ReadTransaction::GetVertexId(label_t label, vid_t index) const {
   return graph_.get_oid(label, index, timestamp_);
 }
 

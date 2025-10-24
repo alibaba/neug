@@ -35,7 +35,9 @@ class Context;
 
 void get_labels(
     const EdgeExpandParams& eep, const GraphReadInterface& graph,
-    std::vector<std::vector<std::pair<LabelTriplet, PropertyType>>>& labels);
+    std::vector<
+        std::vector<std::pair<LabelTriplet, std::vector<PropertyType>>>>&
+        labels);
 
 class Intersect {
  public:
@@ -62,8 +64,6 @@ class Intersect {
                                               : eep0.labels[0].src_label);
     MSVertexColumnBuilder builder(label);
     std::vector<size_t> offsets;
-
-    std::vector<std::vector<std::pair<LabelTriplet, PropertyType>>> labels;
 
     for (size_t i = 0; i < row_num; ++i) {
       phmap::flat_hash_set<vid_t> vertex_set;
@@ -168,8 +168,6 @@ class Intersect {
     // TODO(luoxiaojian): use MLVertexColumnBuilderOpt
     MLVertexColumnBuilder builder;
     std::vector<size_t> offsets;
-
-    std::vector<std::vector<std::pair<LabelTriplet, PropertyType>>> labels;
 
     for (size_t i = 0; i < row_num; ++i) {
       phmap::flat_hash_map<VertexRecord, uint32_t, VertexRecordHash> vertex_set;

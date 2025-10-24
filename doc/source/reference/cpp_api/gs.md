@@ -1782,19 +1782,7 @@ It allows multiple concurrent read and insert transactions, but only one update 
 - `type_name()`
 
 
----
 
-## AnyConverter< RecordView >
-
-**Full name:** `gs::AnyConverter< RecordView >`
-
-**Public Methods:**
-
-- `type()`
-- `to_any(const RecordView &value)`
-- `from_any(const Any &value)`
-- `from_any_value(const AnyValue &value)`
-- `type_name()`
 
 
 ---
@@ -2238,195 +2226,6 @@ A record batch supplier that provides all record batches from a arrow reader, wh
 
 **Full name:** `gs::Constants`
 
-
----
-
-## ConvertAny
-
-**Full name:** `gs::ConvertAny`
-
-**Public Methods:**
-
-- `to(const Any &value, T &out)`
-
-
----
-
-## ConvertAny< Date >
-
-**Full name:** `gs::ConvertAny< Date >`
-
-**Public Methods:**
-
-- `to(const Any &value, Date &out)`
-
-
----
-
-## ConvertAny< GlobalId >
-
-**Full name:** `gs::ConvertAny< GlobalId >`
-
-**Public Methods:**
-
-- `to(const Any &value, GlobalId &out)`
-
-
----
-
-## ConvertAny< LabelKey >
-
-**Full name:** `gs::ConvertAny< LabelKey >`
-
-**Public Methods:**
-
-- `to(const Any &value, LabelKey &out)`
-
-
----
-
-## ConvertAny< Record >
-
-**Full name:** `gs::ConvertAny< Record >`
-
-**Public Methods:**
-
-- `to(const Any &value, Record &out)`
-
-
----
-
-## ConvertAny< RecordView >
-
-**Full name:** `gs::ConvertAny< RecordView >`
-
-**Public Methods:**
-
-- `to(const Any &value, RecordView &out)`
-
-
----
-
-## ConvertAny< bool >
-
-**Full name:** `gs::ConvertAny< bool >`
-
-**Public Methods:**
-
-- `to(const Any &value, bool &out)`
-
-
----
-
-## ConvertAny< double >
-
-**Full name:** `gs::ConvertAny< double >`
-
-**Public Methods:**
-
-- `to(const Any &value, double &out)`
-
-
----
-
-## ConvertAny< float >
-
-**Full name:** `gs::ConvertAny< float >`
-
-**Public Methods:**
-
-- `to(const Any &value, float &out)`
-
-
----
-
-## EmptyType >
-
-**Full name:** `gs::ConvertAny< grape::EmptyType >`
-
-**Public Methods:**
-
-- `to(const Any &value, grape::EmptyType &out)`
-
-
----
-
-## ConvertAny< int32_t >
-
-**Full name:** `gs::ConvertAny< int32_t >`
-
-**Public Methods:**
-
-- `to(const Any &value, int32_t &out)`
-
-
----
-
-## ConvertAny< int64_t >
-
-**Full name:** `gs::ConvertAny< int64_t >`
-
-**Public Methods:**
-
-- `to(const Any &value, int64_t &out)`
-
-
----
-
-## string >
-
-**Full name:** `gs::ConvertAny< std::string >`
-
-**Public Methods:**
-
-- `to(const Any &value, std::string &out)`
-
-
----
-
-## string_view >
-
-**Full name:** `gs::ConvertAny< std::string_view >`
-
-**Public Methods:**
-
-- `to(const Any &value, std::string_view &out)`
-
-
----
-
-## ConvertAny< uint32_t >
-
-**Full name:** `gs::ConvertAny< uint32_t >`
-
-**Public Methods:**
-
-- `to(const Any &value, uint32_t &out)`
-
-
----
-
-## ConvertAny< uint64_t >
-
-**Full name:** `gs::ConvertAny< uint64_t >`
-
-**Public Methods:**
-
-- `to(const Any &value, uint64_t &out)`
-
-
----
-
-## CountVertices
-
-**Full name:** `gs::CountVertices`
-
-**Public Methods:**
-
-- `CountVertices()`
-- `Query(const NeugDBSession &sess, std::string param) override`
-
-
 ---
 
 ## CountVerticesFactory
@@ -2639,69 +2438,6 @@ A record batch supplier that provides all record batches from a arrow reader, wh
 
 ---
 
-## DualCsr< RecordView >
-
-**Full name:** `gs::DualCsr< RecordView >`
-
-**Public Methods:**
-
-- `DualCsr(EdgeStrategy oe_strategy, EdgeStrategy ie_strateg...`
-- `~DualCsr()`
-- `BatchInit(const std::string &oe_name, const std::string &ie...`
-- `BatchInitInMemory(const std::string &edata_name, const std::string ...`
-- `Open(const std::string &oe_name, const std::string &ie...`
-- `OpenInMemory(const std::string &oe_name, const std::string &ie...`
-- `OpenWithHugepages(const std::string &oe_name, const std::string &ie...`
-- `Dump(const std::string &oe_name, const std::string &ie...`
-- `GetInCsr() override`
-- `GetOutCsr() override`
-- ... and 14 more methods
-
-
----
-
-## string_view >
-
-**Full name:** `gs::DualCsr< std::string_view >`
-
-**Public Methods:**
-
-- `DualCsr(EdgeStrategy oe_strategy, EdgeStrategy ie_strateg...`
-- `~DualCsr()`
-- `BatchInit(const std::string &oe_name, const std::string &ie...`
-- `BatchInitInMemory(const std::string &edata_name, const std::string ...`
-- `Open(const std::string &oe_name, const std::string &ie...`
-- `OpenInMemory(const std::string &oe_name, const std::string &ie...`
-- `OpenWithHugepages(const std::string &oe_name, const std::string &ie...`
-- `Dump(const std::string &oe_name, const std::string &ie...`
-- `GetInCsr() override`
-- `GetOutCsr() override`
-- ... and 12 more methods
-
-
----
-
-## DualCsrBase
-
-**Full name:** `gs::DualCsrBase`
-
-**Public Methods:**
-
-- `DualCsrBase()=default`
-- `~DualCsrBase()=default`
-- `BatchInit(const std::string &oe_name, const std::string &ie...`
-- `BatchInitInMemory(const std::string &edata_name, const std::string ...`
-- `Open(const std::string &oe_name, const std::string &ie...`
-- `OpenInMemory(const std::string &oe_name, const std::string &ie...`
-- `OpenWithHugepages(const std::string &oe_name, const std::string &ie...`
-- `Dump(const std::string &oe_name, const std::string &ie...`
-- `IngestEdge(vid_t src, vid_t dst, grape::OutArchive &oarc, ti...`
-- `SortByEdgeData(timestamp_t ts)=0`
-- ... and 13 more methods
-
-
----
-
 ## DummyWalWriter
 
 **Full name:** `gs::DummyWalWriter`
@@ -2760,27 +2496,6 @@ It is used when write-ahead logging is disabled or not required.
 - `resize(vid_t vnum) override`
 - `size() const override`
 - ... and 12 more methods
-
-
----
-
-## EmptyCsr< RecordView >
-
-**Full name:** `gs::EmptyCsr< RecordView >`
-
-**Public Methods:**
-
-- `EmptyCsr(Table &table)`
-- `~EmptyCsr()=default`
-- `batch_init(const std::string &name, const std::string &work_...`
-- `batch_init_in_memory(const std::vector< int > &degree, double reserve_...`
-- `open(const std::string &name, const std::string &snaps...`
-- `open_in_memory(const std::string &prefix, size_t v_cap) override`
-- `dump(const std::string &name, const std::string &new_s...`
-- `resize(vid_t vnum) override`
-- `size() const override`
-- `edge_num() const override`
-- ... and 15 more methods
 
 
 ---
@@ -3122,28 +2837,6 @@ The interface of wal writer.
 - `resize(vid_t vnum) override`
 - ... and 10 more methods
 
-
----
-
-## ImmutableCsr< RecordView >
-
-**Full name:** `gs::ImmutableCsr< RecordView >`
-
-**Public Methods:**
-
-- `ImmutableCsr(Table &table)`
-- `~ImmutableCsr()`
-- `batch_init(const std::string &name, const std::string &work_...`
-- `batch_init_in_memory(const std::vector< int > &degree, double reserve_...`
-- `batch_put_edge_with_index(vid_t src, vid_t dst, size_t data, timestamp_t ts...`
-- `batch_append_edge_with_index(vid_t src, vid_t dst, size_t data, timestamp_t ts...`
-- `open(const std::string &name, const std::string &snaps...`
-- `open_in_memory(const std::string &prefix, size_t v_cap) override`
-- `open_with_hugepages(const std::string &prefix, size_t v_cap) override`
-- `dump(const std::string &name, const std::string &new_s...`
-- ... and 15 more methods
-
-
 ---
 
 ## string_view >
@@ -3251,27 +2944,6 @@ The interface of wal writer.
 - `begin() const`
 - `end() const`
 - `empty()`
-
-
----
-
-## TableNbr
-
-**Full name:** `gs::ImmutableNbrSlice< RecordView >::TableNbr`
-
-**Public Methods:**
-
-- `TableNbr(const_nbr_ptr_t ptr, const Table &table)`
-- `get_neighbor() const`
-- `get_data() const`
-- `operator*() const`
-- `operator->() const`
-- `operator=(const TableNbr &nbr) const`
-- `operator==(const TableNbr &nbr) const`
-- `operator!=(const TableNbr &nbr) const`
-- `operator++() const`
-- `operator+=(size_t n) const`
-- ... and 2 more methods
 
 
 ---
@@ -3510,28 +3182,6 @@ Support Using dynamically built library as plugin.
 - `batch_delete_edges(bool is_out, const std::vector< std::tuple< vid_t...`
 - ... and 18 more methods
 
-
----
-
-## MutableCsr< RecordView >
-
-**Full name:** `gs::MutableCsr< RecordView >`
-
-**Public Methods:**
-
-- `MutableCsr(Table &table)`
-- `~MutableCsr()`
-- `batch_init(const std::string &name, const std::string &work_...`
-- `batch_init_in_memory(const std::vector< int > &degree, double reserve_...`
-- `batch_put_edge_with_index(vid_t src, vid_t dst, size_t data, timestamp_t ts...`
-- `batch_append_edge_with_index(vid_t src, vid_t dst, size_t data, timestamp_t ts...`
-- `open(const std::string &name, const std::string &snaps...`
-- `open_in_memory(const std::string &prefix, size_t v_cap) override`
-- `dump(const std::string &name, const std::string &new_s...`
-- `resize(vid_t vnum) override`
-- ... and 19 more methods
-
-
 ---
 
 ## string_view >
@@ -3590,27 +3240,6 @@ Support Using dynamically built library as plugin.
 - `next() override`
 - `is_valid() const override`
 - `size() const override`
-
-
----
-
-## MutableCsrEdgeIter< RecordView >
-
-**Full name:** `gs::MutableCsrEdgeIter< RecordView >`
-
-**Public Methods:**
-
-- `MutableCsrEdgeIter(MutableNbrSliceMut< RecordView > slice)`
-- `~MutableCsrEdgeIter()=default`
-- `get_neighbor() const override`
-- `get_data() const override`
-- `get_index() const`
-- `get_timestamp() const override`
-- `set_timestamp(timestamp_t ts)`
-- `set_data(const Any &value, timestamp_t ts, int32_t col_id=...`
-- `operator+=(size_t offset) override`
-- `next() override`
-- ... and 2 more methods
 
 
 ---
@@ -3695,27 +3324,6 @@ Support Using dynamically built library as plugin.
 
 ---
 
-## MutableTableNbr
-
-**Full name:** `gs::MutableNbrSlice< RecordView >::MutableTableNbr`
-
-**Public Methods:**
-
-- `MutableTableNbr(const_nbr_ptr_t ptr, const Table &table)`
-- `get_neighbor() const`
-- `get_timestamp() const`
-- `get_data() const`
-- `operator*() const`
-- `operator->() const`
-- `operator=(const MutableTableNbr &nbr) const`
-- `operator==(const MutableTableNbr &nbr) const`
-- `operator!=(const MutableTableNbr &nbr) const`
-- `operator++() const`
-- ... and 3 more methods
-
-
----
-
 ## MutableColumnNbr
 
 **Full name:** `gs::MutableNbrSlice< std::string_view >::MutableColumnNbr`
@@ -3751,27 +3359,6 @@ Support Using dynamically built library as plugin.
 - `begin()`
 - `end()`
 - `empty()`
-
-
----
-
-## MutableTableNbr
-
-**Full name:** `gs::MutableNbrSliceMut< RecordView >::MutableTableNbr`
-
-**Public Methods:**
-
-- `MutableTableNbr(nbr_t *ptr, Table &table)`
-- `neighbor() const`
-- `get_neighbor() const`
-- `get_timestamp() const`
-- `get_index() const`
-- `get_data() const`
-- `set_data(const Record &r, timestamp_t ts)`
-- `set_data(const Any &r, timestamp_t ts, int32_t col_id)`
-- `set_neighbor(vid_t neighbor)`
-- `set_timestamp(timestamp_t ts)`
-- ... and 11 more methods
 
 
 ---
@@ -4035,24 +3622,6 @@ No extra memory should
 - `ToString() const`
 - `entries() const`
 
-
----
-
-## RecordView
-
-**Full name:** `gs::RecordView`
-
-**Public Methods:**
-
-- `RecordView()=default`
-- `RecordView(size_t offset, const Table *table)`
-- `size() const`
-- `operator[](size_t idx) const`
-- `get_field(int col_id) const`
-- `operator==(const RecordView &other) const`
-- `to_string() const`
-
-
 ---
 
 ## RefColumnBase
@@ -4238,27 +3807,6 @@ Create RefColumn for ease of usage for hqps.
 
 ---
 
-## SingleImmutableCsr< RecordView >
-
-**Full name:** `gs::SingleImmutableCsr< RecordView >`
-
-**Public Methods:**
-
-- `SingleImmutableCsr(Table &table)`
-- `~SingleImmutableCsr()`
-- `batch_init(const std::string &name, const std::string &work_...`
-- `batch_init_in_memory(const std::vector< int > &degree, double reserve_...`
-- `batch_put_edge_with_index(vid_t src, vid_t dst, size_t data, timestamp_t ts) override`
-- `batch_append_edge_with_index(vid_t src, vid_t dst, size_t data, timestamp_t ts) override`
-- `batch_sort_by_edge_data(timestamp_t ts) override`
-- `unsorted_since() const override`
-- `open(const std::string &name, const std::string &snaps...`
-- `open_in_memory(const std::string &prefix, size_t v_cap) override`
-- ... and 16 more methods
-
-
----
-
 ## string_view >
 
 **Full name:** `gs::SingleImmutableCsr< std::string_view >`
@@ -4323,42 +3871,6 @@ Create RefColumn for ease of usage for hqps.
 - `open_in_memory(const std::string &prefix, size_t v_cap) override`
 - `open_with_hugepages(const std::string &prefix, size_t v_cap) override`
 - ... and 14 more methods
-
-
----
-
-## SingleMutableCsr< RecordView >
-
-**Full name:** `gs::SingleMutableCsr< RecordView >`
-
-**Public Methods:**
-
-- `SingleMutableCsr(Table &table)`
-- `~SingleMutableCsr()`
-- `batch_init(const std::string &name, const std::string &work_...`
-- `batch_init_in_memory(const std::vector< int > &degree, double reserve_...`
-- `batch_put_edge_with_index(vid_t src, vid_t dst, size_t data, timestamp_t ts) override`
-- `batch_append_edge_with_index(vid_t src, vid_t dst, size_t data, timestamp_t ts) override`
-- `batch_sort_by_edge_data(timestamp_t ts) override`
-- `unsorted_since() const override`
-- `open(const std::string &name, const std::string &snaps...`
-- `open_in_memory(const std::string &prefix, size_t v_cap) override`
-- ... and 17 more methods
-
-
----
-
-## RecordNbr
-
-**Full name:** `gs::SingleMutableCsr< RecordView >::RecordNbr`
-
-**Public Methods:**
-
-- `RecordNbr(const nbr_t *ptr, Table &table)`
-- `get_neighbor() const`
-- `get_timestamp() const`
-- `get_index() const`
-- `get_data() const`
 
 
 ---
@@ -4810,21 +4322,6 @@ It provides methods to obtain different types of transactions (read, insert, upd
 
 - `batch_put_edge(vid_t src, vid_t dst, const EDATA_T &data, timest...`
 - `put_edge(vid_t src, vid_t dst, const EDATA_T &data, timest...`
-
-
----
-
-## TypedCsrBase< RecordView >
-
-**Full name:** `gs::TypedCsrBase< RecordView >`
-
-**Public Methods:**
-
-- `batch_put_edge_with_index(vid_t src, vid_t dst, size_t index, timestamp_t ts=0)=0`
-- `batch_append_edge_with_index(vid_t src, vid_t dst, size_t index, timestamp_t ts=0)=0`
-- `put_edge_with_index(vid_t src, vid_t dst, size_t index, timestamp_t t...`
-- `batch_put_edge(vid_t src, vid_t dst, const RecordView &data, tim...`
-- `put_edge(vid_t src, vid_t dst, const RecordView &data, tim...`
 
 
 ---
