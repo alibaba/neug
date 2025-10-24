@@ -140,9 +140,9 @@ void AbstractPropertyGraphLoader::loadEdges() {
   if (thread_num_ == 1) {
     LOG(INFO) << "Loading edges with single thread...";
     for (auto iter = edge_sources.begin(); iter != edge_sources.end(); ++iter) {
-      auto& src_label_id = std::get<0>(iter->first);
-      auto& dst_label_id = std::get<1>(iter->first);
-      auto& e_label_id = std::get<2>(iter->first);
+      auto src_label_id = std::get<0>(iter->first);
+      auto dst_label_id = std::get<1>(iter->first);
+      auto e_label_id = std::get<2>(iter->first);
       auto& e_files = iter->second;
 
       addEdges(src_label_id, dst_label_id, e_label_id, e_files);
@@ -185,6 +185,7 @@ result<bool> AbstractPropertyGraphLoader::LoadFragment() {
   try {
     loadVertices();
     loadEdges();
+    graph_.Compact(false, false, 0.0, 1);
     graph_.Dump(false);
 
   } catch (const std::exception& e) {
