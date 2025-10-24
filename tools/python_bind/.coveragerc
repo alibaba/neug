@@ -1,0 +1,5 @@
+[run]
+omit =
+    */neug/proto/*
+    */__pycache__/*
+    neug/tests/**

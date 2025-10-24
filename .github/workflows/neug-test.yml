@@ -154,22 +154,23 @@ jobs:
         cd ${GITHUB_WORKSPACE}/tools/python_bind/
         export FLEX_DATA_DIR=${GITHUB_WORKSPACE}/example_dataset/modern_graph
         pip3 install -r requirements_dev.txt
-        python3 -m pytest -sv tests/test_batch_loading.py
-        python3 -m pytest -sv tests/test_alter_property.py
-        python3 -m pytest -sv tests/test_ddl.py
+        pip3 install pytest-cov coverage
+        python3 -m pytest --cov=neug --cov-report=term --exitfirst --cov-append --cov-config=.coveragerc -sv tests/test_batch_loading.py
+        python3 -m pytest --cov=neug --cov-report=term --exitfirst --cov-append --cov-config=.coveragerc -sv tests/test_alter_property.py
+        python3 -m pytest --cov=neug --cov-report=term --exitfirst --cov-append --cov-config=.coveragerc -sv tests/test_ddl.py
         export NEUG_DB_DIR=/tmp/tinysnb
         export NEUG_QUERY='MATCH (n1:person)-[:knows]-(n2:person)-[:knows]-(n3:person), (n1)-[:knows]-(n3) RETURN n1.fName, n2.fName, n3.fName'
-        python3 -m pytest -sv tests/test_query.py
+        python3 -m pytest --cov=neug --cov-report=term --exitfirst --cov-append --cov-config=.coveragerc -sv tests/test_query.py
         export NEUG_DB_DIR=/tmp/modern_graph
         export NEUG_QUERY='MATCH (n1:person)-[:knows]-(n2:person)-[:knows]-(n3:person), (n1)-[:knows]-(n3) RETURN n1.name, n2.name, n3.name'
-        python3 -m pytest -sv tests/test_query.py
-        python3 -m pytest -sv tests/test_tp_service.py
+        python3 -m pytest --cov=neug --cov-report=term --exitfirst --cov-append --cov-config=.coveragerc -sv tests/test_query.py
+        python3 -m pytest --cov=neug --cov-report=term --exitfirst --cov-append --cov-config=.coveragerc -sv tests/test_tp_service.py
 
     - name: Run lsqb test
       run: |
         cd ${GITHUB_WORKSPACE}/tools/python_bind/
         export LSQB_DATA_DIR=/tmp/lsqb
-        python3 -m pytest -sv tests/test_lsqb.py
+        python3 -m pytest --cov=neug --cov-report=term --exitfirst --cov-append --cov-config=.coveragerc -sv tests/test_lsqb.py
 
     - name: Run TinySNB Test
       run: |
@@ -180,50 +181,50 @@ jobs:
       run: |
         cd ${GITHUB_WORKSPACE}/tools/python_bind/
         # db tests
-        python3 -m pytest -sv tests/test_db_init.py
+        python3 -m pytest --cov=neug --cov-report=term --exitfirst --cov-append --cov-config=.coveragerc -sv tests/test_db_init.py
 
     - name: Run DB Connection Test
       run: |
         cd ${GITHUB_WORKSPACE}/tools/python_bind/
         # db connection tests
-        python3 -m pytest -sv tests/test_db_connection.py
+        python3 -m pytest --cov=neug --cov-report=term --exitfirst --cov-append --cov-config=.coveragerc -sv tests/test_db_connection.py
 
     - name: Run Query Test
       run: |
         cd ${GITHUB_WORKSPACE}/tools/python_bind/
         # ddl & dml & query tests
-        python3 -m pytest -sv tests/test_db_query.py
-        python3 -m pytest -sv tests/test_dataset.py
+        python3 -m pytest --cov=neug --cov-report=term --exitfirst --cov-append --cov-config=.coveragerc -sv tests/test_db_query.py
+        python3 -m pytest --cov=neug --cov-report=term --exitfirst --cov-append --cov-config=.coveragerc -sv tests/test_dataset.py
 
     - name: Run Transaction Test
       run: |
         cd ${GITHUB_WORKSPACE}/tools/python_bind/
         # import/export tests
-        python3 -m pytest -sv tests/test_db_transaction.py
+        python3 -m pytest --cov=neug --cov-report=term --exitfirst --cov-append --cov-config=.coveragerc -sv tests/test_db_transaction.py
       
     - name: Run Import/Export Test
       run: |
         cd ${GITHUB_WORKSPACE}/tools/python_bind/
         # import/export tests
-        python3 -m pytest -sv tests/test_db_import_export.py
+        python3 -m pytest --cov=neug --cov-report=term --exitfirst --cov-append --cov-config=.coveragerc -sv tests/test_db_import_export.py
 
     - name: Run Complex Query Test
       run: |
         cd ${GITHUB_WORKSPACE}/tools/python_bind/
         # complex query tests
-        python3 -m pytest -sv tests/test_db_cases.py
+        python3 -m pytest --cov=neug --cov-report=term --exitfirst --cov-append --cov-config=.coveragerc -sv tests/test_db_cases.py
 
     - name: Run List Test
       run: |
         cd ${GITHUB_WORKSPACE}/tools/python_bind/
         # list tests
-        python3 -m pytest -sv tests/test_db_list.py
+        python3 -m pytest --cov=neug --cov-report=term --exitfirst --cov-append --cov-config=.coveragerc -sv tests/test_db_list.py
 
     - name: Run Concurrency Test
       run: |
         cd ${GITHUB_WORKSPACE}/tools/python_bind/
         # concurrency tests
-        python3 -m pytest -sv tests/test_db_concurrent.py
+        python3 -m pytest --cov=neug --cov-report=term --exitfirst --cov-append --cov-config=.coveragerc -sv tests/test_db_concurrent.py
 
     - name: Run E2E modern_graph Test
       run: |
@@ -268,13 +269,19 @@ jobs:
 
     - name: Test CLI tool
       run: |
-        cd ${GITHUB_WORKSPACE}/tools/python_bind/tests/
+        cd ${GITHUB_WORKSPACE}/tools/python_bind/
         # test ngcli commands
-        python3 -m pytest -sv test_ngcli_commands.py
+        python3 -m pytest --cov=neug --cov-report=term --exitfirst --cov-append --cov-config=.coveragerc -sv tests/test_ngcli_commands.py
         # test ngcli shell
-        python3 -m pytest -sv test_ngcli_basics.py
+        python3 -m pytest --cov=neug --cov-report=term --exitfirst --cov-append --cov-config=.coveragerc -sv tests/test_ngcli_basics.py
 
     - name: Run JSON Extension Test
       run: |
         cd ${GITHUB_WORKSPACE}/tools/python_bind/build/neug_py_bind/extension/json
         ./json_extension_test
+
+    - name: Generate Coverage Report
+      run: |
+        cd ${GITHUB_WORKSPACE}/tools/python_bind
+        coverage report
+        coverage xml -o coverage_report.xml
