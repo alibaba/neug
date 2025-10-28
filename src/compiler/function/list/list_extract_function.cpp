@@ -23,36 +23,59 @@
 #include "neug/compiler/function/list/functions/list_extract_function.h"
 
 #include "neug/compiler/function/list/vector_list_functions.h"
+#include "neug/compiler/function/neug_scalar_function.h"
 #include "neug/compiler/function/scalar_function.h"
+#include "neug/utils/runtime/rt_any.h"
 
 using namespace gs::common;
 
 namespace gs {
 namespace function {
 
-template <typename LEFT_TYPE, typename RIGHT_TYPE, typename RESULT_TYPE,
-          typename FUNC>
-static void BinaryExecListExtractFunction(
-    const std::vector<std::shared_ptr<common::ValueVector>>& params,
-    const std::vector<common::SelectionVector*>& paramSelVectors,
-    common::ValueVector& result, common::SelectionVector* resultSelVector,
-    void* dataPtr = nullptr) {
-  NEUG_ASSERT(params.size() == 2);
-  BinaryFunctionExecutor::executeSwitch<LEFT_TYPE, RIGHT_TYPE, RESULT_TYPE,
-                                        FUNC, BinaryListExtractFunctionWrapper>(
-      *params[0], paramSelVectors[0], *params[1], paramSelVectors[1], result,
-      resultSelVector, dataPtr);
+static int checkAndGetIndex(const runtime::RTAny& value) {
+  switch (value.type()) {
+  case gs::runtime::RTAnyType::kU32Value:
+    return value.as_uint32();
+  case gs::runtime::RTAnyType::kI32Value:
+    return value.as_int32();
+  case gs::runtime::RTAnyType::kU64Value:
+    return value.as_uint64();
+  case gs::runtime::RTAnyType::kI64Value:
+    return value.as_int64();
+  default:
+    THROW_RUNTIME_ERROR(
+        "LIST_EXTRACT([], index): the second element should be a integer, "
+        "but is " +
+        std::to_string(static_cast<int>(value.type())));
+  }
 }
 
-static std::unique_ptr<FunctionBindData> ListExtractBindFunc(
+static runtime::RTAny execFunc(size_t idx, runtime::Arena& arena,
+                               const std::vector<runtime::RTAny>& args) {
+  if (args.size() != 2) {
+    THROW_RUNTIME_ERROR(
+        "LIST_EXTRACT([], index): expect exactly 2 argument, got " +
+        std::to_string(args.size()));
+  }
+  int index = checkAndGetIndex(args[1]);
+  const auto& arg0 = args[0];
+  switch (arg0.type()) {
+  case gs::runtime::RTAnyType::kTuple:
+    return arg0.as_tuple().get(index);
+  case gs::runtime::RTAnyType::kList:
+    return arg0.as_list().get(index);
+  default:
+    THROW_RUNTIME_ERROR(
+        "LIST_EXTRACT([], index): the first element should be a tuple or a "
+        "list, "
+        "but is " +
+        std::to_string(static_cast<int>(arg0.type())));
+  }
+}
+
+static std::unique_ptr<FunctionBindData> bindFunc(
     const ScalarBindFuncInput& input) {
   const auto& resultType = ListType::getChildType(input.arguments[0]->dataType);
-  auto scalarFunction = input.definition->ptrCast<ScalarFunction>();
-  TypeUtils::visit(resultType.getPhysicalType(), [&scalarFunction]<typename T>(
-                                                     T) {
-    scalarFunction->execFunc =
-        BinaryExecListExtractFunction<list_entry_t, int64_t, T, ListExtract>;
-  });
   std::vector<LogicalType> paramTypes;
   paramTypes.push_back(input.arguments[0]->getDataType().copy());
   paramTypes.push_back(LogicalType(input.definition->parameterTypeIDs[1]));
@@ -62,25 +85,11 @@ static std::unique_ptr<FunctionBindData> ListExtractBindFunc(
 
 function_set ListExtractFunction::getFunctionSet() {
   function_set result;
-  std::unique_ptr<ScalarFunction> func;
-  func = std::make_unique<ScalarFunction>(
+  std::unique_ptr<ScalarFunction> func = std::make_unique<NeugScalarFunction>(
       name,
       std::vector<LogicalTypeID>{LogicalTypeID::LIST, LogicalTypeID::INT64},
-      LogicalTypeID::ANY);
-  func->bindFunc = ListExtractBindFunc;
-  result.push_back(std::move(func));
-  func = std::make_unique<ScalarFunction>(
-      name,
-      std::vector<LogicalTypeID>{LogicalTypeID::STRING, LogicalTypeID::INT64},
-      LogicalTypeID::STRING,
-      ScalarFunction::BinaryExecFunction<neug_string_t, int64_t, neug_string_t,
-                                         ListExtract>);
-  result.push_back(std::move(func));
-  func = std::make_unique<ScalarFunction>(
-      name,
-      std::vector<LogicalTypeID>{LogicalTypeID::ARRAY, LogicalTypeID::INT64},
-      LogicalTypeID::ANY);
-  func->bindFunc = ListExtractBindFunc;
+      LogicalTypeID::ANY, std::move(execFunc));
+  func->bindFunc = bindFunc;
   result.push_back(std::move(func));
   return result;
 }

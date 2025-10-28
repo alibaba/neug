@@ -14,6 +14,7 @@
  */
 
 #include "neug/execution/utils/expr_impl.h"
+#include "neug/compiler/function/neug_scalar_function.h"
 #include "neug/compiler/function/scalar_function.h"
 #include "neug/compiler/gopt/g_catalog_holder.h"
 
@@ -899,26 +900,19 @@ static std::unique_ptr<ExprBase> build_expr(
       const std::string& signature = op.unique_name();
       gs::runtime::neug_func_exec_t fn = nullptr;
 
-      try {
-        auto gCatalog = catalog::GCatalogHolder::getGCatalog();
-        auto func = gCatalog->getFunctionWithSignature(
-            &gs::transaction::DUMMY_TRANSACTION, signature);
-        if (!func) {
-          throw std::runtime_error(
-              "Function not found in catalog for signature: " + signature);
-        }
+      auto gCatalog = catalog::GCatalogHolder::getGCatalog();
+      auto func = gCatalog->getFunctionWithSignature(
+          &gs::transaction::DUMMY_TRANSACTION, signature);
+      if (!func) {
+        THROW_RUNTIME_ERROR("Function not found in catalog for signature: " +
+                            signature);
+      }
 
-        auto* scalarFunc = dynamic_cast<function::ScalarFunction*>(func);
-        fn = scalarFunc->neugExecFunc;
-        if (!fn) {
-          throw std::runtime_error(
-              "ScalarFunction neugExecFunc is null for signature: " +
-              signature);
-        }
-      } catch (const std::exception& e) {
-        throw std::runtime_error(
-            "ScalarFunctionExec not found for signature: " + signature +
-            ", error: " + e.what());
+      auto* scalarFunc = dynamic_cast<function::NeugScalarFunction*>(func);
+      fn = scalarFunc->neugExecFunc;
+      if (!fn) {
+        THROW_RUNTIME_ERROR(
+            "ScalarFunction neugExecFunc is null for signature: " + signature);
       }
 
       RTAnyType ret_type = RTAnyType::kUnknown;

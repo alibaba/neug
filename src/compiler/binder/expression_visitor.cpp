@@ -348,6 +348,11 @@ bool ConstantExpressionVisitor::visitFunction(const Expression& expr) {
     return false;
   }
 
+  auto& function = funcExpr.getFunction();
+  if (!function.execFunc) {
+    return false;
+  }
+
   std::string funcName = funcExpr.getFunction().name;
   if (funcName == function::CastToDateFunction::name ||
       funcName == function::CastToTimestampFunction::name ||

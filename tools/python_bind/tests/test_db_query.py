@@ -2154,3 +2154,19 @@ def test_delete_vertex_detach_edge():
     logger.info("test_delete_vertex_detach_edge passed")
     conn.close()
     db.close()
+
+
+def test_list_extract_function():
+    db_dir = "/tmp/modern_graph"
+    db = Database(db_path=db_dir, mode="w")
+    conn = db.connect()
+    res = conn.execute(
+        """
+        Match (a)
+        WITH a ORDER BY a.name
+        RETURN labels(a) as label, collect(a.name)[0];
+    """
+    )
+    records = list(res)
+    assert records == [["person", "josh"], ["software", "lop"]]
+    db.close()

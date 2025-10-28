@@ -401,5 +401,16 @@ TEST_F(ExprTest, INTERNAL_ID_FILTER_2) {
       *physical, getExprResource("INTERNAL_ID_FILTER_2_physical"));
 }
 
+TEST_F(ExprTest, LIST_EXTRACT) {
+  std::string query = R"(
+    Match (a:person)
+    WITH a ORDER BY a.fName 
+    RETURN labels(a) as label, collect(a.fName)[0];
+  )";
+  auto logical = planLogical(query, schemaData, statsData, rules);
+  auto physical = planPhysical(*logical);
+  VerifyFactory::verifyPhysicalByJson(*physical, getExprResource("LIST_EXTRACT_physical"));
+}
+
 }  // namespace gopt
 }  // namespace gs

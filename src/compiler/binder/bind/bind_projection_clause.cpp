@@ -73,7 +73,6 @@ BoundWithClause Binder::bindWithClause(const WithClause& withClause) {
   validateColumnNamesAreUnique(columnNames);
   auto boundProjectionBody =
       bindProjectionBody(*projectionBody, projectionExprs, aliases);
-  validateOrderByFollowedBySkipOrLimitInWithClause(boundProjectionBody);
   // Update scope
   scope.clear();
   for (auto i = 0u; i < projectionExprs.size(); ++i) {

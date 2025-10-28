@@ -22,6 +22,7 @@
 
 #include "neug/compiler/function/string/vector_string_functions.h"
 
+#include "neug/compiler/function/neug_scalar_function.h"
 #include "neug/compiler/function/string/functions/array_extract_function.h"
 #include "neug/compiler/function/string/functions/contains_function.h"
 #include "neug/compiler/function/string/functions/ends_with_function.h"
@@ -369,12 +370,9 @@ function_set RegexpSplitToArrayFunction::getFunctionSet() {
 
 function_set UpperFunction::getFunctionSet() {
   function_set functionSet;
-  functionSet.emplace_back(std::make_unique<ScalarFunction>(
+  functionSet.emplace_back(std::make_unique<NeugScalarFunction>(
       name, std::vector<LogicalTypeID>{LogicalTypeID::STRING},
-      LogicalTypeID::STRING,
-      ScalarFunction::UnaryStringExecFunction<neug_string_t, neug_string_t,
-                                              Upper>,
-      UpperFunction::Exec));
+      LogicalTypeID::STRING, UpperFunction::Exec));
   return functionSet;
 }
 
@@ -398,12 +396,9 @@ runtime::RTAny UpperFunction::Exec(size_t idx, runtime::Arena& arena,
 
 function_set LowerFunction::getFunctionSet() {
   function_set functionSet;
-  functionSet.emplace_back(std::make_unique<ScalarFunction>(
+  functionSet.emplace_back(std::make_unique<NeugScalarFunction>(
       name, std::vector<LogicalTypeID>{LogicalTypeID::STRING},
-      LogicalTypeID::STRING,
-      ScalarFunction::UnaryStringExecFunction<neug_string_t, neug_string_t,
-                                              Lower>,
-      LowerFunction::Exec));
+      LogicalTypeID::STRING, LowerFunction::Exec));
   return functionSet;
 }
 
@@ -427,12 +422,9 @@ runtime::RTAny LowerFunction::Exec(size_t idx, runtime::Arena& arena,
 
 function_set ReverseFunction::getFunctionSet() {
   function_set functionSet;
-  functionSet.emplace_back(std::make_unique<ScalarFunction>(
+  functionSet.emplace_back(std::make_unique<NeugScalarFunction>(
       name, std::vector<LogicalTypeID>{LogicalTypeID::STRING},
-      LogicalTypeID::STRING,
-      ScalarFunction::UnaryStringExecFunction<neug_string_t, neug_string_t,
-                                              Reverse>,
-      ReverseFunction::Exec));
+      LogicalTypeID::STRING, ReverseFunction::Exec));
   return functionSet;
 }
 
