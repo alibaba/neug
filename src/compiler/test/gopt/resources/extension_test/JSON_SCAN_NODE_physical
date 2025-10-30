@@ -15,7 +15,7 @@
          "param_name": "",
          "param_ind": 0,
          "const": {
-          "str": "/workspaces/neug/src/compiler/test/gopt/resources/dml_test/person.json"
+          "str": "DML_RESOURCE/person.json"
          }
         }
        ]

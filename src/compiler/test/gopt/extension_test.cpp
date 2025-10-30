@@ -20,6 +20,7 @@
 #include <stdlib.h>
 #include <unistd.h>
 #include <yaml-cpp/emitter.h>
+#include <string>
 
 #include "gopt_test.h"
 #include "neug/compiler/extension/extension_api.h"
@@ -137,7 +138,9 @@ TEST_F(ExtensionTest, JSON_SCAN_NODE) {
   auto logical = planLogical(query, schemaData, "", {});
   auto aliasManager = std::make_shared<GAliasManager>(*logical);
   auto physical = planPhysical(*logical, aliasManager);
-  ASSERT_TRUE(physical != nullptr);
+  VerifyFactory::verifyPhysicalByJson(
+      *physical,
+      replaceResource(getExtensionResource("JSON_SCAN_NODE_physical")));
 }
 
 TEST_F(ExtensionTest, JSON_SCAN_EDGE) {
@@ -148,7 +151,9 @@ TEST_F(ExtensionTest, JSON_SCAN_EDGE) {
   auto logical = planLogical(query, schemaData, "", {});
   auto aliasManager = std::make_shared<GAliasManager>(*logical);
   auto physical = planPhysical(*logical, aliasManager);
-  ASSERT_TRUE(physical != nullptr);
+  VerifyFactory::verifyPhysicalByJson(
+      *physical,
+      replaceResource(getExtensionResource("JSON_SCAN_EDGE_physical")));
 }
 
 TEST_F(ExtensionTest, SHOW_LOADED_EXTENSIONS) {

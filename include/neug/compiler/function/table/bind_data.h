@@ -55,6 +55,7 @@ struct NEUG_API TableFuncBindData {
   TableFuncBindData(const TableFuncBindData& other)
       : columns{other.columns},
         numRows{other.numRows},
+        params(other.params),
         columnSkips{other.columnSkips} {}
   TableFuncBindData& operator=(const TableFuncBindData& other) = delete;
   virtual ~TableFuncBindData() = default;
