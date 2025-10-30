@@ -80,9 +80,6 @@ Var::Var(const GraphInterface& graph, const Context& ctx,
     } else if (ctx.get(tag)->column_type() == ContextColumnType::kValue ||
                ctx.get(tag)->column_type() ==
                    ContextColumnType::kOptionalValue) {
-      if (type_ == RTAnyType::kEdge) {
-        type_ = RTAnyType::kRelation;
-      }
       getter_ = create_context_value_accessor(ctx, tag, type_);
     } else if (ctx.get(tag)->column_type() == ContextColumnType::kEdge) {
       if (pb.has_property()) {

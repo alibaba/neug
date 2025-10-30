@@ -211,25 +211,6 @@ void sink_entry(const RTAny& rt_val, const GraphInterface& graph,
             ret->mutable_value()->mutable_element()->mutable_object());
       }
     }
-  } else if (type_ == RTAnyType::kRelation) {
-    auto ele = entry->mutable_element()->mutable_edge();
-
-    auto val = rt_val.value().relation;
-    auto label = val.label;
-    auto src = val.src;
-    auto dst = val.dst;
-    ele->mutable_src_label()->set_name(
-        graph.schema().get_vertex_label_name(label.src_label));
-    ele->mutable_dst_label()->set_name(
-        graph.schema().get_vertex_label_name(label.dst_label));
-    auto edge_label = generate_edge_label_id(label.src_label, label.dst_label,
-                                             label.edge_label);
-    ele->mutable_label()->set_name(
-        graph.schema().get_edge_label_name(label.edge_label));
-    ele->set_src_id(encode_unique_vertex_id(label.src_label, src));
-    ele->set_dst_id(encode_unique_vertex_id(label.dst_label, dst));
-    ele->set_id(encode_unique_edge_id(edge_label, src, dst));
-
   } else if (type_ == RTAnyType::kEdge) {
     sink_edge(graph, rt_val.value().edge,
               entry->mutable_element()->mutable_edge());
@@ -237,12 +218,7 @@ void sink_entry(const RTAny& rt_val, const GraphInterface& graph,
     auto mutable_path = entry->mutable_element()->mutable_graph_path();
     auto path_nodes = rt_val.as_path().nodes();
     auto edge_labels = rt_val.as_path().edge_labels();
-    // same label for all edges
-    if (edge_labels.size() == 1) {
-      for (size_t i = 0; i + 2 < path_nodes.size(); ++i) {
-        edge_labels.emplace_back(edge_labels[0]);
-      }
-    }
+
     assert(edge_labels.size() + 1 == path_nodes.size());
     size_t len = path_nodes.size();
     for (size_t i = 0; i + 1 < len; ++i) {

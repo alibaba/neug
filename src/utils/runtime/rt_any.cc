@@ -38,62 +38,68 @@ namespace gs {
 
 namespace runtime {
 
+RTAnyType parse_from_data_type(const ::common::DataType& ddt) {
+  switch (ddt.item_case()) {
+  case ::common::DataType::kPrimitiveType: {
+    const ::common::PrimitiveType pt = ddt.primitive_type();
+    switch (pt) {
+    case ::common::PrimitiveType::DT_SIGNED_INT32:
+      return RTAnyType::kI32Value;
+    case ::common::PrimitiveType::DT_UNSIGNED_INT32:
+      return RTAnyType::kU32Value;
+    case ::common::PrimitiveType::DT_UNSIGNED_INT64:
+      return RTAnyType::kU64Value;
+    case ::common::PrimitiveType::DT_SIGNED_INT64:
+      return RTAnyType::kI64Value;
+    case ::common::PrimitiveType::DT_FLOAT:
+      return RTAnyType::kF32Value;
+    case ::common::PrimitiveType::DT_DOUBLE:
+      return RTAnyType::kF64Value;
+    case ::common::PrimitiveType::DT_BOOL:
+      return RTAnyType::kBoolValue;
+    case ::common::PrimitiveType::DT_ANY:
+      return RTAnyType::kUnknown;
+    default:
+      THROW_NOT_SUPPORTED_EXCEPTION("unrecognized primitive type - " +
+                                    std::to_string(pt));
+      break;
+    }
+  }
+  case ::common::DataType::kString:
+    return RTAnyType::kStringValue;
+  case ::common::DataType::kTemporal: {
+    if (ddt.temporal().item_case() == ::common::Temporal::kDate32) {
+      return RTAnyType::kDate;
+    } else if (ddt.temporal().item_case() == ::common::Temporal::kDateTime) {
+      return RTAnyType::kDateTime;
+    } else if (ddt.temporal().item_case() == ::common::Temporal::kDate) {
+      return RTAnyType::kDate;
+    } else if (ddt.temporal().item_case() == ::common::Temporal::kTimestamp) {
+      return RTAnyType::kTimestamp;
+    } else if (ddt.temporal().item_case() == ::common::Temporal::kInterval) {
+      return RTAnyType::kInterval;
+    } else {
+      THROW_NOT_SUPPORTED_EXCEPTION("unrecognized temporal type - " +
+                                    ddt.temporal().DebugString());
+    }
+  }
+  case ::common::DataType::kArray:
+    return RTAnyType::kList;
+  default:
+    THROW_NOT_SUPPORTED_EXCEPTION("unrecognized data type - " +
+                                  ddt.DebugString());
+    break;
+  }
+
+  return RTAnyType::kUnknown;
+}
+
 RTAnyType parse_from_ir_data_type(const ::common::IrDataType& dt) {
   switch (dt.type_case()) {
   case ::common::IrDataType::TypeCase::kDataType: {
     const ::common::DataType ddt = dt.data_type();
-    switch (ddt.item_case()) {
-    case ::common::DataType::kPrimitiveType: {
-      const ::common::PrimitiveType pt = ddt.primitive_type();
-      switch (pt) {
-      case ::common::PrimitiveType::DT_SIGNED_INT32:
-        return RTAnyType::kI32Value;
-      case ::common::PrimitiveType::DT_UNSIGNED_INT32:
-        return RTAnyType::kU32Value;
-      case ::common::PrimitiveType::DT_UNSIGNED_INT64:
-        return RTAnyType::kU64Value;
-      case ::common::PrimitiveType::DT_SIGNED_INT64:
-        return RTAnyType::kI64Value;
-      case ::common::PrimitiveType::DT_FLOAT:
-        return RTAnyType::kF32Value;
-      case ::common::PrimitiveType::DT_DOUBLE:
-        return RTAnyType::kF64Value;
-      case ::common::PrimitiveType::DT_BOOL:
-        return RTAnyType::kBoolValue;
-      case ::common::PrimitiveType::DT_ANY:
-        return RTAnyType::kUnknown;
-      default:
-        THROW_NOT_SUPPORTED_EXCEPTION("unrecognized primitive type - " +
-                                      std::to_string(pt));
-        break;
-      }
-    }
-    case ::common::DataType::kString:
-      return RTAnyType::kStringValue;
-    case ::common::DataType::kTemporal: {
-      if (ddt.temporal().item_case() == ::common::Temporal::kDate32) {
-        return RTAnyType::kDate;
-      } else if (ddt.temporal().item_case() == ::common::Temporal::kDateTime) {
-        return RTAnyType::kDateTime;
-      } else if (ddt.temporal().item_case() == ::common::Temporal::kDate) {
-        return RTAnyType::kDate;
-      } else if (ddt.temporal().item_case() == ::common::Temporal::kTimestamp) {
-        return RTAnyType::kTimestamp;
-      } else if (ddt.temporal().item_case() == ::common::Temporal::kInterval) {
-        return RTAnyType::kInterval;
-      } else {
-        THROW_NOT_SUPPORTED_EXCEPTION("unrecognized temporal type - " +
-                                      ddt.temporal().DebugString());
-      }
-    }
-    case ::common::DataType::kArray:
-      return RTAnyType::kList;
-    default:
-      THROW_NOT_SUPPORTED_EXCEPTION("unrecognized data type - " +
-                                    ddt.DebugString());
-      break;
-    }
-  } break;
+    return parse_from_data_type(ddt);
+  }
   case ::common::IrDataType::TypeCase::kGraphType: {
     const ::common::GraphDataType gdt = dt.graph_type();
     switch (gdt.element_opt()) {
@@ -345,8 +351,6 @@ RTAny::RTAny(const RTAny& rhs) : type_(rhs.type_) {
     value_.f64_val = rhs.value_.f64_val;
   } else if (type_ == RTAnyType::kMap) {
     value_.map = rhs.value_.map;
-  } else if (type_ == RTAnyType::kRelation) {
-    value_.relation = rhs.value_.relation;
   } else if (type_ == RTAnyType::kDate) {
     value_.date_val = rhs.value_.date_val;
   } else if (type_ == RTAnyType::kDateTime) {
@@ -389,8 +393,6 @@ RTAny& RTAny::operator=(const RTAny& rhs) {
     value_.f64_val = rhs.value_.f64_val;
   } else if (type_ == RTAnyType::kMap) {
     value_.map = rhs.value_.map;
-  } else if (type_ == RTAnyType::kRelation) {
-    value_.relation = rhs.value_.relation;
   } else if (type_ == RTAnyType::kPath) {
     value_.p = rhs.value_.p;
   } else if (type_ == RTAnyType::kDate) {
@@ -579,13 +581,6 @@ RTAny RTAny::from_interval(const Interval& i) {
   return ret;
 }
 
-RTAny RTAny::from_relation(const Relation& r) {
-  RTAny ret;
-  ret.type_ = RTAnyType::kRelation;
-  ret.value_.relation = r;
-  return ret;
-}
-
 bool RTAny::as_bool() const {
   if (type_ == RTAnyType::kNull) {
     return false;
@@ -687,15 +682,6 @@ Tuple RTAny::as_tuple() const {
 Map RTAny::as_map() const {
   assert(type_ == RTAnyType::kMap);
   return value_.map;
-}
-
-Relation RTAny::as_relation() const {
-  assert(type_ == RTAnyType::kRelation || type_ == RTAnyType::kEdge);
-  if (type_ == RTAnyType::kRelation) {
-    return value_.relation;
-  } else {
-    return value_.edge.as_relation();
-  }
 }
 
 RTAny TupleImpl<RTAny>::get(size_t idx) const {
@@ -1425,11 +1411,6 @@ void RTAny::encode_sig(RTAnyType type, Encoder& encoder) const {
       encoder.put_byte(nodes[i].label_);
       encoder.put_int(nodes[i].vid_);
     }
-  } else if (type == RTAnyType::kRelation) {
-    Relation r = this->as_relation();
-    encoder.put_byte(r.label.src_label);
-    encoder.put_int(r.src);
-    encoder.put_int(r.dst);
   } else {
     THROW_RUNTIME_ERROR("RTAny::encode_sig not support for " +
                         std::to_string(static_cast<int>(type)));

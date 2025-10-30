@@ -127,72 +127,213 @@ struct VertexRecordHash {
     return seed;
   }
 };
-struct Relation {
-  LabelTriplet label;
-  vid_t src;
-  vid_t dst;
-  bool operator<(const Relation& r) const {
-    return std::tie(label, src, dst) < std::tie(r.label, r.src, r.dst);
+class EdgeRecord {
+ public:
+  bool operator<(const EdgeRecord& e) const {
+    return std::tie(src, dst, label) < std::tie(e.src, e.dst, e.label);
   }
-  bool operator==(const Relation& r) const {
-    return std::tie(label, src, dst) == std::tie(r.label, r.src, r.dst);
+  bool operator==(const EdgeRecord& e) const {
+    return std::tie(src, dst, label) == std::tie(e.src, e.dst, e.label);
   }
+
   VertexRecord start_node() const { return {label.src_label, src}; }
   VertexRecord end_node() const { return {label.dst_label, dst}; }
+
+  LabelTriplet label;
+  vid_t src, dst;
+  const void* prop;
+  Direction dir;
 };
 
 class PathImpl : public CObject {
  public:
-  static std::unique_ptr<PathImpl> make_path_impl(label_t label, vid_t v) {
+  static PathImpl* make_path_impl(label_t label, vid_t v, Arena& arena) {
     auto new_path = std::make_unique<PathImpl>();
-    new_path->path_.push_back({label, v});
-    return new_path;
+    new_path->e_label_ = std::numeric_limits<label_t>::max();
+    new_path->v_label_ = label;
+    new_path->vid_ = v;
+    new_path->prev_ = nullptr;
+    auto path_ptr = new_path.get();
+    arena.emplace_back(std::move(new_path));
+    return path_ptr;
   }
-  static std::unique_ptr<PathImpl> make_path_impl(
-      label_t label, label_t edge_label, std::vector<vid_t>& path_ids) {
-    auto new_path = std::make_unique<PathImpl>();
-    for (auto id : path_ids) {
-      new_path->path_.push_back({label, id});
+  static PathImpl* make_path_impl(
+      label_t label, label_t edge_label, const std::vector<vid_t>& path_ids,
+      const std::vector<std::pair<Direction, const void*>>& edge_datas,
+      Arena& arena) {
+    auto cur = std::make_unique<PathImpl>();
+    cur->v_label_ = label;
+    cur->e_label_ = edge_label;
+    cur->prev_ = nullptr;
+    cur->vid_ = path_ids[0];
+    auto cur_ptr = cur.get();
+    arena.emplace_back(std::move(cur));
+    for (size_t i = 1; i < path_ids.size(); ++i) {
+      auto next = std::make_unique<PathImpl>();
+      next->v_label_ = label;
+      next->e_label_ = edge_label;
+      next->vid_ = path_ids[i];
+      next->prev_ = cur_ptr;
+      next->direction_ = edge_datas[i - 1].first;
+      next->payload_ = edge_datas[i - 1].second;
+      cur_ptr = next.get();
+      arena.emplace_back(std::move(next));
     }
-    new_path->edge_labels_.push_back(edge_label);
-    return new_path;
+
+    return cur_ptr;
   }
-  static std::unique_ptr<PathImpl> make_path_impl(
-      const std::vector<label_t>& edge_labels,
-      const std::vector<VertexRecord>& path) {
-    auto new_path = std::make_unique<PathImpl>();
-    new_path->path_ = path;
-    new_path->edge_labels_ = edge_labels;
-    return new_path;
+  static PathImpl* make_path_impl(
+      const std::vector<std::tuple<label_t, Direction, const void*>>&
+          edge_datas,
+      const std::vector<VertexRecord>& path, Arena& arena) {
+    auto cur = std::make_unique<PathImpl>();
+    cur->v_label_ = path[0].label_;
+    cur->e_label_ = std::numeric_limits<label_t>::max();
+    cur->vid_ = path[0].vid_;
+    cur->prev_ = nullptr;
+    auto cur_ptr = cur.get();
+    arena.emplace_back(std::move(cur));
+    for (size_t i = 1; i < path.size(); ++i) {
+      auto next = std::make_unique<PathImpl>();
+      next->v_label_ = path[i].label_;
+      next->e_label_ = std::get<0>(edge_datas[i - 1]);
+      next->direction_ = std::get<1>(edge_datas[i - 1]);
+      next->payload_ = std::get<2>(edge_datas[i - 1]);
+      next->vid_ = path[i].vid_;
+      next->prev_ = cur_ptr;
+      cur_ptr = next.get();
+      arena.emplace_back(std::move(next));
+    }
+    return cur_ptr;
   }
-  std::unique_ptr<PathImpl> expand(label_t edge_label, label_t label,
-                                   vid_t v) const {
+  PathImpl* expand(label_t edge_label, label_t label, vid_t v, Direction dir,
+                   const void* payload, Arena& arena) const {
     auto new_path = std::make_unique<PathImpl>();
-    new_path->path_ = path_;
-    new_path->edge_labels_ = edge_labels_;
-    new_path->edge_labels_.emplace_back(edge_label);
-    new_path->path_.push_back({label, v});
-    return new_path;
+    new_path->v_label_ = label;
+    new_path->e_label_ = edge_label;
+    new_path->vid_ = v;
+    new_path->prev_ = this;
+    new_path->direction_ = dir;
+    new_path->payload_ = payload;
+    auto new_path_ptr = new_path.get();
+    arena.emplace_back(std::move(new_path));
+    return new_path_ptr;
   }
 
   std::string to_string() const {
     std::string str;
-    for (size_t i = 0; i < path_.size(); ++i) {
-      str += "(" + std::to_string(static_cast<int>(path_[i].label_)) + ", " +
-             std::to_string(path_[i].vid_) + ")";
-      if (i != path_.size() - 1) {
-        str += "->";
+    const PathImpl* cur = this;
+    std::vector<std::string> parts;
+    while (cur != nullptr) {
+      parts.push_back(cur->get_end().to_string());
+      cur = cur->prev_;
+    }
+    std::reverse(parts.begin(), parts.end());
+    for (size_t i = 0; i < parts.size(); ++i) {
+      str += parts[i];
+      if (i + 1 < parts.size()) {
+        str += "-";
       }
     }
     return str;
   }
 
-  VertexRecord get_end() const { return path_.back(); }
-  VertexRecord get_start() const { return path_.front(); }
-  bool operator<(const PathImpl& p) const { return path_ < p.path_; }
-  bool operator==(const PathImpl& p) const { return path_ == p.path_; }
-  std::vector<VertexRecord> path_;
-  std::vector<label_t> edge_labels_;
+  VertexRecord get_end() const { return {v_label_, vid_}; }
+  VertexRecord get_start() const {
+    const PathImpl* cur = this;
+    while (cur->prev_ != nullptr) {
+      cur = cur->prev_;
+    }
+    return {cur->v_label_, cur->vid_};
+  }
+  bool operator<(const PathImpl& p) const {
+    const auto& nodes = this->nodes();
+    const auto& p_nodes = p.nodes();
+    for (size_t i = 0; i < nodes.size() && i < p_nodes.size(); ++i) {
+      if (nodes[i] < p_nodes[i]) {
+        return true;
+      } else if (p_nodes[i] < nodes[i]) {
+        return false;
+      }
+    }
+    if (nodes.size() < p_nodes.size()) {
+      return true;
+    }
+    return false;
+  }
+  bool operator==(const PathImpl& p) const {
+    if ((p.prev_ == nullptr && prev_) || (p.prev_ && prev_ == nullptr)) {
+      return false;
+    }
+    if (v_label_ != p.v_label_ || e_label_ != p.e_label_ ||
+        direction_ != p.direction_ || vid_ != p.vid_) {
+      return false;
+    }
+    if (prev_ && p.prev_) {
+      return *prev_ == *(p.prev_);
+    }
+    return true;
+  }
+  int64_t len() const {
+    int64_t length = 1;
+    const PathImpl* cur = this;
+    while (cur->prev_ != nullptr) {
+      length++;
+      cur = cur->prev_;
+    }
+    return length;
+  }
+
+  std::vector<VertexRecord> nodes() const {
+    std::vector<VertexRecord> result;
+    const PathImpl* cur = this;
+    while (cur != nullptr) {
+      result.emplace_back(cur->v_label_, cur->vid_);
+      cur = cur->prev_;
+    }
+    std::reverse(result.begin(), result.end());
+    return result;
+  }
+
+  std::vector<EdgeRecord> relationships() const {
+    std::vector<EdgeRecord> relations;
+    const PathImpl* cur = this;
+    std::vector<PathImpl const*> nodes;
+    while (cur != nullptr) {
+      nodes.push_back(cur);
+      cur = cur->prev_;
+    }
+    std::reverse(nodes.begin(), nodes.end());
+    for (size_t i = 0; i + 1 < nodes.size(); ++i) {
+      EdgeRecord r;
+      r.label = {nodes[i]->v_label_, nodes[i + 1]->v_label_,
+                 nodes[i + 1]->e_label_};
+      r.src = nodes[i]->vid_;
+      r.dst = nodes[i + 1]->vid_;
+      r.dir = nodes[i + 1]->direction_;
+      r.prop = nodes[i + 1]->payload_;
+      relations.push_back(r);
+    }
+    return relations;
+  }
+
+  std::vector<label_t> edge_labels() const {
+    std::vector<label_t> edge_labels;
+    const PathImpl* cur = this;
+    std::vector<label_t> labels;
+    while (cur->prev_ != nullptr) {
+      labels.push_back(cur->e_label_);
+      cur = cur->prev_;
+    }
+    std::reverse(labels.begin(), labels.end());
+    return labels;
+  }
+  label_t v_label_;
+  label_t e_label_;
+  Direction direction_;
+  vid_t vid_;
+  const void* payload_;
+  const PathImpl* prev_;
 };
 class Path {
  public:
@@ -201,25 +342,15 @@ class Path {
 
   std::string to_string() const { return impl_->to_string(); }
 
-  int64_t len() const { return impl_->path_.size(); }
+  int64_t len() const { return impl_->len(); }
   VertexRecord get_end() const { return impl_->get_end(); }
 
-  std::vector<Relation> relationships() const {
-    std::vector<Relation> relations;
-    for (size_t i = 0; i < impl_->path_.size() - 1; ++i) {
-      Relation r;
-      r.label = {impl_->path_[i].label_, impl_->path_[i + 1].label_,
-                 impl_->edge_labels_[i]};
-      r.src = impl_->path_[i].vid_;
-      r.dst = impl_->path_[i + 1].vid_;
-      relations.push_back(r);
-    }
-    return relations;
+  std::vector<EdgeRecord> relationships() const {
+    return impl_->relationships();
   }
+  std::vector<VertexRecord> nodes() { return impl_->nodes(); }
 
-  std::vector<VertexRecord> nodes() { return impl_->path_; }
-
-  std::vector<label_t> edge_labels() const { return impl_->edge_labels_; }
+  std::vector<label_t> edge_labels() const { return impl_->edge_labels(); }
 
   VertexRecord get_start() const { return impl_->get_start(); }
   bool operator<(const Path& p) const { return *impl_ < *(p.impl_); }
@@ -227,7 +358,6 @@ class Path {
 
   PathImpl* impl_;
 };
-
 class RTAny;
 
 enum class RTAnyType;
@@ -421,7 +551,6 @@ enum class RTAnyType {
   kTuple = 17,
   kList = 18,
   kMap = 19,
-  kRelation = 20,
   kSet = 21,
   kEmpty = 22,
 };
@@ -462,22 +591,7 @@ struct pod_string_view {
   std::string to_string() const { return std::string(data_, size_); }
 };
 // only for pod type
-class EdgeRecord {
- public:
-  bool operator<(const EdgeRecord& e) const {
-    return std::tie(src, dst, label) < std::tie(e.src, e.dst, e.label);
-  }
-  bool operator==(const EdgeRecord& e) const {
-    return std::tie(src, dst, label) == std::tie(e.src, e.dst, e.label);
-  }
-
-  Relation as_relation() const { return Relation{label, src, dst}; }
-
-  LabelTriplet label;
-  vid_t src, dst;
-  const void* prop;
-  Direction dir;
-};
+RTAnyType parse_from_data_type(const ::common::DataType& ddt);
 RTAnyType parse_from_ir_data_type(const ::common::IrDataType& dt);
 
 union RTAnyValue {
@@ -486,7 +600,6 @@ union RTAnyValue {
   ~RTAnyValue() {}
   VertexRecord vertex;
   EdgeRecord edge;
-  Relation relation;
   int64_t i64_val;
   uint64_t u64_val;
   int i32_val;
@@ -526,7 +639,6 @@ class RTAny {
   static RTAny from_vertex(VertexRecord v);
   static RTAny from_edge(const EdgeRecord& v);
 
-  static RTAny from_relation(const Relation& r);
   static RTAny from_bool(bool v);
   static RTAny from_int64(int64_t v);
   static RTAny from_uint64(uint64_t v);
@@ -565,7 +677,6 @@ class RTAny {
   List as_list() const;
   Map as_map() const;
   Set as_set() const;
-  Relation as_relation() const;
 
   bool operator<(const RTAny& other) const;
   bool operator==(const RTAny& other) const;
@@ -763,15 +874,6 @@ struct TypedConverter<Set> {
   static RTAny from_typed(Set val) { return RTAny::from_set(val); }
   static const std::string name() { return "set"; }
 };
-template <>
-struct TypedConverter<Relation> {
-  static RTAnyType type() { return RTAnyType::kRelation; }
-  static Relation to_typed(const RTAny& val) { return val.as_relation(); }
-  static RTAny from_typed(const Relation& val) {
-    return RTAny::from_relation(val);
-  }
-  static const std::string name() { return "relation"; }
-};
 
 template <>
 struct TypedConverter<VertexRecord> {
@@ -779,6 +881,14 @@ struct TypedConverter<VertexRecord> {
   static VertexRecord to_typed(const RTAny& val) { return val.as_vertex(); }
   static RTAny from_typed(VertexRecord val) { return RTAny::from_vertex(val); }
   static const std::string name() { return "vertex"; }
+};
+
+template <>
+struct TypedConverter<EdgeRecord> {
+  static RTAnyType type() { return RTAnyType::kEdge; }
+  static EdgeRecord to_typed(const RTAny& val) { return val.as_edge(); }
+  static RTAny from_typed(EdgeRecord val) { return RTAny::from_edge(val); }
+  static const std::string name() { return "edge"; }
 };
 
 template <typename... Args>
@@ -819,6 +929,23 @@ class ListImpl : ListImplBase {
     auto new_list = new ListImpl<T>();
     new_list->list_ = std::move(vals);
     new_list->is_valid_.resize(new_list->list_.size(), true);
+    return std::unique_ptr<ListImplBase>(static_cast<ListImplBase*>(new_list));
+  }
+
+  static std::unique_ptr<ListImplBase> make_list_impl(
+      std::vector<RTAny>&& vals) {
+    auto new_list = new ListImpl<T>();
+    new_list->list_.reserve(vals.size());
+    new_list->is_valid_.reserve(vals.size());
+    for (auto& v : vals) {
+      if (v.type() == RTAnyType::kNull) {
+        new_list->list_.emplace_back();
+        new_list->is_valid_.emplace_back(false);
+      } else {
+        new_list->list_.emplace_back(TypedConverter<T>::to_typed(v));
+        new_list->is_valid_.emplace_back(true);
+      }
+    }
     return std::unique_ptr<ListImplBase>(static_cast<ListImplBase*>(new_list));
   }
 

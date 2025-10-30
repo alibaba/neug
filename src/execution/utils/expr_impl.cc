@@ -536,6 +536,102 @@ RTAny TupleExpr::eval_edge(const LabelTriplet& label, vid_t src, vid_t dst,
 
 RTAnyType TupleExpr::type() const { return RTAnyType::kTuple; }
 
+template <typename T>
+RTAny create_list_impl(std::vector<RTAny>&& elements, Arena& arena) {
+  auto list_impl = ListImpl<T>::make_list_impl(std::move(elements));
+  List list(list_impl.get());
+  arena.emplace_back(std::move(list_impl));
+  return RTAny::from_list(list);
+}
+RTAny create_list(std::vector<RTAny>&& elements, RTAnyType elem_type,
+                  Arena& arena) {
+  switch (elem_type) {
+  case RTAnyType::kI32Value:
+    return create_list_impl<int32_t>(std::move(elements), arena);
+  case RTAnyType::kI64Value:
+    return create_list_impl<int64_t>(std::move(elements), arena);
+  case RTAnyType::kF64Value:
+    return create_list_impl<double>(std::move(elements), arena);
+  case RTAnyType::kStringValue:
+    return create_list_impl<std::string_view>(std::move(elements), arena);
+  case RTAnyType::kDateTime:
+    return create_list_impl<DateTime>(std::move(elements), arena);
+  default:
+    LOG(FATAL) << "not support list of " << static_cast<int>(elem_type);
+    return RTAny();
+  }
+}
+
+RTAny PathVertexPropsExpr::eval_path(size_t idx, Arena& arena) const {
+  auto path = col_.get_elem(idx);
+  if (path.is_null()) {
+    return RTAny(RTAnyType::kNull);
+  }
+  const auto& nodes = path.as_path().nodes();
+  std::vector<RTAny> props;
+  for (const auto& node : nodes) {
+    const auto& name = graph_.schema().get_vertex_property_names(node.label_);
+    auto it = std::find(name.begin(), name.end(), prop_);
+    if (it == name.end()) {
+      props.push_back(RTAny(RTAnyType::kNull));
+    } else {
+      size_t index = std::distance(name.begin(), it);
+      auto prop = graph_.GetVertexProperty(node.label_, node.vid_, index);
+      props.push_back(RTAny(prop));
+    }
+  }
+  return create_list(std::move(props), prop_type_, arena);
+}
+
+RTAny PathEdgePropsExpr::eval_path(size_t idx, Arena& arena) const {
+  auto path = col_.get_elem(idx);
+  if (path.is_null()) {
+    return RTAny(RTAnyType::kNull);
+  }
+  const auto& edges = path.as_path().relationships();
+  std::vector<RTAny> props;
+  for (const auto& edge : edges) {
+    const auto& name = graph_.schema().get_edge_property_names(
+        edge.label.src_label, edge.label.dst_label, edge.label.edge_label);
+    auto it = std::find(name.begin(), name.end(), prop_);
+    if (it == name.end()) {
+      props.push_back(RTAny(RTAnyType::kNull));
+    } else {
+      size_t index = std::distance(name.begin(), it);
+      auto accessor =
+          graph_.GetEdgeDataAccessor(edge.label.src_label, edge.label.dst_label,
+                                     edge.label.edge_label, index);
+      if (prop_type_ == RTAnyType::kStringValue) {
+        auto ret = accessor.template get_typed_data_from_ptr<std::string_view>(
+            edge.prop);
+        props.push_back(RTAny::from_string(ret));
+      } else if (prop_type_ == RTAnyType::kI32Value) {
+        auto ret =
+            accessor.template get_typed_data_from_ptr<int32_t>(edge.prop);
+        props.push_back(RTAny::from_int32(ret));
+      } else if (prop_type_ == RTAnyType::kI64Value) {
+        auto ret =
+            accessor.template get_typed_data_from_ptr<int64_t>(edge.prop);
+        props.push_back(RTAny::from_int64(ret));
+      } else if (prop_type_ == RTAnyType::kF64Value) {
+        auto ret = accessor.template get_typed_data_from_ptr<double>(edge.prop);
+        props.push_back(RTAny::from_double(ret));
+      } else if (prop_type_ == RTAnyType::kBoolValue) {
+        auto ret = accessor.template get_typed_data_from_ptr<bool>(edge.prop);
+        props.push_back(RTAny::from_bool(ret));
+      } else if (prop_type_ == RTAnyType::kDateTime) {
+        auto ret =
+            accessor.template get_typed_data_from_ptr<DateTime>(edge.prop);
+        props.push_back(RTAny::from_datetime(ret));
+      } else {
+        LOG(FATAL) << "not support edge prop type "
+                   << static_cast<int>(prop_type_);
+      }
+    }
+  }
+  return create_list(std::move(props), prop_type_, arena);
+}
+
 static RTAny parse_const_value(const ::common::Value& val) {
   switch (val.item_case()) {
   case ::common::Value::kI32:
@@ -988,13 +1084,6 @@ static std::unique_ptr<ExprBase> build_expr(
         return std::make_unique<EndNodeExpr>(std::move(expr));
       } else if (name == "gs.function.toFloat") {
         return std::make_unique<ToFloatExpr>(std::move(expr));
-      } else if (name == "gs.function.concat") {
-        auto expr2 = parse_expression_impl(graph, ctx, params, op.parameters(1),
-                                           var_type);
-        return std::make_unique<StrConcatExpr>(std::move(expr),
-                                               std::move(expr2));
-      } else if (name == "gs.function.listSize") {
-        return std::make_unique<StrListSizeExpr>(std::move(expr));
       } else {
         LOG(FATAL) << "not support udf" << opr.DebugString();
       }
@@ -1003,6 +1092,32 @@ static std::unique_ptr<ExprBase> build_expr(
       auto lhs = build_expr(graph, ctx, params, opr_stack, var_type);
       auto rhs = build_expr(graph, ctx, params, opr_stack, var_type);
       return std::make_unique<DateMinusExpr>(std::move(lhs), std::move(rhs));
+    }
+    case ::common::ExprOpr::kPathFunc: {
+      auto opt = opr.path_func().opt();
+      const auto& name = opr.path_func().property().key().name();
+      int tag = opr.path_func().has_tag() ? opr.path_func().tag().id() : -1;
+      if (opr.node_type().data_type().item_case() !=
+          ::common::DataType::kArray) {
+        LOG(FATAL) << "path function node_type is not array type";
+        return nullptr;
+      }
+      auto type = parse_from_data_type(
+          opr.node_type().data_type().array().component_type());
+      if constexpr (std::is_same<GraphInterface, GraphReadInterface>::value) {
+        if (opt ==
+            ::common::PathFunction_FuncOpt::PathFunction_FuncOpt_VERTEX) {
+          return std::make_unique<PathVertexPropsExpr>(graph, ctx, tag, name,
+                                                       type);
+        } else if (opt ==
+                   ::common::PathFunction_FuncOpt::PathFunction_FuncOpt_EDGE) {
+          return std::make_unique<PathEdgePropsExpr>(graph, ctx, tag, name,
+                                                     type);
+        } else {
+          LOG(FATAL) << "unsupport path function opt" << opr.DebugString();
+        }
+      }
+      break;
     }
     default:
       LOG(FATAL) << "not support" << opr.DebugString();
@@ -1066,17 +1181,15 @@ static std::unique_ptr<ExprBase> parse_expression_impl(
     case ::common::ExprOpr::kCase:
     case ::common::ExprOpr::kMap:
     case ::common::ExprOpr::kUdfFunc:
-
     case ::common::ExprOpr::kToInterval:
-
     case ::common::ExprOpr::kToDate:
     case ::common::ExprOpr::kToDatetime:
     case ::common::ExprOpr::kToTuple:
-    case ::common::ExprOpr::kScalarFunc: {
+    case ::common::ExprOpr::kScalarFunc:
+    case ::common::ExprOpr::kPathFunc: {
       opr_stack2.push(*it);
       break;
     }
-
     default: {
       LOG(FATAL) << "not support" << (*it).DebugString();
       break;

@@ -60,8 +60,6 @@ std::shared_ptr<IAccessor> create_context_value_accessor(const Context& ctx,
     return std::make_shared<ContextValueAccessor<VertexRecord>>(ctx, tag);
   case RTAnyType::kEdge:
     return std::make_shared<ContextValueAccessor<EdgeRecord>>(ctx, tag);
-  case RTAnyType::kRelation:
-    return std::make_shared<ContextValueAccessor<Relation>>(ctx, tag);
   case RTAnyType::kF32Value:
     return std::make_shared<ContextValueAccessor<float>>(ctx, tag);
   case RTAnyType::kF64Value:
@@ -395,7 +393,6 @@ template class ContextValueAccessor<TimeStamp>;
 template class ContextValueAccessor<bool>;
 template class ContextValueAccessor<Tuple>;
 template class ContextValueAccessor<List>;
-template class ContextValueAccessor<Relation>;
 template class ContextValueAccessor<Set>;
 template class ContextValueAccessor<Interval>;
 

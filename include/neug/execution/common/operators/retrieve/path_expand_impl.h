@@ -190,7 +190,7 @@ path_expand_vertex_without_predicate_impl(
     int upper);
 
 template <typename PRED_T>
-void sssp_dir(const GenericView& view, label_t v_label, vid_t v,
+void sssp_dir(const GenericView& view, Direction dir, label_t v_label, vid_t v,
               label_t e_label, const GraphReadInterface::vertex_set_t& vertices,
               size_t idx, int lower, int upper,
               MSVertexColumnBuilder& dest_col_builder,
@@ -214,11 +214,22 @@ void sssp_dir(const GenericView& view, label_t v_label, vid_t v,
               path[depth - i] = x;
               x = parent[x];
             }
+            std::vector<std::pair<Direction, const void*>> edge_datas;
+            for (int i = 0; i < depth; ++i) {
+              auto oes = view.get_edges(path[i]);
+              for (auto it = oes.begin(); it != oes.end(); ++it) {
+                auto nbr = it.get_vertex();
+                if (nbr == path[i + 1]) {
+                  edge_datas.emplace_back(dir, it.get_data_ptr());
+                  break;
+                }
+              }
+            }
 
             dest_col_builder.push_back_opt(u);
-            auto impl = PathImpl::make_path_impl(v_label, e_label, path);
-            path_col_builder.push_back_opt(Path(impl.get()));
-            path_impls.emplace_back(std::move(impl));
+            auto impl = PathImpl::make_path_impl(v_label, e_label, path,
+                                                 edge_datas, path_impls);
+            path_col_builder.push_back_opt(Path(impl));
             offsets.push_back(idx);
           }
         }
@@ -232,10 +243,22 @@ void sssp_dir(const GenericView& view, label_t v_label, vid_t v,
               x = parent[x];
             }
 
+            std::vector<std::pair<Direction, const void*>> edge_datas;
+            for (int i = 0; i < depth; ++i) {
+              auto oes = view.get_edges(path[i]);
+              for (auto it = oes.begin(); it != oes.end(); ++it) {
+                auto nbr = it.get_vertex();
+                if (nbr == path[i + 1]) {
+                  edge_datas.emplace_back(dir, it.get_data_ptr());
+                  break;
+                }
+              }
+            }
+
             dest_col_builder.push_back_opt(u);
-            auto impl = PathImpl::make_path_impl(v_label, e_label, path);
-            path_col_builder.push_back_opt(Path(impl.get()));
-            path_impls.emplace_back(std::move(impl));
+            auto impl = PathImpl::make_path_impl(v_label, e_label, path,
+                                                 edge_datas, path_impls);
+            path_col_builder.push_back_opt(Path(impl));
             offsets.push_back(idx);
           }
           auto es = view.get_edges(u);
@@ -293,11 +316,32 @@ void sssp_both_dir(const GenericView& view0, const GenericView& view1,
               path[depth - i] = x;
               x = parent[x];
             }
+            std::vector<std::pair<Direction, const void*>> edge_datas;
+            for (int i = 0; i < depth; ++i) {
+              auto oes0 = view0.get_edges(path[i]);
+              for (auto it = oes0.begin(); it != oes0.end(); ++it) {
+                auto nbr = it.get_vertex();
+                if (nbr == path[i + 1]) {
+                  edge_datas.emplace_back(Direction::kOut, it.get_data_ptr());
+                  break;
+                }
+              }
+              if (edge_datas.size() == static_cast<size_t>(i)) {
+                auto oes1 = view1.get_edges(path[i]);
+                for (auto it = oes1.begin(); it != oes1.end(); ++it) {
+                  auto nbr = it.get_vertex();
+                  if (nbr == path[i + 1]) {
+                    edge_datas.emplace_back(Direction::kIn, it.get_data_ptr());
+                    break;
+                  }
+                }
+              }
+            }
 
             dest_col_builder.push_back_opt(u);
-            auto impl = PathImpl::make_path_impl(v_label, e_label, path);
-            path_col_builder.push_back_opt(Path(impl.get()));
-            path_impls.emplace_back(std::move(impl));
+            auto impl = PathImpl::make_path_impl(v_label, e_label, path,
+                                                 edge_datas, path_impls);
+            path_col_builder.push_back_opt(Path(impl));
             offsets.push_back(idx);
           }
         }
@@ -311,10 +355,32 @@ void sssp_both_dir(const GenericView& view0, const GenericView& view1,
               x = parent[x];
             }
 
+            std::vector<std::pair<Direction, const void*>> edge_datas;
+            for (int i = 0; i < depth; ++i) {
+              auto oes0 = view0.get_edges(path[i]);
+              for (auto it = oes0.begin(); it != oes0.end(); ++it) {
+                auto nbr = it.get_vertex();
+                if (nbr == path[i + 1]) {
+                  edge_datas.emplace_back(Direction::kOut, it.get_data_ptr());
+                  break;
+                }
+              }
+              if (edge_datas.size() == static_cast<size_t>(i)) {
+                auto oes1 = view1.get_edges(path[i]);
+                for (auto it = oes1.begin(); it != oes1.end(); ++it) {
+                  auto nbr = it.get_vertex();
+                  if (nbr == path[i + 1]) {
+                    edge_datas.emplace_back(Direction::kIn, it.get_data_ptr());
+                    break;
+                  }
+                }
+              }
+            }
+
             dest_col_builder.push_back_opt(u);
-            auto impl = PathImpl::make_path_impl(v_label, e_label, path);
-            path_col_builder.push_back_opt(Path(impl.get()));
-            path_impls.emplace_back(std::move(impl));
+            auto impl = PathImpl::make_path_impl(v_label, e_label, path,
+                                                 edge_datas, path_impls);
+            path_col_builder.push_back_opt(Path(impl));
             offsets.push_back(idx);
           }
           auto es0 = view0.get_edges(u);
@@ -487,7 +553,7 @@ single_source_shortest_path_impl(const GraphReadInterface& graph,
             ? graph.GetGenericIncomingGraphView(v_label, v_label, e_label)
             : graph.GetGenericOutgoingGraphView(v_label, v_label, e_label);
     foreach_vertex(input, [&](size_t idx, label_t label, vid_t v) {
-      sssp_dir(view, label, v, e_label, vertices, idx, lower, upper,
+      sssp_dir(view, dir, label, v, e_label, vertices, idx, lower, upper,
                dest_col_builder, path_col_builder, *path_impls, offsets, pred);
     });
   } else {
@@ -546,35 +612,38 @@ default_single_source_shortest_path_impl(
     MSVertexColumnBuilder dest_col_builder(*dest_labels.begin());
 
     foreach_vertex(input, [&](size_t idx, label_t label, vid_t v) {
-      std::vector<std::tuple<label_t, label_t, vid_t>> cur;
-      std::vector<std::tuple<label_t, label_t, vid_t>> next;
-      cur.emplace_back(std::numeric_limits<label_t>::max(), label, v);
-      std::map<std::tuple<label_t, label_t, vid_t>,
-               std::tuple<label_t, label_t, vid_t>>
+      std::vector<std::pair<label_t, vid_t>> cur;
+      std::vector<std::pair<label_t, vid_t>> next;
+      cur.emplace_back(label, v);
+      std::map<std::pair<label_t, vid_t>,
+               std::tuple<label_t, vid_t, label_t, Direction, const void*>>
           parent;
       std::set<std::pair<label_t, vid_t>> visited;
-      visited.insert(std::make_pair(label, v));
+      visited.emplace(std::make_pair(label, v));
       int depth = 0;
       while (depth < upper && !cur.empty()) {
-        for (auto [edge_label, v_label, vid] : cur) {
+        for (auto [v_label, vid] : cur) {
           if (depth >= lower && pred(v_label, vid, idx)) {
             std::vector<VertexRecord> path;
-            std::vector<label_t> edge_labels;
-            auto x = std::tie(edge_label, label, vid);
+            std::vector<std::tuple<label_t, Direction, const void*>>
+                edge_labels;
+            auto x = std::make_pair(label, vid);
             while (!(v_label == label && vid == v)) {
-              path.push_back(VertexRecord{std::get<1>(x), std::get<2>(x)});
-              edge_labels.push_back(std::get<0>(x));
-              x = parent[x];
+              path.push_back(VertexRecord{x.first, x.second});
+              auto [p_v_label, p_vid, p_edge_label, p_dir, p_payload] =
+                  parent[x];
+              edge_labels.emplace_back(p_edge_label, p_dir, p_payload);
+              x = std::make_pair(p_v_label, p_vid);
             }
             path.emplace_back(VertexRecord{label, v});
             std::reverse(edge_labels.begin(), edge_labels.end());
             std::reverse(path.begin(), path.end());
 
             if (path.size() > 1) {
-              auto impl = PathImpl::make_path_impl(edge_labels, path);
+              auto impl =
+                  PathImpl::make_path_impl(edge_labels, path, *path_impls);
 
-              path_col_builder.push_back_opt(Path(impl.get()));
-              path_impls->emplace_back(std::move(impl));
+              path_col_builder.push_back_opt(Path(impl));
 
               dest_col_builder.push_back_opt(vid);
               offsets.push_back(idx);
@@ -590,12 +659,13 @@ default_single_source_shortest_path_impl(
                                   v_label, nbr_label, std::get<1>(l));
             auto es = view.get_edges(vid);
             for (auto it = es.begin(); it != es.end(); ++it) {
-              auto nbr =
-                  std::make_tuple(std::get<1>(l), nbr_label, it.get_vertex());
+              auto nbr = std::make_pair(nbr_label, it.get_vertex());
               auto vertex = std::make_pair(nbr_label, it.get_vertex());
               if (visited.find(vertex) == visited.end()) {
-                visited.insert(vertex);
-                parent[nbr] = std::tie(edge_label, v_label, vid);
+                visited.emplace(vertex);
+                auto data_ptr = it.get_data_ptr();
+                parent[nbr] = std::make_tuple(v_label, vid, std::get<1>(l),
+                                              std::get<2>(l), data_ptr);
                 next.push_back(nbr);
               }
             }
@@ -614,34 +684,37 @@ default_single_source_shortest_path_impl(
     MLVertexColumnBuilder dest_col_builder;
 
     foreach_vertex(input, [&](size_t idx, label_t label, vid_t v) {
-      std::vector<std::tuple<label_t, label_t, vid_t>> cur;
-      std::vector<std::tuple<label_t, label_t, vid_t>> next;
-      cur.emplace_back(std::numeric_limits<label_t>::max(), label, v);
-      std::map<std::tuple<label_t, label_t, vid_t>,
-               std::tuple<label_t, label_t, vid_t>>
+      std::vector<std::pair<label_t, vid_t>> cur;
+      std::vector<std::pair<label_t, vid_t>> next;
+      cur.emplace_back(label, v);
+      std::map<std::pair<label_t, vid_t>,
+               std::tuple<label_t, vid_t, label_t, Direction, const void*>>
           parent;
       std::set<std::pair<label_t, vid_t>> visited;
       visited.insert(std::make_pair(label, v));
       int depth = 0;
       while (depth < upper && !cur.empty()) {
-        for (auto [edge_label, v_label, vid] : cur) {
+        for (auto [v_label, vid] : cur) {
           if (depth >= lower && pred(v_label, vid, idx)) {
             std::vector<VertexRecord> path;
-            std::vector<label_t> edge_labels;
-            auto x = std::tie(edge_label, v_label, vid);
+            std::vector<std::tuple<label_t, Direction, const void*>>
+                edge_labels;
+            auto x = std::make_pair(v_label, vid);
             while (!(v_label == label && vid == v)) {
-              path.push_back(VertexRecord{std::get<1>(x), std::get<2>(x)});
-              edge_labels.push_back(std::get<0>(x));
-              x = parent[x];
+              path.emplace_back(x.first, x.second);
+              auto [p_v_label, p_vid, p_edge_label, p_dir, p_payload] =
+                  parent[x];
+              edge_labels.emplace_back(p_edge_label, p_dir, p_payload);
+              x = std::make_pair(p_v_label, p_vid);
             }
             path.emplace_back(VertexRecord{label, v});
             std::reverse(edge_labels.begin(), edge_labels.end());
             std::reverse(path.begin(), path.end());
 
             if (path.size() > 1) {
-              auto impl = PathImpl::make_path_impl(edge_labels, path);
-              path_col_builder.push_back_opt(Path(impl.get()));
-              path_impls->emplace_back(std::move(impl));
+              auto impl =
+                  PathImpl::make_path_impl(edge_labels, path, *path_impls);
+              path_col_builder.push_back_opt(Path(impl));
 
               dest_col_builder.push_back_vertex({v_label, vid});
               offsets.push_back(idx);
@@ -657,12 +730,13 @@ default_single_source_shortest_path_impl(
                                   v_label, nbr_label, std::get<1>(l));
             auto es = view.get_edges(vid);
             for (auto it = es.begin(); it != es.end(); ++it) {
-              auto nbr =
-                  std::make_tuple(std::get<1>(l), nbr_label, it.get_vertex());
+              auto nbr = std::make_pair(nbr_label, it.get_vertex());
               auto vertex = std::make_pair(nbr_label, it.get_vertex());
               if (visited.find(vertex) == visited.end()) {
                 visited.insert(vertex);
-                parent[nbr] = std::tie(edge_label, v_label, vid);
+                auto data_ptr = it.get_data_ptr();
+                parent[nbr] = std::tie(v_label, vid, std::get<1>(l),
+                                       std::get<2>(l), data_ptr);
                 next.push_back(nbr);
               }
             }

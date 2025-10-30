@@ -29,6 +29,7 @@
 #include <vector>
 
 #include "neug/execution/common/columns/columns_utils.h"
+#include "neug/execution/common/columns/edge_columns.h"
 #include "neug/execution/common/columns/i_context_column.h"
 #include "neug/execution/common/columns/vertex_columns.h"
 #include "neug/utils/property/types.h"
@@ -88,7 +89,6 @@ class ValueColumn : public IValueColumn<T> {
     if constexpr (std::is_same_v<T, std::string_view>) {
       return new SigColumn<std::string_view>(data_);
     } else if constexpr (std::is_same_v<T, bool> ||
-                         std::is_same_v<T, Relation> ||
                          gs::runtime::is_view_type<T>::value) {
       LOG(FATAL) << "not implemented for " << this->column_info();
       return nullptr;
@@ -245,8 +245,23 @@ class ListValueColumn : public ListValueColumnBase {
       return unfold_impl<std::string_view>();
     } else if (elem_type_ == RTAnyType::kTuple) {
       return unfold_impl<Tuple>();
-    } else if (elem_type_ == RTAnyType::kRelation) {
-      return unfold_impl<Relation>();
+    } else if (elem_type_ == RTAnyType::kEdge) {
+      std::vector<size_t> offsets;
+      std::vector<LabelTriplet> labels;
+      BDMLEdgeColumnBuilder builder(labels);
+      size_t i = 0;
+      for (const auto& list : data_) {
+        for (size_t j = 0; j < list.size(); ++j) {
+          auto elem = list.get(j);
+          auto edge = elem.as_edge();
+          builder.insert_label(edge.label);
+          builder.push_back_opt(edge.label, edge.src, edge.dst, edge.prop,
+                                edge.dir);
+          offsets.push_back(i);
+        }
+        ++i;
+      }
+      return {builder.finish(), offsets};
     } else if (elem_type_ == RTAnyType::kMap) {
       return unfold_impl<Map>();
     } else if (elem_type_ == RTAnyType::kVertex) {
@@ -355,7 +370,6 @@ class OptionalValueColumn : public IValueColumn<T> {
     if constexpr (std::is_same_v<T, std::string_view>) {
       return new SigColumn<std::string_view>(data_);
     } else if constexpr (std::is_same_v<T, bool> ||
-                         std::is_same_v<T, Relation> ||
                          gs::runtime::is_view_type<T>::value) {
       LOG(FATAL) << "not implemented for " << this->column_info();
       return nullptr;
