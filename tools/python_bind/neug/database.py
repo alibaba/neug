@@ -128,8 +128,12 @@ class Database(object):
         self._connections = []
         self._async_connections = []
         self._illegal_chars = ["?", "*", '"', "<", ">", "|", ":", "\\"]
+        self._pure_memory_path = [":memory", ":memory:"]
         if isinstance(db_path, str):
-            if any(char in db_path for char in self._illegal_chars):
+            if (
+                any(char in db_path for char in self._illegal_chars)
+                and db_path not in self._pure_memory_path
+            ):
                 raise ValueError(
                     f"invalid path: database path '{db_path}' contains illegal characters: {self._illegal_chars},"
                     f"error code: {ERR_INVALID_PATH}."

@@ -334,31 +334,29 @@ void NeugDB::preprocessConfig() {
     config_.thread_num = std::thread::hardware_concurrency();
   }
   auto db_dir = config_.data_dir;
-  if (db_dir.empty()) {
-    if (db_dir.empty() || db_dir == ":memory" || db_dir == ":memory:") {
-      std::string db_dir_prefix;
-      char* prefix_env = std::getenv("NEUG_DB_TMP_DIR");
-      if (prefix_env) {
-        db_dir_prefix = std::string(prefix_env);
-      } else {
-        db_dir_prefix = "/tmp";
-      }
-      std::stringstream ss;
-      auto now = std::chrono::system_clock::now();
-      auto duration = now.time_since_epoch();
-      ss << "neug_db_"
-         << std::chrono::duration_cast<std::chrono::milliseconds>(duration)
-                .count();
-      db_dir = db_dir_prefix + "/" + ss.str();
-      is_pure_memory_ = true;
-      LOG(INFO) << "Creating temp NeugDB with: " << db_dir << " in "
-                << config_.mode << " mode";
-      config_.data_dir = db_dir;
+  if (db_dir.empty() || db_dir == ":memory" || db_dir == ":memory:") {
+    std::string db_dir_prefix;
+    char* prefix_env = std::getenv("NEUG_DB_TMP_DIR");
+    if (prefix_env) {
+      db_dir_prefix = std::string(prefix_env);
     } else {
-      is_pure_memory_ = false;
-      LOG(INFO) << "Creating NeugDB with: " << db_dir << " in " << config_.mode
-                << " mode";
+      db_dir_prefix = "/tmp";
     }
+    std::stringstream ss;
+    auto now = std::chrono::system_clock::now();
+    auto duration = now.time_since_epoch();
+    ss << "neug_db_"
+       << std::chrono::duration_cast<std::chrono::milliseconds>(duration)
+              .count();
+    db_dir = db_dir_prefix + "/" + ss.str();
+    is_pure_memory_ = true;
+    LOG(INFO) << "Creating temp NeugDB with: " << db_dir << " in "
+              << config_.mode << " mode";
+    config_.data_dir = db_dir;
+  } else {
+    is_pure_memory_ = false;
+    LOG(INFO) << "Creating NeugDB with: " << db_dir << " in " << config_.mode
+              << " mode";
   }
 }
 

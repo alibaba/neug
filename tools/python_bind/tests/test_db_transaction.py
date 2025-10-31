@@ -477,6 +477,16 @@ def test_pure_memory_without_parameter(tmp_path):
     assert rows == []
     conn.close()
 
+    # 3. open a pure_memory database using :memory
+    db = Database(db_path=":memory", mode="w")
+    conn = db.connect()
+    conn.execute(
+        "CREATE NODE TABLE person(id INT64, name STRING, age INT32, PRIMARY KEY(id));"
+    )
+    conn.execute("CREATE (p:person {id: 1, name: 'Alice', age: 30});")
+    conn.execute("CREATE (p:person {id: 2, name: 'Bob', age: 25});")
+    conn.close()
+
 
 def test_pure_memory_with_true_parameter(tmp_path):
     # 1. open database with pure_memory model
