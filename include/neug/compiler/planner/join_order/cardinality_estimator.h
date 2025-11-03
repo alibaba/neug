@@ -1,6 +1,8 @@
 #pragma once
 
 #include "neug/compiler/binder/query/query_graph.h"
+#include "neug/compiler/common/types/types.h"
+#include "neug/compiler/planner/operator/extend/logical_recursive_extend.h"
 #include "neug/compiler/planner/operator/logical_plan.h"
 #include "neug/compiler/storage/stats/table_stats.h"
 
@@ -51,10 +53,18 @@ class CardinalityEstimator {
   cardinality_t estimateFilter(const LogicalOperator& childOp,
                                const binder::Expression& predicate) const;
   cardinality_t estimateAggregate(const LogicalAggregate& op) const;
+  cardinality_t estimateGetV(
+      const planner::LogicalRecursiveExtend& extend) const;
+  cardinality_t estimateGetV(const planner::LogicalExtend& extend) const;
 
   double getExtensionRate(const binder::RelExpression& rel,
                           const binder::NodeExpression& boundNode,
                           const transaction::Transaction* transaction) const;
+  double getExtensionRate(const binder::RelExpression& rel,
+                          const common::table_id_vector_t& tableIDs,
+                          const binder::NodeExpression& boundNode,
+                          const transaction::Transaction* transaction) const;
+
   cardinality_t multiply(double extensionRate, cardinality_t card) const;
 
   cardinality_t getNumNodes(

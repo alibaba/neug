@@ -1,0 +1,12 @@
+PROJECTION[a.fName,b.fName,c.fName,d.name]
+INTERSECT[d._ID Cardinality: 0]
+CHILD:
+    EXTEND[b-knows,->c Cardinality: 24]
+    EXTEND[a<-knows,-b Cardinality: 14]
+    SCAN_NODE_TABLE[a._ID a.fNameType: INTERNAL_ID Predicates: EQUALS(a.fName,Bob) Cardinality: 8]
+CHILD:
+    EXTEND[c-studyAt,->d Cardinality: 0]
+    SCAN_NODE_TABLE[c._ID Type: INTERNAL_ID Cardinality: 8]
+CHILD:
+    EXTEND[a-studyAt,->d Cardinality: 0]
+    SCAN_NODE_TABLE[a._ID Type: INTERNAL_ID Cardinality: 8]

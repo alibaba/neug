@@ -8,6 +8,7 @@
 #include "neug/compiler/planner/join_order/cardinality_estimator.h"
 #include "neug/compiler/planner/join_order_enumerator_context.h"
 #include "neug/compiler/planner/operator/extend/logical_extend.h"
+#include "neug/compiler/planner/operator/extend/logical_recursive_extend.h"
 #include "neug/compiler/planner/operator/logical_plan.h"
 #include "neug/compiler/planner/operator/scan/logical_scan_node_table.h"
 #include "neug/compiler/planner/operator/sip/semi_mask_target_type.h"
@@ -36,6 +37,12 @@ enum class SubqueryPlanningType : uint8_t {
   COMMON_PAT_REUSE = 3,
 };
 
+enum class MatchKind : uint8_t {
+  REGULAR = 0,   // Match ... Match
+  OPTIONAL = 1,  // Match ... Optional Match
+  SUBQUERY = 2,  // Match ... Where NOT
+};
+
 struct QueryGraphPlanningInfo {
   // Predicate info.
   binder::expression_vector predicates;
@@ -45,6 +52,8 @@ struct QueryGraphPlanningInfo {
   cardinality_t corrExprsCard = 0;
   // Join hint info.
   std::shared_ptr<binder::BoundJoinHintNode> hint = nullptr;
+
+  MatchKind kind = MatchKind::REGULAR;
 
   bool containsCorrExpr(const binder::Expression& expr) const;
 };
@@ -465,6 +474,8 @@ class NEUG_API Planner {
       std::unique_ptr<LogicalPlan> leftPlan,
       std::unique_ptr<LogicalPlan> rightPlan,
       const binder::expression_vector& joinNodeIDs);
+  std::vector<common::table_id_t> transformRelTableIds(
+      const binder::RelExpression& relExpr);
 
  private:
   std::shared_ptr<planner::LogicalOperator> extractExtend(

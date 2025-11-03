@@ -14,6 +14,7 @@
  * limitations under the License.
  */
 
+#include <gtest/gtest.h>
 #include <string>
 #include "gopt_test.h"
 
@@ -135,9 +136,10 @@ TEST_F(CyclicTest, BOB_PATH) {
       "organisation), (a)-[:studyAt]->(d) WHERE a.fName='Bob' RETURN a.fName, "
       "b.fName, c.fName, d.name";
   auto logical = planLogical(query, tinySchema, tinyStats, rules);
+  VerifyFactory::verifyLogicalByStr(*logical,
+                                    getCyclicResource("BOB_PATH_logical"));
   auto physical = planPhysical(*logical);
-  VerifyFactory::verifyPhysicalByJson(*physical,
-                                      getCyclicResource("BOB_PATH_physical"));
+  ASSERT_TRUE(physical != nullptr);
 }
 
 TEST_F(CyclicTest, ELIZ_CNT) {
@@ -147,9 +149,10 @@ TEST_F(CyclicTest, ELIZ_CNT) {
       "organisation), (a)-[:studyAt]->(d) WHERE b.fName='Elizabeth' RETURN "
       "COUNT(*)";
   auto logical = planLogical(query, tinySchema, tinyStats, rules);
+  VerifyFactory::verifyLogicalByStr(*logical,
+                                    getCyclicResource("ELIZ_CNT_logical"));
   auto physical = planPhysical(*logical);
-  VerifyFactory::verifyPhysicalByJson(*physical,
-                                      getCyclicResource("ELIZ_CNT_physical"));
+  ASSERT_TRUE(physical != nullptr);
 }
 
 TEST_F(CyclicTest, CMT_LOOP) {

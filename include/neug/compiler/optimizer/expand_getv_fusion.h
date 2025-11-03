@@ -15,6 +15,7 @@
 
 #pragma once
 
+#include "neug/compiler/catalog/catalog.h"
 #include "neug/compiler/optimizer/logical_operator_visitor.h"
 #include "neug/compiler/planner/operator/extend/logical_extend.h"
 #include "neug/compiler/planner/operator/logical_get_v.h"
@@ -39,14 +40,9 @@ class ExpandGetVFusion : public LogicalOperatorVisitor {
                      std::shared_ptr<planner::LogicalOperator> expand);
   bool hasGetVFiltering(std::shared_ptr<planner::LogicalOperator> getV,
                         std::shared_ptr<planner::LogicalOperator> expand);
-  bool hasLabelFiltering(const gopt::GNodeType& getVType,
-                         const gopt::GRelType& expandType,
-                         const gopt::GNodeType& sourceType,
-                         common::ExtendDirection direction);
   std::shared_ptr<planner::LogicalOperator> perform(
       std::shared_ptr<planner::LogicalOperator> getV,
       std::shared_ptr<planner::LogicalOperator> expand, FusionType fusionType);
-  gopt::GRelType transformExpandType(const gopt::GRelType& expandType);
 
  public:
   ExpandGetVFusion(catalog::Catalog* catalog) : catalog{catalog} {};
@@ -59,6 +55,14 @@ class ExpandGetVFusion : public LogicalOperatorVisitor {
       std::shared_ptr<planner::LogicalOperator> op) override;
   std::shared_ptr<planner::LogicalOperator> visitRecursiveExtendReplace(
       std::shared_ptr<planner::LogicalOperator> op) override;
+
+  static bool hasLabelFiltering(const gopt::GNodeType& getVType,
+                                const gopt::GRelType& expandType,
+                                const gopt::GNodeType& sourceType,
+                                common::ExtendDirection direction,
+                                catalog::Catalog* catalog);
+  static gopt::GRelType transformExpandType(const gopt::GRelType& expandType,
+                                            catalog::Catalog* catalog);
 };
 
 }  // namespace optimizer

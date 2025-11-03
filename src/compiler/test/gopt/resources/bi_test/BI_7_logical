@@ -1,0 +1,18 @@
+PROJECTION[name,count]
+ORDER_BY[count,name SKIP 0 LIMIT 100]
+PROJECTION[name,count]
+AGGREGATE[Group By [name, ], Aggregate [count, ]]
+PROJECTION[comment._ID,name]
+EXTEND[comment-HASTAG_COMMENT_TAG,->relatedTag Cardinality: 12336]
+DISTINCT[comment]
+PROJECTION[comment]
+HASH_JOIN[comment._ID, SIP: NONE, Join Type: ANTI, Join Conditions: comment._ID=comment._ID]
+CHILD:
+    EXTEND[message<-REPLYOF_COMMENT_COMMENT,REPLYOF_COMMENT_POST,-comment Cardinality: 53853]
+    GET_V[GET_V() Cardinality: 102236]
+    EXTEND[tag<-HASTAG_POST_TAG,HASTAG_COMMENT_TAG,-message Cardinality: 102236]
+    SCAN_NODE_TABLE[tag._ID tag.nameType: INTERNAL_ID Predicates: EQUALS(tag.name,Slovenia) Cardinality: 16080]
+CHILD:
+    GET_V[GET_V() Cardinality: 102236]
+    EXTEND[<-HASTAG_POST_TAG,HASTAG_FORUM_TAG,HASTAG_COMMENT_TAG,-comment Cardinality: 102236]
+    SCAN_NODE_TABLE[._ID .nameType: INTERNAL_ID Predicates: EQUALS(.name,Slovenia) Cardinality: 16080]

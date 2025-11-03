@@ -146,6 +146,7 @@ void Planner::planOptionalMatch(
   }
   auto info = QueryGraphPlanningInfo();
   info.hint = hint;
+  info.kind = MatchKind::OPTIONAL;
   if (leftPlan.isEmpty()) {
     // Optional match is the first clause, e.g. OPTIONAL MATCH <pattern> RETURN
     // *
@@ -288,6 +289,7 @@ void Planner::planSubquery(const std::shared_ptr<Expression>& expression,
   std::unique_ptr<LogicalPlan> innerPlan;
   auto info = QueryGraphPlanningInfo();
   info.hint = subquery->getHint();
+  info.kind = MatchKind::SUBQUERY;
   if (correlatedExprs.empty()) {
     // Plan uncorrelated subquery
     info.subqueryType = SubqueryPlanningType::NONE;

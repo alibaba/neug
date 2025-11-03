@@ -1,4 +1,5 @@
 #include "neug/compiler/planner/join_order/cardinality_estimator.h"
+#include <cmath>
 
 #include "neug/compiler/binder/expression/property_expression.h"
 #include "neug/compiler/main/client_context.h"
@@ -217,6 +218,34 @@ uint64_t CardinalityEstimator::estimateFilter(
   }
 }
 
+// Here, we recalculate the cardinality based on the number of edges for the
+// <src, dst, edge> triplet. In 'extend', the computed cardinality is the number
+// of edges formed by src + edge, so we need to recalculate and calibrate the
+// value here.
+cardinality_t CardinalityEstimator::estimateGetV(
+    const planner::LogicalExtend& extend) const {
+  auto& transaction = gs::Constants::DEFAULT_TRANSACTION;
+  double extensionRate =
+      getExtensionRate(*extend.getRel(), *extend.getBoundNode(), &transaction);
+  CHECK(extend.getNumChildren() > 0)
+      << "extend operator should have at least child";
+  auto childOp = extend.getChild(0);
+  auto childCard = childOp->getCardinality();
+  return childCard * extensionRate;
+}
+
+cardinality_t CardinalityEstimator::estimateGetV(
+    const planner::LogicalRecursiveExtend& extend) const {
+  auto& transaction = gs::Constants::DEFAULT_TRANSACTION;
+  double extensionRate =
+      getExtensionRate(*extend.getRel(), *extend.getBoundNode(), &transaction);
+  CHECK(extend.getNumChildren() > 0)
+      << "recursive extend operator should have at least child";
+  auto childOp = extend.getChild(0);
+  auto childCard = childOp->getCardinality();
+  return childCard * extensionRate;
+}
+
 uint64_t CardinalityEstimator::getNumNodes(
     const Transaction*, const std::vector<table_id_t>& tableIDs) const {
   cardinality_t numNodes = 0u;
@@ -241,10 +270,15 @@ uint64_t CardinalityEstimator::getNumRels(
 double CardinalityEstimator::getExtensionRate(
     const RelExpression& rel, const NodeExpression& boundNode,
     const Transaction* transaction) const {
+  return getExtensionRate(rel, rel.getTableIDs(), boundNode, transaction);
+}
+
+double CardinalityEstimator::getExtensionRate(
+    const RelExpression& rel, const table_id_vector_t& tableIDs,
+    const NodeExpression& boundNode, const Transaction* transaction) const {
   auto numBoundNodes =
       static_cast<double>(getNumNodes(transaction, boundNode.getTableIDs()));
-  auto numRels =
-      static_cast<double>(getNumRels(transaction, rel.getTableIDs()));
+  auto numRels = static_cast<double>(getNumRels(transaction, tableIDs));
   NEUG_ASSERT(numBoundNodes > 0);
   auto oneHopExtensionRate = numRels / atLeastOne(numBoundNodes);
   switch (rel.getRelType()) {
@@ -253,23 +287,15 @@ double CardinalityEstimator::getExtensionRate(
   }
   case QueryRelType::VARIABLE_LENGTH_WALK:
   case QueryRelType::VARIABLE_LENGTH_TRAIL:
-  case QueryRelType::VARIABLE_LENGTH_ACYCLIC: {
-    auto rate =
-        oneHopExtensionRate *
-        std::max<uint16_t>(rel.getRecursiveInfo()->bindData->upperBound, 1);
-    return rate *
-           context->getClientConfig()->recursivePatternCardinalityScaleFactor;
-  }
+  case QueryRelType::VARIABLE_LENGTH_ACYCLIC:
   case QueryRelType::SHORTEST:
   case QueryRelType::ALL_SHORTEST:
   case QueryRelType::WEIGHTED_SHORTEST:
   case QueryRelType::ALL_WEIGHTED_SHORTEST: {
-    auto rate = std::min<double>(
-        oneHopExtensionRate *
-            std::max<uint16_t>(rel.getRecursiveInfo()->bindData->upperBound, 1),
-        numRels);
-    return rate *
-           context->getClientConfig()->recursivePatternCardinalityScaleFactor;
+    auto rate = std::pow(
+        std::max<double>(1, oneHopExtensionRate),
+        std::max<uint16_t>(rel.getRecursiveInfo()->bindData->upperBound, 1));
+    return rate;
   }
   default:
     NEUG_UNREACHABLE;

@@ -1,7 +1,7 @@
 PROJECTION[count]
 AGGREGATE[Group By [], Aggregate [count, ]]
 PROJECTION[]
-FILTER[NOT_EQUALS(tag1._ID,tag2._ID) Cardinality: 1033674]
+FILTER[NOT_EQUALS(tag1._ID,tag2._ID) Cardinality: 5168372]
 EXTEND[comment-Comment_hasTag_Tag,->tag2 Cardinality: 10336744]
 EXTEND[message-Comment_hasTag_Tag,Post_hasTag_Tag,->tag1 Cardinality: 8465075]
 EXTEND[message<-Comment_replyOf_Comment,Comment_replyOf_Post,-comment Cardinality: 7751913]

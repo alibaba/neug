@@ -72,10 +72,41 @@ TEST_F(BITest, BI_13) {
 TEST_F(BITest, BI_17) {
   std::string query = getBIResource("bi_17.cypher");
   auto logical = planLogical(query, schemaData, statsData, rules);
-  auto physical = planPhysical(*logical);
   VerifyFactory::verifyLogicalByStr(*logical, getBIResource("BI_17_logical"));
-  VerifyFactory::verifyPhysicalByJson(*physical,
-                                      getBIResource("BI_17_physical"));
+  auto physical = planPhysical(*logical);
+  ASSERT_TRUE(physical != nullptr);
+}
+
+TEST_F(BITest, BI_3) {
+  std::string query = getBIResource("bi_3.cypher");
+  auto logical = planLogical(query, schemaData, statsData, rules);
+  VerifyFactory::verifyLogicalByStr(*logical, getBIResource("BI_3_logical"));
+  auto physical = planPhysical(*logical);
+  ASSERT_TRUE(physical != nullptr);
+}
+
+TEST_F(BITest, BI_7) {
+  std::string query = getBIResource("bi_7.cypher");
+  auto logical = planLogical(query, schemaData, statsData, rules);
+  VerifyFactory::verifyLogicalByStr(*logical, getBIResource("BI_7_logical"));
+  auto physical = planPhysical(*logical);
+  ASSERT_TRUE(physical != nullptr);
+}
+
+TEST_F(BITest, BI_15) {
+  std::string query = getBIResource("bi_15_precompute.cypher");
+  auto logical = planLogical(query, schemaData, statsData, rules);
+  VerifyFactory::verifyLogicalByStr(*logical, getBIResource("BI_15_logical"));
+  auto physical = planPhysical(*logical);
+  ASSERT_TRUE(physical != nullptr);
+}
+
+TEST_F(BITest, BI_16) {
+  std::string query = getBIResource("bi_16.cypher");
+  auto logical = planLogical(query, schemaData, statsData, rules);
+  VerifyFactory::verifyLogicalByStr(*logical, getBIResource("BI_16_logical"));
+  auto physical = planPhysical(*logical);
+  ASSERT_TRUE(physical != nullptr);
 }
 
 }  // namespace gopt

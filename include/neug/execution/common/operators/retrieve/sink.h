@@ -218,41 +218,44 @@ void sink_entry(const RTAny& rt_val, const GraphInterface& graph,
     auto mutable_path = entry->mutable_element()->mutable_graph_path();
     auto path_nodes = rt_val.as_path().nodes();
     auto edge_labels = rt_val.as_path().edge_labels();
+    auto edges = rt_val.as_path().relationships();
 
     assert(edge_labels.size() + 1 == path_nodes.size());
-    size_t len = path_nodes.size();
-    for (size_t i = 0; i + 1 < len; ++i) {
+    size_t len = edges.size();
+    for (size_t i = 0; i < len; ++i) {
       auto vertex_in_path = mutable_path->add_path();
 
       auto node = vertex_in_path->mutable_vertex();
       // node->mutable_label()->set_id(path_nodes[i].label());
+
       node->mutable_label()->set_name(
-          graph.schema().get_vertex_label_name(path_nodes[i].label()));
-      node->set_id(
-          encode_unique_vertex_id(path_nodes[i].label(), path_nodes[i].vid()));
+          graph.schema().get_vertex_label_name(edges[i].start_node().label()));
+      node->set_id(encode_unique_vertex_id(edges[i].start_node().label(),
+                                           edges[i].start_node().vid()));
       auto edge_in_path = mutable_path->add_path();
 
       auto edge = edge_in_path->mutable_edge();
       edge->mutable_src_label()->set_name(
-          graph.schema().get_vertex_label_name(path_nodes[i].label()));
+          graph.schema().get_vertex_label_name(edges[i].start_node().label()));
       edge->mutable_dst_label()->set_name(
-          graph.schema().get_vertex_label_name(path_nodes[i + 1].label()));
+          graph.schema().get_vertex_label_name(edges[i].end_node().label()));
       edge->mutable_label()->set_name(
           graph.schema().get_edge_label_name(edge_labels[i]));
-      edge->set_id(encode_unique_edge_id(edge_labels[i], path_nodes[i].vid(),
-                                         path_nodes[i + 1].vid()));
-      edge->set_src_id(
-          encode_unique_vertex_id(path_nodes[i].label(), path_nodes[i].vid()));
-      edge->set_dst_id(encode_unique_vertex_id(path_nodes[i + 1].label(),
-                                               path_nodes[i + 1].vid()));
+      edge->set_id(encode_unique_edge_id(edge_labels[i],
+                                         edges[i].start_node().vid(),
+                                         edges[i].end_node().vid()));
+      edge->set_src_id(encode_unique_vertex_id(edges[i].start_node().label(),
+                                               edges[i].start_node().vid()));
+      edge->set_dst_id(encode_unique_vertex_id(edges[i].end_node().label(),
+                                               edges[i].end_node().vid()));
     }
     auto vertex_in_path = mutable_path->add_path();
     auto node = vertex_in_path->mutable_vertex();
     // node->mutable_label()->set_id(path_nodes[len - 1].label());
-    node->mutable_label()->set_name(
-        graph.schema().get_vertex_label_name(path_nodes[len - 1].label()));
-    node->set_id(encode_unique_vertex_id(path_nodes[len - 1].label(),
-                                         path_nodes[len - 1].vid()));
+    node->mutable_label()->set_name(graph.schema().get_vertex_label_name(
+        edges[len - 1].end_node().label()));
+    node->set_id(encode_unique_vertex_id(edges[len - 1].end_node().label(),
+                                         edges[len - 1].end_node().vid()));
   } else {
     rt_val.sink_impl(entry->mutable_element()->mutable_object());
   }

@@ -1,16 +1,25 @@
+#include <glog/logging.h>
 #include <cmath>
+#include <cstdint>
 #include <iostream>
 #include <iterator>
 #include <memory>
+#include <string>
+#include <utility>
 
 #include "neug/compiler/binder/expression/node_expression.h"
+#include "neug/compiler/binder/expression/rel_expression.h"
 #include "neug/compiler/binder/expression_visitor.h"
+#include "neug/compiler/common/assert.h"
+#include "neug/compiler/common/enums/extend_direction.h"
 #include "neug/compiler/common/enums/join_type.h"
 #include "neug/compiler/common/enums/rel_direction.h"
 #include "neug/compiler/common/types/types.h"
 #include "neug/compiler/common/utils.h"
 #include "neug/compiler/gopt/g_constants.h"
+#include "neug/compiler/gopt/g_graph_type.h"
 #include "neug/compiler/main/client_context.h"
+#include "neug/compiler/optimizer/expand_getv_fusion.h"
 #include "neug/compiler/planner/join_order/cardinality_estimator.h"
 #include "neug/compiler/planner/join_order/cost_model.h"
 #include "neug/compiler/planner/join_order/join_plan_solver.h"
@@ -312,8 +321,11 @@ void Planner::planNodeIDScan(uint32_t nodePos,
   newSubgraph.addQueryNode(nodePos);
   auto plan = std::make_unique<LogicalPlan>();
 
-  cardinalityEstimator.addPerQueryGraphNodeIDDom(*node->getInternalID(),
-                                                 info.corrExprsCard);
+  if (info.corrExprs.size() == 1 &&
+      (info.kind == MatchKind::REGULAR || info.kind == MatchKind::OPTIONAL)) {
+    cardinalityEstimator.addPerQueryGraphNodeIDDom(*node->getInternalID(),
+                                                   info.corrExprsCard);
+  }
 
   appendScanNodeTable(node->getInternalID(), node->getTableIDs(), {}, *plan);
   context.addPlan(newSubgraph, std::move(plan));
@@ -803,8 +815,24 @@ std::unique_ptr<LogicalPlan> Planner::planGetV(
     auto rightPlanProbeCopy = rightPlan->shallowCopy();
     appendHashJoin(joinNodeIDs, JoinType::INNER, *rightPlanProbeCopy,
                    *leftPlanBuildCopy, *rightPlanProbeCopy);
-    auto joinCard = rightPlanProbeCopy->getLastOperator()->getCardinality();
-    auto joinCost = rightPlanProbeCopy->getCost();
+
+    cardinality_t joinCard;
+    uint64_t joinCost;
+    if (leftExtend->getOperatorType() == LogicalOperatorType::EXTEND) {
+      joinCard = cardinalityEstimator.estimateGetV(
+          *leftExtend->ptrCast<LogicalExtend>());
+      joinCost =
+          CostModel::computeGetVCost(*leftExtend->ptrCast<LogicalExtend>());
+    } else if (leftExtend->getOperatorType() ==
+               LogicalOperatorType::RECURSIVE_EXTEND) {
+      joinCard = cardinalityEstimator.estimateGetV(
+          *leftExtend->ptrCast<LogicalRecursiveExtend>());
+      joinCost = CostModel::computeGetVCost(
+          *leftExtend->ptrCast<LogicalRecursiveExtend>());
+    } else {
+      NEUG_UNREACHABLE;
+    }
+
     auto joinSchema = rightPlanProbeCopy->getSchema();
 
     // start to build the getV operator
@@ -825,7 +853,7 @@ std::unique_ptr<LogicalPlan> Planner::planGetV(
       getVFilter =
           std::dynamic_pointer_cast<LogicalFilter>(getVFilter->getChild(0));
     }
-    getVPlan->setCost(joinCost);
+    getVPlan->setCost(leftPlan->getCost() + joinCost);
     return getVPlan;
   }
   // if the left plan is a intersect, getV will be pushed into the intersect
@@ -864,8 +892,7 @@ void Planner::planGetV(
                                          context.getWhereExpressions());
   for (auto& leftPlan : context.getPlans(subgraph)) {
     for (auto& rightPlan : context.getPlans(otherSubgraph)) {
-      if (CostModel::computeHashJoinCost(joinNodeIDs, *rightPlan, *leftPlan) <
-          maxCost) {
+      if (leftPlan->getCost() < maxCost) {
         auto getVPlan = planGetV(leftPlan->shallowCopy(),
                                  rightPlan->shallowCopy(), joinNodeIDs);
         if (getVPlan) {

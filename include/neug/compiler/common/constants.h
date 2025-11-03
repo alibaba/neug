@@ -196,8 +196,8 @@ struct CopyConstants {
 };
 
 struct PlannerKnobs {
-  static constexpr double NON_EQUALITY_PREDICATE_SELECTIVITY = 0.1;
-  static constexpr double EQUALITY_PREDICATE_SELECTIVITY = 0.01;
+  static constexpr double NON_EQUALITY_PREDICATE_SELECTIVITY = 0.5;
+  static constexpr double EQUALITY_PREDICATE_SELECTIVITY = 0.15;
   static constexpr uint64_t BUILD_PENALTY = 2;
   // Avoid doing probe to build SIP if we have to accumulate a probe side that
   // is much bigger than build side. Also avoid doing build to probe SIP if

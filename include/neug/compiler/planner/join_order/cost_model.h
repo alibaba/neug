@@ -1,5 +1,6 @@
 #pragma once
 
+#include "neug/compiler/planner/operator/extend/logical_recursive_extend.h"
 #include "neug/compiler/planner/operator/logical_plan.h"
 
 namespace gs {
@@ -26,6 +27,9 @@ class CostModel {
   static cardinality_t estimateIntersectCostByCard(
       const gs::planner::LogicalPlan& probePlan,
       const std::vector<cardinality_t>& buildCards);
+  static uint64_t computeGetVCost(
+      const planner::LogicalRecursiveExtend& extendOp);
+  static uint64_t computeGetVCost(const planner::LogicalExtend& extendOp);
 };
 
 }  // namespace planner

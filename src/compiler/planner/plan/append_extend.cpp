@@ -1,10 +1,15 @@
 #include <utility>
+#include <vector>
 
+#include "neug/compiler/binder/expression/rel_expression.h"
 #include "neug/compiler/catalog/catalog.h"
 #include "neug/compiler/catalog/catalog_entry/rel_table_catalog_entry.h"
 #include "neug/compiler/common/enums/join_type.h"
+#include "neug/compiler/common/types/types.h"
+#include "neug/compiler/gopt/g_graph_type.h"
 #include "neug/compiler/graph/graph_entry.h"
 #include "neug/compiler/main/client_context.h"
+#include "neug/compiler/optimizer/expand_getv_fusion.h"
 #include "neug/compiler/planner/join_order/cost_model.h"
 #include "neug/compiler/planner/operator/extend/logical_extend.h"
 #include "neug/compiler/planner/operator/extend/logical_recursive_extend.h"
@@ -68,6 +73,17 @@ static std::unordered_set<table_id_t> getNbrNodeTableIDSet(
   return result;
 }
 
+std::vector<common::table_id_t> Planner::transformRelTableIds(
+    const binder::RelExpression& relExpr) {
+  auto transformType = optimizer::ExpandGetVFusion::transformExpandType(
+      gopt::GRelType(relExpr), clientContext->getCatalog());
+  std::vector<common::table_id_t> tableIds;
+  for (auto relEntry : transformType.relTables) {
+    tableIds.emplace_back(relEntry->getTableID());
+  }
+  return tableIds;
+}
+
 void Planner::appendNonRecursiveExtend(
     const std::shared_ptr<NodeExpression>& boundNode,
     const std::shared_ptr<NodeExpression>& nbrNode,
@@ -90,10 +106,15 @@ void Planner::appendNonRecursiveExtend(
   extend->computeFactorizedSchema();
   // Update cost & cardinality. Note that extend does not change factorized
   // cardinality.
+  // const auto extensionRate = cardinalityEstimator.getExtensionRate(
+  //     *rel, transformRelTableIds(*rel), *boundNode,
+  //     clientContext->getTransaction());
   const auto extensionRate = cardinalityEstimator.getExtensionRate(
       *rel, *boundNode, clientContext->getTransaction());
-  extend->setCardinality(plan.getLastOperator()->getCardinality());
-  plan.setCost(plan.getCost() + plan.getCardinality() * extensionRate);
+  auto extendCard = cardinalityEstimator.multiply(
+      extensionRate, plan.getLastOperator()->getCardinality());
+  extend->setCardinality(extendCard);
+  plan.setCost(plan.getCost() + extendCard);
   auto group = extend->getSchema()->getGroup(nbrNode->getInternalID());
   group->setMultiplier(extensionRate);
   plan.setLastOperator(std::move(extend));
@@ -130,6 +151,9 @@ void Planner::appendRecursiveExtend(
 
   auto extensionRate = cardinalityEstimator.getExtensionRate(
       *rel, *boundNode, clientContext->getTransaction());
+  // auto extensionRate = cardinalityEstimator.getExtensionRate(
+  //     *rel, transformRelTableIds(*rel), *boundNode,
+  //     clientContext->getTransaction());
   auto resultCard = cardinalityEstimator.multiply(
       extensionRate, plan.getLastOperator()->getCardinality());
 

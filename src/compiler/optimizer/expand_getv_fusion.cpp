@@ -21,6 +21,7 @@
  */
 
 #include "neug/compiler/optimizer/expand_getv_fusion.h"
+#include "neug/compiler/catalog/catalog.h"
 #include "neug/compiler/planner/operator/extend/logical_recursive_extend.h"
 
 namespace gs {
@@ -65,7 +66,7 @@ ExpandGetVFusion::visitRecursiveExtendReplace(
   if (hasLabelFiltering(gopt::GNodeType{*extendOp->getNbrNode()},
                         gopt::GRelType{*extendOp->getRel()},
                         gopt::GNodeType{*extendOp->getBoundNode()},
-                        extendOp->getDirection())) {
+                        extendOp->getDirection(), catalog)) {
     return op;
   }
   // todo: handle the case of EXPANDV_GETV
@@ -116,7 +117,7 @@ bool ExpandGetVFusion::hasGetVFiltering(
   auto expandType = expandOp->getRelType();
   gopt::GNodeType sourceType(*expandOp->getBoundNode());
   return hasLabelFiltering(*getVType, *expandType, sourceType,
-                           expandOp->getDirection());
+                           expandOp->getDirection(), catalog);
 }
 
 // the expand_edge in physical pb only support filtering edge labels by edge
@@ -124,7 +125,7 @@ bool ExpandGetVFusion::hasGetVFiltering(
 // dst> by the expandType, thus can determine whether label filtering in getV is
 // necessary or not.
 gopt::GRelType ExpandGetVFusion::transformExpandType(
-    const gopt::GRelType& expandType) {
+    const gopt::GRelType& expandType, catalog::Catalog* catalog) {
   auto& transaction = Constants::DEFAULT_TRANSACTION;
   std::vector<common::table_id_t> targetLabels =
       std::move(expandType.getLabelIds());
@@ -145,9 +146,10 @@ gopt::GRelType ExpandGetVFusion::transformExpandType(
 bool ExpandGetVFusion::hasLabelFiltering(const gopt::GNodeType& getVType,
                                          const gopt::GRelType& expandType,
                                          const gopt::GNodeType& sourceType,
-                                         common::ExtendDirection direction) {
+                                         common::ExtendDirection direction,
+                                         catalog::Catalog* catalog) {
   std::vector<common::table_id_t> targetLabels;
-  auto transformType = transformExpandType(expandType);
+  auto transformType = transformExpandType(expandType, catalog);
   for (auto& edge : transformType.relTables) {
     for (auto& node : sourceType.nodeTables) {
       if (direction != common::ExtendDirection::BWD &&

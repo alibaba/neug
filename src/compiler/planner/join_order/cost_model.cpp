@@ -28,18 +28,6 @@ uint64_t CostModel::computeHashJoinCost(
   uint64_t cost = 0ul;
   cost += probe.getCost();
   cost += build.getCost();
-  // cost += probe.getCardinality();
-  uint64_t flatCost = PlannerKnobs::BUILD_PENALTY *
-                      JoinOrderUtil::getJoinKeysFlatCardinality(
-                          joinNodeIDs, build.getLastOperatorRef());
-  // std::cout << "flat cardinality: " << flatCost << std::endl << std::endl <<
-  // std::endl;
-  cost += flatCost;
-  // cost += PlannerKnobs::BUILD_PENALTY * build.getCardinality();
-  // std::cout << "probe cost: " << probe.getCost() << " build cost: " <<
-  // build.getCost()
-  //           << " flat cost: " << flatCost << " total cost:" << cost <<
-  //           std::endl;
   return cost;
 }
 
@@ -81,6 +69,25 @@ cardinality_t CostModel::estimateIntersectCostByCard(
     cost += card;
   }
   return cost;
+}
+
+// Currently, we directly calculate the edge cost based on the number of triples
+// <src, dst, edge>, which has already been computed in the extend operator.
+// Here, getV simply returns 0.
+uint64_t CostModel::computeGetVCost(const planner::LogicalExtend& extendOp) {
+  // bool hasLabelFiltering = optimizer::ExpandGetVFusion::hasLabelFiltering(
+  //     gopt::GNodeType{*extendOp.getNbrNode()},
+  //     gopt::GRelType{*extendOp.getRel()},
+  //     gopt::GNodeType{*extendOp.getBoundNode()}, extendOp.getDirection(),
+  //     clientContext->getCatalog());
+  // return hasLabelFiltering ? extendOp.getCardinality() : 0;
+  return 0;
+}
+
+uint64_t CostModel::computeGetVCost(
+    const planner::LogicalRecursiveExtend& extendOp) {
+  // return extendOp.getCardinality();
+  return 0;
 }
 
 }  // namespace planner
