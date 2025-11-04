@@ -428,12 +428,7 @@ Date::Date(const std::string& date_str) {
   value.internal.year = year;
   value.internal.month = month;
   value.internal.day = day;
-  value.internal.hour = 0;  // Default hour to 0
-  LOG(INFO) << "Set date from string: " << date_str
-            << ", year: " << value.internal.year
-            << ", month: " << value.internal.month
-            << ", day: " << value.internal.day
-            << ", hour: " << value.internal.hour;
+  value.internal.hour = 0;
 }
 
 int64_t Date::to_timestamp() const {
@@ -553,6 +548,52 @@ DateTime::DateTime(const std::string& date_time_str) {
   milli_second = std::chrono::duration_cast<std::chrono::milliseconds>(
                      sys_time.time_since_epoch())
                      .count();
+}
+
+TimeStamp::TimeStamp(const std::string& ts_str) {
+  // For now, just parse as int64_t
+  if (std::all_of(ts_str.begin(), ts_str.end(), ::isdigit)) {
+    milli_second = std::stoll(ts_str);
+  } else {
+    // If parsing as int64_t fails, try to parse as date time string
+    try {
+      if (ts_str.size() == 10) {
+        std::istringstream ss(ts_str);
+        date::sys_time<std::chrono::milliseconds> sys_time;
+        // Try multiple formats
+        date::from_stream(ss, "%Y-%m-%d", sys_time);
+        if (ss.fail()) {
+          ss.clear();
+          ss.str(ts_str);
+          DateTime dt(ts_str);
+          milli_second = dt.milli_second;
+        } else {
+          milli_second = std::chrono::duration_cast<std::chrono::milliseconds>(
+                             sys_time.time_since_epoch())
+                             .count();
+        }
+      } else {
+        std::istringstream ss(ts_str);
+        date::sys_time<std::chrono::milliseconds> sys_time;
+
+        date::from_stream(ss, "%Y-%m-%dT%H:%M:%S%z", sys_time);
+        if (ss.fail()) {
+          ss.clear();
+          ss.str(ts_str);
+          DateTime dt(ts_str);
+          milli_second = dt.milli_second;
+        } else {
+          milli_second = std::chrono::duration_cast<std::chrono::milliseconds>(
+                             sys_time.time_since_epoch())
+                             .count();
+        }
+      }
+
+    } catch (const std::exception& e) {
+      THROW_INVALID_ARGUMENT_EXCEPTION("Invalid timestamp string format: " +
+                                       std::string(e.what()));
+    }
+  }
 }
 
 std::string DateTime::to_string() const {

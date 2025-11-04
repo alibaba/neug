@@ -526,6 +526,8 @@ struct TimeStamp {
 
   explicit TimeStamp(int64_t x) : milli_second(x) {}
 
+  explicit TimeStamp(const std::string& timestamp_str);
+
   std::string to_string() const;
 
   __attribute__((always_inline)) bool operator<(const TimeStamp& rhs) const {
@@ -560,8 +562,8 @@ struct TimeStamp {
     return *this;
   }
 
-  __attribute__((always_inline)) Interval operator-(
-      const TimeStamp& rhs) const {
+  __attribute__((always_inline)) Interval
+  operator-(const TimeStamp& rhs) const {
     Interval interval;
     interval.from_mill_seconds(this->milli_second - rhs.milli_second);
     return interval;

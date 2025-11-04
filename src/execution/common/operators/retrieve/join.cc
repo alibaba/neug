@@ -362,10 +362,7 @@ static Context default_times_join(Context&& ctx, Context&& ctx2,
       ret.set(i, ctx2.get(i));
     }
   }
-  LOG(INFO) << "times join: left size = " << left_size
-            << ", right size = " << right_size
-            << ", resulting size = " << ret.row_num()
-            << "col num: " << ret.col_num();
+
   return ret;
 }
 

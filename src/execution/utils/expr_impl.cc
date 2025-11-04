@@ -717,7 +717,7 @@ static RTAny parse_param(const ::common::DynamicParam& param,
       DateTime val = DateTime(std::stoll(input.at(name)));
       return RTAny::from_datetime(val);
     } else if (type == RTAnyType::kTimestamp) {
-      TimeStamp val = TimeStamp(std::stoll(input.at(name)));
+      TimeStamp val = TimeStamp(input.at(name));
       return RTAny::from_timestamp(val);
     } else if (type == RTAnyType::kInterval) {
       Interval val = Interval(input.at(name));
@@ -1084,6 +1084,12 @@ static std::unique_ptr<ExprBase> build_expr(
         return std::make_unique<EndNodeExpr>(std::move(expr));
       } else if (name == "gs.function.toFloat") {
         return std::make_unique<ToFloatExpr>(std::move(expr));
+      } else if (name == "gs.function.datetime") {
+        return std::make_unique<ToDateTimeExpr>(std::move(expr));
+      } else if (name == "gs.function.date32") {
+        return std::make_unique<ToDate32Expr>(std::move(expr));
+      } else if (name == "gs.function.abs") {
+        return std::make_unique<AbsExpr>(std::move(expr));
       } else {
         LOG(FATAL) << "not support udf" << opr.DebugString();
       }

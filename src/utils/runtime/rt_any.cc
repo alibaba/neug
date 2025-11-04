@@ -1411,6 +1411,8 @@ void RTAny::encode_sig(RTAnyType type, Encoder& encoder) const {
       encoder.put_byte(nodes[i].label_);
       encoder.put_int(nodes[i].vid_);
     }
+  } else if (type == RTAnyType::kTimestamp) {
+    encoder.put_long(value_.ts_val.milli_second);
   } else {
     THROW_RUNTIME_ERROR("RTAny::encode_sig not support for " +
                         std::to_string(static_cast<int>(type)));

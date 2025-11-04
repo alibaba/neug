@@ -960,6 +960,130 @@ class ToFloatExpr : public ExprBase {
   std::unique_ptr<ExprBase> args;
 };
 
+class ToDateTimeExpr : public ExprBase {
+ public:
+  ToDateTimeExpr(std::unique_ptr<ExprBase>&& args) : args(std::move(args)) {}
+
+  RTAny to_date_time(const RTAny& val) const {
+    int64_t ts = 0;
+    if (val.type() == RTAnyType::kDate) {
+      ts = val.as_date().to_timestamp();
+    } else if (val.type() == RTAnyType::kTimestamp) {
+      ts = val.as_timestamp().milli_second;
+    } else if (val.type() == RTAnyType::kDateTime) {
+      ts = val.as_datetime().milli_second;
+    } else {
+      THROW_RUNTIME_ERROR("ToDateTime: input value is not date/timestamp");
+    }
+    TimeStamp t(ts);
+    return RTAny::from_timestamp(t);
+  }
+  RTAny eval_path(size_t idx, Arena& arena) const override {
+    auto val = args->eval_path(idx, arena);
+    return to_date_time(val);
+  }
+
+  RTAny eval_vertex(label_t label, vid_t v, size_t idx,
+                    Arena& arena) const override {
+    return to_date_time(args->eval_vertex(label, v, idx, arena));
+  }
+
+  RTAny eval_edge(const LabelTriplet& label, vid_t src, vid_t dst,
+                  const void* data, size_t idx, Arena& arena) const override {
+    return to_date_time(args->eval_edge(label, src, dst, data, idx, arena));
+  }
+
+  RTAnyType type() const override { return RTAnyType::kTimestamp; }
+
+  bool is_optional() const override { return args->is_optional(); }
+
+  std::unique_ptr<ExprBase> args;
+};
+
+class ToDate32Expr : public ExprBase {
+ public:
+  ToDate32Expr(std::unique_ptr<ExprBase>&& args) : args(std::move(args)) {}
+
+  RTAny to_date_32(const RTAny& val) const {
+    constexpr int64_t kMilliSecondsOfDay = 24 * 60 * 60 * 1000;
+    int64_t ts = 0;
+    if (val.type() == RTAnyType::kDate) {
+      ts = val.as_date().to_timestamp();
+    } else if (val.type() == RTAnyType::kTimestamp) {
+      ts = (val.as_timestamp().milli_second / kMilliSecondsOfDay) *
+           kMilliSecondsOfDay;
+    } else if (val.type() == RTAnyType::kDateTime) {
+      ts = (val.as_datetime().milli_second / kMilliSecondsOfDay) *
+           kMilliSecondsOfDay;
+    } else {
+      THROW_RUNTIME_ERROR("ToDate32: input value is not date/timestamp");
+    }
+    Date t(ts);
+    return RTAny::from_date(t);
+  }
+  RTAny eval_path(size_t idx, Arena& arena) const override {
+    auto val = args->eval_path(idx, arena);
+    return to_date_32(val);
+  }
+
+  RTAny eval_vertex(label_t label, vid_t v, size_t idx,
+                    Arena& arena) const override {
+    return to_date_32(args->eval_vertex(label, v, idx, arena));
+  }
+
+  RTAny eval_edge(const LabelTriplet& label, vid_t src, vid_t dst,
+                  const void* data, size_t idx, Arena& arena) const override {
+    return to_date_32(args->eval_edge(label, src, dst, data, idx, arena));
+  }
+
+  RTAnyType type() const override { return RTAnyType::kDate; }
+
+  bool is_optional() const override { return args->is_optional(); }
+
+  std::unique_ptr<ExprBase> args;
+};
+
+class AbsExpr : public ExprBase {
+ public:
+  AbsExpr(std::unique_ptr<ExprBase>&& args) : args(std::move(args)) {}
+
+  RTAny abs_impl(const RTAny& val) const {
+    if (val.type() == RTAnyType::kI32Value) {
+      return RTAny::from_int32(std::abs(val.as_int32()));
+    } else if (val.type() == RTAnyType::kI64Value) {
+      return RTAny::from_int64(std::abs(val.as_int64()));
+    } else if (val.type() == RTAnyType::kF32Value) {
+      return RTAny::from_float(std::fabs(val.as_float()));
+    } else if (val.type() == RTAnyType::kF64Value) {
+      return RTAny::from_double(std::fabs(val.as_double()));
+    } else {
+      THROW_RUNTIME_ERROR("Abs: input value is not numeric");
+    }
+  }
+
+  RTAny eval_path(size_t idx, Arena& arena) const override {
+    auto val = args->eval_path(idx, arena);
+    return abs_impl(val);
+  }
+
+  RTAny eval_vertex(label_t label, vid_t v, size_t idx,
+                    Arena& arena) const override {
+    auto val = args->eval_vertex(label, v, idx, arena);
+    return abs_impl(val);
+  }
+
+  RTAny eval_edge(const LabelTriplet& label, vid_t src, vid_t dst,
+                  const void* data, size_t idx, Arena& arena) const override {
+    auto val = args->eval_edge(label, src, dst, data, idx, arena);
+    return abs_impl(val);
+  }
+  RTAnyType type() const override { return args->type(); }
+  bool is_optional() const override { return args->is_optional(); }
+
+ private:
+  std::unique_ptr<ExprBase> args;
+};
+
 template <typename GraphInterface>
 std::unique_ptr<ExprBase> parse_expression(
     const GraphInterface& graph, const Context& ctx,

@@ -850,8 +850,7 @@ struct TypedConverter<TimeStamp> {
   static RTAny from_typed(TimeStamp val) { return RTAny::from_timestamp(val); }
   static const std::string name() { return "timestamp"; }
   static TimeStamp typed_from_string(const std::string& str) {
-    int64_t val = std::stoll(str);
-    return TimeStamp(val);
+    return TimeStamp(str);
   }
 };
 
