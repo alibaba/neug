@@ -51,6 +51,55 @@ Context remove_null_from_ctx(Context&& ctx, int tag_id) {
   return ctx;
 }
 
+gs::result<Context> EdgeExpand::expand_degree(const GraphReadInterface& graph,
+                                              Context&& ctx,
+                                              const EdgeExpandParams& params) {
+  auto vertex_col =
+      dynamic_cast<const IVertexColumn*>(ctx.get(params.v_tag).get());
+
+  std::unordered_map<label_t, std::vector<GenericView>> mps;
+  const auto& vertex_labels = vertex_col->get_labels_set();
+  for (auto label : params.labels) {
+    if (params.dir == Direction::kOut || params.dir == Direction::kBoth) {
+      if (vertex_labels.find(label.src_label) != vertex_labels.end()) {
+        mps[label.src_label].emplace_back(graph.GetGenericOutgoingGraphView(
+            label.src_label, label.dst_label, label.edge_label));
+      }
+    }
+    if (params.dir == Direction::kIn || params.dir == Direction::kBoth) {
+      if (vertex_labels.find(label.dst_label) != vertex_labels.end()) {
+        mps[label.dst_label].emplace_back(graph.GetGenericIncomingGraphView(
+            label.dst_label, label.src_label, label.edge_label));
+      }
+    }
+  }
+  ValueColumnBuilder<int64_t> builder;
+  std::vector<size_t> shuffle_offset;
+  if (mps.empty()) {
+    ctx.set_with_reshuffle(params.alias, builder.finish(), shuffle_offset);
+    return ctx;
+  }
+  foreach_vertex(*vertex_col, [&](size_t index, label_t label, vid_t v) {
+    int64_t degree = 0;
+    if (mps.count(label)) {
+      for (auto& view : mps.at(label)) {
+        auto es = view.get_edges(v);
+        for (auto it = es.begin(); it != es.end(); ++it) {
+          ++degree;
+        }
+      }
+    }
+
+    if ((!params.is_optional) && degree == 0) {
+      return;
+    }
+    builder.push_back_opt(degree);
+    shuffle_offset.push_back(index);
+  });
+  ctx.set_with_reshuffle(params.alias, builder.finish(), shuffle_offset);
+  return ctx;
+}
+
 gs::result<Context> EdgeExpand::expand_edge_without_predicate(
     const GraphReadInterface& graph, Context&& ctx,
     const EdgeExpandParams& params) {

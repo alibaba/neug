@@ -372,6 +372,25 @@ class EdgeExpandVWithGPVertexPredOpr : public IReadOperator {
   common::Expression pred_;
 };
 
+class EdgeExpandDegreeOpr : public IReadOperator {
+ public:
+  EdgeExpandDegreeOpr(const EdgeExpandParams& eep) : eep_(eep) {}
+
+  gs::result<gs::runtime::Context> Eval(
+      const gs::runtime::GraphReadInterface& graph,
+      const std::map<std::string, std::string>& params,
+      gs::runtime::Context&& ctx, gs::runtime::OprTimer* timer) override {
+    return EdgeExpand::expand_degree(graph, std::move(ctx), eep_);
+  }
+
+  std::string get_operator_name() const override {
+    return "EdgeExpandDegreeOpr";
+  }
+
+ private:
+  EdgeExpandParams eep_;
+};
+
 static bool check_label_in_set(const Direction& dir,
                                const std::vector<LabelTriplet>& edge_labels,
                                const std::set<label_t>& labels_set) {
@@ -462,6 +481,15 @@ gs::result<ReadOpBuildResultT> EdgeExpandOprBuilder::Build(
     } else {
       return std::make_pair(
           std::make_unique<EdgeExpandEWithoutPredicateOpr>(eep), meta);
+    }
+  } else if (opr.expand_opt() == physical::EdgeExpand_ExpandOpt_DEGREE) {
+    if (query_params.has_predicate()) {
+      LOG(ERROR)
+          << "EdgeExpandOprBuilder::Build: expand_opt is DEGREE with predicate"
+          << opr.DebugString();
+      return std::make_pair(nullptr, ContextMeta());
+    } else {
+      return std::make_pair(std::make_unique<EdgeExpandDegreeOpr>(eep), meta);
     }
   }
   return std::make_pair(nullptr, ContextMeta());

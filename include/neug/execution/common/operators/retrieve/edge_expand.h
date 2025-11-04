@@ -52,6 +52,9 @@ class IContextColumn;
 
 class EdgeExpand {
  public:
+  static gs::result<Context> expand_degree(const GraphReadInterface& graph,
+                                           Context&& ctx,
+                                           const EdgeExpandParams& params);
   template <typename PRED_T>
   static gs::result<Context> expand_edge(const GraphReadInterface& graph,
                                          Context&& ctx,
