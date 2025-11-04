@@ -73,7 +73,7 @@ class VertexTableBenchmark : public ::testing::Test {
       gs::Property vertex_id;
       vertex_id.set_int64(static_cast<int64_t>(i));
 
-      gs::vid_t vid = table.add_vertex(vertex_id, i);
+      gs::vid_t vid = table.AddVertex(vertex_id, i);
       EXPECT_EQ(vid, i);
 
       // Set properties
@@ -97,7 +97,7 @@ class VertexTableBenchmark : public ::testing::Test {
   }
 
   void BatchDeleteVertices(gs::VertexTable& table, size_t delete_count) {
-    size_t current_vertex_num = table.vertex_num();
+    size_t current_vertex_num = table.VertexNum();
     if (delete_count > current_vertex_num) {
       delete_count = current_vertex_num;
     }
@@ -109,7 +109,7 @@ class VertexTableBenchmark : public ::testing::Test {
 
     while (unique_vids.size() < delete_count) {
       gs::vid_t vid = vid_dist(generator_);
-      if (table.is_valid_lid(vid, gs::MAX_TIMESTAMP)) {
+      if (table.IsValidLid(vid, gs::MAX_TIMESTAMP)) {
         unique_vids.insert(vid);
       }
     }
@@ -125,7 +125,7 @@ class VertexTableBenchmark : public ::testing::Test {
 
     while (ids.size() < count) {
       auto vid = id_dist(generator_);
-      if (vertex_table.is_valid_lid(vid)) {
+      if (vertex_table.IsValidLid(vid)) {
         ids.push_back(vid);
       }
     }
@@ -178,7 +178,7 @@ TEST_F(VertexTableBenchmark, AddVertexPerformance) {
   for (size_t i = 0; i < vertex_count; ++i) {
     gs::Property vertex_id;
     vertex_id.set_int64(static_cast<int64_t>(i));
-    table.add_vertex(vertex_id);
+    table.AddVertex(vertex_id);
   }
 
   auto end = std::chrono::high_resolution_clock::now();
@@ -190,7 +190,7 @@ TEST_F(VertexTableBenchmark, AddVertexPerformance) {
   LOG(INFO) << "Average time per vertex: "
             << (double) duration.count() / vertex_count << " microseconds";
 
-  EXPECT_EQ(table.vertex_num(), vertex_count);
+  EXPECT_EQ(table.VertexNum(), vertex_count);
 
   table.Close();
 }
@@ -210,15 +210,15 @@ TEST_F(VertexTableBenchmark, GetOidPerformance) {
 
   // Warm up
   for (auto vid : random_vids) {
-    gs::Property oid = table.get_oid(vid, gs::MAX_TIMESTAMP);
+    gs::Property oid = table.GetOid(vid, gs::MAX_TIMESTAMP);
     (void) oid;  // Avoid unused variable warning
   }
 
   auto start = std::chrono::high_resolution_clock::now();
 
-  // Perform get_oid operations
+  // Perform GetOid operations
   for (auto vid : random_vids) {
-    gs::Property oid = table.get_oid(vid);
+    gs::Property oid = table.GetOid(vid);
     (void) oid;  // Avoid unused variable warning
   }
 
@@ -235,21 +235,20 @@ TEST_F(VertexTableBenchmark, GetOidPerformance) {
   auto start2 = std::chrono::high_resolution_clock::now();
 
   for (auto vid : random_vids_after_delete) {
-    gs::Property oid = table.get_oid(vid);
+    gs::Property oid = table.GetOid(vid);
     (void) oid;  // Avoid unused variable warning
   }
   auto end2 = std::chrono::high_resolution_clock::now();
   auto duration2 =
       std::chrono::duration_cast<std::chrono::microseconds>(end2 - start2);
 
-  LOG(INFO) << "Performed " << lookup_count << " get_oid operations in "
+  LOG(INFO) << "Performed " << lookup_count << " GetOid operations in "
             << duration.count() << " microseconds";
-  LOG(INFO) << "Average time per get_oid: "
+  LOG(INFO) << "Average time per GetOid: "
             << (double) duration.count() / lookup_count << " microseconds";
   LOG(INFO) << "After deletion, performed " << lookup_count
-            << " get_oid operations in " << duration2.count()
-            << " microseconds";
-  LOG(INFO) << "Average time per get_oid after deletion: "
+            << " GetOid operations in " << duration2.count() << " microseconds";
+  LOG(INFO) << "Average time per GetOid after deletion: "
             << (double) duration2.count() / lookup_count << " microseconds";
 
   table.Close();
@@ -334,7 +333,7 @@ TEST_F(VertexTableBenchmark, VertexSetPerformance) {
 
   {
     auto vertex_set =
-        gs::VertexSet(table.lid_num(), table.get_vertex_timestamps(),
+        gs::VertexSet(table.LidNum(), table.get_vertex_timestamps(),
                       gs::MAX_TIMESTAMP, table.vertex_table_modified());
 
     auto start = std::chrono::high_resolution_clock::now();
@@ -355,7 +354,7 @@ TEST_F(VertexTableBenchmark, VertexSetPerformance) {
   BatchDeleteVertices(table, 25000);
   {
     auto vertex_set =
-        gs::VertexSet(table.lid_num(), table.get_vertex_timestamps(),
+        gs::VertexSet(table.LidNum(), table.get_vertex_timestamps(),
                       gs::MAX_TIMESTAMP, table.vertex_table_modified());
 
     auto start = std::chrono::high_resolution_clock::now();
@@ -395,7 +394,7 @@ TEST_F(VertexTableBenchmark, MixedOperationsPerformance) {
 
   auto start = std::chrono::high_resolution_clock::now();
 
-  // Mixed operations: get_oid and get_index in random order
+  // Mixed operations: GetOid and get_index in random order
   std::uniform_int_distribution<int> op_dist(0, 1);
 
   for (size_t i = 0; i < operation_count; ++i) {
@@ -403,8 +402,8 @@ TEST_F(VertexTableBenchmark, MixedOperationsPerformance) {
 
     switch (op) {
     case 0: {
-      // get_oid operation
-      gs::Property oid = table.get_oid(random_vids[i]);
+      // GetOid operation
+      gs::Property oid = table.GetOid(random_vids[i]);
       (void) oid;
       break;
     }

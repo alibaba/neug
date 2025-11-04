@@ -189,9 +189,9 @@ void InsertTransaction::IngestWal(PropertyGraph& graph, uint32_t timestamp,
       label_t label;
       Property id;
       label = deserialize_oid(graph, arc, id);
-      vid_t lid = graph.add_vertex(label, id, timestamp);
+      vid_t lid = graph.AddVertex(label, id, timestamp);
       // Ignore the cases that the vertex already exists.
-      graph.get_vertex_table(label).ingest(lid, arc);
+      graph.get_vertex_table(label).get_properties_table().ingest(lid, arc);
     } else if (op_type == 1) {
       label_t src_label, dst_label, edge_label;
       Property src, dst;

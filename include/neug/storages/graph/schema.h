@@ -148,11 +148,6 @@ class Schema {
                                                        label_t dst_label,
                                                        label_t label) const;
 
-  const std::string get_compiler_path() const {
-    // TODO: Eliminate this interface
-    return "";
-  }
-
   std::string get_edge_description(const std::string& src_label,
                                    const std::string& dst_label,
                                    const std::string& label) const;
@@ -285,18 +280,18 @@ class Schema {
   const std::unordered_map<std::string, std::pair<PropertyType, uint8_t>>&
   get_vprop_name_to_type_and_index(label_t label) const;
 
-  void add_vertex_properties(const std::string& label,
-                             std::vector<std::string>& properties_names,
-                             std::vector<PropertyType>& properties_types,
-                             std::vector<StorageStrategy>& storage_strategies,
-                             std::vector<Property>& properties_default_values);
+  void AddVertexProperties(const std::string& label,
+                           std::vector<std::string>& properties_names,
+                           std::vector<PropertyType>& properties_types,
+                           std::vector<StorageStrategy>& storage_strategies,
+                           std::vector<Property>& properties_default_values);
 
   void update_vertex_properties(const std::string& label,
                                 std::vector<std::string>& properties_names,
                                 std::vector<std::string>& properties_renames);
 
-  void delete_vertex_properties(const std::string& label,
-                                std::vector<std::string>& properties_names);
+  void DeleteVertexProperties(const std::string& label,
+                              std::vector<std::string>& properties_names);
 
   void delete_vertex_label(const std::string& label);
 
@@ -308,12 +303,12 @@ class Schema {
   void delete_edge_label(const label_t& src, const label_t& dst,
                          const label_t& edge);
 
-  void add_edge_properties(const std::string& src_label,
-                           const std::string& dst_label,
-                           const std::string& edge_label,
-                           std::vector<std::string>& properties_names,
-                           std::vector<PropertyType>& properties_types,
-                           std::vector<Property>& properties_default_values);
+  void AddEdgeProperties(const std::string& src_label,
+                         const std::string& dst_label,
+                         const std::string& edge_label,
+                         std::vector<std::string>& properties_names,
+                         std::vector<PropertyType>& properties_types,
+                         std::vector<Property>& properties_default_values);
 
   void update_edge_properties(const std::string& src_label,
                               const std::string& dst_label,
@@ -321,10 +316,10 @@ class Schema {
                               std::vector<std::string>& properties_names,
                               std::vector<std::string>& properties_renames);
 
-  void delete_edge_properties(const std::string& src_label,
-                              const std::string& dst_label,
-                              const std::string& edge_label,
-                              std::vector<std::string>& properties_names);
+  void DeleteEdgeProperties(const std::string& src_label,
+                            const std::string& dst_label,
+                            const std::string& edge_label,
+                            std::vector<std::string>& properties_names);
 
   uint32_t generate_edge_label(label_t src, label_t dst, label_t edge) const;
 

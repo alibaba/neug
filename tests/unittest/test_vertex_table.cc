@@ -81,32 +81,32 @@ TEST_F(VertexTableTest, VertexTableBasicOps) {
   oid1.set_int64(1);
   oid2.set_int64(2);
   oid3.set_int64(3);
-  lid1 = table.add_vertex(oid1, 1);
-  lid2 = table.add_vertex(oid2, 2);
-  lid3 = table.add_vertex(oid3, 3);
+  lid1 = table.AddVertex(oid1, 1);
+  lid2 = table.AddVertex(oid2, 2);
+  lid3 = table.AddVertex(oid3, 3);
   LOG(INFO) << "Added vertices with lids: " << lid1 << ", " << lid2 << ", "
             << lid3;
   LOG(INFO) << "and oids: " << oid1.as_int64() << ", " << oid2.as_int64()
             << ", " << oid3.as_int64();
 
-  EXPECT_EQ(table.vertex_num(), 3);
-  EXPECT_EQ(table.lid_num(), 3);
-  EXPECT_EQ(table.vertex_num(2), 2);
-  EXPECT_EQ(table.vertex_num(1), 1);
+  EXPECT_EQ(table.VertexNum(), 3);
+  EXPECT_EQ(table.LidNum(), 3);
+  EXPECT_EQ(table.VertexNum(2), 2);
+  EXPECT_EQ(table.VertexNum(1), 1);
 
   EXPECT_TRUE(table.vertex_table_modified());
-  EXPECT_TRUE(table.is_valid_lid(lid1));
-  EXPECT_TRUE(table.is_valid_lid(lid2));
-  EXPECT_TRUE(table.is_valid_lid(lid3));
-  EXPECT_FALSE(table.is_valid_lid(4));
-  EXPECT_TRUE(table.is_valid_lid(lid3, 3));
+  EXPECT_TRUE(table.IsValidLid(lid1));
+  EXPECT_TRUE(table.IsValidLid(lid2));
+  EXPECT_TRUE(table.IsValidLid(lid3));
+  EXPECT_FALSE(table.IsValidLid(4));
+  EXPECT_TRUE(table.IsValidLid(lid3, 3));
 
-  EXPECT_EQ(oid1, table.get_oid(lid1));
-  EXPECT_EQ(oid2, table.get_oid(lid2));
-  EXPECT_EQ(oid3, table.get_oid(lid3));
+  EXPECT_EQ(oid1, table.GetOid(lid1));
+  EXPECT_EQ(oid2, table.GetOid(lid2));
+  EXPECT_EQ(oid3, table.GetOid(lid3));
 
   try {
-    auto ret = table.get_oid(3, 2);
+    auto ret = table.GetOid(3, 2);
     FAIL() << "Expected exception not thrown";
   } catch (gs::exception::Exception& e) {}
 
@@ -134,9 +134,9 @@ TEST_F(VertexTableTest, VertexTableDumpAndReload) {
     oid1.set_int64(1);
     oid2.set_int64(2);
     oid3.set_int64(3);
-    lid1 = table.add_vertex(oid1, 1);
-    lid2 = table.add_vertex(oid2, 2);
-    lid3 = table.add_vertex(oid3, 3);
+    lid1 = table.AddVertex(oid1, 1);
+    lid2 = table.AddVertex(oid2, 2);
+    lid3 = table.AddVertex(oid3, 3);
     LOG(INFO) << "Added vertices with lids: " << lid1 << ", " << lid2 << ", "
               << lid3;
     table.Dump(gs::temp_checkpoint_dir(dump_dir));
@@ -150,10 +150,10 @@ TEST_F(VertexTableTest, VertexTableDumpAndReload) {
     gs::VertexTable new_table(v_label_name_, pk_type_, property_names_,
                               property_types_, storage_strategies_);
     new_table.Open(dump_dir, memory_level_);
-    EXPECT_EQ(new_table.vertex_num(), 3);
-    EXPECT_EQ(new_table.lid_num(), 3);
-    EXPECT_EQ(new_table.vertex_num(2), 3);
-    EXPECT_EQ(new_table.vertex_num(1), 3);
+    EXPECT_EQ(new_table.VertexNum(), 3);
+    EXPECT_EQ(new_table.LidNum(), 3);
+    EXPECT_EQ(new_table.VertexNum(2), 3);
+    EXPECT_EQ(new_table.VertexNum(1), 3);
     EXPECT_FALSE(new_table.vertex_table_modified());
   }
 }
@@ -177,14 +177,14 @@ TEST_F(VertexTableTest, VertexTableAddAndDeleteAndReload) {
     oid1.set_int64(1);
     oid2.set_int64(2);
     oid3.set_int64(3);
-    lid1 = table.add_vertex(oid1, 1);
-    lid2 = table.add_vertex(oid2, 2);
-    lid3 = table.add_vertex(oid3, 3);
+    lid1 = table.AddVertex(oid1, 1);
+    lid2 = table.AddVertex(oid2, 2);
+    lid3 = table.AddVertex(oid3, 3);
     LOG(INFO) << "Added vertices with lids: " << lid1 << ", " << lid2 << ", "
               << lid3;
 
-    EXPECT_EQ(table.vertex_num(), 3);
-    EXPECT_EQ(table.lid_num(), 3);
+    EXPECT_EQ(table.VertexNum(), 3);
+    EXPECT_EQ(table.LidNum(), 3);
 
     table.Dump(gs::temp_checkpoint_dir(dump_dir));
   }
@@ -198,12 +198,12 @@ TEST_F(VertexTableTest, VertexTableAddAndDeleteAndReload) {
     gs::VertexTable new_table(v_label_name_, pk_type_, property_names_,
                               property_types_, storage_strategies_);
     new_table.Open(dump_dir, memory_level_);
-    EXPECT_EQ(new_table.vertex_num(), 3);
-    EXPECT_EQ(new_table.lid_num(), 3);
+    EXPECT_EQ(new_table.VertexNum(), 3);
+    EXPECT_EQ(new_table.LidNum(), 3);
 
     new_table.BatchDeleteVertices({lid1, lid2});
-    EXPECT_EQ(new_table.vertex_num(), 1);
-    EXPECT_EQ(new_table.lid_num(), 3);
+    EXPECT_EQ(new_table.VertexNum(), 1);
+    EXPECT_EQ(new_table.LidNum(), 3);
 
     gs::vid_t tmp_vid;
     EXPECT_FALSE(new_table.get_index(oid1, tmp_vid));
@@ -222,8 +222,8 @@ TEST_F(VertexTableTest, VertexTableAddAndDeleteAndReload) {
     gs::VertexTable new_table(v_label_name_, pk_type_, property_names_,
                               property_types_, storage_strategies_);
     new_table.Open(dump_dir, memory_level_);
-    EXPECT_EQ(new_table.vertex_num(), 1);
-    EXPECT_EQ(new_table.lid_num(), 3);
+    EXPECT_EQ(new_table.VertexNum(), 1);
+    EXPECT_EQ(new_table.LidNum(), 3);
     EXPECT_TRUE(new_table.vertex_table_modified());
 
     gs::vid_t tmp_vid;

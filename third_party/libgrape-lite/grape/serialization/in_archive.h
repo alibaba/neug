@@ -132,7 +132,16 @@ inline InArchive& operator<<(InArchive& in_archive,
                              const std::vector<T, ALLOC_T>& vec) {
   size_t size = vec.size();
   in_archive << size;
-  in_archive.AddBytes(vec.data(), size * sizeof(T));
+  if constexpr (std::is_same_v<T, bool>) {
+    // Special handling for vector<bool>
+    for (size_t i = 0; i < size; ++i) {
+      bool val = vec[i];
+      in_archive.AddBytes(&val, sizeof(bool));
+    }
+    return in_archive;
+  } else {
+    in_archive.AddBytes(vec.data(), size * sizeof(T));
+  }
   return in_archive;
 }
 

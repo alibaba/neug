@@ -84,18 +84,18 @@ class VertexTable {
   bool get_index(const Property& oid, vid_t& lid,
                  timestamp_t ts = MAX_TIMESTAMP) const;
 
-  Property get_oid(vid_t lid, timestamp_t ts = MAX_TIMESTAMP) const;
+  Property GetOid(vid_t lid, timestamp_t ts = MAX_TIMESTAMP) const;
 
-  vid_t add_vertex(const Property& id, timestamp_t ts = MAX_TIMESTAMP);
+  vid_t AddVertex(const Property& id, timestamp_t ts = MAX_TIMESTAMP);
 
-  vid_t add_vertex_safe(const Property& id, timestamp_t ts = MAX_TIMESTAMP);
+  vid_t AddVertexSafe(const Property& id, timestamp_t ts = MAX_TIMESTAMP);
 
-  size_t vertex_num(timestamp_t ts = MAX_TIMESTAMP) const;
+  size_t VertexNum(timestamp_t ts = MAX_TIMESTAMP) const;
 
-  size_t lid_num() const;  // We don't need a timestamp here since lid_num is
-                           // the size of the indexer
+  size_t LidNum() const;  // We don't need a timestamp here since LidNum is
+                          // the size of the indexer
 
-  bool is_valid_lid(vid_t lid, timestamp_t ts = MAX_TIMESTAMP) const;
+  bool IsValidLid(vid_t lid, timestamp_t ts = MAX_TIMESTAMP) const;
 
   inline Table& get_properties_table() { return *table_; }
 
@@ -104,7 +104,7 @@ class VertexTable {
   IndexerType& get_indexer() { return indexer_; }
   const IndexerType& get_indexer() const { return indexer_; }
 
-  inline std::shared_ptr<RefColumnBase> get_vertex_id_column() const {
+  inline std::shared_ptr<RefColumnBase> GetVertexIdColumn() const {
     if (indexer_.get_type() == PropertyType::kInt64) {
       return std::make_shared<TypedRefColumn<int64_t>>(
           dynamic_cast<const TypedColumn<int64_t>&>(indexer_.get_keys()));
@@ -198,7 +198,7 @@ class VertexTable {
           vids[j] = std::numeric_limits<vid_t>::max();
           continue;  // already exists
         }
-        vids[j] = add_vertex(oid, 0);
+        vids[j] = AddVertex(oid, 0);
       }
     } else {
       if (primary_key_column->type()->Equals(arrow::utf8())) {
@@ -211,7 +211,7 @@ class VertexTable {
             vids[j] = std::numeric_limits<vid_t>::max();
             continue;  // already exists
           }
-          vids[j] = add_vertex(oid, 0);
+          vids[j] = AddVertex(oid, 0);
         }
       } else if (primary_key_column->type()->Equals(arrow::large_utf8())) {
         auto casted_array = std::static_pointer_cast<arrow::LargeStringArray>(
@@ -223,7 +223,7 @@ class VertexTable {
             vids[j] = std::numeric_limits<vid_t>::max();
             continue;  // already exists
           }
-          vids[j] = add_vertex(oid, 0);
+          vids[j] = AddVertex(oid, 0);
         }
       } else {
         LOG(FATAL) << "Not support type: "
@@ -262,7 +262,7 @@ class VertexTable {
         set_properties_column(col, chunked_array, vids);
       }
       VLOG(10) << "Inserted " << pk_array->length()
-               << " vertices, current vertex num: " << vertex_num();
+               << " vertices, current vertex num: " << VertexNum();
     }
   }
 

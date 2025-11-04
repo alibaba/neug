@@ -85,7 +85,7 @@ gs::result<Context> BatchInsertVertexOpr::Eval(
     OprTimer* timer) {
   auto suppliers = create_record_batch_supplier(ctx, prop_mappings_);
   for (auto supplier : suppliers) {
-    if (!graph.batch_add_vertices(vertex_label_id_, supplier).ok()) {
+    if (!graph.BatchAddVertices(vertex_label_id_, supplier).ok()) {
       THROW_INTERNAL_EXCEPTION("Failed to add vertices");
     }
   }

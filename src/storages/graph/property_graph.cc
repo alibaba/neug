@@ -40,7 +40,7 @@ PropertyGraph::PropertyGraph()
 PropertyGraph::~PropertyGraph() {
   std::vector<size_t> degree_list(vertex_label_num_, 0);
   for (size_t i = 0; i < vertex_label_num_; ++i) {
-    degree_list[i] = vertex_tables_[i].lid_num();
+    degree_list[i] = vertex_tables_[i].LidNum();
     vertex_tables_[i].Reserve(degree_list[i]);
   }
   for (size_t src_label = 0; src_label != vertex_label_num_; ++src_label) {
@@ -74,14 +74,14 @@ void PropertyGraph::Clear() {
   schema_.Clear();
 }
 
-Status PropertyGraph::batch_add_vertices(
+Status PropertyGraph::BatchAddVertices(
     label_t v_label, std::shared_ptr<IRecordBatchSupplier> supplier) {
   CHECK(vertex_tables_.size() > v_label);
   vertex_tables_[v_label].insert_vertices(supplier);
   return gs::Status::OK();
 }
 
-Status PropertyGraph::batch_add_edges(
+Status PropertyGraph::BatchAddEdges(
     label_t src_v_label, label_t dst_v_label, label_t e_label,
     std::shared_ptr<IRecordBatchSupplier> supplier) {
   size_t index = schema_.generate_edge_label(src_v_label, dst_v_label, e_label);
@@ -98,7 +98,7 @@ Status PropertyGraph::batch_add_edges(
   return gs::Status::OK();
 }
 
-Status PropertyGraph::create_vertex_type(
+Status PropertyGraph::CreateVertexType(
     const std::string& vertex_type_name,
     const std::vector<std::tuple<PropertyType, std::string, Property>>&
         properties,
@@ -198,7 +198,7 @@ Status PropertyGraph::create_vertex_type(
     v_mutex_.emplace_back(std::make_shared<std::mutex>());
   }
 
-  LOG(INFO) << "create_vertex_type: vertex_type_name: " << vertex_type_name
+  LOG(INFO) << "CreateVertexType: vertex_type_name: " << vertex_type_name
             << ", vertex_label_id: " << static_cast<int32_t>(vertex_label_id)
             << ",properties " << property_names.size()
             << ", primary_key_names: " << primary_key_names[0];
@@ -292,7 +292,7 @@ Status PropertyGraph::create_edge_type(
   return gs::Status::OK();
 }
 
-Status PropertyGraph::add_vertex_properties(
+Status PropertyGraph::AddVertexProperties(
     const std::string& vertex_type_name,
     const std::vector<std::tuple<PropertyType, std::string, Property>>&
         add_properties,
@@ -338,15 +338,15 @@ Status PropertyGraph::add_vertex_properties(
     }
     add_default_property_values.emplace_back(default_value);
   }
-  schema_.add_vertex_properties(vertex_type_name, add_property_names,
-                                add_property_types, add_property_storages,
-                                add_default_property_values);
+  schema_.AddVertexProperties(vertex_type_name, add_property_names,
+                              add_property_types, add_property_storages,
+                              add_default_property_values);
   label_t v_label = schema_.get_vertex_label_id(vertex_type_name);
   vertex_tables_[v_label].AddProperties(add_property_names, add_property_types);
   return gs::Status::OK();
 }
 
-Status PropertyGraph::add_edge_properties(
+Status PropertyGraph::AddEdgeProperties(
     const std::string& src_type_name, const std::string& dst_type_name,
     const std::string& edge_type_name,
     const std::vector<std::tuple<PropertyType, std::string, Property>>&
@@ -394,9 +394,9 @@ Status PropertyGraph::add_edge_properties(
   // Before adding properties, we need to check whether the csr data type
   // needs to be changed.
 
-  schema_.add_edge_properties(src_type_name, dst_type_name, edge_type_name,
-                              add_property_names, add_property_types,
-                              add_default_property_values);
+  schema_.AddEdgeProperties(src_type_name, dst_type_name, edge_type_name,
+                            add_property_names, add_property_types,
+                            add_default_property_values);
   if (edge_tables_.find(index) == edge_tables_.end()) {
     LOG(ERROR) << "Edge [" << edge_type_name << "] from [" << src_type_name
                << "] to [" << dst_type_name
@@ -413,7 +413,7 @@ Status PropertyGraph::add_edge_properties(
   return gs::Status::OK();
 }
 
-Status PropertyGraph::rename_vertex_properties(
+Status PropertyGraph::RenameVertexProperties(
     const std::string& vertex_type_name,
     const std::vector<std::tuple<std::string, std::string>>& update_properties,
     bool error_on_conflict) {
@@ -454,7 +454,7 @@ Status PropertyGraph::rename_vertex_properties(
   return gs::Status::OK();
 }
 
-Status PropertyGraph::rename_edge_properties(
+Status PropertyGraph::RenameEdgeProperties(
     const std::string& src_type_name, const std::string& dst_type_name,
     const std::string& edge_type_name,
     const std::vector<std::tuple<std::string, std::string>>& update_properties,
@@ -511,7 +511,7 @@ Status PropertyGraph::rename_edge_properties(
   return gs::Status::OK();
 }
 
-Status PropertyGraph::delete_vertex_properties(
+Status PropertyGraph::DeleteVertexProperties(
     const std::string& vertex_type_name,
     const std::vector<std::string>& delete_properties, bool error_on_conflict) {
   if (!schema_.contains_vertex_label(vertex_type_name)) {
@@ -542,14 +542,14 @@ Status PropertyGraph::delete_vertex_properties(
     }
     delete_property_names.emplace_back(property_name);
   }
-  schema_.delete_vertex_properties(vertex_type_name, delete_property_names);
+  schema_.DeleteVertexProperties(vertex_type_name, delete_property_names);
   label_t v_label = schema_.get_vertex_label_id(vertex_type_name);
 
   vertex_tables_[v_label].DeleteProperties(delete_property_names);
   return gs::Status::OK();
 }
 
-Status PropertyGraph::delete_edge_properties(
+Status PropertyGraph::DeleteEdgeProperties(
     const std::string& src_type_name, const std::string& dst_type_name,
     const std::string& edge_type_name,
     const std::vector<std::string>& delete_properties, bool error_on_conflict) {
@@ -581,8 +581,8 @@ Status PropertyGraph::delete_edge_properties(
     }
     delete_property_names.emplace_back(property_name);
   }
-  schema_.delete_edge_properties(src_type_name, dst_type_name, edge_type_name,
-                                 delete_property_names);
+  schema_.DeleteEdgeProperties(src_type_name, dst_type_name, edge_type_name,
+                               delete_property_names);
   label_t src_label = schema_.get_vertex_label_id(src_type_name);
   label_t dst_label = schema_.get_vertex_label_id(dst_type_name);
   label_t e_label = schema_.get_edge_label_id(edge_type_name);
@@ -601,9 +601,8 @@ Status PropertyGraph::delete_edge_properties(
   return gs::Status::OK();
 }
 
-Status PropertyGraph::delete_vertex_type(const std::string& vertex_type_name,
-                                         bool is_detach,
-                                         bool error_on_conflict) {
+Status PropertyGraph::DeleteVertexType(const std::string& vertex_type_name,
+                                       bool is_detach, bool error_on_conflict) {
   if (!schema_.contains_vertex_label(vertex_type_name)) {
     if (error_on_conflict) {
       LOG(ERROR) << "Vertex label[" << vertex_type_name << "] does not exists.";
@@ -653,10 +652,10 @@ Status PropertyGraph::delete_vertex_type(const std::string& vertex_type_name,
   return gs::Status::OK();
 }
 
-Status PropertyGraph::delete_edge_type(const std::string& src_vertex_type,
-                                       const std::string& dst_vertex_type,
-                                       const std::string& edge_type,
-                                       bool error_on_conflict) {
+Status PropertyGraph::DeleteEdgeType(const std::string& src_vertex_type,
+                                     const std::string& dst_vertex_type,
+                                     const std::string& edge_type,
+                                     bool error_on_conflict) {
   if (!schema_.has_edge_label(src_vertex_type, dst_vertex_type, edge_type)) {
     if (error_on_conflict) {
       LOG(ERROR) << "Edge [" << edge_type << "] from [" << src_vertex_type
@@ -686,8 +685,8 @@ Status PropertyGraph::delete_edge_type(const std::string& src_vertex_type,
   return gs::Status::OK();
 }
 
-Status PropertyGraph::batch_delete_vertices(const label_t& v_label_id,
-                                            const std::vector<vid_t>& vids) {
+Status PropertyGraph::BatchDeleteVertices(const label_t& v_label_id,
+                                          const std::vector<vid_t>& vids) {
   vertex_tables_.at(v_label_id).BatchDeleteVertices(vids);
 
   std::set<vid_t> vids_set(vids.begin(), vids.end());
@@ -708,7 +707,7 @@ Status PropertyGraph::batch_delete_vertices(const label_t& v_label_id,
   return Status::OK();
 }
 
-Status PropertyGraph::batch_delete_edges(
+Status PropertyGraph::BatchDeleteEdges(
     const label_t& src_v_label, const label_t& dst_v_label,
     const label_t& edge_label,
     const std::vector<std::tuple<vid_t, vid_t>>& edges_vec) {
@@ -926,7 +925,7 @@ void PropertyGraph::Dump(bool reopen) {
   std::vector<size_t> vertex_num(vertex_label_num_, 0);
   for (size_t i = 0; i < vertex_label_num_; ++i) {
     if (!vertex_tables_[i].is_dropped()) {
-      vertex_num[i] = vertex_tables_[i].lid_num();
+      vertex_num[i] = vertex_tables_[i].LidNum();
       vertex_tables_[i].Dump(target_dir);
     }
   }
@@ -990,17 +989,17 @@ const Schema& PropertyGraph::schema() const { return schema_; }
 
 Schema& PropertyGraph::mutable_schema() { return schema_; }
 
-vid_t PropertyGraph::lid_num(label_t vertex_label) const {
-  return vertex_tables_[vertex_label].lid_num();
+vid_t PropertyGraph::LidNum(label_t vertex_label) const {
+  return vertex_tables_[vertex_label].LidNum();
 }
 
-vid_t PropertyGraph::vertex_num(label_t vertex_label, timestamp_t ts) const {
-  return vertex_tables_[vertex_label].vertex_num(ts);
+vid_t PropertyGraph::VertexNum(label_t vertex_label, timestamp_t ts) const {
+  return vertex_tables_[vertex_label].VertexNum(ts);
 }
 
-bool PropertyGraph::is_valid_lid(label_t vertex_label, vid_t lid,
-                                 timestamp_t ts) const {
-  return vertex_tables_[vertex_label].is_valid_lid(lid, ts);
+bool PropertyGraph::IsValidLid(label_t vertex_label, vid_t lid,
+                               timestamp_t ts) const {
+  return vertex_tables_[vertex_label].IsValidLid(lid, ts);
 }
 
 size_t PropertyGraph::edge_num(label_t src_label, label_t edge_label,
@@ -1019,19 +1018,18 @@ bool PropertyGraph::get_lid(label_t label, const Property& oid, vid_t& lid,
   return vertex_tables_[label].get_index(oid, lid, ts);
 }
 
-Property PropertyGraph::get_oid(label_t label, vid_t lid,
-                                timestamp_t ts) const {
-  return vertex_tables_[label].get_oid(lid, ts);
+Property PropertyGraph::GetOid(label_t label, vid_t lid, timestamp_t ts) const {
+  return vertex_tables_[label].GetOid(lid, ts);
 }
 
-vid_t PropertyGraph::add_vertex(label_t label, const Property& id,
-                                timestamp_t ts) {
-  return vertex_tables_[label].add_vertex(id, ts);
+vid_t PropertyGraph::AddVertex(label_t label, const Property& id,
+                               timestamp_t ts) {
+  return vertex_tables_[label].AddVertex(id, ts);
 }
 
-vid_t PropertyGraph::add_vertex_safe(label_t label, const Property& id,
-                                     timestamp_t ts) {
-  return vertex_tables_[label].add_vertex_safe(id, ts);
+vid_t PropertyGraph::AddVertexSafe(label_t label, const Property& id,
+                                   timestamp_t ts) {
+  return vertex_tables_[label].AddVertexSafe(id, ts);
 }
 
 std::string PropertyGraph::get_statistics_json() const {
@@ -1041,7 +1039,7 @@ std::string PropertyGraph::get_statistics_json() const {
   for (size_t idx = 0; idx < vertex_label_num; ++idx) {
     ss += "{\n\"type_id\": " + std::to_string(idx) + ", \n";
     ss += "\"type_name\": \"" + schema_.get_vertex_label_name(idx) + "\", \n";
-    size_t count = vertex_num(idx, MAX_TIMESTAMP);
+    size_t count = VertexNum(idx, MAX_TIMESTAMP);
     ss += "\"count\": " + std::to_string(count) + "\n}";
     vertex_count += count;
     if (idx != vertex_label_num - 1) {

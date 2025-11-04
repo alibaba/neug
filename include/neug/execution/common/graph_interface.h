@@ -158,7 +158,8 @@ class GraphReadInterface {
 
   inline Property GetVertexProperty(label_t label, vid_t index,
                                     int prop_id) const {
-    return txn_.graph().get_vertex_table(label).at(index, prop_id);
+    return txn_.graph().get_vertex_table(label).get_properties_table().at(
+        index, prop_id);
   }
 
   GenericView GetGenericOutgoingGraphView(label_t v_label,
@@ -252,7 +253,8 @@ class GraphUpdateInterface {
 
   inline Property GetVertexProperty(label_t label, vid_t index,
                                     int prop_id) const {
-    return txn_.GetGraph().get_vertex_table(label).at(index, prop_id);
+    return txn_.GetGraph().get_vertex_table(label).get_properties_table().at(
+        index, prop_id);
   }
 
   inline void SetEdgeData(bool dir, label_t label, vid_t v,
@@ -359,28 +361,28 @@ class GraphUpdateInterface {
 
   inline std::string work_dir() const { return txn_.GetGraph().work_dir(); }
 
-  inline Status batch_add_vertices(
+  inline Status BatchAddVertices(
       label_t v_label_id, std::shared_ptr<IRecordBatchSupplier> supplier) {
-    return txn_.batch_add_vertices(v_label_id, std::move(supplier));
+    return txn_.BatchAddVertices(v_label_id, std::move(supplier));
   }
 
-  inline Status batch_add_edges(
-      label_t src_label, label_t dst_label, label_t edge_label,
-      std::shared_ptr<IRecordBatchSupplier> supplier) {
-    return txn_.batch_add_edges(src_label, dst_label, edge_label,
-                                std::move(supplier));
+  inline Status BatchAddEdges(label_t src_label, label_t dst_label,
+                              label_t edge_label,
+                              std::shared_ptr<IRecordBatchSupplier> supplier) {
+    return txn_.BatchAddEdges(src_label, dst_label, edge_label,
+                              std::move(supplier));
   }
 
-  inline Status batch_delete_vertices(label_t v_label_id,
-                                      const std::vector<vid_t>& vids) {
-    return txn_.batch_delete_vertices(v_label_id, vids);
+  inline Status BatchDeleteVertices(label_t v_label_id,
+                                    const std::vector<vid_t>& vids) {
+    return txn_.BatchDeleteVertices(v_label_id, vids);
   }
 
-  inline Status batch_delete_edges(
+  inline Status BatchDeleteEdges(
       label_t src_v_label_id, label_t dst_v_label_id, label_t edge_label_id,
       const std::vector<std::tuple<vid_t, vid_t>>& edges) {
-    return txn_.batch_delete_edges(src_v_label_id, dst_v_label_id,
-                                   edge_label_id, edges);
+    return txn_.BatchDeleteEdges(src_v_label_id, dst_v_label_id, edge_label_id,
+                                 edges);
   }
 
  private:

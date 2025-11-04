@@ -106,7 +106,7 @@ bool VertexTable::get_index(const Property& oid, vid_t& lid,
                             timestamp_t ts) const {
   auto res = indexer_.get_index(oid, lid);
   if (NEUG_UNLIKELY(res && is_vertex_table_modified_)) {
-    if (!is_valid_lid(lid, ts)) {
+    if (!IsValidLid(lid, ts)) {
       LOG(WARNING) << "Lid " << lid << " has been deleted.";
       return false;
     }
@@ -114,7 +114,7 @@ bool VertexTable::get_index(const Property& oid, vid_t& lid,
   return res;
 }
 
-size_t VertexTable::vertex_num(timestamp_t ts) const {
+size_t VertexTable::VertexNum(timestamp_t ts) const {
   if (!is_vertex_table_modified_) {
     return indexer_.size();
   } else {
@@ -128,9 +128,9 @@ size_t VertexTable::vertex_num(timestamp_t ts) const {
   }
 }
 
-size_t VertexTable::lid_num() const { return indexer_.size(); }
+size_t VertexTable::LidNum() const { return indexer_.size(); }
 
-vid_t VertexTable::add_vertex(const Property& id, timestamp_t ts) {
+vid_t VertexTable::AddVertex(const Property& id, timestamp_t ts) {
   indexer_.ensure_writable(work_dir_);
   vid_t vid = indexer_.insert(id);
   vertex_ts_.set(vid, ts);
@@ -140,7 +140,7 @@ vid_t VertexTable::add_vertex(const Property& id, timestamp_t ts) {
   return vid;
 }
 
-vid_t VertexTable::add_vertex_safe(const Property& id, timestamp_t ts) {
+vid_t VertexTable::AddVertexSafe(const Property& id, timestamp_t ts) {
   auto lid = indexer_.insert_safe(id);
   if (lid >= vertex_ts_.size()) {
     vertex_ts_.resize(vertex_ts_.size() + (vertex_ts_.size() >> 2));
@@ -152,9 +152,9 @@ vid_t VertexTable::add_vertex_safe(const Property& id, timestamp_t ts) {
   return lid;
 }
 
-Property VertexTable::get_oid(vid_t lid, timestamp_t ts) const {
+Property VertexTable::GetOid(vid_t lid, timestamp_t ts) const {
   if (NEUG_UNLIKELY(is_vertex_table_modified_)) {
-    if (!is_valid_lid(lid, ts)) {
+    if (!IsValidLid(lid, ts)) {
       THROW_INVALID_ARGUMENT_EXCEPTION("Lid " + std::to_string(lid) +
                                        " has been deleted.");
     }
@@ -162,7 +162,7 @@ Property VertexTable::get_oid(vid_t lid, timestamp_t ts) const {
   return indexer_.get_key(lid);
 }
 
-bool VertexTable::is_valid_lid(vid_t lid, timestamp_t ts) const {
+bool VertexTable::IsValidLid(vid_t lid, timestamp_t ts) const {
   // We use numeric_limits<timestamp_t>::max() to denote a deleted vertex.
   // But we ts is passed as a timestamp limit, we take it as a normal timestamp.
   if (NEUG_LIKELY(!is_vertex_table_modified_)) {
@@ -191,7 +191,7 @@ void VertexTable::BatchAddVertices(std::vector<Property>&& ids,
       cur_idx++;
       continue;
     }
-    vid = add_vertex(id, ts);
+    vid = AddVertex(id, ts);
     table_->insert(vid, table->get_row(cur_idx++));
     vertex_ts_.set(vid, ts);
     if (ts > 0) {  // Only mark update ops when ts > 0

@@ -30,7 +30,7 @@ void AbstractPropertyGraphLoader::addVerticesToVertexTable(
         createVertexRecordBatchSupplier(v_label_id, label_name, v_file, pk_type,
                                         pk_name, pk_ind, loading_config_, 0);
     for (auto& supplier : suppliers) {
-      graph_.batch_add_vertices(v_label_id, supplier);
+      graph_.BatchAddVertices(v_label_id, supplier);
     }
   }
 }
@@ -118,7 +118,7 @@ void AbstractPropertyGraphLoader::addEdgesToEdgeTable(
     auto suppliers = createEdgeRecordBatchSupplier(
         src_label_id, dst_label_id, e_label_id, e_file, loading_config_, 0);
     for (auto& supplier : suppliers) {
-      graph_.batch_add_edges(src_label_id, dst_label_id, e_label_id, supplier);
+      graph_.BatchAddEdges(src_label_id, dst_label_id, e_label_id, supplier);
     }
   }
 }

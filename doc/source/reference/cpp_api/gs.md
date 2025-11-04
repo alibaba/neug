@@ -570,10 +570,10 @@ Implementation: Clears `vertex_tables_`, `edge_tables_`, resets label counts to 
 
 - **Since:** v0.1.0
 
-#### `create_vertex_type(...)`
+#### `CreateVertexType(...)`
 
 ```cpp
-create_vertex_type(
+CreateVertexType(
     const std::string &vertex_type_name,
     const std::vector< std::tuple< PropertyType, std::string, Any > > &properties,
     const std::vector< std::string > &primary_key_names,
@@ -610,10 +610,10 @@ create_edge_type(
   - `oe_strategy`
   - `ie_strategy`
 
-#### `add_vertex_properties(...)`
+#### `AddVertexProperties(...)`
 
 ```cpp
-add_vertex_properties(
+AddVertexProperties(
     const std::string &vertex_type_name,
     const std::vector< std::tuple< PropertyType, std::string, Any > > &add_properties,
     bool error_on_conflict=true
@@ -625,10 +625,10 @@ add_vertex_properties(
   - `add_properties`
   - `error_on_conflict`
 
-#### `add_edge_properties(...)`
+#### `AddEdgeProperties(...)`
 
 ```cpp
-add_edge_properties(
+AddEdgeProperties(
     const std::string &src_type_name,
     const std::string &dst_type_name,
     const std::string &edge_type_name,
@@ -644,10 +644,10 @@ add_edge_properties(
   - `add_properties`
   - `error_on_conflict`
 
-#### `rename_vertex_properties(...)`
+#### `RenameVertexProperties(...)`
 
 ```cpp
-rename_vertex_properties(
+RenameVertexProperties(
     const std::string &vertex_type_name,
     const std::vector< std::tuple< std::string, std::string > > &rename_properties,
     bool error_on_conflict=true
@@ -659,10 +659,10 @@ rename_vertex_properties(
   - `rename_properties`
   - `error_on_conflict`
 
-#### `rename_edge_properties(...)`
+#### `RenameEdgeProperties(...)`
 
 ```cpp
-rename_edge_properties(
+RenameEdgeProperties(
     const std::string &src_type_name,
     const std::string &dst_type_name,
     const std::string &edge_type_name,
@@ -678,10 +678,10 @@ rename_edge_properties(
   - `rename_properties`
   - `error_on_conflict`
 
-#### `delete_vertex_properties(...)`
+#### `DeleteVertexProperties(...)`
 
 ```cpp
-delete_vertex_properties(
+DeleteVertexProperties(
     const std::string &vertex_type_name,
     const std::vector< std::string > &delete_properties,
     bool error_on_conflict=true
@@ -693,10 +693,10 @@ delete_vertex_properties(
   - `delete_properties`
   - `error_on_conflict`
 
-#### `delete_edge_properties(...)`
+#### `DeleteEdgeProperties(...)`
 
 ```cpp
-delete_edge_properties(
+DeleteEdgeProperties(
     const std::string &src_type_name,
     const std::string &dst_type_name,
     const std::string &edge_type_name,
@@ -712,17 +712,17 @@ delete_edge_properties(
   - `delete_properties`
   - `error_on_conflict`
 
-#### `delete_vertex_type(const std::string &vertex_type_name, bool is_detach, bool error_on_conflict)`
+#### `DeleteVertexType(const std::string &vertex_type_name, bool is_detach, bool error_on_conflict)`
 
 - **Parameters:**
   - `vertex_type_name`
   - `is_detach`
   - `error_on_conflict`
 
-#### `delete_edge_type(...)`
+#### `DeleteEdgeType(...)`
 
 ```cpp
-delete_edge_type(
+DeleteEdgeType(
     const std::string &src_vertex_type,
     const std::string &dst_vertex_type,
     const std::string &edge_type,
@@ -805,18 +805,18 @@ batch_delete_edges(
 - **Parameters:**
   - `vertex_label`
 
-#### `lid_num(label_t vertex_label) const`
+#### `LidNum(label_t vertex_label) const`
 
 - **Parameters:**
   - `vertex_label`
 
-#### `vertex_num(label_t vertex_label, timestamp_t ts=MAX_TIMESTAMP) const`
+#### `VertexNumlabel_t vertex_label, timestamp_t ts=MAX_TIMESTAMP) const`
 
 - **Parameters:**
   - `vertex_label`
   - `ts`
 
-#### `is_valid_lid(label_t vertex_label, vid_t lid, timestamp_t ts) const`
+#### `IsValidLid(label_t vertex_label, vid_t lid, timestamp_t ts) const`
 
 - **Parameters:**
   - `vertex_label`
@@ -838,21 +838,21 @@ batch_delete_edges(
   - `lid`
   - `ts`
 
-#### `get_oid(label_t label, vid_t lid, timestamp_t ts) const`
+#### `GetOid(label_t label, vid_t lid, timestamp_t ts) const`
 
 - **Parameters:**
   - `label`
   - `lid`
   - `ts`
 
-#### `add_vertex(label_t label, const Any &id, timestamp_t ts)`
+#### `AddVertex(label_t label, const Any &id, timestamp_t ts)`
 
 - **Parameters:**
   - `label`
   - `id`
   - `ts`
 
-#### `add_vertex_safe(label_t label, const Any &id, timestamp_t ts)`
+#### `AddVertexSafe(label_t label, const Any &id, timestamp_t ts)`
 
 - **Parameters:**
   - `label`
@@ -4545,7 +4545,7 @@ It provides methods to obtain different types of transactions (read, insert, upd
 - `Reserve(size_t cap)`
 - `is_dropped() const`
 - `get_index(const Any &oid, vid_t &lid, timestamp_t ts=MAX_TI...`
-- `get_oid(vid_t lid, timestamp_t ts=MAX_TIMESTAMP) const`
+- `GetOid(vid_t lid, timestamp_t ts=MAX_TIMESTAMP) const`
 - ... and 22 more methods
 
 

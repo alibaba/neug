@@ -176,7 +176,7 @@ class PropertyGraph {
   // vertex type or edge type already exists.
   // When error_on_conflict is false, it will skip the creation if the
   // vertex type or edge type already exists.
-  Status create_vertex_type(
+  Status CreateVertexType(
       const std::string& vertex_type_name,
       const std::vector<std::tuple<PropertyType, std::string, Property>>&
           properties,
@@ -192,78 +192,77 @@ class PropertyGraph {
       EdgeStrategy oe_strategy = EdgeStrategy::kMultiple,
       EdgeStrategy ie_strategy = EdgeStrategy::kMultiple);
 
-  Status add_vertex_properties(
+  Status AddVertexProperties(
       const std::string& vertex_type_name,
       const std::vector<std::tuple<PropertyType, std::string, Property>>&
           add_properties,
       bool error_on_conflict = true);
 
-  Status add_edge_properties(
+  Status AddEdgeProperties(
       const std::string& src_type_name, const std::string& dst_type_name,
       const std::string& edge_type_name,
       const std::vector<std::tuple<PropertyType, std::string, Property>>&
           add_properties,
       bool error_on_conflict = true);
 
-  Status rename_vertex_properties(
+  Status RenameVertexProperties(
       const std::string& vertex_type_name,
       const std::vector<std::tuple<std::string, std::string>>&
           rename_properties,
       bool error_on_conflict = true);
 
-  Status rename_edge_properties(
+  Status RenameEdgeProperties(
       const std::string& src_type_name, const std::string& dst_type_name,
       const std::string& edge_type_name,
       const std::vector<std::tuple<std::string, std::string>>&
           rename_properties,
       bool error_on_conflict = true);
 
-  Status delete_vertex_properties(
+  Status DeleteVertexProperties(
       const std::string& vertex_type_name,
       const std::vector<std::string>& delete_properties,
       bool error_on_conflict = true);
 
-  Status delete_edge_properties(
-      const std::string& src_type_name, const std::string& dst_type_name,
-      const std::string& edge_type_name,
-      const std::vector<std::string>& delete_properties,
-      bool error_on_conflict = true);
+  Status DeleteEdgeProperties(const std::string& src_type_name,
+                              const std::string& dst_type_name,
+                              const std::string& edge_type_name,
+                              const std::vector<std::string>& delete_properties,
+                              bool error_on_conflict = true);
 
-  Status delete_vertex_type(const std::string& vertex_type_name, bool is_detach,
-                            bool error_on_conflict);
+  Status DeleteVertexType(const std::string& vertex_type_name, bool is_detach,
+                          bool error_on_conflict);
 
-  Status delete_edge_type(const std::string& src_vertex_type,
-                          const std::string& dst_vertex_type,
-                          const std::string& edge_type, bool error_on_conflict);
+  Status DeleteEdgeType(const std::string& src_vertex_type,
+                        const std::string& dst_vertex_type,
+                        const std::string& edge_type, bool error_on_conflict);
 
-  Status batch_add_vertices(label_t v_label_id,
-                            std::shared_ptr<IRecordBatchSupplier> supplier);
+  Status BatchAddVertices(label_t v_label_id,
+                          std::shared_ptr<IRecordBatchSupplier> supplier);
 
-  Status batch_add_edges(label_t src_label, label_t dst_label,
-                         label_t edge_label,
-                         std::shared_ptr<IRecordBatchSupplier> supplier);
+  Status BatchAddEdges(label_t src_label, label_t dst_label, label_t edge_label,
+                       std::shared_ptr<IRecordBatchSupplier> supplier);
 
-  Status batch_delete_vertices(const label_t& v_label_id,
-                               const std::vector<vid_t>& vids);
+  Status BatchDeleteVertices(const label_t& v_label_id,
+                             const std::vector<vid_t>& vids);
 
-  Status batch_delete_edges(
+  Status BatchDeleteEdges(
       const label_t& src_v_label, const label_t& dst_v_label,
       const label_t& edge_label,
       const std::vector<std::tuple<vid_t, vid_t>>& edges_vec);
 
-  inline Table& get_vertex_table(label_t vertex_label) {
-    return vertex_tables_[vertex_label].get_properties_table();
+  inline VertexTable& get_vertex_table(label_t vertex_label) {
+    return vertex_tables_[vertex_label];
   }
 
-  inline const Table& get_vertex_table(label_t vertex_label) const {
-    return vertex_tables_[vertex_label].get_properties_table();
+  inline const VertexTable& get_vertex_table(label_t vertex_label) const {
+    return vertex_tables_[vertex_label];
   }
 
-  vid_t lid_num(label_t vertex_label) const;
+  vid_t LidNum(label_t vertex_label) const;
 
-  vid_t vertex_num(label_t vertex_label, timestamp_t ts = MAX_TIMESTAMP) const;
+  vid_t VertexNum(label_t vertex_label, timestamp_t ts = MAX_TIMESTAMP) const;
 
-  bool is_valid_lid(label_t vertex_label, vid_t lid, timestamp_t ts) const;
+  bool IsValidLid(label_t vertex_label, vid_t lid, timestamp_t ts) const;
 
   size_t edge_num(label_t src_label, label_t edge_label,
                   label_t dst_label) const;
@@ -271,11 +270,11 @@ class PropertyGraph {
   bool get_lid(label_t label, const Property& oid, vid_t& lid,
                timestamp_t ts) const;
 
-  Property get_oid(label_t label, vid_t lid, timestamp_t ts) const;
+  Property GetOid(label_t label, vid_t lid, timestamp_t ts) const;
 
-  vid_t add_vertex(label_t label, const Property& id, timestamp_t ts);
+  vid_t AddVertex(label_t label, const Property& id, timestamp_t ts);
 
-  vid_t add_vertex_safe(label_t label, const Property& id, timestamp_t ts);
+  vid_t AddVertexSafe(label_t label, const Property& id, timestamp_t ts);
 
   GenericView GetGenericOutgoingGraphView(
       label_t v_label, label_t neighbor_label, label_t edge_label,
@@ -311,14 +310,13 @@ class PropertyGraph {
     return vertex_tables_[label].get_vertex_timestamps();
   }
 
-  inline std::shared_ptr<ColumnBase> get_vertex_property_column(
+  inline std::shared_ptr<ColumnBase> GetVertexPropertyColumn(
       uint8_t label, const std::string& prop) const {
     return vertex_tables_[label].get_property_column(prop);
   }
 
-  inline std::shared_ptr<RefColumnBase> get_vertex_id_column(
-      uint8_t label) const {
-    return vertex_tables_[label].get_vertex_id_column();
+  inline std::shared_ptr<RefColumnBase> GetVertexIdColumn(uint8_t label) const {
+    return vertex_tables_[label].GetVertexIdColumn();
   }
 
   inline std::string statisticsFilePath() const {

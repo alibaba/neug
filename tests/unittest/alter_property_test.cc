@@ -150,7 +150,7 @@ void testLoadVertexBatch(PropertyGraph& graph, std::string vertex_type_name,
   auto supplier = std::make_shared<CSVStreamRecordBatchSupplier>(
       v_file, convert_options, read_options, parse_options);
   auto casted = std::dynamic_pointer_cast<IRecordBatchSupplier>(supplier);
-  CHECK(graph.batch_add_vertices(v_label, casted).ok());
+  CHECK(graph.BatchAddVertices(v_label, casted).ok());
 }
 
 void testLoadEdgeBatch(PropertyGraph& graph, std::string src_vertex_type,
@@ -261,8 +261,8 @@ void testLoadEdgeBatch(PropertyGraph& graph, std::string src_vertex_type,
       e_file, convert_options, read_options, parse_options);
   std::vector<std::shared_ptr<IRecordBatchSupplier>> suppliers;
   auto casted = std::dynamic_pointer_cast<IRecordBatchSupplier>(supplier);
-  CHECK(graph.batch_add_edges(src_label_id, dst_label_id, e_label_id, casted)
-            .ok());
+  CHECK(
+      graph.BatchAddEdges(src_label_id, dst_label_id, e_label_id, casted).ok());
 }
 
 void testOpenEmptyGraph(const std::string& graph_dir,
@@ -288,7 +288,7 @@ void testOpenEmptyGraph(const std::string& graph_dir,
             PropertyType::Int32(), std::string("age"), std::string("")));
     // testCreateVertexType(graph, vertex_label_name, properties, primary_keys);
     auto status =
-        graph.create_vertex_type(vertex_label_name, properties, primary_keys);
+        graph.CreateVertexType(vertex_label_name, properties, primary_keys);
     EXPECT_TRUE(status.ok());
     std::cout << "Get vertex label num: "
               << static_cast<size_t>(graph.schema().vertex_label_num()) << "\n";
@@ -323,7 +323,7 @@ void testOpenEmptyGraph(const std::string& graph_dir,
     std::vector<std::string> vertex_null_values;
     testLoadVertexBatch(graph, vertex_label_name, vfile, '|', true, 1024,
                         vertex_null_values);
-    LOG(INFO) << "Vertices num after load " << graph.vertex_num(0);
+    LOG(INFO) << "Vertices num after load " << graph.VertexNum(0);
   }
 
   // Batch load edges for PERSON-KNOWS->PERSON
@@ -342,7 +342,7 @@ void testOpenEmptyGraph(const std::string& graph_dir,
   // Traverse edge PERSON-KNOWS->PERSON
   {
     LOG(INFO) << "Start to traverse edge 1";
-    auto person_num = graph.vertex_num(0, MAX_TIMESTAMP);
+    auto person_num = graph.VertexNum(0, MAX_TIMESTAMP);
     auto generic_view = graph.GetGenericOutgoingGraphView(0, 0, 0);
     auto ed_accessor = graph.GetEdgeDataAccessor(0, 0, 0, 0);
     for (vid_t i = 0; i < person_num; i++) {
@@ -363,14 +363,14 @@ void testOpenEmptyGraph(const std::string& graph_dir,
     std::vector<std::tuple<PropertyType, std::string, Property>> add_properties;
     add_properties.emplace_back(std::make_tuple(
         PropertyType::DateTime(), "creationDate", std::string("")));
-    graph.add_edge_properties(src_vertex_type, dst_vertex_type, edge_type_name,
-                              add_properties);
+    graph.AddEdgeProperties(src_vertex_type, dst_vertex_type, edge_type_name,
+                            add_properties);
   }
 
   // Traverse edge PERSON-KNOWS->PERSON
   {
     LOG(INFO) << "Start to traverse edge 2";
-    auto person_num = graph.vertex_num(0);
+    auto person_num = graph.VertexNum(0);
     auto generic_view = graph.GetGenericOutgoingGraphView(0, 0, 0);
     auto ed_accessor = graph.GetEdgeDataAccessor(0, 0, 0, 0);
     for (vid_t i = 0; i < person_num; i++) {

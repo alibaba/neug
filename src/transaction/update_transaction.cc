@@ -87,7 +87,7 @@ UpdateTransaction::UpdateTransaction(PropertyGraph& graph, Allocator& alloc,
   added_vertices_base_.resize(vertex_label_num_);
   vertex_nums_.resize(vertex_label_num_);
   for (size_t i = 0; i < vertex_label_num_; ++i) {
-    added_vertices_base_[i] = vertex_nums_[i] = graph_.lid_num(i);
+    added_vertices_base_[i] = vertex_nums_[i] = graph_.LidNum(i);
   }
   vertex_offsets_.resize(vertex_label_num_);
   extra_vertex_properties_.resize(vertex_label_num_);
@@ -97,7 +97,7 @@ UpdateTransaction::UpdateTransaction(PropertyGraph& graph, Allocator& alloc,
   }
   std::filesystem::create_directories(txn_work_dir);
   for (size_t i = 0; i < vertex_label_num_; ++i) {
-    const Table& table = graph_.get_vertex_table(i);
+    const Table& table = graph_.get_vertex_table(i).get_properties_table();
     std::string v_label = graph_.schema().get_vertex_label_name(i);
     std::string table_prefix = vertex_table_prefix(v_label);
     extra_vertex_properties_[i].init(table_prefix, txn_work_dir,
@@ -240,17 +240,17 @@ bool UpdateTransaction::AddEdge(label_t src_label, vid_t src_lid,
     THROW_RUNTIME_ERROR("Source or destination vertex id is out of range");
   }
   // To check whether the src/dst is inserted in this transaction or not.
-  auto src_v_num = graph_.lid_num(src_label);
+  auto src_v_num = graph_.LidNum(src_label);
   if (src_lid <= src_v_num &&
-      graph_.is_valid_lid(src_label, src_lid, timestamp_)) {
+      graph_.IsValidLid(src_label, src_lid, timestamp_)) {
     auto view = graph_.GetGenericOutgoingGraphView(src_label, dst_label,
                                                    edge_label, timestamp_);
     auto es = view.get_edges(src_lid);
     offset_out = get_offset(es.begin(), es.end(), dst_lid);
   }
-  auto dst_v_num = graph_.lid_num(dst_label);
+  auto dst_v_num = graph_.LidNum(dst_label);
   if (dst_lid <= dst_v_num &&
-      graph_.is_valid_lid(dst_label, dst_lid, timestamp_)) {
+      graph_.IsValidLid(dst_label, dst_lid, timestamp_)) {
     auto view = graph_.GetGenericIncomingGraphView(dst_label, src_label,
                                                    edge_label, timestamp_);
     auto es = view.get_edges(dst_lid);
@@ -347,7 +347,7 @@ UpdateTransaction::vertex_iterator::vertex_iterator(label_t label, vid_t cur,
       vertex_table_modifed_(vertex_table_modified),
       txn_(txn) {
   if (NEUG_UNLIKELY(vertex_table_modifed_)) {
-    while (cur_ < num_ && !txn_->is_valid_lid(label_, cur_)) {
+    while (cur_ < num_ && !txn_->IsValidLid(label_, cur_)) {
       ++cur_;
     }
   }
@@ -356,14 +356,14 @@ UpdateTransaction::vertex_iterator::~vertex_iterator() = default;
 bool UpdateTransaction::vertex_iterator::IsValid() const { return cur_ < num_; }
 void UpdateTransaction::vertex_iterator::Next() {
   if (NEUG_LIKELY(vertex_table_modifed_)) {
-    while (++cur_ < num_ && !txn_->is_valid_lid(label_, cur_)) {}
+    while (++cur_ < num_ && !txn_->IsValidLid(label_, cur_)) {}
   } else {
     ++cur_;
   }
 }
 void UpdateTransaction::vertex_iterator::Goto(vid_t target) {
   if (NEUG_UNLIKELY(vertex_table_modifed_)) {
-    if (std::min(target, num_) < num_ && !txn_->is_valid_lid(label_, target)) {
+    if (std::min(target, num_) < num_ && !txn_->IsValidLid(label_, target)) {
       THROW_INVALID_ARGUMENT_EXCEPTION("Target vertex is deleted");
     }
   }
@@ -540,8 +540,10 @@ Property UpdateTransaction::GetVertexField(label_t label, vid_t lid,
   auto& vertex_offset = vertex_offsets_[label];
   auto iter = vertex_offset.find(lid);
   if (iter == vertex_offset.end()) {
-    return graph_.get_vertex_table(label).get_column_by_id(col_id)->get_prop(
-        lid);
+    return graph_.get_vertex_table(label)
+        .get_properties_table()
+        .get_column_by_id(col_id)
+        ->get_prop(lid);
   } else {
     return extra_vertex_properties_[label].get_column_by_id(col_id)->get_prop(
         iter->second);
@@ -578,11 +580,11 @@ bool UpdateTransaction::SetVertexField(label_t label, vid_t lid, int col_id,
     dup_value = value;
   }
   if (iter == vertex_offset.end()) {
-    auto& table = graph_.get_vertex_table(label);
+    auto& table = graph_.get_vertex_table(label).get_properties_table();
     if (table.col_num() <= static_cast<size_t>(col_id)) {
       return false;
     }
-    if (graph_.lid_num(label) <= lid) {
+    if (graph_.LidNum(label) <= lid) {
       return false;
     }
     vid_t new_offset = vertex_offset.size();
@@ -757,14 +759,14 @@ void UpdateTransaction::IngestWal(PropertyGraph& graph,
   added_vertices_base.resize(vertex_label_num);
   vertex_nums.resize(vertex_label_num);
   for (size_t i = 0; i < vertex_label_num; ++i) {
-    added_vertices_base[i] = vertex_nums[i] = graph.lid_num(i);
+    added_vertices_base[i] = vertex_nums[i] = graph.LidNum(i);
   }
   vertex_offsets.resize(vertex_label_num);
   extra_vertex_properties.resize(vertex_label_num);
   std::string txn_work_dir = update_txn_dir(work_dir, timestamp);
   std::filesystem::create_directories(txn_work_dir);
   for (size_t i = 0; i < vertex_label_num; ++i) {
-    const Table& table = graph.get_vertex_table(i);
+    const Table& table = graph.get_vertex_table(i).get_properties_table();
     std::string v_label = graph.schema().get_vertex_label_name(i);
     std::string table_prefix = vertex_table_prefix(v_label);
     extra_vertex_properties[i].init(
@@ -787,10 +789,10 @@ void UpdateTransaction::IngestWal(PropertyGraph& graph,
       label = deserialize_oid(graph, arc, oid);
       vid_t vid;
       if (!graph.get_lid(label, oid, vid, timestamp)) {
-        vid = graph.add_vertex_safe(label, oid, timestamp);
+        vid = graph.AddVertexSafe(label, oid, timestamp);
       }
       // Ignore the cases that the vertex already exists.
-      graph.get_vertex_table(label).ingest(vid, arc);
+      graph.get_vertex_table(label).get_properties_table().ingest(vid, arc);
     } else if (op_type == 1) {
       label_t src_label, dst_label, edge_label;
       Property src, dst;
@@ -810,7 +812,10 @@ void UpdateTransaction::IngestWal(PropertyGraph& graph,
       arc >> col_id;
       vid_t vid;
       CHECK(graph.get_lid(label, oid, vid, timestamp));
-      graph.get_vertex_table(label).get_column_by_id(col_id)->ingest(vid, arc);
+      graph.get_vertex_table(label)
+          .get_properties_table()
+          .get_column_by_id(col_id)
+          ->ingest(vid, arc);
     } else if (op_type == 3) {
       uint8_t dir;
       label_t label, neighbor_label, edge_label;
@@ -918,8 +923,8 @@ void UpdateTransaction::CreateCheckpoint() {
 }
 
 Property UpdateTransaction::lid_to_oid(label_t label, vid_t lid) const {
-  if (graph_.lid_num(label) > lid) {
-    return graph_.get_oid(label, lid, timestamp_);
+  if (graph_.LidNum(label) > lid) {
+    return graph_.GetOid(label, lid, timestamp_);
   } else {
     Property ret;
     CHECK(added_vertices_[label]->get_key(lid - added_vertices_base_[label],
@@ -928,9 +933,9 @@ Property UpdateTransaction::lid_to_oid(label_t label, vid_t lid) const {
   }
 }
 
-bool UpdateTransaction::is_valid_lid(label_t label, vid_t lid) const {
-  if (graph_.lid_num(label) > lid) {
-    return graph_.is_valid_lid(label, lid, timestamp_);
+bool UpdateTransaction::IsValidLid(label_t label, vid_t lid) const {
+  if (graph_.LidNum(label) > lid) {
+    return graph_.IsValidLid(label, lid, timestamp_);
   } else {
     return lid - added_vertices_base_[label] < added_vertices_[label]->size();
   }
@@ -973,12 +978,14 @@ void UpdateTransaction::applyVerticesUpdates() {
     auto& vertex_offset = vertex_offsets_[label];
     for (auto& pair : added_vertices) {
       vid_t offset = vertex_offset.at(pair.first);
-      vid_t lid = graph_.add_vertex_safe(label, pair.second, timestamp_);
+      vid_t lid = graph_.AddVertexSafe(label, pair.second, timestamp_);
       if (insert_vertex_with_resize_) {
-        graph_.get_vertex_table(label).insert_with_resize(
-            lid, table.get_row(offset));
+        graph_.get_vertex_table(label)
+            .get_properties_table()
+            .insert_with_resize(lid, table.get_row(offset));
       } else {
-        graph_.get_vertex_table(label).insert(lid, table.get_row(offset));
+        graph_.get_vertex_table(label).get_properties_table().insert(
+            lid, table.get_row(offset));
       }
       CHECK_EQ(lid, pair.first);
       vertex_offset.erase(pair.first);
@@ -989,14 +996,16 @@ void UpdateTransaction::applyVerticesUpdates() {
       vid_t offset = pair.second;
       auto vals = table.get_row(offset);
       if (insert_vertex_with_resize_) {
-        graph_.get_vertex_table(label).insert_with_resize(
-            lid, table.get_row(offset));
+        graph_.get_vertex_table(label)
+            .get_properties_table()
+            .insert_with_resize(lid, table.get_row(offset));
       } else {
-        graph_.get_vertex_table(label).insert(lid, table.get_row(offset));
+        graph_.get_vertex_table(label).get_properties_table().insert(
+            lid, table.get_row(offset));
       }
     }
 
-    CHECK_EQ(graph_.lid_num(label), vertex_nums_[label]);
+    CHECK_EQ(graph_.LidNum(label), vertex_nums_[label]);
   }
 
   added_vertices_.clear();

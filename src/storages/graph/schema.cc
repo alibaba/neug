@@ -1459,7 +1459,7 @@ const std::vector<std::string> Schema::COMPATIBLE_VERSIONS = {
     "v0.1"   // v0.1 is the version after schema unified
 };
 
-void Schema::add_vertex_properties(
+void Schema::AddVertexProperties(
     const std::string& label, std::vector<std::string>& properties_names,
     std::vector<PropertyType>& properties_types,
     std::vector<StorageStrategy>& storage_strategies,
@@ -1502,7 +1502,7 @@ void Schema::update_vertex_properties(
   }
 }
 
-void Schema::delete_vertex_properties(
+void Schema::DeleteVertexProperties(
     const std::string& label, std::vector<std::string>& properties_names) {
   auto v_label_id = get_vertex_label_id(label);
   LOG_FATAL_IF(v_label_id >= vprop_names_.size(),
@@ -1597,7 +1597,7 @@ void Schema::delete_edge_label(const label_t& src, const label_t& dst,
   sort_on_compactions_.erase(index);
 }
 
-void Schema::add_edge_properties(
+void Schema::AddEdgeProperties(
     const std::string& src_label, const std::string& dst_label,
     const std::string& edge_label, std::vector<std::string>& properties_names,
     std::vector<PropertyType>& properties_types,
@@ -1630,9 +1630,10 @@ void Schema::update_edge_properties(
   }
 }
 
-void Schema::delete_edge_properties(
-    const std::string& src_label, const std::string& dst_label,
-    const std::string& edge_label, std::vector<std::string>& properties_names) {
+void Schema::DeleteEdgeProperties(const std::string& src_label,
+                                  const std::string& dst_label,
+                                  const std::string& edge_label,
+                                  std::vector<std::string>& properties_names) {
   label_t src = get_vertex_label_id(src_label);
   label_t dst = get_vertex_label_id(dst_label);
   label_t edge = get_edge_label_id(edge_label);

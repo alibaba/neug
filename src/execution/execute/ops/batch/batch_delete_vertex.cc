@@ -53,8 +53,8 @@ gs::result<Context> BatchDeleteVertexOpr::Eval(
     if (vertex_column->vertex_column_type() == VertexColumnType::kSingle) {
       auto sl_vertex_column =
           std::dynamic_pointer_cast<SLVertexColumn>(vertex_column);
-      graph.batch_delete_vertices(sl_vertex_column->label(),
-                                  sl_vertex_column->vertices());
+      graph.BatchDeleteVertices(sl_vertex_column->label(),
+                                sl_vertex_column->vertices());
     } else if (vertex_column->vertex_column_type() ==
                VertexColumnType::kMultiple) {
       std::unordered_map<label_t, std::vector<vid_t>> vids_map;
@@ -68,7 +68,7 @@ gs::result<Context> BatchDeleteVertexOpr::Eval(
         vids_map.at(vertex.label_).emplace_back(vertex.vid_);
       }
       for (auto& vids_pair : vids_map) {
-        graph.batch_delete_vertices(vids_pair.first, vids_pair.second);
+        graph.BatchDeleteVertices(vids_pair.first, vids_pair.second);
       }
     } else {
       THROW_RUNTIME_ERROR(

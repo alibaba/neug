@@ -190,7 +190,16 @@ inline OutArchive& operator>>(OutArchive& out_archive,
   size_t size;
   out_archive >> size;
   vec.resize(size);
-  memcpy(&vec[0], out_archive.GetBytes(sizeof(T) * size), sizeof(T) * size);
+  if constexpr (std::is_same_v<T, bool>) {
+    // Special handling for vector<bool>
+    for (size_t i = 0; i < size; ++i) {
+      bool val = *reinterpret_cast<bool*>(out_archive.GetBytes(sizeof(bool)));
+      vec[i] = val;
+    }
+    return out_archive;
+  } else {
+    memcpy(&vec[0], out_archive.GetBytes(sizeof(T) * size), sizeof(T) * size);
+  }
   return out_archive;
 }
 

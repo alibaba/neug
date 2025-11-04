@@ -286,31 +286,31 @@ class UpdateTransaction {
    * @param table The property table of the vertices to be added.
    * @return Status
    */
-  inline Status batch_add_vertices(
+  inline Status BatchAddVertices(
       label_t v_label_id, std::shared_ptr<IRecordBatchSupplier> supplier) {
-    return graph_.batch_add_vertices(v_label_id, supplier);
+    return graph_.BatchAddVertices(v_label_id, supplier);
   }
 
   // Also executed in batch mode
-  inline Status batch_add_edges(
-      label_t src_label, label_t dst_label, label_t edge_label,
-      std::shared_ptr<IRecordBatchSupplier> supplier) {
-    return graph_.batch_add_edges(src_label, dst_label, edge_label,
-                                  std::move(supplier));
+  inline Status BatchAddEdges(label_t src_label, label_t dst_label,
+                              label_t edge_label,
+                              std::shared_ptr<IRecordBatchSupplier> supplier) {
+    return graph_.BatchAddEdges(src_label, dst_label, edge_label,
+                                std::move(supplier));
   }
 
   // Also executed in batch mode
-  inline Status batch_delete_vertices(label_t v_label_id,
-                                      const std::vector<vid_t>& vids) {
-    return graph_.batch_delete_vertices(v_label_id, vids);
+  inline Status BatchDeleteVertices(label_t v_label_id,
+                                    const std::vector<vid_t>& vids) {
+    return graph_.BatchDeleteVertices(v_label_id, vids);
   }
 
   // Also executed in batch mode
-  inline Status batch_delete_edges(
+  inline Status BatchDeleteEdges(
       label_t src_v_label_id, label_t dst_v_label_id, label_t edge_label_id,
       const std::vector<std::tuple<vid_t, vid_t>>& edges) {
-    return graph_.batch_delete_edges(src_v_label_id, dst_v_label_id,
-                                     edge_label_id, edges);
+    return graph_.BatchDeleteEdges(src_v_label_id, dst_v_label_id,
+                                   edge_label_id, edges);
   }
 
   inline std::string work_dir() const { return graph_.work_dir(); }
@@ -331,7 +331,7 @@ class UpdateTransaction {
 
   Property lid_to_oid(label_t label, vid_t lid) const;
 
-  bool is_valid_lid(label_t label, vid_t lid) const;
+  bool IsValidLid(label_t label, vid_t lid) const;
 
   void release();
 

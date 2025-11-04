@@ -104,9 +104,10 @@ class ReadTransaction {
    * @brief Get the handle of the vertex property column, only for non-primary
    * key columns.
    */
-  const std::shared_ptr<ColumnBase> get_vertex_property_column(
+  const std::shared_ptr<ColumnBase> GetVertexPropertyColumn(
       uint8_t label, const std::string& col_name) const {
-    return graph_.get_vertex_table(label).get_column(col_name);
+    return graph_.get_vertex_table(label).get_properties_table().get_column(
+        col_name);
   }
 
   /**
@@ -127,9 +128,11 @@ class ReadTransaction {
     CHECK(pk.size() == 1) << "Only support single primary key";
     if (col_name == std::get<1>(pk[0])) {
       return std::dynamic_pointer_cast<TypedRefColumn<T>>(
-          graph_.get_vertex_id_column(label));
+          graph_.GetVertexIdColumn(label));
     } else {
-      auto ptr = graph_.get_vertex_table(label).get_column(col_name);
+      auto ptr =
+          graph_.get_vertex_table(label).get_properties_table().get_column(
+              col_name);
       if (ptr) {
         return std::dynamic_pointer_cast<TypedRefColumn<T>>(
             CreateRefColumn(ptr));

@@ -46,7 +46,7 @@ result<results::CollectiveResults> CypherUpdateApp::execute_add_vertex_property(
   if (!tuple_res) {
     RETURN_ERROR(tuple_res.error());
   }
-  auto ret = graph_.add_vertex_properties(
+  auto ret = graph_.AddVertexProperties(
       vertex_type_name, tuple_res.value(),
       conflict_action_to_bool(add_vertex_property_schema.conflict_action()));
   if (ret.ok()) {
@@ -71,7 +71,7 @@ result<results::CollectiveResults> CypherUpdateApp::execute_add_edge_property(
     RETURN_ERROR(tuple_res.error());
   }
 
-  auto ret = graph_.add_edge_properties(
+  auto ret = graph_.AddEdgeProperties(
       src_type_name, dst_type_name, edge_type_name, tuple_res.value(),
       conflict_action_to_bool(add_edge_property_schema.conflict_action()));
   if (ret.ok()) {
@@ -91,7 +91,7 @@ CypherUpdateApp::execute_drop_vertex_property(
   for (const auto& prop : drop_vertex_property_schema.properties()) {
     property_names.push_back(prop);
   }
-  auto ret = graph_.delete_vertex_properties(
+  auto ret = graph_.DeleteVertexProperties(
       vertex_type_name, property_names,
       conflict_action_to_bool(drop_vertex_property_schema.conflict_action()));
   if (ret.ok()) {
@@ -115,7 +115,7 @@ result<results::CollectiveResults> CypherUpdateApp::execute_drop_edge_property(
   for (const auto& prop : drop_edge_property_schema.properties()) {
     property_names.push_back(prop);
   }
-  auto ret = graph_.delete_edge_properties(
+  auto ret = graph_.DeleteEdgeProperties(
       src_type_name, dst_type_name, edge_type_name, property_names,
       conflict_action_to_bool(drop_edge_property_schema.conflict_action()));
   if (ret.ok()) {
@@ -135,7 +135,7 @@ CypherUpdateApp::execute_rename_vertex_property(
   for (const auto& rename : rename_vertex_property_schema.mappings()) {
     rename_pairs.emplace_back(rename.first, rename.second);
   }
-  auto ret = graph_.rename_vertex_properties(
+  auto ret = graph_.RenameVertexProperties(
       vertex_type_name, rename_pairs,
       conflict_action_to_bool(rename_vertex_property_schema.conflict_action()));
   if (ret.ok()) {
@@ -172,7 +172,7 @@ CypherUpdateApp::execute_rename_edge_property(
   for (const auto& rename : rename_edge_property_schema.mappings()) {
     rename_pairs.emplace_back(rename.first, rename.second);
   }
-  auto ret = graph_.rename_edge_properties(
+  auto ret = graph_.RenameEdgeProperties(
       src_type_name, dst_type_name, edge_type_name, rename_pairs,
       conflict_action_to_bool(rename_edge_property_schema.conflict_action()));
   if (ret.ok()) {
@@ -188,7 +188,7 @@ result<results::CollectiveResults> CypherUpdateApp::execute_drop_vertex_schema(
   auto& graph_ = graph.graph();
   auto vertex_type_name = drop_vertex_schema.vertex_type().name();
   // Todo(NENG): Always drop vertex type with detach mode
-  auto ret = graph_.delete_vertex_type(
+  auto ret = graph_.DeleteVertexType(
       vertex_type_name, true,
       conflict_action_to_bool(drop_vertex_schema.conflict_action()));
   if (ret.ok()) {
@@ -204,7 +204,7 @@ result<results::CollectiveResults> CypherUpdateApp::execute_drop_edge_schema(
   auto edge_type_name = drop_edge_schema.edge_type().type_name().name();
   auto src_type_name = drop_edge_schema.edge_type().src_type_name().name();
   auto dst_type_name = drop_edge_schema.edge_type().dst_type_name().name();
-  auto status = graph_.delete_edge_type(
+  auto status = graph_.DeleteEdgeType(
       src_type_name, dst_type_name, edge_type_name,
       conflict_action_to_bool(drop_edge_schema.conflict_action()));
   if (!status.ok()) {
@@ -235,7 +235,7 @@ result<results::CollectiveResults> CypherUpdateApp::execute_ddl(
                             "Only one primary key is supported"));
       }
       std::vector<std::string> pks{create_vertex.primary_key(0)};
-      auto res = graph_.create_vertex_type(
+      auto res = graph_.CreateVertexType(
           vertex_type_name, tuple_res.value(), pks,
           conflict_action_to_bool(create_vertex.conflict_action()));
       if (!res.ok()) {
@@ -319,9 +319,9 @@ result<results::CollectiveResults> CypherUpdateApp::execute_ddl(
         const auto& create_edge_def = create_edge_defs[succeed_index];
         // Drop the created edge types.
         if (!graph_
-                 .delete_edge_type(std::get<0>(create_edge_def),
-                                   std::get<1>(create_edge_def),
-                                   std::get<2>(create_edge_def), false)
+                 .DeleteEdgeType(std::get<0>(create_edge_def),
+                                 std::get<1>(create_edge_def),
+                                 std::get<2>(create_edge_def), false)
                  .ok()) {
           LOG(ERROR) << "Fail to revert created edge type in CreateEdgeSchema "
                         "request";

@@ -106,7 +106,7 @@ gs::result<Context> BatchDeleteEdgeOpr::Eval(
       } else {
         LOG(FATAL) << "Unknown edge column type.";
       }
-      graph.batch_delete_edges(src_v_label, dst_v_label, edge_label, edges);
+      graph.BatchDeleteEdges(src_v_label, dst_v_label, edge_label, edges);
     } else {
       std::unordered_map<uint32_t, std::vector<std::tuple<vid_t, vid_t>>>
           edges_map;

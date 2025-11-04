@@ -119,8 +119,8 @@ gs::result<Context> BatchInsertEdgeOpr::Eval(
 
   for (auto& supplier : suppliers) {
     if (!graph
-             .batch_add_edges(src_label_id_, dst_label_id_, edge_label_id_,
-                              supplier)
+             .BatchAddEdges(src_label_id_, dst_label_id_, edge_label_id_,
+                            supplier)
              .ok()) {
       THROW_INTERNAL_EXCEPTION("Failed to add edges");
     }

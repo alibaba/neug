@@ -50,7 +50,7 @@ ReadTransaction::vertex_iterator::vertex_iterator(label_t label, vid_t cur,
       ts_(ts),
       vertex_table_modifed_(vertex_table_modified),
       graph_(graph) {
-  while (cur_ < num_ && !graph_.is_valid_lid(label_, cur_, ts_)) {
+  while (cur_ < num_ && !graph_.IsValidLid(label_, cur_, ts_)) {
     ++cur_;
   }
 }
@@ -59,7 +59,7 @@ ReadTransaction::vertex_iterator::~vertex_iterator() = default;
 bool ReadTransaction::vertex_iterator::IsValid() const { return cur_ < num_; }
 void ReadTransaction::vertex_iterator::Next() {
   if (NEUG_UNLIKELY(vertex_table_modifed_)) {
-    while (++cur_ < num_ && !graph_.is_valid_lid(label_, cur_, ts_)) {}
+    while (++cur_ < num_ && !graph_.IsValidLid(label_, cur_, ts_)) {}
   } else {
     ++cur_;
   }
@@ -67,7 +67,7 @@ void ReadTransaction::vertex_iterator::Next() {
 void ReadTransaction::vertex_iterator::Goto(vid_t target) {
   if (NEUG_UNLIKELY(vertex_table_modifed_)) {
     if (std::min(target, num_) < num_ &&
-        !graph_.is_valid_lid(label_, target, ts_)) {
+        !graph_.IsValidLid(label_, target, ts_)) {
       THROW_INVALID_ARGUMENT_EXCEPTION("Target vertex is deleted");
     }
   }
@@ -75,24 +75,26 @@ void ReadTransaction::vertex_iterator::Goto(vid_t target) {
 }
 
 Property ReadTransaction::vertex_iterator::GetId() const {
-  return graph_.get_oid(label_, cur_, ts_);
+  return graph_.GetOid(label_, cur_, ts_);
 }
 vid_t ReadTransaction::vertex_iterator::GetIndex() const { return cur_; }
 
 Property ReadTransaction::vertex_iterator::GetField(int col_id) const {
-  return graph_.get_vertex_table(label_).get_column_by_id(col_id)->get_prop(
-      cur_);
+  return graph_.get_vertex_table(label_)
+      .get_properties_table()
+      .get_column_by_id(col_id)
+      ->get_prop(cur_);
 }
 
 int ReadTransaction::vertex_iterator::FieldNum() const {
-  return graph_.get_vertex_table(label_).col_num();
+  return graph_.get_vertex_table(label_).get_properties_table().col_num();
 }
 
 ReadTransaction::vertex_iterator ReadTransaction::GetVertexIterator(
     label_t label) const {
   return {label,
           0,
-          graph_.lid_num(label),
+          graph_.LidNum(label),
           timestamp_,
           graph_.vertex_table_modified(label),
           graph_};
@@ -104,14 +106,14 @@ ReadTransaction::vertex_iterator ReadTransaction::FindVertex(
   if (graph_.get_lid(label, id, lid, timestamp_)) {
     return {label,
             lid,
-            graph_.lid_num(label),
+            graph_.LidNum(label),
             timestamp_,
             graph_.vertex_table_modified(label),
             graph_};
   } else {
     return {label,
-            graph_.lid_num(label),
-            graph_.lid_num(label),
+            graph_.LidNum(label),
+            graph_.LidNum(label),
             timestamp_,
             graph_.vertex_table_modified(label),
             graph_};
@@ -124,21 +126,21 @@ bool ReadTransaction::GetVertexIndex(label_t label, const Property& id,
 }
 
 vid_t ReadTransaction::GetVertexNum(label_t label) const {
-  return graph_.vertex_num(label, timestamp_);
+  return graph_.VertexNum(label, timestamp_);
 }
 
 VertexSet ReadTransaction::GetVertexSet(label_t label) const {
-  return VertexSet(graph_.lid_num(label), graph_.get_vertex_timestamps(label),
+  return VertexSet(graph_.LidNum(label), graph_.get_vertex_timestamps(label),
                    timestamp_, graph_.vertex_table_modified(label));
 }
 
 bool ReadTransaction::IsValidVertex(label_t label, vid_t index) const {
-  return index < graph_.lid_num(label) &&
-         graph_.is_valid_lid(label, index, timestamp_);
+  return index < graph_.LidNum(label) &&
+         graph_.IsValidLid(label, index, timestamp_);
 }
 
 Property ReadTransaction::GetVertexId(label_t label, vid_t index) const {
-  return graph_.get_oid(label, index, timestamp_);
+  return graph_.GetOid(label, index, timestamp_);
 }
 
 size_t ReadTransaction::GetOutDegree(label_t label, vid_t u,

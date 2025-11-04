@@ -51,7 +51,6 @@ bool CypherRunnerImpl::gen_plan(const NeugDB& db, const std::string& query,
   const std::string statistics = db.work_dir() + "/statistics.json";
   const std::string& compiler_yaml = db.work_dir() + "/graph.yaml";
   const std::string& tmp_dir = db.work_dir() + "/runtime/tmp/";
-  const auto& compiler_path = db.schema().get_compiler_path();
 
   if (plan_cache.get(query, plan_str)) {
     return true;
@@ -64,8 +63,7 @@ bool CypherRunnerImpl::gen_plan(const NeugDB& db, const std::string& query,
     if (plan_cache.get(query, plan_str)) {
       return true;
     }
-    if (!generate_plan(query, statistics, compiler_path, compiler_yaml, tmp_dir,
-                       plan)) {
+    if (!generate_plan(query, statistics, "", compiler_yaml, tmp_dir, plan)) {
       LOG(ERROR) << "Generate plan failed for query: " << query;
       return false;
     }

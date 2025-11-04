@@ -21,10 +21,10 @@ I20250917 09:04:09.096153 9140340 vertex_table_benchmark.cc:178] Average time pe
 [       OK ] VertexTableBenchmark.AddVertexPerformance (52 ms)
 [ RUN      ] VertexTableBenchmark.GetOidPerformance
 I20250917 09:04:28.808403 9140340 vertex_table_benchmark.cc:219] Deleted 25 thousand vertices
-I20250917 09:04:29.099862 9140340 vertex_table_benchmark.cc:230] Performed 25000000 get_oid operations in 295449 microseconds
-I20250917 09:04:29.099895 9140340 vertex_table_benchmark.cc:232] Average time per get_oid: 0.011818 microseconds
-I20250917 09:04:29.099902 9140340 vertex_table_benchmark.cc:234] After deletion, performed 25000000 get_oid operations in 291411 microseconds
-I20250917 09:04:29.099906 9140340 vertex_table_benchmark.cc:237] Average time per get_oid after deletion: 0.0116564 microseconds
+I20250917 09:04:29.099862 9140340 vertex_table_benchmark.cc:230] Performed 25000000 GetOid operations in 295449 microseconds
+I20250917 09:04:29.099895 9140340 vertex_table_benchmark.cc:232] Average time per GetOid: 0.011818 microseconds
+I20250917 09:04:29.099902 9140340 vertex_table_benchmark.cc:234] After deletion, performed 25000000 GetOid operations in 291411 microseconds
+I20250917 09:04:29.099906 9140340 vertex_table_benchmark.cc:237] Average time per GetOid after deletion: 0.0116564 microseconds
 [       OK ] VertexTableBenchmark.GetOidPerformance (20208 ms)
 [ RUN      ] VertexTableBenchmark.GetIndexPerformance
 I20250917 09:04:53.680011 9140340 vertex_table_benchmark.cc:280] Deleted 25 thousand vertices
