@@ -143,18 +143,21 @@ void benchmark_iteration(
     gs::runtime::Context ctx;
     auto& m = parameters[i % parameters.size()];
     if (i == 0) {
-      ctx = pipeline.Execute(graph, gs::runtime::Context(), m, &timer).value();
+      auto ctx = pipeline.Execute(graph, gs::runtime::Context(), m, &timer);
+      if (!ctx) {
+        LOG(ERROR) << "Failed to execute pipeline: " << ctx.error().ToString();
+        return;
+      }
       outputs[i].clear();
       gs::Encoder output(outputs[i]);
-      gs::runtime::Sink::sink(ctx, graph, output);
+      gs::runtime::Sink::sink(ctx.value(), graph, output);
     } else {
       gs::runtime::OprTimer cur_timer;
-      ctx = pipeline.Execute(graph, gs::runtime::Context(), m, &cur_timer)
-                .value();
+      auto ctx = pipeline.Execute(graph, gs::runtime::Context(), m, &cur_timer);
 
       outputs[i].clear();
       gs::Encoder output(outputs[i]);
-      gs::runtime::Sink::sink(ctx, graph, output);
+      gs::runtime::Sink::sink(ctx.value(), graph, output);
       timer += cur_timer;
     }
   }

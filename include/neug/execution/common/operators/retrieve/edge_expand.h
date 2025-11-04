@@ -106,41 +106,73 @@ class EdgeExpand {
                                            const EdgeExpandParams& params,
                                            const PRED_T& pred) {
     if (params.is_optional) {
-      LOG(ERROR) << "not support optional edge expand with predicate";
-      RETURN_UNSUPPORTED_ERROR("not support optional edge expand");
-    }
-    std::shared_ptr<IVertexColumn> input_vertex_list =
-        std::dynamic_pointer_cast<IVertexColumn>(ctx.get(params.v_tag));
-    VertexColumnType input_vertex_list_type =
-        input_vertex_list->vertex_column_type();
-
-    if (input_vertex_list_type == VertexColumnType::kSingle) {
-      auto casted_input_vertex_list =
-          std::dynamic_pointer_cast<SLVertexColumn>(input_vertex_list);
-      auto pair = expand_vertex_impl<PRED_T, false>(
-          graph, *casted_input_vertex_list, params.labels, params.dir, pred);
-      ctx.set_with_reshuffle(params.alias, pair.first, pair.second);
-      return ctx;
-    } else if (input_vertex_list_type == VertexColumnType::kMultiple) {
-      auto casted_input_vertex_list =
-          std::dynamic_pointer_cast<MLVertexColumn>(input_vertex_list);
-      auto pair = expand_vertex_impl<PRED_T, false>(
-          graph, *casted_input_vertex_list, params.labels, params.dir, pred);
-      ctx.set_with_reshuffle(params.alias, pair.first, pair.second);
-      return ctx;
-    } else if (input_vertex_list_type == VertexColumnType::kMultiSegment) {
-      auto casted_input_vertex_list =
-          std::dynamic_pointer_cast<MSVertexColumn>(input_vertex_list);
-      auto pair = expand_vertex_impl<PRED_T, false>(
-          graph, *casted_input_vertex_list, params.labels, params.dir, pred);
-      ctx.set_with_reshuffle(params.alias, pair.first, pair.second);
-      return ctx;
+      std::shared_ptr<IVertexColumn> input_vertex_list =
+          std::dynamic_pointer_cast<IVertexColumn>(ctx.get(params.v_tag));
+      if (input_vertex_list->vertex_column_type() ==
+          VertexColumnType::kSingle) {
+        auto casted_input_vertex_list =
+            std::dynamic_pointer_cast<SLVertexColumn>(input_vertex_list);
+        auto pair = expand_vertex_impl<PRED_T, true>(
+            graph, *casted_input_vertex_list, params.labels, params.dir, pred);
+        ctx.set_with_reshuffle(params.alias, pair.first, pair.second);
+        return ctx;
+      } else if (input_vertex_list->vertex_column_type() ==
+                 VertexColumnType::kMultiple) {
+        auto casted_input_vertex_list =
+            std::dynamic_pointer_cast<MLVertexColumn>(input_vertex_list);
+        auto pair = expand_vertex_impl<PRED_T, true>(
+            graph, *casted_input_vertex_list, params.labels, params.dir, pred);
+        ctx.set_with_reshuffle(params.alias, pair.first, pair.second);
+        return ctx;
+      } else if (input_vertex_list->vertex_column_type() ==
+                 VertexColumnType::kMultiSegment) {
+        auto casted_input_vertex_list =
+            std::dynamic_pointer_cast<MSVertexColumn>(input_vertex_list);
+        auto pair = expand_vertex_impl<PRED_T, true>(
+            graph, *casted_input_vertex_list, params.labels, params.dir, pred);
+        ctx.set_with_reshuffle(params.alias, pair.first, pair.second);
+        return ctx;
+      } else {
+        LOG(ERROR) << "not support vertex column type "
+                   << static_cast<int>(input_vertex_list->vertex_column_type());
+        RETURN_UNSUPPORTED_ERROR("not support vertex column type " +
+                                 std::to_string(static_cast<int>(
+                                     input_vertex_list->vertex_column_type())));
+      }
     } else {
-      LOG(ERROR) << "not support vertex column type "
-                 << static_cast<int>(input_vertex_list_type);
-      RETURN_UNSUPPORTED_ERROR(
-          "not support vertex column type " +
-          std::to_string(static_cast<int>(input_vertex_list_type)));
+      std::shared_ptr<IVertexColumn> input_vertex_list =
+          std::dynamic_pointer_cast<IVertexColumn>(ctx.get(params.v_tag));
+      VertexColumnType input_vertex_list_type =
+          input_vertex_list->vertex_column_type();
+
+      if (input_vertex_list_type == VertexColumnType::kSingle) {
+        auto casted_input_vertex_list =
+            std::dynamic_pointer_cast<SLVertexColumn>(input_vertex_list);
+        auto pair = expand_vertex_impl<PRED_T, false>(
+            graph, *casted_input_vertex_list, params.labels, params.dir, pred);
+        ctx.set_with_reshuffle(params.alias, pair.first, pair.second);
+        return ctx;
+      } else if (input_vertex_list_type == VertexColumnType::kMultiple) {
+        auto casted_input_vertex_list =
+            std::dynamic_pointer_cast<MLVertexColumn>(input_vertex_list);
+        auto pair = expand_vertex_impl<PRED_T, false>(
+            graph, *casted_input_vertex_list, params.labels, params.dir, pred);
+        ctx.set_with_reshuffle(params.alias, pair.first, pair.second);
+        return ctx;
+      } else if (input_vertex_list_type == VertexColumnType::kMultiSegment) {
+        auto casted_input_vertex_list =
+            std::dynamic_pointer_cast<MSVertexColumn>(input_vertex_list);
+        auto pair = expand_vertex_impl<PRED_T, false>(
+            graph, *casted_input_vertex_list, params.labels, params.dir, pred);
+        ctx.set_with_reshuffle(params.alias, pair.first, pair.second);
+        return ctx;
+      } else {
+        LOG(ERROR) << "not support vertex column type "
+                   << static_cast<int>(input_vertex_list_type);
+        RETURN_UNSUPPORTED_ERROR(
+            "not support vertex column type " +
+            std::to_string(static_cast<int>(input_vertex_list_type)));
+      }
     }
   }
 
