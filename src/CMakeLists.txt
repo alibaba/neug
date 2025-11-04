@@ -1,3 +1,17 @@
+if(ENABLE_GCOV)
+    add_compile_options(
+        $<$<COMPILE_LANGUAGE:CXX>:--coverage>
+        $<$<COMPILE_LANGUAGE:C>:--coverage>
+    )
+    add_link_options(--coverage)
+    
+    set(LCOV_EXCLUDE_PATTERNS 
+        "*/third_party/*" 
+        "*/external/*" 
+        "/usr/include/*"
+        CACHE STRING "Lcov exclude patterns")
+endif()
+
 add_subdirectory(utils)
 add_subdirectory(storages)
 add_subdirectory(transaction)
@@ -11,6 +25,9 @@ add_subdirectory(execution)
 
 message(STATUS "Compiler libraries: ${COMPILER_LIBRARIES}")
 add_library(neug_libraries SHARED ${ALL_OBJECT_FILES})
+if (ENABLE_GCOV)
+    target_link_options(neug_libraries PRIVATE --coverage)
+endif()
 target_link_libraries(neug_libraries PUBLIC ${Protobuf_LIBRARIES})
 target_link_libraries(neug_libraries PRIVATE neug_grape_lite ${GFLAGS_LIBRARIES} ${GLOG_LIBRARIES} ${YAML_CPP_LIBRARIES} ${COMPILER_LIBRARIES} ${ARROW_LIB})
 if (BUILD_HTTP_SERVER)

@@ -77,6 +77,7 @@ option(BUILD_TEST "Build C++ tests." TRUE)
 option(BUILD_EXTENSION_TESTS "Build C++ extension tests." FALSE)
 option(ENABLE_BACKTRACES "Enable backtrace printing for exceptions and segfaults" FALSE)
 option(BUILD_EXAMPLES "Build examples." ON)
+option(ENABLE_GCOV "Enable gcov (debug mode only)" FALSE)
 
 
 add_definitions(-DNEUG_CMAKE_VERSION="${CMAKE_PROJECT_VERSION}")
@@ -253,6 +254,10 @@ function(add_neug_test TEST_NAME)
     target_link_libraries(${TEST_NAME} PUBLIC neug::GTest neug_libraries   
         ${GLOG_LIBRARIES} ${Protobuf_LIBRARIES} ${ARROW_LIB} ${OPENSSL_LIBRARIES} 
         ${CRYPTO_LIB} ${GFLAGS_LIBRARIES})
+    if (ENABLE_GCOV)
+        target_compile_options(${TEST_NAME} PRIVATE --coverage)
+        target_link_options(${TEST_NAME} PRIVATE --coverage)
+    endif()
     include(GoogleTest)
 	add_test(NAME ${TEST_NAME} COMMAND ${TEST_NAME})
 	gtest_add_tests(TARGET ${TEST_NAME} TEST_LIST ${TEST_NAME}_tests)
@@ -737,6 +742,23 @@ add_custom_target(neug_cpplint
     COMMAND ${CMAKE_CURRENT_SOURCE_DIR}/scripts/cpplint.py ${FILES_NEED_LINT}
     COMMENT "Running cpplint"
     VERBATIM)
+
+if (ENABLE_GCOV)
+    add_custom_target(coverage
+        COMMAND ${CMAKE_COMMAND} -E remove -f coverage.info coverage_filtered.info coverage_html/
+        COMMAND fastcov -d ${CMAKE_BINARY_DIR} -l --output coverage.info
+        COMMAND lcov --remove coverage.info 
+            '/usr/include/*' 
+            '/opt/*'
+            '*/tests/*'
+            '*/third_party/*'
+            '*/external/*'
+            '*/generated/*'
+            '*/_deps/*'
+            --output-file coverage_filtered.info
+        COMMAND lcov --list coverage_filtered.info
+    )
+endif()
 
 if (NOT DEFINED CPACK_PACKAGE_NAME)
   set(CPACK_PACKAGE_NAME "neug")

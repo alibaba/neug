@@ -117,6 +117,9 @@ class CMakeBuild(build_ext):
         build_test = "OFF"
         if os.environ.get("BUILD_TEST", "OFF") == "ON":
             build_test = "ON"
+        enable_gcov = "OFF"
+        if os.environ.get("ENABLE_GCOV", "OFF") == "ON":
+            enable_gcov = "ON"
         # cfg is now dynamically set based on the DEBUG environment variable
 
         # CMake lets you override the generator - we need to check this.
@@ -138,6 +141,7 @@ class CMakeBuild(build_ext):
             f"-DENABLE_BACKTRACES={enable_backtraces}",
             f"-DBUILD_HTTP_SERVER={build_http_server}",
             f"-DWITH_MIMALLOC={with_mimalloc}",
+            f"-DENABLE_GCOV={enable_gcov}",
             "-DCMAKE_POLICY_VERSION_MINIMUM=3.5",
         ]
         if build_extensions:

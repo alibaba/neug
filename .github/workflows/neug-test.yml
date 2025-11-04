@@ -92,6 +92,14 @@ jobs:
       with:
         python-version: '3.13'
 
+    - name: Set ENABLE_GCOV for main branch
+      if: (github.ref == 'refs/heads/main' && github.repository == 'GraphScope/neug' && github.event_name == 'push')
+      run: |
+        pip3 install fastcov
+        sudo apt update
+        sudo apt install lcov -y
+        echo "ENABLE_GCOV=ON" >> $GITHUB_ENV
+
     - name: Build Interactive
       run: |
         . /home/neug/.neug_env
@@ -154,7 +162,7 @@ jobs:
         cd ${GITHUB_WORKSPACE}/tools/python_bind/
         export FLEX_DATA_DIR=${GITHUB_WORKSPACE}/example_dataset/modern_graph
         pip3 install -r requirements_dev.txt
-        pip3 install pytest-cov coverage
+        pip3 install pytest-cov coverage 
         python3 -m pytest --cov=neug --cov-report=term --exitfirst --cov-append --cov-config=.coveragerc -sv tests/test_batch_loading.py
         python3 -m pytest --cov=neug --cov-report=term --exitfirst --cov-append --cov-config=.coveragerc -sv tests/test_alter_property.py
         python3 -m pytest --cov=neug --cov-report=term --exitfirst --cov-append --cov-config=.coveragerc -sv tests/test_ddl.py
@@ -281,7 +289,12 @@ jobs:
         ./json_extension_test
 
     - name: Generate Coverage Report
+      if: (github.ref == 'refs/heads/main' && github.repository == 'GraphScope/neug' && github.event_name == 'push')
       run: |
+        # Measure Python code coverage
         cd ${GITHUB_WORKSPACE}/tools/python_bind
         coverage report
         coverage xml -o coverage_report.xml
+        # Measure C++ code coverage
+        cd ${GITHUB_WORKSPACE}/tools/python_bind/build/neug_py_bind
+        make coverage

@@ -169,7 +169,26 @@ Custom options:
                               Number of warmup rounds for each benchmark
 ```
 
+### Generate Code Coverage Report
+#### 1. Build with Gcov
+```
+cd tools/python_bind
+export BUILD_TYPE=DEBUG
+export ENABLE_GCOV=ON
+make build
+```
 
+#### 2. Generate Coverage Report
+After completing the tests, you can generate a coverage report by following these steps:
+```
+sudo apt update
+sudo apt install lcov -y
+pip3 install fastcov
+cd tools/python_bind/build/neug_py_bind
+make coverage
+genhtml coverage_filtered.info --output-directory coverage_html --branch-coverage
+```
+You can view the coverage report by opening coverage_html/index.html in your browser.
 ## log level
 
 When running python test, set environment variable `DEBUG` to `ON`, to display all c++ logs. All c++ logs are suppressed by default. See `setup_logging` method in `neug_bindings.cc`.
