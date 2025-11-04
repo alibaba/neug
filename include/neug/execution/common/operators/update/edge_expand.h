@@ -58,7 +58,7 @@ class UEdgeExpand {
       std::vector<std::pair<LabelTriplet, PropertyType>> label_props;
       std::vector<LabelTriplet> label_triplets;
       for (auto& triplet : params.labels) {
-        auto& props = graph.schema().get_edge_properties(
+        auto props = graph.schema().get_edge_properties(
             triplet.src_label, triplet.dst_label, triplet.edge_label);
         PropertyType pt = PropertyType::kEmpty;
         if (!props.empty()) {
@@ -111,7 +111,7 @@ class UEdgeExpand {
       std::vector<std::pair<LabelTriplet, PropertyType>> label_props;
       std::vector<LabelTriplet> label_triplets;
       for (auto& triplet : params.labels) {
-        auto& props = graph.schema().get_edge_properties(
+        auto props = graph.schema().get_edge_properties(
             triplet.src_label, triplet.dst_label, triplet.edge_label);
         PropertyType pt = PropertyType::kEmpty;
         if (!props.empty()) {
@@ -149,7 +149,7 @@ class UEdgeExpand {
       std::vector<std::pair<LabelTriplet, PropertyType>> label_props;
       std::vector<LabelTriplet> label_triplets;
       for (auto& triplet : params.labels) {
-        auto& props = graph.schema().get_edge_properties(
+        auto props = graph.schema().get_edge_properties(
             triplet.src_label, triplet.dst_label, triplet.edge_label);
         PropertyType pt = PropertyType::kEmpty;
         if (!props.empty()) {

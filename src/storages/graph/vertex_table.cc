@@ -31,20 +31,24 @@ void VertexTable::Open(const std::string& work_dir, int memory_level,
       IndexerType::prefix() + "_" + vertex_map_prefix(v_label_name_);
   if (memory_level_ == 0) {
     indexer_.open(indexer_filename, checkpoint_dir_path, work_dir_);
-    table_->open(vertex_table_prefix(v_label_name_), work_dir_, property_names,
-                 property_types, storage_strategies);
+    table_->open(vertex_table_prefix(v_label_name_), work_dir_,
+                 vertex_schema_->property_names, vertex_schema_->property_types,
+                 vertex_schema_->storage_strategies);
     vertex_ts_.open(vertex_ts_filename, true);
   } else if (memory_level_ == 1) {
     indexer_.open_in_memory(checkpoint_dir_path + "/" + indexer_filename);
     table_->open_in_memory(vertex_table_prefix(v_label_name_), work_dir_,
-                           property_names, property_types, storage_strategies);
+                           vertex_schema_->property_names,
+                           vertex_schema_->property_types,
+                           vertex_schema_->storage_strategies);
     vertex_ts_.open(vertex_ts_filename, false);
   } else if (memory_level_ >= 2) {
     indexer_.open_with_hugepages(checkpoint_dir_path + "/" + indexer_filename,
                                  (memory_level_ > 2));
-    table_->open_with_hugepages(vertex_table_prefix(v_label_name_), work_dir_,
-                                property_names, property_types,
-                                storage_strategies, (memory_level_ > 2));
+    table_->open_with_hugepages(
+        vertex_table_prefix(v_label_name_), work_dir_,
+        vertex_schema_->property_names, vertex_schema_->property_types,
+        vertex_schema_->storage_strategies, (memory_level_ > 2));
     vertex_ts_.open_with_hugepages(vertex_ts_filename);
   } else {
     THROW_INTERNAL_EXCEPTION("Invalid memory level: " +
@@ -217,13 +221,10 @@ void VertexTable::BatchDeleteVertices(const std::vector<vid_t>& vids) {
 }
 
 void VertexTable::DeleteProperties(const std::vector<std::string>& properties) {
-  for (size_t i = property_names.size(); i-- > 0;) {
-    if (std::find(properties.begin(), properties.end(), property_names[i]) !=
-        properties.end()) {
-      table_->delete_column(property_names[i]);
-      property_names.erase(property_names.begin() + i);
-      property_types.erase(property_types.begin() + i);
-      storage_strategies.erase(storage_strategies.begin() + i);
+  for (size_t i = vertex_schema_->property_names.size(); i-- > 0;) {
+    if (std::find(properties.begin(), properties.end(),
+                  vertex_schema_->property_names[i]) != properties.end()) {
+      table_->delete_column(vertex_schema_->property_names[i]);
     }
   }
 }
@@ -233,15 +234,6 @@ void VertexTable::AddProperties(
     const std::vector<PropertyType>& types,
     const std::vector<StorageStrategy>& strategies) {
   table_->add_columns(properties, types, memory_level_);
-  for (size_t i = 0; i < properties.size(); ++i) {
-    property_names.push_back(properties[i]);
-    property_types.push_back(types[i]);
-    if (i >= strategies.size()) {
-      storage_strategies.push_back(StorageStrategy::kMem);
-    } else {
-      storage_strategies.push_back(strategies[i]);
-    }
-  }
 }
 
 void VertexTable::Drop() {
@@ -251,27 +243,12 @@ void VertexTable::Drop() {
   table_.reset();
   // TODO(zhanglei): reset the indexer.
   // indexer_ = IndexerType();
-  property_names.clear();
-  property_types.clear();
-  storage_strategies.clear();
 }
 
 void VertexTable::RenameProperties(const std::vector<std::string>& old_names,
                                    const std::vector<std::string>& new_names) {
+  CHECK(old_names.size() == new_names.size());
   for (size_t i = 0; i < old_names.size(); ++i) {
-    auto it =
-        std::find(property_names.begin(), property_names.end(), old_names[i]);
-    if (it == property_names.end()) {
-      LOG(ERROR) << "Column " << old_names[i] << " does not exist.";
-      return;
-    }
-    if (std::find(property_names.begin(), property_names.end(), new_names[i]) !=
-        property_names.end()) {
-      LOG(ERROR) << "Column " << new_names[i] << " already exists.";
-      return;
-    }
-    size_t index = std::distance(property_names.begin(), it);
-    property_names[index] = new_names[i];
     table_->rename_column(old_names[i], new_names[i]);
   }
 }

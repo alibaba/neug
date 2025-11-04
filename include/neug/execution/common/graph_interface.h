@@ -222,7 +222,7 @@ class GraphUpdateInterface {
   template <typename PROP_T>
   inline vertex_column_t<PROP_T> GetVertexColumn(
       label_t label, const std::string& prop_name) const {
-    const auto& prop_names = txn_.schema().get_vertex_property_names(label);
+    auto prop_names = txn_.schema().get_vertex_property_names(label);
     for (size_t i = 0; i < prop_names.size(); i++) {
       if (prop_names[i] == prop_name) {
         return vertex_column_t<PROP_T>(&txn_, label, i);

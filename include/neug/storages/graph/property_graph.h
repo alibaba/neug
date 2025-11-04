@@ -33,6 +33,7 @@
 #include "neug/storages/graph/schema.h"
 #include "neug/storages/graph/vertex_table.h"
 #include "neug/utils/allocators.h"
+#include "neug/utils/exception/exception.h"
 #include "neug/utils/property/property.h"
 #include "neug/utils/property/types.h"
 #include "neug/utils/result.h"
@@ -42,6 +43,7 @@ class OutArchive;
 }  // namespace grape
 
 namespace gs {
+
 /**
  * @brief Core property graph storage engine managing vertices, edges, and
  * schema.
@@ -183,7 +185,7 @@ class PropertyGraph {
       const std::vector<std::string>& primary_key_names,
       bool error_on_conflict = true);
 
-  Status create_edge_type(
+  Status CreateEdgeType(
       const std::string& src_vertex_type, const std::string& dst_vertex_type,
       const std::string& edge_type_name,
       const std::vector<std::tuple<PropertyType, std::string, Property>>&
@@ -191,6 +193,20 @@ class PropertyGraph {
       bool error_on_conflict = true,
       EdgeStrategy oe_strategy = EdgeStrategy::kMultiple,
       EdgeStrategy ie_strategy = EdgeStrategy::kMultiple);
+
+  /**
+   * @brief Delete a vertex type physically from the graph storage, could not be
+   * reverted.
+   * @param vertex_type_name Name of the vertex type to delete
+   * @return Status Status indicating success or failure
+   */
+  Status DeleteVertexType(const std::string& vertex_type_name,
+                          bool error_on_conflict = true);
+
+  Status DeleteEdgeType(const std::string& src_vertex_type,
+                        const std::string& dst_vertex_type,
+                        const std::string& edge_type_name,
+                        bool error_on_conflict = true);
 
   Status AddVertexProperties(
       const std::string& vertex_type_name,
@@ -229,13 +245,6 @@ class PropertyGraph {
                               const std::vector<std::string>& delete_properties,
                               bool error_on_conflict = true);
 
-  Status DeleteVertexType(const std::string& vertex_type_name, bool is_detach,
-                          bool error_on_conflict);
-
-  Status DeleteEdgeType(const std::string& src_vertex_type,
-                        const std::string& dst_vertex_type,
-                        const std::string& edge_type, bool error_on_conflict);
-
   Status BatchAddVertices(label_t v_label_id,
                           std::shared_ptr<IRecordBatchSupplier> supplier);
 
@@ -264,8 +273,8 @@ class PropertyGraph {
 
   bool IsValidLid(label_t vertex_label, vid_t lid, timestamp_t ts) const;
 
-  size_t edge_num(label_t src_label, label_t edge_label,
-                  label_t dst_label) const;
+  size_t EdgeNum(label_t src_label, label_t edge_label,
+                 label_t dst_label) const;
 
   bool get_lid(label_t label, const Property& oid, vid_t& lid,
                timestamp_t ts) const;
@@ -333,7 +342,7 @@ class PropertyGraph {
 
   void generateStatistics() const;
 
- public:
+ private:
   std::string work_dir_;
   Schema schema_;
   std::vector<std::shared_ptr<std::mutex>> v_mutex_;

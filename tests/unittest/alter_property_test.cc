@@ -307,8 +307,8 @@ void testOpenEmptyGraph(const std::string& graph_dir,
             PropertyType::Float(), std::string("weight"), std::string("")));
     // testCreateEdgeType(graph, src_vertex_label, dst_vertex_label,
     //                    edge_label_name, edge_properties);
-    auto status = graph.create_edge_type(src_vertex_label, dst_vertex_label,
-                                         edge_label_name, edge_properties);
+    auto status = graph.CreateEdgeType(src_vertex_label, dst_vertex_label,
+                                       edge_label_name, edge_properties);
     EXPECT_TRUE(status.ok());
     auto edge_label_num = graph.schema().edge_label_num();
     std::cout << "Get edge label num: " << static_cast<size_t>(edge_label_num)
@@ -336,7 +336,7 @@ void testOpenEmptyGraph(const std::string& graph_dir,
     std::vector<std::string> null_values;
     testLoadEdgeBatch(graph, src_vertex_type, dst_vertex_type, edge_type_name,
                       efile, '|', true, 1024, null_values);
-    LOG(INFO) << "Edges num after load " << graph.edge_num(0, 0, 0);
+    LOG(INFO) << "Edges num after load " << graph.EdgeNum(0, 0, 0);
   }
 
   // Traverse edge PERSON-KNOWS->PERSON

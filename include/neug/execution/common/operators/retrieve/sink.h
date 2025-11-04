@@ -149,7 +149,7 @@ bool sink_edge(const GraphInterface& graph, const EdgeRecord& edge,
   e->set_src_id(encode_unique_vertex_id(edge.label.src_label, edge.src));
   e->set_dst_id(encode_unique_vertex_id(edge.label.dst_label, edge.dst));
   e->set_id(encode_unique_edge_id(edge_label, edge.src, edge.dst));
-  auto& prop_names = graph.schema().get_edge_property_names(
+  auto prop_names = graph.schema().get_edge_property_names(
       edge.label.src_label, edge.label.dst_label, edge.label.edge_label);
   for (size_t i = 0; i < prop_names.size(); ++i) {
     auto props = e->add_properties();

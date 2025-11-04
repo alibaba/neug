@@ -55,7 +55,7 @@ bool InsertTransaction::AddVertex(label_t label, const Property& id,
   size_t arc_size = arc_.GetSize();
   arc_ << static_cast<uint8_t>(0) << label;
   serialize_field(arc_, id);
-  const std::vector<PropertyType>& types =
+  std::vector<PropertyType> types =
       graph_.schema().get_vertex_properties(label);
   if (types.size() != props.size()) {
     arc_.Resize(arc_size);

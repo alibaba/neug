@@ -392,7 +392,7 @@ gs::result<Context> EdgeExpand::expand_vertex_ep_cmp(
       label_t nbr_label = std::get<0>(label_dir);
       label_t edge_label = std::get<1>(label_dir);
 
-      const auto& properties = graph.schema().get_edge_properties(
+      auto properties = graph.schema().get_edge_properties(
           dir == Direction::kOut ? input_label : nbr_label,
           dir == Direction::kOut ? nbr_label : input_label, edge_label);
 

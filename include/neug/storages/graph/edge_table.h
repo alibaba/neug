@@ -26,6 +26,7 @@
 
 #include "neug/storages/csr/csr_base.h"
 #include "neug/storages/csr/generic_view.h"
+#include "neug/storages/graph/schema.h"
 #include "neug/utils/allocators.h"
 #include "neug/utils/indexers.h"
 #include "neug/utils/property/property.h"
@@ -40,34 +41,9 @@ namespace gs {
 
 class IRecordBatchSupplier;
 
-class EdgeTableMeta {
- public:
-  EdgeTableMeta(const std::string& src_label_name_,
-                const std::string& dst_label_name_,
-                const std::string& edge_label_name_, bool ie_mutable_,
-                bool oe_mutable_, EdgeStrategy ie_strategy_,
-                EdgeStrategy oe_strategy_,
-                const std::vector<PropertyType>& properties_,
-                const std::vector<std::string>& property_names_,
-                const std::vector<StorageStrategy>& strategies_);
-  ~EdgeTableMeta() = default;
-
-  bool is_bundled() const;
-
-  std::string src_label_name;
-  std::string dst_label_name;
-  std::string edge_label_name;
-  bool ie_mutable;
-  bool oe_mutable;
-  EdgeStrategy oe_strategy;
-  EdgeStrategy ie_strategy;
-  std::vector<PropertyType> properties;
-  std::vector<std::string> property_names;
-  std::vector<StorageStrategy> strategies;
-};
 class EdgeTable {
  public:
-  EdgeTable(const EdgeTableMeta& meta);
+  EdgeTable(std::shared_ptr<EdgeSchema> meta);
   EdgeTable(EdgeTable&& edge_table);
 
   EdgeTable(const EdgeTable&) = delete;
@@ -126,7 +102,7 @@ class EdgeTable {
   void dropAndCreateNewUnbundledCSR(bool delete_property);
   std::string get_next_csr_path_suffix();
 
-  EdgeTableMeta meta_;
+  std::shared_ptr<EdgeSchema> meta_;
   std::string work_dir_;
   int memory_level_{0};
   std::atomic<int32_t> csr_alter_version_{0};

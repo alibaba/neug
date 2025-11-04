@@ -90,7 +90,7 @@ class SetOpr : public IUpdateOperator {
   bool set_vertex_property(GraphUpdateInterface& graph, label_t label,
                            vid_t vid, const std::string& key,
                            const RTAny& value) {
-    const auto& properties = graph.schema().get_vertex_property_names(label);
+    auto properties = graph.schema().get_vertex_property_names(label);
     size_t prop_id = properties.size();
     for (size_t i = 0; i < properties.size(); i++) {
       if (properties[i] == key) {
@@ -136,9 +136,9 @@ class SetOpr : public IUpdateOperator {
                           const LabelTriplet& label, Direction dir, vid_t src,
                           vid_t dst, const std::string& key,
                           const std::string& value) {
-    const auto& types = graph.schema().get_edge_properties(
+    auto types = graph.schema().get_edge_properties(
         label.src_label, label.dst_label, label.edge_label);
-    const auto& property_names = graph.schema().get_edge_property_names(
+    auto property_names = graph.schema().get_edge_property_names(
         label.src_label, label.dst_label, label.edge_label);
     PropertyType type(PropertyType::kEmpty);
     size_t col_id = 0;

@@ -54,6 +54,37 @@ class EdgeTableTest : public ::testing::Test {
     std::filesystem::create_directories(SnapshotDirectory());
     std::filesystem::create_directories(WorkDirectory());
     std::filesystem::create_directories(WorkDirectory() / "runtime/tmp");
+
+    schema_.AddVertexLabel("person", {}, {},
+                           {std::make_tuple(gs::PropertyType::kInt64, "id", 0)},
+                           {gs::StorageStrategy::kMem},
+                           static_cast<size_t>(1) << 32, "person vertex label");
+    schema_.AddVertexLabel(
+        "comment", {}, {}, {std::make_tuple(gs::PropertyType::kInt64, "id", 0)},
+        {gs::StorageStrategy::kMem}, static_cast<size_t>(1) << 32,
+        "comment vertex label");
+    schema_.AddEdgeLabel(
+        "person", "comment", "create1", {gs::PropertyType::kInt32}, {"data"},
+        {gs::StorageStrategy::kMem}, gs::EdgeStrategy::kMultiple,
+        gs::EdgeStrategy::kMultiple, true, true, false,
+        "person creates comment edge");
+    schema_.AddEdgeLabel(
+        "person", "comment", "create2", {gs::PropertyType::kStringView},
+        {"data"}, {gs::StorageStrategy::kMem}, gs::EdgeStrategy::kMultiple,
+        gs::EdgeStrategy::kMultiple, true, true, false,
+        "person creates comment edge");
+    schema_.AddEdgeLabel(
+        "person", "comment", "create3",
+        {gs::PropertyType::kStringView, gs::PropertyType::kInt32},
+        {"data0", "data1"},
+        {gs::StorageStrategy::kMem, gs::StorageStrategy::kMem},
+        gs::EdgeStrategy::kMultiple, gs::EdgeStrategy::kMultiple, true, true,
+        false, "person creates comment edge with two properties");
+    src_label_ = schema_.get_vertex_label_id("person");
+    dst_label_ = schema_.get_vertex_label_id("comment");
+    edge_label_int_ = schema_.get_edge_label_id("create1");
+    edge_label_str_ = schema_.get_edge_label_id("create2");
+    edge_label_str_int_ = schema_.get_edge_label_id("create3");
   }
   void TearDown() override {
     if (std::filesystem::exists(temp_dir_)) {
@@ -84,8 +115,10 @@ class EdgeTableTest : public ::testing::Test {
         WorkDirectory().string(), gs::PropertyType::Int64());
   }
 
-  void ConstructEdgeTable(const gs::EdgeTableMeta& meta) {
-    edge_table = std::make_unique<gs::EdgeTable>(meta);
+  void ConstructEdgeTable(gs::label_t src_label, gs::label_t dst_label,
+                          gs::label_t edge_label) {
+    edge_table = std::make_unique<gs::EdgeTable>(
+        schema_.get_edge_schema(src_label, dst_label, edge_label));
   }
 
   void OpenEdgeTable() { edge_table->Open(WorkDirectory().string()); }
@@ -162,6 +195,9 @@ class EdgeTableTest : public ::testing::Test {
   std::unique_ptr<gs::EdgeTable> edge_table = nullptr;
   gs::LFIndexer<gs::vid_t> src_indexer;
   gs::LFIndexer<gs::vid_t> dst_indexer;
+  gs::Schema schema_;
+  gs::label_t src_label_, dst_label_, edge_label_int_, edge_label_str_,
+      edge_label_str_int_;
 
  private:
   std::filesystem::path temp_dir_;
@@ -193,11 +229,7 @@ TEST_F(EdgeTableTest, TestBundledInt32) {
                                            {src_arrs, dst_arrs, data_arrs});
 
   this->InitIndexers(src_num, dst_num);
-  gs::EdgeTableMeta meta(
-      "person", "comment", "create", true, true, gs::EdgeStrategy::kMultiple,
-      gs::EdgeStrategy::kMultiple, {gs::PropertyType::kInt32}, {"data"},
-      {gs::StorageStrategy::kMem});
-  this->ConstructEdgeTable(meta);
+  this->ConstructEdgeTable(src_label_, dst_label_, edge_label_int_);
   this->OpenEdgeTable();
   this->BatchInsert(std::move(batches));
 
@@ -267,11 +299,7 @@ TEST_F(EdgeTableTest, TestSeperatedString) {
                                            {src_arrs, dst_arrs, data_arrs});
 
   this->InitIndexers(src_num, dst_num);
-  gs::EdgeTableMeta meta(
-      "person", "comment", "create", true, true, gs::EdgeStrategy::kMultiple,
-      gs::EdgeStrategy::kMultiple, {gs::PropertyType::kStringView}, {"data"},
-      {gs::StorageStrategy::kMem});
-  this->ConstructEdgeTable(meta);
+  this->ConstructEdgeTable(src_label_, dst_label_, edge_label_str_);
   this->OpenEdgeTable();
   this->BatchInsert(std::move(batches));
 
@@ -344,13 +372,7 @@ TEST_F(EdgeTableTest, TestSeperatedIntString) {
                                 {src_arrs, dst_arrs, data_arrs0, data_arrs1});
 
   this->InitIndexers(src_num, dst_num);
-  gs::EdgeTableMeta meta(
-      "person", "comment", "create", true, true, gs::EdgeStrategy::kMultiple,
-      gs::EdgeStrategy::kMultiple,
-      {gs::PropertyType::kStringView, gs::PropertyType::kInt32},
-      {"prop0", "prop1"},
-      {gs::StorageStrategy::kMem, gs::StorageStrategy::kMem});
-  this->ConstructEdgeTable(meta);
+  this->ConstructEdgeTable(src_label_, dst_label_, edge_label_str_int_);
   this->OpenEdgeTable();
   this->BatchInsert(std::move(batches));
 
@@ -409,7 +431,7 @@ TEST_F(EdgeTableTest, TestSeperatedIntString) {
   this->edge_table->Dump(this->SnapshotDirectory().string());
   this->edge_table.reset();
 
-  this->ConstructEdgeTable(meta);
+  this->ConstructEdgeTable(src_label_, dst_label_, edge_label_str_int_);
   this->OpenEdgeTable();
   {
     std::vector<int64_t> srcs, dsts;
@@ -480,11 +502,7 @@ TEST_F(EdgeTableTest, TestCountEdgeNum) {
                                            {src_arrs, dst_arrs, data_arrs});
 
   this->InitIndexers(src_num, dst_num);
-  gs::EdgeTableMeta meta(
-      "person", "comment", "create", true, true, gs::EdgeStrategy::kMultiple,
-      gs::EdgeStrategy::kMultiple, {gs::PropertyType::kInt32}, {"data"},
-      {gs::StorageStrategy::kMem});
-  this->ConstructEdgeTable(meta);
+  this->ConstructEdgeTable(src_label_, dst_label_, edge_label_int_);
   this->OpenEdgeTable();
   this->BatchInsert(std::move(batches));
 

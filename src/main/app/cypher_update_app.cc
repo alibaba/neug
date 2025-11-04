@@ -189,7 +189,7 @@ result<results::CollectiveResults> CypherUpdateApp::execute_drop_vertex_schema(
   auto vertex_type_name = drop_vertex_schema.vertex_type().name();
   // Todo(NENG): Always drop vertex type with detach mode
   auto ret = graph_.DeleteVertexType(
-      vertex_type_name, true,
+      vertex_type_name,
       conflict_action_to_bool(drop_vertex_schema.conflict_action()));
   if (ret.ok()) {
     return results::CollectiveResults();
@@ -300,7 +300,7 @@ result<results::CollectiveResults> CypherUpdateApp::execute_ddl(
       int32_t defs_size = create_edge_defs.size();
       while (succeed_index < defs_size) {
         const auto& create_edge_def = create_edge_defs[succeed_index];
-        auto status = graph_.create_edge_type(
+        auto status = graph_.CreateEdgeType(
             std::get<0>(create_edge_def), std::get<1>(create_edge_def),
             std::get<2>(create_edge_def), std::get<3>(create_edge_def),
             std::get<4>(create_edge_def), std::get<5>(create_edge_def),

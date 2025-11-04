@@ -22,6 +22,7 @@
 #include <vector>
 
 #include "neug/storages/file_names.h"
+#include "neug/storages/graph/schema.h"
 #include "neug/storages/graph/vertex_table.h"
 #include "neug/transaction/transaction_utils.h"
 #include "neug/utils/property/types.h"
@@ -46,6 +47,11 @@ class VertexTableBenchmark : public ::testing::Test {
                        gs::PropertyType::kDouble};
     storage_strategies_ = {gs::StorageStrategy::kMem, gs::StorageStrategy::kMem,
                            gs::StorageStrategy::kMem};
+    pk_types_ = {{gs::PropertyType::kStringView, "name", 0}};
+    description = "Person vertex label";
+    v_schema_ = std::make_shared<gs::VertexSchema>(
+        property_types_, property_names_, pk_types_, storage_strategies_,
+        description);
 
     // Initialize random number generator
     generator_.seed(42);  // Fixed seed for reproducible results
@@ -161,14 +167,16 @@ class VertexTableBenchmark : public ::testing::Test {
   std::vector<std::string> property_names_;
   std::vector<gs::PropertyType> property_types_;
   std::vector<gs::StorageStrategy> storage_strategies_;
+  std::shared_ptr<gs::VertexSchema> v_schema_;
+  std::vector<std::tuple<gs::PropertyType, std::string, size_t>> pk_types_;
+  std::string description;
   std::mt19937 generator_;
 };
 
 TEST_F(VertexTableBenchmark, AddVertexPerformance) {
   const size_t vertex_count = 1000000;
 
-  gs::VertexTable table(v_label_name_, pk_type_, property_names_,
-                        property_types_, storage_strategies_);
+  gs::VertexTable table(v_label_name_, pk_type_, v_schema_);
   CreateAndOpenVertexTable(table);
   table.Reserve(vertex_count);
 
@@ -199,8 +207,7 @@ TEST_F(VertexTableBenchmark, GetOidPerformance) {
   const size_t vertex_count = 100000000;
   const size_t lookup_count = 25000000;
 
-  gs::VertexTable table(v_label_name_, pk_type_, property_names_,
-                        property_types_, storage_strategies_);
+  gs::VertexTable table(v_label_name_, pk_type_, v_schema_);
 
   CreateAndOpenVertexTable(table);
   AddVerticesWithProperties(table, vertex_count);
@@ -258,8 +265,7 @@ TEST_F(VertexTableBenchmark, GetIndexPerformance) {
   const size_t vertex_count = 100000000;
   const size_t lookup_count = 25000000;
 
-  gs::VertexTable table(v_label_name_, pk_type_, property_names_,
-                        property_types_, storage_strategies_);
+  gs::VertexTable table(v_label_name_, pk_type_, v_schema_);
 
   CreateAndOpenVertexTable(table);
   AddVerticesWithProperties(table, vertex_count);
@@ -325,8 +331,7 @@ TEST_F(VertexTableBenchmark, GetIndexPerformance) {
 TEST_F(VertexTableBenchmark, VertexSetPerformance) {
   const size_t vertex_count = 100000000;
 
-  gs::VertexTable table(v_label_name_, pk_type_, property_names_,
-                        property_types_, storage_strategies_);
+  gs::VertexTable table(v_label_name_, pk_type_, v_schema_);
 
   CreateAndOpenVertexTable(table);
   AddVerticesWithProperties(table, vertex_count);
@@ -381,8 +386,7 @@ TEST_F(VertexTableBenchmark, MixedOperationsPerformance) {
   const size_t vertex_count = 100000000;
   const size_t operation_count = 25000000;
 
-  gs::VertexTable table(v_label_name_, pk_type_, property_names_,
-                        property_types_, storage_strategies_);
+  gs::VertexTable table(v_label_name_, pk_type_, v_schema_);
 
   CreateAndOpenVertexTable(table);
   AddVerticesWithProperties(table, vertex_count);

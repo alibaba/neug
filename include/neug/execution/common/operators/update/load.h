@@ -67,7 +67,7 @@ class Load {
     int row_num = ctxs.row_num();
     auto& id_c = ctxs.get(id_col);
 
-    auto& prop_types = graph.schema().get_vertex_properties(label);
+    auto prop_types = graph.schema().get_vertex_properties(label);
 
     for (int row = 0; row < row_num; ++row) {
       const auto& id = id_c.get(row).to_prop(pk_type);
@@ -107,7 +107,7 @@ class Load {
     for (const auto& vertex_mapping : vertex_mappings) {
       auto [label, id_col, pk_type, properties] = vertex_mapping;
       auto id_c = ctxs.get(id_col);
-      auto& prop_types = graph.schema().get_vertex_properties(label);
+      auto prop_types = graph.schema().get_vertex_properties(label);
       for (int row = 0; row < row_num; ++row) {
         const auto& id = id_c.get(row).to_prop(pk_type);
         std::vector<Property> props;

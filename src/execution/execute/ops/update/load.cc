@@ -192,9 +192,9 @@ parse_edge_mapping(
   const auto src_label_id = schema.get_vertex_label_id(src_label);
   const auto dst_label_id = schema.get_vertex_label_id(dst_label);
   const auto edge_label_id = schema.get_edge_label_id(edge_label);
-  const auto& prop_names =
+  auto prop_names =
       schema.get_edge_property_names(src_label_id, dst_label_id, edge_label_id);
-  const auto& prop_types =
+  auto prop_types =
       schema.get_edge_properties(src_label_id, dst_label_id, edge_label_id);
   CHECK_EQ(edge_mapping.source_vertex_mappings_size(), 1);
   CHECK_EQ(edge_mapping.destination_vertex_mappings_size(), 1);
@@ -240,8 +240,8 @@ parse_vertex_mapping(
   auto pk_type = get_vertex_pk_type(schema, vertex_label_id);
 
   const auto& vertex_prop_types = schema.get_vertex_properties(vertex_label_id);
-  const auto& prop_map =
-      schema.get_vprop_name_to_type_and_index(vertex_label_id);
+  const auto& vertex_prop_names =
+      schema.get_vertex_property_names(vertex_label_id);
 
   const auto& props = vertex_mapping.column_mappings();
   size_t prop_size = vertex_mapping.column_mappings_size();
@@ -256,7 +256,10 @@ parse_vertex_mapping(
     if (prop_name == pk_name) {
       id_col = prop.column().index();
     } else {
-      const auto& prop_idx = prop_map.at(prop_name).second;
+      auto it = std::find(vertex_prop_names.begin(), vertex_prop_names.end(),
+                          prop_name);
+      CHECK(it != vertex_prop_names.end()) << "property name not found";
+      size_t prop_idx = std::distance(vertex_prop_names.begin(), it);
       properties[prop_idx] = prop.column().index();
     }
   }

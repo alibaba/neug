@@ -30,6 +30,9 @@
 #include "neug/utils/property/types.h"
 #include "neug/utils/result.h"
 
+#include "libgrape-lite/grape/serialization/in_archive.h"
+#include "libgrape-lite/grape/serialization/out_archive.h"
+
 namespace YAML {
 class Node;
 }
@@ -37,7 +40,111 @@ class Node;
 namespace grape {
 class LocalIOAdaptor;
 }
+
 namespace gs {
+
+class PropertyGraph;
+class Schema;
+
+struct VertexSchema {
+  VertexSchema() = default;
+  VertexSchema(const std::vector<PropertyType>& property_types_,
+               const std::vector<std::string>& property_names_,
+               const std::vector<std::tuple<PropertyType, std::string, size_t>>&
+                   primary_keys_,
+               const std::vector<StorageStrategy>& storage_strategies_,
+               const std::string& description_ = "",
+               size_t max_num_ = static_cast<size_t>(1) << 32)
+      : property_types(property_types_),
+        property_names(property_names_),
+        primary_keys(primary_keys_),
+        storage_strategies(storage_strategies_),
+        description(description_),
+        max_num(max_num_) {
+    storage_strategies.resize(property_types_.size(), StorageStrategy::kMem);
+  }
+
+  void clear();
+
+  void add_properties(const std::vector<std::string>& names,
+                      const std::vector<PropertyType>& types,
+                      const std::vector<StorageStrategy>& strategies);
+
+  void set_properties(const std::vector<PropertyType>& types,
+                      const std::vector<StorageStrategy>& strategies);
+
+  void rename_properties(const std::vector<std::string>& names,
+                         const std::vector<std::string>& renames);
+
+  void delete_properties(const std::vector<std::string>& names);
+
+  bool has_property(const std::string& prop) const;
+
+  std::vector<PropertyType> property_types;
+  std::vector<std::string> property_names;
+  // <PropertyType, property_name, index_in_property_list>
+  std::vector<std::tuple<PropertyType, std::string, size_t>> primary_keys;
+  std::vector<StorageStrategy> storage_strategies;
+  std::string description;
+  size_t max_num;
+
+  friend class Schema;
+};
+
+struct EdgeSchema {
+  EdgeSchema() = default;
+  EdgeSchema(const std::string& src_label_name_,
+             const std::string& dst_label_name_,
+             const std::string& edge_label_name_, bool sort_on_compaction_,
+             const std::string& description_, bool ie_mutable_,
+             bool oe_mutable_, EdgeStrategy oe_strategy_,
+             EdgeStrategy ie_strategy_,
+             const std::vector<PropertyType>& properties_,
+             const std::vector<std::string>& property_names_,
+             const std::vector<StorageStrategy>& strategies_)
+      : src_label_name(src_label_name_),
+        dst_label_name(dst_label_name_),
+        edge_label_name(edge_label_name_),
+        sort_on_compaction(sort_on_compaction_),
+        description(description_),
+        ie_mutable(ie_mutable_),
+        oe_mutable(oe_mutable_),
+        oe_strategy(oe_strategy_),
+        ie_strategy(ie_strategy_),
+        properties(properties_),
+        property_names(property_names_),
+        strategies(strategies_) {
+    strategies.resize(properties_.size(), StorageStrategy::kMem);
+    CHECK(properties.size() == property_names.size());
+    CHECK(properties.size() == strategies.size());
+  }
+
+  bool is_bundled() const;
+
+  bool has_property(const std::string& prop) const;
+
+  void add_properties(const std::vector<std::string>& names,
+                      const std::vector<PropertyType>& types,
+                      const std::vector<StorageStrategy>& new_strategies = {});
+
+  void rename_properties(const std::vector<std::string>& names,
+                         const std::vector<std::string>& renames);
+
+  void delete_properties(const std::vector<std::string>& names);
+
+  std::string src_label_name, dst_label_name, edge_label_name;
+  bool sort_on_compaction;
+  std::string description;
+  bool ie_mutable;
+  bool oe_mutable;
+  EdgeStrategy oe_strategy;
+  EdgeStrategy ie_strategy;
+  std::vector<PropertyType> properties;
+  std::vector<std::string> property_names;
+  std::vector<StorageStrategy> strategies;
+
+  friend class Schema;
+};
 
 class Schema {
  public:
@@ -78,7 +185,19 @@ class Schema {
     return vlabel_indexer_.empty() && elabel_indexer_.empty();
   }
 
-  void add_vertex_label(
+  std::shared_ptr<VertexSchema> get_vertex_schema(label_t label) {
+    return v_schemas_.at(label);
+  }
+
+  std::shared_ptr<EdgeSchema> get_edge_schema(label_t src_label,
+                                              label_t dst_label,
+                                              label_t edge_label) {
+    auto key = generate_edge_label(src_label, dst_label, edge_label);
+    assert(e_schemas_.count(key) > 0);
+    return e_schemas_.at(key);
+  }
+
+  void AddVertexLabel(
       const std::string& label, const std::vector<PropertyType>& property_types,
       const std::vector<std::string>& property_names,
       const std::vector<std::tuple<PropertyType, std::string, size_t>>&
@@ -87,16 +206,53 @@ class Schema {
       size_t max_vnum = static_cast<size_t>(1) << 32,
       const std::string& description = "");
 
-  void add_edge_label(const std::string& src_label,
-                      const std::string& dst_label,
-                      const std::string& edge_label,
-                      const std::vector<PropertyType>& properties,
-                      const std::vector<std::string>& prop_names,
-                      EdgeStrategy oe = EdgeStrategy::kMultiple,
-                      EdgeStrategy ie = EdgeStrategy::kMultiple,
-                      bool oe_mutable = true, bool ie_mutable = true,
-                      bool sort_on_compaction = false,
-                      const std::string& description = "");
+  void AddEdgeLabel(const std::string& src_label, const std::string& dst_label,
+                    const std::string& edge_label,
+                    const std::vector<PropertyType>& properties,
+                    const std::vector<std::string>& prop_names,
+                    const std::vector<StorageStrategy>& strategies = {},
+                    EdgeStrategy oe = EdgeStrategy::kMultiple,
+                    EdgeStrategy ie = EdgeStrategy::kMultiple,
+                    bool oe_mutable = true, bool ie_mutable = true,
+                    bool sort_on_compaction = false,
+                    const std::string& description = "");
+
+  void DeleteVertexLabel(const std::string& label);
+  void DeleteEdgeLabel(const std::string& label);
+  void DeleteEdgeLabel(const label_t& src, const label_t& dst,
+                       const label_t& edge);
+  void DeleteEdgeLabel(const std::string& src, const std::string& dst,
+                       const std::string& edge);
+
+  void AddVertexProperties(const std::string& label,
+                           std::vector<std::string>& properties_names,
+                           std::vector<PropertyType>& properties_types,
+                           std::vector<StorageStrategy>& storage_strategies,
+                           std::vector<Property>& properties_default_values);
+  void AddEdgeProperties(const std::string& src_label,
+                         const std::string& dst_label,
+                         const std::string& edge_label,
+                         std::vector<std::string>& properties_names,
+                         std::vector<PropertyType>& properties_types,
+                         std::vector<Property>& properties_default_values);
+
+  void RenameVertexProperties(const std::string& label,
+                              std::vector<std::string>& properties_names,
+                              std::vector<std::string>& properties_renames);
+
+  void RenameEdgeProperties(const std::string& src_label,
+                            const std::string& dst_label,
+                            const std::string& edge_label,
+                            std::vector<std::string>& properties_names,
+                            std::vector<std::string>& properties_renames);
+
+  void DeleteVertexProperties(const std::string& label,
+                              std::vector<std::string>& properties_names);
+
+  void DeleteEdgeProperties(const std::string& src_label,
+                            const std::string& dst_label,
+                            const std::string& edge_label,
+                            std::vector<std::string>& properties_names);
 
   label_t vertex_label_num() const;
 
@@ -114,22 +270,21 @@ class Schema {
       label_t label_id, const std::vector<PropertyType>& types,
       const std::vector<StorageStrategy>& strategies = {});
 
-  const std::vector<PropertyType>& get_vertex_properties(
+  std::vector<PropertyType> get_vertex_properties(
       const std::string& label) const;
 
-  const std::vector<std::string>& get_vertex_property_names(
+  std::vector<PropertyType> get_vertex_properties(label_t label) const;
+
+  std::vector<std::string> get_vertex_property_names(
       const std::string& label) const;
+
+  std::vector<std::string> get_vertex_property_names(label_t label) const;
 
   const std::string& get_vertex_description(const std::string& label) const;
 
-  const std::vector<PropertyType>& get_vertex_properties(label_t label) const;
-
-  const std::vector<std::string>& get_vertex_property_names(
-      label_t label) const;
-
   const std::string& get_vertex_description(label_t label) const;
 
-  const std::vector<StorageStrategy>& get_vertex_storage_strategies(
+  std::vector<StorageStrategy> get_vertex_storage_strategies(
       const std::string& label) const;
 
   size_t get_max_vnum(const std::string& label) const;
@@ -140,13 +295,13 @@ class Schema {
   bool exist(label_type src_label, label_type dst_label,
              label_type edge_label) const;
 
-  const std::vector<PropertyType>& get_edge_properties(
-      const std::string& src_label, const std::string& dst_label,
-      const std::string& label) const;
+  std::vector<PropertyType> get_edge_properties(const std::string& src_label,
+                                                const std::string& dst_label,
+                                                const std::string& label) const;
 
-  const std::vector<PropertyType>& get_edge_properties(label_t src_label,
-                                                       label_t dst_label,
-                                                       label_t label) const;
+  std::vector<PropertyType> get_edge_properties(label_t src_label,
+                                                label_t dst_label,
+                                                label_t label) const;
 
   std::string get_edge_description(const std::string& src_label,
                                    const std::string& dst_label,
@@ -155,18 +310,18 @@ class Schema {
   std::string get_edge_description(label_t src_label, label_t dst_label,
                                    label_t label) const;
 
-  PropertyType get_edge_property(label_t src, label_t dst, label_t edge) const;
-
-  const std::vector<std::string>& get_edge_property_names(
+  std::vector<std::string> get_edge_property_names(
       const std::string& src_label, const std::string& dst_label,
       const std::string& label) const;
 
-  const std::vector<std::string>& get_edge_property_names(
-      const label_t& src_label, const label_t& dst_label,
-      const label_t& label) const;
+  std::vector<std::string> get_edge_property_names(const label_t& src_label,
+                                                   const label_t& dst_label,
+                                                   const label_t& label) const;
 
   bool vertex_has_property(const std::string& label,
                            const std::string& prop) const;
+
+  bool vertex_has_property(label_t label, const std::string& prop) const;
 
   bool vertex_has_primary_key(const std::string& label,
                               const std::string& prop) const;
@@ -176,16 +331,15 @@ class Schema {
                          const std::string& edge_label,
                          const std::string& prop) const;
 
+  bool edge_has_property(label_t src_label, label_t dst_label,
+                         label_t edge_label, const std::string& prop) const;
+
   bool has_edge_label(const std::string& src_label,
                       const std::string& dst_label,
                       const std::string& edge_label) const;
 
   bool has_edge_label(label_t src_label, label_t dst_label,
                       label_t edge_label) const;
-
-  bool valid_edge_property(const std::string& src_label,
-                           const std::string& dst_label,
-                           const std::string& label) const;
 
   EdgeStrategy get_outgoing_edge_strategy(const std::string& src_label,
                                           const std::string& dst_label,
@@ -199,14 +353,16 @@ class Schema {
                                                  label_t dst_label,
                                                  label_t label) const {
     uint32_t index = generate_edge_label(src_label, dst_label, label);
-    return oe_strategy_.at(index);
+    assert(e_schemas_.count(index) > 0);
+    return e_schemas_.at(index)->oe_strategy;
   }
 
   inline EdgeStrategy get_incoming_edge_strategy(label_t src_label,
                                                  label_t dst_label,
                                                  label_t label) const {
     uint32_t index = generate_edge_label(src_label, dst_label, label);
-    return ie_strategy_.at(index);
+    assert(e_schemas_.count(index) > 0);
+    return e_schemas_.at(index)->ie_strategy;
   }
 
   bool outgoing_edge_mutable(const std::string& src_label,
@@ -277,51 +433,10 @@ class Schema {
 
   std::string GetVersion() const;
 
-  const std::unordered_map<std::string, std::pair<PropertyType, uint8_t>>&
-  get_vprop_name_to_type_and_index(label_t label) const;
-
-  void AddVertexProperties(const std::string& label,
-                           std::vector<std::string>& properties_names,
-                           std::vector<PropertyType>& properties_types,
-                           std::vector<StorageStrategy>& storage_strategies,
-                           std::vector<Property>& properties_default_values);
-
-  void update_vertex_properties(const std::string& label,
-                                std::vector<std::string>& properties_names,
-                                std::vector<std::string>& properties_renames);
-
-  void DeleteVertexProperties(const std::string& label,
-                              std::vector<std::string>& properties_names);
-
-  void delete_vertex_label(const std::string& label);
-
-  void delete_edge_label(const std::string& label);
-
-  void delete_edge_label(const std::string& src, const std::string& dst,
-                         const std::string& edge);
-
-  void delete_edge_label(const label_t& src, const label_t& dst,
-                         const label_t& edge);
-
-  void AddEdgeProperties(const std::string& src_label,
-                         const std::string& dst_label,
-                         const std::string& edge_label,
-                         std::vector<std::string>& properties_names,
-                         std::vector<PropertyType>& properties_types,
-                         std::vector<Property>& properties_default_values);
-
-  void update_edge_properties(const std::string& src_label,
-                              const std::string& dst_label,
-                              const std::string& edge_label,
-                              std::vector<std::string>& properties_names,
-                              std::vector<std::string>& properties_renames);
-
-  void DeleteEdgeProperties(const std::string& src_label,
-                            const std::string& dst_label,
-                            const std::string& edge_label,
-                            std::vector<std::string>& properties_names);
-
   uint32_t generate_edge_label(label_t src, label_t dst, label_t edge) const;
+
+  std::tuple<label_t, label_t, label_t> parse_edge_label(
+      uint32_t edge_label) const;
 
   /*
   Get the Edge strategy for the specified edge triplet. MANY_TO_MANY,
@@ -329,33 +444,24 @@ class Schema {
   */
   std::string get_edge_strategy(label_t src, label_t dst, label_t edge) const;
 
- private:
+  void ensure_vertex_label_valid(label_t label) const;
+  void ensure_edge_label_valid(label_t label) const;
+  void ensure_edge_triplet_valid(label_t src, label_t dst, label_t edge) const;
   label_t vertex_label_to_index(const std::string& label);
 
+ private:
   label_t edge_label_to_index(const std::string& label);
+  // Internal methods that do not check tombstone
+  label_t get_edge_label_id_internal(const std::string& label) const;
 
   std::string name_, id_;
   IdIndexer<std::string, label_t> vlabel_indexer_;
   IdIndexer<std::string, label_t> elabel_indexer_;
-  std::vector<std::vector<PropertyType>> vproperties_;
-  std::vector<std::vector<std::string>> vprop_names_;
-  std::vector<std::vector<Property>> vprop_default_values_;
-  std::vector<std::string> v_descriptions_;
-  std::vector<std::vector<std::tuple<PropertyType, std::string, size_t>>>
-      v_primary_keys_;  // the third element is the index of the property in
-                        // the vertex property list
-  std::vector<std::vector<StorageStrategy>> vprop_storage_;
-  std::map<uint32_t, std::vector<PropertyType>> eproperties_;
-  std::map<uint32_t, std::vector<std::string>> eprop_names_;
-  std::map<uint32_t, std::string> e_descriptions_;
-  std::map<uint32_t, EdgeStrategy> oe_strategy_;
-  std::map<uint32_t, EdgeStrategy> ie_strategy_;
-  std::map<uint32_t, bool> oe_mutability_;
-  std::map<uint32_t, bool> ie_mutability_;
-  std::map<uint32_t, bool> sort_on_compactions_;
-  std::vector<std::unordered_map<std::string, std::pair<PropertyType, uint8_t>>>
-      vprop_name_to_type_and_index_;
-  std::vector<size_t> max_vnum_;
+  // We use shared_ptr to ensure the pointer to VertexSchema will not change
+  // when resizing
+  std::vector<std::shared_ptr<VertexSchema>> v_schemas_;
+  std::unordered_map<uint32_t, std::shared_ptr<EdgeSchema>> e_schemas_;
+
   std::string description_;
   std::string version_;
   std::string remote_path_;  // The path to the data on the remote storage
@@ -363,7 +469,14 @@ class Schema {
   Bitset vlabel_tomb_;
   Bitset elabel_tomb_;          // tombstone for edge label
   Bitset elabel_triplet_tomb_;  // tombstone for edge label triplet
+
+  friend class PropertyGraph;
 };
+
+grape::InArchive& operator<<(grape::InArchive& arc, const VertexSchema& schema);
+grape::InArchive& operator<<(grape::InArchive& arc, const EdgeSchema& schema);
+grape::OutArchive& operator>>(grape::OutArchive& arc, VertexSchema& schema);
+grape::OutArchive& operator>>(grape::OutArchive& arc, EdgeSchema& schema);
 
 }  // namespace gs
 

@@ -196,7 +196,7 @@ std::unique_ptr<IUpdateOperator> BatchInsertEdgeOprBuilder::Build(
 
   PropertyType src_pk_type, dst_pk_type;
   std::vector<PropertyType> edge_prop_types;
-  auto& edge_props = schema.get_edge_properties(src_type, dst_type, edge_type);
+  auto edge_props = schema.get_edge_properties(src_type, dst_type, edge_type);
   if (edge_props.empty()) {
     edge_prop_types.emplace_back(PropertyType::Empty());
   } else {
@@ -286,7 +286,7 @@ gs::result<Context> InsertEdgeOpr::eval_impl(
 
     auto edge_properties_name = graph.schema().get_edge_property_names(
         src_label_id, dst_label_id, edge_label_id);
-    const auto& edge_properties_type = graph.schema().get_edge_properties(
+    auto edge_properties_type = graph.schema().get_edge_properties(
         src_label_id, dst_label_id, edge_label_id);
     std::vector<Property> edge_properties_ordered;
     edge_properties_ordered.resize(edge_properties.size());

@@ -587,10 +587,10 @@ CreateVertexType(
   - `primary_key_names`
   - `error_on_conflict`
 
-#### `create_edge_type(...)`
+#### `CreteEdgeType(...)`
 
 ```cpp
-create_edge_type(
+CreteEdgeType(
     const std::string &src_vertex_type,
     const std::string &dst_vertex_type,
     const std::string &edge_type_name,

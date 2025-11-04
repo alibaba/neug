@@ -32,3 +32,6 @@ add_neug_test(vertex_table_benchmark vertex_table_benchmark.cc)
 add_neug_test(test_vertex_table test_vertex_table.cc)
 
 add_neug_test(test_extension test_extension.cc)
+
+# Schema tests
+add_neug_test(schema_test schema_test.cc)

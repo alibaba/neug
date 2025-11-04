@@ -236,7 +236,7 @@ bool tc_fusable(const physical::EdgeExpand& ee_opr0,
 
 inline bool parse_edge_type(const Schema& schema, const LabelTriplet& label,
                             PropertyType& ep) {
-  const auto& properties0 = schema.get_edge_properties(
+  auto properties0 = schema.get_edge_properties(
       label.src_label, label.dst_label, label.edge_label);
   if (properties0.empty()) {
     ep = PropertyType::Empty();

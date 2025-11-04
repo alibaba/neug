@@ -81,7 +81,7 @@ gs::result<Context> UpdateEdgeOpr::Eval(
       LOG(INFO) << "edge: , label_id: " << static_cast<int>(label_id)
                 << ", src_label: " << static_cast<int>(src_label)
                 << ", dst_label: " << static_cast<int>(dst_label);
-      const auto& property_names = graph.schema().get_edge_property_names(
+      auto property_names = graph.schema().get_edge_property_names(
           src_label, dst_label, label_id);
       int col_id = -1;
       for (size_t i = 0; i < property_names.size(); ++i) {

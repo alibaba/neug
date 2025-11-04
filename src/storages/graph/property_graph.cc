@@ -15,6 +15,9 @@
 
 #include "neug/storages/graph/property_graph.h"
 
+#include <rapidjson/document.h>
+#include <rapidjson/stringbuffer.h>
+#include <rapidjson/writer.h>
 #include <algorithm>
 #include <filesystem>
 #include <set>
@@ -39,9 +42,10 @@ PropertyGraph::PropertyGraph()
 
 PropertyGraph::~PropertyGraph() {
   std::vector<size_t> degree_list(vertex_label_num_, 0);
-  for (size_t i = 0; i < vertex_label_num_; ++i) {
-    degree_list[i] = vertex_tables_[i].LidNum();
-    vertex_tables_[i].Reserve(degree_list[i]);
+  auto vlabel_ids = schema_.get_vertex_label_ids();
+  for (auto vlabel : vlabel_ids) {
+    degree_list[vlabel] = vertex_tables_[vlabel].LidNum();
+    vertex_tables_[vlabel].Reserve(degree_list[vlabel]);
   }
   for (size_t src_label = 0; src_label != vertex_label_num_; ++src_label) {
     for (size_t dst_label = 0; dst_label != vertex_label_num_; ++dst_label) {
@@ -166,10 +170,11 @@ Status PropertyGraph::CreateVertexType(
   }
   std::vector<StorageStrategy> strategies(property_types.size(),
                                           StorageStrategy::kMem);
-  std::string description;
-  schema_.add_vertex_label(vertex_type_name, property_types, property_names,
-                           primary_keys, strategies, Schema::MAX_VNUM,
-                           description);
+  LOG(INFO) << "CreateVertexType: vertex_type_name: " << vertex_type_name
+            << ", properties " << property_names.size()
+            << ", primary_key_names size" << primary_key_names.size();
+  schema_.AddVertexLabel(vertex_type_name, property_types, property_names,
+                         primary_keys, strategies, Schema::MAX_VNUM, "");
   label_t vertex_label_id = schema_.get_vertex_label_id(vertex_type_name);
   if (vertex_label_id < vertex_tables_.size()) {
     if (vertex_tables_[vertex_label_id].is_dropped()) {
@@ -177,7 +182,7 @@ Status PropertyGraph::CreateVertexType(
       auto new_v_table = VertexTable(
           vertex_type_name,
           std::get<0>(schema_.get_vertex_primary_key(vertex_label_id)[0]),
-          property_names, property_types, strategies);
+          schema_.get_vertex_schema(vertex_label_id));
       vertex_tables_[vertex_label_id].Swap(new_v_table);
     } else {
       return Status(StatusCode::ERR_INVALID_SCHEMA,
@@ -187,7 +192,7 @@ Status PropertyGraph::CreateVertexType(
     vertex_tables_.emplace_back(
         vertex_type_name,
         std::get<0>(schema_.get_vertex_primary_key(vertex_label_id)[0]),
-        property_names, property_types, strategies);
+        schema_.get_vertex_schema(vertex_label_id));
   }
   vertex_tables_[vertex_label_id].Open(work_dir_, memory_level_, true);
   vertex_tables_.back().Reserve(4096);
@@ -205,14 +210,14 @@ Status PropertyGraph::CreateVertexType(
   return gs::Status::OK();
 }
 
-Status PropertyGraph::create_edge_type(
+Status PropertyGraph::CreateEdgeType(
     const std::string& src_vertex_type, const std::string& dst_vertex_type,
     const std::string& edge_type_name,
     const std::vector<std::tuple<PropertyType, std::string, Property>>&
         properties,
     bool error_on_conflict, EdgeStrategy oe_edge_strategy,
     EdgeStrategy ie_edge_strategy) {
-  LOG(INFO) << "create_edge_type: src_vertex_type: " << src_vertex_type
+  LOG(INFO) << "CreateEdgeType: src_vertex_type: " << src_vertex_type
             << ", dst_vertex_type: " << dst_vertex_type
             << ", edge_type_name: " << edge_type_name;
   if (!schema_.contains_vertex_label(src_vertex_type)) {
@@ -256,10 +261,10 @@ Status PropertyGraph::create_edge_type(
   bool oe_mutable = true, ie_mutable = true;
   bool cur_sort_on_compaction = false;
   std::string description;
-  schema_.add_edge_label(src_vertex_type, dst_vertex_type, edge_type_name,
-                         property_types, property_names, cur_oe, cur_ie,
-                         oe_mutable, ie_mutable, cur_sort_on_compaction,
-                         description);
+  schema_.AddEdgeLabel(src_vertex_type, dst_vertex_type, edge_type_name,
+                       property_types, property_names, {}, cur_oe, cur_ie,
+                       oe_mutable, ie_mutable, cur_sort_on_compaction,
+                       description);
   edge_label_num_ = schema_.edge_label_num();
 
   label_t src_label_i = schema_.get_vertex_label_id(src_vertex_type);
@@ -267,19 +272,12 @@ Status PropertyGraph::create_edge_type(
   label_t e_label_i = schema_.get_edge_label_id(edge_type_name);
   size_t index =
       schema_.generate_edge_label(src_label_i, dst_label_i, e_label_i);
-  EdgeStrategy oe_strategy = EdgeStrategy::kMultiple;
-  EdgeStrategy ie_strategy = EdgeStrategy::kMultiple;
-  std::vector<StorageStrategy> strategies;
-  for (size_t i = 0; i < property_types.size(); i++) {
-    strategies.emplace_back(StorageStrategy::kMem);
-  }
+
   if (edge_tables_.find(index) != edge_tables_.end()) {
     return Status(StatusCode::ERR_INVALID_SCHEMA, "Edge label id conflict.");
   }
-  EdgeTableMeta meta(src_vertex_type, dst_vertex_type, edge_type_name,
-                     ie_mutable, oe_mutable, ie_strategy, oe_strategy,
-                     property_types, property_names, strategies);
-  EdgeTable edge_table(meta);
+  EdgeTable edge_table(
+      schema_.get_edge_schema(src_label_i, dst_label_i, e_label_i));
   edge_tables_.emplace(index, std::move(edge_table));
   auto src_v_capacity = std::max(
       vertex_tables_[src_label_i].get_indexer().capacity(), (size_t) 4096);
@@ -445,12 +443,11 @@ Status PropertyGraph::RenameVertexProperties(
     update_property_names.emplace_back(property_name);
     update_property_renames.emplace_back(property_rename);
   }
-  schema_.update_vertex_properties(vertex_type_name, update_property_names,
-                                   update_property_renames);
+  schema_.RenameVertexProperties(vertex_type_name, update_property_names,
+                                 update_property_renames);
   label_t v_label = schema_.get_vertex_label_id(vertex_type_name);
   vertex_tables_.at(v_label).RenameProperties(update_property_names,
                                               update_property_renames);
-
   return gs::Status::OK();
 }
 
@@ -489,9 +486,8 @@ Status PropertyGraph::RenameEdgeProperties(
     update_property_names.emplace_back(property_name);
     update_property_renames.emplace_back(property_rename);
   }
-  schema_.update_edge_properties(src_type_name, dst_type_name, edge_type_name,
-                                 update_property_names,
-                                 update_property_renames);
+  schema_.RenameEdgeProperties(src_type_name, dst_type_name, edge_type_name,
+                               update_property_names, update_property_renames);
   label_t src_label = schema_.get_vertex_label_id(src_type_name);
   label_t dst_label = schema_.get_vertex_label_id(dst_type_name);
   label_t e_label = schema_.get_edge_label_id(edge_type_name);
@@ -602,7 +598,7 @@ Status PropertyGraph::DeleteEdgeProperties(
 }
 
 Status PropertyGraph::DeleteVertexType(const std::string& vertex_type_name,
-                                       bool is_detach, bool error_on_conflict) {
+                                       bool error_on_conflict) {
   if (!schema_.contains_vertex_label(vertex_type_name)) {
     if (error_on_conflict) {
       LOG(ERROR) << "Vertex label[" << vertex_type_name << "] does not exists.";
@@ -616,38 +612,37 @@ Status PropertyGraph::DeleteVertexType(const std::string& vertex_type_name,
     return gs::Status::OK();
   }
   label_t v_label_id = schema_.get_vertex_label_id(vertex_type_name);
-  schema_.delete_vertex_label(vertex_type_name);
+  schema_.DeleteVertexLabel(vertex_type_name);
   vertex_tables_[v_label_id].Drop();
 
-  if (is_detach) {
-    for (label_t i = 0; i < vertex_label_num_; i++) {
-      if (!schema_.vertex_label_valid(i)) {
+  for (label_t i = 0; i < vertex_label_num_; i++) {
+    if (!schema_.vertex_label_valid(i)) {
+      continue;
+    }
+    for (label_t j = 0; j < edge_label_num_; j++) {
+      if (!schema_.edge_label_valid(j)) {
         continue;
       }
-      for (label_t j = 0; j < edge_label_num_; j++) {
-        if (!schema_.edge_label_valid(j)) {
-          continue;
-        }
-        if (schema_.exist(v_label_id, i, j)) {
-          schema_.delete_edge_label(v_label_id, i, j);
-          size_t index = schema_.generate_edge_label(v_label_id, i, j);
+      if (schema_.exist(v_label_id, i, j)) {
+        schema_.DeleteEdgeLabel(v_label_id, i, j);
+        size_t index = schema_.generate_edge_label(v_label_id, i, j);
 
-          auto edge_table = edge_tables_.find(index);
-          if (edge_table != edge_tables_.end()) {
-            edge_tables_.erase(index);
-          }
+        auto edge_table = edge_tables_.find(index);
+        if (edge_table != edge_tables_.end()) {
+          edge_tables_.erase(index);
         }
-        if (schema_.exist(i, v_label_id, j)) {
-          schema_.delete_edge_label(i, v_label_id, j);
-          size_t index = schema_.generate_edge_label(i, v_label_id, j);
-          auto edge_table = edge_tables_.find(index);
-          if (edge_table != edge_tables_.end()) {
-            edge_tables_.erase(index);
-          }
+      }
+      if (schema_.exist(i, v_label_id, j)) {
+        schema_.DeleteEdgeLabel(i, v_label_id, j);
+        size_t index = schema_.generate_edge_label(i, v_label_id, j);
+        auto edge_table = edge_tables_.find(index);
+        if (edge_table != edge_tables_.end()) {
+          edge_tables_.erase(index);
         }
       }
     }
   }
+
   vertex_label_num_ = schema_.vertex_label_num();
   return gs::Status::OK();
 }
@@ -674,7 +669,7 @@ Status PropertyGraph::DeleteEdgeType(const std::string& src_vertex_type,
   label_t src_v_label = schema_.get_vertex_label_id(src_vertex_type);
   label_t dst_v_label = schema_.get_vertex_label_id(dst_vertex_type);
   label_t edge_label = schema_.get_edge_label_id(edge_type);
-  schema_.delete_edge_label(src_v_label, dst_v_label, edge_label);
+  schema_.DeleteEdgeLabel(src_v_label, dst_v_label, edge_label);
   size_t index =
       schema_.generate_edge_label(src_v_label, dst_v_label, edge_label);
   auto edge_table = edge_tables_.find(index);
@@ -762,13 +757,13 @@ void PropertyGraph::Open(const std::string& work_dir, int memory_level) {
     edge_label_num_ = schema_.edge_label_num();
     for (size_t i = 0; i < vertex_label_num_; i++) {
       std::string v_label_name = schema_.get_vertex_label_name(i);
-      const auto& properties = schema_.get_vertex_properties(i);
-      const auto& property_names = schema_.get_vertex_property_names(i);
-      const auto& property_strategies =
+      auto properties = schema_.get_vertex_properties(i);
+      auto property_names = schema_.get_vertex_property_names(i);
+      auto property_strategies =
           schema_.get_vertex_storage_strategies(v_label_name);
       vertex_tables_.emplace_back(
           v_label_name, std::get<0>(schema_.get_vertex_primary_key(i)[0]),
-          property_names, properties, property_strategies);
+          schema_.get_vertex_schema(i));
     }
     checkpoint_dir_path = checkpoint_dir(work_dir_);
   } else {
@@ -776,13 +771,13 @@ void PropertyGraph::Open(const std::string& work_dir, int memory_level) {
     edge_label_num_ = schema_.edge_label_num();
     for (size_t i = 0; i < vertex_label_num_; i++) {
       std::string v_label_name = schema_.get_vertex_label_name(i);
-      const auto& properties = schema_.get_vertex_properties(i);
-      const auto& property_names = schema_.get_vertex_property_names(i);
-      const auto& property_strategies =
+      auto properties = schema_.get_vertex_properties(i);
+      auto property_names = schema_.get_vertex_property_names(i);
+      auto property_strategies =
           schema_.get_vertex_storage_strategies(v_label_name);
       vertex_tables_.emplace_back(
           v_label_name, std::get<0>(schema_.get_vertex_primary_key(i)[0]),
-          property_names, properties, property_strategies);
+          schema_.get_vertex_schema(i));
     }
     build_empty_graph = true;
     LOG(INFO) << "Schema file not found, build empty graph";
@@ -829,26 +824,9 @@ void PropertyGraph::Open(const std::string& work_dir, int memory_level) {
         }
         size_t index =
             schema_.generate_edge_label(src_label_i, dst_label_i, e_label_i);
-        auto& properties =
-            schema_.get_edge_properties(src_label, dst_label, edge_label);
-        EdgeStrategy oe_strategy = schema_.get_outgoing_edge_strategy(
-            src_label, dst_label, edge_label);
-        EdgeStrategy ie_strategy = schema_.get_incoming_edge_strategy(
-            src_label, dst_label, edge_label);
-        bool oe_mutable =
-            schema_.outgoing_edge_mutable(src_label, dst_label, edge_label);
-        bool ie_mutable =
-            schema_.incoming_edge_mutable(src_label, dst_label, edge_label);
 
-        auto& prop_names =
-            schema_.get_edge_property_names(src_label, dst_label, edge_label);
-        EdgeTableMeta meta(src_label, dst_label, edge_label, ie_mutable,
-                           oe_mutable, ie_strategy, oe_strategy, properties,
-                           prop_names,
-                           std::vector<StorageStrategy>(properties.size(),
-                                                        StorageStrategy::kMem));
-
-        EdgeTable edge_table(meta);
+        EdgeTable edge_table(
+            schema_.get_edge_schema(src_label_i, dst_label_i, e_label_i));
         if (memory_level == 0) {
           edge_table.Open(work_dir_);
         } else if (memory_level >= 2) {
@@ -888,7 +866,7 @@ void PropertyGraph::Compact(bool reset_timestamp, bool compact_csr,
       }
       for (size_t e_label_i = 0; e_label_i != edge_label_num_; ++e_label_i) {
         if (schema_.edge_label_valid(e_label_i) &&
-            schema_.edge_triplet_valid(src_label_i, dst_label_i, e_label_i)) {
+            schema_.exist(src_label_i, dst_label_i, e_label_i)) {
           size_t index =
               schema_.generate_edge_label(src_label_i, dst_label_i, e_label_i);
           bool sort_on_compaction = schema_.get_sort_on_compaction(
@@ -1002,8 +980,8 @@ bool PropertyGraph::IsValidLid(label_t vertex_label, vid_t lid,
   return vertex_tables_[vertex_label].IsValidLid(lid, ts);
 }
 
-size_t PropertyGraph::edge_num(label_t src_label, label_t edge_label,
-                               label_t dst_label) const {
+size_t PropertyGraph::EdgeNum(label_t src_label, label_t edge_label,
+                              label_t dst_label) const {
   size_t index = schema_.generate_edge_label(src_label, dst_label, edge_label);
   auto edge_table = edge_tables_.find(index);
   if (edge_table != edge_tables_.end()) {
@@ -1033,81 +1011,96 @@ vid_t PropertyGraph::AddVertexSafe(label_t label, const Property& id,
 }
 
 std::string PropertyGraph::get_statistics_json() const {
+  // Generate json string using rapidjson document
+  rapidjson::Document document;
+  document.SetObject();
+  rapidjson::Document::AllocatorType& allocator = document.GetAllocator();
   size_t vertex_count = 0;
-  std::string ss = "\"vertex_type_statistics\": [\n";
-  size_t vertex_label_num = schema_.vertex_label_num();
-  for (size_t idx = 0; idx < vertex_label_num; ++idx) {
-    ss += "{\n\"type_id\": " + std::to_string(idx) + ", \n";
-    ss += "\"type_name\": \"" + schema_.get_vertex_label_name(idx) + "\", \n";
-    size_t count = VertexNum(idx, MAX_TIMESTAMP);
-    ss += "\"count\": " + std::to_string(count) + "\n}";
+  rapidjson::Value vertex_type_statistics(rapidjson::kArrayType);
+  auto label_ids = schema_.get_vertex_label_ids();
+  for (const auto& label_id : label_ids) {
+    auto label_name = schema_.get_vertex_label_name(label_id);
+    rapidjson::Value vertex_type_stat(rapidjson::kObjectType);
+    vertex_type_stat.AddMember(
+        "type_id", rapidjson::Value().SetUint64(label_id), allocator);
+    vertex_type_stat.AddMember(
+        "type_name",
+        rapidjson::Value().SetString(label_name.c_str(), allocator), allocator);
+    size_t count = VertexNum(label_id, MAX_TIMESTAMP);
+    vertex_type_stat.AddMember("count", rapidjson::Value().SetUint64(count),
+                               allocator);
     vertex_count += count;
-    if (idx != vertex_label_num - 1) {
-      ss += ", \n";
-    } else {
-      ss += "\n";
-    }
+    vertex_type_statistics.PushBack(vertex_type_stat, allocator);
   }
-  ss += "]\n";
+  document.AddMember("vertex_type_statistics", vertex_type_statistics,
+                     allocator);
   size_t edge_count = 0;
-
-  size_t edge_label_num = schema_.edge_label_num();
-  std::vector<std::thread> count_threads;
+  rapidjson::Value edge_type_statistics(rapidjson::kArrayType);
   std::unordered_map<uint32_t, size_t> edge_count_map;
   for (const auto& edge_table : edge_tables_) {
     edge_count_map.emplace(edge_table.first, edge_table.second.EdgeNum());
   }
-  for (auto& t : count_threads) {
-    t.join();
-  }
-  ss += ",\n";
-  ss += "\"edge_type_statistics\": [";
-
-  for (size_t edge_label = 0; edge_label < edge_label_num; ++edge_label) {
-    const auto& edge_label_name = schema_.get_edge_label_name(edge_label);
-
-    ss += "{\n\"type_id\": " + std::to_string(edge_label) + ", \n";
-    ss += "\"type_name\": \"" + edge_label_name + "\", \n";
-    ss += "\"vertex_type_pair_statistics\": [\n";
-    bool first = true;
-    std::string props_content{};
-    for (size_t src_label = 0; src_label < vertex_label_num; ++src_label) {
-      const auto& src_label_name = schema_.get_vertex_label_name(src_label);
-      for (size_t dst_label = 0; dst_label < vertex_label_num; ++dst_label) {
-        const auto& dst_label_name = schema_.get_vertex_label_name(dst_label);
-        size_t index =
-            schema_.generate_edge_label(src_label, dst_label, edge_label);
-        if (schema_.exist(src_label_name, dst_label_name, edge_label_name)) {
-          if (!first) {
-            ss += ",\n";
-          }
-          first = false;
-          ss += "{\n\"source_vertex\" : \"" + src_label_name + "\", \n";
-          ss += "\"destination_vertex\" : \"" + dst_label_name + "\", \n";
-          ss +=
-              "\"count\" : " + std::to_string(edge_count_map.at(index)) + "\n";
-          edge_count += edge_count_map.at(index);
-          ss += "}";
+  for (label_t edge_label = 0; edge_label < edge_label_num_; ++edge_label) {
+    auto edge_label_name = schema_.get_edge_label_name(edge_label);
+    rapidjson::Value edge_type_stat(rapidjson::kObjectType);
+    edge_type_stat.AddMember(
+        "type_id", rapidjson::Value().SetUint64(edge_label), allocator);
+    edge_type_stat.AddMember(
+        "type_name",
+        rapidjson::Value().SetString(edge_label_name.c_str(), allocator),
+        allocator);
+    rapidjson::Value vertex_type_pair_statistics(rapidjson::kArrayType);
+    for (label_t src_label = 0; src_label < vertex_label_num_; ++src_label) {
+      if (!schema_.vertex_label_valid(src_label)) {
+        continue;
+      }
+      auto src_label_name = schema_.get_vertex_label_name(src_label);
+      for (label_t dst_label = 0; dst_label < vertex_label_num_; ++dst_label) {
+        if (!schema_.vertex_label_valid(dst_label)) {
+          continue;
         }
+        if (!schema_.exist(src_label, dst_label, edge_label)) {
+          continue;
+        }
+        auto dst_label_name = schema_.get_vertex_label_name(dst_label);
+        auto edge_triplet_id =
+            schema_.generate_edge_label(src_label, dst_label, edge_label);
+        assert(edge_count_map.find(edge_triplet_id) != edge_count_map.end());
+        size_t value = edge_count_map.at(edge_triplet_id);
+
+        rapidjson::Value vertex_type_pair_stat(rapidjson::kObjectType);
+        vertex_type_pair_stat.AddMember(
+            "source_vertex",
+            rapidjson::Value().SetString(src_label_name.c_str(), allocator),
+            allocator);
+        vertex_type_pair_stat.AddMember(
+            "destination_vertex",
+            rapidjson::Value().SetString(dst_label_name.c_str(), allocator),
+            allocator);
+        vertex_type_pair_stat.AddMember(
+            "count", rapidjson::Value().SetUint64(value), allocator);
+        edge_count += value;
+        vertex_type_pair_statistics.PushBack(vertex_type_pair_stat, allocator);
       }
     }
-
-    ss += "\n]\n}";
-    if (edge_label != edge_label_num - 1) {
-      ss += ", \n";
+    if (vertex_type_pair_statistics.Empty()) {
+      continue;
     } else {
-      ss += "\n";
+      edge_type_stat.AddMember("vertex_type_pair_statistics",
+                               vertex_type_pair_statistics, allocator);
+      edge_type_statistics.PushBack(edge_type_stat, allocator);
     }
   }
-  ss += "]\n";
-  LOG(INFO) << "In generateStatistics, vertex count: " << vertex_count
-            << ", edge count: " << edge_count;
-  std::string final_ss =
-      "{\n\"total_vertex_count\": " + std::to_string(vertex_count) + ",\n";
-  final_ss += "\"total_edge_count\": " + std::to_string(edge_count) + ",\n";
-  final_ss += ss;
-  final_ss += "}\n";
-  return final_ss;
+
+  document.AddMember("edge_type_statistics", edge_type_statistics, allocator);
+  document.AddMember("total_vertex_count",
+                     rapidjson::Value().SetUint64(vertex_count), allocator);
+  document.AddMember("total_edge_count",
+                     rapidjson::Value().SetUint64(edge_count), allocator);
+  rapidjson::StringBuffer buffer;
+  rapidjson::Writer<rapidjson::StringBuffer> writer(buffer);
+  document.Accept(writer);
+  return buffer.GetString();
 }
 
 void PropertyGraph::generateStatistics() const {

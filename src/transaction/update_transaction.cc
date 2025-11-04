@@ -60,7 +60,7 @@ UpdateTransaction::UpdateTransaction(PropertyGraph& graph, Allocator& alloc,
   vertex_label_num_ = graph_.schema().vertex_label_num();
   edge_label_num_ = graph_.schema().edge_label_num();
   for (label_t idx = 0; idx < vertex_label_num_; ++idx) {
-    auto type = graph_.vertex_tables_[idx].get_indexer().get_type();
+    auto type = graph_.get_vertex_table(idx).get_indexer().get_type();
     if (type == PropertyType::kInt64) {
       added_vertices_.emplace_back(
           std::make_shared<IdIndexer<int64_t, vid_t>>());
@@ -156,7 +156,7 @@ bool UpdateTransaction::AddVertex(label_t label, const Property& oid,
 bool UpdateTransaction::AddVertex(label_t label, const Property& oid,
                                   const std::vector<Property>& props,
                                   vid_t& vid) {
-  const std::vector<PropertyType>& types =
+  std::vector<PropertyType> types =
       graph_.schema().get_vertex_properties(label);
   if (types.size() != props.size()) {
     return false;
@@ -256,7 +256,7 @@ bool UpdateTransaction::AddEdge(label_t src_label, vid_t src_lid,
     auto es = view.get_edges(dst_lid);
     offset_in = get_offset(es.begin(), es.end(), src_lid);
   }
-  const auto& types =
+  auto types =
       graph_.schema().get_edge_properties(src_label, dst_label, edge_label);
   if (types.size() != properties.size()) {
     LOG(ERROR) << "Edge property size not match, expected " << types.size()
@@ -564,7 +564,7 @@ bool UpdateTransaction::SetVertexField(label_t label, vid_t lid, int col_id,
   auto& vertex_offset = vertex_offsets_[label];
   auto iter = vertex_offset.find(lid);
   auto& extra_table = extra_vertex_properties_[label];
-  const std::vector<PropertyType>& types =
+  std::vector<PropertyType> types =
       graph_.schema().get_vertex_properties(label);
   if (static_cast<size_t>(col_id) >= types.size()) {
     return false;
@@ -629,10 +629,10 @@ void UpdateTransaction::set_edge_data_with_offset(
     label_t edge_label, const Property& value, size_t offset, int32_t col_id) {
   size_t csr_index = dir ? get_out_csr_index(label, neighbor_label, edge_label)
                          : get_in_csr_index(neighbor_label, label, edge_label);
-  const auto& edge_prop_types = dir ? graph_.schema().get_edge_properties(
-                                          label, neighbor_label, edge_label)
-                                    : graph_.schema().get_edge_properties(
-                                          neighbor_label, label, edge_label);
+  auto edge_prop_types = dir ? graph_.schema().get_edge_properties(
+                                   label, neighbor_label, edge_label)
+                             : graph_.schema().get_edge_properties(
+                                   neighbor_label, label, edge_label);
   if (col_id >= 0 && static_cast<size_t>(col_id) >= edge_prop_types.size()) {
     THROW_RUNTIME_ERROR("Column id out of range for edge properties");
   }
@@ -732,7 +732,7 @@ void UpdateTransaction::IngestWal(PropertyGraph& graph,
   size_t edge_label_num = graph.schema().edge_label_num();
 
   for (label_t idx = 0; idx < vertex_label_num; ++idx) {
-    auto type = graph.vertex_tables_[idx].get_indexer().get_type();
+    auto type = graph.get_vertex_table(idx).get_indexer().get_type();
     if (type == PropertyType::kInt64) {
       added_vertices.emplace_back(
           std::make_shared<IdIndexer<int64_t, vid_t>>());
@@ -829,7 +829,7 @@ void UpdateTransaction::IngestWal(PropertyGraph& graph,
       int32_t num_cols;
       arc >> num_cols;
       std::vector<std::pair<int32_t, Property>> values;
-      const auto& edge_prop_types = graph.schema().get_edge_properties(
+      auto edge_prop_types = graph.schema().get_edge_properties(
           dir == 0 ? label : neighbor_label, dir == 0 ? neighbor_label : label,
           edge_label);
       for (size_t i = 0; i < static_cast<size_t>(num_cols); ++i) {

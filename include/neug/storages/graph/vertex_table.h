@@ -16,6 +16,7 @@
 #ifndef STORAGES_RT_MUTABLE_GRAPH_VERTEX_TABLE_H_
 #define STORAGES_RT_MUTABLE_GRAPH_VERTEX_TABLE_H_
 
+#include "neug/storages/graph/schema.h"
 #include "neug/storages/loader/loader_utils.h"
 #include "neug/utils/arrow_utils.h"
 #include "neug/utils/indexers.h"
@@ -26,15 +27,11 @@ namespace gs {
 class VertexTable {
  public:
   VertexTable(std::string v_label_name, PropertyType pk_type,
-              const std::vector<std::string>& property_names,
-              const std::vector<PropertyType>& property_types,
-              const std::vector<StorageStrategy>& storage_strategies)
+              std::shared_ptr<const VertexSchema> vertex_schema)
       : table_(std::make_unique<Table>()),
-        v_label_name_(v_label_name),
         pk_type_(pk_type),
-        property_names(property_names),
-        property_types(property_types),
-        storage_strategies(storage_strategies),
+        v_label_name_(v_label_name),
+        vertex_schema_(vertex_schema),
         memory_level_(1),
         work_dir_(""),
         is_vertex_table_modified_(false) {
@@ -44,13 +41,11 @@ class VertexTable {
   VertexTable(VertexTable&& other)
       : indexer_(std::move(other.indexer_)),
         table_(std::move(other.table_)),
-        v_label_name_(std::move(other.v_label_name_)),
         pk_type_(other.pk_type_),
-        property_names(std::move(other.property_names)),
-        property_types(std::move(other.property_types)),
-        storage_strategies(std::move(other.storage_strategies)),
-        vertex_ts_(std::move(other.vertex_ts_)),
+        v_label_name_(std::move(other.v_label_name_)),
+        vertex_schema_(other.vertex_schema_),
         memory_level_(other.memory_level_),
+        vertex_ts_(std::move(other.vertex_ts_)),
         work_dir_(other.work_dir_),
         is_vertex_table_modified_(false) {}
 
@@ -61,9 +56,7 @@ class VertexTable {
     table_.swap(other.table_);
     std::swap(v_label_name_, other.v_label_name_);
     std::swap(pk_type_, other.pk_type_);
-    std::swap(property_names, other.property_names);
-    std::swap(property_types, other.property_types);
-    std::swap(storage_strategies, other.storage_strategies);
+    std::swap(vertex_schema_, other.vertex_schema_);
     vertex_ts_.swap(other.vertex_ts_);
     std::swap(memory_level_, other.memory_level_);
     std::swap(work_dir_, other.work_dir_);
@@ -241,6 +234,7 @@ class VertexTable {
         break;
       }
       auto columns = batch->columns();
+      auto property_names = vertex_schema_->property_names;
       CHECK(columns.size() == property_names.size() + 1)
           << "Number of columns in the batch (" << columns.size()
           << ") does not match the number of properties ("
@@ -268,14 +262,12 @@ class VertexTable {
 
   IndexerType indexer_;
   std::unique_ptr<Table> table_;
-  std::string v_label_name_;
   PropertyType pk_type_;
-  std::vector<std::string> property_names;
-  std::vector<PropertyType> property_types;
-  std::vector<StorageStrategy> storage_strategies;
+  std::string v_label_name_;
+  std::shared_ptr<const VertexSchema> vertex_schema_;
+  int memory_level_;
   mmap_array<timestamp_t> vertex_ts_;  // maintains the timestamp of each vertex
 
-  int memory_level_;
   std::string work_dir_;
   bool is_vertex_table_modified_;  // No lock or atomic need,
                                    // synchronized with version manager

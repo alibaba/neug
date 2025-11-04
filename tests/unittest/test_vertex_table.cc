@@ -50,6 +50,10 @@ class VertexTableTest : public ::testing::Test {
     storage_strategies_ = {gs::StorageStrategy::kMem, gs::StorageStrategy::kMem,
                            gs::StorageStrategy::kMem};
     vertex_count_ = 1000000;
+    schema_.AddVertexLabel(v_label_name_, property_types_, property_names_,
+                           {std::make_tuple(pk_type_, "id", 0)},
+                           storage_strategies_, 4096, "");
+    v_label_id_ = schema_.get_vertex_label_id(v_label_name_);
   }
   void TearDown() override {
     // remove the directory if it exists
@@ -66,13 +70,15 @@ class VertexTableTest : public ::testing::Test {
   std::vector<gs::PropertyType> property_types_;
   std::vector<gs::StorageStrategy> storage_strategies_;
   std::mt19937 generator_;
+  gs::Schema schema_;
+  gs::label_t v_label_id_ = 0;
 
   size_t vertex_count_;
 };
 
 TEST_F(VertexTableTest, VertexTableBasicOps) {
-  gs::VertexTable table(v_label_name_, pk_type_, property_names_,
-                        property_types_, storage_strategies_);
+  gs::VertexTable table(v_label_name_, pk_type_,
+                        schema_.get_vertex_schema(v_label_id_));
   table.Open(dir_, memory_level_, true);
   table.Reserve(vertex_count_);
 
@@ -124,8 +130,8 @@ TEST_F(VertexTableTest, VertexTableDumpAndReload) {
   std::filesystem::create_directories(gs::checkpoint_dir(dump_dir));
   std::filesystem::create_directories(gs::temp_checkpoint_dir(dump_dir));
   {
-    gs::VertexTable table(v_label_name_, pk_type_, property_names_,
-                          property_types_, storage_strategies_);
+    gs::VertexTable table(v_label_name_, pk_type_,
+                          schema_.get_vertex_schema(v_label_id_));
     table.Open(dump_dir, memory_level_, true);
     table.Reserve(vertex_count_);
 
@@ -147,8 +153,8 @@ TEST_F(VertexTableTest, VertexTableDumpAndReload) {
                           gs::checkpoint_dir(dump_dir));
 
   {
-    gs::VertexTable new_table(v_label_name_, pk_type_, property_names_,
-                              property_types_, storage_strategies_);
+    gs::VertexTable new_table(v_label_name_, pk_type_,
+                              schema_.get_vertex_schema(v_label_id_));
     new_table.Open(dump_dir, memory_level_);
     EXPECT_EQ(new_table.VertexNum(), 3);
     EXPECT_EQ(new_table.LidNum(), 3);
@@ -169,8 +175,8 @@ TEST_F(VertexTableTest, VertexTableAddAndDeleteAndReload) {
   gs::vid_t lid1, lid2, lid3;
   gs::Property oid1, oid2, oid3;
   {
-    gs::VertexTable table(v_label_name_, pk_type_, property_names_,
-                          property_types_, storage_strategies_);
+    gs::VertexTable table(v_label_name_, pk_type_,
+                          schema_.get_vertex_schema(v_label_id_));
     table.Open(dump_dir, memory_level_, true);
     table.Reserve(vertex_count_);
 
@@ -195,8 +201,8 @@ TEST_F(VertexTableTest, VertexTableAddAndDeleteAndReload) {
   std::filesystem::create_directories(gs::temp_checkpoint_dir(dump_dir));
 
   {
-    gs::VertexTable new_table(v_label_name_, pk_type_, property_names_,
-                              property_types_, storage_strategies_);
+    gs::VertexTable new_table(v_label_name_, pk_type_,
+                              schema_.get_vertex_schema(v_label_id_));
     new_table.Open(dump_dir, memory_level_);
     EXPECT_EQ(new_table.VertexNum(), 3);
     EXPECT_EQ(new_table.LidNum(), 3);
@@ -219,8 +225,8 @@ TEST_F(VertexTableTest, VertexTableAddAndDeleteAndReload) {
   std::filesystem::create_directories(gs::temp_checkpoint_dir(dump_dir));
 
   {
-    gs::VertexTable new_table(v_label_name_, pk_type_, property_names_,
-                              property_types_, storage_strategies_);
+    gs::VertexTable new_table(v_label_name_, pk_type_,
+                              schema_.get_vertex_schema(v_label_id_));
     new_table.Open(dump_dir, memory_level_);
     EXPECT_EQ(new_table.VertexNum(), 1);
     EXPECT_EQ(new_table.LidNum(), 3);
