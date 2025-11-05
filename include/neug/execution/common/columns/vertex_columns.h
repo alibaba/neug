@@ -418,9 +418,8 @@ class MLVertexColumnBuilder : public IVertexColumnBuilder {
 class MLVertexColumnBuilderOpt : public IVertexColumnBuilder {
  public:
   explicit MLVertexColumnBuilderOpt(const std::set<label_t>& labels) {
-    for (auto label : labels) {
-      labels_bitmap_.resize(label + 1, false);
-    }
+    size_t max_label = labels.empty() ? 0 : *labels.rbegin();
+    labels_bitmap_.resize(max_label + 1, false);
   }
   ~MLVertexColumnBuilderOpt() = default;
 

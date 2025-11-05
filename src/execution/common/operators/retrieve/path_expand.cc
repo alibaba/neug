@@ -55,6 +55,9 @@ gs::result<Context> PathExpand::edge_expand_v(const GraphReadInterface& graph,
           graph.schema().vertex_label_num());
       for (const auto& label : params.labels) {
         labels.emplace(label.dst_label);
+        if (params.hop_lower == 0) {
+          labels.emplace(label.src_label);
+        }
         out_labels_map[label.src_label].emplace_back(label);
       }
 
@@ -107,6 +110,9 @@ gs::result<Context> PathExpand::edge_expand_v(const GraphReadInterface& graph,
           graph.schema().vertex_label_num());
       for (auto& label : params.labels) {
         labels.emplace(label.src_label);
+        if (params.hop_lower == 0) {
+          labels.emplace(label.dst_label);
+        }
         in_labels_map[label.dst_label].emplace_back(label);
       }
 
