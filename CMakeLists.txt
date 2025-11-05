@@ -878,6 +878,10 @@ if (NOT USE_SYSTEM_PROTOBUF)
     install_neug_target(libprotoc)
 endif()
 
+if (WITH_MIMALLOC)
+	install_neug_target(mimalloc)
+endif()
+
 if(BUILD_EXTENSIONS)
     string(REPLACE ";" " " EXTENSIONS_LIST "${BUILD_EXTENSIONS}")
     message(STATUS "Building extensions: ${EXTENSIONS_LIST}")
