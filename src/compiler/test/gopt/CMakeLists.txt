@@ -17,4 +17,5 @@ add_neug_test(
 	lsqb_test.cpp
 	bi_test.cpp
 	extension_test.cpp
-	admin_test.cpp)
+	admin_test.cpp
+	param_test.cpp)

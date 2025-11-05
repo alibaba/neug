@@ -1938,7 +1938,37 @@
    {
     "opr": {
      "unfold": {
-      "tag": 8,
+      "input_expr": {
+       "operators": [
+        {
+         "var": {
+          "tag": {
+           "id": 8
+          },
+          "node_type": {
+           "data_type": {
+            "array": {
+             "component_type": {
+              "primitive_type": "DT_ANY"
+             },
+             "max_length": 0
+            }
+           }
+          }
+         },
+         "node_type": {
+          "data_type": {
+           "array": {
+            "component_type": {
+             "primitive_type": "DT_ANY"
+            },
+            "max_length": 0
+           }
+          }
+         }
+        }
+       ]
+      },
       "alias": 9
      }
     },

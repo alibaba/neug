@@ -20,6 +20,7 @@
 #include <cstdlib>
 #include <memory>
 #include <string>
+#include <unordered_set>
 #include <vector>
 #include "neug/compiler/binder/expression/expression.h"
 #include "neug/compiler/binder/expression/property_expression.h"
@@ -677,15 +678,13 @@ void GQueryConvertor::convertUnwind(const planner::LogicalUnwind& unwind,
     THROW_EXCEPTION_WITH_FILE_LINE(
         "unwind input and output expr should not be null");
   }
-  auto inputAliasId =
-      aliasManager->getAliasId(unwind.getInExpr()->getUniqueName());
-  if (inputAliasId == DEFAULT_ALIAS_ID) {
-    THROW_EXCEPTION_WITH_FILE_LINE("invalid unwind input alias id");
-  }
+
   auto unwindPB = std::make_unique<::physical::Unfold>();
-  auto inputAliasPB = std::make_unique<google::protobuf::Int32Value>();
-  inputAliasPB->set_value(inputAliasId);
-  unwindPB->set_allocated_tag(inputAliasPB.release());
+  auto inputExpr = unwind.getInExpr();
+  auto exprPB = unwind.getNumChildren() > 0
+                    ? exprConvertor->convert(*inputExpr, *unwind.getChild(0))
+                    : exprConvertor->convert(*inputExpr, {});
+  unwindPB->set_allocated_input_expr(exprPB.release());
 
   int outAliasId =
       aliasManager->getAliasId(unwind.getOutExpr()->getUniqueName());

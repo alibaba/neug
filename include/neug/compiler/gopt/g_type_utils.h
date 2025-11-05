@@ -83,13 +83,18 @@ class GTypeUtils {
       } else if (temporalType["interval"].IsDefined()) {
         return gs::common::LogicalType(gs::common::LogicalTypeID::INTERVAL);
       } else {
-        // Print yaml node
-        LOG(ERROR) << "Unsupported temporal type in YAML: " << node["temporal"];
-        THROW_RUNTIME_ERROR("Unsupported temporal type in YAML");
+        THROW_RUNTIME_ERROR("Unsupported temporal type in YAML: " +
+                            node.as<std::string>());
       }
     }
-    LOG(WARNING) << "Unsupported type in YAML: " << node;
-    return gs::common::LogicalType(gs::common::LogicalTypeID::ANY);
+    auto arrayType = node["array"];
+    if (arrayType && arrayType.IsMap()) {
+      auto componentType = arrayType["component_type"];
+      CHECK(componentType.IsDefined())
+          << "component type is undefined in array: " << componentType;
+      return gs::common::LogicalType::LIST(createLogicalType(componentType));
+    }
+    THROW_RUNTIME_ERROR("Unsupported type in YAML: " + node.as<std::string>());
   }
 
   static inline YAML::Node toYAML(const gs::common::LogicalType& type) {

@@ -44,6 +44,8 @@ class NEUG_API ParameterExpression final : public Expression {
 
   common::Value getValue() const { return value; }
 
+  std::string getName() const { return parameterName; }
+
  private:
   std::string toStringInternal() const override { return "$" + parameterName; }
   static std::string createUniqueName(const std::string& input) {

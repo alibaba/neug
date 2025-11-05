@@ -45,8 +45,8 @@
 #include "neug/utils/proto/plan/expr.pb.h"
 #include "neug/utils/proto/plan/physical.pb.h"
 #endif
-#include "neug/utils/exception/exception.h"
 #include "neug/compiler/gopt/g_catalog_holder.h"
+#include "neug/utils/exception/exception.h"
 
 namespace gs {
 namespace gopt {
@@ -111,6 +111,9 @@ std::unique_ptr<::common::Expression> GExprConverter::convert(
   case common::ExpressionType::CASE_ELSE: {
     return convertCaseExpression(expr.constCast<binder::CaseExpression>(),
                                  schemaAlias);
+  }
+  case common::ExpressionType::PARAMETER: {
+    return convertParam(expr.constCast<binder::ParameterExpression>());
   }
   default:
     THROW_EXCEPTION_WITH_FILE_LINE("Unsupported expression type: " +
@@ -374,6 +377,21 @@ std::unique_ptr<::common::NameOrId> GExprConverter::convertAlias(
   auto alias = std::make_unique<::common::NameOrId>();
   alias->set_id(aliasId);
   return alias;
+}
+
+std::unique_ptr<::common::Expression> GExprConverter::convertParam(
+    const binder::ParameterExpression& expr) {
+  auto paramPB = std::make_unique<::common::DynamicParam>();
+  paramPB->set_name(expr.getName());
+  paramPB->set_allocated_data_type(
+      typeConverter.convertLogicalType(expr.getDataType().copy(), expr)
+          .release());
+  // todo: Engine get parameter value by its name (not index) during dynamic
+  // parameter execution, here we just set a default 0 for all parameters.
+  paramPB->set_index(0);
+  auto exprPB = std::make_unique<::common::Expression>();
+  exprPB->add_operators()->set_allocated_param(paramPB.release());
+  return exprPB;
 }
 
 std::unique_ptr<::common::Expression> GExprConverter::convertLiteral(
@@ -651,12 +669,15 @@ std::unique_ptr<::common::Expression> GExprConverter::convertScalarFunc(
   auto signature = fn.signatureName;
   auto gCatalog = catalog::GCatalogHolder::getGCatalog();
   try {
-    auto func = gCatalog->getFunctionWithSignature(&gs::transaction::DUMMY_TRANSACTION, signature);
+    auto func = gCatalog->getFunctionWithSignature(
+        &gs::transaction::DUMMY_TRANSACTION, signature);
     if (!func) {
-      THROW_EXCEPTION_WITH_FILE_LINE("Function with signature '" + signature + "' not found in catalog");
+      THROW_EXCEPTION_WITH_FILE_LINE("Function with signature '" + signature +
+                                     "' not found in catalog");
     }
   } catch (const std::exception& e) {
-    THROW_EXCEPTION_WITH_FILE_LINE("Function lookup failed for signature '" + signature + "': " + e.what());
+    THROW_EXCEPTION_WITH_FILE_LINE("Function lookup failed for signature '" +
+                                   signature + "': " + e.what());
   }
   return convertExtensionFunc(sfExpr, schemaAlias);
 }

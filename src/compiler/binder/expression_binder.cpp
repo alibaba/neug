@@ -60,14 +60,6 @@ std::shared_ptr<Expression> ExpressionBinder::bindExpression(
         allParamExist = false;
       }
     }
-    if (!allParamExist) {
-      auto expr = std::make_shared<ParameterExpression>(
-          binder->getUniqueExpressionName(""), Value::createNullValue());
-      if (parsedExpression.hasAlias()) {
-        expr->setAlias(parsedExpression.getAlias());
-      }
-      return expr;
-    }
   }
   std::shared_ptr<Expression> expression;
   auto expressionType = parsedExpression.getExpressionType();

@@ -85,9 +85,11 @@ message GroupBy {
 
 message Unfold {
   // The tag of a graph relation that **must** refer to a data of collection type
+  // to be deprecated, use input_expr instead
   google.protobuf.Int32Value tag = 1;
   // The alias tag for the elements that are unfolded from the collection
   google.protobuf.Int32Value alias = 2;
+  common.Expression input_expr = 3; 
 }
 
 message Union {

@@ -23,6 +23,7 @@
 #include "neug/compiler/binder/expression/expression.h"
 #include "neug/compiler/binder/expression/literal_expression.h"
 #include "neug/compiler/binder/expression/node_rel_expression.h"
+#include "neug/compiler/binder/expression/parameter_expression.h"
 #include "neug/compiler/binder/expression/property_expression.h"
 #include "neug/compiler/binder/expression/scalar_function_expression.h"
 #include "neug/compiler/binder/expression/variable_expression.h"
@@ -70,6 +71,9 @@ class GExprConverter {
 
  private:
   // Core expression type converters
+  // convert dynamic parameter
+  std::unique_ptr<::common::Expression> convertParam(
+      const binder::ParameterExpression& expr);
   std::unique_ptr<::common::Expression> convertLiteral(
       const binder::LiteralExpression& expr);
   std::unique_ptr<::common::Expression> convertProperty(
