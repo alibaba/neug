@@ -61,10 +61,13 @@ struct VertexSchema {
         storage_strategies(storage_strategies_),
         description(description_),
         max_num(max_num_) {
+    vprop_logical_deleted.resize(property_names_.size(), false);
     storage_strategies.resize(property_types_.size(), StorageStrategy::kMem);
   }
 
   void clear();
+
+  inline bool empty() const { return primary_keys.empty(); }
 
   void add_properties(const std::vector<std::string>& names,
                       const std::vector<PropertyType>& types,
@@ -76,7 +79,10 @@ struct VertexSchema {
   void rename_properties(const std::vector<std::string>& names,
                          const std::vector<std::string>& renames);
 
-  void delete_properties(const std::vector<std::string>& names);
+  void delete_properties(const std::vector<std::string>& names,
+                         bool is_soft = false);
+
+  void revert_delete_properties(const std::vector<std::string>& names);
 
   bool has_property(const std::string& prop) const;
 
@@ -87,6 +93,12 @@ struct VertexSchema {
   std::vector<StorageStrategy> storage_strategies;
   std::string description;
   size_t max_num;
+
+  // Mark whether the vertex property is logically deleted
+  std::vector<bool> vprop_logical_deleted;
+
+ private:
+  bool has_property_internal(const std::string& prop) const;
 
   friend class Schema;
 };
@@ -114,12 +126,15 @@ struct EdgeSchema {
         properties(properties_),
         property_names(property_names_),
         strategies(strategies_) {
+    eprop_logical_deleted.resize(property_names_.size(), false);
     strategies.resize(properties_.size(), StorageStrategy::kMem);
     CHECK(properties.size() == property_names.size());
     CHECK(properties.size() == strategies.size());
   }
 
   bool is_bundled() const;
+
+  bool empty() const { return src_label_name.empty(); }
 
   bool has_property(const std::string& prop) const;
 
@@ -130,7 +145,10 @@ struct EdgeSchema {
   void rename_properties(const std::vector<std::string>& names,
                          const std::vector<std::string>& renames);
 
-  void delete_properties(const std::vector<std::string>& names);
+  void delete_properties(const std::vector<std::string>& names,
+                         bool is_soft = false);
+
+  void revert_delete_properties(const std::vector<std::string>& names);
 
   std::string src_label_name, dst_label_name, edge_label_name;
   bool sort_on_compaction;
@@ -142,6 +160,12 @@ struct EdgeSchema {
   std::vector<PropertyType> properties;
   std::vector<std::string> property_names;
   std::vector<StorageStrategy> strategies;
+
+  // Mark whether the edge property is logically deleted
+  std::vector<bool> eprop_logical_deleted;
+
+ private:
+  bool has_property_internal(const std::string& prop) const;
 
   friend class Schema;
 };
@@ -217,18 +241,29 @@ class Schema {
                     bool sort_on_compaction = false,
                     const std::string& description = "");
 
-  void DeleteVertexLabel(const std::string& label);
-  void DeleteEdgeLabel(const std::string& label);
+  void DeleteVertexLabel(const std::string& label, bool is_soft = false);
+
+  void RevertDeleteVertexLabel(label_t label);
+
+  void DeleteEdgeLabel(const std::string& label, bool is_soft = false);
+
+  void RevertDeleteEdgeLabel(label_t label);
+
   void DeleteEdgeLabel(const label_t& src, const label_t& dst,
-                       const label_t& edge);
+                       const label_t& edge, bool is_soft = false);
+
   void DeleteEdgeLabel(const std::string& src, const std::string& dst,
-                       const std::string& edge);
+                       const std::string& edge, bool is_soft = false);
+
+  void RevertDeleteEdgeLabel(const label_t& src, const label_t& dst,
+                             const label_t& edge);
 
   void AddVertexProperties(const std::string& label,
                            std::vector<std::string>& properties_names,
                            std::vector<PropertyType>& properties_types,
                            std::vector<StorageStrategy>& storage_strategies,
                            std::vector<Property>& properties_default_values);
+
   void AddEdgeProperties(const std::string& src_label,
                          const std::string& dst_label,
                          const std::string& edge_label,
@@ -246,13 +281,29 @@ class Schema {
                             std::vector<std::string>& properties_names,
                             std::vector<std::string>& properties_renames);
 
+  bool IsVertexLabelLogicalDeleted(const std::string& label) const;
+
+  bool IsEdgeLabelLogicalDeleted(const std::string& src_label,
+                                 const std::string& dst_label,
+                                 const std::string& edge_label) const;
+
   void DeleteVertexProperties(const std::string& label,
-                              std::vector<std::string>& properties_names);
+                              std::vector<std::string>& properties_names,
+                              bool is_soft = false);
+
+  void RevertDeleteVertexProperties(const std::string& label,
+                                    std::vector<std::string>& properties_names);
 
   void DeleteEdgeProperties(const std::string& src_label,
                             const std::string& dst_label,
                             const std::string& edge_label,
-                            std::vector<std::string>& properties_names);
+                            std::vector<std::string>& properties_names,
+                            bool is_soft = false);
+
+  void RevertDeleteEdgeProperties(const std::string& src_label,
+                                  const std::string& dst_label,
+                                  const std::string& edge_label,
+                                  std::vector<std::string>& properties_names);
 
   label_t vertex_label_num() const;
 
@@ -334,10 +385,12 @@ class Schema {
   bool edge_has_property(label_t src_label, label_t dst_label,
                          label_t edge_label, const std::string& prop) const;
 
+  // Even when triplet is logically deleted, it return true
   bool has_edge_label(const std::string& src_label,
                       const std::string& dst_label,
                       const std::string& edge_label) const;
 
+  // Even when triplet is logically deleted, it return true
   bool has_edge_label(label_t src_label, label_t dst_label,
                       label_t edge_label) const;
 
@@ -452,7 +505,13 @@ class Schema {
  private:
   label_t edge_label_to_index(const std::string& label);
   // Internal methods that do not check tombstone
+  label_t get_vertex_label_id_internal(const std::string& label) const;
   label_t get_edge_label_id_internal(const std::string& label) const;
+  bool vertex_has_property_internal(label_t label,
+                                    const std::string& prop) const;
+  bool edge_has_property_internal(label_t src_label, label_t dst_label,
+                                  label_t edge_label,
+                                  const std::string& prop) const;
 
   std::string name_, id_;
   IdIndexer<std::string, label_t> vlabel_indexer_;

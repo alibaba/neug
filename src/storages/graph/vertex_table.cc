@@ -179,8 +179,10 @@ void VertexTable::Reserve(size_t cap) {
   if (cap > indexer_.capacity()) {
     indexer_.reserve(cap);
   }
-  table_->resize(cap);
-  vertex_ts_.resize(cap);
+  if (table_) {
+    table_->resize(cap);
+    vertex_ts_.resize(cap);
+  }
 }
 
 void VertexTable::BatchAddVertices(std::vector<Property>&& ids,

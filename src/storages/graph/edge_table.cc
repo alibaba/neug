@@ -819,7 +819,7 @@ void EdgeTable::dropAndCreateNewUnbundledCSR(bool delete_property) {
   std::shared_ptr<ColumnBase> prev_data_col = nullptr;
 
   if (!delete_property) {
-    if (table_->col_num() > 1) {
+    if (table_->col_num() >= 1) {
       prev_data_col = table_->get_column_by_id(0);
     }
   }

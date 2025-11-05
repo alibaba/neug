@@ -35,3 +35,6 @@ add_neug_test(test_extension test_extension.cc)
 
 # Schema tests
 add_neug_test(schema_test schema_test.cc)
+
+# Logical delete tests
+add_neug_test(logical_delete_test logical_delete_test.cc)

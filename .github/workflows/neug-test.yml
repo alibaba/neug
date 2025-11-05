@@ -156,6 +156,8 @@ jobs:
         ctest -R gopt_test -V
         ctest -R version_manager_test -V
         ctest -R test_vertex_table -V
+        ctest -R schema_test -V
+        ctest -R logical_delete_test -V
 
     - name: Run Python Test
       run: |

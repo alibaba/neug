@@ -201,12 +201,26 @@ class PropertyGraph {
    * @return Status Status indicating success or failure
    */
   Status DeleteVertexType(const std::string& vertex_type_name,
-                          bool error_on_conflict = true);
+                          bool error_on_conflict = true, bool is_soft = false);
+
+  /**
+   * @brief Revert a logical deletion of a vertex type.
+   * @param label_id Expect label_id not label_name
+   * @return Status Status indicating success or failure
+   */
+  Status RevertDeleteVertexType(label_t label_id,
+                                bool error_on_conflict = true);
 
   Status DeleteEdgeType(const std::string& src_vertex_type,
                         const std::string& dst_vertex_type,
                         const std::string& edge_type_name,
-                        bool error_on_conflict = true);
+                        bool error_on_conflict = true, bool is_soft = false);
+
+  // Could only revert soft delete
+  Status RevertDeleteEdgeType(const std::string& src_vertex_type,
+                              const std::string& dst_vertex_type,
+                              const std::string& edge_type_name,
+                              bool error_on_conflict = true);
 
   Status AddVertexProperties(
       const std::string& vertex_type_name,
@@ -237,13 +251,25 @@ class PropertyGraph {
   Status DeleteVertexProperties(
       const std::string& vertex_type_name,
       const std::vector<std::string>& delete_properties,
+      bool error_on_conflict = true, bool is_soft = false);
+
+  Status RevertDeleteVertexProperties(
+      const std::string& vertex_type_name,
+      const std::vector<std::string>& delete_properties,
       bool error_on_conflict = true);
 
   Status DeleteEdgeProperties(const std::string& src_type_name,
                               const std::string& dst_type_name,
                               const std::string& edge_type_name,
                               const std::vector<std::string>& delete_properties,
-                              bool error_on_conflict = true);
+                              bool error_on_conflict = true,
+                              bool is_soft = false);
+
+  Status RevertDeleteEdgeProperties(
+      const std::string& src_type_name, const std::string& dst_type_name,
+      const std::string& edge_type_name,
+      const std::vector<std::string>& delete_properties,
+      bool error_on_conflict = true);
 
   Status BatchAddVertices(label_t v_label_id,
                           std::shared_ptr<IRecordBatchSupplier> supplier);
@@ -343,6 +369,27 @@ class PropertyGraph {
   void generateStatistics() const;
 
  private:
+  Status delete_vertex_properties_check(const std::string& vertex_type_name,
+                                        const std::vector<std::string>& props,
+                                        bool error_on_conflict,
+                                        std::vector<std::string>& valid_props);
+  Status delete_edge_properties_check(const std::string& src_type_name,
+                                      const std::string& dst_type_name,
+                                      const std::string& edge_type_name,
+                                      const std::vector<std::string>& props,
+                                      bool error_on_conflict,
+                                      std::vector<std::string>& valid_props);
+
+  Status edge_triplet_check(const std::string& src_type_name,
+                            const std::string& dst_type_name,
+                            const std::string& edge_type_name);
+
+  // Check whether the edge triplet exists, maybe marked as deleted
+  Status edge_triplet_exist(const std::string& src_type_name,
+                            const std::string& dst_type_name,
+                            const std::string& edge_type_name);
+
+  Status vertex_label_check(const std::string& vertex_type_name);
   std::string work_dir_;
   Schema schema_;
   std::vector<std::shared_ptr<std::mutex>> v_mutex_;

@@ -522,7 +522,7 @@ def test_alter_edge_table_drop_property(tmp_path):
     # incorrectly drop a property that does not exist
     with pytest.raises(Exception) as excinfo:
         conn.execute("ALTER TABLE knows DROP weight1;")
-    assert str(ERR_INVALID_SCHEMA) in str(excinfo.value)
+    assert str(ERR_INVALID_ARGUMENT) in str(excinfo.value)
     conn.close()
     db.close()
 

@@ -24,6 +24,8 @@
 #include "neug/utils/property/table.h"
 
 namespace gs {
+
+class PropertyGraph;
 class VertexTable {
  public:
   VertexTable(std::string v_label_name, PropertyType pk_type,
@@ -167,6 +169,11 @@ class VertexTable {
   void insert_vertices(std::shared_ptr<IRecordBatchSupplier> suppliers);
 
  private:
+  bool is_deleted() const { return deleted_; }
+
+  void mark_as_deleted() { deleted_ = true; }
+
+  void revert_deleted() { deleted_ = false; }
   template <typename PK_T>
   std::vector<vid_t> insert_primary_keys(
       std::shared_ptr<arrow::Array> primary_key_column) {
@@ -234,7 +241,7 @@ class VertexTable {
         break;
       }
       auto columns = batch->columns();
-      auto property_names = vertex_schema_->property_names;
+      const auto& property_names = vertex_schema_->property_names;
       CHECK(columns.size() == property_names.size() + 1)
           << "Number of columns in the batch (" << columns.size()
           << ") does not match the number of properties ("
@@ -270,8 +277,9 @@ class VertexTable {
 
   std::string work_dir_;
   bool is_vertex_table_modified_;  // No lock or atomic need,
-                                   // synchronized with version manager
-                                   // by UpdateTransaction.
+  bool deleted_;  // indicates whether the vertex table is deleted softly
+
+  friend class PropertyGraph;
 };
 }  // namespace gs
 

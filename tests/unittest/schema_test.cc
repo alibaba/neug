@@ -49,7 +49,7 @@ std::vector<std::tuple<PropertyType, std::string, size_t>> VPk(
 
 }  // namespace
 
-TEST(SchemaTest, AddVertexLabel_AddRenameDeleteVertexProperties) {
+TEST(SchemaTest, AddVertexLabel_AddRenameDeleteVertexProperties_Physical) {
   gs::Schema schema;
 
   // 1) Add a vertex label "Person" with 2 props and a single primary key
@@ -103,7 +103,7 @@ TEST(SchemaTest, AddVertexLabel_AddRenameDeleteVertexProperties) {
                                       names_after_rename.end()}),
             std::vector<std::string>({"name", "age", "gpa"}));
 
-  // 4) Delete vertex properties
+  // 4) Delete vertex properties (physical)
   std::vector<std::string> del_names = {"age"};
   schema.DeleteVertexProperties("Person", del_names);
   auto names_after_del = schema.get_vertex_property_names("Person");
@@ -115,7 +115,7 @@ TEST(SchemaTest, AddVertexLabel_AddRenameDeleteVertexProperties) {
   EXPECT_FALSE(schema.vertex_has_property("Person", "age"));  // removed
 }
 
-TEST(SchemaTest, AddEdgeLabel_AddRenameDeleteEdgeProperties) {
+TEST(SchemaTest, AddEdgeLabel_AddRenameDeleteEdgeProperties_Physical) {
   gs::Schema schema;
 
   // Prepare two vertex labels first
@@ -179,7 +179,7 @@ TEST(SchemaTest, AddEdgeLabel_AddRenameDeleteEdgeProperties) {
                                       names_after_rename.end()}),
             std::vector<std::string>({"since", "role", "income"}));
 
-  // 4) Delete edge properties
+  // 4) Delete edge properties (physical)
   std::vector<std::string> del_e = {"role"};
   schema.DeleteEdgeProperties("Person", "Company", "WorksAt", del_e);
   auto names_after_del =
@@ -193,7 +193,7 @@ TEST(SchemaTest, AddEdgeLabel_AddRenameDeleteEdgeProperties) {
       schema.edge_has_property("Person", "Company", "WorksAt", "role"));
 }
 
-TEST(SchemaTest, DeleteVertexLabel_ThenReAddActsAsRevert) {
+TEST(SchemaTest, DeleteVertexLabel_LogicalThenReAddActsAsRevert) {
   gs::Schema schema;
   // Add vertex
   auto t = VProps({PropertyType::StringView()});
@@ -204,11 +204,9 @@ TEST(SchemaTest, DeleteVertexLabel_ThenReAddActsAsRevert) {
                         {s.begin(), s.end()}, 100, "");
   ASSERT_TRUE(schema.contains_vertex_label("City"));
 
-  schema.DeleteVertexLabel("City");
+  schema.DeleteVertexLabel("City", true);
   EXPECT_FALSE(schema.contains_vertex_label("City"));
 
-  // Re-add with same name should implicitly clear the tombstone (acts like
-  // revert)
   schema.AddVertexLabel("City", {PropertyType::StringView()}, {"name"},
                         VPk(PropertyType::StringView(), "name", 0),
                         /*strategies*/ {}, /*max_vnum*/ 100, "");
@@ -216,7 +214,7 @@ TEST(SchemaTest, DeleteVertexLabel_ThenReAddActsAsRevert) {
   EXPECT_EQ(schema.get_vertex_property_names("City")[0], "name");
 }
 
-TEST(SchemaTest, DeleteVertexLabel_ThenReAdd) {
+TEST(SchemaTest, DeleteVertexLabel_PhysicalThenReAdd) {
   gs::Schema schema;
   auto t = VProps({PropertyType::StringView()});
   auto n = VNames({"name"});
@@ -229,9 +227,176 @@ TEST(SchemaTest, DeleteVertexLabel_ThenReAdd) {
   schema.DeleteVertexLabel("Project");
   EXPECT_FALSE(schema.contains_vertex_label("Project"));
 
-  // Re-add
   schema.AddVertexLabel("Project", {PropertyType::StringView()}, {"name"},
                         VPk(PropertyType::StringView(), "name", 0), {}, 100,
                         "");
   EXPECT_TRUE(schema.contains_vertex_label("Project"));
+}
+
+TEST(SchemaTest, DeleteEdgeLabel_LogicalAndPhysicalAndReAdd) {
+  gs::Schema schema;
+  {
+    auto t = VProps({PropertyType::Int64(), PropertyType::StringView()});
+    auto n = VNames({"id", "name"});
+    auto pk = VPk(PropertyType::Int64(), "id", 0);
+    auto s = VStrats(t.size(), StorageStrategy::kMem);
+    schema.AddVertexLabel("A", t, {n.begin(), n.end()}, pk,
+                          {s.begin(), s.end()}, 100, "");
+    schema.AddVertexLabel("B", t, {n.begin(), n.end()}, pk,
+                          {s.begin(), s.end()}, 100, "");
+  }
+
+  schema.AddEdgeLabel("A", "B", "Link", {PropertyType::Int32()}, {"w"}, {},
+                      EdgeStrategy::kMultiple, EdgeStrategy::kMultiple, true,
+                      true, false, "");
+
+  ASSERT_TRUE(schema.exist("A", "B", "Link"));
+  auto src = schema.get_vertex_label_id("A");
+  auto dst = schema.get_vertex_label_id("B");
+  auto el = schema.get_edge_label_id("Link");
+
+  schema.DeleteEdgeLabel(src, dst, el, true);
+  EXPECT_FALSE(schema.exist(src, dst, el));
+  EXPECT_FALSE(schema.exist(src, dst, el));
+
+  schema.AddEdgeLabel("A", "B", "Link", {PropertyType::Int32()}, {"w"}, {},
+                      EdgeStrategy::kMultiple, EdgeStrategy::kMultiple, true,
+                      true, false, "");
+  EXPECT_TRUE(schema.edge_triplet_valid(src, dst, el));
+
+  schema.DeleteEdgeLabel(src, dst, el);
+  EXPECT_FALSE(schema.exist(src, dst, el));
+
+  schema.AddEdgeLabel("A", "B", "Link", {PropertyType::Int32()}, {"w"}, {},
+                      EdgeStrategy::kMultiple, EdgeStrategy::kMultiple, true,
+                      true, false, "");
+  EXPECT_TRUE(schema.exist(src, dst, el));
+
+  schema.DeleteEdgeLabel("Link");
+  EXPECT_FALSE(schema.contains_edge_label("Link"));
+}
+
+TEST(SchemaTest, LogicalDeleteVertexProperties_HidesProperty) {
+  gs::Schema schema;
+
+  // Person(id PK, name, age)
+  auto types = VProps({PropertyType::StringView(), PropertyType::Int32()});
+  auto names = VNames({"name", "age"});
+  auto pk = VPk(PropertyType::Int64(), "id", 0);
+  auto strats = VStrats(types.size(), StorageStrategy::kMem);
+  // Only non-PK properties go into vproperties_/vprop_names_
+  schema.AddVertexLabel("Person", types, {names.begin(), names.end()}, pk,
+                        {strats.begin(), strats.end()}, 1024, "");
+
+  // Pre-condition
+  ASSERT_TRUE(schema.vertex_has_property("Person", "name"));
+  ASSERT_TRUE(schema.vertex_has_property("Person", "age"));
+  ASSERT_TRUE(schema.vertex_has_primary_key("Person", "id"));
+
+  std::vector<std::string> del = {"age"};
+  schema.DeleteVertexProperties("Person", del, true);
+
+  EXPECT_TRUE(schema.vertex_has_property("Person", "name"));
+  EXPECT_FALSE(schema.vertex_has_property("Person", "age"));
+  EXPECT_TRUE(schema.vertex_has_primary_key("Person", "id"));
+}
+
+TEST(SchemaTest, LogicalDeleteEdgeProperties_HidesProperty) {
+  gs::Schema schema;
+
+  auto vt = VProps({PropertyType::StringView()});
+  auto vn = VNames({"name"});
+  auto vpk = VPk(PropertyType::Int64(), "id", 0);
+  auto vs = VStrats(vt.size(), StorageStrategy::kMem);
+  schema.AddVertexLabel("A", vt, {vn.begin(), vn.end()}, vpk,
+                        {vs.begin(), vs.end()}, 100, "");
+  schema.AddVertexLabel("B", vt, {vn.begin(), vn.end()}, vpk,
+                        {vs.begin(), vs.end()}, 100, "");
+
+  std::vector<PropertyType> e_types = {PropertyType::Int32(),
+                                       PropertyType::StringView()};
+  std::vector<std::string> e_names = {"w", "tag"};
+  schema.AddEdgeLabel("A", "B", "Link", e_types, e_names, {},
+                      EdgeStrategy::kMultiple, EdgeStrategy::kMultiple, true,
+                      true, false, "");
+
+  ASSERT_TRUE(schema.edge_has_property("A", "B", "Link", "w"));
+  ASSERT_TRUE(schema.edge_has_property("A", "B", "Link", "tag"));
+
+  // Logical delete edge property "tag"
+  std::vector<std::string> del = {"tag"};
+  schema.DeleteEdgeProperties("A", "B", "Link", del, true);
+
+  // Expected behavior: logically-deleted edge property should be hidden
+  EXPECT_TRUE(schema.edge_has_property("A", "B", "Link", "w"));
+  EXPECT_FALSE(schema.edge_has_property("A", "B", "Link", "tag"));
+}
+
+TEST(SchemaTest, RevertDeleteVertexLabel_ClearsTombstone) {
+  gs::Schema schema;
+  auto t = VProps({PropertyType::StringView()});
+  auto n = VNames({"name"});
+  auto pk = VPk(PropertyType::Int64(), "id", 0);
+  auto s = VStrats(t.size(), StorageStrategy::kMem);
+  schema.AddVertexLabel("City", t, {n.begin(), n.end()}, pk,
+                        {s.begin(), s.end()}, 100, "");
+  ASSERT_TRUE(schema.contains_vertex_label("City"));
+  auto city_label = schema.get_vertex_label_id("City");
+
+  schema.DeleteVertexLabel("City", true);
+  EXPECT_FALSE(schema.contains_vertex_label("City"));
+
+  // When implemented, this should restore visibility
+  schema.RevertDeleteVertexLabel(city_label);
+  EXPECT_TRUE(schema.contains_vertex_label("City"));
+}
+
+TEST(SchemaTest, RevertDeleteEdgeLabel_ByName_ClearsTombstone) {
+  gs::Schema schema;
+  auto t = VProps({PropertyType::StringView()});
+  auto n = VNames({"name"});
+  auto pk = VPk(PropertyType::Int64(), "id", 0);
+  auto s = VStrats(t.size(), StorageStrategy::kMem);
+  schema.AddVertexLabel("A", t, {n.begin(), n.end()}, pk, {s.begin(), s.end()},
+                        100, "");
+  schema.AddVertexLabel("B", t, {n.begin(), n.end()}, pk, {s.begin(), s.end()},
+                        100, "");
+
+  schema.AddEdgeLabel("A", "B", "Link", {PropertyType::Int32()}, {"w"}, {},
+                      EdgeStrategy::kMultiple, EdgeStrategy::kMultiple, true,
+                      true, false, "");
+  ASSERT_TRUE(schema.contains_edge_label("Link"));
+  auto e_label = schema.get_edge_label_id("Link");
+
+  schema.DeleteEdgeLabel("Link", true);
+  EXPECT_FALSE(schema.contains_edge_label("Link"));
+
+  schema.RevertDeleteEdgeLabel(e_label);
+  EXPECT_TRUE(schema.contains_edge_label("Link"));
+}
+
+TEST(SchemaTest, RevertDeleteEdgeLabel_ByTriplet_ClearsTombstone) {
+  gs::Schema schema;
+  auto t = VProps({PropertyType::StringView()});
+  auto n = VNames({"name"});
+  auto pk = VPk(PropertyType::Int64(), "id", 0);
+  auto s = VStrats(t.size(), StorageStrategy::kMem);
+  schema.AddVertexLabel("A", t, {n.begin(), n.end()}, pk, {s.begin(), s.end()},
+                        100, "");
+  schema.AddVertexLabel("B", t, {n.begin(), n.end()}, pk, {s.begin(), s.end()},
+                        100, "");
+
+  schema.AddEdgeLabel("A", "B", "Link", {PropertyType::Int32()}, {"w"}, {},
+                      EdgeStrategy::kMultiple, EdgeStrategy::kMultiple, true,
+                      true, false, "");
+  auto src = schema.get_vertex_label_id("A");
+  auto dst = schema.get_vertex_label_id("B");
+  auto el = schema.get_edge_label_id("Link");
+  ASSERT_TRUE(schema.edge_triplet_valid(src, dst, el));
+
+  schema.DeleteEdgeLabel(src, dst, el, true);
+  EXPECT_FALSE(schema.edge_triplet_valid(src, dst, el));
+
+  schema.RevertDeleteEdgeLabel(src, dst, el);
+  EXPECT_TRUE(schema.edge_triplet_valid(src, dst, el));
 }

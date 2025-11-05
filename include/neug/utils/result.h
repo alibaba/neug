@@ -66,6 +66,18 @@ class Status {
     }                          \
   } while (0)
 
+#define RETURN_IF_NOT_OK_CONFLICT(expr, error_on_conflict)     \
+  do {                                                         \
+    auto status = (expr);                                      \
+    if (!status.ok()) {                                        \
+      if (error_on_conflict) {                                 \
+        return status;                                         \
+      } else {                                                 \
+        return Status(StatusCode::OK, status.error_message()); \
+      }                                                        \
+    }                                                          \
+  } while (0)
+
 template <typename ReturnType>
 using result = tl::expected<ReturnType, gs::Status>;
 
