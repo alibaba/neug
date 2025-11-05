@@ -383,7 +383,7 @@ void EdgeTable::AddProperties(const std::vector<std::string>& prop_names,
   } else {
     table_->add_columns(prop_names, prop_types, memory_level_);
   }
-}  // namespace gs
+}
 void EdgeTable::RenameProperties(const std::vector<std::string>& old_names,
                                  const std::vector<std::string>& new_names) {
   CHECK_EQ(old_names.size(), new_names.size());

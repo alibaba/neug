@@ -31,11 +31,6 @@
 
 namespace gs {
 
-#define LOG_FATAL_IF(cond, msg) \
-  if (cond) {                   \
-    LOG(FATAL) << msg;          \
-  }
-
 using StatusCode = gs::neug::interactive::Code;
 
 class Status {
