@@ -348,15 +348,8 @@ RTAny DateMinusExpr::eval_edge(const LabelTriplet& label, vid_t src, vid_t dst,
 
 RTAnyType DateMinusExpr::type() const { return RTAnyType::kI64Value; }
 
-ConstExpr::ConstExpr(const RTAny& val, bool take_ownship)
-    : val_(val), arena_(nullptr) {
-  if (val_.type() == RTAnyType::kStringValue && take_ownship) {
-    arena_ = std::make_shared<Arena>();
-    auto ptr = StringImpl::make_string_impl(val_.as_string());
-    val_ = RTAny::from_string(ptr->str_view());
-    arena_->emplace_back(std::move(ptr));
-  }
-}
+ConstExpr::ConstExpr(const RTAny& val, std::shared_ptr<Arena> ptr)
+    : val_(val), arena_(ptr) {}
 RTAny ConstExpr::eval_path(size_t idx, Arena& arena) const {
   if (arena_) {
     arena.emplace_back(std::make_unique<ArenaRef>(arena_));
@@ -632,14 +625,20 @@ RTAny PathEdgePropsExpr::eval_path(size_t idx, Arena& arena) const {
   return create_list(std::move(props), prop_type_, arena);
 }
 
-static RTAny parse_const_value(const ::common::Value& val) {
+static RTAny parse_const_value(const ::common::Value& val,
+                               std::shared_ptr<Arena>& arena) {
   switch (val.item_case()) {
   case ::common::Value::kI32:
     return RTAny::from_int32(val.i32());
   case ::common::Value::kU32:
     return RTAny::from_uint32(val.u32());
-  case ::common::Value::kStr:
-    return RTAny::from_string(val.str());
+  case ::common::Value::kStr: {
+    arena = std::make_shared<Arena>();
+    auto ptr = StringImpl::make_string_impl(val.str());
+    RTAny val = RTAny::from_string(ptr->str_view());
+    arena->emplace_back(std::move(ptr));
+    return val;
+  }
   case ::common::Value::kI64:
     return RTAny::from_int64(val.i64());
   case ::common::Value::kU64:
@@ -695,7 +694,8 @@ struct TypedTupleBuilder<N, 0, Args...> {
 };
 
 static RTAny parse_param(const ::common::DynamicParam& param,
-                         const std::map<std::string, std::string>& input) {
+                         const std::map<std::string, std::string>& input,
+                         std::shared_ptr<Arena>& arena) {
   if (param.data_type().type_case() ==
       ::common::IrDataType::TypeCase::kDataType) {
     auto type = parse_from_ir_data_type(param.data_type());
@@ -737,6 +737,23 @@ static RTAny parse_param(const ::common::DynamicParam& param,
     } else if (type == RTAnyType::kF64Value) {
       double val = std::stod(input.at(name));
       return RTAny::from_double(val);
+    } else if (type == RTAnyType::kList) {
+      if (param.data_type().data_type().array().component_type().has_string()) {
+        std::vector<std::string_view> vec;
+        const auto& val = input.at(name);
+        size_t start = 0;
+        for (size_t i = 0; i <= val.size(); ++i) {
+          if (i == val.size() || val[i] == ';') {
+            vec.emplace_back(val.data() + start, i - start);
+            start = i + 1;
+          }
+        }
+        arena = std::make_shared<Arena>();
+        auto ptr = ListImpl<std::string_view>::make_list_impl(std::move(vec));
+        List list(ptr.get());
+        arena->emplace_back(std::move(ptr));
+        return RTAny::from_list(list);
+      }
     }
 
     LOG(FATAL) << "not support type: " << param.DebugString();
@@ -816,14 +833,14 @@ static std::unique_ptr<ExprBase> build_expr(
     opr_stack.pop();
     switch (opr.item_case()) {
     case ::common::ExprOpr::kConst: {
-      if (opr.const_().item_case() == ::common::Value::kStr) {
-        const std::string& str = opr.const_().str();
-        return std::make_unique<ConstExpr>(RTAny::from_string(str), true);
-      }
-      return std::make_unique<ConstExpr>(parse_const_value(opr.const_()));
+      std::shared_ptr<Arena> arena = nullptr;
+      return std::make_unique<ConstExpr>(parse_const_value(opr.const_(), arena),
+                                         arena);
     }
     case ::common::ExprOpr::kParam: {
-      return std::make_unique<ConstExpr>(parse_param(opr.param(), params));
+      std::shared_ptr<Arena> arena = nullptr;
+      return std::make_unique<ConstExpr>(
+          parse_param(opr.param(), params, arena), arena);
     }
     case ::common::ExprOpr::kVar: {
       return std::make_unique<VariableExpr>(graph, ctx, opr.var(), var_type);
@@ -870,6 +887,14 @@ static std::unique_ptr<ExprBase> build_expr(
             }
           }
 
+        } else if (rhs.has_param()) {
+          auto key =
+              std::make_unique<VariableExpr>(graph, ctx, lhs.var(), var_type);
+          std::shared_ptr<Arena> arena = nullptr;
+          auto val = std::make_unique<ConstExpr>(
+              parse_param(rhs.param(), params, arena), arena);
+          return std::make_unique<WithInListExpr>(ctx, std::move(key),
+                                                  std::move(val));
         } else {
           LOG(FATAL) << "not support" << rhs.DebugString();
         }
@@ -1058,7 +1083,8 @@ static std::unique_ptr<ExprBase> build_expr(
       for (int i = 0; i < op.key_vals_size(); ++i) {
         auto& key = op.key_vals(i).key();
         auto& val = op.key_vals(i).val();
-        auto any = parse_const_value(key);
+        std::shared_ptr<Arena> arena = nullptr;
+        auto any = parse_const_value(key, arena);
         keys_vec.push_back(any);
         exprs.emplace_back(
             std::make_unique<VariableExpr>(graph, ctx, val,

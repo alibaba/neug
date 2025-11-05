@@ -70,6 +70,50 @@ class ExprBase {
   virtual ~ExprBase() = default;
 };
 
+class WithInListExpr : public ExprBase {
+ public:
+  WithInListExpr(const Context& ctx, std::unique_ptr<ExprBase>&& key,
+                 std::unique_ptr<ExprBase>&& val_list)
+      : key_(std::move(key)), val_list_(std::move(val_list)) {}
+
+  RTAny eval_path(size_t idx, Arena& arena) const override {
+    RTAny key_val = key_->eval_path(idx, arena);
+    if (key_val.is_null()) {
+      return RTAny::from_bool(false);
+    }
+    RTAny list_val = val_list_->eval_path(idx, arena);
+    return RTAny::from_bool(list_val.as_list().contains(key_val));
+  }
+
+  RTAny eval_vertex(label_t label, vid_t v, size_t idx,
+                    Arena& arena) const override {
+    RTAny key_val = key_->eval_vertex(label, v, idx, arena);
+    if (key_val.is_null()) {
+      return RTAny::from_bool(false);
+    }
+    RTAny list_val = val_list_->eval_vertex(label, v, idx, arena);
+    return RTAny::from_bool(list_val.as_list().contains(key_val));
+  }
+
+  RTAny eval_edge(const LabelTriplet& label, vid_t src, vid_t dst,
+                  const void* data_ptr, size_t idx,
+                  Arena& arena) const override {
+    RTAny key_val = key_->eval_edge(label, src, dst, data_ptr, idx, arena);
+    if (key_val.is_null()) {
+      return RTAny::from_bool(false);
+    }
+    RTAny list_val =
+        val_list_->eval_edge(label, src, dst, data_ptr, idx, arena);
+    return RTAny::from_bool(list_val.as_list().contains(key_val));
+  }
+
+  RTAnyType type() const override { return RTAnyType::kBoolValue; }
+
+  bool is_optional() const override { return key_->is_optional(); }
+  std::unique_ptr<ExprBase> key_;
+  std::unique_ptr<ExprBase> val_list_;
+};
+
 class VertexWithInSetExpr : public ExprBase {
  public:
   VertexWithInSetExpr(const Context& ctx, std::unique_ptr<ExprBase>&& key,
@@ -461,7 +505,7 @@ class DateMinusExpr : public ExprBase {
 
 class ConstExpr : public ExprBase {
  public:
-  explicit ConstExpr(const RTAny& val, bool take_ownership = false);
+  explicit ConstExpr(const RTAny& val, std::shared_ptr<Arena> ptr = nullptr);
   RTAny eval_path(size_t idx, Arena&) const override;
   RTAny eval_vertex(label_t label, vid_t v, size_t idx, Arena&) const override;
   RTAny eval_edge(const LabelTriplet& label, vid_t src, vid_t dst,

@@ -376,6 +376,7 @@ class ListImplBase : public CObject {
   virtual size_t size() const = 0;
   virtual RTAnyType type() const = 0;
   virtual RTAny get(size_t idx) const = 0;
+  virtual bool contains(const RTAny& val) const = 0;
 };
 
 class List {
@@ -386,6 +387,7 @@ class List {
   bool operator<(const List& p) const { return *impl_ < *(p.impl_); }
   bool operator==(const List& p) const { return *(impl_) == *(p.impl_); }
   size_t size() const { return impl_->size(); }
+  bool contains(const RTAny& val) const { return impl_->contains(val); }
   RTAny get(size_t idx) const;
   RTAnyType elem_type() const;
   std::string to_string() const;
@@ -959,6 +961,16 @@ class ListImpl : ListImplBase {
   }
   bool operator==(const ListImplBase& p) const override {
     return list_ == (dynamic_cast<const ListImpl<T>&>(p)).list_;
+  }
+
+  bool contains(const RTAny& val) const override {
+    T typed_val = TypedConverter<T>::to_typed(val);
+    for (size_t i = 0; i < list_.size(); ++i) {
+      if (is_valid_[i] && list_[i] == typed_val) {
+        return true;
+      }
+    }
+    return false;
   }
   size_t size() const override { return list_.size(); }
   RTAnyType type() const override { return TypedConverter<T>::type(); }
