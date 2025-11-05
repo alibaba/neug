@@ -53,8 +53,7 @@ InsertTransaction::~InsertTransaction() { Abort(); }
 bool InsertTransaction::AddVertex(label_t label, const Property& id,
                                   const std::vector<Property>& props) {
   size_t arc_size = arc_.GetSize();
-  arc_ << static_cast<uint8_t>(0) << label;
-  serialize_field(arc_, id);
+  arc_ << static_cast<uint8_t>(0) << label << id;
   std::vector<PropertyType> types =
       graph_.schema().get_vertex_properties(label);
   if (types.size() != props.size()) {
@@ -128,11 +127,8 @@ bool InsertTransaction::AddEdge(label_t src_label, const Property& src,
       return false;
     }
   }
-  arc_ << static_cast<uint8_t>(1) << src_label;
-  serialize_field(arc_, src);
-  arc_ << dst_label;
-  serialize_field(arc_, dst);
-  arc_ << edge_label;
+  arc_ << static_cast<uint8_t>(1);
+  arc_ << src_label << src << dst_label << dst << edge_label;
   arc_ << static_cast<uint32_t>(properties.size());
   for (size_t col_id = 0; col_id < properties.size(); ++col_id) {
     arc_ << static_cast<uint32_t>(col_id);

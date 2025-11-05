@@ -208,8 +208,7 @@ bool UpdateTransaction::AddVertex(label_t label, const Property& oid,
   extra_vertex_properties_[label].ingest(row_num, oarc);
 
   op_num_ += 1;
-  arc_ << static_cast<uint8_t>(0) << label;
-  serialize_field(arc_, dup_oid);
+  arc_ << static_cast<uint8_t>(0) << label << dup_oid;
   arc_.AddBytes(arc.GetBuffer(), arc.GetSize());
   return true;
 }
@@ -291,10 +290,9 @@ bool UpdateTransaction::AddEdge(label_t src_label, vid_t src_lid,
   }
 
   op_num_ += 1;
-  arc_ << static_cast<uint8_t>(1) << src_label;
-  serialize_field(arc_, lid_to_oid(src_label, src_lid));
-  arc_ << dst_label;
-  serialize_field(arc_, lid_to_oid(dst_label, dst_lid));
+  arc_ << static_cast<uint8_t>(1) << src_label
+       << lid_to_oid(src_label, src_lid);
+  arc_ << dst_label << lid_to_oid(dst_label, dst_lid);
   arc_ << edge_label;
 
   arc_ << static_cast<uint32_t>(dup_properties.size());
@@ -603,10 +601,8 @@ bool UpdateTransaction::SetVertexField(label_t label, vid_t lid, int col_id,
   }
 
   op_num_ += 1;
-  arc_ << static_cast<uint8_t>(2) << label;
-  serialize_field(arc_, lid_to_oid(label, lid));
-  arc_ << col_id;
-  serialize_field(arc_, dup_value);
+  arc_ << static_cast<uint8_t>(2) << label << lid_to_oid(label, lid);
+  arc_ << col_id << dup_value;
   return true;
 }
 
@@ -660,9 +656,9 @@ void UpdateTransaction::set_edge_data_with_offset(
 
   op_num_ += 1;
   arc_ << static_cast<uint8_t>(3) << static_cast<uint8_t>(dir ? 1 : 0) << label;
-  serialize_field(arc_, lid_to_oid(label, v));
+  arc_ << lid_to_oid(label, v);
   arc_ << neighbor_label;
-  serialize_field(arc_, lid_to_oid(neighbor_label, nbr));
+  arc_ << lid_to_oid(neighbor_label, nbr);
   arc_ << edge_label;
   arc_ << (uint32_t) 1;  // number of updated columns
   arc_ << col_id;        // column id
